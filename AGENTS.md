@@ -5,10 +5,11 @@ Read this map first, then only the files relevant to the request. Use `rg` for t
 ## Where to change things
 
 - Entry & wiring: `src/main.ts` (only mounts scene/UI and coordinates loop)
-- 2.5D isometric map, torch/skill dynamic lighting, camera & particles: `src/game/`
-- Idle combat AI, enemy waves, boss spawn, loot drop beams, stats: `src/game/`
-- Save/load, offline idle reward calculation, inventory & auto-salvage: `src/game/store.ts`
-- HUD overlay (HP/MP orbs, skill slots, top bar, inventory/settings): `src/ui/`, `src/styles/`
+- Field lighting, terrain and particles: `src/game/render/field.ts`; actors and animation: `src/game/render/entities.ts`; skill VFX and drops: `src/game/render/vfx.ts`; canvas setup and draw order: `src/game/render.ts`
+- Idle combat AI, enemy waves, boss spawn and progression: `src/game/world.ts`
+- Save migration and progression state: `src/game/store.ts`; item tables, drops, stats and salvage: `src/game/items.ts`
+- HUD and controls: `src/ui/hud.ts`; equipment, skill, status, floor and account dialogs: `src/ui/modals/`; UI wiring: `src/ui/interface.ts`
+- Styles: `src/styles/base.css`, `hud.css`, `modals.css`, `login.css` imported by `main.css`
 - Static assets / future AI-generated 2.5D spritesheets & tilesets: `public/assets/`
 
 ## Product & Concept Constraints (DJRPG)
@@ -53,4 +54,5 @@ Read this map first, then only the files relevant to the request. Use `rg` for t
 - **과거 일지 통독 금지**: 매 작업 시작 시 `docs/WORKLOG.md`의 최상단 최신 1개 기록만 참고하며, 과거 전체 일지나 아카이브 폴더를 절대 통독하지 않습니다.
 - **간결한 기록**: 작업 완료 시 변경 파일과 검증 결과만 `docs/WORKLOG.md` 상단에 **5줄 이내**로 간결히 기록합니다.
 - **최소 탐색 원칙**: `rg`로 관련 파일과 라인만 찾아 읽고, 전체 소스 트리를 한꺼번에 읽지 않습니다.
+- **모듈 경계 유지**: 새 거래소·직업·보스 등의 기능은 해당 `src/ui/modals/` 또는 `src/game/` 도메인 모듈에 배치하고, 기존 오케스트레이터 파일을 비대화하지 않습니다.
 - **불필요한 도구 호출 금지**: 헤드리스 브라우저나 화면 제어 도구를 실행하지 않습니다. 타입 체크·빌드 통과와 Git 반영으로 코드 작업은 완료됩니다.
