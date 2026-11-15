@@ -28,3 +28,4 @@
 ### 검증 및 완료 기준
 1. `npm run build` 성공 및 TypeScript 에러 0건.
 2. `docs/TASK.md`의 이번 요청을 `[x]`로 표시하고 `docs/WORKLOG.md` 상단에 작업 결과 요약 기록.
+3. **토큰 절약 (Codex Policy)**: 브라우저 실기 조작, Playwright/헤드리스 브라우저 실행, Computer Use 도구는 절대 실행하지 않고 `npm run build` 검증까지만 완료한다. (`AGENTS.md` 수칙 준수)
