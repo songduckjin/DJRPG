@@ -6,12 +6,12 @@ import { drawSkillVfx, drawDragon, drawHit, updateDamageLabels, drawDeath, drawD
 
 const paths = {
   floor: '/assets/dungeon_tile.jpg', male: '/assets/warrior_male_base.png',
-  female: '/assets/warrior_female_base.png', armored: '/assets/warrior_armored.png',
-  armoredNoHelm: '/assets/warrior_armored_nohelm.png',
+  female: '/assets/warrior_female_base.png', armored: '/assets/warrior_armored.png?v=2',
+  armoredNoHelm: '/assets/warrior_armored_nohelm.png?v=2',
   maleSword: '/assets/warrior_male_sword.png', femaleSword: '/assets/warrior_female_sword.png',
-  maleAttack: '/assets/warrior_male_attack.png', femaleAttack: '/assets/warrior_female_attack.png', armoredAttack: '/assets/warrior_armored_attack.png',
+  maleAttack: '/assets/warrior_male_attack.png', femaleAttack: '/assets/warrior_female_attack.png', armoredAttack: '/assets/warrior_armored_attack.png?v=2',
   maleBaseWalk: '/assets/warrior_male_base_walk.png', maleSwordWalk: '/assets/warrior_male_walk.png',
-  femaleWalk: '/assets/warrior_female_walk.png', armoredWalk: '/assets/warrior_armored_walk.png',
+  femaleWalk: '/assets/warrior_female_walk.png', armoredWalk: '/assets/warrior_armored_walk.png?v=2',
   skeleton: '/assets/skeleton_warrior.png', skeletonWalk: '/assets/skeleton_walk.png', boss: '/assets/skeleton_boss.png',
   fxDragonHead: '/assets/fx_dragon_head.png', fxDragonBody: '/assets/fx_dragon_body.png', fxSlam: '/assets/fx_wild_stamp.png',
   fxRage: '/assets/fx_blood_rage.png', fxSlash: '/assets/fx_slash_arc.png',
@@ -21,14 +21,14 @@ export type Art = keyof typeof paths;
 const animationPaths = {
   maleWalk: Array.from({ length: 4 }, (_, i) => `/assets/warrior_male_walk_${i + 1}.png`),
   femaleWalk: Array.from({ length: 4 }, (_, i) => `/assets/warrior_female_walk_${i + 1}.png`),
-  armoredWalk: Array.from({ length: 4 }, (_, i) => `/assets/warrior_armored_walk_${i + 1}.png`),
-  armoredNoHelmWalk: Array.from({ length: 4 }, (_, i) => `/assets/warrior_armored_nohelm_walk_${i + 1}.png`),
+  armoredWalk: Array.from({ length: 4 }, (_, i) => `/assets/warrior_armored_walk_${i + 1}.png?v=2`),
+  armoredNoHelmWalk: Array.from({ length: 4 }, (_, i) => `/assets/warrior_armored_nohelm_walk_${i + 1}.png?v=2`),
   skeletonWalk: Array.from({ length: 4 }, (_, i) => `/assets/skeleton_walk_${i + 1}.png`),
   bossWalk: Array.from({ length: 4 }, (_, i) => `/assets/boss_walk_${i + 1}.png`),
   maleAttack: Array.from({ length: 4 }, (_, i) => `/assets/warrior_male_attack_${i + 1}.png`),
   femaleAttack: Array.from({ length: 4 }, (_, i) => `/assets/warrior_female_attack_${i + 1}.png`),
-  armoredAttack: Array.from({ length: 4 }, (_, i) => `/assets/warrior_armored_attack_${i + 1}.png`),
-  armoredNoHelmAttack: Array.from({ length: 4 }, (_, i) => `/assets/warrior_armored_nohelm_attack_${i + 1}.png`)
+  armoredAttack: Array.from({ length: 4 }, (_, i) => `/assets/warrior_armored_attack_${i + 1}.png?v=2`),
+  armoredNoHelmAttack: Array.from({ length: 4 }, (_, i) => `/assets/warrior_armored_nohelm_attack_${i + 1}.png?v=2`)
 };
 type Animation = keyof typeof animationPaths;
 type Dust = { x: number; y: number; vx: number; vy: number; age: number; duration: number; size: number };
