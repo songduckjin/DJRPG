@@ -8,11 +8,25 @@ const paths = {
   female: '/assets/warrior_female_base.png', armored: '/assets/warrior_armored.png',
   maleSword: '/assets/warrior_male_sword.png', femaleSword: '/assets/warrior_female_sword.png',
   maleAttack: '/assets/warrior_male_attack.png', femaleAttack: '/assets/warrior_female_attack.png', armoredAttack: '/assets/warrior_armored_attack.png',
-  skeleton: '/assets/skeleton_warrior.png', boss: '/assets/skeleton_boss.png',
+  maleBaseWalk: '/assets/warrior_male_base_walk.png', maleSwordWalk: '/assets/warrior_male_walk.png',
+  femaleWalk: '/assets/warrior_female_walk.png', armoredWalk: '/assets/warrior_armored_walk.png',
+  skeleton: '/assets/skeleton_warrior.png', skeletonWalk: '/assets/skeleton_walk.png', boss: '/assets/skeleton_boss.png',
   fxSpin: '/assets/fx_dragon_twister.png', fxSlam: '/assets/fx_wild_stamp.png',
-  fxRage: '/assets/fx_blood_rage.png', fxSlash: '/assets/fx_slash_arc.png'
+  fxRage: '/assets/fx_blood_rage.png', fxSlash: '/assets/fx_slash_arc.png',
+  fxPower: '/assets/fx_power_strike.png', fxDestroy: '/assets/fx_destroy_swing.png', fxHell: '/assets/fx_hell_fire.png'
 } as const;
 type Art = keyof typeof paths;
+const animationPaths = {
+  maleWalk: Array.from({ length: 4 }, (_, i) => `/assets/warrior_male_walk_${i + 1}.png`),
+  femaleWalk: Array.from({ length: 4 }, (_, i) => `/assets/warrior_female_walk_${i + 1}.png`),
+  armoredWalk: Array.from({ length: 4 }, (_, i) => `/assets/warrior_armored_walk_${i + 1}.png`),
+  skeletonWalk: Array.from({ length: 4 }, (_, i) => `/assets/skeleton_walk_${i + 1}.png`),
+  bossWalk: Array.from({ length: 4 }, (_, i) => `/assets/boss_walk_${i + 1}.png`),
+  maleAttack: Array.from({ length: 4 }, (_, i) => `/assets/warrior_male_attack_${i + 1}.png`),
+  femaleAttack: Array.from({ length: 4 }, (_, i) => `/assets/warrior_female_attack_${i + 1}.png`),
+  armoredAttack: Array.from({ length: 4 }, (_, i) => `/assets/warrior_armored_attack_${i + 1}.png`)
+};
+type Animation = keyof typeof animationPaths;
 type Dust = { x: number; y: number; vx: number; vy: number; age: number; duration: number; size: number };
 type Ghost = { sprite: Sprite; x: number; y: number; age: number; duration: number };
 type Fallen = { sprite: Sprite; x: number; y: number; age: number; duration: number; scaleX: number; scaleY: number; rotation: number };
@@ -20,6 +34,7 @@ type Fallen = { sprite: Sprite; x: number; y: number; age: number; duration: num
 export class GameView {
   app = new Application();
   private textures = {} as Record<Art, Texture>;
+  private animations = {} as Record<Animation, Texture[]>;
   private floor!: TilingSprite;
   private glow = new Graphics();
   private ground = new Graphics();
@@ -28,7 +43,7 @@ export class GameView {
   private actors = new Container();
   private fallen = new Container();
   private skillVfx = new Container();
-  private vfxSprites = new Map<Effect, Sprite>();
+  private vfxSprites = new Map<Effect, Sprite[]>();
   private effects = new Graphics();
   private labels = new Container();
   private shade = new Graphics();
@@ -48,10 +63,12 @@ export class GameView {
     host.appendChild(this.app.canvas);
     const loaded = await Promise.all((Object.keys(paths) as Art[]).map(async key => [key, await Assets.load<Texture>(paths[key])] as const));
     for (const [key, texture] of loaded) { texture.source.scaleMode = 'linear'; this.textures[key] = texture; }
+    const animated = await Promise.all((Object.keys(animationPaths) as Animation[]).map(async key => [key, await Promise.all(animationPaths[key].map(path => Assets.load<Texture>(path)))] as const));
+    for (const [key, textures] of animated) { for (const texture of textures) texture.source.scaleMode = 'linear'; this.animations[key] = textures; }
     this.floor = new TilingSprite({ texture: this.textures.floor, width: this.app.screen.width, height: this.app.screen.height });
     this.floor.tileScale.set(.82);
     this.hero = new Sprite(this.textures.male);
-    this.hero.anchor.set(.5, 1);
+    this.hero.anchor.set(.5, .94);
     this.actors.addChild(this.hero);
     this.aura = new Sprite(this.textures.fxRage);
     this.aura.anchor.set(.5);
@@ -73,8 +90,8 @@ export class GameView {
     this.drawTerrain(world, project, time);
     this.drawDust(world, project, time, dt);
     this.drawRunes(world, cx, cy, time);
-    const slam = world.effects.find(effect => effect.kind === 'slam');
-    const shake = slam && slam.age > .2 ? (1 - slam.age / slam.duration) * 5 : 0;
+    const slam = world.effects.find(effect => effect.kind === 'slam' || effect.kind === 'hell');
+    const shake = slam ? Math.max(0, 1 - slam.age / Math.min(slam.duration, .38)) * (slam.kind === 'hell' ? 8 : 4) : 0;
     this.app.stage.position.set(shake ? (Math.random() * 2 - 1) * shake : 0, shake ? (Math.random() * 2 - 1) * shake : 0);
     for (const drop of world.drops) {
       const [x, y] = project(drop.x, drop.y), color = rarityColors[drop.item.rarity];
@@ -95,7 +112,7 @@ export class GameView {
       let sprite = this.enemies.get(enemy);
       if (!sprite) {
         sprite = new Sprite(enemy.boss ? this.textures.boss : this.textures.skeleton);
-        sprite.anchor.set(.5, 1);
+        sprite.anchor.set(.5, .94);
         this.actors.addChild(sprite);
         this.enemies.set(enemy, sprite);
         if (enemy.boss) {
@@ -104,16 +121,19 @@ export class GameView {
         }
       }
       const [x, y] = project(enemy.x, enemy.y);
-      const scale = h * (enemy.boss ? .19 : .115) / sprite.texture.height * (enemy.hit > 0 ? 1.08 : 1);
+      const frame = Math.floor(enemy.step * 2 / Math.PI) % 4;
+      const texture = enemy.moving ? enemy.boss ? this.animations.bossWalk[frame] : this.animations.skeletonWalk[frame] : enemy.boss ? this.textures.boss : this.textures.skeleton;
+      if (sprite.texture !== texture) sprite.texture = texture;
+      const scale = h * (enemy.boss ? .16 : .095) / texture.height;
       const step = enemy.moving ? Math.sin(enemy.step) : 0;
-      this.ground.ellipse(x, y + 3, enemy.boss ? 19 : 11, enemy.boss ? 6 : 4).fill({ color: 0x000000, alpha: .4 });
-      sprite.position.set(x, y - Math.abs(step) * (enemy.boss ? 5 : 5.5) + (enemy.hit > 0 ? 2 : 0));
+      this.ground.ellipse(x, y + 3, enemy.boss ? 16 : 9, enemy.boss ? 5 : 3.5).fill({ color: 0x000000, alpha: .4 });
+      sprite.position.set(x + (enemy.hit > 0 ? Math.sin(time * 58) * 3 : 0), y - Math.abs(step) * 1.8 + (enemy.hit > 0 ? 2 : 0));
       const face = (world.player.x - enemy.x) - (world.player.y - enemy.y) >= 0 ? 1 : -1;
-      sprite.scale.set(scale * face * (enemy.moving ? 1 - step * .03 : 1), scale * (enemy.hit > 0 ? .84 : enemy.moving ? 1 + step * .04 : 1));
-      sprite.rotation = enemy.moving ? step * .09 : 0;
+      sprite.scale.set(scale * face * (enemy.hit > 0 ? 1.08 : 1), scale * (enemy.hit > 0 ? .84 : 1));
+      sprite.rotation = 0;
       sprite.tint = enemy.hit > 0 ? 0xffffff : 0xcfcac5;
       sprite.alpha = 1;
-      const barY = y - h * (enemy.boss ? .19 : .115) - 7;
+      const barY = y - h * (enemy.boss ? .16 : .095) - 7;
       this.effects.rect(x - (enemy.boss ? 20 : 13), barY, enemy.boss ? 40 : 26, 3).fill(0x251517);
       this.effects.rect(x - (enemy.boss ? 20 : 13), barY, (enemy.boss ? 40 : 26) * Math.max(0, enemy.hp / enemy.maxHp), 3).fill(0xd53b3a);
       this.bossLabels.get(enemy)?.position.set(x, barY - 3);
@@ -122,7 +142,7 @@ export class GameView {
     this.drawHero(world, cx, cy, time);
     const rage = world.effects.find(effect => effect.kind === 'warcry');
     const burst = rage ? 1 - rage.age / rage.duration : 0;
-    const auraScale = 110 / this.aura.texture.width * (1 + burst * .8);
+    const auraScale = 165 / this.aura.texture.width * (1 + burst * .8);
     this.aura.position.set(cx, cy - 3);
     this.aura.scale.set(auraScale, auraScale * .6);
     this.aura.rotation = time * .35;
@@ -132,7 +152,7 @@ export class GameView {
     depths.push({ sprite: this.hero, depth: world.player.x + world.player.y });
     depths.sort((a, b) => a.depth - b.depth).forEach((entry, index) => this.actors.setChildIndex(entry.sprite, index));
     const liveEffects = new Set(world.effects);
-    for (const [effect, sprite] of this.vfxSprites) if (!liveEffects.has(effect)) { sprite.destroy(); this.vfxSprites.delete(effect); }
+    for (const [effect, sprites] of this.vfxSprites) if (!liveEffects.has(effect)) { for (const sprite of sprites) sprite.destroy(); this.vfxSprites.delete(effect); }
     for (const effect of world.effects) {
       const [x, y] = project(effect.x, effect.y), t = effect.age / effect.duration;
       const screenAngle = Math.atan2(Math.sin(effect.angle) * .43 + Math.cos(effect.angle) * .43, Math.cos(effect.angle) * .86 - Math.sin(effect.angle) * .86);
@@ -150,53 +170,68 @@ export class GameView {
   private drawSkillVfx(effect: Effect, x: number, y: number, t: number, screenAngle: number): boolean {
     if (effect.kind === 'warcry') return true;
     if (effect.kind === 'hit' || effect.kind === 'death') return false;
-    const art: Art = effect.kind === 'spin' ? 'fxSpin' : effect.kind === 'slam' ? 'fxSlam' : 'fxSlash';
-    let sprite = this.vfxSprites.get(effect);
-    if (!sprite) {
-      sprite = new Sprite(this.textures[art]);
-      sprite.anchor.set(.5);
-      sprite.blendMode = 'add';
-      this.skillVfx.addChild(sprite);
-      this.vfxSprites.set(effect, sprite);
+    const art: Art = effect.kind === 'spin' ? 'fxSpin' : effect.kind === 'slam' ? 'fxSlam' : effect.kind === 'power' ? 'fxPower' : effect.kind === 'destroy' ? 'fxDestroy' : effect.kind === 'hell' ? 'fxHell' : 'fxSlash';
+    let sprites = this.vfxSprites.get(effect);
+    if (!sprites) {
+      sprites = Array.from({ length: effect.kind === 'slash2' ? 2 : 1 }, () => {
+        const sprite = new Sprite(this.textures[art]);
+        sprite.anchor.set(.5);
+        sprite.blendMode = 'add';
+        this.skillVfx.addChild(sprite);
+        return sprite;
+      });
+      this.vfxSprites.set(effect, sprites);
     }
-    const size = effect.kind === 'hell' ? 230 : effect.kind === 'destroy' ? 185 : effect.kind === 'slam' ? 210 : effect.kind === 'spin' ? 175 : effect.kind === 'power' ? 125 : 105;
-    const scale = size / sprite.texture.width * (.7 + t * .55);
-    sprite.position.set(x, y - (effect.kind === 'slam' || effect.kind === 'spin' ? 4 : 18));
-    sprite.scale.set(scale, scale * (effect.kind === 'slam' || effect.kind === 'spin' ? .6 : 1));
-    sprite.rotation = effect.kind === 'spin' ? effect.age * 10 : effect.kind === 'slam' ? 0 : screenAngle;
-    sprite.alpha = Math.min(1, (1 - t) * 1.4);
-    sprite.tint = effect.kind === 'hell' ? 0xff655a : 0xffffff;
+    const width = this.app.screen.width;
+    const size = effect.kind === 'hell' ? width * .95 : effect.kind === 'destroy' ? 260 : effect.kind === 'slam' ? 335 : effect.kind === 'spin' ? Math.max(245, width * .7) : effect.kind === 'power' ? 165 : 150;
+    for (const [index, sprite] of sprites.entries()) {
+      const phase = effect.kind === 'slash2' ? Math.max(0, Math.min(1, t * 1.6 - index * .45)) : t;
+      const scale = size / sprite.texture.width * (.65 + phase * .55);
+      const distance = effect.kind === 'destroy' ? 40 + t * 125 : effect.kind === 'power' ? 70 : 0;
+      sprite.position.set(x + Math.cos(screenAngle) * distance, y + Math.sin(screenAngle) * distance - (effect.kind === 'power' ? 45 : effect.kind === 'slam' || effect.kind === 'spin' ? 4 : 18));
+      sprite.scale.set(scale, scale * (effect.kind === 'slam' ? .6 : effect.kind === 'spin' ? .8 : 1));
+      sprite.rotation = effect.kind === 'spin' ? t * Math.PI * 4.5 : effect.kind === 'slam' || effect.kind === 'hell' || effect.kind === 'power' ? 0 : screenAngle + (effect.kind === 'slash2' ? index ? -.55 : .55 : 0);
+      sprite.alpha = effect.kind === 'slash2' && t < index * .28 ? 0 : Math.min(1, (1 - phase) * 1.5);
+      sprite.tint = 0xffffff;
+    }
     return true;
   }
 
   private drawHero(world: World, x: number, y: number, time: number): void {
     const { player, save } = world;
     const equipped = !!save.equipment.armor;
-    const art: Art = world.attackPose > 0
-      ? equipped ? 'armoredAttack' : save.gender === 'male' ? 'maleAttack' : 'femaleAttack'
-      : equipped ? 'armored' : save.equipment.weapon ? save.gender === 'male' ? 'maleSword' : 'femaleSword' : save.gender;
-    const texture = this.textures[art];
-    if (this.hero.texture !== texture) this.hero.texture = texture;
     const moving = Math.hypot(world.activeMove.x, world.activeMove.y) > .05;
+    const walkingFrame = Math.floor(time * 8.5) % 4;
+    const attackFrame = Math.min(3, Math.floor((1 - world.attackPose / .32) * 4));
+    const art: Art = equipped ? 'armored' : save.equipment.weapon ? save.gender === 'male' ? 'maleSword' : 'femaleSword' : save.gender;
+    let texture = this.textures[art];
+    if (world.attackPose > 0) texture = this.animations[equipped ? 'armoredAttack' : save.gender === 'male' ? 'maleAttack' : 'femaleAttack'][Math.max(0, attackFrame)];
+    else if (moving) {
+      if (equipped) texture = this.animations.armoredWalk[walkingFrame];
+      else if (save.gender === 'female') texture = this.animations.femaleWalk[walkingFrame];
+      else if (save.equipment.weapon) texture = this.animations.maleWalk[walkingFrame];
+      else texture = Math.floor(time * 6) % 2 ? this.textures.maleBaseWalk : this.textures.male;
+    }
+    if (this.hero.texture !== texture) this.hero.texture = texture;
     const step = moving ? Math.sin(time * 13) : 0;
-    let bob = moving ? -Math.abs(step) * 5.5 : 0;
+    let bob = moving && world.attackPose <= 0 ? -Math.abs(step) * 2 : 0;
     const local = world.effects.filter(effect => effect.kind !== 'hit' && effect.kind !== 'death' && Math.hypot(effect.x - player.x, effect.y - player.y) < 2);
     const attack = local.find(effect => ['slash', 'slash2', 'power', 'destroy'].includes(effect.kind));
     const spin = local.find(effect => effect.kind === 'spin');
     const slam = local.find(effect => effect.kind === 'slam' || effect.kind === 'hell');
     const cry = local.find(effect => effect.kind === 'warcry');
-    const attackPulse = attack ? Math.sin(Math.PI * attack.age / attack.duration) : 0;
+    const attackPulse = world.attackPose > 0 ? Math.sin(Math.PI * (1 - world.attackPose / .32)) : 0;
     if (slam) bob -= Math.sin(Math.PI * slam.age / slam.duration) * 17;
     const boost = cry ? 1 + .14 * (1 - cry.age / cry.duration) : 1;
-    const scale = this.app.screen.height * .115 / texture.height;
+    const scale = this.app.screen.height * .095 / texture.height;
     const face = Math.cos(player.facing) - Math.sin(player.facing) >= 0 ? 1 : -1;
-    const lungeX = (Math.cos(player.facing) - Math.sin(player.facing)) * .86 * attackPulse * 16;
-    const lungeY = (Math.cos(player.facing) + Math.sin(player.facing)) * .43 * attackPulse * 16;
-    this.hero.scale.set(scale * face * boost * (moving ? 1 - step * .03 : 1) * (attack ? 1.12 : 1), scale * boost * (moving ? 1 + step * .05 : 1) * (attack ? .9 : slam && slam.age > .35 ? .82 : 1));
-    this.hero.position.set(x + lungeX, y + bob + lungeY);
-    this.hero.rotation = spin ? spin.age / spin.duration * Math.PI * 2 * face : attack ? (attack.swing ?? 1) * .26 * attackPulse * face : moving ? step * .09 : 0;
+    const lungeX = (Math.cos(player.facing) - Math.sin(player.facing)) * .86 * attackPulse * 24;
+    const lungeY = (Math.cos(player.facing) + Math.sin(player.facing)) * .43 * attackPulse * 24;
+    this.hero.scale.set(scale * face * boost * (world.attackPose > 0 ? 1 + attackPulse * .15 : 1), scale * boost * (world.attackPose > 0 ? 1 - attackPulse * .15 : slam && slam.age > .35 ? .82 : 1));
+    this.hero.position.set(x + lungeX + (player.hit > 0 ? Math.sin(time * 55) * 2 : 0), y + bob + lungeY);
+    this.hero.rotation = spin ? spin.age / spin.duration * Math.PI * 2 * face : attack ? (attack.swing ?? 1) * .2 * attackPulse * face : 0;
     this.hero.tint = player.hit > 0 ? 0xffd4cf : 0xffffff;
-    this.ground.ellipse(x, y + 4, 13, 5).fill({ color: 0x000000, alpha: .42 });
+    this.ground.ellipse(x, y + 4, 11, 4).fill({ color: 0x000000, alpha: .42 });
     if (player.berserk > 0) {
       this.glow.circle(x, y - 25, 35).fill({ color: 0xb32d28, alpha: .12 });
     }
@@ -209,7 +244,7 @@ export class GameView {
       if (index >= 3 || index <= (this.ghostEmissions.get(effect) ?? -1)) continue;
       this.ghostEmissions.set(effect, index);
       const sprite = new Sprite(this.hero.texture);
-      sprite.anchor.set(.5, 1); sprite.scale.set(this.hero.scale.x, this.hero.scale.y); sprite.rotation = this.hero.rotation;
+      sprite.anchor.set(.5, .94); sprite.scale.set(this.hero.scale.x, this.hero.scale.y); sprite.rotation = this.hero.rotation;
       sprite.tint = ['slam', 'destroy', 'hell'].includes(effect.kind) ? 0xffa06c : 0x8fe6dc;
       this.ghosts.addChild(sprite);
       const trail = 5 + index * 5;

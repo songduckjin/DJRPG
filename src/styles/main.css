@@ -133,6 +133,17 @@ button:active { transform: scale(.97); }
 .skill-actions button:disabled { opacity: .55; cursor: not-allowed; }
 .skill-actions span { color: #9bc893; font-size: 10px; }
 .skill-icon { flex: 0 0 40px; height: 40px; display: grid; place-items: center; border: 1px solid #997653; border-radius: 50%; color: #f1d5ab; font-size: 23px; }
+.action[data-skill], .skill-card[data-skill] { --skill-color: #d0a879; }
+.action[data-skill="slash2"], .skill-card[data-skill="slash2"] { --skill-color: #8bc4d2; }
+.action[data-skill="spin"], .skill-card[data-skill="spin"] { --skill-color: #e6ac4e; }
+.action[data-skill="slam"], .skill-card[data-skill="slam"] { --skill-color: #e98260; }
+.action[data-skill="warcry"], .skill-card[data-skill="warcry"] { --skill-color: #cb5570; }
+.action[data-skill="power"], .skill-card[data-skill="power"] { --skill-color: #e8d078; }
+.action[data-skill="destroy"], .skill-card[data-skill="destroy"] { --skill-color: #b779d4; }
+.action[data-skill="hell"], .skill-card[data-skill="hell"] { --skill-color: #f27344; }
+.action[data-skill] { border-color: var(--skill-color); }
+.skill-card[data-skill] { border-left: 3px solid var(--skill-color); }
+.skill-card[data-skill] .skill-icon { border-color: var(--skill-color); color: var(--skill-color); }
 .skill-list h3 { margin: 0 0 3px; font-size: 13px; color: #f2dfbb; }
 .skill-list p { margin: 0 0 3px; font-size: 11px; color: #b5a79e; line-height: 1.45; }
 .skill-list small { font-size: 10px; color: #d2a96d; }

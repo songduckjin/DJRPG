@@ -343,7 +343,7 @@ export class Interface {
     list.appendChild(base);
     for (const id of skillOrder) {
       const skill = skills[id], learned = save.learned.includes(id);
-      const card = document.createElement('article'); card.className = 'skill-card';
+      const card = document.createElement('article'); card.className = 'skill-card'; card.dataset.skill = id;
       card.innerHTML = `<div class="skill-icon">${skill.icon}</div><div class="skill-info"><h3>${skill.name} <small>Lv.${skill.level}</small></h3><p>${skill.description}</p><small>마나 ${skill.cost} · 쿨타임 ${skill.cooldown}초 · ${skill.power}</small><div class="skill-actions"></div></div>`;
       const actions = card.querySelector<HTMLElement>('.skill-actions')!;
       if (!learned) {

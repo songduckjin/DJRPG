@@ -41,7 +41,7 @@ export class World {
     const p = this.player;
     const stats = totalStats(this.save);
     this.cooldown[kind] = kind === 'attack' ? cooldowns.attack / (1 + stats.speed / 100) * (p.berserk > 0 ? .67 : 1) : cooldowns[kind];
-    if (kind !== 'warcry') this.attackPose = .22;
+    if (kind !== 'warcry') this.attackPose = .32;
     const attack = stats.attack * (p.berserk > 0 ? 1.5 : 1);
     const target = this.nearest();
     if (kind === 'attack') {
@@ -91,7 +91,7 @@ export class World {
       enemy.hp -= amount;
       enemy.hit = .24;
       enemy.slow = Math.max(enemy.slow, slow);
-      if (knockback && dist) { enemy.knockX += dx / dist * knockback * 12; enemy.knockY += dy / dist * knockback * 12; }
+      if (knockback && dist) { enemy.knockX += dx / dist * knockback * 16; enemy.knockY += dy / dist * knockback * 16; }
       this.effects.push({ x: enemy.x, y: enemy.y, kind: 'hit', age: 0, duration: .45, angle: Math.random() * Math.PI * 2, amount: Math.round(amount) });
     }
     const dead = this.enemies.filter(e => e.hp <= 0);
@@ -171,7 +171,7 @@ export class World {
     for (const enemy of this.enemies) {
       const dx = p.x - enemy.x, dy = p.y - enemy.y, d = Math.hypot(dx, dy);
       enemy.moving = d > 27;
-      if (enemy.moving && d > 0) { const step = (enemy.boss ? 32 : 45 + this.save.floor * 2) * (enemy.slow > 0 ? .55 : 1) * dt; enemy.x += dx / d * step; enemy.y += dy / d * step; enemy.step += dt * (enemy.boss ? 7 : 11); }
+      if (enemy.moving && d > 0) { const step = (enemy.boss ? 32 : 45 + this.save.floor * 2) * (enemy.slow > 0 ? .55 : 1) * dt; enemy.x += dx / d * step; enemy.y += dy / d * step; enemy.step += dt * Math.PI * (enemy.boss ? 3.25 : 4.25); }
       enemy.x += enemy.knockX * dt; enemy.y += enemy.knockY * dt;
       enemy.knockX *= Math.exp(-dt * 12); enemy.knockY *= Math.exp(-dt * 12);
       enemy.slow = Math.max(0, enemy.slow - dt);
