@@ -58,3 +58,33 @@
 1. `npm run build` 성공 및 TypeScript 에러 0건.
 2. `docs/TASK.md`의 이번 요청을 `[x]`로 표시하고 `docs/WORKLOG.md` 상단에 5줄 이내로 작업 요약 기록.
 3. **토큰 절약**: 브라우저 실기 조작, Playwright/헤드리스 브라우저 실행, Computer Use 도구는 절대 실행하지 않는다.
+---
+
+## [작업 38] 토큰 절약 · 유지보수 최적화 모듈 분리 (기능 100% 유지 리팩토링)
+- **등록일**: 2026-11-15
+- **목표**: 동작·디자인·데이터를 단 하나도 바꾸지 않고, 대형 파일(`interface.ts`, `render.ts`, `store.ts`, `main.css`)을 단일 책임(SRP) 단위의 작은 모듈(각 3~8KB 내외)로 분리하여 향후 작업 시 코덱스가 수정할 파일만 최소한으로 읽고 고치게 만든다.
+
+### 작업 내용
+1. **UI 모달/HUD 분리 (`src/ui/`)**:
+   - `src/ui/hud.ts`: 상단 HUD(레벨 배지, 층 선택 버튼, 골드, AUTO 버튼, 처치 진행도) 및 하단 HP/MP/스킬 퀵슬롯/메뉴 바
+   - `src/ui/modals/equipModal.ts`: 장비창 10칸 + 캐릭터 미리보기 + 가방/필터/분해/자동장착
+   - `src/ui/modals/skillModal.ts`: 스킬 목록·레벨업·퀵슬롯 장착
+   - `src/ui/modals/statusModal.ts`: 내 상태창
+   - `src/ui/modals/floorModal.ts`: 층 선택 & 반복 파밍 팝업
+   - `src/ui/modals/accountModal.ts`: 계정 정보·로그아웃·초기화
+   - `src/ui/interface.ts`: 각 UI 모듈을 조립·연결하는 얇은 오케스트레이터 역할만 유지
+2. **렌더러 분리 (`src/game/render/`)**:
+   - `src/game/render/field.ts`: 황야 배경 타일·환경 오브젝트·원형 시야 비네팅
+   - `src/game/render/entities.ts`: 전사·몬스터·보스 스프라이트 및 공격/이동 애니메이션
+   - `src/game/render/vfx.ts`: 스킬 이펙트(다마디 용 드래곤 트위스터, 검기, 파쇄, 지옥불 등) 및 데미지 텍스트/드랍 빛기둥
+   - `src/game/render.ts`: 캔버스 초기화 및 위 3개 모듈 호출만 담당
+3. **데이터/상점/스타일 분리**:
+   - `src/game/items.ts`: 아이템 타입, `쯔바이핸드` 등 무기/장비 테이블, 드랍/스탯/분해 로직 분리 (`store.ts`는 상태·인증·저장만 담당)
+   - `src/styles/`: `base.css`, `hud.css`, `modals.css`, `login.css`로 분리 후 `main.css`에서 `@import`
+4. **아키텍처 규칙 업데이트 (`AGENTS.md`)**:
+   - 앞으로 새 기능(예: 거래소, 새 직업, 새 보스) 추가 시 기존 파일을 비대화하지 않고 `src/ui/modals/` 또는 `src/game/` 하위 도메인 모듈로 분리해 최소 파일만 수정하도록 명시한다.
+
+### 검증 및 완료 기준 (Codex Policy)
+1. 기능·화면·DB 호환성 100% 동일 유지 (`pnpm run check` 및 `npm run build` 통과).
+2. `docs/TASK.md`의 이번 요청을 `[x]`로 표시하고 `docs/WORKLOG.md` 상단에 5줄 이내로 작업 요약 기록.
+3. **토큰 절약**: 브라우저 실기 조작, Playwright/헤드리스 브라우저 실행, Computer Use 도구는 절대 실행하지 않는다.
