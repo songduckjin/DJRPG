@@ -537,3 +537,18 @@
 1. `npm run build` 성공 및 TypeScript 에러 0건.
 2. `docs/TASK.md`의 이번 요청을 `[x]`로 표시하고 `docs/WORKLOG.md` 상단에 5줄 이내로 작업 요약 기록.
 3. **토큰 절약**: 브라우저 실기 조작, Playwright/헤드리스 브라우저 실행, Computer Use 도구는 절대 실행하지 않는다.
+---
+
+## [작업 24] 장비·가방 10슬롯 다크 판타지 아이템 아이콘 이미지 적용
+- **등록일**: 2026-11-15
+- **목표**: 도형/텍스트로만 표시되던 장비창·가방 슬롯에 고퀄 다크 판타지 아이템 아이콘 이미지를 적용한다.
+
+### 작업 내용
+1. **장비 아이콘 이미지 적용 (`src/ui/interface.ts`, `src/styles/main.css`)**:
+   - `public/assets/icons/`에 추가된 9종 PNG 아이콘(`/assets/icons/weapon.png`, `helmet.png`, `armor.png`, `gloves.png`, `boots.png`, `offhand.png`, `necklace.png`, `belt.png`, `ring.png`)을 슬롯 종류(`ring1`/`ring2`는 모두 `ring.png` 사용)에 맞춰 `<img>`로 렌더링한다.
+   - 빈 장착 슬롯에는 아이콘을 반투명 실루엣(`opacity: 0.25; filter: grayscale(1)`)으로 표시하고, 장착된 슬롯과 가방 아이템 그리드에는 선명한 아이콘과 등급별 테두리 글로우를 표시한다.
+
+### 검증 및 완료 기준 (Codex Policy)
+1. `npm run build` 성공 및 TypeScript 에러 0건.
+2. `docs/TASK.md`의 이번 요청을 `[x]`로 표시하고 `docs/WORKLOG.md` 상단에 5줄 이내로 작업 요약 기록.
+3. **토큰 절약**: 브라우저 실기 조작, Playwright/헤드리스 브라우저 실행, Computer Use 도구는 절대 실행하지 않는다.
