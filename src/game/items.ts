@@ -18,9 +18,20 @@ export const rarityNames: Record<Rarity, string> = { common: '일반', magic: '�
 
 export const statNames: Record<Stat, string> = { attack: '공격', defense: '방어', health: '체력', crit: '치명', speed: '공속' };
 
-const weaponNames: Record<Rarity, string> = { common: '낡은 두손검', magic: '서리의 클레이모어', rare: '황혼의 대검', legendary: '영원의 쯔바이핸드' };
+const ringBases = ['구리 반지', '은 반지', '혈옥 반지', '수호의 인장', '군주의 반지'] as const;
 
-const zweihanderNames: Record<Rarity, string> = { common: '쯔바이핸드', magic: '강철 쯔바이핸드', rare: '피빛 쯔바이핸드', legendary: '영원의 쯔바이핸드' };
+export const baseItems: Record<Slot, readonly string[]> = {
+  weapon: ['두손검', '바스타드 소드', '클레이모어', '쯔바이핸드', '플랑베르주', '룬 블레이드', '혈빛 대검', '아다만트 그레이트소드', '용살자의 대검', '패왕의 성검'],
+  offhand: ['수련자의 문장', '강철 문장', '기사단 휘장', '피빛 맹세 문장', '붉은보석 문장'],
+  helmet: ['가죽 두건', '철제 바시넷', '사슬 코이프', '기사 헬름', '바이저 투구', '미스릴 그레이트헬름', '용린 투구', '심연의 뿔투구', '발키리 크라운', '불멸의 왕관'],
+  armor: ['가죽 조끼', '징박힌 갑옷', '사슬 갑옷', '강철 브레스트플레이트', '하프 플레이트', '미스릴 아머', '흑요석 갑주', '드래곤 메일', '성기사 풀플레이트', '패왕의 전갑'],
+  necklace: ['구리 펜던트', '은빛 로켓', '마력의 아뮬렛', '용의 눈 목걸이', '태양의 심장'],
+  gloves: ['천 장갑', '가죽 브레이서', '사슬 건틀릿', '강철 건틀릿', '기사단 장갑', '미스릴 글러브', '피빛 크로', '용린 건틀릿', '타이탄의 손아귀', '심연의 장갑'],
+  belt: ['삼베 허리띠', '가죽 벨트', '징박힌 벨트', '사슬 거들', '강철 버클 벨트', '미스릴 벨트', '수호자의 거들', '용가죽 벨트', '거인의 허리띠', '붉은보석 벨트'],
+  boots: ['낡은 부츠', '가죽 장화', '사슬 그리브', '강철 부츠', '기사의 사바톤', '미스릴 부츠', '바람의 장화', '용린 그리브', '폭풍의 사바톤', '불멸의 각반'],
+  ring1: ringBases,
+  ring2: ringBases
+};
 
 export function isZweihander(item: Item): boolean { return item.slot === 'weapon' && /쯔바이핸드|츠바이핸더/.test(item.name); }
 
@@ -32,9 +43,8 @@ export function migrateItem(value: unknown): Item | undefined {
     const amount = value.stats[stat];
     if (typeof amount === 'number' && Number.isFinite(amount) && amount >= 0) stats[stat] = amount;
   }
-  const savedName = typeof value.name === 'string' ? value.name : '';
-  const zweihander = savedName === zweihanderNames[rarity] || (rarity === 'legendary' && savedName === '영원의 츠바이핸더');
-  const name = slot === 'weapon' ? (zweihander ? zweihanderNames[rarity] : weaponNames[rarity]) : savedName || slotNames[slot];
+  const savedName = typeof value.name === 'string' && value.name.trim() ? value.name : '';
+  const name = savedName === '영원의 츠바이핸더' && slot === 'weapon' ? '영원의 쯔바이핸드' : savedName || slotNames[slot];
   return { id: typeof value.id === 'string' && value.id ? value.id : crypto.randomUUID(), name, slot, rarity, stats };
 }
 
@@ -63,12 +73,16 @@ export function rollItem(floor: number, guaranteed = false, boss = false): Item 
   const rare = boss ? Math.min(.22, .14 + depth * .001) : Math.min(.035, .017 + depth * .0004);
   const rarity: Rarity = roll < legendary ? 'legendary' : roll < rare ? 'rare' : roll < (boss ? .54 : .117) ? 'magic' : 'common';
   const slot = slots[Math.floor(Math.random() * slots.length)];
-  const zweihander = slot === 'weapon' && (rarity === 'legendary' || Math.random() < .35);
-  const base = slot === 'ring2' ? '반지' : slotNames[slot];
+  const bases = baseItems[slot];
+  const rarityTier = { common: 0, magic: 2, rare: 4, legendary: 6 }[rarity];
+  const maxTier = Math.min(bases.length - 1, Math.floor(depth / (bases.length === 10 ? 3 : 8)) + Math.floor(rarityTier * (bases.length - 1) / 9));
+  const tier = Math.floor(Math.random() * (maxTier + 1));
+  const base = bases[tier];
+  const zweihander = slot === 'weapon' && base === '쯔바이핸드';
   const prefix = { common: '낡은', magic: '서리의', rare: '황혼의', legendary: '영원의' }[rarity];
   const scale = (1 + Math.floor(floor / 2)) * ({ common: 1, magic: 2, rare: 3, legendary: 5 }[rarity]);
   const primary: Stat = ['weapon', 'ring1', 'ring2', 'gloves'].includes(slot) ? 'attack' : 'defense';
-  const stats: Partial<Record<Stat, number>> = { [primary]: scale + Math.ceil(Math.random() * 3) };
+  const stats: Partial<Record<Stat, number>> = { [primary]: scale + Math.ceil(Math.random() * 3) + Math.ceil(tier * (slot === 'weapon' ? .6 : .4)) };
   if (rarity !== 'common') stats.health = 3 * scale;
   if (rarity === 'rare' || rarity === 'legendary') stats.crit = scale;
   if (rarity === 'legendary') stats.speed = scale;
@@ -76,7 +90,7 @@ export function rollItem(floor: number, guaranteed = false, boss = false): Item 
     stats.attack = (stats.attack ?? 0) + 2 + Math.ceil(scale * .25);
     if (rarity !== 'common') stats.crit = (stats.crit ?? 0) + Math.max(1, Math.ceil(scale * .5));
   }
-  return { id: crypto.randomUUID(), name: slot === 'weapon' ? zweihander ? zweihanderNames[rarity] : weaponNames[rarity] : `${prefix} ${base}`, slot, rarity, stats };
+  return { id: crypto.randomUUID(), name: base.startsWith(`${prefix} `) ? base : `${prefix} ${base}`, slot, rarity, stats };
 }
 
 export function itemPower(item: Item): number {
