@@ -9,6 +9,7 @@
     "build": "tsc --noEmit && vite build"
   },
   "dependencies": {
+    "@libsql/client": "^0.18.0",
     "pixi.js": "^8.14.3"
   },
   "devDependencies": {

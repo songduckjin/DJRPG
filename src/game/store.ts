@@ -11,12 +11,37 @@ export const slots: Slot[] = ['weapon', 'offhand', 'helmet', 'armor', 'necklace'
 export const slotNames: Record<Slot, string> = { weapon: '두손검', offhand: '문장', helmet: '투구', armor: '갑옷', necklace: '목걸이', gloves: '장갑', belt: '벨트', boots: '신발', ring1: '반지 1', ring2: '반지 2' };
 export const rarityNames: Record<Rarity, string> = { common: '일반', magic: '마법', rare: '희귀', legendary: '전설' };
 export const statNames: Record<Stat, string> = { attack: '공격', defense: '방어', health: '체력', crit: '치명', speed: '공속' };
-const legacyKeys = ['djrpg-save-v1', 'djrpg.save.v1'];
-export function saveStorageKey(accountId: string): string { return `djrpg.save.v1.${accountId}`; }
-export function hasSave(accountId: string): boolean { return localStorage.getItem(saveStorageKey(accountId)) !== null || accountId === 'guest' && legacyKeys.some(key => localStorage.getItem(key) !== null); }
-export function deleteSave(accountId: string): void {
-  localStorage.removeItem(saveStorageKey(accountId));
-  if (accountId === 'guest') for (const key of legacyKeys) localStorage.removeItem(key);
+const legacyKeys = ['djrpg-save-v1', 'djrpg.save.v1', 'djrpg.save.v1.guest'];
+export function readLegacySave(loginId?: string): { save: Save; key: string } | undefined {
+  let keys = legacyKeys;
+  if (loginId) {
+    const raw = localStorage.getItem('djrpg.accounts.v1');
+    const records: unknown = raw ? JSON.parse(raw) : [];
+    const account = Array.isArray(records) ? records.find(value => isRecord(value) && typeof value.loginId === 'string' && value.loginId.toLocaleLowerCase('ko-KR') === loginId.toLocaleLowerCase('ko-KR') && typeof value.id === 'string') : undefined;
+    keys = account ? [`djrpg.save.v1.${account.id}`] : [];
+  }
+  for (const key of keys) {
+    const raw = localStorage.getItem(key);
+    if (!raw) continue;
+    return { save: parseSave(JSON.parse(raw)), key };
+  }
+  return undefined;
+}
+export function clearLegacySave(key: string): void {
+  localStorage.removeItem(key);
+  if (key.startsWith('djrpg.save.v1.') && key !== 'djrpg.save.v1.guest') {
+    const raw = localStorage.getItem('djrpg.accounts.v1');
+    if (raw) {
+      const records: unknown = JSON.parse(raw);
+      if (Array.isArray(records)) {
+        const remaining = records.filter(value => !isRecord(value) || value.id !== key.slice('djrpg.save.v1.'.length));
+        if (remaining.length) localStorage.setItem('djrpg.accounts.v1', JSON.stringify(remaining));
+        else localStorage.removeItem('djrpg.accounts.v1');
+      }
+    }
+  }
+  localStorage.removeItem('djrpg.lastLogin.v1');
+  localStorage.removeItem('djrpg-salvage-rarity');
 }
 const weaponNames: Record<Rarity, string> = { common: '낡은 두손검', magic: '서리의 클레이모어', rare: '황혼의 대검', legendary: '영원의 츠바이핸더' };
 function isRecord(value: unknown): value is Record<string, unknown> { return typeof value === 'object' && value !== null && !Array.isArray(value); }
@@ -37,16 +62,13 @@ export function freshSave(gender: Gender = 'male'): Save {
   return { version: 1, name: '모험가', accountId: crypto.randomUUID().slice(0, 8).toUpperCase(), gender, auto: true, level: 1, exp: 0, gold: 0, floor: 1, kills: 0, health: 100, equipment: {}, bag: [], tutorial: 0, stones: 0, learned: ['spin', 'slam', 'warcry'], passives: [], quickSlots: ['spin', 'slam', 'warcry'], skillLevels: { spin: 1, slam: 1, warcry: 1 } };
 }
 
-export function loadSave(accountId = 'guest'): Save {
+export function parseSave(data: unknown, accountId?: string): Save {
   try {
-    const raw = localStorage.getItem(saveStorageKey(accountId)) ?? (accountId === 'guest' ? legacyKeys.map(key => localStorage.getItem(key)).find(value => value !== null) : null);
-    if (!raw) return freshSave();
-    const data: unknown = JSON.parse(raw);
     if (typeof data !== 'object' || data === null) throw new Error('저장 데이터가 손상되었습니다.');
     const value = data as Partial<Save>;
     if (value.version !== 1) throw new Error('지원하지 않는 저장 버전입니다.');
     const defaults = freshSave(value.gender === 'female' ? 'female' : 'male');
-    if (accountId !== 'guest') defaults.accountId = accountId;
+    if (accountId) defaults.accountId = accountId;
     const quickSlots = Array.isArray(value.quickSlots) && value.quickSlots.length === 3 && value.quickSlots.every(id => skillOrder.includes(id)) && new Set(value.quickSlots).size === 3
       ? value.quickSlots as [SkillId, SkillId, SkillId] : defaults.quickSlots;
     const learned = Array.isArray(value.learned) ? value.learned.filter(id => skillOrder.includes(id)) : defaults.learned;
@@ -63,16 +85,10 @@ export function loadSave(accountId = 'guest'): Save {
       if (item?.slot === slot) equipment[slot] = item;
     }
     const bag = Array.isArray(value.bag) ? value.bag.map(migrateItem).filter((item): item is Item => !!item).slice(0, 40) : [];
-    return { ...defaults, name: typeof value.name === 'string' && value.name.trim() ? value.name : defaults.name, accountId: accountId === 'guest' && typeof value.accountId === 'string' && value.accountId ? value.accountId : defaults.accountId, gender: value.gender === 'female' ? 'female' : 'male', auto: typeof value.auto === 'boolean' ? value.auto : defaults.auto, level: Math.floor(safeNumber(value.level, defaults.level, 1)), exp: safeNumber(value.exp, defaults.exp), gold: Math.floor(safeNumber(value.gold, defaults.gold)), floor: Math.floor(safeNumber(value.floor, defaults.floor, 1)), kills: Math.floor(safeNumber(value.kills, defaults.kills)), health: safeNumber(value.health, defaults.health), equipment, bag, tutorial: Math.min(3, Math.floor(safeNumber(value.tutorial, defaults.tutorial))), stones: Math.floor(safeNumber(value.stones, defaults.stones)), learned: active, passives, quickSlots, skillLevels };
+    return { ...defaults, name: typeof value.name === 'string' && value.name.trim() ? value.name : defaults.name, accountId: accountId ?? (typeof value.accountId === 'string' && value.accountId ? value.accountId : defaults.accountId), gender: value.gender === 'female' ? 'female' : 'male', auto: typeof value.auto === 'boolean' ? value.auto : defaults.auto, level: Math.floor(safeNumber(value.level, defaults.level, 1)), exp: safeNumber(value.exp, defaults.exp), gold: Math.floor(safeNumber(value.gold, defaults.gold)), floor: Math.floor(safeNumber(value.floor, defaults.floor, 1)), kills: Math.floor(safeNumber(value.kills, defaults.kills)), health: safeNumber(value.health, defaults.health), equipment, bag, tutorial: Math.min(3, Math.floor(safeNumber(value.tutorial, defaults.tutorial))), stones: Math.floor(safeNumber(value.stones, defaults.stones)), learned: active, passives, quickSlots, skillLevels };
   } catch (error) {
-    window.dispatchEvent(new CustomEvent('game-message', { detail: `저장 데이터를 읽지 못했습니다: ${String(error)}` }));
-    return freshSave();
+    throw new Error(`저장 데이터를 읽지 못했습니다: ${String(error)}`);
   }
-}
-
-export function saveGame(save: Save, accountId = 'guest'): boolean {
-  try { localStorage.setItem(saveStorageKey(accountId), JSON.stringify(save)); return true; }
-  catch (error) { window.dispatchEvent(new CustomEvent('game-message', { detail: `진행 상황 저장 실패: ${String(error)}` })); return false; }
 }
 
 export function totalStats(save: Save): Record<Stat, number> {

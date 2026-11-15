@@ -1,8 +1,8 @@
 import { GameView } from './game/render';
-import { freshSave, hasSave as storedSaveExists, loadSave, saveGame } from './game/store';
+import { clearLegacySave, parseSave, readLegacySave } from './game/store';
 import { World } from './game/world';
 import { Interface } from './ui/interface';
-import { openLogin } from './ui/login';
+import { accountRequest, clearToken, openLogin } from './ui/login';
 import './styles/main.css';
 
 const root = document.getElementById('app');
@@ -15,22 +15,47 @@ window.addEventListener('game-message', (event: Event) => {
   gameUi?.message(pendingMessage);
 });
 const session = await openLogin(appRoot);
-const save = loadSave(session.accountId);
-let hasSave = false;
-try { hasSave = storedSaveExists(session.accountId); }
-catch (error) { pendingMessage = `진행 상황을 확인하지 못했습니다: ${String(error)}`; }
-if (!hasSave && !session.guest) {
-  Object.assign(save, freshSave(session.gender), { accountId: session.accountId, name: session.loginId });
-  hasSave = true;
-  saveGame(save, session.accountId);
+const save = parseSave(session.save, session.accountId);
+let legacyKey: string | undefined;
+if (session.guest || session.newAccount) {
+  try {
+    const legacy = readLegacySave(session.guest ? undefined : session.loginId);
+    if (legacy) { Object.assign(save, parseSave(legacy.save, session.accountId)); legacyKey = legacy.key; }
+  } catch (error) { pendingMessage = `기존 진행 상황을 읽지 못했습니다: ${String(error)}`; }
 }
 const world = new World(save);
 let resetting = false;
-window.addEventListener('game-reset', () => { resetting = true; });
-const ui = new Interface(appRoot, world, () => resetting || saveGame(save, session.accountId), session);
-window.addEventListener('game-logout', () => { if (saveGame(save, session.accountId)) location.reload(); });
+let pending = false;
+let activeSave: Promise<boolean> | undefined;
+let saveState: '저장됨' | '저장 중' | '저장 실패' = '저장됨';
+const setSaveState = (state: typeof saveState) => { saveState = state; ui?.setSaveStatus(state); };
+function flush(): Promise<boolean> {
+  if (resetting) return Promise.resolve(false);
+  pending = true;
+  if (activeSave) return activeSave;
+  activeSave = (async () => {
+    while (pending) {
+      pending = false; setSaveState('저장 중');
+      try {
+        const result = await accountRequest<{ ok: boolean }>('save', { save: structuredClone(save) }, session.token);
+        if (result.ok !== true) throw new Error('서버가 저장 완료를 확인하지 않았습니다.');
+        if (legacyKey) { clearLegacySave(legacyKey); legacyKey = undefined; ui.message('기존 진행 상황을 서버로 이전했습니다.'); }
+        setSaveState('저장됨');
+      } catch (error) { pending = true; setSaveState('저장 실패'); ui.message(`서버 저장 실패: ${String(error)}`); return false; }
+    }
+    return true;
+  })().finally(() => { activeSave = undefined; });
+  return activeSave;
+}
+const ui = new Interface(appRoot, world, () => { void flush(); }, session, async () => {
+  resetting = true;
+  try { if (activeSave) await activeSave; await accountRequest('reset', {}, session.token); location.reload(); }
+  catch (error) { resetting = false; ui.message(`데이터 초기화 실패: ${String(error)}`); }
+});
+window.addEventListener('game-logout', async () => { const ok = await flush(); if (ok) { clearToken(); location.reload(); } });
 gameUi = ui;
 if (pendingMessage) ui.message(pendingMessage);
+if (legacyKey) void flush();
 const view = new GameView();
 try { await view.mount(ui.canvasHost); }
 catch (error) {
@@ -59,22 +84,13 @@ window.addEventListener('keydown', e => {
   if (key === '3') world.action(save.quickSlots[2]);
 });
 window.addEventListener('keyup', e => { keys.delete(e.key.toLowerCase()); direction(); });
-window.addEventListener('blur', () => { keys.clear(); world.move = { x: 0, y: 0 }; world.keyboardMove = { x: 0, y: 0 }; world.keyboardActive = false; world.joystickActive = false; world.attackHeld = false; if (!resetting) saveGame(save, session.accountId); });
-document.addEventListener('visibilitychange', () => { if (document.hidden && !resetting) saveGame(save, session.accountId); });
-
-if (!hasSave && session.guest) {
-  const chooser = document.createElement('div'); chooser.className = 'character-choice';
-  chooser.innerHTML = '<div><small>THE DESCENT BEGINS</small><h2>전사를 선택하세요</h2><p>빈손으로 황야의 사냥터에 들어갑니다.</p><button data-gender="male">남성 전사</button><button data-gender="female">여성 전사</button></div>';
-  appRoot.appendChild(chooser);
-  chooser.querySelectorAll<HTMLButtonElement>('button').forEach(button => button.onclick = () => {
-    Object.assign(save, freshSave(button.dataset.gender === 'female' ? 'female' : 'male'));
-    world.player.hp = 100; hasSave = saveGame(save, session.accountId); if (hasSave) chooser.remove(); ui.renderStatus();
-  });
-}
+window.addEventListener('blur', () => { keys.clear(); world.move = { x: 0, y: 0 }; world.keyboardMove = { x: 0, y: 0 }; world.keyboardActive = false; world.joystickActive = false; world.attackHeld = false; void flush(); });
+document.addEventListener('visibilitychange', () => { if (document.hidden) void flush(); });
+setInterval(() => { void flush(); }, 5000);
 
 let previous = performance.now(), time = 0;
 view.app.ticker.add(() => {
   const now = performance.now(), dt = Math.min(.05, (now - previous) / 1000); previous = now; time += dt;
-  if (hasSave) world.update(dt);
+  world.update(dt);
   view.draw(world, time); ui.tick();
 });
