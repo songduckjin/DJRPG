@@ -43,3 +43,20 @@
 1. `npm run build` 성공 및 TypeScript 에러 0건.
 2. `docs/TASK.md`의 이번 요청을 `[x]`로 표시하고 `docs/WORKLOG.md` 상단에 5줄 이내로 작업 요약 기록.
 3. **토큰 절약**: 브라우저 실기 조작, Playwright/헤드리스 브라우저 실행, Computer Use 도구는 절대 실행하지 않고 `npm run build` 검증까지만 완료한다. (`AGENTS.md` 수칙 준수)
+---
+
+## [작업 2] Vercel 프로덕션 배포 설정 및 접속 URL 발급
+- **등록일**: 2026-11-15
+- **목표**: 모바일 폰에서 바로 접속해 테스트할 수 있도록 Vercel 프로덕션 배포 설정을 추가하고 배포 URL을 확보한다.
+
+### 작업 내용
+1. **Vercel 설정 추가 (`vercel.json`)**:
+   - Vite 정적 빌드(`dist`, `npm run build`) 기준 SPA 라우팅 fallback(`rewrites` → `/index.html`)과 기본 캐시 헤더를 담은 `vercel.json`을 추가하고 `main`에 푸시한다.
+2. **Vercel 프로덕션 배포 및 접속 URL 확인**:
+   - 로컬/연결된 Vercel CLI로 `vercel --prod` 배포를 실행해 프로덕션 접속 URL(`https://...vercel.app`)을 발급·확인한다.
+   - 만약 현재 환경에 Vercel 인증/토큰이 없어 CLI 배포가 불가한 경우, `vercel.json` 커밋·푸시까지만 완료한 뒤 사용자에게 Vercel Import(`https://vercel.com/new` → `songduckjin/DJRPG`) 안내를 남긴다.
+
+### 검증 및 완료 기준 (Codex Policy)
+1. `npm run build` 성공 및 TypeScript 에러 0건.
+2. `docs/TASK.md`의 이번 요청을 `[x]`로 표시하고, `docs/WORKLOG.md` 상단에 **Vercel 접속 URL**(또는 미인증 시 푸시 완료 상태)을 포함해 5줄 이내로 작업 요약 기록.
+3. **토큰 절약**: 브라우저 실기 조작, Playwright/헤드리스 브라우저 실행, Computer Use 도구는 절대 실행하지 않는다.
