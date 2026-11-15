@@ -1,10 +1,11 @@
 import { skillLevel, totalStats, upgradeSkill } from '../../game/store';
-import { canLearn, MAX_SKILL_LEVEL, passiveOrder, passives, skillDuration, skillOrder, skillRange, skills, skillUpgradeCost, UNLOCK_ALL_SKILLS_FOR_TEST, type SkillLevelId } from '../../game/skills';
+import { canLearn, MAX_SKILL_LEVEL, passiveOrder, passives, skillDuration, skillOrder, skillRange, skills, UNLOCK_ALL_SKILLS_FOR_TEST, type SkillLevelId } from '../../game/skills';
 import type { Interface } from '../interface';
 
 export function renderSkills(this: Interface, dialog: HTMLElement): void {
     const list = document.createElement('div'); list.className = 'skill-list';
     const save = this.world.save;
+    const points = document.createElement('p'); points.className = 'skill-points'; points.textContent = `보유 스킬포인트  ${save.skillPoints} SP`; list.appendChild(points);
     const note = document.createElement('p'); note.className = 'skill-note';
     note.textContent = UNLOCK_ALL_SKILLS_FOR_TEST ? '테스트 모드: 레벨 제한 없이 모든 스킬을 습득할 수 있습니다. 요구 레벨은 정식 해금 기준입니다.' : '레벨을 올려 스킬을 해금하세요.';
     list.appendChild(note);
@@ -67,7 +68,7 @@ export function renderSkills(this: Interface, dialog: HTMLElement): void {
 export function addSkillUpgrade(this: Interface, actions: HTMLElement, id: SkillLevelId, name: string): void {
     const level = skillLevel(this.world.save, id);
     const button = document.createElement('button');
-    button.textContent = level >= MAX_SKILL_LEVEL ? '최대 레벨' : `레벨업 (${skillUpgradeCost(level)}골드)`;
+    button.textContent = level >= MAX_SKILL_LEVEL ? '최대 레벨' : '레벨업 (1 SP)';
     button.disabled = level >= MAX_SKILL_LEVEL;
     button.onclick = () => {
       const before = totalStats(this.world.save).health;

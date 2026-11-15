@@ -51,12 +51,17 @@ export function totalStats(save: Save): Record<Stat, number> {
   return total;
 }
 
+export function equipmentDropChance(floor: number, boss = false): number {
+  return boss ? Math.min(.18, .03 + (floor - 1) * .003) : Math.min(.015, .002 + (floor - 1) * .00025);
+}
+
 export function rollItem(floor: number, guaranteed = false, boss = false): Item {
   if (guaranteed) return { id: crypto.randomUUID(), name: '낡은 두손검', slot: 'weapon', rarity: 'common', stats: { attack: 4 } };
   const roll = Math.random();
-  const rarity: Rarity = boss
-    ? roll < .02 ? 'legendary' : roll < .14 ? 'rare' : roll < .54 ? 'magic' : 'common'
-    : roll < .002 ? 'legendary' : roll < .017 ? 'rare' : roll < .117 ? 'magic' : 'common';
+  const depth = Math.max(0, floor - 1);
+  const legendary = boss ? Math.min(.04, .02 + depth * .0002) : Math.min(.006, .002 + depth * .00005);
+  const rare = boss ? Math.min(.22, .14 + depth * .001) : Math.min(.035, .017 + depth * .0004);
+  const rarity: Rarity = roll < legendary ? 'legendary' : roll < rare ? 'rare' : roll < (boss ? .54 : .117) ? 'magic' : 'common';
   const slot = slots[Math.floor(Math.random() * slots.length)];
   const zweihander = slot === 'weapon' && (rarity === 'legendary' || Math.random() < .35);
   const base = slot === 'ring2' ? '반지' : slotNames[slot];

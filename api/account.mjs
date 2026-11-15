@@ -5,7 +5,11 @@ import { promisify } from 'node:util';
 const scrypt = promisify(scryptCallback);
 const namePattern = /^[가-힣a-zA-Z0-9_]{2,16}$/;
 const bad = (res, status, code, error) => res.status(status).json({ code, error });
-const initialSave = (id, gender, name) => ({ version: 1, name, accountId: id, gender, auto: true, autoClimb: true, level: 1, exp: 0, gold: 0, floor: 1, maxFloor: 1, floorKills: 0, kills: 0, health: 100, equipment: {}, bag: [], tutorial: 0, stones: 0, learned: ['spin', 'slam', 'warcry'], passives: [], quickSlots: ['spin', 'slam', 'warcry'], skillLevels: { spin: 1, slam: 1, warcry: 1 } });
+const initialSave = (id, gender, name) => ({ version: 1, name, accountId: id, gender, auto: true, autoClimb: true, level: 1, exp: 0, gold: 0, floor: 1, maxFloor: 1, floorKills: 0, kills: 0, health: 100, equipment: {}, bag: [], tutorial: 0, stones: 0, skillPoints: 0, lastActiveAt: Date.now(), learned: ['spin', 'slam', 'warcry'], passives: [], quickSlots: ['spin', 'slam', 'warcry'], skillLevels: { spin: 1, slam: 1, warcry: 1 } });
+const offlineSeconds = updatedAt => {
+  const elapsed = Math.floor((Date.now() - Date.parse(String(updatedAt))) / 1000);
+  return Number.isFinite(elapsed) && elapsed >= 60 ? Math.min(43_200, elapsed) : 0;
+};
 const sign = value => createHmac('sha256', process.env.TURSO_AUTH_TOKEN).update(value).digest('base64url');
 const tokenFor = id => { const value = Buffer.from(JSON.stringify({ id, exp: Date.now() + 30 * 86400_000 })).toString('base64url'); return `${value}.${sign(value)}`; };
 function tokenId(req) {
@@ -48,25 +52,26 @@ export default async function handler(req, res) {
     if (action === 'login') {
       const id = String(body.loginId ?? '').trim();
       if (!namePattern.test(id) || typeof body.password !== 'string') return bad(res, 400, 'INVALID_ACCOUNT', '아이디와 비밀번호를 입력하세요.');
-      const row = (await db.execute({ sql: 'SELECT id,password_hash,save_json FROM djrpg_accounts WHERE id = ?', args: [id] })).rows[0];
+      const row = (await db.execute({ sql: 'SELECT id,password_hash,save_json,updated_at FROM djrpg_accounts WHERE id = ?', args: [id] })).rows[0];
       if (!row || !await verifyPassword(body.password, row.password_hash)) return bad(res, 401, 'INVALID_CREDENTIALS', '아이디 또는 비밀번호가 올바르지 않습니다.');
       const save = JSON.parse(row.save_json);
-      return res.status(200).json({ accountId: row.id, loginId: row.id, gender: save.gender, guest: false, token: tokenFor(row.id), save });
+      return res.status(200).json({ accountId: row.id, loginId: row.id, gender: save.gender, guest: false, token: tokenFor(row.id), save, offlineSeconds: offlineSeconds(row.updated_at) });
     }
     const id = tokenId(req);
     if (!id) return bad(res, 401, 'INVALID_TOKEN', '인증이 만료되었습니다. 다시 로그인하세요.');
-    const row = (await db.execute({ sql: 'SELECT id,password_hash,save_json FROM djrpg_accounts WHERE id = ?', args: [id] })).rows[0];
+    const row = (await db.execute({ sql: 'SELECT id,password_hash,save_json,updated_at FROM djrpg_accounts WHERE id = ?', args: [id] })).rows[0];
     if (!row) return bad(res, 401, 'INVALID_TOKEN', '계정을 찾을 수 없습니다. 다시 로그인하세요.');
     if (action === 'load') {
       const save = JSON.parse(row.save_json);
-      return res.status(200).json({ accountId: row.id, loginId: row.password_hash === 'guest' ? '게스트' : row.id, gender: save.gender, guest: row.password_hash === 'guest', token: req.headers.authorization.slice(7), save });
+      return res.status(200).json({ accountId: row.id, loginId: row.password_hash === 'guest' ? '게스트' : row.id, gender: save.gender, guest: row.password_hash === 'guest', token: req.headers.authorization.slice(7), save, offlineSeconds: offlineSeconds(row.updated_at) });
     }
     if (action === 'save' || action === 'reset') {
       const save = action === 'reset' ? initialSave(id, JSON.parse(row.save_json).gender === 'female' ? 'female' : 'male', row.password_hash === 'guest' ? '모험가' : id) : body.save;
       if (!save || typeof save !== 'object' || Array.isArray(save) || save.version !== 1 || JSON.stringify(save).length > 200_000) return bad(res, 400, 'INVALID_SAVE', '저장 데이터 형식이 올바르지 않습니다.');
       save.accountId = id;
+      save.lastActiveAt = Date.now();
       await db.execute({ sql: 'UPDATE djrpg_accounts SET save_json = ?, updated_at = ? WHERE id = ?', args: [JSON.stringify(save), new Date().toISOString(), id] });
-      return res.status(200).json({ ok: true, save });
+      return res.status(200).json({ ok: true, save, offlineSeconds: 0 });
     }
     return bad(res, 400, 'INVALID_ACTION', '지원하지 않는 요청입니다.');
   } catch (error) {

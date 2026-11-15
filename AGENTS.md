@@ -7,7 +7,7 @@ Read this map first, then only the files relevant to the request. Use `rg` for t
 - Entry & wiring: `src/main.ts` (only mounts scene/UI and coordinates loop)
 - Field lighting, terrain and particles: `src/game/render/field.ts`; actors and animation: `src/game/render/entities.ts`; skill VFX and drops: `src/game/render/vfx.ts`; canvas setup and draw order: `src/game/render.ts`
 - Idle combat AI, enemy waves, boss spawn and progression: `src/game/world.ts`
-- Save migration and progression state: `src/game/store.ts`; item tables, drops, stats and salvage: `src/game/items.ts`
+- Save migration and progression state: `src/game/store.ts`; item tables, drops, stats and salvage: `src/game/items.ts`; offline reward calculation: `src/game/offline.ts`
 - HUD and controls: `src/ui/hud.ts`; equipment, skill, status, floor and account dialogs: `src/ui/modals/`; UI wiring: `src/ui/interface.ts`
 - Styles: `src/styles/base.css`, `hud.css`, `modals.css`, `login.css` imported by `main.css`
 - Static assets / future AI-generated 2.5D spritesheets & tilesets: `public/assets/`

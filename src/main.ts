@@ -1,5 +1,6 @@
 import { GameView } from './game/render';
 import { clearLegacySave, parseSave, readLegacySave } from './game/store';
+import { applyOfflineRewards } from './game/offline';
 import { World } from './game/world';
 import { Interface } from './ui/interface';
 import { accountRequest, clearToken, openLogin } from './ui/login';
@@ -23,6 +24,7 @@ if (session.guest || session.newAccount) {
     if (legacy) { Object.assign(save, parseSave(legacy.save, session.accountId)); legacyKey = legacy.key; }
   } catch (error) { pendingMessage = `기존 진행 상황을 읽지 못했습니다: ${String(error)}`; }
 }
+const offlineReward = applyOfflineRewards(save, session.offlineSeconds ?? 0);
 const world = new World(save);
 let resetting = false;
 let pending = false;
@@ -55,7 +57,8 @@ const ui = new Interface(appRoot, world, () => { void flush(); }, session, async
 window.addEventListener('game-logout', async () => { const ok = await flush(); if (ok) { clearToken(); location.reload(); } });
 gameUi = ui;
 if (pendingMessage) ui.message(pendingMessage);
-if (legacyKey) void flush();
+if (offlineReward) ui.showOfflineReward(offlineReward);
+if (legacyKey || offlineReward) void flush();
 const view = new GameView();
 try { await view.mount(ui.canvasHost); }
 catch (error) {

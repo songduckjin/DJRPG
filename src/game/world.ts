@@ -1,4 +1,5 @@
-import { expToNext, floorKillTarget, rollItem, skillLevel, totalStats, type Item, type Save } from './store';
+import { addExperience, floorKillTarget, rollItem, skillLevel, totalStats, type Item, type Save } from './store';
+import { equipmentDropChance } from './items';
 import { dragonOrbitFactor, skillDamageScale, skillDuration, skillRange, skills, type SkillId } from './skills';
 
 export type Enemy = { x: number; y: number; hp: number; maxHp: number; boss: boolean; hit: number; step: number; moving: boolean; knockX: number; knockY: number; slow: number };
@@ -137,15 +138,10 @@ export class World {
     this.effects.push({ x: enemy.x, y: enemy.y, kind: 'death', age: 0, duration: .7, angle: Math.random() * Math.PI * 2 });
     this.save.kills++;
     this.save.gold += enemy.boss ? 70 * this.save.floor : 3 + this.save.floor;
-    this.save.exp += enemy.boss ? 45 : 8;
-    while (this.save.exp >= expToNext(this.save.level)) {
-      this.save.exp -= expToNext(this.save.level);
-      this.save.level++;
-      this.player.hp = totalStats(this.save).health;
-      this.onMessage(`레벨 ${this.save.level} 달성!`);
-    }
+    const gained = addExperience(this.save, enemy.boss ? 45 : 8);
+    if (gained) { this.player.hp = this.save.health; this.onMessage(`레벨 ${this.save.level} 달성! SP +${gained}`); }
     const guaranteed = this.save.tutorial === 0 && !enemy.boss;
-    if (guaranteed || Math.random() < (enemy.boss ? .12 : .005)) {
+    if (guaranteed || Math.random() < equipmentDropChance(this.save.floor, enemy.boss)) {
       this.drops.push({ x: enemy.x, y: enemy.y, item: rollItem(this.save.floor, guaranteed, enemy.boss), age: 0, warned: false });
       if (guaranteed) { this.save.tutorial = 1; this.onMessage('낡은 두손검이 떨어졌습니다. 빛기둥으로 이동하세요!'); }
     }

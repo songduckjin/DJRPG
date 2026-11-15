@@ -1,6 +1,6 @@
 import type { Gender, Save } from '../game/store';
 
-export type Session = { accountId: string; loginId: string; gender: Gender; guest: boolean; token: string; save: Save; newAccount?: boolean };
+export type Session = { accountId: string; loginId: string; gender: Gender; guest: boolean; token: string; save: Save; offlineSeconds?: number; newAccount?: boolean };
 const tokenKey = 'djrpg.auth.token';
 export function clearToken(): void { localStorage.removeItem(tokenKey); }
 export async function accountRequest<T>(action: string, data: Record<string, unknown> = {}, token?: string): Promise<T> {
