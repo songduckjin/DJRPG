@@ -114,3 +114,23 @@
 1. `pnpm run check` 및 `npm run build` 성공.
 2. `docs/TASK.md`의 이번 요청을 `[x]`로 표시하고 `docs/WORKLOG.md` 상단에 5줄 이내로 작업 요약 기록.
 3. **토큰 절약**: 브라우저 실기 조작, Playwright/헤드리스 브라우저 실행, Computer Use 도구는 절대 실행하지 않는다.
+---
+
+## [작업 40] 아이소메트릭 화면 좌표 기준 시선(`facingSide`) & 이동 타깃 일치 수정
+- **등록일**: 2026-11-15
+- **목표**: 캐릭터가 걸어가는 실제 화면 방향과 바라보는 방향이 어긋나 뒷걸음질치는 현상을 수정한다.
+- **원인**:
+  1. 렌더러가 월드 좌표 `(dx, dy)`를 아이소메트릭 화면 좌표 `screenDx = (dx - dy) * 0.86`으로 투영하는데, `world.ts`의 `facingSide`는 월드 `dx`만으로 좌우를 판정하고 있었음.
+  2. 자동사냥 시 드랍 아이템(`drop`)을 향해 걸어갈 때도 `if (enemy) this.faceTarget(enemy)`로 다른 몬스터를 바라봐 이동 타깃과 시선이 달랐음.
+
+### 작업 내용
+1. **아이소메트릭 화면 X축(`dx - dy`) 기준 좌우 반전 (`src/game/world.ts`)**:
+   - `faceTarget(target)` 및 수동 이동 시 `facingSide`를 계산할 때 월드 `dx`가 아니라 **아이소메트릭 화면 X 변화량 `screenDx = dx - dy`**의 부호(`screenDx > 0 ? 1 : -1`, 미세 떨림 방지 `Math.abs(screenDx) > 4`)를 사용한다.
+   - (`src/game/render/entities.ts`에서 기본 캐릭터 스프라이트가 오른쪽을 바라보는지 왼쪽을 바라보는지 기준도 함께 확인하여, 오른쪽 이동 시 정확히 오른쪽을 보도록 부호를 맞춘다.)
+2. **이동 타깃과 시선 타깃 통일 (`src/game/world.ts`)**:
+   - 자동사냥 중 `destination = drop ?? enemy`로 이동할 때, **현재 실제 이동 목표인 `destination`을 바라보게(`this.faceTarget(destination)`)** 통일하고, 멈춰 서서 공격할 때만 `enemy`를 바라보게 한다.
+
+### 검증 및 완료 기준 (Codex Policy)
+1. `pnpm run check` 및 `npm run build` 성공.
+2. `docs/TASK.md`의 이번 요청을 `[x]`로 표시하고 `docs/WORKLOG.md` 상단에 5줄 이내로 작업 요약 기록.
+3. **토큰 절약**: `src/game/world.ts`(필요 시 `src/game/render/entities.ts` 상단만) 최소한으로 읽고 수정한다.
