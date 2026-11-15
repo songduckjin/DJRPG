@@ -468,3 +468,25 @@
 1. `npm run build` 성공 및 TypeScript 에러 0건.
 2. `docs/TASK.md`의 이번 요청을 `[x]`로 표시하고 `docs/WORKLOG.md` 상단에 5줄 이내로 작업 요약 기록.
 3. **토큰 절약**: 브라우저 실기 조작, Playwright/헤드리스 브라우저 실행, Computer Use 도구는 절대 실행하지 않는다.
+---
+
+## [작업 21] 4프레임 연속 보행 애니메이션 적용 (발바닥 정렬 프레임 시트)
+- **등록일**: 2026-11-15
+- **목표**: 2장 교차 걷기 대신 256×256 발바닥 중앙 정렬된 4프레임 연속 걷기 이미지 세트를 적용해 매끄러운 보행 애니메이션을 구현한다.
+
+### 작업 내용
+1. **4프레임 보행 텍스처 세트 로드 및 순환 재생 (`src/game/render.ts`)**:
+   - `public/assets/`에 추가된 4프레임 보행 이미지 12장을 로드한다:
+     - 남자 두손검 전사: `/assets/warrior_male_walk_1.png` ~ `warrior_male_walk_4.png`
+     - 갑옷 두손검 전사: `/assets/warrior_armored_walk_1.png` ~ `warrior_armored_walk_4.png`
+     - 해골전사: `/assets/skeleton_walk_1.png` ~ `skeleton_walk_4.png`
+   - **전사 이동 중(`moving === true` && 공격 중 아님)**:
+     - 갑옷 착용 시 `warrior_armored_walk_1..4`, 남자 두손검 착용 시 `warrior_male_walk_1..4`를 약 **8~9 FPS(`Math.floor(time * 8.5) % 4`)**로 순환 재생한다(각 프레임이 이미 동일한 256×256 발바닥 정렬 캔버스이므로 `rotation`·과도한 `bob` 없이 매끄럽게 보행).
+     - (남자 맨몸·여자 전사는 기존 대기/걷기 폴백 유지)
+   - **해골전사 이동 중(`enemy.moving === true` && `!enemy.boss`)**:
+     - `enemy.step` 위상에 맞춰 `skeleton_walk_1..4` 4프레임을 순환 재생해 자연스럽게 걸어오도록 한다.
+
+### 검증 및 완료 기준 (Codex Policy)
+1. `npm run build` 성공 및 TypeScript 에러 0건.
+2. `docs/TASK.md`의 이번 요청을 `[x]`로 표시하고 `docs/WORKLOG.md` 상단에 5줄 이내로 작업 요약 기록.
+3. **토큰 절약**: 브라우저 실기 조작, Playwright/헤드리스 브라우저 실행, Computer Use 도구는 절대 실행하지 않는다.
