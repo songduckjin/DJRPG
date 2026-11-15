@@ -490,3 +490,24 @@
 1. `npm run build` 성공 및 TypeScript 에러 0건.
 2. `docs/TASK.md`의 이번 요청을 `[x]`로 표시하고 `docs/WORKLOG.md` 상단에 5줄 이내로 작업 요약 기록.
 3. **토큰 절약**: 브라우저 실기 조작, Playwright/헤드리스 브라우저 실행, Computer Use 도구는 절대 실행하지 않는다.
+---
+
+## [작업 22] 전 캐릭터 대검 휘두르기 4프레임 공격 · 여전사/보스 4프레임 보행 애니메이션
+- **등록일**: 2026-11-15
+- **목표**: 공격 모션도 단일 포즈 전환이 아닌 4프레임 연속 휘두르기(치켜들기 → 내려베기 → 풀스윙 → 회수)로 크게 움직이게 하고, 여자 전사와 보스(해골 군주)에도 4프레임 보행 애니메이션을 적용한다.
+
+### 작업 내용
+1. **4프레임 대검 공격 애니메이션 (`src/game/render.ts`)**:
+   - `public/assets/`에 추가된 4프레임 공격 이미지 세트를 로드한다:
+     - 남자 전사: `/assets/warrior_male_attack_1.png` ~ `warrior_male_attack_4.png`
+     - 여자 전사: `/assets/warrior_female_attack_1.png` ~ `warrior_female_attack_4.png`
+     - 갑옷 전사: `/assets/warrior_armored_attack_1.png` ~ `warrior_armored_attack_4.png`
+   - 기본 공격/스킬 발동 시(약 **0.32초** 동안) 공격 경과 비율(`progress = 0..1`)에 따라 1→2→3→4번 프레임을 순서대로 재생해, 대검을 높이 들었다가 양팔 쭉 뻗어 크게 휘두르고 회수하는 연속 동작을 보여준다.
+2. **여자 전사 & 보스 4프레임 보행 애니메이션 (`src/game/render.ts`)**:
+   - 여자 전사 이동 시 `/assets/warrior_female_walk_1.png` ~ `warrior_female_walk_4.png`를 약 8.5 FPS로 순환 재생한다.
+   - 보스(해골 군주) 이동 시 `/assets/boss_walk_1.png` ~ `boss_walk_4.png`를 약 6.5 FPS로 순환 재생해 묵직하게 걸어오는 느낌을 준다.
+
+### 검증 및 완료 기준 (Codex Policy)
+1. `npm run build` 성공 및 TypeScript 에러 0건.
+2. `docs/TASK.md`의 이번 요청을 `[x]`로 표시하고 `docs/WORKLOG.md` 상단에 5줄 이내로 작업 요약 기록.
+3. **토큰 절약**: 브라우저 실기 조작, Playwright/헤드리스 브라우저 실행, Computer Use 도구는 절대 실행하지 않는다.
