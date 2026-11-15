@@ -11,7 +11,7 @@ export function enemyMaxHp(floor: number, boss: boolean): number { return boss ?
 export function enemyHitDamage(floor: number, boss: boolean, defense: number): number { return Math.max(1, (boss ? 22 + floor * 5 : 7 + floor * 2) - defense * .2); }
 
 export class World {
-  player = { x: 0, y: 0, facing: 1, mp: 100, hp: 100, berserk: 0, berserkLevel: 1, hit: 0 };
+  player = { x: 0, y: 0, facing: 0, facingSide: 1, mp: 100, hp: 100, berserk: 0, berserkLevel: 1, hit: 0 };
   enemies: Enemy[] = [];
   drops: Drop[] = [];
   effects: Effect[] = [];
@@ -65,9 +65,13 @@ export class World {
     if (kind !== 'warcry') this.attackPose = .32;
     const attack = stats.attack * (p.berserk > 0 ? 1.5 + (p.berserkLevel - 1) * .05 : 1);
     const target = this.nearest();
+    const manualMove = this.keyboardActive ? this.keyboardMove : this.move;
+    if (Math.hypot(manualMove.x, manualMove.y) > .05) {
+      p.facing = Math.atan2(manualMove.y, manualMove.x);
+      if (Math.abs(manualMove.x) > .05) p.facingSide = manualMove.x > 0 ? 1 : -1;
+    } else if (target) this.faceTarget(target);
     if (kind === 'attack') {
-      const angle = target && Math.hypot(target.x - p.x, target.y - p.y) < 95 ? Math.atan2(target.y - p.y, target.x - p.x) : p.facing;
-      p.facing = angle;
+      const angle = p.facing;
       this.effects.push({ x: p.x, y: p.y, kind: 'slash', age: 0, duration: .25, angle, swing: this.swing });
       this.swing *= -1;
       this.damage(90, attack, angle, 1.15);
@@ -105,6 +109,12 @@ export class World {
 
   nearest(): Enemy | undefined {
     return this.enemies.reduce<Enemy | undefined>((best, e) => !best || Math.hypot(e.x - this.player.x, e.y - this.player.y) < Math.hypot(best.x - this.player.x, best.y - this.player.y) ? e : best, undefined);
+  }
+
+  private faceTarget(target: { x: number; y: number }): void {
+    const dx = target.x - this.player.x;
+    this.player.facing = Math.atan2(target.y - this.player.y, dx);
+    if (Math.abs(dx) > 4) this.player.facingSide = dx > 0 ? 1 : -1;
   }
 
   damage(radius: number, amount: number, angle: number, arc: number, knockback = 12, slow = 0, origin: { x: number; y: number } = this.player): void {
@@ -164,16 +174,17 @@ export class World {
     p.berserk = Math.max(0, p.berserk - dt);
     p.hit = Math.max(0, p.hit - dt);
     p.mp = Math.min(100, p.mp + dt * 6);
-    if (this.attackHeld) this.action('attack');
     this.activeMove = this.keyboardActive ? this.keyboardMove : this.move;
     if (this.save.auto && !this.joystickActive && !this.keyboardActive) {
       const drop = this.save.bag.length >= 40 ? undefined : this.drops.reduce<Drop | undefined>((best, current) => !best || Math.hypot(current.x - p.x, current.y - p.y) < Math.hypot(best.x - p.x, best.y - p.y) ? current : best, undefined);
-      const target = drop ?? this.nearest();
-      if (target) {
-        const dx = target.x - p.x, dy = target.y - p.y, distance = Math.hypot(dx, dy);
+      const enemy = this.nearest();
+      const destination = drop ?? enemy;
+      if (destination) {
+        const dx = destination.x - p.x, dy = destination.y - p.y, distance = Math.hypot(dx, dy);
         const desired = drop ? 20 : 68;
         this.activeMove = distance > desired ? { x: dx / distance, y: dy / distance } : { x: 0, y: 0 };
-        if (distance > 1) p.facing = Math.atan2(dy, dx);
+        if (enemy) this.faceTarget(enemy);
+        else if (distance > 1) this.faceTarget(destination);
         if (!drop && distance < 190) {
           if (distance < 90) this.action('attack');
           for (const skill of this.save.quickSlots) {
@@ -187,8 +198,12 @@ export class World {
     if (magnitude > .05) {
       const speed = (p.berserk > 0 ? 160 + (p.berserkLevel - 1) * 4 : 125) * dt / Math.max(1, magnitude);
       p.x += this.activeMove.x * speed; p.y += this.activeMove.y * speed;
-      p.facing = Math.atan2(this.activeMove.y, this.activeMove.x);
+      if (!this.save.auto || this.joystickActive || this.keyboardActive) {
+        p.facing = Math.atan2(this.activeMove.y, this.activeMove.x);
+        if (Math.abs(this.activeMove.x) > .05) p.facingSide = this.activeMove.x > 0 ? 1 : -1;
+      }
     }
+    if (this.attackHeld) this.action('attack');
     this.spawnTimer -= dt;
     if (this.spawnTimer <= 0 && this.enemies.length < 18) {
       this.spawnTimer = Math.max(.55, 1.8 - this.save.floor * .08);

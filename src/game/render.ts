@@ -293,7 +293,7 @@ export class GameView {
     if (slam) bob -= Math.sin(Math.PI * slam.age / slam.duration) * 17;
     const boost = cry ? 1 + .14 * (1 - cry.age / cry.duration) : 1;
     const scale = this.app.screen.height * .095 / texture.height;
-    const face = Math.cos(player.facing) - Math.sin(player.facing) >= 0 ? 1 : -1;
+    const face = player.facingSide;
     const lungeX = (Math.cos(player.facing) - Math.sin(player.facing)) * .86 * attackPulse * 24;
     const lungeY = (Math.cos(player.facing) + Math.sin(player.facing)) * .43 * attackPulse * 24;
     this.hero.scale.set(scale * face * boost * (world.attackPose > 0 ? 1 + attackPulse * .15 : 1), scale * boost * (world.attackPose > 0 ? 1 - attackPulse * .15 : slam && slam.age > .35 ? .82 : 1));
