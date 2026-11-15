@@ -8,7 +8,9 @@ const paths = {
   female: '/assets/warrior_female_base.png', armored: '/assets/warrior_armored.png',
   maleSword: '/assets/warrior_male_sword.png', femaleSword: '/assets/warrior_female_sword.png',
   maleAttack: '/assets/warrior_male_attack.png', femaleAttack: '/assets/warrior_female_attack.png', armoredAttack: '/assets/warrior_armored_attack.png',
-  skeleton: '/assets/skeleton_warrior.png', boss: '/assets/skeleton_boss.png'
+  skeleton: '/assets/skeleton_warrior.png', boss: '/assets/skeleton_boss.png',
+  fxSpin: '/assets/fx_dragon_twister.png', fxSlam: '/assets/fx_wild_stamp.png',
+  fxRage: '/assets/fx_blood_rage.png', fxSlash: '/assets/fx_slash_arc.png'
 } as const;
 type Art = keyof typeof paths;
 type Dust = { x: number; y: number; vx: number; vy: number; age: number; duration: number; size: number };
@@ -21,9 +23,12 @@ export class GameView {
   private floor!: TilingSprite;
   private glow = new Graphics();
   private ground = new Graphics();
+  private aura!: Sprite;
   private ghosts = new Container();
   private actors = new Container();
   private fallen = new Container();
+  private skillVfx = new Container();
+  private vfxSprites = new Map<Effect, Sprite>();
   private effects = new Graphics();
   private labels = new Container();
   private shade = new Graphics();
@@ -48,7 +53,11 @@ export class GameView {
     this.hero = new Sprite(this.textures.male);
     this.hero.anchor.set(.5, 1);
     this.actors.addChild(this.hero);
-    this.app.stage.addChild(this.floor, this.glow, this.ground, this.ghosts, this.actors, this.fallen, this.effects, this.labels, this.shade);
+    this.aura = new Sprite(this.textures.fxRage);
+    this.aura.anchor.set(.5);
+    this.aura.blendMode = 'add';
+    this.aura.alpha = 0;
+    this.app.stage.addChild(this.floor, this.glow, this.ground, this.aura, this.ghosts, this.actors, this.fallen, this.skillVfx, this.effects, this.labels, this.shade);
   }
 
   draw(world: World, time: number): void {
@@ -111,46 +120,24 @@ export class GameView {
       depths.push({ sprite, depth: enemy.x + enemy.y });
     }
     this.drawHero(world, cx, cy, time);
+    const rage = world.effects.find(effect => effect.kind === 'warcry');
+    const burst = rage ? 1 - rage.age / rage.duration : 0;
+    const auraScale = 110 / this.aura.texture.width * (1 + burst * .8);
+    this.aura.position.set(cx, cy - 3);
+    this.aura.scale.set(auraScale, auraScale * .6);
+    this.aura.rotation = time * .35;
+    this.aura.alpha = world.player.berserk > 0 ? .48 + burst * .48 + Math.sin(time * 4) * .08 : 0;
     this.updateAfterimages(world, project, dt);
     this.updateCorpses(project, dt);
     depths.push({ sprite: this.hero, depth: world.player.x + world.player.y });
     depths.sort((a, b) => a.depth - b.depth).forEach((entry, index) => this.actors.setChildIndex(entry.sprite, index));
+    const liveEffects = new Set(world.effects);
+    for (const [effect, sprite] of this.vfxSprites) if (!liveEffects.has(effect)) { sprite.destroy(); this.vfxSprites.delete(effect); }
     for (const effect of world.effects) {
       const [x, y] = project(effect.x, effect.y), t = effect.age / effect.duration;
       const screenAngle = Math.atan2(Math.sin(effect.angle) * .43 + Math.cos(effect.angle) * .43, Math.cos(effect.angle) * .86 - Math.sin(effect.angle) * .86);
-      if (effect.kind === 'slash') {
-        this.effects.arc(x, y - 18, 39 + t * 19, screenAngle - 1.1, screenAngle + 1.1).stroke({ color: 0xff9e5a, width: 20 * (1 - t), alpha: .25 * (1 - t) });
-        this.effects.arc(x, y - 18, 40 + t * 19, screenAngle - 1.1, screenAngle + 1.1).stroke({ color: 0xffd59d, width: 11 * (1 - t), alpha: .8 * (1 - t) });
-        this.effects.arc(x, y - 18, 41 + t * 19, screenAngle - 1.1, screenAngle + 1.1).stroke({ color: 0xffffff, width: 4 * (1 - t), alpha: 1 - t });
-      }
-      else if (effect.kind === 'slash2') {
-        for (let i = 0; i < 2; i++) this.effects.arc(x, y - 18 - i * 7, 45 + t * 22 + i * 6, screenAngle - .9 + i * .2, screenAngle + .9 + i * .2).stroke({ color: i ? 0xffffff : 0x71d8e8, width: (i ? 5 : 9) * (1 - t), alpha: 1 - t });
-      }
-      else if (effect.kind === 'spin') {
-        for (let i = 0; i < 3; i++) this.effects.ellipse(x, y - 8 - i * 14, (78 * t + 22) * (1 - i * .15), (36 * t + 10) * (1 - i * .12)).stroke({ color: i % 2 ? 0xf7bd54 : 0xc83c36, width: 9 * (1 - t), alpha: .9 * (1 - t) });
-      }
-      else if (effect.kind === 'slam') {
-        this.effects.ellipse(x, y, 120 * t, 50 * t).stroke({ color: 0xe24a38, width: 12 * (1 - t), alpha: 1 - t });
-        for (let i = -2; i <= 2; i++) this.effects.moveTo(x, y).lineTo(x + Math.cos(effect.angle + i * .35) * (130 * t), y + Math.sin(effect.angle + i * .35) * (65 * t)).stroke({ color: 0xdf493f, width: 4 * (1 - t), alpha: 1 - t });
-      }
-      else if (effect.kind === 'warcry') this.effects.ellipse(x, y - 14, 110 * t, 46 * t).stroke({ color: 0xd93f38, width: 11 * (1 - t), alpha: 1 - t });
-      else if (effect.kind === 'power' || effect.kind === 'destroy') {
-        const length = (effect.kind === 'power' ? 85 : 155) * t;
-        const tx = x + Math.cos(screenAngle) * length, ty = y - 18 + Math.sin(screenAngle) * length;
-        this.effects.moveTo(x, y - 18).lineTo(tx, ty).stroke({ color: effect.kind === 'power' ? 0xffda67 : 0xd53e42, width: (effect.kind === 'power' ? 20 : 30) * (1 - t), alpha: .45 * (1 - t) });
-        this.effects.moveTo(x, y - 18).lineTo(tx, ty).stroke({ color: 0xffffff, width: 5 * (1 - t), alpha: 1 - t });
-        this.effects.arc(tx, ty, 17 + t * 12, screenAngle - 1, screenAngle + 1).stroke({ color: 0xff9d54, width: 6 * (1 - t), alpha: 1 - t });
-      }
-      else if (effect.kind === 'hell') {
-        this.glow.circle(x, y - 12, 155 * t).fill({ color: 0xe65a27, alpha: .16 * (1 - t) });
-        this.effects.ellipse(x, y, 170 * t, 72 * t).stroke({ color: 0xff742e, width: 17 * (1 - t), alpha: 1 - t });
-        for (let i = 0; i < 12; i++) {
-          const angle = effect.angle + i * Math.PI / 6;
-          const px = x + Math.cos(angle) * 145 * t, py = y - 15 - 35 * t + Math.sin(angle) * 60 * t;
-          this.effects.circle(px, py, (8 + i % 3 * 4) * (1 - t)).fill({ color: i % 2 ? 0xffd45b : 0xe94627, alpha: 1 - t });
-        }
-      }
-      else if (effect.kind === 'death') this.drawDeath(x, y, t, effect.angle);
+      if (this.drawSkillVfx(effect, x, y, t, screenAngle)) continue;
+      if (effect.kind === 'death') this.drawDeath(x, y, t, effect.angle);
       else this.drawHit(x, y, t, effect.angle);
     }
     this.updateDamageLabels(world.effects, project);
@@ -158,6 +145,28 @@ export class GameView {
     this.shade.rect(0, h - 50, w, 50).fill({ color: 0x05040a, alpha: .58 });
     this.shade.rect(0, 0, 30, h).fill({ color: 0x05040a, alpha: .55 });
     this.shade.rect(w - 30, 0, 30, h).fill({ color: 0x05040a, alpha: .55 });
+  }
+
+  private drawSkillVfx(effect: Effect, x: number, y: number, t: number, screenAngle: number): boolean {
+    if (effect.kind === 'warcry') return true;
+    if (effect.kind === 'hit' || effect.kind === 'death') return false;
+    const art: Art = effect.kind === 'spin' ? 'fxSpin' : effect.kind === 'slam' ? 'fxSlam' : 'fxSlash';
+    let sprite = this.vfxSprites.get(effect);
+    if (!sprite) {
+      sprite = new Sprite(this.textures[art]);
+      sprite.anchor.set(.5);
+      sprite.blendMode = 'add';
+      this.skillVfx.addChild(sprite);
+      this.vfxSprites.set(effect, sprite);
+    }
+    const size = effect.kind === 'hell' ? 230 : effect.kind === 'destroy' ? 185 : effect.kind === 'slam' ? 210 : effect.kind === 'spin' ? 175 : effect.kind === 'power' ? 125 : 105;
+    const scale = size / sprite.texture.width * (.7 + t * .55);
+    sprite.position.set(x, y - (effect.kind === 'slam' || effect.kind === 'spin' ? 4 : 18));
+    sprite.scale.set(scale, scale * (effect.kind === 'slam' || effect.kind === 'spin' ? .6 : 1));
+    sprite.rotation = effect.kind === 'spin' ? effect.age * 10 : effect.kind === 'slam' ? 0 : screenAngle;
+    sprite.alpha = Math.min(1, (1 - t) * 1.4);
+    sprite.tint = effect.kind === 'hell' ? 0xff655a : 0xffffff;
+    return true;
   }
 
   private drawHero(world: World, x: number, y: number, time: number): void {

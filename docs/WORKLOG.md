@@ -1,3 +1,8 @@
+## 2026-11-15 · 작업 15·16
+- `src/styles/main.css`: 공격·스킬 버튼 축소 및 우측 하단 정렬, AUTO 버튼 위치 조정.
+- `src/game/render.ts`: 4종 VFX 스프라이트 로드·가산 블렌딩·회전/확대/페이드 적용.
+- 검증: TypeScript 타입 검사, Vite 프로덕션 빌드 성공.
+
 ## 2026-11-15 · 작업 13·14
 - `src/game/store.ts`: 장비 점수·10칸 자동 장착, 등급별 일괄 분해 및 보상 계산.
 - `src/ui/interface.ts`, `src/styles/main.css`: 자동 장착 버튼과 분해 등급 선택·저장·결과 안내.
