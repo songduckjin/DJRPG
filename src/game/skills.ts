@@ -11,7 +11,7 @@ export type Passive = { id: PassiveId; name: string; level: number; icon: string
 export const skillOrder: SkillId[] = ['slash2', 'spin', 'slam', 'warcry', 'power', 'destroy', 'hell'];
 export const skills: Record<SkillId, Skill> = {
   slash2: { id: 'slash2', name: '소드 슬래시', level: 2, icon: '⚔', cost: 12, cooldown: 4, power: '공격력 × 0.9 · 2회', description: '전방을 빠르게 두 번 가르는 연속 대검 베기.', range: 96 },
-  spin: { id: 'spin', name: '드래곤 트위스터', level: 4, icon: '🐉', cost: 20, cooldown: 6, power: '공격력 × 1.65', description: '붉은·황금빛 용오름 검기로 주변 360도를 휩쓴다.', range: 108 },
+  spin: { id: 'spin', name: '드래곤 트위스터', level: 4, icon: '🐉', cost: 20, cooldown: 6, power: '공격력 × 1.65', description: '붉은·황금빛 용오름 검기로 주변 360도를 휩쓴다.', range: 150 },
   slam: { id: 'slam', name: '와일드 스탬프', level: 7, icon: '💥', cost: 24, cooldown: 8, power: '공격력 × 2.2', description: '지면을 내리찍어 붉은 균열을 만들고 적을 밀쳐 둔화시킨다.', range: 126 },
   warcry: { id: 'warcry', name: '블러드 레이지', level: 10, icon: '🩸', cost: 30, cooldown: 14, power: '공격력 × 1.5 · 공격속도 상승', description: '6초 동안 붉은 투기로 공격력·공격속도·이동속도가 상승한다.', range: 120 },
   power: { id: 'power', name: '파워 스트라이크', level: 14, icon: '⚡', cost: 18, cooldown: 6, power: '공격력 × 4.0', description: '좁은 전방에 강력한 일격을 꽂아 보스를 노린다.', range: 100 },

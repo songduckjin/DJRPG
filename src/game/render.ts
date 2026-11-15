@@ -12,7 +12,7 @@ const paths = {
   maleBaseWalk: '/assets/warrior_male_base_walk.png', maleSwordWalk: '/assets/warrior_male_walk.png',
   femaleWalk: '/assets/warrior_female_walk.png', armoredWalk: '/assets/warrior_armored_walk.png',
   skeleton: '/assets/skeleton_warrior.png', skeletonWalk: '/assets/skeleton_walk.png', boss: '/assets/skeleton_boss.png',
-  fxSpin: '/assets/fx_dragon_twister.png', fxSlam: '/assets/fx_wild_stamp.png',
+  fxDragonHead: '/assets/fx_dragon_head.png', fxDragonBody: '/assets/fx_dragon_body.png', fxSlam: '/assets/fx_wild_stamp.png',
   fxRage: '/assets/fx_blood_rage.png', fxSlash: '/assets/fx_slash_arc.png',
   fxPower: '/assets/fx_power_strike.png', fxDestroy: '/assets/fx_destroy_swing.png', fxHell: '/assets/fx_hell_fire.png'
 } as const;
@@ -42,6 +42,7 @@ export class GameView {
   private glow = new Graphics();
   private ground = new Graphics();
   private aura!: Sprite;
+  private dragonBack = new Container();
   private ghosts = new Container();
   private actors = new Container();
   private fallen = new Container();
@@ -77,7 +78,7 @@ export class GameView {
     this.aura.anchor.set(.5);
     this.aura.blendMode = 'add';
     this.aura.alpha = 0;
-    this.app.stage.addChild(this.floor, this.glow, this.ground, this.aura, this.ghosts, this.actors, this.fallen, this.skillVfx, this.effects, this.labels, this.shade);
+    this.app.stage.addChild(this.floor, this.glow, this.ground, this.aura, this.dragonBack, this.ghosts, this.actors, this.fallen, this.skillVfx, this.effects, this.labels, this.shade);
   }
 
   draw(world: World, time: number): void {
@@ -159,7 +160,7 @@ export class GameView {
     for (const effect of world.effects) {
       const [x, y] = project(effect.x, effect.y), t = effect.age / effect.duration;
       const screenAngle = Math.atan2(Math.sin(effect.angle) * .43 + Math.cos(effect.angle) * .43, Math.cos(effect.angle) * .86 - Math.sin(effect.angle) * .86);
-      if (this.drawSkillVfx(effect, x, y, t, screenAngle)) continue;
+      if (this.drawSkillVfx(effect, x, y, t, screenAngle, time)) continue;
       if (effect.kind === 'death') this.drawDeath(x, y, t, effect.angle);
       else this.drawHit(x, y, t, effect.angle);
     }
@@ -171,10 +172,11 @@ export class GameView {
     }
   }
 
-  private drawSkillVfx(effect: Effect, x: number, y: number, t: number, screenAngle: number): boolean {
+  private drawSkillVfx(effect: Effect, x: number, y: number, t: number, screenAngle: number, time: number): boolean {
     if (effect.kind === 'warcry') return true;
     if (effect.kind === 'hit' || effect.kind === 'death') return false;
-    const art: Art = effect.kind === 'spin' ? 'fxSpin' : effect.kind === 'slam' ? 'fxSlam' : effect.kind === 'power' ? 'fxPower' : effect.kind === 'destroy' ? 'fxDestroy' : effect.kind === 'hell' ? 'fxHell' : 'fxSlash';
+    if (effect.kind === 'spin') { this.drawDragon(effect, x, y, t, time); return true; }
+    const art: Art = effect.kind === 'slam' ? 'fxSlam' : effect.kind === 'power' ? 'fxPower' : effect.kind === 'destroy' ? 'fxDestroy' : effect.kind === 'hell' ? 'fxHell' : 'fxSlash';
     let sprites = this.vfxSprites.get(effect);
     if (!sprites) {
       sprites = Array.from({ length: effect.kind === 'slash2' ? 2 : 1 }, () => {
@@ -187,19 +189,52 @@ export class GameView {
       this.vfxSprites.set(effect, sprites);
     }
     const width = this.app.screen.width;
-    const size = effect.kind === 'hell' ? width * .95 : effect.kind === 'destroy' ? 260 : effect.kind === 'slam' ? 335 : effect.kind === 'spin' ? Math.max(320, width * .92) : effect.kind === 'power' ? 165 : 150;
+    const size = effect.kind === 'hell' ? width * .95 : effect.kind === 'destroy' ? 260 : effect.kind === 'slam' ? 335 : effect.kind === 'power' ? 165 : 150;
     for (const [index, sprite] of sprites.entries()) {
       const phase = effect.kind === 'slash2' ? Math.max(0, Math.min(1, t * 1.6 - index * .45)) : t;
-      const scale = size / sprite.texture.width * (effect.kind === 'spin' ? .85 + phase * .35 : .65 + phase * .55);
+      const scale = size / sprite.texture.width * (.65 + phase * .55);
       const distance = effect.kind === 'destroy' ? 40 + t * 125 : effect.kind === 'power' ? 70 : 0;
-      sprite.position.set(x + Math.cos(screenAngle) * distance, y + Math.sin(screenAngle) * distance - (effect.kind === 'power' ? 45 : effect.kind === 'slam' || effect.kind === 'spin' ? 4 : 18));
-      sprite.scale.set(scale, scale * (effect.kind === 'slam' ? .6 : effect.kind === 'spin' ? .8 : 1));
-      sprite.rotation = effect.kind === 'spin' ? effect.age * Math.PI * 1.4 : effect.kind === 'slam' || effect.kind === 'hell' || effect.kind === 'power' ? 0 : screenAngle + (effect.kind === 'slash2' ? index ? -.55 : .55 : 0);
-      const sustained = effect.kind === 'spin' || effect.kind === 'slam' || effect.kind === 'hell';
+      sprite.position.set(x + Math.cos(screenAngle) * distance, y + Math.sin(screenAngle) * distance - (effect.kind === 'power' ? 45 : effect.kind === 'slam' ? 4 : 18));
+      sprite.scale.set(scale, scale * (effect.kind === 'slam' ? .6 : 1));
+      sprite.rotation = effect.kind === 'slam' || effect.kind === 'hell' || effect.kind === 'power' ? 0 : screenAngle + (effect.kind === 'slash2' ? index ? -.55 : .55 : 0);
+      const sustained = effect.kind === 'slam' || effect.kind === 'hell';
       sprite.alpha = effect.kind === 'slash2' && t < index * .28 ? 0 : sustained ? Math.min(1, phase * 6, (1 - phase) * 6) : Math.min(1, (1 - phase) * 1.5);
       sprite.tint = 0xffffff;
     }
     return true;
+  }
+
+  private drawDragon(effect: Effect, x: number, y: number, progress: number, time: number): void {
+    const level = Math.max(1, Math.min(10, effect.level ?? 1));
+    const bodyCount = 6 + (level - 1) * 2;
+    let sprites = this.vfxSprites.get(effect);
+    if (!sprites) {
+      sprites = Array.from({ length: bodyCount + 1 }, (_, index) => {
+        const sprite = new Sprite(index === 0 ? this.textures.fxDragonHead : this.textures.fxDragonBody);
+        sprite.anchor.set(.5);
+        sprite.blendMode = 'add';
+        this.skillVfx.addChild(sprite);
+        return sprite;
+      });
+      this.vfxSprites.set(effect, sprites);
+    }
+    const radius = Math.min(this.app.screen.width * .38, 155);
+    const theta = effect.age * Math.PI * 2 / 1.35;
+    const fade = Math.min(1, progress * 8, (1 - progress) * 7);
+    for (const [index, sprite] of sprites.entries()) {
+      const angle = theta - index * .26;
+      const wobble = Math.sin(time * 10 - index * .6) * 4;
+      const r = radius + wobble;
+      const tail = 1 - index / (bodyCount + 1);
+      sprite.position.set(x + Math.cos(angle) * r, y - 12 + Math.sin(angle) * r * .65);
+      sprite.rotation = angle + Math.PI / 2;
+      const width = index === 0 ? 84 : 25 + tail * 24;
+      const scale = width / sprite.texture.width;
+      sprite.scale.set(scale);
+      sprite.alpha = fade * (index === 0 ? 1 : .35 + tail * .6);
+      const layer = Math.sin(angle) < 0 ? this.dragonBack : this.skillVfx;
+      if (sprite.parent !== layer) layer.addChild(sprite);
+    }
   }
 
   private drawHero(world: World, x: number, y: number, time: number): void {
