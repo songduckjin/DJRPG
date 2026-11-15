@@ -1,6 +1,7 @@
 import { Application, Assets, Container, Graphics, Sprite, Text, TilingSprite, type Texture } from 'pixi.js';
 import type { Effect, Enemy, World } from './world';
 import type { Rarity } from './store';
+import { dragonOrbitFactor, dragonRise } from './skills';
 
 const rarityColors: Record<Rarity, number> = { common: 0xffffff, magic: 0x57aaff, rare: 0xffd265, legendary: 0xff7d35 };
 const paths = {
@@ -244,24 +245,22 @@ export class GameView {
       this.vfxSprites.set(effect, sprites);
     }
     const radius = Math.min(this.app.screen.width * .43, 170);
-    const theta = effect.age * Math.PI * 2 / 1.35 + progress * progress * Math.PI;
+    const theta = effect.age * Math.PI * 2 / 1.1 + progress * progress * Math.PI * 2;
     const fade = Math.min(1, progress * 8, (1 - progress) * 7);
     for (const [index, sprite] of sprites.entries()) {
       const segmentProgress = Math.max(0, Math.min(1, progress - index * .012));
-      const coil = Math.max(0, Math.min(1, (segmentProgress - .25) / .65));
-      const tightness = coil * coil * (3 - 2 * coil);
-      const rise = Math.max(0, Math.min(1, (segmentProgress - .35) / .6));
-      const ascent = rise * rise * (3 - 2 * rise) * 120;
+      const orbit = dragonOrbitFactor(segmentProgress);
+      const ascent = dragonRise(segmentProgress);
       const angle = theta - index * .26;
       const wobble = Math.sin(time * 10 - index * .6) * 4;
-      const r = radius * (1 - tightness * .67) + wobble;
+      const r = orbit * (radius + wobble);
       const tail = 1 - index / (bodyCount + 1);
       sprite.position.set(x + Math.cos(angle) * r, y - 12 + Math.sin(angle) * r * .65 - ascent);
       sprite.rotation = angle + Math.PI / 2;
       const width = index === 0 ? 102 : 37 + tail * 32;
       const scale = width / sprite.texture.width;
       sprite.scale.set(scale);
-      sprite.alpha = fade * (index === 0 ? 1 : .35 + tail * .6);
+      sprite.alpha = fade * Math.min(1, segmentProgress * 10) * (index === 0 ? 1 : .35 + tail * .6);
       const layer = Math.sin(angle) < 0 ? this.dragonBack : this.skillVfx;
       if (sprite.parent !== layer) layer.addChild(sprite);
     }

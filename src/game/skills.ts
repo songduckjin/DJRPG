@@ -40,3 +40,14 @@ export function skillDuration(id: SkillId, level: number): number {
   return .55 + (level - 1) * .05;
 }
 export function skillDamageScale(level: number): number { return 1 + (level - 1) * .1; }
+
+function ease(value: number): number {
+  const t = Math.max(0, Math.min(1, value));
+  return t * t * (3 - 2 * t);
+}
+export function dragonOrbitFactor(progress: number): number {
+  if (progress < .38) return .12 + .88 * ease(progress / .38);
+  if (progress <= .5) return 1;
+  return 1 - .72 * ease((progress - .5) / .45);
+}
+export function dragonRise(progress: number): number { return 120 * ease((progress - .5) / .45); }

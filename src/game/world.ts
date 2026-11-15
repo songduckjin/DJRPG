@@ -1,5 +1,5 @@
 import { expToNext, floorKillTarget, rollItem, skillLevel, totalStats, type Item, type Save } from './store';
-import { skillDamageScale, skillDuration, skillRange, skills, type SkillId } from './skills';
+import { dragonOrbitFactor, skillDamageScale, skillDuration, skillRange, skills, type SkillId } from './skills';
 
 export type Enemy = { x: number; y: number; hp: number; maxHp: number; boss: boolean; hit: number; step: number; moving: boolean; knockX: number; knockY: number; slow: number };
 export type Drop = { x: number; y: number; item: Item; age: number; warned: boolean };
@@ -61,7 +61,7 @@ export class World {
       this.damage(range, attack * .9 * damageScale, p.facing, .9);
     } else if (kind === 'spin') {
       this.effects.push({ x: p.x, y: p.y, kind: 'spin', age: 0, duration: skillDuration(kind, level), angle: 0, nextHit: .45, power: attack * .65 * damageScale, level });
-      this.damage(range, attack * 1.65 * damageScale, 0, Math.PI);
+      this.damage(range * dragonOrbitFactor(0), attack * 1.65 * damageScale, 0, Math.PI);
     } else if (kind === 'crushing') {
       const point = target && Math.hypot(target.x - p.x, target.y - p.y) <= range ? target : { x: p.x + Math.cos(p.facing) * range * .65, y: p.y + Math.sin(p.facing) * range * .65 };
       this.effects.push({ x: point.x, y: point.y, kind: 'crushing', age: 0, duration: skillDuration(kind, level), angle: p.facing, nextHit: .55, power: attack * 3.4 * damageScale, level });
@@ -214,8 +214,8 @@ export class World {
         const level = effect.level ?? 1;
         if (effect.kind === 'slash2') this.damage(skillRange('slash2', level), effect.power ?? 0, effect.angle, .9, 20, 0, effect);
         if (effect.kind === 'spin') {
-          const coil = Math.max(0, Math.min(1, (effect.age / effect.duration - .25) / .65));
-          this.damage(skillRange('spin', level) * (1 - coil * coil * (3 - 2 * coil) * .67), effect.power ?? 0, 0, Math.PI, 10, 0, effect);
+          const hitProgress = (effect.nextHit ?? effect.age) / effect.duration;
+          this.damage(skillRange('spin', level) * dragonOrbitFactor(hitProgress), effect.power ?? 0, 0, Math.PI, 10, 0, effect);
         }
         if (effect.kind === 'crushing') this.damage(skillRange('crushing', level) * .72, effect.power ?? 0, 0, Math.PI, 28, 1.2, effect);
         if (effect.kind === 'slam') this.damage(skillRange('slam', level), effect.power ?? 0, effect.angle, 1.35, 12, 2 + (level - 1) * .3, effect);
