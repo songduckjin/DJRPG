@@ -146,7 +146,7 @@ export class Interface {
       || (this.bagFilter === 'accessory' && ['necklace', 'ring1', 'ring2'].includes(item.slot)));
     for (const item of visible) {
       const cell = document.createElement('button'); cell.className = `bag-item ${item.rarity} ${this.selected === item.id ? 'selected' : ''}`;
-      cell.innerHTML = `<span class="item-icon">${this.icon(item.slot)}</span><small>${rarityNames[item.rarity]}</small><b></b>`;
+      cell.innerHTML = `<img class="item-icon" src="${this.iconPath(item.slot)}" alt=""><small>${rarityNames[item.rarity]}</small><b></b>`;
       cell.querySelector('b')!.textContent = item.name;
       cell.onclick = () => { this.selected = item.id; this.renderModal(); };
       grid.appendChild(cell);
@@ -220,7 +220,9 @@ export class Interface {
     this.modal.hidden = this.openModal === null;
     if (!this.openModal) return;
     const dialog = this.modal.querySelector<HTMLElement>('.modal-dialog')!;
-    const scroll = dialog.scrollTop; dialog.replaceChildren();
+    dialog.classList.toggle('equipment-modal', this.openModal === 'equipment');
+    const scroll = dialog.scrollTop, bagScroll = dialog.querySelector<HTMLElement>('.bag-grid')?.scrollTop ?? 0;
+    dialog.replaceChildren();
     const heading = document.createElement('header');
     heading.innerHTML = `<h2>${{ status: '내 상태', equipment: '장비', skills: '스킬', account: '계정 정보' }[this.openModal]}</h2><button class="modal-close" aria-label="닫기">×</button>`;
     heading.querySelector('button')!.addEventListener('click', () => this.open(null)); dialog.appendChild(heading);
@@ -229,6 +231,8 @@ export class Interface {
     if (this.openModal === 'skills') this.renderSkills(dialog);
     if (this.openModal === 'account') this.renderAccount(dialog);
     dialog.scrollTop = scroll;
+    const bagGrid = dialog.querySelector<HTMLElement>('.bag-grid');
+    if (bagGrid) bagGrid.scrollTop = bagScroll;
   }
 
   private renderEquipment(dialog: HTMLElement): void {
@@ -237,8 +241,8 @@ export class Interface {
     const left = document.createElement('div'), right = document.createElement('div');
     left.className = 'showcase-side'; right.className = 'showcase-side';
     const addSlot = (slot: Slot, side: HTMLElement) => {
-      const item = save.equipment[slot]; const cell = document.createElement('button'); cell.className = `equipment-slot ${item?.rarity ?? ''}`;
-      cell.innerHTML = `<span class="slot-icon">${this.icon(slot)}</span><span class="slot-meta"><small>${slotNames[slot]}</small><b></b><em></em></span>`;
+      const item = save.equipment[slot]; const cell = document.createElement('button'); cell.className = `equipment-slot ${item?.rarity ?? 'empty-slot'}`;
+      cell.innerHTML = `<img class="slot-icon" src="${this.iconPath(slot)}" alt=""><span class="slot-meta"><small>${slotNames[slot]}</small><b></b><em></em></span>`;
       cell.querySelector('b')!.textContent = item?.name ?? '빈 슬롯';
       const core = item && (Object.keys(item.stats) as Stat[])[0];
       cell.querySelector('em')!.textContent = core ? `${statNames[core]} +${item.stats[core]}` : '';
@@ -253,7 +257,7 @@ export class Interface {
     for (const slot of ['offhand', 'necklace', 'belt', 'ring1', 'ring2'] as Slot[]) addSlot(slot, right);
     const center = document.createElement('div'); center.className = 'showcase-hero';
     const portrait = document.createElement('img'); portrait.alt = '현재 전사 외형';
-    portrait.src = save.equipment.armor ? '/assets/warrior_armored.png' : save.equipment.weapon ? `/assets/warrior_${save.gender}_sword.png` : `/assets/warrior_${save.gender}_base.png`;
+    portrait.src = save.equipment.armor ? save.equipment.helmet ? '/assets/warrior_armored.png' : '/assets/warrior_armored_nohelm.png' : save.equipment.weapon ? `/assets/warrior_${save.gender}_sword.png` : `/assets/warrior_${save.gender}_base.png`;
     center.appendChild(portrait);
     showcase.append(left, center, right); dialog.appendChild(showcase);
     const summary = document.createElement('div'); summary.className = 'showcase-stats';
@@ -391,5 +395,5 @@ export class Interface {
   }
 
   private salvageValue(item: Item): number { return { common: 3, magic: 10, rare: 25, legendary: 60 }[item.rarity]; }
-  private icon(slot: string): string { return ({ weapon: '⚔', offhand: '⬟', helmet: '♜', armor: '♟', necklace: '◇', gloves: '✥', belt: '═', boots: '♧', ring1: '◉', ring2: '◉' } as Record<string, string>)[slot] ?? '◆'; }
+  private iconPath(slot: Slot): string { return `/assets/icons/${slot === 'ring1' || slot === 'ring2' ? 'ring' : slot}.png`; }
 }

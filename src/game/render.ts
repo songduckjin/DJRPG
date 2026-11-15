@@ -6,6 +6,7 @@ const rarityColors: Record<Rarity, number> = { common: 0xffffff, magic: 0x57aaff
 const paths = {
   floor: '/assets/dungeon_tile.jpg', male: '/assets/warrior_male_base.png',
   female: '/assets/warrior_female_base.png', armored: '/assets/warrior_armored.png',
+  armoredNoHelm: '/assets/warrior_armored_nohelm.png',
   maleSword: '/assets/warrior_male_sword.png', femaleSword: '/assets/warrior_female_sword.png',
   maleAttack: '/assets/warrior_male_attack.png', femaleAttack: '/assets/warrior_female_attack.png', armoredAttack: '/assets/warrior_armored_attack.png',
   maleBaseWalk: '/assets/warrior_male_base_walk.png', maleSwordWalk: '/assets/warrior_male_walk.png',
@@ -20,11 +21,13 @@ const animationPaths = {
   maleWalk: Array.from({ length: 4 }, (_, i) => `/assets/warrior_male_walk_${i + 1}.png`),
   femaleWalk: Array.from({ length: 4 }, (_, i) => `/assets/warrior_female_walk_${i + 1}.png`),
   armoredWalk: Array.from({ length: 4 }, (_, i) => `/assets/warrior_armored_walk_${i + 1}.png`),
+  armoredNoHelmWalk: Array.from({ length: 4 }, (_, i) => `/assets/warrior_armored_nohelm_walk_${i + 1}.png`),
   skeletonWalk: Array.from({ length: 4 }, (_, i) => `/assets/skeleton_walk_${i + 1}.png`),
   bossWalk: Array.from({ length: 4 }, (_, i) => `/assets/boss_walk_${i + 1}.png`),
   maleAttack: Array.from({ length: 4 }, (_, i) => `/assets/warrior_male_attack_${i + 1}.png`),
   femaleAttack: Array.from({ length: 4 }, (_, i) => `/assets/warrior_female_attack_${i + 1}.png`),
-  armoredAttack: Array.from({ length: 4 }, (_, i) => `/assets/warrior_armored_attack_${i + 1}.png`)
+  armoredAttack: Array.from({ length: 4 }, (_, i) => `/assets/warrior_armored_attack_${i + 1}.png`),
+  armoredNoHelmAttack: Array.from({ length: 4 }, (_, i) => `/assets/warrior_armored_nohelm_attack_${i + 1}.png`)
 };
 type Animation = keyof typeof animationPaths;
 type Dust = { x: number; y: number; vx: number; vy: number; age: number; duration: number; size: number };
@@ -161,10 +164,11 @@ export class GameView {
       else this.drawHit(x, y, t, effect.angle);
     }
     this.updateDamageLabels(world.effects, project);
-    this.shade.rect(0, 0, w, 40).fill({ color: 0x05040a, alpha: .58 });
-    this.shade.rect(0, h - 50, w, 50).fill({ color: 0x05040a, alpha: .58 });
-    this.shade.rect(0, 0, 30, h).fill({ color: 0x05040a, alpha: .55 });
-    this.shade.rect(w - 30, 0, 30, h).fill({ color: 0x05040a, alpha: .55 });
+    const sight = Math.min(w, h) * .53 + Math.sin(time * 3) * 3;
+    for (let ring = 0; ring < 7; ring++) {
+      this.shade.rect(0, 0, w, h).fill({ color: 0x030208, alpha: .11 });
+      this.shade.circle(cx, cy, sight + ring * 33).cut();
+    }
   }
 
   private drawSkillVfx(effect: Effect, x: number, y: number, t: number, screenAngle: number): boolean {
@@ -183,10 +187,10 @@ export class GameView {
       this.vfxSprites.set(effect, sprites);
     }
     const width = this.app.screen.width;
-    const size = effect.kind === 'hell' ? width * .95 : effect.kind === 'destroy' ? 260 : effect.kind === 'slam' ? 335 : effect.kind === 'spin' ? Math.max(245, width * .7) : effect.kind === 'power' ? 165 : 150;
+    const size = effect.kind === 'hell' ? width * .95 : effect.kind === 'destroy' ? 260 : effect.kind === 'slam' ? 335 : effect.kind === 'spin' ? Math.max(320, width * .92) : effect.kind === 'power' ? 165 : 150;
     for (const [index, sprite] of sprites.entries()) {
       const phase = effect.kind === 'slash2' ? Math.max(0, Math.min(1, t * 1.6 - index * .45)) : t;
-      const scale = size / sprite.texture.width * (.65 + phase * .55);
+      const scale = size / sprite.texture.width * (effect.kind === 'spin' ? .85 + phase * .35 : .65 + phase * .55);
       const distance = effect.kind === 'destroy' ? 40 + t * 125 : effect.kind === 'power' ? 70 : 0;
       sprite.position.set(x + Math.cos(screenAngle) * distance, y + Math.sin(screenAngle) * distance - (effect.kind === 'power' ? 45 : effect.kind === 'slam' || effect.kind === 'spin' ? 4 : 18));
       sprite.scale.set(scale, scale * (effect.kind === 'slam' ? .6 : effect.kind === 'spin' ? .8 : 1));
@@ -203,11 +207,11 @@ export class GameView {
     const moving = Math.hypot(world.activeMove.x, world.activeMove.y) > .05;
     const walkingFrame = Math.floor(time * 8.5) % 4;
     const attackFrame = Math.min(3, Math.floor((1 - world.attackPose / .32) * 4));
-    const art: Art = equipped ? 'armored' : save.equipment.weapon ? save.gender === 'male' ? 'maleSword' : 'femaleSword' : save.gender;
+    const art: Art = equipped ? save.equipment.helmet ? 'armored' : 'armoredNoHelm' : save.equipment.weapon ? save.gender === 'male' ? 'maleSword' : 'femaleSword' : save.gender;
     let texture = this.textures[art];
-    if (world.attackPose > 0) texture = this.animations[equipped ? 'armoredAttack' : save.gender === 'male' ? 'maleAttack' : 'femaleAttack'][Math.max(0, attackFrame)];
+    if (world.attackPose > 0) texture = this.animations[equipped ? save.equipment.helmet ? 'armoredAttack' : 'armoredNoHelmAttack' : save.gender === 'male' ? 'maleAttack' : 'femaleAttack'][Math.max(0, attackFrame)];
     else if (moving) {
-      if (equipped) texture = this.animations.armoredWalk[walkingFrame];
+      if (equipped) texture = this.animations[save.equipment.helmet ? 'armoredWalk' : 'armoredNoHelmWalk'][walkingFrame];
       else if (save.gender === 'female') texture = this.animations.femaleWalk[walkingFrame];
       else if (save.equipment.weapon) texture = this.animations.maleWalk[walkingFrame];
       else texture = Math.floor(time * 6) % 2 ? this.textures.maleBaseWalk : this.textures.male;
@@ -323,18 +327,33 @@ export class GameView {
 
   private drawTerrain(world: World, project: (x: number, y: number) => [number, number], time: number): void {
     const tile = 180, ox = Math.floor(world.player.x / tile), oy = Math.floor(world.player.y / tile);
-    for (let ix = ox - 3; ix <= ox + 3; ix++) for (let iy = oy - 3; iy <= oy + 3; iy++) {
-      const hash = Math.abs(ix * 73 + iy * 131 + ix * iy * 11);
+    for (let ix = ox - 4; ix <= ox + 4; ix++) for (let iy = oy - 4; iy <= oy + 4; iy++) {
+      let hash = Math.imul(ix, 73856093) ^ Math.imul(iy, 19349663);
+      hash = Math.imul(hash ^ (hash >>> 13), 1274126177);
+      hash = (hash ^ (hash >>> 16)) >>> 0;
       if (hash % 5 !== 0) continue;
-      const [x, y] = project(ix * tile + hash % 80, iy * tile + hash % 60);
+      const [x, y] = project(ix * tile + ((hash >>> 8) % 100) - 50, iy * tile + ((hash >>> 16) % 100) - 50);
       if (hash % 3 === 0) {
-        this.ground.ellipse(x, y, 8, 3).fill({ color: 0x47433d, alpha: .55 });
-        this.ground.circle(x - 2, y - 3, 4).fill({ color: 0x5b5549, alpha: .65 });
+        this.ground.ellipse(x, y + 2, 21, 7).fill({ color: 0x070b08, alpha: .47 });
+        this.ground.moveTo(x - 16, y).lineTo(x - 12, y - 10).lineTo(x + 2, y - 15).lineTo(x + 15, y - 7).lineTo(x + 18, y).closePath().fill(0x555c51);
+        this.ground.ellipse(x - 4, y - 9, 7, 3).fill({ color: 0x697b4c, alpha: .8 });
+        this.ground.circle(x + 10, y - 4, 3).fill({ color: 0x446043, alpha: .8 });
       } else if (hash % 3 === 1) {
-        this.ground.ellipse(x, y, 8, 3).fill({ color: 0x3b4a31, alpha: .42 });
+        this.ground.ellipse(x, y + 3, 17, 5).fill({ color: 0x050607, alpha: .5 });
+        this.ground.rect(x - 12, y - 8, 24, 8).fill(0x514b4b);
+        this.ground.rect(x - 8, y - 35, 16, 28).fill(0x6b6563);
+        this.ground.moveTo(x - 9, y - 35).lineTo(x - 9, y - 43).lineTo(x - 2, y - 40).lineTo(x + 4, y - 46).lineTo(x + 9, y - 37).closePath().fill(0x817670);
+        this.ground.moveTo(x - 2, y - 29).lineTo(x + 3, y - 21).lineTo(x, y - 13).stroke({ color: 0x383535, width: 2 });
+        this.ground.rect(x - 9, y - 8, 17, 3).fill(0x394735);
       } else {
-        this.glow.circle(x, y, 13).fill({ color: 0xe3632d, alpha: .045 });
-        this.ground.circle(x, y - 2 - Math.sin(time * 8 + hash) * 1.5, 2).fill({ color: 0xe87635, alpha: .62 });
+        const flicker = Math.sin(time * 12 + hash) * 2;
+        this.glow.circle(x, y - 22, 41 + flicker).fill({ color: 0xff7228, alpha: .1 });
+        this.glow.circle(x, y - 22, 19 + flicker).fill({ color: 0xffb451, alpha: .13 });
+        this.ground.ellipse(x, y + 3, 12, 4).fill({ color: 0x060505, alpha: .52 });
+        this.ground.rect(x - 2, y - 16, 4, 18).fill(0x5a4a40);
+        this.ground.ellipse(x, y - 18, 12, 5).fill(0x4a3932);
+        this.ground.moveTo(x, y - 18).lineTo(x - 5, y - 30 - flicker).lineTo(x + 1, y - 26).lineTo(x + 5, y - 32 + flicker).lineTo(x + 5, y - 20).closePath().fill(0xff8b31);
+        this.ground.circle(x, y - 22, 3).fill(0xffdd8c);
       }
     }
   }
