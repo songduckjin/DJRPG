@@ -36,6 +36,21 @@ export class World {
     this.enemies.push({ x: 145, y: -45, hp, maxHp: hp, boss: false, hit: 0, step: 0, moving: false, knockX: 0, knockY: 0, slow: 0 });
   }
 
+  travelToFloor(floor: number): { ok: boolean; message: string } {
+    if (!Number.isInteger(floor) || floor < 1 || floor > this.save.maxFloor) return { ok: false, message: `이동할 수 없는 층입니다. 현재 최고 도달 층은 ${this.save.maxFloor}층입니다.` };
+    if (floor === this.save.floor) return { ok: true, message: `이미 ${floor}층에서 사냥 중입니다.` };
+    const lostDrops = this.drops.length;
+    this.save.floor = floor;
+    this.save.floorKills = 0;
+    this.enemies = []; this.drops = []; this.effects = [];
+    this.bossPending = false; this.spawnTimer = 0;
+    this.player.x = 0; this.player.y = 0; this.attackHeld = false;
+    this.move = { x: 0, y: 0 }; this.keyboardMove = { x: 0, y: 0 }; this.activeMove = { x: 0, y: 0 };
+    this.joystickActive = false; this.keyboardActive = false;
+    this.onChange();
+    return { ok: true, message: `${floor}층으로 이동했습니다.${lostDrops ? ` 바닥의 드랍 ${lostDrops}개가 사라졌습니다.` : ''}` };
+  }
+
   action(kind: Action): void {
     if (this.cooldown[kind] > 0) return;
     if (kind !== 'attack' && (!this.save.learned.includes(kind) || !this.save.quickSlots.includes(kind))) { this.onMessage('습득하고 퀵슬롯에 장착한 스킬만 사용할 수 있습니다.'); return; }
@@ -125,10 +140,13 @@ export class World {
       if (guaranteed) { this.save.tutorial = 1; this.onMessage('낡은 두손검이 떨어졌습니다. 빛기둥으로 이동하세요!'); }
     }
     if (enemy.boss) {
-      this.save.floor++;
+      if (this.save.autoClimb) {
+        this.save.floor++;
+        this.save.maxFloor = Math.max(this.save.maxFloor, this.save.floor);
+      }
       this.save.floorKills = 0;
       this.bossPending = false;
-      this.onMessage(`${this.save.floor}층 진입`);
+      this.onMessage(this.save.autoClimb ? `${this.save.floor}층 진입` : `${this.save.floor}층 반복 사냥`);
     } else {
       this.save.floorKills++;
       if (this.save.floorKills >= floorKillTarget(this.save.floor) && !this.bossPending && !this.enemies.some(e => e.boss)) {

@@ -1,5 +1,5 @@
-import { autoEquipBest, expToNext, floorKillTarget, rarityNames, salvageByRarity, skillLevel, slotNames, statNames, totalStats, upgradeSkill, type Item, type Rarity, type Save, type Slot, type Stat } from '../game/store';
-import { cooldowns, costs, type Action, type World } from '../game/world';
+import { autoEquipBest, expToNext, floorKillTarget, isZweihander, rarityNames, salvageByRarity, skillLevel, slotNames, statNames, totalStats, upgradeSkill, type Item, type Rarity, type Save, type Slot, type Stat } from '../game/store';
+import { cooldowns, costs, enemyMaxHp, type Action, type World } from '../game/world';
 import { canLearn, MAX_SKILL_LEVEL, passiveOrder, passives, skillDuration, skillOrder, skillRange, skills, skillUpgradeCost, UNLOCK_ALL_SKILLS_FOR_TEST, type SkillId, type SkillLevelId } from '../game/skills';
 import type { Session } from './login';
 
@@ -9,7 +9,7 @@ const navIcons = {
   equipment: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m8 3 4 2 4-2 4 4-2 3v10H6V10L4 7l4-4Z"/><path d="m8 3 1 6 3 2 3-2 1-6M6 10l3-1m9 1-3-1m-3 2v9"/></svg>',
   skills: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 2 1.6 6.4L20 10l-6.4 1.6L12 18l-1.6-6.4L4 10l6.4-1.6L12 2Z"/><path d="m19 16 .6 1.8L21.5 18l-1.9.6L19 20.5l-.6-1.9L16.5 18l1.9-.2L19 16Z"/></svg>'
 };
-type Modal = 'status' | 'equipment' | 'skills' | 'account';
+type Modal = 'status' | 'equipment' | 'skills' | 'account' | 'floor';
 type BagFilter = 'all' | 'weapon' | 'armor' | 'accessory';
 
 export class Interface {
@@ -94,8 +94,9 @@ export class Interface {
   renderStatus(): void {
     const { save, player } = this.world;
     const progress = Math.min(100, Math.max(0, save.exp / expToNext(save.level) * 100));
-    this.top.innerHTML = `<button class="level-badge" type="button" aria-label="계정 정보 열기"><span>LV</span><b>${save.level}</b></button><div class="status-main"><span>층 <b>${save.floor}</b> · ${Math.min(save.floorKills, floorKillTarget(save.floor))}/${floorKillTarget(save.floor)}</span><span class="gold">◆ ${save.gold}</span></div><div class="exp"><i style="width:${progress}%"></i></div>`;
+    this.top.innerHTML = `<button class="level-badge" type="button" aria-label="계정 정보 열기"><span>LV</span><b>${save.level}</b></button><div class="status-main"><button class="floor-button" type="button" aria-label="층 선택, 현재 ${save.floor}층"><span>층 <b>${save.floor}</b> · ${Math.min(save.floorKills, floorKillTarget(save.floor))}/${floorKillTarget(save.floor)}</span><span aria-hidden="true">▾</span></button><span class="gold">◆ ${save.gold}</span></div><div class="exp"><i style="width:${progress}%"></i></div>`;
     const levelBadge = this.get('.level-badge'); levelBadge.style.setProperty('--progress', `${progress}%`); levelBadge.addEventListener('click', () => this.open('account'));
+    this.get('.floor-button').addEventListener('click', () => this.open('floor'));
     const toggle = this.get('.auto-toggle'); toggle.textContent = `AUTO ${save.auto ? 'ON' : 'OFF'}`; toggle.classList.toggle('on', save.auto);
     this.get('.hp').style.setProperty('--fill', `${Math.max(0, player.hp / totalStats(save).health * 100)}%`);
     this.get('.mp').style.setProperty('--fill', `${player.mp}%`);
@@ -149,7 +150,7 @@ export class Interface {
       || (this.bagFilter === 'accessory' && ['necklace', 'ring1', 'ring2'].includes(item.slot)));
     for (const item of visible) {
       const cell = document.createElement('button'); cell.className = `bag-item ${item.rarity} ${this.selected === item.id ? 'selected' : ''}`;
-      cell.innerHTML = `<img class="item-icon" src="${this.iconPath(item.slot)}" alt=""><small>${rarityNames[item.rarity]}</small><b></b>`;
+      cell.innerHTML = `<img class="item-icon" src="${this.iconPath(item.slot, item)}" alt=""><small>${rarityNames[item.rarity]}</small><b></b>`;
       cell.querySelector('b')!.textContent = item.name;
       cell.onclick = () => { this.selected = item.id; this.renderModal(); };
       grid.appendChild(cell);
@@ -226,12 +227,13 @@ export class Interface {
     const scroll = dialog.scrollTop, bagScroll = dialog.querySelector<HTMLElement>('.bag-grid')?.scrollTop ?? 0;
     dialog.replaceChildren();
     const heading = document.createElement('header');
-    heading.innerHTML = `<h2>${{ status: '내 상태', equipment: '장비', skills: '스킬', account: '계정 정보' }[this.openModal]}</h2><button class="modal-close" aria-label="닫기">×</button>`;
+    heading.innerHTML = `<h2>${{ status: '내 상태', equipment: '장비', skills: '스킬', account: '계정 정보', floor: '층 선택' }[this.openModal]}</h2><button class="modal-close" aria-label="닫기">×</button>`;
     heading.querySelector('button')!.addEventListener('click', () => this.open(null)); dialog.appendChild(heading);
     if (this.openModal === 'equipment') { this.renderEquipment(dialog); this.renderInventory(dialog); }
     if (this.openModal === 'status') this.renderCharacter(dialog);
     if (this.openModal === 'skills') this.renderSkills(dialog);
     if (this.openModal === 'account') this.renderAccount(dialog);
+    if (this.openModal === 'floor') this.renderFloor(dialog);
     dialog.scrollTop = scroll;
     const bagGrid = dialog.querySelector<HTMLElement>('.bag-grid');
     if (bagGrid) bagGrid.scrollTop = bagScroll;
@@ -244,7 +246,7 @@ export class Interface {
     left.className = 'showcase-side'; right.className = 'showcase-side';
     const addSlot = (slot: Slot, side: HTMLElement) => {
       const item = save.equipment[slot]; const cell = document.createElement('button'); cell.className = `equipment-slot ${item?.rarity ?? 'empty-slot'}`;
-      cell.innerHTML = `<img class="slot-icon" src="${this.iconPath(slot)}" alt=""><span class="slot-meta"><small>${slotNames[slot]}</small><b></b><em></em></span>`;
+      cell.innerHTML = `<img class="slot-icon" src="${this.iconPath(slot, item)}" alt=""><span class="slot-meta"><small>${slotNames[slot]}</small><b></b><em></em></span>`;
       cell.querySelector('b')!.textContent = item?.name ?? '빈 슬롯';
       const core = item && (Object.keys(item.stats) as Stat[])[0];
       cell.querySelector('em')!.textContent = core ? `${statNames[core]} +${item.stats[core]}` : '';
@@ -289,6 +291,30 @@ export class Interface {
     dialog.appendChild(gender);
   }
 
+  private renderFloor(dialog: HTMLElement): void {
+    const save = this.world.save;
+    const summary = document.createElement('p'); summary.className = 'floor-summary';
+    summary.textContent = `현재 ${save.floor}층 · 최고 ${save.maxFloor}층 · 층을 옮기면 현재 층의 처치 진행도와 바닥 드랍이 초기화됩니다.`;
+    dialog.appendChild(summary);
+    const mode = document.createElement('button'); mode.className = 'floor-mode'; mode.type = 'button';
+    mode.textContent = save.autoClimb ? '자동 등반 중 · 누르면 현재 층 반복' : '현재 층 반복 중 · 누르면 자동 등반';
+    mode.setAttribute('aria-pressed', String(!save.autoClimb));
+    mode.onclick = () => { save.autoClimb = !save.autoClimb; this.world.onChange(); this.message(save.autoClimb ? '보스 처치 시 다음 층으로 이동합니다.' : '보스 처치 후에도 현재 층에서 사냥합니다.'); };
+    dialog.appendChild(mode);
+    const grid = document.createElement('div'); grid.className = 'floor-grid';
+    for (let floor = 1; floor <= save.maxFloor; floor++) {
+      const button = document.createElement('button'); button.type = 'button'; button.className = 'floor-choice';
+      button.classList.toggle('current', floor === save.floor);
+      if (floor === save.floor) button.setAttribute('aria-current', 'location');
+      button.innerHTML = `<b>${floor}층${floor % 5 === 0 ? ' 👑' : ''}</b><small>권장 Lv.${Math.max(1, Math.ceil(floor * .8))}</small><small>몬스터 HP ${enemyMaxHp(floor, false)}</small>`;
+      button.onclick = () => { const result = this.world.travelToFloor(floor); if (result.ok) this.open(null); this.message(result.message); };
+      grid.appendChild(button);
+    }
+    const locked = document.createElement('button'); locked.type = 'button'; locked.className = 'floor-choice locked'; locked.disabled = true;
+    locked.innerHTML = `<b>🔒 ${save.maxFloor + 1}층</b><small>최고 층 보스 처치 후 해금</small>`;
+    grid.appendChild(locked); dialog.appendChild(grid);
+  }
+
   private renderAccount(dialog: HTMLElement): void {
     const save = this.world.save;
     const content = document.createElement('div'); content.className = 'account-content';
@@ -320,7 +346,7 @@ export class Interface {
     const level = document.createElement('div'); level.className = 'account-progress';
     level.innerHTML = `<b>LV ${save.level}</b><span>${save.exp} / ${expToNext(save.level)} EXP</span><div><i style="width:${Math.min(100, save.exp / expToNext(save.level) * 100)}%"></i></div>`;
     content.appendChild(level);
-    const floor = document.createElement('div'); floor.className = 'account-line'; floor.innerHTML = `<span>최고 도달 층수</span><b>${save.floor}층</b>`; content.appendChild(floor);
+    const floor = document.createElement('div'); floor.className = 'account-line'; floor.innerHTML = `<span>최고 도달 층수</span><b>${save.maxFloor}층</b>`; content.appendChild(floor);
     const kills = document.createElement('div'); kills.className = 'account-line'; kills.innerHTML = `<span>누적 처치 수</span><b>${save.kills}</b>`; content.appendChild(kills);
     const status = document.createElement('div'); status.className = 'account-line'; status.innerHTML = '<span>저장 상태</span><b></b>';
     status.querySelector('b')!.textContent = `서버 ${this.saveStatus}`; content.appendChild(status);
@@ -421,5 +447,5 @@ export class Interface {
   }
 
   private salvageValue(item: Item): number { return { common: 3, magic: 10, rare: 25, legendary: 60 }[item.rarity]; }
-  private iconPath(slot: Slot): string { return `/assets/icons/${slot === 'ring1' || slot === 'ring2' ? 'ring' : slot}.png`; }
+  private iconPath(slot: Slot, item?: Item): string { return item && isZweihander(item) ? '/assets/icons/icon_zweihander.png' : `/assets/icons/${slot === 'ring1' || slot === 'ring2' ? 'ring' : slot}.png`; }
 }

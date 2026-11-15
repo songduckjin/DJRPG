@@ -5,7 +5,7 @@ export type Rarity = 'common' | 'magic' | 'rare' | 'legendary';
 export type Slot = 'weapon' | 'offhand' | 'helmet' | 'armor' | 'necklace' | 'gloves' | 'belt' | 'boots' | 'ring1' | 'ring2';
 export type Stat = 'attack' | 'defense' | 'health' | 'crit' | 'speed';
 export type Item = { id: string; name: string; slot: Slot; rarity: Rarity; stats: Partial<Record<Stat, number>> };
-export type Save = { version: 1; name: string; accountId: string; gender: Gender; auto: boolean; level: number; exp: number; gold: number; floor: number; floorKills: number; kills: number; health: number; equipment: Partial<Record<Slot, Item>>; bag: Item[]; tutorial: number; stones: number; learned: SkillId[]; passives: PassiveId[]; quickSlots: [SkillId, SkillId, SkillId]; skillLevels: Partial<Record<SkillLevelId, number>> };
+export type Save = { version: 1; name: string; accountId: string; gender: Gender; auto: boolean; autoClimb: boolean; level: number; exp: number; gold: number; floor: number; maxFloor: number; floorKills: number; kills: number; health: number; equipment: Partial<Record<Slot, Item>>; bag: Item[]; tutorial: number; stones: number; learned: SkillId[]; passives: PassiveId[]; quickSlots: [SkillId, SkillId, SkillId]; skillLevels: Partial<Record<SkillLevelId, number>> };
 
 export const slots: Slot[] = ['weapon', 'offhand', 'helmet', 'armor', 'necklace', 'gloves', 'belt', 'boots', 'ring1', 'ring2'];
 export const slotNames: Record<Slot, string> = { weapon: '두손검', offhand: '문장', helmet: '투구', armor: '갑옷', necklace: '목걸이', gloves: '장갑', belt: '벨트', boots: '신발', ring1: '반지 1', ring2: '반지 2' };
@@ -43,7 +43,9 @@ export function clearLegacySave(key: string): void {
   localStorage.removeItem('djrpg.lastLogin.v1');
   localStorage.removeItem('djrpg-salvage-rarity');
 }
-const weaponNames: Record<Rarity, string> = { common: '낡은 두손검', magic: '서리의 클레이모어', rare: '황혼의 대검', legendary: '영원의 츠바이핸더' };
+const weaponNames: Record<Rarity, string> = { common: '낡은 두손검', magic: '서리의 클레이모어', rare: '황혼의 대검', legendary: '영원의 쯔바이핸드' };
+const zweihanderNames: Record<Rarity, string> = { common: '쯔바이핸드', magic: '강철 쯔바이핸드', rare: '피빛 쯔바이핸드', legendary: '영원의 쯔바이핸드' };
+export function isZweihander(item: Item): boolean { return item.slot === 'weapon' && /쯔바이핸드|츠바이핸더/.test(item.name); }
 function isRecord(value: unknown): value is Record<string, unknown> { return typeof value === 'object' && value !== null && !Array.isArray(value); }
 function safeNumber(value: unknown, fallback: number, min = 0): number { return typeof value === 'number' && Number.isFinite(value) && value >= min ? value : fallback; }
 function migrateItem(value: unknown): Item | undefined {
@@ -54,13 +56,16 @@ function migrateItem(value: unknown): Item | undefined {
     const amount = value.stats[stat];
     if (typeof amount === 'number' && Number.isFinite(amount) && amount >= 0) stats[stat] = amount;
   }
-  return { id: typeof value.id === 'string' && value.id ? value.id : crypto.randomUUID(), name: slot === 'weapon' ? weaponNames[rarity] : typeof value.name === 'string' && value.name ? value.name : slotNames[slot], slot, rarity, stats };
+  const savedName = typeof value.name === 'string' ? value.name : '';
+  const zweihander = savedName === zweihanderNames[rarity] || (rarity === 'legendary' && savedName === '영원의 츠바이핸더');
+  const name = slot === 'weapon' ? (zweihander ? zweihanderNames[rarity] : weaponNames[rarity]) : savedName || slotNames[slot];
+  return { id: typeof value.id === 'string' && value.id ? value.id : crypto.randomUUID(), name, slot, rarity, stats };
 }
 export function expToNext(level: number): number { return Math.round(2400 * Math.pow(level, 2.2)); }
 export function floorKillTarget(floor: number): number { return 120 + 40 * Math.max(0, floor - 1); }
 
 export function freshSave(gender: Gender = 'male'): Save {
-  return { version: 1, name: '모험가', accountId: crypto.randomUUID().slice(0, 8).toUpperCase(), gender, auto: true, level: 1, exp: 0, gold: 0, floor: 1, floorKills: 0, kills: 0, health: 100, equipment: {}, bag: [], tutorial: 0, stones: 0, learned: ['spin', 'slam', 'warcry'], passives: [], quickSlots: ['spin', 'slam', 'warcry'], skillLevels: { spin: 1, slam: 1, warcry: 1 } };
+  return { version: 1, name: '모험가', accountId: crypto.randomUUID().slice(0, 8).toUpperCase(), gender, auto: true, autoClimb: true, level: 1, exp: 0, gold: 0, floor: 1, maxFloor: 1, floorKills: 0, kills: 0, health: 100, equipment: {}, bag: [], tutorial: 0, stones: 0, learned: ['spin', 'slam', 'warcry'], passives: [], quickSlots: ['spin', 'slam', 'warcry'], skillLevels: { spin: 1, slam: 1, warcry: 1 } };
 }
 
 export function parseSave(data: unknown, accountId?: string): Save {
@@ -87,7 +92,7 @@ export function parseSave(data: unknown, accountId?: string): Save {
     }
     const bag = Array.isArray(value.bag) ? value.bag.map(migrateItem).filter((item): item is Item => !!item).slice(0, 40) : [];
     const floor = Math.floor(safeNumber(value.floor, defaults.floor, 1));
-    return { ...defaults, name: typeof value.name === 'string' && value.name.trim() ? value.name : defaults.name, accountId: accountId ?? (typeof value.accountId === 'string' && value.accountId ? value.accountId : defaults.accountId), gender: value.gender === 'female' ? 'female' : 'male', auto: typeof value.auto === 'boolean' ? value.auto : defaults.auto, level: Math.floor(safeNumber(value.level, defaults.level, 1)), exp: safeNumber(value.exp, defaults.exp), gold: Math.floor(safeNumber(value.gold, defaults.gold)), floor, floorKills: Math.min(floorKillTarget(floor), Math.floor(safeNumber(value.floorKills, 0))), kills: Math.floor(safeNumber(value.kills, defaults.kills)), health: safeNumber(value.health, defaults.health), equipment, bag, tutorial: Math.min(3, Math.floor(safeNumber(value.tutorial, defaults.tutorial))), stones: Math.floor(safeNumber(value.stones, defaults.stones)), learned: active, passives, quickSlots, skillLevels };
+    return { ...defaults, name: typeof value.name === 'string' && value.name.trim() ? value.name : defaults.name, accountId: accountId ?? (typeof value.accountId === 'string' && value.accountId ? value.accountId : defaults.accountId), gender: value.gender === 'female' ? 'female' : 'male', auto: typeof value.auto === 'boolean' ? value.auto : defaults.auto, autoClimb: typeof value.autoClimb === 'boolean' ? value.autoClimb : true, level: Math.floor(safeNumber(value.level, defaults.level, 1)), exp: safeNumber(value.exp, defaults.exp), gold: Math.floor(safeNumber(value.gold, defaults.gold)), floor, maxFloor: Math.max(floor, Math.floor(safeNumber(value.maxFloor, floor, 1))), floorKills: Math.min(floorKillTarget(floor), Math.floor(safeNumber(value.floorKills, 0))), kills: Math.floor(safeNumber(value.kills, defaults.kills)), health: safeNumber(value.health, defaults.health), equipment, bag, tutorial: Math.min(3, Math.floor(safeNumber(value.tutorial, defaults.tutorial))), stones: Math.floor(safeNumber(value.stones, defaults.stones)), learned: active, passives, quickSlots, skillLevels };
   } catch (error) {
     throw new Error(`저장 데이터를 읽지 못했습니다: ${String(error)}`);
   }
@@ -124,6 +129,7 @@ export function rollItem(floor: number, guaranteed = false, boss = false): Item 
     ? roll < .02 ? 'legendary' : roll < .14 ? 'rare' : roll < .54 ? 'magic' : 'common'
     : roll < .002 ? 'legendary' : roll < .017 ? 'rare' : roll < .117 ? 'magic' : 'common';
   const slot = slots[Math.floor(Math.random() * slots.length)];
+  const zweihander = slot === 'weapon' && (rarity === 'legendary' || Math.random() < .35);
   const base = slot === 'ring2' ? '반지' : slotNames[slot];
   const prefix = { common: '낡은', magic: '서리의', rare: '황혼의', legendary: '영원의' }[rarity];
   const scale = (1 + Math.floor(floor / 2)) * ({ common: 1, magic: 2, rare: 3, legendary: 5 }[rarity]);
@@ -132,7 +138,11 @@ export function rollItem(floor: number, guaranteed = false, boss = false): Item 
   if (rarity !== 'common') stats.health = 3 * scale;
   if (rarity === 'rare' || rarity === 'legendary') stats.crit = scale;
   if (rarity === 'legendary') stats.speed = scale;
-  return { id: crypto.randomUUID(), name: slot === 'weapon' ? weaponNames[rarity] : `${prefix} ${base}`, slot, rarity, stats };
+  if (zweihander) {
+    stats.attack = (stats.attack ?? 0) + 2 + Math.ceil(scale * .25);
+    if (rarity !== 'common') stats.crit = (stats.crit ?? 0) + Math.max(1, Math.ceil(scale * .5));
+  }
+  return { id: crypto.randomUUID(), name: slot === 'weapon' ? zweihander ? zweihanderNames[rarity] : weaponNames[rarity] : `${prefix} ${base}`, slot, rarity, stats };
 }
 
 export function itemPower(item: Item): number {

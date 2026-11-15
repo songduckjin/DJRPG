@@ -5,7 +5,7 @@ import { promisify } from 'node:util';
 const scrypt = promisify(scryptCallback);
 const namePattern = /^[가-힣a-zA-Z0-9_]{2,16}$/;
 const bad = (res, status, code, error) => res.status(status).json({ code, error });
-const initialSave = (id, gender, name) => ({ version: 1, name, accountId: id, gender, auto: true, level: 1, exp: 0, gold: 0, floor: 1, floorKills: 0, kills: 0, health: 100, equipment: {}, bag: [], tutorial: 0, stones: 0, learned: ['spin', 'slam', 'warcry'], passives: [], quickSlots: ['spin', 'slam', 'warcry'], skillLevels: { spin: 1, slam: 1, warcry: 1 } });
+const initialSave = (id, gender, name) => ({ version: 1, name, accountId: id, gender, auto: true, autoClimb: true, level: 1, exp: 0, gold: 0, floor: 1, maxFloor: 1, floorKills: 0, kills: 0, health: 100, equipment: {}, bag: [], tutorial: 0, stones: 0, learned: ['spin', 'slam', 'warcry'], passives: [], quickSlots: ['spin', 'slam', 'warcry'], skillLevels: { spin: 1, slam: 1, warcry: 1 } });
 const sign = value => createHmac('sha256', process.env.TURSO_AUTH_TOKEN).update(value).digest('base64url');
 const tokenFor = id => { const value = Buffer.from(JSON.stringify({ id, exp: Date.now() + 30 * 86400_000 })).toString('base64url'); return `${value}.${sign(value)}`; };
 function tokenId(req) {
