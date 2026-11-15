@@ -3,16 +3,17 @@ export type Rarity = 'common' | 'magic' | 'rare' | 'legendary';
 export type Slot = 'weapon' | 'offhand' | 'helmet' | 'armor' | 'necklace' | 'gloves' | 'belt' | 'boots' | 'ring1' | 'ring2';
 export type Stat = 'attack' | 'defense' | 'health' | 'crit' | 'speed';
 export type Item = { id: string; name: string; slot: Slot; rarity: Rarity; stats: Partial<Record<Stat, number>> };
-export type Save = { version: 1; gender: Gender; auto: boolean; level: number; exp: number; gold: number; floor: number; kills: number; health: number; equipment: Partial<Record<Slot, Item>>; bag: Item[]; tutorial: number; stones: number };
+export type Save = { version: 1; name: string; accountId: string; gender: Gender; auto: boolean; level: number; exp: number; gold: number; floor: number; kills: number; health: number; equipment: Partial<Record<Slot, Item>>; bag: Item[]; tutorial: number; stones: number };
 
 export const slots: Slot[] = ['weapon', 'offhand', 'helmet', 'armor', 'necklace', 'gloves', 'belt', 'boots', 'ring1', 'ring2'];
 export const slotNames: Record<Slot, string> = { weapon: '무기', offhand: '보조무기', helmet: '투구', armor: '갑옷', necklace: '목걸이', gloves: '장갑', belt: '벨트', boots: '신발', ring1: '반지 1', ring2: '반지 2' };
 export const rarityNames: Record<Rarity, string> = { common: '일반', magic: '마법', rare: '희귀', legendary: '전설' };
 export const statNames: Record<Stat, string> = { attack: '공격', defense: '방어', health: '체력', crit: '치명', speed: '공속' };
 const key = 'djrpg-save-v1';
+export function expToNext(level: number): number { return Math.round(800 * Math.pow(level, 2.1)); }
 
 export function freshSave(gender: Gender = 'male'): Save {
-  return { version: 1, gender, auto: true, level: 1, exp: 0, gold: 0, floor: 1, kills: 0, health: 100, equipment: {}, bag: [], tutorial: 0, stones: 0 };
+  return { version: 1, name: '모험가', accountId: crypto.randomUUID().slice(0, 8).toUpperCase(), gender, auto: true, level: 1, exp: 0, gold: 0, floor: 1, kills: 0, health: 100, equipment: {}, bag: [], tutorial: 0, stones: 0 };
 }
 
 export function loadSave(): Save {
@@ -23,7 +24,7 @@ export function loadSave(): Save {
     if (typeof data !== 'object' || data === null) throw new Error('저장 데이터가 손상되었습니다.');
     const value = data as Partial<Save>;
     if (value.version !== 1) throw new Error('지원하지 않는 저장 버전입니다.');
-    return { ...freshSave(value.gender === 'female' ? 'female' : 'male'), ...value, auto: typeof value.auto === 'boolean' ? value.auto : true, equipment: value.equipment ?? {}, bag: Array.isArray(value.bag) ? value.bag : [] };
+    return { ...freshSave(value.gender === 'female' ? 'female' : 'male'), ...value, name: typeof value.name === 'string' && value.name.trim() ? value.name : '모험가', accountId: typeof value.accountId === 'string' && value.accountId ? value.accountId : crypto.randomUUID().slice(0, 8).toUpperCase(), auto: typeof value.auto === 'boolean' ? value.auto : true, equipment: value.equipment ?? {}, bag: Array.isArray(value.bag) ? value.bag : [] };
   } catch (error) {
     window.dispatchEvent(new CustomEvent('game-message', { detail: `저장 데이터를 읽지 못했습니다: ${String(error)}` }));
     return freshSave();

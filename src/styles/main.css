@@ -8,12 +8,17 @@ button:active { transform: scale(.97); }
 .battle { position: relative; height: 72%; min-height: 0; overflow: hidden; background: #100d13; }
 .battle-canvas, .battle-canvas canvas { width: 100%; height: 100%; display: block; touch-action: none; }
 .top-hud { position: absolute; top: env(safe-area-inset-top); left: 0; right: 0; padding: 9px 16px 0; background: linear-gradient(#0b080ed9, transparent); pointer-events: none; }
-.status-main { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 12px; color: #b9a99f; }
+.status-main { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding-right: 61px; font-size: 12px; color: #b9a99f; }
 .status-main b { font-family: Cinzel, serif; color: #f3e5ca; font-size: 15px; }
 .gold { color: #e6bb6c; font-weight: 700; }
-.exp { height: 3px; background: #413341; margin-top: 7px; }
+.level-badge { position: absolute; right: 12px; top: 5px; width: 49px; height: 49px; display: flex; flex-direction: column; align-items: center; justify-content: center; border: 0; border-radius: 50%; color: #f1d7ae; background: conic-gradient(#d6a162 var(--progress), #4a3938 0); pointer-events: auto; box-shadow: 0 2px 10px #000b; }
+.level-badge:before { content: ''; position: absolute; inset: 4px; border-radius: 50%; background: #241c20; }
+.level-badge span, .level-badge b { z-index: 1; line-height: 1; }
+.level-badge span { font: 9px Cinzel, serif; }
+.level-badge b { margin-top: 3px; font: 700 16px Cinzel, serif; }
+.exp { height: 3px; width: calc(100% - 60px); background: #413341; margin-top: 7px; }
 .exp i { display: block; height: 100%; background: #b5824c; }
-.auto-toggle { position: absolute; top: calc(env(safe-area-inset-top) + 44px); right: 13px; padding: 6px 10px; border: 1px solid #8b6554; border-radius: 4px; background: #291c1ddc; color: #d8b8a3; font-size: 11px; font-weight: 700; box-shadow: 0 3px 12px #0008; }
+.auto-toggle { position: absolute; bottom: 154px; right: 14px; padding: 5px 9px; border: 1px solid #8b6554; border-radius: 4px; background: #291c1ddc; color: #d8b8a3; font-size: 10px; font-weight: 700; box-shadow: 0 3px 12px #0008; }
 .auto-toggle.on { border-color: #b5834e; color: #ffe0ae; background: #4d2920e8; }
 .tutorial { position: absolute; top: calc(env(safe-area-inset-top) + 83px); left: 50%; transform: translateX(-50%); max-width: 83%; min-width: 60%; padding: 8px 12px; text-align: center; font-size: 11px; line-height: 1.5; color: #f4dcb0; background: #20191ae8; border: 1px solid #805b3b; border-radius: 5px; box-shadow: 0 3px 15px #0009; }
 .tutorial[hidden] { display: none; }
@@ -88,6 +93,23 @@ button:active { transform: scale(.97); }
 .gender-switch span { width: 100%; color: #ab998c; }
 .gender-switch button { flex: 1; border: 1px solid #79604f; background: #2b2325; color: #c9b8ac; padding: 8px; }
 .gender-switch button.active { border-color: #d5a365; background: #50372d; color: #ffe0ae; }
+.account-content { display: flex; flex-direction: column; gap: 9px; font-size: 12px; }
+.account-content label { color: #ad998a; }
+.account-name { display: flex; gap: 6px; }
+.account-name input { flex: 1; min-width: 0; padding: 9px; border: 1px solid #826b59; outline: none; background: #151116; color: #efdec6; font: inherit; }
+.account-name input:focus { border-color: #d9a36a; }
+.account-name button, .account-gender button, .account-reset button { border: 1px solid #89694f; background: #3d2b28; color: #f1d9b9; padding: 8px; }
+.account-line, .account-gender { display: flex; align-items: center; justify-content: space-between; gap: 7px; border-bottom: 1px solid #4e3e3d; padding: 7px 0; }
+.account-line span, .account-gender span { color: #aa988c; }
+.account-line b { color: #efdbbd; font-weight: 500; }
+.account-gender button { min-width: 44px; padding: 5px; }
+.account-gender button.active { background: #6e442d; border-color: #d5a365; }
+.account-progress { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 5px; padding: 7px 0; color: #dfba86; }
+.account-progress div { width: 100%; height: 6px; background: #43353c; }
+.account-progress i { display: block; height: 100%; background: #c79555; }
+.account-reset { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 10px; }
+.account-reset p { width: 100%; margin: 0; color: #e5a49b; line-height: 1.5; }
+.account-reset button:first-of-type { border-color: #a45c55; color: #ffd1c6; }
 .skill-list { display: flex; flex-direction: column; gap: 9px; }
 .skill-list article { display: flex; gap: 11px; border: 1px solid #59463e; background: #201b1e; padding: 10px; }
 .skill-icon { flex: 0 0 40px; height: 40px; display: grid; place-items: center; border: 1px solid #997653; border-radius: 50%; color: #f1d5ab; font-size: 23px; }

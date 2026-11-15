@@ -1,4 +1,4 @@
-import { rollItem, totalStats, type Item, type Save } from './store';
+import { expToNext, rollItem, totalStats, type Item, type Save } from './store';
 
 export type Enemy = { x: number; y: number; hp: number; maxHp: number; boss: boolean; hit: number };
 export type Drop = { x: number; y: number; item: Item; age: number; warned: boolean };
@@ -80,8 +80,8 @@ export class World {
     this.save.kills++;
     this.save.gold += enemy.boss ? 70 * this.save.floor : 3 + this.save.floor;
     this.save.exp += enemy.boss ? 45 : 8;
-    while (this.save.exp >= this.save.level * 45) {
-      this.save.exp -= this.save.level * 45;
+    while (this.save.exp >= expToNext(this.save.level)) {
+      this.save.exp -= expToNext(this.save.level);
       this.save.level++;
       this.player.hp = totalStats(this.save).health;
       this.onMessage(`레벨 ${this.save.level} 달성!`);

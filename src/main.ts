@@ -17,7 +17,9 @@ const save = loadSave();
 let hasSave = false;
 try { hasSave = localStorage.getItem('djrpg-save-v1') !== null; } catch { /* loadSave already reports storage failure. */ }
 const world = new World(save);
-const ui = new Interface(appRoot, world, () => saveGame(save));
+let resetting = false;
+window.addEventListener('game-reset', () => { resetting = true; });
+const ui = new Interface(appRoot, world, () => resetting || saveGame(save));
 gameUi = ui;
 if (pendingMessage) ui.message(pendingMessage);
 const view = new GameView();
@@ -35,6 +37,7 @@ const direction = () => {
   const y = Number(keys.has('s') || keys.has('arrowdown')) - Number(keys.has('w') || keys.has('arrowup'));
   world.keyboardActive = Boolean(x || y);
   world.keyboardMove = { x, y };
+  if (world.keyboardActive && save.auto) { save.auto = false; ui.message('수동 이동: AUTO OFF'); world.onChange(); }
 };
 window.addEventListener('keydown', e => {
   const key = e.key.toLowerCase();
@@ -47,8 +50,8 @@ window.addEventListener('keydown', e => {
   if (key === '3') world.action('warcry');
 });
 window.addEventListener('keyup', e => { keys.delete(e.key.toLowerCase()); direction(); });
-window.addEventListener('blur', () => { keys.clear(); world.move = { x: 0, y: 0 }; world.keyboardMove = { x: 0, y: 0 }; world.keyboardActive = false; world.joystickActive = false; world.attackHeld = false; saveGame(save); });
-document.addEventListener('visibilitychange', () => { if (document.hidden) saveGame(save); });
+window.addEventListener('blur', () => { keys.clear(); world.move = { x: 0, y: 0 }; world.keyboardMove = { x: 0, y: 0 }; world.keyboardActive = false; world.joystickActive = false; world.attackHeld = false; if (!resetting) saveGame(save); });
+document.addEventListener('visibilitychange', () => { if (document.hidden && !resetting) saveGame(save); });
 
 if (!hasSave) {
   const chooser = document.createElement('div'); chooser.className = 'character-choice';

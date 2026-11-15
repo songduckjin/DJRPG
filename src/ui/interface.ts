@@ -1,4 +1,4 @@
-import { rarityNames, slotNames, slots, statNames, totalStats, type Item, type Save, type Stat } from '../game/store';
+import { expToNext, rarityNames, slotNames, slots, statNames, totalStats, type Item, type Save, type Stat } from '../game/store';
 import { cooldowns, costs, type Action, type World } from '../game/world';
 
 const actions: { key: Action; icon: string; name: string; description: string; power: string }[] = [
@@ -7,7 +7,7 @@ const actions: { key: Action; icon: string; name: string; description: string; p
   { key: 'slam', icon: '✦', name: '대지 강타', description: '전방에 붉은 균열을 내고 적을 밀어냅니다.', power: '공격력 × 2.2' },
   { key: 'warcry', icon: '♛', name: '전투 함성', description: '6초 동안 공격력과 이동속도가 상승하고 주변 적을 밀어냅니다.', power: '공격력 × 1.5 / 이동속도 상승' }
 ];
-type Modal = 'status' | 'equipment' | 'skills';
+type Modal = 'status' | 'equipment' | 'skills' | 'account';
 
 export class Interface {
   private selected?: string;
@@ -19,12 +19,14 @@ export class Interface {
   private actionButtons = new Map<Action, HTMLButtonElement>();
   private toast: HTMLElement;
   private toastTimer = 0;
+  private lastSaved = true;
+  private confirmReset = false;
 
-  constructor(private root: HTMLElement, private world: World, private onSave: () => void) {
+  constructor(private root: HTMLElement, private world: World, private onSave: () => boolean) {
     root.innerHTML = `<main class="game-shell"><section class="battle"><div class="battle-canvas"></div><div class="top-hud"></div><button class="auto-toggle" type="button"></button><div class="tutorial"></div><div class="controls"><div class="stick"><div class="stick-knob"></div></div><div class="action-pad"></div></div><div class="resource hp"><span>HP</span><b></b></div><div class="resource mp"><span>MP</span><b></b></div></section><section class="inventory"><div class="inventory-head"><div><small>THE EXILE'S SATCHEL</small><h1>가방 <span class="bag-count"></span></h1></div><button class="salvage" type="button">일괄 분해</button></div><div class="inventory-body"></div><nav class="bottom-nav"><button data-modal="status">내 상태</button><button data-modal="equipment">장비</button><button data-modal="skills">스킬</button></nav></section><div class="modal-backdrop" hidden><div class="modal-dialog" role="dialog" aria-modal="true"></div></div><div class="toast" role="status"></div></main>`;
     this.top = this.get('.top-hud'); this.banner = this.get('.tutorial'); this.inventory = this.get('.inventory-body');
     this.modal = this.get('.modal-backdrop'); this.toast = this.get('.toast');
-    this.get('.auto-toggle').addEventListener('click', () => { world.save.auto = !world.save.auto; this.message(`자동사냥 ${world.save.auto ? 'ON' : 'OFF'}`); world.onChange(); });
+    this.get('.auto-toggle').addEventListener('click', () => { world.save.auto = !world.save.auto; this.message(`AUTO ${world.save.auto ? 'ON' : 'OFF'}`); world.onChange(); });
     this.get('.salvage').addEventListener('click', () => this.salvage());
     this.root.querySelectorAll<HTMLButtonElement>('[data-modal]').forEach(button => button.onclick = () => this.open(button.dataset.modal as Modal));
     this.modal.addEventListener('click', event => { if (event.target === this.modal) this.open(null); });
@@ -43,7 +45,10 @@ export class Interface {
       } else button.addEventListener('pointerdown', e => { e.preventDefault(); world.action(action.key); });
     }
     this.setupStick();
-    world.onChange = () => { this.renderInventory(); this.renderStatus(); this.renderModal(); this.onSave(); };
+    world.onChange = () => {
+      this.lastSaved = this.onSave(); this.renderInventory(); this.renderStatus();
+      if (this.openModal !== 'account' || document.activeElement?.tagName !== 'INPUT') this.renderModal();
+    };
     world.onMessage = text => this.message(text);
     this.renderInventory(); this.renderStatus();
   }
@@ -63,7 +68,11 @@ export class Interface {
       knob.style.transform = `translate(${dx * scale}px, ${dy * scale}px)`;
       this.world.move = { x: dx / 43 * scale, y: dy / 43 * scale };
     };
-    stick.addEventListener('pointerdown', e => { e.preventDefault(); pointer = e.pointerId; this.world.joystickActive = true; stick.setPointerCapture(pointer); move(e); });
+    stick.addEventListener('pointerdown', e => {
+      e.preventDefault(); pointer = e.pointerId; this.world.joystickActive = true;
+      if (this.world.save.auto) { this.world.save.auto = false; this.message('수동 이동: AUTO OFF'); this.world.onChange(); }
+      stick.setPointerCapture(pointer); move(e);
+    });
     stick.addEventListener('pointermove', move);
     const end = () => { pointer = undefined; this.world.joystickActive = false; knob.style.transform = ''; this.world.move = { x: 0, y: 0 }; };
     stick.addEventListener('pointerup', end); stick.addEventListener('pointercancel', end);
@@ -71,12 +80,14 @@ export class Interface {
 
   renderStatus(): void {
     const { save, player } = this.world;
-    this.top.innerHTML = `<div class="status-main"><span>층 <b>${save.floor}</b></span><span>처치 <b>${save.kills}</b></span><span>LV <b>${save.level}</b></span><span class="gold">◆ ${save.gold}</span></div><div class="exp"><i style="width:${save.exp / (save.level * 45) * 100}%"></i></div>`;
-    const toggle = this.get('.auto-toggle'); toggle.textContent = `자동사냥 ${save.auto ? 'ON' : 'OFF'}`; toggle.classList.toggle('on', save.auto);
+    const progress = Math.min(100, Math.max(0, save.exp / expToNext(save.level) * 100));
+    this.top.innerHTML = `<div class="status-main"><span>층 <b>${save.floor}</b></span><span>처치 <b>${save.kills}</b></span><span class="gold">◆ ${save.gold}</span></div><button class="level-badge" type="button" aria-label="계정 정보 열기"><span>LV</span><b>${save.level}</b></button><div class="exp"><i style="width:${progress}%"></i></div>`;
+    const levelBadge = this.get('.level-badge'); levelBadge.style.setProperty('--progress', `${progress}%`); levelBadge.addEventListener('click', () => this.open('account'));
+    const toggle = this.get('.auto-toggle'); toggle.textContent = `AUTO ${save.auto ? 'ON' : 'OFF'}`; toggle.classList.toggle('on', save.auto);
     this.get('.hp').style.setProperty('--fill', `${Math.max(0, player.hp / totalStats(save).health * 100)}%`);
     this.get('.mp').style.setProperty('--fill', `${player.mp}%`);
     this.get('.hp b').textContent = `${Math.ceil(player.hp)}`; this.get('.mp b').textContent = `${Math.ceil(player.mp)}`;
-    const text = [save.auto ? '자동사냥 중입니다. 직접 조작하면 이동을 우선합니다.' : '조이스틱으로 이동해 첫 해골전사를 처치하세요.', '빛기둥으로 이동해 낡은 검을 줍세요.', '가방에서 낡은 검을 선택해 장착하세요.'][save.tutorial];
+    const text = [save.auto ? '자동사냥 중입니다. 직접 이동하면 AUTO가 꺼집니다.' : '조이스틱으로 이동해 첫 해골전사를 처치하세요.', '빛기둥으로 이동해 낡은 검을 줍세요.', '가방에서 낡은 검을 선택해 장착하세요.'][save.tutorial];
     this.banner.textContent = text ?? ''; this.banner.hidden = save.tutorial >= 3;
   }
 
@@ -142,17 +153,18 @@ export class Interface {
     this.selected = undefined; this.message(`${chosen.length}개 장비를 분해했습니다.`); this.world.onChange();
   }
 
-  private open(kind: Modal | null): void { this.openModal = kind; this.renderModal(); }
+  private open(kind: Modal | null): void { this.openModal = kind; this.confirmReset = false; this.renderModal(); }
   private renderModal(): void {
     this.modal.hidden = this.openModal === null;
     if (!this.openModal) return;
     const dialog = this.modal.querySelector<HTMLElement>('.modal-dialog')!; dialog.replaceChildren();
     const heading = document.createElement('header');
-    heading.innerHTML = `<h2>${{ status: '내 상태', equipment: '장비', skills: '스킬' }[this.openModal]}</h2><button class="modal-close" aria-label="닫기">×</button>`;
+    heading.innerHTML = `<h2>${{ status: '내 상태', equipment: '장비', skills: '스킬', account: '계정 정보' }[this.openModal]}</h2><button class="modal-close" aria-label="닫기">×</button>`;
     heading.querySelector('button')!.addEventListener('click', () => this.open(null)); dialog.appendChild(heading);
     if (this.openModal === 'equipment') this.renderEquipment(dialog);
     if (this.openModal === 'status') this.renderCharacter(dialog);
     if (this.openModal === 'skills') this.renderSkills(dialog);
+    if (this.openModal === 'account') this.renderAccount(dialog);
   }
 
   private renderEquipment(dialog: HTMLElement): void {
@@ -178,7 +190,7 @@ export class Interface {
   private renderCharacter(dialog: HTMLElement): void {
     const save = this.world.save, stats = totalStats(save);
     const overview = document.createElement('div'); overview.className = 'character-overview';
-    overview.innerHTML = `<b>LV ${save.level} · ${save.floor}층</b><span>경험치 ${save.exp} / ${save.level * 45}</span><span>골드 ${save.gold} · 강화석 ${save.stones}</span>`;
+    overview.innerHTML = `<b>LV ${save.level} · ${save.floor}층</b><span>경험치 ${save.exp} / ${expToNext(save.level)}</span><span>골드 ${save.gold} · 강화석 ${save.stones}</span>`;
     dialog.appendChild(overview);
     const grid = document.createElement('div'); grid.className = 'character-stats';
     for (const stat of ['attack', 'defense', 'health', 'crit', 'speed'] as Stat[]) {
@@ -193,6 +205,55 @@ export class Interface {
       gender.appendChild(button);
     }
     dialog.appendChild(gender);
+  }
+
+  private renderAccount(dialog: HTMLElement): void {
+    const save = this.world.save;
+    const content = document.createElement('div'); content.className = 'account-content';
+    const nameLabel = document.createElement('label'); nameLabel.textContent = '모험가 이름';
+    const nameRow = document.createElement('div'); nameRow.className = 'account-name';
+    const input = document.createElement('input'); input.value = save.name; input.maxLength = 16; input.setAttribute('aria-label', '모험가 이름');
+    const rename = document.createElement('button'); rename.textContent = '이름 저장';
+    rename.onclick = () => {
+      const name = input.value.trim();
+      if (!name) { this.message('이름은 비워둘 수 없습니다.'); return; }
+      save.name = name; this.world.onChange(); this.message('모험가 이름을 저장했습니다.');
+    };
+    nameRow.append(input, rename); content.append(nameLabel, nameRow);
+    const identity = document.createElement('div'); identity.className = 'account-line';
+    identity.innerHTML = '<span>계정 ID</span><b></b>';
+    identity.querySelector('b')!.textContent = save.accountId;
+    content.appendChild(identity);
+    const role = document.createElement('div'); role.className = 'account-line'; role.innerHTML = '<span>직업</span><b>전사</b>'; content.appendChild(role);
+    const gender = document.createElement('div'); gender.className = 'account-gender'; gender.innerHTML = '<span>성별</span>';
+    for (const choice of ['male', 'female'] as const) {
+      const button = document.createElement('button'); button.textContent = choice === 'male' ? '남' : '여';
+      button.classList.toggle('active', save.gender === choice);
+      button.onclick = () => { save.gender = choice; this.world.onChange(); };
+      gender.appendChild(button);
+    }
+    content.appendChild(gender);
+    const level = document.createElement('div'); level.className = 'account-progress';
+    level.innerHTML = `<b>LV ${save.level}</b><span>${save.exp} / ${expToNext(save.level)} EXP</span><div><i style="width:${Math.min(100, save.exp / expToNext(save.level) * 100)}%"></i></div>`;
+    content.appendChild(level);
+    const floor = document.createElement('div'); floor.className = 'account-line'; floor.innerHTML = `<span>최고 도달 층수</span><b>${save.floor}층</b>`; content.appendChild(floor);
+    const kills = document.createElement('div'); kills.className = 'account-line'; kills.innerHTML = `<span>누적 처치 수</span><b>${save.kills}</b>`; content.appendChild(kills);
+    const status = document.createElement('div'); status.className = 'account-line'; status.innerHTML = '<span>저장 상태</span><b></b>';
+    status.querySelector('b')!.textContent = this.lastSaved ? '로컬 자동 저장 중' : '저장 실패'; content.appendChild(status);
+    const reset = document.createElement('div'); reset.className = 'account-reset';
+    if (!this.confirmReset) {
+      const button = document.createElement('button'); button.textContent = '데이터 초기화';
+      button.onclick = () => { this.confirmReset = true; this.renderModal(); }; reset.appendChild(button);
+    } else {
+      const warning = document.createElement('p'); warning.textContent = '레벨, 장비, 골드 등 모든 진행 상황을 삭제할까요? 이 작업은 되돌릴 수 없습니다.';
+      const yes = document.createElement('button'); yes.textContent = '모두 삭제'; yes.onclick = () => {
+        try { localStorage.removeItem('djrpg-save-v1'); window.dispatchEvent(new Event('game-reset')); location.reload(); }
+        catch (error) { this.message(`데이터를 초기화하지 못했습니다: ${String(error)}`); }
+      };
+      const no = document.createElement('button'); no.textContent = '취소'; no.onclick = () => { this.confirmReset = false; this.renderModal(); };
+      reset.append(warning, yes, no);
+    }
+    content.appendChild(reset); dialog.appendChild(content);
   }
 
   private renderSkills(dialog: HTMLElement): void {
