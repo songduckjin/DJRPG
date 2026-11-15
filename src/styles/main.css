@@ -50,7 +50,9 @@ button:active { transform: scale(.97); }
 .bag-filters { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-bottom: 9px; }
 .bag-filters button { border: 1px solid #6d5948; padding: 6px 2px; background: #292124; color: #bba998; font-size: 11px; }
 .bag-filters button.active { border-color: #c8a26a; background: #4a342a; color: #ffe1b5; }
-.modal-bag-footer { display: flex; align-items: center; justify-content: space-between; border-top: 1px solid #655044; margin-top: 10px; padding-top: 9px; color: #c4ac91; font-size: 11px; }
+.modal-bag-footer { display: flex; align-items: center; justify-content: space-between; gap: 5px; border-top: 1px solid #655044; margin-top: 10px; padding-top: 9px; color: #c4ac91; font-size: 11px; }
+.bag-footer-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; }
+.salvage-rarity { border: 1px solid #836546; background: #292124; color: #ecd8bb; padding: 5px 2px; font-size: 11px; }
 .bag-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 5px; }
 .bag-item { min-width: 0; aspect-ratio: 1; min-height: 54px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; border: 1px solid #60534e; background: radial-gradient(circle at 50% 30%, #3a3130, #221e22); color: #ddcfc1; padding: 2px; }
 .bag-item.common, .equipment-slot.common { border-color: #a6a6a6; }

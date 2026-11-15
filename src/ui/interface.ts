@@ -1,4 +1,4 @@
-import { expToNext, rarityNames, slotNames, statNames, totalStats, type Item, type Save, type Slot, type Stat } from '../game/store';
+import { autoEquipBest, expToNext, rarityNames, salvageByRarity, slotNames, statNames, totalStats, type Item, type Rarity, type Save, type Slot, type Stat } from '../game/store';
 import { cooldowns, costs, type Action, type World } from '../game/world';
 import { canLearn, passiveOrder, passives, skillOrder, skills, UNLOCK_ALL_SKILLS_FOR_TEST, type SkillId } from '../game/skills';
 
@@ -9,6 +9,7 @@ type BagFilter = 'all' | 'weapon' | 'armor' | 'accessory';
 export class Interface {
   private selected?: string;
   private bagFilter: BagFilter = 'all';
+  private salvageRarity: Exclude<Rarity, 'legendary'> = 'magic';
   private openModal: Modal | null = null;
   private top: HTMLElement;
   private banner: HTMLElement;
@@ -26,6 +27,10 @@ export class Interface {
     root.innerHTML = `<main class="game-shell"><section class="battle"><div class="battle-canvas"></div><div class="top-hud"></div><button class="auto-toggle" type="button"></button><div class="tutorial"></div><div class="controls"><div class="stick"><div class="stick-knob"></div></div><div class="action-pad"></div></div><div class="resource hp"><span>HP</span><b></b></div><div class="resource mp"><span>MP</span><b></b></div></section><nav class="bottom-nav"><button data-modal="status">내 상태</button><button data-modal="equipment">장비<i class="new-badge" hidden></i></button><button data-modal="skills">스킬</button></nav><div class="modal-backdrop" hidden><div class="modal-dialog" role="dialog" aria-modal="true"></div></div><div class="toast" role="status"></div></main>`;
     this.top = this.get('.top-hud'); this.banner = this.get('.tutorial');
     this.modal = this.get('.modal-backdrop'); this.toast = this.get('.toast');
+    try {
+      const stored = localStorage.getItem('djrpg-salvage-rarity');
+      if (stored === 'common' || stored === 'magic' || stored === 'rare') this.salvageRarity = stored;
+    } catch (error) { this.message(`분해 기준을 불러오지 못했습니다: ${String(error)}`); }
     for (const item of [...world.save.bag, ...Object.values(world.save.equipment)]) if (item) this.knownItems.add(item.id);
     this.get('.auto-toggle').addEventListener('click', () => { world.save.auto = !world.save.auto; this.message(`AUTO ${world.save.auto ? 'ON' : 'OFF'}`); world.onChange(); });
     this.root.querySelectorAll<HTMLButtonElement>('[data-modal]').forEach(button => button.onclick = () => this.open(button.dataset.modal as Modal));
@@ -150,8 +155,26 @@ export class Interface {
     const selected = save.bag.find(item => item.id === this.selected);
     if (selected) section.appendChild(this.itemDetail(save, selected));
     const footer = document.createElement('div'); footer.className = 'modal-bag-footer';
-    footer.innerHTML = `<span>보유 ${save.bag.length}/40</span><button class="salvage" type="button">일괄 분해</button>`;
-    footer.querySelector<HTMLButtonElement>('button')!.onclick = () => this.salvage(); section.appendChild(footer);
+    const count = document.createElement('span'); count.textContent = `보유 ${save.bag.length}/40`;
+    const controls = document.createElement('div'); controls.className = 'bag-footer-actions';
+    const equip = document.createElement('button'); equip.className = 'salvage'; equip.textContent = '자동 장착';
+    equip.onclick = () => {
+      const changed = autoEquipBest(save);
+      this.selected = undefined; this.world.onChange();
+      this.message(changed ? `${changed}부위 자동 장착 완료` : '이미 최고 장비 장착 중');
+    };
+    const select = document.createElement('select'); select.className = 'salvage-rarity'; select.setAttribute('aria-label', '일괄 분해 최대 등급');
+    for (const [rarity, label] of [['common', '일반만'], ['magic', '마법 이하'], ['rare', '희귀 이하']] as const) {
+      const option = document.createElement('option'); option.value = rarity; option.textContent = label; select.appendChild(option);
+    }
+    select.value = this.salvageRarity;
+    select.onchange = () => {
+      this.salvageRarity = select.value as Exclude<Rarity, 'legendary'>;
+      try { localStorage.setItem('djrpg-salvage-rarity', this.salvageRarity); }
+      catch (error) { this.message(`분해 기준을 저장하지 못했습니다: ${String(error)}`); }
+    };
+    const salvage = document.createElement('button'); salvage.className = 'salvage'; salvage.textContent = '일괄 분해'; salvage.onclick = () => this.salvage();
+    controls.append(equip, select, salvage); footer.append(count, controls); section.appendChild(footer);
     dialog.appendChild(section);
   }
 
@@ -181,12 +204,10 @@ export class Interface {
 
   private salvage(): void {
     const save = this.world.save;
-    const chosen = save.bag.filter(item => item.rarity === 'common' || item.rarity === 'magic');
-    if (!chosen.length) { this.message('분해할 일반·마법 장비가 없습니다.'); return; }
-    save.bag = save.bag.filter(item => !chosen.includes(item));
-    save.gold += chosen.reduce((sum, item) => sum + this.salvageValue(item), 0);
-    save.stones += chosen.reduce((sum, item) => sum + (item.rarity === 'common' ? 1 : 2), 0);
-    this.selected = undefined; this.message(`${chosen.length}개 장비를 분해했습니다.`); this.world.onChange();
+    const result = salvageByRarity(save, this.salvageRarity);
+    if (!result.count) { this.message('선택한 등급 이하의 분해할 장비가 없습니다.'); return; }
+    this.selected = undefined; this.world.onChange();
+    this.message(`${result.count}개 분해 완료 (+${result.gold}골드 / +${result.stones}강화석)`);
   }
 
   private open(kind: Modal | null): void {

@@ -73,3 +73,46 @@ export function rollItem(floor: number, guaranteed = false, boss = false): Item 
   if (rarity === 'legendary') stats.speed = scale;
   return { id: crypto.randomUUID(), name: slot === 'weapon' ? weaponNames[rarity] : `${prefix} ${base}`, slot, rarity, stats };
 }
+
+export function itemPower(item: Item): number {
+  return (item.stats.attack ?? 0) * 3 + (item.stats.defense ?? 0) * 2 + (item.stats.health ?? 0) * .2 + (item.stats.crit ?? 0) * 2 + (item.stats.speed ?? 0) * 2;
+}
+
+export function autoEquipBest(save: Save): number {
+  let changed = 0;
+  for (const slot of slots.filter(slot => slot !== 'ring1' && slot !== 'ring2')) {
+    const current = save.equipment[slot];
+    const best = save.bag.filter(item => item.slot === slot).sort((a, b) => itemPower(b) - itemPower(a))[0];
+    if (!best || (current && itemPower(best) <= itemPower(current))) continue;
+    save.bag.splice(save.bag.findIndex(item => item.id === best.id), 1);
+    if (current) save.bag.push(current);
+    save.equipment[slot] = best;
+    changed++;
+  }
+  const ringSlots: Slot[] = ['ring1', 'ring2'];
+  const equippedRings = ringSlots.map(slot => save.equipment[slot]).filter((item): item is Item => !!item);
+  const bagRings = save.bag.filter(item => ringSlots.includes(item.slot));
+  const bestRings = [...equippedRings, ...bagRings].sort((a, b) => itemPower(b) - itemPower(a)).slice(0, 2);
+  const used = new Set(bestRings.map(item => item.id));
+  save.bag = save.bag.filter(item => !used.has(item.id));
+  for (const item of equippedRings) if (!used.has(item.id)) save.bag.push(item);
+  for (const [index, slot] of ringSlots.entries()) {
+    const next = bestRings[index];
+    if (save.equipment[slot]?.id !== next?.id) changed++;
+    if (next) save.equipment[slot] = next;
+    else delete save.equipment[slot];
+  }
+  if (save.tutorial === 2 && save.equipment.weapon) save.tutorial = 3;
+  return changed;
+}
+
+export function salvageByRarity(save: Save, maxRarity: Exclude<Rarity, 'legendary'>): { count: number; gold: number; stones: number } {
+  const ranks: Record<Rarity, number> = { common: 0, magic: 1, rare: 2, legendary: 3 };
+  const chosen = save.bag.filter(item => ranks[item.rarity] <= ranks[maxRarity]);
+  const gold = chosen.reduce((sum, item) => sum + ({ common: 3, magic: 10, rare: 25, legendary: 60 })[item.rarity], 0);
+  const stones = chosen.reduce((sum, item) => sum + (item.rarity === 'common' ? 1 : 2), 0);
+  const ids = new Set(chosen.map(item => item.id));
+  save.bag = save.bag.filter(item => !ids.has(item.id));
+  save.gold += gold; save.stones += stones;
+  return { count: chosen.length, gold, stones };
+}
