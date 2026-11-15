@@ -1,18 +1,19 @@
 import { expToNext, rollItem, totalStats, type Item, type Save } from './store';
+import { canLearn, skills, type SkillId } from './skills';
 
-export type Enemy = { x: number; y: number; hp: number; maxHp: number; boss: boolean; hit: number; step: number; moving: boolean; knockX: number; knockY: number };
+export type Enemy = { x: number; y: number; hp: number; maxHp: number; boss: boolean; hit: number; step: number; moving: boolean; knockX: number; knockY: number; slow: number };
 export type Drop = { x: number; y: number; item: Item; age: number; warned: boolean };
-export type Effect = { x: number; y: number; kind: 'slash' | 'spin' | 'slam' | 'warcry' | 'hit' | 'death'; age: number; duration: number; angle: number; swing?: number; amount?: number };
-export type Action = 'attack' | 'spin' | 'slam' | 'warcry';
-export const cooldowns: Record<Action, number> = { attack: .42, spin: 5, slam: 7, warcry: 12 };
-export const costs: Record<Action, number> = { attack: 0, spin: 18, slam: 24, warcry: 30 };
+export type Effect = { x: number; y: number; kind: 'slash' | 'slash2' | 'spin' | 'slam' | 'warcry' | 'power' | 'destroy' | 'hell' | 'hit' | 'death'; age: number; duration: number; angle: number; swing?: number; amount?: number };
+export type Action = 'attack' | SkillId;
+export const cooldowns: Record<Action, number> = { attack: .48, slash2: skills.slash2.cooldown, spin: skills.spin.cooldown, slam: skills.slam.cooldown, warcry: skills.warcry.cooldown, power: skills.power.cooldown, destroy: skills.destroy.cooldown, hell: skills.hell.cooldown };
+export const costs: Record<Action, number> = { attack: 0, slash2: skills.slash2.cost, spin: skills.spin.cost, slam: skills.slam.cost, warcry: skills.warcry.cost, power: skills.power.cost, destroy: skills.destroy.cost, hell: skills.hell.cost };
 
 export class World {
   player = { x: 0, y: 0, facing: 1, mp: 100, hp: 100, berserk: 0, hit: 0 };
   enemies: Enemy[] = [];
   drops: Drop[] = [];
   effects: Effect[] = [];
-  cooldown: Record<Action, number> = { attack: 0, spin: 0, slam: 0, warcry: 0 };
+  cooldown: Record<Action, number> = { attack: 0, slash2: 0, spin: 0, slam: 0, warcry: 0, power: 0, destroy: 0, hell: 0 };
   spawnTimer = 0;
   attackHeld = false;
   move = { x: 0, y: 0 };
@@ -27,35 +28,52 @@ export class World {
 
   constructor(public save: Save) {
     this.player.hp = Math.min(save.health, totalStats(save).health);
-    this.enemies.push({ x: 145, y: -45, hp: 22, maxHp: 22, boss: false, hit: 0, step: 0, moving: false, knockX: 0, knockY: 0 });
+    this.enemies.push({ x: 145, y: -45, hp: 22, maxHp: 22, boss: false, hit: 0, step: 0, moving: false, knockX: 0, knockY: 0, slow: 0 });
   }
 
   action(kind: Action): void {
     if (this.cooldown[kind] > 0) return;
+    if (kind !== 'attack' && !canLearn(this.save.level, skills[kind].level)) { this.onMessage(`${skills[kind].name}: Lv.${skills[kind].level} 필요`); return; }
+    if (kind !== 'attack' && (!this.save.learned.includes(kind) || !this.save.quickSlots.includes(kind))) { this.onMessage('습득하고 퀵슬롯에 장착한 스킬만 사용할 수 있습니다.'); return; }
     if (this.player.mp < costs[kind]) { this.onMessage('마나가 부족합니다.'); return; }
     this.player.mp -= costs[kind];
-    this.cooldown[kind] = cooldowns[kind];
     const p = this.player;
+    const stats = totalStats(this.save);
+    this.cooldown[kind] = kind === 'attack' ? cooldowns.attack / (1 + stats.speed / 100) * (p.berserk > 0 ? .67 : 1) : cooldowns[kind];
+    const attack = stats.attack * (p.berserk > 0 ? 1.5 : 1);
     const target = this.nearest();
     if (kind === 'attack') {
       const angle = target && Math.hypot(target.x - p.x, target.y - p.y) < 95 ? Math.atan2(target.y - p.y, target.x - p.x) : p.facing;
       p.facing = angle;
       this.effects.push({ x: p.x, y: p.y, kind: 'slash', age: 0, duration: .25, angle, swing: this.swing });
       this.swing *= -1;
-      this.damage(86, totalStats(this.save).attack * (p.berserk > 0 ? 1.5 : 1), angle, .95);
+      this.damage(90, attack, angle, 1.15);
+    } else if (kind === 'slash2') {
+      this.effects.push({ x: p.x, y: p.y, kind: 'slash2', age: 0, duration: .35, angle: p.facing });
+      this.damage(96, attack * .9, p.facing, .9);
+      this.damage(96, attack * .9, p.facing, .9);
     } else if (kind === 'spin') {
       this.effects.push({ x: p.x, y: p.y, kind: 'spin', age: 0, duration: .55, angle: 0 });
-      this.damage(105, totalStats(this.save).attack * 1.65, 0, Math.PI);
+      this.damage(108, attack * 1.65, 0, Math.PI);
     } else if (kind === 'slam') {
       this.effects.push({ x: p.x, y: p.y, kind: 'slam', age: 0, duration: .65, angle: p.facing });
-      this.damage(125, totalStats(this.save).attack * 2.2, p.facing, 1.35, 55);
-    } else {
+      this.damage(126, attack * 2.2, p.facing, 1.35, 55, 2);
+    } else if (kind === 'warcry') {
       p.berserk = 6;
       this.effects.push({ x: p.x, y: p.y, kind: 'warcry', age: 0, duration: .7, angle: 0 });
       for (const enemy of this.enemies) {
         const dx = enemy.x - p.x, dy = enemy.y - p.y, d = Math.hypot(dx, dy);
         if (d < 115 && d > 0) { enemy.x += dx / d * 40; enemy.y += dy / d * 40; }
       }
+    } else if (kind === 'power') {
+      this.effects.push({ x: p.x, y: p.y, kind: 'power', age: 0, duration: .4, angle: p.facing });
+      this.damage(100, attack * 4, p.facing, .45, 24);
+    } else if (kind === 'destroy') {
+      this.effects.push({ x: p.x, y: p.y, kind: 'destroy', age: 0, duration: .55, angle: p.facing });
+      this.damage(175, attack * 2.7, p.facing, .7, 42);
+    } else if (kind === 'hell') {
+      this.effects.push({ x: p.x, y: p.y, kind: 'hell', age: 0, duration: .8, angle: p.facing });
+      this.damage(185, attack * 3.2, 0, Math.PI, 45);
     }
   }
 
@@ -63,13 +81,14 @@ export class World {
     return this.enemies.reduce<Enemy | undefined>((best, e) => !best || Math.hypot(e.x - this.player.x, e.y - this.player.y) < Math.hypot(best.x - this.player.x, best.y - this.player.y) ? e : best, undefined);
   }
 
-  damage(radius: number, amount: number, angle: number, arc: number, knockback = 12): void {
+  damage(radius: number, amount: number, angle: number, arc: number, knockback = 12, slow = 0): void {
     for (const enemy of this.enemies) {
       const dx = enemy.x - this.player.x, dy = enemy.y - this.player.y, dist = Math.hypot(dx, dy);
       const diff = Math.atan2(Math.sin(Math.atan2(dy, dx) - angle), Math.cos(Math.atan2(dy, dx) - angle));
       if (dist > radius || Math.abs(diff) > arc) continue;
       enemy.hp -= amount;
       enemy.hit = .24;
+      enemy.slow = Math.max(enemy.slow, slow);
       if (knockback && dist) { enemy.knockX += dx / dist * knockback * 12; enemy.knockY += dy / dist * knockback * 12; }
       this.effects.push({ x: enemy.x, y: enemy.y, kind: 'hit', age: 0, duration: .45, angle: Math.random() * Math.PI * 2, amount: Math.round(amount) });
     }
@@ -121,12 +140,12 @@ export class World {
         const desired = drop ? 20 : 68;
         this.activeMove = distance > desired ? { x: dx / distance, y: dy / distance } : { x: 0, y: 0 };
         if (distance > 1) p.facing = Math.atan2(dy, dx);
-        if (!drop && distance < 120) {
-          const nearby = this.enemies.filter(enemy => Math.hypot(enemy.x - p.x, enemy.y - p.y) < 105).length;
+        if (!drop && distance < 190) {
           if (distance < 90) this.action('attack');
-          if (nearby >= 1 && this.cooldown.spin <= 0 && p.mp >= costs.spin) this.action('spin');
-          if (this.cooldown.slam <= 0 && p.mp >= costs.slam) this.action('slam');
-          if (this.cooldown.warcry <= 0 && p.mp >= costs.warcry) this.action('warcry');
+          for (const skill of this.save.quickSlots) {
+            if (!canLearn(this.save.level, skills[skill].level) || !this.save.learned.includes(skill) || this.cooldown[skill] > 0 || p.mp < costs[skill] || distance > skills[skill].range) continue;
+            this.action(skill);
+          }
         }
       } else this.activeMove = { x: 0, y: 0 };
     }
@@ -143,15 +162,16 @@ export class World {
       const boss = this.bossPending && !this.enemies.some(e => e.boss);
       const d = 250 + Math.random() * 60;
       const hp = boss ? 160 + this.save.floor * 35 : 18 + this.save.floor * 5;
-      this.enemies.push({ x: p.x + Math.cos(angle) * d, y: p.y + Math.sin(angle) * d, hp, maxHp: hp, boss, hit: 0, step: Math.random() * Math.PI * 2, moving: false, knockX: 0, knockY: 0 });
+      this.enemies.push({ x: p.x + Math.cos(angle) * d, y: p.y + Math.sin(angle) * d, hp, maxHp: hp, boss, hit: 0, step: Math.random() * Math.PI * 2, moving: false, knockX: 0, knockY: 0, slow: 0 });
       if (boss) this.bossPending = false;
     }
     for (const enemy of this.enemies) {
       const dx = p.x - enemy.x, dy = p.y - enemy.y, d = Math.hypot(dx, dy);
       enemy.moving = d > 27;
-      if (enemy.moving && d > 0) { const step = (enemy.boss ? 32 : 45 + this.save.floor * 2) * dt; enemy.x += dx / d * step; enemy.y += dy / d * step; enemy.step += dt * (enemy.boss ? 7 : 11); }
+      if (enemy.moving && d > 0) { const step = (enemy.boss ? 32 : 45 + this.save.floor * 2) * (enemy.slow > 0 ? .55 : 1) * dt; enemy.x += dx / d * step; enemy.y += dy / d * step; enemy.step += dt * (enemy.boss ? 7 : 11); }
       enemy.x += enemy.knockX * dt; enemy.y += enemy.knockY * dt;
       enemy.knockX *= Math.exp(-dt * 12); enemy.knockY *= Math.exp(-dt * 12);
+      enemy.slow = Math.max(0, enemy.slow - dt);
       if (d < 35 && p.hit <= 0) {
         p.hp = Math.max(0, p.hp - Math.max(1, (enemy.boss ? 20 : 7) - totalStats(this.save).defense * .2));
         p.hit = .85;

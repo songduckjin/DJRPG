@@ -116,18 +116,39 @@ export class GameView {
     depths.sort((a, b) => a.depth - b.depth).forEach((entry, index) => this.actors.setChildIndex(entry.sprite, index));
     for (const effect of world.effects) {
       const [x, y] = project(effect.x, effect.y), t = effect.age / effect.duration;
+      const screenAngle = Math.atan2(Math.sin(effect.angle) * .43 + Math.cos(effect.angle) * .43, Math.cos(effect.angle) * .86 - Math.sin(effect.angle) * .86);
       if (effect.kind === 'slash') {
-        const angle = Math.atan2(Math.sin(effect.angle) * .43 + Math.cos(effect.angle) * .43, Math.cos(effect.angle) * .86 - Math.sin(effect.angle) * .86);
-        this.effects.arc(x, y - 18, 39 + t * 19, angle - .95, angle + .95).stroke({ color: 0xff9e5a, width: 20 * (1 - t), alpha: .25 * (1 - t) });
-        this.effects.arc(x, y - 18, 40 + t * 19, angle - .95, angle + .95).stroke({ color: 0xffd59d, width: 11 * (1 - t), alpha: .8 * (1 - t) });
-        this.effects.arc(x, y - 18, 41 + t * 19, angle - .95, angle + .95).stroke({ color: 0xffffff, width: 4 * (1 - t), alpha: 1 - t });
+        this.effects.arc(x, y - 18, 39 + t * 19, screenAngle - 1.1, screenAngle + 1.1).stroke({ color: 0xff9e5a, width: 20 * (1 - t), alpha: .25 * (1 - t) });
+        this.effects.arc(x, y - 18, 40 + t * 19, screenAngle - 1.1, screenAngle + 1.1).stroke({ color: 0xffd59d, width: 11 * (1 - t), alpha: .8 * (1 - t) });
+        this.effects.arc(x, y - 18, 41 + t * 19, screenAngle - 1.1, screenAngle + 1.1).stroke({ color: 0xffffff, width: 4 * (1 - t), alpha: 1 - t });
       }
-      else if (effect.kind === 'spin') this.effects.ellipse(x, y - 17, 90 * t + 20, 40 * t + 12).stroke({ color: 0xc9d7d8, width: 10 * (1 - t), alpha: 1 - t });
+      else if (effect.kind === 'slash2') {
+        for (let i = 0; i < 2; i++) this.effects.arc(x, y - 18 - i * 7, 45 + t * 22 + i * 6, screenAngle - .9 + i * .2, screenAngle + .9 + i * .2).stroke({ color: i ? 0xffffff : 0x71d8e8, width: (i ? 5 : 9) * (1 - t), alpha: 1 - t });
+      }
+      else if (effect.kind === 'spin') {
+        for (let i = 0; i < 3; i++) this.effects.ellipse(x, y - 8 - i * 14, (78 * t + 22) * (1 - i * .15), (36 * t + 10) * (1 - i * .12)).stroke({ color: i % 2 ? 0xf7bd54 : 0xc83c36, width: 9 * (1 - t), alpha: .9 * (1 - t) });
+      }
       else if (effect.kind === 'slam') {
         this.effects.ellipse(x, y, 120 * t, 50 * t).stroke({ color: 0xe24a38, width: 12 * (1 - t), alpha: 1 - t });
         for (let i = -2; i <= 2; i++) this.effects.moveTo(x, y).lineTo(x + Math.cos(effect.angle + i * .35) * (130 * t), y + Math.sin(effect.angle + i * .35) * (65 * t)).stroke({ color: 0xdf493f, width: 4 * (1 - t), alpha: 1 - t });
       }
       else if (effect.kind === 'warcry') this.effects.ellipse(x, y - 14, 110 * t, 46 * t).stroke({ color: 0xd93f38, width: 11 * (1 - t), alpha: 1 - t });
+      else if (effect.kind === 'power' || effect.kind === 'destroy') {
+        const length = (effect.kind === 'power' ? 85 : 155) * t;
+        const tx = x + Math.cos(screenAngle) * length, ty = y - 18 + Math.sin(screenAngle) * length;
+        this.effects.moveTo(x, y - 18).lineTo(tx, ty).stroke({ color: effect.kind === 'power' ? 0xffda67 : 0xd53e42, width: (effect.kind === 'power' ? 20 : 30) * (1 - t), alpha: .45 * (1 - t) });
+        this.effects.moveTo(x, y - 18).lineTo(tx, ty).stroke({ color: 0xffffff, width: 5 * (1 - t), alpha: 1 - t });
+        this.effects.arc(tx, ty, 17 + t * 12, screenAngle - 1, screenAngle + 1).stroke({ color: 0xff9d54, width: 6 * (1 - t), alpha: 1 - t });
+      }
+      else if (effect.kind === 'hell') {
+        this.glow.circle(x, y - 12, 155 * t).fill({ color: 0xe65a27, alpha: .16 * (1 - t) });
+        this.effects.ellipse(x, y, 170 * t, 72 * t).stroke({ color: 0xff742e, width: 17 * (1 - t), alpha: 1 - t });
+        for (let i = 0; i < 12; i++) {
+          const angle = effect.angle + i * Math.PI / 6;
+          const px = x + Math.cos(angle) * 145 * t, py = y - 15 - 35 * t + Math.sin(angle) * 60 * t;
+          this.effects.circle(px, py, (8 + i % 3 * 4) * (1 - t)).fill({ color: i % 2 ? 0xffd45b : 0xe94627, alpha: 1 - t });
+        }
+      }
       else if (effect.kind === 'death') this.drawDeath(x, y, t, effect.angle);
       else this.drawHit(x, y, t, effect.angle);
     }
@@ -148,9 +169,9 @@ export class GameView {
     const step = moving ? Math.sin(time * 13) : 0;
     let bob = moving ? -Math.abs(step) * 5.5 : 0;
     const local = world.effects.filter(effect => effect.kind !== 'hit' && effect.kind !== 'death' && Math.hypot(effect.x - player.x, effect.y - player.y) < 2);
-    const attack = local.find(effect => effect.kind === 'slash');
+    const attack = local.find(effect => ['slash', 'slash2', 'power', 'destroy'].includes(effect.kind));
     const spin = local.find(effect => effect.kind === 'spin');
-    const slam = local.find(effect => effect.kind === 'slam');
+    const slam = local.find(effect => effect.kind === 'slam' || effect.kind === 'hell');
     const cry = local.find(effect => effect.kind === 'warcry');
     const attackPulse = attack ? Math.sin(Math.PI * attack.age / attack.duration) : 0;
     if (slam) bob -= Math.sin(Math.PI * slam.age / slam.duration) * 17;
@@ -171,13 +192,13 @@ export class GameView {
 
   private updateAfterimages(world: World, project: (x: number, y: number) => [number, number], dt: number): void {
     for (const effect of world.effects) {
-      if (!['slash', 'spin', 'slam'].includes(effect.kind) || effect.age > .19) continue;
+      if (!['slash', 'slash2', 'spin', 'slam', 'power', 'destroy', 'hell'].includes(effect.kind) || effect.age > .19) continue;
       const index = Math.floor(effect.age / .065);
       if (index >= 3 || index <= (this.ghostEmissions.get(effect) ?? -1)) continue;
       this.ghostEmissions.set(effect, index);
       const sprite = new Sprite(this.hero.texture);
       sprite.anchor.set(.5, 1); sprite.scale.set(this.hero.scale.x, this.hero.scale.y); sprite.rotation = this.hero.rotation;
-      sprite.tint = effect.kind === 'slam' ? 0xffa06c : 0x8fe6dc;
+      sprite.tint = ['slam', 'destroy', 'hell'].includes(effect.kind) ? 0xffa06c : 0x8fe6dc;
       this.ghosts.addChild(sprite);
       const trail = 5 + index * 5;
       this.afterimages.push({ sprite, x: world.player.x - Math.cos(world.player.facing) * trail, y: world.player.y - Math.sin(world.player.facing) * trail, age: 0, duration: .22 });
@@ -236,12 +257,12 @@ export class GameView {
   }
 
   private drawRunes(world: World, x: number, y: number, time: number): void {
-    const active = world.effects.find(effect => ['slash', 'spin', 'slam', 'warcry'].includes(effect.kind) && Math.hypot(effect.x - world.player.x, effect.y - world.player.y) < 2);
+    const active = world.effects.find(effect => ['slash', 'slash2', 'spin', 'slam', 'warcry', 'power', 'destroy', 'hell'].includes(effect.kind) && Math.hypot(effect.x - world.player.x, effect.y - world.player.y) < 2);
     if (!active && world.player.berserk <= 0) return;
     const t = active ? active.age / active.duration : 0;
-    const burst = active?.kind === 'spin' || active?.kind === 'slam' || active?.kind === 'warcry';
+    const burst = active?.kind === 'spin' || active?.kind === 'slam' || active?.kind === 'warcry' || active?.kind === 'hell';
     const radius = burst ? 17 + t * 27 : 18;
-    const color = active?.kind === 'slam' || active?.kind === 'warcry' || world.player.berserk > 0 ? 0xff8d49 : 0x66d9d2;
+    const color = active?.kind === 'slam' || active?.kind === 'warcry' || active?.kind === 'hell' || world.player.berserk > 0 ? 0xff8d49 : 0x66d9d2;
     const alpha = active ? 1 - t : .32;
     this.glow.ellipse(x, y + 2, radius + 10, (radius + 10) * .43).fill({ color, alpha: .13 * alpha });
     this.ground.ellipse(x, y + 2, radius, radius * .42).stroke({ color, width: burst ? 3 : 2, alpha: .8 * alpha });

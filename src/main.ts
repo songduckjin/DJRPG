@@ -45,9 +45,9 @@ window.addEventListener('keydown', e => {
   keys.add(key); direction();
   if (e.repeat) return;
   if (key === ' ') world.action('attack');
-  if (key === '1') world.action('spin');
-  if (key === '2') world.action('slam');
-  if (key === '3') world.action('warcry');
+  if (key === '1') world.action(save.quickSlots[0]);
+  if (key === '2') world.action(save.quickSlots[1]);
+  if (key === '3') world.action(save.quickSlots[2]);
 });
 window.addEventListener('keyup', e => { keys.delete(e.key.toLowerCase()); direction(); });
 window.addEventListener('blur', () => { keys.clear(); world.move = { x: 0, y: 0 }; world.keyboardMove = { x: 0, y: 0 }; world.keyboardActive = false; world.joystickActive = false; world.attackHeld = false; if (!resetting) saveGame(save); });

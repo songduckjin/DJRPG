@@ -1,12 +1,8 @@
 import { expToNext, rarityNames, slotNames, statNames, totalStats, type Item, type Save, type Slot, type Stat } from '../game/store';
 import { cooldowns, costs, type Action, type World } from '../game/world';
+import { canLearn, passiveOrder, passives, skillOrder, skills, UNLOCK_ALL_SKILLS_FOR_TEST, type SkillId } from '../game/skills';
 
-const actions: { key: Action; icon: string; name: string; description: string; power: string }[] = [
-  { key: 'attack', icon: '⚔', name: '기본 공격', description: '전방 부채꼴 검기 베기. 버튼을 누르고 있으면 연속 공격합니다.', power: '공격력 × 1.0' },
-  { key: 'spin', icon: '⟳', name: '회전 베기', description: '주변의 모든 적을 휘감는 360도 광역 공격.', power: '공격력 × 1.65' },
-  { key: 'slam', icon: '✦', name: '대지 강타', description: '전방에 붉은 균열을 내고 적을 밀어냅니다.', power: '공격력 × 2.2' },
-  { key: 'warcry', icon: '♛', name: '전투 함성', description: '6초 동안 공격력과 이동속도가 상승하고 주변 적을 밀어냅니다.', power: '공격력 × 1.5 / 이동속도 상승' }
-];
+const shortNames: Record<SkillId, string> = { slash2: '소드', spin: '용오름', slam: '스탬프', warcry: '레이지', power: '파워', destroy: '충격파', hell: '헬파이어' };
 type Modal = 'status' | 'equipment' | 'skills' | 'account';
 type BagFilter = 'all' | 'weapon' | 'armor' | 'accessory';
 
@@ -19,7 +15,8 @@ export class Interface {
   private modal: HTMLElement;
   private knownItems = new Set<string>();
   private newItems = new Set<string>();
-  private actionButtons = new Map<Action, HTMLButtonElement>();
+  private attackButton!: HTMLButtonElement;
+  private slotButtons: HTMLButtonElement[] = [];
   private toast: HTMLElement;
   private toastTimer = 0;
   private lastSaved = true;
@@ -35,17 +32,20 @@ export class Interface {
     this.modal.addEventListener('click', event => { if (event.target === this.modal) this.open(null); });
     window.addEventListener('keydown', event => { if (event.key === 'Escape') this.open(null); });
     const pad = this.get('.action-pad');
-    for (const action of actions) {
-      const button = document.createElement('button'); button.className = `action action-${action.key}`; button.type = 'button';
-      button.setAttribute('aria-label', action.name);
-      button.innerHTML = `<strong>${action.icon}</strong><small>${action.name}</small><em></em>`;
-      pad.appendChild(button); this.actionButtons.set(action.key, button);
-      if (action.key === 'attack') {
+    for (let index = 0; index < 4; index++) {
+      const button = document.createElement('button'); button.className = `action ${index === 0 ? 'action-attack' : `action-slot${index}`}`; button.type = 'button';
+      button.innerHTML = '<strong></strong><small></small><em></em>';
+      pad.appendChild(button);
+      if (index === 0) {
+        this.attackButton = button;
         button.addEventListener('pointerdown', e => { e.preventDefault(); button.setPointerCapture(e.pointerId); world.attackHeld = true; world.action('attack'); });
         button.addEventListener('pointerup', () => world.attackHeld = false);
         button.addEventListener('pointercancel', () => world.attackHeld = false);
         button.addEventListener('lostpointercapture', () => world.attackHeld = false);
-      } else button.addEventListener('pointerdown', e => { e.preventDefault(); world.action(action.key); });
+      } else {
+        this.slotButtons.push(button);
+        button.addEventListener('pointerdown', e => { e.preventDefault(); world.action(world.save.quickSlots[index - 1]); });
+      }
     }
     this.setupStick();
     world.onChange = () => {
@@ -97,10 +97,19 @@ export class Interface {
   }
 
   tick(): void {
-    for (const action of actions) {
-      const button = this.actionButtons.get(action.key)!; const cd = this.world.cooldown[action.key];
+    for (let index = 0; index < 4; index++) {
+      const kind: Action = index === 0 ? 'attack' : this.world.save.quickSlots[index - 1];
+      const button = index === 0 ? this.attackButton : this.slotButtons[index - 1];
+      const name = kind === 'attack' ? '대검 베기' : skills[kind].name;
+      if (button.dataset.skill !== kind) {
+        button.dataset.skill = kind;
+        button.querySelector('strong')!.textContent = kind === 'attack' ? '⚔' : skills[kind].icon;
+        button.querySelector('small')!.textContent = kind === 'attack' ? '대검 베기' : shortNames[kind];
+        button.setAttribute('aria-label', name);
+      }
+      const cd = this.world.cooldown[kind];
       button.classList.toggle('cooling', cd > 0); button.querySelector('em')!.textContent = cd > 0 ? cd.toFixed(1) : '';
-      button.title = `${action.name} · 마나 ${costs[action.key]} · 쿨타임 ${cooldowns[action.key]}초`;
+      button.title = `${name} · 마나 ${costs[kind]} · 쿨타임 ${cooldowns[kind]}초`;
     }
     const { player, save } = this.world;
     this.get('.hp').style.setProperty('--fill', `${Math.max(0, player.hp / totalStats(save).health * 100)}%`);
@@ -304,9 +313,57 @@ export class Interface {
 
   private renderSkills(dialog: HTMLElement): void {
     const list = document.createElement('div'); list.className = 'skill-list';
-    for (const action of actions) {
-      const card = document.createElement('article');
-      card.innerHTML = `<div class="skill-icon">${action.icon}</div><div><h3>${action.name}</h3><p>${action.description}</p><small>마나 ${costs[action.key]} · 쿨타임 ${cooldowns[action.key]}초 · ${action.power}</small></div>`;
+    const save = this.world.save;
+    const note = document.createElement('p'); note.className = 'skill-note';
+    note.textContent = UNLOCK_ALL_SKILLS_FOR_TEST ? '테스트 모드: 레벨 제한 없이 모든 스킬을 습득할 수 있습니다. 요구 레벨은 정식 해금 기준입니다.' : '레벨을 올려 스킬을 해금하세요.';
+    list.appendChild(note);
+    const base = document.createElement('article'); base.className = 'skill-card';
+    base.innerHTML = '<div class="skill-icon">⚔</div><div class="skill-info"><h3>대검 베기 <small>Lv.1 · 기본 보유</small></h3><p>묵직한 두손검 횡베기로 전방 넓은 부채꼴을 공격합니다.</p><small>마나 0 · 기본 쿨타임 0.48초 · 공격력 × 1.0 · 고정 슬롯</small></div>';
+    list.appendChild(base);
+    for (const id of skillOrder) {
+      const skill = skills[id], learned = save.learned.includes(id);
+      const card = document.createElement('article'); card.className = 'skill-card';
+      card.innerHTML = `<div class="skill-icon">${skill.icon}</div><div class="skill-info"><h3>${skill.name} <small>Lv.${skill.level}</small></h3><p>${skill.description}</p><small>마나 ${skill.cost} · 쿨타임 ${skill.cooldown}초 · ${skill.power}</small><div class="skill-actions"></div></div>`;
+      const actions = card.querySelector<HTMLElement>('.skill-actions')!;
+      if (!learned) {
+        const button = document.createElement('button'); button.textContent = canLearn(save.level, skill.level) ? '습득' : `Lv.${skill.level} 필요`;
+        button.disabled = !canLearn(save.level, skill.level);
+        button.onclick = () => { save.learned.push(id); this.world.onChange(); this.message(`${skill.name} 습득!`); };
+        actions.appendChild(button);
+      } else {
+        const state = document.createElement('span'); state.textContent = '습득 완료'; actions.appendChild(state);
+        for (let slot = 0; slot < 3; slot++) {
+          const button = document.createElement('button'); button.textContent = `슬롯 ${slot + 1}`;
+          button.classList.toggle('active', save.quickSlots[slot] === id);
+          button.onclick = () => {
+            const other = save.quickSlots.indexOf(id);
+            if (other !== slot && other >= 0) save.quickSlots[other] = save.quickSlots[slot];
+            save.quickSlots[slot] = id; this.world.onChange();
+          };
+          actions.appendChild(button);
+        }
+      }
+      list.appendChild(card);
+    }
+    const heading = document.createElement('h3'); heading.className = 'skill-group-title'; heading.textContent = '패시브 스킬'; list.appendChild(heading);
+    for (const id of passiveOrder) {
+      const passive = passives[id], learned = save.passives.includes(id);
+      const card = document.createElement('article'); card.className = 'skill-card';
+      card.innerHTML = `<div class="skill-icon">${passive.icon}</div><div class="skill-info"><h3>${passive.name} <small>Lv.${passive.level}</small></h3><p>${passive.description}</p><div class="skill-actions"></div></div>`;
+      const action = card.querySelector<HTMLElement>('.skill-actions')!;
+      if (learned) { const state = document.createElement('span'); state.textContent = '습득 완료 · 상시 적용'; action.appendChild(state); }
+      else {
+        const button = document.createElement('button'); button.textContent = canLearn(save.level, passive.level) ? '습득' : `Lv.${passive.level} 필요`;
+        button.disabled = !canLearn(save.level, passive.level);
+        button.onclick = () => {
+          const before = totalStats(save).health;
+          save.passives.push(id);
+          const gained = totalStats(save).health - before;
+          this.world.player.hp += gained; save.health = this.world.player.hp;
+          this.world.onChange(); this.message(`${passive.name} 습득!`);
+        };
+        action.appendChild(button);
+      }
       list.appendChild(card);
     }
     dialog.appendChild(list);
