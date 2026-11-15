@@ -106,7 +106,7 @@ export function renderEquipment(this: Interface, dialog: HTMLElement): void {
     for (const slot of ['offhand', 'necklace', 'belt', 'ring1', 'ring2'] as Slot[]) addSlot(slot, right);
     const center = document.createElement('div'); center.className = 'showcase-hero';
     const portrait = document.createElement('img'); portrait.alt = '현재 전사 외형';
-    portrait.src = save.equipment.armor ? save.equipment.helmet ? '/assets/warrior_armored.png' : '/assets/warrior_armored_nohelm.png' : save.equipment.weapon ? `/assets/warrior_${save.gender}_sword.png` : `/assets/warrior_${save.gender}_base.png`;
+    portrait.src = save.equipment.armor ? save.equipment.helmet ? '/assets/warrior_armored.png?v=2' : '/assets/warrior_armored_nohelm.png?v=2' : save.equipment.weapon ? `/assets/warrior_${save.gender}_sword.png` : `/assets/warrior_${save.gender}_base.png`;
     center.appendChild(portrait);
     showcase.append(left, center, right); dialog.appendChild(showcase);
     const summary = document.createElement('div'); summary.className = 'showcase-stats';
