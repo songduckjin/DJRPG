@@ -386,3 +386,24 @@
 1. `npm run build` 성공 및 TypeScript 에러 0건.
 2. `docs/TASK.md`의 이번 요청을 `[x]`로 표시하고 `docs/WORKLOG.md` 상단에 5줄 이내로 작업 요약 기록.
 3. **토큰 절약**: 브라우저 실기 조작, Playwright/헤드리스 브라우저 실행, Computer Use 도구는 절대 실행하지 않는다.
+---
+
+## [작업 17] 전사 · 해골전사 걷기 포즈 스프라이트 전환 모션 추가
+- **등록일**: 2026-11-15
+- **목표**: 이동 시 캐릭터와 해골전사가 공중에 뜬 채 미끄러지는 느낌을 없애고, 실제 다리를 내딛는 걷기 포즈 이미지를 번갈아 전환해 자연스러운 보행 모션을 구현한다.
+
+### 작업 내용
+1. **걷기 포즈 스프라이트 로드 및 교차 전환 (`src/game/render.ts`)**:
+   - `public/assets/`에 추가된 걷기 포즈 이미지 5종을 로드한다:
+     - `/assets/warrior_male_base_walk.png` (맨손 남자 전사 걷기)
+     - `/assets/warrior_male_walk.png` (두손검 남자 전사 걷기)
+     - `/assets/warrior_female_walk.png` (두손검 여자 전사 걷기)
+     - `/assets/warrior_armored_walk.png` (갑옷 두손검 전사 걷기)
+     - `/assets/skeleton_walk.png` (해골전사 걷기)
+   - **전사 이동 중(`moving === true` && 공격 중 아님)**: 약 0.16초 간격(`Math.floor(time * 6) % 2 === 1`)으로 기본 대기 포즈와 `_walk` 포즈를 번갈아 전환해 다리가 실제로 움직이는 걷기 모션을 만든다. (공격 중엔 기존처럼 `_attack` 포즈가 최우선!)
+   - **해골전사 이동 중(`enemy.moving === true` && `!enemy.boss`)**: `enemy.step` 위상에 맞춰 `skeleton_warrior.png`와 `skeleton_walk.png`를 교차 전환해 해골전사도 실제로 걸어오도록 만든다.
+
+### 검증 및 완료 기준 (Codex Policy)
+1. `npm run build` 성공 및 TypeScript 에러 0건.
+2. `docs/TASK.md`의 이번 요청을 `[x]`로 표시하고 `docs/WORKLOG.md` 상단에 5줄 이내로 작업 요약 기록.
+3. **토큰 절약**: 브라우저 실기 조작, Playwright/헤드리스 브라우저 실행, Computer Use 도구는 절대 실행하지 않는다.
