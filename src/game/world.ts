@@ -69,7 +69,8 @@ export class World {
     const manualMove = this.keyboardActive ? this.keyboardMove : this.move;
     if (Math.hypot(manualMove.x, manualMove.y) > .05) {
       p.facing = Math.atan2(manualMove.y, manualMove.x);
-      if (Math.abs(manualMove.x) > .05) p.facingSide = manualMove.x > 0 ? 1 : -1;
+      const screenDx = manualMove.x - manualMove.y;
+      if (Math.abs(screenDx) > .05) p.facingSide = screenDx > 0 ? 1 : -1;
     } else if (target) this.faceTarget(target);
     if (kind === 'attack') {
       const angle = p.facing;
@@ -113,9 +114,10 @@ export class World {
   }
 
   private faceTarget(target: { x: number; y: number }): void {
-    const dx = target.x - this.player.x;
-    this.player.facing = Math.atan2(target.y - this.player.y, dx);
-    if (Math.abs(dx) > 4) this.player.facingSide = dx > 0 ? 1 : -1;
+    const dx = target.x - this.player.x, dy = target.y - this.player.y;
+    const screenDx = dx - dy;
+    this.player.facing = Math.atan2(dy, dx);
+    if (Math.abs(screenDx) > 4) this.player.facingSide = screenDx > 0 ? 1 : -1;
   }
 
   damage(radius: number, amount: number, angle: number, arc: number, knockback = 12, slow = 0, origin: { x: number; y: number } = this.player): void {
@@ -179,8 +181,7 @@ export class World {
         const dx = destination.x - p.x, dy = destination.y - p.y, distance = Math.hypot(dx, dy);
         const desired = drop ? 20 : 68;
         this.activeMove = distance > desired ? { x: dx / distance, y: dy / distance } : { x: 0, y: 0 };
-        if (enemy) this.faceTarget(enemy);
-        else if (distance > 1) this.faceTarget(destination);
+        if (distance > 1) this.faceTarget(destination);
         if (!drop && distance < 190) {
           if (distance < 90) this.action('attack');
           for (const skill of this.save.quickSlots) {
@@ -196,7 +197,8 @@ export class World {
       p.x += this.activeMove.x * speed; p.y += this.activeMove.y * speed;
       if (!this.save.auto || this.joystickActive || this.keyboardActive) {
         p.facing = Math.atan2(this.activeMove.y, this.activeMove.x);
-        if (Math.abs(this.activeMove.x) > .05) p.facingSide = this.activeMove.x > 0 ? 1 : -1;
+        const screenDx = this.activeMove.x - this.activeMove.y;
+        if (Math.abs(screenDx) > .05) p.facingSide = screenDx > 0 ? 1 : -1;
       }
     }
     if (this.attackHeld) this.action('attack');
