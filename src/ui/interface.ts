@@ -1,9 +1,14 @@
-import { autoEquipBest, expToNext, rarityNames, salvageByRarity, skillLevel, slotNames, statNames, totalStats, upgradeSkill, type Item, type Rarity, type Save, type Slot, type Stat } from '../game/store';
+import { autoEquipBest, expToNext, floorKillTarget, rarityNames, salvageByRarity, skillLevel, slotNames, statNames, totalStats, upgradeSkill, type Item, type Rarity, type Save, type Slot, type Stat } from '../game/store';
 import { cooldowns, costs, type Action, type World } from '../game/world';
 import { canLearn, MAX_SKILL_LEVEL, passiveOrder, passives, skillDuration, skillOrder, skillRange, skills, skillUpgradeCost, UNLOCK_ALL_SKILLS_FOR_TEST, type SkillId, type SkillLevelId } from '../game/skills';
 import type { Session } from './login';
 
-const shortNames: Record<SkillId, string> = { slash2: '소드', spin: '용오름', slam: '스탬프', warcry: '레이지', power: '파워', destroy: '충격파', hell: '헬파이어' };
+const shortNames: Record<SkillId, string> = { slash2: '이단참', spin: '용오름', crushing: '크러싱', slam: '스탬프', warcry: '레이지', power: '파워', destroy: '충격파', hell: '헬파이어' };
+const navIcons = {
+  status: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="6.5" r="3.5"/><path d="M4.5 20v-2.1c0-3.2 3.4-5.4 7.5-5.4s7.5 2.2 7.5 5.4V20H4.5Z"/></svg>',
+  equipment: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m8 3 4 2 4-2 4 4-2 3v10H6V10L4 7l4-4Z"/><path d="m8 3 1 6 3 2 3-2 1-6M6 10l3-1m9 1-3-1m-3 2v9"/></svg>',
+  skills: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 2 1.6 6.4L20 10l-6.4 1.6L12 18l-1.6-6.4L4 10l6.4-1.6L12 2Z"/><path d="m19 16 .6 1.8L21.5 18l-1.9.6L19 20.5l-.6-1.9L16.5 18l1.9-.2L19 16Z"/></svg>'
+};
 type Modal = 'status' | 'equipment' | 'skills' | 'account';
 type BagFilter = 'all' | 'weapon' | 'armor' | 'accessory';
 
@@ -25,7 +30,7 @@ export class Interface {
   private confirmReset = false;
 
   constructor(private root: HTMLElement, private world: World, private onSave: () => void, private session: Session, private onReset: () => Promise<void>) {
-    root.innerHTML = `<main class="game-shell"><section class="battle"><div class="battle-canvas"></div><div class="top-hud"></div><button class="auto-toggle" type="button"></button><div class="tutorial"></div><div class="controls"><div class="stick"><div class="stick-knob"></div></div><div class="action-pad"></div></div><div class="resource hp"><span>HP</span><b></b></div><div class="resource mp"><span>MP</span><b></b></div></section><nav class="bottom-nav"><button data-modal="status">내 상태</button><button data-modal="equipment">장비<i class="new-badge" hidden></i></button><button data-modal="skills">스킬</button></nav><div class="modal-backdrop" hidden><div class="modal-dialog" role="dialog" aria-modal="true"></div></div><div class="toast" role="status"></div></main>`;
+    root.innerHTML = `<main class="game-shell"><section class="battle"><div class="battle-canvas"></div><div class="top-hud"></div><button class="auto-toggle" type="button"></button><div class="tutorial"></div><div class="controls"><div class="stick"><div class="stick-knob"></div></div><div class="action-pad"></div></div><div class="resource hp"><span>HP</span><b></b></div><div class="resource mp"><span>MP</span><b></b></div></section><nav class="bottom-nav" aria-label="게임 메뉴"><button data-modal="status" type="button" aria-label="내 상태" title="내 상태">${navIcons.status}</button><button data-modal="equipment" type="button" aria-label="장비" title="장비">${navIcons.equipment}<i class="new-badge" hidden></i></button><button data-modal="skills" type="button" aria-label="스킬" title="스킬">${navIcons.skills}</button></nav><div class="modal-backdrop" hidden><div class="modal-dialog" role="dialog" aria-modal="true"></div></div><div class="toast" role="status"></div></main>`;
     this.top = this.get('.top-hud'); this.banner = this.get('.tutorial');
     this.modal = this.get('.modal-backdrop'); this.toast = this.get('.toast');
     for (const item of [...world.save.bag, ...Object.values(world.save.equipment)]) if (item) this.knownItems.add(item.id);
@@ -89,13 +94,13 @@ export class Interface {
   renderStatus(): void {
     const { save, player } = this.world;
     const progress = Math.min(100, Math.max(0, save.exp / expToNext(save.level) * 100));
-    this.top.innerHTML = `<button class="level-badge" type="button" aria-label="계정 정보 열기"><span>LV</span><b>${save.level}</b></button><div class="status-main"><span>층 <b>${save.floor}</b></span><span class="gold">◆ ${save.gold}</span></div><div class="exp"><i style="width:${progress}%"></i></div>`;
+    this.top.innerHTML = `<button class="level-badge" type="button" aria-label="계정 정보 열기"><span>LV</span><b>${save.level}</b></button><div class="status-main"><span>층 <b>${save.floor}</b> · ${Math.min(save.floorKills, floorKillTarget(save.floor))}/${floorKillTarget(save.floor)}</span><span class="gold">◆ ${save.gold}</span></div><div class="exp"><i style="width:${progress}%"></i></div>`;
     const levelBadge = this.get('.level-badge'); levelBadge.style.setProperty('--progress', `${progress}%`); levelBadge.addEventListener('click', () => this.open('account'));
     const toggle = this.get('.auto-toggle'); toggle.textContent = `AUTO ${save.auto ? 'ON' : 'OFF'}`; toggle.classList.toggle('on', save.auto);
     this.get('.hp').style.setProperty('--fill', `${Math.max(0, player.hp / totalStats(save).health * 100)}%`);
     this.get('.mp').style.setProperty('--fill', `${player.mp}%`);
     this.get('.hp b').textContent = `${Math.ceil(player.hp)}`; this.get('.mp b').textContent = `${Math.ceil(player.mp)}`;
-    const text = [save.auto ? '자동사냥 중입니다. 직접 이동하면 AUTO가 꺼집니다.' : '조이스틱으로 이동해 첫 해골전사를 처치하세요.', '빛기둥으로 이동해 낡은 두손검을 줍세요.', '하단 장비 버튼을 눌러 가방의 낡은 두손검을 장착하세요.'][save.tutorial];
+    const text = [save.auto ? '자동사냥 중입니다. 직접 이동하면 AUTO가 꺼집니다.' : '조이스틱으로 이동해 첫 해골전사를 처치하세요.', '빛기둥으로 이동해 낡은 두손검을 줍세요.', '하단 갑옷 아이콘을 눌러 가방의 낡은 두손검을 장착하세요.'][save.tutorial];
     this.banner.textContent = text ?? ''; this.banner.hidden = save.tutorial >= 3;
   }
 

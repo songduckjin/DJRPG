@@ -1,19 +1,21 @@
-import { expToNext, rollItem, skillLevel, totalStats, type Item, type Save } from './store';
-import { canLearn, skillDamageScale, skillDuration, skillRange, skills, type SkillId } from './skills';
+import { expToNext, floorKillTarget, rollItem, skillLevel, totalStats, type Item, type Save } from './store';
+import { skillDamageScale, skillDuration, skillRange, skills, type SkillId } from './skills';
 
 export type Enemy = { x: number; y: number; hp: number; maxHp: number; boss: boolean; hit: number; step: number; moving: boolean; knockX: number; knockY: number; slow: number };
 export type Drop = { x: number; y: number; item: Item; age: number; warned: boolean };
-export type Effect = { x: number; y: number; kind: 'slash' | 'slash2' | 'spin' | 'slam' | 'warcry' | 'power' | 'destroy' | 'hell' | 'hit' | 'death'; age: number; duration: number; angle: number; swing?: number; amount?: number; nextHit?: number; power?: number; level?: number };
+export type Effect = { x: number; y: number; kind: 'slash' | 'slash2' | 'spin' | 'crushing' | 'slam' | 'warcry' | 'power' | 'destroy' | 'hell' | 'hit' | 'death'; age: number; duration: number; angle: number; swing?: number; amount?: number; nextHit?: number; power?: number; level?: number };
 export type Action = 'attack' | SkillId;
-export const cooldowns: Record<Action, number> = { attack: .48, slash2: skills.slash2.cooldown, spin: skills.spin.cooldown, slam: skills.slam.cooldown, warcry: skills.warcry.cooldown, power: skills.power.cooldown, destroy: skills.destroy.cooldown, hell: skills.hell.cooldown };
-export const costs: Record<Action, number> = { attack: 0, slash2: skills.slash2.cost, spin: skills.spin.cost, slam: skills.slam.cost, warcry: skills.warcry.cost, power: skills.power.cost, destroy: skills.destroy.cost, hell: skills.hell.cost };
+export const cooldowns: Record<Action, number> = { attack: .48, slash2: skills.slash2.cooldown, spin: skills.spin.cooldown, crushing: skills.crushing.cooldown, slam: skills.slam.cooldown, warcry: skills.warcry.cooldown, power: skills.power.cooldown, destroy: skills.destroy.cooldown, hell: skills.hell.cooldown };
+export const costs: Record<Action, number> = { attack: 0, slash2: skills.slash2.cost, spin: skills.spin.cost, crushing: skills.crushing.cost, slam: skills.slam.cost, warcry: skills.warcry.cost, power: skills.power.cost, destroy: skills.destroy.cost, hell: skills.hell.cost };
+export function enemyMaxHp(floor: number, boss: boolean): number { return boss ? 300 + floor * 120 + floor * floor * 30 : 20 + floor * 10 + floor * floor * 2; }
+export function enemyHitDamage(floor: number, boss: boolean, defense: number): number { return Math.max(1, (boss ? 22 + floor * 5 : 7 + floor * 2) - defense * .2); }
 
 export class World {
   player = { x: 0, y: 0, facing: 1, mp: 100, hp: 100, berserk: 0, berserkLevel: 1, hit: 0 };
   enemies: Enemy[] = [];
   drops: Drop[] = [];
   effects: Effect[] = [];
-  cooldown: Record<Action, number> = { attack: 0, slash2: 0, spin: 0, slam: 0, warcry: 0, power: 0, destroy: 0, hell: 0 };
+  cooldown: Record<Action, number> = { attack: 0, slash2: 0, spin: 0, crushing: 0, slam: 0, warcry: 0, power: 0, destroy: 0, hell: 0 };
   spawnTimer = 0;
   attackHeld = false;
   attackPose = 0;
@@ -29,12 +31,13 @@ export class World {
 
   constructor(public save: Save) {
     this.player.hp = Math.min(save.health, totalStats(save).health);
-    this.enemies.push({ x: 145, y: -45, hp: 22, maxHp: 22, boss: false, hit: 0, step: 0, moving: false, knockX: 0, knockY: 0, slow: 0 });
+    this.bossPending = save.floorKills >= floorKillTarget(save.floor);
+    const hp = enemyMaxHp(save.floor, false);
+    this.enemies.push({ x: 145, y: -45, hp, maxHp: hp, boss: false, hit: 0, step: 0, moving: false, knockX: 0, knockY: 0, slow: 0 });
   }
 
   action(kind: Action): void {
     if (this.cooldown[kind] > 0) return;
-    if (kind !== 'attack' && !canLearn(this.save.level, skills[kind].level)) { this.onMessage(`${skills[kind].name}: Lv.${skills[kind].level} 필요`); return; }
     if (kind !== 'attack' && (!this.save.learned.includes(kind) || !this.save.quickSlots.includes(kind))) { this.onMessage('습득하고 퀵슬롯에 장착한 스킬만 사용할 수 있습니다.'); return; }
     if (this.player.mp < costs[kind]) { this.onMessage('마나가 부족합니다.'); return; }
     this.player.mp -= costs[kind];
@@ -54,12 +57,14 @@ export class World {
       this.swing *= -1;
       this.damage(90, attack, angle, 1.15);
     } else if (kind === 'slash2') {
-      this.effects.push({ x: p.x, y: p.y, kind: 'slash2', age: 0, duration: skillDuration(kind, level), angle: p.facing });
-      this.damage(range, attack * .9 * damageScale, p.facing, .9);
+      this.effects.push({ x: p.x, y: p.y, kind: 'slash2', age: 0, duration: skillDuration(kind, level), angle: p.facing, nextHit: .28, power: attack * 1.25 * damageScale, level });
       this.damage(range, attack * .9 * damageScale, p.facing, .9);
     } else if (kind === 'spin') {
       this.effects.push({ x: p.x, y: p.y, kind: 'spin', age: 0, duration: skillDuration(kind, level), angle: 0, nextHit: .45, power: attack * .65 * damageScale, level });
       this.damage(range, attack * 1.65 * damageScale, 0, Math.PI);
+    } else if (kind === 'crushing') {
+      const point = target && Math.hypot(target.x - p.x, target.y - p.y) <= range ? target : { x: p.x + Math.cos(p.facing) * range * .65, y: p.y + Math.sin(p.facing) * range * .65 };
+      this.effects.push({ x: point.x, y: point.y, kind: 'crushing', age: 0, duration: skillDuration(kind, level), angle: p.facing, nextHit: .55, power: attack * 3.4 * damageScale, level });
     } else if (kind === 'slam') {
       this.effects.push({ x: p.x, y: p.y, kind: 'slam', age: 0, duration: skillDuration(kind, level), angle: p.facing, nextHit: .45, power: attack * .55 * damageScale, level });
       this.damage(range, attack * 2.2 * damageScale, p.facing, 1.35, 55, 2 + (level - 1) * .3);
@@ -121,11 +126,15 @@ export class World {
     }
     if (enemy.boss) {
       this.save.floor++;
+      this.save.floorKills = 0;
       this.bossPending = false;
       this.onMessage(`${this.save.floor}층 진입`);
-    } else if (this.save.kills % 12 === 0) {
-      this.bossPending = true;
-      this.onMessage('해골 군주가 나타났습니다!');
+    } else {
+      this.save.floorKills++;
+      if (this.save.floorKills >= floorKillTarget(this.save.floor) && !this.bossPending && !this.enemies.some(e => e.boss)) {
+        this.bossPending = true;
+        this.onMessage(`${floorKillTarget(this.save.floor)}마리 처치! 해골 군주가 나타납니다!`);
+      }
     }
     this.onChange();
   }
@@ -150,7 +159,7 @@ export class World {
         if (!drop && distance < 190) {
           if (distance < 90) this.action('attack');
           for (const skill of this.save.quickSlots) {
-            if (!canLearn(this.save.level, skills[skill].level) || !this.save.learned.includes(skill) || this.cooldown[skill] > 0 || p.mp < costs[skill] || distance > skillRange(skill, skillLevel(this.save, skill))) continue;
+            if (!this.save.learned.includes(skill) || this.cooldown[skill] > 0 || p.mp < costs[skill] || distance > skillRange(skill, skillLevel(this.save, skill))) continue;
             this.action(skill);
           }
         }
@@ -168,7 +177,7 @@ export class World {
       const angle = Math.random() * Math.PI * 2;
       const boss = this.bossPending && !this.enemies.some(e => e.boss);
       const d = 250 + Math.random() * 60;
-      const hp = boss ? 160 + this.save.floor * 35 : 18 + this.save.floor * 5;
+      const hp = enemyMaxHp(this.save.floor, boss);
       this.enemies.push({ x: p.x + Math.cos(angle) * d, y: p.y + Math.sin(angle) * d, hp, maxHp: hp, boss, hit: 0, step: Math.random() * Math.PI * 2, moving: false, knockX: 0, knockY: 0, slow: 0 });
       if (boss) this.bossPending = false;
     }
@@ -180,7 +189,7 @@ export class World {
       enemy.knockX *= Math.exp(-dt * 12); enemy.knockY *= Math.exp(-dt * 12);
       enemy.slow = Math.max(0, enemy.slow - dt);
       if (d < 35 && p.hit <= 0) {
-        p.hp = Math.max(0, p.hp - Math.max(1, (enemy.boss ? 20 : 7) - totalStats(this.save).defense * .2));
+        p.hp = Math.max(0, p.hp - enemyHitDamage(this.save.floor, enemy.boss, totalStats(this.save).defense));
         p.hit = .85;
         if (p.hp <= 0) { p.hp = totalStats(this.save).health; this.save.health = p.hp; p.x = 0; p.y = 0; this.save.gold = Math.max(0, this.save.gold - 10); this.onMessage('쓰러졌습니다. 10골드를 잃고 부활했습니다.'); this.onChange(); }
       }
@@ -203,10 +212,16 @@ export class World {
       effect.age += dt;
       while (effect.nextHit !== undefined && effect.nextHit < effect.duration && effect.nextHit <= effect.age) {
         const level = effect.level ?? 1;
-        if (effect.kind === 'spin') this.damage(skillRange('spin', level), effect.power ?? 0, 0, Math.PI, 10, 0, effect);
+        if (effect.kind === 'slash2') this.damage(skillRange('slash2', level), effect.power ?? 0, effect.angle, .9, 20, 0, effect);
+        if (effect.kind === 'spin') {
+          const coil = Math.max(0, Math.min(1, (effect.age / effect.duration - .25) / .65));
+          this.damage(skillRange('spin', level) * (1 - coil * coil * (3 - 2 * coil) * .67), effect.power ?? 0, 0, Math.PI, 10, 0, effect);
+        }
+        if (effect.kind === 'crushing') this.damage(skillRange('crushing', level) * .72, effect.power ?? 0, 0, Math.PI, 28, 1.2, effect);
         if (effect.kind === 'slam') this.damage(skillRange('slam', level), effect.power ?? 0, effect.angle, 1.35, 12, 2 + (level - 1) * .3, effect);
         if (effect.kind === 'hell') this.damage(skillRange('hell', level), effect.power ?? 0, 0, Math.PI, 14, 1 + (level - 1) * .2, effect);
-        effect.nextHit += effect.kind === 'spin' || effect.kind === 'slam' ? .45 : .4;
+        if (effect.kind === 'slash2' || effect.kind === 'crushing') effect.nextHit = undefined;
+        else effect.nextHit += effect.kind === 'spin' || effect.kind === 'slam' ? .45 : .4;
       }
     }
     this.effects = this.effects.filter(e => e.age < e.duration);

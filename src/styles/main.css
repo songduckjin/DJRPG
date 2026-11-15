@@ -73,8 +73,10 @@ button:active { transform: scale(.97); }
 .item-detail .down { color: #d77b75; }
 .detail-actions { display: flex; width: 100%; gap: 7px; }
 .detail-actions button { border: 1px solid #836546; background: #3a2926; color: #ecd8bb; padding: 5px 12px; font-size: 11px; }
-.bottom-nav { display: flex; flex: 0 0 calc(54px + env(safe-area-inset-bottom)); gap: 5px; border-top: 3px ridge #a78b56; background: linear-gradient(#2d2928, #151215); box-shadow: inset 0 3px 10px #0009, 0 -3px 13px #0008; padding: 5px 12px calc(5px + env(safe-area-inset-bottom)); }
-.bottom-nav button { position: relative; flex: 1; border: 1px solid #a88a58; background: linear-gradient(#494039, #211b20); box-shadow: inset 0 1px 0 #b89a6544, 0 2px 4px #0008; color: #f0d8a5; font-size: 13px; font-weight: 700; text-shadow: 0 1px 2px #000; }
+.bottom-nav { display: flex; flex: 0 0 calc(44px + env(safe-area-inset-bottom)); align-items: flex-start; justify-content: space-evenly; gap: 8px; border-top: 1px solid #a78b56; background: linear-gradient(#2d2928, #151215); box-shadow: inset 0 3px 10px #0009, 0 -3px 13px #0008; padding: 2px 12px calc(2px + env(safe-area-inset-bottom)); }
+.bottom-nav button { position: relative; display: grid; place-items: center; flex: 0 1 70px; height: 38px; min-width: 44px; border: 1px solid #a88a58; border-radius: 5px; background: linear-gradient(#494039, #211b20); box-shadow: inset 0 1px 0 #b89a6544, 0 2px 4px #0008; color: #f0d8a5; padding: 0; }
+.bottom-nav svg { display: block; width: 23px; height: 23px; }
+.bottom-nav button:focus-visible { outline: 2px solid #f0d8a5; outline-offset: 2px; }
 .new-badge { position: absolute; right: 7px; top: -6px; min-width: 18px; height: 18px; padding: 1px 4px; border-radius: 10px; background: #cf5340; color: white; font: 700 10px 'Noto Sans KR', sans-serif; }
 .new-badge[hidden] { display: none; }
 .modal-backdrop { position: absolute; inset: 0; z-index: 5; display: flex; align-items: center; justify-content: center; background: #07050bdc; padding: 16px; }
@@ -143,6 +145,7 @@ button:active { transform: scale(.97); }
 .action[data-skill], .skill-card[data-skill] { --skill-color: #d0a879; }
 .action[data-skill="slash2"], .skill-card[data-skill="slash2"] { --skill-color: #8bc4d2; }
 .action[data-skill="spin"], .skill-card[data-skill="spin"] { --skill-color: #e6ac4e; }
+.action[data-skill="crushing"], .skill-card[data-skill="crushing"] { --skill-color: #a8d4ff; }
 .action[data-skill="slam"], .skill-card[data-skill="slam"] { --skill-color: #e98260; }
 .action[data-skill="warcry"], .skill-card[data-skill="warcry"] { --skill-color: #cb5570; }
 .action[data-skill="power"], .skill-card[data-skill="power"] { --skill-color: #e8d078; }

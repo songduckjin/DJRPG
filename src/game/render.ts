@@ -176,7 +176,7 @@ export class GameView {
     if (effect.kind === 'warcry') return true;
     if (effect.kind === 'hit' || effect.kind === 'death') return false;
     if (effect.kind === 'spin') { this.drawDragon(effect, x, y, t, time); return true; }
-    const art: Art = effect.kind === 'slam' ? 'fxSlam' : effect.kind === 'power' ? 'fxPower' : effect.kind === 'destroy' ? 'fxDestroy' : effect.kind === 'hell' ? 'fxHell' : 'fxSlash';
+    const art: Art = effect.kind === 'slam' || effect.kind === 'crushing' ? 'fxSlam' : effect.kind === 'power' ? 'fxPower' : effect.kind === 'destroy' ? 'fxDestroy' : effect.kind === 'hell' ? 'fxHell' : 'fxSlash';
     let sprites = this.vfxSprites.get(effect);
     if (!sprites) {
       sprites = Array.from({ length: effect.kind === 'slash2' ? 2 : 1 }, () => {
@@ -189,16 +189,41 @@ export class GameView {
       this.vfxSprites.set(effect, sprites);
     }
     const width = this.app.screen.width;
-    const size = effect.kind === 'hell' ? width * .95 : effect.kind === 'destroy' ? 260 : effect.kind === 'slam' ? 335 : effect.kind === 'power' ? 165 : 150;
+    const size = effect.kind === 'hell' ? width * .95 : effect.kind === 'destroy' ? 260 : effect.kind === 'slam' ? 335 : effect.kind === 'crushing' ? 245 : effect.kind === 'power' ? 165 : 150;
     for (const [index, sprite] of sprites.entries()) {
-      const phase = effect.kind === 'slash2' ? Math.max(0, Math.min(1, t * 1.6 - index * .45)) : t;
+      if (effect.kind === 'slash2') {
+        const phase = Math.max(0, Math.min(1, t * 2 - index));
+        const side = index ? 21 : -21;
+        sprite.position.set(x + Math.cos(screenAngle) * 48 - Math.sin(screenAngle) * side, y + Math.sin(screenAngle) * 48 + Math.cos(screenAngle) * side - 76 + phase * 62);
+        sprite.scale.set(size / sprite.texture.width * (1 + phase * .2));
+        sprite.rotation = screenAngle + Math.PI / 2 + (index ? -.12 : .12);
+        sprite.alpha = t >= index * .5 && t < (index + 1) * .5 ? Math.sin(Math.PI * phase) : 0;
+        sprite.tint = 0xffffff;
+        continue;
+      }
+      if (effect.kind === 'crushing') {
+        const impactAt = .55 / effect.duration;
+        const impact = Math.max(0, Math.min(1, (t - impactAt) / (1 - impactAt)));
+        if (t < impactAt) {
+          const pulse = .55 + Math.sin(time * 18) * .12;
+          this.ground.ellipse(x, y + 3, 36 + t * 15, 18 + t * 7).stroke({ color: 0xa8d4ff, width: 2.5, alpha: pulse });
+          this.glow.circle(x, y, 45).fill({ color: 0x8abfff, alpha: .09 + t * .12 });
+        }
+        sprite.position.set(x, y - 8);
+        sprite.scale.set(size / sprite.texture.width * (.5 + impact * .65), size / sprite.texture.height * (.3 + impact * .45));
+        sprite.rotation = 0;
+        sprite.alpha = t < impactAt ? 0 : Math.max(0, 1 - impact);
+        sprite.tint = 0xb1d8ff;
+        continue;
+      }
+      const phase = t;
       const scale = size / sprite.texture.width * (.65 + phase * .55);
       const distance = effect.kind === 'destroy' ? 40 + t * 125 : effect.kind === 'power' ? 70 : 0;
       sprite.position.set(x + Math.cos(screenAngle) * distance, y + Math.sin(screenAngle) * distance - (effect.kind === 'power' ? 45 : effect.kind === 'slam' ? 4 : 18));
       sprite.scale.set(scale, scale * (effect.kind === 'slam' ? .6 : 1));
-      sprite.rotation = effect.kind === 'slam' || effect.kind === 'hell' || effect.kind === 'power' ? 0 : screenAngle + (effect.kind === 'slash2' ? index ? -.55 : .55 : 0);
+      sprite.rotation = effect.kind === 'slam' || effect.kind === 'hell' || effect.kind === 'power' ? 0 : screenAngle;
       const sustained = effect.kind === 'slam' || effect.kind === 'hell';
-      sprite.alpha = effect.kind === 'slash2' && t < index * .28 ? 0 : sustained ? Math.min(1, phase * 6, (1 - phase) * 6) : Math.min(1, (1 - phase) * 1.5);
+      sprite.alpha = sustained ? Math.min(1, phase * 6, (1 - phase) * 6) : Math.min(1, (1 - phase) * 1.5);
       sprite.tint = 0xffffff;
     }
     return true;
@@ -218,17 +243,22 @@ export class GameView {
       });
       this.vfxSprites.set(effect, sprites);
     }
-    const radius = Math.min(this.app.screen.width * .38, 155);
-    const theta = effect.age * Math.PI * 2 / 1.35;
+    const radius = Math.min(this.app.screen.width * .43, 170);
+    const theta = effect.age * Math.PI * 2 / 1.35 + progress * progress * Math.PI;
     const fade = Math.min(1, progress * 8, (1 - progress) * 7);
     for (const [index, sprite] of sprites.entries()) {
+      const segmentProgress = Math.max(0, Math.min(1, progress - index * .012));
+      const coil = Math.max(0, Math.min(1, (segmentProgress - .25) / .65));
+      const tightness = coil * coil * (3 - 2 * coil);
+      const rise = Math.max(0, Math.min(1, (segmentProgress - .35) / .6));
+      const ascent = rise * rise * (3 - 2 * rise) * 120;
       const angle = theta - index * .26;
       const wobble = Math.sin(time * 10 - index * .6) * 4;
-      const r = radius + wobble;
+      const r = radius * (1 - tightness * .67) + wobble;
       const tail = 1 - index / (bodyCount + 1);
-      sprite.position.set(x + Math.cos(angle) * r, y - 12 + Math.sin(angle) * r * .65);
+      sprite.position.set(x + Math.cos(angle) * r, y - 12 + Math.sin(angle) * r * .65 - ascent);
       sprite.rotation = angle + Math.PI / 2;
-      const width = index === 0 ? 84 : 25 + tail * 24;
+      const width = index === 0 ? 102 : 37 + tail * 32;
       const scale = width / sprite.texture.width;
       sprite.scale.set(scale);
       sprite.alpha = fade * (index === 0 ? 1 : .35 + tail * .6);
