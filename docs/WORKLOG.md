@@ -1,3 +1,8 @@
+## 2026-11-15 · 작업 12
+- `src/game/world.ts`: 일반 0.5%, 보스 12% 드랍률 적용; 튜토리얼 확정 드랍 유지.
+- `src/game/store.ts`: 일반·보스별 희귀도 확률을 지시된 비중으로 조정.
+- 검증: TypeScript 타입 검사, Vite 프로덕션 빌드 성공.
+
 ## 2026-11-15 · 작업 11
 - `src/game/world.ts`, `render.ts`: 공격 직후 0.22초간 남녀·갑옷별 두손검 공격 포즈 적용.
 - `src/game/store.ts`, `src/ui/interface.ts`: 무기 등급별 이름과 튜토리얼 문구 통일, 기존 저장 장비 이름 변환.
