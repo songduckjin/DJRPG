@@ -167,6 +167,10 @@
 3. **하단 고딕 금빛 UI 바**:
    - 맨 아래 `[내 상태]` · `[장비]` · `[스킬]` 버튼 바와 HP/MP 게이지 프레임을 어두운 철제 + 금빛 테두리(고전 다크 판타지 MMORPG 하단 바 스타일)로 정돈해 붉은보석 감성을 살린다.
 
+4. **장비 외형 전환 조건 수정 (갑옷 착용 시에만 풀아머)**:
+   - 기존에 무기(`낡은 검`)만 착용해도 `warrior_armored.png`로 바뀌던 문제를 수정한다.
+   - **`armor`(갑옷) 슬롯에 갑옷을 착용했을 때만** `warrior_armored.png`로 전환하고, 무기만 착용한 상태에서는 맨몸 스프라이트(`warrior_male_base.png` / `warrior_female_base.png`)를 유지한 채 캐릭터 손 위치에 작은 검 그래픽만 덧그린다.
+
 ### 검증 및 완료 기준 (Codex Policy)
 1. `npm run build` 성공 및 TypeScript 에러 0건.
 2. `docs/TASK.md`의 이번 요청을 `[x]`로 표시하고 `docs/WORKLOG.md` 상단에 5줄 이내로 작업 요약 기록.
