@@ -2,7 +2,7 @@ import { expToNext, rollItem, totalStats, type Item, type Save } from './store';
 
 export type Enemy = { x: number; y: number; hp: number; maxHp: number; boss: boolean; hit: number; step: number; moving: boolean; knockX: number; knockY: number };
 export type Drop = { x: number; y: number; item: Item; age: number; warned: boolean };
-export type Effect = { x: number; y: number; kind: 'slash' | 'spin' | 'slam' | 'warcry' | 'hit' | 'death'; age: number; duration: number; angle: number };
+export type Effect = { x: number; y: number; kind: 'slash' | 'spin' | 'slam' | 'warcry' | 'hit' | 'death'; age: number; duration: number; angle: number; swing?: number; amount?: number };
 export type Action = 'attack' | 'spin' | 'slam' | 'warcry';
 export const cooldowns: Record<Action, number> = { attack: .42, spin: 5, slam: 7, warcry: 12 };
 export const costs: Record<Action, number> = { attack: 0, spin: 18, slam: 24, warcry: 30 };
@@ -21,6 +21,7 @@ export class World {
   joystickActive = false;
   keyboardActive = false;
   bossPending = false;
+  private swing = 1;
   onChange: () => void = () => {};
   onMessage: (text: string) => void = () => {};
 
@@ -39,7 +40,8 @@ export class World {
     if (kind === 'attack') {
       const angle = target && Math.hypot(target.x - p.x, target.y - p.y) < 95 ? Math.atan2(target.y - p.y, target.x - p.x) : p.facing;
       p.facing = angle;
-      this.effects.push({ x: p.x, y: p.y, kind: 'slash', age: 0, duration: .25, angle });
+      this.effects.push({ x: p.x, y: p.y, kind: 'slash', age: 0, duration: .25, angle, swing: this.swing });
+      this.swing *= -1;
       this.damage(86, totalStats(this.save).attack * (p.berserk > 0 ? 1.5 : 1), angle, .95);
     } else if (kind === 'spin') {
       this.effects.push({ x: p.x, y: p.y, kind: 'spin', age: 0, duration: .55, angle: 0 });
@@ -67,9 +69,9 @@ export class World {
       const diff = Math.atan2(Math.sin(Math.atan2(dy, dx) - angle), Math.cos(Math.atan2(dy, dx) - angle));
       if (dist > radius || Math.abs(diff) > arc) continue;
       enemy.hp -= amount;
-      enemy.hit = .18;
+      enemy.hit = .24;
       if (knockback && dist) { enemy.knockX += dx / dist * knockback * 12; enemy.knockY += dy / dist * knockback * 12; }
-      this.effects.push({ x: enemy.x, y: enemy.y, kind: 'hit', age: 0, duration: .25, angle: 0 });
+      this.effects.push({ x: enemy.x, y: enemy.y, kind: 'hit', age: 0, duration: .45, angle: Math.random() * Math.PI * 2, amount: Math.round(amount) });
     }
     const dead = this.enemies.filter(e => e.hp <= 0);
     this.enemies = this.enemies.filter(e => e.hp > 0);

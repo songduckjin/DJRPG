@@ -83,8 +83,6 @@ button:active { transform: scale(.97); }
 .showcase-hero { position: relative; display: flex; justify-content: center; align-items: end; min-width: 0; overflow: hidden; border: 1px solid #655044; background: radial-gradient(ellipse at 50% 28%, #695544 0%, #302727 37%, #19161b 75%); box-shadow: inset 0 0 23px #000a; }
 .showcase-hero:after { content: ''; position: absolute; bottom: 7px; width: 75%; height: 14px; border-radius: 50%; background: #0008; filter: blur(5px); }
 .showcase-hero img { position: relative; z-index: 1; width: auto; max-width: 98%; max-height: 95%; object-fit: contain; image-rendering: auto; }
-.showcase-sword { position: absolute; z-index: 2; bottom: 27%; right: 12%; width: 4px; height: 63px; transform: rotate(31deg); background: linear-gradient(90deg, #7b8b8f, #e9f0ef, #7d8b8e); box-shadow: 0 0 5px #d9e1df80; }
-.showcase-sword:after { content: ''; position: absolute; bottom: 3px; left: -7px; width: 18px; height: 4px; background: #997148; }
 .equipment-slot { min-width: 0; flex: 1; max-height: 52px; display: flex; text-align: left; align-items: center; gap: 3px; padding: 2px 3px; border: 1px solid #655348; background: #252126; color: #b9ada6; }
 .slot-icon { flex: 0 0 19px; font-size: 17px; text-align: center; color: #ba9877; }
 .equipment-slot span:last-child { min-width: 0; }

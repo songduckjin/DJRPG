@@ -1,15 +1,18 @@
 import { Application, Assets, Container, Graphics, Sprite, Text, TilingSprite, type Texture } from 'pixi.js';
-import type { Enemy, World } from './world';
+import type { Effect, Enemy, World } from './world';
 import type { Rarity } from './store';
 
 const rarityColors: Record<Rarity, number> = { common: 0xffffff, magic: 0x57aaff, rare: 0xffd265, legendary: 0xff7d35 };
 const paths = {
   floor: '/assets/dungeon_tile.jpg', male: '/assets/warrior_male_base.png',
   female: '/assets/warrior_female_base.png', armored: '/assets/warrior_armored.png',
+  maleSword: '/assets/warrior_male_sword.png', femaleSword: '/assets/warrior_female_sword.png',
   skeleton: '/assets/skeleton_warrior.png', boss: '/assets/skeleton_boss.png'
 } as const;
 type Art = keyof typeof paths;
 type Dust = { x: number; y: number; vx: number; vy: number; age: number; duration: number; size: number };
+type Ghost = { sprite: Sprite; x: number; y: number; age: number; duration: number };
+type Fallen = { sprite: Sprite; x: number; y: number; age: number; duration: number; scaleX: number; scaleY: number; rotation: number };
 
 export class GameView {
   app = new Application();
@@ -17,13 +20,19 @@ export class GameView {
   private floor!: TilingSprite;
   private glow = new Graphics();
   private ground = new Graphics();
+  private ghosts = new Container();
   private actors = new Container();
+  private fallen = new Container();
   private effects = new Graphics();
   private labels = new Container();
   private shade = new Graphics();
   private hero!: Sprite;
   private enemies = new Map<Enemy, Sprite>();
   private bossLabels = new Map<Enemy, Text>();
+  private afterimages: Ghost[] = [];
+  private corpses: Fallen[] = [];
+  private ghostEmissions = new WeakMap<Effect, number>();
+  private damageLabels = new Map<Effect, Text>();
   private dust: Dust[] = [];
   private lastTime = 0;
   private lastHeroDust = 0;
@@ -38,7 +47,7 @@ export class GameView {
     this.hero = new Sprite(this.textures.male);
     this.hero.anchor.set(.5, 1);
     this.actors.addChild(this.hero);
-    this.app.stage.addChild(this.floor, this.glow, this.ground, this.actors, this.effects, this.labels, this.shade);
+    this.app.stage.addChild(this.floor, this.glow, this.ground, this.ghosts, this.actors, this.fallen, this.effects, this.labels, this.shade);
   }
 
   draw(world: World, time: number): void {
@@ -67,7 +76,8 @@ export class GameView {
     }
     const live = new Set(world.enemies);
     for (const [enemy, sprite] of this.enemies) if (!live.has(enemy)) {
-      this.actors.removeChild(sprite); sprite.destroy(); this.enemies.delete(enemy);
+      this.actors.removeChild(sprite); this.fallen.addChild(sprite); this.enemies.delete(enemy);
+      this.corpses.push({ sprite, x: enemy.x, y: enemy.y, age: 0, duration: enemy.boss ? .85 : .55, scaleX: sprite.scale.x, scaleY: sprite.scale.y, rotation: sprite.rotation });
       const label = this.bossLabels.get(enemy); if (label) { this.labels.removeChild(label); label.destroy(); this.bossLabels.delete(enemy); }
     }
     const depths: { sprite: Sprite; depth: number }[] = [];
@@ -87,12 +97,12 @@ export class GameView {
       const scale = h * (enemy.boss ? .19 : .115) / sprite.texture.height * (enemy.hit > 0 ? 1.08 : 1);
       const step = enemy.moving ? Math.sin(enemy.step) : 0;
       this.ground.ellipse(x, y + 3, enemy.boss ? 19 : 11, enemy.boss ? 6 : 4).fill({ color: 0x000000, alpha: .4 });
-      sprite.position.set(x, y - Math.abs(step) * (enemy.boss ? 2.5 : 2) + (enemy.hit > 0 ? 2 : 0));
+      sprite.position.set(x, y - Math.abs(step) * (enemy.boss ? 5 : 5.5) + (enemy.hit > 0 ? 2 : 0));
       const face = (world.player.x - enemy.x) - (world.player.y - enemy.y) >= 0 ? 1 : -1;
-      sprite.scale.set(scale * face, scale * (enemy.hit > 0 ? .89 : 1));
-      sprite.rotation = enemy.moving ? step * .035 : 0;
+      sprite.scale.set(scale * face * (enemy.moving ? 1 - step * .03 : 1), scale * (enemy.hit > 0 ? .84 : enemy.moving ? 1 + step * .04 : 1));
+      sprite.rotation = enemy.moving ? step * .09 : 0;
       sprite.tint = enemy.hit > 0 ? 0xffffff : 0xcfcac5;
-      sprite.alpha = enemy.hit > 0 ? (Math.floor(time * 30) % 2 ? .7 : 1) : 1;
+      sprite.alpha = 1;
       const barY = y - h * (enemy.boss ? .19 : .115) - 7;
       this.effects.rect(x - (enemy.boss ? 20 : 13), barY, enemy.boss ? 40 : 26, 3).fill(0x251517);
       this.effects.rect(x - (enemy.boss ? 20 : 13), barY, (enemy.boss ? 40 : 26) * Math.max(0, enemy.hp / enemy.maxHp), 3).fill(0xd53b3a);
@@ -100,14 +110,17 @@ export class GameView {
       depths.push({ sprite, depth: enemy.x + enemy.y });
     }
     this.drawHero(world, cx, cy, time);
+    this.updateAfterimages(world, project, dt);
+    this.updateCorpses(project, dt);
     depths.push({ sprite: this.hero, depth: world.player.x + world.player.y });
     depths.sort((a, b) => a.depth - b.depth).forEach((entry, index) => this.actors.setChildIndex(entry.sprite, index));
     for (const effect of world.effects) {
       const [x, y] = project(effect.x, effect.y), t = effect.age / effect.duration;
       if (effect.kind === 'slash') {
         const angle = Math.atan2(Math.sin(effect.angle) * .43 + Math.cos(effect.angle) * .43, Math.cos(effect.angle) * .86 - Math.sin(effect.angle) * .86);
-        this.effects.arc(x, y - 18, 40 + t * 18, angle - .95, angle + .95).stroke({ color: 0xffd59d, width: 12 * (1 - t), alpha: .8 * (1 - t) });
-        this.effects.arc(x, y - 18, 41 + t * 18, angle - .95, angle + .95).stroke({ color: 0xffffff, width: 5 * (1 - t), alpha: 1 - t });
+        this.effects.arc(x, y - 18, 39 + t * 19, angle - .95, angle + .95).stroke({ color: 0xff9e5a, width: 20 * (1 - t), alpha: .25 * (1 - t) });
+        this.effects.arc(x, y - 18, 40 + t * 19, angle - .95, angle + .95).stroke({ color: 0xffd59d, width: 11 * (1 - t), alpha: .8 * (1 - t) });
+        this.effects.arc(x, y - 18, 41 + t * 19, angle - .95, angle + .95).stroke({ color: 0xffffff, width: 4 * (1 - t), alpha: 1 - t });
       }
       else if (effect.kind === 'spin') this.effects.ellipse(x, y - 17, 90 * t + 20, 40 * t + 12).stroke({ color: 0xc9d7d8, width: 10 * (1 - t), alpha: 1 - t });
       else if (effect.kind === 'slam') {
@@ -116,8 +129,9 @@ export class GameView {
       }
       else if (effect.kind === 'warcry') this.effects.ellipse(x, y - 14, 110 * t, 46 * t).stroke({ color: 0xd93f38, width: 11 * (1 - t), alpha: 1 - t });
       else if (effect.kind === 'death') this.drawDeath(x, y, t, effect.angle);
-      else this.effects.circle(x, y - 16, 10 * (1 - t)).fill({ color: 0xffffff, alpha: 1 - t });
+      else this.drawHit(x, y, t, effect.angle);
     }
+    this.updateDamageLabels(world.effects, project);
     this.shade.rect(0, 0, w, 40).fill({ color: 0x05040a, alpha: .58 });
     this.shade.rect(0, h - 50, w, 50).fill({ color: 0x05040a, alpha: .58 });
     this.shade.rect(0, 0, 30, h).fill({ color: 0x05040a, alpha: .55 });
@@ -127,11 +141,12 @@ export class GameView {
   private drawHero(world: World, x: number, y: number, time: number): void {
     const { player, save } = world;
     const equipped = !!save.equipment.armor;
-    const texture = this.textures[equipped ? 'armored' : save.gender];
+    const art: Art = equipped ? 'armored' : save.equipment.weapon ? save.gender === 'male' ? 'maleSword' : 'femaleSword' : save.gender;
+    const texture = this.textures[art];
     if (this.hero.texture !== texture) this.hero.texture = texture;
     const moving = Math.hypot(world.activeMove.x, world.activeMove.y) > .05;
     const step = moving ? Math.sin(time * 13) : 0;
-    let bob = moving ? -Math.abs(step) * 3 : 0;
+    let bob = moving ? -Math.abs(step) * 5.5 : 0;
     const local = world.effects.filter(effect => effect.kind !== 'hit' && effect.kind !== 'death' && Math.hypot(effect.x - player.x, effect.y - player.y) < 2);
     const attack = local.find(effect => effect.kind === 'slash');
     const spin = local.find(effect => effect.kind === 'spin');
@@ -142,21 +157,81 @@ export class GameView {
     const boost = cry ? 1 + .14 * (1 - cry.age / cry.duration) : 1;
     const scale = this.app.screen.height * .115 / texture.height;
     const face = Math.cos(player.facing) - Math.sin(player.facing) >= 0 ? 1 : -1;
-    const lungeX = (Math.cos(player.facing) - Math.sin(player.facing)) * .86 * attackPulse * 11;
-    const lungeY = (Math.cos(player.facing) + Math.sin(player.facing)) * .43 * attackPulse * 11;
-    this.hero.scale.set(scale * face * boost * (attack ? 1.08 : 1), scale * boost * (attack ? .92 : slam && slam.age > .35 ? .86 : 1));
+    const lungeX = (Math.cos(player.facing) - Math.sin(player.facing)) * .86 * attackPulse * 16;
+    const lungeY = (Math.cos(player.facing) + Math.sin(player.facing)) * .43 * attackPulse * 16;
+    this.hero.scale.set(scale * face * boost * (moving ? 1 - step * .03 : 1) * (attack ? 1.12 : 1), scale * boost * (moving ? 1 + step * .05 : 1) * (attack ? .9 : slam && slam.age > .35 ? .82 : 1));
     this.hero.position.set(x + lungeX, y + bob + lungeY);
-    this.hero.rotation = spin ? spin.age / spin.duration * Math.PI * 2 * face : moving ? step * .04 : 0;
+    this.hero.rotation = spin ? spin.age / spin.duration * Math.PI * 2 * face : attack ? (attack.swing ?? 1) * .26 * attackPulse * face : moving ? step * .09 : 0;
     this.hero.tint = player.hit > 0 ? 0xffd4cf : 0xffffff;
     this.ground.ellipse(x, y + 4, 13, 5).fill({ color: 0x000000, alpha: .42 });
-    if (save.equipment.weapon && !equipped) {
-      const handX = x + face * (save.gender === 'male' ? 11 : 9) + lungeX;
-      const handY = y - this.app.screen.height * .042 + bob + lungeY;
-      this.effects.moveTo(handX, handY + 5).lineTo(handX + face * 3, handY - 17).stroke({ color: 0xd5d8d6, width: 3 });
-      this.effects.moveTo(handX - face * 5, handY).lineTo(handX + face * 5, handY + 1).stroke({ color: 0x9b754d, width: 2 });
-    }
     if (player.berserk > 0) {
       this.glow.circle(x, y - 25, 35).fill({ color: 0xb32d28, alpha: .12 });
+    }
+  }
+
+  private updateAfterimages(world: World, project: (x: number, y: number) => [number, number], dt: number): void {
+    for (const effect of world.effects) {
+      if (!['slash', 'spin', 'slam'].includes(effect.kind) || effect.age > .19) continue;
+      const index = Math.floor(effect.age / .065);
+      if (index >= 3 || index <= (this.ghostEmissions.get(effect) ?? -1)) continue;
+      this.ghostEmissions.set(effect, index);
+      const sprite = new Sprite(this.hero.texture);
+      sprite.anchor.set(.5, 1); sprite.scale.set(this.hero.scale.x, this.hero.scale.y); sprite.rotation = this.hero.rotation;
+      sprite.tint = effect.kind === 'slam' ? 0xffa06c : 0x8fe6dc;
+      this.ghosts.addChild(sprite);
+      const trail = 5 + index * 5;
+      this.afterimages.push({ sprite, x: world.player.x - Math.cos(world.player.facing) * trail, y: world.player.y - Math.sin(world.player.facing) * trail, age: 0, duration: .22 });
+    }
+    for (const ghost of this.afterimages) {
+      ghost.age += dt;
+      const [x, y] = project(ghost.x, ghost.y);
+      ghost.sprite.position.set(x, y);
+      ghost.sprite.alpha = .38 * Math.max(0, 1 - ghost.age / ghost.duration);
+    }
+    this.afterimages = this.afterimages.filter(ghost => {
+      if (ghost.age < ghost.duration) return true;
+      this.ghosts.removeChild(ghost.sprite); ghost.sprite.destroy(); return false;
+    });
+  }
+
+  private updateCorpses(project: (x: number, y: number) => [number, number], dt: number): void {
+    for (const corpse of this.corpses) {
+      corpse.age += dt;
+      const t = corpse.age / corpse.duration, [x, y] = project(corpse.x, corpse.y);
+      corpse.sprite.position.set(x + t * 9 * Math.sign(corpse.scaleX), y + t * 13);
+      corpse.sprite.scale.set(corpse.scaleX * (1 - t * .2), corpse.scaleY * (1 - t * .65));
+      corpse.sprite.rotation = corpse.rotation + t * 1.1 * Math.sign(corpse.scaleX);
+      corpse.sprite.alpha = Math.max(0, 1 - t);
+    }
+    this.corpses = this.corpses.filter(corpse => {
+      if (corpse.age < corpse.duration) return true;
+      this.fallen.removeChild(corpse.sprite); corpse.sprite.destroy(); return false;
+    });
+  }
+
+  private drawHit(x: number, y: number, t: number, seed: number): void {
+    for (let i = 0; i < 10; i++) {
+      const angle = seed + i * Math.PI * 2 / 10;
+      const radius = 5 + t * (21 + i % 3 * 5);
+      const px = x + Math.cos(angle) * radius, py = y - 18 + Math.sin(angle) * radius * .7;
+      const length = 6 * (1 - t);
+      this.effects.moveTo(px, py).lineTo(px + Math.cos(angle) * length, py + Math.sin(angle) * length).stroke({ color: i % 2 ? 0xffa14d : 0xffffff, width: 2.5 * (1 - t), alpha: 1 - t });
+    }
+  }
+
+  private updateDamageLabels(effects: Effect[], project: (x: number, y: number) => [number, number]): void {
+    const hits = new Set(effects.filter(effect => effect.kind === 'hit'));
+    for (const [effect, label] of this.damageLabels) if (!hits.has(effect)) { this.labels.removeChild(label); label.destroy(); this.damageLabels.delete(effect); }
+    for (const effect of hits) {
+      let label = this.damageLabels.get(effect);
+      if (!label) {
+        label = new Text({ text: `-${effect.amount ?? 0}`, style: { fontFamily: 'Cinzel', fontSize: 16, fontWeight: 'bold', fill: 0xffd6a0 } });
+        label.anchor.set(.5, 1); this.labels.addChild(label); this.damageLabels.set(effect, label);
+      }
+      const t = effect.age / effect.duration, [x, y] = project(effect.x, effect.y);
+      label.position.set(x + Math.cos(effect.angle) * 6, y - 24 - t * 25);
+      label.scale.set(1 + Math.sin(Math.PI * t) * .25);
+      label.alpha = Math.max(0, 1 - t);
     }
   }
 
@@ -209,11 +284,11 @@ export class GameView {
   }
 
   private drawDeath(x: number, y: number, t: number, seed: number): void {
-    for (let i = 0; i < 5; i++) {
-      const angle = seed + i * Math.PI * 2 / 5;
-      const px = x + Math.cos(angle) * 25 * t, py = y - 25 * t + Math.sin(angle) * 12 * t;
-      this.effects.circle(px, py, (7 + i % 3 * 3) * (1 - t)).fill({ color: 0x9a9390, alpha: .3 * (1 - t) });
-      this.effects.moveTo(px - 3, py - 3).lineTo(px + 3, py + 3).stroke({ color: 0xd8d0bc, width: 2 * (1 - t), alpha: 1 - t });
+    for (let i = 0; i < 10; i++) {
+      const angle = seed + i * Math.PI * 2 / 10;
+      const px = x + Math.cos(angle) * 36 * t, py = y - 26 * t + Math.sin(angle) * 16 * t;
+      if (i % 2 === 0) this.effects.circle(px, py, (8 + i % 3 * 3) * (1 - t)).fill({ color: 0x9a9390, alpha: .32 * (1 - t) });
+      else this.effects.moveTo(px - 4, py - 2).lineTo(px + 4, py + 2).stroke({ color: 0xe1d8c4, width: 3 * (1 - t), alpha: 1 - t });
     }
   }
 

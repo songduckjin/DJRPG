@@ -223,9 +223,8 @@ export class Interface {
     for (const slot of ['offhand', 'necklace', 'belt', 'ring1', 'ring2'] as Slot[]) addSlot(slot, right);
     const center = document.createElement('div'); center.className = 'showcase-hero';
     const portrait = document.createElement('img'); portrait.alt = '현재 전사 외형';
-    portrait.src = save.equipment.armor ? '/assets/warrior_armored.png' : `/assets/warrior_${save.gender}_base.png`;
+    portrait.src = save.equipment.armor ? '/assets/warrior_armored.png' : save.equipment.weapon ? `/assets/warrior_${save.gender}_sword.png` : `/assets/warrior_${save.gender}_base.png`;
     center.appendChild(portrait);
-    if (save.equipment.weapon && !save.equipment.armor) { const sword = document.createElement('span'); sword.className = 'showcase-sword'; center.appendChild(sword); }
     showcase.append(left, center, right); dialog.appendChild(showcase);
     const summary = document.createElement('div'); summary.className = 'showcase-stats';
     const power = Math.round(stats.attack * 3 + stats.defense * 2 + stats.health * .2 + stats.crit * 2 + stats.speed * 2);
