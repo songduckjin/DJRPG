@@ -44,10 +44,12 @@ export function totalStats(save: Save): Record<Stat, number> {
   return total;
 }
 
-export function rollItem(floor: number, guaranteed = false): Item {
+export function rollItem(floor: number, guaranteed = false, boss = false): Item {
   if (guaranteed) return { id: crypto.randomUUID(), name: '낡은 검', slot: 'weapon', rarity: 'common', stats: { attack: 4 } };
   const roll = Math.random();
-  const rarity: Rarity = roll < .025 ? 'legendary' : roll < .13 ? 'rare' : roll < .43 ? 'magic' : 'common';
+  const rarity: Rarity = boss
+    ? roll < .04 ? 'legendary' : roll < .20 ? 'rare' : roll < .55 ? 'magic' : 'common'
+    : roll < .005 ? 'legendary' : roll < .03 ? 'rare' : roll < .15 ? 'magic' : 'common';
   const slot = slots[Math.floor(Math.random() * slots.length)];
   const base = slot === 'ring2' ? '반지' : slotNames[slot];
   const prefix = { common: '낡은', magic: '서리의', rare: '황혼의', legendary: '영원의' }[rarity];

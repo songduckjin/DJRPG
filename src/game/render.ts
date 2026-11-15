@@ -1,4 +1,4 @@
-import { Application, Assets, Container, Graphics, Sprite, TilingSprite, type Texture } from 'pixi.js';
+import { Application, Assets, Container, Graphics, Sprite, Text, TilingSprite, type Texture } from 'pixi.js';
 import type { Enemy, World } from './world';
 import type { Rarity } from './store';
 
@@ -19,9 +19,11 @@ export class GameView {
   private ground = new Graphics();
   private actors = new Container();
   private effects = new Graphics();
+  private labels = new Container();
   private shade = new Graphics();
   private hero!: Sprite;
   private enemies = new Map<Enemy, Sprite>();
+  private bossLabels = new Map<Enemy, Text>();
   private dust: Dust[] = [];
   private lastTime = 0;
   private lastHeroDust = 0;
@@ -36,7 +38,7 @@ export class GameView {
     this.hero = new Sprite(this.textures.male);
     this.hero.anchor.set(.5, 1);
     this.actors.addChild(this.hero);
-    this.app.stage.addChild(this.floor, this.glow, this.ground, this.actors, this.effects, this.shade);
+    this.app.stage.addChild(this.floor, this.glow, this.ground, this.actors, this.effects, this.labels, this.shade);
   }
 
   draw(world: World, time: number): void {
@@ -49,7 +51,9 @@ export class GameView {
     this.floor.tint = 0x9c9290;
     this.glow.clear(); this.ground.clear(); this.effects.clear(); this.shade.clear();
     this.drawLighting(w, h, time);
+    this.drawTerrain(world, project, time);
     this.drawDust(world, project, time, dt);
+    this.drawRunes(world, cx, cy, time);
     const slam = world.effects.find(effect => effect.kind === 'slam');
     const shake = slam && slam.age > .2 ? (1 - slam.age / slam.duration) * 5 : 0;
     this.app.stage.position.set(shake ? (Math.random() * 2 - 1) * shake : 0, shake ? (Math.random() * 2 - 1) * shake : 0);
@@ -62,7 +66,10 @@ export class GameView {
       this.ground.moveTo(x, y - 11).lineTo(x + 6, y - 5).lineTo(x, y + 1).lineTo(x - 6, y - 5).closePath().fill(color);
     }
     const live = new Set(world.enemies);
-    for (const [enemy, sprite] of this.enemies) if (!live.has(enemy)) { this.actors.removeChild(sprite); sprite.destroy(); this.enemies.delete(enemy); }
+    for (const [enemy, sprite] of this.enemies) if (!live.has(enemy)) {
+      this.actors.removeChild(sprite); sprite.destroy(); this.enemies.delete(enemy);
+      const label = this.bossLabels.get(enemy); if (label) { this.labels.removeChild(label); label.destroy(); this.bossLabels.delete(enemy); }
+    }
     const depths: { sprite: Sprite; depth: number }[] = [];
     for (const enemy of world.enemies) {
       let sprite = this.enemies.get(enemy);
@@ -71,18 +78,25 @@ export class GameView {
         sprite.anchor.set(.5, 1);
         this.actors.addChild(sprite);
         this.enemies.set(enemy, sprite);
+        if (enemy.boss) {
+          const label = new Text({ text: '해골 군주', style: { fontFamily: 'Noto Sans KR', fontSize: 11, fill: 0xf0d7c4, fontWeight: 'bold' } });
+          label.anchor.set(.5, 1); this.labels.addChild(label); this.bossLabels.set(enemy, label);
+        }
       }
-      const [x, y] = project(enemy.x, enemy.y), scale = (enemy.boss ? .69 : .45) * (enemy.hit > 0 ? 1.08 : 1);
+      const [x, y] = project(enemy.x, enemy.y);
+      const scale = h * (enemy.boss ? .19 : .115) / sprite.texture.height * (enemy.hit > 0 ? 1.08 : 1);
       const step = enemy.moving ? Math.sin(enemy.step) : 0;
-      this.ground.ellipse(x, y + 3, enemy.boss ? 21 : 12, enemy.boss ? 7 : 4).fill({ color: 0x000000, alpha: .4 });
+      this.ground.ellipse(x, y + 3, enemy.boss ? 19 : 11, enemy.boss ? 6 : 4).fill({ color: 0x000000, alpha: .4 });
       sprite.position.set(x, y - Math.abs(step) * (enemy.boss ? 2.5 : 2) + (enemy.hit > 0 ? 2 : 0));
       const face = (world.player.x - enemy.x) - (world.player.y - enemy.y) >= 0 ? 1 : -1;
       sprite.scale.set(scale * face, scale * (enemy.hit > 0 ? .89 : 1));
       sprite.rotation = enemy.moving ? step * .035 : 0;
       sprite.tint = enemy.hit > 0 ? 0xffffff : 0xcfcac5;
       sprite.alpha = enemy.hit > 0 ? (Math.floor(time * 30) % 2 ? .7 : 1) : 1;
-      this.effects.rect(x - (enemy.boss ? 19 : 13), y - (enemy.boss ? 111 : 66), enemy.boss ? 38 : 26, 3).fill(0x21171b);
-      this.effects.rect(x - (enemy.boss ? 19 : 13), y - (enemy.boss ? 111 : 66), (enemy.boss ? 38 : 26) * Math.max(0, enemy.hp / enemy.maxHp), 3).fill(enemy.boss ? 0xe0813c : 0xc54143);
+      const barY = y - h * (enemy.boss ? .19 : .115) - 7;
+      this.effects.rect(x - (enemy.boss ? 20 : 13), barY, enemy.boss ? 40 : 26, 3).fill(0x251517);
+      this.effects.rect(x - (enemy.boss ? 20 : 13), barY, (enemy.boss ? 40 : 26) * Math.max(0, enemy.hp / enemy.maxHp), 3).fill(0xd53b3a);
+      this.bossLabels.get(enemy)?.position.set(x, barY - 3);
       depths.push({ sprite, depth: enemy.x + enemy.y });
     }
     this.drawHero(world, cx, cy, time);
@@ -112,7 +126,7 @@ export class GameView {
 
   private drawHero(world: World, x: number, y: number, time: number): void {
     const { player, save } = world;
-    const equipped = !!(save.equipment.armor || save.equipment.helmet || save.equipment.weapon || save.equipment.offhand);
+    const equipped = !!save.equipment.armor;
     const texture = this.textures[equipped ? 'armored' : save.gender];
     if (this.hero.texture !== texture) this.hero.texture = texture;
     const moving = Math.hypot(world.activeMove.x, world.activeMove.y) > .05;
@@ -126,7 +140,7 @@ export class GameView {
     const attackPulse = attack ? Math.sin(Math.PI * attack.age / attack.duration) : 0;
     if (slam) bob -= Math.sin(Math.PI * slam.age / slam.duration) * 17;
     const boost = cry ? 1 + .14 * (1 - cry.age / cry.duration) : 1;
-    const scale = equipped ? .38 : .385;
+    const scale = this.app.screen.height * .115 / texture.height;
     const face = Math.cos(player.facing) - Math.sin(player.facing) >= 0 ? 1 : -1;
     const lungeX = (Math.cos(player.facing) - Math.sin(player.facing)) * .86 * attackPulse * 11;
     const lungeY = (Math.cos(player.facing) + Math.sin(player.facing)) * .43 * attackPulse * 11;
@@ -135,8 +149,50 @@ export class GameView {
     this.hero.rotation = spin ? spin.age / spin.duration * Math.PI * 2 * face : moving ? step * .04 : 0;
     this.hero.tint = player.hit > 0 ? 0xffd4cf : 0xffffff;
     this.ground.ellipse(x, y + 4, 13, 5).fill({ color: 0x000000, alpha: .42 });
+    if (save.equipment.weapon && !equipped) {
+      const handX = x + face * (save.gender === 'male' ? 11 : 9) + lungeX;
+      const handY = y - this.app.screen.height * .042 + bob + lungeY;
+      this.effects.moveTo(handX, handY + 5).lineTo(handX + face * 3, handY - 17).stroke({ color: 0xd5d8d6, width: 3 });
+      this.effects.moveTo(handX - face * 5, handY).lineTo(handX + face * 5, handY + 1).stroke({ color: 0x9b754d, width: 2 });
+    }
     if (player.berserk > 0) {
       this.glow.circle(x, y - 25, 35).fill({ color: 0xb32d28, alpha: .12 });
+    }
+  }
+
+  private drawRunes(world: World, x: number, y: number, time: number): void {
+    const active = world.effects.find(effect => ['slash', 'spin', 'slam', 'warcry'].includes(effect.kind) && Math.hypot(effect.x - world.player.x, effect.y - world.player.y) < 2);
+    if (!active && world.player.berserk <= 0) return;
+    const t = active ? active.age / active.duration : 0;
+    const burst = active?.kind === 'spin' || active?.kind === 'slam' || active?.kind === 'warcry';
+    const radius = burst ? 17 + t * 27 : 18;
+    const color = active?.kind === 'slam' || active?.kind === 'warcry' || world.player.berserk > 0 ? 0xff8d49 : 0x66d9d2;
+    const alpha = active ? 1 - t : .32;
+    this.glow.ellipse(x, y + 2, radius + 10, (radius + 10) * .43).fill({ color, alpha: .13 * alpha });
+    this.ground.ellipse(x, y + 2, radius, radius * .42).stroke({ color, width: burst ? 3 : 2, alpha: .8 * alpha });
+    this.ground.ellipse(x, y + 2, radius * .65, radius * .28).stroke({ color, width: 1, alpha: .6 * alpha });
+    for (let i = 0; i < 8; i++) {
+      const angle = time * (world.player.berserk > 0 ? 2.5 : 4) + i * Math.PI / 4;
+      const px = x + Math.cos(angle) * radius, py = y + 2 + Math.sin(angle) * radius * .42;
+      this.ground.circle(px, py, burst ? 2.5 : 1.6).fill({ color, alpha: .8 * alpha });
+    }
+  }
+
+  private drawTerrain(world: World, project: (x: number, y: number) => [number, number], time: number): void {
+    const tile = 180, ox = Math.floor(world.player.x / tile), oy = Math.floor(world.player.y / tile);
+    for (let ix = ox - 3; ix <= ox + 3; ix++) for (let iy = oy - 3; iy <= oy + 3; iy++) {
+      const hash = Math.abs(ix * 73 + iy * 131 + ix * iy * 11);
+      if (hash % 5 !== 0) continue;
+      const [x, y] = project(ix * tile + hash % 80, iy * tile + hash % 60);
+      if (hash % 3 === 0) {
+        this.ground.ellipse(x, y, 8, 3).fill({ color: 0x47433d, alpha: .55 });
+        this.ground.circle(x - 2, y - 3, 4).fill({ color: 0x5b5549, alpha: .65 });
+      } else if (hash % 3 === 1) {
+        this.ground.ellipse(x, y, 8, 3).fill({ color: 0x3b4a31, alpha: .42 });
+      } else {
+        this.glow.circle(x, y, 13).fill({ color: 0xe3632d, alpha: .045 });
+        this.ground.circle(x, y - 2 - Math.sin(time * 8 + hash) * 1.5, 2).fill({ color: 0xe87635, alpha: .62 });
+      }
     }
   }
 

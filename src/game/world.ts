@@ -88,8 +88,8 @@ export class World {
       this.onMessage(`레벨 ${this.save.level} 달성!`);
     }
     const guaranteed = this.save.tutorial === 0 && !enemy.boss;
-    if (guaranteed || Math.random() < (enemy.boss ? 1 : .26)) {
-      this.drops.push({ x: enemy.x, y: enemy.y, item: rollItem(this.save.floor, guaranteed), age: 0, warned: false });
+    if (guaranteed || Math.random() < (enemy.boss ? .42 : .04)) {
+      this.drops.push({ x: enemy.x, y: enemy.y, item: rollItem(this.save.floor, guaranteed, enemy.boss), age: 0, warned: false });
       if (guaranteed) { this.save.tutorial = 1; this.onMessage('낡은 검이 떨어졌습니다. 빛기둥으로 이동하세요!'); }
     }
     if (enemy.boss) {

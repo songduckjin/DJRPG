@@ -1,4 +1,4 @@
-import { expToNext, rarityNames, slotNames, slots, statNames, totalStats, type Item, type Save, type Stat } from '../game/store';
+import { expToNext, rarityNames, slotNames, statNames, totalStats, type Item, type Save, type Slot, type Stat } from '../game/store';
 import { cooldowns, costs, type Action, type World } from '../game/world';
 
 const actions: { key: Action; icon: string; name: string; description: string; power: string }[] = [
@@ -8,9 +8,11 @@ const actions: { key: Action; icon: string; name: string; description: string; p
   { key: 'warcry', icon: '♛', name: '전투 함성', description: '6초 동안 공격력과 이동속도가 상승하고 주변 적을 밀어냅니다.', power: '공격력 × 1.5 / 이동속도 상승' }
 ];
 type Modal = 'status' | 'equipment' | 'skills' | 'account';
+type BagFilter = 'all' | 'weapon' | 'armor' | 'accessory';
 
 export class Interface {
   private selected?: string;
+  private bagFilter: BagFilter = 'all';
   private openModal: Modal | null = null;
   private top: HTMLElement;
   private banner: HTMLElement;
@@ -113,19 +115,34 @@ export class Interface {
   private renderInventory(dialog: HTMLElement): void {
     const save = this.world.save;
     const section = document.createElement('section'); section.className = 'modal-bag';
-    section.innerHTML = `<div class="modal-bag-head"><h3>가방 <span>${save.bag.length}/40</span></h3><button class="salvage" type="button">일괄 분해</button></div>`;
-    section.querySelector<HTMLButtonElement>('.salvage')!.onclick = () => this.salvage();
+    section.innerHTML = '<h3>가방</h3>';
+    const filters = document.createElement('div'); filters.className = 'bag-filters';
+    const filterNames: Record<BagFilter, string> = { all: '전체', weapon: '무기', armor: '방어구', accessory: '장신구' };
+    for (const filter of Object.keys(filterNames) as BagFilter[]) {
+      const button = document.createElement('button'); button.textContent = filterNames[filter];
+      button.classList.toggle('active', this.bagFilter === filter);
+      button.onclick = () => { this.bagFilter = filter; this.selected = undefined; this.renderModal(); };
+      filters.appendChild(button);
+    }
+    section.appendChild(filters);
     const grid = document.createElement('div'); grid.className = 'bag-grid'; section.appendChild(grid);
-    for (const item of save.bag) {
+    const visible = save.bag.filter(item => this.bagFilter === 'all'
+      || (this.bagFilter === 'weapon' && (item.slot === 'weapon' || item.slot === 'offhand'))
+      || (this.bagFilter === 'armor' && ['helmet', 'armor', 'gloves', 'belt', 'boots'].includes(item.slot))
+      || (this.bagFilter === 'accessory' && ['necklace', 'ring1', 'ring2'].includes(item.slot)));
+    for (const item of visible) {
       const cell = document.createElement('button'); cell.className = `bag-item ${item.rarity} ${this.selected === item.id ? 'selected' : ''}`;
       cell.innerHTML = `<span class="item-icon">${this.icon(item.slot)}</span><small>${rarityNames[item.rarity]}</small><b></b>`;
       cell.querySelector('b')!.textContent = item.name;
       cell.onclick = () => { this.selected = item.id; this.renderModal(); };
       grid.appendChild(cell);
     }
-    if (!save.bag.length) grid.innerHTML = '<p class="empty">획득한 장비가 없습니다. 해골전사를 처치하세요.</p>';
+    if (!visible.length) grid.innerHTML = '<p class="empty">이 분류에 획득한 장비가 없습니다.</p>';
     const selected = save.bag.find(item => item.id === this.selected);
     if (selected) section.appendChild(this.itemDetail(save, selected));
+    const footer = document.createElement('div'); footer.className = 'modal-bag-footer';
+    footer.innerHTML = `<span>보유 ${save.bag.length}/40</span><button class="salvage" type="button">일괄 분해</button>`;
+    footer.querySelector<HTMLButtonElement>('button')!.onclick = () => this.salvage(); section.appendChild(footer);
     dialog.appendChild(section);
   }
 
@@ -133,10 +150,11 @@ export class Interface {
     const panel = document.createElement('div'); panel.className = `item-detail ${item.rarity}`;
     const equipped = save.equipment[item.slot];
     const title = document.createElement('h2'); title.textContent = `${item.name} · ${slotNames[item.slot]}`; panel.appendChild(title);
-    for (const stat of Object.keys(item.stats) as Stat[]) {
+    const compared = new Set<Stat>([...Object.keys(item.stats), ...Object.keys(equipped?.stats ?? {})] as Stat[]);
+    for (const stat of compared) {
       const diff = (item.stats[stat] ?? 0) - (equipped?.stats[stat] ?? 0);
       const line = document.createElement('span'); line.className = diff >= 0 ? 'up' : 'down';
-      line.textContent = `${statNames[stat]} +${item.stats[stat]}  ${diff >= 0 ? '▲' : '▼'}${Math.abs(diff)}`; panel.appendChild(line);
+      line.textContent = `${statNames[stat]} +${item.stats[stat] ?? 0} (현재 +${equipped?.stats[stat] ?? 0}) ${diff >= 0 ? '▲' : '▼'}${Math.abs(diff)}`; panel.appendChild(line);
     }
     const buttons = document.createElement('div'); buttons.className = 'detail-actions';
     const equip = document.createElement('button'); equip.textContent = '장착'; equip.onclick = () => {
@@ -185,21 +203,34 @@ export class Interface {
 
   private renderEquipment(dialog: HTMLElement): void {
     const save = this.world.save, stats = totalStats(save);
-    const summary = document.createElement('div'); summary.className = 'stat-strip';
-    summary.innerHTML = `<span>공격 <b>${stats.attack}</b></span><span>방어 <b>${stats.defense}</b></span><span>체력 <b>${stats.health}</b></span><span>치명 <b>${stats.crit}%</b></span>`;
-    dialog.appendChild(summary);
-    const grid = document.createElement('div'); grid.className = 'equipment-grid'; dialog.appendChild(grid);
-    for (const slot of slots) {
+    const showcase = document.createElement('div'); showcase.className = 'equipment-showcase';
+    const left = document.createElement('div'), right = document.createElement('div');
+    left.className = 'showcase-side'; right.className = 'showcase-side';
+    const addSlot = (slot: Slot, side: HTMLElement) => {
       const item = save.equipment[slot]; const cell = document.createElement('button'); cell.className = `equipment-slot ${item?.rarity ?? ''}`;
-      cell.innerHTML = `<span class="slot-icon">${this.icon(slot)}</span><span><small>${slotNames[slot]}</small><b></b></span>`;
-      cell.querySelector('b')!.textContent = item?.name ?? '비어 있음';
+      cell.innerHTML = `<span class="slot-icon">${this.icon(slot)}</span><span class="slot-meta"><small>${slotNames[slot]}</small><b></b><em></em></span>`;
+      cell.querySelector('b')!.textContent = item?.name ?? '빈 슬롯';
+      const core = item && (Object.keys(item.stats) as Stat[])[0];
+      cell.querySelector('em')!.textContent = core ? `${statNames[core]} +${item.stats[core]}` : '';
       cell.onclick = () => {
         if (!item) return;
         if (save.bag.length >= 40) { this.message('가방이 가득 차 장비를 해제할 수 없습니다.'); return; }
         save.bag.push(item); delete save.equipment[slot]; this.world.onChange();
       };
-      grid.appendChild(cell);
-    }
+      side.appendChild(cell);
+    };
+    for (const slot of ['weapon', 'helmet', 'armor', 'gloves', 'boots'] as Slot[]) addSlot(slot, left);
+    for (const slot of ['offhand', 'necklace', 'belt', 'ring1', 'ring2'] as Slot[]) addSlot(slot, right);
+    const center = document.createElement('div'); center.className = 'showcase-hero';
+    const portrait = document.createElement('img'); portrait.alt = '현재 전사 외형';
+    portrait.src = save.equipment.armor ? '/assets/warrior_armored.png' : `/assets/warrior_${save.gender}_base.png`;
+    center.appendChild(portrait);
+    if (save.equipment.weapon && !save.equipment.armor) { const sword = document.createElement('span'); sword.className = 'showcase-sword'; center.appendChild(sword); }
+    showcase.append(left, center, right); dialog.appendChild(showcase);
+    const summary = document.createElement('div'); summary.className = 'showcase-stats';
+    const power = Math.round(stats.attack * 3 + stats.defense * 2 + stats.health * .2 + stats.crit * 2 + stats.speed * 2);
+    summary.innerHTML = `<span>전투력 <b>${power}</b></span><span>공격 <b>${stats.attack}</b></span><span>방어 <b>${stats.defense}</b></span><span>HP <b>${Math.ceil(this.world.player.hp)}/${stats.health}</b></span><span>MP <b>${Math.ceil(this.world.player.mp)}/100</b></span>`;
+    dialog.appendChild(summary);
     const hint = document.createElement('p'); hint.className = 'modal-hint'; hint.textContent = '장착한 장비를 터치하면 가방으로 옮깁니다.'; dialog.appendChild(hint);
   }
 
