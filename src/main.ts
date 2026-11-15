@@ -1,7 +1,8 @@
 import { GameView } from './game/render';
-import { freshSave, loadSave, saveGame } from './game/store';
+import { freshSave, hasSave as storedSaveExists, loadSave, saveGame } from './game/store';
 import { World } from './game/world';
 import { Interface } from './ui/interface';
+import { openLogin } from './ui/login';
 import './styles/main.css';
 
 const root = document.getElementById('app');
@@ -13,13 +14,21 @@ window.addEventListener('game-message', (event: Event) => {
   pendingMessage = (event as CustomEvent<string>).detail;
   gameUi?.message(pendingMessage);
 });
-const save = loadSave();
+const session = await openLogin(appRoot);
+const save = loadSave(session.accountId);
 let hasSave = false;
-try { hasSave = localStorage.getItem('djrpg-save-v1') !== null; } catch { /* loadSave already reports storage failure. */ }
+try { hasSave = storedSaveExists(session.accountId); }
+catch (error) { pendingMessage = `진행 상황을 확인하지 못했습니다: ${String(error)}`; }
+if (!hasSave && !session.guest) {
+  Object.assign(save, freshSave(session.gender), { accountId: session.accountId, name: session.loginId });
+  hasSave = true;
+  saveGame(save, session.accountId);
+}
 const world = new World(save);
 let resetting = false;
 window.addEventListener('game-reset', () => { resetting = true; });
-const ui = new Interface(appRoot, world, () => resetting || saveGame(save));
+const ui = new Interface(appRoot, world, () => resetting || saveGame(save, session.accountId), session);
+window.addEventListener('game-logout', () => { if (saveGame(save, session.accountId)) location.reload(); });
 gameUi = ui;
 if (pendingMessage) ui.message(pendingMessage);
 const view = new GameView();
@@ -50,16 +59,16 @@ window.addEventListener('keydown', e => {
   if (key === '3') world.action(save.quickSlots[2]);
 });
 window.addEventListener('keyup', e => { keys.delete(e.key.toLowerCase()); direction(); });
-window.addEventListener('blur', () => { keys.clear(); world.move = { x: 0, y: 0 }; world.keyboardMove = { x: 0, y: 0 }; world.keyboardActive = false; world.joystickActive = false; world.attackHeld = false; if (!resetting) saveGame(save); });
-document.addEventListener('visibilitychange', () => { if (document.hidden && !resetting) saveGame(save); });
+window.addEventListener('blur', () => { keys.clear(); world.move = { x: 0, y: 0 }; world.keyboardMove = { x: 0, y: 0 }; world.keyboardActive = false; world.joystickActive = false; world.attackHeld = false; if (!resetting) saveGame(save, session.accountId); });
+document.addEventListener('visibilitychange', () => { if (document.hidden && !resetting) saveGame(save, session.accountId); });
 
-if (!hasSave) {
+if (!hasSave && session.guest) {
   const chooser = document.createElement('div'); chooser.className = 'character-choice';
   chooser.innerHTML = '<div><small>THE DESCENT BEGINS</small><h2>전사를 선택하세요</h2><p>빈손으로 황야의 사냥터에 들어갑니다.</p><button data-gender="male">남성 전사</button><button data-gender="female">여성 전사</button></div>';
   appRoot.appendChild(chooser);
   chooser.querySelectorAll<HTMLButtonElement>('button').forEach(button => button.onclick = () => {
     Object.assign(save, freshSave(button.dataset.gender === 'female' ? 'female' : 'male'));
-    world.player.hp = 100; hasSave = true; saveGame(save); chooser.remove(); ui.renderStatus();
+    world.player.hp = 100; hasSave = saveGame(save, session.accountId); if (hasSave) chooser.remove(); ui.renderStatus();
   });
 }
 

@@ -1,3 +1,8 @@
+## 2026-11-15 · 작업 31
+- `src/ui/login.ts`, `src/styles/main.css`: 로그인·회원가입·게스트 화면과 기기 내 비밀번호 해시 인증.
+- `src/game/store.ts`, `src/main.ts`, `src/ui/interface.ts`: 계정별 세이브, 구버전 게스트 이전·로그아웃·계정별 초기화.
+- 검증: 계정 분리·비밀번호·이전 사례, TypeScript 검사·Vite 빌드 성공.
+
 ## 2026-11-15 · 작업 30
 - `src/game/render.ts`, `index.html`, `src/main.ts`: 황야 바닥 원색·오브젝트·문구 적용, 비네팅 완화.
 - `src/game/store.ts`: 누락·손상된 세이브 필드와 장비를 안전하게 정리해 기존 진행 데이터 유지.

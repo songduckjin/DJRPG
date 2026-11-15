@@ -1,6 +1,7 @@
-import { autoEquipBest, expToNext, rarityNames, salvageByRarity, skillLevel, slotNames, statNames, totalStats, upgradeSkill, type Item, type Rarity, type Save, type Slot, type Stat } from '../game/store';
+import { autoEquipBest, deleteSave, expToNext, rarityNames, salvageByRarity, skillLevel, slotNames, statNames, totalStats, upgradeSkill, type Item, type Rarity, type Save, type Slot, type Stat } from '../game/store';
 import { cooldowns, costs, type Action, type World } from '../game/world';
 import { canLearn, MAX_SKILL_LEVEL, passiveOrder, passives, skillDuration, skillOrder, skillRange, skills, skillUpgradeCost, UNLOCK_ALL_SKILLS_FOR_TEST, type SkillId, type SkillLevelId } from '../game/skills';
+import type { Session } from './login';
 
 const shortNames: Record<SkillId, string> = { slash2: '소드', spin: '용오름', slam: '스탬프', warcry: '레이지', power: '파워', destroy: '충격파', hell: '헬파이어' };
 type Modal = 'status' | 'equipment' | 'skills' | 'account';
@@ -23,7 +24,7 @@ export class Interface {
   private lastSaved = true;
   private confirmReset = false;
 
-  constructor(private root: HTMLElement, private world: World, private onSave: () => boolean) {
+  constructor(private root: HTMLElement, private world: World, private onSave: () => boolean, private session: Session) {
     root.innerHTML = `<main class="game-shell"><section class="battle"><div class="battle-canvas"></div><div class="top-hud"></div><button class="auto-toggle" type="button"></button><div class="tutorial"></div><div class="controls"><div class="stick"><div class="stick-knob"></div></div><div class="action-pad"></div></div><div class="resource hp"><span>HP</span><b></b></div><div class="resource mp"><span>MP</span><b></b></div></section><nav class="bottom-nav"><button data-modal="status">내 상태</button><button data-modal="equipment">장비<i class="new-badge" hidden></i></button><button data-modal="skills">스킬</button></nav><div class="modal-backdrop" hidden><div class="modal-dialog" role="dialog" aria-modal="true"></div></div><div class="toast" role="status"></div></main>`;
     this.top = this.get('.top-hud'); this.banner = this.get('.tutorial');
     this.modal = this.get('.modal-backdrop'); this.toast = this.get('.toast');
@@ -291,6 +292,8 @@ export class Interface {
   private renderAccount(dialog: HTMLElement): void {
     const save = this.world.save;
     const content = document.createElement('div'); content.className = 'account-content';
+    const login = document.createElement('div'); login.className = 'account-line'; login.innerHTML = '<span>로그인 ID</span><b></b>';
+    login.querySelector('b')!.textContent = this.session.loginId; content.appendChild(login);
     const nameLabel = document.createElement('label'); nameLabel.textContent = '모험가 이름';
     const nameRow = document.createElement('div'); nameRow.className = 'account-name';
     const input = document.createElement('input'); input.value = save.name; input.maxLength = 16; input.setAttribute('aria-label', '모험가 이름');
@@ -328,13 +331,16 @@ export class Interface {
     } else {
       const warning = document.createElement('p'); warning.textContent = '레벨, 장비, 골드 등 모든 진행 상황을 삭제할까요? 이 작업은 되돌릴 수 없습니다.';
       const yes = document.createElement('button'); yes.textContent = '모두 삭제'; yes.onclick = () => {
-        try { localStorage.removeItem('djrpg-save-v1'); window.dispatchEvent(new Event('game-reset')); location.reload(); }
+        try { deleteSave(this.session.accountId); window.dispatchEvent(new Event('game-reset')); location.reload(); }
         catch (error) { this.message(`데이터를 초기화하지 못했습니다: ${String(error)}`); }
       };
       const no = document.createElement('button'); no.textContent = '취소'; no.onclick = () => { this.confirmReset = false; this.renderModal(); };
       reset.append(warning, yes, no);
     }
-    content.appendChild(reset); dialog.appendChild(content);
+    content.appendChild(reset);
+    const logout = document.createElement('button'); logout.className = 'account-logout'; logout.textContent = '로그아웃 · 계정 전환';
+    logout.onclick = () => window.dispatchEvent(new Event('game-logout'));
+    content.appendChild(logout); dialog.appendChild(content);
   }
 
   private renderSkills(dialog: HTMLElement): void {
