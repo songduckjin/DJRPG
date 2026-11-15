@@ -7,6 +7,7 @@ const paths = {
   floor: '/assets/dungeon_tile.jpg', male: '/assets/warrior_male_base.png',
   female: '/assets/warrior_female_base.png', armored: '/assets/warrior_armored.png',
   maleSword: '/assets/warrior_male_sword.png', femaleSword: '/assets/warrior_female_sword.png',
+  maleAttack: '/assets/warrior_male_attack.png', femaleAttack: '/assets/warrior_female_attack.png', armoredAttack: '/assets/warrior_armored_attack.png',
   skeleton: '/assets/skeleton_warrior.png', boss: '/assets/skeleton_boss.png'
 } as const;
 type Art = keyof typeof paths;
@@ -162,7 +163,9 @@ export class GameView {
   private drawHero(world: World, x: number, y: number, time: number): void {
     const { player, save } = world;
     const equipped = !!save.equipment.armor;
-    const art: Art = equipped ? 'armored' : save.equipment.weapon ? save.gender === 'male' ? 'maleSword' : 'femaleSword' : save.gender;
+    const art: Art = world.attackPose > 0
+      ? equipped ? 'armoredAttack' : save.gender === 'male' ? 'maleAttack' : 'femaleAttack'
+      : equipped ? 'armored' : save.equipment.weapon ? save.gender === 'male' ? 'maleSword' : 'femaleSword' : save.gender;
     const texture = this.textures[art];
     if (this.hero.texture !== texture) this.hero.texture = texture;
     const moving = Math.hypot(world.activeMove.x, world.activeMove.y) > .05;

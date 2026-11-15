@@ -92,7 +92,7 @@ export class Interface {
     this.get('.hp').style.setProperty('--fill', `${Math.max(0, player.hp / totalStats(save).health * 100)}%`);
     this.get('.mp').style.setProperty('--fill', `${player.mp}%`);
     this.get('.hp b').textContent = `${Math.ceil(player.hp)}`; this.get('.mp b').textContent = `${Math.ceil(player.mp)}`;
-    const text = [save.auto ? '자동사냥 중입니다. 직접 이동하면 AUTO가 꺼집니다.' : '조이스틱으로 이동해 첫 해골전사를 처치하세요.', '빛기둥으로 이동해 낡은 검을 줍세요.', '하단 장비 버튼을 눌러 가방의 낡은 검을 장착하세요.'][save.tutorial];
+    const text = [save.auto ? '자동사냥 중입니다. 직접 이동하면 AUTO가 꺼집니다.' : '조이스틱으로 이동해 첫 해골전사를 처치하세요.', '빛기둥으로 이동해 낡은 두손검을 줍세요.', '하단 장비 버튼을 눌러 가방의 낡은 두손검을 장착하세요.'][save.tutorial];
     this.banner.textContent = text ?? ''; this.banner.hidden = save.tutorial >= 3;
   }
 
@@ -169,7 +169,7 @@ export class Interface {
     const equip = document.createElement('button'); equip.textContent = '장착'; equip.onclick = () => {
       const index = save.bag.findIndex(i => i.id === item.id); if (index < 0) return;
       save.bag.splice(index, 1); if (equipped) save.bag.push(equipped); save.equipment[item.slot] = item;
-      if (item.name === '낡은 검' && save.tutorial === 2) { save.tutorial = 3; this.message('튜토리얼 완료! 검을 장착했습니다.'); }
+      if (item.name === '낡은 두손검' && save.tutorial === 2) { save.tutorial = 3; this.message('튜토리얼 완료! 두손검을 장착했습니다.'); }
       this.selected = undefined; this.world.onChange();
     };
     const dismantle = document.createElement('button'); dismantle.textContent = '분해'; dismantle.onclick = () => {

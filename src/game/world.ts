@@ -16,6 +16,7 @@ export class World {
   cooldown: Record<Action, number> = { attack: 0, slash2: 0, spin: 0, slam: 0, warcry: 0, power: 0, destroy: 0, hell: 0 };
   spawnTimer = 0;
   attackHeld = false;
+  attackPose = 0;
   move = { x: 0, y: 0 };
   keyboardMove = { x: 0, y: 0 };
   activeMove = { x: 0, y: 0 };
@@ -40,6 +41,7 @@ export class World {
     const p = this.player;
     const stats = totalStats(this.save);
     this.cooldown[kind] = kind === 'attack' ? cooldowns.attack / (1 + stats.speed / 100) * (p.berserk > 0 ? .67 : 1) : cooldowns[kind];
+    if (kind !== 'warcry') this.attackPose = .22;
     const attack = stats.attack * (p.berserk > 0 ? 1.5 : 1);
     const target = this.nearest();
     if (kind === 'attack') {
@@ -111,7 +113,7 @@ export class World {
     const guaranteed = this.save.tutorial === 0 && !enemy.boss;
     if (guaranteed || Math.random() < (enemy.boss ? .42 : .04)) {
       this.drops.push({ x: enemy.x, y: enemy.y, item: rollItem(this.save.floor, guaranteed, enemy.boss), age: 0, warned: false });
-      if (guaranteed) { this.save.tutorial = 1; this.onMessage('낡은 검이 떨어졌습니다. 빛기둥으로 이동하세요!'); }
+      if (guaranteed) { this.save.tutorial = 1; this.onMessage('낡은 두손검이 떨어졌습니다. 빛기둥으로 이동하세요!'); }
     }
     if (enemy.boss) {
       this.save.floor++;
@@ -127,6 +129,7 @@ export class World {
   update(dt: number): void {
     const p = this.player;
     for (const kind of Object.keys(this.cooldown) as Action[]) this.cooldown[kind] = Math.max(0, this.cooldown[kind] - dt);
+    this.attackPose = Math.max(0, this.attackPose - dt);
     p.berserk = Math.max(0, p.berserk - dt);
     p.hit = Math.max(0, p.hit - dt);
     p.mp = Math.min(100, p.mp + dt * 6);
@@ -185,13 +188,13 @@ export class World {
         if (this.save.bag.length < 40) {
           this.save.bag.push(drop.item);
           drop.age = -1;
-          if (drop.item.name === '낡은 검' && this.save.tutorial === 1) this.save.tutorial = 2;
+          if (drop.item.name === '낡은 두손검' && this.save.tutorial === 1) this.save.tutorial = 2;
           this.onMessage(`${drop.item.name} 획득!`);
           this.onChange();
         } else if (!drop.warned) { drop.warned = true; this.onMessage('가방이 가득 찼습니다. 장비를 분해하세요.'); }
       }
     }
-    this.drops = this.drops.filter(d => d.age >= 0 && (d.age < 90 || (d.item.name === '낡은 검' && this.save.tutorial < 3)));
+    this.drops = this.drops.filter(d => d.age >= 0 && (d.age < 90 || (d.item.name === '낡은 두손검' && this.save.tutorial < 3)));
     for (const effect of this.effects) effect.age += dt;
     this.effects = this.effects.filter(e => e.age < e.duration);
     this.save.health = p.hp;
