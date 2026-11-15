@@ -13,7 +13,18 @@ export const rarityNames: Record<Rarity, string> = { common: '일반', magic: '�
 export const statNames: Record<Stat, string> = { attack: '공격', defense: '방어', health: '체력', crit: '치명', speed: '공속' };
 const key = 'djrpg-save-v1';
 const weaponNames: Record<Rarity, string> = { common: '낡은 두손검', magic: '서리의 클레이모어', rare: '황혼의 대검', legendary: '영원의 츠바이핸더' };
-function migrateItem(item: Item): Item { return item.slot === 'weapon' ? { ...item, name: weaponNames[item.rarity] } : item; }
+function isRecord(value: unknown): value is Record<string, unknown> { return typeof value === 'object' && value !== null && !Array.isArray(value); }
+function safeNumber(value: unknown, fallback: number, min = 0): number { return typeof value === 'number' && Number.isFinite(value) && value >= min ? value : fallback; }
+function migrateItem(value: unknown): Item | undefined {
+  if (!isRecord(value) || typeof value.slot !== 'string' || !slots.includes(value.slot as Slot) || typeof value.rarity !== 'string' || !Object.hasOwn(rarityNames, value.rarity)) return undefined;
+  const slot = value.slot as Slot, rarity = value.rarity as Rarity;
+  const stats: Item['stats'] = {};
+  if (isRecord(value.stats)) for (const stat of Object.keys(statNames) as Stat[]) {
+    const amount = value.stats[stat];
+    if (typeof amount === 'number' && Number.isFinite(amount) && amount >= 0) stats[stat] = amount;
+  }
+  return { id: typeof value.id === 'string' && value.id ? value.id : crypto.randomUUID(), name: slot === 'weapon' ? weaponNames[rarity] : typeof value.name === 'string' && value.name ? value.name : slotNames[slot], slot, rarity, stats };
+}
 export function expToNext(level: number): number { return Math.round(800 * Math.pow(level, 2.1)); }
 
 export function freshSave(gender: Gender = 'male'): Save {
@@ -29,18 +40,23 @@ export function loadSave(): Save {
     const value = data as Partial<Save>;
     if (value.version !== 1) throw new Error('지원하지 않는 저장 버전입니다.');
     const defaults = freshSave(value.gender === 'female' ? 'female' : 'male');
-    const slots = Array.isArray(value.quickSlots) && value.quickSlots.length === 3 && value.quickSlots.every(id => skillOrder.includes(id)) && new Set(value.quickSlots).size === 3
+    const quickSlots = Array.isArray(value.quickSlots) && value.quickSlots.length === 3 && value.quickSlots.every(id => skillOrder.includes(id)) && new Set(value.quickSlots).size === 3
       ? value.quickSlots as [SkillId, SkillId, SkillId] : defaults.quickSlots;
     const learned = Array.isArray(value.learned) ? value.learned.filter(id => skillOrder.includes(id)) : defaults.learned;
-    const active = [...new Set([...learned, ...slots])];
-    const passives = Array.isArray(value.passives) ? value.passives.filter(id => passiveOrder.includes(id)) : [];
-    const storedLevels = value.skillLevels && typeof value.skillLevels === 'object' ? value.skillLevels : {};
+    const active = [...new Set([...learned, ...quickSlots])];
+    const passives = Array.isArray(value.passives) ? [...new Set(value.passives.filter(id => passiveOrder.includes(id)))] : [];
+    const storedLevels = isRecord(value.skillLevels) ? value.skillLevels : {};
     const skillLevels = Object.fromEntries([...active, ...passives].map(id => {
       const rawLevel = storedLevels[id];
-      return [id, Number.isFinite(rawLevel) ? Math.max(1, Math.min(MAX_SKILL_LEVEL, Math.floor(rawLevel!))) : 1];
+      return [id, typeof rawLevel === 'number' && Number.isFinite(rawLevel) ? Math.max(1, Math.min(MAX_SKILL_LEVEL, Math.floor(rawLevel))) : 1];
     })) as Partial<Record<SkillLevelId, number>>;
-    const equipment = Object.fromEntries(Object.entries(value.equipment ?? {}).map(([slot, item]) => [slot, item ? migrateItem(item) : item])) as Partial<Record<Slot, Item>>;
-    return { ...defaults, ...value, name: typeof value.name === 'string' && value.name.trim() ? value.name : '모험가', accountId: typeof value.accountId === 'string' && value.accountId ? value.accountId : crypto.randomUUID().slice(0, 8).toUpperCase(), auto: typeof value.auto === 'boolean' ? value.auto : true, equipment, bag: Array.isArray(value.bag) ? value.bag.map(migrateItem) : [], learned: active, passives, quickSlots: slots, skillLevels };
+    const equipment: Save['equipment'] = {};
+    if (isRecord(value.equipment)) for (const slot of slots) {
+      const item = migrateItem(value.equipment[slot]);
+      if (item?.slot === slot) equipment[slot] = item;
+    }
+    const bag = Array.isArray(value.bag) ? value.bag.map(migrateItem).filter((item): item is Item => !!item).slice(0, 40) : [];
+    return { ...defaults, name: typeof value.name === 'string' && value.name.trim() ? value.name : defaults.name, accountId: typeof value.accountId === 'string' && value.accountId ? value.accountId : defaults.accountId, gender: value.gender === 'female' ? 'female' : 'male', auto: typeof value.auto === 'boolean' ? value.auto : defaults.auto, level: Math.floor(safeNumber(value.level, defaults.level, 1)), exp: safeNumber(value.exp, defaults.exp), gold: Math.floor(safeNumber(value.gold, defaults.gold)), floor: Math.floor(safeNumber(value.floor, defaults.floor, 1)), kills: Math.floor(safeNumber(value.kills, defaults.kills)), health: safeNumber(value.health, defaults.health), equipment, bag, tutorial: Math.min(3, Math.floor(safeNumber(value.tutorial, defaults.tutorial))), stones: Math.floor(safeNumber(value.stones, defaults.stones)), learned: active, passives, quickSlots, skillLevels };
   } catch (error) {
     window.dispatchEvent(new CustomEvent('game-message', { detail: `저장 데이터를 읽지 못했습니다: ${String(error)}` }));
     return freshSave();

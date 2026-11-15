@@ -63,7 +63,7 @@ export class GameView {
   private lastHeroDust = 0;
 
   async mount(host: HTMLElement): Promise<void> {
-    await this.app.init({ resizeTo: host, background: '#211c21', antialias: true, resolution: Math.min(devicePixelRatio, 2), autoDensity: true });
+    await this.app.init({ resizeTo: host, background: '#9b8259', antialias: true, resolution: Math.min(devicePixelRatio, 2), autoDensity: true });
     host.appendChild(this.app.canvas);
     const loaded = await Promise.all((Object.keys(paths) as Art[]).map(async key => [key, await Assets.load<Texture>(paths[key])] as const));
     for (const [key, texture] of loaded) { texture.source.scaleMode = 'linear'; this.textures[key] = texture; }
@@ -88,7 +88,7 @@ export class GameView {
     const project = (x: number, y: number): [number, number] => [cx + (x - world.player.x - y + world.player.y) * .86, cy + (x - world.player.x + y - world.player.y) * .43];
     this.floor.width = w; this.floor.height = h;
     this.floor.tilePosition.set((-world.player.x + world.player.y) * .86, (-world.player.x - world.player.y) * .43);
-    this.floor.tint = 0xd0c8c0;
+    this.floor.tint = 0xffffff;
     this.glow.clear(); this.ground.clear(); this.effects.clear(); this.shade.clear();
     this.drawLighting(w, h, time);
     this.drawTerrain(world, project, time);
@@ -165,9 +165,9 @@ export class GameView {
       else this.drawHit(x, y, t, effect.angle);
     }
     this.updateDamageLabels(world.effects, project);
-    const sight = Math.min(w, h) * .68 + Math.sin(time * 3) * 4;
+    const sight = Math.min(w, h) * .72 + Math.sin(time * 3) * 4;
     for (let ring = 0; ring < 7; ring++) {
-      this.shade.rect(0, 0, w, h).fill({ color: 0x030208, alpha: .07 });
+      this.shade.rect(0, 0, w, h).fill({ color: 0x24180c, alpha: .04 });
       this.shade.circle(cx, cy, sight + ring * 33).cut();
     }
   }
@@ -371,23 +371,24 @@ export class GameView {
       const [x, y] = project(ix * tile + ((hash >>> 8) % 100) - 50, iy * tile + ((hash >>> 16) % 100) - 50);
       if (hash % 3 === 0) {
         this.ground.ellipse(x, y + 2, 21, 7).fill({ color: 0x070b08, alpha: .47 });
-        this.ground.moveTo(x - 16, y).lineTo(x - 12, y - 10).lineTo(x + 2, y - 15).lineTo(x + 15, y - 7).lineTo(x + 18, y).closePath().fill(0x6d776a);
-        this.ground.ellipse(x - 4, y - 9, 7, 3).fill({ color: 0x697b4c, alpha: .8 });
-        this.ground.circle(x + 10, y - 4, 3).fill({ color: 0x446043, alpha: .8 });
+        this.ground.moveTo(x - 16, y).lineTo(x - 12, y - 10).lineTo(x + 2, y - 15).lineTo(x + 15, y - 7).lineTo(x + 18, y).closePath().fill(0x9e8057);
+        this.ground.ellipse(x - 4, y - 9, 7, 3).fill({ color: 0xc2a277, alpha: .8 });
+        this.ground.circle(x + 10, y - 4, 3).fill({ color: 0x795b38, alpha: .8 });
       } else if (hash % 3 === 1) {
         this.ground.ellipse(x, y + 3, 17, 5).fill({ color: 0x050607, alpha: .5 });
-        this.ground.rect(x - 12, y - 8, 24, 8).fill(0x514b4b);
-        this.ground.rect(x - 8, y - 35, 16, 28).fill(0x89817c);
-        this.ground.moveTo(x - 9, y - 35).lineTo(x - 9, y - 43).lineTo(x - 2, y - 40).lineTo(x + 4, y - 46).lineTo(x + 9, y - 37).closePath().fill(0x817670);
-        this.ground.moveTo(x - 2, y - 29).lineTo(x + 3, y - 21).lineTo(x, y - 13).stroke({ color: 0x383535, width: 2 });
-        this.ground.rect(x - 9, y - 8, 17, 3).fill(0x394735);
+        this.ground.rect(x - 12, y - 8, 24, 8).fill(0x7c6041);
+        this.ground.rect(x - 8, y - 35, 16, 28).fill(0x967650);
+        this.ground.moveTo(x - 9, y - 35).lineTo(x - 9, y - 43).lineTo(x - 2, y - 40).lineTo(x + 4, y - 46).lineTo(x + 9, y - 37).closePath().fill(0xb3956a);
+        this.ground.moveTo(x - 2, y - 29).lineTo(x + 3, y - 21).lineTo(x, y - 13).stroke({ color: 0x5c422a, width: 2 });
+        this.ground.moveTo(x + 10, y).lineTo(x + 17, y - 9).lineTo(x + 18, y - 15).stroke({ color: 0x765638, width: 2 });
+        this.ground.moveTo(x + 12, y - 3).lineTo(x + 21, y - 5).stroke({ color: 0x8b7144, width: 2 });
       } else {
         const flicker = Math.sin(time * 12 + hash) * 2;
         this.glow.circle(x, y - 22, 41 + flicker).fill({ color: 0xff7228, alpha: .1 });
         this.glow.circle(x, y - 22, 19 + flicker).fill({ color: 0xffb451, alpha: .13 });
         this.ground.ellipse(x, y + 3, 12, 4).fill({ color: 0x060505, alpha: .52 });
-        this.ground.rect(x - 2, y - 16, 4, 18).fill(0x5a4a40);
-        this.ground.ellipse(x, y - 18, 12, 5).fill(0x4a3932);
+        this.ground.rect(x - 2, y - 16, 4, 18).fill(0x805934);
+        this.ground.ellipse(x, y - 18, 12, 5).fill(0x78522f);
         this.ground.moveTo(x, y - 18).lineTo(x - 5, y - 30 - flicker).lineTo(x + 1, y - 26).lineTo(x + 5, y - 32 + flicker).lineTo(x + 5, y - 20).closePath().fill(0xff8b31);
         this.ground.circle(x, y - 22, 3).fill(0xffdd8c);
       }

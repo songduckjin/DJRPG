@@ -55,7 +55,7 @@ document.addEventListener('visibilitychange', () => { if (document.hidden && !re
 
 if (!hasSave) {
   const chooser = document.createElement('div'); chooser.className = 'character-choice';
-  chooser.innerHTML = '<div><small>THE DESCENT BEGINS</small><h2>전사를 선택하세요</h2><p>빈손으로 어둠의 던전에 들어갑니다.</p><button data-gender="male">남성 전사</button><button data-gender="female">여성 전사</button></div>';
+  chooser.innerHTML = '<div><small>THE DESCENT BEGINS</small><h2>전사를 선택하세요</h2><p>빈손으로 황야의 사냥터에 들어갑니다.</p><button data-gender="male">남성 전사</button><button data-gender="female">여성 전사</button></div>';
   appRoot.appendChild(chooser);
   chooser.querySelectorAll<HTMLButtonElement>('button').forEach(button => button.onclick = () => {
     Object.assign(save, freshSave(button.dataset.gender === 'female' ? 'female' : 'male'));
