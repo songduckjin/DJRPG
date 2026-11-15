@@ -1,11 +1,11 @@
-import { passiveOrder, skillOrder, type PassiveId, type SkillId } from './skills';
+import { MAX_SKILL_LEVEL, passiveOrder, skillOrder, skillUpgradeCost, type PassiveId, type SkillId, type SkillLevelId } from './skills';
 
 export type Gender = 'male' | 'female';
 export type Rarity = 'common' | 'magic' | 'rare' | 'legendary';
 export type Slot = 'weapon' | 'offhand' | 'helmet' | 'armor' | 'necklace' | 'gloves' | 'belt' | 'boots' | 'ring1' | 'ring2';
 export type Stat = 'attack' | 'defense' | 'health' | 'crit' | 'speed';
 export type Item = { id: string; name: string; slot: Slot; rarity: Rarity; stats: Partial<Record<Stat, number>> };
-export type Save = { version: 1; name: string; accountId: string; gender: Gender; auto: boolean; level: number; exp: number; gold: number; floor: number; kills: number; health: number; equipment: Partial<Record<Slot, Item>>; bag: Item[]; tutorial: number; stones: number; learned: SkillId[]; passives: PassiveId[]; quickSlots: [SkillId, SkillId, SkillId] };
+export type Save = { version: 1; name: string; accountId: string; gender: Gender; auto: boolean; level: number; exp: number; gold: number; floor: number; kills: number; health: number; equipment: Partial<Record<Slot, Item>>; bag: Item[]; tutorial: number; stones: number; learned: SkillId[]; passives: PassiveId[]; quickSlots: [SkillId, SkillId, SkillId]; skillLevels: Partial<Record<SkillLevelId, number>> };
 
 export const slots: Slot[] = ['weapon', 'offhand', 'helmet', 'armor', 'necklace', 'gloves', 'belt', 'boots', 'ring1', 'ring2'];
 export const slotNames: Record<Slot, string> = { weapon: '두손검', offhand: '문장', helmet: '투구', armor: '갑옷', necklace: '목걸이', gloves: '장갑', belt: '벨트', boots: '신발', ring1: '반지 1', ring2: '반지 2' };
@@ -17,7 +17,7 @@ function migrateItem(item: Item): Item { return item.slot === 'weapon' ? { ...it
 export function expToNext(level: number): number { return Math.round(800 * Math.pow(level, 2.1)); }
 
 export function freshSave(gender: Gender = 'male'): Save {
-  return { version: 1, name: '모험가', accountId: crypto.randomUUID().slice(0, 8).toUpperCase(), gender, auto: true, level: 1, exp: 0, gold: 0, floor: 1, kills: 0, health: 100, equipment: {}, bag: [], tutorial: 0, stones: 0, learned: ['spin', 'slam', 'warcry'], passives: [], quickSlots: ['spin', 'slam', 'warcry'] };
+  return { version: 1, name: '모험가', accountId: crypto.randomUUID().slice(0, 8).toUpperCase(), gender, auto: true, level: 1, exp: 0, gold: 0, floor: 1, kills: 0, health: 100, equipment: {}, bag: [], tutorial: 0, stones: 0, learned: ['spin', 'slam', 'warcry'], passives: [], quickSlots: ['spin', 'slam', 'warcry'], skillLevels: { spin: 1, slam: 1, warcry: 1 } };
 }
 
 export function loadSave(): Save {
@@ -32,8 +32,15 @@ export function loadSave(): Save {
     const slots = Array.isArray(value.quickSlots) && value.quickSlots.length === 3 && value.quickSlots.every(id => skillOrder.includes(id)) && new Set(value.quickSlots).size === 3
       ? value.quickSlots as [SkillId, SkillId, SkillId] : defaults.quickSlots;
     const learned = Array.isArray(value.learned) ? value.learned.filter(id => skillOrder.includes(id)) : defaults.learned;
+    const active = [...new Set([...learned, ...slots])];
+    const passives = Array.isArray(value.passives) ? value.passives.filter(id => passiveOrder.includes(id)) : [];
+    const storedLevels = value.skillLevels && typeof value.skillLevels === 'object' ? value.skillLevels : {};
+    const skillLevels = Object.fromEntries([...active, ...passives].map(id => {
+      const rawLevel = storedLevels[id];
+      return [id, Number.isFinite(rawLevel) ? Math.max(1, Math.min(MAX_SKILL_LEVEL, Math.floor(rawLevel!))) : 1];
+    })) as Partial<Record<SkillLevelId, number>>;
     const equipment = Object.fromEntries(Object.entries(value.equipment ?? {}).map(([slot, item]) => [slot, item ? migrateItem(item) : item])) as Partial<Record<Slot, Item>>;
-    return { ...defaults, ...value, name: typeof value.name === 'string' && value.name.trim() ? value.name : '모험가', accountId: typeof value.accountId === 'string' && value.accountId ? value.accountId : crypto.randomUUID().slice(0, 8).toUpperCase(), auto: typeof value.auto === 'boolean' ? value.auto : true, equipment, bag: Array.isArray(value.bag) ? value.bag.map(migrateItem) : [], learned: [...new Set([...learned, ...slots])], passives: Array.isArray(value.passives) ? value.passives.filter(id => passiveOrder.includes(id)) : [], quickSlots: slots };
+    return { ...defaults, ...value, name: typeof value.name === 'string' && value.name.trim() ? value.name : '모험가', accountId: typeof value.accountId === 'string' && value.accountId ? value.accountId : crypto.randomUUID().slice(0, 8).toUpperCase(), auto: typeof value.auto === 'boolean' ? value.auto : true, equipment, bag: Array.isArray(value.bag) ? value.bag.map(migrateItem) : [], learned: active, passives, quickSlots: slots, skillLevels };
   } catch (error) {
     window.dispatchEvent(new CustomEvent('game-message', { detail: `저장 데이터를 읽지 못했습니다: ${String(error)}` }));
     return freshSave();
@@ -50,10 +57,23 @@ export function totalStats(save: Save): Record<Stat, number> {
   for (const item of Object.values(save.equipment)) if (item) {
     for (const stat of Object.keys(item.stats) as Stat[]) total[stat] += item.stats[stat] ?? 0;
   }
-  if (save.passives.includes('mastery')) total.attack = Math.ceil(total.attack * 1.15);
-  if (save.passives.includes('body')) { total.defense = Math.ceil(total.defense * 1.15); total.health = Math.ceil(total.health * 1.15); }
-  if (save.passives.includes('instinct')) { total.crit += 8; total.speed += 12; }
+  if (save.passives.includes('mastery')) total.attack = Math.ceil(total.attack * (1.15 + (skillLevel(save, 'mastery') - 1) * .02));
+  if (save.passives.includes('body')) { const bonus = 1.15 + (skillLevel(save, 'body') - 1) * .02; total.defense = Math.ceil(total.defense * bonus); total.health = Math.ceil(total.health * bonus); }
+  if (save.passives.includes('instinct')) { total.crit += 8 + (skillLevel(save, 'instinct') - 1) * 2; total.speed += 12 + (skillLevel(save, 'instinct') - 1) * 2; }
   return total;
+}
+
+export function skillLevel(save: Save, id: SkillLevelId): number { return save.skillLevels[id] ?? 1; }
+export function upgradeSkill(save: Save, id: SkillLevelId): { ok: boolean; message: string } {
+  const learned = skillOrder.includes(id as SkillId) ? save.learned.includes(id as SkillId) : save.passives.includes(id as PassiveId);
+  if (!learned) return { ok: false, message: '먼저 스킬을 습득해야 합니다.' };
+  const level = skillLevel(save, id);
+  if (level >= MAX_SKILL_LEVEL) return { ok: false, message: '이미 최고 스킬 레벨입니다.' };
+  const cost = skillUpgradeCost(level);
+  if (save.gold < cost) return { ok: false, message: `스킬 레벨업에 ${cost}골드가 필요합니다. (보유 ${save.gold}골드)` };
+  save.gold -= cost;
+  save.skillLevels[id] = level + 1;
+  return { ok: true, message: `스킬 Lv.${level + 1} 달성!` };
 }
 
 export function rollItem(floor: number, guaranteed = false, boss = false): Item {

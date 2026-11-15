@@ -2,6 +2,9 @@ export const UNLOCK_ALL_SKILLS_FOR_TEST = true;
 
 export type SkillId = 'slash2' | 'spin' | 'slam' | 'warcry' | 'power' | 'destroy' | 'hell';
 export type PassiveId = 'mastery' | 'body' | 'instinct';
+export type SkillLevelId = SkillId | PassiveId;
+export const MAX_SKILL_LEVEL = 10;
+export function skillUpgradeCost(level: number): number { return 40 * level * level; }
 export type Skill = { id: SkillId; name: string; level: number; icon: string; cost: number; cooldown: number; power: string; description: string; range: number };
 export type Passive = { id: PassiveId; name: string; level: number; icon: string; description: string };
 
@@ -24,3 +27,14 @@ export const passives: Record<PassiveId, Passive> = {
 };
 
 export function canLearn(level: number, required: number): boolean { return UNLOCK_ALL_SKILLS_FOR_TEST || level >= required; }
+export function skillRange(id: SkillId, level: number): number { return skills[id].range + (id === 'warcry' ? 0 : id === 'destroy' ? 7 : 4) * (level - 1); }
+export function skillDuration(id: SkillId, level: number): number {
+  if (id === 'spin') return 1 + (level - 1) * .22;
+  if (id === 'warcry') return 6 + (level - 1) * 1.2;
+  if (id === 'slam') return .65 + (level - 1) * .12;
+  if (id === 'hell') return .8 + (level - 1) * .16;
+  if (id === 'slash2') return .35 + (level - 1) * .04;
+  if (id === 'power') return .4 + (level - 1) * .04;
+  return .55 + (level - 1) * .05;
+}
+export function skillDamageScale(level: number): number { return 1 + (level - 1) * .1; }

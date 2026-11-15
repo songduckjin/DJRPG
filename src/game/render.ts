@@ -62,7 +62,7 @@ export class GameView {
   private lastHeroDust = 0;
 
   async mount(host: HTMLElement): Promise<void> {
-    await this.app.init({ resizeTo: host, background: '#100d13', antialias: true, resolution: Math.min(devicePixelRatio, 2), autoDensity: true });
+    await this.app.init({ resizeTo: host, background: '#211c21', antialias: true, resolution: Math.min(devicePixelRatio, 2), autoDensity: true });
     host.appendChild(this.app.canvas);
     const loaded = await Promise.all((Object.keys(paths) as Art[]).map(async key => [key, await Assets.load<Texture>(paths[key])] as const));
     for (const [key, texture] of loaded) { texture.source.scaleMode = 'linear'; this.textures[key] = texture; }
@@ -87,7 +87,7 @@ export class GameView {
     const project = (x: number, y: number): [number, number] => [cx + (x - world.player.x - y + world.player.y) * .86, cy + (x - world.player.x + y - world.player.y) * .43];
     this.floor.width = w; this.floor.height = h;
     this.floor.tilePosition.set((-world.player.x + world.player.y) * .86, (-world.player.x - world.player.y) * .43);
-    this.floor.tint = 0x9c9290;
+    this.floor.tint = 0xd0c8c0;
     this.glow.clear(); this.ground.clear(); this.effects.clear(); this.shade.clear();
     this.drawLighting(w, h, time);
     this.drawTerrain(world, project, time);
@@ -164,9 +164,9 @@ export class GameView {
       else this.drawHit(x, y, t, effect.angle);
     }
     this.updateDamageLabels(world.effects, project);
-    const sight = Math.min(w, h) * .53 + Math.sin(time * 3) * 3;
+    const sight = Math.min(w, h) * .68 + Math.sin(time * 3) * 4;
     for (let ring = 0; ring < 7; ring++) {
-      this.shade.rect(0, 0, w, h).fill({ color: 0x030208, alpha: .11 });
+      this.shade.rect(0, 0, w, h).fill({ color: 0x030208, alpha: .07 });
       this.shade.circle(cx, cy, sight + ring * 33).cut();
     }
   }
@@ -194,8 +194,9 @@ export class GameView {
       const distance = effect.kind === 'destroy' ? 40 + t * 125 : effect.kind === 'power' ? 70 : 0;
       sprite.position.set(x + Math.cos(screenAngle) * distance, y + Math.sin(screenAngle) * distance - (effect.kind === 'power' ? 45 : effect.kind === 'slam' || effect.kind === 'spin' ? 4 : 18));
       sprite.scale.set(scale, scale * (effect.kind === 'slam' ? .6 : effect.kind === 'spin' ? .8 : 1));
-      sprite.rotation = effect.kind === 'spin' ? t * Math.PI * 4.5 : effect.kind === 'slam' || effect.kind === 'hell' || effect.kind === 'power' ? 0 : screenAngle + (effect.kind === 'slash2' ? index ? -.55 : .55 : 0);
-      sprite.alpha = effect.kind === 'slash2' && t < index * .28 ? 0 : Math.min(1, (1 - phase) * 1.5);
+      sprite.rotation = effect.kind === 'spin' ? effect.age * Math.PI * 1.4 : effect.kind === 'slam' || effect.kind === 'hell' || effect.kind === 'power' ? 0 : screenAngle + (effect.kind === 'slash2' ? index ? -.55 : .55 : 0);
+      const sustained = effect.kind === 'spin' || effect.kind === 'slam' || effect.kind === 'hell';
+      sprite.alpha = effect.kind === 'slash2' && t < index * .28 ? 0 : sustained ? Math.min(1, phase * 6, (1 - phase) * 6) : Math.min(1, (1 - phase) * 1.5);
       sprite.tint = 0xffffff;
     }
     return true;
@@ -335,13 +336,13 @@ export class GameView {
       const [x, y] = project(ix * tile + ((hash >>> 8) % 100) - 50, iy * tile + ((hash >>> 16) % 100) - 50);
       if (hash % 3 === 0) {
         this.ground.ellipse(x, y + 2, 21, 7).fill({ color: 0x070b08, alpha: .47 });
-        this.ground.moveTo(x - 16, y).lineTo(x - 12, y - 10).lineTo(x + 2, y - 15).lineTo(x + 15, y - 7).lineTo(x + 18, y).closePath().fill(0x555c51);
+        this.ground.moveTo(x - 16, y).lineTo(x - 12, y - 10).lineTo(x + 2, y - 15).lineTo(x + 15, y - 7).lineTo(x + 18, y).closePath().fill(0x6d776a);
         this.ground.ellipse(x - 4, y - 9, 7, 3).fill({ color: 0x697b4c, alpha: .8 });
         this.ground.circle(x + 10, y - 4, 3).fill({ color: 0x446043, alpha: .8 });
       } else if (hash % 3 === 1) {
         this.ground.ellipse(x, y + 3, 17, 5).fill({ color: 0x050607, alpha: .5 });
         this.ground.rect(x - 12, y - 8, 24, 8).fill(0x514b4b);
-        this.ground.rect(x - 8, y - 35, 16, 28).fill(0x6b6563);
+        this.ground.rect(x - 8, y - 35, 16, 28).fill(0x89817c);
         this.ground.moveTo(x - 9, y - 35).lineTo(x - 9, y - 43).lineTo(x - 2, y - 40).lineTo(x + 4, y - 46).lineTo(x + 9, y - 37).closePath().fill(0x817670);
         this.ground.moveTo(x - 2, y - 29).lineTo(x + 3, y - 21).lineTo(x, y - 13).stroke({ color: 0x383535, width: 2 });
         this.ground.rect(x - 9, y - 8, 17, 3).fill(0x394735);
@@ -383,8 +384,8 @@ export class GameView {
     for (let i = 0; i < 4; i++) {
       const x = i % 2 ? w * .88 : w * .12, y = i < 2 ? h * .16 : h * .75;
       const flicker = Math.sin(time * 8 + i * 5) * 4;
-      this.glow.circle(x, y, 78 + flicker).fill({ color: 0xf0742e, alpha: .035 });
-      this.glow.circle(x, y, 35 + flicker).fill({ color: 0xffa13d, alpha: .05 });
+      this.glow.circle(x, y, 78 + flicker).fill({ color: 0xf0742e, alpha: .055 });
+      this.glow.circle(x, y, 35 + flicker).fill({ color: 0xffa13d, alpha: .08 });
     }
   }
 }

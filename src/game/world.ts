@@ -1,15 +1,15 @@
-import { expToNext, rollItem, totalStats, type Item, type Save } from './store';
-import { canLearn, skills, type SkillId } from './skills';
+import { expToNext, rollItem, skillLevel, totalStats, type Item, type Save } from './store';
+import { canLearn, skillDamageScale, skillDuration, skillRange, skills, type SkillId } from './skills';
 
 export type Enemy = { x: number; y: number; hp: number; maxHp: number; boss: boolean; hit: number; step: number; moving: boolean; knockX: number; knockY: number; slow: number };
 export type Drop = { x: number; y: number; item: Item; age: number; warned: boolean };
-export type Effect = { x: number; y: number; kind: 'slash' | 'slash2' | 'spin' | 'slam' | 'warcry' | 'power' | 'destroy' | 'hell' | 'hit' | 'death'; age: number; duration: number; angle: number; swing?: number; amount?: number };
+export type Effect = { x: number; y: number; kind: 'slash' | 'slash2' | 'spin' | 'slam' | 'warcry' | 'power' | 'destroy' | 'hell' | 'hit' | 'death'; age: number; duration: number; angle: number; swing?: number; amount?: number; nextHit?: number; power?: number; level?: number };
 export type Action = 'attack' | SkillId;
 export const cooldowns: Record<Action, number> = { attack: .48, slash2: skills.slash2.cooldown, spin: skills.spin.cooldown, slam: skills.slam.cooldown, warcry: skills.warcry.cooldown, power: skills.power.cooldown, destroy: skills.destroy.cooldown, hell: skills.hell.cooldown };
 export const costs: Record<Action, number> = { attack: 0, slash2: skills.slash2.cost, spin: skills.spin.cost, slam: skills.slam.cost, warcry: skills.warcry.cost, power: skills.power.cost, destroy: skills.destroy.cost, hell: skills.hell.cost };
 
 export class World {
-  player = { x: 0, y: 0, facing: 1, mp: 100, hp: 100, berserk: 0, hit: 0 };
+  player = { x: 0, y: 0, facing: 1, mp: 100, hp: 100, berserk: 0, berserkLevel: 1, hit: 0 };
   enemies: Enemy[] = [];
   drops: Drop[] = [];
   effects: Effect[] = [];
@@ -39,10 +39,13 @@ export class World {
     if (this.player.mp < costs[kind]) { this.onMessage('마나가 부족합니다.'); return; }
     this.player.mp -= costs[kind];
     const p = this.player;
+    const level = kind === 'attack' ? 1 : skillLevel(this.save, kind);
+    const range = kind === 'attack' ? 90 : skillRange(kind, level);
+    const damageScale = skillDamageScale(level);
     const stats = totalStats(this.save);
-    this.cooldown[kind] = kind === 'attack' ? cooldowns.attack / (1 + stats.speed / 100) * (p.berserk > 0 ? .67 : 1) : cooldowns[kind];
+    this.cooldown[kind] = kind === 'attack' ? cooldowns.attack / (1 + stats.speed / 100) * (p.berserk > 0 ? 1 / (1.5 + (p.berserkLevel - 1) * .08) : 1) : cooldowns[kind];
     if (kind !== 'warcry') this.attackPose = .32;
-    const attack = stats.attack * (p.berserk > 0 ? 1.5 : 1);
+    const attack = stats.attack * (p.berserk > 0 ? 1.5 + (p.berserkLevel - 1) * .05 : 1);
     const target = this.nearest();
     if (kind === 'attack') {
       const angle = target && Math.hypot(target.x - p.x, target.y - p.y) < 95 ? Math.atan2(target.y - p.y, target.x - p.x) : p.facing;
@@ -51,31 +54,32 @@ export class World {
       this.swing *= -1;
       this.damage(90, attack, angle, 1.15);
     } else if (kind === 'slash2') {
-      this.effects.push({ x: p.x, y: p.y, kind: 'slash2', age: 0, duration: .35, angle: p.facing });
-      this.damage(96, attack * .9, p.facing, .9);
-      this.damage(96, attack * .9, p.facing, .9);
+      this.effects.push({ x: p.x, y: p.y, kind: 'slash2', age: 0, duration: skillDuration(kind, level), angle: p.facing });
+      this.damage(range, attack * .9 * damageScale, p.facing, .9);
+      this.damage(range, attack * .9 * damageScale, p.facing, .9);
     } else if (kind === 'spin') {
-      this.effects.push({ x: p.x, y: p.y, kind: 'spin', age: 0, duration: .55, angle: 0 });
-      this.damage(108, attack * 1.65, 0, Math.PI);
+      this.effects.push({ x: p.x, y: p.y, kind: 'spin', age: 0, duration: skillDuration(kind, level), angle: 0, nextHit: .45, power: attack * .65 * damageScale, level });
+      this.damage(range, attack * 1.65 * damageScale, 0, Math.PI);
     } else if (kind === 'slam') {
-      this.effects.push({ x: p.x, y: p.y, kind: 'slam', age: 0, duration: .65, angle: p.facing });
-      this.damage(126, attack * 2.2, p.facing, 1.35, 55, 2);
+      this.effects.push({ x: p.x, y: p.y, kind: 'slam', age: 0, duration: skillDuration(kind, level), angle: p.facing, nextHit: .45, power: attack * .55 * damageScale, level });
+      this.damage(range, attack * 2.2 * damageScale, p.facing, 1.35, 55, 2 + (level - 1) * .3);
     } else if (kind === 'warcry') {
-      p.berserk = 6;
+      p.berserk = skillDuration(kind, level);
+      p.berserkLevel = level;
       this.effects.push({ x: p.x, y: p.y, kind: 'warcry', age: 0, duration: .7, angle: 0 });
       for (const enemy of this.enemies) {
         const dx = enemy.x - p.x, dy = enemy.y - p.y, d = Math.hypot(dx, dy);
         if (d < 115 && d > 0) { enemy.x += dx / d * 40; enemy.y += dy / d * 40; }
       }
     } else if (kind === 'power') {
-      this.effects.push({ x: p.x, y: p.y, kind: 'power', age: 0, duration: .4, angle: p.facing });
-      this.damage(100, attack * 4, p.facing, .45, 24);
+      this.effects.push({ x: p.x, y: p.y, kind: 'power', age: 0, duration: skillDuration(kind, level), angle: p.facing });
+      this.damage(range, attack * 4 * damageScale, p.facing, .45, 24);
     } else if (kind === 'destroy') {
-      this.effects.push({ x: p.x, y: p.y, kind: 'destroy', age: 0, duration: .55, angle: p.facing });
-      this.damage(175, attack * 2.7, p.facing, .7, 42);
+      this.effects.push({ x: p.x, y: p.y, kind: 'destroy', age: 0, duration: skillDuration(kind, level), angle: p.facing });
+      this.damage(range, attack * 2.7 * damageScale, p.facing, .7, 42);
     } else if (kind === 'hell') {
-      this.effects.push({ x: p.x, y: p.y, kind: 'hell', age: 0, duration: .8, angle: p.facing });
-      this.damage(185, attack * 3.2, 0, Math.PI, 45);
+      this.effects.push({ x: p.x, y: p.y, kind: 'hell', age: 0, duration: skillDuration(kind, level), angle: p.facing, nextHit: .4, power: attack * .6 * damageScale, level });
+      this.damage(range, attack * 3.2 * damageScale, 0, Math.PI, 45, 1 + (level - 1) * .2);
     }
   }
 
@@ -83,9 +87,9 @@ export class World {
     return this.enemies.reduce<Enemy | undefined>((best, e) => !best || Math.hypot(e.x - this.player.x, e.y - this.player.y) < Math.hypot(best.x - this.player.x, best.y - this.player.y) ? e : best, undefined);
   }
 
-  damage(radius: number, amount: number, angle: number, arc: number, knockback = 12, slow = 0): void {
+  damage(radius: number, amount: number, angle: number, arc: number, knockback = 12, slow = 0, origin: { x: number; y: number } = this.player): void {
     for (const enemy of this.enemies) {
-      const dx = enemy.x - this.player.x, dy = enemy.y - this.player.y, dist = Math.hypot(dx, dy);
+      const dx = enemy.x - origin.x, dy = enemy.y - origin.y, dist = Math.hypot(dx, dy);
       const diff = Math.atan2(Math.sin(Math.atan2(dy, dx) - angle), Math.cos(Math.atan2(dy, dx) - angle));
       if (dist > radius || Math.abs(diff) > arc) continue;
       enemy.hp -= amount;
@@ -146,7 +150,7 @@ export class World {
         if (!drop && distance < 190) {
           if (distance < 90) this.action('attack');
           for (const skill of this.save.quickSlots) {
-            if (!canLearn(this.save.level, skills[skill].level) || !this.save.learned.includes(skill) || this.cooldown[skill] > 0 || p.mp < costs[skill] || distance > skills[skill].range) continue;
+            if (!canLearn(this.save.level, skills[skill].level) || !this.save.learned.includes(skill) || this.cooldown[skill] > 0 || p.mp < costs[skill] || distance > skillRange(skill, skillLevel(this.save, skill))) continue;
             this.action(skill);
           }
         }
@@ -154,7 +158,7 @@ export class World {
     }
     const magnitude = Math.hypot(this.activeMove.x, this.activeMove.y);
     if (magnitude > .05) {
-      const speed = (p.berserk > 0 ? 160 : 125) * dt / Math.max(1, magnitude);
+      const speed = (p.berserk > 0 ? 160 + (p.berserkLevel - 1) * 4 : 125) * dt / Math.max(1, magnitude);
       p.x += this.activeMove.x * speed; p.y += this.activeMove.y * speed;
       p.facing = Math.atan2(this.activeMove.y, this.activeMove.x);
     }
@@ -195,7 +199,16 @@ export class World {
       }
     }
     this.drops = this.drops.filter(d => d.age >= 0 && (d.age < 90 || (d.item.name === '낡은 두손검' && this.save.tutorial < 3)));
-    for (const effect of this.effects) effect.age += dt;
+    for (const effect of [...this.effects]) {
+      effect.age += dt;
+      while (effect.nextHit !== undefined && effect.nextHit < effect.duration && effect.nextHit <= effect.age) {
+        const level = effect.level ?? 1;
+        if (effect.kind === 'spin') this.damage(skillRange('spin', level), effect.power ?? 0, 0, Math.PI, 10, 0, effect);
+        if (effect.kind === 'slam') this.damage(skillRange('slam', level), effect.power ?? 0, effect.angle, 1.35, 12, 2 + (level - 1) * .3, effect);
+        if (effect.kind === 'hell') this.damage(skillRange('hell', level), effect.power ?? 0, 0, Math.PI, 14, 1 + (level - 1) * .2, effect);
+        effect.nextHit += effect.kind === 'spin' || effect.kind === 'slam' ? .45 : .4;
+      }
+    }
     this.effects = this.effects.filter(e => e.age < e.duration);
     this.save.health = p.hp;
   }

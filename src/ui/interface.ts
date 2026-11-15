@@ -1,6 +1,6 @@
-import { autoEquipBest, expToNext, rarityNames, salvageByRarity, slotNames, statNames, totalStats, type Item, type Rarity, type Save, type Slot, type Stat } from '../game/store';
+import { autoEquipBest, expToNext, rarityNames, salvageByRarity, skillLevel, slotNames, statNames, totalStats, upgradeSkill, type Item, type Rarity, type Save, type Slot, type Stat } from '../game/store';
 import { cooldowns, costs, type Action, type World } from '../game/world';
-import { canLearn, passiveOrder, passives, skillOrder, skills, UNLOCK_ALL_SKILLS_FOR_TEST, type SkillId } from '../game/skills';
+import { canLearn, MAX_SKILL_LEVEL, passiveOrder, passives, skillDuration, skillOrder, skillRange, skills, skillUpgradeCost, UNLOCK_ALL_SKILLS_FOR_TEST, type SkillId, type SkillLevelId } from '../game/skills';
 
 const shortNames: Record<SkillId, string> = { slash2: '소드', spin: '용오름', slam: '스탬프', warcry: '레이지', power: '파워', destroy: '충격파', hell: '헬파이어' };
 type Modal = 'status' | 'equipment' | 'skills' | 'account';
@@ -346,17 +346,19 @@ export class Interface {
     base.innerHTML = '<div class="skill-icon">⚔</div><div class="skill-info"><h3>대검 베기 <small>Lv.1 · 기본 보유</small></h3><p>묵직한 두손검 횡베기로 전방 넓은 부채꼴을 공격합니다.</p><small>마나 0 · 기본 쿨타임 0.48초 · 공격력 × 1.0 · 고정 슬롯</small></div>';
     list.appendChild(base);
     for (const id of skillOrder) {
-      const skill = skills[id], learned = save.learned.includes(id);
+      const skill = skills[id], learned = save.learned.includes(id), level = skillLevel(save, id);
+      const growth = id === 'warcry' ? `공격 버프 +${50 + (level - 1) * 5}%` : `위력 +${(level - 1) * 10}%`;
       const card = document.createElement('article'); card.className = 'skill-card'; card.dataset.skill = id;
-      card.innerHTML = `<div class="skill-icon">${skill.icon}</div><div class="skill-info"><h3>${skill.name} <small>Lv.${skill.level}</small></h3><p>${skill.description}</p><small>마나 ${skill.cost} · 쿨타임 ${skill.cooldown}초 · ${skill.power}</small><div class="skill-actions"></div></div>`;
+      card.innerHTML = `<div class="skill-icon">${skill.icon}</div><div class="skill-info"><h3>${skill.name} <small>요구 Lv.${skill.level}</small></h3><p>${skill.description}</p><strong class="skill-level">${learned ? `스킬 Lv.${level} / ${MAX_SKILL_LEVEL}` : '미습득 · 습득 시 스킬 Lv.1'}</strong><small>마나 ${skill.cost} · 쿨타임 ${skill.cooldown}초 · 지속 ${skillDuration(id, level).toFixed(1)}초 · 범위 ${skillRange(id, level)} · ${growth}</small><div class="skill-actions"></div></div>`;
       const actions = card.querySelector<HTMLElement>('.skill-actions')!;
       if (!learned) {
         const button = document.createElement('button'); button.textContent = canLearn(save.level, skill.level) ? '습득' : `Lv.${skill.level} 필요`;
         button.disabled = !canLearn(save.level, skill.level);
-        button.onclick = () => { save.learned.push(id); this.world.onChange(); this.message(`${skill.name} 습득!`); };
+        button.onclick = () => { save.learned.push(id); save.skillLevels[id] = 1; this.world.onChange(); this.message(`${skill.name} 습득!`); };
         actions.appendChild(button);
       } else {
         const state = document.createElement('span'); state.textContent = '습득 완료'; actions.appendChild(state);
+        this.addSkillUpgrade(actions, id, skill.name);
         for (let slot = 0; slot < 3; slot++) {
           const button = document.createElement('button'); button.textContent = `슬롯 ${slot + 1}`;
           button.classList.toggle('active', save.quickSlots[slot] === id);
@@ -372,17 +374,19 @@ export class Interface {
     }
     const heading = document.createElement('h3'); heading.className = 'skill-group-title'; heading.textContent = '패시브 스킬'; list.appendChild(heading);
     for (const id of passiveOrder) {
-      const passive = passives[id], learned = save.passives.includes(id);
+      const passive = passives[id], learned = save.passives.includes(id), level = skillLevel(save, id);
       const card = document.createElement('article'); card.className = 'skill-card';
-      card.innerHTML = `<div class="skill-icon">${passive.icon}</div><div class="skill-info"><h3>${passive.name} <small>Lv.${passive.level}</small></h3><p>${passive.description}</p><div class="skill-actions"></div></div>`;
+      const bonus = id === 'mastery' ? `공격 +${15 + (level - 1) * 2}%` : id === 'body' ? `HP·방어 +${15 + (level - 1) * 2}%` : `치명 +${8 + (level - 1) * 2}% · 공속 +${12 + (level - 1) * 2}%`;
+      card.innerHTML = `<div class="skill-icon">${passive.icon}</div><div class="skill-info"><h3>${passive.name} <small>요구 Lv.${passive.level}</small></h3><p>${passive.description}</p><strong class="skill-level">${learned ? `스킬 Lv.${level} / ${MAX_SKILL_LEVEL}` : '미습득 · 습득 시 스킬 Lv.1'}</strong><small>${bonus}</small><div class="skill-actions"></div></div>`;
       const action = card.querySelector<HTMLElement>('.skill-actions')!;
-      if (learned) { const state = document.createElement('span'); state.textContent = '습득 완료 · 상시 적용'; action.appendChild(state); }
+      if (learned) { const state = document.createElement('span'); state.textContent = '습득 완료 · 상시 적용'; action.appendChild(state); this.addSkillUpgrade(action, id, passive.name); }
       else {
         const button = document.createElement('button'); button.textContent = canLearn(save.level, passive.level) ? '습득' : `Lv.${passive.level} 필요`;
         button.disabled = !canLearn(save.level, passive.level);
         button.onclick = () => {
           const before = totalStats(save).health;
           save.passives.push(id);
+          save.skillLevels[id] = 1;
           const gained = totalStats(save).health - before;
           this.world.player.hp += gained; save.health = this.world.player.hp;
           this.world.onChange(); this.message(`${passive.name} 습득!`);
@@ -392,6 +396,24 @@ export class Interface {
       list.appendChild(card);
     }
     dialog.appendChild(list);
+  }
+
+  private addSkillUpgrade(actions: HTMLElement, id: SkillLevelId, name: string): void {
+    const level = skillLevel(this.world.save, id);
+    const button = document.createElement('button');
+    button.textContent = level >= MAX_SKILL_LEVEL ? '최대 레벨' : `레벨업 (${skillUpgradeCost(level)}골드)`;
+    button.disabled = level >= MAX_SKILL_LEVEL;
+    button.onclick = () => {
+      const before = totalStats(this.world.save).health;
+      const result = upgradeSkill(this.world.save, id);
+      if (!result.ok) { this.message(result.message); return; }
+      const gained = totalStats(this.world.save).health - before;
+      this.world.player.hp += gained;
+      this.world.save.health = this.world.player.hp;
+      this.world.onChange();
+      this.message(`${name} ${result.message}`);
+    };
+    actions.appendChild(button);
   }
 
   private salvageValue(item: Item): number { return { common: 3, magic: 10, rare: 25, legendary: 60 }[item.rarity]; }
