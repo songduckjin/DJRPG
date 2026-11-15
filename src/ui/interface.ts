@@ -150,10 +150,9 @@ export class Interface {
       cell.querySelector('b')!.textContent = item.name;
       cell.onclick = () => { this.selected = item.id; this.renderModal(); };
       grid.appendChild(cell);
+      if (item.id === this.selected) grid.appendChild(this.itemDetail(save, item));
     }
     if (!visible.length) grid.innerHTML = '<p class="empty">이 분류에 획득한 장비가 없습니다.</p>';
-    const selected = save.bag.find(item => item.id === this.selected);
-    if (selected) section.appendChild(this.itemDetail(save, selected));
     const footer = document.createElement('div'); footer.className = 'modal-bag-footer';
     const count = document.createElement('span'); count.textContent = `보유 ${save.bag.length}/40`;
     const controls = document.createElement('div'); controls.className = 'bag-footer-actions';
@@ -163,18 +162,20 @@ export class Interface {
       this.selected = undefined; this.world.onChange();
       this.message(changed ? `${changed}부위 자동 장착 완료` : '이미 최고 장비 장착 중');
     };
-    const select = document.createElement('select'); select.className = 'salvage-rarity'; select.setAttribute('aria-label', '일괄 분해 최대 등급');
-    for (const [rarity, label] of [['common', '일반만'], ['magic', '마법 이하'], ['rare', '희귀 이하']] as const) {
-      const option = document.createElement('option'); option.value = rarity; option.textContent = label; select.appendChild(option);
-    }
-    select.value = this.salvageRarity;
-    select.onchange = () => {
-      this.salvageRarity = select.value as Exclude<Rarity, 'legendary'>;
+    const rarityOrder = ['common', 'magic', 'rare'] as const;
+    const rarityLabels: Record<Exclude<Rarity, 'legendary'>, string> = { common: '일반만', magic: '마법 이하', rare: '희귀 이하' };
+    const rarityButton = document.createElement('button'); rarityButton.className = 'salvage-rarity'; rarityButton.type = 'button';
+    rarityButton.textContent = `기준: ${rarityLabels[this.salvageRarity]}`;
+    rarityButton.setAttribute('aria-label', `일괄 분해 기준 ${rarityLabels[this.salvageRarity]}. 누르면 다음 등급으로 변경`);
+    rarityButton.onclick = () => {
+      this.salvageRarity = rarityOrder[(rarityOrder.indexOf(this.salvageRarity) + 1) % rarityOrder.length];
+      rarityButton.textContent = `기준: ${rarityLabels[this.salvageRarity]}`;
+      rarityButton.setAttribute('aria-label', `일괄 분해 기준 ${rarityLabels[this.salvageRarity]}. 누르면 다음 등급으로 변경`);
       try { localStorage.setItem('djrpg-salvage-rarity', this.salvageRarity); }
       catch (error) { this.message(`분해 기준을 저장하지 못했습니다: ${String(error)}`); }
     };
     const salvage = document.createElement('button'); salvage.className = 'salvage'; salvage.textContent = '일괄 분해'; salvage.onclick = () => this.salvage();
-    controls.append(equip, select, salvage); footer.append(count, controls); section.appendChild(footer);
+    controls.append(equip, rarityButton, salvage); footer.append(count, controls); section.appendChild(footer);
     dialog.appendChild(section);
   }
 
