@@ -1,3 +1,9 @@
+## 2026-11-15 · 작업 3
+- `src/game/render.ts`: 던전 타일·전사·해골 스프라이트와 그림자·방향/피격 모션 적용.
+- `src/game/world.ts`, `store.ts`: 기본 ON 자동사냥, 드랍 우선 추적, 수동 이동 우선, 설정 저장.
+- `src/ui/interface.ts`, `src/styles/main.css`: 가방+하단 메뉴, 상태·10칸 장비·스킬 팝업 구현.
+- 검증: `pnpm run check`, `pnpm run build` 성공; 6개 에셋 빌드 포함 확인.
+
 ## 2026-11-15 · 작업 2
 - `vercel.json`에 Vite 빌드·`dist` 출력, SPA fallback, HTML/정적 자산 캐시 헤더 추가.
 - 검증: `pnpm run build` 성공 (`tsc --noEmit && vite build`), JSON 구문 검사 통과.

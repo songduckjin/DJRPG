@@ -21,13 +21,20 @@ const ui = new Interface(appRoot, world, () => saveGame(save));
 gameUi = ui;
 if (pendingMessage) ui.message(pendingMessage);
 const view = new GameView();
-await view.mount(ui.canvasHost);
+try { await view.mount(ui.canvasHost); }
+catch (error) {
+  const failure = document.createElement('div'); failure.className = 'load-error';
+  failure.textContent = `그래픽 리소스를 불러오지 못했습니다. 새로고침 후 다시 시도하세요. (${String(error)})`;
+  appRoot.appendChild(failure);
+  throw error;
+}
 
 const keys = new Set<string>();
 const direction = () => {
   const x = Number(keys.has('d') || keys.has('arrowright')) - Number(keys.has('a') || keys.has('arrowleft'));
   const y = Number(keys.has('s') || keys.has('arrowdown')) - Number(keys.has('w') || keys.has('arrowup'));
-  if (x || y || !document.querySelector('.stick:active')) world.move = { x, y };
+  world.keyboardActive = Boolean(x || y);
+  world.keyboardMove = { x, y };
 };
 window.addEventListener('keydown', e => {
   const key = e.key.toLowerCase();
@@ -40,7 +47,7 @@ window.addEventListener('keydown', e => {
   if (key === '3') world.action('warcry');
 });
 window.addEventListener('keyup', e => { keys.delete(e.key.toLowerCase()); direction(); });
-window.addEventListener('blur', () => { keys.clear(); world.move = { x: 0, y: 0 }; world.attackHeld = false; saveGame(save); });
+window.addEventListener('blur', () => { keys.clear(); world.move = { x: 0, y: 0 }; world.keyboardMove = { x: 0, y: 0 }; world.keyboardActive = false; world.joystickActive = false; world.attackHeld = false; saveGame(save); });
 document.addEventListener('visibilitychange', () => { if (document.hidden) saveGame(save); });
 
 if (!hasSave) {

@@ -1,7 +1,7 @@
 import { rollItem, totalStats, type Item, type Save } from './store';
 
 export type Enemy = { x: number; y: number; hp: number; maxHp: number; boss: boolean; hit: number };
-export type Drop = { x: number; y: number; item: Item; age: number };
+export type Drop = { x: number; y: number; item: Item; age: number; warned: boolean };
 export type Effect = { x: number; y: number; kind: 'slash' | 'spin' | 'slam' | 'warcry' | 'hit'; age: number; duration: number; angle: number };
 export type Action = 'attack' | 'spin' | 'slam' | 'warcry';
 export const cooldowns: Record<Action, number> = { attack: .42, spin: 5, slam: 7, warcry: 12 };
@@ -16,6 +16,10 @@ export class World {
   spawnTimer = 0;
   attackHeld = false;
   move = { x: 0, y: 0 };
+  keyboardMove = { x: 0, y: 0 };
+  activeMove = { x: 0, y: 0 };
+  joystickActive = false;
+  keyboardActive = false;
   bossPending = false;
   onChange: () => void = () => {};
   onMessage: (text: string) => void = () => {};
@@ -51,7 +55,6 @@ export class World {
         if (d < 115 && d > 0) { enemy.x += dx / d * 40; enemy.y += dy / d * 40; }
       }
     }
-    this.onChange();
   }
 
   nearest(): Enemy | undefined {
@@ -85,7 +88,7 @@ export class World {
     }
     const guaranteed = this.save.tutorial === 0 && !enemy.boss;
     if (guaranteed || Math.random() < (enemy.boss ? 1 : .26)) {
-      this.drops.push({ x: enemy.x, y: enemy.y, item: rollItem(this.save.floor, guaranteed), age: 0 });
+      this.drops.push({ x: enemy.x, y: enemy.y, item: rollItem(this.save.floor, guaranteed), age: 0, warned: false });
       if (guaranteed) { this.save.tutorial = 1; this.onMessage('낡은 검이 떨어졌습니다. 빛기둥으로 이동하세요!'); }
     }
     if (enemy.boss) {
@@ -106,11 +109,29 @@ export class World {
     p.hit = Math.max(0, p.hit - dt);
     p.mp = Math.min(100, p.mp + dt * 6);
     if (this.attackHeld) this.action('attack');
-    const magnitude = Math.hypot(this.move.x, this.move.y);
+    this.activeMove = this.keyboardActive ? this.keyboardMove : this.move;
+    if (this.save.auto && !this.joystickActive && !this.keyboardActive) {
+      const drop = this.save.bag.length >= 40 ? undefined : this.drops.reduce<Drop | undefined>((best, current) => !best || Math.hypot(current.x - p.x, current.y - p.y) < Math.hypot(best.x - p.x, best.y - p.y) ? current : best, undefined);
+      const target = drop ?? this.nearest();
+      if (target) {
+        const dx = target.x - p.x, dy = target.y - p.y, distance = Math.hypot(dx, dy);
+        const desired = drop ? 20 : 68;
+        this.activeMove = distance > desired ? { x: dx / distance, y: dy / distance } : { x: 0, y: 0 };
+        if (distance > 1) p.facing = Math.atan2(dy, dx);
+        if (!drop && distance < 120) {
+          const nearby = this.enemies.filter(enemy => Math.hypot(enemy.x - p.x, enemy.y - p.y) < 105).length;
+          if (distance < 90) this.action('attack');
+          if (nearby >= 1 && this.cooldown.spin <= 0 && p.mp >= costs.spin) this.action('spin');
+          if (this.cooldown.slam <= 0 && p.mp >= costs.slam) this.action('slam');
+          if (this.cooldown.warcry <= 0 && p.mp >= costs.warcry) this.action('warcry');
+        }
+      } else this.activeMove = { x: 0, y: 0 };
+    }
+    const magnitude = Math.hypot(this.activeMove.x, this.activeMove.y);
     if (magnitude > .05) {
       const speed = (p.berserk > 0 ? 160 : 125) * dt / Math.max(1, magnitude);
-      p.x += this.move.x * speed; p.y += this.move.y * speed;
-      p.facing = Math.atan2(this.move.y, this.move.x);
+      p.x += this.activeMove.x * speed; p.y += this.activeMove.y * speed;
+      p.facing = Math.atan2(this.activeMove.y, this.activeMove.x);
     }
     this.spawnTimer -= dt;
     if (this.spawnTimer <= 0 && this.enemies.length < 18) {
@@ -128,8 +149,7 @@ export class World {
       if (d < 35 && p.hit <= 0) {
         p.hp = Math.max(0, p.hp - Math.max(1, (enemy.boss ? 20 : 7) - totalStats(this.save).defense * .2));
         p.hit = .85;
-        if (p.hp <= 0) { p.hp = totalStats(this.save).health; p.x = 0; p.y = 0; this.save.gold = Math.max(0, this.save.gold - 10); this.onMessage('쓰러졌습니다. 10골드를 잃고 부활했습니다.'); }
-        this.onChange();
+        if (p.hp <= 0) { p.hp = totalStats(this.save).health; this.save.health = p.hp; p.x = 0; p.y = 0; this.save.gold = Math.max(0, this.save.gold - 10); this.onMessage('쓰러졌습니다. 10골드를 잃고 부활했습니다.'); this.onChange(); }
       }
       enemy.hit = Math.max(0, enemy.hit - dt);
     }
@@ -142,10 +162,10 @@ export class World {
           if (drop.item.name === '낡은 검' && this.save.tutorial === 1) this.save.tutorial = 2;
           this.onMessage(`${drop.item.name} 획득!`);
           this.onChange();
-        } else if (drop.age < 3) this.onMessage('가방이 가득 찼습니다. 장비를 분해하세요.');
+        } else if (!drop.warned) { drop.warned = true; this.onMessage('가방이 가득 찼습니다. 장비를 분해하세요.'); }
       }
     }
-    this.drops = this.drops.filter(d => d.age >= 0);
+    this.drops = this.drops.filter(d => d.age >= 0 && (d.age < 90 || (d.item.name === '낡은 검' && this.save.tutorial < 3)));
     for (const effect of this.effects) effect.age += dt;
     this.effects = this.effects.filter(e => e.age < e.duration);
     this.save.health = p.hp;
