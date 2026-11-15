@@ -682,3 +682,27 @@
 1. `npm run build` 성공 및 TypeScript 에러 0건.
 2. `docs/TASK.md`의 이번 요청을 `[x]`로 표시하고 `docs/WORKLOG.md` 상단에 5줄 이내로 작업 요약 기록.
 3. **토큰 절약**: 브라우저 실기 조작, Playwright/헤드리스 브라우저 실행, Computer Use 도구는 절대 실행하지 않는다.
+---
+
+## [작업 32] Turso 서버 DB 전용 인증 · 저장 전환 (로컬 세이브 제거)
+- **등록일**: 2026-11-15
+- **목표**: 게임 데이터를 `localStorage`에 저장하지 않고 **Vercel Serverless API + Turso DB**에만 저장·불러오기 하도록 전환해 기기 간 동기화와 향후 거래소 확장의 기반을 만든다.
+
+### 작업 내용
+1. **Turso DB 연동 API 엔드포인트 추가 (`api/account.mjs`, `package.json`, `vercel.json`)**:
+   - `@libsql/client`를 설치하고 Vercel 환경변수 `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`으로 Turso DB에 연결한다.
+   - `djrpg_accounts` 테이블(`id TEXT PRIMARY KEY`, `password_hash TEXT`, `save_json TEXT`, `updated_at TEXT`)을 자동 초기화(`CREATE TABLE IF NOT EXISTS`)한다.
+   - `POST /api/account`:
+     - `action: 'register'`: 아이디·비밀번호·성별 검증 후 새 계정 생성 + 초기 세이브 저장 + 세션 토큰 반환.
+     - `action: 'login'`: 아이디·비밀번호 검증 후 DB에 저장된 `save_json` 반환.
+     - `action: 'load'`: 세션 토큰으로 현재 DB 세이브 조회.
+     - `action: 'save'`: 세션 토큰 검증 후 최신 게임 상태(`save_json`)를 DB에 `UPDATE` 저장.
+2. **프론트엔드 로컬 게임 세이브 제거 (`src/game/store.ts`, `src/ui/login.ts`, `src/main.ts`)**:
+   - `localStorage`에는 **인증 토큰(`djrpg.auth.token`)만** 보관하고, 캐릭터 레벨·골드·장비·가방·스킬·층수 등 **게임 세이브 데이터는 `localStorage`에 절대 저장하지 않는다**.
+   - 로그인 성공 시 서버 DB(`POST /api/account` `load`)에서 세이브를 받아 게임을 시작하고, 플레이 중 주기적(예: 5초 간격) 및 중요 이벤트(장비 획득/장착/분해/스킬 레벨업/층 클리어/로그아웃) 시 서버 DB로 자동 저장(`save`)한다.
+   - 환경변수(`TURSO_DATABASE_URL`)가 아직 설정되지 않은 경우 API가 명확한 안내 오류(`503 DB_NOT_CONFIGURED`)를 반환하고 로그인 화면에 안내를 표시한다.
+
+### 검증 및 완료 기준 (Codex Policy)
+1. `npm run build` 성공 및 TypeScript 에러 0건.
+2. `docs/TASK.md`의 이번 요청을 `[x]`로 표시하고 `docs/WORKLOG.md` 상단에 5줄 이내로 작업 요약 기록.
+3. **토큰 절약**: 브라우저 실기 조작, Playwright/헤드리스 브라우저 실행, Computer Use 도구는 절대 실행하지 않는다.
