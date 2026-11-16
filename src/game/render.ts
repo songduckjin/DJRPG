@@ -30,10 +30,10 @@ const animationPaths = {
 const attackSheets = {
   femaleArmoredNoHelmAttack: '/assets/warrior_female_armored_attack.png',
   femaleArmoredHelmAttack: '/assets/warrior_female_armored_helm_attack.png',
-  femaleHelmAttack: '/assets/warrior_female_helm_attack.png',
+  femaleHelmAttack: '/assets/warrior_female_helm_attack.png?v=2',
   femaleArmoredOldHelmAttack: '/assets/warrior_female_armored_oldhelm_attack.png',
-  femaleOldHelmAttack: '/assets/warrior_female_oldhelm_attack.png',
-  maleHelmAttack: '/assets/warrior_male_helm_attack.png'
+  femaleOldHelmAttack: '/assets/warrior_female_oldhelm_attack.png?v=2',
+  maleHelmAttack: '/assets/warrior_male_helm_attack.png?v=2'
 } as const;
 const walkSheets = {
   maleBaseWalk: '/assets/walk8_male_base.png', femaleBaseWalk: '/assets/walk8_female_base.png',

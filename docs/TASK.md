@@ -436,12 +436,12 @@
 
 ---
 
-## [-] [작업 66] 투구 단독 표시와 여성 스킬 공격 시트 수정
+## [x] [작업 66] 투구 단독 표시와 여성·남성 스킬 공격 시트 수정
 
 - **등록일**: 2026-11-16
 - **담당자**: 로컬 Codex
-- **수정 예정 파일**: `src/game/appearance.ts`, `src/game/render.ts`, `src/game/render/entities.ts`, `tests/appearance.test.mjs`, `tests/hero-art.test.mjs`, `public/assets/warrior_female_*_attack.png`, `docs/TASK.md`, `docs/WORKLOG.md`.
-- **목표**: 남녀 투구 단독 착용 외형을 유지하고, 여성 투구 단독 착용 시 잘못 연결된 보행 시트를 올바른 공격 4프레임 이미지로 교체한다.
+- **수정 예정 파일**: `src/game/appearance.ts`, `src/game/render.ts`, `src/game/render/entities.ts`, `tests/appearance.test.mjs`, `tests/hero-art.test.mjs`, `public/assets/warrior_female_*_attack.png`, `public/assets/warrior_male_helm_attack.png`, `docs/TASK.md`, `docs/WORKLOG.md`.
+- **목표**: 남녀 투구 단독 착용 외형을 유지하고, 잘못 연결된 보행 시트를 올바른 공격 4프레임 이미지로 교체한다.
 - **완료 기준**: 투구 단독/갑옷 동시 조합의 정지·보행·스킬 공격 이미지가 일관되고 공격 시트 형태 검증, 타입 검사·전체 테스트·빌드가 통과한다.
 
 ---

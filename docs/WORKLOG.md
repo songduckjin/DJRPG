@@ -1,3 +1,9 @@
+## 2026-11-16 · 작업 66
+- `public/assets/warrior_female_helm_attack.png`, `warrior_female_oldhelm_attack.png`, `warrior_male_helm_attack.png`: 투구 단독 착용 공격 시트를 보행 2행에서 공격 1행 4프레임으로 교체.
+- `src/game/render.ts`: 교체 이미지 캐시 갱신; 기존 `src/game/appearance.ts`의 남녀 투구 단독 외형 연결 확인.
+- `tests/hero-art.test.mjs`: 공격 시트 6종의 4×1 비율 검사 추가.
+- 검증: `pnpm run check`, `pnpm test` 68건, `pnpm run build` 통과.
+
 ## 2026-11-16 · 작업 65
 - `public/assets/warrior_male_*_helm.png`, `walk8_male_*_helm.png`, `warrior_male_helm_attack.png`: 남성 투구 단독 정지·보행·공격 이미지 5개 생성.
 - `src/game/appearance.ts`, `src/game/render.ts`, `src/game/render/entities.ts`: 남성 갑옷·투구 독립 조합 외형 연결, 여성 분기 유지.
