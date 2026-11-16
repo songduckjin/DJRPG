@@ -23,10 +23,10 @@ import { Market } from '../game/market';
 import { renderMarket, updateMarketLive } from './modals/marketModal';
 
 const navIcons = {
-  market: '<img class="nav-icon" src="/assets/icons/nav_market.png" alt="" aria-hidden="true" />',
-  status: '<img class="nav-icon" src="/assets/icons/nav_status.png" alt="" aria-hidden="true" />',
-  equipment: '<img class="nav-icon" src="/assets/icons/nav_equipment.png" alt="" aria-hidden="true" />',
-  skills: '<img class="nav-icon" src="/assets/icons/nav_skills.png" alt="" aria-hidden="true" />'
+  market: '<img class="nav-icon" src="/assets/icons/nav_market_v2.png" alt="" aria-hidden="true" />',
+  status: '<img class="nav-icon" src="/assets/icons/nav_status_v2.png" alt="" aria-hidden="true" />',
+  equipment: '<img class="nav-icon" src="/assets/icons/nav_equipment_v2.png" alt="" aria-hidden="true" />',
+  skills: '<img class="nav-icon" src="/assets/icons/nav_skills_v2.png" alt="" aria-hidden="true" />'
 };
 type Modal = 'status' | 'equipment' | 'skills' | 'account' | 'floor' | 'offline' | 'market' | 'salvage' | 'codex';
 export type BagFilter = 'all' | 'weapon' | 'armor' | 'accessory' | 'skillbook';
