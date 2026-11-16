@@ -29,6 +29,12 @@ export function renderInventory(this: Interface, dialog: HTMLElement): void {
       const cell = document.createElement('button'); cell.className = `bag-item ${item.rarity} ${this.selected === item.id ? 'selected' : ''}`;
       cell.innerHTML = `${itemIcon.call(this, item.slot, item, 'item-icon')}<small>${rarityNames[item.rarity]}</small><b></b>`;
       cell.querySelector('b')!.textContent = item.name;
+      const locked = !isSkillBook(item) && !!item.locked;
+      cell.setAttribute('aria-label', `${item.name}${locked ? ' · 잠긴 장비' : ''}`);
+      if (locked) {
+        const badge = document.createElement('span'); badge.className = 'lock-icon is-locked bag-lock-badge';
+        badge.setAttribute('aria-hidden', 'true'); cell.appendChild(badge);
+      }
       cell.setAttribute('aria-expanded', String(this.selected === item.id));
       cell.onclick = () => { this.selected = this.selected === item.id ? undefined : item.id; this.renderModal(); };
       grid.appendChild(cell);
