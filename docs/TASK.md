@@ -637,7 +637,7 @@
 
 ---
 
-## [-] [작업 84] 스킬 원 균등 간격 및 가방 행 겹침 방지
+## [x] [작업 84] 스킬 원 균등 간격 및 가방 행 겹침 방지
 - **등록일**: 2026-11-16
 - **담당자**: 이 대화의 클라우드 Codex
 - **수정 예정 파일**: `src/styles/hud.css`, `src/styles/modals.css`, `docs/TASK.md`, `docs/WORKLOG.md`.
