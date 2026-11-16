@@ -122,7 +122,7 @@ export function drawHero(this: GameView, world: World, x: number, y: number, tim
 
 export function updateAfterimages(this: GameView, world: World, project: (x: number, y: number) => [number, number], dt: number): void {
     for (const effect of world.effects) {
-      if (!['slash', 'slash2', 'spin', 'slam', 'power', 'destroy', 'hell'].includes(effect.kind) || effect.age > .19) continue;
+      if (!['spin', 'slam', 'power', 'destroy', 'hell'].includes(effect.kind) || effect.age > .19) continue;
       const index = Math.floor(effect.age / .065);
       if (index >= 3 || index <= (this.ghostEmissions.get(effect) ?? -1)) continue;
       this.ghostEmissions.set(effect, index);
