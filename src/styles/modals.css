@@ -122,3 +122,6 @@
 .modal-dialog.market-modal > header { top: -12px; }
 .modal-dialog.skills-modal > header h2, .modal-dialog.market-modal > header h2 { margin: 0; }
 .modal-dialog.skills-modal > header .modal-close, .modal-dialog.market-modal > header .modal-close { width: 44px; height: 44px; flex: none; }
+.skillbook-use { min-height: 36px; padding: 7px 18px; border: 1px solid #b58b52; border-radius: 4px; background: linear-gradient(#65472d, #372521); color: #f8dfb3; box-shadow: inset 0 1px #d6b87930; font: inherit; font-size: 12px; }
+.skillbook-use:focus-visible { outline: 2px solid #f1ca85; outline-offset: 2px; }
+.skillbook-use:active { background: #755235; }

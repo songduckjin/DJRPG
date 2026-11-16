@@ -446,7 +446,7 @@
 
 ---
 
-## [-] [작업 67] 선택한 황야 배경·모닥불 조명 및 도감 등급 UI
+## [x] [작업 67] 선택한 황야 배경·모닥불 조명 및 도감 등급 UI
 - **등록일**: 2026-11-16
 - **담당자**: 이 대화의 클라우드 Codex
 - **수정 예정 파일**: `src/main.ts`, `src/game/render/field.ts`, `src/game/wasteland.ts`, `public/assets/wasteland-scene.png`, `src/ui/modals/equipModal.ts`, `src/ui/modals/codexModal.ts`, `src/ui/interface.ts`, `src/game/codex.ts`, `src/styles/codex.css`, `src/styles/modals.css`, 관련 테스트 및 작업 문서.

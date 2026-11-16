@@ -64,7 +64,7 @@ export function itemDetail(this: Interface, save: Save, item: Item): HTMLElement
     if (isSkillBook(item)) {
       const title = document.createElement('h2'); title.textContent = item.name; panel.appendChild(title);
       const note = document.createElement('p'); note.textContent = '사용하면 해당 스킬을 습득하거나 1레벨 강화합니다. 최대 Lv.10'; panel.appendChild(note);
-      const use = document.createElement('button'); use.textContent = '사용하기';
+      const use = document.createElement('button'); use.type = 'button'; use.className = 'skillbook-use'; use.textContent = '사용하기';
       use.onclick = () => {
         const before = totalStats(save).health;
         const result = useSkillBook(save, item.id);

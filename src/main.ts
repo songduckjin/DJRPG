@@ -1,3 +1,4 @@
+import { mountWasteland } from './game/wasteland';
 import { GameView } from './game/render';
 import { clearLegacySave, parseSave, readLegacySave } from './game/store';
 import { applyOfflineRewards } from './game/offline';
@@ -42,7 +43,7 @@ if (pendingMessage) ui.message(pendingMessage);
 if (offlineReward) ui.showOfflineReward(offlineReward);
 if (legacyKey || offlineReward) void flush();
 const view = new GameView();
-try { await view.mount(ui.canvasHost); }
+try { await view.mount(ui.canvasHost); await mountWasteland(view); }
 catch (error) {
   const failure = document.createElement('div'); failure.className = 'load-error';
   failure.textContent = `그래픽 리소스를 불러오지 못했습니다. 새로고침 후 다시 시도하세요. (${String(error)})`;

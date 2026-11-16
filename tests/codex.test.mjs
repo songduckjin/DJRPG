@@ -48,3 +48,12 @@ test('every illustrated tier previews options consistent with generated loot at 
     assert.equal(Object.keys(actual.stats).length,preview.stats.length);
   }} finally {Math.random=random;}
 });
+
+test('grade filtering yields four variants per base with distinct identities and exact ownership',async()=>{
+  const { codexVariants }=await import('../src/game/codex.ts');const save=freshSave();
+  assert.equal(codexVariants(save).length,300);assert.equal(codexVariants(save,'','','all','rare').length,75);
+  const swords=codexVariants(save,'쯔바이핸드','weapon');assert.equal(swords.length,4);assert.equal(new Set(swords.map(v=>v.key)).size,4);
+  assert.equal(codexVariants(save,'쯔바이핸드','weapon','all','legendary')[0].name,'영원의 쯔바이핸드');
+  save.bag=[item('황혼의 쯔바이핸드')];save.equipment.weapon={...item('서리의 쯔바이핸드'),rarity:'magic'};
+  assert.equal(codexVariants(save,'','weapon','owned','rare').length,1);assert.equal(codexVariants(save,'','weapon','owned','legendary').length,0);
+});

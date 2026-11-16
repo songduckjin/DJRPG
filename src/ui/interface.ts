@@ -39,6 +39,7 @@ export class Interface {
   codexQuery = '';
   codexSlot = '';
   codexState = 'all';
+  codexRarity = '';
   codexSelected?: string;
   openModal: Modal | null = null;
   top: HTMLElement;
@@ -148,7 +149,7 @@ export class Interface {
       const title = heading.querySelector('h2')!, group = document.createElement('div'); group.className = 'modal-title-group';
       title.replaceWith(group); group.append(title);
       const button = document.createElement('button'); button.type = 'button'; button.className = 'codex-open';
-      button.textContent = this.openModal === 'equipment' ? '도감' : '장비로';
+      button.textContent = this.openModal === 'equipment' ? '도감' : '장비';
       button.onclick = () => this.open(this.openModal === 'equipment' ? 'codex' : 'equipment'); group.append(button);
     }
     dialog.appendChild(heading);

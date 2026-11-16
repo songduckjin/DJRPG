@@ -1,4 +1,4 @@
-import { Sprite } from 'pixi.js';
+import { placeWasteland, wastelandLayout } from '../wasteland';
 import type { World } from '../world';
 import type { GameView } from '../render';
 
@@ -20,35 +20,9 @@ export function drawRunes(this: GameView, world: World, x: number, y: number, ti
     }
   }
 
-export function drawTerrain(this: GameView, world: World, project: (x: number, y: number) => [number, number], time: number): void {
-    const tile = 220, ox = Math.floor(world.player.x / tile), oy = Math.floor(world.player.y / tile);
-    const scale = Math.max(.8, this.app.screen.width / 480);
-    let used = 0;
-    for (let ix = ox - 4; ix <= ox + 4; ix++) for (let iy = oy - 4; iy <= oy + 4; iy++) {
-      let hash = Math.imul(ix, 73856093) ^ Math.imul(iy, 19349663);
-      hash = Math.imul(hash ^ (hash >>> 13), 1274126177);
-      hash = (hash ^ (hash >>> 16)) >>> 0;
-      if (hash % 4 !== 0) continue;
-      const [x, y] = project(ix * tile + ((hash >>> 8) % 100) - 50, iy * tile + ((hash >>> 16) % 100) - 50);
-      if (x < -160 || x > this.app.screen.width + 160 || y < -100 || y > this.app.screen.height + 160) continue;
-      const index = (hash >>> 5) % 6, texture = this.terrainTextures[index];
-      let sprite = this.terrainSprites[used];
-      if (!sprite) {
-        sprite = new Sprite(texture); sprite.anchor.set(.5, .96);
-        this.terrainLayer.addChild(sprite); this.terrainSprites.push(sprite);
-      }
-      sprite.texture = texture; sprite.visible = true;
-      sprite.position.set(x, y);
-      sprite.width = [78, 45, 60, 52, 130, 66][index] * scale;
-      sprite.height = sprite.width * texture.height / texture.width;
-      used++;
-      if (index === 2) {
-        const flicker = Math.sin(time * 12 + hash) * 2;
-        this.glow.circle(x, y - 18 * scale, (38 + flicker) * scale).fill({ color: 0xff7228, alpha: .09 });
-        this.glow.circle(x, y - 18 * scale, (17 + flicker) * scale).fill({ color: 0xffb451, alpha: .12 });
-      }
-    }
-    for (let index = used; index < this.terrainSprites.length; index++) this.terrainSprites[index].visible = false;
+export function drawTerrain(this: GameView, _world: World, _project: (x: number, y: number) => [number, number], _time: number): void {
+    // The approved scene already contains rocks, grass and fires. Do not double them.
+    placeWasteland(this);
   }
 
 export function drawDust(this: GameView, world: World, project: (x: number, y: number) => [number, number], time: number, dt: number): void {
@@ -64,12 +38,11 @@ export function drawDust(this: GameView, world: World, project: (x: number, y: n
   }
 
 export function drawLighting(this: GameView, w: number, h: number, time: number): void {
-    for (let i = 0; i < 4; i++) {
-      const x = i % 2 ? w * .88 : w * .12, y = i < 2 ? h * .16 : h * .75;
-      const flicker = Math.sin(time * 8 + i * 5) * 4;
-      this.glow.circle(x, y, 78 + flicker).fill({ color: 0xf0742e, alpha: .055 });
-      this.glow.circle(x, y, 35 + flicker).fill({ color: 0xffa13d, alpha: .08 });
-    }
+    wastelandLayout(w, h).fires.forEach((fire, index) => {
+      const flicker = 1 + Math.sin(time * 8 + index * 5) * .04;
+      this.glow.circle(fire.x, fire.y, fire.radius * flicker).fill({ color: 0xf0742e, alpha: .055 });
+      this.glow.circle(fire.x, fire.y, fire.radius * .46 * flicker).fill({ color: 0xffa13d, alpha: .08 });
+    });
   }
 
 export function drawVignette(this: GameView, w: number, h: number, cx: number, cy: number, time: number): void {
