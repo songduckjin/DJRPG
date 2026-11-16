@@ -63,3 +63,15 @@
 .market-equipped-info { display: flex; min-width: 0; flex-direction: column; gap: 5px; }
 .market-equipped-info b { overflow-wrap: anywhere; line-height: 1.5; }
 .market-equipped-info small { color: #bda98d; font-size: 10px; }
+
+.market-register-filters { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 8px; margin-bottom: 12px; }
+.market-pick { position: relative; }
+.market-pick.rarity-common { border-color: #9ca3af; }.market-pick.rarity-magic { border-color: #60a5fa; }.market-pick.rarity-rare { border-color: #facc15; }.market-pick.rarity-epic { border-color: #c084fc; }.market-pick.rarity-unique { border-color: #fb923c; }.market-pick.rarity-legendary { border-color: #f87171; }
+.market-pick .lock-icon { position: absolute; right: 2px; top: 2px; width: 20px; height: 20px; }
+.market-pick small.rarity-common { color: #9ca3af; }.market-pick small.rarity-magic { color: #60a5fa; }.market-pick small.rarity-rare { color: #facc15; }.market-pick small.rarity-epic { color: #c084fc; }.market-pick small.rarity-unique { color: #fb923c; }.market-pick small.rarity-legendary { color: #f87171; }
+.market-unlock-confirm { border: 1px solid #b28c54; padding: 12px; margin-top: 12px; background: #332721; color: #efd9b6; font-size: 12px; }
+.market-unlock-confirm button { margin: 4px 5px 0 0; }
+
+.market-meta .currency-amount { font-size: 12px; font-weight: 700; }
+
+.market-option-hint { grid-column: 1 / -1; color: #b7a38b; font-size: 10px; line-height: 1.6; }

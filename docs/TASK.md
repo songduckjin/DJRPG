@@ -563,7 +563,7 @@
 
 ---
 
-## [-] [작업 76] 금화 UI·장착 스킬 정렬·판매 필터·장비 잠금
+## [x] [작업 76] 금화 UI·장착 스킬 정렬·판매 필터·장비 잠금
 - **등록일**: 2026-11-16
 - **담당자**: 이 대화의 클라우드 Codex
 - **수정 예정 파일**: `src/game/items.ts`, `inventory.ts`, `store.ts`, `src/ui/modals/equipModal.ts`, `skillModal.ts`, `marketModal.ts`, `src/ui/hud.ts`, `src/ui/interface.ts`, `src/ui/bagDetail.ts`, 관련 UI·스타일·재화 표시·정렬/잠금 보조 모듈, `server/market.mjs`, `server/database.mjs`, 금화/자물쇠 에셋, 관련 테스트 및 작업 문서.

@@ -6,9 +6,10 @@ export function finishSalvage(this: Interface, ids: string[]): void {
   const result = salvageItems(this.world.save, ids);
   this.salvageIds = undefined; this.selected = undefined; this.open('equipment');
   this.world.onChange();
-  this.message(result.count ? `${result.count}개 분해 완료 (+${result.gold}골드 / +${result.stones}강화석)` : '분해할 장비가 없습니다.');
+  this.message(result.count ? `${result.count}개 분해 완료 (+${result.gold}금화 / +${result.stones}강화석)` : '분해할 장비가 없습니다.');
 }
 export function requestSalvage(this: Interface, ids: string[]): void {
+  if (ids.length === 1 && this.world.save.bag.some(item => item.id === ids[0] && 'locked' in item && item.locked)) { this.message('잠긴 장비입니다. 먼저 잠금을 해제하세요.'); return; }
   const plan = salvagePlan(this.world.save, ids);
   if (!plan.items.length) { this.message('분해할 장비가 없습니다.'); return; }
   if (plan.emptySlots.length) { this.salvageIds = plan.items.map(item => item.id); this.open('salvage'); }

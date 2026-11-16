@@ -83,7 +83,14 @@ export function itemDetail(this: Interface, save: Save, item: Item): HTMLElement
       panel.appendChild(use); return panel;
     }
     const equipped = save.equipment[item.slot];
-    const title = document.createElement('h2'); title.textContent = `${item.name} · ${slotNames[item.slot]}`; panel.appendChild(title);
+    const heading = document.createElement('div'); heading.className = 'item-detail-heading';
+    const title = document.createElement('h2'); title.textContent = `${item.name} · ${slotNames[item.slot]}`;
+    const lock = document.createElement('button'); lock.type = 'button'; lock.className = 'item-lock';
+    lock.setAttribute('aria-pressed', String(!!item.locked)); lock.setAttribute('aria-label', item.locked ? '장비 잠금 해제' : '장비 잠금');
+    lock.title = item.locked ? '잠금 중 · 누르면 해제' : '열림 · 누르면 분해 방지 잠금';
+    lock.innerHTML = `<span class="lock-icon ${item.locked ? 'is-locked' : 'is-open'}" aria-hidden="true"></span>`;
+    lock.onclick = () => { if (this.world.paused) return; item.locked = !item.locked; this.world.onChange(); };
+    heading.append(title, lock); panel.append(heading);
     const compared = new Set<Stat>([...Object.keys(item.stats), ...Object.keys(equipped?.stats ?? {})] as Stat[]);
     for (const stat of compared) {
       const diff = (item.stats[stat] ?? 0) - (equipped?.stats[stat] ?? 0);
@@ -97,13 +104,13 @@ export function itemDetail(this: Interface, save: Save, item: Item): HTMLElement
       if (item.name === '낡은 두손검' && save.tutorial === 2) { save.tutorial = 3; this.message('튜토리얼 완료! 두손검을 장착했습니다.'); }
       this.selected = undefined; this.world.onChange();
     };
-    const dismantle = document.createElement('button'); dismantle.textContent = '분해'; dismantle.onclick = () => requestSalvage.call(this, [item.id]);
+    const dismantle = document.createElement('button'); dismantle.textContent = item.locked ? '잠금 중' : '분해'; dismantle.disabled = !!item.locked; dismantle.onclick = () => requestSalvage.call(this, [item.id]);
     buttons.append(equip, dismantle); panel.appendChild(buttons); return panel;
   }
 
 export function salvage(this: Interface): void {
     const save = this.world.save;
-    const ids = save.bag.filter(item => !isSkillBook(item) && rarityRanks[item.rarity] <= rarityRanks[this.salvageRarity]).map(item => item.id);
+    const ids = save.bag.filter(item => !isSkillBook(item) && !item.locked && rarityRanks[item.rarity] <= rarityRanks[this.salvageRarity]).map(item => item.id);
     requestSalvage.call(this, ids);
   }
 

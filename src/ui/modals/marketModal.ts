@@ -1,3 +1,5 @@
+import { goldNode, coinMarkup } from '../currency';
+import { filterSaleItems } from '../itemOrder';
 import { equipmentImage, isSkillBook, rarityNames, slotNames, statNames, type Item, type Stat } from '../../game/items';
 import { type MarketView, type Listing, type Market } from '../../game/market';
 import { compareEquipment } from '../../game/itemComparison';
@@ -26,12 +28,8 @@ function select(label: string, values: [string,string][], market: Market, key: s
   node.setAttribute('aria-label', label);
   for (const [value, text] of values) { const option = el('option', '', text); option.value = value; node.append(option); }
   node.value = String(market.filters[key] ?? '');
-  node.onchange = () => { market.filters[key] = node.value; };
+  node.onchange = () => { market.filters[key] = node.value; if (key === 'stat') { market.filters.sort = 'newest'; market.filters.page = 0; market.refresh(); } };
   field.append(node); return field;
-}
-function numberField(label: string, market: Market, key: string): HTMLElement {
-  const field = el('label', 'market-field', label), node = el('input'); node.type = 'number'; node.min = '0'; node.max = '1000000000'; node.step = '1'; node.inputMode = 'numeric'; node.placeholder = '제한 없음'; node.value = String(market.filters[key] ?? '');
-  node.oninput = () => { market.filters[key] = node.value === '' ? '' : Number(node.value); }; field.append(node); return field;
 }
 export function updateMarketLive(ui: Interface): void {
   const market = ui.market, data = market.data;
@@ -51,7 +49,7 @@ export function updateMarketLive(ui: Interface): void {
 export function renderMarket(this: Interface, dialog: HTMLElement): void {
   const market = this.market, data = market.data, guest = this.session.guest;
   dialog.classList.add('market-modal');
-  const hero = el('div', 'market-hero'); hero.append(el('small', '', 'THE WASTELAND EXCHANGE'), el('p', '', '황야의 거래소'), el('span', '', `보유 골드 ◆ ${money(this.world.save.gold)}`)); dialog.append(hero);
+  const hero = el('div', 'market-hero'); hero.append(el('small', '', 'THE WASTELAND EXCHANGE'), el('p', '', '황야의 거래소'), goldNode(this.world.save.gold)); dialog.append(hero);
   const tabs = el('div', 'market-tabs');
   const views: [MarketView,string][] = [['active','판매 중'],['sold','거래 완료'],['mine','내 거래'],['register','판매 등록'],['inbox',`수령함 ${data?.inbox.length ?? 0}`]];
   for (const [view, name] of views) { const tab = button(name, () => market.switch(view), market.busy || !!market.sync.pendingMarket); tab.dataset.marketView = view; tab.classList.toggle('active', market.view === view); tab.setAttribute('aria-pressed', String(market.view === view)); tabs.append(tab); }
@@ -68,7 +66,7 @@ export function renderMarket(this: Interface, dialog: HTMLElement): void {
     for (const delivery of data?.inbox ?? []) {
       const row = el('article', 'market-row');
       if (delivery.item) row.append(icon(delivery.item), itemInfo(delivery.item));
-      else { row.append(el('span', 'market-gold-icon', '◆'), el('b', '', `${money(delivery.gold)} 골드`)); }
+      else { const coin = el('span', 'market-gold-icon'); coin.innerHTML = coinMarkup; row.append(coin, el('b', '', `${money(delivery.gold)} 금화`)); }
       const detail = el('div', 'market-row-bottom'); detail.append(el('small', '', `${delivery.reason} · ${when(delivery.createdAt)}`), button('수령', () => { void market.act('claim', { deliveryId: delivery.id }); }, blocked)); row.append(detail); dialog.append(row);
     }
     if (!data?.inbox.length) dialog.append(el('p', 'empty', '아직 수령할 물품이나 판매대금이 없습니다.'));
@@ -81,23 +79,24 @@ export function renderMarket(this: Interface, dialog: HTMLElement): void {
     const pages = Math.max(1, Math.ceil((data?.total ?? 0) / 20)), page = Number(market.filters.page);
     const nav = el('div', 'market-pagination'); nav.append(button('이전', () => { market.filters.page = page - 1; market.refresh(); }, page <= 0 || market.busy), el('span', '', `${page + 1} / ${pages}`), button('다음', () => { market.filters.page = page + 1; market.refresh(); }, page + 1 >= pages || market.busy)); dialog.append(nav);
   }
-  dialog.append(el('p', 'market-rules', '고정가 골드 거래 · 등록비 없음 · 판매 수수료 5%(올림) · 최대 10건 · 72시간 후 반환'));
+  dialog.append(el('p', 'market-rules', '고정가 금화 거래 · 등록비 없음 · 판매 수수료 5%(올림) · 최대 10건 · 72시간 후 반환'));
   updateMarketLive(this);
 }
 function renderFilters(market: Market, dialog: HTMLElement): void {
   const form = el('form', 'market-search');
   const search = el('input'); search.type = 'search'; search.placeholder = '아이템·스킬북 이름 검색'; search.setAttribute('aria-label', '아이템 이름 검색'); search.maxLength = 80; search.value = String(market.filters.query); search.oninput = () => { market.filters.query = search.value; };
   const submit = el('button', '', '검색'); submit.type = 'submit'; submit.disabled = market.busy; form.append(search, submit);
-  const advanced = el('details'); advanced.append(el('summary', '', '분류 · 옵션 · 가격 필터'));
+  const advanced = el('details'); advanced.append(el('summary', '', '분류 · 등급 · 옵션 필터'));
   const grid = el('div', 'market-filter-grid');
-  grid.append(select('분류', [['','전체'],['weapon','무기·문장'],['armor','방어구'],['accessory','장신구'],['skillbook','스킬북']], market, 'category'), select('등급', [['','전체'], ...Object.entries(rarityNames)], market, 'rarity'), select('부위', [['','전체'], ...Object.entries(slotNames),['skillbook','스킬북']], market, 'slot'), select('정렬', [['newest','최신순'],['priceAsc','낮은 가격순'],['priceDesc','높은 가격순']], market, 'sort'), numberField('최소 가격', market, 'minPrice'), numberField('최대 가격', market, 'maxPrice'), select('옵션', [['','전체'], ...Object.entries(statNames)], market, 'stat'), numberField('옵션 최솟값', market, 'minStat'));
+  grid.append(select('분류', [['','전체'],['weapon','무기·문장'],['armor','방어구'],['accessory','장신구'],['skillbook','스킬북']], market, 'category'), select('등급', [['','전체'], ...Object.entries(rarityNames)], market, 'rarity'), select('옵션', [['','전체'], ...Object.entries(statNames)], market, 'stat'));
+  grid.append(el('small', 'market-option-hint', '옵션 선택 시 해당 능력치가 높은 순서로 표시됩니다.'));
   advanced.append(grid); const reset = button('조건 초기화', () => { market.filters = { query: '', category: '', slot: '', rarity: '', sort: 'newest', page: 0 }; market.refresh(); }); reset.className = 'market-reset'; form.append(advanced, reset);
   form.onsubmit = e => { e.preventDefault(); market.filters.page = 0; market.refresh(); }; dialog.append(form);
 }
 function renderListing(ui: Interface, dialog: HTMLElement, sale: Listing, blocked: boolean): void {
   const market = ui.market, row = el('article', 'market-row'); row.dataset.listing = sale.id;
   row.append(icon(sale.item), itemInfo(sale.item));
-  const meta = el('div', 'market-meta'); meta.append(el('strong', '', `◆ ${money(sale.price)}`), el('small', 'market-state', stateNames[sale.state] || sale.state)); row.append(meta);
+  const meta = el('div', 'market-meta'); meta.append(goldNode(sale.price), el('small', 'market-state', stateNames[sale.state] || sale.state)); row.append(meta);
   const bottom = el('div', 'market-row-bottom');
   bottom.append(el('small', '', `판매자 ${sale.sellerName} · ${sale.state === 'sold' ? `판매 ${when(sale.soldAt!)}` : `만료 ${when(sale.expiresAt)}`}${sale.purchased ? ' · 내가 구매' : ''}`));
   if (sale.state === 'active') {
@@ -128,8 +127,9 @@ function renderListing(ui: Interface, dialog: HTMLElement, sale: Listing, blocke
       }
       table.append(body); detail.append(table);
     }
-    detail.append(button(sale.mine ? '취소하고 수령함으로 반환' : `◆ ${money(sale.price)} 구매 확정`, () => { void market.act(sale.mine ? 'cancel' : 'buy', { listingId: sale.id }); }, blocked || (!sale.mine && ui.world.save.gold < sale.price)));
-    if (!sale.mine && ui.world.save.gold < sale.price) detail.append(el('small', 'market-error', '골드가 부족합니다.'));
+    const confirm = button(sale.mine ? '취소하고 수령함으로 반환' : ' 구매 확정', () => { void market.act(sale.mine ? 'cancel' : 'buy', { listingId: sale.id }); }, blocked || (!sale.mine && ui.world.save.gold < sale.price));
+    if (!sale.mine) confirm.prepend(goldNode(sale.price)); detail.append(confirm);
+    if (!sale.mine && ui.world.save.gold < sale.price) detail.append(el('small', 'market-error', '금화가 부족합니다.'));
     row.append(detail);
   }
   dialog.append(row);
@@ -137,19 +137,46 @@ function renderListing(ui: Interface, dialog: HTMLElement, sale: Listing, blocke
 function renderRegister(ui: Interface, dialog: HTMLElement, blocked: boolean): void {
   const market = ui.market, form = el('form', 'market-register');
   form.append(el('p', 'market-notice', '미장착 장비와 미사용 스킬북만 등록할 수 있습니다. 등록 즉시 거래소에 보관되며, 장착·분해·사용할 수 없습니다.'));
+  const filters = el('div', 'market-register-filters');
+  for (const [key, label, values] of [
+    ['registerCategory', '분류', [['', '전체'], ['weapon', '무기·문장'], ['armor', '방어구'], ['accessory', '장신구'], ['skillbook', '스킬북']]],
+    ['registerRarity', '등급', [['', '전체'], ...Object.entries(rarityNames)]]
+  ] as const) {
+    const field = el('label', 'market-field', label), select = el('select'); select.setAttribute('aria-label', `판매 등록 ${label}`);
+    for (const [value, name] of values) { const option = el('option', '', name); option.value = value; select.append(option); }
+    select.value = market[key]; select.disabled = blocked;
+    select.onchange = () => { market[key] = select.value; market.selectedItem = ''; market.unlockItem = undefined; market.onChange(true); };
+    field.append(select); filters.append(field);
+  }
+  form.append(filters);
   const grid = el('div', 'market-register-grid');
-  for (const item of ui.world.save.bag) {
-    const pick = button('', () => { market.selectedItem = item.id; market.onChange(true); }, blocked); pick.className = `market-pick${market.selectedItem === item.id ? ' selected' : ''}`; pick.append(icon(item), el('small', '', item.name)); pick.setAttribute('aria-label', `${item.name} 판매 선택`); grid.append(pick);
+  const visible = filterSaleItems(ui.world.save.bag, market.registerCategory, market.registerRarity);
+  for (const item of visible) {
+    const pick = button('', () => { market.selectedItem = item.id; market.unlockItem = undefined; market.onChange(true); }, blocked);
+    pick.className = `market-pick rarity-${item.rarity}${market.selectedItem === item.id ? ' selected' : ''}`;
+    pick.append(icon(item), el('small', `rarity-${item.rarity}`, rarityNames[item.rarity]), el('small', '', item.name));
+    if (!isSkillBook(item) && item.locked) { const locked = el('span', 'lock-icon is-locked'); locked.setAttribute('aria-label', '잠긴 장비'); pick.append(locked); }
+    pick.setAttribute('aria-label', `${item.name} · ${rarityNames[item.rarity]} 판매 선택`); grid.append(pick);
   }
   form.append(grid);
-  if (!ui.world.save.bag.length) form.append(el('p', 'empty', '가방에 판매할 아이템이 없습니다.'));
-  const item = ui.world.save.bag.find(entry => entry.id === market.selectedItem);
+  if (!visible.length) form.append(el('p', 'empty', '조건에 맞는 판매 가능 아이템이 없습니다.'));
+  const item = visible.find(entry => entry.id === market.selectedItem);
   if (item) {
     form.append(itemInfo(item));
-    const field = el('label', 'market-field', '판매 가격 (골드)'), input = el('input'); input.type = 'number'; input.required = true; input.min = '1'; input.max = '1000000000'; input.step = '1'; input.inputMode = 'numeric'; input.placeholder = '1 ~ 1,000,000,000'; input.value = market.price; input.disabled = blocked;
+    const field = el('label', 'market-field', '판매 가격 (금화)'), input = el('input'); input.type = 'number'; input.required = true; input.min = '1'; input.max = '1000000000'; input.step = '1'; input.inputMode = 'numeric'; input.placeholder = '1 ~ 1,000,000,000'; input.value = market.price; input.disabled = blocked;
     const proceeds = el('p', 'market-proceeds');
-    const update = () => { market.price = input.value; const price = Number(input.value); proceeds.textContent = Number.isSafeInteger(price) && price > 0 ? `수수료 ◆ ${money(Math.ceil(price * 5 / 100))} · 예상 수령 ◆ ${money(price - Math.ceil(price * 5 / 100))}` : '가격을 입력하면 예상 수령액을 확인할 수 있습니다.'; }; input.oninput = update; update(); field.append(input); form.append(field, proceeds);
+    const update = () => { market.price = input.value; const price = Number(input.value); proceeds.replaceChildren(); if (Number.isSafeInteger(price) && price > 0) proceeds.append('수수료 ', goldNode(Math.ceil(price * 5 / 100)), ' · 예상 수령 ', goldNode(price - Math.ceil(price * 5 / 100))); else proceeds.textContent = '가격을 입력하면 예상 수령액을 확인할 수 있습니다.'; }; input.oninput = update; update(); field.append(input); form.append(field, proceeds);
     const submit = el('button', 'market-primary', '72시간 판매 등록'); submit.type = 'submit'; submit.disabled = blocked || (market.data?.myActive ?? 0) >= 10; form.append(submit);
   }
-  form.onsubmit = e => { e.preventDefault(); if (blocked || !item) return; void market.act('register', { itemId: item.id, price: Number(market.price) }); }; dialog.append(form);
+  if (item && market.unlockItem === item.id) {
+    const confirmation = el('section', 'market-unlock-confirm'); confirmation.setAttribute('role', 'alertdialog'); confirmation.setAttribute('aria-label', '판매할 장비 잠금 해제 확인');
+    confirmation.append(el('p', '', '잠긴 장비입니다. 잠금을 해제하고 판매 등록할까요?'));
+    confirmation.append(button('취소 · 잠금 유지', () => { market.unlockItem = undefined; market.onChange(true); }, blocked), button('잠금 해제 후 판매 등록', () => { void market.act('register', { itemId: item.id, price: Number(market.price), unlockItem: true }); }, blocked));
+    form.append(confirmation);
+  }
+  form.onsubmit = e => {
+    e.preventDefault(); if (blocked || !item) return;
+    if (!isSkillBook(item) && item.locked) { market.unlockItem = item.id; market.onChange(true); ui.root.querySelector<HTMLElement>('.market-unlock-confirm')?.scrollIntoView({ block: 'nearest' }); return; }
+    void market.act('register', { itemId: item.id, price: Number(market.price) });
+  }; dialog.append(form);
 }

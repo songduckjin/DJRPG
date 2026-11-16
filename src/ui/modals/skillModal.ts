@@ -1,6 +1,7 @@
+import { orderedSkills } from '../itemOrder';
 import { availableSkills, unequipSkill } from '../../game/loadout';
 import { skillLevel } from '../../game/store';
-import { MAX_SKILL_LEVEL, passiveOrder, passives, skillDuration, skillOrder, skillRange, skills } from '../../game/skills';
+import { MAX_SKILL_LEVEL, passiveOrder, passives, skillDuration, skillRange, skills } from '../../game/skills';
 import type { Interface } from '../interface';
 
 export function renderSkills(this: Interface, dialog: HTMLElement): void {
@@ -12,7 +13,7 @@ export function renderSkills(this: Interface, dialog: HTMLElement): void {
     const base = document.createElement('article'); base.className = 'skill-card';
     base.innerHTML = '<div class="skill-icon">⚔</div><div class="skill-info"><h3>대검 베기 <small>Lv.1 · 기본 보유</small></h3><p>묵직한 두손검 횡베기로 전방 넓은 부채꼴을 공격합니다.</p><small>기본 쿨타임 0.48초 · 공격력 × 1.0 · 고정 슬롯</small></div>';
     list.appendChild(base);
-    for (const id of skillOrder) {
+    for (const id of orderedSkills(save)) {
       const skill = skills[id], learned = save.learned.includes(id), level = learned ? skillLevel(save, id) : 1;
       const growth = id === 'warcry' ? `공격 버프 +${50 + (level - 1) * 5}%` : `위력 +${(level - 1) * 10}%`;
       const card = document.createElement('article'); card.className = 'skill-card'; card.dataset.skill = id;

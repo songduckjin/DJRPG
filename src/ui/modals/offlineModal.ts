@@ -1,10 +1,11 @@
+import { goldMarkup } from '../currency';
 import type { OfflineReward } from '../../game/offline';
 import { rarityNames } from '../../game/items';
 
 export function renderOffline(dialog: HTMLElement, reward: OfflineReward): void {
   const summary = document.createElement('div'); summary.className = 'offline-summary';
   const hours = Math.floor(reward.seconds / 3600), minutes = Math.floor(reward.seconds % 3600 / 60);
-  summary.textContent = `방치 시간 ${hours ? `${hours}시간 ` : ''}${minutes}분 · 처치 ${reward.kills}마리 · EXP +${reward.exp} · 골드 +${reward.gold}${reward.levels ? ` · 레벨 +${reward.levels} / SP +${reward.levels}` : ''}`;
+  summary.innerHTML = `방치 시간 ${hours ? `${hours}시간 ` : ''}${minutes}분 · 처치 ${reward.kills}마리 · EXP +${reward.exp} · ${goldMarkup(reward.gold)}${reward.levels ? ` · 레벨 +${reward.levels} / SP +${reward.levels}` : ''}`;
   dialog.appendChild(summary);
   const heading = document.createElement('h3'); heading.textContent = `획득 장비 ${reward.items.length}개`; dialog.appendChild(heading);
   const list = document.createElement('ul'); list.className = 'offline-items';

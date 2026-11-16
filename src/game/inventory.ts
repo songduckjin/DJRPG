@@ -7,7 +7,7 @@ export function canAutoEquip(save: Save): boolean {
 }
 export function salvagePlan(save: Save, ids: string[]): { items: EquipmentItem[]; emptySlots: string[] } {
   const selected = new Set(ids);
-  const items = save.bag.filter((item): item is EquipmentItem => selected.has(item.id) && !isSkillBook(item));
+  const items = save.bag.filter((item): item is EquipmentItem => selected.has(item.id) && !isSkillBook(item) && !item.locked);
   const emptySlots = [...new Set(items.filter(item => item.slot === 'ring1' || item.slot === 'ring2'
     ? !save.equipment.ring1 || !save.equipment.ring2 : !save.equipment[item.slot]).map(item => item.slot))];
   return { items, emptySlots };

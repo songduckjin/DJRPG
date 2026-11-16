@@ -11,6 +11,9 @@ export class Market {
   candidate?: MarketData;
   selected?: Listing;
   selectedItem = '';
+  registerCategory = '';
+  registerRarity = '';
+  unlockItem?: string;
   price = '';
   busy = false;
   loading = false;
@@ -36,6 +39,7 @@ export class Market {
     this.generation++; this.loading = false;
     this.view = 'active'; this.filters = { query: '', category: '', slot: '', rarity: '', sort: 'newest', page: 0 };
     this.selected = undefined; this.selectedItem = ''; this.price = ''; this.error = '';
+    this.registerCategory = ''; this.registerRarity = ''; this.unlockItem = undefined;
     this.data = undefined; this.candidate = undefined; this.newCount = 0;
   }
   open(): void {
@@ -80,7 +84,7 @@ export class Market {
     finally { if (generation === this.generation) { this.loading = false; this.onChange(false); } }
   }
   refresh(): void { this.selected = undefined; void this.load(true); }
-  switch(view: MarketView): void { if (this.busy) return; this.view = view; this.filters.page = 0; this.selected = undefined; this.onChange(true); void this.load(true); }
+  switch(view: MarketView): void { if (this.busy) return; this.view = view; this.unlockItem = undefined; this.filters.page = 0; this.selected = undefined; this.onChange(true); void this.load(true); }
   private applyEffect(result: SyncResult): void {
     if (!this.data || !result.effect) return;
     const { listing, deliveries, claimedId } = result.effect;
@@ -107,7 +111,7 @@ export class Market {
     try {
       const result = await this.sync.mutate(action, data, requestId);
       this.requests.delete(key); this.applyEffect(result); this.onMessage(result.message || '처리했습니다.');
-      this.selected = undefined; if (action === 'register') { this.selectedItem = ''; this.price = ''; this.view = 'mine'; }
+      this.selected = undefined; if (action === 'register') { this.unlockItem = undefined; this.selectedItem = ''; this.price = ''; this.view = 'mine'; }
       this.busy = false; this.onChange(true);
       void this.load(false);
     } catch (error) { this.error = error instanceof Error ? error.message : String(error); }

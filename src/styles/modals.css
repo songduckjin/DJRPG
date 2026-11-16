@@ -130,3 +130,14 @@
 .bag-detail-overlay { position: fixed; z-index: 10; margin: 0; padding: 12px; overflow-y: auto; overscroll-behavior: contain; background: #211a1dfa; border-color: #bda071; box-shadow: 0 8px 22px #000b; }
 .modal-dialog .bag-detail-overlay h2 { font-size: 14px; line-height: 1.5; margin: 0; overflow-wrap: anywhere; }
 .bag-detail-overlay > span { width: 100%; line-height: 1.6; }
+
+.item-detail-heading { display: flex; align-items: center; gap: 10px; width: 100%; }
+.modal-dialog .item-detail-heading h2 { width: auto; flex: 0 1 auto; min-width: 0; }
+.item-lock { display: inline-flex; flex: none; align-items: center; justify-content: center; width: 36px; height: 36px; padding: 0; border: 1px solid #806749; border-radius: 4px; background: #302725; }
+.item-lock[aria-pressed="true"] { border-color: #d2af72; background: #49382a; }
+.item-lock:focus-visible { outline: 2px solid #e9c585; outline-offset: 2px; }
+.lock-icon { display: inline-block; width: 30px; height: 30px; flex: none; background-image: url('/assets/icons/item-locks.png'); background-size: 200% 100%; background-repeat: no-repeat; }
+.lock-icon.is-locked { background-position: left center; }.lock-icon.is-open { background-position: right center; }
+.detail-actions button:disabled { opacity: .45; cursor: default; }
+
+.equipment-modal .modal-close { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 44px; height: 44px; touch-action: manipulation; }
