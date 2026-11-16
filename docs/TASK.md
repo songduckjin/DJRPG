@@ -666,10 +666,10 @@
 
 ---
 
-## [-] [작업 87] 캐릭터 이동에 반응하는 황야 지형
+## [x] [작업 87] 캐릭터 이동에 반응하는 황야 지형
 - **등록일**: 2026-11-17
 - **담당자**: 로컬 Codex
-- **수정 예정 파일**: `src/game/wasteland.ts`, `src/game/ambientScene.ts`, `src/game/render/field.ts`, `src/game/render.ts`, `tests/wasteland.test.mjs`, `docs/TASK.md`, `docs/WORKLOG.md`.
+- **수정 예정 파일**: `src/game/wasteland.ts`, `src/game/ambientScene.ts`, `src/game/render/field.ts`, `src/game/render.ts`, `tests/wasteland.test.mjs`, `tests/ambient-motion.test.mjs`, `docs/TASK.md`, `docs/WORKLOG.md`.
 - **목표**: 이동 중 고정되어 보이는 황야 지형에 캐릭터 위치 기반 이동을 적용하고 모닥불 조명·불티가 배경 이미지와 함께 움직이도록 한다.
 - **범위 확인**: 진행 중인 작업 85와 황야 배경 영역이 겹치며, 사용자가 2026-11-17 이 대화에서 지금 진행하도록 승인했다.
 - **완료 기준**: 화면 가장자리 노출 없이 남녀 공통 이동에 지형이 반응하고 배경 효과 정렬·타입 검사·테스트·빌드가 통과한다.

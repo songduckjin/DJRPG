@@ -64,6 +64,8 @@ export class GameView {
   glow = new Graphics();
   ground = new Graphics();
   terrainLayer = new Container();
+  ambientLayer = new Container();
+  wastelandPlayer = { x: 0, y: 0 };
   terrainTextures: Texture[] = [];
   terrainSprites: Sprite[] = [];
   aura!: Sprite;
@@ -140,11 +142,10 @@ export class GameView {
     const project = (x: number, y: number): [number, number] => projectArenaPoint(x, y, w, h);
     const [hx, hy] = project(world.player.x, world.player.y);
     this.floor.width = w; this.floor.height = h;
-    this.floor.tilePosition.set(0, 0);
     this.floor.tint = 0xffffff;
     this.floor.alpha = 1;
     this.glow.clear(); this.ground.clear(); this.effects.clear(); this.shade.clear();
-    this.drawLighting(w, h, time);
+    this.drawLighting(world, w, h, time);
     this.drawTerrain(world, project, time);
     this.drawDust(world, project, time, dt);
     this.drawRunes(world, hx, hy, time);
@@ -179,5 +180,5 @@ export class GameView {
 
   drawDeath(x: number, y: number, t: number, seed: number): void { return drawDeath.call(this, x, y, t, seed); }
 
-  drawLighting(w: number, h: number, time: number): void { return drawLighting.call(this, w, h, time); }
+  drawLighting(world: World, w: number, h: number, time: number): void { return drawLighting.call(this, world, w, h, time); }
 }

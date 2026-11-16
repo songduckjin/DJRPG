@@ -2,8 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import './ts-loader.mjs';
 const { ambientInfluence, ambientOffset, AmbientDeformation, grassPatches, fireFlicker, fireEmbers }=await import('../src/game/ambientMotion.ts');
-const { wastelandLayout }=await import('../src/game/wasteland.ts');
-const fires=wastelandLayout(1,1).fires;
+const { wastelandLayout, wastelandFireAnchors }=await import('../src/game/wasteland.ts');
+const fires=wastelandFireAnchors;
 function geometry(){const points=[];for(let y=0;y<165;y++)for(let x=0;x<97;x++)points.push(x*964/96,y*1632/164);return new Float32Array(points);}
 test('scene edges, clear ground, main rocks and all vegetation roots remain anchored',()=>{
   for(const [u,v] of [[0,.5],[1,.5],[.5,0],[.5,1],[.5,.45],[.4,.3],[.48,.15],[.03,.08],[.93,.08]])assert.equal(ambientInfluence(u,v,fires),undefined,`${u},${v}`);
@@ -48,11 +48,13 @@ test('Pixi scene integration keeps layers below actors, resizes, honors reduced 
   const previous=globalThis.matchMedia,preference={matches:false};globalThis.matchMedia=()=>preference;
   const texture=new Texture({source:new TextureSource({width:964,height:1632})}),stage=new Container(),floor=new Sprite(texture),glow=new Container(),actors=new Container(),updates=new Set();
   stage.addChild(floor,glow,actors);
-  const view={floor,app:{stage,screen:{width:540,height:914},ticker:{add(fn){updates.add(fn);},remove(fn){updates.delete(fn);}}}};
+  const view={floor,ambientLayer:new Container(),wastelandPlayer:{x:0,y:0},app:{stage,screen:{width:540,height:914},ticker:{add(fn){updates.add(fn);},remove(fn){updates.delete(fn);}}}};
   try{
-    mountAmbientScene(view,texture,wastelandLayout);mountAmbientScene(view,texture,wastelandLayout);assert.equal(stage.children.length,5);assert.equal(updates.size,1);assert.equal(floor.visible,false);
-    const mesh=stage.children[1],sparks=stage.children[2];assert.equal(mesh.label,'animated-wasteland');assert.equal(sparks.label,'campfire-embers');assert.equal(stage.children[4],actors);assert.equal(mesh.scale.x,540/964);
-    view.app.screen={width:360,height:780};for(const update of updates)update({deltaMS:34});assert.equal(mesh.scale.x,360/964);assert.equal(mesh.scale.y,780/1632);
+    mountAmbientScene(view,texture,wastelandLayout);mountAmbientScene(view,texture,wastelandLayout);assert.equal(stage.children.length,4);assert.equal(updates.size,1);assert.equal(floor.visible,false);
+    const [mesh,sparks]=view.ambientLayer.children;assert.equal(stage.children[1],view.ambientLayer);assert.equal(mesh.label,'animated-wasteland');assert.equal(sparks.label,'campfire-embers');assert.equal(stage.children[3],actors);assert.equal(mesh.scale.x,wastelandLayout(540,914).scaleX);
+    view.app.screen={width:360,height:780};view.wastelandPlayer={x:40,y:0};for(const update of updates)update({deltaMS:34});
+    const moved=wastelandLayout(360,780,view.wastelandPlayer);
+    assert.equal(mesh.scale.x,moved.scaleX);assert.equal(mesh.scale.y,moved.scaleY);assert.equal(view.ambientLayer.position.x,moved.offsetX);assert.equal(view.ambientLayer.position.y,moved.offsetY);
     preference.matches=true;for(const update of updates)update({deltaMS:34});
     const pristine=new PlaneGeometry({width:964,height:1632,verticesX:97,verticesY:165});assert.deepEqual(mesh.geometry.getBuffer('aPosition').data,pristine.getBuffer('aPosition').data);pristine.destroy();
     assert.equal(mesh.eventMode,'none');assert.equal(sparks.eventMode,'none');stage.destroy({children:true});assert.equal(updates.size,0);

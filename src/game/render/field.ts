@@ -20,9 +20,9 @@ export function drawRunes(this: GameView, world: World, x: number, y: number, ti
     }
   }
 
-export function drawTerrain(this: GameView, _world: World, _project: (x: number, y: number) => [number, number], _time: number): void {
+export function drawTerrain(this: GameView, world: World, _project: (x: number, y: number) => [number, number], _time: number): void {
     // The approved scene already contains rocks, grass and fires. Do not double them.
-    placeWasteland(this);
+    placeWasteland(this, world.player);
   }
 
 export function drawDust(this: GameView, world: World, project: (x: number, y: number) => [number, number], time: number, dt: number): void {
@@ -37,8 +37,8 @@ export function drawDust(this: GameView, world: World, project: (x: number, y: n
     this.dust = this.dust.filter(particle => particle.age < particle.duration);
   }
 
-export function drawLighting(this: GameView, w: number, h: number, time: number): void {
-    wastelandLayout(w, h).fires.forEach((fire, index) => {
+export function drawLighting(this: GameView, world: World, w: number, h: number, time: number): void {
+    wastelandLayout(w, h, world.player).fires.forEach((fire, index) => {
       const flicker = 1 + Math.sin(time * 8 + index * 5) * .04;
       this.glow.circle(fire.x, fire.y, fire.radius * flicker).fill({ color: 0xf0742e, alpha: .055 });
       this.glow.circle(fire.x, fire.y, fire.radius * .46 * flicker).fill({ color: 0xffa13d, alpha: .08 });
