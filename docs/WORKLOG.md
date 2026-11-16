@@ -1,3 +1,8 @@
+## 2026-11-16 · 작업 48
+- `src/game/render/entities.ts`: 정지 상태 발 위치와 바닥 그림자 크기 보정.
+- `public/assets/icons/`, `src/ui/modals/equipModal.ts`: 장비창 10개 슬롯과 특수 두손검 아이콘 파일·표시 경로 확인.
+- 검증: `pnpm run check`, `pnpm run build` 성공.
+
 ## 2026-11-16 · 작업 47
 - `public/assets/walk8_*.png`: 전사 외형 6종과 해골·보스의 투명 8프레임 보행 시트 제작.
 - `src/game/render.ts`, `src/game/render/entities.ts`: 시트 프레임 로딩, 이동 거리 기반 보행 주기와 프레임별 발 위치 정렬 적용.

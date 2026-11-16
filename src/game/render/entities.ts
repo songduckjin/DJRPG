@@ -28,7 +28,7 @@ export function drawHero(this: GameView, world: World, x: number, y: number, tim
     if (world.attackPose > 0) texture = this.animations[equipped ? save.equipment.helmet ? 'armoredAttack' : 'armoredNoHelmAttack' : save.gender === 'male' ? 'maleAttack' : 'femaleAttack'][Math.max(0, attackFrame)];
     else if (moving) texture = this.animations[walkArt][walkingFrame];
     if (this.hero.texture !== texture) this.hero.texture = texture;
-    this.hero.anchor.y = world.attackPose > 0 || !moving ? .97 : walkAnchors[walkArt][walkingFrame];
+    this.hero.anchor.y = world.attackPose > 0 ? .97 : moving ? walkAnchors[walkArt][walkingFrame] : .996;
     let bob = 0;
     const local = world.effects.filter(effect => effect.kind !== 'hit' && effect.kind !== 'death' && Math.hypot(effect.x - player.x, effect.y - player.y) < 2);
     const attack = local.find(effect => ['slash', 'slash2', 'power', 'destroy'].includes(effect.kind));
@@ -46,7 +46,8 @@ export function drawHero(this: GameView, world: World, x: number, y: number, tim
     this.hero.position.set(x + lungeX + (player.hit > 0 ? Math.sin(time * 55) * 2 : 0), y + bob + lungeY);
     this.hero.rotation = spin ? spin.age / spin.duration * Math.PI * 2 * face : attack ? (attack.swing ?? 1) * .2 * attackPulse * face : 0;
     this.hero.tint = player.hit > 0 ? 0xffd4cf : 0xffffff;
-    this.ground.ellipse(x, y, 13, 4.5).fill({ color: 0x000000, alpha: .55 });
+    const shadowRadius = Math.max(20, texture.width * scale * .45);
+    this.ground.ellipse(x - face * 4, y - 3, shadowRadius, 8).fill({ color: 0x000000, alpha: .5 });
     if (player.berserk > 0) {
       this.glow.circle(x, y - 25, 35).fill({ color: 0xb32d28, alpha: .12 });
     }
@@ -123,9 +124,9 @@ export function drawEntities(this: GameView, world: World, project: (x: number, 
       const frame = Math.floor(gait.distance / (enemy.boss ? 6 : 7)) % 8;
       const texture = enemy.moving ? enemy.boss ? this.animations.bossWalk[frame] : this.animations.skeletonWalk[frame] : enemy.boss ? this.textures.boss : this.textures.skeleton;
       if (sprite.texture !== texture) sprite.texture = texture;
-      sprite.anchor.y = enemy.moving ? walkAnchors[enemy.boss ? 'bossWalk' : 'skeletonWalk'][frame] : .97;
+      sprite.anchor.y = enemy.moving ? walkAnchors[enemy.boss ? 'bossWalk' : 'skeletonWalk'][frame] : .995;
       const scale = h * (enemy.boss ? .16 : .095) / texture.height;
-      this.ground.ellipse(x, y, enemy.boss ? 18 : 11, enemy.boss ? 5 : 4).fill({ color: 0x000000, alpha: .5 });
+      this.ground.ellipse(x, y - 3, Math.max(enemy.boss ? 32 : 19, texture.width * scale * .42), enemy.boss ? 10 : 7).fill({ color: 0x000000, alpha: .48 });
       sprite.position.set(x + (enemy.hit > 0 ? Math.sin(time * 58) * 3 : 0), y + (enemy.hit > 0 ? 2 : 0));
       const face = (world.player.x - enemy.x) - (world.player.y - enemy.y) >= 0 ? 1 : -1;
       sprite.scale.set(scale * face * (enemy.hit > 0 ? 1.08 : 1), scale * (enemy.hit > 0 ? .84 : 1));
