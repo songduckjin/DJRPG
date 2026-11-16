@@ -1,3 +1,8 @@
+## 2026-11-16 · 작업 46
+- `src/game/render.ts`, `src/game/render/entities.ts`: 전사·몬스터·잔상 앵커를 .97로 조정하고 그림자를 발밑에 정렬.
+- 보행 바운스 제거; `slam`·`hell`의 점프 연출은 유지.
+- 검증: `pnpm run check`, `pnpm run build` 성공.
+
 ## 2026-11-16 · 작업 45
 - `src/game/world.ts`, `src/game/skills.ts`: MP 상태·소모 조건·스킬 비용 데이터 제거; 스킬은 쿨타임으로 발동.
 - `src/ui/`, `src/styles/`: MP 구슬과 장비·스킬 설명의 마나 표시 제거.

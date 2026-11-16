@@ -18,8 +18,7 @@ export function drawHero(this: GameView, world: World, x: number, y: number, tim
       else texture = Math.floor(time * 6) % 2 ? this.textures.maleBaseWalk : this.textures.male;
     }
     if (this.hero.texture !== texture) this.hero.texture = texture;
-    const step = moving ? Math.sin(time * 13) : 0;
-    let bob = moving && world.attackPose <= 0 ? -Math.abs(step) * 2 : 0;
+    let bob = 0;
     const local = world.effects.filter(effect => effect.kind !== 'hit' && effect.kind !== 'death' && Math.hypot(effect.x - player.x, effect.y - player.y) < 2);
     const attack = local.find(effect => ['slash', 'slash2', 'power', 'destroy'].includes(effect.kind));
     const spin = local.find(effect => effect.kind === 'spin');
@@ -36,7 +35,7 @@ export function drawHero(this: GameView, world: World, x: number, y: number, tim
     this.hero.position.set(x + lungeX + (player.hit > 0 ? Math.sin(time * 55) * 2 : 0), y + bob + lungeY);
     this.hero.rotation = spin ? spin.age / spin.duration * Math.PI * 2 * face : attack ? (attack.swing ?? 1) * .2 * attackPulse * face : 0;
     this.hero.tint = player.hit > 0 ? 0xffd4cf : 0xffffff;
-    this.ground.ellipse(x, y + 4, 11, 4).fill({ color: 0x000000, alpha: .42 });
+    this.ground.ellipse(x, y, 13, 4.5).fill({ color: 0x000000, alpha: .55 });
     if (player.berserk > 0) {
       this.glow.circle(x, y - 25, 35).fill({ color: 0xb32d28, alpha: .12 });
     }
@@ -49,7 +48,7 @@ export function updateAfterimages(this: GameView, world: World, project: (x: num
       if (index >= 3 || index <= (this.ghostEmissions.get(effect) ?? -1)) continue;
       this.ghostEmissions.set(effect, index);
       const sprite = new Sprite(this.hero.texture);
-      sprite.anchor.set(.5, .94); sprite.scale.set(this.hero.scale.x, this.hero.scale.y); sprite.rotation = this.hero.rotation;
+      sprite.anchor.set(.5, .97); sprite.scale.set(this.hero.scale.x, this.hero.scale.y); sprite.rotation = this.hero.rotation;
       sprite.tint = ['slam', 'destroy', 'hell'].includes(effect.kind) ? 0xffa06c : 0x8fe6dc;
       this.ghosts.addChild(sprite);
       const trail = 5 + index * 5;
@@ -95,7 +94,7 @@ export function drawEntities(this: GameView, world: World, project: (x: number, 
       let sprite = this.enemies.get(enemy);
       if (!sprite) {
         sprite = new Sprite(enemy.boss ? this.textures.boss : this.textures.skeleton);
-        sprite.anchor.set(.5, .94);
+        sprite.anchor.set(.5, .97);
         this.actors.addChild(sprite);
         this.enemies.set(enemy, sprite);
         if (enemy.boss) {
@@ -108,9 +107,8 @@ export function drawEntities(this: GameView, world: World, project: (x: number, 
       const texture = enemy.moving ? enemy.boss ? this.animations.bossWalk[frame] : this.animations.skeletonWalk[frame] : enemy.boss ? this.textures.boss : this.textures.skeleton;
       if (sprite.texture !== texture) sprite.texture = texture;
       const scale = h * (enemy.boss ? .16 : .095) / texture.height;
-      const step = enemy.moving ? Math.sin(enemy.step) : 0;
-      this.ground.ellipse(x, y + 3, enemy.boss ? 16 : 9, enemy.boss ? 5 : 3.5).fill({ color: 0x000000, alpha: .4 });
-      sprite.position.set(x + (enemy.hit > 0 ? Math.sin(time * 58) * 3 : 0), y - Math.abs(step) * 1.8 + (enemy.hit > 0 ? 2 : 0));
+      this.ground.ellipse(x, y, enemy.boss ? 18 : 11, enemy.boss ? 5 : 4).fill({ color: 0x000000, alpha: .5 });
+      sprite.position.set(x + (enemy.hit > 0 ? Math.sin(time * 58) * 3 : 0), y + (enemy.hit > 0 ? 2 : 0));
       const face = (world.player.x - enemy.x) - (world.player.y - enemy.y) >= 0 ? 1 : -1;
       sprite.scale.set(scale * face * (enemy.hit > 0 ? 1.08 : 1), scale * (enemy.hit > 0 ? .84 : 1));
       sprite.rotation = 0;

@@ -73,7 +73,7 @@ export class GameView {
     this.floor = new TilingSprite({ texture: this.textures.floor, width: this.app.screen.width, height: this.app.screen.height });
     this.floor.tileScale.set(.82);
     this.hero = new Sprite(this.textures.male);
-    this.hero.anchor.set(.5, .94);
+    this.hero.anchor.set(.5, .97);
     this.actors.addChild(this.hero);
     this.aura = new Sprite(this.textures.fxRage);
     this.aura.anchor.set(.5);
