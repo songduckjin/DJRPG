@@ -5,14 +5,19 @@ export function heroAppearance(save: Save) {
   const armed = !!save.equipment.weapon, armored = !!save.equipment.armor;
   const gender = save.gender;
   const helmetIntegrated = gender === 'female' && !!save.equipment.helmet;
+  const oldHelmet = helmetIntegrated && save.equipment.helmet?.name === '낡은 투구';
   return {
-    idle: helmetIntegrated ? armored ? 'femaleArmoredHelm' as const : armed ? 'femaleSwordHelm' as const : 'femaleBaseHelm' as const
+    idle: oldHelmet ? armored ? 'femaleArmoredOldHelm' as const : armed ? 'femaleSwordOldHelm' as const : 'femaleBaseOldHelm' as const
+      : helmetIntegrated ? armored ? 'femaleArmoredHelm' as const : armed ? 'femaleSwordHelm' as const : 'femaleBaseHelm' as const
       : armored ? gender === 'female' ? 'femaleArmoredNoHelm' as const : 'armoredNoHelm' as const : armed ? gender === 'male' ? 'maleSword' as const : 'femaleSword' as const : gender,
-    walk: helmetIntegrated ? armored ? 'femaleArmoredHelmWalk' as const : armed ? 'femaleHelmWalk' as const : 'femaleBaseHelmWalk' as const
+    walk: oldHelmet ? armored ? 'femaleArmoredOldHelmWalk' as const : armed ? 'femaleOldHelmWalk' as const : 'femaleBaseOldHelmWalk' as const
+      : helmetIntegrated ? armored ? 'femaleArmoredHelmWalk' as const : armed ? 'femaleHelmWalk' as const : 'femaleBaseHelmWalk' as const
       : armored ? gender === 'female' ? 'femaleArmoredNoHelmWalk' as const : 'armoredNoHelmWalk' as const : gender === 'female' ? armed ? 'femaleWalk' as const : 'femaleBaseWalk' as const : armed ? 'maleWalk' as const : 'maleBaseWalk' as const,
-    attack: helmetIntegrated ? armored ? 'femaleArmoredHelmAttack' as const : 'femaleHelmAttack' as const
+    attack: oldHelmet ? armored ? 'femaleArmoredOldHelmAttack' as const : 'femaleOldHelmAttack' as const
+      : helmetIntegrated ? armored ? 'femaleArmoredHelmAttack' as const : 'femaleHelmAttack' as const
       : armored ? gender === 'female' ? 'femaleArmoredNoHelmAttack' as const : 'armoredNoHelmAttack' as const : gender === 'male' ? 'maleAttack' as const : 'femaleAttack' as const,
-    portrait: helmetIntegrated ? armored ? '/assets/warrior_female_armored_helm.png' : `/assets/warrior_female_${armed ? 'sword' : 'base'}_helm.png`
+    portrait: oldHelmet ? armored ? '/assets/warrior_female_armored_oldhelm.png' : `/assets/warrior_female_${armed ? 'sword' : 'base'}_oldhelm.png`
+      : helmetIntegrated ? armored ? '/assets/warrior_female_armored_helm.png' : `/assets/warrior_female_${armed ? 'sword' : 'base'}_helm.png`
       : armored ? gender === 'female' ? '/assets/warrior_female_armored_nohelm.png' : '/assets/warrior_armored_nohelm.png?v=2' : `/assets/warrior_${gender}_${armed ? 'sword' : 'base'}.png`,
     helmetIntegrated,
     helmet: save.equipment.helmet

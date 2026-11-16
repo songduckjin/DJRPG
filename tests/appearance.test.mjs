@@ -43,3 +43,18 @@ test('female helmet uses integrated images with and without armor and sword',()=
   assert.equal(heroAppearance(save).idle,'femaleArmoredNoHelm');
   assert.equal(heroAppearance(save).helmetIntegrated,false);
 });
+test('legacy 낡은 투구 uses its horned item art in every female body and motion state',()=>{
+  const save=freshSave('female');save.equipment={helmet:{...equipment('helmet'),name:'낡은 투구'}};
+  assert.deepEqual([heroAppearance(save).idle,heroAppearance(save).walk,heroAppearance(save).attack],
+    ['femaleBaseOldHelm','femaleBaseOldHelmWalk','femaleOldHelmAttack']);
+  assert(heroAppearance(save).portrait.endsWith('warrior_female_base_oldhelm.png'));
+  save.equipment.weapon={...equipment('helmet'),id:'weapon',slot:'weapon',name:'낡은 두손검'};
+  assert.deepEqual([heroAppearance(save).idle,heroAppearance(save).walk],['femaleSwordOldHelm','femaleOldHelmWalk']);
+  save.equipment.armor=equipment('armor');
+  assert.deepEqual([heroAppearance(save).idle,heroAppearance(save).walk,heroAppearance(save).attack],
+    ['femaleArmoredOldHelm','femaleArmoredOldHelmWalk','femaleArmoredOldHelmAttack']);
+  save.equipment.helmet=equipment('helmet');
+  assert.equal(heroAppearance(save).idle,'femaleArmoredHelm');
+  unequipItem(save,'helmet');
+  assert.equal(heroAppearance(save).idle,'femaleArmoredNoHelm');
+});
