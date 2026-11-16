@@ -10,7 +10,6 @@
 .salvage-rarity { border: 1px solid #b28a55; background: #443425; color: #ffe0ab; padding: 5px 7px; font-size: 11px; }
 .bag-grid { display: grid; grid-template-columns: repeat(6, 1fr); grid-auto-rows: minmax(54px, auto); align-content: start; gap: 5px; }
 .equipment-modal .bag-grid { flex: 1; min-height: 110px; overflow-y: auto; }
-.bag-grid .item-detail { grid-column: 1 / -1; }
 .bag-item { min-width: 0; aspect-ratio: 1; min-height: 54px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; border: 1px solid #60534e; background: radial-gradient(circle at 50% 30%, #3a3130, #221e22); color: #ddcfc1; padding: 2px; }
 .bag-item.common, .equipment-slot.common { border-color: #9ca3af; box-shadow: inset 0 0 7px #9ca3af44; }
 .bag-item.magic, .equipment-slot.magic { border-color: #60a5fa; box-shadow: inset 0 0 8px #60a5fa55, 0 0 5px #60a5fa55; }
@@ -18,7 +17,7 @@
 .bag-item.epic, .equipment-slot.epic { border-color: #c084fc; box-shadow: inset 0 0 8px #c084fc55, 0 0 5px #c084fc55; }
 .bag-item.unique, .equipment-slot.unique { border-color: #fb923c; box-shadow: inset 0 0 8px #fb923c55, 0 0 5px #fb923c55; }
 .bag-item.legendary, .equipment-slot.legendary { border-color: #f87171; box-shadow: inset 0 0 9px #f8717166, 0 0 6px #f8717177; }
-.bag-item.selected { background: #493a35; }
+.bag-item.selected { background: #68513a; outline: 2px solid #ffe3a3; outline-offset: -3px; filter: brightness(1.2); }
 .item-icon { display: block; width: 27px; height: 27px; object-fit: contain; }
 .atlas-icon { background-size: 500% 100%; background-repeat: no-repeat; }
 .bag-item small { font-size: 8px; color: #ac9e94; }
@@ -127,3 +126,7 @@
 .skillbook-use { min-height: 36px; padding: 7px 18px; border: 1px solid #b58b52; border-radius: 4px; background: linear-gradient(#65472d, #372521); color: #f8dfb3; box-shadow: inset 0 1px #d6b87930; font: inherit; font-size: 12px; }
 .skillbook-use:focus-visible { outline: 2px solid #f1ca85; outline-offset: 2px; }
 .skillbook-use:active { background: #755235; }
+
+.bag-detail-overlay { position: fixed; z-index: 10; margin: 0; padding: 12px; overflow-y: auto; overscroll-behavior: contain; background: #211a1dfa; border-color: #bda071; box-shadow: 0 8px 22px #000b; }
+.modal-dialog .bag-detail-overlay h2 { font-size: 14px; line-height: 1.5; margin: 0; overflow-wrap: anywhere; }
+.bag-detail-overlay > span { width: 100%; line-height: 1.6; }

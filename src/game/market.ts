@@ -32,6 +32,12 @@ export class Market {
     void this.load(false);
     this.timer = window.setInterval(() => { if (!document.hidden && !this.busy && !this.loading) void this.load(false); }, 2000);
   }
+  resetView(): void {
+    this.generation++; this.loading = false;
+    this.view = 'active'; this.filters = { query: '', category: '', slot: '', rarity: '', sort: 'newest', page: 0 };
+    this.selected = undefined; this.selectedItem = ''; this.price = ''; this.error = '';
+    this.data = undefined; this.candidate = undefined; this.newCount = 0;
+  }
   open(): void {
     this.opened = true; this.error = ''; void this.load(true);
     if (typeof EventSource !== 'undefined' && !this.source) {
