@@ -15,10 +15,10 @@ import { Market } from '../game/market';
 import { renderMarket, updateMarketLive } from './modals/marketModal';
 
 const navIcons = {
-  market: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v17m-4 1h8M4 7l8-2 8 2M4 7l-3 7h6L4 7Zm16 0-3 7h6l-3-7ZM1 14a3 3 0 0 0 6 0m10 0a3 3 0 0 0 6 0"/></svg>',
-  status: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="6.5" r="3.5"/><path d="M4.5 20v-2.1c0-3.2 3.4-5.4 7.5-5.4s7.5 2.2 7.5 5.4V20H4.5Z"/></svg>',
-  equipment: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m8 3 4 2 4-2 4 4-2 3v10H6V10L4 7l4-4Z"/><path d="m8 3 1 6 3 2 3-2 1-6M6 10l3-1m9 1-3-1m-3 2v9"/></svg>',
-  skills: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 2 1.6 6.4L20 10l-6.4 1.6L12 18l-1.6-6.4L4 10l6.4-1.6L12 2Z"/><path d="m19 16 .6 1.8L21.5 18l-1.9.6L19 20.5l-.6-1.9L16.5 18l1.9-.2L19 16Z"/></svg>'
+  market: '<img class="nav-icon" src="/assets/icons/nav_market.png" alt="" aria-hidden="true" />',
+  status: '<img class="nav-icon" src="/assets/icons/nav_status.png" alt="" aria-hidden="true" />',
+  equipment: '<img class="nav-icon" src="/assets/icons/nav_equipment.png" alt="" aria-hidden="true" />',
+  skills: '<img class="nav-icon" src="/assets/icons/nav_skills.png" alt="" aria-hidden="true" />'
 };
 type Modal = 'status' | 'equipment' | 'skills' | 'account' | 'floor' | 'offline' | 'market';
 export type BagFilter = 'all' | 'weapon' | 'armor' | 'accessory' | 'skillbook';
