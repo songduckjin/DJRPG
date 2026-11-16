@@ -24,3 +24,12 @@
 .codex-card[hidden], .codex-detail[hidden] { display: none; }
 .codex-card:focus-visible, .codex-open:focus-visible { outline: 2px solid #f5d58e; outline-offset: 2px; }
 @media (max-width: 359px) { .codex-art { width: 54px; height: 54px; }.codex-card b { font-size: 9px; } }
+.codex-toolbar { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.codex-toolbar select { font-size: 11px; padding: 9px 4px; }
+.codex-slot-tabs { display: flex; gap: 5px; overflow-x: auto; padding: 10px 0 6px; scrollbar-width: thin; scrollbar-color: #84613e #201a1d; }
+.codex-slot-tabs button { flex: none; border: 1px solid #70553e; border-radius: 4px; padding: 7px 10px; background: #292024; color: #beaa8d; font-size: 11px; }
+.codex-slot-tabs button.active { border-color: #d8af67; background: #61442b; color: #ffe1a9; }
+.codex-card.rarity-common, .codex-detail.rarity-common { border-color: #a6a6a6; box-shadow: inset 0 0 8px #eeeeee18; }
+.codex-card.rarity-magic, .codex-detail.rarity-magic { border-color: #4f9be4; box-shadow: inset 0 0 8px #4f9be430; }
+.codex-card.rarity-rare, .codex-detail.rarity-rare { border-color: #d5b557; box-shadow: inset 0 0 8px #d5b55730; }
+.codex-card.rarity-legendary, .codex-detail.rarity-legendary { border-color: #d87539; box-shadow: inset 0 0 8px #d8753940; }

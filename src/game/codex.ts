@@ -61,3 +61,15 @@ export function filterCodex(save: Save, query = '', slot = '', state = 'all'): C
     return !search || [entry.name, ...(['common','magic','rare','legendary'] as Rarity[]).map(rarity => codexVariantName(entry, rarity))].some(name => name.toLocaleLowerCase('ko-KR').includes(search));
   });
 }
+export const codexRarities: Rarity[] = ['common', 'magic', 'rare', 'legendary'];
+export function codexVariants(save: Save, query = '', slot = '', state = 'all', rarity = '') {
+  const search = query.trim().toLocaleLowerCase('ko-KR');
+  return filterCodex(save, '', slot, state).flatMap(entry => codexRarities.filter(grade => !rarity || grade === rarity).flatMap(grade => {
+    const name = codexVariantName(entry, grade);
+    if (search && !name.toLocaleLowerCase('ko-KR').includes(search)) return [];
+    const bag = save.bag.filter(item => item.rarity === grade && equipmentCodexKey(item) === entry.key).length;
+    const equipped = Object.values(save.equipment).filter(item => item?.rarity === grade && equipmentCodexKey(item) === entry.key).length;
+    if (state === 'owned' && !bag && !equipped) return [];
+    return [{ entry, rarity: grade, key: `${entry.key}@${grade}`, name, bag, equipped, discovered: codexOwnership(save, entry).discovered }];
+  }));
+}
