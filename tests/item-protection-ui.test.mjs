@@ -89,3 +89,22 @@ test('market search offers only category, grade and option; selecting option imm
     assert.equal(market.filters.stat,'attack');assert.equal(market.filters.page,0);assert.equal(refreshed,1);
   }finally{globalThis.document=previous;}
 });
+
+test('bag grid marks only locked equipment at top-right without inserting details or changing cell count',async()=>{
+  const { renderInventory }=await import('../src/ui/modals/equipModal.ts');
+  const previous=globalThis.document;
+  globalThis.document={createElement(tag){const node=element(tag);node.querySelector=function(selector){
+    const existing=find(this,n=>n!==this&&n.tag===selector);if(existing)return existing;
+    if(selector==='b'&&this.innerHTML?.includes('<b>')){const title=element('b');this.append(title);return title;}return null;
+  };return node;}};
+  try{
+    const save=freshSave();save.bag=[item('protected','weapon','rare',true),item('free'),{id:'book',name:'book',kind:'skillbook',slot:'skillbook',rarity:'rare',skillId:'slash2',stats:{}}];
+    const ui={world:{save},bagFilter:'all',salvageRarity:'common',iconPath:()=>'/empty.png'};
+    const render=()=>{const dialog=element();renderInventory.call(ui,dialog);return find(dialog,n=>hasClass(n,'bag-grid'));};
+    const grid=render();assert.equal(grid.children.length,3);
+    const [locked,unlocked,book]=grid.children;
+    assert(find(locked,n=>hasClass(n,'bag-lock-badge')));assert(locked.attrs['aria-label'].includes('잠긴 장비'));
+    assert(!find(unlocked,n=>hasClass(n,'bag-lock-badge')));assert(!find(book,n=>hasClass(n,'bag-lock-badge')));
+    save.bag[0].locked=false;const refreshed=render();assert.equal(refreshed.children.length,3);assert(!find(refreshed,n=>hasClass(n,'bag-lock-badge')));
+  }finally{globalThis.document=previous;}
+});
