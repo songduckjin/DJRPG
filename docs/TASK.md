@@ -609,7 +609,7 @@
 
 ---
 
-## [-] [작업 81] 거래소 저울 아이콘 작은 화면 선명도 개선
+## [x] [작업 81] 거래소 저울 아이콘 작은 화면 선명도 개선
 - **등록일**: 2026-11-16
 - **담당자**: 이 대화의 클라우드 Codex
 - **수정 예정 파일**: `src/ui/interface.ts`, `src/styles/hud.css`, `public/assets/icons/nav_market_v3.png`, `docs/TASK.md`, `docs/WORKLOG.md`.
