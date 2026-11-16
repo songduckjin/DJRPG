@@ -39,7 +39,7 @@
 .showcase-side { display: flex; flex-direction: column; justify-content: space-between; gap: 3px; min-width: 0; }
 .showcase-hero { position: relative; display: flex; justify-content: center; align-items: end; min-width: 0; overflow: hidden; border: 1px solid #655044; background: radial-gradient(ellipse at 50% 28%, #695544 0%, #302727 37%, #19161b 75%); box-shadow: inset 0 0 23px #000a; }
 .showcase-hero:after { content: ''; position: absolute; bottom: 7px; width: 75%; height: 14px; border-radius: 50%; background: #0008; filter: blur(5px); }
-.showcase-hero img { position: relative; z-index: 1; width: auto; max-width: 98%; max-height: 95%; object-fit: contain; image-rendering: auto; }
+.showcase-hero > img { position: relative; z-index: 1; width: 100%; height: 100%; object-fit: contain; object-position: center bottom; image-rendering: auto; }
 .equipment-slot { min-width: 0; flex: 1; max-height: 44px; display: flex; text-align: left; align-items: center; gap: 3px; padding: 2px; border: 1px solid #655348; background: #252126; color: #b9ada6; }
 .slot-icon { display: block; flex: 0 0 27px; width: 27px; height: 27px; object-fit: contain; }
 .equipment-slot.empty-slot .slot-icon { opacity: .25; filter: grayscale(1); }

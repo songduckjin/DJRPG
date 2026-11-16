@@ -28,7 +28,7 @@ before(async () => {
   await seed('seller',[item(),item(),item(),item(),item()]);
   await seed('buyer',[]); await seed('buyer2',[]); await seed('guest',[],10000,true);
 });
-after(async () => { db.close(); await rm(directory,{recursive:true,force:true}); });
+after(async () => { await db.close(); await rm(directory,{recursive:true,force:true,maxRetries:10,retryDelay:100}); });
 test('listing escrows a persisted item, all accounts can search, private IDs stay private', async () => {
   const listing = await sale();
   const row = await account(db,'seller'); assert(!row.save.bag.some(i=>i.id===listing.item.id));

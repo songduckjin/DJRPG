@@ -7,7 +7,7 @@ import { drawSkillVfx, drawDragon, drawHit, updateDamageLabels, drawDeath, drawD
 const paths = {
   floor: '/assets/wasteland-ground.png', terrainProps: '/assets/wasteland-props.png', male: '/assets/warrior_male_base.png',
   female: '/assets/warrior_female_base.png', armored: '/assets/warrior_armored.png?v=2',
-  armoredNoHelm: '/assets/warrior_armored_nohelm.png?v=2',
+  armoredNoHelm: '/assets/warrior_armored_nohelm.png?v=2', femaleArmoredNoHelm: '/assets/warrior_female_armored_nohelm.png',
   maleSword: '/assets/warrior_male_sword.png', femaleSword: '/assets/warrior_female_sword.png',
   maleAttack: '/assets/warrior_male_attack.png', femaleAttack: '/assets/warrior_female_attack.png', armoredAttack: '/assets/warrior_armored_attack.png?v=2',
   skeleton: '/assets/skeleton_warrior.png', boss: '/assets/skeleton_boss.png',
@@ -22,13 +22,15 @@ const animationPaths = {
   armoredAttack: Array.from({ length: 4 }, (_, i) => `/assets/warrior_armored_attack_${i + 1}.png?v=2`),
   armoredNoHelmAttack: Array.from({ length: 4 }, (_, i) => `/assets/warrior_armored_nohelm_attack_${i + 1}.png?v=2`)
 };
+const attackSheets = { femaleArmoredNoHelmAttack: '/assets/warrior_female_armored_attack.png' } as const;
 const walkSheets = {
   maleBaseWalk: '/assets/walk8_male_base.png', femaleBaseWalk: '/assets/walk8_female_base.png',
   maleWalk: '/assets/walk8_male_sword.png', femaleWalk: '/assets/walk8_female.png',
   armoredWalk: '/assets/walk8_armored.png', armoredNoHelmWalk: '/assets/walk8_armored_nohelm.png',
+  femaleArmoredNoHelmWalk: '/assets/walk8_female_armored_nohelm.png',
   skeletonWalk: '/assets/walk8_skeleton.png', bossWalk: '/assets/walk8_boss.png'
 } as const;
-type Animation = keyof typeof animationPaths | keyof typeof walkSheets;
+type Animation = keyof typeof animationPaths | keyof typeof attackSheets | keyof typeof walkSheets;
 type Dust = { x: number; y: number; vx: number; vy: number; age: number; duration: number; size: number };
 type Ghost = { sprite: Sprite; x: number; y: number; age: number; duration: number };
 type Fallen = { sprite: Sprite; x: number; y: number; age: number; duration: number; scaleX: number; scaleY: number; rotation: number };
@@ -78,6 +80,14 @@ export class GameView {
     for (const [key, texture] of loaded) { texture.source.scaleMode = 'linear'; this.textures[key] = texture; }
     const animated = await Promise.all((Object.keys(animationPaths) as (keyof typeof animationPaths)[]).map(async key => [key, await Promise.all(animationPaths[key].map(path => Assets.load<Texture>(path)))] as const));
     for (const [key, textures] of animated) { for (const texture of textures) texture.source.scaleMode = 'linear'; this.animations[key] = textures; }
+    const attacks = await Promise.all((Object.keys(attackSheets) as (keyof typeof attackSheets)[]).map(async key => [key, await Assets.load<Texture>(attackSheets[key])] as const));
+    for (const [key, sheet] of attacks) {
+      sheet.source.scaleMode = 'linear';
+      this.animations[key] = Array.from({ length: 4 }, (_, index) => {
+        const left = Math.round(index * sheet.source.width / 4), right = Math.round((index + 1) * sheet.source.width / 4);
+        return new Texture({ source: sheet.source, frame: new Rectangle(left, 0, right - left, sheet.source.height) });
+      });
+    }
     const walking = await Promise.all((Object.keys(walkSheets) as (keyof typeof walkSheets)[]).map(async key => [key, await Assets.load<Texture>(walkSheets[key])] as const));
     for (const [key, sheet] of walking) {
       sheet.source.scaleMode = 'linear';

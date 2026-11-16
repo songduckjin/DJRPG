@@ -14,10 +14,13 @@ for (const gender of ['male','female']) test(`${gender}: removing armor preserve
   assert.equal(art.helmet.id,'helmet');assert(!art.portrait.includes('armored'));assert.equal(art.idle,gender);assert.equal(art.attack,`${gender}Attack`);
   assert.equal(unequipItem(loaded,'helmet').ok,true);assert.equal(heroAppearance(loaded).helmet,undefined);assert.deepEqual(loaded.bag.map(i=>i.id),['armor','helmet']);
 });
-test('removing helmet leaves armor equipped; helmet is a separate layer in every body state',()=>{
-  const save=freshSave();save.equipment={helmet:equipment('helmet'),armor:equipment('armor')};
-  const art=heroAppearance(save);assert.equal(art.idle,'armoredNoHelm');assert.equal(art.walk,'armoredNoHelmWalk');assert.equal(art.attack,'armoredNoHelmAttack');assert(art.portrait.includes('nohelm'));assert.equal(art.helmet.id,'helmet');
-  unequipItem(save,'helmet');assert.equal(save.equipment.armor.id,'armor');assert.equal(heroAppearance(save).idle,'armoredNoHelm');assert.equal(heroAppearance(save).helmet,undefined);
+for (const gender of ['male', 'female']) test(`${gender}: armor keeps the correct body in every animation and the helmet remains independent`,()=>{
+  const save=freshSave(gender);save.equipment={helmet:equipment('helmet'),armor:equipment('armor')};
+  const art=heroAppearance(save), prefix=gender === 'female' ? 'femaleArmoredNoHelm' : 'armoredNoHelm';
+  assert.equal(art.idle,prefix);assert.equal(art.walk,`${prefix}Walk`);assert.equal(art.attack,`${prefix}Attack`);
+  assert(art.portrait.includes(gender === 'female' ? 'female_armored_nohelm' : 'warrior_armored_nohelm'));
+  assert.equal(art.helmet.id,'helmet');
+  unequipItem(save,'helmet');assert.equal(save.equipment.armor.id,'armor');assert.equal(heroAppearance(save).idle,prefix);assert.equal(heroAppearance(save).helmet,undefined);
 });
 test('full bag prevents unequip without losing either armor or helmet',()=>{
   const save=freshSave();save.equipment={helmet:equipment('helmet'),armor:equipment('armor')};save.bag=Array.from({length:40},(_,i)=>({...equipment('armor'),id:String(i)}));
