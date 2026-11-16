@@ -51,8 +51,8 @@
 .health-bar i { display: block; width: var(--fill); height: 100%; background: linear-gradient(#d95654, #8d1b29); }
 .health-bar b { position: absolute; inset: 0; display: grid; place-items: center; font-size: 9px; text-shadow: 0 1px 2px #000; }
 .bottom-nav { position: absolute; z-index: 2; left: 10px; bottom: calc(16px + env(safe-area-inset-bottom)); padding: 0; gap: 6px; background: none; align-items: center; }
-.bottom-nav button { flex: 0 0 48px; width: 48px; height: 48px; border: 1px solid #c49b61; border-radius: 12px; color: #f0d8a5; background: #201a19b8; box-shadow: 0 2px 7px #0005; }
-.bottom-nav svg { width: 46px; height: 46px; }
+.bottom-nav button { flex: 0 0 48px; width: 48px; height: 48px; border: 0; border-radius: 12px; color: #f0d8a5; background: #201a1933; box-shadow: none; }
+.bottom-nav svg { width: 46px; height: 46px; opacity: .65; }
 .controls { bottom: env(safe-area-inset-bottom); }
 .action-pad { right: 10px; width: 120px; }
 .action-slot2 { left: 8px; }
