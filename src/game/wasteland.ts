@@ -7,10 +7,11 @@ export function wastelandLayout(width: number, height: number) {
     fires: fires.map(([u, v]) => ({ x: u * width, y: v * height, radius: Math.min(width / 540, height / 914) * 38 })) };
 }
 export async function mountWasteland(view: GameView): Promise<void> {
-  const { Assets } = await import('pixi.js');
+  const [{ Assets }, { mountAmbientScene }] = await Promise.all([import('pixi.js'), import('./ambientScene')]);
   const texture = await Assets.load(wastelandScene.path);
   texture.source.scaleMode = 'linear'; view.floor.texture = texture; view.textures.floor = texture;
   placeWasteland(view);
+  mountAmbientScene(view, texture, wastelandLayout);
 }
 export function placeWasteland(view: GameView): void {
   const { width, height } = view.app.screen, layout = wastelandLayout(width, height);

@@ -646,7 +646,7 @@
 
 ---
 
-## [-] [작업 85] 황야 모닥불·잡초 주변 애니메이션
+## [x] [작업 85] 황야 모닥불·잡초 주변 애니메이션
 - **등록일**: 2026-11-16
 - **담당자**: 이 대화의 클라우드 Codex
 - **수정 예정 파일**: `src/game/wasteland.ts`, `src/game/ambientMotion.ts`, `src/game/ambientScene.ts`, 관련 테스트 및 작업 문서.
