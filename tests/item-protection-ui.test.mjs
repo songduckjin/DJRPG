@@ -75,3 +75,17 @@ test('selling a locked item asks first, cancel keeps lock and approval submits e
     market.registerCategory='armor';assert(!find(render(),n=>hasClass(n,'market-pick')));
   }finally{globalThis.document=previous;}
 });
+
+test('market search offers only category, grade and option; selecting option immediately refreshes first page',()=>{
+  const previous=globalThis.document;globalThis.document={createElement:tag=>element(tag)};
+  try{
+    const market=new Market({conflicted:false});market.view='active';market.data={inbox:[],listings:[],myActive:0,total:0};market.filters.page=2;
+    let refreshed=0;market.refresh=()=>refreshed++;
+    const dialog=element();renderMarket.call({market,session:{guest:false},world:{save:freshSave()},root:{querySelector:()=>null}},dialog);
+    const form=find(dialog,n=>hasClass(n,'market-search')),labels=[];
+    function collect(node){if(!node||typeof node!=='object')return;if(node.tag==='select')labels.push(node.attrs['aria-label']);for(const child of node.children??[])collect(child);}
+    collect(form);assert.deepEqual(labels,['분류','등급','옵션']);
+    const option=find(form,n=>n.tag==='select'&&n.attrs['aria-label']==='옵션');option.value='attack';option.onchange();
+    assert.equal(market.filters.stat,'attack');assert.equal(market.filters.page,0);assert.equal(refreshed,1);
+  }finally{globalThis.document=previous;}
+});

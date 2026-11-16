@@ -233,3 +233,15 @@ test('locked inventory cannot list without approval; failed approval retains loc
   const offers=await snapshot(db,'lock-seller',{view:'mine'});assert.equal(offers.listings.length,1);assert.equal(offers.listings[0].item.locked,false);
   assert.equal((await account(db,'lock-seller')).save.bag.length,0);
 });
+
+test('selected option sorts all matches by stat descending before pagination, overriding price order',async()=>{
+  const now=Date.now(),operations=[];
+  for(let value=1;value<=23;value++){
+    const gear={...item(),name:'옵션정렬검',stats:{attack:value}};
+    operations.push({sql:'INSERT INTO djrpg_market VALUES (?,?,?,NULL,?,?,?,?,?,?,?,?,NULL)',args:[randomUUID(),'seller','전사',JSON.stringify(gear),gear.name,gear.slot,gear.rarity,value,'active',now+value,now+3600000]});
+  }
+  await db.batch(operations);
+  const first=await snapshot(db,'buyer',{query:'옵션정렬검',stat:'attack',sort:'priceAsc'});
+  assert.equal(first.total,23);assert.deepEqual(first.listings.map(s=>s.item.stats.attack),Array.from({length:20},(_,i)=>23-i));
+  const second=await snapshot(db,'buyer',{query:'옵션정렬검',stat:'attack',page:1});assert.deepEqual(second.listings.map(s=>s.item.stats.attack),[3,2,1]);
+});

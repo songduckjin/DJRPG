@@ -35,13 +35,14 @@ export async function snapshot(db, id, input, expirationChecked = false) {
   if (['weapon','offhand','armor','helmet','gloves','belt','boots','necklace','ring1','ring2','skillbook'].includes(input.slot)) { where.push('slot=?'); args.push(input.slot); }
   if (['common','magic','rare','epic','unique','legendary'].includes(input.rarity)) { where.push('rarity=?'); args.push(input.rarity); }
   for (const [key, comparison] of [['minPrice','>='],['maxPrice','<=']]) if (Number.isSafeInteger(input[key]) && input[key] >= 0) { where.push(`price${comparison}?`); args.push(input[key]); }
-  if (['attack','defense','health','crit','speed'].includes(input.stat)) {
+  const selectedStat = ['attack','defense','health','crit','speed'].includes(input.stat) ? input.stat : undefined;
+  if (selectedStat) {
     where.push(`COALESCE(json_extract(item_json,'$.stats.${input.stat}'),0)>=?`);
     args.push(Number.isFinite(input.minStat) && input.minStat > 0 ? input.minStat : 1);
   }
   const filter = where.join(' AND ');
   const page = Math.max(0, Math.min(10000, Number.isSafeInteger(input.page) ? input.page : 0));
-  const order = input.sort === 'priceAsc' ? 'price ASC,created_at DESC,id ASC' : input.sort === 'priceDesc' ? 'price DESC,created_at DESC,id ASC' : view === 'sold' ? 'sold_at DESC,id ASC' : 'created_at DESC,id ASC';
+  const order = selectedStat ? `COALESCE(json_extract(item_json,'$.stats.${selectedStat}'),0) DESC,created_at DESC,id ASC` : input.sort === 'priceAsc' ? 'price ASC,created_at DESC,id ASC' : input.sort === 'priceDesc' ? 'price DESC,created_at DESC,id ASC' : view === 'sold' ? 'sold_at DESC,id ASC' : 'created_at DESC,id ASC';
   const watchIds = Array.isArray(input.watchIds) ? input.watchIds.filter(value => typeof value === 'string' && value.length <= 100).slice(0, 20) : [];
   // A single read batch does not contend with purchases for the writer lock.
   const results = await db.batch([

@@ -28,12 +28,8 @@ function select(label: string, values: [string,string][], market: Market, key: s
   node.setAttribute('aria-label', label);
   for (const [value, text] of values) { const option = el('option', '', text); option.value = value; node.append(option); }
   node.value = String(market.filters[key] ?? '');
-  node.onchange = () => { market.filters[key] = node.value; };
+  node.onchange = () => { market.filters[key] = node.value; if (key === 'stat') { market.filters.sort = 'newest'; market.filters.page = 0; market.refresh(); } };
   field.append(node); return field;
-}
-function numberField(label: string, market: Market, key: string): HTMLElement {
-  const field = el('label', 'market-field', label), node = el('input'); node.type = 'number'; node.min = '0'; node.max = '1000000000'; node.step = '1'; node.inputMode = 'numeric'; node.placeholder = '제한 없음'; node.value = String(market.filters[key] ?? '');
-  node.oninput = () => { market.filters[key] = node.value === '' ? '' : Number(node.value); }; field.append(node); return field;
 }
 export function updateMarketLive(ui: Interface): void {
   const market = ui.market, data = market.data;
@@ -90,9 +86,10 @@ function renderFilters(market: Market, dialog: HTMLElement): void {
   const form = el('form', 'market-search');
   const search = el('input'); search.type = 'search'; search.placeholder = '아이템·스킬북 이름 검색'; search.setAttribute('aria-label', '아이템 이름 검색'); search.maxLength = 80; search.value = String(market.filters.query); search.oninput = () => { market.filters.query = search.value; };
   const submit = el('button', '', '검색'); submit.type = 'submit'; submit.disabled = market.busy; form.append(search, submit);
-  const advanced = el('details'); advanced.append(el('summary', '', '분류 · 옵션 · 가격 필터'));
+  const advanced = el('details'); advanced.append(el('summary', '', '분류 · 등급 · 옵션 필터'));
   const grid = el('div', 'market-filter-grid');
-  grid.append(select('분류', [['','전체'],['weapon','무기·문장'],['armor','방어구'],['accessory','장신구'],['skillbook','스킬북']], market, 'category'), select('등급', [['','전체'], ...Object.entries(rarityNames)], market, 'rarity'), select('부위', [['','전체'], ...Object.entries(slotNames),['skillbook','스킬북']], market, 'slot'), select('정렬', [['newest','최신순'],['priceAsc','낮은 가격순'],['priceDesc','높은 가격순']], market, 'sort'), numberField('최소 가격', market, 'minPrice'), numberField('최대 가격', market, 'maxPrice'), select('옵션', [['','전체'], ...Object.entries(statNames)], market, 'stat'), numberField('옵션 최솟값', market, 'minStat'));
+  grid.append(select('분류', [['','전체'],['weapon','무기·문장'],['armor','방어구'],['accessory','장신구'],['skillbook','스킬북']], market, 'category'), select('등급', [['','전체'], ...Object.entries(rarityNames)], market, 'rarity'), select('옵션', [['','전체'], ...Object.entries(statNames)], market, 'stat'));
+  grid.append(el('small', 'market-option-hint', '옵션 선택 시 해당 능력치가 높은 순서로 표시됩니다.'));
   advanced.append(grid); const reset = button('조건 초기화', () => { market.filters = { query: '', category: '', slot: '', rarity: '', sort: 'newest', page: 0 }; market.refresh(); }); reset.className = 'market-reset'; form.append(advanced, reset);
   form.onsubmit = e => { e.preventDefault(); market.filters.page = 0; market.refresh(); }; dialog.append(form);
 }
@@ -179,7 +176,7 @@ function renderRegister(ui: Interface, dialog: HTMLElement, blocked: boolean): v
   }
   form.onsubmit = e => {
     e.preventDefault(); if (blocked || !item) return;
-    if (!isSkillBook(item) && item.locked) { market.unlockItem = item.id; market.onChange(true); return; }
+    if (!isSkillBook(item) && item.locked) { market.unlockItem = item.id; market.onChange(true); ui.root.querySelector<HTMLElement>('.market-unlock-confirm')?.scrollIntoView({ block: 'nearest' }); return; }
     void market.act('register', { itemId: item.id, price: Number(market.price) });
   }; dialog.append(form);
 }

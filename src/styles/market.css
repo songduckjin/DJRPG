@@ -73,3 +73,5 @@
 .market-unlock-confirm button { margin: 4px 5px 0 0; }
 
 .market-meta .currency-amount { font-size: 12px; font-weight: 700; }
+
+.market-option-hint { grid-column: 1 / -1; color: #b7a38b; font-size: 10px; line-height: 1.6; }
