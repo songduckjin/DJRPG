@@ -2,7 +2,7 @@ import { Sprite, Text } from 'pixi.js';
 import type { Rarity } from '../store';
 import type { World } from '../world';
 
-const rarityColors: Record<Rarity, number> = { common: 0xffffff, magic: 0x57aaff, rare: 0xffd265, legendary: 0xff7d35 };
+const rarityColors: Record<Rarity, number> = { common: 0x9ca3af, magic: 0x60a5fa, rare: 0xfacc15, epic: 0xc084fc, unique: 0xfb923c, legendary: 0xf87171 };
 import { dragonOrbitFactor, dragonRise } from '../skills';
 import type { Effect } from '../world';
 import type { Art, GameView } from '../render';

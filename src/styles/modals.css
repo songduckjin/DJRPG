@@ -12,10 +12,12 @@
 .equipment-modal .bag-grid { flex: 1; min-height: 110px; overflow-y: auto; }
 .bag-grid .item-detail { grid-column: 1 / -1; }
 .bag-item { min-width: 0; aspect-ratio: 1; min-height: 54px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; border: 1px solid #60534e; background: radial-gradient(circle at 50% 30%, #3a3130, #221e22); color: #ddcfc1; padding: 2px; }
-.bag-item.common, .equipment-slot.common { border-color: #a6a6a6; box-shadow: inset 0 0 7px #eeeeee25; }
-.bag-item.magic, .equipment-slot.magic { border-color: #4f9be4; box-shadow: inset 0 0 8px #4f9be455, 0 0 5px #4f9be455; }
-.bag-item.rare, .equipment-slot.rare { border-color: #d5b557; box-shadow: inset 0 0 8px #d5b55755, 0 0 5px #d5b55755; }
-.bag-item.legendary, .equipment-slot.legendary { border-color: #d87539; box-shadow: inset 0 0 9px #d8753966, 0 0 6px #d8753977; }
+.bag-item.common, .equipment-slot.common { border-color: #9ca3af; box-shadow: inset 0 0 7px #9ca3af44; }
+.bag-item.magic, .equipment-slot.magic { border-color: #60a5fa; box-shadow: inset 0 0 8px #60a5fa55, 0 0 5px #60a5fa55; }
+.bag-item.rare, .equipment-slot.rare { border-color: #facc15; box-shadow: inset 0 0 8px #facc1555, 0 0 5px #facc1555; }
+.bag-item.epic, .equipment-slot.epic { border-color: #c084fc; box-shadow: inset 0 0 8px #c084fc55, 0 0 5px #c084fc55; }
+.bag-item.unique, .equipment-slot.unique { border-color: #fb923c; box-shadow: inset 0 0 8px #fb923c55, 0 0 5px #fb923c55; }
+.bag-item.legendary, .equipment-slot.legendary { border-color: #f87171; box-shadow: inset 0 0 9px #f8717166, 0 0 6px #f8717177; }
 .bag-item.selected { background: #493a35; }
 .item-icon { display: block; width: 27px; height: 27px; object-fit: contain; }
 .atlas-icon { background-size: 500% 100%; background-repeat: no-repeat; }

@@ -33,7 +33,7 @@ export async function snapshot(db, id, input, expirationChecked = false) {
   const groups = { weapon: ['weapon','offhand'], armor: ['armor','helmet','gloves','belt','boots'], accessory: ['necklace','ring1','ring2'], skillbook: ['skillbook'] };
   if (Object.hasOwn(groups, input.category)) { const slots = groups[input.category]; where.push(`slot IN (${slots.map(() => '?').join(',')})`); args.push(...slots); }
   if (['weapon','offhand','armor','helmet','gloves','belt','boots','necklace','ring1','ring2','skillbook'].includes(input.slot)) { where.push('slot=?'); args.push(input.slot); }
-  if (['common','magic','rare','legendary'].includes(input.rarity)) { where.push('rarity=?'); args.push(input.rarity); }
+  if (['common','magic','rare','epic','unique','legendary'].includes(input.rarity)) { where.push('rarity=?'); args.push(input.rarity); }
   for (const [key, comparison] of [['minPrice','>='],['maxPrice','<=']]) if (Number.isSafeInteger(input[key]) && input[key] >= 0) { where.push(`price${comparison}?`); args.push(input[key]); }
   if (['attack','defense','health','crit','speed'].includes(input.stat)) {
     where.push(`COALESCE(json_extract(item_json,'$.stats.${input.stat}'),0)>=?`);

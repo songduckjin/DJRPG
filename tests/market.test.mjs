@@ -36,6 +36,20 @@ test('listing escrows a persisted item, all accounts can search, private IDs sta
   assert.equal(result.total,1); assert.equal(result.listings[0].sellerName,'전사'); assert(!('seller' in result.listings[0]));
   assert.equal((await snapshot(db,'buyer',{stat:'attack',minStat:100})).total,0);
 });
+test('epic and unique equipment save, list, and filter through the market', async () => {
+  const epic = { ...item(), rarity: 'epic', name: '비전의 쯔바이핸드' };
+  const unique = { ...item(), rarity: 'unique', name: '고대의 쯔바이핸드' };
+  await seed('six-grade-seller', [epic, unique]);
+  await action('six-grade-seller', 'register', { itemId: epic.id, price: 111 });
+  await action('six-grade-seller', 'register', { itemId: unique.id, price: 222 });
+  for (const [rarity, expected] of [['epic', epic.id], ['unique', unique.id]]) {
+    const result = await snapshot(db, 'guest', { view: 'active', rarity });
+    assert(result.listings.some(listing => listing.item.id === expected));
+    assert(result.listings.every(listing => listing.item.rarity === rarity));
+  }
+  const listings = (await snapshot(db, 'six-grade-seller', { view: 'mine' })).listings.filter(listing => listing.state === 'active');
+  for (const listing of listings) await action('six-grade-seller', 'cancel', { listingId: listing.id });
+});
 test('guests are read-only, own listing and insufficient gold cannot buy', async () => {
   const listing = (await snapshot(db,'seller',{view:'active'})).listings[0];
   await assert.rejects(action('guest','buy',{listingId:listing.id}),error('GUEST_READ_ONLY'));

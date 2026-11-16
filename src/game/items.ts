@@ -3,7 +3,14 @@ import { passiveOrder, passives, skillOrder, skills, type SkillLevelId } from '.
 
 function isRecord(value: unknown): value is Record<string, unknown> { return typeof value === 'object' && value !== null && !Array.isArray(value); }
 
-export type Rarity = 'common' | 'magic' | 'rare' | 'legendary';
+export type Rarity = 'common' | 'magic' | 'rare' | 'epic' | 'unique' | 'legendary';
+export const rarityOrder: Rarity[] = ['common', 'magic', 'rare', 'epic', 'unique', 'legendary'];
+export const rarityRanks: Record<Rarity, number> = { common: 0, magic: 1, rare: 2, epic: 3, unique: 4, legendary: 5 };
+export const rarityTiers: Record<Rarity, number> = { common: 0, magic: 2, rare: 4, epic: 5, unique: 6, legendary: 7 };
+export const rarityScales: Record<Rarity, number> = { common: 1, magic: 2, rare: 3, epic: 4, unique: 5, legendary: 6 };
+export const rarityPrefixes: Record<Rarity, string> = { common: '낡은', magic: '서리의', rare: '황혼의', epic: '비전의', unique: '고대의', legendary: '영원의' };
+export const salvageGold: Record<Rarity, number> = { common: 3, magic: 10, rare: 25, epic: 38, unique: 50, legendary: 60 };
+export const salvageStones: Record<Rarity, number> = { common: 1, magic: 2, rare: 2, epic: 3, unique: 4, legendary: 5 };
 
 export type Slot = 'weapon' | 'offhand' | 'helmet' | 'armor' | 'necklace' | 'gloves' | 'belt' | 'boots' | 'ring1' | 'ring2';
 
@@ -25,7 +32,7 @@ export const slots: Slot[] = ['weapon', 'offhand', 'helmet', 'armor', 'necklace'
 
 export const slotNames: Record<Slot, string> = { weapon: '두손검', offhand: '문장', helmet: '투구', armor: '갑옷', necklace: '목걸이', gloves: '장갑', belt: '벨트', boots: '신발', ring1: '반지 1', ring2: '반지 2' };
 
-export const rarityNames: Record<Rarity, string> = { common: '일반', magic: '마법', rare: '희귀', legendary: '전설' };
+export const rarityNames: Record<Rarity, string> = { common: '일반', magic: '매직', rare: '레어', epic: '에픽', unique: '유니크', legendary: '레전드' };
 
 export const statNames: Record<Stat, string> = { attack: '공격', defense: '방어', health: '체력', crit: '치명', speed: '공속' };
 
@@ -94,21 +101,23 @@ export function rollItem(floor: number, guaranteed = false, boss = false): Item 
   const depth = Math.max(0, floor - 1);
   const legendary = boss ? Math.min(.04, .02 + depth * .0002) : Math.min(.006, .002 + depth * .00005);
   const rare = boss ? Math.min(.22, .14 + depth * .001) : Math.min(.035, .017 + depth * .0004);
-  const rarity: Rarity = roll < legendary ? 'legendary' : roll < rare ? 'rare' : roll < (boss ? .54 : .117) ? 'magic' : 'common';
+  const unique = legendary + (rare - legendary) * .18;
+  const epic = legendary + (rare - legendary) * .48;
+  const rarity: Rarity = roll < legendary ? 'legendary' : roll < unique ? 'unique' : roll < epic ? 'epic' : roll < rare ? 'rare' : roll < (boss ? .54 : .117) ? 'magic' : 'common';
   const slot = slots[Math.floor(Math.random() * slots.length)];
   const bases = baseItems[slot];
-  const rarityTier = { common: 0, magic: 2, rare: 4, legendary: 6 }[rarity];
+  const rarityTier = rarityTiers[rarity];
   const maxTier = Math.min(bases.length - 1, Math.floor(depth / (bases.length === 10 ? 3 : 8)) + Math.floor(rarityTier * (bases.length - 1) / 9));
   const tier = Math.floor(Math.random() * (maxTier + 1));
   const base = bases[tier];
   const zweihander = slot === 'weapon' && base === '쯔바이핸드';
-  const prefix = { common: '낡은', magic: '서리의', rare: '황혼의', legendary: '영원의' }[rarity];
-  const scale = (1 + Math.floor(floor / 2)) * ({ common: 1, magic: 2, rare: 3, legendary: 5 }[rarity]);
+  const prefix = rarityPrefixes[rarity];
+  const scale = (1 + Math.floor(floor / 2)) * rarityScales[rarity];
   const primary: Stat = ['weapon', 'ring1', 'ring2', 'gloves'].includes(slot) ? 'attack' : 'defense';
   const stats: Partial<Record<Stat, number>> = { [primary]: scale + Math.ceil(Math.random() * 3) + Math.ceil(tier * (slot === 'weapon' ? .6 : .4)) };
   if (rarity !== 'common') stats.health = 3 * scale;
-  if (rarity === 'rare' || rarity === 'legendary') stats.crit = scale;
-  if (rarity === 'legendary') stats.speed = scale;
+  if (rarityRanks[rarity] >= rarityRanks.rare) stats.crit = scale;
+  if (rarityRanks[rarity] >= rarityRanks.unique) stats.speed = scale;
   if (zweihander) {
     stats.attack = (stats.attack ?? 0) + 2 + Math.ceil(scale * .25);
     if (rarity !== 'common') stats.crit = (stats.crit ?? 0) + Math.max(1, Math.ceil(scale * .5));
@@ -118,7 +127,7 @@ export function rollItem(floor: number, guaranteed = false, boss = false): Item 
 
 export function itemPower(item: Item): number {
   if (isSkillBook(item)) return 0;
-  return (item.stats.attack ?? 0) * 3 + (item.stats.defense ?? 0) * 2 + (item.stats.health ?? 0) * .2 + (item.stats.crit ?? 0) * 2 + (item.stats.speed ?? 0) * 2;
+  return (item.stats.attack ?? 0) * 3 + (item.stats.defense ?? 0) * 2 + (item.stats.health ?? 0) * .2 + (item.stats.crit ?? 0) * 2 + (item.stats.speed ?? 0) * 2 + rarityRanks[item.rarity] * 2;
 }
 
 export function autoEquipBest(save: Save): number {
@@ -150,10 +159,9 @@ export function autoEquipBest(save: Save): number {
 }
 
 export function salvageByRarity(save: Save, maxRarity: Exclude<Rarity, 'legendary'>): { count: number; gold: number; stones: number } {
-  const ranks: Record<Rarity, number> = { common: 0, magic: 1, rare: 2, legendary: 3 };
-  const chosen = save.bag.filter(item => !isSkillBook(item) && ranks[item.rarity] <= ranks[maxRarity]);
-  const gold = chosen.reduce((sum, item) => sum + ({ common: 3, magic: 10, rare: 25, legendary: 60 })[item.rarity], 0);
-  const stones = chosen.reduce((sum, item) => sum + (item.rarity === 'common' ? 1 : 2), 0);
+  const chosen = save.bag.filter(item => !isSkillBook(item) && rarityRanks[item.rarity] <= rarityRanks[maxRarity]);
+  const gold = chosen.reduce((sum, item) => sum + salvageGold[item.rarity], 0);
+  const stones = chosen.reduce((sum, item) => sum + salvageStones[item.rarity], 0);
   const ids = new Set(chosen.map(item => item.id));
   save.bag = save.bag.filter(item => !ids.has(item.id));
   save.gold += gold; save.stones += stones;

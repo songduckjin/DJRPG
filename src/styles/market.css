@@ -45,7 +45,7 @@
 .market-proceeds { font-size: 11px; color: #e4c28d; line-height: 1.7; }
 .market-primary { width: 100%; }
 .market-gold-icon { font-size: 26px; color: #e6bb6c; text-align: center; }
-.rarity-common { color: #d8d1c8; }.rarity-magic { color: #83bdf7; }.rarity-rare { color: #f0d173; }.rarity-legendary { color: #f5a166; }
+.rarity-common { color: #9ca3af; }.rarity-magic { color: #60a5fa; }.rarity-rare { color: #facc15; }.rarity-epic { color: #c084fc; }.rarity-unique { color: #fb923c; }.rarity-legendary { color: #f87171; }
 .sync-busy .battle, .sync-busy .bottom-nav { pointer-events: none; }
 .sync-conflict { position: fixed; z-index: 100; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; padding: 30px; background: #130e13f5; color: #efd8b4; text-align: center; font-size: 14px; }
 .sync-conflict button { border: 1px solid #c29a65; padding: 12px; background: #493124; color: #fff0cc; }

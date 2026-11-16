@@ -4,7 +4,7 @@ import './ts-loader.mjs';
 const { codexEntries, equipmentCodexKey, discoverEquipment, codexOwnership, filterCodex, firstDropFloor, codexOptions, codexVariantName }=await import('../src/game/codex.ts');
 const { freshSave, parseSave }=await import('../src/game/store.ts');
 const { salvageItems }=await import('../src/game/inventory.ts');
-const { rollItem, slots, baseItems }=await import('../src/game/items.ts');
+const { rollItem, slots, baseItems, rarityOrder, rarityTiers, rarityNames, migrateItem, salvageByRarity }=await import('../src/game/items.ts');
 const item=(name,slot='weapon')=>({id:name+slot,name,slot,rarity:'rare',stats:{attack:5}});
 test('codex contains exactly 75 unique illustrated base items, counting ring types once',()=>{
   assert.equal(codexEntries.length,75);assert.equal(new Set(codexEntries.map(e=>e.key)).size,75);assert.equal(codexEntries.filter(e=>e.slot==='ring').length,5);
@@ -35,25 +35,36 @@ test('search and found/missing/owned filters distinguish permanent discovery fro
 });
 test('tier unlock floors follow the live equipment generator rather than arbitrary levels',()=>{
   const sword=codexEntries.find(e=>e.key==='weapon:9'),ring=codexEntries.find(e=>e.key==='ring:4');
-  assert.equal(firstDropFloor(sword,'common'),28);assert.equal(firstDropFloor(sword,'legendary'),10);assert.equal(firstDropFloor(ring,'common'),33);assert.equal(firstDropFloor(ring,'legendary'),17);
+  assert.equal(firstDropFloor(sword,'common'),28);assert.equal(firstDropFloor(sword,'legendary'),7);assert.equal(firstDropFloor(ring,'common'),33);assert.equal(firstDropFloor(ring,'legendary'),9);
 });
 test('every illustrated tier previews options consistent with generated loot at its first floor',()=>{
   const random=Math.random;
-  try { for(const entry of codexEntries) for(const rarity of ['common','magic','rare','legendary']) {
-    const floor=firstDropFloor(entry,rarity),count=baseItems[entry.item.slot].length,offset=Math.floor(({common:0,magic:2,rare:4,legendary:6}[rarity])*(count-1)/9);
+  try { for(const entry of codexEntries) for(const rarity of rarityOrder) {
+    const floor=firstDropFloor(entry,rarity),count=baseItems[entry.item.slot].length,offset=Math.floor(rarityTiers[rarity]*(count-1)/9);
     const maxTier=Math.min(count-1,Math.floor((floor-1)/(count===10?3:8))+offset);
-    const sequence=[{common:.5,magic:.05,rare:.01,legendary:.0001}[rarity],(slots.indexOf(entry.item.slot)+.1)/slots.length,(entry.index+.1)/(maxTier+1),.5];Math.random=()=>sequence.shift()??.5;
+    const depth=floor-1, legendary=Math.min(.006,.002+depth*.00005), rare=Math.min(.035,.017+depth*.0004);
+    const unique=legendary+(rare-legendary)*.18, epic=legendary+(rare-legendary)*.48;
+    const rarityRoll={common:.5,magic:.05,rare:(epic+rare)/2,epic:(unique+epic)/2,unique:(legendary+unique)/2,legendary:legendary/2}[rarity];
+    const sequence=[rarityRoll,(slots.indexOf(entry.item.slot)+.1)/slots.length,(entry.index+.1)/(maxTier+1),.5];Math.random=()=>sequence.shift()??.5;
     const actual=rollItem(floor),preview=codexOptions(entry,rarity,floor);assert.equal(actual.name,codexVariantName(entry,rarity));
     for(const option of preview.stats){assert(actual.stats[option.stat]>=option.min);assert(actual.stats[option.stat]<=option.max);}
     assert.equal(Object.keys(actual.stats).length,preview.stats.length);
   }} finally {Math.random=random;}
 });
 
-test('grade filtering yields four variants per base with distinct identities and exact ownership',async()=>{
+test('grade filtering yields six variants per base with distinct identities and exact ownership',async()=>{
   const { codexVariants }=await import('../src/game/codex.ts');const save=freshSave();
-  assert.equal(codexVariants(save).length,300);assert.equal(codexVariants(save,'','','all','rare').length,75);
-  const swords=codexVariants(save,'쯔바이핸드','weapon');assert.equal(swords.length,4);assert.equal(new Set(swords.map(v=>v.key)).size,4);
+  assert.equal(codexVariants(save).length,450);assert.equal(codexVariants(save,'','','all','rare').length,75);
+  const swords=codexVariants(save,'쯔바이핸드','weapon');assert.equal(swords.length,6);assert.equal(new Set(swords.map(v=>v.key)).size,6);
   assert.equal(codexVariants(save,'쯔바이핸드','weapon','all','legendary')[0].name,'영원의 쯔바이핸드');
   save.bag=[item('황혼의 쯔바이핸드')];save.equipment.weapon={...item('서리의 쯔바이핸드'),rarity:'magic'};
   assert.equal(codexVariants(save,'','weapon','owned','rare').length,1);assert.equal(codexVariants(save,'','weapon','owned','legendary').length,0);
+});
+test('all six rarity keys survive save migration and salvage thresholds protect legendary gear',()=>{
+  assert.deepEqual(Object.values(rarityNames),['일반','매직','레어','에픽','유니크','레전드']);
+  const save=freshSave();save.bag=rarityOrder.map((rarity,index)=>({id:String(index),name:`${rarity} 두손검`,slot:'weapon',rarity,stats:{attack:10}}));
+  const loaded=parseSave(JSON.parse(JSON.stringify(save)));
+  assert.deepEqual(loaded.bag.map(item=>item.rarity),rarityOrder);
+  for(const rarity of rarityOrder) assert.equal(migrateItem({id:rarity,name:rarity,slot:'weapon',rarity,stats:{attack:1}}).rarity,rarity);
+  const result=salvageByRarity(loaded,'unique');assert.equal(result.count,5);assert.deepEqual(loaded.bag.map(item=>item.rarity),['legendary']);
 });

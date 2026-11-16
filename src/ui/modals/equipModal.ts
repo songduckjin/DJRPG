@@ -1,4 +1,5 @@
 import { autoEquipBest, equipmentImage, rarityNames, slotNames, statNames, totalStats, useSkillBook, type Item, type Rarity, type Save, type Slot, type Stat } from '../../game/store';
+import { rarityOrder, rarityRanks, salvageGold } from '../../game/items';
 import { canAutoEquip } from '../../game/inventory';
 import { requestSalvage } from './salvageModal';
 import { heroAppearance, unequipItem } from '../../game/appearance';
@@ -44,13 +45,13 @@ export function renderInventory(this: Interface, dialog: HTMLElement): void {
       this.selected = undefined; this.world.onChange();
       this.message(changed ? `${changed}부위 자동 장착 완료` : '이미 최고 장비 장착 중');
     };
-    const rarityOrder = ['common', 'magic', 'rare'] as const;
-    const rarityLabels: Record<Exclude<Rarity, 'legendary'>, string> = { common: '일반만', magic: '마법 이하', rare: '희귀 이하' };
+    const salvageOrder = rarityOrder.filter((rarity): rarity is Exclude<Rarity, 'legendary'> => rarity !== 'legendary');
+    const rarityLabels: Record<Exclude<Rarity, 'legendary'>, string> = { common: '일반만', magic: '매직 이하', rare: '레어 이하', epic: '에픽 이하', unique: '유니크 이하' };
     const rarityButton = document.createElement('button'); rarityButton.className = 'salvage-rarity'; rarityButton.type = 'button';
     rarityButton.textContent = `기준: ${rarityLabels[this.salvageRarity]}`;
     rarityButton.setAttribute('aria-label', `일괄 분해 기준 ${rarityLabels[this.salvageRarity]}. 누르면 다음 등급으로 변경`);
     rarityButton.onclick = () => {
-      this.salvageRarity = rarityOrder[(rarityOrder.indexOf(this.salvageRarity) + 1) % rarityOrder.length];
+      this.salvageRarity = salvageOrder[(salvageOrder.indexOf(this.salvageRarity) + 1) % salvageOrder.length];
       rarityButton.textContent = `기준: ${rarityLabels[this.salvageRarity]}`;
       rarityButton.setAttribute('aria-label', `일괄 분해 기준 ${rarityLabels[this.salvageRarity]}. 누르면 다음 등급으로 변경`);
     };
@@ -96,8 +97,7 @@ export function itemDetail(this: Interface, save: Save, item: Item): HTMLElement
 
 export function salvage(this: Interface): void {
     const save = this.world.save;
-    const ranks: Record<Rarity, number> = { common: 0, magic: 1, rare: 2, legendary: 3 };
-    const ids = save.bag.filter(item => !isSkillBook(item) && ranks[item.rarity] <= ranks[this.salvageRarity]).map(item => item.id);
+    const ids = save.bag.filter(item => !isSkillBook(item) && rarityRanks[item.rarity] <= rarityRanks[this.salvageRarity]).map(item => item.id);
     requestSalvage.call(this, ids);
   }
 
@@ -137,7 +137,7 @@ export function renderEquipment(this: Interface, dialog: HTMLElement): void {
     const hint = document.createElement('p'); hint.className = 'modal-hint'; hint.textContent = '장착한 장비를 터치하면 가방으로 옮깁니다.'; dialog.appendChild(hint);
   }
 
-export function salvageValue(this: Interface, item: Item): number { return { common: 3, magic: 10, rare: 25, legendary: 60 }[item.rarity]; }
+export function salvageValue(this: Interface, item: Item): number { return salvageGold[item.rarity]; }
 
 function itemIcon(this: Interface, slot: Slot | 'skillbook', item: Item | undefined, className: string): string {
   if (item && !isSkillBook(item)) {

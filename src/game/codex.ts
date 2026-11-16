@@ -1,4 +1,4 @@
-import { baseItems, equipmentImage, isSkillBook, isZweihander, type EquipmentItem, type Item, type Rarity, type Slot, type Stat } from './items';
+import { baseItems, equipmentImage, isSkillBook, isZweihander, rarityOrder, rarityPrefixes, rarityRanks, rarityScales, rarityTiers, type EquipmentItem, type Item, type Rarity, type Slot, type Stat } from './items';
 import type { Save } from './store';
 export type CodexSlot = Exclude<Slot, 'ring1' | 'ring2'> | 'ring';
 export type CodexEntry = { key: string; name: string; slot: CodexSlot; index: number; item: EquipmentItem; art: ReturnType<typeof equipmentImage> };
@@ -31,25 +31,24 @@ export function codexOwnership(save: Save, entry: CodexEntry): { bag: number; eq
   const equipped = Object.values(save.equipment).filter(item => item && equipmentCodexKey(item) === entry.key).length;
   return { bag, equipped, discovered: save.equipmentCollection.includes(entry.key) || bag + equipped > 0 };
 }
-const prefixes: Record<Rarity, string> = { common: '낡은', magic: '서리의', rare: '황혼의', legendary: '영원의' };
-export function codexVariantName(entry: CodexEntry, rarity: Rarity): string { const prefix = prefixes[rarity]; return entry.name.startsWith(`${prefix} `) ? entry.name : `${prefix} ${entry.name}`; }
+export function codexVariantName(entry: CodexEntry, rarity: Rarity): string { const prefix = rarityPrefixes[rarity]; return entry.name.startsWith(`${prefix} `) ? entry.name : `${prefix} ${entry.name}`; }
 export function firstDropFloor(entry: CodexEntry, rarity: Rarity): number {
-  const count = baseItems[entry.item.slot].length, tier = { common: 0, magic: 2, rare: 4, legendary: 6 }[rarity];
+  const count = baseItems[entry.item.slot].length, tier = rarityTiers[rarity];
   const offset = Math.floor(tier * (count - 1) / 9), stride = count === 10 ? 3 : 8;
   return 1 + Math.max(0, entry.index - offset) * stride;
 }
 export function codexOptions(entry: CodexEntry, rarity: Rarity, floor: number): { floor: number; stats: { stat: Stat; min: number; max: number }[] } {
   floor = Math.max(firstDropFloor(entry, rarity), Math.floor(floor));
-  const scale = (1 + Math.floor(floor / 2)) * ({ common: 1, magic: 2, rare: 3, legendary: 5 }[rarity]);
+  const scale = (1 + Math.floor(floor / 2)) * rarityScales[rarity];
   const primary: Stat = ['weapon','ring1','ring2','gloves'].includes(entry.item.slot) ? 'attack' : 'defense';
   const tierBonus = Math.ceil(entry.index * (entry.slot === 'weapon' ? .6 : .4));
   const zweihander = entry.slot === 'weapon' && entry.name === '쯔바이핸드';
   const bonus = zweihander ? 2 + Math.ceil(scale * .25) : 0;
   const stats: { stat: Stat; min: number; max: number }[] = [{ stat: primary, min: scale + 1 + tierBonus + bonus, max: scale + 3 + tierBonus + bonus }];
   if (rarity !== 'common') stats.push({ stat: 'health', min: 3 * scale, max: 3 * scale });
-  const crit = (rarity === 'rare' || rarity === 'legendary' ? scale : 0) + (zweihander && rarity !== 'common' ? Math.max(1, Math.ceil(scale * .5)) : 0);
+  const crit = (rarityRanks[rarity] >= rarityRanks.rare ? scale : 0) + (zweihander && rarity !== 'common' ? Math.max(1, Math.ceil(scale * .5)) : 0);
   if (crit) stats.push({ stat: 'crit', min: crit, max: crit });
-  if (rarity === 'legendary') stats.push({ stat: 'speed', min: scale, max: scale });
+  if (rarityRanks[rarity] >= rarityRanks.unique) stats.push({ stat: 'speed', min: scale, max: scale });
   return { floor, stats };
 }
 export function filterCodex(save: Save, query = '', slot = '', state = 'all'): CodexEntry[] {
@@ -58,10 +57,10 @@ export function filterCodex(save: Save, query = '', slot = '', state = 'all'): C
     if (slot && entry.slot !== slot) return false;
     const owned = codexOwnership(save, entry);
     if (state === 'found' && !owned.discovered || state === 'missing' && owned.discovered || state === 'owned' && owned.bag + owned.equipped === 0) return false;
-    return !search || [entry.name, ...(['common','magic','rare','legendary'] as Rarity[]).map(rarity => codexVariantName(entry, rarity))].some(name => name.toLocaleLowerCase('ko-KR').includes(search));
+    return !search || [entry.name, ...rarityOrder.map(rarity => codexVariantName(entry, rarity))].some(name => name.toLocaleLowerCase('ko-KR').includes(search));
   });
 }
-export const codexRarities: Rarity[] = ['common', 'magic', 'rare', 'legendary'];
+export const codexRarities: Rarity[] = rarityOrder;
 export function codexVariants(save: Save, query = '', slot = '', state = 'all', rarity = '') {
   const search = query.trim().toLocaleLowerCase('ko-KR');
   return filterCodex(save, '', slot, state).flatMap(entry => codexRarities.filter(grade => !rarity || grade === rarity).flatMap(grade => {
