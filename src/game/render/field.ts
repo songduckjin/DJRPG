@@ -77,7 +77,7 @@ export function drawLighting(this: GameView, w: number, h: number, time: number)
 export function drawVignette(this: GameView, w: number, h: number, cx: number, cy: number, time: number): void {
     const sight = Math.min(w, h) * .72 + Math.sin(time * 3) * 4;
     for (let ring = 0; ring < 7; ring++) {
-      this.shade.rect(0, 0, w, h).fill({ color: 0x24180c, alpha: .04 });
+      this.shade.rect(0, 0, w, h).fill({ color: 0x24180c, alpha: .015 });
       this.shade.circle(cx, cy, sight + ring * 33).cut();
     }
 }

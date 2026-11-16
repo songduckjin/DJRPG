@@ -5,7 +5,7 @@ import { drawHero, updateAfterimages, updateCorpses, drawEntities } from './rend
 import { drawSkillVfx, drawDragon, drawHit, updateDamageLabels, drawDeath, drawDrops, drawEffects } from './render/vfx';
 
 const paths = {
-  floor: '/assets/dungeon_tile.jpg', male: '/assets/warrior_male_base.png',
+  floor: '/assets/dungeon_tile.jpg?v=2', male: '/assets/warrior_male_base.png',
   female: '/assets/warrior_female_base.png', armored: '/assets/warrior_armored.png?v=2',
   armoredNoHelm: '/assets/warrior_armored_nohelm.png?v=2',
   maleSword: '/assets/warrior_male_sword.png', femaleSword: '/assets/warrior_female_sword.png',
@@ -90,6 +90,7 @@ export class GameView {
     this.floor.width = w; this.floor.height = h;
     this.floor.tilePosition.set((-world.player.x + world.player.y) * .86, (-world.player.x - world.player.y) * .43);
     this.floor.tint = 0xffffff;
+    this.floor.alpha = 1;
     this.glow.clear(); this.ground.clear(); this.effects.clear(); this.shade.clear();
     this.drawLighting(w, h, time);
     this.drawTerrain(world, project, time);
