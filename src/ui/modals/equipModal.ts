@@ -1,4 +1,4 @@
-import { autoEquipBest, baseItems, isZweihander, rarityNames, salvageByRarity, slotNames, statNames, totalStats, useSkillBook, type Item, type Rarity, type Save, type Slot, type Stat } from '../../game/store';
+import { autoEquipBest, equipmentImagePath, rarityNames, salvageByRarity, slotNames, statNames, totalStats, useSkillBook, type Item, type Rarity, type Save, type Slot, type Stat } from '../../game/store';
 import { isSkillBook } from '../../game/items';
 import type { BagFilter, Interface } from '../interface';
 
@@ -137,10 +137,6 @@ export function salvageValue(this: Interface, item: Item): number { return { com
 export function iconPath(this: Interface, slot: Slot | 'skillbook', item?: Item): string {
   if (slot === 'skillbook') return '/assets/icons/icon_skillbook.png';
   const iconSlot = slot === 'ring1' || slot === 'ring2' ? 'ring' : slot;
-  if (item) {
-    const index = baseItems[slot].findIndex(base => item.name === base || item.name.endsWith(` ${base}`));
-    if (index >= 0) return `/assets/icons/items/${iconSlot}_${String(index).padStart(2, '0')}.svg`;
-    if (isZweihander(item)) return '/assets/icons/icon_zweihander.png';
-  }
+  if (item && item.slot !== 'skillbook') return equipmentImagePath(item);
   return `/assets/icons/${iconSlot}.png`;
 }

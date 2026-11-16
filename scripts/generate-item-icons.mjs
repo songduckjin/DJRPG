@@ -4,7 +4,9 @@ import { fileURLToPath } from 'node:url';
 
 const source = readFileSync(new URL('../src/game/items.ts', import.meta.url), 'utf8');
 const output = new URL('../public/assets/icons/items/', import.meta.url);
+const equipmentOutput = new URL('../public/assets/equipment/', import.meta.url);
 mkdirSync(output, { recursive: true });
+mkdirSync(equipmentOutput, { recursive: true });
 
 const palette = [
   ['#9c988d', '#514d48', '#c6bdae'], ['#b6aaa0', '#635c58', '#dec8b5'],
@@ -52,10 +54,10 @@ function art(slot, tier) {
   }
 }
 
-function svg(slot, tier, name) {
+function svg(slot, tier, name, wearable = false) {
   const [light, dark, accent] = palette[Math.min(9, tier)];
   const safeName = name.replaceAll('&', '&amp;').replaceAll('<', '&lt;');
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-label="${safeName}"><defs><linearGradient id="metal" x2="1" y2="1"><stop stop-color="${light}"/><stop offset=".5" stop-color="#e3d7bc"/><stop offset="1" stop-color="${dark}"/></linearGradient><linearGradient id="dark" x2="1" y2="1"><stop stop-color="${dark}"/><stop offset="1" stop-color="#201b22"/></linearGradient><linearGradient id="edge" x2="1" y2="1"><stop stop-color="${accent}"/><stop offset="1" stop-color="${dark}"/></linearGradient><radialGradient id="gem"><stop stop-color="#fff0c7"/><stop offset=".42" stop-color="${accent}"/><stop offset="1" stop-color="${dark}"/></radialGradient></defs><circle cx="48" cy="48" r="43" fill="#16131b" opacity=".32"/>${art(slot, tier)}</svg>\n`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-label="${safeName}"><defs><linearGradient id="metal" x2="1" y2="1"><stop stop-color="${light}"/><stop offset=".5" stop-color="#e3d7bc"/><stop offset="1" stop-color="${dark}"/></linearGradient><linearGradient id="dark" x2="1" y2="1"><stop stop-color="${dark}"/><stop offset="1" stop-color="#201b22"/></linearGradient><linearGradient id="edge" x2="1" y2="1"><stop stop-color="${accent}"/><stop offset="1" stop-color="${dark}"/></linearGradient><radialGradient id="gem"><stop stop-color="#fff0c7"/><stop offset=".42" stop-color="${accent}"/><stop offset="1" stop-color="${dark}"/></radialGradient></defs>${wearable ? '' : '<circle cx="48" cy="48" r="43" fill="#16131b" opacity=".32"/>'}${art(slot, tier)}</svg>\n`;
 }
 
 const ring = source.match(/const ringBases = \[([^\]]+)\]/)?.[1];
@@ -66,5 +68,6 @@ entries.push(['ring', [...ring.matchAll(/'([^']+)'/g)].map(([, name]) => name)])
 if (entries.length !== 9 || entries.some(([, names]) => names.length === 0)) throw new Error('Equipment base list is incomplete');
 for (const [slot, names] of entries) for (const [tier, name] of names.entries()) {
   writeFileSync(join(fileURLToPath(output), `${slot}_${String(tier).padStart(2, '0')}.svg`), svg(slot, tier, name));
+  writeFileSync(join(fileURLToPath(equipmentOutput), `${slot}_${String(tier).padStart(2, '0')}.svg`), svg(slot, tier, name, true));
 }
-console.log(`Generated ${entries.reduce((count, [, names]) => count + names.length, 0)} equipment icons.`);
+console.log(`Generated ${entries.reduce((count, [, names]) => count + names.length, 0)} equipment icons and wearable images.`);

@@ -1,6 +1,57 @@
-import { Sprite, Text } from 'pixi.js';
+import { Assets, Container, Sprite, Text, type Texture } from 'pixi.js';
 import type { World } from '../world';
 import type { Art, GameView } from '../render';
+import { equipmentImagePath, slots, type Save, type Slot } from '../store';
+
+const gearPosition: Record<Slot, [number, number, number]> = {
+  weapon: [.73, .45, .48], offhand: [.29, .47, .16], helmet: [.51, .22, .21],
+  armor: [.51, .48, .29], necklace: [.51, .36, .09], gloves: [.37, .51, .17],
+  belt: [.51, .64, .18], boots: [.52, .83, .24], ring1: [.34, .58, .07], ring2: [.68, .58, .07]
+};
+
+function syncGear(view: GameView, save: Save, texture: Texture, attackFrame: number, attacking: boolean): void {
+  for (const slot of slots) {
+    const item = save.equipment[slot];
+    const path = item ? equipmentImagePath(item, true) : '';
+    let shown = view.heroGear.get(slot);
+    if (shown && shown.path !== path) {
+      view.heroLayer.removeChild(shown.sprite);
+      shown.sprite.destroy();
+      view.heroGear.delete(slot);
+      shown = undefined;
+    }
+    if (!path) continue;
+    const gearTexture = view.gearTextures.get(path);
+    if (!gearTexture) {
+      if (!view.gearLoading.has(path)) {
+        view.gearLoading.add(path);
+        void Assets.load<Texture>(path).then(loaded => {
+          loaded.source.scaleMode = 'linear';
+          view.gearTextures.set(path, loaded);
+          view.gearLoading.delete(path);
+        }).catch(error => {
+          view.gearLoading.delete(path);
+          console.error(`장비 이미지 로딩 실패: ${path}`, error);
+        });
+      }
+      continue;
+    }
+    if (!shown) {
+      const sprite = new Sprite(gearTexture);
+      sprite.anchor.set(.5);
+      sprite.alpha = .92;
+      view.heroLayer.addChild(sprite);
+      shown = { path, sprite };
+      view.heroGear.set(slot, shown);
+    }
+    const [u, v, size] = slot === 'weapon' && attacking
+      ? ([[.29, .25, .48], [.77, .68, .48], [.73, .55, .48], [.77, .4, .48]][attackFrame] as [number, number, number])
+      : gearPosition[slot];
+    shown.sprite.position.set((u - .5) * texture.width, (v - view.hero.anchor.y) * texture.height);
+    shown.sprite.width = texture.height * size;
+    shown.sprite.height = texture.height * size;
+  }
+}
 
 const walkAnchors = {
   maleBaseWalk: [.95, .95, .95, .95, .941, .944, .944, .923],
@@ -42,10 +93,11 @@ export function drawHero(this: GameView, world: World, x: number, y: number, tim
     const face = player.facingSide;
     const lungeX = (Math.cos(player.facing) - Math.sin(player.facing)) * .86 * attackPulse * 24;
     const lungeY = (Math.cos(player.facing) + Math.sin(player.facing)) * .43 * attackPulse * 24;
-    this.hero.scale.set(scale * face * boost * (world.attackPose > 0 ? 1 + attackPulse * .15 : 1), scale * boost * (world.attackPose > 0 ? 1 - attackPulse * .15 : slam && slam.age > .35 ? .82 : 1));
-    this.hero.position.set(x + lungeX + (player.hit > 0 ? Math.sin(time * 55) * 2 : 0), y + bob + lungeY);
-    this.hero.rotation = spin ? spin.age / spin.duration * Math.PI * 2 * face : attack ? (attack.swing ?? 1) * .2 * attackPulse * face : 0;
+    this.heroLayer.scale.set(scale * face * boost * (world.attackPose > 0 ? 1 + attackPulse * .15 : 1), scale * boost * (world.attackPose > 0 ? 1 - attackPulse * .15 : slam && slam.age > .35 ? .82 : 1));
+    this.heroLayer.position.set(x + lungeX + (player.hit > 0 ? Math.sin(time * 55) * 2 : 0), y + bob + lungeY);
+    this.heroLayer.rotation = spin ? spin.age / spin.duration * Math.PI * 2 * face : attack ? (attack.swing ?? 1) * .2 * attackPulse * face : 0;
     this.hero.tint = player.hit > 0 ? 0xffd4cf : 0xffffff;
+    syncGear(this, save, texture, attackFrame, world.attackPose > 0);
     const shadowRadius = Math.max(20, texture.width * scale * .45);
     this.ground.ellipse(x - face * 4, y - 3, shadowRadius, 8).fill({ color: 0x000000, alpha: .5 });
     if (player.berserk > 0) {
@@ -60,7 +112,7 @@ export function updateAfterimages(this: GameView, world: World, project: (x: num
       if (index >= 3 || index <= (this.ghostEmissions.get(effect) ?? -1)) continue;
       this.ghostEmissions.set(effect, index);
       const sprite = new Sprite(this.hero.texture);
-      sprite.anchor.set(.5, this.hero.anchor.y); sprite.scale.set(this.hero.scale.x, this.hero.scale.y); sprite.rotation = this.hero.rotation;
+      sprite.anchor.set(.5, this.hero.anchor.y); sprite.scale.set(this.heroLayer.scale.x, this.heroLayer.scale.y); sprite.rotation = this.heroLayer.rotation;
       sprite.tint = ['slam', 'destroy', 'hell'].includes(effect.kind) ? 0xffa06c : 0x8fe6dc;
       this.ghosts.addChild(sprite);
       const trail = 5 + index * 5;
@@ -102,7 +154,7 @@ export function drawEntities(this: GameView, world: World, project: (x: number, 
       this.corpses.push({ sprite, x: enemy.x, y: enemy.y, age: 0, duration: enemy.boss ? .85 : .55, scaleX: sprite.scale.x, scaleY: sprite.scale.y, rotation: sprite.rotation });
       const label = this.bossLabels.get(enemy); if (label) { this.labels.removeChild(label); label.destroy(); this.bossLabels.delete(enemy); }
     }
-    const depths: { sprite: Sprite; depth: number }[] = [];
+    const depths: { sprite: Container; depth: number }[] = [];
     for (const enemy of world.enemies) {
       let sprite = this.enemies.get(enemy);
       if (!sprite) {
@@ -149,6 +201,6 @@ export function drawEntities(this: GameView, world: World, project: (x: number, 
     this.aura.alpha = world.player.berserk > 0 ? .48 + burst * .48 + Math.sin(time * 4) * .08 : 0;
     this.updateAfterimages(world, project, dt);
     this.updateCorpses(project, dt);
-    depths.push({ sprite: this.hero, depth: world.player.x + world.player.y });
+    depths.push({ sprite: this.heroLayer, depth: world.player.x + world.player.y });
     depths.sort((a, b) => a.depth - b.depth).forEach((entry, index) => this.actors.setChildIndex(entry.sprite, index));
   }

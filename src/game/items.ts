@@ -46,6 +46,14 @@ export const baseItems: Record<Slot, readonly string[]> = {
 
 export function isZweihander(item: Item): boolean { return item.slot === 'weapon' && /쯔바이핸드|츠바이핸더/.test(item.name); }
 
+export function equipmentImagePath(item: EquipmentItem, wearable = false): string {
+  const slot = item.slot === 'ring1' || item.slot === 'ring2' ? 'ring' : item.slot;
+  const index = baseItems[item.slot].findIndex(base => item.name === base || item.name.endsWith(` ${base}`));
+  if (index >= 0) return `/assets/${wearable ? 'equipment' : 'icons/items'}/${slot}_${String(index).padStart(2, '0')}.svg`;
+  if (isZweihander(item)) return '/assets/icons/icon_zweihander.png';
+  return `/assets/icons/${slot}.png`;
+}
+
 export function migrateItem(value: unknown): Item | undefined {
   if (!isRecord(value)) return undefined;
   if (value.kind === 'skillbook' && value.slot === 'skillbook' && typeof value.skillId === 'string' && [...skillOrder, ...passiveOrder].includes(value.skillId as SkillLevelId)) {

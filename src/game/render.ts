@@ -50,7 +50,11 @@ export class GameView {
   effects = new Graphics();
   labels = new Container();
   shade = new Graphics();
+  heroLayer = new Container();
   hero!: Sprite;
+  gearTextures = new Map<string, Texture>();
+  gearLoading = new Set<string>();
+  heroGear = new Map<string, { path: string; sprite: Sprite }>();
   enemies = new Map<Enemy, Sprite>();
   bossLabels = new Map<Enemy, Text>();
   afterimages: Ghost[] = [];
@@ -85,7 +89,8 @@ export class GameView {
     this.floor.tileScale.set(.82);
     this.hero = new Sprite(this.textures.male);
     this.hero.anchor.set(.5, .97);
-    this.actors.addChild(this.hero);
+    this.heroLayer.addChild(this.hero);
+    this.actors.addChild(this.heroLayer);
     this.aura = new Sprite(this.textures.fxRage);
     this.aura.anchor.set(.5);
     this.aura.blendMode = 'add';
