@@ -1,4 +1,6 @@
 import type { Item, Rarity, Save, Slot } from '../game/store';
+import { discoverEquipment } from '../game/codex';
+import { renderCodex } from './modals/codexModal';
 import type { SkillId } from '../game/skills';
 import { cancelSkillSelection, chooseSkill, pressSkillSlot } from './skillLoadout';
 import { renderSalvage } from './modals/salvageModal';
@@ -23,7 +25,7 @@ const navIcons = {
   equipment: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m8 3 4 2 4-2 4 4-2 3v10H6V10L4 7l4-4Z"/><path d="m8 3 1 6 3 2 3-2 1-6M6 10l3-1m9 1-3-1m-3 2v9"/></svg>',
   skills: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 2 1.6 6.4L20 10l-6.4 1.6L12 18l-1.6-6.4L4 10l6.4-1.6L12 2Z"/><path d="m19 16 .6 1.8L21.5 18l-1.9.6L19 20.5l-.6-1.9L16.5 18l1.9-.2L19 16Z"/></svg>'
 };
-type Modal = 'status' | 'equipment' | 'skills' | 'account' | 'floor' | 'offline' | 'market' | 'salvage';
+type Modal = 'status' | 'equipment' | 'skills' | 'account' | 'floor' | 'offline' | 'market' | 'salvage' | 'codex';
 export type BagFilter = 'all' | 'weapon' | 'armor' | 'accessory' | 'skillbook';
 
 export class Interface {
@@ -34,6 +36,10 @@ export class Interface {
   salvageIds?: string[];
   skillTarget?: number;
   pendingSkill?: SkillId;
+  codexQuery = '';
+  codexSlot = '';
+  codexState = 'all';
+  codexSelected?: string;
   openModal: Modal | null = null;
   top: HTMLElement;
   banner: HTMLElement;
@@ -50,6 +56,7 @@ export class Interface {
 
   constructor(public root: HTMLElement, public world: World, public onSave: () => void, public session: Session, public onReset: () => Promise<void>, sync: SaveSync) {
     this.market = new Market(sync);
+    discoverEquipment(world.save);
     root.innerHTML = `<main class="game-shell"><section class="battle"><div class="battle-canvas"></div><div class="top-hud"></div><div class="tutorial"></div><div class="controls"><div class="action-pad"></div></div></section><nav class="bottom-nav" aria-label="게임 메뉴"><button data-modal="status" type="button" aria-label="내 상태" title="내 상태">${navIcons.status}</button><button data-modal="equipment" type="button" aria-label="장비" title="장비">${navIcons.equipment}<i class="new-badge" hidden></i></button><button data-modal="skills" type="button" aria-label="스킬" title="스킬">${navIcons.skills}<i class="skill-nav-dot" hidden aria-label="장착 가능한 스킬 있음"></i></button><button data-modal="market" type="button" aria-label="거래소" title="거래소">${navIcons.market}<i class="new-badge market-badge" hidden></i></button></nav><div class="modal-backdrop" hidden><div class="modal-dialog" role="dialog" aria-modal="true"></div></div><div class="toast" role="status"></div></main>`;
     this.top = this.get('.top-hud'); this.banner = this.get('.tutorial');
     this.modal = this.get('.modal-backdrop'); this.toast = this.get('.toast');
@@ -80,10 +87,10 @@ export class Interface {
       }
     }
     world.onChange = () => {
-      this.onSave();
+      discoverEquipment(world.save); this.onSave();
       for (const item of world.save.bag) if (!this.knownItems.has(item.id)) { this.knownItems.add(item.id); if (this.openModal !== 'equipment') this.newItems.add(item.id); }
       this.renderBagBadge(); this.renderStatus();
-      if (this.openModal !== 'market' && (this.openModal !== 'account' || document.activeElement?.tagName !== 'INPUT')) this.renderModal();
+      if (!(this.openModal === 'codex' && ['INPUT','SELECT'].includes(document.activeElement?.tagName ?? '')) && this.openModal !== 'market' && (this.openModal !== 'account' || document.activeElement?.tagName !== 'INPUT')) this.renderModal();
     };
     world.onMessage = text => this.message(text);
     this.renderBagBadge(); this.renderStatus();
@@ -128,15 +135,25 @@ export class Interface {
     this.modal.hidden = this.openModal === null;
     if (!this.openModal) return;
     const dialog = this.modal.querySelector<HTMLElement>('.modal-dialog')!;
+    dialog.classList.toggle('codex-modal', this.openModal === 'codex');
     dialog.classList.toggle('skills-modal', this.openModal === 'skills');
     dialog.classList.toggle('market-modal', this.openModal === 'market');
     dialog.classList.toggle('equipment-modal', this.openModal === 'equipment');
     const scroll = dialog.scrollTop, bagScroll = dialog.querySelector<HTMLElement>('.bag-grid')?.scrollTop ?? 0;
     dialog.replaceChildren();
     const heading = document.createElement('header');
-    heading.innerHTML = `<h2>${{ status: '내 상태', equipment: '장비', skills: '스킬', account: '계정 정보', floor: '층 선택', offline: '오프라인 사냥 정산', market: '거래소', salvage: '분해 확인' }[this.openModal]}</h2><button class="modal-close" aria-label="닫기">×</button>`;
-    heading.querySelector('button')!.addEventListener('click', () => this.open(null)); dialog.appendChild(heading);
+    heading.innerHTML = `<h2>${{ status: '내 상태', equipment: '장비', skills: '스킬', account: '계정 정보', floor: '층 선택', offline: '오프라인 사냥 정산', market: '거래소', salvage: '분해 확인', codex: '장비 도감' }[this.openModal]}</h2><button class="modal-close" aria-label="닫기">×</button>`;
+    heading.querySelector('button')!.addEventListener('click', () => this.open(null));
+    if (this.openModal === 'equipment' || this.openModal === 'codex') {
+      const title = heading.querySelector('h2')!, group = document.createElement('div'); group.className = 'modal-title-group';
+      title.replaceWith(group); group.append(title);
+      const button = document.createElement('button'); button.type = 'button'; button.className = 'codex-open';
+      button.textContent = this.openModal === 'equipment' ? '도감' : '장비로';
+      button.onclick = () => this.open(this.openModal === 'equipment' ? 'codex' : 'equipment'); group.append(button);
+    }
+    dialog.appendChild(heading);
     if (this.openModal === 'equipment') { this.renderEquipment(dialog); this.renderInventory(dialog); }
+    if (this.openModal === 'codex') renderCodex.call(this, dialog);
     if (this.openModal === 'salvage') renderSalvage.call(this, dialog);
     if (this.openModal === 'market') renderMarket.call(this, dialog);
     if (this.openModal === 'status') this.renderCharacter(dialog);
