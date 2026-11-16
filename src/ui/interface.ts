@@ -1,3 +1,4 @@
+import { SkillFeedback } from './skillFeedback';
 import { bindModalClose } from './modalClose';
 import { resetModalDefaults } from './modalDefaults';
 import { dismissBagDetail, positionBagDetail } from './bagDetail';
@@ -52,6 +53,7 @@ export class Interface {
   newItems = new Set<string>();
   attackButton!: HTMLButtonElement;
   slotButtons: HTMLButtonElement[] = [];
+  skillFeedback = new SkillFeedback();
   toast: HTMLElement;
   toastTimer = 0;
   saveStatus = '저장됨';
@@ -85,7 +87,7 @@ export class Interface {
     const pad = this.get('.action-pad');
     for (let index = 0; index < 4; index++) {
       const button = document.createElement('button'); button.className = `action ${index === 0 ? 'action-attack' : `action-slot${index}`}`; button.type = 'button';
-      button.innerHTML = '<strong></strong><small></small><em></em><i class="skill-alert-dot" hidden></i>';
+      button.innerHTML = '<span class="skill-art" aria-hidden="true"></span><strong></strong><small></small><em></em><i class="skill-alert-dot" hidden></i>';
       pad.appendChild(button);
       if (index === 0) {
         this.attackButton = button;

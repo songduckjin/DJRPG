@@ -37,3 +37,11 @@ test('skill window unequip button clears the assigned circle and saves the chang
     assert(ui.messages.at(-1).includes('2번 스킬 원에서 해제'));
   } finally {delete globalThis.document;}
 });
+
+test('HUD pulses actual casts only, not cooldowns restored by equipping or repeated frame updates',()=>{
+  const ui=uiFixture();ui.world.save.learned=['spin'];ui.world.save.quickSlots=['spin',null,null];ui.world.effects=[];
+  let pulses=0;ui.slotButtons[0].animate=()=>{pulses++;return {cancel(){}};};
+  ui.tick();ui.world.cooldown.spin=6;ui.tick();assert.equal(pulses,0);
+  ui.world.effects.push({kind:'spin',age:0,duration:2,x:0,y:0,angle:0});ui.tick();assert.equal(pulses,1);ui.tick();assert.equal(pulses,1);
+  ui.world.save.quickSlots[0]=null;ui.tick();assert(ui.slotButtons[0].querySelector('.skill-art').hidden);assert.equal(ui.slotButtons[0].querySelector('strong').textContent,'+');
+});
