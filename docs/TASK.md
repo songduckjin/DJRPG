@@ -536,3 +536,25 @@
 - **수정 파일**: `src/game/world.ts`, `src/game/render/entities.ts`, `src/game/render/heroMotion.ts`, `tests/hero-motion.test.mjs`, `tests/world-movement.test.mjs`, `docs/TASK.md`, `docs/WORKLOG.md`.
 - **목표**: 이동 중 공격·스킬 이미지가 보행을 가리는 문제를 고치고, 층수에 따라 몬스터가 과속하지 않도록 조정한다.
 - **완료 기준**: 남녀·투구·갑옷 조합에서 이동 중 보행 프레임이 표시되고, 몬스터 접근 속도에 상한이 적용되며 타입 검사·테스트·빌드가 통과한다.
+---
+
+## [ ] [작업 75] 고정 아레나 카메라 전환 및 캐릭터 직접 이동·경계 제한
+- **등록일**: 2026-11-16
+- **목표**: 한 화면 고정 황야 배경 위에서 내 캐릭터가 항상 화면 정중앙에 박혀 서 있는 것처럼 보이던 현상과, 그로 인한 적 상대 속도 착시를 없애기 위해 카메라를 아레나 중심으로 고정하고 캐릭터가 화면 안을 직접 뛰어다니도록 전환한다.
+- **수정 범위**: `src/game/render.ts`, `src/game/render/entities.ts`, `src/game/render/field.ts`, `src/game/world.ts` (및 관련 테스트).
+
+### 작업 내용
+1. **고정 아레나 카메라 투영 (`src/game/render.ts`)**:
+   - `project(x, y)`에서 `world.player.x`, `world.player.y` 차감을 제거해 아레나 원점 `(0, 0)`이 화면 중심 `(cx, cy)`에 고정되게 한다:
+     - `const project = (x: number, y: number): [number, number] => [cx + (x - y) * .86, cy + (x + y) * .43];`
+   - `drawHero`, `drawRunes`, `drawVignette`에 넘기던 `(cx, cy)`를 **`const [hx, hy] = project(world.player.x, world.player.y)`**로 교체해 발밑 룬·시야 비네팅·캐릭터가 모두 캐릭터의 실제 화면 좌표를 따라다니게 한다.
+   - `drawHero` 내부에서 `x, y`를 받아 그릴 때 `entities.ts`가 `cx, cy` 대신 전달받은 `x, y`를 그대로 쓰는지 확인한다.
+2. **아레나 이동 가능 경계 클램프 및 스폰 위치 보정 (`src/game/world.ts`)**:
+   - 내 캐릭터와 드랍·몬스터가 상단 HUD, 좌우 절벽 바위, 하단 메뉴·스킬 버튼 뒤로 벗어나지 않도록 아레나 이동 경계(예: 아이소메트릭 투영 기준 화면 안전 영역 또는 월드 반경 `|x| <= 125, |y| <= 155` 내외 클램프)를 적용한다.
+   - 몬스터 스폰도 아레나 원점 기준 사방 가장자리(절벽 안쪽/가장자리)에서 자연스럽게 등장하도록 조정해, 적이 화면 밖에서 쏜살같이 달려드는 대신 아레나 안에서 캐릭터와 서로 마주 걸어가며 교전하게 만든다.
+
+### 검증 및 완료 기준
+1. 캐릭터 이동 시 화면 상 좌표(`project(player.x, player.y)`)가 실제로 이동하고, 적 이동 시 상대 속도 왜곡이 없음을 단위 테스트로 검증한다.
+2. `pnpm run check`, `pnpm test`, `pnpm run build` 통과.
+3. `docs/TASK.md`의 이번 작업을 `[x]` 처리하고 `docs/WORKLOG.md` 상단에 5줄 이내 기록.
+4. **토큰 절약**: 브라우저 실기 테스트는 실행하지 않는다.
