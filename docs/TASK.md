@@ -207,3 +207,21 @@
 1. `npx tsc --noEmit` 및 `npm run build` 성공.
 2. `docs/TASK.md`의 이번 작업을 `[x]` 처리하고 `docs/WORKLOG.md`에 작업 요약 기록.
 3. **토큰 절약**: 브라우저 실기 테스트는 실행하지 않는다.
+---
+
+## [작업 44] 밝은 사막/황야 배경 밝기 상향 및 비네팅 완화
+- **등록일**: 2026-11-16
+- **목표**: 새로 교체된 고화질 밝은 사막 타일(`/assets/dungeon_tile.jpg`)이 어둡게 눌리지 않고 햇살 쨍한 사막/황야 느낌으로 선명하게 보이도록 렌더링 밝기와 비네팅을 조정한다.
+- **수정 범위 (토큰 절약)**: `src/game/render.ts`, `src/game/render/field.ts` 위주로만 수정한다.
+
+### 작업 내용
+1. **사막 타일 캐시 버스터 및 틴트 제거 (`src/game/render.ts`)**:
+   - 바닥 타일 경로를 `/assets/dungeon_tile.jpg?v=2`로 갱신해 모바일 사파리 캐시를 즉시 초기화한다.
+   - `TilingSprite`에 어두운 `tint`나 낮은 `alpha`가 걸려 있다면 `tint = 0xffffff`, `alpha = 1`로 풀어 원본 밝은 사막 텍스처 색감이 그대로 나오게 한다.
+2. **어두운 비네팅 대폭 완화 (`src/game/render/field.ts`)**:
+   - `drawVignette`의 7겹 어두운 오버레이(`alpha: .04`)를 `alpha: .015` 수준(또는 3겹)으로 크게 낮춰 사막 필드 전체가 환하고 선명하게 보이도록 조정한다.
+
+### 검증 및 완료 기준
+1. `npx tsc --noEmit` 및 `npm run build` 성공.
+2. `docs/TASK.md`의 이번 작업을 `[x]` 처리하고 `docs/WORKLOG.md`에 작업 요약 기록.
+3. **토큰 절약**: 브라우저 실기 테스트는 실행하지 않는다.
