@@ -1,14 +1,13 @@
 import type { Item, Rarity, Save, Slot } from '../game/store';
 import type { World } from '../game/world';
-import type { SkillLevelId } from '../game/skills';
 
 import type { Session } from './login';
-import { setupStick, renderStatus, tick, renderBagBadge } from './hud';
+import { renderStatus, tick, renderBagBadge } from './hud';
 import { renderInventory, itemDetail, salvage, renderEquipment, salvageValue, iconPath } from './modals/equipModal';
 import { renderCharacter } from './modals/statusModal';
 import { renderFloor } from './modals/floorModal';
 import { renderAccount } from './modals/accountModal';
-import { renderSkills, addSkillUpgrade } from './modals/skillModal';
+import { renderSkills } from './modals/skillModal';
 import { renderOffline } from './modals/offlineModal';
 import type { OfflineReward } from '../game/offline';
 
@@ -18,7 +17,7 @@ const navIcons = {
   skills: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 2 1.6 6.4L20 10l-6.4 1.6L12 18l-1.6-6.4L4 10l6.4-1.6L12 2Z"/><path d="m19 16 .6 1.8L21.5 18l-1.9.6L19 20.5l-.6-1.9L16.5 18l1.9-.2L19 16Z"/></svg>'
 };
 type Modal = 'status' | 'equipment' | 'skills' | 'account' | 'floor' | 'offline';
-export type BagFilter = 'all' | 'weapon' | 'armor' | 'accessory';
+export type BagFilter = 'all' | 'weapon' | 'armor' | 'accessory' | 'skillbook';
 
 export class Interface {
   selected?: string;
@@ -39,11 +38,10 @@ export class Interface {
   offlineReward?: OfflineReward;
 
   constructor(public root: HTMLElement, public world: World, public onSave: () => void, public session: Session, public onReset: () => Promise<void>) {
-    root.innerHTML = `<main class="game-shell"><section class="battle"><div class="battle-canvas"></div><div class="top-hud"></div><button class="auto-toggle" type="button"></button><div class="tutorial"></div><div class="controls"><div class="stick"><div class="stick-knob"></div></div><div class="action-pad"></div></div><div class="resource hp"><span>HP</span><b></b></div><div class="resource mp"><span>MP</span><b></b></div></section><nav class="bottom-nav" aria-label="게임 메뉴"><button data-modal="status" type="button" aria-label="내 상태" title="내 상태">${navIcons.status}</button><button data-modal="equipment" type="button" aria-label="장비" title="장비">${navIcons.equipment}<i class="new-badge" hidden></i></button><button data-modal="skills" type="button" aria-label="스킬" title="스킬">${navIcons.skills}</button></nav><div class="modal-backdrop" hidden><div class="modal-dialog" role="dialog" aria-modal="true"></div></div><div class="toast" role="status"></div></main>`;
+    root.innerHTML = `<main class="game-shell"><section class="battle"><div class="battle-canvas"></div><div class="top-hud"></div><div class="tutorial"></div><div class="controls"><div class="action-pad"></div></div><div class="resource hp"><span>HP</span><b></b></div><div class="resource mp"><span>MP</span><b></b></div></section><nav class="bottom-nav" aria-label="게임 메뉴"><button data-modal="status" type="button" aria-label="내 상태" title="내 상태">${navIcons.status}</button><button data-modal="equipment" type="button" aria-label="장비" title="장비">${navIcons.equipment}<i class="new-badge" hidden></i></button><button data-modal="skills" type="button" aria-label="스킬" title="스킬">${navIcons.skills}</button></nav><div class="modal-backdrop" hidden><div class="modal-dialog" role="dialog" aria-modal="true"></div></div><div class="toast" role="status"></div></main>`;
     this.top = this.get('.top-hud'); this.banner = this.get('.tutorial');
     this.modal = this.get('.modal-backdrop'); this.toast = this.get('.toast');
     for (const item of [...world.save.bag, ...Object.values(world.save.equipment)]) if (item) this.knownItems.add(item.id);
-    this.get('.auto-toggle').addEventListener('click', () => { world.save.auto = !world.save.auto; this.message(`AUTO ${world.save.auto ? 'ON' : 'OFF'}`); world.onChange(); });
     this.root.querySelectorAll<HTMLButtonElement>('[data-modal]').forEach(button => button.onclick = () => this.open(button.dataset.modal as Modal));
     this.modal.addEventListener('click', event => { if (event.target === this.modal) this.open(null); });
     window.addEventListener('keydown', event => { if (event.key === 'Escape') this.open(null); });
@@ -63,7 +61,6 @@ export class Interface {
         button.addEventListener('pointerdown', e => { e.preventDefault(); world.action(world.save.quickSlots[index - 1]); });
       }
     }
-    this.setupStick();
     world.onChange = () => {
       this.onSave();
       for (const item of world.save.bag) if (!this.knownItems.has(item.id)) { this.knownItems.add(item.id); if (this.openModal !== 'equipment') this.newItems.add(item.id); }
@@ -79,8 +76,6 @@ export class Interface {
   message(text: string): void { this.toast.textContent = text; this.toast.classList.add('visible'); clearTimeout(this.toastTimer); this.toastTimer = window.setTimeout(() => this.toast.classList.remove('visible'), 3200); }
   setSaveStatus(status: string): void { this.saveStatus = status; if (this.openModal === 'account') this.renderModal(); }
   showOfflineReward(reward: OfflineReward): void { this.offlineReward = reward; this.open('offline'); }
-
-  setupStick(): void { return setupStick.call(this); }
 
   renderStatus(): void { return renderStatus.call(this); }
 
@@ -131,8 +126,7 @@ export class Interface {
 
   renderSkills(dialog: HTMLElement): void { return renderSkills.call(this, dialog); }
 
-  addSkillUpgrade(actions: HTMLElement, id: SkillLevelId, name: string): void { return addSkillUpgrade.call(this, actions, id, name); }
 
   salvageValue(item: Item): number { return salvageValue.call(this, item); }
-  iconPath(slot: Slot, item?: Item): string { return iconPath.call(this, slot, item); }
+  iconPath(slot: Slot | 'skillbook', item?: Item): string { return iconPath.call(this, slot, item); }
 }

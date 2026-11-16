@@ -68,26 +68,16 @@ catch (error) {
   throw error;
 }
 
-const keys = new Set<string>();
-const direction = () => {
-  const x = Number(keys.has('d') || keys.has('arrowright')) - Number(keys.has('a') || keys.has('arrowleft'));
-  const y = Number(keys.has('s') || keys.has('arrowdown')) - Number(keys.has('w') || keys.has('arrowup'));
-  world.keyboardActive = Boolean(x || y);
-  world.keyboardMove = { x, y };
-  if (world.keyboardActive && save.auto) { save.auto = false; ui.message('수동 이동: AUTO OFF'); world.onChange(); }
-};
 window.addEventListener('keydown', e => {
   const key = e.key.toLowerCase();
-  if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright', ' '].includes(key)) e.preventDefault();
-  keys.add(key); direction();
+  if (key === ' ') e.preventDefault();
   if (e.repeat) return;
   if (key === ' ') world.action('attack');
   if (key === '1') world.action(save.quickSlots[0]);
   if (key === '2') world.action(save.quickSlots[1]);
   if (key === '3') world.action(save.quickSlots[2]);
 });
-window.addEventListener('keyup', e => { keys.delete(e.key.toLowerCase()); direction(); });
-window.addEventListener('blur', () => { keys.clear(); world.move = { x: 0, y: 0 }; world.keyboardMove = { x: 0, y: 0 }; world.keyboardActive = false; world.joystickActive = false; world.attackHeld = false; void flush(); });
+window.addEventListener('blur', () => { world.attackHeld = false; void flush(); });
 document.addEventListener('visibilitychange', () => { if (document.hidden) void flush(); });
 setInterval(() => { void flush(); }, 5000);
 

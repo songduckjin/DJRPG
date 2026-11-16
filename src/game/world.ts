@@ -1,5 +1,5 @@
 import { addExperience, floorKillTarget, rollItem, skillLevel, totalStats, type Item, type Save } from './store';
-import { equipmentDropChance } from './items';
+import { equipmentDropChance, rollSkillBook, skillBookDropChance } from './items';
 import { dragonOrbitFactor, skillDamageScale, skillDuration, skillRange, skills, type SkillId } from './skills';
 
 export type Enemy = { x: number; y: number; hp: number; maxHp: number; boss: boolean; hit: number; step: number; moving: boolean; knockX: number; knockY: number; slow: number };
@@ -20,17 +20,14 @@ export class World {
   spawnTimer = 0;
   attackHeld = false;
   attackPose = 0;
-  move = { x: 0, y: 0 };
-  keyboardMove = { x: 0, y: 0 };
   activeMove = { x: 0, y: 0 };
-  joystickActive = false;
-  keyboardActive = false;
   bossPending = false;
   private swing = 1;
   onChange: () => void = () => {};
   onMessage: (text: string) => void = () => {};
 
   constructor(public save: Save) {
+    this.save.auto = true;
     this.player.hp = Math.min(save.health, totalStats(save).health);
     this.bossPending = save.floorKills >= floorKillTarget(save.floor);
     const hp = enemyMaxHp(save.floor, false);
@@ -46,8 +43,7 @@ export class World {
     this.enemies = []; this.drops = []; this.effects = [];
     this.bossPending = false; this.spawnTimer = 0;
     this.player.x = 0; this.player.y = 0; this.attackHeld = false;
-    this.move = { x: 0, y: 0 }; this.keyboardMove = { x: 0, y: 0 }; this.activeMove = { x: 0, y: 0 };
-    this.joystickActive = false; this.keyboardActive = false;
+    this.activeMove = { x: 0, y: 0 };
     this.onChange();
     return { ok: true, message: `${floor}층으로 이동했습니다.${lostDrops ? ` 바닥의 드랍 ${lostDrops}개가 사라졌습니다.` : ''}` };
   }
@@ -66,12 +62,7 @@ export class World {
     if (kind !== 'warcry') this.attackPose = .32;
     const attack = stats.attack * (p.berserk > 0 ? 1.5 + (p.berserkLevel - 1) * .05 : 1);
     const target = this.nearest();
-    const manualMove = this.keyboardActive ? this.keyboardMove : this.move;
-    if (Math.hypot(manualMove.x, manualMove.y) > .05) {
-      p.facing = Math.atan2(manualMove.y, manualMove.x);
-      const screenDx = manualMove.x - manualMove.y;
-      if (Math.abs(screenDx) > .05) p.facingSide = screenDx > 0 ? 1 : -1;
-    } else if (target) this.faceTarget(target);
+    if (target) this.faceTarget(target);
     if (kind === 'attack') {
       const angle = p.facing;
       this.effects.push({ x: p.x, y: p.y, kind: 'slash', age: 0, duration: .25, angle, swing: this.swing });
@@ -141,11 +132,14 @@ export class World {
     this.save.kills++;
     this.save.gold += enemy.boss ? 70 * this.save.floor : 3 + this.save.floor;
     const gained = addExperience(this.save, enemy.boss ? 45 : 8);
-    if (gained) { this.player.hp = this.save.health; this.onMessage(`레벨 ${this.save.level} 달성! SP +${gained}`); }
+    if (gained) { this.player.hp = this.save.health; this.onMessage(`레벨 ${this.save.level} 달성!`); }
     const guaranteed = this.save.tutorial === 0 && !enemy.boss;
     if (guaranteed || Math.random() < equipmentDropChance(this.save.floor, enemy.boss)) {
       this.drops.push({ x: enemy.x, y: enemy.y, item: rollItem(this.save.floor, guaranteed, enemy.boss), age: 0, warned: false });
       if (guaranteed) { this.save.tutorial = 1; this.onMessage('낡은 두손검이 떨어졌습니다. 빛기둥으로 이동하세요!'); }
+    }
+    if (Math.random() < skillBookDropChance(this.save.floor, enemy.boss)) {
+      this.drops.push({ x: enemy.x, y: enemy.y, item: rollSkillBook(this.save.floor), age: 0, warned: false });
     }
     if (enemy.boss) {
       if (this.save.autoClimb) {
@@ -172,8 +166,7 @@ export class World {
     p.berserk = Math.max(0, p.berserk - dt);
     p.hit = Math.max(0, p.hit - dt);
     p.mp = Math.min(100, p.mp + dt * 6);
-    this.activeMove = this.keyboardActive ? this.keyboardMove : this.move;
-    if (this.save.auto && !this.joystickActive && !this.keyboardActive) {
+    this.activeMove = { x: 0, y: 0 };
       const drop = this.save.bag.length >= 40 ? undefined : this.drops.reduce<Drop | undefined>((best, current) => !best || Math.hypot(current.x - p.x, current.y - p.y) < Math.hypot(best.x - p.x, best.y - p.y) ? current : best, undefined);
       const enemy = this.nearest();
       const destination = drop ?? enemy;
@@ -190,16 +183,10 @@ export class World {
           }
         }
       } else this.activeMove = { x: 0, y: 0 };
-    }
     const magnitude = Math.hypot(this.activeMove.x, this.activeMove.y);
     if (magnitude > .05) {
       const speed = (p.berserk > 0 ? 160 + (p.berserkLevel - 1) * 4 : 125) * dt / Math.max(1, magnitude);
       p.x += this.activeMove.x * speed; p.y += this.activeMove.y * speed;
-      if (!this.save.auto || this.joystickActive || this.keyboardActive) {
-        p.facing = Math.atan2(this.activeMove.y, this.activeMove.x);
-        const screenDx = this.activeMove.x - this.activeMove.y;
-        if (Math.abs(screenDx) > .05) p.facingSide = screenDx > 0 ? 1 : -1;
-      }
     }
     if (this.attackHeld) this.action('attack');
     this.spawnTimer -= dt;

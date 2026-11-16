@@ -30,7 +30,7 @@ export function renderAccount(this: Interface, dialog: HTMLElement): void {
     }
     content.appendChild(gender);
     const level = document.createElement('div'); level.className = 'account-progress';
-    level.innerHTML = `<b>LV ${save.level >= MAX_LEVEL ? '30 MAX' : save.level}</b><span>${save.level >= MAX_LEVEL ? '100% / MAX' : `${save.exp} / ${expToNext(save.level)} EXP`} · SP ${save.skillPoints}</span><div><i style="width:${save.level >= MAX_LEVEL ? 100 : Math.min(100, save.exp / expToNext(save.level) * 100)}%"></i></div>`;
+    level.innerHTML = `<b>LV ${save.level >= MAX_LEVEL ? '30 MAX' : save.level}</b><span>${save.level >= MAX_LEVEL ? '100% / MAX' : `${save.exp} / ${expToNext(save.level)} EXP`}</span><div><i style="width:${save.level >= MAX_LEVEL ? 100 : Math.min(100, save.exp / expToNext(save.level) * 100)}%"></i></div>`;
     content.appendChild(level);
     const floor = document.createElement('div'); floor.className = 'account-line'; floor.innerHTML = `<span>최고 도달 층수</span><b>${save.maxFloor}층</b>`; content.appendChild(floor);
     const kills = document.createElement('div'); kills.className = 'account-line'; kills.innerHTML = `<span>누적 처치 수</span><b>${save.kills}</b>`; content.appendChild(kills);

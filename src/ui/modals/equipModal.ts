@@ -1,4 +1,5 @@
-import { autoEquipBest, isZweihander, rarityNames, salvageByRarity, slotNames, statNames, totalStats, type Item, type Rarity, type Save, type Slot, type Stat } from '../../game/store';
+import { autoEquipBest, isZweihander, rarityNames, salvageByRarity, slotNames, statNames, totalStats, useSkillBook, type Item, type Rarity, type Save, type Slot, type Stat } from '../../game/store';
+import { isSkillBook } from '../../game/items';
 import type { BagFilter, Interface } from '../interface';
 
 export function renderInventory(this: Interface, dialog: HTMLElement): void {
@@ -6,7 +7,7 @@ export function renderInventory(this: Interface, dialog: HTMLElement): void {
     const section = document.createElement('section'); section.className = 'modal-bag';
     section.innerHTML = '<h3>가방</h3>';
     const filters = document.createElement('div'); filters.className = 'bag-filters';
-    const filterNames: Record<BagFilter, string> = { all: '전체', weapon: '무기', armor: '방어구', accessory: '장신구' };
+    const filterNames: Record<BagFilter, string> = { all: '전체', weapon: '무기', armor: '방어구', accessory: '장신구', skillbook: '스킬북' };
     for (const filter of Object.keys(filterNames) as BagFilter[]) {
       const button = document.createElement('button'); button.textContent = filterNames[filter];
       button.classList.toggle('active', this.bagFilter === filter);
@@ -18,7 +19,8 @@ export function renderInventory(this: Interface, dialog: HTMLElement): void {
     const visible = save.bag.filter(item => this.bagFilter === 'all'
       || (this.bagFilter === 'weapon' && (item.slot === 'weapon' || item.slot === 'offhand'))
       || (this.bagFilter === 'armor' && ['helmet', 'armor', 'gloves', 'belt', 'boots'].includes(item.slot))
-      || (this.bagFilter === 'accessory' && ['necklace', 'ring1', 'ring2'].includes(item.slot)));
+      || (this.bagFilter === 'accessory' && ['necklace', 'ring1', 'ring2'].includes(item.slot))
+      || (this.bagFilter === 'skillbook' && isSkillBook(item)));
     for (const item of visible) {
       const cell = document.createElement('button'); cell.className = `bag-item ${item.rarity} ${this.selected === item.id ? 'selected' : ''}`;
       cell.innerHTML = `<img class="item-icon" src="${this.iconPath(item.slot, item)}" alt=""><small>${rarityNames[item.rarity]}</small><b></b>`;
@@ -27,7 +29,7 @@ export function renderInventory(this: Interface, dialog: HTMLElement): void {
       grid.appendChild(cell);
       if (item.id === this.selected) grid.appendChild(this.itemDetail(save, item));
     }
-    if (!visible.length) grid.innerHTML = '<p class="empty">이 분류에 획득한 장비가 없습니다.</p>';
+    if (!visible.length) grid.innerHTML = '<p class="empty">이 분류에 획득한 아이템이 없습니다.</p>';
     const footer = document.createElement('div'); footer.className = 'modal-bag-footer';
     const count = document.createElement('span'); count.textContent = `보유 ${save.bag.length}/40`;
     const controls = document.createElement('div'); controls.className = 'bag-footer-actions';
@@ -54,6 +56,20 @@ export function renderInventory(this: Interface, dialog: HTMLElement): void {
 
 export function itemDetail(this: Interface, save: Save, item: Item): HTMLElement {
     const panel = document.createElement('div'); panel.className = `item-detail ${item.rarity}`;
+    if (isSkillBook(item)) {
+      const title = document.createElement('h2'); title.textContent = item.name; panel.appendChild(title);
+      const note = document.createElement('p'); note.textContent = '사용하면 해당 스킬을 습득하거나 1레벨 강화합니다. 최대 Lv.10'; panel.appendChild(note);
+      const use = document.createElement('button'); use.textContent = '사용하기';
+      use.onclick = () => {
+        const before = totalStats(save).health;
+        const result = useSkillBook(save, item.id);
+        if (!result.ok) { this.message(result.message); return; }
+        this.world.player.hp += totalStats(save).health - before;
+        save.health = this.world.player.hp;
+        this.selected = undefined; this.world.onChange(); this.message(result.message);
+      };
+      panel.appendChild(use); return panel;
+    }
     const equipped = save.equipment[item.slot];
     const title = document.createElement('h2'); title.textContent = `${item.name} · ${slotNames[item.slot]}`; panel.appendChild(title);
     const compared = new Set<Stat>([...Object.keys(item.stats), ...Object.keys(equipped?.stats ?? {})] as Stat[]);
@@ -118,4 +134,4 @@ export function renderEquipment(this: Interface, dialog: HTMLElement): void {
 
 export function salvageValue(this: Interface, item: Item): number { return { common: 3, magic: 10, rare: 25, legendary: 60 }[item.rarity]; }
 
-export function iconPath(this: Interface, slot: Slot, item?: Item): string { return item && isZweihander(item) ? '/assets/icons/icon_zweihander.png' : `/assets/icons/${slot === 'ring1' || slot === 'ring2' ? 'ring' : slot}.png`; }
+export function iconPath(this: Interface, slot: Slot | 'skillbook', item?: Item): string { return slot === 'skillbook' ? '/assets/icons/icon_skillbook.png' : item && isZweihander(item) ? '/assets/icons/icon_zweihander.png' : `/assets/icons/${slot === 'ring1' || slot === 'ring2' ? 'ring' : slot}.png`; }

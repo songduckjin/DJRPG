@@ -4,7 +4,7 @@ import type { Interface } from '../interface';
 export function renderCharacter(this: Interface, dialog: HTMLElement): void {
     const save = this.world.save, stats = totalStats(save);
     const overview = document.createElement('div'); overview.className = 'character-overview';
-    overview.innerHTML = `<b>LV ${save.level >= MAX_LEVEL ? '30 MAX' : save.level} · ${save.floor}층</b><span>경험치 ${save.level >= MAX_LEVEL ? '100% / MAX' : `${save.exp} / ${expToNext(save.level)}`}</span><span>골드 ${save.gold} · 강화석 ${save.stones} · SP ${save.skillPoints}</span>`;
+    overview.innerHTML = `<b>LV ${save.level >= MAX_LEVEL ? '30 MAX' : save.level} · ${save.floor}층</b><span>경험치 ${save.level >= MAX_LEVEL ? '100% / MAX' : `${save.exp} / ${expToNext(save.level)}`}</span><span>골드 ${save.gold} · 강화석 ${save.stones}</span>`;
     dialog.appendChild(overview);
     const grid = document.createElement('div'); grid.className = 'character-stats';
     for (const stat of ['attack', 'defense', 'health', 'crit', 'speed'] as Stat[]) {
