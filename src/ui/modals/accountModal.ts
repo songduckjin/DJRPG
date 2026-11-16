@@ -41,7 +41,7 @@ export function renderAccount(this: Interface, dialog: HTMLElement): void {
       const button = document.createElement('button'); button.textContent = '데이터 초기화';
       button.onclick = () => { this.confirmReset = true; this.renderModal(); }; reset.appendChild(button);
     } else {
-      const warning = document.createElement('p'); warning.textContent = '레벨, 장비, 골드 등 모든 진행 상황을 삭제할까요? 이 작업은 되돌릴 수 없습니다.';
+      const warning = document.createElement('p'); warning.textContent = '레벨, 장비, 금화 등 모든 진행 상황을 삭제할까요? 이 작업은 되돌릴 수 없습니다.';
       const yes = document.createElement('button'); yes.textContent = '모두 삭제'; yes.onclick = () => { void this.onReset(); };
       const no = document.createElement('button'); no.textContent = '취소'; no.onclick = () => { this.confirmReset = false; this.renderModal(); };
       reset.append(warning, yes, no);

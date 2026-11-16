@@ -220,3 +220,16 @@ test('batched inventory reconciliation rejects foreign ownership and rolls back 
   await assert.rejects(mutate(db,'batch-thief',{action:'claim',deliveryId:'missing',revision:buyer.revision,requestId:randomUUID(),progress:buyer.save}),error('ITEM_CONFLICT'));
   assert.equal((await account(db,'batch-thief')).revision,buyer.revision);
 });
+
+test('locked inventory cannot list without approval; failed approval retains lock and successful listing unlocks atomically',async()=>{
+  const protectedItem={...item(),locked:true};await seed('lock-seller',[protectedItem]);
+  await assert.rejects(action('lock-seller','register',{itemId:protectedItem.id,price:100}),error('ITEM_LOCKED'));
+  assert.equal((await account(db,'lock-seller')).save.bag[0].locked,true);
+  await assert.rejects(action('lock-seller','register',{itemId:protectedItem.id,price:0,unlockItem:true}),error('INVALID_PRICE'));
+  assert.equal((await account(db,'lock-seller')).save.bag[0].locked,true);
+  const row=await account(db,'lock-seller'),requestId=randomUUID(),payload={action:'register',itemId:protectedItem.id,price:100,unlockItem:true,revision:row.revision,requestId};
+  const registered=await mutate(db,'lock-seller',payload),replayed=await mutate(db,'lock-seller',payload);
+  assert.equal(registered.revision,replayed.revision);
+  const offers=await snapshot(db,'lock-seller',{view:'mine'});assert.equal(offers.listings.length,1);assert.equal(offers.listings[0].item.locked,false);
+  assert.equal((await account(db,'lock-seller')).save.bag.length,0);
+});

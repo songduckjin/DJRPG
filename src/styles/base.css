@@ -10,3 +10,7 @@ button:active { transform: scale(.97); }
 .toast { position: absolute; z-index: 20; left: 50%; top: calc(env(safe-area-inset-top) + 68px); transform: translateX(-50%); max-width: 80%; padding: 10px 15px; color: #fff0d4; background: #251b1de8; border: 1px solid #b48457; border-radius: 4px; text-align: center; font-size: 12px; opacity: 0; pointer-events: none; transition: opacity .2s; }
 .toast.visible { opacity: 1; }
 .load-error { position: absolute; z-index: 30; inset: 20% 9%; display: grid; place-items: center; padding: 18px; background: #24191d; border: 2px solid #b66755; color: #ffddd3; text-align: center; font-size: 13px; }
+
+.currency-icon { display: inline-block; width: 18px; height: 18px; object-fit: contain; vertical-align: middle; flex: none; }
+.currency-amount, .gold { display: inline-flex; align-items: center; gap: 4px; color: #e6bb6c; vertical-align: middle; }
+.market-gold-icon .currency-icon { width: 36px; height: 36px; }

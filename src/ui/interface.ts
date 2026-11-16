@@ -1,3 +1,4 @@
+import { bindModalClose } from './modalClose';
 import { resetModalDefaults } from './modalDefaults';
 import { dismissBagDetail, positionBagDetail } from './bagDetail';
 import type { Item, Rarity, Save, Slot } from '../game/store';
@@ -109,7 +110,7 @@ export class Interface {
 
   get canvasHost(): HTMLElement { return this.get('.battle-canvas'); }
   get(selector: string): HTMLElement { const node = this.root.querySelector<HTMLElement>(selector); if (!node) throw new Error(`UI 구성 요소 누락: ${selector}`); return node; }
-  message(text: string): void { this.toast.textContent = text; this.toast.classList.add('visible'); clearTimeout(this.toastTimer); this.toastTimer = window.setTimeout(() => this.toast.classList.remove('visible'), 3200); }
+  message(text: string): void { this.toast.textContent = text.replace(/골드/g, '금화'); this.toast.classList.add('visible'); clearTimeout(this.toastTimer); this.toastTimer = window.setTimeout(() => this.toast.classList.remove('visible'), 3200); }
   setSaveStatus(status: string): void { this.saveStatus = status; if (this.openModal === 'account') this.renderModal(); }
   showOfflineReward(reward: OfflineReward): void { this.offlineReward = reward; this.open('offline'); }
 
@@ -161,7 +162,7 @@ export class Interface {
     dialog.replaceChildren();
     const heading = document.createElement('header');
     heading.innerHTML = `<h2>${{ status: '내 상태', equipment: '장비', skills: '스킬', account: '계정 정보', floor: '층 선택', offline: '오프라인 사냥 정산', market: '거래소', salvage: '분해 확인', codex: '장비 도감' }[this.openModal]}</h2><button class="modal-close" aria-label="닫기">×</button>`;
-    heading.querySelector('button')!.addEventListener('click', () => this.open(null));
+    bindModalClose(heading.querySelector('button')!, () => this.open(null));
     if (this.openModal === 'equipment' || this.openModal === 'codex') {
       const title = heading.querySelector('h2')!, group = document.createElement('div'); group.className = 'modal-title-group';
       title.replaceWith(group); group.append(title);

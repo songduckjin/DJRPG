@@ -102,11 +102,14 @@ export async function mutate(db, id, input) {
     const event = (kind, id) => write(eventOperation(kind, id));
     if (input.action === 'register') {
       const price = input.price;
-      if (!Number.isSafeInteger(price) || price < 1 || price > rules.maxPrice) fail(400, 'INVALID_PRICE', '가격은 1~1,000,000,000 골드의 정수로 입력하세요.');
+      if (!Number.isSafeInteger(price) || price < 1 || price > rules.maxPrice) fail(400, 'INVALID_PRICE', '가격은 1~1,000,000,000 금화의 정수로 입력하세요.');
       const count = Number(reads[2].rows[0].n);
       if (count >= rules.maxListings) fail(409, 'LISTING_LIMIT', '동시에 10개까지 등록할 수 있습니다.');
       const index = save.bag.findIndex(item => item.id === input.itemId);
       if (index < 0) fail(409, 'ITEM_NOT_AVAILABLE', '가방에 있는 미장착 아이템만 등록할 수 있습니다.');
+      const selected = save.bag[index];
+      if (selected.locked === true && input.unlockItem !== true) fail(409, 'ITEM_LOCKED', '잠긴 장비입니다. 잠금을 해제한 뒤 판매 등록하세요.');
+      if (selected.locked === true) selected.locked = false;
       const [item] = save.bag.splice(index, 1), now = Date.now(), listingId = randomUUID();
       write({ sql: 'INSERT INTO djrpg_market VALUES (?,?,?,NULL,?,?,?,?,?,?,?, ?,NULL)', args: [listingId, id, String(save.name || '모험가').slice(0, 20), JSON.stringify(item), item.name, item.slot, item.rarity, price, 'active', now, now + rules.durationHours * 3600_000] });
       write({ sql: "UPDATE djrpg_item_owners SET location='escrow' WHERE item_id=?", args: [item.id] });
@@ -127,7 +130,7 @@ export async function mutate(db, id, input) {
         message = '등록을 취소했습니다. 아이템은 수령함에 보관됩니다.';
       } else {
         if (mine) fail(400, 'OWN_LISTING', '본인 매물은 구매할 수 없습니다.');
-        if (save.gold < Number(sale.price)) fail(400, 'INSUFFICIENT_GOLD', '골드가 부족합니다.');
+        if (save.gold < Number(sale.price)) fail(400, 'INSUFFICIENT_GOLD', '금화가 부족합니다.');
         save.gold -= Number(sale.price);
         write({ sql: "UPDATE djrpg_market SET state='sold', buyer=?, sold_at=? WHERE id=? AND state='active'", args: [id, Date.now(), sale.id] });
         inbox(sale, id, 'purchase', item, 0, '구매한 아이템');
@@ -149,7 +152,7 @@ export async function mutate(db, id, input) {
       save.gold += Number(delivery.gold);
       effect.claimedId = delivery.id;
       write({ sql: 'UPDATE djrpg_market_inbox SET claimed_at=? WHERE id=? AND claimed_at IS NULL', args: [Date.now(), delivery.id] });
-      message = delivery.item_json ? '아이템을 가방으로 받았습니다.' : `${Number(delivery.gold).toLocaleString('ko-KR')} 골드를 받았습니다.`;
+      message = delivery.item_json ? '아이템을 가방으로 받았습니다.' : `${Number(delivery.gold).toLocaleString('ko-KR')} 금화를 받았습니다.`;
     } else fail(400, 'INVALID_ACTION', '지원하지 않는 거래 요청입니다.');
     write({ sql: 'INSERT INTO djrpg_market_requests VALUES (?,?,?)', args: [id, input.requestId, JSON.stringify({ ok: true, message, effect, revision: row.revision + 1 })] });
     const result = { ok: true, message, effect, ...await writeSave(tx, row, save, operations) };

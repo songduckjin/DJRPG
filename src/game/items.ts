@@ -16,7 +16,7 @@ export type Slot = 'weapon' | 'offhand' | 'helmet' | 'armor' | 'necklace' | 'glo
 
 export type Stat = 'attack' | 'defense' | 'health' | 'crit' | 'speed';
 
-export type EquipmentItem = { id: string; name: string; slot: Slot; rarity: Rarity; stats: Partial<Record<Stat, number>>; kind?: 'equipment' };
+export type EquipmentItem = { id: string; name: string; slot: Slot; rarity: Rarity; stats: Partial<Record<Stat, number>>; kind?: 'equipment'; locked?: boolean };
 export type SkillBook = { id: string; name: string; slot: 'skillbook'; rarity: 'rare'; kind: 'skillbook'; skillId: SkillLevelId; stats: {} };
 export type Item = EquipmentItem | SkillBook;
 export function isSkillBook(item: Item): item is SkillBook { return item.kind === 'skillbook'; }
@@ -75,7 +75,7 @@ export function migrateItem(value: unknown): Item | undefined {
   }
   const savedName = typeof value.name === 'string' && value.name.trim() ? value.name : '';
   const name = savedName === '영원의 츠바이핸더' && slot === 'weapon' ? '영원의 쯔바이핸드' : savedName || slotNames[slot];
-  return { id: typeof value.id === 'string' && value.id ? value.id : crypto.randomUUID(), name, slot, rarity, stats };
+  return { id: typeof value.id === 'string' && value.id ? value.id : crypto.randomUUID(), name, slot, rarity, stats, locked: value.locked === true };
 }
 
 function itemSkillLevel(save: Save, id: 'mastery' | 'body' | 'instinct'): number { return save.skillLevels[id] ?? 1; }
@@ -159,7 +159,7 @@ export function autoEquipBest(save: Save): number {
 }
 
 export function salvageByRarity(save: Save, maxRarity: Exclude<Rarity, 'legendary'>): { count: number; gold: number; stones: number } {
-  const chosen = save.bag.filter(item => !isSkillBook(item) && rarityRanks[item.rarity] <= rarityRanks[maxRarity]);
+  const chosen = save.bag.filter(item => !isSkillBook(item) && !item.locked && rarityRanks[item.rarity] <= rarityRanks[maxRarity]);
   const gold = chosen.reduce((sum, item) => sum + salvageGold[item.rarity], 0);
   const stones = chosen.reduce((sum, item) => sum + salvageStones[item.rarity], 0);
   const ids = new Set(chosen.map(item => item.id));
