@@ -12,7 +12,7 @@ const gearPosition: Record<Slot, [number, number, number]> = {
 
 function syncGear(view: GameView, save: Save, texture: Texture, attackFrame: number, attacking: boolean): void {
   for (const slot of slots) {
-    const item = slot === 'helmet' && save.gender === 'female' ? undefined : save.equipment[slot];
+    const item = slot === 'helmet' ? undefined : save.equipment[slot];
     const art = item ? equipmentImage(item) : undefined;
     const path = art?.path ?? '';
     const key = art ? `${path}:${art.frame}` : '';

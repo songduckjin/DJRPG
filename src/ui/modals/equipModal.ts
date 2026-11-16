@@ -128,12 +128,6 @@ export function renderEquipment(this: Interface, dialog: HTMLElement): void {
     portrait.onload = () => { figure.style.aspectRatio = `${portrait.naturalWidth} / ${portrait.naturalHeight}`; };
     portrait.src = appearance.portrait;
     figure.appendChild(portrait);
-    if (appearance.helmet && !appearance.helmetIntegrated) {
-      const helmet = document.createElement('span'); helmet.className = 'portrait-helmet';
-      helmet.innerHTML = itemIcon.call(this, 'helmet', appearance.helmet, 'portrait-helmet-art');
-      helmet.setAttribute('aria-label', `착용 투구: ${appearance.helmet.name}`);
-      figure.appendChild(helmet);
-    }
     center.appendChild(figure);
     showcase.append(left, center, right); dialog.appendChild(showcase);
     const summary = document.createElement('div'); summary.className = 'showcase-stats';
