@@ -521,7 +521,7 @@
 
 ---
 
-## [-] [작업 73] 거래소 상세·구매/수령 지연 개선 및 금화 시안
+## [x] [작업 73] 거래소 상세·구매/수령 지연 개선 및 금화 시안
 - **등록일**: 2026-11-16
 - **담당자**: 이 대화의 클라우드 Codex
 - **수정 예정 파일**: `src/ui/modals/marketModal.ts`, `src/styles/market.css`, `src/game/market.ts`, `src/game/sync.ts`, `src/main.ts`, `server/market.mjs`, `server/database.mjs`, 관련 거래 API·테스트 및 작업 문서. 금화 생성 시안은 게임 외부 미리보기로 제공.

@@ -15,7 +15,17 @@ export class SaveSync {
   onPause: (paused: boolean) => void = () => {};
   onSaved: () => void = () => {};
   constructor(public save: Save, public session: Session) { this.revision = session.revision; }
+  private autosaveTimer?: ReturnType<typeof setTimeout>;
+  queueSave(): void {
+    if (this.autosaveTimer !== undefined) return;
+    this.autosaveTimer = setTimeout(() => { this.autosaveTimer = undefined; void this.flush(); }, 1000);
+  }
+  private cancelQueuedSave(): void {
+    if (this.autosaveTimer !== undefined) clearTimeout(this.autosaveTimer);
+    this.autosaveTimer = undefined;
+  }
   flush(): Promise<boolean> {
+    this.cancelQueuedSave();
     if (this.locked || this.conflicted || this.pendingMarket) return Promise.resolve(false);
     this.pending = true;
     if (this.active) return this.active;
@@ -46,6 +56,7 @@ export class SaveSync {
   }
   async mutate(action: string, data: Record<string, unknown>, requestId: string): Promise<SyncResult> {
     if (this.locked || this.conflicted) throw new Error('다른 요청을 처리 중입니다.');
+    this.cancelQueuedSave();
     this.onPause(true);
     try {
       if (this.pendingMarket && this.pendingMarket.requestId !== requestId) throw new Error('이전 거래의 결과를 먼저 확인해야 합니다. 거래 결과 다시 확인을 눌러주세요.');

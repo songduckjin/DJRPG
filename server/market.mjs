@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { decodeAccount, assertRevision, fail, reconcileItems, transaction, validateSave, writeSave } from './database.mjs';
+import { decodeAccount, assertRevision, fail, reconcileItems, inventoryOwnerQuery, transaction, validateSave, writeSave } from './database.mjs';
 export const rules = { fee: .05, maxListings: 10, durationHours: 72, maxPrice: 1_000_000_000, pageSize: 20 };
 const deliveryOperation = (listing, owner, kind, item, gold, reason) => {
   const delivery = { id: randomUUID(), item, gold, reason, createdAt: Date.now() };
@@ -76,7 +76,8 @@ export async function mutate(db, id, input) {
         ? { sql: 'SELECT * FROM djrpg_market WHERE id=?', args: [typeof input.listingId === 'string' ? input.listingId : ''] }
         : input.action === 'claim'
           ? { sql: 'SELECT * FROM djrpg_market_inbox WHERE id=? AND account_id=? AND claimed_at IS NULL', args: [typeof input.deliveryId === 'string' ? input.deliveryId : '', id] }
-          : { sql: "SELECT COUNT(*) AS n FROM djrpg_market WHERE seller=? AND state='active' AND expires_at>?", args: [id, Date.now()] }
+          : { sql: "SELECT COUNT(*) AS n FROM djrpg_market WHERE seller=? AND state='active' AND expires_at>?", args: [id, Date.now()] },
+      inventoryOwnerQuery(id, input.progress)
     ]);
     const row = decodeAccount(reads[0].rows[0]), replay = reads[1].rows[0];
     if (replay) {
@@ -88,10 +89,10 @@ export async function mutate(db, id, input) {
     assertRevision(row, input.revision);
     if (input.progress !== undefined) validateSave(input.progress);
     const save = structuredClone(input.progress ?? row.save);
-    // Register existing inventory before it enters escrow, preserving old saves.
-    if (input.action === 'register' || JSON.stringify([row.save.bag, row.save.equipment]) !== JSON.stringify([save.bag, save.equipment])) await reconcileItems(tx, id, row.save, save);
-    let message = '';
     const operations = [], effect = { deliveries: [] };
+    // Validate ownership from the initial read batch, then persist it with the trade.
+    if (input.action === 'register' || JSON.stringify([row.save.bag, row.save.equipment]) !== JSON.stringify([save.bag, save.equipment])) await reconcileItems(tx, id, row.save, save, { owned: reads[3].rows, operations });
+    let message = '';
     const inbox = (sale, owner, kind, item, gold, reason) => {
       const entry = deliveryOperation(sale, owner, kind, item, gold, reason);
       operations.push(entry.operation);

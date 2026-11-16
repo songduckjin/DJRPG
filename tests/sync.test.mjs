@@ -68,3 +68,26 @@ test('seller history and inbox rerender on remote sale without waiting for manua
   globalThis.fetch=async()=>response({listings:[{id:'remote-offer',state:'sold'}],inbox:[{id:'money',item:null,gold:95}],myActive:0,revision:0,seq:2,watched:[]});
   await market.load(false);assert(full);assert.equal(market.data.listings[0].state,'sold');assert.equal(market.data.inbox[0].gold,95);
 });
+
+test('burst of loot changes queues one save instead of starting one for every item', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const sync=setup(), requests=[];
+  globalThis.fetch=async(_url,options)=>{const body=JSON.parse(options.body);requests.push(body);return response({ok:true,revision:body.revision+1});};
+  for(let i=1;i<=10;i++){sync.save.gold=i;sync.queueSave();}
+  assert.equal(requests.length,0);t.mock.timers.tick(1000);await sync.active;
+  assert.equal(requests.length,1);assert.equal(requests[0].save.gold,10);
+});
+test('purchase absorbs a queued autosave with no prior save request or delayed duplicate', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const sync=setup(), requests=[];sync.save.gold=100;
+  globalThis.fetch=async(url,options)=>{const body=JSON.parse(options.body);requests.push({url,body});const saved=structuredClone(body.progress);saved.gold-=20;return response({ok:true,save:saved,revision:1});};
+  sync.queueSave();await sync.mutate('buy',{listingId:'offer'},'queued-save-purchase');
+  t.mock.timers.tick(2000);assert.equal(requests.length,1);assert.equal(requests[0].url,'/api/market');assert.equal(requests[0].body.progress.gold,100);assert.equal(sync.save.gold,80);
+});
+test('explicit save on leaving page flushes queued progress immediately once', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const sync=setup(), requests=[];
+  globalThis.fetch=async(_url,options)=>{requests.push(JSON.parse(options.body));return response({ok:true,revision:1});};
+  sync.save.gold=75;sync.queueSave();await sync.flush();t.mock.timers.tick(2000);
+  assert.equal(requests.length,1);assert.equal(requests[0].save.gold,75);
+});

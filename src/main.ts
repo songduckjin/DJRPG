@@ -30,7 +30,7 @@ const offlineReward = applyOfflineRewards(save, session.offlineSeconds ?? 0);
 const world = new World(save);
 const sync = new SaveSync(save, session);
 function flush(): Promise<boolean> { return sync.flush(); }
-const ui = new Interface(appRoot, world, () => { void flush(); }, session, async () => {
+const ui = new Interface(appRoot, world, () => { sync.queueSave(); }, session, async () => {
   try { await sync.reset(); } catch (error) { ui.message(`데이터 초기화 실패: ${String(error)}`); }
 }, sync);
 sync.onStatus = state => ui.setSaveStatus(state);

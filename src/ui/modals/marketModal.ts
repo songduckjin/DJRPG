@@ -105,10 +105,17 @@ function renderListing(ui: Interface, dialog: HTMLElement, sale: Listing, blocke
   }
   row.append(bottom);
   if (market.selected?.id === sale.id && sale.state === 'active') {
-    const detail = el('div', 'market-detail'); detail.append(el('p', '', sale.mine ? '등록을 취소하면 수령함으로 반환됩니다.' : `구매 가격 ◆ ${money(sale.price)} · 구매 후 수령함에 보관됩니다.`));
+    const detail = el('div', 'market-detail');
+    if (sale.mine) detail.append(el('p', '', '등록을 취소하면 수령함으로 반환됩니다.'));
     if (!sale.mine && !isSkillBook(sale.item)) {
       const comparison = compareEquipment(ui.world.save, sale.item)!;
-      detail.append(el('small', '', comparison.equipped ? `현재 장착: ${comparison.equipped.name}` : '현재 이 부위에 장착한 장비가 없습니다. (능력치 0 기준)'));
+      const equipped = el('div', 'market-equipped');
+      if (comparison.equipped) {
+        const info = el('div', 'market-equipped-info');
+        info.append(el('small', '', '현재 장착 중'), el('b', `rarity-${comparison.equipped.rarity}`, comparison.equipped.name), el('small', '', `${rarityNames[comparison.equipped.rarity]} · ${slotNames[comparison.equipped.slot]}`));
+        equipped.append(icon(comparison.equipped), info);
+      } else equipped.append(el('small', '', '현재 이 부위에 장착한 장비가 없습니다. (능력치 0 기준)'));
+      detail.append(equipped);
       const table = el('table', 'market-comparison'), caption = el('caption', '', '같은 부위 착용 장비와 비교'); table.append(caption);
       const head = el('thead'), headings = el('tr');
       for (const label of ['능력치', '현재 장비', '구매 장비', '증감']) { const th = el('th', '', label); th.scope = 'col'; headings.append(th); }

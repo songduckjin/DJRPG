@@ -58,3 +58,8 @@
 .market-comparison th:first-child { text-align: left; }
 .market-comparison thead th { color: #bda98f; font-weight: 500; }
 .market-same { color: #bba58e; }
+
+.market-equipped { display: flex; width: 100%; align-items: center; gap: 10px; padding: 8px; border: 1px solid #68523d; background: #2a2223; }
+.market-equipped-info { display: flex; min-width: 0; flex-direction: column; gap: 5px; }
+.market-equipped-info b { overflow-wrap: anywhere; line-height: 1.5; }
+.market-equipped-info small { color: #bda98d; font-size: 10px; }
