@@ -492,13 +492,14 @@
 
 ---
 
-## [ ] [작업 70] 도감 등급순 정렬·거래소 착용 장비 비교
+## [-] [작업 70] 도감 등급순 정렬·거래소 착용 장비 비교
 - **등록일**: 2026-11-16
 - **담당자**: 이 대화의 클라우드 Codex
 - **선행 조건**: 사용자가 작업 68 완료 후 이어서 진행하도록 지정. 작업 68이 `[x]`가 된 뒤 최신 main을 받아 착수한다.
-- **수정 예정 파일**: `src/game/codex.ts`, `src/ui/modals/codexModal.ts`, `src/ui/modals/marketModal.ts`, `src/styles/codex.css`, `src/styles/market.css`, 관련 테스트 및 작업 문서.
+- **수정 예정 파일**: `src/game/codex.ts`, `src/ui/modals/codexModal.ts`, `src/ui/modals/marketModal.ts`, `src/styles/codex.css`, `src/styles/market.css`, `src/ui/interface.ts`, `src/ui/modals/equipModal.ts`, `src/styles/modals.css`, 팝업 초기화·장비 비교 보조 모듈, 관련 테스트 및 작업 문서.
 - **목표**: 도감 부위별 버튼 제거(부위 드롭다운 유지), 일반→레전드 등급순 나열, 거래소 상세/구매에서 같은 부위의 현재 착용 장비와 능력치·증감 비교, 조건 초기화 버튼 너비 확대.
-- **완료 기준**: 6등급 정렬·빈 장착칸/스킬북 비교 예외 확인, 타입 검사·테스트·빌드 통과.
+- **추가 요청**: 모든 팝업 재진입 시 필터·선택·스크롤을 초기화. 가방 상세는 선택 강조와 장비 위 오버레이로 표시하고 바깥 클릭으로 닫으며 가방 배열을 유지한다.
+- **완료 기준**: 6등급 정렬·빈 장착칸/스킬북 비교·팝업 초기화 확인, 타입 검사·테스트·빌드 통과.
 
 ---
 
