@@ -14,16 +14,16 @@
 .tutorial { position: absolute; top: calc(env(safe-area-inset-top) + 83px); left: 50%; transform: translateX(-50%); max-width: 83%; min-width: 60%; padding: 8px 12px; text-align: center; font-size: 11px; line-height: 1.5; color: #f4dcb0; background: #20191ae8; border: 1px solid #805b3b; border-radius: 5px; box-shadow: 0 3px 15px #0009; }
 .tutorial[hidden] { display: none; }
 .controls { position: absolute; left: 0; right: 0; bottom: 12px; height: 135px; pointer-events: none; }
-.action-pad { position: absolute; right: 10px; bottom: 10px; width: 142px; height: 110px; pointer-events: auto; }
-.action { position: absolute; width: 46px; height: 46px; border-radius: 50%; border: 2px solid #9a7964; color: #f6e6cf; background: radial-gradient(circle at 35% 25%, #584241, #1d171d 75%); box-shadow: 0 3px 9px #000b, inset 0 0 8px #000; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 0; touch-action: none; }
+.action-pad { position: absolute; right: 10px; bottom: 12px; width: 160px; height: 160px; pointer-events: none; }
+.action { pointer-events: auto; position: absolute; width: 50px; height: 50px; border-radius: 50%; border: 2px solid #9a7964; color: #f6e6cf; background: radial-gradient(circle at 35% 25%, #584241, #1d171d 75%); box-shadow: 0 3px 9px #000b, inset 0 0 8px #000; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 0; touch-action: none; }
 .action strong { font-size: 20px; line-height: 21px; font-weight: 400; }
 .action small { font-size: 8px; }
 .action em { position: absolute; inset: 0; border-radius: 50%; display: grid; place-items: center; background: #08070cbb; font-style: normal; font-weight: 700; color: white; font-size: 16px; }
 .action em:empty { display: none; }
-.action-attack { width: 60px; height: 60px; right: 0; bottom: 0; border-color: #d0a879; background: radial-gradient(circle at 35% 25%, #815a41, #2d171c 75%); }
-.action-slot1 { left: 0; bottom: 4px; }
-.action-slot2 { left: 27px; top: 0; }
-.action-slot3 { right: 0; top: 0; }
+.action-attack { --skill-color: #d0a879; width: 80px; height: 80px; right: 0; bottom: 0; border-color: #d0a879; background: radial-gradient(circle at 35% 25%, #815a41, #2d171c 75%); }
+.action-slot1 { left: 0; bottom: 38px; }
+.action-slot2 { left: 27px; top: 27px; }
+.action-slot3 { right: 33px; top: 0; }
 .resource { position: absolute; bottom: 11px; width: 46px; height: 46px; border: 3px ridge #bda268; outline: 2px solid #30251f; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-direction: column; box-shadow: 0 3px 9px #000a, inset 0 0 9px #130d14; background: linear-gradient(to top, var(--color) var(--fill), #17141b var(--fill)); pointer-events: none; }
 .resource span { font: 700 9px Cinzel, serif; color: #f3ded5; }
 .resource b { font-size: 11px; }
@@ -55,14 +55,12 @@
 .bottom-nav svg, .bottom-nav img.nav-icon { width: 42px; height: 42px; opacity: .82; object-fit: contain; filter: drop-shadow(0 2px 4px #000a); transition: opacity .15s, transform .15s; }
 .bottom-nav button:active img.nav-icon { opacity: 1; transform: scale(.94); }
 .controls { bottom: env(safe-area-inset-bottom); }
-.action-pad { right: 10px; width: 120px; }
-.action-slot2 { left: 8px; }
-.action-slot1 { bottom: 4px; }
+.action-pad { right: 10px; }
 @media (max-width: 359px) {
   .bottom-nav { gap: 3px; left: 6px; }
   .bottom-nav button { flex-basis: 42px; width: 42px; height: 46px; }
   .bottom-nav svg { width: 33px; height: 33px; }
-  .action-pad { right: 6px; width: 114px; }
+  .action-pad { right: 6px; }
 }
 .action.skill-empty { border-color: #625b59; background: radial-gradient(circle at 35% 25%, #302b2c, #17151b 75%); color: #827a74; box-shadow: 0 2px 5px #0007; }
 .action.skill-empty:disabled { opacity: .42; cursor: default; }
@@ -78,3 +76,16 @@
 @media (prefers-reduced-motion: reduce) { .action.slot-selecting { animation: none; } }
 
 .bottom-nav button[data-modal="market"] img.nav-icon { opacity: 1; filter: none; }
+
+/* A large basic attack anchors the fan; narrow screens raise it above the menu row. */
+.action.has-skill-art { border-width: 1px; border-color: #a88b5d; background: radial-gradient(circle at 40% 30%, #332a25, #100e12 80%); }
+.action.has-skill-art strong { opacity: 0; }
+.skill-art { position: absolute; inset: 4px; border-radius: 50%; background-repeat: no-repeat; pointer-events: none; }
+.skill-art[hidden] { display: none; }
+.action-attack .skill-art { inset: 6px; }
+.action small { position: absolute; bottom: 3px; z-index: 2; font-size: 8px; text-shadow: 0 1px 3px #000, 0 0 3px #000; pointer-events: none; }
+.action-attack small { bottom: 5px; font-size: 9px; }
+.action em { z-index: 1; background: #08070c75; padding-bottom: 11px; text-shadow: 0 1px 3px #000; pointer-events: none; }
+.action-attack em { font-size: 19px; padding-bottom: 13px; }
+.action:focus-visible { outline: 2px solid #f0d8a5; outline-offset: 3px; }
+@media (max-width: 399px) { .action-pad { bottom: 68px; } }

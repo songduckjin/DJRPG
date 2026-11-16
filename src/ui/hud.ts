@@ -1,3 +1,5 @@
+import { applySkillArtwork } from './skillArtwork';
+import { SkillFeedback } from './skillFeedback';
 import { goldMarkup } from './currency';
 import { expToNext, floorKillTarget, MAX_LEVEL, totalStats } from '../game/store';
 import { availableSkills } from '../game/loadout';
@@ -23,6 +25,8 @@ export function renderStatus(this: Interface): void {
 
 export function tick(this: Interface): void {
     const available = availableSkills(this.world.save);
+    const feedback = this.skillFeedback ??= new SkillFeedback();
+    const casts = feedback.collect(this.world.effects);
     for (let index = 0; index < 4; index++) {
       const kind: Action | null = index === 0 ? 'attack' : this.world.save.quickSlots[index - 1];
       const button = index === 0 ? this.attackButton : this.slotButtons[index - 1];
@@ -31,6 +35,7 @@ export function tick(this: Interface): void {
       const name = empty ? canAdd ? '스킬 장착하기' : '미습득' : kind === 'attack' ? '대검 베기' : skills[kind].name;
       const key = `${kind}:${canAdd}:${selecting}`;
       if (button.dataset.state !== key) {
+        feedback.clear(button); applySkillArtwork(button, kind);
         button.dataset.state = key; button.dataset.skill = kind ?? '';
         button.querySelector('strong')!.textContent = empty ? canAdd || selecting ? '+' : '—' : kind === 'attack' ? '⚔' : skills[kind].icon;
         button.querySelector('small')!.textContent = selecting ? '선택' : empty ? canAdd ? '장착' : '미습득' : kind === 'attack' ? '대검 베기' : shortNames[kind];
@@ -39,6 +44,7 @@ export function tick(this: Interface): void {
         button.classList.toggle('slot-selecting', selecting); button.disabled = empty && !canAdd && !selecting;
         const alert = button.querySelector<HTMLElement>('.skill-alert-dot'); if (alert) alert.hidden = !canAdd;
       }
+      if (kind && !selecting && casts.has(kind)) feedback.pulse(button, kind === 'attack');
       const cd = kind ? this.world.cooldown[kind] : 0;
       button.classList.toggle('cooling', cd > 0 && !selecting); button.querySelector('em')!.textContent = cd > 0 && !selecting ? cd.toFixed(1) : '';
       button.title = selecting ? '이 원에 장착' : kind ? `${name} · 쿨타임 ${cooldowns[kind]}초` : name;

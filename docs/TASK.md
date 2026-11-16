@@ -618,7 +618,7 @@
 
 ---
 
-## [-] [작업 82] 부채꼴 스킬 배치 및 발동 강조
+## [x] [작업 82] 부채꼴 스킬 배치 및 발동 강조
 - **등록일**: 2026-11-16
 - **담당자**: 이 대화의 클라우드 Codex
 - **수정 예정 파일**: `src/styles/hud.css`, `src/ui/hud.ts`, `src/ui/interface.ts`, `src/ui/skillFeedback.ts`, `src/ui/skillArtwork.ts`, `public/assets/icons/field-skills.png`, 관련 UI 테스트 및 작업 문서.
