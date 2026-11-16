@@ -646,7 +646,8 @@
 
 ---
 
-## [x] [작업 85] 황야 모닥불·잡초 주변 애니메이션
+## [-] [작업 85] 황야 모닥불·잡초 주변 애니메이션
+- **배포 상태**: 구현·136개 테스트·타입 검사·빌드 완료. PR #17 병합 후 Vercel이 `Deployment rate limited — retry in 24 hours.`로 배포를 거절해 Production 미반영. 제한 해제 후 최신 main 재배포 필요.
 - **등록일**: 2026-11-16
 - **담당자**: 이 대화의 클라우드 Codex
 - **수정 예정 파일**: `src/game/wasteland.ts`, `src/game/ambientMotion.ts`, `src/game/ambientScene.ts`, 관련 테스트 및 작업 문서.
