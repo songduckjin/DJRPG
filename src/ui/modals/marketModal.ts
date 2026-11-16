@@ -1,5 +1,6 @@
 import { equipmentImage, isSkillBook, rarityNames, slotNames, statNames, type Item, type Stat } from '../../game/items';
 import { type MarketView, type Listing, type Market } from '../../game/market';
+import { compareEquipment } from '../../game/itemComparison';
 import type { Interface } from '../interface';
 
 const money = (n: number) => n.toLocaleString('ko-KR');
@@ -90,7 +91,7 @@ function renderFilters(market: Market, dialog: HTMLElement): void {
   const advanced = el('details'); advanced.append(el('summary', '', '분류 · 옵션 · 가격 필터'));
   const grid = el('div', 'market-filter-grid');
   grid.append(select('분류', [['','전체'],['weapon','무기·문장'],['armor','방어구'],['accessory','장신구'],['skillbook','스킬북']], market, 'category'), select('등급', [['','전체'], ...Object.entries(rarityNames)], market, 'rarity'), select('부위', [['','전체'], ...Object.entries(slotNames),['skillbook','스킬북']], market, 'slot'), select('정렬', [['newest','최신순'],['priceAsc','낮은 가격순'],['priceDesc','높은 가격순']], market, 'sort'), numberField('최소 가격', market, 'minPrice'), numberField('최대 가격', market, 'maxPrice'), select('옵션', [['','전체'], ...Object.entries(statNames)], market, 'stat'), numberField('옵션 최솟값', market, 'minStat'));
-  advanced.append(grid); form.append(advanced, button('조건 초기화', () => { market.filters = { query: '', category: '', slot: '', rarity: '', sort: 'newest', page: 0 }; market.refresh(); }));
+  advanced.append(grid); const reset = button('조건 초기화', () => { market.filters = { query: '', category: '', slot: '', rarity: '', sort: 'newest', page: 0 }; market.refresh(); }); reset.className = 'market-reset'; form.append(advanced, reset);
   form.onsubmit = e => { e.preventDefault(); market.filters.page = 0; market.refresh(); }; dialog.append(form);
 }
 function renderListing(ui: Interface, dialog: HTMLElement, sale: Listing, blocked: boolean): void {
@@ -100,18 +101,25 @@ function renderListing(ui: Interface, dialog: HTMLElement, sale: Listing, blocke
   const bottom = el('div', 'market-row-bottom');
   bottom.append(el('small', '', `판매자 ${sale.sellerName} · ${sale.state === 'sold' ? `판매 ${when(sale.soldAt!)}` : `만료 ${when(sale.expiresAt)}`}${sale.purchased ? ' · 내가 구매' : ''}`));
   if (sale.state === 'active') {
-    const action = button(sale.mine ? '등록 취소' : '상세 / 구매', () => { market.selected = market.selected?.id === sale.id ? undefined : sale; market.onChange(true); }, blocked); action.className = 'market-buy'; bottom.append(action);
+    const action = button(sale.mine ? '등록 취소' : '상세 / 구매', () => { market.selected = market.selected?.id === sale.id ? undefined : sale; market.onChange(true); }, market.busy || !!market.sync.pendingMarket); action.className = 'market-buy'; bottom.append(action);
   }
   row.append(bottom);
   if (market.selected?.id === sale.id && sale.state === 'active') {
     const detail = el('div', 'market-detail'); detail.append(el('p', '', sale.mine ? '등록을 취소하면 수령함으로 반환됩니다.' : `구매 가격 ◆ ${money(sale.price)} · 구매 후 수령함에 보관됩니다.`));
     if (!sale.mine && !isSkillBook(sale.item)) {
-      const equipped = ui.world.save.equipment[sale.item.slot];
-      detail.append(el('small', '', equipped ? `현재 장착: ${equipped.name}` : '현재 이 부위에 장착한 장비가 없습니다.'));
-      for (const key of new Set([...Object.keys(sale.item.stats), ...Object.keys(equipped?.stats ?? {})])) {
-        const stat = key as Stat, diff = (sale.item.stats[stat] ?? 0) - (equipped?.stats[stat] ?? 0);
-        detail.append(el('span', diff >= 0 ? 'market-up' : 'market-down', `${statNames[stat]} ${diff >= 0 ? '+' : ''}${diff}`));
+      const comparison = compareEquipment(ui.world.save, sale.item)!;
+      detail.append(el('small', '', comparison.equipped ? `현재 장착: ${comparison.equipped.name}` : '현재 이 부위에 장착한 장비가 없습니다. (능력치 0 기준)'));
+      const table = el('table', 'market-comparison'), caption = el('caption', '', '같은 부위 착용 장비와 비교'); table.append(caption);
+      const head = el('thead'), headings = el('tr');
+      for (const label of ['능력치', '현재 장비', '구매 장비', '증감']) { const th = el('th', '', label); th.scope = 'col'; headings.append(th); }
+      head.append(headings); table.append(head);
+      const body = el('tbody');
+      for (const { stat, current, candidate, difference } of comparison.stats) {
+        const line = el('tr'), name = el('th', '', statNames[stat]); name.scope = 'row';
+        line.append(name, el('td', '', String(current)), el('td', '', String(candidate)), el('td', difference > 0 ? 'market-up' : difference < 0 ? 'market-down' : 'market-same', difference > 0 ? `▲ +${difference}` : difference < 0 ? `▼ ${difference}` : '— 0'));
+        body.append(line);
       }
+      table.append(body); detail.append(table);
     }
     detail.append(button(sale.mine ? '취소하고 수령함으로 반환' : `◆ ${money(sale.price)} 구매 확정`, () => { void market.act(sale.mine ? 'cancel' : 'buy', { listingId: sale.id }); }, blocked || (!sale.mine && ui.world.save.gold < sale.price)));
     if (!sale.mine && ui.world.save.gold < sale.price) detail.append(el('small', 'market-error', '골드가 부족합니다.'));

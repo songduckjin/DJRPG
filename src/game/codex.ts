@@ -70,5 +70,5 @@ export function codexVariants(save: Save, query = '', slot = '', state = 'all', 
     const equipped = Object.values(save.equipment).filter(item => item?.rarity === grade && equipmentCodexKey(item) === entry.key).length;
     if (state === 'owned' && !bag && !equipped) return [];
     return [{ entry, rarity: grade, key: `${entry.key}@${grade}`, name, bag, equipped, discovered: codexOwnership(save, entry).discovered }];
-  }));
+  })).sort((a, b) => rarityRanks[a.rarity] - rarityRanks[b.rarity]);
 }

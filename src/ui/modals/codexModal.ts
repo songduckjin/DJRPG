@@ -1,4 +1,4 @@
-import { codexEntries, codexOptions, codexOwnership, codexSlotNames, codexVariantName, codexVariants, firstDropFloor, type CodexEntry } from '../../game/codex';
+import { codexEntries, codexRarities, codexOptions, codexOwnership, codexSlotNames, codexVariantName, codexVariants, firstDropFloor, type CodexEntry } from '../../game/codex';
 import { rarityNames, statNames, type Rarity } from '../../game/items';
 import type { Interface } from '../interface';
 function element<K extends keyof HTMLElementTagNameMap>(tag: K, className = '', text = ''): HTMLElementTagNameMap[K] { const node = document.createElement(tag); node.className = className; node.textContent = text; return node; }
@@ -22,12 +22,6 @@ export function renderCodex(this: Interface, dialog: HTMLElement): void {
   const rarity = element('select'); rarity.setAttribute('aria-label', '장비 등급');
   for (const [value, label] of [['','모든 등급'], ...Object.entries(rarityNames)]) { const option = element('option', '', label); option.value = value; rarity.append(option); } rarity.value = this.codexRarity;
   toolbar.append(search, slot, rarity, state); dialog.append(toolbar);
-  const tabs = element('div', 'codex-slot-tabs'); tabs.setAttribute('aria-label', '부위별 도감');
-  for (const [value, label] of [['','전체'], ...Object.entries(codexSlotNames)]) {
-    const tab = element('button', '', label); tab.type = 'button'; tab.dataset.slot = value;
-    tab.onclick = () => { slot.value = value; apply(); }; tabs.append(tab);
-  }
-  dialog.append(tabs);
   dialog.append(element('p', 'codex-hint', '그림을 누르면 등급별 등장 가능 층과 현재 층 기준 옵션을 확인합니다.'));
   const count = element('p', 'codex-result'), grid = element('div', 'codex-grid'), empty = element('p', 'empty', '조건에 맞는 장비가 없습니다.');
   dialog.append(count, grid, empty);
@@ -48,8 +42,7 @@ export function renderCodex(this: Interface, dialog: HTMLElement): void {
     const visible = new Set(codexVariants(save, this.codexQuery, this.codexSlot, this.codexState, this.codexRarity).map(variant => variant.key));
     grid.querySelectorAll<HTMLElement>('[data-codex-key]').forEach(node => { node.hidden = !visible.has(node.dataset.codexKey!); });
     const detail = grid.querySelector<HTMLElement>('[data-codex-detail]'); if (detail) detail.hidden = !visible.has(detail.dataset.codexDetail!);
-    tabs.querySelectorAll<HTMLButtonElement>('button').forEach(tab => { const active = tab.dataset.slot === slot.value; tab.classList.toggle('active', active); tab.setAttribute('aria-pressed', String(active)); });
-    count.textContent = `${visible.size}개 표시 · 기본형 ${codexEntries.length}종 × 4등급`; empty.hidden = visible.size > 0;
+    count.textContent = `${visible.size}개 표시 · 기본형 ${codexEntries.length}종 × ${codexRarities.length}등급`; empty.hidden = visible.size > 0;
   };
   search.oninput = apply; slot.onchange = apply; rarity.onchange = apply; state.onchange = apply; apply();
 }

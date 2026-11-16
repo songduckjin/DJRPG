@@ -1,3 +1,5 @@
+import { resetModalDefaults } from './modalDefaults';
+import { dismissBagDetail, positionBagDetail } from './bagDetail';
 import type { Item, Rarity, Save, Slot } from '../game/store';
 import { discoverEquipment } from '../game/codex';
 import { renderCodex } from './modals/codexModal';
@@ -69,6 +71,14 @@ export class Interface {
     this.market.start();
     for (const item of [...world.save.bag, ...Object.values(world.save.equipment)]) if (item) this.knownItems.add(item.id);
     this.root.querySelectorAll<HTMLButtonElement>('[data-modal]').forEach(button => button.onclick = () => { cancelSkillSelection.call(this); this.open(button.dataset.modal as Modal); });
+    this.root.addEventListener('pointerdown', event => {
+      const target = event.target as HTMLElement;
+      if (this.selected && !target.closest('.bag-detail-overlay, .bag-item')) dismissBagDetail(this);
+    }, true);
+    window.addEventListener('resize', () => positionBagDetail(this));
+    this.modal.addEventListener('scroll', event => {
+      if (event.target !== this.modal.querySelector('.bag-detail-overlay')) positionBagDetail(this);
+    }, true);
     this.modal.addEventListener('click', event => { if (event.target === this.modal) this.open(null); });
     window.addEventListener('keydown', event => { if (event.key === 'Escape') { cancelSkillSelection.call(this); this.open(null); } });
     const pad = this.get('.action-pad');
@@ -126,7 +136,14 @@ export class Interface {
     if (kind !== 'salvage') this.salvageIds = undefined;
     if (this.openModal === 'market' && kind !== 'market') this.market.close();
     const startMarket = kind === 'market' && this.openModal !== 'market';
-    if (this.openModal !== kind) this.modal.querySelector<HTMLElement>('.modal-dialog')!.scrollTop = 0;
+    if (this.openModal !== kind) {
+      resetModalDefaults(this);
+      if (startMarket) this.market.resetView();
+      const dialog = this.modal.querySelector<HTMLElement>('.modal-dialog')!;
+      dialog.scrollTop = 0;
+      // A previous bag's scroll must not be restored when constructing a new popup.
+      const bag = dialog.querySelector<HTMLElement>('.bag-grid'); if (bag) bag.scrollTop = 0;
+    }
     this.openModal = kind; this.confirmReset = false;
     if (kind === 'equipment') { this.newItems.clear(); this.renderBagBadge(); }
     this.renderModal();
@@ -165,6 +182,7 @@ export class Interface {
     dialog.scrollTop = scroll;
     const bagGrid = dialog.querySelector<HTMLElement>('.bag-grid');
     if (bagGrid) bagGrid.scrollTop = bagScroll;
+    positionBagDetail(this);
   }
 
   renderEquipment(dialog: HTMLElement): void { return renderEquipment.call(this, dialog); }

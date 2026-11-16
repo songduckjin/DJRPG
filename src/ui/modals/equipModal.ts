@@ -29,9 +29,9 @@ export function renderInventory(this: Interface, dialog: HTMLElement): void {
       const cell = document.createElement('button'); cell.className = `bag-item ${item.rarity} ${this.selected === item.id ? 'selected' : ''}`;
       cell.innerHTML = `${itemIcon.call(this, item.slot, item, 'item-icon')}<small>${rarityNames[item.rarity]}</small><b></b>`;
       cell.querySelector('b')!.textContent = item.name;
-      cell.onclick = () => { this.selected = item.id; this.renderModal(); };
+      cell.setAttribute('aria-expanded', String(this.selected === item.id));
+      cell.onclick = () => { this.selected = this.selected === item.id ? undefined : item.id; this.renderModal(); };
       grid.appendChild(cell);
-      if (item.id === this.selected) grid.appendChild(this.itemDetail(save, item));
     }
     if (!visible.length) grid.innerHTML = '<p class="empty">이 분류에 획득한 아이템이 없습니다.</p>';
     const footer = document.createElement('div'); footer.className = 'modal-bag-footer';
@@ -58,6 +58,12 @@ export function renderInventory(this: Interface, dialog: HTMLElement): void {
     const salvage = document.createElement('button'); salvage.className = 'salvage'; salvage.textContent = '일괄 분해'; salvage.onclick = () => this.salvage();
     controls.append(equip, rarityButton, salvage); footer.append(count, controls); section.appendChild(footer);
     dialog.appendChild(section);
+    const selectedItem = visible.find(item => item.id === this.selected);
+    if (selectedItem) {
+      const detail = this.itemDetail(save, selectedItem); detail.classList.add('bag-detail-overlay');
+      detail.setAttribute('role', 'region'); detail.setAttribute('aria-label', '선택한 아이템 설명');
+      dialog.append(detail);
+    }
   }
 
 export function itemDetail(this: Interface, save: Save, item: Item): HTMLElement {
