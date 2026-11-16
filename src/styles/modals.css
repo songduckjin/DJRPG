@@ -136,9 +136,8 @@
 .item-lock { display: inline-flex; flex: none; align-items: center; justify-content: center; width: 36px; height: 36px; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
 .item-lock[aria-pressed="true"] { background: transparent; box-shadow: none; }
 .item-lock:focus-visible { outline: 2px solid #e9c585; outline-offset: 2px; }
-.lock-icon { display: inline-block; width: 30px; height: 30px; flex: none; background-image: url('/assets/icons/item-locks-v2.png'); background-size: 200% 100%; background-repeat: no-repeat; }
+.lock-icon { display: inline-block; width: 34px; height: 34px; flex: none; background-image: url('/assets/icons/item-locks-v3.png'); background-size: 200% 100%; background-repeat: no-repeat; }
 .lock-icon.is-locked { background-position: left center; }.lock-icon.is-open { background-position: right center; }
-.lock-icon.is-locked { filter: drop-shadow(.6px 0 0 #d8b271) drop-shadow(-.6px 0 0 #d8b271) drop-shadow(0 .6px 0 #d8b271) drop-shadow(0 -.6px 0 #d8b271); }
 .detail-actions button:disabled { opacity: .45; cursor: default; }
 
 .equipment-modal .modal-close { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 44px; height: 44px; touch-action: manipulation; }
