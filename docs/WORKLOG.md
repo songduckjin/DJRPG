@@ -1,3 +1,8 @@
+## 2026-11-16 · 작업 47
+- `public/assets/walk8_*.png`: 전사 외형 6종과 해골·보스의 투명 8프레임 보행 시트 제작.
+- `src/game/render.ts`, `src/game/render/entities.ts`: 시트 프레임 로딩, 이동 거리 기반 보행 주기와 프레임별 발 위치 정렬 적용.
+- 검증: 시트 8개 크기·투명도, `pnpm run check`, `pnpm run build` 성공.
+
 ## 2026-11-16 · 작업 46
 - `src/game/render.ts`, `src/game/render/entities.ts`: 전사·몬스터·잔상 앵커를 .97로 조정하고 그림자를 발밑에 정렬.
 - 보행 바운스 제거; `slam`·`hell`의 점프 연출은 유지.

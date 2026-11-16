@@ -2,22 +2,33 @@ import { Sprite, Text } from 'pixi.js';
 import type { World } from '../world';
 import type { Art, GameView } from '../render';
 
+const walkAnchors = {
+  maleBaseWalk: [.95, .95, .95, .95, .941, .944, .944, .923],
+  femaleBaseWalk: [.95, .948, .95, .944, .953, .953, .95, .928],
+  maleWalk: [.932, .93, .932, .926, .93, .932, .93, .928],
+  femaleWalk: [.948, .946, .95, .944, .935, .944, .95, .941],
+  armoredWalk: [.89, .89, .89, .883, .892, .889, .887, .889],
+  armoredNoHelmWalk: [.944, .932, .935, .926, .932, .935, .937, .939],
+  skeletonWalk: [.917, .914, .91, .912, .898, .91, .905, .892],
+  bossWalk: [.919, .901, .899, .899, .914, .907, .905, .905]
+} as const;
+
 export function drawHero(this: GameView, world: World, x: number, y: number, time: number): void {
     const { player, save } = world;
     const equipped = !!save.equipment.armor;
     const moving = Math.hypot(world.activeMove.x, world.activeMove.y) > .05;
-    const walkingFrame = Math.floor(time * 8.5) % 4;
+    const walked = Math.hypot(player.x - this.lastHeroWorld.x, player.y - this.lastHeroWorld.y);
+    this.lastHeroWorld = { x: player.x, y: player.y };
+    if (moving) this.heroWalkDistance += Math.min(30, walked);
+    const walkingFrame = Math.floor(this.heroWalkDistance / 12) % 8;
     const attackFrame = Math.min(3, Math.floor((1 - world.attackPose / .32) * 4));
     const art: Art = equipped ? save.equipment.helmet ? 'armored' : 'armoredNoHelm' : save.equipment.weapon ? save.gender === 'male' ? 'maleSword' : 'femaleSword' : save.gender;
+    const walkArt = equipped ? save.equipment.helmet ? 'armoredWalk' : 'armoredNoHelmWalk' : save.gender === 'female' ? save.equipment.weapon ? 'femaleWalk' : 'femaleBaseWalk' : save.equipment.weapon ? 'maleWalk' : 'maleBaseWalk';
     let texture = this.textures[art];
     if (world.attackPose > 0) texture = this.animations[equipped ? save.equipment.helmet ? 'armoredAttack' : 'armoredNoHelmAttack' : save.gender === 'male' ? 'maleAttack' : 'femaleAttack'][Math.max(0, attackFrame)];
-    else if (moving) {
-      if (equipped) texture = this.animations[save.equipment.helmet ? 'armoredWalk' : 'armoredNoHelmWalk'][walkingFrame];
-      else if (save.gender === 'female') texture = this.animations.femaleWalk[walkingFrame];
-      else if (save.equipment.weapon) texture = this.animations.maleWalk[walkingFrame];
-      else texture = Math.floor(time * 6) % 2 ? this.textures.maleBaseWalk : this.textures.male;
-    }
+    else if (moving) texture = this.animations[walkArt][walkingFrame];
     if (this.hero.texture !== texture) this.hero.texture = texture;
+    this.hero.anchor.y = world.attackPose > 0 || !moving ? .97 : walkAnchors[walkArt][walkingFrame];
     let bob = 0;
     const local = world.effects.filter(effect => effect.kind !== 'hit' && effect.kind !== 'death' && Math.hypot(effect.x - player.x, effect.y - player.y) < 2);
     const attack = local.find(effect => ['slash', 'slash2', 'power', 'destroy'].includes(effect.kind));
@@ -48,7 +59,7 @@ export function updateAfterimages(this: GameView, world: World, project: (x: num
       if (index >= 3 || index <= (this.ghostEmissions.get(effect) ?? -1)) continue;
       this.ghostEmissions.set(effect, index);
       const sprite = new Sprite(this.hero.texture);
-      sprite.anchor.set(.5, .97); sprite.scale.set(this.hero.scale.x, this.hero.scale.y); sprite.rotation = this.hero.rotation;
+      sprite.anchor.set(.5, this.hero.anchor.y); sprite.scale.set(this.hero.scale.x, this.hero.scale.y); sprite.rotation = this.hero.rotation;
       sprite.tint = ['slam', 'destroy', 'hell'].includes(effect.kind) ? 0xffa06c : 0x8fe6dc;
       this.ghosts.addChild(sprite);
       const trail = 5 + index * 5;
@@ -86,6 +97,7 @@ export function drawEntities(this: GameView, world: World, project: (x: number, 
     const live = new Set(world.enemies);
     for (const [enemy, sprite] of this.enemies) if (!live.has(enemy)) {
       this.actors.removeChild(sprite); this.fallen.addChild(sprite); this.enemies.delete(enemy);
+      this.enemyWalkDistance.delete(enemy);
       this.corpses.push({ sprite, x: enemy.x, y: enemy.y, age: 0, duration: enemy.boss ? .85 : .55, scaleX: sprite.scale.x, scaleY: sprite.scale.y, rotation: sprite.rotation });
       const label = this.bossLabels.get(enemy); if (label) { this.labels.removeChild(label); label.destroy(); this.bossLabels.delete(enemy); }
     }
@@ -103,9 +115,15 @@ export function drawEntities(this: GameView, world: World, project: (x: number, 
         }
       }
       const [x, y] = project(enemy.x, enemy.y);
-      const frame = Math.floor(enemy.step * 2 / Math.PI) % 4;
+      let gait = this.enemyWalkDistance.get(enemy);
+      if (!gait) { gait = { x: enemy.x, y: enemy.y, distance: 0 }; this.enemyWalkDistance.set(enemy, gait); }
+      const walked = Math.hypot(enemy.x - gait.x, enemy.y - gait.y);
+      if (enemy.moving) gait.distance += Math.min(20, walked);
+      gait.x = enemy.x; gait.y = enemy.y;
+      const frame = Math.floor(gait.distance / (enemy.boss ? 6 : 7)) % 8;
       const texture = enemy.moving ? enemy.boss ? this.animations.bossWalk[frame] : this.animations.skeletonWalk[frame] : enemy.boss ? this.textures.boss : this.textures.skeleton;
       if (sprite.texture !== texture) sprite.texture = texture;
+      sprite.anchor.y = enemy.moving ? walkAnchors[enemy.boss ? 'bossWalk' : 'skeletonWalk'][frame] : .97;
       const scale = h * (enemy.boss ? .16 : .095) / texture.height;
       this.ground.ellipse(x, y, enemy.boss ? 18 : 11, enemy.boss ? 5 : 4).fill({ color: 0x000000, alpha: .5 });
       sprite.position.set(x + (enemy.hit > 0 ? Math.sin(time * 58) * 3 : 0), y + (enemy.hit > 0 ? 2 : 0));
