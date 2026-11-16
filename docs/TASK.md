@@ -518,3 +518,12 @@
 - **수정 파일**: `src/game/loadout.ts`, `src/ui/modals/skillModal.ts`, `tests/loadout.test.mjs`, `tests/skill-ui.test.mjs`, `docs/TASK.md`, `docs/WORKLOG.md`.
 - **목표**: 스킬창에서 장착한 액티브 스킬을 빠른 슬롯에서 해제할 수 있게 한다.
 - **완료 기준**: 해제 후 슬롯이 비고 스킬 습득·강화 기록은 유지되며 재장착·저장 복원이 가능하고, 잘못된 해제는 원인을 알리며 타입 검사·테스트·빌드가 통과한다.
+
+---
+
+## [-] [작업 73] 거래소 상세·구매/수령 지연 개선 및 금화 시안
+- **등록일**: 2026-11-16
+- **담당자**: 이 대화의 클라우드 Codex
+- **수정 예정 파일**: `src/ui/modals/marketModal.ts`, `src/styles/market.css`, `src/game/market.ts`, `src/game/sync.ts`, `server/market.mjs`, `server/database.mjs`, 관련 거래 API·테스트 및 작업 문서. 금화 생성 시안은 게임 외부 미리보기로 제공.
+- **목표**: 상세 구매가격 안내 줄 삭제, 현재 장착 장비 이미지·이름·등급 표시, 실제 요청/DB 왕복을 줄여 구매·수령 완료 지연 개선, 향후 다이아 대신 사용할 2.5D 금화 이미지 제작.
+- **완료 기준**: 이중 구매·중복 수령·재시도 안전성 및 기존 세이브 유지, 타입 검사·테스트·빌드 통과, 금화 시안 표시.
