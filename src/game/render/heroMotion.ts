@@ -1,3 +1,8 @@
+export function heroAnimationMode(moving: boolean, attackPose: number, hasAttackSheet: boolean): 'idle' | 'walk' | 'attack' {
+  if (moving) return 'walk';
+  return attackPose > 0 && hasAttackSheet ? 'attack' : 'idle';
+}
+
 export function heroMotion(
   hasAttackSheet: boolean,
   attackPose: number,
