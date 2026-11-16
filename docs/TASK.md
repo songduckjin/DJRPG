@@ -558,3 +558,12 @@
 2. `pnpm run check`, `pnpm test`, `pnpm run build` 통과.
 3. `docs/TASK.md`의 이번 작업을 `[x]` 처리하고 `docs/WORKLOG.md` 상단에 5줄 이내 기록.
 4. **토큰 절약**: 브라우저 실기 테스트는 실행하지 않는다.
+
+---
+
+## [-] [작업 76] 금화 UI·장착 스킬 정렬·판매 필터·장비 잠금
+- **등록일**: 2026-11-16
+- **담당자**: 이 대화의 클라우드 Codex
+- **수정 예정 파일**: `src/game/items.ts`, `inventory.ts`, `store.ts`, `src/ui/modals/equipModal.ts`, `skillModal.ts`, `marketModal.ts`, `src/ui/hud.ts`, `src/ui/interface.ts`, 관련 UI·스타일·재화 표시·정렬/잠금 보조 모듈, `server/market.mjs`, `server/database.mjs`, 금화/자물쇠 에셋, 관련 테스트 및 작업 문서.
+- **목표**: 마지막 금화 이미지 적용·금화 단위 표기, 장착 스킬을 대검 베기 아래에 정렬, 판매 등록 분류/등급 필터와 등급색 표시, 열린/닫힌 2.5D 자물쇠 생성 및 장비 잠금 저장·분해 차단·판매 등록 시 해제 확인.
+- **완료 기준**: 기존 장비 기본 열림·잠금 저장 복원·개별/일괄 분해 차단·판매 확인 취소/승인·필터/정렬 검증, 타입 검사·테스트·빌드 통과. 작업 75의 카메라/월드 파일은 수정하지 않는다.
