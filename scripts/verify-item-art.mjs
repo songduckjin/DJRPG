@@ -16,7 +16,7 @@ for (const [slot, names] of groups) for (let index = 0; index < names.length; in
   const path = join(directory, `${slot}_${index}.png`);
   if (!existsSync(path)) throw new Error(`${slot} ${index}-${Math.min(index + 4, names.length - 1)} 이미지가 없습니다: ${path}`);
   const header = readFileSync(path).subarray(0, 24);
-  if (header.toString('ascii', 1, 4) !== 'PNG' || header.readUInt32BE(16) !== 2172 || header.readUInt32BE(20) !== 724) {
+  if (header.toString('ascii', 1, 4) !== 'PNG' || header.readUInt32BE(16) !== 870 || header.readUInt32BE(20) !== 290) {
     throw new Error(`장비 이미지 크기 또는 형식이 잘못됐습니다: ${path}`);
   }
   count += Math.min(5, names.length - index);

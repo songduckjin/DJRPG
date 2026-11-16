@@ -1,3 +1,9 @@
+## 2026-11-17 · 에셋 경량화
+- `public/assets/`: 104개 파일 재인코딩(RGBA→256색 팔레트 + 시트 등분 유지 축소)로 71.69MB → 3.80MB(94.7% 절감).
+- 미사용 36개 파일 삭제(개별 프레임 walk/attack, `item-locks` v1·v2, `nav_*` v1, `dungeon_tile.jpg`, `fx_dragon_twister.png`).
+- `scripts/verify-item-art.mjs`: item-art 시트 규격 2172x724 → 870x290(5칸 유지).
+- 검증: `npm test` 139건, `npm run build` 통과. 파일명·확장자·치수 의존 코드 변경 없음.
+
 ## 2026-11-17 · 작업 87
 - `src/game/wasteland.ts`, `src/game/render.ts`, `src/game/render/field.ts`, `src/game/ambientScene.ts`: 이동에 따른 황야 배경 이동과 모닥불 조명·불티 정렬.
 - `tests/wasteland.test.mjs`, `tests/ambient-motion.test.mjs`: 화면 경계·배경 효과 동기화 검증.
