@@ -1,4 +1,6 @@
-import { autoEquipBest, equipmentImage, rarityNames, salvageByRarity, slotNames, statNames, totalStats, useSkillBook, type Item, type Rarity, type Save, type Slot, type Stat } from '../../game/store';
+import { autoEquipBest, equipmentImage, rarityNames, slotNames, statNames, totalStats, useSkillBook, type Item, type Rarity, type Save, type Slot, type Stat } from '../../game/store';
+import { canAutoEquip } from '../../game/inventory';
+import { requestSalvage } from './salvageModal';
 import { heroAppearance, unequipItem } from '../../game/appearance';
 import { isSkillBook } from '../../game/items';
 import type { BagFilter, Interface } from '../interface';
@@ -35,6 +37,8 @@ export function renderInventory(this: Interface, dialog: HTMLElement): void {
     const count = document.createElement('span'); count.textContent = `보유 ${save.bag.length}/40`;
     const controls = document.createElement('div'); controls.className = 'bag-footer-actions';
     const equip = document.createElement('button'); equip.className = 'salvage'; equip.textContent = '자동 장착';
+    const canEquip = canAutoEquip(save); equip.disabled = !canEquip; equip.classList.toggle('auto-equip-ready', canEquip);
+    equip.title = canEquip ? '더 좋은 장비를 장착할 수 있습니다.' : '자동 장착할 장비가 없습니다.';
     equip.onclick = () => {
       const changed = autoEquipBest(save);
       this.selected = undefined; this.world.onChange();
@@ -86,19 +90,15 @@ export function itemDetail(this: Interface, save: Save, item: Item): HTMLElement
       if (item.name === '낡은 두손검' && save.tutorial === 2) { save.tutorial = 3; this.message('튜토리얼 완료! 두손검을 장착했습니다.'); }
       this.selected = undefined; this.world.onChange();
     };
-    const dismantle = document.createElement('button'); dismantle.textContent = '분해'; dismantle.onclick = () => {
-      save.bag = save.bag.filter(i => i.id !== item.id); save.gold += this.salvageValue(item); save.stones += item.rarity === 'common' ? 1 : 2;
-      this.selected = undefined; this.world.onChange();
-    };
+    const dismantle = document.createElement('button'); dismantle.textContent = '분해'; dismantle.onclick = () => requestSalvage.call(this, [item.id]);
     buttons.append(equip, dismantle); panel.appendChild(buttons); return panel;
   }
 
 export function salvage(this: Interface): void {
     const save = this.world.save;
-    const result = salvageByRarity(save, this.salvageRarity);
-    if (!result.count) { this.message('선택한 등급 이하의 분해할 장비가 없습니다.'); return; }
-    this.selected = undefined; this.world.onChange();
-    this.message(`${result.count}개 분해 완료 (+${result.gold}골드 / +${result.stones}강화석)`);
+    const ranks: Record<Rarity, number> = { common: 0, magic: 1, rare: 2, legendary: 3 };
+    const ids = save.bag.filter(item => !isSkillBook(item) && ranks[item.rarity] <= ranks[this.salvageRarity]).map(item => item.id);
+    requestSalvage.call(this, ids);
   }
 
 export function renderEquipment(this: Interface, dialog: HTMLElement): void {

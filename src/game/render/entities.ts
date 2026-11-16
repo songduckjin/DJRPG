@@ -1,5 +1,6 @@
 import { Assets, Container, Rectangle, Sprite, Text, Texture } from 'pixi.js';
 import type { World } from '../world';
+import { enemyFacing } from '../facing';
 import { heroAppearance } from '../appearance';
 import type { GameView } from '../render';
 import { equipmentImage, slots, type Save, type Slot } from '../store';
@@ -195,7 +196,7 @@ export function drawEntities(this: GameView, world: World, project: (x: number, 
       const scale = h * (enemy.boss ? .16 : .095) / texture.height;
       this.ground.ellipse(x, y - 3, Math.max(enemy.boss ? 32 : 19, texture.width * scale * .42), enemy.boss ? 10 : 7).fill({ color: 0x000000, alpha: .48 });
       sprite.position.set(x + (enemy.hit > 0 ? Math.sin(time * 58) * 3 : 0), y + (enemy.hit > 0 ? 2 : 0));
-      const face = (world.player.x - enemy.x) - (world.player.y - enemy.y) >= 0 ? 1 : -1;
+      const face = enemyFacing(enemy, world.player, sprite.scale.x);
       sprite.scale.set(scale * face * (enemy.hit > 0 ? 1.08 : 1), scale * (enemy.hit > 0 ? .84 : 1));
       sprite.rotation = 0;
       sprite.tint = enemy.hit > 0 ? 0xffffff : 0xcfcac5;

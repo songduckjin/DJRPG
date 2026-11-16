@@ -5,7 +5,7 @@ import { promisify } from 'node:util';
 const scrypt = promisify(scryptCallback);
 const namePattern = /^[가-힣a-zA-Z0-9_]{2,16}$/;
 const bad = (res, status, code, error) => res.status(status).json({ code, error });
-const initialSave = (id, gender, name) => ({ version: 1, name, accountId: id, gender, auto: true, autoClimb: true, level: 1, exp: 0, gold: 0, floor: 1, maxFloor: 1, floorKills: 0, kills: 0, health: 100, equipment: {}, bag: [], tutorial: 0, stones: 0, skillPoints: 0, lastActiveAt: Date.now(), learned: [], passives: [], quickSlots: ['slash2', 'spin', 'slam'], skillLevels: {} });
+const initialSave = (id, gender, name) => ({ version: 1, name, accountId: id, gender, auto: true, autoClimb: true, level: 1, exp: 0, gold: 0, floor: 1, maxFloor: 1, floorKills: 0, kills: 0, health: 100, equipment: {}, equipmentCollection: [], bag: [], tutorial: 0, stones: 0, skillPoints: 0, lastActiveAt: Date.now(), learned: [], passives: [], quickSlots: [null, null, null], skillLevels: {} });
 const offlineSeconds = updatedAt => {
   const elapsed = Math.floor((Date.now() - Date.parse(String(updatedAt))) / 1000);
   return Number.isFinite(elapsed) && elapsed >= 60 ? Math.min(43_200, elapsed) : 0;
@@ -85,7 +85,7 @@ export default async function handler(req, res) {
           if (Number(open.n) || Number(inbox.n)) fail(409, 'MARKET_PENDING', '등록 매물과 미수령 거래가 있어 초기화할 수 없습니다. 먼저 거래소를 정리하세요.');
         }
         await reconcileItems(tx, id, latest.save, save);
-        const saved = await writeSave(tx, latest, save);
+        const saved = await writeSave(tx, latest, save, [], action !== 'reset');
         if (action === 'save' && typeof body.requestId === 'string' && body.requestId.length <= 80) await tx.execute({ sql: 'INSERT INTO djrpg_save_requests VALUES (?,?,?) ON CONFLICT(account_id) DO UPDATE SET request_id=excluded.request_id, revision=excluded.revision', args: [id, body.requestId, saved.revision] });
         return { ok: true, ...saved, offlineSeconds: 0 };
       });

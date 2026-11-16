@@ -1,3 +1,4 @@
+import { availableSkills } from '../../game/loadout';
 import { skillLevel } from '../../game/store';
 import { MAX_SKILL_LEVEL, passiveOrder, passives, skillDuration, skillOrder, skillRange, skills } from '../../game/skills';
 import type { Interface } from '../interface';
@@ -6,7 +7,7 @@ export function renderSkills(this: Interface, dialog: HTMLElement): void {
     const list = document.createElement('div'); list.className = 'skill-list';
     const save = this.world.save;
     const note = document.createElement('p'); note.className = 'skill-note';
-    note.textContent = '사냥에서 스킬북을 획득해 가방에서 사용하면 스킬을 습득하거나 강화합니다.';
+    note.textContent = this.skillTarget !== undefined ? `${this.skillTarget + 1}번 스킬 원에 장착할 스킬을 선택하세요.` : '스킬북으로 습득·강화합니다. 필드의 + 원을 눌러 장착하거나 장착하기에서 교체할 원을 선택하세요.';
     list.appendChild(note);
     const base = document.createElement('article'); base.className = 'skill-card';
     base.innerHTML = '<div class="skill-icon">⚔</div><div class="skill-info"><h3>대검 베기 <small>Lv.1 · 기본 보유</small></h3><p>묵직한 두손검 횡베기로 전방 넓은 부채꼴을 공격합니다.</p><small>기본 쿨타임 0.48초 · 공격력 × 1.0 · 고정 슬롯</small></div>';
@@ -21,15 +22,13 @@ export function renderSkills(this: Interface, dialog: HTMLElement): void {
         const state = document.createElement('span'); state.textContent = '미습득 (스킬북 파밍 필요)'; actions.appendChild(state);
       } else {
         const state = document.createElement('span'); state.textContent = '습득 완료'; actions.appendChild(state);
-        for (let slot = 0; slot < 3; slot++) {
-          const button = document.createElement('button'); button.textContent = `슬롯 ${slot + 1}`;
-          button.classList.toggle('active', save.quickSlots[slot] === id);
-          button.onclick = () => {
-            const other = save.quickSlots.indexOf(id);
-            if (other !== slot && other >= 0) save.quickSlots[other] = save.quickSlots[slot];
-            save.quickSlots[slot] = id; this.world.onChange();
-          };
-          actions.appendChild(button);
+        if (save.quickSlots.includes(id)) {
+          const equipped = document.createElement('span'); equipped.className = 'skill-equipped'; equipped.textContent = '장착 중'; actions.appendChild(equipped);
+        } else if (availableSkills(save).includes(id) && (this.skillTarget !== undefined || save.quickSlots.every(slot => slot !== null))) {
+          const button = document.createElement('button'); button.type = 'button'; button.textContent = '장착하기';
+          button.onclick = () => this.chooseSkill(id); actions.appendChild(button);
+        } else {
+          const hint = document.createElement('span'); hint.textContent = '필드의 + 원에서 장착'; actions.appendChild(hint);
         }
       }
       list.appendChild(card);

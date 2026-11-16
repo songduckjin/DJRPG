@@ -69,8 +69,12 @@ export async function reconcileItems(tx, id, before, after) {
   for (const item of previousValid) if (!ids.has(item.id) && owners.has(item.id)) writes.push({ sql: "UPDATE djrpg_item_owners SET location='consumed' WHERE item_id=? AND account_id=? AND location='inventory'", args: [item.id, id] });
   if (writes.length) await tx.batch(writes);
 }
-export async function writeSave(tx, row, save, operations = []) {
+export async function writeSave(tx, row, save, operations = [], preserveCollection = true) {
   save.accountId = row.id; save.lastActiveAt = Date.now();
+  // Older clients may omit discovery history; never erase already-recorded entries.
+  const previousCollection = preserveCollection && Array.isArray(row.save.equipmentCollection) ? row.save.equipmentCollection : [];
+  const incomingCollection = Array.isArray(save.equipmentCollection) ? save.equipmentCollection : [];
+  save.equipmentCollection = [...new Set([...previousCollection, ...incomingCollection].filter(key => typeof key === 'string' && /^(weapon|offhand|helmet|armor|necklace|gloves|belt|boots|ring):[0-9]$/.test(key)))].slice(0, 75);
   if (!Number.isSafeInteger(save.gold) || save.gold < 0 || save.gold > 9_000_000_000_000) fail(400, 'INVALID_GOLD', '골드 값이 올바르지 않습니다.');
   const revision = row.revision + 1;
   await tx.batch([...operations,

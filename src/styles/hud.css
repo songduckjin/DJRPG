@@ -64,3 +64,15 @@
   .bottom-nav svg { width: 33px; height: 33px; }
   .action-pad { right: 6px; width: 114px; }
 }
+.action.skill-empty { border-color: #625b59; background: radial-gradient(circle at 35% 25%, #302b2c, #17151b 75%); color: #827a74; box-shadow: 0 2px 5px #0007; }
+.action.skill-empty:disabled { opacity: .42; cursor: default; }
+.action.skill-can-add { border-color: #c9a46a; color: #f5d99e; background: radial-gradient(circle at 35% 25%, #614a32, #20191b 75%); box-shadow: 0 0 9px #d5aa493f; }
+.action.skill-can-add strong { font-size: 30px; line-height: 26px; }
+.skill-alert-dot, .skill-nav-dot { position: absolute; z-index: 3; top: -3px; right: -2px; width: 11px; height: 11px; border: 2px solid #efb6a4; border-radius: 50%; background: #de352e; box-shadow: 0 0 5px #a81718b0; pointer-events: none; }
+.skill-alert-dot[hidden], .skill-nav-dot[hidden] { display: none; }
+.skill-nav-dot { top: 1px; right: 2px; }
+.action.slot-selecting { border-color: #ffdd85; box-shadow: 0 0 0 4px #e8b55166, 0 0 17px #f8ca67; animation: slot-choice-pulse .85s ease-in-out infinite alternate; }
+.slot-choice-prompt { position: absolute; z-index: 4; left: 12px; right: 12px; bottom: calc(143px + env(safe-area-inset-bottom)); display: flex; gap: 10px; align-items: center; justify-content: space-between; padding: 10px; background: #241a1bea; border: 1px solid #cc9c59; color: #ffe3ae; font-size: 12px; }
+.slot-choice-prompt button { border: 1px solid #8f7457; background: #3c2924; color: #e9d6b1; padding: 6px 10px; flex: none; }
+@keyframes slot-choice-pulse { to { box-shadow: 0 0 0 7px #e8b55122, 0 0 24px #f8ca67; } }
+@media (prefers-reduced-motion: reduce) { .action.slot-selecting { animation: none; } }

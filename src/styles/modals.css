@@ -109,3 +109,16 @@
 @media (max-width: 370px) { .slot-icon { flex-basis: 22px; width: 22px; height: 22px; } .equipment-slot small, .equipment-slot b { font-size: 8px; } }
 @media (max-height: 650px) { .equipment-showcase { height: 180px; flex-basis: 180px; } .equipment-slot { max-height: 34px; } .equipment-modal .modal-hint { display: none; } .equipment-modal .modal-bag { margin-top: 5px; } }
 @media (max-height: 550px) { .modal-dialog.equipment-modal { overflow-y: auto; } .equipment-modal .modal-bag { flex: none; min-height: 220px; overflow: visible; } .equipment-modal .modal-bag-footer { position: sticky; bottom: 0; z-index: 2; } }
+.salvage:disabled { opacity: .4; cursor: default; }
+.salvage.auto-equip-ready { border-color: #e4c075; background: #5b4529; color: #ffe8b8; box-shadow: 0 0 8px #d1ab4850; }
+.salvage-warning { color: #f0c18b; font-size: 13px; line-height: 1.8; }
+.salvage-confirm-list { max-height: 35dvh; overflow-y: auto; padding-left: 20px; color: #cdb99e; font-size: 12px; line-height: 1.8; }
+.salvage-confirm-actions { display: flex; gap: 8px; margin-top: 14px; }
+.salvage-confirm-actions button { flex: 1; border: 1px solid #a57c52; background: #4c3028; color: #f5d8b3; padding: 11px 6px; }
+.salvage-confirm-actions button:first-child { background: #272126; }
+.skill-equipped { color: #99cea4; }
+.modal-dialog.skills-modal > header, .modal-dialog.market-modal > header { position: sticky; z-index: 4; height: 44px; min-height: 44px; background: #2b2224; box-shadow: 0 4px 8px #130f1480; }
+.modal-dialog.skills-modal > header { top: -14px; }
+.modal-dialog.market-modal > header { top: -12px; }
+.modal-dialog.skills-modal > header h2, .modal-dialog.market-modal > header h2 { margin: 0; }
+.modal-dialog.skills-modal > header .modal-close, .modal-dialog.market-modal > header .modal-close { width: 44px; height: 44px; flex: none; }
