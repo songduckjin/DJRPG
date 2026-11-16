@@ -19,7 +19,10 @@ export function heroAppearance(save: Save) {
       : maleArmoredHelmet ? 'armoredWalk' as const
       : maleHelmet ? armed ? 'maleHelmWalk' as const : 'maleBaseHelmWalk' as const
       : armored ? gender === 'female' ? 'femaleArmoredNoHelmWalk' as const : 'armoredNoHelmWalk' as const : gender === 'female' ? armed ? 'femaleWalk' as const : 'femaleBaseWalk' as const : armed ? 'maleWalk' as const : 'maleBaseWalk' as const,
-    attack: oldHelmet ? armored ? 'femaleArmoredOldHelmAttack' as const : 'femaleOldHelmAttack' as const
+    // Every attack sheet holds a sword. Keep the matching unarmed body sprite
+    // during a weaponless attack; the renderer still supplies the lunge/VFX.
+    attack: !armed ? undefined
+      : oldHelmet ? armored ? 'femaleArmoredOldHelmAttack' as const : 'femaleOldHelmAttack' as const
       : femaleHelmet ? armored ? 'femaleArmoredHelmAttack' as const : 'femaleHelmAttack' as const
       : maleArmoredHelmet ? 'armoredAttack' as const
       : maleHelmet ? 'maleHelmAttack' as const

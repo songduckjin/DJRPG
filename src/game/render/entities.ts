@@ -94,7 +94,7 @@ export function drawHero(this: GameView, world: World, x: number, y: number, tim
     const attackFrame = Math.min(3, Math.floor((1 - world.attackPose / .32) * 4));
     const walkArt = appearance.walk;
     let texture = this.textures[appearance.idle];
-    if (world.attackPose > 0) texture = this.animations[appearance.attack][Math.max(0, attackFrame)];
+    if (world.attackPose > 0 && appearance.attack) texture = this.animations[appearance.attack][Math.max(0, attackFrame)];
     else if (moving) texture = this.animations[walkArt][walkingFrame];
     if (this.hero.texture !== texture) this.hero.texture = texture;
     this.hero.anchor.y = world.attackPose > 0 ? .97 : moving ? walkAnchors[walkArt][walkingFrame] : .996;

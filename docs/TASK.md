@@ -481,7 +481,7 @@
 3. **토큰 절약**: 브라우저 실기 테스트는 실행하지 않는다.
 ---
 
-## [-] [작업 69] 투구 단독 착용 공격 이미지 깨짐 수정
+## [x] [작업 69] 투구 단독 착용 공격 이미지 깨짐 수정
 - **등록일**: 2026-11-16
 - **담당자**: 로컬 Codex
 - **수정 예정 파일**: `src/game/appearance.ts`, `src/game/render/entities.ts`, `tests/appearance.test.mjs`, `docs/TASK.md`, `docs/WORKLOG.md`.
