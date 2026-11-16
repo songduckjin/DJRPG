@@ -44,17 +44,29 @@ export function assertRevision(row, revision) {
   if (!Number.isSafeInteger(revision) || revision !== row.revision) fail(409, 'SAVE_CONFLICT', '다른 탭이나 기기에서 진행 상황이 변경되었습니다. 새로고침하여 최신 데이터를 불러오세요.');
 }
 const itemsOf = save => [...(save.bag ?? []), ...Object.values(save.equipment ?? {}).filter(Boolean)];
+// Fetch both persisted and incoming inventory owners alongside the trade's other reads.
+export function inventoryOwnerQuery(id, incoming) {
+  const bag = Array.isArray(incoming?.bag) ? incoming.bag : [];
+  const equipment = incoming?.equipment && typeof incoming.equipment === 'object' ? Object.values(incoming.equipment) : [];
+  if (bag.length + equipment.length > 50) fail(400, 'INVALID_SAVE', '가방 또는 장비 데이터가 올바르지 않습니다.');
+  const ids = [...bag, ...equipment].map(item => item?.id).filter(value => typeof value === 'string');
+  return { sql: `SELECT * FROM djrpg_item_owners WHERE item_id IN (
+    SELECT json_extract(j.value,'$.id') FROM djrpg_accounts a, json_each(a.save_json,'$.bag') j WHERE a.id=?
+    UNION SELECT json_extract(j.value,'$.id') FROM djrpg_accounts a, json_each(a.save_json,'$.equipment') j WHERE a.id=?
+    UNION SELECT value FROM json_each(?)
+  )`, args: [id, id, JSON.stringify(ids)] };
+}
 function itemValid(item) {
   const slots = ['weapon','offhand','helmet','armor','necklace','gloves','belt','boots','ring1','ring2','skillbook'];
   return item && typeof item.id === 'string' && item.id.length > 0 && item.id.length <= 100 && typeof item.name === 'string' && item.name.length <= 100 && slots.includes(item.slot) && ['common','magic','rare','epic','unique','legendary'].includes(item.rarity) && item.stats && typeof item.stats === 'object' && !Array.isArray(item.stats) && Object.entries(item.stats).every(([key, value]) => ['attack','defense','health','crit','speed'].includes(key) && Number.isFinite(value) && value >= 0 && value <= 100000) && (item.slot !== 'skillbook' || (item.kind === 'skillbook' && ['slash2','spin','crushing','slam','warcry','power','destroy','hell','mastery','body','instinct'].includes(item.skillId)));
 }
 const identity = item => JSON.stringify([item.name, item.slot.startsWith('ring') ? 'ring' : item.slot, item.rarity, item.kind ?? 'equipment', item.skillId ?? '', ...['attack','defense','health','crit','speed'].map(key => item.stats[key] ?? 0)]);
-export async function reconcileItems(tx, id, before, after) {
+export async function reconcileItems(tx, id, before, after, options = {}) {
   const next = itemsOf(after), previous = itemsOf(before), ids = new Set();
   if (next.length > 50 || !Array.isArray(after.bag) || after.bag.length > 40 || !after.equipment || typeof after.equipment !== 'object') fail(400, 'INVALID_SAVE', '가방 또는 장비 데이터가 올바르지 않습니다.');
   const previousValid = previous.filter(itemValid);
   const allIds = [...new Set([...previousValid, ...next].map(item => item?.id).filter(id => typeof id === 'string'))];
-  const owned = allIds.length ? (await tx.execute({ sql: `SELECT * FROM djrpg_item_owners WHERE item_id IN (${allIds.map(() => '?').join(',')})`, args: allIds })).rows : [];
+  const owned = options.owned ?? (allIds.length ? (await tx.execute({ sql: `SELECT * FROM djrpg_item_owners WHERE item_id IN (${allIds.map(() => '?').join(',')})`, args: allIds })).rows : []);
   const owners = new Map(owned.map(owner => [owner.item_id, owner]));
   const writes = [];
   for (const item of next) {
@@ -67,7 +79,8 @@ export async function reconcileItems(tx, id, before, after) {
   const unregistered = new Map([...previousValid, ...next].filter(item => !owners.has(item.id)).map(item => [item.id, item]));
   for (const item of unregistered.values()) writes.push({ sql: 'INSERT INTO djrpg_item_owners VALUES (?,?,?,?)', args: [item.id, id, ids.has(item.id) ? 'inventory' : 'consumed', JSON.stringify(item)] });
   for (const item of previousValid) if (!ids.has(item.id) && owners.has(item.id)) writes.push({ sql: "UPDATE djrpg_item_owners SET location='consumed' WHERE item_id=? AND account_id=? AND location='inventory'", args: [item.id, id] });
-  if (writes.length) await tx.batch(writes);
+  if (options.operations) options.operations.push(...writes);
+  else if (writes.length) await tx.batch(writes);
 }
 export async function writeSave(tx, row, save, operations = [], preserveCollection = true) {
   save.accountId = row.id; save.lastActiveAt = Date.now();

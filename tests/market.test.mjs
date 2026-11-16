@@ -194,3 +194,29 @@ test('older saves preserve recorded discoveries while an explicit reset clears t
   await transaction(db,async tx=>{const row=await account(tx,'collection');await writeSave(tx,row,save([]),[],false);});
   assert.deepEqual((await account(db,'collection')).save.equipmentCollection,[]);
 });
+
+test('purchase and claim reconcile new loot in two DB batches with no extra ownership requests',async()=>{
+  await seed('batch-seller',[item()]);await seed('batch-buyer',[]);
+  const offer=await sale('batch-seller',100);let batches=0,executes=0;
+  const counted={async transaction(mode){
+    const tx=await db.transaction(mode);
+    return {batch(ops){batches++;return tx.batch(ops);},execute(op){executes++;return tx.execute(op);},commit:()=>tx.commit(),rollback:()=>tx.rollback(),close:()=>tx.close(),get closed(){return tx.closed;}};
+  }};
+  const buyer=await account(db,'batch-buyer'),loot=item();buyer.save.bag.push(loot);
+  const bought=await mutate(counted,'batch-buyer',{action:'buy',listingId:offer.id,revision:buyer.revision,requestId:randomUUID(),progress:buyer.save});
+  assert.equal(batches,2);assert.equal(executes,0);
+  assert.equal((await db.execute({sql:'SELECT location FROM djrpg_item_owners WHERE item_id=?',args:[loot.id]})).rows[0].location,'inventory');
+  batches=0;executes=0;const progress=structuredClone(bought.save),secondLoot=item();progress.bag.push(secondLoot);
+  const claimed=await mutate(counted,'batch-buyer',{action:'claim',deliveryId:bought.effect.deliveries[0].id,revision:bought.revision,requestId:randomUUID(),progress});
+  assert.equal(batches,2);assert.equal(executes,0);assert(claimed.save.bag.some(entry=>entry.id===offer.item.id));
+  assert.equal((await db.execute({sql:'SELECT location FROM djrpg_item_owners WHERE item_id=?',args:[secondLoot.id]})).rows[0].location,'inventory');
+});
+test('batched inventory reconciliation rejects foreign ownership and rolls back queued inserts on failed purchase',async()=>{
+  await seed('batch-owner',[item()]);await seed('batch-thief',[],0);
+  const offer=await sale('batch-owner',100),buyer=await account(db,'batch-thief'),loot=item();buyer.save.bag.push(loot);
+  await assert.rejects(mutate(db,'batch-thief',{action:'buy',listingId:offer.id,revision:buyer.revision,requestId:randomUUID(),progress:buyer.save}),error('INSUFFICIENT_GOLD'));
+  assert.equal((await db.execute({sql:'SELECT * FROM djrpg_item_owners WHERE item_id=?',args:[loot.id]})).rows.length,0);
+  buyer.save.bag=[offer.item];
+  await assert.rejects(mutate(db,'batch-thief',{action:'claim',deliveryId:'missing',revision:buyer.revision,requestId:randomUUID(),progress:buyer.save}),error('ITEM_CONFLICT'));
+  assert.equal((await account(db,'batch-thief')).revision,buyer.revision);
+});
