@@ -12,9 +12,9 @@ for (const gender of ['male','female']) test(`${gender}: removing armor preserve
   assert.equal(totalStats(save).defense,before-10);
   const loaded=parseSave(JSON.parse(JSON.stringify(save))), art=heroAppearance(loaded);
   assert.equal(art.helmet.id,'helmet');assert(!art.portrait.includes('armored'));
-  assert.equal(art.idle,gender === 'female' ? 'femaleBaseHelm' : gender);
-  assert.equal(art.attack,gender === 'female' ? 'femaleHelmAttack' : `${gender}Attack`);
-  assert.equal(art.helmetIntegrated,gender === 'female');
+  assert.equal(art.idle,gender === 'female' ? 'femaleBaseHelm' : 'maleBaseHelm');
+  assert.equal(art.attack,gender === 'female' ? 'femaleHelmAttack' : 'maleHelmAttack');
+  assert.equal(art.helmetIntegrated,true);
   assert.equal(unequipItem(loaded,'helmet').ok,true);assert.equal(heroAppearance(loaded).helmet,undefined);assert.deepEqual(loaded.bag.map(i=>i.id),['armor','helmet']);
 });
 for (const gender of ['male', 'female']) test(`${gender}: armor keeps the correct body in every animation and the helmet remains independent`,()=>{
@@ -33,16 +33,20 @@ test('full bag prevents unequip without losing either armor or helmet',()=>{
   const save=freshSave();save.equipment={helmet:equipment('helmet'),armor:equipment('armor')};save.bag=Array.from({length:40},(_,i)=>({...equipment('armor'),id:String(i)}));
   assert.equal(unequipItem(save,'armor').ok,false);assert.equal(save.bag.length,40);assert.equal(save.equipment.armor.id,'armor');assert.equal(save.equipment.helmet.id,'helmet');
 });
-test('male helmet without armor keeps base and sword sprites without a separate helmet layer',()=>{
+test('male helmet independently changes base and sword sprites without equipping armor',()=>{
   const save=freshSave('male');save.equipment={helmet:equipment('helmet')};
   assert.deepEqual([heroAppearance(save).idle,heroAppearance(save).walk,heroAppearance(save).attack],
-    ['male','maleBaseWalk','maleAttack']);
-  assert.equal(heroAppearance(save).helmetIntegrated,false);
+    ['maleBaseHelm','maleBaseHelmWalk','maleHelmAttack']);
+  assert.equal(heroAppearance(save).helmetIntegrated,true);
   save.equipment.weapon={...equipment('helmet'),id:'weapon',slot:'weapon',name:'낡은 두손검'};
-  assert.deepEqual([heroAppearance(save).idle,heroAppearance(save).walk],['maleSword','maleWalk']);
+  assert.deepEqual([heroAppearance(save).idle,heroAppearance(save).walk],['maleSwordHelm','maleHelmWalk']);
   save.equipment.armor=equipment('armor');
   assert.deepEqual([heroAppearance(save).idle,heroAppearance(save).walk,heroAppearance(save).attack],
     ['armored','armoredWalk','armoredAttack']);
+  unequipItem(save,'armor');
+  assert.equal(heroAppearance(save).idle,'maleSwordHelm');
+  unequipItem(save,'helmet');
+  assert.deepEqual([heroAppearance(save).idle,heroAppearance(save).walk],['maleSword','maleWalk']);
 });
 test('female helmet uses integrated images with and without armor and sword',()=>{
   const save=freshSave('female');save.equipment={helmet:equipment('helmet')};

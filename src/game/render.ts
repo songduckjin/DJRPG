@@ -12,6 +12,7 @@ const paths = {
   femaleBaseHelm: '/assets/warrior_female_base_helm.png', femaleSwordHelm: '/assets/warrior_female_sword_helm.png',
   femaleArmoredOldHelm: '/assets/warrior_female_armored_oldhelm.png',
   femaleBaseOldHelm: '/assets/warrior_female_base_oldhelm.png', femaleSwordOldHelm: '/assets/warrior_female_sword_oldhelm.png',
+  maleBaseHelm: '/assets/warrior_male_base_helm.png', maleSwordHelm: '/assets/warrior_male_sword_helm.png',
   maleSword: '/assets/warrior_male_sword.png', femaleSword: '/assets/warrior_female_sword.png',
   maleAttack: '/assets/warrior_male_attack.png', femaleAttack: '/assets/warrior_female_attack.png', armoredAttack: '/assets/warrior_armored_attack.png?v=2',
   skeleton: '/assets/skeleton_warrior.png', boss: '/assets/skeleton_boss.png',
@@ -31,13 +32,16 @@ const attackSheets = {
   femaleArmoredHelmAttack: '/assets/warrior_female_armored_helm_attack.png',
   femaleHelmAttack: '/assets/warrior_female_helm_attack.png',
   femaleArmoredOldHelmAttack: '/assets/warrior_female_armored_oldhelm_attack.png',
-  femaleOldHelmAttack: '/assets/warrior_female_oldhelm_attack.png'
+  femaleOldHelmAttack: '/assets/warrior_female_oldhelm_attack.png',
+  maleHelmAttack: '/assets/warrior_male_helm_attack.png'
 } as const;
 const walkSheets = {
   maleBaseWalk: '/assets/walk8_male_base.png', femaleBaseWalk: '/assets/walk8_female_base.png',
+  maleBaseHelmWalk: '/assets/walk8_male_base_helm.png',
   femaleBaseHelmWalk: '/assets/walk8_female_base_helm.png',
   femaleBaseOldHelmWalk: '/assets/walk8_female_base_oldhelm.png',
   maleWalk: '/assets/walk8_male_sword.png', femaleWalk: '/assets/walk8_female.png',
+  maleHelmWalk: '/assets/walk8_male_sword_helm.png',
   femaleHelmWalk: '/assets/walk8_female_sword_helm.png',
   femaleOldHelmWalk: '/assets/walk8_female_sword_oldhelm.png',
   armoredWalk: '/assets/walk8_armored.png', armoredNoHelmWalk: '/assets/walk8_armored_nohelm.png',

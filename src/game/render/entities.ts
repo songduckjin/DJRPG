@@ -65,10 +65,12 @@ function syncGear(view: GameView, save: Save, texture: Texture, attackFrame: num
 
 const walkAnchors = {
   maleBaseWalk: [.95, .95, .95, .95, .941, .944, .944, .923],
+  maleBaseHelmWalk: [.97, .97, .97, .97, .97, .97, .97, .97],
   femaleBaseWalk: [.95, .948, .95, .944, .953, .953, .95, .928],
   femaleBaseHelmWalk: [.97, .97, .97, .97, .97, .97, .97, .97],
   femaleBaseOldHelmWalk: [.97, .97, .97, .97, .97, .97, .97, .97],
   maleWalk: [.932, .93, .932, .926, .93, .932, .93, .928],
+  maleHelmWalk: [.97, .97, .97, .97, .97, .97, .97, .97],
   femaleWalk: [.948, .946, .95, .944, .935, .944, .95, .941],
   femaleHelmWalk: [.97, .97, .97, .97, .97, .97, .97, .97],
   femaleOldHelmWalk: [.97, .97, .97, .97, .97, .97, .97, .97],
