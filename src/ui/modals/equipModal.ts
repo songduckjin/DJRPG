@@ -124,14 +124,17 @@ export function renderEquipment(this: Interface, dialog: HTMLElement): void {
     const center = document.createElement('div'); center.className = 'showcase-hero';
     const portrait = document.createElement('img'); portrait.alt = '현재 전사 외형';
     const appearance = heroAppearance(save);
+    const figure = document.createElement('span'); figure.className = `showcase-figure ${save.gender === 'female' && save.equipment.armor ? 'female-armored' : ''}`;
+    portrait.onload = () => { figure.style.aspectRatio = `${portrait.naturalWidth} / ${portrait.naturalHeight}`; };
     portrait.src = appearance.portrait;
-    center.appendChild(portrait);
+    figure.appendChild(portrait);
     if (appearance.helmet) {
       const helmet = document.createElement('span'); helmet.className = 'portrait-helmet';
       helmet.innerHTML = itemIcon.call(this, 'helmet', appearance.helmet, 'portrait-helmet-art');
       helmet.setAttribute('aria-label', `착용 투구: ${appearance.helmet.name}`);
-      center.appendChild(helmet);
+      figure.appendChild(helmet);
     }
+    center.appendChild(figure);
     showcase.append(left, center, right); dialog.appendChild(showcase);
     const summary = document.createElement('div'); summary.className = 'showcase-stats';
     const power = Math.round(stats.attack * 3 + stats.defense * 2 + stats.health * .2 + stats.crit * 2 + stats.speed * 2);

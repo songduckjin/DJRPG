@@ -39,7 +39,9 @@
 .showcase-side { display: flex; flex-direction: column; justify-content: space-between; gap: 3px; min-width: 0; }
 .showcase-hero { position: relative; display: flex; justify-content: center; align-items: end; min-width: 0; overflow: hidden; border: 1px solid #655044; background: radial-gradient(ellipse at 50% 28%, #695544 0%, #302727 37%, #19161b 75%); box-shadow: inset 0 0 23px #000a; }
 .showcase-hero:after { content: ''; position: absolute; bottom: 7px; width: 75%; height: 14px; border-radius: 50%; background: #0008; filter: blur(5px); }
-.showcase-hero > img { position: relative; z-index: 1; width: 100%; height: 100%; object-fit: contain; object-position: center bottom; image-rendering: auto; }
+.showcase-figure { position: relative; display: block; flex: 0 1 100%; max-height: 100%; aspect-ratio: .75; }
+.showcase-figure > img { position: relative; z-index: 1; display: block; width: 100%; height: 100%; object-fit: contain; image-rendering: auto; }
+.showcase-figure.female-armored { --helmet-x: 39%; --helmet-size: 28%; }
 .equipment-slot { min-width: 0; flex: 1; max-height: 44px; display: flex; text-align: left; align-items: center; gap: 3px; padding: 2px; border: 1px solid #655348; background: #252126; color: #b9ada6; }
 .slot-icon { display: block; flex: 0 0 27px; width: 27px; height: 27px; object-fit: contain; }
 .equipment-slot.empty-slot .slot-icon { opacity: .25; filter: grayscale(1); }
@@ -108,5 +110,5 @@
 @media (max-width: 370px) { .slot-icon { flex-basis: 22px; width: 22px; height: 22px; } .equipment-slot small, .equipment-slot b { font-size: 8px; } }
 @media (max-height: 650px) { .equipment-showcase { height: 180px; flex-basis: 180px; } .equipment-slot { max-height: 34px; } .equipment-modal .modal-hint { display: none; } .equipment-modal .modal-bag { margin-top: 5px; } }
 @media (max-height: 550px) { .modal-dialog.equipment-modal { overflow-y: auto; } .equipment-modal .modal-bag { flex: none; min-height: 220px; overflow: visible; } .equipment-modal .modal-bag-footer { position: sticky; bottom: 0; z-index: 2; } }
-.portrait-helmet { position: absolute; z-index: 2; top: 9%; left: 50%; transform: translateX(-50%); width: 28%; aspect-ratio: 1; pointer-events: none; }
+.portrait-helmet { position: absolute; z-index: 2; top: 3%; left: var(--helmet-x, 50%); transform: translateX(-50%); width: var(--helmet-size, 28%); aspect-ratio: 1; pointer-events: none; }
 .portrait-helmet .portrait-helmet-art { position: static; max-width: none; max-height: none; display: block; width: 100%; height: 100%; object-fit: contain; }

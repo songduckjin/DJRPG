@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import './ts-loader.mjs';
-const { heroAppearance, unequipItem } = await import('../src/game/appearance.ts');
+const { heroAppearance, helmetPlacement, unequipItem } = await import('../src/game/appearance.ts');
 const { freshSave, parseSave, totalStats } = await import('../src/game/store.ts');
 const equipment = slot => ({ id: slot, name: slot === 'helmet' ? '철제 바시넷' : '강철 브레스트플레이트', slot, rarity: 'rare', stats: { defense: 10 } });
 for (const gender of ['male','female']) test(`${gender}: removing armor preserves helmet ownership, stats and appearance through saving`,()=>{
@@ -25,4 +25,14 @@ for (const gender of ['male', 'female']) test(`${gender}: armor keeps the correc
 test('full bag prevents unequip without losing either armor or helmet',()=>{
   const save=freshSave();save.equipment={helmet:equipment('helmet'),armor:equipment('armor')};save.bag=Array.from({length:40},(_,i)=>({...equipment('armor'),id:String(i)}));
   assert.equal(unequipItem(save,'armor').ok,false);assert.equal(save.bag.length,40);assert.equal(save.equipment.armor.id,'armor');assert.equal(save.equipment.helmet.id,'helmet');
+});
+test('female helmet follows her armored head through idle, walking and attack poses',()=>{
+  const save=freshSave('female');save.equipment={helmet:equipment('helmet'),armor:equipment('armor')};
+  const idle=helmetPlacement(save,'idle'), walk=helmetPlacement(save,'walk'), attack=helmetPlacement(save,'attack',3);
+  assert(idle[0]<.5 && walk[0]<.5 && attack[0]<.5);
+  assert(idle[1]<.22 && walk[1]<.22 && attack[1]<.22);
+  assert.notDeepEqual(idle,walk);
+  unequipItem(save,'armor');
+  assert.deepEqual(helmetPlacement(save,'idle'),[.49,.17,.24]);
+  assert.equal(heroAppearance(save).helmet.id,'helmet');
 });

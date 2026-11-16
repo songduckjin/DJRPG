@@ -12,6 +12,14 @@ export function heroAppearance(save: Save) {
     helmet: save.equipment.helmet
   };
 }
+
+export function helmetPlacement(save: Save, pose: 'idle' | 'walk' | 'attack', attackFrame = 0): [number, number, number] {
+  if (save.gender !== 'female') return [.51, .22, .21];
+  if (!save.equipment.armor) return [.49, .17, .24];
+  if (pose === 'idle') return [.39, .15, .24];
+  if (pose === 'walk') return [.43, .14, .24];
+  return ([[.43, .16, .23], [.39, .16, .23], [.46, .17, .23], [.36, .17, .23]][attackFrame] ?? [.43, .16, .23]) as [number, number, number];
+}
 export function unequipItem(save: Save, slot: Slot): { ok: boolean; message: string } {
   const item = save.equipment[slot];
   if (!item) return { ok: false, message: '빈 장비 슬롯입니다.' };
