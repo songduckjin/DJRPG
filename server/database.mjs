@@ -5,8 +5,11 @@ export class ApiError extends Error {
 }
 export const fail = (status, code, message) => { throw new ApiError(status, code, message); };
 export const client = () => createClient({ url: process.env.TURSO_DATABASE_URL, authToken: process.env.TURSO_AUTH_TOKEN });
+const initializedSchemas = new Map();
 export async function schema(db) {
-  await db.batch([
+  const key = db.url || process.env.TURSO_DATABASE_URL || db;
+  if (initializedSchemas.has(key)) return initializedSchemas.get(key);
+  const initialized = db.batch([
     'CREATE TABLE IF NOT EXISTS djrpg_accounts (id TEXT PRIMARY KEY COLLATE NOCASE, password_hash TEXT NOT NULL, save_json TEXT NOT NULL, updated_at TEXT NOT NULL)',
     'CREATE TABLE IF NOT EXISTS djrpg_save_requests (account_id TEXT PRIMARY KEY COLLATE NOCASE, request_id TEXT NOT NULL, revision INTEGER NOT NULL)',
     'CREATE TABLE IF NOT EXISTS djrpg_save_versions (account_id TEXT PRIMARY KEY COLLATE NOCASE, revision INTEGER NOT NULL DEFAULT 0)',
@@ -19,7 +22,9 @@ export async function schema(db) {
     'CREATE TABLE IF NOT EXISTS djrpg_item_owners (item_id TEXT PRIMARY KEY, account_id TEXT NOT NULL COLLATE NOCASE, location TEXT NOT NULL, item_json TEXT NOT NULL)',
     'CREATE TABLE IF NOT EXISTS djrpg_market_events (seq INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT NOT NULL, listing_id TEXT NOT NULL, created_at INTEGER NOT NULL)',
     'CREATE TABLE IF NOT EXISTS djrpg_market_requests (account_id TEXT NOT NULL COLLATE NOCASE, request_id TEXT NOT NULL, response_json TEXT NOT NULL, PRIMARY KEY(account_id, request_id))'
-  ], 'write');
+  ], 'write').catch(error => { initializedSchemas.delete(key); throw error; });
+  initializedSchemas.set(key, initialized);
+  return initialized;
 }
 export async function transaction(db, run) {
   const tx = await db.transaction('write');
@@ -29,6 +34,9 @@ export async function transaction(db, run) {
 }
 export async function account(tx, id) {
   const row = (await tx.execute({ sql: 'SELECT a.*, COALESCE(v.revision,0) AS revision FROM djrpg_accounts a LEFT JOIN djrpg_save_versions v ON v.account_id=a.id WHERE a.id=?', args: [id] })).rows[0];
+  return decodeAccount(row);
+}
+export function decodeAccount(row) {
   if (!row) fail(401, 'INVALID_TOKEN', '계정을 찾을 수 없습니다. 다시 로그인하세요.');
   return { ...row, revision: Number(row.revision), save: JSON.parse(row.save_json) };
 }
@@ -61,16 +69,22 @@ export async function reconcileItems(tx, id, before, after) {
   for (const item of previousValid) if (!ids.has(item.id) && owners.has(item.id)) writes.push({ sql: "UPDATE djrpg_item_owners SET location='consumed' WHERE item_id=? AND account_id=? AND location='inventory'", args: [item.id, id] });
   if (writes.length) await tx.batch(writes);
 }
-export async function writeSave(tx, row, save) {
+export async function writeSave(tx, row, save, operations = []) {
   save.accountId = row.id; save.lastActiveAt = Date.now();
   if (!Number.isSafeInteger(save.gold) || save.gold < 0 || save.gold > 9_000_000_000_000) fail(400, 'INVALID_GOLD', '골드 값이 올바르지 않습니다.');
-  await tx.execute({ sql: 'UPDATE djrpg_accounts SET save_json=?, updated_at=? WHERE id=?', args: [JSON.stringify(save), new Date().toISOString(), row.id] });
   const revision = row.revision + 1;
-  await tx.execute({ sql: 'INSERT INTO djrpg_save_versions VALUES (?,?) ON CONFLICT(account_id) DO UPDATE SET revision=excluded.revision', args: [row.id, revision] });
+  await tx.batch([...operations,
+    { sql: 'UPDATE djrpg_accounts SET save_json=?, updated_at=? WHERE id=?', args: [JSON.stringify(save), new Date().toISOString(), row.id] },
+    { sql: 'INSERT INTO djrpg_save_versions VALUES (?,?) ON CONFLICT(account_id) DO UPDATE SET revision=excluded.revision', args: [row.id, revision] }
+  ]);
   return { save, revision };
 }
 export function respondError(res, error) {
   if (error instanceof ApiError) return res.status(error.status).json({ code: error.code, error: error.message });
   console.error('Database request failed');
   return res.status(503).json({ code: 'DB_UNAVAILABLE', error: '서버 연결이 불안정합니다. 잠시 후 다시 시도하세요.' });
+}
+
+export function validateSave(save) {
+  if (!save || typeof save !== 'object' || Array.isArray(save) || save.version !== 1 || JSON.stringify(save).length > 200_000) fail(400, 'INVALID_SAVE', '저장 데이터 형식이 올바르지 않습니다.');
 }

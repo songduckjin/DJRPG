@@ -17,7 +17,7 @@ export default async function handler(req, res) {
       // Only a public change counter is streamed. No credentials or private trade data in URLs.
       const row = (await db.execute('SELECT COALESCE(MAX(seq),0) AS seq FROM djrpg_market_events')).rows[0];
       res.write(`data: ${JSON.stringify({ seq: Number(row.seq) })}\n\n`);
-      await new Promise(resolve => { const done = () => { clearTimeout(timer); res.off('close', done); resolve(); }; const timer = setTimeout(done, 2000); res.once('close', done); });
+      await new Promise(resolve => { const done = () => { clearTimeout(timer); res.off('close', done); resolve(); }; const timer = setTimeout(done, 1000); res.once('close', done); });
     }
   } catch { if (!closed) res.write('event: retry\ndata: {}\n\n'); }
   finally { if (!closed) res.end(); db.close(); }

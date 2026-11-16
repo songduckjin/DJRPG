@@ -1,5 +1,5 @@
 import type { Item } from './items';
-import type { SaveSync } from './sync';
+import type { SyncResult, SaveSync } from './sync';
 export type MarketView = 'active' | 'sold' | 'mine' | 'register' | 'inbox';
 export type Listing = { id: string; sellerName: string; item: Item; price: number; state: string; createdAt: number; expiresAt: number; soldAt: number | null; mine: boolean; purchased: boolean };
 export type Delivery = { id: string; item: Item | null; gold: number; reason: string; createdAt: number };
@@ -30,7 +30,7 @@ export class Market {
   start(): void {
     if (this.timer) return;
     void this.load(false);
-    this.timer = window.setInterval(() => { if (!document.hidden && !this.busy && !this.loading) void this.load(false); }, 5000);
+    this.timer = window.setInterval(() => { if (!document.hidden && !this.busy && !this.loading) void this.load(false); }, 2000);
   }
   open(): void {
     this.opened = true; this.error = ''; void this.load(true);
@@ -59,6 +59,8 @@ export class Market {
       const fresh = next.inbox.filter(entry => !this.notified.has(entry.id));
       if (this.initialized && fresh.length) this.onMessage(`거래소 수령함에 ${fresh.length}건이 도착했습니다. 판매대금과 아이템을 확인하세요.`);
       this.notified = new Set(next.inbox.map(entry => entry.id)); this.initialized = true;
+      const previousSeq = this.data?.seq;
+      const inboxChanged = this.data?.inbox.map(entry => entry.id).join(',') !== next.inbox.map(entry => entry.id).join(',');
       if (full || !this.data || !this.opened || ['mine','inbox'].includes(this.view)) { this.data = next; this.candidate = undefined; this.newCount = 0; }
       else {
         const oldIds = new Set(this.data.listings.map(entry => entry.id));
@@ -67,12 +69,25 @@ export class Market {
         this.data.inbox = next.inbox; this.data.myActive = next.myActive; this.data.seq = next.seq;
         this.candidate = next;
       }
-      this.error = ''; this.onChange(full || (this.opened && this.view === 'inbox' && fresh.length > 0));
+      this.error = ''; this.onChange(full || (this.opened && ['mine','inbox'].includes(this.view) && (inboxChanged || previousSeq !== next.seq)));
     } catch (error) { if (generation === this.generation) { this.error = error instanceof Error ? error.message : String(error); this.connected = false; this.onChange(full); } }
     finally { if (generation === this.generation) { this.loading = false; this.onChange(false); } }
   }
   refresh(): void { this.selected = undefined; void this.load(true); }
   switch(view: MarketView): void { if (this.busy) return; this.view = view; this.filters.page = 0; this.selected = undefined; this.onChange(true); void this.load(true); }
+  private applyEffect(result: SyncResult): void {
+    if (!this.data || !result.effect) return;
+    const { listing, deliveries, claimedId } = result.effect;
+    if (listing) {
+      const sale = this.data.listings.find(entry => entry.id === listing.id);
+      if (sale) { sale.state = listing.state; sale.soldAt = listing.soldAt ?? sale.soldAt; }
+      if (listing.state === 'cancelled') this.data.myActive = Math.max(0, this.data.myActive - 1);
+      else if (listing.state === 'active') this.data.myActive++;
+    }
+    if (claimedId) { this.data.inbox = this.data.inbox.filter(entry => entry.id !== claimedId); this.notified.delete(claimedId); }
+    for (const delivery of deliveries) if (!this.data.inbox.some(entry => entry.id === delivery.id)) { this.data.inbox.unshift(delivery); this.notified.add(delivery.id); }
+    this.data.revision = result.revision;
+  }
   async retry(): Promise<void> {
     const pending = this.sync.pendingMarket;
     if (pending) await this.act(pending.action, pending.data);
@@ -85,9 +100,10 @@ export class Market {
     this.generation++; this.loading = false; this.busy = true; this.error = ''; this.onChange(true);
     try {
       const result = await this.sync.mutate(action, data, requestId);
-      this.requests.delete(key); this.onMessage(result.message || '처리했습니다.');
+      this.requests.delete(key); this.applyEffect(result); this.onMessage(result.message || '처리했습니다.');
       this.selected = undefined; if (action === 'register') { this.selectedItem = ''; this.price = ''; this.view = 'mine'; }
-      this.busy = false; await this.load(true);
+      this.busy = false; this.onChange(true);
+      void this.load(false);
     } catch (error) { this.error = error instanceof Error ? error.message : String(error); }
     finally { this.busy = false; this.onChange(true); }
   }
