@@ -8,6 +8,8 @@ const paths = {
   floor: '/assets/wasteland-ground.png', terrainProps: '/assets/wasteland-props.png', male: '/assets/warrior_male_base.png',
   female: '/assets/warrior_female_base.png', armored: '/assets/warrior_armored.png?v=2',
   armoredNoHelm: '/assets/warrior_armored_nohelm.png?v=2', femaleArmoredNoHelm: '/assets/warrior_female_armored_nohelm.png',
+  femaleArmoredHelm: '/assets/warrior_female_armored_helm.png',
+  femaleBaseHelm: '/assets/warrior_female_base_helm.png', femaleSwordHelm: '/assets/warrior_female_sword_helm.png',
   maleSword: '/assets/warrior_male_sword.png', femaleSword: '/assets/warrior_female_sword.png',
   maleAttack: '/assets/warrior_male_attack.png', femaleAttack: '/assets/warrior_female_attack.png', armoredAttack: '/assets/warrior_armored_attack.png?v=2',
   skeleton: '/assets/skeleton_warrior.png', boss: '/assets/skeleton_boss.png',
@@ -22,12 +24,19 @@ const animationPaths = {
   armoredAttack: Array.from({ length: 4 }, (_, i) => `/assets/warrior_armored_attack_${i + 1}.png?v=2`),
   armoredNoHelmAttack: Array.from({ length: 4 }, (_, i) => `/assets/warrior_armored_nohelm_attack_${i + 1}.png?v=2`)
 };
-const attackSheets = { femaleArmoredNoHelmAttack: '/assets/warrior_female_armored_attack.png' } as const;
+const attackSheets = {
+  femaleArmoredNoHelmAttack: '/assets/warrior_female_armored_attack.png',
+  femaleArmoredHelmAttack: '/assets/warrior_female_armored_helm_attack.png',
+  femaleHelmAttack: '/assets/warrior_female_helm_attack.png'
+} as const;
 const walkSheets = {
   maleBaseWalk: '/assets/walk8_male_base.png', femaleBaseWalk: '/assets/walk8_female_base.png',
+  femaleBaseHelmWalk: '/assets/walk8_female_base_helm.png',
   maleWalk: '/assets/walk8_male_sword.png', femaleWalk: '/assets/walk8_female.png',
+  femaleHelmWalk: '/assets/walk8_female_sword_helm.png',
   armoredWalk: '/assets/walk8_armored.png', armoredNoHelmWalk: '/assets/walk8_armored_nohelm.png',
   femaleArmoredNoHelmWalk: '/assets/walk8_female_armored_nohelm.png',
+  femaleArmoredHelmWalk: '/assets/walk8_female_armored_helm.png',
   skeletonWalk: '/assets/walk8_skeleton.png', bossWalk: '/assets/walk8_boss.png'
 } as const;
 type Animation = keyof typeof animationPaths | keyof typeof attackSheets | keyof typeof walkSheets;

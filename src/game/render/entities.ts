@@ -1,6 +1,6 @@
 import { Assets, Container, Rectangle, Sprite, Text, Texture } from 'pixi.js';
 import type { World } from '../world';
-import { heroAppearance, helmetPlacement } from '../appearance';
+import { heroAppearance } from '../appearance';
 import type { GameView } from '../render';
 import { equipmentImage, slots, type Save, type Slot } from '../store';
 
@@ -10,9 +10,9 @@ const gearPosition: Record<Slot, [number, number, number]> = {
   belt: [.51, .64, .18], boots: [.52, .83, .24], ring1: [.34, .58, .07], ring2: [.68, .58, .07]
 };
 
-function syncGear(view: GameView, save: Save, texture: Texture, attackFrame: number, attacking: boolean, moving: boolean): void {
+function syncGear(view: GameView, save: Save, texture: Texture, attackFrame: number, attacking: boolean): void {
   for (const slot of slots) {
-    const item = save.equipment[slot];
+    const item = slot === 'helmet' && save.gender === 'female' ? undefined : save.equipment[slot];
     const art = item ? equipmentImage(item) : undefined;
     const path = art?.path ?? '';
     const key = art ? `${path}:${art.frame}` : '';
@@ -53,7 +53,7 @@ function syncGear(view: GameView, save: Save, texture: Texture, attackFrame: num
       shown = { path: key, sprite };
       view.heroGear.set(slot, shown);
     }
-    const [u, v, size] = slot === 'helmet' ? helmetPlacement(save, attacking ? 'attack' : moving ? 'walk' : 'idle', attackFrame) : slot === 'weapon' && attacking
+    const [u, v, size] = slot === 'weapon' && attacking
       ? ([[.29, .25, .48], [.77, .68, .48], [.73, .55, .48], [.77, .4, .48]][attackFrame] as [number, number, number])
       : gearPosition[slot];
     shown.sprite.position.set((u - .5) * texture.width, (v - view.hero.anchor.y) * texture.height);
@@ -65,11 +65,14 @@ function syncGear(view: GameView, save: Save, texture: Texture, attackFrame: num
 const walkAnchors = {
   maleBaseWalk: [.95, .95, .95, .95, .941, .944, .944, .923],
   femaleBaseWalk: [.95, .948, .95, .944, .953, .953, .95, .928],
+  femaleBaseHelmWalk: [.97, .97, .97, .97, .97, .97, .97, .97],
   maleWalk: [.932, .93, .932, .926, .93, .932, .93, .928],
   femaleWalk: [.948, .946, .95, .944, .935, .944, .95, .941],
+  femaleHelmWalk: [.97, .97, .97, .97, .97, .97, .97, .97],
   armoredWalk: [.89, .89, .89, .883, .892, .889, .887, .889],
   armoredNoHelmWalk: [.944, .932, .935, .926, .932, .935, .937, .939],
   femaleArmoredNoHelmWalk: [.97, .97, .97, .97, .97, .97, .97, .97],
+  femaleArmoredHelmWalk: [.97, .97, .97, .97, .97, .97, .97, .97],
   skeletonWalk: [.917, .914, .91, .912, .898, .91, .905, .892],
   bossWalk: [.919, .901, .899, .899, .914, .907, .905, .905]
 } as const;
@@ -106,7 +109,7 @@ export function drawHero(this: GameView, world: World, x: number, y: number, tim
     this.heroLayer.position.set(x + lungeX + (player.hit > 0 ? Math.sin(time * 55) * 2 : 0), y + bob + lungeY);
     this.heroLayer.rotation = spin ? spin.age / spin.duration * Math.PI * 2 * face : attack ? (attack.swing ?? 1) * .2 * attackPulse * face : 0;
     this.hero.tint = player.hit > 0 ? 0xffd4cf : 0xffffff;
-    syncGear(this, save, texture, attackFrame, world.attackPose > 0, moving);
+    syncGear(this, save, texture, attackFrame, world.attackPose > 0);
     const shadowRadius = Math.max(20, texture.width * scale * .45);
     this.ground.ellipse(x - face * 4, y - 3, shadowRadius, 8).fill({ color: 0x000000, alpha: .5 });
     if (player.berserk > 0) {

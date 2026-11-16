@@ -1,24 +1,22 @@
 import type { Save, Slot } from './store';
 
-// Body art never includes a helmet: each equipped slot is rendered independently.
+// Female helmet art is painted into the body sprites; male helmets still use a separate gear layer.
 export function heroAppearance(save: Save) {
   const armed = !!save.equipment.weapon, armored = !!save.equipment.armor;
   const gender = save.gender;
+  const helmetIntegrated = gender === 'female' && !!save.equipment.helmet;
   return {
-    idle: armored ? gender === 'female' ? 'femaleArmoredNoHelm' as const : 'armoredNoHelm' as const : armed ? gender === 'male' ? 'maleSword' as const : 'femaleSword' as const : gender,
-    walk: armored ? gender === 'female' ? 'femaleArmoredNoHelmWalk' as const : 'armoredNoHelmWalk' as const : gender === 'female' ? armed ? 'femaleWalk' as const : 'femaleBaseWalk' as const : armed ? 'maleWalk' as const : 'maleBaseWalk' as const,
-    attack: armored ? gender === 'female' ? 'femaleArmoredNoHelmAttack' as const : 'armoredNoHelmAttack' as const : gender === 'male' ? 'maleAttack' as const : 'femaleAttack' as const,
-    portrait: armored ? gender === 'female' ? '/assets/warrior_female_armored_nohelm.png' : '/assets/warrior_armored_nohelm.png?v=2' : `/assets/warrior_${gender}_${armed ? 'sword' : 'base'}.png`,
+    idle: helmetIntegrated ? armored ? 'femaleArmoredHelm' as const : armed ? 'femaleSwordHelm' as const : 'femaleBaseHelm' as const
+      : armored ? gender === 'female' ? 'femaleArmoredNoHelm' as const : 'armoredNoHelm' as const : armed ? gender === 'male' ? 'maleSword' as const : 'femaleSword' as const : gender,
+    walk: helmetIntegrated ? armored ? 'femaleArmoredHelmWalk' as const : armed ? 'femaleHelmWalk' as const : 'femaleBaseHelmWalk' as const
+      : armored ? gender === 'female' ? 'femaleArmoredNoHelmWalk' as const : 'armoredNoHelmWalk' as const : gender === 'female' ? armed ? 'femaleWalk' as const : 'femaleBaseWalk' as const : armed ? 'maleWalk' as const : 'maleBaseWalk' as const,
+    attack: helmetIntegrated ? armored ? 'femaleArmoredHelmAttack' as const : 'femaleHelmAttack' as const
+      : armored ? gender === 'female' ? 'femaleArmoredNoHelmAttack' as const : 'armoredNoHelmAttack' as const : gender === 'male' ? 'maleAttack' as const : 'femaleAttack' as const,
+    portrait: helmetIntegrated ? armored ? '/assets/warrior_female_armored_helm.png' : `/assets/warrior_female_${armed ? 'sword' : 'base'}_helm.png`
+      : armored ? gender === 'female' ? '/assets/warrior_female_armored_nohelm.png' : '/assets/warrior_armored_nohelm.png?v=2' : `/assets/warrior_${gender}_${armed ? 'sword' : 'base'}.png`,
+    helmetIntegrated,
     helmet: save.equipment.helmet
   };
-}
-
-export function helmetPlacement(save: Save, pose: 'idle' | 'walk' | 'attack', attackFrame = 0): [number, number, number] {
-  if (save.gender !== 'female') return [.51, .22, .21];
-  if (!save.equipment.armor) return [.49, .17, .24];
-  if (pose === 'idle') return [.39, .15, .24];
-  if (pose === 'walk') return [.43, .14, .24];
-  return ([[.43, .16, .23], [.39, .16, .23], [.46, .17, .23], [.36, .17, .23]][attackFrame] ?? [.43, .16, .23]) as [number, number, number];
 }
 export function unequipItem(save: Save, slot: Slot): { ok: boolean; message: string } {
   const item = save.equipment[slot];
