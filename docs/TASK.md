@@ -538,10 +538,10 @@
 - **완료 기준**: 남녀·투구·갑옷 조합에서 이동 중 보행 프레임이 표시되고, 몬스터 접근 속도에 상한이 적용되며 타입 검사·테스트·빌드가 통과한다.
 ---
 
-## [-] [작업 75] 고정 아레나 카메라 전환 및 캐릭터 직접 이동·경계 제한
+## [x] [작업 75] 고정 아레나 카메라 전환 및 캐릭터 직접 이동·경계 제한
 - **등록일**: 2026-11-16
 - **담당자**: 로컬 Codex
-- **수정 예정 파일**: `src/game/render.ts`, `src/game/render/entities.ts`, `src/game/render/field.ts`, `src/game/world.ts`, 관련 테스트, `docs/TASK.md`, `docs/WORKLOG.md`.
+- **수정 파일**: `src/game/arena.ts`, `src/game/render.ts`, `src/game/render/entities.ts`, `src/game/world.ts`, `tests/arena.test.mjs`, `tests/world-movement.test.mjs`, `docs/TASK.md`, `docs/WORKLOG.md`.
 - **목표**: 한 화면 고정 황야 배경 위에서 내 캐릭터가 항상 화면 정중앙에 박혀 서 있는 것처럼 보이던 현상과, 그로 인한 적 상대 속도 착시를 없애기 위해 카메라를 아레나 중심으로 고정하고 캐릭터가 화면 안을 직접 뛰어다니도록 전환한다.
 - **수정 범위**: `src/game/render.ts`, `src/game/render/entities.ts`, `src/game/render/field.ts`, `src/game/world.ts` (및 관련 테스트).
 

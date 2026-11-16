@@ -3,6 +3,7 @@ import type { Effect, Enemy, World } from './world';
 import { drawRunes, drawTerrain, drawDust, drawLighting, drawVignette } from './render/field';
 import { drawHero, updateAfterimages, updateCorpses, drawEntities } from './render/entities';
 import { drawSkillVfx, drawDragon, drawHit, updateDamageLabels, drawDeath, drawDrops, drawEffects } from './render/vfx';
+import { projectArenaPoint } from './arena';
 
 const paths = {
   floor: '/assets/wasteland-ground.png', terrainProps: '/assets/wasteland-props.png', male: '/assets/warrior_male_base.png',
@@ -136,24 +137,24 @@ export class GameView {
   draw(world: World, time: number): void {
     const dt = Math.min(.05, Math.max(0, time - this.lastTime)); this.lastTime = time;
     const w = this.app.screen.width, h = this.app.screen.height;
-    const cx = w / 2, cy = h * .5;
-    const project = (x: number, y: number): [number, number] => [cx + (x - world.player.x - y + world.player.y) * .86, cy + (x - world.player.x + y - world.player.y) * .43];
+    const project = (x: number, y: number): [number, number] => projectArenaPoint(x, y, w, h);
+    const [hx, hy] = project(world.player.x, world.player.y);
     this.floor.width = w; this.floor.height = h;
-    this.floor.tilePosition.set((-world.player.x + world.player.y) * .86, (-world.player.x - world.player.y) * .43);
+    this.floor.tilePosition.set(0, 0);
     this.floor.tint = 0xffffff;
     this.floor.alpha = 1;
     this.glow.clear(); this.ground.clear(); this.effects.clear(); this.shade.clear();
     this.drawLighting(w, h, time);
     this.drawTerrain(world, project, time);
     this.drawDust(world, project, time, dt);
-    this.drawRunes(world, cx, cy, time);
+    this.drawRunes(world, hx, hy, time);
     const slam = world.effects.find(effect => effect.kind === 'slam' || effect.kind === 'hell');
     const shake = slam ? Math.max(0, 1 - slam.age / Math.min(slam.duration, .38)) * (slam.kind === 'hell' ? 8 : 4) : 0;
     this.app.stage.position.set(shake ? (Math.random() * 2 - 1) * shake : 0, shake ? (Math.random() * 2 - 1) * shake : 0);
     drawDrops.call(this, world, project, time);
-    drawEntities.call(this, world, project, time, dt, cx, cy, h);
+    drawEntities.call(this, world, project, time, dt, hx, hy, h);
     drawEffects.call(this, world, project, time);
-    drawVignette.call(this, w, h, cx, cy, time);
+    drawVignette.call(this, w, h, hx, hy, time);
   }
 
   drawSkillVfx(effect: Effect, x: number, y: number, t: number, screenAngle: number, time: number): boolean { return drawSkillVfx.call(this, effect, x, y, t, screenAngle, time); }

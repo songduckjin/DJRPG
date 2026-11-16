@@ -1,3 +1,9 @@
+## 2026-11-16 · 작업 75
+- `src/game/arena.ts`, `render.ts`, `render/entities.ts`: 고정 아레나 투영과 캐릭터·룬·비네팅·오라 위치 동기화.
+- `src/game/world.ts`: 플레이어·몬스터 경계 제한, 가장자리 스폰 및 넉백 보정.
+- `tests/arena.test.mjs`, `world-movement.test.mjs`: 화면 이동·경계·속도 검사.
+- 검증: 최신 main 통합 후 `pnpm run check`, `pnpm test` 130건, `pnpm run build` 통과.
+
 ## 2026-11-16 · 작업 84
 - `hud.css`: 원 크기·큰 원 위치 유지, 인접 원 테두리 간격 17.6~18.5px로 통일해 작은 원을 큰 원에 가깝게 이동.
 - `modals.css`: 가방 max-content 행·칸 최소 64px·5px 간격·필터 축소 방지·세로 스크롤/스크롤바 여백 적용.

@@ -1,6 +1,7 @@
 import { addExperience, floorKillTarget, rollItem, skillLevel, totalStats, type Item, type Save } from './store';
 import { equipmentDropChance, rollSkillBook, skillBookDropChance } from './items';
 import { dragonOrbitFactor, skillDamageScale, skillDuration, skillRange, skills, type SkillId } from './skills';
+import { clampArenaPoint, spawnArenaEnemy } from './arena';
 
 export type Enemy = { x: number; y: number; hp: number; maxHp: number; boss: boolean; hit: number; step: number; moving: boolean; knockX: number; knockY: number; slow: number };
 export type Drop = { x: number; y: number; item: Item; age: number; warned: boolean };
@@ -34,7 +35,8 @@ export class World {
     this.player.hp = Math.min(save.health, totalStats(save).health);
     this.bossPending = save.floorKills >= floorKillTarget(save.floor);
     const hp = enemyMaxHp(save.floor, false);
-    this.enemies.push({ x: 145, y: -45, hp, maxHp: hp, boss: false, hit: 0, step: 0, moving: false, knockX: 0, knockY: 0, slow: 0 });
+    const start = clampArenaPoint(145, -45);
+    this.enemies.push({ x: start.x, y: start.y, hp, maxHp: hp, boss: false, hit: 0, step: 0, moving: false, knockX: 0, knockY: 0, slow: 0 });
   }
 
   travelToFloor(floor: number): { ok: boolean; message: string } {
@@ -88,7 +90,7 @@ export class World {
       this.effects.push({ x: p.x, y: p.y, kind: 'warcry', age: 0, duration: .7, angle: 0 });
       for (const enemy of this.enemies) {
         const dx = enemy.x - p.x, dy = enemy.y - p.y, d = Math.hypot(dx, dy);
-        if (d < 115 && d > 0) { enemy.x += dx / d * 40; enemy.y += dy / d * 40; }
+        if (d < 115 && d > 0) { const bounded = clampArenaPoint(enemy.x + dx / d * 40, enemy.y + dy / d * 40); enemy.x = bounded.x; enemy.y = bounded.y; }
       }
     } else if (kind === 'power') {
       this.effects.push({ x: p.x, y: p.y, kind: 'power', age: 0, duration: skillDuration(kind, level), angle: p.facing });
@@ -188,7 +190,9 @@ export class World {
     const magnitude = Math.hypot(this.activeMove.x, this.activeMove.y);
     if (magnitude > .05) {
       const speed = (p.berserk > 0 ? 160 + (p.berserkLevel - 1) * 4 : 125) * dt / Math.max(1, magnitude);
-      p.x += this.activeMove.x * speed; p.y += this.activeMove.y * speed;
+      const next = clampArenaPoint(p.x + this.activeMove.x * speed, p.y + this.activeMove.y * speed);
+      this.activeMove = { x: next.x - p.x, y: next.y - p.y };
+      p.x = next.x; p.y = next.y;
     }
     if (this.attackHeld) this.action('attack');
     this.spawnTimer -= dt;
@@ -196,9 +200,9 @@ export class World {
       this.spawnTimer = Math.max(.55, 1.8 - this.save.floor * .08);
       const angle = Math.random() * Math.PI * 2;
       const boss = this.bossPending && !this.enemies.some(e => e.boss);
-      const d = 250 + Math.random() * 60;
+      const spawn = spawnArenaEnemy(p, angle);
       const hp = enemyMaxHp(this.save.floor, boss);
-      this.enemies.push({ x: p.x + Math.cos(angle) * d, y: p.y + Math.sin(angle) * d, hp, maxHp: hp, boss, hit: 0, step: Math.random() * Math.PI * 2, moving: false, knockX: 0, knockY: 0, slow: 0 });
+      this.enemies.push({ x: spawn.x, y: spawn.y, hp, maxHp: hp, boss, hit: 0, step: Math.random() * Math.PI * 2, moving: false, knockX: 0, knockY: 0, slow: 0 });
       if (boss) this.bossPending = false;
     }
     for (const enemy of this.enemies) {
@@ -206,6 +210,7 @@ export class World {
       enemy.moving = d > 27;
       if (enemy.moving && d > 0) { const step = enemyMoveSpeed(this.save.floor, enemy.boss) * (enemy.slow > 0 ? .55 : 1) * dt; enemy.x += dx / d * step; enemy.y += dy / d * step; enemy.step += dt * Math.PI * (enemy.boss ? 3.25 : 4.25); }
       enemy.x += enemy.knockX * dt; enemy.y += enemy.knockY * dt;
+      const bounded = clampArenaPoint(enemy.x, enemy.y); enemy.x = bounded.x; enemy.y = bounded.y;
       enemy.knockX *= Math.exp(-dt * 12); enemy.knockY *= Math.exp(-dt * 12);
       enemy.slow = Math.max(0, enemy.slow - dt);
       if (d < 35 && p.hit <= 0) {

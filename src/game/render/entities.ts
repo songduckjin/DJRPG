@@ -168,7 +168,7 @@ export function updateCorpses(this: GameView, project: (x: number, y: number) =>
   }
 
 
-export function drawEntities(this: GameView, world: World, project: (x: number, y: number) => [number, number], time: number, dt: number, cx: number, cy: number, h: number): void {
+export function drawEntities(this: GameView, world: World, project: (x: number, y: number) => [number, number], time: number, dt: number, hx: number, hy: number, h: number): void {
     const live = new Set(world.enemies);
     for (const [enemy, sprite] of this.enemies) if (!live.has(enemy)) {
       this.actors.removeChild(sprite); this.fallen.addChild(sprite); this.enemies.delete(enemy);
@@ -213,11 +213,11 @@ export function drawEntities(this: GameView, world: World, project: (x: number, 
       this.bossLabels.get(enemy)?.position.set(x, barY - 3);
       depths.push({ sprite, depth: enemy.x + enemy.y });
     }
-    this.drawHero(world, cx, cy, time);
+    this.drawHero(world, hx, hy, time);
     const rage = world.effects.find(effect => effect.kind === 'warcry');
     const burst = rage ? 1 - rage.age / rage.duration : 0;
     const auraScale = 165 / this.aura.texture.width * (1 + burst * .8);
-    this.aura.position.set(cx, cy - 3);
+    this.aura.position.set(hx, hy - 3);
     this.aura.scale.set(auraScale, auraScale * .6);
     this.aura.rotation = time * .35;
     this.aura.alpha = world.player.berserk > 0 ? .48 + burst * .48 + Math.sin(time * 4) * .08 : 0;
