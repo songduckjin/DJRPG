@@ -17,6 +17,7 @@ export class World {
   effects: Effect[] = [];
   cooldown: Record<Action, number> = { attack: 0, slash2: 0, spin: 0, crushing: 0, slam: 0, warcry: 0, power: 0, destroy: 0, hell: 0 };
   spawnTimer = 0;
+  paused = false;
   attackHeld = false;
   attackPose = 0;
   activeMove = { x: 0, y: 0 };
@@ -48,6 +49,7 @@ export class World {
   }
 
   action(kind: Action): void {
+    if (this.paused) return;
     if (this.cooldown[kind] > 0) return;
     if (kind !== 'attack' && (!this.save.learned.includes(kind) || !this.save.quickSlots.includes(kind))) { this.onMessage('습득하고 퀵슬롯에 장착한 스킬만 사용할 수 있습니다.'); return; }
     const p = this.player;
@@ -157,6 +159,7 @@ export class World {
   }
 
   update(dt: number): void {
+    if (this.paused) return;
     const p = this.player;
     for (const kind of Object.keys(this.cooldown) as Action[]) this.cooldown[kind] = Math.max(0, this.cooldown[kind] - dt);
     this.attackPose = Math.max(0, this.attackPose - dt);

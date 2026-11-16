@@ -8,11 +8,13 @@ const shortNames: Record<SkillId, string> = { slash2: '이단참', spin: '용오
 export function renderStatus(this: Interface): void {
     const { save, player } = this.world;
     const progress = save.level >= MAX_LEVEL ? 100 : Math.min(100, Math.max(0, save.exp / expToNext(save.level) * 100));
-    this.top.innerHTML = `<button class="level-badge" type="button" aria-label="계정 정보 열기"><span>LV</span><b>${save.level >= MAX_LEVEL ? 'MAX' : save.level}</b></button><div class="status-main"><button class="floor-button" type="button" aria-label="층 선택, 현재 ${save.floor}층"><span>층 <b>${save.floor}</b> · ${Math.min(save.floorKills, floorKillTarget(save.floor))}/${floorKillTarget(save.floor)}</span><span aria-hidden="true">▾</span></button><span class="gold">◆ ${save.gold}</span></div><div class="exp"><i style="width:${progress}%"></i></div>`;
+    this.top.innerHTML = `<button class="level-badge" type="button" aria-label="계정 정보 열기"><span>LV</span><b>${save.level >= MAX_LEVEL ? 'MAX' : save.level}</b></button><div class="health-bar hp" role="progressbar" aria-label="체력"><i></i><b></b></div><div class="status-main"><button class="floor-button" type="button" aria-label="층 선택, 현재 ${save.floor}층"><span>층 <b>${save.floor}</b> · ${Math.min(save.floorKills, floorKillTarget(save.floor))}/${floorKillTarget(save.floor)}</span><span aria-hidden="true">▾</span></button><span class="gold">◆ ${save.gold}</span></div><div class="exp"><i style="width:${progress}%"></i></div>`;
     const levelBadge = this.get('.level-badge'); levelBadge.style.setProperty('--progress', `${progress}%`); levelBadge.addEventListener('click', () => this.open('account'));
     this.get('.floor-button').addEventListener('click', () => this.open('floor'));
     this.get('.hp').style.setProperty('--fill', `${Math.max(0, player.hp / totalStats(save).health * 100)}%`);
-    this.get('.hp b').textContent = `${Math.ceil(player.hp)}`;
+    this.get('.hp b').textContent = `HP ${Math.ceil(player.hp)}/${totalStats(save).health}`;
+    this.get('.hp').setAttribute('aria-valuenow', String(Math.ceil(player.hp)));
+    this.get('.hp').setAttribute('aria-valuemax', String(totalStats(save).health));
     const text = ['자동 사냥이 시작되었습니다. 첫 해골전사를 처치하세요.', '낡은 두손검을 자동으로 줍고 있습니다.', '하단 갑옷 아이콘을 눌러 가방의 낡은 두손검을 장착하세요.'][save.tutorial];
     this.banner.textContent = text ?? ''; this.banner.hidden = save.tutorial >= 3;
   }
@@ -34,7 +36,9 @@ export function tick(this: Interface): void {
     }
     const { player, save } = this.world;
     this.get('.hp').style.setProperty('--fill', `${Math.max(0, player.hp / totalStats(save).health * 100)}%`);
-    this.get('.hp b').textContent = `${Math.ceil(player.hp)}`;
+    this.get('.hp b').textContent = `HP ${Math.ceil(player.hp)}/${totalStats(save).health}`;
+    this.get('.hp').setAttribute('aria-valuenow', String(Math.ceil(player.hp)));
+    this.get('.hp').setAttribute('aria-valuemax', String(totalStats(save).health));
   }
 
 export function renderBagBadge(this: Interface): void {

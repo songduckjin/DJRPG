@@ -3,8 +3,9 @@ import { clearLegacySave, parseSave, readLegacySave } from './game/store';
 import { applyOfflineRewards } from './game/offline';
 import { World } from './game/world';
 import { Interface } from './ui/interface';
-import { accountRequest, clearToken, openLogin } from './ui/login';
+import { clearToken, openLogin } from './ui/login';
 import './styles/main.css';
+import { SaveSync } from './game/sync';
 
 const root = document.getElementById('app');
 if (!root) throw new Error('앱 루트 요소가 없습니다.');
@@ -26,34 +27,15 @@ if (session.guest || session.newAccount) {
 }
 const offlineReward = applyOfflineRewards(save, session.offlineSeconds ?? 0);
 const world = new World(save);
-let resetting = false;
-let pending = false;
-let activeSave: Promise<boolean> | undefined;
-let saveState: '저장됨' | '저장 중' | '저장 실패' = '저장됨';
-const setSaveState = (state: typeof saveState) => { saveState = state; ui?.setSaveStatus(state); };
-function flush(): Promise<boolean> {
-  if (resetting) return Promise.resolve(false);
-  pending = true;
-  if (activeSave) return activeSave;
-  activeSave = (async () => {
-    while (pending) {
-      pending = false; setSaveState('저장 중');
-      try {
-        const result = await accountRequest<{ ok: boolean }>('save', { save: structuredClone(save) }, session.token);
-        if (result.ok !== true) throw new Error('서버가 저장 완료를 확인하지 않았습니다.');
-        if (legacyKey) { clearLegacySave(legacyKey); legacyKey = undefined; ui.message('기존 진행 상황을 서버로 이전했습니다.'); }
-        setSaveState('저장됨');
-      } catch (error) { pending = true; setSaveState('저장 실패'); ui.message(`서버 저장 실패: ${String(error)}`); return false; }
-    }
-    return true;
-  })().finally(() => { activeSave = undefined; });
-  return activeSave;
-}
+const sync = new SaveSync(save, session);
+function flush(): Promise<boolean> { return sync.flush(); }
 const ui = new Interface(appRoot, world, () => { void flush(); }, session, async () => {
-  resetting = true;
-  try { if (activeSave) await activeSave; await accountRequest('reset', {}, session.token); location.reload(); }
-  catch (error) { resetting = false; ui.message(`데이터 초기화 실패: ${String(error)}`); }
-});
+  try { await sync.reset(); } catch (error) { ui.message(`데이터 초기화 실패: ${String(error)}`); }
+}, sync);
+sync.onStatus = state => ui.setSaveStatus(state);
+sync.onMessage = message => ui.message(message);
+sync.onPause = paused => { world.paused = paused; appRoot.classList.toggle('sync-busy', paused); };
+sync.onSaved = () => { if (legacyKey) { clearLegacySave(legacyKey); legacyKey = undefined; ui.message('기존 진행 상황을 서버로 이전했습니다.'); } };
 window.addEventListener('game-logout', async () => { const ok = await flush(); if (ok) { clearToken(); location.reload(); } });
 gameUi = ui;
 if (pendingMessage) ui.message(pendingMessage);
@@ -69,6 +51,7 @@ catch (error) {
 }
 
 window.addEventListener('keydown', e => {
+  if (['INPUT','SELECT','TEXTAREA'].includes((e.target as HTMLElement)?.tagName) || world.paused) return;
   const key = e.key.toLowerCase();
   if (key === ' ') e.preventDefault();
   if (e.repeat) return;

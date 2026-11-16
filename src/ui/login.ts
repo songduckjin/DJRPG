@@ -1,6 +1,6 @@
 import type { Gender, Save } from '../game/store';
 
-export type Session = { accountId: string; loginId: string; gender: Gender; guest: boolean; token: string; save: Save; offlineSeconds?: number; newAccount?: boolean };
+export type Session = { accountId: string; loginId: string; gender: Gender; guest: boolean; token: string; save: Save; revision: number; offlineSeconds?: number; newAccount?: boolean };
 const tokenKey = 'djrpg.auth.token';
 export function clearToken(): void { localStorage.removeItem(tokenKey); }
 export async function accountRequest<T>(action: string, data: Record<string, unknown> = {}, token?: string): Promise<T> {
@@ -8,12 +8,12 @@ export async function accountRequest<T>(action: string, data: Record<string, unk
   try { response = await fetch('/api/account', { method: 'POST', headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify({ action, ...data }), keepalive: action === 'save' }); }
   catch { throw new Error('서버에 연결할 수 없습니다. 네트워크 상태를 확인하세요.'); }
   const result = await response.json().catch(() => { throw new Error('서버 응답 형식이 올바르지 않습니다. API 배포를 확인하세요.'); });
-  if (!response.ok) { const error = new Error(typeof result.error === 'string' ? result.error : `서버 요청 실패 (${response.status})`) as Error & { status: number }; error.status = response.status; throw error; }
+  if (!response.ok) { const error = new Error(typeof result.error === 'string' ? result.error : `서버 요청 실패 (${response.status})`) as Error & { status: number; code: string }; error.status = response.status; error.code = result.code; throw error; }
   return result as T;
 }
 async function begin(action: string, data: Record<string, unknown> = {}, token?: string): Promise<Session> {
   const session = await accountRequest<Session>(action, data, token);
-  if (!session || typeof session.token !== 'string' || typeof session.accountId !== 'string' || !session.save || session.save.version !== 1) throw new Error('계정 데이터가 올바르지 않습니다. 서버 상태를 확인하세요.');
+  if (!session || typeof session.token !== 'string' || typeof session.accountId !== 'string' || !session.save || session.save.version !== 1 || !Number.isSafeInteger(session.revision)) throw new Error('계정 데이터가 올바르지 않습니다. 서버 상태를 확인하세요.');
   localStorage.setItem(tokenKey, session.token);
   session.newAccount = action === 'register';
   return session;
