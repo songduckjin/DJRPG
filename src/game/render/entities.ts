@@ -13,7 +13,7 @@ const gearPosition: Record<Slot, [number, number, number]> = {
 
 function syncGear(view: GameView, save: Save, texture: Texture, attackFrame: number, attacking: boolean): void {
   for (const slot of slots) {
-    const item = save.equipment[slot];
+    const item = slot === 'helmet' ? undefined : save.equipment[slot];
     const art = item ? equipmentImage(item) : undefined;
     const path = art?.path ?? '';
     const key = art ? `${path}:${art.frame}` : '';
@@ -66,10 +66,17 @@ function syncGear(view: GameView, save: Save, texture: Texture, attackFrame: num
 const walkAnchors = {
   maleBaseWalk: [.95, .95, .95, .95, .941, .944, .944, .923],
   femaleBaseWalk: [.95, .948, .95, .944, .953, .953, .95, .928],
+  femaleBaseHelmWalk: [.97, .97, .97, .97, .97, .97, .97, .97],
+  femaleBaseOldHelmWalk: [.97, .97, .97, .97, .97, .97, .97, .97],
   maleWalk: [.932, .93, .932, .926, .93, .932, .93, .928],
   femaleWalk: [.948, .946, .95, .944, .935, .944, .95, .941],
+  femaleHelmWalk: [.97, .97, .97, .97, .97, .97, .97, .97],
+  femaleOldHelmWalk: [.97, .97, .97, .97, .97, .97, .97, .97],
   armoredWalk: [.89, .89, .89, .883, .892, .889, .887, .889],
   armoredNoHelmWalk: [.944, .932, .935, .926, .932, .935, .937, .939],
+  femaleArmoredNoHelmWalk: [.97, .97, .97, .97, .97, .97, .97, .97],
+  femaleArmoredHelmWalk: [.97, .97, .97, .97, .97, .97, .97, .97],
+  femaleArmoredOldHelmWalk: [.97, .97, .97, .97, .97, .97, .97, .97],
   skeletonWalk: [.917, .914, .91, .912, .898, .91, .905, .892],
   bossWalk: [.919, .901, .899, .899, .914, .907, .905, .905]
 } as const;
@@ -116,7 +123,7 @@ export function drawHero(this: GameView, world: World, x: number, y: number, tim
 
 export function updateAfterimages(this: GameView, world: World, project: (x: number, y: number) => [number, number], dt: number): void {
     for (const effect of world.effects) {
-      if (!['slash', 'slash2', 'spin', 'slam', 'power', 'destroy', 'hell'].includes(effect.kind) || effect.age > .19) continue;
+      if (!['spin', 'slam', 'power', 'destroy', 'hell'].includes(effect.kind) || effect.age > .19) continue;
       const index = Math.floor(effect.age / .065);
       if (index >= 3 || index <= (this.ghostEmissions.get(effect) ?? -1)) continue;
       this.ghostEmissions.set(effect, index);
