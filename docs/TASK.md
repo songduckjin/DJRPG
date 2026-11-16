@@ -502,9 +502,9 @@
 
 ---
 
-## [-] [작업 71] 투구 단독 착용 시 회전 스킬 외형 왜곡 수정
+## [x] [작업 71] 투구 단독 착용 시 회전 스킬 외형 왜곡 수정
 - **등록일**: 2026-11-16
 - **담당자**: 로컬 Codex
-- **수정 예정 파일**: `src/game/render/entities.ts`, 관련 테스트, `docs/TASK.md`, `docs/WORKLOG.md`.
+- **수정 파일**: `src/game/render/entities.ts`, `src/game/render/heroMotion.ts`, `tests/hero-motion.test.mjs`, `docs/TASK.md`, `docs/WORKLOG.md`.
 - **목표**: 무기 없이 투구만 착용해 회전 스킬을 사용할 때 정지 캐릭터 이미지가 발밑을 축으로 한 바퀴 회전해 깨져 보이는 현상을 수정한다.
 - **완료 기준**: 남녀 무기 없는 스킬 사용 시 캐릭터 외형을 유지하고 회전 이펙트와 착용 무기 공격 동작은 유지하며 타입 검사·테스트·빌드가 통과한다.
