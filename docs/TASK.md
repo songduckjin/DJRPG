@@ -443,3 +443,13 @@
 - **수정 예정 파일**: `src/game/appearance.ts`, `src/game/render.ts`, `src/game/render/entities.ts`, `tests/appearance.test.mjs`, `tests/hero-art.test.mjs`, `public/assets/warrior_female_*_attack.png`, `docs/TASK.md`, `docs/WORKLOG.md`.
 - **목표**: 남녀 투구 단독 착용 외형을 유지하고, 여성 투구 단독 착용 시 잘못 연결된 보행 시트를 올바른 공격 4프레임 이미지로 교체한다.
 - **완료 기준**: 투구 단독/갑옷 동시 조합의 정지·보행·스킬 공격 이미지가 일관되고 공격 시트 형태 검증, 타입 검사·전체 테스트·빌드가 통과한다.
+
+---
+
+## [-] [작업 67] 선택한 황야 배경·모닥불 조명 및 도감 등급 UI
+- **등록일**: 2026-11-16
+- **담당자**: 이 대화의 클라우드 Codex
+- **수정 예정 파일**: `src/main.ts`, `src/game/render/field.ts`, `src/game/wasteland.ts`, `public/assets/wasteland-scene.png`, `src/ui/modals/equipModal.ts`, `src/ui/modals/codexModal.ts`, `src/ui/interface.ts`, `src/game/codex.ts`, `src/styles/codex.css`, `src/styles/modals.css`, 관련 테스트 및 작업 문서.
+- **목표**: 선택한 세로 배경을 그대로 표시하고 모닥불 세 곳의 조명 정렬, 스킬북 버튼 테마, 도감 장비 버튼 문구·부위 탭·등급 필터와 등급별 테두리를 적용한다.
+- **동시 작업 확인**: 진행 중인 작업 66의 `appearance.ts`, `render.ts`, `render/entities.ts`, 여성 공격 아트는 수정하지 않는다.
+- **완료 기준**: 기존 무작위 배경 장식/조명 중복 제거, 기기 화면 비율 대응, 도감 부위·등급·보유 필터 조합, 타입 검사·테스트·빌드 통과.
