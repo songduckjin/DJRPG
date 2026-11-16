@@ -5,7 +5,7 @@ import { drawHero, updateAfterimages, updateCorpses, drawEntities } from './rend
 import { drawSkillVfx, drawDragon, drawHit, updateDamageLabels, drawDeath, drawDrops, drawEffects } from './render/vfx';
 
 const paths = {
-  floor: '/assets/dungeon_tile.jpg?v=2', male: '/assets/warrior_male_base.png',
+  floor: '/assets/dungeon_tile.jpg?v=3', male: '/assets/warrior_male_base.png',
   female: '/assets/warrior_female_base.png', armored: '/assets/warrior_armored.png?v=2',
   armoredNoHelm: '/assets/warrior_armored_nohelm.png?v=2',
   maleSword: '/assets/warrior_male_sword.png', femaleSword: '/assets/warrior_female_sword.png',
