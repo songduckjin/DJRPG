@@ -7,6 +7,9 @@ export type Drop = { x: number; y: number; item: Item; age: number; warned: bool
 export type Effect = { x: number; y: number; kind: 'slash' | 'slash2' | 'spin' | 'crushing' | 'slam' | 'warcry' | 'power' | 'destroy' | 'hell' | 'hit' | 'death'; age: number; duration: number; angle: number; swing?: number; amount?: number; nextHit?: number; power?: number; level?: number };
 export type Action = 'attack' | SkillId;
 export const cooldowns: Record<Action, number> = { attack: .48, slash2: skills.slash2.cooldown, spin: skills.spin.cooldown, crushing: skills.crushing.cooldown, slam: skills.slam.cooldown, warcry: skills.warcry.cooldown, power: skills.power.cooldown, destroy: skills.destroy.cooldown, hell: skills.hell.cooldown };
+export function enemyMoveSpeed(floor: number, boss: boolean): number {
+  return boss ? 28 : Math.min(64, 38 + Math.max(0, floor - 1) * 1.2);
+}
 export function enemyMaxHp(floor: number, boss: boolean): number { return boss ? 300 + floor * 120 + floor * floor * 30 : 20 + floor * 10 + floor * floor * 2; }
 export function enemyHitDamage(floor: number, boss: boolean, defense: number): number { return Math.max(1, (boss ? 22 + floor * 5 : 7 + floor * 2) - defense * .2); }
 
@@ -201,7 +204,7 @@ export class World {
     for (const enemy of this.enemies) {
       const dx = p.x - enemy.x, dy = p.y - enemy.y, d = Math.hypot(dx, dy);
       enemy.moving = d > 27;
-      if (enemy.moving && d > 0) { const step = (enemy.boss ? 32 : 45 + this.save.floor * 2) * (enemy.slow > 0 ? .55 : 1) * dt; enemy.x += dx / d * step; enemy.y += dy / d * step; enemy.step += dt * Math.PI * (enemy.boss ? 3.25 : 4.25); }
+      if (enemy.moving && d > 0) { const step = enemyMoveSpeed(this.save.floor, enemy.boss) * (enemy.slow > 0 ? .55 : 1) * dt; enemy.x += dx / d * step; enemy.y += dy / d * step; enemy.step += dt * Math.PI * (enemy.boss ? 3.25 : 4.25); }
       enemy.x += enemy.knockX * dt; enemy.y += enemy.knockY * dt;
       enemy.knockX *= Math.exp(-dt * 12); enemy.knockY *= Math.exp(-dt * 12);
       enemy.slow = Math.max(0, enemy.slow - dt);

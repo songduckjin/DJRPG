@@ -2,7 +2,7 @@ import { Assets, Container, Rectangle, Sprite, Text, Texture } from 'pixi.js';
 import type { World } from '../world';
 import { enemyFacing } from '../facing';
 import { heroAppearance } from '../appearance';
-import { heroMotion } from './heroMotion';
+import { heroAnimationMode, heroMotion } from './heroMotion';
 import type { GameView } from '../render';
 import { equipmentImage, slots, type Save, type Slot } from '../store';
 
@@ -95,9 +95,10 @@ export function drawHero(this: GameView, world: World, x: number, y: number, tim
     const attackFrame = Math.min(3, Math.floor((1 - world.attackPose / .32) * 4));
     const walkArt = appearance.walk;
     let texture = this.textures[appearance.idle];
-    const animatedAttack = world.attackPose > 0 && !!appearance.attack;
-    if (animatedAttack && appearance.attack) texture = this.animations[appearance.attack][Math.max(0, attackFrame)];
-    else if (moving) texture = this.animations[walkArt][walkingFrame];
+    const animation = heroAnimationMode(moving, world.attackPose, !!appearance.attack);
+    const animatedAttack = animation === 'attack';
+    if (animation === 'walk') texture = this.animations[walkArt][walkingFrame];
+    else if (animatedAttack && appearance.attack) texture = this.animations[appearance.attack][Math.max(0, attackFrame)];
     if (this.hero.texture !== texture) this.hero.texture = texture;
     this.hero.anchor.y = animatedAttack ? .97 : moving ? walkAnchors[walkArt][walkingFrame] : .996;
     let bob = 0;

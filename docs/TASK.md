@@ -530,9 +530,9 @@
 
 ---
 
-## [-] [작업 74] 캐릭터 보행 표시 복원·몬스터 접근 속도 조정
+## [x] [작업 74] 캐릭터 보행 표시 복원·몬스터 접근 속도 조정
 - **등록일**: 2026-11-16
 - **담당자**: 로컬 Codex
-- **수정 예정 파일**: `src/game/world.ts`, `src/game/render/entities.ts`, 보행·속도 회귀 테스트, `docs/TASK.md`, `docs/WORKLOG.md`.
+- **수정 파일**: `src/game/world.ts`, `src/game/render/entities.ts`, `src/game/render/heroMotion.ts`, `tests/hero-motion.test.mjs`, `tests/world-movement.test.mjs`, `docs/TASK.md`, `docs/WORKLOG.md`.
 - **목표**: 이동 중 공격·스킬 이미지가 보행을 가리는 문제를 고치고, 층수에 따라 몬스터가 과속하지 않도록 조정한다.
 - **완료 기준**: 남녀·투구·갑옷 조합에서 이동 중 보행 프레임이 표시되고, 몬스터 접근 속도에 상한이 적용되며 타입 검사·테스트·빌드가 통과한다.
