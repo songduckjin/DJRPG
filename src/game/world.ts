@@ -27,6 +27,8 @@ export class World {
   activeMove = { x: 0, y: 0 };
   bossPending = false;
   private swing = 1;
+  private chaseTarget?: Enemy | Drop;
+  private pursuing = false;
   onChange: () => void = () => {};
   onMessage: (text: string) => void = () => {};
 
@@ -49,6 +51,7 @@ export class World {
     this.bossPending = false; this.spawnTimer = 0;
     this.player.x = 0; this.player.y = 0; this.attackHeld = false;
     this.activeMove = { x: 0, y: 0 };
+    this.chaseTarget = undefined; this.pursuing = false;
     this.onChange();
     return { ok: true, message: `${floor}층으로 이동했습니다.${lostDrops ? ` 바닥의 드랍 ${lostDrops}개가 사라졌습니다.` : ''}` };
   }
@@ -176,8 +179,11 @@ export class World {
       const destination = drop ?? enemy;
       if (destination) {
         const dx = destination.x - p.x, dy = destination.y - p.y, distance = Math.hypot(dx, dy);
-        const desired = drop ? 20 : 68;
-        this.activeMove = distance > desired ? { x: dx / distance, y: dy / distance } : { x: 0, y: 0 };
+        if (destination !== this.chaseTarget) { this.chaseTarget = destination; this.pursuing = false; }
+        const start = drop ? 60 : 90, stop = drop ? 20 : 48;
+        if (distance > start) this.pursuing = true;
+        else if (distance <= stop) this.pursuing = false;
+        this.activeMove = this.pursuing && distance > 0 ? { x: dx / distance, y: dy / distance } : { x: 0, y: 0 };
         if (distance > 1) this.faceTarget(destination);
         if (!drop && distance < 190) {
           if (distance < 90) this.action('attack');
@@ -186,7 +192,7 @@ export class World {
             this.action(skill);
           }
         }
-      } else this.activeMove = { x: 0, y: 0 };
+      } else { this.chaseTarget = undefined; this.pursuing = false; this.activeMove = { x: 0, y: 0 }; }
     const magnitude = Math.hypot(this.activeMove.x, this.activeMove.y);
     if (magnitude > .05) {
       const speed = (p.berserk > 0 ? 160 + (p.berserkLevel - 1) * 4 : 125) * dt / Math.max(1, magnitude);

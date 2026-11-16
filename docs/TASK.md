@@ -657,9 +657,9 @@
 
 ---
 
-## [-] [작업 86] 중앙 제자리걸음·추적 떨림 수정
+## [x] [작업 86] 중앙 제자리걸음·추적 떨림 수정
 - **등록일**: 2026-11-16
 - **담당자**: 로컬 Codex
-- **수정 예정 파일**: `src/game/world.ts`, `tests/world-movement.test.mjs`, `docs/TASK.md`, `docs/WORKLOG.md`.
+- **수정 파일**: `src/game/world.ts`, `tests/world-movement.test.mjs`, `docs/TASK.md`, `docs/WORKLOG.md`.
 - **목표**: 적의 접근·넉백 때문에 플레이어가 짧게 출발과 정지를 반복하며 중앙에서 제자리걸음처럼 보이는 현상을 고친다.
 - **완료 기준**: 추적 시작·정지 거리를 분리해 짧은 이동 반복을 없애고, 드랍 추적·공격·성별 공통 이동을 유지하며 타입 검사·테스트·빌드가 통과한다.

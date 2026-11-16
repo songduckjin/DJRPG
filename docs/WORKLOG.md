@@ -1,3 +1,8 @@
+## 2026-11-16 · 작업 86
+- `src/game/world.ts`: 적/드랍 추적 시작·정지 거리 분리, 목표 전환·층 이동 시 추적 상태 초기화.
+- `tests/world-movement.test.mjs`: 가까운 적·짧은 넉백 제자리걸음 방지와 먼 드랍 수집 검사.
+- 검증: 최신 main 통합 후 `pnpm run check`, `pnpm test` 138건, `pnpm run build` 통과.
+
 ## 2026-11-16 · 작업 85
 - 배포 보류: PR #17 병합 후 Vercel 빌드 횟수 제한(24시간 후 재시도). Production에 새 효과 미반영, 제한 해제 후 재배포 필요.
 - `wasteland.ts`, `ambientMotion.ts`, `ambientScene.ts`: 원본 배경 픽셀을 재사용하는 국소 풀/불꽃 변형·불티·빛 일렁임, 30Hz 갱신·감소 모션·리사이즈/정리 지원.
