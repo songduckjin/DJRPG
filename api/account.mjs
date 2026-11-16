@@ -1,4 +1,4 @@
-import { createClient } from '@libsql/client';
+import { client, schema, transaction, account, assertRevision, reconcileItems, writeSave, respondError, fail } from '../server/database.mjs';
 import { createHmac, randomBytes, randomUUID, scrypt as scryptCallback, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
 
@@ -12,7 +12,7 @@ const offlineSeconds = updatedAt => {
 };
 const sign = value => createHmac('sha256', process.env.TURSO_AUTH_TOKEN).update(value).digest('base64url');
 const tokenFor = id => { const value = Buffer.from(JSON.stringify({ id, exp: Date.now() + 30 * 86400_000 })).toString('base64url'); return `${value}.${sign(value)}`; };
-function tokenId(req) {
+export function tokenId(req) {
   const token = req.headers.authorization?.replace(/^Bearer /i, '');
   if (!token || token.length > 4096) return null;
   const [value, mac, extra] = token.split('.');
@@ -34,9 +34,10 @@ async function verifyPassword(password, stored) {
 export default async function handler(req, res) {
   if (req.method !== 'POST') return bad(res, 405, 'METHOD_NOT_ALLOWED', 'POST 요청만 허용합니다.');
   if (!process.env.TURSO_DATABASE_URL || !process.env.TURSO_AUTH_TOKEN) return bad(res, 503, 'DB_NOT_CONFIGURED', '서버 DB가 설정되지 않았습니다. 관리자에게 문의하세요.');
+  let db;
   try {
-    const db = createClient({ url: process.env.TURSO_DATABASE_URL, authToken: process.env.TURSO_AUTH_TOKEN });
-    await db.execute('CREATE TABLE IF NOT EXISTS djrpg_accounts (id TEXT PRIMARY KEY COLLATE NOCASE, password_hash TEXT NOT NULL, save_json TEXT NOT NULL, updated_at TEXT NOT NULL)');
+    db = client();
+    await schema(db);
     const body = req.body ?? {};
     const action = body.action;
     if (action === 'register' || action === 'guest') {
@@ -47,35 +48,50 @@ export default async function handler(req, res) {
       const save = initialSave(id, gender, action === 'guest' ? '모험가' : id);
       try { await db.execute({ sql: 'INSERT INTO djrpg_accounts (id,password_hash,save_json,updated_at) VALUES (?,?,?,?)', args: [id, action === 'guest' ? 'guest' : await hashPassword(password), JSON.stringify(save), new Date().toISOString()] }); }
       catch (error) { if (/UNIQUE|constraint/i.test(String(error))) return bad(res, 409, 'ACCOUNT_EXISTS', '이미 사용 중인 아이디입니다.'); throw error; }
-      return res.status(200).json({ accountId: id, loginId: action === 'guest' ? '게스트' : id, gender, guest: action === 'guest', token: tokenFor(id), save });
+      return res.status(200).json({ accountId: id, loginId: action === 'guest' ? '게스트' : id, gender, guest: action === 'guest', token: tokenFor(id), save, revision: 0 });
     }
     if (action === 'login') {
       const id = String(body.loginId ?? '').trim();
       if (!namePattern.test(id) || typeof body.password !== 'string') return bad(res, 400, 'INVALID_ACCOUNT', '아이디와 비밀번호를 입력하세요.');
       const row = (await db.execute({ sql: 'SELECT id,password_hash,save_json,updated_at FROM djrpg_accounts WHERE id = ?', args: [id] })).rows[0];
       if (!row || !await verifyPassword(body.password, row.password_hash)) return bad(res, 401, 'INVALID_CREDENTIALS', '아이디 또는 비밀번호가 올바르지 않습니다.');
-      const save = JSON.parse(row.save_json);
-      return res.status(200).json({ accountId: row.id, loginId: row.id, gender: save.gender, guest: false, token: tokenFor(row.id), save, offlineSeconds: offlineSeconds(row.updated_at) });
+      const latest = await account(db, row.id);
+      const save = latest.save;
+      return res.status(200).json({ revision: latest.revision, accountId: row.id, loginId: row.id, gender: save.gender, guest: false, token: tokenFor(row.id), save, offlineSeconds: offlineSeconds(row.updated_at) });
     }
     const id = tokenId(req);
     if (!id) return bad(res, 401, 'INVALID_TOKEN', '인증이 만료되었습니다. 다시 로그인하세요.');
-    const row = (await db.execute({ sql: 'SELECT id,password_hash,save_json,updated_at FROM djrpg_accounts WHERE id = ?', args: [id] })).rows[0];
-    if (!row) return bad(res, 401, 'INVALID_TOKEN', '계정을 찾을 수 없습니다. 다시 로그인하세요.');
+    const row = await account(db, id);
     if (action === 'load') {
       const save = JSON.parse(row.save_json);
-      return res.status(200).json({ accountId: row.id, loginId: row.password_hash === 'guest' ? '게스트' : row.id, gender: save.gender, guest: row.password_hash === 'guest', token: req.headers.authorization.slice(7), save, offlineSeconds: offlineSeconds(row.updated_at) });
+      return res.status(200).json({ revision: row.revision, accountId: row.id, loginId: row.password_hash === 'guest' ? '게스트' : row.id, gender: save.gender, guest: row.password_hash === 'guest', token: req.headers.authorization.slice(7), save, offlineSeconds: offlineSeconds(row.updated_at) });
     }
     if (action === 'save' || action === 'reset') {
-      const save = action === 'reset' ? initialSave(id, JSON.parse(row.save_json).gender === 'female' ? 'female' : 'male', row.password_hash === 'guest' ? '모험가' : id) : body.save;
-      if (!save || typeof save !== 'object' || Array.isArray(save) || save.version !== 1 || JSON.stringify(save).length > 200_000) return bad(res, 400, 'INVALID_SAVE', '저장 데이터 형식이 올바르지 않습니다.');
-      save.accountId = id;
-      save.lastActiveAt = Date.now();
-      await db.execute({ sql: 'UPDATE djrpg_accounts SET save_json = ?, updated_at = ? WHERE id = ?', args: [JSON.stringify(save), new Date().toISOString(), id] });
-      return res.status(200).json({ ok: true, save, offlineSeconds: 0 });
+      const result = await transaction(db, async tx => {
+        const latest = await account(tx, id);
+        if (action === 'save' && typeof body.requestId === 'string') {
+          const replay = (await tx.execute({ sql: 'SELECT * FROM djrpg_save_requests WHERE account_id=?', args: [id] })).rows[0];
+          if (replay?.request_id === body.requestId) {
+            assertRevision(latest, Number(replay.revision));
+            return { ok: true, save: latest.save, revision: latest.revision, offlineSeconds: 0 };
+          }
+        }
+        assertRevision(latest, body.revision);
+        const save = action === 'reset' ? initialSave(id, latest.save.gender === 'female' ? 'female' : 'male', latest.password_hash === 'guest' ? '모험가' : id) : body.save;
+        if (!save || typeof save !== 'object' || Array.isArray(save) || save.version !== 1 || JSON.stringify(save).length > 200_000) fail(400, 'INVALID_SAVE', '저장 데이터 형식이 올바르지 않습니다.');
+        if (action === 'reset') {
+          const open = (await tx.execute({ sql: "SELECT COUNT(*) AS n FROM djrpg_market WHERE seller=? AND state='active'", args: [id] })).rows[0];
+          const inbox = (await tx.execute({ sql: 'SELECT COUNT(*) AS n FROM djrpg_market_inbox WHERE account_id=? AND claimed_at IS NULL', args: [id] })).rows[0];
+          if (Number(open.n) || Number(inbox.n)) fail(409, 'MARKET_PENDING', '등록 매물과 미수령 거래가 있어 초기화할 수 없습니다. 먼저 거래소를 정리하세요.');
+        }
+        await reconcileItems(tx, id, latest.save, save);
+        const saved = await writeSave(tx, latest, save);
+        if (action === 'save' && typeof body.requestId === 'string' && body.requestId.length <= 80) await tx.execute({ sql: 'INSERT INTO djrpg_save_requests VALUES (?,?,?) ON CONFLICT(account_id) DO UPDATE SET request_id=excluded.request_id, revision=excluded.revision', args: [id, body.requestId, saved.revision] });
+        return { ok: true, ...saved, offlineSeconds: 0 };
+      });
+      return res.status(200).json(result);
     }
     return bad(res, 400, 'INVALID_ACTION', '지원하지 않는 요청입니다.');
-  } catch (error) {
-    console.error('Account API failed');
-    return bad(res, 503, 'DB_UNAVAILABLE', '서버 DB에 연결할 수 없습니다. 잠시 후 다시 시도하세요.');
-  }
+  } catch (error) { return respondError(res, error); }
+  finally { db?.close(); }
 }
