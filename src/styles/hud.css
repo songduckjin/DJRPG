@@ -77,4 +77,4 @@
 @keyframes slot-choice-pulse { to { box-shadow: 0 0 0 7px #e8b55122, 0 0 24px #f8ca67; } }
 @media (prefers-reduced-motion: reduce) { .action.slot-selecting { animation: none; } }
 
-.bottom-nav button[data-modal="market"] img.nav-icon { width: 44px; height: 44px; opacity: 1; filter: none; }
+.bottom-nav button[data-modal="market"] img.nav-icon { opacity: 1; filter: none; }
