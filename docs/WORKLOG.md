@@ -1,7 +1,7 @@
 ## 2026-11-17 · 작업 87
 - `src/game/wasteland.ts`, `src/game/render.ts`, `src/game/render/field.ts`, `src/game/ambientScene.ts`: 이동에 따른 황야 배경 이동과 모닥불 조명·불티 정렬.
 - `tests/wasteland.test.mjs`, `tests/ambient-motion.test.mjs`: 화면 경계·배경 효과 동기화 검증.
-- 검증: `pnpm run check`, 139개 테스트, `pnpm run build` 통과.
+- 검증: `pnpm run check`, 139개 테스트, `pnpm run build` 통과. Vercel 배포 `success`로 작업 85 배포 보류도 해소.
 
 ## 2026-11-16 · 작업 86
 - `src/game/world.ts`: 적/드랍 추적 시작·정지 거리 분리, 목표 전환·층 이동 시 추적 상태 초기화.
