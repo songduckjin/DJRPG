@@ -48,8 +48,8 @@ export class World {
     return { ok: true, message: `${floor}층으로 이동했습니다.${lostDrops ? ` 바닥의 드랍 ${lostDrops}개가 사라졌습니다.` : ''}` };
   }
 
-  action(kind: Action): void {
-    if (this.paused) return;
+  action(kind: Action | null): void {
+    if (this.paused || !kind) return;
     if (this.cooldown[kind] > 0) return;
     if (kind !== 'attack' && (!this.save.learned.includes(kind) || !this.save.quickSlots.includes(kind))) { this.onMessage('습득하고 퀵슬롯에 장착한 스킬만 사용할 수 있습니다.'); return; }
     const p = this.player;
@@ -177,7 +177,7 @@ export class World {
         if (!drop && distance < 190) {
           if (distance < 90) this.action('attack');
           for (const skill of this.save.quickSlots) {
-            if (!this.save.learned.includes(skill) || this.cooldown[skill] > 0 || distance > skillRange(skill, skillLevel(this.save, skill))) continue;
+            if (!skill || !this.save.learned.includes(skill) || this.cooldown[skill] > 0 || distance > skillRange(skill, skillLevel(this.save, skill))) continue;
             this.action(skill);
           }
         }

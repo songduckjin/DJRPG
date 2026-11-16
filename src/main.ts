@@ -51,14 +51,14 @@ catch (error) {
 }
 
 window.addEventListener('keydown', e => {
-  if (['INPUT','SELECT','TEXTAREA'].includes((e.target as HTMLElement)?.tagName) || world.paused) return;
+  if (['INPUT','SELECT','TEXTAREA','BUTTON'].includes((e.target as HTMLElement)?.tagName) || world.paused) return;
   const key = e.key.toLowerCase();
   if (key === ' ') e.preventDefault();
-  if (e.repeat) return;
+  if (e.repeat || ui.openModal) return;
   if (key === ' ') world.action('attack');
-  if (key === '1') world.action(save.quickSlots[0]);
-  if (key === '2') world.action(save.quickSlots[1]);
-  if (key === '3') world.action(save.quickSlots[2]);
+  if (key === '1') ui.pressSkillSlot(0);
+  if (key === '2') ui.pressSkillSlot(1);
+  if (key === '3') ui.pressSkillSlot(2);
 });
 window.addEventListener('blur', () => { world.attackHeld = false; void flush(); });
 document.addEventListener('visibilitychange', () => { if (document.hidden) void flush(); });

@@ -1,3 +1,4 @@
+import { normalizeQuickSlots, type QuickSlots } from './loadout';
 import { isSkillBook, migrateItem, slots, totalStats, type EquipmentItem, type Item, type Slot } from './items';
 export { slots, slotNames, rarityNames, statNames, isZweihander, equipmentImage, totalStats, rollItem, itemPower, autoEquipBest, salvageByRarity } from './items';
 export type { Rarity, Slot, Stat, Item } from './items';
@@ -6,7 +7,7 @@ import { MAX_SKILL_LEVEL, passiveOrder, skillOrder, type PassiveId, type SkillId
 export type Gender = 'male' | 'female';
 export const MAX_LEVEL = 30;
 
-export type Save = { version: 1; name: string; accountId: string; gender: Gender; auto: boolean; autoClimb: boolean; level: number; exp: number; gold: number; floor: number; maxFloor: number; floorKills: number; kills: number; health: number; equipment: Partial<Record<Slot, EquipmentItem>>; bag: Item[]; tutorial: number; stones: number; skillPoints: number; lastActiveAt: number; learned: SkillId[]; passives: PassiveId[]; quickSlots: [SkillId, SkillId, SkillId]; skillLevels: Partial<Record<SkillLevelId, number>> };
+export type Save = { version: 1; name: string; accountId: string; gender: Gender; auto: boolean; autoClimb: boolean; level: number; exp: number; gold: number; floor: number; maxFloor: number; floorKills: number; kills: number; health: number; equipment: Partial<Record<Slot, EquipmentItem>>; bag: Item[]; tutorial: number; stones: number; skillPoints: number; lastActiveAt: number; learned: SkillId[]; passives: PassiveId[]; quickSlots: QuickSlots; skillLevels: Partial<Record<SkillLevelId, number>> };
 
 const legacyKeys = ['djrpg-save-v1', 'djrpg.save.v1', 'djrpg.save.v1.guest'];
 export function readLegacySave(loginId?: string): { save: Save; key: string } | undefined {
@@ -48,7 +49,7 @@ export function expToNext(level: number): number { return Math.round(2400 * Math
 export function floorKillTarget(floor: number): number { return 120 + 40 * Math.max(0, floor - 1); }
 
 export function freshSave(gender: Gender = 'male'): Save {
-  return { version: 1, name: '모험가', accountId: crypto.randomUUID().slice(0, 8).toUpperCase(), gender, auto: true, autoClimb: true, level: 1, exp: 0, gold: 0, floor: 1, maxFloor: 1, floorKills: 0, kills: 0, health: 100, equipment: {}, bag: [], tutorial: 0, stones: 0, skillPoints: 0, lastActiveAt: Date.now(), learned: [], passives: [], quickSlots: ['slash2', 'spin', 'slam'], skillLevels: {} };
+  return { version: 1, name: '모험가', accountId: crypto.randomUUID().slice(0, 8).toUpperCase(), gender, auto: true, autoClimb: true, level: 1, exp: 0, gold: 0, floor: 1, maxFloor: 1, floorKills: 0, kills: 0, health: 100, equipment: {}, bag: [], tutorial: 0, stones: 0, skillPoints: 0, lastActiveAt: Date.now(), learned: [], passives: [], quickSlots: [null, null, null], skillLevels: {} };
 }
 
 export function parseSave(data: unknown, accountId?: string): Save {
@@ -58,10 +59,9 @@ export function parseSave(data: unknown, accountId?: string): Save {
     if (value.version !== 1) throw new Error('지원하지 않는 저장 버전입니다.');
     const defaults = freshSave(value.gender === 'female' ? 'female' : 'male');
     if (accountId) defaults.accountId = accountId;
-    const quickSlots = Array.isArray(value.quickSlots) && value.quickSlots.length === 3 && value.quickSlots.every(id => skillOrder.includes(id)) && new Set(value.quickSlots).size === 3
-      ? value.quickSlots as [SkillId, SkillId, SkillId] : defaults.quickSlots;
     const learned = Array.isArray(value.learned) ? value.learned.filter(id => skillOrder.includes(id)) : defaults.learned;
     const active = [...new Set(learned)];
+    const quickSlots = normalizeQuickSlots(value.quickSlots, active);
     const passives = Array.isArray(value.passives) ? [...new Set(value.passives.filter(id => passiveOrder.includes(id)))] : [];
     const storedLevels = isRecord(value.skillLevels) ? value.skillLevels : {};
     const skillLevels = Object.fromEntries([...active, ...passives].map(id => {

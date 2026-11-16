@@ -1,4 +1,5 @@
 import { expToNext, floorKillTarget, MAX_LEVEL, totalStats } from '../game/store';
+import { availableSkills } from '../game/loadout';
 import { cooldowns, type Action } from '../game/world';
 import { skills, type SkillId } from '../game/skills';
 import type { Interface } from './interface';
@@ -20,20 +21,29 @@ export function renderStatus(this: Interface): void {
   }
 
 export function tick(this: Interface): void {
+    const available = availableSkills(this.world.save);
     for (let index = 0; index < 4; index++) {
-      const kind: Action = index === 0 ? 'attack' : this.world.save.quickSlots[index - 1];
+      const kind: Action | null = index === 0 ? 'attack' : this.world.save.quickSlots[index - 1];
       const button = index === 0 ? this.attackButton : this.slotButtons[index - 1];
-      const name = kind === 'attack' ? '대검 베기' : skills[kind].name;
-      if (button.dataset.skill !== kind) {
-        button.dataset.skill = kind;
-        button.querySelector('strong')!.textContent = kind === 'attack' ? '⚔' : skills[kind].icon;
-        button.querySelector('small')!.textContent = kind === 'attack' ? '대검 베기' : shortNames[kind];
-        button.setAttribute('aria-label', name);
+      const empty = kind === null, canAdd = empty && available.length > 0;
+      const selecting = index > 0 && !!this.pendingSkill;
+      const name = empty ? canAdd ? '스킬 장착하기' : '미습득' : kind === 'attack' ? '대검 베기' : skills[kind].name;
+      const key = `${kind}:${canAdd}:${selecting}`;
+      if (button.dataset.state !== key) {
+        button.dataset.state = key; button.dataset.skill = kind ?? '';
+        button.querySelector('strong')!.textContent = empty ? canAdd || selecting ? '+' : '—' : kind === 'attack' ? '⚔' : skills[kind].icon;
+        button.querySelector('small')!.textContent = selecting ? '선택' : empty ? canAdd ? '장착' : '미습득' : kind === 'attack' ? '대검 베기' : shortNames[kind];
+        button.setAttribute('aria-label', selecting ? `${index}번 원에 스킬 장착` : name);
+        button.classList.toggle('skill-empty', empty); button.classList.toggle('skill-can-add', canAdd);
+        button.classList.toggle('slot-selecting', selecting); button.disabled = empty && !canAdd && !selecting;
+        const alert = button.querySelector<HTMLElement>('.skill-alert-dot'); if (alert) alert.hidden = !canAdd;
       }
-      const cd = this.world.cooldown[kind];
-      button.classList.toggle('cooling', cd > 0); button.querySelector('em')!.textContent = cd > 0 ? cd.toFixed(1) : '';
-      button.title = `${name} · 쿨타임 ${cooldowns[kind]}초`;
+      const cd = kind ? this.world.cooldown[kind] : 0;
+      button.classList.toggle('cooling', cd > 0 && !selecting); button.querySelector('em')!.textContent = cd > 0 && !selecting ? cd.toFixed(1) : '';
+      button.title = selecting ? '이 원에 장착' : kind ? `${name} · 쿨타임 ${cooldowns[kind]}초` : name;
     }
+    const alert = this.root.querySelector<HTMLElement>('.skill-nav-dot');
+    if (alert) alert.hidden = !(available.length && this.world.save.quickSlots.some(slot => slot === null));
     const { player, save } = this.world;
     this.get('.hp').style.setProperty('--fill', `${Math.max(0, player.hp / totalStats(save).health * 100)}%`);
     this.get('.hp b').textContent = `HP ${Math.ceil(player.hp)}/${totalStats(save).health}`;
