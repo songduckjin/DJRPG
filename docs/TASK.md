@@ -600,7 +600,7 @@
 
 ---
 
-## [-] [작업 80] 하단 메뉴 규격 통일 아이콘 적용
+## [x] [작업 80] 하단 메뉴 규격 통일 아이콘 적용
 - **등록일**: 2026-11-16
 - **담당자**: 이 대화의 클라우드 Codex
 - **수정 예정 파일**: `src/ui/interface.ts`, `public/assets/icons/nav_*_v2.png`, `docs/TASK.md`, `docs/WORKLOG.md`.
