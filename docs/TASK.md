@@ -509,3 +509,12 @@
 - **수정 파일**: `src/game/render/entities.ts`, `src/game/render/heroMotion.ts`, `tests/hero-motion.test.mjs`, `docs/TASK.md`, `docs/WORKLOG.md`.
 - **목표**: 무기 없이 투구만 착용해 회전 스킬을 사용할 때 정지 캐릭터 이미지가 발밑을 축으로 한 바퀴 회전해 깨져 보이는 현상을 수정한다.
 - **완료 기준**: 남녀 무기 없는 스킬 사용 시 캐릭터 외형을 유지하고 회전 이펙트와 착용 무기 공격 동작은 유지하며 타입 검사·테스트·빌드가 통과한다.
+
+---
+
+## [-] [작업 72] 장착 스킬 해제 기능
+- **등록일**: 2026-11-16
+- **담당자**: 로컬 Codex
+- **수정 예정 파일**: `src/game/loadout.ts`, `src/ui/modals/skillModal.ts`, `tests/loadout.test.mjs`, 관련 UI 테스트, `docs/TASK.md`, `docs/WORKLOG.md`.
+- **목표**: 스킬창에서 장착한 액티브 스킬을 빠른 슬롯에서 해제할 수 있게 한다.
+- **완료 기준**: 해제 후 슬롯이 비고 스킬 습득·강화 기록은 유지되며 재장착·저장 복원이 가능하고, 잘못된 해제는 원인을 알리며 타입 검사·테스트·빌드가 통과한다.
