@@ -479,3 +479,11 @@
 1. `pnpm run check`, `pnpm test`, `pnpm run build` 통과 (관련 테스트 6등급 기준으로 보강).
 2. `docs/TASK.md`의 이번 작업을 `[x]` 처리하고 `docs/WORKLOG.md` 상단에 5줄 이내 기록.
 3. **토큰 절약**: 브라우저 실기 테스트는 실행하지 않는다.
+---
+
+## [-] [작업 69] 투구 단독 착용 공격 이미지 깨짐 수정
+- **등록일**: 2026-11-16
+- **담당자**: 로컬 Codex
+- **수정 예정 파일**: `src/game/appearance.ts`, `src/game/render/entities.ts`, `tests/appearance.test.mjs`, `docs/TASK.md`, `docs/WORKLOG.md`.
+- **목표**: 무기 없이 투구만 착용했을 때 공격·스킬 중 검을 든 이미지가 나타나는 외형 불일치를 수정한다.
+- **완료 기준**: 남녀의 무기 유무·투구·갑옷 조합에서 공격 외형이 장착 상태와 일치하고 타입 검사·테스트·빌드가 통과한다.
