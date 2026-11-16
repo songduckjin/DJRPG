@@ -436,12 +436,12 @@
 
 ---
 
-## [-] [작업 66] 투구 단독 표시와 여성 스킬 공격 시트 수정
+## [x] [작업 66] 투구 단독 표시와 여성·남성 스킬 공격 시트 수정
 
 - **등록일**: 2026-11-16
 - **담당자**: 로컬 Codex
-- **수정 예정 파일**: `src/game/appearance.ts`, `src/game/render.ts`, `src/game/render/entities.ts`, `tests/appearance.test.mjs`, `tests/hero-art.test.mjs`, `public/assets/warrior_female_*_attack.png`, `docs/TASK.md`, `docs/WORKLOG.md`.
-- **목표**: 남녀 투구 단독 착용 외형을 유지하고, 여성 투구 단독 착용 시 잘못 연결된 보행 시트를 올바른 공격 4프레임 이미지로 교체한다.
+- **수정 예정 파일**: `src/game/appearance.ts`, `src/game/render.ts`, `src/game/render/entities.ts`, `tests/appearance.test.mjs`, `tests/hero-art.test.mjs`, `public/assets/warrior_female_*_attack.png`, `public/assets/warrior_male_helm_attack.png`, `docs/TASK.md`, `docs/WORKLOG.md`.
+- **목표**: 남녀 투구 단독 착용 외형을 유지하고, 잘못 연결된 보행 시트를 올바른 공격 4프레임 이미지로 교체한다.
 - **완료 기준**: 투구 단독/갑옷 동시 조합의 정지·보행·스킬 공격 이미지가 일관되고 공격 시트 형태 검증, 타입 검사·전체 테스트·빌드가 통과한다.
 
 ---
@@ -453,3 +453,29 @@
 - **목표**: 선택한 세로 배경을 그대로 표시하고 모닥불 세 곳의 조명 정렬, 스킬북 버튼 테마, 도감 장비 버튼 문구·부위 탭·등급 필터와 등급별 테두리를 적용한다.
 - **동시 작업 확인**: 진행 중인 작업 66의 `appearance.ts`, `render.ts`, `render/entities.ts`, 여성 공격 아트는 수정하지 않는다.
 - **완료 기준**: 기존 무작위 배경 장식/조명 중복 제거, 기기 화면 비율 대응, 도감 부위·등급·보유 필터 조합, 타입 검사·테스트·빌드 통과.
+---
+
+## [ ] [작업 68] 장비 6등급 체계 확장 (일반·매직·레어·에픽·유니크·레전드)
+- **등록일**: 2026-11-16
+- **선행 조건 (2인 협업 주의)**: 현재 `[-] [작업 67]`(도감 등급 UI)이 진행 중이므로, **`[작업 67]`이 `[x]` 완료된 후** `git pull` 받아 실행한다.
+- **목표**: 장비 등급을 기존 4단계에서 6단계(`일반 → 매직 → 레어 → 에픽 → 유니크 → 레전드`)로 확장하고, 드랍 확률·스탯·분해·UI 색상·도감·거래소까지 전 영역에 반영한다.
+- **수정 범위**: `src/game/items.ts`, `src/game/codex.ts`, `src/game/world.ts`, `src/ui/modals/equipModal.ts`, `src/ui/modals/codexModal.ts`, `src/ui/modals/marketModal.ts`, `src/styles/modals.css` (및 `rarity`를 참조하는 테스트/UI 파일).
+
+### 작업 내용
+1. **6등급 정의 및 라벨 통일 (`src/game/items.ts`)**:
+   - `Rarity = 'common' | 'magic' | 'rare' | 'epic' | 'unique' | 'legendary'`
+   - `rarityNames`: `{ common: '일반', magic: '매직', rare: '레어', epic: '에픽', unique: '유니크', legendary: '레전드' }`
+   - 기존 키(`common`, `magic`, `rare`, `legendary`)를 그대로 유지해 기존 DB·세이브·거래소 아이템과 100% 호환되게 한다.
+2. **드랍 확률·스탯·티어·분해 밸런스 (`src/game/items.ts`)**:
+   - `rollItem`에서 6등급 계단식 확률을 적용한다(레전드는 기존 극악 확률 유지, 에픽·유니크는 레어와 레전드 사이 구간에 배치).
+   - 등급별 스탯 배율, 부가 옵션 개수(일반 1~레전드 4줄), `rarityTier` 가중치, `itemPower` 점수, `salvageByRarity` 골드·강화석 보상을 6단계에 맞게 확장한다.
+3. **일괄 분해 선택지 및 등급 색상 통일 (`equipModal.ts`, `codexModal.ts`, `marketModal.ts`, `modals.css`)**:
+   - 일괄 분해 순환 버튼에 `일반만 → 매직 이하 → 레어 이하 → 에픽 이하 → 유니크 이하`를 지원한다.
+   - 6등급 색상 체계를 전 UI(가방, 장비창, 도감, 거래소, 필드 드랍 텍스트)에 통일 적용한다:
+     - 일반 `#9ca3af`(회색), 매직 `#60a5fa`(파랑), 레어 `#facc15`(노랑), 에픽 `#c084fc`(보라), 유니크 `#fb923c`(주황), 레전드 `#f87171`(빨강).
+   - 스킬북(`skillbook`)은 기존대로 유지한다.
+
+### 검증 및 완료 기준
+1. `pnpm run check`, `pnpm test`, `pnpm run build` 통과 (관련 테스트 6등급 기준으로 보강).
+2. `docs/TASK.md`의 이번 작업을 `[x]` 처리하고 `docs/WORKLOG.md` 상단에 5줄 이내 기록.
+3. **토큰 절약**: 브라우저 실기 테스트는 실행하지 않는다.
