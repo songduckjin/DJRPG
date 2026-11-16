@@ -455,8 +455,10 @@
 - **완료 기준**: 기존 무작위 배경 장식/조명 중복 제거, 기기 화면 비율 대응, 도감 부위·등급·보유 필터 조합, 타입 검사·테스트·빌드 통과.
 ---
 
-## [ ] [작업 68] 장비 6등급 체계 확장 (일반·매직·레어·에픽·유니크·레전드)
+## [-] [작업 68] 장비 6등급 체계 확장 (일반·매직·레어·에픽·유니크·레전드)
 - **등록일**: 2026-11-16
+- **담당자**: 로컬 Codex
+- **수정 예정 파일**: `src/game/items.ts`, `src/game/codex.ts`, `src/game/world.ts`, `src/ui/modals/equipModal.ts`, `src/ui/modals/codexModal.ts`, `src/ui/modals/marketModal.ts`, `src/styles/modals.css`, 등급 참조 파일·테스트, `docs/TASK.md`, `docs/WORKLOG.md`.
 - **선행 조건 (2인 협업 주의)**: 현재 `[-] [작업 67]`(도감 등급 UI)이 진행 중이므로, **`[작업 67]`이 `[x]` 완료된 후** `git pull` 받아 실행한다.
 - **목표**: 장비 등급을 기존 4단계에서 6단계(`일반 → 매직 → 레어 → 에픽 → 유니크 → 레전드`)로 확장하고, 드랍 확률·스탯·분해·UI 색상·도감·거래소까지 전 영역에 반영한다.
 - **수정 범위**: `src/game/items.ts`, `src/game/codex.ts`, `src/game/world.ts`, `src/ui/modals/equipModal.ts`, `src/ui/modals/codexModal.ts`, `src/ui/modals/marketModal.ts`, `src/styles/modals.css` (및 `rarity`를 참조하는 테스트/UI 파일).
