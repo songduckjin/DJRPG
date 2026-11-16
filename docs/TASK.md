@@ -402,3 +402,27 @@
 - **등록일**: 2026-11-16
 - **목표**: 장비 제목 옆 도감 버튼으로 기본 장비 75종의 그림·부위·검색·발견/보유 필터·상세 옵션·등급별 등장 가능 층을 확인한다. 발견 이력은 계정 저장에 누적하고 분해/판매 후에도 유지한다.
 - **완료 기준**: 반지 중복 없이 75종, 기존 가방·착용 장비 발견 이관, 기록 저장 호환과 기존 기능 유지, 도감 고정 닫기 행, 타입 검사·테스트·빌드 통과.
+---
+
+## [작업 61] 단일 기기 로그인 강제 (새 기기 로그인 시 기존 기기 자동 접속 해제)
+- **등록일**: 2026-11-16
+- **목표**: 같은 계정으로 새 기기나 새 탭에서 로그인하면 서버에서 기존 세션 토큰을 즉시 무효화하여, 이전 기기/탭이 뒤에서 저장 충돌을 일으키지 않고 자동으로 접속 해제(로그아웃)되도록 한다.
+- **수정 범위 (토큰 절약)**: `server/database.mjs`, `api/account.mjs`, `api/market.mjs`, `api/market-events.mjs`, `src/game/sync.ts`, `src/ui/login.ts` (및 세션 만료 콜백 연결부) 위주로 수정한다.
+
+### 작업 내용
+1. **DB `session_id` 컬럼 및 발급 (`server/database.mjs`, `api/account.mjs`)**:
+   - `djrpg_accounts` 테이블에 `session_id TEXT` 컬럼을 추가(기존 DB 호환을 위해 `ALTER TABLE ... ADD COLUMN session_id TEXT` 예외 안전 처리)한다.
+   - `login`, `register`, `guest` 성공 시 매번 새 `sessionId = randomUUID()`를 생성해 DB의 `session_id`에 저장하고, 서명 토큰(`tokenFor`) 페이로드에 `{ id, sid: sessionId, exp }`를 포함한다.
+2. **서버 단일 세션 검증 (`api/account.mjs`, `api/market.mjs`, `api/market-events.mjs`)**:
+   - 인증이 필요한 API(`session` 조회, `save`, `logout`, 거래소 API 및 이벤트 스트림)에서 토큰의 `sid`와 DB `account.session_id`를 비교한다.
+   - DB `session_id`가 존재하고 토큰의 `sid`와 불일치하면(구 토큰 포함) **`401` + `{ code: 'SESSION_REPLACED', error: '다른 기기에서 로그인되어 접속이 해제되었습니다.' }`**를 반환한다.
+   - `logout` 호출 시에는 DB `session_id`를 비워 기존 토큰도 즉시 무효화한다.
+3. **클라이언트 강제 접속 해제 처리 (`src/game/sync.ts`, `src/main.ts` / `src/ui/interface.ts`, `src/ui/login.ts`)**:
+   - 세이브 동기화(`sync.ts`), 거래소 API, 이벤트 스트림에서 `401` (`SESSION_REPLACED` / `UNAUTHORIZED`) 응답을 받으면 즉시 자동 저장/재연결 루프를 멈추고 로컬 토큰을 지운 뒤 로그인 화면으로 전환한다.
+   - 로그인 화면 상단에 `"다른 기기에서 로그인되어 접속이 해제되었습니다."` 안내 메시지를 띄운다.
+
+### 검증 및 완료 기준
+1. 단일 세션 테스트(새 로그인 후 이전 토큰으로 `session`/`save`/거래소 호출 시 `401 SESSION_REPLACED` 반환) 추가 및 통과.
+2. `pnpm run check`, `pnpm test`, `pnpm run build` 통과.
+3. `docs/TASK.md`의 이번 작업을 `[x]` 처리하고 `docs/WORKLOG.md` 상단에 5줄 이내 기록.
+4. **토큰 절약**: 브라우저 실기 테스트는 실행하지 않는다.
