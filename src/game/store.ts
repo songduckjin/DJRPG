@@ -1,5 +1,5 @@
 import { isSkillBook, migrateItem, slots, totalStats, type EquipmentItem, type Item, type Slot } from './items';
-export { slots, slotNames, rarityNames, statNames, baseItems, isZweihander, equipmentImagePath, totalStats, rollItem, itemPower, autoEquipBest, salvageByRarity } from './items';
+export { slots, slotNames, rarityNames, statNames, isZweihander, equipmentImage, totalStats, rollItem, itemPower, autoEquipBest, salvageByRarity } from './items';
 export type { Rarity, Slot, Stat, Item } from './items';
 import { MAX_SKILL_LEVEL, passiveOrder, skillOrder, type PassiveId, type SkillId, type SkillLevelId } from './skills';
 

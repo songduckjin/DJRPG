@@ -1,4 +1,4 @@
-import { autoEquipBest, equipmentImagePath, rarityNames, salvageByRarity, slotNames, statNames, totalStats, useSkillBook, type Item, type Rarity, type Save, type Slot, type Stat } from '../../game/store';
+import { autoEquipBest, equipmentImage, rarityNames, salvageByRarity, slotNames, statNames, totalStats, useSkillBook, type Item, type Rarity, type Save, type Slot, type Stat } from '../../game/store';
 import { isSkillBook } from '../../game/items';
 import type { BagFilter, Interface } from '../interface';
 
@@ -23,7 +23,7 @@ export function renderInventory(this: Interface, dialog: HTMLElement): void {
       || (this.bagFilter === 'skillbook' && isSkillBook(item)));
     for (const item of visible) {
       const cell = document.createElement('button'); cell.className = `bag-item ${item.rarity} ${this.selected === item.id ? 'selected' : ''}`;
-      cell.innerHTML = `<img class="item-icon" src="${this.iconPath(item.slot, item)}" alt=""><small>${rarityNames[item.rarity]}</small><b></b>`;
+      cell.innerHTML = `${itemIcon.call(this, item.slot, item, 'item-icon')}<small>${rarityNames[item.rarity]}</small><b></b>`;
       cell.querySelector('b')!.textContent = item.name;
       cell.onclick = () => { this.selected = item.id; this.renderModal(); };
       grid.appendChild(cell);
@@ -107,7 +107,7 @@ export function renderEquipment(this: Interface, dialog: HTMLElement): void {
     left.className = 'showcase-side'; right.className = 'showcase-side';
     const addSlot = (slot: Slot, side: HTMLElement) => {
       const item = save.equipment[slot]; const cell = document.createElement('button'); cell.className = `equipment-slot ${item?.rarity ?? 'empty-slot'}`;
-      cell.innerHTML = `<img class="slot-icon" src="${this.iconPath(slot, item)}" alt=""><span class="slot-meta"><small>${slotNames[slot]}</small><b></b><em></em></span>`;
+      cell.innerHTML = `${itemIcon.call(this, slot, item, 'slot-icon')}<span class="slot-meta"><small>${slotNames[slot]}</small><b></b><em></em></span>`;
       cell.querySelector('b')!.textContent = item?.name ?? '빈 슬롯';
       const core = item && (Object.keys(item.stats) as Stat[])[0];
       cell.querySelector('em')!.textContent = core ? `${statNames[core]} +${item.stats[core]}` : '';
@@ -134,9 +134,17 @@ export function renderEquipment(this: Interface, dialog: HTMLElement): void {
 
 export function salvageValue(this: Interface, item: Item): number { return { common: 3, magic: 10, rare: 25, legendary: 60 }[item.rarity]; }
 
+function itemIcon(this: Interface, slot: Slot | 'skillbook', item: Item | undefined, className: string): string {
+  if (item && !isSkillBook(item)) {
+    const art = equipmentImage(item);
+    if (art.columns === 5) return `<span class="${className} atlas-icon" style="background-image:url('${art.path}');background-position:${art.frame * 25}% center" aria-hidden="true"></span>`;
+  }
+  return `<img class="${className}" src="${this.iconPath(slot, item)}" alt="">`;
+}
+
 export function iconPath(this: Interface, slot: Slot | 'skillbook', item?: Item): string {
   if (slot === 'skillbook') return '/assets/icons/icon_skillbook.png';
   const iconSlot = slot === 'ring1' || slot === 'ring2' ? 'ring' : slot;
-  if (item && item.slot !== 'skillbook') return equipmentImagePath(item);
+  if (item && !isSkillBook(item)) return equipmentImage(item).path;
   return `/assets/icons/${iconSlot}.png`;
 }

@@ -5,9 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
-    "icons": "node scripts/generate-item-icons.mjs",
-    "check": "tsc --noEmit",
-    "build": "tsc --noEmit && vite build"
+    "check": "tsc --noEmit && node scripts/verify-item-art.mjs",
+    "build": "tsc --noEmit && node scripts/verify-item-art.mjs && vite build"
   },
   "dependencies": {
     "@libsql/client": "^0.18.0",

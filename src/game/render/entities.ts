@@ -1,7 +1,7 @@
-import { Assets, Container, Sprite, Text, type Texture } from 'pixi.js';
+import { Assets, Container, Rectangle, Sprite, Text, Texture } from 'pixi.js';
 import type { World } from '../world';
 import type { Art, GameView } from '../render';
-import { equipmentImagePath, slots, type Save, type Slot } from '../store';
+import { equipmentImage, slots, type Save, type Slot } from '../store';
 
 const gearPosition: Record<Slot, [number, number, number]> = {
   weapon: [.73, .45, .48], offhand: [.29, .47, .16], helmet: [.51, .22, .21],
@@ -12,18 +12,26 @@ const gearPosition: Record<Slot, [number, number, number]> = {
 function syncGear(view: GameView, save: Save, texture: Texture, attackFrame: number, attacking: boolean): void {
   for (const slot of slots) {
     const item = save.equipment[slot];
-    const path = item ? equipmentImagePath(item, true) : '';
+    const art = item ? equipmentImage(item) : undefined;
+    const path = art?.path ?? '';
+    const key = art ? `${path}:${art.frame}` : '';
     let shown = view.heroGear.get(slot);
-    if (shown && shown.path !== path) {
+    if (shown && shown.path !== key) {
       view.heroLayer.removeChild(shown.sprite);
       shown.sprite.destroy();
       view.heroGear.delete(slot);
       shown = undefined;
     }
     if (!path) continue;
-    const gearTexture = view.gearTextures.get(path);
+    let gearTexture = view.gearTextures.get(key);
     if (!gearTexture) {
-      if (!view.gearLoading.has(path)) {
+      const sheet = view.gearTextures.get(path);
+      if (sheet && art) {
+        const left = Math.round(art.frame * sheet.source.width / art.columns);
+        const right = Math.round((art.frame + 1) * sheet.source.width / art.columns);
+        gearTexture = art.columns === 1 ? sheet : new Texture({ source: sheet.source, frame: new Rectangle(left, 0, right - left, sheet.source.height) });
+        view.gearTextures.set(key, gearTexture);
+      } else if (!view.gearLoading.has(path)) {
         view.gearLoading.add(path);
         void Assets.load<Texture>(path).then(loaded => {
           loaded.source.scaleMode = 'linear';
@@ -34,14 +42,14 @@ function syncGear(view: GameView, save: Save, texture: Texture, attackFrame: num
           console.error(`장비 이미지 로딩 실패: ${path}`, error);
         });
       }
-      continue;
+      if (!gearTexture) continue;
     }
     if (!shown) {
       const sprite = new Sprite(gearTexture);
       sprite.anchor.set(.5);
       sprite.alpha = .92;
       view.heroLayer.addChild(sprite);
-      shown = { path, sprite };
+      shown = { path: key, sprite };
       view.heroGear.set(slot, shown);
     }
     const [u, v, size] = slot === 'weapon' && attacking

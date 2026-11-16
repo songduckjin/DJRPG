@@ -46,12 +46,11 @@ export const baseItems: Record<Slot, readonly string[]> = {
 
 export function isZweihander(item: Item): boolean { return item.slot === 'weapon' && /쯔바이핸드|츠바이핸더/.test(item.name); }
 
-export function equipmentImagePath(item: EquipmentItem, wearable = false): string {
+export function equipmentImage(item: EquipmentItem): { path: string; frame: number; columns: number } {
   const slot = item.slot === 'ring1' || item.slot === 'ring2' ? 'ring' : item.slot;
   const index = baseItems[item.slot].findIndex(base => item.name === base || item.name.endsWith(` ${base}`));
-  if (index >= 0) return `/assets/${wearable ? 'equipment' : 'icons/items'}/${slot}_${String(index).padStart(2, '0')}.svg`;
-  if (isZweihander(item)) return '/assets/icons/icon_zweihander.png';
-  return `/assets/icons/${slot}.png`;
+  if (index >= 0) return { path: `/assets/item-art/${slot}_${Math.floor(index / 5) * 5}.png`, frame: index % 5, columns: 5 };
+  return { path: isZweihander(item) ? '/assets/icons/icon_zweihander.png' : `/assets/icons/${slot}.png`, frame: 0, columns: 1 };
 }
 
 export function migrateItem(value: unknown): Item | undefined {
