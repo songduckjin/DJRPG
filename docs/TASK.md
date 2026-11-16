@@ -512,9 +512,9 @@
 
 ---
 
-## [-] [작업 72] 장착 스킬 해제 기능
+## [x] [작업 72] 장착 스킬 해제 기능
 - **등록일**: 2026-11-16
 - **담당자**: 로컬 Codex
-- **수정 예정 파일**: `src/game/loadout.ts`, `src/ui/modals/skillModal.ts`, `tests/loadout.test.mjs`, 관련 UI 테스트, `docs/TASK.md`, `docs/WORKLOG.md`.
+- **수정 파일**: `src/game/loadout.ts`, `src/ui/modals/skillModal.ts`, `tests/loadout.test.mjs`, `tests/skill-ui.test.mjs`, `docs/TASK.md`, `docs/WORKLOG.md`.
 - **목표**: 스킬창에서 장착한 액티브 스킬을 빠른 슬롯에서 해제할 수 있게 한다.
 - **완료 기준**: 해제 후 슬롯이 비고 스킬 습득·강화 기록은 유지되며 재장착·저장 복원이 가능하고, 잘못된 해제는 원인을 알리며 타입 검사·테스트·빌드가 통과한다.

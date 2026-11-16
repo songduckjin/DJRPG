@@ -17,3 +17,9 @@ export function equipSkill(save: Save, id: SkillId, slot: number): { ok: boolean
   save.quickSlots[slot] = id;
   return { ok: true, message: '스킬을 장착했습니다.' };
 }
+export function unequipSkill(save: Save, id: SkillId): { ok: boolean; message: string } {
+  const slot = save.quickSlots.indexOf(id);
+  if (slot < 0) return { ok: false, message: '장착되지 않은 스킬입니다.' };
+  save.quickSlots[slot] = null;
+  return { ok: true, message: `${slot + 1}번 스킬 원에서 해제했습니다.` };
+}

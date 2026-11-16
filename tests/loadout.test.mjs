@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import './ts-loader.mjs';
 const { freshSave, parseSave, useSkillBook }=await import('../src/game/store.ts');
-const { normalizeQuickSlots, availableSkills, equipSkill }=await import('../src/game/loadout.ts');
+const { normalizeQuickSlots, availableSkills, equipSkill, unequipSkill }=await import('../src/game/loadout.ts');
 const { World }=await import('../src/game/world.ts');
 test('new save has three genuinely empty skill slots',()=>assert.deepEqual(freshSave().quickSlots,[null,null,null]));
 test('legacy save retains learned equipped skills and clears unlearned placeholders',()=>{
@@ -31,4 +31,16 @@ test('unlearned skills, invalid slots and duplicates never change equipment',()=
 });
 test('empty skill slots are safe for automatic combat and keyboard actions',()=>{
   const world=new World(freshSave());assert.doesNotThrow(()=>world.action(null));assert.doesNotThrow(()=>world.update(.016));
+});
+test('unequipping a skill clears only its quick slot and preserves learning, levels, and save recovery',()=>{
+  const save=freshSave();save.learned=['slash2','spin'];save.quickSlots=['slash2','spin',null];save.skillLevels.spin=4;
+  assert.deepEqual(unequipSkill(save,'spin'),{ok:true,message:'2번 스킬 원에서 해제했습니다.'});
+  assert.deepEqual(save.quickSlots,['slash2',null,null]);assert.deepEqual(save.learned,['slash2','spin']);assert.equal(save.skillLevels.spin,4);
+  assert.deepEqual(availableSkills(save),['spin']);
+  const loaded=parseSave(JSON.parse(JSON.stringify(save)));assert.deepEqual(loaded.quickSlots,['slash2',null,null]);assert.equal(loaded.skillLevels.spin,4);
+  assert(equipSkill(loaded,'spin',2).ok);assert.deepEqual(loaded.quickSlots,['slash2',null,'spin']);
+});
+test('unequipping an absent skill reports the reason without changing slots',()=>{
+  const save=freshSave();save.learned=['spin'];const before=JSON.stringify(save);
+  assert.deepEqual(unequipSkill(save,'spin'),{ok:false,message:'장착되지 않은 스킬입니다.'});assert.equal(JSON.stringify(save),before);
 });

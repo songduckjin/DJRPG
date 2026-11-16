@@ -4,6 +4,7 @@ import './ts-loader.mjs';
 const { freshSave }=await import('../src/game/store.ts');
 const { tick }=await import('../src/ui/hud.ts');
 const { chooseSkill, pressSkillSlot, cancelSkillSelection }=await import('../src/ui/skillLoadout.ts');
+const { renderSkills }=await import('../src/ui/modals/skillModal.ts');
 function node(){const classes=new Set(),children=new Map();return {dataset:{},hidden:false,disabled:false,textContent:'',style:{setProperty(){}},classList:{toggle(key,on){if(on)classes.add(key);else classes.delete(key);},contains:key=>classes.has(key)},setAttribute(key,value){this[key]=value;},querySelector(key){if(!children.has(key))children.set(key,node());return children.get(key);},append(){},appendChild(){},remove(){},focus(){}};}
 function uiFixture(){
   const save=freshSave(),root=node(),messages=[],actions=[];
@@ -25,4 +26,14 @@ test('choosing an extra skill highlights all field circles and replaces exactly 
 test('canceling field selection keeps the loadout intact and equipped clicks still cast',()=>{
   const ui=uiFixture();ui.world.save.learned=['slash2','spin','slam','power'];ui.world.save.quickSlots=['slash2','spin','slam'];ui.pendingSkill='power';
   cancelSkillSelection.call(ui);assert.equal(ui.pendingSkill,undefined);assert.deepEqual(ui.world.save.quickSlots,['slash2','spin','slam']);pressSkillSlot.call(ui,0);assert.deepEqual(ui.actions,['slash2']);
+});
+test('skill window unequip button clears the assigned circle and saves the change',()=>{
+  const created=[];globalThis.document={createElement:()=>{const element=node();created.push(element);return element;}};
+  try {
+    const ui=uiFixture();let changes=0;ui.world.onChange=()=>{changes++;};ui.world.save.learned=['spin'];ui.world.save.quickSlots=[null,'spin',null];
+    renderSkills.call(ui,node());
+    const remove=created.find(element=>element.textContent==='해제');assert(remove);remove.onclick();
+    assert.deepEqual(ui.world.save.quickSlots,[null,null,null]);assert.deepEqual(ui.world.save.learned,['spin']);assert.equal(changes,1);
+    assert(ui.messages.at(-1).includes('2번 스킬 원에서 해제'));
+  } finally {delete globalThis.document;}
 });
