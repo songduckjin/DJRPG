@@ -9,13 +9,13 @@ export function renderSkills(this: Interface, dialog: HTMLElement): void {
     note.textContent = '사냥에서 스킬북을 획득해 가방에서 사용하면 스킬을 습득하거나 강화합니다.';
     list.appendChild(note);
     const base = document.createElement('article'); base.className = 'skill-card';
-    base.innerHTML = '<div class="skill-icon">⚔</div><div class="skill-info"><h3>대검 베기 <small>Lv.1 · 기본 보유</small></h3><p>묵직한 두손검 횡베기로 전방 넓은 부채꼴을 공격합니다.</p><small>마나 0 · 기본 쿨타임 0.48초 · 공격력 × 1.0 · 고정 슬롯</small></div>';
+    base.innerHTML = '<div class="skill-icon">⚔</div><div class="skill-info"><h3>대검 베기 <small>Lv.1 · 기본 보유</small></h3><p>묵직한 두손검 횡베기로 전방 넓은 부채꼴을 공격합니다.</p><small>기본 쿨타임 0.48초 · 공격력 × 1.0 · 고정 슬롯</small></div>';
     list.appendChild(base);
     for (const id of skillOrder) {
       const skill = skills[id], learned = save.learned.includes(id), level = learned ? skillLevel(save, id) : 1;
       const growth = id === 'warcry' ? `공격 버프 +${50 + (level - 1) * 5}%` : `위력 +${(level - 1) * 10}%`;
       const card = document.createElement('article'); card.className = 'skill-card'; card.dataset.skill = id;
-      card.innerHTML = `<div class="skill-icon">${skill.icon}</div><div class="skill-info"><h3>${skill.name} <small>권장 Lv.${skill.level}</small></h3><p>${skill.description}</p><strong class="skill-level">${learned ? `스킬 Lv.${level} / ${MAX_SKILL_LEVEL}` : '미습득 (스킬북 파밍 필요)'}</strong><small>마나 ${skill.cost} · 쿨타임 ${skill.cooldown}초 · 지속 ${skillDuration(id, level).toFixed(1)}초 · 범위 ${skillRange(id, level)} · ${growth}</small><div class="skill-actions"></div></div>`;
+      card.innerHTML = `<div class="skill-icon">${skill.icon}</div><div class="skill-info"><h3>${skill.name} <small>권장 Lv.${skill.level}</small></h3><p>${skill.description}</p><strong class="skill-level">${learned ? `스킬 Lv.${level} / ${MAX_SKILL_LEVEL}` : '미습득 (스킬북 파밍 필요)'}</strong><small>쿨타임 ${skill.cooldown}초 · 지속 ${skillDuration(id, level).toFixed(1)}초 · 범위 ${skillRange(id, level)} · ${growth}</small><div class="skill-actions"></div></div>`;
       const actions = card.querySelector<HTMLElement>('.skill-actions')!;
       if (!learned) {
         const state = document.createElement('span'); state.textContent = '미습득 (스킬북 파밍 필요)'; actions.appendChild(state);

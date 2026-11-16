@@ -127,7 +127,7 @@ export function renderEquipment(this: Interface, dialog: HTMLElement): void {
     showcase.append(left, center, right); dialog.appendChild(showcase);
     const summary = document.createElement('div'); summary.className = 'showcase-stats';
     const power = Math.round(stats.attack * 3 + stats.defense * 2 + stats.health * .2 + stats.crit * 2 + stats.speed * 2);
-    summary.innerHTML = `<span>전투력 <b>${power}</b></span><span>공격 <b>${stats.attack}</b></span><span>방어 <b>${stats.defense}</b></span><span>HP <b>${Math.ceil(this.world.player.hp)}/${stats.health}</b></span><span>MP <b>${Math.ceil(this.world.player.mp)}/100</b></span>`;
+    summary.innerHTML = `<span>전투력 <b>${power}</b></span><span>공격 <b>${stats.attack}</b></span><span>방어 <b>${stats.defense}</b></span><span>HP <b>${Math.ceil(this.world.player.hp)}/${stats.health}</b></span>`;
     dialog.appendChild(summary);
     const hint = document.createElement('p'); hint.className = 'modal-hint'; hint.textContent = '장착한 장비를 터치하면 가방으로 옮깁니다.'; dialog.appendChild(hint);
   }

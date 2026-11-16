@@ -104,6 +104,6 @@
 .skill-list h3 { margin: 0 0 3px; font-size: 13px; color: #f2dfbb; }
 .skill-list p { margin: 0 0 3px; font-size: 11px; color: #b5a79e; line-height: 1.45; }
 .skill-list small { font-size: 10px; color: #d2a96d; }
-@media (max-width: 370px) { .resource.hp { left: 127px; } .resource.mp { right: 174px; } .stick { left: 12px; } .slot-icon { flex-basis: 22px; width: 22px; height: 22px; } .equipment-slot small, .equipment-slot b { font-size: 8px; } }
+@media (max-width: 370px) { .slot-icon { flex-basis: 22px; width: 22px; height: 22px; } .equipment-slot small, .equipment-slot b { font-size: 8px; } }
 @media (max-height: 650px) { .equipment-showcase { height: 180px; flex-basis: 180px; } .equipment-slot { max-height: 34px; } .equipment-modal .modal-hint { display: none; } .equipment-modal .modal-bag { margin-top: 5px; } }
 @media (max-height: 550px) { .modal-dialog.equipment-modal { overflow-y: auto; } .equipment-modal .modal-bag { flex: none; min-height: 220px; overflow: visible; } .equipment-modal .modal-bag-footer { position: sticky; bottom: 0; z-index: 2; } }

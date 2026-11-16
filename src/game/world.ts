@@ -7,12 +7,11 @@ export type Drop = { x: number; y: number; item: Item; age: number; warned: bool
 export type Effect = { x: number; y: number; kind: 'slash' | 'slash2' | 'spin' | 'crushing' | 'slam' | 'warcry' | 'power' | 'destroy' | 'hell' | 'hit' | 'death'; age: number; duration: number; angle: number; swing?: number; amount?: number; nextHit?: number; power?: number; level?: number };
 export type Action = 'attack' | SkillId;
 export const cooldowns: Record<Action, number> = { attack: .48, slash2: skills.slash2.cooldown, spin: skills.spin.cooldown, crushing: skills.crushing.cooldown, slam: skills.slam.cooldown, warcry: skills.warcry.cooldown, power: skills.power.cooldown, destroy: skills.destroy.cooldown, hell: skills.hell.cooldown };
-export const costs: Record<Action, number> = { attack: 0, slash2: skills.slash2.cost, spin: skills.spin.cost, crushing: skills.crushing.cost, slam: skills.slam.cost, warcry: skills.warcry.cost, power: skills.power.cost, destroy: skills.destroy.cost, hell: skills.hell.cost };
 export function enemyMaxHp(floor: number, boss: boolean): number { return boss ? 300 + floor * 120 + floor * floor * 30 : 20 + floor * 10 + floor * floor * 2; }
 export function enemyHitDamage(floor: number, boss: boolean, defense: number): number { return Math.max(1, (boss ? 22 + floor * 5 : 7 + floor * 2) - defense * .2); }
 
 export class World {
-  player = { x: 0, y: 0, facing: 0, facingSide: 1, mp: 100, hp: 100, berserk: 0, berserkLevel: 1, hit: 0 };
+  player = { x: 0, y: 0, facing: 0, facingSide: 1, hp: 100, berserk: 0, berserkLevel: 1, hit: 0 };
   enemies: Enemy[] = [];
   drops: Drop[] = [];
   effects: Effect[] = [];
@@ -51,8 +50,6 @@ export class World {
   action(kind: Action): void {
     if (this.cooldown[kind] > 0) return;
     if (kind !== 'attack' && (!this.save.learned.includes(kind) || !this.save.quickSlots.includes(kind))) { this.onMessage('습득하고 퀵슬롯에 장착한 스킬만 사용할 수 있습니다.'); return; }
-    if (this.player.mp < costs[kind]) { this.onMessage('마나가 부족합니다.'); return; }
-    this.player.mp -= costs[kind];
     const p = this.player;
     const level = kind === 'attack' ? 1 : skillLevel(this.save, kind);
     const range = kind === 'attack' ? 90 : skillRange(kind, level);
@@ -165,7 +162,6 @@ export class World {
     this.attackPose = Math.max(0, this.attackPose - dt);
     p.berserk = Math.max(0, p.berserk - dt);
     p.hit = Math.max(0, p.hit - dt);
-    p.mp = Math.min(100, p.mp + dt * 6);
     this.activeMove = { x: 0, y: 0 };
       const drop = this.save.bag.length >= 40 ? undefined : this.drops.reduce<Drop | undefined>((best, current) => !best || Math.hypot(current.x - p.x, current.y - p.y) < Math.hypot(best.x - p.x, best.y - p.y) ? current : best, undefined);
       const enemy = this.nearest();
@@ -178,7 +174,7 @@ export class World {
         if (!drop && distance < 190) {
           if (distance < 90) this.action('attack');
           for (const skill of this.save.quickSlots) {
-            if (!this.save.learned.includes(skill) || this.cooldown[skill] > 0 || p.mp < costs[skill] || distance > skillRange(skill, skillLevel(this.save, skill))) continue;
+            if (!this.save.learned.includes(skill) || this.cooldown[skill] > 0 || distance > skillRange(skill, skillLevel(this.save, skill))) continue;
             this.action(skill);
           }
         }

@@ -1,5 +1,5 @@
 import { expToNext, floorKillTarget, MAX_LEVEL, totalStats } from '../game/store';
-import { cooldowns, costs, type Action } from '../game/world';
+import { cooldowns, type Action } from '../game/world';
 import { skills, type SkillId } from '../game/skills';
 import type { Interface } from './interface';
 
@@ -12,8 +12,7 @@ export function renderStatus(this: Interface): void {
     const levelBadge = this.get('.level-badge'); levelBadge.style.setProperty('--progress', `${progress}%`); levelBadge.addEventListener('click', () => this.open('account'));
     this.get('.floor-button').addEventListener('click', () => this.open('floor'));
     this.get('.hp').style.setProperty('--fill', `${Math.max(0, player.hp / totalStats(save).health * 100)}%`);
-    this.get('.mp').style.setProperty('--fill', `${player.mp}%`);
-    this.get('.hp b').textContent = `${Math.ceil(player.hp)}`; this.get('.mp b').textContent = `${Math.ceil(player.mp)}`;
+    this.get('.hp b').textContent = `${Math.ceil(player.hp)}`;
     const text = ['자동 사냥이 시작되었습니다. 첫 해골전사를 처치하세요.', '낡은 두손검을 자동으로 줍고 있습니다.', '하단 갑옷 아이콘을 눌러 가방의 낡은 두손검을 장착하세요.'][save.tutorial];
     this.banner.textContent = text ?? ''; this.banner.hidden = save.tutorial >= 3;
   }
@@ -31,12 +30,11 @@ export function tick(this: Interface): void {
       }
       const cd = this.world.cooldown[kind];
       button.classList.toggle('cooling', cd > 0); button.querySelector('em')!.textContent = cd > 0 ? cd.toFixed(1) : '';
-      button.title = `${name} · 마나 ${costs[kind]} · 쿨타임 ${cooldowns[kind]}초`;
+      button.title = `${name} · 쿨타임 ${cooldowns[kind]}초`;
     }
     const { player, save } = this.world;
     this.get('.hp').style.setProperty('--fill', `${Math.max(0, player.hp / totalStats(save).health * 100)}%`);
-    this.get('.mp').style.setProperty('--fill', `${player.mp}%`);
-    this.get('.hp b').textContent = `${Math.ceil(player.hp)}`; this.get('.mp b').textContent = `${Math.ceil(player.mp)}`;
+    this.get('.hp b').textContent = `${Math.ceil(player.hp)}`;
   }
 
 export function renderBagBadge(this: Interface): void {
