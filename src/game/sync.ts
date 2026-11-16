@@ -1,7 +1,7 @@
 import { parseSave, type Save } from './store';
 import { accountRequest, type Session } from '../ui/login';
 
-export type SyncResult = { ok: boolean; save: Save; revision: number; message?: string };
+export type SyncResult = { ok: boolean; save: Save; revision: number; message?: string; effect?: { listing?: { id: string; state: string; soldAt?: number }; deliveries: import('./market').Delivery[]; claimedId?: string } };
 export class SaveSync {
   revision: number;
   active?: Promise<boolean>;
@@ -9,7 +9,7 @@ export class SaveSync {
   pending = false;
   locked = false;
   conflicted = false;
-  pendingMarket?: { action: string; data: Record<string, unknown>; requestId: string; revision: number };
+  pendingMarket?: { action: string; data: Record<string, unknown>; requestId: string; revision: number; progress: Save };
   onStatus: (status: string) => void = () => {};
   onMessage: (message: string) => void = () => {};
   onPause: (paused: boolean) => void = () => {};
@@ -20,7 +20,7 @@ export class SaveSync {
     this.pending = true;
     if (this.active) return this.active;
     this.active = (async () => {
-      while (this.pending) {
+      while (this.pending && !this.locked) {
         this.pending = false; this.onStatus('저장 중');
         try {
           const recovering = !!this.pendingSave;
@@ -50,17 +50,26 @@ export class SaveSync {
     try {
       if (this.pendingMarket && this.pendingMarket.requestId !== requestId) throw new Error('이전 거래의 결과를 먼저 확인해야 합니다. 거래 결과 다시 확인을 눌러주세요.');
       if (!this.pendingMarket) {
-        if (!await this.flush()) throw new Error('진행 상황을 먼저 저장해야 거래할 수 있습니다.');
-        this.pendingMarket = { action, data, requestId, revision: this.revision };
+        // Finish only an already-running save; send remaining progress with the trade itself.
+        this.locked = true;
+        if (this.active) await this.active;
+        if (this.conflicted) throw new Error('최신 진행 상황을 다시 불러와야 거래할 수 있습니다.');
+        if (this.pendingSave) {
+          this.locked = false;
+          if (!await this.flush()) throw new Error('이전 저장 결과를 확인해야 거래할 수 있습니다.');
+          this.locked = true;
+        }
+        this.pendingMarket = { action, data, requestId, revision: this.revision, progress: structuredClone(this.save) };
       }
       this.locked = true;
       let result: SyncResult | undefined;
       for (let attempt = 0; attempt < 3; attempt++) {
         let response: Response;
         try {
-          response = await fetch('/api/market', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${this.session.token}` }, body: JSON.stringify({ action: this.pendingMarket!.action, ...this.pendingMarket!.data, requestId: this.pendingMarket!.requestId, revision: this.pendingMarket!.revision }) });
+          response = await fetch('/api/market', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${this.session.token}` }, body: JSON.stringify({ action: this.pendingMarket!.action, ...this.pendingMarket!.data, requestId: this.pendingMarket!.requestId, revision: this.pendingMarket!.revision, progress: this.pendingMarket!.progress }) });
           const body = await response.json();
           if (!response.ok) {
+            if (response.status >= 500) throw new Error(body.error || '서버 응답을 확인 중입니다.');
             this.pendingMarket = undefined;
             throw Object.assign(new Error(body.error || '거래 요청 실패'), { code: body.code, status: response.status });
           }
@@ -74,6 +83,7 @@ export class SaveSync {
       this.pendingMarket = undefined;
       this.revision = result.revision;
       Object.assign(this.save, parseSave(result.save, this.session.accountId));
+      this.pending = false; this.pendingSave = undefined; this.onSaved();
       this.onStatus('저장됨'); return result as SyncResult;
     } catch (error) {
       if (error instanceof Error && 'code' in error && error.code === 'SAVE_CONFLICT') this.handleError(error);

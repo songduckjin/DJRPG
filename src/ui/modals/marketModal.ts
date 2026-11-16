@@ -35,7 +35,7 @@ function numberField(label: string, market: Market, key: string): HTMLElement {
 export function updateMarketLive(ui: Interface): void {
   const market = ui.market, data = market.data;
   const status = ui.root.querySelector<HTMLElement>('.market-connection');
-  if (status) status.textContent = market.loading ? '목록 불러오는 중…' : market.error ? market.error : market.connected ? '● 실시간 연결됨' : '○ 연결 확인 중 · 5초마다 자동 갱신';
+  if (status) status.textContent = market.loading ? '목록 불러오는 중…' : market.error ? market.error : market.connected ? '● 실시간 연결됨' : '○ 연결 확인 중 · 2초마다 자동 갱신';
   const refresh = ui.root.querySelector<HTMLButtonElement>('.market-refresh');
   if (refresh) { refresh.textContent = market.newCount ? `새 매물 ${market.newCount}개 · 갱신` : '목록 새로고침'; refresh.disabled = market.busy || market.loading; }
   const count = ui.root.querySelector<HTMLElement>('[data-market-view="inbox"]'); if (count) count.textContent = `수령함 ${data?.inbox.length ?? 0}`;
@@ -44,7 +44,7 @@ export function updateMarketLive(ui: Interface): void {
     const row = ui.root.querySelector<HTMLElement>(`[data-listing="${CSS.escape(sale.id)}"]`);
     if (!row) continue;
     const state = row.querySelector<HTMLElement>('.market-state'); if (state) state.textContent = stateNames[sale.state] || sale.state;
-    if (sale.state !== 'active') { row.classList.add('market-ended'); const buy = row.querySelector<HTMLButtonElement>('.market-buy'); if (buy) buy.disabled = true; }
+    if (sale.state !== 'active') { row.classList.add('market-ended'); row.querySelectorAll<HTMLButtonElement>('.market-buy, .market-detail button').forEach(button => { button.disabled = true; }); }
   }
 }
 export function renderMarket(this: Interface, dialog: HTMLElement): void {

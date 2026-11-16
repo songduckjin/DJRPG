@@ -1,4 +1,5 @@
 import { autoEquipBest, equipmentImage, rarityNames, salvageByRarity, slotNames, statNames, totalStats, useSkillBook, type Item, type Rarity, type Save, type Slot, type Stat } from '../../game/store';
+import { heroAppearance, unequipItem } from '../../game/appearance';
 import { isSkillBook } from '../../game/items';
 import type { BagFilter, Interface } from '../interface';
 
@@ -112,9 +113,9 @@ export function renderEquipment(this: Interface, dialog: HTMLElement): void {
       const core = item && (Object.keys(item.stats) as Stat[])[0];
       cell.querySelector('em')!.textContent = core ? `${statNames[core]} +${item.stats[core]}` : '';
       cell.onclick = () => {
-        if (!item) return;
-        if (save.bag.length >= 40) { this.message('가방이 가득 차 장비를 해제할 수 없습니다.'); return; }
-        save.bag.push(item); delete save.equipment[slot]; this.world.onChange();
+        const result = unequipItem(save, slot);
+        if (result.ok) this.world.onChange();
+        this.message(result.message);
       };
       side.appendChild(cell);
     };
@@ -122,8 +123,15 @@ export function renderEquipment(this: Interface, dialog: HTMLElement): void {
     for (const slot of ['offhand', 'necklace', 'belt', 'ring1', 'ring2'] as Slot[]) addSlot(slot, right);
     const center = document.createElement('div'); center.className = 'showcase-hero';
     const portrait = document.createElement('img'); portrait.alt = '현재 전사 외형';
-    portrait.src = save.equipment.armor ? save.equipment.helmet ? '/assets/warrior_armored.png?v=2' : '/assets/warrior_armored_nohelm.png?v=2' : save.equipment.weapon ? `/assets/warrior_${save.gender}_sword.png` : `/assets/warrior_${save.gender}_base.png`;
+    const appearance = heroAppearance(save);
+    portrait.src = appearance.portrait;
     center.appendChild(portrait);
+    if (appearance.helmet) {
+      const helmet = document.createElement('span'); helmet.className = 'portrait-helmet';
+      helmet.innerHTML = itemIcon.call(this, 'helmet', appearance.helmet, 'portrait-helmet-art');
+      helmet.setAttribute('aria-label', `착용 투구: ${appearance.helmet.name}`);
+      center.appendChild(helmet);
+    }
     showcase.append(left, center, right); dialog.appendChild(showcase);
     const summary = document.createElement('div'); summary.className = 'showcase-stats';
     const power = Math.round(stats.attack * 3 + stats.defense * 2 + stats.health * .2 + stats.crit * 2 + stats.speed * 2);

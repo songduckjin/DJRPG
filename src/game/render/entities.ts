@@ -1,6 +1,7 @@
 import { Assets, Container, Rectangle, Sprite, Text, Texture } from 'pixi.js';
 import type { World } from '../world';
-import type { Art, GameView } from '../render';
+import { heroAppearance } from '../appearance';
+import type { GameView } from '../render';
 import { equipmentImage, slots, type Save, type Slot } from '../store';
 
 const gearPosition: Record<Slot, [number, number, number]> = {
@@ -74,17 +75,16 @@ const walkAnchors = {
 
 export function drawHero(this: GameView, world: World, x: number, y: number, time: number): void {
     const { player, save } = world;
-    const equipped = !!save.equipment.armor;
+    const appearance = heroAppearance(save);
     const moving = Math.hypot(world.activeMove.x, world.activeMove.y) > .05;
     const walked = Math.hypot(player.x - this.lastHeroWorld.x, player.y - this.lastHeroWorld.y);
     this.lastHeroWorld = { x: player.x, y: player.y };
     if (moving) this.heroWalkDistance += Math.min(30, walked);
     const walkingFrame = Math.floor(this.heroWalkDistance / 12) % 8;
     const attackFrame = Math.min(3, Math.floor((1 - world.attackPose / .32) * 4));
-    const art: Art = equipped ? save.equipment.helmet ? 'armored' : 'armoredNoHelm' : save.equipment.weapon ? save.gender === 'male' ? 'maleSword' : 'femaleSword' : save.gender;
-    const walkArt = equipped ? save.equipment.helmet ? 'armoredWalk' : 'armoredNoHelmWalk' : save.gender === 'female' ? save.equipment.weapon ? 'femaleWalk' : 'femaleBaseWalk' : save.equipment.weapon ? 'maleWalk' : 'maleBaseWalk';
-    let texture = this.textures[art];
-    if (world.attackPose > 0) texture = this.animations[equipped ? save.equipment.helmet ? 'armoredAttack' : 'armoredNoHelmAttack' : save.gender === 'male' ? 'maleAttack' : 'femaleAttack'][Math.max(0, attackFrame)];
+    const walkArt = appearance.walk;
+    let texture = this.textures[appearance.idle];
+    if (world.attackPose > 0) texture = this.animations[appearance.attack][Math.max(0, attackFrame)];
     else if (moving) texture = this.animations[walkArt][walkingFrame];
     if (this.hero.texture !== texture) this.hero.texture = texture;
     this.hero.anchor.y = world.attackPose > 0 ? .97 : moving ? walkAnchors[walkArt][walkingFrame] : .996;

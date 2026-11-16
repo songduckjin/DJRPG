@@ -5,7 +5,7 @@ import { drawHero, updateAfterimages, updateCorpses, drawEntities } from './rend
 import { drawSkillVfx, drawDragon, drawHit, updateDamageLabels, drawDeath, drawDrops, drawEffects } from './render/vfx';
 
 const paths = {
-  floor: '/assets/dungeon_tile.jpg?v=3', male: '/assets/warrior_male_base.png',
+  floor: '/assets/wasteland-ground.png', terrainProps: '/assets/wasteland-props.png', male: '/assets/warrior_male_base.png',
   female: '/assets/warrior_female_base.png', armored: '/assets/warrior_armored.png?v=2',
   armoredNoHelm: '/assets/warrior_armored_nohelm.png?v=2',
   maleSword: '/assets/warrior_male_sword.png', femaleSword: '/assets/warrior_female_sword.png',
@@ -40,6 +40,9 @@ export class GameView {
   floor!: TilingSprite;
   glow = new Graphics();
   ground = new Graphics();
+  terrainLayer = new Container();
+  terrainTextures: Texture[] = [];
+  terrainSprites: Sprite[] = [];
   aura!: Sprite;
   dragonBack = new Container();
   ghosts = new Container();
@@ -85,8 +88,10 @@ export class GameView {
         return new Texture({ source: sheet.source, frame: new Rectangle(left, top, right - left, bottom - top) });
       });
     }
+    const propFrames = [[36,285,348,226], [484,229,276,283], [891,303,303,204], [53,855,307,178], [423,791,395,272], [907,822,289,228]];
+    this.terrainTextures = propFrames.map(([x, y, width, height]) => new Texture({ source: this.textures.terrainProps.source, frame: new Rectangle(x, y, width, height) }));
     this.floor = new TilingSprite({ texture: this.textures.floor, width: this.app.screen.width, height: this.app.screen.height });
-    this.floor.tileScale.set(.82);
+    this.floor.tileScale.set(.65);
     this.hero = new Sprite(this.textures.male);
     this.hero.anchor.set(.5, .97);
     this.heroLayer.addChild(this.hero);
@@ -95,7 +100,7 @@ export class GameView {
     this.aura.anchor.set(.5);
     this.aura.blendMode = 'add';
     this.aura.alpha = 0;
-    this.app.stage.addChild(this.floor, this.glow, this.ground, this.aura, this.dragonBack, this.ghosts, this.actors, this.fallen, this.skillVfx, this.effects, this.labels, this.shade);
+    this.app.stage.addChild(this.floor, this.glow, this.ground, this.terrainLayer, this.aura, this.dragonBack, this.ghosts, this.actors, this.fallen, this.skillVfx, this.effects, this.labels, this.shade);
   }
 
   draw(world: World, time: number): void {

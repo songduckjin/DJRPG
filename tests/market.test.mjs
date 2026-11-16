@@ -141,3 +141,33 @@ test('save response loss is recovered idempotently and reset cannot strand marke
   const reset=await call({action:'reset',revision:first.body.revision});assert.equal(reset.body.code,'MARKET_PENDING');
   delete process.env.TURSO_DATABASE_URL;delete process.env.TURSO_AUTH_TOKEN;
 });
+
+test('ordinary snapshot is a single read batch without acquiring a write transaction',async()=>{
+  let batches=0;
+  const readOnly={batch(statements,mode){batches++;assert.equal(mode,'read');return db.batch(statements,mode);},transaction(){throw new Error('snapshot must not acquire writer lock');},execute(){throw new Error('snapshot must batch independent queries');}};
+  const result=await snapshot(readOnly,'buyer',{view:'sold'});assert(result.listings.length);assert.equal(batches,1);
+});
+test('schema initialization is reused, not rewritten for every request',async()=>{
+  let batches=0;const wrapped={batch(...args){batches++;return db.batch(...args);}};
+  await schema(wrapped);await schema(wrapped);assert.equal(batches,1);
+});
+test('unsaved progression and a purchase commit atomically, including response effects',async()=>{
+  await seed('atomic-seller',[item()]);await seed('atomic-buyer',[],50);
+  const listing=await sale('atomic-seller',100), row=await account(db,'atomic-buyer'),progress=structuredClone(row.save);progress.gold=150;progress.kills=25;
+  const result=await mutate(db,'atomic-buyer',{action:'buy',listingId:listing.id,progress,revision:row.revision,requestId:randomUUID()});
+  assert.equal(result.revision,row.revision+1);assert.equal(result.save.gold,50);assert.equal(result.save.kills,25);assert.equal(result.effect.listing.state,'sold');assert.equal(result.effect.deliveries[0].item.id,listing.item.id);
+  const persisted=await account(db,'atomic-buyer');assert.equal(persisted.save.gold,50);assert.equal(persisted.revision,result.revision);
+});
+test('failed combined purchase rolls back progression, original ownership and revision',async()=>{
+  const row=await account(db,'atomic-buyer'),progress=structuredClone(row.save);progress.gold+=500;
+  await assert.rejects(mutate(db,'atomic-buyer',{action:'buy',listingId:'missing',progress,revision:row.revision,requestId:randomUUID()}),error('NOT_AVAILABLE'));
+  const after=await account(db,'atomic-buyer');assert.equal(after.revision,row.revision);assert.equal(after.save.gold,row.save.gold);
+});
+test('buy and money claim group their independent reads and writes into two DB batches',async()=>{
+  await seed('fast-seller',[item()]);await seed('fast-buyer',[]);const listing=await sale('fast-seller');
+  let reads=0,batches=0;
+  const measured={async transaction(mode){const tx=await db.transaction(mode);return {get closed(){return tx.closed;},execute(...args){reads++;return tx.execute(...args);},batch(...args){batches++;return tx.batch(...args);},commit:()=>tx.commit(),rollback:()=>tx.rollback(),close:()=>tx.close()};}};
+  const row=await account(db,'fast-buyer');await mutate(measured,'fast-buyer',{action:'buy',listingId:listing.id,revision:row.revision,requestId:randomUUID()});assert.equal(reads,0);assert.equal(batches,2);
+  const delivery=(await snapshot(db,'fast-seller',{view:'mine'})).inbox.find(i=>!i.item),seller=await account(db,'fast-seller');
+  reads=0;batches=0;await mutate(measured,'fast-seller',{action:'claim',deliveryId:delivery.id,revision:seller.revision,requestId:randomUUID()});assert.equal(reads,0);assert.equal(batches,2);
+});
