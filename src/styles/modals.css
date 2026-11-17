@@ -8,10 +8,10 @@
 .modal-bag-footer { display: flex; flex: none; align-items: center; justify-content: space-between; gap: 5px; border-top: 1px solid #655044; margin-top: 7px; padding-top: 7px 0 2px; color: #c4ac91; background: #211b1d; font-size: 11px; }
 .bag-footer-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; }
 .salvage-rarity { border: 1px solid #b28a55; background: #443425; color: #ffe0ab; padding: 5px 7px; font-size: 11px; }
-.bag-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); grid-auto-rows: max-content; align-content: start; align-items: start; gap: 5px; padding: 2px; }
+.bag-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(62px, 1fr)); grid-auto-rows: max-content; align-content: start; align-items: start; gap: 5px; padding: 2px; }
 .equipment-modal .bag-grid { flex: 1 1 0%; min-height: 110px; overflow-y: auto; overflow-x: hidden; scrollbar-gutter: stable; }
 .equipment-modal .modal-bag > h3, .equipment-modal .bag-filters { flex: none; }
-.bag-item { position: relative; width: 100%; min-width: 0; aspect-ratio: 1; min-height: 64px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; border: 1px solid #60534e; background: radial-gradient(circle at 50% 30%, #3a3130, #221e22); color: #ddcfc1; padding: 2px; }
+.bag-item { position: relative; width: 100%; min-width: 0; aspect-ratio: 1; min-height: 76px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; border: 1px solid #60534e; background: radial-gradient(circle at 50% 30%, #3a3130, #221e22); color: #ddcfc1; padding: 2px; }
 .bag-item.common, .equipment-slot.common { border-color: #9ca3af; box-shadow: inset 0 0 7px #9ca3af44; }
 .bag-item.magic, .equipment-slot.magic { border-color: #60a5fa; box-shadow: inset 0 0 8px #60a5fa55, 0 0 5px #60a5fa55; }
 .bag-item.rare, .equipment-slot.rare { border-color: #facc15; box-shadow: inset 0 0 8px #facc1555, 0 0 5px #facc1555; }
@@ -19,7 +19,7 @@
 .bag-item.unique, .equipment-slot.unique { border-color: #fb923c; box-shadow: inset 0 0 8px #fb923c55, 0 0 5px #fb923c55; }
 .bag-item.legendary, .equipment-slot.legendary { border-color: #f87171; box-shadow: inset 0 0 9px #f8717166, 0 0 6px #f8717177; }
 .bag-item.selected { background: #68513a; outline: 2px solid #ffe3a3; outline-offset: -3px; filter: brightness(1.2); }
-.item-icon { display: block; width: 27px; height: 27px; object-fit: contain; }
+.item-icon { display: block; flex: none; width: 44px; height: 44px; object-fit: contain; }
 .atlas-icon { background-size: 500% 100%; background-repeat: no-repeat; }
 .bag-item small { font-size: 8px; color: #ac9e94; }
 .bag-item b { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 9px; font-weight: 500; }
@@ -37,24 +37,26 @@
 .modal-dialog header { display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #73574b; margin-bottom: 12px; }
 .modal-dialog h2 { font: 700 22px Cinzel, 'Noto Sans KR', serif; margin: 0 0 8px; color: #efdfbd; }
 .modal-close { border: 0; background: none; color: #d6bfa6; font-size: 28px; line-height: 1; }
-.equipment-showcase { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, .92fr) minmax(0, 1fr); gap: 5px; height: 340px; flex: 0 0 340px; }
+.equipment-showcase { display: grid; grid-template-columns: minmax(0, clamp(82px, 25vw, 118px)) minmax(0, 1fr) minmax(0, clamp(82px, 25vw, 118px)); gap: 5px; height: 340px; flex: 0 0 340px; }
 .showcase-side { display: flex; flex-direction: column; justify-content: space-between; gap: 3px; min-width: 0; }
-.showcase-hero { position: relative; display: flex; justify-content: center; align-items: end; min-width: 0; overflow: hidden; border: 1px solid #655044; background: radial-gradient(ellipse at 50% 28%, #695544 0%, #302727 37%, #19161b 75%); box-shadow: inset 0 0 23px #000a; }
+.showcase-hero { position: relative; display: flex; justify-content: center; align-items: center; min-width: 0; overflow: hidden; border: 1px solid #655044; background: radial-gradient(ellipse at 50% 28%, #695544 0%, #302727 37%, #19161b 75%); box-shadow: inset 0 0 23px #000a; }
 .showcase-hero:after { content: ''; position: absolute; bottom: 7px; width: 75%; height: 14px; border-radius: 50%; background: #0008; filter: blur(5px); }
-.showcase-figure { position: relative; display: block; flex: 0 1 100%; max-height: 100%; aspect-ratio: .75; }
+.showcase-figure { position: relative; display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; }
 .showcase-figure > img { position: relative; z-index: 1; display: block; width: 100%; height: 100%; object-fit: contain; image-rendering: auto; }
 .equipment-slot { position: relative; min-width: 0; flex: 1; display: flex; text-align: left; align-items: center; gap: 4px; padding: 15px 3px 3px; border: 1px solid #655348; background: #252126; color: #b9ada6; }
 .slot-icon { display: block; flex: 0 0 44px; width: 44px; height: 44px; object-fit: contain; }
 .equipment-slot .slot-part { position: absolute; top: 3px; left: 4px; font-size: 9px; line-height: 1; }
 .equipment-slot[aria-expanded="true"] { background: #3c3231; outline: 1px solid #e0c699; outline-offset: 1px; }
 .equipment-slot:disabled { opacity: .65; }
-.equipped-detail { position: fixed; z-index: 30; width: max-content; overflow-y: auto; box-shadow: 0 8px 24px #000b; }
+.equipped-detail { margin: 0; display: flex; flex-direction: column; align-items: flex-start; position: fixed; z-index: 30; width: max-content; overflow-y: auto; box-shadow: 0 8px 24px #000b; }
 .equipped-detail p { margin: 5px 0 9px; color: #cbb89b; }
-.equipped-detail button { margin-top: 12px; }
+.equipped-detail button { margin-top: 8px; border: 1px solid #836546; background: #3a2926; color: #ecd8bb; padding: 7px 12px; font: inherit; }
+.modal-dialog .equipped-detail h2 { margin: 0; font-size: 14px; line-height: 1.5; }
+.equipped-detail > span { line-height: 1.6; }
 .equipment-slot.empty-slot .slot-icon { opacity: .25; filter: grayscale(1); }
-.slot-meta { display: flex; flex: 1; min-width: 0; flex-direction: column; justify-content: center; line-height: 1.05; }
+.slot-meta { display: flex; flex: 1; min-width: 0; align-self: stretch; flex-direction: column; justify-content: center; line-height: 1.25; }
 .equipment-slot small { display: block; color: #ccb49b; font-size: 9px; white-space: normal; }
-.equipment-slot b { display: block; overflow-wrap: anywhere; font-size: 10px; font-weight: 500; line-height: 1.25; }
+.equipment-slot b { display: block; white-space: pre-line; overflow-wrap: anywhere; font-size: 10px; font-weight: 500; line-height: 1.25; }
 .equipment-slot em { display: block; font-style: normal; color: #d1ae7b; font-size: 8px; white-space: normal; }
 .showcase-stats { display: grid; grid-template-columns: repeat(5, 1fr); gap: 3px; border: 1px solid #765f47; margin-top: 9px; padding: 6px 3px; background: #211b1d; }
 .showcase-stats span { display: flex; flex-direction: column; align-items: center; color: #b19d86; font-size: 9px; white-space: nowrap; }
@@ -114,7 +116,8 @@
 .skill-list h3 { margin: 0 0 3px; font-size: 13px; color: #f2dfbb; }
 .skill-list p { margin: 0 0 3px; font-size: 11px; color: #b5a79e; line-height: 1.45; }
 .skill-list small { font-size: 10px; color: #d2a96d; }
-@media (max-width: 370px) { .slot-icon { flex-basis: 36px; width: 36px; height: 36px; } .equipment-slot small, .equipment-slot b { font-size: 8px; } }
+@media (max-width: 470px) { .slot-icon { flex-basis: 36px; width: 36px; height: 36px; } .equipment-slot { gap: 2px; padding-left: 2px; padding-right: 2px; } .equipment-slot b { font-size: 8px; } }
+@media (max-width: 370px) { .slot-icon { flex-basis: 32px; width: 32px; height: 32px; } .equipment-slot b { font-size: 7px; } }
 @media (max-height: 650px) { .equipment-showcase { height: 320px; flex-basis: 320px; }  .equipment-modal .modal-hint { display: none; } .equipment-modal .modal-bag { margin-top: 5px; } }
 @media (max-height: 750px) { .modal-dialog.equipment-modal { overflow-y: auto; } .equipment-modal .modal-bag { flex: none; min-height: 220px; overflow: visible; } .equipment-modal .modal-bag-footer { position: sticky; bottom: 0; z-index: 2; } }
 .salvage:disabled { opacity: .4; cursor: default; }
