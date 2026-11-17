@@ -6,7 +6,15 @@
 
 ## 진행 중 작업
 
-### [-] [작업 121] Cloudflare 단일 배포 정책
+### [-] [작업 122] 레벨 배지로 캐릭터 선택
+- **담당자**: `songduckjin`
+- **브랜치**: `codex/122-level-character`
+- **목표**: 다른 UI와 겹치는 우측 검 버튼을 제거하고 좌상단 레벨 배지로 캐릭터 선택창을 연다. 계정 정보는 기존 설정 메뉴에서 연다.
+- **직접 수정**: `src/ui/hud.ts`, `src/ui/interface.ts`, `src/styles/hud.css`, 공개·개인 작업 기록. **간접 영향**: 캐릭터 선택창 진입, 계정 정보 진입, 모바일 HUD 터치 영역.
+- **위험·충돌**: 주의(UI 연결). 공개 현황에서 다른 담당자의 HUD 작업은 완료 상태이고 열린 PR은 없다. DB·API·세이브 형식은 그대로 둔다.
+- **완료 기준**: 레벨 배지의 접근성 이름과 클릭 동작을 캐릭터 선택으로 바꾸고 검 버튼을 제거한다. 타입 검사·테스트·빌드를 통과한 PR을 병합해 Cloudflare Production을 확인한다.
+
+### [x] [작업 121] Cloudflare 단일 배포 정책
 - **담당자**: `songduckjin`
 - **브랜치**: `codex/121-cloudflare-only`
 - **목표**: 이중 배포를 끝내고 GitHub `main`의 검증 버전을 Cloudflare Pages `djrpg`에만 운영 배포한다.
