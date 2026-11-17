@@ -2,8 +2,8 @@
 .modal-bag { border-top: 1px solid #73574b; margin-top: 9px; padding-top: 6px; }
 .equipment-modal .modal-bag { display: flex; flex: 1; flex-direction: column; min-height: 0; overflow: hidden; }
 .modal-bag h3 { margin: 0 0 8px; color: #e7d4b4; font-size: 14px; }
-.bag-filters { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-bottom: 9px; }
-.bag-filters button { border: 1px solid #6d5948; padding: 6px 2px; background: #292124; color: #bba998; font-size: 11px; }
+.bag-filters { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 3px; margin-bottom: 5px; }
+.bag-filters button { border: 1px solid #6d5948; padding: 5px 1px; min-width: 0; white-space: nowrap; background: #292124; color: #bba998; font-size: 11px; }
 .bag-filters button.active { border-color: #c8a26a; background: #4a342a; color: #ffe1b5; }
 .modal-bag-footer { display: flex; flex: none; align-items: center; justify-content: space-between; gap: 5px; border-top: 1px solid #655044; margin-top: 7px; padding-top: 7px 0 2px; color: #c4ac91; background: #211b1d; font-size: 11px; }
 .bag-footer-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; }
@@ -58,7 +58,7 @@
 .equipment-slot small { display: block; color: #ccb49b; font-size: 9px; white-space: normal; }
 .equipment-slot b { display: block; white-space: pre-line; overflow-wrap: anywhere; font-size: 10px; font-weight: 500; line-height: 1.25; }
 .equipment-slot em { display: block; font-style: normal; color: #d1ae7b; font-size: 8px; white-space: normal; }
-.showcase-stats { display: grid; grid-template-columns: repeat(5, 1fr); gap: 3px; border: 1px solid #765f47; margin-top: 9px; padding: 6px 3px; background: #211b1d; }
+.showcase-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); text-align: center; gap: 3px; border: 1px solid #765f47; margin-top: 9px; padding: 6px 3px; background: #211b1d; }
 .showcase-stats span { display: flex; flex-direction: column; align-items: center; color: #b19d86; font-size: 9px; white-space: nowrap; }
 .showcase-stats b { color: #f1d5a3; font-size: 10px; }
 .modal-hint { color: #9f9189; font-size: 11px; margin: 11px 0 0; }
@@ -153,3 +153,19 @@
 .equipment-modal .modal-close { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 44px; height: 44px; touch-action: manipulation; }
 
 .bag-item .bag-lock-badge { position: absolute; top: 1px; right: 1px; width: 18px; height: 18px; z-index: 1; pointer-events: none; }
+
+.bag-item.skillbook-item { aspect-ratio: auto; min-height: 84px; padding: 4px 3px; gap: 4px; }
+.bag-item.skillbook-item b { white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; line-height: 1.4; text-align: center; }
+.skillbook-count { position: absolute; top: 2px; right: 2px; padding: 1px 3px; background: #171216e6; color: #f2deb9; font-size: 10px; line-height: 1.3; border-radius: 3px; pointer-events: none; }
+
+.bag-capacity { display: block; color: #aa9b8f; font-size: 9px; margin-top: 2px; }
+
+.skill-icon { position: relative; }
+.skill-upgrade-dot { position: absolute; right: -3px; top: -3px; width: 10px; height: 10px; background: #de352e; border: 1px solid #f2b2a0; border-radius: 50%; }
+.skill-books { padding-bottom: 12px; border-bottom: 1px solid #73574b; }
+.skill-book-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(125px, 1fr)); gap: 6px; }
+.skill-book-card { display: flex; flex-direction: column; align-items: center; position: relative; gap: 5px; padding: 8px; background: #211b1d; border: 1px solid #655044; font-size: 11px; text-align: center; }
+.skill-book-card img { width: 44px; height: 44px; object-fit: contain; }
+.skill-book-card b { overflow-wrap: anywhere; }
+.skill-book-cost { color: #cbb89b; font-size: 10px; }
+.skillbook-use:disabled { opacity: .45; }

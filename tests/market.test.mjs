@@ -99,8 +99,9 @@ test('expiry returns an item once and makes buying impossible', async () => {
   await assert.rejects(action('buyer','buy',{listingId:listing.id}),error('NOT_AVAILABLE'));
 });
 test('registration limits, integer prices and equipped items are enforced',async()=>{
-  await seed('limit',Array.from({length:11},()=>item()));
-  for(let i=0;i<10;i++) await sale('limit');
+  await seed('limit',Array.from({length:31},()=>item()));
+  for(let i=0;i<30;i++) await sale('limit');
+  assert.equal((await snapshot(db,'limit',{})).myActive,30);
   const next=(await account(db,'limit')).save.bag[0];
   await assert.rejects(action('limit','register',{itemId:next.id,price:100}),error('LISTING_LIMIT'));
   await assert.rejects(action('buyer','register',{itemId:'missing',price:1.5}),error('INVALID_PRICE'));
