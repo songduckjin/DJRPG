@@ -71,7 +71,7 @@
 - `preferences.ts` (4) — 기기 설정(흔들림·절전·이펙트). `preferences`, `savePreferences` — **localStorage 예외 허용 항목**.
 - `bootProgress.ts` (18) — 에셋 로딩 진행률. `createBootProgress`.
 - `render.ts` (205) — PixiJS 뷰·에셋 경로·draw 진입점. `GameView`(`mount`,`draw`, hero/enemy/vfx 위임 메서드), `paths`/`animationPaths`/`attackSheets`/`walkSheets`, `renderAssetPaths`, `Art`.
-- `render/entities.ts` (228) — 히어로·장비·적·시체·잔상 그리기. `drawHero`, `updateAfterimages`, `updateCorpses`, `drawEntities`.
+- `render/entities.ts` (169) — 히어로·적·시체·잔상 그리기(장비는 전용 스프라이트 시트가 담당, 2D 아이콘 덧그리기 없음). `drawHero`, `updateAfterimages`, `updateCorpses`, `drawEntities`.
 - `render/field.ts` (54) — 룬·지형·먼지·조명·비네트. `drawRunes`, `drawTerrain`, `drawDust`, `drawLighting`, `drawVignette`.
 - `render/vfx.ts` (160) — 스킬 이펙트·드래곤·타격·데미지 라벨·드랍. `drawSkillVfx`, `drawDragon`, `drawHit`, `updateDamageLabels`, `drawDeath`, `drawDrops`, `drawEffects`.
 - `render/heroMotion.ts` (22) — idle/walk/attack 모드·프레임 선택. `heroAnimationMode`, `heroMotion`.
