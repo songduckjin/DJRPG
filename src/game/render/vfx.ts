@@ -8,34 +8,33 @@ import type { Effect } from '../world';
 import type { Art, GameView } from '../render';
 
 export function drawSkillVfx(this: GameView, effect: Effect, x: number, y: number, t: number, screenAngle: number, time: number): boolean {
+    if (effect.kind === 'slash') return true;
+    if (effect.kind === 'slash2') {
+      const progress = Math.max(0, Math.min(1, t));
+      const radius = 53 + progress * 24;
+      const alpha = Math.sin(Math.PI * progress);
+      const centerX = x + Math.cos(screenAngle) * (30 + progress * 12);
+      const centerY = y + Math.sin(screenAngle) * (18 + progress * 7) - 48;
+      this.effects.arc(centerX, centerY, radius, screenAngle - 1.05, screenAngle + 1.05).stroke({ color: 0xffffff, width: 9, alpha: alpha * .4 });
+      this.effects.arc(centerX, centerY, radius, screenAngle - 1.05, screenAngle + 1.05).stroke({ color: 0xffffff, width: 3.5, alpha });
+      return true;
+    }
     if (effect.kind === 'warcry') return true;
     if (effect.kind === 'hit' || effect.kind === 'death') return false;
     if (effect.kind === 'spin') { this.drawDragon(effect, x, y, t, time); return true; }
     const art: Art = effect.kind === 'slam' || effect.kind === 'crushing' ? 'fxSlam' : effect.kind === 'power' ? 'fxPower' : effect.kind === 'destroy' ? 'fxDestroy' : effect.kind === 'hell' ? 'fxHell' : 'fxSlash';
     let sprites = this.vfxSprites.get(effect);
     if (!sprites) {
-      sprites = Array.from({ length: effect.kind === 'slash2' ? 2 : 1 }, () => {
-        const sprite = new Sprite(this.textures[art]);
-        sprite.anchor.set(.5);
-        sprite.blendMode = 'add';
-        this.skillVfx.addChild(sprite);
-        return sprite;
-      });
+      const sprite = new Sprite(this.textures[art]);
+      sprite.anchor.set(.5);
+      sprite.blendMode = 'add';
+      this.skillVfx.addChild(sprite);
+      sprites = [sprite];
       this.vfxSprites.set(effect, sprites);
     }
     const width = this.app.screen.width;
     const size = effect.kind === 'hell' ? width * .95 : effect.kind === 'destroy' ? 260 : effect.kind === 'slam' ? 335 : effect.kind === 'crushing' ? 245 : effect.kind === 'power' ? 165 : 150;
-    for (const [index, sprite] of sprites.entries()) {
-      if (effect.kind === 'slash2') {
-        const phase = Math.max(0, Math.min(1, t * 2 - index));
-        const side = index ? 21 : -21;
-        sprite.position.set(x + Math.cos(screenAngle) * 48 - Math.sin(screenAngle) * side, y + Math.sin(screenAngle) * 48 + Math.cos(screenAngle) * side - 76 + phase * 62);
-        sprite.scale.set(size / sprite.texture.width * (1 + phase * .2));
-        sprite.rotation = screenAngle + Math.PI / 2 + (index ? -.12 : .12);
-        sprite.alpha = t >= index * .5 && t < (index + 1) * .5 ? Math.sin(Math.PI * phase) : 0;
-        sprite.tint = 0xffffff;
-        continue;
-      }
+    for (const sprite of sprites) {
       if (effect.kind === 'crushing') {
         const impactAt = .55 / effect.duration;
         const impact = Math.max(0, Math.min(1, (t - impactAt) / (1 - impactAt)));

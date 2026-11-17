@@ -77,8 +77,8 @@ export class World {
       this.swing *= -1;
       this.damage(90, attack, angle, 1.15);
     } else if (kind === 'slash2') {
-      this.effects.push({ x: p.x, y: p.y, kind: 'slash2', age: 0, duration: skillDuration(kind, level), angle: p.facing, nextHit: .28, power: attack * 1.25 * damageScale, level });
-      this.damage(range, attack * .9 * damageScale, p.facing, .9);
+      this.effects.push({ x: p.x, y: p.y, kind: 'slash2', age: 0, duration: skillDuration(kind, level), angle: p.facing });
+      this.damage(range, attack * 2.15 * damageScale, p.facing, .9);
     } else if (kind === 'spin') {
       this.effects.push({ x: p.x, y: p.y, kind: 'spin', age: 0, duration: skillDuration(kind, level), angle: 0, nextHit: .45, power: attack * .65 * damageScale, level });
       this.damage(range * dragonOrbitFactor(0), attack * 1.65 * damageScale, 0, Math.PI);
@@ -250,7 +250,6 @@ export class World {
       effect.age += dt;
       while (effect.nextHit !== undefined && effect.nextHit < effect.duration && effect.nextHit <= effect.age) {
         const level = effect.level ?? 1;
-        if (effect.kind === 'slash2') this.damage(skillRange('slash2', level), effect.power ?? 0, effect.angle, .9, 20, 0, effect);
         if (effect.kind === 'spin') {
           const hitProgress = (effect.nextHit ?? effect.age) / effect.duration;
           this.damage(skillRange('spin', level) * dragonOrbitFactor(hitProgress), effect.power ?? 0, 0, Math.PI, 10, 0, effect);
@@ -258,7 +257,7 @@ export class World {
         if (effect.kind === 'crushing') this.damage(skillRange('crushing', level) * .72, effect.power ?? 0, 0, Math.PI, 28, 1.2, effect);
         if (effect.kind === 'slam') this.damage(skillRange('slam', level), effect.power ?? 0, effect.angle, 1.35, 12, 2 + (level - 1) * .3, effect);
         if (effect.kind === 'hell') this.damage(skillRange('hell', level), effect.power ?? 0, 0, Math.PI, 14, 1 + (level - 1) * .2, effect);
-        if (effect.kind === 'slash2' || effect.kind === 'crushing') effect.nextHit = undefined;
+        if (effect.kind === 'crushing') effect.nextHit = undefined;
         else effect.nextHit += effect.kind === 'spin' || effect.kind === 'slam' ? .45 : .4;
       }
     }
