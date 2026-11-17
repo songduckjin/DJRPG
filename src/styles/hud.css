@@ -114,3 +114,5 @@
 .utility-nav [data-modal="mail"] { --menu-icon-scale: 1.44; --menu-icon-x: -1.5625%; --menu-icon-y: .7812%; }
 .utility-nav [data-modal="rewards"] { --menu-icon-scale: 1.4222; --menu-icon-x: .7812%; --menu-icon-y: 1.1719%; }
 .utility-nav [data-modal="achievements"] { --menu-icon-scale: 1.2659; --menu-icon-x: -1.9531%; --menu-icon-y: 3.9062%; }
+
+.bottom-nav [data-modal="equipment"] > .new-badge { top: 0; right: 0; z-index: 1; }
