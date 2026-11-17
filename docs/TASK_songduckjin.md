@@ -6,6 +6,13 @@
 
 ## 진행 중 작업
 
+### [-] [작업 119] Cloudflare Pages 운영 전환
+- **담당자**: `songduckjin`
+- **브랜치**: `task/119-cloudflare-pages`
+- **목표**: 기존 Vercel API·세이브 계약과 롤백 경로를 보존하면서 Cloudflare Pages Functions로 전환한다.
+- **직접 영향**: `functions/api/*`, `server/*` API 코어, `api/*` 어댑터, `wrangler.toml`, `package.json`, `pnpm-workspace.yaml`, 배포 기록 및 회귀 테스트. **간접 영향**: GitHub 빌드, Turso 연결, 로그인·저장·거래소·창고 요청.
+- **위험·완료 기준**: 핵심 공통. `docs/TASK.md`의 공개 영향·호환성 계획에 따라 진행하며 타입 검사·테스트·빌드, Pages 실제 배포와 API 스모크를 완료한 뒤 상태를 갱신한다.
+
 ### [x] [작업 94] 캐릭터 선택·슬롯 및 신규 캐릭터 생성
 - **담당자**: `songduckjin`
 - **등록일**: 2026-11-17

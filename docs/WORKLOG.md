@@ -456,3 +456,7 @@
 - `src/game/appearance.ts`, `src/game/render.ts`, `src/game/render/entities.ts`, `src/styles/modals.css`: 성별별 갑옷 외형 선택과 장비창 인물 중앙 정렬.
 - `tests/appearance.test.mjs`, `tests/market.test.mjs`: 성별별 외형 회귀 검사와 Windows 임시 DB 잠금 정리 보강.
 - 검증: `pnpm run check`, `pnpm test` 31건, `pnpm run build`, `git diff --check` 통과.
+## 2026-11-17 · 작업 119 Cloudflare 연결 확인
+- Cloudflare 계정의 기존 `djrpg`는 Pages가 아닌 Worker이며, GitHub `main` 최신 빌드가 pnpm 9의 `packages field missing or empty`로 설치 단계에서 실패했다.
+- Pages 전환 브랜치에 `pnpm-workspace.yaml` 루트 패키지 선언을 추가했다. 타입 검사·212개 테스트·프로덕션 빌드 통과; Pages 배포·운영 API 검증은 진행 중이다.
+

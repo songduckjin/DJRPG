@@ -489,7 +489,7 @@
 
 ## [x] [작업 67] 선택한 황야 배경·모닥불 조명 및 도감 등급 UI
 - **등록일**: 2026-11-16
-- **담당자**: 이 대화의 클라우드 Codex
+- **담당자**: `songduckjin` (GitHub 연결 계정에서 확인)
 - **수정 예정 파일**: `src/main.ts`, `src/game/render/field.ts`, `src/game/wasteland.ts`, `public/assets/wasteland-scene.png`, `src/ui/modals/equipModal.ts`, `src/ui/modals/codexModal.ts`, `src/ui/interface.ts`, `src/game/codex.ts`, `src/styles/codex.css`, `src/styles/modals.css`, 관련 테스트 및 작업 문서.
 - **목표**: 선택한 세로 배경을 그대로 표시하고 모닥불 세 곳의 조명 정렬, 스킬북 버튼 테마, 도감 장비 버튼 문구·부위 탭·등급 필터와 등급별 테두리를 적용한다.
 - **동시 작업 확인**: 진행 중인 작업 66의 `appearance.ts`, `render.ts`, `render/entities.ts`, 여성 공격 아트는 수정하지 않는다.
@@ -822,7 +822,8 @@
 - **동시 작업 확인**: 등록 시점(2026-11-17, `main` = `9ac94d4`) `docs/TASK.md`에 `[-]` 진행 중 작업 없음. 열린 PR 4건 중 코드를 바꾸는 것은 PR #27(`src/game/market.ts`, `src/game/sync.ts`, `src/ui/login.ts`, `tests/sync.test.mjs`)뿐이고 `api/`·`server/`·`package.json`·`vercel.json`은 건드리지 않아 파일 겹침 없음(PR #20·#22·#23은 문서·CI). 네 PR 모두 `docs/TASK.md`를 수정하므로 푸시가 거절되면 `git pull --rebase origin main` 후 재푸시한다.
 - **수정 예정 파일**
   - 신규: `functions/api/account.js`, `functions/api/market.js`, `functions/api/market-events.js`, `functions/api/warehouse.js`, `server/http.mjs`, `server/env.mjs`, `server/auth.mjs`, `server/legacy-auth.mjs`, `server/database-config.mjs`, `server/endpoints/account.mjs`, `server/endpoints/market.mjs`, `server/endpoints/market-events.mjs`, `server/endpoints/warehouse.mjs`, `server/node-adapter.mjs`, `server/market-events.mjs`, `wrangler.toml`, `public/_headers`, `.dev.vars.example`, `tests/functions-adapter.test.mjs`
-  - 수정: `api/account.mjs`, `api/market.mjs`, `api/market-events.mjs`, `api/warehouse.mjs`, `server/database.mjs`, `server/market-connection.mjs`, `package.json`, `.gitignore`, `docs/TASK.md`, `docs/WORKLOG.md`
+  - 수정: `api/account.mjs`, `api/market.mjs`, `api/market-events.mjs`, `api/warehouse.mjs`, `server/database.mjs`, `server/market-connection.mjs`, `package.json`, `pnpm-workspace.yaml`, `.gitignore`, `docs/TASK.md`, `docs/WORKLOG.md`
+  - **추가 영향 분석(2026-11-17)**: 기존 Cloudflare Worker의 `main` 빌드가 pnpm 9의 `packages field missing or empty` 오류로 설치 단계에서 실패한다. 직접 수정할 `pnpm-workspace.yaml`에 루트 패키지(`.`)를 명시한다. 간접 영향은 Cloudflare 설치·CI·로컬 pnpm이며 의존성 버전과 lockfile, API·세이브 계약은 바꾸지 않는다. 배포 구조 변경이므로 핵심 공통으로 공개하고 자동 승인한다.
   - **삭제 금지(롤백용 유지)**: `vercel.json`, `api/*.mjs`의 Vercel 배포 경로
 - **배경**: Vercel 무료 플랜의 빌드 한도 때문에 PR Preview·Production 배포가 `upgradeToPro=build-rate-limit`으로 반복 실패했다(`docs/WORKLOG.md` 2026-11-17 기록: 작업 93·94·96·PR #24). Cloudflare Pages 무료 플랜은 월 500회 빌드·무제한 대역폭·Functions 10만 요청/일이라 빌드 제한 문제 자체가 사라진다.
 - **목표**: 코드·설정을 Cloudflare Pages(+ Pages Functions)에서 그대로 동작하도록 옮기되, **API 경로·요청/응답 JSON·에러 코드·`revision` 충돌 규칙·토큰 형식은 한 글자도 바꾸지 않는다.** 기존 Vercel 배포와 로컬 테스트(`node --test`)가 계속 통과해야 롤백이 가능하다.
