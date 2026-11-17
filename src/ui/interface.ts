@@ -46,6 +46,7 @@ export class Interface {
   equippedSlot?: Slot;
   equippedPinned = false;
   bagFilter: BagFilter = 'all';
+  bagRaritySort = false;
   salvageRarity: Exclude<Rarity, 'legendary'> = 'common';
   salvageIds?: string[];
   skillTarget?: number;

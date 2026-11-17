@@ -155,3 +155,16 @@ test('skillbook tab separates, stacks by skill and consumes exactly one without 
     assert(useSkillBook(save,'b').ok);assert.equal(skillbookStacks(save.bag).length,1);
   }finally{globalThis.document=previous;}
 });
+
+test('bag rarity button sorts descending within the selected category without changing stored items',async()=>{
+ const {renderInventory}=await import('../src/ui/modals/equipModal.ts');const previous=globalThis.document;globalThis.document={createElement:tag=>element(tag)};
+ try{
+  const save=freshSave();save.bag=[item('low','ring1','common'),item('top','ring2','legendary'),item('middle','necklace','epic'),item('sword','weapon','unique')];const before=JSON.stringify(save.bag);
+  const ui={modal:{querySelector:()=>null,querySelectorAll:()=>[]},world:{save},bagFilter:'accessory',salvageRarity:'common',bagRaritySort:false,renderModal(){},iconPath:()=>''};
+  const render=()=>{const root=element();renderInventory.call(ui,root);return root;};let root=render();
+  const ids=root=>find(root,n=>hasClass(n,'bag-grid')).children.map(n=>n.dataset.itemId);
+  assert.deepEqual(ids(root),['low','top','middle']);find(root,n=>hasClass(n,'bag-rarity-sort')).onclick();root=render();
+  assert.deepEqual(ids(root),['top','middle','low']);assert.equal(ui.bagFilter,'accessory');assert.equal(JSON.stringify(save.bag),before);
+  find(root,n=>hasClass(n,'bag-rarity-sort')).onclick();assert.deepEqual(ids(render()),['low','top','middle']);
+ }finally{globalThis.document=previous;}
+});

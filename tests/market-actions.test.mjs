@@ -42,3 +42,11 @@ test('switching views aborts an outdated list request and preserves the new resu
     await new Promise(r=>setImmediate(r));assert.equal(market.data.seq,9);assert.equal(market.error,'');assert.equal(market.loading,false);
   }finally{globalThis.fetch=original;}
 });
+
+test('confirmed registration stays in the register tab and does not wait for another list request',async()=>{
+ const previous=globalThis.fetch;globalThis.fetch=()=>{throw new Error('registration must not reload the list');};
+ try{
+  const market=new Market({async mutate(){return {revision:2,effect:{listing:{id:'new',state:'active'},deliveries:[]}};}});market.data=snapshot();market.view='register';market.selectedItem='gear';market.price='100';
+  await market.act('register',{itemId:'gear',price:100});assert.equal(market.error,'');assert.equal(market.view,'register');assert.equal(market.data.myActive,1);assert.equal(market.selectedItem,'');assert.equal(market.busy,false);assert.equal(market.loading,false);
+ }finally{globalThis.fetch=previous;}
+});
