@@ -1,6 +1,7 @@
 # DJRPG CODE_MAP — 작업 영역 → 파일 → 테스트
 
 > **읽는 법**: ① 아래 §1 표에서 작업 영역(또는 §2 증상 키워드)을 찾는다 → ② `핵심 파일`만 `rg -n`·부분 읽기 → ③ `관련 테스트`만 실행. **전체 트리 탐색 금지, 이 문서 전수 읽기 금지** — 필요한 행과 §3의 해당 항목만 본다.
+> **자주 고치는 작업이면 `docs/QUICK_PATCH.md` §1 표가 먼저다**(수정 파일·금지 영역·단건 테스트가 한 줄에 있다). 설계 판단·변경 범위는 §3.5.
 
 ## 1. 기능·증상별 바로가기
 
@@ -125,6 +126,31 @@
 - `tests/ts-loader.mjs` — `.ts`를 node:test에서 import하게 하는 로더. 각 테스트 첫 줄 `import './ts-loader.mjs'`.
 - 테스트는 `node --test tests/<이름>.test.mjs` 단건 실행 가능.
 
+## 3.5 설계자 블록 — 레이어·소유권·시퀀스·영향 경계
+
+### 레이어 의존성 & 상태 소유권
+- **단방향**: `ui/` → `src/game/` 규칙 → `sync.ts` → `server/endpoints/` → `server/database.mjs`. `server/*.mjs`는 `src/`를 import하지 않고, `src/`는 `server/*.mjs`를 직접 부르지 않는다(경계는 `/api/*` HTTP + `api/`·`functions/api/` 어댑터).
+- **예외는 1곳**: `src/game/sync.ts` → `src/ui/login.ts`(`accountRequest`·`Session`·`clearToken`). 로그인·저장 계약을 공유하므로 두 파일은 함께 본다.
+- **`render/`는 읽기 전용 뷰**: `world`·`save`를 읽어 그리기만 한다. 상태 변경·저장 트리거 금지 — 바뀌는 것은 뷰 로컬 데이터(`afterimages`·`corpses`·`ghosts`·`ghostEmissions`, `render/field.ts` 파티클)뿐이다.
+- **상태 소유권**: `world.ts` = 휘발성 전투 상태(`enemies`·`effects`·`drops`·`cooldown`·`bossPending`·`player.hp`)로 **저장되지 않는다**. `store.ts` = 세이브 스키마·성장 계산(`Save`·`Gender`·`parseSave`·`expToNext`·`floorKillTarget`·`useSkillBook`)으로 **Turso에 남는 것만**. `world.ts`가 `save`를 직접 고치고(층·골드·가방·레벨·`floorKills`) `world.onChange` → `Interface.onSave` → `sync.queueSave()`가 유일한 저장 트리거다.
+
+### 핵심 시퀀스 4종
+**① 로그인·세션(`sid` + `X-App-Version`)**
+`login`/`register`/`guest` → `endpoints/account.mjs` → `assignSession`(새 `sid`를 `djrpg_accounts.session_id`에 덮어씀) → `tokenFor({id,sid,exp})` → 클라 `localStorage djrpg.auth.token` → 이후 모든 요청은 `apiHeaders()`로 `Authorization` + `X-App-Version`(= `__APP_VERSION__`) → 서버 `versionGuard`(다르면 426) → `tokenPayload` → `assertSession`(불일치·`sid` 없는 구 토큰 401 `SESSION_REPLACED`).
+
+**② 자동사냥 저장(`queueSave` → `flush` → `writeSave`)**
+처치·층 이동이 `save`를 바꿈 → `world.onChange` → `Interface.onSave` → `queueSave()`(1초 디바운스) → `flush()`(`pendingSave`·같은 `requestId`로 재확인, 저장 중 재요청은 `pending` 루프로 합침) → `/api/account {action:'save'}` → `assertRevision` → `reconcileItems` → `writeSave`(revision+1, `gold`는 `shared_gold`, `equipmentCollection` 합집합, `bossKills`/`playSeconds` 최대값) → 응답 `revision`을 `sync.revision`에 반영하고 `onSaved`.
+
+**③ 거래·창고(`mutate` → `flush` 선행 → `reconcileItems`)**
+`Market.act` → `sync.mutate(action,data,requestId)` → `active` 저장 완료 대기 후 밀린 `pendingSave`는 `flush()`로 먼저 확정(실패하면 거래 중단) → `locked=true` + `pendingMarket` 고정 → `/api/market`(네트워크 오류는 **같은 `requestId`로 3회**) → `market.mutate`가 `assertRevision` → 아이템 변동 시 `reconcileItems`(소유자·캐릭터 슬롯·`identity`) → `writeSave` → 응답 `save`를 `parseSave` 후 `Object.assign(this.save)`, `locked=false`. 창고는 `transferWarehouse`가 같은 순서로 `/api/warehouse`(10초 타임아웃, `pendingWarehouse` 복구 타이머 2초).
+
+**④ 충돌·버전 오류 복구(`sync.handleError`)**
+`401`(`SESSION_REPLACED`·`INVALID_TOKEN`·`UNAUTHORIZED`) → `endSession`: 저장 중단·토큰 삭제·`onSessionEnded` 안내 후 로그인 복귀. `409 SAVE_CONFLICT` → `conflicted=true`·일시정지·새로고침 안내(자동 재저장 금지). `409 ITEM_CONFLICT`/`CHARACTER_CONFLICT` → `reloadLatest`로 최신 세이브 재로드, 10초 안 재충돌이면 `stopConflictLoop`(반복 중단). `426 VERSION_OUTDATED` → `stopForOutdatedVersion` → `reloadForNewVersion`(번들당 1회 새로고침, 캐시면 안내만).
+
+### 변경 영향 경계 (Blast Radius)
+- **공용 계약 파일**(`server/database.mjs`, `server/http.mjs`, `vite.config.ts`, `package.json`, `src/game/store.ts`)을 고쳤을 때만 전체 영향 확인 = `npm run check && npm test && npm run build`. `reconcileItems`·`writeSave`·`assertSession`처럼 여러 엔드포인트가 함께 쓰는 계약은 호출부(`account`·`market`·`warehouse`) 테스트까지 같이 통과시킨다.
+- 그 외 변경은 `docs/QUICK_PATCH.md`/§1이 지정한 모듈과 **1:1로 매핑된 테스트만** 건드린다. 다른 영역 파일을 "확인만" 하려고 열지 않는다(§4 계약 위반 여부는 문서로 판단).
+
 ## 4. 자주 걸리는 함정 · 불변 계약
 
 - **`api/*.mjs` 삭제·이름 변경 금지**: `tests/characters.test.mjs`, `tests/market.test.mjs`, `tests/functions-adapter.test.mjs`가 직접 import. `api/account.mjs`의 `tokenId` 재수출도 계약.
@@ -143,8 +169,9 @@
 
 ```bash
 rg -n "<심볼>" src server tests          # 파일 특정
+npx tsc --noEmit                          # 항상(타입 검사)
 node --test tests/world-movement.test.mjs # 해당 테스트만
-npm run check && npm test && npm run build  # 완료 전 전체
+npm run check && npm test && npm run build # 공용 계약 수정·사용자 요청 시에만
 ```
 
 ## 6. 갱신 규칙 (매뉴얼 유지)
@@ -152,3 +179,4 @@ npm run check && npm test && npm run build  # 완료 전 전체
 - 새 파일·모듈·API 추가 → §1 표에 행 1개, §3에 같은 1줄 형식(`파일` (줄 수) — 책임. `심볼`)으로 함께 추가한다.
 - 새 버그 패턴·계약 추가 → §2 증상 색인 또는 §4 불변 계약에 한 줄 반영하고, 책임이 바뀐 기존 줄은 고쳐 쓴다.
 - 밀도 유지: 상단 색인(§1·§2)만으로 영역을 찾게 하고 산문 설명은 넣지 않는다(전수 읽기 불필요 상태 유지).
+- **`docs/QUICK_PATCH.md` 연계**: 자주 고치는 작업 레시피를 이 문서(§1 행·§2 증상·§3.5 시퀀스)에 반영할 때 `QUICK_PATCH.md` §1 표에도 같은 1줄(수정 파일·금지·단건 테스트)을 추가하고, 반대도 같이 맞춘다. 두 문서가 어긋나면 이 문서가 기준이다.
