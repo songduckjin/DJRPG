@@ -716,3 +716,52 @@
 - **수정 예정 파일**: `src/game/ambientMotion.ts`, `tests/ambient-motion.test.mjs`, `docs/TASK.md`, `docs/WORKLOG.md`.
 - **목표**: 화면 축소 후 풀 변위가 너무 작아 보이지 않는 문제를 보정, 풀 끝 좌우 흔들림을 키우되 뿌리·고정 영역·불 효과·배경 이동 유지.
 - **완료 기준**: 실제 메시 정점 기준 모바일 풀 끝 변위 검증·고정 영역/불 효과 회귀·타입 검사·테스트·빌드 통과.
+
+---
+
+## [ ] [작업 90] 층 전환 잔존 몹·오프라인 스킬북·동기화 경합 수정 및 보통 난이도 밸런스 개편
+- **등록일**: 2026-11-17
+- **담당자**: 미지정 (착수 시 `[-]`로 변경해 커밋)
+- **수정 예정 파일**: `src/game/world.ts`, `src/game/offline.ts`, `src/game/sync.ts`, `src/game/items.ts`, `tests/world-movement.test.mjs`, `tests/offline.test.mjs`(신규), `tests/sync.test.mjs`, `docs/TASK.md`, `docs/WORKLOG.md`.
+- **동시 작업 확인**: 등록 시점(2026-11-17) `docs/TASK.md`에 `[-]` 진행 중 작업이 없고, `[작업 89]`까지 모두 `[x]`여서 파일·기능 겹침 없음.
+- **배경**: 최신 `main`(2aa71b9) 코드 진단 결과 아래 5가지 문제가 확인됐다. (1) 보스 처치 후 자동 등반으로 층이 오르면 이전 층의 살아 있던 일반 몬스터가 그대로 새 층에 남아 있다. (2) 오프라인 보상은 장비만 굴리고 스킬북·보스 보상이 누락되어 접속 중 사냥과 보상 격차가 크다. (3) 거래소 `mutate()`가 자동 저장 `flush()`와 `revision`을 두고 경합할 여지가 남아 있다. (4) 일반 몹 체력이 `floor²`로 폭증(30층 2,120 / 50층 5,520)하는 반면 공격력은 선형으로만 올라 고층이 지루하고 무해하다. (5) 장비·스킬북 드랍 상한이 낮아 장기 파밍이 정체된다.
+- **목표**: 위 5가지를 한 번에 고쳐 층 전환·오프라인 보상·저장 동기화의 정합성을 확보하고, 난이도·보상 곡선을 '보통' 기준으로 재조정한다.
+
+### 작업 내용
+1. **보스 처치 후 층 변경 시 생존 몬스터 정리 (`src/game/world.ts`)**:
+   - `kill(enemy)`의 보스 분기에서 `this.save.autoClimb`일 때 `this.save.floor++`·`maxFloor` 갱신 직후(`this.save.floorKills = 0`, `this.bossPending = false` 처리와 같은 자리)에 `this.enemies = []; this.chaseTarget = undefined; this.pursuing = false; this.spawnTimer = 0.2;`를 넣어 이전 층 몬스터·추적 상태만 비운다.
+   - **`this.drops`는 절대 비우지 않는다**: 보스가 떨어뜨린 장비·스킬북은 아직 줍기 전이므로 새 층에서도 빛기둥으로 남아 있어야 한다.
+   - `autoClimb`가 꺼진 '층 반복 사냥' 모드에서는 층이 바뀌지 않으므로 몬스터를 지우지 않는다. `this.activeMove`도 함께 초기화해 새 층에서 이전 목표로 걸어가지 않게 한다.
+2. **오프라인 보상 스킬북·보스 보상 반영 (`src/game/offline.ts`)**:
+   - `applyOfflineRewards`의 킬 루프에서 장비 확률(`equipmentDropChance(save.floor, false)`)에 더해 `skillBookDropChance(save.floor, false)`·`rollSkillBook(save.floor)`를 함께 굴려 `save.bag`에 넣고 `items`에 담는다. 가방 40칸 초과 시 장비와 동일하게 `missedDrops`로 집계한다.
+   - 보스 처치 추정을 추가한다: `const bossKills = Math.floor(kills / floorKillTarget(save.floor))`. 보스 골드 `70 * save.floor * bossKills`를 `save.gold`에 더하고(`gold` 반환값에도 포함), 보스 기준 확률(`equipmentDropChance(save.floor, true)`·`skillBookDropChance(save.floor, true)` / `rollItem(..., false, true)`)로 `bossKills`회 추가 굴림을 수행한다.
+   - `save.floorKills`는 장비 킬 진행과 보스 리셋을 반영해 `Math.min(floorKillTarget(save.floor), save.floorKills + kills - bossKills * floorKillTarget(save.floor))` 형태로 계산한다(음수 방지). `tutorial` 미완료(`save.tutorial < 1`) 상태에서는 지금처럼 드랍 없이 보상만 준다.
+   - 오프라인 분당 처치 상한을 `8~16마리/분`으로 소폭 현실화한다(`Math.min(16, 8 + Math.floor(attack / enemyMaxHp(save.floor, false) * 16))`, 하한 8 유지).
+3. **거래소·세이브 동기화 동시 요청 안정성 (`src/game/sync.ts`)**:
+   - `mutate()` 진입 시 `this.cancelQueuedSave()` 직후에 `if (this.active) await this.active;`로 **진행 중인 자동 저장이 완전히 끝날 때까지 먼저 기다린다**. 지금은 `this.locked = true`를 먼저 세운 뒤 기다려서, 실행 중인 `flush()`의 `while (this.pending && !this.locked)` 루프가 도중에 빠져나가 남은 변경분이 밀릴 수 있다.
+   - 대기가 끝난 뒤 `this.conflicted`면 즉시 중단하고, `this.pendingSave`가 남아 있으면 `flush()`로 저장을 확정한 다음 결과가 `false`면 예외로 **거래를 시작하지 않고 안전하게 중단**한다. 모든 판정이 끝난 뒤에만 `this.locked = true`를 세우고 `this.pendingMarket`(revision·progress 스냅샷)과 `/api/market` 요청을 보내 `revision` 경합을 없앤다.
+   - `flush()` 실패·`SAVE_CONFLICT`로 `conflicted`가 된 경우에도 `finally`에서 `locked`가 풀리고 `onPause(false)`/`onPause(true)` 상태가 어긋나지 않는지 확인하고, 재시도(같은 `requestId`) 경로는 그대로 유지한다.
+4. **층별 몬스터 체력·공격력 '보통' 균형 커브 (`src/game/world.ts`)**:
+   - `enemyMaxHp(floor, boss)`를 아래로 교체한다:
+     - 일반: `Math.round(24 + floor * 12 + Math.pow(floor, 1.55) * 4)` (1층 40 / 10층 286 / 30층 1,163 / 50층 2,344 — 기존 32 / 320 / 2,120 / 5,520)
+     - 보스: `Math.round(220 + floor * 95 + Math.pow(floor, 1.6) * 32)` (1층 347 / 10층 2,444 / 30층 10,458 — 기존 450 / 4,500 / 30,900)
+   - `enemyHitDamage(floor, boss, defense)`의 기본값을 아래로 교체한다(방어력 `defense * .2` 감산과 최소 1 피해는 유지):
+     - 일반: `Math.round(7 + floor * 2.4 + Math.pow(floor, 1.25) * 0.5)` (1층 10 / 10층 40 / 30층 114)
+     - 보스: `Math.round(20 + floor * 5.5 + Math.pow(floor, 1.3) * 1.2)` (1층 27 / 10층 99 / 30층 285)
+   - `src/ui/modals/floorModal.ts`의 몬스터 HP 표기는 `enemyMaxHp`를 그대로 쓰므로 자동 반영된다. 별도 상수 하드코딩이 없는지 `rg`로 확인한다.
+5. **자동사냥·아이템 획득 속도 장기 '보통' 밸런스 (`src/game/items.ts`, `src/game/offline.ts`)**:
+   - `equipmentDropChance`: 일반 `Math.min(.022, .0025 + (floor - 1) * .00035)`, 보스 `Math.min(.24, .03 + (floor - 1) * .004)`로 상한·기울기를 소폭 올린다(기존 상한 .015 / .18).
+   - `skillBookDropChance`: 일반 `Math.min(.015, .001 + (floor - 1) * .00012)`, 보스 `Math.min(.15, .018 + (floor - 1) * .002)`(기존 상한 .01 / .12).
+   - 희귀·전설 등급 확률(`rollItem`)과 극악 파밍 감성은 유지하고, 위 두 확률 함수만 조정한다.
+6. **단위 테스트 및 검증**:
+   - `tests/world-movement.test.mjs`: 보스 처치 후 `autoClimb`로 층이 오르면 `world.enemies.length === 0`, `chaseTarget === undefined`, `pursuing === false`이고 **보스 드랍(`world.drops`)은 유지**되는지, `autoClimb`가 꺼져 있으면 몬스터가 그대로인지 검증한다. `enemyMaxHp`·`enemyHitDamage`가 1·10·30층에서 위 표값과 실제로 일치하는지도 함께 확인한다.
+   - `tests/offline.test.mjs`(신규): `applyOfflineRewards`가 장비·스킬북을 모두 굴리고, 보스 처치 추정으로 보스 골드가 더해지며, 가방 40칸 초과 시 `missedDrops`가 증가하고, 분당 처치가 8~16 범위를 벗어나지 않는지 검증한다(난수는 `Math.random` 스텁으로 고정).
+   - `tests/sync.test.mjs`: 진행 중인 `flush()`가 있을 때 `mutate()`가 그 저장을 먼저 기다린 뒤 `/api/market`을 보내는지(요청 순서·`revision` 값), 저장 실패 시 거래가 시작되지 않고 예외로 중단되는지 검증을 추가한다.
+   - `npm run check`, `npm test`, `npm run build` 통과 후 `docs/TASK.md`의 이 작업을 `[x]` 처리하고 `docs/WORKLOG.md` 상단에 5줄 이내로 기록한다.
+
+### 검증 및 완료 기준 (Codex Policy)
+1. `npm run check`, `npm test`, `npm run build` 모두 통과(TypeScript 에러 0건).
+2. 보스 처치 후 층 상승 시 이전 층 몬스터가 남지 않고 드랍은 유지되며, 오프라인 보상에 스킬북·보스 보상이 포함되고, `mutate()`가 진행 중 저장을 기다린 뒤에만 거래를 보낸다.
+3. 1·10·30·50층의 몬스터/보스 체력·공격력이 위 곡선값과 일치하고, `floorModal` 표기가 새 값으로 보인다.
+4. `docs/TASK.md` 이 항목 `[x]` 처리 및 `docs/WORKLOG.md` 상단 5줄 이내 기록 후 `main`에 커밋·푸시.
+5. **토큰 절약**: 브라우저 실기 조작, Playwright/헤드리스 브라우저, Computer Use 도구는 실행하지 않는다. 실제 화면 확인은 사용자가 폰에서 수행한다.
