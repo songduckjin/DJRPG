@@ -15,7 +15,7 @@ test('grass tips sway slowly while fire tips flutter faster, with bounded source
   const fire=ambientInfluence(fires[1].x,fires[1].y-.024,fires);assert.equal(grass.kind,'grass');assert.equal(fire.kind,'fire');
   assert.notDeepEqual(ambientOffset(grass,1),ambientOffset(grass,2));assert.notDeepEqual(ambientOffset(fire,1),ambientOffset(fire,1.05));
   for(const influence of [grass,fire])for(let step=0;step<1000;step++){
-    const offset=ambientOffset(influence,step*.07);assert(Math.abs(offset.x)<=5.1);assert(Math.abs(offset.y)<=4.5);
+    const offset=ambientOffset(influence,step*.07);assert(Math.abs(offset.x)<=(influence.kind==='grass'?13:5.1));assert(Math.abs(offset.y)<=(influence.kind==='grass'?.45:4.5));
   }
   assert.deepEqual(ambientOffset(grass,1,false),{x:0,y:0});
 });
@@ -59,4 +59,29 @@ test('Pixi scene integration keeps layers below actors, resizes, honors reduced 
     const pristine=new PlaneGeometry({width:964,height:1632,verticesX:97,verticesY:165});assert.deepEqual(mesh.geometry.getBuffer('aPosition').data,pristine.getBuffer('aPosition').data);pristine.destroy();
     assert.equal(mesh.eventMode,'none');assert.equal(sparks.eventMode,'none');stage.destroy({children:true});assert.equal(updates.size,0);
   }finally{if(!stage.destroyed)stage.destroy({children:true});texture.destroy(true);globalThis.matchMedia=previous;}
+});
+
+test('each grass patch has visible screen-space travel on the actual mesh at mobile sizes',()=>{
+  const positions=geometry(),original=positions.slice(),motion=new AmbientDeformation(positions,964,1632,fires);
+  const leaves=grassPatches.map(([x,root,,height])=>(Math.round((root-height*.75)*164)*97+Math.round(x*96))*2);
+  const min=leaves.map(()=>Infinity),max=leaves.map(()=>-Infinity);
+  for(let frame=0;frame<=180;frame++){
+    motion.apply(frame/30);
+    leaves.forEach((index,patch)=>{const travel=positions[index]-original[index];min[patch]=Math.min(min[patch],travel);max[patch]=Math.max(max[patch],travel);});
+  }
+  for(const [width,height] of [[320,680],[390,844],[540,914]]){
+    const scale=wastelandLayout(width,height).scaleX;
+    leaves.forEach((_,patch)=>{const pixels=(max[patch]-min[patch])*scale;assert(pixels>=3,`grass ${patch} only moves ${pixels}px at width ${width}`);assert(pixels<=12,`grass ${patch} moves too far`);});
+  }
+});
+test('stronger grass wind does not invert triangles or tear the background mesh',()=>{
+  const positions=geometry(),motion=new AmbientDeformation(positions,964,1632,fires);
+  const area=(a,b,c)=>(positions[b]-positions[a])*(positions[c+1]-positions[a+1])-(positions[b+1]-positions[a+1])*(positions[c]-positions[a]);
+  for(let frame=0;frame<=90;frame++){
+    motion.apply(frame/15);
+    for(let row=0;row<164;row++)for(let column=0;column<96;column++){
+      const a=(row*97+column)*2,b=a+2,c=a+97*2,d=c+2;
+      assert(area(a,b,c)>0);assert(area(b,d,c)>0);
+    }
+  }
 });

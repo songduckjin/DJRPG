@@ -35,7 +35,7 @@ export function ambientOffset(influence: AmbientInfluence, time: number, enabled
   if (!enabled) return { x: 0, y: 0 };
   const { kind, weight, phase } = influence;
   return kind === 'grass'
-    ? { x: weight * (Math.sin(time * 1.25 + phase) * 2.4 + Math.sin(time * .51 + phase * .7) * 1.1), y: weight * Math.sin(time * .75 + phase) * .45 }
+    ? { x: weight * (Math.sin(time * 1.75 + phase) * 10 + Math.sin(time * .65 + phase * .7) * 3), y: weight * Math.sin(time * .75 + phase) * .45 }
     : { x: weight * (Math.sin(time * 7.1 + phase) * 3.5 + Math.sin(time * 12.3 + phase) * 1.6), y: weight * Math.sin(time * 9.3 + phase) * 4.5 };
 }
 export class AmbientDeformation {
