@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { decodeAccount, assertRevision, fail, reconcileItems, inventoryOwnerQuery, transaction, validateSave, writeSave } from './database.mjs';
-export const rules = { fee: .05, maxListings: 10, durationHours: 72, maxPrice: 1_000_000_000, pageSize: 20 };
+export const rules = { fee: .05, maxListings: 30, durationHours: 72, maxPrice: 1_000_000_000, pageSize: 20 };
 const deliveryOperation = (listing, owner, kind, item, gold, reason) => {
   const delivery = { id: randomUUID(), item, gold, reason, createdAt: Date.now() };
   return { owner, delivery, operation: { sql: 'INSERT OR IGNORE INTO djrpg_market_inbox VALUES (?,?,?,?,?,?,?,?,NULL)', args: [delivery.id, owner, listing.id, kind, item ? JSON.stringify(item) : null, gold, reason, delivery.createdAt] } };
@@ -105,7 +105,7 @@ export async function mutate(db, id, input) {
       const price = input.price;
       if (!Number.isSafeInteger(price) || price < 1 || price > rules.maxPrice) fail(400, 'INVALID_PRICE', '가격은 1~1,000,000,000 금화의 정수로 입력하세요.');
       const count = Number(reads[2].rows[0].n);
-      if (count >= rules.maxListings) fail(409, 'LISTING_LIMIT', '동시에 10개까지 등록할 수 있습니다.');
+      if (count >= rules.maxListings) fail(409, 'LISTING_LIMIT', `동시에 ${rules.maxListings}개까지 등록할 수 있습니다. 판매 중인 물품을 취소하거나 판매 완료 후 다시 등록하세요.`);
       const index = save.bag.findIndex(item => item.id === input.itemId);
       if (index < 0) fail(409, 'ITEM_NOT_AVAILABLE', '가방에 있는 미장착 아이템만 등록할 수 있습니다.');
       const selected = save.bag[index];

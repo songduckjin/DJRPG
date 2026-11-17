@@ -108,3 +108,24 @@ test('bag grid marks only locked equipment at top-right without inserting detail
     save.bag[0].locked=false;const refreshed=render();assert.equal(refreshed.children.length,3);assert(!find(refreshed,n=>hasClass(n,'bag-lock-badge')));
   }finally{globalThis.document=previous;}
 });
+
+test('registration at the limit remains clickable and explains rejection before browser price validation',()=>{
+  const previous=globalThis.document;globalThis.document={createElement:tag=>element(tag)};
+  try{
+    const save=freshSave();save.bag=[item('sale')];
+    const market=new Market({conflicted:false});market.view='register';market.selectedItem='sale';market.price='';
+    const calls=[],messages=[];market.act=(...args)=>calls.push(args);
+    const ui={market,session:{guest:false},world:{save},message:message=>messages.push(message),root:{querySelector:()=>null}};
+    for(const limit of [10,30]){
+      market.data={inbox:[],listings:[],myActive:limit,rules:{maxListings:limit}};
+      const dialog=element();renderMarket.call(ui,dialog);
+      const form=find(dialog,n=>hasClass(n,'market-register')),submit=find(form,n=>hasClass(n,'market-primary'));
+      assert.equal(submit.disabled,false);let prevented=false;
+      submit.onclick({preventDefault(){prevented=true;}});assert(prevented);assert(messages.at(-1).includes(`${limit}개`));
+      assert(find(form,n=>n.attrs?.role==='alert').textContent.includes('취소'));
+      form.onsubmit({preventDefault(){}});assert.equal(calls.length,0);
+      market.data.myActive=limit-1;market.price='100';form.onsubmit({preventDefault(){}});
+      assert.deepEqual(calls.pop(),['register',{itemId:'sale',price:100}]);
+    }
+  }finally{globalThis.document=previous;}
+});
