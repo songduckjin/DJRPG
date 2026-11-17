@@ -10,6 +10,8 @@
 
 | 작업 | 담당자 ID | 브랜치 | 수정 예정 파일 / 영향 영역 | 위험 등급 | 상태 |
 |---|---|---|---|---|---|
+| 97 · 스킬북4열/카드축소 | fks3997 | `fix/compact-books-ring-fks3997` | `skillBooks.ts`, `modals.css` / 목록·기존강화버튼 | 개인(UI 한정) | [-] |
+| 98 · 반지 자동해제 복원버그 | fks3997 | `fix/compact-books-ring-fks3997` | `store.ts`, 반지회귀테스트 / 자동장착·저장복원 | 주의(기존 형식 유지) | [-] |
 | 96 · 설정·우편·보상·업적 | fks3997 | `feature/utility-menus-fks3997` | 신규 utility/journey 모듈·API 분기·DB 추가·store/world/offline 통계·UI/HUD/render/main·아이콘·테스트 / 계정 수령 계약 | 핵심 공통(사용자 양측 합의 확인) | [x] PR #28 운영 배포 성공 |
 | 95 · 스킬30레벨·스킬북 강화/이동 | fks3997 | `feature/skill-upgrades-30-fks3997` | `skills.ts`, `store.ts`, `skillProgress.ts`, 스킬/가방 UI·HUD·CSS·테스트 / 스킬 성장·저장 레벨 값 | 주의(기존 데이터 형식 유지) | [x] PR #28 운영 배포 성공 |
 | 94 · 장비창 정렬·스킬북 별도 목록/묶음 | fks3997 | `feature/skillbook-bag-fks3997` | `equipModal.ts`, `skillbookBag.ts`, `modals.css`, UI 테스트·개인 기록 / 가방 표시·사용 | 주의(데이터 형식 유지) | [x] PR #28 운영 배포 성공 |
