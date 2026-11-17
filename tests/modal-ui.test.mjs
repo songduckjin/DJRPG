@@ -37,7 +37,7 @@ test('empty equipment slot compares to zero; skillbooks have no equipment compar
 function uiFixture() {
   const market = new Market({ locked: false }); market.open = () => {}; market.close = () => {};
   const bag = { scrollTop: 60 }, dialog = { scrollTop: 80, querySelector: () => bag };
-  return { market, modal: { querySelector: () => dialog }, openModal: null,
+  return { market, modal: { querySelector: selector => selector === '.modal-dialog' ? dialog : null, querySelectorAll: () => [] }, openModal: null,
     selected: 'old', bagFilter: 'weapon', salvageRarity: 'unique', codexQuery: '검', codexSlot: 'weapon', codexRarity: 'rare', codexState: 'owned', codexSelected: 'old',
     newItems: new Set(), renderBagBadge() {}, renderModal() { this.renders = (this.renders || 0) + 1; }, dialog, bag };
 }

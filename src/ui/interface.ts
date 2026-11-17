@@ -1,3 +1,4 @@
+import { dismissEquippedDetail, positionEquippedDetail, showEquippedDetail } from './equippedDetail';
 import { SkillFeedback } from './skillFeedback';
 import { bindModalClose } from './modalClose';
 import { resetModalDefaults } from './modalDefaults';
@@ -35,6 +36,8 @@ export type BagFilter = 'all' | 'weapon' | 'armor' | 'accessory' | 'skillbook';
 export class Interface {
   market: Market;
   selected?: string;
+  equippedSlot?: Slot;
+  equippedPinned = false;
   bagFilter: BagFilter = 'all';
   salvageRarity: Exclude<Rarity, 'legendary'> = 'common';
   salvageIds?: string[];
@@ -76,10 +79,12 @@ export class Interface {
     this.root.querySelectorAll<HTMLButtonElement>('[data-modal]').forEach(button => button.onclick = () => { cancelSkillSelection.call(this); this.open(button.dataset.modal as Modal); });
     this.root.addEventListener('pointerdown', event => {
       const target = event.target as HTMLElement;
+      if (this.equippedSlot && !target.closest('.equipped-detail, .equipment-slot')) dismissEquippedDetail(this);
       if (this.selected && !target.closest('.bag-detail-overlay, .bag-item')) dismissBagDetail(this);
     }, true);
-    window.addEventListener('resize', () => positionBagDetail(this));
+    window.addEventListener('resize', () => { positionBagDetail(this); positionEquippedDetail(this); });
     this.modal.addEventListener('scroll', event => {
+      if (event.target !== this.modal.querySelector('.equipped-detail')) positionEquippedDetail(this);
       if (event.target !== this.modal.querySelector('.bag-detail-overlay')) positionBagDetail(this);
     }, true);
     this.modal.addEventListener('click', event => { if (event.target === this.modal) this.open(null); });
@@ -186,6 +191,7 @@ export class Interface {
     const bagGrid = dialog.querySelector<HTMLElement>('.bag-grid');
     if (bagGrid) bagGrid.scrollTop = bagScroll;
     positionBagDetail(this);
+    if (this.openModal === 'equipment' && this.equippedSlot) showEquippedDetail(this, this.equippedSlot, this.equippedPinned);
   }
 
   renderEquipment(dialog: HTMLElement): void { return renderEquipment.call(this, dialog); }
