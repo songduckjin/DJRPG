@@ -40,14 +40,18 @@ test('compact description keeps content width and clamps beside the selected ite
   const placement=detailPosition(bounds,{left:460,top:150,bottom:200},100,240);
   assert.equal(placement.width,240);assert.equal(placement.left,252);assert(placement.left+placement.width<=492);
 });
-test('close responds at primary pointerdown before release, with keyboard click fallback',()=>{
+test('close waits for click after touch release and consumes activation before exposing the game',()=>{
   const handlers={};let closed=0,prevented=0,stopped=0;
   bindModalClose({addEventListener:(type,run)=>handlers[type]=run},()=>closed++);
   handlers.pointerdown({button:0,isPrimary:true,preventDefault(){prevented++;},stopPropagation(){stopped++;}});
-  assert.equal(closed,1);assert.equal(prevented,1);assert.equal(stopped,1);
-  handlers.pointerdown({button:2,isPrimary:true});assert.equal(closed,1);
-  handlers.click({detail:1});assert.equal(closed,1);handlers.click({detail:0});assert.equal(closed,2);
+  assert.equal(closed,0);assert.equal(stopped,1);assert.equal(prevented,0);
+  // A canceled or scrolled touch generates no activation click and leaves the popup open.
+  handlers.pointerdown({button:2,isPrimary:true});assert.equal(closed,0);
+  handlers.click({detail:1,preventDefault(){prevented++;},stopPropagation(){stopped++;}});
+  assert.equal(closed,1);assert.equal(prevented,1);assert.equal(stopped,2);
+  handlers.click({detail:0,preventDefault(){},stopPropagation(){}});assert.equal(closed,2);
 });
+
 function element(tag='div'){
   const node={tag,children:[],dataset:{},style:{},className:'',textContent:'',attrs:{},value:'',
     append(...children){this.children.push(...children);},prepend(...children){this.children.unshift(...children);},appendChild(child){this.append(child);return child;},replaceChildren(...children){this.children=children;},setAttribute(k,v){this.attrs[k]=v;}};
@@ -154,4 +158,17 @@ test('skillbook tab separates, stacks by skill and consumes exactly one without 
     assert.equal(save.bag[0].id,'gear');ui.bagFilter='all';assert.equal(render().children.length,1);
     assert(useSkillBook(save,'b').ok);assert.equal(skillbookStacks(save.bag).length,1);
   }finally{globalThis.document=previous;}
+});
+
+test('bag rarity button sorts descending within the selected category without changing stored items',async()=>{
+ const {renderInventory}=await import('../src/ui/modals/equipModal.ts');const previous=globalThis.document;globalThis.document={createElement:tag=>element(tag)};
+ try{
+  const save=freshSave();save.bag=[item('low','ring1','common'),item('top','ring2','legendary'),item('middle','necklace','epic'),item('sword','weapon','unique')];const before=JSON.stringify(save.bag);
+  const ui={modal:{querySelector:()=>null,querySelectorAll:()=>[]},world:{save},bagFilter:'accessory',salvageRarity:'common',bagRaritySort:false,renderModal(){},iconPath:()=>''};
+  const render=()=>{const root=element();renderInventory.call(ui,root);return root;};let root=render();
+  const ids=root=>find(root,n=>hasClass(n,'bag-grid')).children.map(n=>n.dataset.itemId);
+  assert.deepEqual(ids(root),['low','top','middle']);find(root,n=>hasClass(n,'bag-rarity-sort')).onclick();root=render();
+  assert.deepEqual(ids(root),['top','middle','low']);assert.equal(ui.bagFilter,'accessory');assert.equal(JSON.stringify(save.bag),before);
+  find(root,n=>hasClass(n,'bag-rarity-sort')).onclick();assert.deepEqual(ids(render()),['low','top','middle']);
+ }finally{globalThis.document=previous;}
 });
