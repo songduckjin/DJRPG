@@ -128,10 +128,16 @@ export class GameView {
     const walking = await Promise.all((Object.keys(walkSheets) as (keyof typeof walkSheets)[]).map(async key => [key, await loadTexture(walkSheets[key])] as const));
     for (const [key, sheet] of walking) {
       sheet.source.scaleMode = 'linear';
+      // Some walk sheets keep the sword arm above the head: those are 4 poses in one row
+      // (square cells), the rest are 8 poses in 4×2. Cutting every sheet as 4×2 chopped
+      // those heroes in half, so the row count follows the sheet's own aspect ratio.
+      const rows = sheet.source.width / sheet.source.height > 2.5 ? 1 : 2;
+      const poses = rows * 4;
       this.animations[key] = Array.from({ length: 8 }, (_, index) => {
-        const column = index % 4, row = Math.floor(index / 4);
-        const left = Math.round(column * sheet.source.width / 4), top = Math.round(row * sheet.source.height / 2);
-        const right = Math.round((column + 1) * sheet.source.width / 4), bottom = Math.round((row + 1) * sheet.source.height / 2);
+        const pose = index % poses;
+        const column = pose % 4, row = Math.floor(pose / 4);
+        const left = Math.round(column * sheet.source.width / 4), top = Math.round(row * sheet.source.height / rows);
+        const right = Math.round((column + 1) * sheet.source.width / 4), bottom = Math.round((row + 1) * sheet.source.height / rows);
         return new Texture({ source: sheet.source, frame: new Rectangle(left, top, right - left, bottom - top) });
       });
     }

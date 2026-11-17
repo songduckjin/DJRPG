@@ -3,6 +3,7 @@ import type { World } from '../world';
 import { enemyFacing } from '../facing';
 import { heroAppearance } from '../appearance';
 import { heroAnimationMode, heroMotion } from './heroMotion';
+import { heroScale } from './heroScale';
 import type { GameView } from '../render';
 
 // The hero sprite sheet already carries the equipped body (bare/armored × helmet) and sword.
@@ -45,19 +46,17 @@ export function drawHero(this: GameView, world: World, x: number, y: number, tim
     this.hero.anchor.y = animatedAttack ? .97 : moving ? walkAnchors[walkArt][walkingFrame] : .996;
     let bob = 0;
     const local = world.effects.filter(effect => effect.kind !== 'hit' && effect.kind !== 'death' && Math.hypot(effect.x - player.x, effect.y - player.y) < 2);
-    const attack = local.find(effect => ['slash', 'slash2', 'power', 'destroy'].includes(effect.kind));
     const spin = local.find(effect => effect.kind === 'spin');
     const slam = local.find(effect => effect.kind === 'slam' || effect.kind === 'hell');
-    const cry = local.find(effect => effect.kind === 'warcry');
-    const motion = heroMotion(!!appearance.attack, world.attackPose, player.facingSide, spin, attack, slam);
+    const motion = heroMotion(world.attackPose, player.facingSide, spin);
     const attackPulse = motion.pulse;
     if (slam) bob -= Math.sin(Math.PI * slam.age / slam.duration) * 17;
-    const boost = cry ? 1 + .14 * (1 - cry.age / cry.duration) : 1;
-    const scale = this.app.screen.height * .095 / texture.height;
+    const art = animation === 'walk' ? walkArt : animatedAttack && appearance.attack ? appearance.attack : appearance.idle;
+    const scale = heroScale(this.app.screen.height, art, texture.height);
     const face = player.facingSide;
-    const lungeX = (Math.cos(player.facing) - Math.sin(player.facing)) * .86 * attackPulse * 24;
-    const lungeY = (Math.cos(player.facing) + Math.sin(player.facing)) * .43 * attackPulse * 24;
-    this.heroLayer.scale.set(scale * face * boost * motion.scaleX, scale * boost * motion.scaleY);
+    const lungeX = (Math.cos(player.facing) - Math.sin(player.facing)) * .86 * attackPulse * 6;
+    const lungeY = (Math.cos(player.facing) + Math.sin(player.facing)) * .43 * attackPulse * 6;
+    this.heroLayer.scale.set(scale * face * motion.scaleX, scale * motion.scaleY);
     this.heroLayer.position.set(x + lungeX + (player.hit > 0 ? Math.sin(time * 55) * 2 : 0), y + bob + lungeY);
     this.heroLayer.rotation = motion.rotation;
     this.hero.tint = player.hit > 0 ? 0xffd4cf : 0xffffff;

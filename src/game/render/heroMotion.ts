@@ -3,20 +3,17 @@ export function heroAnimationMode(moving: boolean, attackPose: number, hasAttack
   return attackPose > 0 && hasAttackSheet ? 'attack' : 'idle';
 }
 
+// The attack sheets already carry the swing, so the body itself never stretches, squashes
+// or tips over: only the forward lunge (`pulse`) and the spin skill's full turn remain.
 export function heroMotion(
-  hasAttackSheet: boolean,
   attackPose: number,
   face: number,
-  spin?: { age: number; duration: number },
-  attack?: { swing?: number },
-  slam?: { age: number }
+  spin?: { age: number; duration: number }
 ): { pulse: number; scaleX: number; scaleY: number; rotation: number } {
-  const pulse = attackPose > 0 ? Math.sin(Math.PI * (1 - attackPose / .32)) : 0;
-  if (!hasAttackSheet) return { pulse, scaleX: 1, scaleY: 1, rotation: 0 };
   return {
-    pulse,
-    scaleX: attackPose > 0 ? 1 + pulse * .15 : 1,
-    scaleY: attackPose > 0 ? 1 - pulse * .15 : slam && slam.age > .35 ? .82 : 1,
-    rotation: spin ? spin.age / spin.duration * Math.PI * 2 * face : attack ? (attack.swing ?? 1) * .2 * pulse * face : 0
+    pulse: attackPose > 0 ? Math.sin(Math.PI * (1 - attackPose / .32)) : 0,
+    scaleX: 1,
+    scaleY: 1,
+    rotation: spin ? spin.age / spin.duration * Math.PI * 2 * face : 0
   };
 }
