@@ -5,13 +5,14 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createHmac, randomUUID } from 'node:crypto';
 import { createClient } from '@libsql/client';
-import { schema, account } from '../server/database.mjs';
+import { schema, account, transaction, reconcileItems } from '../server/database.mjs';
 import { mutate, snapshot } from '../server/market.mjs';
 import { mutate as mutateJourney } from '../server/journey.mjs';
 import accountHandler from '../api/account.mjs';
 import warehouseHandler from '../api/warehouse.mjs';
 import './ts-loader.mjs';
 const { SaveSync } = await import('../src/game/sync.ts');
+const { parseSave } = await import('../src/game/store.ts');
 
 const item = { id: 'legacy-sword-1', name: '기존 검', slot: 'weapon', rarity: 'rare', stats: { attack: 10 } };
 const listedItem = { ...item, id: 'legacy-axe-2', name: '기존 도끼' };
@@ -173,6 +174,50 @@ test('loading a save drops ghost items and restores tampered ones so the next sa
     const clean = await call({ action: 'load' });
     assert.equal(clean.status, 200);
     assert.deepEqual(clean.body.save.bag.map(entry => entry.id), ['clean', 'tampered']);
+  } finally {
+    await db.close(); delete process.env.TURSO_DATABASE_URL; delete process.env.TURSO_AUTH_TOKEN;
+    await rm(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+  }
+});
+
+test('legacy item names survive parseSave, so load then save no longer deadlocks on 409 ITEM_CONFLICT', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'djrpg-item-name-'));
+  const url = `file:${join(directory, 'item-name.db')}`;
+  process.env.TURSO_DATABASE_URL = url; process.env.TURSO_AUTH_TOKEN = 'local-item-name-test';
+  const db = createClient({ url });
+  const blade = { id: 'legacy-zweihander', name: '영원의 츠바이핸더', slot: 'weapon', rarity: 'legendary', stats: { attack: 40, crit: 6 } };
+  const book = { id: 'legacy-skillbook', name: '[스킬북] 회오리 베기', slot: 'skillbook', kind: 'skillbook', skillId: 'spin', rarity: 'rare', stats: {} };
+  try {
+    await schema(db);
+    await db.execute({ sql: 'INSERT INTO djrpg_accounts (id,password_hash,save_json,updated_at) VALUES (?,?,?,?)', args: ['hero', 'test-hash', JSON.stringify({ ...legacy, bag: [blade, book], equipment: {}, gold: 10 }), new Date().toISOString()] });
+    await transaction(db, async tx => { const row = await account(tx, 'hero'); await reconcileItems(tx, 'hero', row.save, row.save); });
+    const signed = Buffer.from(JSON.stringify({ id: 'hero', exp: Date.now() + 60_000 })).toString('base64url');
+    const token = `${signed}.${createHmac('sha256', process.env.TURSO_AUTH_TOKEN).update(signed).digest('base64url')}`;
+    const call = async body => {
+      const result = {};
+      const res = { status(code) { result.status = code; return this; }, json(data) { result.body = data; return this; } };
+      await accountHandler({ method: 'POST', headers: { authorization: `Bearer ${token}` }, body }, res);
+      return result;
+    };
+    const names = save => save.bag.map(entry => entry.name);
+    const loaded = await call({ action: 'load' });
+    assert.equal(loaded.status, 200);
+    const client = parseSave(loaded.body.save, 'hero');
+    assert.deepEqual(names(client), ['영원의 츠바이핸더', '[스킬북] 회오리 베기']);
+    const saved = await call({ action: 'save', save: client, revision: loaded.body.revision, requestId: randomUUID(), characterSlot: 1 });
+    assert.equal(saved.status, 200);
+    // 아직 이름을 덮어쓰는 구버전 번들이 저장을 보내도 영구 409가 아니라 서버에 저장된 이름으로 정리되어 통과한다.
+    const staleClient = structuredClone(saved.body.save);
+    staleClient.bag[0].name = '영원의 쯔바이핸드';
+    staleClient.bag[1].name = '[스킬북] 드래곤 트위스터';
+    const tolerated = await call({ action: 'save', save: staleClient, revision: saved.body.revision, requestId: randomUUID(), characterSlot: 1 });
+    assert.equal(tolerated.status, 200);
+    assert.deepEqual(names(tolerated.body.save), ['영원의 츠바이핸더', '[스킬북] 회오리 베기']);
+    // 이름이 달라도 등급·능력치 변조는 계속 ITEM_CONFLICT로 막는다.
+    const forged = structuredClone(staleClient);
+    forged.bag[0].stats.attack = 999;
+    const rejected = await call({ action: 'save', save: forged, revision: tolerated.body.revision, requestId: randomUUID(), characterSlot: 1 });
+    assert.equal(rejected.status, 409); assert.equal(rejected.body.code, 'ITEM_CONFLICT');
   } finally {
     await db.close(); delete process.env.TURSO_DATABASE_URL; delete process.env.TURSO_AUTH_TOKEN;
     await rm(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });

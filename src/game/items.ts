@@ -64,7 +64,11 @@ export function migrateItem(value: unknown): Item | undefined {
   if (!isRecord(value)) return undefined;
   if (value.kind === 'skillbook' && value.slot === 'skillbook' && typeof value.skillId === 'string' && [...skillOrder, ...passiveOrder].includes(value.skillId as SkillLevelId)) {
     const skillId = value.skillId as SkillLevelId;
-    return { id: typeof value.id === 'string' && value.id ? value.id : crypto.randomUUID(), name: `[스킬북] ${skillId in skills ? skills[skillId as keyof typeof skills].name : passives[skillId as keyof typeof passives].name}`, slot: 'skillbook', rarity: 'rare', kind: 'skillbook', skillId, stats: {} };
+    const fallback = `[스킬북] ${skillId in skills ? skills[skillId as keyof typeof skills].name : passives[skillId as keyof typeof passives].name}`;
+    // 서버가 소유권 identity(이름 포함)로 아이템을 대조하므로, 저장된 이름이 있으면 그대로 유지한다.
+    // 여기서 이름을 덮어쓰면 load로 받은 정상 아이템이 다음 save에서 409 ITEM_CONFLICT로 막힌다.
+    const name = typeof value.name === 'string' && value.name.trim() ? value.name : fallback;
+    return { id: typeof value.id === 'string' && value.id ? value.id : crypto.randomUUID(), name, slot: 'skillbook', rarity: 'rare', kind: 'skillbook', skillId, stats: {} };
   }
   if (typeof value.slot !== 'string' || !slots.includes(value.slot as Slot) || typeof value.rarity !== 'string' || !Object.hasOwn(rarityNames, value.rarity)) return undefined;
   const slot = value.slot as Slot, rarity = value.rarity as Rarity;
@@ -73,8 +77,9 @@ export function migrateItem(value: unknown): Item | undefined {
     const amount = value.stats[stat];
     if (typeof amount === 'number' && Number.isFinite(amount) && amount >= 0) stats[stat] = amount;
   }
+  // 이름은 서버에 저장된 값을 그대로 쓴다(표기가 달라도 isZweihander·codex가 둘 다 인식한다).
   const savedName = typeof value.name === 'string' && value.name.trim() ? value.name : '';
-  const name = savedName === '영원의 츠바이핸더' && slot === 'weapon' ? '영원의 쯔바이핸드' : savedName || slotNames[slot];
+  const name = savedName || slotNames[slot];
   return { id: typeof value.id === 'string' && value.id ? value.id : crypto.randomUUID(), name, slot, rarity, stats, locked: value.locked === true };
 }
 

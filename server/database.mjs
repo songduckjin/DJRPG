@@ -121,11 +121,19 @@ function itemValid(item) {
   const slots = ['weapon','offhand','helmet','armor','necklace','gloves','belt','boots','ring1','ring2','skillbook'];
   return item && (item.locked === undefined || typeof item.locked === 'boolean') && typeof item.id === 'string' && item.id.length > 0 && item.id.length <= 100 && typeof item.name === 'string' && item.name.length <= 100 && slots.includes(item.slot) && ['common','magic','rare','epic','unique','legendary'].includes(item.rarity) && item.stats && typeof item.stats === 'object' && !Array.isArray(item.stats) && Object.entries(item.stats).every(([key, value]) => ['attack','defense','health','crit','speed'].includes(key) && Number.isFinite(value) && value >= 0 && value <= 100000) && (item.slot !== 'skillbook' || (item.kind === 'skillbook' && ['slash2','spin','crushing','slam','warcry','power','destroy','hell','mastery','body','instinct'].includes(item.skillId)));
 }
-const identity = item => JSON.stringify([item.name, item.slot.startsWith('ring') ? 'ring' : item.slot, item.rarity, item.kind ?? 'equipment', item.skillId ?? '', ...['attack','defense','health','crit','speed'].map(key => item.stats[key] ?? 0)]);
+const ringSlot = item => typeof item?.slot === 'string' && item.slot.startsWith('ring') ? 'ring' : item?.slot;
+const itemStats = ['attack','defense','health','crit','speed'];
+const identity = item => JSON.stringify([item.name, ringSlot(item), item.rarity, item.kind ?? 'equipment', item.skillId ?? '', ...itemStats.map(key => item.stats?.[key] ?? 0)]);
+// 이름만 다른 같은 아이템인지(구버전 클라이언트가 저장 이름을 마이그레이션하며 바꾼 경우) 판정한다.
+// stats·rarity·slot·kind·skillId가 달라지면 거짓이므로 능력치·등급 변조 차단은 그대로 유지된다.
+const sameItemBody = (a, b) => Boolean(a && b) && a.id === b.id && ringSlot(a) === ringSlot(b) && a.rarity === b.rarity && (a.kind ?? 'equipment') === (b.kind ?? 'equipment') && (a.skillId ?? '') === (b.skillId ?? '') && itemStats.every(key => (a.stats?.[key] ?? 0) === (b.stats?.[key] ?? 0));
+// 소유권 테이블의 사본이 깨졌을 수 있으므로 해석 실패는 예외가 아니라 '불일치'로 다룬다.
+const ownerItem = owner => { try { const value = JSON.parse(owner.item_json); return value && typeof value === 'object' ? value : undefined; } catch { return undefined; } };
 export async function reconcileItems(tx, id, before, after, options = {}) {
   const next = itemsOf(after), previous = itemsOf(before), ids = new Set();
   if (!Array.isArray(after.bag) || after.bag.filter(item=>item?.slot!=='skillbook').length > 40 || Object.values(after.equipment??{}).length > 10 || !after.equipment || typeof after.equipment !== 'object') fail(400, 'INVALID_SAVE', '가방 또는 장비 데이터가 올바르지 않습니다.');
   const previousValid = previous.filter(itemValid);
+  const previousById = new Map(previousValid.map(item => [item.id, item]));
   const allIds = [...new Set([...previousValid, ...next].map(item => item?.id).filter(id => typeof id === 'string'))];
   const owned = options.owned ?? (allIds.length ? (await tx.execute({ sql: `SELECT * FROM djrpg_item_owners WHERE item_id IN (${allIds.map(() => '?').join(',')})`, args: allIds })).rows : []);
   const owners = new Map(owned.map(owner => [owner.item_id, owner]));
@@ -138,7 +146,19 @@ export async function reconcileItems(tx, id, before, after, options = {}) {
     if (!itemValid(item) || ids.has(item.id)) fail(400, 'INVALID_ITEM', '중복되었거나 잘못된 아이템입니다.');
     ids.add(item.id);
     const owner = owners.get(item.id);
-    if (owner && (String(owner.account_id).toLowerCase() !== id.toLowerCase() || owner.location !== 'inventory' || identity(JSON.parse(owner.item_json)) !== identity(item))) fail(409, 'ITEM_CONFLICT', '아이템 소유권이 변경되었습니다. 최신 데이터를 다시 불러오세요.');
+    if (owner) {
+      const stored = ownerItem(owner);
+      if (String(owner.account_id).toLowerCase() !== id.toLowerCase()) fail(409, 'ITEM_CONFLICT', '다른 계정 소유의 아이템입니다. 최신 데이터를 다시 불러오세요.');
+      if (owner.location !== 'inventory') fail(409, 'ITEM_CONFLICT', '창고·거래 중이거나 이미 소모된 아이템입니다. 최신 데이터를 다시 불러오세요.');
+      if (!stored || identity(stored) !== identity(item)) {
+        // latest.save(before)에 같은 id가 같은 능력치로 이미 있고 이름만 달라졌다면,
+        // 구버전 클라이언트의 아이템 이름 마이그레이션으로 보고 서버 세이브 이름으로 되돌려 통과시킨다.
+        const known = previousById.get(item.id);
+        if (!known || !sameItemBody(known, item)) fail(409, 'ITEM_CONFLICT', '아이템 정보가 서버 기록과 다릅니다. 최신 데이터를 다시 불러오세요.');
+        if (item.name !== known.name) item.name = known.name;
+        if (!stored || stored.name !== item.name) writes.push({ sql: 'UPDATE djrpg_item_owners SET item_json=? WHERE item_id=?', args: [JSON.stringify(item), item.id] });
+      }
+    }
     if (slotsByItem.has(item.id) && slotsByItem.get(item.id) !== slot) fail(409, 'ITEM_CONFLICT', '다른 캐릭터의 아이템은 사용할 수 없습니다.');
     if (owner && !slotsByItem.has(item.id) && slot !== 1) fail(409, 'ITEM_CONFLICT', '기존 아이템의 소유 캐릭터를 확인할 수 없습니다.');
     if (!slotsByItem.has(item.id)) writes.push({ sql: 'INSERT INTO djrpg_character_item_owners(item_id,account_id,slot) VALUES (?,?,?)', args: [item.id, id, slot] });
