@@ -1,3 +1,8 @@
+## 2026-11-17 · 작업 88
+- `src/main.ts`, `src/ui/boot.ts`, `src/styles/boot.css`: 로그인 후 로딩 오버레이와 초기화 오류·새로고침 표시.
+- `src/game/render.ts`, `src/game/wasteland.ts`, `src/game/bootProgress.ts`: 고유 텍스처별 진행률과 배경 로딩 완료 집계.
+- `tests/boot-progress.test.mjs`: 중복 로드·완료 수·100% 도달 검증. `pnpm run check`, 141개 테스트, `pnpm run build` 통과.
+
 ## 2026-11-17 · 에셋 경량화
 - `public/assets/`: 104개 파일 재인코딩(RGBA→256색 팔레트 + 시트 등분 유지 축소)로 71.69MB → 3.80MB(94.7% 절감).
 - 미사용 36개 파일 삭제(개별 프레임 walk/attack, `item-locks` v1·v2, `nav_*` v1, `dungeon_tile.jpg`, `fx_dragon_twister.png`).

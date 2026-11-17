@@ -676,10 +676,10 @@
 
 ---
 
-## [-] [작업 88] 초기 그래픽 리소스 로딩 화면(진행률 표시) 및 초기화 에러 표시 추가
+## [x] [작업 88] 초기 그래픽 리소스 로딩 화면(진행률 표시) 및 초기화 에러 표시 추가
 - **등록일**: 2026-11-17
 - **담당자**: 로컬 Codex
-- **수정 예정 파일**: `src/game/render.ts`, `src/game/wasteland.ts`, `src/main.ts`, `src/game/bootProgress.ts`(신규 진행률 계산 모듈), `src/styles/boot.css`(신규, `src/styles/main.css`에서 `@import`), `src/styles/base.css`, 관련 테스트 및 작업 문서.
+- **수정 예정 파일**: `src/game/render.ts`, `src/game/wasteland.ts`, `src/main.ts`, `src/game/bootProgress.ts`(신규 진행률 계산 모듈), `src/ui/boot.ts`(로딩 화면), `src/styles/boot.css`(신규, `src/styles/main.css`에서 `@import`), `src/styles/base.css`, 관련 테스트 및 작업 문서.
 - **동시 작업 확인**: 등록 시점(2026-11-17) `docs/TASK.md`에 `[-]` 진행 중 작업이 없어 파일·기능 겹침 없음.
 - **배경**: 2026-11-17 iOS 사파리에서 `djrpg.vercel.app` 접속 시 초기 화면이 검은 화면으로만 보인다는 제보가 있었다. 현재 에셋 로딩 구간에는 아무 표시가 없고, 초기화 예외도 화면에 드러나지 않아 원인을 알 수 없다.
 - **목표**: 로그인/자동 로그인 직후 `view.mount()`·`mountWasteland()`가 에셋을 불러오는 동안 캔버스 영역이 검은 화면으로 비어 보이지 않도록 다크 판타지 톤의 **로딩 오버레이(로고 + 진행률 바 + `리소스 불러오는 중… 0% ~ 100%`)**를 표시하고, 초기화 단계에서 예외가 발생해도 검은 화면으로 멈추지 않고 화면에 에러 문구와 재시도 버튼을 띄운다.

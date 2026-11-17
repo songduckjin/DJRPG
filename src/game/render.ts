@@ -4,6 +4,7 @@ import { drawRunes, drawTerrain, drawDust, drawLighting, drawVignette } from './
 import { drawHero, updateAfterimages, updateCorpses, drawEntities } from './render/entities';
 import { drawSkillVfx, drawDragon, drawHit, updateDamageLabels, drawDeath, drawDrops, drawEffects } from './render/vfx';
 import { projectArenaPoint } from './arena';
+import { createBootProgress } from './bootProgress';
 
 const paths = {
   floor: '/assets/wasteland-ground.png', terrainProps: '/assets/wasteland-props.png', male: '/assets/warrior_male_base.png',
@@ -52,6 +53,10 @@ const walkSheets = {
   skeletonWalk: '/assets/walk8_skeleton.png', bossWalk: '/assets/walk8_boss.png'
 } as const;
 type Animation = keyof typeof animationPaths | keyof typeof attackSheets | keyof typeof walkSheets;
+export const renderAssetPaths = [
+  ...Object.values(paths), ...Object.values(animationPaths).flat(),
+  ...Object.values(attackSheets), ...Object.values(walkSheets)
+];
 type Dust = { x: number; y: number; vx: number; vy: number; age: number; duration: number; size: number };
 type Ghost = { sprite: Sprite; x: number; y: number; age: number; duration: number };
 type Fallen = { sprite: Sprite; x: number; y: number; age: number; duration: number; scaleX: number; scaleY: number; rotation: number };
@@ -96,14 +101,25 @@ export class GameView {
   lastHeroWorld = { x: 0, y: 0 };
   enemyWalkDistance = new Map<Enemy, { x: number; y: number; distance: number }>();
 
-  async mount(host: HTMLElement): Promise<void> {
+  async mount(host: HTMLElement, onProgress?: (loaded: number, total: number) => void): Promise<void> {
+    const progress = createBootProgress(renderAssetPaths, onProgress);
+    progress.report();
     await this.app.init({ resizeTo: host, background: '#9b8259', antialias: true, resolution: Math.min(devicePixelRatio, 2), autoDensity: true });
     host.appendChild(this.app.canvas);
-    const loaded = await Promise.all((Object.keys(paths) as Art[]).map(async key => [key, await Assets.load<Texture>(paths[key])] as const));
+    const loadTexture = async (path: string): Promise<Texture> => {
+      try {
+        const texture = await Assets.load<Texture>(path);
+        progress.tick(path);
+        return texture;
+      } catch (error) {
+        throw new Error(`그래픽 리소스 ${path} 로딩 실패: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    };
+    const loaded = await Promise.all((Object.keys(paths) as Art[]).map(async key => [key, await loadTexture(paths[key])] as const));
     for (const [key, texture] of loaded) { texture.source.scaleMode = 'linear'; this.textures[key] = texture; }
-    const animated = await Promise.all((Object.keys(animationPaths) as (keyof typeof animationPaths)[]).map(async key => [key, await Promise.all(animationPaths[key].map(path => Assets.load<Texture>(path)))] as const));
+    const animated = await Promise.all((Object.keys(animationPaths) as (keyof typeof animationPaths)[]).map(async key => [key, await Promise.all(animationPaths[key].map(loadTexture))] as const));
     for (const [key, textures] of animated) { for (const texture of textures) texture.source.scaleMode = 'linear'; this.animations[key] = textures; }
-    const attacks = await Promise.all((Object.keys(attackSheets) as (keyof typeof attackSheets)[]).map(async key => [key, await Assets.load<Texture>(attackSheets[key])] as const));
+    const attacks = await Promise.all((Object.keys(attackSheets) as (keyof typeof attackSheets)[]).map(async key => [key, await loadTexture(attackSheets[key])] as const));
     for (const [key, sheet] of attacks) {
       sheet.source.scaleMode = 'linear';
       this.animations[key] = Array.from({ length: 4 }, (_, index) => {
@@ -111,7 +127,7 @@ export class GameView {
         return new Texture({ source: sheet.source, frame: new Rectangle(left, 0, right - left, sheet.source.height) });
       });
     }
-    const walking = await Promise.all((Object.keys(walkSheets) as (keyof typeof walkSheets)[]).map(async key => [key, await Assets.load<Texture>(walkSheets[key])] as const));
+    const walking = await Promise.all((Object.keys(walkSheets) as (keyof typeof walkSheets)[]).map(async key => [key, await loadTexture(walkSheets[key])] as const));
     for (const [key, sheet] of walking) {
       sheet.source.scaleMode = 'linear';
       this.animations[key] = Array.from({ length: 8 }, (_, index) => {
@@ -134,6 +150,7 @@ export class GameView {
     this.aura.blendMode = 'add';
     this.aura.alpha = 0;
     this.app.stage.addChild(this.floor, this.glow, this.ground, this.terrainLayer, this.aura, this.dragonBack, this.ghosts, this.actors, this.fallen, this.skillVfx, this.effects, this.labels, this.shade);
+    progress.report();
   }
 
   draw(world: World, time: number): void {

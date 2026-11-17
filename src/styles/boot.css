@@ -1,0 +1,14 @@
+.boot-loading { position: fixed; z-index: 1000; inset: 0; width: 100%; min-height: 100dvh; display: grid; place-items: center; padding: calc(24px + env(safe-area-inset-top)) 24px calc(24px + env(safe-area-inset-bottom)); background: #100d10; color: #e9dfd1; text-align: center; opacity: 1; transition: opacity 240ms ease; }
+.boot-loading[hidden], .boot-loading [hidden] { display: none; }
+.boot-loading.boot-done { opacity: 0; pointer-events: none; }
+.boot-panel { width: min(100%, 340px); }
+.boot-kicker { color: #b89461; font: 10px Georgia, serif; letter-spacing: .28em; }
+.boot-panel h1 { margin: 12px 0 2px; color: #e8d4a6; font: 700 clamp(36px, 11vw, 52px) Georgia, serif; letter-spacing: .12em; text-shadow: 0 2px 20px #8a4e2480; }
+.boot-subtitle { margin: 0 0 40px; color: #bca98d; font-size: 13px; letter-spacing: .22em; }
+.boot-meter { height: 8px; overflow: hidden; border: 1px solid #78623d; border-radius: 99px; background: #251c1b; box-shadow: 0 0 12px #b7803450; }
+.boot-meter-fill { display: block; width: 0; height: 100%; background: linear-gradient(90deg, #9a652a, #f1c779); transition: width 100ms ease; }
+.boot-status { min-height: 20px; margin: 16px 0 0; color: #d2bc92; font-size: 12px; }
+.boot-reason { overflow-wrap: anywhere; color: #ffd7ce; font-size: 12px; line-height: 1.6; }
+.boot-retry { margin-top: 14px; padding: 10px 24px; border: 1px solid #b58257; border-radius: 4px; background: #34231f; color: #ffe1b5; }
+.boot-error .boot-status { color: #ffd7ce; font-size: 16px; font-weight: 700; }
+@media (prefers-reduced-motion: reduce) { .boot-loading, .boot-meter-fill { transition: none; } }

@@ -13,12 +13,15 @@ export function wastelandLayout(width: number, height: number, player = { x: 0, 
     fires: fires.map(([u, v]) => ({ x: offsetX + u * sceneWidth, y: offsetY + v * sceneHeight,
       radius: Math.min(sceneWidth / 540, sceneHeight / 914) * 38 })) };
 }
-export async function mountWasteland(view: GameView): Promise<void> {
+export async function mountWasteland(view: GameView, onReady?: () => void): Promise<void> {
   const [{ Assets }, { mountAmbientScene }] = await Promise.all([import('pixi.js'), import('./ambientScene')]);
-  const texture = await Assets.load(wastelandScene.path);
+  let texture;
+  try { texture = await Assets.load(wastelandScene.path); }
+  catch (error) { throw new Error(`그래픽 리소스 ${wastelandScene.path} 로딩 실패: ${error instanceof Error ? error.message : String(error)}`); }
   texture.source.scaleMode = 'linear'; view.floor.texture = texture; view.textures.floor = texture;
   placeWasteland(view);
   mountAmbientScene(view, texture, wastelandLayout);
+  onReady?.();
 }
 export function placeWasteland(view: GameView, player = { x: 0, y: 0 }): void {
   view.wastelandPlayer = { x: player.x, y: player.y };
