@@ -24,7 +24,7 @@ test('legacy slot, shared gold and warehouse transfers preserve independent char
   const db = createClient({ url });
   try {
     await schema(db);
-    await db.execute({ sql: 'INSERT INTO djrpg_accounts VALUES (?,?,?,?)', args: ['hero', 'test-hash', JSON.stringify(legacy), new Date().toISOString()] });
+    await db.execute({ sql: 'INSERT INTO djrpg_accounts (id,password_hash,save_json,updated_at) VALUES (?,?,?,?)', args: ['hero', 'test-hash', JSON.stringify(legacy), new Date().toISOString()] });
     const signed = Buffer.from(JSON.stringify({ id: 'hero', exp: Date.now() + 60_000 })).toString('base64url');
     const token = `${signed}.${createHmac('sha256', process.env.TURSO_AUTH_TOKEN).update(signed).digest('base64url')}`;
     const call = async (handler, body) => {

@@ -13,6 +13,7 @@
 | 화면 렌더링·필드·배경·VFX·조명 | `src/game/render.ts`(`GameView`) | `render/field.ts`, `render/vfx.ts`, `render/entities.ts`, `wasteland.ts`, `ambientScene.ts`, `ambientMotion.ts` | `wasteland`, `ambient-motion`, `hero-weapon-render` |
 | 오프라인 보상·경험치·레벨업 | `src/game/offline.ts`, `src/game/store.ts`(`addExperience`·`expToNext`) | `ui/modals/offlineModal.ts`, `server/endpoints/account.mjs`(`offlineSeconds`) | `offline` |
 | 로그인·회원가입·게스트·캐릭터 선택/생성 | `src/ui/login.ts`, `server/endpoints/account.mjs` | `ui/modals/charactersModal.ts`, `server/auth.mjs`, `api/account.mjs`, `functions/api/account.js` | `characters`, `functions-adapter` |
+| 다른 기기 로그인으로 접속이 해제됨(`SESSION_REPLACED`) | `database.mjs` `assertSession`/`assignSession`, `auth.mjs` `tokenPayload` | `endpoints/account.mjs`, `sync.ts` `endSession`/`onSessionEnded`, `main.ts` | `functions-adapter`, `sync` |
 | 서버 저장·동기화·충돌(`SAVE_CONFLICT`/`ITEM_CONFLICT`) | `src/game/sync.ts`, `server/database.mjs` | `server/endpoints/account.mjs`, `server/http.mjs`, `src/game/store.ts`(`parseSave`) | `sync`, `functions-adapter`, `characters`, `market` |
 | 거래소·시세·여정(journey) | `server/market.mjs`, `server/journey.mjs` | `server/endpoints/market.mjs`, `journey-state.mjs`, `market-events.mjs`, `src/game/market.ts`, `src/game/journey.ts`, `ui/modals/marketModal.ts`, `ui/modals/utilityModal.ts`, `api/market*.mjs`, `functions/api/market*.js` | `market`, `market-actions`, `market-connection`, `journey`, `journey-ui` |
 | 계정 창고(warehouse) | `server/endpoints/warehouse.mjs` | `ui/modals/charactersModal.ts`(`loadWarehouse`·`renderWarehouse`·`moveItem`), `sync.ts`(`transferWarehouse`), `api/warehouse.mjs`, `functions/api/warehouse.js` | `characters` |
@@ -36,7 +37,7 @@
 | 그림을 바꿨는데 화면이 그대로(캐시) | `render.ts`/`appearance.ts`의 `?v=`, `scripts/verify-item-art.mjs` |
 | 서버 저장 충돌(409 `SAVE_CONFLICT`) | `database.mjs` `assertRevision`, `sync.ts` `handleError` |
 | 아이템 소유권 충돌(`ITEM_CONFLICT`) | `database.mjs` `reconcileItems`·`identity`, `warehouse.mjs` |
-| 로그인·토큰 만료·게스트 | `ui/login.ts`, `endpoints/account.mjs`, `auth.mjs` `tokenId`/`tokenFor` |
+| 로그인·토큰 만료·게스트 | `ui/login.ts`, `endpoints/account.mjs`, `auth.mjs` `tokenPayload`/`tokenFor` |
 | 거래소 빈 목록·시세·수수료 | `server/market.mjs` `snapshot`/`mutate`/`recentPrice`/`rules`, `src/game/market.ts` |
 | 우편·일일/주간·업적 보상 | `journey.mjs`, `journey-state.mjs`, `ui/modals/utilityModal.ts` |
 | 창고 보관·인출 | `endpoints/warehouse.mjs`, `ui/modals/charactersModal.ts` |
@@ -59,7 +60,7 @@
 - `facing.ts` (6) — 좌향 원본 몬스터 스프라이트 방향 계산. `enemyFacing`.
 - `offline.ts` (43) — 오프라인 사냥 정산(최대 12시간). `applyOfflineRewards`, 타입 `OfflineReward`.
 - `codex.ts` (74) — 장비 도감 75종·발견 기록·등급 변형. `codexEntries`, `equipmentCodexKey`, `normalizeCollection`, `discoverEquipment`, `codexOwnership`, `codexVariantName`, `firstDropFloor`, `codexOptions`, `filterCodex`, `codexVariants`, `codexSlotNames`.
-- `sync.ts` (172) — 서버 저장 큐·재시도·충돌·거래/창고 락. `SaveSync`(`queueSave`,`flush`,`handleError`,`mutate`,`reset`,`transferWarehouse`), 타입 `SyncResult`.
+- `sync.ts` (172) — 서버 저장 큐·재시도·충돌·거래/창고 락. `SaveSync`(`queueSave`,`flush`,`handleError`,`mutate`,`reset`,`transferWarehouse`,`onSessionEnded`), 내부 `endSession`(401 → 토큰 삭제·저장 중단)·`reloadLatest`(`ITEM_CONFLICT`/`CHARACTER_CONFLICT` → 최신 세이브 재로드), 타입 `SyncResult`.
 - `market.ts` (123) — 거래소 클라이언트 상태·목록/탭/시세. `Market`, 타입 `Listing`/`Delivery`/`MarketData`/`MarketView`.
 - `journey.ts` (39) — 우편·일일/주간/업적 클라이언트. `Journey`(`load`,`act`,`ready`), 타입 `JourneyTask`/`Mail`/`JourneyData`.
 - `preferences.ts` (4) — 기기 설정(흔들림·절전·이펙트). `preferences`, `savePreferences` — **localStorage 예외 허용 항목**.
@@ -94,8 +95,8 @@
 - `main.css` — `base`→`boot`→`hud`→`modals`→`login`→`market`→`codex` 순 import. `base.css`(폰트·리셋), `hud.css`(`.top-hud`,`.floor-button`), `modals.css`(장비·가방·분해 공통), `login.css`(로그인·캐릭터 선택), `market.css`(`.market-*`), `codex.css`(`.codex-*`,`#codex`), `boot.css`(`.boot-*`).
 
 ### `server/` — API 코어 (프레임워크 비의존, 테스트가 직접 import)
-- `database.mjs` (154) — libsql 래퍼·스키마·트랜잭션·세이브/아이템 계약. `ApiError`, `fail`, `client`, `schema`, `transaction`, `account`, `decodeAccount`, `assertRevision`, `inventoryOwnerQuery`, `reconcileItems`, `writeSave`, `validateSave`. 내부 `identity(item)`(이름·슬롯(반지 정규화)·등급·kind·skillId·5스탯).
-- `auth.mjs` (49) — HMAC 토큰(비밀키 `TURSO_AUTH_TOKEN`)·비번 해시. `sign`, `tokenFor`, `tokenId`, `hashPassword`, `needsPasswordUpgrade`, `verifyPassword`.
+- `database.mjs` (154) — libsql 래퍼·스키마·트랜잭션·세이브/아이템 계약. `ApiError`, `fail`, `client`, `schema`, `transaction`, `account`, `decodeAccount`, `assertRevision`, `assertSession`/`assertSessionId`/`assignSession`(단일 세션), `inventoryOwnerQuery`, `reconcileItems`, `writeSave`, `validateSave`. 내부 `identity(item)`(이름·슬롯(반지 정규화)·등급·kind·skillId·5스탯).
+- `auth.mjs` (49) — HMAC 토큰(비밀키 `TURSO_AUTH_TOKEN`)·비번 해시. `sign`, `tokenFor`(`{id,sid,exp}`), `tokenPayload`, `tokenId`, `hashPassword`, `needsPasswordUpgrade`, `verifyPassword`.
 - `http.mjs` (16) — 응답/본문/에러. `json`, `readBody`, `errorResponse`.
 - `env.mjs` (5) / `database-config.mjs` (4) — 런타임 env·DB 클라이언트 팩토리. `runtimeEnv`,`setRuntimeEnv`,`envValue` / `configureDatabase`,`databaseFactory`.
 - `node-adapter.mjs` (17) — Vercel Node req/res ↔ Fetch. `toRequest`, `sendNode`.
@@ -122,6 +123,7 @@
 
 - **`api/*.mjs` 삭제·이름 변경 금지**: `tests/characters.test.mjs`, `tests/market.test.mjs`, `tests/functions-adapter.test.mjs`가 직접 import. `api/account.mjs`의 `tokenId` 재수출도 계약.
 - **`server/database.mjs` 계약**: `assertRevision`(불일치 → 409 `SAVE_CONFLICT`), `reconcileItems`(소유자·캐릭터 슬롯·`identity` 불일치 → 409 `ITEM_CONFLICT`; 삭제 아이템은 `consumed` 처리), `writeSave`(revision+1, `gold`는 `djrpg_account_profiles.shared_gold`로 분리, `bossKills`/`playSeconds`는 최대값 유지, `equipmentCollection`은 합집합 75개, 슬롯 1~3). 이 세 함수의 시그니처·에러 코드를 바꾸지 않는다.
+- **단일 세션**: `login`·`register`·`guest` 성공마다 `assignSession`이 `djrpg_accounts.session_id`를 새 `sid`로 덮어쓰고 토큰은 `{id,sid,exp}`. `assertSession` 불일치 또는 `sid` 없는 구 토큰 → 401 `SESSION_REPLACED`(`다른 기기에서 로그인되어 접속이 해제되었습니다.`)를 account·market·warehouse 전 엔드포인트에서 반환한다. `session_id`가 NULL인 세션 열 도입 전 계정·모킹 행은 기존 동작을 유지하고, `session_id`는 클라이언트에 내려보내지 않는다.
 - **Turso 전용**: 세이브는 `djrpg_accounts`/`djrpg_characters`(+`_profiles`,`_item_owners`,`_save_versions`,`_save_requests`). **브라우저 localStorage 세이브 금지** — 허용되는 localStorage는 `djrpg.auth.token`(로그인 토큰)과 `djrpg_preferences`(기기 설정)뿐. `.env*`·`TURSO_*`는 커밋·로그·번들 금지.
 - **성별 교차 동기화**: `appearance.ts`의 idle/walk/attack/portrait는 남/여 × 투구 유무 × 갑옷 × 무기 조합을 모두 분기하고, `render.ts`의 `animationPaths`/`attackSheets`/`walkSheets`에 대응 시트가 있어야 한다. 외형 변경 시 `tests/appearance.test.mjs`의 성별×투구×갑옷 루프와 `hero-motion`을 함께 통과시킨다. 직업 분기는 없음(전사 단일).
 - **이미지 교체 시 캐시 버스터**: `/assets/*`는 `Cache-Control: immutable`(`vercel.json`, `public/_headers`). 같은 경로의 PNG를 바꾸면 `render.ts`/`appearance.ts`의 URL에 `?v=N`을 올리고, 장비 아트는 `scripts/verify-item-art.mjs`(=`npm run check`)를 통과시킨다.

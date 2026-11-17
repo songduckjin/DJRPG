@@ -1,5 +1,5 @@
-import { client, schema, transaction, account, assertRevision, writeSave, fail } from '../database.mjs';
-import { tokenId } from '../auth.mjs';
+import { client, schema, transaction, account, assertRevision, assertSession, assertSessionId, writeSave, fail } from '../database.mjs';
+import { tokenPayload } from '../auth.mjs';
 import { runtimeEnv } from '../env.mjs';
 import { json, readBody, errorResponse } from '../http.mjs';
 
@@ -8,13 +8,15 @@ export async function warehouseEndpoint(request, { env = runtimeEnv(), createDbC
   const req = { method: request.method, body: await readBody(request) };
   if (req.method !== 'POST') return res.status(405).json({ code: 'METHOD_NOT_ALLOWED', error: 'POST 요청만 허용합니다.' });
   if (!env.TURSO_DATABASE_URL || !env.TURSO_AUTH_TOKEN) return res.status(503).json({ code: 'DB_NOT_CONFIGURED', error: '서버 DB가 설정되지 않았습니다.' });
-  const id = tokenId(request, env);
-  if (!id) return res.status(401).json({ code: 'INVALID_TOKEN', error: '인증이 만료되었습니다. 다시 로그인하세요.' });
+  const signed = tokenPayload(request, env);
+  if (!signed) return res.status(401).json({ code: 'INVALID_TOKEN', error: '인증이 만료되었습니다. 다시 로그인하세요.' });
+  const id = signed.id;
   let db;
   try {
     db = createDbClient ? createDbClient(env) : client(env); await schema(db, env);
     const input = req.body ?? {};
     if (input.action === 'list') {
+      await assertSessionId(db, id, signed.sid);
       const rows = (await db.execute({ sql: 'SELECT item_json FROM djrpg_warehouse WHERE account_id=? ORDER BY item_id', args: [id] })).rows;
       return res.status(200).json({ items: rows.map(row => JSON.parse(row.item_json)) });
     }
@@ -22,6 +24,7 @@ export async function warehouseEndpoint(request, { env = runtimeEnv(), createDbC
     if (typeof input.requestId !== 'string' || !/^[\w-]{16,80}$/.test(input.requestId) || typeof input.itemId !== 'string') fail(400, 'INVALID_REQUEST', '창고 요청 번호 또는 아이템 정보가 올바르지 않습니다.');
     const result = await transaction(db, async tx => {
       const row = await account(tx, id);
+      assertSession(row, signed.sid);
       if (Number(input.characterSlot ?? 1) !== row.slot) fail(409, 'CHARACTER_CONFLICT', '다른 캐릭터가 선택되었습니다. 새로고침해 주세요.');
       const replay = (await tx.execute({ sql: 'SELECT response_json FROM djrpg_warehouse_requests WHERE account_id=? AND request_id=?', args: [id, input.requestId] })).rows[0];
       if (replay) return { ...JSON.parse(replay.response_json), save: row.save, revision: row.revision };

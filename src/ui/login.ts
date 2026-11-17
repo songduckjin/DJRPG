@@ -2,7 +2,11 @@ import type { Gender, Save } from '../game/store';
 
 export type Session = { accountId: string; loginId: string; gender: Gender; guest: boolean; token: string; save: Save; revision: number; characterSlot: number; offlineSeconds?: number; newAccount?: boolean };
 const tokenKey = 'djrpg.auth.token';
-export function clearToken(): void { localStorage.removeItem(tokenKey); }
+// 저장소를 쓸 수 없는 환경(테스트·프라이빗 모드)에서도 토큰 정리가 예외로 번지지 않게 한다.
+export function clearToken(): void {
+  if (typeof localStorage === 'undefined') return;
+  try { localStorage.removeItem(tokenKey); } catch { /* 저장소 접근 불가 */ }
+}
 export async function accountRequest<T>(action: string, data: Record<string, unknown> = {}, token?: string): Promise<T> {
   let response: Response;
   try { response = await fetch('/api/account', { method: 'POST', headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify({ action, ...data }), keepalive: action === 'save' }); }
