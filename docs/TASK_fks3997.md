@@ -6,6 +6,16 @@
 
 ## 진행 중 작업
 
+## [-] [작업 102] 편의팝업 압축·클릭누락
+- fks3997 · 2026-11-17 · `fix/compact-utility-popups-fks3997`
+- 수정: `utilityModal.ts`, `modals.css`, `interface.ts`, `accountModal.ts` 저장상태표시, 신규 `modalInteraction.ts`, UI회귀. 간접영향 전투·Journey onChange·팝업키보드/포인터·닫기, 데이터계약변경없음. 다른진행작업없음.
+- 목표: 설정/우편/보상/업적의 크기여백·모두받기 축소. 새로고침 제거. 우편보낸사람/내용/날짜/보상항상표시·미수령강조. 업적필터삭제·받을수있는것우선. 누른중 재렌더지연·전투로utility교체금지·저장상태직접갱신.
+- 검증: 클릭/키보드/드래그취소·메일가독성·필터없음·업적정렬·수령회귀, 타입/전체테스트/빌드. 푸시/배포안함. 이전미배포97~101보존.
+
+## [-] [작업 103] 오른쪽 아이콘 확대·무문자
+- 같은담당/날짜/브랜치. Interface/HUD의 캡션삭제,44px아이콘·48px버튼·배경불투명도80→60%, 작은화면38px아이콘, 접근성이름/도움말유지. 원격푸시/배포안함.
+
+
 ## [x] [작업 101] 거래소 행동조회·일괄수령·거래가
 - fks3997 · 2026-11-17 · `fix/market-actions-fks3997`
 - 수정: `src/game/market.ts`, `sync.ts`(선택claimedIds), `marketModal.ts`, Interface의 자동시작제거, `server/market.mjs`, `database.mjs`(최근거래인덱스), `api/market.mjs`, 거래소회귀테스트·개인기록.
