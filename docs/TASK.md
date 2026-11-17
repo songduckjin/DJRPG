@@ -10,6 +10,8 @@
 
 | 작업 | 담당자 ID | 브랜치 | 수정 예정 파일 / 영향 영역 | 위험 등급 | 상태 |
 |---|---|---|---|---|---|
+| 112 · 최근거래없음 문구 | fks3997 | `feature/skillbook-badges-fks3997` | marketModal문구 / 표시 | 개인 | [-] |
+| 113 · 스킬북A배지/패시브남청색 | fks3997 | `feature/skillbook-badges-fks3997` | 책남청색asset·skillBookArt·스킬북/거래소UI·CSS·회귀 / 표시 | 개인 | [-] |
 | 111 · 착용장비 설명자물쇠 | fks3997 | `fix/equipped-lock-fks3997` | equippedDetail·CSS·회귀 / 잠금UI | 주의(기존locked사용) | [x] 로컬 검증 · 미푸시/미배포 |
 | 110 · 패시브3종 확정이미지 | fks3997 | `feature/passive-art-fks3997` | passive시트·skillArtwork·skillModal·CSS·UI회귀 / 표시 | 개인 | [x] 로컬 검증 · 미푸시/미배포 |
 | 109 · 액티브스킬창 이미지통일 | fks3997 | `fix/reward-tabs-icons-fks3997` | skillArtwork·skillModal·CSS·회귀 / 표시 | 개인 | [x] 로컬 검증 · 미푸시/미배포 |
