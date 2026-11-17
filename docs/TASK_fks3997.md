@@ -6,6 +6,12 @@
 
 ## 진행 중 작업
 
+## [-] [작업 111] 착용장비 설명자물쇠
+- fks3997 · 2026-11-17 · `fix/equipped-lock-fks3997`
+- 수정: `equippedDetail.ts`, `modals.css`, 장착설명UI회귀. 이름옆기존잠금아이콘·상태즉시반영·동기화중거절안내·해제후잠금보존. 기존locked형식사용·가방의분해/판매확인유지, 다른진행작업없음.
+- 타입/전체테스트/빌드 검증, 원격푸시/배포안함. 패시브확정적용과스킬북비교시안보존.
+
+
 ## [x] [작업 110] 패시브3종 확정이미지
 - fks3997 · 2026-11-17 · `feature/passive-art-fks3997`
 - 사용자 확정 대검숙련/강인한육체/전투본능 3종을 `public/assets/icons/passive-skills.png`로 리사이즈·등간격정규화, `skillArtwork.ts`/`skillModal.ts`/CSS 연결·스킬UI회귀. 원화그림유지·성장/버튼/데이터변경없음.
