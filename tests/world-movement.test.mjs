@@ -37,6 +37,27 @@ test('hero does not shuffle in place around a nearby enemy or short knockback', 
   assert.deepEqual({ x: world.player.x, y: world.player.y }, position);
   assert.equal(world.activeMove.x, 0);
 });
+test('automatic attacks and equipped skills wait until the hero stops approaching', () => {
+  const save = freshSave(); save.learned = ['slash2']; save.quickSlots = ['slash2', null, null];
+  const world = new World(save); world.spawnTimer = 999;
+  const enemy = world.enemies[0]; enemy.x = 120; enemy.y = 0; enemy.hp = enemy.maxHp = 10000;
+  for (let i = 0; i < 4; i++) world.update(.1);
+  assert(Math.hypot(world.activeMove.x, world.activeMove.y) > .05);
+  assert.equal(enemy.hp, 10000);
+  assert.equal(world.cooldown.attack, 0);
+  assert.equal(world.cooldown.slash2, 0);
+  assert(!world.effects.some(effect => effect.kind === 'slash' || effect.kind === 'slash2'));
+
+  enemy.x = world.player.x + 40; enemy.y = world.player.y;
+  world.update(.016);
+  assert.equal(Math.hypot(world.activeMove.x, world.activeMove.y), 0);
+  assert(enemy.hp < 10000);
+  assert(world.effects.some(effect => effect.kind === 'slash'));
+  assert(world.effects.some(effect => effect.kind === 'slash2'));
+  const afterBasicAttack = enemy.hp;
+  world.update(.15);
+  assert(enemy.hp < afterBasicAttack, 'the greatsword skill hits after its swing becomes visible');
+});
 test('a distant drop still starts pursuit and can be collected', () => {
   const world = new World(freshSave()); world.enemies = []; world.spawnTimer = 999;
   world.drops = [{ x: 90, y: 0, item: { id: 'loot', name: '낡은 두손검', slot: 'weapon', rarity: 'common', stats: { attack: 4 } }, age: 0, warned: false }];
