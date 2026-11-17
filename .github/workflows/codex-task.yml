@@ -1,0 +1,137 @@
+name: Codex Task Runner
+
+on:
+  workflow_dispatch:
+    inputs:
+      task_number:
+        description: "작업 번호 (예: 92)"
+        required: true
+        type: string
+      task_branch:
+        description: "작업지시서가 있는 브랜치 (예: task/92-architecture-audit)"
+        required: true
+        type: string
+      task_file:
+        description: "작업지시서 경로 (예: docs/TASK_92.md)"
+        required: true
+        type: string
+      instruction:
+        description: "이번 실행에서 Codex에게 추가로 내릴 구체적인 지시 및 착수 승인"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  run_codex:
+    runs-on: ubuntu-latest
+    outputs:
+      has_changes: ${{ steps.diff.outputs.has_changes }}
+    steps:
+      - name: Validate inputs
+        env:
+          TASK_NUMBER: ${{ inputs.task_number }}
+          TASK_BRANCH: ${{ inputs.task_branch }}
+          TASK_FILE: ${{ inputs.task_file }}
+        run: |
+          [[ "$TASK_NUMBER" =~ ^[0-9]+$ ]] || { echo "Invalid task number"; exit 1; }
+          [[ "$TASK_BRANCH" =~ ^task/[A-Za-z0-9._/-]+$ && "$TASK_BRANCH" != *".."* ]] || { echo "Invalid task branch"; exit 1; }
+          [[ "$TASK_FILE" =~ ^docs/TASK_[A-Za-z0-9_-]+\.md$ ]] || { echo "Invalid task file path"; exit 1; }
+
+      - name: Checkout task branch
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.task_branch }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Run Codex
+        id: codex
+        uses: openai/codex-action@v1
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          permission-profile: ":workspace"
+          safety-strategy: drop-sudo
+          prompt: |
+            DJRPG 저장소의 자동화 작업 실행이다.
+
+            반드시 AGENTS.md를 먼저 읽고, 이어서 ${{ inputs.task_file }}을 읽어라.
+            docs/TASK.md와 관련 WORKLOG도 확인하여 다른 작업자와 충돌하는지 조사한다.
+
+            이번 실행의 작업 번호: ${{ inputs.task_number }}
+            사용자 추가 지시 및 착수 승인:
+            ${{ inputs.instruction }}
+
+            작업지시서와 AGENTS.md의 규칙이 최우선이다. 작업 범위, 수정 금지 사항,
+            공통 데이터 계약 승인 절차를 준수한다. 지시가 서로 모순되거나 착수 승인이
+            불명확하면 코드를 수정하지 말고 문제와 필요한 확인 사항만 보고한다.
+
+            main에 직접 커밋하거나 푸시하지 않는다. 작업 결과는 파일 변경으로 남기고,
+            테스트 및 빌드를 실행할 수 있으면 실행한다. 실행하지 못한 검증은 이유를 기록한다.
+            마지막으로 변경 파일, 주요 변경 내용, 테스트 결과, 남은 위험을 요약한다.
+          output-file: codex-result.md
+
+      - name: Collect Codex changes
+        id: diff
+        run: |
+          git add -N .
+          git diff --binary > codex.patch
+          if [ -s codex.patch ]; then
+            echo "has_changes=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+          fi
+          cp codex-result.md codex-result.txt 2>/dev/null || true
+
+      - name: Upload Codex patch and report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: codex-task-${{ inputs.task_number }}-result
+          path: |
+            codex.patch
+            codex-result.txt
+          if-no-files-found: warn
+          retention-days: 14
+
+  create_pull_request:
+    needs: run_codex
+    if: needs.run_codex.outputs.has_changes == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v5
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Download Codex patch
+        uses: actions/download-artifact@v4
+        with:
+          name: codex-task-${{ inputs.task_number }}-result
+
+      - name: Apply Codex patch
+        run: git apply --binary codex.patch
+
+      - name: Create pull request
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          base: main
+          branch: codex/task-${{ inputs.task_number }}
+          delete-branch: false
+          commit-message: "feat: complete Codex task ${{ inputs.task_number }}"
+          title: "Codex 작업 ${{ inputs.task_number }} 결과"
+          body: |
+            ## Codex 자동 작업 결과
+
+            - 작업 번호: ${{ inputs.task_number }}
+            - 작업지시서: ${{ inputs.task_file }}
+            - 작업 브랜치: ${{ inputs.task_branch }}
+            - 실행 결과 및 테스트 내용은 Actions 아티팩트를 확인하세요.
+
+            자동 생성된 PR입니다. 병합 전 담당자의 검토와 승인 및 필수 검증을 진행하세요.
