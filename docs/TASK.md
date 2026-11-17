@@ -673,3 +673,36 @@
 - **목표**: 이동 중 고정되어 보이는 황야 지형에 캐릭터 위치 기반 이동을 적용하고 모닥불 조명·불티가 배경 이미지와 함께 움직이도록 한다.
 - **범위 확인**: 진행 중인 작업 85와 황야 배경 영역이 겹치며, 사용자가 2026-11-17 이 대화에서 지금 진행하도록 승인했다.
 - **완료 기준**: 화면 가장자리 노출 없이 남녀 공통 이동에 지형이 반응하고 배경 효과 정렬·타입 검사·테스트·빌드가 통과한다.
+
+---
+
+## [ ] [작업 88] 초기 그래픽 리소스 로딩 화면(진행률 표시) 및 초기화 에러 표시 추가
+- **등록일**: 2026-11-17
+- **수정 예정 파일**: `src/game/render.ts`, `src/game/wasteland.ts`, `src/main.ts`, `src/game/bootProgress.ts`(신규 진행률 계산 모듈), `src/styles/boot.css`(신규, `src/styles/main.css`에서 `@import`), `src/styles/base.css`, 관련 테스트 및 작업 문서.
+- **동시 작업 확인**: 등록 시점(2026-11-17) `docs/TASK.md`에 `[-]` 진행 중 작업이 없어 파일·기능 겹침 없음.
+- **배경**: 2026-11-17 iOS 사파리에서 `djrpg.vercel.app` 접속 시 초기 화면이 검은 화면으로만 보인다는 제보가 있었다. 현재 에셋 로딩 구간에는 아무 표시가 없고, 초기화 예외도 화면에 드러나지 않아 원인을 알 수 없다.
+- **목표**: 로그인/자동 로그인 직후 `view.mount()`·`mountWasteland()`가 에셋을 불러오는 동안 캔버스 영역이 검은 화면으로 비어 보이지 않도록 다크 판타지 톤의 **로딩 오버레이(로고 + 진행률 바 + `리소스 불러오는 중… 0% ~ 100%`)**를 표시하고, 초기화 단계에서 예외가 발생해도 검은 화면으로 멈추지 않고 화면에 에러 문구와 재시도 버튼을 띄운다.
+
+### 작업 내용
+1. **`src/game/render.ts` 진행률 콜백 지원**:
+   - `async mount(host: HTMLElement, onProgress?: (loaded: number, total: number) => void): Promise<void>` 형태로 선택적 콜백을 받는다(기존 호출부 호환 유지).
+   - `total`은 로딩 대상 텍스처 파일 수 합계로 계산한다: `Object.keys(paths)` + `animationPaths`의 모든 프레임 + `attackSheets` + `walkSheets`(현재 약 69개 파일).
+   - 각 `Assets.load` Promise가 완료될 때마다 완료 수를 1 올려 `onProgress(done, total)`을 호출하고, 마지막에 `onProgress(total, total)`로 정확히 100%에 도달시킨다(동일 URL 중복 로드·캐시 재사용으로 개수가 어긋나지 않게 고유 URL 기준으로 집계).
+   - 진행률 계산은 `src/game/bootProgress.ts`의 작은 순수 함수(예: `createBootProgress(total)` → `{ tick(): number; ratio(): number; report(): void }`)로 분리해 단위 테스트가 가능하게 한다.
+2. **`src/game/wasteland.ts` 마지막 단계 합산**:
+   - `mountWasteland(view)`가 끝나면 배경 1개를 더한 최종 100%를 보고하도록 `total`에 `+1`(황야 배경)을 포함하거나, 완료 후 `onProgress(total, total)`을 호출한다.
+3. **`src/main.ts` & `src/styles/boot.css` 로딩 오버레이 UI**:
+   - `openLogin` 완료 직후(로그인 화면이 제거되는 즉시), `parseSave`·`view.mount` 이전에 `appRoot`에 `.boot-loading` 오버레이를 붙인다. 배경 `#100d10`, `DJRPG` 타이틀 + `황야의 층계` 서브타이틀, 금빛 진행률 바, `리소스 불러오는 중… N%` 텍스트로 구성하고 `100dvh`·세이프 에어리어에 대응한다.
+   - `view.mount(..., progress)`와 `mountWasteland(view)`가 모두 끝나면 오버레이를 부드럽게 페이드아웃(약 240ms) 후 DOM에서 제거해 터치·키보드 입력을 막지 않게 한다.
+   - `openLogin`·`parseSave`·`view.mount`·`mountWasteland` 전체를 `try/catch`로 감싼다. **최상위 모듈에서 `await openLogin`이 실패하면 아무 표시 없이 검은 화면이 되므로 예외를 반드시 잡아** 오버레이를 `.boot-error` 상태로 바꾼다.
+   - `.boot-error`에는 `초기화에 실패했습니다.` 문구, 실패 사유(에러 메시지·실패한 에셋 경로 등 확인 가능한 정보), `[새로고침]` 버튼(`location.reload()`)을 표시한다. 기존 `src/main.ts`의 `.load-error` / `src/styles/base.css`의 `.load-error` 스타일은 새 오버레이로 통합 정리한다.
+   - `window.addEventListener('error')` 및 `('unhandledrejection')` 안전 핸들러를 추가하되, 부팅 완료 이후의 런타임 오류는 기존 토스트(`ui.message`) 동작을 깨지 않고, 부팅 중 오류만 같은 에러 오버레이로 보여 준다(중복 표시 방지).
+4. **테스트 & 검증**:
+   - `src/game/bootProgress.ts`에 대한 단위 테스트를 추가해 `total` 계산·`tick` 증가·100% 도달·초과 방지를 검증한다.
+   - 기존 `npm test`, `npm run check`, `npm run build` 통과, 완료 후 `docs/TASK.md` `[x]` 처리 및 `docs/WORKLOG.md` 상단에 5줄 이내 기록.
+
+### 검증 및 완료 기준 (Codex Policy)
+1. `pnpm run check`(또는 `npx tsc --noEmit`), `pnpm test`, `pnpm run build` 모두 통과.
+2. 로딩 중 진행률이 0%에서 100%까지 실제로 갱신되고, 부팅 완료 후 오버레이가 제거되어 조작이 가능하며, 초기화 예외 시 검은 화면 대신 에러 문구와 `[새로고침]` 버튼이 표시된다.
+3. `docs/TASK.md`의 이번 작업을 `[x]` 처리하고 `docs/WORKLOG.md` 상단에 5줄 이내 기록.
+4. **토큰 절약**: 브라우저 실기 테스트는 실행하지 않는다.
