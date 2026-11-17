@@ -5,8 +5,11 @@ const tokenKey = 'djrpg.auth.token';
 export function clearToken(): void { localStorage.removeItem(tokenKey); }
 export async function accountRequest<T>(action: string, data: Record<string, unknown> = {}, token?: string): Promise<T> {
   let response: Response;
-  try { response = await fetch('/api/account', { method: 'POST', headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify({ action, ...data }), keepalive: action === 'save' }); }
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10_000);
+  try { response = await fetch('/api/account', { method: 'POST', headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify({ action, ...data }), keepalive: action === 'save', signal: controller.signal }); }
   catch { throw new Error('서버에 연결할 수 없습니다. 네트워크 상태를 확인하세요.'); }
+  finally { clearTimeout(timeout); }
   const result = await response.json().catch(() => { throw new Error('서버 응답 형식이 올바르지 않습니다. API 배포를 확인하세요.'); });
   if (!response.ok) { const error = new Error(typeof result.error === 'string' ? result.error : `서버 요청 실패 (${response.status})`) as Error & { status: number; code: string }; error.status = response.status; error.code = result.code; throw error; }
   return result as T;

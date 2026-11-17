@@ -28,6 +28,42 @@ test('unknown market result pauses gameplay and prevents saves until idempotent 
   assert(sync.pendingMarket);const count=requests.length;assert.equal(await sync.flush(),false);assert.equal(requests.length,count);assert.deepEqual(pauses,[true]);
   offline=false;await sync.mutate('buy',{listingId:'x'},'persistent-request-123');assert.equal(sync.pendingMarket,undefined);assert.equal(sync.revision,2);assert.equal(pauses.at(-1),false);
 });
+test('market automatically retries an unknown result and resumes auto combat', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const { Market } = await import('../src/game/market.ts');
+  const sync = setup(), market = new Market(sync), pauses = [], requests = [];
+  sync.onPause = value => pauses.push(value);
+  market.load = async () => {};
+  globalThis.fetch = async (_url, options) => {
+    const payload = JSON.parse(options.body); requests.push(payload);
+    if (requests.length <= 3) throw new Error('temporary outage');
+    return response({ ok: true, revision: 1, save: sync.save, message: 'recovered' });
+  };
+  await market.act('buy', { listingId: 'offer' });
+  assert(sync.pendingMarket); assert.deepEqual(pauses, [true]);
+  t.mock.timers.tick(2000);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(sync.pendingMarket, undefined);
+  assert.equal(pauses.at(-1), false);
+  assert.equal(requests.length, 4);
+  assert(requests.every(request => request.requestId === requests[0].requestId));
+});
+test('a stalled save times out so starting a trade cannot pause auto combat forever', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const sync = setup(), pauses = [];
+  sync.onPause = value => pauses.push(value);
+  globalThis.fetch = (_url, options) => new Promise((_resolve, reject) => options.signal.addEventListener('abort', () => reject(new Error('aborted'))));
+  const saving = sync.flush();
+  const trade = sync.mutate('buy', { listingId: 'offer' }, 'stalled-save-request');
+  assert.deepEqual(pauses, [true]);
+  t.mock.timers.tick(10_000);
+  assert.equal(await saving, false);
+  await new Promise(resolve => setImmediate(resolve));
+  t.mock.timers.tick(10_000);
+  await assert.rejects(trade, /이전 저장 결과/);
+  assert.equal(sync.pendingMarket, undefined);
+  assert.equal(pauses.at(-1), false);
+});
 test('failed validation resumes gameplay without leaving a pending transaction',async()=>{
   const sync=setup();const pauses=[];sync.onPause=v=>pauses.push(v);
   globalThis.fetch=async(url)=>url==='/api/account'?response({ok:true,revision:1}):response({code:'INSUFFICIENT_GOLD',error:'골드 부족'},400);

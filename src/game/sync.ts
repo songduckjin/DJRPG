@@ -77,8 +77,10 @@ export class SaveSync {
       let result: SyncResult | undefined;
       for (let attempt = 0; attempt < 3; attempt++) {
         let response: Response;
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 10_000);
         try {
-          response = await fetch('/api/market', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${this.session.token}` }, body: JSON.stringify({ action: this.pendingMarket!.action, ...this.pendingMarket!.data, requestId: this.pendingMarket!.requestId, revision: this.pendingMarket!.revision, progress: this.pendingMarket!.progress }) });
+          response = await fetch('/api/market', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${this.session.token}` }, body: JSON.stringify({ action: this.pendingMarket!.action, ...this.pendingMarket!.data, requestId: this.pendingMarket!.requestId, revision: this.pendingMarket!.revision, progress: this.pendingMarket!.progress }), signal: controller.signal });
           const body = await response.json();
           if (!response.ok) {
             if (response.status >= 500) throw new Error(body.error || '서버 응답을 확인 중입니다.');
@@ -88,8 +90,8 @@ export class SaveSync {
           result = body as SyncResult; break;
         } catch (error) {
           if (error instanceof Error && 'status' in error) throw error;
-          if (attempt === 2) throw new Error('연결이 끊겨 거래 결과를 확인 중입니다. 거래 결과 다시 확인을 눌러주세요.');
-        }
+          if (attempt === 2) throw new Error('연결이 끊겨 거래 결과를 확인 중입니다. 자동 재시도하며, 연결되면 전투를 재개합니다.');
+        } finally { clearTimeout(timeout); }
       }
       if (!result) throw new Error('거래 결과를 확인하지 못했습니다.');
       this.pendingMarket = undefined;
