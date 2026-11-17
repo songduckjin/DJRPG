@@ -10,6 +10,7 @@
 
 | 작업 | 담당자 ID | 브랜치 | 수정 예정 파일 / 영향 영역 | 위험 등급 | 상태 |
 |---|---|---|---|---|---|
+| 101 · 거래소 행동조회·일괄수령·거래가 | fks3997 | `fix/market-actions-fks3997` | market 클라이언트/모달·sync효과·server market/index/API·회귀 / 목록/수령 | 주의(선택적응답추가·기존호환) | [-] |
 | 99 · 가방설명 축소·등급 | fks3997 | `fix/compact-books-ring-fks3997` | `bagDetail.ts`, `equipModal.ts`, `modals.css`, UI회귀 / 설명 표시 | 개인 | [x] 로컬 검증 · 미푸시/미배포 |
 | 100 · 장비만40개 제한 | fks3997 | `fix/compact-books-ring-fks3997` | 용량helper·store/world/offline/appearance·가방UI·server database/market/journey·account API·테스트 / 획득·복원·수령 | 주의(기존 데이터 형식 유지) | [x] 로컬 검증 · 미푸시/미배포 |
 | 97 · 스킬북4열/카드축소 | fks3997 | `fix/compact-books-ring-fks3997` | `skillBooks.ts`, `modals.css` / 목록·기존강화버튼 | 개인(UI 한정) | [x] 로컬 검증 · 미푸시/미배포 |
