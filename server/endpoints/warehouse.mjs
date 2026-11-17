@@ -1,12 +1,14 @@
 import { client, schema, transaction, account, assertRevision, assertSession, assertSessionId, writeSave, fail } from '../database.mjs';
 import { tokenPayload } from '../auth.mjs';
 import { runtimeEnv } from '../env.mjs';
-import { json, readBody, errorResponse } from '../http.mjs';
+import { json, readBody, errorResponse, versionGuard } from '../http.mjs';
 
 export async function warehouseEndpoint(request, { env = runtimeEnv(), createDbClient } = {}) {
   const res = { status: status => ({ json: body => json(body, status) }) };
   const req = { method: request.method, body: await readBody(request) };
   if (req.method !== 'POST') return res.status(405).json({ code: 'METHOD_NOT_ALLOWED', error: 'POST 요청만 허용합니다.' });
+  const outdated = versionGuard(request);
+  if (outdated) return outdated;
   if (!env.TURSO_DATABASE_URL || !env.TURSO_AUTH_TOKEN) return res.status(503).json({ code: 'DB_NOT_CONFIGURED', error: '서버 DB가 설정되지 않았습니다.' });
   const signed = tokenPayload(request, env);
   if (!signed) return res.status(401).json({ code: 'INVALID_TOKEN', error: '인증이 만료되었습니다. 다시 로그인하세요.' });

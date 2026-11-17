@@ -1,10 +1,14 @@
 import { parseSave, type Save } from './store';
 import { accountRequest, clearToken, type Session } from '../ui/login';
+import { apiHeaders, isOutdatedResponse, OUTDATED_MESSAGE, reloadForNewVersion } from './appVersion';
 
 const sessionErrorCodes = ['SESSION_REPLACED', 'INVALID_TOKEN', 'UNAUTHORIZED'];
 const conflictErrorCodes = ['ITEM_CONFLICT', 'CHARACTER_CONFLICT'];
+const conflictReloadWindow = 10_000;
+const conflictReloadMessage = '데이터 동기화가 어긋났습니다. 새로고침해 주세요.';
 const errorCode = (error: unknown): string => error instanceof Error && 'code' in error ? String((error as Error & { code?: unknown }).code ?? '') : '';
 const errorStatus = (error: unknown): number => error instanceof Error && 'status' in error ? Number((error as Error & { status?: unknown }).status) : 0;
+const errorExpectedVersion = (error: unknown): unknown => error instanceof Error && 'expected' in error ? (error as Error & { expected?: unknown }).expected : undefined;
 
 export type SyncResult = { ok: boolean; save: Save; revision: number; message?: string; effect?: { listing?: { id: string; state: string; soldAt?: number }; deliveries: import('./market').Delivery[]; claimedId?: string; claimedIds?: string[] } };
 export class SaveSync {
@@ -26,6 +30,8 @@ export class SaveSync {
   onWarehouseRecovered: () => void = () => {};
   onSessionEnded: (message: string) => void = () => {};
   private reloadingConflict = false;
+  private conflictReloadAt = 0;
+  private conflictStopped = false;
   private sessionEnded = false;
   constructor(public save: Save, public session: Session) { this.revision = session.revision; }
   private autosaveTimer?: ReturnType<typeof setTimeout>;
@@ -59,6 +65,7 @@ export class SaveSync {
   }
   handleError(error: unknown): void {
     const code = errorCode(error);
+    if (isOutdatedResponse(errorStatus(error), code, errorExpectedVersion(error))) { this.stopForOutdatedVersion(); return; }
     if (code === 'SAVE_CONFLICT') {
       this.conflicted = true; this.onPause(true);
       const overlay = document.createElement('div'); overlay.className = 'sync-conflict';
@@ -70,6 +77,9 @@ export class SaveSync {
       this.endSession(error instanceof Error && error.message ? error.message : '다시 로그인하세요.');
       return;
     } else if (conflictErrorCodes.includes(code)) {
+      // 방금 최신 세이브를 다시 불러왔는데 또 충돌했다면 world가 옛 상태를 들고 있다는 뜻이므로,
+      // 같은 재로드를 반복하지 않고 저장을 멈춘 뒤 새로고침만 안내한다(토스트 무한 반복 차단).
+      if (this.conflictReloadAt && Date.now() - this.conflictReloadAt < conflictReloadWindow) { this.stopConflictLoop(); return; }
       void this.reloadLatest();
       return;
     }
@@ -84,10 +94,34 @@ export class SaveSync {
     clearToken();
     this.onMessage(message); this.onSessionEnded(message);
   }
+  // 구버전 번들은 저장을 멈추고 새 번들을 받아온다(새로고침이 반복되면 캐시된 화면으로 보고 안내만 남긴다).
+  private stopForOutdatedVersion(): void {
+    this.conflicted = true;
+    this.cancelQueuedSave();
+    this.pending = false; this.pendingSave = undefined;
+    this.onPause(true); this.onStatus('업데이트 필요');
+    this.onMessage(OUTDATED_MESSAGE);
+    reloadForNewVersion();
+  }
+  private stopConflictLoop(): void {
+    if (this.conflictStopped) return;
+    this.conflictStopped = true;
+    this.conflicted = true;
+    this.cancelQueuedSave();
+    this.pending = false; this.pendingSave = undefined;
+    this.onPause(true); this.onStatus('동기화 필요');
+    this.onMessage(conflictReloadMessage);
+    if (typeof document === 'undefined' || typeof document.querySelector !== 'function' || document.querySelector('.sync-conflict')) return;
+    const overlay = document.createElement('div'); overlay.className = 'sync-conflict';
+    const note = document.createElement('p'); note.textContent = conflictReloadMessage;
+    const button = document.createElement('button'); button.textContent = '최신 진행 상황 불러오기'; button.onclick = () => location.reload();
+    overlay.append(note, button); document.body.appendChild(overlay);
+  }
   // ITEM_CONFLICT・CHARACTER_CONFLICT는 같은 저장을 다시 보내면 계속 실패하므로, 서버 최신 세이브를 받아 화면을 맞춘다.
   private async reloadLatest(): Promise<void> {
     if (this.reloadingConflict) return;
     this.reloadingConflict = true;
+    this.conflictReloadAt = Date.now();
     this.cancelQueuedSave();
     this.pending = false; this.pendingSave = undefined;
     this.onPause(true); this.onStatus('최신 저장 불러오는 중');
@@ -127,12 +161,12 @@ export class SaveSync {
       for (let attempt = 0; attempt < 3; attempt++) {
         let response: Response;
         try {
-          response = await fetch('/api/market', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${this.session.token}` }, body: JSON.stringify({ action: this.pendingMarket!.action, ...this.pendingMarket!.data, requestId: this.pendingMarket!.requestId, revision: this.pendingMarket!.revision, progress: this.pendingMarket!.progress, characterSlot: this.session.characterSlot }) });
+          response = await fetch('/api/market', { method: 'POST', headers: apiHeaders({ Authorization: `Bearer ${this.session.token}` }), body: JSON.stringify({ action: this.pendingMarket!.action, ...this.pendingMarket!.data, requestId: this.pendingMarket!.requestId, revision: this.pendingMarket!.revision, progress: this.pendingMarket!.progress, characterSlot: this.session.characterSlot }) });
           const body = await response.json();
           if (!response.ok) {
             if (response.status >= 500) throw new Error(body.error || '서버 응답을 확인 중입니다.');
             this.pendingMarket = undefined;
-            throw Object.assign(new Error(body.error || '거래 요청 실패'), { code: body.code, status: response.status });
+            throw Object.assign(new Error(body.error || '거래 요청 실패'), { code: body.code, status: response.status, expected: body.expected });
           }
           result = body as SyncResult; break;
         } catch (error) {
@@ -149,7 +183,7 @@ export class SaveSync {
       this.onStatus('저장됨'); return result as SyncResult;
     } catch (error) {
       const code = errorCode(error);
-      if (code === 'SAVE_CONFLICT' || conflictErrorCodes.includes(code) || sessionErrorCodes.includes(code) || errorStatus(error) === 401) this.handleError(error);
+      if (code === 'SAVE_CONFLICT' || conflictErrorCodes.includes(code) || isOutdatedResponse(errorStatus(error), code, errorExpectedVersion(error)) || sessionErrorCodes.includes(code) || errorStatus(error) === 401) this.handleError(error);
       else this.onMessage(error instanceof Error ? error.message : String(error));
       throw error;
     }
@@ -177,11 +211,11 @@ export class SaveSync {
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 10_000);
         try {
-          const response = await fetch('/api/warehouse', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${this.session.token}` }, body: JSON.stringify({ ...this.pendingWarehouse, characterSlot: this.session.characterSlot }), signal: controller.signal });
+          const response = await fetch('/api/warehouse', { method: 'POST', headers: apiHeaders({ Authorization: `Bearer ${this.session.token}` }), body: JSON.stringify({ ...this.pendingWarehouse, characterSlot: this.session.characterSlot }), signal: controller.signal });
           const body = await response.json();
           if (!response.ok) {
             if (response.status >= 500) throw new Error(body.error || '창고 이동 결과를 확인 중입니다.');
-            throw Object.assign(new Error(body.error || '창고 요청 실패'), { status: response.status, code: body.code });
+            throw Object.assign(new Error(body.error || '창고 요청 실패'), { status: response.status, code: body.code, expected: body.expected });
           }
           result = body as SyncResult; break;
         } catch (error) {

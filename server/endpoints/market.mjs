@@ -4,13 +4,15 @@ import { tokenPayload } from '../auth.mjs';
 import { assertSessionId, fail, schema } from '../database.mjs';
 import { snapshot, mutate, recentPrice } from '../market.mjs';
 import { runtimeEnv } from '../env.mjs';
-import { json, readBody, errorResponse } from '../http.mjs';
+import { json, readBody, errorResponse, versionGuard } from '../http.mjs';
 
 const withNoStore = response => { response.headers.set('Cache-Control', 'no-store'); return response; };
 export async function marketEndpoint(request, { env = runtimeEnv(), createDbClient } = {}) {
   const res = { status: status => ({ json: body => json(body, status, { 'Cache-Control': 'no-store' }) }) };
   const req = { method: request.method, body: await readBody(request) };
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST 요청만 허용합니다.' });
+  const outdated = versionGuard(request);
+  if (outdated) return outdated;
   let db;
   try {
     if (!env.TURSO_DATABASE_URL || !env.TURSO_AUTH_TOKEN) fail(503, 'DB_NOT_CONFIGURED', '서버 DB 설정을 확인하세요.');
