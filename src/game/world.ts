@@ -137,6 +137,7 @@ export class World {
   kill(enemy: Enemy): void {
     this.effects.push({ x: enemy.x, y: enemy.y, kind: 'death', age: 0, duration: .7, angle: Math.random() * Math.PI * 2 });
     this.save.kills++;
+    if (enemy.boss) this.save.bossKills++;
     this.save.gold += enemy.boss ? 70 * this.save.floor : 3 + this.save.floor;
     const gained = addExperience(this.save, enemy.boss ? 45 : 8);
     if (gained) { this.player.hp = this.save.health; this.onMessage(`레벨 ${this.save.level} 달성!`); }
@@ -172,6 +173,7 @@ export class World {
 
   update(dt: number): void {
     if (this.paused) return;
+    this.save.playSeconds += Math.max(0, dt);
     const p = this.player;
     for (const kind of Object.keys(this.cooldown) as Action[]) this.cooldown[kind] = Math.max(0, this.cooldown[kind] - dt);
     this.attackPose = Math.max(0, this.attackPose - dt);

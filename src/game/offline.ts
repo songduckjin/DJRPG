@@ -12,6 +12,7 @@ export function applyOfflineRewards(save: Save, elapsedSeconds: number): Offline
   const kills = Math.floor(seconds / 60 * killsPerMinute);
   const target = floorKillTarget(save.floor);
   const bossKills = Math.floor(kills / target);
+  save.bossKills += bossKills;
   const exp = kills * 8;
   const gold = kills * (3 + save.floor) + bossKills * 70 * save.floor;
   save.kills += kills;

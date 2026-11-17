@@ -169,3 +169,19 @@
 .skill-book-card b { overflow-wrap: anywhere; }
 .skill-book-cost { color: #cbb89b; font-size: 10px; }
 .skillbook-use:disabled { opacity: .45; }
+
+.utility-modal > header { position: sticky; top: -14px; z-index: 4; background: #2b2224; min-height: 44px; }
+.utility-content { display: flex; flex-direction: column; gap: 9px; font-size: 12px; color: #d6c5ae; }
+.utility-heading { margin: 8px 0 0; color: #eedabb; }
+.utility-note { color: #ad9d8e; line-height: 1.7; margin: 3px 0; }
+.utility-button { border: 1px solid #806348; background: #392925; color: #ead4b3; padding: 8px; font: inherit; }
+.utility-button:disabled { opacity: .45; }
+.utility-card { display: flex; flex-direction: column; gap: 7px; border: 1px solid #5e4b40; background: #211a1d; padding: 10px; }
+.utility-card progress { width: 100%; height: 9px; accent-color: #b88a4d; }
+.utility-reward { display: flex; align-items: center; gap: 12px; color: #dcb87b; }
+.utility-tabs { display: flex; gap: 5px; }
+.utility-tabs button { flex: 1; }
+.utility-tabs .active { background: #60432d; border-color: #c7a168; }
+.setting-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 0; border-bottom: 1px solid #514039; }
+.setting-row input { accent-color: #b88a4d; width: 20px; height: 20px; }
+.setting-row select { color: #ead4b3; background: #211a1d; border: 1px solid #806348; padding: 5px; }
