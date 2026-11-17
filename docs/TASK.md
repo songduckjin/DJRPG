@@ -10,6 +10,9 @@
 
 | 작업 | 담당자 ID | 브랜치 | 수정 예정 파일 / 영향 영역 | 위험 등급 | 상태 |
 |---|---|---|---|---|---|
+| 114 · 장착8글자/가방10열 | fks3997 | `feature/skillbook-badges-fks3997` | equipModal·CSS·UI회귀 / 표시 | 개인 | [-] |
+| 115 · 책이미지 확대/강화밀착 | fks3997 | `feature/skillbook-badges-fks3997` | skillBooks·bookArt·CSS / 표시 | 개인 | [-] |
+| 116 · 장착스킬 공통테두리 | fks3997 | `feature/skillbook-badges-fks3997` | skillModal·CSS·UI회귀 / 표시 | 개인 | [-] |
 | 112 · 최근거래없음 문구 | fks3997 | `feature/skillbook-badges-fks3997` | marketModal문구 / 표시 | 개인 | [-] |
 | 113 · 스킬북A배지/패시브남청색 | fks3997 | `feature/skillbook-badges-fks3997` | 책남청색asset·skillBookArt·스킬북/거래소UI·CSS·회귀 / 표시 | 개인 | [-] |
 | 111 · 착용장비 설명자물쇠 | fks3997 | `fix/equipped-lock-fks3997` | equippedDetail·CSS·회귀 / 잠금UI | 주의(기존locked사용) | [x] 로컬 검증 · 미푸시/미배포 |
