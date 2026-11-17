@@ -1,4 +1,4 @@
-import {setSkillIcon} from '../skillArtwork';
+import {setSkillIcon, setPassiveSkillIcon} from '../skillArtwork';
 import { markSkillUpgrade, renderSkillBooks, renderSkillUpgrade } from '../skillBooks';
 import { orderedSkills } from '../itemOrder';
 import { availableSkills, unequipSkill } from '../../game/loadout';
@@ -55,6 +55,7 @@ export function renderSkills(this: Interface, dialog: HTMLElement): void {
       const card = document.createElement('article'); card.className = 'skill-card passive-skill-card'; card.dataset.skill = id;
       const bonus = id === 'mastery' ? `공격 +${15 + (level - 1) * 2}%` : id === 'body' ? `HP·방어 +${15 + (level - 1) * 2}%` : `치명 +${8 + (level - 1) * 2}% · 공속 +${12 + (level - 1) * 2}%`;
       card.innerHTML = `<div class="skill-icon">${passive.icon}</div><div class="skill-info"><h3>${passive.name} <small>권장 Lv.${passive.level}</small></h3><p>${passive.description}</p><strong class="skill-level">${learned ? `스킬 Lv.${level} / ${MAX_SKILL_LEVEL}` : '미습득 (스킬북 파밍 필요)'}</strong><small>${bonus}</small><div class="skill-actions"></div></div>`;
+      const icon=card.querySelector<HTMLElement>('.skill-icon')!;icon.textContent='';icon.className='skill-icon skill-image-icon passive-image-icon';setPassiveSkillIcon(icon,id);
       const action = card.querySelector<HTMLElement>('.skill-actions')!;
       renderSkillUpgrade(this, action, id); markSkillUpgrade(this, card, id);
       passivesGrid.appendChild(card);
