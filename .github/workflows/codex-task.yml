@@ -1,0 +1,241 @@
+name: Codex Task Runner
+
+on:
+  issues:
+    types: [labeled]
+
+concurrency:
+  group: codex-task-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  preflight:
+    if: github.event.label.name == 'codex-ready' && !github.event.issue.pull_request
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: read
+      pull-requests: read
+    outputs:
+      number: ${{ steps.guard.outputs.number }}
+      owner: ${{ steps.guard.outputs.owner }}
+      branch: ${{ steps.guard.outputs.branch }}
+      task_file: ${{ steps.guard.outputs.task_file }}
+      scope: ${{ steps.guard.outputs.scope }}
+      base_sha: ${{ steps.guard.outputs.base_sha }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: main
+          persist-credentials: false
+      - name: Verify actor, task, owner, scope, and collisions
+        id: guard
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const automationOwner = 'songduckjin';
+            const actor = context.actor;
+            const issue = context.payload.issue;
+            if (actor !== automationOwner || issue.user?.login !== automationOwner) {
+              throw new Error('Only a task Issue created and labeled by songduckjin may start Codex.');
+            }
+            const { data: permission } = await github.rest.repos.getCollaboratorPermissionLevel({
+              ...context.repo, username: actor
+            });
+            if (!['admin', 'maintain', 'write'].includes(permission.permission)) throw new Error('The label actor needs repository write access.');
+            const match = /^\[(?:작업|Task)\s+([1-9]\d*)\]/i.exec(issue.title);
+            if (!match) throw new Error('Issue title must start with [작업 N] or [Task N].');
+            const number = match[1];
+            const taskFile = `docs/TASK_${number}.md`;
+            if (!fs.existsSync(taskFile)) throw new Error(`Missing task document: ${taskFile}`);
+            const task = fs.readFileSync(taskFile, 'utf8');
+            if (!new RegExp(`^#\\s*작업지시서\\s+${number}\\b`, 'm').test(task)) throw new Error('Task document number does not match the issue.');
+            const field = name => {
+              const line = task.split(/\r?\n/).map(value => value.replace(/[`*]/g, '').trim())
+                .find(value => value.startsWith(`- ${name}:`));
+              return line?.slice(`- ${name}:`.length).trim() || '';
+            };
+            const owner = field('담당자');
+            if (owner !== automationOwner || issue.assignees?.length !== 1 || issue.assignees[0].login !== automationOwner) {
+              throw new Error('Task document owner and sole Issue assignee must be songduckjin.');
+            }
+            if (field('자동 실행 승인').toLowerCase() !== 'yes' || field('상태') !== '[-] 진행 중') {
+              throw new Error('Task must be preclaimed as [-] 진행 중 and explicitly approved for automation.');
+            }
+            const files = field('자동화 수정 파일').split(',').map(value => value.trim()).filter(Boolean);
+            if (!files.length || files.some(value => !/^(?:[A-Za-z0-9_.-]+\/)*[A-Za-z0-9_.-]+$/.test(value) || value.split('/').some(part => part === '.' || part === '..' || part === '.git' || part.startsWith('.env')))) {
+              throw new Error('List exact safe repository paths in 자동화 수정 파일; globs and parent paths are forbidden.');
+            }
+            const scope = [...new Set(files)];
+            const publicTasks = fs.readFileSync('docs/TASK.md', 'utf8');
+            const registration = publicTasks.split(/\r?\n/).find(line => line.startsWith('|') && line.includes(`[작업 ${number}]`));
+            if (!registration || !registration.includes(owner) || !registration.includes('[-]')) throw new Error('Preclaim the task and owner as [-] in docs/TASK.md before labeling.');
+            const shared = new Set(['AGENTS.md', 'docs/TASK.md', 'docs/WORKLOG.md', 'src/main.ts', 'src/game/store.ts', 'src/game/items.ts', 'src/game/sync.ts', 'server/database.mjs']);
+            const needsSharedApproval = scope.some(path => shared.has(path) || path.startsWith('.github/') || path.startsWith('api/') || path.startsWith('server/'));
+            if (needsSharedApproval) {
+              const events = await github.paginate(github.rest.issues.listEventsForTimeline, { ...context.repo, issue_number: issue.number, per_page: 100 });
+              const approved = events.some(event => event.event === 'labeled' && event.label?.name === 'shared-approved' && event.actor?.login === 'songduckjin');
+              if (!approved || !issue.labels.some(label => label.name === 'shared-approved')) throw new Error('Shared or contract files require a shared-approved label added by songduckjin.');
+            }
+            const overlaps = path => scope.includes(path) && !['docs/TASK.md', 'docs/WORKLOG.md'].includes(path);
+            for (const line of publicTasks.split(/\r?\n/)) {
+              if (!line.startsWith('|') || !line.includes('[-]') || line.includes(`[작업 ${number}]`)) continue;
+              const paths = [...line.matchAll(/`([^`]+)`/g)].map(match => match[1]);
+              if (paths.some(overlaps)) throw new Error(`An active task already owns a requested file: ${line.slice(0, 120)}`);
+            }
+            const prs = await github.paginate(github.rest.pulls.list, { ...context.repo, state: 'open', per_page: 100 });
+            for (const pr of prs) {
+              const changed = await github.paginate(github.rest.pulls.listFiles, { ...context.repo, pull_number: pr.number, per_page: 100 });
+              if (changed.some(file => overlaps(file.filename))) throw new Error(`PR #${pr.number} already changes a requested file.`);
+            }
+            const branch = `codex/task-${number}-${owner}-issue-${issue.number}`;
+            try {
+              await github.rest.git.getRef({ ...context.repo, ref: `heads/${branch}` });
+              throw new Error(`Branch ${branch} already exists; review its prior run instead of repeating it.`);
+            } catch (error) { if (error.status !== 404) throw error; }
+            core.setOutput('number', number);
+            core.setOutput('owner', owner);
+            core.setOutput('branch', branch);
+            core.setOutput('task_file', taskFile);
+            core.setOutput('scope', JSON.stringify(scope));
+            core.setOutput('base_sha', require('child_process').execFileSync('git', ['rev-parse', 'HEAD'], {encoding:'utf8'}).trim());
+
+  codex:
+    needs: preflight
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: read
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.preflight.outputs.base_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Create isolated working branch
+        env:
+          TASK_BRANCH: ${{ needs.preflight.outputs.branch }}
+        run: |
+          git switch -c "$TASK_BRANCH"
+          git rev-parse HEAD > "$RUNNER_TEMP/base-sha"
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install dependencies before sandboxing
+        run: |
+          corepack enable
+          pnpm install --frozen-lockfile
+      - name: Run Codex without a GitHub write token
+        uses: openai/codex-action@v1
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY_SONGDUCKJIN }}
+          permission-profile: ':workspace'
+          safety-strategy: drop-sudo
+          prompt: |
+            Read AGENTS.md, ${{ needs.preflight.outputs.task_file }}, and docs/TASK.md.
+            Task ${{ needs.preflight.outputs.number }} belongs to ${{ needs.preflight.outputs.owner }}.
+            Modify only these exact files: ${{ needs.preflight.outputs.scope }}.
+            Respect the task's scope, existing active work, save/API/DB contracts, and both genders/classes.
+            Work only in the current task branch. Do not commit, push, merge, or print credentials.
+            Run the applicable type check, tests, and build. Report failures explicitly.
+      - name: Package only declared file changes
+        env:
+          ALLOWED_FILES: ${{ needs.preflight.outputs.scope }}
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const cp = require('child_process');
+          const allowed = new Set(JSON.parse(process.env.ALLOWED_FILES));
+          if (cp.execFileSync('git', ['rev-parse', 'HEAD'], {encoding:'utf8'}).trim() !== fs.readFileSync(process.env.RUNNER_TEMP + '/base-sha', 'utf8').trim()) throw new Error('Codex changed Git history.');
+          cp.execFileSync('git', ['reset']);
+          cp.execFileSync('git', ['add', '-N', '.']);
+          const files = cp.execFileSync('git', ['diff', '--name-only', '-z', '--no-renames'], {encoding:'utf8'}).split('\0').filter(Boolean);
+          if (!files.length) throw new Error('Codex produced no file changes; no PR can be created.');
+          for (const file of files) {
+            if (!allowed.has(file)) throw new Error(`Out-of-scope change: ${file}`);
+            if (fs.existsSync(file) && fs.lstatSync(file).isSymbolicLink()) throw new Error(`Symlink change forbidden: ${file}`);
+          }
+          fs.writeFileSync(process.env.RUNNER_TEMP + '/codex.patch', cp.execFileSync('git', ['diff', '--binary', '--no-ext-diff', '--no-renames'], {maxBuffer: 20 * 1024 * 1024}));
+          NODE
+      - uses: actions/upload-artifact@v4
+        with:
+          name: codex-patch-${{ github.run_id }}
+          path: ${{ runner.temp }}/codex.patch
+          retention-days: 1
+          if-no-files-found: error
+
+  publish:
+    needs: [preflight, codex]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    outputs:
+      pr_url: ${{ steps.pr.outputs.pull-request-url }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.preflight.outputs.base_sha }}
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: codex-patch-${{ github.run_id }}
+          path: ${{ runner.temp }}/codex-result
+      - name: Validate and apply scoped patch
+        env:
+          ALLOWED_FILES: ${{ needs.preflight.outputs.scope }}
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const cp = require('child_process');
+          const patch = process.env.RUNNER_TEMP + '/codex-result/codex.patch';
+          const allowed = new Set(JSON.parse(process.env.ALLOWED_FILES));
+          const paths = cp.execFileSync('git', ['apply', '--numstat', patch], {encoding:'utf8'}).split('\n').filter(Boolean).map(line => line.split('\t').slice(2).join('\t'));
+          if (!paths.length || paths.some(path => !allowed.has(path))) throw new Error('Patch contains undeclared or no paths.');
+          const summary = cp.execFileSync('git', ['apply', '--summary', patch], {encoding:'utf8'});
+          if (/mode 120000|mode 160000/.test(summary)) throw new Error('Symlink or submodule changes are forbidden.');
+          cp.execFileSync('git', ['apply', '--check', patch]);
+          cp.execFileSync('git', ['apply', '--index', patch]);
+          NODE
+      - name: Create review PR without merging
+        id: pr
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ github.token }}
+          base: main
+          branch: ${{ needs.preflight.outputs.branch }}
+          delete-branch: false
+          commit-message: 'feat: complete Codex task ${{ needs.preflight.outputs.number }}'
+          title: 'Codex 작업 ${{ needs.preflight.outputs.number }} · ${{ needs.preflight.outputs.owner }}'
+          body: |
+            작업: ${{ needs.preflight.outputs.number }}
+            담당자: @${{ needs.preflight.outputs.owner }}
+            지시서: `${{ needs.preflight.outputs.task_file }}`
+            시작 Issue: #${{ github.event.issue.number }}
+
+            담당자 검토, CI 통과, 사용자 승인 후에만 병합합니다.
+
+  report:
+    if: always() && github.event.label.name == 'codex-ready' && !github.event.issue.pull_request
+    needs: [preflight, codex, publish]
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Record outcome on the Issue
+        uses: actions/github-script@v7
+        env:
+          PREFLIGHT: ${{ needs.preflight.result }}
+          CODEX: ${{ needs.codex.result }}
+          PUBLISH: ${{ needs.publish.result }}
+          PR_URL: ${{ needs.publish.outputs.pr_url }}
+        with:
+          script: |
+            const run = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const result = `사전 검증: ${process.env.PREFLIGHT}, Codex: ${process.env.CODEX}, PR 게시: ${process.env.PUBLISH}`;
+            const body = process.env.PR_URL
+              ? `Codex 작업 결과 PR: ${process.env.PR_URL}\n\n${result}\n\n실행 기록: ${run}`
+              : `Codex 자동 실행에서 PR을 만들지 못했습니다.\n\n${result}\n\n실패 단계와 오류: ${run}`;
+            await github.rest.issues.createComment({ ...context.repo, issue_number: context.issue.number, body });
