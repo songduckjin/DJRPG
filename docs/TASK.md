@@ -851,7 +851,7 @@
 2. **DB 클라이언트 이원화 (`server/database-config.mjs`, `server/database.mjs`)**:
    - `server/database.mjs`는 **`@libsql/client`를 정적 import하지 않는다.** `configureDatabase(createClient)`로 주입받고, `export const client = (env = runtimeEnv()) => factory({ url: env.TURSO_DATABASE_URL, authToken: env.TURSO_AUTH_TOKEN })`로 만든다. 주입이 없으면 `fail(503, 'DB_NOT_CONFIGURED', ...)`로 명확히 실패시킨다(무음 실패 금지).
    - `api/*.mjs`(Vercel·테스트)는 `import { createClient } from '@libsql/client'; configureDatabase(createClient);`로 기존 `file:`·로컬 동작을 유지한다.
-   - `functions/api/*.js`(Cloudflare)는 `import { createClient } from '@libsql/client/web'; configureDatabase(createClient);`로 **Web/HTTP 클라이언트**를 쓴다. `@libsql/client`(node)가 Workers 번들에 끌려 들어가면 `node:fs`·네이티브 바이너리 때문에 빌드가 깨지므로 **정적 import 경로를 섞지 않는다.**
+   - `functions/api/*.js`(Cloudflare)는 `import { createClient } from '@libsql/client/web'; configureDatabase(createClient);`로 **Web/HTTP 클라이언트**를 쓴다. 이 클라이언트는 `expandConfig(config, true)`(preferHttp)라 `libsql://` URL이 `https://`로 변환돼 **HTTP 경로**로 붙는다(WebSocket 아님). `file:` URL은 `URL_SCHEME_NOT_SUPPORTED`로 실패하므로 Workers 경로에 `file:`이 들어가지 않게 한다. `@libsql/client`(node)가 Workers 번들에 끌려 들어가면 `node:fs`·네이티브 바이너리 때문에 빌드가 깨지므로 **정적 import 경로를 섞지 않는다.**
    - `schema(db)`의 초기화 캐시 키를 `db.url` → `db.url ?? envValue('TURSO_DATABASE_URL') ?? 'default'`로 바꾼다(web 클라이언트는 `db.url`이 없어서 지금 코드대로면 매 요청 스키마를 다시 돌린다). warm isolate당 1회 실행은 유지.
    - `server/market-connection.mjs`의 `connectionProvider(create = client, initialize = schema)`는 그대로 두되, `client()`가 env를 인자로 받게 된 점만 맞춘다.
 3. **공통 HTTP 계층 (`server/http.mjs`, 신규)**:
