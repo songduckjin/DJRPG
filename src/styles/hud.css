@@ -114,3 +114,6 @@
 .utility-nav [data-modal="achievements"] { --menu-icon-scale: 1.2659; --menu-icon-x: -1.9531%; --menu-icon-y: 3.9062%; }
 
 .bottom-nav [data-modal="equipment"] > .new-badge { top: 0; right: 0; z-index: 1; }
+
+.utility-nav .character-menu { flex:none; }
+.utility-nav .character-menu span { font-size:28px; line-height:1; color:#dfc39a; pointer-events:none; }

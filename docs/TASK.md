@@ -10,11 +10,16 @@
 
 | 작업 | 담당자 ID | 브랜치 | 수정 예정 파일 / 영향 영역 | 위험 등급 | 상태 |
 |---|---|---|---|---|---|
-| 123 · 기본 공격 검기 제거 및 전사 휘두르기 변경 | songduckjin | `codex/123-basic-attack-vfx` | `src/game/render/vfx.ts`, `src/game/render/field.ts`, `src/game/skills.ts`, `src/game/world.ts`, 작업·배포 기록 / 기본 공격·대검 스킬 연출 및 타격 | 주의(공용 렌더링·전투) | [-] 기본 공격 검기 제거 진행 중; 대검베기를 단일 흰색 휘두르기로 변경 |
+| 123 · 기본 공격 검기 제거 및 전사 휘두르기 변경 | songduckjin | `codex/123-basic-attack-vfx` | `src/game/render/vfx.ts`, `src/game/render/field.ts`, `src/game/skills.ts`, `src/game/world.ts`, 작업·배포 기록 / 기본 공격·대검 스킬 연출 및 타격 | 주의(공용 렌더링·전투) | [-] 대검베기를 단일 흰색 휘두르기로 변경; PR #36 진행 중 |
+| 124 · 모바일 닫기 터치전달 방지 | fks3997 | `fix/mobile-modal-touch-fks3997` | modalClose·CSS·터치회귀 / UI | 개인 | [x] 로컬 검증 · 배포 진행 |
+| 125 · 캐릭터버튼 업적아래 | fks3997 | `fix/mobile-modal-touch-fks3997` | interface·hud CSS·회귀 / 우측메뉴 | 주의(레벨진입유지) | [x] 로컬 검증 · 배포 진행 |
+| 122 · 가방 등급순 버튼 | fks3997 | `feature/bag-rarity-sort-fks3997` | equipModal·interface·modalDefaults·CSS·회귀 / 표시정렬 | 개인 | [x] 로컬 검증 · 미배포 |
+| 123 · 거래소 등록지연 조사 | fks3997 | `feature/bag-rarity-sort-fks3997` | game/market·server/market·회귀 / 등록후재조회제거·본인만료만처리(계약유지) | 주의 | [x] 로컬 검증 · 미배포 |
+| 121 · 캐릭터 중복검 제거 | fks3997 | `fix/duplicate-weapon-fks3997` | render/entities·렌더회귀 / 무기 중복표시 | 개인 | [x] 로컬 검증 · 미배포 |
+| 120 · 장비배지/배포재시도 | fks3997 | `release/equipment-badge-fks3997` | hud·interface·hud.css·회귀 / 표시·최신main보존 | 개인 | [x] PR #31 운영 배포 성공 |
+| 119 · Cloudflare Pages 전환 | songduckjin | `task/119-cloudflare-pages` | `functions/api/*`·`server/http`·`env`·`auth`·`legacy-auth`·`endpoints`·`api` 어댑터·`wrangler.toml`·`package.json`·`pnpm-workspace.yaml`·회귀 테스트 / 배포·API 진입점·DB 연결 | 핵심 공통(배포·API 계약) | [x] PR #32 병합 · Cloudflare Production Functions 배포 · 신규 계정/저장/창고/거래 조회 성공; 기존 계정은 재가입 필요 |
 | 122 · 레벨 배지로 캐릭터 선택 | songduckjin | `codex/122-level-character` | `src/ui/hud.ts`, `src/ui/interface.ts`, `src/styles/hud.css`, 작업·배포 기록 / 캐릭터 선택·계정 정보 진입 | 주의(UI 연결) | [x] PR #34 병합 · Cloudflare Production 새 번들 확인 |
 | 121 · Cloudflare 단일 배포 정책 | songduckjin | `codex/121-cloudflare-only` | `AGENTS.md`, `docs/TASK.md`, `docs/TASK_songduckjin.md`, `docs/WORKLOG.md`, `docs/WORKLOG_songduckjin.md` / 이후 PR 검사·자동 배포·Vercel 종료 | 핵심 공통(배포 정책) | [x] PR #33 병합 · Vercel Git 연결 해제 · Cloudflare Production 성공 |
-| 120 · 장비배지/배포재시도 | fks3997 | `release/equipment-badge-fks3997` | hud·interface·hud.css·회귀 / 표시·최신main보존 | 개인 | [x] 로컬 검증 · 배포 진행 |
-| 119 · Cloudflare Pages 전환 | songduckjin | `task/119-cloudflare-pages` | `functions/api/*`·`server/http`·`env`·`auth`·`legacy-auth`·`endpoints`·`api` 어댑터·`wrangler.toml`·`package.json`·`pnpm-workspace.yaml`·회귀 테스트 / 배포·API 진입점·DB 연결 | 핵심 공통(배포·API 계약) | [x] PR #32 병합 · Cloudflare Production Functions 배포 · 신규 계정/저장/창고/거래 조회 성공; 기존 계정은 재가입 필요 |
 | 106 · 협업 승인 자동화 정책 | songduckjin | `task/94-character-selection` | `AGENTS.md`, 공개 현황·공통 기록 / 모든 작업의 협의·승인 절차 | 핵심 공통(협업 정책) | [x] 사용자 지시 반영 · PR #24 반영 대기 |
 | 117 · 스킬 상태우측/행압축 | fks3997 | `feature/skillbook-badges-fks3997` | skillModal·skillBooks·CSS·회귀 / 표시 | 개인 | [x] 로컬 검증 · 미푸시/미배포 |
 | 118 · 거래소 연결재사용/조회취소 | fks3997 | `feature/skillbook-badges-fks3997` | api/market·marketConnection·game/market·회귀 / 기존 계약 유지 | 주의(내부 성능) | [x] 로컬 검증 · 미푸시/미배포 |

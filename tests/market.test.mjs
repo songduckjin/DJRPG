@@ -282,3 +282,11 @@ test('my active-only filter excludes purchases sold expired and other sellers, a
   assert.equal((await recentPrice(db,{...offer.item,rarity:'legendary'})).count,0);
   const ring={...item(),name:'같은 반지',slot:'ring2'};await seed('ring-quote',[ring]);const ringOffer=await sale('ring-quote',567);await action('mine-buyer','buy',{listingId:ringOffer.id});assert.equal((await recentPrice(db,{...ring,slot:'ring1'})).lastPrice,567);
 });
+
+test('browsing does not process another sellers expired listings or contend for a writer transaction',async()=>{
+ await seed('lazy-expired',[item()]);await seed('lazy-viewer',[]);const entry=await sale('lazy-expired');
+ await db.execute({sql:'UPDATE djrpg_market SET expires_at=? WHERE id=?',args:[Date.now()-1000,entry.id]});
+ let writes=0;const reader={batch:db.batch.bind(db),transaction(){writes++;throw new Error('unrelated expiry must not acquire writer lock');}};
+ const page=await snapshot(reader,'lazy-viewer',{view:'active'});assert(!page.listings.some(row=>row.id===entry.id));assert.equal(writes,0);
+ const own=await snapshot(db,'lazy-expired',{view:'mine'});assert.equal(own.listings.find(row=>row.id===entry.id).state,'expired');assert(own.inbox.some(delivery=>delivery.item?.id===entry.item.id));
+});

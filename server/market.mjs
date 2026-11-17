@@ -6,8 +6,8 @@ const deliveryOperation = (listing, owner, kind, item, gold, reason) => {
   return { owner, delivery, operation: { sql: 'INSERT OR IGNORE INTO djrpg_market_inbox VALUES (?,?,?,?,?,?,?,?,NULL)', args: [delivery.id, owner, listing.id, kind, item ? JSON.stringify(item) : null, gold, reason, delivery.createdAt] } };
 };
 const eventOperation = (kind, id) => ({ sql: 'INSERT INTO djrpg_market_events(kind,listing_id,created_at) VALUES (?,?,?)', args: [kind, id, Date.now()] });
-export async function expire(tx) {
-  const rows = (await tx.execute({ sql: "SELECT * FROM djrpg_market WHERE state='active' AND expires_at<=?", args: [Date.now()] })).rows;
+export async function expire(tx, owner) {
+  const rows = (await tx.execute({ sql: "SELECT * FROM djrpg_market WHERE state='active' AND expires_at<=?" + (owner ? " AND seller=?" : ""), args: owner ? [Date.now(), owner] : [Date.now()] })).rows;
   const operations = [];
   for (const row of rows) {
     const item = JSON.parse(row.item_json);
@@ -55,11 +55,11 @@ export async function snapshot(db, id, input, expirationChecked = false) {
     'SELECT COALESCE(MAX(seq),0) AS seq FROM djrpg_market_events',
     { sql: "SELECT COUNT(*) AS n FROM djrpg_market WHERE seller=? AND state='active' AND expires_at>?", args: [id, Date.now()] },
     watchIds.length ? { sql: `SELECT id,state FROM djrpg_market WHERE id IN (${watchIds.map(() => '?').join(',')})`, args: watchIds } : 'SELECT id,state FROM djrpg_market WHERE 0',
-    { sql: "SELECT id FROM djrpg_market WHERE state='active' AND expires_at<=? LIMIT 1", args: [Date.now()] }
+    { sql: "SELECT id FROM djrpg_market WHERE seller=? AND state='active' AND expires_at<=? LIMIT 1", args: [id, Date.now()] }
   ], 'read');
   if (!results[0].rows[0]) fail(401, 'INVALID_TOKEN', '계정을 찾을 수 없습니다. 다시 로그인하세요.');
   if (results[7].rows.length && !expirationChecked) {
-    await transaction(db, expire);
+    await transaction(db, tx => expire(tx, id));
     return snapshot(db, id, input, true);
   }
   const total = Number(results[1].rows[0].n), rows = results[2].rows, deliveries = results[3].rows;

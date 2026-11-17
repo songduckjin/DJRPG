@@ -114,9 +114,9 @@ export class Market {
     try {
       const result = await this.sync.mutate(action, data, requestId);
       this.requests.delete(key); this.applyEffect(result); this.onMessage(result.message || '처리했습니다.');
-      this.selected = undefined; if (action === 'register') { this.unlockItem = undefined; this.selectedItem = ''; this.price = ''; this.view = 'mine'; }
+      this.selected = undefined; if (action === 'register') { this.unlockItem = undefined; this.selectedItem = ''; this.price = ''; }
       this.busy = false; this.onChange(true);
-      if (action === 'register' || !result.effect) void this.load(true);
+      if (!result.effect) void this.load(true);
     } catch (error) { this.error = error instanceof Error ? error.message : String(error); }
     finally { this.busy = false; this.onChange(true); }
   }

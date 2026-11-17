@@ -13,7 +13,12 @@ import type { BagFilter, Interface } from '../interface';
 export function renderInventory(this: Interface, dialog: HTMLElement): void {
     const save = this.world.save;
     const section = document.createElement('section'); section.className = 'modal-bag';
-    section.innerHTML = '<h3>가방</h3>';
+    const heading = document.createElement('div'); heading.className = 'bag-heading';
+    const title = document.createElement('h3'); title.textContent = '가방';
+    const sort = document.createElement('button'); sort.type = 'button'; sort.className = 'bag-rarity-sort'; sort.textContent = '등급순';
+    sort.classList.toggle('active', this.bagRaritySort); sort.setAttribute('aria-pressed', String(this.bagRaritySort));
+    sort.onclick = () => { this.bagRaritySort = !this.bagRaritySort; dismissBagDetail(this); this.renderModal(); };
+    heading.append(title, sort); section.appendChild(heading);
     const filters = document.createElement('div'); filters.className = 'bag-filters';
     const filterNames: Record<BagFilter, string> = { all: '장비 전체', weapon: '무기', armor: '방어구', accessory: '장신구' };
     for (const filter of Object.keys(filterNames) as BagFilter[]) {
@@ -28,6 +33,7 @@ export function renderInventory(this: Interface, dialog: HTMLElement): void {
       || (this.bagFilter === 'weapon' && (item.slot === 'weapon' || item.slot === 'offhand'))
       || (this.bagFilter === 'armor' && ['helmet', 'armor', 'gloves', 'belt', 'boots'].includes(item.slot))
       || (this.bagFilter === 'accessory' && ['necklace', 'ring1', 'ring2'].includes(item.slot))))
+      .sort((a, b) => this.bagRaritySort ? rarityRanks[b.rarity] - rarityRanks[a.rarity] : 0)
       .map(item => ({ item, count: 1 }));
     const visible = stacks.map(stack => stack.item);
     for (const { item, count: quantity } of stacks) {

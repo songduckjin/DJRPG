@@ -6,7 +6,7 @@ import type { Interface } from './interface';
 export function resetModalDefaults(ui: Interface): void {
   dismissEquippedDetail(ui);
   dismissBagDetail(ui);
-  ui.bagFilter = 'all';
+  ui.bagFilter = 'all'; ui.bagRaritySort = false;
   ui.salvageRarity = 'common';
   ui.codexQuery = ''; ui.codexSlot = ''; ui.codexRarity = ''; ui.codexState = 'all';
   ui.codexSelected = undefined;
