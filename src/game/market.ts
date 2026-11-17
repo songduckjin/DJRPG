@@ -11,6 +11,9 @@ export class Market {
   candidate?: MarketData;
   selected?: Listing;
   selectedItem = '';
+  mineActiveOnly = false;
+  quote?: { itemId:string; loading:boolean; error?:string; lastPrice?:number; soldAt?:number; average?:number; count?:number };
+  private quoteGeneration = 0;
   registerCategory = '';
   registerRarity = '';
   unlockItem?: string;
@@ -21,8 +24,6 @@ export class Market {
   connected = false;
   newCount = 0;
   opened = false;
-  private source?: EventSource;
-  private timer?: number;
   private generation = 0;
   private notified = new Set<string>();
   private initialized = false;
@@ -30,38 +31,36 @@ export class Market {
   onChange: (full: boolean) => void = () => {};
   onMessage: (message: string) => void = () => {};
   constructor(public sync: SaveSync) {}
-  start(): void {
-    if (this.timer) return;
-    void this.load(false);
-    this.timer = window.setInterval(() => { if (!document.hidden && !this.busy && !this.loading) void this.load(false); }, 2000);
-  }
   resetView(): void {
     this.generation++; this.loading = false;
     this.view = 'active'; this.filters = { query: '', category: '', slot: '', rarity: '', sort: 'newest', page: 0 };
     this.selected = undefined; this.selectedItem = ''; this.price = ''; this.error = '';
+    this.mineActiveOnly = false; this.quote = undefined; this.quoteGeneration++;
     this.registerCategory = ''; this.registerRarity = ''; this.unlockItem = undefined;
     this.data = undefined; this.candidate = undefined; this.newCount = 0;
   }
   open(): void {
     this.opened = true; this.error = ''; void this.load(true);
-    if (typeof EventSource !== 'undefined' && !this.source) {
-      this.source = new EventSource('/api/market-events');
-      this.source.onmessage = e => {
-        this.connected = true;
-        try { if (JSON.parse(e.data).seq !== this.data?.seq && !this.loading && !this.busy) void this.load(false); } catch { this.connected = false; }
-        this.onChange(false);
-      };
-      this.source.onerror = () => { this.connected = false; this.onChange(false); };
-    }
   }
-  close(): void { this.opened = false; this.source?.close(); this.source = undefined; }
+  close(): void { this.opened = false; }
+  async selectItem(item:Item):Promise<void> {
+    this.selectedItem=item.id;this.unlockItem=undefined;
+    const generation=++this.quoteGeneration;
+    this.quote={itemId:item.id,loading:true};this.onChange(true);
+    try{
+      const response=await fetch('/api/market',{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${this.sync.session.token}`},body:JSON.stringify({action:'recent-price',name:item.name,slot:item.slot,rarity:item.rarity})});
+      const result=await response.json();if(!response.ok)throw new Error(result.error||'최근 거래가를 불러오지 못했습니다.');
+      if(generation===this.quoteGeneration)this.quote={itemId:item.id,loading:false,...result};
+    }catch(error){if(generation===this.quoteGeneration)this.quote={itemId:item.id,loading:false,error:error instanceof Error?error.message:String(error)};}
+    finally{if(generation===this.quoteGeneration)this.onChange(true);}
+  }
   async load(full: boolean): Promise<void> {
     if (this.busy) return;
     const generation = ++this.generation;
     this.loading = true;
     if (full) this.onChange(false);
     try {
-      const response = await fetch('/api/market', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${this.sync.session.token}` }, body: JSON.stringify({ action: 'list', ...this.filters, watchIds: this.data?.listings.map(entry => entry.id), view: !this.opened ? 'mine' : ['register','inbox'].includes(this.view) ? 'mine' : this.view }) });
+      const response = await fetch('/api/market', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${this.sync.session.token}` }, body: JSON.stringify({ action: 'list', ...this.filters, mineActiveOnly:this.view==='mine'&&this.mineActiveOnly, watchIds: this.data?.listings.map(entry => entry.id), view: !this.opened ? 'mine' : this.view }) });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || '거래소를 불러오지 못했습니다.');
       if (generation !== this.generation) return;
@@ -87,14 +86,15 @@ export class Market {
   switch(view: MarketView): void { if (this.busy) return; this.view = view; this.unlockItem = undefined; this.filters.page = 0; this.selected = undefined; this.onChange(true); void this.load(true); }
   private applyEffect(result: SyncResult): void {
     if (!this.data || !result.effect) return;
-    const { listing, deliveries, claimedId } = result.effect;
+    const { listing, deliveries, claimedId, claimedIds } = result.effect;
     if (listing) {
       const sale = this.data.listings.find(entry => entry.id === listing.id);
       if (sale) { sale.state = listing.state; sale.soldAt = listing.soldAt ?? sale.soldAt; }
       if (listing.state === 'cancelled') this.data.myActive = Math.max(0, this.data.myActive - 1);
       else if (listing.state === 'active') this.data.myActive++;
     }
-    if (claimedId) { this.data.inbox = this.data.inbox.filter(entry => entry.id !== claimedId); this.notified.delete(claimedId); }
+    const removed = new Set(claimedIds ?? (claimedId ? [claimedId] : []));
+    if (removed.size) { this.data.inbox = this.data.inbox.filter(entry => !removed.has(entry.id)); removed.forEach(id=>this.notified.delete(id)); }
     for (const delivery of deliveries) if (!this.data.inbox.some(entry => entry.id === delivery.id)) { this.data.inbox.unshift(delivery); this.notified.add(delivery.id); }
     this.data.revision = result.revision;
   }
@@ -113,7 +113,7 @@ export class Market {
       this.requests.delete(key); this.applyEffect(result); this.onMessage(result.message || '처리했습니다.');
       this.selected = undefined; if (action === 'register') { this.unlockItem = undefined; this.selectedItem = ''; this.price = ''; this.view = 'mine'; }
       this.busy = false; this.onChange(true);
-      void this.load(false);
+      if (action === 'register' || !result.effect) void this.load(true);
     } catch (error) { this.error = error instanceof Error ? error.message : String(error); }
     finally { this.busy = false; this.onChange(true); }
   }

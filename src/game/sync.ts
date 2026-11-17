@@ -1,7 +1,7 @@
 import { parseSave, type Save } from './store';
 import { accountRequest, type Session } from '../ui/login';
 
-export type SyncResult = { ok: boolean; save: Save; revision: number; message?: string; effect?: { listing?: { id: string; state: string; soldAt?: number }; deliveries: import('./market').Delivery[]; claimedId?: string } };
+export type SyncResult = { ok: boolean; save: Save; revision: number; message?: string; effect?: { listing?: { id: string; state: string; soldAt?: number }; deliveries: import('./market').Delivery[]; claimedId?: string; claimedIds?: string[] } };
 export class SaveSync {
   revision: number;
   active?: Promise<boolean>;

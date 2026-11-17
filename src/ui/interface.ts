@@ -78,7 +78,6 @@ export class Interface {
       if (this.openModal === 'market' && full) this.renderModal();
       updateMarketLive(this); this.renderStatus();
     };
-    this.market.start();
     this.journey.onMessage = text => this.message(text);
     this.journey.onChange = () => { updateUtilityBadges(this); if (['mail','rewards','achievements'].includes(this.openModal ?? '')) this.renderModal(); };
     void this.journey.load();

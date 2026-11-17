@@ -257,3 +257,28 @@ test('skillbook delivery succeeds with forty equipment while equipment delivery 
   await assert.rejects(transaction(db,async tx=>{const next=structuredClone(row.save);next.bag.push(item());await reconcileItems(tx,'book-buyer',row.save,next);}),error('INVALID_SAVE'));
   await transaction(db,async tx=>{const latest=await account(tx,'book-buyer');await reconcileItems(tx,'book-buyer',latest.save,latest.save);});
 });
+
+test('bulk delivery claim is one two-batch transaction, fills equipment space and keeps overflow safe',async()=>{
+  await seed('bulk',Array.from({length:39},()=>item()));const first=item(),second=item(),book={id:randomUUID(),name:'[스킬북] 드래곤 트위스터',slot:'skillbook',kind:'skillbook',skillId:'spin',rarity:'rare',stats:{}};
+  for(const [index,reward]of [first,second,book,null].entries()){
+    const deliveryId=`bulk-${index}`;await db.execute({sql:'INSERT INTO djrpg_market_inbox VALUES (?,?,?,?,?,?,?,?,NULL)',args:[deliveryId,'bulk',deliveryId,reward?'item':'gold',reward?JSON.stringify(reward):null,reward?0:250,'보상',index]});
+    if(reward)await db.execute({sql:'INSERT INTO djrpg_item_owners VALUES (?,?,?,?)',args:[reward.id,'bulk','inbox',JSON.stringify(reward)]});
+  }
+  const row=await account(db,'bulk'),requestId=randomUUID();let batches=0,executes=0;
+  const measured={async transaction(mode){const tx=await db.transaction(mode);return {get closed(){return tx.closed;},execute(...args){executes++;return tx.execute(...args);},batch(...args){batches++;return tx.batch(...args);},commit:()=>tx.commit(),rollback:()=>tx.rollback(),close:()=>tx.close()};}};
+  const input={action:'claim',deliveryId:'all',revision:row.revision,requestId};const result=await mutate(measured,'bulk',input);
+  assert.equal(batches,2);assert.equal(executes,0);assert.deepEqual(result.effect.claimedIds,['bulk-0','bulk-2','bulk-3']);
+  assert.equal(result.save.bag.filter(entry=>entry.slot!=='skillbook').length,40);assert(result.save.bag.some(entry=>entry.id===book.id));assert.equal(result.save.gold,row.save.gold+250);
+  const retry=await mutate(db,'bulk',input);assert.equal(retry.save.gold,result.save.gold);assert.equal(retry.save.bag.length,result.save.bag.length);
+  const inbox=(await snapshot(db,'bulk',{})).inbox;assert.deepEqual(inbox.map(entry=>entry.id),['bulk-1']);
+  await transaction(db,async tx=>{const latest=await account(tx,'bulk');await reconcileItems(tx,'bulk',latest.save,latest.save);});
+});
+test('my active-only filter excludes purchases sold expired and other sellers, and recent prices match item grade and ring family',async()=>{
+  const {recentPrice}=await import('../server/market.mjs');
+  await seed('mine-filter',[item(),item()]);await seed('mine-buyer');const offer=await sale('mine-filter',1234);await action('mine-buyer','buy',{listingId:offer.id});const active=await sale('mine-filter',4321);
+  const mine=await snapshot(db,'mine-filter',{view:'mine',mineActiveOnly:true});assert.deepEqual(mine.listings.map(entry=>entry.id),[active.id]);
+  const bought=await snapshot(db,'mine-buyer',{view:'mine',mineActiveOnly:true});assert.equal(bought.total,0);
+  const quote=await recentPrice(db,offer.item);assert(quote.count>=1);assert.equal(quote.lastPrice,1234);
+  assert.equal((await recentPrice(db,{...offer.item,rarity:'legendary'})).count,0);
+  const ring={...item(),name:'같은 반지',slot:'ring2'};await seed('ring-quote',[ring]);const ringOffer=await sale('ring-quote',567);await action('mine-buyer','buy',{listingId:ringOffer.id});assert.equal((await recentPrice(db,{...ring,slot:'ring1'})).lastPrice,567);
+});
