@@ -10,6 +10,7 @@
 
 | 작업 | 담당자 ID | 브랜치 | 수정 예정 파일 / 영향 영역 | 위험 등급 | 상태 |
 |---|---|---|---|---|---|
+| 110 · 패시브3종 확정이미지 | fks3997 | `feature/passive-art-fks3997` | passive시트·skillArtwork·skillModal·CSS·UI회귀 / 표시 | 개인 | [-] |
 | 109 · 액티브스킬창 이미지통일 | fks3997 | `fix/reward-tabs-icons-fks3997` | skillArtwork·skillModal·CSS·회귀 / 표시 | 개인 | [x] 로컬 검증 · 미푸시/미배포 |
 | 106 · 보상인덱스/전체완료보너스 | fks3997 | `fix/reward-tabs-icons-fks3997` | journey-state·Journey타입·utility모달·CSS·보상회귀 / 기존claims배열에추가 | 주의(기존호환) | [x] 로컬 검증 · 미푸시/미배포 |
 | 107 · 8메뉴아이콘 정렬/대비통일 | fks3997 | `fix/reward-tabs-icons-fks3997` | 아이콘8정규화·Interface·hud.css / 표시 | 개인 | [x] 로컬 검증 · 미푸시/미배포 |

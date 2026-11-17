@@ -6,6 +6,13 @@
 
 ## 진행 중 작업
 
+## [-] [작업 110] 패시브3종 확정이미지
+- fks3997 · 2026-11-17 · `feature/passive-art-fks3997`
+- 사용자 확정 대검숙련/강인한육체/전투본능 3종을 `public/assets/icons/passive-skills.png`로 리사이즈·등간격정규화, `skillArtwork.ts`/`skillModal.ts`/CSS 연결·스킬UI회귀. 원화그림유지·성장/버튼/데이터변경없음.
+- 스킬북 A원형배지/B표지문양은 비교시안만제작, 선택전미적용. 비교 `/workspace/generated_images/exec-dbaacc67-a6ea-46c6-b77d-0d2eb2d4e7b7.png`.
+- 검증: 3종매핑·기존액티브/강화유지·전체타입/테스트/빌드·원격푸시/배포안함. 앞선미배포106~109보존.
+
+
 ## [x] [작업 109] 액티브스킬창 이미지통일
 - fks3997 · 2026-11-17 · `fix/reward-tabs-icons-fks3997`
 - `skillArtwork.ts` 공통이미지스타일함수·`skillModal.ts`·CSS·스킬UI회귀. 사용자확정 메인8개그림그대로사용/대검베기도동일·패시브는새시안승인전기존유지. 데이터불변·푸시/배포안함.
