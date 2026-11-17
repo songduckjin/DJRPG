@@ -73,7 +73,8 @@ export function parseSave(data: unknown, accountId?: string): Save {
     const equipment: Save['equipment'] = {};
     if (isRecord(value.equipment)) for (const slot of slots) {
       const item = migrateItem(value.equipment[slot]);
-      if (item?.slot === slot && !isSkillBook(item)) equipment[slot] = item;
+      const ringSlot = (slot === 'ring1' || slot === 'ring2') && (item?.slot === 'ring1' || item?.slot === 'ring2');
+      if (item && !isSkillBook(item) && (item.slot === slot || ringSlot)) equipment[slot] = item;
     }
     const bag = Array.isArray(value.bag) ? value.bag.map(migrateItem).filter((item): item is Item => !!item).slice(0, 40) : [];
     const collection = { bag, equipment, equipmentCollection: normalizeCollection(value.equipmentCollection) };
