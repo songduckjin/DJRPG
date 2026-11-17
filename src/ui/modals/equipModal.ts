@@ -2,8 +2,9 @@ import { autoEquipBest, equipmentImage, rarityNames, slotNames, statNames, total
 import { rarityOrder, rarityRanks, salvageGold } from '../../game/items';
 import { canAutoEquip } from '../../game/inventory';
 import { requestSalvage } from './salvageModal';
-import { heroAppearance, unequipItem } from '../../game/appearance';
+import { heroAppearance } from '../../game/appearance';
 import { isSkillBook } from '../../game/items';
+import { showEquippedDetail, dismissEquippedDetail, deferEquippedDismiss } from '../equippedDetail';
 import type { BagFilter, Interface } from '../interface';
 
 export function renderInventory(this: Interface, dialog: HTMLElement): void {
@@ -127,14 +128,18 @@ export function renderEquipment(this: Interface, dialog: HTMLElement): void {
     left.className = 'showcase-side'; right.className = 'showcase-side';
     const addSlot = (slot: Slot, side: HTMLElement) => {
       const item = save.equipment[slot]; const cell = document.createElement('button'); cell.className = `equipment-slot ${item?.rarity ?? 'empty-slot'}`;
-      cell.innerHTML = `${itemIcon.call(this, slot, item, 'slot-icon')}<span class="slot-meta"><small>${slotNames[slot]}</small><b></b><em></em></span>`;
+      cell.type = 'button'; cell.dataset.equippedSlot = slot; cell.disabled = !item;
+      cell.innerHTML = `<small class="slot-part">${slotNames[slot]}</small>${itemIcon.call(this, slot, item, 'slot-icon')}<span class="slot-meta"><b></b></span>`;
       cell.querySelector('b')!.textContent = item?.name ?? '빈 슬롯';
-      const core = item && (Object.keys(item.stats) as Stat[])[0];
-      cell.querySelector('em')!.textContent = core ? `${statNames[core]} +${item.stats[core]}` : '';
+      cell.setAttribute('aria-label', `${slotNames[slot]} · ${item?.name ?? '빈 슬롯'}`);
+      cell.setAttribute('aria-expanded', String(this.equippedSlot === slot));
+      cell.onpointerenter = event => { if (event.pointerType !== 'touch') showEquippedDetail(this, slot); };
+      cell.onpointerleave = () => { if (cell.isConnected) deferEquippedDismiss(this); };
+      cell.onfocus = () => showEquippedDetail(this, slot);
+      cell.onblur = () => { if (cell.isConnected) deferEquippedDismiss(this); };
       cell.onclick = () => {
-        const result = unequipItem(save, slot);
-        if (result.ok) this.world.onChange();
-        this.message(result.message);
+        if (this.equippedSlot === slot && this.equippedPinned) dismissEquippedDetail(this);
+        else showEquippedDetail(this, slot, true);
       };
       side.appendChild(cell);
     };
@@ -153,7 +158,7 @@ export function renderEquipment(this: Interface, dialog: HTMLElement): void {
     const power = Math.round(stats.attack * 3 + stats.defense * 2 + stats.health * .2 + stats.crit * 2 + stats.speed * 2);
     summary.innerHTML = `<span>전투력 <b>${power}</b></span><span>공격 <b>${stats.attack}</b></span><span>방어 <b>${stats.defense}</b></span><span>HP <b>${Math.ceil(this.world.player.hp)}/${stats.health}</b></span>`;
     dialog.appendChild(summary);
-    const hint = document.createElement('p'); hint.className = 'modal-hint'; hint.textContent = '장착한 장비를 터치하면 가방으로 옮깁니다.'; dialog.appendChild(hint);
+    const hint = document.createElement('p'); hint.className = 'modal-hint'; hint.textContent = '장비에 마우스를 올리거나 터치하면 설명을 확인합니다.'; dialog.appendChild(hint);
   }
 
 export function salvageValue(this: Interface, item: Item): number { return salvageGold[item.rarity]; }

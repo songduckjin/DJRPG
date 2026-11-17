@@ -1,7 +1,9 @@
+import { dismissEquippedDetail } from './equippedDetail';
 import type { Interface } from './interface';
 
 // Only view state is reset. Equipped items, skills and account settings are saved game data.
 export function resetModalDefaults(ui: Interface): void {
+  dismissEquippedDetail(ui);
   ui.selected = undefined;
   ui.bagFilter = 'all';
   ui.salvageRarity = 'common';
