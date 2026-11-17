@@ -11,6 +11,7 @@
 | 작업 | 담당자 ID | 브랜치 | 수정 예정 파일 / 영향 영역 | 위험 등급 | 상태 |
 |---|---|---|---|---|---|
 | 95 · 스킬30레벨·스킬북 강화/이동 | fks3997 | `feature/skill-upgrades-30-fks3997` | `skills.ts`, `store.ts`, `skillProgress.ts`, 스킬/가방 UI·HUD·CSS·테스트 / 스킬 성장·저장 레벨 값 | 주의(기존 데이터 형식 유지) | [x] 검증 완료 · 배포 요청 반영 중 |
+| 96 · 자동 전투·스킬 중단 복구 | songduckjin | `codex/96-auto-combat` | `src/game/sync.ts`, `src/main.ts`, 관련 동기화 테스트 / 거래 결과 미확인 시 자동 복구와 전투 재개 | 주의(저장·거래 경합 보호) | [-] 진행 중 · 담당 songduckjin |
 | 94 · 장비창 정렬·스킬북 별도 목록/묶음 | fks3997 | `feature/skillbook-bag-fks3997` | `equipModal.ts`, `skillbookBag.ts`, `modals.css`, UI 테스트·개인 기록 / 가방 표시·사용 | 주의(데이터 형식 유지) | [x] 검증 완료 · 배포 요청 반영 중 |
 | 93 · 거래소 등록 30개 및 한도 안내 | fks3997 | `fix/market-limit-30-fks3997` | `server/market.mjs`, `marketModal.ts`, 거래소 테스트·개인 기록 / 등록 한도·UI | 주의(계약 형식 변경 없음) | [x] 검증 완료 · 배포 요청 반영 중 |
 | 92 · 장비·가방 호버 및 배치 개선 | fks3997 | `fix/equipment-hover-layout-fks3997` | `equipModal.ts`, `equippedDetail.ts`, `bagDetail.ts`, `modalDefaults.ts`, `modals.css`, 관련 UI 테스트·개인 기록 / 장비창 표시·해제·가방 설명 | 주의(UI 연동, 데이터 계약 변경 없음) | [x] 로컬 검증 완료 · PR #21 · Vercel 빌드 제한 |
