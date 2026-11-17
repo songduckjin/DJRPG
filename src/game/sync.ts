@@ -10,11 +10,15 @@ export class SaveSync {
   locked = false;
   conflicted = false;
   pendingMarket?: { action: string; data: Record<string, unknown>; requestId: string; revision: number; progress: Save };
+  pendingWarehouse?: { action: 'deposit' | 'withdraw'; itemId: string; requestId: string; revision: number };
+  private warehouseRecoveryTimer?: ReturnType<typeof setTimeout>;
+  private warehouseRecoveryDelay = 2000;
   private preparingMarket = false;
   onStatus: (status: string) => void = () => {};
   onMessage: (message: string) => void = () => {};
   onPause: (paused: boolean) => void = () => {};
   onSaved: () => void = () => {};
+  onWarehouseRecovered: () => void = () => {};
   constructor(public save: Save, public session: Session) { this.revision = session.revision; }
   private autosaveTimer?: ReturnType<typeof setTimeout>;
   queueSave(): void {
@@ -27,7 +31,7 @@ export class SaveSync {
   }
   flush(): Promise<boolean> {
     this.cancelQueuedSave();
-    if (this.locked || this.conflicted || this.pendingMarket) return Promise.resolve(false);
+    if (this.locked || this.conflicted || this.pendingMarket || this.pendingWarehouse) return Promise.resolve(false);
     this.pending = true;
     if (this.active) return this.active;
     this.active = (async () => {
@@ -36,7 +40,7 @@ export class SaveSync {
         try {
           const recovering = !!this.pendingSave;
           this.pendingSave ??= { save: structuredClone(this.save), revision: this.revision, requestId: crypto.randomUUID() };
-          const result = await accountRequest<SyncResult>('save', this.pendingSave, this.session.token);
+          const result = await accountRequest<SyncResult>('save', { ...this.pendingSave, characterSlot: this.session.characterSlot }, this.session.token);
           if (!result.ok || !Number.isSafeInteger(result.revision)) throw new Error('서버가 저장 완료를 확인하지 않았습니다.');
           this.revision = result.revision; this.pendingSave = undefined; this.pending ||= recovering; this.onStatus('저장됨'); this.onSaved();
         } catch (error) { this.pending = true; this.handleError(error); return false; }
@@ -56,7 +60,7 @@ export class SaveSync {
     this.onStatus('저장 실패'); this.onMessage(error instanceof Error ? error.message : String(error));
   }
   async mutate(action: string, data: Record<string, unknown>, requestId: string): Promise<SyncResult> {
-    if (this.locked || this.conflicted || this.preparingMarket) throw new Error('다른 요청을 처리 중입니다.');
+    if (this.locked || this.conflicted || this.preparingMarket || this.pendingWarehouse) throw new Error('다른 요청을 처리 중입니다.');
     this.preparingMarket = true;
     this.cancelQueuedSave();
     this.onPause(true);
@@ -78,7 +82,7 @@ export class SaveSync {
       for (let attempt = 0; attempt < 3; attempt++) {
         let response: Response;
         try {
-          response = await fetch('/api/market', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${this.session.token}` }, body: JSON.stringify({ action: this.pendingMarket!.action, ...this.pendingMarket!.data, requestId: this.pendingMarket!.requestId, revision: this.pendingMarket!.revision, progress: this.pendingMarket!.progress }) });
+          response = await fetch('/api/market', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${this.session.token}` }, body: JSON.stringify({ action: this.pendingMarket!.action, ...this.pendingMarket!.data, requestId: this.pendingMarket!.requestId, revision: this.pendingMarket!.revision, progress: this.pendingMarket!.progress, characterSlot: this.session.characterSlot }) });
           const body = await response.json();
           if (!response.ok) {
             if (response.status >= 500) throw new Error(body.error || '서버 응답을 확인 중입니다.');
@@ -92,9 +96,10 @@ export class SaveSync {
         }
       }
       if (!result) throw new Error('거래 결과를 확인하지 못했습니다.');
+      const verifiedSave = parseSave(result.save, this.session.accountId);
       this.pendingMarket = undefined;
       this.revision = result.revision;
-      Object.assign(this.save, parseSave(result.save, this.session.accountId));
+      Object.assign(this.save, verifiedSave);
       this.pending = false; this.pendingSave = undefined; this.onSaved();
       this.onStatus('저장됨'); return result as SyncResult;
     } catch (error) {
@@ -109,7 +114,59 @@ export class SaveSync {
     try {
       if (!await this.flush()) throw new Error('저장 실패로 초기화를 중단했습니다.');
       this.locked = true;
-      await accountRequest('reset', { revision: this.revision }, this.session.token); location.reload();
+      await accountRequest('reset', { revision: this.revision, characterSlot: this.session.characterSlot }, this.session.token); location.reload();
     } finally { this.locked = false; if (!this.conflicted && !this.pendingMarket) this.onPause(false); }
+  }
+  async transferWarehouse(action: 'deposit' | 'withdraw', itemId: string): Promise<SyncResult> {
+    if (this.locked || this.conflicted || this.pendingMarket || this.preparingMarket) throw new Error('다른 요청을 처리 중입니다.');
+    if (this.pendingWarehouse && (this.pendingWarehouse.action !== action || this.pendingWarehouse.itemId !== itemId)) throw new Error('이전 창고 이동 결과를 확인 중입니다.');
+    if (!this.pendingWarehouse) {
+      if (!await this.flush()) throw new Error('저장 결과를 확인한 뒤 다시 시도하세요.');
+      this.pendingWarehouse = { action, itemId, requestId: crypto.randomUUID(), revision: this.revision };
+    }
+    this.locked = true; this.onPause(true);
+    try {
+      let result: SyncResult | undefined;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 10_000);
+        try {
+          const response = await fetch('/api/warehouse', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${this.session.token}` }, body: JSON.stringify({ ...this.pendingWarehouse, characterSlot: this.session.characterSlot }), signal: controller.signal });
+          const body = await response.json();
+          if (!response.ok) {
+            if (response.status >= 500) throw new Error(body.error || '창고 이동 결과를 확인 중입니다.');
+            throw Object.assign(new Error(body.error || '창고 요청 실패'), { status: response.status, code: body.code });
+          }
+          result = body as SyncResult; break;
+        } catch (error) {
+          if (error instanceof Error && 'status' in error) throw error;
+          if (attempt === 2) throw new Error('창고 이동 결과를 자동으로 다시 확인하고 있습니다. 확인 후 전투를 재개합니다.');
+        } finally { clearTimeout(timeout); }
+      }
+      if (!result || !Number.isSafeInteger(result.revision)) throw new Error('창고 응답이 올바르지 않습니다.');
+      const verifiedSave = parseSave(result.save, this.session.accountId);
+      this.pendingWarehouse = undefined;
+      if (this.warehouseRecoveryTimer) clearTimeout(this.warehouseRecoveryTimer);
+      this.warehouseRecoveryTimer = undefined; this.warehouseRecoveryDelay = 2000;
+      this.revision = result.revision;
+      Object.assign(this.save, verifiedSave);
+      this.onSaved(); this.onStatus('저장됨');
+      return result;
+    } catch (error) {
+      if (error instanceof Error && 'status' in error) this.pendingWarehouse = undefined;
+      else this.scheduleWarehouseRecovery();
+      this.handleError(error); throw error;
+    }
+    finally { this.locked = false; if (!this.conflicted && !this.pendingWarehouse) this.onPause(false); }
+  }
+  private scheduleWarehouseRecovery(): void {
+    if (!this.pendingWarehouse || this.warehouseRecoveryTimer) return;
+    const delay = this.warehouseRecoveryDelay;
+    this.warehouseRecoveryDelay = Math.min(30_000, delay * 2);
+    this.warehouseRecoveryTimer = setTimeout(() => {
+      this.warehouseRecoveryTimer = undefined;
+      const pending = this.pendingWarehouse;
+      if (pending) void this.transferWarehouse(pending.action, pending.itemId).then(() => this.onWarehouseRecovered()).catch(() => {});
+    }, delay);
   }
 }

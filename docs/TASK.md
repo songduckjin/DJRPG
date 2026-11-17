@@ -14,7 +14,7 @@
 | 94 · 장비창 정렬·스킬북 별도 목록/묶음 | fks3997 | `feature/skillbook-bag-fks3997` | `equipModal.ts`, `skillbookBag.ts`, `modals.css`, UI 테스트·개인 기록 / 가방 표시·사용 | 주의(데이터 형식 유지) | [x] 검증 완료 · 배포 요청 반영 중 |
 | 93 · 거래소 등록 30개 및 한도 안내 | fks3997 | `fix/market-limit-30-fks3997` | `server/market.mjs`, `marketModal.ts`, 거래소 테스트·개인 기록 / 등록 한도·UI | 주의(계약 형식 변경 없음) | [x] 검증 완료 · 배포 요청 반영 중 |
 | 92 · 장비·가방 호버 및 배치 개선 | fks3997 | `fix/equipment-hover-layout-fks3997` | `equipModal.ts`, `equippedDetail.ts`, `bagDetail.ts`, `modalDefaults.ts`, `modals.css`, 관련 UI 테스트·개인 기록 / 장비창 표시·해제·가방 설명 | 주의(UI 연동, 데이터 계약 변경 없음) | [x] 로컬 검증 완료 · PR #21 · Vercel 빌드 제한 |
-| 94 · 캐릭터 선택·슬롯 및 신규 캐릭터 생성 | songduckjin | `task/94-character-selection` | 캐릭터 선택/생성 UI, 캐릭터별 진행 데이터, 계정 공용 골드·공용창고, 캐릭터 공통 거래소 조회, 계정·세이브 구조 영향 분석 및 테스트 | 핵심 공통(계정·세이브 데이터 계약 가능) | [-] 공용 자산 요구사항 반영 · 영향 분석 및 계약 변경 승인 대기 |
+| 94 · 캐릭터 선택·슬롯 및 신규 캐릭터 생성 | songduckjin | `task/94-character-selection` | 캐릭터 선택/생성 UI, 캐릭터별 진행 데이터, 계정 공용 골드·공용창고, 캐릭터 공통 거래소 조회, 계정·세이브 구조 영향 분석 및 테스트 | 핵심 공통(계정·세이브 데이터 계약) | [x] 로컬 검증 완료 · PR #24 검토·운영 DB 백업 대기 |
 
 > 새 개인 작업을 시작할 때 위 표에 한 행을 추가한다. 작업 완료·취소 시 상태와 파일 정보를 갱신하거나 항목을 정리한다. 이 표는 상세 작업지시서를 대체하지 않는다.
 

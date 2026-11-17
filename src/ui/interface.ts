@@ -23,6 +23,7 @@ import type { OfflineReward } from '../game/offline';
 import type { SaveSync } from '../game/sync';
 import { Market } from '../game/market';
 import { renderMarket, updateMarketLive } from './modals/marketModal';
+import { loadCharacters, loadWarehouse, renderCharacters, renderCreateCharacter, renderWarehouse, type CharacterSummary } from './modals/charactersModal';
 
 const navIcons = {
   market: '<img class="nav-icon" src="/assets/icons/nav_market_v2.png" alt="" aria-hidden="true" />',
@@ -30,7 +31,7 @@ const navIcons = {
   equipment: '<img class="nav-icon" src="/assets/icons/nav_equipment_v2.png" alt="" aria-hidden="true" />',
   skills: '<img class="nav-icon" src="/assets/icons/nav_skills_v2.png" alt="" aria-hidden="true" />'
 };
-type Modal = 'status' | 'equipment' | 'skills' | 'account' | 'floor' | 'offline' | 'market' | 'salvage' | 'codex';
+type Modal = 'status' | 'equipment' | 'skills' | 'account' | 'floor' | 'offline' | 'market' | 'salvage' | 'codex' | 'characters' | 'createCharacter' | 'warehouse';
 export type BagFilter = 'all' | 'weapon' | 'armor' | 'accessory';
 
 export class Interface {
@@ -62,14 +63,19 @@ export class Interface {
   saveStatus = '저장됨';
   confirmReset = false;
   offlineReward?: OfflineReward;
+  characterList?: { characters: CharacterSummary[]; activeSlot: number; maxSlots: number; revision: number };
+  characterPage = 0;
+  characterCreateSlot = 2;
+  warehouseItems?: Item[];
 
   constructor(public root: HTMLElement, public world: World, public onSave: () => void, public session: Session, public onReset: () => Promise<void>, sync: SaveSync) {
     this.market = new Market(sync);
     discoverEquipment(world.save);
-    root.innerHTML = `<main class="game-shell"><section class="battle"><div class="battle-canvas"></div><div class="top-hud"></div><div class="tutorial"></div><div class="controls"><div class="action-pad"></div></div></section><nav class="bottom-nav" aria-label="게임 메뉴"><button data-modal="status" type="button" aria-label="내 상태" title="내 상태">${navIcons.status}</button><button data-modal="equipment" type="button" aria-label="장비" title="장비">${navIcons.equipment}<i class="new-badge" hidden></i></button><button data-modal="skills" type="button" aria-label="스킬" title="스킬">${navIcons.skills}<i class="skill-nav-dot" hidden aria-label="장착 또는 강화 가능한 스킬 있음"></i></button><button data-modal="market" type="button" aria-label="거래소" title="거래소">${navIcons.market}<i class="new-badge market-badge" hidden></i></button></nav><div class="modal-backdrop" hidden><div class="modal-dialog" role="dialog" aria-modal="true"></div></div><div class="toast" role="status"></div></main>`;
+    root.innerHTML = `<main class="game-shell"><section class="battle"><div class="battle-canvas"></div><div class="top-hud"></div><div class="tutorial"></div><div class="controls"><div class="action-pad"></div></div></section><button class="character-open" type="button" aria-label="캐릭터 선택" title="캐릭터 선택">⚔</button><nav class="bottom-nav" aria-label="게임 메뉴"><button data-modal="status" type="button" aria-label="내 상태" title="내 상태">${navIcons.status}</button><button data-modal="equipment" type="button" aria-label="장비" title="장비">${navIcons.equipment}<i class="new-badge" hidden></i></button><button data-modal="skills" type="button" aria-label="스킬" title="스킬">${navIcons.skills}<i class="skill-nav-dot" hidden aria-label="장착 또는 강화 가능한 스킬 있음"></i></button><button data-modal="market" type="button" aria-label="거래소" title="거래소">${navIcons.market}<i class="new-badge market-badge" hidden></i></button></nav><div class="modal-backdrop" hidden><div class="modal-dialog" role="dialog" aria-modal="true"></div></div><div class="toast" role="status"></div></main>`;
     this.top = this.get('.top-hud'); this.banner = this.get('.tutorial');
     this.modal = this.get('.modal-backdrop'); this.toast = this.get('.toast');
     this.market.onMessage = text => this.message(text);
+    sync.onWarehouseRecovered = () => { this.renderStatus(); this.renderBagBadge(); if (this.openModal === 'warehouse') void loadWarehouse(this); this.message('공용창고 이동 결과를 확인했습니다.'); };
     this.market.onChange = full => {
       if (this.openModal === 'market' && full) this.renderModal();
       updateMarketLive(this); this.renderStatus();
@@ -77,6 +83,7 @@ export class Interface {
     this.market.start();
     for (const item of [...world.save.bag, ...Object.values(world.save.equipment)]) if (item) this.knownItems.add(item.id);
     this.root.querySelectorAll<HTMLButtonElement>('[data-modal]').forEach(button => button.onclick = () => { cancelSkillSelection.call(this); this.open(button.dataset.modal as Modal); });
+    this.get('.character-open').onclick = () => this.open('characters');
     this.root.addEventListener('pointerdown', event => {
       const target = event.target as HTMLElement;
       if (this.equippedSlot && !target.closest('.equipped-detail, .equipment-slot')) dismissEquippedDetail(this);
@@ -109,7 +116,7 @@ export class Interface {
       discoverEquipment(world.save); this.onSave();
       for (const item of world.save.bag) if (!this.knownItems.has(item.id)) { this.knownItems.add(item.id); if (this.openModal !== 'equipment') this.newItems.add(item.id); }
       this.renderBagBadge(); this.renderStatus();
-      if (!(this.openModal === 'codex' && ['INPUT','SELECT'].includes(document.activeElement?.tagName ?? '')) && this.openModal !== 'market' && (this.openModal !== 'account' || document.activeElement?.tagName !== 'INPUT')) this.renderModal();
+      if (!(this.openModal === 'codex' && ['INPUT','SELECT'].includes(document.activeElement?.tagName ?? '')) && this.openModal !== 'market' && this.openModal !== 'createCharacter' && (this.openModal !== 'account' || document.activeElement?.tagName !== 'INPUT')) this.renderModal();
     };
     world.onMessage = text => this.message(text);
     this.renderBagBadge(); this.renderStatus();
@@ -138,7 +145,7 @@ export class Interface {
   chooseSkill(id: SkillId): void { chooseSkill.call(this, id); }
 
   open(kind: Modal | null): void {
-    if (this.market.busy || this.market.sync.locked || this.market.sync.pendingMarket) return;
+    if (this.market.busy || this.market.sync.locked || this.market.sync.pendingMarket || this.market.sync.pendingWarehouse) return;
     if (kind !== null && this.pendingSkill) cancelSkillSelection.call(this);
     if (kind !== 'skills') this.skillTarget = undefined;
     if (kind !== 'salvage') this.salvageIds = undefined;
@@ -156,6 +163,8 @@ export class Interface {
     if (kind === 'equipment') { this.newItems.clear(); this.renderBagBadge(); }
     this.renderModal();
     if (startMarket) this.market.open();
+    if (kind === 'characters') void loadCharacters(this);
+    if (kind === 'warehouse') { this.warehouseItems = undefined; void loadWarehouse(this); }
   }
   renderModal(): void {
     this.modal.hidden = this.openModal === null;
@@ -168,7 +177,7 @@ export class Interface {
     const scroll = dialog.scrollTop, bagScroll = dialog.querySelector<HTMLElement>('.bag-grid')?.scrollTop ?? 0;
     dialog.replaceChildren();
     const heading = document.createElement('header');
-    heading.innerHTML = `<h2>${{ status: '내 상태', equipment: '장비', skills: '스킬', account: '계정 정보', floor: '층 선택', offline: '오프라인 사냥 정산', market: '거래소', salvage: '분해 확인', codex: '장비 도감' }[this.openModal]}</h2><button class="modal-close" aria-label="닫기">×</button>`;
+    heading.innerHTML = `<h2>${{ status: '내 상태', equipment: '장비', skills: '스킬', account: '계정 정보', floor: '층 선택', offline: '오프라인 사냥 정산', market: '거래소', salvage: '분해 확인', codex: '장비 도감', characters: '캐릭터 선택', createCharacter: '새 캐릭터', warehouse: '공용창고' }[this.openModal]}</h2><button class="modal-close" aria-label="닫기">×</button>`;
     bindModalClose(heading.querySelector('button')!, () => this.open(null));
     if (this.openModal === 'equipment' || this.openModal === 'codex') {
       const title = heading.querySelector('h2')!, group = document.createElement('div'); group.className = 'modal-title-group';
@@ -182,6 +191,9 @@ export class Interface {
     if (this.openModal === 'codex') renderCodex.call(this, dialog);
     if (this.openModal === 'salvage') renderSalvage.call(this, dialog);
     if (this.openModal === 'market') renderMarket.call(this, dialog);
+    if (this.openModal === 'characters') renderCharacters(this, dialog);
+    if (this.openModal === 'createCharacter') renderCreateCharacter(this, dialog);
+    if (this.openModal === 'warehouse') renderWarehouse(this, dialog);
     if (this.openModal === 'status') this.renderCharacter(dialog);
     if (this.openModal === 'skills') this.renderSkills(dialog);
     if (this.openModal === 'account') this.renderAccount(dialog);
