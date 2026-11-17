@@ -1,6 +1,6 @@
-import { client, schema, transaction, account, assertRevision, reconcileItems, writeSave, fail } from '../database.mjs';
+import { client, schema, transaction, account, assertRevision, assertSession, assignSession, reconcileItems, writeSave, fail } from '../database.mjs';
 import { randomUUID } from 'node:crypto';
-import { tokenId, tokenFor, hashPassword, verifyPassword, needsPasswordUpgrade } from '../auth.mjs';
+import { tokenPayload, tokenFor, hashPassword, verifyPassword, needsPasswordUpgrade } from '../auth.mjs';
 import { runtimeEnv } from '../env.mjs';
 import { json, readBody, errorResponse } from '../http.mjs';
 
@@ -28,13 +28,14 @@ export async function accountEndpoint(request, { env = runtimeEnv(), createDbCli
       const gender = body.gender === 'female' ? 'female' : 'male';
       if (action === 'register' && (!namePattern.test(id) || typeof password !== 'string' || password.length < 8 || password.length > 72 || !['male', 'female'].includes(body.gender))) return bad(res, 400, 'INVALID_ACCOUNT', '아이디는 한글·영문·숫자·밑줄 2~16자, 비밀번호는 8~72자로 입력하고 성별을 선택하세요.');
       const save = initialSave(id, gender, action === 'guest' ? '모험가' : id);
+      const sid = randomUUID();
       try { await db.batch([
-        { sql: 'INSERT INTO djrpg_accounts (id,password_hash,save_json,updated_at) VALUES (?,?,?,?)', args: [id, action === 'guest' ? 'guest' : await hashPassword(password), JSON.stringify(save), new Date().toISOString()] },
+        { sql: 'INSERT INTO djrpg_accounts (id,password_hash,save_json,updated_at,session_id) VALUES (?,?,?,?,?)', args: [id, action === 'guest' ? 'guest' : await hashPassword(password), JSON.stringify(save), new Date().toISOString(), sid] },
         { sql: 'INSERT INTO djrpg_account_profiles(account_id,shared_gold,active_slot) VALUES (?,?,1)', args: [id, 0] },
         { sql: 'INSERT INTO djrpg_characters(account_id,slot,save_json,updated_at) VALUES (?,1,?,?)', args: [id, JSON.stringify({ ...save, gold: undefined }), new Date().toISOString()] }
       ], 'write'); }
       catch (error) { if (/UNIQUE|constraint/i.test(String(error))) return bad(res, 409, 'ACCOUNT_EXISTS', '이미 사용 중인 아이디입니다.'); throw error; }
-      return res.status(200).json({ accountId: id, loginId: action === 'guest' ? '게스트' : id, gender, guest: action === 'guest', token: tokenFor(id, env), save, revision: 0, characterSlot: 1 });
+      return res.status(200).json({ accountId: id, loginId: action === 'guest' ? '게스트' : id, gender, guest: action === 'guest', token: tokenFor(id, env, sid), save, revision: 0, characterSlot: 1 });
     }
     if (action === 'login') {
       const id = String(body.loginId ?? '').trim();
@@ -51,11 +52,14 @@ export async function accountEndpoint(request, { env = runtimeEnv(), createDbCli
       }
       const latest = await account(db, row.id);
       const save = latest.save;
-      return res.status(200).json({ revision: latest.revision, accountId: row.id, loginId: row.id, gender: save.gender, guest: false, token: tokenFor(row.id, env), save, characterSlot: latest.slot, offlineSeconds: offlineSeconds(latest.character_updated_at) });
+      const sid = await assignSession(db, row.id);
+      return res.status(200).json({ revision: latest.revision, accountId: row.id, loginId: row.id, gender: save.gender, guest: false, token: tokenFor(row.id, env, sid), save, characterSlot: latest.slot, offlineSeconds: offlineSeconds(latest.character_updated_at) });
     }
-    const id = tokenId(request, env);
-    if (!id) return bad(res, 401, 'INVALID_TOKEN', '인증이 만료되었습니다. 다시 로그인하세요.');
+    const signed = tokenPayload(request, env);
+    if (!signed) return bad(res, 401, 'INVALID_TOKEN', '인증이 만료되었습니다. 다시 로그인하세요.');
+    const id = signed.id;
     const row = await account(db, id);
+    assertSession(row, signed.sid);
     if (action === 'load') {
       const save = row.save;
       return res.status(200).json({ revision: row.revision, accountId: row.id, loginId: row.password_hash === 'guest' ? '게스트' : row.id, gender: save.gender, guest: row.password_hash === 'guest', token: req.headers.authorization.slice(7), save, characterSlot: row.slot, offlineSeconds: offlineSeconds(row.character_updated_at) });
@@ -70,6 +74,7 @@ export async function accountEndpoint(request, { env = runtimeEnv(), createDbCli
       if (!Number.isInteger(slot) || slot < 1 || slot > 3) return bad(res, 400, 'INVALID_SLOT', '캐릭터 슬롯은 1~3번만 사용할 수 있습니다.');
       const result = await transaction(db, async tx => {
         const latest = await account(tx, id);
+        assertSession(latest, signed.sid);
         assertRevision(latest, body.revision);
         if (action === 'createCharacter') {
           const name = String(body.name ?? '').trim();
@@ -94,6 +99,7 @@ export async function accountEndpoint(request, { env = runtimeEnv(), createDbCli
     if (action === 'save' || action === 'reset') {
       const result = await transaction(db, async tx => {
         const latest = await account(tx, id);
+        assertSession(latest, signed.sid);
         if (Number(body.characterSlot ?? 1) !== latest.slot) fail(409, 'CHARACTER_CONFLICT', '다른 캐릭터가 선택되었습니다. 새로고침해 주세요.');
         if (action === 'save' && typeof body.requestId === 'string') {
           const replay = (await tx.execute({ sql: 'SELECT * FROM djrpg_save_requests WHERE account_id=?', args: [id] })).rows[0];

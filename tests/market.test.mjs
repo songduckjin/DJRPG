@@ -12,7 +12,7 @@ let db, directory;
 const item = (id = randomUUID(), slot = 'weapon') => ({ id, name: '강철 쯔바이핸드', slot, rarity: 'rare', stats: { attack: 25, crit: 4 } });
 const save = (bag = [], gold = 10000) => ({ version: 1, name: '전사', gender: 'male', gold, bag, equipment: {}, floor: 1, maxFloor: 1, level: 1, health: 100, kills: 0 });
 async function seed(id, bag = [item()], gold = 10000, guest = false) {
-  await db.execute({ sql: 'INSERT INTO djrpg_accounts VALUES (?,?,?,?)', args: [id, guest ? 'guest' : 'test-password-hash', JSON.stringify(save(bag,gold)), new Date().toISOString()] });
+  await db.execute({ sql: 'INSERT INTO djrpg_accounts (id,password_hash,save_json,updated_at) VALUES (?,?,?,?)', args: [id, guest ? 'guest' : 'test-password-hash', JSON.stringify(save(bag,gold)), new Date().toISOString()] });
 }
 async function action(id, action, data = {}, requestId = randomUUID()) { const row = await account(db,id); return mutate(db,id,{action, ...data, revision: row.revision, requestId}); }
 async function sale(seller = 'seller', price = 100) {
@@ -164,7 +164,13 @@ test('ordinary snapshot is a single read batch without acquiring a write transac
 });
 test('schema initialization is reused, not rewritten for every request',async()=>{
   let batches=0;const wrapped={batch(...args){batches++;return db.batch(...args);}};
-  await schema(wrapped);await schema(wrapped);assert.equal(batches,1);
+  await schema(wrapped);const settled=batches;
+  // session_id 열이 이미 있는 DB는 ALTER만 건너뛰고 한 번 더 적용한다(새 DB는 1회).
+  assert(settled<=2);
+  await schema(wrapped);assert.equal(batches,settled);
+  let fresh=0;const freshDb=createClient({url:`file:${join(directory,'fresh-schema.db')}`});
+  const created={url:'fresh-schema-check',batch(...args){fresh++;return freshDb.batch(...args);}};
+  try { await schema(created);assert.equal(fresh,1); } finally { await freshDb.close(); }
 });
 test('unsaved progression and a purchase commit atomically, including response effects',async()=>{
   await seed('atomic-seller',[item()]);await seed('atomic-buyer',[],50);

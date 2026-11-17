@@ -1586,3 +1586,13 @@
    - **결정(2026-11-17)**: 사용자가 무료 플랜 유지를 선택했다. 신규 해시는 `scrypt$2048$8$1$salt$hash`; 로컬 Wrangler 계산 3~4ms, 검증 3~5ms. 기존 해시는 Cloudflare CPU 한도를 피하기 위해 기존 Vercel 로그인 API에서 1회 검증하고 서명된 토큰의 계정 ID를 확인한 뒤 새 형식으로 갱신한다. Vercel 운영 배포가 새 형식을 읽도록 먼저 갱신돼야 이후 롤백 로그인이 가능하다.
 2. **Turso 지연**: `db.transaction()`은 HTTP 클라이언트에서 문장마다 왕복한다. `warehouse`·`save` 트랜잭션은 문장 10개 이상이라 수백 ms~1초가 될 수 있고, 클라이언트 `warehouse` 요청 타임아웃은 10초다. 실측값을 보고하고, 필요하면 읽기 조회를 트랜잭션 앞으로 빼는 최적화를 별도 작업으로 제안한다.
 3. **Pages 프로젝트 생성·GitHub 연결·환경변수·도메인**은 사용자 대시보드 작업이다(코드 작업 아님). 전환 후에도 `djrpg.vercel.app`을 당분간 유지하고 `*.pages.dev`에서 검증한 뒤 옮긴다.
+
+## [x] [작업 61] 단일 기기 로그인 강제 (새 기기 로그인 시 기존 기기 자동 접속 해제)
+- **등록일**: 2026-11-16 · **완료일**: 2026-11-17 · **브랜치**: `task/61-single-session` · **번호 주의**: 2026-11-16 재정리 이전의 동명 번호(장비 분해 보호)와 다른 작업이다.
+- **목표**: 같은 계정으로 새 기기·새 탭에서 로그인하면 서버가 기존 세션 토큰을 즉시 무효화해, 이전 기기가 저장 충돌 없이 자동 접속 해제되게 한다.
+- **구현**
+  1. `server/database.mjs`: `djrpg_accounts.session_id TEXT` 마이그레이션(기존 DB는 `ALTER TABLE ... ADD COLUMN`, 이미 열이 있으면 그 문장만 빼고 같은 배치를 재적용), `assertSession`·`assertSessionId`·`assignSession` 추가.
+  2. `server/auth.mjs`: 토큰 페이로드 `{ id, sid, exp }`(`tokenFor(id, env, sid)`), `tokenPayload`로 id·sid를 함께 검증(`tokenId` 계약 유지).
+  3. `server/endpoints/{account,market,warehouse}.mjs`: `login`·`register`·`guest` 성공마다 새 `sid` 발급·저장, 인증 검증에서 불일치·`sid` 없는 구 토큰이면 `401 SESSION_REPLACED`(`"다른 기기에서 로그인되어 접속이 해제되었습니다."`). `session_id`가 NULL인 세션 열 도입 전 계정은 기존 토큰을 그대로 허용.
+  4. `src/game/sync.ts`: `401`/`SESSION_REPLACED`이면 토큰 삭제·저장 중단·게임 일시정지 후 `onSessionEnded` 통지, `ITEM_CONFLICT`·`CHARACTER_CONFLICT`은 서버 최신 세이브를 `load`로 다시 받아 화면을 맞춘다(`reloadLatest`). `src/main.ts`가 안내 오버레이와 로그인 화면 복귀를 담당.
+- **검증**: `tsc --noEmit`(=`npm run check`), 223개 테스트, `npm run build`, `git diff --check` 통과. 브라우저 실기 테스트는 실행하지 않는다.

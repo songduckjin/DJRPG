@@ -1,5 +1,10 @@
 import { parseSave, type Save } from './store';
-import { accountRequest, type Session } from '../ui/login';
+import { accountRequest, clearToken, type Session } from '../ui/login';
+
+const sessionErrorCodes = ['SESSION_REPLACED', 'INVALID_TOKEN', 'UNAUTHORIZED'];
+const conflictErrorCodes = ['ITEM_CONFLICT', 'CHARACTER_CONFLICT'];
+const errorCode = (error: unknown): string => error instanceof Error && 'code' in error ? String((error as Error & { code?: unknown }).code ?? '') : '';
+const errorStatus = (error: unknown): number => error instanceof Error && 'status' in error ? Number((error as Error & { status?: unknown }).status) : 0;
 
 export type SyncResult = { ok: boolean; save: Save; revision: number; message?: string; effect?: { listing?: { id: string; state: string; soldAt?: number }; deliveries: import('./market').Delivery[]; claimedId?: string; claimedIds?: string[] } };
 export class SaveSync {
@@ -19,6 +24,9 @@ export class SaveSync {
   onPause: (paused: boolean) => void = () => {};
   onSaved: () => void = () => {};
   onWarehouseRecovered: () => void = () => {};
+  onSessionEnded: (message: string) => void = () => {};
+  private reloadingConflict = false;
+  private sessionEnded = false;
   constructor(public save: Save, public session: Session) { this.revision = session.revision; }
   private autosaveTimer?: ReturnType<typeof setTimeout>;
   queueSave(): void {
@@ -50,14 +58,51 @@ export class SaveSync {
     return this.active;
   }
   handleError(error: unknown): void {
-    if (error instanceof Error && 'code' in error && error.code === 'SAVE_CONFLICT') {
+    const code = errorCode(error);
+    if (code === 'SAVE_CONFLICT') {
       this.conflicted = true; this.onPause(true);
       const overlay = document.createElement('div'); overlay.className = 'sync-conflict';
       const note = document.createElement('p'); note.textContent = '다른 탭이나 기기에서 진행 상황이 변경되었습니다. 최신 데이터를 불러와야 계속할 수 있습니다.';
       const button = document.createElement('button'); button.textContent = '최신 진행 상황 불러오기'; button.onclick = () => location.reload();
       overlay.append(note, button); document.body.appendChild(overlay);
+    } else if (errorStatus(error) === 401 || sessionErrorCodes.includes(code)) {
+      // 기기당 하나의 세션만 유지하므로, 이 기기의 토큰이 밀려났으면 저장을 멈추고 로그인으로 돌아간다.
+      this.endSession(error instanceof Error && error.message ? error.message : '다시 로그인하세요.');
+      return;
+    } else if (conflictErrorCodes.includes(code)) {
+      void this.reloadLatest();
+      return;
     }
     this.onStatus('저장 실패'); this.onMessage(error instanceof Error ? error.message : String(error));
+  }
+  private endSession(message: string): void {
+    if (this.sessionEnded) return;
+    this.sessionEnded = true; this.conflicted = true;
+    this.cancelQueuedSave();
+    this.pending = false; this.pendingSave = undefined;
+    this.onPause(true); this.onStatus('로그인 필요');
+    clearToken();
+    this.onMessage(message); this.onSessionEnded(message);
+  }
+  // ITEM_CONFLICT・CHARACTER_CONFLICT는 같은 저장을 다시 보내면 계속 실패하므로, 서버 최신 세이브를 받아 화면을 맞춘다.
+  private async reloadLatest(): Promise<void> {
+    if (this.reloadingConflict) return;
+    this.reloadingConflict = true;
+    this.cancelQueuedSave();
+    this.pending = false; this.pendingSave = undefined;
+    this.onPause(true); this.onStatus('최신 저장 불러오는 중');
+    try {
+      const latest = await accountRequest<Session>('load', {}, this.session.token);
+      const verified = parseSave(latest.save, this.session.accountId);
+      Object.assign(this.save, verified);
+      this.revision = latest.revision;
+      if (Number.isInteger(latest.characterSlot)) this.session.characterSlot = latest.characterSlot;
+      this.pendingMarket = undefined; this.pendingWarehouse = undefined;
+      this.onSaved(); this.onStatus('저장됨');
+      this.onMessage('서버의 최신 진행 상황과 달라 자동으로 다시 불러왔습니다.');
+      if (!this.conflicted && !this.pendingMarket && !this.pendingWarehouse) this.onPause(false);
+    } catch (error) { this.handleError(error); }
+    finally { this.reloadingConflict = false; }
   }
   async mutate(action: string, data: Record<string, unknown>, requestId: string): Promise<SyncResult> {
     if (this.locked || this.conflicted || this.preparingMarket || this.pendingWarehouse) throw new Error('다른 요청을 처리 중입니다.');
@@ -103,7 +148,8 @@ export class SaveSync {
       this.pending = false; this.pendingSave = undefined; this.onSaved();
       this.onStatus('저장됨'); return result as SyncResult;
     } catch (error) {
-      if (error instanceof Error && 'code' in error && error.code === 'SAVE_CONFLICT') this.handleError(error);
+      const code = errorCode(error);
+      if (code === 'SAVE_CONFLICT' || conflictErrorCodes.includes(code) || sessionErrorCodes.includes(code) || errorStatus(error) === 401) this.handleError(error);
       else this.onMessage(error instanceof Error ? error.message : String(error));
       throw error;
     }

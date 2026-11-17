@@ -126,3 +126,49 @@ test('explicit save on leaving page flushes queued progress immediately once', a
   sync.save.gold=75;sync.queueSave();await sync.flush();t.mock.timers.tick(2000);
   assert.equal(requests.length,1);assert.equal(requests[0].save.gold,75);
 });
+
+test('item and character conflicts reload the latest server save instead of retrying the same request', async () => {
+  for (const code of ['ITEM_CONFLICT', 'CHARACTER_CONFLICT']) {
+    const sync = setup(), requests = [], messages = [];
+    let conflicts = 1;
+    sync.onMessage = message => messages.push(message);
+    globalThis.fetch = async (url, options) => {
+      const body = JSON.parse(options.body); requests.push({ url, body });
+      if (body.action === 'save') {
+        if (conflicts-- > 0) return response({ code, error: '최신 데이터를 다시 불러오세요.' }, 409);
+        return response({ ok: true, revision: body.revision + 1 });
+      }
+      return response({ revision: 9, characterSlot: 1, save: { ...sync.session.save, gold: 42 } });
+    };
+    assert.equal(await sync.flush(), false);
+    await new Promise(resolve => setImmediate(resolve));
+    assert.deepEqual(requests.map(entry => entry.body.action), ['save', 'load'], code);
+    assert.equal(sync.revision, 9, code);
+    assert.equal(sync.save.gold, 42, code);
+    assert.equal(sync.conflicted, false, code);
+    assert(messages.some(message => message.includes('자동으로 다시 불러왔습니다.')), code);
+    sync.save.gold = 43;
+    assert.equal(await sync.flush(), true, code);
+    assert.equal(requests.at(-1).body.revision, 9, code);
+    assert.equal(requests.at(-1).body.save.gold, 43, code);
+  }
+});
+
+test('a replaced session clears the token, stops saving and reports the login screen', async () => {
+  const sync = setup(), removed = [], ended = [], requests = [];
+  globalThis.localStorage = { removeItem: key => removed.push(key), getItem: () => null, setItem: () => {} };
+  sync.onSessionEnded = message => ended.push(message);
+  try {
+    globalThis.fetch = async (_url, options) => {
+      requests.push(JSON.parse(options.body));
+      return response({ code: 'SESSION_REPLACED', error: '다른 기기에서 로그인되어 접속이 해제되었습니다.' }, 401);
+    };
+    assert.equal(await sync.flush(), false);
+    assert.deepEqual(removed, ['djrpg.auth.token']);
+    assert.equal(sync.conflicted, true);
+    assert.deepEqual(ended, ['다른 기기에서 로그인되어 접속이 해제되었습니다.']);
+    sync.save.gold = 99;
+    assert.equal(await sync.flush(), false);
+    assert.equal(requests.length, 1);
+  } finally { delete globalThis.localStorage; }
+});

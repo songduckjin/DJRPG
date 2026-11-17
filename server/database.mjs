@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { journeyState, journeyOperation } from './journey-state.mjs';
 import { databaseFactory } from './database-config.mjs';
 import { runtimeEnv } from './env.mjs';
@@ -12,10 +13,12 @@ export const client = (env = runtimeEnv()) => {
   return createClient({ url: env.TURSO_DATABASE_URL, authToken: env.TURSO_AUTH_TOKEN });
 };
 const initializedSchemas = new Map();
+// 이미 session_id 열이 있는 DB(재배포·재시작)에서만 ALTER가 실패하므로, 그때는 ALTER만 빼고 같은 배치를 한 번 더 적용한다.
+const sessionColumn = 'ALTER TABLE djrpg_accounts ADD COLUMN session_id TEXT';
 export async function schema(db, env = runtimeEnv()) {
   const key = db.url ?? env?.TURSO_DATABASE_URL ?? db;
   if (initializedSchemas.has(key)) return initializedSchemas.get(key);
-  const initialized = db.batch([
+  const statements = [
     'CREATE TABLE IF NOT EXISTS djrpg_accounts (id TEXT PRIMARY KEY COLLATE NOCASE, password_hash TEXT NOT NULL, save_json TEXT NOT NULL, updated_at TEXT NOT NULL)',
     'CREATE TABLE IF NOT EXISTS djrpg_journey (account_id TEXT PRIMARY KEY COLLATE NOCASE, state_json TEXT NOT NULL)',
     'CREATE TABLE IF NOT EXISTS djrpg_save_requests (account_id TEXT PRIMARY KEY COLLATE NOCASE, request_id TEXT NOT NULL, revision INTEGER NOT NULL)',
@@ -43,7 +46,11 @@ export async function schema(db, env = runtimeEnv()) {
          SELECT json_extract(j.value,'$.id') FROM json_each(a.save_json,'$.bag') j
          UNION SELECT json_extract(j.value,'$.id') FROM json_each(a.save_json,'$.equipment') j
        )`
-  ], 'write').catch(error => { initializedSchemas.delete(key); throw error; });
+  ];
+  const initialized = db.batch([...statements, sessionColumn], 'write').catch(error => {
+    if (!/duplicate column name/i.test(String(error?.message ?? error))) { initializedSchemas.delete(key); throw error; }
+    return db.batch(statements, 'write');
+  });
   initializedSchemas.set(key, initialized);
   return initialized;
 }
@@ -74,6 +81,24 @@ export function decodeAccount(row) {
   const save = JSON.parse(row.character_json ?? row.save_json);
   save.gold = Number(row.shared_gold ?? save.gold ?? 0);
   return { ...row, revision: Number(row.revision), slot: Number(row.active_slot ?? 1), save };
+}
+export const sessionReplaced = () => fail(401, 'SESSION_REPLACED', '다른 기기에서 로그인되어 접속이 해제되었습니다.');
+// 세션 번호가 없는 예전 계정・모킹 행은 기존 토큰을 그대로 허용하고, 번호가 있는 계정만 마지막 로그인 토큰을 인정한다.
+export function assertSession(row, sid) {
+  const current = row?.session_id;
+  if (current === undefined || current === null || current === '') return;
+  if (typeof sid !== 'string' || sid !== current) sessionReplaced();
+}
+export async function assertSessionId(db, id, sid) {
+  const row = (await db.execute({ sql: 'SELECT session_id FROM djrpg_accounts WHERE id=?', args: [id] })).rows[0];
+  if (!row) fail(401, 'INVALID_TOKEN', '계정을 찾을 수 없습니다. 다시 로그인하세요.');
+  assertSession(row, sid);
+}
+// register・guest・login마다 새 세션 번호를 발급해 이전 기기 토큰을 무효화한다.
+export async function assignSession(db, id) {
+  const sid = randomUUID();
+  await db.execute({ sql: 'UPDATE djrpg_accounts SET session_id=? WHERE id=?', args: [sid, id] });
+  return sid;
 }
 export function assertRevision(row, revision) {
   if (!Number.isSafeInteger(revision) || revision !== row.revision) fail(409, 'SAVE_CONFLICT', '다른 탭이나 기기에서 진행 상황이 변경되었습니다. 새로고침하여 최신 데이터를 불러오세요.');

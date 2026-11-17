@@ -48,6 +48,14 @@ async function start(): Promise<void> {
     sync.onMessage = message => ui.message(message);
     sync.onPause = paused => { world.paused = paused; appRoot.classList.toggle('sync-busy', paused); };
     sync.onSaved = () => { if (legacyKey) { clearLegacySave(legacyKey); legacyKey = undefined; ui.message('기존 진행 상황을 서버로 이전했습니다.'); } };
+    // 다른 기기 로그인으로 이 기기 세션이 끝나면 토큰이 이미 지워졌으므로, 알린 뒤 로그인 화면으로 돌아간다.
+    sync.onSessionEnded = message => {
+      const overlay = document.createElement('div'); overlay.className = 'sync-conflict';
+      const note = document.createElement('p'); note.textContent = message;
+      const button = document.createElement('button'); button.textContent = '로그인 화면으로'; button.onclick = () => location.reload();
+      overlay.append(note, button); document.body.appendChild(overlay);
+      setTimeout(() => location.reload(), 8000);
+    };
     window.addEventListener('game-logout', async () => { const ok = await flush(); if (ok) { clearToken(); location.reload(); } });
     gameUi = ui;
     if (pendingMessage) ui.message(pendingMessage);

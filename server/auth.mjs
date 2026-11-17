@@ -7,11 +7,12 @@ const passwordCost = { N: 2048, r: 8, p: 1 };
 const hexSalt = /^[a-f\d]{32}$/;
 const hexHash = /^[a-f\d]{128}$/;
 export const sign = (value, env = runtimeEnv()) => createHmac('sha256', env.TURSO_AUTH_TOKEN).update(value).digest('base64url');
-export const tokenFor = (id, env = runtimeEnv()) => {
-  const value = Buffer.from(JSON.stringify({ id, exp: Date.now() + 30 * 86400_000 })).toString('base64url');
+// `sid`는 마지막 로그인에서 발급한 세션 번호다. 두 번째 기기 로그인이 덮어쓰면 이 토큰은 즉시 무효가 된다.
+export const tokenFor = (id, env = runtimeEnv(), sid) => {
+  const value = Buffer.from(JSON.stringify(sid ? { id, sid, exp: Date.now() + 30 * 86400_000 } : { id, exp: Date.now() + 30 * 86400_000 })).toString('base64url');
   return `${value}.${sign(value, env)}`;
 };
-export function tokenId(request, env = runtimeEnv()) {
+export function tokenPayload(request, env = runtimeEnv()) {
   const token = request.headers.get('authorization')?.replace(/^Bearer /i, '');
   if (!token || token.length > 4096) return null;
   const [value, mac, extra] = token.split('.');
@@ -19,9 +20,16 @@ export function tokenId(request, env = runtimeEnv()) {
   const expected = Buffer.from(sign(value, env));
   const received = Buffer.from(mac);
   if (expected.length !== received.length || !timingSafeEqual(expected, received)) return null;
-  try { const payload = JSON.parse(Buffer.from(value, 'base64url').toString()); return typeof payload.id === 'string' && Number.isFinite(payload.exp) && payload.exp > Date.now() ? payload.id : null; }
+  try {
+    const payload = JSON.parse(Buffer.from(value, 'base64url').toString());
+    if (typeof payload.id !== 'string' || !Number.isFinite(payload.exp) || payload.exp <= Date.now()) return null;
+    // 세션 열 도입 전에 발급된 토큰은 sid가 없다(구 토큰 호환).
+    if (payload.sid !== undefined && (typeof payload.sid !== 'string' || !payload.sid || payload.sid.length > 64)) return null;
+    return { id: payload.id, sid: typeof payload.sid === 'string' ? payload.sid : undefined };
+  }
   catch { return null; }
 }
+export const tokenId = (request, env = runtimeEnv()) => tokenPayload(request, env)?.id ?? null;
 export async function hashPassword(password) {
   const salt = randomBytes(16).toString('hex');
   const hash = (await scrypt(password, salt, 64, passwordCost)).toString('hex');
