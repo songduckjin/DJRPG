@@ -2,7 +2,7 @@ import { client, schema, transaction, account, assertRevision, assertSession, as
 import { randomUUID } from 'node:crypto';
 import { tokenPayload, tokenFor, hashPassword, verifyPassword, needsPasswordUpgrade } from '../auth.mjs';
 import { runtimeEnv } from '../env.mjs';
-import { json, readBody, errorResponse } from '../http.mjs';
+import { json, readBody, errorResponse, versionGuard } from '../http.mjs';
 
 const namePattern = /^[가-힣a-zA-Z0-9_]{2,16}$/;
 const bad = (_res, status, code, error) => json({ code, error }, status);
@@ -15,6 +15,8 @@ export async function accountEndpoint(request, { env = runtimeEnv(), createDbCli
   const res = { status: status => ({ json: body => json(body, status) }) };
   const req = { method: request.method, headers: { authorization: request.headers.get('authorization') }, body: await readBody(request) };
   if (req.method !== 'POST') return bad(res, 405, 'METHOD_NOT_ALLOWED', 'POST 요청만 허용합니다.');
+  const outdated = versionGuard(request);
+  if (outdated) return outdated;
   if (!env.TURSO_DATABASE_URL || !env.TURSO_AUTH_TOKEN) return bad(res, 503, 'DB_NOT_CONFIGURED', '서버 DB가 설정되지 않았습니다. 관리자에게 문의하세요.');
   let db;
   try {

@@ -1,5 +1,6 @@
 import type { SaveSync } from './sync';
 import type { World } from './world';
+import { apiHeaders, isOutdatedResponse, reloadForNewVersion } from './appVersion';
 export type JourneyTask = {id:string;name:string;category?:string;target:number;current:number;gold:number;books:number;claimed:boolean;completion?:boolean};
 export type Mail = {id:string;title:string;sender:string;body:string;createdAt:number;expiresAt:number;expired:boolean;gold:number;books:number;claimedAt:number|null;read:boolean};
 export type JourneyData = {daily:JourneyTask[];weekly:JourneyTask[];achievements:JourneyTask[];mail:Mail[];periods:{dailyEnd:number;weeklyEnd:number};now:number};
@@ -14,8 +15,10 @@ export class Journey {
     const generation=++this.generation;
     this.loading=true;this.onChange();
     try{
-      const response=await fetch('/api/market',{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${this.sync.session.token}`},body:JSON.stringify({action:'journey-list'})});
-      const data=await response.json();if(!response.ok)throw new Error(data.error||'보상 목록을 불러오지 못했습니다.');if(generation===this.generation){this.data=data;this.error='';}
+      const response=await fetch('/api/market',{method:'POST',headers:apiHeaders({Authorization:`Bearer ${this.sync.session.token}`}),body:JSON.stringify({action:'journey-list'})});
+      const data=await response.json();
+      if(isOutdatedResponse(response.status,data.code,data.expected)){reloadForNewVersion();return;}
+      if(!response.ok)throw new Error(data.error||'보상 목록을 불러오지 못했습니다.');if(generation===this.generation){this.data=data;this.error='';}
     }catch(error){if(generation===this.generation)this.error=error instanceof Error?error.message:String(error);}
     finally{if(generation===this.generation){this.loading=false;this.onChange();}}
   }

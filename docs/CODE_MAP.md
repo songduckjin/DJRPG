@@ -15,6 +15,7 @@
 | 로그인·회원가입·게스트·캐릭터 선택/생성 | `src/ui/login.ts`, `server/endpoints/account.mjs` | `ui/modals/charactersModal.ts`, `server/auth.mjs`, `api/account.mjs`, `functions/api/account.js` | `characters`, `functions-adapter` |
 | 다른 기기 로그인으로 접속이 해제됨(`SESSION_REPLACED`) | `database.mjs` `assertSession`/`assignSession`, `auth.mjs` `tokenPayload` | `endpoints/account.mjs`, `sync.ts` `endSession`/`onSessionEnded`, `main.ts` | `functions-adapter`, `sync` |
 | 서버 저장·동기화·충돌(`SAVE_CONFLICT`/`ITEM_CONFLICT`) | `src/game/sync.ts`, `server/database.mjs` | `server/endpoints/account.mjs`, `server/http.mjs`, `src/game/store.ts`(`parseSave`) | `sync`, `functions-adapter`, `characters`, `market` |
+| 구버전 클라이언트 차단·최신 버전 강제(426 `VERSION_OUTDATED`) | `server/app-version.mjs`, `src/game/appVersion.ts` | `server/http.mjs`(`versionGuard`), `server/endpoints/{account,market,warehouse}.mjs`, `src/ui/login.ts`, `src/game/sync.ts`, `src/game/{market,journey}.ts`, `public/_headers`, `scripts/generate-version.mjs`, `vite.config.ts` | `app-version` |
 | 거래소·시세·여정(journey) | `server/market.mjs`, `server/journey.mjs` | `server/endpoints/market.mjs`, `journey-state.mjs`, `market-events.mjs`, `src/game/market.ts`, `src/game/journey.ts`, `ui/modals/marketModal.ts`, `ui/modals/utilityModal.ts`, `api/market*.mjs`, `functions/api/market*.js` | `market`, `market-actions`, `market-connection`, `journey`, `journey-ui` |
 | 계정 창고(warehouse) | `server/endpoints/warehouse.mjs` | `ui/modals/charactersModal.ts`(`loadWarehouse`·`renderWarehouse`·`moveItem`), `sync.ts`(`transferWarehouse`), `api/warehouse.mjs`, `functions/api/warehouse.js` | `characters` |
 | UI HUD·모달·스타일 CSS | `src/ui/interface.ts`, `src/ui/hud.ts` | `ui/modals/*`, `bagDetail.ts`, `equippedDetail.ts`, `modalInteraction.ts`, `modalClose.ts`, `modalDefaults.ts`, `src/styles/*.css` | `modal-ui`, `modal-interaction`, `bag-hover`, `equipment-badge`, `journey-ui`, `equipped-detail` |
@@ -37,6 +38,8 @@
 | 그림을 바꿨는데 화면이 그대로(캐시) | `render.ts`/`appearance.ts`의 `?v=`, `scripts/verify-item-art.mjs` |
 | 서버 저장 충돌(409 `SAVE_CONFLICT`) | `database.mjs` `assertRevision`, `sync.ts` `handleError` |
 | 아이템 소유권 충돌(`ITEM_CONFLICT`) | `database.mjs` `reconcileItems`·`identity`, `warehouse.mjs` |
+| `ITEM_CONFLICT`/`CHARACTER_CONFLICT` 토스트 무한 반복 | `sync.ts` `handleError`·`reloadLatest`·`stopConflictLoop`(`conflictReloadWindow`) |
+| 옛 번들이 그대로 뜨고 426·새로고침이 반복됨 | `server/app-version.mjs`, `src/game/appVersion.ts`(`reloadForNewVersion`), `public/_headers`, `scripts/generate-version.mjs` |
 | 로그인·토큰 만료·게스트 | `ui/login.ts`, `endpoints/account.mjs`, `auth.mjs` `tokenPayload`/`tokenFor` |
 | 거래소 빈 목록·시세·수수료 | `server/market.mjs` `snapshot`/`mutate`/`recentPrice`/`rules`, `src/game/market.ts` |
 | 우편·일일/주간·업적 보상 | `journey.mjs`, `journey-state.mjs`, `ui/modals/utilityModal.ts` |
@@ -60,7 +63,8 @@
 - `facing.ts` (6) — 좌향 원본 몬스터 스프라이트 방향 계산. `enemyFacing`.
 - `offline.ts` (43) — 오프라인 사냥 정산(최대 12시간). `applyOfflineRewards`, 타입 `OfflineReward`.
 - `codex.ts` (74) — 장비 도감 75종·발견 기록·등급 변형. `codexEntries`, `equipmentCodexKey`, `normalizeCollection`, `discoverEquipment`, `codexOwnership`, `codexVariantName`, `firstDropFloor`, `codexOptions`, `filterCodex`, `codexVariants`, `codexSlotNames`.
-- `sync.ts` (172) — 서버 저장 큐·재시도·충돌·거래/창고 락. `SaveSync`(`queueSave`,`flush`,`handleError`,`mutate`,`reset`,`transferWarehouse`,`onSessionEnded`), 내부 `endSession`(401 → 토큰 삭제·저장 중단)·`reloadLatest`(`ITEM_CONFLICT`/`CHARACTER_CONFLICT` → 최신 세이브 재로드), 타입 `SyncResult`.
+- `sync.ts` (251) — 서버 저장 큐·재시도·충돌·거래/창고 락. `SaveSync`(`queueSave`,`flush`,`handleError`,`mutate`,`reset`,`transferWarehouse`,`onSessionEnded`), 내부 `endSession`(401 → 토큰 삭제·저장 중단)·`reloadLatest`(`ITEM_CONFLICT`/`CHARACTER_CONFLICT` → 최신 세이브 재로드, 10초 내 재충돌은 `stopConflictLoop`로 중단)·`stopForOutdatedVersion`(426 → 저장 중단·새로고침), 타입 `SyncResult`.
+- `appVersion.ts` (44) — 배포 버전 상수·API 버전 헤더·구버전 응답 복구. `APP_VERSION`(`__APP_VERSION__`), `apiHeaders`, `isOutdatedResponse`, `reloadForNewVersion`(한 번만 자동 새로고침), `clearVersionReloadMark`.
 - `market.ts` (123) — 거래소 클라이언트 상태·목록/탭/시세. `Market`, 타입 `Listing`/`Delivery`/`MarketData`/`MarketView`.
 - `journey.ts` (39) — 우편·일일/주간/업적 클라이언트. `Journey`(`load`,`act`,`ready`), 타입 `JourneyTask`/`Mail`/`JourneyData`.
 - `preferences.ts` (4) — 기기 설정(흔들림·절전·이펙트). `preferences`, `savePreferences` — **localStorage 예외 허용 항목**.
@@ -76,7 +80,7 @@
 ### `src/ui/` — HUD·모달·입력
 - `interface.ts` (241) — UI 상태·모달 라우팅의 중심. `Interface`(`open`,`renderModal`,`message`,`setSaveStatus`,`showOfflineReward`, 렌더 위임 메서드), `Modal`, `BagFilter`.
 - `hud.ts` (66) — 상단 HUD·퀵슬롯·가방 배지. `renderStatus`, `tick`, `renderBagBadge`.
-- `login.ts` (59) — 로그인/가입/게스트 화면·API 호출. `openLogin`, `accountRequest`, `Session`, `clearToken`.
+- `login.ts` (71) — 로그인/가입/게스트 화면·API 호출. `openLogin`, `accountRequest`(모든 요청에 `X-App-Version`, 426이면 새로고침), `Session`, `clearToken`.
 - `boot.ts` (46) — 부팅 오버레이. `createBootOverlay`.
 - `currency.ts` (7) — 금화 아이콘/문자열. `coinMarkup`, `goldMarkup`, `goldNode`.
 - `bagDetail.ts` (91) — 가방 아이템 툴팁 위치·핀·해제. `showBagDetail`, `dismissBagDetail`, `positionBagDetail`, `deferBagDismiss`, `bagDetailPinned`.
@@ -97,7 +101,8 @@
 ### `server/` — API 코어 (프레임워크 비의존, 테스트가 직접 import)
 - `database.mjs` (154) — libsql 래퍼·스키마·트랜잭션·세이브/아이템 계약. `ApiError`, `fail`, `client`, `schema`, `transaction`, `account`, `decodeAccount`, `assertRevision`, `assertSession`/`assertSessionId`/`assignSession`(단일 세션), `inventoryOwnerQuery`, `reconcileItems`, `writeSave`, `validateSave`. 내부 `identity(item)`(이름·슬롯(반지 정규화)·등급·kind·skillId·5스탯).
 - `auth.mjs` (49) — HMAC 토큰(비밀키 `TURSO_AUTH_TOKEN`)·비번 해시. `sign`, `tokenFor`(`{id,sid,exp}`), `tokenPayload`, `tokenId`, `hashPassword`, `needsPasswordUpgrade`, `verifyPassword`.
-- `http.mjs` (16) — 응답/본문/에러. `json`, `readBody`, `errorResponse`.
+- `http.mjs` (16) — 응답/본문/에러. `json`, `readBody`, `versionGuard`(다른 `X-App-Version` → 426 `VERSION_OUTDATED`), `errorResponse`.
+- `app-version.mjs` (18) / `version.generated.mjs` (3) — 배포 버전 식별자. `APP_VERSION`, `OUTDATED_MESSAGE`, `requestVersion`, `versionMismatch` / `BUILD_VERSION`(빌드 시 `scripts/generate-version.mjs`가 덮어씀, 저장소 값은 `dev`).
 - `env.mjs` (5) / `database-config.mjs` (4) — 런타임 env·DB 클라이언트 팩토리. `runtimeEnv`,`setRuntimeEnv`,`envValue` / `configureDatabase`,`databaseFactory`.
 - `node-adapter.mjs` (17) — Vercel Node req/res ↔ Fetch. `toRequest`, `sendNode`.
 - `legacy-auth.mjs` (26) — 구 Vercel 비번 검증 위임. `verifyLegacyViaVercel`.
@@ -115,6 +120,7 @@
 - `api/{account,market,market-events,warehouse}.mjs` — **Vercel(Node) 어댑터, 테스트가 직접 import하므로 삭제 금지.** `account.mjs`는 `tokenId` 재수출, `market-events.mjs`는 `config.maxDuration=60`.
 - `functions/api/{account,market,market-events,warehouse}.js` — Cloudflare Pages `onRequest` → `server/endpoints/*` 호출.
 - `scripts/verify-item-art.mjs` — `items.ts` 기본형 목록 ↔ `public/assets/item-art/{slot}_{index}.png`(870×290 PNG, 5개 단위) 검증. `npm run check`에 포함.
+- `scripts/generate-version.mjs` — `npm run build` 첫 단계. `CF_PAGES_COMMIT_SHA`(없으면 `git rev-parse`·타임스탬프)로 `server/version.generated.mjs`와 `public/version.json`을 기록해 클라이언트 `__APP_VERSION__`과 Functions `APP_VERSION`을 같은 값으로 묶는다.
 - `scripts/backup-turso.mjs` — Turso → `.backups/*.sqlite` 덤프(stdin으로 `{url,authToken}`).
 - `tests/ts-loader.mjs` — `.ts`를 node:test에서 import하게 하는 로더. 각 테스트 첫 줄 `import './ts-loader.mjs'`.
 - 테스트는 `node --test tests/<이름>.test.mjs` 단건 실행 가능.
@@ -131,6 +137,7 @@
 - **재시도 멱등성**: 저장은 `requestId` + `djrpg_save_requests`, 거래는 `djrpg_market_requests`, 창고는 `djrpg_warehouse_requests`로 재생한다. 결과가 불확실할 때 **새 requestId로 다시 보내지 말고 같은 requestId로 재확인**한다.
 - **UI 재렌더**: 포인터/키 이벤트 처리 중 `renderModal`을 즉시 호출하면 누른 요소가 사라진다. `bindModalInteraction`/`ModalRenderGate`를 우회하지 않는다.
 - **배포**: Cloudflare Pages(`wrangler.toml`, name `djrpg`, `nodejs_compat`)만. Vercel 파일은 호환·테스트용이며 재배포하지 않는다. 브라우저 실기 테스트는 요청 시에만.
+- **버전 계약**: 모든 클라이언트 API 요청은 `X-App-Version`(= `__APP_VERSION__` = `server/version.generated.mjs`의 `BUILD_VERSION`, `scripts/generate-version.mjs`가 빌드 때 생성)을 보낸다. 헤더 없는 직접 호출은 통과, 배포본과 다른 헤더는 `server/http.mjs` `versionGuard`가 426 `VERSION_OUTDATED`로 막고 클라이언트는 저장을 멈춘다. `reloadForNewVersion`은 번들당 1회만 자동 새로고침하고, 캐시로 같은 번들이 돌아오면 안내 버튼만 띄운다. `/`·`/index.html`·`/version.json`은 `public/_headers`에서 `no-store`.
 
 ## 5. 검증·명령
 

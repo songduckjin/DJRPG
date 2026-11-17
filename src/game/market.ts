@@ -1,5 +1,6 @@
 import type { Item } from './items';
 import type { SyncResult, SaveSync } from './sync';
+import { apiHeaders, isOutdatedResponse, reloadForNewVersion } from './appVersion';
 export type MarketView = 'active' | 'sold' | 'mine' | 'register' | 'inbox';
 export type Listing = { id: string; sellerName: string; item: Item; price: number; state: string; createdAt: number; expiresAt: number; soldAt: number | null; mine: boolean; purchased: boolean };
 export type Delivery = { id: string; item: Item | null; gold: number; reason: string; createdAt: number };
@@ -49,8 +50,10 @@ export class Market {
     const generation=++this.quoteGeneration;
     this.quote={itemId:item.id,loading:true};this.onChange(true);
     try{
-      const response=await fetch('/api/market',{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${this.sync.session.token}`},body:JSON.stringify({action:'recent-price',name:item.name,slot:item.slot,rarity:item.rarity})});
-      const result=await response.json();if(!response.ok)throw new Error(result.error||'최근 거래가를 불러오지 못했습니다.');
+      const response=await fetch('/api/market',{method:'POST',headers:apiHeaders({Authorization:`Bearer ${this.sync.session.token}`}),body:JSON.stringify({action:'recent-price',name:item.name,slot:item.slot,rarity:item.rarity})});
+      const result=await response.json();
+      if (isOutdatedResponse(response.status,result.code,result.expected)) { reloadForNewVersion(); return; }
+      if(!response.ok)throw new Error(result.error||'최근 거래가를 불러오지 못했습니다.');
       if(generation===this.quoteGeneration)this.quote={itemId:item.id,loading:false,...result};
     }catch(error){if(generation===this.quoteGeneration)this.quote={itemId:item.id,loading:false,error:error instanceof Error?error.message:String(error)};}
     finally{if(generation===this.quoteGeneration)this.onChange(true);}
@@ -63,8 +66,9 @@ export class Market {
     this.loading = true;
     if (full) this.onChange(false);
     try {
-      const response = await fetch('/api/market', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${this.sync.session.token}` }, body: JSON.stringify({ action: 'list', ...this.filters, mineActiveOnly:this.view==='mine'&&this.mineActiveOnly, watchIds: this.data?.listings.map(entry => entry.id), view: !this.opened ? 'mine' : this.view }), signal: controller.signal });
+      const response = await fetch('/api/market', { method: 'POST', headers: apiHeaders({ Authorization: `Bearer ${this.sync.session.token}` }), body: JSON.stringify({ action: 'list', ...this.filters, mineActiveOnly:this.view==='mine'&&this.mineActiveOnly, watchIds: this.data?.listings.map(entry => entry.id), view: !this.opened ? 'mine' : this.view }), signal: controller.signal });
       const result = await response.json();
+      if (isOutdatedResponse(response.status, result.code, result.expected)) { reloadForNewVersion(); return; }
       if (!response.ok) throw new Error(result.error || '거래소를 불러오지 못했습니다.');
       if (generation !== this.generation) return;
       const next = result as MarketData;

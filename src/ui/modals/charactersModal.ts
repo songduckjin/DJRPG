@@ -1,6 +1,7 @@
 import type { Item } from '../../game/store';
 import type { Interface } from '../interface';
 import { accountRequest } from '../login';
+import { apiHeaders, isOutdatedResponse, reloadForNewVersion } from '../../game/appVersion';
 
 export type CharacterSummary = { slot: number; name: string; gender: 'male' | 'female'; level: number; floor: number };
 type CharacterList = { characters: CharacterSummary[]; activeSlot: number; maxSlots: number; revision: number };
@@ -76,8 +77,9 @@ async function changeCharacter(ui: Interface, action: 'selectCharacter' | 'creat
 
 export async function loadWarehouse(ui: Interface): Promise<void> {
   try {
-    const response = await fetch('/api/warehouse', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ui.session.token}` }, body: JSON.stringify({ action: 'list' }) });
+    const response = await fetch('/api/warehouse', { method: 'POST', headers: apiHeaders({ Authorization: `Bearer ${ui.session.token}` }), body: JSON.stringify({ action: 'list' }) });
     const data = await response.json();
+    if (isOutdatedResponse(response.status, data.code, data.expected)) { reloadForNewVersion(); return; }
     if (!response.ok) throw new Error(data.error || '공용창고를 읽지 못했습니다.');
     ui.warehouseItems = data.items as Item[];
     if (ui.openModal === 'warehouse') ui.renderModal();

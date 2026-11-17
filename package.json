@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "check": "tsc --noEmit && node scripts/verify-item-art.mjs",
-    "build": "tsc --noEmit && node scripts/verify-item-art.mjs && vite build",
+    "build": "node scripts/generate-version.mjs && tsc --noEmit && node scripts/verify-item-art.mjs && vite build",
     "test": "node --test tests/*.test.mjs",
     "dev:cf": "wrangler pages dev",
     "deploy:cf": "pnpm run build && wrangler pages deploy dist"

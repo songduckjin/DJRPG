@@ -7,3 +7,6 @@ dist/
 .dev.vars.*
 !.dev.vars.example
 .wrangler/
+
+# 빌드 스크립트가 생성하는 배포 버전 파일
+public/version.json

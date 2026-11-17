@@ -1,4 +1,5 @@
 import type { Gender, Save } from '../game/store';
+import { apiHeaders, clearVersionReloadMark, isOutdatedResponse, reloadForNewVersion } from '../game/appVersion';
 
 export type Session = { accountId: string; loginId: string; gender: Gender; guest: boolean; token: string; save: Save; revision: number; characterSlot: number; offlineSeconds?: number; newAccount?: boolean };
 const tokenKey = 'djrpg.auth.token';
@@ -9,10 +10,17 @@ export function clearToken(): void {
 }
 export async function accountRequest<T>(action: string, data: Record<string, unknown> = {}, token?: string): Promise<T> {
   let response: Response;
-  try { response = await fetch('/api/account', { method: 'POST', headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify({ action, ...data }), keepalive: action === 'save' }); }
+  try { response = await fetch('/api/account', { method: 'POST', headers: apiHeaders(token ? { Authorization: `Bearer ${token}` } : {}), body: JSON.stringify({ action, ...data }), keepalive: action === 'save' }); }
   catch { throw new Error('서버에 연결할 수 없습니다. 네트워크 상태를 확인하세요.'); }
   const result = await response.json().catch(() => { throw new Error('서버 응답 형식이 올바르지 않습니다. API 배포를 확인하세요.'); });
-  if (!response.ok) { const error = new Error(typeof result.error === 'string' ? result.error : `서버 요청 실패 (${response.status})`) as Error & { status: number; code: string }; error.status = response.status; error.code = result.code; throw error; }
+  if (!response.ok) {
+    const error = new Error(typeof result.error === 'string' ? result.error : `서버 요청 실패 (${response.status})`) as Error & { status: number; code: string; expected?: string };
+    error.status = response.status; error.code = result.code; error.expected = result.expected;
+    // 새 버전이 배포됐다는 응답이면 진행 중인 저장을 멈추고 새 번들을 내려받는다.
+    if (isOutdatedResponse(response.status, result.code, result.expected)) reloadForNewVersion();
+    throw error;
+  }
+  clearVersionReloadMark();
   return result as T;
 }
 async function begin(action: string, data: Record<string, unknown> = {}, token?: string): Promise<Session> {
