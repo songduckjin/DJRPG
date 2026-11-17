@@ -10,7 +10,7 @@
 
 | 작업 | 담당자 ID | 브랜치 | 수정 예정 파일 / 영향 영역 | 위험 등급 | 상태 |
 |---|---|---|---|---|---|
-| 현재 등록된 개인 진행 작업 없음 | - | - | - | - | - |
+| [작업 93] Codex GitHub Actions 운영 점검 | `songduckjin` · Codex | `codex/93-codex-automation` | `.github/workflows/codex-task.yml`, `docs/CODEX_AUTOMATION_GUIDE.md`, `docs/TASK.md`, `docs/WORKLOG.md` | 공통 자동화 · 주의 | [-] 진행 중 |
 
 > 새 개인 작업을 시작할 때 위 표에 한 행을 추가한다. 작업 완료·취소 시 상태와 파일 정보를 갱신하거나 항목을 정리한다. 이 표는 상세 작업지시서를 대체하지 않는다.
 
@@ -782,3 +782,13 @@
 
 ## [x] [작업 91] 장착 장비 이미지 확대 및 호버 상세 설명
 - 담당자: `fks3997` · 상세: [개인 작업지시서](TASK_fks3997.md)
+
+---
+
+## [-] [작업 93] GitHub Actions + Codex 자동화 점검 및 개선
+
+- 등록일: 2026-11-17 · 담당자: `songduckjin` · Codex · 브랜치: `codex/93-codex-automation`.
+- 목표: Issue `codex-ready` 기반 실행의 담당자·작업 범위·비용·권한·PR 격리를 점검하고 안전한 운영 가이드를 작성한다.
+- 수정 예정 파일: `.github/workflows/codex-task.yml`, `docs/CODEX_AUTOMATION_GUIDE.md`, `docs/TASK.md`, `docs/WORKLOG.md`.
+- 관계: 작업 92는 별도 PR 브랜치의 구조 진단이며 범위·상태를 변경하지 않는다. 작업 90·91 및 게임 실행 코드·세이브/API/DB 계약은 수정하지 않는다.
+- 완료 기준: 자동화 정적 검증과 `pnpm run check`, `pnpm test`, `pnpm run build` 통과; 실제 계정 키·GitHub 설정의 수동 조치 명시; 별도 PR 제출, `main` 병합 없음.
