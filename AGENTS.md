@@ -1,113 +1,145 @@
 # DJRPG Project Working Map & Codex Policy
 
-Read this map first, then only the files relevant to the request. Use `rg` for targeted searches; avoid dumping the whole source tree. This is a Vite + TypeScript + PixiJS 2.5D dark fantasy idle RPG, designed to run on mobile web first and later be packaged as an Android / iOS app via Capacitor.
+DJRPG는 Vite + TypeScript + PixiJS 기반의 모바일 우선 2.5D 다크 판타지 방치형 RPG다. 코드를 수정하기 전에 이 문서의 협업·안전 규칙을 먼저 적용하고, 요청과 관련된 파일만 탐색한다.
 
-## Where to change things
+## 프로젝트 구조 안내
 
-- Entry & wiring: `src/main.ts` (only mounts scene/UI and coordinates loop)
-- Field lighting, terrain and particles: `src/game/render/field.ts`; actors and animation: `src/game/render/entities.ts`; skill VFX and drops: `src/game/render/vfx.ts`; canvas setup and draw order: `src/game/render.ts`
-- Idle combat AI, enemy waves, boss spawn and progression: `src/game/world.ts`
-- Save migration and progression state: `src/game/store.ts`; item tables, drops, stats and salvage: `src/game/items.ts`; offline reward calculation: `src/game/offline.ts`
-- HUD and controls: `src/ui/hud.ts`; equipment, skill, status, floor and account dialogs: `src/ui/modals/`; UI wiring: `src/ui/interface.ts`
-- Styles: `src/styles/base.css`, `hud.css`, `modals.css`, `login.css` imported by `main.css`
-- Static assets / future AI-generated 2.5D spritesheets & tilesets: `public/assets/`
+- 진입 및 연결: `src/main.ts`
+- 필드 렌더링·지형·파티클: `src/game/render/field.ts`
+- 캐릭터·몬스터 애니메이션: `src/game/render/entities.ts`
+- 스킬 이펙트·드랍 연출: `src/game/render/vfx.ts`
+- 전투 AI·몬스터·보스·층 진행: `src/game/world.ts`
+- 세이브·진행 상태·마이그레이션: `src/game/store.ts`
+- 아이템·드랍·스탯·분해: `src/game/items.ts`
+- 오프라인 보상: `src/game/offline.ts`
+- HUD: `src/ui/hud.ts`
+- 모달: `src/ui/modals/`
+- UI 연결: `src/ui/interface.ts`
+- 스타일: `src/styles/`
+- 정적 에셋: `public/assets/`
+- 계정 API: `api/account.mjs`
+- 서버 및 데이터 처리: `server/`
+- 테스트: `tests/`
 
-## Product & Concept Constraints (DJRPG)
+이 목록은 탐색을 돕는 참고 지도일 뿐, 개인/공통 영역을 확정하는 파일 소유권 목록이 아니다. 실제 영향 범위는 작업마다 코드 의존성을 확인해 판단한다.
 
-- **Visual & Genre**: Dark fantasy 2.5D quarter-view idle RPG (Diablo 2 / Red Stone inspired). Gothic isometric dungeon floor, flickering torchlight & dark vignette, high-contrast skill flashes, and vertical loot beams by rarity (Common: white, Magic: blue, Rare: yellow, Legendary: orange).
-- **Core Idle Loop**: Auto-move, auto-target, auto-attack & 4 auto-cooldown skills (also tappable manually). Defeating normal waves fills the boss gauge to summon the floor boss; clearing advances to deeper floors.
-- **Idle QoL Essentials**: Design inventory and drops with rarity-based **auto-salvage / auto-equip** and **offline reward calculation** (elapsed time → gold/EXP/loot) in mind.
-- **Classic HUD**: Bottom-left crimson HP orb, bottom-right sapphire MP/CP orb, bottom-center 4-skill bar, top compact floor/kill/gold/level bar.
-- **Mobile & App Ready**: Full-screen mobile-first layout (`100dvh`, `viewport-fit=cover`, `user-scalable=no`, `touch-action: none` on game canvas) so it works identically in mobile Safari/Chrome and Capacitor WebView.
-- **Decoupled Art Pipeline**: Keep game logic cleanly separated from rendering/sprite loading so initial procedural shapes/graphics can be replaced with AI-generated 2.5D spritesheets without rewriting combat or progression.
-- **Save Compatibility**: Preserve existing player progress, level, gold, equipment, and floor data through forward migrations (`localStorage` first, structured behind `store.ts` for future Turso/cloud sync).
+## 제품 및 설계 제약
 
-## 코덱스 작업 정책 (Codex Task Workflow Policy)
+- 장르·화풍: 디아블로 2 / 붉은보석 감성의 2.5D 쿼터뷰 다크 판타지 방치형 RPG.
+- 핵심 루프: 자동 이동·타깃·공격·스킬, 일반 몬스터 웨이브, 보스 소환, 층 진행.
+- 아이템: 등급별 드랍 연출, 자동 분해·자동 장착, 오프라인 보상과의 호환성을 고려한다.
+- 모바일 우선: 모바일 Safari/Chrome 및 추후 Capacitor WebView 호환성을 유지한다.
+- 렌더링과 게임 로직을 분리하고 기존 세이브 데이터의 전방 호환성을 보존한다.
+- 기획 문서(`docs/DESIGN.md`)는 게임의 기획·방향을 설명하는 참고 자료다. 별도 작업지시가 없는 한 기획 문장을 구현 지시나 코드 변경 승인으로 해석하지 않는다.
 
-본 프로젝트의 모든 코드 수정, 기능 구현, 배포 관리는 **OpenAI Codex(클라우드 및 로컬 에이전트)**가 수행하며 아래 6대 정책을 엄격히 준수합니다.
+## 최우선 협업 보호 정책
 
-1. **작업 시작 전 최신화 (`git pull`)**:
-   - 매 작업 시작 전 반드시 `main` 브랜치의 최신 커밋과 지시서를 반영합니다.
-2. **지시서(`docs/TASK.md`) 우선 확인 및 이행**:
-   - 코드를 수정하기 전 반드시 `docs/TASK.md`의 진행 중인 `[ ]` 작업을 먼저 확인합니다.
-   - 이미 등록된 `[ ]` 작업이 있다면 중복 등록하지 않고 즉시 해당 요구사항을 이행합니다.
-   - 사용자가 Codex 창에서 직접 새 지시를 내린 경우에만 날짜·목표·완료 기준을 적어 `docs/TASK.md`에 `[ ]` 항목으로 선등록한 뒤 구현합니다.
-3. **명확한 예외 및 상태 처리 (무음 실패 금지)**:
-   - 저장 실패, 재화/마나 부족, 조건 미달 등의 예외 상황은 조용히 무시하거나 모호한 에러로 덮지 않고, 사용자에게 원인이 드러나도록 안전하게 처리합니다.
-4. **무결성 검증**:
-   - 코드 수정 후 반드시 TypeScript 타입 검사 및 프로덕션 빌드(`npm run build`, 테스트 스크립트가 있는 경우 `npm test` 또는 `npm run check` 포함)가 에러 없이 통과하는지 확인합니다.
-5. **GitHub 반영 및 배포 확인 (토큰 최적화)**:
-   - 검증 통과 후 변경 사항을 커밋·푸시(클라우드 Codex 환경에서는 PR 생성/반영 포함)하여 Vercel Production 자동 배포가 정상 빌드되는 상태를 유지합니다.
-   - **토큰 절약 절대 수칙**: 브라우저 실기 조작, Playwright/Puppeteer 등 헤드리스 브라우저 실행, 데스크톱 Computer Use 도구는 일절 실행하지 않습니다. 실제 화면·프레임·터치감 확인은 사용자가 폰에서 직접 수행합니다.
-6. **작업 완료 체크 및 기록**:
-   - 빌드·테스트 검증이 모두 통과한 항목만 `docs/TASK.md`에서 `[x]`로 완료 표시합니다.
-   - 실패하거나 미검증된 항목은 절대 `[x]`로 바꾸지 않고 `[ ]` 상태와 원인을 유지합니다.
+모든 작업은 아래 6개 원칙을 따른다.
 
-## 클라우드 개발 · 보안 · 인프라 정책
+1. **작업 소유권 보호**
+   - 작업지시서에 담당자 GitHub ID, 작업 목적, 수정 예정 파일, 완료 기준을 등록한다.
+   - 개인 작업 상세 내용은 `docs/TASK_<GitHub ID>.md`에서 관리한다.
+   - 동시에 진행 중인 개인 작업은 `docs/TASK.md`의 공개 현황에 담당자, 브랜치, 작업 요약, 수정 예정 파일, 위험 등급을 함께 기록한다.
+   - 다른 담당자의 작업을 임의로 가져오거나 수정하지 않는다.
 
-- **PC 미의존 클라우드 운영**: 소스코드는 GitHub `songduckjin/DJRPG` (`main`)에서 관리하며, ChatGPT 클라우드 Codex와 Vercel 자동 배포를 통해 PC 전원 없이도 개발·테스트가 가능해야 합니다.
-- **모바일 앱 확장성**: 추후 Capacitor를 통해 Android(APK/AAB) 및 iOS 앱으로 패키징하므로, 특정 브라우저 전용 API에 과도하게 묶이지 않고 표준 WebGL/Canvas/LocalStorage 인터페이스를 유지합니다.
-- **보안 비밀 엄수**: `.env*`, API 키, DB 토큰, 서명 키 등 민감 정보는 절대 로그, 커밋, 클라이언트 번들에 포함하지 않습니다.
+2. **공통 파일 보호**
+   - 공통 파일 여부를 파일명만으로 미리 단정하지 않는다. 작업마다 직접 수정 파일, 간접 영향 파일, 데이터·함수 의존성을 조사한다.
+   - 다른 작업과 수정 파일 또는 기능 의존성이 겹치면 코드 수정 전에 상대 작업자와 범위를 협의한다.
+   - 협의가 끝나지 않은 겹침 작업은 착수하지 않는다.
 
-## 코덱스 작업 기록 및 토큰 절약 정책 (Codex Token Efficiency Policy)
+3. **데이터 계약 보호**
+   - 공통 타입·인터페이스, DB 스키마·마이그레이션, API 요청/응답, 계정·세이브 데이터 형식, 동기화 규칙 변경은 핵심 공통 변경으로 취급한다.
+   - 변경 전 영향 범위, 하위 호환성, 기존 데이터 마이그레이션, 양쪽 작업자의 대응 필요성을 설명하고 양측의 명시적 승인을 받는다.
+   - 승인 전에는 해당 계약을 변경하는 코드를 수정하지 않는다.
 
-- **과거 일지 통독 금지**: 매 작업 시작 시 `docs/WORKLOG.md`의 최상단 최신 1개 기록만 참고하며, 과거 전체 일지나 아카이브 폴더를 절대 통독하지 않습니다.
-- **간결한 기록**: 작업 완료 시 변경 파일과 검증 결과만 `docs/WORKLOG.md` 상단에 **5줄 이내**로 간결히 기록합니다.
-- **최소 탐색 원칙**: `rg`로 관련 파일과 라인만 찾아 읽고, 전체 소스 트리를 한꺼번에 읽지 않습니다.
-- **모듈 경계 유지**: 새 거래소·직업·보스 등의 기능은 해당 `src/ui/modals/` 또는 `src/game/` 도메인 모듈에 배치하고, 기존 오케스트레이터 파일을 비대화하지 않습니다.
-- **불필요한 도구 호출 금지**: 헤드리스 브라우저나 화면 제어 도구를 실행하지 않습니다. 타입 체크·빌드 통과와 Git 반영으로 코드 작업은 완료됩니다.
+4. **작업 기록 보호**
+   - 개인 작업 기록은 `docs/WORKLOG_<GitHub ID>.md`에 작성한다.
+   - `docs/WORKLOG.md`에는 공통 작업, PR 통합 및 배포 이력만 기록한다.
+   - 상대방의 개인 작업지시서와 개인 작업 기록은 열람·수정하지 않는다. 충돌 확인은 `docs/TASK.md`의 공개 현황과 PR 정보를 이용한다.
 
-## 성별 · 직업 교차 동기화 필수 정책 (Cross-Gender & Cross-Class Parity Policy)
+5. **Git 보호**
+   - 작업자별·작업별 브랜치를 사용하고 `main`에 직접 커밋하거나 푸시하지 않는다.
+   - 작업 결과는 PR로 제출하고 검토·승인 및 검사 통과 후 병합한다.
+   - 다른 작업자의 브랜치·커밋을 임의로 수정하거나 강제 푸시하지 않는다.
 
-캐릭터 외형·모션·전투·시스템을 수정할 때 특정 성별이나 직업만 수정하고 나머지를 누락하는 회귀를 막기 위해 아래 규칙을 **필수 체크 항목**으로 준수합니다.
+6. **배포 보호**
+   - `main` 병합 전에 타입 검사, 테스트 및 프로덕션 빌드를 통과시킨다.
+   - `main`에 병합된 검증 버전만 운영 배포 대상으로 삼는다.
+   - 배포 결과와 실패·복구 내역을 공통 작업 기록에 남긴다. 브랜치 Preview 배포와 Production 배포를 혼동하지 않는다.
 
-1. **남/여 성별 동시 반영**:
-   - 남자 캐릭터의 스프라이트, 좌우 시선(`facingSide`), 앵커(`anchor`), 보행/공격 프레임, 갑옷·투구·무기 착용 외형 분기, 장비창 초상화, 스킬 연출을 추가·수정할 때는 **반드시 여자 캐릭터(및 모든 성별 분기)에도 동일하게 반영**합니다.
-   - 에셋을 교체·반전·캐시 버스팅할 때도 남자/여자/갑옷/무투구 전 세트를 함께 점검합니다.
-2. **전 직업 공통 동기화**:
-   - 추후 신규 직업(마법사, 궁수 등)이 추가된 이후에도 이동·전투·루팅·장비 10슬롯·스킬·상태/계정 UI·세이브/DB·거래소 등 공통 시스템을 고칠 때는 **모든 직업에 동일하게 적용되는지** 반드시 확인합니다.
-   - 직업 전용 예외가 필요한 경우에만 명시적 분기를 두고, 그 외에는 성별·직업 공통 규칙으로 처리합니다.
-3. **완료 전 교차 체크 (`rg`)**:
-   - 캐릭터/직업 관련 수정 완료 전 `gender`·직업 분기(`entities.ts`, `render.ts`, `equipModal.ts`, `store.ts` 등)를 `rg`로 확인하여 빠진 성별·직업이 없는지 검증한 뒤 완료 처리합니다.
+## 작업 전 영향 범위 분석 절차 (필수)
 
-## 2인 협업 · 작업 선점 및 충돌 방지 정책 (Concurrent Work & Conflict Check Policy)
+Codex는 코드 수정 전에 아래 순서로 분석하고 결과를 사용자에게 간단히 보고한다.
 
-여러 작업자(및 각자의 Codex)가 동시에 개발할 때 작업 중복과 파일 충돌을 막기 위해 아래 순서를 **필수**로 지킵니다.
+1. **요청 범위 파악**: 구현하려는 동작, 관련 도메인, 완료 조건을 정리한다.
+2. **코드 탐색**: 관련 함수·타입·호출부·저장 흐름·테스트를 `rg` 등으로 조사한다. 전체 저장소를 무차별적으로 읽지 않는다.
+3. **영향 파일 목록화**:
+   - 직접 수정 예정 파일
+   - 간접 영향 파일(호출부, 데이터 소비자, UI, 테스트 등)
+   - 변경 가능성이 있으나 아직 확인되지 않은 파일
+4. **위험 등급 분류**:
+   - **개인 작업**: 독립 모듈 내부에 한정되고 다른 작업·공통 계약에 영향이 없음을 확인한 경우
+   - **주의 작업**: 다른 모듈과 연결되거나 공용 진입점·상태·UI·게임 로직에 영향이 있어 사전 공유가 필요한 경우
+   - **핵심 공통 작업**: 공통 타입, DB, API, 계정·세이브 형식, 동기화, 패키지/빌드/배포 구조 등 계약 또는 프로젝트 전반에 영향을 주는 경우
+5. **진행 중 작업과 비교**: `docs/TASK.md`의 공개 작업 현황 및 관련 PR을 확인해 담당자·브랜치·수정 파일·기능 의존성이 겹치는지 검사한다.
+6. **착수 판단**:
+   - 개인 작업이고 충돌이 없으면 등록 후 진행한다.
+   - 주의 작업은 상대 작업자에게 영향 파일과 목적을 공유하고 사전 협의한 뒤 진행한다.
+   - 핵심 공통 작업은 변경안·영향 범위·호환성 계획을 제시하고 양측의 명시적 승인을 받은 뒤 진행한다.
+   - 영향 범위가 불명확하거나 충돌 여부를 판단할 수 없으면 임의로 수정하지 말고 사용자에게 확인한다.
+7. **범위 변경 재검토**: 작업 중 수정 파일이나 데이터 계약이 추가되면 분석·협의·승인 절차를 다시 수행한다.
 
-1. **`docs/TASK.md` 선확인 및 진행 중(`[-]`) 선등록**:
-   - 작업을 시작하기 전 반드시 `git pull` 후 `docs/TASK.md` 전체 상태(`[ ]` 대기, `[-]` 진행 중, `[x]` 완료)를 먼저 확인합니다.
-   - 기존 `[ ]` 작업을 맡거나 사용자가 새로 지시한 작업을 등록할 때는, **코드 수정을 시작하기 전에** `docs/TASK.md`에서 해당 항목을 **`[-]` (진행 중 · 담당자/수정 예정 파일 명시)** 상태로 먼저 변경·등록하여 `main`에 즉시 커밋·푸시합니다.
-2. **진행 중(`[-]`) 작업과의 겹침 여부 확인**:
-   - 새 명령이나 다음 작업을 시작하기 전, `docs/TASK.md`에 이미 **`[-]` (진행 중)**로 표시된 다른 작업이 있는지 반드시 확인합니다.
-   - 내가 하려는 작업의 기능, 도메인, 또는 **수정 예정 파일이 이미 진행 중인 `[-]` 작업과 겹친다면 즉시 코드를 수정하지 말고**, 사용자에게 *"현재 `[작업 N]`이 진행 중이며 [파일/기능]이 겹칩니다. 대기할지, 병합 후 진행할지 확인해 주세요."*라고 먼저 보고합니다.
-3. **완료 후 `[x]` 전환**:
-   - 검증(타입 검사·테스트·빌드)이 모두 끝난 뒤에만 `[-]`를 `[x]`로 바꾸고 `docs/WORKLOG.md`에 기록합니다.
+파일이 겹치지 않는다는 이유만으로 충돌이 없다고 단정하지 않는다. 같은 데이터, 타입, 함수 호출 흐름 또는 런타임 상태를 공유하는지도 확인한다. 반대로 같은 폴더에 있다는 이유만으로 모두 공통 파일로 분류하지 않는다.
 
+### 초기 위험 분류 참고 예시
 
-## 작업자 ID별 Codex 작업지시서 정책 (필수)
+아래는 자동 확정된 공통 파일 목록이 아니라, 영향 분석을 시작할 때 주의 깊게 살펴볼 예시다.
 
-두 작업자는 서로 다른 PC에서 각자의 Codex로 작업한다. GitHub 협업자 ID를 기준으로 작업지시서를 분리한다.
+- **주의 작업 후보**: `src/game/store.ts`, `src/game/items.ts`, `src/game/world.ts`, `src/ui/interface.ts`, `src/main.ts`
+- **핵심 공통 후보**: 공통 타입 정의, DB 스키마/마이그레이션, `api/account.mjs`, `server/`의 공용 API·동기화 코드, 세이브 데이터 구조, `package.json` 및 lock 파일, CI·배포 설정
+- **개인 작업 후보**: 독립된 모달·스타일·에셋·도메인 모듈. 단, 해당 모듈이 공유 타입이나 상태를 변경하면 위험 등급을 올린다.
 
-- `docs/TASK_songduckjin.md`: GitHub ID `songduckjin` 전용
-- `docs/TASK_fks3997.md`: GitHub ID `fks3997` 전용
-- `docs/TASK.md`: 공통 작업 및 미배정 작업의 중앙 목록만 관리한다. 개인 작업의 상세 지시서로 사용하지 않는다.
+## 작업지시서 및 작업자 ID
 
-### 작업 시작 전 확인
-1. 현재 사용자가 지정한 작업자 ID와 작업지시서 파일명이 일치하는지 확인한다. Git의 `user.name` 또는 `user.email`만으로 GitHub ID를 추측하지 않는다.
-2. 본인 ID에 해당하는 작업지시서만 읽고 수행한다. 상대방의 개인 작업지시서는 열람·수정·완료 처리하지 않는다.
-3. `docs/TASK.md`에서는 공통 작업 및 미배정 항목의 제목과 상태만 확인한다. 담당자가 지정되지 않은 `[-]` 작업은 임의로 시작하지 않는다.
-4. 작업을 시작할 때 본인 작업지시서에 작업 제목, 담당자 ID, 상태 `[-]`, 수정 예정 파일, 완료 기준을 먼저 기록한다.
-5. 같은 기능 또는 파일이 다른 작업자의 진행 항목과 겹치면 코드를 수정하기 전에 사용자에게 확인한다.
+- `docs/TASK_songduckjin.md`: GitHub ID `songduckjin` 전용 상세 작업지시서
+- `docs/TASK_fks3997.md`: GitHub ID `fks3997` 전용 상세 작업지시서
+- `docs/TASK.md`: 공통/미배정 작업과 개인 작업의 공개 진행 현황
 
-### 작업 중 및 완료
-- 본인 작업지시서의 항목만 수정하고 상태를 변경한다.
-- 상대방 작업지시서, 상대방 진행 항목, 상대방 브랜치 및 커밋을 임의로 수정하거나 재작성하지 않는다.
-- 공통 파일 변경이 필요하면 사전에 상대 작업자와 범위를 합의한다.
-- 검증이 완료된 본인 작업만 `[x]`로 표시하고 WORKLOG에 요약한다.
-- 개인 작업을 main에 직접 반영하지 않는다. 본인 작업 브랜치에서 PR을 만들고 검토 후 통합한다.
+현재 세션의 작업자 ID를 사용자가 지정했거나 신뢰할 수 있게 확인한 경우에만 해당 ID의 개인 문서를 사용한다. Git `user.name` 또는 `user.email`만으로 GitHub ID를 추측하지 않는다. ID가 불명확하면 사용자에게 확인한다.
 
-### 기존 공통 작업의 처리
-- 기존 `docs/TASK.md`에 남아 있는 진행 중 항목은 담당자를 확인하기 전까지 미배정 상태로 취급한다.
-- 미배정 항목을 특정 작업자에게 배정할 때는 두 사람의 합의를 확인한 후 해당 개인 작업지시서로 옮기고 중앙 목록에는 배정 파일을 기록한다.
+새 작업을 시작할 때 개인 작업지시서에 상세 내용을 등록하고, 공통 `docs/TASK.md`에는 아래 공개 요약을 등록한다.
 
-이 절은 기존의 `docs/TASK.md` 전체를 모든 Codex가 동일하게 읽고 임의로 수행하도록 한 일반 규칙보다 우선한다.
+- 작업 ID 및 제목
+- 담당자 GitHub ID
+- 작업 브랜치
+- 직접 수정 예정 파일 및 주요 간접 영향 영역
+- 위험 등급(개인/주의/핵심 공통)
+- 상태(`[-]` 진행 중)
+
+공통/미배정 작업은 `docs/TASK.md`에서 관리한다. 기존 미배정 작업을 임의로 가져가지 말고 담당자 배정을 확인한다. 작업 완료 후 검증된 항목만 완료 처리하고 공개 현황을 갱신한다.
+
+## 코드 품질 및 검증
+
+- 저장 실패, 재화/마나 부족, 조건 미달 등은 무음 실패로 처리하지 말고 안전하고 명확한 오류 처리를 제공한다.
+- 코드 수정 후 프로젝트에 정의된 타입 검사, 테스트 및 프로덕션 빌드를 실행한다. 최소한 `pnpm run check`, 테스트 스크립트, `pnpm run build` 또는 저장소의 현재 표준 명령을 확인해 사용한다.
+- 실패하거나 실행하지 못한 검증은 성공한 것처럼 기록하지 않는다.
+- 작업 완료 기준을 통과한 뒤에만 작업 상태를 `[x]`로 변경한다.
+
+## 캐릭터 성별·직업 교차 검증
+
+- 캐릭터 외형·모션·전투·장비 착용·스킬 연출을 수정하면 남/여 및 모든 지원 직업 분기를 확인한다.
+- 공통 시스템은 모든 직업에 동일하게 적용되는지 확인한다. 직업 전용 예외는 명시적 분기로 제한한다.
+- 관련 변경 전후 `rg`로 `gender` 및 직업 분기를 찾아 누락을 점검한다.
+
+## 클라우드·보안·인프라
+
+- 소스코드는 GitHub `songduckjin/DJRPG`에서 관리한다.
+- 추후 Capacitor 패키징을 고려해 표준 WebGL/Canvas/LocalStorage 인터페이스와 모바일 WebView 호환성을 유지한다.
+- `.env*`, API 키, DB 토큰, 서명 키 등 비밀정보를 로그·커밋·클라이언트 번들에 포함하지 않는다.
+
+## 토큰 및 탐색 효율
+
+- `docs/WORKLOG.md`는 최신 공통 기록만 확인하고 과거 전체 일지를 무단 통독하지 않는다. 개인 기록도 해당 작업과 관련된 최신 부분만 확인한다.
+- `rg`로 관련 파일과 라인만 탐색하고 전체 소스 트리를 무차별적으로 읽지 않는다.
+- 새 거래소·직업·보스 등은 도메인 모듈로 분리해 기존 오케스트레이터 파일을 비대화하지 않는다.
+- 브라우저 실기 조작, Playwright/Puppeteer 등 헤드리스 브라우저, 데스크톱 Computer Use는 사용자가 별도로 요청하지 않는 한 실행하지 않는다. 화면·프레임·터치감 검증이 필요하면 사용자 확인 항목으로 남긴다.
