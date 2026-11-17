@@ -1,3 +1,7 @@
+## 2026-11-17 · 작업 121 · songduckjin
+- 사용자가 Cloudflare에서만 작업·배포하고 Vercel의 이중 배포를 끝내도록 정책 변경을 요청했다. 신규 임시 계정으로 가입·로그인·저장·불러오기·창고 조회·거래소 조회를 운영 Pages에서 확인했다.
+- `AGENTS.md`에 Cloudflare 단일 운영 배포와 Vercel 배포 재시도 금지를 명시하고, 공개 작업·배포 이력을 갱신했다. Vercel 프로젝트의 GitHub 연결을 해제하고 미연결 상태를 확인했다. 프로젝트 자체는 남아 있다.
+
 ## 2026-11-17 · 작업 119 · songduckjin
 - Cloudflare 로그인 계정과 GitHub 연결 계정의 `songduckjin`을 확인했다. 기존 `djrpg` Worker의 GitHub 빌드는 pnpm 9가 루트 패키지 목록을 찾지 못해 설치에서 실패했다.
 - Pages 전환 브랜치에서 최신 `main` 통합 후 타입 검사·213개 테스트·프로덕션 빌드 통과. `pnpm-workspace.yaml`에 루트 패키지를 명시했고 Pages 프로젝트 연결·운영 API 검증은 진행 중이다.
