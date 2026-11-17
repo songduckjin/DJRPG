@@ -1,6 +1,6 @@
 ## 2026-11-17 · 작업 119 · songduckjin
 - Cloudflare 로그인 계정과 GitHub 연결 계정의 `songduckjin`을 확인했다. 기존 `djrpg` Worker의 GitHub 빌드는 pnpm 9가 루트 패키지 목록을 찾지 못해 설치에서 실패했다.
-- Pages 전환 브랜치에서 타입 검사·212개 테스트·프로덕션 빌드 통과. `pnpm-workspace.yaml`에 루트 패키지를 명시했고 Pages 프로젝트 연결·운영 API 검증은 진행 중이다.
+- Pages 전환 브랜치에서 최신 `main` 통합 후 타입 검사·213개 테스트·프로덕션 빌드 통과. `pnpm-workspace.yaml`에 루트 패키지를 명시했고 Pages 프로젝트 연결·운영 API 검증은 진행 중이다.
 
 ## 2026-11-17 · 작업 94 · songduckjin
 - 캐릭터 3슬롯 선택·생성 UI와 계정 공용 골드·창고, 캐릭터별 세이브/아이템 귀속 구현.

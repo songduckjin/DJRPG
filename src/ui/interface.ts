@@ -1,3 +1,4 @@
+import { isSkillBook } from '../game/items';
 import {bindModalInteraction, type ModalRenderGate} from './modalInteraction';
 import { Journey } from '../game/journey';
 import { renderSettings, renderUtility, updateUtilityBadges } from './modals/utilityModal';
@@ -124,7 +125,7 @@ export class Interface {
     }
     world.onChange = () => {
       discoverEquipment(world.save); this.onSave();
-      for (const item of world.save.bag) if (!this.knownItems.has(item.id)) { this.knownItems.add(item.id); if (this.openModal !== 'equipment') this.newItems.add(item.id); }
+      for (const item of world.save.bag) if (!this.knownItems.has(item.id)) { this.knownItems.add(item.id); if (this.openModal !== 'equipment' && !isSkillBook(item)) this.newItems.add(item.id); }
       this.renderBagBadge(); this.renderStatus();
       if (!(this.openModal === 'codex' && ['INPUT','SELECT'].includes(document.activeElement?.tagName ?? '')) && !['market','createCharacter','settings','mail','rewards','achievements'].includes(this.openModal ?? '') && (this.openModal !== 'account' || document.activeElement?.tagName !== 'INPUT')) this.renderModal();
     };
