@@ -35,3 +35,37 @@ test('full bag prevents unequip and explains failure; dismiss only clears view s
     dismissEquippedDetail(f.ui);assert.equal(f.ui.equippedPinned,false);assert(f.ui.world.save.equipment.weapon);
   } finally {globalThis.document=previous;}
 });
+
+const { attachedDetailPosition } = await import('../src/ui/bagDetail.ts');
+const { deferEquippedDismiss } = await import('../src/ui/equippedDetail.ts');
+const { wrapEquipmentName } = await import('../src/ui/modals/equipModal.ts');
+test('equipment names break after six Unicode characters and keep the full name',()=>{
+  for(const name of ['두손검','서리의 룬 블레이드','찬란한영웅의황금갑옷','검⚔️전설장비이름']){
+    const wrapped=wrapEquipmentName(name);
+    assert.equal(wrapped.replaceAll('\n',''),name);
+    assert(wrapped.split('\n').every(line=>Array.from(line).length<=6));
+  }
+});
+test('attached descriptions touch either side of their item, including narrow and bottom-edge layouts',()=>{
+  for(const width of [270,450]){
+    const bounds={left:10,right:10+width,top:10,bottom:600};
+    for(const anchor of [{left:20,right:120,top:80,bottom:145},{left:width-100,right:width,top:510,bottom:575}]){
+      const p=attachedDetailPosition(bounds,anchor,180,260);
+      assert(p.left>=bounds.left+8);assert(p.left+p.width<=bounds.right-8);
+      assert(p.top>=bounds.top+8);assert(p.top+180<=bounds.bottom-8);
+      assert(p.left<=anchor.right && p.left+p.width>=anchor.left, 'no pointer gap between item and description');
+      assert(p.top<anchor.bottom && p.top+180>anchor.top, 'description remains beside its own row');
+    }
+  }
+});
+test('moving from equipment into its description cancels dismissal and keeps unequip actionable',t=>{
+  t.mock.timers.enable({apis:['setTimeout']});
+  const previous=globalThis.document,f=fixture();
+  globalThis.document={createElement:()=>({children:[],dataset:{},style:{},setAttribute(){},append(...nodes){this.children.push(...nodes);},addEventListener(){},remove:()=>f.remove(),getBoundingClientRect:()=>({width:250,height:180})})};
+  try{
+    showEquippedDetail(f.ui,'weapon');const panel=f.panel;
+    deferEquippedDismiss(f.ui);t.mock.timers.tick(90);panel.onpointerenter();t.mock.timers.tick(300);
+    assert.equal(f.panel,panel);assert.equal(f.ui.equippedSlot,'weapon');
+    panel.children.at(-1).onclick();assert.equal(f.changes,1);
+  }finally{globalThis.document=previous;}
+});

@@ -5,6 +5,7 @@ import { requestSalvage } from './salvageModal';
 import { heroAppearance } from '../../game/appearance';
 import { isSkillBook } from '../../game/items';
 import { showEquippedDetail, dismissEquippedDetail, deferEquippedDismiss } from '../equippedDetail';
+import { bagDetailPinned, createBagDetail, deferBagDismiss, dismissBagDetail, showBagDetail } from '../bagDetail';
 import type { BagFilter, Interface } from '../interface';
 
 export function renderInventory(this: Interface, dialog: HTMLElement): void {
@@ -16,7 +17,7 @@ export function renderInventory(this: Interface, dialog: HTMLElement): void {
     for (const filter of Object.keys(filterNames) as BagFilter[]) {
       const button = document.createElement('button'); button.textContent = filterNames[filter];
       button.classList.toggle('active', this.bagFilter === filter);
-      button.onclick = () => { this.bagFilter = filter; this.selected = undefined; this.renderModal(); };
+      button.onclick = () => { this.bagFilter = filter; dismissBagDetail(this); this.renderModal(); };
       filters.appendChild(button);
     }
     section.appendChild(filters);
@@ -28,16 +29,27 @@ export function renderInventory(this: Interface, dialog: HTMLElement): void {
       || (this.bagFilter === 'skillbook' && isSkillBook(item)));
     for (const item of visible) {
       const cell = document.createElement('button'); cell.className = `bag-item ${item.rarity} ${this.selected === item.id ? 'selected' : ''}`;
-      cell.innerHTML = `${itemIcon.call(this, item.slot, item, 'item-icon')}<small>${rarityNames[item.rarity]}</small><b></b>`;
+      cell.innerHTML = `${itemIcon.call(this, item.slot, item, 'item-icon')}<b></b>`;
+      cell.type = 'button'; cell.dataset.itemId = item.id;
       cell.querySelector('b')!.textContent = item.name;
       const locked = !isSkillBook(item) && !!item.locked;
-      cell.setAttribute('aria-label', `${item.name}${locked ? ' · 잠긴 장비' : ''}`);
+      cell.setAttribute('aria-label', `${item.name} · ${rarityNames[item.rarity]}${locked ? ' · 잠긴 장비' : ''}`);
       if (locked) {
         const badge = document.createElement('span'); badge.className = 'lock-icon is-locked bag-lock-badge';
         badge.setAttribute('aria-hidden', 'true'); cell.appendChild(badge);
       }
       cell.setAttribute('aria-expanded', String(this.selected === item.id));
-      cell.onclick = () => { this.selected = this.selected === item.id ? undefined : item.id; this.renderModal(); };
+      cell.onpointerenter = event => {
+        if (event.pointerType !== 'touch') { dismissEquippedDetail(this); showBagDetail(this, item.id); }
+      };
+      cell.onpointerleave = () => { if (cell.isConnected) deferBagDismiss(this); };
+      cell.onfocus = () => { dismissEquippedDetail(this); showBagDetail(this, item.id); };
+      cell.onblur = () => { if (cell.isConnected) deferBagDismiss(this); };
+      cell.onclick = () => {
+        dismissEquippedDetail(this);
+        if (this.selected === item.id && bagDetailPinned(this)) dismissBagDetail(this);
+        else showBagDetail(this, item.id, true);
+      };
       grid.appendChild(cell);
     }
     if (!visible.length) grid.innerHTML = '<p class="empty">이 분류에 획득한 아이템이 없습니다.</p>';
@@ -67,8 +79,7 @@ export function renderInventory(this: Interface, dialog: HTMLElement): void {
     dialog.appendChild(section);
     const selectedItem = visible.find(item => item.id === this.selected);
     if (selectedItem) {
-      const detail = this.itemDetail(save, selectedItem); detail.classList.add('bag-detail-overlay');
-      detail.setAttribute('role', 'region'); detail.setAttribute('aria-label', '선택한 아이템 설명');
+      const detail = createBagDetail(this, selectedItem); detail.dataset.itemId = selectedItem.id;
       dialog.append(detail);
     }
   }
@@ -130,7 +141,7 @@ export function renderEquipment(this: Interface, dialog: HTMLElement): void {
       const item = save.equipment[slot]; const cell = document.createElement('button'); cell.className = `equipment-slot ${item?.rarity ?? 'empty-slot'}`;
       cell.type = 'button'; cell.dataset.equippedSlot = slot; cell.disabled = !item;
       cell.innerHTML = `<small class="slot-part">${slotNames[slot]}</small>${itemIcon.call(this, slot, item, 'slot-icon')}<span class="slot-meta"><b></b></span>`;
-      cell.querySelector('b')!.textContent = item?.name ?? '빈 슬롯';
+      cell.querySelector('b')!.textContent = wrapEquipmentName(item?.name ?? '빈 슬롯');
       cell.setAttribute('aria-label', `${slotNames[slot]} · ${item?.name ?? '빈 슬롯'}`);
       cell.setAttribute('aria-expanded', String(this.equippedSlot === slot));
       cell.onpointerenter = event => { if (event.pointerType !== 'touch') showEquippedDetail(this, slot); };
@@ -149,7 +160,6 @@ export function renderEquipment(this: Interface, dialog: HTMLElement): void {
     const portrait = document.createElement('img'); portrait.alt = '현재 전사 외형';
     const appearance = heroAppearance(save);
     const figure = document.createElement('span'); figure.className = 'showcase-figure';
-    portrait.onload = () => { figure.style.aspectRatio = `${portrait.naturalWidth} / ${portrait.naturalHeight}`; };
     portrait.src = appearance.portrait;
     figure.appendChild(portrait);
     center.appendChild(figure);
@@ -176,4 +186,11 @@ export function iconPath(this: Interface, slot: Slot | 'skillbook', item?: Item)
   const iconSlot = slot === 'ring1' || slot === 'ring2' ? 'ring' : slot;
   if (item && !isSkillBook(item)) return equipmentImage(item).path;
   return `/assets/icons/${iconSlot}.png`;
+}
+
+export function wrapEquipmentName(name: string): string {
+  const characters = Array.from(name);
+  const lines: string[] = [];
+  for (let start = 0; start < characters.length; start += 6) lines.push(characters.slice(start, start + 6).join(''));
+  return lines.join('\n');
 }

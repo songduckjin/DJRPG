@@ -1,8 +1,13 @@
 ## 2026-11-17 · 작업 93 · Codex 자동화 점검
 
 - `.github/workflows/codex-task.yml`, `docs/CODEX_AUTOMATION_GUIDE.md`: 담당자/작업 승인·파일 충돌 검증, 키·권한·PR 분리, 비용·설정·장애 대응 문서화.
-- `docs/TASK.md`: 작업 92와 분리해 진행 상태 기록. `pnpm run check`, 테스트 153개, `pnpm run build` 및 워크플로 내 JS 구문·사전 검증 모의 검사 통과.
+- `docs/TASK.md`: 별도 자동화 작업으로 진행 상태 기록. `pnpm run check`, 테스트·`pnpm run build` 및 워크플로 내 JS 구문·사전 검증 모의 검사 통과.
 - 실제 Secrets/Actions 설정과 Issue 실행은 미검증; PR 병합 전 사용자 검토 필요.
+
+## 2026-11-17 · PR #21 빌드 제한
+- 작업 92의 로컬 타입 검사·158개 테스트·프로덕션 빌드·diff 검사 통과.
+- Vercel Preview 상태 `failure`, 대상 URL `upgradeToPro=build-rate-limit`: 빌드 횟수 제한으로 원격 빌드 차단.
+- PR #21은 미병합, Production 미변경. 제한 해제 후 원격 빌드 확인 및 병합·운영 배포 필요.
 
 ## 2026-11-17 · 작업 91 · fks3997
 - 장착 칸 그림 27→44px, 왼쪽 위 부위·오른쪽 이름, 기존 등급 테두리 유지. 작은 화면은 장비창 스크롤 제공.

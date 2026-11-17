@@ -11,6 +11,7 @@
 | 작업 | 담당자 ID | 브랜치 | 수정 예정 파일 / 영향 영역 | 위험 등급 | 상태 |
 |---|---|---|---|---|---|
 | [작업 93] Codex GitHub Actions 운영 점검 | `songduckjin` · Codex | `codex/93-codex-automation` | `.github/workflows/codex-task.yml`, `docs/CODEX_AUTOMATION_GUIDE.md`, `docs/TASK.md`, `docs/WORKLOG.md` | 공통 자동화 · 주의 | [-] 코드 검증 완료 · GitHub 설정/실행 확인 대기 |
+| 92 · 장비·가방 호버 및 배치 개선 | fks3997 | `fix/equipment-hover-layout-fks3997` | `equipModal.ts`, `equippedDetail.ts`, `bagDetail.ts`, `modalDefaults.ts`, `modals.css`, 관련 UI 테스트·개인 기록 / 장비창 표시·해제·가방 설명 | 주의(UI 연동, 데이터 계약 변경 없음) | [x] 로컬 검증 완료 · PR #21 · Vercel 빌드 제한 |
 
 > 새 개인 작업을 시작할 때 위 표에 한 행을 추가한다. 작업 완료·취소 시 상태와 파일 정보를 갱신하거나 항목을 정리한다. 이 표는 상세 작업지시서를 대체하지 않는다.
 
