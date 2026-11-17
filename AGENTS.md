@@ -64,6 +64,8 @@ DJRPG는 Vite + TypeScript + PixiJS 기반의 모바일 우선 2.5D 다크 판�
    - `main` 병합 전에 타입 검사, 테스트 및 프로덕션 빌드를 통과시킨다.
    - `main`에 병합된 검증 버전만 운영 배포 대상으로 삼는다.
    - 배포 결과와 실패·복구 내역을 공통 작업 기록에 남긴다. 브랜치 Preview 배포와 Production 배포를 혼동하지 않는다.
+   - 운영 배포는 Cloudflare Pages `djrpg` 한 곳에서만 수행한다. `main` 병합 후 Cloudflare Production 결과를 확인하고, 브랜치 Preview는 필요할 때만 사용한다.
+   - Vercel Preview·Production 배포를 요구하거나 재시도하지 않는다. Vercel 검사 실패를 Cloudflare 배포의 실패로 취급하지 않는다.
 
 ## 작업 전 영향 범위 분석 절차 (필수)
 
@@ -132,6 +134,7 @@ Codex는 코드 수정 전에 아래 순서로 분석하고 결과를 사용자�
 ## 클라우드·보안·인프라
 
 - 소스코드는 GitHub `songduckjin/DJRPG`에서 관리한다.
+- 게임 접속 주소는 `https://djrpg.pages.dev`이며 Cloudflare Pages `djrpg`를 유일한 운영 호스팅 대상으로 관리한다. Vercel 프로젝트는 배포 대상에서 제외한다.
 - 추후 Capacitor 패키징을 고려해 표준 WebGL/Canvas/LocalStorage 인터페이스와 모바일 WebView 호환성을 유지한다.
 - `.env*`, API 키, DB 토큰, 서명 키 등 비밀정보를 로그·커밋·클라이언트 번들에 포함하지 않는다.
 
