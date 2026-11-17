@@ -51,10 +51,13 @@ function serverUnavailableError(): NoticeError {
 }
 export async function accountRequest<T>(action: string, data: Record<string, unknown> = {}, token?: string): Promise<T> {
   let response: Response;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10_000);
   // [작업 251] 창을 내렸다가 돌아온 직후에는 요청이 끊긴다 — 이때의 문구는 "서버에 연결할 수 없습니다"가 아니라
   // 재연결 안내(`게임에 접속 중입니다…`)다. 화면·저장 쪽이 `NETWORK_OFFLINE` 코드를 보고 스스로 다시 보낸다.
-  try { response = await fetch('/api/account', { method: 'POST', headers: apiHeaders(token ? { Authorization: `Bearer ${token}` } : {}), body: JSON.stringify({ action, ...data }), keepalive: action === 'save' }); }
+  try { response = await fetch('/api/account', { method: 'POST', headers: apiHeaders(token ? { Authorization: `Bearer ${token}` } : {}), body: JSON.stringify({ action, ...data }), keepalive: action === 'save', signal: controller.signal }); }
   catch { throw offlineError(); }
+  finally { clearTimeout(timeout); }
   // [작업 242] API 일일 한도를 다 쓰면 `/api/account`가 빈 본문 405(정적 폴백)를 돌려준다 —
   // 이때 `response.json()`이 실패해 개발자용 문구가 빨갛게 떴다. 점검 안내로 바꾼다.
   if (response.status === 405) throw serverUnavailableError();

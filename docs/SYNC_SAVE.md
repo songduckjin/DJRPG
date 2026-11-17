@@ -46,6 +46,7 @@ world/save 변경 → world.onChange → Interface.onSave → sync.queueSave() (
 | 네트워크 끊김(`Failed to fetch` 등) | `offlineError()` → `ReconnectNotice`(`게임에 접속 중입니다…`), 3초마다 재전송, 20초 뒤 `다시 시도` |
 
 - **5xx 구분**: `DB_UNAVAILABLE`·`DB_NOT_CONFIGURED`는 트랜잭션 진입 전 거절이므로 `pendingMarket`을 풀고 문구를 그대로 보여 준다. 응답 유실·코드 없는 5xx는 결과를 모르므로 `pendingMarket`을 남겨 같은 `requestId`로 재확인한다.
+- **멈춘 거래 복구**: 계정 저장과 거래 요청은 각각 10초 뒤 응답 대기를 중단해 무한 대기를 피한다. 결과가 불확실한 거래는 `pendingMarket`과 원래 `requestId`를 유지하고 거래소가 2초부터 최대 30초까지 지수 간격으로 재확인한다. 응답이 확인되면 전투 일시 정지를 푼다. 확정 거절·충돌은 자동 재확인하지 않는다.
 - **저장 실패를 성공으로 표시하지 않는다**: 토스트·배지·문서 기록 모두 실제 응답 기준.
 
 ## 캐릭터 전환 가드

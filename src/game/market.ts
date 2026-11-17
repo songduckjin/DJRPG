@@ -55,6 +55,8 @@ export class Market {
   private notified = new Set<string>();
   private initialized = false;
   private requests = new Map<string, string>();
+  private recoveryTimer?: ReturnType<typeof setTimeout>;
+  private recoveryDelay = 2000;
   onChange: (full: boolean) => void = () => {};
   onMessage: (message: string) => void = () => {};
   constructor(public sync: SaveSync) {}
@@ -175,8 +177,19 @@ export class Market {
     this.inboxCount = this.data.inbox.length; this.inboxAt = Date.now();
   }
   async retry(): Promise<void> {
+    if (this.recoveryTimer) clearTimeout(this.recoveryTimer);
+    this.recoveryTimer = undefined;
     const pending = this.sync.pendingMarket;
     if (pending) await this.act(pending.action, pending.data);
+  }
+  private scheduleRecovery(): void {
+    if (!this.sync.pendingMarket || this.sync.conflicted || this.recoveryTimer) return;
+    const delay = this.recoveryDelay;
+    this.recoveryDelay = Math.min(30_000, delay * 2);
+    this.error = '거래 결과를 자동으로 다시 확인하고 있습니다. 전투는 확인 후 재개됩니다.';
+    this.recoveryTimer = setTimeout(() => { this.recoveryTimer = undefined; void this.retry(); }, delay);
+    // Node 테스트에서 결과 미확인 거래가 남아도 타이머가 프로세스를 붙들지 않는다.
+    (this.recoveryTimer as ReturnType<typeof setTimeout> & { unref?: () => void }).unref?.();
   }
   async act(action: string, data: Record<string, unknown>): Promise<void> {
     if (this.busy || this.sync.conflicted) return;
@@ -186,11 +199,13 @@ export class Market {
     this.listRequest?.abort(); this.generation++; this.loading = false; this.busy = true; this.error = ''; this.onChange(true);
     try {
       const result = await this.sync.mutate(action, data, requestId);
+      if (this.recoveryTimer) clearTimeout(this.recoveryTimer);
+      this.recoveryTimer = undefined; this.recoveryDelay = 2000;
       this.requests.delete(key); this.applyEffect(result); this.onMessage(result.message || '처리했습니다.');
       this.selected = undefined; if (action === 'register') { this.unlockItem = undefined; this.selectedItem = ''; this.price = ''; this.quantity = '1'; }
       this.busy = false; this.onChange(true);
       if (!result.effect) void this.load(true);
-    } catch (error) { this.error = error instanceof Error ? error.message : String(error); }
+    } catch (error) { this.error = error instanceof Error ? error.message : String(error); this.scheduleRecovery(); }
     finally { this.busy = false; this.onChange(true); }
   }
 }

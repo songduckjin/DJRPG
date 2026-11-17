@@ -363,8 +363,10 @@ export class SaveSync {
       let result: SyncResult | undefined;
       for (let attempt = 0; attempt < 3; attempt++) {
         let response: Response;
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 10_000);
         try {
-          response = await fetch('/api/market', { method: 'POST', headers: apiHeaders({ Authorization: `Bearer ${this.session.token}` }), body: JSON.stringify({ action: this.pendingMarket!.action, ...this.pendingMarket!.data, requestId: this.pendingMarket!.requestId, revision: this.pendingMarket!.revision, progress: this.pendingMarket!.progress, characterSlot: this.session.characterSlot }) });
+          response = await fetch('/api/market', { method: 'POST', headers: apiHeaders({ Authorization: `Bearer ${this.session.token}` }), body: JSON.stringify({ action: this.pendingMarket!.action, ...this.pendingMarket!.data, requestId: this.pendingMarket!.requestId, revision: this.pendingMarket!.revision, progress: this.pendingMarket!.progress, characterSlot: this.session.characterSlot }), signal: controller.signal });
           const body = await response.json();
           if (!response.ok) {
             // `503 DB_UNAVAILABLE`(서버 `errorResponse`의 기본 5xx)와 `DB_NOT_CONFIGURED`는 DB 연결·설정 단계에서
@@ -383,8 +385,8 @@ export class SaveSync {
         } catch (error) {
           if (isNetworkOffline(error)) this.reportOffline();
           if (error instanceof Error && 'status' in error) throw error;
-          if (attempt === 2) throw new Error('연결이 끊겨 거래 결과를 확인 중입니다. 거래 결과 다시 확인을 눌러주세요.');
-        }
+          if (attempt === 2) throw new Error('연결이 끊겨 거래 결과를 확인 중입니다. 자동 재시도하며, 필요하면 거래 결과 다시 확인을 눌러주세요. 연결되면 전투를 재개합니다.');
+        } finally { clearTimeout(timeout); }
       }
       if (!result) throw new Error('거래 결과를 확인하지 못했습니다.');
       if (this.session.characterSlot !== slotAtStart) {
