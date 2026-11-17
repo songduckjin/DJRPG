@@ -10,6 +10,9 @@
 
 | 작업 | 담당자 ID | 브랜치 | 수정 예정 파일 / 영향 영역 | 위험 등급 | 상태 |
 |---|---|---|---|---|---|
+| 106 · 보상인덱스/전체완료보너스 | fks3997 | `fix/reward-tabs-icons-fks3997` | journey-state·Journey타입·utility모달·CSS·보상회귀 / 기존claims배열에추가 | 주의(기존호환) | [-] |
+| 107 · 8메뉴아이콘 정렬/대비통일 | fks3997 | `fix/reward-tabs-icons-fks3997` | 아이콘8정규화·Interface·hud.css / 표시 | 개인 | [-] |
+| 108 · 내상태팝업 압축 | fks3997 | `fix/reward-tabs-icons-fks3997` | Interface·modals.css / 상태표시 | 개인 | [-] |
 | 105 · 장착명 단어단위6글자 | fks3997 | `fix/equipment-wordwrap-fks3997` | `equipModal.ts` 줄바꿈·회귀 / 표시 | 개인 | [x] PR #29 운영 배포 성공 |
 | 104 · 패시브3개한줄 | fks3997 | `fix/compact-utility-popups-fks3997` | skillModal·modals.css·스킬UI회귀 / 표시 | 개인 | [x] PR #29 운영 배포 성공 |
 | 102 · 편의팝업 압축·클릭누락 | fks3997 | `fix/compact-utility-popups-fks3997` | utility모달·CSS·Interface·account상태표시·modalInteraction·UI회귀 / 팝업갱신 | 주의(UI 연동, 계약불변) | [x] PR #29 운영 배포 성공 |
