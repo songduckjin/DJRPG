@@ -6,6 +6,11 @@
 
 ## 진행 중 작업
 
+## [-] [작업 104] 패시브3개한줄
+- fks3997 · 2026-11-17 · `fix/compact-utility-popups-fks3997`
+- 수정: `skillModal.ts`, `modals.css`, 스킬UI테스트. 패시브3열·아이콘이름위중앙·습득완료상시문구제거. 성장/수량/강화/알림유지, 세이브변경없음. 다른작업102/103과같은작업자, 푸시/배포안함.
+
+
 ## [-] [작업 102] 편의팝업 압축·클릭누락
 - fks3997 · 2026-11-17 · `fix/compact-utility-popups-fks3997`
 - 수정: `utilityModal.ts`, `modals.css`, `interface.ts`, `accountModal.ts` 저장상태표시, 신규 `modalInteraction.ts`, UI회귀. 간접영향 전투·Journey onChange·팝업키보드/포인터·닫기, 데이터계약변경없음. 다른진행작업없음.

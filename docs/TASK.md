@@ -10,6 +10,7 @@
 
 | 작업 | 담당자 ID | 브랜치 | 수정 예정 파일 / 영향 영역 | 위험 등급 | 상태 |
 |---|---|---|---|---|---|
+| 104 · 패시브3개한줄 | fks3997 | `fix/compact-utility-popups-fks3997` | skillModal·modals.css·스킬UI회귀 / 표시 | 개인 | [-] |
 | 102 · 편의팝업 압축·클릭누락 | fks3997 | `fix/compact-utility-popups-fks3997` | utility모달·CSS·Interface·account상태표시·modalInteraction·UI회귀 / 팝업갱신 | 주의(UI 연동, 계약불변) | [-] |
 | 103 · 오른쪽 아이콘 확대·무문자 | fks3997 | `fix/compact-utility-popups-fks3997` | Interface·hud.css / 버튼표시 | 개인 | [-] |
 | 101 · 거래소 행동조회·일괄수령·거래가 | fks3997 | `fix/market-actions-fks3997` | market 클라이언트/모달·sync효과·server market/index/API·회귀 / 목록/수령 | 주의(선택적응답추가·기존호환) | [x] 로컬 검증 · 미푸시/미배포 |
