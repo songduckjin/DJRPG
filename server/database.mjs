@@ -1,14 +1,19 @@
 import { journeyState, journeyOperation } from './journey-state.mjs';
-import { createClient } from '@libsql/client';
+import { databaseFactory } from './database-config.mjs';
+import { runtimeEnv } from './env.mjs';
 
 export class ApiError extends Error {
   constructor(status, code, message) { super(message); this.status = status; this.code = code; }
 }
 export const fail = (status, code, message) => { throw new ApiError(status, code, message); };
-export const client = () => createClient({ url: process.env.TURSO_DATABASE_URL, authToken: process.env.TURSO_AUTH_TOKEN });
+export const client = (env = runtimeEnv()) => {
+  const createClient = databaseFactory();
+  if (!createClient || !env?.TURSO_DATABASE_URL || !env?.TURSO_AUTH_TOKEN) fail(503, 'DB_NOT_CONFIGURED', '서버 DB가 설정되지 않았습니다.');
+  return createClient({ url: env.TURSO_DATABASE_URL, authToken: env.TURSO_AUTH_TOKEN });
+};
 const initializedSchemas = new Map();
-export async function schema(db) {
-  const key = db.url || process.env.TURSO_DATABASE_URL || db;
+export async function schema(db, env = runtimeEnv()) {
+  const key = db.url ?? env?.TURSO_DATABASE_URL ?? db;
   if (initializedSchemas.has(key)) return initializedSchemas.get(key);
   const initialized = db.batch([
     'CREATE TABLE IF NOT EXISTS djrpg_accounts (id TEXT PRIMARY KEY COLLATE NOCASE, password_hash TEXT NOT NULL, save_json TEXT NOT NULL, updated_at TEXT NOT NULL)',
@@ -144,12 +149,6 @@ export async function writeSave(tx, row, save, operations = [], preserveCollecti
   ]);
   return { save, revision };
 }
-export function respondError(res, error) {
-  if (error instanceof ApiError) return res.status(error.status).json({ code: error.code, error: error.message });
-  console.error('Database request failed');
-  return res.status(503).json({ code: 'DB_UNAVAILABLE', error: '서버 연결이 불안정합니다. 잠시 후 다시 시도하세요.' });
-}
-
 export function validateSave(save) {
   if (!save || typeof save !== 'object' || Array.isArray(save) || save.version !== 1 || JSON.stringify(save).length > 1_000_000) fail(400, 'INVALID_SAVE', '저장 데이터 형식이 올바르지 않습니다.');
 }

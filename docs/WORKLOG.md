@@ -2,6 +2,31 @@
 - 사용자 재시도 요청: PR #31 병합 `6e5b913b7c7d1994662cba3c59eb13eaf7e58bdc`, Vercel Production success 확인.
 - 운영 `https://djrpg.vercel.app/`가 새 `index-7bpUNZAJ.js`·`index-CGx-HJ2q.css` 제공 확인. 이전 PR #30 수정과 장비배지 수정 모두 포함.
 - 최신캐릭터/공용창고변경보존, 타입검사·209개테스트·빌드통과. 성공기록은추가자동빌드방지를위해로컬보관.
+## 2026-11-17 · 작업 122 레벨 배지 캐릭터 선택
+- 우측 검 버튼이 편의 메뉴와 겹쳐 이를 제거하고 좌상단 레벨 배지 클릭을 캐릭터 선택으로 연결했다. 계정 정보는 기존 설정 메뉴에서 계속 접근할 수 있다. HUD·UI 연결·스타일만 수정하며 데이터 계약은 변경하지 않는다.
+- `pnpm run check`, 213개 테스트, `pnpm run build`, `git diff --check` 통과. 화면 실기 확인은 별도로 진행하지 않았다.
+
+## 2026-11-17 · 작업 121 Cloudflare Production 완료
+- 정책 PR #33 병합 `4e4c60878565f4599dbc682c60876f7c520780a5`의 Cloudflare Pages Production 배포 `77e184d4-532e-4999-a74a-6fe886c1366b`가 success였다. Vercel Git 연결은 해제 상태다.
+
+## 2026-11-17 · 작업 121 Cloudflare 단일 배포 정책
+- 사용자 요청으로 이중 배포를 중단하고 Cloudflare Pages `djrpg`만 운영 배포 대상으로 정했다. `AGENTS.md`의 배포 보호·인프라 규칙을 갱신한다. 기존 Vercel API·설정 파일은 이번 정책 변경에서 수정하지 않는다.
+- 운영 `https://djrpg.pages.dev`에서 임시 신규 계정의 가입·로그인과 저장/불러오기·창고 목록·거래소 목록을 모두 HTTP 200으로 확인했다. 기존 계정 로그인은 서버 불안정 오류가 나며 사용자가 새 계정 사용을 선택했다. Vercel 프로젝트의 GitHub 연결을 해제하고 미연결 상태를 확인해 이후 자동 이중 배포를 중단했다. 프로젝트 자체는 남아 있다.
+
+## 2026-11-17 · 작업 119 Cloudflare Production 결과
+- PR #32가 `496819ceb55019470981db31858e993bee76527c`로 `main`에 병합됐고 Cloudflare Pages Production에서 Functions 4개 배포가 성공했다. 운영 API의 메서드 검사 405·존재하지 않는 계정 401, 임시 계정의 가입·로그인·저장·불러오기·창고·거래 조회 200을 확인했다.
+- Vercel Production의 동일 병합 배포는 `upgradeToPro=build-rate-limit`으로 실패했다. 기존 계정의 Cloudflare 로그인도 오류가 나 사용자 선택에 따라 새 계정 사용으로 전환한다. Vercel 자동 배포 연결은 남아 있다.
+
+## 2026-11-17 · 작업 119 Cloudflare 연결 확인
+- Cloudflare 계정의 기존 `djrpg`는 Pages가 아닌 Worker이며, GitHub `main` 최신 빌드가 pnpm 9의 `packages field missing or empty`로 설치 단계에서 실패했다.
+- Pages 전환 브랜치에 `pnpm-workspace.yaml` 루트 패키지 선언을 추가했다. 최신 `main` 통합 후 타입 검사·213개 테스트·프로덕션 빌드 통과; Pages 배포·운영 API 검증은 진행 중이다.
+- Cloudflare Pages `djrpg`를 GitHub `main`에 연결하고 `pnpm run build`→`dist`, `NODE_VERSION=24`로 첫 정적 배포에 성공했다. 현재 `main`에는 Pages Functions가 없어 API 전환은 아직 안 됐다. PR #32는 Vercel 빌드 횟수 제한 검사 실패와 병합 불가 상태로 자동 승인 검토에서 병합 거절됐다.
+- Pages Preview `task/119-cloudflare-pages`의 빌드·Functions 4개 라우팅 성공. Vercel 운영 DB URL·토큰을 Cloudflare Production/Preview에 암호화 비밀로 등록하고 Preview를 다시 배포했다. `/api/account` GET은 405, 존재하지 않는 계정 로그인은 Turso 조회 후 401 `INVALID_CREDENTIALS` 확인. 실제 계정 로그인·저장·거래·창고와 `main` Functions 배포는 아직 검증하지 않았다.
+
+## 2026-11-17 · 작업 119 Cloudflare Pages 전환 진행
+- `origin/main` 5912052에서 작업 브랜치를 시작해 Pages Functions 4개와 공통 API 코어를 연결하고 Vercel 어댑터·설정은 유지했다.
+- DB 스키마·JSON·토큰 형식은 유지. 타입 검사·212개 테스트·프로덕션 빌드·Wrangler 번들 통과, 로컬 라우팅 200/405/503 확인.
+- 사용자가 무료 플랜을 선택했다. 새 scrypt 비용(2048)은 로컬 Wrangler에서 계산 3~4ms·검증 3~5ms; 기존 계정은 Vercel 서명 로그인으로 1회 검증 후 재해시한다. Vercel 신형 해시 배포와 Cloudflare 계정 연결 전 Production 전환은 보류한다.
 
 ## 2026-11-17 · 작업120 배포 재시도
 - 최신main5912052의캐릭터선택/공용창고및Cloudflare전환등록보존. 장비배지우상단·미확인장비만집계패치추가.

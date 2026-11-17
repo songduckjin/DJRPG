@@ -6,6 +6,29 @@
 
 ## 진행 중 작업
 
+### [-] [작업 122] 레벨 배지로 캐릭터 선택
+- **담당자**: `songduckjin`
+- **브랜치**: `codex/122-level-character`
+- **목표**: 다른 UI와 겹치는 우측 검 버튼을 제거하고 좌상단 레벨 배지로 캐릭터 선택창을 연다. 계정 정보는 기존 설정 메뉴에서 연다.
+- **직접 수정**: `src/ui/hud.ts`, `src/ui/interface.ts`, `src/styles/hud.css`, 공개·개인 작업 기록. **간접 영향**: 캐릭터 선택창 진입, 계정 정보 진입, 모바일 HUD 터치 영역.
+- **위험·충돌**: 주의(UI 연결). 공개 현황에서 다른 담당자의 HUD 작업은 완료 상태이고 열린 PR은 없다. DB·API·세이브 형식은 그대로 둔다.
+- **완료 기준**: 레벨 배지의 접근성 이름과 클릭 동작을 캐릭터 선택으로 바꾸고 검 버튼을 제거한다. 타입 검사·테스트·빌드를 통과한 PR을 병합해 Cloudflare Production을 확인한다.
+
+### [x] [작업 121] Cloudflare 단일 배포 정책
+- **담당자**: `songduckjin`
+- **브랜치**: `codex/121-cloudflare-only`
+- **목표**: 이중 배포를 끝내고 GitHub `main`의 검증 버전을 Cloudflare Pages `djrpg`에만 운영 배포한다.
+- **직접 수정**: `AGENTS.md`, 공개 작업·배포 기록, 이 작업지시서와 개인 작업 기록. **간접 영향**: 모든 후속 PR의 배포 검사, Cloudflare Production/Preview, Vercel Git 연결 및 기존 계정 로그인.
+- **위험·호환성**: 핵심 공통 배포 정책. DB·API·세이브 형식은 변경하지 않는다. 기존 계정의 Cloudflare 로그인은 Vercel 경유 검증에서 오류가 나며, Vercel 삭제 후 이 경로는 사용할 수 없다. 사용자는 새 계정 사용을 선택했다. 기존 아이디는 DB에 남아 있으므로 새 아이디로 가입한다.
+- **충돌·완료 기준**: 공개 현황과 열린 PR에서 이 정책 파일의 동시 수정은 확인되지 않았다. 정책 변경을 PR로 병합하고 Cloudflare Production을 확인한다. Vercel 자동 배포 연결 종료는 별도 외부 설정 결과로 기록한다.
+
+### [x] [작업 119] Cloudflare Pages 운영 전환
+- **담당자**: `songduckjin`
+- **브랜치**: `task/119-cloudflare-pages`
+- **목표**: 기존 API·세이브 계약을 보존하면서 Cloudflare Pages Functions로 전환한다.
+- **직접 영향**: `functions/api/*`, `server/*` API 코어, `api/*` 어댑터, `wrangler.toml`, `package.json`, `pnpm-workspace.yaml`, 배포 기록 및 회귀 테스트. **간접 영향**: GitHub 빌드, Turso 연결, 로그인·저장·거래소·창고 요청.
+- **위험·완료 기준**: 핵심 공통. `docs/TASK.md`의 공개 영향·호환성 계획에 따라 진행하며 타입 검사·테스트·빌드, Pages 실제 배포와 API 스모크를 완료한 뒤 상태를 갱신한다.
+
 ### [x] [작업 94] 캐릭터 선택·슬롯 및 신규 캐릭터 생성
 - **담당자**: `songduckjin`
 - **등록일**: 2026-11-17
