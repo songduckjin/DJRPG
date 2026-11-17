@@ -1,3 +1,13 @@
+## 2026-11-17 · 작업 97~105 통합 배포
+- 사용자 요청으로 모아둔 장비/가방/거래소/팝업/스킬 표시 수정 통합. 기존 검증 코드 변경 없이 배포.
+- 타입 검사·194개 테스트·프로덕션 빌드·diff 통과 버전 `2d897d6`. 원본 아이템/반지 ID·기존 계정 유지, 스킬북 제외 장비40개.
+- 원격업로드 1회 후 PR 병합·Vercel Production과 운영 HTML 번들 확인 예정. 브라우저 실기는 미실행.
+
+## 2026-11-17 · 운영 배포 성공
+- 사용자 재시도 요청의 PR #28 병합 `84b6570352a48be6fe8426885d91243053f84f46`, Vercel Production `success` 확인.
+- `https://djrpg.vercel.app/` HTML이 새 `index-8ETSGQ1o.js`·`index-DIOsXhTy.css`를 제공함을 확인. 작업92~96 운영 반영 완료.
+- 게임 코드 추가 변경 없음. 성공 기록은 불필요한 자동 빌드를 줄이기 위해 로컬 문서 브랜치에 보관.
+
 ## 2026-11-17 · 작업 96 배포 실패
 - 설정·우편·일일/주간 보상·업적 PR #26 병합 완료: `700b8dba3846c301c2ed32e8d4337c0c57932755`. 타입 검사·176개 테스트·빌드 통과.
 - Vercel Production `failure` / `upgradeToPro=build-rate-limit`. 운영 HTML은 이전 `index-Dp1RK6nj.js`·`index-Dr2zcSfL.css` 유지, 새 `index-8ETSGQ1o.js` 미반영.

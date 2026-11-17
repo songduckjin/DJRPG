@@ -25,6 +25,7 @@ test('bag hover opens actual comparison and actions without rebuilding inventory
   globalThis.document={createElement:()=>f.node()};
   try{
     showBagDetail(f.ui,'a');const panel=f.panel;
+    assert.equal(panel.children.find(n=>n.className?.startsWith('item-detail-grade')).textContent,'레어');
     assert.equal(f.ui.selected,'a');assert.equal(f.cells[0].attrs['aria-expanded'],'true');assert.equal(f.ui.world.save.bag.length,2);
     deferBagDismiss(f.ui);t.mock.timers.tick(90);panel.onpointerenter();t.mock.timers.tick(300);assert.equal(f.panel,panel);
     const actions=panel.children.find(n=>n.className==='detail-actions');actions.children[0].onclick();

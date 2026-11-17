@@ -17,8 +17,9 @@ test('offline hunts award equipment, skillbooks and estimated boss gold', () => 
     assert.equal(save.floorKills, 0);
     assert(reward.items.some(item => item.slot === 'skillbook'));
     assert(reward.items.some(item => item.slot === 'weapon'));
-    assert.equal(reward.items.length, 40);
-    assert.equal(reward.missedDrops, reward.kills * 2 + 2 - 40);
+    assert.equal(reward.items.filter(item=>item.slot!=='skillbook').length, 40);
+    assert.equal(reward.items.filter(item=>item.slot==='skillbook').length,reward.kills+1);
+    assert.equal(reward.missedDrops, reward.kills + 1 - 40);
   } finally { Math.random = originalRandom; }
 });
 
@@ -28,7 +29,7 @@ test('full bag counts missed drops and tutorial suppresses all loot', () => {
     const save = freshSave(); save.tutorial = 1;
     save.bag = Array.from({ length: 40 }, (_, index) => ({ id: `item-${index}`, name: '낡은 두손검', slot: 'weapon', rarity: 'common', stats: { attack: 4 } }));
     const reward = applyOfflineRewards(save, 60);
-    assert.equal(reward.items.length, 0); assert.equal(reward.missedDrops, reward.kills * 2);
+    assert.equal(reward.items.length, reward.kills); assert(reward.items.every(item=>item.slot==='skillbook')); assert.equal(reward.missedDrops, reward.kills);
     const tutorial = freshSave(), early = applyOfflineRewards(tutorial, 600);
     assert.equal(early.items.length, 0); assert.equal(early.missedDrops, 0);
     assert.equal(early.gold, early.kills * 4 + 70);

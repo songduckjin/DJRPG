@@ -6,7 +6,7 @@ export type JourneyData = {daily:JourneyTask[];weekly:JourneyTask[];achievements
 export class Journey {
   private generation=0;
   data?:JourneyData;
-  busy=false;loading=false;error='';tab:'daily'|'weekly'='daily';filter:'all'|'ready'|'incomplete'='all';mailId?:string;
+  busy=false;loading=false;error='';tab:'daily'|'weekly'='daily';
   onChange:()=>void=()=>{};onMessage:(message:string)=>void=()=>{};
   constructor(public sync:SaveSync,private world:World){}
   async load():Promise<void>{

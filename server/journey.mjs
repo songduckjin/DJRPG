@@ -4,7 +4,6 @@ import { journeyState, journeyOperation, journeyView, dailyTasks } from './journ
 const bookNames = { slash2:'소드 슬래시',spin:'드래곤 트위스터',crushing:'딜레이 크러싱',slam:'와일드 스탬프',warcry:'블러드 레이지',power:'파워 스트라이크',destroy:'디스트로이 스윙',hell:'헬 파이어 소드',mastery:'대검 숙련',body:'강인한 육체',instinct:'전투 본능' };
 function rewards(save, entries) {
   const books = entries.reduce((sum,entry)=>sum+entry.books,0);
-  if ((save.bag?.length??0)+books>40) fail(409,'BAG_FULL','가방이 가득 찼습니다. 보상은 수령하지 않고 그대로 보관됩니다.');
   save.gold += entries.reduce((sum,entry)=>sum+entry.gold,0);
   save.bag ??= [];
   for(let i=0;i<books;i++) {

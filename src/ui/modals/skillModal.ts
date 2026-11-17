@@ -46,18 +46,16 @@ export function renderSkills(this: Interface, dialog: HTMLElement): void {
       list.appendChild(card);
     }
     const heading = document.createElement('h3'); heading.className = 'skill-group-title'; heading.textContent = '패시브 스킬'; list.appendChild(heading);
+    const passivesGrid = document.createElement('div'); passivesGrid.className = 'passive-skill-grid';
     for (const id of passiveOrder) {
       const passive = passives[id], learned = save.passives.includes(id), level = learned ? skillLevel(save, id) : 1;
-      const card = document.createElement('article'); card.className = 'skill-card';
+      const card = document.createElement('article'); card.className = 'skill-card passive-skill-card'; card.dataset.skill = id;
       const bonus = id === 'mastery' ? `공격 +${15 + (level - 1) * 2}%` : id === 'body' ? `HP·방어 +${15 + (level - 1) * 2}%` : `치명 +${8 + (level - 1) * 2}% · 공속 +${12 + (level - 1) * 2}%`;
       card.innerHTML = `<div class="skill-icon">${passive.icon}</div><div class="skill-info"><h3>${passive.name} <small>권장 Lv.${passive.level}</small></h3><p>${passive.description}</p><strong class="skill-level">${learned ? `스킬 Lv.${level} / ${MAX_SKILL_LEVEL}` : '미습득 (스킬북 파밍 필요)'}</strong><small>${bonus}</small><div class="skill-actions"></div></div>`;
       const action = card.querySelector<HTMLElement>('.skill-actions')!;
-      if (learned) { const state = document.createElement('span'); state.textContent = '습득 완료 · 상시 적용'; action.appendChild(state); }
-      else {
-        const state = document.createElement('span'); state.textContent = '미습득 (스킬북 파밍 필요)'; action.appendChild(state);
-      }
       renderSkillUpgrade(this, action, id); markSkillUpgrade(this, card, id);
-      list.appendChild(card);
+      passivesGrid.appendChild(card);
     }
+    list.appendChild(passivesGrid);
     dialog.appendChild(list);
   }

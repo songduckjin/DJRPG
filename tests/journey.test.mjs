@@ -29,13 +29,13 @@ test('daily login grants once; retry with same request ID never duplicates curre
   await assert.rejects(act('daily','daily','login'),e=>e.code==='NOT_READY');
   await seed('other');assert.equal((await snapshot(db,'other')).daily[0].claimed,false);
 });
-test('persisted progress advances daily and weekly counters and claim all is atomic when bag is full',async()=>{
+test('persisted progress advances daily and weekly counters and book rewards bypass equipment capacity without losing equipment',async()=>{
   await seed('progress');await snapshot(db,'progress');
   await transaction(db,async tx=>{const row=await account(tx,'progress'),next={...row.save,kills:5000,bossKills:30,playSeconds:18000};await writeSave(tx,row,next);});
   const data=await snapshot(db,'progress');assert.equal(data.daily.find(t=>t.id==='hunt').current,300);assert.equal(data.weekly.find(t=>t.id==='boss').current,30);
   await transaction(db,async tx=>{const row=await account(tx,'progress');await writeSave(tx,row,{...row.save,bag:Array.from({length:40},()=>({id:randomUUID(),name:'검',slot:'weapon',rarity:'common',stats:{attack:1}}))});});
-  const before=await account(db,'progress');await assert.rejects(act('progress','daily'),e=>e.code==='BAG_FULL');
-  const after=await account(db,'progress');assert.equal(after.save.gold,before.save.gold);assert((await snapshot(db,'progress')).daily.every(t=>!t.claimed));
+  const before=await account(db,'progress');await act('progress','daily');
+  const after=await account(db,'progress');assert.equal(after.save.gold,before.save.gold+3800);assert.equal(after.save.bag.filter(item=>item.slot!=='skillbook').length,40);assert.equal(after.save.bag.filter(item=>item.slot==='skillbook').length,3);assert((await snapshot(db,'progress')).daily.every(t=>t.claimed));
 });
 test('mail read, claim, deletion, item ownership and concurrent reward requests stay isolated and idempotent',async()=>{
   await seed('mail');const data=await snapshot(db,'mail');assert.equal(data.mail.length,1);
