@@ -1,6 +1,6 @@
 ## 2026-11-17 · 작업 123 · 대검베기 휘두르기 변경
 - 대검베기를 단일 흰색 궤적의 `휘두르기`로 변경하고, 2회 타격을 합산 위력 2.15배의 단일 타격으로 정리했다. 발밑 룬을 제거했다.
-- `pnpm run check`, 213개 테스트, `pnpm run build`, `git diff --check` 통과. PR #36에서 main 병합 후 Cloudflare Production 확인 예정.
+- `pnpm run check`, 218개 테스트, `pnpm run build`, `git diff --check` 통과. PR #36이 `8811a302a8c91e8ee2e986c3c4c93c40762ffbfa`로 main에 병합됐다. Cloudflare Production에서 HTTP 200과 새 `index-Bm7w5dto.js`, `휘두르기` 문구를 확인했다.
 
 ## 2026-11-17 · 작업 123 기본 공격 검기 제거
 - `world.action('attack')`의 `slash` 효과는 공격 모션·피드백용으로 유지하고, 렌더러에서 기본 공격 검기 이미지와 발밑 룬만 그리지 않도록 변경했다. 성별·직업별 분기가 없는 공용 효과 경로를 수정했다.
