@@ -6,7 +6,7 @@ import { heroAppearance } from '../../game/appearance';
 import { isSkillBook } from '../../game/items';
 import { showEquippedDetail, dismissEquippedDetail, deferEquippedDismiss } from '../equippedDetail';
 import { bagDetailPinned, createBagDetail, deferBagDismiss, dismissBagDetail, showBagDetail } from '../bagDetail';
-import { skillbookName, skillbookStacks } from '../skillbookBag';
+import { skillbookName } from '../skillbookBag';
 import type { BagFilter, Interface } from '../interface';
 
 export function renderInventory(this: Interface, dialog: HTMLElement): void {
@@ -14,7 +14,7 @@ export function renderInventory(this: Interface, dialog: HTMLElement): void {
     const section = document.createElement('section'); section.className = 'modal-bag';
     section.innerHTML = '<h3>가방</h3>';
     const filters = document.createElement('div'); filters.className = 'bag-filters';
-    const filterNames: Record<BagFilter, string> = { all: '장비 전체', weapon: '무기', armor: '방어구', accessory: '장신구', skillbook: '스킬북' };
+    const filterNames: Record<BagFilter, string> = { all: '장비 전체', weapon: '무기', armor: '방어구', accessory: '장신구' };
     for (const filter of Object.keys(filterNames) as BagFilter[]) {
       const button = document.createElement('button'); button.textContent = filterNames[filter];
       button.classList.toggle('active', this.bagFilter === filter);
@@ -23,8 +23,7 @@ export function renderInventory(this: Interface, dialog: HTMLElement): void {
     }
     section.appendChild(filters);
     const grid = document.createElement('div'); grid.className = 'bag-grid'; section.appendChild(grid);
-    const books = this.bagFilter === 'skillbook';
-    const stacks = books ? skillbookStacks(save.bag) : save.bag.filter(item => !isSkillBook(item) && (this.bagFilter === 'all'
+    const stacks = save.bag.filter(item => !isSkillBook(item) && (this.bagFilter === 'all'
       || (this.bagFilter === 'weapon' && (item.slot === 'weapon' || item.slot === 'offhand'))
       || (this.bagFilter === 'armor' && ['helmet', 'armor', 'gloves', 'belt', 'boots'].includes(item.slot))
       || (this.bagFilter === 'accessory' && ['necklace', 'ring1', 'ring2'].includes(item.slot))))
@@ -62,7 +61,7 @@ export function renderInventory(this: Interface, dialog: HTMLElement): void {
     }
     if (!visible.length) grid.innerHTML = '<p class="empty">이 분류에 획득한 아이템이 없습니다.</p>';
     const footer = document.createElement('div'); footer.className = 'modal-bag-footer';
-    const count = document.createElement('span'); count.textContent = books ? `스킬북 ${stacks.reduce((total, stack) => total + stack.count, 0)}권 · ${stacks.length}종` : `장비 ${save.bag.filter(item => !isSkillBook(item)).length}개`;
+    const count = document.createElement('span'); count.textContent = `장비 ${save.bag.filter(item => !isSkillBook(item)).length}개`;
     count.title = `전체 보유 ${save.bag.length}/40`;
     const capacity = document.createElement('small'); capacity.className = 'bag-capacity'; capacity.textContent = `전체 ${save.bag.length}/40`; count.append(capacity);
     const controls = document.createElement('div'); controls.className = 'bag-footer-actions';
@@ -85,7 +84,7 @@ export function renderInventory(this: Interface, dialog: HTMLElement): void {
       rarityButton.setAttribute('aria-label', `일괄 분해 기준 ${rarityLabels[this.salvageRarity]}. 누르면 다음 등급으로 변경`);
     };
     const salvage = document.createElement('button'); salvage.className = 'salvage'; salvage.textContent = '일괄 분해'; salvage.onclick = () => this.salvage();
-    if (!books) controls.append(equip, rarityButton, salvage); footer.append(count, controls); section.appendChild(footer);
+    controls.append(equip, rarityButton, salvage); footer.append(count, controls); section.appendChild(footer);
     dialog.appendChild(section);
     const selectedItem = visible.find(item => item.id === this.selected);
     if (selectedItem) {
@@ -98,7 +97,7 @@ export function itemDetail(this: Interface, save: Save, item: Item): HTMLElement
     const panel = document.createElement('div'); panel.className = `item-detail ${isSkillBook(item) ? 'skillbook-detail' : item.rarity}`;
     if (isSkillBook(item)) {
       const title = document.createElement('h2'); title.textContent = skillbookName(item); panel.appendChild(title);
-      const note = document.createElement('p'); note.textContent = '사용하면 해당 스킬을 습득하거나 1레벨 강화합니다. 최대 Lv.10'; panel.appendChild(note);
+      const note = document.createElement('p'); note.textContent = '사용하면 해당 스킬을 습득하거나 1레벨 강화합니다. 최대 Lv.30'; panel.appendChild(note);
       const use = document.createElement('button'); use.type = 'button'; use.className = 'skillbook-use'; use.textContent = '사용하기';
       use.onclick = () => {
         const before = totalStats(save).health;

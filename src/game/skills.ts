@@ -3,7 +3,7 @@ export const UNLOCK_ALL_SKILLS_FOR_TEST = false;
 export type SkillId = 'slash2' | 'spin' | 'crushing' | 'slam' | 'warcry' | 'power' | 'destroy' | 'hell';
 export type PassiveId = 'mastery' | 'body' | 'instinct';
 export type SkillLevelId = SkillId | PassiveId;
-export const MAX_SKILL_LEVEL = 10;
+export const MAX_SKILL_LEVEL = 30;
 export function skillUpgradeCost(level: number): number { return 40 * level * level; }
 export type Skill = { id: SkillId; name: string; level: number; icon: string; cooldown: number; power: string; description: string; range: number };
 export type Passive = { id: PassiveId; name: string; level: number; icon: string; description: string };

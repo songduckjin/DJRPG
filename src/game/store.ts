@@ -1,3 +1,4 @@
+import { skillBookStatus } from './skillProgress';
 import { discoverEquipment, normalizeCollection } from './codex';
 import { normalizeQuickSlots, type QuickSlots } from './loadout';
 import { isSkillBook, migrateItem, slots, totalStats, type EquipmentItem, type Item, type Slot } from './items';
@@ -108,13 +109,16 @@ export function useSkillBook(save: Save, itemId: string): { ok: boolean; message
   if (!isSkillBook(item)) return { ok: false, message: '스킬북만 사용할 수 있습니다.' };
   const id = item.skillId;
   const learned = skillOrder.includes(id as SkillId) ? save.learned.includes(id as SkillId) : save.passives.includes(id as PassiveId);
-  const level = learned ? skillLevel(save, id) : 0;
+  const status = skillBookStatus(save, id), level = status.level;
   if (level >= MAX_SKILL_LEVEL) return { ok: false, message: '이미 최고 스킬 레벨입니다.' };
+  if (!status.ready) return { ok: false, message: `스킬북이 부족합니다. 보유 ${status.count} / 필요 ${status.cost}권` };
   if (!learned) {
     if (skillOrder.includes(id as SkillId)) save.learned.push(id as SkillId);
     else save.passives.push(id as PassiveId);
   }
   save.skillLevels[id] = level + 1;
-  save.bag.splice(index, 1);
+  const consumed = new Set([item.id]);
+  for (const other of save.bag) if (consumed.size < status.cost && isSkillBook(other) && other.skillId === id) consumed.add(other.id);
+  save.bag = save.bag.filter(other => !consumed.has(other.id));
   return { ok: true, message: `${item.name} ${level ? `Lv.${level + 1} 강화!` : '습득!'}` };
 }

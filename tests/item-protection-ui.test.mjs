@@ -105,7 +105,7 @@ test('bag grid marks only locked equipment at top-right without inserting detail
     const [locked,unlocked]=grid.children;
     assert(find(locked,n=>hasClass(n,'bag-lock-badge')));assert(locked.attrs['aria-label'].includes('잠긴 장비'));
     assert(!find(unlocked,n=>hasClass(n,'bag-lock-badge')));
-    ui.bagFilter='skillbook';const book=render().children[0];assert(!find(book,n=>hasClass(n,'bag-lock-badge')));ui.bagFilter='all';
+
     save.bag[0].locked=false;const refreshed=render();assert.equal(refreshed.children.length,2);assert(!find(refreshed,n=>hasClass(n,'bag-lock-badge')));
   }finally{globalThis.document=previous;}
 });
@@ -143,16 +143,14 @@ test('skillbook tab separates, stacks by skill and consumes exactly one without 
   try{
     const book=(id,skillId,name)=>({id,kind:'skillbook',slot:'skillbook',rarity:'rare',stats:{},skillId,name:`[스킬북] ${name}`});
     const save=freshSave();save.bag=[item('gear'),book('a','slam','와일드 스탬프'),book('b','slam','와일드 스탬프'),book('c','spin','휠윈드')];
-    const ui={world:{save},bagFilter:'skillbook',salvageRarity:'common',iconPath:()=>'/book.png'};
+    const ui={world:{save},bagFilter:'all',salvageRarity:'common',iconPath:()=>'/book.png'};
     const render=()=>{const dialog=element();renderInventory.call(ui,dialog);return find(dialog,n=>hasClass(n,'bag-grid'));};
-    const before=JSON.stringify(save),grid=render();assert.equal(grid.children.length,2);assert.equal(JSON.stringify(save),before);
-    assert.equal(find(grid.children[0],n=>n.tag==='b').textContent,'와일드 스탬프');
-    assert.equal(find(grid.children[0],n=>hasClass(n,'skillbook-count')).textContent,'×2');
-    assert(hasClass(grid.children[0],'skillbook-item'));assert(!hasClass(grid.children[0],'rare'));assert(!grid.children[0].attrs['aria-label'].includes('레어'));
+    const before=JSON.stringify(save),grid=render();assert.equal(grid.children.length,1);assert.equal(JSON.stringify(save),before);
+    assert.equal(skillbookStacks(save.bag)[0].count,2);
     assert.equal(skillbookName(save.bag[1]),'와일드 스탬프');
     assert(useSkillBook(save,'a').ok);const next=skillbookStacks(save.bag);
     assert.equal(next[0].item.id,'b');assert.equal(next[0].count,1);assert.equal(next[1].count,1);
-    assert.equal(find(render().children[0],n=>hasClass(n,'skillbook-count')).textContent,'×1');
+    assert.equal(skillbookStacks(save.bag)[0].count,1);
     assert.equal(save.bag[0].id,'gear');ui.bagFilter='all';assert.equal(render().children.length,1);
     assert(useSkillBook(save,'b').ok);assert.equal(skillbookStacks(save.bag).length,1);
   }finally{globalThis.document=previous;}
