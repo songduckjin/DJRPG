@@ -1,3 +1,4 @@
+import { preferences } from './preferences';
 import { Application, Assets, Container, Graphics, Rectangle, Sprite, Text, Texture, TilingSprite } from 'pixi.js';
 import type { Effect, Enemy, World } from './world';
 import { drawRunes, drawTerrain, drawDust, drawLighting, drawVignette } from './render/field';
@@ -167,7 +168,10 @@ export class GameView {
     this.drawDust(world, project, time, dt);
     this.drawRunes(world, hx, hy, time);
     const slam = world.effects.find(effect => effect.kind === 'slam' || effect.kind === 'hell');
-    const shake = slam ? Math.max(0, 1 - slam.age / Math.min(slam.duration, .38)) * (slam.kind === 'hell' ? 8 : 4) : 0;
+    const shake = slam && preferences.shake ? Math.max(0, 1 - slam.age / Math.min(slam.duration, .38)) * (slam.kind === 'hell' ? 8 : 4) : 0;
+    this.effects.alpha = preferences.effects === 'low' ? .4 : 1;
+    this.skillVfx.alpha = preferences.effects === 'low' ? .35 : 1;
+    this.dragonBack.alpha = preferences.effects === 'low' ? .35 : 1;
     this.app.stage.position.set(shake ? (Math.random() * 2 - 1) * shake : 0, shake ? (Math.random() * 2 - 1) * shake : 0);
     drawDrops.call(this, world, project, time);
     drawEntities.call(this, world, project, time, dt, hx, hy, h);

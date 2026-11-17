@@ -78,9 +78,11 @@ export async function mutate(db, id, input) {
         : input.action === 'claim'
           ? { sql: 'SELECT * FROM djrpg_market_inbox WHERE id=? AND account_id=? AND claimed_at IS NULL', args: [typeof input.deliveryId === 'string' ? input.deliveryId : '', id] }
           : { sql: "SELECT COUNT(*) AS n FROM djrpg_market WHERE seller=? AND state='active' AND expires_at>?", args: [id, Date.now()] },
-      inventoryOwnerQuery(id, input.progress)
+      inventoryOwnerQuery(id, input.progress),
+      { sql: 'SELECT state_json FROM djrpg_journey WHERE account_id=?', args: [id] }
     ]);
     const row = decodeAccount(reads[0].rows[0]), replay = reads[1].rows[0];
+    row.journeyRecord = reads[4].rows[0] ?? null;
     if (replay) {
       const result = JSON.parse(replay.response_json);
       if (result.revision !== undefined && result.revision !== row.revision) delete result.effect;
