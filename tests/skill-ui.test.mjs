@@ -57,7 +57,7 @@ test('skill menu upgrade dot tracks book cost even with all field slots equipped
 test('skillbook section groups copies and actual upgrade button consumes cost and refreshes the game',async()=>{
   const {renderSkillBooks}=await import('../src/ui/skillBooks.ts');
   const previous=globalThis.document;
-  function element(){return {children:[],className:'',append(...items){this.children.push(...items);},setAttribute(){},get childElementCount(){return this.children.length;}};}
+  function element(){return {children:[],style:{},className:'',append(...items){this.children.push(...items);},setAttribute(){},get childElementCount(){return this.children.length;}};}
   globalThis.document={createElement:()=>element()};
   try{
     const ui=uiFixture(),save=ui.world.save;let changes=0;ui.world.onChange=()=>changes++;
@@ -76,6 +76,36 @@ test('three passive cards share a single grid and keep upgrade controls without 
     const ui=uiFixture();ui.world.save.passives=['mastery','body','instinct'];renderSkills.call(ui,node());
     const grid=created.find(n=>n.className==='passive-skill-grid');assert(grid);assert.equal(grid.children.length,3);
     assert.deepEqual(grid.children.map(card=>card.dataset.skill),['mastery','body','instinct']);
+    for(const [index,card] of grid.children.entries()){const icon=card.querySelector('.skill-icon');assert.equal(icon.textContent,'');assert(icon.style.backgroundImage.includes('passive-skills.png'));assert.equal(icon.style.backgroundSize,'300% 100%');assert.equal(icon.style.backgroundPosition,`${index*50}% center`);}
     assert(!created.some(n=>n.textContent==='습득 완료 · 상시 적용'));assert(created.filter(n=>n.textContent==='강화').length>=3);
   }finally{globalThis.document=previous;}
+});
+
+test('all eight active skill cards use the exact field artwork and basic attack keeps its sword image',async()=>{
+  const {applySkillArtwork}=await import('../src/ui/skillArtwork.ts');const {skillOrder}=await import('../src/game/skills.ts');
+  const previous=globalThis.document,created=[];globalThis.document={createElement(){const element=node();created.push(element);return element;}};
+  try{
+    renderSkills.call(uiFixture(),node());
+    for(const id of skillOrder){const card=created.find(n=>n.dataset.skill===id),icon=card.querySelector('.skill-icon'),field=node();applySkillArtwork(field,id);const art=field.querySelector('.skill-art');
+      assert.equal(icon.className,'skill-icon skill-image-icon');assert.equal(icon.textContent,'');assert.equal(icon.style.backgroundImage,art.style.backgroundImage);assert.equal(icon.style.backgroundPosition,art.style.backgroundPosition);
+    }
+    assert(created.some(card=>card.querySelector('.skill-icon').style.backgroundImage?.includes('nav_skills_v2.png')));
+  }finally{globalThis.document=previous;}
+});
+
+
+test('equipped skills share one group and upgrade counts live in the right status column',()=>{
+  const previous=globalThis.document,created=[];
+  globalThis.document={createElement(){const el=node();el.children=[];el.append=function(...children){this.children.push(...children);};el.appendChild=function(child){this.children.push(child);};created.push(el);return el;}};
+  try {
+    const ui=uiFixture();ui.world.save.learned=['spin','slam','power','warcry'];ui.world.save.quickSlots=['spin','slam','power'];
+    renderSkills.call(ui,node());
+    const group=created.find(el=>el.className==='equipped-skill-group');assert(group);
+    assert.deepEqual(group.children.filter(el=>el.dataset?.skill).map(el=>el.dataset.skill),['spin','slam','power']);
+    assert(!group.children.some(el=>el.dataset?.skill==='warcry'));
+    const card=created.find(el=>el.dataset?.skill==='spin');
+    const status=card.querySelector('.skill-status-stack');assert(status);
+    const cost=created.find(el=>el.className==='skill-book-cost'&&el.textContent.startsWith('보유'));
+    assert(cost);assert(created.some(el=>el.textContent==='해제'));
+  } finally {globalThis.document=previous;}
 });

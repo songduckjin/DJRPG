@@ -101,3 +101,16 @@
 .bottom-nav button { background: #17100dcc; border-radius: 9px; }
 .bottom-nav button[data-modal] img.nav-icon { opacity: 1; filter: drop-shadow(0 1px 2px #000); }
 @media (max-height: 620px) { .utility-nav { gap: 3px; } .utility-nav button { width: 42px; height: 42px; } .utility-nav img { width: 38px; height: 38px; } }
+
+/* Match visible alpha bounds, rather than inconsistent transparent source margins. */
+.bottom-nav button, .utility-nav button { display: grid; place-items: center; padding: 0; background: #17100d99; border-radius: 9px; }
+.bottom-nav button[data-modal] img.nav-icon, .utility-nav button img { width: 100%; height: 100%; object-fit: contain; opacity: 1; pointer-events: none; transform: scale(calc(var(--menu-icon-scale, 1) * var(--menu-press-scale, 1))) translate(var(--menu-icon-x, 0%), var(--menu-icon-y, 0%)); transform-origin: center; filter: drop-shadow(0 1px 2px #000); }
+.bottom-nav button:active, .utility-nav button:active { --menu-press-scale: .94; }
+.bottom-nav [data-modal="status"] { --menu-icon-scale: .9931; --menu-icon-x: 0%; --menu-icon-y: 0%; }
+.bottom-nav [data-modal="equipment"] { --menu-icon-scale: .9931; --menu-icon-x: 0%; --menu-icon-y: 0%; }
+.bottom-nav [data-modal="skills"] { --menu-icon-scale: .9931; --menu-icon-x: .3906%; --menu-icon-y: 0%; }
+.bottom-nav [data-modal="market"] { --menu-icon-scale: .9931; --menu-icon-x: 0%; --menu-icon-y: .3906%; }
+.utility-nav [data-modal="settings"] { --menu-icon-scale: 1.28; --menu-icon-x: -3.125%; --menu-icon-y: 5.8594%; }
+.utility-nav [data-modal="mail"] { --menu-icon-scale: 1.44; --menu-icon-x: -1.5625%; --menu-icon-y: .7812%; }
+.utility-nav [data-modal="rewards"] { --menu-icon-scale: 1.4222; --menu-icon-x: .7812%; --menu-icon-y: 1.1719%; }
+.utility-nav [data-modal="achievements"] { --menu-icon-scale: 1.2659; --menu-icon-x: -1.9531%; --menu-icon-y: 3.9062%; }

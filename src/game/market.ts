@@ -25,6 +25,7 @@ export class Market {
   newCount = 0;
   opened = false;
   private generation = 0;
+  private listRequest?: AbortController;
   private notified = new Set<string>();
   private initialized = false;
   private requests = new Map<string, string>();
@@ -32,7 +33,7 @@ export class Market {
   onMessage: (message: string) => void = () => {};
   constructor(public sync: SaveSync) {}
   resetView(): void {
-    this.generation++; this.loading = false;
+    this.listRequest?.abort(); this.generation++; this.loading = false;
     this.view = 'active'; this.filters = { query: '', category: '', slot: '', rarity: '', sort: 'newest', page: 0 };
     this.selected = undefined; this.selectedItem = ''; this.price = ''; this.error = '';
     this.mineActiveOnly = false; this.quote = undefined; this.quoteGeneration++;
@@ -57,10 +58,12 @@ export class Market {
   async load(full: boolean): Promise<void> {
     if (this.busy) return;
     const generation = ++this.generation;
+    this.listRequest?.abort();
+    const controller = new AbortController(); this.listRequest = controller;
     this.loading = true;
     if (full) this.onChange(false);
     try {
-      const response = await fetch('/api/market', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${this.sync.session.token}` }, body: JSON.stringify({ action: 'list', ...this.filters, mineActiveOnly:this.view==='mine'&&this.mineActiveOnly, watchIds: this.data?.listings.map(entry => entry.id), view: !this.opened ? 'mine' : this.view }) });
+      const response = await fetch('/api/market', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${this.sync.session.token}` }, body: JSON.stringify({ action: 'list', ...this.filters, mineActiveOnly:this.view==='mine'&&this.mineActiveOnly, watchIds: this.data?.listings.map(entry => entry.id), view: !this.opened ? 'mine' : this.view }), signal: controller.signal });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || '거래소를 불러오지 못했습니다.');
       if (generation !== this.generation) return;
@@ -107,7 +110,7 @@ export class Market {
     const key = JSON.stringify({ action, data });
     let requestId = this.requests.get(key);
     if (!requestId) { requestId = crypto.randomUUID(); this.requests.set(key, requestId); }
-    this.generation++; this.loading = false; this.busy = true; this.error = ''; this.onChange(true);
+    this.listRequest?.abort(); this.generation++; this.loading = false; this.busy = true; this.error = ''; this.onChange(true);
     try {
       const result = await this.sync.mutate(action, data, requestId);
       this.requests.delete(key); this.applyEffect(result); this.onMessage(result.message || '처리했습니다.');

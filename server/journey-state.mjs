@@ -37,6 +37,10 @@ export const weeklyTasks = [
   {id:'boss',name:'보스 30회 처치',metric:'bosses',target:30,gold:8000,books:3},
   {id:'time',name:'5시간 플레이',metric:'seconds',target:18000,gold:5000,books:3}
 ];
+export const completionRewards = {
+  daily:{id:'completion',name:'일일 전체 완료 보상',gold:2000,books:2,completion:true},
+  weekly:{id:'completion',name:'주간 전체 완료 보상',gold:10000,books:5,completion:true}
+};
 const milestones = [
   ['level','성장','캐릭터 레벨',[5,10,20,30],save=>save.level],
   ['kills','사냥','몬스터 처치',[1000,10000,100000],save=>save.kills],
@@ -47,7 +51,10 @@ const milestones = [
   ['rank','스킬','최고 스킬 레벨',[10,20,30],save=>Math.max(0,...Object.values(save.skillLevels??{}))]
 ];
 export function journeyView(state, save, now = Date.now()) {
-  const timed = (kind, tasks) => tasks.map(task=>({...task,current:Math.min(task.target,Math.floor(task.metric==='login'?1:state[kind][task.metric])),claimed:state[kind].claims.includes(task.id)}));
+  const timed = (kind, tasks) => {
+    const rows=tasks.map(task=>({...task,current:Math.min(task.target,Math.floor(task.metric==='login'?1:state[kind][task.metric])),claimed:state[kind].claims.includes(task.id)}));
+    return [...rows,{...completionRewards[kind],target:rows.length,current:rows.filter(task=>task.current>=task.target).length,claimed:state[kind].claims.includes('completion')}];
+  };
   const achievements = milestones.flatMap(([key,category,name,targets,get])=>targets.map((target,index)=>({id:`${key}-${target}`,category,name:`${name} ${target.toLocaleString('ko-KR')}`,target,current:Math.min(target,Math.floor(get(save)??0)),gold:1000*(index+1),books:index+1,claimed:state.achievements.includes(`${key}-${target}`)})));
   return {daily:timed('daily',dailyTasks),weekly:timed('weekly',weeklyTasks),achievements,mail:state.mail.map(mail=>({...mail,expired:mail.expiresAt<=now})),periods:periods(now),now};
 }

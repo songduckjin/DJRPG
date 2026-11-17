@@ -13,11 +13,11 @@ const save=()=>({version:1,name:'전사',gender:'male',gold:0,bag:[],equipment:{
 async function seed(id,guest=false){await db.execute({sql:'INSERT INTO djrpg_accounts VALUES (?,?,?,?)',args:[id,guest?'guest':'hashed',JSON.stringify(save()),new Date().toISOString()]});}
 async function act(id,kind,itemId='all',action='journey-claim'){const row=await account(db,id);return mutate(db,id,{action,kind,id:itemId,revision:row.revision,requestId:randomUUID()});}
 before(async()=>{directory=await mkdtemp(join(tmpdir(),'journey-'));db=createClient({url:`file:${join(directory,'test.db')}`});await schema(db);});
-after(async()=>{db.close();await rm(directory,{recursive:true,force:true});});
+after(async()=>{await db.close();await rm(directory,{recursive:true,force:true,maxRetries:10,retryDelay:100});});
 test('KST 05:00 daily and Monday weekly boundaries preserve lifetime claims and mail',()=>{
   const sunday=Date.parse('2026-11-15T19:59:59Z'),monday=sunday+1000;
   assert.notEqual(periods(sunday).daily,periods(monday).daily);assert.notEqual(periods(sunday).weekly,periods(monday).weekly);
-  const state=advanceJourney(undefined,save(),save(),sunday);state.daily.claims=['login'];state.weekly.claims=['hunt'];state.achievements=['level-5'];state.mail[0].claimedAt=sunday;
+  const state=advanceJourney(undefined,save(),save(),sunday);state.daily.claims=['login','completion'];state.weekly.claims=['hunt','completion'];state.achievements=['level-5'];state.mail[0].claimedAt=sunday;
   const next=advanceJourney(state,save(),{...save(),kills:7},monday);
   assert.deepEqual(next.daily.claims,[]);assert.deepEqual(next.weekly.claims,[]);assert.equal(next.daily.kills,7);assert.deepEqual(next.achievements,['level-5']);assert.equal(next.mail[0].claimedAt,sunday);
 });
@@ -35,7 +35,7 @@ test('persisted progress advances daily and weekly counters and book rewards byp
   const data=await snapshot(db,'progress');assert.equal(data.daily.find(t=>t.id==='hunt').current,300);assert.equal(data.weekly.find(t=>t.id==='boss').current,30);
   await transaction(db,async tx=>{const row=await account(tx,'progress');await writeSave(tx,row,{...row.save,bag:Array.from({length:40},()=>({id:randomUUID(),name:'검',slot:'weapon',rarity:'common',stats:{attack:1}}))});});
   const before=await account(db,'progress');await act('progress','daily');
-  const after=await account(db,'progress');assert.equal(after.save.gold,before.save.gold+3800);assert.equal(after.save.bag.filter(item=>item.slot!=='skillbook').length,40);assert.equal(after.save.bag.filter(item=>item.slot==='skillbook').length,3);assert((await snapshot(db,'progress')).daily.every(t=>t.claimed));
+  const after=await account(db,'progress');assert.equal(after.save.gold,before.save.gold+5800);assert.equal(after.save.bag.filter(item=>item.slot!=='skillbook').length,40);assert.equal(after.save.bag.filter(item=>item.slot==='skillbook').length,5);assert((await snapshot(db,'progress')).daily.every(t=>t.claimed));
 });
 test('mail read, claim, deletion, item ownership and concurrent reward requests stay isolated and idempotent',async()=>{
   await seed('mail');const data=await snapshot(db,'mail');assert.equal(data.mail.length,1);
@@ -62,4 +62,28 @@ test('period progress counts once per save and legacy clients retain new totals'
   await transaction(db,async tx=>{const row=await account(tx,'legacy'),next=structuredClone(row.save);delete next.bossKills;delete next.playSeconds;await writeSave(tx,row,next);});
   const latest=await account(db,'legacy');assert.equal(latest.save.bossKills,2);assert.equal(latest.save.playSeconds,15);
   const progress=await snapshot(db,'legacy');assert.equal(progress.daily.find(t=>t.id==='hunt').current,10);assert.equal(progress.daily.find(t=>t.id==='boss').current,2);
+});
+
+test('completion bonuses require all goals, separate daily and weekly claims and never pay twice',async()=>{
+  await seed('completion');const start=await snapshot(db,'completion');assert(start.daily.some(task=>task.completion));
+  await assert.rejects(act('completion','daily','completion'),e=>e.code==='NOT_READY');
+  await transaction(db,async tx=>{const row=await account(tx,'completion');await writeSave(tx,row,{...row.save,kills:5000,bossKills:30,playSeconds:18000});});
+  await act('completion','daily');let row=await account(db,'completion');assert.equal(row.save.gold,5800);assert.equal(row.save.bag.length,5);
+  await assert.rejects(act('completion','daily','completion'),e=>e.code==='NOT_READY');
+  assert.equal((await snapshot(db,'completion')).weekly.find(task=>task.completion).current,3);
+  await assert.rejects(act('completion','weekly','completion'),e=>e.code==='NOT_READY');
+  const stored=(await db.execute({sql:'SELECT state_json FROM djrpg_journey WHERE account_id=?',args:['completion']})).rows[0],state=JSON.parse(stored.state_json);state.weekly.days=5;
+  await db.execute({sql:'UPDATE djrpg_journey SET state_json=? WHERE account_id=?',args:[JSON.stringify(state),'completion']});
+  row=await account(db,'completion');const input={action:'journey-claim',kind:'weekly',id:'completion',revision:row.revision,requestId:randomUUID()};
+  const first=await mutate(db,'completion',input),retry=await mutate(db,'completion',input);assert.equal(first.save.gold,15800);assert.equal(retry.save.gold,15800);
+  await act('completion','weekly');const end=await account(db,'completion');assert.equal(end.save.gold,38800);assert.equal(end.save.bag.length,22);
+  const claimed=await snapshot(db,'completion');assert(claimed.daily.every(task=>task.claimed));assert(claimed.weekly.every(task=>task.claimed));
+});
+test('existing base rewards claimed before the update still allow completion bonus without recounting a day',async()=>{
+  await seed('old-completion');await snapshot(db,'old-completion');
+  await transaction(db,async tx=>{const row=await account(tx,'old-completion');await writeSave(tx,row,{...row.save,kills:300,bossKills:3,playSeconds:1800});});
+  const stored=(await db.execute({sql:'SELECT state_json FROM djrpg_journey WHERE account_id=?',args:['old-completion']})).rows[0],state=JSON.parse(stored.state_json);state.daily.claims=['login','hunt','boss','time'];state.daily.completed=true;state.weekly.days=1;
+  await db.execute({sql:'UPDATE djrpg_journey SET state_json=? WHERE account_id=?',args:[JSON.stringify(state),'old-completion']});
+  const result=await act('old-completion','daily','completion');assert.equal(result.save.gold,2000);assert.equal(result.save.bag.length,2);
+  const latest=JSON.parse((await db.execute({sql:'SELECT state_json FROM djrpg_journey WHERE account_id=?',args:['old-completion']})).rows[0].state_json);assert.equal(latest.weekly.days,1);
 });

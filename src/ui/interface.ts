@@ -187,6 +187,7 @@ export class Interface {
     dialog.classList.toggle('skills-modal', this.openModal === 'skills');
     dialog.classList.toggle('market-modal', this.openModal === 'market');
     dialog.classList.toggle('utility-modal', ['settings','mail','rewards','achievements'].includes(this.openModal));
+    dialog.classList.toggle('status-modal', this.openModal === 'status');
     dialog.classList.toggle('settings-modal', this.openModal === 'settings');
     dialog.classList.toggle('equipment-modal', this.openModal === 'equipment');
     const scroll = dialog.scrollTop, bagScroll = dialog.querySelector<HTMLElement>('.bag-grid')?.scrollTop ?? 0;

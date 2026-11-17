@@ -11,21 +11,34 @@
 | 작업 | 담당자 ID | 브랜치 | 수정 예정 파일 / 영향 영역 | 위험 등급 | 상태 |
 |---|---|---|---|---|---|
 | 106 · 협업 승인 자동화 정책 | songduckjin | `task/94-character-selection` | `AGENTS.md`, 공개 현황·공통 기록 / 모든 작업의 협의·승인 절차 | 핵심 공통(협업 정책) | [x] 사용자 지시 반영 · PR #24 반영 대기 |
-| 105 · 장착명 단어단위6글자 | fks3997 | `fix/equipment-wordwrap-fks3997` | `equipModal.ts` 줄바꿈·회귀 / 표시 | 개인 | [x] 로컬 검증 · 미푸시/미배포 |
-| 104 · 패시브3개한줄 | fks3997 | `fix/compact-utility-popups-fks3997` | skillModal·modals.css·스킬UI회귀 / 표시 | 개인 | [x] 로컬 검증 · 미푸시/미배포 |
-| 102 · 편의팝업 압축·클릭누락 | fks3997 | `fix/compact-utility-popups-fks3997` | utility모달·CSS·Interface·account상태표시·modalInteraction·UI회귀 / 팝업갱신 | 주의(UI 연동, 계약불변) | [x] 로컬 검증 · 미푸시/미배포 |
-| 103 · 오른쪽 아이콘 확대·무문자 | fks3997 | `fix/compact-utility-popups-fks3997` | Interface·hud.css / 버튼표시 | 개인 | [x] 로컬 검증 · 미푸시/미배포 |
-| 101 · 거래소 행동조회·일괄수령·거래가 | fks3997 | `fix/market-actions-fks3997` | market 클라이언트/모달·sync효과·server market/index/API·회귀 / 목록/수령 | 주의(선택적응답추가·기존호환) | [x] 로컬 검증 · 미푸시/미배포 |
-| 99 · 가방설명 축소·등급 | fks3997 | `fix/compact-books-ring-fks3997` | `bagDetail.ts`, `equipModal.ts`, `modals.css`, UI회귀 / 설명 표시 | 개인 | [x] 로컬 검증 · 미푸시/미배포 |
-| 100 · 장비만40개 제한 | fks3997 | `fix/compact-books-ring-fks3997` | 용량helper·store/world/offline/appearance·가방UI·server database/market/journey·account API·테스트 / 획득·복원·수령 | 주의(기존 데이터 형식 유지) | [x] 로컬 검증 · 미푸시/미배포 |
-| 97 · 스킬북4열/카드축소 | fks3997 | `fix/compact-books-ring-fks3997` | `skillBooks.ts`, `modals.css` / 목록·기존강화버튼 | 개인(UI 한정) | [x] 로컬 검증 · 미푸시/미배포 |
-| 98 · 반지 자동해제 복원버그 | fks3997 | `fix/compact-books-ring-fks3997` | `store.ts`, 반지회귀테스트 / 자동장착·저장복원 | 주의(기존 형식 유지) | [x] 로컬 검증 · 미푸시/미배포 |
+| 117 · 스킬 상태우측/행압축 | fks3997 | `feature/skillbook-badges-fks3997` | skillModal·skillBooks·CSS·회귀 / 표시 | 개인 | [x] 로컬 검증 · 미푸시/미배포 |
+| 118 · 거래소 연결재사용/조회취소 | fks3997 | `feature/skillbook-badges-fks3997` | api/market·marketConnection·game/market·회귀 / 기존 계약 유지 | 주의(내부 성능) | [x] 로컬 검증 · 미푸시/미배포 |
+| 114 · 장착8글자/가방10열 | fks3997 | `feature/skillbook-badges-fks3997` | equipModal·CSS·UI회귀 / 표시 | 개인 | [x] 로컬 검증 · 미푸시/미배포 |
+| 115 · 책이미지 확대/강화밀착 | fks3997 | `feature/skillbook-badges-fks3997` | skillBooks·bookArt·CSS / 표시 | 개인 | [x] 로컬 검증 · 미푸시/미배포 |
+| 116 · 장착스킬 공통테두리 | fks3997 | `feature/skillbook-badges-fks3997` | skillModal·CSS·UI회귀 / 표시 | 개인 | [x] 로컬 검증 · 미푸시/미배포 |
+| 112 · 최근거래없음 문구 | fks3997 | `feature/skillbook-badges-fks3997` | marketModal문구 / 표시 | 개인 | [x] 로컬 검증 · 미푸시/미배포 |
+| 113 · 스킬북A배지/패시브남청색 | fks3997 | `feature/skillbook-badges-fks3997` | 책남청색asset·skillBookArt·스킬북/거래소UI·CSS·회귀 / 표시 | 개인 | [x] 로컬 검증 · 미푸시/미배포 |
+| 111 · 착용장비 설명자물쇠 | fks3997 | `fix/equipped-lock-fks3997` | equippedDetail·CSS·회귀 / 잠금UI | 주의(기존locked사용) | [x] 로컬 검증 · 미푸시/미배포 |
+| 110 · 패시브3종 확정이미지 | fks3997 | `feature/passive-art-fks3997` | passive시트·skillArtwork·skillModal·CSS·UI회귀 / 표시 | 개인 | [x] 로컬 검증 · 미푸시/미배포 |
+| 109 · 액티브스킬창 이미지통일 | fks3997 | `fix/reward-tabs-icons-fks3997` | skillArtwork·skillModal·CSS·회귀 / 표시 | 개인 | [x] 로컬 검증 · 미푸시/미배포 |
+| 106 · 보상인덱스/전체완료보너스 | fks3997 | `fix/reward-tabs-icons-fks3997` | journey-state·Journey타입·utility모달·CSS·보상회귀 / 기존claims배열에추가 | 주의(기존호환) | [x] 로컬 검증 · 미푸시/미배포 |
+| 107 · 8메뉴아이콘 정렬/대비통일 | fks3997 | `fix/reward-tabs-icons-fks3997` | 아이콘8정규화·Interface·hud.css / 표시 | 개인 | [x] 로컬 검증 · 미푸시/미배포 |
+| 108 · 내상태팝업 압축 | fks3997 | `fix/reward-tabs-icons-fks3997` | Interface·modals.css / 상태표시 | 개인 | [x] 로컬 검증 · 미푸시/미배포 |
+| 105 · 장착명 단어단위6글자 | fks3997 | `fix/equipment-wordwrap-fks3997` | `equipModal.ts` 줄바꿈·회귀 / 표시 | 개인 | [x] PR #29 운영 배포 성공 |
+| 104 · 패시브3개한줄 | fks3997 | `fix/compact-utility-popups-fks3997` | skillModal·modals.css·스킬UI회귀 / 표시 | 개인 | [x] PR #29 운영 배포 성공 |
+| 102 · 편의팝업 압축·클릭누락 | fks3997 | `fix/compact-utility-popups-fks3997` | utility모달·CSS·Interface·account상태표시·modalInteraction·UI회귀 / 팝업갱신 | 주의(UI 연동, 계약불변) | [x] PR #29 운영 배포 성공 |
+| 103 · 오른쪽 아이콘 확대·무문자 | fks3997 | `fix/compact-utility-popups-fks3997` | Interface·hud.css / 버튼표시 | 개인 | [x] PR #29 운영 배포 성공 |
+| 101 · 거래소 행동조회·일괄수령·거래가 | fks3997 | `fix/market-actions-fks3997` | market 클라이언트/모달·sync효과·server market/index/API·회귀 / 목록/수령 | 주의(선택적응답추가·기존호환) | [x] PR #29 운영 배포 성공 |
+| 99 · 가방설명 축소·등급 | fks3997 | `fix/compact-books-ring-fks3997` | `bagDetail.ts`, `equipModal.ts`, `modals.css`, UI회귀 / 설명 표시 | 개인 | [x] PR #29 운영 배포 성공 |
+| 100 · 장비만40개 제한 | fks3997 | `fix/compact-books-ring-fks3997` | 용량helper·store/world/offline/appearance·가방UI·server database/market/journey·account API·테스트 / 획득·복원·수령 | 주의(기존 데이터 형식 유지) | [x] PR #29 운영 배포 성공 |
+| 97 · 스킬북4열/카드축소 | fks3997 | `fix/compact-books-ring-fks3997` | `skillBooks.ts`, `modals.css` / 목록·기존강화버튼 | 개인(UI 한정) | [x] PR #29 운영 배포 성공 |
+| 98 · 반지 자동해제 복원버그 | fks3997 | `fix/compact-books-ring-fks3997` | `store.ts`, 반지회귀테스트 / 자동장착·저장복원 | 주의(기존 형식 유지) | [x] PR #29 운영 배포 성공 |
 | 96 · 설정·우편·보상·업적 | fks3997 | `feature/utility-menus-fks3997` | 신규 utility/journey 모듈·API 분기·DB 추가·store/world/offline 통계·UI/HUD/render/main·아이콘·테스트 / 계정 수령 계약 | 핵심 공통(사용자 양측 합의 확인) | [x] PR #28 운영 배포 성공 |
 | 95 · 스킬30레벨·스킬북 강화/이동 | fks3997 | `feature/skill-upgrades-30-fks3997` | `skills.ts`, `store.ts`, `skillProgress.ts`, 스킬/가방 UI·HUD·CSS·테스트 / 스킬 성장·저장 레벨 값 | 주의(기존 데이터 형식 유지) | [x] PR #28 운영 배포 성공 |
 | 94 · 장비창 정렬·스킬북 별도 목록/묶음 | fks3997 | `feature/skillbook-bag-fks3997` | `equipModal.ts`, `skillbookBag.ts`, `modals.css`, UI 테스트·개인 기록 / 가방 표시·사용 | 주의(데이터 형식 유지) | [x] PR #28 운영 배포 성공 |
 | 93 · 거래소 등록 30개 및 한도 안내 | fks3997 | `fix/market-limit-30-fks3997` | `server/market.mjs`, `marketModal.ts`, 거래소 테스트·개인 기록 / 등록 한도·UI | 주의(계약 형식 변경 없음) | [x] PR #28 운영 배포 성공 |
 | 92 · 장비·가방 호버 및 배치 개선 | fks3997 | `fix/equipment-hover-layout-fks3997` | `equipModal.ts`, `equippedDetail.ts`, `bagDetail.ts`, `modalDefaults.ts`, `modals.css`, 관련 UI 테스트·개인 기록 / 장비창 표시·해제·가방 설명 | 주의(UI 연동, 데이터 계약 변경 없음) | [x] 로컬 검증 완료 · PR #21 · Vercel 빌드 제한 |
-| 94 · 캐릭터 선택·슬롯 및 신규 캐릭터 생성 | songduckjin | `task/94-character-selection` | 캐릭터 선택/생성 UI, 캐릭터별 진행 데이터, 계정 공용 골드·공용창고, 캐릭터 공통 거래소 조회, 계정·세이브 구조 영향 분석 및 테스트 | 핵심 공통(계정·세이브 데이터 계약) | [x] 197개 테스트·운영 DB 사본 검증 완료 · PR #24 병합·배포 대기 |
+| 94 · 캐릭터 선택·슬롯 및 신규 캐릭터 생성 | songduckjin | `task/94-character-selection` | 캐릭터 선택/생성 UI, 캐릭터별 진행 데이터, 계정 공용 골드·공용창고, 캐릭터 공통 거래소 조회, 계정·세이브 구조 영향 분석 및 테스트 | 핵심 공통(계정·세이브 데이터 계약) | [x] 최신 main 통합·208개 테스트·운영 DB 사본 검증 완료 · PR #24 배포 대기 |
 
 > 새 개인 작업을 시작할 때 위 표에 한 행을 추가한다. 작업 완료·취소 시 상태와 파일 정보를 갱신하거나 항목을 정리한다. 이 표는 상세 작업지시서를 대체하지 않는다.
 

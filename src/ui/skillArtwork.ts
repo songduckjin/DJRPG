@@ -1,5 +1,5 @@
 import type { Action } from '../game/world';
-import type { SkillId } from '../game/skills';
+import type { SkillId, PassiveId } from '../game/skills';
 
 const frames: Record<SkillId, number> = { slash2: 0, spin: 1, crushing: 2, slam: 3, warcry: 4, power: 5, destroy: 6, hell: 7 };
 export function applySkillArtwork(button: HTMLButtonElement, kind: Action | null): void {
@@ -8,8 +8,20 @@ export function applySkillArtwork(button: HTMLButtonElement, kind: Action | null
   art.hidden = kind === null;
   button.classList.toggle('has-skill-art', kind !== null);
   if (!kind) return;
+  setSkillIcon(art, kind);
+}
+export function setSkillIcon(art: HTMLElement, kind: Action): void {
   art.style.backgroundImage = `url('/assets/icons/${kind === 'attack' ? 'nav_skills_v2.png' : 'field-skills.png'}')`;
+  art.style.backgroundRepeat = 'no-repeat';
   art.style.backgroundSize = kind === 'attack' ? 'contain' : '400% 200%';
   const frame = kind === 'attack' ? 0 : frames[kind];
   art.style.backgroundPosition = kind === 'attack' ? 'center' : `${frame % 4 / 3 * 100}% ${Math.floor(frame / 4) * 100}%`;
+}
+
+export function setPassiveSkillIcon(art: HTMLElement, kind: PassiveId): void {
+  const frame: Record<PassiveId, number> = { mastery: 0, body: 1, instinct: 2 };
+  art.style.backgroundImage = "url('/assets/icons/passive-skills.png')";
+  art.style.backgroundSize = '300% 100%';
+  art.style.backgroundPosition = `${frame[kind] * 50}% center`;
+  art.style.backgroundRepeat = 'no-repeat';
 }

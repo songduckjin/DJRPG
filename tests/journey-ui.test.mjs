@@ -35,7 +35,7 @@ test('reward tabs select distinct claim scopes and disable unmet, claimed and gu
     const {ui,calls}=fixture(),dialog=node();renderUtility(ui,dialog,'rewards');
     const all=find(dialog,n=>n.textContent==='모두 받기');assert.equal(all.disabled,false);all.onclick();assert.deepEqual(calls.at(-1),['journey-claim',{kind:'daily',id:'all'}]);
     assert(find(dialog,n=>n.textContent==='진행 중').disabled);
-    ui.journey.tab='weekly';const weekly=node();renderUtility(ui,weekly,'rewards');assert(find(weekly,n=>n.textContent==='모두 받기').disabled);
+    ui.journey.tab='weekly';const weekly=node();renderUtility(ui,weekly,'rewards');assert(find(find(weekly,n=>n.attrs?.role==='tabpanel'&&!n.hidden),n=>n.textContent==='모두 받기').disabled);
     ui.session.guest=true;ui.journey.tab='daily';const guest=node();renderUtility(ui,guest,'rewards');assert(find(guest,n=>n.textContent==='받기').disabled);
   }finally{globalThis.document=previous;}
 });
@@ -82,5 +82,18 @@ test('achievements show unclaimed ready rewards first with no filter or refresh 
     assert.deepEqual(cards.map(n=>n.children[0].textContent),['ready','incomplete','claimed']);
     for(const text of ['새로고침','전체','달성','미달성'])assert(!find(dialog,n=>n.tag==='button'&&n.textContent===text));
     assert(find(dialog,n=>n.textContent==='모두 받기'));
+  }finally{globalThis.document=previous;}
+});
+
+test('daily and weekly index tabs own distinct all-claim buttons and panels',()=>{
+  const previous=globalThis.document;globalThis.document={createElement:node};
+  try{
+    const {ui,calls}=fixture();ui.journey.data.weekly[0].current=5000;ui.journey.tab='weekly';const dialog=node();renderUtility(ui,dialog,'rewards');
+    assert(find(dialog,n=>n.attrs?.role==='tablist'));
+    const daily=find(dialog,n=>n.id==='reward-panel-daily'),weekly=find(dialog,n=>n.id==='reward-panel-weekly');assert(daily.hidden);assert(!weekly.hidden);
+    const dayAll=find(daily,n=>n.textContent==='모두 받기'),weekAll=find(weekly,n=>n.textContent==='모두 받기');
+    assert.equal(dayAll.attrs['aria-label'],'일일 보상 모두 받기');assert.equal(weekAll.attrs['aria-label'],'주간 보상 모두 받기');
+    weekAll.onclick();assert.deepEqual(calls.at(-1),['journey-claim',{kind:'weekly',id:'all'}]);dayAll.onclick();assert.deepEqual(calls.at(-1),['journey-claim',{kind:'daily',id:'all'}]);
+    assert.equal(find(dialog,n=>n.id==='reward-tab-weekly').attrs['aria-selected'],'true');
   }finally{globalThis.document=previous;}
 });
