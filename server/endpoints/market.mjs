@@ -23,4 +23,5 @@ export async function marketEndpoint(request, { env = runtimeEnv(), createDbClie
     if (typeof body.action === 'string' && body.action.startsWith('journey-')) return res.status(200).json(await journeyMutate(db,id,body));
     return res.status(200).json(body.action === 'list' ? await snapshot(db, id, body) : await mutate(db, id, body));
   } catch (error) { return withNoStore(errorResponse(error)); }
+  finally { if (createDbClient) await db?.close(); }
 }

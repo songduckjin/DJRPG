@@ -1,7 +1,7 @@
 ## 2026-11-17 · 작업 119 Cloudflare Pages 전환 진행
 - `origin/main` 5912052에서 작업 브랜치를 시작해 Pages Functions 4개와 공통 API 코어를 연결하고 Vercel 어댑터·설정은 유지했다.
-- DB 스키마·JSON·토큰 형식은 유지. 타입 검사·211개 테스트·프로덕션 빌드·Wrangler 번들 통과, 로컬 라우팅 200/405/503 확인.
-- 로컬 scrypt CPU는 가입 15ms·로그인 31ms로 Workers Free 10ms 제한을 초과할 가능성이 있다. 플랜 선택과 Cloudflare 계정 연결 전 Production 전환은 보류한다.
+- DB 스키마·JSON·토큰 형식은 유지. 타입 검사·212개 테스트·프로덕션 빌드·Wrangler 번들 통과, 로컬 라우팅 200/405/503 확인.
+- 사용자가 무료 플랜을 선택했다. 새 scrypt 비용(2048)은 로컬 Wrangler에서 계산 3~4ms·검증 3~5ms; 기존 계정은 Vercel 서명 로그인으로 1회 검증 후 재해시한다. Vercel 신형 해시 배포와 Cloudflare 계정 연결 전 Production 전환은 보류한다.
 
 ## 2026-11-17 · PR #24 Preview 검사 제한
 - 작업 94 브랜치의 로컬 타입 검사·208개 테스트·프로덕션 빌드·diff 통과. 운영 DB 읽기 전용 사본 검증 완료.

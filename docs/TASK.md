@@ -10,7 +10,7 @@
 
 | 작업 | 담당자 ID | 브랜치 | 수정 예정 파일 / 영향 영역 | 위험 등급 | 상태 |
 |---|---|---|---|---|---|
-| 119 · Cloudflare Pages 전환 | songduckjin | `task/119-cloudflare-pages` | `functions/api/*`·`server/http`·`env`·`auth`·`endpoints`·`api` 어댑터·`wrangler.toml`·`package.json`·회귀 테스트 / 배포·API 진입점·DB 연결 | 핵심 공통(배포·API 계약) | [-] 구현·211개 테스트·로컬 Wrangler 라우팅 검증 · 플랜 선택/계정 연결 대기 |
+| 119 · Cloudflare Pages 전환 | songduckjin | `task/119-cloudflare-pages` | `functions/api/*`·`server/http`·`env`·`auth`·`legacy-auth`·`endpoints`·`api` 어댑터·`wrangler.toml`·`package.json`·회귀 테스트 / 배포·API 진입점·DB 연결 | 핵심 공통(배포·API 계약) | [-] 무료 플랜 해시 마이그레이션 구현·212개 테스트 · Cloudflare 계정 연결/배포 대기 |
 | 106 · 협업 승인 자동화 정책 | songduckjin | `task/94-character-selection` | `AGENTS.md`, 공개 현황·공통 기록 / 모든 작업의 협의·승인 절차 | 핵심 공통(협업 정책) | [x] 사용자 지시 반영 · PR #24 반영 대기 |
 | 117 · 스킬 상태우측/행압축 | fks3997 | `feature/skillbook-badges-fks3997` | skillModal·skillBooks·CSS·회귀 / 표시 | 개인 | [x] 로컬 검증 · 미푸시/미배포 |
 | 118 · 거래소 연결재사용/조회취소 | fks3997 | `feature/skillbook-badges-fks3997` | api/market·marketConnection·game/market·회귀 / 기존 계약 유지 | 주의(내부 성능) | [x] 로컬 검증 · 미푸시/미배포 |
@@ -821,7 +821,7 @@
 - **위험 등급**: **핵심 공통** (배포 구조·API 진입점·DB 연결·세션 토큰 계약 변경. 아래 "영향 범위·호환성" 기록으로 자동 승인)
 - **동시 작업 확인**: 등록 시점(2026-11-17, `main` = `9ac94d4`) `docs/TASK.md`에 `[-]` 진행 중 작업 없음. 열린 PR 4건 중 코드를 바꾸는 것은 PR #27(`src/game/market.ts`, `src/game/sync.ts`, `src/ui/login.ts`, `tests/sync.test.mjs`)뿐이고 `api/`·`server/`·`package.json`·`vercel.json`은 건드리지 않아 파일 겹침 없음(PR #20·#22·#23은 문서·CI). 네 PR 모두 `docs/TASK.md`를 수정하므로 푸시가 거절되면 `git pull --rebase origin main` 후 재푸시한다.
 - **수정 예정 파일**
-  - 신규: `functions/api/account.js`, `functions/api/market.js`, `functions/api/market-events.js`, `functions/api/warehouse.js`, `server/http.mjs`, `server/env.mjs`, `server/auth.mjs`, `server/database-config.mjs`, `server/endpoints/account.mjs`, `server/endpoints/market.mjs`, `server/endpoints/market-events.mjs`, `server/endpoints/warehouse.mjs`, `server/node-adapter.mjs`, `server/market-events.mjs`, `wrangler.toml`, `public/_headers`, `.dev.vars.example`, `tests/functions-adapter.test.mjs`
+  - 신규: `functions/api/account.js`, `functions/api/market.js`, `functions/api/market-events.js`, `functions/api/warehouse.js`, `server/http.mjs`, `server/env.mjs`, `server/auth.mjs`, `server/legacy-auth.mjs`, `server/database-config.mjs`, `server/endpoints/account.mjs`, `server/endpoints/market.mjs`, `server/endpoints/market-events.mjs`, `server/endpoints/warehouse.mjs`, `server/node-adapter.mjs`, `server/market-events.mjs`, `wrangler.toml`, `public/_headers`, `.dev.vars.example`, `tests/functions-adapter.test.mjs`
   - 수정: `api/account.mjs`, `api/market.mjs`, `api/market-events.mjs`, `api/warehouse.mjs`, `server/database.mjs`, `server/market-connection.mjs`, `package.json`, `.gitignore`, `docs/TASK.md`, `docs/WORKLOG.md`
   - **삭제 금지(롤백용 유지)**: `vercel.json`, `api/*.mjs`의 Vercel 배포 경로
 - **배경**: Vercel 무료 플랜의 빌드 한도 때문에 PR Preview·Production 배포가 `upgradeToPro=build-rate-limit`으로 반복 실패했다(`docs/WORKLOG.md` 2026-11-17 기록: 작업 93·94·96·PR #24). Cloudflare Pages 무료 플랜은 월 500회 빌드·무제한 대역폭·Functions 10만 요청/일이라 빌드 제한 문제 자체가 사라진다.
@@ -906,5 +906,6 @@
 
 ### 사용자 확인 필요 (착수 전 보고)
 1. **Workers Free의 10ms CPU 제한과 `scrypt` 비밀번호 해시**: `register`·`login`은 `scrypt(N=16384, r=8, p=1)`으로 수십 ms CPU를 쓴다. Workers 무료 플랜은 요청당 CPU 10ms라 로그인·가입이 `Error 1102(Worker exceeded resource limits)`로 실패할 수 있다. 선택지는 (a) Workers Paid($5/월, CPU 30초)로 올리고 현행 해시 유지, (b) 무료 유지 + `scrypt$N$r$p$salt$hash` 버전 형식으로 비용을 낮추고 기존 `salt:hex` 해시는 로그인 성공 시 재해시(운영 계정 3개, 재로그인 1회). **실측 후 사용자 결정을 받는다.**
+   - **결정(2026-11-17)**: 사용자가 무료 플랜 유지를 선택했다. 신규 해시는 `scrypt$2048$8$1$salt$hash`; 로컬 Wrangler 계산 3~4ms, 검증 3~5ms. 기존 해시는 Cloudflare CPU 한도를 피하기 위해 기존 Vercel 로그인 API에서 1회 검증하고 서명된 토큰의 계정 ID를 확인한 뒤 새 형식으로 갱신한다. Vercel 운영 배포가 새 형식을 읽도록 먼저 갱신돼야 이후 롤백 로그인이 가능하다.
 2. **Turso 지연**: `db.transaction()`은 HTTP 클라이언트에서 문장마다 왕복한다. `warehouse`·`save` 트랜잭션은 문장 10개 이상이라 수백 ms~1초가 될 수 있고, 클라이언트 `warehouse` 요청 타임아웃은 10초다. 실측값을 보고하고, 필요하면 읽기 조회를 트랜잭션 앞으로 빼는 최적화를 별도 작업으로 제안한다.
 3. **Pages 프로젝트 생성·GitHub 연결·환경변수·도메인**은 사용자 대시보드 작업이다(코드 작업 아님). 전환 후에도 `djrpg.vercel.app`을 당분간 유지하고 `*.pages.dev`에서 검증한 뒤 옮긴다.

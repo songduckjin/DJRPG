@@ -59,5 +59,5 @@ export async function warehouseEndpoint(request, { env = runtimeEnv(), createDbC
     });
     return res.status(200).json(result);
   } catch (error) { return errorResponse(error); }
-  finally { db?.close(); }
+  finally { await db?.close(); }
 }

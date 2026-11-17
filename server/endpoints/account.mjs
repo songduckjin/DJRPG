@@ -1,6 +1,6 @@
 import { client, schema, transaction, account, assertRevision, reconcileItems, writeSave, fail } from '../database.mjs';
 import { randomUUID } from 'node:crypto';
-import { tokenId, tokenFor, hashPassword, verifyPassword } from '../auth.mjs';
+import { tokenId, tokenFor, hashPassword, verifyPassword, needsPasswordUpgrade } from '../auth.mjs';
 import { runtimeEnv } from '../env.mjs';
 import { json, readBody, errorResponse } from '../http.mjs';
 
@@ -11,7 +11,7 @@ const offlineSeconds = updatedAt => {
   const elapsed = Math.floor((Date.now() - Date.parse(String(updatedAt))) / 1000);
   return Number.isFinite(elapsed) && elapsed >= 60 ? Math.min(43_200, elapsed) : 0;
 };
-export async function accountEndpoint(request, { env = runtimeEnv(), createDbClient } = {}) {
+export async function accountEndpoint(request, { env = runtimeEnv(), createDbClient, legacyVerifier } = {}) {
   const res = { status: status => ({ json: body => json(body, status) }) };
   const req = { method: request.method, headers: { authorization: request.headers.get('authorization') }, body: await readBody(request) };
   if (req.method !== 'POST') return bad(res, 405, 'METHOD_NOT_ALLOWED', 'POST 요청만 허용합니다.');
@@ -40,7 +40,15 @@ export async function accountEndpoint(request, { env = runtimeEnv(), createDbCli
       const id = String(body.loginId ?? '').trim();
       if (!namePattern.test(id) || typeof body.password !== 'string') return bad(res, 400, 'INVALID_ACCOUNT', '아이디와 비밀번호를 입력하세요.');
       const row = (await db.execute({ sql: 'SELECT id,password_hash,save_json,updated_at FROM djrpg_accounts WHERE id = ?', args: [id] })).rows[0];
-      if (!row || !await verifyPassword(body.password, row.password_hash)) return bad(res, 401, 'INVALID_CREDENTIALS', '아이디 또는 비밀번호가 올바르지 않습니다.');
+      const legacy = row && needsPasswordUpgrade(row.password_hash);
+      const valid = row && (legacy && legacyVerifier
+        ? await legacyVerifier(row.id, body.password, env)
+        : await verifyPassword(body.password, row.password_hash));
+      if (!valid) return bad(res, 401, 'INVALID_CREDENTIALS', '아이디 또는 비밀번호가 올바르지 않습니다.');
+      if (needsPasswordUpgrade(row.password_hash)) {
+        const upgraded = await hashPassword(body.password);
+        await db.execute({ sql: 'UPDATE djrpg_accounts SET password_hash=? WHERE id=? AND password_hash=?', args: [upgraded, row.id, row.password_hash] });
+      }
       const latest = await account(db, row.id);
       const save = latest.save;
       return res.status(200).json({ revision: latest.revision, accountId: row.id, loginId: row.id, gender: save.gender, guest: false, token: tokenFor(row.id, env), save, characterSlot: latest.slot, offlineSeconds: offlineSeconds(latest.character_updated_at) });
@@ -111,5 +119,5 @@ export async function accountEndpoint(request, { env = runtimeEnv(), createDbCli
     }
     return bad(res, 400, 'INVALID_ACTION', '지원하지 않는 요청입니다.');
   } catch (error) { return errorResponse(error); }
-  finally { db?.close(); }
+  finally { await db?.close(); }
 }
