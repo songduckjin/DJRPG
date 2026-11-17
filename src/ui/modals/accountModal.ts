@@ -35,6 +35,7 @@ export function renderAccount(this: Interface, dialog: HTMLElement): void {
     const floor = document.createElement('div'); floor.className = 'account-line'; floor.innerHTML = `<span>최고 도달 층수</span><b>${save.maxFloor}층</b>`; content.appendChild(floor);
     const kills = document.createElement('div'); kills.className = 'account-line'; kills.innerHTML = `<span>누적 처치 수</span><b>${save.kills}</b>`; content.appendChild(kills);
     const status = document.createElement('div'); status.className = 'account-line'; status.innerHTML = '<span>저장 상태</span><b></b>';
+    status.querySelector<HTMLElement>('b')!.dataset.saveStatus = '';
     status.querySelector('b')!.textContent = `서버 ${this.saveStatus}`; content.appendChild(status);
     const reset = document.createElement('div'); reset.className = 'account-reset';
     if (!this.confirmReset) {

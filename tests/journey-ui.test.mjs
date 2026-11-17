@@ -7,7 +7,7 @@ const {freshSave}=await import('../src/game/store.ts');
 const {preferences}=await import('../src/game/preferences.ts');
 function node(tag='div'){
   const n={tag,children:[],dataset:{},attrs:{},className:'',textContent:'',append(...children){this.children.push(...children);},setAttribute(k,v){this.attrs[k]=v;}};
-  n.classList={toggle(c,on){if(on)n.className+=` ${c}`;}};return n;
+  n.classList={add(c){n.className+=` ${c}`;},toggle(c,on){if(on)n.className+=` ${c}`;}};return n;
 }
 function find(n,test){if(!n||typeof n!=='object')return; if(test(n))return n;for(const child of n.children??[]){const match=find(child,test);if(match)return match;}}
 const task=(id,current=1,target=1,claimed=false)=>({id,name:id,current,target,claimed,gold:300,books:0});
@@ -64,4 +64,23 @@ test('a list response started before a claim cannot overwrite post-claim reward 
     resolve({ok:true,json:async()=>({daily:[{id:'login',claimed:false}]})});await request;
     assert.equal(journey.data,current);assert.equal(journey.loading,false);
   }finally{globalThis.fetch=original;}
+});
+
+test('mail always shows sender body date and rewards without opening a second view and has no refresh button',()=>{
+  const previous=globalThis.document;globalThis.document={createElement:node};
+  try{
+    const {ui}=fixture(),dialog=node();renderUtility(ui,dialog,'mail');
+    assert(find(dialog,n=>n.textContent==='보낸 사람: 운영팀'));assert(find(dialog,n=>n.textContent==='선물'));assert(find(dialog,n=>n.className==='mail-date'));
+    assert(find(dialog,n=>n.className.includes('mail-pending')));assert(find(dialog,n=>n.textContent==='스킬북 1권'));assert(!find(dialog,n=>n.textContent==='새로고침'));
+  }finally{globalThis.document=previous;}
+});
+test('achievements show unclaimed ready rewards first with no filter or refresh controls',()=>{
+  const previous=globalThis.document;globalThis.document={createElement:node};
+  try{
+    const {ui}=fixture(),dialog=node();ui.journey.data.achievements=[task('incomplete',1,5),task('claimed',5,5,true),task('ready',5,5)];
+    renderUtility(ui,dialog,'achievements');const cards=dialog.children[0].children.filter(n=>n.className==='utility-card utility-task');
+    assert.deepEqual(cards.map(n=>n.children[0].textContent),['ready','incomplete','claimed']);
+    for(const text of ['새로고침','전체','달성','미달성'])assert(!find(dialog,n=>n.tag==='button'&&n.textContent===text));
+    assert(find(dialog,n=>n.textContent==='모두 받기'));
+  }finally{globalThis.document=previous;}
 });

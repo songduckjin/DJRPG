@@ -1,3 +1,4 @@
+import {bindModalInteraction, type ModalRenderGate} from './modalInteraction';
 import { Journey } from '../game/journey';
 import { renderSettings, renderUtility, updateUtilityBadges } from './modals/utilityModal';
 import { dismissEquippedDetail, positionEquippedDetail, showEquippedDetail } from './equippedDetail';
@@ -38,6 +39,7 @@ export type BagFilter = 'all' | 'weapon' | 'armor' | 'accessory';
 export class Interface {
   market: Market;
   journey: Journey;
+  private modalRenderGate?: ModalRenderGate;
   selected?: string;
   equippedSlot?: Slot;
   equippedPinned = false;
@@ -70,9 +72,10 @@ export class Interface {
     this.market = new Market(sync);
     this.journey = new Journey(sync, world);
     discoverEquipment(world.save);
-    root.innerHTML = `<main class="game-shell"><section class="battle"><div class="battle-canvas"></div><div class="top-hud"></div><nav class="utility-nav" aria-label="편의 메뉴">${(['settings','mail','rewards','achievements'] as const).map((kind,index)=>`<button type="button" data-modal="${kind}" aria-label="${['설정','우편함','보상','업적'][index]}"><img src="/assets/icons/utility_${kind}.png" alt=""><span>${['설정','우편함','보상','업적'][index]}</span>${kind==='settings'?'':`<i data-utility-dot="${kind}" hidden></i>`}</button>`).join('')}</nav><div class="tutorial"></div><div class="controls"><div class="action-pad"></div></div></section><nav class="bottom-nav" aria-label="게임 메뉴"><button data-modal="status" type="button" aria-label="내 상태" title="내 상태">${navIcons.status}</button><button data-modal="equipment" type="button" aria-label="장비" title="장비">${navIcons.equipment}<i class="new-badge" hidden></i></button><button data-modal="skills" type="button" aria-label="스킬" title="스킬">${navIcons.skills}<i class="skill-nav-dot" hidden aria-label="장착 또는 강화 가능한 스킬 있음"></i></button><button data-modal="market" type="button" aria-label="거래소" title="거래소">${navIcons.market}<i class="new-badge market-badge" hidden></i></button></nav><div class="modal-backdrop" hidden><div class="modal-dialog" role="dialog" aria-modal="true"></div></div><div class="toast" role="status"></div></main>`;
+    root.innerHTML = `<main class="game-shell"><section class="battle"><div class="battle-canvas"></div><div class="top-hud"></div><nav class="utility-nav" aria-label="편의 메뉴">${(['settings','mail','rewards','achievements'] as const).map((kind,index)=>`<button type="button" data-modal="${kind}" aria-label="${['설정','우편함','보상','업적'][index]}" title="${['설정','우편함','보상','업적'][index]}"><img src="/assets/icons/utility_${kind}.png" alt="">${kind==='settings'?'':`<i data-utility-dot="${kind}" hidden></i>`}</button>`).join('')}</nav><div class="tutorial"></div><div class="controls"><div class="action-pad"></div></div></section><nav class="bottom-nav" aria-label="게임 메뉴"><button data-modal="status" type="button" aria-label="내 상태" title="내 상태">${navIcons.status}</button><button data-modal="equipment" type="button" aria-label="장비" title="장비">${navIcons.equipment}<i class="new-badge" hidden></i></button><button data-modal="skills" type="button" aria-label="스킬" title="스킬">${navIcons.skills}<i class="skill-nav-dot" hidden aria-label="장착 또는 강화 가능한 스킬 있음"></i></button><button data-modal="market" type="button" aria-label="거래소" title="거래소">${navIcons.market}<i class="new-badge market-badge" hidden></i></button></nav><div class="modal-backdrop" hidden><div class="modal-dialog" role="dialog" aria-modal="true"></div></div><div class="toast" role="status"></div></main>`;
     this.top = this.get('.top-hud'); this.banner = this.get('.tutorial');
     this.modal = this.get('.modal-backdrop'); this.toast = this.get('.toast');
+    this.modalRenderGate = bindModalInteraction(this.modal, window, () => this.renderModal());
     this.market.onMessage = text => this.message(text);
     this.market.onChange = full => {
       if (this.openModal === 'market' && full) this.renderModal();
@@ -116,7 +119,7 @@ export class Interface {
       discoverEquipment(world.save); this.onSave();
       for (const item of world.save.bag) if (!this.knownItems.has(item.id)) { this.knownItems.add(item.id); if (this.openModal !== 'equipment') this.newItems.add(item.id); }
       this.renderBagBadge(); this.renderStatus();
-      if (!(this.openModal === 'codex' && ['INPUT','SELECT'].includes(document.activeElement?.tagName ?? '')) && this.openModal !== 'market' && (this.openModal !== 'account' || document.activeElement?.tagName !== 'INPUT')) this.renderModal();
+      if (!(this.openModal === 'codex' && ['INPUT','SELECT'].includes(document.activeElement?.tagName ?? '')) && !['market','settings','mail','rewards','achievements'].includes(this.openModal ?? '') && (this.openModal !== 'account' || document.activeElement?.tagName !== 'INPUT')) this.renderModal();
     };
     world.onMessage = text => this.message(text);
     this.renderBagBadge(); this.renderStatus();
@@ -125,7 +128,7 @@ export class Interface {
   get canvasHost(): HTMLElement { return this.get('.battle-canvas'); }
   get(selector: string): HTMLElement { const node = this.root.querySelector<HTMLElement>(selector); if (!node) throw new Error(`UI 구성 요소 누락: ${selector}`); return node; }
   message(text: string): void { this.toast.textContent = text.replace(/골드/g, '금화'); this.toast.classList.add('visible'); clearTimeout(this.toastTimer); this.toastTimer = window.setTimeout(() => this.toast.classList.remove('visible'), 3200); }
-  setSaveStatus(status: string): void { this.saveStatus = status; if (this.openModal === 'account' || this.openModal === 'settings') this.renderModal(); }
+  setSaveStatus(status: string): void { this.saveStatus = status; const label = this.modal.querySelector<HTMLElement>('[data-save-status]'); if (label) label.textContent = `서버 ${status}`; }
   showOfflineReward(reward: OfflineReward): void { this.offlineReward = reward; this.open('offline'); }
 
   renderStatus(): void { return renderStatus.call(this); }
@@ -159,7 +162,7 @@ export class Interface {
       // A previous bag's scroll must not be restored when constructing a new popup.
       const bag = dialog.querySelector<HTMLElement>('.bag-grid'); if (bag) bag.scrollTop = 0;
     }
-    if (this.openModal !== kind && this.journey) { this.journey.tab = 'daily'; this.journey.filter = 'all'; this.journey.mailId = undefined; }
+    if (this.openModal !== kind && this.journey) { this.journey.tab = 'daily'; }
     this.openModal = kind; this.confirmReset = false;
     if (kind === 'equipment') { this.newItems.clear(); this.renderBagBadge(); }
     this.renderModal();
@@ -167,6 +170,7 @@ export class Interface {
     if (kind && ['mail','rewards','achievements'].includes(kind)) void this.journey.load();
   }
   renderModal(): void {
+    if (this.openModal && this.modalRenderGate?.defer()) return;
     this.modal.hidden = this.openModal === null;
     if (!this.openModal) return;
     const dialog = this.modal.querySelector<HTMLElement>('.modal-dialog')!;
@@ -174,6 +178,7 @@ export class Interface {
     dialog.classList.toggle('skills-modal', this.openModal === 'skills');
     dialog.classList.toggle('market-modal', this.openModal === 'market');
     dialog.classList.toggle('utility-modal', ['settings','mail','rewards','achievements'].includes(this.openModal));
+    dialog.classList.toggle('settings-modal', this.openModal === 'settings');
     dialog.classList.toggle('equipment-modal', this.openModal === 'equipment');
     const scroll = dialog.scrollTop, bagScroll = dialog.querySelector<HTMLElement>('.bag-grid')?.scrollTop ?? 0;
     dialog.replaceChildren();
