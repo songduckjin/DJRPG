@@ -26,7 +26,7 @@ export function rollSkillBook(floor: number): SkillBook {
   const skillId = ids[Math.floor(Math.random() * ids.length)];
   return { id: crypto.randomUUID(), name: `[스킬북] ${skillId in skills ? skills[skillId as keyof typeof skills].name : passives[skillId as keyof typeof passives].name}`, slot: 'skillbook', rarity: 'rare', kind: 'skillbook', skillId, stats: {} };
 }
-export function skillBookDropChance(floor: number, boss: boolean): number { return boss ? Math.min(.12, .012 + (floor - 1) * .0015) : Math.min(.01, .0008 + (floor - 1) * .0001); }
+export function skillBookDropChance(floor: number, boss: boolean): number { return boss ? Math.min(.15, .018 + (floor - 1) * .002) : Math.min(.015, .001 + (floor - 1) * .00012); }
 
 export const slots: Slot[] = ['weapon', 'offhand', 'helmet', 'armor', 'necklace', 'gloves', 'belt', 'boots', 'ring1', 'ring2'];
 
@@ -92,7 +92,7 @@ export function totalStats(save: Save): Record<Stat, number> {
 }
 
 export function equipmentDropChance(floor: number, boss = false): number {
-  return boss ? Math.min(.18, .03 + (floor - 1) * .003) : Math.min(.015, .002 + (floor - 1) * .00025);
+  return boss ? Math.min(.24, .03 + (floor - 1) * .004) : Math.min(.022, .0025 + (floor - 1) * .00035);
 }
 
 export function rollItem(floor: number, guaranteed = false, boss = false): Item {

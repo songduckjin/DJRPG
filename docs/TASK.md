@@ -731,10 +731,10 @@
 
 ---
 
-## [-] [작업 90] 층 전환 잔존 몹·오프라인 스킬북·동기화 경합 수정 및 보통 난이도 밸런스 개편
+## [x] [작업 90] 층 전환 잔존 몹·오프라인 스킬북·동기화 경합 수정 및 보통 난이도 밸런스 개편
 - **등록일**: 2026-11-17
 - **담당자**: 로컬 Codex
-- **수정 예정 파일**: `src/game/world.ts`, `src/game/offline.ts`, `src/game/sync.ts`, `src/game/items.ts`, `tests/world-movement.test.mjs`, `tests/offline.test.mjs`(신규), `tests/sync.test.mjs`, `docs/TASK.md`, `docs/WORKLOG.md`.
+- **수정 예정 파일**: `src/game/world.ts`, `src/game/offline.ts`, `src/game/sync.ts`, `src/game/items.ts`, `src/ui/modals/offlineModal.ts`, `tests/world-movement.test.mjs`, `tests/offline.test.mjs`(신규), `tests/sync.test.mjs`, `docs/TASK.md`, `docs/WORKLOG.md`.
 - **동시 작업 확인**: 등록 시점(2026-11-17) `docs/TASK.md`에 `[-]` 진행 중 작업이 없고, `[작업 89]`까지 모두 `[x]`여서 파일·기능 겹침 없음.
 - **배경**: 최신 `main`(2aa71b9) 코드 진단 결과 아래 5가지 문제가 확인됐다. (1) 보스 처치 후 자동 등반으로 층이 오르면 이전 층의 살아 있던 일반 몬스터가 그대로 새 층에 남아 있다. (2) 오프라인 보상은 장비만 굴리고 스킬북·보스 보상이 누락되어 접속 중 사냥과 보상 격차가 크다. (3) 거래소 `mutate()`가 자동 저장 `flush()`와 `revision`을 두고 경합할 여지가 남아 있다. (4) 일반 몹 체력이 `floor²`로 폭증(30층 2,120 / 50층 5,520)하는 반면 공격력은 선형으로만 올라 고층이 지루하고 무해하다. (5) 장비·스킬북 드랍 상한이 낮아 장기 파밍이 정체된다.
 - **목표**: 위 5가지를 한 번에 고쳐 층 전환·오프라인 보상·저장 동기화의 정합성을 확보하고, 난이도·보상 곡선을 '보통' 기준으로 재조정한다.

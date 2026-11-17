@@ -10,6 +10,7 @@ export class SaveSync {
   locked = false;
   conflicted = false;
   pendingMarket?: { action: string; data: Record<string, unknown>; requestId: string; revision: number; progress: Save };
+  private preparingMarket = false;
   onStatus: (status: string) => void = () => {};
   onMessage: (message: string) => void = () => {};
   onPause: (paused: boolean) => void = () => {};
@@ -55,21 +56,21 @@ export class SaveSync {
     this.onStatus('저장 실패'); this.onMessage(error instanceof Error ? error.message : String(error));
   }
   async mutate(action: string, data: Record<string, unknown>, requestId: string): Promise<SyncResult> {
-    if (this.locked || this.conflicted) throw new Error('다른 요청을 처리 중입니다.');
+    if (this.locked || this.conflicted || this.preparingMarket) throw new Error('다른 요청을 처리 중입니다.');
+    this.preparingMarket = true;
     this.cancelQueuedSave();
     this.onPause(true);
     try {
       if (this.pendingMarket && this.pendingMarket.requestId !== requestId) throw new Error('이전 거래의 결과를 먼저 확인해야 합니다. 거래 결과 다시 확인을 눌러주세요.');
       if (!this.pendingMarket) {
-        // Finish only an already-running save; send remaining progress with the trade itself.
-        this.locked = true;
+        // Let the active save finish before locking; its loop may contain another pending snapshot.
         if (this.active) await this.active;
         if (this.conflicted) throw new Error('최신 진행 상황을 다시 불러와야 거래할 수 있습니다.');
         if (this.pendingSave) {
-          this.locked = false;
           if (!await this.flush()) throw new Error('이전 저장 결과를 확인해야 거래할 수 있습니다.');
-          this.locked = true;
         }
+        if (this.conflicted) throw new Error('최신 진행 상황을 다시 불러와야 거래할 수 있습니다.');
+        this.locked = true;
         this.pendingMarket = { action, data, requestId, revision: this.revision, progress: structuredClone(this.save) };
       }
       this.locked = true;
@@ -101,7 +102,7 @@ export class SaveSync {
       else this.onMessage(error instanceof Error ? error.message : String(error));
       throw error;
     }
-    finally { this.locked = false; if (!this.conflicted && !this.pendingMarket) this.onPause(false); }
+    finally { this.preparingMarket = false; this.locked = false; if (!this.conflicted && !this.pendingMarket) this.onPause(false); }
   }
   async reset(): Promise<void> {
     this.onPause(true);
