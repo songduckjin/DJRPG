@@ -1,4 +1,4 @@
-import { client, schema, transaction, account, assertRevision, assertSession, assignSession, reconcileItems, writeSave, fail } from '../database.mjs';
+import { client, schema, transaction, account, assertRevision, assertSession, assignSession, healStaleLoadItems, reconcileItems, writeSave, fail } from '../database.mjs';
 import { randomUUID } from 'node:crypto';
 import { tokenPayload, tokenFor, hashPassword, verifyPassword, needsPasswordUpgrade } from '../auth.mjs';
 import { runtimeEnv } from '../env.mjs';
@@ -63,7 +63,8 @@ export async function accountEndpoint(request, { env = runtimeEnv(), createDbCli
     const row = await account(db, id);
     assertSession(row, signed.sid);
     if (action === 'load') {
-      const save = row.save;
+      // 소유권 테이블과 어긋난 유령 아이템을 내려보내지 않는다. 그대로 내려보내면 클라이언트의 다음 save가 영구 409가 된다.
+      const save = await healStaleLoadItems(db, row);
       return res.status(200).json({ revision: row.revision, accountId: row.id, loginId: row.password_hash === 'guest' ? '게스트' : row.id, gender: save.gender, guest: row.password_hash === 'guest', token: req.headers.authorization.slice(7), save, characterSlot: row.slot, offlineSeconds: offlineSeconds(row.character_updated_at) });
     }
     if (action === 'characters') {

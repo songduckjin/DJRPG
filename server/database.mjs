@@ -150,6 +150,60 @@ export async function reconcileItems(tx, id, before, after, options = {}) {
   if (options.operations) options.operations.push(...writes);
   else if (writes.length) await tx.batch(writes);
 }
+// load 한 번으로 409 ITEM_CONFLICT 교착에서 빠져나오도록, 다음 save의 reconcileItems가 거부할 조합만 골라 정리한다.
+// 소유자가 다른 계정·다른 위치(창고/거래/소모)·다른 캐릭터 슬롯이면 제거하고, 소유자만 다르게 기록된 같은 아이템은 서버 사본으로 복원한다.
+const repairedSave = async (tx, row) => {
+  const save = row.save;
+  if (!save || typeof save !== 'object' || !Array.isArray(save.bag) || !save.equipment || typeof save.equipment !== 'object') return undefined;
+  const slot = Number(row.slot ?? 1), account = String(row.id).toLowerCase();
+  const equipment = Object.values(save.equipment).filter(Boolean);
+  const ids = [...new Set([...save.bag, ...equipment].map(item => item?.id).filter(id => typeof id === 'string'))];
+  if (!ids.length) return undefined;
+  const placeholders = ids.map(() => '?').join(',');
+  const owners = new Map((await tx.execute({ sql: `SELECT * FROM djrpg_item_owners WHERE item_id IN (${placeholders})`, args: ids })).rows.map(owner => [owner.item_id, owner]));
+  const slotsByItem = new Map((await tx.execute({ sql: `SELECT item_id,slot FROM djrpg_character_item_owners WHERE account_id=? AND item_id IN (${placeholders})`, args: [row.id, ...ids] })).rows.map(entry => [entry.item_id, Number(entry.slot)]));
+  const seen = new Set();
+  // 'keep' | 'drop' | { item } — 복원할 서버 사본
+  const decide = item => {
+    if (!item || typeof item.id !== 'string' || seen.has(item.id)) return 'drop';
+    seen.add(item.id);
+    const owner = owners.get(item.id), mappedSlot = slotsByItem.get(item.id);
+    if (!owner) return mappedSlot !== undefined && mappedSlot !== slot ? 'drop' : 'keep';
+    if (String(owner.account_id ?? '').toLowerCase() !== account || owner.location !== 'inventory') return 'drop';
+    if (mappedSlot !== undefined ? mappedSlot !== slot : slot !== 1) return 'drop';
+    let known;
+    try { known = JSON.parse(owner.item_json); } catch { return 'drop'; }
+    if (!itemValid(known) || known.id !== item.id) return 'drop';
+    return identity(known) === identity(item) ? 'keep' : { item: known };
+  };
+  let changed = false;
+  const bag = [];
+  for (const item of save.bag) {
+    const decision = decide(item);
+    if (decision === 'drop') { changed = true; continue; }
+    if (decision !== 'keep') { changed = true; bag.push(decision.item); continue; }
+    bag.push(item);
+  }
+  const equipmentSave = {};
+  for (const [key, item] of Object.entries(save.equipment)) {
+    if (!item) { equipmentSave[key] = item; continue; }
+    const decision = decide(item);
+    if (decision === 'drop') { changed = true; continue; }
+    if (decision !== 'keep') { changed = true; equipmentSave[key] = decision.item; continue; }
+    equipmentSave[key] = item;
+  }
+  return changed ? { ...save, bag, equipment: equipmentSave } : undefined;
+};
+// 정리된 세이브는 캐릭터 저장소에도 반영하되, 진행이 아닌 복구이므로 revision·updated_at은 그대로 둔다.
+export async function healStaleLoadItems(tx, row) {
+  let healed;
+  try { healed = await repairedSave(tx, row); } catch (error) { if (error instanceof ApiError) throw error; return row.save; }
+  if (!healed) return row.save;
+  const characterSave = { ...healed };
+  delete characterSave.gold;
+  await tx.execute({ sql: 'UPDATE djrpg_characters SET save_json=? WHERE account_id=? AND slot=? AND save_json=?', args: [JSON.stringify(characterSave), row.id, Number(row.slot ?? 1), row.character_json] });
+  return healed;
+}
 export async function writeSave(tx, row, save, operations = [], preserveCollection = true) {
   for (const field of ['bossKills','playSeconds']) {
     if (save[field] !== undefined && (typeof save[field] !== 'number' || !Number.isFinite(save[field]) || save[field] < 0)) fail(400,'INVALID_SAVE','활동 통계 형식이 올바르지 않습니다.');
