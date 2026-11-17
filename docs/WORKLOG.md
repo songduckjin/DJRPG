@@ -1,3 +1,8 @@
+## 2026-11-17 · 작업 89
+- `ambientMotion.ts`: 축소된 화면에서 거의 보이지 않던 풀 좌우 흔들림 강도·주기 보정. 320px 화면 메시 풀 끝 왕복 약 1~1.5px→3.7~6px, 뿌리/불 효과 유지.
+- `tests/ambient-motion.test.mjs`: 실제 정점의 모바일 화면 변위·큰 변형의 삼각형 뒤집힘 방지 회귀 추가.
+- 검증: 타입 검사·143개 테스트·빌드·diff 검사 통과. 브라우저 실기 미실행.
+
 ## 2026-11-17 · 작업 88
 - `src/main.ts`, `src/ui/boot.ts`, `src/styles/boot.css`: 로그인 후 로딩 오버레이와 초기화 오류·새로고침 표시.
 - `src/game/render.ts`, `src/game/wasteland.ts`, `src/game/bootProgress.ts`: 고유 텍스처별 진행률과 배경 로딩 완료 집계.

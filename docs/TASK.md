@@ -710,7 +710,7 @@
 
 ---
 
-## [-] [작업 89] 모바일에서 풀 흔들림이 보이도록 강도 보정
+## [x] [작업 89] 모바일에서 풀 흔들림이 보이도록 강도 보정
 - **등록일**: 2026-11-17
 - **담당자**: 이 대화의 클라우드 Codex
 - **수정 예정 파일**: `src/game/ambientMotion.ts`, `tests/ambient-motion.test.mjs`, `docs/TASK.md`, `docs/WORKLOG.md`.
