@@ -1,3 +1,4 @@
+import { isSkillBook } from '../game/items';
 import { hasSkillUpgrade } from '../game/skillProgress';
 import { applySkillArtwork } from './skillArtwork';
 import { SkillFeedback } from './skillFeedback';
@@ -60,5 +61,6 @@ export function tick(this: Interface): void {
   }
 
 export function renderBagBadge(this: Interface): void {
-    const badge = this.get('.new-badge'); badge.textContent = `${this.newItems.size}`; badge.hidden = this.newItems.size === 0;
+    const count = this.world.save.bag.filter(item => !isSkillBook(item) && this.newItems.has(item.id)).length;
+    const badge = this.get('.new-badge'); badge.textContent = `${count}`; badge.hidden = count === 0;
   }
