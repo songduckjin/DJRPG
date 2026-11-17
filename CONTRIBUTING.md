@@ -130,3 +130,18 @@ Push가 거절되면 반복해서 Push하거나 강제 Push하지 않는다.
 - Force Push는 본인 전용 브랜치에서만 필요한 경우에 한해 `--force-with-lease` 사용
 
 이 정책은 협업 중 데이터 손실과 Push 충돌을 줄이기 위한 저장소 작업 규칙이다. 게임 기획 내용이나 게임 기능의 개발 요구사항을 정의하는 문서는 아니다.
+
+
+## 10. DJRPG 작업자 ID 및 개인 작업지시서
+
+저장소에서 확인한 협업자:
+
+- `songduckjin`: 저장소 소유자
+- `fks3997`: GitHub Collaborator (권한 확인 결과: `write`)
+
+개인 작업지시서:
+
+- `docs/TASK_songduckjin.md`
+- `docs/TASK_fks3997.md`
+
+각 작업자는 본인 ID의 작업지시서만 수정한다. 작업자 ID가 불명확하면 Codex는 추측하지 말고 사용자에게 확인한다. 개인 작업지시서의 작업은 담당자 확인 후 등록하며, 공통 작업은 `docs/TASK.md`에서 관리한다.
