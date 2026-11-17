@@ -1,3 +1,4 @@
+import { journeyState, journeyOperation } from './journey-state.mjs';
 import { createClient } from '@libsql/client';
 
 export class ApiError extends Error {
@@ -11,11 +12,13 @@ export async function schema(db) {
   if (initializedSchemas.has(key)) return initializedSchemas.get(key);
   const initialized = db.batch([
     'CREATE TABLE IF NOT EXISTS djrpg_accounts (id TEXT PRIMARY KEY COLLATE NOCASE, password_hash TEXT NOT NULL, save_json TEXT NOT NULL, updated_at TEXT NOT NULL)',
+    'CREATE TABLE IF NOT EXISTS djrpg_journey (account_id TEXT PRIMARY KEY COLLATE NOCASE, state_json TEXT NOT NULL)',
     'CREATE TABLE IF NOT EXISTS djrpg_save_requests (account_id TEXT PRIMARY KEY COLLATE NOCASE, request_id TEXT NOT NULL, revision INTEGER NOT NULL)',
     'CREATE TABLE IF NOT EXISTS djrpg_save_versions (account_id TEXT PRIMARY KEY COLLATE NOCASE, revision INTEGER NOT NULL DEFAULT 0)',
     `CREATE TABLE IF NOT EXISTS djrpg_market (id TEXT PRIMARY KEY, seller TEXT NOT NULL COLLATE NOCASE, seller_name TEXT NOT NULL, buyer TEXT COLLATE NOCASE, item_json TEXT NOT NULL, name TEXT NOT NULL, slot TEXT NOT NULL, rarity TEXT NOT NULL, price INTEGER NOT NULL, state TEXT NOT NULL, created_at INTEGER NOT NULL, expires_at INTEGER NOT NULL, sold_at INTEGER)`,
     'CREATE INDEX IF NOT EXISTS djrpg_market_state_time ON djrpg_market(state, created_at)',
     'CREATE INDEX IF NOT EXISTS djrpg_market_seller ON djrpg_market(seller, state)',
+    'CREATE INDEX IF NOT EXISTS djrpg_market_recent_price ON djrpg_market(state,name,rarity,sold_at)',
     'CREATE INDEX IF NOT EXISTS djrpg_market_buyer ON djrpg_market(buyer, sold_at)',
     'CREATE TABLE IF NOT EXISTS djrpg_market_inbox (id TEXT PRIMARY KEY, account_id TEXT NOT NULL COLLATE NOCASE, listing_id TEXT NOT NULL, kind TEXT NOT NULL, item_json TEXT, gold INTEGER NOT NULL DEFAULT 0, reason TEXT NOT NULL, created_at INTEGER NOT NULL, claimed_at INTEGER, UNIQUE(listing_id,kind))',
     'CREATE INDEX IF NOT EXISTS djrpg_market_inbox_owner ON djrpg_market_inbox(account_id, claimed_at)',
@@ -75,7 +78,8 @@ const itemsOf = save => [...(save.bag ?? []), ...Object.values(save.equipment ??
 export function inventoryOwnerQuery(id, incoming) {
   const bag = Array.isArray(incoming?.bag) ? incoming.bag : [];
   const equipment = incoming?.equipment && typeof incoming.equipment === 'object' ? Object.values(incoming.equipment) : [];
-  if (bag.length + equipment.length > 50) fail(400, 'INVALID_SAVE', '가방 또는 장비 데이터가 올바르지 않습니다.');
+  if (incoming !== undefined) validateSave(incoming);
+  if (bag.filter(item=>item?.slot!=='skillbook').length > 40 || equipment.length > 10) fail(400, 'INVALID_SAVE', '가방 또는 장비 데이터가 올바르지 않습니다.');
   const ids = [...bag, ...equipment].map(item => item?.id).filter(value => typeof value === 'string');
   return { sql: `SELECT o.*, m.slot AS character_slot FROM djrpg_item_owners o LEFT JOIN djrpg_character_item_owners m ON m.item_id=o.item_id WHERE o.item_id IN (
     SELECT json_extract(j.value,'$.id') FROM djrpg_characters c, json_each(c.save_json,'$.bag') j WHERE c.account_id=?
@@ -90,7 +94,7 @@ function itemValid(item) {
 const identity = item => JSON.stringify([item.name, item.slot.startsWith('ring') ? 'ring' : item.slot, item.rarity, item.kind ?? 'equipment', item.skillId ?? '', ...['attack','defense','health','crit','speed'].map(key => item.stats[key] ?? 0)]);
 export async function reconcileItems(tx, id, before, after, options = {}) {
   const next = itemsOf(after), previous = itemsOf(before), ids = new Set();
-  if (next.length > 50 || !Array.isArray(after.bag) || after.bag.length > 40 || !after.equipment || typeof after.equipment !== 'object') fail(400, 'INVALID_SAVE', '가방 또는 장비 데이터가 올바르지 않습니다.');
+  if (!Array.isArray(after.bag) || after.bag.filter(item=>item?.slot!=='skillbook').length > 40 || Object.values(after.equipment??{}).length > 10 || !after.equipment || typeof after.equipment !== 'object') fail(400, 'INVALID_SAVE', '가방 또는 장비 데이터가 올바르지 않습니다.');
   const previousValid = previous.filter(itemValid);
   const allIds = [...new Set([...previousValid, ...next].map(item => item?.id).filter(id => typeof id === 'string'))];
   const owned = options.owned ?? (allIds.length ? (await tx.execute({ sql: `SELECT * FROM djrpg_item_owners WHERE item_id IN (${allIds.map(() => '?').join(',')})`, args: allIds })).rows : []);
@@ -117,6 +121,10 @@ export async function reconcileItems(tx, id, before, after, options = {}) {
   else if (writes.length) await tx.batch(writes);
 }
 export async function writeSave(tx, row, save, operations = [], preserveCollection = true) {
+  for (const field of ['bossKills','playSeconds']) {
+    if (save[field] !== undefined && (typeof save[field] !== 'number' || !Number.isFinite(save[field]) || save[field] < 0)) fail(400,'INVALID_SAVE','활동 통계 형식이 올바르지 않습니다.');
+    save[field] = preserveCollection ? Math.max(row.save[field] ?? 0, save[field] ?? 0) : save[field] ?? 0;
+  }
   save.accountId = row.id; save.lastActiveAt = Date.now();
   // Older clients may omit discovery history; never erase already-recorded entries.
   const previousCollection = preserveCollection && Array.isArray(row.save.equipmentCollection) ? row.save.equipmentCollection : [];
@@ -124,6 +132,7 @@ export async function writeSave(tx, row, save, operations = [], preserveCollecti
   save.equipmentCollection = [...new Set([...previousCollection, ...incomingCollection].filter(key => typeof key === 'string' && /^(weapon|offhand|helmet|armor|necklace|gloves|belt|boots|ring):[0-9]$/.test(key)))].slice(0, 75);
   if (!Number.isSafeInteger(save.gold) || save.gold < 0 || save.gold > 9_000_000_000_000) fail(400, 'INVALID_GOLD', '금화 값이 올바르지 않습니다.');
   if (Number(row.slot) < 1 || Number(row.slot) > 3) fail(409, 'CHARACTER_CONFLICT', '현재 캐릭터를 다시 불러오세요.');
+  if (!row.skipJourney) operations = [...operations, journeyOperation(row.id, await journeyState(tx, row, save))];
   const revision = row.revision + 1;
   const characterSave = structuredClone(save);
   delete characterSave.gold;
@@ -142,5 +151,5 @@ export function respondError(res, error) {
 }
 
 export function validateSave(save) {
-  if (!save || typeof save !== 'object' || Array.isArray(save) || save.version !== 1 || JSON.stringify(save).length > 200_000) fail(400, 'INVALID_SAVE', '저장 데이터 형식이 올바르지 않습니다.');
+  if (!save || typeof save !== 'object' || Array.isArray(save) || save.version !== 1 || JSON.stringify(save).length > 1_000_000) fail(400, 'INVALID_SAVE', '저장 데이터 형식이 올바르지 않습니다.');
 }

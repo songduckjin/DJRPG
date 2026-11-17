@@ -1,3 +1,4 @@
+import { equipmentCount } from './bagCapacity';
 import type { Save, Slot } from './store';
 
 // Helmet art is part of the selected body sprites where that appearance exists.
@@ -39,7 +40,7 @@ export function heroAppearance(save: Save) {
 export function unequipItem(save: Save, slot: Slot): { ok: boolean; message: string } {
   const item = save.equipment[slot];
   if (!item) return { ok: false, message: '빈 장비 슬롯입니다.' };
-  if (save.bag.length >= 40) return { ok: false, message: '가방이 가득 차 장비를 해제할 수 없습니다.' };
+  if (equipmentCount(save.bag) >= 40) return { ok: false, message: '가방이 가득 차 장비를 해제할 수 없습니다.' };
   save.bag.push(item); delete save.equipment[slot];
   return { ok: true, message: `${item.name} 장착을 해제했습니다.` };
 }

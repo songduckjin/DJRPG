@@ -10,6 +10,8 @@ export function renderSkillUpgrade(ui: Interface, parent: HTMLElement, id: Skill
   note.textContent = status.maxed ? '최대 레벨' : `보유 ${status.count} / 필요 ${status.cost}권`;
   const button = document.createElement('button'); button.type = 'button'; button.className = 'skillbook-use';
   button.textContent = status.level ? '강화' : '습득'; button.disabled = !status.ready;
+  button.title = status.maxed ? '최대 레벨' : `${status.level ? '강화' : '습득'} · 보유 ${status.count} / 필요 ${status.cost}권`;
+  button.setAttribute('aria-label', button.title);
   button.onclick = () => {
     if (ui.world.paused || ui.market.busy || ui.market.sync.locked) { ui.message('동기화 중에는 스킬을 강화할 수 없습니다.'); return; }
     const book = ui.world.save.bag.find(item => item.kind === 'skillbook' && item.skillId === id);
@@ -37,7 +39,7 @@ export function renderSkillBooks(ui: Interface, parent: HTMLElement): void {
     const card = document.createElement('article'); card.className = 'skill-book-card';
     const icon = document.createElement('img'); icon.src = '/assets/icons/icon_skillbook.png'; icon.alt = '';
     const name = document.createElement('b'); name.textContent = skillbookName(item);
-    const quantity = document.createElement('span'); quantity.textContent = `×${count}`;
+    const quantity = document.createElement('span'); quantity.className = 'skill-book-quantity'; quantity.textContent = `×${count}`;
     card.append(icon, name, quantity); renderSkillUpgrade(ui, card, item.skillId); grid.append(card);
   }
   if (!grid.childElementCount) { const empty = document.createElement('p'); empty.textContent = '보유한 스킬북이 없습니다.'; grid.append(empty); }

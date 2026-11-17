@@ -69,3 +69,13 @@ test('skillbook section groups copies and actual upgrade button consumes cost an
     assert.equal(save.skillLevels.spin,6);assert.equal(save.bag.length,0);assert.equal(changes,1);
   }finally{globalThis.document=previous;}
 });
+
+test('three passive cards share a single grid and keep upgrade controls without redundant learned status',()=>{
+  const previous=globalThis.document,created=[];globalThis.document={createElement(){const element=node();element.children=[];element.appendChild=function(child){this.children.push(child);};created.push(element);return element;}};
+  try{
+    const ui=uiFixture();ui.world.save.passives=['mastery','body','instinct'];renderSkills.call(ui,node());
+    const grid=created.find(n=>n.className==='passive-skill-grid');assert(grid);assert.equal(grid.children.length,3);
+    assert.deepEqual(grid.children.map(card=>card.dataset.skill),['mastery','body','instinct']);
+    assert(!created.some(n=>n.textContent==='습득 완료 · 상시 적용'));assert(created.filter(n=>n.textContent==='강화').length>=3);
+  }finally{globalThis.document=previous;}
+});

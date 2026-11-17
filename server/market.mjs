@@ -23,9 +23,11 @@ export async function expire(tx) {
 
 const listing = row => ({ id: row.id, sellerName: row.seller_name, item: JSON.parse(row.item_json), price: Number(row.price), state: row.state, createdAt: Number(row.created_at), expiresAt: Number(row.expires_at), soldAt: row.sold_at ? Number(row.sold_at) : null });
 export async function snapshot(db, id, input, expirationChecked = false) {
-  const view = ['active','sold','mine'].includes(input.view) ? input.view : 'active';
+  const view = ['active','sold','mine','register','inbox'].includes(input.view) ? input.view : 'active';
   const where = [], args = [];
-  if (view === 'mine') { where.push('(seller=? OR buyer=?)'); args.push(id, id); }
+  if (view === 'mine' && input.mineActiveOnly === true) { where.push("seller=? AND state='active' AND expires_at>?"); args.push(id,Date.now()); }
+  else if (view === 'mine') { where.push('(seller=? OR buyer=?)'); args.push(id, id); }
+  else if (view === 'register' || view === 'inbox') where.push('0');
   else { where.push('state=?'); args.push(view); }
   if (view === 'active') { where.push('expires_at>?'); args.push(Date.now()); }
   const query = typeof input.query === 'string' ? input.query.trim().slice(0, 80) : '';
@@ -80,12 +82,16 @@ export async function mutate(db, id, input) {
       input.action === 'buy' || input.action === 'cancel'
         ? { sql: 'SELECT * FROM djrpg_market WHERE id=?', args: [typeof input.listingId === 'string' ? input.listingId : ''] }
         : input.action === 'claim'
-          ? { sql: 'SELECT * FROM djrpg_market_inbox WHERE id=? AND account_id=? AND claimed_at IS NULL', args: [typeof input.deliveryId === 'string' ? input.deliveryId : '', id] }
+          ? input.deliveryId === 'all'
+            ? {sql:'SELECT * FROM djrpg_market_inbox WHERE account_id=? AND claimed_at IS NULL ORDER BY created_at ASC,id ASC',args:[id]}
+            : { sql: 'SELECT * FROM djrpg_market_inbox WHERE id=? AND account_id=? AND claimed_at IS NULL', args: [typeof input.deliveryId === 'string' ? input.deliveryId : '', id] }
           : { sql: "SELECT COUNT(*) AS n FROM djrpg_market WHERE seller=? AND state='active' AND expires_at>?", args: [id, Date.now()] },
-      inventoryOwnerQuery(id, input.progress)
+      inventoryOwnerQuery(id, input.progress),
+      { sql: 'SELECT state_json FROM djrpg_journey WHERE account_id=?', args: [id] }
     ]);
     const row = decodeAccount(reads[0].rows[0]), replay = reads[1].rows[0];
     if (Number(input.characterSlot ?? 1) !== row.slot) fail(409, 'CHARACTER_CONFLICT', '다른 캐릭터가 선택되었습니다. 새로고침해 주세요.');
+    row.journeyRecord = reads[4].rows[0] ?? null;
     if (replay) {
       const result = JSON.parse(replay.response_json);
       if (result.revision !== undefined && result.revision !== row.revision) delete result.effect;
@@ -151,21 +157,38 @@ export async function mutate(db, id, input) {
         message = '구매 완료! 수령함에서 아이템을 받아주세요.';
       }
     } else if (input.action === 'claim') {
-      const delivery = reads[2].rows[0];
-      if (!delivery) fail(409, 'ALREADY_CLAIMED', '이미 수령했거나 존재하지 않는 항목입니다.');
-      if (delivery.item_json) {
-        if (save.bag.length >= 40) fail(409, 'BAG_FULL', '가방이 가득 찼습니다. 수령함에 안전하게 보관되므로 공간을 비운 뒤 받아주세요.');
-        const item = JSON.parse(delivery.item_json); save.bag.push(item);
-        write({ sql: "UPDATE djrpg_item_owners SET location='inventory' WHERE item_id=? AND account_id=?", args: [item.id, id] });
-        write({ sql: 'INSERT INTO djrpg_character_item_owners(item_id,account_id,slot) VALUES (?,?,?) ON CONFLICT(item_id) DO UPDATE SET account_id=excluded.account_id,slot=excluded.slot', args: [item.id, id, row.slot] });
+      const all = input.deliveryId === 'all', deliveries = reads[2].rows;
+      if (!deliveries.length) fail(409, 'ALREADY_CLAIMED', '이미 수령했거나 존재하지 않는 항목입니다.');
+      const claimed = []; let gold = 0, skipped = 0;
+      let equipmentCount = save.bag.filter(item=>item.slot!=='skillbook').length;
+      for (const delivery of deliveries) {
+        const item = delivery.item_json ? JSON.parse(delivery.item_json) : null;
+        if (item && item.slot !== 'skillbook' && equipmentCount >= 40) {
+          if (!all) fail(409,'BAG_FULL','가방이 가득 찼습니다. 수령함에 안전하게 보관되므로 공간을 비운 뒤 받아주세요.');
+          skipped++;continue;
+        }
+        if (item) {
+          save.bag.push(item);if(item.slot!=='skillbook')equipmentCount++;
+          write({sql:"UPDATE djrpg_item_owners SET location='inventory' WHERE item_id=? AND account_id=?",args:[item.id,id]});
+          write({sql:'INSERT INTO djrpg_character_item_owners(item_id,account_id,slot) VALUES (?,?,?) ON CONFLICT(item_id) DO UPDATE SET account_id=excluded.account_id,slot=excluded.slot',args:[item.id,id,row.slot]});
+        }
+        gold += Number(delivery.gold);claimed.push(delivery.id);
+        write({sql:'UPDATE djrpg_market_inbox SET claimed_at=? WHERE id=? AND claimed_at IS NULL',args:[Date.now(),delivery.id]});
       }
-      save.gold += Number(delivery.gold);
-      effect.claimedId = delivery.id;
-      write({ sql: 'UPDATE djrpg_market_inbox SET claimed_at=? WHERE id=? AND claimed_at IS NULL', args: [Date.now(), delivery.id] });
-      message = delivery.item_json ? '아이템을 가방으로 받았습니다.' : `${Number(delivery.gold).toLocaleString('ko-KR')} 금화를 받았습니다.`;
+      if(!claimed.length)fail(409,'BAG_FULL','장비 가방이 가득 찼습니다. 미수령 물품은 수령함에 보관됩니다.');
+      save.gold += gold;
+      if(all)effect.claimedIds=claimed;else effect.claimedId=claimed[0];
+      message=all?`${claimed.length}건 수령 완료${skipped?` · 공간 부족 장비 ${skipped}건은 수령함에 보관`:''}`:deliveries[0].item_json?'아이템을 가방으로 받았습니다.':`${gold.toLocaleString('ko-KR')} 금화를 받았습니다.`;
     } else fail(400, 'INVALID_ACTION', '지원하지 않는 거래 요청입니다.');
     write({ sql: 'INSERT INTO djrpg_market_requests VALUES (?,?,?)', args: [id, input.requestId, JSON.stringify({ ok: true, message, effect, revision: row.revision + 1 })] });
     const result = { ok: true, message, effect, ...await writeSave(tx, row, save, operations) };
     return result;
   });
+}
+
+export async function recentPrice(db,input) {
+  if(typeof input.name!=='string'||input.name.length>100||!['common','magic','rare','epic','unique','legendary'].includes(input.rarity)||!['weapon','offhand','helmet','armor','necklace','gloves','belt','boots','ring1','ring2','skillbook'].includes(input.slot))fail(400,'INVALID_ITEM','시세 조회 아이템을 확인하세요.');
+  const rings=input.slot==='ring1'||input.slot==='ring2';
+  const rows=(await db.execute({sql:`SELECT price,sold_at FROM djrpg_market WHERE state='sold' AND name=? AND rarity=? AND ${rings?"slot IN ('ring1','ring2')":'slot=?'} ORDER BY sold_at DESC,id DESC LIMIT 10`,args:rings?[input.name,input.rarity]:[input.name,input.rarity,input.slot]})).rows;
+  return {count:rows.length,lastPrice:rows.length?Number(rows[0].price):null,soldAt:rows.length?Number(rows[0].sold_at):null,average:rows.length?Math.round(rows.reduce((sum,row)=>sum+Number(row.price),0)/rows.length):null};
 }

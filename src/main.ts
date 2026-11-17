@@ -1,3 +1,4 @@
+import { preferences } from './game/preferences';
 import { mountWasteland } from './game/wasteland';
 import { GameView } from './game/render';
 import { clearLegacySave, parseSave, readLegacySave } from './game/store';
@@ -77,6 +78,8 @@ async function start(): Promise<void> {
 
     let previous = performance.now(), time = 0;
     view.app.ticker.add(() => {
+      const maxFPS = preferences.powerSaving ? 30 : 60;
+      if (view.app.ticker.maxFPS !== maxFPS) view.app.ticker.maxFPS = maxFPS;
       const now = performance.now(), dt = Math.min(.05, (now - previous) / 1000); previous = now; time += dt;
       world.update(dt);
       view.draw(world, time); ui.tick();

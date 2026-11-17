@@ -1,3 +1,4 @@
+import { canStoreItem } from './bagCapacity';
 import { equipmentDropChance, rollItem, rollSkillBook, skillBookDropChance, totalStats, type Item } from './items';
 import { addExperience, floorKillTarget, type Save } from './store';
 import { enemyMaxHp } from './world';
@@ -12,6 +13,7 @@ export function applyOfflineRewards(save: Save, elapsedSeconds: number): Offline
   const kills = Math.floor(seconds / 60 * killsPerMinute);
   const target = floorKillTarget(save.floor);
   const bossKills = Math.floor(kills / target);
+  save.bossKills += bossKills;
   const exp = kills * 8;
   const gold = kills * (3 + save.floor) + bossKills * 70 * save.floor;
   save.kills += kills;
@@ -21,8 +23,8 @@ export function applyOfflineRewards(save: Save, elapsedSeconds: number): Offline
   const items: Item[] = [];
   let missedDrops = 0;
   const receive = (createItem: () => Item): void => {
-    if (save.bag.length >= 40) { missedDrops++; return; }
     const item = createItem();
+    if (!canStoreItem(save.bag, item)) { missedDrops++; return; }
     save.bag.push(item);
     items.push(item);
   };

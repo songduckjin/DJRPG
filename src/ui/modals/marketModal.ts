@@ -34,7 +34,7 @@ function select(label: string, values: [string,string][], market: Market, key: s
 export function updateMarketLive(ui: Interface): void {
   const market = ui.market, data = market.data;
   const status = ui.root.querySelector<HTMLElement>('.market-connection');
-  if (status) status.textContent = market.loading ? '목록 불러오는 중…' : market.error ? market.error : market.connected ? '● 실시간 연결됨' : '○ 연결 확인 중 · 2초마다 자동 갱신';
+  if (status) status.textContent = market.loading ? '목록 불러오는 중…' : market.error ? market.error : '자동 갱신 꺼짐 · 버튼 또는 탭 이동으로 갱신';
   const refresh = ui.root.querySelector<HTMLButtonElement>('.market-refresh');
   if (refresh) { refresh.textContent = market.newCount ? `새 매물 ${market.newCount}개 · 갱신` : '목록 새로고침'; refresh.disabled = market.busy || market.loading; }
   const count = ui.root.querySelector<HTMLElement>('[data-market-view="inbox"]'); if (count) count.textContent = `수령함 ${data?.inbox.length ?? 0}`;
@@ -62,6 +62,7 @@ export function renderMarket(this: Interface, dialog: HTMLElement): void {
   const blocked = guest || market.busy || market.sync.conflicted || !!market.sync.pendingMarket;
   if (market.view === 'register') renderRegister(this, dialog, blocked);
   else if (market.view === 'inbox') {
+    dialog.append(button('모두 수령',()=>{void market.act('claim',{deliveryId:'all'});},blocked||!data?.inbox.length));
     dialog.append(el('p', 'market-notice', '구매품·취소품·만료품·판매대금을 보관합니다. 가방이 가득 차도 수령함의 물품은 사라지지 않습니다.'));
     for (const delivery of data?.inbox ?? []) {
       const row = el('article', 'market-row');
@@ -71,6 +72,10 @@ export function renderMarket(this: Interface, dialog: HTMLElement): void {
     }
     if (!data?.inbox.length) dialog.append(el('p', 'empty', '아직 수령할 물품이나 판매대금이 없습니다.'));
   } else {
+    if(market.view==='mine'){
+      const label=el('label','market-mine-filter','판매 중인 물건만 보기'),check=el('input');check.type='checkbox';check.checked=market.mineActiveOnly;check.disabled=market.busy;
+      check.onchange=()=>{market.mineActiveOnly=check.checked;market.filters.page=0;market.refresh();};label.append(check);dialog.append(label);
+    }
     renderFilters(market, dialog);
     dialog.append(el('p', 'market-result', `${money(data?.total ?? 0)}건${market.view === 'mine' ? ` · 판매 중 ${data?.myActive ?? 0}/${data?.rules?.maxListings ?? 30} · 내 판매 및 구매 기록` : ''}`));
     if (!data && market.loading) dialog.append(el('p', 'empty', '거래소를 불러오고 있습니다…'));
@@ -160,7 +165,7 @@ function renderRegister(ui: Interface, dialog: HTMLElement, blocked: boolean): v
   const grid = el('div', 'market-register-grid');
   const visible = filterSaleItems(ui.world.save.bag, market.registerCategory, market.registerRarity);
   for (const item of visible) {
-    const pick = button('', () => { market.selectedItem = item.id; market.unlockItem = undefined; market.onChange(true); }, blocked);
+    const pick = button('', () => { void market.selectItem(item); }, blocked);
     pick.className = `market-pick rarity-${item.rarity}${market.selectedItem === item.id ? ' selected' : ''}`;
     pick.append(icon(item), el('small', `rarity-${item.rarity}`, rarityNames[item.rarity]), el('small', '', item.name));
     if (!isSkillBook(item) && item.locked) { const locked = el('span', 'lock-icon is-locked'); locked.setAttribute('aria-label', '잠긴 장비'); pick.append(locked); }
@@ -171,6 +176,14 @@ function renderRegister(ui: Interface, dialog: HTMLElement, blocked: boolean): v
   const item = visible.find(entry => entry.id === market.selectedItem);
   if (item) {
     form.append(itemInfo(item));
+    const quote=market.quote,prices=el('p','market-recent-price');
+    if(quote?.itemId===item.id){
+      if(quote.loading)prices.textContent='최근 거래가 확인 중…';
+      else if(quote.error)prices.textContent=quote.error;
+      else if(!quote.count)prices.textContent='같은 이름·등급·부위의 최근 거래 기록이 없습니다.';
+      else {prices.append('최근 거래 ',goldNode(quote.lastPrice!),` (${when(quote.soldAt!)}) · 최근 ${quote.count}건 평균 `,goldNode(quote.average!));}
+    }else prices.textContent='아이템을 선택하면 최근 거래가를 확인합니다.';
+    form.append(prices);
     const field = el('label', 'market-field', '판매 가격 (금화)'), input = el('input'); input.type = 'number'; input.required = true; input.min = '1'; input.max = '1000000000'; input.step = '1'; input.inputMode = 'numeric'; input.placeholder = '1 ~ 1,000,000,000'; input.value = market.price; input.disabled = blocked;
     const proceeds = el('p', 'market-proceeds');
     const update = () => { market.price = input.value; const price = Number(input.value); proceeds.replaceChildren(); if (Number.isSafeInteger(price) && price > 0) proceeds.append('수수료 ', goldNode(Math.ceil(price * 5 / 100)), ' · 예상 수령 ', goldNode(price - Math.ceil(price * 5 / 100))); else proceeds.textContent = '가격을 입력하면 예상 수령액을 확인할 수 있습니다.'; }; input.oninput = update; update(); field.append(input); form.append(field, proceeds);

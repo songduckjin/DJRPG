@@ -36,13 +36,13 @@ export default async function handler(req, res) {
         operations.push({ sql: "UPDATE djrpg_item_owners SET location='warehouse' WHERE item_id=? AND account_id=?", args: [item.id, id] });
         operations.push({ sql: 'UPDATE djrpg_character_item_owners SET slot=0 WHERE item_id=? AND account_id=?', args: [item.id, id] });
       } else {
-        if (save.bag.length >= 40) fail(409, 'BAG_FULL', '가방이 가득 찼습니다.');
         const stored = (await tx.execute({ sql: `SELECT w.item_json,o.location,m.slot FROM djrpg_warehouse w
           JOIN djrpg_item_owners o ON o.item_id=w.item_id AND o.account_id=w.account_id
           JOIN djrpg_character_item_owners m ON m.item_id=w.item_id AND m.account_id=w.account_id
           WHERE w.account_id=? AND w.item_id=?`, args: [id, input.itemId] })).rows[0];
         if (!stored || stored.location !== 'warehouse' || Number(stored.slot) !== 0) fail(409, 'ITEM_NOT_AVAILABLE', '창고 아이템 상태가 달라졌습니다. 다시 불러오세요.');
         const item = JSON.parse(stored.item_json);
+        if (item.slot !== 'skillbook' && save.bag.filter(entry => entry.slot !== 'skillbook').length >= 40) fail(409, 'BAG_FULL', '가방이 가득 찼습니다.');
         save.bag.push(item);
         operations.push({ sql: 'DELETE FROM djrpg_warehouse WHERE account_id=? AND item_id=?', args: [id, item.id] });
         operations.push({ sql: "UPDATE djrpg_item_owners SET location='inventory' WHERE item_id=? AND account_id=?", args: [item.id, id] });

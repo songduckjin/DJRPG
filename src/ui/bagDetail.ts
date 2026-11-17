@@ -67,6 +67,13 @@ export function attachedDetailPosition(bounds: { left: number; right: number; to
     width: fittedWidth, maxHeight };
 }
 
+export function bagDetailPosition(bounds: {left:number;right:number;top:number;bottom:number}, anchor: {left:number;top:number;bottom:number}, height:number, width:number) {
+  const fitted = Math.min(height, Math.max(0, bounds.bottom - bounds.top - 16));
+  const below = anchor.bottom - 1;
+  return { left: Math.max(bounds.left + 8, Math.min(anchor.left, bounds.right - width - 8)),
+    top: below + fitted <= bounds.bottom - 8 ? below : Math.max(bounds.top + 8, anchor.top - fitted + 1) };
+}
+
 export function positionBagDetail(ui: Interface): void {
   const panel = ui.modal.querySelector<HTMLElement>('.bag-detail-overlay');
   const selected = ui.modal.querySelector<HTMLElement>('.bag-item.selected');
@@ -76,9 +83,9 @@ export function positionBagDetail(ui: Interface): void {
   const grid = selected.parentElement!.getBoundingClientRect(), anchor = selected.getBoundingClientRect();
   if (anchor.bottom <= Math.max(grid.top, bounds.top) || anchor.top >= Math.min(grid.bottom, bounds.bottom)) { dismissBagDetail(ui); return; }
   panel.style.width = 'max-content';
-  panel.style.maxWidth = `${Math.max(0, Math.min(400, bounds.width - 16))}px`;
+  panel.style.maxWidth = `${Math.max(0, Math.min(260, bounds.width - 16))}px`;
   panel.style.maxHeight = `${Math.max(0, bounds.height - 16)}px`;
   const size = panel.getBoundingClientRect();
-  const position = attachedDetailPosition(bounds, anchor, size.height, size.width);
+  const position = bagDetailPosition(bounds, anchor, size.height, size.width);
   panel.style.left = `${position.left}px`; panel.style.top = `${position.top}px`;
 }

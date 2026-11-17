@@ -7,6 +7,7 @@ import { createHmac, randomUUID } from 'node:crypto';
 import { createClient } from '@libsql/client';
 import { schema, account } from '../server/database.mjs';
 import { mutate, snapshot } from '../server/market.mjs';
+import { mutate as mutateJourney } from '../server/journey.mjs';
 import accountHandler from '../api/account.mjs';
 import warehouseHandler from '../api/warehouse.mjs';
 import './ts-loader.mjs';
@@ -68,6 +69,15 @@ test('legacy slot, shared gold and warehouse transfers preserve independent char
     assert.equal(characters.status, 200); assert.deepEqual(characters.body.characters.map(entry => entry.slot), [1, 2]);
     const profile = (await db.execute({ sql: 'SELECT shared_gold FROM djrpg_account_profiles WHERE account_id=?', args: ['hero'] })).rows[0];
     assert.equal(Number(profile.shared_gold), 70);
+    const switched = await call(accountHandler, { action: 'selectCharacter', slot: 2, revision: selected.body.revision });
+    assert.equal(switched.status, 200);
+    await assert.rejects(mutateJourney(db, 'hero', { action: 'journey-claim', kind: 'mail', id: 'all', revision: switched.body.revision, requestId: randomUUID(), characterSlot: 1 }), error => error.code === 'CHARACTER_CONFLICT');
+    const reward = await mutateJourney(db, 'hero', { action: 'journey-claim', kind: 'mail', id: 'all', revision: switched.body.revision, requestId: randomUUID(), characterSlot: 2 });
+    assert.equal(reward.save.gold, 1070);
+    const rewardItem = reward.save.bag.find(entry => entry.slot === 'skillbook');
+    assert(rewardItem);
+    const rewardOwner = (await db.execute({ sql: 'SELECT slot FROM djrpg_character_item_owners WHERE item_id=?', args: [rewardItem.id] })).rows[0];
+    assert.equal(Number(rewardOwner.slot), 2);
   } finally {
     await db.close(); delete process.env.TURSO_DATABASE_URL; delete process.env.TURSO_AUTH_TOKEN;
     await rm(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
