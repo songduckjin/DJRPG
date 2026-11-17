@@ -10,6 +10,8 @@
 
 | 작업 | 담당자 ID | 브랜치 | 수정 예정 파일 / 영향 영역 | 위험 등급 | 상태 |
 |---|---|---|---|---|---|
+| 117 · 스킬 상태우측/행압축 | fks3997 | `feature/skillbook-badges-fks3997` | skillModal·skillBooks·CSS·회귀 / 표시 | 개인 | [-] |
+| 118 · 거래소 연결재사용/조회취소 | fks3997 | `feature/skillbook-badges-fks3997` | api/market·marketConnection·game/market·회귀 / 기존 계약 유지 | 주의(내부 성능) | [-] |
 | 114 · 장착8글자/가방10열 | fks3997 | `feature/skillbook-badges-fks3997` | equipModal·CSS·UI회귀 / 표시 | 개인 | [-] |
 | 115 · 책이미지 확대/강화밀착 | fks3997 | `feature/skillbook-badges-fks3997` | skillBooks·bookArt·CSS / 표시 | 개인 | [-] |
 | 116 · 장착스킬 공통테두리 | fks3997 | `feature/skillbook-badges-fks3997` | skillModal·CSS·UI회귀 / 표시 | 개인 | [-] |
