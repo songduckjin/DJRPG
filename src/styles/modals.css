@@ -294,3 +294,5 @@
 .bag-heading h3 { grid-column:1 / 4; margin:0; }
 .bag-rarity-sort { grid-column:4; border:1px solid #6d5948; background:#292124; color:#bba998; padding:4px 1px; font-size:11px; }
 .bag-rarity-sort.active { border-color:#c8a26a; background:#4a342a; color:#ffe1b5; }
+
+.modal-dialog .modal-close { flex:none; width:44px; height:44px; min-width:44px; min-height:44px; touch-action:manipulation; }

@@ -40,14 +40,18 @@ test('compact description keeps content width and clamps beside the selected ite
   const placement=detailPosition(bounds,{left:460,top:150,bottom:200},100,240);
   assert.equal(placement.width,240);assert.equal(placement.left,252);assert(placement.left+placement.width<=492);
 });
-test('close responds at primary pointerdown before release, with keyboard click fallback',()=>{
+test('close waits for click after touch release and consumes activation before exposing the game',()=>{
   const handlers={};let closed=0,prevented=0,stopped=0;
   bindModalClose({addEventListener:(type,run)=>handlers[type]=run},()=>closed++);
   handlers.pointerdown({button:0,isPrimary:true,preventDefault(){prevented++;},stopPropagation(){stopped++;}});
-  assert.equal(closed,1);assert.equal(prevented,1);assert.equal(stopped,1);
-  handlers.pointerdown({button:2,isPrimary:true});assert.equal(closed,1);
-  handlers.click({detail:1});assert.equal(closed,1);handlers.click({detail:0});assert.equal(closed,2);
+  assert.equal(closed,0);assert.equal(stopped,1);assert.equal(prevented,0);
+  // A canceled or scrolled touch generates no activation click and leaves the popup open.
+  handlers.pointerdown({button:2,isPrimary:true});assert.equal(closed,0);
+  handlers.click({detail:1,preventDefault(){prevented++;},stopPropagation(){stopped++;}});
+  assert.equal(closed,1);assert.equal(prevented,1);assert.equal(stopped,2);
+  handlers.click({detail:0,preventDefault(){},stopPropagation(){}});assert.equal(closed,2);
 });
+
 function element(tag='div'){
   const node={tag,children:[],dataset:{},style:{},className:'',textContent:'',attrs:{},value:'',
     append(...children){this.children.push(...children);},prepend(...children){this.children.unshift(...children);},appendChild(child){this.append(child);return child;},replaceChildren(...children){this.children=children;},setAttribute(k,v){this.attrs[k]=v;}};

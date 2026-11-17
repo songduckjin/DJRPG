@@ -10,8 +10,8 @@
 
 | 작업 | 담당자 ID | 브랜치 | 수정 예정 파일 / 영향 영역 | 위험 등급 | 상태 |
 |---|---|---|---|---|---|
-| 124 · 모바일 닫기 터치전달 방지 | fks3997 | `fix/mobile-modal-touch-fks3997` | modalClose·CSS·터치회귀 / UI | 개인 | [-] |
-| 125 · 캐릭터버튼 업적아래 | fks3997 | `fix/mobile-modal-touch-fks3997` | interface·hud CSS·회귀 / 우측메뉴 | 주의(레벨진입유지) | [-] |
+| 124 · 모바일 닫기 터치전달 방지 | fks3997 | `fix/mobile-modal-touch-fks3997` | modalClose·CSS·터치회귀 / UI | 개인 | [x] 로컬 검증 · 배포 진행 |
+| 125 · 캐릭터버튼 업적아래 | fks3997 | `fix/mobile-modal-touch-fks3997` | interface·hud CSS·회귀 / 우측메뉴 | 주의(레벨진입유지) | [x] 로컬 검증 · 배포 진행 |
 | 122 · 가방 등급순 버튼 | fks3997 | `feature/bag-rarity-sort-fks3997` | equipModal·interface·modalDefaults·CSS·회귀 / 표시정렬 | 개인 | [x] 로컬 검증 · 미배포 |
 | 123 · 거래소 등록지연 조사 | fks3997 | `feature/bag-rarity-sort-fks3997` | game/market·server/market·회귀 / 등록후재조회제거·본인만료만처리(계약유지) | 주의 | [x] 로컬 검증 · 미배포 |
 | 121 · 캐릭터 중복검 제거 | fks3997 | `fix/duplicate-weapon-fks3997` | render/entities·렌더회귀 / 무기 중복표시 | 개인 | [x] 로컬 검증 · 미배포 |

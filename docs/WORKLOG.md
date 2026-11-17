@@ -1,3 +1,8 @@
+## 2026-11-17 · 작업121~125 통합 배포
+- 사용자요청: 캐릭터중복검제거·가방등급순·거래소등록후조회제거/만료범위축소·모바일닫기터치전달방지·캐릭터버튼업적아래통합.
+- 최신main e82777e의Cloudflare전환·레벨배지캐릭터진입보존. 타입검사·218개테스트·빌드·diff통과.
+- PR통합후Cloudflare Pages운영배포와실제번들확인예정. 폰실기는배포후사용자확인필요.
+
 ## 2026-11-17 · PR #31 운영 배포 성공
 - 사용자 재시도 요청: PR #31 병합 `6e5b913b7c7d1994662cba3c59eb13eaf7e58bdc`, Vercel Production success 확인.
 - 운영 `https://djrpg.vercel.app/`가 새 `index-7bpUNZAJ.js`·`index-CGx-HJ2q.css` 제공 확인. 이전 PR #30 수정과 장비배지 수정 모두 포함.
