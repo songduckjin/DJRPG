@@ -6,6 +6,15 @@
 
 ## 진행 중 작업
 
+## [-] [작업 96] 설정·우편·보상·업적
+- 담당자: fks3997 · 2026-11-17 · 브랜치 `feature/utility-menus-fks3997`
+- 승인: 사용자가 DB/API 추가 범위에 두 작업자 합의됐다고 명시 승인. 기존 데이터 보존·추가 기록 방식.
+- 직접 수정: 신규 `server/journey*.mjs`, `src/game/journey.ts`, `preferences.ts`, utility 모달·CSS·아이콘, `server/database.mjs`, `api/market.mjs`, `store.ts`, `world.ts`, `offline.ts`, UI Interface/HUD, render/main, 관련 테스트·문서.
+- 목표: 세로4메뉴·하단과 통일된 대비, 실제 화면설정/계정, 우편 목록/수령/삭제, 일일/주간5시KST 초기화·전체받기, 누적업적·필터/단계보상·빨간점.
+- 설계: 서버계정별 수령JSON 테이블, 기존 revision/idempotency 요청체계 재사용. bossKills/playSeconds 추가 기본0·기존kills/level/floor/collection/skills유지. 기간 통계는 저장델타로누적. 가방40초과시지급취소·원자적수령. 신규 초기환영우편 1회. 기존 API 시장 계약은 유지하고 접두어 action 추가.
+- 위험: 핵심공통, 공개등록·양측합의확인. 다른진행작업없음. 타입/전체테스트/빌드·중복/동시/재시도/만료/초기화/용량/게스트/두성별 검증. 원격배포는 기능완료후한번.
+
+
 ## [x] [작업 95] 스킬30레벨·스킬북 강화/이동
 - 담당자: fks3997 · 2026-11-17 · `feature/skill-upgrades-30-fks3997`
 - 수정: `skills.ts`, `store.ts`, 신규 `skillProgress.ts`, `skillBooks.ts`, 스킬/가방 모달·HUD·modals.css·테스트·개인 기록.
