@@ -793,4 +793,4 @@
 - 수정 예정 파일: `.github/workflows/codex-task.yml`, `docs/CODEX_AUTOMATION_GUIDE.md`, `docs/TASK.md`, `docs/WORKLOG.md`.
 - 관계: 작업 92는 별도 PR 브랜치의 구조 진단이며 범위·상태를 변경하지 않는다. 작업 90·91 및 게임 실행 코드·세이브/API/DB 계약은 수정하지 않는다.
 - 완료 기준: 자동화 정적 검증과 `pnpm run check`, `pnpm test`, `pnpm run build` 통과; 실제 계정 키·GitHub 설정의 수동 조치 명시; 별도 PR 제출, `main` 병합 없음.
-- 현재 상태: 단일 사용자 정책과 PR #20 중복 워크플로 정리 중. API 키·저장소 설정·Issue 라벨 실제 실행은 비밀키 등록과 사용자 PR 승인 후 확인해야 하므로 `[x]`로 표시하지 않는다.
+- 현재 상태: 단일 사용자 정책과 PR #20 중복 워크플로 제거 완료. API 키·저장소 설정·Issue 라벨 실제 실행은 비밀키 등록과 사용자 PR 승인 후 확인해야 하므로 `[x]`로 표시하지 않는다.
