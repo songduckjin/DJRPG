@@ -10,7 +10,7 @@
 
 | 작업 | 담당자 ID | 브랜치 | 수정 예정 파일 / 영향 영역 | 위험 등급 | 상태 |
 |---|---|---|---|---|---|
-| [작업 92] 아키텍처 진단 및 모듈 재설계 | `songduckjin` | `task/92-architecture-audit` | 코드 의존성·순환 참조·모듈 경계 진단 (결과 문서만 작성) | 진단 대기 | 사용자 지시 대기 |
+| [작업 92] 아키텍처 진단 및 모듈 재설계 | `songduckjin` · Codex | `task/92-architecture-audit` | `docs/ARCHITECTURE_AUDIT_92.md`, `docs/TASK.md`, `docs/TASK_92.md`, `docs/WORKLOG.md` (실행 코드는 읽기 전용) | 낮음 | [-] 진행 중 |
 
 > 새 개인 작업을 시작할 때 위 표에 한 행을 추가한다. 작업 완료·취소 시 상태와 파일 정보를 갱신하거나 항목을 정리한다. 이 표는 상세 작업지시서를 대체하지 않는다.
 
