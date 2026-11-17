@@ -1,6 +1,6 @@
 ## 2026-11-17 · 작업 93 · Codex 자동화 점검
 
-- `.github/workflows/codex-task.yml`, `docs/CODEX_AUTOMATION_GUIDE.md`: 담당자/작업 승인·파일 충돌 검증, 키·권한·PR 분리, 비용·설정·장애 대응 문서화.
+- `.github/workflows/codex-task.yml`, `docs/CODEX_AUTOMATION_GUIDE.md`: 자동 실행을 `songduckjin` 단독으로 제한하고 Issue 생성·담당·라벨·지시서 일치, 단일 API 키·PR 권한 분리를 문서화.
 - `docs/TASK.md`: 별도 자동화 작업으로 진행 상태 기록. `pnpm run check`, 테스트 158개·`pnpm run build` 및 워크플로 내 JS 구문·사전 검증 모의 검사 통과.
 - 실제 Secrets/Actions 설정·Issue 실행은 미검증. PR #23 Vercel Preview는 빌드 횟수 제한으로 실패; 병합 전 사용자 검토와 제한 해제 후 재확인 필요.
 

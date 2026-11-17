@@ -789,8 +789,8 @@
 ## [-] [작업 93] GitHub Actions + Codex 자동화 점검 및 개선
 
 - 등록일: 2026-11-17 · 담당자: `songduckjin` · Codex · 브랜치: `codex/93-codex-automation`.
-- 목표: Issue `codex-ready` 기반 실행의 담당자·작업 범위·비용·권한·PR 격리를 점검하고 안전한 운영 가이드를 작성한다.
+- 목표: `songduckjin`만 Issue `codex-ready` 자동 실행을 사용하도록 생성자·담당자·라벨 추가자·지시서 담당자를 검증하고 단일 API Secret, 파일 범위·권한·PR 격리를 문서화한다. `fks3997`은 기존 수동 절차를 유지한다.
 - 수정 예정 파일: `.github/workflows/codex-task.yml`, `docs/CODEX_AUTOMATION_GUIDE.md`, `docs/TASK.md`, `docs/WORKLOG.md`.
 - 관계: 작업 92는 별도 PR 브랜치의 구조 진단이며 범위·상태를 변경하지 않는다. 작업 90·91 및 게임 실행 코드·세이브/API/DB 계약은 수정하지 않는다.
 - 완료 기준: 자동화 정적 검증과 `pnpm run check`, `pnpm test`, `pnpm run build` 통과; 실제 계정 키·GitHub 설정의 수동 조치 명시; 별도 PR 제출, `main` 병합 없음.
-- 현재 상태: 코드·문서와 로컬 검증 완료. API 키·저장소 설정·Issue 라벨 실실행은 비밀키 등록과 사용자 PR 승인 후 확인해야 하므로 `[x]`로 표시하지 않는다.
+- 현재 상태: 단일 사용자 정책과 PR #20 중복 워크플로 정리 중. API 키·저장소 설정·Issue 라벨 실제 실행은 비밀키 등록과 사용자 PR 승인 후 확인해야 하므로 `[x]`로 표시하지 않는다.

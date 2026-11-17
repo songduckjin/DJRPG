@@ -22,7 +22,6 @@ jobs:
       branch: ${{ steps.guard.outputs.branch }}
       task_file: ${{ steps.guard.outputs.task_file }}
       scope: ${{ steps.guard.outputs.scope }}
-      secret_name: ${{ steps.guard.outputs.secret_name }}
       base_sha: ${{ steps.guard.outputs.base_sha }}
     steps:
       - uses: actions/checkout@v5
@@ -35,10 +34,12 @@ jobs:
         with:
           script: |
             const fs = require('fs');
-            const allowedOwners = ['songduckjin', 'fks3997'];
+            const automationOwner = 'songduckjin';
             const actor = context.actor;
             const issue = context.payload.issue;
-            if (!allowedOwners.includes(actor)) throw new Error('Only the two named collaborators may start a Codex task.');
+            if (actor !== automationOwner || issue.user?.login !== automationOwner) {
+              throw new Error('Only a task Issue created and labeled by songduckjin may start Codex.');
+            }
             const { data: permission } = await github.rest.repos.getCollaboratorPermissionLevel({
               ...context.repo, username: actor
             });
@@ -56,9 +57,8 @@ jobs:
               return line?.slice(`- ${name}:`.length).trim() || '';
             };
             const owner = field('담당자');
-            if (!allowedOwners.includes(owner)) throw new Error('Task document must name one of the two collaborators.');
-            if (issue.assignees.length !== 1 || issue.assignees[0].login !== owner || actor !== owner) {
-              throw new Error('The label actor, sole issue assignee, and task document owner must match.');
+            if (owner !== automationOwner || issue.assignees?.length !== 1 || issue.assignees[0].login !== automationOwner) {
+              throw new Error('Task document owner and sole Issue assignee must be songduckjin.');
             }
             if (field('자동 실행 승인').toLowerCase() !== 'yes' || field('상태') !== '[-] 진행 중') {
               throw new Error('Task must be preclaimed as [-] 진행 중 and explicitly approved for automation.');
@@ -99,7 +99,6 @@ jobs:
             core.setOutput('branch', branch);
             core.setOutput('task_file', taskFile);
             core.setOutput('scope', JSON.stringify(scope));
-            core.setOutput('secret_name', `OPENAI_API_KEY_${owner.toUpperCase()}`);
             core.setOutput('base_sha', require('child_process').execFileSync('git', ['rev-parse', 'HEAD'], {encoding:'utf8'}).trim());
 
   codex:
@@ -131,7 +130,7 @@ jobs:
       - name: Run Codex without a GitHub write token
         uses: openai/codex-action@v1
         with:
-          openai-api-key: ${{ secrets[needs.preflight.outputs.secret_name] }}
+          openai-api-key: ${{ secrets.OPENAI_API_KEY_SONGDUCKJIN }}
           permission-profile: ':workspace'
           safety-strategy: drop-sudo
           prompt: |
