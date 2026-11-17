@@ -24,7 +24,7 @@ export function renderSettings(ui:Interface,dialog:HTMLElement):void{
   section.append(button('로그아웃 · 계정 전환',()=>window.dispatchEvent(new Event('game-logout'))));dialog.append(section);
 }
 function taskRow(ui:Interface,task:JourneyTask,kind:string):HTMLElement{
-  const row=element('article','utility-card utility-task');row.append(element('b','',`${task.category?task.category+' · ':''}${task.name}`),element('span','',`${task.current.toLocaleString()} / ${task.target.toLocaleString()}`));
+  const row=element('article',`utility-card utility-task${task.completion?' utility-completion':''}`);row.append(element('b','',`${task.category?task.category+' · ':''}${task.name}`),element('span','',`${task.current.toLocaleString()} / ${task.target.toLocaleString()}`));
   const progress=element('progress');progress.max=task.target;progress.value=task.current;progress.setAttribute('aria-label',`${task.name} 진행도`);row.append(progress);
   const reward=element('div','utility-reward');reward.append(goldNode(task.gold));if(task.books)reward.append(element('span','',`스킬북 ${task.books}권`));row.append(reward);
   row.append(button(task.claimed?'수령 완료':task.current>=task.target?'받기':'진행 중',()=>{void ui.journey.act('journey-claim',{kind,id:task.id});},task.claimed||task.current<task.target||ui.journey.busy||ui.session.guest));return row;
@@ -57,15 +57,25 @@ export function renderUtility(ui:Interface,dialog:HTMLElement,kind:'mail'|'rewar
       bottom.append(reward,button(mail.claimedAt?'수령 완료':mail.expired?'기한 만료':'받기',()=>{void journey.act('journey-claim',{kind:'mail',id:mail.id});},!!mail.claimedAt||mail.expired||journey.busy||ui.session.guest));row.append(bottom);section.append(row);
     }
   }else{
-    const toolbar=element('div','utility-toolbar');
     if(kind==='rewards'){
-      const tabs=element('div','utility-tabs');
-      for(const[key,label]of [['daily','일일'],['weekly','주간']]as const){const tab=button(label,()=>{journey.tab=key;ui.renderModal();});tab.classList.toggle('active',journey.tab===key);tabs.append(tab);}toolbar.append(tabs);
+      const tabs=element('div','reward-index-tabs');tabs.setAttribute('role','tablist');tabs.setAttribute('aria-label','보상 기간');
+      for(const[scope,label]of [['daily','일일'],['weekly','주간']]as const){
+        const tab=button(label,()=>{journey.tab=scope;ui.renderModal();});tab.id=`reward-tab-${scope}`;tab.className='reward-index-tab';tab.setAttribute('role','tab');tab.setAttribute('aria-controls',`reward-panel-${scope}`);tab.setAttribute('aria-selected',String(journey.tab===scope));tab.tabIndex=journey.tab===scope?0:-1;
+        tab.onkeydown=event=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;event.preventDefault();journey.tab=event.key==='Home'?'daily':event.key==='End'?'weekly':scope==='daily'?'weekly':'daily';ui.renderModal();ui.modal?.querySelector<HTMLElement>(`#reward-tab-${journey.tab}`)?.focus();};tabs.append(tab);
+      }
+      section.append(tabs);
+      for(const[scope,label]of [['daily','일일'],['weekly','주간']]as const){
+        const panel=element('section','reward-panel');panel.id=`reward-panel-${scope}`;panel.hidden=journey.tab!==scope;panel.setAttribute('role','tabpanel');panel.setAttribute('aria-labelledby',`reward-tab-${scope}`);
+        const tasks=data[scope],ready=tasks.some(task=>!task.claimed&&task.current>=task.target),toolbar=element('div','utility-toolbar reward-panel-toolbar');
+        const all=button('모두 받기',()=>{void journey.act('journey-claim',{kind:scope,id:'all'});},!ready||journey.busy||ui.session.guest);all.setAttribute('aria-label',`${label} 보상 모두 받기`);
+        toolbar.append(element('small','utility-note',`${label} 보상`),all);panel.append(toolbar,element('p','utility-note',`초기화: ${new Date(scope==='daily'?data.periods.dailyEnd:data.periods.weeklyEnd).toLocaleString('ko-KR',{timeZone:'Asia/Seoul'})} (한국 시간)`));
+        for(const task of tasks)panel.append(taskRow(ui,task,scope));section.append(panel);
+      }
+    }else{
+      const tasks=orderedAchievements(data.achievements),ready=tasks.some(task=>!task.claimed&&task.current>=task.target),toolbar=element('div','utility-toolbar');
+      toolbar.append(button('모두 받기',()=>{void journey.act('journey-claim',{kind:'achievements',id:'all'});},!ready||journey.busy||ui.session.guest));section.append(toolbar);
+      for(const task of tasks)section.append(taskRow(ui,task,'achievements'));
     }
-    const scope=kind==='rewards'?journey.tab:'achievements',tasks=kind==='achievements'?orderedAchievements(data.achievements):data[scope],ready=tasks.some(task=>!task.claimed&&task.current>=task.target);
-    toolbar.append(button('모두 받기',()=>{void journey.act('journey-claim',{kind:scope,id:'all'});},!ready||journey.busy||ui.session.guest));section.append(toolbar);
-    if(kind==='rewards')section.append(element('p','utility-note',`초기화: ${new Date(journey.tab==='daily'?data.periods.dailyEnd:data.periods.weeklyEnd).toLocaleString('ko-KR',{timeZone:'Asia/Seoul'})} (한국 시간)`));
-    for(const task of tasks)section.append(taskRow(ui,task,scope));
   }
   if(journey.busy)section.append(element('p','utility-note','보상을 안전하게 처리하고 있습니다…'));dialog.append(section);
 }

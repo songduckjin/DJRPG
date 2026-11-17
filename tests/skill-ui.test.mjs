@@ -79,3 +79,15 @@ test('three passive cards share a single grid and keep upgrade controls without 
     assert(!created.some(n=>n.textContent==='습득 완료 · 상시 적용'));assert(created.filter(n=>n.textContent==='강화').length>=3);
   }finally{globalThis.document=previous;}
 });
+
+test('all eight active skill cards use the exact field artwork and basic attack keeps its sword image',async()=>{
+  const {applySkillArtwork}=await import('../src/ui/skillArtwork.ts');const {skillOrder}=await import('../src/game/skills.ts');
+  const previous=globalThis.document,created=[];globalThis.document={createElement(){const element=node();created.push(element);return element;}};
+  try{
+    renderSkills.call(uiFixture(),node());
+    for(const id of skillOrder){const card=created.find(n=>n.dataset.skill===id),icon=card.querySelector('.skill-icon'),field=node();applySkillArtwork(field,id);const art=field.querySelector('.skill-art');
+      assert.equal(icon.className,'skill-icon skill-image-icon');assert.equal(icon.textContent,'');assert.equal(icon.style.backgroundImage,art.style.backgroundImage);assert.equal(icon.style.backgroundPosition,art.style.backgroundPosition);
+    }
+    assert(created.some(card=>card.querySelector('.skill-icon').style.backgroundImage?.includes('nav_skills_v2.png')));
+  }finally{globalThis.document=previous;}
+});

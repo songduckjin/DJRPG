@@ -225,3 +225,24 @@
 .passive-skill-card .skill-actions { justify-content: center; margin-top: auto; padding-top: 5px; gap: 3px; }
 .passive-skill-card .skill-actions .skill-book-cost { width: 100%; }
 .passive-skill-card .skillbook-use { min-height: 28px; padding: 4px 7px; }
+
+.reward-index-tabs { display: flex; gap: 3px; border-bottom: 1px solid #8b6a49; margin-bottom: -6px; padding-left: 4px; }
+.reward-index-tab { position: relative; top: 1px; min-width: 68px; padding: 6px 14px; border: 1px solid #67503f; border-bottom: 0; border-radius: 5px 5px 0 0; background: #21191b; color: #a99581; font: inherit; cursor: pointer; }
+.reward-index-tab[aria-selected="true"] { background: #302326; color: #f2d5a9; border-color: #b18c59; padding-bottom: 7px; }
+.reward-index-tab:focus-visible { outline: 2px solid #e2bd78; outline-offset: -3px; }
+.reward-panel { display: flex; flex-direction: column; gap: 6px; border: 1px solid #67503f; border-top: 0; padding: 7px 5px 5px; }
+.reward-panel[hidden] { display: none; }
+.reward-panel-toolbar { justify-content: space-between; }
+.utility-completion { border-color: #b38c52; background: #3b2d24; }
+.utility-completion > b { color: #f1d294; }
+.modal-dialog.status-modal { width: min(100%, 360px); max-height: 80dvh; padding: 10px; }
+.status-modal > header { margin-bottom: 7px; }
+.status-modal > header h2 { font-size: 18px; }
+.status-modal .character-overview { gap: 3px; padding: 2px 0 8px; font-size: 11px; }
+.status-modal .character-overview b { font-size: 17px; }
+.status-modal .character-stats { gap: 4px; }
+.status-modal .character-stats > div { gap: 4px; padding: 6px; font-size: 10px; }
+.status-modal .gender-switch { margin-top: 9px; gap: 4px; font-size: 10px; }
+.status-modal .gender-switch button { padding: 5px; }
+
+.skill-list .skill-image-icon { border: 0; border-radius: 0; width: 44px; height: 44px; flex: 0 0 44px; background-color: transparent; }

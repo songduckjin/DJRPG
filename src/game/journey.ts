@@ -1,6 +1,6 @@
 import type { SaveSync } from './sync';
 import type { World } from './world';
-export type JourneyTask = {id:string;name:string;category?:string;target:number;current:number;gold:number;books:number;claimed:boolean};
+export type JourneyTask = {id:string;name:string;category?:string;target:number;current:number;gold:number;books:number;claimed:boolean;completion?:boolean};
 export type Mail = {id:string;title:string;sender:string;body:string;createdAt:number;expiresAt:number;expired:boolean;gold:number;books:number;claimedAt:number|null;read:boolean};
 export type JourneyData = {daily:JourneyTask[];weekly:JourneyTask[];achievements:JourneyTask[];mail:Mail[];periods:{dailyEnd:number;weeklyEnd:number};now:number};
 export class Journey {

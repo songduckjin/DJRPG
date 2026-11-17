@@ -8,7 +8,11 @@ export function applySkillArtwork(button: HTMLButtonElement, kind: Action | null
   art.hidden = kind === null;
   button.classList.toggle('has-skill-art', kind !== null);
   if (!kind) return;
+  setSkillIcon(art, kind);
+}
+export function setSkillIcon(art: HTMLElement, kind: Action): void {
   art.style.backgroundImage = `url('/assets/icons/${kind === 'attack' ? 'nav_skills_v2.png' : 'field-skills.png'}')`;
+  art.style.backgroundRepeat = 'no-repeat';
   art.style.backgroundSize = kind === 'attack' ? 'contain' : '400% 200%';
   const frame = kind === 'attack' ? 0 : frames[kind];
   art.style.backgroundPosition = kind === 'attack' ? 'center' : `${frame % 4 / 3 * 100}% ${Math.floor(frame / 4) * 100}%`;
