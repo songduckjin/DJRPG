@@ -38,9 +38,24 @@ export function showEquippedDetail(ui: Interface, slot: Slot, pinned = false): v
     panel?.remove(); panel = document.createElement('div');
     panel.className = `item-detail equipped-detail ${item.rarity}`; panel.dataset.itemId = item.id;
     panel.setAttribute('role', 'region'); panel.setAttribute('aria-label', '장착 장비 설명');
+    const heading = document.createElement('div'); heading.className = 'item-detail-heading';
     const title = document.createElement('h2'); title.textContent = item.name;
+    const lock = document.createElement('button'); lock.type = 'button'; lock.className = 'item-lock';
+    const updateLock = (locked: boolean): void => {
+      lock.setAttribute('aria-pressed', String(locked)); lock.setAttribute('aria-label', locked ? '장비 잠금 해제' : '장비 잠금');
+      lock.title = locked ? '잠금 중 · 누르면 해제' : '열림 · 누르면 분해 방지 잠금';
+      lock.innerHTML = `<span class="lock-icon ${locked ? 'is-locked' : 'is-open'}" aria-hidden="true"></span>`;
+    };
+    updateLock(!!item.locked);
+    lock.onclick = () => {
+      if (ui.world.paused) { ui.message('동기화 중에는 잠금을 변경할 수 없습니다. 잠시 후 다시 시도하세요.'); return; }
+      const current = ui.world.save.equipment[slot];
+      if (current?.id !== item.id) { dismissEquippedDetail(ui); ui.message('장착 장비가 변경됐습니다. 다시 선택해 주세요.'); return; }
+      current.locked = !current.locked; updateLock(current.locked); ui.world.onChange();
+    };
+    heading.append(title, lock);
     const grade = document.createElement('p'); grade.textContent = `${rarityNames[item.rarity]} · ${slotNames[slot]}`;
-    panel.append(title, grade);
+    panel.append(heading, grade);
     for (const stat of Object.keys(item.stats) as Stat[]) {
       const line = document.createElement('span'); line.textContent = `${statNames[stat]} +${item.stats[stat]}`; panel.append(line);
     }

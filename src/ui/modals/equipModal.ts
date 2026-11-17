@@ -33,9 +33,8 @@ export function renderInventory(this: Interface, dialog: HTMLElement): void {
     for (const { item, count: quantity } of stacks) {
       const book = isSkillBook(item), name = book ? skillbookName(item) : item.name;
       const cell = document.createElement('button'); cell.className = `bag-item ${book ? 'skillbook-item' : item.rarity} ${this.selected === item.id ? 'selected' : ''}`;
-      cell.innerHTML = `${itemIcon.call(this, item.slot, item, 'item-icon')}<b></b>`;
+      cell.innerHTML = itemIcon.call(this, item.slot, item, 'item-icon');
       cell.type = 'button'; cell.dataset.itemId = item.id;
-      cell.querySelector('b')!.textContent = name;
       if (book) {
         const badge = document.createElement('span'); badge.className = 'skillbook-count'; badge.textContent = `×${quantity}`;
         cell.append(badge);
@@ -204,9 +203,9 @@ export function wrapEquipmentName(name: string): string {
   let line = '';
   for (const word of name.trim().split(/\s+/)) {
     const characters = Array.from(word);
-    if (line && Array.from(line).length + 1 + characters.length <= 6) { line += ` ${word}`; continue; }
+    if (line && Array.from(line).length + 1 + characters.length <= 8) { line += ` ${word}`; continue; }
     if (line) { lines.push(line); line = ''; }
-    while (characters.length > 6) lines.push(characters.splice(0, 6).join(''));
+    while (characters.length > 8) lines.push(characters.splice(0, 8).join(''));
     line = characters.join('');
   }
   if (line) lines.push(line);

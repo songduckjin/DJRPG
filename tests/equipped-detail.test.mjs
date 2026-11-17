@@ -39,14 +39,16 @@ test('full bag prevents unequip and explains failure; dismiss only clears view s
 const { attachedDetailPosition } = await import('../src/ui/bagDetail.ts');
 const { deferEquippedDismiss } = await import('../src/ui/equippedDetail.ts');
 const { wrapEquipmentName } = await import('../src/ui/modals/equipModal.ts');
-test('equipment names wrap at word boundaries within six characters and retain all name content',()=>{
+test('equipment names wrap at word boundaries within eight characters and retain all name content',()=>{
   assert.equal(wrapEquipmentName('서리의 룬 블레이드'),'서리의 룬\n블레이드');
   assert.equal(wrapEquipmentName('낡은 강철 플레이트'),'낡은 강철\n플레이트');
-  assert.equal(wrapEquipmentName('일이삼사오육칠'),'일이삼사오육\n칠');
+  assert.equal(wrapEquipmentName('일이삼사오육칠'),'일이삼사오육칠');
+  assert.equal(wrapEquipmentName('일이삼사오육칠팔구'),'일이삼사오육칠팔\n구');
+  assert.equal(wrapEquipmentName('영원의 강철 브레스트플레이트'),'영원의 강철\n브레스트플레이트');
   for(const name of ['두손검','서리의 룬 블레이드','찬란한영웅의황금갑옷','검⚔️전설장비이름']){
     const wrapped=wrapEquipmentName(name);
     assert.equal(wrapped.replace(/\s/g,''),name.replace(/\s/g,''));
-    assert(wrapped.split('\n').every(line=>Array.from(line).length<=6));
+    assert(wrapped.split('\n').every(line=>Array.from(line).length<=8));
   }
 });
 test('attached descriptions touch either side of their item, including narrow and bottom-edge layouts',()=>{
@@ -70,5 +72,16 @@ test('moving from equipment into its description cancels dismissal and keeps une
     deferEquippedDismiss(f.ui);t.mock.timers.tick(90);panel.onpointerenter();t.mock.timers.tick(300);
     assert.equal(f.panel,panel);assert.equal(f.ui.equippedSlot,'weapon');
     panel.children.at(-1).onclick();assert.equal(f.changes,1);
+  }finally{globalThis.document=previous;}
+});
+
+test('equipped detail lock toggles immediately, persists after unequip and refuses paused edits',()=>{
+  const previous=globalThis.document,f=fixture();
+  globalThis.document={createElement:()=>({children:[],dataset:{},style:{},attrs:{},setAttribute(key,value){this.attrs[key]=value;},append(...nodes){this.children.push(...nodes);},addEventListener(){},remove:()=>f.remove(),getBoundingClientRect:()=>({width:250,height:180})})};
+  try{
+    showEquippedDetail(f.ui,'weapon',true);const lock=f.panel.children[0].children[1];assert.equal(lock.attrs['aria-pressed'],'true');assert(lock.innerHTML.includes('is-locked'));
+    f.ui.world.paused=true;lock.onclick();assert(f.ui.world.save.equipment.weapon.locked);assert.equal(f.changes,0);assert.match(f.messages.at(-1),/동기화/);
+    f.ui.world.paused=false;lock.onclick();assert.equal(f.ui.world.save.equipment.weapon.locked,false);assert.equal(lock.attrs['aria-pressed'],'false');assert(lock.innerHTML.includes('is-open'));
+    lock.onclick();assert(f.ui.world.save.equipment.weapon.locked);f.panel.children.at(-1).onclick();assert(f.ui.world.save.bag.at(-1).locked);
   }finally{globalThis.document=previous;}
 });

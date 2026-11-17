@@ -1,3 +1,4 @@
+import {createSkillBookArt} from '../skillBookArt';
 import { goldNode, coinMarkup } from '../currency';
 import { filterSaleItems } from '../itemOrder';
 import { equipmentImage, isSkillBook, rarityNames, slotNames, statNames, type Item, type Stat } from '../../game/items';
@@ -11,8 +12,9 @@ const stateNames: Record<string,string> = { active: '판매 중', sold: '판매 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, className = '', text = ''): HTMLElementTagNameMap[K] { const node = document.createElement(tag); node.className = className; node.textContent = text; return node; }
 function button(label: string, run: () => void, disabled = false): HTMLButtonElement { const node = el('button', '', label); node.type = 'button'; node.disabled = disabled; node.onclick = run; return node; }
 function icon(item: Item): HTMLElement {
+  if(isSkillBook(item)){const node=createSkillBookArt(item);node.classList.add('market-icon');return node;}
   const node = el('span', 'market-icon');
-  const art = isSkillBook(item) ? { path: '/assets/icons/icon_skillbook.png', columns: 1, frame: 0 } : equipmentImage(item);
+  const art = equipmentImage(item);
   node.style.backgroundImage = `url("${art.path}")`; node.style.backgroundSize = `${art.columns * 100}% 100%`; node.style.backgroundPosition = `${art.columns > 1 ? art.frame / (art.columns - 1) * 100 : 0}% center`;
   return node;
 }
@@ -180,7 +182,7 @@ function renderRegister(ui: Interface, dialog: HTMLElement, blocked: boolean): v
     if(quote?.itemId===item.id){
       if(quote.loading)prices.textContent='최근 거래가 확인 중…';
       else if(quote.error)prices.textContent=quote.error;
-      else if(!quote.count)prices.textContent='같은 이름·등급·부위의 최근 거래 기록이 없습니다.';
+      else if(!quote.count)prices.textContent='최근거래기록이 없습니다.';
       else {prices.append('최근 거래 ',goldNode(quote.lastPrice!),` (${when(quote.soldAt!)}) · 최근 ${quote.count}건 평균 `,goldNode(quote.average!));}
     }else prices.textContent='아이템을 선택하면 최근 거래가를 확인합니다.';
     form.append(prices);
