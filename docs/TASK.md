@@ -10,6 +10,7 @@
 
 | 작업 | 담당자 ID | 브랜치 | 수정 예정 파일 / 영향 영역 | 위험 등급 | 상태 |
 |---|---|---|---|---|---|
+| 121 · 캐릭터 중복검 제거 | fks3997 | `fix/duplicate-weapon-fks3997` | render/entities·렌더회귀 / 무기 중복표시 | 개인 | [-] |
 | 120 · 장비배지/배포재시도 | fks3997 | `release/equipment-badge-fks3997` | hud·interface·hud.css·회귀 / 표시·최신main보존 | 개인 | [x] PR #31 운영 배포 성공 |
 | 119 · Cloudflare Pages 전환 | songduckjin | `task/119-cloudflare-pages` | `functions/api/*`·`server/http`·`env`·`auth`·`endpoints`·`api` 어댑터·`wrangler.toml`·`package.json`·회귀 테스트 / 배포·API 진입점·DB 연결 | 핵심 공통(배포·API 계약) | [-] 등록 · 착수 대기 |
 | 106 · 협업 승인 자동화 정책 | songduckjin | `task/94-character-selection` | `AGENTS.md`, 공개 현황·공통 기록 / 모든 작업의 협의·승인 절차 | 핵심 공통(협업 정책) | [x] 사용자 지시 반영 · PR #24 반영 대기 |
