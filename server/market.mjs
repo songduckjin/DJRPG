@@ -73,7 +73,11 @@ export async function mutate(db, id, input) {
   return transaction(db, async tx => {
     // All input-dependent reads share one DB round trip inside the writer transaction.
     const reads = await tx.batch([
-      { sql: 'SELECT a.*, COALESCE(v.revision,0) AS revision FROM djrpg_accounts a LEFT JOIN djrpg_save_versions v ON v.account_id=a.id WHERE a.id=?', args: [id] },
+      { sql: `SELECT a.*, p.shared_gold, p.active_slot, c.save_json AS character_json, c.updated_at AS character_updated_at,
+        COALESCE(v.revision,0) AS revision FROM djrpg_accounts a
+        JOIN djrpg_account_profiles p ON p.account_id=a.id
+        JOIN djrpg_characters c ON c.account_id=a.id AND c.slot=p.active_slot
+        LEFT JOIN djrpg_save_versions v ON v.account_id=a.id WHERE a.id=?`, args: [id] },
       { sql: 'SELECT response_json FROM djrpg_market_requests WHERE account_id=? AND request_id=?', args: [id, input.requestId] },
       input.action === 'buy' || input.action === 'cancel'
         ? { sql: 'SELECT * FROM djrpg_market WHERE id=?', args: [typeof input.listingId === 'string' ? input.listingId : ''] }
@@ -86,6 +90,7 @@ export async function mutate(db, id, input) {
       { sql: 'SELECT state_json FROM djrpg_journey WHERE account_id=?', args: [id] }
     ]);
     const row = decodeAccount(reads[0].rows[0]), replay = reads[1].rows[0];
+    if (Number(input.characterSlot ?? 1) !== row.slot) fail(409, 'CHARACTER_CONFLICT', '다른 캐릭터가 선택되었습니다. 새로고침해 주세요.');
     row.journeyRecord = reads[4].rows[0] ?? null;
     if (replay) {
       const result = JSON.parse(replay.response_json);
@@ -98,7 +103,7 @@ export async function mutate(db, id, input) {
     const save = structuredClone(input.progress ?? row.save);
     const operations = [], effect = { deliveries: [] };
     // Validate ownership from the initial read batch, then persist it with the trade.
-    if (input.action === 'register' || JSON.stringify([row.save.bag, row.save.equipment]) !== JSON.stringify([save.bag, save.equipment])) await reconcileItems(tx, id, row.save, save, { owned: reads[3].rows, operations });
+    if (input.action === 'register' || JSON.stringify([row.save.bag, row.save.equipment]) !== JSON.stringify([save.bag, save.equipment])) await reconcileItems(tx, id, row.save, save, { owned: reads[3].rows, operations, slot: row.slot });
     let message = '';
     const inbox = (sale, owner, kind, item, gold, reason) => {
       const entry = deliveryOperation(sale, owner, kind, item, gold, reason);
@@ -120,6 +125,7 @@ export async function mutate(db, id, input) {
       const [item] = save.bag.splice(index, 1), now = Date.now(), listingId = randomUUID();
       write({ sql: 'INSERT INTO djrpg_market VALUES (?,?,?,NULL,?,?,?,?,?,?,?, ?,NULL)', args: [listingId, id, String(save.name || '모험가').slice(0, 20), JSON.stringify(item), item.name, item.slot, item.rarity, price, 'active', now, now + rules.durationHours * 3600_000] });
       write({ sql: "UPDATE djrpg_item_owners SET location='escrow' WHERE item_id=?", args: [item.id] });
+      write({ sql: 'UPDATE djrpg_character_item_owners SET slot=0 WHERE item_id=? AND account_id=?', args: [item.id, id] });
       event('registered', listingId);
       effect.listing = { id: listingId, state: 'active' };
       message = '판매 등록 완료 · 72시간 동안 공개됩니다.';
@@ -132,6 +138,7 @@ export async function mutate(db, id, input) {
         write({ sql: "UPDATE djrpg_market SET state='cancelled' WHERE id=?", args: [sale.id] });
         inbox(sale, id, 'return', item, 0, '판매 등록 취소');
         write({ sql: "UPDATE djrpg_item_owners SET location='inbox' WHERE item_id=?", args: [item.id] });
+        write({ sql: 'UPDATE djrpg_character_item_owners SET slot=0 WHERE item_id=? AND account_id=?', args: [item.id, id] });
         event('cancelled', sale.id);
         effect.listing = { id: sale.id, state: 'cancelled' };
         message = '등록을 취소했습니다. 아이템은 수령함에 보관됩니다.';
@@ -144,6 +151,7 @@ export async function mutate(db, id, input) {
         const proceeds = Number(sale.price) - Math.ceil(Number(sale.price) * 5 / 100);
         inbox(sale, sale.seller, 'proceeds', null, proceeds, `${item.name} 판매대금 (수수료 5% 차감)`);
         write({ sql: "UPDATE djrpg_item_owners SET account_id=?,location='inbox' WHERE item_id=?", args: [id, item.id] });
+        write({ sql: 'UPDATE djrpg_character_item_owners SET account_id=?,slot=0 WHERE item_id=?', args: [id, item.id] });
         event('sold', sale.id);
         effect.listing = { id: sale.id, state: 'sold', soldAt: Date.now() };
         message = '구매 완료! 수령함에서 아이템을 받아주세요.';
@@ -162,6 +170,7 @@ export async function mutate(db, id, input) {
         if (item) {
           save.bag.push(item);if(item.slot!=='skillbook')equipmentCount++;
           write({sql:"UPDATE djrpg_item_owners SET location='inventory' WHERE item_id=? AND account_id=?",args:[item.id,id]});
+          write({sql:'INSERT INTO djrpg_character_item_owners(item_id,account_id,slot) VALUES (?,?,?) ON CONFLICT(item_id) DO UPDATE SET account_id=excluded.account_id,slot=excluded.slot',args:[item.id,id,row.slot]});
         }
         gold += Number(delivery.gold);claimed.push(delivery.id);
         write({sql:'UPDATE djrpg_market_inbox SET claimed_at=? WHERE id=? AND claimed_at IS NULL',args:[Date.now(),delivery.id]});

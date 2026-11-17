@@ -13,7 +13,7 @@ const save=()=>({version:1,name:'전사',gender:'male',gold:0,bag:[],equipment:{
 async function seed(id,guest=false){await db.execute({sql:'INSERT INTO djrpg_accounts VALUES (?,?,?,?)',args:[id,guest?'guest':'hashed',JSON.stringify(save()),new Date().toISOString()]});}
 async function act(id,kind,itemId='all',action='journey-claim'){const row=await account(db,id);return mutate(db,id,{action,kind,id:itemId,revision:row.revision,requestId:randomUUID()});}
 before(async()=>{directory=await mkdtemp(join(tmpdir(),'journey-'));db=createClient({url:`file:${join(directory,'test.db')}`});await schema(db);});
-after(async()=>{db.close();await rm(directory,{recursive:true,force:true});});
+after(async()=>{await db.close();await rm(directory,{recursive:true,force:true,maxRetries:10,retryDelay:100});});
 test('KST 05:00 daily and Monday weekly boundaries preserve lifetime claims and mail',()=>{
   const sunday=Date.parse('2026-11-15T19:59:59Z'),monday=sunday+1000;
   assert.notEqual(periods(sunday).daily,periods(monday).daily);assert.notEqual(periods(sunday).weekly,periods(monday).weekly);

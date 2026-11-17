@@ -1,6 +1,6 @@
 import type { Gender, Save } from '../game/store';
 
-export type Session = { accountId: string; loginId: string; gender: Gender; guest: boolean; token: string; save: Save; revision: number; offlineSeconds?: number; newAccount?: boolean };
+export type Session = { accountId: string; loginId: string; gender: Gender; guest: boolean; token: string; save: Save; revision: number; characterSlot: number; offlineSeconds?: number; newAccount?: boolean };
 const tokenKey = 'djrpg.auth.token';
 export function clearToken(): void { localStorage.removeItem(tokenKey); }
 export async function accountRequest<T>(action: string, data: Record<string, unknown> = {}, token?: string): Promise<T> {
@@ -13,7 +13,7 @@ export async function accountRequest<T>(action: string, data: Record<string, unk
 }
 async function begin(action: string, data: Record<string, unknown> = {}, token?: string): Promise<Session> {
   const session = await accountRequest<Session>(action, data, token);
-  if (!session || typeof session.token !== 'string' || typeof session.accountId !== 'string' || !session.save || session.save.version !== 1 || !Number.isSafeInteger(session.revision)) throw new Error('계정 데이터가 올바르지 않습니다. 서버 상태를 확인하세요.');
+  if (!session || typeof session.token !== 'string' || typeof session.accountId !== 'string' || !session.save || session.save.version !== 1 || !Number.isSafeInteger(session.revision) || !Number.isInteger(session.characterSlot)) throw new Error('계정 데이터가 올바르지 않습니다. 서버 상태를 확인하세요.');
   localStorage.setItem(tokenKey, session.token);
   session.newAccount = action === 'register';
   return session;

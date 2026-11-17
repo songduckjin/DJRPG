@@ -10,6 +10,7 @@
 
 | 작업 | 담당자 ID | 브랜치 | 수정 예정 파일 / 영향 영역 | 위험 등급 | 상태 |
 |---|---|---|---|---|---|
+| 106 · 협업 승인 자동화 정책 | songduckjin | `task/94-character-selection` | `AGENTS.md`, 공개 현황·공통 기록 / 모든 작업의 협의·승인 절차 | 핵심 공통(협업 정책) | [x] 사용자 지시 반영 · PR #24 반영 대기 |
 | 117 · 스킬 상태우측/행압축 | fks3997 | `feature/skillbook-badges-fks3997` | skillModal·skillBooks·CSS·회귀 / 표시 | 개인 | [x] 로컬 검증 · 미푸시/미배포 |
 | 118 · 거래소 연결재사용/조회취소 | fks3997 | `feature/skillbook-badges-fks3997` | api/market·marketConnection·game/market·회귀 / 기존 계약 유지 | 주의(내부 성능) | [x] 로컬 검증 · 미푸시/미배포 |
 | 114 · 장착8글자/가방10열 | fks3997 | `feature/skillbook-badges-fks3997` | equipModal·CSS·UI회귀 / 표시 | 개인 | [x] 로컬 검증 · 미푸시/미배포 |
@@ -37,6 +38,7 @@
 | 94 · 장비창 정렬·스킬북 별도 목록/묶음 | fks3997 | `feature/skillbook-bag-fks3997` | `equipModal.ts`, `skillbookBag.ts`, `modals.css`, UI 테스트·개인 기록 / 가방 표시·사용 | 주의(데이터 형식 유지) | [x] PR #28 운영 배포 성공 |
 | 93 · 거래소 등록 30개 및 한도 안내 | fks3997 | `fix/market-limit-30-fks3997` | `server/market.mjs`, `marketModal.ts`, 거래소 테스트·개인 기록 / 등록 한도·UI | 주의(계약 형식 변경 없음) | [x] PR #28 운영 배포 성공 |
 | 92 · 장비·가방 호버 및 배치 개선 | fks3997 | `fix/equipment-hover-layout-fks3997` | `equipModal.ts`, `equippedDetail.ts`, `bagDetail.ts`, `modalDefaults.ts`, `modals.css`, 관련 UI 테스트·개인 기록 / 장비창 표시·해제·가방 설명 | 주의(UI 연동, 데이터 계약 변경 없음) | [x] 로컬 검증 완료 · PR #21 · Vercel 빌드 제한 |
+| 94 · 캐릭터 선택·슬롯 및 신규 캐릭터 생성 | songduckjin | `task/94-character-selection` | 캐릭터 선택/생성 UI, 캐릭터별 진행 데이터, 계정 공용 골드·공용창고, 캐릭터 공통 거래소 조회, 계정·세이브 구조 영향 분석 및 테스트 | 핵심 공통(계정·세이브 데이터 계약) | [x] 최신 main 통합·208개 테스트·운영 DB 사본 검증 완료 · PR #24 배포 대기 |
 
 > 새 개인 작업을 시작할 때 위 표에 한 행을 추가한다. 작업 완료·취소 시 상태와 파일 정보를 갱신하거나 항목을 정리한다. 이 표는 상세 작업지시서를 대체하지 않는다.
 

@@ -25,6 +25,19 @@ export async function schema(db) {
     'CREATE TABLE IF NOT EXISTS djrpg_item_owners (item_id TEXT PRIMARY KEY, account_id TEXT NOT NULL COLLATE NOCASE, location TEXT NOT NULL, item_json TEXT NOT NULL)',
     'CREATE TABLE IF NOT EXISTS djrpg_market_events (seq INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT NOT NULL, listing_id TEXT NOT NULL, created_at INTEGER NOT NULL)',
     'CREATE TABLE IF NOT EXISTS djrpg_market_requests (account_id TEXT NOT NULL COLLATE NOCASE, request_id TEXT NOT NULL, response_json TEXT NOT NULL, PRIMARY KEY(account_id, request_id))'
+    , 'CREATE TABLE IF NOT EXISTS djrpg_account_profiles (account_id TEXT PRIMARY KEY COLLATE NOCASE, shared_gold INTEGER NOT NULL, active_slot INTEGER NOT NULL DEFAULT 1)'
+    , 'CREATE TABLE IF NOT EXISTS djrpg_characters (account_id TEXT NOT NULL COLLATE NOCASE, slot INTEGER NOT NULL, save_json TEXT NOT NULL, updated_at TEXT NOT NULL, PRIMARY KEY(account_id, slot))'
+    , 'CREATE TABLE IF NOT EXISTS djrpg_character_item_owners (item_id TEXT PRIMARY KEY, account_id TEXT NOT NULL COLLATE NOCASE, slot INTEGER NOT NULL)'
+    , 'CREATE TABLE IF NOT EXISTS djrpg_warehouse (account_id TEXT NOT NULL COLLATE NOCASE, item_id TEXT PRIMARY KEY, item_json TEXT NOT NULL)'
+    , 'CREATE TABLE IF NOT EXISTS djrpg_warehouse_requests (account_id TEXT NOT NULL COLLATE NOCASE, request_id TEXT NOT NULL, response_json TEXT NOT NULL, PRIMARY KEY(account_id,request_id))'
+    , "INSERT OR IGNORE INTO djrpg_account_profiles(account_id,shared_gold,active_slot) SELECT id, COALESCE(CAST(json_extract(save_json,'$.gold') AS INTEGER),0),1 FROM djrpg_accounts WHERE json_valid(save_json)"
+    , "INSERT OR IGNORE INTO djrpg_characters(account_id,slot,save_json,updated_at) SELECT id,1,json_remove(save_json,'$.gold'),updated_at FROM djrpg_accounts WHERE json_valid(save_json)"
+    , `INSERT OR IGNORE INTO djrpg_character_item_owners(item_id,account_id,slot)
+       SELECT o.item_id,o.account_id,1 FROM djrpg_item_owners o JOIN djrpg_accounts a ON a.id=o.account_id
+       WHERE json_valid(a.save_json) AND o.location='inventory' AND o.item_id IN (
+         SELECT json_extract(j.value,'$.id') FROM json_each(a.save_json,'$.bag') j
+         UNION SELECT json_extract(j.value,'$.id') FROM json_each(a.save_json,'$.equipment') j
+       )`
   ], 'write').catch(error => { initializedSchemas.delete(key); throw error; });
   initializedSchemas.set(key, initialized);
   return initialized;
@@ -36,12 +49,26 @@ export async function transaction(db, run) {
   finally { tx.close(); }
 }
 export async function account(tx, id) {
-  const row = (await tx.execute({ sql: 'SELECT a.*, COALESCE(v.revision,0) AS revision FROM djrpg_accounts a LEFT JOIN djrpg_save_versions v ON v.account_id=a.id WHERE a.id=?', args: [id] })).rows[0];
+  const query = { sql: `SELECT a.*, p.shared_gold, p.active_slot, c.save_json AS character_json, c.updated_at AS character_updated_at, COALESCE(v.revision,0) AS revision
+    FROM djrpg_accounts a JOIN djrpg_account_profiles p ON p.account_id=a.id
+    JOIN djrpg_characters c ON c.account_id=a.id AND c.slot=p.active_slot
+    LEFT JOIN djrpg_save_versions v ON v.account_id=a.id WHERE a.id=?`, args: [id] };
+  let row = (await tx.execute(query)).rows[0];
+  if (row) return decodeAccount(row);
+  await tx.batch([
+    { sql: `INSERT OR IGNORE INTO djrpg_account_profiles(account_id,shared_gold,active_slot)
+      SELECT id,COALESCE(CAST(json_extract(save_json,'$.gold') AS INTEGER),0),1 FROM djrpg_accounts WHERE id=? AND json_valid(save_json)`, args: [id] },
+    { sql: `INSERT OR IGNORE INTO djrpg_characters(account_id,slot,save_json,updated_at)
+      SELECT id,1,json_remove(save_json,'$.gold'),updated_at FROM djrpg_accounts WHERE id=? AND json_valid(save_json)`, args: [id] }
+  ]);
+  row = (await tx.execute(query)).rows[0];
   return decodeAccount(row);
 }
 export function decodeAccount(row) {
   if (!row) fail(401, 'INVALID_TOKEN', '계정을 찾을 수 없습니다. 다시 로그인하세요.');
-  return { ...row, revision: Number(row.revision), save: JSON.parse(row.save_json) };
+  const save = JSON.parse(row.character_json ?? row.save_json);
+  save.gold = Number(row.shared_gold ?? save.gold ?? 0);
+  return { ...row, revision: Number(row.revision), slot: Number(row.active_slot ?? 1), save };
 }
 export function assertRevision(row, revision) {
   if (!Number.isSafeInteger(revision) || revision !== row.revision) fail(409, 'SAVE_CONFLICT', '다른 탭이나 기기에서 진행 상황이 변경되었습니다. 새로고침하여 최신 데이터를 불러오세요.');
@@ -54,9 +81,9 @@ export function inventoryOwnerQuery(id, incoming) {
   if (incoming !== undefined) validateSave(incoming);
   if (bag.filter(item=>item?.slot!=='skillbook').length > 40 || equipment.length > 10) fail(400, 'INVALID_SAVE', '가방 또는 장비 데이터가 올바르지 않습니다.');
   const ids = [...bag, ...equipment].map(item => item?.id).filter(value => typeof value === 'string');
-  return { sql: `SELECT * FROM djrpg_item_owners WHERE item_id IN (
-    SELECT json_extract(j.value,'$.id') FROM djrpg_accounts a, json_each(a.save_json,'$.bag') j WHERE a.id=?
-    UNION SELECT json_extract(j.value,'$.id') FROM djrpg_accounts a, json_each(a.save_json,'$.equipment') j WHERE a.id=?
+  return { sql: `SELECT o.*, m.slot AS character_slot FROM djrpg_item_owners o LEFT JOIN djrpg_character_item_owners m ON m.item_id=o.item_id WHERE o.item_id IN (
+    SELECT json_extract(j.value,'$.id') FROM djrpg_characters c, json_each(c.save_json,'$.bag') j WHERE c.account_id=?
+    UNION SELECT json_extract(j.value,'$.id') FROM djrpg_characters c, json_each(c.save_json,'$.equipment') j WHERE c.account_id=?
     UNION SELECT value FROM json_each(?)
   )`, args: [id, id, JSON.stringify(ids)] };
 }
@@ -72,12 +99,19 @@ export async function reconcileItems(tx, id, before, after, options = {}) {
   const allIds = [...new Set([...previousValid, ...next].map(item => item?.id).filter(id => typeof id === 'string'))];
   const owned = options.owned ?? (allIds.length ? (await tx.execute({ sql: `SELECT * FROM djrpg_item_owners WHERE item_id IN (${allIds.map(() => '?').join(',')})`, args: allIds })).rows : []);
   const owners = new Map(owned.map(owner => [owner.item_id, owner]));
+  const slot = Number(options.slot ?? 1);
+  const mapped = options.owned ? options.owned.filter(row => row.character_slot !== null && row.character_slot !== undefined).map(row => ({ item_id: row.item_id, slot: row.character_slot }))
+    : allIds.length ? (await tx.execute({ sql: `SELECT item_id,slot FROM djrpg_character_item_owners WHERE account_id=? AND item_id IN (${allIds.map(() => '?').join(',')})`, args: [id, ...allIds] })).rows : [];
+  const slotsByItem = new Map(mapped.map(row => [row.item_id, Number(row.slot)]));
   const writes = [];
   for (const item of next) {
     if (!itemValid(item) || ids.has(item.id)) fail(400, 'INVALID_ITEM', '중복되었거나 잘못된 아이템입니다.');
     ids.add(item.id);
     const owner = owners.get(item.id);
     if (owner && (String(owner.account_id).toLowerCase() !== id.toLowerCase() || owner.location !== 'inventory' || identity(JSON.parse(owner.item_json)) !== identity(item))) fail(409, 'ITEM_CONFLICT', '아이템 소유권이 변경되었습니다. 최신 데이터를 다시 불러오세요.');
+    if (slotsByItem.has(item.id) && slotsByItem.get(item.id) !== slot) fail(409, 'ITEM_CONFLICT', '다른 캐릭터의 아이템은 사용할 수 없습니다.');
+    if (owner && !slotsByItem.has(item.id) && slot !== 1) fail(409, 'ITEM_CONFLICT', '기존 아이템의 소유 캐릭터를 확인할 수 없습니다.');
+    if (!slotsByItem.has(item.id)) writes.push({ sql: 'INSERT INTO djrpg_character_item_owners(item_id,account_id,slot) VALUES (?,?,?)', args: [item.id, id, slot] });
   }
   // Include removed legacy items, preventing resurrection after consumption.
   const unregistered = new Map([...previousValid, ...next].filter(item => !owners.has(item.id)).map(item => [item.id, item]));
@@ -97,10 +131,15 @@ export async function writeSave(tx, row, save, operations = [], preserveCollecti
   const incomingCollection = Array.isArray(save.equipmentCollection) ? save.equipmentCollection : [];
   save.equipmentCollection = [...new Set([...previousCollection, ...incomingCollection].filter(key => typeof key === 'string' && /^(weapon|offhand|helmet|armor|necklace|gloves|belt|boots|ring):[0-9]$/.test(key)))].slice(0, 75);
   if (!Number.isSafeInteger(save.gold) || save.gold < 0 || save.gold > 9_000_000_000_000) fail(400, 'INVALID_GOLD', '금화 값이 올바르지 않습니다.');
+  if (Number(row.slot) < 1 || Number(row.slot) > 3) fail(409, 'CHARACTER_CONFLICT', '현재 캐릭터를 다시 불러오세요.');
   if (!row.skipJourney) operations = [...operations, journeyOperation(row.id, await journeyState(tx, row, save))];
   const revision = row.revision + 1;
+  const characterSave = structuredClone(save);
+  delete characterSave.gold;
   await tx.batch([...operations,
-    { sql: 'UPDATE djrpg_accounts SET save_json=?, updated_at=? WHERE id=?', args: [JSON.stringify(save), new Date().toISOString(), row.id] },
+    { sql: 'UPDATE djrpg_characters SET save_json=?,updated_at=? WHERE account_id=? AND slot=?', args: [JSON.stringify(characterSave), new Date().toISOString(), row.id, row.slot] },
+    { sql: 'UPDATE djrpg_account_profiles SET shared_gold=? WHERE account_id=?', args: [save.gold, row.id] },
+    { sql: 'UPDATE djrpg_accounts SET updated_at=? WHERE id=?', args: [new Date().toISOString(), row.id] },
     { sql: 'INSERT INTO djrpg_save_versions VALUES (?,?) ON CONFLICT(account_id) DO UPDATE SET revision=excluded.revision', args: [row.id, revision] }
   ]);
   return { save, revision };
