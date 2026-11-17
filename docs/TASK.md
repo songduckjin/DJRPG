@@ -10,7 +10,7 @@
 
 | 작업 | 담당자 ID | 브랜치 | 수정 예정 파일 / 영향 영역 | 위험 등급 | 상태 |
 |---|---|---|---|---|---|
-| 123 · 기본 공격 검기 제거 및 전사 휘두르기 변경 | songduckjin | `codex/123-basic-attack-vfx` | `src/game/render/vfx.ts`, `src/game/render/field.ts`, `src/game/skills.ts`, `src/game/world.ts`, 작업·배포 기록 / 기본 공격·대검 스킬 연출 및 타격 | 주의(공용 렌더링·전투) | [-] 대검베기를 단일 흰색 휘두르기로 변경; PR #36 진행 중 |
+| 123 · 기본 공격 검기 제거 및 전사 휘두르기 변경 | songduckjin | `codex/123-basic-attack-vfx` | `src/game/render/vfx.ts`, `src/game/render/field.ts`, `src/game/skills.ts`, `src/game/world.ts`, 작업·배포 기록 / 기본 공격·대검 스킬 연출 및 타격 | 주의(공용 렌더링·전투) | [x] PR #36 병합 · Cloudflare Production에서 `index-Bm7w5dto.js` 확인 |
 | 124 · 모바일 닫기 터치전달 방지 | fks3997 | `fix/mobile-modal-touch-fks3997` | modalClose·CSS·터치회귀 / UI | 개인 | [x] 로컬 검증 · 배포 진행 |
 | 125 · 캐릭터버튼 업적아래 | fks3997 | `fix/mobile-modal-touch-fks3997` | interface·hud CSS·회귀 / 우측메뉴 | 주의(레벨진입유지) | [x] 로컬 검증 · 배포 진행 |
 | 122 · 가방 등급순 버튼 | fks3997 | `feature/bag-rarity-sort-fks3997` | equipModal·interface·modalDefaults·CSS·회귀 / 표시정렬 | 개인 | [x] 로컬 검증 · 미배포 |
