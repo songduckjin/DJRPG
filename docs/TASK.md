@@ -11,7 +11,7 @@
 | 작업 | 담당자 ID | 브랜치 | 수정 예정 파일 / 영향 영역 | 위험 등급 | 상태 |
 |---|---|---|---|---|---|
 | 120 · 장비배지/배포재시도 | fks3997 | `release/equipment-badge-fks3997` | hud·interface·hud.css·회귀 / 표시·최신main보존 | 개인 | [x] 로컬 검증 · 배포 진행 |
-| 119 · Cloudflare Pages 전환 | songduckjin | `task/119-cloudflare-pages` | `functions/api/*`·`server/http`·`env`·`auth`·`legacy-auth`·`endpoints`·`api` 어댑터·`wrangler.toml`·`package.json`·`pnpm-workspace.yaml`·회귀 테스트 / 배포·API 진입점·DB 연결 | 핵심 공통(배포·API 계약) | [-] 무료 플랜 해시 마이그레이션 구현·최신 main 통합 후 213개 테스트 · Pages 배포/검증 대기 |
+| 119 · Cloudflare Pages 전환 | songduckjin | `task/119-cloudflare-pages` | `functions/api/*`·`server/http`·`env`·`auth`·`legacy-auth`·`endpoints`·`api` 어댑터·`wrangler.toml`·`package.json`·`pnpm-workspace.yaml`·회귀 테스트 / 배포·API 진입점·DB 연결 | 핵심 공통(배포·API 계약) | [-] 213개 테스트 · Pages 정적 배포 성공 · PR #32 병합/Functions/운영 검증 대기 |
 | 106 · 협업 승인 자동화 정책 | songduckjin | `task/94-character-selection` | `AGENTS.md`, 공개 현황·공통 기록 / 모든 작업의 협의·승인 절차 | 핵심 공통(협업 정책) | [x] 사용자 지시 반영 · PR #24 반영 대기 |
 | 117 · 스킬 상태우측/행압축 | fks3997 | `feature/skillbook-badges-fks3997` | skillModal·skillBooks·CSS·회귀 / 표시 | 개인 | [x] 로컬 검증 · 미푸시/미배포 |
 | 118 · 거래소 연결재사용/조회취소 | fks3997 | `feature/skillbook-badges-fks3997` | api/market·marketConnection·game/market·회귀 / 기존 계약 유지 | 주의(내부 성능) | [x] 로컬 검증 · 미푸시/미배포 |
