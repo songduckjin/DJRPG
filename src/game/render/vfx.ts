@@ -8,6 +8,7 @@ import type { Effect } from '../world';
 import type { Art, GameView } from '../render';
 
 export function drawSkillVfx(this: GameView, effect: Effect, x: number, y: number, t: number, screenAngle: number, time: number): boolean {
+    if (effect.kind === 'slash') return true;
     if (effect.kind === 'warcry') return true;
     if (effect.kind === 'hit' || effect.kind === 'death') return false;
     if (effect.kind === 'spin') { this.drawDragon(effect, x, y, t, time); return true; }

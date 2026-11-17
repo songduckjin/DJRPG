@@ -3,7 +3,7 @@ import type { World } from '../world';
 import type { GameView } from '../render';
 
 export function drawRunes(this: GameView, world: World, x: number, y: number, time: number): void {
-    const active = world.effects.find(effect => ['slash', 'slash2', 'spin', 'slam', 'warcry', 'power', 'destroy', 'hell'].includes(effect.kind) && Math.hypot(effect.x - world.player.x, effect.y - world.player.y) < 2);
+    const active = world.effects.find(effect => ['slash2', 'spin', 'slam', 'warcry', 'power', 'destroy', 'hell'].includes(effect.kind) && Math.hypot(effect.x - world.player.x, effect.y - world.player.y) < 2);
     if (!active && world.player.berserk <= 0) return;
     const t = active ? active.age / active.duration : 0;
     const burst = active?.kind === 'spin' || active?.kind === 'slam' || active?.kind === 'warcry' || active?.kind === 'hell';
