@@ -10,6 +10,7 @@
 
 | 작업 | 담당자 ID | 브랜치 | 수정 예정 파일 / 영향 영역 | 위험 등급 | 상태 |
 |---|---|---|---|---|---|
+| 119 · Cloudflare Pages 전환 | songduckjin | `task/119-cloudflare-pages` | `functions/api/*`·`server/http`·`env`·`auth`·`endpoints`·`api` 어댑터·`wrangler.toml`·`package.json`·회귀 테스트 / 배포·API 진입점·DB 연결 | 핵심 공통(배포·API 계약) | [-] 등록 · 착수 대기 |
 | 106 · 협업 승인 자동화 정책 | songduckjin | `task/94-character-selection` | `AGENTS.md`, 공개 현황·공통 기록 / 모든 작업의 협의·승인 절차 | 핵심 공통(협업 정책) | [x] 사용자 지시 반영 · PR #24 반영 대기 |
 | 117 · 스킬 상태우측/행압축 | fks3997 | `feature/skillbook-badges-fks3997` | skillModal·skillBooks·CSS·회귀 / 표시 | 개인 | [x] 로컬 검증 · 미푸시/미배포 |
 | 118 · 거래소 연결재사용/조회취소 | fks3997 | `feature/skillbook-badges-fks3997` | api/market·marketConnection·game/market·회귀 / 기존 계약 유지 | 주의(내부 성능) | [x] 로컬 검증 · 미푸시/미배포 |
@@ -810,3 +811,100 @@
 
 ## [x] [작업 91] 장착 장비 이미지 확대 및 호버 상세 설명
 - 담당자: `fks3997` · 상세: [개인 작업지시서](TASK_fks3997.md)
+
+---
+
+## [-] [작업 119] Vercel → Cloudflare Pages(+ Pages Functions) 전환
+- **등록일**: 2026-11-17
+- **담당자**: 이 대화의 클라우드 Codex
+- **브랜치**: `task/119-cloudflare-pages` (main 직접 커밋 금지 · 작업 완료 후 PR 병합)
+- **위험 등급**: **핵심 공통** (배포 구조·API 진입점·DB 연결·세션 토큰 계약 변경. 아래 "영향 범위·호환성" 기록으로 자동 승인)
+- **동시 작업 확인**: 등록 시점(2026-11-17, `main` = `9ac94d4`) `docs/TASK.md`에 `[-]` 진행 중 작업 없음. 열린 PR 4건 중 코드를 바꾸는 것은 PR #27(`src/game/market.ts`, `src/game/sync.ts`, `src/ui/login.ts`, `tests/sync.test.mjs`)뿐이고 `api/`·`server/`·`package.json`·`vercel.json`은 건드리지 않아 파일 겹침 없음(PR #20·#22·#23은 문서·CI). 네 PR 모두 `docs/TASK.md`를 수정하므로 푸시가 거절되면 `git pull --rebase origin main` 후 재푸시한다.
+- **수정 예정 파일**
+  - 신규: `functions/api/account.js`, `functions/api/market.js`, `functions/api/market-events.js`, `functions/api/warehouse.js`, `server/http.mjs`, `server/env.mjs`, `server/auth.mjs`, `server/database-config.mjs`, `server/endpoints/account.mjs`, `server/endpoints/market.mjs`, `server/endpoints/market-events.mjs`, `server/endpoints/warehouse.mjs`, `server/node-adapter.mjs`, `server/market-events.mjs`, `wrangler.toml`, `public/_headers`, `.dev.vars.example`, `tests/functions-adapter.test.mjs`
+  - 수정: `api/account.mjs`, `api/market.mjs`, `api/market-events.mjs`, `api/warehouse.mjs`, `server/database.mjs`, `server/market-connection.mjs`, `package.json`, `.gitignore`, `docs/TASK.md`, `docs/WORKLOG.md`
+  - **삭제 금지(롤백용 유지)**: `vercel.json`, `api/*.mjs`의 Vercel 배포 경로
+- **배경**: Vercel 무료 플랜의 빌드 한도 때문에 PR Preview·Production 배포가 `upgradeToPro=build-rate-limit`으로 반복 실패했다(`docs/WORKLOG.md` 2026-11-17 기록: 작업 93·94·96·PR #24). Cloudflare Pages 무료 플랜은 월 500회 빌드·무제한 대역폭·Functions 10만 요청/일이라 빌드 제한 문제 자체가 사라진다.
+- **목표**: 코드·설정을 Cloudflare Pages(+ Pages Functions)에서 그대로 동작하도록 옮기되, **API 경로·요청/응답 JSON·에러 코드·`revision` 충돌 규칙·토큰 형식은 한 글자도 바꾸지 않는다.** 기존 Vercel 배포와 로컬 테스트(`node --test`)가 계속 통과해야 롤백이 가능하다.
+
+### 현재 구조 (main `9ac94d4` 실측)
+- 엔드포인트 4개, 모두 Vercel `(req, res)` 시그니처의 `export default async function handler(req, res)`.
+  - `api/account.mjs`(POST): `register`·`guest`·`login`·`load`·`characters`·`selectCharacter`·`createCharacter`·`save`·`reset`. `tokenId(req)`를 export해 `api/market.mjs`·`api/warehouse.mjs`가 공유.
+  - `api/market.mjs`(POST, `Cache-Control: no-store`): `recent-price`·`journey-list`·`journey-*`·`list`·그 외 `mutate`. `marketConnection()`으로 warm 인스턴스당 클라이언트 1개 + `schema()` 1회 재사용.
+  - `api/warehouse.mjs`(POST): `list`·`deposit`·`withdraw`.
+  - `api/market-events.mjs`(GET): 45초 SSE 스트림, `export const config = { maxDuration: 60 }`. **클라이언트(`src/`)에서 호출하는 곳이 없는 레거시 엔드포인트**이나 경로는 유지한다.
+- 환경변수는 **`TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN` 두 개가 전부**다(저장소 전체 `process.env.*` 실측). `TURSO_AUTH_TOKEN`은 DB 인증 토큰이면서 **동시에 세션 토큰(HMAC-SHA256) 서명 키**로도 쓰인다(`api/account.mjs`의 `sign`).
+- Node 전용 의존: `@libsql/client`(node, `file:` 지원) → `server/database.mjs`의 `client()`; `node:crypto`(`createHmac`·`randomBytes`·`randomUUID`·`scrypt`·`timingSafeEqual`) → `api/account.mjs`, `server/market.mjs`, `server/journey.mjs`; `node:util`의 `promisify`(scrypt) → `api/account.mjs`; `Buffer` → `api/account.mjs`.
+- DB 접근 진입점: `server/database.mjs`의 `client()`·`schema(db)`·`transaction(db, run)`·`respondError(res, error)`. 비즈니스 로직 `server/market.mjs`·`server/journey.mjs`·`server/journey-state.mjs`는 `db`를 인자로 받아 **Node/Edge 양쪽에서 그대로 재사용 가능**하다.
+- 테스트 결합 지점: `tests/market.test.mjs`·`tests/characters.test.mjs`가 `api/account.mjs`·`api/warehouse.mjs`의 **default export를 `(req, res)` 형태로 직접 호출**하고 `res.status().json()`만 구현한 가짜 응답 객체를 넘긴다. → Vercel 어댑터의 `(req, res)` 시그니처와 응답 JSON 모양을 반드시 유지해야 한다.
+
+### 영향 범위·호환성 (데이터 계약)
+- DB 스키마·테이블·컬럼·마이그레이션 SQL: **변경 없음**(`schema()`의 DDL 그대로).
+- API 요청/응답 필드, 에러 `code`/`error` 문구, HTTP 상태 코드, `SAVE_CONFLICT`/`CHARACTER_CONFLICT`/`ITEM_CONFLICT` 처리: **변경 없음**. 클라이언트 `src/game/sync.ts`·`src/game/market.ts`·`src/ui/login.ts`가 `response.json()`의 `error`·`code`·`save`·`revision`을 그대로 읽는다.
+- 세이브 포맷(`version: 1`)·아이템 소유권 테이블·캐릭터 slot 규칙: **변경 없음**.
+- 세션 토큰 형식(`base64url(payload).HMAC`)과 30일 만료: **변경 없음**. 운영 DB 계정 3개의 기존 토큰을 살리려면 Cloudflare의 `TURSO_AUTH_TOKEN`을 Vercel과 **같은 값**으로 넣는다(다르면 전원 재로그인만 필요하고 데이터 손실은 없음).
+
+### 작업 내용
+1. **런타임 환경값 계층 (`server/env.mjs`, 신규)**:
+   - 모듈 스코프 변수 + `setRuntimeEnv(env)` / `runtimeEnv()` / `envValue(key)`를 만든다. Node 경로는 `process.env`, Workers 경로는 `context.env`를 넣는다.
+   - `api/*.mjs`·`server/database.mjs`에 흩어진 `process.env.TURSO_DATABASE_URL`·`process.env.TURSO_AUTH_TOKEN` 참조를 **전부 `envValue()`로 교체**한다(직접 `process.env` 참조를 남기지 않는다. Workers에서는 `process.env`가 비어 있을 수 있다).
+2. **DB 클라이언트 이원화 (`server/database-config.mjs`, `server/database.mjs`)**:
+   - `server/database.mjs`는 **`@libsql/client`를 정적 import하지 않는다.** `configureDatabase(createClient)`로 주입받고, `export const client = (env = runtimeEnv()) => factory({ url: env.TURSO_DATABASE_URL, authToken: env.TURSO_AUTH_TOKEN })`로 만든다. 주입이 없으면 `fail(503, 'DB_NOT_CONFIGURED', ...)`로 명확히 실패시킨다(무음 실패 금지).
+   - `api/*.mjs`(Vercel·테스트)는 `import { createClient } from '@libsql/client'; configureDatabase(createClient);`로 기존 `file:`·로컬 동작을 유지한다.
+   - `functions/api/*.js`(Cloudflare)는 `import { createClient } from '@libsql/client/web'; configureDatabase(createClient);`로 **Web/HTTP 클라이언트**를 쓴다. `@libsql/client`(node)가 Workers 번들에 끌려 들어가면 `node:fs`·네이티브 바이너리 때문에 빌드가 깨지므로 **정적 import 경로를 섞지 않는다.**
+   - `schema(db)`의 초기화 캐시 키를 `db.url` → `db.url ?? envValue('TURSO_DATABASE_URL') ?? 'default'`로 바꾼다(web 클라이언트는 `db.url`이 없어서 지금 코드대로면 매 요청 스키마를 다시 돌린다). warm isolate당 1회 실행은 유지.
+   - `server/market-connection.mjs`의 `connectionProvider(create = client, initialize = schema)`는 그대로 두되, `client()`가 env를 인자로 받게 된 점만 맞춘다.
+3. **공통 HTTP 계층 (`server/http.mjs`, 신규)**:
+   - `json(body, status = 200, headers = {})` → `new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json; charset=utf-8', ...headers } })`
+   - `readBody(request)` → `await request.json()` 실패 시 `{}`(현행 Vercel `req.body ?? {}`와 동일 동작).
+   - `errorResponse(error)` → `ApiError`면 `{ code, error }` + 상태 코드, 그 외는 `console.error('Database request failed')` 후 `503 { code: 'DB_UNAVAILABLE', error: '서버 연결이 불안정합니다. 잠시 후 다시 시도하세요.' }`. 기존 `respondError(res, error)`는 제거하고 호출부를 이 함수로 바꾼다.
+4. **엔드포인트 코어 분리 (`server/endpoints/*.mjs`, 신규)**:
+   - `api/*.mjs`의 로직을 **동작 변경 없이** 옮겨 `export async function accountEndpoint(request, { env = runtimeEnv(), createDbClient } = {}): Promise<Response>` 형태로 만든다(`market`·`warehouse`·`market-events`도 동일 패턴).
+   - `request`는 Web `Request`를 그대로 받는다: `request.method`, `request.headers.get('authorization')`, `await request.json()`. `createDbClient`는 테스트 주입용 선택 인자다.
+   - 토큰 검증은 `server/auth.mjs`로 옮긴다: `tokenId(request, env)`·`tokenFor(id, env)`·`sign(value, env)`·`hashPassword`·`verifyPassword`. `api/account.mjs`는 `export { tokenId } from '../server/auth.mjs'`로 재-export해 기존 import 경로(`api/market.mjs` 등)를 깨지 않게 한다.
+   - `market-events`는 `server/market-events.mjs`에 `latestSeq(db)`를 두고, Cloudflare 쪽은 `new Response(stream, { headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache, no-transform' } })`로 45초 스트림을 반환한다. `request.signal`이 abort되면 스트림을 닫는다.
+5. **Vercel 어댑터 유지 (`api/*.mjs`, `server/node-adapter.mjs` 신규)**:
+   - `api/account.mjs` 등은 얇은 어댑터로 바꾼다: `export default async function handler(req, res) { return sendNode(res, await accountEndpoint(toRequest(req), { env: process.env })); }`
+   - `toRequest(req)`는 `{ method, headers: { get }, json }` 최소 셰이프로 정규화한다(`req.headers.authorization`은 소문자 키로도 조회되게 처리, `json: async () => req.body ?? {}`).
+   - `sendNode(res, response)`는 **가짜 `res`(테스트)에서도 동작해야 한다**: `res.setHeader?.(k, v)` 후 `typeof res.status === 'function'`이면 `res.status(response.status).json(body)`, 아니면 Node `res.statusCode`/`res.end(JSON.stringify(body))`. `json_parse` 실패 시 `null`.
+   - `api/market.mjs`의 `Cache-Control: no-store` 헤더는 Response 헤더로 옮겨 그대로 전달한다. `db.close()`는 응답 후 `finally`에서 유지.
+6. **Cloudflare Pages Functions (`functions/api/*.js`, 신규 4개)**:
+   - 파일 기반 라우팅으로 `/api/account`, `/api/market`, `/api/market-events`, `/api/warehouse`가 그대로 매핑된다(`functions/api/account.js` → `/api/account`).
+   - `package.json`이 `"type": "module"`이므로 `.js`로 작성해도 ESM이고 `export const onRequest = context => accountEndpoint(context.request, { env: context.env })`로 끝낸다. `onRequest`만 export한다(메서드 검사는 코어가 405로 처리).
+   - env는 **요청마다 `context.env`**를 넘긴다(모듈 스코프에 캐시하지 않는다).
+7. **Node 호환·빌드 설정 (`wrangler.toml`, 신규)**:
+   ```toml
+   name = "djrpg"
+   pages_build_output_dir = "dist"
+   compatibility_date = "2026-11-01"
+   compatibility_flags = ["nodejs_compat"]
+   ```
+   - `nodejs_compat`로 `node:crypto`(`scrypt`·`createHmac`·`timingSafeEqual`·`randomBytes`)·`Buffer`·`node:util`을 그대로 쓴다. 필요하면 `randomUUID`는 `globalThis.crypto.randomUUID()`로 바꿔 플래그 의존을 줄인다(선택).
+   - `package.json`에 devDependency `wrangler`(v4)와 스크립트 `"dev:cf": "wrangler pages dev"`, `"deploy:cf": "npm run build && wrangler pages deploy dist"`를 추가한다. 기존 `dev`·`check`·`build`·`test` 스크립트는 **문구 그대로 유지**한다.
+   - `wrangler` 설치가 네트워크 문제로 불가하면 코드·설정만 넣고 그 사실을 보고한다(설치된 척하지 않는다).
+8. **정적 자산·캐시 (`public/_headers`, 신규)**:
+   - Pages는 Vite의 해시 자산에도 `public, max-age=0, must-revalidate`를 주므로 Vercel의 immutable 캐시를 되살린다: `/assets/*` → `Cache-Control: public, max-age=31536000, immutable`, `/index.html` → `no-cache`.
+   - SPA 폴백은 Pages 기본 동작(최상위 `404.html`이 없으면 알 수 없는 경로에 `/`를 서빙)이라 `_redirects` catch-all은 **넣지 않는다**(`/api/*` 라우팅과 섞이지 않게).
+   - `vercel.json`은 손대지 않고 그대로 둔다.
+9. **로컬 개발·비밀값 관리**:
+   - `.gitignore`에 `.dev.vars`, `.wrangler/`를 추가한다(`.env*`는 이미 있으나 `.dev.vars`는 걸리지 않는다).
+   - `.dev.vars.example`에 키 이름만 넣고 값은 플레이스홀더로 둔다. 실제 토큰은 커밋하지 않는다(AGENTS.md 보안 규칙).
+   - `wrangler pages dev`에서 `file:` DB를 쓰면 web 클라이언트가 열지 못하므로, 로컬 검증은 **실제 Turso URL** 또는 코어 단위 테스트(node 클라이언트 주입)로 한다.
+10. **테스트 (`tests/functions-adapter.test.mjs`, 신규)**:
+    - `functions/api/account.js`의 `onRequest`가 `Response`를 반환하는지, env가 비면 `503 DB_NOT_CONFIGURED`, 토큰이 없으면 `401 INVALID_TOKEN`, GET이면 `405`인지 확인한다.
+    - `accountEndpoint(new Request(...), { env, createDbClient: 노드 createClient })`에 `file:` 임시 DB를 주입해 `register → save → load`가 200/JSON으로 왕복하는지 검증한다(현행 `tests/characters.test.mjs`의 가짜 토큰 생성 방식을 재사용).
+    - 기존 `tests/market.test.mjs`·`tests/characters.test.mjs`가 **수정 없이** 통과하는지 확인한다(`api/*.mjs` 어댑터 호환 검증).
+11. **문서**: `docs/TASK.md`의 이 항목 상태 갱신, `docs/WORKLOG.md` 상단에 5줄 이내 기록(전환 결과·검증·남은 사용자 작업).
+
+### 검증 및 완료 기준
+1. `npm run check`, `npm test`, `npm run build` 모두 통과(TypeScript 에러 0건, 기존 테스트 개수 이상).
+2. `functions/api/*.js`의 `onRequest`가 `Request` → `Response`로 동작하고, `account`·`market`·`warehouse` 3개 경로의 정상·에러 응답 JSON이 현행 Vercel 응답과 동일하다.
+3. `wrangler pages dev`(가능한 경우)에서 `register`·`login`·`save`·`list`·`warehouse deposit` 스모크가 성공하고, 그때의 **CPU 시간·응답 지연을 수치로 기록**한다.
+4. Vercel 경로(`api/*.mjs` + `vercel.json`)가 그대로 남아 롤백 가능하고, 기존 배포가 깨지지 않는다.
+5. Cloudflare 대시보드에 넣어야 할 환경변수 키를 보고한다: **`TURSO_DATABASE_URL`**, **`TURSO_AUTH_TOKEN`**(+ 빌드용 `NODE_VERSION`). 값은 Vercel과 동일하게.
+6. **토큰 절약**: 브라우저 실기 조작·Playwright·Computer Use는 실행하지 않는다. 화면 확인은 사용자가 폰에서 한다.
+
+### 사용자 확인 필요 (착수 전 보고)
+1. **Workers Free의 10ms CPU 제한과 `scrypt` 비밀번호 해시**: `register`·`login`은 `scrypt(N=16384, r=8, p=1)`으로 수십 ms CPU를 쓴다. Workers 무료 플랜은 요청당 CPU 10ms라 로그인·가입이 `Error 1102(Worker exceeded resource limits)`로 실패할 수 있다. 선택지는 (a) Workers Paid($5/월, CPU 30초)로 올리고 현행 해시 유지, (b) 무료 유지 + `scrypt$N$r$p$salt$hash` 버전 형식으로 비용을 낮추고 기존 `salt:hex` 해시는 로그인 성공 시 재해시(운영 계정 3개, 재로그인 1회). **실측 후 사용자 결정을 받는다.**
+2. **Turso 지연**: `db.transaction()`은 HTTP 클라이언트에서 문장마다 왕복한다. `warehouse`·`save` 트랜잭션은 문장 10개 이상이라 수백 ms~1초가 될 수 있고, 클라이언트 `warehouse` 요청 타임아웃은 10초다. 실측값을 보고하고, 필요하면 읽기 조회를 트랜잭션 앞으로 빼는 최적화를 별도 작업으로 제안한다.
+3. **Pages 프로젝트 생성·GitHub 연결·환경변수·도메인**은 사용자 대시보드 작업이다(코드 작업 아님). 전환 후에도 `djrpg.vercel.app`을 당분간 유지하고 `*.pages.dev`에서 검증한 뒤 옮긴다.
