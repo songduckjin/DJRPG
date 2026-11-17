@@ -1,7 +1,7 @@
 import type { Interface } from './interface';
 import { rarityNames, slotNames, statNames, type Slot, type Stat } from '../game/store';
 import { unequipItem } from '../game/appearance';
-import { detailPosition, dismissBagDetail } from './bagDetail';
+import { attachedDetailPosition, dismissBagDetail } from './bagDetail';
 
 const timers = new WeakMap<Interface, ReturnType<typeof setTimeout>>();
 function cancelDismiss(ui: Interface): void { clearTimeout(timers.get(ui)); timers.delete(ui); }
@@ -23,7 +23,7 @@ export function positionEquippedDetail(ui: Interface): void {
   if (rect.bottom <= bounds.top || rect.top >= bounds.bottom) { dismissEquippedDetail(ui); return; }
   panel.style.maxWidth = `${Math.max(0, Math.min(340, bounds.width - 16))}px`;
   panel.style.maxHeight = `${Math.max(0, bounds.height - 16)}px`;
-  const size = panel.getBoundingClientRect(), position = detailPosition(bounds, rect, size.height, size.width);
+  const size = panel.getBoundingClientRect(), position = attachedDetailPosition(bounds, rect, size.height, size.width);
   panel.style.left = `${position.left}px`; panel.style.top = `${position.top}px`;
 }
 export function showEquippedDetail(ui: Interface, slot: Slot, pinned = false): void {
