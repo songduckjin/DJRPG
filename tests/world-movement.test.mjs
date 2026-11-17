@@ -1,8 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import './ts-loader.mjs';
-const { freshSave } = await import('../src/game/store.ts');
-const { World, enemyMoveSpeed } = await import('../src/game/world.ts');
+const { freshSave, floorKillTarget } = await import('../src/game/store.ts');
+const { World, enemyMoveSpeed, enemyMaxHp, enemyHitDamage } = await import('../src/game/world.ts');
 
 test('ordinary monsters approach more slowly and never outpace the player at deep floors', () => {
   assert.equal(enemyMoveSpeed(1, false), 38);
@@ -43,4 +43,39 @@ test('a distant drop still starts pursuit and can be collected', () => {
   world.update(.1); assert(world.player.x > 0);
   for (let i = 0; i < 10 && world.drops.length; i++) world.update(.1);
   assert(world.save.bag.some(item => item.id === 'loot'));
+});
+
+test('boss floor transition clears old enemies and pursuit but retains drops', () => {
+  const originalRandom = Math.random; Math.random = () => 0;
+  try {
+    for (const autoClimb of [true, false]) {
+      const save = freshSave(); save.tutorial = 1; save.autoClimb = autoClimb; save.floorKills = floorKillTarget(save.floor);
+      const world = new World(save), oldEnemy = world.enemies[0];
+      const boss = { ...oldEnemy, boss: true, hp: 0 };
+      world.chaseTarget = oldEnemy; world.pursuing = true; world.activeMove = { x: 1, y: 0 };
+      world.kill(boss);
+      assert(world.drops.length >= 2, 'boss equipment and skillbook drops remain on the ground');
+      assert.equal(save.floor, autoClimb ? 2 : 1);
+      assert.equal(save.floorKills, 0);
+      if (autoClimb) {
+        assert.equal(world.enemies.length, 0); assert.equal(world.chaseTarget, undefined);
+        assert.equal(world.pursuing, false); assert.deepEqual(world.activeMove, { x: 0, y: 0 });
+        assert.equal(world.spawnTimer, .2);
+      } else assert.equal(world.enemies[0], oldEnemy);
+    }
+  } finally { Math.random = originalRandom; }
+});
+
+test('normal difficulty health and damage match the floor curves', () => {
+  for (const [floor, normalHp, bossHp, normalDamage, bossDamage] of [
+    [1, 40, 347, 10, 27], [10, 286, 2444, 40, 99],
+    [30, 1163, 10458, 114, 285], [50, 2344, 21700, 193, 489]
+  ]) {
+    assert.equal(enemyMaxHp(floor, false), normalHp);
+    assert.equal(enemyMaxHp(floor, true), bossHp);
+    assert.equal(enemyHitDamage(floor, false, 0), normalDamage);
+    assert.equal(enemyHitDamage(floor, true, 0), bossDamage);
+    assert.equal(enemyHitDamage(floor, false, 10), normalDamage - 2);
+  }
+  assert.equal(enemyHitDamage(1, false, 1000), 1);
 });

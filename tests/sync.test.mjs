@@ -47,6 +47,41 @@ test('in-flight save settles before combined trade without sending a second save
   const save=sync.flush();sync.save.gold=100;const trade=sync.mutate('claim',{deliveryId:'money'},'waiting-market-request');completeSave();await save;await trade;
   assert.equal(requests.length,2);assert.equal(requests[1].url,'/api/market');assert.equal(requests[1].payload.revision,1);assert.equal(requests[1].payload.progress.gold,100);
 });
+test('market waits for every queued in-flight save before taking its revision snapshot',async()=>{
+  const sync=setup(),requests=[];let completeFirst;
+  globalThis.fetch=async(url,options)=>{
+    const payload=JSON.parse(options.body);requests.push({url,payload});
+    if(url==='/api/account' && payload.revision===0) return new Promise(resolve=>{completeFirst=()=>resolve(response({ok:true,revision:1}));});
+    if(url==='/api/account') return response({ok:true,revision:2});
+    return response({ok:true,save:payload.progress,revision:3});
+  };
+  const saving=sync.flush();sync.save.gold=50;sync.flush();
+  const trade=sync.mutate('buy',{listingId:'offer'},'wait-for-all-saves');
+  assert.deepEqual(requests.map(r=>r.url),['/api/account']);
+  completeFirst();await saving;await trade;
+  assert.deepEqual(requests.map(r=>r.url),['/api/account','/api/account','/api/market']);
+  assert.equal(requests[1].payload.save.gold,50);
+  assert.equal(requests[2].payload.revision,2);
+  assert.equal(requests[2].payload.progress.gold,50);
+  assert.equal(sync.revision,3);
+});
+test('failed in-flight save prevents market request and releases trade pause',async()=>{
+  const sync=setup(),requests=[],pauses=[];let failFirst;
+  sync.onPause=value=>pauses.push(value);
+  globalThis.fetch=async(url,options)=>{
+    const payload=JSON.parse(options.body);requests.push({url,payload});
+    if(url==='/api/account' && requests.length===1) return new Promise((_resolve,reject)=>{failFirst=()=>reject(new Error('network down'));});
+    if(url==='/api/account') throw new Error('network down');
+    return response({ok:true,save:payload.progress,revision:1});
+  };
+  const saving=sync.flush();const trade=sync.mutate('buy',{listingId:'offer'},'blocked-by-save');
+  failFirst();assert.equal(await saving,false);
+  await assert.rejects(trade,/이전 저장 결과/);
+  assert(requests.every(request=>request.url==='/api/account'));
+  assert.equal(requests[0].payload.requestId,requests[1].payload.requestId);
+  assert.equal(sync.locked,false);assert.equal(sync.pendingMarket,undefined);
+  assert.equal(pauses.at(-1),false);
+});
 test('purchase completion renders before the follow-up list request resolves',async()=>{
   const { Market }=await import('../src/game/market.ts');const sync=setup();
   const sale={id:'offer',state:'active',item:{id:'item'},soldAt:null};

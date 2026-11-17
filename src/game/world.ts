@@ -11,8 +11,8 @@ export const cooldowns: Record<Action, number> = { attack: .48, slash2: skills.s
 export function enemyMoveSpeed(floor: number, boss: boolean): number {
   return boss ? 28 : Math.min(64, 38 + Math.max(0, floor - 1) * 1.2);
 }
-export function enemyMaxHp(floor: number, boss: boolean): number { return boss ? 300 + floor * 120 + floor * floor * 30 : 20 + floor * 10 + floor * floor * 2; }
-export function enemyHitDamage(floor: number, boss: boolean, defense: number): number { return Math.max(1, (boss ? 22 + floor * 5 : 7 + floor * 2) - defense * .2); }
+export function enemyMaxHp(floor: number, boss: boolean): number { return boss ? Math.round(220 + floor * 95 + Math.pow(floor, 1.6) * 32) : Math.round(24 + floor * 12 + Math.pow(floor, 1.55) * 4); }
+export function enemyHitDamage(floor: number, boss: boolean, defense: number): number { return Math.max(1, Math.round(boss ? 20 + floor * 5.5 + Math.pow(floor, 1.3) * 1.2 : 7 + floor * 2.4 + Math.pow(floor, 1.25) * .5) - defense * .2); }
 
 export class World {
   player = { x: 0, y: 0, facing: 0, facingSide: 1, hp: 100, berserk: 0, berserkLevel: 1, hit: 0 };
@@ -152,6 +152,10 @@ export class World {
       if (this.save.autoClimb) {
         this.save.floor++;
         this.save.maxFloor = Math.max(this.save.maxFloor, this.save.floor);
+        this.enemies = [];
+        this.chaseTarget = undefined; this.pursuing = false;
+        this.activeMove = { x: 0, y: 0 };
+        this.spawnTimer = .2;
       }
       this.save.floorKills = 0;
       this.bossPending = false;
