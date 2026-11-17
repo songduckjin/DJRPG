@@ -10,6 +10,8 @@
 
 | 작업 | 담당자 ID | 브랜치 | 수정 예정 파일 / 영향 영역 | 위험 등급 | 상태 |
 |---|---|---|---|---|---|
+| 99 · 가방설명 축소·등급 | fks3997 | `fix/compact-books-ring-fks3997` | `bagDetail.ts`, `equipModal.ts`, `modals.css`, UI회귀 / 설명 표시 | 개인 | [-] |
+| 100 · 장비만40개 제한 | fks3997 | `fix/compact-books-ring-fks3997` | 용량helper·store/world/offline/appearance·가방UI·server database/market/journey·account API·테스트 / 획득·복원·수령 | 주의(기존 데이터 형식 유지) | [-] |
 | 97 · 스킬북4열/카드축소 | fks3997 | `fix/compact-books-ring-fks3997` | `skillBooks.ts`, `modals.css` / 목록·기존강화버튼 | 개인(UI 한정) | [x] 로컬 검증 · 미푸시/미배포 |
 | 98 · 반지 자동해제 복원버그 | fks3997 | `fix/compact-books-ring-fks3997` | `store.ts`, 반지회귀테스트 / 자동장착·저장복원 | 주의(기존 형식 유지) | [x] 로컬 검증 · 미푸시/미배포 |
 | 96 · 설정·우편·보상·업적 | fks3997 | `feature/utility-menus-fks3997` | 신규 utility/journey 모듈·API 분기·DB 추가·store/world/offline 통계·UI/HUD/render/main·아이콘·테스트 / 계정 수령 계약 | 핵심 공통(사용자 양측 합의 확인) | [x] PR #28 운영 배포 성공 |
