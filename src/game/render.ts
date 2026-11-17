@@ -17,7 +17,6 @@ const paths = {
   femaleBaseOldHelm: '/assets/warrior_female_base_oldhelm.png', femaleSwordOldHelm: '/assets/warrior_female_sword_oldhelm.png',
   maleBaseHelm: '/assets/warrior_male_base_helm.png', maleSwordHelm: '/assets/warrior_male_sword_helm.png',
   maleSword: '/assets/warrior_male_sword.png', femaleSword: '/assets/warrior_female_sword.png',
-  maleAttack: '/assets/warrior_male_attack.png', femaleAttack: '/assets/warrior_female_attack.png', armoredAttack: '/assets/warrior_armored_attack.png?v=2',
   skeleton: '/assets/skeleton_warrior.png', boss: '/assets/skeleton_boss.png',
   fxDragonHead: '/assets/fx_dragon_head.png', fxDragonBody: '/assets/fx_dragon_body.png', fxSlam: '/assets/fx_wild_stamp.png',
   fxRage: '/assets/fx_blood_rage.png', fxSlash: '/assets/fx_slash_arc.png',
@@ -30,13 +29,16 @@ const animationPaths = {
   armoredAttack: Array.from({ length: 4 }, (_, i) => `/assets/warrior_armored_attack_${i + 1}.png?v=2`),
   armoredNoHelmAttack: Array.from({ length: 4 }, (_, i) => `/assets/warrior_armored_nohelm_attack_${i + 1}.png?v=2`)
 };
+// One row of four poses, each in its own cell of equal width. The cells are wider than
+// 870/4 so no sword tip or foot reaches into the neighbouring frame. The sheet height
+// stays 290 px, which is what heroScale.ts measures a body height against.
 const attackSheets = {
-  femaleArmoredNoHelmAttack: '/assets/warrior_female_armored_attack.png',
-  femaleArmoredHelmAttack: '/assets/warrior_female_armored_helm_attack.png',
-  femaleHelmAttack: '/assets/warrior_female_helm_attack.png?v=2',
-  femaleArmoredOldHelmAttack: '/assets/warrior_female_armored_oldhelm_attack.png',
-  femaleOldHelmAttack: '/assets/warrior_female_oldhelm_attack.png?v=2',
-  maleHelmAttack: '/assets/warrior_male_helm_attack.png?v=2'
+  femaleArmoredNoHelmAttack: '/assets/warrior_female_armored_attack.png?v=3',
+  femaleArmoredHelmAttack: '/assets/warrior_female_armored_helm_attack.png?v=3',
+  femaleHelmAttack: '/assets/warrior_female_helm_attack.png?v=3',
+  femaleArmoredOldHelmAttack: '/assets/warrior_female_armored_oldhelm_attack.png?v=3',
+  femaleOldHelmAttack: '/assets/warrior_female_oldhelm_attack.png?v=3',
+  maleHelmAttack: '/assets/warrior_male_helm_attack.png?v=3'
 } as const;
 const walkSheets = {
   maleBaseWalk: '/assets/walk8_male_base.png', femaleBaseWalk: '/assets/walk8_female_base.png',
@@ -120,8 +122,13 @@ export class GameView {
     const attacks = await Promise.all((Object.keys(attackSheets) as (keyof typeof attackSheets)[]).map(async key => [key, await loadTexture(attackSheets[key])] as const));
     for (const [key, sheet] of attacks) {
       sheet.source.scaleMode = 'linear';
+      // Four poses in one row (the sheet is about four cells wide) versus a single pose
+      // drawn for one character: a single image cut into four slices left vertical
+      // slivers of the character beside itself, so only wide sheets are divided.
+      const poses = sheet.source.width / sheet.source.height > 2.2 ? 4 : 1;
       this.animations[key] = Array.from({ length: 4 }, (_, index) => {
-        const left = Math.round(index * sheet.source.width / 4), right = Math.round((index + 1) * sheet.source.width / 4);
+        const column = poses === 1 ? 0 : index;
+        const left = Math.round(column * sheet.source.width / poses), right = Math.round((column + 1) * sheet.source.width / poses);
         return new Texture({ source: sheet.source, frame: new Rectangle(left, 0, right - left, sheet.source.height) });
       });
     }
