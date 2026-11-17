@@ -1,3 +1,4 @@
+import { markSkillUpgrade, renderSkillBooks, renderSkillUpgrade } from '../skillBooks';
 import { orderedSkills } from '../itemOrder';
 import { availableSkills, unequipSkill } from '../../game/loadout';
 import { skillLevel } from '../../game/store';
@@ -10,6 +11,7 @@ export function renderSkills(this: Interface, dialog: HTMLElement): void {
     const note = document.createElement('p'); note.className = 'skill-note';
     note.textContent = this.skillTarget !== undefined ? `${this.skillTarget + 1}번 스킬 원에 장착할 스킬을 선택하세요.` : '스킬북으로 습득·강화합니다. 장착 중인 스킬은 해제할 수 있고, 필드의 + 원에서 다시 장착할 수 있습니다.';
     list.appendChild(note);
+    renderSkillBooks(this, list);
     const base = document.createElement('article'); base.className = 'skill-card';
     base.innerHTML = '<div class="skill-icon">⚔</div><div class="skill-info"><h3>대검 베기 <small>Lv.1 · 기본 보유</small></h3><p>묵직한 두손검 횡베기로 전방 넓은 부채꼴을 공격합니다.</p><small>기본 쿨타임 0.48초 · 공격력 × 1.0 · 고정 슬롯</small></div>';
     list.appendChild(base);
@@ -40,6 +42,7 @@ export function renderSkills(this: Interface, dialog: HTMLElement): void {
           const hint = document.createElement('span'); hint.textContent = '필드의 + 원에서 장착'; actions.appendChild(hint);
         }
       }
+      renderSkillUpgrade(this, actions, id); markSkillUpgrade(this, card, id);
       list.appendChild(card);
     }
     const heading = document.createElement('h3'); heading.className = 'skill-group-title'; heading.textContent = '패시브 스킬'; list.appendChild(heading);
@@ -53,6 +56,7 @@ export function renderSkills(this: Interface, dialog: HTMLElement): void {
       else {
         const state = document.createElement('span'); state.textContent = '미습득 (스킬북 파밍 필요)'; action.appendChild(state);
       }
+      renderSkillUpgrade(this, action, id); markSkillUpgrade(this, card, id);
       list.appendChild(card);
     }
     dialog.appendChild(list);

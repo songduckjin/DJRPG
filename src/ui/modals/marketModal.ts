@@ -72,14 +72,14 @@ export function renderMarket(this: Interface, dialog: HTMLElement): void {
     if (!data?.inbox.length) dialog.append(el('p', 'empty', '아직 수령할 물품이나 판매대금이 없습니다.'));
   } else {
     renderFilters(market, dialog);
-    dialog.append(el('p', 'market-result', `${money(data?.total ?? 0)}건${market.view === 'mine' ? ` · 판매 중 ${data?.myActive ?? 0}/10 · 내 판매 및 구매 기록` : ''}`));
+    dialog.append(el('p', 'market-result', `${money(data?.total ?? 0)}건${market.view === 'mine' ? ` · 판매 중 ${data?.myActive ?? 0}/${data?.rules?.maxListings ?? 30} · 내 판매 및 구매 기록` : ''}`));
     if (!data && market.loading) dialog.append(el('p', 'empty', '거래소를 불러오고 있습니다…'));
     for (const sale of data?.listings ?? []) renderListing(this, dialog, sale, blocked);
     if (data && !data.listings.length) dialog.append(el('p', 'empty', market.view === 'sold' ? '아직 거래 완료 기록이 없습니다.' : '조건에 맞는 매물이 없습니다. 판매 등록에서 첫 물품을 올려보세요.'));
     const pages = Math.max(1, Math.ceil((data?.total ?? 0) / 20)), page = Number(market.filters.page);
     const nav = el('div', 'market-pagination'); nav.append(button('이전', () => { market.filters.page = page - 1; market.refresh(); }, page <= 0 || market.busy), el('span', '', `${page + 1} / ${pages}`), button('다음', () => { market.filters.page = page + 1; market.refresh(); }, page + 1 >= pages || market.busy)); dialog.append(nav);
   }
-  dialog.append(el('p', 'market-rules', '고정가 금화 거래 · 등록비 없음 · 판매 수수료 5%(올림) · 최대 10건 · 72시간 후 반환'));
+  dialog.append(el('p', 'market-rules', `고정가 금화 거래 · 등록비 없음 · 판매 수수료 5%(올림) · 최대 ${data?.rules?.maxListings ?? 30}건 · 72시간 후 반환`));
   updateMarketLive(this);
 }
 function renderFilters(market: Market, dialog: HTMLElement): void {
@@ -136,6 +136,14 @@ function renderListing(ui: Interface, dialog: HTMLElement, sale: Listing, blocke
 }
 function renderRegister(ui: Interface, dialog: HTMLElement, blocked: boolean): void {
   const market = ui.market, form = el('form', 'market-register');
+  const limitNotice = el('p', 'market-error'); limitNotice.setAttribute('role', 'alert');
+  const checkLimit = (): boolean => {
+    const limit = market.data?.rules?.maxListings ?? 30;
+    if ((market.data?.myActive ?? 0) < limit) return false;
+    const message = `동시에 ${limit}개까지 등록할 수 있습니다. 판매 중인 물품을 취소하거나 판매 완료 후 다시 등록하세요.`;
+    limitNotice.textContent = message; ui.message(message); return true;
+  };
+  form.append(el('p', 'market-notice', `판매 중 ${market.data?.myActive ?? 0}/${market.data?.rules?.maxListings ?? 30}`));
   form.append(el('p', 'market-notice', '미장착 장비와 미사용 스킬북만 등록할 수 있습니다. 등록 즉시 거래소에 보관되며, 장착·분해·사용할 수 없습니다.'));
   const filters = el('div', 'market-register-filters');
   for (const [key, label, values] of [
@@ -166,16 +174,17 @@ function renderRegister(ui: Interface, dialog: HTMLElement, blocked: boolean): v
     const field = el('label', 'market-field', '판매 가격 (금화)'), input = el('input'); input.type = 'number'; input.required = true; input.min = '1'; input.max = '1000000000'; input.step = '1'; input.inputMode = 'numeric'; input.placeholder = '1 ~ 1,000,000,000'; input.value = market.price; input.disabled = blocked;
     const proceeds = el('p', 'market-proceeds');
     const update = () => { market.price = input.value; const price = Number(input.value); proceeds.replaceChildren(); if (Number.isSafeInteger(price) && price > 0) proceeds.append('수수료 ', goldNode(Math.ceil(price * 5 / 100)), ' · 예상 수령 ', goldNode(price - Math.ceil(price * 5 / 100))); else proceeds.textContent = '가격을 입력하면 예상 수령액을 확인할 수 있습니다.'; }; input.oninput = update; update(); field.append(input); form.append(field, proceeds);
-    const submit = el('button', 'market-primary', '72시간 판매 등록'); submit.type = 'submit'; submit.disabled = blocked || (market.data?.myActive ?? 0) >= 10; form.append(submit);
+    const submit = el('button', 'market-primary', '72시간 판매 등록'); submit.type = 'submit'; submit.disabled = blocked;
+    submit.onclick = event => { if (checkLimit()) event.preventDefault(); }; form.append(submit, limitNotice);
   }
   if (item && market.unlockItem === item.id) {
     const confirmation = el('section', 'market-unlock-confirm'); confirmation.setAttribute('role', 'alertdialog'); confirmation.setAttribute('aria-label', '판매할 장비 잠금 해제 확인');
     confirmation.append(el('p', '', '잠긴 장비입니다. 잠금을 해제하고 판매 등록할까요?'));
-    confirmation.append(button('취소 · 잠금 유지', () => { market.unlockItem = undefined; market.onChange(true); }, blocked), button('잠금 해제 후 판매 등록', () => { void market.act('register', { itemId: item.id, price: Number(market.price), unlockItem: true }); }, blocked));
+    confirmation.append(button('취소 · 잠금 유지', () => { market.unlockItem = undefined; market.onChange(true); }, blocked), button('잠금 해제 후 판매 등록', () => { if (!checkLimit()) void market.act('register', { itemId: item.id, price: Number(market.price), unlockItem: true }); }, blocked));
     form.append(confirmation);
   }
   form.onsubmit = e => {
-    e.preventDefault(); if (blocked || !item) return;
+    e.preventDefault(); if (blocked || !item || checkLimit()) return;
     if (!isSkillBook(item) && item.locked) { market.unlockItem = item.id; market.onChange(true); ui.root.querySelector<HTMLElement>('.market-unlock-confirm')?.scrollIntoView({ block: 'nearest' }); return; }
     void market.act('register', { itemId: item.id, price: Number(market.price) });
   }; dialog.append(form);

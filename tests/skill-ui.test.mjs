@@ -45,3 +45,27 @@ test('HUD pulses actual casts only, not cooldowns restored by equipping or repea
   ui.world.effects.push({kind:'spin',age:0,duration:2,x:0,y:0,angle:0});ui.tick();assert.equal(pulses,1);ui.tick();assert.equal(pulses,1);
   ui.world.save.quickSlots[0]=null;ui.tick();assert(ui.slotButtons[0].querySelector('.skill-art').hidden);assert.equal(ui.slotButtons[0].querySelector('strong').textContent,'+');
 });
+
+test('skill menu upgrade dot tracks book cost even with all field slots equipped',()=>{
+  const ui=uiFixture(),save=ui.world.save;
+  save.learned=['spin','slam','power'];save.quickSlots=['spin','slam','power'];save.skillLevels.spin=25;
+  save.bag=Array.from({length:5},(_,i)=>({id:`b${i}`,kind:'skillbook',slot:'skillbook',skillId:'spin',rarity:'rare',name:'book',stats:{}}));
+  ui.tick();assert(ui.root.querySelector('.skill-nav-dot').hidden);
+  save.bag.push({...save.bag[0],id:'sixth'});ui.tick();assert(!ui.root.querySelector('.skill-nav-dot').hidden);
+  save.skillLevels.spin=30;ui.tick();assert(ui.root.querySelector('.skill-nav-dot').hidden);
+});
+test('skillbook section groups copies and actual upgrade button consumes cost and refreshes the game',async()=>{
+  const {renderSkillBooks}=await import('../src/ui/skillBooks.ts');
+  const previous=globalThis.document;
+  function element(){return {children:[],className:'',append(...items){this.children.push(...items);},setAttribute(){},get childElementCount(){return this.children.length;}};}
+  globalThis.document={createElement:()=>element()};
+  try{
+    const ui=uiFixture(),save=ui.world.save;let changes=0;ui.world.onChange=()=>changes++;
+    save.learned=['spin'];save.skillLevels.spin=5;
+    save.bag=Array.from({length:2},(_,i)=>({id:`book${i}`,kind:'skillbook',slot:'skillbook',skillId:'spin',rarity:'rare',name:'[스킬북] 드래곤 트위스터',stats:{}}));
+    const parent=element();renderSkillBooks(ui,parent);const grid=parent.children[0].children[1];
+    assert.equal(grid.children.length,1);const card=grid.children[0];assert.equal(card.children[1].textContent,'드래곤 트위스터');assert.equal(card.children[2].textContent,'×2');
+    assert.equal(card.children[3].textContent,'보유 2 / 필요 2권');const button=card.children[4];assert.equal(button.disabled,false);button.onclick();
+    assert.equal(save.skillLevels.spin,6);assert.equal(save.bag.length,0);assert.equal(changes,1);
+  }finally{globalThis.document=previous;}
+});
