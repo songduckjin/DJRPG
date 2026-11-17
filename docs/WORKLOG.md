@@ -1,3 +1,7 @@
+## 2026-11-17 · 작업 61 배포 결과
+- PR #40이 `aea1858`로 main에 병합됐다. Cloudflare Pages Production이 새 `index-B134k4CR.js`를 제공하고 새 클라이언트 문구를 포함하는 것을 확인했다.
+- 운영 `djrpg.pages.dev`의 `/api/account`·`/api/market`·`/api/warehouse`가 토큰 없이 `401 INVALID_TOKEN`을 반환해 서버 배포와 `session_id` 스키마 마이그레이션이 완료됐음을 확인했다.
+
 ## 2026-11-17 · 작업 61 · 단일 기기 로그인 강제 + ITEM/CHARACTER 충돌 자동 복구
 - 서버: `djrpg_accounts.session_id` 마이그레이션, `login`/`register`/`guest`마다 새 `sid` 발급→토큰 `{id,sid,exp}`, account·market·warehouse에서 불일치·구 토큰 `401 SESSION_REPLACED`. 편집: `server/database.mjs`, `auth.mjs`, `endpoints/{account,market,warehouse}.mjs`.
 - 클라이언트: 401이면 토큰 삭제·저장 정지·안내 후 로그인 복귀, `ITEM_CONFLICT`/`CHARACTER_CONFLICT`이면 최신 세이브 재로드. 편집: `src/game/sync.ts`, `src/main.ts`, `src/ui/login.ts`.
