@@ -124,3 +124,57 @@ test('server errors keep the warehouse request pending until its result is confi
   assert.equal(requests.length, 4);
   assert(requests.every(request => request.requestId === requests[0].requestId));
 });
+
+test('loading a save drops ghost items and restores tampered ones so the next save is not stuck', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'djrpg-heal-load-'));
+  const url = `file:${join(directory, 'heal.db')}`;
+  process.env.TURSO_DATABASE_URL = url; process.env.TURSO_AUTH_TOKEN = 'local-heal-test';
+  const db = createClient({ url });
+  const sword = (id, attack = 25) => ({ id, name: '강철 쯔바이핸드', slot: 'weapon', rarity: 'rare', stats: { attack } });
+  const helmet = { id: 'stale-helmet', name: '강철 투구', slot: 'helmet', rarity: 'rare', stats: { defense: 8 } };
+  const gloves = { id: 'stale-gloves', name: '강철 장갑', slot: 'gloves', rarity: 'rare', stats: { defense: 4 } };
+  const save = { version: 1, name: '전사', gender: 'male', gold: 120, level: 5, floor: 2, bag: [sword('clean'), sword('gone-consumed'), sword('rival-item'), sword('slot-two-item'), sword('tampered', 999), sword('clean')], equipment: { helmet, gloves }, equipmentCollection: [], quickSlots: [null, null, null], learned: [], passives: [], skillLevels: {} };
+  const owner = async (item, accountId, location, slot) => {
+    await db.execute({ sql: 'INSERT INTO djrpg_item_owners VALUES (?,?,?,?)', args: [item.id, accountId, location, JSON.stringify(item)] });
+    if (slot) await db.execute({ sql: 'INSERT INTO djrpg_character_item_owners VALUES (?,?,?)', args: [item.id, accountId, slot] });
+  };
+  try {
+    await schema(db);
+    await db.execute({ sql: 'INSERT INTO djrpg_accounts (id,password_hash,save_json,updated_at) VALUES (?,?,?,?)', args: ['hero', 'test-hash', JSON.stringify(save), new Date().toISOString()] });
+    await owner(sword('clean'), 'hero', 'inventory', 1);
+    await owner(sword('gone-consumed'), 'hero', 'consumed');
+    await owner(sword('rival-item'), 'rival', 'inventory', 1);
+    await owner(sword('slot-two-item'), 'hero', 'inventory', 2);
+    await owner(sword('tampered', 25), 'hero', 'inventory', 1);
+    await owner(helmet, 'hero', 'inventory', 1);
+    await owner(gloves, 'hero', 'consumed');
+    const signed = Buffer.from(JSON.stringify({ id: 'hero', exp: Date.now() + 60_000 })).toString('base64url');
+    const token = `${signed}.${createHmac('sha256', process.env.TURSO_AUTH_TOKEN).update(signed).digest('base64url')}`;
+    const call = async body => {
+      const result = {};
+      const res = { status(code) { result.status = code; return this; }, json(data) { result.body = data; return this; } };
+      await accountHandler({ method: 'POST', headers: { authorization: `Bearer ${token}` }, body }, res);
+      return result;
+    };
+    const loaded = await call({ action: 'load' });
+    assert.equal(loaded.status, 200);
+    assert.deepEqual(loaded.body.save.bag.map(entry => entry.id), ['clean', 'tampered']);
+    assert.equal(loaded.body.save.bag[1].stats.attack, 25);
+    assert.deepEqual(Object.keys(loaded.body.save.equipment), ['helmet']);
+    assert.equal(loaded.body.save.gold, 120);
+    assert.equal(loaded.body.revision, 0);
+    const stored = (await db.execute({ sql: 'SELECT save_json FROM djrpg_characters WHERE account_id=? AND slot=1', args: ['hero'] })).rows[0];
+    const storedSave = JSON.parse(stored.save_json);
+    assert.deepEqual(storedSave.bag.map(entry => entry.id), ['clean', 'tampered']);
+    assert.equal(storedSave.gold, undefined);
+    const next = await call({ action: 'save', save: loaded.body.save, revision: loaded.body.revision, requestId: randomUUID(), characterSlot: 1 });
+    assert.equal(next.status, 200);
+    assert.equal(next.body.revision, 1);
+    const clean = await call({ action: 'load' });
+    assert.equal(clean.status, 200);
+    assert.deepEqual(clean.body.save.bag.map(entry => entry.id), ['clean', 'tampered']);
+  } finally {
+    await db.close(); delete process.env.TURSO_DATABASE_URL; delete process.env.TURSO_AUTH_TOKEN;
+    await rm(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+  }
+});
