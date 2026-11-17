@@ -50,7 +50,8 @@ const itemsOf = save => [...(save.bag ?? []), ...Object.values(save.equipment ??
 export function inventoryOwnerQuery(id, incoming) {
   const bag = Array.isArray(incoming?.bag) ? incoming.bag : [];
   const equipment = incoming?.equipment && typeof incoming.equipment === 'object' ? Object.values(incoming.equipment) : [];
-  if (bag.length + equipment.length > 50) fail(400, 'INVALID_SAVE', '가방 또는 장비 데이터가 올바르지 않습니다.');
+  if (incoming !== undefined) validateSave(incoming);
+  if (bag.filter(item=>item?.slot!=='skillbook').length > 40 || equipment.length > 10) fail(400, 'INVALID_SAVE', '가방 또는 장비 데이터가 올바르지 않습니다.');
   const ids = [...bag, ...equipment].map(item => item?.id).filter(value => typeof value === 'string');
   return { sql: `SELECT * FROM djrpg_item_owners WHERE item_id IN (
     SELECT json_extract(j.value,'$.id') FROM djrpg_accounts a, json_each(a.save_json,'$.bag') j WHERE a.id=?
@@ -65,7 +66,7 @@ function itemValid(item) {
 const identity = item => JSON.stringify([item.name, item.slot.startsWith('ring') ? 'ring' : item.slot, item.rarity, item.kind ?? 'equipment', item.skillId ?? '', ...['attack','defense','health','crit','speed'].map(key => item.stats[key] ?? 0)]);
 export async function reconcileItems(tx, id, before, after, options = {}) {
   const next = itemsOf(after), previous = itemsOf(before), ids = new Set();
-  if (next.length > 50 || !Array.isArray(after.bag) || after.bag.length > 40 || !after.equipment || typeof after.equipment !== 'object') fail(400, 'INVALID_SAVE', '가방 또는 장비 데이터가 올바르지 않습니다.');
+  if (!Array.isArray(after.bag) || after.bag.filter(item=>item?.slot!=='skillbook').length > 40 || Object.values(after.equipment??{}).length > 10 || !after.equipment || typeof after.equipment !== 'object') fail(400, 'INVALID_SAVE', '가방 또는 장비 데이터가 올바르지 않습니다.');
   const previousValid = previous.filter(itemValid);
   const allIds = [...new Set([...previousValid, ...next].map(item => item?.id).filter(id => typeof id === 'string'))];
   const owned = options.owned ?? (allIds.length ? (await tx.execute({ sql: `SELECT * FROM djrpg_item_owners WHERE item_id IN (${allIds.map(() => '?').join(',')})`, args: allIds })).rows : []);
@@ -110,5 +111,5 @@ export function respondError(res, error) {
 }
 
 export function validateSave(save) {
-  if (!save || typeof save !== 'object' || Array.isArray(save) || save.version !== 1 || JSON.stringify(save).length > 200_000) fail(400, 'INVALID_SAVE', '저장 데이터 형식이 올바르지 않습니다.');
+  if (!save || typeof save !== 'object' || Array.isArray(save) || save.version !== 1 || JSON.stringify(save).length > 1_000_000) fail(400, 'INVALID_SAVE', '저장 데이터 형식이 올바르지 않습니다.');
 }

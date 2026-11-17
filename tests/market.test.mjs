@@ -246,3 +246,14 @@ test('selected option sorts all matches by stat descending before pagination, ov
   assert.equal(first.total,23);assert.deepEqual(first.listings.map(s=>s.item.stats.attack),Array.from({length:20},(_,i)=>23-i));
   const second=await snapshot(db,'buyer',{query:'옵션정렬검',stat:'attack',page:1});assert.deepEqual(second.listings.map(s=>s.item.stats.attack),[3,2,1]);
 });
+
+test('skillbook delivery succeeds with forty equipment while equipment delivery stays blocked',async()=>{
+  const book={id:randomUUID(),name:'[스킬북] 드래곤 트위스터',slot:'skillbook',kind:'skillbook',skillId:'spin',rarity:'rare',stats:{}};
+  await seed('book-seller',[book]);await seed('book-buyer',Array.from({length:40},()=>item()));
+  const offer=await sale('book-seller',100);await action('book-buyer','buy',{listingId:offer.id});
+  const delivery=(await snapshot(db,'book-buyer',{})).inbox.find(entry=>entry.item?.id===book.id);
+  await action('book-buyer','claim',{deliveryId:delivery.id});const row=await account(db,'book-buyer');
+  assert.equal(row.save.bag.filter(entry=>entry.slot!=='skillbook').length,40);assert.equal(row.save.bag.at(-1).id,book.id);
+  await assert.rejects(transaction(db,async tx=>{const next=structuredClone(row.save);next.bag.push(item());await reconcileItems(tx,'book-buyer',row.save,next);}),error('INVALID_SAVE'));
+  await transaction(db,async tx=>{const latest=await account(tx,'book-buyer');await reconcileItems(tx,'book-buyer',latest.save,latest.save);});
+});

@@ -137,9 +137,15 @@
 .skillbook-use:focus-visible { outline: 2px solid #f1ca85; outline-offset: 2px; }
 .skillbook-use:active { background: #755235; }
 
-.bag-detail-overlay { position: fixed; z-index: 10; margin: 0; padding: 12px; overflow-y: auto; overscroll-behavior: contain; background: #211a1dfa; border-color: #bda071; box-shadow: 0 8px 22px #000b; }
-.modal-dialog .bag-detail-overlay h2 { font-size: 14px; line-height: 1.5; margin: 0; overflow-wrap: anywhere; }
-.bag-detail-overlay > span { width: 100%; line-height: 1.6; }
+.bag-detail-overlay { position: fixed; z-index: 10; margin: 0; padding: 7px; overflow-y: auto; overscroll-behavior: contain; background: #211a1dfa; border-color: #bda071; box-shadow: 0 8px 22px #000b; }
+.modal-dialog .bag-detail-overlay h2 { font-size: 12px; line-height: 1.35; margin: 0; overflow-wrap: anywhere; }
+.bag-detail-overlay { font-size: 10px; gap: 4px 7px; }
+.bag-detail-overlay > span { width: 100%; line-height: 1.35; }
+.bag-detail-overlay .item-detail-heading { gap: 5px; }
+.bag-detail-overlay .item-lock { width: 28px; height: 28px; }
+.bag-detail-overlay .lock-icon { width: 26px; height: 26px; }
+.item-detail-grade { display: block; width: 100%; color: #d7bc95; font-size: 10px; }
+.item-detail-grade.rarity-common { color: #9ca3af; }.item-detail-grade.rarity-magic { color: #60a5fa; }.item-detail-grade.rarity-rare { color: #facc15; }.item-detail-grade.rarity-epic { color: #c084fc; }.item-detail-grade.rarity-unique { color: #fb923c; }.item-detail-grade.rarity-legendary { color: #f87171; }
 
 .item-detail-heading { display: flex; align-items: center; gap: 10px; width: 100%; }
 .modal-dialog .item-detail-heading h2 { width: auto; flex: 0 1 auto; min-width: 0; }

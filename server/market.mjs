@@ -148,7 +148,7 @@ export async function mutate(db, id, input) {
       const delivery = reads[2].rows[0];
       if (!delivery) fail(409, 'ALREADY_CLAIMED', '이미 수령했거나 존재하지 않는 항목입니다.');
       if (delivery.item_json) {
-        if (save.bag.length >= 40) fail(409, 'BAG_FULL', '가방이 가득 찼습니다. 수령함에 안전하게 보관되므로 공간을 비운 뒤 받아주세요.');
+        if (JSON.parse(delivery.item_json).slot !== 'skillbook' && save.bag.filter(item=>item.slot!=='skillbook').length >= 40) fail(409, 'BAG_FULL', '가방이 가득 찼습니다. 수령함에 안전하게 보관되므로 공간을 비운 뒤 받아주세요.');
         const item = JSON.parse(delivery.item_json); save.bag.push(item);
         write({ sql: "UPDATE djrpg_item_owners SET location='inventory' WHERE item_id=? AND account_id=?", args: [item.id, id] });
       }

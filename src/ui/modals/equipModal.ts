@@ -1,3 +1,4 @@
+import {equipmentCount} from '../../game/bagCapacity';
 import { autoEquipBest, equipmentImage, rarityNames, slotNames, statNames, totalStats, useSkillBook, type Item, type Rarity, type Save, type Slot, type Stat } from '../../game/store';
 import { rarityOrder, rarityRanks, salvageGold } from '../../game/items';
 import { canAutoEquip } from '../../game/inventory';
@@ -62,8 +63,8 @@ export function renderInventory(this: Interface, dialog: HTMLElement): void {
     if (!visible.length) grid.innerHTML = '<p class="empty">이 분류에 획득한 아이템이 없습니다.</p>';
     const footer = document.createElement('div'); footer.className = 'modal-bag-footer';
     const count = document.createElement('span'); count.textContent = `장비 ${save.bag.filter(item => !isSkillBook(item)).length}개`;
-    count.title = `전체 보유 ${save.bag.length}/40`;
-    const capacity = document.createElement('small'); capacity.className = 'bag-capacity'; capacity.textContent = `전체 ${save.bag.length}/40`; count.append(capacity);
+    count.title = `장비 보관 ${equipmentCount(save.bag)}/40 · 스킬북 별도`;
+    const capacity = document.createElement('small'); capacity.className = 'bag-capacity'; capacity.textContent = `장비 ${equipmentCount(save.bag)}/40`; count.append(capacity);
     const controls = document.createElement('div'); controls.className = 'bag-footer-actions';
     const equip = document.createElement('button'); equip.className = 'salvage'; equip.textContent = '자동 장착';
     const canEquip = canAutoEquip(save); equip.disabled = !canEquip; equip.classList.toggle('auto-equip-ready', canEquip);
@@ -118,6 +119,7 @@ export function itemDetail(this: Interface, save: Save, item: Item): HTMLElement
     lock.innerHTML = `<span class="lock-icon ${item.locked ? 'is-locked' : 'is-open'}" aria-hidden="true"></span>`;
     lock.onclick = () => { if (this.world.paused) return; item.locked = !item.locked; this.world.onChange(); };
     heading.append(title, lock); panel.append(heading);
+    const grade = document.createElement('small'); grade.className = `item-detail-grade rarity-${item.rarity}`; grade.textContent = rarityNames[item.rarity]; panel.append(grade);
     const compared = new Set<Stat>([...Object.keys(item.stats), ...Object.keys(equipped?.stats ?? {})] as Stat[]);
     for (const stat of compared) {
       const diff = (item.stats[stat] ?? 0) - (equipped?.stats[stat] ?? 0);

@@ -1,3 +1,4 @@
+import { canStoreItem } from './bagCapacity';
 import { equipmentDropChance, rollItem, rollSkillBook, skillBookDropChance, totalStats, type Item } from './items';
 import { addExperience, floorKillTarget, type Save } from './store';
 import { enemyMaxHp } from './world';
@@ -22,8 +23,8 @@ export function applyOfflineRewards(save: Save, elapsedSeconds: number): Offline
   const items: Item[] = [];
   let missedDrops = 0;
   const receive = (createItem: () => Item): void => {
-    if (save.bag.length >= 40) { missedDrops++; return; }
     const item = createItem();
+    if (!canStoreItem(save.bag, item)) { missedDrops++; return; }
     save.bag.push(item);
     items.push(item);
   };
