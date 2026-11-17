@@ -10,7 +10,7 @@
 
 | 작업 | 담당자 ID | 브랜치 | 수정 예정 파일 / 영향 영역 | 위험 등급 | 상태 |
 |---|---|---|---|---|---|
-| 123 · 기본 공격 검기 제거 | songduckjin | `codex/123-basic-attack-vfx` | `src/game/render/vfx.ts`, `src/game/render/field.ts`, 작업·배포 기록 / 기본 공격 시각 효과·스킬 검기 공유 자산 | 주의(공용 렌더링) | [-] 타입 검사·213개 테스트·빌드 통과, PR·배포 진행 |
+| 123 · 기본 공격 검기 제거 및 전사 휘두르기 변경 | songduckjin | `codex/123-basic-attack-vfx` | `src/game/render/vfx.ts`, `src/game/render/field.ts`, `src/game/skills.ts`, `src/game/world.ts`, 작업·배포 기록 / 기본 공격·대검 스킬 연출 및 타격 | 주의(공용 렌더링·전투) | [-] 기본 공격 검기 제거 진행 중; 대검베기를 단일 흰색 휘두르기로 변경 |
 | 122 · 레벨 배지로 캐릭터 선택 | songduckjin | `codex/122-level-character` | `src/ui/hud.ts`, `src/ui/interface.ts`, `src/styles/hud.css`, 작업·배포 기록 / 캐릭터 선택·계정 정보 진입 | 주의(UI 연결) | [x] PR #34 병합 · Cloudflare Production 새 번들 확인 |
 | 121 · Cloudflare 단일 배포 정책 | songduckjin | `codex/121-cloudflare-only` | `AGENTS.md`, `docs/TASK.md`, `docs/TASK_songduckjin.md`, `docs/WORKLOG.md`, `docs/WORKLOG_songduckjin.md` / 이후 PR 검사·자동 배포·Vercel 종료 | 핵심 공통(배포 정책) | [x] PR #33 병합 · Vercel Git 연결 해제 · Cloudflare Production 성공 |
 | 120 · 장비배지/배포재시도 | fks3997 | `release/equipment-badge-fks3997` | hud·interface·hud.css·회귀 / 표시·최신main보존 | 개인 | [x] 로컬 검증 · 배포 진행 |

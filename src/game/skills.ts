@@ -10,7 +10,7 @@ export type Passive = { id: PassiveId; name: string; level: number; icon: string
 
 export const skillOrder: SkillId[] = ['slash2', 'spin', 'crushing', 'slam', 'warcry', 'power', 'destroy', 'hell'];
 export const skills: Record<SkillId, Skill> = {
-  slash2: { id: 'slash2', name: '소드 슬래시', level: 2, icon: '⚔', cooldown: 4, power: '공격력 × 0.9 → 1.25', description: '대검을 연속 두 번 내려쳐 두 번째 타격이 잠시 뒤 꽂힌다.', range: 96 },
+  slash2: { id: 'slash2', name: '휘두르기', level: 2, icon: '⚔', cooldown: 4, power: '공격력 × 2.15', description: '대검을 한 번 크게 휘둘러 전방의 적을 공격한다.', range: 96 },
   spin: { id: 'spin', name: '드래곤 트위스터', level: 4, icon: '🐉', cooldown: 6, power: '공격력 × 1.65', description: '굵은 용이 넓게 선회하다 궤도를 좁혀 하늘로 솟는다.', range: 170 },
   crushing: { id: 'crushing', name: '딜레이 크러싱', level: 5, icon: '◉', cooldown: 10, power: '공격력 × 3.4 · 지연 폭발', description: '적의 위치에 충격 지점을 예고하고 잠시 뒤 강하게 내려찍는다.', range: 125 },
   slam: { id: 'slam', name: '와일드 스탬프', level: 7, icon: '💥', cooldown: 8, power: '공격력 × 2.2', description: '지면을 내리찍어 붉은 균열을 만들고 적을 밀쳐 둔화시킨다.', range: 126 },
