@@ -86,9 +86,6 @@ export class GameView {
   shade = new Graphics();
   heroLayer = new Container();
   hero!: Sprite;
-  gearTextures = new Map<string, Texture>();
-  gearLoading = new Set<string>();
-  heroGear = new Map<string, { path: string; sprite: Sprite }>();
   enemies = new Map<Enemy, Sprite>();
   bossLabels = new Map<Enemy, Text>();
   afterimages: Ghost[] = [];
