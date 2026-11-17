@@ -10,7 +10,7 @@
 
 | 작업 | 담당자 ID | 브랜치 | 수정 예정 파일 / 영향 영역 | 위험 등급 | 상태 |
 |---|---|---|---|---|---|
-| 105 · 장착명 단어단위6글자 | fks3997 | `fix/equipment-wordwrap-fks3997` | `equipModal.ts` 줄바꿈·회귀 / 표시 | 개인 | [-] |
+| 105 · 장착명 단어단위6글자 | fks3997 | `fix/equipment-wordwrap-fks3997` | `equipModal.ts` 줄바꿈·회귀 / 표시 | 개인 | [x] 로컬 검증 · 미푸시/미배포 |
 | 104 · 패시브3개한줄 | fks3997 | `fix/compact-utility-popups-fks3997` | skillModal·modals.css·스킬UI회귀 / 표시 | 개인 | [x] 로컬 검증 · 미푸시/미배포 |
 | 102 · 편의팝업 압축·클릭누락 | fks3997 | `fix/compact-utility-popups-fks3997` | utility모달·CSS·Interface·account상태표시·modalInteraction·UI회귀 / 팝업갱신 | 주의(UI 연동, 계약불변) | [x] 로컬 검증 · 미푸시/미배포 |
 | 103 · 오른쪽 아이콘 확대·무문자 | fks3997 | `fix/compact-utility-popups-fks3997` | Interface·hud.css / 버튼표시 | 개인 | [x] 로컬 검증 · 미푸시/미배포 |

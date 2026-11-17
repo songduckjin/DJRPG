@@ -200,8 +200,15 @@ export function iconPath(this: Interface, slot: Slot | 'skillbook', item?: Item)
 }
 
 export function wrapEquipmentName(name: string): string {
-  const characters = Array.from(name);
   const lines: string[] = [];
-  for (let start = 0; start < characters.length; start += 6) lines.push(characters.slice(start, start + 6).join(''));
+  let line = '';
+  for (const word of name.trim().split(/\s+/)) {
+    const characters = Array.from(word);
+    if (line && Array.from(line).length + 1 + characters.length <= 6) { line += ` ${word}`; continue; }
+    if (line) { lines.push(line); line = ''; }
+    while (characters.length > 6) lines.push(characters.splice(0, 6).join(''));
+    line = characters.join('');
+  }
+  if (line) lines.push(line);
   return lines.join('\n');
 }
