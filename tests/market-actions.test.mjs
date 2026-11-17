@@ -31,3 +31,14 @@ test('recent price response from an older item cannot replace the current select
     assert.equal(market.quote.itemId,'b');assert.equal(market.quote.lastPrice,200);
   }finally{globalThis.fetch=original;}
 });
+
+test('switching views aborts an outdated list request and preserves the new result',async()=>{
+  const original=globalThis.fetch,pending=[];
+  globalThis.fetch=(_url,options)=>new Promise((resolve,reject)=>{pending.push({options,resolve});options.signal.addEventListener('abort',()=>reject(new DOMException('aborted','AbortError')));});
+  try{
+    const market=new Market({session:{token:'t'}});market.open();market.switch('inbox');
+    assert.equal(pending[0].options.signal.aborted,true);
+    pending[1].resolve({ok:true,json:async()=>({...snapshot(),seq:9})});
+    await new Promise(r=>setImmediate(r));assert.equal(market.data.seq,9);assert.equal(market.error,'');assert.equal(market.loading,false);
+  }finally{globalThis.fetch=original;}
+});

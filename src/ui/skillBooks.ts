@@ -1,10 +1,11 @@
+import {createSkillBookArt} from './skillBookArt';
 import type { Interface } from './interface';
 import { skillbookName, skillbookStacks } from './skillbookBag';
 import { skillBookStatus } from '../game/skillProgress';
 import { totalStats, useSkillBook } from '../game/store';
 import type { SkillLevelId } from '../game/skills';
 
-export function renderSkillUpgrade(ui: Interface, parent: HTMLElement, id: SkillLevelId): void {
+export function renderSkillUpgrade(ui: Interface, parent: HTMLElement, id: SkillLevelId, statusParent: HTMLElement = parent): void {
   const status = skillBookStatus(ui.world.save, id);
   const note = document.createElement('span'); note.className = 'skill-book-cost';
   note.textContent = status.maxed ? '최대 레벨' : `보유 ${status.count} / 필요 ${status.cost}권`;
@@ -24,7 +25,7 @@ export function renderSkillUpgrade(ui: Interface, parent: HTMLElement, id: Skill
     }
     ui.message(result.message);
   };
-  parent.append(note, button);
+  statusParent.append(note); parent.append(button);
 }
 export function markSkillUpgrade(ui: Interface, card: HTMLElement, id: SkillLevelId): void {
   if (!skillBookStatus(ui.world.save, id).ready) return;
@@ -37,7 +38,7 @@ export function renderSkillBooks(ui: Interface, parent: HTMLElement): void {
   const grid = document.createElement('div'); grid.className = 'skill-book-grid';
   for (const {item, count} of skillbookStacks(ui.world.save.bag)) {
     const card = document.createElement('article'); card.className = 'skill-book-card';
-    const icon = document.createElement('img'); icon.src = '/assets/icons/icon_skillbook.png'; icon.alt = '';
+    const icon = createSkillBookArt(item);
     const name = document.createElement('b'); name.textContent = skillbookName(item);
     const quantity = document.createElement('span'); quantity.className = 'skill-book-quantity'; quantity.textContent = `×${count}`;
     card.append(icon, name, quantity); renderSkillUpgrade(ui, card, item.skillId); grid.append(card);

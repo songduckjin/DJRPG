@@ -39,14 +39,16 @@ test('full bag prevents unequip and explains failure; dismiss only clears view s
 const { attachedDetailPosition } = await import('../src/ui/bagDetail.ts');
 const { deferEquippedDismiss } = await import('../src/ui/equippedDetail.ts');
 const { wrapEquipmentName } = await import('../src/ui/modals/equipModal.ts');
-test('equipment names wrap at word boundaries within six characters and retain all name content',()=>{
+test('equipment names wrap at word boundaries within eight characters and retain all name content',()=>{
   assert.equal(wrapEquipmentName('서리의 룬 블레이드'),'서리의 룬\n블레이드');
   assert.equal(wrapEquipmentName('낡은 강철 플레이트'),'낡은 강철\n플레이트');
-  assert.equal(wrapEquipmentName('일이삼사오육칠'),'일이삼사오육\n칠');
+  assert.equal(wrapEquipmentName('일이삼사오육칠'),'일이삼사오육칠');
+  assert.equal(wrapEquipmentName('일이삼사오육칠팔구'),'일이삼사오육칠팔\n구');
+  assert.equal(wrapEquipmentName('영원의 강철 브레스트플레이트'),'영원의 강철\n브레스트플레이트');
   for(const name of ['두손검','서리의 룬 블레이드','찬란한영웅의황금갑옷','검⚔️전설장비이름']){
     const wrapped=wrapEquipmentName(name);
     assert.equal(wrapped.replace(/\s/g,''),name.replace(/\s/g,''));
-    assert(wrapped.split('\n').every(line=>Array.from(line).length<=6));
+    assert(wrapped.split('\n').every(line=>Array.from(line).length<=8));
   }
 });
 test('attached descriptions touch either side of their item, including narrow and bottom-edge layouts',()=>{

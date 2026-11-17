@@ -75,3 +75,6 @@
 .market-meta .currency-amount { font-size: 12px; font-weight: 700; }
 
 .market-option-hint { grid-column: 1 / -1; color: #b7a38b; font-size: 10px; line-height: 1.6; }
+
+.market-icon.skill-book-art { width: 46px; height: 46px; flex-basis: 46px; border: 0; overflow: visible; --book-badge-size: 22px; }
+.market-pick .market-icon.skill-book-art { width: 34px; height: 34px; flex-basis: 34px; --book-badge-size: 17px; }

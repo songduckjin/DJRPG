@@ -57,7 +57,7 @@ test('skill menu upgrade dot tracks book cost even with all field slots equipped
 test('skillbook section groups copies and actual upgrade button consumes cost and refreshes the game',async()=>{
   const {renderSkillBooks}=await import('../src/ui/skillBooks.ts');
   const previous=globalThis.document;
-  function element(){return {children:[],className:'',append(...items){this.children.push(...items);},setAttribute(){},get childElementCount(){return this.children.length;}};}
+  function element(){return {children:[],style:{},className:'',append(...items){this.children.push(...items);},setAttribute(){},get childElementCount(){return this.children.length;}};}
   globalThis.document={createElement:()=>element()};
   try{
     const ui=uiFixture(),save=ui.world.save;let changes=0;ui.world.onChange=()=>changes++;
@@ -91,4 +91,21 @@ test('all eight active skill cards use the exact field artwork and basic attack 
     }
     assert(created.some(card=>card.querySelector('.skill-icon').style.backgroundImage?.includes('nav_skills_v2.png')));
   }finally{globalThis.document=previous;}
+});
+
+
+test('equipped skills share one group and upgrade counts live in the right status column',()=>{
+  const previous=globalThis.document,created=[];
+  globalThis.document={createElement(){const el=node();el.children=[];el.append=function(...children){this.children.push(...children);};el.appendChild=function(child){this.children.push(child);};created.push(el);return el;}};
+  try {
+    const ui=uiFixture();ui.world.save.learned=['spin','slam','power','warcry'];ui.world.save.quickSlots=['spin','slam','power'];
+    renderSkills.call(ui,node());
+    const group=created.find(el=>el.className==='equipped-skill-group');assert(group);
+    assert.deepEqual(group.children.filter(el=>el.dataset?.skill).map(el=>el.dataset.skill),['spin','slam','power']);
+    assert(!group.children.some(el=>el.dataset?.skill==='warcry'));
+    const card=created.find(el=>el.dataset?.skill==='spin');
+    const status=card.querySelector('.skill-status-stack');assert(status);
+    const cost=created.find(el=>el.className==='skill-book-cost'&&el.textContent.startsWith('보유'));
+    assert(cost);assert(created.some(el=>el.textContent==='해제'));
+  } finally {globalThis.document=previous;}
 });
