@@ -1,7 +1,7 @@
-## 2026-11-17 · PR #21 빌드 제한
-- 작업 92의 로컬 타입 검사·158개 테스트·프로덕션 빌드·diff 검사 통과.
-- Vercel Preview 상태 `failure`, 대상 URL `upgradeToPro=build-rate-limit`: 빌드 횟수 제한으로 원격 빌드 차단.
-- PR #21은 미병합, Production 미변경. 제한 해제 후 원격 빌드 확인 및 병합·운영 배포 필요.
+## 2026-11-17 · PR #21 운영 배포 실패
+- 사용자 배포 요청으로 PR #21 병합 완료: `c6c07296b482666fc8f1396d2e159f1e3c2ee97c`.
+- 타입 검사·158개 테스트·빌드 통과 버전이나, Vercel Production도 `failure` / `upgradeToPro=build-rate-limit`으로 배포 차단.
+- 운영 HTML은 이전 번들 `index-Dp1RK6nj.js` / `index-Dr2zcSfL.css` 유지. 제한 해제 후 위 검증 버전 재배포 필요.
 
 ## 2026-11-17 · 작업 91 · fks3997
 - 장착 칸 그림 27→44px, 왼쪽 위 부위·오른쪽 이름, 기존 등급 테두리 유지. 작은 화면은 장비창 스크롤 제공.
