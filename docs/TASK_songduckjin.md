@@ -6,6 +6,14 @@
 
 ## 진행 중 작업
 
+### [x] [작업 127] 공격 시트 옆 칸 잔상 제거
+- **담당자**: `songduckjin`
+- **브랜치**: `fix/attack-sheet-slicing`
+- **목표**: 공격 모션에서 옆 프레임의 칼끝·발끝 조각이 캐릭터 옆에 남지 않게 한다. 4프레임 공격 시트는 포즈마다 서로 침범하지 않는 같은 폭의 칸으로 다시 패킹하고, 1포즈 단독 이미지는 4등분하지 않는다.
+- **직접 수정**: `public/assets/warrior_{female_armored,female_armored_helm,female_armored_oldhelm,female_helm,female_oldhelm,male_helm}_attack.png`, `src/game/render.ts`, `src/game/render/entities.ts`, `tests/hero-art.test.mjs`, `tests/hero-weapon-render.test.mjs`. **간접 영향**: 공격 프레임 폭(높이 290 유지), 영웅 그림자 크기, 부팅 로딩 목록.
+- **위험·충돌**: 주의(에셋). 시트 높이 290과 `heroScale.ts`의 포즈별 `heroBodyPx`는 그대로여서 캐릭터 크기는 변하지 않는다.
+- **완료 기준**: 4칸 경계 알파 픽셀 0, 프레임별 옆 칸 조각 없음, 타입 검사·테스트·빌드 통과 후 PR 병합 및 Cloudflare Production 확인.
+
 ### [x] [작업 126] 접근 중 공격 피해 시점 보정
 - **담당자**: `songduckjin`
 - **브랜치**: `codex/126-stop-attacking-while-moving`

@@ -2,12 +2,27 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {Container,Sprite,Texture} from 'pixi.js';
 import './ts-loader.mjs';
-const {drawHero}=await import('../src/game/render/entities.ts');
+const {drawHero,updateAfterimages}=await import('../src/game/render/entities.ts');
 const {heroAppearance}=await import('../src/game/appearance.ts');
 const {freshSave}=await import('../src/game/store.ts');
 
 const item=(slot,name)=>({id:slot,slot,name,rarity:'common',stats:{}});
 const inventoryOnlySlots=['offhand','armor','gloves','belt','boots','necklace','ring1','ring2'];
+
+test('only skills leave afterimages, the basic attack does not',()=>{
+ const hero=new Sprite(Texture.EMPTY);
+ const view={hero,ghosts:new Container(),afterimages:[],ghostEmissions:new WeakMap(),heroLayer:{scale:{x:1,y:1},rotation:0}};
+ const effect=kind=>({kind,x:0,y:0,age:0,duration:.3,angle:0,nextHit:0,power:1,level:1});
+ const project=(x,y)=>[x,y];
+ const basic={effects:[effect('slash'),effect('slash2')],player:{x:0,y:0,facing:0}};
+ updateAfterimages.call(view,basic,project,.016);
+ assert.equal(view.afterimages.length,0,'기본 공격은 잔상을 남기지 않는다');
+ const skill={effects:[effect('spin')],player:{x:0,y:0,facing:0}};
+ updateAfterimages.call(view,skill,project,.016);
+ assert.equal(view.afterimages.length,1,'스킬은 잔상을 남긴다');
+ view.ghosts.destroy({children:true});
+ hero.destroy();
+});
 
 for(const gender of ['male','female'])test(`${gender}: the body sprite carries every equipped slot without an inventory sticker`,()=>{
  for(const helmet of [false,true])for(const armor of [false,true])for(const moving of [false,true])for(const attackPose of [0,.16]){

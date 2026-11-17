@@ -3,7 +3,7 @@ import type { World } from '../world';
 import { enemyFacing } from '../facing';
 import { heroAppearance } from '../appearance';
 import { heroAnimationMode, heroMotion } from './heroMotion';
-import { heroScale } from './heroScale';
+import { heroScale, heroBodyHeight } from './heroScale';
 import type { GameView } from '../render';
 
 // The hero sprite sheet already carries the equipped body (bare/armored × helmet) and sword.
@@ -60,7 +60,10 @@ export function drawHero(this: GameView, world: World, x: number, y: number, tim
     this.heroLayer.position.set(x + lungeX + (player.hit > 0 ? Math.sin(time * 55) * 2 : 0), y + bob + lungeY);
     this.heroLayer.rotation = motion.rotation;
     this.hero.tint = player.hit > 0 ? 0xffd4cf : 0xffffff;
-    const shadowRadius = Math.max(20, texture.width * scale * .45);
+    // The ground shadow follows the drawn body, not the frame: an attack cell is wider
+    // than the hero only to keep the sword inside its own frame, and a frame-width
+    // shadow grew 25 % whenever the hero swung.
+    const shadowRadius = Math.max(20, heroBodyHeight(art, texture.height) * scale * .37);
     this.ground.ellipse(x - face * 4, y - 3, shadowRadius, 8).fill({ color: 0x000000, alpha: .5 });
     if (player.berserk > 0) {
       this.glow.circle(x, y - 25, 35).fill({ color: 0xb32d28, alpha: .12 });
