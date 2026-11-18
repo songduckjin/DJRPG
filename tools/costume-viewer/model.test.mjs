@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import '../../tests/ts-loader.mjs';
-const { pose, estimateCanvas, productionFrames } = await import('./model.ts');
+const { coverModeNote, coverModes, partPlan, pose, estimateCanvas, productionFrames } = await import('./model.ts');
 
 test('eight walking frames keep a stable foot pivot and distinct hand anchors', () => {
   const hands = new Set();
@@ -27,4 +27,57 @@ test('sharing one armor frame set between weapon families halves armor productio
   const duplicated = productionFrames(1, false, 1);
   assert.equal(duplicated.armor, shared.armor * 2);
   assert.equal(shared.body, duplicated.body);
+});
+
+test('hide mode turns off the bare part that the gear covers and draws a gear layer', () => {
+  const plan = partPlan({ armor: true, helmet: true }, 'hide');
+  assert.equal(plan.head.visible, false);
+  assert.equal(plan.torso.visible, false);
+  assert.equal(plan.helmet.visible, true);
+  assert.equal(plan.armor.visible, true);
+  assert.equal(plan.head.variant, 'bare');
+  assert.equal(plan.torso.variant, 'bare');
+});
+
+test('replace mode keeps the part visible and swaps only its variant texture', () => {
+  const plan = partPlan({ armor: true, helmet: true }, 'replace');
+  assert.equal(plan.head.visible, true);
+  assert.equal(plan.torso.visible, true);
+  assert.equal(plan.head.variant, 'helmed');
+  assert.equal(plan.torso.variant, 'armored');
+  assert.equal(plan.helmet.visible, false);
+  assert.equal(plan.armor.visible, false);
+});
+
+test('a gear slot only covers its own part, and arms and legs are never hidden', () => {
+  const helmetOnly = partPlan({ armor: false, helmet: true }, 'hide');
+  assert.equal(helmetOnly.head.visible, false);
+  assert.equal(helmetOnly.torso.visible, true);
+  assert.equal(helmetOnly.armor.visible, false);
+  const armorOnly = partPlan({ armor: true, helmet: false }, 'hide');
+  assert.equal(armorOnly.torso.visible, false);
+  assert.equal(armorOnly.head.visible, true);
+  assert.equal(armorOnly.helmet.visible, false);
+  for (const mode of coverModes) for (const gear of [{ armor: false, helmet: false }, { armor: true, helmet: true }]) {
+    const plan = partPlan(gear, mode);
+    assert.equal(plan.arm.visible, true);
+    assert.equal(plan.legs.visible, true);
+  }
+});
+
+test('with nothing equipped both modes show the bare body and no gear layer', () => {
+  for (const mode of coverModes) {
+    const plan = partPlan({ armor: false, helmet: false }, mode);
+    assert.deepEqual(plan.head, { visible: true, variant: 'bare' });
+    assert.deepEqual(plan.torso, { visible: true, variant: 'bare' });
+    assert.equal(plan.armor.visible, false);
+    assert.equal(plan.helmet.visible, false);
+  }
+});
+
+test('the covering note names the parts each mode affects', () => {
+  assert.match(coverModeNote('hide', { armor: true, helmet: true }), /머리 파츠 숨김/);
+  assert.match(coverModeNote('hide', { armor: true, helmet: true }), /몸통 파츠 숨김/);
+  assert.match(coverModeNote('replace', { armor: true, helmet: true }), /머리→투구/);
+  assert.match(coverModeNote('replace', { armor: false, helmet: false }), /교체할 장비 없음/);
 });
