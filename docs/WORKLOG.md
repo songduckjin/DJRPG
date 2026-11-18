@@ -1,3 +1,7 @@
+## 2026-11-18 · 작업 131 장비창 실제 착용 아이템 미리보기
+- 장비창 중앙에 실제 장착한 무기·투구·갑옷·장갑·신발 착용 아트를 표시하고, 기본 본체 성별과 장비 프레임 비율을 유지했다.
+- `pnpm exec tsc --noEmit`, `node --test tests/equipped-detail.test.mjs`(7개), `git diff --check` 통과. PR #58이 `39d8cd400cd712e05864f5551891722effa8483c`로 main에 병합됐다. Production `/version.json`은 `39d8cd400cd7`; 착용 아트 5개 파일 모두 HTTP 200 `image/png`.
+
 ## 2026-11-18 · 작업 130 전투 추격 중 공격 멈춤 수정
 - 자동전투가 기본 공격 사거리 안에서도 추격을 계속해 이동 중 공격 차단에 걸리던 불일치를 수정했다. 적 추격 정지 거리를 89로 조정했으며 드랍 추격과 수동 이동 제약은 유지했다.
 - `pnpm exec tsc --noEmit`, 전투·아레나 테스트 9개, `git diff --check` 통과. PR #56이 `90631fcf103c8e93090db63069f354e27923e0eb`로 main에 병합됐다. Pages Preview 배포 성공.

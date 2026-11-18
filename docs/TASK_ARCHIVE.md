@@ -5,6 +5,13 @@
 
 ---
 
+## [x] [작업 131] 장비창 실제 착용 아이템 미리보기
+- **완료일**: 2026-11-18 · **담당자**: `fks3997` · **브랜치**: `task/131-equipped-gear-visible`
+- 장비창 중앙의 고정 초상화를 장착 장비와 무관한 범용 갑옷 이미지 대신, 남녀 기본 본체와 실제 장착한 무기·투구·갑옷·장갑·신발 프레임을 겹쳐 표시하도록 변경했다. 프레임은 본체 높이 비율을 유지한다.
+- `src/ui/modals/equipModal.ts`, `src/styles/modals.css`, `tests/equipped-detail.test.mjs`, `docs/QUICK_PATCH.md`, `docs/CODE_MAP.md` 수정. 타입 검사·관련 테스트 7개·`git diff --check` 통과. PR #58이 `39d8cd400cd712e05864f5551891722effa8483c`로 main에 병합됐다. Cloudflare Pages Production `/version.json`에서 `39d8cd400cd7`, 착용 아트 5개 파일 HTTP 200 / `image/png` 응답을 확인했다.
+
+---
+
 ## [x] [작업 130] 전투 추격 중 공격 멈춤 수정
 - **완료일**: 2026-11-18 · **담당자**: `fks3997` · **브랜치**: `task/130-combat-chase-attack`
 - 자동전투가 공격 사거리 90 안에 들어가도 추격 정지 거리 48까지 계속 이동해 `action()`의 이동 차단 조건에 걸렸다. 적 추격 정지 거리를 89로 맞춰 사거리 진입 후 공격하도록 수정했다. 드랍 추격과 수동 이동 차단은 유지했다.

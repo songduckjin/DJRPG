@@ -6,11 +6,10 @@
 
 ## 진행 중 작업
 
-## [-] [작업 131] 장비창 실제 착용 아이템 미리보기
+## [x] [작업 131] 장비창 실제 착용 아이템 미리보기
 - fks3997 · 2026-11-18 · `task/131-equipped-gear-visible`
-- 목표: 장비창 중앙 미리보기에 기본 갑옷 초상화 대신 현재 장착한 부위별 실제 아이템 아트를 표시한다.
-- 수정: `src/ui/modals/equipModal.ts`, `src/styles/modals.css`, `tests/equipped-detail.test.mjs`, `docs/QUICK_PATCH.md`, `docs/CODE_MAP.md`. 저장 형식·아이템 데이터·전투 렌더는 변경하지 않는다.
-- 검증: `npx tsc --noEmit`, `node --test tests/equipped-detail.test.mjs`, `git diff --check`.
+- 장비창의 고정 초상화를 실제 장착한 무기·투구·갑옷·장갑·신발 아트 레이어 미리보기로 교체하고 남녀 본체를 유지했다. 장비 프레임 비율은 본체 높이 기준으로 맞춘다.
+- 저장 형식·아이템 데이터·전투 렌더는 변경하지 않았다. 타입 검사, 장비 상세 관련 7개 테스트, `git diff --check` 통과. PR #58 병합.
 
 ## [x] [작업 130] 전투 추격 중 공격 멈춤 수정
 - fks3997 · 2026-11-18 · `task/130-combat-chase-attack`
