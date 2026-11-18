@@ -7,9 +7,11 @@
 
 | 작업 | 담당자 | 브랜치 | 수정 예정 파일 / 영향 영역 | 위험 등급 | 상태 |
 |---|---|---|---|---|---|
-| 135 갑옷·투구 10종 외형 차별화 (4티어 실루엣 + 팔레트 스왑) | songduckjin (`codex` 실행) | `task/135-armor-tier-palette` | `src/game/appearance.ts`, `src/game/render/entities.ts`, `src/game/render/gearTint.ts`(신규), `tests/appearance.test.mjs` / 필드 갑옷·투구 외형(티어 시트 + 팔레트 스왑) | 중 | [-] |
+| 137 코스튬 시스템 문서 통합 및 프로토타입 기준 정리 | songduckjin | `docs/costume-system-rearchitecture` | `AGENTS.md`, `CONTRIBUTING.md`, `README.md`, `docs/COSTUME_SYSTEM.md`, `docs/CODE_MAP.md`, `docs/QUICK_PATCH.md`, `docs/TASK.md`, `docs/TASK_songduckjin.md`, `docs/TASK_ARCHIVE.md` | 중 | [-] |
+| 138 코스튬 도구 비교 및 최소 뷰어 프로토타입 | songduckjin | `task/138-costume-prototype` (대기) | `tools/costume-viewer/**`, 프로토타입 전용 테스트·검증 스크립트 및 임시 에셋 | 중 | [ ] |
 | 136 통합 내 정보(장비·스탯) UI 개편 및 4티어 장비창 초상화 교체 | songduckjin (`codex` 실행) | `task/136-unified-equip-ui` | `src/ui/interface.ts`, `src/ui/modals/equipModal.ts`, `src/ui/modals/statusModal.ts`(삭제), `src/ui/modals/accountModal.ts`, `src/ui/equipmentPortrait.ts`, `src/styles/modals.css`, `src/styles/hud.css` / 하단 내비 3탭·통합 내 정보 모달·장비창 티어 초상화 | 중 | [-] |
 
+> 2026-11-18: `[작업 135]`는 PR #71로 main에 병합되어 완료 이력을 `docs/TASK_ARCHIVE.md`로 옮겼다. 기존 통합 바디·팔레트 구현은 현행 구현 이력이며 신규 코스튬 정책과 구분한다.
 > 2026-11-18: `[작업 136]`(통합 내 정보(장비·스탯) UI 개편 및 4티어 장비창 초상화 교체)를 `[-]`로 등록했다. 남/여 2·3·4티어 장비창 전신 초상화 6장(`public/assets/warrior_equipped_t{2,3,4}_{male,female}.png`, 높이 720px·256색 팔레트 PNG, 합계 355KB)을 함께 넣었고 `.ts`/`.css` 코드는 건드리지 않았다. 착수는 `[작업 135]` 코드 머지 후 `origin/main` 기준.
 > 2026-11-18: `[작업 135]`(갑옷·투구 10종 외형 차별화 — 4티어 실루엣 + 팔레트 스왑, 피부톤 보존 틴트)를 `[-]`로 등록했다.
 > 2026-11-17: `[작업 61] 단일 기기 로그인 강제`를 검증·PR 병합으로 마감하고 `docs/TASK_ARCHIVE.md`로 옮겼다.
