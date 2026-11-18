@@ -9,7 +9,7 @@
 |---|---|---|---|
 | 월드보스 소개·전용필드·순위/보상시안 | `src/ui/modals/worldBossModal.ts`, `src/ui/worldBossField.ts`, `src/game/worldBossRehearsal.ts` | `worldBossPreview.ts`, `worldBossPresentation.ts`, `interface.ts`, `main.ts` Ticker수명, `styles/world-boss.css`, `public/assets/world-boss/*` | `world-boss-preview`, `world-boss-field`, `modal-ui`, `modal-interaction`, `hero-motion`, `appearance` |
 | 전투·이동·층·보스·AI | `src/game/world.ts` | `arena.ts`, `facing.ts`, `bagCapacity.ts`, `store.ts`(`floorKillTarget`) | `world-movement`, `arena`, `facing` |
-| 장비창 착용 미리보기 | `ui/equipmentPortrait.ts`(`equipmentPortraitPlan`·`renderEquipmentPortrait`), `ui/modals/equipModal.ts` | `items.ts`(`wearableEquipmentImage`), `styles/modals.css`, `assets/warrior_equipped_starter|t2|t3|t4_{male,female}.png` | `equipped-detail` |
+| 내 정보·장비창 착용 미리보기 | `ui/equipmentPortrait.ts`(`equipmentPortraitPlan`·`renderEquipmentPortrait` — `planHeroCostume` 공용 계획을 **idle 0프레임**으로 합성), `ui/modals/equipModal.ts`(요약·6스탯·10칸) | `ui/interface.ts`(3탭 라우팅), `ui/modals/accountModal.ts`(성별 고정), `game/costume/manifest.ts`(매니페스트 1회 로드), `game/render/costumeHero.ts`(계획·셀 규약 **소비만**), `styles/modals.css`, `styles/hud.css`, `assets/warrior_equipped_starter|t2|t3|t4_{male,female}.png`(폴백) | `equipment-info`, `equipped-detail`, `modal-ui`, `costume-manifest`, `costume-field-render` |
 | 스킬·스킬북·쿨타임·버프 | `src/game/skills.ts`, `src/game/loadout.ts` | `world.ts`(`cooldowns`·`action`), `skillProgress.ts`, `ui/skillBooks.ts`, `ui/skillLoadout.ts`, `ui/modals/skillModal.ts`, `ui/skillFeedback.ts` | `skill-progression`, `loadout`, `skill-ui`, `skill-feedback`, `skillbook-art` |
 | 아이템·등급·드랍·스탯·장비 슬롯 | `src/game/items.ts` | `inventory.ts`, `itemComparison.ts`, `bagCapacity.ts`, `codex.ts`, `ui/modals/equipModal.ts` | `inventory`, `codex`, `ring-restore`, `item-protection-ui`, `equipped-detail` |
 | 캐릭터 외형·코스튬·애니메이션 | 설계 기준: `docs/COSTUME_SYSTEM.md`; 실행 지시: `docs/TASK_songduckjin.md` 작업 139~142 | 필드(작업 140): `render/entities.ts`(`drawHero` 모드 선택)·`render/costumeHero.ts`(계획·아틀라스·레이어)·`render/heroMotion.ts`(모션·재생 배율)·`render/heroScale.ts`(`costumeBodyPx`)·`render/heroSockets.ts`(폴백 전용 소켓); 폴백 본체: `appearance.ts`, `render.ts`, `render/gearTint.ts`; 코스튬 데이터 계층: `costume/**`; 미리보기: `ui/equipmentPortrait.ts`; 독립 뷰어(프로토타입, 게임 미연동): `tools/costume-viewer/` | 현행: `appearance`, `hero-motion`, `hero-art`, `hero-weapon-render`, `equipped-detail`, `costume-field-render`; 코스튬 매니페스트·매핑: `costume-manifest`; 프로토타입: `tools/costume-viewer/model.test.mjs`(가림 규칙) |
@@ -44,7 +44,7 @@
 | 아이템이 어떤 코스튬으로 그려지는지·매니페스트 로드 실패 폴백 | `src/game/costume/mapping.ts`(`lookupCostume`·`costumeMapping`), `src/game/costume/manifest.ts`(`planCostume`·`bodyFallback`·`reason`), `docs/COSTUME_SYSTEM.md` §7.1, `tests/costume-manifest.test.mjs` |
 | 캐릭터가 코스튬 레이어로 안 그려지고 기존 본체로 보임(폴백) | `src/game/render/costumeHero.ts`(`planHeroCostume`·`renderCostumeHero`·`ensureCostumeAtlas`·`costumeLayerTexture`), `view.costume.status`/`reason`, `docs/COSTUME_SYSTEM.md` §7.2의 아틀라스 배치 규약, `tests/costume-field-render.test.mjs` |
 | 공격이 빨라졌는데 캐릭터 모션이 그대로 느림 | `src/game/render/heroMotion.ts`(`costumePlaybackRate`·`costumeFrameIndex`), 폴백 경로는 `entities.ts` `drawHero`(attackPose 기반 프레임) |
-| 장비창 중앙 미리보기가 실제 장착 장비와 다르거나 몸에서 벗어나 보임 | `ui/equipmentPortrait.ts` `equipmentPortraitPlan`·`renderEquipmentPortrait`·`ui/modals/equipModal.ts`·`items.ts` `wearableEquipmentImage`·`styles/modals.css` |
+| 내 정보 미리보기가 필드와 다르거나 빈 화면 | `ui/equipmentPortrait.ts` `equipmentPortraitPlan`·`renderEquipmentPortrait`(공용 `planHeroCostume` 소비·idle 0프레임·`warrior_equipped_t*` 폴백)·`ui/modals/equipModal.ts`·`styles/modals.css` |
 | 서버 저장 충돌(409 `SAVE_CONFLICT`) | `database.mjs` `assertRevision`, `sync.ts` `handleError` |
 | 아이템 소유권 충돌(`ITEM_CONFLICT`) | `database.mjs` `reconcileItems`·`identity`·`sameItemBody`(이름만 다르면 서버 이름으로 정리), `items.ts` `migrateItem`(저장 이름 보존), `warehouse.mjs` |
 | `ITEM_CONFLICT`/`CHARACTER_CONFLICT` 토스트 무한 반복 | `sync.ts` `handleError`·`reloadLatest`·`stopConflictLoop`(`conflictReloadWindow`) |
@@ -92,7 +92,7 @@
 - `ambientScene.ts` (58) / `ambientMotion.ts` (67) — 풀·불 앰비언트 변형. `mountAmbientScene` / `ambientInfluence`, `ambientOffset`, `AmbientDeformation`, `fireFlicker`, `fireEmbers`, `grassPatches`.
 
 ### `src/ui/` — HUD·모달·입력
-- `interface.ts` (241) — UI 상태·모달 라우팅의 중심. `Interface`(`open`,`renderModal`,`message`,`setSaveStatus`,`showOfflineReward`, 렌더 위임 메서드), `Modal`, `BagFilter`.
+- `interface.ts` — UI 상태·**3탭** 모달 라우팅의 중심. `Interface`(`open`,`renderModal`,`message`,`setSaveStatus`,`showOfflineReward`, 렌더 위임 메서드), `Modal`, `BagFilter`. 하단 내비는 `내 정보`(=`equipment`)·`스킬`·`거래소` 3개이고, `equipment` 모달이 요약·6스탯·10칸 장비·가방을 함께 담는다([작업 141]에서 `statusModal` 제거).
 - `hud.ts` (66) — 상단 HUD·퀵슬롯·가방 배지. `renderStatus`, `tick`, `renderBagBadge`.
 - `login.ts` (71) — 로그인/가입/게스트 화면·API 호출. `openLogin`, `accountRequest`(모든 요청에 `X-App-Version`, 426이면 새로고침), `Session`, `clearToken`.
 - `boot.ts` (46) — 부팅 오버레이. `createBootOverlay`.
@@ -106,8 +106,9 @@
 - `skillBooks.ts` (48) — 스킬북 보유/업그레이드 UI. `renderSkillUpgrade`, `markSkillUpgrade`, `renderSkillBooks`.
 - `skillFeedback.ts` (47) — 스킬 발동 하이라이트 1회 보장. `SkillFeedback.collect`.
 - `skillLoadout.ts` (37) — 퀵슬롯 배치/선택. `chooseSkill`, `pressSkillSlot`, `cancelSkillSelection`.
+- `equipmentPortrait.ts` — 내 정보 미리보기. `equipmentPortraitPlan`(공용 `planHeroCostume` 소비, 실패 시 티어 전신 초상화 폴백), `renderEquipmentPortrait`(idle 0프레임 합성·dataURL LRU 24·매니페스트 1회 로드), `equipmentFallbackPortrait`.
 - `modals/` — `interface.ts` `renderModal`이 라우팅:
-  `accountModal.ts` 계정정보 `renderAccount` · `charactersModal.ts` 캐릭터 선택/생성·창고 `loadCharacters`,`renderCharacters`,`renderCreateCharacter`,`loadWarehouse`,`renderWarehouse` · `codexModal.ts` 도감 `renderCodex` · `equipModal.ts` 장비/가방/분해 `renderEquipment`,`renderInventory`,`itemDetail`,`salvage`,`salvageValue`,`iconPath` · `floorModal.ts` 층 선택 `renderFloor` · `marketModal.ts` 거래소 `renderMarket`,`updateMarketLive` · `offlineModal.ts` 정산 `renderOffline` · `salvageModal.ts` 분해 확인 `requestSalvage`,`finishSalvage`,`renderSalvage` · `skillModal.ts` 스킬 `renderSkills` · `statusModal.ts` 내 상태 `renderCharacter` · `utilityModal.ts` 설정/우편/보상/업적 `renderSettings`,`renderUtility`,`updateUtilityBadges`,`orderedAchievements`.
+  `accountModal.ts` 계정정보(캐릭터 생성 뒤 성별 변경 없음) `renderAccount` · `charactersModal.ts` 캐릭터 선택/생성·창고 `loadCharacters`,`renderCharacters`,`renderCreateCharacter`,`loadWarehouse`,`renderWarehouse` · `codexModal.ts` 도감 `renderCodex` · `equipModal.ts` 내 정보·장비/가방/분해 `renderEquipment`,`renderInventory`,`itemDetail`,`salvage`,`salvageValue`,`iconPath`, `equipmentInfoSlots`·`equipmentInfoStats` · `floorModal.ts` 층 선택 `renderFloor` · `marketModal.ts` 거래소 `renderMarket`,`updateMarketLive` · `offlineModal.ts` 정산 `renderOffline` · `salvageModal.ts` 분해 확인 `requestSalvage`,`finishSalvage`,`renderSalvage` · `skillModal.ts` 스킬 `renderSkills` · `utilityModal.ts` 설정/우편/보상/업적 `renderSettings`,`renderUtility`,`updateUtilityBadges`,`orderedAchievements`.
 
 ### `src/styles/`
 - `main.css` — `base`→`boot`→`hud`→`modals`→`login`→`market`→`codex` 순 import. `base.css`(폰트·리셋), `hud.css`(`.top-hud`,`.floor-button`), `modals.css`(장비·가방·분해 공통), `login.css`(로그인·캐릭터 선택), `market.css`(`.market-*`), `codex.css`(`.codex-*`,`#codex`), `boot.css`(`.boot-*`).
@@ -187,7 +188,7 @@
 - **단일 세션**: `login`·`register`·`guest` 성공마다 `assignSession`이 `djrpg_accounts.session_id`를 새 `sid`로 덮어쓰고 토큰은 `{id,sid,exp}`. `assertSession` 불일치 또는 `sid` 없는 구 토큰 → 401 `SESSION_REPLACED`(`다른 기기에서 로그인되어 접속이 해제되었습니다.`)를 account·market·warehouse 전 엔드포인트에서 반환한다. `session_id`가 NULL인 세션 열 도입 전 계정·모킹 행은 기존 동작을 유지하고, `session_id`는 클라이언트에 내려보내지 않는다.
 - **Turso 전용**: 세이브는 `djrpg_accounts`/`djrpg_characters`(+`_profiles`,`_item_owners`,`_save_versions`,`_save_requests`). **브라우저 localStorage 세이브 금지** — 허용되는 localStorage는 `djrpg.auth.token`(로그인 토큰)과 `djrpg_preferences`(기기 설정)뿐. `.env*`·`TURSO_*`는 커밋·로그·번들 금지.
 - **성별 교차 동기화(현행 구현)**: 기존 `appearance.ts`의 idle/walk/attack/portrait는 남/여 × 투구 유무 × 갑옷 × 무기 조합을 분기하고 `render.ts`의 대응 시트를 사용한다. 기존 외형 코드 수정 시 `tests/appearance.test.mjs`와 `hero-motion`을 확인한다. 신규 코스튬의 성별 공용화·분리 규칙 및 직업 확장 범위는 `docs/COSTUME_SYSTEM.md`와 해당 TASK에서 결정하며, 기존 통합 바디 분기 표를 신규 설계의 선결 조건으로 복제하지 않는다.
-- **현행 외형 구현(전환 대상)**: `appearance.ts`의 통합 바디 시트 선택, `render/entities.ts`의 무기 소켓, `render/gearTint.ts`의 4티어 팔레트는 기존 구현을 설명한다. 신규 장비 제작 시 이 방식을 새 정책으로 복제하지 않는다.
+- **현행 외형 구현(전환 대상)**: `appearance.ts`의 통합 바디 시트 선택, `render/entities.ts`의 무기 소켓, `render/gearTint.ts`의 4티어 팔레트는 기존 구현을 설명한다. 신규 장비 제작 시 이 방식을 새 정책으로 복제하지 않는다. **[작업 141] 미리보기 계약**: `ui/equipmentPortrait.ts`는 필드와 같은 `planHeroCostume()` 계획을 **idle 0프레임**으로만 그린다(모션 진행·재생 배율 없음). `fit` 좌표 표·`wearableEquipmentImage` 덧그리기·픽셀 스캔은 없다. 매니페스트·아틀라스가 없거나 셀 밖이면 `warrior_equipped_t{1~4}_{gender}.png` 전신 초상화로 폴백하며, 매니페스트 실패는 세션 동안 다시 요청하지 않는다.
 - **목표 코스튬 정책**: 본체 분리·attach/frames·스킬 모션·도구 비교·프로토타입 완료 조건은 `docs/COSTUME_SYSTEM.md`가 단일 기준이다. 실제 수정 파일과 범위는 `docs/TASK_songduckjin.md` 작업 138~142 및 `docs/TASK.md`에서 확인한다.
 - **이미지 교체 시 캐시 버스터**: `/assets/*`는 `Cache-Control: immutable`(`vercel.json`, `public/_headers`). 같은 경로의 PNG를 바꾸면 `render.ts`/`appearance.ts`의 URL에 `?v=N`을 올리고, 장비 아트는 `scripts/verify-item-art.mjs`(=`npm run check`)를 통과시킨다.
 - **세이브 한도**: `save.version === 1`, JSON ≤1MB, 장비 가방 40칸(`EQUIPMENT_BAG_LIMIT`, 스킬북 제외), 장비 슬롯 10칸, 골드 ≤9,000,000,000,000. `store.ts` `parseSave`의 전방 호환(구 세이브 마이그레이션)을 깨지 않는다.

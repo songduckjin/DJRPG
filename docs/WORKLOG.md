@@ -1,3 +1,11 @@
+## 2026-11-18 · 작업 141 장비창(내 정보) 공용 외형 연동 · 136 UI 레이아웃 통합
+
+- 담당자 `songduckjin`의 작업지시에 따라 `src/ui/equipmentPortrait.ts`를 필드와 같은 공용 계획(`planHeroCostume`, 작업 140)으로 다시 연결했다. 미리보기는 **idle 0프레임**만 그리며, `fit` 좌표 표·`wearableEquipmentImage` 덧그리기·`tightFrame` 픽셀 스캔·`starter` 분기를 제거했다.
+- PR #72(`[작업 136]`, Draft)는 직접 병합하지 않고, 그 브랜치를 141에 병합해 UI 레이아웃(`내 정보` 3탭·`statusModal.ts` 삭제·계정 성별 고정·요약+6스탯+장비 10칸+가방)과 `tests/equipment-info.test.mjs`를 통합했다. 최신 `main`의 월드보스 진입 버튼·`worldBoss` 모달과 충돌은 `main` 쪽을 유지하며 해소했다.
+- 매니페스트·아틀라스가 없거나 셀이 페이지 밖이면 `warrior_equipped_{starter|t2|t3|t4}_{gender}.png` 전신 초상화로 폴백한다(빈 화면 없음). 매니페스트 실패는 세션 동안 재요청하지 않고, 실패 페이지는 1회만 기록한다. dataURL 캐시는 LRU 24를 유지한다.
+- 136의 티어 초상화 6장은 폴백 자산으로 유지하고 142의 참조 0 검사 후 삭제 후보로 넘긴다(`docs/COSTUME_SYSTEM.md` v1.3 §7.3).
+- 검증: `npx tsc --noEmit`, 관련 6개 테스트 파일 71건, 전체 `tests/*.test.mjs` 338건, `git diff --check` 통과. `src/game/render/**`·`src/game/store.ts`·`server/**` 무변경 확인.
+
 ## 2026-11-18 · 작업 139 코스튬 스펙 v1.1 · 런타임 매니페스트·75종 매핑
 
 - 담당자 `songduckjin`의 작업지시에 따라 `src/game/costume/**`(신규, Pixi·DOM 비의존)에 코스튬 런타임 데이터 계층을 구현했다. 매니페스트 타입·스키마 검증·1회 로드 캐시, `items.ts` 고유 장비 이름 **75종** 매핑(55 `costumeId` + 20 명시적 `"none"`), 폴백 4경로(`bodyFallback`+`reason`), 캐시 버스터 URL, 액티브 8종 스킬 템플릿 매핑.

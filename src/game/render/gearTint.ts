@@ -42,7 +42,7 @@ export function isHairPixel(r: number, g: number, b: number): boolean {
   return darkBrown || blonde;
 }
 
-export function tintGearImageData(image: ImageData, palette: GearPalette, strengthScale = 1): void {
+function tintPixels(image: ImageData, palette: GearPalette, strengthScale = 1): void {
   const data = image.data;
   const [th, ts, tl] = rgbToHsl((palette.tint >> 16) & 255, (palette.tint >> 8) & 255, palette.tint & 255);
   const strength = palette.strength * strengthScale;
@@ -58,32 +58,6 @@ export function tintGearImageData(image: ImageData, palette: GearPalette, streng
     const [nr, ng, nb] = hslToRgb(h + ((((th - h) + 540) % 360) - 180) * amount, s + (ts - s) * amount, l + (tl - l) * amount);
     data[i] = nr; data[i + 1] = ng; data[i + 2] = nb;
   }
-}
-
-export function tintPortraitCanvas(
-  source: HTMLImageElement,
-  armor: GearPalette | null,
-  helmet: GearPalette | null
-): HTMLCanvasElement {
-  const canvas = document.createElement('canvas');
-  canvas.width = Math.max(1, source.naturalWidth);
-  canvas.height = Math.max(1, source.naturalHeight);
-  const context = canvas.getContext('2d', { willReadFrequently: true });
-  if (!context) throw new Error('장비 초상화 틴트 캔버스를 만들 수 없습니다.');
-  context.drawImage(source, 0, 0);
-  const bandHeight = Math.floor(canvas.height * gearHeadBand);
-  if (helmet && bandHeight > 0) {
-    const head = context.getImageData(0, 0, canvas.width, bandHeight);
-    tintGearImageData(head, helmet);
-    context.putImageData(head, 0, 0);
-  }
-  if (armor) {
-    const bodyTop = helmet ? bandHeight : 0;
-    const body = context.getImageData(0, bodyTop, canvas.width, canvas.height - bodyTop);
-    tintGearImageData(body, armor);
-    context.putImageData(body, 0, bodyTop);
-  }
-  return canvas;
 }
 
 export function tintedGearTexture(
@@ -108,13 +82,13 @@ export function tintedGearTexture(
   const bandHeight = Math.floor(height * gearHeadBand);
   if (helmet && bandHeight > 0) {
     const head = context.getImageData(0, 0, width, bandHeight);
-    tintGearImageData(head, helmet, attack ? .6 : 1);
+    tintPixels(head, helmet, attack ? .6 : 1);
     context.putImageData(head, 0, 0);
   }
   if (armor) {
     const bodyTop = helmet ? bandHeight : 0;
     const body = context.getImageData(0, bodyTop, width, height - bodyTop);
-    tintGearImageData(body, armor, attack ? .6 : 1);
+    tintPixels(body, armor, attack ? .6 : 1);
     context.putImageData(body, 0, bodyTop);
   }
   const tinted = Texture.from(canvas);
