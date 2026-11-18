@@ -5,6 +5,13 @@
 
 ---
 
+## [x] [작업 163] 월드보스 입장 지연 개선
+- 2026-11-18 · fks3997 · `fix/world-boss-entry-delay-fks3997`.
+- 저장 확인을 에셋/입장 연출과 병렬 처리하고 동일 준비 결과를 재사용한다. 저장 대기는 12초 제한·재시도 안내, 취소하면 start 요청을 보내지 않는다.
+- 새 전투의 0피해 credit 쓰기/재조회·후속 COUNT를 제거하고 도전/날짜를 batch 조회·응답에 재사용한다. 상위10/내주변 순위는 단일 SQL로 조회한다. 계정3회·멱등·피해검증·보상·서버승인 전 전투정지 유지.
+- TypeScript·부분64테스트·diff 통과. 격리 신규입장 DB 왕복 9회 이하 예산 검증, 저장1회/지연/취소/실순위 회귀 포함. 최신 main 작업141 보존 통합. Pages 배포 결과는 PR에 기록.
+
+
 ## [x] [작업 161] 크롬 GPU 미지원 렌더 복구 · [작업 162] 월드보스 실전 활성화
 - 2026-11-18 · fks3997 · `feature/world-boss-live-fks3997` (크롬 선행 branch `fix/chrome-mesh-pipe-fks3997`, PR78은 통합 PR로 대체).
 - 크롬 CanvasRenderer의 mesh pipe 미지원: 선등록과 texture/bounds quad 폴백, WebGL/WebGPU mesh 유지. 크롬에서 필드·캐릭터·몬스터 표시 복구 실기 확인.
