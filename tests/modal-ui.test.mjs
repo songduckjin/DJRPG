@@ -89,3 +89,10 @@ test('dismissing bag details removes overlay and selection without rebuilding th
   }};
   dismissBagDetail(ui); assert.equal(ui.selected, undefined); assert(removed); assert(!highlighted); assert.equal(expanded, 'false');
 });
+
+test('world boss reopens on challenge while in-popup ranking and reward choices survive redraw',()=>{
+ const ui=uiFixture();ui.worldBoss={tab:'ranking'};
+ Interface.prototype.open.call(ui,'worldBoss');assert.equal(ui.worldBoss.tab,'challenge');
+ ui.worldBoss.tab='rewards';Interface.prototype.open.call(ui,'worldBoss');assert.equal(ui.worldBoss.tab,'rewards');
+ Interface.prototype.open.call(ui,null);Interface.prototype.open.call(ui,'worldBoss');assert.equal(ui.worldBoss.tab,'challenge');
+});
