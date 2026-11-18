@@ -105,14 +105,37 @@ function ensureManifest(): Promise<CostumeLoadResult | undefined> {
 /* ── 아틀라스 이미지·합성 결과 캐시 ─────────────────────────────────────── */
 
 const atlasImages = new Map<string, Promise<HTMLImageElement>>();
+const pendingAtlasImages = new Set<string>();
 const failedPages = new Set<string>();
 const portraitCache = new Map<string, Promise<string>>();
 const fallbackImages = new Map<string, Promise<HTMLImageElement>>();
+/** Portraits are infrequent; keep only two decoded atlas pages after composition. */
+export const equipmentPortraitAtlasPageCacheLimit = 2;
+
+export function equipmentPortraitAtlasPageCacheSize(): number { return atlasImages.size; }
+
+function touchAtlasImage(url: string): void {
+  const hit = atlasImages.get(url);
+  if (!hit) return;
+  atlasImages.delete(url);
+  atlasImages.set(url, hit);
+}
+
+function trimAtlasImages(): void {
+  while (atlasImages.size > equipmentPortraitAtlasPageCacheLimit) {
+    const oldest = [...atlasImages.keys()].find(url => !pendingAtlasImages.has(url));
+    if (!oldest) return;
+    atlasImages.delete(oldest);
+  }
+}
 
 /** 아틀라스/폴백 PNG 로드. 한 번 실패한 URL은 다시 요청하지 않는다(404 폭주 방지). */
 function loadImage(url: string, store: Map<string, Promise<HTMLImageElement>>, failed: Set<string>): Promise<HTMLImageElement> {
   const cached = store.get(url);
-  if (cached) return cached;
+  if (cached) {
+    if (store === atlasImages) touchAtlasImage(url);
+    return cached;
+  }
   if (failed.has(url)) return Promise.reject(new Error(`이미지 로드 실패(재시도 안 함): ${url}`));
   const loading = new Promise<HTMLImageElement>((resolve, reject) => {
     const image = new Image();
@@ -121,6 +144,14 @@ function loadImage(url: string, store: Map<string, Promise<HTMLImageElement>>, f
     image.src = url;
   });
   store.set(url, loading);
+  if (store === atlasImages) {
+    pendingAtlasImages.add(url);
+    void loading.then(() => {
+      pendingAtlasImages.delete(url);
+      touchAtlasImage(url);
+      trimAtlasImages();
+    }, () => pendingAtlasImages.delete(url));
+  }
   return loading;
 }
 
@@ -261,6 +292,7 @@ export async function renderEquipmentPortrait(save: Save): Promise<string> {
 export function resetEquipmentPortraitCache(): void {
   portraitCache.clear();
   atlasImages.clear();
+  pendingAtlasImages.clear();
   fallbackImages.clear();
   failedPages.clear();
   manifestAttempt = undefined;

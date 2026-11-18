@@ -116,10 +116,13 @@ test('info preview draws the shared field costume plan with the idle frame only'
   }
   resetCostumeManifestCache();
 });
-test('portrait module keeps no paper-doll path, one idle frame, and the 24-entry LRU cache',()=>{
+test('portrait module keeps one idle frame and bounds result and atlas image caches',()=>{
   assert.doesNotMatch(portraitSource,/from '\.\.\/game\/items'|\bequipmentImage\(|\btightFrame\b|\bgetImageData\b|const fit\b/,'종이인형·픽셀 스캔 경로가 남아 있지 않다');
   assert.match(portraitSource,/costumeLayerCell\(layer, 'idle', 0\)/);
   assert.match(portraitSource,/portraitCache\.size > 24/);
+  assert.match(portraitSource,/equipmentPortraitAtlasPageCacheLimit = 2/);
+  assert.match(portraitSource,/while \(atlasImages\.size > equipmentPortraitAtlasPageCacheLimit\)/);
+  assert.match(portraitSource,/pendingAtlasImages\.has\(url\)/,'합성 중인 페이지는 캐시 축출 대상에서 제외한다');
   assert.match(portraitSource,/planHeroCostume/);
 });
 test('all six tier portraits are 720px tall transparent PNG assets',()=>{

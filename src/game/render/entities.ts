@@ -70,6 +70,17 @@ function syncWeapon(view: GameView, save: Save, texture: Texture, art: string, a
     shown.sprite.rotation = socket.rotation;
 }
 
+function clearAfterimages(view: GameView): void {
+  for (const ghost of view.afterimages) {
+    for (const entry of ghost.sprites) {
+      view.ghosts.removeChild(entry.sprite);
+      entry.sprite.destroy();
+    }
+  }
+  view.afterimages = [];
+  view.ghostEmissions = new WeakMap();
+}
+
 const walkAnchors = {
   maleBaseWalk: [.95, .95, .95, .95, .941, .944, .944, .923],
   maleBaseHelmWalk: [.97, .97, .97, .97, .97, .97, .97, .97],
@@ -140,7 +151,11 @@ export function drawHero(this: GameView, world: World, x: number, y: number, tim
 
     // 1) 독립형 코스튬 레이어 경로. 매니페스트·아틀라스가 없거나 계획이 서지 않으면
     //    `false`를 받아 아래 2) 기존 통합 바디 경로로 같은 프레임을 그린다(무중단 폴백).
-    const costumeDrawn = renderCostumeHero(this, this.costume, save, { motion: costumeMotion, frame: costumeFrame, tint: heroTint });
+    const costumeDrawn = renderCostumeHero({
+      heroLayer: this.heroLayer,
+      hero: this.hero,
+      onPlanChange: () => clearAfterimages(this)
+    }, this.costume, save, { motion: costumeMotion, frame: costumeFrame, tint: heroTint });
     let bodyPx: number;
     let scale: number;
     if (costumeDrawn) {
@@ -167,9 +182,8 @@ export function drawHero(this: GameView, world: World, x: number, y: number, tim
     }
     let bob = 0;
     const local = world.effects.filter(effect => effect.kind !== 'hit' && effect.kind !== 'death' && Math.hypot(effect.x - player.x, effect.y - player.y) < 2);
-    const spin = local.find(effect => effect.kind === 'spin');
     const slam = local.find(effect => effect.kind === 'slam' || effect.kind === 'hell');
-    const motion = heroMotion(world.attackPose, player.facingSide, spin);
+    const motion = heroMotion(world.attackPose);
     const attackPulse = motion.pulse;
     if (slam) bob -= Math.sin(Math.PI * slam.age / slam.duration) * 17;
     const face = player.facingSide;
