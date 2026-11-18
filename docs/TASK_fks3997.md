@@ -6,6 +6,12 @@
 
 ## 진행 중 작업
 
+## [-] [작업 132] 장비창 착용 미리보기 어색한 합성 수정
+- fks3997 · 2026-11-18 · `task/132-equipment-preview-fit`
+- 목표: 직전 작업의 장비 아트가 캐릭터 몸에서 벗어나거나 과하게 겹쳐 보이는 문제를 바로잡는다.
+- 수정 예정: `src/ui/modals/equipModal.ts`, `src/styles/modals.css`, `tests/equipped-detail.test.mjs`.
+- 검증: 타입 검사, 해당 단건 테스트, `git diff --check`.
+
 ## [x] [작업 131] 장비창 실제 착용 아이템 미리보기
 - fks3997 · 2026-11-18 · `task/131-equipped-gear-visible`
 - 장비창의 고정 초상화를 실제 장착한 무기·투구·갑옷·장갑·신발 아트 레이어 미리보기로 교체하고 남녀 본체를 유지했다. 장비 프레임 비율은 본체 높이 기준으로 맞춘다.

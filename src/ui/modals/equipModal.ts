@@ -12,13 +12,13 @@ import type { BagFilter, Interface } from '../interface';
 
 const showcaseSlots = ['weapon', 'helmet', 'armor', 'gloves', 'boots'] as const;
 type ShowcaseSlot = typeof showcaseSlots[number];
-type ShowcasePose = { u: number; v: number; size: number; rotation?: number };
-const showcasePoses: Record<ShowcaseSlot, Record<'male' | 'female', ShowcasePose>> = {
-  weapon: { male: { u: .54, v: .78, size: .85, rotation: -1.4 }, female: { u: .2, v: .9, size: .85 } },
-  helmet: { male: { u: .5, v: .17, size: .16 }, female: { u: .5, v: .17, size: .16 } },
-  armor: { male: { u: .5, v: .46, size: .29 }, female: { u: .5, v: .46, size: .29 } },
-  gloves: { male: { u: .5, v: .55, size: .27 }, female: { u: .5, v: .55, size: .27 } },
-  boots: { male: { u: .5, v: .88, size: .18 }, female: { u: .5, v: .88, size: .18 } }
+type ShowcasePose = { u: number; v: number; size: number; part?: 0 | 1; flipX?: boolean };
+const showcasePoses: Record<ShowcaseSlot, Record<'male' | 'female', ShowcasePose[]>> = {
+  weapon: { male: [{ u: .92, v: .57, size: .4, flipX: true }], female: [{ u: .92, v: .57, size: .4, flipX: true }] },
+  helmet: { male: [{ u: .5, v: .11, size: .22 }], female: [{ u: .5, v: .11, size: .22 }] },
+  armor: { male: [{ u: .5, v: .38, size: .4 }], female: [{ u: .5, v: .38, size: .4 }] },
+  gloves: { male: [{ u: .1, v: .57, size: .19, part: 0 }, { u: .9, v: .57, size: .19, part: 1 }], female: [{ u: .1, v: .57, size: .19, part: 0 }, { u: .9, v: .57, size: .19, part: 1 }] },
+  boots: { male: [{ u: .17, v: .86, size: .25, part: 0 }, { u: .79, v: .86, size: .25, part: 1 }], female: [{ u: .17, v: .86, size: .25, part: 0 }, { u: .79, v: .86, size: .25, part: 1 }] }
 };
 
 export function equipmentShowcase(save: Save) {
@@ -27,15 +27,21 @@ export function equipmentShowcase(save: Save) {
   const layers = showcaseSlots.flatMap(slot => {
     const item = save.equipment[slot], art = item ? wearableEquipmentImage(item) : undefined;
     if (!art) return [];
-    const pose = showcasePoses[slot][save.gender];
     const row = Math.floor(art.frame / art.columns), column = art.frame % art.columns;
-    return [{
-      slot, path: art.path, frame: art.frame, columns: art.columns, rows: art.rows,
-      left: pose.u, top: pose.v, size: pose.size, rotation: pose.rotation ?? 0,
-      column, row
-    }];
+    return showcasePoses[slot][save.gender].map(pose => ({
+      slot, path: art.path, frame: art.frame, columns: pose.part === undefined ? art.columns : art.columns * 2, rows: art.rows,
+      left: pose.u, top: pose.v, size: pose.size, widthRatio: pose.part === undefined ? 1 : .5,
+      anchorX: slot === 'weapon' ? .82 : .5, anchorY: slot === 'weapon' ? .82 : .5,
+      flipX: !!pose.flipX, column: pose.part === undefined ? column : column * 2 + pose.part, row
+    }));
   });
   return { portrait: body.portrait, layers };
+}
+
+type ShowcaseLayer = ReturnType<typeof equipmentShowcase>['layers'][number];
+export function equipmentPreviewPlacement(layer: ShowcaseLayer, bodyWidth: number, bodyHeight: number) {
+  const height = layer.size * bodyHeight, width = height * layer.widthRatio;
+  return { width, height, x: layer.left * bodyWidth - layer.anchorX * width, y: layer.top * bodyHeight - layer.anchorY * height };
 }
 
 export function renderInventory(this: Interface, dialog: HTMLElement): void {
@@ -204,20 +210,22 @@ export function renderEquipment(this: Interface, dialog: HTMLElement): void {
     const figure = document.createElement('span'); figure.className = 'showcase-figure';
     const doll = document.createElement('span'); doll.className = 'showcase-doll';
     const preview = equipmentShowcase(save);
-    const gearSizing: { node: HTMLElement; size: number }[] = [];
+    const gearSizing: { node: HTMLElement; layer: ShowcaseLayer }[] = [];
     const portrait = document.createElement('img'); portrait.className = 'showcase-body'; portrait.alt = '현재 장착 장비 미리보기';
     portrait.src = preview.portrait;
     const fitDoll = () => {
       const bounds = figure.getBoundingClientRect();
       if (!bounds.width || !bounds.height || !portrait.naturalWidth || !portrait.naturalHeight) return;
       const scale = Math.min(bounds.width / portrait.naturalWidth, bounds.height / portrait.naturalHeight);
-      const height = portrait.naturalHeight * scale;
-      doll.style.width = `${portrait.naturalWidth * scale}px`;
+      const width = portrait.naturalWidth * scale, height = portrait.naturalHeight * scale;
+      doll.style.width = `${width}px`;
       doll.style.height = `${height}px`;
-      for (const layer of gearSizing) {
-        const size = `${layer.size * height}px`;
-        layer.node.style.width = size;
-        layer.node.style.height = size;
+      for (const { node, layer } of gearSizing) {
+        const placement = equipmentPreviewPlacement(layer, width, height);
+        node.style.width = `${placement.width}px`;
+        node.style.height = `${placement.height}px`;
+        node.style.left = `${placement.x}px`;
+        node.style.top = `${placement.y}px`;
       }
     };
     portrait.addEventListener('load', fitDoll, { once: true });
@@ -228,10 +236,10 @@ export function renderEquipment(this: Interface, dialog: HTMLElement): void {
       gear.style.backgroundImage = `url('${layer.path}')`;
       gear.style.backgroundSize = `${layer.columns * 100}% ${layer.rows * 100}%`;
       gear.style.backgroundPosition = `${layer.column / (layer.columns - 1) * 100}% ${layer.row / (layer.rows - 1) * 100}%`;
-      gear.style.left = `${layer.left * 100}%`; gear.style.top = `${layer.top * 100}%`;
-      gear.style.transform = `translate(-50%, -50%) rotate(${layer.rotation}rad)`;
+      gear.style.transformOrigin = layer.flipX ? '50% 50%' : `${layer.anchorX * 100}% ${layer.anchorY * 100}%`;
+      gear.style.transform = layer.flipX ? 'scaleX(-1)' : 'none';
       doll.appendChild(gear);
-      gearSizing.push({ node: gear, size: layer.size });
+      gearSizing.push({ node: gear, layer });
     }
     figure.appendChild(doll);
     center.appendChild(figure);

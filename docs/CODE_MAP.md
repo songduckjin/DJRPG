@@ -38,7 +38,7 @@
 | 드랍률·등급·아이템 능력치 | `items.ts` `equipmentDropChance`/`rollItem`/`totalStats` |
 | 외형·스프라이트·투구·갑옷 조합 | `appearance.ts` `heroAppearance`, `render.ts` `paths` |
 | 그림을 바꿨는데 화면이 그대로(캐시) | `render.ts`/`appearance.ts`의 `?v=`, `scripts/verify-item-art.mjs` |
-| 장비창 중앙 미리보기가 실제 장착 장비와 다름 | `ui/modals/equipModal.ts` `equipmentShowcase`·`items.ts` `wearableEquipmentImage`·`styles/modals.css` |
+| 장비창 중앙 미리보기가 실제 장착 장비와 다르거나 몸에서 벗어나 보임 | `ui/modals/equipModal.ts` `equipmentShowcase`·`equipmentPreviewPlacement`·`items.ts` `wearableEquipmentImage`·`styles/modals.css` |
 | 서버 저장 충돌(409 `SAVE_CONFLICT`) | `database.mjs` `assertRevision`, `sync.ts` `handleError` |
 | 아이템 소유권 충돌(`ITEM_CONFLICT`) | `database.mjs` `reconcileItems`·`identity`·`sameItemBody`(이름만 다르면 서버 이름으로 정리), `items.ts` `migrateItem`(저장 이름 보존), `warehouse.mjs` |
 | `ITEM_CONFLICT`/`CHARACTER_CONFLICT` 토스트 무한 반복 | `sync.ts` `handleError`·`reloadLatest`·`stopConflictLoop`(`conflictReloadWindow`) |
