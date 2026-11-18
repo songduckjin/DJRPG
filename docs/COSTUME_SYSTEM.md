@@ -207,6 +207,8 @@ frames 방식의 프레임 수에는 실제로 별도 그림이 필요한 성별
 | 레이어 순서 | 본체 `legs`(0)·`torso`(10)·`arms`(15), 장비 `boots`(5)·`armor`(10)·`gloves`(20)·`helmet`(30)·`offhand`(40)·`weapon`(50). 매니페스트 `zOrder`가 있으면 그 값 우선 |
 | 파츠 교체 | 갑옷을 입으면 맨몸 `torso` 레이어를 **빼고** `armor` 레이어를 같은 z(10)에 넣는다(§4) |
 
+> **2026-11-18 실측 주의(작업 140 배포분):** 아직 코스튬 에셋이 없는 동안 `/assets/costume/v1/manifest.json` 요청은 Cloudflare Pages SPA fallback으로 **`200 text/html` + `cache-control: immutable`**을 받는다(실제 응답 확인). 로더는 이를 `manifest-parse`로 판정해 조용히 폴백하지만, 사용자 브라우저에는 그 HTML이 **1년 immutable로 캐시**된다. 따라서 **첫 실물 아틀라스·매니페스트 배포(142)는 반드시 `COSTUME_ASSET_VERSION`을 2로 올려 새 URL(`/assets/costume/v2/...`)로 배포**해야 한다. v1 경로를 재사용하면 기존 방문자는 캐시된 HTML을 읽어 계속 폴백한다(증상: 코스튬이 조용히 나오지 않음).
+
 ## 8. 성능·범위·안전장치
 
 - 신규 시스템은 초기에는 플레이어 1명에만 적용한다. 몬스터와 NPC 렌더링은 변경하지 않는다.

@@ -391,6 +391,7 @@
 ### [ ] [작업 142] 코스튬 에셋 양산·아틀라스 패킹 및 레거시 리소스 정리
 - **담당자**: `songduckjin` · **예정 브랜치**: `task/142-costume-atlas-cleanup` · **위험 등급**: 중 · **상태**: 대기
 - **선행 조건**: `[작업 141]` 완료. 140·141이 공용 외형 계획으로 실제 동작하는 상태에서만 레거시를 지운다(§2·§8: 참조 검사 없는 삭제 금지).
+- **필수(2026-11-18 추가, 작업 140 실측)**: 140 배포분이 없는 매니페스트 경로 요청으로 `/assets/costume/v1/manifest.json`에 SPA fallback HTML을 `200 immutable`로 받아 사용자 브라우저에 **v1 URL이 캐시**됐다. 첫 실물 에셋은 `COSTUME_ASSET_VERSION`을 **2**로 올려 `/assets/costume/v2/...`로 배포하고, `/version.json`과 함께 매니페스트·아틀라스 HTTP 200(content-type `application/json`·`image/png`)을 확인한다.
 - **목표**: 실물 코스튬 에셋 양산 → 아틀라스 패킹 → 모바일 실기 GPU/메모리 프로파일링 → 전체 참조 검사 → 구형 통합 바디 시트·`tools/costume-viewer` 임시 에셋·미사용 레거시 코드를 **안전하게** 삭제.
 - **수정 예정 파일**: `public/assets/**`(코스튬 아틀라스 PNG·매니페스트 JSON 신규/교체), `tools/costume-viewer/**`(임시 에셋 정리), 레거시 코드(참조 0 확인 후), `scripts/verify-item-art.mjs`(아틀라스 검증 추가 시), `docs/CODE_MAP.md`·`docs/QUICK_PATCH.md`·`docs/TASK_ARCHIVE.md`.
 - **작업 내용**:
