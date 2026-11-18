@@ -5,6 +5,22 @@
 
 ---
 
+## [x] [작업 142] 코스튬 에셋 양산·아틀라스 패킹 및 레거시 리소스 정리
+
+- **완료일**: 2026-11-18 · **담당자**: `songduckjin` · **브랜치**: `task/142-costume-atlas-cleanup` · **PR**: (이 PR)
+- **실물 아틀라스 v2 배포**: `public/assets/costume/v2/manifest.json`(55종)과 `atlas/*.png` **60장**(총 39MB, 페이지 **1872×1936** = 셀 `234×242` 8×8=64칸). `COSTUME_ASSET_VERSION`을 **2**로 올려 `v1` SPA fallback HTML 캐시를 우회했다(§7.2 주의).
+- **생성기**: `scripts/build-costume-atlas.py`(Python 3.12 · Pillow 13.0, 표준 라이브러리 외 의존 없음, 결정적). 기존 2.5D 시트를 본체 높이 190px로 정규화하고 **실루엣 경계 상자 중심 x · 발끝 y**를 셀 피벗(`.5, .96`)에 앉혀 30프레임 × 변형 × 남/여를 패킹한다. 같은 모션의 맨몸/갑옷/투구 시트가 걷기에서 10px 이내로 겹치는 것을 실측해 장비 레이어를 위치 보정 없이 원본 그대로 쓸 수 있었다.
+- **레이어 구성**: `body-*` torso = 맨몸 전신(팔·다리 변형은 투명 셀), `armor-*` = 갑옷 전신, `helmet-*` = 갑옷 머리 구간 + (투구 시트 − 갑옷 시트) 차이로 뽑은 투구, `gloves-*` = 손 구간 피부 덩어리 주변, `boots-*` = 발목 아래, `weapon-*` = `wearable/weapons.png` 아이콘을 손 소켓 자리에 합성, `offhand-*` = `item-art/offhand_0.png` 문장. 색 변형은 `appearance.ts` 팔레트 색조를 휘도 램프로 입히고 피부·외곽선·하이라이트는 보존한다(작업 135 품질 가드 규칙).
+- **계약 변경(문서화)**: 장비 아틀라스 페이지 이름을 `<부위>-<성별>`로 바꿨다(`costumeHero.ts` `planHeroCostume`의 `page`). 갑옷 레이어가 몸통 파츠를 대체하는 전신 그림이라 남/여 그림을 섞으면 체형이 뒤바뀐다. `docs/COSTUME_SYSTEM.md` v1.4 §7.2에 반영.
+- **참조 0 삭제**: `public/assets/walk8_armored.png`(37KB)·`walk8_armored_nohelm.png`(39KB)·`walk8_female_armored_helm.png`(55KB)·`walk8_female_armored_nohelm.png`(51KB)·`walk8_female_armored_oldhelm.png`(50KB)·`icons/nav_status_v2.png`(6KB). `src/`·`tests/`·`scripts/`·`functions/`·`server/`·`index.html`에서 파일명 문자열 참조 0을 확인했다(구형 저해상도 걷기 시트는 고해상도 `*_swordless` 시트로 대체, `nav_status`는 141의 `statusModal` 제거로 미사용).
+- **유지 목록(삭제하지 않음)**: ① `warrior_equipped_{starter,t2,t3,t4}_{male,female}.png` 8장 — `ui/equipmentPortrait.ts` 폴백 분기와 `tests/equipped-detail.test.mjs`가 참조. ② 통합 바디 시트(`warrior_*`, `walk8_*`)와 `appearance.ts`·`render.ts`·`entities.ts`·`heroSockets.ts`·`gearTint.ts` — 필드 폴백 경로(§8 "전부 아니면 전무")로 계속 쓰인다. ③ `tools/costume-viewer/` — 138 비교 프로토타입(게임 미연동, 빌드 제외)이며 `TOOL_COMPARISON.md`·코드 주석이 참조한다.
+- **검증 스크립트**: `scripts/verify-item-art.mjs`에 아틀라스 검증(매니페스트 55종·`COSTUME_ASSET_VERSION` 일치·모든 변형 페이지 셀 격자 PNG)을 추가했고, `tests/costume-atlas.test.mjs`(신규)가 매핑 55종 누락·부위 불일치·페이지 존재·잔여 페이지를 고정한다.
+- **검증**: `npx tsc --noEmit`, `node scripts/verify-item-art.mjs`, 전체 `npm test` **355건**, `npm run build`, `git diff --check` 통과. Save·`store.ts`·`server/**`·API 무변경.
+- **남은 한계**: 스킬 모션 4종은 기본 공격·대기 포즈 재배열(전용 포즈 없음), 갑옷 10종은 실루엣 1종 + 팔레트 10색, 갑옷 없이 투구만 쓴 상태에서는 원본 시트 구도 차이로 몇 px 어긋날 수 있다, 공격 프레임 무기는 시트 자체 검을 쓴다(현행 폴백과 같은 규칙).
+- 수정 파일: `scripts/build-costume-atlas.py`(신규), `scripts/verify-item-art.mjs`, `tests/costume-atlas.test.mjs`(신규), `tests/costume-manifest.test.mjs`, `tests/costume-field-render.test.mjs`, `src/game/costume/manifest.ts`, `src/game/render/costumeHero.ts`, `public/assets/costume/v2/**`(신규), `public/assets/walk8_*`·`icons/nav_status_v2.png`(삭제), `docs/COSTUME_SYSTEM.md`(v1.4), `docs/CODE_MAP.md`, `docs/QUICK_PATCH.md`, `docs/TASK.md`·`docs/TASK_songduckjin.md`·`docs/TASK_ARCHIVE.md`·`docs/WORKLOG.md`.
+
+---
+
 ## [x] [작업 164] 월드보스 처치 연출·기본 도전 탭
 - 2026-11-18 · fks3997 · `feature/world-boss-defeat-fks3997`.
 - 사용자 지정 8프레임: 검 꽂기→무릎꿇기→주저앉기, 검접점/바닥 높이 보정. 서버 공유HP 0 확인 때만 1회·잔여 스킬VFX 정리·돌/먼지.

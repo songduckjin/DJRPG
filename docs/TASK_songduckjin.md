@@ -394,8 +394,9 @@
 - **검증**: `npx tsc --noEmit`, `node --test tests/equipped-detail.test.mjs tests/appearance.test.mjs tests/modal-ui.test.mjs`, `git diff --check`.
 - **완료 기준**: 장비창 중앙 미리보기가 필드와 같은 공용 외형 계획을 쓰고 임시·종이인형 경로가 코드에 남아 있지 않다. 착용 장비를 바꾸면 미리보기가 즉시 바뀌고, 136의 장비 상세 팝업·가방 동작은 그대로다. 남/여 모두 확인된다.
 
-### [ ] [작업 142] 코스튬 에셋 양산·아틀라스 패킹 및 레거시 리소스 정리
-- **담당자**: `songduckjin` · **예정 브랜치**: `task/142-costume-atlas-cleanup` · **위험 등급**: 중 · **상태**: 대기
+### [x] [작업 142] 코스튬 에셋 양산·아틀라스 패킹 및 레거시 리소스 정리
+- **담당자**: `songduckjin` · **브랜치**: `task/142-costume-atlas-cleanup` · **위험 등급**: 중 · **상태**: `[x]` 완료
+- **완료 결과(2026-11-18)**: `public/assets/costume/v2/`에 매니페스트 55종과 아틀라스 60장(총 39MB, 페이지 1872×1936 = 셀 `234×242` 8×8)을 배포하고 `COSTUME_ASSET_VERSION = 2`로 올렸다. 생성기 `scripts/build-costume-atlas.py`(Python 3.12·Pillow)가 기존 2.5D 시트를 본체 높이 190px·실루엣 중심 x·발끝 피벗으로 정규화해 30프레임 × 55변형 × 남/여를 패킹한다. 장비 페이지도 성별 접미사(`armor-male`…)를 쓴다(갑옷이 전신 그림이라 남/여 혼용 불가). 참조 0을 확인해 구형 걷기 시트 5장(`walk8_armored`·`walk8_armored_nohelm`·`walk8_female_armored_{helm,nohelm,oldhelm}`)과 `icons/nav_status_v2.png`를 삭제했고, 폴백 참조가 남은 `warrior_equipped_*` 8장·통합 바디 시트·`heroSockets.ts`·`tools/costume-viewer/`는 유지 목록으로 남겼다. 검증: `npx tsc --noEmit`, `node scripts/verify-item-art.mjs`, 전체 `npm test` 355건, `npm run build`, `git diff --check` 통과. 상세 제작 규칙·남은 한계는 `docs/COSTUME_SYSTEM.md` v1.4 §7.4.
 - **선행 조건**: `[작업 141]` 완료(2026-11-18). 140·141이 공용 외형 계획으로 실제 동작하는 상태에서만 레거시를 지운다(§2·§8: 참조 검사 없는 삭제 금지).
 - **정리 후보(2026-11-18, 141 결론)**: 136의 티어별 전신 초상화 `public/assets/warrior_equipped_t{2,3,4}_{male,female}.png` 6장(각 720px, 합계 355KB)은 지금은 장비창 **폴백 자산**이다. 실물 아틀라스·매니페스트가 배포되어 141 미리보기가 코스튬 합성으로 그려지는 것을 확인한 뒤, `src/`·`tests/`·`scripts/` 참조 0을 검사해 삭제 후보로 처리한다. 실물 확인 전에는 삭제하지 않는다(삭제하면 미리보기 폴백이 빈 화면이 된다).
 - **필수(2026-11-18 추가, 작업 140 실측)**: 140 배포분이 없는 매니페스트 경로 요청으로 `/assets/costume/v1/manifest.json`에 SPA fallback HTML을 `200 immutable`로 받아 사용자 브라우저에 **v1 URL이 캐시**됐다. 첫 실물 에셋은 `COSTUME_ASSET_VERSION`을 **2**로 올려 `/assets/costume/v2/...`로 배포하고, `/version.json`과 함께 매니페스트·아틀라스 HTTP 200(content-type `application/json`·`image/png`)을 확인한다.
