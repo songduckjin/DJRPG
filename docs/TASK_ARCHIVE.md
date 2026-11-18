@@ -1666,3 +1666,5 @@
 | 154 기존유저행 밀림·내행삽입 | fks3997 | feature/world-boss-preview-fks3997 | 안내문아닌기존유저행아래밀림, tsc·20테스트 | [x] |
 
 | 155 시작글자완전퇴장후전투 | fks3997 | feature/world-boss-preview-fks3997 | 포효2.7+글자1.1초후공격/스킬/타이머, tsc·21테스트 | [x] |
+
+| 156 보스공격5초/광역15·30·45 | fks3997 | feature/world-boss-preview-fks3997 | 단일시간표·광역후2초대기/모션피해VFX동기·접촉피해차단, tsc·22테스트 | [x] |

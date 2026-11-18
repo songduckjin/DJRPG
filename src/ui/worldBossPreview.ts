@@ -1,4 +1,4 @@
-import {SLAM_HIT_PHASE} from '../game/worldBossRehearsal';
+import {activeBossAttack,bossIdleTime,bossSlamImpactAge} from '../game/worldBossPattern';
 import type {BossStanding} from './worldBossPresentation';
 export type BossMotion = 'idle' | 'attack' | 'slam';
 export const BOSS_SHEETS = ['/assets/world-boss/valkaron-idle-hd-v1.png', '/assets/world-boss/valkaron-slash-hd-v2.png', '/assets/world-boss/valkaron-slam-rise-hd-v2.png', '/assets/world-boss/valkaron-slam-swing-hd-v2.png', '/assets/world-boss/valkaron-slam-impact-hd-v2.png'];
@@ -20,17 +20,14 @@ export function preloadBossSheets(): void {
   }
 }
 export function bossPose(seconds: number): {motion: BossMotion; frame: number; impact: boolean} {
-  const phase = Math.max(0, seconds) % 12;
-  if (phase >= 9 && phase < 10.8) {
-    const t=phase-9;
-    const recover=Math.max(0,Math.min(1,(t-.93)/.87)),settle=recover*recover*(3-2*recover);
-    const frame=t<.65?Math.min(7,Math.floor(t/.65*8)):t<.93?8+Math.min(7,Math.floor((t-.65)/.28*8)):16+Math.min(7,Math.floor(settle*8));
-    return {motion:'slam', frame:16 + frame, impact:phase>=SLAM_HIT_PHASE&&phase<SLAM_HIT_PHASE+.24};
+  const attack=activeBossAttack(Math.max(0,seconds));
+  if(attack?.kind==='slam'){
+    const age=seconds-attack.start,recover=Math.max(0,Math.min(1,(seconds-attack.hit)/.87)),settle=recover*recover*(3-2*recover);
+    const frame=age<.7?Math.min(7,Math.floor(age/.7*8)):age<1?8+Math.min(7,Math.floor((age-.7)/.3*8)):16+Math.min(7,Math.floor(settle*8));
+    return {motion:'slam',frame:16+frame,impact:seconds>=attack.hit&&seconds<attack.hit+.24};
   }
-  if (phase >= 4 && phase < 5.2) return {motion:'attack', frame:8 + Math.min(7, Math.floor((phase - 4) / 1.2 * 8)), impact:false};
-  // Resume at idle frame zero after an action, rather than jumping to the global clock's middle pose.
-  const idleTime=phase>=10.8?phase-10.8:phase>=5.2?phase-5.2:seconds>=12?phase+1.2:phase;
-  return {motion:'idle', frame:Math.floor((idleTime+1e-9)*5)%8, impact:false};
+  if(attack){const age=seconds-attack.start,frame=age<.55?Math.min(3,Math.floor(age/.55*4)):4+Math.min(3,Math.floor((seconds-attack.hit)/.65*4));return {motion:'attack',frame:8+frame,impact:false};}
+  return {motion:'idle',frame:Math.floor((bossIdleTime(seconds)+1e-9)*5)%8,impact:false};
 }
 export function framePosition(frame: number): string {
   const safe = Math.max(0, Math.min(39, Math.floor(frame)));
@@ -74,6 +71,4 @@ export class WorldBossPreview {
   }
 }
 
-export function slamImpactAge(seconds:number):number|null {
-  const age=seconds%12-SLAM_HIT_PHASE;return age>=0&&age<1.15?age:null;
-}
+export function slamImpactAge(seconds:number):number|null {return bossSlamImpactAge(seconds);}

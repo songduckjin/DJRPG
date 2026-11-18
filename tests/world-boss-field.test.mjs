@@ -43,7 +43,7 @@ test('reward brackets highlight exactly my tier and show last hit and shared kil
 
 test('manual dodge blocks damage briefly, has a cooldown, and never changes the original save',()=>{
  const save=freshSave('male'),before=JSON.stringify(save),battle=new WorldBossRehearsal(save);
- battle.elapsed=4.45;const hp=battle.world.player.hp;assert(battle.dodge());assert(!battle.dodge());
+ battle.elapsed=4.9;const hp=battle.world.player.hp;assert(battle.dodge());assert(!battle.dodge());
  for(let i=0;i<4;i++)battle.advance(.05);assert.equal(battle.world.player.hp,hp);assert(battle.dodgeCooldown>0);
  for(let i=0;i<80;i++)battle.advance(.05);assert(battle.dodge());assert.equal(JSON.stringify(save),before);
 });
@@ -113,4 +113,20 @@ test('combat stays completely idle while the start text appears and fades, then 
  const remaining=intro.duration-intro.elapsed;const combat=intro.advance(remaining);if(combat>1e-9)battle.advance(combat);
  assert.equal(intro.startCue,false);assert.equal(intro.cueOpacity,0);assert.equal(battle.elapsed,0);
  const first=intro.advance(.05);battle.advance(first);assert.equal(battle.elapsed,.05);assert(battle.damage>0);
+});
+
+test('boss schedule uses normals five seconds apart and three slams with recovery gaps',async()=>{
+ const {bossAttacks,bossHitsBetween,SLAM_TIMES}=await import('../src/game/worldBossPattern.ts');
+ assert.deepEqual(bossAttacks.filter(a=>a.kind==='slam').map(a=>a.hit),[15,30,45]);
+ assert.deepEqual(bossAttacks.filter(a=>a.kind==='attack').map(a=>a.hit),[5,10,17.55,22.55,27.55,32.55,37.55,42.55,47.55,52.55,57.55]);
+ for(const s of SLAM_TIMES)assert(bossAttacks.every(a=>a.kind!=='attack'||a.end<=s-1||a.start>=s+2));
+ assert.equal(bossHitsBetween(14.95,15.001)[0].kind,'slam');assert.equal(bossHitsBetween(15.001,15.05).length,0);
+});
+test('standing in contact causes no hidden engine damage between scheduled boss attacks',async()=>{
+ const {bossHitsBetween}=await import('../src/game/worldBossPattern.ts');const battle=new WorldBossRehearsal(freshSave('male'));battle.world.player.hp=100000;
+ let hits=0;for(let i=0;i<1201&&!battle.finished;i++){
+  const before=battle.elapsed,hp=battle.world.player.hp;battle.world.player.x=0;battle.world.player.y=0;battle.advance(.05);
+  const due=bossHitsBetween(before,battle.elapsed);if(due.length){assert(battle.world.player.hp<hp);hits++;}else assert.equal(battle.world.player.hp,hp);
+ }
+ assert.equal(hits,14);assert(battle.finished);
 });

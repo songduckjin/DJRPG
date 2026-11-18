@@ -135,7 +135,8 @@
 - `src/styles/world-boss.css` — HD원본얼굴/뿔직접크롭·58px무테진입버튼·후광분리(얼굴블러없음)·아래체력/3회시안표시·팝업·범위예고·충격파, 본체/이펙트분리.
 - `server/journey.mjs` — 수령검증/소유권/수령기록배치원자저장·성공응답선택적journey목록. 구클라이언트호환.
 
-- `src/game/worldBossRehearsal.ts` — 복제Save전용World·실제메인장착자동공격/스킬·수동회피0.45초/쿨4초·단일보스고정·60초/전투불능종료. 실제저장콜백없음. `WorldBossRehearsal`
+- `src/game/worldBossPattern.ts` — 기본5초/광역15·30·45타격·1초예고·광역후2초대기·모션/피해/효과공통시간표. `bossAttacks`·`activeBossAttack`·`bossHitsBetween`
+- `src/game/worldBossRehearsal.ts` — 복제Save전용World·실제메인장착자동공격/스킬·수동회피0.45초/쿨4초·단일보스고정·60초/전투불능종료. 실제저장콜백없음·엔진접촉피해차단/시간표피해만. `WorldBossRehearsal`
 - `src/ui/worldBossIntro.ts` — 고정경기장2.7초기본→포효→기본·시작글자1.1초완전퇴장후전투/시간분리, 스킵·카메라연출없음. `WorldBossIntro`
 - `src/ui/worldBossWeather.ts` — 깃발천정규좌표/변형·뒤구름이동좌표(색마스크mesh, 돌/봉고정·모션감소). `bannerOffset`·`cloudCenter`
 - `src/ui/worldBossImpact.ts` — 착지돌탄도/그림자·먼지확산/소멸의결정적입자상태. `slamParticles`

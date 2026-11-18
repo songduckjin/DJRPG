@@ -108,13 +108,13 @@ export function openWorldBossField(ui:Interface):void {
         arenaSprite.position.set((w-arena.width*cover)/2,(h-arena.height*cover)/2-h*.07);
         const dodge=get<HTMLButtonElement>('.wb-field-dodge');dodge.disabled=intro.active||session.finished||session.dodgeCooldown>0;
         get('.wb-dodge-cd').textContent=session.dodgeCooldown>0?session.dodgeCooldown.toFixed(1):'';
-        get('.wb-field-warning').hidden=intro.active||pose.motion!=='slam'||pose.frame>=31||session.finished;
+        get('.wb-field-warning').hidden=intro.active||pose.motion!=='slam'||pose.frame>=32||session.finished;
         // Cloud graphics live between the arena and actors, never above the boss.
         clouds.clear();clouds.position.set(0,-h*.07);
         for(let i=0;i<5;i++)for(let layer=7;layer>0;layer--){
           clouds.ellipse(cloudCenter(i,reduceWeather?0:visualTime,w),h*(.06+(i%2)*.07),w*(.12+layer*.025),h*(.025+layer*.009)).fill({color:0x9b969e,alpha:.015});
         }
-        if(!intro.active&&pose.motion==='slam'&&pose.frame<31)view.ground.ellipse(x-25,y,95,38).stroke({color:0xb7674f,width:1.2,alpha:.24});
+        if(!intro.active&&pose.motion==='slam'&&pose.frame<32)view.ground.ellipse(x-25,y,95,38).stroke({color:0xb7674f,width:1.2,alpha:.24});
         const impactAge=slamImpactAge(session.elapsed);
         if(!intro.active&&impactAge!==null){
           drawSlamImpact(view.ground,view.effects,x-25,y,impactAge);

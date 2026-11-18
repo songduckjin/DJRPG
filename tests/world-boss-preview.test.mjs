@@ -6,7 +6,7 @@ const {renderWorldBoss}=await import('../src/ui/modals/worldBossModal.ts');
 const {freshSave}=await import('../src/game/store.ts');
 test('boss idle slash and slam stay within their separate sprite rows and impact follows warning',()=>{
  for(let t=0;t<36;t+=.01){const p=bossPose(t);assert(p.frame>=0&&p.frame<40);if(p.motion==='idle')assert(p.frame<8);if(p.motion==='attack')assert(p.frame>=8&&p.frame<16);if(p.motion==='slam')assert(p.frame>=16);}
- assert.equal(bossPose(9).impact,false);assert.equal(bossPose(9.95).impact,true);assert.equal(bossPose(12).motion,'idle');
+ assert.equal(bossPose(9).impact,false);assert.equal(bossPose(15.02).impact,true);assert.equal(bossPose(12).motion,'idle');
  assert.equal(framePosition(0),'0% 0%');assert.equal(framePosition(31),'100% 100%');
 });
 test('preview duration is 60 seconds and rendering cancels its animation on close without touching a save',()=>{
@@ -49,15 +49,11 @@ test('sheet preloading deduplicates requests and allows a failed sheet to retry'
  }finally{globalThis.Image=old;}
 });
 
-test('slam accelerates through the downswing and its impact matches damage timing',async()=>{
- const {SLAM_HIT_PHASE}=await import('../src/game/worldBossRehearsal.ts');
+test('slam downswing, impact and recovery follow the shared schedule',async()=>{
+ const {SLAM_TIMES}=await import('../src/game/worldBossPattern.ts');
  const {slamImpactAge}=await import('../src/ui/worldBossPreview.ts');
- assert(bossPose(9.64).frame<24);assert(bossPose(9.92).frame>=24);assert(bossPose(SLAM_HIT_PHASE+.01).impact);
- assert.equal(slamImpactAge(SLAM_HIT_PHASE-.01),null);assert(slamImpactAge(SLAM_HIT_PHASE+.2)>0);assert.equal(slamImpactAge(11.2),null);assert.equal(bossPose(10.81).motion,'idle');
-});
-
-test('slam recovery settles into the first idle frame and keeps idle continuous across the next cycle',()=>{
- assert.equal(bossPose(10.799).frame,39);assert.equal(bossPose(10.8).frame,0);assert.equal(bossPose(10.99).frame,0);assert.equal(bossPose(11.01).frame,1);
- assert.equal(bossPose(11.999).frame,5);assert.equal(bossPose(12.001).frame,6);
- let previous=31;for(let t=9.93;t<10.8;t+=.01){const f=bossPose(t).frame;assert(f>=previous);assert(f-previous<=1);previous=f;}
+ for(const hit of SLAM_TIMES){assert.equal(bossPose(hit-1).motion,'slam');assert(bossPose(hit-.31).frame<24);assert(bossPose(hit-.01).frame>=24);assert(bossPose(hit+.01).impact);
+ assert.equal(slamImpactAge(hit-.01),null);assert(slamImpactAge(hit+.2)>0);assert.equal(slamImpactAge(hit+1.2),null);
+ assert.equal(bossPose(hit+.869).frame,39);assert.equal(bossPose(hit+.871).frame,0);assert.equal(bossPose(hit+1.08).frame,1);
+ let previous=31;for(let t=hit;t<hit+.87;t+=.01){const f=bossPose(t).frame;assert(f>=previous);assert(f-previous<=1);previous=f;}}
 });
