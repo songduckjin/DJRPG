@@ -8,10 +8,10 @@
 | 작업 | 담당자 | 브랜치 | 수정 예정 파일 / 영향 영역 | 위험 등급 | 상태 |
 |---|---|---|---|---|---|
 | 136 통합 내 정보(장비·스탯) UI 개편 및 4티어 장비창 초상화 교체 | songduckjin (`codex` 실행) | `task/136-unified-equip-ui` | `src/ui/interface.ts`, `src/ui/modals/equipModal.ts`, `src/ui/modals/statusModal.ts`(삭제), `src/ui/modals/accountModal.ts`, `src/ui/equipmentPortrait.ts`, `src/styles/modals.css`, `src/styles/hud.css` / 하단 내비 3탭·통합 내 정보 모달·장비창 티어 초상화 | 중 | [-] |
-| 140 본 게임 필드 렌더러 독립형 코스튬 전환 | songduckjin | `task/140-costume-field-renderer` (대기) | `src/game/render/entities.ts`, `src/game/render.ts`, `src/game/render/heroMotion.ts`, `src/game/render/heroScale.ts`, `src/game/render/heroSockets.ts`, `AGENTS.md`, `docs/CODE_MAP.md`, `docs/QUICK_PATCH.md` / 필드 캐릭터 렌더 전환 | 상 | [ ] |
-| 141 장비창(내 정보) 공용 외형 연동 | songduckjin | `task/141-costume-ui-sync` (대기) | `src/ui/equipmentPortrait.ts`, `src/ui/modals/equipModal.ts`(필요 시), `tests/equipped-detail.test.mjs` / 장비창 미리보기를 공용 코스튬 외형 계획으로 통합 | 중 | [ ] |
+| 141 장비창(내 정보) 공용 외형 연동 | songduckjin | `task/141-costume-ui-sync` (다음 대기) | `src/ui/equipmentPortrait.ts`, `src/ui/modals/equipModal.ts`(필요 시), `tests/equipped-detail.test.mjs` / 장비창 미리보기를 공용 코스튬 외형 계획으로 통합 | 중 | [ ] |
 | 142 코스튬 에셋 양산·아틀라스 패킹 및 레거시 리소스 정리 | songduckjin | `task/142-costume-atlas-cleanup` (대기) | `public/assets/**`(코스튬 아틀라스·매니페스트), `tools/costume-viewer/**` 임시 에셋, 구형 통합 바디 시트·미사용 레거시 코드(참조 0 확인 후 삭제) | 중 | [ ] |
 
+> 2026-11-18: `[작업 140]`을 PR 병합으로 마감하고 완료 이력을 `docs/TASK_ARCHIVE.md`로 옮겼다. 필드 캐릭터를 `src/game/render/costumeHero.ts`(신규)의 독립형 코스튬 레이어로 전환하되, 실물 아틀라스가 없는 지금은 매니페스트 로드 실패 시 기존 통합 바디·무기 소켓으로 무중단 폴백한다. 모션(대기·걷기 8·기본 공격·스킬 4템플릿)·공격 속도 시각 배율·그림자·잔상·피격 tint를 두 경로가 공유하고, 남/여 동일 경로를 쓴다. 아틀라스 셀·페이지 배치 규약은 `docs/COSTUME_SYSTEM.md` §7.2. 다음 착수 대상은 `[작업 141]`(장비창 공용 외형 연동)이다.
 > 2026-11-18: `[작업 139]`을 검증·PR #76 병합으로 마감하고 완료 이력을 `docs/TASK_ARCHIVE.md`로 옮겼다. `src/game/costume/**`(매니페스트 로더·검증·캐시, 고유 이름 75종 매핑(55 `costumeId` + 20 `none`), 폴백 4경로, 캐시 버스터, 스킬 8종 템플릿)와 `tests/costume-manifest.test.mjs` 14건, `docs/COSTUME_SYSTEM.md` v1.1을 반영했다. 게임 화면·Save/DB/API는 무변경(렌더러 미연결)이며, 다음 착수 대상은 `[작업 140]`(필드 렌더러 전환)이다.
 > 2026-11-18: `[작업 137]`은 PR #73으로 main에 병합되어 완료 이력을 docs/TASK_ARCHIVE.md로 옮겼다.
 > 2026-11-18: 코스튬 후속 로드맵 `[작업 139]`~`[작업 142]`를 `[ ]`로 등록했다. 순서는 138(도구 비교·뷰어 프로토타입) → 139(스펙 v1.1·매니페스트·아이템 매핑) → 140(필드 렌더러 전환) → 141(장비창 공용 외형 연동) → 142(에셋 양산·아틀라스·레거시 정리)이며, 각 작업은 선행 작업 머지 후 `origin/main` 기준으로 착수한다.

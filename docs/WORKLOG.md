@@ -566,3 +566,14 @@
 - 사용자 요청으로 현재 월드보스 소개·전용 연습전·포효/결과/순위예시 UI와 보상·업적 수령 지연 개선을 운영 반영한다. 실공유HP/실순위/실보상은 미연동 연습전임을 유지한다.
 - 최신 main b39d160의 다른 작업자 외형·코스튬 반영분을 보존하고 통합했다. 진행 중 UI 개편은 포함하지 않는다. 성능 개선 등 추가 기능 수정 없음.
 - tsc·관련101테스트·장비75/착용50아트검사·운영빌드·diff 통과. Cloudflare Pages djrpg만 사용, 운영 https://djrpg.pages.dev/ .
+
+# 2026-11-18 작업 140
+
+- `src/game/render/costumeHero.ts`(신규)로 필드 캐릭터를 독립형 코스튬 레이어 렌더러에 연결했다. `planCostume()`·`resolveSkillMotion()`을 소비해 본체 3파츠 + 장비 레이어를 계획하고, 갑옷은 몸통 파츠를 교체(§4), 매니페스트 `zOrder`·`anchor`·`fit`을 반영한다. 아틀라스는 `COSTUME_ASSET_VERSION` 경로에서 1회 로드·셀 캐시.
+- `render/entities.ts` `drawHero`는 코스튬 모드 → 기존 통합 바디·무기 소켓 폴백 순서로 그린다. 그림자·런지·피격 tint·광폭 오라는 두 경로가 공유하고, 잔상은 코스튬 모드에서 보이는 레이어를 모두 복제한다.
+- 모션 계약: `HeroCostumeMotion`(idle1·walk8·attack4·slash4·spin6·smash4·cast3), `heroCostumeMotion()`·`costumeFrameIndex()`·`costumePlaybackRate()`(월드 쿨다운의 역수, 상한 3배)를 `render/heroMotion.ts`에, `costumeBodyPx`·`costumeScale()`을 `render/heroScale.ts`에 두었다. `heroSockets.ts` 소켓 표는 폴백 전용으로 명시.
+- 아틀라스 배치 규약을 `docs/COSTUME_SYSTEM.md` v1.2 §7.2로 확정했다 — 셀 234×242, 페이지 2048² 64칸, 변형당 32칸(페이지당 변형 2개, 3번째부터 `-2` 페이지), 프레임 슬롯 표. 142가 이 규약으로 팩킹한다.
+- 안전장치: 매니페스트 실패 시 아틀라스 요청 0회, 레이어 경로는 전부 아니면 전무(부분 실루엣·캐릭터 소실 없음), 실패 페이지는 1회 기록 후 재시도 없음.
+- 대표 장면 1회: 로컬 Vite + Chromium(SwiftShader 소프트웨어 GL) 412×892 DPR1, 3층 자동사냥. 폴백 남/여는 캐릭터·그림자 정상 표시에 화면 전체 draw call 7~9/프레임(개발 서버가 없는 매니페스트 경로에 SPA fallback HTML을 주므로 콘솔 오류 1건 → `manifest-parse` → 폴백), 코스튬 모드(합성 아틀라스 주입)는 레이어 8개·통합 바디 숨김·draw call 7·콘솔 오류 0건이었다. FPS는 소프트웨어 GL이라 절대값이 의미 없고(5.2~5.4) 폴백/코스튬이 동일했다. 모바일 실기·GPU 메모리는 142에서 잰다.
+- 검증: `npx tsc --noEmit`, `node --test tests/costume-field-render.test.mjs`(신규 16건) + `tests/costume-manifest.test.mjs tests/appearance.test.mjs tests/hero-motion.test.mjs tests/hero-art.test.mjs tests/hero-weapon-render.test.mjs`, 전체 `node --test tests/*.test.mjs` 303건, `node scripts/verify-item-art.mjs`, `git diff --check` 통과. `world.ts`·`store.ts`·`server/**`·`src/ui/**` 무변경.
+- PR #79(`task/140-costume-field-renderer`).
