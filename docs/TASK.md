@@ -7,9 +7,10 @@
 
 | 작업 | 담당자 | 브랜치 | 수정 예정 파일 / 영향 영역 | 위험 등급 | 상태 |
 |---|---|---|---|---|---|
-| 144 코스튬 동작 싱크 및 아틀라스 캐시 제한 | songduckjin (`codex` 실행) | `codex/144-costume-sync-perf` | `src/game/render/{heroMotion,costumeHero,entities}.ts`, `src/ui/equipmentPortrait.ts`, 코스튬 렌더·장비창 테스트, `docs/COSTUME_SYSTEM.md`, `docs/CODE_MAP.md`, `docs/QUICK_PATCH.md`, 작업 기록 | 중 | [-] |
+| 144 코스튬 동작 싱크 및 아틀라스 캐시 제한 | songduckjin (`codex` 실행) | `codex/144-costume-sync-perf` | `src/game/render/{heroMotion,costumeHero,entities}.ts`, `src/ui/equipmentPortrait.ts`, 코스튬 렌더·장비창 테스트, `docs/COSTUME_SYSTEM.md`, `docs/CODE_MAP.md`, `docs/QUICK_PATCH.md`, 작업 기록 | 중 | [-] PR #87 Draft 리뷰 대기 |
 
 > 2026-11-19: `[작업 143]` — 코스튬 v3(투구 싱크·몸통 겹침·공격 모션 수정)를 배포했다. 갑옷 착용 시 본체 파츠 3종을 모두 대체하고, 투구 레이어는 머리 창 안의 차이만 남기며, 맨몸용 투구 페이지(`helmet-body-*`)를 추가했다. 자세한 내용은 `docs/COSTUME_SYSTEM.md` §7.5.
+> 2026-11-19: `[작업 144]` — `spin` 본체 회전 제거, 필드 아틀라스 6페이지·미리보기 이미지 2페이지 캐시 한도와 메모리 산정을 구현했다. 타입 검사·관련 테스트 70건·아트 검증 통과, 모바일 실기 성능은 미측정이다. [PR #87](https://github.com/songduckjin/DJRPG/pull/87) Draft.
 > 2026-11-18: `[작업 142]`를 PR 병합으로 마감하고 완료 이력을 `docs/TASK_ARCHIVE.md`로 옮겼다. `/assets/costume/v2/`에 실물 아틀라스 60장(39MB)과 매니페스트 55종을 배포해 필드·내 정보 미리보기가 코스튬 레이어로 그려진다. 장비 아틀라스도 성별 페이지(`armor-male`·`armor-female`)로 나눴고, 참조 0을 확인한 구형 걷기 시트 5장과 `nav_status_v2.png`만 삭제했다(폴백 참조가 남은 `warrior_equipped_*`·통합 바디 시트는 유지).
 > 2026-11-18: `[작업 141]`을 PR 병합으로 마감하고 완료 이력을 `docs/TASK_ARCHIVE.md`로 옮겼다. 장비창(내 정보) 미리보기가 필드와 같은 공용 계획 `planHeroCostume()`을 **idle 0프레임**으로 소비하고, `fit` 좌표 표·`wearableEquipmentImage` 덧그리기·픽셀 스캔을 제거했다. 매니페스트·아틀라스가 없으면 136의 티어 전신 초상화로 폴백하고, 매니페스트 실패는 세션 동안 재요청하지 않는다. 같은 PR에서 `[작업 136]`(PR #72 Draft, `task/136-unified-equip-ui`)의 UI 레이아웃(`내 정보` 3탭·`statusModal` 제거·계정 성별 고정·6스탯+5×2 장비+가방)을 통합했다 — **PR #72 자체는 병합하지 않았고 내용은 141이 대체(superseded)한다.** 136의 티어 초상화 6장(`warrior_equipped_t{2,3,4}_{male,female}.png`)은 폴백 자산으로 유지하며 삭제는 142의 참조 0 검사 후에 한다. 다음 착수 대상은 `[작업 142]`(코스튬 에셋 양산·아틀라스 패킹·레거시 정리)이다.
 > 2026-11-18: `[작업 140]`을 PR 병합으로 마감하고 완료 이력을 `docs/TASK_ARCHIVE.md`로 옮겼다. 필드 캐릭터를 `src/game/render/costumeHero.ts`(신규)의 독립형 코스튬 레이어로 전환하되, 실물 아틀라스가 없는 지금은 매니페스트 로드 실패 시 기존 통합 바디·무기 소켓으로 무중단 폴백한다. 모션(대기·걷기 8·기본 공격·스킬 4템플릿)·공격 속도 시각 배율·그림자·잔상·피격 tint를 두 경로가 공유하고, 남/여 동일 경로를 쓴다. 아틀라스 셀·페이지 배치 규약은 `docs/COSTUME_SYSTEM.md` §7.2. 다음 착수 대상은 `[작업 141]`(장비창 공용 외형 연동)이다.

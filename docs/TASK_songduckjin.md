@@ -312,7 +312,7 @@
 ## 다음 작업 대기
 
 ### [-] [작업 144] 코스튬 동작 싱크 및 아틀라스 캐시 제한
-- **담당자**: `songduckjin` · **브랜치**: `codex/144-costume-sync-perf` · **위험 등급**: 중 · **상태**: `[-]` 진행 중
+- **담당자**: `songduckjin` · **브랜치**: `codex/144-costume-sync-perf` · **위험 등급**: 중 · **상태**: `[-]` 구현·검증 완료, PR #87 Draft 리뷰 대기
 - **목표**: 코스튬 설계의 스킬 회전 규칙과 실제 렌더링을 일치시키고, 필드·장비창 아틀라스 이미지 캐시의 메모리 증가를 제한한다.
 - **수정 예정 파일**: `src/game/render/heroMotion.ts`, `src/game/render/entities.ts`, `src/game/render/costumeHero.ts`, `src/ui/equipmentPortrait.ts`, `tests/hero-motion.test.mjs`, `tests/costume-field-render.test.mjs`, `tests/equipped-detail.test.mjs`, `docs/COSTUME_SYSTEM.md`, `docs/CODE_MAP.md`, `docs/QUICK_PATCH.md`, `docs/TASK.md`, `docs/TASK_songduckjin.md`, `docs/WORKLOG.md`, `docs/TASK_ARCHIVE.md`.
 - **구현 항목**:
@@ -323,6 +323,7 @@
 - **금지**: `world.ts`, Save·DB/API, 코스튬 아틀라스·매니페스트 에셋, 아이템 매핑 변경. 사용자 요청 없이 브라우저 실기·Playwright·Computer Use를 실행하지 않는다.
 - **검증**: `node node_modules/typescript/bin/tsc --noEmit`, `node --test tests/hero-motion.test.mjs tests/costume-field-render.test.mjs tests/costume-manifest.test.mjs tests/equipped-detail.test.mjs`, `node scripts/verify-item-art.mjs`, `git diff --check`.
 - **완료 기준**: 스킬 회전 정책과 두 필드 렌더 경로가 일치하고, 페이지 캐시가 명시된 상한을 넘지 않으며, 축출된 GPU 텍스처를 보유한 참조가 없다. 관련 회귀 검증과 메모리 상한 근거를 기록한다.
+- **검증 결과**: `tsc --noEmit`, 관련 Node 테스트 70건, `verify-item-art.mjs`, `git diff --check` 통과. 메모리 산정은 6×1872×1936 RGBA = 약 82.97 MiB이며, 모바일 FPS/GPU 메모리 실측은 하지 않았다. PR #87 Draft: https://github.com/songduckjin/DJRPG/pull/87.
 
 ### [x] [작업 138] 코스튬 도구 비교 및 최소 뷰어 프로토타입
 - **담당자**: `songduckjin` · **브랜치**: `task/138-costume-prototype` · **위험 등급**: 중 · **상태**: `[x]` 완료(PR #74) · **착수**: 2026-11-18(작업 137 PR #73 병합 후 `origin/main` 기준)
