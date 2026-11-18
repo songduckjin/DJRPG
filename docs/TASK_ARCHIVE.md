@@ -1664,3 +1664,5 @@
 | 153 결과 내순위도착·하단 재도전/나가기 | fks3997 | feature/world-boss-preview-fks3997 | 직전9명+내행/라벨밀림·하강/예시분리·하단두버튼, tsc·20테스트 | [x] |
 
 | 154 기존유저행 밀림·내행삽입 | fks3997 | feature/world-boss-preview-fks3997 | 안내문아닌기존유저행아래밀림, tsc·20테스트 | [x] |
+
+| 155 시작글자완전퇴장후전투 | fks3997 | feature/world-boss-preview-fks3997 | 포효2.7+글자1.1초후공격/스킬/타이머, tsc·21테스트 | [x] |

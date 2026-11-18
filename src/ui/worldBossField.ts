@@ -85,7 +85,8 @@ export function openWorldBossField(ui:Interface):void {
         if(closed)return;if(!field.isConnected){cleanup();return;}
         const now=performance.now(),dt=Math.min(.05,(now-previous)/1000);previous=now;
         if(!document.hidden){const combatDt=intro.advance(dt);if(combatDt>0)session.advance(combatDt);}
-          get('.wb-battle-start').hidden=!intro.startCue||session.elapsed>.65;
+          get('.wb-battle-start').hidden=!intro.startCue;
+        get('.wb-battle-start').style.opacity=String(intro.cueOpacity);
 
         const visualTime=intro.elapsed+session.elapsed;
         if(!reduceWeather){const vertices=flagBuffer.data as Float32Array;

@@ -58,8 +58,8 @@ test('detached blade fragment is removed while the connected body and sword stay
 
 test('short standing roar pauses combat, starts and ends in the regular idle pose',async()=>{
  const {WorldBossIntro}=await import('../src/ui/worldBossIntro.ts');const intro=new WorldBossIntro(),battle=new WorldBossRehearsal(freshSave('male'));
- assert.equal(intro.duration,2.7);assert.equal(intro.frame,0);let sawRoar=false;
- for(let i=0;i<53;i++){const dt=intro.advance(.05);if(dt>0)battle.advance(dt);assert(intro.frame===0||(intro.frame>=41&&intro.frame<=47));if(intro.frame>=41)sawRoar=true;}
+ assert.equal(intro.roarDuration,2.7);assert.equal(intro.duration,3.8);assert.equal(intro.frame,0);let sawRoar=false;
+ for(let i=0;i<75;i++){const dt=intro.advance(.05);if(dt>0)battle.advance(dt);assert(intro.frame===0||(intro.frame>=41&&intro.frame<=47));if(intro.frame>=41)sawRoar=true;}
  assert(sawRoar);assert(intro.active);assert.equal(battle.elapsed,0);assert.equal(battle.damage,0);assert.equal(intro.frame,0);assert(intro.startCue);
  for(let i=0;i<2;i++){const dt=intro.advance(.05);if(dt>0)battle.advance(dt);}
  assert(!intro.active);assert(Math.abs(battle.elapsed-.05)<1e-9);assert.equal(intro.frame,0);
@@ -104,4 +104,13 @@ test('result keeps retry and exit at bottom and exposes rank animation only as a
  const demo=card.children.find(c=>c.className==='wb-result-demo');assert.match(demo.textContent,/예시/);demo.onclick();card=parent.children[0];assert.match(card.children[1].textContent,/실제 순위나 보상이 아닙니다/);
  const window=card.children.find(c=>c.className.includes('wb-result-window'));assert.match(window.className,/is-descending/);const target=window.children[0].children[1];assert.equal(target.children.length,10);assert.match(target.children[9].children[0].className,/wb-result-displaced/);assert.equal(target.children[9].children[0].children[1].textContent,'예시 전사 24');assert.equal(target.children[9].children[0].children[0].textContent,'23위');assert.match(target.children[9].children[1].className,/is-mine/);
  }finally{globalThis.document=old;}
+});
+
+test('combat stays completely idle while the start text appears and fades, then starts as it vanishes',async()=>{
+ const {WorldBossIntro}=await import('../src/ui/worldBossIntro.ts');const intro=new WorldBossIntro(),battle=new WorldBossRehearsal(freshSave('male'));
+ while(intro.elapsed<3.75-1e-9){const combat=intro.advance(.05);if(combat>0)battle.advance(combat);}
+ assert(intro.startCue);assert(intro.cueOpacity>0&&intro.cueOpacity<.2);assert.equal(battle.elapsed,0);assert.equal(battle.damage,0);assert.equal(battle.world.effects.length,0);
+ const remaining=intro.duration-intro.elapsed;const combat=intro.advance(remaining);if(combat>1e-9)battle.advance(combat);
+ assert.equal(intro.startCue,false);assert.equal(intro.cueOpacity,0);assert.equal(battle.elapsed,0);
+ const first=intro.advance(.05);battle.advance(first);assert.equal(battle.elapsed,.05);assert(battle.damage>0);
 });
