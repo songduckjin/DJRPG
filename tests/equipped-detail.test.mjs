@@ -38,7 +38,7 @@ test('full bag prevents unequip and explains failure; dismiss only clears view s
 
 const { attachedDetailPosition } = await import('../src/ui/bagDetail.ts');
 const { deferEquippedDismiss } = await import('../src/ui/equippedDetail.ts');
-const { wrapEquipmentName, equipmentShowcase } = await import('../src/ui/modals/equipModal.ts');
+const { wrapEquipmentName, equipmentShowcase, equipmentPreviewPlacement } = await import('../src/ui/modals/equipModal.ts');
 const { wearableEquipmentImage } = await import('../src/game/items.ts');
 test('equipment preview uses a bare gender-matched body and layers the exact equipped wearable art',()=>{
   for(const gender of ['male','female']){
@@ -51,13 +51,26 @@ test('equipment preview uses a bare gender-matched body and layers the exact equ
     };
     const preview=equipmentShowcase(save);
     assert.equal(preview.portrait,`/assets/warrior_${gender}_base.png`);
-    assert.deepEqual(preview.layers.map(layer=>layer.slot),['weapon','helmet','armor','gloves','boots']);
+    assert.deepEqual(preview.layers.map(layer=>layer.slot),['weapon','helmet','armor','gloves','gloves','boots','boots']);
     for(const layer of preview.layers){
       const art=wearableEquipmentImage(save.equipment[layer.slot]);
       assert.equal(layer.path,art.path);assert.equal(layer.frame,art.frame);
       assert(layer.size>0&&layer.size<=1);assert(layer.left>=0&&layer.left<=1);assert(layer.top>=0&&layer.top<=1);
     }
-    assert.equal(preview.layers.find(layer=>layer.slot==='boots').frame,2);
+    const boots=preview.layers.filter(layer=>layer.slot==='boots');
+    assert(boots.every(layer=>layer.frame===2));
+    assert.deepEqual(boots.map(layer=>layer.column),[4,5]);
+    assert(boots.every(layer=>layer.columns===10&&layer.widthRatio===.5));
+    assert.deepEqual(preview.layers.filter(layer=>layer.slot==='gloves').map(layer=>layer.column),[0,1]);
+    const weapon=preview.layers.find(layer=>layer.slot==='weapon');
+    const placement=equipmentPreviewPlacement(weapon,78,192);
+    assert.equal(placement.width,weapon.size*192);
+    assert.equal(placement.height,weapon.size*192);
+    assert.equal(placement.x+weapon.anchorX*placement.width,weapon.left*78);
+    assert.equal(placement.y+weapon.anchorY*placement.height,weapon.top*192);
+    assert.equal(weapon.flipX,true);
+    const bootPlacement=equipmentPreviewPlacement(boots[0],78,192);
+    assert.equal(bootPlacement.width,bootPlacement.height/2);
   }
 });
 test('equipment names wrap at word boundaries within eight characters and retain all name content',()=>{
