@@ -79,9 +79,11 @@ async function credit(tx,attempt,now,finish=false){
   return {attempt,battle,day};
 }
 async function standing(tx,day,id){
-  const ranked=`SELECT account_id,name,damage,ROW_NUMBER() OVER (ORDER BY damage DESC,joined_at,account_id) AS rank FROM djrpg_boss_scores WHERE day=? AND damage>0`;
-  const mine=(await tx.execute({sql:`SELECT * FROM (${ranked}) WHERE account_id=? COLLATE NOCASE`,args:[day,id]})).rows[0];
-  const rows=(await tx.execute({sql:`SELECT * FROM (${ranked}) WHERE rank<=10 OR rank BETWEEN ? AND ? ORDER BY rank`,args:[day,Math.max(1,Number(mine?.rank??0)-9),Number(mine?.rank??0)+1]})).rows;
+  const rows=(await tx.execute({sql:`WITH ranked AS (
+    SELECT account_id,name,damage,ROW_NUMBER() OVER (ORDER BY damage DESC,joined_at,account_id) AS rank FROM djrpg_boss_scores WHERE day=? AND damage>0
+  ),mine AS (SELECT rank FROM ranked WHERE account_id=? COLLATE NOCASE)
+  SELECT r.* FROM ranked r LEFT JOIN mine m ON 1=1 WHERE r.rank<=10 OR r.rank BETWEEN m.rank-9 AND m.rank+1 ORDER BY r.rank`,args:[day,id]})).rows;
+  const mine=rows.find(r=>r.account_id.toLowerCase()===id.toLowerCase());
   const map=r=>({rank:Number(r.rank),name:r.name,damage:Number(r.damage),mine:r.account_id.toLowerCase()===id.toLowerCase()});
   return {top:rows.filter(r=>Number(r.rank)<=10).map(map),mine:mine?map(mine):undefined,nearMine:mine?rows.filter(r=>Number(r.rank)>=Number(mine.rank)-9&&Number(r.rank)<=Number(mine.rank)+1).map(map):[]};
 }
@@ -97,28 +99,35 @@ export async function worldBossOperation(db,id,input={},sid,now=Date.now(),schem
     for(const attempt of expired)if(attempt.day!==daily||now-Number(attempt.started_at)>=60000)await credit(tx,attempt,now);
     const due=(await tx.execute({sql:'SELECT * FROM djrpg_boss_days WHERE settled_at IS NULL AND (ends_at<=? OR hp<=0)',args:[now]})).rows;
     for(const day of due)await settle(tx,day,now);
-    let battleResult,attempt;
+    let battleResult,attempt,freshDay,freshCount;
     if(input.action==='start'){
       if(owner.password_hash==='guest')fail(403,'GUEST_READ_ONLY','실전 도전은 정식 계정으로 로그인해 주세요.');
       if(typeof input.requestId!=='string'||! /^[\w-]{16,80}$/.test(input.requestId))fail(400,'INVALID_REQUEST','도전 요청 번호가 올바르지 않습니다.');
-      attempt=(await tx.execute({sql:'SELECT * FROM djrpg_boss_attempts WHERE account_id=? AND request_id=?',args:[id,input.requestId]})).rows[0];
+      const [dayResult,attemptResult]=await tx.batch([
+        {sql:'SELECT * FROM djrpg_boss_days WHERE day=?',args:[daily]},
+        {sql:'SELECT * FROM djrpg_boss_attempts WHERE account_id=? AND (request_id=? OR day=?)',args:[id,input.requestId,daily]}
+      ]);
+      attempt=attemptResult.rows.find(a=>a.request_id===input.requestId);
       if(!attempt){
-        const day=await dayRow(tx,daily);
+        const day=dayResult.rows[0];
         if(Number(day.hp)<=0)fail(409,'BOSS_DEFEATED','오늘의 월드보스가 처치되었습니다.');
         if(Number(input.characterSlot)!==owner.slot)fail(409,'CHARACTER_CONFLICT','선택 캐릭터가 변경되었습니다.');
-        const attempts=(await tx.execute({sql:'SELECT id,ended_at FROM djrpg_boss_attempts WHERE account_id=? AND day=?',args:[id,daily]})).rows;
+        const attempts=attemptResult.rows.filter(a=>a.day===daily);
         if(attempts.some(a=>!a.ended_at))fail(409,'BOSS_ALREADY_ACTIVE','진행 중인 월드보스 도전이 있습니다.');
         if(attempts.length>=3)fail(409,'BOSS_LIMIT','오늘 도전 3회를 모두 사용했습니다.');
         const save=parseSave(owner.save,id);save.auto=true;
         attempt={id:crypto.randomUUID(),account_id:id,day:daily,request_id:input.requestId,save_json:JSON.stringify(save),started_at:now,dodges_json:'[]',credited:0,ended_at:null};
         await tx.execute({sql:'INSERT INTO djrpg_boss_attempts VALUES (?,?,?,?,?,?,?,?,?)',args:Object.values(attempt)});
+        // Fresh starts have zero elapsed time and damage: no credit write/re-read is needed.
+        freshDay=day;freshCount=attempts.length+1;
+        battleResult={attempt,day,battle:replayBoss(save,0)};
       }
     }else if(input.action!=='list'){
       if(typeof input.attemptId!=='string')fail(400,'INVALID_REQUEST','전투 번호가 올바르지 않습니다.');
       attempt=(await tx.execute({sql:'SELECT * FROM djrpg_boss_attempts WHERE id=? AND account_id=?',args:[input.attemptId,id]})).rows[0];
       if(!attempt)fail(404,'BOSS_ATTEMPT_NOT_FOUND','내 월드보스 전투를 찾을 수 없습니다.');
     }
-    if(attempt){
+    if(attempt&&!battleResult){
       if(input.action==='dodge'&&!attempt.ended_at){
         const dodges=JSON.parse(attempt.dodges_json),elapsed=Math.max(0,(now-Number(attempt.started_at))/1000);
         if(elapsed<60&&(dodges.length===0||elapsed-dodges[dodges.length-1]>=4)){
@@ -129,7 +138,7 @@ export async function worldBossOperation(db,id,input={},sid,now=Date.now(),schem
       battleResult=await credit(tx,attempt,now,input.action==='finish');attempt=battleResult.attempt;
       await settle(tx,battleResult.day,now);
     }
-    const day=await dayRow(tx,daily),count=(await tx.execute({sql:'SELECT COUNT(*) AS n FROM djrpg_boss_attempts WHERE account_id=? AND day=?',args:[id,daily]})).rows[0];
+    const day=freshDay??await dayRow(tx,daily),count=freshCount===undefined?(await tx.execute({sql:'SELECT COUNT(*) AS n FROM djrpg_boss_attempts WHERE account_id=? AND day=?',args:[id,daily]})).rows[0]:{n:freshCount};
     const result={day:daily,hp:Number(day.hp),maxHp:Number(day.max_hp),endsAt:Number(day.ends_at),remaining:Math.max(0,3-Number(count.n)),killed:!!day.killed_at,guest:owner.password_hash==='guest',standing:await standing(tx,attempt?.day??daily,id),now};
     if(attempt)result.battle={id:attempt.id,startedAt:Number(attempt.started_at),damage:Number(attempt.credited),elapsed:battleResult.battle.elapsed,hp:battleResult.battle.world.player.hp,finished:!!attempt.ended_at,defeated:battleResult.battle.defeated,...(input.action==='start'?{save:JSON.parse(attempt.save_json)}:{})};
     return result;

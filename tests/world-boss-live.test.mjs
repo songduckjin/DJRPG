@@ -12,7 +12,7 @@ const {parseSave,freshSave}=await import('../src/game/store.ts');
 import {periods} from '../server/journey-state.mjs';
 const {worldBossEndpoint}=await import('../server/endpoints/world-boss.mjs');
 let db,directory;let now=Date.parse('2026-11-18T10:00:00Z');
-async function seed(id,guest=false){const save=parseSave({...freshSave('male'),name:id,auto:true,level:7,floor:1,learned:[],quickSlots:[null,null,null]},id);await db.execute({sql:'INSERT INTO djrpg_accounts(id,password_hash,save_json,updated_at) VALUES (?,?,?,?)',args:[id,guest?'guest':'hash',JSON.stringify(save),new Date(now).toISOString()]});}
+async function seed(id,guest=false,connection=db){const save=parseSave({...freshSave('male'),name:id,auto:true,level:7,floor:1,learned:[],quickSlots:[null,null,null]},id);await connection.execute({sql:'INSERT INTO djrpg_accounts(id,password_hash,save_json,updated_at) VALUES (?,?,?,?)',args:[id,guest?'guest':'hash',JSON.stringify(save),new Date(now).toISOString()]});}
 const act=(id,input={},time=now,sid)=>operation(db,id,{action:'list',...input},sid,time);
 const start=(id,time=now,requestId=randomUUID())=>act(id,{action:'start',requestId,characterSlot:1},time);
 before(async()=>{directory=await mkdtemp(join(tmpdir(),'boss-'));db=createClient({url:`file:${join(directory,'test.db')}`});await schema(db);});
@@ -98,4 +98,32 @@ test('client coalesces refreshes and never starts a battle when the required sav
  const client=new WorldBossLive(sync);
  globalThis.fetch=async()=>{calls++;return Response.json({hp:10000000,maxHp:10000000,remaining:3,standing:{top:[]}});};
  try{await assert.rejects(client.start(randomUUID()),/저장/);assert.equal(calls,0);await Promise.all([client.load(),client.load()]);assert.equal(calls,1);assert.equal(client.data.remaining,3);client.data={...client.data,now:2000};globalThis.fetch=async()=>Response.json({now:1000,hp:0});await client.request('list');assert.equal(client.data.hp,10000000);}finally{globalThis.fetch=original;}
+});
+test('entrance preparation overlaps saving and is reused without another save or early attempt',async()=>{
+ const {WorldBossLive}=await import('../src/game/worldBossLive.ts'),original=globalThis.fetch;let saves=0,calls=0,finishSave;
+ const sync={session:{token:'test',characterSlot:1,guest:false},flush:()=>{saves++;return new Promise(resolve=>{finishSave=resolve;});}};
+ const client=new WorldBossLive(sync);globalThis.fetch=async()=>{calls++;return Response.json({now:1,remaining:2});};
+ try{
+  const prepared=client.prepare();await Promise.resolve();assert.equal(saves,1);assert.equal(calls,0);
+  const battle=client.start(randomUUID(),prepared);assert.equal(calls,0);finishSave(true);await battle;assert.equal(saves,1);assert.equal(calls,1);await assert.rejects(client.start(randomUUID(),prepared,()=>{throw new Error('입장 취소');}),/입장 취소/);assert.equal(calls,1);
+ }finally{globalThis.fetch=original;}
+});
+test('stalled preparation ends with a retryable message and cannot start a battle after timing out',async()=>{
+ const {WorldBossLive}=await import('../src/game/worldBossLive.ts'),original=globalThis.fetch;let calls=0,finishSave;
+ const sync={session:{token:'test',characterSlot:1,guest:false},flush:()=>new Promise(resolve=>{finishSave=resolve;})};
+ const client=new WorldBossLive(sync);globalThis.fetch=async()=>{calls++;return Response.json({});};
+ try{await assert.rejects(client.start(randomUUID(),client.prepare(5)),/저장 확인이 지연/);finishSave(true);await Promise.resolve();assert.equal(calls,0);}finally{globalThis.fetch=original;}
+});
+test('new battle avoids redundant credit writes and fits a bounded DB round-trip budget',async()=>{
+ const isolated=createClient({url:`file:${join(directory,'budget.db')}`});await schema(isolated);await seed('rpc-budget',false,isolated);await account(isolated,'rpc-budget');let trips=0;
+ const wrapped={batch:async(...args)=>{trips++;return isolated.batch(...args);},transaction:async(...args)=>{
+  const tx=await isolated.transaction(...args);return new Proxy(tx,{get(target,key){const value=target[key];if(typeof value!=='function')return value;return (...args)=>{if(key==='execute'||key==='batch')trips++;return value.apply(target,args);};}});
+ }};
+ const result=await operation(wrapped,'rpc-budget',{action:'start',requestId:randomUUID(),characterSlot:1},undefined,now);
+ assert.equal(result.battle.elapsed,0);assert.equal(result.battle.damage,0);assert.equal(result.remaining,2);await isolated.close();assert(trips<=9,`new start made ${trips} DB round trips`);
+});
+test('single rank query keeps top ten and the previous nine plus successor around an outside rank',async()=>{
+ await seed('rank-window');const day=periods(now).daily;await act('rank-window');
+ await db.batch(Array.from({length:20},(_,i)=>({sql:'INSERT INTO djrpg_boss_scores VALUES (?,?,?,?,?)',args:[day,i===14?'rank-window':`rank-${i}`,`전사${i}`,2000-i*10,now]})));
+ const result=await act('rank-window');assert.equal(result.standing.mine.rank,15);assert.deepEqual(result.standing.top.map(r=>r.rank),[1,2,3,4,5,6,7,8,9,10]);assert.deepEqual(result.standing.nearMine.map(r=>r.rank),[6,7,8,9,10,11,12,13,14,15,16]);
 });

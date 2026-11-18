@@ -4,6 +4,7 @@ import type {Save} from './store';
 import type {BossStanding} from '../ui/worldBossPresentation';
 import type {Interface} from '../ui/interface';
 export type BossData={day:string;hp:number;maxHp:number;remaining:number;endsAt:number;killed:boolean;guest:boolean;standing:BossStanding;now:number;battle?:{id:string;startedAt:number;elapsed:number;damage:number;hp:number;finished:boolean;defeated:boolean;save?:Save}};
+export type BossPreparation=Promise<{ok:true}|{ok:false;message:string}>;
 export class WorldBossLive {
   data?:BossData;error='';loading=false;private loadPromise?:Promise<BossData>;
   onChange:()=>void=()=>{};onModalChange:()=>void=()=>{};
@@ -19,9 +20,16 @@ export class WorldBossLive {
     if(this.loadPromise)return this.loadPromise;this.loading=true;
     this.loadPromise=this.request('list').catch(error=>{this.error=error instanceof Error?error.message:String(error);this.onChange();throw error;}).finally(()=>{this.loading=false;this.loadPromise=undefined;});return this.loadPromise;
   }
-  async start(requestId:string):Promise<BossData>{
-    if(!await this.sync.flush())throw new Error('진행 상황 저장 후 다시 도전해 주세요.');
-    return this.request('start',{requestId,characterSlot:this.sync.session.characterSlot});
+  prepare(timeoutMs=12000):BossPreparation {
+    // Save while assets and the entrance animation load. No attempt is consumed here.
+    return new Promise(resolve=>{
+      const timer=setTimeout(()=>resolve({ok:false,message:'저장 확인이 지연되고 있습니다. 잠시 후 다시 연결해 주세요.'}),timeoutMs);
+      void Promise.resolve().then(()=>this.sync.flush()).then(ok=>{clearTimeout(timer);resolve(ok?{ok:true}:{ok:false,message:'진행 상황 저장 후 다시 도전해 주세요.'});},()=>{clearTimeout(timer);resolve({ok:false,message:'진행 상황을 저장하지 못했습니다. 다시 연결해 주세요.'});});
+    });
+  }
+  async start(requestId:string,preparation=this.prepare(),connecting:()=>void=()=>{}):Promise<BossData>{
+    const ready=await preparation;if(!ready.ok)throw new Error(ready.message);
+    connecting();return this.request('start',{requestId,characterSlot:this.sync.session.characterSlot});
   }
 }
 export function mountWorldBossLive(ui:Interface):void {

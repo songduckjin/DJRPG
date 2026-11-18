@@ -25,6 +25,7 @@ export function openWorldBossField(ui:Interface):void {
   if(real&&(!live.data||live.data.killed||live.data.remaining===0)){ui.message(live?.data?.killed?'오늘의 월드보스가 처치되었습니다.':'남은 도전 횟수와 연결 상태를 확인해 주세요.');return;}
   ui.worldBossField?.();ui.open(null);
   const restoreMain=pauseMainForBoss(ui);
+  let preparation=real?live!.prepare():undefined;
   let session=new WorldBossRehearsal(ui.world.save);
   const view=new GameView(),intro=new WorldBossIntro();
   let attemptId:string|undefined,starting=false,started=!real,networkBusy=false,networkAt=0,finishSent=false,accumulator=0;
@@ -117,8 +118,8 @@ export function openWorldBossField(ui:Interface):void {
         if(closed)return;if(!field.isConnected){cleanup();return;}
         const now=performance.now(),dt=Math.min(.05,(now-previous)/1000);previous=now;
         if(!document.hidden){const combatDt=intro.advance(dt);
-          if(!intro.active&&real&&!started&&!starting){starting=true;get('.wb-field-loading').hidden=false;get('.wb-field-loading').textContent='실전 전투에 연결 중…';
-            void live!.start(requestId).then(data=>{attemptId=data.battle!.id;if(closed){void live!.request('finish',{attemptId}).catch(()=>{});return;}session=new WorldBossRehearsal(data.battle!.save!);started=true;get('.wb-field-loading').hidden=true;updateShared();}).catch(error=>{if(!closed){get('.wb-field-loading').textContent=error instanceof Error?error.message:String(error);ui.message(get('.wb-field-loading').textContent!);const retry=document.createElement('button');retry.type='button';retry.textContent='다시 연결';retry.onclick=()=>{starting=false;retry.remove();};get('.wb-field-loading').append(retry);}});
+          if(!intro.active&&real&&!started&&!starting){starting=true;get('.wb-field-loading').hidden=false;get('.wb-field-loading').textContent='진행 상황 저장 확인 중…';
+            void live!.start(requestId,preparation,()=>{if(closed)throw new Error('도전 입장이 취소되었습니다.');get('.wb-field-loading').textContent='실전 전투에 연결 중…';}).then(data=>{attemptId=data.battle!.id;if(closed){void live!.request('finish',{attemptId}).catch(()=>{});return;}session=new WorldBossRehearsal(data.battle!.save!);started=true;get('.wb-field-loading').hidden=true;updateShared();}).catch(error=>{if(!closed){get('.wb-field-loading').textContent=error instanceof Error?error.message:String(error);ui.message(get('.wb-field-loading').textContent!);const retry=document.createElement('button');retry.type='button';retry.textContent='다시 연결';retry.onclick=()=>{preparation=live!.prepare();starting=false;retry.remove();};get('.wb-field-loading').append(retry);}});
           }
           if(combatDt>0&&started){accumulator+=combatDt;while(accumulator>=.05){session.advance(.05);accumulator-=.05;}}
         }
