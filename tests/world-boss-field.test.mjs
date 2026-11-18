@@ -166,3 +166,31 @@ test('idle breathing continues after roar through the entire start-text hold',as
  for(let t=2.7;t<3.8;t+=.05){intro.elapsed=t;frames.add(intro.frame);assert(intro.frame<8);}
  assert(frames.size>=5);assert(intro.idleCarry>1);
 });
+
+test('defeat starts only for a confirmed kill, plays all eight poses once, then notice, then result',async()=>{
+ const {WorldBossDefeat}=await import('../src/ui/worldBossDefeat.ts');const defeat=new WorldBossDefeat();
+ for(let i=0;i<200;i++){assert.equal(defeat.start(false),false);defeat.advance(.05);}assert.equal(defeat.elapsed,0);assert.equal(defeat.finished,false);assert.equal(defeat.notice,false);
+ assert.equal(defeat.start(true),true);const frames=new Set([defeat.frame]);let noticed=false;
+ for(let i=0;i<100;i++){
+  const elapsed=defeat.elapsed;assert.equal(defeat.start(true),false);assert.equal(defeat.elapsed,elapsed);defeat.advance(.05);frames.add(defeat.frame);
+  if(defeat.notice){noticed=true;assert.equal(defeat.frame,7);assert.equal(defeat.finished,false);assert(defeat.noticeOpacity>=0&&defeat.noticeOpacity<=1);}
+  if(defeat.finished)break;
+ }
+ assert.deepEqual([...frames],[0,1,2,3,4,5,6,7]);assert(noticed);assert(defeat.finished);assert.equal(defeat.notice,false);
+});
+test('sword planting impact is delayed until contact and dies out before the notice',async()=>{
+ const {WorldBossDefeat,defeatFrameOffset}=await import('../src/ui/worldBossDefeat.ts');const defeat=new WorldBossDefeat();defeat.start(true);
+ for(let i=0;i<8;i++)defeat.advance(.05);assert.equal(defeat.impactAge,null);
+ defeat.advance(.05);defeat.advance(.05);assert(defeat.impactAge>=0);assert(defeat.frame>=2);
+ for(let i=0;i<40;i++)defeat.advance(.05);assert.equal(defeat.impactAge,null);assert(defeat.notice);
+ for(let frame=0;frame<8;frame++){const shift=defeatFrameOffset(frame);assert(Math.abs(shift.x)<.02);assert(shift.y>0&&shift.y<.04);}
+});
+test('defeat integration waits before results and uses background art loading without changing existing motion rows',async()=>{
+ const {readFileSync}=await import('node:fs');
+ const source=readFileSync(new URL('../src/ui/worldBossField.ts',import.meta.url),'utf8');
+ assert(source.includes('defeat.start(data.killed&&data.hp===0)'));
+ assert(source.includes('(!defeat.started||defeat.finished)'));
+ assert(source.includes('보스를 처치하였습니다.'));assert(source.includes('void Assets.load<Texture>(BOSS_DEFEAT_SHEET)'));
+ const {BOSS_SHEETS,BOSS_FRAME_COUNT}=await import('../src/ui/worldBossPreview.ts');assert.equal(BOSS_FRAME_COUNT,42);assert.equal(BOSS_SHEETS.length,6);
+ const art=readFileSync(new URL('../public/assets/world-boss/valkaron-defeat-hd-v1.png',import.meta.url));assert.equal(art.readUInt32BE(0),0x89504e47);assert(art.readUInt32BE(16)>=1536);assert(art.readUInt32BE(20)>=768);assert.equal(art[25],6);
+});

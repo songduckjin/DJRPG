@@ -9,7 +9,7 @@
 |---|---|---|---|
 | 월드보스 실전·공유HP·순위·우편보상 | `server/world-boss.mjs`, `server/endpoints/world-boss.mjs`, `src/game/worldBossLive.ts` | `functions/api/world-boss.js`, `worldBossField.ts`, `worldBossModal.ts`, `worldBossResult.ts`, `main.ts` | `world-boss-live`, `world-boss-preview`, `world-boss-field`, `journey` |
 | 크롬 GPU 미지원 mesh 렌더 오류 | `src/game/pixiSetup.ts` | `src/main.ts` 초기등록·Canvas quad 폴백 | `pixi-setup`, `hero-motion`, `world-boss-field` |
-| 월드보스 소개·전용필드·순위/보상 | `src/ui/modals/worldBossModal.ts`, `src/ui/worldBossField.ts`, `src/game/worldBossRehearsal.ts` | `worldBossPreview.ts`, `worldBossPresentation.ts`, `interface.ts`, `main.ts` Ticker수명, `styles/world-boss.css`, `public/assets/world-boss/*` | `world-boss-preview`, `world-boss-field`, `modal-ui`, `modal-interaction`, `hero-motion`, `appearance` |
+| 월드보스 소개·전용필드·순위/보상 | `src/ui/modals/worldBossModal.ts`, `src/ui/worldBossField.ts`, `src/game/worldBossRehearsal.ts` | `worldBossPreview.ts`, `worldBossPresentation.ts`, `worldBossDefeat.ts`, `interface.ts`, `main.ts` Ticker수명, `styles/world-boss.css`, `public/assets/world-boss/*` | `world-boss-preview`, `world-boss-field`, `modal-ui`, `modal-interaction`, `hero-motion`, `appearance` |
 | 전투·이동·층·보스·AI | `src/game/world.ts` | `arena.ts`, `facing.ts`, `bagCapacity.ts`, `store.ts`(`floorKillTarget`) | `world-movement`, `arena`, `facing` |
 | 내 정보·장비창 착용 미리보기 | `ui/equipmentPortrait.ts`(`equipmentPortraitPlan`·`renderEquipmentPortrait` — `planHeroCostume` 공용 계획을 **idle 0프레임**으로 합성), `ui/modals/equipModal.ts`(요약·6스탯·10칸) | `ui/interface.ts`(3탭 라우팅), `ui/modals/accountModal.ts`(성별 고정), `game/costume/manifest.ts`(매니페스트 1회 로드), `game/render/costumeHero.ts`(계획·셀 규약 **소비만**), `styles/modals.css`, `styles/hud.css`, `assets/warrior_equipped_starter|t2|t3|t4_{male,female}.png`(폴백) | `equipment-info`, `equipped-detail`, `modal-ui`, `costume-manifest`, `costume-field-render` |
 | 스킬·스킬북·쿨타임·버프 | `src/game/skills.ts`, `src/game/loadout.ts` | `world.ts`(`cooldowns`·`action`), `skillProgress.ts`, `ui/skillBooks.ts`, `ui/skillLoadout.ts`, `ui/modals/skillModal.ts`, `ui/skillFeedback.ts` | `skill-progression`, `loadout`, `skill-ui`, `skill-feedback`, `skillbook-art` |
@@ -160,7 +160,8 @@
 - `server/world-boss.mjs` — 별도 Turso 4테이블/인덱스·공유HP 1,000만·KST05 초기화·계정3회·고정장비 서버전투재현·회피서버시간검증·실순위·참여/순위/막타/공동 우편 멱등지급. `worldBossOperation`·`replayBoss`·`worldBossSchema` (새 입장 0피해 쓰기/재조회 생략·순위 단일 쿼리)
 - `server/endpoints/world-boss.mjs`, `functions/api/world-boss.js` — 인증/세션/버전 확인 POST `/api/world-boss` (list/start/tick/dodge/finish), 기존 Save·아이템·보상수령 계약 보존. `worldBossEndpoint`
 - `src/game/worldBossLive.ts` — 메인5초/전투2초 공유상태·순위 동기화·실전시 에셋/입장연출 중 prepare 저장선행(12초 제한)·서버 start 전 취소·단일 저장 재사용·게스트연습 구분. `WorldBossLive`·`mountWorldBossLive`
-- `src/ui/worldBossField.ts` — 고정경기장짧은포효·별도전체GameView필드·고해상도보스텍스처·기본필드정지/복귀·Pixi내부흑요석제단/보스뒤하늘구름·탄도돌조각/그림자/확산먼지충격·프레임색감보정/공격분리조각제거·중앙보스·하단시간/딜/보스적색·내청록체력/수동회피·실전API/서버결과와 게스트연습 분리·로딩/종료1회결과렌더·ticker정지/재도전·나가기. `openWorldBossField`·`pauseMainForBoss`
+- `src/ui/worldBossDefeat.ts` — 서버 공유HP 0에서만 한 번 시작하는 검꽂기/무릎꿇기/주저앉기 8프레임·검접점 보정·먼지 타이밍·처치문구(2.25초)·결과 대기(3.6초). `WorldBossDefeat`·`defeatFrameOffset`
+- `src/ui/worldBossField.ts` — 고정경기장짧은포효·별도전체GameView필드·고해상도보스텍스처·기본필드정지/복귀·Pixi내부흑요석제단/보스뒤하늘구름·탄도돌조각/그림자/확산먼지충격·프레임색감보정/공격분리조각제거·중앙보스·하단시간/딜/보스적색·내청록체력/수동회피·처치시트 background preload/처치연출 뒤 결과·실전API/서버결과와 게스트연습 분리·로딩/종료1회결과렌더·ticker정지/재도전·나가기. `openWorldBossField`·`pauseMainForBoss`
 - `src/ui/worldBossResult.ts` — 종료전용결과/상위10→직전9명+내행하강·기존유저행밀림/명시적예시·하단재도전/나가기. `renderBossResult`·`resultRankWindow`
 - `src/ui/worldBossPresentation.ts` — 상위10/내순위·1/2~3/4~10/11~50/51~100/101이하보상구간선택. 미연동시가짜순위금지. `topTen`·`myRewardTier`
 
