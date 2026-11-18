@@ -27,7 +27,7 @@
 | 증상·검색어 | 먼저 볼 파일 |
 |---|---|
 | 적이 안 다가옴·이동 속도·몹 체력·피해량 | `world.ts` `enemyMoveSpeed`/`enemyMaxHp`/`enemyHitDamage`/`update` |
-| 공격·스킬이 안 나감, 이동 중 공격 | `world.ts` `action`(이동 중 차단), `update`(자동전투) |
+| 추격 중 공격이 끊기거나 적과 겹침 | `world.ts` `update`(적 추격 정지 거리=기본 공격 범위), `action`(수동 이동 중 차단) |
 | 보스가 안 나옴, 층 클리어 | `world.ts` `bossPending`·`floorKillTarget`, `store.ts` |
 | 층 이동·최고층 | `world.ts` `travelToFloor`, `ui/modals/floorModal.ts` |
 | 쿨타임·버프(레이지)·광폭 | `world.ts` `cooldowns`·`cooldown[kind]`, `skills.ts` `skillDuration` |

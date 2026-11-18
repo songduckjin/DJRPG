@@ -6,6 +6,12 @@
 
 ## 진행 중 작업
 
+## [-] [작업 130] 전투 추격 중 공격 멈춤 수정
+- fks3997 · 2026-11-18 · `task/130-combat-chase-attack`
+- 목표: 자동 전투에서 적과 겹치거나 가까이 붙은 채 공격이 끊기는 현상을 재현하고, 추격/공격 전환을 안정화한다.
+- 수정: `src/game/world.ts`, `tests/world-movement.test.mjs`, `docs/QUICK_PATCH.md`, `docs/CODE_MAP.md`. 전투 이동·공격 루프만 변경하며 저장/서버 계약과 UI는 건드리지 않는다.
+- 검증: `npx tsc --noEmit`, `node --test tests/world-movement.test.mjs tests/arena.test.mjs`, `git diff --check`.
+
 ## [x] [작업 114] 장착8글자/가방10열
 - fks3997 · 2026-11-17 · `feature/skillbook-badges-fks3997`
 - `equipModal.ts`/CSS/회귀: 공백우선8글자·장착영역340→262px·세로여백축소·가방10열/작은아이콘·이름숨김(사용자명시선택)/설명전체이름/잠금유지. 데이터불변·미배포.
