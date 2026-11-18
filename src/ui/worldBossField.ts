@@ -21,8 +21,8 @@ export function openWorldBossField(ui:Interface):void {
   field.innerHTML='<div class="wb-field-canvas"></div><header class="wb-field-header"><button class="wb-field-leave" type="button">나가기</button></header><div class="wb-field-loading" role="status">전장을 준비하고 있습니다…</div><div class="wb-field-warning" hidden>광역 공격! 내려찍기를 준비합니다</div><footer class="wb-field-footer"><div class="wb-field-record"><strong class="wb-field-clock">60초</strong><span>누적 피해량 <b class="wb-field-damage">0</b></span></div><div class="wb-field-health-label">잿불의 군주 발카론 <small>보스 · 연습용</small></div><div class="wb-field-boss-hp"><i></i><span>공유 체력 미연동</span></div><div class="wb-field-health-label wb-player-label">내 체력 <b class="wb-player-value"></b></div><div class="wb-field-player-hp"><i></i><b></b></div><div class="wb-field-controls"><div><small class="wb-auto-label">메인 장착 스킬 · 자동 사용</small><div class="wb-field-skills"></div></div><button class="wb-field-dodge" type="button"><span aria-hidden="true">↝</span><small>회피</small><b class="wb-dodge-cd"></b></button></div><p>60초 전투 연습 · 실제 도전 횟수와 보상은 소모되지 않습니다.</p></footer><div class="wb-field-result" hidden><h3>전투 연습 종료</h3><p></p><button type="button">보스 소개로 돌아가기</button></div>' ;
   ui.root.querySelector('.game-shell')!.append(field);
   const get=<T extends HTMLElement>(selector:string)=>field.querySelector<T>(selector)!;
-  let closed=false,mounted=false;const ownedFrames:Texture[]=[];const ownedTones:ColorMatrixFilter[]=[];
-  const releaseFrames=()=>{for(const frame of ownedFrames)frame.destroy(false);ownedFrames.length=0;for(const filter of ownedTones)filter.destroy();ownedTones.length=0;};
+  let closed=false,mounted=false;const ownedFrames:Texture[]=[];const cleanedFrames=new Set<Texture>();const ownedTones:ColorMatrixFilter[]=[];
+  const releaseFrames=()=>{for(const frame of ownedFrames)frame.destroy(cleanedFrames.has(frame));ownedFrames.length=0;cleanedFrames.clear();for(const filter of ownedTones)filter.destroy();ownedTones.length=0;};
   const cleanup=()=>{
     if(closed)return;closed=true;ui.worldBoss.damage=session.damage;field.remove();
     if(mounted)view.app.destroy(true,{children:true,texture:false,textureSource:false});
@@ -47,6 +47,14 @@ export function openWorldBossField(ui:Interface):void {
         const left=Math.round(i%4*sheet.width/4),top=Math.round(Math.floor(i/4)*sheet.height/2);
         return new Texture({source:sheet.source,frame:new Rectangle(left,top,Math.round((i%4+1)*sheet.width/4)-left,Math.round((Math.floor(i/4)+1)*sheet.height/2)-top)});
       }));
+      // Sheet frame 3 contains a detached blade fragment from the neighboring cell.
+      const raw=frames[11],canvas=document.createElement('canvas'),rect=raw.frame;
+      canvas.width=rect.width;canvas.height=rect.height;
+      const ctx=canvas.getContext('2d',{willReadFrequently:true});
+      if(ctx){ctx.drawImage(raw.source.resource as CanvasImageSource,rect.x,rect.y,rect.width,rect.height,0,0,canvas.width,canvas.height);
+        const data=ctx.getImageData(0,0,canvas.width,canvas.height);retainMainBody(data.data,canvas.width,canvas.height);ctx.putImageData(data,0,0);
+        const cleaned=Texture.from(canvas);frames[11]=cleaned;cleanedFrames.add(cleaned);raw.destroy(false);
+      }
       ownedFrames.push(...frames);
       if(closed){releaseFrames();return;}
       await view.mount(get('.wb-field-canvas'));mounted=true;
@@ -126,4 +134,20 @@ export function drawSlamImpact(ground:Graphics,dust:Graphics,x:number,y:number,a
     for(let layer=3;layer>0;layer--)dust.ellipse(px,py,(8+age*14)*layer/2,(5+age*10)*layer/2).fill({color:0x968675,alpha:fade*.045});
     if(age<.5)ground.circle(px,py-age*20,1.5+i%3).fill({color:0x49403b,alpha:fade*.8});
   }
+}
+
+export function retainMainBody(pixels:Uint8ClampedArray,width:number,height:number):void {
+  const labels=new Int32Array(width*height),stack:number[]=[],sizes=[0];let component=0;
+  for(let start=0;start<labels.length;start++){
+    if(labels[start]||pixels[start*4+3]<=12)continue;
+    component++;sizes[component]=0;stack.push(start);labels[start]=component;
+    while(stack.length){const pos=stack.pop()!;sizes[component]++;const x=pos%width;
+      for(const next of [x>0?pos-1:-1,x<width-1?pos+1:-1,pos-width,pos+width]){
+        if(next<0||next>=labels.length||labels[next]||pixels[next*4+3]<=12)continue;
+        labels[next]=component;stack.push(next);
+      }
+    }
+  }
+  const largest=Math.max(0,...sizes);
+  for(let i=0;i<labels.length;i++)if(sizes[labels[i]]<largest*.02)pixels[i*4+3]=0;
 }

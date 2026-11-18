@@ -47,3 +47,11 @@ test('manual dodge blocks damage briefly, has a cooldown, and never changes the 
  for(let i=0;i<4;i++)battle.advance(.05);assert.equal(battle.world.player.hp,hp);assert(battle.dodgeCooldown>0);
  for(let i=0;i<80;i++)battle.advance(.05);assert(battle.dodge());assert.equal(JSON.stringify(save),before);
 });
+
+test('detached blade fragment is removed while the connected body and sword stay intact',async()=>{
+ const {retainMainBody}=await import('../src/ui/worldBossField.ts');const w=40,h=40,pixels=new Uint8ClampedArray(w*h*4);
+ for(let y=10;y<30;y++)for(let x=10;x<30;x++)pixels[(y*w+x)*4+3]=255;
+ for(let x=2;x<=10;x++)pixels[(20*w+x)*4+3]=255;
+ pixels[(2*w+1)*4+3]=255;retainMainBody(pixels,w,h);
+ assert.equal(pixels[(2*w+1)*4+3],0);assert.equal(pixels[(20*w+2)*4+3],255);assert.equal(pixels[(20*w+20)*4+3],255);
+});

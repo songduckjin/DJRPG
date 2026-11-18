@@ -1640,3 +1640,5 @@
 | 141 월드보스 전투 배경·색감·일반/내려찍기 모션 | fks3997 | feature/world-boss-preview-fks3997 | Pixi제단/색감보정/하단정보·체력구분/수동회피·자동스킬/24프레임슬램/대기정지. tsc·11테스트·아트검증 | [x] |
 
 | 142 내려찍기 충격·뒤구름·전투얼굴재사용 | fks3997 | feature/world-boss-preview-fks3997 | 1.8초모션/동기피해·균열먼지/구름배우뒤·대기전투상반신 | [x] |
+
+| 143 일반공격 프레임 좌측 칼날조각 제거 | fks3997 | feature/world-boss-preview-fks3997 | 분리성분제거·연결무기보존/Texture정리, tsc·13테스트 | [x] |

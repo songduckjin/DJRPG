@@ -135,7 +135,7 @@
 - `server/journey.mjs` — 수령검증/소유권/수령기록배치원자저장·성공응답선택적journey목록. 구클라이언트호환.
 
 - `src/game/worldBossRehearsal.ts` — 복제Save전용World·실제메인장착자동공격/스킬·수동회피0.45초/쿨4초·단일보스고정·60초/전투불능종료. 실제저장콜백없음. `WorldBossRehearsal`
-- `src/ui/worldBossField.ts` — 별도전체GameView필드·고해상도보스텍스처·기본필드정지/복귀·Pixi내부흑요석제단/보스뒤하늘구름·균열/돌조각/먼지충격·프레임색감보정·중앙보스·하단시간/딜/보스적색·내청록체력/수동회피·로딩/결과/나가기. `openWorldBossField`·`pauseMainForBoss`
+- `src/ui/worldBossField.ts` — 별도전체GameView필드·고해상도보스텍스처·기본필드정지/복귀·Pixi내부흑요석제단/보스뒤하늘구름·균열/돌조각/먼지충격·프레임색감보정/공격분리조각제거·중앙보스·하단시간/딜/보스적색·내청록체력/수동회피·로딩/결과/나가기. `openWorldBossField`·`pauseMainForBoss`
 - `src/ui/worldBossPresentation.ts` — 상위10/내순위·1/2~3/4~10/11~50/51~100/101이하보상구간선택. 미연동시가짜순위금지. `topTen`·`myRewardTier`
 
 ## 3.5 설계자 블록 — 레이어·소유권·시퀀스·영향 경계
