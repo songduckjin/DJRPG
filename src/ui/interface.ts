@@ -110,6 +110,7 @@ export class Interface {
       if (event.target !== this.modal.querySelector('.equipped-detail')) positionEquippedDetail(this);
       if (event.target !== this.modal.querySelector('.bag-detail-overlay')) positionBagDetail(this);
     }, true);
+    this.root.addEventListener('keydown',event=>{if(this.openModal==='worldBoss'&&event.key==='Escape'){event.preventDefault();event.stopPropagation();this.open(null);}});
     this.modal.addEventListener('click', event => { if (event.target === this.modal) this.open(null); });
     window.addEventListener('keydown', event => { if (event.key === 'Escape') { cancelSkillSelection.call(this); this.open(null); } });
     const pad = this.get('.action-pad');
@@ -210,7 +211,8 @@ export class Interface {
       button.textContent = this.openModal === 'equipment' ? '도감' : '장비';
       button.onclick = () => this.open(this.openModal === 'equipment' ? 'codex' : 'equipment'); group.append(button);
     }
-    dialog.appendChild(heading);
+    if(this.openModal!=='worldBoss')dialog.appendChild(heading);
+    if(this.openModal==='worldBoss')dialog.setAttribute('aria-label','월드보스');else dialog.removeAttribute('aria-label');
     if (this.openModal === 'equipment') { this.renderEquipment(dialog); this.renderInventory(dialog); }
     if (this.openModal === 'worldBoss') renderWorldBoss(this,dialog);
     if (this.openModal === 'settings') renderSettings(this, dialog);

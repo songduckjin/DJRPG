@@ -28,7 +28,7 @@ export function renderBossRewards(parent:HTMLElement,rank?:number):void {
 export function renderWorldBoss(ui:Interface,dialog:HTMLElement):void {
   ui.worldBoss.dispose();preloadBossSheets();const preview=ui.worldBoss;
   const body=document.createElement('section');body.className='world-boss-content';
-  body.innerHTML='<div class="wb-visual"><p class="wb-subtitle">모든 모험가가 함께 맞서는 재앙</p><img class="wb-intro-portrait" src="/assets/world-boss/valkaron-shoulder-waist-v1.png" alt="대검을 어깨에 걸치고 정보 영역에 손을 얹은 잿불의 군주 발카론"><i class="wb-intro-dust" aria-hidden="true"></i></div>';
+  body.innerHTML='<div class="wb-visual"><img class="wb-intro-portrait" src="/assets/world-boss/valkaron-shoulder-waist-v1.png" alt="대검을 어깨에 걸치고 정보 영역에 손을 얹은 잿불의 군주 발카론"><i class="wb-intro-dust" aria-hidden="true"></i></div>';
   const details=document.createElement('div');details.className='wb-details';
   details.append(text('h3','잿불의 군주 발카론','wb-name'));
   const health=document.createElement('div');health.className='wb-health';health.innerHTML='<i></i><span>공유 체력 연동 준비 중</span>';details.append(health);

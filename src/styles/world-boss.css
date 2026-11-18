@@ -3,7 +3,7 @@
 .wb-entry-health {position:absolute;top:60px;left:4px;right:4px;height:4px;border-radius:2px;background:#271014;overflow:hidden;pointer-events:none;}
 .wb-entry-health i {display:block;width:100%;height:100%;background:linear-gradient(#e16b55,#8c242c);box-shadow:0 0 3px #f04c3b;}
 .world-boss-entry .wb-entry-count {position:absolute;top:67px;left:0;right:0;color:#efdbb8;font-size:10px;font-weight:700;line-height:12px;text-align:center;text-shadow:0 1px 3px #000;pointer-events:none;}
-.world-boss-modal {width:min(460px,100%);padding:10px;background:linear-gradient(125deg,#372522,#171316 70%);border:1px solid #b58b51;box-shadow:0 0 0 3px #241a16,0 12px 55px #000e;}
+.world-boss-modal {width:min(460px,100%);padding:0;background:transparent;border:0;box-shadow:none;}
 .world-boss-modal > header {position:sticky;top:-10px;z-index:5;background:#2b1d1e;margin-bottom:2px;}
 .world-boss-modal > header h2 {color:#f0d2a0;letter-spacing:3px;font-size:24px;margin:0;}
 .wb-subtitle {margin:5px 0;text-align:center;color:#c8ae8c;font-size:11px;}
@@ -34,14 +34,14 @@
 
 @media (prefers-reduced-motion:reduce) {.world-boss-entry .wb-entry-art {animation:none;filter:drop-shadow(0 1px 1px #000d);}}
 /* Introduction and information each occupy roughly half of the popup. */
-.world-boss-modal {display:flex;flex-direction:column;height:min(760px,calc(100dvh - 32px));overflow:hidden;}
+.world-boss-modal {display:flex;flex-direction:column;height:min(760px,calc(100dvh - 32px));max-height:calc(100dvh - 32px);overflow:visible;}
 .world-boss-modal > header {flex:none;}
 .world-boss-content {display:flex;flex:1;flex-direction:column;min-height:0;}
-.wb-visual {position:relative;z-index:3;flex:0 0 46%;min-height:0;isolation:isolate;}
+.wb-visual {position:relative;z-index:3;flex:0 0 42%;min-height:0;isolation:isolate;}
 .wb-visual .wb-subtitle {position:relative;z-index:4;margin:3px 0;}
-.wb-intro-portrait {position:absolute;bottom:0;left:0;width:100%;height:auto;max-height:none;transform:translateY(17%);z-index:3;pointer-events:none;}
+.wb-intro-portrait {position:absolute;bottom:0;left:-5%;width:110%;height:auto;max-height:none;transform:translateY(17%);z-index:3;pointer-events:none;}
 .wb-intro-dust {position:absolute;inset:12% -5% -4%;z-index:4;pointer-events:none;background:radial-gradient(ellipse at 20% 80%,#c9a36a30,transparent 50%),radial-gradient(ellipse at 75% 60%,#a0784933,transparent 42%);filter:blur(9px);animation:wb-dust-drift 9s ease-in-out infinite alternate;}
-.wb-details {position:relative;z-index:2;display:flex;flex:1;min-height:0;flex-direction:column;border-top:1px solid #997043;background:#1c1619;padding-top:24px;}
+.wb-details {position:relative;z-index:2;display:flex;flex:1;min-height:0;flex-direction:column;border:1px solid #b58b51;background:linear-gradient(#21191d,#171317);padding:24px 10px 8px;box-shadow:0 8px 24px #0007;}
 .wb-details .wb-name {position:relative;z-index:5;font-size:18px;margin:6px 0;}
 .wb-details .wb-health,.wb-details .wb-tabs {position:relative;z-index:5;flex:none;}
 .wb-details .wb-panel {display:flex;flex:1;min-height:0;flex-direction:column;overflow:auto;padding:7px 3px;}
@@ -71,3 +71,10 @@
 .wb-field-result[hidden],.wb-field-warning[hidden],.wb-field-loading[hidden] {display:none;}
 
 .world-boss-entry::before {content:"";position:absolute;left:8px;top:8px;width:42px;height:42px;border-radius:50%;background:radial-gradient(ellipse,#a02a2438,transparent 72%);pointer-events:none;}
+
+/* Ten ranks and the user's rank share the available panel without nested scrolling. */
+.wb-panel:has(.wb-rank-list) {overflow:hidden;}
+.wb-rank-list {display:grid;grid-template-rows:repeat(10,minmax(0,1fr));overflow:visible;}
+.wb-rank-row {min-height:0;padding:1px 4px;font-size:clamp(9px,1.5dvh,11px);line-height:1.15;overflow:hidden;}
+.wb-rank-row span {min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.wb-my-rank {position:static;min-height:26px;padding:3px 4px;margin-top:4px;font-size:11px;line-height:1.2;}
