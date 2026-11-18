@@ -21,17 +21,31 @@ export function pauseMainForBoss(ui:Interface):()=>void {
 }
 export function openWorldBossField(ui:Interface):void {
   if(ui.market.sync.locked||ui.market.sync.conflicted||ui.market.busy){ui.message('동기화가 끝난 뒤 도전해 주세요.');return;}
+  const live=ui.worldBoss.live,real=!!live&&!live.practice;
+  if(real&&(!live.data||live.data.killed||live.data.remaining===0)){ui.message(live?.data?.killed?'오늘의 월드보스가 처치되었습니다.':'남은 도전 횟수와 연결 상태를 확인해 주세요.');return;}
   ui.worldBossField?.();ui.open(null);
   const restoreMain=pauseMainForBoss(ui);
-  const session=new WorldBossRehearsal(ui.world.save),view=new GameView(),intro=new WorldBossIntro();
+  let session=new WorldBossRehearsal(ui.world.save);
+  const view=new GameView(),intro=new WorldBossIntro();
+  let attemptId:string|undefined,starting=false,started=!real,networkBusy=false,networkAt=0,finishSent=false,accumulator=0;
+  const requestId=crypto.randomUUID();
   const field=document.createElement('section');field.className='world-boss-field';field.setAttribute('role','region');field.setAttribute('aria-label','월드보스 전용 연습 필드');
   field.innerHTML='<div class="wb-field-canvas"></div><header class="wb-field-header"><button class="wb-field-leave" type="button">나가기</button></header><div class="wb-battle-start" hidden>전투 시작</div><div class="wb-field-loading" role="status">전장을 준비하고 있습니다…</div><div class="wb-field-warning" hidden>광역 공격! 내려찍기를 준비합니다</div><footer class="wb-field-footer"><div class="wb-field-record"><strong class="wb-field-clock">60초</strong><span>누적 피해량 <b class="wb-field-damage">0</b></span></div><div class="wb-field-health-label">잿불의 군주 발카론 <small>보스 · 연습용</small></div><div class="wb-field-boss-hp"><i></i><span>공유 체력 미연동</span></div><div class="wb-field-health-label wb-player-label">내 체력 <b class="wb-player-value"></b></div><div class="wb-field-player-hp"><i></i><b></b></div><div class="wb-field-controls"><div><small class="wb-auto-label">메인 장착 스킬 · 자동 사용</small><div class="wb-field-skills"></div></div><button class="wb-field-dodge" type="button"><span aria-hidden="true">↝</span><small>회피</small><b class="wb-dodge-cd"></b></button></div><p>60초 전투 연습 · 실제 도전 횟수와 보상은 소모되지 않습니다.</p></footer><div class="wb-field-result" hidden></div>' ;
   ui.root.querySelector('.game-shell')!.append(field);
+  if(real){field.setAttribute('aria-label','월드보스 실전 필드');field.querySelector('.wb-field-health-label small')!.textContent='공유 보스 체력';field.querySelector('.wb-field-footer p')!.textContent='실전 · 계정당 하루 3회 · 보상은 우편함으로 지급됩니다.';}
   const get=<T extends HTMLElement>(selector:string)=>field.querySelector<T>(selector)!;
   let closed=false,mounted=false,resultShown=false;const ownedFrames:Texture[]=[];const cleanedFrames=new Set<Texture>();const ownedTones:ColorMatrixFilter[]=[];
   const releaseFrames=()=>{for(const frame of ownedFrames)frame.destroy(cleanedFrames.has(frame));ownedFrames.length=0;cleanedFrames.clear();for(const filter of ownedTones)filter.destroy();ownedTones.length=0;};
+  const updateShared=()=>{if(!real||!live?.data)return;const data=live.data;get('.wb-field-boss-hp i').style.width=`${data.hp/data.maxHp*100}%`;get('.wb-field-boss-hp span').textContent=`${data.hp.toLocaleString('ko-KR')} / ${data.maxHp.toLocaleString('ko-KR')}`;};
+  const sendBattle=async(action:'tick'|'dodge'|'finish')=>{
+    if(!real||!live||!attemptId||networkBusy)return;networkBusy=true;
+    try{const data=await live.request(action,{attemptId});if(closed)return;updateShared();
+      const battle=data.battle;if(battle){while(session.elapsed+.049< battle.elapsed&&!session.finished)session.advance(.05);session.world.player.hp=battle.hp;
+        if(battle.finished||data.killed){finishSent=true;session.finished=true;session.damage=battle.damage;ui.worldBoss.standing=data.standing;void ui.journey.load();}}
+    }catch(error){if(!closed){finishSent=false;ui.message(error instanceof Error?error.message:String(error));}}finally{networkBusy=false;}
+  };
   const cleanup=()=>{
-    if(closed)return;closed=true;ui.worldBoss.damage=session.damage;field.remove();
+    if(closed)return;if(real&&attemptId&&!finishSent)void live?.request('finish',{attemptId}).catch(()=>{});closed=true;ui.worldBoss.damage=session.damage;field.remove();
     if(mounted)view.app.destroy(true,{children:true,texture:false,textureSource:false});
     releaseFrames();restoreMain();
     ui.worldBossField=undefined;
@@ -39,7 +53,7 @@ export function openWorldBossField(ui:Interface):void {
   ui.worldBossField=cleanup;
   const leave=()=>{cleanup();ui.open('worldBoss');};
   get<HTMLButtonElement>('.wb-field-leave').onclick=leave;
-  get<HTMLButtonElement>('.wb-field-dodge').onclick=()=>{if(!intro.active)session.dodge();};
+  get<HTMLButtonElement>('.wb-field-dodge').onclick=()=>{if(!intro.active&&started&&(!real||!networkBusy)&&session.dodge())void sendBattle('dodge');};
   field.addEventListener('keydown',event=>{event.stopPropagation();if(event.key==='Escape')leave();});
   get<HTMLButtonElement>('.wb-field-leave').focus();
   const skillNodes=session.world.save.quickSlots.map(id=>{
@@ -102,7 +116,14 @@ export function openWorldBossField(ui:Interface):void {
       view.app.ticker.add(()=>{
         if(closed)return;if(!field.isConnected){cleanup();return;}
         const now=performance.now(),dt=Math.min(.05,(now-previous)/1000);previous=now;
-        if(!document.hidden){const combatDt=intro.advance(dt);if(combatDt>0)session.advance(combatDt);}
+        if(!document.hidden){const combatDt=intro.advance(dt);
+          if(!intro.active&&real&&!started&&!starting){starting=true;get('.wb-field-loading').hidden=false;get('.wb-field-loading').textContent='실전 전투에 연결 중…';
+            void live!.start(requestId).then(data=>{attemptId=data.battle!.id;if(closed){void live!.request('finish',{attemptId}).catch(()=>{});return;}session=new WorldBossRehearsal(data.battle!.save!);started=true;get('.wb-field-loading').hidden=true;updateShared();}).catch(error=>{if(!closed){get('.wb-field-loading').textContent=error instanceof Error?error.message:String(error);ui.message(get('.wb-field-loading').textContent!);const retry=document.createElement('button');retry.type='button';retry.textContent='다시 연결';retry.onclick=()=>{starting=false;retry.remove();};get('.wb-field-loading').append(retry);}});
+          }
+          if(combatDt>0&&started){accumulator+=combatDt;while(accumulator>=.05){session.advance(.05);accumulator-=.05;}}
+        }
+        if(real&&started&&!finishSent&&!networkBusy&&(now-networkAt>2000||(session.finished&&now-networkAt>500))){networkAt=now;void sendBattle(session.finished?'finish':'tick');}
+        updateShared();
           get('.wb-battle-start').hidden=!intro.startCue;
         get('.wb-battle-start').style.opacity=String(intro.cueOpacity);
 
@@ -137,7 +158,7 @@ export function openWorldBossField(ui:Interface):void {
         view.app.stage.scale.set(1);view.app.stage.position.y+=h*.07;
         const cover=Math.max(w/arena.width,h/arena.height);arenaSprite.scale.set(cover);
         arenaSprite.position.set((w-arena.width*cover)/2,(h-arena.height*cover)/2-h*.07);
-        const dodge=get<HTMLButtonElement>('.wb-field-dodge');dodge.disabled=intro.active||session.finished||session.dodgeCooldown>0;
+        const dodge=get<HTMLButtonElement>('.wb-field-dodge');dodge.disabled=intro.active||!started||session.finished||session.dodgeCooldown>0||(real&&networkBusy);
         get('.wb-dodge-cd').textContent=session.dodgeCooldown>0?session.dodgeCooldown.toFixed(1):'';
         get('.wb-field-warning').hidden=intro.active||pose.motion!=='slam'||pose.frame>=32||session.finished;
         // Cloud graphics live between the arena and actors, never above the boss.
@@ -156,12 +177,12 @@ export function openWorldBossField(ui:Interface):void {
         const hp=Math.ceil(session.world.player.hp),max=totalStats(session.world.save).health;
         get('.wb-field-player-hp i').style.width=`${Math.max(0,hp/max*100)}%`;get('.wb-player-value').textContent=`${hp} / ${max}`;
         for(const {id,cd} of skillNodes)cd.textContent=id?(session.world.cooldown[id]>0?session.world.cooldown[id].toFixed(1):'준비'):'';
-        if(session.finished&&!resultShown){
+        if(session.finished&&!resultShown&&(!real||finishSent)){
           resultShown=true;const result=get('.wb-field-result');result.hidden=false;
           renderBossResult(result,ui.worldBoss.standing,session.damage,{
             retry:()=>{if(ui.market.sync.locked||ui.market.sync.conflicted||ui.market.busy){ui.message('동기화가 끝난 뒤 도전해 주세요.');return;}cleanup();openWorldBossField(ui);},
             leave:()=>{cleanup();ui.open(null);}
-          });
+          },false,real);
           result.querySelector<HTMLButtonElement>('.wb-result-actions button')?.focus();view.app.ticker.stop();
         }
       });

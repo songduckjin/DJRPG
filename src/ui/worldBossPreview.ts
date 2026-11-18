@@ -1,3 +1,4 @@
+import type {WorldBossLive} from '../game/worldBossLive';
 import {activeBossAttack,bossIdleTime,bossSlamImpactAge} from '../game/worldBossPattern';
 import type {BossStanding} from './worldBossPresentation';
 export type BossMotion = 'idle' | 'attack' | 'slam';
@@ -39,6 +40,7 @@ export function framePosition(frame: number): string {
 }
 // Visual rehearsal only: no Save, participation counter, ranking or reward mutation.
 export class WorldBossPreview {
+  live?:WorldBossLive;
   tab: 'challenge'|'ranking'|'rewards' = 'challenge';
   standing?:BossStanding;
   startedAt?: number;
