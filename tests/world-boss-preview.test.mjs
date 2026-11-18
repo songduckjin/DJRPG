@@ -21,12 +21,12 @@ test('preview duration is 60 seconds and rendering cancels its animation on clos
 });
 test('intro shows a static shoulder portrait and challenge guide instead of combat, without save mutation',()=>{
  const old=globalThis.document;
- function element(){return {children:[],style:{},className:'',classList:{add(){}},setAttribute(){},append(...nodes){this.children.push(...nodes);}};}
+ function element(){return {children:[],style:{},className:'',handlers:{},classList:{add(){}},setAttribute(){},addEventListener(type,run){this.handlers[type]=run;},append(...nodes){this.children.push(...nodes);}};}
  globalThis.document={createElement:element};
  try{for(const gender of ['male','female']){
- const save=freshSave(gender),before=JSON.stringify(save),worldBoss=new WorldBossPreview(),ui={world:{save},worldBoss,renderModal(){}},dialog=element();renderWorldBoss(ui,dialog);
- const body=dialog.children[0];assert.match(body.innerHTML,/valkaron-shoulder-waist/);assert(!body.innerHTML.includes('wb-hero'));assert(!body.innerHTML.includes('wb-session'));
- const details=body.children[0],panel=details.children.at(-1);assert.match(panel.children[0].innerHTML,/계정당 하루 3회/);assert.equal(panel.children.at(-1).textContent,'도전하기');assert.equal(JSON.stringify(save),before);
+ const save=freshSave(gender),before=JSON.stringify(save),worldBoss=new WorldBossPreview(),ui={world:{save},worldBoss,renderModal(){},open(value){this.closed=value===null;}},dialog=element();renderWorldBoss(ui,dialog);
+ const body=dialog.children[0];assert.match(body.innerHTML,/valkaron-resting-openhand/);assert(!body.innerHTML.includes('wb-hero'));assert(!body.innerHTML.includes('wb-session'));
+ const details=body.children[0],panel=details.children.at(-1);const exit=details.children[0].children[1];assert.equal(exit.textContent,'나가기');exit.handlers.click({preventDefault(){},stopPropagation(){}});assert(ui.closed);assert.match(panel.children[0].innerHTML,/계정당 하루 3회/);assert.equal(panel.children.at(-1).textContent,'도전하기');assert.equal(JSON.stringify(save),before);
  }}finally{globalThis.document=old;}
 });
 
