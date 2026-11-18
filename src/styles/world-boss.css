@@ -139,3 +139,12 @@
 .wb-field-intro[hidden],.wb-battle-start[hidden] {display:none;}
 @keyframes wb-intro-reveal {from{opacity:1;background-color:#08060b;}to{background-color:transparent;}}
 @media (prefers-reduced-motion:reduce) {.wb-field-intro {animation:none;}}
+/* A 280-degree health arc leaves an 80-degree opening around the attempt count. */
+.world-boss-entry {width:70px;height:70px;border-radius:50%;}
+.world-boss-entry .wb-entry-art {left:4px;top:4px;width:62px;height:62px;border-radius:50%;background-size:cover;background-color:#21171c;overflow:hidden;filter:contrast(1.08);box-shadow:inset 0 0 12px #0009;}
+.world-boss-entry::before {left:-5px;top:-5px;width:80px;height:80px;z-index:-1;background:radial-gradient(ellipse,#79212b44,transparent 70%);}
+.world-boss-entry::after {display:none;}
+.world-boss-entry .wb-entry-health {inset:0;width:70px;height:70px;border-radius:50%;overflow:visible;background:none;box-shadow:none;z-index:2;mask-image:radial-gradient(circle,transparent 30px,#000 31px);}
+.world-boss-entry .wb-entry-health::before {content:"";position:absolute;inset:0;border-radius:50%;background:conic-gradient(from 220deg,#42262c 0deg 280deg,transparent 280deg 360deg);}
+.world-boss-entry .wb-entry-health i {position:absolute;inset:0;width:100%;height:100%;border-radius:50%;background:conic-gradient(from 220deg,#9b343c 0deg,#d46a5b 135deg,#a83c46 var(--wb-hp-angle,280deg),transparent var(--wb-hp-angle,280deg) 360deg);box-shadow:none;}
+.world-boss-entry .wb-entry-count {left:18px;right:18px;top:49px;height:17px;line-height:17px;font-size:11px;letter-spacing:.5px;color:#f3dfbc;background:#171118e8;border-radius:6px;z-index:3;text-shadow:0 1px 2px #000;}

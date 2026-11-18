@@ -1648,3 +1648,5 @@
 | 145 선명한 대기전용 어깨검·앞손 복구 | fks3997 | feature/world-boss-preview-fks3997 | 1536상반신/전투얼굴특징·손앞레이어, tsc·13테스트·아트 | [x] |
 
 | 146 포효 입장 인트로·스킵·착지강화 | fks3997 | feature/world-boss-preview-fks3997 | 3초포효8프레임·전투시간분리/스킵·균열충격파먼지강화, tsc·14테스트·아트 | [x] |
+
+| 147 원형보스·하단 열린 체력링 | fks3997 | feature/world-boss-preview-fks3997 | 280도HP링/하단80도갭·안쪽3회, CSS만/tsc·14테스트 | [x] |
