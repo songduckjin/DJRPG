@@ -1,7 +1,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import './ts-loader.mjs';
-const {WorldBossPreview,bossPose,framePosition}=await import('../src/ui/worldBossPreview.ts');
+const {WorldBossPreview,bossPose,framePosition,frameSheet,footShift,BOSS_SHEETS,preloadBossSheets}=await import('../src/ui/worldBossPreview.ts');
 const {renderWorldBoss}=await import('../src/ui/modals/worldBossModal.ts');
 const {freshSave}=await import('../src/game/store.ts');
 test('boss idle slash and slam stay within their separate sprite rows and impact follows warning',()=>{
@@ -14,7 +14,7 @@ test('preview duration is 60 seconds and rendering cancels its animation on clos
  globalThis.requestAnimationFrame=cb=>{frame=cb;return 7;};globalThis.cancelAnimationFrame=id=>{canceled=id===7;};
  try{
   const preview=new WorldBossPreview();preview.start(performance.now()-61000);assert.equal(preview.elapsed(),60);
-  const children=new Map();const stage={isConnected:true,dataset:{},classList:{toggle(){}},querySelector(key){if(!children.has(key))children.set(key,{style:{}});return children.get(key);}};
+  const children=new Map();const stage={isConnected:true,dataset:{},classList:{toggle(){}},querySelector(key){if(!children.has(key))children.set(key,{style:{setProperty(){}}});return children.get(key);}};
   preview.animate(stage,100);frame();assert.equal(preview.damage,6000);assert.match(children.get('.wb-session-status').textContent,/연습 종료/);
   preview.dispose();assert(canceled);preview.start(100);assert.equal(preview.damage,0);assert.equal(preview.elapsed(1100),1);
  }finally{globalThis.requestAnimationFrame=oldRaf;globalThis.cancelAnimationFrame=oldCancel;}
@@ -29,4 +29,23 @@ test('world boss modal displays an explicit rehearsal and uses each gender portr
   const body=dialog.children[0];assert.match(body.innerHTML,/참여 횟수와 보상은 소모되지/);assert.match(body.querySelector('.wb-hero').src,new RegExp(gender));assert(stage);assert.equal(JSON.stringify(save),before);
   const panel=body.children[1],button=panel.children[0];assert.equal(button.textContent,'60초 전투 연습');
  }}finally{globalThis.document=old;}
+});
+
+test('high resolution sheets switch at eight-frame boundaries without sampling neighboring motions',()=>{
+ assert.equal(BOSS_SHEETS.length,4);
+ for(let frame=0;frame<32;frame++){
+  assert.equal(frameSheet(frame),BOSS_SHEETS[Math.floor(frame/8)]);
+  assert(Math.abs(footShift(frame))<.15);
+  const [x,y]=framePosition(frame).split(' ').map(parseFloat);assert(x>=0&&x<=100);assert(y===0||y===100);
+ }
+ assert.equal(framePosition(8),'0% 0%');assert.equal(framePosition(15),'100% 100%');
+});
+
+test('sheet preloading deduplicates requests and allows a failed sheet to retry',()=>{
+ const old=globalThis.Image,images=[];globalThis.Image=class{constructor(){images.push(this);}};
+ try{
+  preloadBossSheets();preloadBossSheets();assert.equal(images.length,4);
+  images[1].onerror();preloadBossSheets();assert.equal(images.length,5);
+  for(const image of images)image.onload();preloadBossSheets();assert.equal(images.length,5);
+ }finally{globalThis.Image=old;}
 });

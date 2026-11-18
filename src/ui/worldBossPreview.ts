@@ -1,5 +1,22 @@
 export type BossMotion = 'idle' | 'attack' | 'slam';
-export const BOSS_ART = '/assets/world-boss/valkaron-v1.png';
+export const BOSS_SHEETS = ['idle','slash','slam-rise','slam-impact'].map(name=>`/assets/world-boss/valkaron-${name}-hd-v1.png`);
+export const BOSS_ART = BOSS_SHEETS[0];
+const footAnchors = [0.9482, 0.9482, 0.9482, 0.9482, 0.95034, 0.95034, 0.95034, 0.95034, 0.96171, 0.94595, 0.94595, 0.94595, 0.94131, 0.94131, 0.94131, 0.96163, 0.91667, 0.91667, 0.91667, 0.91667, 0.93454, 0.93679, 0.93679, 0.93679, 0.97297, 0.97297, 0.97297, 0.96396, 0.96163, 0.96614, 0.96614, 0.96614];
+export function frameSheet(frame:number):string {return BOSS_SHEETS[Math.floor(Math.max(0,Math.min(31,frame))/8)];}
+export function footShift(frame:number):number {return .97-footAnchors[Math.max(0,Math.min(31,Math.floor(frame)))];}
+const readySheets = new Set<string>();
+const pendingSheets = new Map<string, Promise<void>>();
+export function preloadBossSheets(): void {
+  if(typeof Image==='undefined')return;
+  for(const path of BOSS_SHEETS)if(!readySheets.has(path)&&!pendingSheets.has(path)){
+    const image=new Image();
+    const ready=new Promise<void>(resolve=>{
+      image.onload=()=>{readySheets.add(path);resolve();};
+      image.onerror=()=>{pendingSheets.delete(path);resolve();};
+      image.src=path;
+    });pendingSheets.set(path,ready);
+  }
+}
 export function bossPose(seconds: number): {motion: BossMotion; frame: number; impact: boolean} {
   const phase = Math.max(0, seconds) % 12;
   if (phase >= 9) {
@@ -11,7 +28,7 @@ export function bossPose(seconds: number): {motion: BossMotion; frame: number; i
 }
 export function framePosition(frame: number): string {
   const safe = Math.max(0, Math.min(31, Math.floor(frame)));
-  return `${safe % 8 / 7 * 100}% ${Math.floor(safe / 8) / 3 * 100}%`;
+  return `${safe % 4 / 3 * 100}% ${Math.floor(safe % 8 / 4) * 100}%`;
 }
 // Visual rehearsal only: no Save, participation counter, ranking or reward mutation.
 export class WorldBossPreview {
@@ -23,13 +40,18 @@ export class WorldBossPreview {
   elapsed(now = performance.now()): number { return this.startedAt === undefined ? 0 : Math.min(60, Math.max(0,(now-this.startedAt)/1000)); }
   dispose(): void { this.stop?.(); this.stop=undefined; }
   animate(stage: HTMLElement, damagePerSecond: number): void {
-    this.dispose(); let id=0; const origin=performance.now(); let live=true;
+    this.dispose(); preloadBossSheets(); let id=0; const origin=performance.now(); let live=true;
     const frame=() => {
       if(!live || !stage.isConnected)return;
       const elapsed=this.elapsed(),running=this.startedAt!==undefined && elapsed<60;
       const pose=bossPose(running?elapsed:(performance.now()-origin)/1000);
       const sprite=stage.querySelector<HTMLElement>('.wb-sprite');
-      if(sprite)sprite.style.backgroundPosition=framePosition(pose.frame);
+      if(sprite){
+        const path=frameSheet(pose.frame),shown=readySheets.has(path)?pose.frame:0;
+        sprite.style.backgroundImage=`url('${frameSheet(shown)}')`;
+        sprite.style.backgroundPosition=framePosition(shown);
+        sprite.style.setProperty('--boss-foot-shift',`${footShift(shown)*100}%`);
+      }
       stage.dataset.motion=pose.motion;stage.classList.toggle('wb-impact',pose.impact);
       stage.classList.toggle('wb-running',running);
       const warn=stage.querySelector<HTMLElement>('.wb-warning');if(warn)warn.hidden=pose.motion!=='slam'||pose.impact;
