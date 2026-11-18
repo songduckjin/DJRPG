@@ -10,11 +10,11 @@ import { createBootProgress } from './bootProgress';
 
 const paths = {
   floor: '/assets/wasteland-ground.png', terrainProps: '/assets/wasteland-props.png', male: '/assets/warrior_male_base.png',
-  female: '/assets/warrior_female_base.png', armored: '/assets/warrior_armored.png?v=2',
-  armoredNoHelm: '/assets/warrior_armored_nohelm.png?v=2', femaleArmoredNoHelm: '/assets/warrior_female_armored_nohelm.png',
-  femaleArmoredHelm: '/assets/warrior_female_armored_helm.png',
+  female: '/assets/warrior_female_base.png', armored: '/assets/warrior_armored_swordless.png',
+  armoredNoHelm: '/assets/warrior_armored_nohelm_swordless.png', femaleArmoredNoHelm: '/assets/warrior_female_armored_nohelm_swordless.png',
+  femaleArmoredHelm: '/assets/warrior_female_armored_helm_swordless.png',
   femaleBaseHelm: '/assets/warrior_female_base_helm.png', femaleSwordHelm: '/assets/warrior_female_sword_helm.png',
-  femaleArmoredOldHelm: '/assets/warrior_female_armored_oldhelm.png',
+  femaleArmoredOldHelm: '/assets/warrior_female_armored_oldhelm_swordless.png',
   femaleBaseOldHelm: '/assets/warrior_female_base_oldhelm.png', femaleSwordOldHelm: '/assets/warrior_female_sword_oldhelm.png',
   maleBaseHelm: '/assets/warrior_male_base_helm.png', maleSwordHelm: '/assets/warrior_male_sword_helm.png',
   maleSword: '/assets/warrior_male_sword.png', femaleSword: '/assets/warrior_female_sword.png',
@@ -50,10 +50,10 @@ const walkSheets = {
   maleHelmWalk: '/assets/walk8_male_sword_helm.png',
   femaleHelmWalk: '/assets/walk8_female_sword_helm.png',
   femaleOldHelmWalk: '/assets/walk8_female_sword_oldhelm.png',
-  armoredWalk: '/assets/walk8_armored.png', armoredNoHelmWalk: '/assets/walk8_armored_nohelm.png',
-  femaleArmoredNoHelmWalk: '/assets/walk8_female_armored_nohelm.png',
-  femaleArmoredHelmWalk: '/assets/walk8_female_armored_helm.png',
-  femaleArmoredOldHelmWalk: '/assets/walk8_female_armored_oldhelm.png',
+  armoredWalk: '/assets/walk8_armored_swordless.png', armoredNoHelmWalk: '/assets/walk8_armored_nohelm_swordless.png',
+  femaleArmoredNoHelmWalk: '/assets/walk8_female_armored_nohelm_swordless.png',
+  femaleArmoredHelmWalk: '/assets/walk8_female_armored_helm_swordless.png',
+  femaleArmoredOldHelmWalk: '/assets/walk8_female_armored_oldhelm_swordless.png',
   skeletonWalk: '/assets/walk8_skeleton.png', bossWalk: '/assets/walk8_boss.png'
 } as const;
 type Animation = keyof typeof animationPaths | keyof typeof attackSheets | keyof typeof walkSheets;
@@ -195,7 +195,7 @@ export class GameView {
     drawVignette.call(this, w, h, hx, hy, time);
   }
 
-  drawSkillVfx(effect: Effect, x: number, y: number, t: number, screenAngle: number, time: number): boolean { return drawSkillVfx.call(this, effect, x, y, t, screenAngle, time); }
+  drawSkillVfx(world: World, effect: Effect, x: number, y: number, t: number, screenAngle: number, time: number): boolean { return drawSkillVfx.call(this, world, effect, x, y, t, screenAngle, time); }
 
   drawDragon(effect: Effect, x: number, y: number, progress: number, time: number): void { return drawDragon.call(this, effect, x, y, progress, time); }
 

@@ -3,11 +3,16 @@ import type { Rarity } from '../store';
 import type { World } from '../world';
 
 const rarityColors: Record<Rarity, number> = { common: 0x9ca3af, magic: 0x60a5fa, rare: 0xfacc15, epic: 0xc084fc, unique: 0xfb923c, legendary: 0xf87171 };
+const slashStrength: Record<Rarity, number> = { common: 0, magic: 1, rare: 2, epic: 3, unique: 4, legendary: 5 };
 import { dragonOrbitFactor, dragonRise } from '../skills';
 import type { Effect } from '../world';
 import type { Art, GameView } from '../render';
 
-export function drawSkillVfx(this: GameView, effect: Effect, x: number, y: number, t: number, screenAngle: number, time: number): boolean {
+export function weaponSlashColor(world: Pick<World, 'save'>): number {
+  return world.save.equipment.weapon ? rarityColors[world.save.equipment.weapon.rarity] : 0xffffff;
+}
+
+export function drawSkillVfx(this: GameView, world: World, effect: Effect, x: number, y: number, t: number, screenAngle: number, time: number): boolean {
     if (effect.kind === 'slash') return true;
     if (effect.kind === 'slash2') {
       const progress = Math.max(0, Math.min(1, t));
@@ -15,8 +20,10 @@ export function drawSkillVfx(this: GameView, effect: Effect, x: number, y: numbe
       const alpha = Math.sin(Math.PI * progress);
       const centerX = x + Math.cos(screenAngle) * (30 + progress * 12);
       const centerY = y + Math.sin(screenAngle) * (18 + progress * 7) - 48;
-      this.effects.arc(centerX, centerY, radius, screenAngle - 1.05, screenAngle + 1.05).stroke({ color: 0xffffff, width: 9, alpha: alpha * .4 });
-      this.effects.arc(centerX, centerY, radius, screenAngle - 1.05, screenAngle + 1.05).stroke({ color: 0xffffff, width: 3.5, alpha });
+      const strength = world.save.equipment.weapon ? slashStrength[world.save.equipment.weapon.rarity] : 0;
+      const color = weaponSlashColor(world);
+      this.effects.arc(centerX, centerY, radius, screenAngle - 1.05, screenAngle + 1.05).stroke({ color, width: 9 + strength * .5, alpha: alpha * (.4 + strength * .025) });
+      this.effects.arc(centerX, centerY, radius, screenAngle - 1.05, screenAngle + 1.05).stroke({ color, width: 3.5 + strength * .2, alpha });
       return true;
     }
     if (effect.kind === 'warcry') return true;
@@ -152,7 +159,7 @@ export function drawEffects(this: GameView, world: World, project: (x: number, y
     for (const effect of world.effects) {
       const [x, y] = project(effect.x, effect.y), t = effect.age / effect.duration;
       const screenAngle = Math.atan2(Math.sin(effect.angle) * .43 + Math.cos(effect.angle) * .43, Math.cos(effect.angle) * .86 - Math.sin(effect.angle) * .86);
-      if (this.drawSkillVfx(effect, x, y, t, screenAngle, time)) continue;
+      if (this.drawSkillVfx(world, effect, x, y, t, screenAngle, time)) continue;
       if (effect.kind === 'death') this.drawDeath(x, y, t, effect.angle);
       else this.drawHit(x, y, t, effect.angle);
     }

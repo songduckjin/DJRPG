@@ -5,98 +5,23 @@ import { enemyFacing } from '../facing';
 import { heroAppearance } from '../appearance';
 import { heroAnimationMode, heroMotion } from './heroMotion';
 import { heroScale, heroBodyHeight } from './heroScale';
+import { heroClass, weaponSocket } from './heroSockets';
 import type { GameView } from '../render';
-import { wearableEquipmentImage, type Slot } from '../items';
+import { wearableEquipmentImage } from '../items';
 
-const visibleGearSlots = ['weapon', 'helmet', 'armor', 'gloves', 'boots'] as const satisfies readonly Slot[];
-type GearPose = { u: number; v: number; size: number; rotation?: number };
-type Gender = 'male' | 'female';
-const gearPose: Record<Exclude<typeof visibleGearSlots[number], 'weapon'>, GearPose> = {
-  helmet: { u: .5, v: .17, size: .16 }, armor: { u: .5, v: .46, size: .29 },
-  gloves: { u: .5, v: .55, size: .27 }, boots: { u: .5, v: .88, size: .18 }
-};
-const idleWeaponPoses: Record<Gender, GearPose> = {
-  male: { u: .54, v: .78, size: .85, rotation: -1.4 },
-  female: { u: .2, v: .9, size: .85, rotation: 0 }
-};
-const attackWeaponPoses: Record<Gender, GearPose[]> = {
-  male: [
-    { u: .53, v: .06, size: .78, rotation: Math.PI },
-    { u: .6, v: .47, size: .8, rotation: Math.PI / 2 },
-    { u: .58, v: .5, size: .8, rotation: Math.PI / 4 },
-    { u: .57, v: .5, size: .82, rotation: 0 }
-  ],
-  female: [
-    { u: .39, v: .18, size: .78, rotation: 0 },
-    { u: .31, v: .47, size: .8, rotation: Math.PI / 2 },
-    { u: .68, v: .4, size: .8, rotation: Math.PI / 4 },
-    { u: .55, v: .55, size: .82, rotation: 0 }
-  ]
-};
-const attackGearPoses: Record<Gender, Record<Exclude<typeof visibleGearSlots[number], 'weapon'>, GearPose[]>> = {
-  male: {
-    helmet: [
-      { u: .5, v: .27, size: .16 }, { u: .5, v: .17, size: .16 },
-      { u: .5, v: .16, size: .16 }, { u: .5, v: .17, size: .16 }
-    ],
-    armor: [
-      { u: .5, v: .49, size: .29 }, { u: .5, v: .44, size: .29 },
-      { u: .5, v: .36, size: .27 }, { u: .5, v: .38, size: .28 }
-    ],
-    gloves: [
-      { u: .53, v: .07, size: .21 }, { u: .61, v: .48, size: .24 },
-      { u: .62, v: .46, size: .22 }, { u: .59, v: .48, size: .22 }
-    ],
-    boots: [
-      { u: .5, v: .85, size: .18 }, { u: .5, v: .88, size: .18 },
-      { u: .5, v: .85, size: .18 }, { u: .5, v: .86, size: .18 }
-    ]
-  },
-  female: {
-    helmet: [
-      { u: .5, v: .2, size: .16 }, { u: .5, v: .24, size: .16 },
-      { u: .5, v: .2, size: .16 }, { u: .5, v: .17, size: .16 }
-    ],
-    armor: [
-      { u: .5, v: .46, size: .29 }, { u: .5, v: .42, size: .29 },
-      { u: .5, v: .39, size: .27 }, { u: .5, v: .42, size: .28 }
-    ],
-    gloves: [
-      { u: .39, v: .15, size: .2 }, { u: .31, v: .48, size: .22 },
-      { u: .68, v: .4, size: .2 }, { u: .54, v: .53, size: .2 }
-    ],
-    boots: [
-      { u: .5, v: .86, size: .18 }, { u: .5, v: .88, size: .18 },
-      { u: .5, v: .85, size: .18 }, { u: .5, v: .86, size: .18 }
-    ]
-  }
-};
-
-function weaponPose(attacking: boolean, attackFrame: number, gender: Gender): GearPose {
-  return attacking
-    ? attackWeaponPoses[gender][attackFrame]
-    : idleWeaponPoses[gender];
-}
-
-function poseForGear(slot: typeof visibleGearSlots[number], attacking: boolean, attackFrame: number, gender: Gender): GearPose {
-  if (slot === 'weapon') return weaponPose(attacking, attackFrame, gender);
-  return attacking ? attackGearPoses[gender][slot][attackFrame] : gearPose[slot];
-}
-
-function syncGear(view: GameView, save: Save, texture: Texture, art: string, attacking: boolean, attackFrame: number, gender: Gender): void {
-  for (const slot of visibleGearSlots) {
-    const item = save.equipment[slot];
+function syncWeapon(view: GameView, save: Save, texture: Texture, art: string, attacking: boolean, walking: boolean, walkingFrame: number): void {
+    const item = save.equipment.weapon;
     const wearableArt = item ? wearableEquipmentImage(item) : undefined;
     const path = wearableArt?.path ?? '';
     const key = wearableArt ? `${path}:${wearableArt.frame}` : '';
-    let shown = view.heroGear.get(slot);
+    let shown = view.heroGear.get('weapon');
     if (shown && shown.path !== key) {
       view.heroLayer.removeChild(shown.sprite);
       shown.sprite.destroy();
-      view.heroGear.delete(slot);
+      view.heroGear.delete('weapon');
       shown = undefined;
     }
-    if (!path || !wearableArt) continue;
+    if (!path || !wearableArt) return;
 
     let gearTexture = view.gearTextures.get(key);
     if (!gearTexture) {
@@ -120,24 +45,26 @@ function syncGear(view: GameView, save: Save, texture: Texture, art: string, att
           console.error(`착용 장비 이미지 로딩 실패: ${path}`, error);
         });
       }
-      if (!gearTexture) continue;
+      if (!gearTexture) return;
     }
+    const socket = weaponSocket(heroClass(save), save.gender, walking ? 'walk' : 'idle', walkingFrame);
     if (!shown) {
       const sprite = new Sprite(gearTexture);
-      sprite.anchor.set(slot === 'weapon' ? .18 : .5, slot === 'weapon' ? .82 : .5);
+      sprite.anchor.set(socket.anchorX, socket.anchorY);
       sprite.alpha = 1;
       view.heroLayer.addChild(sprite);
       shown = { path: key, sprite };
-      view.heroGear.set(slot, shown);
+      view.heroGear.set('weapon', shown);
     }
-    const pose = poseForGear(slot, attacking, attackFrame, gender);
-    const u = pose.u ?? .5, v = pose.v ?? .5;
-    const height = heroBodyHeight(art, texture.height) * pose.size;
-    shown.sprite.position.set((u - .5) * texture.width, (v - view.hero.anchor.y) * texture.height);
+    const height = heroBodyHeight(art, texture.height) * socket.size;
+    shown.sprite.anchor.set(socket.anchorX, socket.anchorY);
+    shown.sprite.zIndex = socket.zOrder;
+    view.heroLayer.sortableChildren = true;
+    shown.sprite.visible = !attacking;
+    shown.sprite.position.set((socket.u - .5) * texture.width, (socket.v - view.hero.anchor.y) * texture.height);
     shown.sprite.height = height;
     shown.sprite.width = height * (gearTexture.width / gearTexture.height);
-    shown.sprite.rotation = pose.rotation ?? 0;
-  }
+    shown.sprite.rotation = socket.rotation;
 }
 
 const walkAnchors = {
@@ -151,35 +78,41 @@ const walkAnchors = {
   femaleWalk: [.948, .946, .95, .944, .935, .944, .95, .941],
   femaleHelmWalk: [.97, .97, .97, .97, .97, .97, .97, .97],
   femaleOldHelmWalk: [.97, .97, .97, .97, .97, .97, .97, .97],
-  armoredWalk: [.89, .89, .89, .883, .892, .889, .887, .889],
-  armoredNoHelmWalk: [.944, .932, .935, .926, .932, .935, .937, .939],
-  femaleArmoredNoHelmWalk: [.97, .97, .97, .97, .97, .97, .97, .97],
-  femaleArmoredHelmWalk: [.97, .97, .97, .97, .97, .97, .97, .97],
-  femaleArmoredOldHelmWalk: [.97, .97, .97, .97, .97, .97, .97, .97],
+  armoredWalk: [.907, .907, .907, .907, .903, .903, .903, .907],
+  armoredNoHelmWalk: [.953, .948, .953, .948, .948, .953, .953, .953],
+  femaleArmoredNoHelmWalk: [.984, .984, .984, .984, .98, .989, .989, .984],
+  femaleArmoredHelmWalk: [.989, .989, .993, .989, .984, .993, .993, .989],
+  femaleArmoredOldHelmWalk: [.984, .984, .984, .984, .989, .989, .989, .989],
   skeletonWalk: [.917, .914, .91, .912, .898, .91, .905, .892],
   bossWalk: [.919, .901, .899, .899, .914, .907, .905, .905]
 } as const;
+const idleAnchors: Record<string, number> = {
+  armored: .957, armoredNoHelm: .982,
+  femaleArmoredNoHelm: .993, femaleArmoredHelm: .994, femaleArmoredOldHelm: .991
+};
 
 export function drawHero(this: GameView, world: World, x: number, y: number, time: number): void {
     const { player, save } = world;
-    // Render an unequipped body, then fit the selected item art onto its body parts.
-    // Keep the equipped weapon's attack animation while omitting generic armor/helmet.
-    const bodySave = { ...save, equipment: { ...save.equipment, helmet: undefined, armor: undefined } };
-    const appearance = heroAppearance(bodySave);
+    const appearance = heroAppearance(save);
+    // Attack sheets already hold a sword. Idle/walk use swordless body art so
+    // the socket weapon is the only visible sword in those states.
+    const swordlessAppearance = save.equipment.weapon
+      ? heroAppearance({ ...save, equipment: { ...save.equipment, weapon: undefined } })
+      : appearance;
     const moving = Math.hypot(world.activeMove.x, world.activeMove.y) > .05;
     const walked = Math.hypot(player.x - this.lastHeroWorld.x, player.y - this.lastHeroWorld.y);
     this.lastHeroWorld = { x: player.x, y: player.y };
     if (moving) this.heroWalkDistance += Math.min(30, walked);
     const walkingFrame = Math.floor(this.heroWalkDistance / 12) % 8;
     const attackFrame = Math.min(3, Math.floor((1 - world.attackPose / .32) * 4));
-    const walkArt = appearance.walk;
-    let texture = this.textures[appearance.idle];
+    const walkArt = swordlessAppearance.walk;
+    let texture = this.textures[swordlessAppearance.idle];
     const animation = heroAnimationMode(moving, world.attackPose, !!appearance.attack);
     const animatedAttack = animation === 'attack';
     if (animation === 'walk') texture = this.animations[walkArt][walkingFrame];
     else if (animatedAttack && appearance.attack) texture = this.animations[appearance.attack][Math.max(0, attackFrame)];
     if (this.hero.texture !== texture) this.hero.texture = texture;
-    this.hero.anchor.y = animatedAttack ? .97 : moving ? walkAnchors[walkArt][walkingFrame] : .996;
+    this.hero.anchor.y = animatedAttack ? .97 : moving ? walkAnchors[walkArt][walkingFrame] : (idleAnchors[swordlessAppearance.idle] ?? .996);
     let bob = 0;
     const local = world.effects.filter(effect => effect.kind !== 'hit' && effect.kind !== 'death' && Math.hypot(effect.x - player.x, effect.y - player.y) < 2);
     const spin = local.find(effect => effect.kind === 'spin');
@@ -187,7 +120,7 @@ export function drawHero(this: GameView, world: World, x: number, y: number, tim
     const motion = heroMotion(world.attackPose, player.facingSide, spin);
     const attackPulse = motion.pulse;
     if (slam) bob -= Math.sin(Math.PI * slam.age / slam.duration) * 17;
-    const art = animation === 'walk' ? walkArt : animatedAttack && appearance.attack ? appearance.attack : appearance.idle;
+    const art = animation === 'walk' ? walkArt : animatedAttack && appearance.attack ? appearance.attack : swordlessAppearance.idle;
     const scale = heroScale(this.app.screen.height, art, texture.height);
     const face = player.facingSide;
     const lungeX = (Math.cos(player.facing) - Math.sin(player.facing)) * .86 * attackPulse * 6;
@@ -196,7 +129,7 @@ export function drawHero(this: GameView, world: World, x: number, y: number, tim
     this.heroLayer.position.set(x + lungeX + (player.hit > 0 ? Math.sin(time * 55) * 2 : 0), y + bob + lungeY);
     this.heroLayer.rotation = motion.rotation;
     this.hero.tint = player.hit > 0 ? 0xffd4cf : 0xffffff;
-    syncGear(this, save, texture, art, animatedAttack, attackFrame, save.gender);
+    syncWeapon(this, save, texture, art, animatedAttack, animation === 'walk', walkingFrame);
     // The ground shadow follows the drawn body, not the frame: an attack cell is wider
     // than the hero only to keep the sword inside its own frame, and a frame-width
     // shadow grew 25 % whenever the hero swung.
