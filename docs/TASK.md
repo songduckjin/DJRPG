@@ -7,7 +7,6 @@
 
 | 작업 | 담당자 | 브랜치 | 수정 예정 파일 / 영향 영역 | 위험 등급 | 상태 |
 |---|---|---|---|---|---|
-| 140 대기 보스 호흡 강화 | fks3997 | feature/world-boss-preview-fks3997 | src/styles/world-boss.css / 대기 상반신·손 동기 호흡 | 낮음 | [-] |
 | 135 갑옷·투구 10종 외형 차별화 (4티어 실루엣 + 팔레트 스왑) | songduckjin (`codex` 실행) | `task/135-armor-tier-palette` | `src/game/appearance.ts`, `src/game/render/entities.ts`, `src/game/render/gearTint.ts`(신규), `tests/appearance.test.mjs` / 필드 갑옷·투구 외형(티어 시트 + 팔레트 스왑) | 중 | [-] |
 
 > 2026-11-18: `[작업 135]`(갑옷·투구 10종 외형 차별화 — 4티어 실루엣 + 팔레트 스왑, 피부톤 보존 틴트)를 `[-]`로 등록했다.

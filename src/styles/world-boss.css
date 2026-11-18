@@ -89,8 +89,10 @@
 .wb-clouds::before,.wb-clouds::after {content:"";position:absolute;inset:-20% -45%;background:radial-gradient(ellipse at 25% 45%,#8a85834d,transparent 38%),radial-gradient(ellipse at 70% 30%,#77747e66,transparent 43%),radial-gradient(ellipse at 50% 85%,#24212c99,transparent 45%);filter:blur(12px);animation:wb-cloud-flow 32s ease-in-out infinite alternate;}
 .wb-clouds::after {opacity:.65;animation-duration:47s;animation-direction:alternate-reverse;}
 .wb-intro-clouds {inset:-25% -8% 0;}
-.wb-intro-portrait,.wb-intro-hand {transform-origin:50% 78%;animation:wb-breathe 4.8s ease-in-out infinite;}
-@keyframes wb-breathe {0%,100%{scale:1 1;}50%{scale:1.008 1.015;}}
+.wb-intro-portrait,.wb-intro-hand {transform-origin:50% 78%;animation:wb-breathe 3.8s ease-in-out infinite;}
+.wb-intro-hand {animation-name:wb-hand-breathe;}
+@keyframes wb-hand-breathe {0%,100%{scale:1 1;rotate:0deg;}40%{scale:1.022 1.04;rotate:-.65deg;}55%{scale:1.025 1.045;rotate:.2deg;}72%{scale:1.015 1.026;rotate:-.2deg;}}
+@keyframes wb-breathe {0%,100%{scale:1 1;}50%{scale:1.025 1.045;}}
 @keyframes wb-cloud-flow {from{transform:translateX(-12%);}to{transform:translateX(12%);}}
 .wb-field-scenery {position:absolute;inset:0;background:url('/assets/world-boss/obsidian-arena-v1.png') center/cover no-repeat;}
 .wb-field-clouds {inset:0 0 56%;}
