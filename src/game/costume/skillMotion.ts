@@ -36,6 +36,30 @@ export const skillMotionTemplates: Record<SkillId, CostumeMotionTemplate> = {
 
 export function skillMotionTemplate(id: SkillId): CostumeMotionTemplate { return skillMotionTemplates[id]; }
 
+/**
+ * 필드 이펙트 종류(`world.ts` `Effect['kind']`) → 코스튬 모션 (작업 140).
+ *
+ * `world.ts`는 기본 공격을 `slash`, 스킬을 스킬 ID와 같은 이름의 이펙트로 남긴다.
+ * 그래서 렌더러는 이펙트 종류만 보고 모션을 고를 수 있고, 스킬 4종 템플릿은 이 표를 거친다.
+ * `hit`·`death`처럼 캐릭터 모션이 없는 이펙트는 `null`이다.
+ */
+export type SkillMotionResolution = {
+  /** 기본 공격(`slash`)은 `attack`, 스킬은 4대 템플릿. */
+  motion: 'attack' | CostumeMotionTemplate;
+  /** 스킬 ID. 기본 공격이면 `null`. */
+  skillId: SkillId | null;
+  /** 스킬 템플릿. 기본 공격이면 `null`. */
+  template: CostumeMotionTemplate | null;
+};
+
+export function resolveSkillMotion(kind: string): SkillMotionResolution | null {
+  if (kind === 'slash') return { motion: 'attack', skillId: null, template: null };
+  if (!Object.prototype.hasOwnProperty.call(skillMotionTemplates, kind)) return null;
+  const skillId = kind as SkillId;
+  const template = skillMotionTemplates[skillId];
+  return { motion: template, skillId, template };
+}
+
 /** 한 템플릿을 쓰는 액티브 스킬 목록(`skillOrder` 순서). */
 export function motionTemplateSkills(template: CostumeMotionTemplate): SkillId[] {
   return skillOrder.filter(id => skillMotionTemplates[id] === template);

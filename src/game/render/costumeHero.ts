@@ -1,0 +1,353 @@
+import { Assets, Container, Rectangle, Sprite, Texture } from 'pixi.js';
+import type { Slot } from '../items';
+import type { Save } from '../store';
+import {
+  costumeAtlasUrl, loadCostumeManifest, planCostume,
+  type CostumeAnchor, type CostumeDefinition, type CostumeFallbackReason, type CostumeLoadResult, type CostumeManifest
+} from '../costume/manifest';
+import type { CostumeSlotGroup } from '../costume/mapping';
+import { costumeMotionSlot, type HeroCostumeMotion } from './heroMotion';
+
+/**
+ * 독립형 코스튬 필드 렌더러 (작업 140, `docs/COSTUME_SYSTEM.md` v1.1 §4·§7.1·§8).
+ *
+ * 구조:
+ *   1. `planHeroCostume()` — 아이템 + 매니페스트 로드 결과 → 그릴 레이어 순서/피벗/보정 표(순수 함수).
+ *   2. `ensureCostumeAtlas()/costumeLayerTexture()` — 버전 URL 아틀라스 로드 + 셀 자르기.
+ *   3. `renderCostumeHero()` — 위 계획대로 `heroLayer` 안의 스프라이트를 갱신하고 성공 여부를 돌려준다.
+ *
+ * 안전장치(§8): 매니페스트·아틀라스가 없거나 검증에 실패하거나 `costumeId`가 매핑되지 않으면
+ * `false`를 돌려주고 호출부(`entities.ts` `drawHero`)가 기존 통합 바디·무기 소켓 경로로 그린다.
+ * 이 모듈은 예외를 던지지 않고, 실패한 요청은 한 번만 기록하고 다시 시도하지 않는다
+ * (404 요청 폭주·캐릭터 소실 프레임 방지). 전투 판정·월드 위치·Save는 건드리지 않는다.
+ */
+
+/** 본체 파츠 3영역(① 머리 포함 몸통 ② 양팔 ③ 다리). 배열 순서가 아틀라스 변형 인덱스다. */
+export type CostumeBodyPart = 'torso' | 'arms' | 'legs';
+export const costumeBodyParts: readonly CostumeBodyPart[] = ['torso', 'arms', 'legs'];
+
+/** 본체 파츠 기본 레이어 순서. 다리 → 몸통 → 팔. */
+export const costumeBodyZOrder: Record<CostumeBodyPart, number> = { legs: 0, torso: 10, arms: 15 };
+
+/** 장비 부위 기본 레이어 순서(매니페스트 `zOrder`가 있으면 그 값이 우선한다). */
+export const costumeSlotZOrder: Record<CostumeSlotGroup, number> = {
+  boots: 5, armor: 10, gloves: 20, helmet: 30, offhand: 40, weapon: 50, necklace: 0, belt: 0, ring: 0
+};
+
+/** 필드에서 그리는 장비 부위와 그 순서. 목걸이·벨트·반지는 필드 미표시(§3.1)라 대상이 아니다. */
+export const costumeSlotDrawOrder: readonly Slot[] = ['boots', 'armor', 'gloves', 'helmet', 'offhand', 'weapon'];
+
+/**
+ * 아틀라스 셀 크기. 138 `estimateCanvas`가 계산한 최대 동작 캔버스 후보(대검 234×242)를
+ * 그대로 셀로 쓴다(§3 표). 모든 파츠가 같은 셀·같은 발 피벗을 쓴다(§6.2).
+ */
+export const costumeAtlasCellWidth = 234;
+export const costumeAtlasCellHeight = 242;
+
+/** 페이지 상한. 2048×2048 목표(§6.2)에서 234×242 셀이 8×8 = 64칸 들어간다. */
+export const costumeAtlasColumns = 8;
+export const costumeAtlasRows = 8;
+export const costumeAtlasCellsPerPage = costumeAtlasColumns * costumeAtlasRows;
+
+/**
+ * 변형 하나가 페이지에서 차지하는 칸 수. 한 파츠의 30프레임을 32칸 슬롯에 담아
+ * 변형이 페이지 경계를 넘지 않게 한다(64칸 = 변형 2개).
+ */
+export const costumeVariantStride = 32;
+export const costumeVariantsPerPage = costumeAtlasCellsPerPage / costumeVariantStride;
+
+/** 본체 파츠의 셀 안 발 피벗(정규화). 142에서 실물 알파 경계로 재측정하는 잠정값이다. */
+export const costumeBodyPivot = { x: .5, y: .96 } as const;
+
+/** 코스튬 레이어의 부위 키. 장비는 부위 이름, 본체는 `torso`·`arms`·`legs`. */
+export type CostumeLayerRole = CostumeBodyPart | CostumeSlotGroup;
+
+export type CostumeLayerPlan = {
+  role: CostumeLayerRole;
+  /** 본체 파츠면 `null`. */
+  costumeId: string | null;
+  /** 아틀라스 페이지 기본 이름(`body-male`·`armor`·`helmet` …). */
+  page: string;
+  /** 같은 부위 안에서의 변형 순서(매니페스트 순서 또는 본체 파츠 순서). */
+  variant: number;
+  zOrder: number;
+  /** 셀 안 피벗(정규화 0..1). */
+  anchor: { x: number; y: number };
+  /** 매니페스트 `fit`의 위치 보정(아트 픽셀). */
+  offset: { x: number; y: number };
+  scale: { x: number; y: number };
+  rotation: number;
+};
+
+export type CostumeHeroPlan =
+  | { ok: true; layers: CostumeLayerPlan[] }
+  | { ok: false; reason: CostumeFallbackReason; detail: string };
+
+/**
+ * 매니페스트 `anchor` → 셀 정규화 피벗.
+ * - `{0,0}`은 "보정 없음"으로 보고 본체 발 피벗을 쓴다(테스트·기본값).
+ * - 0..1 사이 값은 이미 정규화된 피벗이다.
+ * - 그보다 큰 값은 셀 아트 픽셀로 보고 나눈다(뷰어 좌표계 그대로 쓴 매니페스트 허용).
+ * 어느 쪽이든 결과는 0..1로 고정해 캐릭터가 화면 밖으로 밀리지 않게 한다.
+ */
+export function costumeLayerAnchor(anchor: CostumeAnchor | undefined): { x: number; y: number } {
+  if (!anchor || (anchor.x === 0 && anchor.y === 0)) return { ...costumeBodyPivot };
+  const clamp01 = (value: number): number => Math.min(1, Math.max(0, value));
+  const inside = Math.abs(anchor.x) <= 1 && Math.abs(anchor.y) <= 1;
+  return inside
+    ? { x: clamp01(anchor.x), y: clamp01(anchor.y) }
+    : { x: clamp01(anchor.x / costumeAtlasCellWidth), y: clamp01(anchor.y / costumeAtlasCellHeight) };
+}
+
+function variantIndex(manifest: CostumeManifest, definition: CostumeDefinition): number {
+  return manifest.costumes.filter(entry => entry.slot === definition.slot).findIndex(entry => entry.costumeId === definition.costumeId);
+}
+
+/**
+ * Save의 장비 + 매니페스트 로드 결과 → 그릴 레이어 계획.
+ *
+ * - 몸통·팔·다리 본체 파츠는 항상 계획에 넣고, 갑옷을 입으면 **몸통 파츠를 갑옷 파츠로 교체**한다(§4 파츠 교체).
+ * - 장비 하나라도 계획이 서지 않으면(폴백 ①②③) 부분 합성하지 않고 전체 폴백을 돌려준다.
+ *   반쯤 벗은 실루엣으로 그리는 것보다 기존 통합 바디로 그리는 편이 안전하다(§8).
+ */
+export function planHeroCostume(save: Pick<Save, 'gender' | 'equipment'>, load: CostumeLoadResult | undefined): CostumeHeroPlan {
+  if (!load) return { ok: false, reason: 'manifest-missing', detail: '코스튬 매니페스트를 아직 불러오지 않았습니다.' };
+  if (!load.ok) return { ok: false, reason: load.reason, detail: load.detail };
+  const manifest = load.manifest;
+  const bodyPage = `body-${save.gender}`;
+  const body: CostumeLayerPlan[] = costumeBodyParts.map((part, variant) => ({
+    role: part, costumeId: null, page: bodyPage, variant,
+    zOrder: costumeBodyZOrder[part], anchor: { ...costumeBodyPivot },
+    offset: { x: 0, y: 0 }, scale: { x: 1, y: 1 }, rotation: 0
+  }));
+
+  let armor: CostumeLayerPlan | null = null;
+  const equipment: CostumeLayerPlan[] = [];
+  for (const slot of costumeSlotDrawOrder) {
+    const item = save.equipment[slot];
+    if (!item) continue;
+    const plan = planCostume(item, load);
+    if (!plan.fieldVisible) continue;
+    if (plan.bodyFallback || !plan.definition) {
+      return { ok: false, reason: plan.reason, detail: `${item.name}(${plan.costumeId ?? '미매핑'}) 코스튬 계획 실패` };
+    }
+    const definition = plan.definition;
+    const variant = variantIndex(manifest, definition);
+    if (variant < 0) return { ok: false, reason: 'unmapped-costume', detail: `${definition.costumeId}가 매니페스트에 없습니다.` };
+    const layer: CostumeLayerPlan = {
+      role: definition.slot,
+      costumeId: definition.costumeId,
+      page: definition.slot,
+      variant,
+      zOrder: definition.zOrder ?? costumeSlotZOrder[definition.slot],
+      anchor: costumeLayerAnchor(definition.anchor),
+      offset: { x: definition.fit?.x ?? 0, y: definition.fit?.y ?? 0 },
+      scale: { x: definition.fit?.scaleX ?? 1, y: definition.fit?.scaleY ?? 1 },
+      rotation: definition.fit?.rotation ?? 0
+    };
+    if (definition.slot === 'armor') armor = layer;
+    else equipment.push(layer);
+  }
+
+  const layers = armor ? [...body.filter(layer => layer.role !== 'torso'), armor, ...equipment] : [...body, ...equipment];
+  layers.sort((a, b) => a.zOrder - b.zOrder);
+  return { ok: true, layers };
+}
+
+/** 아틀라스 페이지 이름. 첫 페이지는 기본 이름, 이후는 `-2`·`-3`. */
+export function costumeAtlasPageName(page: string, pageIndex: number): string {
+  return pageIndex <= 0 ? page : `${page}-${pageIndex + 1}`;
+}
+
+/** 레이어의 변형이 놓인 페이지 인덱스. 변형은 페이지 경계를 넘지 않는다. */
+export function costumeLayerPageIndex(layer: CostumeLayerPlan): number {
+  return Math.floor(layer.variant / costumeVariantsPerPage);
+}
+
+/** 레이어·모션·프레임 → 그 페이지 안의 셀 위치(0..63). */
+export function costumeLayerCell(layer: CostumeLayerPlan, motion: HeroCostumeMotion, frame: number): number {
+  return (layer.variant % costumeVariantsPerPage) * costumeVariantStride + costumeMotionSlot(motion, frame);
+}
+
+export type CostumeHeroState = {
+  status: 'idle' | 'loading' | 'fallback';
+  load?: CostumeLoadResult & { ok: true };
+  /** 아틀라스 페이지 URL → 텍스처. */
+  textures: Map<string, Texture>;
+  /** 셀 자르기 결과 캐시. 매 프레임 `new Texture`를 만들지 않는다. */
+  frames: Map<string, Texture>;
+  loading: Set<string>;
+  failed: Set<string>;
+  /** 부위 키 → 현재 레이어 스프라이트. */
+  sprites: Map<string, Sprite>;
+  reason: CostumeFallbackReason;
+  detail: string;
+};
+
+export function createCostumeHeroState(): CostumeHeroState {
+  return {
+    status: 'idle', textures: new Map(), frames: new Map(), loading: new Set(), failed: new Set(),
+    sprites: new Map(), reason: 'none', detail: ''
+  };
+}
+
+function fallback(state: CostumeHeroState, reason: CostumeFallbackReason, detail: string): void {
+  state.status = 'fallback';
+  state.reason = reason;
+  state.detail = detail;
+}
+
+/**
+ * 매니페스트를 1회 로드한다(§7.1 캐시). 실패하면 `fallback` 상태로 굳고 다시 요청하지 않는다 —
+ * 아틀라스도 요청하지 않으므로 404가 한 번(매니페스트)뿐이다.
+ */
+export async function beginCostumeHero(state: CostumeHeroState): Promise<void> {
+  if (state.status !== 'idle') return;
+  state.status = 'loading';
+  let result: CostumeLoadResult;
+  try { result = await loadCostumeManifest(); }
+  catch (error) {
+    fallback(state, 'manifest-missing', error instanceof Error ? error.message : String(error));
+    return;
+  }
+  if (!result.ok) { fallback(state, result.reason, result.detail); return; }
+  state.load = result;
+  state.status = 'idle';
+}
+
+/** 테스트·프리로드용 주입 경로. 매니페스트 결과와 아틀라스 텍스처를 네트워크 없이 넣는다. */
+export function applyCostumeHeroRuntime(state: CostumeHeroState, load: CostumeLoadResult & { ok: true }, textures: Map<string, Texture>): void {
+  state.load = load;
+  state.status = 'idle';
+  state.reason = 'none';
+  state.detail = '';
+  for (const [url, texture] of textures) state.textures.set(url, texture);
+}
+
+/** 계획에 필요한 아틀라스 페이지를 한 번씩만 요청한다. 실패는 기록 후 재시도하지 않는다. */
+export function ensureCostumeAtlas(state: CostumeHeroState, plan: CostumeLayerPlan[]): void {
+  for (const layer of plan) {
+    const url = costumeAtlasUrl(costumeAtlasPageName(layer.page, costumeLayerPageIndex(layer)));
+    if (state.textures.has(url) || state.loading.has(url) || state.failed.has(url)) continue;
+    state.loading.add(url);
+    void Assets.load<Texture>(url).then(texture => {
+      texture.source.scaleMode = 'linear';
+      state.textures.set(url, texture);
+      state.loading.delete(url);
+    }).catch(() => {
+      state.loading.delete(url);
+      state.failed.add(url);
+      console.info(`[costume] 아틀라스 페이지 없음 → 기존 본체로 폴백: ${url}`);
+    });
+  }
+}
+
+/**
+ * 레이어·모션·프레임에 해당하는 셀 텍스처. 페이지가 없거나 셀이 페이지 밖이면 `null`(폴백).
+ * 셀 크기는 실제 텍스처에서 계산해 2048² 미만 배포본도 잘라 쓸 수 있게 한다.
+ */
+export function costumeLayerTexture(state: CostumeHeroState, layer: CostumeLayerPlan, motion: HeroCostumeMotion, frame: number): Texture | null {
+  const pageIndex = costumeLayerPageIndex(layer);
+  const url = costumeAtlasUrl(costumeAtlasPageName(layer.page, pageIndex));
+  const page = state.textures.get(url);
+  if (!page) return null;
+  const columns = Math.floor(page.source.width / costumeAtlasCellWidth);
+  const rows = Math.floor(page.source.height / costumeAtlasCellHeight);
+  if (columns <= 0 || rows <= 0) return null;
+  const cell = costumeLayerCell(layer, motion, frame);
+  const column = cell % columns, row = Math.floor(cell / columns);
+  if (row >= rows) return null;
+  const key = `${url}#${column},${row}`;
+  const cached = state.frames.get(key);
+  if (cached) return cached;
+  const texture = new Texture({
+    source: page.source,
+    frame: new Rectangle(column * costumeAtlasCellWidth, row * costumeAtlasCellHeight, costumeAtlasCellWidth, costumeAtlasCellHeight)
+  });
+  state.frames.set(key, texture);
+  return texture;
+}
+
+export type CostumeHeroTarget = {
+  heroLayer: Container;
+  hero?: Sprite;
+};
+
+export type CostumeHeroFrame = { motion: HeroCostumeMotion; frame: number; tint?: number };
+
+/**
+ * 코스튬 레이어로 캐릭터를 그린다. 그렸으면 `true`, 폴백이면 `false`.
+ *
+ * 성공 판정은 "모든 레이어의 셀 텍스처가 준비됨"이다. 하나라도 준비되지 않으면 아무것도
+ * 바꾸지 않고 `false`를 돌려주므로 그 프레임은 기존 통합 바디로 그려진다(캐릭터 소실 없음).
+ */
+export function renderCostumeHero(
+  target: CostumeHeroTarget, state: CostumeHeroState | undefined, save: Pick<Save, 'gender' | 'equipment'>, frame: CostumeHeroFrame
+): boolean {
+  if (!state || state.status === 'fallback' || !state.load) return false;
+  const plan = planHeroCostume(save, state.load);
+  if (!plan.ok) return false;
+  ensureCostumeAtlas(state, plan.layers);
+  const resolved: { layer: CostumeLayerPlan; texture: Texture }[] = [];
+  for (const layer of plan.layers) {
+    const texture = costumeLayerTexture(state, layer, frame.motion, frame.frame);
+    if (!texture) return false; // 아직 로드 중이거나 셀 밖 → 이번 프레임은 폴백
+    resolved.push({ layer, texture });
+  }
+
+  const roles = new Set(plan.layers.map(layer => `${layer.role}`));
+  for (const [role, sprite] of [...state.sprites]) {
+    if (roles.has(role)) continue;
+    if (sprite.parent) sprite.parent.removeChild(sprite);
+    sprite.destroy();
+    state.sprites.delete(role);
+  }
+  for (const { layer, texture } of resolved) {
+    const role = `${layer.role}`;
+    let sprite = state.sprites.get(role);
+    if (!sprite) {
+      sprite = new Sprite(texture);
+      target.heroLayer.addChild(sprite);
+      state.sprites.set(role, sprite);
+    }
+    if (sprite.texture !== texture) sprite.texture = texture;
+    sprite.anchor.set(layer.anchor.x, layer.anchor.y);
+    sprite.position.set(layer.offset.x, layer.offset.y);
+    sprite.scale.set(layer.scale.x, layer.scale.y);
+    sprite.rotation = layer.rotation;
+    sprite.zIndex = layer.zOrder;
+    sprite.visible = true;
+    sprite.alpha = 1;
+    sprite.tint = frame.tint ?? 0xffffff;
+  }
+  target.heroLayer.sortableChildren = true;
+  // 폴백용 통합 바디 스프라이트가 남아 있으면 두 몸이 겹쳐 보인다.
+  if (target.hero) target.hero.visible = false;
+  return true;
+}
+
+/** 폴백 경로로 돌아갈 때 통합 바디를 다시 보이게 하고 코스튬 레이어를 숨긴다. */
+export function hideCostumeHero(target: CostumeHeroTarget, state: CostumeHeroState | undefined): void {
+  if (target.hero) target.hero.visible = true;
+  if (!state) return;
+  for (const [, sprite] of state.sprites) sprite.visible = false;
+}
+
+/**
+ * 잔상(`updateAfterimages`)용 레이어 스냅샷. 코스튬 모드가 아니면 `null`이며,
+ * 호출부는 기존처럼 `this.hero` 한 장을 쓴다.
+ */
+export function costumeGhostSources(state: CostumeHeroState | undefined): { sprite: Sprite; offset: { x: number; y: number } }[] | null {
+  if (!state || state.sprites.size === 0) return null;
+  const sources: { sprite: Sprite; offset: { x: number; y: number } }[] = [];
+  for (const [, sprite] of state.sprites) {
+    if (!sprite.visible) continue;
+    sources.push({ sprite, offset: { x: sprite.position.x, y: sprite.position.y } });
+  }
+  return sources.length ? sources : null;
+}
+
+/** 코스튬 모드가 그려지고 있는지. 장비창·디버그 패널이 같은 판정을 쓸 수 있게 노출한다. */
+export function costumeHeroActive(state: CostumeHeroState | undefined): boolean {
+  return !!state && state.sprites.size > 0;
+}

@@ -4,6 +4,7 @@ import type { Effect, Enemy, World } from './world';
 import { wearableAssetPaths, type Slot } from './items';
 import { drawRunes, drawTerrain, drawDust, drawLighting, drawVignette } from './render/field';
 import { drawHero, updateAfterimages, updateCorpses, drawEntities } from './render/entities';
+import { beginCostumeHero, createCostumeHeroState, type CostumeHeroState } from './render/costumeHero';
 import { drawSkillVfx, drawDragon, drawHit, updateDamageLabels, drawDeath, drawDrops, drawEffects } from './render/vfx';
 import { projectArenaPoint } from './arena';
 import { createBootProgress } from './bootProgress';
@@ -62,7 +63,7 @@ export const renderAssetPaths = [
   ...Object.values(attackSheets), ...Object.values(walkSheets), ...Object.values(wearableAssetPaths)
 ];
 type Dust = { x: number; y: number; vx: number; vy: number; age: number; duration: number; size: number };
-type Ghost = { sprite: Sprite; x: number; y: number; age: number; duration: number };
+type Ghost = { sprites: { sprite: Sprite; dx: number; dy: number }[]; x: number; y: number; age: number; duration: number };
 type Fallen = { sprite: Sprite; x: number; y: number; age: number; duration: number; scaleX: number; scaleY: number; rotation: number };
 
 export class GameView {
@@ -92,6 +93,8 @@ export class GameView {
   gearTextures = new Map<string, Texture>();
   gearLoading = new Set<string>();
   heroGear = new Map<Slot, { path: string; sprite: Sprite }>();
+  /** 독립형 코스튬 렌더러 상태(작업 140). 매니페스트·아틀라스가 없으면 폴백으로 굳는다. */
+  costume: CostumeHeroState = createCostumeHeroState();
   enemies = new Map<Enemy, Sprite>();
   bossLabels = new Map<Enemy, Text>();
   afterimages: Ghost[] = [];
@@ -168,6 +171,9 @@ export class GameView {
     this.aura.alpha = 0;
     this.app.stage.addChild(this.floor, this.glow, this.ground, this.terrainLayer, this.aura, this.dragonBack, this.ghosts, this.actors, this.fallen, this.skillVfx, this.effects, this.labels, this.shade);
     progress.report();
+    // 코스튬 매니페스트는 화면을 막지 않고 뒤에서 한 번만 받는다. 없거나 실패하면
+    // `fallback` 상태로 굳어 기존 통합 바디 렌더링이 그대로 이어진다(작업 140 §8).
+    void beginCostumeHero(this.costume);
   }
 
   draw(world: World, time: number): void {
