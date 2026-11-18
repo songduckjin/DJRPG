@@ -7,6 +7,7 @@
 
 | 작업 | 담당자 | 브랜치 | 수정 예정 파일 / 영향 영역 | 위험 등급 | 상태 |
 |---|---|---|---|---|---|
+| 162 월드보스 실전 활성화 | fks3997 | feature/world-boss-live-fks3997 | server/world-boss*.mjs, server/endpoints/world-boss.mjs, functions/api/world-boss.js, src/game/worldBossLive.ts, src/ui/worldBoss{Preview,Field,Result}.ts, src/ui/modals/worldBossModal.ts, src/main.ts, tests/world-boss-live.test.mjs, 문서 / 공유HP·3회·순위·우편보상 | 상 | [-] |
 | 161 크롬 필드 mesh 렌더 오류 | fks3997 | fix/chrome-mesh-pipe-fks3997 | src/game/pixiSetup.ts 신규, src/main.ts, 문서 / MeshPipe 초기등록 | 상 | [-] |
 | 136 통합 내 정보(장비·스탯) UI 개편 및 4티어 장비창 초상화 교체 | songduckjin (`codex` 실행) | `task/136-unified-equip-ui` | `src/ui/interface.ts`, `src/ui/modals/equipModal.ts`, `src/ui/modals/statusModal.ts`(삭제), `src/ui/modals/accountModal.ts`, `src/ui/equipmentPortrait.ts`, `src/styles/modals.css`, `src/styles/hud.css` / 하단 내비 3탭·통합 내 정보 모달·장비창 티어 초상화 | 중 | [-] |
 | 140 본 게임 필드 렌더러 독립형 코스튬 전환 | songduckjin | `task/140-costume-field-renderer` (대기) | `src/game/render/entities.ts`, `src/game/render.ts`, `src/game/render/heroMotion.ts`, `src/game/render/heroScale.ts`, `src/game/render/heroSockets.ts`, `AGENTS.md`, `docs/CODE_MAP.md`, `docs/QUICK_PATCH.md` / 필드 캐릭터 렌더 전환 | 상 | [ ] |
