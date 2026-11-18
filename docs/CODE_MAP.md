@@ -11,7 +11,7 @@
 | 장비창 착용 미리보기 | `ui/equipmentPortrait.ts`(`equipmentPortraitPlan`·`renderEquipmentPortrait`), `ui/modals/equipModal.ts` | `items.ts`(`wearableEquipmentImage`), `styles/modals.css`, `assets/warrior_equipped_starter|t2|t3|t4_{male,female}.png` | `equipped-detail` |
 | 스킬·스킬북·쿨타임·버프 | `src/game/skills.ts`, `src/game/loadout.ts` | `world.ts`(`cooldowns`·`action`), `skillProgress.ts`, `ui/skillBooks.ts`, `ui/skillLoadout.ts`, `ui/modals/skillModal.ts`, `ui/skillFeedback.ts` | `skill-progression`, `loadout`, `skill-ui`, `skill-feedback`, `skillbook-art` |
 | 아이템·등급·드랍·스탯·장비 슬롯 | `src/game/items.ts` | `inventory.ts`, `itemComparison.ts`, `bagCapacity.ts`, `codex.ts`, `ui/modals/equipModal.ts` | `inventory`, `codex`, `ring-restore`, `item-protection-ui`, `equipped-detail` |
-| 캐릭터 외형·코스튬·애니메이션 | 설계 기준: `docs/COSTUME_SYSTEM.md`; 실행 지시: `docs/TASK_songduckjin.md` 작업 137·138 | 현행: `appearance.ts`, `render.ts`, `render/entities.ts`, `render/heroMotion.ts`, `render/heroSockets.ts`, `render/heroScale.ts`, `render/gearTint.ts`; 미리보기: `ui/equipmentPortrait.ts` | 현행 테스트: `appearance`, `hero-motion`, `hero-art`, `hero-weapon-render`, `equipped-detail`; 프로토타입 테스트는 작업 138에서 확정 |
+| 캐릭터 외형·코스튬·애니메이션 | 설계 기준: `docs/COSTUME_SYSTEM.md`; 실행 지시: `docs/TASK_songduckjin.md` 작업 138~142 | 현행: `appearance.ts`, `render.ts`, `render/entities.ts`, `render/heroMotion.ts`, `render/heroSockets.ts`, `render/heroScale.ts`, `render/gearTint.ts`; 미리보기: `ui/equipmentPortrait.ts` | 현행 테스트: `appearance`, `hero-motion`, `hero-art`, `hero-weapon-render`, `equipped-detail`; 프로토타입 테스트는 작업 138에서 확정 |
 | 화면 렌더링·필드·배경·VFX·조명 | `src/game/render.ts`(`GameView`) | `render/field.ts`, `render/vfx.ts`, `render/entities.ts`, `wasteland.ts`, `ambientScene.ts`, `ambientMotion.ts` | `wasteland`, `ambient-motion`, `hero-weapon-render` |
 | 오프라인 보상·경험치·레벨업 | `src/game/offline.ts`, `src/game/store.ts`(`addExperience`·`expToNext`) | `ui/modals/offlineModal.ts`, `server/endpoints/account.mjs`(`offlineSeconds`) | `offline` |
 | 로그인·회원가입·게스트·캐릭터 선택/생성 | `src/ui/login.ts`, `server/endpoints/account.mjs` | `ui/modals/charactersModal.ts`, `server/auth.mjs`, `api/account.mjs`, `functions/api/account.js` | `characters`, `functions-adapter` |
@@ -38,7 +38,7 @@
 | 드랍률·등급·아이템 능력치 | `items.ts` `equipmentDropChance`/`rollItem`/`totalStats` |
 | 외형·스프라이트·투구·갑옷 조합 | `appearance.ts` `heroAppearance`, `render.ts` `paths` |
 | 그림을 바꿨는데 화면이 그대로(캐시) | `render.ts`/`appearance.ts`의 `?v=`, `scripts/verify-item-art.mjs` |
-| 코스튬 제작 방식·앵커·Z-order·스킬 모션 기준을 찾음 | `docs/COSTUME_SYSTEM.md` 및 `docs/TASK_songduckjin.md` 작업 137·138 |
+| 코스튬 제작 방식·앵커·Z-order·스킬 모션 기준을 찾음 | `docs/COSTUME_SYSTEM.md` 및 `docs/TASK_songduckjin.md` 작업 138~142 |
 | 장비창 중앙 미리보기가 실제 장착 장비와 다르거나 몸에서 벗어나 보임 | `ui/equipmentPortrait.ts` `equipmentPortraitPlan`·`renderEquipmentPortrait`·`ui/modals/equipModal.ts`·`items.ts` `wearableEquipmentImage`·`styles/modals.css` |
 | 서버 저장 충돌(409 `SAVE_CONFLICT`) | `database.mjs` `assertRevision`, `sync.ts` `handleError` |
 | 아이템 소유권 충돌(`ITEM_CONFLICT`) | `database.mjs` `reconcileItems`·`identity`·`sameItemBody`(이름만 다르면 서버 이름으로 정리), `items.ts` `migrateItem`(저장 이름 보존), `warehouse.mjs` |
@@ -165,7 +165,7 @@
 - **Turso 전용**: 세이브는 `djrpg_accounts`/`djrpg_characters`(+`_profiles`,`_item_owners`,`_save_versions`,`_save_requests`). **브라우저 localStorage 세이브 금지** — 허용되는 localStorage는 `djrpg.auth.token`(로그인 토큰)과 `djrpg_preferences`(기기 설정)뿐. `.env*`·`TURSO_*`는 커밋·로그·번들 금지.
 - **성별 교차 동기화(현행 구현)**: 기존 `appearance.ts`의 idle/walk/attack/portrait는 남/여 × 투구 유무 × 갑옷 × 무기 조합을 분기하고 `render.ts`의 대응 시트를 사용한다. 기존 외형 코드 수정 시 `tests/appearance.test.mjs`와 `hero-motion`을 확인한다. 신규 코스튬의 성별 공용화·분리 규칙 및 직업 확장 범위는 `docs/COSTUME_SYSTEM.md`와 해당 TASK에서 결정하며, 기존 통합 바디 분기 표를 신규 설계의 선결 조건으로 복제하지 않는다.
 - **현행 외형 구현(전환 대상)**: `appearance.ts`의 통합 바디 시트 선택, `render/entities.ts`의 무기 소켓, `render/gearTint.ts`의 4티어 팔레트는 기존 구현을 설명한다. 신규 장비 제작 시 이 방식을 새 정책으로 복제하지 않는다.
-- **목표 코스튬 정책**: 본체 분리·attach/frames·스킬 모션·도구 비교·프로토타입 완료 조건은 `docs/COSTUME_SYSTEM.md`가 단일 기준이다. 실제 수정 파일과 범위는 `docs/TASK_songduckjin.md` 작업 137·138 및 `docs/TASK.md`에서 확인한다.
+- **목표 코스튬 정책**: 본체 분리·attach/frames·스킬 모션·도구 비교·프로토타입 완료 조건은 `docs/COSTUME_SYSTEM.md`가 단일 기준이다. 실제 수정 파일과 범위는 `docs/TASK_songduckjin.md` 작업 138~142 및 `docs/TASK.md`에서 확인한다.
 - **이미지 교체 시 캐시 버스터**: `/assets/*`는 `Cache-Control: immutable`(`vercel.json`, `public/_headers`). 같은 경로의 PNG를 바꾸면 `render.ts`/`appearance.ts`의 URL에 `?v=N`을 올리고, 장비 아트는 `scripts/verify-item-art.mjs`(=`npm run check`)를 통과시킨다.
 - **세이브 한도**: `save.version === 1`, JSON ≤1MB, 장비 가방 40칸(`EQUIPMENT_BAG_LIMIT`, 스킬북 제외), 장비 슬롯 10칸, 골드 ≤9,000,000,000,000. `store.ts` `parseSave`의 전방 호환(구 세이브 마이그레이션)을 깨지 않는다.
 - **재시도 멱등성**: 저장은 `requestId` + `djrpg_save_requests`, 거래는 `djrpg_market_requests`, 창고는 `djrpg_warehouse_requests`로 재생한다. 결과가 불확실할 때 **새 requestId로 다시 보내지 말고 같은 requestId로 재확인**한다.
