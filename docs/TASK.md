@@ -7,6 +7,7 @@
 
 | 작업 | 담당자 | 브랜치 | 수정 예정 파일 / 영향 영역 | 위험 등급 | 상태 |
 |---|---|---|---|---|---|
-| (진행 중 작업 없음) | — | — | — | — | — |
+| 133 · 보스소개/전용필드 분리 | fks3997 | `feature/world-boss-preview-fks3997` | 신규 rehearsal/field·boss모달/preview·CSS·회귀·문서 / 복제전투 | 주의 | [-] |
+| 134 · 도전안내/순위10/보상구간 | fks3997 | `feature/world-boss-preview-fks3997` | boss모달·presentation·회귀 / UI·순위미연동 | 개인 | [-] |
 
 > 2026-11-17: `[작업 61] 단일 기기 로그인 강제`를 검증·PR 병합으로 마감하고 `docs/TASK_ARCHIVE.md`로 옮겼다.
