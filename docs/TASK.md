@@ -7,6 +7,7 @@
 
 | 작업 | 담당자 | 브랜치 | 수정 예정 파일 / 영향 영역 | 위험 등급 | 상태 |
 |---|---|---|---|---|---|
+| 144 코스튬 동작 싱크 및 아틀라스 캐시 제한 | songduckjin (`codex` 실행) | `codex/144-costume-sync-perf` | `src/game/render/{heroMotion,costumeHero,entities}.ts`, `src/ui/equipmentPortrait.ts`, 코스튬 렌더·장비창 테스트, `docs/COSTUME_SYSTEM.md`, `docs/CODE_MAP.md`, `docs/QUICK_PATCH.md`, 작업 기록 | 중 | [-] |
 
 > 2026-11-19: `[작업 143]` — 코스튬 v3(투구 싱크·몸통 겹침·공격 모션 수정)를 배포했다. 갑옷 착용 시 본체 파츠 3종을 모두 대체하고, 투구 레이어는 머리 창 안의 차이만 남기며, 맨몸용 투구 페이지(`helmet-body-*`)를 추가했다. 자세한 내용은 `docs/COSTUME_SYSTEM.md` §7.5.
 > 2026-11-18: `[작업 142]`를 PR 병합으로 마감하고 완료 이력을 `docs/TASK_ARCHIVE.md`로 옮겼다. `/assets/costume/v2/`에 실물 아틀라스 60장(39MB)과 매니페스트 55종을 배포해 필드·내 정보 미리보기가 코스튬 레이어로 그려진다. 장비 아틀라스도 성별 페이지(`armor-male`·`armor-female`)로 나눴고, 참조 0을 확인한 구형 걷기 시트 5장과 `nav_status_v2.png`만 삭제했다(폴백 참조가 남은 `warrior_equipped_*`·통합 바디 시트는 유지).

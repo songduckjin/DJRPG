@@ -3,7 +3,7 @@
 > 담당 GitHub ID: `songduckjin`
 > 적용 대상: 해당 ID를 사용하는 작업자의 PC 및 Codex
 > 규칙: 본 파일은 지정된 작업자만 수정한다. 상대 작업자의 개인 작업지시서는 수정하지 않는다.
-> 2026-11-18: `[작업 137]`은 PR #73(`6402d79`)으로 main에 병합되어 완료 이력을 `docs/TASK_ARCHIVE.md`로 옮겼다. 이 문서에는 후속 작업 138~142만 남긴다.
+> 2026-11-18: `[작업 137]`은 PR #73(`6402d79`)으로 main에 병합되어 완료 이력을 `docs/TASK_ARCHIVE.md`로 옮겼다. 이 문서에는 후속 작업 138~144와 개인 작업 이력을 둔다.
 
 ## 진행 중 작업
 
@@ -310,6 +310,19 @@
 
 
 ## 다음 작업 대기
+
+### [-] [작업 144] 코스튬 동작 싱크 및 아틀라스 캐시 제한
+- **담당자**: `songduckjin` · **브랜치**: `codex/144-costume-sync-perf` · **위험 등급**: 중 · **상태**: `[-]` 진행 중
+- **목표**: 코스튬 설계의 스킬 회전 규칙과 실제 렌더링을 일치시키고, 필드·장비창 아틀라스 이미지 캐시의 메모리 증가를 제한한다.
+- **수정 예정 파일**: `src/game/render/heroMotion.ts`, `src/game/render/entities.ts`, `src/game/render/costumeHero.ts`, `src/ui/equipmentPortrait.ts`, `tests/hero-motion.test.mjs`, `tests/costume-field-render.test.mjs`, `tests/equipped-detail.test.mjs`, `docs/COSTUME_SYSTEM.md`, `docs/CODE_MAP.md`, `docs/QUICK_PATCH.md`, `docs/TASK.md`, `docs/TASK_songduckjin.md`, `docs/WORKLOG.md`, `docs/TASK_ARCHIVE.md`.
+- **구현 항목**:
+  1. `spin` 스킬은 본체를 360° 회전시키지 않고 회오리·잔상 이펙트로 표현한다. 필드 코스튬·기존 바디 폴백 양쪽에서 본체 회전이 없는지 테스트한다.
+  2. 필드 아틀라스 텍스처·셀 캐시에 상한을 두고, 현재 장비에 필요한 페이지는 고정한 채 오래된 페이지를 안전하게 해제한다. 사용 중인 스프라이트의 텍스처를 먼저 분리하고 Pixi 자산 캐시와 GPU 리소스까지 해제한다.
+  3. 장비창 아틀라스 이미지 캐시에도 상한을 둔다. 현재 합성 중인 페이지가 축출되지 않도록 하고 초상화 결과 LRU(24)는 유지한다.
+  4. 페이지 수·RGBA 텍스처의 상한 메모리를 산출해 기록한다. 실제 모바일 FPS·GPU 메모리를 측정하지 않았다면 실측값으로 기재하지 않는다.
+- **금지**: `world.ts`, Save·DB/API, 코스튬 아틀라스·매니페스트 에셋, 아이템 매핑 변경. 사용자 요청 없이 브라우저 실기·Playwright·Computer Use를 실행하지 않는다.
+- **검증**: `node node_modules/typescript/bin/tsc --noEmit`, `node --test tests/hero-motion.test.mjs tests/costume-field-render.test.mjs tests/costume-manifest.test.mjs tests/equipped-detail.test.mjs`, `node scripts/verify-item-art.mjs`, `git diff --check`.
+- **완료 기준**: 스킬 회전 정책과 두 필드 렌더 경로가 일치하고, 페이지 캐시가 명시된 상한을 넘지 않으며, 축출된 GPU 텍스처를 보유한 참조가 없다. 관련 회귀 검증과 메모리 상한 근거를 기록한다.
 
 ### [x] [작업 138] 코스튬 도구 비교 및 최소 뷰어 프로토타입
 - **담당자**: `songduckjin` · **브랜치**: `task/138-costume-prototype` · **위험 등급**: 중 · **상태**: `[x]` 완료(PR #74) · **착수**: 2026-11-18(작업 137 PR #73 병합 후 `origin/main` 기준)
