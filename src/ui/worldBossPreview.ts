@@ -1,10 +1,10 @@
 import type {BossStanding} from './worldBossPresentation';
 export type BossMotion = 'idle' | 'attack' | 'slam';
-export const BOSS_SHEETS = ['idle','slash','slam-rise','slam-impact'].map(name=>`/assets/world-boss/valkaron-${name}-hd-v1.png`);
+export const BOSS_SHEETS = ['/assets/world-boss/valkaron-idle-hd-v1.png', '/assets/world-boss/valkaron-slash-hd-v2.png', '/assets/world-boss/valkaron-slam-rise-hd-v2.png', '/assets/world-boss/valkaron-slam-swing-hd-v2.png', '/assets/world-boss/valkaron-slam-impact-hd-v2.png'];
 export const BOSS_ART = BOSS_SHEETS[0];
-const footAnchors = [0.9482, 0.9482, 0.9482, 0.9482, 0.95034, 0.95034, 0.95034, 0.95034, 0.96171, 0.94595, 0.94595, 0.94595, 0.94131, 0.94131, 0.94131, 0.96163, 0.91667, 0.91667, 0.91667, 0.91667, 0.93454, 0.93679, 0.93679, 0.93679, 0.97297, 0.97297, 0.97297, 0.96396, 0.96163, 0.96614, 0.96614, 0.96614];
-export function frameSheet(frame:number):string {return BOSS_SHEETS[Math.floor(Math.max(0,Math.min(31,frame))/8)];}
-export function footShift(frame:number):number {return .97-footAnchors[Math.max(0,Math.min(31,Math.floor(frame)))];}
+const footAnchors = [0.9482, 0.94595, 0.9482, 0.94595, 0.94808, 0.94808, 0.94808, 0.94808, 0.95045, 0.95495, 0.95045, 0.95045, 0.96388, 0.95711, 0.95937, 0.95485, 0.91216, 0.91216, 0.91216, 1.0, 0.93228, 0.93454, 0.93454, 0.93228, 0.97973, 0.97973, 0.97973, 0.97973, 0.96388, 0.96388, 0.96388, 0.9684, 0.91892, 0.91892, 0.91892, 0.90541, 0.90745, 0.90745, 0.90971, 0.90971];
+export function frameSheet(frame:number):string {return BOSS_SHEETS[Math.floor(Math.max(0,Math.min(39,frame))/8)];}
+export function footShift(frame:number):number {return .97-footAnchors[Math.max(0,Math.min(39,Math.floor(frame)))];}
 const readySheets = new Set<string>();
 const pendingSheets = new Map<string, Promise<void>>();
 export function preloadBossSheets(): void {
@@ -21,14 +21,14 @@ export function preloadBossSheets(): void {
 export function bossPose(seconds: number): {motion: BossMotion; frame: number; impact: boolean} {
   const phase = Math.max(0, seconds) % 12;
   if (phase >= 9) {
-    const frame = Math.min(15, Math.floor((phase - 9) / 3 * 16));
-    return {motion:'slam', frame:16 + frame, impact:frame >= 9 && frame <= 11};
+    const frame = Math.min(23, Math.floor((phase - 9) / 3 * 24));
+    return {motion:'slam', frame:16 + frame, impact:frame >= 15 && frame <= 18};
   }
   if (phase >= 4 && phase < 5.2) return {motion:'attack', frame:8 + Math.min(7, Math.floor((phase - 4) / 1.2 * 8)), impact:false};
   return {motion:'idle', frame:Math.floor(seconds * 5) % 8, impact:false};
 }
 export function framePosition(frame: number): string {
-  const safe = Math.max(0, Math.min(31, Math.floor(frame)));
+  const safe = Math.max(0, Math.min(39, Math.floor(frame)));
   return `${safe % 4 / 3 * 100}% ${Math.floor(safe % 8 / 4) * 100}%`;
 }
 // Visual rehearsal only: no Save, participation counter, ranking or reward mutation.

@@ -1636,3 +1636,5 @@
 | 139 월드보스 제단·구름·하단 HUD | fks3997 | feature/world-boss-preview-fks3997 | 보스중앙/호흡·구름/하단체력·회피표시만, tsc/10테스트/아트검증 | [x] |
 
 | 140 대기보스 호흡·손끝 움직임 강화 | fks3997 | feature/world-boss-preview-fks3997 | CSS 호흡 확대/앞손 미세회전, tsc·10테스트 | [x] |
+
+| 141 월드보스 전투 배경·색감·일반/내려찍기 모션 | fks3997 | feature/world-boss-preview-fks3997 | Pixi제단/색감보정/하단정보·체력구분/수동회피·자동스킬/24프레임슬램/대기정지. tsc·11테스트·아트검증 | [x] |

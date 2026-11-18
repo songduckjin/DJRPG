@@ -40,3 +40,10 @@ test('reward brackets highlight exactly my tier and show last hit and shared kil
  assert(rows.some(r=>r.children[0].textContent==='마지막 타격 보상'));assert(rows.some(r=>r.children[0].textContent==='공동 처치 보상'));
  }finally{globalThis.document=old;}
 });
+
+test('manual dodge blocks damage briefly, has a cooldown, and never changes the original save',()=>{
+ const save=freshSave('male'),before=JSON.stringify(save),battle=new WorldBossRehearsal(save);
+ battle.elapsed=4.45;const hp=battle.world.player.hp;assert(battle.dodge());assert(!battle.dodge());
+ for(let i=0;i<4;i++)battle.advance(.05);assert.equal(battle.world.player.hp,hp);assert(battle.dodgeCooldown>0);
+ for(let i=0;i<80;i++)battle.advance(.05);assert(battle.dodge());assert.equal(JSON.stringify(save),before);
+});
