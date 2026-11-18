@@ -1,3 +1,8 @@
+## 2026-11-18 · 작업 129 장착 장비 착용형 아트 제작 · Production 배포
+- 검·투구·갑옷·장갑·신발 고유 착용 아트 50프레임을 생성하고, 남녀 idle·이동·공격 중 캐릭터 몸에 부착되도록 렌더링했다. 공백 없는 `낡은가죽두건`도 장비창과 착용 모습에서 정확한 프레임으로 연결된다.
+- `pnpm run check`, 258개 테스트, `pnpm run build`, `git diff --check` 통과. PR #54 (`f77b3bc`)를 main 커밋 `efec6056dca698d17988c522830c6a790fb16ee4`로 병합했다. Cloudflare Pages Production의 `/version.json`에서 `efec6056dca6`, 다섯 착용 아트의 HTTP 200 `image/png` 응답을 확인했다.
+- Cloudflare Pages Preview는 성공했다. 별도 `Workers Builds: djrpg` 검사는 실패했으나 운영 대상인 Pages Production 배포에는 영향이 없었다. 브라우저·모바일 화면 실기는 미확인이다.
+
 ## 2026-11-18 · 작업 128 장착 장비별 캐릭터 외형 적용
 - 투구·갑옷·장갑·신발·검의 기존 아이템 아트를 캐릭터 레이어에 연결해 남녀 idle·이동·공격 모션에 유지했다. 별도 이미지 생성은 필요하지 않았다.
 - 타입 검사, 256개 테스트, 프로덕션 빌드, `git diff --check` 통과. PR #52를 `a5db0e25387abbb6ef3b94d6c613fa936413d3f7`로 main에 병합했다.

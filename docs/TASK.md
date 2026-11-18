@@ -7,6 +7,5 @@
 
 | 작업 | 담당자 | 브랜치 | 수정 예정 파일 / 영향 영역 | 위험 등급 | 상태 |
 |---|---|---|---|---|---|
-| 129 · 장착 장비 착용형 아트 제작 | songduckjin | `codex/129-wearable-gear-assets` | `public/assets/wearable/`, `src/game/items.ts`, `src/game/render.ts`, `src/game/render/entities.ts`, `scripts/verify-item-art.mjs`, 렌더·아이템 매핑 테스트 / 장비창·공격 모션 | 주의(공용 아이템 표시·캐릭터 렌더링) | [-] 다섯 부위별 착용 아트와 이름 매핑 제작 |
 
 > 2026-11-17: `[작업 61] 단일 기기 로그인 강제`를 검증·PR 병합으로 마감하고 `docs/TASK_ARCHIVE.md`로 옮겼다.
