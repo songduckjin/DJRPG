@@ -21,14 +21,6 @@ export function renderAccount(this: Interface, dialog: HTMLElement): void {
     identity.querySelector('b')!.textContent = save.accountId;
     content.appendChild(identity);
     const role = document.createElement('div'); role.className = 'account-line'; role.innerHTML = '<span>직업</span><b>전사</b>'; content.appendChild(role);
-    const gender = document.createElement('div'); gender.className = 'account-gender'; gender.innerHTML = '<span>성별</span>';
-    for (const choice of ['male', 'female'] as const) {
-      const button = document.createElement('button'); button.textContent = choice === 'male' ? '남' : '여';
-      button.classList.toggle('active', save.gender === choice);
-      button.onclick = () => { save.gender = choice; this.world.onChange(); };
-      gender.appendChild(button);
-    }
-    content.appendChild(gender);
     const level = document.createElement('div'); level.className = 'account-progress';
     level.innerHTML = `<b>LV ${save.level >= MAX_LEVEL ? '30 MAX' : save.level}</b><span>${save.level >= MAX_LEVEL ? '100% / MAX' : `${save.exp} / ${expToNext(save.level)} EXP`}</span><div><i style="width:${save.level >= MAX_LEVEL ? 100 : Math.min(100, save.exp / expToNext(save.level) * 100)}%"></i></div>`;
     content.appendChild(level);

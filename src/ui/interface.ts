@@ -20,7 +20,6 @@ import type { World } from '../game/world';
 import type { Session } from './login';
 import { renderStatus, tick, renderBagBadge } from './hud';
 import { renderInventory, itemDetail, salvage, renderEquipment, salvageValue, iconPath } from './modals/equipModal';
-import { renderCharacter } from './modals/statusModal';
 import { renderFloor } from './modals/floorModal';
 import { renderAccount } from './modals/accountModal';
 import { renderSkills } from './modals/skillModal';
@@ -33,11 +32,10 @@ import { loadCharacters, loadWarehouse, renderCharacters, renderCreateCharacter,
 
 const navIcons = {
   market: '<img class="nav-icon" src="/assets/icons/nav_market_v2.png" alt="" aria-hidden="true" />',
-  status: '<img class="nav-icon" src="/assets/icons/nav_status_v2.png" alt="" aria-hidden="true" />',
   equipment: '<img class="nav-icon" src="/assets/icons/nav_equipment_v2.png" alt="" aria-hidden="true" />',
   skills: '<img class="nav-icon" src="/assets/icons/nav_skills_v2.png" alt="" aria-hidden="true" />'
 };
-type Modal = 'worldBoss' | 'status' | 'equipment' | 'skills' | 'account' | 'floor' | 'offline' | 'market' | 'salvage' | 'codex' | 'characters' | 'createCharacter' | 'warehouse' | 'settings' | 'mail' | 'rewards' | 'achievements';
+type Modal = 'worldBoss' | 'equipment' | 'skills' | 'account' | 'floor' | 'offline' | 'market' | 'salvage' | 'codex' | 'characters' | 'createCharacter' | 'warehouse' | 'settings' | 'mail' | 'rewards' | 'achievements';
 export type BagFilter = 'all' | 'weapon' | 'armor' | 'accessory';
 
 export class Interface {
@@ -84,7 +82,7 @@ export class Interface {
     this.market = new Market(sync);
     this.journey = new Journey(sync, world);
     discoverEquipment(world.save);
-    root.innerHTML = `<main class="game-shell"><section class="battle"><div class="battle-canvas"></div><div class="top-hud"></div><button class="world-boss-entry" data-modal="worldBoss" type="button" aria-label="월드보스 미리보기" title="체력과 남은 도전 횟수는 시안입니다"><span class="wb-entry-art" aria-hidden="true"></span><span class="wb-entry-health" aria-hidden="true"><i></i></span><span class="wb-entry-count" aria-hidden="true">3/3</span></button><nav class="utility-nav" aria-label="편의 메뉴">${(['settings','mail','rewards','achievements'] as const).map((kind,index)=>`<button type="button" data-modal="${kind}" aria-label="${['설정','우편함','보상','업적'][index]}" title="${['설정','우편함','보상','업적'][index]}"><img src="/assets/icons/utility_${kind}.png" alt="">${kind==='settings'?'':`<i data-utility-dot="${kind}" hidden></i>`}</button>`).join('')}</nav><div class="tutorial"></div><div class="controls"><div class="action-pad"></div></div></section><nav class="bottom-nav" aria-label="게임 메뉴"><button data-modal="status" type="button" aria-label="내 상태" title="내 상태">${navIcons.status}</button><button data-modal="equipment" type="button" aria-label="장비" title="장비">${navIcons.equipment}<i class="new-badge" hidden></i></button><button data-modal="skills" type="button" aria-label="스킬" title="스킬">${navIcons.skills}<i class="skill-nav-dot" hidden aria-label="장착 또는 강화 가능한 스킬 있음"></i></button><button data-modal="market" type="button" aria-label="거래소" title="거래소">${navIcons.market}<i class="new-badge market-badge" hidden></i></button></nav><div class="modal-backdrop" hidden><div class="modal-dialog" role="dialog" aria-modal="true"></div></div><div class="toast" role="status"></div></main>`;
+    root.innerHTML = `<main class="game-shell"><section class="battle"><div class="battle-canvas"></div><div class="top-hud"></div><button class="world-boss-entry" data-modal="worldBoss" type="button" aria-label="월드보스 미리보기" title="체력과 남은 도전 횟수는 시안입니다"><span class="wb-entry-art" aria-hidden="true"></span><span class="wb-entry-health" aria-hidden="true"><i></i></span><span class="wb-entry-count" aria-hidden="true">3/3</span></button><nav class="utility-nav" aria-label="편의 메뉴">${(['settings','mail','rewards','achievements'] as const).map((kind,index)=>`<button type="button" data-modal="${kind}" aria-label="${['설정','우편함','보상','업적'][index]}" title="${['설정','우편함','보상','업적'][index]}"><img src="/assets/icons/utility_${kind}.png" alt="">${kind==='settings'?'':`<i data-utility-dot="${kind}" hidden></i>`}</button>`).join('')}</nav><div class="tutorial"></div><div class="controls"><div class="action-pad"></div></div></section><nav class="bottom-nav" aria-label="게임 메뉴"><button data-modal="equipment" type="button" aria-label="내 정보" title="내 정보">${navIcons.equipment}<i class="new-badge" hidden></i></button><button data-modal="skills" type="button" aria-label="스킬" title="스킬">${navIcons.skills}<i class="skill-nav-dot" hidden aria-label="장착 또는 강화 가능한 스킬 있음"></i></button><button data-modal="market" type="button" aria-label="거래소" title="거래소">${navIcons.market}<i class="new-badge market-badge" hidden></i></button></nav><div class="modal-backdrop" hidden><div class="modal-dialog" role="dialog" aria-modal="true"></div></div><div class="toast" role="status"></div></main>`;
     this.top = this.get('.top-hud'); this.banner = this.get('.tutorial');
     this.modal = this.get('.modal-backdrop'); this.toast = this.get('.toast');
     this.modalRenderGate = bindModalInteraction(this.modal, window, () => this.renderModal());
@@ -196,13 +194,12 @@ export class Interface {
     dialog.classList.toggle('skills-modal', this.openModal === 'skills');
     dialog.classList.toggle('market-modal', this.openModal === 'market');
     dialog.classList.toggle('utility-modal', ['settings','mail','rewards','achievements'].includes(this.openModal));
-    dialog.classList.toggle('status-modal', this.openModal === 'status');
     dialog.classList.toggle('settings-modal', this.openModal === 'settings');
     dialog.classList.toggle('equipment-modal', this.openModal === 'equipment');
     const scroll = dialog.scrollTop, bagScroll = dialog.querySelector<HTMLElement>('.bag-grid')?.scrollTop ?? 0;
     dialog.replaceChildren();
     const heading = document.createElement('header');
-    heading.innerHTML = `<h2>${{ worldBoss: '월드보스', status: '내 상태', equipment: '장비', skills: '스킬', account: '계정 정보', floor: '층 선택', offline: '오프라인 사냥 정산', market: '거래소', salvage: '분해 확인', codex: '장비 도감', characters: '캐릭터 선택', createCharacter: '새 캐릭터', warehouse: '공용창고', settings: '설정', mail: '우편함', rewards: '보상', achievements: '업적' }[this.openModal]}</h2><button class="modal-close" aria-label="닫기">×</button>`;
+    heading.innerHTML = `<h2>${{ worldBoss: '월드보스', equipment: '내 정보', skills: '스킬', account: '계정 정보', floor: '층 선택', offline: '오프라인 사냥 정산', market: '거래소', salvage: '분해 확인', codex: '장비 도감', characters: '캐릭터 선택', createCharacter: '새 캐릭터', warehouse: '공용창고', settings: '설정', mail: '우편함', rewards: '보상', achievements: '업적' }[this.openModal]}</h2><button class="modal-close" aria-label="닫기">×</button>`;
     bindModalClose(heading.querySelector('button')!, () => this.open(null));
     if (this.openModal === 'equipment' || this.openModal === 'codex') {
       const title = heading.querySelector('h2')!, group = document.createElement('div'); group.className = 'modal-title-group';
@@ -223,7 +220,6 @@ export class Interface {
     if (this.openModal === 'characters') renderCharacters(this, dialog);
     if (this.openModal === 'createCharacter') renderCreateCharacter(this, dialog);
     if (this.openModal === 'warehouse') renderWarehouse(this, dialog);
-    if (this.openModal === 'status') this.renderCharacter(dialog);
     if (this.openModal === 'skills') this.renderSkills(dialog);
     if (this.openModal === 'account') this.renderAccount(dialog);
     if (this.openModal === 'floor') this.renderFloor(dialog);
@@ -236,8 +232,6 @@ export class Interface {
   }
 
   renderEquipment(dialog: HTMLElement): void { return renderEquipment.call(this, dialog); }
-
-  renderCharacter(dialog: HTMLElement): void { return renderCharacter.call(this, dialog); }
 
   renderFloor(dialog: HTMLElement): void { return renderFloor.call(this, dialog); }
 
