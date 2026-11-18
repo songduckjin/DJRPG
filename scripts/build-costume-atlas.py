@@ -1,25 +1,36 @@
 #!/usr/bin/env python3
-"""DJRPG 코스튬 아틀라스 v2 빌더 — [작업 142].
+"""DJRPG 코스튬 아틀라스 v3 빌더 — [작업 143].
 
 `docs/COSTUME_SYSTEM.md` §7.2 배치 규약(셀 234×242, 페이지 2048×2048 8×8=64칸,
 변형당 32칸, 프레임 슬롯 idle 0 · walk 1–8 · attack 9–12 · slash 13–16 · spin 17–22 ·
-smash 23–26 · cast 27–29)으로 `public/assets/costume/v2/`의 매니페스트와 아틀라스
+smash 23–26 · cast 27–29)으로 `public/assets/costume/v3/`의 매니페스트와 아틀라스
 페이지를 만든다.
 
-제작 방식(§6.3 기록): 새 그림을 그리지 않고 `public/assets/`의 기존 2.5D 프리렌더 시트를
+제작 방식(§6.3·§7.5): 새 그림을 그리지 않고 `public/assets/`의 기존 2.5D 프리렌더 시트를
 재료로 쓴다. 성별·모션별로 원본 시트를 같은 규칙(본체 높이 190px, 실루엣 경계 상자 중심 x ·
-발끝 y)으로 셀에 앉히면 시트 사이의 포즈·구도가 거의 일치하므로, 장비 레이어는 원본 그림을
-그대로(위치 보정 없이) 쓰고 팔레트만 바꾼다. 갑옷 레이어가 몸통 파츠를 대체하고(§4),
-투구·장갑·신발은 같은 원본의 머리·손·발 구간만 남긴 조각이라 어떤 조합에서도 본체와
-어긋나지 않는다.
+발끝 y)으로 셀에 앉힌 뒤 장비 레이어를 뽑는다.
+
+v3에서 고친 것(2026-11-19 실기 버그 3건):
+  1. **투구 레이어 = 머리만**. v2는 갑옷 셀의 위쪽 띠(`HEAD_BAND`)를 통째로 투구 레이어에
+     넣어 어깨·몸통 갑주 파편이 함께 그려졌고, 갑옷 시트와의 픽셀 차이도 캔버스 전체에서
+     따서 다리 파편까지 섞였다. v3는 (a) 얼굴 상관(NCC)으로 찾은 머리 위치 기준의 좁은 창
+     안에서만 차이를 뜨고, (b) 그 창의 알파를 지워 머리 밖 픽셀을 전부 없앤다.
+  2. **투구 2D 정렬**. v2는 x 이동만 맞춰(`head_align`) 맨몸+투구에서 머리 높낮이가
+     어긋났다. v3는 투구 시트를 갑옷 시트 좌표로 (dx, dy) 정렬한 뒤, 맨몸용 투구는 다시
+     **맨몸 얼굴 위치**로 옮겨 별도 페이지(`helmet-body-<성별>`)에 넣는다. 갑옷을 입지
+     않은 조합은 렌더러가 그 페이지를 쓴다(§7.5).
+  3. **크롭 경계 잔여물 제거**. 원본 210×210 공격 컷에는 이웃 포즈의 잘린 발·칼끝 조각이
+     섞여 있다. 알파 연결 요소 중 가장 큰 덩어리만 남겨(`clean_fragments`) 셀 안에 남는
+     파편을 없앤다. 공격 계열 칸은 공격 시트에 이미 검이 그려져 있어 `weapon` 레이어를
+     비우고, `cast`도 공격 포즈만 써서 무기가 프레임 중간에 사라졌다 나타나지 않게 한다.
 
 색 변형은 `appearance.ts`의 팔레트 색조를 휘도 램프로 입히고 피부·얼굴·머리카락 픽셀은
 원본을 유지한다(작업 135 품질 가드와 같은 규칙). 무기·문장은 필드 폴백과 같은 아이콘
 아트(`wearable/weapons.png`, `item-art/offhand_0.png`)를 쓴다.
 
-스킬 모션 4종은 기본 공격·대기 포즈를 재배열해 채운다(전용 포즈는 후속 제작 과제).
-
 실행: `python3 scripts/build-costume-atlas.py` (`--preview`는 검수용 접촉 시트만 만든다)
+검수: `python3 scripts/costume-contact-sheet.py --version 3` (배포본 아틀라스를 게임과
+같은 순서로 합성한 접촉 시트)
 """
 
 from __future__ import annotations
@@ -43,7 +54,7 @@ MOTION_ORDER = ['idle', 'walk', 'attack', 'slash', 'spin', 'smash', 'cast']
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ASSETS = os.path.join(ROOT, 'public', 'assets')
-OUT = os.path.join(ASSETS, 'costume', 'v2')
+OUT = os.path.join(ASSETS, 'costume', 'v3')
 
 # ── 팔레트 (src/game/appearance.ts의 armorPalettes·helmetPalettes와 같은 색) ──────
 ARMOR_PALETTES = [
@@ -75,9 +86,36 @@ BOOTS_PALETTES = [
     ('storm', (0x5d, 0x70, 0x8c), .44), ('immortal', (0xd4, 0xaf, 0x37), .50),
 ]
 
-HEAD_BAND = (0.0, 0.21)       # 투구가 덮는 구간(머리)
 HANDS_BAND = (0.38, 0.66)     # 손 후보 구간(그 안의 피부 덩어리만 장갑으로 쓴다)
 FEET_BAND = (0.87, 1.0)       # 발목 아래(신발)
+
+# 투구 창(얼굴 중심 기준 픽셀). 머리 밖 픽셀은 이 창 밖이라 아예 남지 않는다.
+HELMET_WINDOW = {'half_width': 46, 'up': 36, 'down': 28}
+# 크롭 경계 파편 제거: 가장 큰 덩어리 대비 이 비율보다 작은 알파 섬은 버린다.
+FRAGMENT_RATIO = .25
+# 얼굴 상관(NCC) 최소 신뢰도. 이보다 낮으면 다른 아트 계열로 보고 실루엣 정렬로 대체한다.
+FACE_MIN_SCORE = .62
+# 맨몸 셀에서 실루엣 꼭대기(머리카락 위)에서 얼굴 중심까지 거리(px). 여성은 묶은 머리가 높다.
+FACE_CENTER_OFFSET = {'male': 18, 'female': 27}
+
+# 공격 프레임은 검을 머리 위로 올린 포즈라 실루엣 상단이 머리가 아니다(무기를 뺄 수 없다).
+# 갑옷 시트 머리 위치에서 맨몸 시트 머리 위치까지의 이동량(px)을 2026-11-19 접촉 시트로
+# 재서 고정한다. 서기·걷기는 실루엣 상단 중심으로 자동 계산하고, 여기 없는 프레임도 그 값이다.
+# (갑옷 셀 얼굴 중심, 맨몸 셀 얼굴 중심) px.
+# 자동 상관이 빗나가는 프레임만 눈으로 잰 값으로 덮는다(2026-11-19 접촉 시트 검수).
+HEAD_BODY_ATTACK_OVERRIDE = {('female', 1): (117, 58), ('female', 2): (102, 88)}
+# 맨몸 공격 프레임 머리 기준: 남성은 얼굴 상관, 여성은 머리 패치 상관.
+BODY_ATTACK_HEAD_SOURCE = {'male': 'face-ncc', 'female': 'head-ncc'}
+HEAD_ATTACK = {
+    ('male', 0): ((112, 82), (137, 62)),
+    ('male', 1): ((130, 70), (105, 58)),
+    ('male', 2): ((117, 80), (72, 62)),
+    ('male', 3): ((180, 95), (145, 66)),
+    ('female', 0): ((105, 55), (125, 55)),
+    ('female', 1): ((100, 55), (117, 60)),
+    ('female', 2): ((105, 65), (118, 62)),
+    ('female', 3): ((100, 65), (120, 75)),
+}
 
 
 def asset(*parts: str) -> str:
@@ -99,6 +137,137 @@ def row_frames(path: str, count: int) -> list[Image.Image]:
     image = load(path)
     fw = image.width / count
     return [image.crop((round(i * fw), 0, round((i + 1) * fw), image.height)) for i in range(count)]
+
+
+def alpha_mask(cell: Image.Image):
+    import numpy as np
+    return np.array(cell.split()[3]) > 40
+
+
+def components(mask, min_area: int = 1) -> list[tuple[int, int, int, int, int]]:
+    """알파 연결 요소 (면적, x0, y0, x1, y1) 목록. 큰 것부터."""
+    import numpy as np
+    try:
+        import cv2
+    except ImportError:
+        cv2 = None
+    if cv2 is not None:
+        count, labels, stats, _centroids = cv2.connectedComponentsWithStats(mask.astype('uint8'), 8, cv2.CV_32S)
+        out = []
+        for index in range(1, count):
+            area = int(stats[index, cv2.CC_STAT_AREA])
+            if area < min_area:
+                continue
+            x0 = int(stats[index, cv2.CC_STAT_LEFT])
+            y0 = int(stats[index, cv2.CC_STAT_TOP])
+            out.append((area, x0, y0, x0 + int(stats[index, cv2.CC_STAT_WIDTH]) - 1,
+                        y0 + int(stats[index, cv2.CC_STAT_HEIGHT]) - 1))
+        out.sort(reverse=True)
+        return out
+    height, width = mask.shape
+    seen = np.zeros_like(mask, dtype=bool)
+    out: list[tuple[int, int, int, int, int]] = []
+    for start_y in range(height):
+        row = mask[start_y]
+        for start_x in range(width):
+            if not row[start_x] or seen[start_y, start_x]:
+                continue
+            stack = [(start_y, start_x)]
+            seen[start_y, start_x] = True
+            area = 0
+            x0 = x1 = start_x
+            y0 = y1 = start_y
+            while stack:
+                y, x = stack.pop()
+                area += 1
+                x0, x1 = min(x0, x), max(x1, x)
+                y0, y1 = min(y0, y), max(y1, y)
+                for dy in (-1, 0, 1):
+                    for dx in (-1, 0, 1):
+                        ny, nx = y + dy, x + dx
+                        if 0 <= ny < height and 0 <= nx < width and mask[ny, nx] and not seen[ny, nx]:
+                            seen[ny, nx] = True
+                            stack.append((ny, nx))
+            if area >= min_area:
+                out.append((area, x0, y0, x1, y1))
+    out.sort(reverse=True)
+    return out
+
+
+def component_labels(mask):
+    """cv2 연결 요소 라벨(없으면 None). 픽셀 단위로 덩어리를 골라내는 데 쓴다."""
+    try:
+        import cv2
+    except ImportError:
+        return None
+    count, labels, stats, _centroids = cv2.connectedComponentsWithStats(mask.astype('uint8'), 8, cv2.CV_32S)
+    return labels, stats, count
+
+
+def fill_holes(mask):
+    """테두리에서 닿지 않는 빈 칸을 채운다(투구 안쪽 얼굴 구멍 메우기)."""
+    import numpy as np
+    try:
+        import cv2
+    except ImportError:
+        cv2 = None
+    if cv2 is not None:
+        padded = np.zeros((mask.shape[0] + 2, mask.shape[1] + 2), dtype='uint8')
+        padded[1:-1, 1:-1] = mask.astype('uint8')
+        flood = padded.copy()
+        cv2.floodFill(flood, np.zeros((padded.shape[0] + 2, padded.shape[1] + 2), dtype='uint8'), (0, 0), 1)
+        filled = (~(flood[1:-1, 1:-1].astype(bool))) | mask.astype(bool)
+        return filled
+    height, width = mask.shape
+    outside = np.zeros_like(mask, dtype=bool)
+    stack: list[tuple[int, int]] = []
+    for x in range(width):
+        for y in (0, height - 1):
+            if not mask[y, x] and not outside[y, x]:
+                outside[y, x] = True
+                stack.append((y, x))
+    for y in range(height):
+        for x in (0, width - 1):
+            if not mask[y, x] and not outside[y, x]:
+                outside[y, x] = True
+                stack.append((y, x))
+    while stack:
+        y, x = stack.pop()
+        for dy, dx in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            ny, nx = y + dy, x + dx
+            if 0 <= ny < height and 0 <= nx < width and not mask[ny, nx] and not outside[ny, nx]:
+                outside[ny, nx] = True
+                stack.append((ny, nx))
+    return ~outside
+
+
+def clean_fragments(image: Image.Image, ratio: float = FRAGMENT_RATIO) -> Image.Image:
+    """크롭 경계에 섞여 들어온 이웃 포즈 조각(잘린 발·칼끝)을 지운다.
+
+    210×210 공격 컷은 옆 포즈의 일부가 알파 섬으로 남아 있다(실측: 최대 17% 크기).
+    가장 큰 덩어리만 남기면 본체·검은 그대로 두고 파편만 사라진다.
+    """
+    import numpy as np
+    mask = alpha_mask(image)
+    blobs = components(mask, 1)
+    if len(blobs) <= 1:
+        return image
+    largest = blobs[0][0]
+    labelled = component_labels(mask)
+    keep = np.zeros_like(mask)
+    if labelled is None:
+        keep = mask.copy()
+    else:
+        labels, stats, count = labelled
+        import cv2
+        for index in range(1, count):
+            if int(stats[index, cv2.CC_STAT_AREA]) < largest * ratio:
+                continue
+            keep |= labels == index
+    out = image.copy()
+    arr = np.array(out)
+    arr[..., 3] = np.where(keep, arr[..., 3], 0)
+    return Image.fromarray(arr, 'RGBA')
 
 
 def to_cell(image: Image.Image, body_px: float) -> Image.Image:
@@ -125,17 +294,14 @@ def band_rows(y0: float, y1: float) -> tuple[int, int]:
 
 def crop_band(cell: Image.Image, y0: float, y1: float) -> Image.Image:
     """셀에서 높이 구간만 남기고 나머지 알파를 지운다(위치는 그대로)."""
+    import numpy as np
     top, bottom = band_rows(y0, y1)
-    alpha = cell.split()[3].load()
     out = cell.copy()
-    px = out.load()
-    for y in range(CELL_H):
-        if top <= y < bottom:
-            continue
-        for x in range(CELL_W):
-            if px[x, y][3]:
-                px[x, y] = (0, 0, 0, 0)
-    return out
+    arr = np.array(out)
+    band = np.zeros(arr.shape[:2], dtype=bool)
+    band[top:bottom] = True
+    arr[..., 3] = np.where(band, arr[..., 3], 0)
+    return Image.fromarray(arr, 'RGBA')
 
 
 def is_skin(r, g, b):
@@ -174,82 +340,118 @@ def tint(cell: Image.Image, colour: tuple[int, int, int], strength: float) -> Im
 
 
 def hands_only(cell: Image.Image) -> Image.Image:
-    """손 구간 안의 **피부 덩어리**(+ 주변 갑주)만 남긴 장갑 조각.
+    """손 구간의 피부 덩어리 **주변 상자**만 남긴 장갑 조각.
 
-    구간 전체를 자르면 몸통까지 들어와 갑옷 없이 낄 때 배에 갑주 조각이 붙는다.
+    v2는 손 구간 띠 전체를 잘라 가죽 갑주(피부색과 같은 갈색)까지 들어와 갑옷 없이 낄 때
+    배·허벅지에 갑주 판이 붙었다. v3는 피부 덩어리를 찾아 그 상자(±8px)만 남긴다.
     """
     import numpy as np
     top, bottom = band_rows(*HANDS_BAND)
     arr = np.array(cell)
     skin = is_skin(arr[..., 0].astype('float32'), arr[..., 1].astype('float32'), arr[..., 2].astype('float32'))
-    mask = np.zeros(arr.shape[:2], dtype='uint8')
-    mask[top:bottom] = np.where(skin[top:bottom] & (arr[top:bottom, :, 3] > 40), 255, 0)
-    mask_image = Image.fromarray(mask, 'L').filter(ImageFilter.MaxFilter(7)).filter(ImageFilter.GaussianBlur(1.2))
+    skin = skin & (arr[..., 3] > 60)
+    band = np.zeros(arr.shape[:2], dtype=bool)
+    band[top:bottom] = True
+    blobs = [b for b in components(skin & band, 45) if 7 <= b[3] - b[1] <= 34 and 7 <= b[4] - b[2] <= 34]
+    mask = np.zeros(arr.shape[:2], dtype=bool)
+    for _area, x0, y0, x1, y1 in blobs[:2]:
+        mask[max(0, y0 - 8):y1 + 9, max(0, x0 - 8):x1 + 9] = True
+    mask &= band
+    if not mask.any():
+        return Image.new('RGBA', (CELL_W, CELL_H), (0, 0, 0, 0))
+    soft = Image.fromarray((mask * 255).astype('uint8'), 'L').filter(ImageFilter.GaussianBlur(.8))
     out = cell.copy()
-    out.putalpha(Image.composite(cell.split()[3], Image.new('L', (CELL_W, CELL_H), 0), mask_image))
+    out.putalpha(Image.composite(cell.split()[3], Image.new('L', (CELL_W, CELL_H), 0), soft))
     return out
-
-
-def head_centre(cell: Image.Image):
-    """실루엣 위쪽 띠의 중심 x · 상단 y (머리 위치 추정)."""
-    alpha = cell.split()[3]
-    box = alpha.getbbox()
-    if not box:
-        return None
-    px = alpha.load()
-    rows = range(box[1], min(box[3], box[1] + 12))
-    xs = [x for y in rows for x in range(box[0], box[2]) if px[x, y] > 40]
-    if not xs:
-        return None
-    return (min(xs) + max(xs)) / 2, box[1]
-
-
-def head_align(donor: Image.Image, target: Image.Image, limit: int = 12) -> int:
-    """머리 띠 실루엣 상관으로 투구를 갑옷 머리 위에 맞출 좌우 이동량.
-
-    같은 가문(갑옷·투구) 시트끼리는 머리 모양이 거의 같아 상관값이 높다(IoU .83~.91).
-    """
-    import numpy as np
-    top, bottom = band_rows(0.0, 0.26)
-    a = (np.array(target.split()[3]) > 40).astype('uint8')
-    b = (np.array(donor.split()[3]) > 40).astype('uint8')
-    a[:top] = 0
-    a[bottom:] = 0
-    b[:top] = 0
-    b[bottom:] = 0
-    best = (-1.0, 0)
-    for dx in range(-limit, limit + 1):
-        shifted = np.zeros_like(b)
-        if dx >= 0:
-            shifted[:, dx:] = b[:, :CELL_W - dx]
-        else:
-            shifted[:, :CELL_W + dx] = b[:, -dx:]
-        union = ((a | shifted) > 0).sum()
-        if not union:
-            continue
-        score = ((a & shifted) > 0).sum() / union
-        if score > best[0]:
-            best = (score, dx)
-    return best[1]
-
-
-def helmet_diff(helm: Image.Image, armor: Image.Image, body: Image.Image, threshold: int = 46) -> Image.Image:
-    """투구 시트와 갑옷 시트의 차이 → 투구 껍데기(위치는 투구 시트 그대로)."""
-    import numpy as np
-    h = np.array(helm).astype('int')
-    a = np.array(armor).astype('int')
-    changed = (np.abs(h - a).sum(2) > threshold) & (h[..., 3] > 40)
-    out = h.copy()
-    out[..., 3] = np.where(changed, out[..., 3], 0)
-    shell = Image.fromarray(out.astype('uint8'), 'RGBA')
-    dx = head_align(shell, armor)
-    return shift_cell(shell, dx, 0) if dx else shell
 
 
 def shift_cell(cell: Image.Image, dx: int, dy: int) -> Image.Image:
     out = Image.new('RGBA', (CELL_W, CELL_H), (0, 0, 0, 0))
     out.alpha_composite(cell, (dx, dy))
     return out
+
+
+def ncc_map(image, template):
+    """정규화 상호상관 점수 맵. `image`·`template`은 H×W×3 float 배열."""
+    import numpy as np
+    try:
+        import cv2
+    except ImportError:
+        cv2 = None
+    th, tw = template.shape[:2]
+    if image.shape[0] < th or image.shape[1] < tw:
+        return None, th, tw
+    if cv2 is not None:
+        scores = cv2.matchTemplate(image.astype('float32'), template.astype('float32'), cv2.TM_CCOEFF_NORMED)
+        return scores, th, tw
+    from numpy.lib.stride_tricks import sliding_window_view
+    win = sliding_window_view(image, (th, tw, 3))[:, :, 0]
+    centred = win - win.mean(axis=(2, 3, 4), keepdims=True)
+    base = template - template.mean()
+    numerator = (centred * base).sum(axis=(2, 3, 4))
+    denominator = np.sqrt((centred * centred).sum(axis=(2, 3, 4))) * np.sqrt((base * base).sum())
+    with np.errstate(divide='ignore', invalid='ignore'):
+        scores = numerator / denominator
+    return np.nan_to_num(scores, nan=-1.0), th, tw
+
+
+def face_anchor(cell: Image.Image, template) -> tuple[tuple[float, float], float]:
+    """얼굴 상관으로 찾은 머리 중심 (cx, cy)와 상관값.
+
+    상관값이 비슷한 후보가 여러 개면(손·칼자루도 얼굴과 비슷하게 걸린다) 그림의
+    상단 중앙에 가장 가까운 후보를 고른다 — 머리는 항상 거기 있다.
+    """
+    import numpy as np
+    scores, th, tw = ncc_map(np.array(cell).astype('float32')[..., :3], template)
+    box = cell.split()[3].getbbox()
+    if scores is None or box is None:
+        box = box or (0, 0, CELL_W, CELL_H)
+        return ((box[0] + box[2]) / 2, box[1] + 20), 0.0
+    best = float(scores.max())
+    ys, xs = np.where(scores >= best - .05)
+    target_x = (box[0] + box[2]) / 2
+    target_y = box[1] + 24
+    distances = np.hypot((xs + tw / 2) - target_x, (ys + th / 2) - target_y)
+    pick = int(np.argmin(distances))
+    return (float(xs[pick] + tw / 2), float(ys[pick] + th / 2)), best
+
+
+def align_cells(target: Image.Image, donor: Image.Image, limit: int = 22) -> tuple[int, int]:
+    """실루엣 IoU가 가장 높아지는 이동량 — `shift_cell(donor)`가 `target`에 겹친다."""
+    import numpy as np
+    a = alpha_mask(target).astype('uint8')
+    b = alpha_mask(donor).astype('uint8')
+    best = (-1.0, 0, 0)
+    for dy in range(-limit, limit + 1):
+        for dx in range(-limit, limit + 1):
+            shifted = np.zeros_like(b)
+            ys0, ys1 = max(0, dy), min(CELL_H, CELL_H + dy)
+            xs0, xs1 = max(0, dx), min(CELL_W, CELL_W + dx)
+            if ys1 <= ys0 or xs1 <= xs0:
+                continue
+            shifted[ys0:ys1, xs0:xs1] = b[ys0 - dy:ys1 - dy, xs0 - dx:xs1 - dx]
+            intersection = ((a & shifted) > 0).sum()
+            union = ((a | shifted) > 0).sum()
+            if union and intersection / union > best[0]:
+                best = (intersection / union, dx, dy)
+    return best[1], best[2]
+
+
+def tolerant_diff(a: Image.Image, b: Image.Image, threshold: int = 50):
+    """1px 이웃까지 참아 주는 픽셀 차이(재렌더 잡음 제거)."""
+    import numpy as np
+    A = np.array(a).astype('int16')
+    B = np.array(b).astype('int16')
+    best = None
+    for dy in (-1, 0, 1):
+        for dx in (-1, 0, 1):
+            shifted = np.full_like(B, 255)
+            ys0, ys1 = max(0, dy), min(CELL_H, CELL_H + dy)
+            xs0, xs1 = max(0, dx), min(CELL_W, CELL_W + dx)
+            shifted[ys0:ys1, xs0:xs1] = B[ys0 - dy:ys1 - dy, xs0 - dx:xs1 - dx]
+            diff = np.abs(A - shifted).sum(axis=2)
+            best = diff if best is None else np.minimum(best, diff)
+    return best > threshold
 
 
 # ── 원본 시트 표 (경로, 본체 높이 px, 프레임 수[, 'row']) ─────────────────────────
@@ -310,6 +512,9 @@ SOCKETS = {
 }
 SOCKET_ANCHOR = (.18, .82)
 
+# 스킬 모션 4종은 기본 공격 포즈를 재배열해 채운다(전용 포즈는 후속 제작 과제).
+# `cast`도 공격 포즈만 쓴다 — 서기(idle) 칸에는 무기 아이콘이 그려지므로 섞으면
+# 시전 중에 무기가 나타났다 사라진다(v3).
 MOTION_POSES = {
     'idle': [('idle', 0)],
     'walk': [('walk', i) for i in range(8)],
@@ -317,10 +522,12 @@ MOTION_POSES = {
     'slash': [('attack', i) for i in range(4)],
     'spin': [('attack', 0), ('attack', 1), ('attack', 2), ('attack', 3), ('attack', 2), ('attack', 1)],
     'smash': [('attack', 3), ('attack', 2), ('attack', 1), ('attack', 0)],
-    'cast': [('idle', 0), ('attack', 1), ('attack', 0)],
+    'cast': [('attack', 0), ('attack', 1), ('attack', 2)],
 }
 
 _POSE_CACHE: dict[tuple[str, str], dict[str, list[Image.Image]]] = {}
+_FACE_CACHE: dict[str, object] = {}
+_HELMET_CACHE: dict[tuple[str, str, int], tuple[Image.Image, Image.Image]] = {}
 
 
 def poses(gender: str, kind: str) -> dict[str, list[Image.Image]]:
@@ -343,9 +550,219 @@ def poses(gender: str, kind: str) -> dict[str, list[Image.Image]]:
             images = row_frames(paths[0], count)[:count]
         else:
             images = [load(p) for p in paths]
-        result[which] = [to_cell(image, body_px) for image in images]
+        # 원본 컷에 섞인 이웃 포즈 조각은 리샘플(LANCZOS) 뒤 알파가 이어질 수 있어
+        # 셀에 앉힌 뒤 한 번 더 정리한다.
+        result[which] = [clean_fragments(to_cell(clean_fragments(image), body_px)) for image in images]
     _POSE_CACHE[key] = result
     return result
+
+
+def face_template(gender: str):
+    """갑옷(투구 없음) 서기 셀의 얼굴 패치. 모든 셀의 머리 위치를 이 패치로 찾는다."""
+    import numpy as np
+    if gender in _FACE_CACHE:
+        return _FACE_CACHE[gender]
+    idle = poses(gender, 'armor')['idle'][0]
+    arr = np.array(idle).astype('float32')
+    skin = is_skin(arr[..., 0], arr[..., 1], arr[..., 2]) & (arr[..., 3] > 60)
+    candidates = [b for b in components(skin, 30) if 6 <= b[3] - b[1] <= 32 and 6 <= b[4] - b[2] <= 32]
+    candidates.sort(key=lambda b: b[2])
+    if not candidates:
+        raise RuntimeError(f'{gender}: 얼굴 패치를 찾지 못했습니다')
+    _area, x0, y0, x1, y1 = candidates[0]
+    patch = arr[max(0, y0 - 3):y1 + 4, max(0, x0 - 3):x1 + 4, :3].copy()
+    _FACE_CACHE[gender] = patch
+    return patch
+
+
+def silhouette_head(cell: Image.Image) -> tuple[float, float]:
+    """실루엣 상단 중심 = 머리 위치. 서기·걷기 맨몸 셀(무기 없음)에서만 그대로 머리다."""
+    import numpy as np
+    mask = alpha_mask(cell)
+    rows = np.where(mask.any(axis=1))[0]
+    top = int(rows.min())
+    band = mask[top:top + 10]
+    xs = np.where(band.any(axis=0))[0]
+    cx = (xs.min() + xs.max()) / 2 if len(xs) else CELL_W / 2
+    return float(cx), float(top)
+
+
+_HEAD_TEMPLATE: dict[tuple[str, str], object] = {}
+
+
+def head_template(gender: str, family: str):
+    """서기 셀의 머리 패치(머리카락까지 포함). 같은 그림 계열 안에서 머리를 찾는 표본이다."""
+    import numpy as np
+    key = (gender, family)
+    if key in _HEAD_TEMPLATE:
+        return _HEAD_TEMPLATE[key]
+    idle = poses(gender, family)['idle'][0]
+    cx, top = silhouette_head(idle)
+    arr = np.array(idle).astype('float32')[..., :3]
+    x0 = int(max(0, cx - 17))
+    y0 = int(max(0, top - 4))
+    _HEAD_TEMPLATE[key] = arr[y0:y0 + 40, x0:x0 + 34].copy()
+    return _HEAD_TEMPLATE[key]
+
+
+def face_center_in_box(cell: Image.Image, box: tuple[float, float, float, float]) -> tuple[float, float]:
+    """머리 상자 안의 피부 픽셀 무게 중심 = 얼굴 중심(투구 스프라이트와 같은 기준)."""
+    import numpy as np
+    x0, y0, x1, y1 = [int(v) for v in box]
+    x0, y0 = max(0, x0), max(0, y0)
+    x1, y1 = min(CELL_W, x1), min(CELL_H, y1)
+    arr = np.array(cell).astype('float32')
+    skin = is_skin(arr[..., 0], arr[..., 1], arr[..., 2]) & (arr[..., 3] > 60)
+    skin[:y0] = False
+    skin[y1:] = False
+    skin[:, :x0] = False
+    skin[:, x1:] = False
+    ys, xs = np.where(skin)
+    if len(xs) < 20:
+        return (x0 + x1) / 2, (y0 + y1) / 2
+    return float(xs.mean()), float(ys.mean())
+
+
+def head_center(gender: str, which: str, index: int, body: bool = False) -> tuple[float, float]:
+    """그려질 머리의 얼굴 중심. 같은 그림 계열의 머리 패치로 상자를 찾고 그 안의 피부를 잰다."""
+    import numpy as np
+    family = 'body' if body else 'armor'
+    cell = poses(gender, family)[which][index]
+    if body and which != 'attack':
+        # 서기·걷기 맨몸 셀은 무기가 없어 실루엣 꼭대기가 곧 머리다.
+        cx, top = silhouette_head(cell)
+        return cx, top + FACE_CENTER_OFFSET[gender]
+    template = head_template(gender, family)
+    scores, th, tw = ncc_map(np.array(cell).astype('float32')[..., :3], template)
+    y, x = np.unravel_index(np.argmax(scores), scores.shape)
+    score = float(scores[y, x])
+    if body and which == 'attack':
+        # 맨몸 공격 셀은 검·팔이 머리 위로 올라와 머리 패치가 자주 빗나간다. 남성은 얼굴
+        # 패치 상관(0.64~0.68)이 눈으로 확인한 자리와 일치해 그대로 쓰고, 여성은 상관값이
+        # 낮아 눈으로 잰 표(`HEAD_ATTACK`)를 쓴다.
+        if (gender, index) in HEAD_BODY_ATTACK_OVERRIDE:
+            return HEAD_BODY_ATTACK_OVERRIDE[(gender, index)]
+        if BODY_ATTACK_HEAD_SOURCE[gender] == 'table':
+            return HEAD_ATTACK[(gender, index)][1]
+        if BODY_ATTACK_HEAD_SOURCE[gender] == 'head-ncc':
+            head_scores, hth, htw = ncc_map(np.array(cell).astype('float32')[..., :3], head_template(gender, family))
+            hy, hx = np.unravel_index(np.argmax(head_scores), head_scores.shape)
+            return face_center_in_box(cell, (hx, hy, hx + htw, hy + hth))
+        face_scores, fth, ftw = ncc_map(np.array(cell).astype('float32')[..., :3], face_template(gender))
+        fy, fx = np.unravel_index(np.argmax(face_scores), face_scores.shape)
+        if float(face_scores[fy, fx]) >= FACE_MIN_SCORE:
+            x, y, tw, th, score = fx, fy, ftw, fth, float(face_scores[fy, fx])
+        else:
+            return HEAD_ATTACK[(gender, index)][1]
+    elif score < .52:
+        return HEAD_ATTACK.get((gender, index), (CELL_W / 2, BODY_TOP + 30))[0 if not body else 1]
+    return face_center_in_box(cell, (x, y, x + tw, y + th))
+
+
+def raw_helmet(gender: str, which: str, index: int):
+    """투구 시트에서 투구 껍데기만 뽑는다(갑옷 셀 좌표). (mask, placed, anchor)"""
+    import numpy as np
+    armor = poses(gender, 'armor')[which][index]
+    helm = poses(gender, 'helm')[which][index]
+    anchor = head_center(gender, which, index)
+    dx, dy = align_cells(armor, helm)
+    placed = shift_cell(helm, dx, dy)
+
+    half, up, down = HELMET_WINDOW['half_width'], HELMET_WINDOW['up'], HELMET_WINDOW['down']
+    window = np.zeros((CELL_H, CELL_W), dtype=bool)
+    window[max(0, int(anchor[1] - up)):min(CELL_H, int(anchor[1] + down)),
+           max(0, int(anchor[0] - half)):min(CELL_W, int(anchor[0] + half))] = True
+
+    changed = tolerant_diff(placed, armor) & window & alpha_mask(placed)
+    blobs = components(changed, 18)
+    mask = np.zeros((CELL_H, CELL_W), dtype=bool)
+    if not blobs:
+        return mask, placed, anchor
+
+    def distance(blob):
+        _area, x0, y0, x1, y1 = blob
+        dx_ = 0 if x0 <= anchor[0] <= x1 else min(abs(anchor[0] - x0), abs(anchor[0] - x1))
+        dy_ = 0 if y0 <= anchor[1] <= y1 else min(abs(anchor[1] - y0), abs(anchor[1] - y1))
+        return dx_ + dy_
+
+    blobs.sort(key=lambda blob: (distance(blob), -blob[0]))
+    main = blobs[0]
+    labelled = component_labels(changed)
+    if labelled is None:
+        mask = changed.copy()
+    else:
+        labels, stats, count = labelled
+        import cv2
+        for index in range(1, count):
+            x0 = int(stats[index, cv2.CC_STAT_LEFT])
+            y0 = int(stats[index, cv2.CC_STAT_TOP])
+            x1 = x0 + int(stats[index, cv2.CC_STAT_WIDTH]) - 1
+            y1 = y0 + int(stats[index, cv2.CC_STAT_HEIGHT]) - 1
+            if x0 <= main[3] + 1 and x1 >= main[1] - 1 and y0 <= main[4] + 1 and y1 >= main[2] - 1:
+                mask |= labels == index
+    # 투구 안쪽 얼굴은 두 시트에서 같은 픽셀이라 차이에 안 잡힌다. 껍데기 상자 안의 피부를
+    # 메워야 투구가 얼굴을 덮는다.
+    arr = np.array(placed).astype('float32')
+    skin = is_skin(arr[..., 0], arr[..., 1], arr[..., 2]) & alpha_mask(placed)
+    _area, mx0, my0, mx1, my1 = main
+    face_box = np.zeros((CELL_H, CELL_W), dtype=bool)
+    face_box[my0:my1 + 1, mx0:mx1 + 1] = True
+    mask |= skin & face_box
+    mask = fill_holes(mask) & window
+    return mask, placed, anchor
+
+
+_CANONICAL_HELMET: dict[str, tuple[Image.Image, tuple[int, int]]] = {}
+
+
+def canonical_helmet(gender: str) -> tuple[Image.Image, tuple[int, int]]:
+    """성별 투구 스프라이트 한 벌과 그 안의 얼굴 중심.
+
+    투구는 프레임마다 모양이 같으므로, 차이 추출이 가장 잘 된 걷기 프레임 한 장에서 뜬
+    스프라이트를 모든 프레임에 같은 모양으로 얹는다. 프레임별로 따로 뜨면 공격 시트처럼
+    갑옷과 투구 시트의 포즈가 다른 프레임에서 껍데기가 깨진다.
+    """
+    import numpy as np
+    if gender in _CANONICAL_HELMET:
+        return _CANONICAL_HELMET[gender]
+    candidates = []
+    for index in range(8):
+        mask, placed, anchor = raw_helmet(gender, 'walk', index)
+        if mask.sum() >= 200:
+            candidates.append((int(mask.sum()), index, mask, placed))
+    if not candidates:
+        raise RuntimeError(f'{gender}: 투구 껍데기를 찾지 못했습니다')
+    areas = sorted(c[0] for c in candidates)
+    median = areas[len(areas) // 2]
+    _area, index, mask, placed = min(candidates, key=lambda c: abs(c[0] - median))
+    arr = np.array(placed)
+    arr[..., 3] = np.where(mask, arr[..., 3], 0)
+    ys, xs = np.where(mask)
+    x0, x1, y0, y1 = xs.min(), xs.max(), ys.min(), ys.max()
+    sprite = Image.fromarray(arr[y0:y1 + 1, x0:x1 + 1], 'RGBA')
+    # 스프라이트의 기준점은 픽셀 색이 아니라 **뜬 프레임의 머리 기준점**에서 잰다. 그래야
+    # 서기·걷기(추출이 정확한 프레임)와 같은 기준으로 모든 프레임에 얹힌다.
+    anchor = head_center(gender, 'walk', index)
+    face = (int(round(anchor[0] - x0)), int(round(anchor[1] - y0)))
+    print(f'  투구 스프라이트 {gender}: walk{index} {sprite.width}×{sprite.height}, 얼굴 {face}')
+    _CANONICAL_HELMET[gender] = (sprite, face)
+    return sprite, face
+
+
+def helmet_pieces(gender: str, which: str, index: int) -> tuple[Image.Image, Image.Image]:
+    """(갑옷 위 투구, 맨몸 위 투구). 같은 스프라이트를 각 프레임 머리 중심에 얹는다."""
+    key = (gender, which, index)
+    if key in _HELMET_CACHE:
+        return _HELMET_CACHE[key]
+    sprite, face = canonical_helmet(gender)
+    armor_center = head_center(gender, which, index)
+    body_center = head_center(gender, which, index, body=True)
+    layer_armor = Image.new('RGBA', (CELL_W, CELL_H), (0, 0, 0, 0))
+    layer_armor.alpha_composite(sprite, (round(armor_center[0] - face[0]), round(armor_center[1] - face[1])))
+    layer_body = Image.new('RGBA', (CELL_W, CELL_H), (0, 0, 0, 0))
+    layer_body.alpha_composite(sprite, (round(body_center[0] - face[0]), round(body_center[1] - face[1])))
+    _HELMET_CACHE[key] = (layer_armor, layer_body)
+    return layer_armor, layer_body
 
 
 def each_slot():
@@ -358,26 +775,21 @@ def each_slot():
 def make_cells(gender: str, kind: str, part: str, palette) -> list[Image.Image]:
     """본체(kind='body') 또는 장비 레이어 30칸.
 
-    `part`: `full`(본체·갑옷) · `head`(투구) · `hands`(장갑) · `feet`(신발)
+    `part`: `full`(본체·갑옷) · `head`(갑옷 위 투구) · `head-body`(맨몸 위 투구) ·
+    `hands`(장갑) · `feet`(신발)
     """
     layer = poses(gender, kind)
-    body = poses(gender, 'body')
-    armor = poses(gender, 'armor')
     cells: list[Image.Image] = []
     for _m, which, index in each_slot():
-        piece = layer[which][index].copy()
-        if part == 'head':
-            # 투구 레이어 = 갑옷 그림의 머리 구간 + (투구 시트 − 갑옷 시트) 차이로 뽑은 투구.
-            # 갑옷 위에서는 원본 투구 그림과 같은 결과가 되고, 갑옷이 없을 때는 투구를 쓴
-            # 머리가 본체 머리 위에 얹힌다(원본 시트 구도 차이만큼 어긋날 수 있다 — §7.4).
-            base = crop_band(armor[which][index], *HEAD_BAND)
-            helmet_only = helmet_diff(piece, armor[which][index], body[which][index])
-            base.alpha_composite(helmet_only)
-            piece = base
+        if part in ('head', 'head-body'):
+            armor_layer, body_layer = helmet_pieces(gender, which, index)
+            piece = (armor_layer if part == 'head' else body_layer).copy()
         elif part == 'feet':
-            piece = crop_band(piece, *FEET_BAND)
+            piece = crop_band(layer[which][index], *FEET_BAND)
         elif part == 'hands':
-            piece = hands_only(piece)
+            piece = hands_only(layer[which][index])
+        else:
+            piece = layer[which][index].copy()
         if palette:
             piece = tint(piece, palette[1], palette[2])
         cells.append(piece)
@@ -426,22 +838,8 @@ def page_of(slot: str, variant: int) -> tuple[str, int]:
     return (slot if variant < 2 else f'{slot}-{variant // 2 + 1}', (variant % 2) * VARIANT_STRIDE)
 
 
-def pack(build: dict[str, dict[int, list[Image.Image]]]) -> dict[str, Image.Image]:
-    pages: dict[str, dict[int, Image.Image]] = {}
-    for slot, variants in build.items():
-        for variant, cells in variants.items():
-            name, first = page_of(slot, variant)
-            page = pages.setdefault(name, {})
-            for offset, cell in enumerate(cells):
-                page[first + offset] = cell
-    images: dict[str, Image.Image] = {}
-    for name, cells in pages.items():
-        atlas = Image.new('RGBA', (COLUMNS * CELL_W, ROWS * CELL_H), (0, 0, 0, 0))
-        for index, cell in cells.items():
-            column, row = index % COLUMNS, index // COLUMNS
-            atlas.alpha_composite(cell, (column * CELL_W, row * CELL_H))
-        images[name] = atlas
-    return images
+def page_name(slot: str, gender: str, page: int) -> str:
+    return f'{slot}-{gender}' if page == 0 else f'{slot}-{gender}-{page + 1}'
 
 
 def build_manifest() -> dict:
@@ -466,6 +864,7 @@ SLOTS = [
     # (페이지 기본 이름, 원본 가문, 조각, 팔레트, 변형 수)
     ('armor', 'armor', 'full', ARMOR_PALETTES, 10),
     ('helmet', 'helm', 'head', HELMET_PALETTES, 10),
+    ('helmet-body', 'helm', 'head-body', HELMET_PALETTES, 10),
     ('gloves', 'armor', 'hands', GLOVES_PALETTES, 10),
     ('boots', 'armor', 'feet', BOOTS_PALETTES, 10),
     ('weapon', None, 'weapon', None, 10),
@@ -508,7 +907,7 @@ def build_assets() -> None:
         for slot, kind, part, palettes, count in SLOTS:
             for page in range((count + 1) // 2):
                 variants = [v for v in (page * 2, page * 2 + 1) if v < count]
-                name = f'{slot}-{gender}' if page == 0 else f'{slot}-{gender}-{page + 1}'
+                name = page_name(slot, gender, page)
                 entries = []
                 for variant in variants:
                     cells = variant_cells(gender, slot, kind, part, palettes, variant)
@@ -522,7 +921,7 @@ def build_assets() -> None:
 
 
 def preview() -> None:
-    """검수용 접촉 시트: 성별 × 대표 조합을 게임 표시 크기로 나란히 놓는다."""
+    """검수용 접촉 시트: 성별 × 대표 조합을 게임과 같은 순서로 합성한다."""
     os.makedirs('/workspace/downloads', exist_ok=True)
     for gender in ('male', 'female'):
         layers = {f'body-{gender}': {0: make_cells(gender, 'body', 'full', None)}}
@@ -530,43 +929,59 @@ def preview() -> None:
             layers[f'{slot}-{gender}'] = {i: variant_cells(gender, slot, kind, part, palettes, i) for i in range(count)}
         body = layers[f'body-{gender}'][0]
         combos = [
-            ('nude', []),
-            ('nude+wpn0', [('weapon', 0)]),
-            ('armor3+helm3+wpn3', [('armor', 3), ('helmet', 3), ('weapon', 3)]),
-            ('armor7+helm7', [('armor', 7), ('helmet', 7)]),
-            ('armor9+helm9+off4+wpn9', [('armor', 9), ('helmet', 9), ('offhand', 4), ('weapon', 9)]),
-            ('helm0 only', [('helmet', 0)]),
-            ('boots0 only', [('boots', 0)]),
-            ('gloves5 only', [('gloves', 5)]),
-            ('armor3 only', [('armor', 3)]),
-            ('armor3+boots3', [('armor', 3), ('boots', 3)]),
-            ('nude+off2+wpn2', [('offhand', 2), ('weapon', 2)]),
-            ('armor5+helm5+gloves5+boots5', [('armor', 5), ('helmet', 5), ('gloves', 5), ('boots', 5)]),
+            ('nude', {}),
+            ('helm7 only', {'helmet': 7}),
+            ('nude+helm7', {'helmet': 7}),
+            ('nude+helm0', {'helmet': 0}),
+            ('nude+wpn0', {'weapon': 0}),
+            ('armor3 only', {'armor': 3}),
+            ('armor3+helm3', {'armor': 3, 'helmet': 3}),
+            ('armor3+helm3+wpn3', {'armor': 3, 'helmet': 3, 'weapon': 3}),
+            ('armor9+helm9+off4+wpn9', {'armor': 9, 'helmet': 9, 'offhand': 4, 'weapon': 9}),
+            ('gloves3 only', {'gloves': 3}),
+            ('boots4 only', {'boots': 4}),
+            ('armor5+helm5+gloves5+boots5', {'armor': 5, 'helmet': 5, 'gloves': 5, 'boots': 5}),
         ]
-        table = {slot.split('-')[0]: variants for slot, variants in layers.items() if not slot.startswith('body-')}
-        for motion_index, title in ((0, 'idle'), (1, 'walk0'), (4, 'walk3'), (9, 'attack0'), (13, 'slash0')):
-            row = []
-            for label, _ in combos:
+        for motion_index, title in ((0, 'idle'), (4, 'walk3'), (9, 'attack0'), (10, 'attack1'), (13, 'slash0')):
+            frames = []
+            for label, gear in combos:
                 frame = Image.new('RGBA', (CELL_W, CELL_H), (0, 0, 0, 0))
-                frame.alpha_composite(body[motion_index])
-                armor_on = any(slot == 'armor' for slot, _ in dict(combos)[label])
-                if armor_on:
-                    frame = Image.new('RGBA', (CELL_W, CELL_H), (0, 0, 0, 0))
-                for slot, index in dict(combos)[label]:
-                    frame.alpha_composite(table[slot][index][motion_index])
-                row.append(frame)
-            sheet = Image.new('RGBA', (CELL_W * len(row), CELL_H), (128, 112, 86, 255))
-            for i, frame in enumerate(row):
-                sheet.alpha_composite(frame, (i * CELL_W, 0))
+                if 'armor' not in gear:
+                    frame.alpha_composite(body[motion_index])
+                for slot, index in gear.items():
+                    frame.alpha_composite(layers[f'{slot}-{gender}'][index][motion_index])
+                frames.append(frame)
+            from PIL import ImageDraw
+            sheet = Image.new('RGBA', (CELL_W * (len(frames) + 1), CELL_H), (128, 112, 86, 255))
+            draw = ImageDraw.Draw(sheet)
+            for i, frame in enumerate(frames):
+                sheet.alpha_composite(frame, ((i + 1) * CELL_W, 0))
+            for i, (label, _gear) in enumerate(combos):
+                draw.text((4, 4 + i * 12), label, fill=(28, 24, 18, 255))
             sheet.convert('RGB').save(f'/workspace/downloads/_atlas_preview_{gender}_{title}.png')
     print('preview saved')
+
+
+def head_report() -> None:
+    """머리 정렬 진단: 프레임별 머리 중심과 투구 스프라이트 크기를 출력한다."""
+    for gender in ('male', 'female'):
+        for which in ('idle', 'walk', 'attack'):
+            for index in range(len(poses(gender, 'body')[which])):
+                armor_center = head_center(gender, which, index)
+                body_center = head_center(gender, which, index, body=True)
+                print(f'{gender:6s} {which:6s} {index}: 갑옷 머리 ({armor_center[0]:5.1f},{armor_center[1]:5.1f}) · '
+                      f'맨몸 머리 ({body_center[0]:5.1f},{body_center[1]:5.1f}) · '
+                      f'Δ({body_center[0] - armor_center[0]:+.0f},{body_center[1] - armor_center[1]:+.0f})')
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--preview', action='store_true')
+    parser.add_argument('--heads', action='store_true')
     args = parser.parse_args()
     if args.preview:
         preview()
+    elif args.heads:
+        head_report()
     else:
         build_assets()

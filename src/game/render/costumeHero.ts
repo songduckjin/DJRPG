@@ -106,7 +106,10 @@ function variantIndex(manifest: CostumeManifest, definition: CostumeDefinition):
 /**
  * Save의 장비 + 매니페스트 로드 결과 → 그릴 레이어 계획.
  *
- * - 몸통·팔·다리 본체 파츠는 항상 계획에 넣고, 갑옷을 입으면 **몸통 파츠를 갑옷 파츠로 교체**한다(§4 파츠 교체).
+ * - 몸통·팔·다리 본체 파츠는 항상 계획에 넣고, 갑옷을 입으면 **본체 파츠 3종을 모두 갑옷으로 교체**한다
+ *   (§4 파츠 교체). v2는 `torso`만 지워 맨몸 팔·다리가 갑옷 밖으로 삐져나와 다리가 4개처럼 보였다.
+ * - 투구는 머리 위치가 갑옷 셀 기준인지 맨몸 셀 기준인지에 따라 페이지가 다르다:
+ *   갑옷을 입으면 `helmet-<성별>`, 맨몸이면 `helmet-body-<성별>`(§7.5 2D 머리 정렬).
  * - 장비 하나라도 계획이 서지 않으면(폴백 ①②③) 부분 합성하지 않고 전체 폴백을 돌려준다.
  *   반쯤 벗은 실루엣으로 그리는 것보다 기존 통합 바디로 그리는 편이 안전하다(§8).
  */
@@ -151,7 +154,18 @@ export function planHeroCostume(save: Pick<Save, 'gender' | 'equipment'>, load: 
     else equipment.push(layer);
   }
 
-  const layers = armor ? [...body.filter(layer => layer.role !== 'torso'), armor, ...equipment] : [...body, ...equipment];
+  // 갑옷 착용 시 본체 파츠(torso·arms·legs)를 전부 뺐다 — 하나라도 남으면 포즈가 다른
+  // 프레임에서 맨몸 팔·다리가 갑옷 밖으로 나온다(v3 실기 버그).
+  if (armor) {
+    const helmet = equipment.find(layer => layer.role === 'helmet');
+    if (helmet) helmet.page = `helmet-${save.gender}`;
+  } else {
+    // 맨몸 + 투구: 투구를 맨몸 머리에 맞춰 둔 페이지를 쓴다(§7.5).
+    for (const layer of equipment) {
+      if (layer.role === 'helmet') layer.page = `helmet-body-${save.gender}`;
+    }
+  }
+  const layers = armor ? [armor, ...equipment] : [...body, ...equipment];
   layers.sort((a, b) => a.zOrder - b.zOrder);
   return { ok: true, layers };
 }

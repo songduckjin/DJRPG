@@ -16,7 +16,7 @@ export const COSTUME_MANIFEST_SCHEMA_VERSION = 1;
  * 에셋 URL 버전. `public/_headers`가 `/assets/*`를 `immutable`로 고정하므로
  * 매니페스트와 아틀라스는 배포마다 이 값만 올려 URL을 바꾼다(§6.2·§8).
  */
-export const COSTUME_ASSET_VERSION = 2;
+export const COSTUME_ASSET_VERSION = 3;
 
 export const COSTUME_ASSET_BASE_PATH = '/assets/costume';
 

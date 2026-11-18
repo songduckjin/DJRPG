@@ -1,3 +1,14 @@
+# 작업 로그
+
+## 2026-11-19 — 코스튬 아틀라스 v3 (작업 143)
+
+- 덕진 님 폰 실기에서 잡힌 v2 버그 3건을 근본 수정하고 `COSTUME_ASSET_VERSION = 3`으로 배포 경로를 올렸다. `/assets/costume/v3/`에 아틀라스 **70장**(23MB, 1872×1936 = 셀 `234×242` 8×8)과 매니페스트 55종을 커밋하고, 참조 0을 확인한 `public/assets/costume/v2/`(60장·39MB)를 삭제했다.
+- **갑옷 + 본체 겹침**: `src/game/render/costumeHero.ts` `planHeroCostume()`이 갑옷 착용 시 본체 파츠(`torso`·`arms`·`legs`)를 **전부** 뺀다. v2는 `torso`만 빼서 공격 프레임에서 맨몸 팔·다리가 갑옷 밖으로 나왔다.
+- **투구**: 생성기가 얼굴 상관으로 찾은 머리 창 안에서만 차이를 떠 몸통·어깨·다리 파편을 없애고, 투구 한 벌 스프라이트를 프레임별 머리 기준점에 `(dx, dy)`로 얹는다. 갑옷을 입지 않은 조합용 `helmet-body-<성별>` 페이지 10장을 추가하고 렌더러가 갑옷 유무로 페이지를 고른다.
+- **공격 모션**: `clean_fragments()`가 크롭 경계의 이웃 포즈 조각(잘린 발·칼끝)을 지운다(셀 변환 뒤 한 번 더). `cast`는 공격 포즈만 써서 무기가 중간에 사라지지 않게 했고, `gloves`는 손 주변 상자만 남겨 가죽 갑주가 배에 붙던 문제를 없앴다.
+- **검수 도구 신규**: `scripts/costume-contact-sheet.py` — 배포본 아틀라스를 게임과 같은 순서로 합성한 접촉 시트(`--only verify`·`helmets`·`motions`). 남/여 × (맨몸 / 맨몸+낡은 투구 / 갑옷+투구) × (idle / walk / attack)에서 파편·겹침·머리 어긋남 0건을 눈으로 확인했다.
+- 검증: `npx tsc --noEmit`, `node scripts/verify-item-art.mjs`, 전체 `npm test` **360건**, `npm run build`, `git diff --check` 통과. 문서: `docs/COSTUME_SYSTEM.md` v1.5(§7.5 신설), `docs/CODE_MAP.md`·`docs/QUICK_PATCH.md`·`AGENTS.md` 경로 갱신.
+
 ## 2026-11-18 · 작업 142 코스튬 실물 아틀라스 v2 · 레거시 정리
 
 - 담당자 `songduckjin`의 작업지시에 따라 `[작업 139]`~`[작업 141]`의 코스튬 파이프라인에 **실물 에셋**을 붙였다. `/assets/costume/v2/manifest.json`(55종)과 아틀라스 60장(총 39MB, 1872×1936 = 셀 `234×242` 8×8)을 커밋하고 `COSTUME_ASSET_VERSION = 2`로 올려 v1 SPA fallback HTML 캐시를 우회했다.
