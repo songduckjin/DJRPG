@@ -8,6 +8,7 @@
 | 작업 유형 | 수정할 파일 (딱 여기만) | 절대 건드리지 말 것 | 실행할 단건 테스트 |
 |---|---|---|---|
 | 월드보스 배경가림/모션색감 | `src/ui/worldBossField.ts` Pixi배경·`bossFrameTone`, `worldBossPreview.ts`, `styles/world-boss.css` | 불투명캔버스뒤DOM배경·피격전체틴트금지 | `node --test tests/world-boss-preview.test.mjs tests/world-boss-field.test.mjs` |
+| 월드보스 복귀 발미끄럼 | `src/ui/worldBossFooting.ts`, `src/ui/worldBossField.ts` | 최하단y만보정·상체전체확대축소금지 | `node --test tests/world-boss-preview.test.mjs tests/world-boss-field.test.mjs` |
 | 월드보스 깃발·구름 | `src/ui/worldBossWeather.ts`, `src/ui/worldBossField.ts` MeshPlane/색마스크 | 돌/봉변형·보스앞구름금지 | `node --test tests/world-boss-preview.test.mjs tests/world-boss-field.test.mjs` |
 | 월드보스 결과·순위연출 | `src/ui/worldBossResult.ts`, `src/ui/worldBossPresentation.ts`, `src/ui/worldBossField.ts`, `styles/world-boss.css` | 예시실순위표시·결과매프레임재생금지 | `node --test tests/world-boss-preview.test.mjs tests/world-boss-field.test.mjs` |
 | 월드보스 공격주기 | `src/game/worldBossPattern.ts`, `worldBossRehearsal.ts`, `ui/worldBossPreview.ts` | 모션/피해별도시간표·엔진접촉피해중복금지 | `node --test tests/world-boss-preview.test.mjs tests/world-boss-field.test.mjs` |

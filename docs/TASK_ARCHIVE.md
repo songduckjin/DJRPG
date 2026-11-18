@@ -1670,3 +1670,5 @@
 | 156 보스공격5초/광역15·30·45 | fks3997 | feature/world-boss-preview-fks3997 | 단일시간표·광역후2초대기/모션피해VFX동기·접촉피해차단, tsc·22테스트 | [x] |
 
 | 157 실제복귀연결2프레임추가 | fks3997 | feature/world-boss-preview-fks3997 | 반기립→새2장→기립·42프레임/혼합시트/발보정, tsc·23테스트·아트 | [x] |
+
+| 158 복귀 양발 접점 고정 | fks3997 | feature/world-boss-preview-fks3997 | 18쌍실측/하체mesh·상체유지·격자접점검증, tsc·25테스트 | [x] |

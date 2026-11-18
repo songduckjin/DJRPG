@@ -130,3 +130,28 @@ test('standing in contact causes no hidden engine damage between scheduled boss 
  }
  assert.equal(hits,14);assert(battle.finished);
 });
+
+test('slam recovery and both bridge frames keep both soles at the exact idle contacts',async()=>{
+ const {bossFootContacts,plantedBossVertex,plantedBossShift}=await import('../src/ui/worldBossFooting.ts');
+ const target=bossFootContacts[0];
+ for(const frame of [32,33,34,35,36,37,40,41,38,39,0,1,2,3,4,5,6,7]){
+  for(let foot=0;foot<2;foot++){
+   const [x,y]=bossFootContacts[frame][foot],p=plantedBossVertex(frame,x,y);
+   assert(Math.abs(p.x-target[foot][0])<1e-9,`${frame}: horizontal sole contact`);
+   assert(Math.abs(p.y-target[foot][1])<1e-9,`${frame}: vertical sole contact`);
+  }
+  assert.deepEqual(plantedBossVertex(frame,.5,.3),{x:.5,y:.3});assert.equal(plantedBossShift(frame,0),.97-target[0][1]);
+ }
+ assert.deepEqual(plantedBossVertex(12,.4,.8),{x:.4,y:.8});
+});
+
+test('the rendered 24 by 32 mesh interpolation also preserves the planted foot contacts',async()=>{
+ const {bossFootContacts,plantedBossVertex}=await import('../src/ui/worldBossFooting.ts');
+ for(const frame of [37,40,41,38,39,0])for(let f=0;f<2;f++){
+  const [x,y]=bossFootContacts[frame][f],col=Math.floor(x*23),row=Math.floor(y*31),u=x*23-col,v=y*31-row;
+  const corners=[[col/23,row/31],[(col+1)/23,row/31],[col/23,(row+1)/31],[(col+1)/23,(row+1)/31]].map(([a,b])=>plantedBossVertex(frame,a,b));
+  const weights=[(1-u)*(1-v),u*(1-v),(1-u)*v,u*v];
+  const out={x:corners.reduce((s,p,i)=>s+p.x*weights[i],0),y:corners.reduce((s,p,i)=>s+p.y*weights[i],0)};
+  assert(Math.abs(out.x-bossFootContacts[0][f][0])*400<.1);assert(Math.abs(out.y-bossFootContacts[0][f][1])*400<.1);
+ }
+});

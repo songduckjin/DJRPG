@@ -1,9 +1,10 @@
+import {plantedBossVertex,plantedBossShift} from './worldBossFooting';
 import {renderBossResult} from './worldBossResult';
 import {bannerOffset,cloudCenter} from './worldBossWeather';
 import {preferences} from '../game/preferences';
 import {slamParticles} from './worldBossImpact';
 import {WorldBossIntro} from './worldBossIntro';
-import {Assets,ColorMatrixFilter,Graphics,MeshPlane,Rectangle,Sprite,Texture} from 'pixi.js';
+import {Assets,ColorMatrixFilter,Graphics,MeshPlane,Rectangle,Texture} from 'pixi.js';
 import {GameView} from '../game/render';
 import {projectArenaPoint} from '../game/arena';
 import {WorldBossRehearsal} from '../game/worldBossRehearsal';
@@ -82,7 +83,7 @@ export function openWorldBossField(ui:Interface):void {
       const clouds=new Graphics();view.app.stage.addChildAt(clouds,1);
       const tones=frames.map(frame=>bossFrameTone(frame));ownedTones.push(...tones);
       get('.wb-field-loading').hidden=true;
-      const bossSprite=new Sprite(frames[0]);bossSprite.anchor.set(.5,.97);view.actors.addChild(bossSprite);
+      const bossSprite=new MeshPlane({texture:frames[0],verticesX:24,verticesY:32});view.actors.addChild(bossSprite);
       let previous=performance.now();view.app.ticker.maxFPS=60;
       view.app.ticker.add(()=>{
         if(closed)return;if(!field.isConnected){cleanup();return;}
@@ -100,8 +101,15 @@ export function openWorldBossField(ui:Interface):void {
         try{view.draw(session.world,visualTime);}finally{session.world.enemies=enemies;}
         const pose=bossPose(session.elapsed),shownFrame=intro.active?intro.frame:pose.frame,texture=frames[shownFrame];bossSprite.texture=texture;bossSprite.filters=[tones[shownFrame]];
         const h=view.app.screen.height,w=view.app.screen.width,[x,y]=projectArenaPoint(session.boss.x,session.boss.y,w,h);
-        const size=Math.min(w*.82,h*.39);bossSprite.width=size;bossSprite.height=size;
-        bossSprite.position.set(x,y+(intro.active?intro.footShift:footShift(pose.frame))*size);bossSprite.tint=0xffffff;
+        const size=Math.min(w*.82,h*.39);
+        const footBuffer=bossSprite.geometry.getAttribute('aPosition').buffer,vertices=footBuffer.data as Float32Array;
+        for(let row=0;row<32;row++)for(let col=0;col<24;col++){
+          const point=plantedBossVertex(shownFrame,col/23,row/31),i=(row*24+col)*2;
+          vertices[i]=point.x*texture.width;vertices[i+1]=point.y*texture.height;
+        }
+        footBuffer.update();bossSprite.pivot.set(texture.width*.5,texture.height*.97);bossSprite.scale.set(size/texture.width,size/texture.height);
+        const foot=plantedBossShift(shownFrame,intro.active?intro.footShift:footShift(pose.frame));
+        bossSprite.position.set(x,y+foot*size);bossSprite.tint=0xffffff;
         view.actors.setChildIndex(bossSprite,0);
         // Only this dedicated view hides the regular field scenery.
         view.floor.visible=false;view.terrainLayer.visible=false;view.glow.visible=false;view.shade.visible=false;
