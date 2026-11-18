@@ -45,6 +45,103 @@
 - **완료 기준**: 필드 캐릭터가 검 없는 장착 갑옷·투구 통합 서기·걷기 시트(어깨·체형 정상)로 그려지고, 장갑·부츠·갑옷·투구 아이콘이 몸 위에 덧그려지지 않는다. 무기는 서기·걷기 8프레임에서 손 위치를 따라가고 공격 4프레임에서는 공격 시트의 한 자루만 보인다. 검기 색이 장착 무기 등급을 반영한다. 남/여 모두 동일. `heroSockets.ts`가 `Record<ClassId, Record<Gender, …>>` 표로 존재하고 `entities.ts`에 무기 좌표 하드코딩이 없다. 새 시트의 8칸 경계와 본체 높이 검증 후 PR 병합.
 - **동시 작업 확인**: 등록 시점(2026-11-18, `main` = `84a1dd0`) `docs/TASK.md`의 다른 `[-]` 작업은 fks3997의 `[작업 133]`(장비창 미리보기, `ui/`·`public/assets/warrior_equipped*`) 하나이며 수정 파일이 겹치지 않는다. 번호는 134로 올려 잡았다.
 
+### [-] [작업 135] 갑옷·투구 10종 외형 차별화 (4티어 실루엣 + 팔레트 스왑)
+- **등록자**: `songduckjin` · **실행 담당자**: `songduckjin`(`codex` 실행 가능) · **등록일**: 2026-11-18 · **브랜치**: `task/135-armor-tier-palette` · **위험 등급**: 중 · **상태**: `[-]` 등록
+- **선행 조건**: `[작업 134]`(`task/134-field-gear-action`, PR #66 → #68로 마감, `origin/main` = `c0e3b03`)가 끝난 상태에서 **`origin/main` 기준으로 착수**한다. 134가 같은 파일(`src/game/appearance.ts`, `src/game/render/entities.ts`)을 고쳤으므로 반드시 최신 `main`에서 `task/135-armor-tier-palette`를 따고, 134의 검 없는 시트·무기 소켓 계약을 그대로 위에 얹는다. 이 등록 문서는 `docs/135-armor-tier-palette` 브랜치 PR로 올렸고 코드는 건드리지 않았다.
+- **직접 수정**: `src/game/appearance.ts`, `src/game/render/entities.ts`, `src/game/render/gearTint.ts`(신규 — 틴트 캐시 헬퍼), `tests/appearance.test.mjs`, `docs/CODE_MAP.md`(§3·§4 마감 시), `docs/TASK.md`. **간접 영향**: `src/game/render.ts`(티어 시트 키를 경로 표에 넣을 때), `src/game/render/heroScale.ts`(1·3·4티어 전용 시트를 실제로 추가할 때 `heroBodyPx` 실측값), `src/game/items.ts`(`baseItemIndex`를 재사용하려면 **export 추가만** — 동작·시그니처 변경 금지). **건드리지 않음**: `src/ui/equipmentPortrait.ts`·`src/ui/modals/equipModal.ts`([작업 133] 장비창 미리보기), `src/game/store.ts`(세이브 형식), `server/**`, `public/assets/wearable/*`(장비창 착용 아트 시트), `public/assets/item-art/*`(장비창·도감 아이콘 시트).
+- **목표**: 인게임 필드에서 갑옷·투구를 착용하면 지금은 `armored` / `femaleArmoredHelm` 같은 **티어 1종 시트로만** 보인다(장비창은 [작업 133]으로 10종이 이미 구분됨). 실무 게임사 방식대로 **티어당 통합 바디 시트 1장(1 경갑·2 기본 판금·3 상급·4 전설 / 1 경투구·2 철·사슬 헬름·3 상급·4 전설 왕관) + 티어 안 10종의 팔레트 스왑**으로 종류를 구분해, 10종을 다 입어도 필드 실루엣과 색이 눈에 띄게 달라지게 한다. 시트를 10장 더 그리지 않으므로 에셋·로딩 비용은 그대로다.
+- **사용자 결정(2026-11-18)**: 갑옷을 티어 실루엣 + 티어 내 팔레트 스왑으로 나누기로 확정. 이어서 **"근대 투구도 마찬가지야"** — 투구 10종도 같은 방식(티어 실루엣 + 팔레트 스왑)으로 함께 처리한다. 갑옷만 입었을 때·투구만 썼을 때·둘 다일 때 모두 색으로 구분돼야 한다. **티어 수는 3티어에서 4티어(1~4)로 확장 확정** — 1=초반 장비(가죽·징박힌 / 가죽 두건·철제 바시넷), 2=기본 판금(사슬·강철), 3=상급(미스릴·흑요석·용), 4=전설(성기사·패왕 / 발키리·불멸). **색감 변형 시 피부·얼굴·머리카락은 절대 보존**한다(아래 품질 가드).
+- **품질 가드(2026-11-18 추가)**: 색감 변형은 **피부·얼굴·머리카락을 보존**해야 한다. 시트 전체 `source-atop` 틴트만 쓰지 말고 캐시 생성 시점에 `getImageData`로 피부톤 픽셀을 판정해 원본을 유지하고, 갑옷·투구의 무채색·금속·어두운 픽셀에만 목표 팔레트 색조를 입힌다(아래 틴트 캐시 1~3).
+- **배경·근거(현재 코드)**:
+  - `src/game/items.ts` `baseItems.armor`·`baseItems.helmet`은 각 10종이고, `baseItemIndex`가 이름을 NFKC 정규화·공백 제거 후 완전일치/`endsWith`로 대조한다. 레거시 `'낡은 투구'`는 `'심연의 뿔투구'`(index 7)로 매핑된다.
+  - `src/game/appearance.ts` `heroAppearance(save)`는 갑옷·투구 **유무**만 보고(`armed`/`armored`/`femaleHelmet`/`oldHelmet`) 시트 키를 고른다. 갑옷·투구의 **종류**는 시트에 반영되지 않는다(장비창은 `wearableEquipmentImage` 프레임으로 10종 구분).
+  - `drawHero`(`render/entities.ts`)는 `heroAppearance`가 고른 Pixi `Texture`를 그대로 쓰고, 무기는 `syncWeapon`→`heroSockets.ts` 소켓으로 따로 그린다. 텍스처는 `render.ts`가 키 단위로 1번 로드해 공유하므로 **공유 텍스처를 직접 칠하면 다른 캐릭터·다른 상태까지 물든다** → 키 단위 파생 텍스처 캐시가 필요하다.
+  - 공격 시트(`*Attack`)에는 검·검기가 함께 그려져 있어, 바디 전체 틴트를 그대로 걸면 검 색까지 바뀐다(검기 색은 `render/vfx.ts` 담당). 틴트 강도를 프레임 종류별로 달리해야 한다.
+- **설계 스펙**:
+  - **티어 분류(갑옷 `armorTier`: `1 | 2 | 3 | 4`)**:
+    - 1티어(초반 경갑) = `'가죽 조끼'`, `'징박힌 갑옷'`
+    - 2티어(사슬·강철 — **기존 판금 시트의 기본 티어**) = `'사슬 갑옷'`, `'강철 브레스트플레이트'`, `'하프 플레이트'`
+    - 3티어(상급 중갑·용갑주) = `'미스릴 아머'`, `'흑요석 갑주'`, `'드래곤 메일'`
+    - 4티어(최상급 전설) = `'성기사 풀플레이트'`, `'패왕의 전갑'`
+  - **티어 분류(투구 `helmetTier`: `1 | 2 | 3 | 4`)** — 사용자 확정(2026-11-18): 3티어안을 **4티어**로 확장:
+    - 1티어(초반 경투구) = `'가죽 두건'`, `'철제 바시넷'`
+    - 2티어(사슬·강철 헬름 — 기존 시트 기본 티어) = `'사슬 코이프'`, `'기사 헬름'`, `'바이저 투구'`
+    - 3티어(상급 투구) = `'미스릴 그레이트헬름'`, `'용린 투구'`, `'심연의 뿔투구'`
+    - 4티어(전설 왕관) = `'발키리 크라운'`, `'불멸의 왕관'`
+    - 레거시 `'낡은 투구'`는 3티어(`'심연의 뿔투구'`와 같은 팔레트 키 `abyss`)로 두되, 시트는 기존 `*OldHelm` 분기(`heroAppearance`의 `oldHelmet`)를 그대로 유지한다.
+  - **팔레트 표(갑옷)** — 키는 슬롯 안에서 유일해야 한다:
+
+    | 갑옷 | 티어 | `armorPalette` 키 | 톤(예시 RGB) |
+    |---|---|---|---|
+    | 가죽 조끼 | 1 | `leather` | 갈색 `#8a5a32` |
+    | 징박힌 갑옷 | 1 | `studded` | 짙은 황갈 `#6f5a24` |
+    | 사슬 갑옷 | 2 | `chain` | 은회색 `#8d949c` |
+    | 강철 브레스트플레이트 | 2 | `steel` | 기준(무변형, 원본 유지) |
+    | 하프 플레이트 | 2 | `blueSteel` | 청강 `#5d7fa6` |
+    | 미스릴 아머 | 3 | `mithril` | 은백청 `#b9d3e6` |
+    | 흑요석 갑주 | 3 | `obsidian` | 암흑보라 `#3a2b52` |
+    | 드래곤 메일 | 3 | `dragon` | 진홍 `#8f1f22` |
+    | 성기사 풀플레이트 | 4 | `paladin` | 황금 `#c9a63a` |
+    | 패왕의 전갑 | 4 | `overlord` | 자주금 `#5e2a6b` |
+  - **팔레트 표(투구)**:
+
+    | 투구 | 티어 | `helmetPalette` 키 | 톤(예시 RGB) |
+    |---|---|---|---|
+    | 가죽 두건 | 1 | `leather` | 갈색 `#8a5a32` |
+    | 철제 바시넷 | 1 | `iron` | 철회색 `#7d7f83` |
+    | 사슬 코이프 | 2 | `chain` | 은회색 `#8d949c` |
+    | 기사 헬름 | 2 | `steel` | 기준(무변형) |
+    | 바이저 투구 | 2 | `blueSteel` | 청강 `#5d7fa6` |
+    | 미스릴 그레이트헬름 | 3 | `mithril` | 은백청 `#b9d3e6` |
+    | 용린 투구 | 3 | `dragonScale` | 진녹 `#2f6b45` |
+    | 심연의 뿔투구 | 3 | `abyss` | 암흑보라 `#33265a` |
+    | 발키리 크라운 | 4 | `valkyrie` | 백금 `#dfe6ee` (채도 ↓·명도 ↑) |
+    | 불멸의 왕관 | 4 | `immortal` | 황금 `#d4af37` |
+    | (레거시) 낡은 투구 | 3 | `abyss` | 심연의 뿔투구와 동일, 시트는 `*OldHelm` 유지 |
+
+  - **헬퍼 시그니처(`src/game/appearance.ts`)**:
+    ```ts
+    export type GearTier = 1 | 2 | 3 | 4;
+    export type GearPalette = { key: string; tint: number; saturation: number; lightness: number; strength: number };
+    export function armorTier(armor?: EquipmentItem): GearTier | null;
+    export function armorPalette(armor?: EquipmentItem): GearPalette | null;
+    export function helmetTier(helmet?: EquipmentItem): GearTier | null;
+    export function helmetPalette(helmet?: EquipmentItem): GearPalette | null;
+    ```
+    - 판정은 **아이템 이름 → `baseItems[slot]` 인덱스**로만 한다(등급·스탯·id로 추측 금지). `items.ts` `baseItemIndex`와 같은 정규화 규칙(NFKC·공백 제거·`endsWith`)을 쓰고, 중복 구현 대신 `baseItemIndex`를 export해 재사용하는 편을 권장한다. 접두사가 붙은 이름(예: `무결의 강철 브레스트플레이트`)·공백 없는 이름도 같은 키가 나와야 한다. 슬롯이 비면 `null`.
+    - `heroAppearance(save)` 반환값에 **`armorTier`·`armorPalette`·`helmetTier`·`helmetPalette`를 추가**한다(기존 `idle`/`walk`/`attack`/`portrait`/`helmetIntegrated`/`helmet` 키는 이름·의미·값 모두 불변).
+  - **티어 시트 확장·폴백(`appearance.ts` + `render.ts`)**: 시트 선택은 지금의 2티어 판금 시트 id를 그대로 기준으로 두고, `sheetFor(tier, baseId)` 같은 매핑 함수 1곳을 거치게 한다. 매핑에 해당 티어 시트가 없으면(지금은 1·3·4티어 전부) **`baseId`(2티어 판금 시트)를 그대로 반환**해 에러 없이 동작하고 색감만 다르게 입힌다. 1·3·4티어 전용 시트를 나중에 추가할 때는 이 표에 경로를 넣고 `heroScale.ts` `heroBodyPx`에 실측 높이를 넣는 것으로 끝나게 한다(`render.ts`의 `animationPaths`/`attackSheets`/`walkSheets` 로더는 표를 읽기만 한다).
+  - **틴트 캐시(`src/game/render/gearTint.ts` 신규)**:
+    - `tintedGearTexture(sourceKey, armorKey, helmetKey)` → 캐시된 Pixi `Texture`. 키 문자열은 `` `${sourceKey}|${armorKey ?? '-'}|${helmetKey ?? '-'}` ``.
+    - 생성은 **오프스크린 캔버스 1회(캐시 생성 시점에만)** — `getImageData`로 픽셀을 직접 판정해 목표 팔레트를 입힌다. 시트 전체에 단순 `source-atop` 색칠만 덮으면 얼굴·피부까지 붉거나 파랗게 물들어 퀄리티가 망가지므로, **피부·얼굴·머리카락 보호 품질 가드를 반드시 넣는다**:
+      1. **피부톤 픽셀은 원본 그대로 유지** — 따뜻한 살구·피부색 범위(예: `R > G > B`, `R - B > 18`, 밝기 60~245, Hue 약 10~45°, 채도 0.12~0.55)에 드는 픽셀은 **색조를 전혀 입히지 않고 원본 RGB·알파를 복사**한다. 머리카락(어두운 갈색·금발)과 눈·입 선도 같은 규칙으로 보존한다.
+      2. **팔레트는 금속·가죽 픽셀에만 입힌다** — 갑주·투구의 무채색(회색 금속)·어두운 픽셀·이미 팔레트 색상 쪽인 픽셀에만 목표 색조를 섞어 넣고(`amount = strength × 금속도 가중치`), 하이라이트(밝기 245 초과)와 외곽선(밝기 25 미만)은 원본을 유지한다.
+      3. 그 결과 머리 밴드 안의 **얼굴·목 피부**는 투구 팔레트도 입지 않고, 목표 색조는 갑옷·투구의 금속·가죽 면적에만 적용된다(피부 보존은 머리 밴드 분리 합성보다 우선).
+    - 픽셀 작업은 캐시 항목을 **처음 만들 때 1회**뿐이며, 갑옷·투구를 바꾸거나 시트 키가 바뀔 때만 해당 키가 생성된다(모션마다 1회 → 프레임 드롭 없음). `getImageData`는 같은 오리진의 `public/assets` 시트라 CORS taint 없이 동작한다.
+    - **매 프레임 픽셀 루프 금지**: `Map`에 캐시하고 이후에는 캐시된 텍스처를 `drawImage`/Sprite에 그대로 쓴다. 캐시 상한(예: 64개, LRU)을 두고 전투 중 텍스처 재생성으로 프레임이 튀지 않게 한다.
+    - **머리·몸 분리 합성**: 갑옷과 투구는 같은 바디 시트에 함께 그려져 있으므로, 한 장에 두 팔레트를 입히려면 **머리 밴드(프레임 상단 약 22%, `gearTint.ts`의 시트별 상수)** 는 `helmetPalette`, 나머지 영역은 `armorPalette`로 1회 합성한다. 이렇게 해야 ① 갑옷만 → 몸 전체가 갑옷 톤 ② 투구만 → 머리 밴드만 투구 톤 ③ 둘 다 → 몸은 갑옷 톤 + 머리는 투구 톤으로 **세 경우 모두 색이 구분**된다. 머리 밴드 비율은 시트별 상수로 두고 테스트에서 `0 < headBand < .4`를 검사한다.
+    - **공격 시트**: 검·검기가 시트에 그려져 있으므로 `strength`를 서기·걷기의 약 60%로 낮춰 검 색 변화를 최소화한다(검기 색은 `vfx.ts` 담당이므로 이중 표현 금지).
+    - `entities.ts`는 `this.hero.texture`에 원본 대신 `tintedGearTexture(...)` 결과를 넣고, `heroScale`·`anchor`·그림자 반경·무기 소켓(`syncWeapon`)·`heroBodyHeight` 계산은 **원본 텍스처 기준 그대로** 유지한다(틴트 텍스처는 크기가 같다). 잔상(`updateAfterimages`)은 이미 `this.hero.texture`를 복제하므로 자동으로 같은 색을 쓴다.
+  - **불변 계약**:
+    1. 세이브 형식·`store.ts` 변경 없음 — 팔레트는 아이템 이름에서 파생하고 세이브에 저장하지 않는다.
+    2. 장비창(`ui/equipmentPortrait.ts`)·착용 아트 시트(`public/assets/wearable/*`)·도감 아이콘(`item-art/*`)은 손대지 않는다. 2D 아이콘 덧그리기 금지도 그대로다(티어 시트 + 색만).
+    3. 남/여 동시 반영 — `appearance.ts`의 성별 분기와 `hero-motion` 조합 루프를 함께 통과시킨다.
+    4. 다직업 구조 유지 — 새 직업 추가 시 필요한 것은 `appearance.ts` 시트·팔레트 표와 `heroSockets.ts` 소켓 표뿐이고 `entities.ts`는 수정하지 않는다.
+    5. 무기 등급 색(`vfx.ts`)·무기 소켓 좌표는 변경하지 않는다.
+- **테스트(`tests/appearance.test.mjs`)**:
+  1. 갑옷 10종이 `armorTier` **1/1/2/2/2/3/3/3/4/4**로 정확히 분류된다(1~4 각 티어가 최소 1종 이상, 2티어가 3종).
+  2. 갑옷 10종의 `armorPalette.key`가 **서로 다른 10개**다.
+  3. 투구 10종이 `helmetTier` **1/1/2/2/2/3/3/3/4/4**로 분류되고, `helmetPalette.key`가 서로 다른 10개다.
+  4. 레거시 `'낡은 투구'`가 3티어이며 `helmetPalette.key === 'abyss'`(심연의 뿔투구와 동일), `heroAppearance`의 `idle`은 기존 `*OldHelm` 시트를 유지한다.
+  5. 슬롯이 비면 `armorTier`/`armorPalette`/`helmetTier`/`helmetPalette`가 모두 `null`이다.
+  6. 접두사·공백 없는 이름(`무결의강철브레스트플레이트`)도 같은 팔레트 키를 돌려준다.
+  7. 성별 × 투구 × 갑옷 루프에서 `heroAppearance`가 네 필드를 모두 채우고, 기존 `idle`/`walk`/`attack`/`portrait`/`helmetIntegrated` 값은 [작업 134] 이전과 같다.
+  8. `gearTint`의 머리 밴드 상수가 `0 < headBand < .4`이고, (갑옷만 / 투구만 / 둘 다) 세 경우의 캐시 키가 서로 다르다(캔버스가 없는 Node 환경에서는 순수 함수 부분만 검사).
+  9. **피부 보존 판정 함수**(`isSkinPixel(r,g,b)` 같은 순수 함수로 분리)가 살구·피부톤 표본에서 `true`(원본 유지), 강철 회색·흑요석 보라·황금 표본에서 `false`(팔레트 적용)를 돌려준다. 실제 이미지 픽셀 검사는 캔버스가 있는 브라우저 실기·요청 시에만.
+- **검증**: `pnpm exec tsc --noEmit`, `node --test tests/appearance.test.mjs tests/hero-motion.test.mjs tests/hero-weapon-render.test.mjs`, `git diff --check`. 에셋(시트 PNG)을 추가·교체하면 `node scripts/verify-item-art.mjs`와 캐시 버스터(`?v=N`)도 함께. 전체 `npm test`·`npm run build`는 공용 계약을 건드리지 않았으므로 실행하지 않는다. 브라우저·Playwright 실기는 요청 시에만.
+- **완료 기준**: 필드에서 갑옷 10종이 4가지 실루엣(1 경갑·2 기본 판금·3 상급 중갑·4 전설)과 서로 다른 색으로, 투구 10종이 4가지 실루엣(1 경투구·2 철·사슬 헬름·3 상급·4 전설 왕관)과 서로 다른 색으로 보인다. **얼굴·피부·머리카락은 원래 색을 유지**하고 갑옷·투구 면적만 팔레트 색을 띤다. 갑옷만·투구만·둘 다 착용한 세 경우 모두 구분되고, 갑옷과 투구를 같이 입으면 몸과 머리의 갑주 색이 각각의 팔레트를 따른다. 남/여 동일하고 서기·걷기 8프레임·공격 4프레임에서 색이 유지되며 프레임마다 새 텍스처를 만들지 않는다(`(텍스처 키 + 갑옷 팔레트 키 + 투구 팔레트 키)` 캐시). 장비창·도감·아트 시트와 무기 소켓·검기 색은 변하지 않는다. 타입 검사·해당 테스트·`git diff --check` 통과 후 PR 병합.
+- **동시 작업 확인**: 등록 시점 `origin/main` = `c0e3b03`(PR #68로 `[작업 134]` 마감·아카이브). `docs/TASK.md`의 다른 `[-]` 작업은 이 `[작업 135]` 하나뿐이라 파일 충돌이 없다. 번호 135는 등록 시점에 `docs/`·원격 브랜치 어디에도 없음을 확인했다.
+
 ### [x] [작업 129] 장착 장비 착용형 아트 제작
 - **담당자**: `songduckjin`
 - **브랜치**: `codex/129-wearable-gear-assets`
