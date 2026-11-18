@@ -6,6 +6,14 @@
 
 ## 진행 중 작업
 
+### [-] [작업 129] 장착 장비 착용형 아트 제작
+- **담당자**: `songduckjin`
+- **브랜치**: `codex/129-wearable-gear-assets`
+- **목표**: 검·투구·갑옷·장갑·신발 기본형 10종씩 착용용 투명 아트를 제작해 캐릭터 몸에 맞게 표시하고, 장비창의 공백 없는 이름도 정확한 아이템 그림에 연결한다.
+- **직접 수정 예정**: `public/assets/wearable/`, `src/game/items.ts`, `src/game/render.ts`, `src/game/render/entities.ts`, `scripts/verify-item-art.mjs`, 렌더·아이템 매핑 테스트. **간접 영향**: 장비창·장비 도감의 이미지 조회.
+- **위험·충돌**: 주의(공용 아이템 표시·캐릭터 렌더링). 세이브·API 데이터 계약은 변경하지 않는다. 공개 진행 작업과 겹치는 기능은 없다.
+- **완료 기준**: 50개 착용 아트가 슬롯별 프레임으로 검증되고, `낡은가죽두건`과 띄어쓴 이름 모두 같은 고유 프레임을 표시한다. 장비가 아이콘처럼 캐릭터 밖에 떠 보이지 않고, idle·이동·공격에서 본체에 부착된다. 타입 검사·테스트·빌드·diff 통과, PR 병합 및 Cloudflare Pages Production 확인.
+
 ### [x] [작업 128] 장착 장비별 캐릭터 외형 적용
 - **담당자**: `songduckjin`
 - **브랜치**: `codex/128-equipped-gear-appearance`
