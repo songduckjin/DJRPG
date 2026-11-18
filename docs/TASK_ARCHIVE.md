@@ -5,10 +5,13 @@
 
 ---
 
-## [x] [작업 137] 코스튬 시스템 문서 통합 및 프로토타입 기준 정리
+## [x] [작업 137] 코스튬 시스템 문서 통합 및 작업 경로 정리
 
 - **완료일**: 2026-11-18 · **담당자**: `songduckjin` · **브랜치**: `docs/costume-system-rearchitecture` · **PR**: #73
-- 코스튬 정의서와 작업 138 지시서를 등록하고 기존 통합 바디 구현과 신규 코스튬 목표를 분리했다. 문서 diff 검사 및 Cloudflare Pages Preview가 통과했고 PR #73은 `6402d79c3fa014fb419815606fcd022dd1b411a3`로 main에 병합됐다.
+- 코스튬 정책·정의·파일 색인·작업지시를 중복 없이 통합해 `AGENTS.md` → `docs/QUICK_PATCH.md` → `docs/CODE_MAP.md` → `docs/COSTUME_SYSTEM.md` → 개인 작업지시서 순서만으로 수정 위치·금지 범위·진행 단계·검증 기준을 찾을 수 있게 정리했다.
+- 과거 통합 바디 정책(작업 134·135)과 신규 독립형 코스튬 정책을 분리하고, 작업 135 완료·아카이브 이관과 작업 136 Draft 상태를 기록했으며, 작업 138 프로토타입 지시를 `docs/TASK_songduckjin.md`에 작성했다.
+- 수정 파일: `AGENTS.md`, `CONTRIBUTING.md`, `README.md`, `docs/COSTUME_SYSTEM.md`(신규), `docs/CODE_MAP.md`, `docs/QUICK_PATCH.md`, `docs/TASK.md`, `docs/TASK_songduckjin.md`, `docs/TASK_ARCHIVE.md`. 문서 전용 변경이며 게임 코드·런타임 렌더러·Save/DB/API·기존 이미지 에셋은 건드리지 않았다.
+- PR #73이 `6402d79c3fa014fb419815606fcd022dd1b411a3`로 main에 병합됐다. 후속 범위는 `docs/TASK_songduckjin.md`의 작업 138~142로 이관했다.
 
 ---
 

@@ -3,18 +3,9 @@
 > 담당 GitHub ID: `songduckjin`
 > 적용 대상: 해당 ID를 사용하는 작업자의 PC 및 Codex
 > 규칙: 본 파일은 지정된 작업자만 수정한다. 상대 작업자의 개인 작업지시서는 수정하지 않는다.
+> 2026-11-18: `[작업 137]`은 PR #73(`6402d79`)으로 main에 병합되어 완료 이력을 `docs/TASK_ARCHIVE.md`로 옮겼다. 이 문서에는 후속 작업 138~142만 남긴다.
 
 ## 진행 중 작업
-
-### [x] [작업 137] 코스튬 시스템 문서 통합 및 작업 경로 정리
-- **담당자**: `songduckjin` · **브랜치**: `docs/costume-system-rearchitecture` · **위험 등급**: 중 · **상태**: 문서 PR 검토 대기
-- **목표**: 코스튬 정책·정의·파일 색인·작업지시를 중복 없이 통합해 필요한 문서만 빠르게 확인할 수 있게 한다.
-- **수정 파일**: `AGENTS.md`, `CONTRIBUTING.md`, `README.md`, `docs/COSTUME_SYSTEM.md`(신규), `docs/CODE_MAP.md`, `docs/QUICK_PATCH.md`, `docs/TASK.md`, `docs/TASK_songduckjin.md`, `docs/TASK_ARCHIVE.md`.
-- **핵심 정리**: 과거 통합 바디 정책과 신규 목표 정책 분리, 작업 135 완료·아카이브, 작업 136 Draft 상태 기록, 문서 역할별 단일 기준화, 작업 138의 프로토타입 지시 작성.
-- **금지**: 게임 코드·런타임 렌더러·Save/DB/API·기존 이미지 에셋·PR #72 변경 및 PR 병합.
-- **검증**: 문서 링크·작업 번호·작업 135 상태·레거시 정책 충돌 확인, `git diff --check`. 문서 전용이므로 실행하지 않은 게임 테스트를 성공으로 기록하지 않는다.
-- **완료 기준**: AGENTS → QUICK_PATCH → CODE_MAP → COSTUME_SYSTEM → 개인 작업지시서 순서만으로 수정 위치·금지 범위·진행 단계·검증 기준을 찾을 수 있다.
-
 
 ### [x] [작업 134] 필드 캐릭터 통합 바디 복구 및 무기 소켓·액션 자연화
 - **등록자·담당자**: `songduckjin` · **등록일**: 2026-11-18 · **브랜치**: `task/134-field-gear-action` · **위험 등급**: 중 · **상태**: `[x]` 완료
@@ -321,17 +312,89 @@
 ## 다음 작업 대기
 
 ### [-] [작업 138] 코스튬 도구 비교 및 최소 뷰어 프로토타입
-- **담당자**: `songduckjin` · **브랜치**: `task/138-costume-prototype` · **위험 등급**: 중 · **상태**: 작업 137 PR #73 병합 후 착수
+- **담당자**: `songduckjin` · **브랜치**: `task/138-costume-prototype` · **위험 등급**: 중 · **상태**: `[-]` 진행 중(Draft PR #74) · **착수**: 2026-11-18(작업 137 PR #73 병합 후 `origin/main` 기준)
+- **진행 메모**: `task/138-costume-prototype` 브랜치에 뷰어 프로토타입 Draft PR #74가 열려 있다(도구 비교표·SVG 임시 에셋·`model.test.mjs` 포함). 실기 검증과 사용자 확인 전에는 병합하지 않는다.
 - **목표**: 본체 3영역과 장비 1종의 걷기 8프레임을 실제 화면에서 검증하고 스켈레탈 도구와 자체 PixiJS 레이어 방식 중 적합한 구조를 결정한다.
 - **수정 예정 파일**: `tools/costume-viewer/**`(신규), 필요 시 뷰어 전용 임시 에셋과 실제 추가하는 최소 테스트·검증 스크립트. 착수 시 공개 TASK에 파일 범위를 다시 등록한다.
 - **1단계 — 도구 비교**: Spine 공식 PixiJS v8 런타임의 호환성·버전 일치·라이선스·슬롯/스킨/이벤트 기능을 확인한다. DragonBonesJS의 PixiJS 8 호환성을 검증한다. 자체 PixiJS Sprite/Container 방식과 제작 시간·런타임 크기·성능을 비교한다. 선택 전 package.json·lockfile·PixiJS 버전을 변경하지 않는다.
-- **2단계 — 최소 뷰어**: 본체를 머리 포함 몸통/팔/다리 3영역으로 표시하고 무기 이미지 1장을 hand_main 앵커에 부착한다. 걷기 8프레임 재생·수동 프레임 이동·좌우 반전·앵커 표시·본체/무기 레이어 On/Off를 지원한다. 피벗은 발바닥 접지점 중앙으로 두고 최대 동작의 캔버스 크기를 측정한다.
+- **2단계 — 최소 뷰어**: 본체를 머리 포함 몸통/팔/다리 3영역으로 표시하고 무기 이미지 1장을 hand_main 앵커에 부착한다. 걷기 8프레임 재생·수동 프레임 이동·좌우 반전·앵커 표시·본체/무기 레이어 On/Off를 지원한다. 피벗은 발바닥 접지점 중앙으로 두고 최대 동작의 캔버스 크기를 측정한다. 투구·갑옷을 입힌 상태를 함께 만들어 **가림 방식(파츠 가시성 숨김 vs 파츠 교체)** 중 어느 쪽으로 처리되는지 화면에서 확인하고 비교 결과를 남긴다.
 - **3단계 — 제작량 검증**: 한 손 검과 대검 공격 자세를 비교한다. 동일 갑옷 1종을 두 무기 계열에 적용해 프레임 재사용 가능 여부를 확인한다. 투구·망토·신발로 attach/frames 및 Z-order를 검증한다. 네 스킬 템플릿의 장비·이펙트 동기화를 확인한다.
 - **금지 범위**: `src/game/render/**`, `src/game/appearance.ts`, `src/game/store.ts`, `server/**`, `src/ui/**`, 기존 운영 에셋 삭제·대체, Save/API 변경. 실제 게임 렌더러 전환은 별도 후속 작업으로 등록한다.
 - **PR #72 연계**: UI 레이아웃 변경은 재사용 후보로 보존한다. 기존 초상화 구현을 최종 외형 계획으로 고정하거나 사용자 검토 없이 병합하지 않는다.
 - **검증**: TypeScript 검사, 작업에서 실제 추가한 테스트, `git diff --check`. 이미지 추가 시 기존 검증 도구 적용 여부를 확인한다.
-- **완료 기준**: 도구 비교표와 선택 근거, 걷기 8프레임 앵커 검증 결과, 갑옷 재사용 가능 조합, 실제 프레임 제작량 계산 및 v1.1 변경 목록을 남긴다.
-- **진행 기록(2026-11-18)**: PR #73의 137 문서가 main에 병합돼 착수했다. `tools/costume-viewer/`에 독립 PixiJS 뷰어와 코드형 SVG, 8프레임 앵커·무기 계열·레이어 토글, 도구 비교표 및 제작량 민감도 계산을 추가했다. 정적 모델 검증과 화면 실측은 구분한다. 실제 8프레임 아트의 시각 검증·모바일 성능·Spine 대조 구현이 남아 있어 상태는 `[-]`다.
+- **완료 기준**: 도구 비교표와 선택 근거, 걷기 8프레임 앵커 검증 결과, **가림 방식(파츠 숨김 vs 파츠 교체) 검증 결과**, 갑옷 재사용 가능 조합, 실제 프레임 제작량 계산 및 v1.1 변경 목록을 남긴다. 도구 비교는 주관 평가만으로 끝내지 않고 **정량 비교 수치(번들 크기 증가·캐릭터 1기당 Draw Call·모바일 FPS·런타임 메모리)** 를 같은 기기·장면에서 측정해 함께 기록한다(`docs/COSTUME_SYSTEM.md` §5 정량 기록 항목).
+
+### [ ] [작업 139] 코스튬 스펙 v1.1 확정 및 런타임 매니페스트·아이템 매핑 구현
+- **담당자**: `songduckjin` · **예정 브랜치**: `task/139-costume-manifest` · **위험 등급**: 중 · **상태**: 대기
+- **선행 조건**: `[작업 138]`(PR #74, `task/138-costume-prototype`)이 검증·병합되어 도구 비교표와 v1.1 변경 목록이 확정된 뒤 `origin/main` 기준으로 착수한다. 139는 138이 만든 뷰어 결과를 게임 런타임 데이터 계층으로 옮기는 단계이며 `tools/costume-viewer/**`는 게임 코드가 아니다.
+- **목표**: 138 결과를 `docs/COSTUME_SYSTEM.md` v1.1로 확정하고, 게임 런타임에서 `items.ts`의 장비 이름을 `costumeId`로 매핑하는 계층과 매니페스트 로더·폴백을 신규 `src/game/costume/**`에 구현한다. **이 작업에서는 게임 화면이 바뀌지 않는다**(렌더러 미연결).
+- **수정 예정 파일**: `src/game/costume/**`(신규 — 매니페스트 타입·로더·아이템↔`costumeId` 매핑·폴백), `tests/costume-manifest.test.mjs`(신규), `docs/COSTUME_SYSTEM.md`(v1.1), `docs/CODE_MAP.md`·`docs/QUICK_PATCH.md`(신규 모듈 1줄씩). **건드리지 않음**: `src/game/render/**`, `src/game/render.ts`, `src/game/appearance.ts`, `src/game/store.ts`, `server/**`, `src/ui/**`, `public/assets/**`, `src/game/items.ts`(아래 export 추가 예외 외).
+- **구현 항목**:
+  1. **v1.1 확정**: 138에서 실측으로 확인된 사실(캔버스 크기·발 피벗 보정값·가림 방식·도구 선택)만 반영한다. 확인되지 않은 필드는 늘리지 않는다(`COSTUME_SYSTEM.md` §7 매니페스트 초기 범위 유지).
+  2. **아이템 이름 → `costumeId` 매핑**: `items.ts` `baseItems`의 고유 장비 이름 **75종**(10개 슬롯, `ring1`·`ring2`는 같은 5종을 공유하므로 중복 제외)을 매핑표로 만든다. 대조 규칙은 `baseItemIndex`와 같은 **NFKC 정규화 + 공백·제로폭 문자 제거 + 완전일치/`endsWith`** 를 재사용하고, 레거시 `'낡은 투구'` → `'심연의 뿔투구'` 같은 예외를 표에 명시한다. `items.ts`는 **export 추가만** 허용하고 기존 시그니처·동작을 바꾸지 않는다.
+  3. **매니페스트 로더**: 매니페스트 JSON을 1회 로드 → 검증(`schemaVersion`·`costumeId`·`slot`·`animMode`·`anchor` 필수) → 메모리 캐시. Pixi·DOM에 의존하지 않는 순수 모듈로 두어 Node 테스트에서 검증한다.
+  4. **폴백 4경로**: ① 매니페스트 없음 ② JSON 파싱 실패 ③ `costumeId` 미매핑 ④ 아틀라스 로드 실패 — 네 경우 모두 본체가 사라지지 않고 기본 외형으로 그려져야 한다(§8 안전장치). ④는 렌더러 연결 전이라 계약(반환 타입·폴백 플래그)만 정의한다.
+  5. **캐시 버스터**: 매니페스트·아틀라스 URL을 한 상수에서 만들고 버전 경로 또는 `?v=N`을 붙인다. `public/_headers`가 `/assets/*`를 `immutable`로 고정하므로 기존 URL 재사용은 금지(§6.2·§8).
+  6. **스킬 모션 템플릿 매핑표 확정**: `skills.ts`의 액티브 스킬 8종(`skills` 레코드 키 전체 — `slash2`·`spin`·`crushing`·`slam`·`warcry`·`power`·`destroy`·`hell`)을 4대 템플릿에 매핑해 v1.1 표로 확정한다. 아래는 잠정안이며 138 뷰어 확인 결과와 `skillDuration`을 근거로 139에서 확정한다. 패시브 3종(`mastery`·`body`·`instinct`)은 모션이 없어 매핑에서 제외한다.
+
+     | 스킬 ID | 스킬명 | 잠정 템플릿 | 근거 |
+     |---|---|---|---|
+     | `slash2` | 휘두르기 | 베기 | 전방 1회 휘두름 |
+     | `power` | 파워 스트라이크 | 베기 | 좁은 전방 1격 |
+     | `destroy` | 디스트로이 스윙 | 베기 | 전방 검기 발사(발사 자세) |
+     | `spin` | 드래곤 트위스터 | 회전 | 회오리·잔상 중심(본체 360° 회전 없음) |
+     | `crushing` | 딜레이 크러싱 | 내려찍기 | 지연 폭발을 예고하는 내려찍기 |
+     | `slam` | 와일드 스탬프 | 내려찍기 | 지면 강타·균열 |
+     | `warcry` | 블러드 레이지 | 발동 자세 | 6초 버프 발동 |
+     | `hell` | 헬 파이어 소드 | 발동 자세 | 대검 폭발 발동 |
+
+     - 4종으로 표현되지 않는 스킬이 확인되면 템플릿을 늘리지 말고 먼저 보고한다(§3.3).
+- **검증**: `npx tsc --noEmit`, `node --test tests/costume-manifest.test.mjs`(75종 매핑 완전성·이름 대조 예외·폴백 4경로·매니페스트 검증 실패 처리·캐시 버스터 URL·스킬 8종 매핑표), `git diff --check`, `git diff --stat`으로 `render/**`·`ui/**`·`store.ts` 무변경 확인. 전체 `npm test`·`npm run build`는 렌더·UI 계약을 건드리지 않으므로 실행하지 않는다.
+- **완료 기준**: `COSTUME_SYSTEM.md`가 v1.1로 갱신되고 §7 범위 안에서만 필드가 늘어 있다. `src/game/costume/**`가 매니페스트 로드·검증·폴백·아이템 매핑을 제공하고 75종 전부가 `costumeId` 또는 "코스튬 없음"으로 명시된다. 스킬 8종 매핑표가 문서에 남고 4종 템플릿으로 덮인다. 게임 화면·Save·DB/API는 변하지 않는다.
+- **동시 작업 확인**: 등록 시점(2026-11-18, `main` = `6402d79`) `docs/TASK.md`의 다른 작업은 `[작업 136]`(PR #72 Draft)과 `[작업 138]`(PR #74 Draft)이며, 139~142는 순차 진행이라 파일이 겹치지 않는다.
+
+### [ ] [작업 140] 본 게임 필드 렌더러 독립형 코스튬 전환
+- **담당자**: `songduckjin` · **예정 브랜치**: `task/140-costume-field-renderer` · **위험 등급**: 상 · **상태**: 대기
+- **선행 조건**: `[작업 139]` 완료(매니페스트·아이템 매핑 모듈이 main에 있음). 140은 실제 플레이 화면을 바꾸는 첫 작업이므로 139의 매니페스트 계약을 그대로 소비하고 계약을 바꾸지 않는다.
+- **목표**: `src/game/render/entities.ts`, `src/game/render.ts`, `src/game/render/heroMotion.ts`, `src/game/render/heroScale.ts`, `src/game/render/heroSockets.ts`를 독립형 코스튬 렌더러로 전환해 실제 게임 필드에 적용한다.
+- **수정 예정 파일**: 위 5개 파일, `AGENTS.md`, `docs/CODE_MAP.md`, `docs/QUICK_PATCH.md`, `tests/hero-motion.test.mjs`, `tests/hero-weapon-render.test.mjs`, `tests/hero-art.test.mjs`, `tests/appearance.test.mjs`. **건드리지 않음**: `src/game/world.ts`(상태 값 소비만), `src/game/store.ts`, `server/**`, `src/ui/**`([작업 141] 영역), 몬스터·NPC 렌더 경로.
+- **핵심 요구**:
+  1. `world.ts` 상태(대기·걷기·기본 공격·스킬 4종)를 코스튬 렌더러의 모션 선택에 1:1로 연결한다.
+  2. 공격 속도 배율에 따른 시각 재생 배율을 적용하되 전투 판정·월드 위치는 렌더러가 바꾸지 않는다(§3.3).
+  3. 그림자 반경(`heroBodyHeight` 기준), 잔상(`updateAfterimages`), 피격 연출을 기존과 호환되게 유지한다.
+  4. 남/여 동시 검증 — 두 성별이 같은 코드 경로를 통과한다.
+  5. 에셋·매니페스트 로드 실패 시 기본 본체 폴백(§8). 캐릭터가 사라지는 프레임이 없어야 한다.
+  6. 몬스터·NPC 렌더링은 현행 유지.
+  7. `AGENTS.md`·`CODE_MAP.md`·`QUICK_PATCH.md`에 신규 렌더 경로와 파일 위치를 갱신한다.
+- **검증**: `npx tsc --noEmit`, `node --test tests/appearance.test.mjs tests/hero-motion.test.mjs tests/hero-art.test.mjs tests/hero-weapon-render.test.mjs`, `node scripts/verify-item-art.mjs`, `git diff --check`. 모바일 실기 FPS·Draw Call 측정은 142에서 최종 프로파일링하되, 이 작업에서도 대표 장면 1회를 기록한다.
+- **완료 기준**: 필드 캐릭터가 독립형 코스튬 렌더러로 그려지고 대기·걷기 8프레임·기본 공격·스킬 4종이 모두 재생된다. 공격 속도 배율·그림자·잔상·피격 연출이 기존과 같게 동작하고 남/여 모두 확인된다. 로드 실패 시 기본 본체로 폴백한다. 몬스터·NPC 화면은 변하지 않는다. 타입 검사·관련 테스트·이미지 검증·diff 검사 통과 후 PR 병합.
+
+### [ ] [작업 141] 장비창(내 정보) 공용 외형 연동
+- **담당자**: `songduckjin` · **예정 브랜치**: `task/141-costume-ui-sync` · **위험 등급**: 중 · **상태**: 대기
+- **선행 조건**: `[작업 140]` 완료. **PR #72(`[작업 136]`)** 처리와 연계한다 — 136의 UI 레이아웃 개편이 먼저 main에 병합됐으면 초상화 경로만 교체하고, 미병합이면 136 레이아웃을 통합한 뒤 연동한다(136 PR을 이 작업에서 대신 병합하지 않는다).
+- **목표**: `src/ui/equipmentPortrait.ts`를 필드와 **동일한 공용 코스튬 외형 계획**으로 통합하고 임시·종이인형 경로를 제거한다.
+- **수정 예정 파일**: `src/ui/equipmentPortrait.ts`, `src/ui/modals/equipModal.ts`(필요 시), `tests/equipped-detail.test.mjs`, `docs/CODE_MAP.md`·`docs/QUICK_PATCH.md`. **건드리지 않음**: `src/game/render/**`(140 계약 유지), `src/game/store.ts`, `server/**`.
+- **구현 항목**:
+  1. 장비창 미리보기가 필드와 같은 외형 계획(매니페스트·`costumeId`·파츠 정의)을 조회해 그린다. 별도 `fit` 좌표 표·`wearableEquipmentImage` 덧그리기 같은 임시 경로는 제거한다.
+  2. 필드와 미리보기의 차이는 **정지 1프레임**뿐이며, 다른 점은 코드에 주석으로 근거를 남긴다.
+  3. 136이 남긴 티어별 전신 초상화 에셋(`public/assets/warrior_equipped_t{2,3,4}_{male,female}.png`)을 계속 쓸지 공용 외형 계획으로 대체할지 결론을 문서에 남긴다. 대체하면 그 에셋은 142의 정리 후보에 넣는다.
+  4. 캐시: 새 경로도 기존 LRU 상한을 지키고 매 렌더 `getImageData`를 하지 않는다.
+- **검증**: `npx tsc --noEmit`, `node --test tests/equipped-detail.test.mjs tests/appearance.test.mjs tests/modal-ui.test.mjs`, `git diff --check`.
+- **완료 기준**: 장비창 중앙 미리보기가 필드와 같은 공용 외형 계획을 쓰고 임시·종이인형 경로가 코드에 남아 있지 않다. 착용 장비를 바꾸면 미리보기가 즉시 바뀌고, 136의 장비 상세 팝업·가방 동작은 그대로다. 남/여 모두 확인된다.
+
+### [ ] [작업 142] 코스튬 에셋 양산·아틀라스 패킹 및 레거시 리소스 정리
+- **담당자**: `songduckjin` · **예정 브랜치**: `task/142-costume-atlas-cleanup` · **위험 등급**: 중 · **상태**: 대기
+- **선행 조건**: `[작업 141]` 완료. 140·141이 공용 외형 계획으로 실제 동작하는 상태에서만 레거시를 지운다(§2·§8: 참조 검사 없는 삭제 금지).
+- **목표**: 실물 코스튬 에셋 양산 → 아틀라스 패킹 → 모바일 실기 GPU/메모리 프로파일링 → 전체 참조 검사 → 구형 통합 바디 시트·`tools/costume-viewer` 임시 에셋·미사용 레거시 코드를 **안전하게** 삭제.
+- **수정 예정 파일**: `public/assets/**`(코스튬 아틀라스 PNG·매니페스트 JSON 신규/교체), `tools/costume-viewer/**`(임시 에셋 정리), 레거시 코드(참조 0 확인 후), `scripts/verify-item-art.mjs`(아틀라스 검증 추가 시), `docs/CODE_MAP.md`·`docs/QUICK_PATCH.md`·`docs/TASK_ARCHIVE.md`.
+- **작업 내용**:
+  1. **실물 에셋 양산**: 138·139에서 확정한 규격(캔버스·피벗·extrude)으로 본체 3영역 + 무기 계열 2종 + 갑옷·투구 대표분을 만든다. 제작 도구·버전·원본을 기록한다(§6.3).
+  2. **아틀라스 패킹**: 2048×2048 목표, 1~2px extrude, 같은 캐릭터가 함께 쓰는 리소스를 한 아틀라스로 묶는다. 4096은 실기 상한 측정 후에만.
+  3. **캐시 버스터**: 아틀라스 PNG와 매니페스트 JSON 모두 버전 경로 또는 `?v=N`으로 무효화한다(`public/_headers` `/assets/*` `immutable`, §6.2·§8). 배포 후 `/version.json`·아틀라스 HTTP 200을 확인한다.
+  4. **실기 프로파일링**: 대상 모바일에서 대표 전투 장면의 FPS·캐릭터 1기당 Draw Call·텍스처 메모리·번들 증가량을 기록하고 이 작업의 완료 조건으로 남긴다.
+  5. **참조 검사 후 삭제**: 구형 통합 바디 시트, `tools/costume-viewer` 임시 SVG, 미사용 레거시 코드를 후보 목록으로 만들어 `src/`·`tests/`·`scripts/`·`public/` 전체에서 참조 0을 확인한 뒤 삭제한다. 참조가 남은 항목은 삭제하지 않고 목록만 보고한다.
+- **검증**: `npx tsc --noEmit`, `node scripts/verify-item-art.mjs`, **전체** `npm test`·`npm run build`(에셋·레거시 대량 정리 후 최종 회귀 확인), `git diff --check`.
+- **완료 기준**: 아틀라스·매니페스트가 버전 URL로 배포되고 실기 FPS·메모리·Draw Call 수치가 기록된다. 삭제한 모든 파일·코드에 대해 참조 0 근거가 남고, 전체 테스트·프로덕션 빌드가 통과한다. 남은 미사용 후보는 목록으로 보고한다.
 
 ## 작업 등록 양식
 
