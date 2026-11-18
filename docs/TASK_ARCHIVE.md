@@ -5,6 +5,13 @@
 
 ---
 
+## [x] [작업 137] 코스튬 시스템 문서 통합 및 프로토타입 기준 정리
+
+- **완료일**: 2026-11-18 · **담당자**: `songduckjin` · **브랜치**: `docs/costume-system-rearchitecture` · **PR**: #73
+- 코스튬 정의서와 작업 138 지시서를 등록하고 기존 통합 바디 구현과 신규 코스튬 목표를 분리했다. 문서 diff 검사 및 Cloudflare Pages Preview가 통과했고 PR #73은 `6402d79c3fa014fb419815606fcd022dd1b411a3`로 main에 병합됐다.
+
+---
+
 ## [x] [작업 135] 갑옷·투구 10종 4티어 외형 차별화
 
 - **완료일**: 2026-11-18 · **담당자**: `songduckjin` · **브랜치**: `task/135-armor-tier-palette` · **PR**: #71

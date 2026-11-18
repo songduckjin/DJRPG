@@ -6,7 +6,7 @@
 
 ## 진행 중 작업
 
-### [-] [작업 137] 코스튬 시스템 문서 통합 및 작업 경로 정리
+### [x] [작업 137] 코스튬 시스템 문서 통합 및 작업 경로 정리
 - **담당자**: `songduckjin` · **브랜치**: `docs/costume-system-rearchitecture` · **위험 등급**: 중 · **상태**: 문서 PR 검토 대기
 - **목표**: 코스튬 정책·정의·파일 색인·작업지시를 중복 없이 통합해 필요한 문서만 빠르게 확인할 수 있게 한다.
 - **수정 파일**: `AGENTS.md`, `CONTRIBUTING.md`, `README.md`, `docs/COSTUME_SYSTEM.md`(신규), `docs/CODE_MAP.md`, `docs/QUICK_PATCH.md`, `docs/TASK.md`, `docs/TASK_songduckjin.md`, `docs/TASK_ARCHIVE.md`.
@@ -320,8 +320,8 @@
 
 ## 다음 작업 대기
 
-### [ ] [작업 138] 코스튬 도구 비교 및 최소 뷰어 프로토타입
-- **담당자**: `songduckjin` · **예정 브랜치**: `task/138-costume-prototype` · **위험 등급**: 중 · **상태**: 작업 137 PR 검토 및 병합 후 착수
+### [-] [작업 138] 코스튬 도구 비교 및 최소 뷰어 프로토타입
+- **담당자**: `songduckjin` · **브랜치**: `task/138-costume-prototype` · **위험 등급**: 중 · **상태**: 작업 137 PR #73 병합 후 착수
 - **목표**: 본체 3영역과 장비 1종의 걷기 8프레임을 실제 화면에서 검증하고 스켈레탈 도구와 자체 PixiJS 레이어 방식 중 적합한 구조를 결정한다.
 - **수정 예정 파일**: `tools/costume-viewer/**`(신규), 필요 시 뷰어 전용 임시 에셋과 실제 추가하는 최소 테스트·검증 스크립트. 착수 시 공개 TASK에 파일 범위를 다시 등록한다.
 - **1단계 — 도구 비교**: Spine 공식 PixiJS v8 런타임의 호환성·버전 일치·라이선스·슬롯/스킨/이벤트 기능을 확인한다. DragonBonesJS의 PixiJS 8 호환성을 검증한다. 자체 PixiJS Sprite/Container 방식과 제작 시간·런타임 크기·성능을 비교한다. 선택 전 package.json·lockfile·PixiJS 버전을 변경하지 않는다.
