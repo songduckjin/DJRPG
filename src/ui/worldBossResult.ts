@@ -14,13 +14,13 @@ export function exampleBossStanding():BossStanding {
   const make=(rank:number):BossRank=>({rank,name:`예시 전사 ${rank}`,damage:(50-rank)*1000});
   return {top:Array.from({length:10},(_,i)=>make(i+1)),nearMine:[...Array.from({length:9},(_,i)=>make(i+14)),make(24)],mine:{rank:23,name:'내 캐릭터 (예시)',damage:27000,mine:true}};
 }
-export function renderBossResult(parent:HTMLElement,standing:BossStanding|undefined,damage:number,actions:{retry:()=>void;leave:()=>void},example=false):void {
+export function renderBossResult(parent:HTMLElement,standing:BossStanding|undefined,damage:number,actions:{retry:()=>void;leave:()=>void},example=false,live=false):void {
   parent.replaceChildren();const card=document.createElement('section');card.className='wb-result-card';card.setAttribute('aria-label','월드보스 전투 결과');
   const heading=text('h3',example?'순위 연출 예시':'전투 결과');
-  const note=text('p',example?'연출 예시 · 실제 순위나 보상이 아닙니다.':`이번 연습 피해량 ${damage.toLocaleString('ko-KR')} · 기록은 저장되지 않습니다.`,'wb-result-note');
+  const note=text('p',example?'연출 예시 · 실제 순위나 보상이 아닙니다.':live?`이번 피해량 ${damage.toLocaleString('ko-KR')} · 서버 기록 반영 완료 · 보상은 우편함에서 수령`:`이번 연습 피해량 ${damage.toLocaleString('ko-KR')} · 기록은 저장되지 않습니다.`,'wb-result-note');
   card.append(heading,note);
   const mine=standing?.mine,descend=!!mine&&mine.rank>10;
-  if(!mine){
+  if(!mine&&!live){
     card.append(text('p','연습전 · 실제 순위 집계 대기','wb-result-pending'));
     const demo=document.createElement('button');demo.type='button';demo.className='wb-result-demo';demo.textContent='순위 연출 보기 (예시)';
     demo.onclick=()=>renderBossResult(parent,exampleBossStanding(),damage,actions,true);card.append(demo);

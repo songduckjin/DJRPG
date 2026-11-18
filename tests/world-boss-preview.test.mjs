@@ -26,7 +26,7 @@ test('intro shows the sharp shoulder sword and resting hand portrait and challen
  try{for(const gender of ['male','female']){
  const save=freshSave(gender),before=JSON.stringify(save),worldBoss=new WorldBossPreview(),ui={world:{save},worldBoss,renderModal(){},open(value){this.closed=value===null;}},dialog=element();renderWorldBoss(ui,dialog);
  const body=dialog.children[0];assert.match(body.innerHTML,/valkaron-resting-sharp-v2/);assert.match(body.innerHTML,/wb-intro-hand/);assert.equal((body.innerHTML.match(/valkaron-resting-sharp-v2/g)||[]).length,2);assert(!body.innerHTML.includes('wb-hero'));assert(!body.innerHTML.includes('wb-session'));
- const details=body.children[0],panel=details.children.at(-1);const exit=details.children[0].children[1];assert.equal(exit.textContent,'나가기');exit.handlers.click({preventDefault(){},stopPropagation(){}});assert(ui.closed);assert.match(panel.children[0].innerHTML,/계정당 하루 3회/);assert.equal(panel.children.at(-1).textContent,'도전하기');assert.equal(JSON.stringify(save),before);
+ const details=body.children[0],panel=details.children.at(-1);const exit=details.children[0].children[1];assert.equal(exit.textContent,'나가기');exit.handlers.click({preventDefault(){},stopPropagation(){}});assert(ui.closed);assert.match(panel.children[0].innerHTML,/계정당 하루 3회/);assert.equal(panel.children.at(-1).textContent,'연습하기');assert.equal(JSON.stringify(save),before);
  }}finally{globalThis.document=old;}
 });
 
