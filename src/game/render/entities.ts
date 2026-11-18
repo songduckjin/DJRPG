@@ -6,6 +6,7 @@ import { heroAppearance } from '../appearance';
 import { heroAnimationMode, heroMotion } from './heroMotion';
 import { heroScale, heroBodyHeight } from './heroScale';
 import { heroClass, weaponSocket } from './heroSockets';
+import { tintedGearTexture } from './gearTint';
 import type { GameView } from '../render';
 import { wearableEquipmentImage } from '../items';
 
@@ -111,7 +112,10 @@ export function drawHero(this: GameView, world: World, x: number, y: number, tim
     const animatedAttack = animation === 'attack';
     if (animation === 'walk') texture = this.animations[walkArt][walkingFrame];
     else if (animatedAttack && appearance.attack) texture = this.animations[appearance.attack][Math.max(0, attackFrame)];
-    if (this.hero.texture !== texture) this.hero.texture = texture;
+    const textureKey = animation === 'walk' ? `${walkArt}:${walkingFrame}`
+      : animatedAttack && appearance.attack ? `${appearance.attack}:${Math.max(0, attackFrame)}` : swordlessAppearance.idle;
+    const displayTexture = tintedGearTexture(textureKey, texture, appearance.armorPalette, appearance.helmetPalette, animatedAttack);
+    if (this.hero.texture !== displayTexture) this.hero.texture = displayTexture;
     this.hero.anchor.y = animatedAttack ? .97 : moving ? walkAnchors[walkArt][walkingFrame] : (idleAnchors[swordlessAppearance.idle] ?? .996);
     let bob = 0;
     const local = world.effects.filter(effect => effect.kind !== 'hit' && effect.kind !== 'death' && Math.hypot(effect.x - player.x, effect.y - player.y) < 2);

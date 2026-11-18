@@ -1,5 +1,49 @@
 import { equipmentCount } from './bagCapacity';
 import type { Save, Slot } from './store';
+import { baseItemIndex, type EquipmentItem } from './items';
+
+export type GearTier = 1 | 2 | 3 | 4;
+export type GearPalette = { key: string; tint: number; saturation: number; lightness: number; strength: number };
+
+const armorPalettes: readonly GearPalette[] = [
+  { key: 'leather', tint: 0x8a5a32, saturation: .52, lightness: .37, strength: .58 },
+  { key: 'studded', tint: 0x6f5a24, saturation: .48, lightness: .31, strength: .56 },
+  { key: 'chain', tint: 0x8d949c, saturation: .12, lightness: .58, strength: .38 },
+  { key: 'steel', tint: 0x9ba4ad, saturation: .08, lightness: .62, strength: 0 },
+  { key: 'blueSteel', tint: 0x5d7fa6, saturation: .38, lightness: .48, strength: .48 },
+  { key: 'mithril', tint: 0xb9d3e6, saturation: .34, lightness: .79, strength: .42 },
+  { key: 'obsidian', tint: 0x3a2b52, saturation: .44, lightness: .25, strength: .58 },
+  { key: 'dragon', tint: 0x8f1f22, saturation: .62, lightness: .34, strength: .58 },
+  { key: 'paladin', tint: 0xc9a63a, saturation: .58, lightness: .51, strength: .55 },
+  { key: 'overlord', tint: 0x5e2a6b, saturation: .52, lightness: .29, strength: .58 }
+];
+const helmetPalettes: readonly GearPalette[] = [
+  armorPalettes[0],
+  { key: 'iron', tint: 0x7d7f83, saturation: .08, lightness: .49, strength: .42 },
+  armorPalettes[2],
+  { ...armorPalettes[3], key: 'steel' },
+  armorPalettes[4],
+  armorPalettes[5],
+  { key: 'dragonScale', tint: 0x2f6b45, saturation: .48, lightness: .31, strength: .55 },
+  { key: 'abyss', tint: 0x33265a, saturation: .5, lightness: .25, strength: .58 },
+  { key: 'valkyrie', tint: 0xdfe6ee, saturation: .12, lightness: .88, strength: .4 },
+  { key: 'immortal', tint: 0xd4af37, saturation: .6, lightness: .52, strength: .55 }
+];
+const armorTiers: readonly GearTier[] = [1, 1, 2, 2, 2, 3, 3, 3, 4, 4];
+const helmetTiers: readonly GearTier[] = [1, 1, 2, 2, 2, 3, 3, 3, 4, 4];
+
+function gearIndex(item: EquipmentItem | undefined, slot: 'armor' | 'helmet'): number {
+  if (!item || item.slot !== slot) return -1;
+  return baseItemIndex(item);
+}
+export function armorTier(item?: EquipmentItem): GearTier | null { const i = gearIndex(item, 'armor'); return armorTiers[i] ?? null; }
+export function armorPalette(item?: EquipmentItem): GearPalette | null { const i = gearIndex(item, 'armor'); return armorPalettes[i] ?? null; }
+export function helmetTier(item?: EquipmentItem): GearTier | null { const i = gearIndex(item, 'helmet'); return helmetTiers[i] ?? null; }
+export function helmetPalette(item?: EquipmentItem): GearPalette | null {
+  const i = gearIndex(item, 'helmet');
+  if (i < 0 && item?.slot === 'helmet' && item.name.normalize('NFKC').replace(/[\s\u200b\ufeff]/gu, '') === '낡은투구') return helmetPalettes[7];
+  return helmetPalettes[i] ?? null;
+}
 
 // Helmet art is part of the selected body sprites where that appearance exists.
 export function heroAppearance(save: Save) {
@@ -10,6 +54,10 @@ export function heroAppearance(save: Save) {
   const maleArmoredHelmet = maleHelmet && armored;
   const oldHelmet = femaleHelmet && save.equipment.helmet?.name === '낡은 투구';
   return {
+    armorTier: armorTier(save.equipment.armor),
+    armorPalette: armorPalette(save.equipment.armor),
+    helmetTier: helmetTier(save.equipment.helmet),
+    helmetPalette: helmetPalette(save.equipment.helmet),
     idle: oldHelmet ? armored ? 'femaleArmoredOldHelm' as const : armed ? 'femaleSwordOldHelm' as const : 'femaleBaseOldHelm' as const
       : femaleHelmet ? armored ? 'femaleArmoredHelm' as const : armed ? 'femaleSwordHelm' as const : 'femaleBaseHelm' as const
       : maleArmoredHelmet ? 'armored' as const
