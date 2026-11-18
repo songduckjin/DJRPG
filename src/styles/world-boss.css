@@ -1,6 +1,5 @@
-.world-boss-entry {position:absolute;z-index:3;left:12px;top:84px;width:58px;height:58px;padding:1px;border:1px solid #c39b61;border-radius:8px;background:#1d1417;box-shadow:0 1px 7px #000b;touch-action:manipulation;color:#f5d7a4;overflow:hidden;}
-.world-boss-entry .wb-entry-art {position:absolute;inset:1px;background-image:url('/assets/world-boss/valkaron-v1.png');background-size:800% 400%;background-position:0 0;}
-.world-boss-entry b {position:absolute;bottom:1px;left:0;right:0;font-size:9px;background:#160c0ddd;}
+.world-boss-entry {position:absolute;z-index:3;left:12px;top:84px;width:58px;height:58px;padding:0;border:0;border-radius:0;background:transparent;box-shadow:none;touch-action:manipulation;overflow:hidden;}
+.world-boss-entry .wb-entry-art {position:absolute;width:116px;height:116px;left:-29px;top:-2px;background-image:url('/assets/world-boss/valkaron-v1.png');background-size:800% 400%;background-position:0 0;background-repeat:no-repeat;pointer-events:none;}
 .world-boss-modal {width:min(460px,100%);padding:10px;background:linear-gradient(125deg,#372522,#171316 70%);border:1px solid #b58b51;box-shadow:0 0 0 3px #241a16,0 12px 55px #000e;}
 .world-boss-modal > header {position:sticky;top:-10px;z-index:5;background:#2b1d1e;margin-bottom:2px;}
 .world-boss-modal > header h2 {color:#f0d2a0;letter-spacing:3px;font-size:24px;margin:0;}
