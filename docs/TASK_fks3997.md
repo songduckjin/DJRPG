@@ -6,11 +6,10 @@
 
 ## 진행 중 작업
 
-## [-] [작업 133] 장비창 실제 착용 캐릭터 이미지
+## [x] [작업 133] 장비창 실제 착용 캐릭터 이미지
 - fks3997 · 2026-11-18 · `task/133-equipped-character-art`
-- 목표: 모든 장비 조합에서 장비창 중앙의 분리된 장비 레이어를 없애고, 장착 상태가 한 장에 완성된 캐릭터 이미지를 사용한다. 남녀 동시 적용.
-- 수정 예정: `public/assets/warrior_equipped*.png`, `src/ui/equipmentPortrait.ts`, `src/ui/modals/equipModal.ts`, `src/styles/modals.css`, `tests/equipped-detail.test.mjs`.
-- 검증: 타입 검사, 해당 단건 테스트, 이미지 검증, `git diff --check`.
+- 장비창의 분리된 DOM 장비 레이어를 없애고, 현재 장비를 한 장의 캐릭터 이미지로 렌더링·메모리 캐시한다. 사진 속 조합은 남녀 완성 그림을 새로 제작했으며 다른 조합은 신체에 맞춘 착용 파츠와 장신구를 함께 그린다.
+- 타입 검사, 장비 상세 테스트 8개, 이미지 검증, `git diff --check` 통과. PR #62 병합. Cloudflare Pages Production 버전 `84a1dd0cd591`, 남녀 이미지 HTTP 200 확인. 모바일 실기 화면은 미확인.
 
 ## [x] [작업 132] 장비창 착용 미리보기 어색한 합성 수정
 - fks3997 · 2026-11-18 · `task/132-equipment-preview-fit`
