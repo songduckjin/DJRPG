@@ -1,5 +1,5 @@
 import {WorldBossIntro} from './worldBossIntro';
-import {Assets,ColorMatrixFilter,Graphics,Rectangle,Sprite,Texture} from 'pixi.js';
+import {Assets,ColorMatrixFilter,Container,Graphics,Rectangle,Sprite,Texture} from 'pixi.js';
 import {GameView} from '../game/render';
 import {projectArenaPoint} from '../game/arena';
 import {WorldBossRehearsal} from '../game/worldBossRehearsal';
@@ -19,7 +19,7 @@ export function openWorldBossField(ui:Interface):void {
   const restoreMain=pauseMainForBoss(ui);
   const session=new WorldBossRehearsal(ui.world.save),view=new GameView(),intro=new WorldBossIntro();
   const field=document.createElement('section');field.className='world-boss-field';field.setAttribute('role','region');field.setAttribute('aria-label','월드보스 전용 연습 필드');
-  field.innerHTML='<div class="wb-field-canvas"></div><header class="wb-field-header"><button class="wb-field-leave" type="button">나가기</button></header><div class="wb-field-intro" hidden><div class="wb-intro-title"><small>모든 도전자가 함께 맞서는 재앙</small><h2>잿불의 군주 발카론</h2><span>포효가 전장을 뒤흔듭니다</span></div><button class="wb-intro-skip" type="button">건너뛰기 ≫</button></div><div class="wb-battle-start" hidden>토벌 시작</div><div class="wb-field-loading" role="status">전장을 준비하고 있습니다…</div><div class="wb-field-warning" hidden>광역 공격! 내려찍기를 준비합니다</div><footer class="wb-field-footer"><div class="wb-field-record"><strong class="wb-field-clock">60초</strong><span>누적 피해량 <b class="wb-field-damage">0</b></span></div><div class="wb-field-health-label">잿불의 군주 발카론 <small>보스 · 연습용</small></div><div class="wb-field-boss-hp"><i></i><span>공유 체력 미연동</span></div><div class="wb-field-health-label wb-player-label">내 체력 <b class="wb-player-value"></b></div><div class="wb-field-player-hp"><i></i><b></b></div><div class="wb-field-controls"><div><small class="wb-auto-label">메인 장착 스킬 · 자동 사용</small><div class="wb-field-skills"></div></div><button class="wb-field-dodge" type="button"><span aria-hidden="true">↝</span><small>회피</small><b class="wb-dodge-cd"></b></button></div><p>60초 전투 연습 · 실제 도전 횟수와 보상은 소모되지 않습니다.</p></footer><div class="wb-field-result" hidden><h3>전투 연습 종료</h3><p></p><button type="button">보스 소개로 돌아가기</button></div>' ;
+  field.innerHTML='<div class="wb-field-canvas"></div><header class="wb-field-header"><button class="wb-field-leave" type="button">나가기</button></header><div class="wb-field-intro" hidden><div class="wb-cinematic-fog" aria-hidden="true"></div><button class="wb-intro-skip" type="button">건너뛰기 ≫</button></div><div class="wb-battle-start" hidden>전투 시작</div><div class="wb-field-loading" role="status">전장을 준비하고 있습니다…</div><div class="wb-field-warning" hidden>광역 공격! 내려찍기를 준비합니다</div><footer class="wb-field-footer"><div class="wb-field-record"><strong class="wb-field-clock">60초</strong><span>누적 피해량 <b class="wb-field-damage">0</b></span></div><div class="wb-field-health-label">잿불의 군주 발카론 <small>보스 · 연습용</small></div><div class="wb-field-boss-hp"><i></i><span>공유 체력 미연동</span></div><div class="wb-field-health-label wb-player-label">내 체력 <b class="wb-player-value"></b></div><div class="wb-field-player-hp"><i></i><b></b></div><div class="wb-field-controls"><div><small class="wb-auto-label">메인 장착 스킬 · 자동 사용</small><div class="wb-field-skills"></div></div><button class="wb-field-dodge" type="button"><span aria-hidden="true">↝</span><small>회피</small><b class="wb-dodge-cd"></b></button></div><p>60초 전투 연습 · 실제 도전 횟수와 보상은 소모되지 않습니다.</p></footer><div class="wb-field-result" hidden><h3>전투 연습 종료</h3><p></p><button type="button">보스 소개로 돌아가기</button></div>' ;
   ui.root.querySelector('.game-shell')!.append(field);
   const get=<T extends HTMLElement>(selector:string)=>field.querySelector<T>(selector)!;
   let closed=false,mounted=false;const ownedFrames:Texture[]=[];const cleanedFrames=new Set<Texture>();const ownedTones:ColorMatrixFilter[]=[];
@@ -44,7 +44,7 @@ export function openWorldBossField(ui:Interface):void {
   });
   void (async()=>{
     try{
-      const [sheets,arena]=await Promise.all([Promise.all([...BOSS_SHEETS,'/assets/world-boss/valkaron-roar-hd-v1.png'].map(path=>Assets.load<Texture>(path))),Assets.load<Texture>('/assets/world-boss/obsidian-arena-v1.png')]);
+      const [sheets,arena,bodyArt,faceArt]=await Promise.all([Promise.all(BOSS_SHEETS.map(path=>Assets.load<Texture>(path))),Assets.load<Texture>('/assets/world-boss/obsidian-arena-v1.png'),Assets.load<Texture>('/assets/world-boss/valkaron-cinematic-body-v1.png'),Assets.load<Texture>('/assets/world-boss/valkaron-cinematic-face-v1.png')]);
       const frames=sheets.flatMap(sheet=>Array.from({length:8},(_,i)=>{
         const left=Math.round(i%4*sheet.width/4),top=Math.round(Math.floor(i/4)*sheet.height/2);
         return new Texture({source:sheet.source,frame:new Rectangle(left,top,Math.round((i%4+1)*sheet.width/4)-left,Math.round((Math.floor(i/4)+1)*sheet.height/2)-top)});
@@ -67,34 +67,45 @@ export function openWorldBossField(ui:Interface):void {
       get('.wb-field-loading').hidden=true;
       field.classList.toggle('wb-introducing',intro.active);get('.wb-field-intro').hidden=!intro.active;
       const bossSprite=new Sprite(frames[0]);bossSprite.anchor.set(.5,.97);view.actors.addChild(bossSprite);
+      const cinematic=new Container(),bodySprite=new Sprite(bodyArt),faceSprite=new Sprite(faceArt);
+      bodySprite.anchor.set(.5,.97);cinematic.addChild(bodySprite,faceSprite);view.actors.addChildAt(cinematic,0);
+      const cinematicTone=bossFrameTone(bodyArt);ownedTones.push(cinematicTone);cinematic.filters=[cinematicTone];
       let previous=performance.now();view.app.ticker.maxFPS=60;
       view.app.ticker.add(()=>{
         if(closed)return;if(!field.isConnected){cleanup();return;}
         const now=performance.now(),dt=Math.min(.05,(now-previous)/1000);previous=now;
         if(!document.hidden){const combatDt=intro.advance(dt);if(combatDt>0)session.advance(combatDt);}
         field.classList.toggle('wb-introducing',intro.active);get('.wb-field-intro').hidden=!intro.active;
-        get('.wb-battle-start').hidden=intro.active||session.elapsed>.7;
+        get('.wb-battle-start').hidden=!intro.startCue||session.elapsed>.65;
+        field.style.setProperty('--wb-hud-alpha',String(intro.hudAlpha));
+        const fog=get('.wb-cinematic-fog');fog.style.opacity=String(intro.fog);fog.style.setProperty('--fog-drift',`${(1-intro.fog)*18}%`);
         const visualTime=intro.elapsed+session.elapsed;
         // Targets remain present for real combat, but the default skeleton is never rendered.
         const enemies=session.world.enemies;session.world.enemies=[];
         try{view.draw(session.world,visualTime);}finally{session.world.enemies=enemies;}
-        const pose=bossPose(session.elapsed),shownFrame=intro.active?40+intro.frame:pose.frame,texture=frames[shownFrame];bossSprite.texture=texture;bossSprite.filters=[tones[shownFrame]];
+        const pose=bossPose(session.elapsed),shownFrame=pose.frame,texture=frames[shownFrame];bossSprite.texture=texture;bossSprite.filters=[tones[shownFrame]];
         const h=view.app.screen.height,w=view.app.screen.width,[x,y]=projectArenaPoint(session.boss.x,session.boss.y,w,h);
-        const size=Math.min(w*.82,h*.39)*(1+intro.focus*.5);bossSprite.width=size;bossSprite.height=size;
-        bossSprite.position.set(x,y+(intro.active?.02:footShift(pose.frame))*size);bossSprite.tint=0xffffff;
-        view.actors.setChildIndex(bossSprite,0);
+        const size=Math.min(w*.82,h*.39);bossSprite.width=size;bossSprite.height=size;
+        bossSprite.position.set(x,y+footShift(pose.frame)*size);bossSprite.tint=0xffffff;
+        cinematic.visible=intro.bodyAlpha>0;cinematic.alpha=intro.bodyAlpha;bossSprite.alpha=1-intro.bodyAlpha;
+        bodySprite.height=size*.96;bodySprite.width=bodySprite.height*bodyArt.width/bodyArt.height;
+        bodySprite.position.set(x,y+size*.02);
+        faceSprite.width=bodySprite.width*500/1024;faceSprite.height=bodySprite.height*340/1536;
+        faceSprite.position.set(x-bodySprite.width*.5+bodySprite.width*310/1024,bodySprite.y-bodySprite.height*.97);
+        faceSprite.alpha=intro.faceDetail;
+        view.actors.setChildIndex(bossSprite,0);view.actors.setChildIndex(cinematic,1);
         // Only this dedicated view hides the regular field scenery.
         view.floor.visible=false;view.terrainLayer.visible=false;view.glow.visible=false;view.shade.visible=false;
-        view.heroLayer.visible=!intro.active;
-        const shiftY=h*(.57+intro.focus*.12)-y;
-        view.app.stage.position.y+=shiftY;
-        const cover=Math.max(w/arena.width,h/arena.height)*(1+intro.focus*.06);arenaSprite.scale.set(cover);
-        arenaSprite.position.set((w-arena.width*cover)/2-view.app.stage.x,(h-arena.height*cover)/2-view.app.stage.y);
+        view.heroLayer.visible=true;view.heroLayer.alpha=intro.playerAlpha;
+        const camera=intro.camera(w,h);view.app.stage.scale.set(camera.zoom);
+        view.app.stage.position.x+=camera.x;view.app.stage.position.y+=camera.y;
+        const cover=Math.max(w/arena.width,h/arena.height);arenaSprite.scale.set(cover);
+        arenaSprite.position.set((w-arena.width*cover)/2,(h-arena.height*cover)/2-h*.07);
         const dodge=get<HTMLButtonElement>('.wb-field-dodge');dodge.disabled=intro.active||session.finished||session.dodgeCooldown>0;
         get('.wb-dodge-cd').textContent=session.dodgeCooldown>0?session.dodgeCooldown.toFixed(1):'';
         get('.wb-field-warning').hidden=intro.active||pose.motion!=='slam'||pose.frame>=31||session.finished;
         // Cloud graphics live between the arena and actors, never above the boss.
-        clouds.clear();clouds.position.set(-view.app.stage.x,-view.app.stage.y);
+        clouds.clear();clouds.position.set(0,-h*.07);
         for(let i=0;i<5;i++)for(let layer=7;layer>0;layer--){
           clouds.ellipse(w*(i/4)+Math.sin(visualTime*.055+i)*w*.15,h*(.06+(i%2)*.07),w*(.12+layer*.025),h*(.025+layer*.009)).fill({color:0x9b969e,alpha:.009});
         }

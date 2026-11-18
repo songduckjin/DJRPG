@@ -56,11 +56,21 @@ test('detached blade fragment is removed while the connected body and sword stay
  assert.equal(pixels[(2*w+1)*4+3],0);assert.equal(pixels[(20*w+2)*4+3],255);assert.equal(pixels[(20*w+20)*4+3],255);
 });
 
-test('roar introduction isolates all three seconds from combat and skip advances immediately',async()=>{
+test('roar introduction isolates all four seconds from combat and skip advances immediately',async()=>{
  const {WorldBossIntro}=await import('../src/ui/worldBossIntro.ts');const intro=new WorldBossIntro(),battle=new WorldBossRehearsal(freshSave('male'));
- for(let i=0;i<59;i++){const dt=intro.advance(.05);if(dt>0)battle.advance(dt);assert(intro.frame>=0&&intro.frame<8);}
+ for(let i=0;i<79;i++){const dt=intro.advance(.05);if(dt>0)battle.advance(dt);assert(intro.focus>=0&&intro.focus<=1);}
  assert.equal(battle.elapsed,0);assert.equal(battle.damage,0);assert(intro.active);
  for(let i=0;i<2;i++){const dt=intro.advance(.05);if(dt>0)battle.advance(dt);}
  assert(!intro.active);assert(Math.abs(battle.elapsed-.05)<1e-9);
  const skipped=new WorldBossIntro();skipped.skip();skipped.skip();assert.equal(skipped.active,false);assert.equal(skipped.focus,0);assert.equal(skipped.advance(.05),.05);
+});
+
+test('fog clears before a continuous zoom out, with start cue and player before combat',async()=>{
+ const {WorldBossIntro}=await import('../src/ui/worldBossIntro.ts');const intro=new WorldBossIntro();
+ assert.equal(intro.fog,1);assert.equal(intro.camera(480,900).zoom,4.2);assert.equal(intro.playerAlpha,0);
+ intro.elapsed=1.4;assert.equal(intro.fog,0);assert.equal(intro.focus,1);
+ let previous=intro.camera(480,900).zoom;
+ for(let t=1.5;t<4;t+=.01){intro.elapsed=t;const c=intro.camera(480,900);assert(c.zoom<=previous+1e-9);assert(previous-c.zoom<.04);previous=c.zoom;}
+ intro.elapsed=3.5;assert(intro.startCue);assert(intro.playerAlpha>.9);assert(intro.active);
+ intro.elapsed=4;const end=intro.camera(480,900);assert.equal(end.zoom,1);assert.equal(end.x,0);assert(Math.abs(end.y-63)<1e-9);assert.equal(intro.bodyAlpha,0);assert.equal(intro.hudAlpha,1);
 });

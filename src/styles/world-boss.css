@@ -155,3 +155,10 @@
 .world-boss-entry .wb-entry-health::before {background:conic-gradient(from 220deg,#261017 0deg 280deg,transparent 280deg 360deg);mask-image:none;}
 .world-boss-entry .wb-entry-health i {background:radial-gradient(circle,transparent 30px,#591321 30.5px,#d7626b 31.3px,#b72c43 32.6px,#72192d 34px,#350d19 34.8px);mask-image:conic-gradient(from 220deg,#000 0deg var(--wb-hp-angle,280deg),transparent var(--wb-hp-angle,280deg) 360deg);}
 .world-boss-entry .wb-entry-count {top:50px;height:17px;line-height:17px;background:#171118f2;border:0;box-shadow:none;color:#eee5dc;font-weight:700;text-shadow:0 1px 1px #000;}
+/* Start already close: mist clears, then the same scene camera pulls back without a cut. */
+.wb-field-intro {background:none;animation:none;}
+.wb-cinematic-fog {position:absolute;inset:-20%;pointer-events:none;background:#92969b;will-change:opacity;}
+.wb-cinematic-fog::before,.wb-cinematic-fog::after {content:"";position:absolute;inset:-10%;background:radial-gradient(ellipse at 25% 45%,#c5c8cc,transparent 45%),radial-gradient(ellipse at 75% 60%,#616871,transparent 55%),radial-gradient(ellipse at 50% 10%,#b6b9bd,transparent 50%);transform:translateX(var(--fog-drift,0%));}
+.wb-cinematic-fog::after {transform:translateX(calc(-1 * var(--fog-drift,0%))) scale(1.1);opacity:.65;}
+.wb-introducing .wb-field-footer {visibility:visible;opacity:var(--wb-hud-alpha,0);pointer-events:none;}
+.wb-battle-start {font-size:25px;letter-spacing:6px;top:66%;}
