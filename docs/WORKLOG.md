@@ -1,3 +1,7 @@
+## 2026-11-18 · 작업 132 장비창 착용 미리보기 합성 위치 수정
+- 실제 장착한 투구·갑옷·검의 크기와 몸 기준 위치를 조정하고, 장갑·신발의 좌우 아트를 분리해 배치했다. 남녀 공통.
+- `pnpm exec tsc --noEmit`, `node --test tests/equipped-detail.test.mjs`(7개), `git diff --check` 통과. PR #60이 `d0389150a528a96a489c50688ebc37750b7468a2`로 main에 병합됐다. Cloudflare Pages Production `/version.json`에서 `d0389150a528` 확인. 모바일 실기 화면 미확인.
+
 ## 2026-11-18 · 작업 131 장비창 실제 착용 아이템 미리보기
 - 장비창 중앙에 실제 장착한 무기·투구·갑옷·장갑·신발 착용 아트를 표시하고, 기본 본체 성별과 장비 프레임 비율을 유지했다.
 - `pnpm exec tsc --noEmit`, `node --test tests/equipped-detail.test.mjs`(7개), `git diff --check` 통과. PR #58이 `39d8cd400cd712e05864f5551891722effa8483c`로 main에 병합됐다. Production `/version.json`은 `39d8cd400cd7`; 착용 아트 5개 파일 모두 HTTP 200 `image/png`.
