@@ -1,4 +1,6 @@
-import {extensions,MeshPipe} from 'pixi.js';
-// Register before Application.init(): the animated field loads MeshPlane later,
-// after renderer.renderPipes has already been constructed.
-extensions.add(MeshPipe);
+// Register every primitive used by the field before Application.init().
+// Dynamic scene imports can otherwise register pipes after renderer creation.
+import 'pixi.js/graphics';
+import 'pixi.js/sprite-tiling';
+import 'pixi.js/text';
+import 'pixi.js/mesh';
