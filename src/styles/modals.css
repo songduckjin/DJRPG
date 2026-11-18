@@ -57,7 +57,7 @@
 .showcase-hero { position: relative; display: flex; justify-content: center; align-items: center; min-width: 0; overflow: hidden; border: 1px solid #655044; background: radial-gradient(ellipse at 50% 28%, #695544 0%, #302727 37%, #19161b 75%); box-shadow: inset 0 0 23px #000a; }
 .showcase-hero:after { content: ''; position: absolute; bottom: 7px; width: 75%; height: 14px; border-radius: 50%; background: #0008; filter: blur(5px); }
 .showcase-figure { position: relative; display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; }
-.showcase-figure > img { position: relative; z-index: 1; display: block; width: 100%; height: 100%; object-fit: contain; image-rendering: auto; }
+.showcase-body { position: relative; z-index: 1; display: block; width: 100%; height: 100%; object-fit: contain; image-rendering: auto; }
 .equipment-slot { position: relative; min-width: 0; flex: 1; display: flex; text-align: left; align-items: center; gap: 3px; padding: 10px 3px 2px; border: 1px solid #655348; background: #252126; color: #b9ada6; }
 .slot-icon { display: block; flex: 0 0 36px; width: 36px; height: 36px; object-fit: contain; }
 .equipment-slot .slot-part { position: absolute; top: 2px; left: 4px; font-size: 8px; line-height: 1; }

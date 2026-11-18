@@ -1,6 +1,7 @@
 import { preferences } from './preferences';
 import { Application, Assets, Container, Graphics, Rectangle, Sprite, Text, Texture, TilingSprite } from 'pixi.js';
 import type { Effect, Enemy, World } from './world';
+import { wearableAssetPaths, type Slot } from './items';
 import { drawRunes, drawTerrain, drawDust, drawLighting, drawVignette } from './render/field';
 import { drawHero, updateAfterimages, updateCorpses, drawEntities } from './render/entities';
 import { drawSkillVfx, drawDragon, drawHit, updateDamageLabels, drawDeath, drawDrops, drawEffects } from './render/vfx';
@@ -9,11 +10,11 @@ import { createBootProgress } from './bootProgress';
 
 const paths = {
   floor: '/assets/wasteland-ground.png', terrainProps: '/assets/wasteland-props.png', male: '/assets/warrior_male_base.png',
-  female: '/assets/warrior_female_base.png', armored: '/assets/warrior_armored.png?v=2',
-  armoredNoHelm: '/assets/warrior_armored_nohelm.png?v=2', femaleArmoredNoHelm: '/assets/warrior_female_armored_nohelm.png',
-  femaleArmoredHelm: '/assets/warrior_female_armored_helm.png',
+  female: '/assets/warrior_female_base.png', armored: '/assets/warrior_armored_swordless.png',
+  armoredNoHelm: '/assets/warrior_armored_nohelm_swordless.png', femaleArmoredNoHelm: '/assets/warrior_female_armored_nohelm_swordless.png',
+  femaleArmoredHelm: '/assets/warrior_female_armored_helm_swordless.png',
   femaleBaseHelm: '/assets/warrior_female_base_helm.png', femaleSwordHelm: '/assets/warrior_female_sword_helm.png',
-  femaleArmoredOldHelm: '/assets/warrior_female_armored_oldhelm.png',
+  femaleArmoredOldHelm: '/assets/warrior_female_armored_oldhelm_swordless.png',
   femaleBaseOldHelm: '/assets/warrior_female_base_oldhelm.png', femaleSwordOldHelm: '/assets/warrior_female_sword_oldhelm.png',
   maleBaseHelm: '/assets/warrior_male_base_helm.png', maleSwordHelm: '/assets/warrior_male_sword_helm.png',
   maleSword: '/assets/warrior_male_sword.png', femaleSword: '/assets/warrior_female_sword.png',
@@ -49,16 +50,16 @@ const walkSheets = {
   maleHelmWalk: '/assets/walk8_male_sword_helm.png',
   femaleHelmWalk: '/assets/walk8_female_sword_helm.png',
   femaleOldHelmWalk: '/assets/walk8_female_sword_oldhelm.png',
-  armoredWalk: '/assets/walk8_armored.png', armoredNoHelmWalk: '/assets/walk8_armored_nohelm.png',
-  femaleArmoredNoHelmWalk: '/assets/walk8_female_armored_nohelm.png',
-  femaleArmoredHelmWalk: '/assets/walk8_female_armored_helm.png',
-  femaleArmoredOldHelmWalk: '/assets/walk8_female_armored_oldhelm.png',
+  armoredWalk: '/assets/walk8_armored_swordless.png', armoredNoHelmWalk: '/assets/walk8_armored_nohelm_swordless.png',
+  femaleArmoredNoHelmWalk: '/assets/walk8_female_armored_nohelm_swordless.png',
+  femaleArmoredHelmWalk: '/assets/walk8_female_armored_helm_swordless.png',
+  femaleArmoredOldHelmWalk: '/assets/walk8_female_armored_oldhelm_swordless.png',
   skeletonWalk: '/assets/walk8_skeleton.png', bossWalk: '/assets/walk8_boss.png'
 } as const;
 type Animation = keyof typeof animationPaths | keyof typeof attackSheets | keyof typeof walkSheets;
 export const renderAssetPaths = [
   ...Object.values(paths), ...Object.values(animationPaths).flat(),
-  ...Object.values(attackSheets), ...Object.values(walkSheets)
+  ...Object.values(attackSheets), ...Object.values(walkSheets), ...Object.values(wearableAssetPaths)
 ];
 type Dust = { x: number; y: number; vx: number; vy: number; age: number; duration: number; size: number };
 type Ghost = { sprite: Sprite; x: number; y: number; age: number; duration: number };
@@ -88,6 +89,9 @@ export class GameView {
   shade = new Graphics();
   heroLayer = new Container();
   hero!: Sprite;
+  gearTextures = new Map<string, Texture>();
+  gearLoading = new Set<string>();
+  heroGear = new Map<Slot, { path: string; sprite: Sprite }>();
   enemies = new Map<Enemy, Sprite>();
   bossLabels = new Map<Enemy, Text>();
   afterimages: Ghost[] = [];
@@ -117,6 +121,8 @@ export class GameView {
     };
     const loaded = await Promise.all((Object.keys(paths) as Art[]).map(async key => [key, await loadTexture(paths[key])] as const));
     for (const [key, texture] of loaded) { texture.source.scaleMode = 'linear'; this.textures[key] = texture; }
+    const wearable = await Promise.all(Object.values(wearableAssetPaths).map(async path => [path, await loadTexture(path)] as const));
+    for (const [path, texture] of wearable) { texture.source.scaleMode = 'linear'; this.gearTextures.set(path, texture); }
     const animated = await Promise.all((Object.keys(animationPaths) as (keyof typeof animationPaths)[]).map(async key => [key, await Promise.all(animationPaths[key].map(loadTexture))] as const));
     for (const [key, textures] of animated) { for (const texture of textures) texture.source.scaleMode = 'linear'; this.animations[key] = textures; }
     const attacks = await Promise.all((Object.keys(attackSheets) as (keyof typeof attackSheets)[]).map(async key => [key, await loadTexture(attackSheets[key])] as const));
@@ -189,7 +195,7 @@ export class GameView {
     drawVignette.call(this, w, h, hx, hy, time);
   }
 
-  drawSkillVfx(effect: Effect, x: number, y: number, t: number, screenAngle: number, time: number): boolean { return drawSkillVfx.call(this, effect, x, y, t, screenAngle, time); }
+  drawSkillVfx(world: World, effect: Effect, x: number, y: number, t: number, screenAngle: number, time: number): boolean { return drawSkillVfx.call(this, world, effect, x, y, t, screenAngle, time); }
 
   drawDragon(effect: Effect, x: number, y: number, progress: number, time: number): void { return drawDragon.call(this, effect, x, y, progress, time); }
 

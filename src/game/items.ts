@@ -51,13 +51,30 @@ export const baseItems: Record<Slot, readonly string[]> = {
   ring2: ringBases
 };
 
+export function baseItemIndex(item: EquipmentItem): number {
+  const compact = (value: string) => value.normalize('NFKC').replace(/[\s\u200b\ufeff]/gu, '');
+  const name = compact(item.name);
+  if (item.slot === 'helmet' && name === compact('낡은 투구')) return baseItems.helmet.indexOf('심연의 뿔투구');
+  return baseItems[item.slot].findIndex(base => name === compact(base) || name.endsWith(compact(base)));
+}
+
 export function isZweihander(item: Item): boolean { return item.slot === 'weapon' && /쯔바이핸드|츠바이핸더/.test(item.name); }
 
 export function equipmentImage(item: EquipmentItem): { path: string; frame: number; columns: number } {
   const slot = item.slot === 'ring1' || item.slot === 'ring2' ? 'ring' : item.slot;
-  const index = baseItems[item.slot].findIndex(base => item.name === base || item.name.endsWith(` ${base}`));
+  const index = baseItemIndex(item);
   if (index >= 0) return { path: `/assets/item-art/${slot}_${Math.floor(index / 5) * 5}.png`, frame: index % 5, columns: 5 };
   return { path: isZweihander(item) ? '/assets/icons/icon_zweihander.png' : `/assets/icons/${slot}.png`, frame: 0, columns: 1 };
+}
+
+export const wearableAssetPaths = {
+  weapon: '/assets/wearable/weapons.png', helmet: '/assets/wearable/helmets.png',
+  armor: '/assets/wearable/armor.png', gloves: '/assets/wearable/gloves.png', boots: '/assets/wearable/boots.png'
+} as const satisfies Partial<Record<Slot, string>>;
+
+export function wearableEquipmentImage(item: EquipmentItem): { path: string; frame: number; columns: number; rows: number } | undefined {
+  const path = wearableAssetPaths[item.slot as keyof typeof wearableAssetPaths], frame = baseItemIndex(item);
+  return path && frame >= 0 ? { path, frame, columns: 5, rows: 2 } : undefined;
 }
 
 export function migrateItem(value: unknown): Item | undefined {

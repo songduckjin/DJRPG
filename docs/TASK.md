@@ -7,7 +7,6 @@
 
 | 작업 | 담당자 | 브랜치 | 수정 예정 파일 / 영향 영역 | 위험 등급 | 상태 |
 |---|---|---|---|---|---|
-| 160 현재 월드보스 시안 운영배포 | fks3997 | feature/world-boss-preview-fks3997 | 최신main통합/작업문서·검증·PR51병합·Cloudflare Pages / 기능추가없음 | 중 | [-] |
 | 136 통합 내 정보(장비·스탯) UI 개편 및 4티어 장비창 초상화 교체 | songduckjin (`codex` 실행) | `task/136-unified-equip-ui` | `src/ui/interface.ts`, `src/ui/modals/equipModal.ts`, `src/ui/modals/statusModal.ts`(삭제), `src/ui/modals/accountModal.ts`, `src/ui/equipmentPortrait.ts`, `src/styles/modals.css`, `src/styles/hud.css` / 하단 내비 3탭·통합 내 정보 모달·장비창 티어 초상화 | 중 | [-] |
 | 140 본 게임 필드 렌더러 독립형 코스튬 전환 | songduckjin | `task/140-costume-field-renderer` (대기) | `src/game/render/entities.ts`, `src/game/render.ts`, `src/game/render/heroMotion.ts`, `src/game/render/heroScale.ts`, `src/game/render/heroSockets.ts`, `AGENTS.md`, `docs/CODE_MAP.md`, `docs/QUICK_PATCH.md` / 필드 캐릭터 렌더 전환 | 상 | [ ] |
 | 141 장비창(내 정보) 공용 외형 연동 | songduckjin | `task/141-costume-ui-sync` (대기) | `src/ui/equipmentPortrait.ts`, `src/ui/modals/equipModal.ts`(필요 시), `tests/equipped-detail.test.mjs` / 장비창 미리보기를 공용 코스튬 외형 계획으로 통합 | 중 | [ ] |

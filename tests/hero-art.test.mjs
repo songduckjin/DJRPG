@@ -14,6 +14,12 @@ const attackSheets = [
   'warrior_female_oldhelm_attack.png',
   'warrior_male_helm_attack.png'
 ];
+const swordlessIdle = [
+  'warrior_armored_swordless.png', 'warrior_armored_nohelm_swordless.png',
+  'warrior_female_armored_nohelm_swordless.png', 'warrior_female_armored_helm_swordless.png',
+  'warrior_female_armored_oldhelm_swordless.png'
+];
+const swordlessWalk = swordlessIdle.map(name => name.replace('warrior_', 'walk8_'));
 
 function decodeAlpha(image) {
   let offset = 8;
@@ -102,5 +108,34 @@ test('the attack sheets are the only four-frame images', () => {
     assert.equal(image.readUInt32BE(16), width, `${name} 폭`);
     assert.equal(image.readUInt32BE(20), height, `${name} 높이`);
     assert.ok(width / height < 2.2, `${name}은 4프레임 시트로 잘리면 안 됨`);
+  }
+});
+
+test('swordless idle and walk assets have transparent, nonempty body art', () => {
+  for (const name of [...swordlessIdle, ...swordlessWalk]) {
+    const image = readFileSync(new URL(`../public/assets/${name}`, import.meta.url));
+    assert.equal(image.subarray(0, 8).toString('hex'), '89504e470d0a1a0a', name);
+    const { width, height, alpha } = decodeAlpha(image);
+    assert(width > 500 && height > 500, `${name}: body art resolution`);
+    assert(alpha.some(value => value > 20), `${name}: empty sprite`);
+    assert(alpha.some(value => value === 0), `${name}: background is not transparent`);
+  }
+});
+
+for (const name of swordlessWalk) test(`${name} keeps eight walking poses inside their cells`, () => {
+  const { width, height, alpha } = decodeAlpha(readFileSync(new URL(`../public/assets/${name}`, import.meta.url)));
+  assert(width / height > 1.9 && width / height < 2.1, `${name}: expected 4×2 sheet`);
+  const midpoint = Math.round(height / 2);
+  for (let frame = 0; frame < 8; frame++) {
+    const left = Math.round((frame % 4) * width / 4);
+    const right = Math.round(((frame % 4) + 1) * width / 4);
+    const top = frame < 4 ? 0 : midpoint;
+    const bottom = frame < 4 ? midpoint : height;
+    let bodyPixels = 0;
+    for (let y = top; y < bottom; y++) for (let x = left; x < right; x++) if (alpha[y * width + x] > 20) bodyPixels++;
+    assert(bodyPixels > 1000, `${name}: missing frame ${frame}`);
+    for (const edge of [left, right - 1]) for (let y = top; y < bottom; y++) {
+      assert(alpha[y * width + edge] <= 20, `${name}: frame ${frame} crosses x=${edge}`);
+    }
   }
 });

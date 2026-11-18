@@ -1,7 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import './ts-loader.mjs';
-const { heroAppearance, unequipItem } = await import('../src/game/appearance.ts');
+const { heroAppearance, unequipItem, armorTier, armorPalette, helmetTier, helmetPalette } = await import('../src/game/appearance.ts');
+const { baseItems } = await import('../src/game/items.ts');
+const { gearHeadBand, gearTintCacheKey, isHairPixel, isSkinPixel } = await import('../src/game/render/gearTint.ts');
 const { freshSave, parseSave, totalStats } = await import('../src/game/store.ts');
 const equipment = slot => ({ id: slot, name: slot === 'helmet' ? '철제 바시넷' : '강철 브레스트플레이트', slot, rarity: 'rare', stats: { defense: 10 } });
 for (const gender of ['male', 'female']) for (const helmet of [false, true]) for (const armor of [false, true]) {
@@ -87,4 +89,39 @@ test('legacy 낡은 투구 uses its horned item art in every female body and mot
   assert.equal(heroAppearance(save).idle,'femaleArmoredHelm');
   unequipItem(save,'helmet');
   assert.equal(heroAppearance(save).idle,'femaleArmoredNoHelm');
+});
+
+test('armor and helmet base items map to the four appearance tiers and unique palettes', () => {
+  const item = (slot, name) => ({ id: `${slot}-${name}`, name, slot, rarity: 'common', stats: {} });
+  const armorTiers = baseItems.armor.map(name => armorTier(item('armor', name)));
+  const helmetTiers = baseItems.helmet.map(name => helmetTier(item('helmet', name)));
+  assert.deepEqual(armorTiers, [1, 1, 2, 2, 2, 3, 3, 3, 4, 4]);
+  assert.deepEqual(helmetTiers, [1, 1, 2, 2, 2, 3, 3, 3, 4, 4]);
+  assert.equal(new Set(baseItems.armor.map(name => armorPalette(item('armor', name)).key)).size, 10);
+  assert.equal(new Set(baseItems.helmet.map(name => helmetPalette(item('helmet', name)).key)).size, 10);
+});
+
+test('gear palette helpers preserve empty slots, prefixed names and legacy helmet appearance', () => {
+  assert.equal(armorTier(), null); assert.equal(armorPalette(), null);
+  assert.equal(helmetTier(), null); assert.equal(helmetPalette(), null);
+  const armor = { id: 'a', name: '무결의강철브레스트플레이트', slot: 'armor', rarity: 'legendary', stats: {} };
+  assert.equal(armorTier(armor), 2); assert.equal(armorPalette(armor).key, 'steel');
+  const legacy = { id: 'h', name: '낡은 투구', slot: 'helmet', rarity: 'common', stats: {} };
+  assert.equal(helmetTier(legacy), 3); assert.equal(helmetPalette(legacy).key, 'abyss');
+  assert.equal(heroAppearance(freshSave('female')).armorTier, null);
+  const save = freshSave('female'); save.equipment.helmet = legacy;
+  assert.equal(heroAppearance(save).idle, 'femaleBaseOldHelm');
+});
+
+test('gear tint protects skin samples and separates helmet and armor cache entries', () => {
+  assert.equal(isSkinPixel(220, 180, 160), true);
+  assert.equal(isSkinPixel(130, 135, 140), false);
+  assert.equal(isSkinPixel(58, 43, 82), false);
+  assert.equal(isSkinPixel(201, 166, 58), false);
+  assert.equal(isHairPixel(92, 61, 39), true);
+  assert.equal(isHairPixel(224, 190, 126), true);
+  assert(gearHeadBand > 0 && gearHeadBand < .4);
+  const armor = { key: 'leather' }, helmet = { key: 'iron' };
+  assert.notEqual(gearTintCacheKey('body', armor, null), gearTintCacheKey('body', null, helmet));
+  assert.notEqual(gearTintCacheKey('body', armor, helmet), gearTintCacheKey('body', armor, null));
 });

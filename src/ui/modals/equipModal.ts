@@ -3,12 +3,14 @@ import { autoEquipBest, equipmentImage, rarityNames, slotNames, statNames, total
 import { rarityOrder, rarityRanks, salvageGold } from '../../game/items';
 import { canAutoEquip } from '../../game/inventory';
 import { requestSalvage } from './salvageModal';
-import { heroAppearance } from '../../game/appearance';
+import { equipmentPortraitPlan, renderEquipmentPortrait } from '../equipmentPortrait';
 import { isSkillBook } from '../../game/items';
 import { showEquippedDetail, dismissEquippedDetail, deferEquippedDismiss } from '../equippedDetail';
 import { bagDetailPinned, createBagDetail, deferBagDismiss, dismissBagDetail, showBagDetail } from '../bagDetail';
 import { skillbookName } from '../skillbookBag';
 import type { BagFilter, Interface } from '../interface';
+
+const showcaseSlots = ['weapon', 'helmet', 'armor', 'gloves', 'boots'] as const;
 
 export function renderInventory(this: Interface, dialog: HTMLElement): void {
     const save = this.world.save;
@@ -170,13 +172,14 @@ export function renderEquipment(this: Interface, dialog: HTMLElement): void {
       };
       side.appendChild(cell);
     };
-    for (const slot of ['weapon', 'helmet', 'armor', 'gloves', 'boots'] as Slot[]) addSlot(slot, left);
+    for (const slot of showcaseSlots) addSlot(slot, left);
     for (const slot of ['offhand', 'necklace', 'belt', 'ring1', 'ring2'] as Slot[]) addSlot(slot, right);
     const center = document.createElement('div'); center.className = 'showcase-hero';
-    const portrait = document.createElement('img'); portrait.alt = '현재 전사 외형';
-    const appearance = heroAppearance(save);
     const figure = document.createElement('span'); figure.className = 'showcase-figure';
-    portrait.src = appearance.portrait;
+    const portrait = document.createElement('img'); portrait.className = 'showcase-body'; portrait.alt = '현재 장착 장비 미리보기';
+    portrait.src = equipmentPortraitPlan(save).base;
+    void renderEquipmentPortrait(save).then(image => { if (portrait.isConnected) portrait.src = image; })
+      .catch(error => console.error('착용 이미지 생성 실패:', error));
     figure.appendChild(portrait);
     center.appendChild(figure);
     showcase.append(left, center, right); dialog.appendChild(showcase);

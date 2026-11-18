@@ -187,7 +187,7 @@ export class World {
       if (destination) {
         const dx = destination.x - p.x, dy = destination.y - p.y, distance = Math.hypot(dx, dy);
         if (destination !== this.chaseTarget) { this.chaseTarget = destination; this.pursuing = false; }
-        const start = drop ? 60 : 90, stop = drop ? 20 : 48;
+        const start = drop ? 60 : 90, stop = drop ? 20 : 89;
         if (distance > start) this.pursuing = true;
         else if (distance <= stop) this.pursuing = false;
         this.activeMove = this.pursuing && distance > 0 ? { x: dx / distance, y: dy / distance } : { x: 0, y: 0 };

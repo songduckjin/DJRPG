@@ -5,6 +5,99 @@
 
 ---
 
+## [x] [작업 139] 코스튬 스펙 v1.1 확정 및 런타임 매니페스트·아이템 매핑 구현
+
+- **완료일**: 2026-11-18 · **담당자**: `songduckjin` · **브랜치**: `task/139-costume-manifest` · **PR**: #76
+- `src/game/costume/**`를 신규로 만들어 코스튬 런타임 데이터 계층을 분리했다(Pixi·DOM 비의존, 렌더러는 [작업 140]에서 연결).
+  - `mapping.ts` — `items.ts` `baseItems` 고유 장비 이름 **75종** 전수 매핑. 무기·보조무기·투구·갑옷·장갑·신발 **55종**은 `<부위>-t<기본형 인덱스>`, 필드 미표시 부위(목걸이·벨트·반지) **20종**은 명시적 `"none"`. 대조는 `baseItemIndex`와 같은 NFKC 정규화 + 공백·제로폭 문자 제거 + 완전일치/`endsWith`, 레거시 `낡은 투구` → `helmet-t7` 예외 포함. `items.ts` 무수정.
+  - `manifest.ts` — 매니페스트 타입·스키마 검증(`schemaVersion`·`costumeId`·`slot`·`animMode`·`anchor` 필수, `fit`·`zOrder` 선택), 1회 로드·메모리 캐시, **폴백 4경로**(매니페스트 없음·파싱/검증 실패·`costumeId` 미매핑·아틀라스 실패)를 `bodyFallback`+`reason`으로 반환, `COSTUME_ASSET_VERSION` 한 상수에서 만드는 캐시 버스터 URL.
+  - `skillMotion.ts` — 액티브 스킬 8종 → `slash`/`spin`/`smash`/`cast` 4대 템플릿(패시브 3종 제외).
+- `docs/COSTUME_SYSTEM.md`를 **v1.1**로 확정했다 — 파츠 교체 가림·자체 PixiJS 레이어 채택·피벗 `(0,0)`·최대 동작 캔버스 후보(한 손 검 183×213 / 대검 234×242, 계산값)·§3.3 스킬 매핑표·§7.1 런타임 계약. 매니페스트 필드는 §7 7개에서 늘리지 않았다.
+- 검증: `npx tsc --noEmit` 통과, `node --test tests/costume-manifest.test.mjs` **14건 통과**, `git diff --check` 통과, `src/game/render/**`·`render.ts`·`appearance.ts`·`store.ts`·`items.ts`·`src/ui/**`·`server/**`·`public/assets/**` 무변경 확인. 전체 `npm test`·`npm run build`는 공용 계약을 건드리지 않아 실행하지 않았다(AGENTS.md 부분 검증 규칙).
+- 수정 파일: `src/game/costume/{mapping,manifest,skillMotion,index}.ts`(신규), `tests/costume-manifest.test.mjs`(신규), `docs/COSTUME_SYSTEM.md`, `docs/CODE_MAP.md`, `docs/QUICK_PATCH.md`, `docs/TASK.md`·`docs/TASK_songduckjin.md`·`docs/TASK_ARCHIVE.md`·`docs/WORKLOG.md`. 게임 화면·Save/DB/API 무변경.
+
+---
+
+## [x] [작업 138] 코스튬 도구 비교 및 최소 뷰어 프로토타입
+
+- **완료일**: 2026-11-18 · **담당자**: `songduckjin` · **브랜치**: `task/138-costume-prototype` · **PR**: #74
+- `tools/costume-viewer/`에 독립 뷰어를 만들고 본체 파츠(머리·몸통·양팔·다리)·갑옷·투구·무기 2종, 걷기 8프레임·프레임 이동·좌우 반전·앵커·레이어 토글·**가림 방식(파츠 숨김/교체) 토글**을 구현했다. `model.ts`의 `partPlan`·`coverModeNote`와 단위 테스트 5건(합계 8건)을 추가했다.
+- 도구 3종(Spine 4.3.13 · DragonBones · 자체 PixiJS) 정량 비교를 `TOOL_COMPARISON.md`에 남겼다 — 번들 증가(esbuild min+gzip): 자체 0B / Spine +57,939B / DragonBones +47,015B(어댑터 제외 하한), Draw Call 장면 전체 1회/프레임, 데스크톱 60.0fps, 모바일 뷰포트 24.9fps(SwiftShader 소프트웨어 GL), JS 힙 +5.98MB. 모두 같은 Chromium·Vite 환경 실측이며 Spine·DragonBones의 FPS/Draw Call/메모리는 미측정이다.
+- 결론: **자체 PixiJS 레이어 + 파츠 교체 채택**(추가 번들 0B·정합 위험 없음·기존 통합 바디 계약과 동일), Spine 보류(Editor 라이선스·스켈레탈 재제작), DragonBones 미채택(PixiJS 8 어댑터 없음).
+- 검증: 루트·뷰어 `tsc --noEmit` 통과, `node --test tools/costume-viewer/model.test.mjs` 8건 통과, `node scripts/verify-item-art.mjs` 통과, `git diff --check` 통과, 브라우저 실측 콘솔·페이지 오류 0건. 모바일 실기 미측정.
+- 수정 파일: `tools/costume-viewer/**`, `docs/COSTUME_SYSTEM.md`(§4·§5 실측 근거), `docs/CODE_MAP.md`·`docs/TASK.md`·`docs/TASK_songduckjin.md`·`docs/TASK_ARCHIVE.md`·`docs/WORKLOG.md`. 게임 코드·Save/API·운영 에셋 무변경.
+
+---
+
+## [x] [작업 137] 코스튬 시스템 문서 통합 및 작업 경로 정리
+
+- **완료일**: 2026-11-18 · **담당자**: `songduckjin` · **브랜치**: `docs/costume-system-rearchitecture` · **PR**: #73
+- 코스튬 정책·정의·파일 색인·작업지시를 중복 없이 통합해 `AGENTS.md` → `docs/QUICK_PATCH.md` → `docs/CODE_MAP.md` → `docs/COSTUME_SYSTEM.md` → 개인 작업지시서 순서만으로 수정 위치·금지 범위·진행 단계·검증 기준을 찾을 수 있게 정리했다.
+- 과거 통합 바디 정책(작업 134·135)과 신규 독립형 코스튬 정책을 분리하고, 작업 135 완료·아카이브 이관과 작업 136 Draft 상태를 기록했으며, 작업 138 프로토타입 지시를 `docs/TASK_songduckjin.md`에 작성했다.
+- 수정 파일: `AGENTS.md`, `CONTRIBUTING.md`, `README.md`, `docs/COSTUME_SYSTEM.md`(신규), `docs/CODE_MAP.md`, `docs/QUICK_PATCH.md`, `docs/TASK.md`, `docs/TASK_songduckjin.md`, `docs/TASK_ARCHIVE.md`. 문서 전용 변경이며 게임 코드·런타임 렌더러·Save/DB/API·기존 이미지 에셋은 건드리지 않았다.
+- PR #73이 `6402d79c3fa014fb419815606fcd022dd1b411a3`로 main에 병합됐다. 후속 범위는 `docs/TASK_songduckjin.md`의 작업 138~142로 이관했다.
+
+---
+
+## [x] [작업 135] 갑옷·투구 10종 4티어 외형 차별화
+
+- **완료일**: 2026-11-18 · **담당자**: `songduckjin` · **브랜치**: `task/135-armor-tier-palette` · **PR**: #71
+- 기존 통합 바디 시트에 갑옷·투구 4티어 팔레트 변형과 피부·얼굴·머리카락 보존 틴트 캐시를 적용했다.
+- PR #71은 `e933a22fc2f1e58af6bc2ebab3648f1176c015cb`로 main에 병합됐다.
+- **후속 정책 주의**: 이 작업은 기존 통합 바디 방식의 구현 이력이다. 신규 독립형 코스튬 시스템의 장비별 제작 방식이나 렌더러 정책으로 확대 해석하지 않는다.
+
+## [x] [작업 134] 필드 캐릭터 통합 바디 복구 및 무기 소켓·액션 자연화
+
+- **완료일**: 2026-11-18 · **등록자·담당자**: `songduckjin` · **브랜치**: `task/134-field-gear-action`
+- 남녀 검 없는 서기·걷기 시트 10장을 제작해 갑옷·투구 통합 몸체를 복구하고, 직업·성별별 소켓에 무기를 배치했다. 공격 시 시트의 검 한 자루만 보이며 장비 등급에 따라 검기 색과 굵기가 바뀐다.
+- `pnpm exec tsc --noEmit`, 관련 테스트 76개, `node scripts/verify-item-art.mjs`, `git diff --check` 통과. PR #66이 `272c4619924603565a0b765a65ca0026078bb904`로 병합됐다. Cloudflare Pages Production `/version.json`에서 `272c46199246` 확인. 모바일 실기 미확인.
+
+---
+
+## [x] [작업 133] 장비창 실제 착용 캐릭터 이미지
+- **완료일**: 2026-11-18 · **담당자**: `fks3997` · **브랜치**: `task/133-equipped-character-art`
+- 장비창의 분리된 장비 DOM 레이어를 제거하고 현재 착용 상태를 캐릭터 이미지 한 장으로 렌더링·메모리 캐시한다. 사진 속 조합의 남녀 완성 그림 2장을 새로 만들고, 다른 조합은 10개 슬롯의 착용 파츠·장신구를 몸에 맞춰 한 이미지로 그린다.
+- 타입 검사·장비 상세 테스트 8개·`node scripts/verify-item-art.mjs`·`git diff --check` 통과. PR #62가 `84a1dd0cd5917bd396f3d9ee9f68ee4acafe4854`로 main에 병합됐다. Cloudflare Pages Production `/version.json`에서 `84a1dd0cd591`, 남녀 이미지 HTTP 200 확인. 모바일 실기 화면은 미확인.
+
+---
+
+## [x] [작업 132] 장비창 착용 미리보기 어색한 합성 수정
+- **완료일**: 2026-11-18 · **담당자**: `fks3997` · **브랜치**: `task/132-equipment-preview-fit`
+- 실제 장착 장비의 투구·갑옷·검을 신체에 맞춰 배치하고, 장갑·신발의 좌우 그림을 따로 손과 발에 적용했다. 남녀 공통.
+- `src/ui/modals/equipModal.ts`, `tests/equipped-detail.test.mjs`, `docs/QUICK_PATCH.md`, `docs/CODE_MAP.md` 수정. 타입 검사·관련 테스트 7개·`git diff --check` 통과. PR #60이 `d0389150a528a96a489c50688ebc37750b7468a2`로 main에 병합됐고 Cloudflare Pages Production `/version.json`에서 `d0389150a528`을 확인했다. 모바일 화면 확인은 사용자의 후속 확인이 필요하다.
+
+---
+
+## [x] [작업 131] 장비창 실제 착용 아이템 미리보기
+- **완료일**: 2026-11-18 · **담당자**: `fks3997` · **브랜치**: `task/131-equipped-gear-visible`
+- 장비창 중앙의 고정 초상화를 장착 장비와 무관한 범용 갑옷 이미지 대신, 남녀 기본 본체와 실제 장착한 무기·투구·갑옷·장갑·신발 프레임을 겹쳐 표시하도록 변경했다. 프레임은 본체 높이 비율을 유지한다.
+- `src/ui/modals/equipModal.ts`, `src/styles/modals.css`, `tests/equipped-detail.test.mjs`, `docs/QUICK_PATCH.md`, `docs/CODE_MAP.md` 수정. 타입 검사·관련 테스트 7개·`git diff --check` 통과. PR #58이 `39d8cd400cd712e05864f5551891722effa8483c`로 main에 병합됐다. Cloudflare Pages Production `/version.json`에서 `39d8cd400cd7`, 착용 아트 5개 파일 HTTP 200 / `image/png` 응답을 확인했다.
+
+---
+
+## [x] [작업 130] 전투 추격 중 공격 멈춤 수정
+- **완료일**: 2026-11-18 · **담당자**: `fks3997` · **브랜치**: `task/130-combat-chase-attack`
+- 자동전투가 공격 사거리 90 안에 들어가도 추격 정지 거리 48까지 계속 이동해 `action()`의 이동 차단 조건에 걸렸다. 적 추격 정지 거리를 89로 맞춰 사거리 진입 후 공격하도록 수정했다. 드랍 추격과 수동 이동 차단은 유지했다.
+- `src/game/world.ts`, `tests/world-movement.test.mjs`, `docs/QUICK_PATCH.md`, `docs/CODE_MAP.md` 수정. 타입 검사와 전투·아레나 테스트 9개, `git diff --check` 통과. PR #56이 `90631fcf103c8e93090db63069f354e27923e0eb`로 main에 병합됐고 Cloudflare Pages Preview 빌드가 성공했다.
+
+---
+
+## [x] [작업 129] 장착 장비 착용형 아트 제작
+- **완료일**: 2026-11-18 · **담당자**: `songduckjin` · **브랜치**: `codex/129-wearable-gear-assets`
+- **목표**: 검·투구·갑옷·장갑·신발 기본형을 각각 고유한 착용 아트로 만들고 남녀 캐릭터의 idle·이동·공격 모션에서 몸에 맞게 표시한다. 공백 없는 레거시 장비명도 정확히 해석한다.
+- **구현**: 다섯 부위별 5×2 투명 아틀라스(총 50 프레임)를 추가하고, 장비 레이어를 성별·동작별 포즈에 맞춰 렌더링했다. 공백과 유니코드 차이를 정규화해 `낡은가죽두건`을 올바른 투구 이미지와 착용 프레임에 연결한다.
+- **검증 및 배포**: `pnpm run check`, 전체 258개 테스트, `pnpm run build`, `git diff --check` 통과. PR #54가 `efec6056dca698d17988c522830c6a790fb16ee4`로 main에 병합됐다. Cloudflare Pages Production `/version.json`에서 `efec6056dca6`을 확인했고 다섯 착용 아트 파일 모두 HTTP 200 / `image/png`로 응답했다. 브라우저 실기 시각 확인은 하지 않았다.
+
+---
+
+## [x] [작업 128] 장착 장비별 캐릭터 외형 적용
+- **완료일**: 2026-11-18 · **담당자**: `songduckjin` · **브랜치**: `codex/128-equipped-gear-appearance`
+- **목표**: 투구·갑옷·장갑·신발·검의 실제 장비 그림이 남녀 캐릭터의 idle·이동·공격 모션에 반영되게 한다.
+- **구현**: 기존 item-art 시트에서 각 장비의 프레임을 골라 캐릭터 레이어에 렌더링하고, 장비 교체 시 그림을 갱신한다. 투구가 본체의 공통 투구에 가려지지 않도록 렌더 본체는 투구 없는 아트를 사용한다. 누락된 슬롯 아트가 없어 새 이미지는 만들지 않았다.
+- **검증 및 배포**: `pnpm run check`, 256개 테스트, `pnpm run build`, `git diff --check` 통과. PR #52가 `a5db0e25387abbb6ef3b94d6c613fa936413d3f7`로 main에 병합됐다. Cloudflare Pages Production에서 `version.json` `a5db0e25387a`, 새 JavaScript 번들 HTTP 200 및 장비 아트 로직 포함을 확인했다. 브라우저 실기 시각 확인은 하지 않았다.
+
+---
+
 ## [x] [작업 1] 세로형 2.5D 다크 판타지 전사 프로토타입 (직접 이동 + 스킬 3종 + 하단 인벤토리)
 - **등록일**: 2026-11-15
 - **목표**: 모바일 세로형 화면 상단에서는 전사를 직접 조작해 사방에서 몰려오는 몬스터를 기본 공격 + 스킬 3개로 쓸어담고, 하단 인벤토리에서 드랍된 장비를 바로 장착·분해할 수 있는 2.5D 쿼터뷰 맛보기 플레이어블 빌드 구축.
@@ -1674,3 +1767,5 @@
 | 158 복귀 양발 접점 고정 | fks3997 | feature/world-boss-preview-fks3997 | 18쌍실측/하체mesh·상체유지·격자접점검증, tsc·25테스트 | [x] |
 
 | 159 발그림고정·호흡지속·기본3초 | fks3997 | feature/world-boss-preview-fks3997 | idle부츠레이어/신경계mask·idle호흡위상연속·기본3초, tsc·27테스트 | [x] |
+
+| 160 현재 월드보스 시안 운영반영 | fks3997 | feature/world-boss-preview-fks3997 / PR51 | 사용자배포승인·최신main보존/101테스트·타입·아트·운영빌드통과 | [x] |

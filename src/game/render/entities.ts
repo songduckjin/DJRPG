@@ -1,12 +1,73 @@
-import { Container, Sprite, Text } from 'pixi.js';
+import { Assets, Container, Rectangle, Sprite, Text, Texture } from 'pixi.js';
 import type { World } from '../world';
+import type { Save } from '../store';
 import { enemyFacing } from '../facing';
 import { heroAppearance } from '../appearance';
 import { heroAnimationMode, heroMotion } from './heroMotion';
 import { heroScale, heroBodyHeight } from './heroScale';
+import { heroClass, weaponSocket } from './heroSockets';
+import { tintedGearTexture } from './gearTint';
 import type { GameView } from '../render';
+import { wearableEquipmentImage } from '../items';
 
-// The hero sprite sheet already carries the equipped body (bare/armored × helmet) and sword.
+function syncWeapon(view: GameView, save: Save, texture: Texture, art: string, attacking: boolean, walking: boolean, walkingFrame: number): void {
+    const item = save.equipment.weapon;
+    const wearableArt = item ? wearableEquipmentImage(item) : undefined;
+    const path = wearableArt?.path ?? '';
+    const key = wearableArt ? `${path}:${wearableArt.frame}` : '';
+    let shown = view.heroGear.get('weapon');
+    if (shown && shown.path !== key) {
+      view.heroLayer.removeChild(shown.sprite);
+      shown.sprite.destroy();
+      view.heroGear.delete('weapon');
+      shown = undefined;
+    }
+    if (!path || !wearableArt) return;
+
+    let gearTexture = view.gearTextures.get(key);
+    if (!gearTexture) {
+      const sheet = view.gearTextures.get(path);
+      if (sheet) {
+        const column = wearableArt.frame % wearableArt.columns, row = Math.floor(wearableArt.frame / wearableArt.columns);
+        const left = Math.round(column * sheet.source.width / wearableArt.columns);
+        const right = Math.round((column + 1) * sheet.source.width / wearableArt.columns);
+        const top = Math.round(row * sheet.source.height / wearableArt.rows);
+        const bottom = Math.round((row + 1) * sheet.source.height / wearableArt.rows);
+        gearTexture = new Texture({ source: sheet.source, frame: new Rectangle(left, top, right - left, bottom - top) });
+        view.gearTextures.set(key, gearTexture);
+      } else if (!view.gearLoading.has(path)) {
+        view.gearLoading.add(path);
+        void Assets.load<Texture>(path).then(loaded => {
+          loaded.source.scaleMode = 'linear';
+          view.gearTextures.set(path, loaded);
+          view.gearLoading.delete(path);
+        }).catch(error => {
+          view.gearLoading.delete(path);
+          console.error(`착용 장비 이미지 로딩 실패: ${path}`, error);
+        });
+      }
+      if (!gearTexture) return;
+    }
+    const socket = weaponSocket(heroClass(save), save.gender, walking ? 'walk' : 'idle', walkingFrame);
+    if (!shown) {
+      const sprite = new Sprite(gearTexture);
+      sprite.anchor.set(socket.anchorX, socket.anchorY);
+      sprite.alpha = 1;
+      view.heroLayer.addChild(sprite);
+      shown = { path: key, sprite };
+      view.heroGear.set('weapon', shown);
+    }
+    const height = heroBodyHeight(art, texture.height) * socket.size;
+    shown.sprite.anchor.set(socket.anchorX, socket.anchorY);
+    shown.sprite.zIndex = socket.zOrder;
+    view.heroLayer.sortableChildren = true;
+    shown.sprite.visible = !attacking;
+    shown.sprite.position.set((socket.u - .5) * texture.width, (socket.v - view.hero.anchor.y) * texture.height);
+    shown.sprite.height = height;
+    shown.sprite.width = height * (gearTexture.width / gearTexture.height);
+    shown.sprite.rotation = socket.rotation;
+}
+
 const walkAnchors = {
   maleBaseWalk: [.95, .95, .95, .95, .941, .944, .944, .923],
   maleBaseHelmWalk: [.97, .97, .97, .97, .97, .97, .97, .97],
@@ -18,32 +79,44 @@ const walkAnchors = {
   femaleWalk: [.948, .946, .95, .944, .935, .944, .95, .941],
   femaleHelmWalk: [.97, .97, .97, .97, .97, .97, .97, .97],
   femaleOldHelmWalk: [.97, .97, .97, .97, .97, .97, .97, .97],
-  armoredWalk: [.89, .89, .89, .883, .892, .889, .887, .889],
-  armoredNoHelmWalk: [.944, .932, .935, .926, .932, .935, .937, .939],
-  femaleArmoredNoHelmWalk: [.97, .97, .97, .97, .97, .97, .97, .97],
-  femaleArmoredHelmWalk: [.97, .97, .97, .97, .97, .97, .97, .97],
-  femaleArmoredOldHelmWalk: [.97, .97, .97, .97, .97, .97, .97, .97],
+  armoredWalk: [.907, .907, .907, .907, .903, .903, .903, .907],
+  armoredNoHelmWalk: [.953, .948, .953, .948, .948, .953, .953, .953],
+  femaleArmoredNoHelmWalk: [.984, .984, .984, .984, .98, .989, .989, .984],
+  femaleArmoredHelmWalk: [.989, .989, .993, .989, .984, .993, .993, .989],
+  femaleArmoredOldHelmWalk: [.984, .984, .984, .984, .989, .989, .989, .989],
   skeletonWalk: [.917, .914, .91, .912, .898, .91, .905, .892],
   bossWalk: [.919, .901, .899, .899, .914, .907, .905, .905]
 } as const;
+const idleAnchors: Record<string, number> = {
+  armored: .957, armoredNoHelm: .982,
+  femaleArmoredNoHelm: .993, femaleArmoredHelm: .994, femaleArmoredOldHelm: .991
+};
 
 export function drawHero(this: GameView, world: World, x: number, y: number, time: number): void {
     const { player, save } = world;
     const appearance = heroAppearance(save);
+    // Attack sheets already hold a sword. Idle/walk use swordless body art so
+    // the socket weapon is the only visible sword in those states.
+    const swordlessAppearance = save.equipment.weapon
+      ? heroAppearance({ ...save, equipment: { ...save.equipment, weapon: undefined } })
+      : appearance;
     const moving = Math.hypot(world.activeMove.x, world.activeMove.y) > .05;
     const walked = Math.hypot(player.x - this.lastHeroWorld.x, player.y - this.lastHeroWorld.y);
     this.lastHeroWorld = { x: player.x, y: player.y };
     if (moving) this.heroWalkDistance += Math.min(30, walked);
     const walkingFrame = Math.floor(this.heroWalkDistance / 12) % 8;
     const attackFrame = Math.min(3, Math.floor((1 - world.attackPose / .32) * 4));
-    const walkArt = appearance.walk;
-    let texture = this.textures[appearance.idle];
+    const walkArt = swordlessAppearance.walk;
+    let texture = this.textures[swordlessAppearance.idle];
     const animation = heroAnimationMode(moving, world.attackPose, !!appearance.attack);
     const animatedAttack = animation === 'attack';
     if (animation === 'walk') texture = this.animations[walkArt][walkingFrame];
     else if (animatedAttack && appearance.attack) texture = this.animations[appearance.attack][Math.max(0, attackFrame)];
-    if (this.hero.texture !== texture) this.hero.texture = texture;
-    this.hero.anchor.y = animatedAttack ? .97 : moving ? walkAnchors[walkArt][walkingFrame] : .996;
+    const textureKey = animation === 'walk' ? `${walkArt}:${walkingFrame}`
+      : animatedAttack && appearance.attack ? `${appearance.attack}:${Math.max(0, attackFrame)}` : swordlessAppearance.idle;
+    const displayTexture = tintedGearTexture(textureKey, texture, appearance.armorPalette, appearance.helmetPalette, animatedAttack);
+    if (this.hero.texture !== displayTexture) this.hero.texture = displayTexture;
+    this.hero.anchor.y = animatedAttack ? .97 : moving ? walkAnchors[walkArt][walkingFrame] : (idleAnchors[swordlessAppearance.idle] ?? .996);
     let bob = 0;
     const local = world.effects.filter(effect => effect.kind !== 'hit' && effect.kind !== 'death' && Math.hypot(effect.x - player.x, effect.y - player.y) < 2);
     const spin = local.find(effect => effect.kind === 'spin');
@@ -51,7 +124,7 @@ export function drawHero(this: GameView, world: World, x: number, y: number, tim
     const motion = heroMotion(world.attackPose, player.facingSide, spin);
     const attackPulse = motion.pulse;
     if (slam) bob -= Math.sin(Math.PI * slam.age / slam.duration) * 17;
-    const art = animation === 'walk' ? walkArt : animatedAttack && appearance.attack ? appearance.attack : appearance.idle;
+    const art = animation === 'walk' ? walkArt : animatedAttack && appearance.attack ? appearance.attack : swordlessAppearance.idle;
     const scale = heroScale(this.app.screen.height, art, texture.height);
     const face = player.facingSide;
     const lungeX = (Math.cos(player.facing) - Math.sin(player.facing)) * .86 * attackPulse * 6;
@@ -60,6 +133,7 @@ export function drawHero(this: GameView, world: World, x: number, y: number, tim
     this.heroLayer.position.set(x + lungeX + (player.hit > 0 ? Math.sin(time * 55) * 2 : 0), y + bob + lungeY);
     this.heroLayer.rotation = motion.rotation;
     this.hero.tint = player.hit > 0 ? 0xffd4cf : 0xffffff;
+    syncWeapon(this, save, texture, art, animatedAttack, animation === 'walk', walkingFrame);
     // The ground shadow follows the drawn body, not the frame: an attack cell is wider
     // than the hero only to keep the sword inside its own frame, and a frame-width
     // shadow grew 25 % whenever the hero swung.
