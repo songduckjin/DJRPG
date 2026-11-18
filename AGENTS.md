@@ -21,6 +21,10 @@ Vite+TS+PixiJS 모바일 2.5D 다크 판타지 RPG. 수정 전 이 규칙 적용
 ## 성별 동기화
 - 외형·모션·장비·스킬 수정은 남/여 동시 반영, `rg`로 `gender` 분기 점검. 직업은 전사 단일.
 
+## 외형·다직업 규칙
+- 인게임 필드 캐릭터는 **장비창(정지 미리보기)과 분리**한다. 필드는 **직업·성별·티어별 통합 바디 시트(갑옷·투구 포함) + 무기 소켓**(`src/game/render/heroSockets.ts`)만 쓰고, 장갑·부츠·갑옷·투구 2D 아이콘을 필드 캐릭터 위에 덧그리지 않는다. 장비창 미리보기(`src/ui/equipmentPortrait.ts`)는 장착 5부위를 한 장으로 합성한 초상화라 이 규칙의 예외로 둔다.
+- `appearance.ts`·`heroSockets.ts`는 **다직업 확장(`classId × gender`)**을 전제로 둔다: 직업별 바디 시트와 소켓 데이터 표만 추가하면 `render/entities.ts` 렌더러 수정 없이 새 직업이 동작해야 한다(소켓 표 타입 `Record<ClassId, Record<Gender, …>>`, `ClassId`는 현재 `'warrior'`). 직업을 늘릴 때는 남/여를 함께 넣는다.
+
 ## 매뉴얼 갱신
 - 새 파일·기능·API·증상 추가나 책임 변경 시 완료 전 `docs/CODE_MAP.md` 해당 영역을 같은 형식으로 갱신(`§6`).
 - 같은 영역을 반복해 고쳤으면 `docs/QUICK_PATCH.md` §1 표에 1줄(수정 파일·금지·단건 테스트)을 추가한다.
