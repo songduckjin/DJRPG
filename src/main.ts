@@ -1,3 +1,4 @@
+import './game/pixiSetup';
 import { preferences } from './game/preferences';
 import { mountWasteland } from './game/wasteland';
 import { GameView } from './game/render';
