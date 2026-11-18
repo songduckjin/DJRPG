@@ -1,3 +1,8 @@
+## 2026-11-18 · 작업 128 장착 장비별 캐릭터 외형 적용
+- 투구·갑옷·장갑·신발·검의 기존 아이템 아트를 캐릭터 레이어에 연결해 남녀 idle·이동·공격 모션에 유지했다. 별도 이미지 생성은 필요하지 않았다.
+- 타입 검사, 256개 테스트, 프로덕션 빌드, `git diff --check` 통과. PR #52를 `a5db0e25387abbb6ef3b94d6c613fa936413d3f7`로 main에 병합했다.
+- Cloudflare Pages Production이 `version.json` `a5db0e25387a`와 새 JS 번들을 HTTP 200으로 제공하는 것을 확인했다. 화면 실기 확인은 별도다.
+
 ## 2026-11-17 · 작업 62 최신 버전 강제 + 충돌 무한 재로드 차단 배포 결과
 - PR #42가 `4491196`으로 main에 병합됐고 Cloudflare Pages Production이 새 `index-Nm1Sohin.js`와 `version.json`(`449119655a16`)을 제공하는 것을 확인했다. `/`와 `/index.html`은 `Cache-Control: no-store, max-age=0`.
 - 운영 API 실측: `account`·`market`·`warehouse` 모두 다른 `X-App-Version` 헤더에 `426 VERSION_OUTDATED`(`expected: 449119655a16`), 현재 버전 헤더와 헤더 없는 호출은 `401 INVALID_TOKEN`으로 통과해 인증 단계까지 진행됐다. 브라우저로 `djrpg.pages.dev` 접속 시 로그인 화면까지 정상 부팅(콘솔 오류 없음).
