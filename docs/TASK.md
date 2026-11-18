@@ -7,6 +7,5 @@
 
 | 작업 | 담당자 | 브랜치 | 수정 예정 파일 / 영향 영역 | 위험 등급 | 상태 |
 |---|---|---|---|---|---|
-| 134 필드 캐릭터 통합 바디 복구 및 무기 소켓·액션 자연화 | fks3997 (songduckjin 위임) | `task/134-field-gear-action` | `src/game/render/{entities,heroSockets,heroScale,vfx}.ts`, `src/game/render.ts`, `public/assets/*swordless.png`, `tests/{hero-art,hero-weapon-render}.test.mjs` / 필드 캐릭터 외형·무기 렌더링 | 중 | [-] |
 
 > 2026-11-17: `[작업 61] 단일 기기 로그인 강제`를 검증·PR 병합으로 마감하고 `docs/TASK_ARCHIVE.md`로 옮겼다.
