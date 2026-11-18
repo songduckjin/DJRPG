@@ -6,6 +6,12 @@
 
 ## 진행 중 작업
 
+## [-] [작업 131] 장비창 실제 착용 아이템 미리보기
+- fks3997 · 2026-11-18 · `task/131-equipped-gear-visible`
+- 목표: 장비창 중앙 미리보기에 기본 갑옷 초상화 대신 현재 장착한 부위별 실제 아이템 아트를 표시한다.
+- 수정: `src/ui/modals/equipModal.ts`, `src/styles/modals.css`, `tests/equipped-detail.test.mjs`, `docs/QUICK_PATCH.md`, `docs/CODE_MAP.md`. 저장 형식·아이템 데이터·전투 렌더는 변경하지 않는다.
+- 검증: `npx tsc --noEmit`, `node --test tests/equipped-detail.test.mjs`, `git diff --check`.
+
 ## [x] [작업 130] 전투 추격 중 공격 멈춤 수정
 - fks3997 · 2026-11-18 · `task/130-combat-chase-attack`
 - `world.ts`에서 적 추격 정지 거리를 기본 공격 사거리 90과 맞춰, 공격이 막힌 채 적에게 너무 가까이 달라붙지 않게 수정. 드랍 추격 정지 거리와 수동 이동 차단은 유지.
