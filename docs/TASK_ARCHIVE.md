@@ -1642,3 +1642,5 @@
 | 142 내려찍기 충격·뒤구름·전투얼굴재사용 | fks3997 | feature/world-boss-preview-fks3997 | 1.8초모션/동기피해·균열먼지/구름배우뒤·대기전투상반신 | [x] |
 
 | 143 일반공격 프레임 좌측 칼날조각 제거 | fks3997 | feature/world-boss-preview-fks3997 | 분리성분제거·연결무기보존/Texture정리, tsc·13테스트 | [x] |
+
+| 144 보스얼굴 버튼 강조 | fks3997 | feature/world-boss-preview-fks3997 | 큰HD얼굴/뿔·뒤후광·눈빛·HP/3회유지 | [x] |
