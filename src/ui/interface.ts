@@ -42,6 +42,8 @@ export type BagFilter = 'all' | 'weapon' | 'armor' | 'accessory';
 
 export class Interface {
   worldBoss = new WorldBossPreview();
+  worldBossField?: () => void;
+  suspendMainField?: () => () => void;
   market: Market;
   journey: Journey;
   private modalRenderGate?: ModalRenderGate;

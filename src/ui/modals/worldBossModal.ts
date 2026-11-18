@@ -1,25 +1,49 @@
 import type {Interface} from '../interface';
-import {heroAppearance} from '../../game/appearance';
-import {totalStats} from '../../game/store';
-import {BOSS_ART} from '../worldBossPreview';
+import {preloadBossSheets} from '../worldBossPreview';
+import {openWorldBossField} from '../worldBossField';
+import {bossRewardTiers,myRewardTier,topTen,type BossStanding} from '../worldBossPresentation';
+function text(tag:string,value:string,className=''):HTMLElement {const el=document.createElement(tag);el.textContent=value;el.className=className;return el;}
+export function renderBossRanking(parent:HTMLElement,standing?:BossStanding):void {
+  const list=document.createElement('div');list.className='wb-rank-list';
+  const entries=topTen(standing);
+  for(let rank=1;rank<=10;rank++){
+    const row=document.createElement('div');row.className='wb-rank-row';const entry=entries.find(r=>r.rank===rank);
+    if(entry&&(entry.mine||standing?.mine?.rank===rank))row.classList.add('is-mine');
+    row.append(text('b',`${rank}위`),text('span',entry?.name??'집계 대기'),text('strong',entry?entry.damage.toLocaleString('ko-KR'):'—'));list.append(row);
+  }
+  const mine=document.createElement('div');mine.className='wb-my-rank';mine.append(text('b','내 순위'),text('span',standing?.mine?`${standing.mine.rank}위 · ${standing.mine.name}`:'집계 대기'),text('strong',standing?.mine?standing.mine.damage.toLocaleString('ko-KR'):'—'));
+  parent.append(list,mine);
+}
+export function renderBossRewards(parent:HTMLElement,rank?:number):void {
+  parent.append(text('p','보상 구성안 · 수량은 정식 연동 전에 조정할 수 있습니다.','wb-reward-note'));
+  const list=document.createElement('div');list.className='wb-reward-list';
+  for(const tier of bossRewardTiers){const row=document.createElement('div');row.className='wb-reward-row';if(tier.id===myRewardTier(rank))row.classList.add('is-mine');
+    row.append(text('b',tier.label),text('span',`${tier.gold.toLocaleString('ko-KR')} 금화 · 스킬북 ${tier.books}권`));if(tier.id===myRewardTier(rank))row.append(text('small','내 보상 구간'));list.append(row);
+  }
+  for(const [label,content] of [['도전 참여 보상','매 도전 1,000 금화'],['마지막 타격 보상','최종 처치자 · 5,000 금화 + 스킬북 2권'],['공동 처치 보상','유효 피해를 기록한 모든 참여자 · 2,000 금화 + 스킬북 1권']]){
+    const row=document.createElement('div');row.className='wb-reward-extra';row.append(text('b',label),text('span',content));list.append(row);
+  }
+  parent.append(list);
+}
 export function renderWorldBoss(ui:Interface,dialog:HTMLElement):void {
-  const preview=ui.worldBoss;
+  ui.worldBoss.dispose();preloadBossSheets();const preview=ui.worldBoss;
   const body=document.createElement('section');body.className='world-boss-content';
-  body.innerHTML=`<p class="wb-subtitle">모든 모험가가 함께 맞서는 재앙</p><div class="wb-stage" aria-label="월드보스 모션 미리보기"><div class="wb-ruins"></div><div class="wb-warning" hidden></div><div class="wb-wave"></div><div class="wb-sprite" role="img" aria-label="잿불의 군주 발카론"></div><img class="wb-hero" alt="내 캐릭터"><i class="wb-hero-slash"></i><div class="wb-session"><span class="wb-clock">전투 시간 60초</span><span>연습 피해량 <b class="wb-damage">0</b></span></div><span class="wb-session-status">모션 미리보기</span></div><h3 class="wb-name">잿불의 군주 발카론</h3><div class="wb-health"><i></i><span>공유 체력 연동 준비 중</span></div><p class="wb-preview-note">화면·모션 확인용 · 참여 횟수와 보상은 소모되지 않습니다.</p>`;
-  const sprite=body.querySelector<HTMLElement>('.wb-sprite')!;sprite.style.backgroundImage=`url('${BOSS_ART}')`;
-  body.querySelector<HTMLImageElement>('.wb-hero')!.src=heroAppearance(ui.world.save).portrait;
+  body.innerHTML='<div class="wb-visual"><p class="wb-subtitle">모든 모험가가 함께 맞서는 재앙</p><img class="wb-intro-portrait" src="/assets/world-boss/valkaron-shoulder-waist-v1.png" alt="대검을 어깨에 걸치고 정보 영역에 손을 얹은 잿불의 군주 발카론"><i class="wb-intro-dust" aria-hidden="true"></i></div>';
+  const details=document.createElement('div');details.className='wb-details';
+  details.append(text('h3','잿불의 군주 발카론','wb-name'));
+  const health=document.createElement('div');health.className='wb-health';health.innerHTML='<i></i><span>공유 체력 연동 준비 중</span>';details.append(health);
   const tabs=document.createElement('div');tabs.className='wb-tabs';tabs.setAttribute('role','tablist');
   for(const [id,label] of [['challenge','도전'],['ranking','순위'],['rewards','보상']] as const){
     const button=document.createElement('button');button.type='button';button.textContent=label;button.setAttribute('role','tab');button.setAttribute('aria-selected',String(preview.tab===id));
     button.onclick=()=>{preview.tab=id;ui.renderModal();};tabs.append(button);
   }
-  body.append(tabs);const panel=document.createElement('div');panel.className='wb-panel';panel.setAttribute('role','tabpanel');
+  details.append(tabs);const panel=document.createElement('div');panel.className='wb-panel';panel.setAttribute('role','tabpanel');
   if(preview.tab==='challenge'){
-    panel.innerHTML='<p>60초 동안 보스의 호흡·대검 횡베기·광역 내려찍기를 확인합니다.</p><p>붉은 범위 예고 후 내려찍기와 충격파가 발생합니다.</p>';
-    const start=document.createElement('button');start.type='button';start.className='wb-challenge';start.textContent=preview.startedAt===undefined?'60초 전투 연습':'전투 연습 다시 시작';
-    start.onclick=()=>{preview.start();ui.renderModal();};panel.append(start);
-  }else if(preview.tab==='ranking')panel.innerHTML='<h4>피해량 순위</h4><p>전체 유저의 피해량 순위는 서버 연동 단계에서 제공됩니다.</p><p>현재 연습 기록은 순위에 반영되지 않습니다.</p>';
-  else panel.innerHTML='<h4>월드보스 보상 안내</h4><ul><li>도전 참여 보상</li><li>누적 피해량 순위 보상</li><li>마지막 타격 추가 보상</li><li>토벌 성공 시 모든 참여자 추가 보상</li></ul><p>정식 도전은 계정당 하루 3회로 준비 중입니다. 현재 보상은 지급되지 않습니다.</p>';
-  body.append(panel);dialog.append(body);
-  const stats=totalStats(ui.world.save);preview.animate(body.querySelector('.wb-stage')!,stats.attack/0.48);
+    const guide=document.createElement('div');guide.className='wb-challenge-guide';guide.innerHTML='<h4>월드보스 도전 안내</h4><ul><li>계정당 하루 3회, 한 번에 최대 60초 참여합니다.</li><li>모든 유저가 하나의 보스 체력을 함께 깎습니다.</li><li>하루 누적 피해량으로 순위와 보상이 결정됩니다.</li><li>보스 처치 시 진행 중인 전투가 종료되며 추가 도전은 할 수 없습니다.</li><li>마지막 타격자에게 추가 보상을 지급합니다.</li><li>토벌 성공 시 피해를 기록한 모든 참여자가 공동 처치 보상을 받습니다.</li></ul>';panel.append(guide);
+    panel.append(text('p','현재는 전용 필드 연습입니다. 도전 횟수·체력·보상은 실제 계정에 반영되지 않습니다.','wb-preview-note'));
+    if(preview.damage>0)panel.append(text('p',`최근 연습 피해량 ${preview.damage.toLocaleString('ko-KR')}`));
+    const start=document.createElement('button');start.type='button';start.className='wb-challenge';start.textContent='도전하기';start.onclick=()=>openWorldBossField(ui);panel.append(start);
+  }else if(preview.tab==='ranking')renderBossRanking(panel,preview.standing);
+  else renderBossRewards(panel,preview.standing?.mine?.rank);
+  details.append(panel);body.append(details);dialog.append(body);
 }

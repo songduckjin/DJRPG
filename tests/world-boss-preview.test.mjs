@@ -19,15 +19,14 @@ test('preview duration is 60 seconds and rendering cancels its animation on clos
   preview.dispose();assert(canceled);preview.start(100);assert.equal(preview.damage,0);assert.equal(preview.elapsed(1100),1);
  }finally{globalThis.requestAnimationFrame=oldRaf;globalThis.cancelAnimationFrame=oldCancel;}
 });
-test('world boss modal displays an explicit rehearsal and uses each gender portrait without changing progress',()=>{
+test('intro shows a static shoulder portrait and challenge guide instead of combat, without save mutation',()=>{
  const old=globalThis.document;
- function element(){const queries=new Map();return {children:[],style:{},className:'',setAttribute(){},append(...nodes){this.children.push(...nodes);},querySelector(key){if(!queries.has(key))queries.set(key,element());return queries.get(key);}};}
+ function element(){return {children:[],style:{},className:'',classList:{add(){}},setAttribute(){},append(...nodes){this.children.push(...nodes);}};}
  globalThis.document={createElement:element};
  try{for(const gender of ['male','female']){
-  const save=freshSave(gender),before=JSON.stringify(save),worldBoss=new WorldBossPreview();let stage;
-  worldBoss.animate=el=>{stage=el;};const ui={world:{save},worldBoss,renderModal(){}},dialog=element();renderWorldBoss(ui,dialog);
-  const body=dialog.children[0];assert.match(body.innerHTML,/참여 횟수와 보상은 소모되지/);assert.match(body.querySelector('.wb-hero').src,new RegExp(gender));assert(stage);assert.equal(JSON.stringify(save),before);
-  const panel=body.children[1],button=panel.children[0];assert.equal(button.textContent,'60초 전투 연습');
+ const save=freshSave(gender),before=JSON.stringify(save),worldBoss=new WorldBossPreview(),ui={world:{save},worldBoss,renderModal(){}},dialog=element();renderWorldBoss(ui,dialog);
+ const body=dialog.children[0];assert.match(body.innerHTML,/valkaron-shoulder-waist/);assert(!body.innerHTML.includes('wb-hero'));assert(!body.innerHTML.includes('wb-session'));
+ const details=body.children[0],panel=details.children.at(-1);assert.match(panel.children[0].innerHTML,/계정당 하루 3회/);assert.equal(panel.children.at(-1).textContent,'도전하기');assert.equal(JSON.stringify(save),before);
  }}finally{globalThis.document=old;}
 });
 

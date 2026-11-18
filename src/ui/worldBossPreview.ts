@@ -1,3 +1,4 @@
+import type {BossStanding} from './worldBossPresentation';
 export type BossMotion = 'idle' | 'attack' | 'slam';
 export const BOSS_SHEETS = ['idle','slash','slam-rise','slam-impact'].map(name=>`/assets/world-boss/valkaron-${name}-hd-v1.png`);
 export const BOSS_ART = BOSS_SHEETS[0];
@@ -33,6 +34,7 @@ export function framePosition(frame: number): string {
 // Visual rehearsal only: no Save, participation counter, ranking or reward mutation.
 export class WorldBossPreview {
   tab: 'challenge'|'ranking'|'rewards' = 'challenge';
+  standing?:BossStanding;
   startedAt?: number;
   damage = 0;
   private stop?: () => void;

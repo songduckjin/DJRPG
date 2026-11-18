@@ -7,7 +7,7 @@
 
 | 작업 영역 | 핵심 파일 | 연관 파일 | 관련 테스트 |
 |---|---|---|---|
-| 월드보스 시안·호흡·일반/광역모션·60초연습 | `src/ui/worldBossPreview.ts`, `src/ui/modals/worldBossModal.ts` | `interface.ts`, `styles/world-boss.css`, `public/assets/world-boss/valkaron-v1.png` | `world-boss-preview`, `modal-ui`, `modal-interaction` |
+| 월드보스 소개·전용필드·순위/보상시안 | `src/ui/modals/worldBossModal.ts`, `src/ui/worldBossField.ts`, `src/game/worldBossRehearsal.ts` | `worldBossPreview.ts`, `worldBossPresentation.ts`, `interface.ts`, `main.ts` Ticker수명, `styles/world-boss.css`, `public/assets/world-boss/*` | `world-boss-preview`, `world-boss-field`, `modal-ui`, `modal-interaction`, `hero-motion`, `appearance` |
 | 전투·이동·층·보스·AI | `src/game/world.ts` | `arena.ts`, `facing.ts`, `bagCapacity.ts`, `store.ts`(`floorKillTarget`) | `world-movement`, `arena`, `facing` |
 | 스킬·스킬북·쿨타임·버프 | `src/game/skills.ts`, `src/game/loadout.ts` | `world.ts`(`cooldowns`·`action`), `skillProgress.ts`, `ui/skillBooks.ts`, `ui/skillLoadout.ts`, `ui/modals/skillModal.ts`, `ui/skillFeedback.ts` | `skill-progression`, `loadout`, `skill-ui`, `skill-feedback`, `skillbook-art` |
 | 아이템·등급·드랍·스탯·장비 슬롯 | `src/game/items.ts` | `inventory.ts`, `itemComparison.ts`, `bagCapacity.ts`, `codex.ts`, `ui/modals/equipModal.ts` | `inventory`, `codex`, `ring-restore`, `item-protection-ui`, `equipped-detail` |
@@ -133,6 +133,10 @@
 - `src/ui/modals/worldBossModal.ts` — 월드보스팝업/도전·순위·보상시안, 공유상태미연동명시. `renderWorldBoss`
 - `src/styles/world-boss.css` — 원본가슴아래직접크롭·72px이미지/58px무테진입버튼·붉은맥동후광(모션감소지원)·아래체력/3회시안표시·팝업·범위예고·충격파, 본체/이펙트분리.
 - `server/journey.mjs` — 수령검증/소유권/수령기록배치원자저장·성공응답선택적journey목록. 구클라이언트호환.
+
+- `src/game/worldBossRehearsal.ts` — 복제Save전용World·실제공격/스킬·단일보스고정·60초/전투불능종료. 실제저장콜백없음. `WorldBossRehearsal`
+- `src/ui/worldBossField.ts` — 별도전체GameView필드·고해상도보스텍스처·기본필드정지/복귀·로딩/결과/나가기. `openWorldBossField`·`pauseMainForBoss`
+- `src/ui/worldBossPresentation.ts` — 상위10/내순위·보상구간선택. 미연동시가짜순위금지. `topTen`·`myRewardTier`
 
 ## 3.5 설계자 블록 — 레이어·소유권·시퀀스·영향 경계
 
