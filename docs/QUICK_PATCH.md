@@ -8,7 +8,7 @@
 | 작업 유형 | 수정할 파일 (딱 여기만) | 절대 건드리지 말 것 | 실행할 단건 테스트 |
 |---|---|---|---|
 | 월드보스 배경가림/모션색감 | `src/ui/worldBossField.ts` Pixi배경·`bossFrameTone`, `worldBossPreview.ts`, `styles/world-boss.css` | 불투명캔버스뒤DOM배경·피격전체틴트금지 | `node --test tests/world-boss-preview.test.mjs tests/world-boss-field.test.mjs` |
-| 월드보스 입장포효·스킵 | `src/ui/worldBossIntro.ts`, `src/ui/worldBossField.ts`, `styles/world-boss.css` | 인트로중전투dt/피해집계금지 | `node --test tests/world-boss-preview.test.mjs tests/world-boss-field.test.mjs` |
+| 월드보스 고정경기장 입장포효 | `src/ui/worldBossIntro.ts`, `src/ui/worldBossField.ts`, `src/ui/worldBossImpact.ts`, `styles/world-boss.css` | 인트로중전투dt/피해집계금지 | `node --test tests/world-boss-preview.test.mjs tests/world-boss-field.test.mjs` |
 | 월드보스 시안·모션 | `ui/worldBossPreview.ts`, `modals/worldBossModal.ts`, `ui/worldBossField.ts`, `game/worldBossRehearsal.ts`, `ui/worldBossPresentation.ts`, `styles/world-boss.css` | 실제공유체력·순위·보상처럼표시/저장금지 | `node --test tests/world-boss-preview.test.mjs tests/world-boss-field.test.mjs` |
 | 보상·업적 수령지연 | `server/journey.mjs`, `game/journey.ts`, `interface.ts` | 중복수령/소유권검증생략·성공후world.onChange재저장금지 | `node --test tests/journey.test.mjs tests/journey-ui.test.mjs` |
 | 전투 밸런스 / 몬스터 스탯 / 층 드랍률 | `src/game/world.ts` `enemyMoveSpeed`·`enemyMaxHp`·`enemyHitDamage`·`kill`(골드·드랍 판정), 층 드랍률은 `src/game/items.ts` `equipmentDropChance` | `src/game/sync.ts`, `server/**`, `store.ts` `floorKillTarget`·`parseSave` 계약, `drops.push` 이후 획득 흐름 | `node --test tests/world-movement.test.mjs tests/arena.test.mjs` |

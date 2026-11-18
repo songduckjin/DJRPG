@@ -1656,3 +1656,5 @@
 | 149 금색제거·선명한얼굴/붉은링 | fks3997 | feature/world-boss-preview-fks3997 | 고해상도얼굴/금색·후광제거·하단갭보존, tsc·14테스트 | [x] |
 
 | 150 안개·포효얼굴 연속줌아웃 | fks3997 | feature/world-boss-preview-fks3997 | HD얼굴/전신·4초단일시계/안개/연속카메라/말미전투시작·dt분리, tsc·15테스트·아트 | [x] |
+
+| 151 고정경기장 짧은포효·착지입자 | fks3997 | feature/world-boss-preview-fks3997 | 확대/안개/스킵제거·1.8초포효→시작/탄도돌·먼지·충격, tsc·16테스트 | [x] |
