@@ -130,13 +130,14 @@
 - 테스트는 `node --test tests/<이름>.test.mjs` 단건 실행 가능.
 
 - `src/styles/world-boss.css` — 보스버튼70px원형/62px얼굴·280도금색없는붉은단일체력링/하단80도갭·안쪽하단3회·고해상도얼굴크롭, 모션감소대응.
-- `src/ui/worldBossPreview.ts` — 메모리 전용60초모션연습·4×2고해상도5시트(일반8/내려찍기24프레임·1.8초가속/충격시점공유)프레임선택·발기준정렬·RAF수명관리. `bossPose`·`framePosition`·`frameSheet`·`preloadBossSheets`·`WorldBossPreview`
+- `src/ui/worldBossPreview.ts` — 메모리 전용60초모션연습·4×2고해상도5시트(일반8/내려찍기24프레임·1.8초가속/충격시점공유)프레임선택·발기준정렬/복귀완급·idle0재개·RAF수명관리. `bossPose`·`framePosition`·`frameSheet`·`preloadBossSheets`·`WorldBossPreview`
 - `src/ui/modals/worldBossModal.ts` — 월드보스팝업/무헤더·상단투명상반신/고해상도전투형얼굴·어깨검/앞손정지상반신·뒤구름·허리띠절반가림/손앞층·이름옆나가기·하단정보창/도전·상위10+내순위한눈·보상시안, 공유상태미연동명시. `renderWorldBoss`
 - `src/styles/world-boss.css` — HD원본얼굴/뿔직접크롭·58px무테진입버튼·후광분리(얼굴블러없음)·아래체력/3회시안표시·팝업·범위예고·충격파, 본체/이펙트분리.
 - `server/journey.mjs` — 수령검증/소유권/수령기록배치원자저장·성공응답선택적journey목록. 구클라이언트호환.
 
 - `src/game/worldBossRehearsal.ts` — 복제Save전용World·실제메인장착자동공격/스킬·수동회피0.45초/쿨4초·단일보스고정·60초/전투불능종료. 실제저장콜백없음. `WorldBossRehearsal`
-- `src/ui/worldBossIntro.ts` — 고정경기장1.8초기본→포효→기본·전투시작/시간분리, 스킵·카메라연출없음. `WorldBossIntro`
+- `src/ui/worldBossIntro.ts` — 고정경기장2.7초기본→포효→기본·전투시작/시간분리, 스킵·카메라연출없음. `WorldBossIntro`
+- `src/ui/worldBossWeather.ts` — 깃발천정규좌표/변형·뒤구름이동좌표(색마스크mesh, 돌/봉고정·모션감소). `bannerOffset`·`cloudCenter`
 - `src/ui/worldBossImpact.ts` — 착지돌탄도/그림자·먼지확산/소멸의결정적입자상태. `slamParticles`
 - `src/ui/worldBossField.ts` — 고정경기장짧은포효·별도전체GameView필드·고해상도보스텍스처·기본필드정지/복귀·Pixi내부흑요석제단/보스뒤하늘구름·탄도돌조각/그림자/확산먼지충격·프레임색감보정/공격분리조각제거·중앙보스·하단시간/딜/보스적색·내청록체력/수동회피·로딩/결과/나가기. `openWorldBossField`·`pauseMainForBoss`
 - `src/ui/worldBossPresentation.ts` — 상위10/내순위·1/2~3/4~10/11~50/51~100/101이하보상구간선택. 미연동시가짜순위금지. `topTen`·`myRewardTier`

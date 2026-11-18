@@ -58,8 +58,8 @@ test('detached blade fragment is removed while the connected body and sword stay
 
 test('short standing roar pauses combat, starts and ends in the regular idle pose',async()=>{
  const {WorldBossIntro}=await import('../src/ui/worldBossIntro.ts');const intro=new WorldBossIntro(),battle=new WorldBossRehearsal(freshSave('male'));
- assert.equal(intro.frame,0);let sawRoar=false;
- for(let i=0;i<35;i++){const dt=intro.advance(.05);if(dt>0)battle.advance(dt);assert(intro.frame===0||(intro.frame>=41&&intro.frame<=47));if(intro.frame>=41)sawRoar=true;}
+ assert.equal(intro.duration,2.7);assert.equal(intro.frame,0);let sawRoar=false;
+ for(let i=0;i<53;i++){const dt=intro.advance(.05);if(dt>0)battle.advance(dt);assert(intro.frame===0||(intro.frame>=41&&intro.frame<=47));if(intro.frame>=41)sawRoar=true;}
  assert(sawRoar);assert(intro.active);assert.equal(battle.elapsed,0);assert.equal(battle.damage,0);assert.equal(intro.frame,0);assert(intro.startCue);
  for(let i=0;i<2;i++){const dt=intro.advance(.05);if(dt>0)battle.advance(dt);}
  assert(!intro.active);assert(Math.abs(battle.elapsed-.05)<1e-9);assert.equal(intro.frame,0);
@@ -68,7 +68,7 @@ test('short standing roar pauses combat, starts and ends in the regular idle pos
 test('standing roar visibly opens and closes in order with a fixed foot baseline',async()=>{
  const {WorldBossIntro}=await import('../src/ui/worldBossIntro.ts');const intro=new WorldBossIntro();
  const expected=[[0,0],[.25,41],[.45,43],[.8,44],[1.1,45],[1.3,46],[1.5,47],[1.6,0]];
- for(const [time,frame] of expected){intro.elapsed=time;assert.equal(intro.frame,frame);assert(Math.abs(intro.footShift-.0218)<.003);}
+ for(const [time,frame] of expected){intro.elapsed=time*1.5;assert.equal(intro.frame,frame);assert(Math.abs(intro.footShift-.0218)<.003);}
 });
 
 test('slam rocks rise, travel, fall and expire while dust expands and dissipates',async()=>{
@@ -79,4 +79,11 @@ test('slam rocks rise, travel, fall and expire while dust expands and dissipates
  assert(late.rocks[0].groundY-late.rocks[0].y<mid.rocks[0].groundY-mid.rocks[0].y);
  assert(mid.dust[0].rx>early.dust[0].rx);assert(late.dust[0].alpha<mid.dust[0].alpha);
  assert.deepEqual(slamParticles(1.15),{rocks:[],dust:[]});assert.deepEqual(slamParticles(-1),{rocks:[],dust:[]});
+});
+
+test('banner cloth moves below its attachment while stone and poles stay fixed; clouds drift',async()=>{
+ const {bannerOffset,cloudCenter}=await import('../src/ui/worldBossWeather.ts');
+ assert.deepEqual(bannerOffset(.5,.5,3),{x:0,y:0});assert.deepEqual(bannerOffset(.16,.18,3),{x:0,y:0});
+ assert.notDeepEqual(bannerOffset(.17,.29,0),bannerOffset(.17,.29,1));assert.notDeepEqual(bannerOffset(.95,.3,0),bannerOffset(.95,.3,1));
+ assert.notEqual(cloudCenter(1,0,480),cloudCenter(1,2,480));
 });

@@ -23,11 +23,14 @@ export function bossPose(seconds: number): {motion: BossMotion; frame: number; i
   const phase = Math.max(0, seconds) % 12;
   if (phase >= 9 && phase < 10.8) {
     const t=phase-9;
-    const frame=t<.65?Math.min(7,Math.floor(t/.65*8)):t<.93?8+Math.min(7,Math.floor((t-.65)/.28*8)):16+Math.min(7,Math.floor((t-.93)/.87*8));
+    const recover=Math.max(0,Math.min(1,(t-.93)/.87)),settle=recover*recover*(3-2*recover);
+    const frame=t<.65?Math.min(7,Math.floor(t/.65*8)):t<.93?8+Math.min(7,Math.floor((t-.65)/.28*8)):16+Math.min(7,Math.floor(settle*8));
     return {motion:'slam', frame:16 + frame, impact:phase>=SLAM_HIT_PHASE&&phase<SLAM_HIT_PHASE+.24};
   }
   if (phase >= 4 && phase < 5.2) return {motion:'attack', frame:8 + Math.min(7, Math.floor((phase - 4) / 1.2 * 8)), impact:false};
-  return {motion:'idle', frame:Math.floor(seconds * 5) % 8, impact:false};
+  // Resume at idle frame zero after an action, rather than jumping to the global clock's middle pose.
+  const idleTime=phase>=10.8?phase-10.8:phase>=5.2?phase-5.2:seconds>=12?phase+1.2:phase;
+  return {motion:'idle', frame:Math.floor((idleTime+1e-9)*5)%8, impact:false};
 }
 export function framePosition(frame: number): string {
   const safe = Math.max(0, Math.min(39, Math.floor(frame)));

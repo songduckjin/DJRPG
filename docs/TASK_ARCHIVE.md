@@ -1658,3 +1658,5 @@
 | 150 안개·포효얼굴 연속줌아웃 | fks3997 | feature/world-boss-preview-fks3997 | HD얼굴/전신·4초단일시계/안개/연속카메라/말미전투시작·dt분리, tsc·15테스트·아트 | [x] |
 
 | 151 고정경기장 짧은포효·착지입자 | fks3997 | feature/world-boss-preview-fks3997 | 확대/안개/스킵제거·1.8초포효→시작/탄도돌·먼지·충격, tsc·16테스트 | [x] |
+
+| 152 복귀모션/포효1.5배·깃발구름 | fks3997 | feature/world-boss-preview-fks3997 | idle점프교정/포효2.7초·천mesh변형/뒤구름/착지보강, tsc·18테스트 | [x] |

@@ -1,7 +1,8 @@
+import {bannerOffset,cloudCenter} from './worldBossWeather';
 import {preferences} from '../game/preferences';
 import {slamParticles} from './worldBossImpact';
 import {WorldBossIntro} from './worldBossIntro';
-import {Assets,ColorMatrixFilter,Graphics,Rectangle,Sprite,Texture} from 'pixi.js';
+import {Assets,ColorMatrixFilter,Graphics,MeshPlane,Rectangle,Sprite,Texture} from 'pixi.js';
 import {GameView} from '../game/render';
 import {projectArenaPoint} from '../game/arena';
 import {WorldBossRehearsal} from '../game/worldBossRehearsal';
@@ -62,7 +63,18 @@ export function openWorldBossField(ui:Interface):void {
       if(closed){releaseFrames();return;}
       await view.mount(get('.wb-field-canvas'));mounted=true;
       if(closed){view.app.destroy(true,{children:true,texture:false,textureSource:false});releaseFrames();return;}
-      const arenaSprite=new Sprite(arena);view.app.stage.addChildAt(arenaSprite,0);
+      const arenaSprite=new MeshPlane({texture:arena,verticesX:72,verticesY:120});view.app.stage.addChildAt(arenaSprite,0);
+      const flagBuffer=arenaSprite.geometry.getAttribute('aPosition').buffer,flagBase=new Float32Array(flagBuffer.data as Float32Array);
+      const flagCanvas=document.createElement('canvas');flagCanvas.width=arena.width;flagCanvas.height=arena.height;
+      const flagContext=flagCanvas.getContext('2d',{willReadFrequently:true});
+      flagContext?.drawImage(arena.source.resource as CanvasImageSource,0,0);
+      const flagPixels=flagContext?.getImageData(0,0,arena.width,arena.height).data;
+      const flagVertices:number[]=[];
+      for(let i=0;i<flagBase.length;i+=2){
+        const x=flagBase[i],y=flagBase[i+1],p=(Math.min(arena.height-1,Math.round(y))*arena.width+Math.min(arena.width-1,Math.round(x)))*4;
+        if(flagPixels&&flagPixels[p]>flagPixels[p+1]*1.3&&flagPixels[p]>25&&flagPixels[p+1]<100&&(bannerOffset(x/arena.width,y/arena.height,0).x!==0))flagVertices.push(i);
+      }
+      const reduceWeather=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
       const clouds=new Graphics();view.app.stage.addChildAt(clouds,1);
       const tones=frames.map(frame=>bossFrameTone(frame));ownedTones.push(...tones);
       get('.wb-field-loading').hidden=true;
@@ -75,6 +87,9 @@ export function openWorldBossField(ui:Interface):void {
           get('.wb-battle-start').hidden=!intro.startCue||session.elapsed>.65;
 
         const visualTime=intro.elapsed+session.elapsed;
+        if(!reduceWeather){const vertices=flagBuffer.data as Float32Array;
+          for(const i of flagVertices){const offset=bannerOffset(flagBase[i]/arena.width,flagBase[i+1]/arena.height,visualTime);vertices[i]=flagBase[i]+offset.x;vertices[i+1]=flagBase[i+1]+offset.y;}flagBuffer.update();
+        }
         // Targets remain present for real combat, but the default skeleton is never rendered.
         const enemies=session.world.enemies;session.world.enemies=[];
         try{view.draw(session.world,visualTime);}finally{session.world.enemies=enemies;}
@@ -95,7 +110,7 @@ export function openWorldBossField(ui:Interface):void {
         // Cloud graphics live between the arena and actors, never above the boss.
         clouds.clear();clouds.position.set(0,-h*.07);
         for(let i=0;i<5;i++)for(let layer=7;layer>0;layer--){
-          clouds.ellipse(w*(i/4)+Math.sin(visualTime*.055+i)*w*.15,h*(.06+(i%2)*.07),w*(.12+layer*.025),h*(.025+layer*.009)).fill({color:0x9b969e,alpha:.009});
+          clouds.ellipse(cloudCenter(i,reduceWeather?0:visualTime,w),h*(.06+(i%2)*.07),w*(.12+layer*.025),h*(.025+layer*.009)).fill({color:0x9b969e,alpha:.015});
         }
         if(!intro.active&&pose.motion==='slam'&&pose.frame<31)view.ground.ellipse(x-25,y,95,38).stroke({color:0xb7674f,width:1.2,alpha:.24});
         const impactAge=slamImpactAge(session.elapsed);

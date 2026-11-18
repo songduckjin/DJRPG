@@ -55,3 +55,9 @@ test('slam accelerates through the downswing and its impact matches damage timin
  assert(bossPose(9.64).frame<24);assert(bossPose(9.92).frame>=24);assert(bossPose(SLAM_HIT_PHASE+.01).impact);
  assert.equal(slamImpactAge(SLAM_HIT_PHASE-.01),null);assert(slamImpactAge(SLAM_HIT_PHASE+.2)>0);assert.equal(slamImpactAge(11.2),null);assert.equal(bossPose(10.81).motion,'idle');
 });
+
+test('slam recovery settles into the first idle frame and keeps idle continuous across the next cycle',()=>{
+ assert.equal(bossPose(10.799).frame,39);assert.equal(bossPose(10.8).frame,0);assert.equal(bossPose(10.99).frame,0);assert.equal(bossPose(11.01).frame,1);
+ assert.equal(bossPose(11.999).frame,5);assert.equal(bossPose(12.001).frame,6);
+ let previous=31;for(let t=9.93;t<10.8;t+=.01){const f=bossPose(t).frame;assert(f>=previous);assert(f-previous<=1);previous=f;}
+});
