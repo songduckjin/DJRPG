@@ -5,6 +5,19 @@
 
 ---
 
+## [x] [작업 139] 코스튬 스펙 v1.1 확정 및 런타임 매니페스트·아이템 매핑 구현
+
+- **완료일**: 2026-11-18 · **담당자**: `songduckjin` · **브랜치**: `task/139-costume-manifest` · **PR**: #76
+- `src/game/costume/**`를 신규로 만들어 코스튬 런타임 데이터 계층을 분리했다(Pixi·DOM 비의존, 렌더러는 [작업 140]에서 연결).
+  - `mapping.ts` — `items.ts` `baseItems` 고유 장비 이름 **75종** 전수 매핑. 무기·보조무기·투구·갑옷·장갑·신발 **55종**은 `<부위>-t<기본형 인덱스>`, 필드 미표시 부위(목걸이·벨트·반지) **20종**은 명시적 `"none"`. 대조는 `baseItemIndex`와 같은 NFKC 정규화 + 공백·제로폭 문자 제거 + 완전일치/`endsWith`, 레거시 `낡은 투구` → `helmet-t7` 예외 포함. `items.ts` 무수정.
+  - `manifest.ts` — 매니페스트 타입·스키마 검증(`schemaVersion`·`costumeId`·`slot`·`animMode`·`anchor` 필수, `fit`·`zOrder` 선택), 1회 로드·메모리 캐시, **폴백 4경로**(매니페스트 없음·파싱/검증 실패·`costumeId` 미매핑·아틀라스 실패)를 `bodyFallback`+`reason`으로 반환, `COSTUME_ASSET_VERSION` 한 상수에서 만드는 캐시 버스터 URL.
+  - `skillMotion.ts` — 액티브 스킬 8종 → `slash`/`spin`/`smash`/`cast` 4대 템플릿(패시브 3종 제외).
+- `docs/COSTUME_SYSTEM.md`를 **v1.1**로 확정했다 — 파츠 교체 가림·자체 PixiJS 레이어 채택·피벗 `(0,0)`·최대 동작 캔버스 후보(한 손 검 183×213 / 대검 234×242, 계산값)·§3.3 스킬 매핑표·§7.1 런타임 계약. 매니페스트 필드는 §7 7개에서 늘리지 않았다.
+- 검증: `npx tsc --noEmit` 통과, `node --test tests/costume-manifest.test.mjs` **14건 통과**, `git diff --check` 통과, `src/game/render/**`·`render.ts`·`appearance.ts`·`store.ts`·`items.ts`·`src/ui/**`·`server/**`·`public/assets/**` 무변경 확인. 전체 `npm test`·`npm run build`는 공용 계약을 건드리지 않아 실행하지 않았다(AGENTS.md 부분 검증 규칙).
+- 수정 파일: `src/game/costume/{mapping,manifest,skillMotion,index}.ts`(신규), `tests/costume-manifest.test.mjs`(신규), `docs/COSTUME_SYSTEM.md`, `docs/CODE_MAP.md`, `docs/QUICK_PATCH.md`, `docs/TASK.md`·`docs/TASK_songduckjin.md`·`docs/TASK_ARCHIVE.md`·`docs/WORKLOG.md`. 게임 화면·Save/DB/API 무변경.
+
+---
+
 ## [x] [작업 138] 코스튬 도구 비교 및 최소 뷰어 프로토타입
 
 - **완료일**: 2026-11-18 · **담당자**: `songduckjin` · **브랜치**: `task/138-costume-prototype` · **PR**: #74

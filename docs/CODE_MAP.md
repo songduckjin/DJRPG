@@ -11,7 +11,7 @@
 | 장비창 착용 미리보기 | `ui/equipmentPortrait.ts`(`equipmentPortraitPlan`·`renderEquipmentPortrait`), `ui/modals/equipModal.ts` | `items.ts`(`wearableEquipmentImage`), `styles/modals.css`, `assets/warrior_equipped_starter|t2|t3|t4_{male,female}.png` | `equipped-detail` |
 | 스킬·스킬북·쿨타임·버프 | `src/game/skills.ts`, `src/game/loadout.ts` | `world.ts`(`cooldowns`·`action`), `skillProgress.ts`, `ui/skillBooks.ts`, `ui/skillLoadout.ts`, `ui/modals/skillModal.ts`, `ui/skillFeedback.ts` | `skill-progression`, `loadout`, `skill-ui`, `skill-feedback`, `skillbook-art` |
 | 아이템·등급·드랍·스탯·장비 슬롯 | `src/game/items.ts` | `inventory.ts`, `itemComparison.ts`, `bagCapacity.ts`, `codex.ts`, `ui/modals/equipModal.ts` | `inventory`, `codex`, `ring-restore`, `item-protection-ui`, `equipped-detail` |
-| 캐릭터 외형·코스튬·애니메이션 | 설계 기준: `docs/COSTUME_SYSTEM.md`; 실행 지시: `docs/TASK_songduckjin.md` 작업 139~142 | 현행: `appearance.ts`, `render.ts`, `render/entities.ts`, `render/heroMotion.ts`, `render/heroSockets.ts`, `render/heroScale.ts`, `render/gearTint.ts`; 미리보기: `ui/equipmentPortrait.ts`; 독립 뷰어(프로토타입, 게임 미연동): `tools/costume-viewer/` | 현행 테스트: `appearance`, `hero-motion`, `hero-art`, `hero-weapon-render`, `equipped-detail`; 프로토타입: `tools/costume-viewer/model.test.mjs`(가림 규칙) |
+| 캐릭터 외형·코스튬·애니메이션 | 설계 기준: `docs/COSTUME_SYSTEM.md`; 실행 지시: `docs/TASK_songduckjin.md` 작업 139~142 | 현행: `appearance.ts`, `render.ts`, `render/entities.ts`, `render/heroMotion.ts`, `render/heroSockets.ts`, `render/heroScale.ts`, `render/gearTint.ts`; 코스튬 런타임 데이터 계층: `costume/**`(작업 139, 렌더러 미연결); 미리보기: `ui/equipmentPortrait.ts`; 독립 뷰어(프로토타입, 게임 미연동): `tools/costume-viewer/` | 현행 테스트: `appearance`, `hero-motion`, `hero-art`, `hero-weapon-render`, `equipped-detail`; 코스튬 매니페스트·매핑: `costume-manifest`; 프로토타입: `tools/costume-viewer/model.test.mjs`(가림 규칙) |
 | 화면 렌더링·필드·배경·VFX·조명 | `src/game/render.ts`(`GameView`) | `render/field.ts`, `render/vfx.ts`, `render/entities.ts`, `wasteland.ts`, `ambientScene.ts`, `ambientMotion.ts` | `wasteland`, `ambient-motion`, `hero-weapon-render` |
 | 오프라인 보상·경험치·레벨업 | `src/game/offline.ts`, `src/game/store.ts`(`addExperience`·`expToNext`) | `ui/modals/offlineModal.ts`, `server/endpoints/account.mjs`(`offlineSeconds`) | `offline` |
 | 로그인·회원가입·게스트·캐릭터 선택/생성 | `src/ui/login.ts`, `server/endpoints/account.mjs` | `ui/modals/charactersModal.ts`, `server/auth.mjs`, `api/account.mjs`, `functions/api/account.js` | `characters`, `functions-adapter` |
@@ -38,7 +38,8 @@
 | 드랍률·등급·아이템 능력치 | `items.ts` `equipmentDropChance`/`rollItem`/`totalStats` |
 | 외형·스프라이트·투구·갑옷 조합 | `appearance.ts` `heroAppearance`, `render.ts` `paths` |
 | 그림을 바꿨는데 화면이 그대로(캐시) | `render.ts`/`appearance.ts`의 `?v=`, `scripts/verify-item-art.mjs` |
-| 코스튬 제작 방식·앵커·Z-order·스킬 모션 기준을 찾음 | `docs/COSTUME_SYSTEM.md` 및 `docs/TASK_songduckjin.md` 작업 138~142 |
+| 코스튬 제작 방식·앵커·Z-order·스킬 모션 기준을 찾음 | `docs/COSTUME_SYSTEM.md` 및 `docs/TASK_songduckjin.md` 작업 139~142 |
+| 아이템이 어떤 코스튬으로 그려지는지·매니페스트 로드 실패 폴백 | `src/game/costume/mapping.ts`(`lookupCostume`·`costumeMapping`), `src/game/costume/manifest.ts`(`planCostume`·`bodyFallback`·`reason`), `docs/COSTUME_SYSTEM.md` §7.1, `tests/costume-manifest.test.mjs` |
 | 장비창 중앙 미리보기가 실제 장착 장비와 다르거나 몸에서 벗어나 보임 | `ui/equipmentPortrait.ts` `equipmentPortraitPlan`·`renderEquipmentPortrait`·`ui/modals/equipModal.ts`·`items.ts` `wearableEquipmentImage`·`styles/modals.css` |
 | 서버 저장 충돌(409 `SAVE_CONFLICT`) | `database.mjs` `assertRevision`, `sync.ts` `handleError` |
 | 아이템 소유권 충돌(`ITEM_CONFLICT`) | `database.mjs` `reconcileItems`·`identity`·`sameItemBody`(이름만 다르면 서버 이름으로 정리), `items.ts` `migrateItem`(저장 이름 보존), `warehouse.mjs` |
@@ -67,6 +68,7 @@
 - `facing.ts` (6) — 좌향 원본 몬스터 스프라이트 방향 계산. `enemyFacing`.
 - `offline.ts` (43) — 오프라인 사냥 정산(최대 12시간). `applyOfflineRewards`, 타입 `OfflineReward`.
 - `codex.ts` (74) — 장비 도감 75종·발견 기록·등급 변형. `codexEntries`, `equipmentCodexKey`, `normalizeCollection`, `discoverEquipment`, `codexOwnership`, `codexVariantName`, `firstDropFloor`, `codexOptions`, `filterCodex`, `codexVariants`, `codexSlotNames`.
+- `costume/` (작업 139, 신규) — 코스튬 런타임 데이터 계층(Pixi·DOM 비의존, **렌더러 미연결**). `mapping.ts`(`costumeMapping` 75종·`lookupCostume`·`costumeIdFor`·`legacyCostumeAliases`·`costumeFieldVisible`·`costumeSlotGroup`), `manifest.ts`(`loadCostumeManifest`·`validateCostumeManifest`·`planCostume`·`costumeAtlasLoadResult`·`costumeManifestUrl`/`costumeAtlasUrl`·`COSTUME_ASSET_VERSION`·`COSTUME_MANIFEST_SCHEMA_VERSION`), `skillMotion.ts`(`skillMotionTemplates` — 액티브 8종 → `slash`/`spin`/`smash`/`cast`). 기준 문서: `docs/COSTUME_SYSTEM.md` v1.1 §7.1.
 - `sync.ts` (251) — 서버 저장 큐·재시도·충돌·거래/창고 락. `SaveSync`(`queueSave`,`flush`,`handleError`,`mutate`,`reset`,`transferWarehouse`,`onSessionEnded`), 내부 `endSession`(401 → 토큰 삭제·저장 중단)·`reloadLatest`(`ITEM_CONFLICT`/`CHARACTER_CONFLICT` → 최신 세이브 재로드, 10초 내 재충돌은 `stopConflictLoop`로 중단)·`stopForOutdatedVersion`(426 → 저장 중단·새로고침), 타입 `SyncResult`.
 - `appVersion.ts` (44) — 배포 버전 상수·API 버전 헤더·구버전 응답 복구. `APP_VERSION`(`__APP_VERSION__`), `apiHeaders`, `isOutdatedResponse`, `reloadForNewVersion`(한 번만 자동 새로고침), `clearVersionReloadMark`.
 - `market.ts` (123) — 거래소 클라이언트 상태·목록/탭/시세. `Market`, 타입 `Listing`/`Delivery`/`MarketData`/`MarketView`.
