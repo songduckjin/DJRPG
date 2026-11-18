@@ -6,11 +6,11 @@
 
 ## 진행 중 작업
 
-## [-] [작업 131] 전투 화면 장비 착용 외형 표시 수정
+## [-] [작업 131] 장비창 실제 착용 아이템 미리보기
 - fks3997 · 2026-11-18 · `task/131-equipped-gear-visible`
-- 목표: 장비창에 표시되는 장비가 전투 화면의 남녀 캐릭터에도 실제 착용 모습으로 나타나도록 렌더 경로를 수정한다.
-- 수정 예정: `src/game/appearance.ts`, `src/game/render.ts`, `src/game/render/entities.ts`, 매핑된 외형 렌더 회귀 테스트. 저장 형식·아이템 데이터·전투 규칙은 변경하지 않는다.
-- 검증: `npx tsc --noEmit`, `node --test`로 해당 외형 테스트, `git diff --check`.
+- 목표: 장비창 중앙 미리보기에 기본 갑옷 초상화 대신 현재 장착한 부위별 실제 아이템 아트를 표시한다.
+- 수정: `src/ui/modals/equipModal.ts`, `src/styles/modals.css`, `tests/equipped-detail.test.mjs`, `docs/QUICK_PATCH.md`, `docs/CODE_MAP.md`. 저장 형식·아이템 데이터·전투 렌더는 변경하지 않는다.
+- 검증: `npx tsc --noEmit`, `node --test tests/equipped-detail.test.mjs`, `git diff --check`.
 
 ## [x] [작업 130] 전투 추격 중 공격 멈춤 수정
 - fks3997 · 2026-11-18 · `task/130-combat-chase-attack`

@@ -38,7 +38,28 @@ test('full bag prevents unequip and explains failure; dismiss only clears view s
 
 const { attachedDetailPosition } = await import('../src/ui/bagDetail.ts');
 const { deferEquippedDismiss } = await import('../src/ui/equippedDetail.ts');
-const { wrapEquipmentName } = await import('../src/ui/modals/equipModal.ts');
+const { wrapEquipmentName, equipmentShowcase } = await import('../src/ui/modals/equipModal.ts');
+const { wearableEquipmentImage } = await import('../src/game/items.ts');
+test('equipment preview uses a bare gender-matched body and layers the exact equipped wearable art',()=>{
+  for(const gender of ['male','female']){
+    const save=freshSave(gender);save.equipment={
+      weapon:{id:'weapon',name:'서리의 두손검',slot:'weapon',rarity:'magic',stats:{}},
+      helmet:{id:'helmet',name:'낡은 가죽 두건',slot:'helmet',rarity:'common',stats:{}},
+      armor:{id:'armor',name:'낡은 가죽 조끼',slot:'armor',rarity:'common',stats:{}},
+      gloves:{id:'gloves',name:'낡은 천 장갑',slot:'gloves',rarity:'common',stats:{}},
+      boots:{id:'boots',name:'서리의 사슬 그리브',slot:'boots',rarity:'magic',stats:{}}
+    };
+    const preview=equipmentShowcase(save);
+    assert.equal(preview.portrait,`/assets/warrior_${gender}_base.png`);
+    assert.deepEqual(preview.layers.map(layer=>layer.slot),['weapon','helmet','armor','gloves','boots']);
+    for(const layer of preview.layers){
+      const art=wearableEquipmentImage(save.equipment[layer.slot]);
+      assert.equal(layer.path,art.path);assert.equal(layer.frame,art.frame);
+      assert(layer.size>0&&layer.size<=1);assert(layer.left>=0&&layer.left<=1);assert(layer.top>=0&&layer.top<=1);
+    }
+    assert.equal(preview.layers.find(layer=>layer.slot==='boots').frame,2);
+  }
+});
 test('equipment names wrap at word boundaries within eight characters and retain all name content',()=>{
   assert.equal(wrapEquipmentName('서리의 룬 블레이드'),'서리의 룬\n블레이드');
   assert.equal(wrapEquipmentName('낡은 강철 플레이트'),'낡은 강철\n플레이트');
