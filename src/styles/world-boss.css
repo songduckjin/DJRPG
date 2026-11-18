@@ -45,7 +45,7 @@
 .wb-details .wb-name {position:relative;z-index:5;font-size:18px;margin:6px 0;}
 .wb-details .wb-health,.wb-details .wb-tabs {position:relative;z-index:5;flex:none;}
 .wb-details .wb-panel {display:flex;flex:1;min-height:0;flex-direction:column;overflow:auto;padding:7px 3px;}
-.wb-challenge-guide {font-size:10px;line-height:1.5;}.wb-challenge-guide ul {padding-left:16px;margin:4px 0;}.wb-challenge-guide li {margin:2px 0;}
+.wb-challenge-guide {font-size:13px;line-height:1.7;}.wb-challenge-guide ul {padding-left:19px;margin:8px 0;}.wb-challenge-guide li {margin:6px 0;}.wb-challenge-guide h4 {font-size:14px;margin:2px 0 8px;}
 .wb-details .wb-challenge {flex:none;margin-top:auto;min-height:42px;}
 .wb-rank-list {flex:1;min-height:0;overflow:auto;}.wb-rank-row,.wb-my-rank {display:grid;grid-template-columns:38px 1fr auto;align-items:center;gap:5px;padding:6px 5px;border-bottom:1px solid #544035;min-height:28px;font-size:11px;}
 .wb-my-rank {flex:none;position:sticky;bottom:0;background:#3e2b22;color:#ffe0ac;border:1px solid #b18b4e;margin-top:5px;}

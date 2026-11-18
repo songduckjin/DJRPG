@@ -136,7 +136,7 @@
 
 - `src/game/worldBossRehearsal.ts` — 복제Save전용World·실제공격/스킬·단일보스고정·60초/전투불능종료. 실제저장콜백없음. `WorldBossRehearsal`
 - `src/ui/worldBossField.ts` — 별도전체GameView필드·고해상도보스텍스처·기본필드정지/복귀·로딩/결과/나가기. `openWorldBossField`·`pauseMainForBoss`
-- `src/ui/worldBossPresentation.ts` — 상위10/내순위·보상구간선택. 미연동시가짜순위금지. `topTen`·`myRewardTier`
+- `src/ui/worldBossPresentation.ts` — 상위10/내순위·1/2~3/4~10/11~50/51~100/101이하보상구간선택. 미연동시가짜순위금지. `topTen`·`myRewardTier`
 
 ## 3.5 설계자 블록 — 레이어·소유권·시퀀스·영향 경계
 
