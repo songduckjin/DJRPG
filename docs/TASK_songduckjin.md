@@ -8,8 +8,9 @@
 
 ### [-] [작업 134] 필드 캐릭터 통합 바디 복구 및 무기 소켓·액션 자연화
 - **등록자**: `songduckjin` · **실행 담당자**: `fks3997`(사용자 위임) · **등록일**: 2026-11-18 · **브랜치**: `task/134-field-gear-action` · **위험 등급**: 중 · **상태**: `[-]` 착수
-- **직접 수정 예정**: `src/game/render/entities.ts`, `src/game/render/heroSockets.ts`(신규), `src/game/render/vfx.ts`, `tests/hero-weapon-render.test.mjs`, `docs/CODE_MAP.md` §1·§3(각 1줄). **간접 영향**: `src/game/appearance.ts`(`heroAppearance`가 실제 장착 갑옷·투구로 고르는 시트), `tests/appearance.test.mjs`, `tests/equipped-detail.test.mjs`. **건드리지 않음**: `src/ui/equipmentPortrait.ts`·`src/ui/modals/equipModal.ts`(장비창 미리보기, [작업 133] 영역), `src/game/store.ts`(세이브 형식), `server/**`.
+- **직접 수정**: `src/game/render/entities.ts`, `src/game/render/heroSockets.ts`(신규), `src/game/render/heroScale.ts`, `src/game/render/vfx.ts`, `src/game/render.ts`, `public/assets/*swordless.png`(남녀 서기·걷기 10장 신규), `tests/hero-weapon-render.test.mjs`, `tests/hero-art.test.mjs`, `docs/CODE_MAP.md`·`docs/QUICK_PATCH.md`. **간접 영향**: `src/game/appearance.ts`(`heroAppearance`의 갑옷·투구 분기), `tests/appearance.test.mjs`, `tests/hero-motion.test.mjs`, `tests/equipped-detail.test.mjs`. **건드리지 않음**: `src/ui/equipmentPortrait.ts`·`src/ui/modals/equipModal.ts`(장비창 미리보기, [작업 133] 영역), `src/game/store.ts`(세이브 형식), `server/**`.
 - **목표**: PR #61에서 필드 캐릭터(`entities.ts`)에 적용한 5부위 2D 아이콘 덧그리기를 걷어내, 갑옷·투구 통합 바디 시트의 자연스러운 어깨·체형·공격 액션을 복구한다. 무기는 프레임별 소켓 데이터(`heroSockets.ts`)로 분리해 서기·걷기·공격 전환이 매끄럽게 이어지게 하고, 무기 등급·종류의 차이는 덧그리기 대신 검기 이펙트로 남긴다.
+- **추가 사용자 결정(2026-11-18)**: 기존 통합 서기·걷기 시트에도 검이 이미 있어 소켓 무기와 중복된다. 남녀 갑옷·투구 상태별 **검 없는 시트부터 새로 제작**하고, 서기·걷기에는 소켓 검 한 자루만 표시한다. 무갑옷 상태는 기존 검 없는 base 시트를 사용한다. 공격 시트의 검은 유지하고 소켓 검을 숨긴다.
 - **배경·근거(현재 코드)**:
   - `drawHero`는 `bodySave = { ...save, equipment: { ...save.equipment, helmet: undefined, armor: undefined } }`로 갑옷·투구를 벗긴 시트를 고른 뒤 `syncGear`에서 5부위(`visibleGearSlots`)를 모두 덧그린다(`gearPose`·`attackGearPoses`·`idleWeaponPoses`·`attackWeaponPoses`가 `entities.ts`에 하드코딩). 그 결과 몸통·어깨가 아이콘과 겹치고 공격 프레임에서 칼이 2자루로 보인다.
   - `appearance.ts`의 `idle`·`walk`·`attack`은 이미 갑옷·투구를 포함한 통합 시트를 고르고, `attack` 시트(`attackSheets`·`animationPaths`)에는 검이 그려져 있다. 즉 통합 시트로 돌아가면 갑옷·투구는 추가 작업 없이 맞는다.
@@ -20,7 +21,7 @@
   2. 세이브 형식·`store.ts` 변경 없음: `classId`를 세이브에 넣지 않는다(전방 호환 필드 도입은 별도 작업). `heroSockets.ts`의 직업 판별은 `heroClass(save)` 한 곳을 거치고, 지금은 항상 `'warrior'`를 돌려준다.
   3. 남/여 동시 반영(양쪽 소켓·시트 루프 검증).
 - **구현 항목**:
-  1. **`entities.ts` 바디 복구**: `drawHero`의 `bodySave` 우회를 없애고 `heroAppearance(save)`(실제 `save`)로 `idle`·`walk`·`attack` 시트를 고른다. `syncGear`에서 `helmet`·`armor`·`gloves`·`boots` 덧그리기를 제거하고 무기만 남긴다. `gearPose`·`attackGearPoses`·`walkAnchors` 중 장비 전용 상수는 함께 정리하고, 몸 기준 `heroBodyHeight`·`heroScale` 계산은 유지한다. 그림자 반경은 기존처럼 `heroBodyHeight` 기준을 쓴다.
+  1. **`entities.ts` 바디 복구**: 실제 `save`의 `heroAppearance`가 갑옷·투구·공격 시트를 고른다. 서기·걷기는 검 없는 갑옷 통합 시트 또는 무갑옷 base 시트를 고른다. `syncGear`에서 `helmet`·`armor`·`gloves`·`boots` 덧그리기를 제거하고 무기만 남긴다. `gearPose`·`attackGearPoses`의 장비 좌표는 제거하고, 몸 기준 `heroBodyHeight`·`heroScale` 계산을 유지한다. 그림자 반경은 기존처럼 `heroBodyHeight` 기준을 쓴다.
   2. **`heroSockets.ts` 신규 분리(다직업 구조)**: `entities.ts`의 무기 포즈 좌표를 옮겨 **처음부터 직업 × 성별 표**로 정의한다.
      ```ts
      // src/game/render/heroSockets.ts
@@ -39,8 +40,8 @@
   3. **공격(`attack`) 자연화·칼 중복 방지**: `animation === 'attack'`(=`appearance.attack` 시트 사용 구간)에서는 무기 스프라이트를 `visible = false`(또는 `alpha 0`)로 두어 2자루 겹침을 없앤다. 공격 종료·걷기·서기로 돌아오면 소켓 위치로 즉시 복귀하며, 프레임 전환에서 깜빡이지 않도록 `syncGear`에서 스프라이트를 파괴·재생성하지 말고 표시만 바꾼다. 무기 교체 시에는 기존처럼 텍스처 키 교체 경로를 유지한다.
   4. **검기 색으로 무기 차이 표현(`vfx.ts`)**: `drawSkillVfx`의 `slash2`(부채꼴 2겹 아크) 색을 장착 무기 등급 색으로 바꾼다 — 파일 안의 `rarityColors`(지금은 드랍 글로우용)를 그대로 재사용하고, `weaponSlashColor(world)` 같은 작은 헬퍼로 `save.equipment.weapon?.rarity ?? 'common'`을 읽는다(무기 없으면 기존 흰색 유지). 기본 공격 `slash`는 [작업 123]으로 이펙트를 그리지 않으므로 되살리지 않는다. 등급에 따라 선 굵기·잔상 알파를 조금씩 달리해 교체감을 준다. `drawSkillVfx`는 `effect`만 받으므로 `world`(또는 `weaponColor`)를 인자로 넘기는 시그니처 변경은 `render.ts` 호출부 1곳만 고친다.
   5. **성별 교차 동기화 + 부분 검증 + 매뉴얼**: 남/여 모두 같은 경로로 통과시키고 `tests/hero-weapon-render.test.mjs`를 새 계약에 맞게 고친다(무기 1개만 남고, `heroGear` 키는 `['weapon']`, 공격 프레임에서는 무기 미표시, idle·walk 8프레임에서 좌표가 유한값). 통과 후 `docs/CODE_MAP.md` §1 '캐릭터 외형·성별·스프라이트' 행 연관 파일과 §3 `render/` 항목에 `heroSockets.ts` 1줄씩 추가한다.
-- **검증 (부분 테스트)**: `npx tsc --noEmit`, `node --test tests/appearance.test.mjs`, `node --test tests/hero-weapon-render.test.mjs`, `node --test tests/equipped-detail.test.mjs`, `git diff --check`. 전체 `npm test`·`npm run build`는 공용 계약(`store.ts` 등)을 건드리지 않았으므로 실행하지 않는다. 브라우저·Playwright 실기는 요청 시에만.
-- **완료 기준**: 필드 캐릭터가 장착 갑옷·투구 통합 시트(어깨·체형 정상)로 그려지고, 장갑·부츠·갑옷·투구 아이콘이 몸 위에 덧그려지지 않는다. 무기는 서기·걷기 8프레임에서 손 위치를 따라가고 공격 4프레임에서는 한 자루만 보인다. 검기 색이 장착 무기 등급을 반영한다. 남/여 모두 동일. `heroSockets.ts`가 `Record<ClassId, Record<Gender, …>>` 표로 존재하고 `entities.ts`에 무기 좌표 하드코딩이 없다. 위 검증 전부 통과 후 PR 병합.
+- **검증 (부분 테스트)**: `pnpm exec tsc --noEmit`, `node --test tests/appearance.test.mjs tests/hero-motion.test.mjs tests/hero-art.test.mjs tests/hero-weapon-render.test.mjs tests/equipped-detail.test.mjs`, `node scripts/verify-item-art.mjs`, `git diff --check`. 전체 `npm test`·`npm run build`는 공용 계약(`store.ts` 등)을 건드리지 않았으므로 실행하지 않는다. 브라우저·Playwright 실기는 요청 시에만.
+- **완료 기준**: 필드 캐릭터가 검 없는 장착 갑옷·투구 통합 서기·걷기 시트(어깨·체형 정상)로 그려지고, 장갑·부츠·갑옷·투구 아이콘이 몸 위에 덧그려지지 않는다. 무기는 서기·걷기 8프레임에서 손 위치를 따라가고 공격 4프레임에서는 공격 시트의 한 자루만 보인다. 검기 색이 장착 무기 등급을 반영한다. 남/여 모두 동일. `heroSockets.ts`가 `Record<ClassId, Record<Gender, …>>` 표로 존재하고 `entities.ts`에 무기 좌표 하드코딩이 없다. 새 시트의 8칸 경계와 본체 높이 검증 후 PR 병합.
 - **동시 작업 확인**: 등록 시점(2026-11-18, `main` = `84a1dd0`) `docs/TASK.md`의 다른 `[-]` 작업은 fks3997의 `[작업 133]`(장비창 미리보기, `ui/`·`public/assets/warrior_equipped*`) 하나이며 수정 파일이 겹치지 않는다. 번호는 134로 올려 잡았다.
 
 ### [x] [작업 129] 장착 장비 착용형 아트 제작
