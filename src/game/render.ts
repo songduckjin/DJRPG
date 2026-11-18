@@ -1,6 +1,7 @@
 import { preferences } from './preferences';
 import { Application, Assets, Container, Graphics, Rectangle, Sprite, Text, Texture, TilingSprite } from 'pixi.js';
 import type { Effect, Enemy, World } from './world';
+import type { Slot } from './items';
 import { drawRunes, drawTerrain, drawDust, drawLighting, drawVignette } from './render/field';
 import { drawHero, updateAfterimages, updateCorpses, drawEntities } from './render/entities';
 import { drawSkillVfx, drawDragon, drawHit, updateDamageLabels, drawDeath, drawDrops, drawEffects } from './render/vfx';
@@ -88,6 +89,9 @@ export class GameView {
   shade = new Graphics();
   heroLayer = new Container();
   hero!: Sprite;
+  gearTextures = new Map<string, Texture>();
+  gearLoading = new Set<string>();
+  heroGear = new Map<Slot, { path: string; sprite: Sprite }>();
   enemies = new Map<Enemy, Sprite>();
   bossLabels = new Map<Enemy, Text>();
   afterimages: Ghost[] = [];

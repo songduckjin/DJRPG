@@ -4,10 +4,10 @@ import {Container,Sprite,Texture} from 'pixi.js';
 import './ts-loader.mjs';
 const {drawHero,updateAfterimages}=await import('../src/game/render/entities.ts');
 const {heroAppearance}=await import('../src/game/appearance.ts');
-const {freshSave}=await import('../src/game/store.ts');
+const {freshSave,equipmentImage}=await import('../src/game/store.ts');
 
 const item=(slot,name)=>({id:slot,slot,name,rarity:'common',stats:{}});
-const inventoryOnlySlots=['offhand','armor','gloves','belt','boots','necklace','ring1','ring2'];
+const visibleSlots=['weapon','helmet','armor','gloves','boots'];
 
 test('only skills leave afterimages, the basic attack does not',()=>{
  const hero=new Sprite(Texture.EMPTY);
@@ -24,20 +24,28 @@ test('only skills leave afterimages, the basic attack does not',()=>{
  hero.destroy();
 });
 
-for(const gender of ['male','female'])test(`${gender}: the body sprite carries every equipped slot without an inventory sticker`,()=>{
- for(const helmet of [false,true])for(const armor of [false,true])for(const moving of [false,true])for(const attackPose of [0,.16]){
-  const save=freshSave(gender);save.equipment={weapon:item('weapon','낡은 두손검')};
-  if(helmet)save.equipment.helmet=item('helmet','철제 바시넷');
-  if(armor)save.equipment.armor=item('armor','사슬 갑옷');
-  for(const slot of inventoryOnlySlots)if(slot!=='armor'||armor)save.equipment[slot]=item(slot,slot);
-  const before=JSON.stringify(save.equipment),appearance=heroAppearance(save);
+for(const gender of ['male','female'])test(`${gender}: unique helmet, armor, gloves, boots and weapon art stays visible in idle, walk and attack`,()=>{
+ for(const moving of [false,true])for(const attackPose of [0,.16]){
+  const save=freshSave(gender);save.equipment={weapon:item('weapon','낡은 두손검'),helmet:item('helmet','철제 바시넷'),armor:item('armor','사슬 갑옷'),gloves:item('gloves','강철 건틀릿'),boots:item('boots','기사의 사바톤')};
+  const before=JSON.stringify(save.equipment),appearance=heroAppearance(save.equipment.helmet?{...save,equipment:{...save.equipment,helmet:undefined}}:save),gearTextures=new Map();
+  for(const equipped of Object.values(save.equipment)){const art=equipmentImage(equipped);gearTextures.set(`${art.path}:${art.frame}`,Texture.EMPTY);}
   const layer=new Container(),hero=new Sprite(Texture.EMPTY);layer.addChild(hero);
-  const view={hero,heroLayer:layer,lastHeroWorld:{x:0,y:0},heroWalkDistance:0,textures:{[appearance.idle]:Texture.EMPTY},animations:{[appearance.walk]:Array(8).fill(Texture.EMPTY),[appearance.attack]:Array(4).fill(Texture.EMPTY)},app:{screen:{height:800}},ground:{ellipse(){return {fill(){}};}},glow:{circle(){return {fill(){}};}}};
+  const view={hero,heroLayer:layer,heroGear:new Map(),gearTextures,gearLoading:new Set(),lastHeroWorld:{x:0,y:0},heroWalkDistance:0,textures:{[appearance.idle]:Texture.EMPTY},animations:{[appearance.walk]:Array(8).fill(Texture.EMPTY),[appearance.attack]:Array(4).fill(Texture.EMPTY)},app:{screen:{height:800}},ground:{ellipse(){return {fill(){}};}},glow:{circle(){return {fill(){}};}}};
   const world={save,player:{x:0,y:0,facingSide:1,facing:0,hit:0,berserk:0},activeMove:{x:moving?1:0,y:0},attackPose,effects:[]};
   drawHero.call(view,world,100,100,0);
-  assert.equal(layer.children.length,1,'only the hero sprite belongs on the hero layer');
-  assert.equal(layer.children[0],hero);
+  assert.equal(layer.children.length,visibleSlots.length+1);
+  assert.deepEqual([...view.heroGear.keys()].sort(),visibleSlots.slice().sort());
+  for(const slot of visibleSlots){const art=equipmentImage(save.equipment[slot]);assert.equal(view.heroGear.get(slot).path,`${art.path}:${art.frame}`);}
   assert.equal(JSON.stringify(save.equipment),before);
+  if(!moving&&attackPose===0){
+   const oldHelmet=view.heroGear.get('helmet').path;
+   save.equipment.helmet=item('helmet','기사 헬름');
+   const replacement=equipmentImage(save.equipment.helmet);gearTextures.set(`${replacement.path}:${replacement.frame}`,Texture.EMPTY);
+   drawHero.call(view,world,100,100,0);
+   assert.notEqual(view.heroGear.get('helmet').path,oldHelmet,'helmet swap replaces the displayed item art');
+   assert.equal(view.heroGear.get('helmet').path,`${replacement.path}:${replacement.frame}`);
+   assert.equal(layer.children.length,visibleSlots.length+1);
+  }
   layer.destroy({children:true});
  }
 });
