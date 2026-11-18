@@ -7,6 +7,7 @@
 
 | 작업 유형 | 수정할 파일 (딱 여기만) | 절대 건드리지 말 것 | 실행할 단건 테스트 |
 |---|---|---|---|
+| 월드보스 입장 연결 지연 | `game/worldBossLive.ts` prepare, `ui/worldBossField.ts`, `server/world-boss.mjs` fresh start/standing | 연출 전 횟수차감·저장확인 생략·재시도 중복도전 금지 | `node --test tests/world-boss-live.test.mjs tests/world-boss-field.test.mjs tests/world-boss-preview.test.mjs tests/journey.test.mjs` |
 | 월드보스 실전·HP/도전/보상 | `server/world-boss.mjs`, `endpoints/world-boss.mjs`, `game/worldBossLive.ts`, `ui/worldBossField.ts`, `worldBossModal.ts`, `worldBossResult.ts` | 클라이언트 피해량 신뢰·횟수/보상 중복·Save 직접덮기 금지 | `node --test tests/world-boss-live.test.mjs tests/world-boss-field.test.mjs tests/world-boss-preview.test.mjs tests/journey.test.mjs` |
 | 크롬 Canvas mesh 렌더 오류 | `src/game/pixiSetup.ts`, `src/main.ts` | GPU mesh 경로 변경·texture 원본 수정 금지 | `node --test tests/pixi-setup.test.mjs tests/hero-motion.test.mjs tests/world-boss-field.test.mjs` |
 | 월드보스 배경가림/모션색감 | `src/ui/worldBossField.ts` Pixi배경·`bossFrameTone`, `worldBossPreview.ts`, `styles/world-boss.css` | 불투명캔버스뒤DOM배경·피격전체틴트금지 | `node --test tests/world-boss-preview.test.mjs tests/world-boss-field.test.mjs` |
