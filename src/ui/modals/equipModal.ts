@@ -1,9 +1,9 @@
 import {equipmentCount} from '../../game/bagCapacity';
 import { autoEquipBest, equipmentImage, rarityNames, slotNames, statNames, totalStats, useSkillBook, type Item, type Rarity, type Save, type Slot, type Stat } from '../../game/store';
-import { rarityOrder, rarityRanks, salvageGold, wearableEquipmentImage } from '../../game/items';
+import { rarityOrder, rarityRanks, salvageGold } from '../../game/items';
 import { canAutoEquip } from '../../game/inventory';
 import { requestSalvage } from './salvageModal';
-import { heroAppearance } from '../../game/appearance';
+import { equipmentPortraitPlan, renderEquipmentPortrait } from '../equipmentPortrait';
 import { isSkillBook } from '../../game/items';
 import { showEquippedDetail, dismissEquippedDetail, deferEquippedDismiss } from '../equippedDetail';
 import { bagDetailPinned, createBagDetail, deferBagDismiss, dismissBagDetail, showBagDetail } from '../bagDetail';
@@ -11,38 +11,6 @@ import { skillbookName } from '../skillbookBag';
 import type { BagFilter, Interface } from '../interface';
 
 const showcaseSlots = ['weapon', 'helmet', 'armor', 'gloves', 'boots'] as const;
-type ShowcaseSlot = typeof showcaseSlots[number];
-type ShowcasePose = { u: number; v: number; size: number; part?: 0 | 1; flipX?: boolean };
-const showcasePoses: Record<ShowcaseSlot, Record<'male' | 'female', ShowcasePose[]>> = {
-  weapon: { male: [{ u: .92, v: .57, size: .4, flipX: true }], female: [{ u: .92, v: .57, size: .4, flipX: true }] },
-  helmet: { male: [{ u: .5, v: .11, size: .22 }], female: [{ u: .5, v: .11, size: .22 }] },
-  armor: { male: [{ u: .5, v: .38, size: .4 }], female: [{ u: .5, v: .38, size: .4 }] },
-  gloves: { male: [{ u: .1, v: .57, size: .19, part: 0 }, { u: .9, v: .57, size: .19, part: 1 }], female: [{ u: .1, v: .57, size: .19, part: 0 }, { u: .9, v: .57, size: .19, part: 1 }] },
-  boots: { male: [{ u: .17, v: .86, size: .25, part: 0 }, { u: .79, v: .86, size: .25, part: 1 }], female: [{ u: .17, v: .86, size: .25, part: 0 }, { u: .79, v: .86, size: .25, part: 1 }] }
-};
-
-export function equipmentShowcase(save: Save) {
-  const bodySave = { ...save, equipment: { ...save.equipment, weapon: undefined, helmet: undefined, armor: undefined } };
-  const body = heroAppearance(bodySave);
-  const layers = showcaseSlots.flatMap(slot => {
-    const item = save.equipment[slot], art = item ? wearableEquipmentImage(item) : undefined;
-    if (!art) return [];
-    const row = Math.floor(art.frame / art.columns), column = art.frame % art.columns;
-    return showcasePoses[slot][save.gender].map(pose => ({
-      slot, path: art.path, frame: art.frame, columns: pose.part === undefined ? art.columns : art.columns * 2, rows: art.rows,
-      left: pose.u, top: pose.v, size: pose.size, widthRatio: pose.part === undefined ? 1 : .5,
-      anchorX: slot === 'weapon' ? .82 : .5, anchorY: slot === 'weapon' ? .82 : .5,
-      flipX: !!pose.flipX, column: pose.part === undefined ? column : column * 2 + pose.part, row
-    }));
-  });
-  return { portrait: body.portrait, layers };
-}
-
-type ShowcaseLayer = ReturnType<typeof equipmentShowcase>['layers'][number];
-export function equipmentPreviewPlacement(layer: ShowcaseLayer, bodyWidth: number, bodyHeight: number) {
-  const height = layer.size * bodyHeight, width = height * layer.widthRatio;
-  return { width, height, x: layer.left * bodyWidth - layer.anchorX * width, y: layer.top * bodyHeight - layer.anchorY * height };
-}
 
 export function renderInventory(this: Interface, dialog: HTMLElement): void {
     const save = this.world.save;
@@ -208,43 +176,13 @@ export function renderEquipment(this: Interface, dialog: HTMLElement): void {
     for (const slot of ['offhand', 'necklace', 'belt', 'ring1', 'ring2'] as Slot[]) addSlot(slot, right);
     const center = document.createElement('div'); center.className = 'showcase-hero';
     const figure = document.createElement('span'); figure.className = 'showcase-figure';
-    const doll = document.createElement('span'); doll.className = 'showcase-doll';
-    const preview = equipmentShowcase(save);
-    const gearSizing: { node: HTMLElement; layer: ShowcaseLayer }[] = [];
     const portrait = document.createElement('img'); portrait.className = 'showcase-body'; portrait.alt = '현재 장착 장비 미리보기';
-    portrait.src = preview.portrait;
-    const fitDoll = () => {
-      const bounds = figure.getBoundingClientRect();
-      if (!bounds.width || !bounds.height || !portrait.naturalWidth || !portrait.naturalHeight) return;
-      const scale = Math.min(bounds.width / portrait.naturalWidth, bounds.height / portrait.naturalHeight);
-      const width = portrait.naturalWidth * scale, height = portrait.naturalHeight * scale;
-      doll.style.width = `${width}px`;
-      doll.style.height = `${height}px`;
-      for (const { node, layer } of gearSizing) {
-        const placement = equipmentPreviewPlacement(layer, width, height);
-        node.style.width = `${placement.width}px`;
-        node.style.height = `${placement.height}px`;
-        node.style.left = `${placement.x}px`;
-        node.style.top = `${placement.y}px`;
-      }
-    };
-    portrait.addEventListener('load', fitDoll, { once: true });
-    doll.appendChild(portrait);
-    for (const layer of preview.layers) {
-      const gear = document.createElement('span'); gear.className = `showcase-gear showcase-gear-${layer.slot}`;
-      gear.dataset.slot = layer.slot; gear.setAttribute('aria-hidden', 'true');
-      gear.style.backgroundImage = `url('${layer.path}')`;
-      gear.style.backgroundSize = `${layer.columns * 100}% ${layer.rows * 100}%`;
-      gear.style.backgroundPosition = `${layer.column / (layer.columns - 1) * 100}% ${layer.row / (layer.rows - 1) * 100}%`;
-      gear.style.transformOrigin = layer.flipX ? '50% 50%' : `${layer.anchorX * 100}% ${layer.anchorY * 100}%`;
-      gear.style.transform = layer.flipX ? 'scaleX(-1)' : 'none';
-      doll.appendChild(gear);
-      gearSizing.push({ node: gear, layer });
-    }
-    figure.appendChild(doll);
+    portrait.src = equipmentPortraitPlan(save).base;
+    void renderEquipmentPortrait(save).then(image => { if (portrait.isConnected) portrait.src = image; })
+      .catch(error => console.error('착용 이미지 생성 실패:', error));
+    figure.appendChild(portrait);
     center.appendChild(figure);
     showcase.append(left, center, right); dialog.appendChild(showcase);
-    if (portrait.complete) fitDoll();
     const summary = document.createElement('div'); summary.className = 'showcase-stats';
     const power = Math.round(stats.attack * 3 + stats.defense * 2 + stats.health * .2 + stats.crit * 2 + stats.speed * 2);
     summary.innerHTML = `<span>전투력 <b>${power}</b></span><span>공격 <b>${stats.attack}</b></span><span>방어 <b>${stats.defense}</b></span><span>HP <b>${Math.ceil(this.world.player.hp)}/${stats.health}</b></span>`;

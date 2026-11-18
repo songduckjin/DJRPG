@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import './ts-loader.mjs';
 const { showEquippedDetail, dismissEquippedDetail } = await import('../src/ui/equippedDetail.ts');
 const { freshSave } = await import('../src/game/store.ts');
@@ -38,10 +39,15 @@ test('full bag prevents unequip and explains failure; dismiss only clears view s
 
 const { attachedDetailPosition } = await import('../src/ui/bagDetail.ts');
 const { deferEquippedDismiss } = await import('../src/ui/equippedDetail.ts');
-const { wrapEquipmentName, equipmentShowcase, equipmentPreviewPlacement } = await import('../src/ui/modals/equipModal.ts');
+const { wrapEquipmentName } = await import('../src/ui/modals/equipModal.ts');
+const { equipmentPortraitPlan } = await import('../src/ui/equipmentPortrait.ts');
 const { wearableEquipmentImage } = await import('../src/game/items.ts');
-test('equipment preview uses a bare gender-matched body and layers the exact equipped wearable art',()=>{
+const { baseItems } = await import('../src/game/items.ts');
+test('equipment preview produces one gender-matched portrait for each equipped combination',()=>{
   for(const gender of ['male','female']){
+    const image=readFileSync(new URL(`../public/assets/warrior_equipped_starter_${gender}.png`,import.meta.url));
+    assert.equal(image.subarray(1,4).toString(),'PNG');
+    assert(image.readUInt32BE(16)>256&&image.readUInt32BE(20)>256);
     const save=freshSave(gender);save.equipment={
       weapon:{id:'weapon',name:'서리의 두손검',slot:'weapon',rarity:'magic',stats:{}},
       helmet:{id:'helmet',name:'낡은 가죽 두건',slot:'helmet',rarity:'common',stats:{}},
@@ -49,28 +55,35 @@ test('equipment preview uses a bare gender-matched body and layers the exact equ
       gloves:{id:'gloves',name:'낡은 천 장갑',slot:'gloves',rarity:'common',stats:{}},
       boots:{id:'boots',name:'서리의 사슬 그리브',slot:'boots',rarity:'magic',stats:{}}
     };
-    const preview=equipmentShowcase(save);
-    assert.equal(preview.portrait,`/assets/warrior_${gender}_base.png`);
-    assert.deepEqual(preview.layers.map(layer=>layer.slot),['weapon','helmet','armor','gloves','gloves','boots','boots']);
-    for(const layer of preview.layers){
-      const art=wearableEquipmentImage(save.equipment[layer.slot]);
-      assert.equal(layer.path,art.path);assert.equal(layer.frame,art.frame);
-      assert(layer.size>0&&layer.size<=1);assert(layer.left>=0&&layer.left<=1);assert(layer.top>=0&&layer.top<=1);
+    const preview=equipmentPortraitPlan(save);
+    assert.equal(preview.base,`/assets/warrior_equipped_starter_${gender}.png`);
+    assert.equal(preview.starter,true);
+    assert.equal(preview.parts.length,0);
+    const previousKey=preview.key;
+    save.equipment.armor={...save.equipment.armor,name:'낡은 징박힌 갑옷'};
+    const changed=equipmentPortraitPlan(save);
+    assert.equal(changed.base,`/assets/warrior_${gender}_base.png`);
+    assert.notEqual(changed.key,previousKey);
+    assert.deepEqual(changed.parts.map(part=>part.slot),['armor','helmet','boots','boots','gloves','gloves','weapon']);
+    assert.equal(changed.parts.find(part=>part.slot==='armor').frame,1);
+    assert.deepEqual(changed.parts.filter(part=>part.slot==='boots').map(part=>part.half),[0,1]);
+    for(const part of changed.parts){
+      assert.equal(part.path,wearableEquipmentImage(save.equipment[part.slot]).path);
     }
-    const boots=preview.layers.filter(layer=>layer.slot==='boots');
-    assert(boots.every(layer=>layer.frame===2));
-    assert.deepEqual(boots.map(layer=>layer.column),[4,5]);
-    assert(boots.every(layer=>layer.columns===10&&layer.widthRatio===.5));
-    assert.deepEqual(preview.layers.filter(layer=>layer.slot==='gloves').map(layer=>layer.column),[0,1]);
-    const weapon=preview.layers.find(layer=>layer.slot==='weapon');
-    const placement=equipmentPreviewPlacement(weapon,78,192);
-    assert.equal(placement.width,weapon.size*192);
-    assert.equal(placement.height,weapon.size*192);
-    assert.equal(placement.x+weapon.anchorX*placement.width,weapon.left*78);
-    assert.equal(placement.y+weapon.anchorY*placement.height,weapon.top*192);
-    assert.equal(weapon.flipX,true);
-    const bootPlacement=equipmentPreviewPlacement(boots[0],78,192);
-    assert.equal(bootPlacement.width,bootPlacement.height/2);
+    save.equipment.necklace={id:'necklace',name:'서리의 구리 펜던트',slot:'necklace',rarity:'magic',stats:{}};
+    const withNecklace=equipmentPortraitPlan(save);
+    assert.notEqual(withNecklace.key,changed.key);
+    assert.equal(withNecklace.parts.at(-1).slot,'necklace');
+  }
+});
+test('all equipment item bases contribute a visible part to the completed portrait',()=>{
+  for(const gender of ['male','female']) for(const [slot,names] of Object.entries(baseItems)){
+    for(const name of names){
+      const save=freshSave(gender);
+      save.equipment[slot]={id:`${slot}-${name}`,name,slot,rarity:'common',stats:{}};
+      const plan=equipmentPortraitPlan(save);
+      assert(plan.parts.some(part=>part.slot===slot),`${gender} ${slot} ${name}`);
+    }
   }
 });
 test('equipment names wrap at word boundaries within eight characters and retain all name content',()=>{
