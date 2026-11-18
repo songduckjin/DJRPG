@@ -51,7 +51,7 @@ export const baseItems: Record<Slot, readonly string[]> = {
   ring2: ringBases
 };
 
-function baseItemIndex(item: EquipmentItem): number {
+export function baseItemIndex(item: EquipmentItem): number {
   const compact = (value: string) => value.normalize('NFKC').replace(/[\s\u200b\ufeff]/gu, '');
   const name = compact(item.name);
   if (item.slot === 'helmet' && name === compact('낡은 투구')) return baseItems.helmet.indexOf('심연의 뿔투구');
