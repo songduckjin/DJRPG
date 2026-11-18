@@ -6,7 +6,7 @@ const {renderWorldBoss}=await import('../src/ui/modals/worldBossModal.ts');
 const {freshSave}=await import('../src/game/store.ts');
 test('boss idle slash and slam stay within their separate sprite rows and impact follows warning',()=>{
  for(let t=0;t<36;t+=.01){const p=bossPose(t);assert(p.frame>=0&&p.frame<40);if(p.motion==='idle')assert(p.frame<8);if(p.motion==='attack')assert(p.frame>=8&&p.frame<16);if(p.motion==='slam')assert(p.frame>=16);}
- assert.equal(bossPose(9).impact,false);assert.equal(bossPose(11).impact,true);assert.equal(bossPose(12).motion,'idle');
+ assert.equal(bossPose(9).impact,false);assert.equal(bossPose(9.95).impact,true);assert.equal(bossPose(12).motion,'idle');
  assert.equal(framePosition(0),'0% 0%');assert.equal(framePosition(31),'100% 100%');
 });
 test('preview duration is 60 seconds and rendering cancels its animation on close without touching a save',()=>{
@@ -19,13 +19,13 @@ test('preview duration is 60 seconds and rendering cancels its animation on clos
   preview.dispose();assert(canceled);preview.start(100);assert.equal(preview.damage,0);assert.equal(preview.elapsed(1100),1);
  }finally{globalThis.requestAnimationFrame=oldRaf;globalThis.cancelAnimationFrame=oldCancel;}
 });
-test('intro shows a static shoulder portrait and challenge guide instead of combat, without save mutation',()=>{
+test('intro shows the static combat portrait and challenge guide instead of combat, without save mutation',()=>{
  const old=globalThis.document;
  function element(){return {children:[],style:{},className:'',handlers:{},classList:{add(){}},setAttribute(){},addEventListener(type,run){this.handlers[type]=run;},append(...nodes){this.children.push(...nodes);}};}
  globalThis.document={createElement:element};
  try{for(const gender of ['male','female']){
  const save=freshSave(gender),before=JSON.stringify(save),worldBoss=new WorldBossPreview(),ui={world:{save},worldBoss,renderModal(){},open(value){this.closed=value===null;}},dialog=element();renderWorldBoss(ui,dialog);
- const body=dialog.children[0];assert.match(body.innerHTML,/valkaron-resting-openhand/);assert(!body.innerHTML.includes('wb-hero'));assert(!body.innerHTML.includes('wb-session'));
+ const body=dialog.children[0];assert.match(body.innerHTML,/wb-intro-combat/);assert(!body.innerHTML.includes('wb-hero'));assert(!body.innerHTML.includes('wb-session'));
  const details=body.children[0],panel=details.children.at(-1);const exit=details.children[0].children[1];assert.equal(exit.textContent,'나가기');exit.handlers.click({preventDefault(){},stopPropagation(){}});assert(ui.closed);assert.match(panel.children[0].innerHTML,/계정당 하루 3회/);assert.equal(panel.children.at(-1).textContent,'도전하기');assert.equal(JSON.stringify(save),before);
  }}finally{globalThis.document=old;}
 });
@@ -47,4 +47,11 @@ test('sheet preloading deduplicates requests and allows a failed sheet to retry'
   images[1].onerror();preloadBossSheets();assert.equal(images.length,6);
   for(const image of images)image.onload();preloadBossSheets();assert.equal(images.length,6);
  }finally{globalThis.Image=old;}
+});
+
+test('slam accelerates through the downswing and its impact matches damage timing',async()=>{
+ const {SLAM_HIT_PHASE}=await import('../src/game/worldBossRehearsal.ts');
+ const {slamImpactAge}=await import('../src/ui/worldBossPreview.ts');
+ assert(bossPose(9.64).frame<24);assert(bossPose(9.92).frame>=24);assert(bossPose(SLAM_HIT_PHASE+.01).impact);
+ assert.equal(slamImpactAge(SLAM_HIT_PHASE-.01),null);assert(slamImpactAge(SLAM_HIT_PHASE+.2)>0);assert.equal(slamImpactAge(11.2),null);assert.equal(bossPose(10.81).motion,'idle');
 });

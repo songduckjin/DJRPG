@@ -1,11 +1,11 @@
-import {Assets,ColorMatrixFilter,Rectangle,Sprite,Texture} from 'pixi.js';
+import {Assets,ColorMatrixFilter,Graphics,Rectangle,Sprite,Texture} from 'pixi.js';
 import {GameView} from '../game/render';
 import {projectArenaPoint} from '../game/arena';
 import {WorldBossRehearsal} from '../game/worldBossRehearsal';
 import {totalStats} from '../game/store';
 import {skills} from '../game/skills';
 import {setSkillIcon} from './skillArtwork';
-import {BOSS_SHEETS,bossPose,footShift} from './worldBossPreview';
+import {BOSS_SHEETS,bossPose,footShift,slamImpactAge} from './worldBossPreview';
 import type {Interface} from './interface';
 export function pauseMainForBoss(ui:Interface):()=>void {
   const wasPaused=ui.world.paused,resume=ui.suspendMainField?.();
@@ -18,7 +18,7 @@ export function openWorldBossField(ui:Interface):void {
   const restoreMain=pauseMainForBoss(ui);
   const session=new WorldBossRehearsal(ui.world.save),view=new GameView();
   const field=document.createElement('section');field.className='world-boss-field';field.setAttribute('role','region');field.setAttribute('aria-label','월드보스 전용 연습 필드');
-  field.innerHTML='<div class="wb-clouds wb-field-clouds" aria-hidden="true"></div><div class="wb-field-canvas"></div><header class="wb-field-header"><button class="wb-field-leave" type="button">나가기</button></header><div class="wb-field-loading" role="status">전장을 준비하고 있습니다…</div><div class="wb-field-warning" hidden>광역 공격! 내려찍기를 준비합니다</div><footer class="wb-field-footer"><div class="wb-field-record"><strong class="wb-field-clock">60초</strong><span>누적 피해량 <b class="wb-field-damage">0</b></span></div><div class="wb-field-health-label">잿불의 군주 발카론 <small>보스 · 연습용</small></div><div class="wb-field-boss-hp"><i></i><span>공유 체력 미연동</span></div><div class="wb-field-health-label wb-player-label">내 체력 <b class="wb-player-value"></b></div><div class="wb-field-player-hp"><i></i><b></b></div><div class="wb-field-controls"><div><small class="wb-auto-label">메인 장착 스킬 · 자동 사용</small><div class="wb-field-skills"></div></div><button class="wb-field-dodge" type="button"><span aria-hidden="true">↝</span><small>회피</small><b class="wb-dodge-cd"></b></button></div><p>60초 전투 연습 · 실제 도전 횟수와 보상은 소모되지 않습니다.</p></footer><div class="wb-field-result" hidden><h3>전투 연습 종료</h3><p></p><button type="button">보스 소개로 돌아가기</button></div>' ;
+  field.innerHTML='<div class="wb-field-canvas"></div><header class="wb-field-header"><button class="wb-field-leave" type="button">나가기</button></header><div class="wb-field-loading" role="status">전장을 준비하고 있습니다…</div><div class="wb-field-warning" hidden>광역 공격! 내려찍기를 준비합니다</div><footer class="wb-field-footer"><div class="wb-field-record"><strong class="wb-field-clock">60초</strong><span>누적 피해량 <b class="wb-field-damage">0</b></span></div><div class="wb-field-health-label">잿불의 군주 발카론 <small>보스 · 연습용</small></div><div class="wb-field-boss-hp"><i></i><span>공유 체력 미연동</span></div><div class="wb-field-health-label wb-player-label">내 체력 <b class="wb-player-value"></b></div><div class="wb-field-player-hp"><i></i><b></b></div><div class="wb-field-controls"><div><small class="wb-auto-label">메인 장착 스킬 · 자동 사용</small><div class="wb-field-skills"></div></div><button class="wb-field-dodge" type="button"><span aria-hidden="true">↝</span><small>회피</small><b class="wb-dodge-cd"></b></button></div><p>60초 전투 연습 · 실제 도전 횟수와 보상은 소모되지 않습니다.</p></footer><div class="wb-field-result" hidden><h3>전투 연습 종료</h3><p></p><button type="button">보스 소개로 돌아가기</button></div>' ;
   ui.root.querySelector('.game-shell')!.append(field);
   const get=<T extends HTMLElement>(selector:string)=>field.querySelector<T>(selector)!;
   let closed=false,mounted=false;const ownedFrames:Texture[]=[];const ownedTones:ColorMatrixFilter[]=[];
@@ -52,6 +52,7 @@ export function openWorldBossField(ui:Interface):void {
       await view.mount(get('.wb-field-canvas'));mounted=true;
       if(closed){view.app.destroy(true,{children:true,texture:false,textureSource:false});releaseFrames();return;}
       const arenaSprite=new Sprite(arena);view.app.stage.addChildAt(arenaSprite,0);
+      const clouds=new Graphics();view.app.stage.addChildAt(clouds,1);
       const tones=frames.map(frame=>bossFrameTone(frame));ownedTones.push(...tones);
       get('.wb-field-loading').hidden=true;
       const bossSprite=new Sprite(frames[0]);bossSprite.anchor.set(.5,.97);view.actors.addChild(bossSprite);
@@ -76,8 +77,15 @@ export function openWorldBossField(ui:Interface):void {
         arenaSprite.position.set((w-arena.width*cover)/2-view.app.stage.x,(h-arena.height*cover)/2-view.app.stage.y);
         const dodge=get<HTMLButtonElement>('.wb-field-dodge');dodge.disabled=session.finished||session.dodgeCooldown>0;
         get('.wb-dodge-cd').textContent=session.dodgeCooldown>0?session.dodgeCooldown.toFixed(1):'';
-        get('.wb-field-warning').hidden=pose.motion!=='slam'||pose.impact||session.finished;
-        if(pose.motion==='slam')view.ground.ellipse(x-25,y,95,38).stroke({color:pose.impact?0xffa344:0xc83024,width:pose.impact?6:2,alpha:pose.impact?.8:.45});
+        get('.wb-field-warning').hidden=pose.motion!=='slam'||pose.frame>=31||session.finished;
+        // Cloud graphics live between the arena and actors, never above the boss.
+        clouds.clear();clouds.position.set(-view.app.stage.x,-view.app.stage.y);
+        for(let i=0;i<5;i++)for(let layer=7;layer>0;layer--){
+          clouds.ellipse(w*(i/4)+Math.sin(session.elapsed*.055+i)*w*.15,h*(.06+(i%2)*.07),w*(.12+layer*.025),h*(.025+layer*.009)).fill({color:0x9b969e,alpha:.009});
+        }
+        if(pose.motion==='slam'&&pose.frame<31)view.ground.ellipse(x-25,y,95,38).stroke({color:0xb7674f,width:1.2,alpha:.24});
+        const impactAge=slamImpactAge(session.elapsed);
+        if(impactAge!==null)drawSlamImpact(view.ground,view.effects,x-25,y,impactAge);
         get('.wb-field-clock').textContent=`${Math.ceil(60-session.elapsed)}초`;
         get('.wb-field-damage').textContent=session.damage.toLocaleString('ko-KR');
         const hp=Math.ceil(session.world.player.hp),max=totalStats(session.world.save).health;
@@ -102,4 +110,20 @@ export function bossFrameTone(frame:Texture):ColorMatrixFilter {
   }
   const targets=[77,54,46],gain=channels.map((values,i)=>{values.sort((a,b)=>a-b);return values.length?Math.max(.7,Math.min(1.3,targets[i]/Math.max(1,values[Math.floor(values.length/2)]))):1;});
   filter.matrix=[gain[0],0,0,0,0,0,gain[1],0,0,0,0,0,gain[2],0,0,0,0,0,1,0];return filter;
+}
+
+export function drawSlamImpact(ground:Graphics,dust:Graphics,x:number,y:number,age:number):void {
+  const fade=Math.max(0,1-age/1.15),reach=Math.min(1,age/.14),radius=130*reach;
+  if(age<.45)ground.ellipse(x,y,25+age*300,9+age*105).stroke({color:0xb7a58e,width:3,alpha:(1-age/.45)*.55});
+  for(let i=0;i<9;i++){
+    const a=i*Math.PI*2/9;ground.moveTo(x,y);
+    for(let j=1;j<=4;j++){const r=radius*j/4,angle=a+Math.sin(i*7+j)*.12;ground.lineTo(x+Math.cos(angle)*r,y+Math.sin(angle)*r*.35);}
+    ground.stroke({color:0x100e12,width:3,alpha:fade*.85});
+    if(age<.3)ground.stroke({color:0xbd8355,width:1,alpha:(1-age/.3)*.4});
+  }
+  for(let i=0;i<12;i++){
+    const a=i*2.4,r=22+age*(55+i%3*15),px=x+Math.cos(a)*r,py=y+Math.sin(a)*r*.3-age*26;
+    for(let layer=3;layer>0;layer--)dust.ellipse(px,py,(8+age*14)*layer/2,(5+age*10)*layer/2).fill({color:0x968675,alpha:fade*.045});
+    if(age<.5)ground.circle(px,py-age*20,1.5+i%3).fill({color:0x49403b,alpha:fade*.8});
+  }
 }

@@ -1,3 +1,4 @@
+import {SLAM_HIT_PHASE} from '../game/worldBossRehearsal';
 import type {BossStanding} from './worldBossPresentation';
 export type BossMotion = 'idle' | 'attack' | 'slam';
 export const BOSS_SHEETS = ['/assets/world-boss/valkaron-idle-hd-v1.png', '/assets/world-boss/valkaron-slash-hd-v2.png', '/assets/world-boss/valkaron-slam-rise-hd-v2.png', '/assets/world-boss/valkaron-slam-swing-hd-v2.png', '/assets/world-boss/valkaron-slam-impact-hd-v2.png'];
@@ -20,9 +21,10 @@ export function preloadBossSheets(): void {
 }
 export function bossPose(seconds: number): {motion: BossMotion; frame: number; impact: boolean} {
   const phase = Math.max(0, seconds) % 12;
-  if (phase >= 9) {
-    const frame = Math.min(23, Math.floor((phase - 9) / 3 * 24));
-    return {motion:'slam', frame:16 + frame, impact:frame >= 15 && frame <= 18};
+  if (phase >= 9 && phase < 10.8) {
+    const t=phase-9;
+    const frame=t<.65?Math.min(7,Math.floor(t/.65*8)):t<.93?8+Math.min(7,Math.floor((t-.65)/.28*8)):16+Math.min(7,Math.floor((t-.93)/.87*8));
+    return {motion:'slam', frame:16 + frame, impact:phase>=SLAM_HIT_PHASE&&phase<SLAM_HIT_PHASE+.24};
   }
   if (phase >= 4 && phase < 5.2) return {motion:'attack', frame:8 + Math.min(7, Math.floor((phase - 4) / 1.2 * 8)), impact:false};
   return {motion:'idle', frame:Math.floor(seconds * 5) % 8, impact:false};
@@ -67,4 +69,8 @@ export class WorldBossPreview {
     };
     this.stop=()=>{live=false;cancelAnimationFrame(id);};id=requestAnimationFrame(frame);
   }
+}
+
+export function slamImpactAge(seconds:number):number|null {
+  const age=seconds%12-SLAM_HIT_PHASE;return age>=0&&age<1.15?age:null;
 }
