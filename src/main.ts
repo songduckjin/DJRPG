@@ -1,3 +1,5 @@
+import './game/pixiSetup';
+import {mountWorldBossLive} from './game/worldBossLive';
 import { preferences } from './game/preferences';
 import { mountWasteland } from './game/wasteland';
 import { GameView } from './game/render';
@@ -43,6 +45,7 @@ async function start(): Promise<void> {
     const ui = new Interface(appRoot, world, () => { sync.queueSave(); }, session, async () => {
       try { await sync.reset(); } catch (error) { ui.message(`데이터 초기화 실패: ${String(error)}`); }
     }, sync);
+    mountWorldBossLive(ui);
     boot.attach();
     sync.onStatus = state => ui.setSaveStatus(state);
     sync.onMessage = message => ui.message(message);

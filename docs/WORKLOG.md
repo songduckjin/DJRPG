@@ -6,6 +6,10 @@
 - 136의 티어 초상화 6장은 폴백 자산으로 유지하고 142의 참조 0 검사 후 삭제 후보로 넘긴다(`docs/COSTUME_SYSTEM.md` v1.3 §7.3).
 - 검증: `npx tsc --noEmit`, 관련 6개 테스트 파일 71건, 전체 `tests/*.test.mjs` 338건, `git diff --check` 통과. `src/game/render/**`·`src/game/store.ts`·`server/**` 무변경 확인.
 
+## 2026-11-18 · fks3997 작업161/162 통합 배포 준비
+- 크롬 GPU 미지원 Canvas mesh 경로 복구를 실기 확인했다. 월드보스를 서버 공유HP 1,000만·하루3회·서버전투재현·실순위·참여/순위/막타/공동처치 우편보상으로 활성화했다.
+- 다른 작업자 작업140 렌더러 전환을 보존 통합했다. tsc·관련89테스트·Functions컴파일·diff 통과. PR78 핫픽스는 실전 활성화와 묶는 통합 PR로 대체하고, Cloudflare Pages 배포 상태는 해당 PR에 기록한다.
+
 ## 2026-11-18 · 작업 139 코스튬 스펙 v1.1 · 런타임 매니페스트·75종 매핑
 
 - 담당자 `songduckjin`의 작업지시에 따라 `src/game/costume/**`(신규, Pixi·DOM 비의존)에 코스튬 런타임 데이터 계층을 구현했다. 매니페스트 타입·스키마 검증·1회 로드 캐시, `items.ts` 고유 장비 이름 **75종** 매핑(55 `costumeId` + 20 명시적 `"none"`), 폴백 4경로(`bodyFallback`+`reason`), 캐시 버스터 URL, 액티브 8종 스킬 템플릿 매핑.
