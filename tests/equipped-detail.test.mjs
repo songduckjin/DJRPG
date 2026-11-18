@@ -103,8 +103,8 @@ test('info preview draws the shared field costume plan with the idle frame only'
     assert.equal(preview.mode,'costume',`${gender} uses the costume plan`);
     assert.deepEqual(preview.layers,shared.layers,'preview layers are the field layers');
     const roles=preview.layers.map(layer=>layer.role);
-    assert(roles.includes('legs')&&roles.includes('arms'),'body parts come from the shared plan');
-    assert(!roles.includes('torso'),'equipped armor replaces the bare torso part');
+    // 갑옷을 입으면 본체 파츠 3종이 모두 빠진다(v3: 팔·다리가 갑옷 밖으로 나오던 버그 수정).
+    assert(!roles.includes('legs')&&!roles.includes('arms')&&!roles.includes('torso'),'equipped armor replaces every bare body part');
     assert(roles.includes('armor')&&roles.includes('helmet')&&roles.includes('weapon'));
     assert.match(preview.key,/^costume:/);
     const changed=freshSave(gender);

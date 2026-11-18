@@ -42,7 +42,7 @@ console.log('착용 장비 아트 50종(5부위 × 10 프레임) 확인 완료.'
 const CELL = { width: 234, height: 242, columns: 8, rows: 8 };
 const manifestTs = readFileSync(new URL('../src/game/costume/manifest.ts', import.meta.url), 'utf8');
 const version = Number(manifestTs.match(/COSTUME_ASSET_VERSION = (\d+)/)?.[1]);
-if (version !== 2) throw new Error(`COSTUME_ASSET_VERSION이 2가 아닙니다: ${version}`);
+if (version !== 3) throw new Error(`COSTUME_ASSET_VERSION이 3이 아닙니다: ${version}`);
 
 const costumeRoot = fileURLToPath(new URL(`../public/assets/costume/v${version}/`, import.meta.url));
 const manifest = JSON.parse(readFileSync(join(costumeRoot, 'manifest.json'), 'utf8'));

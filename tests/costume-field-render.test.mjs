@@ -118,6 +118,24 @@ test('공격 속도 배율은 시각 재생 배율로만 쓰이고 월드 쿨다
   assert.equal(costumeFrameIndex('idle', .5, 3), 0);
 });
 
+test('투구 페이지는 갑옷 착용 여부에 따라 갑옷 머리 기준·맨몸 머리 기준을 고른다', () => {
+  for (const gender of ['male', 'female']) {
+    const bare = freshSave(gender);
+    bare.equipment = { helmet: item('helmet', '철제 바시넷') };
+    const onBody = planHeroCostume(bare, loadOk);
+    assert.equal(onBody.ok, true);
+    assert.equal(onBody.layers.find(layer => layer.role === 'helmet').page, `helmet-body-${gender}`,
+      '맨몸+투구는 맨몸 머리에 맞춘 페이지를 쓴다');
+
+    const armored = freshSave(gender);
+    armored.equipment = { armor: item('armor', '사슬 갑옷'), helmet: item('helmet', '철제 바시넷') };
+    const onArmor = planHeroCostume(armored, loadOk);
+    assert.equal(onArmor.ok, true);
+    assert.equal(onArmor.layers.find(layer => layer.role === 'helmet').page, `helmet-${gender}`,
+      '갑옷+투구는 갑옷 머리 기준 페이지를 쓴다');
+  }
+});
+
 test('매니페스트가 없으면 계획이 서지 않고 폴백 사유를 남긴다', () => {
   const save = freshSave('male');
   const missing = planHeroCostume(save, undefined);
@@ -142,10 +160,14 @@ for (const gender of ['male', 'female']) test(`${gender}: 본체 3영역이 같�
 
   const armored = planHeroCostume(fullEquipment(freshSave(gender)), loadOk);
   assert.equal(armored.ok, true);
-  assert(!armored.layers.some(layer => layer.role === 'torso'), '갑옷 착용 시 맨몸 몸통 파츠는 빠진다(파츠 교체)');
-  assert(armored.layers.some(layer => layer.role === 'armor'), '갑옷 파츠가 몸통 자리에 들어간다');
+  // 갑옷은 본체 파츠 3종(torso·arms·legs)을 모두 대체한다. 하나라도 남으면 포즈가 다른
+  // 공격 프레임에서 맨몸 팔·다리가 갑옷 밖으로 삐져나온다(v3 실기 버그).
+  for (const role of ['torso', 'arms', 'legs']) {
+    assert(!armored.layers.some(layer => layer.role === role), `갑옷 착용 시 맨몸 ${role} 파츠는 빠진다`);
+  }
+  assert(armored.layers.some(layer => layer.role === 'armor'), '갑옷 파츠가 본체 자리에 들어간다');
   const roles = armored.layers.map(layer => layer.role);
-  for (const role of ['legs', 'arms', 'boots', 'gloves', 'helmet', 'offhand', 'weapon']) assert(roles.includes(role), `${role} 레이어 누락`);
+  for (const role of ['boots', 'gloves', 'helmet', 'offhand', 'weapon']) assert(roles.includes(role), `${role} 레이어 누락`);
   assert(!roles.includes('necklace') && !roles.includes('belt') && !roles.includes('ring'), '목걸이·벨트·반지는 필드 미표시(§3.1)');
   // zOrder 오름차순으로 그려야 앞뒤가 맞는다.
   const orders = armored.layers.map(layer => layer.zOrder);
@@ -207,7 +229,7 @@ test('아틀라스 셀은 변형·모션·프레임마다 하나씩 떨어지고
   assert.equal(costumeVariantsPerPage, 2);
   assert.equal(costumeAtlasPageName('armor', 0), 'armor');
   assert.equal(costumeAtlasPageName('armor', 1), 'armor-2');
-  assert.equal(costumeAtlasUrl('armor-male-2'), '/assets/costume/v2/atlas/armor-male-2.png');
+  assert.equal(costumeAtlasUrl('armor-male-2'), '/assets/costume/v3/atlas/armor-male-2.png');
 });
 
 for (const gender of ['male', 'female']) test(`${gender}: 매니페스트와 텍스처가 있으면 레이어로 그리고 폴백 본체는 숨긴다`, () => {
@@ -243,12 +265,13 @@ for (const gender of ['male', 'female']) test(`${gender}: 매니페스트와 텍
   assert.equal(JSON.stringify(save.equipment), before, '렌더러는 Save를 바꾸지 않는다');
 
   // 모션·프레임이 바뀌면 프레임 셀도 바뀐다(걷기 8프레임 · 기본 공격 4프레임 · 스킬 4종).
-  const walkFrame = state.sprites.get('legs').texture;
+  // 갑옷을 입은 상태라 본체 파츠가 없으므로 갑옷 스프라이트로 확인한다.
+  const walkFrame = state.sprites.get('armor').texture;
   renderCostumeHero({ heroLayer, hero }, state, save, { motion: 'walk', frame: 4 });
-  assert.notEqual(state.sprites.get('legs').texture, walkFrame);
-  const idleFrame = state.sprites.get('legs').texture;
+  assert.notEqual(state.sprites.get('armor').texture, walkFrame);
+  const idleFrame = state.sprites.get('armor').texture;
   renderCostumeHero({ heroLayer, hero }, state, save, { motion: 'idle', frame: 0 });
-  assert.notEqual(state.sprites.get('legs').texture, idleFrame);
+  assert.notEqual(state.sprites.get('armor').texture, idleFrame);
   for (const motion of ['attack', 'slash', 'spin', 'smash', 'cast']) {
     assert.equal(renderCostumeHero({ heroLayer, hero }, state, save, { motion, frame: 1 }), true, `${motion} 모션이 그려지지 않는다`);
   }
@@ -327,12 +350,13 @@ for (const gender of ['male', 'female']) test(`${gender}: drawHero가 코스튬 
   const world = { save, player, activeMove: { x: 0, y: 0 }, attackPose: 0, effects: [] };
   drawHero.call(view, world, 100, 100, 0);
   assert.equal(view.hero.visible, false, '코스튬 모드에서 통합 바디가 남아 있다');
-  const idleCell = view.costume.sprites.get('legs').texture;
+  // 갑옷을 입으면 본체 파츠(torso·arms·legs)가 없으므로 갑옷 스프라이트로 프레임을 본다.
+  const idleCell = view.costume.sprites.get('armor').texture;
 
   // world.ts 드래곤 트위스터 이펙트 → spin 템플릿 프레임
   world.effects.push({ x: 0, y: 0, kind: 'spin', age: .3, duration: 1.2, angle: 0 });
   drawHero.call(view, world, 100, 100, .1);
-  assert.notEqual(view.costume.sprites.get('legs').texture, idleCell);
+  assert.notEqual(view.costume.sprites.get('armor').texture, idleCell);
 
   // 피격 연출(tint) 호환
   world.effects.length = 0;

@@ -1,3 +1,3 @@
 // scripts/generate-version.mjs가 빌드할 때 덮어쓴다. 저장소의 값은 개발·테스트용 폴백이다.
-export const BUILD_VERSION = 'dev';
-export const BUILT_AT = '';
+export const BUILD_VERSION = 'fd88bfe6e0c8';
+export const BUILT_AT = '2026-11-18T22:38:08.862Z';

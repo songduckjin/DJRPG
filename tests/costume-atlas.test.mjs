@@ -1,7 +1,7 @@
-// [작업 142] 코스튬 아틀라스 v2 배포본 검사.
+// [작업 143] 코스튬 아틀라스 v3 배포본 검사.
 //
 // 매니페스트가 `mapping.ts`의 55종 `costumeId`를 빠짐없이 담고 있는지, 각 변형이 가리키는
-// 아틀라스 페이지 파일이 실제로 `public/assets/costume/v2/atlas/`에 있는지 확인한다.
+// 아틀라스 페이지 파일이 실제로 `public/assets/costume/v3/atlas/`에 있는지 확인한다.
 // 렌더러의 페이지 규칙(`costumeAtlasPageName`·`costumeLayerPageIndex`)을 그대로 써서
 // 코드와 배포 파일이 같은 규칙을 따르는지도 함께 고정한다.
 import assert from 'node:assert/strict';
@@ -13,7 +13,7 @@ const { costumeMappingEntries, COSTUME_NONE } = await import('../src/game/costum
 const { validateCostumeManifest, COSTUME_ASSET_VERSION } = await import('../src/game/costume/manifest.ts');
 const { costumeVariantsPerPage, costumeAtlasPageName } = await import('../src/game/render/costumeHero.ts');
 
-const root = new URL('../public/assets/costume/v2/', import.meta.url);
+const root = new URL('../public/assets/costume/v3/', import.meta.url);
 const manifestPath = new URL('manifest.json', root);
 const atlasDir = new URL('atlas/', root);
 
@@ -40,8 +40,8 @@ const pages = (slot, gender, variants) => {
   return names;
 };
 
-test('v2 매니페스트가 매핑 55종을 모두 담는다', () => {
-  assert.equal(COSTUME_ASSET_VERSION, 2);
+test('v3 매니페스트가 매핑 55종을 모두 담는다', () => {
+  assert.equal(COSTUME_ASSET_VERSION, 3);
   const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
   const validated = validateCostumeManifest(manifest);
   assert.ok(validated.ok, validated.ok ? '' : validated.error);
@@ -61,7 +61,8 @@ test('v2 매니페스트가 매핑 55종을 모두 담는다', () => {
 
 test('모든 변형의 아틀라스 페이지가 셀 격자(8×8) PNG로 존재한다', () => {
   const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
-  const counts = { weapon: 10, offhand: 5, helmet: 10, armor: 10, gloves: 10, boots: 10 };
+  // `helmet-body-*`는 갑옷을 입지 않은 조합용 투구 페이지다(§7.5 2D 머리 정렬).
+  const counts = { weapon: 10, offhand: 5, helmet: 10, 'helmet-body': 10, armor: 10, gloves: 10, boots: 10 };
   const checked = new Set();
   for (const [slot, variants] of Object.entries(counts)) {
     for (const gender of ['male', 'female']) {
