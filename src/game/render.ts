@@ -1,7 +1,7 @@
 import { preferences } from './preferences';
 import { Application, Assets, Container, Graphics, Rectangle, Sprite, Text, Texture, TilingSprite } from 'pixi.js';
 import type { Effect, Enemy, World } from './world';
-import type { Slot } from './items';
+import { wearableAssetPaths, type Slot } from './items';
 import { drawRunes, drawTerrain, drawDust, drawLighting, drawVignette } from './render/field';
 import { drawHero, updateAfterimages, updateCorpses, drawEntities } from './render/entities';
 import { drawSkillVfx, drawDragon, drawHit, updateDamageLabels, drawDeath, drawDrops, drawEffects } from './render/vfx';
@@ -59,7 +59,7 @@ const walkSheets = {
 type Animation = keyof typeof animationPaths | keyof typeof attackSheets | keyof typeof walkSheets;
 export const renderAssetPaths = [
   ...Object.values(paths), ...Object.values(animationPaths).flat(),
-  ...Object.values(attackSheets), ...Object.values(walkSheets)
+  ...Object.values(attackSheets), ...Object.values(walkSheets), ...Object.values(wearableAssetPaths)
 ];
 type Dust = { x: number; y: number; vx: number; vy: number; age: number; duration: number; size: number };
 type Ghost = { sprite: Sprite; x: number; y: number; age: number; duration: number };
@@ -121,6 +121,8 @@ export class GameView {
     };
     const loaded = await Promise.all((Object.keys(paths) as Art[]).map(async key => [key, await loadTexture(paths[key])] as const));
     for (const [key, texture] of loaded) { texture.source.scaleMode = 'linear'; this.textures[key] = texture; }
+    const wearable = await Promise.all(Object.values(wearableAssetPaths).map(async path => [path, await loadTexture(path)] as const));
+    for (const [path, texture] of wearable) { texture.source.scaleMode = 'linear'; this.gearTextures.set(path, texture); }
     const animated = await Promise.all((Object.keys(animationPaths) as (keyof typeof animationPaths)[]).map(async key => [key, await Promise.all(animationPaths[key].map(loadTexture))] as const));
     for (const [key, textures] of animated) { for (const texture of textures) texture.source.scaleMode = 'linear'; this.animations[key] = textures; }
     const attacks = await Promise.all((Object.keys(attackSheets) as (keyof typeof attackSheets)[]).map(async key => [key, await loadTexture(attackSheets[key])] as const));

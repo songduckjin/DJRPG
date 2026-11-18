@@ -22,3 +22,16 @@ for (const [slot, names] of groups) for (let index = 0; index < names.length; in
   count += Math.min(5, names.length - index);
 }
 console.log(`장비 그림 ${count}종 확인 완료.`);
+
+const wearableDirectory = fileURLToPath(new URL('../public/assets/wearable/', import.meta.url));
+const wearable = { weapon: 'weapons', helmet: 'helmets', armor: 'armor', gloves: 'gloves', boots: 'boots' };
+for (const [slot, file] of Object.entries(wearable)) {
+  const path = join(wearableDirectory, `${file}.png`);
+  if (!existsSync(path)) throw new Error(`${slot} 착용 이미지가 없습니다: ${path}`);
+  const data = readFileSync(path), header = data.subarray(0, 26);
+  const hasAlpha = header[25] === 6 || header[25] === 3 && data.includes('tRNS');
+  if (header.toString('ascii', 1, 4) !== 'PNG' || header.readUInt32BE(16) !== 1000 || header.readUInt32BE(20) !== 400 || !hasAlpha) {
+    throw new Error(`착용 이미지 시트는 투명도가 있는 1000×400 PNG여야 합니다: ${path}`);
+  }
+}
+console.log('착용 장비 아트 50종(5부위 × 10 프레임) 확인 완료.');

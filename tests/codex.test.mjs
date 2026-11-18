@@ -4,7 +4,7 @@ import './ts-loader.mjs';
 const { codexEntries, equipmentCodexKey, discoverEquipment, codexOwnership, filterCodex, firstDropFloor, codexOptions, codexVariantName }=await import('../src/game/codex.ts');
 const { freshSave, parseSave }=await import('../src/game/store.ts');
 const { salvageItems }=await import('../src/game/inventory.ts');
-const { rollItem, slots, baseItems, rarityOrder, rarityTiers, rarityNames, migrateItem, salvageByRarity }=await import('../src/game/items.ts');
+const { rollItem, slots, baseItems, rarityOrder, rarityTiers, rarityNames, migrateItem, salvageByRarity, equipmentImage, wearableEquipmentImage }=await import('../src/game/items.ts');
 const item=(name,slot='weapon')=>({id:name+slot,name,slot,rarity:'rare',stats:{attack:5}});
 test('codex contains exactly 75 unique illustrated base items, counting ring types once',()=>{
   assert.equal(codexEntries.length,75);assert.equal(new Set(codexEntries.map(e=>e.key)).size,75);assert.equal(codexEntries.filter(e=>e.slot==='ring').length,5);
@@ -13,6 +13,18 @@ test('codex contains exactly 75 unique illustrated base items, counting ring typ
 test('legacy prefixes, tutorial sword and old Zweihander spelling map to the base entry',()=>{
   assert.equal(equipmentCodexKey(item('낡은 두손검')),'weapon:0');assert.equal(equipmentCodexKey(item('영원의 쯔바이핸드')),'weapon:3');assert.equal(equipmentCodexKey(item('영원의 츠바이핸더')),'weapon:3');
   assert.equal(equipmentCodexKey(item('황혼의 낡은 부츠','boots')),'boots:0');assert.equal(equipmentCodexKey(item('커스텀 미등록 검')),undefined);
+});
+test('no-space legacy item name resolves to its distinct inventory and wearable frame',()=>{
+  const hood=item('낡은가죽두건','helmet');
+  assert.deepEqual(equipmentImage(hood),{path:'/assets/item-art/helmet_0.png',frame:0,columns:5});
+  assert.deepEqual(wearableEquipmentImage(hood),{path:'/assets/wearable/helmets.png',frame:0,columns:5,rows:2});
+  assert.equal(wearableEquipmentImage(item('낡은 철제바시넷','helmet'))?.frame,1);
+  assert.equal(wearableEquipmentImage(item('낡은 투구','helmet'))?.frame,7);
+});
+test('all fifty equipment base models have an individual wearable art frame',()=>{
+  for(const slot of ['weapon','helmet','armor','gloves','boots']) for(const [frame,name] of baseItems[slot].entries()) {
+    assert.deepEqual(wearableEquipmentImage(item(`낡은 ${name}`,slot)),{path:`/assets/wearable/${slot==='weapon'?'weapons':slot==='helmet'?'helmets':slot}.png`,frame,columns:5,rows:2});
+  }
 });
 test('migration discovers current equipment and bag, and retains discovery after dismantling',()=>{
   const save=freshSave();save.bag=[item('황혼의 쯔바이핸드')];save.equipment.helmet=item('철제 바시넷','helmet');delete save.equipmentCollection;
