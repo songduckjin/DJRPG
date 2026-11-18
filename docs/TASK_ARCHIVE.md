@@ -5,6 +5,22 @@
 
 ---
 
+## [x] [작업 140] 본 게임 필드 렌더러 독립형 코스튬 전환
+
+- **완료일**: 2026-11-18 · **담당자**: `songduckjin` · **브랜치**: `task/140-costume-field-renderer` · **PR**: #79
+- `src/game/render/costumeHero.ts`(신규)가 `[작업 139]`의 `planCostume()`·`resolveSkillMotion()`을 소비해 **독립형 코스튬 레이어**로 필드 캐릭터를 그린다. 본체 3파츠(torso·arms·legs) + 장비 레이어, 갑옷은 몸통 파츠 **교체**, 매니페스트 `zOrder`·`anchor`·`fit` 반영, `anchor` `{0,0}`은 본체 발 피벗으로 해석.
+- **무중단 폴백**: 매니페스트 없음/파싱 실패/`costumeId` 미매핑/아틀라스 셀 미준비 중 하나라도 있으면 그 프레임은 기존 통합 바디·무기 소켓 경로로 그린다(부분 합성 없음). 매니페스트 실패 시 아틀라스 요청 0회, 실패 페이지는 1회 기록 후 재시도 없음 → 404 폭주·캐릭터 소실 없음.
+- **모션**: `heroMotion.ts` `HeroCostumeMotion` = 대기 1·걷기 8·기본 공격 4·스킬 4템플릿(`slash`4·`spin`6·`smash`4·`cast`3). `heroCostumeMotion()`이 `world`의 이동·공격 자세·진행 중 스킬 이펙트를 1:1로 잇고, 걷기 우선순위는 기존 `heroAnimationMode`와 같다.
+- **공격 속도**: `costumePlaybackRate()`가 월드 쿨다운 식의 역수(쿨다운 × 배율 = 0.48, 상한 3배)라 프레임 진행만 빨라진다. 전투 판정·월드 위치 무변경.
+- **그림자·잔상·피격**: 그림자는 `costumeBodyPx`(잠정 190) 기준 같은 식, 잔상은 코스튬 모드에서 보이는 레이어 전체 복제, 피격 tint는 모든 레이어에 동일 적용.
+- **남/여 동일 경로**: 파츠 페이지만 `body-male`/`body-female`로 갈리고 계획·그리기 함수는 하나다.
+- **아틀라스 배치 규약 확정**(`docs/COSTUME_SYSTEM.md` v1.2 §7.2): 셀 `234×242`, 페이지 2048² 8×8=64칸, 변형당 32칸(페이지당 변형 2개·3번째부터 `-2` 페이지), 프레임 슬롯 표. `[작업 142]`가 이 규약으로 팩킹한다.
+- **검증**: `npx tsc --noEmit` 통과, `tests/costume-field-render.test.mjs` **16건** 신규 통과, 기존 `costume-manifest`·`appearance`·`hero-motion`·`hero-art`·`hero-weapon-render` 통과, 전체 `tests/*.test.mjs` **303건 통과**, `node scripts/verify-item-art.mjs` 통과, `git diff --check` 통과. `world.ts`·`store.ts`·`server/**`·`src/ui/**`·몬스터·NPC 렌더 무변경.
+- **대표 장면**: 로컬 Vite + Chromium(SwiftShader, 412×892 DPR1) 3층 자동사냥 — 폴백 남/여 캐릭터 정상·draw call 7~9/프레임, 코스튬 모드(합성 아틀라스 주입) 레이어 8개·통합 바디 숨김·draw call 7·콘솔 오류 0건. FPS는 소프트웨어 GL이라 절대값 무의미(5.2~5.4 동일). 실기 프로파일링은 `[작업 142]`.
+- 수정 파일: `src/game/render/costumeHero.ts`(신규), `render/entities.ts`, `render/heroMotion.ts`, `render/heroScale.ts`, `render/heroSockets.ts`, `src/game/render.ts`, `src/game/costume/skillMotion.ts`, `tests/costume-field-render.test.mjs`(신규), `AGENTS.md`, `docs/COSTUME_SYSTEM.md`(v1.2), `docs/CODE_MAP.md`, `docs/QUICK_PATCH.md`, `docs/TASK.md`·`docs/TASK_songduckjin.md`·`docs/TASK_ARCHIVE.md`·`docs/WORKLOG.md`.
+
+---
+
 ## [x] [작업 139] 코스튬 스펙 v1.1 확정 및 런타임 매니페스트·아이템 매핑 구현
 
 - **완료일**: 2026-11-18 · **담당자**: `songduckjin` · **브랜치**: `task/139-costume-manifest` · **PR**: #76

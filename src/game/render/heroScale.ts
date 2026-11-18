@@ -34,3 +34,18 @@ export function heroBodyHeight(art: string, frameHeight: number): number {
 export function heroScale(screenHeight: number, art: string, frameHeight: number): number {
   return screenHeight * heroBodyFraction / heroBodyHeight(art, frameHeight);
 }
+
+/**
+ * 독립형 코스튬 본체의 머리~발 높이(아트 픽셀) — 작업 140.
+ *
+ * 코스튬 아틀라스는 파츠마다 같은 캔버스(`234×242` 셀)와 같은 발 피벗을 쓰므로
+ * 시트별 실측표(`heroBodyPx`) 대신 셀 하나의 본체 높이 하나면 된다.
+ * 지금 값은 138 `estimateCanvas`의 캔버스 비율에서 잡은 **잠정값**이며, 실물 아틀라스가
+ * 들어오는 [작업 142]에서 알파 경계로 재고 이 상수 하나만 고친다.
+ */
+export const costumeBodyPx = 190;
+
+/** 코스튬 본체 배율. `heroBodyPx` 표를 쓰지 않고 이 한 값으로 모든 모션·파츠를 같은 크기로 맞춘다. */
+export function costumeScale(screenHeight: number): number {
+  return screenHeight * heroBodyFraction / costumeBodyPx;
+}

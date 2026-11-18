@@ -3,7 +3,7 @@
 > 단일 기준 문서(Source of Truth). 프로토타입 전 설계 기준이며, 구현 상세는 실물 검증 후 추가한다.
 > 빠른 작업 경로: AGENTS.md → docs/QUICK_PATCH.md → docs/CODE_MAP.md → 이 문서 → docs/TASK_songduckjin.md 작업 139~142.
 
-**문서 버전: v1.1 (2026-11-18, [작업 139]).** 138 실측·검증으로 확인된 사실만 반영했다 — 파츠 교체 가림 방식, 자체 PixiJS 레이어 채택, 피벗 `(0,0)`, 최대 동작 캔버스 후보, 스킬 8종 → 4대 템플릿 확정 매핑. 확인되지 않은 필드는 늘리지 않았고 §7 초기 범위는 그대로다.
+**문서 버전: v1.2 (2026-11-18, [작업 140]).** v1.1 내용은 그대로 두고, 필드 렌더러가 실제로 연결된 뒤 확정된 것만 덧붙였다 — 렌더 경로 위치, 아틀라스 셀·페이지 배치 규약(§7.2), 폴백 판정 위치.
 
 ## 1. 목표와 범위
 
@@ -15,7 +15,7 @@
 
 현재 src/game/appearance.ts, src/game/render.ts, src/game/render/entities.ts는 통합 바디 시트와 무기 소켓 중심의 기존 구현이다. heroSockets.ts는 전사 남녀의 무기 위치를, gearTint.ts는 기존 갑옷·투구 팔레트 변형을 담당한다. 장비창 미리보기는 src/ui/equipmentPortrait.ts의 별도 경로다.
 
-런타임 데이터 계층 `src/game/costume/**`는 [작업 139]에서 추가됐다 — 매니페스트 타입·검증·1회 로드 캐시, 아이템 이름 → `costumeId` 매핑 75종, 폴백 4경로, 캐시 버스터 URL, 스킬 모션 매핑표. Pixi·DOM에 의존하지 않는 순수 모듈이며 **아직 렌더러에 연결되지 않았다**(연결은 [작업 140]). 따라서 이 작업 전후로 게임 화면은 변하지 않는다.
+런타임 데이터 계층 `src/game/costume/**`는 [작업 139]에서 추가됐다 — 매니페스트 타입·검증·1회 로드 캐시, 아이템 이름 → `costumeId` 매핑 75종, 폴백 4경로, 캐시 버스터 URL, 스킬 모션 매핑표. Pixi·DOM에 의존하지 않는 순수 모듈이다. **[작업 140]에서 `src/game/render/costumeHero.ts`가 이 계층을 소비해 필드 렌더러에 연결했다**(§7.2). 아직 실물 아틀라스가 없으므로 게임 화면은 기존 통합 바디로 그려지고, 매니페스트·아틀라스가 배포되면 같은 코드가 코스튬 레이어로 전환된다.
 
 작업 135(PR #71)는 기존 통합 바디 시트의 4티어 갑옷·투구 팔레트 구분을 구현한 이력이다. 이는 현행 코드의 설명이지, 신규 코스튬 시스템에서 모든 장비를 통합 시트로 제작하라는 정책이 아니다.
 
@@ -181,6 +181,31 @@ frames 방식의 프레임 수에는 실제로 별도 그림이 필요한 성별
 - **폴백 4경로**: ① 매니페스트 없음(네트워크·404) ② JSON 파싱·스키마 검증 실패 ③ `costumeId` 미매핑(이름 미매핑 · 매니페스트에 항목 없음 · 매니페스트 부위 불일치) ④ 아틀라스 로드 실패. 네 경우 모두 `bodyFallback: true`와 `reason`을 돌려주고 렌더러는 기본 본체만 그린다. `costumeId: "none"`은 실패가 아니라 “필드에 그리지 않는 부위”라는 정상 판정(`bodyFallback: false`)이다.
 - **캐시 버스터**: `COSTUME_ASSET_VERSION` 한 상수에서 `/assets/costume/v<N>/manifest.json`과 `/assets/costume/v<N>/atlas/<page>.png`를 만든다. 버전 없는 경로는 만들지 않는다.
 - **스킬 모션**: §3.3 표를 `src/game/costume/skillMotion.ts`의 `skillMotionTemplates`로 두고 액티브 8종·패시브 제외를 테스트로 고정했다.
+
+### 7.2 필드 렌더러 계약 (작업 140 구현)
+
+필드 캐릭터는 `src/game/render/costumeHero.ts`가 그리고, `src/game/render/entities.ts` `drawHero`가 코스튬 모드와 폴백 모드를 고른다. 매니페스트 필드(§7)는 늘리지 않았고, 아틀라스 안의 프레임 위치는 아래 배치 규약으로 코드가 계산한다.
+
+- **모드 선택**: 코스튬 레이어로 그리려면 ① 매니페스트 로드 성공, ② 장착 부위마다 `planCostume()`가 `bodyFallback: false`, ③ 본체 파츠(torso·arms·legs)와 장비 레이어의 셀 텍스처가 모두 준비 — 세 조건이 모두 참이어야 한다. 하나라도 어긋나면 **그 프레임은 기존 통합 바디·무기 소켓 경로**로 그린다(부분 합성 없음, 캐릭터 소실 프레임 없음). 코스튬 모드에서만 통합 바디 스프라이트를 `visible=false`로 둔다.
+- **모션**: `heroMotion.ts` `HeroCostumeMotion` = `idle`·`walk`(8)·`attack`(4)·`slash`·`spin`·`smash`·`cast`. 선택은 `heroCostumeMotion({ moving, attackPose, skill })`이고, `skill`은 `world.effects`의 이펙트 종류를 `resolveSkillMotion()`(`skillMotion.ts`)으로 푼 템플릿이다. 걷기가 공격보다 우선하는 기존 `heroAnimationMode` 순서를 유지한다.
+- **공격 속도 = 시각 재생 배율**: `costumePlaybackRate({ speed, berserk, berserkLevel })`는 월드 쿨다운 식(`cooldowns.attack / (1 + speed / 100)`, 광폭 시 `/(1.5 + (level-1)*.08)`)의 역수이며, 쿨다운 × 배율 = 기본 쿨다운(0.48)이 항상 성립한다(테스트 고정). 상한 3배. 프레임은 `costumeFrameIndex(motion, 진행도, 배율)`로만 진행하고 전투 판정·월드 위치는 바꾸지 않는다.
+- **본체 높이·그림자**: 코스튬 본체는 시트별 실측표(`heroBodyPx`) 대신 `heroScale.ts` `costumeBodyPx`(잠정 190px)·`costumeScale(screenHeight)` 하나를 쓴다. 그림자 반경은 폴백과 같은 식 `max(20, 본체높이 × 배율 × .37)`.
+- **잔상·피격**: 잔상은 보이는 코스튬 레이어를 모두 복제하고(폴백은 기존처럼 통합 바디 1장), 피격 tint는 모든 레이어에 같게 적용한다.
+- **실패 처리**: 매니페스트가 실패하면 `fallback` 상태로 굳고 **아틀라스 요청을 한 번도 하지 않는다**(404 폭주 방지). 실패한 페이지 URL은 1회만 `console.info`로 남기고 재시도하지 않는다.
+
+**아틀라스 배치 규약(코드가 계산, 142가 이 규약으로 팩킹한다):**
+
+| 항목 | 규약 |
+|---|---|
+| 셀 | `234×242`px 고정(§3 최대 동작 캔버스 후보). 모든 파츠가 같은 셀·같은 발 피벗을 쓴다(§6.2) |
+| 페이지 | `atlas/<이름>.png`, 2048×2048 목표 → 8×8 = **64칸**. 이름은 장비면 부위(`armor`·`helmet`·`gloves`·`boots`·`weapon`·`offhand`), 본체면 `body-male`·`body-female` |
+| 변형 슬롯 | 변형 하나당 **32칸**(사용 30 + 정렬 2). 64칸 = 변형 2개 → 3번째 변형부터 `-2` 페이지(`armor-2`) |
+| 변형 순서 | 장비는 매니페스트에서 같은 `slot`인 항목의 순서, 본체는 `torso`(0)·`arms`(1)·`legs`(2) |
+| 프레임 슬롯 | `idle` 0 · `walk` 1–8 · `attack` 9–12 · `slash` 13–16 · `spin` 17–22 · `smash` 23–26 · `cast` 27–29 |
+| 셀 위치 | `cell = (variant % 2) × 32 + 프레임 슬롯`, `열 = cell % 열수`, `행 = ⌊cell ÷ 열수⌋`. 열·행 수는 실제 텍스처 크기에서 계산하므로 2048² 미만 배포본도 같은 순서로 잘린다. 페이지보다 셀이 크면 폴백 |
+| 피벗 | 매니페스트 `anchor`가 `0..1`이면 정규화 피벗, `{0,0}`이면 본체 발 피벗(`.5, .96`), 그보다 크면 셀 픽셀로 보고 나눈다. `fit`은 셀 아트 픽셀 단위 위치·크기·회전 보정 |
+| 레이어 순서 | 본체 `legs`(0)·`torso`(10)·`arms`(15), 장비 `boots`(5)·`armor`(10)·`gloves`(20)·`helmet`(30)·`offhand`(40)·`weapon`(50). 매니페스트 `zOrder`가 있으면 그 값 우선 |
+| 파츠 교체 | 갑옷을 입으면 맨몸 `torso` 레이어를 **빼고** `armor` 레이어를 같은 z(10)에 넣는다(§4) |
 
 ## 8. 성능·범위·안전장치
 
