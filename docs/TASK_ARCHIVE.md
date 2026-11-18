@@ -5,6 +5,14 @@
 
 ---
 
+## [x] [작업 135] 갑옷·투구 10종 외형 차별화 (4티어 실루엣 + 팔레트 스왑)
+
+- **완료일**: 2026-11-18 · **담당자**: `songduckjin` · **브랜치**: `task/135-armor-tier-palette`
+- 아이템 이름으로 갑옷·투구 티어와 팔레트를 결정하고, 남녀 필드 통합 바디에 피부·머리카락을 보존하는 캐시형 팔레트 틴트를 적용했다. 1·3·4티어 필드 시트는 준비 전이라 기존 2티어 시트로 폴백한다.
+- TypeScript 검사, 관련 테스트 52개, `git diff --check` 통과. PR #71이 `e933a22fc2f1e58af6bc2ebab3648f1176c015cb`로 main에 병합됐고 Cloudflare Pages Preview는 성공했다. Cloudflare Workers Preview는 배포 명령의 `[previews]` 설정 누락으로 실패했다.
+
+---
+
 ## [x] [작업 134] 필드 캐릭터 통합 바디 복구 및 무기 소켓·액션 자연화
 
 - **완료일**: 2026-11-18 · **등록자·담당자**: `songduckjin` · **브랜치**: `task/134-field-gear-action`

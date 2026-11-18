@@ -45,8 +45,9 @@
 - **완료 기준**: 필드 캐릭터가 검 없는 장착 갑옷·투구 통합 서기·걷기 시트(어깨·체형 정상)로 그려지고, 장갑·부츠·갑옷·투구 아이콘이 몸 위에 덧그려지지 않는다. 무기는 서기·걷기 8프레임에서 손 위치를 따라가고 공격 4프레임에서는 공격 시트의 한 자루만 보인다. 검기 색이 장착 무기 등급을 반영한다. 남/여 모두 동일. `heroSockets.ts`가 `Record<ClassId, Record<Gender, …>>` 표로 존재하고 `entities.ts`에 무기 좌표 하드코딩이 없다. 새 시트의 8칸 경계와 본체 높이 검증 후 PR 병합.
 - **동시 작업 확인**: 등록 시점(2026-11-18, `main` = `84a1dd0`) `docs/TASK.md`의 다른 `[-]` 작업은 fks3997의 `[작업 133]`(장비창 미리보기, `ui/`·`public/assets/warrior_equipped*`) 하나이며 수정 파일이 겹치지 않는다. 번호는 134로 올려 잡았다.
 
-### [-] [작업 135] 갑옷·투구 10종 외형 차별화 (4티어 실루엣 + 팔레트 스왑)
-- **등록자**: `songduckjin` · **실행 담당자**: `songduckjin`(`codex` 실행 가능) · **등록일**: 2026-11-18 · **브랜치**: `task/135-armor-tier-palette` · **위험 등급**: 중 · **상태**: `[-]` 등록
+### [x] [작업 135] 갑옷·투구 10종 외형 차별화 (4티어 실루엣 + 팔레트 스왑)
+- **등록자**: `songduckjin` · **실행 담당자**: `songduckjin`(`codex` 실행 가능) · **등록일**: 2026-11-18 · **브랜치**: `task/135-armor-tier-palette` · **위험 등급**: 중 · **상태**: `[x]` 완료
+- **완료**: 2026-11-18 · PR #71 병합 커밋 `e933a22fc2f1e58af6bc2ebab3648f1176c015cb`. TypeScript 검사, 관련 테스트 52개, `git diff --check` 통과. Cloudflare Pages Preview 성공. Cloudflare Workers 빌드는 배포 단계 `npx wrangler preview`에서 `[previews]` 설정 누락으로 실패했으며, Pages 전용 배포 정책에 따라 Workers 설정은 바꾸지 않았다.
 - **선행 조건**: `[작업 134]`(`task/134-field-gear-action`, PR #66 → #68로 마감, `origin/main` = `c0e3b03`)가 끝난 상태에서 **`origin/main` 기준으로 착수**한다. 134가 같은 파일(`src/game/appearance.ts`, `src/game/render/entities.ts`)을 고쳤으므로 반드시 최신 `main`에서 `task/135-armor-tier-palette`를 따고, 134의 검 없는 시트·무기 소켓 계약을 그대로 위에 얹는다. 이 등록 문서는 `docs/135-armor-tier-palette` 브랜치 PR로 올렸고 코드는 건드리지 않았다.
 - **직접 수정**: `src/game/appearance.ts`, `src/game/render/entities.ts`, `src/game/render/gearTint.ts`(신규 — 틴트 캐시 헬퍼), `tests/appearance.test.mjs`, `docs/CODE_MAP.md`(§3·§4 마감 시), `docs/TASK.md`. **간접 영향**: `src/game/render.ts`(티어 시트 키를 경로 표에 넣을 때), `src/game/render/heroScale.ts`(1·3·4티어 전용 시트를 실제로 추가할 때 `heroBodyPx` 실측값), `src/game/items.ts`(`baseItemIndex`를 재사용하려면 **export 추가만** — 동작·시그니처 변경 금지). **건드리지 않음**: `src/ui/equipmentPortrait.ts`·`src/ui/modals/equipModal.ts`([작업 133] 장비창 미리보기), `src/game/store.ts`(세이브 형식), `server/**`, `public/assets/wearable/*`(장비창 착용 아트 시트), `public/assets/item-art/*`(장비창·도감 아이콘 시트).
 - **목표**: 인게임 필드에서 갑옷·투구를 착용하면 지금은 `armored` / `femaleArmoredHelm` 같은 **티어 1종 시트로만** 보인다(장비창은 [작업 133]으로 10종이 이미 구분됨). 실무 게임사 방식대로 **티어당 통합 바디 시트 1장(1 경갑·2 기본 판금·3 상급·4 전설 / 1 경투구·2 철·사슬 헬름·3 상급·4 전설 왕관) + 티어 안 10종의 팔레트 스왑**으로 종류를 구분해, 10종을 다 입어도 필드 실루엣과 색이 눈에 띄게 달라지게 한다. 시트를 10장 더 그리지 않으므로 에셋·로딩 비용은 그대로다.
@@ -144,7 +145,7 @@
 
 ### [-] [작업 136] 통합 내 정보(장비·스탯) UI 개편 및 4티어 장비창 초상화 교체
 - **등록자**: `songduckjin` · **실행 담당자**: `songduckjin`(`codex` 실행 가능) · **등록일**: 2026-11-18 · **브랜치**: `task/136-unified-equip-ui` · **위험 등급**: 중 · **상태**: `[-]` 등록
-- **선행 조건**: `[작업 135]`(`task/135-armor-tier-palette`)가 **코드까지** 머지된 뒤 `origin/main` 기준으로 착수한다. 136은 135가 만드는 `armorTier`·`armorPalette`·`helmetTier`·`helmetPalette`(`src/game/appearance.ts`)와 `src/game/render/gearTint.ts`의 팔레트 스왑(피부톤 보존 + 키 단위 1회 캐시)을 **재사용**하고 같은 로직을 새로 만들지 않는다. 등록 시점(2026-11-18) `origin/main` = `3f20949`(PR #67)에는 135의 **문서만** 병합돼 있고 코드는 아직 없으므로(`docs/TASK.md`의 135 행이 `[-]`), 135 구현·머지 전에는 이 작업을 시작하지 않는다.
+- **선행 조건**: 완료 — `[작업 135]` PR #71이 `e933a22fc2f1e58af6bc2ebab3648f1176c015cb`로 main에 병합됐다. 136은 `origin/main`에서 시작했고, 135의 `armorTier`·`armorPalette`·`helmetTier`·`helmetPalette`(`src/game/appearance.ts`)와 `src/game/render/gearTint.ts` 팔레트 스왑(피부톤 보존 + 키 단위 1회 캐시)을 재사용한다.
 - **선반영 에셋(이 등록 PR에 포함 · 코드는 미변경)**: 남/여 2·3·4티어 장비창 전신 초상화 6장.
 
   | 파일 | 크기(px) | 용량 |

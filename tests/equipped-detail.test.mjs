@@ -41,49 +41,50 @@ const { attachedDetailPosition } = await import('../src/ui/bagDetail.ts');
 const { deferEquippedDismiss } = await import('../src/ui/equippedDetail.ts');
 const { wrapEquipmentName } = await import('../src/ui/modals/equipModal.ts');
 const { equipmentPortraitPlan } = await import('../src/ui/equipmentPortrait.ts');
-const { wearableEquipmentImage } = await import('../src/game/items.ts');
 const { baseItems } = await import('../src/game/items.ts');
-test('equipment preview produces one gender-matched portrait for each equipped combination',()=>{
-  for(const gender of ['male','female']){
-    const image=readFileSync(new URL(`../public/assets/warrior_equipped_starter_${gender}.png`,import.meta.url));
-    assert.equal(image.subarray(1,4).toString(),'PNG');
-    assert(image.readUInt32BE(16)>256&&image.readUInt32BE(20)>256);
-    const save=freshSave(gender);save.equipment={
-      weapon:{id:'weapon',name:'서리의 두손검',slot:'weapon',rarity:'magic',stats:{}},
-      helmet:{id:'helmet',name:'낡은 가죽 두건',slot:'helmet',rarity:'common',stats:{}},
-      armor:{id:'armor',name:'낡은 가죽 조끼',slot:'armor',rarity:'common',stats:{}},
-      gloves:{id:'gloves',name:'낡은 천 장갑',slot:'gloves',rarity:'common',stats:{}},
-      boots:{id:'boots',name:'서리의 사슬 그리브',slot:'boots',rarity:'magic',stats:{}}
-    };
-    const preview=equipmentPortraitPlan(save);
-    assert.equal(preview.base,`/assets/warrior_equipped_starter_${gender}.png`);
-    assert.equal(preview.starter,true);
-    assert.equal(preview.parts.length,0);
-    const previousKey=preview.key;
-    save.equipment.armor={...save.equipment.armor,name:'낡은 징박힌 갑옷'};
-    const changed=equipmentPortraitPlan(save);
-    assert.equal(changed.base,`/assets/warrior_${gender}_base.png`);
-    assert.notEqual(changed.key,previousKey);
-    assert.deepEqual(changed.parts.map(part=>part.slot),['armor','helmet','boots','boots','gloves','gloves','weapon']);
-    assert.equal(changed.parts.find(part=>part.slot==='armor').frame,1);
-    assert.deepEqual(changed.parts.filter(part=>part.slot==='boots').map(part=>part.half),[0,1]);
-    for(const part of changed.parts){
-      assert.equal(part.path,wearableEquipmentImage(save.equipment[part.slot]).path);
-    }
-    save.equipment.necklace={id:'necklace',name:'서리의 구리 펜던트',slot:'necklace',rarity:'magic',stats:{}};
-    const withNecklace=equipmentPortraitPlan(save);
-    assert.notEqual(withNecklace.key,changed.key);
-    assert.equal(withNecklace.parts.at(-1).slot,'necklace');
+const { armorTier, helmetTier, heroAppearance } = await import('../src/game/appearance.ts');
+const { gearTintCacheKey } = await import('../src/game/render/gearTint.ts');
+test('equipment preview selects the matching full-body portrait for armor tiers and both genders',()=>{
+  const tierPaths={1:'starter',2:'t2',3:'t3',4:'t4'};
+  for(const gender of ['male','female']) for(const tier of [1,2,3,4]){
+    const armorName=baseItems.armor.find(name=>armorTier({slot:'armor',name})===tier);
+    const helmetName=baseItems.helmet.find(name=>helmetTier({slot:'helmet',name})===tier);
+    assert(armorName&&helmetName,`tier ${tier} gear names exist`);
+    const save=freshSave(gender);
+    save.equipment.armor={id:'armor',name:armorName,slot:'armor',rarity:'common',stats:{}};
+    save.equipment.helmet={id:'helmet',name:helmetName,slot:'helmet',rarity:'common',stats:{}};
+    const preview=equipmentPortraitPlan(save), appearance=heroAppearance(save);
+    assert.equal(preview.base,`/assets/warrior_equipped_${tierPaths[tier]}_${gender}.png`);
+    assert.equal(preview.starter,tier===1);
+    assert.deepEqual(preview.parts,[]);
+    assert.equal(preview.key,gearTintCacheKey(preview.base,appearance.armorPalette,appearance.helmetPalette));
   }
 });
-test('all equipment item bases contribute a visible part to the completed portrait',()=>{
-  for(const gender of ['male','female']) for(const [slot,names] of Object.entries(baseItems)){
-    for(const name of names){
-      const save=freshSave(gender);
-      save.equipment[slot]={id:`${slot}-${name}`,name,slot,rarity:'common',stats:{}};
-      const plan=equipmentPortraitPlan(save);
-      assert(plan.parts.some(part=>part.slot===slot),`${gender} ${slot} ${name}`);
-    }
+test('helmet-only, armor-only, and unarmored portraits use heroAppearance without paper-doll parts',()=>{
+  for(const gender of ['male','female']){
+    const save=freshSave(gender);
+    save.equipment.helmet={id:'helmet',name:baseItems.helmet[0],slot:'helmet',rarity:'common',stats:{}};
+    let plan=equipmentPortraitPlan(save);
+    assert.equal(plan.base,heroAppearance(save).portrait);assert.deepEqual(plan.parts,[]);assert.equal(plan.starter,false);
+    save.equipment.helmet=undefined;
+    save.equipment.armor={id:'armor',name:baseItems.armor[0],slot:'armor',rarity:'common',stats:{}};
+    plan=equipmentPortraitPlan(save);
+    assert.equal(plan.base,heroAppearance(save).portrait);assert.deepEqual(plan.parts,[]);
+    save.equipment.armor=undefined;
+    save.equipment.weapon={id:'weapon',name:baseItems.weapon[0],slot:'weapon',rarity:'common',stats:{}};
+    plan=equipmentPortraitPlan(save);
+    assert.equal(plan.base,heroAppearance(save).portrait);assert.deepEqual(plan.parts,[]);
+  }
+});
+test('all six new tier portraits are 720px tall transparent PNG assets',()=>{
+  for(const gender of ['male','female']) for(const tier of [2,3,4]){
+    const image=readFileSync(new URL(`../public/assets/warrior_equipped_t${tier}_${gender}.png`,import.meta.url));
+    assert.equal(image.subarray(1,4).toString(),'PNG');
+    assert.equal(image.readUInt32BE(20),720);
+    assert(image.readUInt32BE(16)>256);
+    assert.equal(image[24],8);
+    assert.equal(image[25],3);
+    assert(image.includes(Buffer.from('tRNS')));
   }
 });
 test('equipment names wrap at word boundaries within eight characters and retain all name content',()=>{
