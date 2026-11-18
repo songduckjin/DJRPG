@@ -7,7 +7,6 @@
 
 | 작업 | 담당자 | 브랜치 | 수정 예정 파일 / 영향 영역 | 위험 등급 | 상태 |
 |---|---|---|---|---|---|
-| 126 · 월드보스 화면/모션 시제품 | fks3997 | `feature/world-boss-preview-fks3997` | 신규 bossPreview·모달·CSS·아트·interface·매뉴얼·회귀 / UI·별도 연습 | 주의 | [-] |
-| 127 · 캐릭터버튼제거/보상수령지연 | fks3997 | `feature/world-boss-preview-fks3997` | interface·journey·sync 타입·server/journey·회귀 / 기존계약호환 추가필드 | 주의 | [-] |
+| (진행 중 작업 없음) | — | — | — | — | — |
 
 > 2026-11-17: `[작업 61] 단일 기기 로그인 강제`를 검증·PR 병합으로 마감하고 `docs/TASK_ARCHIVE.md`로 옮겼다.

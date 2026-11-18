@@ -87,3 +87,11 @@ test('existing base rewards claimed before the update still allow completion bon
   const result=await act('old-completion','daily','completion');assert.equal(result.save.gold,2000);assert.equal(result.save.bag.length,2);
   const latest=JSON.parse((await db.execute({sql:'SELECT state_json FROM djrpg_journey WHERE account_id=?',args:['old-completion']})).rows[0].state_json);assert.equal(latest.weekly.days,1);
 });
+
+test('claim returns an authoritative updated list and batches ownership and receipt writes with save',async()=>{
+ await seed('fast-claim');await snapshot(db,'fast-claim');const row=await account(db,'fast-claim'),requestId=randomUUID();let batchedReceipt=false,separateReceipt=false;
+ const wrapped={async transaction(mode){const tx=await db.transaction(mode);return {get closed(){return tx.closed;},execute(query){if(query.sql?.startsWith('INSERT INTO djrpg_market_requests'))separateReceipt=true;return tx.execute(query);},batch(queries,...args){if(queries.some(q=>q.sql?.startsWith('INSERT INTO djrpg_market_requests')))batchedReceipt=true;return tx.batch(queries,...args);},commit:()=>tx.commit(),rollback:()=>tx.rollback(),close:()=>tx.close()};}};
+ const input={action:'journey-claim',kind:'daily',id:'login',revision:row.revision,requestId};const result=await mutate(wrapped,'fast-claim',input);
+ assert(result.journey.daily.find(t=>t.id==='login').claimed);assert(batchedReceipt);assert.equal(separateReceipt,false);
+ const retry=await mutate(db,'fast-claim',input);assert.equal(retry.save.gold,result.save.gold);assert(retry.journey.daily.find(t=>t.id==='login').claimed);
+});

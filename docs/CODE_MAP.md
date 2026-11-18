@@ -7,6 +7,7 @@
 
 | 작업 영역 | 핵심 파일 | 연관 파일 | 관련 테스트 |
 |---|---|---|---|
+| 월드보스 시안·호흡·일반/광역모션·60초연습 | `src/ui/worldBossPreview.ts`, `src/ui/modals/worldBossModal.ts` | `interface.ts`, `styles/world-boss.css`, `public/assets/world-boss/valkaron-v1.png` | `world-boss-preview`, `modal-ui`, `modal-interaction` |
 | 전투·이동·층·보스·AI | `src/game/world.ts` | `arena.ts`, `facing.ts`, `bagCapacity.ts`, `store.ts`(`floorKillTarget`) | `world-movement`, `arena`, `facing` |
 | 스킬·스킬북·쿨타임·버프 | `src/game/skills.ts`, `src/game/loadout.ts` | `world.ts`(`cooldowns`·`action`), `skillProgress.ts`, `ui/skillBooks.ts`, `ui/skillLoadout.ts`, `ui/modals/skillModal.ts`, `ui/skillFeedback.ts` | `skill-progression`, `loadout`, `skill-ui`, `skill-feedback`, `skillbook-art` |
 | 아이템·등급·드랍·스탯·장비 슬롯 | `src/game/items.ts` | `inventory.ts`, `itemComparison.ts`, `bagCapacity.ts`, `codex.ts`, `ui/modals/equipModal.ts` | `inventory`, `codex`, `ring-restore`, `item-protection-ui`, `equipped-detail` |
@@ -25,6 +26,7 @@
 ## 2. 증상 한 줄 색인
 
 | 증상·검색어 | 먼저 볼 파일 |
+| 보상·업적 수령 후 재조회/중복저장 지연 | `server/journey.mjs`, `src/game/journey.ts`, `interface.ts` journey.onChange (저장 재호출 금지) |
 |---|---|
 | 적이 안 다가옴·이동 속도·몹 체력·피해량 | `world.ts` `enemyMoveSpeed`/`enemyMaxHp`/`enemyHitDamage`/`update` |
 | 공격·스킬이 안 나감, 이동 중 공격 | `world.ts` `action`(이동 중 차단), `update`(자동전투) |
@@ -126,6 +128,11 @@
 - `scripts/backup-turso.mjs` — Turso → `.backups/*.sqlite` 덤프(stdin으로 `{url,authToken}`).
 - `tests/ts-loader.mjs` — `.ts`를 node:test에서 import하게 하는 로더. 각 테스트 첫 줄 `import './ts-loader.mjs'`.
 - 테스트는 `node --test tests/<이름>.test.mjs` 단건 실행 가능.
+
+- `src/ui/worldBossPreview.ts` — 메모리 전용60초모션연습·8×4프레임선택·RAF수명관리. `bossPose`·`framePosition`·`WorldBossPreview`
+- `src/ui/modals/worldBossModal.ts` — 월드보스팝업/도전·순위·보상시안, 공유상태미연동명시. `renderWorldBoss`
+- `src/styles/world-boss.css` — 58px진입버튼·팝업·범위예고·충격파, 본체/이펙트분리.
+- `server/journey.mjs` — 수령검증/소유권/수령기록배치원자저장·성공응답선택적journey목록. 구클라이언트호환.
 
 ## 3.5 설계자 블록 — 레이어·소유권·시퀀스·영향 경계
 

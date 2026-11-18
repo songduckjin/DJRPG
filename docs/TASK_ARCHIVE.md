@@ -1596,3 +1596,8 @@
   3. `server/endpoints/{account,market,warehouse}.mjs`: `login`·`register`·`guest` 성공마다 새 `sid` 발급·저장, 인증 검증에서 불일치·`sid` 없는 구 토큰이면 `401 SESSION_REPLACED`(`"다른 기기에서 로그인되어 접속이 해제되었습니다."`). `session_id`가 NULL인 세션 열 도입 전 계정은 기존 토큰을 그대로 허용.
   4. `src/game/sync.ts`: `401`/`SESSION_REPLACED`이면 토큰 삭제·저장 중단·게임 일시정지 후 `onSessionEnded` 통지, `ITEM_CONFLICT`·`CHARACTER_CONFLICT`은 서버 최신 세이브를 `load`로 다시 받아 화면을 맞춘다(`reloadLatest`). `src/main.ts`가 안내 오버레이와 로그인 화면 복귀를 담당.
 - **검증**: `tsc --noEmit`(=`npm run check`), 223개 테스트, `npm run build`, `git diff --check` 통과. 브라우저 실기 테스트는 실행하지 않는다.
+
+## [x] 작업126·127 · fks3997 · 2026-11-18
+- 월드보스58px진입·8×4확정시트·60초모션연습/팝업, 실제공유체력·순위·보상미연동명시. 메인캐릭터버튼제거·레벨배지진입보존.
+- 보상수령초기읽기batch·소유권/수령기록원자쓰기, 성공응답선택적journey로재조회제거·이미저장된내용재저장제거.
+- 타입검사·관련54개테스트·장비그림검증·diff통과. 최신정책에따라전체테스트/프로덕션빌드/브라우저실기미실행. 미리보기준비·운영미배포.

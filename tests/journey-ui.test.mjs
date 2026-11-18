@@ -97,3 +97,10 @@ test('daily and weekly index tabs own distinct all-claim buttons and panels',()=
     assert.equal(find(dialog,n=>n.id==='reward-tab-weekly').attrs['aria-selected'],'true');
   }finally{globalThis.document=previous;}
 });
+
+test('reward claim applies the confirmed journey state without an additional list request',async()=>{
+ const {ui}=fixture(),data=ui.journey.data;data.daily[0].claimed=true;
+ let resaves=0;const world=ui.world;world.onChange=()=>{resaves++;};const sync={session:{token:'t'},async mutate(){return {save:world.save,revision:2,journey:data,message:'수령 완료'};}};
+ const journey=new Journey(sync,world);let reloads=0;journey.load=async()=>{reloads++;};
+ await journey.act('journey-claim',{kind:'daily',id:'login'});assert.equal(journey.data,data);assert.equal(reloads,0);assert.equal(resaves,0);assert.equal(journey.busy,false);
+});
