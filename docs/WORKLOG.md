@@ -577,3 +577,5 @@
 - 대표 장면 1회: 로컬 Vite + Chromium(SwiftShader 소프트웨어 GL) 412×892 DPR1, 3층 자동사냥. 폴백 남/여는 캐릭터·그림자 정상 표시에 화면 전체 draw call 7~9/프레임(개발 서버가 없는 매니페스트 경로에 SPA fallback HTML을 주므로 콘솔 오류 1건 → `manifest-parse` → 폴백), 코스튬 모드(합성 아틀라스 주입)는 레이어 8개·통합 바디 숨김·draw call 7·콘솔 오류 0건이었다. FPS는 소프트웨어 GL이라 절대값이 의미 없고(5.2~5.4) 폴백/코스튬이 동일했다. 모바일 실기·GPU 메모리는 142에서 잰다.
 - 검증: `npx tsc --noEmit`, `node --test tests/costume-field-render.test.mjs`(신규 16건) + `tests/costume-manifest.test.mjs tests/appearance.test.mjs tests/hero-motion.test.mjs tests/hero-art.test.mjs tests/hero-weapon-render.test.mjs`, 전체 `node --test tests/*.test.mjs` 303건, `node scripts/verify-item-art.mjs`, `git diff --check` 통과. `world.ts`·`store.ts`·`server/**`·`src/ui/**` 무변경.
 - PR #79(`task/140-costume-field-renderer`).
+
+- 배포 후 실측: 운영 `https://djrpg.pages.dev/version.json` = `3854ab354695`(머지 커밋). 게스트 시작 후 필드 장면에서 콘솔 오류 0건·4xx 0건·캐릭터 정상 표시를 확인했다. 다만 없는 `/assets/costume/v1/manifest.json` 요청이 SPA fallback으로 `200 text/html` + `immutable`을 받아 브라우저에 v1 URL이 캐시되므로, 첫 실물 에셋 배포(142)는 `COSTUME_ASSET_VERSION`을 2로 올려야 한다(문서: `docs/COSTUME_SYSTEM.md` §7.2 주의, `docs/TASK_songduckjin.md` 작업 142 필수 항목).
