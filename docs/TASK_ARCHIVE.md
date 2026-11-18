@@ -5,6 +5,17 @@
 
 ---
 
+## [x] [작업 138] 코스튬 도구 비교 및 최소 뷰어 프로토타입
+
+- **완료일**: 2026-11-18 · **담당자**: `songduckjin` · **브랜치**: `task/138-costume-prototype` · **PR**: #74
+- `tools/costume-viewer/`에 독립 뷰어를 만들고 본체 파츠(머리·몸통·양팔·다리)·갑옷·투구·무기 2종, 걷기 8프레임·프레임 이동·좌우 반전·앵커·레이어 토글·**가림 방식(파츠 숨김/교체) 토글**을 구현했다. `model.ts`의 `partPlan`·`coverModeNote`와 단위 테스트 5건(합계 8건)을 추가했다.
+- 도구 3종(Spine 4.3.13 · DragonBones · 자체 PixiJS) 정량 비교를 `TOOL_COMPARISON.md`에 남겼다 — 번들 증가(esbuild min+gzip): 자체 0B / Spine +57,939B / DragonBones +47,015B(어댑터 제외 하한), Draw Call 장면 전체 1회/프레임, 데스크톱 60.0fps, 모바일 뷰포트 24.9fps(SwiftShader 소프트웨어 GL), JS 힙 +5.98MB. 모두 같은 Chromium·Vite 환경 실측이며 Spine·DragonBones의 FPS/Draw Call/메모리는 미측정이다.
+- 결론: **자체 PixiJS 레이어 + 파츠 교체 채택**(추가 번들 0B·정합 위험 없음·기존 통합 바디 계약과 동일), Spine 보류(Editor 라이선스·스켈레탈 재제작), DragonBones 미채택(PixiJS 8 어댑터 없음).
+- 검증: 루트·뷰어 `tsc --noEmit` 통과, `node --test tools/costume-viewer/model.test.mjs` 8건 통과, `node scripts/verify-item-art.mjs` 통과, `git diff --check` 통과, 브라우저 실측 콘솔·페이지 오류 0건. 모바일 실기 미측정.
+- 수정 파일: `tools/costume-viewer/**`, `docs/COSTUME_SYSTEM.md`(§4·§5 실측 근거), `docs/CODE_MAP.md`·`docs/TASK.md`·`docs/TASK_songduckjin.md`·`docs/TASK_ARCHIVE.md`·`docs/WORKLOG.md`. 게임 코드·Save/API·운영 에셋 무변경.
+
+---
+
 ## [x] [작업 137] 코스튬 시스템 문서 통합 및 작업 경로 정리
 
 - **완료일**: 2026-11-18 · **담당자**: `songduckjin` · **브랜치**: `docs/costume-system-rearchitecture` · **PR**: #73
@@ -12,6 +23,8 @@
 - 과거 통합 바디 정책(작업 134·135)과 신규 독립형 코스튬 정책을 분리하고, 작업 135 완료·아카이브 이관과 작업 136 Draft 상태를 기록했으며, 작업 138 프로토타입 지시를 `docs/TASK_songduckjin.md`에 작성했다.
 - 수정 파일: `AGENTS.md`, `CONTRIBUTING.md`, `README.md`, `docs/COSTUME_SYSTEM.md`(신규), `docs/CODE_MAP.md`, `docs/QUICK_PATCH.md`, `docs/TASK.md`, `docs/TASK_songduckjin.md`, `docs/TASK_ARCHIVE.md`. 문서 전용 변경이며 게임 코드·런타임 렌더러·Save/DB/API·기존 이미지 에셋은 건드리지 않았다.
 - PR #73이 `6402d79c3fa014fb419815606fcd022dd1b411a3`로 main에 병합됐다. 후속 범위는 `docs/TASK_songduckjin.md`의 작업 138~142로 이관했다.
+
+---
 
 ## [x] [작업 135] 갑옷·투구 10종 4티어 외형 차별화
 
