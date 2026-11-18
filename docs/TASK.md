@@ -7,6 +7,7 @@
 
 | 작업 | 담당자 | 브랜치 | 수정 예정 파일 / 영향 영역 | 위험 등급 | 상태 |
 |---|---|---|---|---|---|
+| 151 경기장 고정 포효 후 시작 | fks3997 | feature/world-boss-preview-fks3997 | src/ui/worldBossIntro.ts, src/ui/worldBossField.ts, src/styles/world-boss.css, 테스트·문서 / 확대·안개·스킵 제거 | 낮음 | [-] |
 | 135 갑옷·투구 10종 외형 차별화 (4티어 실루엣 + 팔레트 스왑) | songduckjin (`codex` 실행) | `task/135-armor-tier-palette` | `src/game/appearance.ts`, `src/game/render/entities.ts`, `src/game/render/gearTint.ts`(신규), `tests/appearance.test.mjs` / 필드 갑옷·투구 외형(티어 시트 + 팔레트 스왑) | 중 | [-] |
 | 136 통합 내 정보(장비·스탯) UI 개편 및 4티어 장비창 초상화 교체 | songduckjin (`codex` 실행) | `task/136-unified-equip-ui` | `src/ui/interface.ts`, `src/ui/modals/equipModal.ts`, `src/ui/modals/statusModal.ts`(삭제), `src/ui/modals/accountModal.ts`, `src/ui/equipmentPortrait.ts`, `src/styles/modals.css`, `src/styles/hud.css` / 하단 내비 3탭·통합 내 정보 모달·장비창 티어 초상화 | 중 | [-] |
 
