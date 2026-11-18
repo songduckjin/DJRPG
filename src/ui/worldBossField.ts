@@ -1,10 +1,11 @@
-import {plantedBossVertex,plantedBossShift} from './worldBossFooting';
+import {bossAttacks} from '../game/worldBossPattern';
+import {plantedBossVertex,plantedBossShift,bossFootContacts,bootMaskWeight} from './worldBossFooting';
 import {renderBossResult} from './worldBossResult';
 import {bannerOffset,cloudCenter} from './worldBossWeather';
 import {preferences} from '../game/preferences';
 import {slamParticles} from './worldBossImpact';
 import {WorldBossIntro} from './worldBossIntro';
-import {Assets,ColorMatrixFilter,Graphics,MeshPlane,Rectangle,Texture} from 'pixi.js';
+import {Assets,ColorMatrixFilter,Graphics,MeshPlane,Rectangle,Sprite,Texture} from 'pixi.js';
 import {GameView} from '../game/render';
 import {projectArenaPoint} from '../game/arena';
 import {WorldBossRehearsal} from '../game/worldBossRehearsal';
@@ -84,6 +85,19 @@ export function openWorldBossField(ui:Interface):void {
       const tones=frames.map(frame=>bossFrameTone(frame));ownedTones.push(...tones);
       get('.wb-field-loading').hidden=true;
       const bossSprite=new MeshPlane({texture:frames[0],verticesX:24,verticesY:32});view.actors.addChild(bossSprite);
+      // Use the same actual boot pixels through recovery and breathing, not only matching contact points.
+      const bootMasks=[false,true].map(boots=>{
+        const canvas=document.createElement('canvas');canvas.width=256;canvas.height=256;
+        const ctx=canvas.getContext('2d')!;const data=ctx.createImageData(256,256);
+        for(let y=0;y<256;y++)for(let x=0;x<256;x++){
+          const w=bootMaskWeight(x/255,y/255),i=(y*256+x)*4;data.data[i]=data.data[i+1]=data.data[i+2]=255;
+          data.data[i+3]=boots?Math.round(w*255):w>=.999?0:255;
+        }
+        ctx.putImageData(data,0,0);const texture=Texture.from(canvas);ownedFrames.push(texture);cleanedFrames.add(texture);return new Sprite(texture);
+      });
+      const bootsSprite=new Sprite(frames[0]);bootsSprite.anchor.set(.5,.97);bootsSprite.filters=[tones[0]];
+      for(const mask of bootMasks){mask.anchor.set(.5,.97);mask.renderable=false;view.actors.addChild(mask);}
+      view.actors.addChild(bootsSprite);bootsSprite.mask=bootMasks[1];
       let previous=performance.now();view.app.ticker.maxFPS=60;
       view.app.ticker.add(()=>{
         if(closed)return;if(!field.isConnected){cleanup();return;}
@@ -99,7 +113,9 @@ export function openWorldBossField(ui:Interface):void {
         // Targets remain present for real combat, but the default skeleton is never rendered.
         const enemies=session.world.enemies;session.world.enemies=[];
         try{view.draw(session.world,visualTime);}finally{session.world.enemies=enemies;}
-        const pose=bossPose(session.elapsed),shownFrame=intro.active?intro.frame:pose.frame,texture=frames[shownFrame];bossSprite.texture=texture;bossSprite.filters=[tones[shownFrame]];
+        const pose=bossPose(session.elapsed);
+        const carryIdle=!intro.active&&session.elapsed<bossAttacks[0].start&&pose.motion==='idle';
+        const shownFrame=intro.active?intro.frame:carryIdle?Math.floor((intro.idleCarry+session.elapsed+1e-9)*5)%8:pose.frame,texture=frames[shownFrame];bossSprite.texture=texture;bossSprite.filters=[tones[shownFrame]];
         const h=view.app.screen.height,w=view.app.screen.width,[x,y]=projectArenaPoint(session.boss.x,session.boss.y,w,h);
         const size=Math.min(w*.82,h*.39);
         const footBuffer=bossSprite.geometry.getAttribute('aPosition').buffer,vertices=footBuffer.data as Float32Array;
@@ -110,7 +126,11 @@ export function openWorldBossField(ui:Interface):void {
         footBuffer.update();bossSprite.pivot.set(texture.width*.5,texture.height*.97);bossSprite.scale.set(size/texture.width,size/texture.height);
         const foot=plantedBossShift(shownFrame,intro.active?intro.footShift:footShift(pose.frame));
         bossSprite.position.set(x,y+foot*size);bossSprite.tint=0xffffff;
-        view.actors.setChildIndex(bossSprite,0);
+        const fixedBoots=bossFootContacts[shownFrame]!==undefined;
+        bossSprite.mask=fixedBoots?bootMasks[0]:null;bootsSprite.visible=fixedBoots;
+        for(const mask of bootMasks){mask.width=size;mask.height=size;mask.position.set(x,y+plantedBossShift(0,0)*size);}
+        bootsSprite.width=size;bootsSprite.height=size;bootsSprite.position.set(x,y+plantedBossShift(0,0)*size);
+        view.actors.setChildIndex(bossSprite,0);view.actors.setChildIndex(bootsSprite,1);
         // Only this dedicated view hides the regular field scenery.
         view.floor.visible=false;view.terrainLayer.visible=false;view.glow.visible=false;view.shade.visible=false;
         view.heroLayer.visible=true;view.heroLayer.alpha=1;

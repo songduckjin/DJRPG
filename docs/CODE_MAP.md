@@ -135,10 +135,10 @@
 - `src/styles/world-boss.css` — HD원본얼굴/뿔직접크롭·58px무테진입버튼·후광분리(얼굴블러없음)·아래체력/3회시안표시·팝업·범위예고·충격파, 본체/이펙트분리.
 - `server/journey.mjs` — 수령검증/소유권/수령기록배치원자저장·성공응답선택적journey목록. 구클라이언트호환.
 
-- `src/game/worldBossPattern.ts` — 기본5초/광역15·30·45타격·1초예고·광역후2초대기·모션/피해/효과공통시간표. `bossAttacks`·`activeBossAttack`·`bossHitsBetween`
+- `src/game/worldBossPattern.ts` — 기본3초/광역15·30·45타격·1초예고·광역후2초대기·모션/피해/효과공통시간표. `bossAttacks`·`activeBossAttack`·`bossHitsBetween`
 - `src/game/worldBossRehearsal.ts` — 복제Save전용World·실제메인장착자동공격/스킬·수동회피0.45초/쿨4초·단일보스고정·60초/전투불능종료. 실제저장콜백없음·엔진접촉피해차단/시간표피해만. `WorldBossRehearsal`
-- `src/ui/worldBossIntro.ts` — 고정경기장2.7초기본→포효→기본·시작글자1.1초완전퇴장후전투/시간분리, 스킵·카메라연출없음. `WorldBossIntro`
-- `src/ui/worldBossFooting.ts` — idle/복귀/연결프레임양발접점실측·하체mesh접점고정(상체불변). `bossFootContacts`·`plantedBossVertex`·`plantedBossShift`
+- `src/ui/worldBossIntro.ts` — 고정경기장2.7초기본→포효→기본·포효후idle호흡지속·시작글자1.1초완전퇴장후전투/호흡위상유지·시간분리, 스킵·카메라연출없음. `WorldBossIntro`
+- `src/ui/worldBossFooting.ts` — idle/복귀/연결프레임양발접점실측·하체mesh접점고정+동일idle부츠레이어/정강이경계mask(상체불변). `bossFootContacts`·`plantedBossVertex`·`plantedBossShift`
 - `src/ui/worldBossWeather.ts` — 깃발천정규좌표/변형·뒤구름이동좌표(색마스크mesh, 돌/봉고정·모션감소). `bannerOffset`·`cloudCenter`
 - `src/ui/worldBossImpact.ts` — 착지돌탄도/그림자·먼지확산/소멸의결정적입자상태. `slamParticles`
 - `src/ui/worldBossField.ts` — 고정경기장짧은포효·별도전체GameView필드·고해상도보스텍스처·기본필드정지/복귀·Pixi내부흑요석제단/보스뒤하늘구름·탄도돌조각/그림자/확산먼지충격·프레임색감보정/공격분리조각제거·중앙보스·하단시간/딜/보스적색·내청록체력/수동회피·로딩/종료1회결과렌더·ticker정지/재도전·나가기. `openWorldBossField`·`pauseMainForBoss`

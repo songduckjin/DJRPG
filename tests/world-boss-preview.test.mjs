@@ -6,7 +6,7 @@ const {renderWorldBoss}=await import('../src/ui/modals/worldBossModal.ts');
 const {freshSave}=await import('../src/game/store.ts');
 test('boss idle slash and slam stay within their separate sprite rows and impact follows warning',()=>{
  for(let t=0;t<36;t+=.01){const p=bossPose(t);assert(p.frame>=0&&p.frame<42);if(p.motion==='idle')assert(p.frame<8);if(p.motion==='attack')assert(p.frame>=8&&p.frame<16);if(p.motion==='slam')assert(p.frame>=16);}
- assert.equal(bossPose(9).impact,false);assert.equal(bossPose(15.02).impact,true);assert.equal(bossPose(12).motion,'idle');
+ assert.equal(bossPose(9).impact,false);assert.equal(bossPose(15.02).impact,true);assert.equal(bossPose(13).motion,'idle');
  assert.equal(framePosition(0),'0% 0%');assert.equal(framePosition(31),'100% 100%');
 });
 test('preview duration is 60 seconds and rendering cancels its animation on close without touching a save',()=>{

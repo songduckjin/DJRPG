@@ -12,3 +12,10 @@ export function plantedBossVertex(frame:number,x:number,y:number):Point {
   return {x:x+dx*weight,y:y+dy*weight};
 }
 export function plantedBossShift(frame:number,fallback:number):number {return bossFootContacts[frame] ? .97-bossFootContacts[0][0][1] : fallback;}
+
+// Full boot silhouettes share identical pixels; the feather blends only the shin seam.
+export function bootMaskWeight(x:number,y:number):number {
+  const left=smooth(.26,.29,x)*(1-smooth(.51,.55,x));
+  const right=smooth(.64,.68,x)*(1-smooth(.92,.96,x));
+  return Math.max(left,right)*smooth(.8,.86,y);
+}

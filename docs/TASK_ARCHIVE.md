@@ -1672,3 +1672,5 @@
 | 157 실제복귀연결2프레임추가 | fks3997 | feature/world-boss-preview-fks3997 | 반기립→새2장→기립·42프레임/혼합시트/발보정, tsc·23테스트·아트 | [x] |
 
 | 158 복귀 양발 접점 고정 | fks3997 | feature/world-boss-preview-fks3997 | 18쌍실측/하체mesh·상체유지·격자접점검증, tsc·25테스트 | [x] |
+
+| 159 발그림고정·호흡지속·기본3초 | fks3997 | feature/world-boss-preview-fks3997 | idle부츠레이어/신경계mask·idle호흡위상연속·기본3초, tsc·27테스트 | [x] |

@@ -43,7 +43,7 @@ test('reward brackets highlight exactly my tier and show last hit and shared kil
 
 test('manual dodge blocks damage briefly, has a cooldown, and never changes the original save',()=>{
  const save=freshSave('male'),before=JSON.stringify(save),battle=new WorldBossRehearsal(save);
- battle.elapsed=4.9;const hp=battle.world.player.hp;assert(battle.dodge());assert(!battle.dodge());
+ battle.elapsed=2.9;const hp=battle.world.player.hp;assert(battle.dodge());assert(!battle.dodge());
  for(let i=0;i<4;i++)battle.advance(.05);assert.equal(battle.world.player.hp,hp);assert(battle.dodgeCooldown>0);
  for(let i=0;i<80;i++)battle.advance(.05);assert(battle.dodge());assert.equal(JSON.stringify(save),before);
 });
@@ -59,10 +59,10 @@ test('detached blade fragment is removed while the connected body and sword stay
 test('short standing roar pauses combat, starts and ends in the regular idle pose',async()=>{
  const {WorldBossIntro}=await import('../src/ui/worldBossIntro.ts');const intro=new WorldBossIntro(),battle=new WorldBossRehearsal(freshSave('male'));
  assert.equal(intro.roarDuration,2.7);assert.equal(intro.duration,3.8);assert.equal(intro.frame,0);let sawRoar=false;
- for(let i=0;i<75;i++){const dt=intro.advance(.05);if(dt>0)battle.advance(dt);assert(intro.frame===0||(intro.frame>=43&&intro.frame<=49));if(intro.frame>=43)sawRoar=true;}
- assert(sawRoar);assert(intro.active);assert.equal(battle.elapsed,0);assert.equal(battle.damage,0);assert.equal(intro.frame,0);assert(intro.startCue);
+ for(let i=0;i<75;i++){const dt=intro.advance(.05);if(dt>0)battle.advance(dt);assert(intro.frame<8||(intro.frame>=43&&intro.frame<=49));if(intro.frame>=43)sawRoar=true;}
+ assert(sawRoar);assert(intro.active);assert.equal(battle.elapsed,0);assert.equal(battle.damage,0);assert(intro.frame<8);assert(intro.startCue);
  for(let i=0;i<2;i++){const dt=intro.advance(.05);if(dt>0)battle.advance(dt);}
- assert(!intro.active);assert(Math.abs(battle.elapsed-.05)<1e-9);assert.equal(intro.frame,0);
+ assert(!intro.active);assert(Math.abs(battle.elapsed-.05)<1e-9);assert(intro.frame<8);
  assert.equal('skip' in intro,false);assert.equal('camera' in intro,false);
 });
 test('standing roar visibly opens and closes in order with a fixed foot baseline',async()=>{
@@ -115,10 +115,10 @@ test('combat stays completely idle while the start text appears and fades, then 
  const first=intro.advance(.05);battle.advance(first);assert.equal(battle.elapsed,.05);assert(battle.damage>0);
 });
 
-test('boss schedule uses normals five seconds apart and three slams with recovery gaps',async()=>{
+test('boss schedule uses normals three seconds apart and three slams with recovery gaps',async()=>{
  const {bossAttacks,bossHitsBetween,SLAM_TIMES}=await import('../src/game/worldBossPattern.ts');
  assert.deepEqual(bossAttacks.filter(a=>a.kind==='slam').map(a=>a.hit),[15,30,45]);
- assert.deepEqual(bossAttacks.filter(a=>a.kind==='attack').map(a=>a.hit),[5,10,17.55,22.55,27.55,32.55,37.55,42.55,47.55,52.55,57.55]);
+ assert.deepEqual(bossAttacks.filter(a=>a.kind==='attack').map(a=>a.hit),[3,6,9,12,17.55,20.55,23.55,26.55,32.55,35.55,38.55,41.55,47.55,50.55,53.55,56.55,59.55]);
  for(const s of SLAM_TIMES)assert(bossAttacks.every(a=>a.kind!=='attack'||a.end<=s-1||a.start>=s+2));
  assert.equal(bossHitsBetween(14.95,15.001)[0].kind,'slam');assert.equal(bossHitsBetween(15.001,15.05).length,0);
 });
@@ -128,7 +128,7 @@ test('standing in contact causes no hidden engine damage between scheduled boss 
   const before=battle.elapsed,hp=battle.world.player.hp;battle.world.player.x=0;battle.world.player.y=0;battle.advance(.05);
   const due=bossHitsBetween(before,battle.elapsed);if(due.length){assert(battle.world.player.hp<hp);hits++;}else assert.equal(battle.world.player.hp,hp);
  }
- assert.equal(hits,14);assert(battle.finished);
+ assert.equal(hits,20);assert(battle.finished);
 });
 
 test('slam recovery and both bridge frames keep both soles at the exact idle contacts',async()=>{
@@ -154,4 +154,15 @@ test('the rendered 24 by 32 mesh interpolation also preserves the planted foot c
   const out={x:corners.reduce((s,p,i)=>s+p.x*weights[i],0),y:corners.reduce((s,p,i)=>s+p.y*weights[i],0)};
   assert(Math.abs(out.x-bossFootContacts[0][f][0])*400<.1);assert(Math.abs(out.y-bossFootContacts[0][f][1])*400<.1);
  }
+});
+
+test('fixed boot silhouettes use full shared pixels at both soles and keep the upper body unmasked',async()=>{
+ const {bootMaskWeight}=await import('../src/ui/worldBossFooting.ts');
+ for(const [x,y] of [[.33,.92],[.4,.948],[.47,.91],[.71,.91],[.8,.93],[.89,.92]])assert.equal(bootMaskWeight(x,y),1);
+ assert.equal(bootMaskWeight(.4,.7),0);assert.equal(bootMaskWeight(.1,.92),0);assert.equal(bootMaskWeight(.6,.9),0);
+});
+test('idle breathing continues after roar through the entire start-text hold',async()=>{
+ const {WorldBossIntro}=await import('../src/ui/worldBossIntro.ts');const intro=new WorldBossIntro(),frames=new Set();
+ for(let t=2.7;t<3.8;t+=.05){intro.elapsed=t;frames.add(intro.frame);assert(intro.frame<8);}
+ assert(frames.size>=5);assert(intro.idleCarry>1);
 });
