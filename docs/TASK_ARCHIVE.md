@@ -1662,3 +1662,5 @@
 | 152 복귀모션/포효1.5배·깃발구름 | fks3997 | feature/world-boss-preview-fks3997 | idle점프교정/포효2.7초·천mesh변형/뒤구름/착지보강, tsc·18테스트 | [x] |
 
 | 153 결과 내순위도착·하단 재도전/나가기 | fks3997 | feature/world-boss-preview-fks3997 | 직전9명+내행/라벨밀림·하강/예시분리·하단두버튼, tsc·20테스트 | [x] |
+
+| 154 기존유저행 밀림·내행삽입 | fks3997 | feature/world-boss-preview-fks3997 | 안내문아닌기존유저행아래밀림, tsc·20테스트 | [x] |

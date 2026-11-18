@@ -102,6 +102,6 @@ test('result keeps retry and exit at bottom and exposes rank animation only as a
  try{const parent=create();renderBossResult(parent,undefined,123,{retry:()=>retried++,leave:()=>left++});let card=parent.children[0];
  const buttons=card.children.at(-1).children;assert.deepEqual(buttons.map(b=>b.textContent),['다시 도전하기','나가기']);buttons[0].onclick();buttons[1].onclick();assert.equal(retried,1);assert.equal(left,1);
  const demo=card.children.find(c=>c.className==='wb-result-demo');assert.match(demo.textContent,/예시/);demo.onclick();card=parent.children[0];assert.match(card.children[1].textContent,/실제 순위나 보상이 아닙니다/);
- const window=card.children.find(c=>c.className.includes('wb-result-window'));assert.match(window.className,/is-descending/);const target=window.children[0].children[1];assert.equal(target.children.length,10);assert.equal(target.children[9].children[0].className,'wb-result-placeholder');assert.match(target.children[9].children[1].className,/is-mine/);
+ const window=card.children.find(c=>c.className.includes('wb-result-window'));assert.match(window.className,/is-descending/);const target=window.children[0].children[1];assert.equal(target.children.length,10);assert.match(target.children[9].children[0].className,/wb-result-displaced/);assert.equal(target.children[9].children[0].children[1].textContent,'예시 전사 24');assert.equal(target.children[9].children[0].children[0].textContent,'23위');assert.match(target.children[9].children[1].className,/is-mine/);
  }finally{globalThis.document=old;}
 });

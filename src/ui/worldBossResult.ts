@@ -12,7 +12,7 @@ function row(rank:number,entry?:BossRank,mine?:number):HTMLElement {
 }
 export function exampleBossStanding():BossStanding {
   const make=(rank:number):BossRank=>({rank,name:`예시 전사 ${rank}`,damage:(50-rank)*1000});
-  return {top:Array.from({length:10},(_,i)=>make(i+1)),nearMine:Array.from({length:9},(_,i)=>make(i+14)),mine:{rank:23,name:'내 캐릭터 (예시)',damage:27000,mine:true}};
+  return {top:Array.from({length:10},(_,i)=>make(i+1)),nearMine:[...Array.from({length:9},(_,i)=>make(i+14)),make(24)],mine:{rank:23,name:'내 캐릭터 (예시)',damage:27000,mine:true}};
 }
 export function renderBossResult(parent:HTMLElement,standing:BossStanding|undefined,damage:number,actions:{retry:()=>void;leave:()=>void},example=false):void {
   parent.replaceChildren();const card=document.createElement('section');card.className='wb-result-card';card.setAttribute('aria-label','월드보스 전투 결과');
@@ -33,7 +33,10 @@ export function renderBossResult(parent:HTMLElement,standing:BossStanding|undefi
     const target=document.createElement('div');target.className='wb-result-page';const rows=resultRankWindow(standing);
     for(const item of rows.slice(0,9))target.append(row(item.rank,item.entry));
     const arrival=document.createElement('div');arrival.className='wb-result-arrival';
-    arrival.append(text('div',`내 순위 · ${mine!.rank}위 도착`,'wb-result-placeholder'),row(mine!.rank,mine,mine!.rank));target.append(arrival);track.append(target);
+    // The next-ranked participant occupied this position before my row was inserted.
+    const displacedEntry=[...(standing?.nearMine??[]),...(standing?.top??[])].find(e=>e.rank===mine!.rank+1);
+    const displaced=row(mine!.rank,displacedEntry);displaced.className+=' wb-result-displaced';
+    arrival.append(displaced,row(mine!.rank,mine,mine!.rank));target.append(arrival);track.append(target);
   }
   window.append(track);card.append(window);
   const footer=document.createElement('footer');footer.className='wb-result-actions';
