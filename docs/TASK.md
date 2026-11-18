@@ -7,5 +7,6 @@
 
 | 작업 | 담당자 | 브랜치 | 수정 예정 파일 / 영향 영역 | 위험 등급 | 상태 |
 |---|---|---|---|---|---|
+| 131 전투 화면 장비 착용 외형 표시 수정 | fks3997 | `task/131-equipped-gear-visible` | `src/game/appearance.ts`, `src/game/render.ts`, `src/game/render/entities.ts`, 외형 렌더 테스트 | 중 | [-] |
 
 > 2026-11-17: `[작업 61] 단일 기기 로그인 강제`를 검증·PR 병합으로 마감하고 `docs/TASK_ARCHIVE.md`로 옮겼다.
