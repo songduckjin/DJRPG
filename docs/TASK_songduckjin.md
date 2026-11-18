@@ -142,6 +142,58 @@
 - **완료 기준**: 필드에서 갑옷 10종이 4가지 실루엣(1 경갑·2 기본 판금·3 상급 중갑·4 전설)과 서로 다른 색으로, 투구 10종이 4가지 실루엣(1 경투구·2 철·사슬 헬름·3 상급·4 전설 왕관)과 서로 다른 색으로 보인다. **얼굴·피부·머리카락은 원래 색을 유지**하고 갑옷·투구 면적만 팔레트 색을 띤다. 갑옷만·투구만·둘 다 착용한 세 경우 모두 구분되고, 갑옷과 투구를 같이 입으면 몸과 머리의 갑주 색이 각각의 팔레트를 따른다. 남/여 동일하고 서기·걷기 8프레임·공격 4프레임에서 색이 유지되며 프레임마다 새 텍스처를 만들지 않는다(`(텍스처 키 + 갑옷 팔레트 키 + 투구 팔레트 키)` 캐시). 장비창·도감·아트 시트와 무기 소켓·검기 색은 변하지 않는다. 타입 검사·해당 테스트·`git diff --check` 통과 후 PR 병합.
 - **동시 작업 확인**: 등록 시점 `origin/main` = `c0e3b03`(PR #68로 `[작업 134]` 마감·아카이브). `docs/TASK.md`의 다른 `[-]` 작업은 이 `[작업 135]` 하나뿐이라 파일 충돌이 없다. 번호 135는 등록 시점에 `docs/`·원격 브랜치 어디에도 없음을 확인했다.
 
+### [-] [작업 136] 통합 내 정보(장비·스탯) UI 개편 및 4티어 장비창 초상화 교체
+- **등록자**: `songduckjin` · **실행 담당자**: `songduckjin`(`codex` 실행 가능) · **등록일**: 2026-11-18 · **브랜치**: `task/136-unified-equip-ui` · **위험 등급**: 중 · **상태**: `[-]` 등록
+- **선행 조건**: `[작업 135]`(`task/135-armor-tier-palette`)가 **코드까지** 머지된 뒤 `origin/main` 기준으로 착수한다. 136은 135가 만드는 `armorTier`·`armorPalette`·`helmetTier`·`helmetPalette`(`src/game/appearance.ts`)와 `src/game/render/gearTint.ts`의 팔레트 스왑(피부톤 보존 + 키 단위 1회 캐시)을 **재사용**하고 같은 로직을 새로 만들지 않는다. 등록 시점(2026-11-18) `origin/main` = `3f20949`(PR #67)에는 135의 **문서만** 병합돼 있고 코드는 아직 없으므로(`docs/TASK.md`의 135 행이 `[-]`), 135 구현·머지 전에는 이 작업을 시작하지 않는다.
+- **선반영 에셋(이 등록 PR에 포함 · 코드는 미변경)**: 남/여 2·3·4티어 장비창 전신 초상화 6장.
+
+  | 파일 | 크기(px) | 용량 |
+  |---|---|---|
+  | `public/assets/warrior_equipped_t2_male.png` | 286×720 | 51KB |
+  | `public/assets/warrior_equipped_t3_male.png` | 289×720 | 52KB |
+  | `public/assets/warrior_equipped_t4_male.png` | 284×720 | 68KB |
+  | `public/assets/warrior_equipped_t2_female.png` | 321×720 | 60KB |
+  | `public/assets/warrior_equipped_t3_female.png` | 321×720 | 55KB |
+  | `public/assets/warrior_equipped_t4_female.png` | 324×720 | 77KB |
+
+  - 기존 `warrior_equipped_starter_{male,female}.png`은 RGBA(투명 배경, 알파 0~255) 799×1967·839×1874에 1.8MB·2.0MB다. 새 6장도 **투명 배경 + 부드러운 알파 가장자리**로 맞췄고(생성 원본의 순수 검은 배경만 알파 0으로 제거, 갑주 내부 어두운 면적은 보존), 장비창 표시 크기(높이 약 300px·레티나 2배)에 맞춰 **높이 720px**(비율 유지)로 줄인 뒤 256색 팔레트 PNG(tRNS 알파 테이블)로 경량화했다. 6장 합계 355KB(1MB 미만).
+  - 파일 안 그림의 세로 채움 비율은 starter 0.95 / 남 2~4티어 0.93~0.95로 같아, `renderEquipmentPortrait`가 캔버스(312×768)에 꽉 채워 그리는 현재 방식에서 티어 간 캐릭터 크기가 튀지 않는다.
+- **목표**: 하단 내비게이션의 `내 상태`·`장비` 두 탭을 **`내 정보` 한 탭**으로 합쳐 모바일에서 한 화면에 장비·스탯·가방이 모두 보이게 하고(세로 공간 절약), 장비창 중앙 미리보기를 종이인형 5부위 덧그리기에서 **티어별 전신 일러스트 + 팔레트 스왑**으로 바꿔 실제 착용 티어가 그림으로 드러나게 한다. 성별은 캐릭터 생성 시 고른 값으로 고정한다.
+- **사용자 결정(2026-11-18)**: ① `내 상태` 탭 제거, `장비` 탭을 `내 정보`로 통합(하단 탭 3개: 내 정보·스킬·거래소) ② 성별 변경 기능 제거(생성 시 선택 고정) ③ 2·3·4티어 전신 초상화를 장비창에 적용, 갑옷·투구 팔레트 스왑은 [작업 135] 결과 재사용.
+- **배경·근거(현재 코드)**:
+  - `src/ui/interface.ts` 38행 `Modal` 유니온에 `'status'`와 `'equipment'`가 따로 있고, 82행 `.bottom-nav`가 `status`·`equipment`·`skills`·`market` **4버튼**을 그린다. 197행 제목 표가 `status:'내 상태'`, `equipment:'장비'`로 갈라져 있고, 191행이 `.status-modal` 클래스를, 216행이 `this.renderCharacter(dialog)`를 호출한다. 199~204행의 도감 버튼은 `equipment`↔`codex` 전용이다.
+  - `src/ui/modals/statusModal.ts`(23줄)는 요약 바(`.character-overview`: LV·층·경험치·골드·강화석) + `.character-stats` 5칸(공격·방어·체력·치명·공속) + `.gender-switch`(성별 변경 버튼, `save.gender`를 직접 바꾼다)로 구성된다. 이 함수는 `interface.ts` 한 곳에서만 쓰인다.
+  - 같은 성별 변경 버튼이 `src/ui/modals/accountModal.ts` 24~31행(`.account-gender`)에도 있어 `save.gender`를 똑같이 바꾼다. **성별 고정 목표를 위해서는 이 버튼도 함께 없애야 한다**(아래 구현 항목 1-3).
+  - `src/ui/modals/equipModal.ts` `renderEquipment`(150~190행)는 `.equipment-showcase`를 5칸(좌: 무기·투구·갑옷·장갑·부츠)·중앙 초상화(`.showcase-hero` > `.showcase-figure` > `.showcase-body` img, `renderEquipmentPortrait`의 312×768 dataURL)·5칸(우: 문장·목걸이·벨트·반지1·반지2)로 3열 배치하고, 아래에 `.showcase-stats`(전투력·공격·방어·HP)와 `.modal-hint`를 둔다. 슬롯 칸은 `data-equipped-slot`·`.equipment-slot.<rarity>`·`.slot-part`(슬롯명)·`.slot-meta > b`(이름)를 갖고 `showEquippedDetail`로 상세 팝업을 연다.
+  - `src/ui/equipmentPortrait.ts`는 `fit` 좌표 표(성별 × 10슬롯)와 `wearableEquipmentImage` 프레임 합성으로 종이인형을 그린다(112행 캔버스 312×768, 5부위 + 장신구 아이콘 덧그리기). `starterFrames`로 5부위가 모두 스타터면 `/assets/warrior_equipped_starter_{gender}.png`를 쓰고, 아니면 `heroAppearance(bodySave).portrait`(갑옷·투구를 벗긴 맨몸 시트) 위에 부위를 덧그린다.
+  - 스탯 이름은 `items.ts` 33~37행 `slotNames`(두손검·문장·투구·갑옷·목걸이·장갑·벨트·신발·반지 1·반지 2)와 `statNames`(공격·방어·체력·치명·공속)를 쓴다. 전투력은 `equipModal.ts`의 `Math.round(attack*3 + defense*2 + health*.2 + crit*2 + speed*2)`, 경험치는 `expToNext(level)`·`MAX_LEVEL`(`store.ts`), 현재 HP는 `world.player.hp`다.
+  - 스타일은 `src/styles.css`가 아니라 **`src/styles/modals.css`**(`main.css`가 `hud`→`modals` 순으로 import)에 있다: `.equipment-modal .modal-bag`(flex 1·min-height 0·overflow hidden), `.showcase-side`, `.showcase-stats`, `.character-stats`, `.gender-switch`, `.status-modal …`(253~261행), 하단 탭은 `src/styles/hud.css` `.bottom-nav`(31~34·53~61행).
+- **구현 항목 1 — 통합 '내 정보' 모달**
+  1. **탭 정리(`interface.ts`)**: `Modal` 유니온에서 `'status'`를 빼고, `renderCharacter` import·`renderCharacter` 위임 메서드·216행 호출·191행 `status-modal` 클래스 토글·197행 제목 표 항목을 제거한다. `.bottom-nav`는 `equipment`(라벨·title·aria-label **`내 정보`**, 아이콘은 기존 `nav_equipment_v2.png` 유지)·`skills`·`market` **3버튼**이 된다. 199행 도감 버튼 분기는 `equipment`(=내 정보)에서 그대로 동작해야 한다. `src/ui/modals/statusModal.ts`는 삭제한다(`interface.ts` 외 import 없음). `styles/modals.css`의 `.status-modal …`·`.gender-switch` 규칙도 함께 정리한다.
+  2. **모달 제목**: `equipment` 모달의 `<h2>`를 `'내 정보'`로 바꾼다(도감 버튼·장비/도감 토글 유지).
+  3. **성별 고정**: `statusModal`은 삭제로 끝나고, `accountModal.ts`의 `.account-gender` 성별 변경 블록도 제거해 `save.gender`를 바꾸는 UI를 남기지 않는다(서버 저장 형식·`save.gender` 필드 자체는 불변, 캐릭터 생성 `charactersModal`의 성별 선택은 유지).
+  4. **상단 레이아웃(모바일 컴팩트)**: `.equipment-showcase`를 좌우 5칸 3열 구조에서 **상단 2분할**로 바꾼다 — 왼쪽은 초상화(`.showcase-hero`/`.showcase-figure`/`.showcase-body` 재사용, 현재보다 낮은 컴팩트 높이, 성별 전환 버튼 없음), 오른쪽은 ①요약 바(`LV · 층 · EXP % · 강화석`) ②**6칸 스탯 그리드**(2열×3행: `전투력`·`HP`·`공격력`·`방어력`·`치명타`·`공격속도`). HP는 `현재/최대`(`Math.ceil(world.player.hp)`/`stats.health`)로 표시하고, EXP는 `%`(MAX면 `MAX`)로 표시한다. 요약 바의 골드 강조(`goldMarkup`)는 기존 `renderCharacter`와 같은 방식을 유지한다.
+  5. **장비 10칸 그리드**: **5열 × 2줄 정사각 아이콘**으로 배치하고 각 칸 아래에 슬롯명 라벨을 둔다. 1행 `weapon`(두손검)·`helmet`(투구)·`armor`(갑옷)·`gloves`(장갑)·`boots`(신발), 2행 `offhand`(문장)·`necklace`(목걸이)·`belt`(벨트)·`ring1`(반지 1)·`ring2`(반지 2). 등급 테두리(`.equipment-slot.<rarity>`), 슬롯명 라벨(`.slot-part`), 탭/호버 시 `showEquippedDetail` 상세 팝업, `data-equipped-slot`, `aria-expanded`, `pointerenter`/`focus` 바인딩은 **현재 그대로 유지**한다(테스트·`equippedDetail` 계약). 좁은 화면에서 5열이 깨지지 않도록 정사각 `aspect-ratio`·`min-width: 0`·아이콘 `width: 100%` 기준으로 잡는다. 긴 장비 이름은 그리드에서 숨기고 상세 팝업으로 넘긴다(`wrapEquipmentName`은 팝업 쪽에서 계속 사용).
+  6. **가방 영역 확대**: 하단 `.modal-bag` 높이를 넓혀 모바일에서 더 많은 가방 줄이 한 화면에 보이게 한다(상단 블록 고정 높이 축소 + `.modal-bag` `flex: 1` 유지, `@media (max-height: 750px)`의 `min-height: 220px`·sticky footer 규칙 재확인). 가방 필터·정렬·분해·자동 장착 동작은 불변.
+- **구현 항목 2 — 4티어 장비창 초상화(`ui/equipmentPortrait.ts`)**
+  1. **종이인형 제거**: `fit` 좌표 표와 `wearableEquipmentImage` 5부위(무기·투구·갑옷·장갑·부츠) 프레임 합성, `starterFrames` 판정을 제거한다. 장신구(문장·목걸이·벨트·반지 1·2) 아이콘 오버레이는 **선택 사항**이며, 남길 경우 새 전신 초상화와 같은 비율(starter와 동일)이므로 기존 좌표를 그대로 쓴다. 무기·갑옷·투구는 그림에 이미 그려져 있으므로 **절대 덧그리지 않는다**.
+  2. **착용 상태별 그림 선택** — `armorTier`/`helmetTier`(135)로 분기한다.
+     - 갑옷 + 투구 **둘 다**: 갑옷 티어에 따라 `1`→`/assets/warrior_equipped_starter_{gender}.png`, `2`→`/assets/warrior_equipped_t2_{gender}.png`, `3`→`/assets/warrior_equipped_t3_{gender}.png`, `4`→`/assets/warrior_equipped_t4_{gender}.png`를 고르고, 상단 투구 밴드는 `helmetPalette`, 몸통 갑옷은 `armorPalette`로 스왑한다.
+     - **투구만**(갑옷 없음): `heroAppearance(save).portrait`의 투구 + 맨몸 초상화(`warrior_{gender}_{armed ? 'sword' : 'base'}_helm.png`) + 투구 팔레트 스왑.
+     - **갑옷만**(투구 없음): `warrior_armored_nohelm.png` / `warrior_female_armored_nohelm.png` + 갑옷 팔레트 스왑.
+     - **둘 다 없음**: `heroAppearance(save).portrait`의 맨몸/무기 초상화를 그대로 쓴다(스왑 없음).
+     - 무기는 장비창에서 별도 표시하지 않는다(전신 그림의 검 사용). `armed` 판정은 `heroAppearance`가 이미 돌려주는 값을 따른다.
+  3. **팔레트 스왑 재사용(135)**: `gearTint.ts`의 **피부톤 보존 판정 + 머리 밴드/몸통 2팔레트 합성**을 캔버스 레벨 함수(예: `tintPortraitCanvas(source, armorKey, helmetKey)`)로 재사용한다. 135가 Pixi `Texture` 캐시만 노출한다면, `gearTint.ts`에 캔버스 함수를 **추가만** 하고(135의 텍스처 캐시·키 규칙 불변) 여기서 호출한다. 136에서 픽셀 판정 로직을 복제하지 않는다.
+  4. **캐시**: 키는 `` `${basePath}|${armorPaletteKey ?? '-'}|${helmetPaletteKey ?? '-'}` ``로 하고, 장비창 dataURL `Map`(상한 24, 기존 LRU 유지)에 1회만 만들어 담는다. 매 렌더 `getImageData` 금지.
+  5. **계약 유지**: `equipmentPortraitPlan(save)`은 `{ base, parts, key, starter }` 형태를 유지하되 `base`가 티어별 전신 경로가 되고 `parts`는 장신구만 담는다(빈 배열 허용). `renderEquipmentPortrait(save)`는 312×768 캔버스·`imageSmoothingQuality='high'`·`tightFrame` 기준 배치를 유지하고, 합성 결과의 `toDataURL()`을 돌려준다. 이미지 로딩 실패 시 `console.error` 후 `base` 원본으로 폴백한다(현재 `equipModal`의 `.catch` 동작 유지).
+- **테스트**
+  - `tests/equipped-detail.test.mjs`: 현재 `preview.base === '/assets/warrior_equipped_starter_...'`와 5부위 `parts` 목록을 단정한다. **새 계약으로 갱신**한다 — 남/여 × (갑옷 티어 1~4 × 투구 유무)에서 `base`가 `warrior_equipped_starter|t2|t3|t4_{gender}.png`로 정확히 매핑되고, `parts`에 `weapon`·`armor`·`helmet`·`gloves`·`boots`가 **없으며**, 투구만/갑옷만/둘 다 없음은 `heroAppearance` 경로를 쓴다. 6장 PNG가 `PNG` 시그니처와 높이 720·폭 256 초과를 만족하는지도 함께 검사한다.
+  - `tests/appearance.test.mjs`·`tests/hero-motion.test.mjs`는 [작업 135] 결과 기준으로 통과해야 한다(이 작업에서 135 계약을 깨지 않는다).
+  - 새 테스트(예: `tests/equipment-info.test.mjs`)로 ① 하단 탭이 3개이고 `status` 항목이 없음 ② `renderCharacter`·`gender-switch`·`account-gender` 참조가 `src/`에 남아 있지 않음(소스 문자열 검사) ③ 6칸 스탯 라벨 목록 ④ 10슬롯 순서(1행/2행) 상수 검사를 둔다.
+- **검증**: `pnpm exec tsc --noEmit`, `node --test tests/equipped-detail.test.mjs tests/appearance.test.mjs tests/hero-motion.test.mjs tests/modal-ui.test.mjs`, `git diff --check`. 에셋을 교체하면 `node scripts/verify-item-art.mjs`와 캐시 버스터(`?v=N`)도 함께. 브라우저·Playwright 실기(모바일 세로 화면에서 5열 그리드·가방 줄 수·상세 팝업)는 **요청 시에만** 한다.
+- **완료 기준**: 하단 내비게이션이 `내 정보 · 스킬 · 거래소` 3탭이고 `내 정보` 한 화면에 초상화·요약·6스탯·장비 10칸(5×2)·가방이 모바일 세로 화면에서 스크롤 없이 들어간다. 성별을 바꾸는 UI가 없고 캐릭터 생성 시 고른 성별이 유지된다. 장비창 초상화는 착용 갑옷 티어(1~4)에 따라 다른 전신 일러스트를 보여 주고, 투구만·갑옷만·둘 다·둘 다 없음 네 경우가 서로 구분되며, 갑옷·투구 팔레트 색이 135의 팔레트 표를 따르고 **얼굴·피부·머리카락은 원본 색**을 유지한다. 무기·갑옷·투구 2D 아이콘 덧그리기는 남아 있지 않고, 장비 상세 팝업·도감 버튼·가방 동작은 이전과 같다. 타입 검사·해당 테스트·`git diff --check` 통과 후 PR 병합.
+- **동시 작업 확인**: 등록 시점 `origin/main` = `3f20949`. `docs/TASK.md`의 다른 `[-]` 작업은 `[작업 135]` 하나이고, 135는 `appearance.ts`·`render/entities.ts`·`render/gearTint.ts`(신규)·`tests/appearance.test.mjs`를, 136은 `ui/`·`styles/`·`ui/equipmentPortrait.ts`를 만져 **파일이 겹치지 않는다**(135 머지 후 착수라 순서도 안전). 번호 136은 등록 시점 `docs/`·원격 브랜치 어디에도 없음을 확인했다.
+
 ### [x] [작업 129] 장착 장비 착용형 아트 제작
 - **담당자**: `songduckjin`
 - **브랜치**: `codex/129-wearable-gear-assets`
