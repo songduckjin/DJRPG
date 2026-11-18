@@ -97,5 +97,5 @@ test('client coalesces refreshes and never starts a battle when the required sav
  const sync={session:{token:'test-only-token',characterSlot:1,guest:false},flush:async()=>false};
  const client=new WorldBossLive(sync);
  globalThis.fetch=async()=>{calls++;return Response.json({hp:10000000,maxHp:10000000,remaining:3,standing:{top:[]}});};
- try{await assert.rejects(client.start(randomUUID()),/저장/);assert.equal(calls,0);await Promise.all([client.load(),client.load()]);assert.equal(calls,1);assert.equal(client.data.remaining,3);}finally{globalThis.fetch=original;}
+ try{await assert.rejects(client.start(randomUUID()),/저장/);assert.equal(calls,0);await Promise.all([client.load(),client.load()]);assert.equal(calls,1);assert.equal(client.data.remaining,3);client.data={...client.data,now:2000};globalThis.fetch=async()=>Response.json({now:1000,hp:0});await client.request('list');assert.equal(client.data.hp,10000000);}finally{globalThis.fetch=original;}
 });

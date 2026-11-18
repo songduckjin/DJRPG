@@ -1,16 +1,16 @@
 import {account,assertSession,transaction,fail} from './database.mjs';
-import {periods,journeyState,journeyOperation} from './journey-state.mjs';
+import {periods,advanceJourney,journeyState,journeyOperation} from './journey-state.mjs';
 import {parseSave} from '../src/game/store.ts';
 import {WorldBossRehearsal} from '../src/game/worldBossRehearsal.ts';
 
 export const WORLD_BOSS_HP=10000000;
 const schemas=new Map();
-export async function worldBossSchema(db){
-  const key=db.url??db;
+export async function worldBossSchema(db,key=db.url??db){
   if(!schemas.has(key))schemas.set(key,db.batch([
     'CREATE TABLE IF NOT EXISTS djrpg_boss_days (day TEXT PRIMARY KEY,max_hp INTEGER NOT NULL,hp INTEGER NOT NULL,ends_at INTEGER NOT NULL,killer TEXT,killed_at INTEGER,settled_at INTEGER)',
     'CREATE TABLE IF NOT EXISTS djrpg_boss_attempts (id TEXT PRIMARY KEY,account_id TEXT NOT NULL COLLATE NOCASE,day TEXT NOT NULL,request_id TEXT NOT NULL,save_json TEXT NOT NULL,started_at INTEGER NOT NULL,dodges_json TEXT NOT NULL,credited INTEGER NOT NULL DEFAULT 0,ended_at INTEGER,UNIQUE(account_id,request_id))',
     'CREATE INDEX IF NOT EXISTS djrpg_boss_attempt_owner ON djrpg_boss_attempts(account_id,day)',
+    'CREATE INDEX IF NOT EXISTS djrpg_boss_pending ON djrpg_boss_attempts(day,account_id) WHERE ended_at IS NULL',
     'CREATE TABLE IF NOT EXISTS djrpg_boss_scores (day TEXT NOT NULL,account_id TEXT NOT NULL COLLATE NOCASE,name TEXT NOT NULL,damage INTEGER NOT NULL,joined_at INTEGER NOT NULL,PRIMARY KEY(day,account_id))',
     'CREATE INDEX IF NOT EXISTS djrpg_boss_rank ON djrpg_boss_scores(day,damage DESC,joined_at,account_id)',
     'CREATE TABLE IF NOT EXISTS djrpg_boss_rewards (day TEXT NOT NULL,account_id TEXT NOT NULL COLLATE NOCASE,kind TEXT NOT NULL,PRIMARY KEY(day,account_id,kind))'
@@ -37,13 +37,25 @@ async function mail(tx,day,id,kind,title,gold,books,now){
 function tier(rank){return rank===1?[50000,10]:rank<=3?[30000,7]:rank<=10?[20000,5]:rank<=50?[12000,4]:rank<=100?[8000,3]:[5000,2];}
 async function settle(tx,day,now){
   if(day.settled_at||(!day.killed_at&&now<Number(day.ends_at)))return;
-  const scores=(await tx.execute({sql:'SELECT * FROM djrpg_boss_scores WHERE day=? AND damage>0 ORDER BY damage DESC,joined_at,account_id',args:[day.day]})).rows;
+  const scores=(await tx.execute({sql:`SELECT s.*,j.state_json FROM djrpg_boss_scores s LEFT JOIN djrpg_journey j ON j.account_id=s.account_id
+    WHERE s.day=? AND s.damage>0 ORDER BY s.damage DESC,s.joined_at,s.account_id`,args:[day.day]})).rows;
+  const existing=new Set((await tx.execute({sql:'SELECT account_id,kind FROM djrpg_boss_rewards WHERE day=?',args:[day.day]})).rows.map(r=>JSON.stringify([r.account_id.toLowerCase(),r.kind])));
+  const operations=[];
   for(let i=0;i<scores.length;i++){
-    const score=scores[i],id=score.account_id,[gold,books]=tier(i+1);
-    await mail(tx,day.day,id,'rank',`월드보스 ${i+1}위 보상`,gold,books,now);
-    if(day.killed_at)await mail(tx,day.day,id,'shared','월드보스 공동 처치 보상',2000,1,now);
-    if(day.killer===id)await mail(tx,day.day,id,'last','월드보스 마지막 타격 보상',5000,2,now);
+    const score=scores[i],id=score.account_id,[gold,books]=tier(i+1),state=advanceJourney(score.state_json?JSON.parse(score.state_json):undefined,undefined,undefined,now);
+    const rewards=[['rank',`월드보스 ${i+1}위 보상`,gold,books]];
+    if(day.killed_at)rewards.push(['shared','월드보스 공동 처치 보상',2000,1]);
+    if(day.killer===id)rewards.push(['last','월드보스 마지막 타격 보상',5000,2]);
+    let changed=false;
+    for(const [kind,title,gold,books] of rewards){
+      if(existing.has(JSON.stringify([id.toLowerCase(),kind])))continue;
+      operations.push({sql:'INSERT OR IGNORE INTO djrpg_boss_rewards VALUES (?,?,?)',args:[day.day,id,kind]});
+      state.mail.push({id:`boss:${day.day}:${kind}`,title,sender:'월드보스 토벌대',body:`잿불의 군주 발카론 · ${title}. 우편에서 보상을 받아 주세요.`,gold,books,createdAt:now,expiresAt:now+30*86400000,claimedAt:null,read:false});changed=true;
+    }
+    if(changed)operations.push(journeyOperation(id,state));
   }
+  // Keep one atomic settlement, but avoid one network round trip per reward/participant.
+  for(let i=0;i<operations.length;i+=100)await tx.batch(operations.slice(i,i+100));
   await tx.execute({sql:'UPDATE djrpg_boss_days SET settled_at=? WHERE day=? AND settled_at IS NULL',args:[now,day.day]});
 }
 async function dayRow(tx,key){return (await tx.execute({sql:'SELECT * FROM djrpg_boss_days WHERE day=?',args:[key]})).rows[0];}
@@ -73,8 +85,8 @@ async function standing(tx,day,id){
   const map=r=>({rank:Number(r.rank),name:r.name,damage:Number(r.damage),mine:r.account_id.toLowerCase()===id.toLowerCase()});
   return {top:rows.filter(r=>Number(r.rank)<=10).map(map),mine:mine?map(mine):undefined,nearMine:mine?rows.filter(r=>Number(r.rank)>=Number(mine.rank)-9&&Number(r.rank)<=Number(mine.rank)+1).map(map):[]};
 }
-export async function worldBossOperation(db,id,input={},sid,now=Date.now()){
-  await worldBossSchema(db);
+export async function worldBossOperation(db,id,input={},sid,now=Date.now(),schemaKey){
+  await worldBossSchema(db,schemaKey);
   if(!['list','start','tick','dodge','finish'].includes(input.action))fail(400,'INVALID_ACTION','지원하지 않는 월드보스 요청입니다.');
   return transaction(db,async tx=>{
     const owner=await account(tx,id);assertSession(owner,sid);

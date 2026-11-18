@@ -10,6 +10,6 @@ export async function worldBossEndpoint(request,{env=runtimeEnv(),createDbClient
   const signed=tokenPayload(request,env);if(!signed)return json({code:'INVALID_TOKEN',error:'다시 로그인해 주세요.'},401);
   let db;try{
     const input=await readBody(request);db=createDbClient?createDbClient(env):client(env);await schema(db,env);
-    return json(await worldBossOperation(db,signed.id,input??{},signed.sid));
+    return json(await worldBossOperation(db,signed.id,input??{},signed.sid,Date.now(),env.TURSO_DATABASE_URL));
   }catch(error){return errorResponse(error);}finally{await db?.close();}
 }

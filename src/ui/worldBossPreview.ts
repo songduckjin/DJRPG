@@ -38,7 +38,7 @@ export function framePosition(frame: number): string {
   if(safe>=40)return `${(safe-40)*100}% 0%`;
   return `${safe % 4 / 3 * 100}% ${Math.floor(safe % 8 / 4) * 100}%`;
 }
-// Visual rehearsal only: no Save, participation counter, ranking or reward mutation.
+// Modal/animation state; live owns authoritative battles. The legacy animator remains practice-only.
 export class WorldBossPreview {
   live?:WorldBossLive;
   tab: 'challenge'|'ranking'|'rewards' = 'challenge';

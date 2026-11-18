@@ -5,6 +5,14 @@
 
 ---
 
+## [x] [작업 161] 크롬 GPU 미지원 렌더 복구 · [작업 162] 월드보스 실전 활성화
+- 2026-11-18 · fks3997 · `feature/world-boss-live-fks3997` (크롬 선행 branch `fix/chrome-mesh-pipe-fks3997`, PR78은 통합 PR로 대체).
+- 크롬 CanvasRenderer의 mesh pipe 미지원: 선등록과 texture/bounds quad 폴백, WebGL/WebGPU mesh 유지. 크롬에서 필드·캐릭터·몬스터 표시 복구 실기 확인.
+- POST `/api/world-boss`·별도 Turso 테이블: 사용자 지정 HP 1,000만, KST05 초기화, 계정당3회/60초, 서버 보관 장비로 전투 재현·서버시간 회피, 공유HP 원자차감·실순위·토벌후차단. 정식계정 실전/게스트연습 분리.
+- 참여/순위/막타/공동처치 우편 멱등 지급, 기존 우편수령과 Save/아이템 계약 보존. 최신 main 작업140 보존 통합.
+- tsc·관련89테스트·Functions컴파일·diff 통과. 운영 배포는 통합 PR/Pages 확인 후 기록.
+
+
 ## [x] [작업 140] 본 게임 필드 렌더러 독립형 코스튬 전환
 
 - **완료일**: 2026-11-18 · **담당자**: `songduckjin` · **브랜치**: `task/140-costume-field-renderer` · **PR**: #79

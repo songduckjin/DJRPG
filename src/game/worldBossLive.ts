@@ -13,7 +13,7 @@ export class WorldBossLive {
     const response=await fetch('/api/world-boss',{method:'POST',headers:apiHeaders({Authorization:`Bearer ${this.sync.session.token}`}),body:JSON.stringify({action,...input}),signal:AbortSignal.timeout(15000)});
     const data=await response.json();
     if(!response.ok){if(isOutdatedResponse(response.status,data.code,data.expected))reloadForNewVersion();throw new Error(data.error??'월드보스에 연결하지 못했습니다.');}
-    this.data=data;this.error='';this.onChange();this.onModalChange();return data;
+    if(!this.data||!Number.isFinite(data.now)||data.now>=this.data.now){this.data=data;this.error='';this.onChange();this.onModalChange();}return data;
   }
   load():Promise<BossData>{
     if(this.loadPromise)return this.loadPromise;this.loading=true;
