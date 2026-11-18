@@ -1644,3 +1644,5 @@
 | 143 일반공격 프레임 좌측 칼날조각 제거 | fks3997 | feature/world-boss-preview-fks3997 | 분리성분제거·연결무기보존/Texture정리, tsc·13테스트 | [x] |
 
 | 144 보스얼굴 버튼 강조 | fks3997 | feature/world-boss-preview-fks3997 | 큰HD얼굴/뿔·뒤후광·눈빛·HP/3회유지 | [x] |
+
+| 145 선명한 대기전용 어깨검·앞손 복구 | fks3997 | feature/world-boss-preview-fks3997 | 1536상반신/전투얼굴특징·손앞레이어, tsc·13테스트·아트 | [x] |

@@ -19,13 +19,13 @@ test('preview duration is 60 seconds and rendering cancels its animation on clos
   preview.dispose();assert(canceled);preview.start(100);assert.equal(preview.damage,0);assert.equal(preview.elapsed(1100),1);
  }finally{globalThis.requestAnimationFrame=oldRaf;globalThis.cancelAnimationFrame=oldCancel;}
 });
-test('intro shows the static combat portrait and challenge guide instead of combat, without save mutation',()=>{
+test('intro shows the sharp shoulder sword and resting hand portrait and challenge guide instead of combat, without save mutation',()=>{
  const old=globalThis.document;
  function element(){return {children:[],style:{},className:'',handlers:{},classList:{add(){}},setAttribute(){},addEventListener(type,run){this.handlers[type]=run;},append(...nodes){this.children.push(...nodes);}};}
  globalThis.document={createElement:element};
  try{for(const gender of ['male','female']){
  const save=freshSave(gender),before=JSON.stringify(save),worldBoss=new WorldBossPreview(),ui={world:{save},worldBoss,renderModal(){},open(value){this.closed=value===null;}},dialog=element();renderWorldBoss(ui,dialog);
- const body=dialog.children[0];assert.match(body.innerHTML,/wb-intro-combat/);assert(!body.innerHTML.includes('wb-hero'));assert(!body.innerHTML.includes('wb-session'));
+ const body=dialog.children[0];assert.match(body.innerHTML,/valkaron-resting-sharp-v2/);assert.match(body.innerHTML,/wb-intro-hand/);assert.equal((body.innerHTML.match(/valkaron-resting-sharp-v2/g)||[]).length,2);assert(!body.innerHTML.includes('wb-hero'));assert(!body.innerHTML.includes('wb-session'));
  const details=body.children[0],panel=details.children.at(-1);const exit=details.children[0].children[1];assert.equal(exit.textContent,'나가기');exit.handlers.click({preventDefault(){},stopPropagation(){}});assert(ui.closed);assert.match(panel.children[0].innerHTML,/계정당 하루 3회/);assert.equal(panel.children.at(-1).textContent,'도전하기');assert.equal(JSON.stringify(save),before);
  }}finally{globalThis.document=old;}
 });

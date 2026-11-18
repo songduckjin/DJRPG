@@ -131,7 +131,7 @@
 
 - `src/styles/world-boss.css` — 보스버튼78px얼굴/뿔·뒤후광/눈빛·하단체력/3회, 모션감소대응.
 - `src/ui/worldBossPreview.ts` — 메모리 전용60초모션연습·4×2고해상도5시트(일반8/내려찍기24프레임·1.8초가속/충격시점공유)프레임선택·발기준정렬·RAF수명관리. `bossPose`·`framePosition`·`frameSheet`·`preloadBossSheets`·`WorldBossPreview`
-- `src/ui/modals/worldBossModal.ts` — 월드보스팝업/무헤더·상단투명상반신/전투첫프레임정지상반신·뒤구름·허리띠절반가림/손앞층·이름옆나가기·하단정보창/도전·상위10+내순위한눈·보상시안, 공유상태미연동명시. `renderWorldBoss`
+- `src/ui/modals/worldBossModal.ts` — 월드보스팝업/무헤더·상단투명상반신/고해상도전투형얼굴·어깨검/앞손정지상반신·뒤구름·허리띠절반가림/손앞층·이름옆나가기·하단정보창/도전·상위10+내순위한눈·보상시안, 공유상태미연동명시. `renderWorldBoss`
 - `src/styles/world-boss.css` — HD원본얼굴/뿔직접크롭·58px무테진입버튼·후광분리(얼굴블러없음)·아래체력/3회시안표시·팝업·범위예고·충격파, 본체/이펙트분리.
 - `server/journey.mjs` — 수령검증/소유권/수령기록배치원자저장·성공응답선택적journey목록. 구클라이언트호환.
 
