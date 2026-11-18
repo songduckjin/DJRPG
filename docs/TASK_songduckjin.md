@@ -375,9 +375,15 @@
 - **검증**: `npx tsc --noEmit`, `node --test tests/appearance.test.mjs tests/hero-motion.test.mjs tests/hero-art.test.mjs tests/hero-weapon-render.test.mjs`, `node scripts/verify-item-art.mjs`, `git diff --check`. 모바일 실기 FPS·Draw Call 측정은 142에서 최종 프로파일링하되, 이 작업에서도 대표 장면 1회를 기록한다.
 - **완료 기준**: 필드 캐릭터가 독립형 코스튬 렌더러로 그려지고 대기·걷기 8프레임·기본 공격·스킬 4종이 모두 재생된다. 공격 속도 배율·그림자·잔상·피격 연출이 기존과 같게 동작하고 남/여 모두 확인된다. 로드 실패 시 기본 본체로 폴백한다. 몬스터·NPC 화면은 변하지 않는다. 타입 검사·관련 테스트·이미지 검증·diff 검사 통과 후 PR 병합.
 
-### [ ] [작업 141] 장비창(내 정보) 공용 외형 연동
-- **담당자**: `songduckjin` · **예정 브랜치**: `task/141-costume-ui-sync` · **위험 등급**: 중 · **상태**: 대기
-- **선행 조건**: `[작업 140]` 완료. **PR #72(`[작업 136]`)** 처리와 연계한다 — 136의 UI 레이아웃 개편이 먼저 main에 병합됐으면 초상화 경로만 교체하고, 미병합이면 136 레이아웃을 통합한 뒤 연동한다(136 PR을 이 작업에서 대신 병합하지 않는다).
+### [x] [작업 141] 장비창(내 정보) 공용 외형 연동
+- **담당자**: `songduckjin` · **브랜치**: `task/141-costume-ui-sync` · **위험 등급**: 중 · **상태**: `[x]` 검증 완료
+- **완료 결과(2026-11-18)**: `src/ui/equipmentPortrait.ts`가 필드와 **같은 공용 계획** `planHeroCostume()`(작업 140)을 소비해 본체 3파츠 + 장비 레이어를 **idle 0프레임**으로 합성한다. UI 전용 `fit` 좌표 표·`wearableEquipmentImage` 5부위 덧그리기·`tightFrame` 픽셀 스캔·`starter` 분기는 코드에서 모두 제거했다. 필드와 미리보기의 차이는 정지 1프레임뿐이라는 근거를 모듈 주석과 `docs/COSTUME_SYSTEM.md` §7.3에 남겼다.
+- **136 UI 통합**: PR #72(`task/136-unified-equip-ui`, Draft)는 **직접 병합하지 않고** 그 브랜치를 141에 병합해 `내 정보` 3탭 통합·`statusModal.ts` 제거·`accountModal.ts` 성별 고정·요약 6스탯+5×2 장비 10칸+가방 레이아웃·`modals.css`/`hud.css` 개편·`tests/equipment-info.test.mjs`를 가져왔다. 충돌은 최신 `main`(월드보스 진입 버튼·`worldBoss` 모달) 쪽 UI를 유지하며 해소했다. 136의 초상화 팔레트 틴트는 `src/game/render/gearTint.ts` 수정을 요구하므로 **가져오지 않았고**(140 계약 유지), 티어 초상화는 폴백 전용으로 남겼다.
+- **폴백**: 매니페스트 없음/파싱 실패/`costumeId` 미매핑/아틀라스 페이지·셀 실패 → 136의 티어별 전신 초상화(`warrior_equipped_{starter|t2|t3|t4}_{gender}.png`, 갑옷+투구일 때) 또는 `heroAppearance().portrait`로 표시한다. 매니페스트 실패는 세션 동안 재요청하지 않고, 실패한 아틀라스 페이지도 1회만 기록한다.
+- **캐시**: dataURL LRU **24** 유지, 합성 중 동일 요청 1회, 매 렌더 픽셀 스캔 없음.
+- **에셋 결론(문서)**: `warrior_equipped_t{2,3,4}_{male,female}.png` 6장은 **폴백 자산으로 유지**하고, 실물 아틀라스가 동작하는 것을 142에서 확인한 뒤 참조 0 검사를 거쳐 142의 삭제 후보로 정리한다(`docs/COSTUME_SYSTEM.md` §7.3).
+- **검증**: `npx tsc --noEmit` 통과, `node --test tests/equipped-detail.test.mjs tests/appearance.test.mjs tests/modal-ui.test.mjs tests/costume-manifest.test.mjs tests/costume-field-render.test.mjs tests/equipment-info.test.mjs` **71건 통과**, 전체 `tests/*.test.mjs` **338건 통과**(회귀 없음), `git diff --check` 통과, `git diff --stat`으로 `src/game/render/**`·`src/game/store.ts`·`server/**` 무변경 확인.
+- **선행 조건(당시)**: `[작업 140]` 완료. **PR #72(`[작업 136]`)** 처리와 연계 — 136의 UI 레이아웃 개편이 main에 미병합이었으므로 136 레이아웃을 통합한 뒤 연동했다(136 PR 자체는 병합하지 않음).
 - **목표**: `src/ui/equipmentPortrait.ts`를 필드와 **동일한 공용 코스튬 외형 계획**으로 통합하고 임시·종이인형 경로를 제거한다.
 - **수정 예정 파일**: `src/ui/equipmentPortrait.ts`, `src/ui/modals/equipModal.ts`(필요 시), `tests/equipped-detail.test.mjs`, `docs/CODE_MAP.md`·`docs/QUICK_PATCH.md`. **건드리지 않음**: `src/game/render/**`(140 계약 유지), `src/game/store.ts`, `server/**`.
 - **구현 항목**:
@@ -390,7 +396,8 @@
 
 ### [ ] [작업 142] 코스튬 에셋 양산·아틀라스 패킹 및 레거시 리소스 정리
 - **담당자**: `songduckjin` · **예정 브랜치**: `task/142-costume-atlas-cleanup` · **위험 등급**: 중 · **상태**: 대기
-- **선행 조건**: `[작업 141]` 완료. 140·141이 공용 외형 계획으로 실제 동작하는 상태에서만 레거시를 지운다(§2·§8: 참조 검사 없는 삭제 금지).
+- **선행 조건**: `[작업 141]` 완료(2026-11-18). 140·141이 공용 외형 계획으로 실제 동작하는 상태에서만 레거시를 지운다(§2·§8: 참조 검사 없는 삭제 금지).
+- **정리 후보(2026-11-18, 141 결론)**: 136의 티어별 전신 초상화 `public/assets/warrior_equipped_t{2,3,4}_{male,female}.png` 6장(각 720px, 합계 355KB)은 지금은 장비창 **폴백 자산**이다. 실물 아틀라스·매니페스트가 배포되어 141 미리보기가 코스튬 합성으로 그려지는 것을 확인한 뒤, `src/`·`tests/`·`scripts/` 참조 0을 검사해 삭제 후보로 처리한다. 실물 확인 전에는 삭제하지 않는다(삭제하면 미리보기 폴백이 빈 화면이 된다).
 - **필수(2026-11-18 추가, 작업 140 실측)**: 140 배포분이 없는 매니페스트 경로 요청으로 `/assets/costume/v1/manifest.json`에 SPA fallback HTML을 `200 immutable`로 받아 사용자 브라우저에 **v1 URL이 캐시**됐다. 첫 실물 에셋은 `COSTUME_ASSET_VERSION`을 **2**로 올려 `/assets/costume/v2/...`로 배포하고, `/version.json`과 함께 매니페스트·아틀라스 HTTP 200(content-type `application/json`·`image/png`)을 확인한다.
 - **목표**: 실물 코스튬 에셋 양산 → 아틀라스 패킹 → 모바일 실기 GPU/메모리 프로파일링 → 전체 참조 검사 → 구형 통합 바디 시트·`tools/costume-viewer` 임시 에셋·미사용 레거시 코드를 **안전하게** 삭제.
 - **수정 예정 파일**: `public/assets/**`(코스튬 아틀라스 PNG·매니페스트 JSON 신규/교체), `tools/costume-viewer/**`(임시 에셋 정리), 레거시 코드(참조 0 확인 후), `scripts/verify-item-art.mjs`(아틀라스 검증 추가 시), `docs/CODE_MAP.md`·`docs/QUICK_PATCH.md`·`docs/TASK_ARCHIVE.md`.

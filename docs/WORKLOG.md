@@ -1,3 +1,11 @@
+## 2026-11-18 · 작업 141 장비창(내 정보) 공용 외형 연동 · 136 UI 레이아웃 통합
+
+- 담당자 `songduckjin`의 작업지시에 따라 `src/ui/equipmentPortrait.ts`를 필드와 같은 공용 계획(`planHeroCostume`, 작업 140)으로 다시 연결했다. 미리보기는 **idle 0프레임**만 그리며, `fit` 좌표 표·`wearableEquipmentImage` 덧그리기·`tightFrame` 픽셀 스캔·`starter` 분기를 제거했다.
+- PR #72(`[작업 136]`, Draft)는 직접 병합하지 않고, 그 브랜치를 141에 병합해 UI 레이아웃(`내 정보` 3탭·`statusModal.ts` 삭제·계정 성별 고정·요약+6스탯+장비 10칸+가방)과 `tests/equipment-info.test.mjs`를 통합했다. 최신 `main`의 월드보스 진입 버튼·`worldBoss` 모달과 충돌은 `main` 쪽을 유지하며 해소했다.
+- 매니페스트·아틀라스가 없거나 셀이 페이지 밖이면 `warrior_equipped_{starter|t2|t3|t4}_{gender}.png` 전신 초상화로 폴백한다(빈 화면 없음). 매니페스트 실패는 세션 동안 재요청하지 않고, 실패 페이지는 1회만 기록한다. dataURL 캐시는 LRU 24를 유지한다.
+- 136의 티어 초상화 6장은 폴백 자산으로 유지하고 142의 참조 0 검사 후 삭제 후보로 넘긴다(`docs/COSTUME_SYSTEM.md` v1.3 §7.3).
+- 검증: `npx tsc --noEmit`, 관련 6개 테스트 파일 71건, 전체 `tests/*.test.mjs` 338건, `git diff --check` 통과. `src/game/render/**`·`src/game/store.ts`·`server/**` 무변경 확인.
+
 ## 2026-11-18 · fks3997 작업161/162 통합 배포 준비
 - 크롬 GPU 미지원 Canvas mesh 경로 복구를 실기 확인했다. 월드보스를 서버 공유HP 1,000만·하루3회·서버전투재현·실순위·참여/순위/막타/공동처치 우편보상으로 활성화했다.
 - 다른 작업자 작업140 렌더러 전환을 보존 통합했다. tsc·관련89테스트·Functions컴파일·diff 통과. PR78 핫픽스는 실전 활성화와 묶는 통합 PR로 대체하고, Cloudflare Pages 배포 상태는 해당 PR에 기록한다.

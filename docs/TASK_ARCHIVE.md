@@ -12,6 +12,21 @@
 - 참여/순위/막타/공동처치 우편 멱등 지급, 기존 우편수령과 Save/아이템 계약 보존. 최신 main 작업140 보존 통합.
 - tsc·관련89테스트·Functions컴파일·diff 통과. 운영 배포는 통합 PR/Pages 확인 후 기록.
 
+---
+
+## [x] [작업 141] 장비창(내 정보) 공용 외형 연동
+
+- **완료일**: 2026-11-18 · **담당자**: `songduckjin` · **브랜치**: `task/141-costume-ui-sync` · **PR**: (이 PR)
+- **공용 계획 통합**: `src/ui/equipmentPortrait.ts`가 `render/costumeHero.ts` `planHeroCostume(save, 매니페스트)`를 그대로 소비해 본체 3파츠 + 장비 레이어를 합성한다. UI 전용 `fit` 좌표 표·`wearableEquipmentImage` 5부위 덧그리기·`tightFrame` 픽셀 스캔·`starter` 분기를 모두 제거했다.
+- **필드와의 차이는 정지 1프레임뿐**: 미리보기는 `costumeLayerCell(layer, 'idle', 0)`만 그린다(모션 선택·프레임 진행·재생 배율 없음). 계획·피벗·`zOrder`·파츠 교체는 필드와 동일하다는 근거를 모듈 주석과 `docs/COSTUME_SYSTEM.md` §7.3에 남겼다.
+- **136 UI 통합(PR #72는 병합하지 않음)**: `task/136-unified-equip-ui`를 141 브랜치에 병합해 `내 정보` 3탭(내 정보·스킬·거래소, `statusModal.ts` 삭제), 계정 성별 고정, 요약+6스탯+장비 10칸(5×2)+가방 레이아웃, `modals.css`/`hud.css` 개편, `tests/equipment-info.test.mjs`를 가져왔다. 충돌은 최신 `main`(월드보스 진입 버튼·`worldBoss` 모달·`character-menu` 미도입) 기준으로 해소했다. 136의 초상화 팔레트 틴트는 `render/gearTint.ts` 수정이 필요해 가져오지 않았다(140 계약 유지).
+- **폴백**: 매니페스트 없음/파싱 실패/`costumeId` 미매핑/아틀라스 페이지·셀 실패 → 티어별 전신 초상화(`warrior_equipped_{starter|t2|t3|t4}_{gender}.png`, 갑옷+투구일 때) 또는 `heroAppearance().portrait`. 매니페스트 실패는 세션 동안 재요청하지 않고, 실패 페이지는 1회만 기록한다.
+- **캐시**: dataURL 캐시 LRU **24** 유지, 동일 요청 1회 합성, 매 렌더 픽셀 스캔 없음. 매니페스트 로드는 139 모듈의 1회 캐시를 공유한다.
+- **에셋 결론**: 136의 티어 초상화 6장은 **폴백 자산으로 유지**하고, 실물 아틀라스 동작 확인 후 142에서 참조 0 검사를 거쳐 삭제 후보로 처리한다.
+- **검증**: `npx tsc --noEmit` 통과, `equipped-detail`·`appearance`·`modal-ui`·`costume-manifest`·`costume-field-render`·`equipment-info` **71건 통과**, 전체 `tests/*.test.mjs` **338건 통과**, `git diff --check` 통과, `src/game/render/**`·`src/game/store.ts`·`server/**` 무변경.
+- 수정 파일: `src/ui/equipmentPortrait.ts`(재작성), `src/ui/interface.ts`, `src/ui/modals/equipModal.ts`, `src/ui/modals/accountModal.ts`, `src/ui/modals/statusModal.ts`(삭제), `src/styles/modals.css`, `src/styles/hud.css`, `tests/equipped-detail.test.mjs`, `tests/equipment-info.test.mjs`(신규), `docs/COSTUME_SYSTEM.md`(v1.3), `docs/CODE_MAP.md`, `docs/QUICK_PATCH.md`, `docs/TASK.md`·`docs/TASK_songduckjin.md`·`docs/TASK_ARCHIVE.md`·`docs/WORKLOG.md`.
+
+---
 
 ## [x] [작업 140] 본 게임 필드 렌더러 독립형 코스튬 전환
 

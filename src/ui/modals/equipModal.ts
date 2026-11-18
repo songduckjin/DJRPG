@@ -1,16 +1,18 @@
 import {equipmentCount} from '../../game/bagCapacity';
-import { autoEquipBest, equipmentImage, rarityNames, slotNames, statNames, totalStats, useSkillBook, type Item, type Rarity, type Save, type Slot, type Stat } from '../../game/store';
+import { autoEquipBest, equipmentImage, expToNext, MAX_LEVEL, rarityNames, slotNames, statNames, totalStats, useSkillBook, type Item, type Rarity, type Save, type Slot, type Stat } from '../../game/store';
 import { rarityOrder, rarityRanks, salvageGold } from '../../game/items';
 import { canAutoEquip } from '../../game/inventory';
 import { requestSalvage } from './salvageModal';
 import { equipmentPortraitPlan, renderEquipmentPortrait } from '../equipmentPortrait';
+import { goldMarkup } from '../currency';
 import { isSkillBook } from '../../game/items';
 import { showEquippedDetail, dismissEquippedDetail, deferEquippedDismiss } from '../equippedDetail';
 import { bagDetailPinned, createBagDetail, deferBagDismiss, dismissBagDetail, showBagDetail } from '../bagDetail';
 import { skillbookName } from '../skillbookBag';
 import type { BagFilter, Interface } from '../interface';
 
-const showcaseSlots = ['weapon', 'helmet', 'armor', 'gloves', 'boots'] as const;
+export const equipmentInfoSlots = ['weapon', 'helmet', 'armor', 'gloves', 'boots', 'offhand', 'necklace', 'belt', 'ring1', 'ring2'] as const;
+export const equipmentInfoStats = ['전투력', 'HP', '공격력', '방어력', '치명타', '공격속도'] as const;
 
 export function renderInventory(this: Interface, dialog: HTMLElement): void {
     const save = this.world.save;
@@ -153,14 +155,12 @@ export function salvage(this: Interface): void {
 export function renderEquipment(this: Interface, dialog: HTMLElement): void {
     const save = this.world.save, stats = totalStats(save);
     const showcase = document.createElement('div'); showcase.className = 'equipment-showcase';
-    const left = document.createElement('div'), right = document.createElement('div');
-    left.className = 'showcase-side'; right.className = 'showcase-side';
-    const addSlot = (slot: Slot, side: HTMLElement) => {
+    const addSlot = (slot: Slot, grid: HTMLElement) => {
       const item = save.equipment[slot]; const cell = document.createElement('button'); cell.className = `equipment-slot ${item?.rarity ?? 'empty-slot'}`;
       cell.type = 'button'; cell.dataset.equippedSlot = slot; cell.disabled = !item;
-      cell.innerHTML = `<small class="slot-part">${slotNames[slot]}</small>${itemIcon.call(this, slot, item, 'slot-icon')}<span class="slot-meta"><b></b></span>`;
-      cell.querySelector('b')!.textContent = wrapEquipmentName(item?.name ?? '빈 슬롯');
+      cell.innerHTML = `${itemIcon.call(this, slot, item, 'slot-icon')}<small class="slot-part">${slotNames[slot]}</small>`;
       cell.setAttribute('aria-label', `${slotNames[slot]} · ${item?.name ?? '빈 슬롯'}`);
+      cell.title = item?.name ?? '빈 슬롯';
       cell.setAttribute('aria-expanded', String(this.equippedSlot === slot));
       cell.onpointerenter = event => { if (event.pointerType !== 'touch') showEquippedDetail(this, slot); };
       cell.onpointerleave = () => { if (cell.isConnected) deferEquippedDismiss(this); };
@@ -170,10 +170,8 @@ export function renderEquipment(this: Interface, dialog: HTMLElement): void {
         if (this.equippedSlot === slot && this.equippedPinned) dismissEquippedDetail(this);
         else showEquippedDetail(this, slot, true);
       };
-      side.appendChild(cell);
+      grid.appendChild(cell);
     };
-    for (const slot of showcaseSlots) addSlot(slot, left);
-    for (const slot of ['offhand', 'necklace', 'belt', 'ring1', 'ring2'] as Slot[]) addSlot(slot, right);
     const center = document.createElement('div'); center.className = 'showcase-hero';
     const figure = document.createElement('span'); figure.className = 'showcase-figure';
     const portrait = document.createElement('img'); portrait.className = 'showcase-body'; portrait.alt = '현재 장착 장비 미리보기';
@@ -182,12 +180,22 @@ export function renderEquipment(this: Interface, dialog: HTMLElement): void {
       .catch(error => console.error('착용 이미지 생성 실패:', error));
     figure.appendChild(portrait);
     center.appendChild(figure);
-    showcase.append(left, center, right); dialog.appendChild(showcase);
-    const summary = document.createElement('div'); summary.className = 'showcase-stats';
+    const info = document.createElement('div'); info.className = 'equipment-info';
+    const summary = document.createElement('div'); summary.className = 'equipment-summary';
+    const expPercent = save.level >= MAX_LEVEL ? 'MAX' : `${Math.floor(save.exp / expToNext(save.level) * 100)}%`;
+    summary.innerHTML = `<span>LV <b>${save.level >= MAX_LEVEL ? `${MAX_LEVEL} MAX` : save.level}</b></span><span>${save.floor}층</span><span>EXP <b>${expPercent}</b></span><span>${goldMarkup(save.gold)} · 강화석 ${save.stones}</span>`;
+    info.appendChild(summary);
     const power = Math.round(stats.attack * 3 + stats.defense * 2 + stats.health * .2 + stats.crit * 2 + stats.speed * 2);
-    summary.innerHTML = `<span>전투력 <b>${power}</b></span><span>공격 <b>${stats.attack}</b></span><span>방어 <b>${stats.defense}</b></span><span>HP <b>${Math.ceil(this.world.player.hp)}/${stats.health}</b></span>`;
-    dialog.appendChild(summary);
-    const hint = document.createElement('p'); hint.className = 'modal-hint'; hint.textContent = '장비에 마우스를 올리거나 터치하면 설명을 확인합니다.'; dialog.appendChild(hint);
+    const values = [power, `${Math.ceil(this.world.player.hp)}/${stats.health}`, stats.attack, stats.defense, `${stats.crit}%`, `${stats.speed}%`];
+    const statGrid = document.createElement('div'); statGrid.className = 'equipment-info-stats';
+    equipmentInfoStats.forEach((label, index) => {
+      const cell = document.createElement('div'); cell.innerHTML = `<span>${label}</span><b>${values[index]}</b>`; statGrid.appendChild(cell);
+    });
+    info.appendChild(statGrid);
+    showcase.append(center, info); dialog.appendChild(showcase);
+    const grid = document.createElement('div'); grid.className = 'equipment-grid'; grid.setAttribute('aria-label', '장착 장비 10칸');
+    for (const slot of equipmentInfoSlots) addSlot(slot, grid);
+    dialog.appendChild(grid);
   }
 
 export function salvageValue(this: Interface, item: Item): number { return salvageGold[item.rarity]; }
