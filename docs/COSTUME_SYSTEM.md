@@ -176,7 +176,7 @@ frames 방식의 프레임 수에는 실제로 별도 그림이 필요한 성별
 `src/game/costume/**`가 Pixi·DOM 비의존 순수 모듈로 이 계약을 구현했다(렌더러 연결은 [작업 140]). **위 7개 필드에서 늘리지 않았고 새 필드도 없다.**
 
 - **구조**: `{ schemaVersion, costumes: [{ costumeId, slot, animMode, anchor, fit?, zOrder? }] }`. `schemaVersion`은 `COSTUME_MANIFEST_SCHEMA_VERSION`(현재 1)과 같아야 하고 항목마다 `costumeId`·`slot`·`animMode`·`anchor`가 필수다. 중복 `costumeId`, 알 수 없는 `slot`·`animMode`, 유한하지 않은 좌표는 매니페스트 전체를 무효로 본다. 아틀라스 경로는 매니페스트 필드가 아니라 §6.2의 버전 상수에서 유도한다(필드 추가 없이 ④ 폴백을 성립시키기 위해서다).
-- **로드·캐시**: `loadCostumeManifest()`가 1회 요청 후 메모리 캐시. 성공만 캐시하고 동시 호출은 같은 요청을 공유하며 `force`로 재요청한다. 실패는 예외를 덁지지 않고 결과 타입(`ok`·`reason`·`detail`)으로 돌려준다.
+- **로드·캐시**: `loadCostumeManifest()`가 1회 요청 후 메모리 캐시. 성공만 캐시하고 동시 호출은 같은 요청을 공유하며 `force`로 재요청한다. 실패는 예외를 던지지 않고 결과 타입(`ok`·`reason`·`detail`)으로 돌려준다.
 - **아이템 → `costumeId`**: `items.ts` `baseItems` 고유 장비 이름 **75종**을 전수 매핑했다(10슬롯, `ring1`·`ring2`가 같은 5종을 공유하므로 중복 제외). 무기·보조무기·투구·갑옷·장갑·신발 **55종**은 `<부위>-t<기본형 인덱스>`(예: `helmet-t7`)이고, 필드에 그리지 않는 목걸이·벨트·반지 **20종**은 명시적 `"none"`이다. 대조 규칙은 `baseItemIndex`와 같은 NFKC 정규화 + 공백·제로폭 문자 제거 + 완전일치/`endsWith`이며, 레거시 `낡은 투구` → `helmet-t7`(심연의 뿔투구) 예외를 표에 명시한다. `items.ts`는 수정하지 않았고 두 규칙의 동등성을 테스트로 고정했다.
 - **폴백 4경로**: ① 매니페스트 없음(네트워크·404) ② JSON 파싱·스키마 검증 실패 ③ `costumeId` 미매핑(이름 미매핑 · 매니페스트에 항목 없음 · 매니페스트 부위 불일치) ④ 아틀라스 로드 실패. 네 경우 모두 `bodyFallback: true`와 `reason`을 돌려주고 렌더러는 기본 본체만 그린다. `costumeId: "none"`은 실패가 아니라 “필드에 그리지 않는 부위”라는 정상 판정(`bodyFallback: false`)이다.
 - **캐시 버스터**: `COSTUME_ASSET_VERSION` 한 상수에서 `/assets/costume/v<N>/manifest.json`과 `/assets/costume/v<N>/atlas/<page>.png`를 만든다. 버전 없는 경로는 만들지 않는다.
