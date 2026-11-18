@@ -10,3 +10,7 @@ dist/
 
 # 빌드 스크립트가 생성하는 배포 버전 파일
 public/version.json
+
+# 파이썬 캐시(생성기·검수 스크립트 실행 산출물)
+__pycache__/
+*.pyc
