@@ -148,3 +148,9 @@
 .world-boss-entry .wb-entry-health::before {content:"";position:absolute;inset:0;border-radius:50%;background:conic-gradient(from 220deg,#42262c 0deg 280deg,transparent 280deg 360deg);}
 .world-boss-entry .wb-entry-health i {position:absolute;inset:0;width:100%;height:100%;border-radius:50%;background:conic-gradient(from 220deg,#9b343c 0deg,#d46a5b 135deg,#a83c46 var(--wb-hp-angle,280deg),transparent var(--wb-hp-angle,280deg) 360deg);box-shadow:none;}
 .world-boss-entry .wb-entry-count {left:18px;right:18px;top:49px;height:17px;line-height:17px;font-size:11px;letter-spacing:.5px;color:#f3dfbc;background:#171118e8;border-radius:6px;z-index:3;text-shadow:0 1px 2px #000;}
+/* Layered bronze bevel, recessed channel and rounded garnet core. */
+.world-boss-entry .wb-entry-art {left:7px;top:7px;width:56px;height:56px;box-shadow:inset 0 2px 7px #000d;}
+.world-boss-entry .wb-entry-health {mask-image:radial-gradient(circle,transparent 27.5px,#000 28.2px);filter:drop-shadow(0 2px 1px #000c);}
+.world-boss-entry .wb-entry-health::before {background:radial-gradient(circle,transparent 27px,#130e11 27.8px,#a68555 28.6px,#e3c68e 29px,#37251d 29.6px,#160d12 30px,#1e0f15 32.5px,#735035 33px,#d7b782 33.6px,#9e7849 34.1px,#32231c 34.8px);mask-image:conic-gradient(from 220deg,#000 0deg 280deg,transparent 280deg 360deg);}
+.world-boss-entry .wb-entry-health i {background:radial-gradient(circle,transparent 29px,#380c16 29.4px,#872330 29.8px,#e37c74 30.4px,#cb4d55 31px,#8b2637 31.9px,#430e1e 32.6px,transparent 33px);mask-image:conic-gradient(from 220deg,#000 0deg var(--wb-hp-angle,280deg),transparent var(--wb-hp-angle,280deg) 360deg);}
+.world-boss-entry .wb-entry-count {top:50px;height:17px;line-height:16px;background:linear-gradient(#35272b,#171116);border-top:1px solid #b3946866;box-shadow:0 2px 3px #0009,inset 0 1px 1px #f1d29b22;color:#f0dbb3;}
