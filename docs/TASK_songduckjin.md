@@ -7,7 +7,7 @@
 ## 진행 중 작업
 
 ### [-] [작업 134] 필드 캐릭터 통합 바디 복구 및 무기 소켓·액션 자연화
-- **담당자**: `codex`(`songduckjin` 계정 PC 코덱스) · **등록일**: 2026-11-18 · **브랜치**: `task/134-field-gear-action` · **위험 등급**: 중 · **상태**: `[-]` 등록 완료, 착수 대기
+- **등록자**: `songduckjin` · **실행 담당자**: `fks3997`(사용자 위임) · **등록일**: 2026-11-18 · **브랜치**: `task/134-field-gear-action` · **위험 등급**: 중 · **상태**: `[-]` 착수
 - **직접 수정 예정**: `src/game/render/entities.ts`, `src/game/render/heroSockets.ts`(신규), `src/game/render/vfx.ts`, `tests/hero-weapon-render.test.mjs`, `docs/CODE_MAP.md` §1·§3(각 1줄). **간접 영향**: `src/game/appearance.ts`(`heroAppearance`가 실제 장착 갑옷·투구로 고르는 시트), `tests/appearance.test.mjs`, `tests/equipped-detail.test.mjs`. **건드리지 않음**: `src/ui/equipmentPortrait.ts`·`src/ui/modals/equipModal.ts`(장비창 미리보기, [작업 133] 영역), `src/game/store.ts`(세이브 형식), `server/**`.
 - **목표**: PR #61에서 필드 캐릭터(`entities.ts`)에 적용한 5부위 2D 아이콘 덧그리기를 걷어내, 갑옷·투구 통합 바디 시트의 자연스러운 어깨·체형·공격 액션을 복구한다. 무기는 프레임별 소켓 데이터(`heroSockets.ts`)로 분리해 서기·걷기·공격 전환이 매끄럽게 이어지게 하고, 무기 등급·종류의 차이는 덧그리기 대신 검기 이펙트로 남긴다.
 - **배경·근거(현재 코드)**:
