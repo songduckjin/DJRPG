@@ -1,3 +1,8 @@
+## 2026-11-18 · 작업 134 필드 통합 바디 및 무기 소켓
+
+- 등록자 `songduckjin`의 위임을 받아 실행 담당 `fks3997`로 진행했다. 남녀 검 없는 서기·걷기 시트 10장으로 갑옷·투구 통합 몸체를 복구하고, 직업·성별·8프레임별 무기 소켓과 공격 시 검 중복 방지, 장착 무기 등급별 검기 색을 적용했다.
+- `pnpm exec tsc --noEmit`, 관련 테스트 76개, `node scripts/verify-item-art.mjs`, `git diff --check` 통과. PR #66이 `272c4619924603565a0b765a65ca0026078bb904`로 main에 병합됐다. Cloudflare Pages Production `/version.json`에서 `272c46199246` 확인. 모바일 실기 미확인.
+
 ## 2026-11-18 · 작업 133 장비창 완성 착용 이미지
 - 사진 속 장비 조합의 남녀 완성 착용 이미지를 제작하고 장비창의 DOM 레이어를 한 장의 렌더링 이미지로 교체했다. 다른 조합은 10개 장비 슬롯의 착용 파츠와 장신구를 몸에 맞춰 그려 메모리에 캐시한다.
 - `pnpm exec tsc --noEmit`, `node --test tests/equipped-detail.test.mjs`(8개), `node scripts/verify-item-art.mjs`, `git diff --check` 통과. PR #62가 `84a1dd0cd5917bd396f3d9ee9f68ee4acafe4854`로 main에 병합. Production `/version.json` `84a1dd0cd591`, 남녀 이미지 HTTP 200 확인. 모바일 실기 화면 미확인.
