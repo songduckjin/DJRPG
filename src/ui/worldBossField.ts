@@ -1,3 +1,4 @@
+import {WorldBossDefeat,BOSS_DEFEAT_SHEET,defeatFrameOffset} from './worldBossDefeat';
 import {bossAttacks} from '../game/worldBossPattern';
 import {plantedBossVertex,plantedBossShift,bossFootContacts,bootMaskWeight} from './worldBossFooting';
 import {renderBossResult} from './worldBossResult';
@@ -27,7 +28,7 @@ export function openWorldBossField(ui:Interface):void {
   const restoreMain=pauseMainForBoss(ui);
   let preparation=real?live!.prepare():undefined;
   let session=new WorldBossRehearsal(ui.world.save);
-  const view=new GameView(),intro=new WorldBossIntro();
+  const view=new GameView(),intro=new WorldBossIntro(),defeat=new WorldBossDefeat();
   let attemptId:string|undefined,starting=false,started=!real,networkBusy=false,networkAt=0,finishSent=false,accumulator=0;
   const requestId=crypto.randomUUID();
   const field=document.createElement('section');field.className='world-boss-field';field.setAttribute('role','region');field.setAttribute('aria-label','월드보스 전용 연습 필드');
@@ -35,14 +36,14 @@ export function openWorldBossField(ui:Interface):void {
   ui.root.querySelector('.game-shell')!.append(field);
   if(real){field.setAttribute('aria-label','월드보스 실전 필드');field.querySelector('.wb-field-health-label small')!.textContent='공유 보스 체력';field.querySelector('.wb-field-footer p')!.textContent='실전 · 계정당 하루 3회 · 보상은 우편함으로 지급됩니다.';}
   const get=<T extends HTMLElement>(selector:string)=>field.querySelector<T>(selector)!;
-  let closed=false,mounted=false,resultShown=false;const ownedFrames:Texture[]=[];const cleanedFrames=new Set<Texture>();const ownedTones:ColorMatrixFilter[]=[];
+  let closed=false,mounted=false,resultShown=false,defeatArtSelected=false;const ownedFrames:Texture[]=[];const cleanedFrames=new Set<Texture>();const ownedTones:ColorMatrixFilter[]=[];
   const releaseFrames=()=>{for(const frame of ownedFrames)frame.destroy(cleanedFrames.has(frame));ownedFrames.length=0;cleanedFrames.clear();for(const filter of ownedTones)filter.destroy();ownedTones.length=0;};
   const updateShared=()=>{if(!real||!live?.data)return;const data=live.data;get('.wb-field-boss-hp i').style.width=`${data.hp/data.maxHp*100}%`;get('.wb-field-boss-hp span').textContent=`${data.hp.toLocaleString('ko-KR')} / ${data.maxHp.toLocaleString('ko-KR')}`;};
   const sendBattle=async(action:'tick'|'dodge'|'finish')=>{
     if(!real||!live||!attemptId||networkBusy)return;networkBusy=true;
     try{const data=await live.request(action,{attemptId});if(closed)return;updateShared();
       const battle=data.battle;if(battle){while(session.elapsed+.049< battle.elapsed&&!session.finished)session.advance(.05);session.world.player.hp=battle.hp;
-        if(battle.finished||data.killed){finishSent=true;session.finished=true;session.damage=battle.damage;ui.worldBoss.standing=data.standing;void ui.journey.load();}}
+        if(battle.finished||data.killed){if(defeat.start(data.killed&&data.hp===0))defeatArtSelected=defeatFrames.length===8;finishSent=true;session.finished=true;session.damage=battle.damage;ui.worldBoss.standing=data.standing;void ui.journey.load();}}
     }catch(error){if(!closed){finishSent=false;ui.message(error instanceof Error?error.message:String(error));}}finally{networkBusy=false;}
   };
   const cleanup=()=>{
@@ -62,6 +63,17 @@ export function openWorldBossField(ui:Interface):void {
     const label=document.createElement('small');label.textContent=id?skills[id].name:'빈 슬롯';const cd=document.createElement('b');
     if(id)setSkillIcon(art,id);slot.append(art,label,cd);get('.wb-field-skills').append(slot);return {id,cd};
   });
+  const defeatFrames:Texture[]=[],defeatTones:ColorMatrixFilter[]=[];
+  // Background load: the new sheet never adds a blocking request to battle entry.
+  void Assets.load<Texture>(BOSS_DEFEAT_SHEET).then(sheet=>{
+    const frames=Array.from({length:8},(_,i)=>{
+      const x=Math.round(i%4*sheet.width/4),y=Math.round(Math.floor(i/4)*sheet.height/2);
+      return new Texture({source:sheet.source,frame:new Rectangle(x,y,Math.round((i%4+1)*sheet.width/4)-x,Math.round((Math.floor(i/4)+1)*sheet.height/2)-y)});
+    });
+    if(closed){for(const frame of frames)frame.destroy(false);return;}
+    defeatFrames.push(...frames);ownedFrames.push(...frames);
+    defeatTones.push(...frames.map(frame=>bossFrameTone(frame)));ownedTones.push(...defeatTones);
+  }).catch(()=>{});
   void (async()=>{
     try{
       const [sheets,arena]=await Promise.all([Promise.all([...BOSS_SHEETS,'/assets/world-boss/valkaron-roar-hd-v1.png'].map(path=>Assets.load<Texture>(path))),Assets.load<Texture>('/assets/world-boss/obsidian-arena-v1.png')]);
@@ -125,10 +137,17 @@ export function openWorldBossField(ui:Interface):void {
         }
         if(real&&started&&!finishSent&&!networkBusy&&(now-networkAt>2000||(session.finished&&now-networkAt>500))){networkAt=now;void sendBattle(session.finished?'finish':'tick');}
         updateShared();
-          get('.wb-battle-start').hidden=!intro.startCue;
-        get('.wb-battle-start').style.opacity=String(intro.cueOpacity);
+        if(!document.hidden&&defeat.started){
+          defeat.advance(dt);
+          // Settle remaining visual effects without running combat or changing the save.
+          session.world.attackPose=Math.max(0,session.world.attackPose-dt);
+          session.world.effects=session.world.effects.filter(effect=>{effect.age+=dt;return effect.age<effect.duration;});
+        }
+        const cue=get('.wb-battle-start');cue.textContent=defeat.started?'보스를 처치하였습니다.':'전투 시작';
+        cue.hidden=defeat.started?!defeat.notice:!intro.startCue;cue.style.opacity=String(defeat.started?defeat.noticeOpacity:intro.cueOpacity);
+        if(defeat.started){cue.style.letterSpacing='1px';cue.style.fontSize='21px';}
 
-        const visualTime=intro.elapsed+session.elapsed;
+        const visualTime=intro.elapsed+session.elapsed+defeat.elapsed;
         if(!reduceWeather){const vertices=flagBuffer.data as Float32Array;
           for(const i of flagVertices){const offset=bannerOffset(flagBase[i]/arena.width,flagBase[i+1]/arena.height,visualTime);vertices[i]=flagBase[i]+offset.x;vertices[i+1]=flagBase[i+1]+offset.y;}flagBuffer.update();
         }
@@ -137,18 +156,21 @@ export function openWorldBossField(ui:Interface):void {
         try{view.draw(session.world,visualTime);}finally{session.world.enemies=enemies;}
         const pose=bossPose(session.elapsed);
         const carryIdle=!intro.active&&session.elapsed<bossAttacks[0].start&&pose.motion==='idle';
-        const shownFrame=intro.active?intro.frame:carryIdle?Math.floor((intro.idleCarry+session.elapsed+1e-9)*5)%8:pose.frame,texture=frames[shownFrame];bossSprite.texture=texture;bossSprite.filters=[tones[shownFrame]];
+        const shownFrame=defeat.started?0:intro.active?intro.frame:carryIdle?Math.floor((intro.idleCarry+session.elapsed+1e-9)*5)%8:pose.frame;
+        const deathArt=defeat.started&&defeatArtSelected,texture=deathArt?defeatFrames[defeat.frame]:frames[shownFrame];bossSprite.texture=texture;bossSprite.filters=[deathArt?defeatTones[defeat.frame]:tones[shownFrame]];
         const h=view.app.screen.height,w=view.app.screen.width,[x,y]=projectArenaPoint(session.boss.x,session.boss.y,w,h);
         const size=Math.min(w*.82,h*.39);
         const footBuffer=bossSprite.geometry.getAttribute('aPosition').buffer,vertices=footBuffer.data as Float32Array;
         for(let row=0;row<32;row++)for(let col=0;col<24;col++){
-          const point=plantedBossVertex(shownFrame,col/23,row/31),i=(row*24+col)*2;
+          const point=deathArt?{x:col/23,y:row/31}:plantedBossVertex(shownFrame,col/23,row/31),i=(row*24+col)*2;
           vertices[i]=point.x*texture.width;vertices[i+1]=point.y*texture.height;
         }
         footBuffer.update();bossSprite.pivot.set(texture.width*.5,texture.height*.97);bossSprite.scale.set(size/texture.width,size/texture.height);
         const foot=plantedBossShift(shownFrame,intro.active?intro.footShift:footShift(pose.frame));
-        bossSprite.position.set(x,y+foot*size);bossSprite.tint=0xffffff;
-        const fixedBoots=bossFootContacts[shownFrame]!==undefined;
+        const deathOffset=defeatFrameOffset(defeat.frame);
+        bossSprite.position.set(x+(deathArt?deathOffset.x*size:0),y+(deathArt?deathOffset.y:foot)*size);bossSprite.tint=0xffffff;
+        bossSprite.alpha=defeat.started&&!deathArt?Math.max(.2,1-defeat.elapsed*.3):1;
+        const fixedBoots=!defeat.started&&bossFootContacts[shownFrame]!==undefined;
         bossSprite.mask=fixedBoots?bootMasks[0]:null;bootsSprite.visible=fixedBoots;
         for(const mask of bootMasks){mask.width=size;mask.height=size;mask.position.set(x,y+plantedBossShift(0,0)*size);}
         bootsSprite.width=size;bootsSprite.height=size;bootsSprite.position.set(x,y+plantedBossShift(0,0)*size);
@@ -167,24 +189,28 @@ export function openWorldBossField(ui:Interface):void {
         for(let i=0;i<5;i++)for(let layer=7;layer>0;layer--){
           clouds.ellipse(cloudCenter(i,reduceWeather?0:visualTime,w),h*(.06+(i%2)*.07),w*(.12+layer*.025),h*(.025+layer*.009)).fill({color:0x9b969e,alpha:.015});
         }
-        if(!intro.active&&pose.motion==='slam'&&pose.frame<32)view.ground.ellipse(x-25,y,95,38).stroke({color:0xb7674f,width:1.2,alpha:.24});
+        if(!defeat.started&&!intro.active&&pose.motion==='slam'&&pose.frame<32)view.ground.ellipse(x-25,y,95,38).stroke({color:0xb7674f,width:1.2,alpha:.24});
         const impactAge=slamImpactAge(session.elapsed);
-        if(!intro.active&&impactAge!==null){
+        if(!defeat.started&&!intro.active&&impactAge!==null){
           drawSlamImpact(view.ground,view.effects,x-25,y,impactAge);
           if(preferences.shake&&impactAge<.2)view.app.stage.position.y+=Math.sin(impactAge*85)*4*(1-impactAge/.2);
         }
+        const defeatImpact=defeat.impactAge;
+        if(defeatImpact!==null){drawSlamImpact(view.ground,view.effects,x-size*.255,y,defeatImpact);if(preferences.shake&&defeatImpact<.16)view.app.stage.position.y+=Math.sin(defeatImpact*80)*3*(1-defeatImpact/.16);}
         get('.wb-field-clock').textContent=`${Math.ceil(60-session.elapsed)}초`;
         get('.wb-field-damage').textContent=session.damage.toLocaleString('ko-KR');
         const hp=Math.ceil(session.world.player.hp),max=totalStats(session.world.save).health;
         get('.wb-field-player-hp i').style.width=`${Math.max(0,hp/max*100)}%`;get('.wb-player-value').textContent=`${hp} / ${max}`;
         for(const {id,cd} of skillNodes)cd.textContent=id?(session.world.cooldown[id]>0?session.world.cooldown[id].toFixed(1):'준비'):'';
-        if(session.finished&&!resultShown&&(!real||finishSent)){
+        if(session.finished&&!resultShown&&(!real||finishSent)&&(!defeat.started||defeat.finished)){
           resultShown=true;const result=get('.wb-field-result');result.hidden=false;
           renderBossResult(result,ui.worldBoss.standing,session.damage,{
             retry:()=>{if(ui.market.sync.locked||ui.market.sync.conflicted||ui.market.busy){ui.message('동기화가 끝난 뒤 도전해 주세요.');return;}cleanup();openWorldBossField(ui);},
             leave:()=>{cleanup();ui.open(null);}
           },false,real);
-          result.querySelector<HTMLButtonElement>('.wb-result-actions button')?.focus();view.app.ticker.stop();
+          const retry=result.querySelector<HTMLButtonElement>('.wb-result-actions button');
+          if(defeat.started&&retry){retry.disabled=true;retry.textContent='토벌 완료';result.querySelector<HTMLButtonElement>('.wb-result-actions button:last-child')?.focus();}else retry?.focus();
+          view.app.ticker.stop();
         }
       });
     }catch(error){if(!closed){get('.wb-field-loading').textContent='전장을 불러오지 못했습니다. 나갔다가 다시 도전해 주세요.';ui.message(error instanceof Error?error.message:String(error));}}

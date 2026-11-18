@@ -7,7 +7,6 @@
 
 | 작업 | 담당자 | 브랜치 | 수정 예정 파일 / 영향 영역 | 위험 등급 | 상태 |
 |---|---|---|---|---|---|
-| 164 월드보스 처치 모션 | fks3997 | feature/world-boss-defeat-fks3997 | src/ui/worldBossDefeat.ts 신규, worldBossField.ts, src/ui/modalDefaults.ts, public/assets/world-boss/ 처치시트, tests/{world-boss-field,modal-ui}.test.mjs, 문서 / 검꽂기·무릎꿇기·주저앉기·결과 지연 | 중 | [-] |
 | 142 코스튬 에셋 양산·아틀라스 패킹 및 레거시 리소스 정리 | songduckjin | `task/142-costume-atlas-cleanup` (대기) | `public/assets/**`(코스튬 아틀라스·매니페스트), `tools/costume-viewer/**` 임시 에셋, 구형 통합 바디 시트·미사용 레거시 코드(참조 0 확인 후 삭제) | 중 | [ ] |
 
 > 2026-11-18: `[작업 141]`을 PR 병합으로 마감하고 완료 이력을 `docs/TASK_ARCHIVE.md`로 옮겼다. 장비창(내 정보) 미리보기가 필드와 같은 공용 계획 `planHeroCostume()`을 **idle 0프레임**으로 소비하고, `fit` 좌표 표·`wearableEquipmentImage` 덧그리기·픽셀 스캔을 제거했다. 매니페스트·아틀라스가 없으면 136의 티어 전신 초상화로 폴백하고, 매니페스트 실패는 세션 동안 재요청하지 않는다. 같은 PR에서 `[작업 136]`(PR #72 Draft, `task/136-unified-equip-ui`)의 UI 레이아웃(`내 정보` 3탭·`statusModal` 제거·계정 성별 고정·6스탯+5×2 장비+가방)을 통합했다 — **PR #72 자체는 병합하지 않았고 내용은 141이 대체(superseded)한다.** 136의 티어 초상화 6장(`warrior_equipped_t{2,3,4}_{male,female}.png`)은 폴백 자산으로 유지하며 삭제는 142의 참조 0 검사 후에 한다. 다음 착수 대상은 `[작업 142]`(코스튬 에셋 양산·아틀라스 패킹·레거시 정리)이다.
