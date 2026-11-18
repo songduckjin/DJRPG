@@ -7,7 +7,7 @@
 
 ## [x] [작업 134] 필드 캐릭터 통합 바디 복구 및 무기 소켓·액션 자연화
 
-- **완료일**: 2026-11-18 · **등록자**: `songduckjin` · **실행 담당자**: `fks3997` · **브랜치**: `task/134-field-gear-action`
+- **완료일**: 2026-11-18 · **등록자·담당자**: `songduckjin` · **브랜치**: `task/134-field-gear-action`
 - 남녀 검 없는 서기·걷기 시트 10장을 제작해 갑옷·투구 통합 몸체를 복구하고, 직업·성별별 소켓에 무기를 배치했다. 공격 시 시트의 검 한 자루만 보이며 장비 등급에 따라 검기 색과 굵기가 바뀐다.
 - `pnpm exec tsc --noEmit`, 관련 테스트 76개, `node scripts/verify-item-art.mjs`, `git diff --check` 통과. PR #66이 `272c4619924603565a0b765a65ca0026078bb904`로 병합됐다. Cloudflare Pages Production `/version.json`에서 `272c46199246` 확인. 모바일 실기 미확인.
 

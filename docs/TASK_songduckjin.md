@@ -7,7 +7,7 @@
 ## 진행 중 작업
 
 ### [x] [작업 134] 필드 캐릭터 통합 바디 복구 및 무기 소켓·액션 자연화
-- **등록자**: `songduckjin` · **실행 담당자**: `fks3997`(사용자 위임) · **등록일**: 2026-11-18 · **브랜치**: `task/134-field-gear-action` · **위험 등급**: 중 · **상태**: `[x]` 완료
+- **등록자·담당자**: `songduckjin` · **등록일**: 2026-11-18 · **브랜치**: `task/134-field-gear-action` · **위험 등급**: 중 · **상태**: `[x]` 완료
 - **완료 결과**: 남녀 갑옷·투구 상태별 검 없는 서기·걷기 시트 10장, 직업·성별별 무기 소켓, 공격 시 소켓 검 숨김, 등급별 검기 색을 적용했다. 타입 검사·관련 테스트 76개·이미지 검증·diff 검사 통과. PR #66이 `272c4619924603565a0b765a65ca0026078bb904`로 병합됐고 Cloudflare Pages Production `/version.json`에서 `272c46199246`을 확인했다. 모바일 실기는 미확인.
 - **직접 수정**: `src/game/render/entities.ts`, `src/game/render/heroSockets.ts`(신규), `src/game/render/heroScale.ts`, `src/game/render/vfx.ts`, `src/game/render.ts`, `public/assets/*swordless.png`(남녀 서기·걷기 10장 신규), `tests/hero-weapon-render.test.mjs`, `tests/hero-art.test.mjs`, `docs/CODE_MAP.md`·`docs/QUICK_PATCH.md`. **간접 영향**: `src/game/appearance.ts`(`heroAppearance`의 갑옷·투구 분기), `tests/appearance.test.mjs`, `tests/hero-motion.test.mjs`, `tests/equipped-detail.test.mjs`. **건드리지 않음**: `src/ui/equipmentPortrait.ts`·`src/ui/modals/equipModal.ts`(장비창 미리보기, [작업 133] 영역), `src/game/store.ts`(세이브 형식), `server/**`.
 - **목표**: PR #61에서 필드 캐릭터(`entities.ts`)에 적용한 5부위 2D 아이콘 덧그리기를 걷어내, 갑옷·투구 통합 바디 시트의 자연스러운 어깨·체형·공격 액션을 복구한다. 무기는 프레임별 소켓 데이터(`heroSockets.ts`)로 분리해 서기·걷기·공격 전환이 매끄럽게 이어지게 하고, 무기 등급·종류의 차이는 덧그리기 대신 검기 이펙트로 남긴다.
