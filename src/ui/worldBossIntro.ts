@@ -1,3 +1,4 @@
+import {BOSS_FRAME_COUNT} from './worldBossPreview';
 // A short in-arena animation only. Camera and both actors remain in their combat positions.
 const roarFeet=[.9482,.9482,.9482,.9482,.95034,.95034,.95034,.95034];
 export class WorldBossIntro {
@@ -13,11 +14,11 @@ export class WorldBossIntro {
   get frame():number {
     const t=this.elapsed/1.5;
     if(t<.2||t>=1.55)return 0;
-    if(t<.55)return 41+Math.min(2,Math.floor((t-.2)/.35*3));
-    if(t<1.05)return 43+Math.min(1,Math.floor((t-.55)/.5*2));
-    return 45+Math.min(2,Math.floor((t-1.05)/.5*3));
+    if(t<.55)return BOSS_FRAME_COUNT+1+Math.min(2,Math.floor((t-.2)/.35*3));
+    if(t<1.05)return BOSS_FRAME_COUNT+3+Math.min(1,Math.floor((t-.55)/.5*2));
+    return BOSS_FRAME_COUNT+5+Math.min(2,Math.floor((t-1.05)/.5*3));
   }
-  get footShift():number{return this.frame>=40?.97-roarFeet[this.frame-40]:.0218;}
+  get footShift():number{return this.frame>=BOSS_FRAME_COUNT?.97-roarFeet[this.frame-BOSS_FRAME_COUNT]:.0218;}
   get startCue():boolean{return this.elapsed>=this.roarDuration&&this.active;}
   get cueOpacity():number {return this.startCue?Math.max(0,Math.min(1,(this.elapsed-this.roarDuration)/.18,(this.duration-this.elapsed)/.3)):0;}
 }

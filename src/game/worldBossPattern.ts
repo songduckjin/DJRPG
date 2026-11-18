@@ -1,6 +1,6 @@
 export type BossAttack={kind:'attack'|'slam';start:number;hit:number;end:number};
 export const SLAM_TIMES=[15,30,45] as const;
-const slams:BossAttack[]=SLAM_TIMES.map(hit=>({kind:'slam',start:hit-1,hit,end:hit+.87}));
+const slams:BossAttack[]=SLAM_TIMES.map(hit=>({kind:'slam',start:hit-1,hit,end:hit+1.27}));
 const normal:BossAttack[]=[];
 for(let hit=5;hit<60;hit+=5){
   // Postpone a clashing normal attack; the five-second interval resumes from that time.

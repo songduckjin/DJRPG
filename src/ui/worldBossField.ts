@@ -10,7 +10,7 @@ import {WorldBossRehearsal} from '../game/worldBossRehearsal';
 import {totalStats} from '../game/store';
 import {skills} from '../game/skills';
 import {setSkillIcon} from './skillArtwork';
-import {BOSS_SHEETS,bossPose,footShift,slamImpactAge} from './worldBossPreview';
+import {BOSS_SHEETS,BOSS_SHEET_GRIDS,bossPose,footShift,slamImpactAge} from './worldBossPreview';
 import type {Interface} from './interface';
 export function pauseMainForBoss(ui:Interface):()=>void {
   const wasPaused=ui.world.paused,resume=ui.suspendMainField?.();
@@ -48,10 +48,13 @@ export function openWorldBossField(ui:Interface):void {
   void (async()=>{
     try{
       const [sheets,arena]=await Promise.all([Promise.all([...BOSS_SHEETS,'/assets/world-boss/valkaron-roar-hd-v1.png'].map(path=>Assets.load<Texture>(path))),Assets.load<Texture>('/assets/world-boss/obsidian-arena-v1.png')]);
-      const frames=sheets.flatMap(sheet=>Array.from({length:8},(_,i)=>{
-        const left=Math.round(i%4*sheet.width/4),top=Math.round(Math.floor(i/4)*sheet.height/2);
-        return new Texture({source:sheet.source,frame:new Rectangle(left,top,Math.round((i%4+1)*sheet.width/4)-left,Math.round((Math.floor(i/4)+1)*sheet.height/2)-top)});
-      }));
+      const frames=sheets.flatMap((sheet,sheetIndex)=>{
+        const [cols,rows]=BOSS_SHEET_GRIDS[sheetIndex]??[4,2];
+        return Array.from({length:cols*rows},(_,i)=>{
+          const left=Math.round(i%cols*sheet.width/cols),top=Math.round(Math.floor(i/cols)*sheet.height/rows);
+          return new Texture({source:sheet.source,frame:new Rectangle(left,top,Math.round((i%cols+1)*sheet.width/cols)-left,Math.round((Math.floor(i/cols)+1)*sheet.height/rows)-top)});
+        });
+      });
       // Sheet frame 3 contains a detached blade fragment from the neighboring cell.
       const raw=frames[11],canvas=document.createElement('canvas'),rect=raw.frame;
       canvas.width=rect.width;canvas.height=rect.height;

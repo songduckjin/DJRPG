@@ -59,7 +59,7 @@ test('detached blade fragment is removed while the connected body and sword stay
 test('short standing roar pauses combat, starts and ends in the regular idle pose',async()=>{
  const {WorldBossIntro}=await import('../src/ui/worldBossIntro.ts');const intro=new WorldBossIntro(),battle=new WorldBossRehearsal(freshSave('male'));
  assert.equal(intro.roarDuration,2.7);assert.equal(intro.duration,3.8);assert.equal(intro.frame,0);let sawRoar=false;
- for(let i=0;i<75;i++){const dt=intro.advance(.05);if(dt>0)battle.advance(dt);assert(intro.frame===0||(intro.frame>=41&&intro.frame<=47));if(intro.frame>=41)sawRoar=true;}
+ for(let i=0;i<75;i++){const dt=intro.advance(.05);if(dt>0)battle.advance(dt);assert(intro.frame===0||(intro.frame>=43&&intro.frame<=49));if(intro.frame>=43)sawRoar=true;}
  assert(sawRoar);assert(intro.active);assert.equal(battle.elapsed,0);assert.equal(battle.damage,0);assert.equal(intro.frame,0);assert(intro.startCue);
  for(let i=0;i<2;i++){const dt=intro.advance(.05);if(dt>0)battle.advance(dt);}
  assert(!intro.active);assert(Math.abs(battle.elapsed-.05)<1e-9);assert.equal(intro.frame,0);
@@ -67,7 +67,7 @@ test('short standing roar pauses combat, starts and ends in the regular idle pos
 });
 test('standing roar visibly opens and closes in order with a fixed foot baseline',async()=>{
  const {WorldBossIntro}=await import('../src/ui/worldBossIntro.ts');const intro=new WorldBossIntro();
- const expected=[[0,0],[.25,41],[.45,43],[.8,44],[1.1,45],[1.3,46],[1.5,47],[1.6,0]];
+ const expected=[[0,0],[.25,43],[.45,45],[.8,46],[1.1,47],[1.3,48],[1.5,49],[1.6,0]];
  for(const [time,frame] of expected){intro.elapsed=time*1.5;assert.equal(intro.frame,frame);assert(Math.abs(intro.footShift-.0218)<.003);}
 });
 
