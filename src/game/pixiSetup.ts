@@ -1,6 +1,4 @@
-// Register every primitive used by the field before Application.init().
-// Dynamic scene imports can otherwise register pipes after renderer creation.
-import 'pixi.js/graphics';
-import 'pixi.js/sprite-tiling';
-import 'pixi.js/text';
-import 'pixi.js/mesh';
+import {extensions,MeshPipe,GraphicsPipe,GraphicsContextSystem,TilingSpritePipe,CanvasTextPipe,CanvasTextSystem} from 'pixi.js';
+// Explicit values keep registrations in the initial bundle even with split scene imports.
+// All field primitives must exist before Application.init() constructs renderPipes.
+extensions.add(MeshPipe,GraphicsPipe,GraphicsContextSystem,TilingSpritePipe,CanvasTextPipe,CanvasTextSystem);
