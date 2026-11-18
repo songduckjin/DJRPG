@@ -1,12 +1,71 @@
-import { Container, Sprite, Text } from 'pixi.js';
+import { Assets, Container, Rectangle, Sprite, Text, Texture } from 'pixi.js';
 import type { World } from '../world';
+import type { Save } from '../store';
 import { enemyFacing } from '../facing';
 import { heroAppearance } from '../appearance';
 import { heroAnimationMode, heroMotion } from './heroMotion';
 import { heroScale, heroBodyHeight } from './heroScale';
 import type { GameView } from '../render';
+import { equipmentImage, type Slot } from '../items';
 
-// The hero sprite sheet already carries the equipped body (bare/armored × helmet) and sword.
+const visibleGearSlots = ['weapon', 'helmet', 'armor', 'gloves', 'boots'] as const satisfies readonly Slot[];
+const gearPosition: Record<typeof visibleGearSlots[number], [number, number, number]> = {
+  weapon: [.73, .45, .48], helmet: [.51, .18, .15], armor: [.51, .47, .29],
+  gloves: [.37, .53, .1], boots: [.52, .9, .12]
+};
+
+function syncGear(view: GameView, save: Save, texture: Texture): void {
+  for (const slot of visibleGearSlots) {
+    const item = save.equipment[slot];
+    const art = item ? equipmentImage(item) : undefined;
+    const path = art?.path ?? '';
+    const key = art ? `${path}:${art.frame}` : '';
+    let shown = view.heroGear.get(slot);
+    if (shown && shown.path !== key) {
+      view.heroLayer.removeChild(shown.sprite);
+      shown.sprite.destroy();
+      view.heroGear.delete(slot);
+      shown = undefined;
+    }
+    if (!path || !art) continue;
+
+    let gearTexture = view.gearTextures.get(key);
+    if (!gearTexture) {
+      const sheet = view.gearTextures.get(path);
+      if (sheet) {
+        const left = Math.round(art.frame * sheet.source.width / art.columns);
+        const right = Math.round((art.frame + 1) * sheet.source.width / art.columns);
+        gearTexture = art.columns === 1 ? sheet : new Texture({ source: sheet.source, frame: new Rectangle(left, 0, right - left, sheet.source.height) });
+        view.gearTextures.set(key, gearTexture);
+      } else if (!view.gearLoading.has(path)) {
+        view.gearLoading.add(path);
+        void Assets.load<Texture>(path).then(loaded => {
+          loaded.source.scaleMode = 'linear';
+          view.gearTextures.set(path, loaded);
+          view.gearLoading.delete(path);
+        }).catch(error => {
+          view.gearLoading.delete(path);
+          console.error(`장비 이미지 로딩 실패: ${path}`, error);
+        });
+      }
+      if (!gearTexture) continue;
+    }
+    if (!shown) {
+      const sprite = new Sprite(gearTexture);
+      sprite.anchor.set(.5);
+      sprite.alpha = 1;
+      view.heroLayer.addChild(sprite);
+      shown = { path: key, sprite };
+      view.heroGear.set(slot, shown);
+    }
+    const [u, v, size] = gearPosition[slot];
+    const height = texture.height * size;
+    shown.sprite.position.set((u - .5) * texture.width, (v - view.hero.anchor.y) * texture.height);
+    shown.sprite.height = height;
+    shown.sprite.width = height * (gearTexture.width / gearTexture.height);
+  }
+}
+
 const walkAnchors = {
   maleBaseWalk: [.95, .95, .95, .95, .941, .944, .944, .923],
   maleBaseHelmWalk: [.97, .97, .97, .97, .97, .97, .97, .97],
@@ -29,7 +88,11 @@ const walkAnchors = {
 
 export function drawHero(this: GameView, world: World, x: number, y: number, time: number): void {
     const { player, save } = world;
-    const appearance = heroAppearance(save);
+    // The equipped helmet is rendered from its item art below; use a helmetless
+    // body sheet so its built-in generic helmet does not cover the selected item.
+    const appearance = heroAppearance(save.equipment.helmet
+      ? { ...save, equipment: { ...save.equipment, helmet: undefined } }
+      : save);
     const moving = Math.hypot(world.activeMove.x, world.activeMove.y) > .05;
     const walked = Math.hypot(player.x - this.lastHeroWorld.x, player.y - this.lastHeroWorld.y);
     this.lastHeroWorld = { x: player.x, y: player.y };
@@ -60,6 +123,7 @@ export function drawHero(this: GameView, world: World, x: number, y: number, tim
     this.heroLayer.position.set(x + lungeX + (player.hit > 0 ? Math.sin(time * 55) * 2 : 0), y + bob + lungeY);
     this.heroLayer.rotation = motion.rotation;
     this.hero.tint = player.hit > 0 ? 0xffd4cf : 0xffffff;
+    syncGear(this, save, texture);
     // The ground shadow follows the drawn body, not the frame: an attack cell is wider
     // than the hero only to keep the sword inside its own frame, and a frame-width
     // shadow grew 25 % whenever the hero swung.
