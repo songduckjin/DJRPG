@@ -123,6 +123,8 @@ test('portrait module keeps one idle frame and bounds result and atlas image cac
   assert.match(portraitSource,/equipmentPortraitAtlasPageCacheLimit = 2/);
   assert.match(portraitSource,/while \(atlasImages\.size > equipmentPortraitAtlasPageCacheLimit\)/);
   assert.match(portraitSource,/pendingAtlasImages\.has\(url\)/,'합성 중인 페이지는 캐시 축출 대상에서 제외한다');
+  assert.match(portraitSource,/composingAtlasImages\.has\(url\)/,'캔버스 합성이 끝날 때까지 페이지를 캐시에 고정한다');
+  assert.match(portraitSource,/composingAtlasImages\.set\(url, \(composingAtlasImages\.get\(url\) \?\? 0\) \+ 1\)/);
   assert.match(portraitSource,/planHeroCostume/);
 });
 test('all six tier portraits are 720px tall transparent PNG assets',()=>{

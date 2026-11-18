@@ -106,6 +106,7 @@ function ensureManifest(): Promise<CostumeLoadResult | undefined> {
 
 const atlasImages = new Map<string, Promise<HTMLImageElement>>();
 const pendingAtlasImages = new Set<string>();
+const composingAtlasImages = new Map<string, number>();
 const failedPages = new Set<string>();
 const portraitCache = new Map<string, Promise<string>>();
 const fallbackImages = new Map<string, Promise<HTMLImageElement>>();
@@ -123,7 +124,7 @@ function touchAtlasImage(url: string): void {
 
 function trimAtlasImages(): void {
   while (atlasImages.size > equipmentPortraitAtlasPageCacheLimit) {
-    const oldest = [...atlasImages.keys()].find(url => !pendingAtlasImages.has(url));
+    const oldest = [...atlasImages.keys()].find(url => !pendingAtlasImages.has(url) && !composingAtlasImages.has(url));
     if (!oldest) return;
     atlasImages.delete(oldest);
   }
@@ -211,6 +212,9 @@ async function composeCostume(layers: CostumeLayerPlan[]): Promise<string> {
     const url = costumeAtlasUrl(costumeAtlasPageName(layer.page, costumeLayerPageIndex(layer)));
     pageUrls.set(`${layer.page}#${costumeLayerPageIndex(layer)}`, url);
   }
+  const pinnedUrls = [...new Set(pageUrls.values())];
+  for (const url of pinnedUrls) composingAtlasImages.set(url, (composingAtlasImages.get(url) ?? 0) + 1);
+  try {
   const entries = await Promise.all([...pageUrls].map(async ([key, url]) =>
     [key, await loadImage(url, atlasImages, failedPages)] as const));
   const pages = new Map(entries);
@@ -245,6 +249,14 @@ async function composeCostume(layers: CostumeLayerPlan[]): Promise<string> {
   }
   // 성별은 계획의 본체 페이지(`body-male`/`body-female`)에 이미 반영돼 있어 별도 분기가 없다.
   return canvas.toDataURL('image/png');
+  } finally {
+    for (const url of pinnedUrls) {
+      const count = (composingAtlasImages.get(url) ?? 1) - 1;
+      if (count <= 0) composingAtlasImages.delete(url);
+      else composingAtlasImages.set(url, count);
+    }
+    trimAtlasImages();
+  }
 }
 
 /** 폴백: 전신 초상화 한 장을 캔버스에 맞춰 그린다(빈 화면 방지). */
