@@ -1,5 +1,5 @@
 export type BossRank = {rank:number;name:string;damage:number;mine?:boolean};
-export type BossStanding = {top:BossRank[];mine?:BossRank};
+export type BossStanding = {top:BossRank[];mine?:BossRank;nearMine?:BossRank[]};
 export const bossRewardTiers=[
  {id:'first',label:'1위',range:'rank',min:1,max:1,gold:50000,books:10},
  {id:'podium',label:'2~3위',range:'rank',min:2,max:3,gold:30000,books:7},

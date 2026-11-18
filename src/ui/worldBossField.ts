@@ -1,3 +1,4 @@
+import {renderBossResult} from './worldBossResult';
 import {bannerOffset,cloudCenter} from './worldBossWeather';
 import {preferences} from '../game/preferences';
 import {slamParticles} from './worldBossImpact';
@@ -22,10 +23,10 @@ export function openWorldBossField(ui:Interface):void {
   const restoreMain=pauseMainForBoss(ui);
   const session=new WorldBossRehearsal(ui.world.save),view=new GameView(),intro=new WorldBossIntro();
   const field=document.createElement('section');field.className='world-boss-field';field.setAttribute('role','region');field.setAttribute('aria-label','월드보스 전용 연습 필드');
-  field.innerHTML='<div class="wb-field-canvas"></div><header class="wb-field-header"><button class="wb-field-leave" type="button">나가기</button></header><div class="wb-battle-start" hidden>전투 시작</div><div class="wb-field-loading" role="status">전장을 준비하고 있습니다…</div><div class="wb-field-warning" hidden>광역 공격! 내려찍기를 준비합니다</div><footer class="wb-field-footer"><div class="wb-field-record"><strong class="wb-field-clock">60초</strong><span>누적 피해량 <b class="wb-field-damage">0</b></span></div><div class="wb-field-health-label">잿불의 군주 발카론 <small>보스 · 연습용</small></div><div class="wb-field-boss-hp"><i></i><span>공유 체력 미연동</span></div><div class="wb-field-health-label wb-player-label">내 체력 <b class="wb-player-value"></b></div><div class="wb-field-player-hp"><i></i><b></b></div><div class="wb-field-controls"><div><small class="wb-auto-label">메인 장착 스킬 · 자동 사용</small><div class="wb-field-skills"></div></div><button class="wb-field-dodge" type="button"><span aria-hidden="true">↝</span><small>회피</small><b class="wb-dodge-cd"></b></button></div><p>60초 전투 연습 · 실제 도전 횟수와 보상은 소모되지 않습니다.</p></footer><div class="wb-field-result" hidden><h3>전투 연습 종료</h3><p></p><button type="button">보스 소개로 돌아가기</button></div>' ;
+  field.innerHTML='<div class="wb-field-canvas"></div><header class="wb-field-header"><button class="wb-field-leave" type="button">나가기</button></header><div class="wb-battle-start" hidden>전투 시작</div><div class="wb-field-loading" role="status">전장을 준비하고 있습니다…</div><div class="wb-field-warning" hidden>광역 공격! 내려찍기를 준비합니다</div><footer class="wb-field-footer"><div class="wb-field-record"><strong class="wb-field-clock">60초</strong><span>누적 피해량 <b class="wb-field-damage">0</b></span></div><div class="wb-field-health-label">잿불의 군주 발카론 <small>보스 · 연습용</small></div><div class="wb-field-boss-hp"><i></i><span>공유 체력 미연동</span></div><div class="wb-field-health-label wb-player-label">내 체력 <b class="wb-player-value"></b></div><div class="wb-field-player-hp"><i></i><b></b></div><div class="wb-field-controls"><div><small class="wb-auto-label">메인 장착 스킬 · 자동 사용</small><div class="wb-field-skills"></div></div><button class="wb-field-dodge" type="button"><span aria-hidden="true">↝</span><small>회피</small><b class="wb-dodge-cd"></b></button></div><p>60초 전투 연습 · 실제 도전 횟수와 보상은 소모되지 않습니다.</p></footer><div class="wb-field-result" hidden></div>' ;
   ui.root.querySelector('.game-shell')!.append(field);
   const get=<T extends HTMLElement>(selector:string)=>field.querySelector<T>(selector)!;
-  let closed=false,mounted=false;const ownedFrames:Texture[]=[];const cleanedFrames=new Set<Texture>();const ownedTones:ColorMatrixFilter[]=[];
+  let closed=false,mounted=false,resultShown=false;const ownedFrames:Texture[]=[];const cleanedFrames=new Set<Texture>();const ownedTones:ColorMatrixFilter[]=[];
   const releaseFrames=()=>{for(const frame of ownedFrames)frame.destroy(cleanedFrames.has(frame));ownedFrames.length=0;cleanedFrames.clear();for(const filter of ownedTones)filter.destroy();ownedTones.length=0;};
   const cleanup=()=>{
     if(closed)return;closed=true;ui.worldBoss.damage=session.damage;field.remove();
@@ -35,7 +36,7 @@ export function openWorldBossField(ui:Interface):void {
   };
   ui.worldBossField=cleanup;
   const leave=()=>{cleanup();ui.open('worldBoss');};
-  get<HTMLButtonElement>('.wb-field-leave').onclick=leave;get<HTMLButtonElement>('.wb-field-result button').onclick=leave;
+  get<HTMLButtonElement>('.wb-field-leave').onclick=leave;
   get<HTMLButtonElement>('.wb-field-dodge').onclick=()=>{if(!intro.active)session.dodge();};
   field.addEventListener('keydown',event=>{event.stopPropagation();if(event.key==='Escape')leave();});
   get<HTMLButtonElement>('.wb-field-leave').focus();
@@ -123,7 +124,14 @@ export function openWorldBossField(ui:Interface):void {
         const hp=Math.ceil(session.world.player.hp),max=totalStats(session.world.save).health;
         get('.wb-field-player-hp i').style.width=`${Math.max(0,hp/max*100)}%`;get('.wb-player-value').textContent=`${hp} / ${max}`;
         for(const {id,cd} of skillNodes)cd.textContent=id?(session.world.cooldown[id]>0?session.world.cooldown[id].toFixed(1):'준비'):'';
-        if(session.finished){get('.wb-field-result').hidden=false;get('.wb-field-result p').textContent=`${session.defeated?'전투 불능 · ':''}누적 피해량 ${session.damage.toLocaleString('ko-KR')} · 연습 기록은 저장되지 않습니다.`;}
+        if(session.finished&&!resultShown){
+          resultShown=true;const result=get('.wb-field-result');result.hidden=false;
+          renderBossResult(result,ui.worldBoss.standing,session.damage,{
+            retry:()=>{if(ui.market.sync.locked||ui.market.sync.conflicted||ui.market.busy){ui.message('동기화가 끝난 뒤 도전해 주세요.');return;}cleanup();openWorldBossField(ui);},
+            leave:()=>{cleanup();ui.open(null);}
+          });
+          result.querySelector<HTMLButtonElement>('.wb-result-actions button')?.focus();view.app.ticker.stop();
+        }
       });
     }catch(error){if(!closed){get('.wb-field-loading').textContent='전장을 불러오지 못했습니다. 나갔다가 다시 도전해 주세요.';ui.message(error instanceof Error?error.message:String(error));}}
   })();

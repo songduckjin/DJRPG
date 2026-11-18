@@ -87,3 +87,21 @@ test('banner cloth moves below its attachment while stone and poles stay fixed; 
  assert.notDeepEqual(bannerOffset(.17,.29,0),bannerOffset(.17,.29,1));assert.notDeepEqual(bannerOffset(.95,.3,0),bannerOffset(.95,.3,1));
  assert.notEqual(cloudCenter(1,0,480),cloudCenter(1,2,480));
 });
+
+test('result window includes exactly the preceding nine ranks and mine, with top-ten boundary handled',async()=>{
+ const {resultRankWindow,exampleBossStanding}=await import('../src/ui/worldBossResult.ts');const standing=exampleBossStanding(),before=JSON.stringify(standing);
+ const rows=resultRankWindow(standing);assert.deepEqual(rows.map(r=>r.rank),[14,15,16,17,18,19,20,21,22,23]);assert.equal(rows[9].entry,standing.mine);assert(rows.every(r=>r.entry));
+ assert.deepEqual(resultRankWindow({top:[],mine:{rank:11,name:'나',damage:1}}).map(r=>r.rank),[2,3,4,5,6,7,8,9,10,11]);
+ assert.deepEqual(resultRankWindow({top:[],mine:{rank:10,name:'나',damage:1}}).map(r=>r.rank),[1,2,3,4,5,6,7,8,9,10]);
+ assert(resultRankWindow().every(r=>r.entry===undefined));assert.equal(JSON.stringify(standing),before);
+});
+test('result keeps retry and exit at bottom and exposes rank animation only as a labeled example',async()=>{
+ const {renderBossResult}=await import('../src/ui/worldBossResult.ts');const old=globalThis.document;let retried=0,left=0;
+ const create=()=>({children:[],className:'',attrs:{},append(...items){this.children.push(...items);},replaceChildren(...items){this.children=items;},setAttribute(k,v){this.attrs[k]=v;}});
+ globalThis.document={createElement:create};
+ try{const parent=create();renderBossResult(parent,undefined,123,{retry:()=>retried++,leave:()=>left++});let card=parent.children[0];
+ const buttons=card.children.at(-1).children;assert.deepEqual(buttons.map(b=>b.textContent),['다시 도전하기','나가기']);buttons[0].onclick();buttons[1].onclick();assert.equal(retried,1);assert.equal(left,1);
+ const demo=card.children.find(c=>c.className==='wb-result-demo');assert.match(demo.textContent,/예시/);demo.onclick();card=parent.children[0];assert.match(card.children[1].textContent,/실제 순위나 보상이 아닙니다/);
+ const window=card.children.find(c=>c.className.includes('wb-result-window'));assert.match(window.className,/is-descending/);const target=window.children[0].children[1];assert.equal(target.children.length,10);assert.equal(target.children[9].children[0].className,'wb-result-placeholder');assert.match(target.children[9].children[1].className,/is-mine/);
+ }finally{globalThis.document=old;}
+});

@@ -9,6 +9,7 @@
 |---|---|---|---|
 | 월드보스 배경가림/모션색감 | `src/ui/worldBossField.ts` Pixi배경·`bossFrameTone`, `worldBossPreview.ts`, `styles/world-boss.css` | 불투명캔버스뒤DOM배경·피격전체틴트금지 | `node --test tests/world-boss-preview.test.mjs tests/world-boss-field.test.mjs` |
 | 월드보스 깃발·구름 | `src/ui/worldBossWeather.ts`, `src/ui/worldBossField.ts` MeshPlane/색마스크 | 돌/봉변형·보스앞구름금지 | `node --test tests/world-boss-preview.test.mjs tests/world-boss-field.test.mjs` |
+| 월드보스 결과·순위연출 | `src/ui/worldBossResult.ts`, `src/ui/worldBossPresentation.ts`, `src/ui/worldBossField.ts`, `styles/world-boss.css` | 예시실순위표시·결과매프레임재생금지 | `node --test tests/world-boss-preview.test.mjs tests/world-boss-field.test.mjs` |
 | 월드보스 고정경기장 입장포효 | `src/ui/worldBossIntro.ts`, `src/ui/worldBossField.ts`, `src/ui/worldBossImpact.ts`, `styles/world-boss.css` | 인트로중전투dt/피해집계금지 | `node --test tests/world-boss-preview.test.mjs tests/world-boss-field.test.mjs` |
 | 월드보스 시안·모션 | `ui/worldBossPreview.ts`, `modals/worldBossModal.ts`, `ui/worldBossField.ts`, `game/worldBossRehearsal.ts`, `ui/worldBossPresentation.ts`, `styles/world-boss.css` | 실제공유체력·순위·보상처럼표시/저장금지 | `node --test tests/world-boss-preview.test.mjs tests/world-boss-field.test.mjs` |
 | 보상·업적 수령지연 | `server/journey.mjs`, `game/journey.ts`, `interface.ts` | 중복수령/소유권검증생략·성공후world.onChange재저장금지 | `node --test tests/journey.test.mjs tests/journey-ui.test.mjs` |
