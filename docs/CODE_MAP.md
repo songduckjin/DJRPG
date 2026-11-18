@@ -131,7 +131,7 @@
 
 - `src/ui/worldBossPreview.ts` — 메모리 전용60초모션연습·8×4프레임선택·RAF수명관리. `bossPose`·`framePosition`·`WorldBossPreview`
 - `src/ui/modals/worldBossModal.ts` — 월드보스팝업/도전·순위·보상시안, 공유상태미연동명시. `renderWorldBoss`
-- `src/styles/world-boss.css` — 58px무테상반신contain진입버튼·아래체력/3회시안표시·팝업·범위예고·충격파, 본체/이펙트분리.
+- `src/styles/world-boss.css` — 58px원본기본프레임직접크롭·무테상반신contain진입버튼·아래체력/3회시안표시·팝업·범위예고·충격파, 본체/이펙트분리.
 - `server/journey.mjs` — 수령검증/소유권/수령기록배치원자저장·성공응답선택적journey목록. 구클라이언트호환.
 
 ## 3.5 설계자 블록 — 레이어·소유권·시퀀스·영향 경계
