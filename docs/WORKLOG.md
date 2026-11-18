@@ -1,3 +1,7 @@
+## 2026-11-18 · 작업 133 장비창 완성 착용 이미지
+- 사진 속 장비 조합의 남녀 완성 착용 이미지를 제작하고 장비창의 DOM 레이어를 한 장의 렌더링 이미지로 교체했다. 다른 조합은 10개 장비 슬롯의 착용 파츠와 장신구를 몸에 맞춰 그려 메모리에 캐시한다.
+- `pnpm exec tsc --noEmit`, `node --test tests/equipped-detail.test.mjs`(8개), `node scripts/verify-item-art.mjs`, `git diff --check` 통과. PR #62가 `84a1dd0cd5917bd396f3d9ee9f68ee4acafe4854`로 main에 병합. Production `/version.json` `84a1dd0cd591`, 남녀 이미지 HTTP 200 확인. 모바일 실기 화면 미확인.
+
 ## 2026-11-18 · 작업 132 장비창 착용 미리보기 합성 위치 수정
 - 실제 장착한 투구·갑옷·검의 크기와 몸 기준 위치를 조정하고, 장갑·신발의 좌우 아트를 분리해 배치했다. 남녀 공통.
 - `pnpm exec tsc --noEmit`, `node --test tests/equipped-detail.test.mjs`(7개), `git diff --check` 통과. PR #60이 `d0389150a528a96a489c50688ebc37750b7468a2`로 main에 병합됐다. Cloudflare Pages Production `/version.json`에서 `d0389150a528` 확인. 모바일 실기 화면 미확인.
