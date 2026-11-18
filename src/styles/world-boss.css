@@ -130,3 +130,12 @@
 @keyframes wb-entry-aura {0%,100%{opacity:.55;transform:scale(.96);}50%{opacity:.95;transform:scale(1.08);}}
 @keyframes wb-entry-eyes {0%,100%{opacity:.45;}50%{opacity:1;}}
 @media (prefers-reduced-motion:reduce) {.world-boss-entry::before,.world-boss-entry::after {animation:none;}}
+.wb-field-intro {position:absolute;inset:0;z-index:4;pointer-events:none;background:linear-gradient(#08060b99,transparent 25%,transparent 60%,#08060bdd);animation:wb-intro-reveal .55s ease-out both;}
+.wb-intro-title {position:absolute;left:10px;right:10px;bottom:13%;text-align:center;text-shadow:0 2px 8px #000;color:#ead5b5;}
+.wb-intro-title small {font-size:11px;letter-spacing:2px;color:#b8a48c;}.wb-intro-title h2 {font-size:clamp(22px,6vw,30px);letter-spacing:3px;margin:9px 0;border-top:1px solid #b08c4b66;padding-top:12px;}.wb-intro-title span {font-size:11px;color:#c29775;}
+.wb-intro-skip {position:absolute;right:14px;bottom:calc(15px + env(safe-area-inset-bottom));min-height:44px;padding:8px 14px;border:1px solid #9c825866;border-radius:5px;background:#17131bba;color:#ead5b5;pointer-events:auto;touch-action:manipulation;}
+.wb-introducing .wb-field-footer {visibility:hidden;pointer-events:none;}.wb-introducing .wb-field-warning {display:none;}
+.wb-battle-start {position:absolute;z-index:4;inset:42% 0 auto;text-align:center;font-size:26px;letter-spacing:8px;font-weight:700;color:#f5d6a1;text-shadow:0 2px 10px #000;pointer-events:none;}
+.wb-field-intro[hidden],.wb-battle-start[hidden] {display:none;}
+@keyframes wb-intro-reveal {from{opacity:1;background-color:#08060b;}to{background-color:transparent;}}
+@media (prefers-reduced-motion:reduce) {.wb-field-intro {animation:none;}}
