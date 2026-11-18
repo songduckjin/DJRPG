@@ -41,6 +41,15 @@ export const weaponSockets: WeaponSocketTable = {
 
 export function heroClass(_save: Pick<Save, 'gender'>): ClassId { return 'warrior'; }
 
+/**
+ * 코스튬 모션 이름 → 무기 소켓 모션 (작업 140).
+ *
+ * 코스튬 모드의 무기는 매니페스트 `anchor`·`fit`을 쓰므로 이 소켓 표를 조회하지 않는다.
+ * 소켓 표는 **폴백(기존 통합 바디) 경로 전용**이며, 스킬·기본 공격 모션은 서는 자세(idle)에
+ * 무기를 두고 공격 프레임에서는 어차피 숨기므로 여기서는 `idle`·`walk`만 돌려준다.
+ */
+export function socketMotion(motion: string): 'idle' | 'walk' { return motion === 'walk' ? 'walk' : 'idle'; }
+
 export function weaponSocket(classId: ClassId, gender: Gender, motion: 'idle' | 'walk', frame: number): WeaponSocket {
   const sockets = weaponSockets[classId][gender];
   const index = Number.isFinite(frame) ? ((Math.trunc(frame) % 8) + 8) % 8 : 0;

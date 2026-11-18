@@ -355,8 +355,12 @@
 - **완료 기준**: `COSTUME_SYSTEM.md`가 v1.1로 갱신되고 §7 범위 안에서만 필드가 늘어 있다. `src/game/costume/**`가 매니페스트 로드·검증·폴백·아이템 매핑을 제공하고 75종 전부가 `costumeId` 또는 "코스튬 없음"으로 명시된다. 스킬 8종 매핑표가 문서에 남고 4종 템플릿으로 덮인다. 게임 화면·Save·DB/API는 변하지 않는다.
 - **동시 작업 확인**: 등록 시점(2026-11-18, `main` = `6402d79`) `docs/TASK.md`의 다른 작업은 `[작업 136]`(PR #72 Draft)과 `[작업 138]`(PR #74 Draft)이며, 139~142는 순차 진행이라 파일이 겹치지 않는다.
 
-### [ ] [작업 140] 본 게임 필드 렌더러 독립형 코스튬 전환
-- **담당자**: `songduckjin` · **예정 브랜치**: `task/140-costume-field-renderer` · **위험 등급**: 상 · **상태**: 대기
+### [x] [작업 140] 본 게임 필드 렌더러 독립형 코스튬 전환
+- **담당자**: `songduckjin` · **브랜치**: `task/140-costume-field-renderer` · **위험 등급**: 상 · **상태**: `[x]` 검증 완료
+- **완료 결과(2026-11-18)**: `src/game/render/costumeHero.ts`(신규)가 `planCostume()`·`resolveSkillMotion()`을 소비해 본체 3파츠 + 장비 레이어(파츠 교체·`zOrder`·`anchor`/`fit`)를 그리고, `entities.ts` `drawHero`가 **코스튬 모드 → 기존 통합 바디·무기 소켓 폴백** 순서로 그린다. 매니페스트·아틀라스가 없는 지금은 매 프레임 폴백하며 캐릭터가 사라지지 않는다. 모션은 대기·걷기 8프레임·기본 공격·스킬 4템플릿(`slash`/`spin`/`smash`/`cast`)이고, 공격 속도는 월드 쿨다운의 역수(상한 3배)로 시각 재생 배율에만 쓴다. 그림자(`costumeBodyPx` 기준)·잔상(레이어 전체 복제)·피격 tint는 두 경로가 같은 값을 쓴다. 남/여 동일 경로. **PR #79**(`task/140-costume-field-renderer`).
+- **검증**: `npx tsc --noEmit`, `node --test tests/costume-field-render.test.mjs`(신규 16건) + `tests/costume-manifest.test.mjs tests/appearance.test.mjs tests/hero-motion.test.mjs tests/hero-art.test.mjs tests/hero-weapon-render.test.mjs`, 전체 `node --test tests/*.test.mjs` **303건 통과**, `node scripts/verify-item-art.mjs`, `git diff --check`. `git diff --stat`로 `src/game/world.ts`·`store.ts`·`server/**`·`src/ui/**`·몬스터·NPC 렌더 경로 무변경 확인.
+- **대표 장면 기록(1회)**: 로컬 Vite + Chromium(SwiftShader 소프트웨어 GL), 412×892 DPR1, 자동사냥 3층. 폴백(남/여) = 캐릭터·그림자 정상 표시, 화면 전체 draw call 7~9/프레임, 콘솔 오류 1건(개발 서버가 없는 매니페스트 경로에 SPA fallback HTML을 줘 `manifest-parse` → 폴백). 코스튬 모드(합성 아틀라스 주입) = 레이어 8개·통합 바디 숨김·드로우 콜 동일(7)·콘솔 오류 0건. FPS는 소프트웨어 GL이라 절대값이 의미 없고(5.2~5.4), 폴백/코스튬이 같았다.
+- **새 계약**: 아틀라스 셀 `234×242`·8×8=64칸/페이지·변형당 32칸(페이지당 변형 2개)·프레임 슬롯 표는 `docs/COSTUME_SYSTEM.md` §7.2. 142는 이 규약으로 팩킹한다.
 - **선행 조건**: `[작업 139]` 완료(매니페스트·아이템 매핑 모듈이 main에 있음). 140은 실제 플레이 화면을 바꾸는 첫 작업이므로 139의 매니페스트 계약을 그대로 소비하고 계약을 바꾸지 않는다.
 - **목표**: `src/game/render/entities.ts`, `src/game/render.ts`, `src/game/render/heroMotion.ts`, `src/game/render/heroScale.ts`, `src/game/render/heroSockets.ts`를 독립형 코스튬 렌더러로 전환해 실제 게임 필드에 적용한다.
 - **수정 예정 파일**: 위 5개 파일, `AGENTS.md`, `docs/CODE_MAP.md`, `docs/QUICK_PATCH.md`, `tests/hero-motion.test.mjs`, `tests/hero-weapon-render.test.mjs`, `tests/hero-art.test.mjs`, `tests/appearance.test.mjs`. **건드리지 않음**: `src/game/world.ts`(상태 값 소비만), `src/game/store.ts`, `server/**`, `src/ui/**`([작업 141] 영역), 몬스터·NPC 렌더 경로.
@@ -387,6 +391,7 @@
 ### [ ] [작업 142] 코스튬 에셋 양산·아틀라스 패킹 및 레거시 리소스 정리
 - **담당자**: `songduckjin` · **예정 브랜치**: `task/142-costume-atlas-cleanup` · **위험 등급**: 중 · **상태**: 대기
 - **선행 조건**: `[작업 141]` 완료. 140·141이 공용 외형 계획으로 실제 동작하는 상태에서만 레거시를 지운다(§2·§8: 참조 검사 없는 삭제 금지).
+- **필수(2026-11-18 추가, 작업 140 실측)**: 140 배포분이 없는 매니페스트 경로 요청으로 `/assets/costume/v1/manifest.json`에 SPA fallback HTML을 `200 immutable`로 받아 사용자 브라우저에 **v1 URL이 캐시**됐다. 첫 실물 에셋은 `COSTUME_ASSET_VERSION`을 **2**로 올려 `/assets/costume/v2/...`로 배포하고, `/version.json`과 함께 매니페스트·아틀라스 HTTP 200(content-type `application/json`·`image/png`)을 확인한다.
 - **목표**: 실물 코스튬 에셋 양산 → 아틀라스 패킹 → 모바일 실기 GPU/메모리 프로파일링 → 전체 참조 검사 → 구형 통합 바디 시트·`tools/costume-viewer` 임시 에셋·미사용 레거시 코드를 **안전하게** 삭제.
 - **수정 예정 파일**: `public/assets/**`(코스튬 아틀라스 PNG·매니페스트 JSON 신규/교체), `tools/costume-viewer/**`(임시 에셋 정리), 레거시 코드(참조 0 확인 후), `scripts/verify-item-art.mjs`(아틀라스 검증 추가 시), `docs/CODE_MAP.md`·`docs/QUICK_PATCH.md`·`docs/TASK_ARCHIVE.md`.
 - **작업 내용**:
