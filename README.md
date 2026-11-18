@@ -7,4 +7,6 @@
 - 공통 작업 목록: `docs/TASK.md`
 - 개인 작업지시서: `docs/TASK_songduckjin.md`, `docs/TASK_fks3997.md`
 - 협업 및 Git 작업 정책: `CONTRIBUTING.md`
+- 코스튬 시스템 정책·정의: `docs/COSTUME_SYSTEM.md`
+- 작업 위치·파일 색인: `docs/CODE_MAP.md` / 반복 작업 빠른 경로: `docs/QUICK_PATCH.md`
 
