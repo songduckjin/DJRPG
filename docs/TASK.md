@@ -7,6 +7,7 @@
 
 | 작업 | 담당자 | 브랜치 | 수정 예정 파일 / 영향 영역 | 위험 등급 | 상태 |
 |---|---|---|---|---|---|
+| 163 월드보스 입장 지연 개선 | fks3997 | fix/world-boss-entry-delay-fks3997 | src/game/worldBossLive.ts, src/ui/worldBossField.ts, server/world-boss.mjs, tests/world-boss-live.test.mjs, 문서 / 저장 대기 병렬화·시작 DB 왕복 축소 | 중 | [-] |
 | 136 통합 내 정보(장비·스탯) UI 개편 및 4티어 장비창 초상화 교체 | songduckjin (`codex` 실행) | `task/136-unified-equip-ui` | `src/ui/interface.ts`, `src/ui/modals/equipModal.ts`, `src/ui/modals/statusModal.ts`(삭제), `src/ui/modals/accountModal.ts`, `src/ui/equipmentPortrait.ts`, `src/styles/modals.css`, `src/styles/hud.css` / 하단 내비 3탭·통합 내 정보 모달·장비창 티어 초상화 | 중 | [-] |
 | 141 장비창(내 정보) 공용 외형 연동 | songduckjin | `task/141-costume-ui-sync` (다음 대기) | `src/ui/equipmentPortrait.ts`, `src/ui/modals/equipModal.ts`(필요 시), `tests/equipped-detail.test.mjs` / 장비창 미리보기를 공용 코스튬 외형 계획으로 통합 | 중 | [ ] |
 | 142 코스튬 에셋 양산·아틀라스 패킹 및 레거시 리소스 정리 | songduckjin | `task/142-costume-atlas-cleanup` (대기) | `public/assets/**`(코스튬 아틀라스·매니페스트), `tools/costume-viewer/**` 임시 에셋, 구형 통합 바디 시트·미사용 레거시 코드(참조 0 확인 후 삭제) | 중 | [ ] |
