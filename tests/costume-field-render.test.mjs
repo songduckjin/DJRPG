@@ -207,7 +207,7 @@ test('아틀라스 셀은 변형·모션·프레임마다 하나씩 떨어지고
   assert.equal(costumeVariantsPerPage, 2);
   assert.equal(costumeAtlasPageName('armor', 0), 'armor');
   assert.equal(costumeAtlasPageName('armor', 1), 'armor-2');
-  assert.equal(costumeAtlasUrl('armor-2'), '/assets/costume/v1/atlas/armor-2.png');
+  assert.equal(costumeAtlasUrl('armor-male-2'), '/assets/costume/v2/atlas/armor-male-2.png');
 });
 
 for (const gender of ['male', 'female']) test(`${gender}: 매니페스트와 텍스처가 있으면 레이어로 그리고 폴백 본체는 숨긴다`, () => {

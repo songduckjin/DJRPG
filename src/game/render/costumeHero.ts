@@ -137,7 +137,9 @@ export function planHeroCostume(save: Pick<Save, 'gender' | 'equipment'>, load: 
     const layer: CostumeLayerPlan = {
       role: definition.slot,
       costumeId: definition.costumeId,
-      page: definition.slot,
+      // 장비도 성별 페이지를 쓴다(`armor-male`·`armor-female`). 갑옷이 몸통 파츠를 대체하는
+      // 전신 그림이라 남/여 그림을 섞으면 체형이 뒤바뀐다(작업 142, `docs/COSTUME_SYSTEM.md` §7.2).
+      page: `${definition.slot}-${save.gender}`,
       variant,
       zOrder: definition.zOrder ?? costumeSlotZOrder[definition.slot],
       anchor: costumeLayerAnchor(definition.anchor),

@@ -1,0 +1,555 @@
+{
+  "schemaVersion": 1,
+  "costumes": [
+    {
+      "costumeId": "weapon-t0",
+      "slot": "weapon",
+      "animMode": "frames",
+      "anchor": {
+        "x": 0,
+        "y": 0
+      },
+      "zOrder": 50
+    },
+    {
+      "costumeId": "weapon-t1",
+      "slot": "weapon",
+      "animMode": "frames",
+      "anchor": {
+        "x": 0,
+        "y": 0
+      },
+      "zOrder": 50
+    },
+    {
+      "costumeId": "weapon-t2",
+      "slot": "weapon",
+      "animMode": "frames",
+      "anchor": {
+        "x": 0,
+        "y": 0
+      },
+      "zOrder": 50
+    },
+    {
+      "costumeId": "weapon-t3",
+      "slot": "weapon",
+      "animMode": "frames",
+      "anchor": {
+        "x": 0,
+        "y": 0
+      },
+      "zOrder": 50
+    },
+    {
+      "costumeId": "weapon-t4",
+      "slot": "weapon",
+      "animMode": "frames",
+      "anchor": {
+        "x": 0,
+        "y": 0
+      },
+      "zOrder": 50
+    },
+    {
+      "costumeId": "weapon-t5",
+      "slot": "weapon",
+      "animMode": "frames",
+      "anchor": {
+        "x": 0,
+        "y": 0
+      },
+      "zOrder": 50
+    },
+    {
+      "costumeId": "weapon-t6",
+      "slot": "weapon",
+      "animMode": "frames",
+      "anchor": {
+        "x": 0,
+        "y": 0
+      },
+      "zOrder": 50
+    },
+    {
+      "costumeId": "weapon-t7",
+      "slot": "weapon",
+      "animMode": "frames",
+      "anchor": {
+        "x": 0,
+        "y": 0
+      },
+      "zOrder": 50
+    },
+    {
+      "costumeId": "weapon-t8",
+      "slot": "weapon",
+      "animMode": "frames",
+      "anchor": {
+        "x": 0,
+        "y": 0
+      },
+      "zOrder": 50
+    },
+    {
+      "costumeId": "weapon-t9",
+      "slot": "weapon",
+      "animMode": "frames",
+      "anchor": {
+        "x": 0,
+        "y": 0
+      },
+      "zOrder": 50
+    },
+    {
+      "costumeId": "offhand-t0",
+      "slot": "offhand",
+      "animMode": "frames",
+      "anchor": {
+        "x": 0,
+        "y": 0
+      },
+      "zOrder": 40
+    },
+    {
+      "costumeId": "offhand-t1",
+      "slot": "offhand",
+      "animMode": "frames",
+      "anchor": {
+        "x": 0,
+        "y": 0
+      },
+      "zOrder": 40
+    },
+    {
+      "costumeId": "offhand-t2",
+      "slot": "offhand",
+      "animMode": "frames",
+      "anchor": {
+        "x": 0,
+        "y": 0
+      },
+      "zOrder": 40
+    },
+    {
+      "costumeId": "offhand-t3",
+      "slot": "offhand",
+      "animMode": "frames",
+      "anchor": {
+        "x": 0,
+        "y": 0
+      },
+      "zOrder": 40
+    },
+    {
+      "costumeId": "offhand-t4",
+      "slot": "offhand",
+      "animMode": "frames",
+      "anchor": {
+        "x": 0,
+        "y": 0
+      },
+      "zOrder": 40
+    },
+    {
+      "costumeId": "helmet-t0",
+      "slot": "helmet",
+      "animMode": "frames",
+      "anchor": {
+        "x": 0,
+        "y": 0
+      },
+      "zOrder": 30
+    },
+    {
+      "costumeId": "helmet-t1",
+      "slot": "helmet",
+      "animMode": "frames",
+      "anchor": {
+        "x": 0,
+        "y": 0
+      },
+      "zOrder": 30
+    },
+    {
+      "costumeId": "helmet-t2",
+      "slot": "helmet",
+      "animMode": "frames",
+      "anchor": {
+        "x": 0,
+        "y": 0
+      },
+      "zOrder": 30
+    },
+    {
+      "costumeId": "helmet-t3",
+      "slot": "helmet",
+      "animMode": "frames",
+      "anchor": {
+        "x": 0,
+        "y": 0
+      },
+      "zOrder": 30
+    },
+    {
+      "costumeId": "helmet-t4",
+      "slot": "helmet",
+      "animMode": "frames",
+      "anchor": {
+        "x": 0,
+        "y": 0
+      },
+      "zOrder": 30
+    },
+    {
+      "costumeId": "helmet-t5",
+      "slot": "helmet",
+      "animMode": "frames",
+      "anchor": {
+        "x": 0,
+        "y": 0
+      },
+      "zOrder": 30
+    },
+    {
+      "costumeId": "helmet-t6",
+      "slot": "helmet",
+      "animMode": "frames",
+      "anchor": {
+        "x": 0,
+        "y": 0
+      },
+      "zOrder": 30
+    },
+    {
+      "costumeId": "helmet-t7",
+      "slot": "helmet",
+      "animMode": "frames",
+      "anchor": {
+        "x": 0,
+        "y": 0
+      },
+      "zOrder": 30
+    },
+    {
+      "costumeId": "helmet-t8",
+      "slot": "helmet",
+      "animMode": "frames",
+      "anchor": {
+        "x": 0,
+        "y": 0
+      },
+      "zOrder": 30
+    },
+    {
+      "costumeId": "helmet-t9",
+      "slot": "helmet",
+      "animMode": "frames",
+      "anchor": {
+        "x": 0,
+        "y": 0
+      },
+      "zOrder": 30
+    },
+    {
+      "costumeId": "armor-t0",
+      "slot": "armor",
+      "animMode": "frames",
+      "anchor": {
+        "x": 0,
+        "y": 0
+      },
+      "zOrder": 10
+    },
+    {
+      "costumeId": "armor-t1",
+      "slot": "armor",
+      "animMode": "frames",
+      "anchor": {
+        "x": 0,
+        "y": 0
+      },
+      "zOrder": 10
+    },
+    {
+      "costumeId": "armor-t2",
+      "slot": "armor",
+      "animMode": "frames",
+      "anchor": {
+        "x": 0,
+        "y": 0
+      },
+      "zOrder": 10
+    },
+    {
+      "costumeId": "armor-t3",
+      "slot": "armor",
+      "animMode": "frames",
+      "anchor": {
+        "x": 0,
+        "y": 0
+      },
+      "zOrder": 10
+    },
+    {
+      "costumeId": "armor-t4",
+      "slot": "armor",
+      "animMode": "frames",
+      "anchor": {
+        "x": 0,
+        "y": 0
+      },
+      "zOrder": 10
+    },
+    {
+      "costumeId": "armor-t5",
+      "slot": "armor",
+      "animMode": "frames",
+      "anchor": {
+        "x": 0,
+        "y": 0
+      },
+      "zOrder": 10
+    },
+    {
+      "costumeId": "armor-t6",
+      "slot": "armor",
+      "animMode": "frames",
+      "anchor": {
+        "x": 0,
+        "y": 0
+      },
+      "zOrder": 10
+    },
+    {
+      "costumeId": "armor-t7",
+      "slot": "armor",
+      "animMode": "frames",
+      "anchor": {
+        "x": 0,
+        "y": 0
+      },
+      "zOrder": 10
+    },
+    {
+      "costumeId": "armor-t8",
+      "slot": "armor",
+      "animMode": "frames",
+      "anchor": {
+        "x": 0,
+        "y": 0
+      },
+      "zOrder": 10
+    },
+    {
+      "costumeId": "armor-t9",
+      "slot": "armor",
+      "animMode": "frames",
+      "anchor": {
+        "x": 0,
+        "y": 0
+      },
+      "zOrder": 10
+    },
+    {
+      "costumeId": "gloves-t0",
+      "slot": "gloves",
+      "animMode": "frames",
+      "anchor": {
+        "x": 0,
+        "y": 0
+      },
+      "zOrder": 20
+    },
+    {
+      "costumeId": "gloves-t1",
+      "slot": "gloves",
+      "animMode": "frames",
+      "anchor": {
+        "x": 0,
+        "y": 0
+      },
+      "zOrder": 20
+    },
+    {
+      "costumeId": "gloves-t2",
+      "slot": "gloves",
+      "animMode": "frames",
+      "anchor": {
+        "x": 0,
+        "y": 0
+      },
+      "zOrder": 20
+    },
+    {
+      "costumeId": "gloves-t3",
+      "slot": "gloves",
+      "animMode": "frames",
+      "anchor": {
+        "x": 0,
+        "y": 0
+      },
+      "zOrder": 20
+    },
+    {
+      "costumeId": "gloves-t4",
+      "slot": "gloves",
+      "animMode": "frames",
+      "anchor": {
+        "x": 0,
+        "y": 0
+      },
+      "zOrder": 20
+    },
+    {
+      "costumeId": "gloves-t5",
+      "slot": "gloves",
+      "animMode": "frames",
+      "anchor": {
+        "x": 0,
+        "y": 0
+      },
+      "zOrder": 20
+    },
+    {
+      "costumeId": "gloves-t6",
+      "slot": "gloves",
+      "animMode": "frames",
+      "anchor": {
+        "x": 0,
+        "y": 0
+      },
+      "zOrder": 20
+    },
+    {
+      "costumeId": "gloves-t7",
+      "slot": "gloves",
+      "animMode": "frames",
+      "anchor": {
+        "x": 0,
+        "y": 0
+      },
+      "zOrder": 20
+    },
+    {
+      "costumeId": "gloves-t8",
+      "slot": "gloves",
+      "animMode": "frames",
+      "anchor": {
+        "x": 0,
+        "y": 0
+      },
+      "zOrder": 20
+    },
+    {
+      "costumeId": "gloves-t9",
+      "slot": "gloves",
+      "animMode": "frames",
+      "anchor": {
+        "x": 0,
+        "y": 0
+      },
+      "zOrder": 20
+    },
+    {
+      "costumeId": "boots-t0",
+      "slot": "boots",
+      "animMode": "frames",
+      "anchor": {
+        "x": 0,
+        "y": 0
+      },
+      "zOrder": 12
+    },
+    {
+      "costumeId": "boots-t1",
+      "slot": "boots",
+      "animMode": "frames",
+      "anchor": {
+        "x": 0,
+        "y": 0
+      },
+      "zOrder": 12
+    },
+    {
+      "costumeId": "boots-t2",
+      "slot": "boots",
+      "animMode": "frames",
+      "anchor": {
+        "x": 0,
+        "y": 0
+      },
+      "zOrder": 12
+    },
+    {
+      "costumeId": "boots-t3",
+      "slot": "boots",
+      "animMode": "frames",
+      "anchor": {
+        "x": 0,
+        "y": 0
+      },
+      "zOrder": 12
+    },
+    {
+      "costumeId": "boots-t4",
+      "slot": "boots",
+      "animMode": "frames",
+      "anchor": {
+        "x": 0,
+        "y": 0
+      },
+      "zOrder": 12
+    },
+    {
+      "costumeId": "boots-t5",
+      "slot": "boots",
+      "animMode": "frames",
+      "anchor": {
+        "x": 0,
+        "y": 0
+      },
+      "zOrder": 12
+    },
+    {
+      "costumeId": "boots-t6",
+      "slot": "boots",
+      "animMode": "frames",
+      "anchor": {
+        "x": 0,
+        "y": 0
+      },
+      "zOrder": 12
+    },
+    {
+      "costumeId": "boots-t7",
+      "slot": "boots",
+      "animMode": "frames",
+      "anchor": {
+        "x": 0,
+        "y": 0
+      },
+      "zOrder": 12
+    },
+    {
+      "costumeId": "boots-t8",
+      "slot": "boots",
+      "animMode": "frames",
+      "anchor": {
+        "x": 0,
+        "y": 0
+      },
+      "zOrder": 12
+    },
+    {
+      "costumeId": "boots-t9",
+      "slot": "boots",
+      "animMode": "frames",
+      "anchor": {
+        "x": 0,
+        "y": 0
+      },
+      "zOrder": 12
+    }
+  ]
+}

@@ -263,7 +263,7 @@ test('정상 계획은 매니페스트의 animMode·anchor·fit·zOrder를 그�
 });
 
 test('캐시 버스터: 매니페스트·아틀라스 URL이 한 버전 상수에서 나온다', () => {
-  assert.equal(COSTUME_ASSET_VERSION, 1);
+  assert.equal(COSTUME_ASSET_VERSION, 2);
   assert.equal(costumeManifestUrl(), `/assets/costume/v${COSTUME_ASSET_VERSION}/manifest.json`);
   assert.equal(costumeAtlasUrl(), `/assets/costume/v${COSTUME_ASSET_VERSION}/atlas/warrior.png`);
   assert.equal(costumeAtlasUrl('boss'), `/assets/costume/v${COSTUME_ASSET_VERSION}/atlas/boss.png`);
