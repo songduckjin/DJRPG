@@ -9,6 +9,7 @@ const {topTen,myRewardTier}=await import('../src/ui/worldBossPresentation.ts');
 for(const gender of ['male','female'])test(`${gender}: dedicated battle uses real attacks and equipped skill effects on a deep copy only`,()=>{
  const save=freshSave(gender);save.learned=['spin','warcry','hell'];save.quickSlots=['spin','warcry','hell'];const before=JSON.stringify(save);
  const battle=new WorldBossRehearsal(save);battle.advance(.05);
+ assert.equal(battle.boss.x,0);assert.equal(battle.boss.y,0);
  assert(battle.damage>0);assert(battle.world.attackPose>0);assert.deepEqual(battle.world.save.quickSlots,save.quickSlots);
  for(const kind of ['slash','spin','warcry','hell'])assert(battle.world.effects.some(e=>e.kind===kind),kind);
  for(let i=0;i<1500;i++)battle.advance(.05);assert(battle.finished);assert(battle.elapsed<=60);assert.equal(battle.world.enemies.length,1);assert.equal(battle.world.drops.length,0);

@@ -29,7 +29,7 @@ export function renderBossRewards(parent:HTMLElement,rank?:number):void {
 export function renderWorldBoss(ui:Interface,dialog:HTMLElement):void {
   ui.worldBoss.dispose();preloadBossSheets();const preview=ui.worldBoss;
   const body=document.createElement('section');body.className='world-boss-content';
-  body.innerHTML='<div class="wb-visual"><img class="wb-intro-portrait" src="/assets/world-boss/valkaron-resting-openhand-v1.png" alt="대검을 어깨에 걸치고 정보 영역에 손을 얹은 잿불의 군주 발카론"><i class="wb-intro-dust" aria-hidden="true"></i></div><img class="wb-intro-hand" src="/assets/world-boss/valkaron-resting-openhand-v1.png" alt="" aria-hidden="true">';
+  body.innerHTML='<div class="wb-visual"><img class="wb-intro-portrait" src="/assets/world-boss/valkaron-resting-openhand-v1.png" alt="대검을 어깨에 걸치고 정보 영역에 손을 얹은 잿불의 군주 발카론"><i class="wb-clouds wb-intro-clouds" aria-hidden="true"></i></div><img class="wb-intro-hand" src="/assets/world-boss/valkaron-resting-openhand-v1.png" alt="" aria-hidden="true">';
   const details=document.createElement('div');details.className='wb-details';
   const heading=document.createElement('div');heading.className='wb-info-heading';
   const exit=document.createElement('button');exit.type='button';exit.className='wb-info-exit';exit.textContent='나가기';exit.setAttribute('aria-label','월드보스 나가기');

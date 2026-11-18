@@ -18,7 +18,7 @@ export function openWorldBossField(ui:Interface):void {
   const restoreMain=pauseMainForBoss(ui);
   const session=new WorldBossRehearsal(ui.world.save),view=new GameView();
   const field=document.createElement('section');field.className='world-boss-field';field.setAttribute('role','region');field.setAttribute('aria-label','월드보스 전용 연습 필드');
-  field.innerHTML='<div class="wb-field-canvas"></div><header class="wb-field-header"><div><small>월드보스 · 전투 연습</small><h2>잿불의 군주 발카론</h2></div><button class="wb-field-leave" type="button">나가기</button><div class="wb-field-boss-hp"><i></i><span>연습용 보스 · 공유 체력 미연동</span></div><div class="wb-field-record"><strong class="wb-field-clock">60초</strong><span>누적 피해량 <b class="wb-field-damage">0</b></span></div></header><div class="wb-field-loading" role="status">전장을 준비하고 있습니다…</div><div class="wb-field-warning" hidden>광역 공격! 내려찍기를 준비합니다</div><footer class="wb-field-footer"><div class="wb-field-player-hp"><i></i><b></b></div><div class="wb-field-skills"></div><p>현재 장비·장착 스킬로 자동 전투 · 횟수와 보상은 소모되지 않습니다.</p></footer><div class="wb-field-result" hidden><h3>전투 연습 종료</h3><p></p><button type="button">보스 소개로 돌아가기</button></div>';
+  field.innerHTML='<div class="wb-field-scenery" aria-hidden="true"></div><div class="wb-clouds wb-field-clouds" aria-hidden="true"></div><div class="wb-field-canvas"></div><header class="wb-field-header"><div><small>월드보스 · 전투 연습</small><h2>잿불의 군주 발카론</h2></div><button class="wb-field-leave" type="button">나가기</button><div class="wb-field-record"><strong class="wb-field-clock">60초</strong><span>누적 피해량 <b class="wb-field-damage">0</b></span></div></header><div class="wb-field-loading" role="status">전장을 준비하고 있습니다…</div><div class="wb-field-warning" hidden>광역 공격! 내려찍기를 준비합니다</div><footer class="wb-field-footer"><div class="wb-field-boss-hp"><i></i><span>보스 HP · 공유 체력 미연동</span></div><div class="wb-field-player-hp"><i></i><b></b></div><div class="wb-field-controls"><div class="wb-field-skills"></div><button class="wb-field-dodge" type="button" aria-disabled="true" title="회피 기능 준비 중"><span aria-hidden="true">↝</span><small>회피</small></button></div><p>현재 장비·장착 스킬로 자동 전투 · 횟수와 보상은 소모되지 않습니다.</p></footer><div class="wb-field-result" hidden><h3>전투 연습 종료</h3><p></p><button type="button">보스 소개로 돌아가기</button></div>';
   ui.root.querySelector('.game-shell')!.append(field);
   const get=<T extends HTMLElement>(selector:string)=>field.querySelector<T>(selector)!;
   let closed=false,mounted=false;const ownedFrames:Texture[]=[];
@@ -50,6 +50,7 @@ export function openWorldBossField(ui:Interface):void {
       if(closed){releaseFrames();return;}
       await view.mount(get('.wb-field-canvas'));mounted=true;
       if(closed){view.app.destroy(true,{children:true,texture:false,textureSource:false});releaseFrames();return;}
+      view.app.renderer.background.alpha=0;
       get('.wb-field-loading').hidden=true;
       const bossSprite=new Sprite(frames[0]);bossSprite.anchor.set(.5,.97);view.actors.addChild(bossSprite);
       let previous=performance.now();view.app.ticker.maxFPS=60;
@@ -64,7 +65,11 @@ export function openWorldBossField(ui:Interface):void {
         const h=view.app.screen.height,w=view.app.screen.width,[x,y]=projectArenaPoint(session.boss.x,session.boss.y,w,h);
         const size=Math.min(w*.82,h*.39);bossSprite.width=size;bossSprite.height=size;
         bossSprite.position.set(x,y+footShift(pose.frame)*size);bossSprite.tint=session.boss.hit>0?0xffd9c0:0xffffff;
-        view.actors.setChildIndex(bossSprite,0);view.floor.tint=0xb57e60;
+        view.actors.setChildIndex(bossSprite,0);
+        // Only this dedicated view hides the regular field scenery.
+        view.floor.visible=false;view.terrainLayer.visible=false;view.glow.visible=false;view.shade.visible=false;
+        const shiftY=h*.57-y;
+        view.app.stage.position.y+=shiftY;
         get('.wb-field-warning').hidden=pose.motion!=='slam'||pose.impact||session.finished;
         if(pose.motion==='slam')view.ground.ellipse(x-25,y,95,38).stroke({color:pose.impact?0xffa344:0xc83024,width:pose.impact?6:2,alpha:pose.impact?.8:.45});
         get('.wb-field-clock').textContent=`${Math.ceil(60-session.elapsed)}초`;

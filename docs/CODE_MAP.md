@@ -130,12 +130,12 @@
 - 테스트는 `node --test tests/<이름>.test.mjs` 단건 실행 가능.
 
 - `src/ui/worldBossPreview.ts` — 메모리 전용60초모션연습·4×2고해상도4시트프레임선택·발기준정렬·RAF수명관리. `bossPose`·`framePosition`·`frameSheet`·`preloadBossSheets`·`WorldBossPreview`
-- `src/ui/modals/worldBossModal.ts` — 월드보스팝업/무헤더·상단투명상반신/뒤모래·허리띠절반가림/손앞층·이름옆나가기·하단정보창/도전·상위10+내순위한눈·보상시안, 공유상태미연동명시. `renderWorldBoss`
+- `src/ui/modals/worldBossModal.ts` — 월드보스팝업/무헤더·상단투명상반신/호흡·뒤구름·허리띠절반가림/손앞층·이름옆나가기·하단정보창/도전·상위10+내순위한눈·보상시안, 공유상태미연동명시. `renderWorldBoss`
 - `src/styles/world-boss.css` — HD원본얼굴/뿔직접크롭·58px무테진입버튼·후광분리(얼굴블러없음)·아래체력/3회시안표시·팝업·범위예고·충격파, 본체/이펙트분리.
 - `server/journey.mjs` — 수령검증/소유권/수령기록배치원자저장·성공응답선택적journey목록. 구클라이언트호환.
 
 - `src/game/worldBossRehearsal.ts` — 복제Save전용World·실제공격/스킬·단일보스고정·60초/전투불능종료. 실제저장콜백없음. `WorldBossRehearsal`
-- `src/ui/worldBossField.ts` — 별도전체GameView필드·고해상도보스텍스처·기본필드정지/복귀·로딩/결과/나가기. `openWorldBossField`·`pauseMainForBoss`
+- `src/ui/worldBossField.ts` — 별도전체GameView필드·고해상도보스텍스처·기본필드정지/복귀·확정흑요석제단/하늘구름·중앙보스·하단체력/회피표시전용·로딩/결과/나가기. `openWorldBossField`·`pauseMainForBoss`
 - `src/ui/worldBossPresentation.ts` — 상위10/내순위·1/2~3/4~10/11~50/51~100/101이하보상구간선택. 미연동시가짜순위금지. `topTen`·`myRewardTier`
 
 ## 3.5 설계자 블록 — 레이어·소유권·시퀀스·영향 경계

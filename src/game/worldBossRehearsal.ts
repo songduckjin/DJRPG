@@ -10,15 +10,16 @@ export class WorldBossRehearsal {
     const copy=structuredClone(save);copy.tutorial=3;copy.floorKills=0;
     this.world=new World(copy);this.world.spawnTimer=Infinity;this.world.bossPending=false;
     this.world.player.hp=totalStats(copy).health;
+    this.world.player.x=10;this.world.player.y=65;
     const maxHp=Math.max(1e12,totalStats(copy).attack*1e7);
-    this.boss={x:40,y:-40,hp:maxHp,maxHp,boss:true,hit:0,step:0,moving:false,knockX:0,knockY:0,slow:0};
+    this.boss={x:0,y:0,hp:maxHp,maxHp,boss:true,hit:0,step:0,moving:false,knockX:0,knockY:0,slow:0};
     this.world.enemies=[this.boss];
   }
   advance(seconds:number):void{
     if(this.finished)return;
     const dt=Math.min(.05,Math.max(0,seconds),60-this.elapsed);this.elapsed+=dt;
-    this.boss.x=40;this.boss.y=-40;this.boss.knockX=0;this.boss.knockY=0;
-    this.world.update(dt);this.boss.x=40;this.boss.y=-40;this.boss.moving=false;
+    this.boss.x=0;this.boss.y=0;this.boss.knockX=0;this.boss.knockY=0;
+    this.world.update(dt);this.boss.x=0;this.boss.y=0;this.boss.moving=false;
     this.damage=Math.max(0,Math.round(this.boss.maxHp-this.boss.hp));
     const cycle=Math.floor(this.elapsed/12),phase=this.elapsed%12;
     const hit=phase>=10.65?cycle*2+1:phase>=4.55?cycle*2:-1;

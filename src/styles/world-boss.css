@@ -40,7 +40,7 @@
 .wb-visual {position:relative;z-index:1;flex:0 0 33%;min-height:0;isolation:isolate;}
 .wb-visual .wb-subtitle {position:relative;z-index:4;margin:3px 0;}
 .wb-intro-portrait {position:absolute;bottom:0;left:-5%;width:110%;height:auto;max-height:none;transform:translateY(22%);z-index:2;pointer-events:none;}
-.wb-intro-dust {position:absolute;inset:-18% -10% -4%;z-index:0;pointer-events:none;background:radial-gradient(ellipse at 18% 75%,#c9a36a70,transparent 55%),radial-gradient(ellipse at 82% 55%,#a078495c,transparent 48%);filter:blur(7px);animation:wb-sand-drift 10s ease-in-out infinite alternate;}
+
 .wb-details {position:relative;z-index:2;display:flex;flex:1;min-height:0;flex-direction:column;border:1px solid #b58b51;background:linear-gradient(#21191d,#171317);padding:4px 10px 8px;box-shadow:0 8px 24px #0007;}
 .wb-details .wb-name {position:relative;z-index:5;font-size:18px;margin:6px 0;}
 .wb-details .wb-health,.wb-details .wb-tabs {position:relative;z-index:5;flex:none;}
@@ -54,7 +54,7 @@
 .wb-reward-row,.wb-reward-extra {display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:3px 8px;padding:7px;border:1px solid #634b39;background:#2c2020;}
 .wb-reward-row small {width:100%;color:#f2ca80;}.wb-reward-extra {border-color:#795b3d;background:#34241f;}.wb-reward-extra span {font-size:10px;}
 @keyframes wb-dust-drift {from{transform:translateX(-5%) scale(.97);opacity:.45;}to{transform:translateX(5%) scale(1.04);opacity:.8;}}
-@media (prefers-reduced-motion:reduce) {.wb-intro-dust {animation:none;}}
+
 .world-boss-field {position:absolute;inset:0;z-index:8;overflow:hidden;background:#201713;isolation:isolate;}
 .wb-field-canvas {position:absolute;inset:0;}.wb-field-canvas canvas {display:block;width:100%;height:100%;}
 .wb-field-header {position:absolute;left:10px;right:10px;top:calc(8px + env(safe-area-inset-top));z-index:6;display:grid;grid-template-columns:1fr auto;gap:6px;padding:9px;background:#21161cdd;border:1px solid #a27a49;color:#f0d3a4;}
@@ -83,7 +83,27 @@
 .wb-info-heading {display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:44px;flex:none;}
 .wb-details .wb-info-heading .wb-name {min-width:0;flex:1;text-align:left;font-size:18px;margin:0;line-height:1.25;}
 .wb-info-exit {position:relative;z-index:6;flex:none;min-width:50px;min-height:44px;padding:4px 6px;border:1px solid #806344;border-radius:3px;background:#2b1c1d;color:#dfc49e;font-size:11px;touch-action:manipulation;}
-.wb-intro-dust::before,.wb-intro-dust::after {content:"";position:absolute;inset:0;background-image:radial-gradient(2px 1px at 20% 40%,#d8b98d9c,transparent),radial-gradient(1px 1px at 70% 60%,#c6a47599,transparent);background-size:43px 31px,61px 47px;opacity:.38;}
-.wb-intro-dust::after {transform:translate(15px,8px);opacity:.23;}
-@keyframes wb-sand-drift {from{transform:translateX(-7%) scale(.98);opacity:.5;}to{transform:translateX(7%) scale(1.06);opacity:.85;}}
 @media (max-height:620px) {.wb-intro-portrait,.wb-intro-hand {left:50%;width:min(110%,calc(63.5dvh - 20px));transform:translate(-50%,22%);}}
+/* Shared cold cloud layers drift behind the portrait and over the arena sky. */
+.wb-clouds {position:absolute;pointer-events:none;overflow:hidden;z-index:0;mask-image:linear-gradient(#000 65%,transparent);}
+.wb-clouds::before,.wb-clouds::after {content:"";position:absolute;inset:-20% -45%;background:radial-gradient(ellipse at 25% 45%,#8a85834d,transparent 38%),radial-gradient(ellipse at 70% 30%,#77747e66,transparent 43%),radial-gradient(ellipse at 50% 85%,#24212c99,transparent 45%);filter:blur(12px);animation:wb-cloud-flow 32s ease-in-out infinite alternate;}
+.wb-clouds::after {opacity:.65;animation-duration:47s;animation-direction:alternate-reverse;}
+.wb-intro-clouds {inset:-25% -8% 0;}
+.wb-intro-portrait,.wb-intro-hand {transform-origin:50% 78%;animation:wb-breathe 4.8s ease-in-out infinite;}
+@keyframes wb-breathe {0%,100%{scale:1 1;}50%{scale:1.008 1.015;}}
+@keyframes wb-cloud-flow {from{transform:translateX(-12%);}to{transform:translateX(12%);}}
+.wb-field-scenery {position:absolute;inset:0;background:url('/assets/world-boss/obsidian-arena-v1.png') center/cover no-repeat;}
+.wb-field-clouds {inset:0 0 56%;}
+.wb-field-canvas {z-index:1;}
+.wb-field-header {left:14px;right:14px;top:calc(12px + env(safe-area-inset-top));padding:10px 12px;border:0;border-bottom:1px solid #bd985050;background:linear-gradient(#151218d9,#15121844);border-radius:10px;backdrop-filter:blur(4px);}
+.wb-field-header h2 {font-size:18px;letter-spacing:1px;}.wb-field-header small {letter-spacing:2px;font-size:9px;}
+.wb-field-leave {border:1px solid #b6986155;border-radius:6px;background:#19151a99;font-size:12px;}
+.wb-field-record {padding-top:3px;color:#d3bc95;font-size:11px;}.wb-field-clock {font-size:23px;font-variant-numeric:tabular-nums;}
+.wb-field-footer {left:14px;right:14px;bottom:calc(12px + env(safe-area-inset-bottom));padding:12px;border-radius:12px;border:1px solid #b3904f55;background:linear-gradient(#19141b99,#131015ee);backdrop-filter:blur(5px);box-shadow:0 4px 24px #0006;}
+.wb-field-boss-hp {height:16px;line-height:14px;border:1px solid #a27c4a66;border-radius:4px;overflow:hidden;font-size:9px;margin-bottom:7px;}.wb-field-boss-hp i {background:linear-gradient(#a64f40,#62242b);}
+.wb-field-player-hp {height:12px;line-height:12px;border-radius:4px;overflow:hidden;font-size:9px;background:#271b22;}.wb-field-player-hp i {background:linear-gradient(#c35152,#7b293a);}
+.wb-field-controls {display:flex;align-items:center;justify-content:center;gap:18px;margin-top:12px;}.wb-field-skills {gap:10px;margin:0;}
+.wb-field-slot {width:53px;}.wb-field-slot-art {width:46px;height:46px;box-shadow:inset 0 0 10px #0009,0 2px 6px #0008;border-color:#b39a6a88;}.wb-field-slot b {top:15px;}
+.wb-field-dodge {display:flex;flex-direction:column;align-items:center;justify-content:center;width:56px;height:56px;flex:none;border-radius:50%;border:1px solid #a5b4bc88;background:radial-gradient(#34404cbb,#141920e6);color:#d0dce3;box-shadow:0 2px 10px #0008;touch-action:manipulation;}.wb-field-dodge span {font-size:26px;line-height:25px;}.wb-field-dodge small {font-size:10px;}
+@media (prefers-reduced-motion:reduce) {.wb-clouds::before,.wb-clouds::after,.wb-intro-portrait,.wb-intro-hand {animation:none;}}
+@media (max-width:340px) {.wb-field-controls {gap:8px;}.wb-field-skills {gap:4px;}.wb-field-slot {width:45px;}}
