@@ -131,7 +131,7 @@
 
 - `src/ui/worldBossPreview.ts` — 메모리 전용60초모션연습·4×2고해상도4시트프레임선택·발기준정렬·RAF수명관리. `bossPose`·`framePosition`·`frameSheet`·`preloadBossSheets`·`WorldBossPreview`
 - `src/ui/modals/worldBossModal.ts` — 월드보스팝업/도전·순위·보상시안, 공유상태미연동명시. `renderWorldBoss`
-- `src/styles/world-boss.css` — 원본가슴아래직접크롭·72px이미지/58px무테진입버튼·붉은맥동후광(모션감소지원)·아래체력/3회시안표시·팝업·범위예고·충격파, 본체/이펙트분리.
+- `src/styles/world-boss.css` — HD원본얼굴/뿔직접크롭·58px무테진입버튼·후광분리(얼굴블러없음)·아래체력/3회시안표시·팝업·범위예고·충격파, 본체/이펙트분리.
 - `server/journey.mjs` — 수령검증/소유권/수령기록배치원자저장·성공응답선택적journey목록. 구클라이언트호환.
 
 - `src/game/worldBossRehearsal.ts` — 복제Save전용World·실제공격/스킬·단일보스고정·60초/전투불능종료. 실제저장콜백없음. `WorldBossRehearsal`

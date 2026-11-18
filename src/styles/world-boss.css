@@ -1,5 +1,5 @@
 .world-boss-entry {position:absolute;z-index:3;left:12px;top:84px;width:58px;height:80px;padding:0;border:0;border-radius:0;background:transparent;box-shadow:none;touch-action:manipulation;overflow:visible;}
-.world-boss-entry .wb-entry-art {position:absolute;width:72px;height:58px;left:-7px;top:0;background-image:url('/assets/world-boss/valkaron-original-chest-v1.png');background-size:contain;background-position:center;background-repeat:no-repeat;pointer-events:none;animation:wb-entry-ember 2.8s ease-in-out infinite;}
+.world-boss-entry .wb-entry-art {position:absolute;width:58px;height:58px;left:0;top:0;background-image:url('/assets/world-boss/valkaron-face-hd-v1.png');background-size:contain;background-position:center;background-repeat:no-repeat;pointer-events:none;filter:drop-shadow(0 1px 1px #000d);}
 .wb-entry-health {position:absolute;top:60px;left:4px;right:4px;height:4px;border-radius:2px;background:#271014;overflow:hidden;pointer-events:none;}
 .wb-entry-health i {display:block;width:100%;height:100%;background:linear-gradient(#e16b55,#8c242c);box-shadow:0 0 3px #f04c3b;}
 .world-boss-entry .wb-entry-count {position:absolute;top:67px;left:0;right:0;color:#efdbb8;font-size:10px;font-weight:700;line-height:12px;text-align:center;text-shadow:0 1px 3px #000;pointer-events:none;}
@@ -32,8 +32,7 @@
 .wb-challenge {display:block;width:100%;margin-top:9px;padding:11px;border:1px solid #b98b4b;background:linear-gradient(#792d25,#431a1d);color:#ffe2b0;font-weight:700;font-size:15px;}
 @keyframes wb-warning {to{opacity:.4;}}@keyframes wb-wave {from{transform:scale(.3);opacity:1;}to{transform:scale(1.1);opacity:0;}}@keyframes wb-slash {0%,100%{opacity:0;}40%{opacity:1;transform:rotate(30deg);}}
 
-@keyframes wb-entry-ember {0%,100%{filter:drop-shadow(0 1px 1px #000d) drop-shadow(0 0 3px #9c28268c);}50%{filter:drop-shadow(0 1px 1px #000e) drop-shadow(0 0 7px #ed4939cc);}}
-@media (prefers-reduced-motion:reduce) {.world-boss-entry .wb-entry-art {animation:none;filter:drop-shadow(0 1px 1px #000d) drop-shadow(0 0 4px #b3322fa3);}}
+@media (prefers-reduced-motion:reduce) {.world-boss-entry .wb-entry-art {animation:none;filter:drop-shadow(0 1px 1px #000d);}}
 /* Introduction and information each occupy roughly half of the popup. */
 .world-boss-modal {display:flex;flex-direction:column;height:min(760px,calc(100dvh - 32px));overflow:hidden;}
 .world-boss-modal > header {flex:none;}
@@ -70,3 +69,5 @@
 .wb-field-result h3 {font-size:24px;color:#ffd49a;}.wb-field-result p {font-size:13px;line-height:1.7;}.wb-field-result button {min-height:44px;padding:10px 20px;border:1px solid #bc914f;background:#602b23;color:#ffe1ac;}
 .wb-field-warning {position:absolute;left:20px;right:20px;top:27%;z-index:4;padding:8px;text-align:center;background:#7c211fd9;border:1px solid #ee8958;color:#ffe0ac;font-size:12px;pointer-events:none;}
 .wb-field-result[hidden],.wb-field-warning[hidden],.wb-field-loading[hidden] {display:none;}
+
+.world-boss-entry::before {content:"";position:absolute;left:8px;top:8px;width:42px;height:42px;border-radius:50%;background:radial-gradient(ellipse,#a02a2438,transparent 72%);pointer-events:none;}
