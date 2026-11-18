@@ -26,13 +26,15 @@ export class Journey {
     if(this.busy)return;
     this.generation++;this.loading=false;
     this.busy=true;this.error='';this.onChange();
+    let refreshed=false;
     try{
       const pending=this.sync.pendingMarket;
       if(pending&&!pending.action.startsWith('journey-'))throw new Error('거래소에서 이전 거래 결과를 먼저 확인하세요.');
       const result=await this.sync.mutate(pending?.action??action,pending?.data??data,pending?.requestId??crypto.randomUUID());
-      this.world.player.hp=this.world.save.health;this.onMessage(result.message??'처리했습니다.');this.world.onChange();
+      if(result.journey){this.data=result.journey;refreshed=true;}
+      this.world.player.hp=this.world.save.health;this.onMessage(result.message??'처리했습니다.');
     }catch(error){this.error=error instanceof Error?error.message:String(error);this.onMessage(this.error);}
-    finally{this.busy=false;this.onChange();void this.load();}
+    finally{this.busy=false;this.onChange();if(!refreshed)void this.load();}
   }
   ready(kind:'mail'|'rewards'|'achievements'):boolean{
     if(!this.data)return false;

@@ -69,6 +69,10 @@ async function start(): Promise<void> {
     });
     await mountWasteland(view, () => boot.update(renderTotal + 1, renderTotal + 1));
     if (boot.failed) return;
+    ui.suspendMainField = () => {
+      const running=view.app.ticker.started;view.app.ticker.stop();
+      return () => {if(running)view.app.ticker.start();};
+    };
 
     window.addEventListener('keydown', e => {
       if (['INPUT','SELECT','TEXTAREA','BUTTON'].includes((e.target as HTMLElement)?.tagName) || world.paused) return;

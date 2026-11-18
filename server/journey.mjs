@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { account, transaction, assertRevision, validateSave, reconcileItems, writeSave, fail } from './database.mjs';
+import { account, transaction, assertRevision, validateSave, reconcileItems, writeSave, fail, inventoryOwnerQuery } from './database.mjs';
 import { journeyState, journeyOperation, journeyView, dailyTasks } from './journey-state.mjs';
 const bookNames = { slash2:'소드 슬래시',spin:'드래곤 트위스터',crushing:'딜레이 크러싱',slam:'와일드 스탬프',warcry:'블러드 레이지',power:'파워 스트라이크',destroy:'디스트로이 스윙',hell:'헬 파이어 소드',mastery:'대검 숙련',body:'강인한 육체',instinct:'전투 본능' };
 function rewards(save, entries) {
@@ -23,10 +23,17 @@ export async function mutate(db,id,input) {
     if(Number(input.characterSlot??1)!==row.slot)fail(409,'CHARACTER_CONFLICT','다른 캐릭터가 선택되었습니다. 새로고침해 주세요.');
     if (row.password_hash==='guest') fail(403,'GUEST_READ_ONLY','보상 수령은 정식 계정에서 이용할 수 있습니다.');
     if(typeof input.requestId!=='string'||input.requestId.length<8||input.requestId.length>80)fail(400,'INVALID_REQUEST','요청 ID를 확인하세요.');
-    const replay=(await tx.execute({sql:'SELECT response_json FROM djrpg_market_requests WHERE account_id=? AND request_id=?',args:[id,input.requestId]})).rows[0];
-    if(replay)return {...JSON.parse(replay.response_json),save:row.save,revision:row.revision};
+    const reads=await tx.batch([
+      {sql:'SELECT response_json FROM djrpg_market_requests WHERE account_id=? AND request_id=?',args:[id,input.requestId]},
+      {sql:'SELECT state_json FROM djrpg_journey WHERE account_id=?',args:[id]},
+      inventoryOwnerQuery(id,input.progress)
+    ]);
+    row.journeyRecord=reads[1].rows[0]??null;
+    const replay=reads[0].rows[0];
+    if(replay)return {...JSON.parse(replay.response_json),save:row.save,revision:row.revision,journey:journeyView(await journeyState(tx,row),row.save)};
     assertRevision(row,input.revision); if(input.progress!==undefined)validateSave(input.progress);
-    const save=structuredClone(input.progress??row.save);await reconcileItems(tx,id,row.save,save,{slot:row.slot});
+    const operations=[];
+    const save=structuredClone(input.progress??row.save);await reconcileItems(tx,id,row.save,save,{slot:row.slot,owned:reads[2].rows,operations});
     const now=Date.now(),state=await journeyState(tx,row,save,now),view=journeyView(state,save,now);
     const beforeRewardIds=new Set(save.bag.map(item=>item.id));
     let selected=[];
@@ -49,14 +56,15 @@ export async function mutate(db,id,input) {
     }else if(input.action==='journey-delete'){
       state.mail=state.mail.filter(entry=>!entry.claimedAt); // unclaimed/expired attachments never silently disappear
     }else fail(400,'INVALID_ACTION','지원하지 않는 요청입니다.');
-    const ops=[journeyOperation(id,state)];
+    const ops=[...operations,journeyOperation(id,state)];
     for(const item of save.bag.filter(item=>!beforeRewardIds.has(item.id))){
       ops.push({sql:'INSERT INTO djrpg_item_owners VALUES (?,?,?,?)',args:[item.id,id,'inventory',JSON.stringify(item)]});
       ops.push({sql:'INSERT INTO djrpg_character_item_owners(item_id,account_id,slot) VALUES (?,?,?)',args:[item.id,id,row.slot]});
     }
+    const message=input.action==='journey-claim'?`${selected.length}개 보상을 수령했습니다.`:input.action==='journey-delete'?'수령 완료 우편을 삭제했습니다.':'우편을 확인했습니다.';
+    ops.push({sql:'INSERT INTO djrpg_market_requests VALUES (?,?,?)',args:[id,input.requestId,JSON.stringify({ok:true,message})]});
     const saved=await writeSave(tx,{...row,skipJourney:true},save,ops);
-    const result={ok:true,...saved,message:input.action==='journey-claim'?`${selected.length}개 보상을 수령했습니다.`:input.action==='journey-delete'?'수령 완료 우편을 삭제했습니다.':'우편을 확인했습니다.'};
-    await tx.execute({sql:'INSERT INTO djrpg_market_requests VALUES (?,?,?)',args:[id,input.requestId,JSON.stringify({ok:true,message:result.message})]});
+    const result={ok:true,...saved,message,journey:journeyView(state,save,now)};
     return result;
   });
 }

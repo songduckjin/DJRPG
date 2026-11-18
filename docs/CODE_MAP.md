@@ -7,6 +7,7 @@
 
 | 작업 영역 | 핵심 파일 | 연관 파일 | 관련 테스트 |
 |---|---|---|---|
+| 월드보스 소개·전용필드·순위/보상시안 | `src/ui/modals/worldBossModal.ts`, `src/ui/worldBossField.ts`, `src/game/worldBossRehearsal.ts` | `worldBossPreview.ts`, `worldBossPresentation.ts`, `interface.ts`, `main.ts` Ticker수명, `styles/world-boss.css`, `public/assets/world-boss/*` | `world-boss-preview`, `world-boss-field`, `modal-ui`, `modal-interaction`, `hero-motion`, `appearance` |
 | 전투·이동·층·보스·AI | `src/game/world.ts` | `arena.ts`, `facing.ts`, `bagCapacity.ts`, `store.ts`(`floorKillTarget`) | `world-movement`, `arena`, `facing` |
 | 장비창 착용 미리보기 | `ui/equipmentPortrait.ts`(`equipmentPortraitPlan`·`renderEquipmentPortrait`), `ui/modals/equipModal.ts` | `items.ts`(`wearableEquipmentImage`), `styles/modals.css`, `assets/warrior_equipped_starter|t2|t3|t4_{male,female}.png` | `equipped-detail` |
 | 스킬·스킬북·쿨타임·버프 | `src/game/skills.ts`, `src/game/loadout.ts` | `world.ts`(`cooldowns`·`action`), `skillProgress.ts`, `ui/skillBooks.ts`, `ui/skillLoadout.ts`, `ui/modals/skillModal.ts`, `ui/skillFeedback.ts` | `skill-progression`, `loadout`, `skill-ui`, `skill-feedback`, `skillbook-art` |
@@ -26,6 +27,7 @@
 ## 2. 증상 한 줄 색인
 
 | 증상·검색어 | 먼저 볼 파일 |
+| 보상·업적 수령 후 재조회/중복저장 지연 | `server/journey.mjs`, `src/game/journey.ts`, `interface.ts` journey.onChange (저장 재호출 금지) |
 |---|---|
 | 적이 안 다가옴·이동 속도·몹 체력·피해량 | `world.ts` `enemyMoveSpeed`/`enemyMaxHp`/`enemyHitDamage`/`update` |
 | 추격 중 공격이 끊기거나 적과 겹침 | `world.ts` `update`(적 추격 정지 거리=기본 공격 범위), `action`(수동 이동 중 차단) |
@@ -133,6 +135,22 @@
 - `scripts/backup-turso.mjs` — Turso → `.backups/*.sqlite` 덤프(stdin으로 `{url,authToken}`).
 - `tests/ts-loader.mjs` — `.ts`를 node:test에서 import하게 하는 로더. 각 테스트 첫 줄 `import './ts-loader.mjs'`.
 - 테스트는 `node --test tests/<이름>.test.mjs` 단건 실행 가능.
+
+- `src/styles/world-boss.css` — 보스버튼70px원형/62px얼굴·280도금색없는붉은단일체력링/하단80도갭·안쪽하단3회·고해상도얼굴크롭, 모션감소대응.
+- `src/ui/worldBossPreview.ts` — 메모리 전용60초모션연습·4×2고해상도5시트+2×1복귀시트(전투42프레임/내려찍기26·반기립연결2장/공유타격시간표)혼합격자프레임선택·실측발기준정렬/복귀완급·idle0재개·RAF수명관리. `bossPose`·`framePosition`·`frameSheet`·`preloadBossSheets`·`WorldBossPreview`
+- `src/ui/modals/worldBossModal.ts` — 월드보스팝업/무헤더·상단투명상반신/고해상도전투형얼굴·어깨검/앞손정지상반신·뒤구름·허리띠절반가림/손앞층·이름옆나가기·하단정보창/도전·상위10+내순위한눈·보상시안, 공유상태미연동명시. `renderWorldBoss`
+- `src/styles/world-boss.css` — HD원본얼굴/뿔직접크롭·58px무테진입버튼·후광분리(얼굴블러없음)·아래체력/3회시안표시·팝업·범위예고·충격파, 본체/이펙트분리.
+- `server/journey.mjs` — 수령검증/소유권/수령기록배치원자저장·성공응답선택적journey목록. 구클라이언트호환.
+
+- `src/game/worldBossPattern.ts` — 기본3초/광역15·30·45타격·1초예고·광역후2초대기·모션/피해/효과공통시간표. `bossAttacks`·`activeBossAttack`·`bossHitsBetween`
+- `src/game/worldBossRehearsal.ts` — 복제Save전용World·실제메인장착자동공격/스킬·수동회피0.45초/쿨4초·단일보스고정·60초/전투불능종료. 실제저장콜백없음·엔진접촉피해차단/시간표피해만. `WorldBossRehearsal`
+- `src/ui/worldBossIntro.ts` — 고정경기장2.7초기본→포효→기본·포효후idle호흡지속·시작글자1.1초완전퇴장후전투/호흡위상유지·시간분리, 스킵·카메라연출없음. `WorldBossIntro`
+- `src/ui/worldBossFooting.ts` — idle/복귀/연결프레임양발접점실측·하체mesh접점고정+동일idle부츠레이어/정강이경계mask(상체불변). `bossFootContacts`·`plantedBossVertex`·`plantedBossShift`
+- `src/ui/worldBossWeather.ts` — 깃발천정규좌표/변형·뒤구름이동좌표(색마스크mesh, 돌/봉고정·모션감소). `bannerOffset`·`cloudCenter`
+- `src/ui/worldBossImpact.ts` — 착지돌탄도/그림자·먼지확산/소멸의결정적입자상태. `slamParticles`
+- `src/ui/worldBossField.ts` — 고정경기장짧은포효·별도전체GameView필드·고해상도보스텍스처·기본필드정지/복귀·Pixi내부흑요석제단/보스뒤하늘구름·탄도돌조각/그림자/확산먼지충격·프레임색감보정/공격분리조각제거·중앙보스·하단시간/딜/보스적색·내청록체력/수동회피·로딩/종료1회결과렌더·ticker정지/재도전·나가기. `openWorldBossField`·`pauseMainForBoss`
+- `src/ui/worldBossResult.ts` — 종료전용결과/상위10→직전9명+내행하강·기존유저행밀림/명시적예시·하단재도전/나가기. `renderBossResult`·`resultRankWindow`
+- `src/ui/worldBossPresentation.ts` — 상위10/내순위·1/2~3/4~10/11~50/51~100/101이하보상구간선택. 미연동시가짜순위금지. `topTen`·`myRewardTier`
 
 ## 3.5 설계자 블록 — 레이어·소유권·시퀀스·영향 경계
 

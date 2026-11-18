@@ -561,3 +561,8 @@
 - 정량 비교 실측: 번들 증가(esbuild min+gzip) 자체 0B / Spine +57,939B / DragonBones +47,015B, Draw Call 장면 전체 1회/프레임, 데스크톱 1280×960 60.0fps, 모바일 뷰포트 390×844(DPR2) 24.9fps(SwiftShader 소프트웨어 GL), JS 힙 +5.98MB. 측정 환경·절차와 결론은 `tools/costume-viewer/TOOL_COMPARISON.md`.
 - 화면 검증: Vite + Chromium(WebGL2)으로 프레임 0~7·자동 재생·무기·좌우 반전·레이어·가림 토글을 확인했고 콘솔·페이지 오류 0건이었다. 미리보기는 `downloads/costume-viewer-preview.png`.
 - 검증: 루트·뷰어 `tsc --noEmit`, `node --test tools/costume-viewer/model.test.mjs` 8건, `node scripts/verify-item-art.mjs`, `git diff --check` 통과. PR #74를 Ready로 전환해 `main`에 스쿼시 병합했다(모바일 실기 미측정).
+
+## 2026-11-18 · PR #51 운영배포 대상
+- 사용자 요청으로 현재 월드보스 소개·전용 연습전·포효/결과/순위예시 UI와 보상·업적 수령 지연 개선을 운영 반영한다. 실공유HP/실순위/실보상은 미연동 연습전임을 유지한다.
+- 최신 main b39d160의 다른 작업자 외형·코스튬 반영분을 보존하고 통합했다. 진행 중 UI 개편은 포함하지 않는다. 성능 개선 등 추가 기능 수정 없음.
+- tsc·관련101테스트·장비75/착용50아트검사·운영빌드·diff 통과. Cloudflare Pages djrpg만 사용, 운영 https://djrpg.pages.dev/ .
