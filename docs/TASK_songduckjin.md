@@ -13,7 +13,7 @@
 - **수정**: `src/game/world.ts` — `damage()`에 `maxTargets`(기본 `Infinity`, 가까운 순) 추가, 평타만 `maxTargets=1`이고 피해는 `basicAttackPower = 1.6`배. 스킬 7종 광역 판정·쿨다운·서버 계약 무변경. `src/game/render/heroScale.ts` — pilot walk 335→300(4칸 평균 293~307), attack 335→270(내려찍는 칸 평균, 머리 위 검 프레임은 이상치), idle 335 유지.
 - **테스트**: `tests/world-movement.test.mjs` 5건(단일 대상·처치·스킬 광역·×1.6 피해·두 방 합계), `tests/hero-art.test.mjs` 2건(남녀 pilot 시트 알파 실측 대조·상태별 보정값).
 - **검증**: `npx tsc --noEmit`, `node --test tests/*.test.mjs` 389건 중 387 통과(`costume-field-render` 2건은 `17facd5` `main`에서도 실패하는 기존 실패), `node scripts/verify-item-art.mjs`, `npm run build`, `git diff --check` 통과.
-- **머지·배포**: [PR #103](https://github.com/songduckjin/DJRPG/pull/103) — Cloudflare Pages 체크 통과 후 스쿼시 병합하고 운영 `version.json`의 SHA를 확인한다.
+- **머지·배포(완료)**: [PR #103](https://github.com/songduckjin/DJRPG/pull/103) 스쿼시 병합 `11e99459be5b`. Pages 체크 통과(Workers Builds는 `main` 기존 실패), 운영 `version.json` `11e99459be5b`·`builtAt 2026-11-19T11:08:32Z`, `/`·pilot 시트 HTTP 200 확인.
 - **남은 것**: 사용자 실기 화면 확인(평타 대상·타격감, 걷기/공격 체격), `costume-field-render` 기존 실패 2건은 별도 작업.
 
 ### [x] [작업 147] 3D→2.5D Blender 자동 렌더 파이프라인 가이드·스크립트·레퍼런스 시안
