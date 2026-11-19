@@ -27,6 +27,8 @@
 - **계약**: `store.ts`·`server/**`·`world.ts`(전투·세이브) 무변경, `baseItems` 순서·아이템 소유권 무변경, 기존 기준 시트 6장·`headless/` 6장·투구 파츠 93장 무변경. `equipped-detail`·`helmet-head-render`·`hero-weapon-render`·`costume-field-render` 테스트의 초상화 키·가짜 뷰를 새 계약(갑옷 티어 포함)으로 갱신했다.
 - **검증**: `npx tsc --noEmit`, 전체 테스트 **464건 중 462 통과**(실패 2건은 `tests/costume-field-render.test.mjs`의 "drawHero가 코스튬 레이어로 그리고…"로 종전부터 같은 실패), `node scripts/verify-item-art.mjs`(갑옷 시트 120장 추가 확인), `npm run build`, `git diff --check`.
 - **검수 이미지**: `downloads/armor_ingame_{male,female}_{idle,walk,attack}_v1.png`(티어별 시트), `downloads/djrpg_armor_helmet_{male,female}_idle_v1.png`(갑옷 10×투구 5), `downloads/djrpg_armor4_helmet10_{male,female}_v1.png`(갑옷 4×투구 10), `downloads/djrpg_armor_helmet_{male,female}_{walk,attack}_v1.png`.
+- **배포**: [PR #113](https://github.com/songduckjin/DJRPG/pull/113) 스쿼시 병합(`b8034c1fdcc27183`). PR의 `Cloudflare Pages` 체크 통과(`Workers Builds: djrpg`는 종전부터 같은 실패). 병합 2분 뒤 운영 `https://djrpg.pages.dev/version.json`이 `b8034c1fdcc2`(`builtAt 2026-11-19T22:47:50Z`)로 갱신됐고, **갑옷 시트 120장 전부 HTTP 200**(`content-type: image/png`, 24~128KB — 예: `armors/warrior_male_armor_9_walk_v1.png` 120,159B, `armors/headless/warrior_male_armor_5_idle_v1.png` 29,335B), 배포 번들 `assets/index-m6nQCbdw.js`에 `const W0="/assets/pilot-25d/armors"` 와 `warrior_${성별}_armor_${인덱스}_${동작}_v1.png` 템플릿이 들어간 것을 확인했다. 원격 브랜치 삭제는 자격 증명 제한(403)으로 남아 있다.
+- **검수 이미지(게임 배율)**: `downloads/djrpg_armor_ingame_scale_v1.png` — 700px 화면 기준 `heroBodyFraction`(0.0935)로 축소해 갑옷 0·3·6·9번 × 남녀 × 서기/걷기 2프레임/공격 3프레임을 실제 크기(본체 약 65px)로 합성한 것.
 
 ## 2026-11-20 — 남녀 투구 10종 공격 3/4 옆모습 파츠 80장 추출·적용 (작업 154)
 
