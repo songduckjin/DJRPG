@@ -1,5 +1,14 @@
 # 작업 로그
 
+## 2026-11-19 — 무기 레이어 검 확대(1.35배)·손잡이 내림(실기 후속)
+
+- **제보**: 실기(웹)에서 "검 크기가 더 컸으면 좋겠다, 그리고 검이 머리 위에 떠 있나 봐". §7.9에서 70% 축소를 걷어낸 1배 상태에서도 `scripts/build-costume-atlas.py` `weapon_cells()`가 손 소켓(`SOCKETS`)의 어깨·목 높이(`hand_y = PIVOT_Y + (v - anchor_y) * frame * scale ≈ -120px`)에 손잡이를 앉히고 검 길이를 `BODY_PX * 0.55 = 104px`로 그려, 검이 몸에서 떠 보이고 짧았다.
+- `src/game/render/costumeHero.ts`: `costumeWeaponFit = { x: -3, y: 68, scaleX: 1.35, scaleY: 1.35 }`를 신설하고 `planHeroCostume()`에서 `definition.slot === 'weapon'`일 때 매니페스트 `fit`이 없으면 이 값을 기본으로 쓴다. 발끝 피벗(`anchor.y = .96`) 기준 1.35배로 올라간 `120 * 0.35 = 42px`를 되돌리고 26px를 더 내려(`+42 + 26 = +68`) 손잡이를 발끝 기준 `-94px`(몸높이 190px의 49% = 허리·손 높이)에 둔다. X는 `+8px` 손잡이 접점을 유지하도록 `-3`. 검 길이는 104 → 140px.
+- 매니페스트가 `fit`을 지정하면 무기도 그 값이 우선하며, 갑옷·투구는 종전대로 `fit`(없으면 보정 없음)만 쓴다. 공격 계열 무기 셀은 투명(공격 시트에 검 내장)이라 이 보정은 idle·walk에만 보인다. v3 아틀라스 PNG·매니페스트·`COSTUME_ASSET_VERSION`·Save/API 계약은 그대로다.
+- 아틀라스 실측으로 검증: 정지 프레임 무기 bbox 남 `y -206..-101`·여 `-191..-86`, 본체 상단 `-193`. `tests/costume-field-render.test.mjs`의 "무기 1배" 단언을 1.35배·`{-3, 68}` 기대로 바꾸고, 손잡이가 발끝 기준 `-94px`에 오는지 계산 단언과 매니페스트 `fit` 우선 검사를 추가했다.
+- 문서: `docs/COSTUME_SYSTEM.md` v2.1(§7.10 신설, §7.7·§7.9에 후속 표시), `docs/CODE_MAP.md`(캐릭터 외형 행·`costumeHero.ts` 항목).
+- 검증: `tsc --noEmit`, `node --test tests/*.test.mjs` 전체, `node scripts/verify-item-art.mjs`, `npm run build`, `git diff --check` 통과. PNG·스크린샷 열람은 이미지 입력 제한으로 하지 않았고 실제 화면 검수는 사용자 몫이다.
+
 ## 2026-11-19 — 자동전투 추격 후 공격 멈칫(사거리 경계 데드존) 수정
 
 - **제보**: 자동 사냥 중 캐릭터가 때리다가 멈추는 현상. `src/game/world.ts` `update`에서 적 추격 정지 거리(`stop = 89`)와 공격 사거리(`distance < 90`)가 1px 어긋나 있었다. 적이 89~90 구간에 있거나 넉백으로 경계에 걸친 프레임에는 `pursuing`이 참으로 남아 `activeMove`가 0이 아니고, `action()`의 "수동 이동 중이면 공격 취소" 규칙(`activeMove > .05`) 때문에 사거리 안인데도 공격이 씹혔다.

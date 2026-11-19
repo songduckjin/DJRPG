@@ -304,18 +304,39 @@ test('낡은 투구로 교체할 때 이전 코스튬 스프라이트와 페이�
   assert.equal(state.textures.size, 0);
 });
 
-test('필드·미리보기 공용 계획의 무기는 축소 없이 셀 원본 크기(1배)로 그린다', () => {
+test('필드·미리보기 공용 계획의 무기는 1.35배로 키우고 손잡이를 허리 높이로 내린다', () => {
   for (const gender of ['male', 'female']) {
     const save = fullEquipment(freshSave(gender));
     const plan = planHeroCostume(save, loadOk);
     assert.equal(plan.ok, true);
     const weapon = plan.layers.find(layer => layer.role === 'weapon');
-    // 두손검이 작아 보인다는 실기 제보(2026-11-19)로 70% 축소를 걷어냈다. 매니페스트 fit이 없으면 1배.
-    assert.equal(weapon.scale.x, 1);
-    assert.equal(weapon.scale.y, 1);
-    assert.deepEqual(weapon.offset, { x: 0, y: 0 });
+    // 2026-11-19 실기 제보 "검 크기를 키우고, 머리 위에 뜬 검을 내려 달라". 매니페스트 fit이 없을 때 기본값.
+    assert.equal(weapon.scale.x, 1.35);
+    assert.equal(weapon.scale.y, 1.35);
+    assert.deepEqual(weapon.offset, { x: -3, y: 68 });
     assert.equal(weapon.rotation, 0);
+    // 아틀라스의 손잡이 높이(발끝 기준 -120px)가 1.35배 피벗 확대(-42px)와 +68px 보정으로
+    // 발끝 기준 -94px(허리·손 높이, 몸높이 190px의 49%)에 오는지 계산으로 확인한다.
+    const cellPivotY = 242 * 0.96;
+    const gripY = cellPivotY - 120;
+    const drawnGrip = (gripY - cellPivotY) * weapon.scale.y + weapon.offset.y;
+    assert.equal(drawnGrip, -94);
+    assert(Math.abs(drawnGrip / 190) < .5, '손잡이는 몸통 위쪽(어깨·머리)이 아니라 허리 아래에 온다');
   }
+
+  // 매니페스트가 fit을 지정하면 무기도 그 값을 우선한다(다른 부위와 같은 규칙).
+  const custom = {
+    schemaVersion: COSTUME_MANIFEST_SCHEMA_VERSION,
+    costumes: [{ costumeId: 'weapon-t0', slot: 'weapon', animMode: 'attach', anchor: { x: 0, y: 0 }, fit: { x: 5, y: -7, scaleX: .9, scaleY: .8, rotation: .2 } }]
+  };
+  const save = freshSave('male');
+  save.equipment.weapon = item('weapon', '낡은 두손검');
+  const plan = planHeroCostume(save, { ok: true, manifest: custom, url: costumeManifestUrl(), fallback: false, reason: 'none' });
+  assert.equal(plan.ok, true);
+  const customWeapon = plan.layers.find(layer => layer.role === 'weapon');
+  assert.deepEqual(customWeapon.offset, { x: 5, y: -7 });
+  assert.deepEqual(customWeapon.scale, { x: .9, y: .8 });
+  assert.equal(customWeapon.rotation, .2);
 });
 
 test('문장·장갑·신발·매핑 밖 문장 이름은 캐릭터 외형을 바꾸거나 폴백을 만들지 않는다', () => {
