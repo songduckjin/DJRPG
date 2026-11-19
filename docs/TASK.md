@@ -7,6 +7,7 @@
 
 | 작업 | 담당자 | 브랜치 | 수정 예정 파일 / 영향 영역 | 위험 등급 | 상태 |
 |---|---|---|---|---|---|
+| 182 던전10층·투명배경 색상 | fks3997 | preview/gravel-background-fks3997 | ui/dungeon{Battle,Field,Lobby}.ts, modals/dungeonModal.ts, tests/dungeon-{battle,lobby}.test.mjs, 문서 | 중 | [-] |
 | 181 던전 대기창 석조벽 시안 적용 | fks3997 | preview/gravel-background-fks3997 | styles/dungeon.css, assets/dungeon/lobby-wall-v1.png, 문서 | 하 | [-] |
 
 
