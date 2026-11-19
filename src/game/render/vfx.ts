@@ -142,17 +142,6 @@ export function drawDeath(this: GameView, x: number, y: number, t: number, seed:
   }
 
 
-export function drawDrops(this: GameView, world: World, project: (x: number, y: number) => [number, number], time: number): void {
-    for (const drop of world.drops) {
-      const [x, y] = project(drop.x, drop.y), color = rarityColors[drop.item.rarity];
-      const pulse = .65 + Math.sin(time * 5) * .18;
-      this.glow.ellipse(x, y - 25, 12, 46).fill({ color, alpha: .13 * pulse });
-      this.ground.rect(x - 2, y - 70, 4, 68).fill({ color, alpha: .5 * pulse });
-      this.ground.ellipse(x, y + 2, 14, 5).fill({ color, alpha: .5 });
-      this.ground.moveTo(x, y - 11).lineTo(x + 6, y - 5).lineTo(x, y + 1).lineTo(x - 6, y - 5).closePath().fill(color);
-    }
-  }
-
 export function drawEffects(this: GameView, world: World, project: (x: number, y: number) => [number, number], time: number): void {
     const liveEffects = new Set(world.effects);
     for (const [effect, sprites] of this.vfxSprites) if (!liveEffects.has(effect)) { for (const sprite of sprites) sprite.destroy(); this.vfxSprites.delete(effect); }

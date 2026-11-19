@@ -3,9 +3,16 @@ import { addExperience, floorKillTarget, rollItem, skillLevel, totalStats, type 
 import { equipmentDropChance, rollSkillBook, skillBookDropChance } from './items';
 import { dragonOrbitFactor, skillDamageScale, skillDuration, skillRange, skills, type SkillId } from './skills';
 import { clampArenaPoint, spawnArenaEnemy } from './arena';
+import { LOOT_ABSORB_SECONDS, LOOT_REST_SECONDS } from './loot';
 
 export type Enemy = { x: number; y: number; hp: number; maxHp: number; boss: boolean; hit: number; step: number; moving: boolean; knockX: number; knockY: number; slow: number };
-export type Drop = { x: number; y: number; item: Item; age: number; warned: boolean };
+/** `absorb` is the age the pull into the character began at; while it is unset the drop still rests
+ *  where it fell (`LOOT_REST_SECONDS`). Without that mark the renderer cannot tell a drop held back
+ *  by a full bag from one already on its way in. */
+export type Drop = { x: number; y: number; item: Item; age: number; warned: boolean; absorb?: number };
+/** The coin a kill leaves behind. Its gold is already in `save.gold` (granted at the kill, as
+ *  before); the coin itself is only what the field draws for a beat before it flies to the hero. */
+export type Coin = { x: number; y: number; age: number; gold: number };
 export type Effect = { x: number; y: number; kind: 'slash' | 'slash2' | 'spin' | 'crushing' | 'slam' | 'warcry' | 'power' | 'destroy' | 'hell' | 'hit' | 'death'; age: number; duration: number; angle: number; swing?: number; amount?: number; nextHit?: number; power?: number; level?: number };
 export type Action = 'attack' | SkillId;
 export const cooldowns: Record<Action, number> = { attack: .48, slash2: skills.slash2.cooldown, spin: skills.spin.cooldown, crushing: skills.crushing.cooldown, slam: skills.slam.cooldown, warcry: skills.warcry.cooldown, power: skills.power.cooldown, destroy: skills.destroy.cooldown, hell: skills.hell.cooldown };
@@ -19,6 +26,7 @@ export class World {
   player = { x: 0, y: 0, facing: 0, facingSide: 1, hp: 100, berserk: 0, berserkLevel: 1, hit: 0 };
   enemies: Enemy[] = [];
   drops: Drop[] = [];
+  coins: Coin[] = [];
   effects: Effect[] = [];
   cooldown: Record<Action, number> = { attack: 0, slash2: 0, spin: 0, crushing: 0, slam: 0, warcry: 0, power: 0, destroy: 0, hell: 0 };
   spawnTimer = 0;
@@ -28,7 +36,7 @@ export class World {
   activeMove = { x: 0, y: 0 };
   bossPending = false;
   private swing = 1;
-  private chaseTarget?: Enemy | Drop;
+  private chaseTarget?: Enemy;
   private pursuing = false;
   onChange: () => void = () => {};
   onMessage: (text: string) => void = () => {};
@@ -48,7 +56,7 @@ export class World {
     const lostDrops = this.drops.length;
     this.save.floor = floor;
     this.save.floorKills = 0;
-    this.enemies = []; this.drops = []; this.effects = [];
+    this.enemies = []; this.drops = []; this.coins = []; this.effects = [];
     this.bossPending = false; this.spawnTimer = 0;
     this.player.x = 0; this.player.y = 0; this.attackHeld = false;
     this.activeMove = { x: 0, y: 0 };
@@ -139,13 +147,16 @@ export class World {
     this.effects.push({ x: enemy.x, y: enemy.y, kind: 'death', age: 0, duration: .7, angle: Math.random() * Math.PI * 2 });
     this.save.kills++;
     if (enemy.boss) this.save.bossKills++;
-    this.save.gold += enemy.boss ? 70 * this.save.floor : 3 + this.save.floor;
+    const gold = enemy.boss ? 70 * this.save.floor : 3 + this.save.floor;
+    this.save.gold += gold;
+    // The coin shows the gold that was just paid: nothing is credited when it flies in.
+    this.coins.push({ x: enemy.x, y: enemy.y, age: 0, gold });
     const gained = addExperience(this.save, enemy.boss ? 45 : 8);
     if (gained) { this.player.hp = this.save.health; this.onMessage(`레벨 ${this.save.level} 달성!`); }
     const guaranteed = this.save.tutorial === 0 && !enemy.boss;
     if (guaranteed || Math.random() < equipmentDropChance(this.save.floor, enemy.boss)) {
       this.drops.push({ x: enemy.x, y: enemy.y, item: rollItem(this.save.floor, guaranteed, enemy.boss), age: 0, warned: false });
-      if (guaranteed) { this.save.tutorial = 1; this.onMessage('낡은 두손검이 떨어졌습니다. 빛기둥으로 이동하세요!'); }
+      if (guaranteed) { this.save.tutorial = 1; this.onMessage('낡은 두손검이 떨어졌습니다. 잠시 뒤 자동으로 획득됩니다!'); }
     }
     if (Math.random() < skillBookDropChance(this.save.floor, enemy.boss)) {
       this.drops.push({ x: enemy.x, y: enemy.y, item: rollSkillBook(this.save.floor), age: 0, warned: false });
@@ -181,25 +192,25 @@ export class World {
     p.berserk = Math.max(0, p.berserk - dt);
     p.hit = Math.max(0, p.hit - dt);
     this.activeMove = { x: 0, y: 0 };
-      const drop = this.drops.filter(drop => canStoreItem(this.save.bag, drop.item)).reduce<Drop | undefined>((best, current) => !best || Math.hypot(current.x - p.x, current.y - p.y) < Math.hypot(best.x - p.x, best.y - p.y) ? current : best, undefined);
-      const enemy = this.nearest();
-      const destination = drop ?? enemy;
-      if (destination) {
-        const dx = destination.x - p.x, dy = destination.y - p.y, distance = Math.hypot(dx, dy);
-        if (destination !== this.chaseTarget) { this.chaseTarget = destination; this.pursuing = false; }
-        const start = drop ? 60 : 90, stop = drop ? 20 : 89;
-        if (distance > start) this.pursuing = true;
-        else if (distance <= stop) this.pursuing = false;
-        this.activeMove = this.pursuing && distance > 0 ? { x: dx / distance, y: dy / distance } : { x: 0, y: 0 };
-        if (distance > 1) this.faceTarget(destination);
-        if (!drop && distance < 190) {
-          if (distance < 90) this.action('attack');
-          for (const skill of this.save.quickSlots) {
-            if (!skill || !this.save.learned.includes(skill) || this.cooldown[skill] > 0 || distance > skillRange(skill, skillLevel(this.save, skill))) continue;
-            this.action(skill);
-          }
+    // Ground loot comes to the hero on its own (see the drop loop below), so hunting only ever
+    // walks toward an enemy and keeps the hero in the fight instead of on the way to a coin.
+    const destination = this.nearest();
+    if (destination) {
+      const dx = destination.x - p.x, dy = destination.y - p.y, distance = Math.hypot(dx, dy);
+      if (destination !== this.chaseTarget) { this.chaseTarget = destination; this.pursuing = false; }
+      const start = 90, stop = 89;
+      if (distance > start) this.pursuing = true;
+      else if (distance <= stop) this.pursuing = false;
+      this.activeMove = this.pursuing && distance > 0 ? { x: dx / distance, y: dy / distance } : { x: 0, y: 0 };
+      if (distance > 1) this.faceTarget(destination);
+      if (distance < 190) {
+        if (distance < 90) this.action('attack');
+        for (const skill of this.save.quickSlots) {
+          if (!skill || !this.save.learned.includes(skill) || this.cooldown[skill] > 0 || distance > skillRange(skill, skillLevel(this.save, skill))) continue;
+          this.action(skill);
         }
-      } else { this.chaseTarget = undefined; this.pursuing = false; this.activeMove = { x: 0, y: 0 }; }
+      }
+    } else { this.chaseTarget = undefined; this.pursuing = false; this.activeMove = { x: 0, y: 0 }; }
     const magnitude = Math.hypot(this.activeMove.x, this.activeMove.y);
     if (magnitude > .05) {
       const speed = (p.berserk > 0 ? 160 + (p.berserkLevel - 1) * 4 : 125) * dt / Math.max(1, magnitude);
@@ -233,19 +244,29 @@ export class World {
       }
       enemy.hit = Math.max(0, enemy.hit - dt);
     }
+    // A drop rests on the ground for a beat, then is pulled to wherever the hero stands now. A full
+    // bag keeps it on the ground (it still expires as before) and it flies in once there is room.
     for (const drop of this.drops) {
       drop.age += dt;
-      if (Math.hypot(drop.x - p.x, drop.y - p.y) < 42) {
-        if (canStoreItem(this.save.bag, drop.item)) {
-          this.save.bag.push(drop.item);
-          drop.age = -1;
-          if (drop.item.name === '낡은 두손검' && this.save.tutorial === 1) this.save.tutorial = 2;
-          this.onMessage(`${drop.item.name} 획득!`);
-          this.onChange();
-        } else if (!drop.warned) { drop.warned = true; this.onMessage('가방이 가득 찼습니다. 장비를 분해하세요.'); }
+      if (drop.absorb === undefined) {
+        if (drop.age < LOOT_REST_SECONDS) continue;
+        if (!canStoreItem(this.save.bag, drop.item)) {
+          if (!drop.warned) { drop.warned = true; this.onMessage('가방이 가득 찼습니다. 장비를 분해하세요.'); }
+          continue;
+        }
+        drop.absorb = drop.age;
       }
+      if (drop.age - drop.absorb < LOOT_ABSORB_SECONDS) continue;
+      this.save.bag.push(drop.item);
+      drop.age = -1;
+      if (drop.item.name === '낡은 두손검' && this.save.tutorial === 1) this.save.tutorial = 2;
+      this.onMessage(`${drop.item.name} 획득!`);
+      this.onChange();
     }
     this.drops = this.drops.filter(d => d.age >= 0 && (d.age < 90 || (d.item.name === '낡은 두손검' && this.save.tutorial < 3)));
+    // Coins are only what the field draws: the gold was paid at the kill and nothing is added here.
+    for (const coin of this.coins) coin.age += dt;
+    this.coins = this.coins.filter(coin => coin.age < LOOT_REST_SECONDS + LOOT_ABSORB_SECONDS);
     for (const effect of [...this.effects]) {
       effect.age += dt;
       while (effect.nextHit !== undefined && effect.nextHit < effect.duration && effect.nextHit <= effect.age) {
