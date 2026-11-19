@@ -92,8 +92,8 @@
 - `render/vfx.ts` (160) — 스킬 이펙트·드래곤·타격·데미지 라벨·드랍. `drawSkillVfx`, `drawDragon`, `drawHit`, `updateDamageLabels`, `drawDeath`, `drawDrops`, `drawEffects`.
 - `render/heroMotion.ts` — 모드·프레임 선택과 코스튬 모션 계약. 폴백: `heroAnimationMode`, `heroMotion`(몸통 변형 없음, 회전값 0; `spin`은 VFX·잔상으로 표시). 코스튬: `HeroCostumeMotion`, `costumeMotionOrder`/`costumeMotionFrames`/`costumeMotionSlot`(아틀라스 프레임 슬롯), `heroCostumeMotion`(월드 상태→모션), `costumePlaybackRate`(공격 쿨다운의 역수, 상한 3), `costumeFrameIndex`.
 - `render/heroScale.ts` — 아트별 실측 몸통(머리~발) 높이 표와 스케일. `heroBodyFraction`, `heroBodyPx`, `heroBodyHeight`, `heroScale`, 코스튬 모드용 `costumeBodyPx`(잠정 190)·`costumeScale`. **시트별 1개 값**(프레임별 아님)이라 칼을 쳐든 프레임에서도 몸 크기가 변하지 않는다. PNG를 바꾸면 표도 다시 잰다.
-- `wasteland.ts` (34) — 637×1079 자갈 배경·추가확대 없음·고정 레이아웃·실측 화염 앵커·마운트. `wastelandScene`, `wastelandFireAnchors`, `wastelandLayout`, `mountWasteland`, `placeWasteland`.
-- `ambientScene.ts` (58) / `ambientMotion.ts` (67) — 안쪽 재배치 풀·불 앰비언트 변형/원본 해상도별 진폭 보정. `mountAmbientScene` / `ambientInfluence`, `ambientOffset`, `AmbientDeformation`, `fireFlicker`, `fireEmbers`, `grassPatches`.
+- `wasteland.ts` (34) — 637×1079 주변확장 배경·원본540×914 core 1:1·양축 카메라팬·원본→확장앵커 변환·마운트. `wastelandScene`, `wastelandCore`, `originalScenePoint`, `wastelandFireAnchors`, `wastelandLayout`, `mountWasteland`, `placeWasteland`.
+- `ambientScene.ts` (58) / `ambientMotion.ts` (67) — 원래 풀23/불3 앵커의 확장좌표 변환·core 기준 진폭 보정. `mountAmbientScene` / `ambientInfluence`, `ambientOffset`, `AmbientDeformation`, `fireFlicker`, `fireEmbers`, `grassPatches`.
 
 ### `src/ui/` — HUD·모달·입력
 - `interface.ts` — UI 상태·**3탭** 모달 라우팅의 중심. `Interface`(`open`,`renderModal`,`message`,`setSaveStatus`,`showOfflineReward`, 렌더 위임 메서드), `Modal`, `BagFilter`. 하단 내비는 `내 정보`(=`equipment`)·`스킬`·`거래소` 3개이고, `equipment` 모달이 요약·6스탯·10칸 장비·가방을 함께 담는다([작업 141]에서 `statusModal` 제거).
