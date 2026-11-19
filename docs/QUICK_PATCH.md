@@ -9,6 +9,7 @@
 |---|---|---|---|
 | 업적 현재단계·완료정렬 | `ui/modals/utilityModal.ts` orderedAchievements | 서버보상/수령이력변경·숨은단계일괄건너뛰기 금지 | `node --test tests/journey-ui.test.mjs` |
 | 던전1~10층 미리보기·문열림 | `ui/dungeonBattle.ts`, `dungeonField.ts`, `modals/dungeonModal.ts`, `styles/dungeon.css` | 계정Save/보상/순위 반영·11층 진입·메인 world/render 변경·문틀회전/진입zoom·불투명canvas생성후alpha변경·투명clear갈색RGB 금지 | `node --test tests/dungeon-battle.test.mjs tests/dungeon-lobby.test.mjs tests/modal-ui.test.mjs tests/modal-interaction.test.mjs` |
+| 던전 드롭 착지·흡수 연출·결과창 | `ui/dungeonBattle.ts`(`dungeonLootSpots`·`dungeonLootTimeline`·`dungeonAbsorbProgress/Point`·`dungeonSpawnPull`·`lootGold`), `ui/dungeonField.ts`, `styles/dungeon.css` | 결과창을 흡수 전에 띄우기(지연 기본값 재사용)·착지점을 옆으로 밀기·클리어 흡수 생략·금화/스킬북 외곽광 금지 | `node --test tests/dungeon-battle.test.mjs` |
 | 상시 던전 아이콘·대기창 | `ui/dungeonLobby.ts`, `modals/dungeonModal.ts`, `interface.ts`, `modalDefaults.ts`, `styles/dungeon.css` | 전투/Save/API 연결·가짜 실시간 순위·이전층 선택 금지 | `node --test tests/dungeon-lobby.test.mjs tests/modal-ui.test.mjs tests/modal-interaction.test.mjs` |
 | 메인 원본배경 확장/카메라/불·풀 정렬 | `game/wasteland.ts`, `ambientMotion.ts`, `assets/wasteland-scene-extended-v1.png` | 원래540×914 core 확대·카메라팬 제거·앵커 불일치·운영병합 금지(미리보기 전용) | `node --test tests/wasteland.test.mjs tests/ambient-motion.test.mjs` |
 | 월드보스 내려찍기 경고 원 | `ui/worldBossImpact.ts` slamWarning, `worldBossField.ts` 전용Graphics | 피해시간표 변경·타격후/처치중 경고잔류 금지 | `node --test tests/world-boss-field.test.mjs tests/world-boss-preview.test.mjs` |
