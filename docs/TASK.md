@@ -7,6 +7,7 @@
 
 | 작업 | 담당자 | 브랜치 | 수정 예정 파일 / 영향 영역 | 위험 등급 | 상태 |
 |---|---|---|---|---|---|
+| 178 던전 문 접지·닫힘 초기화 | fks3997 | preview/gravel-background-fks3997 | ui/dungeonField.ts, styles/dungeon.css, 문서 | 하 | [-] |
 | 177 업적 분류별 현재 단계 | fks3997 | preview/gravel-background-fks3997 | ui/modals/utilityModal.ts, tests/journey-ui.test.mjs, 문서 | 하 | [-] |
 
 
