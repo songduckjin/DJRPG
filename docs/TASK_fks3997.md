@@ -526,3 +526,6 @@
 - 179 추가요청: 전투종료후 시각시간 계속진행·사망/이펙트소멸후.75초결과·층초기화시구몬스터/시체/피해라벨 제거.
 
 - 179: CSS배경/DOM문z2/투명Pixi배우z3/HUDz4, 전투후에도visualTime진행·.75초후결과, 리셋시몬스터/시체/라벨청소. tsc/관련10/diff통과, 실기미실행. preview만.
+
+## [-] [작업180] 던전 배경 복구
+- Pixi불투명canvas생성후alpha0은지원안됨. 전용앱init부터backgroundAlpha0으로설정해기존CSS배경/문복구, 공용render무변경. preview만.
