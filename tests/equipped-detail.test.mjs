@@ -142,6 +142,30 @@ test('서리의 가죽두건 시안의 장비창은 필드와 같은 전용 전�
   }
   resetCostumeManifestCache();
 });
+
+test('다른 장비를 착용한 서리의 가죽두건도 필드와 장비창에 같은 두건 레이어를 쓴다', async () => {
+  const manifest = JSON.parse(readFileSync(new URL('../public/assets/costume/v3/manifest.json', import.meta.url), 'utf8'));
+  const load = await loadCostumeManifest({ fetch: async () => ({ ok: true, json: async () => manifest }), force: true });
+  assert.equal(load.ok, true);
+  for (const gender of ['male', 'female']) {
+    const save = freshSave(gender);
+    save.equipment.helmet = { id: 'hood', name: '서리의 가죽 두건', slot: 'helmet', rarity: 'magic', stats: {} };
+    save.equipment.weapon = { id: 'blade', name: '낡은 두손검', slot: 'weapon', rarity: 'common', stats: {} };
+    save.equipment.armor = { id: 'armor', name: '사슬 갑옷', slot: 'armor', rarity: 'common', stats: {} };
+    save.equipment.offhand = { id: 'crest', name: '강철 문장', slot: 'offhand', rarity: 'common', stats: {} };
+    save.equipment.boots = { id: 'boots', name: '기사의 사바톤', slot: 'boots', rarity: 'common', stats: {} };
+    const field = planHeroCostume(save, load);
+    const preview = equipmentPortraitPlan(save);
+    assert.equal(field.ok, true);
+    assert.equal(preview.mode, 'costume');
+    assert.deepEqual(preview.layers, field.layers);
+    assert.equal(preview.layers.find(layer => layer.role === 'helmet')?.page, `frost-hood-armor-${gender}`);
+    assert(field.layers.some(layer => layer.role === 'armor'));
+    assert(field.layers.some(layer => layer.role === 'offhand'));
+    assert(field.layers.some(layer => layer.role === 'boots'));
+  }
+  resetCostumeManifestCache();
+});
 test('portrait module keeps one idle frame and bounds result and atlas image caches',()=>{
   assert.doesNotMatch(portraitSource,/from '\.\.\/game\/items'|\bequipmentImage\(|\btightFrame\b|\bgetImageData\b|const fit\b/,'종이인형·픽셀 스캔 경로가 남아 있지 않다');
   assert.match(portraitSource,/costumeLayerCell\(layer, 'idle', 0\)/);

@@ -1,5 +1,14 @@
 # 작업 로그
 
+## 2026-11-19 — 서리의 가죽두건 혼합 장비 레이어 (작업 145 후속)
+
+- **운영 화면 후속**: PR #89의 전신 시안은 `서리의 가죽두건 + 낡은 두손검` 단일 조합에서만 적용된다. 운영 화면에서 문장·신발 등 다른 장비를 함께 착용한 상태가 확인돼 전신 대체 조건을 벗어나면 v3 금속 투구가 그대로 보였다. `codex/145-frost-hood-layered-fix`에서 아이템 원본의 천 두건만 머리 위치에 배치하는 **두건 전용 레이어**를 추가했다.
+- `scripts/build-costume-atlas.py --pilot-145-overlay`: 아이템 원본 아이콘(`item-art/helmet_0.png`)의 천 두건만 잘라 남/여 × (갑옷 위 / 맨몸 위) 머리 기준점에 얹은 v5 페이지 4장(`public/assets/costume/v5/atlas/frost-hood-{armor,body}-{male,female}.png`)을 생성한다. v3 배포물·매니페스트와 `COSTUME_ASSET_VERSION`(3), v4 전신 페이지는 바꾸지 않았다.
+- `src/game/render/costumeHero.ts` `planHeroCostume()`: 혼합 장비에서는 투구 레이어만 `frost-hood-*` 페이지(variant 0, `assetVersion: 5`)로 바꾼다. 갑옷·문장·무기·신발 레이어와 레이어 순서, 전신 v4 경로, 장비창 공용 계획은 그대로이며 공격 방향은 기존 v3 정책(좌우 반전)을 따른다.
+- 테스트·검증 도구: `tests/costume-field-render.test.mjs`에 갑옷+두건, `tests/equipped-detail.test.mjs`에 갑옷·문장·신발+두건(필드 계획 = 장비창 계획) 검사 2건을 추가했고, `scripts/verify-item-art.mjs`가 v5 페이지 4장의 존재와 2048×2048 RGBA 규격을 검사한다.
+- 검증: `npx tsc --noEmit`, 관련 테스트 **66건**, 전체 `npm test` **379건**, `node scripts/verify-item-art.mjs`, `npm run build`, `git diff --check` 통과. Save/API·`src/game/store.ts`·`server/**` 무변경.
+- PR #92로 반영한다. 실제 운영 필드·장비창 화면(얼굴 가림·손잡이 접점)은 사용자 검수 전이므로 작업 145는 `[-]`를 유지한다.
+
 ## 2026-11-19 — 코스튬 동작 싱크·캐시 제한 (작업 144)
 
 - **실기 후속 수정**: 무기 레이어의 104px 검이 머리 위까지 돌출되던 문제를 공용 외형 계획에서 70% 축소·손 소켓 유지로 보정했다. `낡은 투구`는 v3의 열린 얼굴 공용 투구로 그려지던 문제를 확인하고, 정확한 닫힌 바이저가 있는 통합 본체·초상화로 폴백시켰다. 기존 PNG·Save/API 계약은 변경하지 않았다.

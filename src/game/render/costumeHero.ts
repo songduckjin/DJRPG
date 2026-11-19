@@ -203,6 +203,17 @@ export function planHeroCostume(save: Pick<Save, 'gender' | 'equipment'>, load: 
       if (layer.role === 'helmet') layer.page = `helmet-body-${save.gender}`;
     }
   }
+  // 전신 파일을 쓸 수 없는 장비 조합도 두건 그림은 동일하게 보이게 한다.
+  // 다른 장비 레이어와 v3 매니페스트는 그대로 두고 투구 페이지만 교체한다.
+  if (compactName(helmet?.name) === compactName('서리의 가죽 두건')) {
+    const hood = equipment.find(layer => layer.role === 'helmet');
+    if (hood) {
+      hood.page = `frost-hood-${armor ? 'armor' : 'body'}-${save.gender}`;
+      hood.variant = 0;
+      hood.costumeId = 'pilot-frost-leather-hood-overlay';
+      hood.assetVersion = 5;
+    }
+  }
   const layers = armor ? [armor, ...equipment] : [...body, ...equipment];
   layers.sort((a, b) => a.zOrder - b.zOrder);
   return { ok: true, layers };

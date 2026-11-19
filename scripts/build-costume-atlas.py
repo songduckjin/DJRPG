@@ -1014,6 +1014,34 @@ def pilot_145() -> None:
         print(f'v4/atlas/pilot-hood-{gender}.png')
 
 
+def pilot_145_overlay() -> None:
+    """아이템 원본 그림의 천 두건만 v3 포즈의 머리 위치에 얹는 v5 페이지."""
+    icon = sheet_frames(os.path.join(ASSETS, 'item-art', 'helmet_0.png'), 5, 1)[0]
+    bounds = icon.getchannel('A').getbbox()
+    if not bounds:
+        raise RuntimeError('가죽 두건 아이콘에 투명도 픽셀이 없습니다')
+    icon = icon.crop(bounds).transpose(Image.Transpose.FLIP_LEFT_RIGHT)
+    output = os.path.join(ROOT, 'public', 'assets', 'costume', 'v5', 'atlas')
+    os.makedirs(output, exist_ok=True)
+    for gender in ('male', 'female'):
+        hood_h = 64 if gender == 'male' else 61
+        hood_w = round(icon.width * hood_h / icon.height)
+        hood = icon.resize((hood_w, hood_h), Image.Resampling.LANCZOS)
+        # 어두운 얼굴 구멍을 기존 캐릭터의 얼굴 중심에 맞춘다.
+        face = (round(hood_w * .55), round(hood_h * .49))
+        for body in (False, True):
+            frames = []
+            for _motion, which, index in each_slot():
+                center = head_center(gender, which, index, body=body)
+                cell = Image.new('RGBA', (CELL_W, CELL_H), (0, 0, 0, 0))
+                cell.alpha_composite(hood, (round(center[0] - face[0]), round(center[1] - face[1])))
+                frames.append(cell)
+            fit = 'body' if body else 'armor'
+            name = f'frost-hood-{fit}-{gender}.png'
+            save_page(os.path.join(output, name), [(0, frames)])
+            print(f'v5/atlas/{name}')
+
+
 def pilot_145_review() -> None:
     """기준 아이콘·생성 프레임과 실기 확인 대기 상태를 한 장에 모은다."""
     from PIL import ImageDraw, ImageFont
@@ -1081,10 +1109,13 @@ if __name__ == '__main__':
     parser.add_argument('--preview', action='store_true')
     parser.add_argument('--heads', action='store_true')
     parser.add_argument('--pilot-145', action='store_true', help='작업 145 단일 시안만 v4 페이지로 패킹')
+    parser.add_argument('--pilot-145-overlay', action='store_true', help='작업 145 두건 전용 v5 페이지를 생성')
     parser.add_argument('--pilot-145-review', action='store_true', help='작업 145 검수 접촉 시트 생성')
     args = parser.parse_args()
     if args.pilot_145_review:
         pilot_145_review()
+    elif args.pilot_145_overlay:
+        pilot_145_overlay()
     elif args.pilot_145:
         pilot_145()
     elif args.preview:

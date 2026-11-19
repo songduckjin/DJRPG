@@ -102,3 +102,19 @@ for (const gender of ['male', 'female']) {
   }
 }
 console.log('작업 145 서리의 가죽두건 파일럿 아틀라스 2종 확인 완료.');
+
+// 문장·갑옷·신발과 함께 착용할 때 쓰는 두건 전용 페이지는 별도 v5 URL이다.
+const overlayRoot = fileURLToPath(new URL('../public/assets/costume/v5/atlas/', import.meta.url));
+for (const gender of ['male', 'female']) for (const fit of ['armor', 'body']) {
+  const name = `frost-hood-${fit}-${gender}.png`;
+  const path = join(overlayRoot, name);
+  if (!existsSync(path)) throw new Error(`작업 145 두건 전용 아틀라스가 없습니다: ${name}`);
+  const header = readFileSync(path).subarray(0, 26);
+  if (header.toString('ascii', 1, 4) !== 'PNG'
+    || header.readUInt32BE(16) !== CELL.width * CELL.columns
+    || header.readUInt32BE(20) !== CELL.height * CELL.rows
+    || header[25] !== 6) {
+    throw new Error(`작업 145 두건 전용 페이지는 ${CELL.width * CELL.columns}×${CELL.height * CELL.rows} RGBA PNG여야 합니다: ${name}`);
+  }
+}
+console.log('작업 145 두건 전용 v5 아틀라스 4종 확인 완료.');

@@ -237,7 +237,35 @@ test('서리의 가죽두건 단일 조합은 양 성별 전용 전신 프레임
   withArmor.equipment.armor = item('armor', '가죽 조끼');
   const regular = planHeroCostume(withArmor, loadOk);
   assert.equal(regular.ok, true);
-  assert(regular.layers.some(layer => layer.role === 'helmet'), 'the pilot override never hides another armor combination');
+  const hood = regular.layers.find(layer => layer.role === 'helmet');
+  assert.equal(costumeLayerAtlasUrl(hood), '/assets/costume/v5/atlas/frost-hood-armor-male.png');
+  assert(regular.layers.some(layer => layer.role === 'armor'), 'armor remains visible under the separate hood');
+});
+
+test('서리의 가죽두건은 문장·신발을 유지하면서 남녀 두건 전용 레이어를 쓴다', () => {
+  for (const gender of ['male', 'female']) {
+    const save = freshSave(gender);
+    save.equipment.helmet = item('helmet', '서리의 가죽두건');
+    save.equipment.weapon = item('weapon', '낡은 두손검');
+    save.equipment.offhand = item('offhand', '강철 문장');
+    save.equipment.boots = item('boots', '기사의 사바톤');
+    const plan = planHeroCostume(save, loadOk);
+    assert.equal(plan.ok, true);
+    assert.deepEqual(new Set(plan.layers.map(layer => layer.role)), new Set(['torso', 'arms', 'legs', 'weapon', 'helmet', 'offhand', 'boots']));
+    const hood = plan.layers.find(layer => layer.role === 'helmet');
+    assert.equal(hood.variant, 0);
+    assert.equal(costumeLayerAtlasUrl(hood), `/assets/costume/v5/atlas/frost-hood-body-${gender}.png`);
+    assert.equal(costumeLayerCell(hood, 'walk', 3), 4);
+    assert.equal(costumeLayerCell(hood, 'attack', 2), 11);
+    const state = createCostumeHeroState();
+    applyCostumeHeroRuntime(state, loadOk, atlasFor(save));
+    const heroLayer = new Container(), hero = new Sprite(Texture.EMPTY);
+    heroLayer.addChild(hero);
+    assert.equal(renderCostumeHero({ heroLayer, hero }, state, save, { motion: 'attack', frame: 2 }), true);
+    assert.equal(state.sprites.size, plan.layers.length);
+    assert(state.sprites.has('helmet'));
+    assert.equal(hero.visible, false);
+  }
 });
 
 test('서리의 가죽두건 필드는 앞/뒤 방향에 맞는 전용 공격 셀 하나를 통째로 그린다', () => {
