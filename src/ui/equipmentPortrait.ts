@@ -5,16 +5,23 @@ import {
 import type { Save } from '../game/store';
 import { baseItemIndex } from '../game/items';
 import { helmetArtFor, helmetArtPath, helmetIdlePlacement } from '../game/render/helmets';
+import { armorIndexFor, armorSheetPath } from '../game/render/armors';
 
 /**
  * 내 정보(장비창) 초상화 — Task 149 full-body pilot image. Gear remains functional but its
  * visual is fixed to the same male/female pilot sheet used by the field renderer.
  */
 
-/** 전사 시안은 장착 조합과 무관하게 필드와 동일한 전신 그림을 쓴다. */
+/** 전사 시안은 장착 조합에 맞춘 필드와 같은 전신 그림을 쓴다(작업 155: 갑옷 티어별 시트). */
 export function equipmentFallbackPortrait(save: Save): string {
   // 투구를 쓰면 필드와 같은 머리 없는 본체 위에 투구 파츠를 얹는다(작업 152).
-  if (save.equipment.helmet) return `/assets/pilot-25d/headless/warrior_${save.gender}_idle_v1.png`;
+  const headless = !!save.equipment.helmet;
+  const armor = armorIndexFor(save);
+  if (armor >= 0) {
+    const path = armorSheetPath(save.gender, armor, 'idle', headless);
+    if (path) return path;
+  }
+  if (headless) return `/assets/pilot-25d/headless/warrior_${save.gender}_idle_v1.png`;
   return `/assets/pilot-25d/warrior_${save.gender}_idle_v1.png`;
 }
 
@@ -61,8 +68,8 @@ export type EquipmentPortraitPlan = {
 export function equipmentPortraitPlan(save: Save): EquipmentPortraitPlan {
   const base = equipmentFallbackPortrait(save);
   const helmet = equipmentPortraitHelmet(save);
-  // 착용 투구가 바뀌면 합성 결과도 바뀌므로 키에 넣는다(성별 + 투구 파츠).
-  return { mode: 'fallback', base, key: `pilot:${save.gender}:${helmet ? helmet.path : '-'}`, gender: save.gender, layers: [], helmet };
+  // 착용 투구가 바뀌면 합성 결과도 바뀌므로 키에 넣는다(성별 + 갑옷 티어 + 투구 파츠).
+  return { mode: 'fallback', base, key: `pilot:${save.gender}:a${armorIndexFor(save)}:${helmet ? helmet.path : '-'}`, gender: save.gender, layers: [], helmet };
 }
 
 /* ── 아틀라스 이미지·합성 결과 캐시 ─────────────────────────────────────── */

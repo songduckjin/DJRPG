@@ -531,6 +531,8 @@ function fakeView(extra = {}) {
     app: { screen: { height: 800 } },
     ground: { ellipse() { return { fill() {} }; } },
     glow: { circle() { return { fill() {} }; } },
+    // 갑옷 시트(작업 155)는 로딩 전이면 기준 시트로 폴백한다 — 이 테스트는 그 폴백 경로만 본다.
+    armorFrame: () => undefined, prefetchArmor: () => {}, lastArmorTier: '',
     ...extra
   };
 }

@@ -12,6 +12,8 @@ import type { LootDrop } from './loot';
 import { projectArenaPoint } from './arena';
 import { createBootProgress } from './bootProgress';
 import { helmetArtList, helmetArtPaths, helmetAttackArtList, helmetAttackArtPaths, headlessBodyPaths } from './render/helmets';
+import { armorFrameIndex, armorSheetPath, armorSheetPaths, type ArmorMotion } from './render/armors';
+import type { Gender } from './store';
 
 const paths = {
   floor: '/assets/wasteland-ground.png', terrainProps: '/assets/wasteland-props.png', male: '/assets/warrior_male_base.png',
@@ -73,6 +75,27 @@ const walkSheets = {
   skeletonWalk: '/assets/walk8_skeleton.png', bossWalk: '/assets/walk8_boss.png'
 } as const;
 type Animation = keyof typeof animationPaths | keyof typeof attackSheets | keyof typeof walkSheets;
+
+/**
+ * 갑옷 시트를 프레임 텍스처로 자른다(작업 155).
+ *
+ * 갑옷 시트는 기준 시트와 같은 규격(362px 셀)이라 자르는 규칙도 필드와 같다: `idle` 은 한 장,
+ * `walk`·`attack` 은 가로 4칸을 한 줄로 쓴다. 옆 칸 그림자가 섞이지 않도록 칸 경계를 정확히
+ * 나누며, 프레임 조회는 `armorFrameIndex`(0~3 반복)로 한다.
+ */
+function sliceArmorSheet(sheet: Texture, motion: ArmorMotion): Texture[] {
+  if (motion === 'idle') return [sheet];
+  const source = sheet.source;
+  const columns = source.width / source.height > 2.2 ? 4 : 1;
+  return Array.from({ length: columns }, (_, index) => {
+    const left = Math.round(index * source.width / columns);
+    const right = Math.round((index + 1) * source.width / columns);
+    return new Texture({ source, frame: new Rectangle(left, 0, right - left, source.height) });
+  });
+}
+
+/** 갑옷 시트 캐시에 남겨 두는 티어 수. 티어당 6장이라 3티어면 18장이다. */
+export const armorTierCacheLimit = 3;
 export const renderAssetPaths = [
   ...Object.values(paths), ...Object.values(animationPaths).flat(),
   ...Object.values(attackSheets), ...Object.values(walkSheets), ...Object.values(wearableAssetPaths),
@@ -123,6 +146,14 @@ export class GameView {
   helmetTextures = new Map<string, Texture>();
   /** 현재 그려진 투구 스프라이트. 투구를 벗으면 숨긴다. */
   heroHelmet?: Sprite;
+  /** 착용 갑옷 시트(경로 → 텍스처)와 프레임 캐시, 로딩 중인 경로 (작업 155). */
+  armorSheets = new Map<string, Texture>();
+  armorFrames = new Map<string, Texture[]>();
+  armorLoading = new Set<string>();
+  /** 최근에 받은 갑옷 티어 키(오래된 것부터 버린다). */
+  armorTierOrder: string[] = [];
+  /** 마지막으로 본 착용 티어(성별:인덱스). 바뀔 때만 시트를 미리 받는다. */
+  lastArmorTier = '';
   heroGear = new Map<Slot, { path: string; sprite: Sprite }>();
   /** 독립형 코스튬 렌더러 상태(작업 140). 매니페스트·아틀라스가 없으면 폴백으로 굳는다. */
   costume: CostumeHeroState = createCostumeHeroState();
@@ -214,6 +245,56 @@ export class GameView {
     // `fallback` 상태로 굳어 기존 통합 바디 렌더링이 그대로 이어진다(작업 140 §8).
     // Task 149 uses one approved full-body warrior illustration for every gear state;
     // skip costume-manifest loading so old overlays cannot replace or cover that art.
+  }
+
+  /**
+   * 착용 갑옷 시트의 프레임 텍스처 (작업 155).
+   *
+   * 시트는 장비를 바꿀 때만 동적으로 받는다(120장 9.2MB 전체를 부팅 때 받지 않는다).
+   * 아직 로딩 전이면 `undefined` 를 돌려주고, `drawHero` 가 기준 시트로 그린다.
+   */
+  armorFrame(gender: Gender, index: number, motion: ArmorMotion, headless: boolean, frame: number): Texture | undefined {
+    const path = armorSheetPath(gender, index, motion, headless);
+    if (!path) return undefined;
+    let frames = this.armorFrames.get(path);
+    if (!frames) {
+      const sheet = this.armorSheets.get(path);
+      if (!sheet) { this.loadArmorSheet(path); return undefined; }
+      frames = sliceArmorSheet(sheet, motion);
+      this.armorFrames.set(path, frames);
+    }
+    return frames[armorFrameIndex(motion, frame) % frames.length];
+  }
+
+  /**
+   * 장비를 바꾸면 그 티어의 시트 6장을 미리 받는다. 최근 3티어만 남기고 나머지는
+   * Pixi 에셋 캐시에서도 내려 모바일 메모리를 잡아 두지 않는다.
+   */
+  prefetchArmor(gender: Gender, index: number): void {
+    const tier = `${gender}:${index}`;
+    if (!this.armorTierOrder.includes(tier)) this.armorTierOrder.push(tier);
+    for (const path of armorSheetPaths(gender, index)) this.loadArmorSheet(path);
+    while (this.armorTierOrder.length > armorTierCacheLimit) {
+      const oldest = this.armorTierOrder.shift() as string;
+      const [oldGender, oldIndex] = oldest.split(':');
+      for (const path of armorSheetPaths(oldGender as Gender, Number(oldIndex))) {
+        this.armorFrames.delete(path);
+        if (this.armorSheets.delete(path)) void Assets.unload(path).catch(() => undefined);
+      }
+    }
+  }
+
+  private loadArmorSheet(path: string): void {
+    if (this.armorSheets.has(path) || this.armorLoading.has(path)) return;
+    this.armorLoading.add(path);
+    void Assets.load<Texture>(path).then(sheet => {
+      sheet.source.scaleMode = 'linear';
+      this.armorSheets.set(path, sheet);
+      this.armorLoading.delete(path);
+    }).catch(error => {
+      this.armorLoading.delete(path);
+      console.error(`갑옷 시트 로딩 실패: ${path}`, error);
+    });
   }
 
   draw(world: World, time: number): void {

@@ -10,6 +10,7 @@ import { costumeGhostSources, hideCostumeHero } from './costumeHero';
 import { resolveSkillMotion, type CostumeMotionTemplate } from '../costume/skillMotion';
 import { wearableEquipmentImage, baseItemIndex } from '../items';
 import { helmetArtFor, helmetArtPath, helmetPlacement } from './helmets';
+import { armorIndexFor } from './armors';
 import type { GameView } from '../render';
 
 function syncWeapon(view: GameView, save: Save, texture: Texture, art: string, attacking: boolean, motion: 'idle' | 'walk', walkingFrame: number): void {
@@ -183,7 +184,8 @@ export function drawHero(this: GameView, world: World, x: number, y: number, tim
       : animatedAttack ? `${pilotAttack}:${Math.max(0, attackFrame)}` : pilotIdle;
     // 투구를 쓰면 머리·머리카락이 지워진 같은 크기 시트로 갈아 끼운다(작업 152).
     // 셀 좌표계가 같아 배율·앵커·무기 소켓은 기존 값을 그대로 쓴다.
-    if (helmetIndex(save) >= 0) {
+    const helmeted = helmetIndex(save) >= 0;
+    if (helmeted) {
       const headless = save.gender === 'female'
         ? (animation === 'walk' ? this.animations.pilotFemaleWalkHeadless?.[walkingFrame]
           : animatedAttack ? this.animations.pilotFemaleAttackHeadless?.[Math.max(0, attackFrame)] : this.textures.pilotFemaleHeadless)
@@ -192,6 +194,21 @@ export function drawHero(this: GameView, world: World, x: number, y: number, tim
       if (headless) {
         texture = headless;
         textureKey = `${textureKey}!headless`;
+      }
+    }
+    // 착용 갑옷 시트(작업 155). 기준 시트와 같은 셀 좌표계라 배율·앵커·소켓은 그대로다.
+    // 아직 로딩 전인 티어는 위의 기준 시트(투구를 썼으면 머리 없는 시트)로 한 프레임 더 그린다.
+    const armor = armorIndexFor(save);
+    const armorTier = `${save.gender}:${armor}`;
+    if (this.lastArmorTier !== armorTier) {
+      this.lastArmorTier = armorTier;
+      if (armor >= 0) this.prefetchArmor(save.gender, armor);
+    }
+    if (armor >= 0) {
+      const armorTexture = this.armorFrame(save.gender, armor, animation, helmeted, walkingFrame);
+      if (armorTexture) {
+        texture = armorTexture;
+        textureKey = `armor:${save.gender}:${armor}:${animation}:${helmeted ? 'headless' : 'body'}:${animation === 'idle' ? 0 : animation === 'walk' ? walkingFrame : Math.max(0, attackFrame)}`;
       }
     }
     const displayTexture = tintedGearTexture(textureKey, texture, null, null, animatedAttack);
