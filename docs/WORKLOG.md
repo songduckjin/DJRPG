@@ -1,5 +1,14 @@
 # 작업 로그
 
+## 2026-11-19 — 평타 1마리 제한·걷기/공격 몸 크기 보정 (작업 150)
+
+- **제보**: 사용자가 실기 확인 후 「평타가 여러 마리를 한 번에 때린다」·「대검을 휘두르거나 걸을 때 캐릭터가 작아진다」를 알렸다.
+- **평타 단일 대상**: `src/game/world.ts` `action`의 평타만 `this.damage(90, attack, angle, 1.15, 12, 0, p, 1)`로 호출한다. `damage()`에 선택 인자 `maxTargets`(기본 `Infinity`)를 추가해 사거리·부채꼴(±1.15rad) 안의 적을 가까운 순으로 정렬하고 그 수만 맞힌다. 스킬 7종(`slash2`·`spin`·`crushing`·`slam`·`power`·`destroy`·`hell`)은 인자를 넘기지 않아 종전처럼 광역이며, 스킬 이펙트의 지연 판정(`origin=effect`)도 그대로다. 피격 표시·넉백·처치·드랍 정리 순서는 그대로다. **한 방 무게(후속 지시)**: 한 마리만 맞히게 되면서 총피해가 줄어 "한방한방이 쌔야 돼"라는 사용자 지시를 받아 `basicAttackPower = 1.6`을 두고 평타 피해를 `attack` → `attack × 1.6`으로 올렸다. 기존 광역 평타와 비교하면 대상 하나에 주는 피해가 1.6배이고, 피해 숫자 표시도 `Math.round(attack × 1.6)`으로 커진다. 스킬 배율·쿨다운·오프라인 정산(`killsPerMinute`는 `attack`/`enemyMaxHp` 비율)·서버 계약은 건드리지 않았다.
+- **몸 크기**: pilot 시트 알파를 다시 재니 idle 남 337·여 335, walk 4칸 남 293~307·여 295~305, attack 4칸 남 246~342·여 246~342(1프레임은 머리 위로 든 검 포함). 작업 149가 세 상태 모두 `heroBodyPx` 335를 쓰고 있어 걷기에서 약 10%, 내려찍는 칸에서 최대 27% 작았다. `pilotMaleWalk`/`pilotFemaleWalk` **335 → 300**(4칸 평균), `pilotMaleAttack`/`pilotFemaleAttack` **335 → 270**(내려찍는 칸 평균, 검을 머리 위로 든 1칸은 이상치로 제외)으로 바꿨고, 서기(idle) 335는 건드리지 않았다. 그림자 반지름 `bodyPx × scale × .37`은 두 값이 약분돼 화면 크기가 변하지 않는다.
+- **테스트 추가**: `tests/world-movement.test.mjs`에 ① 평타가 사거리·부채꼴 안의 가장 가까운 한 마리만 때림(배열 순서 무관·피격 표시 1건) ② 평타로 한 마리를 처치해도 다른 적은 살아 있고 처치 수만 늘어남 ③ `destroy` 스킬은 가깝고 먼 적을 함께 때림 ④ 평타 피해가 `attack × basicAttackPower(1.6)`이고 피해 숫자도 1.6배 ⑤ 평타 두 방 합계가 이전 두 방 합계의 1.6배. `tests/hero-art.test.mjs`에 남녀 각각 pilot 시트 알파 실측과 `heroBodyPx` 를 대조(`idle` 1%·walk/attack 평균 8% 허용)하고 걷기·공격이 idle보다 작은 값으로 보정돼 있는지 확인하는 테스트를 넣었다.
+- **검증**: `npx tsc --noEmit`, `node --test tests/*.test.mjs` 389건 중 387 통과, `node scripts/verify-item-art.mjs`, `npm run build`, `git diff --check` 통과. 실패 2건은 `tests/costume-field-render.test.mjs`의 "drawHero가 코스튬 레이어로 그리고…"으로, 변경 전 `main`(`17facd5`)에서도 동일하게 실패하는 기존 실패다(작업 149의 pilot 전환으로 기대값이 낡았고 이 작업 범위 밖이라 손대지 않았다).
+- **배포**: [PR #103](https://github.com/songduckjin/DJRPG/pull/103)을 스쿼시 병합하고 Cloudflare Pages 운영 `version.json`에서 머지 SHA를 확인한다. 실기 화면(평타 대상·걷기/공격 크기)은 사용자 확인 몫이다.
+
 ## 2026-11-19 — AI 시안 기반 남녀 전사 외형 전체 교체(작업 149)
 
 - **요청/결정**: 사용자가 필드 화면을 공유하고 기존 전사 그림을 앞서 만든 서기·양손 끌며 걷기·4단계 내려찍기 시안으로 교체해 달라고 했다. 사용자는 그림이 갑옷·대검 일체형이라 장착 아이템의 화면 외형이 고정되는 점을 확인하고 실제 게임 전체 교체를 선택했다. 장착 슬롯·능력치·Save는 그대로다. 이에 작업 145의 추가 실기 검수는 대체하고 기존 v3/v4/v5 코스튬 구현·파일은 보존한다.

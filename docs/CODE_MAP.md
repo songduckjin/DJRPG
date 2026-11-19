@@ -10,7 +10,7 @@
 | 월드보스 실전·공유HP·순위·우편보상 | `server/world-boss.mjs`, `server/endpoints/world-boss.mjs`, `src/game/worldBossLive.ts` | `functions/api/world-boss.js`, `worldBossField.ts`, `worldBossModal.ts`, `worldBossResult.ts`, `main.ts` | `world-boss-live`, `world-boss-preview`, `world-boss-field`, `journey` |
 | 크롬 GPU 미지원 mesh 렌더 오류 | `src/game/pixiSetup.ts` | `src/main.ts` 초기등록·Canvas quad 폴백 | `pixi-setup`, `hero-motion`, `world-boss-field` |
 | 월드보스 소개·전용필드·순위/보상 | `src/ui/modals/worldBossModal.ts`, `src/ui/worldBossField.ts`, `src/game/worldBossRehearsal.ts` | `worldBossPreview.ts`, `worldBossPresentation.ts`, `worldBossDefeat.ts`, `interface.ts`, `main.ts` Ticker수명, `styles/world-boss.css`, `public/assets/world-boss/*` | `world-boss-preview`, `world-boss-field`, `modal-ui`, `modal-interaction`, `hero-motion`, `appearance` |
-| 전투·이동·층·보스·AI | `src/game/world.ts` | `arena.ts`, `facing.ts`, `bagCapacity.ts`, `store.ts`(`floorKillTarget`) | `world-movement`, `arena`, `facing` |
+| 전투·이동·층·보스·AI | `src/game/world.ts`(`action` 평타는 `damage(..., maxTargets=1)`로 1마리만·피해 `attack × basicAttackPower(1.6)`, 스킬은 광역 그대로) | `arena.ts`, `facing.ts`, `bagCapacity.ts`, `store.ts`(`floorKillTarget`) | `world-movement`, `arena`, `facing` |
 | 내 정보·장비창 착용 미리보기 | `ui/equipmentPortrait.ts`(`equipmentPortraitPlan`·`renderEquipmentPortrait` — **작업 149 남녀 pilot idle 전신 그림**, 장비 레이어 없음), `ui/modals/equipModal.ts`(요약·6스탯·10칸) | `ui/interface.ts`(3탭 라우팅), `ui/modals/accountModal.ts`(성별 고정), `public/assets/pilot-25d/warrior_{male,female}_idle_v1.png`, `styles/modals.css`, `styles/hud.css` | `equipment-info`, `equipped-detail`, `modal-ui` |
 | 스킬·스킬북·쿨타임·버프 | `src/game/skills.ts`, `src/game/loadout.ts` | `world.ts`(`cooldowns`·`action`), `skillProgress.ts`, `ui/skillBooks.ts`, `ui/skillLoadout.ts`, `ui/modals/skillModal.ts`, `ui/skillFeedback.ts` | `skill-progression`, `loadout`, `skill-ui`, `skill-feedback`, `skillbook-art` |
 | 아이템·등급·드랍·스탯·장비 슬롯 | `src/game/items.ts` | `inventory.ts`, `itemComparison.ts`, `bagCapacity.ts`, `codex.ts`, `ui/modals/equipModal.ts` | `inventory`, `codex`, `ring-restore`, `item-protection-ui`, `equipped-detail` |
@@ -37,6 +37,8 @@
 |---|---|
 | 적이 안 다가옴·이동 속도·몹 체력·피해량 | `world.ts` `enemyMoveSpeed`/`enemyMaxHp`/`enemyHitDamage`/`update` |
 | 추격 중 공격이 끊기거나 적과 겹침 | `world.ts` `update`(적 추격 정지 거리=기본 공격 범위), `action`(수동 이동 중 차단) |
+| 평타가 여러 마리를 한꺼번에 때림·평타 대상·평타가 약함 | `world.ts` `action`(평타 `damage(90, attack * basicAttackPower, angle, 1.15, 12, 0, p, 1)`), `basicAttackPower`(1.6), `damage`(`maxTargets`·거리 순 정렬) |
+| 걷기·공격(대검 휘두르기) 때 캐릭터가 작아짐 | `render/heroScale.ts` `heroBodyPx`의 `pilot*Walk`·`pilot*Attack`(시트별 알파 실측), `render/entities.ts` `drawHero`의 `heroScale` 호출 |
 | 보스가 안 나옴, 층 클리어 | `world.ts` `bossPending`·`floorKillTarget`, `store.ts` |
 | 층 이동·최고층 | `world.ts` `travelToFloor`, `ui/modals/floorModal.ts` |
 | 쿨타임·버프(레이지)·광폭 | `world.ts` `cooldowns`·`cooldown[kind]`, `skills.ts` `skillDuration` |
@@ -94,7 +96,7 @@
 - `render/field.ts` (54) — 룬·지형·먼지·조명·비네트. `drawRunes`, `drawTerrain`, `drawDust`, `drawLighting`, `drawVignette`.
 - `render/vfx.ts` (160) — 스킬 이펙트·드래곤·타격·데미지 라벨·드랍. `drawSkillVfx`, `drawDragon`, `drawHit`, `updateDamageLabels`, `drawDeath`, `drawDrops`, `drawEffects`.
 - `render/heroMotion.ts` — 모드·프레임 선택과 코스튬 모션 계약. 폴백: `heroAnimationMode`, `heroMotion`(몸통 변형 없음, 회전값 0; `spin`은 VFX·잔상으로 표시). 코스튬: `HeroCostumeMotion`, `costumeMotionOrder`/`costumeMotionFrames`/`costumeMotionSlot`(아틀라스 프레임 슬롯), `heroCostumeMotion`(월드 상태→모션), `costumePlaybackRate`(공격 쿨다운의 역수, 상한 3), `costumeFrameIndex`.
-- `render/heroScale.ts` — 아트별 실측 몸통(머리~발) 높이 표와 스케일. `heroBodyFraction`, `heroBodyPx`, `heroBodyHeight`, `heroScale`, 코스튬 모드용 `costumeBodyPx`(잠정 190)·`costumeScale`. **시트별 1개 값**(프레임별 아님)이라 칼을 쳐든 프레임에서도 몸 크기가 변하지 않는다. PNG를 바꾸면 표도 다시 잰다.
+- `render/heroScale.ts` — 아트별 실측 몸통(머리~발) 높이 표와 스케일. `heroBodyFraction`, `heroBodyPx`, `heroBodyHeight`, `heroScale`, 코스튬 모드용 `costumeBodyPx`(잠정 190)·`costumeScale`. **시트별 1개 값**(프레임별 아님)이라 칼을 쳐든 프레임에서도 몸 크기가 변하지 않는다. PNG를 바꾸면 표도 다시 잰다. pilot 상태별 값은 idle 335, walk 300(4칸 평균 293~307), attack 270(내려찍는 칸 246~298 평균, 검을 머리 위로 든 1칸은 이상치) — 작업 149에서 셋 다 335를 쓰다 걷기·공격에서 캐릭터가 작아져 150에서 보정했다.
 - `wasteland.ts` (34) — 배경 씬 크기·화염 앵커·레이아웃·마운트. `wastelandScene`, `wastelandFireAnchors`, `wastelandLayout`, `mountWasteland`, `placeWasteland`.
 - `ambientScene.ts` (58) / `ambientMotion.ts` (67) — 풀·불 앰비언트 변형. `mountAmbientScene` / `ambientInfluence`, `ambientOffset`, `AmbientDeformation`, `fireFlicker`, `fireEmbers`, `grassPatches`.
 
