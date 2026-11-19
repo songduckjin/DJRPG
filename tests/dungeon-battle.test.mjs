@@ -277,3 +277,41 @@ test('a skill book carries the same grade outline as equipment while gold stays 
  // Gold alone keeps no light at all.
  assert(/\.dungeon-loot\.is-gold \.dungeon-loot-coin\{[^}]*filter:none/.test(css),'gold must stay plain');
 });
+
+test('a dungeon drop falls plainly: no rotation on the way down, at rest, or on the pull',()=>{
+ const source=readFileSync(new URL('../src/ui/dungeonField.ts',import.meta.url),'utf8');
+ const css=readFileSync(new URL('../src/styles/dungeon.css',import.meta.url),'utf8');
+ assert.doesNotMatch(source,/rotate\(|spinV|entry\.spin/,'the drop art must keep its upright angle for the whole drop beat');
+ // The toss, rest and absorb beat are unchanged: only the turning was taken out.
+ assert.match(source,/-50%,-100%\) translateY\(/,'the bounce still lifts the drop');
+ assert.match(source,/scale\(\$\{1-\.55\*p\*p\}\)/,'the pull still shrinks the drop');
+ assert.doesNotMatch(css,/\.dungeon-loot-body\{[^}]*rotate/,'no CSS turn is layered back onto the drop body');
+ assert.doesNotMatch(css,/animation:dungeon-loot-(?!glow)[a-z-]+/,'no drop animation may turn the art');
+});
+
+test('a dungeon drop makes the same one small hop as the field',()=>{
+ const source=readFileSync(new URL('../src/ui/dungeonField.ts',import.meta.url),'utf8');
+ const field=readFileSync(new URL('../src/game/render/drops.ts',import.meta.url),'utf8');
+ const num=(text,name)=>Number(text.match(new RegExp(`${name} ?= ?([0-9.]+)`))[1]);
+ const gravity=num(source,'LOOT_GRAVITY'),peak=num(source,'LOOT_TOSS_PEAK'),vary=num(source,'LOOT_TOSS_VARY'),rebound=num(source,'LOOT_TOSS_REBOUND'),settle=num(source,'LOOT_TOSS_SETTLE');
+ assert(peak>2&&peak<=8,'the first arc is a hop, not a lob');
+ // Both screens show the same drop, so both keep the same hop height and gravity.
+ assert.equal(peak,num(field,'TOSS_PEAK'),'the dungeon keeps the field hop height');
+ assert.equal(gravity,num(field,'BOUNCE_GRAVITY'),'and the same gravity');
+ const fall=scale=>{
+  let h=2,vh=Math.sqrt(2*gravity*peak)*scale,apex=2,tap=0,bounces=0,tapped=false,frames=0;
+  while(frames++<240){
+   h+=vh/60;vh-=gravity/60;apex=Math.max(apex,h);
+   if(h<=0){h=0;if(!tapped&&vh<-settle){tapped=true;vh=-vh*rebound;bounces++;}else break;}
+   if(bounces)tap=Math.max(tap,h);
+  }
+  return {apex,tap,bounces,seconds:frames/60};
+ };
+ for(const scale of [1+vary,1-vary]){
+  const {apex,tap,bounces,seconds}=fall(scale);
+  assert(apex<=11,`the first arc stays a small hop (got ${apex.toFixed(1)}px)`);
+  assert.equal(bounces,1,'one tap only');
+  assert(tap<=2,`the tap is about a pixel (got ${tap.toFixed(2)})`);
+  assert(seconds<.6,'the fall is over in well under a second');
+ }
+});

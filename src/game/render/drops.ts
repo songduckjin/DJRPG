@@ -13,6 +13,16 @@ const lootInk: Record<Rarity, number> = { common: 0xcdd6e0, magic: 0x2f7bff, rar
 const ART_SIZE = 34, COIN_SIZE = 30, ART_BOX = 38;
 /** Pull gravity of the toss, in pixels per second squared — the same beat as the dungeon's loot. */
 const BOUNCE_GRAVITY = 1200;
+/** Height of the little hop a drop makes before it falls: a sixth of its 34px icon, so it drops with
+ *  a light "tok" instead of being lobbed across the floor. */
+const TOSS_PEAK = 5;
+/** The same hop varies a touch drop to drop, so a heap of two never falls in lockstep. */
+const TOSS_VARY = .2;
+/** A landed drop rebounds once at this share of its speed, and a slower fall than this is simply the
+ *  floor: one soft tap, then it rests upright. */
+const TOSS_REBOUND = .35, TOSS_SETTLE = 60;
+/** Launch speed that carries the drop exactly `TOSS_PEAK` high under `BOUNCE_GRAVITY`. */
+const TOSS_SPEED = Math.sqrt(2 * BOUNCE_GRAVITY * TOSS_PEAK);
 
 export type LootView = {
   body: Container;
@@ -23,8 +33,11 @@ export type LootView = {
   /** Rest offset from the point the drop fell on, in screen pixels. */
   tx: number; ty: number;
   drift: number;
+  /** Height above the floor and its speed. A drop only travels straight up and down, so it keeps its
+   *  upright icon all the way from the kill to the floor and into the character. */
   h: number; vh: number;
-  spin: number; spinV: number;
+  /** One soft tap after the first landing, then the drop lies still for good. */
+  tapped: boolean;
   settled: boolean;
 };
 
@@ -146,8 +159,7 @@ export function drawLoot(this: GameView, world: World, project: (x: number, y: n
       view = {
         body, art, glow, fallback, taken: this.lootTaken[this.lootTaken.length - 1],
         tx: spot.x - groundX, ty: spot.y - groundY,
-        drift: reducedMotion ? 1 : 0, h: reducedMotion ? 0 : 2, vh: reducedMotion ? 0 : 108 + Math.random() * 66,
-        spin: 0, spinV: reducedMotion ? 0 : (Math.random() - .5) * 240, settled: reducedMotion
+        drift: reducedMotion ? 1 : 0, h: reducedMotion ? 0 : 2, vh: reducedMotion ? 0 : TOSS_SPEED * (1 + (Math.random() * 2 - 1) * TOSS_VARY), tapped: false, settled: reducedMotion
       };
       this.lootViews.set(entry, view);
     }
@@ -175,18 +187,17 @@ export function drawLoot(this: GameView, world: World, project: (x: number, y: n
     } else {
       if (!view.settled) {
         view.h += view.vh * dt; view.vh -= BOUNCE_GRAVITY * dt;
-        view.spin += view.spinV * dt; view.spinV *= Math.exp(-dt * 2.2);
         if (view.h <= 0) {
           view.h = 0;
-          if (view.vh < -70) view.vh = -view.vh * .42;
+          if (!view.tapped && view.vh < -TOSS_SETTLE) { view.tapped = true; view.vh = -view.vh * TOSS_REBOUND; }
           else { view.vh = 0; view.settled = true; }
         }
       }
+      // Only the toss carries the drop: no rotation, so it lands as plainly as it rose.
       view.body.position.set(x, y - view.h);
-      view.body.rotation = view.spin;
     }
     // The ground shadow stays on the floor while the drop is in the air and fades as it is swallowed.
-    const lifted = Math.min(1, view.h / 150);
+    const lifted = Math.min(1, view.h / (TOSS_PEAK * 2));
     this.ground.ellipse(x, y + 2, 19 - lifted * 8, 7 - lifted * 3).fill({ color: 0x000000, alpha: Math.max(0, .45 - lifted * .2 - pull * .3) });
     if (view.glow) {
       view.glow.alpha = pull > 0 ? 0 : .62 + Math.sin(time * 5) * .2;

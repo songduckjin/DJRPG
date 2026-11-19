@@ -129,6 +129,14 @@ test('the resting spot stays within reach of the character', () => {
   assert(Math.hypot(spot.x - hero.x, spot.y - hero.y) <= reach + 1e-6);
 });
 
+test('a field drop never turns while it falls, rests, or is pulled in', () => {
+  const source = readFileSync(new URL('../src/game/render/drops.ts', import.meta.url), 'utf8');
+  assert.doesNotMatch(source, /body\.rotation|spinV|spin\b/, 'the drop art keeps its upright angle from the kill to the bag');
+  // The toss itself is untouched: a gravity bounce, a rest beat, then the 1.5 second pull.
+  assert.match(source, /BOUNCE_GRAVITY/);
+  assert.match(source, /LOOT_REST_SECONDS/);
+});
+
 test('the field renderer keeps loot in its own layers with coins under items', () => {
   const source = readFileSync(new URL('../src/game/render/drops.ts', import.meta.url), 'utf8');
   const scene = readFileSync(new URL('../src/game/render.ts', import.meta.url), 'utf8');
@@ -138,4 +146,34 @@ test('the field renderer keeps loot in its own layers with coins under items', (
   assert.match(scene, /sortableChildren = true/);
   assert.match(scene, /lootRestSpots|LOOT_DEPTH|drawLoot/, 'the field scene draws ground loot');
   assert.doesNotMatch(source, /'#ff|linear-gradient|dungeon-loot/, 'the field loot is drawn by the renderer, not pasted DOM');
+});
+
+test('a field drop makes one small hop and lands with a single soft tap', () => {
+  const source = readFileSync(new URL('../src/game/render/drops.ts', import.meta.url), 'utf8');
+  const num = name => Number(source.match(new RegExp(`${name} = ([0-9.]+)`))[1]);
+  const gravity = num('BOUNCE_GRAVITY'), peak = num('TOSS_PEAK'), vary = num('TOSS_VARY'), rebound = num('TOSS_REBOUND'), settle = num('TOSS_SETTLE');
+  // A light toss on a 34px icon: a hop of a few pixels, then one tap of about a pixel.
+  assert(peak > 2 && peak <= 8, 'the first arc is a hop, not a lob');
+  assert(vary <= .25 && rebound <= .4, 'the hop stays even and the tap stays soft');
+  // Walk the renderer's own numbers frame by frame, at the highest and the lowest variant.
+  const fall = scale => {
+    let h = 2, vh = Math.sqrt(2 * gravity * peak) * scale, apex = 2, tap = 0, bounces = 0, tapped = false, frames = 0;
+    while (frames++ < 240) {
+      h += vh / 60; vh -= gravity / 60; apex = Math.max(apex, h);
+      if (h <= 0) {
+        h = 0;
+        if (!tapped && vh < -settle) { tapped = true; vh = -vh * rebound; bounces++; }
+        else break;
+      }
+      if (bounces) tap = Math.max(tap, h);
+    }
+    return { apex, tap, bounces, seconds: frames / 60 };
+  };
+  for (const scale of [1 + vary, 1 - vary]) {
+    const { apex, tap, bounces, seconds } = fall(scale);
+    assert(apex <= 11, `the first arc stays a small hop (got ${apex.toFixed(1)}px)`);
+    assert.equal(bounces, 1, 'the drop lands with one tap, not a series of bounces');
+    assert(tap <= 2, `the tap after landing is about a pixel (got ${tap.toFixed(2)})`);
+    assert(seconds < .6, 'the whole fall is over in well under a second');
+  }
 });

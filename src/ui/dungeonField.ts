@@ -30,11 +30,14 @@ export function openDungeonField(ui:Interface,lobby:HTMLElement):void {
   // Grade colours are pushed to full saturation: an equipment or skill book drop has to read as its
   // grade at a glance, while a coin carries no outer light at all.
   const rarityInk:Record<Rarity,string>={common:'#cdd6e0',magic:'#2f7bff',rare:'#ffd400',epic:'#a855f7',unique:'#ff8a00',legendary:'#ff2d2d'};
-  type LootView={el:HTMLDivElement;body:HTMLDivElement;shadow:HTMLSpanElement;x:number;y:number;tx:number;ty:number;drift:number;h:number;vh:number;spin:number;spinV:number;settled:boolean;done:boolean};
+  type LootView={el:HTMLDivElement;body:HTMLDivElement;shadow:HTMLSpanElement;x:number;y:number;tx:number;ty:number;drift:number;h:number;vh:number;tapped:boolean;settled:boolean;done:boolean};
   let lootViews:LootView[]=[],restSpots:LootDrop[]=[],spawnedLoot=0,absorbStarted=false,absorbRing:HTMLDivElement|undefined;
   // One timeline owns the clear beat: hold on the ground, pull every drop in, then show the result.
   const timeline=()=>dungeonLootTimeline(battle.outcome,battle.world.loot.length);
   const LOOT_GAP=36;
+  // The fall is one small hop and one soft tap: the first arc tops out around 5px (a sixth of the 38px
+  // body) and the rebound is a third of that, so a drop drops onto the floor instead of being lobbed.
+  const LOOT_GRAVITY=1200,LOOT_TOSS_PEAK=5,LOOT_TOSS_VARY=.2,LOOT_TOSS_REBOUND=.35,LOOT_TOSS_SETTLE=60,LOOT_TOSS_SPEED=Math.sqrt(2*LOOT_GRAVITY*LOOT_TOSS_PEAK);
   // A drop's art hangs 38px above its ground point, so a spot keeps that much room under the exit
   // door's sill: drops rest on the floor in front of the door and never climb up to it.
   const LOOT_ART_LIFT=38,LOOT_TOP_PAD=6;
@@ -73,7 +76,7 @@ export function openDungeonField(ui:Interface,lobby:HTMLElement):void {
     // Depth: loot that rests behind the hero's feet stays under the transparent arena canvas, loot
     // in front of them is drawn over the floor. Neither ever sits on the hero art.
     (gy+ty<heroY-6?backLootLayer:lootLayer).append(el);
-    lootViews.push({el,body,shadow,x:loot.x,y:loot.y,tx,ty,drift:reducedMotion?1:0,h:reducedMotion?0:2,vh:reducedMotion?0:110+Math.random()*70,spin:0,spinV:reducedMotion?0:(Math.random()-.5)*240,settled:false,done:false});
+    lootViews.push({el,body,shadow,x:loot.x,y:loot.y,tx,ty,drift:reducedMotion?1:0,h:reducedMotion?0:2,vh:reducedMotion?0:LOOT_TOSS_SPEED*(1+(Math.random()*2-1)*LOOT_TOSS_VARY),tapped:false,settled:false,done:false});
   };
   const clearLoot=():void=>{for(const entry of lootViews)entry.el.remove();lootViews=[];restSpots=[];spawnedLoot=0;absorbStarted=false;absorbRing?.remove();absorbRing=undefined;};
   // Bounce until resting; on a clear the same nodes are pulled in an accelerating arc into the hero.
@@ -97,21 +100,21 @@ export function openDungeonField(ui:Interface,lobby:HTMLElement):void {
         if(p>=1){entry.done=true;entry.el.remove();continue;}
         const point=dungeonAbsorbPoint({x,y:y-entry.h},{x:heroX,y:heroY-26},p,index);
         entry.el.style.transform=`translate3d(${point.x}px,${point.y}px,0)`;
-        entry.body.style.transform=`translate(-50%,-100%) rotate(${entry.spin+p*220}deg) scale(${1-.55*p*p})`;
+        entry.body.style.transform=`translate(-50%,-100%) scale(${1-.55*p*p})`;
         entry.body.style.opacity=String(1-p*.9);entry.shadow.style.opacity=String(.45*(1-p));
         continue;
       }
       if(!entry.settled){
-        entry.h+=entry.vh*dt;entry.vh-=1200*dt;
-        entry.spin+=entry.spinV*dt;entry.spinV*=Math.exp(-dt*2.2);
+        entry.h+=entry.vh*dt;entry.vh-=LOOT_GRAVITY*dt;
         if(entry.h<=0){entry.h=0;
-          if(entry.vh<-70){entry.vh=-entry.vh*.42;entry.spinV*=.5;}
+          if(!entry.tapped&&entry.vh<-LOOT_TOSS_SETTLE){entry.tapped=true;entry.vh=-entry.vh*LOOT_TOSS_REBOUND;}
           else{entry.vh=0;entry.settled=true;entry.el.classList.add('is-resting');}
         }
       }
       entry.el.style.transform=`translate3d(${x}px,${y}px,0)`;
-      entry.body.style.transform=`translate(-50%,-100%) translateY(${-entry.h}px) rotate(${entry.spin}deg)`;
-      const lift=Math.min(1,entry.h/150);
+      // The bounce carries the drop and nothing turns it: it falls and lands the way it left the mob.
+      entry.body.style.transform=`translate(-50%,-100%) translateY(${-entry.h}px)`;
+      const lift=Math.min(1,entry.h/(LOOT_TOSS_PEAK*2));
       entry.shadow.style.transform=`translate(-50%,-50%) scale(${1-lift*.55})`;
       entry.shadow.style.opacity=String(.5-lift*.3);
     }
