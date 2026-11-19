@@ -60,6 +60,43 @@ test('automatic attacks and equipped skills start when the hero reaches attack r
   world.update(.15);
   assert(enemy.hp < afterBasicAttack, 'the greatsword skill hits after its swing becomes visible');
 });
+test('사거리 경계(89~90)에서 추격 플래그가 공격을 삼키지 않는다', () => {
+  const world = new World(freshSave()); world.spawnTimer = 999;
+  const enemy = world.enemies[0]; enemy.hp = enemy.maxHp = 10000;
+  for (const distance of [89.9, 89.5, 89, 85.2, 40]) {
+    world.player.x = 0; world.player.y = 0;
+    world.cooldown.attack = 0; world.attackPose = 0; world.effects = [];
+    world.cooldown.slash2 = 0; world.cooldown.spin = 0; world.cooldown.crushing = 0; world.cooldown.slam = 0;
+    enemy.x = distance; enemy.y = 0; enemy.knockX = 0; enemy.knockY = 0; enemy.hit = 0;
+    // 추격해 들어오던 상태 그대로 — 예전 코드는 이 상태에서 경계에 걸치면 공격을 취소했다.
+    world.chaseTarget = enemy; world.pursuing = true; world.activeMove = { x: 1, y: 0 };
+    world.update(.016);
+    assert.equal(Math.hypot(world.activeMove.x, world.activeMove.y), 0, `${distance}: 사거리 안에서는 걷지 않는다`);
+    assert.equal(world.pursuing, false, `${distance}: 사거리 안이면 추격을 즉시 끈다`);
+    assert(world.effects.some(effect => effect.kind === 'slash'), `${distance}: 사거리 안이면 바로 공격한다`);
+    assert(world.cooldown.attack > 0, `${distance}: 공격이 실제로 나갔다`);
+    assert(enemy.hp < 10000, `${distance}: 피해가 들어갔다`);
+    assert.equal(world.player.x, 0, `${distance}: 제자리에서 때린다`);
+  }
+});
+
+test('사거리 경계에서 때리다 멈추지 않고 쿨다운마다 계속 공격한다', () => {
+  const world = new World(freshSave()); world.spawnTimer = 999;
+  const enemy = world.enemies[0]; enemy.hp = enemy.maxHp = 100000;
+  enemy.x = 89.5; enemy.y = 0;
+  world.chaseTarget = enemy; world.pursuing = true;   // 추격 중 경계에 들어온 상태에서 시작
+  let attacks = 0;
+  for (let i = 0; i < 60; i++) {   // 6초
+    enemy.x = world.player.x + 89.5; enemy.y = world.player.y;   // 넉백·접근과 무관하게 경계 고정
+    world.update(.1);
+    attacks += world.effects.filter(effect => effect.kind === 'slash').length;
+    world.effects = [];
+    assert.equal(world.activeMove.x, 0, '경계에서도 걷기 시작하지 않는다');
+  }
+  assert.equal(world.player.x, 0);
+  assert(attacks >= 8, `6초 동안 쿨다운마다 공격했다(실제 ${attacks}회)`);
+});
+
 test('a distant drop still starts pursuit and can be collected', () => {
   const world = new World(freshSave()); world.enemies = []; world.spawnTimer = 999;
   world.drops = [{ x: 90, y: 0, item: { id: 'loot', name: '낡은 두손검', slot: 'weapon', rarity: 'common', stats: { attack: 4 } }, age: 0, warned: false }];
