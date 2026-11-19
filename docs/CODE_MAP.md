@@ -6,7 +6,8 @@
 ## 1. 기능·증상별 바로가기
 
 | 작업 영역 | 핵심 파일 | 연관 파일 | 관련 테스트 |
-|---|---|---|---|
+|---|---|
+| 상시 던전 아이콘·대기창 | `ui/dungeonLobby.ts`, `modals/dungeonModal.ts`, `interface.ts`, `styles/dungeon.css` — 업적 아래 철문·현재층·도전/순위, 전투/서버 미연동 |---|---|
 | 월드보스 실전·공유HP·순위·우편보상 | `server/world-boss.mjs`, `server/endpoints/world-boss.mjs`, `src/game/worldBossLive.ts` | `functions/api/world-boss.js`, `worldBossField.ts`, `worldBossModal.ts`, `worldBossResult.ts`, `main.ts` | `world-boss-live`, `world-boss-preview`, `world-boss-field`, `journey` |
 | 크롬 GPU 미지원 mesh 렌더 오류 | `src/game/pixiSetup.ts` | `src/main.ts` 초기등록·Canvas quad 폴백 | `pixi-setup`, `hero-motion`, `world-boss-field` |
 | 월드보스 소개·전용필드·순위/보상 | `src/ui/modals/worldBossModal.ts`, `src/ui/worldBossField.ts`, `src/game/worldBossRehearsal.ts` | `worldBossPreview.ts`, `worldBossPresentation.ts`, `worldBossDefeat.ts`, `interface.ts`, `main.ts` Ticker수명, `styles/world-boss.css`, `public/assets/world-boss/*` | `world-boss-preview`, `world-boss-field`, `modal-ui`, `modal-interaction`, `hero-motion`, `appearance` |
@@ -223,3 +224,8 @@ npm run check && npm test && npm run build # 공용 계약 수정·사용자 요
 - 새 버그 패턴·계약 추가 → §2 증상 색인 또는 §4 불변 계약에 한 줄 반영하고, 책임이 바뀐 기존 줄은 고쳐 쓴다.
 - 밀도 유지: 상단 색인(§1·§2)만으로 영역을 찾게 하고 산문 설명은 넣지 않는다(전수 읽기 불필요 상태 유지).
 - **`docs/QUICK_PATCH.md` 연계**: 자주 고치는 작업 레시피를 이 문서(§1 행·§2 증상·§3.5 시퀀스)에 반영할 때 `QUICK_PATCH.md` §1 표에도 같은 1줄(수정 파일·금지·단건 테스트)을 추가하고, 반대도 같이 맞춘다. 두 문서가 어긋나면 이 문서가 기준이다.
+
+### 상시 던전 대기창 (작업 168)
+- `src/ui/dungeonLobby.ts`: 다음 도전층·90초·일반3/3/정예1·5층 보스1 및 순위 정렬. 저장/서버 계약 없음.
+- `src/ui/modals/dungeonModal.ts`, `src/styles/dungeon.css`: 철문 대기창·도전/순위·현재층만 표시. 도전하기는 준비 안내만 표시. `interface.ts` utility 메뉴 업적 바로 아래 연결, `modalDefaults.ts` 새 입장 도전탭 초기화.
+- 아트 `public/assets/dungeon/lobby-gate-v1.png`, `public/assets/icons/utility_dungeon.png`. 검증 `tests/dungeon-lobby.test.mjs` + modal-ui/modal-interaction.

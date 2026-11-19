@@ -639,3 +639,7 @@
 - PR #79(`task/140-costume-field-renderer`).
 
 - 배포 후 실측: 운영 `https://djrpg.pages.dev/version.json` = `3854ab354695`(머지 커밋). 게스트 시작 후 필드 장면에서 콘솔 오류 0건·4xx 0건·캐릭터 정상 표시를 확인했다. 다만 없는 `/assets/costume/v1/manifest.json` 요청이 SPA fallback으로 `200 text/html` + `immutable`을 받아 브라우저에 v1 URL이 캐시되므로, 첫 실물 에셋 배포(142)는 `COSTUME_ASSET_VERSION`을 2로 올려야 한다(문서: `docs/COSTUME_SYSTEM.md` §7.2 주의, `docs/TASK_songduckjin.md` 작업 142 필수 항목).
+
+## 2026-11-19 fks3997 — 작업168 상시 던전 대기창
+- 업적 아래 동일 utility 크기/간격 철문 아이콘·현재층 도전/순위 대기창, 전투/서버 미연동·가짜순위 없음.
+- tsc·관련45테스트·아트 검사 통과. Draft PR #88 preview 전용(기존 배경확장/167 경고원 포함), 운영병합 금지.

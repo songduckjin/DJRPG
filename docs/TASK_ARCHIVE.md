@@ -1867,3 +1867,6 @@
 | 159 발그림고정·호흡지속·기본3초 | fks3997 | feature/world-boss-preview-fks3997 | idle부츠레이어/신경계mask·idle호흡위상연속·기본3초, tsc·27테스트 | [x] |
 
 | 160 현재 월드보스 시안 운영반영 | fks3997 | feature/world-boss-preview-fks3997 / PR51 | 사용자배포승인·최신main보존/101테스트·타입·아트·운영빌드통과 | [x] |
+
+| 168 상시 던전 아이콘·대기창 시안 | fks3997 | preview/gravel-background-fks3997 | src/ui/{interface,modalDefaults,dungeonLobby}.ts, modals/dungeonModal.ts, src/styles/{main,dungeon}.css, public/assets/dungeon/*, public/assets/icons/utility_dungeon.png, tests/dungeon-lobby.test.mjs, 문서 / 업적아래아이콘·현재층·순위탭(전투미연동) | 중 | [x] |
+- 168: tsc·관련45테스트·아트 검증 통과. Draft PR #88 미리보기 전용, 전투/DB 미연동.

@@ -7,6 +7,7 @@
 
 | 작업 유형 | 수정할 파일 (딱 여기만) | 절대 건드리지 말 것 | 실행할 단건 테스트 |
 |---|---|---|---|
+| 상시 던전 아이콘·대기창 | `ui/dungeonLobby.ts`, `modals/dungeonModal.ts`, `interface.ts`, `modalDefaults.ts`, `styles/dungeon.css` | 전투/Save/API 연결·가짜 실시간 순위·이전층 선택 금지 | `node --test tests/dungeon-lobby.test.mjs tests/modal-ui.test.mjs tests/modal-interaction.test.mjs` |
 | 메인 원본배경 확장/카메라/불·풀 정렬 | `game/wasteland.ts`, `ambientMotion.ts`, `assets/wasteland-scene-extended-v1.png` | 원래540×914 core 확대·카메라팬 제거·앵커 불일치·운영병합 금지(미리보기 전용) | `node --test tests/wasteland.test.mjs tests/ambient-motion.test.mjs` |
 | 월드보스 내려찍기 경고 원 | `ui/worldBossImpact.ts` slamWarning, `worldBossField.ts` 전용Graphics | 피해시간표 변경·타격후/처치중 경고잔류 금지 | `node --test tests/world-boss-field.test.mjs tests/world-boss-preview.test.mjs` |
 | 월드보스 처치 모션/기본 도전탭 | `ui/worldBossDefeat.ts`, `worldBossField.ts`, `modalDefaults.ts`, `assets/world-boss/valkaron-defeat-hd-v1.png` | 시간초과/캐릭터사망에 처치연출 금지·연출중 보상/피해 재계산 금지·탭전환 중 초기화 금지 | `node --test tests/world-boss-field.test.mjs tests/world-boss-preview.test.mjs tests/world-boss-live.test.mjs tests/modal-ui.test.mjs tests/modal-interaction.test.mjs` |
