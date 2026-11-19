@@ -4,7 +4,7 @@ import {
 } from '../game/render/costumeHero';
 import type { Save } from '../game/store';
 import { baseItemIndex } from '../game/items';
-import { helmetArtFor, helmetArtPaths, helmetIdlePlacement } from '../game/render/helmets';
+import { helmetArtFor, helmetArtPath, helmetIdlePlacement } from '../game/render/helmets';
 
 /**
  * 내 정보(장비창) 초상화 — Task 149 full-body pilot image. Gear remains functional but its
@@ -31,10 +31,11 @@ export type EquipmentPortraitHelmet = {
 export function equipmentPortraitHelmet(save: Save): EquipmentPortraitHelmet | undefined {
   const item = save.equipment.helmet;
   if (!item) return undefined;
-  const art = helmetArtFor(save.gender, baseItemIndex(item));
+  // 장비창은 서기 1프레임이라 정면 파츠를 그대로 쓴다(공격 3/4 파츠는 필드 전용).
+  const art = helmetArtFor(save.gender, baseItemIndex(item), 'idle', 0);
   if (!art) return undefined;
   const place = helmetIdlePlacement(save.gender);
-  return { path: helmetArtPaths[art], x: place.x, y: place.y, scale: place.scale };
+  return { path: helmetArtPath(art), x: place.x, y: place.y, scale: place.scale };
 }
 
 export type EquipmentPortraitPlan = {

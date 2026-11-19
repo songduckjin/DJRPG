@@ -4,7 +4,10 @@ import { Container, Sprite, Texture, TextureSource } from 'pixi.js';
 import { existsSync, readFileSync } from 'node:fs';
 import './ts-loader.mjs';
 
-const { helmetArtFor, helmetArtList, helmetArtPaths, helmetPlacement, helmetIdlePlacement, headlessBodyPaths } = await import('../src/game/render/helmets.ts');
+const {
+  helmetArtFor, helmetArtList, helmetArtPath, helmetArtPaths, helmetAttackArtList, helmetAttackArtPaths,
+  helmetPlacement, helmetIdlePlacement, headlessBodyPaths
+} = await import('../src/game/render/helmets.ts');
 const { drawHero } = await import('../src/game/render/entities.ts');
 const { freshSave } = await import('../src/game/store.ts');
 const { baseItemIndex, baseItems } = await import('../src/game/items.ts');
@@ -54,6 +57,39 @@ test('투구 파츠는 부팅 때 함께 프리로드된다', () => {
   assert.equal(new Set(renderAssetPaths).size, renderAssetPaths.length, '중복 경로가 없어야 한다');
 });
 
+test('공격 3/4 투구 파츠 80장이 성별·인덱스·프레임마다 존재한다', () => {
+  assert.equal(helmetAttackArtList.length, 80);
+  assert.equal(new Set(helmetAttackArtList).size, 80);
+  for (const gender of ['male', 'female']) {
+    for (let index = 0; index <= 9; index++) {
+      for (let frame = 0; frame < 4; frame++) {
+        const art = helmetArtFor(gender, index, 'attack', frame);
+        assert.equal(art, `atk_${gender}_${index}_f${frame}`);
+        const path = helmetArtPath(art);
+        assert(path.includes(`/helmets/atk/${gender}_${index}_f${frame}.png`), path);
+        assert(renderAssetPaths.includes(path), `${art} 프리로드 누락`);
+        const file = fileOf(path);
+        assert(existsSync(file), `${art} 파일이 없습니다`);
+        const data = readFileSync(file);
+        assert.equal(data.toString('ascii', 1, 4), 'PNG', art);
+        const width = data.readUInt32BE(16), height = data.readUInt32BE(20);
+        assert(width >= 40 && width <= 170, `${art} 폭 ${width}`);
+        assert(height >= 40 && height <= 170, `${art} 높이 ${height}`);
+        assert(data[25] === 6 || data[25] === 3, `${art} 알파 채널`);
+      }
+    }
+  }
+  // 서기·걷기는 정면 파츠를 그대로 쓰고, 프레임은 4로 접힌다.
+  assert.equal(helmetArtFor('male', 6, 'idle'), 'helm_6');
+  assert.equal(helmetArtFor('male', 6, 'walk', 3), 'helm_6');
+  assert.equal(helmetArtFor('female', 1, 'idle'), 'helm_female_1');
+  assert.equal(helmetArtFor('female', 1, 'attack', 2), 'atk_female_1_f2');
+  assert.equal(helmetArtFor('male', 6, 'attack', 5), 'atk_male_6_f1');
+  assert.equal(helmetArtFor('male', 6, 'attack', -1), 'atk_male_6_f3');
+  assert.equal(helmetArtFor('male', 10, 'attack', 0), undefined);
+  assert.equal(new Set(renderAssetPaths).size, renderAssetPaths.length, '중복 경로가 없어야 한다');
+});
+
 test('프레임 앵커는 성별·동작·프레임마다 유한한 값을 준다', () => {
   for (const gender of ['male', 'female']) {
     for (const motion of ['idle', 'walk', 'attack']) {
@@ -62,7 +98,8 @@ test('프레임 앵커는 성별·동작·프레임마다 유한한 값을 준�
         assert(Number.isFinite(place.x) && Number.isFinite(place.y), `${gender} ${motion}`);
         assert(place.scale > .5 && place.scale <= 1.2, `${gender} ${motion} 배율 ${place.scale}`);
         assert(place.x > 120 && place.x < 300, `${gender} ${motion} x ${place.x}`);
-        assert(place.y > 60 && place.y < 200, `${gender} ${motion} y ${place.y}`);
+        // 공격 3/4 파츠는 고개를 숙인 프레임에서 크롭 아래가 목·칼라까지 내려간다(작업 154).
+        assert(place.y > 60 && place.y < 260, `${gender} ${motion} y ${place.y}`);
       }
       // 걷기는 4포즈를 8프레임으로 반복 재생한다.
       if (motion === 'walk') assert.deepEqual(helmetPlacement(gender, motion, 4), helmetPlacement(gender, motion, 0));
@@ -72,24 +109,27 @@ test('프레임 앵커는 성별·동작·프레임마다 유한한 값을 준�
   }
 });
 
-test('공격 4프레임은 고개 기울기·숙임 값을 갖고 숙인 프레임일수록 더 눕는다', () => {
+test('공격 4프레임은 3/4 옆모습 파츠를 회전·숙임 없이 배치한다', () => {
   for (const gender of ['male', 'female']) {
-    const frames = [0, 1, 2, 3].map(frame => helmetPlacement(gender, 'attack', frame));
-    for (const [index, place] of frames.entries()) {
-      assert(Number.isFinite(place.rotation), `${gender} ${index} 회전`);
-      assert(Math.abs(place.rotation) < .5, `${gender} ${index} 회전 ${place.rotation} rad`);
-      assert(Number.isFinite(place.scaleY), `${gender} ${index} 세로 배율`);
-      assert(place.scaleY > .8 && place.scaleY <= 1.02, `${gender} ${index} 세로 배율 ${place.scaleY}`);
+    for (let index = 0; index <= 9; index++) {
+      const frames = [0, 1, 2, 3].map(frame => helmetPlacement(gender, 'attack', frame, index));
+      for (const [frame, place] of frames.entries()) {
+        assert(Number.isFinite(place.x) && Number.isFinite(place.y), `${gender} ${index} ${frame}`);
+        assert.equal(place.scale, 1, `${gender} ${index} ${frame} 배율`);
+        assert.equal(place.scaleY, 1, `${gender} ${index} ${frame} 세로 배율`);
+        assert.equal(place.rotation, 0, `${gender} ${index} ${frame} 회전`);
+        assert(place.x > 120 && place.x < 300, `${gender} ${index} ${frame} x ${place.x}`);
+        assert(place.y > 60 && place.y < 260, `${gender} ${index} ${frame} y ${place.y}`);
+      }
+      // 고개를 숙이는 3·4프레임은 그림 자체가 아래로 내려가 있다(정면 파츠를 얹던 153 이전 값보다 낮다).
+      assert(frames[3].y > frames[0].y + 20, `${gender} ${index} 4프레임 숙임`);
     }
-    // 1프레임은 검을 머리 위로 들며 고개를 살짝 젖히고, 3·4프레임은 깊게 숙여
-    // 세로가 짧아지고 몸통 쪽(오른쪽)으로 더 기운다.
-    assert(frames[1].rotation <= 0, `${gender} 1프레임 젖힌 고개`);
-    assert(frames[0].scaleY >= frames[2].scaleY, `${gender} 숙임 단조성`);
-    assert(frames[2].scaleY > frames[3].scaleY, `${gender} 3·4프레임 숙임`);
-    assert(frames[3].rotation > frames[0].rotation, `${gender} 4프레임 기울기`);
-    // 정면 파츠가 목 밑동보다 위에 떠 있던 옛 앵커(남 191,118 · 여 208,116)보다 내려왔다.
-    assert(frames[2].y > 150 && frames[3].y > 170, `${gender} 공격 앵커 높이`);
+    // 크롭이 투구마다 조금씩 달라도 목 밑동은 원본 자리에 그대로 선다 — 인덱스별 앵커가 필요하다.
+    assert.notEqual(helmetPlacement(gender, 'attack', 3, 7).x, helmetPlacement(gender, 'attack', 3, 0).x);
   }
+  // 프레임 번호는 4로 접힌다.
+  assert.deepEqual(helmetPlacement('male', 'attack', 4, 2), helmetPlacement('male', 'attack', 0, 2));
+  assert.deepEqual(helmetPlacement('male', 'attack', -1, 2), helmetPlacement('male', 'attack', 3, 2));
 });
 
 const texture = () => new Texture({ source: new TextureSource({ width: 362, height: 362 }) });
@@ -99,7 +139,7 @@ function view() {
   const hero = new Sprite(Texture.EMPTY);
   hero.anchor.set(.5, .97); // render.ts 와 같은 본체 앵커
   layer.addChild(hero);
-  const helmetTextures = new Map(Object.values(helmetArtPaths).map(path => [path, Texture.EMPTY]));
+  const helmetTextures = new Map([...Object.values(helmetArtPaths), ...Object.values(helmetAttackArtPaths)].map(path => [path, Texture.EMPTY]));
   return {
     hero, heroLayer: layer, heroGear: new Map(), gearTextures: new Map(), gearLoading: new Set(),
     helmetTextures, heroHelmet: undefined,
@@ -171,7 +211,7 @@ test('투구를 착용하면 필드에 머리 파츠가 얹히고, 벗으면 숨
   game.heroLayer.destroy({ children: true });
 });
 
-test('공격 프레임에서는 투구 스프라이트가 고개 기울기·숙임대로 변환된다', () => {
+test('공격 프레임에서는 3/4 옆모습 투구 파츠로 바뀌고 서기로 돌아오면 정면 파츠로 돌아온다', () => {
   const save = freshSave('male');
   const game = view();
   const animated = world(save);
@@ -181,15 +221,19 @@ test('공격 프레임에서는 투구 스프라이트가 고개 기울기·숙�
     animated.attackPose = attackPose;
     drawHero.call(game, animated, 100, 100, attackPose);
     const sprite = game.heroHelmet;
-    const place = helmetPlacement('male', 'attack', frame);
+    const place = helmetPlacement('male', 'attack', frame, 3);
     assert(sprite, `공격 ${frame}프레임 투구 스프라이트`);
-    assert(Math.abs(sprite.rotation - place.rotation) < 1e-9, `공격 ${frame}프레임 회전`);
-    assert.equal(sprite.scale.x, place.scale, `공격 ${frame}프레임 가로 배율`);
-    assert.equal(sprite.scale.y, place.scaleY, `공격 ${frame}프레임 세로 배율`);
+    assert.equal(sprite.texture, game.helmetTextures.get(helmetAttackArtPaths[`atk_male_3_f${frame}`]), `공격 ${frame}프레임 3/4 파츠`);
+    assert.equal(sprite.rotation, 0, `공격 ${frame}프레임 회전 없음`);
+    assert.equal(sprite.scale.x, 1, `공격 ${frame}프레임 가로 배율`);
+    assert.equal(sprite.scale.y, 1, `공격 ${frame}프레임 세로 배율`);
+    assert.equal(sprite.position.x, place.x - game.hero.texture.width * game.hero.anchor.x, `공격 ${frame}프레임 x`);
+    assert.equal(sprite.position.y, place.y - game.hero.texture.height * game.hero.anchor.y, `공격 ${frame}프레임 y`);
   }
-  // 서기로 돌아오면 회전·숙임이 풀린다.
+  // 서기로 돌아오면 정면 파츠·서기 앵커로 복귀한다.
   animated.attackPose = 0;
   drawHero.call(game, animated, 100, 100, 0);
+  assert.equal(game.heroHelmet.texture, game.helmetTextures.get(helmetArtPaths.helm_3), '서기는 정면 파츠');
   assert.equal(game.heroHelmet.rotation, 0, '서기에서는 회전 없음');
   assert.equal(game.heroHelmet.scale.y, helmetIdlePlacement('male').scale, '서기 세로 배율');
   game.heroLayer.destroy({ children: true });
