@@ -139,3 +139,37 @@ test('normal difficulty health and damage match the floor curves', () => {
   }
   assert.equal(enemyHitDamage(1, false, 1000), 1);
 });
+
+const dummyEnemy = (x, y, hp = 1000) => ({ x, y, hp, maxHp: hp, boss: false, hit: 0, step: 0, moving: false, knockX: 0, knockY: 0, slow: 0 });
+
+test('평타는 사거리·부채꼴 안에서 가장 가까운 한 마리만 때린다', () => {
+  const world = new World(freshSave()); world.spawnTimer = 999;
+  const far = dummyEnemy(70, 4), near = dummyEnemy(40, 0);
+  world.enemies = [far, near];   // 배열 순서와 무관하게 가까운 쪽이 맞는다
+  world.action('attack');
+  assert(near.hp < 1000, '가장 가까운 적이 맞았다');
+  assert.equal(far.hp, 1000, '같은 사거리·부채꼴 안의 다른 적은 그대로다');
+  assert.equal(world.effects.filter(effect => effect.kind === 'hit').length, 1, '피격 표시도 한 마리만');
+  assert(near.hit > 0); assert.equal(far.hit, 0);
+});
+
+test('평타가 한 마리를 처치해도 사거리 안의 다른 적은 그대로 살아 있다', () => {
+  const world = new World(freshSave()); world.spawnTimer = 999;
+  const far = dummyEnemy(70, 4), near = dummyEnemy(40, 0, 1);
+  world.enemies = [far, near];
+  const kills = world.save.kills;
+  world.action('attack');
+  assert.equal(world.enemies.length, 1, '처치된 한 마리만 빠진다');
+  assert.equal(world.enemies[0], far);
+  assert.equal(world.save.kills, kills + 1);
+});
+
+test('액티브 스킬은 종전처럼 사거리 안의 모든 적을 때린다', () => {
+  const save = freshSave(); save.learned = ['destroy']; save.quickSlots = ['destroy', null, null];
+  const world = new World(save); world.spawnTimer = 999;
+  const far = dummyEnemy(70, 4), near = dummyEnemy(40, 0);
+  world.enemies = [far, near];
+  world.action('destroy');
+  assert(near.hp < 1000, '가까운 적이 맞았다');
+  assert(far.hp < 1000, '먼 적도 함께 맞는다');
+});

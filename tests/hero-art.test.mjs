@@ -163,3 +163,44 @@ for (const gender of ['male', 'female']) {
     }
   });
 }
+
+// Task 150: the pilot sheets draw the body at different heights per state, so `heroBodyPx`
+// has to follow each sheet. Reusing the idle height (335) for all three states shrank the
+// hero about 10 % while walking and up to 27 % in the crouched swing frames.
+{
+  const { heroBodyPx } = await import('../src/game/render/heroScale.ts');
+  const states = [['idle', 1], ['walk', 4], ['attack', 4]];
+  for (const gender of ['male', 'female']) {
+    const key = state => `pilot${gender === 'male' ? 'Male' : 'Female'}${state === 'idle' ? '' : state === 'walk' ? 'Walk' : 'Attack'}`;
+    const measured = {};
+    for (const [state, frames] of states) {
+      const { width, height, alpha } = decodeAlpha(readFileSync(new URL(`../public/assets/pilot-25d/warrior_${gender}_${state}_v1.png`, import.meta.url)));
+      const cell = width / frames;
+      const heights = [];
+      for (let frame = 0; frame < frames; frame++) {
+        let top = height, bottom = -1;
+        for (let y = 0; y < height; y++) for (let x = frame * cell; x < (frame + 1) * cell; x++) {
+          if (alpha[y * width + x] > 20) { top = Math.min(top, y); bottom = Math.max(bottom, y); }
+        }
+        heights.push(bottom - top + 1);
+      }
+      measured[state] = heights;
+    }
+    test(`${gender}: walk and swing body heights match the drawn pilot sheets`, () => {
+      const idle = heroBodyPx[key('idle')];
+      // 서기는 포즈 한 장이라 시트 실측값이 곧 본체 높이다(픽셀 임계값 차이 ±1% 허용).
+      assert(Math.abs(idle - measured.idle[0]) <= idle * .01, `idle: heroBodyPx ${idle} vs drawn ${measured.idle[0]}`);
+      for (const [state, tolerance] of [['walk', .08], ['attack', .08]]) {
+        const mean = measured[state].reduce((sum, value) => sum + value, 0) / measured[state].length;
+        const bodyPx = heroBodyPx[key(state)];
+        assert(Math.abs(bodyPx - mean) <= mean * tolerance, `${state}: heroBodyPx ${bodyPx} vs drawn mean ${mean.toFixed(1)}`);
+      }
+      // 걷기·공격이 서기보다 작게 그려지지 않는다: 배율이 그만큼 커져 화면 크기는 같다.
+      assert(heroBodyPx[key('walk')] < idle);
+      assert(heroBodyPx[key('attack')] < heroBodyPx[key('walk')]);
+      for (const state of ['walk', 'attack']) {
+        assert(heroBodyPx[key(state)] / idle > .75, `${state}: hero must not shrink more than a quarter`);
+      }
+    });
+  }
+}
