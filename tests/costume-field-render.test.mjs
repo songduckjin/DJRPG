@@ -304,24 +304,30 @@ test('낡은 투구로 교체할 때 이전 코스튬 스프라이트와 페이�
   assert.equal(state.textures.size, 0);
 });
 
-test('필드·미리보기 공용 계획의 무기는 1.35배로 키우고 손잡이를 허리 높이로 내린다', () => {
+test('필드·미리보기 공용 계획의 무기는 1.45배로 키우고 손잡이를 허리·골반 높이로 내린다', () => {
   for (const gender of ['male', 'female']) {
     const save = fullEquipment(freshSave(gender));
     const plan = planHeroCostume(save, loadOk);
     assert.equal(plan.ok, true);
     const weapon = plan.layers.find(layer => layer.role === 'weapon');
-    // 2026-11-19 실기 제보 "검 크기를 키우고, 머리 위에 뜬 검을 내려 달라". 매니페스트 fit이 없을 때 기본값.
-    assert.equal(weapon.scale.x, 1.35);
-    assert.equal(weapon.scale.y, 1.35);
-    assert.deepEqual(weapon.offset, { x: -3, y: 68 });
+    // 2026-11-19 실기 제보 "검 크기를 키우고, 머리 위에 뜬 검을 내려 달라".(1.35배·+68 후에도 떠 있었다)
+    // 매니페스트 fit이 없을 때의 기본값.
+    assert.equal(weapon.scale.x, 1.45);
+    assert.equal(weapon.scale.y, 1.45);
+    assert.deepEqual(weapon.offset, { x: -8, y: 110 });
     assert.equal(weapon.rotation, 0);
-    // 아틀라스의 손잡이 높이(발끝 기준 -120px)가 1.35배 피벗 확대(-42px)와 +68px 보정으로
-    // 발끝 기준 -94px(허리·손 높이, 몸높이 190px의 49%)에 오는지 계산으로 확인한다.
-    const cellPivotY = 242 * 0.96;
-    const gripY = cellPivotY - 120;
-    const drawnGrip = (gripY - cellPivotY) * weapon.scale.y + weapon.offset.y;
-    assert.equal(drawnGrip, -94);
-    assert(Math.abs(drawnGrip / 190) < .5, '손잡이는 몸통 위쪽(어깨·머리)이 아니라 허리 아래에 온다');
+    // 아틀라스 생성기 실측(weapon_cells): 정지 프레임 손잡이는 발끝 기준 남 -119.86px·여 -105.69px,
+    // 검 길이 104px, 검 끝(아이콘 상단)은 SOCKET_ANCHOR.y 0.82만큼 더 위다.
+    // 본체 상단(body 알파)은 남·여 모두 -193.32px다.
+    const gripRel = gender === 'male' ? -119.86 : -105.69;
+    const tipRel = gripRel - 104 * 0.82;
+    const drawnGrip = gripRel * weapon.scale.y + weapon.offset.y;
+    const drawnTip = tipRel * weapon.scale.y + weapon.offset.y;
+    // 손잡이가 발끝 기준 남 -64px·여 -43px(몸높이 190px의 34%·23% = 허리·골반 손 높이)로 내려온다.
+    assert.equal(Math.round(drawnGrip), gender === 'male' ? -64 : -43);
+    assert(Math.abs(drawnGrip / 190) < .4, '손잡이는 몸통 위쪽(어깨·머리)이 아니라 허리·골반 높이에 온다');
+    // 검 끝은 머리 상단(-193.32px)보다 아래에 와 검날이 머리 위로 솟지 않는다(몸을 덮어도 무방).
+    assert(drawnTip > -193.32, '검 끝은 머리 위로 솟지 않고 머리 아래에서 몸을 덮는다');
   }
 
   // 매니페스트가 fit을 지정하면 무기도 그 값을 우선한다(다른 부위와 같은 규칙).
