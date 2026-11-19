@@ -34,8 +34,15 @@ export const costumeSlotZOrder: Record<CostumeSlotGroup, number> = {
   boots: 5, armor: 10, gloves: 20, helmet: 30, offhand: 40, weapon: 50, necklace: 0, belt: 0, ring: 0
 };
 
-/** 필드에서 그리는 장비 부위와 그 순서. 목걸이·벨트·반지는 필드 미표시(§3.1)라 대상이 아니다. */
-export const costumeSlotDrawOrder: readonly Slot[] = ['boots', 'armor', 'gloves', 'helmet', 'offhand', 'weapon'];
+/**
+ * 캐릭터 외형에 그리는 장비 부위 — 갑옷·투구·무기 **3종만**.
+ *
+ * 2026-11-19 실기 제보: 문장(`offhand`)·장갑·신발 레이어가 캐릭터 밖으로 튀어나와 보였다.
+ * 그래서 외형 계획에서는 이 세 부위를 아예 그리지 않는다(착용·스탯·`내 정보` 10칸 슬롯·
+ * 매니페스트 스키마는 그대로이고 아틀라스도 다시 패킹하지 않는다 — 그림만 쓰지 않는다).
+ * 목걸이·벨트·반지는 원래부터 필드 미표시(§3.1)라 여기 없다.
+ */
+export const costumeAppearanceSlots: readonly Slot[] = ['armor', 'helmet', 'weapon'];
 
 /**
  * 아틀라스 셀 크기. 138 `estimateCanvas`가 계산한 최대 동작 캔버스 후보(대검 234×242)를
@@ -118,6 +125,8 @@ function variantIndex(manifest: CostumeManifest, definition: CostumeDefinition):
  *
  * - 몸통·팔·다리 본체 파츠는 항상 계획에 넣고, 갑옷을 입으면 **본체 파츠 3종을 모두 갑옷으로 교체**한다
  *   (§4 파츠 교체). v2는 `torso`만 지워 맨몸 팔·다리가 갑옷 밖으로 삐져나와 다리가 4개처럼 보였다.
+ * - 장비는 `costumeAppearanceSlots`(갑옷·투구·무기)만 계획에 넣는다. 문장·장갑·신발은 착용해도
+ *   외형 레이어가 없다(2026-11-19 실기 제보, 그림이 캐릭터 밖으로 튀어나옴).
  * - 투구는 머리 위치가 갑옷 셀 기준인지 맨몸 셀 기준인지에 따라 페이지가 다르다:
  *   갑옷을 입으면 `helmet-<성별>`, 맨몸이면 `helmet-body-<성별>`(§7.5 2D 머리 정렬).
  * - 장비 하나라도 계획이 서지 않으면(폴백 ①②③) 부분 합성하지 않고 전체 폴백을 돌려준다.
@@ -154,7 +163,7 @@ export function planHeroCostume(save: Pick<Save, 'gender' | 'equipment'>, load: 
 
   let armor: CostumeLayerPlan | null = null;
   const equipment: CostumeLayerPlan[] = [];
-  for (const slot of costumeSlotDrawOrder) {
+  for (const slot of costumeAppearanceSlots) {
     const item = save.equipment[slot];
     if (!item) continue;
     const plan = planCostume(item, load);
@@ -178,16 +187,9 @@ export function planHeroCostume(save: Pick<Save, 'gender' | 'equipment'>, load: 
       scale: { x: definition.fit?.scaleX ?? 1, y: definition.fit?.scaleY ?? 1 },
       rotation: definition.fit?.rotation ?? 0
     };
-    if (definition.slot === 'weapon') {
-      // v3's 104px idle sword crosses the head. Shrink around its hand socket
-      // so the grip remains attached in field and portrait plans alike.
-      const grip = save.gender === 'female' ? { x: 90, y: 126 } : { x: 126, y: 112 };
-      const scale = .7;
-      layer.offset.x += (1 - scale) * (grip.x - costumeAtlasCellWidth * costumeBodyPivot.x);
-      layer.offset.y += (1 - scale) * (grip.y - costumeAtlasCellHeight * costumeBodyPivot.y);
-      layer.scale.x *= scale;
-      layer.scale.y *= scale;
-    }
+    // 무기는 매니페스트 `fit`(없으면 1배)만 쓴다. 작업 143의 70% 축소는 두손검이 작아 보인다는
+    // 실기 제보(2026-11-19)로 걷어냈다. 축소 보정식이 `(1 - scale)` 항이라 손 소켓 접점은
+    // 1배에서도 같은 자리이므로, 검만 원래 크기로 커지고 손에서 떨어지지 않는다.
     if (definition.slot === 'armor') armor = layer;
     else equipment.push(layer);
   }

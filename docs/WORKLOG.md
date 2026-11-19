@@ -1,5 +1,14 @@
 # 작업 로그
 
+## 2026-11-19 — 캐릭터 외형 3부위(갑옷·투구·무기)·무기 크기 원복 (실기 후속)
+
+- **제보 2건**: 실기 화면에서 ① 문장(`offhand`)이 캐릭터 밖으로 튀어나와 보임 ② 두손검이 작아 보임. ①은 문장·장갑·신발 코스튬 레이어가 캐릭터에 붙어 그려진 결과였고, ②는 작업 143/144의 무기 70% 축소 보정 때문이었다.
+- `src/game/render/costumeHero.ts`: `costumeSlotDrawOrder`(6부위)를 `costumeAppearanceSlots = ['armor','helmet','weapon']`로 바꿔 `planHeroCostume()`이 갑옷·투구·무기 3부위만 계획한다. 문장·장갑·신발은 착용·스탯·`내 정보` 10칸 슬롯·코덱스·Save·매니페스트 계약과 아틀라스 PNG를 그대로 두고 **그림 레이어만** 없다. 외형을 그리지 않는 부위는 `planCostume()`을 호출하지 않아 매핑 밖 이름이어도 폴백을 만들지 않는다.
+- 무기 `if (definition.slot === 'weapon')` 70% 축소 블록을 제거해 매니페스트 `fit`(없으면 1배)만 쓴다. 축소 보정식이 `(1 - scale)` 항이라 손 소켓 접점은 1배에서도 같은 좌표다(검만 커진다).
+- 테스트: `tests/costume-field-render.test.mjs`에서 6부위 기대 단언을 3부위 기대로 바꾸고, 회귀 검사 2건(문장·장갑·신발 착용/미매핑 이름이어도 레이어·폴백 없음, 무기 `scale`·`offset`·`rotation` 원복)을 추가했다. `tests/equipped-detail.test.mjs`의 문장·신발 레이어 기대도 "없음"으로 바꿨다. 아틀라스 실패 목록은 실제로 쓰는 3페이지로 정리했다.
+- 문서: `docs/COSTUME_SYSTEM.md` v2.0(§7.9 신설, §7.7 축소 항목에 원복 표시), `docs/CODE_MAP.md`(캐릭터 외형 행·`costumeHero.ts` 항목).
+- 검증: `tsc --noEmit`, 전체 `node --test tests/*.test.mjs` **380건**, `node scripts/verify-item-art.mjs`, `npm run build`, `git diff --check` 통과. PNG·스크린샷 확인은 이미지 입력 제한(2026-11-19 17:45까지) 때문에 하지 않았고 화면 검수는 사용자 몫이다.
+
 ## 2026-11-19 — 서리의 가죽두건 혼합 장비 레이어 (작업 145 후속)
 
 - **운영 화면 후속**: PR #89의 전신 시안은 `서리의 가죽두건 + 낡은 두손검` 단일 조합에서만 적용된다. 운영 화면에서 문장·신발 등 다른 장비를 함께 착용한 상태가 확인돼 전신 대체 조건을 벗어나면 v3 금속 투구가 그대로 보였다. `codex/145-frost-hood-layered-fix`에서 아이템 원본의 천 두건만 머리 위치에 배치하는 **두건 전용 레이어**를 추가했다.
