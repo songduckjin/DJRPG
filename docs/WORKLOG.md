@@ -1,5 +1,18 @@
 # 작업 로그
 
+## 2026-11-19 — 공격 4프레임 투구 고개 방향·숙임 매칭 (작업 153)
+
+- **제보**: 「투구 낀 모습까진 완벽한데 공격할 때 머리 방향이 안 가서 머리가 떠다니는 느낌」 + 「다른 투구도 전부」.
+- **원인**: `render/helmets.ts` `helmetFrames`의 `attack` 앵커가 목 밑동보다 10~50px 위에 찍혀 있었다(남 2프레임 y=118, 여 2프레임 y=115). 파츠가 정수리·이마에 얹히고 턱·목이 비어 떠 보였고, `syncHelmet`이 `rotation = 0`으로 고정해 고개가 돌아가거나 숙여진 3·4프레임에서 정면 파츠가 몸통과 따로 놀았다.
+- **재측정**: 원본 공격 시트(`warrior_{male,female}_attack_v1.png`)를 머리 없는 시트와 나란히 놓고 4프레임의 턱·목 밑동을 다시 읽었다(남 0~3프레임 목 밑동 y≈122/118/168/185, 여 ≈133/136/158/188). 앵커를 그 높이로 내리고, 프레임별 고개 기울기와 숙임을 넣었다 — 남 `4°/-3°/12°/15°`·세로 `1/1/0.92/0.88`, 여 `4°/-2°/11°/14°`·세로 `1/1/0.92/0.88`. 3·4프레임은 고개를 깊게 숙인 자세라 세로만 12% 줄여 화면상 단축을 냈다.
+- **렌더**: `HelmetPlacement`에 `rotation?`(라디안, 목 밑동 앵커 피벗)·`scaleY?`(없으면 `scale`)를 추가하고 `render/entities.ts` `syncHelmet`이 `sprite.rotation`·`sprite.scale.set(scale, scaleY)`를 반영한다. 스프라이트 앵커가 (0.5, 1)이라 회전축이 곧 목 밑동이다.
+- **방향 파츠를 새로 굽지 않은 이유**: 승인 파츠 13장을 `images --edit`로 3/4·숙임 재생성해 봤지만 디자인이 1:1로 유지되지 않았다(리벳·바이저 문양 변형, 화풍도 3D 렌더로 이탈). 같은 투구가 프레임·각도마다 달라 보이는 것이 더 큰 문제라, 승인된 파츠를 그대로 두고 피벗 회전·숙임 축소로 맞췄다. 파츠 52장을 추가하지 않아 초기 로딩·에셋 용량(3.46MB 기준)도 늘지 않는다.
+- **계약**: `store.ts`·`server/**`·`world.ts` 전투·세이브 형식 무변경, 투구 파츠 PNG·`headless/` 시트·`idle`·`walk` 앵커 무변경(사용자 확인 완료 구간).
+- **테스트**: `tests/helmet-head-render.test.mjs`에 2건 추가(13건) — ① 성별·공격 프레임별 `rotation`·`scaleY` 유한성과 숙임 단조성(1프레임은 젖힌 고개라 ≤0, 2프레임 세로 ≥ 3프레임 > 4프레임, 2·3프레임 앵커가 옛값보다 아래) ② `drawHero`가 공격 `attackPose` .32/.24/.16/.08에서 `rotation`·`scale.y`를 그대로 적용하고 서기로 돌아오면 풀리는지.
+- **검증**: `npx tsc --noEmit`, 전체 테스트 402건 중 400 통과(실패 2건은 `tests/costume-field-render.test.mjs`의 "drawHero가 코스튬 레이어로 그리고…"로 `main`에서도 동일하게 실패하는 기존 실패), `node scripts/verify-item-art.mjs`, `npm run build`, `git diff --check` 통과.
+- **배포**: [PR #109](https://github.com/songduckjin/DJRPG/pull/109) 스쿼시 병합(`9d52aab261d7`). PR의 `Cloudflare Pages` 체크 통과(`Workers Builds: djrpg`는 `main`에서도 계속 실패하는 기존 실패). 운영 `https://djrpg.pages.dev/version.json`이 `9d52aab261d7`(`builtAt 2026-11-19T14:14:12Z`)로 갱신됐고, 배포 번들 `assets/index-Fq-JbBxw.js`에 새 공격 표(`x:196,y:192,scale:.97,scaleY:.88,rotation:Qr(15)}`·`x:194,y:194,scale:.95,scaleY:.88,rotation:Qr(14)}`)와 `Qr(4)·Qr(-2)·Qr(-3)·Qr(11)·Qr(12)`(deg 헬퍼)가 들어간 것, 머리 없는 공격 시트 2장과 투구 파츠가 HTTP 200인 것을 확인했다. 원격 브랜치 삭제는 자격 증명 제한(403)으로 남아 있다.
+- **검수 이미지**: 남성 10종×4프레임 `downloads/djrpg_attack_helm_all_v1.png`, 여성 10종×4프레임 `downloads/djrpg_attack_helm_female_v1.png`, 전후 `downloads/djrpg_attack_helm_before_after_v1.png`, 게임 배율 `downloads/djrpg_attack_helm_ingame_v1.png`. 폰 실기(공격 중 머리 따라오는 느낌)는 사용자 확인 몫이다.
+
 ## 2026-11-19 — 투구 착용 시 머리 매칭·머리카락 비침 수정 (작업 152)
 
 - **제보**: 「얼굴에 매칭이 제대로 안 되네요」. 작업 151은 본체 시트(긴 머리카락·정수리 포함) 위에 투구 파츠만 얹어, 투구 위·옆으로 본체 머리카락이 삐져나와 스티커처럼 보였고, 오픈페이스 투구에서는 본체 얼굴과 파츠 얼굴이 겹쳤다. 여성·공격 프레임은 앵커도 어긋나 있었다.

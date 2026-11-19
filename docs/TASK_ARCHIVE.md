@@ -5,6 +5,17 @@
 
 ---
 
+## [x] [작업 153] 공격 4프레임 투구 고개 방향·숙임 매칭
+
+- **완료일**: 2026-11-19 · **담당자**: `songduckjin` · **브랜치**: `codex/153-attack-helmet-head-direction` · **PR**: #109 (머지 `9d52aab261d7`, 운영 `version.json` `9d52aab261d7` 확인)
+- **결과**: 공격 4프레임에서 투구만 정면 그대로 얹혀 고개 방향을 따라가지 않던 문제를 고쳤다. 151·152의 `attack` 앵커가 목 밑동보다 10~50px 위여서 파츠가 정수리에 얹히고 턱·목이 비었고, 회전은 늘 0이었다. 원본 공격 시트의 턱·목 위치를 다시 재어 앵커를 내리고, `HelmetPlacement`에 `rotation`(라디안, 아래 중앙 앵커 피벗)·`scaleY`(숙임 세로 단축)를 더해 `syncHelmet`이 `sprite.rotation`·`scale.set(scale, scaleY)`로 반영한다. 남 4°/-3°/12°/15°·세로 1/1/0.92/0.88, 여 4°/-2°/11°/14°·세로 1/1/0.92/0.88. `idle`·`walk`는 종전 값 유지.
+- **방향 파츠 미제작 근거**: 승인 파츠를 `images --edit`로 3/4·숙임 재생성하면 디자인이 1:1로 유지되지 않고(리벳·바이저 변형, 3D 화풍 이탈) 프레임마다 같은 투구가 달라 보였다. 파츠 26~52장을 늘리지 않고 피벗 회전·숙임로 맞추는 쪽이 10종 일관성과 초기 로딩(에셋 3.46MB 예산)에 유리하다고 판단했다.
+- **운영 검증**: PR의 `Cloudflare Pages` 체크 성공(`Workers Builds: djrpg`는 `main`에서도 계속 실패하는 기존 실패). 병합 뒤 `/version.json` `9d52aab261d7`(`builtAt 2026-11-19T14:14:12Z`), 배포 번들 `assets/index-Fq-JbBxw.js`에 `x:196,y:192,scale:.97,scaleY:.88,rotation:Qr(15)}`·`x:194,y:194,scale:.95,scaleY:.88,rotation:Qr(14)}`와 `Qr(4)·Qr(-2)·Qr(-3)·Qr(11)·Qr(12)` 포함, 머리 없는 공격 시트 2장·투구 파츠 HTTP 200 확인.
+- **코드 검증**: `tsc --noEmit`, 전체 테스트 402건 중 400 통과(실패 2건은 `costume-field-render`의 기존 실패), 신규·수정 테스트 13건, `node scripts/verify-item-art.mjs`, `npm run build`, `git diff --check` 통과.
+- **범위**: `store.ts`·`server/**`·`world.ts` 전투·세이브 계약, 투구 파츠 PNG·`headless/` 시트 무변경. 자세한 경과는 `docs/WORKLOG.md`.
+
+---
+
 ## [x] [작업 151] 남녀 전사 투구 10종 외형 전체 적용(필드·장비창)
 
 - **완료일**: 2026-11-19 · **담당자**: `songduckjin` · **브랜치**: `feat/151-helmet-head-overlay` · **PR**: #105 (머지 `c94216cdc194`, 운영 `version.json` `c94216cdc194` 확인)
