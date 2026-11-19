@@ -1888,3 +1888,6 @@
 
 | 174 던전 몬스터 접근거리 | fks3997 | preview/gravel-background-fks3997 | ui/dungeonBattle.ts, tests/dungeon-battle.test.mjs, 문서 | 중 | [x] |
 - 174: 중앙50/50 유지·생성거리190초과·110내자동공격·2초접근테스트. tsc/관련9/diff 통과, 시뮬51.5/55.55초 클리어. preview만.
+
+| 175 던전 완화·2층 이동 | fks3997 | preview/gravel-background-fks3997 | ui/dungeon{Battle,Field}.ts, modals/dungeonModal.ts, styles/dungeon.css, tests/dungeon-battle.test.mjs, 문서 | 중 | [x] |
+- 175: 문안 던전이미지·쉬운1층/2층·클리어후다음층버튼/fade. tsc/관련22/diff통과, 기본1층28.35초/2층31.4초 클리어시뮬. 계정/보상/순위 미반영.

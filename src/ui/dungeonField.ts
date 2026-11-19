@@ -15,7 +15,7 @@ export function openDungeonField(ui:Interface,lobby:HTMLElement):void {
   const doorOpened=new Promise<void>(resolve=>window.setTimeout(resolve,1800));
   const wasPaused=ui.world.paused,resume=ui.suspendMainField?.();ui.world.paused=true;ui.world.attackHeld=false;
   const field=document.createElement('section');field.className='dungeon-field';field.setAttribute('role','region');field.setAttribute('aria-label','끝없는 던전 1층 미리보기');
-  field.innerHTML=`<div class="dungeon-field-canvas"></div><header class="dungeon-field-hud"><div><small>끝없는 던전</small><strong>제 1 층</strong></div><button type="button" class="dungeon-field-leave">나가기</button></header><div class="dungeon-wave-notice" role="status"></div><footer class="dungeon-battle-hud"><div class="dungeon-battle-record"><strong data-clock>90초</strong><span data-wave>WAVE 1 / 3</span><span data-kills>처치 0 / 7</span></div><div class="dungeon-hp"><i></i><span></span></div><div class="dungeon-auto-skills"></div><small>자동 전투 · 1층 미리보기 · 보상/기록 미반영</small></footer><div class="dungeon-battle-result" hidden></div>`;
+  field.innerHTML=`<div class="dungeon-field-canvas"></div><header class="dungeon-field-hud"><div><small>끝없는 던전</small><strong>제 1 층</strong></div><button type="button" class="dungeon-field-leave">나가기</button></header><div class="dungeon-wave-notice" role="status"></div><footer class="dungeon-battle-hud"><div class="dungeon-battle-record"><strong data-clock>90초</strong><span data-wave>WAVE 1 / 3</span><span data-kills>처치 0 / 7</span></div><div class="dungeon-hp"><i></i><span></span></div><div class="dungeon-auto-skills"></div><small>자동 전투 · 1~2층 미리보기 · 보상/기록 미반영</small></footer><div class="dungeon-battle-result" hidden></div><div class="dungeon-floor-transition" aria-hidden="true"></div>`;
   ui.root.querySelector('.game-shell')!.append(field);
   const get=<T extends HTMLElement>(s:string)=>field.querySelector<T>(s)!;
   const view=new GameView();let battle=new DungeonBattle(ui.world.save),closed=false,mounted=false,age=0,combatTime=0,lastWave=0,cueAt=0,resultShown=false;
@@ -26,8 +26,25 @@ export function openDungeonField(ui:Interface,lobby:HTMLElement):void {
   const leave=()=>{cleanup();ui.open('dungeon');};get<HTMLButtonElement>('.dungeon-field-leave').onclick=leave;
   field.addEventListener('keydown',e=>{e.stopPropagation();if(e.key==='Escape')leave();});get<HTMLButtonElement>('.dungeon-field-leave').focus();
   for(const id of battle.world.save.quickSlots){const slot=document.createElement('div');slot.className='dungeon-auto-skill';if(id){const icon=document.createElement('i');setSkillIcon(icon,id);slot.append(icon);const name=document.createElement('span');name.textContent=skills[id].name;slot.append(name);}else slot.textContent='빈 슬롯';get('.dungeon-auto-skills').append(slot);}
-  const result=()=>{resultShown=true;const box=get('.dungeon-battle-result');box.hidden=false;box.innerHTML=`<div><small>끝없는 던전 · 제1층</small><h2>${battle.outcome==='clear'?'1층 클리어':battle.outcome==='dead'?'도전에 실패했습니다':'시간이 종료되었습니다'}</h2><p>처치 ${battle.world.slain} / 7 · ${Math.ceil(battle.elapsed)}초</p><p>${battle.outcome==='clear'?'다음 층은 준비 중입니다.':'재도전하면 체력과 제한 시간이 초기화됩니다.'}</p><button type="button" data-retry>다시 도전하기</button><button type="button" data-leave>나가기</button><small>미리보기 · 실제 보상과 순위는 반영되지 않습니다.</small></div>`;
-    get<HTMLButtonElement>('[data-retry]').onclick=()=>{battle=new DungeonBattle(ui.world.save);combatTime=0;lastWave=0;resultShown=false;box.hidden=true;};get<HTMLButtonElement>('[data-leave]').onclick=leave;};
+  const resetBattle=(floor:1|2)=>{
+    battle=new DungeonBattle(ui.world.save,floor);combatTime=0;age=0;lastWave=0;resultShown=false;
+    get('.dungeon-battle-result').hidden=true;
+    get('.dungeon-field-hud strong').textContent=`제 ${floor} 층`;
+    field.setAttribute('aria-label',`끝없는 던전 ${floor}층 미리보기`);
+  };
+  const result=()=>{resultShown=true;const floor=battle.floor,canNext=battle.outcome==='clear'&&floor===1;
+    const box=get('.dungeon-battle-result');box.hidden=false;
+    box.innerHTML=`<div><small>끝없는 던전 · 제${floor}층</small><h2>${battle.outcome==='clear'?`${floor}층 클리어`:battle.outcome==='dead'?'도전에 실패했습니다':'시간이 종료되었습니다'}</h2><p>처치 ${battle.world.slain} / 7 · ${Math.ceil(battle.elapsed)}초</p><p>${canNext?'열린 길을 따라 2층으로 이동할 수 있습니다.':battle.outcome==='clear'?'2층 미리보기가 완료되었습니다.':'재도전하면 체력과 제한 시간이 초기화됩니다.'}</p>${canNext?'<button type="button" data-next>다음 층으로 · 2층</button>':''}<button type="button" data-retry>다시 도전하기</button><button type="button" data-leave>나가기</button><small>미리보기 · 실제 보상과 순위는 반영되지 않습니다.</small></div>`;
+    get<HTMLButtonElement>('[data-retry]').onclick=()=>resetBattle(floor);
+    get<HTMLButtonElement>('[data-leave]').onclick=leave;
+    if(canNext)get<HTMLButtonElement>('[data-next]').onclick=()=>{
+      box.querySelectorAll<HTMLButtonElement>('button').forEach(button=>button.disabled=true);
+      field.classList.add('is-changing-floor');
+      window.setTimeout(()=>{if(closed)return;resetBattle(2);
+        window.setTimeout(()=>{if(!closed)field.classList.remove('is-changing-floor');},100);
+      },400);
+    };
+  };
   void (async()=>{try{
     const texture=await Assets.load<Texture>('/assets/dungeon/prison-floor-v1.png');if(closed)return;
     await view.mount(get('.dungeon-field-canvas'));mounted=true;if(closed||destroyPending){view.app.destroy(true,{children:true,texture:false,textureSource:false});return;}

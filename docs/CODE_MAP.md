@@ -246,3 +246,5 @@ npm run check && npm test && npm run build # 공용 계약 수정·사용자 요
 - 문 개방 최종 방향: 좌문 rotateY(-110deg), 우문(+110deg). 좌문은 hinge 오른쪽, 우문은 hinge 왼쪽 자유단이므로 두 자유단 z=-sin(각)*dx > 0. 개방시 문짝z5/4 > 문틀z3, 닫힘시 기존z2/1.
 
 - 작업174: `DungeonWorld.update` 중앙50/50 방어·자동추격이동 억제, nearest는110내만. 생성 y투영-180으로거리190초과 유지·적 기존걷기모션 소비. 공용 world/render 불변.
+
+- 작업175 사용자2층이동 승인: `DungeonBattle(save,floor:1|2)`·관찰HP DPS×4/정예2배, 2층HP1.2배·피해상한 일반0.5%/정예0.8%. 1층클리어 결과에2층버튼, .4초dark-fade아래 새세션(풀HP/90초). 2층까지만/3층미연결/저장기록없음. 문안은 기존 던전이미지 background로 표시.
