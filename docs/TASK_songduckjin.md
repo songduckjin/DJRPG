@@ -311,8 +311,8 @@
 
 ## 다음 작업 대기
 
-### [-] [작업 144] 코스튬 동작 싱크 및 아틀라스 캐시 제한
-- **담당자**: `songduckjin` · **브랜치**: `codex/144-costume-sync-perf` · **위험 등급**: 중 · **상태**: `[-]` 실기 외형 추가 보완 중, PR #87 Draft
+### [x] [작업 144] 코스튬 동작 싱크 및 아틀라스 캐시 제한
+- **담당자**: `songduckjin` · **브랜치**: `codex/144-costume-sync-perf` · **위험 등급**: 중 · **상태**: `[x]` 구현·검증 완료, PR #87
 - **추가 범위(2026-11-19 실기 보고)**: 무기가 머리 위까지 돌출되는 크기와 `낡은 투구`의 다른 모양·열린 얼굴을 수정한다. 원인 조사 결과 v3 PNG 재생성 없이 공용 외형 계획·기존 통합 본체 폴백으로 해결할 수 있어 수정 파일을 `src/game/appearance.ts`, `src/game/render/costumeHero.ts`, `src/ui/equipmentPortrait.ts`, 관련 테스트·문서로 좁혔다. v3 에셋과 매핑·Save 계약은 유지한다.
 - **목표**: 코스튬 설계의 스킬 회전 규칙과 실제 렌더링을 일치시키고, 필드·장비창 아틀라스 이미지 캐시의 메모리 증가를 제한한다.
 - **수정 예정 파일**: `src/game/render/heroMotion.ts`, `src/game/render/entities.ts`, `src/game/render/costumeHero.ts`, `src/ui/equipmentPortrait.ts`, `tests/hero-motion.test.mjs`, `tests/costume-field-render.test.mjs`, `tests/equipped-detail.test.mjs`, `docs/COSTUME_SYSTEM.md`, `docs/CODE_MAP.md`, `docs/QUICK_PATCH.md`, `docs/TASK.md`, `docs/TASK_songduckjin.md`, `docs/WORKLOG.md`, `docs/TASK_ARCHIVE.md`.
@@ -324,7 +324,8 @@
 - **금지**: `world.ts`, Save·DB/API, 코스튬 아틀라스·매니페스트 에셋, 아이템 매핑 변경. 사용자 요청 없이 브라우저 실기·Playwright·Computer Use를 실행하지 않는다.
 - **검증**: `node node_modules/typescript/bin/tsc --noEmit`, `node --test tests/hero-motion.test.mjs tests/costume-field-render.test.mjs tests/costume-manifest.test.mjs tests/equipped-detail.test.mjs`, `node scripts/verify-item-art.mjs`, `git diff --check`.
 - **완료 기준**: 스킬 회전 정책과 두 필드 렌더 경로가 일치하고, 페이지 캐시가 명시된 상한을 넘지 않으며, 축출된 GPU 텍스처를 보유한 참조가 없다. 관련 회귀 검증과 메모리 상한 근거를 기록한다.
-- **검증 결과**: `tsc --noEmit`, 관련 Node 테스트 70건, `verify-item-art.mjs`, `git diff --check` 통과. 메모리 산정은 6×1872×1936 RGBA = 약 82.97 MiB이며, 모바일 FPS/GPU 메모리 실측은 하지 않았다. PR #87 Draft: https://github.com/songduckjin/DJRPG/pull/87.
+- **검증 결과**: `tsc --noEmit`, 관련 Node 테스트 86건, `verify-item-art.mjs`, `git diff --check` 통과. 메모리 산정은 6×1872×1936 RGBA = 약 82.97 MiB이며, 모바일 FPS/GPU 메모리 실측은 하지 않았다. PR #87: https://github.com/songduckjin/DJRPG/pull/87.
+- **실기 보고 후 최종 검증**: 무기 70% 축소·손잡이 고정, `낡은 투구` 닫힌 바이저 폴백, 기존 페이지 해제를 추가했다. TypeScript 검사·관련 Node 테스트 86건·아트 검증·diff 검사를 통과했고 정지 셀 전후 합성을 확인했다. 수정 후 모바일 실기 화면은 아직 확인하지 않았다.
 
 ### [x] [작업 138] 코스튬 도구 비교 및 최소 뷰어 프로토타입
 - **담당자**: `songduckjin` · **브랜치**: `task/138-costume-prototype` · **위험 등급**: 중 · **상태**: `[x]` 완료(PR #74) · **착수**: 2026-11-18(작업 137 PR #73 병합 후 `origin/main` 기준)
