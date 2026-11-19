@@ -1,0 +1,39 @@
+import {World, type Enemy, enemyMaxHp, enemyHitDamage} from '../game/world';
+import {totalStats,type Save} from '../game/store';
+class DungeonWorld extends World {
+  slain=0;
+  override kill(enemy:Enemy):void { this.slain++;this.effects.push({x:enemy.x,y:enemy.y,kind:'death',age:0,duration:.7,angle:0}); }
+}
+/** Isolated first-floor preview. Never mutates account save, drops, rewards or rankings. */
+export class DungeonBattle {
+  readonly world:DungeonWorld;
+  elapsed=0;wave=0;waveStarted=0;finished=false;outcome:'clear'|'dead'|'timeout'|null=null;
+  elite?:Enemy;private hitCooldown=0;
+  constructor(save:Save){const copy=structuredClone(save);copy.floor=1;copy.floorKills=0;copy.tutorial=3;copy.autoClimb=false;
+    this.world=new DungeonWorld(copy);this.world.enemies=[];this.world.spawnTimer=Infinity;this.world.bossPending=false;
+    this.world.player.hp=totalStats(copy).health;this.world.player.x=50;this.world.player.y=50;this.spawnWave();
+  }
+  private spawnWave():void {
+    this.wave++;this.waveStarted=this.elapsed;
+    const count=this.wave===3?1:3;
+    for(let i=0;i<count;i++){
+      const hp=enemyMaxHp(1,false)*(this.wave===3?7:1), side=(i-(count-1)/2)*65;
+      const enemy:Enemy={x:(-160+side)/2,y:(-160-side)/2,hp,maxHp:hp,boss:false,hit:0,step:0,moving:false,knockX:0,knockY:0,slow:0};
+      this.world.enemies.push(enemy);if(this.wave===3)this.elite=enemy;
+    }
+  }
+  advance(seconds:number):void {
+    if(this.finished)return;const dt=Math.min(.05,Math.max(0,seconds),90-this.elapsed);this.elapsed+=dt;
+    // Suppress the main field's immediate revive; this session owns defeat and retry.
+    const hit=this.world.player.hit;this.world.player.hit=Infinity;
+    try{this.world.update(dt);}finally{this.world.player.hit=Math.max(0,hit-dt);}
+    this.hitCooldown=Math.max(0,this.hitCooldown-dt);
+    if(this.hitCooldown===0){const enemy=this.world.enemies.find(e=>Math.hypot(e.x-this.world.player.x,e.y-this.world.player.y)<36);
+      if(enemy){this.world.player.hp=Math.max(0,this.world.player.hp-enemyHitDamage(1,false,totalStats(this.world.save).defense)*(enemy===this.elite?2:1));this.world.player.hit=.25;this.hitCooldown=.9;}}
+    if(this.world.player.hp<=0)this.outcome='dead';
+    else if(this.wave===3&&!this.world.enemies.length)this.outcome='clear';
+    else if(this.elapsed>=90)this.outcome='timeout';
+    if(this.outcome){this.finished=true;return;}
+    if(this.wave<3&&(this.elapsed-this.waveStarted>=10||!this.world.enemies.length))this.spawnWave();
+  }
+}

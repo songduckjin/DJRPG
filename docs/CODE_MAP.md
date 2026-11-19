@@ -233,3 +233,8 @@ npm run check && npm test && npm run build # 공용 계약 수정·사용자 요
 - 작업169 대기창: 철문은 가림 없는 contain, 제목/층은 별도 행. 도전 내용 스크롤 제거·영역 높이 절약, 최초 보상은 금화PNG/강화석SVG로 강조. `dungeonModal.ts`·`dungeon.css`만 레이아웃 담당.
 
 - 작업170: 던전 `data-tab`별 하단만 교체, 철문은 고정 flex-basis. 순위는10행(미기록은 빈행)+내순위, CTA는 도전탭만 생성.
+
+### 던전1층 전투 미리보기 (작업171)
+- `ui/dungeonBattle.ts`: deep copy Save 전용 World, kill은 사망효과/처치수만, 드랍/XP/계정 저장 없음. 90초·3/3/정예1·10초 또는 직전 전멸 후 다음 웨이브·자동부활 대신 실패.
+- `ui/dungeonField.ts`: 메인 필드 pause/resume·독립 GameView·장착스킬 자동전투·철문 양문 회전/진입zoom 후 시작·재도전/나가기. 종료와 로딩 취소 시 전용 renderer 해제. 공용 world/render는 소비만.
+- `assets/dungeon/prison-floor-v1.png`: 현 철문과 같은 석조감옥 테마. 대기창 도전하기 연결, 결과 다음층은 준비중(1층만). 실제 보상/랭킹 API 미연동.

@@ -1876,3 +1876,6 @@
 
 | 170 던전 탭 고정·10위 순위 | fks3997 | preview/gravel-background-fks3997 | src/ui/modals/dungeonModal.ts, src/styles/dungeon.css, 문서 | 하 | [x] |
 - 170: 철문 고정 높이·하단 탭전환·10위 기본행·도전탭 CTA. tsc/관련14/diff 통과. 미리보기 전용.
+
+| 171 던전1층 전투 미리보기 | fks3997 | preview/gravel-background-fks3997 | src/ui/{dungeonBattle,dungeonField}.ts, modals/dungeonModal.ts, src/styles/dungeon.css, public/assets/dungeon/*, tests/dungeon-battle.test.mjs, 문서 | 중 | [x] |
+- 171: tsc/관련19/아트/diff 통과, Draft88 미리보기만. 실기 확인 미실행. 계정 보상/순위/다음층 미연결.
