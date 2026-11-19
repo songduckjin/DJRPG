@@ -5,7 +5,7 @@ import {projectArenaPoint} from '../game/arena';
 import {totalStats} from '../game/store';
 import {skills} from '../game/skills';
 import {equipmentImage,isSkillBook,type Rarity} from '../game/items';
-import {DungeonBattle,type DungeonLoot} from './dungeonBattle';
+import {DungeonBattle,dungeonLootLanding,type DungeonLoot} from './dungeonBattle';
 import {setSkillIcon} from './skillArtwork';
 import {createSkillBookArt} from './skillBookArt';
 import type {Interface} from './interface';
@@ -19,16 +19,19 @@ export function openDungeonField(ui:Interface,lobby:HTMLElement):void {
   const doorOpened=new Promise<void>(resolve=>window.setTimeout(resolve,1800));
   const wasPaused=ui.world.paused,resume=ui.suspendMainField?.();ui.world.paused=true;ui.world.attackHeld=false;
   const field=document.createElement('section');field.className='dungeon-field';field.setAttribute('role','region');field.setAttribute('aria-label','끝없는 던전 1층 미리보기');
-  field.innerHTML=`<div class="dungeon-field-canvas"></div><div class="dungeon-loot-layer" aria-hidden="true"></div><div class="dungeon-exit-gate" aria-label="다음 층으로 이어지는 철문"><div class="dungeon-lobby-gate"><i class="dungeon-lobby-gate-dark"></i><img class="dungeon-gate-left" src="/assets/dungeon/gate-left-v1.png" alt=""><img class="dungeon-gate-right" src="/assets/dungeon/gate-right-v1.png" alt=""><img class="dungeon-gate-frame" src="/assets/dungeon/gate-frame-v1.png" alt=""></div></div><header class="dungeon-field-hud"><div><small>끝없는 던전</small><strong>제 1 층</strong></div><button type="button" class="dungeon-field-leave">나가기</button></header><footer class="dungeon-battle-hud"><div class="dungeon-battle-record"><strong data-clock>90초</strong><span data-wave>WAVE 1 / 3</span><span data-kills>처치 0 / 7</span></div><div class="dungeon-hp"><i></i><span></span></div><div class="dungeon-auto-skills"></div><small>자동 전투 · 1~10층 미리보기 · 드롭 50% 테스트 · 보상/기록 미반영</small></footer><div class="dungeon-battle-result" hidden></div><div class="dungeon-floor-transition" aria-hidden="true"></div>`;
+  field.innerHTML=`<div class="dungeon-field-canvas"></div><div class="dungeon-loot-layer is-behind" aria-hidden="true"></div><div class="dungeon-loot-layer" aria-hidden="true"></div><div class="dungeon-exit-gate" aria-label="다음 층으로 이어지는 철문"><div class="dungeon-lobby-gate"><i class="dungeon-lobby-gate-dark"></i><img class="dungeon-gate-left" src="/assets/dungeon/gate-left-v1.png" alt=""><img class="dungeon-gate-right" src="/assets/dungeon/gate-right-v1.png" alt=""><img class="dungeon-gate-frame" src="/assets/dungeon/gate-frame-v1.png" alt=""></div></div><header class="dungeon-field-hud"><div><small>끝없는 던전</small><strong>제 1 층</strong></div><button type="button" class="dungeon-field-leave">나가기</button></header><footer class="dungeon-battle-hud"><div class="dungeon-battle-record"><strong data-clock>90초</strong><span data-wave>WAVE 1 / 3</span><span data-kills>처치 0 / 7</span></div><div class="dungeon-hp"><i></i><span></span></div><div class="dungeon-auto-skills"></div><small>자동 전투 · 1~10층 미리보기 · 드롭 50% 테스트 · 보상/기록 미반영</small></footer><div class="dungeon-battle-result" hidden></div><div class="dungeon-floor-transition" aria-hidden="true"></div>`;
   ui.root.querySelector('.game-shell')!.append(field);
   const get=<T extends HTMLElement>(s:string)=>field.querySelector<T>(s)!;
   const view=new GameView();let battle=new DungeonBattle(ui.world.save,ui.dungeon.floor.floor),closed=false,mounted=false,age=0,visualTime=0,finishAge=0,resultShown=false;
   // Ground loot is DOM on top of the transparent arena canvas: the shared field renderer keeps
   // drawing only the arena, so drops stay inside the isolated dungeon UI files.
-  const lootLayer=get('.dungeon-loot-layer');
+  const lootLayer=get('.dungeon-loot-layer:not(.is-behind)'),backLootLayer=get('.dungeon-loot-layer.is-behind');
   const rarityInk:Record<Rarity,string>={common:'#9ca3af',magic:'#60a5fa',rare:'#facc15',epic:'#c084fc',unique:'#fb923c',legendary:'#f87171'};
-  type LootView={el:HTMLDivElement;body:HTMLDivElement;shadow:HTMLSpanElement;x:number;y:number;dx:number;dy:number;vx:number;vy:number;h:number;vh:number;spin:number;spinV:number;settled:boolean;done:boolean};
-  let lootViews:LootView[]=[],spawnedLoot=0,absorbStarted=false,absorbRing:HTMLDivElement|undefined,resultDelay=.75;
+  type LootView={el:HTMLDivElement;body:HTMLDivElement;shadow:HTMLSpanElement;x:number;y:number;tx:number;ty:number;drift:number;h:number;vh:number;spin:number;spinV:number;settled:boolean;done:boolean};
+  let lootViews:LootView[]=[],spawnedLoot=0,lootFan=0,absorbStarted=false,absorbRing:HTMLDivElement|undefined,resultDelay=.75;
+  // A cleared floor holds the loot on the ground for a beat so the last kill's drops are seen
+  // bouncing before the absorption pulls them in.
+  const ABSORB_DELAY=1.5;
   const reducedMotion=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const spawnLoot=(loot:DungeonLoot):void=>{
     const el=document.createElement('div'),body=document.createElement('div'),shadow=document.createElement('span');
@@ -36,8 +39,7 @@ export function openDungeonField(ui:Interface,lobby:HTMLElement):void {
     if(loot.kind==='gold'){
       el.classList.add('is-gold');
       const coin=document.createElement('img');coin.className='dungeon-loot-coin';coin.src='/assets/icons/gold-coin.png';coin.alt='';
-      const value=document.createElement('b');value.className='dungeon-loot-value';value.textContent=`+${loot.gold}`;
-      body.append(coin,value);
+      body.append(coin);
     }else{
       const item=loot.item;el.classList.add('is-item');el.style.setProperty('--loot-ink',rarityInk[item.rarity]);
       if(isSkillBook(item)){const art=createSkillBookArt(item);art.classList.add('dungeon-loot-book');body.append(art);}
@@ -45,29 +47,36 @@ export function openDungeonField(ui:Interface,lobby:HTMLElement):void {
         if(art.columns>1){const atlas=document.createElement('span');atlas.className='dungeon-loot-art atlas-icon';atlas.style.backgroundImage=`url("${art.path}")`;atlas.style.backgroundPosition=`${art.frame/(art.columns-1)*100}% center`;body.append(atlas);}
         else{const img=document.createElement('img');img.className='dungeon-loot-art';img.src=art.path;img.alt='';body.append(img);}
       }
-      const ring=document.createElement('i');ring.className='dungeon-loot-ring';body.append(ring);
     }
-    el.append(shadow,body);lootLayer.append(el);
-    const spread=reducedMotion?0:1;
-    lootViews.push({el,body,shadow,x:loot.x,y:loot.y,dx:(Math.random()-.5)*30*spread,dy:(Math.random()-.5)*10*spread,vx:(Math.random()-.5)*90*spread,vy:(Math.random()-.5)*24*spread,h:2,vh:reducedMotion?0:110+Math.random()*70,spin:0,spinV:reducedMotion?0:(Math.random()-.5)*240,settled:false,done:false});
+    // A kill lands almost on top of the hero, so the resting spot is pushed out of a screen-space
+    // keep-out ring around the character: beside it, or on the ground in front of its feet.
+    const w=view.app.screen.width,h=view.app.screen.height,[heroX,heroY]=projectArenaPoint(battle.world.player.x,battle.world.player.y,w,h),[gx,gy]=projectArenaPoint(loot.x,loot.y,w,h);
+    const ring=Math.max(58,Math.min(80,h*.1))+(lootFan%3)*12;
+    const spot=dungeonLootLanding(heroX,heroY,gx,gy,ring,((lootFan++%5)-2)*.22),tx=spot.x-gx,ty=spot.y-gy;
+    el.append(shadow,body);
+    // Depth: loot behind the hero stays behind the character (under the transparent arena
+    // canvas), loot in front of it is drawn over the floor. Neither ever sits on the hero art.
+    (gy+ty<heroY-6?backLootLayer:lootLayer).append(el);
+    lootViews.push({el,body,shadow,x:loot.x,y:loot.y,tx,ty,drift:reducedMotion?1:0,h:reducedMotion?0:2,vh:reducedMotion?0:110+Math.random()*70,spin:0,spinV:reducedMotion?0:(Math.random()-.5)*240,settled:false,done:false});
   };
-  const clearLoot=():void=>{for(const entry of lootViews)entry.el.remove();lootViews=[];spawnedLoot=0;absorbStarted=false;absorbRing?.remove();absorbRing=undefined;resultDelay=.75;};
+  const clearLoot=():void=>{for(const entry of lootViews)entry.el.remove();lootViews=[];spawnedLoot=0;lootFan=0;absorbStarted=false;absorbRing?.remove();absorbRing=undefined;resultDelay=.75;};
   // Bounce until resting; on a clear the same nodes are pulled in an accelerating arc into the hero.
   const updateLoot=(dt:number):void=>{
     if(closed)return;
     while(spawnedLoot<battle.world.loot.length)spawnLoot(battle.world.loot[spawnedLoot++]);
     const w=view.app.screen.width,h=view.app.screen.height;
     const [heroX,heroY]=projectArenaPoint(battle.world.player.x,battle.world.player.y,w,h);
-    if(!absorbStarted&&battle.outcome==='clear'&&finishAge>=.35){
+    if(!absorbStarted&&battle.outcome==='clear'&&finishAge>=ABSORB_DELAY){
       absorbStarted=true;
       absorbRing=document.createElement('div');absorbRing.className='dungeon-absorb-ring';
       absorbRing.style.left=`${heroX}px`;absorbRing.style.top=`${heroY-26}px`;lootLayer.append(absorbRing);
-      resultDelay=.35+Math.max(0,lootViews.length-1)*.045+.55+.2;
+      resultDelay=ABSORB_DELAY+Math.max(0,lootViews.length-1)*.045+.55+.2;
     }
-    const t=absorbStarted?Math.max(0,finishAge-.35):0;
+    const t=absorbStarted?Math.max(0,finishAge-ABSORB_DELAY):0;
     for(const [index,entry] of lootViews.entries()){
       if(entry.done)continue;
-      const [groundX,groundY]=projectArenaPoint(entry.x,entry.y,w,h),x=groundX+entry.dx,y=groundY+entry.dy;
+      entry.drift=Math.min(1,entry.drift+dt/.45);
+      const [groundX,groundY]=projectArenaPoint(entry.x,entry.y,w,h),ease=1-Math.pow(1-entry.drift,3),x=groundX+entry.tx*ease,y=groundY+entry.ty*ease;
       if(absorbStarted){
         entry.el.classList.remove('is-resting');
         const p=Math.min(1,Math.max(0,(t-index*.045)/.55));
@@ -80,10 +89,9 @@ export function openDungeonField(ui:Interface,lobby:HTMLElement):void {
       }
       if(!entry.settled){
         entry.h+=entry.vh*dt;entry.vh-=1200*dt;
-        entry.dx+=entry.vx*dt;entry.dy+=entry.vy*dt;entry.vx*=Math.exp(-dt*1.4);entry.vy*=Math.exp(-dt*1.4);
         entry.spin+=entry.spinV*dt;entry.spinV*=Math.exp(-dt*2.2);
         if(entry.h<=0){entry.h=0;
-          if(entry.vh<-70){entry.vh=-entry.vh*.42;entry.vx*=.5;entry.vy*=.5;entry.spinV*=.5;}
+          if(entry.vh<-70){entry.vh=-entry.vh*.42;entry.spinV*=.5;}
           else{entry.vh=0;entry.settled=true;entry.el.classList.add('is-resting');}
         }
       }

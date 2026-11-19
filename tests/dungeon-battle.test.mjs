@@ -1,7 +1,8 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import './ts-loader.mjs';
-const {DungeonBattle,DUNGEON_ITEM_DROP_CHANCE}=await import('../src/ui/dungeonBattle.ts');
+const {DungeonBattle,DUNGEON_ITEM_DROP_CHANCE,DUNGEON_ENEMY_SPEED_SCALE,dungeonLootLanding}=await import('../src/ui/dungeonBattle.ts');
+const {World,enemyMoveSpeed}=await import('../src/game/world.ts');
 const {freshSave}=await import('../src/game/store.ts');
 function run(battle,seconds){for(let i=0;i<Math.ceil(seconds/.05);i++)battle.advance(.05);}
 // Fixed random stream so the drop gate and the equipment/skillbook split are deterministic.
@@ -66,4 +67,30 @@ test('preview loot never enters the ground renderer or the account save',()=>{
  assert(battle.world.loot.some(entry=>entry.kind==='item'));
  assert.equal(battle.world.drops.length,0);
  assert.deepEqual(save,before);
+});
+
+test('dungeon mobs close ground 1.5x the shared field pace',()=>{
+ // Same enemy, same dt: only travel distance may differ, so attacks/skills are stubbed out.
+ const travel=(world)=>{const p=world.player,enemy={x:p.x+50,y:p.y,hp:1e9,maxHp:1e9,boss:false,hit:0,step:0,moving:false,knockX:0,knockY:0,slow:0};
+  world.enemies=[enemy];world.action=()=>{};world.spawnTimer=Infinity;
+  const before=Math.hypot(enemy.x-p.x,enemy.y-p.y);
+  for(let i=0;i<6;i++)world.update(.05);
+  return before-Math.hypot(enemy.x-p.x,enemy.y-p.y);};
+ assert.equal(DUNGEON_ENEMY_SPEED_SCALE,1.5);
+ const fieldTravel=travel(new World(freshSave())),dungeonTravel=travel(new DungeonBattle(freshSave()).world);
+ assert(Math.abs(fieldTravel-enemyMoveSpeed(1,false)*.3)<1e-9);
+ assert(Math.abs(dungeonTravel-fieldTravel*DUNGEON_ENEMY_SPEED_SCALE)<1e-9);
+});
+
+test('drops land outside the hero ring and never over the character',()=>{
+ const hero={x:200,y:340};
+ for(const ring of [58,70,92])for(const bias of [-.44,0,.44])for(let dx=-40;dx<=40;dx+=10)for(let dy=-40;dy<=40;dy+=10){
+  const spot=dungeonLootLanding(hero.x,hero.y,hero.x+dx,hero.y+dy,ring,bias),rx=spot.x-hero.x,ry=spot.y-hero.y;
+  assert(Math.hypot(rx,ry)>=ring-1e-6,`ring ${ring} bias ${bias} at ${dx},${dy}`);
+  // Beside the body, or below the feet: never sitting across the hero art.
+  assert(Math.abs(rx)>=ring*.5||ry>=ring*.3,`cover ${ring} bias ${bias} at ${dx},${dy}`);
+  assert(ry>=-ring*.65,`head ${ring} bias ${bias} at ${dx},${dy}`);
+ }
+ // A drop that already fell clear of the ring stays where it fell.
+ assert.deepEqual(dungeonLootLanding(hero.x,hero.y,hero.x+150,hero.y-40,70,0),{x:hero.x+150,y:hero.y-40});
 });

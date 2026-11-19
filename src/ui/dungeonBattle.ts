@@ -1,5 +1,6 @@
 import { DUNGEON_MAX_FLOOR } from './dungeonLobby';
-import {World, type Enemy, enemyMaxHp, enemyHitDamage} from '../game/world';
+import {World, type Enemy, enemyMaxHp, enemyHitDamage, enemyMoveSpeed} from '../game/world';
+import {clampArenaPoint} from '../game/arena';
 import {skillDamageScale,skills} from '../game/skills';
 import {totalStats,skillLevel,type Save} from '../game/store';
 import {equipmentDropChance,rollItem,rollSkillBook,skillBookDropChance,type Item} from '../game/items';
@@ -7,6 +8,22 @@ import {equipmentDropChance,rollItem,rollSkillBook,skillBookDropChance,type Item
 export type DungeonLoot = { id:number; kind:'gold'; x:number; y:number; gold:number } | { id:number; kind:'item'; x:number; y:number; item:Item };
 /** Test rate for the whole 1-10 floor preview. Which item falls keeps the field's own odds (see `dropLoot`). */
 export const DUNGEON_ITEM_DROP_CHANCE = .5;
+/** Dungeon mobs close ground 1.5x the shared field pace; only travel distance scales, never timers. */
+export const DUNGEON_ENEMY_SPEED_SCALE = 1.5;
+/** Screen point where a drop rests. A kill lands almost on top of the hero, so any drop inside the
+ *  keep-out ring is pushed out to the side or below the feet of the character; drops that already
+ *  fell outside the ring keep the spot they fell on. `bias` fans drops of one kill apart. */
+export function dungeonLootLanding(heroX:number,heroY:number,dropX:number,dropY:number,ring:number,bias=0):{x:number;y:number} {
+  const ox=dropX-heroX,oy=dropY-heroY,dist=Math.hypot(ox,oy);
+  if(dist>=ring)return {x:dropX,y:dropY};
+  let ax=dist>1?ox/dist:0,ay=dist>1?oy/dist:1;
+  if(bias){const cos=Math.cos(bias),sin=Math.sin(bias),x=ax*cos-ay*sin;ay=ax*sin+ay*cos;ax=x;}
+  // Beside the body (never across it), and never over the character's head.
+  if(ay<-.45)ay=-.45;
+  if(Math.abs(ax)<.6&&ay<.5)ax=.6*(ax<0?-1:1);
+  const magnitude=Math.hypot(ax,ay)||1;
+  return {x:heroX+ax/magnitude*ring,y:heroY+ay/magnitude*ring};
+}
 // Temporary encounter-observation balance, not the eventual fixed progression curve.
 export function dungeonPreviewHp(save:Save):number {
   const stats=totalStats(save);
@@ -24,6 +41,19 @@ class DungeonWorld extends World {
     this.player.x=50;this.player.y=50;
     super.update(dt);
     this.player.x=50;this.player.y=50;this.activeMove={x:0,y:0};
+    // `super.update` already walked every mob one shared field step. Adding the remaining half
+    // along the same heading makes the travelled distance exactly DUNGEON_ENEMY_SPEED_SCALE,
+    // while cooldowns, skills, hit timing and the 90s limit keep running on the real dt.
+    const extra=(DUNGEON_ENEMY_SPEED_SCALE-1)*dt;
+    for(const enemy of this.enemies){
+      const dx=this.player.x-enemy.x,dy=this.player.y-enemy.y,d=Math.hypot(dx,dy);
+      if(!enemy.moving||d<=27||extra<=0)continue;
+      const step=Math.min(enemyMoveSpeed(this.save.floor,enemy.boss)*(enemy.slow>0?.55:1)*extra,d-27);
+      if(step<=0)continue;
+      const bounded=clampArenaPoint(enemy.x+dx/d*step,enemy.y+dy/d*step);
+      enemy.step+=extra*Math.PI*(enemy.boss?3.25:4.25);
+      enemy.x=bounded.x;enemy.y=bounded.y;
+    }
   }
   override nearest():Enemy|undefined {
     const enemy=super.nearest();

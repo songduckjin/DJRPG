@@ -264,3 +264,4 @@ npm run check && npm test && npm run build # 공용 계약 수정·사용자 요
 - 작업183: 대기창벽은 `lobby-wall-v2.png` 사용(하단석조연속/암부없음), `.dungeon-hero` bottom gradient제거·좌우약한vignette만유지.
 
 - 작업184 드롭/흡수: `DungeonWorld.loot`에만 기록(금화=필드식, 아이템=테스트50% 게이트·장비/스킬북 선택은 `equipmentDropChance`:`skillBookDropChance` 비율, 등급·종류는 `rollItem`/`rollSkillBook`). `world.drops`는 비워 공용 `render/**` 불변·계정 저장 없음. `dungeonField`가 투명 canvas 위 `.dungeon-loot-layer`(z3)로 포물선 낙하·정지 글로우를 그리고, `outcome===clear`에서만 캐릭터로 흡수한 뒤 `resultDelay` 뒤 결과창. 그림자 38×12px 기준, 등급색 `--loot-ink` 링/할로. 검증 `tests/dungeon-battle.test.mjs`.
+- 작업185 사용자 실기 5건: 착지점을 히어로 반경(화면높이10%,58~80px+12px팬) 밖으로 밀고 뒤쪽 드롭은 `.dungeon-loot-layer.is-behind`(z2, 투명 canvas 아래)로 깊이 분리(`dungeonLootLanding`). 원형 할로/링 제거→아이콘 알파 실루엣 다중 `drop-shadow` 외곽광, 금화 `+n` 금액 제거. 던전 몹 이동만 `DUNGEON_ENEMY_SPEED_SCALE=1.5`(super.update 뒤 0.5스텝 추가, 쿨다운·스킬·90초 타이머 불변). `ABSORB_DELAY=1.5`로 클리어 흡수를 마지막 처치 1.5초 뒤 시작하고 결과창은 흡수 종료 후. 검증 `tests/dungeon-battle.test.mjs`(14건).

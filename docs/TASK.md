@@ -8,8 +8,9 @@
 | 작업 | 담당자 | 브랜치 | 수정 예정 파일 / 영향 영역 | 위험 등급 | 상태 |
 |---|---|---|---|---|---|
 | 184 던전 드롭·클리어 흡수 연출 | fks3997 | preview/gravel-background-fks3997 | `ui/dungeonBattle.ts`(드롭 50%·필드 확률)·`ui/dungeonField.ts`(DOM 낙하/흡수)·`styles/dungeon.css`·`tests/dungeon-battle.test.mjs` | 낮음 | [x] |
-| 185 던전 드롭 가림·등급광·몹 속도·흡수 지연 | fks3997 | preview/gravel-background-fks3997 | `ui/dungeonBattle.ts`(던전 몹 1.5배 이동·드롭 착지 계산)·`ui/dungeonField.ts`(착지/깊이·금화 금액 제거·흡수 1.5초)·`styles/dungeon.css`(원형 테두리→외곽광)·`tests/dungeon-battle.test.mjs` | 낮음 | [-] |
+| 185 던전 드롭 가림·등급광·몹 속도·흡수 지연 | fks3997 | preview/gravel-background-fks3997 | `ui/dungeonBattle.ts`(던전 몹 1.5배 이동·드롭 착지 계산)·`ui/dungeonField.ts`(착지/깊이·금화 금액 제거·흡수 1.5초)·`styles/dungeon.css`(원형 테두리→외곽광)·`tests/dungeon-battle.test.mjs` | 낮음 | [x] |
 
+> 2026-11-19: `[작업 185]` — 사용자 실기 피드백 5건. ① 처치 지점이 캐릭터 위라 드롭이 캐릭터를 가리던 문제: `dungeonLootLanding`이 히어로 반경 밖(화면 높이 10%, 58~80px + 12px 팬)으로 착지점을 밀고, 뒤쪽 드롭은 `.dungeon-loot-layer.is-behind`(z2, 투명 canvas 아래)로 보내 깊이를 나눈다. ② 원형 할로·테두리 링 제거, 아이콘 알파 실루엣을 따라가는 다중 `drop-shadow` 외곽광으로 등급색 유지. ③ 던전 몹 이동만 정확히 1.5배(`DUNGEON_ENEMY_SPEED_SCALE`, `super.update` 뒤 나머지 0.5스텝 추가 — 쿨다운·스킬·90초 타이머는 실제 dt 유지). ④ 금화 옆 `+4` 금액 제거. ⑤ 클리어 흡수 시작을 마지막 처치 1.5초 뒤로(`ABSORB_DELAY`), 결과창은 흡수 종료 후. tsc 통과·`tests/dungeon-battle.test.mjs` 14건 통과.
 > 2026-11-19: `[작업 184]` — 던전 미리보기에서 적을 처치하면 금화와 50% 확률의 아이템(장비/스킬북)이 몬스터 정지 그림자 크기(≈38px)로 바닥에 튕겨 떨어지고 등급색 링·글로우로 구분된다. 어떤 아이템이 떨어지는지는 필드 확률을 그대로 쓴다(`equipmentDropChance`:`skillBookDropChance` 비율 → `rollItem`/`rollSkillBook`), 금화는 필드식(일반 3+층, 보스 70×층)이다. `outcome==='clear'`일 때만 캐릭터로 흡수된 뒤 결과창이 뜨고(실패·시간종료는 기존 .75초), 드롭은 `DungeonWorld.loot`에만 쌓여 `world.drops`·공용 renderer·계정 저장은 그대로다. tsc 통과·`tests/dungeon-battle.test.mjs` 12건 통과. 브라우저 실기 재생 확인은 미실시.
 
 
