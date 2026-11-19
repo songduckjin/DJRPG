@@ -8,6 +8,7 @@
 | 작업 | 담당자 | 브랜치 | 수정 예정 파일 / 영향 영역 | 위험 등급 | 상태 |
 |---|---|---|---|---|---|
 | [작업 146] Turso 공용 DB에서 DJRPG 전용 DB 이관 | songduckjin | `codex/146-turso-db-isolation` | `scripts/migrate-turso-db.mjs`, `tests/migrate-turso-db.test.mjs`, `server/{database,market-connection,world-boss,world-boss-schema}.mjs`, `tests/functions-adapter.test.mjs`, `docs/TURSO_DB_GUIDE.md`, 운영 DB·Pages 비밀 변수 | 높음 | [-] |
+| [작업 153] 공격 4프레임 투구 고개 방향·숙임 매칭 | songduckjin | `codex/153-attack-helmet-head-direction` | `src/game/render/helmets.ts`(attack 앵커·회전·세로 배율), `src/game/render/entities.ts`(`syncHelmet`), `tests/helmet-head-render.test.mjs`, `docs/QUICK_PATCH.md` | 낮음 | [-] |
 
 
 > 2026-11-19: `[작업 152]` — 「얼굴에 매칭이 제대로 안 되네요」 제보로 투구 착용 시 머리 없는 본체 시트(`public/assets/pilot-25d/headless/*` 6장)를 만들어, 머리카락이 투구 밖으로 삐져나오거나 오픈페이스 투구에서 얼굴이 겹치는 문제를 고쳤다. `render/helmets.ts` `headlessBodyPaths`·`render.ts` 로딩·`drawHero` 교체·`equipmentFallbackPortrait`까지 필드와 장비창이 같은 시트를 쓰고, 앵커 표는 지운 머리 영역 기준으로 재측정했다. `store.ts`·`server/**`·`world.ts` 무변경. 검증: 타입 검사, 전체 테스트 400건 중 398 통과(`costume-field-render` 2건은 기존 실패), 빌드, `git diff --check`. [PR #107](https://github.com/songduckjin/DJRPG/pull/107) 스쿼시 병합 `6ba9330a2203`, 운영 `version.json` `6ba9330a2203`(`builtAt 2026-11-19T13:17:23Z`)·머리 없는 시트 6장 HTTP 200·배포 번들 경로 포함 확인. 검수 이미지 `downloads/djrpg_helmet_overlay_{male,gender,frames}_v2.png`. 자세한 기록은 `docs/WORKLOG.md`.
