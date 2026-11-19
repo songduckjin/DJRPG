@@ -1,10 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { Container, Sprite, Texture } from 'pixi.js';
+import { Container, Sprite, Texture, TextureSource } from 'pixi.js';
 import { existsSync, readFileSync } from 'node:fs';
 import './ts-loader.mjs';
 
-const { helmetArtFor, helmetArtList, helmetArtPaths, helmetPlacement, helmetIdlePlacement } = await import('../src/game/render/helmets.ts');
+const { helmetArtFor, helmetArtList, helmetArtPaths, helmetPlacement, helmetIdlePlacement, headlessBodyPaths } = await import('../src/game/render/helmets.ts');
 const { drawHero } = await import('../src/game/render/entities.ts');
 const { freshSave } = await import('../src/game/store.ts');
 const { baseItemIndex, baseItems } = await import('../src/game/items.ts');
@@ -72,6 +72,8 @@ test('프레임 앵커는 성별·동작·프레임마다 유한한 값을 준�
   }
 });
 
+const texture = () => new Texture({ source: new TextureSource({ width: 362, height: 362 }) });
+
 function view() {
   const layer = new Container();
   const hero = new Sprite(Texture.EMPTY);
@@ -82,12 +84,19 @@ function view() {
     hero, heroLayer: layer, heroGear: new Map(), gearTextures: new Map(), gearLoading: new Set(),
     helmetTextures, heroHelmet: undefined,
     lastHeroWorld: { x: 0, y: 0 }, heroWalkDistance: 0,
-    textures: { pilotMale: Texture.EMPTY, pilotFemale: Texture.EMPTY },
+    textures: {
+      pilotMale: texture(), pilotFemale: texture(),
+      pilotMaleHeadless: texture(), pilotFemaleHeadless: texture()
+    },
     animations: {
-      pilotMaleWalk: Array.from({ length: 8 }, () => Texture.EMPTY),
-      pilotFemaleWalk: Array.from({ length: 8 }, () => Texture.EMPTY),
-      pilotMaleAttack: Array.from({ length: 4 }, () => Texture.EMPTY),
-      pilotFemaleAttack: Array.from({ length: 4 }, () => Texture.EMPTY)
+      pilotMaleWalk: Array.from({ length: 8 }, texture),
+      pilotFemaleWalk: Array.from({ length: 8 }, texture),
+      pilotMaleAttack: Array.from({ length: 4 }, texture),
+      pilotFemaleAttack: Array.from({ length: 4 }, texture),
+      pilotMaleWalkHeadless: Array.from({ length: 8 }, texture),
+      pilotFemaleWalkHeadless: Array.from({ length: 8 }, texture),
+      pilotMaleAttackHeadless: Array.from({ length: 4 }, texture),
+      pilotFemaleAttackHeadless: Array.from({ length: 4 }, texture)
     },
     app: { screen: { height: 800 } },
     ground: { ellipse: () => ({ fill() {} }) },
@@ -155,6 +164,62 @@ test('여성 전사는 오픈페이스 0~2번에서 여성용 시안을 쓴다',
   game.heroLayer.destroy({ children: true });
 });
 
+test('머리 없는 본체 시트 6장이 본체 시트와 같은 크기로 존재한다', () => {
+  const pairs = [
+    ['male', 'idle'], ['male', 'walk'], ['male', 'attack'],
+    ['female', 'idle'], ['female', 'walk'], ['female', 'attack']
+  ];
+  for (const [gender, motion] of pairs) {
+    const path = headlessBodyPaths[gender][motion];
+    assert(path.includes(`/headless/warrior_${gender}_${motion}_v1.png`), path);
+    const file = fileOf(path);
+    assert(existsSync(file), `${path} 파일이 없습니다`);
+    const data = readFileSync(file);
+    const width = data.readUInt32BE(16), height = data.readUInt32BE(20);
+    const source = readFileSync(fileOf(`/assets/pilot-25d/warrior_${gender}_${motion}_v1.png`));
+    assert.equal(width, source.readUInt32BE(16), `${gender} ${motion} 폭`);
+    assert.equal(height, source.readUInt32BE(20), `${gender} ${motion} 높이`);
+    assert(data[25] === 6 || data[25] === 3, `${path} 알파 채널`);
+    assert(renderAssetPaths.includes(path), `${path} 프리로드 누락`);
+  }
+});
+
+test('투구를 쓰면 머리 없는 본체로 갈아 끼우고 벗으면 원래 본체로 돌아온다', () => {
+  const save = freshSave('male');
+  const game = view();
+  const idle = world(save);
+  drawHero.call(game, idle, 100, 100, 0);
+  assert.equal(game.hero.texture, game.textures.pilotMale, '맨얼굴일 때는 머리 있는 본체');
+
+  save.equipment.helmet = helmetItem('기사 헬름');
+  drawHero.call(game, idle, 100, 100, .1);
+  assert.equal(game.hero.texture, game.textures.pilotMaleHeadless, '투구를 쓰면 머리 없는 본체');
+
+  // 걷기 프레임도 머리 없는 걷기 시트를 같은 프레임 번호로 쓴다.
+  idle.activeMove.x = 1; idle.player.x = 1;
+  drawHero.call(game, idle, 100, 100, .2);
+  const walkIndex = Math.floor(game.heroWalkDistance / 12) % 8;
+  assert.equal(game.hero.texture, game.animations.pilotMaleWalkHeadless[walkIndex]);
+
+  save.equipment.helmet = undefined;
+  drawHero.call(game, idle, 100, 100, .3);
+  assert.equal(game.hero.texture, game.animations.pilotMaleWalk[walkIndex], '벗으면 원래 걷기 시트');
+  game.heroLayer.destroy({ children: true });
+});
+
+test('여성 투구도 머리 없는 여성 본체를 쓴다', () => {
+  const save = freshSave('female');
+  const game = view();
+  const idle = world(save);
+  save.equipment.helmet = helmetItem('가죽 두건');
+  drawHero.call(game, idle, 100, 100, 0);
+  assert.equal(game.hero.texture, game.textures.pilotFemaleHeadless);
+  idle.attackPose = .3;
+  drawHero.call(game, idle, 100, 100, .5);
+  assert(game.animations.pilotFemaleAttackHeadless.includes(game.hero.texture), '공격 프레임도 머리 없는 시트');
+  game.heroLayer.destroy({ children: true });
+});
+
 test('장비창 초상화는 착용 투구를 키와 합성 계획에 담는다', () => {
   const save = freshSave('female');
   const bare = equipmentPortraitPlan(save);
@@ -164,6 +229,8 @@ test('장비창 초상화는 착용 투구를 키와 합성 계획에 담는다'
   save.equipment.helmet = helmetItem('사슬 코이프');
   const withHelmet = equipmentPortraitPlan(save);
   assert(withHelmet.helmet, '합성 계획에 투구가 들어간다');
+  assert(withHelmet.base.includes('/headless/'), '투구를 쓰면 머리 없는 본체 위에 합성한다');
+  assert(!bare.base.includes('/headless/'), '맨얼굴은 머리 있는 본체');
   assert.equal(withHelmet.helmet.path, helmetArtPaths.helm_female_2);
   assert.equal(withHelmet.helmet.x, helmetIdlePlacement('female').x);
   assert.equal(withHelmet.helmet.y, helmetIdlePlacement('female').y);

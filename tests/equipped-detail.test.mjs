@@ -46,8 +46,10 @@ resetEquipmentPortraitCache();
 
 for (const gender of ['male', 'female']) test(`${gender}: field and equipment preview keep the approved pilot art for every equipped set`, () => {
   const save = freshSave(gender);
-  const expected = `/assets/pilot-25d/warrior_${gender}_idle_v1.png`;
+  // 투구를 쓰면 머리 없는 본체(작업 152) 위에 투구 파츠를 합성한다.
+  const expectedBase = () => `/assets/pilot-25d/${save.equipment.helmet ? 'headless/' : ''}warrior_${gender}_idle_v1.png`;
   const check = () => {
+    const expected = expectedBase();
     assert.equal(equipmentFallbackPortrait(save), expected);
     const plan = equipmentPortraitPlan(save);
     assert.equal(plan.mode, 'fallback');
