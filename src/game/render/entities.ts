@@ -130,9 +130,10 @@ function syncHelmet(view: GameView, save: Save, motion: 'idle' | 'walk' | 'attac
   }
   if (sprite.texture !== texture) sprite.texture = texture;
   sprite.position.set(layerX, layerY);
-  sprite.scale.set(place.scale);
+  // 목 밑동 앵커(아래 중앙)를 축으로 기울이고, 숙인 고개는 세로만 줄인다(작업 153).
+  sprite.scale.set(place.scale, place.scaleY ?? place.scale);
   sprite.tint = tint;
-  sprite.rotation = 0;
+  sprite.rotation = place.rotation ?? 0;
   sprite.alpha = 1;
   sprite.visible = true;
 }

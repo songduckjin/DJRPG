@@ -71,9 +71,28 @@ export type HelmetPlacement = {
   x: number;
   /** 본체 셀 좌표에서 목 밑동의 y. */
   y: number;
-  /** 파츠 PNG 를 그릴 배율(프레임마다 본체 머리 크기가 달라 보정한다). */
+  /** 파츠 PNG 를 그릴 가로 배율(프레임마다 본체 머리 크기가 달라 보정한다). */
   scale: number;
+  /**
+   * 세로 배율. 없으면 `scale` 과 같다.
+   *
+   * 작업 153: 공격 3·4프레임은 고개를 앞으로 숙인 자세라 정면 파츠를 그대로 얹으면
+   * 얼굴이 길게 서서 "쳐다보는" 것처럼 보인다. 고개가 앞으로 기울면 화면상 세로가
+   * 줄어들므로, 숙임 각도의 코사인만큼 세로만 줄여 입체감을 낸다.
+   */
+  scaleY?: number;
+  /**
+   * 목 밑동을 축으로 돌리는 각도(라디안, 화면 기준 시계방향 +). 없으면 0.
+   *
+   * 작업 153: 공격 프레임은 고개가 오른쪽으로 돌아가거나 숙여져 정면 파츠를 축 그대로
+   * 얹으면 머리만 따로 떠 있는 느낌이 난다. 앵커(목 밑동)를 축으로 고개 기울기만큼
+   * 돌려 몸통과 한 덩어리로 보이게 한다.
+   */
+  rotation?: number;
 };
+
+/** 도(degree) → 라디안. 앵커 표를 눈으로 검수하기 쉽게 각도로 적는다. */
+const deg = (degrees: number): number => (degrees * Math.PI) / 180;
 
 /**
  * 성별·동작·프레임별 목 밑동 좌표와 배율.
@@ -82,6 +101,13 @@ export type HelmetPlacement = {
  * 정수리 높이(머리 영역 최상단)이며, 파츠가 본체 칼라에 자연스럽게 얹히는지 합성 검수로
  * 확정했다(남 idle (228, 89) · 여 idle (227, 88), 걷기·공격은 프레임 실측). `walk` 는
  * 시트가 4포즈를 8프레임으로 반복 재생하므로 4개 값만 두고 `frame % 4` 로 조회한다.
+ *
+ * 작업 153에서 `attack` 4프레임만 다시 쟀다. 151·152의 공격값은 목 밑동보다 10~50px 위에
+ * 찍혀 파츠가 정수리에 얹히고 턱·목이 비어 "머리가 떠다니는" 원인이었다. 원본 공격 시트
+ * (`warrior_{male,female}_attack_v1.png`)의 턱·목 위치를 다시 읽어 앵커를 내리고, 프레임별
+ * 고개 기울기(`rotation`)와 숙임(`scaleY`)을 합성 검수로 확정했다 — 1프레임은 젖힌 고개라
+ * 살짝 반대로(-), 3·4프레임은 깊게 숙여 세로를 12% 줄이고 12~15도 돌린다. `idle`·`walk`
+ * 는 정면이라 종전 값을 그대로 둔다(사용자 확인 완료 구간).
  */
 const helmetFrames: Record<Gender, Record<HelmetMotion, readonly HelmetPlacement[]>> = {
   male: {
@@ -93,10 +119,10 @@ const helmetFrames: Record<Gender, Record<HelmetMotion, readonly HelmetPlacement
       { x: 260, y: 94, scale: .95 }
     ],
     attack: [
-      { x: 202, y: 113, scale: 1 },
-      { x: 190, y: 107, scale: 1 },
-      { x: 191, y: 118, scale: 1 },
-      { x: 190, y: 180, scale: 1 }
+      { x: 205, y: 122, scale: .97, scaleY: 1, rotation: deg(4) },
+      { x: 188, y: 124, scale: .97, scaleY: 1, rotation: deg(-3) },
+      { x: 196, y: 174, scale: .97, scaleY: .92, rotation: deg(12) },
+      { x: 196, y: 192, scale: .97, scaleY: .88, rotation: deg(15) }
     ]
   },
   female: {
@@ -108,10 +134,10 @@ const helmetFrames: Record<Gender, Record<HelmetMotion, readonly HelmetPlacement
       { x: 259, y: 95, scale: .95 }
     ],
     attack: [
-      { x: 208, y: 116, scale: 1 },
-      { x: 205, y: 108, scale: 1 },
-      { x: 215, y: 115, scale: 1 },
-      { x: 190, y: 155, scale: 1 }
+      { x: 204, y: 134, scale: .95, scaleY: 1, rotation: deg(4) },
+      { x: 192, y: 142, scale: .95, scaleY: 1, rotation: deg(-2) },
+      { x: 193, y: 164, scale: .95, scaleY: .92, rotation: deg(11) },
+      { x: 194, y: 194, scale: .95, scaleY: .88, rotation: deg(14) }
     ]
   }
 };

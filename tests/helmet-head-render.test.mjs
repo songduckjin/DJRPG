@@ -72,6 +72,26 @@ test('프레임 앵커는 성별·동작·프레임마다 유한한 값을 준�
   }
 });
 
+test('공격 4프레임은 고개 기울기·숙임 값을 갖고 숙인 프레임일수록 더 눕는다', () => {
+  for (const gender of ['male', 'female']) {
+    const frames = [0, 1, 2, 3].map(frame => helmetPlacement(gender, 'attack', frame));
+    for (const [index, place] of frames.entries()) {
+      assert(Number.isFinite(place.rotation), `${gender} ${index} 회전`);
+      assert(Math.abs(place.rotation) < .5, `${gender} ${index} 회전 ${place.rotation} rad`);
+      assert(Number.isFinite(place.scaleY), `${gender} ${index} 세로 배율`);
+      assert(place.scaleY > .8 && place.scaleY <= 1.02, `${gender} ${index} 세로 배율 ${place.scaleY}`);
+    }
+    // 1프레임은 검을 머리 위로 들며 고개를 살짝 젖히고, 3·4프레임은 깊게 숙여
+    // 세로가 짧아지고 몸통 쪽(오른쪽)으로 더 기운다.
+    assert(frames[1].rotation <= 0, `${gender} 1프레임 젖힌 고개`);
+    assert(frames[0].scaleY >= frames[2].scaleY, `${gender} 숙임 단조성`);
+    assert(frames[2].scaleY > frames[3].scaleY, `${gender} 3·4프레임 숙임`);
+    assert(frames[3].rotation > frames[0].rotation, `${gender} 4프레임 기울기`);
+    // 정면 파츠가 목 밑동보다 위에 떠 있던 옛 앵커(남 191,118 · 여 208,116)보다 내려왔다.
+    assert(frames[2].y > 150 && frames[3].y > 170, `${gender} 공격 앵커 높이`);
+  }
+});
+
 const texture = () => new Texture({ source: new TextureSource({ width: 362, height: 362 }) });
 
 function view() {
@@ -148,6 +168,30 @@ test('투구를 착용하면 필드에 머리 파츠가 얹히고, 벗으면 숨
   save.equipment.helmet = undefined;
   drawHero.call(game, walking, 100, 100, .4);
   assert.equal(sprite.visible, false, '투구를 벗으면 숨긴다');
+  game.heroLayer.destroy({ children: true });
+});
+
+test('공격 프레임에서는 투구 스프라이트가 고개 기울기·숙임대로 변환된다', () => {
+  const save = freshSave('male');
+  const game = view();
+  const animated = world(save);
+  save.equipment.helmet = helmetItem('기사 헬름');
+  // attackPose .32 → 0프레임, .08 → 3프레임 (drawHero 의 프레임 계산과 같은 식)
+  for (const [attackPose, frame] of [[.32, 0], [.24, 1], [.16, 2], [.08, 3]]) {
+    animated.attackPose = attackPose;
+    drawHero.call(game, animated, 100, 100, attackPose);
+    const sprite = game.heroHelmet;
+    const place = helmetPlacement('male', 'attack', frame);
+    assert(sprite, `공격 ${frame}프레임 투구 스프라이트`);
+    assert(Math.abs(sprite.rotation - place.rotation) < 1e-9, `공격 ${frame}프레임 회전`);
+    assert.equal(sprite.scale.x, place.scale, `공격 ${frame}프레임 가로 배율`);
+    assert.equal(sprite.scale.y, place.scaleY, `공격 ${frame}프레임 세로 배율`);
+  }
+  // 서기로 돌아오면 회전·숙임이 풀린다.
+  animated.attackPose = 0;
+  drawHero.call(game, animated, 100, 100, 0);
+  assert.equal(game.heroHelmet.rotation, 0, '서기에서는 회전 없음');
+  assert.equal(game.heroHelmet.scale.y, helmetIdlePlacement('male').scale, '서기 세로 배율');
   game.heroLayer.destroy({ children: true });
 });
 
