@@ -1898,3 +1898,6 @@
 | 178 던전 문 접지·닫힘 초기화 | fks3997 | preview/gravel-background-fks3997 | ui/dungeonField.ts, styles/dungeon.css, 문서 | 하 | [x] |
 | 177 업적 분류별 현재 단계 | fks3997 | preview/gravel-background-fks3997 | ui/modals/utilityModal.ts, tests/journey-ui.test.mjs, 문서 | 하 | [x] |
 - 177/178: tsc/관련21/diff 통과. 업적카테고리1행/현재단계수령·완료하단, 문접지/다음층닫힘선초기화/뒤글자제거. 실기미실행, preview만.
+
+| 179 던전 몬스터 문앞 레이어 | fks3997 | preview/gravel-background-fks3997 | ui/dungeonField.ts, styles/dungeon.css, 문서 | 하 | [x] |
+- 179: 투명배우canvas/문뒤레이어·독립시각시간·사망소멸후결과/층초기화잔상청소. tsc/던전10/diff 통과, 실기미실행, preview만.

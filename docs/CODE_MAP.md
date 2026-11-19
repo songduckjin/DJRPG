@@ -253,3 +253,5 @@ npm run check && npm test && npm run build # 공용 계약 수정·사용자 요
 
 - 작업177 `utilityModal.ts` orderedAchievements: category별첫미수령만, 전부수령시마지막단계1행을하단. 수령가능→진행중→전체완료 정렬, 모두받기는보이는단계만순차수령·오류시중단, 빨간점도보이는단계기준. 기존서버API/보상이력보존.
 - 작업178 `dungeonField.ts` resetBattle: 출구is-resetting에서문transition없이닫고style확정후fade진입. top10%/h28%로문턱접지, 문뒤떠있는wave안내제거/하단HUD유지.
+
+- 작업179 던전레이어: 방배경은field CSS, 문DOM z2, renderer.background.alpha=0의배우canvas z3, HUD z4. 기존불투명Sprite배경제거로문이배우를가리지않음. visualTime은종료후에도진행해시체소멸·effects정리, .75초후결과. resetBattle에서이전enemy/시체/피해라벨정리.

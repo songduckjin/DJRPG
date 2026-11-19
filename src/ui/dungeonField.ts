@@ -1,4 +1,4 @@
-import {Assets,Sprite,Texture} from 'pixi.js';
+import {Assets} from 'pixi.js';
 import {GameView} from '../game/render';
 import {totalStats} from '../game/store';
 import {skills} from '../game/skills';
@@ -18,7 +18,7 @@ export function openDungeonField(ui:Interface,lobby:HTMLElement):void {
   field.innerHTML=`<div class="dungeon-field-canvas"></div><div class="dungeon-exit-gate" aria-label="다음 층으로 이어지는 철문"><div class="dungeon-lobby-gate"><i class="dungeon-lobby-gate-dark"></i><img class="dungeon-gate-left" src="/assets/dungeon/gate-left-v1.png" alt=""><img class="dungeon-gate-right" src="/assets/dungeon/gate-right-v1.png" alt=""><img class="dungeon-gate-frame" src="/assets/dungeon/gate-frame-v1.png" alt=""></div></div><header class="dungeon-field-hud"><div><small>끝없는 던전</small><strong>제 1 층</strong></div><button type="button" class="dungeon-field-leave">나가기</button></header><footer class="dungeon-battle-hud"><div class="dungeon-battle-record"><strong data-clock>90초</strong><span data-wave>WAVE 1 / 3</span><span data-kills>처치 0 / 7</span></div><div class="dungeon-hp"><i></i><span></span></div><div class="dungeon-auto-skills"></div><small>자동 전투 · 1~2층 미리보기 · 보상/기록 미반영</small></footer><div class="dungeon-battle-result" hidden></div><div class="dungeon-floor-transition" aria-hidden="true"></div>`;
   ui.root.querySelector('.game-shell')!.append(field);
   const get=<T extends HTMLElement>(s:string)=>field.querySelector<T>(s)!;
-  const view=new GameView();let battle=new DungeonBattle(ui.world.save),closed=false,mounted=false,age=0,combatTime=0,resultShown=false;
+  const view=new GameView();let battle=new DungeonBattle(ui.world.save),closed=false,mounted=false,age=0,visualTime=0,finishAge=0,resultShown=false;
   let destroyPending=false;
   const observer=new MutationObserver(()=>{if(ui.openModal!=='dungeon'||!lobbyRoot.isConnected)cleanup();});
   observer.observe(ui.modal,{attributes:true,attributeFilter:['hidden'],childList:true,subtree:true});
@@ -29,7 +29,10 @@ export function openDungeonField(ui:Interface,lobby:HTMLElement):void {
   const resetBattle=(floor:1|2)=>{
     const gate=get('.dungeon-exit-gate');gate.classList.add('is-resetting');gate.classList.remove('is-opening');
     void gate.offsetWidth;gate.classList.remove('is-resetting');
-    battle=new DungeonBattle(ui.world.save,floor);combatTime=0;age=0;resultShown=false;
+    for(const sprite of view.enemies.values())sprite.destroy();view.enemies.clear();view.enemyWalkDistance.clear();
+    for(const corpse of view.corpses)corpse.sprite.destroy();view.corpses=[];
+    for(const label of view.damageLabels.values())label.destroy();view.damageLabels.clear();
+    battle=new DungeonBattle(ui.world.save,floor);finishAge=0;age=0;resultShown=false;
     get('.dungeon-battle-result').hidden=true;
     get('.dungeon-field-hud strong').textContent=`제 ${floor} 층`;
     field.setAttribute('aria-label',`끝없는 던전 ${floor}층 미리보기`);
@@ -52,30 +55,33 @@ export function openDungeonField(ui:Interface,lobby:HTMLElement):void {
     };
   };
   void (async()=>{try{
-    const texture=await Assets.load<Texture>('/assets/dungeon/prison-room-v2.png');if(closed)return;
+    await Assets.load('/assets/dungeon/prison-room-v2.png');if(closed)return;
     await view.mount(get('.dungeon-field-canvas'));mounted=true;if(closed||destroyPending){view.app.destroy(true,{children:true,texture:false,textureSource:false});return;}
     await doorOpened;if(closed)return;observer.disconnect();
-    const background=new Sprite(texture);view.app.stage.addChildAt(background,0);
+    view.app.renderer.background.alpha=0;
     for(const layer of [view.floor,view.terrainLayer,view.ambientLayer,view.glow,view.shade])layer.visible=false;
     view.drawTerrain=()=>{};view.drawDust=()=>{};view.drawRunes=()=>{};
     // Render a complete frame before exposing the canvas. Keep the lobby underneath
     // throughout the fade so neither main hunting nor the renderer's clear color flashes.
-    background.width=view.app.screen.width;background.height=view.app.screen.height;
     view.draw(battle.world,0);view.app.renderer.render(view.app.stage);
     requestAnimationFrame(()=>{if(closed)return;field.classList.add('is-ready');get<HTMLButtonElement>('.dungeon-field-leave').focus();
       window.setTimeout(()=>{if(!closed&&ui.openModal==='dungeon')ui.open(null);},650);
     });
     let previous=performance.now();
     view.app.ticker.add(()=>{if(closed)return;const now=performance.now(),dt=document.hidden?0:Math.min(.05,(now-previous)/1000);previous=now;age+=dt;
-      if(age>.65&&!battle.finished){combatTime+=dt;battle.advance(dt);}
-      view.draw(battle.world,combatTime);
-      const w=view.app.screen.width,h=view.app.screen.height; background.width=w;background.height=h;
+      visualTime+=dt;
+      if(age>.65&&!battle.finished)battle.advance(dt);
+      if(battle.finished){
+        finishAge+=dt;battle.world.attackPose=Math.max(0,battle.world.attackPose-dt);
+        battle.world.effects=battle.world.effects.filter(effect=>{effect.age+=dt;return effect.age<effect.duration;});
+      }
+      view.draw(battle.world,visualTime);
       // Preserve the existing skeletal art; the elite is the same soldier at larger scale.
       if(battle.elite){const sprite=view.enemies.get(battle.elite);if(sprite){sprite.scale.x*=1.35;sprite.scale.y*=1.35;sprite.tint=0xdcc4a1;}}
       const hp=battle.world.player.hp,max=totalStats(battle.world.save).health;
       get('.dungeon-hp i').style.width=`${hp/max*100}%`;get('.dungeon-hp span').textContent=`HP ${Math.ceil(hp)} / ${max}`;
       get('[data-clock]').textContent=`${Math.ceil(90-battle.elapsed)}초`;get('[data-wave]').textContent=`WAVE ${battle.wave} / 3`;get('[data-kills]').textContent=`처치 ${battle.world.slain} / 7`;
-      if(battle.finished&&!resultShown)result();
+      if(battle.finished&&finishAge>=.75&&!resultShown)result();
     });
   }catch(error){if(closed)return;cleanup();ui.message(`전장 로딩 실패: ${error instanceof Error?error.message:String(error)}`);}})();
 
