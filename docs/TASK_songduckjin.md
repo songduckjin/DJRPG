@@ -3,19 +3,19 @@
 > 담당 GitHub ID: `songduckjin`
 > 적용 대상: 해당 ID를 사용하는 작업자의 PC 및 Codex
 > 규칙: 본 파일은 지정된 작업자만 수정한다. 상대 작업자의 개인 작업지시서는 수정하지 않는다.
-> 2026-11-18: `[작업 137]`은 PR #73(`6402d79`)으로 main에 병합되어 완료 이력을 `docs/TASK_ARCHIVE.md`로 옮겼다. 이 문서에는 후속 작업 138~144와 개인 작업 이력을 둔다.
+> 2026-11-18: `[작업 137]`은 PR #73(`6402d79`)으로 main에 병합되어 완료 이력을 `docs/TASK_ARCHIVE.md`로 옮겼다. 이 문서에는 후속 작업 138~145와 개인 작업 이력을 둔다.
 
 ## 진행 중 작업
 
 ### [-] [작업 145] 서리의 가죽두건 코스튬 단일 완성 사례
 - **담당자**: `songduckjin` · **브랜치**: `codex/145-frost-hood-pilot` · **위험 등급**: 중 · **상태**: `[-]` 선점
-- **목표/범위**: 전체 장비를 확장하지 않고 `서리의 가죽두건` 한 조합만 완성 사례로 제작한다. 장착 아이템 그림과 동일한 천 두건 실루엣을 남/여 각각 idle·walk·attack에 반영하고, 필드·장비창에서 동일한 그림을 검수한다. 남/여 × 앞·뒤·좌·우 방향 공격 그림을 준비해 전방향 적을 향하게 한다. 코드·아트는 검수 후 사용자 판단 전까지 병합·배포하지 않는다.
+- **목표/범위**: 전체 장비를 확장하지 않고 `서리의 가죽두건` 한 조합만 완성 사례로 제작한다. 장착 아이템 그림과 동일한 천 두건 실루엣을 남/여 각각 idle·walk·attack에 반영하고, 필드·장비창에서 동일한 그림을 검수한다. 남/여 × 앞·뒤·좌·우 방향 공격 그림을 준비해 전방향 적을 향하게 한다. 2026-11-19 사용자 요청에 따라 이 파일럿만 먼저 병합·배포하고 실제 화면은 사용자가 함께 검수한다.
 - **사전 원인**: `서리의`는 매직 등급 접두사이고 이름 정규화 후 `가죽 두건` 끝부분 매칭으로 `helmet-t0`에 이미 연결된다. v3 생성물은 `helmet-<gender>` / `helmet-body-<gender>`의 공유 셀 규약이므로 아이템 아이콘의 천 두건 형태를 보장하지 않는다. `world.ts`는 각도 `player.facing`을 보유하지만 `render/entities.ts`의 공격 셀 선택은 4프레임 공용 시트와 `player.facingSide` 좌우 반전만 사용하므로 화면 앞·뒤 방향 공격을 표현할 수 없다.
-- **권장 방향 정책**: 네 방향 모두 전용으로 다시 그리지 않고 기존 2방향 좌/우 아트는 유지하며, 전방·후방 공격 아트를 추가한다. `player.facing`을 필드 화면 축에 투영해 좌/우/앞/뒤 중 가장 가까운 사분면을 고르고, 좌/우는 현재 시트를 재사용하고 앞/뒤에서만 신규 전용 공격 그림을 선택한다. idle/walk의 별도 전방향 재작업은 이 한 종 시안의 범위에서 제외하며, 공격 포즈 전환만으로 타격 방향을 검증한다.
-- **수정 예정 파일**: `scripts/build-costume-atlas.py`, `src/game/render/entities.ts`, `src/game/render/costumeHero.ts`(방향 셀 선택만), `src/ui/equipmentPortrait.ts`(공용 계획 유지 여부 검증), 새 투구 전용 소스 아트와 격리된 v4 시안 아틀라스/매니페스트, `tests/costume-field-render.test.mjs`, `tests/equipped-detail.test.mjs`, `tests/costume-atlas.test.mjs`, `docs/COSTUME_SYSTEM.md`, `docs/CODE_MAP.md`, `docs/QUICK_PATCH.md`, 본 작업 기록.
-- **금지**: 다른 54개 코스튬·아이템 이름/UUID/Save/API·`src/game/store.ts`·DB 변경, v3 운영 에셋 교체, main 직접 커밋, PR 병합, Cloudflare 배포. v4는 격리된 검수 산출물이며 운영 매니페스트 전환은 사용자 후속 지시 전까지 하지 않는다.
+- **방향 정책**: `player.facing`을 등각 화면 축으로 투영해 남/여 각각 그린 좌/우/뒤/앞 공격 키 포즈 4장 중 하나를 고른다. idle/walk는 오른쪽 그림을 좌우 반전하는 현행 정책을 유지한다. 기본 공격·스킬 공격은 방향별 한 키 포즈를 공격 창 동안 유지한다.
+- **수정 파일**: `scripts/build-costume-atlas.py`, `src/game/render/{heroMotion,costumeHero,entities}.ts`, `src/ui/equipmentPortrait.ts`, `public/assets/costume/pilot145/source/**`, `public/assets/costume/v4/atlas/pilot-hood-{male,female}.png`, `tests/{hero-motion,costume-field-render,equipped-detail}.test.mjs`, `docs/COSTUME_SYSTEM.md`, `docs/CODE_MAP.md`, `docs/QUICK_PATCH.md`, `docs/TASK.md`, 본 작업 기록.
+- **금지**: 다른 54개 코스튬·아이템 이름/UUID/Save/API·`src/game/store.ts`·DB 변경, v3 운영 에셋 교체, main 직접 커밋. v4는 두 페이지뿐이므로 기존 v3 에셋과 함께 배포한다. 실제 화면 미검수는 완료로 표시하지 않는다.
 - **검수 표**: 기준 아이템 아이콘 / 제작 프레임 / 실제 필드 화면 / 실제 장비창 화면을 한 시트에 배치한다. 남녀 각각 idle·walk·공격(좌/우/앞/뒤)을 표기하고 얼굴 가림·손잡이/무기 위치·필드 방향을 검사한다. 합성 목업은 실제 앱 캡처와 명확히 구분한다.
-- **검증**: `npx tsc --noEmit`; `node --test tests/costume-field-render.test.mjs tests/equipped-detail.test.mjs tests/costume-atlas.test.mjs`; `node scripts/verify-item-art.mjs`; 브라우저에서 실제 로컬 게임 화면의 남/여 장비창·필드 캡처; `git diff --check`. 실행하지 않은 시각 항목은 미확인으로 남긴다.
+- **검증**: `node node_modules/typescript/bin/tsc --noEmit`; `node --test tests/hero-motion.test.mjs tests/costume-field-render.test.mjs tests/equipped-detail.test.mjs`; `node scripts/verify-item-art.mjs`; `git diff --check` 통과. 사용자 허용 후 로컬 Vite에서 게스트 시작을 눌렀으나 `/api/account`가 HTML을 반환해 실제 필드 진입에 실패했다. 로컬 Pages Functions/Turso 설정이 없고 서버 계정은 생성되지 않았다. 실제 필드/장비창 화면, 얼굴 가림, 공격 중 손잡이 접점은 배포 후 검수 대기다.
 - **완료 기준**: 서리의 가죽두건이 기존 투구 색변형·폴백이 아닌 구별되는 천 두건 그림으로 양 성별에 적용되고, 좌/우/앞/뒤 적에 대한 공격 자세가 방향 정책에 맞으며, 실제 화면 네 영역 비교 시트를 남긴다. 이 한 조합 결과를 사용자에게 보여준 뒤 나머지 장비 확대 여부를 결정한다.
 
 ### [x] [작업 134] 필드 캐릭터 통합 바디 복구 및 무기 소켓·액션 자연화

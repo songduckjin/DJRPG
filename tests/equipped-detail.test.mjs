@@ -125,6 +125,23 @@ test('info preview draws the shared field costume plan with the idle frame only'
   }
   resetCostumeManifestCache();
 });
+
+test('서리의 가죽두건 시안의 장비창은 필드와 같은 전용 전신 계획을 쓴다', async () => {
+  for (const gender of ['male', 'female']) {
+    const save = freshSave(gender);
+    save.equipment.helmet = { id: 'hood', name: '서리의 가죽두건', slot: 'helmet', rarity: 'magic', stats: {} };
+    save.equipment.weapon = { id: 'blade', name: '낡은 두손검', slot: 'weapon', rarity: 'common', stats: {} };
+    const manifest = { schemaVersion: COSTUME_MANIFEST_SCHEMA_VERSION, costumes: [] };
+    const load = await loadCostumeManifest({ fetch: async () => ({ ok: true, json: async () => manifest }) });
+    assert.equal(load.ok, true);
+    const preview = equipmentPortraitPlan(save);
+    const field = planHeroCostume(save, load);
+    assert.equal(preview.mode, 'costume');
+    assert.deepEqual(preview.layers, field.layers);
+    assert.equal(preview.layers[0].page, `pilot-hood-${gender}`);
+  }
+  resetCostumeManifestCache();
+});
 test('portrait module keeps one idle frame and bounds result and atlas image caches',()=>{
   assert.doesNotMatch(portraitSource,/from '\.\.\/game\/items'|\bequipmentImage\(|\btightFrame\b|\bgetImageData\b|const fit\b/,'종이인형·픽셀 스캔 경로가 남아 있지 않다');
   assert.match(portraitSource,/costumeLayerCell\(layer, 'idle', 0\)/);

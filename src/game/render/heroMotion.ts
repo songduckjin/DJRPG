@@ -26,6 +26,16 @@ export function heroMotion(
  * 유일한 정의다 — `src/game/costume/skillMotion.ts`의 템플릿 ID와 이름이 같다.
  */
 export type HeroCostumeMotion = 'idle' | 'walk' | 'attack' | CostumeMotionTemplate;
+export type AttackFacing = 'left' | 'right' | 'back' | 'front';
+
+/** World facing angle → nearest attack direction on DJRPG's isometric screen axes. */
+export function attackFacingFromAngle(angle: number): AttackFacing {
+  const safeAngle = Number.isFinite(angle) ? angle : 0;
+  const screenX = Math.cos(safeAngle) - Math.sin(safeAngle);
+  const screenY = (Math.cos(safeAngle) + Math.sin(safeAngle)) * .5;
+  if (Math.abs(screenX) >= Math.abs(screenY)) return screenX < 0 ? 'left' : 'right';
+  return screenY < 0 ? 'back' : 'front';
+}
 
 /** 아틀라스 한 줄(파츠 하나)의 모션 순서. 인덱스가 곧 프레임 슬롯 오프셋이다. */
 export const costumeMotionOrder: readonly HeroCostumeMotion[] = ['idle', 'walk', 'attack', 'slash', 'spin', 'smash', 'cast'];

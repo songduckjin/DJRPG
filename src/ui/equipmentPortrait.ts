@@ -1,11 +1,11 @@
 import { heroAppearance, type GearTier } from '../game/appearance';
 import {
-  cachedCostumeManifest, costumeAtlasUrl, costumeManifestUrl, loadCostumeManifest,
+  cachedCostumeManifest, costumeManifestUrl, loadCostumeManifest,
   type CostumeLoadResult, type CostumeManifest
 } from '../game/costume/manifest';
 import {
-  costumeAtlasCellHeight, costumeAtlasCellWidth, costumeAtlasPageName, costumeLayerCell,
-  costumeLayerPageIndex, planHeroCostume, type CostumeLayerPlan
+  costumeAtlasCellHeight, costumeAtlasCellWidth, costumeLayerAtlasUrl, costumeLayerCell, costumeLayerPageIndex,
+  planHeroCostume, type CostumeLayerPlan
 } from '../game/render/costumeHero';
 import type { Save } from '../game/store';
 
@@ -210,7 +210,7 @@ function fitCanvas(width: number, height: number): HTMLCanvasElement {
 async function composeCostume(layers: CostumeLayerPlan[]): Promise<string> {
   const pageUrls = new Map<string, string>();
   for (const layer of layers) {
-    const url = costumeAtlasUrl(costumeAtlasPageName(layer.page, costumeLayerPageIndex(layer)));
+    const url = costumeLayerAtlasUrl(layer);
     pageUrls.set(`${layer.page}#${costumeLayerPageIndex(layer)}`, url);
   }
   const pinnedUrls = [...new Set(pageUrls.values())];

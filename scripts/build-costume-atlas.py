@@ -974,12 +974,120 @@ def head_report() -> None:
                       f'Δ({body_center[0] - armor_center[0]:+.0f},{body_center[1] - armor_center[1]:+.0f})')
 
 
+def pilot_145() -> None:
+    """작업 145의 서리 가죽두건 단일 조합용 방향 시안을 v4 셀 규약으로 패킹한다."""
+    source = os.path.join(ROOT, 'public', 'assets', 'costume', 'pilot145', 'source')
+    output = os.path.join(ROOT, 'public', 'assets', 'costume', 'v4', 'atlas')
+    os.makedirs(output, exist_ok=True)
+
+    def cells(path: str, columns: int, rows: int) -> list[Image.Image]:
+        sheet = Image.open(path).convert('RGBA')
+        cell_w, cell_h = sheet.width // columns, sheet.height // rows
+        result = []
+        for index in range(columns * rows):
+            x, y = (index % columns) * cell_w, (index // columns) * cell_h
+            result.append(sheet.crop((x, y, x + cell_w, y + cell_h)))
+        return result
+
+    def fit(source_cell: Image.Image) -> Image.Image:
+        alpha = source_cell.getchannel('A')
+        bbox = alpha.getbbox()
+        frame = Image.new('RGBA', (CELL_W, CELL_H), (0, 0, 0, 0))
+        if not bbox:
+            return frame
+        art = source_cell.crop(bbox)
+        scale = min(BODY_PX / art.height, CELL_W / art.width)
+        size = (max(1, round(art.width * scale)), max(1, round(art.height * scale)))
+        art = art.resize(size, Image.Resampling.LANCZOS)
+        frame.alpha_composite(art, ((CELL_W - size[0]) // 2, round(PIVOT_Y - size[1])))
+        return frame
+
+    for gender in ('male', 'female'):
+        idle = cells(os.path.join(source, f'idle-sheet-{gender}.png'), 4, 4)[0]
+        walk = cells(os.path.join(source, f'walk-sheet-{gender}.png'), 4, 2)[:8]
+        attacks = cells(os.path.join(source, f'attack-sheet-{gender}.png'), 4, 1)
+        atlas = Image.new('RGBA', (CELL_W * COLUMNS, CELL_H * ROWS), (0, 0, 0, 0))
+        ordered = [fit(idle), *(fit(cell) for cell in walk), *(fit(cell) for cell in attacks)]
+        for index, frame in enumerate(ordered):
+            atlas.alpha_composite(frame, ((index % COLUMNS) * CELL_W, (index // COLUMNS) * CELL_H))
+        atlas.save(os.path.join(output, f'pilot-hood-{gender}.png'), optimize=True)
+        print(f'v4/atlas/pilot-hood-{gender}.png')
+
+
+def pilot_145_review() -> None:
+    """기준 아이콘·생성 프레임과 실기 확인 대기 상태를 한 장에 모은다."""
+    from PIL import ImageDraw, ImageFont
+
+    out = os.path.join(ROOT, 'public', 'assets', 'costume', 'pilot145', 'review')
+    os.makedirs(out, exist_ok=True)
+    icon_sheet = Image.open(os.path.join(ROOT, 'public', 'assets', 'item-art', 'helmet_0.png')).convert('RGBA')
+    icon = icon_sheet.crop((0, 0, icon_sheet.width // 5, icon_sheet.height))
+    canvas = Image.new('RGB', (2360, 1350), (24, 25, 29))
+    draw = ImageDraw.Draw(canvas)
+    font_path = 'C:/Windows/Fonts/malgun.ttf'
+    try:
+        title_font = ImageFont.truetype(font_path, 36)
+        label_font = ImageFont.truetype(font_path, 23)
+        note_font = ImageFont.truetype(font_path, 18)
+    except OSError:
+        title_font = label_font = note_font = ImageFont.load_default()
+    draw.text((36, 24), '서리의 가죽두건 · 작업 145 시안 검수', font=title_font, fill=(239, 226, 201))
+    headers = [('장착 아이템', 35), ('서기', 200), ('걷기 · 8프레임', 365), ('공격 · 좌/우/뒤/앞', 1195), ('실제 필드 화면', 1625), ('실제 장비창 화면', 1995)]
+    for label, x in headers:
+        draw.text((x, 84), label, font=label_font, fill=(186, 198, 204))
+
+    for row, gender in enumerate(('male', 'female')):
+        y0 = 145 + row * 590
+        draw.rounded_rectangle((22, y0, 2338, y0 + 560), radius=18, fill=(34, 37, 42), outline=(76, 82, 88), width=2)
+        draw.text((42, y0 + 12), '남성' if gender == 'male' else '여성', font=label_font, fill=(228, 214, 187))
+        atlas = Image.open(os.path.join(ROOT, 'public', 'assets', 'costume', 'v4', 'atlas', f'pilot-hood-{gender}.png')).convert('RGBA')
+        icon_preview = icon.copy()
+        icon_preview.thumbnail((136, 180), Image.Resampling.LANCZOS)
+        canvas.paste(icon_preview, (46, y0 + 74), icon_preview)
+        draw.rectangle((34, y0 + 68, 190, y0 + 275), outline=(105, 94, 74), width=2)
+
+        def paste_cell(cell: int, x: int, width: int, height: int) -> None:
+            crop = atlas.crop(((cell % COLUMNS) * CELL_W, (cell // COLUMNS) * CELL_H,
+                               (cell % COLUMNS + 1) * CELL_W, (cell // COLUMNS + 1) * CELL_H))
+            crop.thumbnail((width, height), Image.Resampling.LANCZOS)
+            canvas.paste(crop, (x, y0 + 90 + (height - crop.height) // 2), crop)
+
+        paste_cell(0, 205, 145, 190)
+        for index in range(8):
+            x = 365 + index * 100
+            paste_cell(1 + index, x, 94, 150)
+            draw.text((x + 35, y0 + 248), str(index + 1), font=note_font, fill=(174, 181, 185))
+        for index, label in enumerate(('좌', '우', '뒤', '앞')):
+            x = 1195 + index * 105
+            paste_cell(9 + index, x, 100, 160)
+            draw.text((x + 35, y0 + 260), label, font=note_font, fill=(174, 181, 185))
+
+        for x, title in ((1625, '세션 필요'), (1995, '세션 필요')):
+            draw.rounded_rectangle((x, y0 + 65, x + 325, y0 + 330), radius=12, fill=(46, 48, 52), outline=(157, 116, 72), width=2)
+            draw.text((x + 22, y0 + 98), title, font=label_font, fill=(242, 185, 111))
+            draw.text((x + 22, y0 + 150), '실제 캡처 미확인', font=label_font, fill=(236, 224, 204))
+            draw.text((x + 22, y0 + 205), '테스트 계정/게스트 진행이', font=note_font, fill=(190, 194, 195))
+            draw.text((x + 22, y0 + 234), '서버 저장을 생성할 수 있어', font=note_font, fill=(190, 194, 195))
+            draw.text((x + 22, y0 + 263), '아직 시작하지 않았습니다.', font=note_font, fill=(190, 194, 195))
+        draw.text((36, y0 + 390), '참고: 공격은 방향당 1개 키 포즈를 공격 창 동안 유지합니다. 몸 전체를 포함한 단일 조합 시안입니다.', font=note_font, fill=(169, 177, 182))
+
+    path = os.path.join(out, 'pilot-145-review.png')
+    canvas.save(path, optimize=True)
+    print(path)
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--preview', action='store_true')
     parser.add_argument('--heads', action='store_true')
+    parser.add_argument('--pilot-145', action='store_true', help='작업 145 단일 시안만 v4 페이지로 패킹')
+    parser.add_argument('--pilot-145-review', action='store_true', help='작업 145 검수 접촉 시트 생성')
     args = parser.parse_args()
-    if args.preview:
+    if args.pilot_145_review:
+        pilot_145_review()
+    elif args.pilot_145:
+        pilot_145()
+    elif args.preview:
         preview()
     elif args.heads:
         head_report()
