@@ -194,3 +194,19 @@ test('defeat integration waits before results and uses background art loading wi
  const {BOSS_SHEETS,BOSS_FRAME_COUNT}=await import('../src/ui/worldBossPreview.ts');assert.equal(BOSS_FRAME_COUNT,42);assert.equal(BOSS_SHEETS.length,6);
  const art=readFileSync(new URL('../public/assets/world-boss/valkaron-defeat-hd-v1.png',import.meta.url));assert.equal(art.readUInt32BE(0),0x89504e47);assert(art.readUInt32BE(16)>=1536);assert(art.readUInt32BE(20)>=768);assert.equal(art[25],6);
 });
+
+test('slam warning flashes around the strike point only during each one-second windup',async()=>{
+ const {slamWarning}=await import('../src/ui/worldBossImpact.ts');
+ for(const hit of [15,30,45]){
+  assert.equal(slamWarning(hit-1.01),null);assert(slamWarning(hit-1));
+  const bright=slamWarning(hit-.75),dim=slamWarning(hit-.875);assert(bright.ringAlpha>dim.ringAlpha);assert(bright.fillAlpha>dim.fillAlpha);
+  assert.equal(bright.radiusX,dim.radiusX);assert.equal(bright.radiusY,dim.radiusY);
+  assert.equal(slamWarning(hit),null);assert.equal(slamWarning(hit+.5),null);
+  assert.equal(slamWarning(hit-.75,true).ringAlpha,slamWarning(hit-.875,true).ringAlpha);
+ }
+ assert.equal(slamWarning(3),null);assert.equal(slamWarning(60),null);
+ const {drawSlamWarning}=await import('../src/ui/worldBossField.ts');const calls=[];
+ const layer={ellipse(...args){calls.push(args);return this;},fill(){return this;},stroke(){return this;}};
+ drawSlamWarning(layer,100,200,14.2);assert.equal(calls.length,3);for(const args of calls)assert.deepEqual(args,[100,200,115,46]);
+ calls.length=0;drawSlamWarning(layer,100,200,15);assert.equal(calls.length,0);
+});

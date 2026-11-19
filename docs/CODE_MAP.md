@@ -157,7 +157,7 @@
 - `src/ui/worldBossIntro.ts` — 고정경기장2.7초기본→포효→기본·포효후idle호흡지속·시작글자1.1초완전퇴장후전투/호흡위상유지·시간분리, 스킵·카메라연출없음. `WorldBossIntro`
 - `src/ui/worldBossFooting.ts` — idle/복귀/연결프레임양발접점실측·하체mesh접점고정+동일idle부츠레이어/정강이경계mask(상체불변). `bossFootContacts`·`plantedBossVertex`·`plantedBossShift`
 - `src/ui/worldBossWeather.ts` — 깃발천정규좌표/변형·뒤구름이동좌표(색마스크mesh, 돌/봉고정·모션감소). `bannerOffset`·`cloudCenter`
-- `src/ui/worldBossImpact.ts` — 착지돌탄도/그림자·먼지확산/소멸의결정적입자상태. `slamParticles`
+- `src/ui/worldBossImpact.ts` — 착지돌탄도/그림자·먼지확산/소멸의결정적입자상태. `slamParticles`·`slamWarning` (내려찍기 시전1초의 붉은 타격원 점멸·타격 시 제거)
 - `src/game/pixiSetup.ts` — 필드 pipe 선등록·Canvas GPU 미지원시 mesh를 texture/bounds quad로 표시(WebGL mesh 유지). `CanvasMeshFallbackPipe`
 - `server/world-boss.mjs` — 별도 Turso 4테이블/인덱스·공유HP 1,000만·KST05 초기화·계정3회·고정장비 서버전투재현·회피서버시간검증·실순위·참여/순위/막타/공동 우편 멱등지급. `worldBossOperation`·`replayBoss`·`worldBossSchema` (새 입장 0피해 쓰기/재조회 생략·순위 단일 쿼리)
 - `server/endpoints/world-boss.mjs`, `functions/api/world-boss.js` — 인증/세션/버전 확인 POST `/api/world-boss` (list/start/tick/dodge/finish), 기존 Save·아이템·보상수령 계약 보존. `worldBossEndpoint`

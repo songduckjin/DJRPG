@@ -4,7 +4,7 @@ import {plantedBossVertex,plantedBossShift,bossFootContacts,bootMaskWeight} from
 import {renderBossResult} from './worldBossResult';
 import {bannerOffset,cloudCenter} from './worldBossWeather';
 import {preferences} from '../game/preferences';
-import {slamParticles} from './worldBossImpact';
+import {slamParticles,slamWarning} from './worldBossImpact';
 import {WorldBossIntro} from './worldBossIntro';
 import {Assets,ColorMatrixFilter,Graphics,MeshPlane,Rectangle,Sprite,Texture} from 'pixi.js';
 import {GameView} from '../game/render';
@@ -109,6 +109,8 @@ export function openWorldBossField(ui:Interface):void {
       }
       const reduceWeather=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
       const clouds=new Graphics();view.app.stage.addChildAt(clouds,1);
+      const warningRing=new Graphics();warningRing.label='world-boss-slam-warning';warningRing.eventMode='none';
+      view.app.stage.addChildAt(warningRing,view.app.stage.getChildIndex(view.actors));
       const tones=frames.map(frame=>bossFrameTone(frame));ownedTones.push(...tones);
       get('.wb-field-loading').hidden=true;
       const bossSprite=new MeshPlane({texture:frames[0],verticesX:24,verticesY:32});view.actors.addChild(bossSprite);
@@ -189,7 +191,8 @@ export function openWorldBossField(ui:Interface):void {
         for(let i=0;i<5;i++)for(let layer=7;layer>0;layer--){
           clouds.ellipse(cloudCenter(i,reduceWeather?0:visualTime,w),h*(.06+(i%2)*.07),w*(.12+layer*.025),h*(.025+layer*.009)).fill({color:0x9b969e,alpha:.015});
         }
-        if(!defeat.started&&!intro.active&&pose.motion==='slam'&&pose.frame<32)view.ground.ellipse(x-25,y,95,38).stroke({color:0xb7674f,width:1.2,alpha:.24});
+        warningRing.clear();
+        if(!defeat.started&&!intro.active&&!session.finished)drawSlamWarning(warningRing,x-25,y,session.elapsed,reduceWeather);
         const impactAge=slamImpactAge(session.elapsed);
         if(!defeat.started&&!intro.active&&impactAge!==null){
           drawSlamImpact(view.ground,view.effects,x-25,y,impactAge);
@@ -266,4 +269,12 @@ export function retainMainBody(pixels:Uint8ClampedArray,width:number,height:numb
   }
   const largest=Math.max(0,...sizes);
   for(let i=0;i<labels.length;i++)if(sizes[labels[i]]<largest*.02)pixels[i*4+3]=0;
+}
+
+export function drawSlamWarning(layer:Graphics,x:number,y:number,seconds:number,reducedMotion=false):void {
+  const warning=slamWarning(seconds,reducedMotion);if(!warning)return;
+  const {radiusX:rx,radiusY:ry}=warning;
+  layer.ellipse(x,y,rx,ry).fill({color:0xd61624,alpha:warning.fillAlpha});
+  layer.ellipse(x,y,rx,ry).stroke({color:0xff192d,width:10,alpha:warning.glowAlpha});
+  layer.ellipse(x,y,rx,ry).stroke({color:0xff3947,width:3.5,alpha:warning.ringAlpha});
 }
