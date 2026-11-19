@@ -12,7 +12,7 @@ export function openDungeonField(ui:Interface,lobby:HTMLElement):void {
   const lobbyRoot=lobby.querySelector<HTMLElement>('.dungeon-lobby')!;
   lobbyRoot.classList.add('is-opening');
   lobbyRoot.querySelectorAll<HTMLButtonElement>('button:not(.dungeon-close)').forEach(button=>button.disabled=true);
-  const doorOpened=new Promise<void>(resolve=>window.setTimeout(resolve,1200));
+  const doorOpened=new Promise<void>(resolve=>window.setTimeout(resolve,1800));
   const wasPaused=ui.world.paused,resume=ui.suspendMainField?.();ui.world.paused=true;ui.world.attackHeld=false;
   const field=document.createElement('section');field.className='dungeon-field';field.setAttribute('role','region');field.setAttribute('aria-label','끝없는 던전 1층 미리보기');
   field.innerHTML=`<div class="dungeon-field-canvas"></div><header class="dungeon-field-hud"><div><small>끝없는 던전</small><strong>제 1 층</strong></div><button type="button" class="dungeon-field-leave">나가기</button></header><div class="dungeon-wave-notice" role="status"></div><footer class="dungeon-battle-hud"><div class="dungeon-battle-record"><strong data-clock>90초</strong><span data-wave>WAVE 1 / 3</span><span data-kills>처치 0 / 7</span></div><div class="dungeon-hp"><i></i><span></span></div><div class="dungeon-auto-skills"></div><small>자동 전투 · 1층 미리보기 · 보상/기록 미반영</small></footer><div class="dungeon-battle-result" hidden></div>`;
