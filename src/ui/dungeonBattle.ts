@@ -10,19 +10,64 @@ export type DungeonLoot = { id:number; kind:'gold'; x:number; y:number; gold:num
 export const DUNGEON_ITEM_DROP_CHANCE = .5;
 /** Dungeon mobs close ground 1.5x the shared field pace; only travel distance scales, never timers. */
 export const DUNGEON_ENEMY_SPEED_SCALE = 1.5;
-/** Screen point where a drop rests. A kill lands almost on top of the hero, so any drop inside the
- *  keep-out ring is pushed out to the side or below the feet of the character; drops that already
- *  fell outside the ring keep the spot they fell on. `bias` fans drops of one kill apart. */
-export function dungeonLootLanding(heroX:number,heroY:number,dropX:number,dropY:number,ring:number,bias=0):{x:number;y:number} {
-  const ox=dropX-heroX,oy=dropY-heroY,dist=Math.hypot(ox,oy);
-  if(dist>=ring)return {x:dropX,y:dropY};
-  let ax=dist>1?ox/dist:0,ay=dist>1?oy/dist:1;
-  if(bias){const cos=Math.cos(bias),sin=Math.sin(bias),x=ax*cos-ay*sin;ay=ax*sin+ay*cos;ax=x;}
-  // Beside the body (never across it), and never over the character's head.
-  if(ay<-.45)ay=-.45;
-  if(Math.abs(ax)<.6&&ay<.5)ax=.6*(ax<0?-1:1);
-  const magnitude=Math.hypot(ax,ay)||1;
-  return {x:heroX+ax/magnitude*ring,y:heroY+ay/magnitude*ring};
+/** Every enemy walks 4.25 half turns a second, so one visible stride (a full turn) lasts 2/4.25 s. */
+const ENEMY_STRIDE_SECONDS = 2 / 4.25;
+/** Each wave starts this many strides closer to the hero than the old arena corner. */
+export const DUNGEON_SPAWN_STEPS = 2;
+/** Arena distance a spawn is pulled in: steps at the floor's own walking pace, so it keeps its feel
+ *  as enemies get faster on deeper floors. */
+export function dungeonSpawnPull(floor:number,boss:boolean):number {
+  return DUNGEON_SPAWN_STEPS*enemyMoveSpeed(floor,boss)*ENEMY_STRIDE_SECONDS;
+}
+export type LootSpot = { x:number; y:number };
+/** Ground loot rests inside a fan opening from the hero: ±100° of straight up. That keeps every drop
+ *  near the kill and never behind the feet where the skill bar sits. */
+export const DUNGEON_LOOT_FAN = Math.PI*100/180;
+/** Resting spots for the drops of a kill (or of several). A drop keeps the point it fell on whenever
+ *  that point is already clear of the hero art; inside the hero's keep-out ellipse it is pulled out
+ *  along the hero→drop direction — never shoved to the sides — just past the silhouette, and it only
+ *  moves as far as needed for no two drops to overlap. `rx`/`ry` are the keep-out half-width and
+ *  half-height of the character, `gap` the icon pitch. */
+export function dungeonLootSpots(heroX:number,heroY:number,drops:LootSpot[],taken:LootSpot[],rx:number,ry:number,gap:number):LootSpot[] {
+  const polar=(r:number,a:number):LootSpot=>({x:heroX+Math.sin(a)*r,y:heroY-Math.cos(a)*r});
+  const rim=(a:number)=>1/Math.hypot(Math.sin(a)/rx,Math.cos(a)/ry);
+  const fan=(a:number)=>Math.max(-DUNGEON_LOOT_FAN,Math.min(DUNGEON_LOOT_FAN,a));
+  const angleOf=(p:LootSpot)=>Math.atan2(p.x-heroX,heroY-p.y);
+  const free=(p:LootSpot)=>taken.every(t=>Math.hypot(t.x-p.x,t.y-p.y)>=gap-1e-6);
+  const spots:LootSpot[]=[];
+  for(const drop of drops){
+    const a=fan(angleOf(drop)),r=Math.max(Math.hypot(drop.x-heroX,drop.y-heroY),rim(a)+2),base=polar(r,a);
+    let spot=base;
+    if(!free(base))for(let ring=1;ring<=12;ring++){
+      let nearest=Infinity;
+      for(const turn of [0,.4,-.4,.8,-.8,1.2,-1.2,1.6,-1.6]){
+        const candidate=polar(r+ring*gap,fan(a+turn));
+        if(!free(candidate))continue;
+        const distance=Math.hypot(candidate.x-base.x,candidate.y-base.y);
+        if(distance<nearest){nearest=distance;spot=candidate;}
+      }
+      if(nearest<Infinity)break;
+    }
+    taken.push(spot);spots.push(spot);
+  }
+  return spots;
+}
+/** A cleared floor holds its loot on the ground for a beat so the last kill's drops are seen, then
+ *  pulls every coin and item in, and only after the last one is gone shows the result. */
+export const DUNGEON_ABSORB_DELAY = 1.5;
+export const DUNGEON_ABSORB_STAGGER = .045;
+export const DUNGEON_ABSORB_FLIGHT = .55;
+export const DUNGEON_ABSORB_HOLD = .2;
+export const DUNGEON_RESULT_DELAY = .75;
+export type LootTimeline = { absorbAt:number; absorbEnd:number; resultAt:number };
+export function dungeonLootTimeline(outcome:'clear'|'dead'|'timeout'|null,count:number):LootTimeline {
+  if(outcome!=='clear')return {absorbAt:Infinity,absorbEnd:Infinity,resultAt:DUNGEON_RESULT_DELAY};
+  const absorbEnd=DUNGEON_ABSORB_DELAY+Math.max(0,count-1)*DUNGEON_ABSORB_STAGGER+DUNGEON_ABSORB_FLIGHT;
+  return {absorbAt:DUNGEON_ABSORB_DELAY,absorbEnd,resultAt:absorbEnd+DUNGEON_ABSORB_HOLD};
+}
+/** 0 while the drop still rests on the ground, 1 once it has been swallowed by the hero. */
+export function dungeonAbsorbProgress(timeSinceFinish:number,index:number):number {
+  return Math.min(1,Math.max(0,(timeSinceFinish-DUNGEON_ABSORB_DELAY-index*DUNGEON_ABSORB_STAGGER)/DUNGEON_ABSORB_FLIGHT));
 }
 // Temporary encounter-observation balance, not the eventual fixed progression curve.
 export function dungeonPreviewHp(save:Save):number {
@@ -36,6 +81,8 @@ class DungeonWorld extends World {
   slain=0;
   loot:DungeonLoot[]=[];
   private lootId=0;
+  /** Gold this floor's kills left on the ground, which the clear screen reports. */
+  get lootGold():number { return this.loot.reduce((sum,entry)=>sum+(entry.kind==='gold'?entry.gold:0),0); }
   // Defend the central position instead of chasing the previous wave's spawn point.
   override update(dt:number):void {
     this.player.x=50;this.player.y=50;
@@ -85,10 +132,12 @@ export class DungeonBattle {
   }
   private spawnWave():void {
     this.wave++;this.waveStarted=this.elapsed;
-    const count=this.bossFloor||this.wave===3?1:3;
+    const count=this.bossFloor||this.wave===3?1:3, pull=dungeonSpawnPull(this.floor,this.bossFloor);
     for(let i=0;i<count;i++){
       const hp=dungeonPreviewHp(this.world.save)*(this.bossFloor?4:this.wave===3?2:1)*(1+(this.floor-1)*.12), side=(i-(count-1)/2)*65;
-      const enemy:Enemy={x:(-180+side)/2,y:(-180-side)/2,hp,maxHp:hp,boss:this.bossFloor,hit:0,step:0,moving:false,knockX:0,knockY:0,slow:0};
+      // The old arena corner, stepped toward the hero along its own approach line.
+      const cornerX=(-180+side)/2, cornerY=(-180-side)/2, ax=50-cornerX, ay=50-cornerY, reach=Math.hypot(ax,ay)||1, x=cornerX+ax/reach*pull, y=cornerY+ay/reach*pull;
+      const enemy:Enemy={x,y,hp,maxHp:hp,boss:this.bossFloor,hit:0,step:0,moving:false,knockX:0,knockY:0,slow:0};
       this.world.enemies.push(enemy);if(this.wave===3||this.bossFloor)this.elite=enemy;
     }
   }

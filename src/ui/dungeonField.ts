@@ -5,7 +5,8 @@ import {projectArenaPoint} from '../game/arena';
 import {totalStats} from '../game/store';
 import {skills} from '../game/skills';
 import {equipmentImage,isSkillBook,type Rarity} from '../game/items';
-import {DungeonBattle,dungeonLootLanding,type DungeonLoot} from './dungeonBattle';
+import {DungeonBattle,dungeonLootSpots,dungeonLootTimeline,dungeonAbsorbProgress,type DungeonLoot,type LootSpot} from './dungeonBattle';
+import {heroBodyFraction} from '../game/render/heroScale';
 import {setSkillIcon} from './skillArtwork';
 import {createSkillBookArt} from './skillBookArt';
 import type {Interface} from './interface';
@@ -26,12 +27,14 @@ export function openDungeonField(ui:Interface,lobby:HTMLElement):void {
   // Ground loot is DOM on top of the transparent arena canvas: the shared field renderer keeps
   // drawing only the arena, so drops stay inside the isolated dungeon UI files.
   const lootLayer=get('.dungeon-loot-layer:not(.is-behind)'),backLootLayer=get('.dungeon-loot-layer.is-behind');
-  const rarityInk:Record<Rarity,string>={common:'#9ca3af',magic:'#60a5fa',rare:'#facc15',epic:'#c084fc',unique:'#fb923c',legendary:'#f87171'};
+  // Grade colours are pushed to full saturation: an equipment drop has to read as its grade at a
+  // glance, while gold and skill books carry no outer light at all.
+  const rarityInk:Record<Rarity,string>={common:'#cdd6e0',magic:'#2f7bff',rare:'#ffd400',epic:'#a855f7',unique:'#ff8a00',legendary:'#ff2d2d'};
   type LootView={el:HTMLDivElement;body:HTMLDivElement;shadow:HTMLSpanElement;x:number;y:number;tx:number;ty:number;drift:number;h:number;vh:number;spin:number;spinV:number;settled:boolean;done:boolean};
-  let lootViews:LootView[]=[],spawnedLoot=0,lootFan=0,absorbStarted=false,absorbRing:HTMLDivElement|undefined,resultDelay=.75;
-  // A cleared floor holds the loot on the ground for a beat so the last kill's drops are seen
-  // bouncing before the absorption pulls them in.
-  const ABSORB_DELAY=1.5;
+  let lootViews:LootView[]=[],restSpots:LootSpot[]=[],spawnedLoot=0,absorbStarted=false,absorbRing:HTMLDivElement|undefined;
+  // One timeline owns the clear beat: hold on the ground, pull every drop in, then show the result.
+  const timeline=()=>dungeonLootTimeline(battle.outcome,battle.world.loot.length);
+  const LOOT_GAP=36;
   const reducedMotion=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const spawnLoot=(loot:DungeonLoot):void=>{
     const el=document.createElement('div'),body=document.createElement('div'),shadow=document.createElement('span');
@@ -48,43 +51,41 @@ export function openDungeonField(ui:Interface,lobby:HTMLElement):void {
         else{const img=document.createElement('img');img.className='dungeon-loot-art';img.src=art.path;img.alt='';body.append(img);}
       }
     }
-    // A kill lands almost on top of the hero, so the resting spot is pushed out of a screen-space
-    // keep-out ring around the character: beside it, or on the ground in front of its feet.
+    // A kill lands almost on top of the hero, so the drop keeps its own death point unless that
+    // point is inside the character: then it is pulled straight out along the same line until it
+    // clears the art, inside the fan, and only far enough apart from other drops not to overlap.
     const w=view.app.screen.width,h=view.app.screen.height,[heroX,heroY]=projectArenaPoint(battle.world.player.x,battle.world.player.y,w,h),[gx,gy]=projectArenaPoint(loot.x,loot.y,w,h);
-    const ring=Math.max(58,Math.min(80,h*.1))+(lootFan%3)*12;
-    const spot=dungeonLootLanding(heroX,heroY,gx,gy,ring,((lootFan++%5)-2)*.22),tx=spot.x-gx,ty=spot.y-gy;
+    const heroH=Math.max(48,h*heroBodyFraction),[spot]=dungeonLootSpots(heroX,heroY,[{x:gx,y:gy}],restSpots,Math.max(40,heroH*.5),heroH+8,LOOT_GAP),tx=spot.x-gx,ty=spot.y-gy;
     el.append(shadow,body);
-    // Depth: loot behind the hero stays behind the character (under the transparent arena
-    // canvas), loot in front of it is drawn over the floor. Neither ever sits on the hero art.
+    // Depth: loot that rests behind the hero's feet stays under the transparent arena canvas, loot
+    // in front of them is drawn over the floor. Neither ever sits on the hero art.
     (gy+ty<heroY-6?backLootLayer:lootLayer).append(el);
     lootViews.push({el,body,shadow,x:loot.x,y:loot.y,tx,ty,drift:reducedMotion?1:0,h:reducedMotion?0:2,vh:reducedMotion?0:110+Math.random()*70,spin:0,spinV:reducedMotion?0:(Math.random()-.5)*240,settled:false,done:false});
   };
-  const clearLoot=():void=>{for(const entry of lootViews)entry.el.remove();lootViews=[];spawnedLoot=0;lootFan=0;absorbStarted=false;absorbRing?.remove();absorbRing=undefined;resultDelay=.75;};
+  const clearLoot=():void=>{for(const entry of lootViews)entry.el.remove();lootViews=[];restSpots=[];spawnedLoot=0;absorbStarted=false;absorbRing?.remove();absorbRing=undefined;};
   // Bounce until resting; on a clear the same nodes are pulled in an accelerating arc into the hero.
   const updateLoot=(dt:number):void=>{
     if(closed)return;
     while(spawnedLoot<battle.world.loot.length)spawnLoot(battle.world.loot[spawnedLoot++]);
     const w=view.app.screen.width,h=view.app.screen.height;
     const [heroX,heroY]=projectArenaPoint(battle.world.player.x,battle.world.player.y,w,h);
-    if(!absorbStarted&&battle.outcome==='clear'&&finishAge>=ABSORB_DELAY){
+    if(!absorbStarted&&battle.outcome==='clear'&&finishAge>=timeline().absorbAt){
       absorbStarted=true;
       absorbRing=document.createElement('div');absorbRing.className='dungeon-absorb-ring';
       absorbRing.style.left=`${heroX}px`;absorbRing.style.top=`${heroY-26}px`;lootLayer.append(absorbRing);
-      resultDelay=ABSORB_DELAY+Math.max(0,lootViews.length-1)*.045+.55+.2;
     }
-    const t=absorbStarted?Math.max(0,finishAge-ABSORB_DELAY):0;
     for(const [index,entry] of lootViews.entries()){
       if(entry.done)continue;
       entry.drift=Math.min(1,entry.drift+dt/.45);
       const [groundX,groundY]=projectArenaPoint(entry.x,entry.y,w,h),ease=1-Math.pow(1-entry.drift,3),x=groundX+entry.tx*ease,y=groundY+entry.ty*ease;
       if(absorbStarted){
         entry.el.classList.remove('is-resting');
-        const p=Math.min(1,Math.max(0,(t-index*.045)/.55));
+        const p=dungeonAbsorbProgress(finishAge,index);
         if(p>=1){entry.done=true;entry.el.remove();continue;}
         const k=p*p;
-        entry.el.style.transform=`translate3d(${x+(heroX-x)*k+Math.sin(Math.PI*p)*12*(index%2?1:-1)}px,${y-entry.h+(heroY-26-(y-entry.h))*k}px,0)`;
-        entry.body.style.transform=`translate(-50%,-100%) rotate(${entry.spin+p*200}deg) scale(${1-.5*k})`;
-        entry.body.style.opacity=String(1-p*.95);entry.shadow.style.opacity=String(.4*(1-p));
+        entry.el.style.transform=`translate3d(${x+(heroX-x)*k+Math.sin(Math.PI*p)*10*(index%2?1:-1)}px,${y-entry.h+(heroY-26-(y-entry.h))*k}px,0)`;
+        entry.body.style.transform=`translate(-50%,-100%) rotate(${entry.spin+p*220}deg) scale(${1-.55*k})`;
+        entry.body.style.opacity=String(1-p*.9);entry.shadow.style.opacity=String(.45*(1-p));
         continue;
       }
       if(!entry.settled){
@@ -127,7 +128,9 @@ export function openDungeonField(ui:Interface,lobby:HTMLElement):void {
   const result=()=>{resultShown=true;absorbRing?.remove();absorbRing=undefined;const floor=battle.floor,canNext=battle.outcome==='clear'&&floor<DUNGEON_MAX_FLOOR;
     if(battle.outcome==='clear')ui.dungeon.clearedFloor=Math.max(ui.dungeon.clearedFloor,floor);
     const box=get('.dungeon-battle-result');box.hidden=false;
-    box.innerHTML=`<div><small>끝없는 던전 · 제${floor}층</small><h2>${battle.outcome==='clear'?`${floor}층 클리어`:battle.outcome==='dead'?'도전에 실패했습니다':'시간이 종료되었습니다'}</h2><p>처치 ${battle.world.slain} / ${battle.targetCount} · ${Math.ceil(battle.elapsed)}초</p><p>${canNext?`열린 길을 따라 ${floor+1}층으로 이동할 수 있습니다.`:battle.outcome==='clear'?'10층 정복을 완료했습니다.':'재도전하면 체력과 제한 시간이 초기화됩니다.'}</p>${canNext?`<button type="button" data-next>다음 층으로 · ${floor+1}층</button>`:''}${battle.outcome!=='clear'?'<button type="button" data-retry>다시 도전하기</button>':''}<button type="button" data-leave>나가기</button><small>미리보기 · 실제 보상과 순위는 반영되지 않습니다.</small></div>`;
+    // A clear reports the gold this floor actually left on the ground and pulled in, not its clock.
+    const record=battle.outcome==='clear'?`<p class="dungeon-result-gold"><img src="/assets/icons/gold-coin.png" alt="">획득 금화 <strong>${battle.world.lootGold}</strong></p>`:`<p>처치 ${battle.world.slain} / ${battle.targetCount} · ${Math.ceil(battle.elapsed)}초</p>`;
+    box.innerHTML=`<div><small>끝없는 던전 · 제${floor}층</small><h2>${battle.outcome==='clear'?`${floor}층 클리어`:battle.outcome==='dead'?'도전에 실패했습니다':'시간이 종료되었습니다'}</h2>${record}<p>${canNext?`열린 길을 따라 ${floor+1}층으로 이동할 수 있습니다.`:battle.outcome==='clear'?'10층 정복을 완료했습니다.':'재도전하면 체력과 제한 시간이 초기화됩니다.'}</p>${canNext?`<button type="button" data-next>다음 층으로 · ${floor+1}층</button>`:''}${battle.outcome!=='clear'?'<button type="button" data-retry>다시 도전하기</button>':''}<button type="button" data-leave>나가기</button><small>미리보기 · 실제 보상과 순위는 반영되지 않습니다.</small></div>`;
     const retry=field.querySelector<HTMLButtonElement>('[data-retry]');if(retry)retry.onclick=()=>resetBattle(floor);
     get<HTMLButtonElement>('[data-leave]').onclick=leave;
     if(canNext)get<HTMLButtonElement>('[data-next]').onclick=()=>{
@@ -171,7 +174,7 @@ export function openDungeonField(ui:Interface,lobby:HTMLElement):void {
       const hp=battle.world.player.hp,max=totalStats(battle.world.save).health;
       get('.dungeon-hp i').style.width=`${hp/max*100}%`;get('.dungeon-hp span').textContent=`HP ${Math.ceil(hp)} / ${max}`;
       get('[data-clock]').textContent=`${Math.ceil(90-battle.elapsed)}초`;get('[data-wave]').textContent=battle.bossFloor?'보스전':`WAVE ${battle.wave} / 3`;get('[data-kills]').textContent=`처치 ${battle.world.slain} / ${battle.targetCount}`;
-      if(battle.finished&&finishAge>=resultDelay&&!resultShown)result();
+      if(battle.finished&&finishAge>=timeline().resultAt&&!resultShown)result();
     });
   }catch(error){if(closed)return;cleanup();ui.message(`전장 로딩 실패: ${error instanceof Error?error.message:String(error)}`);}})();
 

@@ -1,7 +1,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import './ts-loader.mjs';
-const {DungeonBattle,DUNGEON_ITEM_DROP_CHANCE,DUNGEON_ENEMY_SPEED_SCALE,dungeonLootLanding}=await import('../src/ui/dungeonBattle.ts');
+const {DungeonBattle,DUNGEON_ITEM_DROP_CHANCE,DUNGEON_ENEMY_SPEED_SCALE,DUNGEON_SPAWN_STEPS,DUNGEON_LOOT_FAN,DUNGEON_ABSORB_DELAY,dungeonSpawnPull,dungeonLootSpots,dungeonLootTimeline,dungeonAbsorbProgress}=await import('../src/ui/dungeonBattle.ts');
 const {World,enemyMoveSpeed}=await import('../src/game/world.ts');
 const {freshSave}=await import('../src/game/store.ts');
 function run(battle,seconds){for(let i=0;i<Math.ceil(seconds/.05);i++)battle.advance(.05);}
@@ -21,10 +21,10 @@ test('preview toughness scales with equipped attack so high gear cannot erase fl
 
 test('enemies spawn away, visibly approach, and hero does not chase into the next spawn',()=>{
  const battle=new DungeonBattle(freshSave()),enemy=battle.world.enemies[0],p=battle.world.player;
- const start=Math.hypot(enemy.x-p.x,enemy.y-p.y);assert(start>190);
+ const start=Math.hypot(enemy.x-p.x,enemy.y-p.y);assert(start>150);
  run(battle,2);assert.deepEqual([p.x,p.y],[50,50]);assert(enemy.moving);assert(Math.hypot(enemy.x-p.x,enemy.y-p.y)<start);assert.equal(battle.finished,false);assert.equal(battle.world.slain,0);
  for(const target of battle.world.enemies)battle.world.kill(target);battle.world.enemies=[];battle.advance(.05);
- assert.equal(battle.wave,2);assert(battle.world.enemies.every(e=>Math.hypot(e.x-p.x,e.y-p.y)>190));
+ assert.equal(battle.wave,2);assert(battle.world.enemies.every(e=>Math.hypot(e.x-p.x,e.y-p.y)>150));
 });
 test('second floor is a fresh preview encounter with full health and modestly higher toughness',()=>{
  const save=freshSave(),before=structuredClone(save),first=new DungeonBattle(save),second=new DungeonBattle(save,2);
@@ -82,15 +82,71 @@ test('dungeon mobs close ground 1.5x the shared field pace',()=>{
  assert(Math.abs(dungeonTravel-fieldTravel*DUNGEON_ENEMY_SPEED_SCALE)<1e-9);
 });
 
-test('drops land outside the hero ring and never over the character',()=>{
- const hero={x:200,y:340};
- for(const ring of [58,70,92])for(const bias of [-.44,0,.44])for(let dx=-40;dx<=40;dx+=10)for(let dy=-40;dy<=40;dy+=10){
-  const spot=dungeonLootLanding(hero.x,hero.y,hero.x+dx,hero.y+dy,ring,bias),rx=spot.x-hero.x,ry=spot.y-hero.y;
-  assert(Math.hypot(rx,ry)>=ring-1e-6,`ring ${ring} bias ${bias} at ${dx},${dy}`);
-  // Beside the body, or below the feet: never sitting across the hero art.
-  assert(Math.abs(rx)>=ring*.5||ry>=ring*.3,`cover ${ring} bias ${bias} at ${dx},${dy}`);
-  assert(ry>=-ring*.65,`head ${ring} bias ${bias} at ${dx},${dy}`);
+test('each wave starts two of its own strides closer to the hero than the old corner',()=>{
+ const battle=new DungeonBattle(freshSave()),p=battle.world.player,pull=dungeonSpawnPull(1,false);
+ assert.equal(DUNGEON_SPAWN_STEPS,2);
+ assert(Math.abs(pull-2*enemyMoveSpeed(1,false)*2/4.25)<1e-9);
+ const corners=[[(-180-65)/2,(-180+65)/2],[-90,-90],[(-180+65)/2,(-180-65)/2]];
+ battle.world.enemies.forEach((enemy,index)=>{
+  const [cornerX,cornerY]=corners[index],legacy=Math.hypot(cornerX-p.x,cornerY-p.y),now=Math.hypot(enemy.x-p.x,enemy.y-p.y);
+  assert(Math.abs(legacy-now-pull)<1e-9,`enemy ${index} travelled ${legacy-now} instead of ${pull}`);
+  // Straight along its old approach line, still outside attack range.
+  assert(Math.abs((enemy.x-p.x)/now-(cornerX-p.x)/legacy)<1e-9&&Math.abs((enemy.y-p.y)/now-(cornerY-p.y)/legacy)<1e-9);
+  assert(now>150);
+ });
+});
+
+test('drops keep the point they fell on unless the hero or another drop is there',()=>{
+ const hero={x:200,y:400},keepX=40,keepY=88,gap=36;
+ // Clear of the hero art: the death point itself is the resting spot.
+ assert.deepEqual(dungeonLootSpots(hero.x,hero.y,[{x:hero.x+140,y:hero.y-60}],[],keepX,keepY,gap),[{x:hero.x+140,y:hero.y-60}]);
+ // A drop on the hero is pulled straight out along its own line toward the kill, never shoved sideways.
+ const near={x:hero.x+2,y:hero.y-20},above=dungeonLootSpots(hero.x,hero.y,[near],[],keepX,keepY,gap)[0];
+ assert(Math.abs((above.x-hero.x)*(near.y-hero.y)-(above.y-hero.y)*(near.x-hero.x))<1e-6);
+ assert(above.y<hero.y&&((above.x-hero.x)/keepX)**2+((above.y-hero.y)/keepY)**2>=1-1e-6);
+ assert(Math.hypot(above.x-hero.x,above.y-hero.y)>Math.hypot(near.x-hero.x,near.y-hero.y));
+ const side=dungeonLootSpots(hero.x,hero.y,[{x:hero.x+18,y:hero.y-6}],[],keepX,keepY,gap)[0];
+ assert(side.x>=hero.x+keepX-1e-6);
+ // A whole kill's worth of drops: inside the fan, off the hero, only as far apart as icons need.
+ const taken=[],drops=Array.from({length:9},(_,i)=>({x:hero.x+(i%3-1)*6,y:hero.y-22-(i%2)*4}));
+ const spots=dungeonLootSpots(hero.x,hero.y,drops,taken,keepX,keepY,gap);
+ assert.equal(spots.length,9);assert.equal(taken.length,9);
+ for(const spot of spots){
+  const dx=spot.x-hero.x,dy=spot.y-hero.y;
+  assert(Math.abs(Math.atan2(dx,-dy))<=DUNGEON_LOOT_FAN+1e-9,`outside fan ${dx},${dy}`);
+  assert((dx/keepX)**2+(dy/keepY)**2>=1-1e-6,`over the hero ${dx},${dy}`);
+  assert(Math.hypot(dx,dy)<260,`drifts from the kill ${Math.hypot(dx,dy)}`);
  }
- // A drop that already fell clear of the ring stays where it fell.
- assert.deepEqual(dungeonLootLanding(hero.x,hero.y,hero.x+150,hero.y-40,70,0),{x:hero.x+150,y:hero.y-40});
+ for(let i=0;i<taken.length;i++)for(let j=i+1;j<taken.length;j++)assert(Math.hypot(taken[i].x-taken[j].x,taken[i].y-taken[j].y)>=gap-1e-6,`overlap ${i},${j}`);
+});
+
+test('every clear absorbs the ground loot before any result can show',()=>{
+ for(const count of [0,1,2,7,14]){
+  const timeline=dungeonLootTimeline('clear',count);
+  assert.equal(timeline.absorbAt,DUNGEON_ABSORB_DELAY);
+  assert(timeline.absorbEnd>timeline.absorbAt);
+  assert(timeline.resultAt>=timeline.absorbEnd,`result ${count} before the last drop is in`);
+  for(let index=0;index<count;index++){
+   // Nothing moves before its turn, and each drop is fully inside the hero once the flight ends.
+   assert.equal(dungeonAbsorbProgress(DUNGEON_ABSORB_DELAY+index*.045-1e-6,index),0);
+   assert(dungeonAbsorbProgress(timeline.absorbEnd,index)>=1-1e-9);
+   assert.equal(dungeonAbsorbProgress(timeline.resultAt,index),1);
+  }
+  // Halfway through its flight a drop really sits between the ground and the hero.
+  const half=dungeonAbsorbProgress(DUNGEON_ABSORB_DELAY+.55*.5,0);
+  assert(half>0&&half<1);
+ }
+ // Failing or timing out keeps the old quick result and never absorbs.
+ assert.equal(dungeonLootTimeline('dead',5).resultAt,.75);
+ assert.equal(dungeonLootTimeline('timeout',5).resultAt,.75);
+});
+
+test('the clear record totals the gold the floor left on the ground',()=>{
+ const battle=new DungeonBattle(freshSave());
+ withRandom([.9],()=>{for(const enemy of [...battle.world.enemies])battle.world.kill(enemy);});
+ assert.equal(battle.world.loot.filter(entry=>entry.kind==='gold').length,3);
+ assert.equal(battle.world.lootGold,3*(3+battle.floor));
+ const boss=new DungeonBattle(freshSave(),5);
+ withRandom([.9],()=>boss.world.kill(boss.world.enemies[0]));
+ assert.equal(boss.world.lootGold,70*5);
 });
