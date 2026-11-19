@@ -8,11 +8,12 @@
 | 작업 | 담당자 | 브랜치 | 수정 예정 파일 / 영향 영역 | 위험 등급 | 상태 |
 |---|---|---|---|---|---|
 | [작업 146] Turso 공용 DB에서 DJRPG 전용 DB 이관 | songduckjin | `codex/146-turso-db-isolation` | `scripts/migrate-turso-db.mjs`, `tests/migrate-turso-db.test.mjs`, `server/{database,market-connection,world-boss,world-boss-schema}.mjs`, `tests/functions-adapter.test.mjs`, `docs/TURSO_DB_GUIDE.md`, 운영 DB·Pages 비밀 변수 | 높음 | [-] |
-| [작업 145] 서리의 가죽두건 코스튬 단일 완성 사례 | songduckjin | `codex/145-frost-hood-layered-fix` | 남/여 두건 전용 레이어·아틀라스 생성기·필드/장비창 공용 계획·관련 테스트·검수 시트/문서(실제 화면 검수 대기) | 중 | [-] |
+| [작업 149] AI 시안 기반 전사 외형 전체 교체 | songduckjin | `codex/149-ai-pilot-warrior-sprites` | 남/여 전사 idle·walk·attack 스프라이트, 필드 렌더·장비창 미리보기·검증·문서 | 중 | [-] |
 
 
 > 2026-11-19: `[작업 147]` — 3D 모델(.blend/.glb/.fbx)에서 2.5D 쿼터뷰 코스튬 셀을 뽑는 Blender CLI 파이프라인과 실행 가이드를 [PR #99](https://github.com/songduckjin/DJRPG/pull/99)로 병합했다(머지 `d811047`, 운영 `version.json` `d8110470a99c` 확인). 진행 현황 표에서 빼고 완료 이력을 `docs/TASK_ARCHIVE.md`로 옮겼다. 실제 Blender 렌더와 배포 매니페스트·`COSTUME_ASSET_VERSION` 상승은 PC 렌더 결과가 나온 뒤 별도 작업이다.
-> 2026-11-19: `[작업 145]` — 다른 장비(갑옷·문장·신발)와 함께 착용해도 두건만 교체되도록 아이템 원본 천 두건을 머리 위치에 얹은 v5 전용 레이어를 추가하고 [PR #92](https://github.com/songduckjin/DJRPG/pull/92)로 반영·배포했다(운영 `7fc83660fdb0`). 전신 v4 단일 조합과 v3 배포물은 유지하며, 실제 필드·장비창 화면 검수 전이므로 `[-]`를 유지한다.
+> 2026-11-19: `[작업 145]`는 사용자 결정에 따라 대체한다. 전체 전사 외형을 고정 갑옷·대검 시안으로 바꾸는 `[작업 149]`가 우선이며, 145의 부분 코스튬 검수는 진행하지 않는다. 기존 구현·에셋은 호환 참조가 정리될 때까지 보존한다.
+> 2026-11-19: `[작업 145]` — 다른 장비(갑옷·문장·신발)와 함께 착용해도 두건만 교체되도록 아이템 원본 천 두건을 머리 위치에 얹은 v5 전용 레이어를 추가하고 [PR #92](https://github.com/songduckjin/DJRPG/pull/92)로 반영·배포했다(운영 `7fc83660fdb0`). 전체 외형 교체 결정으로 실기 검수는 대체되며, 기존 v3/v4/v5 구현·에셋은 호환 참조가 정리될 때까지 보존한다.
 > 2026-11-19: `[작업 143]` — 코스튬 v3(투구 싱크·몸통 겹침·공격 모션 수정)를 배포했다. 갑옷 착용 시 본체 파츠 3종을 모두 대체하고, 투구 레이어는 머리 창 안의 차이만 남기며, 맨몸용 투구 페이지(`helmet-body-*`)를 추가했다. 자세한 내용은 `docs/COSTUME_SYSTEM.md` §7.5.
 > 2026-11-19: `[작업 144]` — `spin` 본체 회전 제거, 아틀라스 캐시 한도, 검 크기·낡은 투구 외형을 수정했다. 타입 검사·관련 테스트 86건·아트 검증을 통과했고 [PR #87](https://github.com/songduckjin/DJRPG/pull/87)로 반영한다. 모바일 실기 성능은 미측정이다.
 > 2026-11-18: `[작업 142]`를 PR 병합으로 마감하고 완료 이력을 `docs/TASK_ARCHIVE.md`로 옮겼다. `/assets/costume/v2/`에 실물 아틀라스 60장(39MB)과 매니페스트 55종을 배포해 필드·내 정보 미리보기가 코스튬 레이어로 그려진다. 장비 아틀라스도 성별 페이지(`armor-male`·`armor-female`)로 나눴고, 참조 0을 확인한 구형 걷기 시트 5장과 `nav_status_v2.png`만 삭제했다(폴백 참조가 남은 `warrior_equipped_*`·통합 바디 시트는 유지).

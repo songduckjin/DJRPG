@@ -139,3 +139,27 @@ for (const name of swordlessWalk) test(`${name} keeps eight walking poses inside
     }
   }
 });
+
+for (const gender of ['male', 'female']) {
+  const pilot = [
+    [`warrior_${gender}_idle_v1.png`, 362, 362, 1],
+    [`warrior_${gender}_walk_v1.png`, 1448, 362, 4],
+    [`warrior_${gender}_attack_v1.png`, 1448, 362, 4]
+  ];
+  for (const [name, expectedWidth, expectedHeight, frames] of pilot) test(`${name} is a transparent, frame-isolated pilot sprite`, () => {
+    const { width, height, alpha } = decodeAlpha(readFileSync(new URL(`../public/assets/pilot-25d/${name}`, import.meta.url)));
+    assert.equal(width, expectedWidth, `${name}: width`);
+    assert.equal(height, expectedHeight, `${name}: height`);
+    assert.equal(alpha[0], 0, `${name}: upper-left background is transparent`);
+    assert(alpha.some(value => value > 20), `${name}: sprite is empty`);
+    const cell = width / frames;
+    for (let frame = 0; frame < frames; frame += 1) {
+      let painted = 0;
+      for (let y = 0; y < height; y += 1) for (let x = frame * cell; x < (frame + 1) * cell; x += 1) {
+        if (alpha[y * width + x] > 20) painted += 1;
+      }
+      assert(painted > 1000, `${name}: missing frame ${frame}`);
+      if (frame > 0) for (let y = 0; y < height; y += 1) assert.equal(alpha[y * width + frame * cell], 0, `${name}: frame boundary ${frame} has stray pixels`);
+    }
+  });
+}

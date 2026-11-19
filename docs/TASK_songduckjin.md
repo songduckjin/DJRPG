@@ -3,7 +3,7 @@
 > 담당 GitHub ID: `songduckjin`
 > 적용 대상: 해당 ID를 사용하는 작업자의 PC 및 Codex
 > 규칙: 본 파일은 지정된 작업자만 수정한다. 상대 작업자의 개인 작업지시서는 수정하지 않는다.
-> 2026-11-18: `[작업 137]`은 PR #73(`6402d79`)으로 main에 병합되어 완료 이력을 `docs/TASK_ARCHIVE.md`로 옮겼다. 이 문서에는 후속 작업 138~145와 개인 작업 이력을 둔다.
+> 2026-11-18: `[작업 137]`은 PR #73(`6402d79`)으로 main에 병합되어 완료 이력을 `docs/TASK_ARCHIVE.md`로 옮겼다. 이 문서에는 후속 작업 138~149와 개인 작업 이력을 둔다.
 
 ## 진행 중 작업
 
@@ -23,10 +23,11 @@
 - **확인 사항**: 실제 원본 DB에는 가이드의 14개 외에 `djrpg_boss_{days,attempts,scores,rewards}` 4개 테이블이 있다. 이관 스크립트·검증·가이드를 18개 테이블로 보정한 후 진행한다. 세션 만료·게스트 복구 불가·복사 이후 저장 차이 위험을 이관 전 확인한다.
 - **수정 예정**: `scripts/migrate-turso-db.mjs`, `tests/migrate-turso-db.test.mjs`, `server/{database,market-connection,world-boss,world-boss-schema}.mjs`, `tests/functions-adapter.test.mjs`, `docs/TURSO_DB_GUIDE.md`, `docs/CODE_MAP.md`, `docs/QUICK_PATCH.md`, `docs/TASK.md`, 이 작업 기록. 기존 `TURSO_AUTH_TOKEN`은 세션 서명에 유지하고 새 `TURSO_DATABASE_AUTH_TOKEN`만 DB 접속에 사용해 41개 게스트 세션을 보존한다. 실제 DB 키·토큰·세이브 내용은 커밋·로그에 넣지 않는다.
 
-### [-] [작업 145] 서리의 가죽두건 코스튬 단일 완성 사례
+### [superseded] [작업 145] 서리의 가죽두건 코스튬 단일 완성 사례
 - **2026-11-19 운영 화면 후속**: PR #89 배포 후 사용자 사진에서 매직 두건·두손검과 함께 문장·신발 등 다른 장비를 착용한 상태가 확인됐다. 기존 전신 시안은 다른 장비가 있으면 적용되지 않아 금속 투구가 계속 보인다. 사용자의 실제 장비 조합에서도 두건만 교체되도록 `codex/145-frost-hood-layered-fix`에서 두건 전용 레이어와 버전 분리 아틀라스를 추가한다. 수정 예정: `scripts/build-costume-atlas.py`, `src/game/render/costumeHero.ts`, `public/assets/costume/v5/atlas/*`, `tests/costume-field-render.test.mjs`, 관련 문서. 기존 v3·v4 배포 에셋은 유지하고, 필드·장비창 실화면 확인 전 완료 처리하지 않는다.
 - **후속 구현·검증**: 아이템 원본 천 두건을 기존 남녀 머리 위치에 맞춘 v5 페이지 4장을 생성하고, 혼합 장비에서는 투구 페이지만 교체했다. 기존 전신 v4 조합과 다른 장비 그림은 유지한다. 갑옷 위 남녀 정지·걷기·공격 프레임 합성 진단에서 위치를 확인했다. 타입 검사, 관련 테스트 66건·전체 379건, 아트 검증(v5 4종), `npm run build`, `git diff --check` 통과. PR #92(`7fc8366`) 병합 후 운영 `version.json`에서 `7fc83660fdb0`과 v5 아틀라스 4장 200 응답을 확인했다. 운영 실제 화면 검수는 계속 대기다.
-- **담당자**: `songduckjin` · **브랜치**: `codex/145-frost-hood-layered-fix`(전신 시안은 `codex/145-frost-hood-pilot`) · **위험 등급**: 중 · **상태**: `[-]` 선점
+- **대체 결정(2026-11-19)**: 사용자는 부분 두건 코스튬 실기 검수 대신 전사 전체 외형을 새 AI 시안으로 교체하기로 결정했다. `[작업 149]`에서 필드·장비창 모두 새 남녀 시트를 쓰며, 착용 슬롯·능력치·Save는 유지되고 그림만 고정 갑옷·대검이 된다. 본 작업의 추가 실기 검수는 종료하며, 기존 v3/v4/v5 코드·에셋은 별도 참조 정리 전까지 보존한다.
+- **담당자**: `songduckjin` · **브랜치**: `codex/145-frost-hood-layered-fix`(전신 시안은 `codex/145-frost-hood-pilot`) · **위험 등급**: 중 · **상태**: `[superseded]`
 - **목표/범위**: 전체 장비를 확장하지 않고 `서리의 가죽두건` 한 조합만 완성 사례로 제작한다. 장착 아이템 그림과 동일한 천 두건 실루엣을 남/여 각각 idle·walk·attack에 반영하고, 필드·장비창에서 동일한 그림을 검수한다. 남/여 × 앞·뒤·좌·우 방향 공격 그림을 준비해 전방향 적을 향하게 한다. 2026-11-19 사용자 요청에 따라 이 파일럿만 먼저 병합·배포하고 실제 화면은 사용자가 함께 검수한다.
 - **사전 원인**: `서리의`는 매직 등급 접두사이고 이름 정규화 후 `가죽 두건` 끝부분 매칭으로 `helmet-t0`에 이미 연결된다. v3 생성물은 `helmet-<gender>` / `helmet-body-<gender>`의 공유 셀 규약이므로 아이템 아이콘의 천 두건 형태를 보장하지 않는다. `world.ts`는 각도 `player.facing`을 보유하지만 `render/entities.ts`의 공격 셀 선택은 4프레임 공용 시트와 `player.facingSide` 좌우 반전만 사용하므로 화면 앞·뒤 방향 공격을 표현할 수 없다.
 - **방향 정책**: `player.facing`을 등각 화면 축으로 투영해 남/여 각각 그린 좌/우/뒤/앞 공격 키 포즈 4장 중 하나를 고른다. idle/walk는 오른쪽 그림을 좌우 반전하는 현행 정책을 유지한다. 기본 공격·스킬 공격은 방향별 한 키 포즈를 공격 창 동안 유지한다.
@@ -35,6 +36,14 @@
 - **검수 표**: 기준 아이템 아이콘 / 제작 프레임 / 실제 필드 화면 / 실제 장비창 화면을 한 시트에 배치한다. 남녀 각각 idle·walk·공격(좌/우/앞/뒤)을 표기하고 얼굴 가림·손잡이/무기 위치·필드 방향을 검사한다. 합성 목업은 실제 앱 캡처와 명확히 구분한다.
 - **검증**: `node node_modules/typescript/bin/tsc --noEmit`; `node --test tests/hero-motion.test.mjs tests/costume-field-render.test.mjs tests/equipped-detail.test.mjs`; `node scripts/verify-item-art.mjs`; `git diff --check` 통과. 사용자 허용 후 로컬 Vite에서 게스트 시작을 눌렀으나 `/api/account`가 HTML을 반환해 실제 필드 진입에 실패했다. 로컬 Pages Functions/Turso 설정이 없고 서버 계정은 생성되지 않았다. 실제 필드/장비창 화면, 얼굴 가림, 공격 중 손잡이 접점은 배포 후 검수 대기다.
 - **완료 기준**: 서리의 가죽두건이 기존 투구 색변형·폴백이 아닌 구별되는 천 두건 그림으로 양 성별에 적용되고, 좌/우/앞/뒤 적에 대한 공격 자세가 방향 정책에 맞으며, 실제 화면 네 영역 비교 시트를 남긴다. 이 한 조합 결과를 사용자에게 보여준 뒤 나머지 장비 확대 여부를 결정한다.
+
+### [-] [작업 149] AI 시안 기반 전사 외형 전체 교체
+- **담당자**: `songduckjin` · **등록일**: 2026-11-19 · **브랜치**: `codex/149-ai-pilot-warrior-sprites` · **위험 등급**: 중 · **상태**: `[-]` 선점
+- **결정**: 사용자는 앞서 만든 서기·걷기·4단계 내려찍기 시안으로 실제 게임 전사 외형을 교체하기로 했다. 새 그림은 고정 갑옷·대검을 포함하므로 착용 아이템의 슬롯·능력치·저장은 유지하되 화면상 갑옷·투구·무기 모습은 고정된다. 남녀 스프라이트는 함께 적용한다.
+- **수정 파일**: `src/game/render.ts`, `src/game/render/entities.ts`, `src/game/render/heroScale.ts`, `src/ui/equipmentPortrait.ts`, `public/assets/pilot-25d/**`, `docs/references/djrpg_pilot_*_v1_sheet.png`, `tests/{hero-art,hero-weapon-render,equipped-detail}.test.mjs`, `docs/{COSTUME_SYSTEM,CODE_MAP,QUICK_PATCH,TASK,TASK_songduckjin,WORKLOG}.md`.
+- **금지**: `src/game/store.ts`, Save/API/DB, 전사 외 몬스터/NPC, 배포 전 사용자 확인 없이 production deploy. 기존 코스튬 v3·v4·v5 배포 파일은 삭제하지 않는다.
+- **검증**: `npx tsc --noEmit`; `node --test tests/appearance.test.mjs tests/hero-art.test.mjs tests/hero-motion.test.mjs tests/hero-weapon-render.test.mjs tests/equipped-detail.test.mjs`; 신규 PNG 투명도·시트 분할 확인; `git diff --check`.
+- **완료 기준**: 남녀 각각 idle·walk·attack 시트가 투명 배경과 4칸 프레임 규약을 지키고, 필드·장비창이 같은 새 외형을 보여준다. 화면에서 두 번 그려지는 무기·레거시 코스튬 덧그리기가 없다.
 
 ### [x] [작업 134] 필드 캐릭터 통합 바디 복구 및 무기 소켓·액션 자연화
 - **등록자·담당자**: `songduckjin` · **등록일**: 2026-11-18 · **브랜치**: `task/134-field-gear-action` · **위험 등급**: 중 · **상태**: `[x]` 완료

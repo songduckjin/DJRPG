@@ -10,6 +10,10 @@
 export const heroBodyFraction = .0935;
 
 export const heroBodyPx: Record<string, number> = {
+  // Task 149: fixed full-body pilot sheets (body head-to-feet measured once per sheet).
+  pilotMale: 335, pilotFemale: 335,
+  pilotMaleWalk: 335, pilotFemaleWalk: 335,
+  pilotMaleAttack: 335, pilotFemaleAttack: 335,
   // idle (single cropped texture)
   male: 189, female: 189, maleSword: 189, femaleSword: 186,
   armored: 1457, armoredNoHelm: 1445, femaleArmoredNoHelm: 1369, femaleArmoredHelm: 1381,
