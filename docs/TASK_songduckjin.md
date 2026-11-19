@@ -7,6 +7,15 @@
 
 ## 진행 중 작업
 
+### [-] [작업 147] 3D→2.5D Blender 자동 렌더 파이프라인 가이드·스크립트·레퍼런스 시안
+- **담당자**: `songduckjin` · **브랜치**: `task/147-blender-25d-pipeline` · **위험 등급**: 낮음 · **상태**: `[-]` 선점
+- **목표/범위**: 확정된 2.5D 대검 포즈 시안을 기준으로 3D 모델을 Blender CLI에서 자동 렌더해 기존 코스튬 셀 규약으로 뽑는 파이프라인을 만든다. 실행 스크립트, 실행 가이드, 레퍼런스 시안, 작업 기록을 남기고 런타임 코드는 건드리지 않는다.
+- **확정 포즈 스펙**: ① 서기(`idle`) — 양손을 오른쪽 허리 옆에 모아 대검 자루를 잡고 가드·날이 허벅지 앞을 지나 등 뒤 대각선 아래로 끌리듯 뻗음 ② 걷기(`walk`) — 걷는 동안에도 왼손이 풀리지 않고 양손이 오른쪽에 모인 채 무거운 검을 뒤쪽 아래로 끌며 전진 ③ 공격(`attack`) — 등 뒤에서 끌어올리기(Wind-up) → 머리 위 번짝 듬(Apex) → 앞쪽 아래 세로 원호(Mid-swing) → 전장을 앞바닥까지 길게 뻗어 내리침(Impact), 피니시에서 검 길이가 파묻혀 짧아지지 않음.
+- **신규 파일**: `scripts/blender/render_25d_costume.py`(`--input/--out/--actions/--parts/--cell-width/--cell-height/--camera-pitch/--camera-yaw/--dry-run/--help`, `.blend`/`.glb`/`.fbx` 로드, 발끝 정렬·본체 190px 정규화, 파츠 분리 렌더·Holdout, 선택적 아틀라스 패킹), `docs/BLENDER_25D_PIPELINE.md`, `docs/references/{djrpg_25d_3poses_preview_v2,djrpg_attack_4frames_v2}.png`(1024px 이하·양자화 PNG).
+- **수정 파일**: `docs/{CODE_MAP,QUICK_PATCH,WORKLOG}.md`, `docs/TASK.md`, 본 작업 기록.
+- **금지**: `src/**`·`public/assets/**`·`server/**`·Save/API 변경 금지. `docs/references/`는 문서용 참고 이미지이며 번들·런타임에 포함하지 않는다(`public/assets/**`에 넣지 않음).
+- **검증**: `python3 -m py_compile scripts/blender/render_25d_costume.py`, `--help`/`--dry-run` 동작, `npx tsc --noEmit`, `node --test tests/*.test.mjs`, `node scripts/verify-item-art.mjs`, `npm run build`, `git diff --check`.
+
 ### [-] [작업 146] Turso 공용 DB에서 DJRPG 전용 DB 이관
 - **브랜치**: `codex/146-turso-db-isolation` · **상태**: `[-]` · **위험 등급**: 높음
 - **범위**: `docs/TURSO_DB_GUIDE.md`에 따라 `puzzle-mates`의 DJRPG 데이터만 백업·복사하고 Cloudflare Pages 운영 비밀 변수를 전용 DB로 전환한다. 퍼즐 메이츠 테이블과 코스튬 코드는 수정하지 않는다.
