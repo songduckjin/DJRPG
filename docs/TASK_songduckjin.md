@@ -7,6 +7,17 @@
 
 ## 진행 중 작업
 
+### [-] [작업 145] 서리의 가죽두건 코스튬 단일 완성 사례
+- **담당자**: `songduckjin` · **브랜치**: `codex/145-frost-hood-pilot` · **위험 등급**: 중 · **상태**: `[-]` 선점
+- **목표/범위**: 전체 장비를 확장하지 않고 `서리의 가죽두건` 한 조합만 완성 사례로 제작한다. 장착 아이템 그림과 동일한 천 두건 실루엣을 남/여 각각 idle·walk·attack에 반영하고, 필드·장비창에서 동일한 그림을 검수한다. 남/여 × 앞·뒤·좌·우 방향 공격 그림을 준비해 전방향 적을 향하게 한다. 코드·아트는 검수 후 사용자 판단 전까지 병합·배포하지 않는다.
+- **사전 원인**: `서리의`는 매직 등급 접두사이고 이름 정규화 후 `가죽 두건` 끝부분 매칭으로 `helmet-t0`에 이미 연결된다. v3 생성물은 `helmet-<gender>` / `helmet-body-<gender>`의 공유 셀 규약이므로 아이템 아이콘의 천 두건 형태를 보장하지 않는다. `world.ts`는 각도 `player.facing`을 보유하지만 `render/entities.ts`의 공격 셀 선택은 4프레임 공용 시트와 `player.facingSide` 좌우 반전만 사용하므로 화면 앞·뒤 방향 공격을 표현할 수 없다.
+- **권장 방향 정책**: 네 방향 모두 전용으로 다시 그리지 않고 기존 2방향 좌/우 아트는 유지하며, 전방·후방 공격 아트를 추가한다. `player.facing`을 필드 화면 축에 투영해 좌/우/앞/뒤 중 가장 가까운 사분면을 고르고, 좌/우는 현재 시트를 재사용하고 앞/뒤에서만 신규 전용 공격 그림을 선택한다. idle/walk의 별도 전방향 재작업은 이 한 종 시안의 범위에서 제외하며, 공격 포즈 전환만으로 타격 방향을 검증한다.
+- **수정 예정 파일**: `scripts/build-costume-atlas.py`, `src/game/render/entities.ts`, `src/game/render/costumeHero.ts`(방향 셀 선택만), `src/ui/equipmentPortrait.ts`(공용 계획 유지 여부 검증), 새 투구 전용 소스 아트와 격리된 v4 시안 아틀라스/매니페스트, `tests/costume-field-render.test.mjs`, `tests/equipped-detail.test.mjs`, `tests/costume-atlas.test.mjs`, `docs/COSTUME_SYSTEM.md`, `docs/CODE_MAP.md`, `docs/QUICK_PATCH.md`, 본 작업 기록.
+- **금지**: 다른 54개 코스튬·아이템 이름/UUID/Save/API·`src/game/store.ts`·DB 변경, v3 운영 에셋 교체, main 직접 커밋, PR 병합, Cloudflare 배포. v4는 격리된 검수 산출물이며 운영 매니페스트 전환은 사용자 후속 지시 전까지 하지 않는다.
+- **검수 표**: 기준 아이템 아이콘 / 제작 프레임 / 실제 필드 화면 / 실제 장비창 화면을 한 시트에 배치한다. 남녀 각각 idle·walk·공격(좌/우/앞/뒤)을 표기하고 얼굴 가림·손잡이/무기 위치·필드 방향을 검사한다. 합성 목업은 실제 앱 캡처와 명확히 구분한다.
+- **검증**: `npx tsc --noEmit`; `node --test tests/costume-field-render.test.mjs tests/equipped-detail.test.mjs tests/costume-atlas.test.mjs`; `node scripts/verify-item-art.mjs`; 브라우저에서 실제 로컬 게임 화면의 남/여 장비창·필드 캡처; `git diff --check`. 실행하지 않은 시각 항목은 미확인으로 남긴다.
+- **완료 기준**: 서리의 가죽두건이 기존 투구 색변형·폴백이 아닌 구별되는 천 두건 그림으로 양 성별에 적용되고, 좌/우/앞/뒤 적에 대한 공격 자세가 방향 정책에 맞으며, 실제 화면 네 영역 비교 시트를 남긴다. 이 한 조합 결과를 사용자에게 보여준 뒤 나머지 장비 확대 여부를 결정한다.
+
 ### [x] [작업 134] 필드 캐릭터 통합 바디 복구 및 무기 소켓·액션 자연화
 - **등록자·담당자**: `songduckjin` · **등록일**: 2026-11-18 · **브랜치**: `task/134-field-gear-action` · **위험 등급**: 중 · **상태**: `[x]` 완료
 - **완료 결과**: 남녀 갑옷·투구 상태별 검 없는 서기·걷기 시트 10장, 직업·성별별 무기 소켓, 공격 시 소켓 검 숨김, 등급별 검기 색을 적용했다. 타입 검사·관련 테스트 76개·이미지 검증·diff 검사 통과. PR #66이 `272c4619924603565a0b765a65ca0026078bb904`로 병합됐고 Cloudflare Pages Production `/version.json`에서 `272c46199246`을 확인했다. 모바일 실기는 미확인.
