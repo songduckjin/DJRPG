@@ -1894,3 +1894,7 @@
 
 | 176 던전 정면복도·층출구문 | fks3997 | preview/gravel-background-fks3997 | ui/dungeonField.ts, styles/dungeon.css, assets/dungeon/{corridor-front-v1,prison-room-v2}.png, 문서 | 중 | [x] |
 - 176: 정면복도/어두운문안·배경문제거·전체출구문별도합성·다음층개방1.8초후fade. tsc/관련22/아트/diff 통과. preview만.
+
+| 178 던전 문 접지·닫힘 초기화 | fks3997 | preview/gravel-background-fks3997 | ui/dungeonField.ts, styles/dungeon.css, 문서 | 하 | [x] |
+| 177 업적 분류별 현재 단계 | fks3997 | preview/gravel-background-fks3997 | ui/modals/utilityModal.ts, tests/journey-ui.test.mjs, 문서 | 하 | [x] |
+- 177/178: tsc/관련21/diff 통과. 업적카테고리1행/현재단계수령·완료하단, 문접지/다음층닫힘선초기화/뒤글자제거. 실기미실행, preview만.

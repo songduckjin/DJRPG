@@ -250,3 +250,6 @@ npm run check && npm test && npm run build # 공용 계약 수정·사용자 요
 - 작업175 사용자2층이동 승인: `DungeonBattle(save,floor:1|2)`·관찰HP DPS×4/정예2배, 2층HP1.2배·피해상한 일반0.5%/정예0.8%. 1층클리어 결과에2층버튼, .4초dark-fade아래 새세션(풀HP/90초). 2층까지만/3층미연결/저장기록없음. 문안은 기존 던전이미지 background로 표시.
 
 - 작업176: 문안 `corridor-front-v1.png` 정면복도+어두운gradient, 필드배경 `prison-room-v2.png`(중앙 baked문 제거). `dungeonField.ts` `.dungeon-exit-gate`를top8%/높이27%로완전표시·기존3문레이어 재사용. 다음층 클릭시결과닫기→출구문개방/정지1.8초→dark-fade→2층전환.
+
+- 작업177 `utilityModal.ts` orderedAchievements: category별첫미수령만, 전부수령시마지막단계1행을하단. 수령가능→진행중→전체완료 정렬, 모두받기는보이는단계만순차수령·오류시중단, 빨간점도보이는단계기준. 기존서버API/보상이력보존.
+- 작업178 `dungeonField.ts` resetBattle: 출구is-resetting에서문transition없이닫고style확정후fade진입. top10%/h28%로문턱접지, 문뒤떠있는wave안내제거/하단HUD유지.

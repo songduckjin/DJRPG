@@ -47,5 +47,7 @@
 .dungeon-floor-transition{position:absolute;inset:0;z-index:8;background:#080707;opacity:0;pointer-events:none;transition:opacity .4s ease}
 .dungeon-field.is-changing-floor .dungeon-floor-transition{opacity:1;pointer-events:auto}
 
-.dungeon-exit-gate{position:absolute;z-index:2;top:8%;left:50%;transform:translateX(-50%);height:27%;aspect-ratio:1;max-width:70%;pointer-events:none}
+.dungeon-exit-gate{position:absolute;z-index:2;top:10%;left:50%;transform:translateX(-50%);height:28%;aspect-ratio:1;max-width:70%;pointer-events:none}
 .dungeon-exit-gate .dungeon-lobby-gate{filter:drop-shadow(0 6px 7px #0008)}
+
+.dungeon-exit-gate.is-resetting .dungeon-gate-left,.dungeon-exit-gate.is-resetting .dungeon-gate-right{transition:none}

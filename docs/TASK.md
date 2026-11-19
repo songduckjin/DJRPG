@@ -7,8 +7,6 @@
 
 | 작업 | 담당자 | 브랜치 | 수정 예정 파일 / 영향 영역 | 위험 등급 | 상태 |
 |---|---|---|---|---|---|
-| 178 던전 문 접지·닫힘 초기화 | fks3997 | preview/gravel-background-fks3997 | ui/dungeonField.ts, styles/dungeon.css, 문서 | 하 | [-] |
-| 177 업적 분류별 현재 단계 | fks3997 | preview/gravel-background-fks3997 | ui/modals/utilityModal.ts, tests/journey-ui.test.mjs, 문서 | 하 | [-] |
 
 
 > 2026-11-19: `[작업 143]` — 코스튬 v3(투구 싱크·몸통 겹침·공격 모션 수정)를 배포했다. 갑옷 착용 시 본체 파츠 3종을 모두 대체하고, 투구 레이어는 머리 창 안의 차이만 남기며, 맨몸용 투구 페이지(`helmet-body-*`)를 추가했다. 자세한 내용은 `docs/COSTUME_SYSTEM.md` §7.5.

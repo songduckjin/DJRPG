@@ -104,3 +104,21 @@ test('reward claim applies the confirmed journey state without an additional lis
  const journey=new Journey(sync,world);let reloads=0;journey.load=async()=>{reloads++;};
  await journey.act('journey-claim',{kind:'daily',id:'login'});assert.equal(journey.data,data);assert.equal(reloads,0);assert.equal(resaves,0);assert.equal(journey.busy,false);
 });
+
+test('achievement category shows only next unclaimed step and moves finished category to bottom',async()=>{
+ const {orderedAchievements}=await import('../src/ui/modals/utilityModal.ts');
+ const step=(id,category,target,claimed=false)=>({...task(id,target,target,claimed),category});
+ const tasks=[step('skills-1','스킬',1),step('skills-5','스킬',5),step('skills-11','스킬',11),step('rank-10','스킬',10),step('level-5','성장',5,true),step('level-10','성장',10,true)];
+ assert.deepEqual(orderedAchievements(tasks).map(t=>t.id),['skills-1','level-10']);
+ tasks[0].claimed=true;assert.deepEqual(orderedAchievements(tasks).map(t=>t.id),['skills-5','level-10']);
+ for(const item of tasks)item.claimed=true;assert.equal(orderedAchievements(tasks).length,2);assert(orderedAchievements(tasks).every(t=>t.claimed));
+});
+test('achievement all-claim receives visible steps only instead of skipping hidden tiers',async()=>{
+ const previous=globalThis.document;globalThis.document={createElement:node};
+ try{const {ui,calls}=fixture(),dialog=node();
+ ui.journey.data.achievements=[{...task('skills-1',1,1),category:'스킬'},{...task('skills-5',5,5),category:'스킬'},{...task('level-5',5,5),category:'성장'}];
+ renderUtility(ui,dialog,'achievements');find(dialog,n=>n.tag==='button'&&n.textContent==='모두 받기').onclick();
+ await new Promise(resolve=>setImmediate(resolve));
+ assert.deepEqual(calls.filter(call=>call[0]==='journey-claim').map(call=>call[1].id),['skills-1','level-5']);
+ }finally{globalThis.document=previous;}
+});

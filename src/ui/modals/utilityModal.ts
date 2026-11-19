@@ -30,8 +30,11 @@ function taskRow(ui:Interface,task:JourneyTask,kind:string):HTMLElement{
   row.append(button(task.claimed?'수령 완료':task.current>=task.target?'받기':'진행 중',()=>{void ui.journey.act('journey-claim',{kind,id:task.id});},task.claimed||task.current<task.target||ui.journey.busy||ui.session.guest));return row;
 }
 export function orderedAchievements(tasks:JourneyTask[]):JourneyTask[] {
+  const groups=new Map<string,JourneyTask[]>();
+  for(const task of tasks){const key=task.category||task.id;const group=groups.get(key)??[];group.push(task);groups.set(key,group);}
+  const current=[...groups.values()].map(group=>group.find(task=>!task.claimed)??group[group.length-1]);
   const rank=(task:JourneyTask)=>task.claimed?2:task.current>=task.target?0:1;
-  return [...tasks].sort((a,b)=>rank(a)-rank(b));
+  return current.sort((a,b)=>rank(a)-rank(b));
 }
 export function renderUtility(ui:Interface,dialog:HTMLElement,kind:'mail'|'rewards'|'achievements'):void{
   const journey=ui.journey,section=element('section',`utility-content utility-${kind}`);
@@ -73,7 +76,11 @@ export function renderUtility(ui:Interface,dialog:HTMLElement,kind:'mail'|'rewar
       }
     }else{
       const tasks=orderedAchievements(data.achievements),ready=tasks.some(task=>!task.claimed&&task.current>=task.target),toolbar=element('div','utility-toolbar');
-      toolbar.append(button('모두 받기',()=>{void journey.act('journey-claim',{kind:'achievements',id:'all'});},!ready||journey.busy||ui.session.guest));section.append(toolbar);
+      toolbar.append(button('모두 받기',()=>{void (async()=>{
+        // Claim only the displayed step once per category; newly revealed steps stay visible.
+        const ids=tasks.filter(task=>!task.claimed&&task.current>=task.target).map(task=>task.id);
+        for(const id of ids){await journey.act('journey-claim',{kind:'achievements',id});if(journey.error)break;}
+      })();},!ready||journey.busy||ui.session.guest));section.append(toolbar);
       for(const task of tasks)section.append(taskRow(ui,task,'achievements'));
     }
   }
@@ -82,6 +89,6 @@ export function renderUtility(ui:Interface,dialog:HTMLElement,kind:'mail'|'rewar
 
 export function updateUtilityBadges(ui:Interface):void {
   ui.root.querySelectorAll<HTMLElement>('[data-utility-dot]').forEach(dot=>{
-    const kind=dot.dataset.utilityDot as 'mail'|'rewards'|'achievements';dot.hidden=ui.session.guest||!ui.journey.ready(kind);
+    const kind=dot.dataset.utilityDot as 'mail'|'rewards'|'achievements';dot.hidden=ui.session.guest||!(kind==='achievements'&&ui.journey.data?orderedAchievements(ui.journey.data.achievements).some(task=>!task.claimed&&task.current>=task.target):ui.journey.ready(kind));
   });
 }
