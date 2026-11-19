@@ -37,13 +37,14 @@
 - **검증**: `node node_modules/typescript/bin/tsc --noEmit`; `node --test tests/hero-motion.test.mjs tests/costume-field-render.test.mjs tests/equipped-detail.test.mjs`; `node scripts/verify-item-art.mjs`; `git diff --check` 통과. 사용자 허용 후 로컬 Vite에서 게스트 시작을 눌렀으나 `/api/account`가 HTML을 반환해 실제 필드 진입에 실패했다. 로컬 Pages Functions/Turso 설정이 없고 서버 계정은 생성되지 않았다. 실제 필드/장비창 화면, 얼굴 가림, 공격 중 손잡이 접점은 배포 후 검수 대기다.
 - **완료 기준**: 서리의 가죽두건이 기존 투구 색변형·폴백이 아닌 구별되는 천 두건 그림으로 양 성별에 적용되고, 좌/우/앞/뒤 적에 대한 공격 자세가 방향 정책에 맞으며, 실제 화면 네 영역 비교 시트를 남긴다. 이 한 조합 결과를 사용자에게 보여준 뒤 나머지 장비 확대 여부를 결정한다.
 
-### [-] [작업 149] AI 시안 기반 전사 외형 전체 교체
-- **담당자**: `songduckjin` · **등록일**: 2026-11-19 · **브랜치**: `codex/149-ai-pilot-warrior-sprites` · **위험 등급**: 중 · **상태**: `[-]` 선점
+### [x] [작업 149] AI 시안 기반 전사 외형 전체 교체
+- **담당자**: `songduckjin` · **등록일**: 2026-11-19 · **브랜치**: `codex/149-ai-pilot-warrior-sprites` · **위험 등급**: 중 · **상태**: `[x]` 완료 · **PR**: #101
 - **결정**: 사용자는 앞서 만든 서기·걷기·4단계 내려찍기 시안으로 실제 게임 전사 외형을 교체하기로 했다. 새 그림은 고정 갑옷·대검을 포함하므로 착용 아이템의 슬롯·능력치·저장은 유지하되 화면상 갑옷·투구·무기 모습은 고정된다. 남녀 스프라이트는 함께 적용한다.
 - **수정 파일**: `src/game/render.ts`, `src/game/render/entities.ts`, `src/game/render/heroScale.ts`, `src/ui/equipmentPortrait.ts`, `public/assets/pilot-25d/**`, `docs/references/djrpg_pilot_*_v1_sheet.png`, `tests/{hero-art,hero-weapon-render,equipped-detail}.test.mjs`, `docs/{COSTUME_SYSTEM,CODE_MAP,QUICK_PATCH,TASK,TASK_songduckjin,WORKLOG}.md`.
 - **금지**: `src/game/store.ts`, Save/API/DB, 전사 외 몬스터/NPC, 배포 전 사용자 확인 없이 production deploy. 기존 코스튬 v3·v4·v5 배포 파일은 삭제하지 않는다.
 - **검증**: `npx tsc --noEmit`; `node --test tests/appearance.test.mjs tests/hero-art.test.mjs tests/hero-motion.test.mjs tests/hero-weapon-render.test.mjs tests/equipped-detail.test.mjs`; 신규 PNG 투명도·시트 분할 확인; `git diff --check`.
 - **완료 기준**: 남녀 각각 idle·walk·attack 시트가 투명 배경과 4칸 프레임 규약을 지키고, 필드·장비창이 같은 새 외형을 보여준다. 화면에서 두 번 그려지는 무기·레거시 코스튬 덧그리기가 없다.
+- **완료 결과(2026-11-19)**: [PR #101](https://github.com/songduckjin/DJRPG/pull/101)이 `9e9d736883e0`으로 병합됐다. 운영 Pages `/version.json`도 같은 SHA이며 남녀 idle·walk·attack 에셋 6개 모두 HTTP 200이다. TypeScript, 관련 테스트 86건, 프로덕션 빌드와 diff 검사가 통과했다. Pages 자동 배포가 완료됐고, 로컬 Wrangler 배포는 `CLOUDFLARE_API_TOKEN`이 없어 실행되지 않았다. 별도 `Workers Builds: djrpg` 체크는 실패했지만 Pages 체크와 운영 Pages 제공은 성공했다.
 
 ### [x] [작업 134] 필드 캐릭터 통합 바디 복구 및 무기 소켓·액션 자연화
 - **등록자·담당자**: `songduckjin` · **등록일**: 2026-11-18 · **브랜치**: `task/134-field-gear-action` · **위험 등급**: 중 · **상태**: `[x]` 완료

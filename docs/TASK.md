@@ -8,10 +8,10 @@
 | 작업 | 담당자 | 브랜치 | 수정 예정 파일 / 영향 영역 | 위험 등급 | 상태 |
 |---|---|---|---|---|---|
 | [작업 146] Turso 공용 DB에서 DJRPG 전용 DB 이관 | songduckjin | `codex/146-turso-db-isolation` | `scripts/migrate-turso-db.mjs`, `tests/migrate-turso-db.test.mjs`, `server/{database,market-connection,world-boss,world-boss-schema}.mjs`, `tests/functions-adapter.test.mjs`, `docs/TURSO_DB_GUIDE.md`, 운영 DB·Pages 비밀 변수 | 높음 | [-] |
-| [작업 149] AI 시안 기반 전사 외형 전체 교체 | songduckjin | `codex/149-ai-pilot-warrior-sprites` | 남/여 전사 idle·walk·attack 스프라이트, 필드 렌더·장비창 미리보기·검증·문서 | 중 | [-] |
 
 
 > 2026-11-19: `[작업 147]` — 3D 모델(.blend/.glb/.fbx)에서 2.5D 쿼터뷰 코스튬 셀을 뽑는 Blender CLI 파이프라인과 실행 가이드를 [PR #99](https://github.com/songduckjin/DJRPG/pull/99)로 병합했다(머지 `d811047`, 운영 `version.json` `d8110470a99c` 확인). 진행 현황 표에서 빼고 완료 이력을 `docs/TASK_ARCHIVE.md`로 옮겼다. 실제 Blender 렌더와 배포 매니페스트·`COSTUME_ASSET_VERSION` 상승은 PC 렌더 결과가 나온 뒤 별도 작업이다.
+> 2026-11-19: `[작업 149]` — 남녀 전사 idle·walk·attack 외형을 AI 파일럿 시트로 교체한 변경을 [PR #101](https://github.com/songduckjin/DJRPG/pull/101)로 병합했다(머지 `9e9d736883e0`). Cloudflare Pages 운영 `version.json`에서 `9e9d736883e0` 확인, 새 이미지 6장 HTTP 200. 로컬 타입 검사·관련 테스트 86건·빌드 통과. Workers Builds 별도 체크는 실패했으나 Pages 체크와 운영 배포는 성공했다.
 > 2026-11-19: `[작업 145]`는 사용자 결정에 따라 대체한다. 전체 전사 외형을 고정 갑옷·대검 시안으로 바꾸는 `[작업 149]`가 우선이며, 145의 부분 코스튬 검수는 진행하지 않는다. 기존 구현·에셋은 호환 참조가 정리될 때까지 보존한다.
 > 2026-11-19: `[작업 145]` — 다른 장비(갑옷·문장·신발)와 함께 착용해도 두건만 교체되도록 아이템 원본 천 두건을 머리 위치에 얹은 v5 전용 레이어를 추가하고 [PR #92](https://github.com/songduckjin/DJRPG/pull/92)로 반영·배포했다(운영 `7fc83660fdb0`). 전체 외형 교체 결정으로 실기 검수는 대체되며, 기존 v3/v4/v5 구현·에셋은 호환 참조가 정리될 때까지 보존한다.
 > 2026-11-19: `[작업 143]` — 코스튬 v3(투구 싱크·몸통 겹침·공격 모션 수정)를 배포했다. 갑옷 착용 시 본체 파츠 3종을 모두 대체하고, 투구 레이어는 머리 창 안의 차이만 남기며, 맨몸용 투구 페이지(`helmet-body-*`)를 추가했다. 자세한 내용은 `docs/COSTUME_SYSTEM.md` §7.5.
