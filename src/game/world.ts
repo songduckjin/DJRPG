@@ -187,9 +187,14 @@ export class World {
       if (destination) {
         const dx = destination.x - p.x, dy = destination.y - p.y, distance = Math.hypot(dx, dy);
         if (destination !== this.chaseTarget) { this.chaseTarget = destination; this.pursuing = false; }
-        const start = drop ? 60 : 90, stop = drop ? 20 : 89;
-        if (distance > start) this.pursuing = true;
-        else if (distance <= stop) this.pursuing = false;
+        // 사거리 안이면 추격을 **즉시** 끊는다. `action()`은 `activeMove > .05`면 공격을 취소하므로,
+        // 예전처럼 `stop = 89` 경계에서 `pursuing`이 남아 있으면 (89~90 구간·넉백으로 경계에 걸친
+        // 프레임) 사거리 안인데도 공격이 씹혀 때리다가 멈칫거렸다. 사거리 경계 90은 추격 쪽에 둔다.
+        if (drop) {
+          if (distance > 60) this.pursuing = true;
+          else if (distance <= 20) this.pursuing = false;
+        } else if (distance < 90) this.pursuing = false;
+        else this.pursuing = true;
         this.activeMove = this.pursuing && distance > 0 ? { x: dx / distance, y: dy / distance } : { x: 0, y: 0 };
         if (distance > 1) this.faceTarget(destination);
         if (!drop && distance < 190) {
