@@ -7,8 +7,6 @@
 
 | 작업 | 담당자 | 브랜치 | 수정 예정 파일 / 영향 영역 | 위험 등급 | 상태 |
 |---|---|---|---|---|---|
-| 193 필드 드랍 바닥좌표 고정 | fks3997 | preview/gravel-background-fks3997 | game/render/drops.ts, game/lootGround.ts, tests/loot-ground.test.mjs, 문서 | 하 | [-] |
-| 192 필드 드랍 등급 테두리 통일 | fks3997 | preview/gravel-background-fks3997 | game/render/drops.ts, game/render/lootOutline.ts, tests/field-loot-outline.test.mjs, 문서 | 하 | [-] |
 | [작업 146] Turso 공용 DB에서 DJRPG 전용 DB 이관 | songduckjin | `codex/146-turso-db-isolation` | `scripts/migrate-turso-db.mjs`, `tests/migrate-turso-db.test.mjs`, `server/{database,market-connection,world-boss,world-boss-schema}.mjs`, `tests/functions-adapter.test.mjs`, `docs/TURSO_DB_GUIDE.md`, 운영 DB·Pages 비밀 변수 | 높음 | [-] |
 | 184 던전 드롭·클리어 흡수 연출 | fks3997 | preview/gravel-background-fks3997 | `ui/dungeonBattle.ts`(드롭 50%·필드 확률)·`ui/dungeonField.ts`(DOM 낙하/흡수)·`styles/dungeon.css`·`tests/dungeon-battle.test.mjs` | 낮음 | [x] |
 | 185 던전 드롭 가림·등급광·몹 속도·흡수 지연 | fks3997 | preview/gravel-background-fks3997 | `ui/dungeonBattle.ts`(던전 몹 1.5배 이동·드롭 착지 계산)·`ui/dungeonField.ts`(착지/깊이·금화 금액 제거·흡수 1.5초)·`styles/dungeon.css`(원형 테두리→외곽광)·`tests/dungeon-battle.test.mjs` | 낮음 | [x] |
