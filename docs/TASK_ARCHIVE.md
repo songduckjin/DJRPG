@@ -1891,3 +1891,6 @@
 
 | 175 던전 완화·2층 이동 | fks3997 | preview/gravel-background-fks3997 | ui/dungeon{Battle,Field}.ts, modals/dungeonModal.ts, styles/dungeon.css, tests/dungeon-battle.test.mjs, 문서 | 중 | [x] |
 - 175: 문안 던전이미지·쉬운1층/2층·클리어후다음층버튼/fade. tsc/관련22/diff통과, 기본1층28.35초/2층31.4초 클리어시뮬. 계정/보상/순위 미반영.
+
+| 176 던전 정면복도·층출구문 | fks3997 | preview/gravel-background-fks3997 | ui/dungeonField.ts, styles/dungeon.css, assets/dungeon/{corridor-front-v1,prison-room-v2}.png, 문서 | 중 | [x] |
+- 176: 정면복도/어두운문안·배경문제거·전체출구문별도합성·다음층개방1.8초후fade. tsc/관련22/아트/diff 통과. preview만.

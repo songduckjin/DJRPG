@@ -15,7 +15,7 @@ export function openDungeonField(ui:Interface,lobby:HTMLElement):void {
   const doorOpened=new Promise<void>(resolve=>window.setTimeout(resolve,1800));
   const wasPaused=ui.world.paused,resume=ui.suspendMainField?.();ui.world.paused=true;ui.world.attackHeld=false;
   const field=document.createElement('section');field.className='dungeon-field';field.setAttribute('role','region');field.setAttribute('aria-label','끝없는 던전 1층 미리보기');
-  field.innerHTML=`<div class="dungeon-field-canvas"></div><header class="dungeon-field-hud"><div><small>끝없는 던전</small><strong>제 1 층</strong></div><button type="button" class="dungeon-field-leave">나가기</button></header><div class="dungeon-wave-notice" role="status"></div><footer class="dungeon-battle-hud"><div class="dungeon-battle-record"><strong data-clock>90초</strong><span data-wave>WAVE 1 / 3</span><span data-kills>처치 0 / 7</span></div><div class="dungeon-hp"><i></i><span></span></div><div class="dungeon-auto-skills"></div><small>자동 전투 · 1~2층 미리보기 · 보상/기록 미반영</small></footer><div class="dungeon-battle-result" hidden></div><div class="dungeon-floor-transition" aria-hidden="true"></div>`;
+  field.innerHTML=`<div class="dungeon-field-canvas"></div><div class="dungeon-exit-gate" aria-label="다음 층으로 이어지는 철문"><div class="dungeon-lobby-gate"><i class="dungeon-lobby-gate-dark"></i><img class="dungeon-gate-left" src="/assets/dungeon/gate-left-v1.png" alt=""><img class="dungeon-gate-right" src="/assets/dungeon/gate-right-v1.png" alt=""><img class="dungeon-gate-frame" src="/assets/dungeon/gate-frame-v1.png" alt=""></div></div><header class="dungeon-field-hud"><div><small>끝없는 던전</small><strong>제 1 층</strong></div><button type="button" class="dungeon-field-leave">나가기</button></header><div class="dungeon-wave-notice" role="status"></div><footer class="dungeon-battle-hud"><div class="dungeon-battle-record"><strong data-clock>90초</strong><span data-wave>WAVE 1 / 3</span><span data-kills>처치 0 / 7</span></div><div class="dungeon-hp"><i></i><span></span></div><div class="dungeon-auto-skills"></div><small>자동 전투 · 1~2층 미리보기 · 보상/기록 미반영</small></footer><div class="dungeon-battle-result" hidden></div><div class="dungeon-floor-transition" aria-hidden="true"></div>`;
   ui.root.querySelector('.game-shell')!.append(field);
   const get=<T extends HTMLElement>(s:string)=>field.querySelector<T>(s)!;
   const view=new GameView();let battle=new DungeonBattle(ui.world.save),closed=false,mounted=false,age=0,combatTime=0,lastWave=0,cueAt=0,resultShown=false;
@@ -39,14 +39,18 @@ export function openDungeonField(ui:Interface,lobby:HTMLElement):void {
     get<HTMLButtonElement>('[data-leave]').onclick=leave;
     if(canNext)get<HTMLButtonElement>('[data-next]').onclick=()=>{
       box.querySelectorAll<HTMLButtonElement>('button').forEach(button=>button.disabled=true);
-      field.classList.add('is-changing-floor');
-      window.setTimeout(()=>{if(closed)return;resetBattle(2);
-        window.setTimeout(()=>{if(!closed)field.classList.remove('is-changing-floor');},100);
-      },400);
+      box.hidden=true;
+      const gate=get('.dungeon-exit-gate');gate.classList.add('is-opening');
+
+      window.setTimeout(()=>{if(closed)return;field.classList.add('is-changing-floor');
+        window.setTimeout(()=>{if(closed)return;resetBattle(2);gate.classList.remove('is-opening');
+          window.setTimeout(()=>{if(!closed)field.classList.remove('is-changing-floor');},100);
+        },400);
+      },1800);
     };
   };
   void (async()=>{try{
-    const texture=await Assets.load<Texture>('/assets/dungeon/prison-floor-v1.png');if(closed)return;
+    const texture=await Assets.load<Texture>('/assets/dungeon/prison-room-v2.png');if(closed)return;
     await view.mount(get('.dungeon-field-canvas'));mounted=true;if(closed||destroyPending){view.app.destroy(true,{children:true,texture:false,textureSource:false});return;}
     await doorOpened;if(closed)return;observer.disconnect();
     const background=new Sprite(texture);view.app.stage.addChildAt(background,0);
