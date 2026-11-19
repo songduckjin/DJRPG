@@ -7,7 +7,8 @@
 - `src/game/render/costumeHero.ts` `planHeroCostume()`: 혼합 장비에서는 투구 레이어만 `frost-hood-*` 페이지(variant 0, `assetVersion: 5`)로 바꾼다. 갑옷·문장·무기·신발 레이어와 레이어 순서, 전신 v4 경로, 장비창 공용 계획은 그대로이며 공격 방향은 기존 v3 정책(좌우 반전)을 따른다.
 - 테스트·검증 도구: `tests/costume-field-render.test.mjs`에 갑옷+두건, `tests/equipped-detail.test.mjs`에 갑옷·문장·신발+두건(필드 계획 = 장비창 계획) 검사 2건을 추가했고, `scripts/verify-item-art.mjs`가 v5 페이지 4장의 존재와 2048×2048 RGBA 규격을 검사한다.
 - 검증: `npx tsc --noEmit`, 관련 테스트 **66건**, 전체 `npm test` **379건**, `node scripts/verify-item-art.mjs`, `npm run build`, `git diff --check` 통과. Save/API·`src/game/store.ts`·`server/**` 무변경.
-- PR #92로 반영한다. 실제 운영 필드·장비창 화면(얼굴 가림·손잡이 접점)은 사용자 검수 전이므로 작업 145는 `[-]`를 유지한다.
+- PR #92로 반영했다. 실제 운영 필드·장비창 화면(얼굴 가림·손잡이 접점)은 사용자 검수 전이므로 작업 145는 `[-]`를 유지한다.
+- **병합·배포 실측**: PR #92를 `7fc83660fdb0e3cdf219edf724511ffee306ab5f`로 스쿼시 병합했다. 운영 `https://djrpg.pages.dev/version.json` = `7fc83660fdb0`, v5 아틀라스 4장(`frost-hood-{armor,body}-{male,female}.png`)·v4 전신 1장·v3 매니페스트가 200으로 응답하고, 배포 번들에 `frost-hood-`·`pilot-frost-leather-hood-overlay` 코드가 포함된 것을 확인했다. 화면 캡처는 이미지 입력 제한으로 하지 않았고 실제 필드·장비창 검수는 사용자 몫으로 남긴다.
 
 ## 2026-11-19 — 코스튬 동작 싱크·캐시 제한 (작업 144)
 
