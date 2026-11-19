@@ -5,7 +5,7 @@ import './ts-loader.mjs';
 const { wastelandScene, wastelandLayout, placeWasteland }=await import('../src/game/wasteland.ts');
 const { arenaLimits }=await import('../src/game/arena.ts');
 test('painted scene dimensions match the approved background asset',()=>{
-  const png=readFileSync(new URL('../public/assets/wasteland-scene.png',import.meta.url));assert.equal(png.readUInt32BE(16),wastelandScene.width);assert.equal(png.readUInt32BE(20),wastelandScene.height);
+  const png=readFileSync(new URL(`../public${wastelandScene.path}`,import.meta.url));assert.equal(png.readUInt32BE(16),wastelandScene.width);assert.equal(png.readUInt32BE(20),wastelandScene.height);assert.equal(wastelandScene.width,637);assert.equal(wastelandScene.height,1079);
 });
 test('all three flame glows remain aligned with the moving picture as the viewport changes',()=>{
   for(const [width,height] of [[360,780],[540,914],[320,568]]){
@@ -13,22 +13,24 @@ test('all three flame glows remain aligned with the moving picture as the viewpo
       const layout=wastelandLayout(width,height,player);
       const sceneWidth=layout.scaleX*wastelandScene.width,sceneHeight=layout.scaleY*wastelandScene.height;
       assert.equal(layout.fires.length,3);
-      assert(Math.abs(layout.fires[0].x-(layout.offsetX+sceneWidth*.5))<1e-8);
-      assert(Math.abs(layout.fires[1].y-(layout.offsetY+sceneHeight*.30))<1e-8);
-      assert(Math.abs(layout.fires[2].x-(layout.offsetX+sceneWidth*.176))<1e-8);
+      assert(Math.abs(layout.fires[0].x-(layout.offsetX+sceneWidth*.501))<1e-8);
+      assert(Math.abs(layout.fires[1].y-(layout.offsetY+sceneHeight*.322))<1e-8);
+      assert(Math.abs(layout.fires[2].x-(layout.offsetX+sceneWidth*.220))<1e-8);
       assert(layout.fires[0].y>0);
-      assert(layout.offsetX<=0 && layout.offsetX+sceneWidth>=width);
-      assert(layout.offsetY<=0 && layout.offsetY+sceneHeight>=height);
+      assert(layout.offsetX<=0 && layout.offsetX+sceneWidth>=width-1e-8);
+      assert(layout.offsetY<=0 && layout.offsetY+sceneHeight>=height-1e-8);
     }
   }
 });
-test('player movement pans the painted scene without exposing its edges',()=>{
+test('unzoomed scene fits the viewport and remains anchored as the player moves',()=>{
   for(const [width,height] of [[320,568],[390,844],[540,914]]){
     const center=wastelandLayout(width,height);
     const right=wastelandLayout(width,height,{x:arenaLimits.horizontal/2,y:-arenaLimits.horizontal/2});
     const left=wastelandLayout(width,height,{x:-arenaLimits.horizontal/2,y:arenaLimits.horizontal/2});
-    assert(right.offsetX<center.offsetX && left.offsetX>center.offsetX);
-    assert(right.offsetX+right.scaleX*wastelandScene.width>=width);
+    assert(Math.abs(center.scaleX*wastelandScene.width-width)<1e-8);assert(Math.abs(center.scaleY*wastelandScene.height-height)<1e-8);
+    assert.equal(center.offsetX,0);assert.equal(center.offsetY,0);
+    assert.equal(right.offsetX,center.offsetX);assert.equal(left.offsetX,center.offsetX);
+    assert(right.offsetX+right.scaleX*wastelandScene.width>=width-1e-8);
     assert(left.offsetX<=0);
   }
 });

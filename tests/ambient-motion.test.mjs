@@ -2,9 +2,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import './ts-loader.mjs';
 const { ambientInfluence, ambientOffset, AmbientDeformation, grassPatches, fireFlicker, fireEmbers }=await import('../src/game/ambientMotion.ts');
-const { wastelandLayout, wastelandFireAnchors }=await import('../src/game/wasteland.ts');
+const { wastelandLayout, wastelandFireAnchors, wastelandScene }=await import('../src/game/wasteland.ts');
 const fires=wastelandFireAnchors;
-function geometry(){const points=[];for(let y=0;y<165;y++)for(let x=0;x<97;x++)points.push(x*964/96,y*1632/164);return new Float32Array(points);}
+function geometry(width=964,height=1632){const points=[];for(let y=0;y<165;y++)for(let x=0;x<97;x++)points.push(x*width/96,y*height/164);return new Float32Array(points);}
 test('scene edges, clear ground, main rocks and all vegetation roots remain anchored',()=>{
   for(const [u,v] of [[0,.5],[1,.5],[.5,0],[.5,1],[.5,.45],[.4,.3],[.48,.15],[.03,.08],[.93,.08]])assert.equal(ambientInfluence(u,v,fires),undefined,`${u},${v}`);
   for(const [x,root] of grassPatches)assert.equal(ambientInfluence(x,root,fires),undefined,`root ${x},${root}`);
@@ -62,7 +62,7 @@ test('Pixi scene integration keeps layers below actors, resizes, honors reduced 
 });
 
 test('each grass patch has visible screen-space travel on the actual mesh at mobile sizes',()=>{
-  const positions=geometry(),original=positions.slice(),motion=new AmbientDeformation(positions,964,1632,fires);
+  const positions=geometry(wastelandScene.width,wastelandScene.height),original=positions.slice(),motion=new AmbientDeformation(positions,wastelandScene.width,wastelandScene.height,fires);
   const leaves=grassPatches.map(([x,root,,height])=>(Math.round((root-height*.75)*164)*97+Math.round(x*96))*2);
   const min=leaves.map(()=>Infinity),max=leaves.map(()=>-Infinity);
   for(let frame=0;frame<=180;frame++){

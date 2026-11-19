@@ -1,13 +1,14 @@
 import type { GameView } from './render';
-export const wastelandScene = { path: '/assets/wasteland-scene.png', width: 964, height: 1632 };
+export const wastelandScene = { path: '/assets/wasteland-scene-gravel-v2.png', width: 637, height: 1079 };
 // Flame centers measured on the approved painted scene, not the old procedural props.
-const fires = [[.5, .044], [.813, .30], [.176, .694]] as const;
+const fires = [[.501, .077], [.758, .322], [.220, .668]] as const;
 export const wastelandFireAnchors = fires.map(([x, y]) => ({ x, y }));
-const zoom = 1.18;
+// Fit the approved whole image; no extra overscan enlargement.
+const zoom = 1;
 export function wastelandLayout(width: number, height: number, player = { x: 0, y: 0 }) {
   const sceneWidth = width * zoom, sceneHeight = height * zoom;
   const offsetX = Math.max(width - sceneWidth, Math.min(0, (width - sceneWidth) / 2 - (player.x - player.y) * .86 * .25));
-  // Keep the upper campfire in view while allowing a smaller vertical drift.
+  // At 1x, clamping anchors the background; fire and grass animation stay independent.
   const offsetY = Math.max(height - sceneHeight, Math.min(0, -height * .02 - (player.x + player.y) * .43 * .15));
   return { scaleX: sceneWidth / wastelandScene.width, scaleY: sceneHeight / wastelandScene.height, offsetX, offsetY,
     fires: fires.map(([u, v]) => ({ x: offsetX + u * sceneWidth, y: offsetY + v * sceneHeight,
