@@ -28,3 +28,10 @@ test('second floor is a fresh preview encounter with full health and modestly hi
  assert.equal(second.floor,2);assert.equal(second.world.save.floor,2);assert.equal(second.elapsed,0);assert.equal(second.wave,1);assert.equal(second.world.player.hp,first.world.player.hp);
  assert(second.world.enemies[0].maxHp>first.world.enemies[0].maxHp);assert(second.world.enemies[0].maxHp<first.world.enemies[0].maxHp*1.3);assert.deepEqual(save,before);
 });
+test('ten-floor preview uses solo bosses at 5/10 and stops its floor index at ten',()=>{
+ for(let floor=1;floor<=10;floor++){
+ const battle=new DungeonBattle(freshSave(),floor);assert.equal(battle.floor,floor);assert.equal(battle.bossFloor,floor%5===0);assert.equal(battle.world.enemies.length,battle.bossFloor?1:3);assert.equal(battle.targetCount,battle.bossFloor?1:7);
+ if(battle.bossFloor){assert(battle.world.enemies[0].boss);battle.world.update=()=>{};battle.world.enemies=[];battle.advance(.05);assert.equal(battle.outcome,'clear');}
+ }
+ assert.equal(new DungeonBattle(freshSave(),11).floor,10);
+});

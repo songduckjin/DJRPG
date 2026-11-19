@@ -257,3 +257,6 @@ npm run check && npm test && npm run build # 공용 계약 수정·사용자 요
 - 작업179 던전레이어: 방배경은field CSS, 문DOM z2, renderer.background.alpha=0의배우canvas z3, HUD z4. 기존불투명Sprite배경제거로문이배우를가리지않음. visualTime은종료후에도진행해시체소멸·effects정리, .75초후결과. resetBattle에서이전enemy/시체/피해라벨정리.
 
 - 작업180: 던전 전용 `view.app.init`는원래init을호출하면서backgroundAlpha0을초기옵션으로추가. CanvasContextSystem은생성시alpha고정이므로마운트후renderer.background.alpha만바꾸면배경이기본갈색으로가려짐. CSS방/문뒤·배우앞구조 유지.
+
+- 작업181 `lobby-wall-v1.png` 대기창석조벽 고정배경, 기존문틀/문짝3레이어유지. 작업182 `DUNGEON_MAX_FLOOR=10`(dungeonLobby), DungeonBattle.floor1..10/5·10boss단독/targetCount, 결과다음층/10종료·세션clearedFloor만(계정저장없음). 재입장은현재미클리어층, 완료층재도전없음.
+- 던전투명초기화색: init background/backgroundColor=0x000000, backgroundAlpha=0 및renderer.background.color=0. alpha0이어도갈색RGB가남으면밝은갈색이합성될수있어RGBA전체0보장.

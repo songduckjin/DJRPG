@@ -1,6 +1,6 @@
 .modal-dialog.dungeon-modal{padding:0;width:min(460px,calc(100vw - 24px));max-height:calc(100dvh - 24px);overflow:hidden;border:1px solid #8d6c40;background:#1d1718;box-shadow:0 18px 70px #000b}
 .dungeon-lobby{height:min(790px,calc(100dvh - 26px));display:flex;flex-direction:column;color:#d6c5a9}
-.dungeon-hero{flex:0 0 34%;min-height:0;position:relative;background:radial-gradient(ellipse at 50% 65%,#62432855,transparent 70%),#161314}
+.dungeon-hero{flex:0 0 34%;min-height:0;position:relative;background:linear-gradient(to bottom,transparent 70%,#1d1718),linear-gradient(to right,#0c0a0966,transparent 25%,transparent 75%,#0c0a0966),url(/assets/dungeon/lobby-wall-v1.png) center/cover,#161314}
 .dungeon-hero>img{display:block;width:100%;height:100%;object-fit:contain;padding:6px 48px 0;filter:drop-shadow(0 4px 15px #000)}
 .dungeon-close{position:absolute!important;right:8px;top:8px;z-index:3;width:44px;height:44px;background:#18131399!important;border:0!important}
 .dungeon-body{padding:0 16px 12px;flex:1;min-height:0;display:flex;flex-direction:column}.dungeon-current{text-align:center;padding:8px 0 10px;display:grid;gap:3px}.dungeon-current h2{margin:0;font-size:23px;color:#f0d49a}.dungeon-current>strong{font-size:18px;color:#edd4a3}

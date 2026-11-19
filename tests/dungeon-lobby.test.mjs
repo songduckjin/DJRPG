@@ -11,3 +11,4 @@ test('ranking uses cleared floors and earlier clear as tie breaker without chang
  const rows=[{name:'later',clearedFloor:9,clearedAt:20},{name:'first',clearedFloor:9,clearedAt:10},{name:'higher',clearedFloor:10,clearedAt:30},{name:'new',clearedFloor:0,clearedAt:0}];
  assert.deepEqual(dungeonRankings(rows).map(r=>r.name),['higher','first','later']);assert.equal(rows[0].name,'later');assert.deepEqual(new DungeonLobby().records,[]);
 });
+test('after tenth clear the lobby is complete and never offers floor eleven',()=>{const lobby=new DungeonLobby();lobby.clearedFloor=9;assert.equal(lobby.floor.floor,10);assert.equal(lobby.completed,false);lobby.clearedFloor=10;assert.equal(lobby.floor.floor,10);assert.equal(lobby.completed,true);});
