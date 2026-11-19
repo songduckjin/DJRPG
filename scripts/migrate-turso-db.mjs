@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 // DJRPG 전용 Turso DB 이관 스크립트.
-// 공용 DB(puzzle-mates)에서 djrpg_* 14개 테이블만 새 DB로 복사한다.
+// 공용 DB(puzzle-mates)에서 djrpg_* 18개 테이블만 새 DB로 복사한다.
 // 소스 DB에는 SELECT만 실행한다(어떤 쓰기도 하지 않는다). 사용법: node scripts/migrate-turso-db.mjs --dry-run
 import { createClient } from '@libsql/client';
 import { pathToFileURL } from 'node:url';
 import { schema } from '../server/database.mjs';
+import { worldBossSchema } from '../server/world-boss-schema.mjs';
 
 export const TABLES = [
   'djrpg_accounts',
@@ -20,7 +21,11 @@ export const TABLES = [
   'djrpg_characters',
   'djrpg_character_item_owners',
   'djrpg_warehouse',
-  'djrpg_warehouse_requests'
+  'djrpg_warehouse_requests',
+  'djrpg_boss_days',
+  'djrpg_boss_attempts',
+  'djrpg_boss_scores',
+  'djrpg_boss_rewards'
 ];
 // AUTOINCREMENT 시퀀스를 이어받아야 하는 테이블(현재 djrpg_market_events 하나).
 const SEQUENCE_TABLES = ['djrpg_market_events'];
@@ -39,15 +44,16 @@ const HELP = `DJRPG Turso DB 이관 (djrpg_* 테이블만 새 DB로 복사)
   TARGET_TURSO_AUTH_TOKEN     새 DB 토큰 (file: URL이면 생략 가능)
 
 옵션:
-  --dry-run                   소스 djrpg_* 테이블 14개의 행 수만 출력하고 종료
-  --force                     타겟 DB의 djrpg_* 14개 테이블 행을 모두 지우고 다시 복사
+  --dry-run                   소스 djrpg_* 테이블 18개의 행 수만 출력하고 종료
+  --force                     타겟 DB의 djrpg_* 18개 테이블 행을 모두 지우고 다시 복사
   --chunk-size=N              한 번에 복사할 행 수 (기본 ${DEFAULT_CHUNK}, 1~5000)
   -h, --help                  이 도움말
 
 안전 규칙:
   - 소스 DB는 읽기 전용 트랜잭션으로만 조회한다(puzzle-mates 테이블은 건드리지 않는다).
   - 타겟에 이미 행이 있으면 --force 없이는 중단한다.
-  - 복사 후 14개 테이블 COUNT(*)가 소스·타겟에서 일치하는지 검사하고, 하나라도 다르면 실패한다.
+  - 예상하지 못한 djrpg_* 테이블이 소스에 있으면 중단한다.
+  - 복사 후 18개 테이블 COUNT(*)가 소스·타겟에서 일치하는지 검사하고, 하나라도 다르면 실패한다.
 `;
 
 const isLocalUrl = url => /^file:/i.test(url);
@@ -150,10 +156,12 @@ async function run(options, env = process.env) {
   let snapshot;
   try {
     snapshot = await source.transaction('read');
-    console.log(`소스 DB: ${sourceUrl}`);
+    console.log('소스 DB 연결 및 스키마 확인');
     const existing = await tableNames(snapshot);
     const missing = TABLES.filter(table => !existing.has(table));
     if (missing.length) throw new Error(`소스 DB에 다음 테이블이 없습니다: ${missing.join(', ')}`);
+    const unexpected = [...existing].filter(table => table.startsWith('djrpg_') && !TABLES.includes(table));
+    if (unexpected.length) throw new Error(`이관 목록에 없는 DJRPG 테이블이 있습니다: ${unexpected.join(', ')}`);
 
     const sourceCounts = {};
     for (const table of TABLES) sourceCounts[table] = await countRows(snapshot, table);
@@ -172,8 +180,9 @@ async function run(options, env = process.env) {
       throw new Error('소스와 타겟 URL이 같습니다. 새 DJRPG 전용 DB의 URL을 TARGET_TURSO_DATABASE_URL로 지정하세요.');
     }
     target = readConnection('TARGET', targetUrl, targetToken, { required: true });
-    console.log(`타겟 DB: ${targetUrl}`);
+    console.log('타겟 DB 연결 및 스키마 생성');
     await schema(target, { TURSO_DATABASE_URL: targetUrl });
+    await worldBossSchema(target, targetUrl);
     await assertColumns(snapshot, target);
 
     const occupied = [];
@@ -182,10 +191,10 @@ async function run(options, env = process.env) {
       if (rows > 0) occupied.push(`${table}(${number(rows)})`);
     }
     if (occupied.length && !options.force) {
-      throw new Error(`타겟 DB에 이미 행이 있습니다: ${occupied.join(', ')}\n빈 DB를 쓰거나, 정말 덮어쓰려면 --force를 붙여 다시 실행하세요. (--force는 타겟의 djrpg_* 14개 테이블 행을 지우고 다시 복사합니다)`);
+      throw new Error(`타겟 DB에 이미 행이 있습니다: ${occupied.join(', ')}\n빈 DB를 쓰거나, 정말 덮어쓰려면 --force를 붙여 다시 실행하세요. (--force는 타겟의 djrpg_* 18개 테이블 행을 지우고 다시 복사합니다)`);
     }
     if (occupied.length) {
-      console.log(`\n--force: 타겟의 djrpg_* 14개 테이블 행을 지우고 다시 복사합니다 (${occupied.join(', ')})`);
+      console.log(`\n--force: 타겟의 djrpg_* 18개 테이블 행을 지우고 다시 복사합니다 (${occupied.join(', ')})`);
       await target.batch(TABLES.map(table => ({ sql: `DELETE FROM ${quote(table)}` })), 'write');
     }
 

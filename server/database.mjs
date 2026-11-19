@@ -10,7 +10,7 @@ export const fail = (status, code, message) => { throw new ApiError(status, code
 export const client = (env = runtimeEnv()) => {
   const createClient = databaseFactory();
   if (!createClient || !env?.TURSO_DATABASE_URL || !env?.TURSO_AUTH_TOKEN) fail(503, 'DB_NOT_CONFIGURED', '서버 DB가 설정되지 않았습니다.');
-  return createClient({ url: env.TURSO_DATABASE_URL, authToken: env.TURSO_AUTH_TOKEN });
+  return createClient({ url: env.TURSO_DATABASE_URL, authToken: env.TURSO_DATABASE_AUTH_TOKEN || env.TURSO_AUTH_TOKEN });
 };
 const initializedSchemas = new Map();
 // 이미 session_id 열이 있는 DB(재배포·재시작)에서만 ALTER가 실패하므로, 그때는 ALTER만 빼고 같은 배치를 한 번 더 적용한다.

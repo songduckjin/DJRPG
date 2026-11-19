@@ -7,6 +7,12 @@
 
 ## 진행 중 작업
 
+### [-] [작업 146] Turso 공용 DB에서 DJRPG 전용 DB 이관
+- **브랜치**: `codex/146-turso-db-isolation` · **상태**: `[-]` · **위험 등급**: 높음
+- **범위**: `docs/TURSO_DB_GUIDE.md`에 따라 `puzzle-mates`의 DJRPG 데이터만 백업·복사하고 Cloudflare Pages 운영 비밀 변수를 전용 DB로 전환한다. 퍼즐 메이츠 테이블과 코스튬 코드는 수정하지 않는다.
+- **확인 사항**: 실제 원본 DB에는 가이드의 14개 외에 `djrpg_boss_{days,attempts,scores,rewards}` 4개 테이블이 있다. 이관 스크립트·검증·가이드를 18개 테이블로 보정한 후 진행한다. 세션 만료·게스트 복구 불가·복사 이후 저장 차이 위험을 이관 전 확인한다.
+- **수정 예정**: `scripts/migrate-turso-db.mjs`, `tests/migrate-turso-db.test.mjs`, `server/{database,market-connection,world-boss,world-boss-schema}.mjs`, `tests/functions-adapter.test.mjs`, `docs/TURSO_DB_GUIDE.md`, `docs/CODE_MAP.md`, `docs/QUICK_PATCH.md`, `docs/TASK.md`, 이 작업 기록. 기존 `TURSO_AUTH_TOKEN`은 세션 서명에 유지하고 새 `TURSO_DATABASE_AUTH_TOKEN`만 DB 접속에 사용해 41개 게스트 세션을 보존한다. 실제 DB 키·토큰·세이브 내용은 커밋·로그에 넣지 않는다.
+
 ### [-] [작업 145] 서리의 가죽두건 코스튬 단일 완성 사례
 - **담당자**: `songduckjin` · **브랜치**: `codex/145-frost-hood-pilot` · **위험 등급**: 중 · **상태**: `[-]` 선점
 - **목표/범위**: 전체 장비를 확장하지 않고 `서리의 가죽두건` 한 조합만 완성 사례로 제작한다. 장착 아이템 그림과 동일한 천 두건 실루엣을 남/여 각각 idle·walk·attack에 반영하고, 필드·장비창에서 동일한 그림을 검수한다. 남/여 × 앞·뒤·좌·우 방향 공격 그림을 준비해 전방향 적을 향하게 한다. 2026-11-19 사용자 요청에 따라 이 파일럿만 먼저 병합·배포하고 실제 화면은 사용자가 함께 검수한다.

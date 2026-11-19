@@ -2,29 +2,31 @@
 
 > 대상: `songduckjin/DJRPG` 운영자(PC Windows PowerShell 기준)
 > 스크립트: `scripts/migrate-turso-db.mjs` · 테스트: `tests/migrate-turso-db.test.mjs`
-> 원칙: **코드는 바꾸지 않는다.** DB만 새로 만들고, `djrpg_*` 14개 테이블을 복사한 뒤 Cloudflare Pages 환경변수 두 개를 바꾼다.
+> 원칙: 게임의 저장·API 계약은 바꾸지 않는다. DB만 새로 만들고, `djrpg_*` 18개 테이블을 복사한 뒤 Cloudflare Pages의 DB URL을 바꾸고 새 DB 토큰을 추가한다. 기존 세션 서명 키는 유지한다.
+
+> **2026-11-19 사전 검증:** Turso 대시보드에서 내려받은 첫 SQLite 백업(53,100,544바이트)의 `PRAGMA integrity_check`가 `ok`였고 DJRPG 18개 테이블 5,488행을 복사·검증했다. 약 20분 뒤 다시 받은 백업(53,125,120바이트)도 무결성 `ok`였으며 **5,570행으로 82행 증가**했다. 최신 백업을 전용 Turso DB에 다시 복사해 18개 테이블 건수를 확인했다. **게스트 계정은 41개**이므로 기존 `TURSO_AUTH_TOKEN`을 세션 서명 키로 유지해야 한다. 원본 DB에 이관 중에도 쓰기가 생길 수 있으므로 서비스 전환 시점에 다시 최신 백업·복사·검증을 마치기 전에는 운영 DB URL을 교체하지 않는다. 백업은 작업 PC의 `.backups/`에만 보관한다.
 
 ## 0. 왜 나누는가
 
-지금 DJRPG와 퍼즐 메이츠는 Turso DB **하나(`djsong/puzzle-mates`)** 를 같이 쓴다. 한쪽에서 락·연결·한도 문제가 생기면 다른 쪽도 같이 멈춘다(2026-11-19 장애). 어느 게임의 부하·장애도 다른 게임에 번지지 않게 DB를 갈라 놓는다.
+지금 DJRPG와 퍼즐 메이츠는 Turso DB **하나(`djsong/puzzle-mates`)** 를 같이 쓴다. 한쪽에서 락·연결·한도 문제가 생기면 다른 쪽도 영향을 받을 수 있다. 2026-11-19 DJRPG의 `DB_UNAVAILABLE` 원인은 아직 DB 연결 실패까지 확인했으며, 공용 사용이 직접 원인인지는 확인되지 않았다. 이후 장애 범위를 줄이기 위해 DB를 분리한다.
 
 ```
 [지금]  DJRPG(Cloudflare djrpg) ┐
-                               ├─→ Turso: djsong/puzzle-mates  (users…, djrpg_* 14개)
+                               ├─→ Turso: djsong/puzzle-mates  (users…, djrpg_* 18개)
         퍼즐 메이츠(Vercel)     ┘
 
-[이후]  DJRPG(Cloudflare djrpg) ──→ Turso: djrpg               (djrpg_* 14개만)
+[이후]  DJRPG(Cloudflare djrpg) ──→ Turso: djrpg               (djrpg_* 18개만)
         퍼즐 메이츠(Vercel)     ──→ Turso: djsong/puzzle-mates  (그대로, 무변경)
 ```
 
-- 옮기는 테이블은 **14개**다: `djrpg_accounts`, `djrpg_journey`, `djrpg_save_requests`, `djrpg_save_versions`, `djrpg_market`, `djrpg_market_inbox`, `djrpg_item_owners`, `djrpg_market_events`, `djrpg_market_requests`, `djrpg_account_profiles`, `djrpg_characters`, `djrpg_character_item_owners`, `djrpg_warehouse`, `djrpg_warehouse_requests`.
+- 옮기는 테이블은 **18개**다: `djrpg_accounts`, `djrpg_journey`, `djrpg_save_requests`, `djrpg_save_versions`, `djrpg_market`, `djrpg_market_inbox`, `djrpg_item_owners`, `djrpg_market_events`, `djrpg_market_requests`, `djrpg_account_profiles`, `djrpg_characters`, `djrpg_character_item_owners`, `djrpg_warehouse`, `djrpg_warehouse_requests`, `djrpg_boss_days`, `djrpg_boss_attempts`, `djrpg_boss_scores`, `djrpg_boss_rewards`.
 - 퍼즐 메이츠 테이블(`users` 등)은 **읽지도 쓰지도 않는다**. 스크립트는 소스 DB에 `SELECT`만 보낸다.
-- 테이블 구조는 새 DB에서 앱 코드의 `server/database.mjs` `schema()`가 그대로 만든다. 손으로 DDL을 쓰지 않는다.
+- 테이블 구조는 새 DB에서 앱 코드의 `server/database.mjs` `schema()`와 `server/world-boss.mjs` `worldBossSchema()`가 그대로 만든다. 손으로 DDL을 쓰지 않는다.
 
-## 0-1. 먼저 알아 둘 부작용 (이관하면 반드시 생기는 일)
+## 0-1. 먼저 알아 둘 부작용과 세션 보존 조건
 
-1. **모든 로그인 세션이 풀린다.** `TURSO_AUTH_TOKEN`은 DB 토큰이면서 동시에 세션 토큰(HMAC) 서명 키다(`server/auth.mjs` `sign`). 새 DB 토큰으로 바꾸면 예전 토큰은 전부 검증 실패(401 `INVALID_TOKEN`)가 되어 **전원 재로그인**이다.
-2. **게스트 계정은 되돌아올 수 없다.** 게스트는 비밀번호가 없어서 토큰만으로 접속한다. 위 이유로 토큰이 무효가 되면 그 계정의 세이브는 DB에 남아 있어도 다시 들어갈 방법이 없다. 이관 전에 `--dry-run`이 **게스트 계정 수**를 알려 준다. 게스트가 의미 있는 수라면 이관 전에 공지하거나, 계정 전환(별도 작업) 후에 이관한다.
+1. **기존 `TURSO_AUTH_TOKEN`을 바꾸면 로그인 세션이 풀린다.** 이 값은 DB 토큰이면서 세션 토큰(HMAC) 서명 키다(`server/auth.mjs` `sign`). 새 DB 접속에는 별도 `TURSO_DATABASE_AUTH_TOKEN`을 설정하고, 기존 `TURSO_AUTH_TOKEN` 값은 그대로 둔다. 서버 DB 클라이언트는 새 변수가 있으면 이를 사용하고 없으면 기존 값으로 접속한다.
+2. **게스트 세션을 반드시 보존한다.** 게스트는 비밀번호가 없어 세션 토큰이 무효가 되면 저장이 남아도 다시 들어갈 방법이 없다. `--dry-run`의 게스트 계정 수를 확인하고, 3단계에서 기존 서명 키와 `djrpg_accounts.session_id`를 함께 유지한다. 기존 토큰 자체가 만료되었거나 클라이언트에서 사라진 게스트는 이 방식으로도 복구되지 않는다.
 3. **복사 시점과 환경변수 교체 시점 사이의 저장은 사라진다.** 그 사이에 들어온 자동 저장은 새 DB에 없다. 그래서 **복사 → 교체 → 재배포를 몇 분 안에 끝내고**, 새벽처럼 접속이 적은 시간에 한다.
 4. **환경변수를 바꾼 뒤에 `--force`로 다시 복사하지 말 것.** 새 DB에 이미 쌓인 신규 저장을 지우고 예전 데이터로 되돌린다.
 
@@ -55,6 +57,8 @@ turso db tokens create djrpg     # 토큰 출력
 
 공용 DB 전체를 로컬 SQLite 파일로 떠 둔다(스크립트가 stdin으로 `{url,authToken}` JSON을 받는다).
 
+기존 DB 토큰을 사용할 수 없으면 Turso 대시보드의 `puzzle-mates` → **Overview → Download SQLite File**로 백업한 뒤 `.backups/`에 보관한다. 백업 파일을 소스로 지정할 때는 `SOURCE_TURSO_DATABASE_URL=file:C:/.../backup.sqlite`를 사용하며 `SOURCE_TURSO_AUTH_TOKEN`은 필요 없다. 백업 시각 이후의 저장은 이 파일에 들어 있지 않으므로, 운영 전환 직전에 다시 백업하고 복사해야 한다.
+
 ```powershell
 '{"url":"libsql://<기존공용DB>","authToken":"<기존토큰>"}' | node scripts/backup-turso.mjs
 # → .backups\djrpg-<시각>-<uuid>.sqlite  (경로·바이트·행 수 출력)
@@ -74,7 +78,7 @@ node scripts/migrate-turso-db.mjs --dry-run
 출력 예시(아래는 로컬 테스트 DB 예시. 실제 운영은 행 수가 다르다):
 
 ```
-소스 DB: libsql://...
+소스 DB 연결 및 스키마 확인
 [소스 djrpg_* 테이블 행 수]
   djrpg_accounts                            1
   …
@@ -95,26 +99,27 @@ $env:TARGET_TURSO_AUTH_TOKEN="<새DB토큰>"
 node scripts/migrate-turso-db.mjs
 ```
 
-- 새 DB에 앱 스키마(`schema()`)를 먼저 만들고, 14개 테이블을 500행씩(옵션 `--chunk-size=N`, 최대 5000) 복사한다.
+- 새 DB에 앱 스키마(`schema()`와 `worldBossSchema()`)를 먼저 만들고, 18개 테이블을 500행씩(옵션 `--chunk-size=N`, 최대 5000) 복사한다.
 - `djrpg_market_events`의 `AUTOINCREMENT` 시퀀스도 소스 값 이상으로 맞춘다(seq 재사용 없음).
-- 시작할 때 타겟에 행이 하나라도 있으면 **중단**한다. 정말 덮어쓰려면 `--force`(타겟의 14개 테이블을 비우고 다시 복사).
+- 시작할 때 타겟에 행이 하나라도 있으면 **중단**한다. 정말 덮어쓰려면 `--force`(타겟의 18개 테이블을 비우고 다시 복사).
 - 끝나면 테이블별 `COUNT(*)`를 소스/타겟에서 비교해 전부 `OK`여야 성공이다. 하나라도 다르면 종료 코드 1로 실패한다.
 
 ```
 [검증] COUNT(*) 소스 / 타겟
   OK   djrpg_accounts                          1 /          1
   …
-이관 완료: 14개 테이블, 4행, 0.0초
+이관 완료: 18개 테이블, <전체 행 수>행, 0.0초
 ```
 
 실패했을 때: 타겟이 새 빈 DB라면 그대로 다시 실행하면 된다. 일부만 복사된 상태면 `--force`로 한 번 더 돌린다(이때는 아직 서비스가 새 DB를 보고 있지 않아야 한다).
 
-## 3단계 — Cloudflare Pages 환경변수 교체 + 재배포
+## 3단계 — Cloudflare Pages DB 접속 정보 변경 + 재배포
 
 1. Cloudflare 대시보드 → **Workers & Pages** → **djrpg** → **Settings → Environment variables** (Production)
-2. 두 값을 바꾼다. 이름은 그대로, 값만 새 DB 것으로:
+2. DB 접속 정보만 바꾼다:
    - `TURSO_DATABASE_URL` = `libsql://djrpg-<org>.turso.io`
-   - `TURSO_AUTH_TOKEN` = 새 DB 토큰
+   - `TURSO_DATABASE_AUTH_TOKEN` = 새 DB 토큰 (신규 Production 비밀 변수)
+   - `TURSO_AUTH_TOKEN` = **기존 값을 그대로 유지** (기존 게스트 포함 세션 서명 키)
 3. **저장만 하면 반영되지 않는다.** Pages는 환경변수를 배포본에 묶어 두므로 **Deployments → 최신 배포 → `Retry deployment`** 로 재배포해야 새 값이 적용된다.
 4. 재배포가 끝나기 전까지는 예전 배포본이 예전 DB를 계속 본다(그 사이 저장은 0-1의 3번대로 새 DB에 없다).
 
@@ -131,11 +136,11 @@ node scripts/migrate-turso-db.mjs
 | 공용 DB 무변경 | 기존 DB의 `djrpg_accounts` 최신 `updated_at` | 교체 시점 이후로 늘지 않음 |
 | 퍼즐 메이츠 | 게임 접속·저장 | 정상(공용 DB 그대로) |
 
-`503 DB_NOT_CONFIGURED` → 환경변수 이름 오타 또는 재배포 누락. `401 INVALID_TOKEN`이 전원에게 → 정상(토큰 키가 바뀌어 세션이 만료된 것), 재로그인 안내.
+`503 DB_NOT_CONFIGURED` → 환경변수 이름 오타 또는 재배포 누락. 기존 사용자에게 `401 INVALID_TOKEN`이 발생하면 `TURSO_AUTH_TOKEN`을 바꾸지 않았는지, 복사한 `session_id`가 일치하는지 확인한다.
 
 ### 롤백
 
-문제가 생기면 **환경변수 두 개를 예전 값으로 되돌리고 다시 `Retry deployment`** 한다. 코드·DB는 그대로라 즉시 원복된다.
+문제가 생기면 **`TURSO_DATABASE_URL`을 예전 값으로 되돌리고 `TURSO_DATABASE_AUTH_TOKEN`을 제거한 뒤 다시 `Retry deployment`** 한다. 기존 `TURSO_AUTH_TOKEN`은 계속 유지한다.
 단, 교체 후 새 DB에 쌓인 저장은 롤백하면 보이지 않는다(지워지지는 않는다). 롤백은 **교체 직후 몇 분 안에만** 판단한다.
 
 ## 5단계 — 안정화 후 공용 DB의 옛 `djrpg_*` 정리
@@ -154,19 +159,19 @@ node scripts/migrate-turso-db.mjs
 | 입력 | `SOURCE_TURSO_DATABASE_URL`(필수), `SOURCE_TURSO_AUTH_TOKEN`(원격이면 필수, `file:`이면 생략), `TARGET_TURSO_DATABASE_URL`, `TARGET_TURSO_AUTH_TOKEN` |
 | 옵션 | `--dry-run`(행 수만), `--force`(타겟 비우고 다시), `--chunk-size=N`(기본 500), `--help` |
 | 소스 | 읽기 전용 트랜잭션(`transaction('read')`)으로만 조회. 쓰기 SQL 없음 |
-| 타겟 | `schema()`로 테이블·인덱스 생성 → 비어 있음 확인 → rowid 오름차순 청크 복사 → `sqlite_sequence` 맞춤 |
-| 검증 | 14개 테이블 `COUNT(*)` 소스=타겟, 불일치 시 종료 코드 1 |
-| 안전장치 | 소스 URL=타겟 URL이면 중단, 소스에 14개 테이블이 없으면 중단, 타겟에 행이 있으면 `--force` 없이는 중단 |
+| 타겟 | `schema()`와 `worldBossSchema()`로 테이블·인덱스 생성 → 비어 있음 확인 → rowid 오름차순 청크 복사 → `sqlite_sequence` 맞춤 |
+| 검증 | 18개 테이블 `COUNT(*)` 소스=타겟, 불일치 시 종료 코드 1 |
+| 안전장치 | 소스 URL=타겟 URL이면 중단, 소스에 18개 테이블이 없거나 목록 밖 `djrpg_*` 테이블이 있으면 중단, 타겟에 행이 있으면 `--force` 없이는 중단 |
 | 로컬 확인 | `file:` URL 두 개로 전체 흐름 테스트: `node --test tests/migrate-turso-db.test.mjs` |
 
 ## 체크리스트
 
-- [ ] 접속 적은 시간대 공지 (세션 만료·재로그인, 게스트 계정 영향)
+- [ ] 접속 적은 시간대 공지 (복사·전환 사이 저장 차이 가능성)
 - [ ] 공용 DB 백업(`scripts/backup-turso.mjs`)
 - [ ] 새 DB `djrpg` 생성(libSQL) + URL/토큰 확보
-- [ ] `--dry-run`으로 14개 테이블 행 수·게스트 수 확인
+- [ ] `--dry-run`으로 18개 테이블 행 수·게스트 수 확인
 - [ ] 본 이관 실행 → 검증 전부 `OK`
-- [ ] Cloudflare `TURSO_DATABASE_URL`·`TURSO_AUTH_TOKEN` 교체 → **Retry deployment**
+- [ ] Cloudflare `TURSO_DATABASE_URL` 변경·`TURSO_DATABASE_AUTH_TOKEN` 추가·기존 `TURSO_AUTH_TOKEN` 유지 → **Retry deployment**
 - [ ] `/version.json`·신규/기존 로그인·거래소·퍼즐 메이츠 확인
 - [ ] 1주 관찰 후 공용 DB의 옛 `djrpg_*` 이름 변경 → 이후 DROP
 
@@ -180,4 +185,4 @@ node scripts/migrate-turso-db.mjs
 | `소스와 타겟 URL이 같습니다` | `TARGET_*`에 공용 DB URL을 넣었다. 절대 그대로 진행하지 않는다 |
 | `LIBSQL_HTTP_401` / `Unauthorized` | 토큰 오타·만료·다른 DB의 토큰 |
 | 이관은 됐는데 앱이 `503 DB_NOT_CONFIGURED` | Cloudflare 환경변수 이름 오타 또는 **Retry deployment 누락** |
-| 로그인이 전부 401 | 정상(토큰 키 변경). 재로그인 안내. 게스트는 0-1의 2번 참고 |
+| 로그인이 전부 401 | 기존 `TURSO_AUTH_TOKEN` 변경 여부와 복사한 `session_id` 확인. 게스트는 0-1의 2번 참고 |
