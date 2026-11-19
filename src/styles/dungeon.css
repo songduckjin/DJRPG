@@ -23,7 +23,7 @@
 .dungeon-lobby[data-tab=ranking] .dungeon-content>p{flex:0 0 auto;font-size:10px;line-height:1.4;margin:6px 0 0}
 @media(max-height:550px){.dungeon-hero{flex-basis:26%}.dungeon-rank-heading,.dungeon-rank-row{padding:1px 6px;font-size:10px}.dungeon-own-rank{padding:4px 8px}.dungeon-lobby[data-tab=ranking] .dungeon-content>p{font-size:9px}}
 
-.dungeon-field{position:absolute;inset:0;z-index:30;background:#100f0e;color:#ddc9a6;overflow:hidden;isolation:isolate}
+.dungeon-field{opacity:0;visibility:hidden;pointer-events:none;transition:opacity .6s ease;position:absolute;inset:0;z-index:30;background:#100f0e;color:#ddc9a6;overflow:hidden;isolation:isolate}
 .dungeon-field-canvas{position:absolute;inset:0}.dungeon-field-canvas canvas{display:block;width:100%;height:100%}
 .dungeon-field-hud{position:absolute;top:env(safe-area-inset-top,0px);left:0;right:0;display:flex;align-items:center;justify-content:space-between;padding:14px 16px;background:linear-gradient(#100e0fe8,transparent);z-index:4}.dungeon-field-hud>div{display:grid;gap:3px}.dungeon-field-hud small{font-size:11px;letter-spacing:2px;color:#ad9674}.dungeon-field-hud strong{font-size:22px;color:#eed09a}.dungeon-field-leave{min-height:42px;padding:8px 14px;border:1px solid #826741;background:#1c1615c9;color:#dcc6a1}
 .dungeon-battle-hud{position:absolute;left:12px;right:12px;bottom:calc(12px + env(safe-area-inset-bottom,0px));padding:12px;background:linear-gradient(#1e1918cf,#141111ed);border:1px solid #716045;box-shadow:0 5px 22px #0007;text-align:center;pointer-events:none}
@@ -31,8 +31,15 @@
 .dungeon-auto-skills{display:flex;justify-content:center;gap:14px;margin:9px 0}.dungeon-auto-skill{font-size:9px;display:grid;place-items:center;gap:3px;color:#b69e7b;min-width:46px}.dungeon-auto-skill>i{display:block;width:36px;height:36px;border-radius:50%;box-shadow:0 0 0 1px #8b7046;background-color:#100c0c}.dungeon-battle-hud>small{font-size:9px;color:#a28d72}
 .dungeon-wave-notice{position:absolute;top:24%;left:5%;right:5%;text-align:center;font-size:18px;font-weight:bold;letter-spacing:1px;color:#f1d7a6;text-shadow:0 2px 5px #000,0 0 15px #000;pointer-events:none}
 .dungeon-battle-result{position:absolute;inset:0;z-index:5;background:#090707b3;display:grid;place-items:center;padding:20px}.dungeon-battle-result[hidden],.dungeon-entry-transition[hidden]{display:none}.dungeon-battle-result>div{width:min(360px,100%);padding:25px 18px;background:#211a19;border:1px solid #a4824e;text-align:center;box-shadow:0 15px 50px #000}.dungeon-battle-result h2{font-size:24px;color:#f2d29a}.dungeon-battle-result p{font-size:12px;line-height:1.7;color:#baa486}.dungeon-battle-result button{width:100%;padding:12px;margin:5px 0;border:1px solid #977341;background:#653027;color:#f2d7aa}.dungeon-battle-result button[data-leave]{background:#2a2220}.dungeon-battle-result small{display:block;font-size:10px;color:#a89273;line-height:1.6}
-.dungeon-entry-transition{position:absolute;inset:0;z-index:3;background:#0b0909;display:flex;flex-direction:column;align-items:center;justify-content:center;perspective:800px;overflow:hidden;pointer-events:none}.dungeon-entry-transition>span{position:absolute;bottom:22%;font-size:12px;color:#bea781;letter-spacing:2px}.dungeon-gate-portal{position:relative;width:92%;aspect-ratio:1;transform-style:preserve-3d}.dungeon-gate-portal img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;backface-visibility:hidden}.dungeon-gate-dark{position:absolute;inset:18% 22% 7%;background:radial-gradient(ellipse,#020202,#0d0b0a);box-shadow:0 0 30px #000}
-.gate-stone{clip-path:polygon(evenodd,0% 0%,100% 0%,100% 100%,0% 100%,0% 0%,23% 20%,23% 90%,78% 90%,78% 20%,23% 20%)}.gate-left{clip-path:polygon(23% 20%,50% 20%,50% 90%,23% 90%);transform-origin:23% 50%}.gate-right{clip-path:polygon(50% 20%,78% 20%,78% 90%,50% 90%);transform-origin:78% 50%}
-.is-entering .gate-left{animation:dungeon-door-left 1.3s .2s both}.is-entering .gate-right{animation:dungeon-door-right 1.3s .2s both}.is-entering .dungeon-gate-portal{animation:dungeon-gate-zoom 2.4s both}.is-entering .dungeon-entry-transition>span{animation:dungeon-entry-caption 2.4s both}
-@keyframes dungeon-door-left{from{transform:rotateY(0)}to{transform:rotateY(-78deg)}}@keyframes dungeon-door-right{from{transform:rotateY(0)}to{transform:rotateY(78deg)}}@keyframes dungeon-gate-zoom{0%,40%{transform:scale(1);opacity:1}82%{transform:scale(3.5);opacity:1}100%{transform:scale(4);opacity:0}}@keyframes dungeon-entry-caption{0%,45%{opacity:1}65%,100%{opacity:0}}
-@media(prefers-reduced-motion:reduce){.is-entering .gate-left,.is-entering .gate-right{animation-duration:.01s}.is-entering .dungeon-gate-portal{animation:none}}
+
+.dungeon-field.is-ready{opacity:1;visibility:visible;pointer-events:auto}
+.dungeon-lobby-gate{position:relative;height:100%;aspect-ratio:1;max-width:100%;margin:auto;perspective:800px}
+.dungeon-lobby-gate>img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;backface-visibility:hidden;pointer-events:none}
+.dungeon-lobby-gate-dark{position:absolute;inset:19% 20% 7%;background:#050404;border-radius:46% 46% 0 0}
+.dungeon-gate-left{transform-origin:20.5% 53%;transition:transform 1.15s cubic-bezier(.3,.05,.2,1)}
+.dungeon-gate-right{transform-origin:79.3% 53%;transition:transform 1.15s cubic-bezier(.3,.05,.2,1)}
+.dungeon-gate-frame{z-index:2}
+.is-opening .dungeon-gate-left{transform:rotateY(-82deg)}
+.is-opening .dungeon-gate-right{transform:rotateY(82deg)}
+.dungeon-lobby.is-opening .dungeon-enter:after{content:' · 문 여는 중…'}
+@media(prefers-reduced-motion:reduce){.dungeon-gate-left,.dungeon-gate-right{transition-duration:.15s}.dungeon-field{transition-duration:.15s}}

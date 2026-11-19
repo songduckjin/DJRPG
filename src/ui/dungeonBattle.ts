@@ -1,5 +1,14 @@
 import {World, type Enemy, enemyMaxHp, enemyHitDamage} from '../game/world';
-import {totalStats,type Save} from '../game/store';
+import {skillDamageScale,skills} from '../game/skills';
+import {totalStats,skillLevel,type Save} from '../game/store';
+// Temporary encounter-observation balance, not the eventual fixed progression curve.
+export function dungeonPreviewHp(save:Save):number {
+  const stats=totalStats(save);
+  const powers={slash2:2.15,spin:5,crushing:4.5,slam:5,warcry:2,power:4,destroy:2.7,hell:7};
+  const skillDps=save.quickSlots.reduce<number>((sum,id)=>id&&save.learned.includes(id)?sum+powers[id]*skillDamageScale(skillLevel(save,id))/skills[id].cooldown:sum,0);
+  const dps=stats.attack*((1+stats.speed/100)/.48+skillDps)*(1+stats.crit/100);
+  return Math.max(enemyMaxHp(1,false),Math.ceil(dps*8));
+}
 class DungeonWorld extends World {
   slain=0;
   override kill(enemy:Enemy):void { this.slain++;this.effects.push({x:enemy.x,y:enemy.y,kind:'death',age:0,duration:.7,angle:0}); }
@@ -17,7 +26,7 @@ export class DungeonBattle {
     this.wave++;this.waveStarted=this.elapsed;
     const count=this.wave===3?1:3;
     for(let i=0;i<count;i++){
-      const hp=enemyMaxHp(1,false)*(this.wave===3?7:1), side=(i-(count-1)/2)*65;
+      const hp=dungeonPreviewHp(this.world.save)*(this.wave===3?3:1), side=(i-(count-1)/2)*65;
       const enemy:Enemy={x:(-160+side)/2,y:(-160-side)/2,hp,maxHp:hp,boss:false,hit:0,step:0,moving:false,knockX:0,knockY:0,slow:0};
       this.world.enemies.push(enemy);if(this.wave===3)this.elite=enemy;
     }
@@ -29,7 +38,7 @@ export class DungeonBattle {
     try{this.world.update(dt);}finally{this.world.player.hit=Math.max(0,hit-dt);}
     this.hitCooldown=Math.max(0,this.hitCooldown-dt);
     if(this.hitCooldown===0){const enemy=this.world.enemies.find(e=>Math.hypot(e.x-this.world.player.x,e.y-this.world.player.y)<36);
-      if(enemy){this.world.player.hp=Math.max(0,this.world.player.hp-enemyHitDamage(1,false,totalStats(this.world.save).defense)*(enemy===this.elite?2:1));this.world.player.hit=.25;this.hitCooldown=.9;}}
+      if(enemy){this.world.player.hp=Math.max(0,this.world.player.hp-Math.min(enemyHitDamage(1,false,totalStats(this.world.save).defense)*(enemy===this.elite?2:1),totalStats(this.world.save).health*(enemy===this.elite?.03:.018)));this.world.player.hit=.25;this.hitCooldown=.9;}}
     if(this.world.player.hp<=0)this.outcome='dead';
     else if(this.wave===3&&!this.world.enemies.length)this.outcome='clear';
     else if(this.elapsed>=90)this.outcome='timeout';

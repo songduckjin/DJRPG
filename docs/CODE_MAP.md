@@ -238,3 +238,5 @@ npm run check && npm test && npm run build # 공용 계약 수정·사용자 요
 - `ui/dungeonBattle.ts`: deep copy Save 전용 World, kill은 사망효과/처치수만, 드랍/XP/계정 저장 없음. 90초·3/3/정예1·10초 또는 직전 전멸 후 다음 웨이브·자동부활 대신 실패.
 - `ui/dungeonField.ts`: 메인 필드 pause/resume·독립 GameView·장착스킬 자동전투·철문 양문 회전/진입zoom 후 시작·재도전/나가기. 종료와 로딩 취소 시 전용 renderer 해제. 공용 world/render는 소비만.
 - `assets/dungeon/prison-floor-v1.png`: 현 철문과 같은 석조감옥 테마. 대기창 도전하기 연결, 결과 다음층은 준비중(1층만). 실제 보상/랭킹 API 미연동.
+
+- 작업172: 대기창 `gate-frame/left/right-v1.png` 3장(724² 동일좌표)으로 합성, 문틀고정/문짝만회전. `dungeonField.ts`는 대기창을 유지하며 로딩+문개방 후 .6초 fade, 관찰 전용 `dungeonPreviewHp`는 현재장비/스킬DPS×8·정예3배, 계정/최종층밸런스에는 미반영. 전환중 닫기 MutationObserver로 취소/메인복구.
