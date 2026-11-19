@@ -1885,3 +1885,6 @@
 
 | 173 철문 자물쇠 겹침 순서 | fks3997 | preview/gravel-background-fks3997 | src/styles/dungeon.css, 문서 | 하 | [x] |
 - 173: 左門z2/右門z1/文틀z3, tsc/관련2/diff 통과. 실기 미실행, 미리보기만.
+
+| 174 던전 몬스터 접근거리 | fks3997 | preview/gravel-background-fks3997 | ui/dungeonBattle.ts, tests/dungeon-battle.test.mjs, 문서 | 중 | [x] |
+- 174: 중앙50/50 유지·생성거리190초과·110내자동공격·2초접근테스트. tsc/관련9/diff 통과, 시뮬51.5/55.55초 클리어. preview만.

@@ -11,6 +11,16 @@ export function dungeonPreviewHp(save:Save):number {
 }
 class DungeonWorld extends World {
   slain=0;
+  // Defend the central position instead of chasing the previous wave's spawn point.
+  override update(dt:number):void {
+    this.player.x=50;this.player.y=50;
+    super.update(dt);
+    this.player.x=50;this.player.y=50;this.activeMove={x:0,y:0};
+  }
+  override nearest():Enemy|undefined {
+    const enemy=super.nearest();
+    return enemy&&Math.hypot(enemy.x-this.player.x,enemy.y-this.player.y)<=110?enemy:undefined;
+  }
   override kill(enemy:Enemy):void { this.slain++;this.effects.push({x:enemy.x,y:enemy.y,kind:'death',age:0,duration:.7,angle:0}); }
 }
 /** Isolated first-floor preview. Never mutates account save, drops, rewards or rankings. */
@@ -27,7 +37,7 @@ export class DungeonBattle {
     const count=this.wave===3?1:3;
     for(let i=0;i<count;i++){
       const hp=dungeonPreviewHp(this.world.save)*(this.wave===3?3:1), side=(i-(count-1)/2)*65;
-      const enemy:Enemy={x:(-160+side)/2,y:(-160-side)/2,hp,maxHp:hp,boss:false,hit:0,step:0,moving:false,knockX:0,knockY:0,slow:0};
+      const enemy:Enemy={x:(-180+side)/2,y:(-180-side)/2,hp,maxHp:hp,boss:false,hit:0,step:0,moving:false,knockX:0,knockY:0,slow:0};
       this.world.enemies.push(enemy);if(this.wave===3)this.elite=enemy;
     }
   }

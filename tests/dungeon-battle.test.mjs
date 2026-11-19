@@ -15,3 +15,11 @@ test('preview toughness scales with equipped attack so high gear cannot erase fl
  assert(battle.world.enemies[0].maxHp>base.world.enemies[0].maxHp*100);
  run(battle,1);assert.equal(battle.finished,false);assert.equal(battle.wave,1);assert.deepEqual(save,before);
 });
+
+test('enemies spawn away, visibly approach, and hero does not chase into the next spawn',()=>{
+ const battle=new DungeonBattle(freshSave()),enemy=battle.world.enemies[0],p=battle.world.player;
+ const start=Math.hypot(enemy.x-p.x,enemy.y-p.y);assert(start>190);
+ run(battle,2);assert.deepEqual([p.x,p.y],[50,50]);assert(enemy.moving);assert(Math.hypot(enemy.x-p.x,enemy.y-p.y)<start);assert.equal(battle.finished,false);assert.equal(battle.world.slain,0);
+ for(const target of battle.world.enemies)battle.world.kill(target);battle.world.enemies=[];battle.advance(.05);
+ assert.equal(battle.wave,2);assert(battle.world.enemies.every(e=>Math.hypot(e.x-p.x,e.y-p.y)>190));
+});
