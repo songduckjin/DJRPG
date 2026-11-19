@@ -14,6 +14,7 @@
 - **수정 예정**: `scripts/migrate-turso-db.mjs`, `tests/migrate-turso-db.test.mjs`, `server/{database,market-connection,world-boss,world-boss-schema}.mjs`, `tests/functions-adapter.test.mjs`, `docs/TURSO_DB_GUIDE.md`, `docs/CODE_MAP.md`, `docs/QUICK_PATCH.md`, `docs/TASK.md`, 이 작업 기록. 기존 `TURSO_AUTH_TOKEN`은 세션 서명에 유지하고 새 `TURSO_DATABASE_AUTH_TOKEN`만 DB 접속에 사용해 41개 게스트 세션을 보존한다. 실제 DB 키·토큰·세이브 내용은 커밋·로그에 넣지 않는다.
 
 ### [-] [작업 145] 서리의 가죽두건 코스튬 단일 완성 사례
+- **2026-11-19 운영 화면 후속**: PR #89 배포 후 사용자 사진에서 매직 두건·두손검과 함께 문장·신발 등 다른 장비를 착용한 상태가 확인됐다. 기존 전신 시안은 다른 장비가 있으면 적용되지 않아 금속 투구가 계속 보인다. 사용자의 실제 장비 조합에서도 두건만 교체되도록 `codex/145-frost-hood-layered-fix`에서 두건 전용 레이어와 버전 분리 아틀라스를 추가한다. 수정 예정: `scripts/build-costume-atlas.py`, `src/game/render/costumeHero.ts`, `public/assets/costume/v5/atlas/*`, `tests/costume-field-render.test.mjs`, 관련 문서. 기존 v3·v4 배포 에셋은 유지하고, 필드·장비창 실화면 확인 전 완료 처리하지 않는다.
 - **담당자**: `songduckjin` · **브랜치**: `codex/145-frost-hood-pilot` · **위험 등급**: 중 · **상태**: `[-]` 선점
 - **목표/범위**: 전체 장비를 확장하지 않고 `서리의 가죽두건` 한 조합만 완성 사례로 제작한다. 장착 아이템 그림과 동일한 천 두건 실루엣을 남/여 각각 idle·walk·attack에 반영하고, 필드·장비창에서 동일한 그림을 검수한다. 남/여 × 앞·뒤·좌·우 방향 공격 그림을 준비해 전방향 적을 향하게 한다. 2026-11-19 사용자 요청에 따라 이 파일럿만 먼저 병합·배포하고 실제 화면은 사용자가 함께 검수한다.
 - **사전 원인**: `서리의`는 매직 등급 접두사이고 이름 정규화 후 `가죽 두건` 끝부분 매칭으로 `helmet-t0`에 이미 연결된다. v3 생성물은 `helmet-<gender>` / `helmet-body-<gender>`의 공유 셀 규약이므로 아이템 아이콘의 천 두건 형태를 보장하지 않는다. `world.ts`는 각도 `player.facing`을 보유하지만 `render/entities.ts`의 공격 셀 선택은 4프레임 공용 시트와 `player.facingSide` 좌우 반전만 사용하므로 화면 앞·뒤 방향 공격을 표현할 수 없다.
