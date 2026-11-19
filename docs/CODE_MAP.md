@@ -240,3 +240,5 @@ npm run check && npm test && npm run build # 공용 계약 수정·사용자 요
 - `assets/dungeon/prison-floor-v1.png`: 현 철문과 같은 석조감옥 테마. 대기창 도전하기 연결, 결과 다음층은 준비중(1층만). 실제 보상/랭킹 API 미연동.
 
 - 작업172: 대기창 `gate-frame/left/right-v1.png` 3장(724² 동일좌표)으로 합성, 문틀고정/문짝만회전. `dungeonField.ts`는 대기창을 유지하며 로딩+문개방 후 .6초 fade, 관찰 전용 `dungeonPreviewHp`는 현재장비/스킬DPS×8·정예3배, 계정/최종층밸런스에는 미반영. 전환중 닫기 MutationObserver로 취소/메인복구.
+
+- 작업173 철문 겹침: `dungeon.css` 문틀z3 > 자물쇠 좌문z2 > 우문z1, 닫힘/개방 모두 동일 순서 유지.

@@ -1882,3 +1882,6 @@
 
 | 172 던전 철문 분리·관찰 난이도 | fks3997 | preview/gravel-background-fks3997 | ui/dungeon{Battle,Field}.ts, modals/dungeonModal.ts, styles/dungeon.css, assets/dungeon/gate-*, tests/dungeon-battle.test.mjs, 문서 | 중 | [x] |
 - 172: tsc/관련20/아트/diff 통과, 원본철문 신규3레이어 정합 시각검사. 기본/고공격 시뮬 약46/56초, 브라우저 실기 미실행. 미리보기만.
+
+| 173 철문 자물쇠 겹침 순서 | fks3997 | preview/gravel-background-fks3997 | src/styles/dungeon.css, 문서 | 하 | [x] |
+- 173: 左門z2/右門z1/文틀z3, tsc/관련2/diff 통과. 실기 미실행, 미리보기만.
