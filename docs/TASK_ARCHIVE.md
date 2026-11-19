@@ -5,6 +5,16 @@
 
 ---
 
+## [x] [작업 147] 3D→2.5D Blender 자동 렌더 파이프라인 가이드·스크립트·레퍼런스 시안
+
+- **완료일**: 2026-11-19 · **담당자**: `songduckjin` · **브랜치**: `task/147-blender-25d-pipeline` · **PR**: #99 (머지 `d8110470a99c`, 운영 `version.json` `d8110470a99c` 확인)
+- **결과**: 3D 모델(`.blend`/`.glb`/`.fbx`)을 Blender CLI에서 2.5D 쿼터뷰 코스튬 셀로 뽑는 `scripts/blender/render_25d_costume.py`(1026줄)를 추가했다. 셀 `234×242`·발끝 피벗 `(0.5,0.96)`·본체 190px를 지키고, 액션별 균등 샘플링 → 직교 쿼터뷰 카메라·3점 조명·`FILM_TRANSPARENT` → 카메라 피팅(모든 프레임 공통 고정) → 파츠 분리·`Holdout` → 선택적 8×8 아틀라스·`render-manifest.json` 순으로 동작한다. `--dry-run`·`--print-spec`(확정 포즈 스펙)·`--selftest`(bpy 없이 점검)를 지원한다.
+- **문서**: `docs/BLENDER_25D_PIPELINE.md`에 환경 준비·파일럿 모델(Mixamo/CC0)·확정 포즈 스펙(서기·양손 끌며 걷기·4단계 내려찍기)·본/소켓 명명과 양손 그립(Child-Of/IK)·4단계 키프레임 규약(샘플러가 범위를 등분하므로 키를 1·9·17·25에)·CLI 예시·기존 `build-costume-atlas.py`/`costumeHero.ts`/`COSTUME_ASSET_VERSION` 연결 절차·검수 체크리스트를 담았다. 확정 시안 2장은 `docs/references/`에 1024px·256색 PNG(484KB·372KB)로 넣었다(`public/assets/**` 아님).
+- **검증**: `python3 -m py_compile`, `--selftest` 6/6, `--help`·`--print-spec`·`--dry-run`, 합성 셀 아틀라스 패킹·슬롯 좌표·매니페스트 출력 확인, `npx tsc --noEmit`, 전체 `node --test` 382건, `node scripts/verify-item-art.mjs`, `npm run build`, `git diff --check` 통과. **실제 Blender 렌더는 미실행**(작업 환경에 Blender 없음)이라 PC에서 가이드 §1.2 → §5 순서로 확인한다.
+- **범위**: `src/**`·`public/assets/**`·`server/**`·Save/API 무변경. 배포 매니페스트와 `COSTUME_ASSET_VERSION` 6 상승은 렌더 결과가 나온 뒤 별도 작업.
+
+---
+
 ## [x] [작업 144] 코스튬 동작·캐시·실기 외형 수정
 
 - **완료일**: 2026-11-19 · **담당자**: `songduckjin` · **브랜치**: `codex/144-costume-sync-perf` · **PR**: #87.
