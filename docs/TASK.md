@@ -7,7 +7,7 @@
 
 | 작업 | 담당자 | 브랜치 | 수정 예정 파일 / 영향 영역 | 위험 등급 | 상태 |
 |---|---|---|---|---|---|
-| 165 메인 배경 자갈 질감/확대 제거(미리보기 전용) | fks3997 | preview/gravel-background-fks3997 | src/game/wasteland.ts, public/assets/wasteland-scene-gravel-v2.png, tests/wasteland.test.mjs, 문서 / 불·풀 효과 유지 | 중 | [-] |
+| 165 메인 배경 자갈 질감/확대 제거(미리보기 전용) | fks3997 | preview/gravel-background-fks3997 | src/game/{wasteland,ambientMotion}.ts, public/assets/wasteland-scene-gravel-v2.png, tests/{wasteland,ambient-motion}.test.mjs, 문서 / 불·풀 효과 유지 | 중 | [-] |
 
 
 > 2026-11-19: `[작업 143]` — 코스튬 v3(투구 싱크·몸통 겹침·공격 모션 수정)를 배포했다. 갑옷 착용 시 본체 파츠 3종을 모두 대체하고, 투구 레이어는 머리 창 안의 차이만 남기며, 맨몸용 투구 페이지(`helmet-body-*`)를 추가했다. 자세한 내용은 `docs/COSTUME_SYSTEM.md` §7.5.
