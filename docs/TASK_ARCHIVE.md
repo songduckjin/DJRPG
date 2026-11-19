@@ -1870,3 +1870,6 @@
 
 | 168 상시 던전 아이콘·대기창 시안 | fks3997 | preview/gravel-background-fks3997 | src/ui/{interface,modalDefaults,dungeonLobby}.ts, modals/dungeonModal.ts, src/styles/{main,dungeon}.css, public/assets/dungeon/*, public/assets/icons/utility_dungeon.png, tests/dungeon-lobby.test.mjs, 문서 / 업적아래아이콘·현재층·순위탭(전투미연동) | 중 | [x] |
 - 168: tsc·관련45테스트·아트 검증 통과. Draft PR #88 미리보기 전용, 전투/DB 미연동.
+
+| 169 던전 대기창 간결화 | fks3997 | preview/gravel-background-fks3997 | src/ui/modals/dungeonModal.ts, src/styles/dungeon.css, public/assets/icons/dungeon-stone.svg, 문서 | 하 | [x] |
+- 169: tsc·관련14·아트 검증 통과. 사용자 미리보기 요청 전 로컬 수정만, push/운영배포 없음. 브라우저 실기 미실행.
