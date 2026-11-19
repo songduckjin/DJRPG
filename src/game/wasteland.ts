@@ -1,17 +1,19 @@
 import type { GameView } from './render';
-export const wastelandScene = { path: '/assets/wasteland-scene.png', width: 964, height: 1632 };
-// Flame centers measured on the approved painted scene, not the old procedural props.
-const fires = [[.5, .044], [.813, .30], [.176, .694]] as const;
-export const wastelandFireAnchors = fires.map(([x, y]) => ({ x, y }));
-const zoom = 1.18;
+export const wastelandScene = { path: '/assets/wasteland-scene-extended-v1.png', width: 637, height: 1079 };
+// The original, unzoomed image occupies this rectangle. Only the outside is extended.
+export const wastelandCore = { x: 48, y: 82, width: 540, height: 914 };
+export function originalScenePoint(x:number,y:number){return {x:(wastelandCore.x+x*wastelandCore.width)/wastelandScene.width,y:(wastelandCore.y+y*wastelandCore.height)/wastelandScene.height};}
+const fires = [[.5,.044],[.813,.30],[.176,.694]] as const;
+export const wastelandFireAnchors = fires.map(([x,y])=>originalScenePoint(x,y));
 export function wastelandLayout(width: number, height: number, player = { x: 0, y: 0 }) {
-  const sceneWidth = width * zoom, sceneHeight = height * zoom;
-  const offsetX = Math.max(width - sceneWidth, Math.min(0, (width - sceneWidth) / 2 - (player.x - player.y) * .86 * .25));
-  // Keep the upper campfire in view while allowing a smaller vertical drift.
-  const offsetY = Math.max(height - sceneHeight, Math.min(0, -height * .02 - (player.x + player.y) * .43 * .15));
-  return { scaleX: sceneWidth / wastelandScene.width, scaleY: sceneHeight / wastelandScene.height, offsetX, offsetY,
-    fires: fires.map(([u, v]) => ({ x: offsetX + u * sceneWidth, y: offsetY + v * sceneHeight,
-      radius: Math.min(sceneWidth / 540, sceneHeight / 914) * 38 })) };
+  // Fit the ORIGINAL core to the viewport, then reveal added scenery when the camera pans.
+  // At a 540x914 viewport every core pixel is 1:1; the image itself is never zoomed 1.18x.
+  const scaleX=width/wastelandCore.width,scaleY=height/wastelandCore.height;
+  const sceneWidth=wastelandScene.width*scaleX,sceneHeight=wastelandScene.height*scaleY;
+  const offsetX=Math.max(width-sceneWidth,Math.min(0,-wastelandCore.x*scaleX-(player.x-player.y)*.86*.25));
+  const offsetY=Math.max(height-sceneHeight,Math.min(0,-wastelandCore.y*scaleY-(player.x+player.y)*.43*.15));
+  return {scaleX,scaleY,offsetX,offsetY,
+    fires:wastelandFireAnchors.map(({x,y})=>({x:offsetX+x*sceneWidth,y:offsetY+y*sceneHeight,radius:Math.min(width/540,height/914)*38}))};
 }
 export async function mountWasteland(view: GameView, onReady?: () => void): Promise<void> {
   const [{ Assets }, { mountAmbientScene }] = await Promise.all([import('pixi.js'), import('./ambientScene')]);

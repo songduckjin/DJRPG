@@ -5,6 +5,25 @@
 
 ---
 
+## [x] [작업 167] 월드보스 내려찍기 점멸 경고 원 (로컬만)
+- 2026-11-19 · fks3997 · 기존 draft88 branch에서 **로컬 커밋만**, 미리보기 자동생성 방지를 위해 push 보류(사용자 요청이 AGENTS 선점push보다 우선).
+- 옅은 기존 가는 선을 전용 Graphics의 빨간 채움/빛/테두리 타원으로 교체했다. 타격점과 동일한 중심·시전1초 4회 점멸·타격/종료/처치 때 제거, reduced-motion에서는 고정 강조.
+- TypeScript·관련31테스트·diff 통과. 미리보기·운영 배포·브라우저 확인 없음. 상시 층별 던전은 아이콘 추천 단계, 미구현.
+
+
+## [x] [작업 166] 원본 배경 주변 확장·카메라팬 복원 (미리보기만)
+- 2026-11-19 · fks3997 · `preview/gravel-background-fks3997` · Draft PR88 유지, **main병합/운영배포 금지**.
+- 작업165의 새 자갈 이미지는 미채택/삭제. 원래 배경을 확대전540×914 core로 유지하고 좌48/우49/상82/하83 주변을 이어서637×1079로 구성했다. 경계24px만 연결 블렌딩, 안쪽492×866 픽셀은 원본과 일치 확인.
+- core를 화면에 맞추므로 기준화면540×914에서 scaleX/Y=1이다. 더 넓은 캔버스는 카메라 이동 여백이며 원본을1.18배 키우지 않는다. 가로/세로 팬·가장자리 커버 보존.
+- 원래 풀23/불3 위치를 core→확장좌표로 변환하고 진폭도core기준 보정했다. TypeScript·부분13테스트·아트/코스튬·diff 통과. Pages 미리보기 결과는 Draft PR에 기록.
+
+
+## [x] [작업 165] 자갈 배경·안쪽 배치 (미리보기 전용)
+- 2026-11-19 · fks3997 · `preview/gravel-background-fks3997` · **main 병합/운영배포 금지**, 사용자 일괄배포 요청 때까지 Draft PR 유지.
+- 최종 PNG **637×1079px**·새 URL·추가 zoom 1(1.18 제거)·화면 크기에 맞춤/배경 카메라 이동 고정. 바위/풀을 안쪽으로 옮기고 중앙에도 선명한 자갈 질감을 배치했다.
+- 모닥불3 실측 좌표와 풀 군락을 새 배치로 정렬했다. 불 일렁임/불티/광원·풀 바람·reduced-motion 동작 유지, 축소된 소스 해상도에 맞춰 변형 진폭을 보정했다.
+- TypeScript·부분12테스트·아트/코스튬 검사·diff 통과. 생성본을 637×1079로 축소 저장했으며 확대 보간은 추가하지 않았다. 미리보기 상태는 Draft PR에 기록한다.
+
 ## [x] [작업 153] 공격 4프레임 투구 고개 방향·숙임 매칭
 
 - **완료일**: 2026-11-19 · **담당자**: `songduckjin` · **브랜치**: `codex/153-attack-helmet-head-direction` · **PR**: #109 (머지 `9d52aab261d7`, 운영 `version.json` `9d52aab261d7` 확인)
@@ -1887,3 +1906,47 @@
 | 159 발그림고정·호흡지속·기본3초 | fks3997 | feature/world-boss-preview-fks3997 | idle부츠레이어/신경계mask·idle호흡위상연속·기본3초, tsc·27테스트 | [x] |
 
 | 160 현재 월드보스 시안 운영반영 | fks3997 | feature/world-boss-preview-fks3997 / PR51 | 사용자배포승인·최신main보존/101테스트·타입·아트·운영빌드통과 | [x] |
+
+| 168 상시 던전 아이콘·대기창 시안 | fks3997 | preview/gravel-background-fks3997 | src/ui/{interface,modalDefaults,dungeonLobby}.ts, modals/dungeonModal.ts, src/styles/{main,dungeon}.css, public/assets/dungeon/*, public/assets/icons/utility_dungeon.png, tests/dungeon-lobby.test.mjs, 문서 / 업적아래아이콘·현재층·순위탭(전투미연동) | 중 | [x] |
+- 168: tsc·관련45테스트·아트 검증 통과. Draft PR #88 미리보기 전용, 전투/DB 미연동.
+
+| 169 던전 대기창 간결화 | fks3997 | preview/gravel-background-fks3997 | src/ui/modals/dungeonModal.ts, src/styles/dungeon.css, public/assets/icons/dungeon-stone.svg, 문서 | 하 | [x] |
+- 169: tsc·관련14·아트 검증 통과. 사용자 미리보기 요청 전 로컬 수정만, push/운영배포 없음. 브라우저 실기 미실행.
+
+| 170 던전 탭 고정·10위 순위 | fks3997 | preview/gravel-background-fks3997 | src/ui/modals/dungeonModal.ts, src/styles/dungeon.css, 문서 | 하 | [x] |
+- 170: 철문 고정 높이·하단 탭전환·10위 기본행·도전탭 CTA. tsc/관련14/diff 통과. 미리보기 전용.
+
+| 171 던전1층 전투 미리보기 | fks3997 | preview/gravel-background-fks3997 | src/ui/{dungeonBattle,dungeonField}.ts, modals/dungeonModal.ts, src/styles/dungeon.css, public/assets/dungeon/*, tests/dungeon-battle.test.mjs, 문서 | 중 | [x] |
+- 171: tsc/관련19/아트/diff 통과, Draft88 미리보기만. 실기 확인 미실행. 계정 보상/순위/다음층 미연결.
+
+| 172 던전 철문 분리·관찰 난이도 | fks3997 | preview/gravel-background-fks3997 | ui/dungeon{Battle,Field}.ts, modals/dungeonModal.ts, styles/dungeon.css, assets/dungeon/gate-*, tests/dungeon-battle.test.mjs, 문서 | 중 | [x] |
+- 172: tsc/관련20/아트/diff 통과, 원본철문 신규3레이어 정합 시각검사. 기본/고공격 시뮬 약46/56초, 브라우저 실기 미실행. 미리보기만.
+
+| 173 철문 자물쇠 겹침 순서 | fks3997 | preview/gravel-background-fks3997 | src/styles/dungeon.css, 문서 | 하 | [x] |
+- 173: 左門z2/右門z1/文틀z3, tsc/관련2/diff 통과. 실기 미실행, 미리보기만.
+
+| 174 던전 몬스터 접근거리 | fks3997 | preview/gravel-background-fks3997 | ui/dungeonBattle.ts, tests/dungeon-battle.test.mjs, 문서 | 중 | [x] |
+- 174: 중앙50/50 유지·생성거리190초과·110내자동공격·2초접근테스트. tsc/관련9/diff 통과, 시뮬51.5/55.55초 클리어. preview만.
+
+| 175 던전 완화·2층 이동 | fks3997 | preview/gravel-background-fks3997 | ui/dungeon{Battle,Field}.ts, modals/dungeonModal.ts, styles/dungeon.css, tests/dungeon-battle.test.mjs, 문서 | 중 | [x] |
+- 175: 문안 던전이미지·쉬운1층/2층·클리어후다음층버튼/fade. tsc/관련22/diff통과, 기본1층28.35초/2층31.4초 클리어시뮬. 계정/보상/순위 미반영.
+
+| 176 던전 정면복도·층출구문 | fks3997 | preview/gravel-background-fks3997 | ui/dungeonField.ts, styles/dungeon.css, assets/dungeon/{corridor-front-v1,prison-room-v2}.png, 문서 | 중 | [x] |
+- 176: 정면복도/어두운문안·배경문제거·전체출구문별도합성·다음층개방1.8초후fade. tsc/관련22/아트/diff 통과. preview만.
+
+| 178 던전 문 접지·닫힘 초기화 | fks3997 | preview/gravel-background-fks3997 | ui/dungeonField.ts, styles/dungeon.css, 문서 | 하 | [x] |
+| 177 업적 분류별 현재 단계 | fks3997 | preview/gravel-background-fks3997 | ui/modals/utilityModal.ts, tests/journey-ui.test.mjs, 문서 | 하 | [x] |
+- 177/178: tsc/관련21/diff 통과. 업적카테고리1행/현재단계수령·완료하단, 문접지/다음층닫힘선초기화/뒤글자제거. 실기미실행, preview만.
+
+| 179 던전 몬스터 문앞 레이어 | fks3997 | preview/gravel-background-fks3997 | ui/dungeonField.ts, styles/dungeon.css, 문서 | 하 | [x] |
+- 179: 투명배우canvas/문뒤레이어·독립시각시간·사망소멸후결과/층초기화잔상청소. tsc/던전10/diff 통과, 실기미실행, preview만.
+
+| 180 던전 배경 투명초기화 복구 | fks3997 | preview/gravel-background-fks3997 | ui/dungeonField.ts, 문서 | 하 | [x] |
+- 180: 전용Application.init에backgroundAlpha0(생성후전환불가원인), tsc/던전10/diff통과. 실기미실행, preview만.
+
+| 182 던전10층·투명배경 색상 | fks3997 | preview/gravel-background-fks3997 | ui/dungeon{Battle,Field,Lobby}.ts, modals/dungeonModal.ts, tests/dungeon-{battle,lobby}.test.mjs, 문서 | 중 | [x] |
+| 181 던전 대기창 석조벽 시안 적용 | fks3997 | preview/gravel-background-fks3997 | styles/dungeon.css, assets/dungeon/lobby-wall-v1.png, 문서 | 하 | [x] |
+- 181/182: 承認벽적용·10층/5·10보스·세션진행·clear RGBA검정0. tsc/관련24/아트/diff통과, 기본전층28~58초클리어시뮬. preview만.
+
+| 183 대기창벽 하단 암부 제거 | fks3997 | preview/gravel-background-fks3997 | styles/dungeon.css, assets/dungeon/lobby-wall-v2.png, 문서 | 하 | [x] |
+- 183: CSS하단fade/PNG하단암부제거 v2, tsc/관련3/아트/diff통과. 실기미실행, preview만.

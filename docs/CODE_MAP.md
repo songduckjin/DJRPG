@@ -6,10 +6,14 @@
 ## 1. 기능·증상별 바로가기
 
 | 작업 영역 | 핵심 파일 | 연관 파일 | 관련 테스트 |
-|---|---|---|---|
+|---|---|
+| 상시 던전 아이콘·대기창 | `ui/dungeonLobby.ts`, `modals/dungeonModal.ts`, `interface.ts`, `styles/dungeon.css` — 업적 아래 철문·현재층·도전/순위, 전투/서버 미연동 |---|---|
 | 월드보스 실전·공유HP·순위·우편보상 | `server/world-boss.mjs`, `server/endpoints/world-boss.mjs`, `src/game/worldBossLive.ts` | `functions/api/world-boss.js`, `worldBossField.ts`, `worldBossModal.ts`, `worldBossResult.ts`, `main.ts` | `world-boss-live`, `world-boss-preview`, `world-boss-field`, `journey` |
 | 크롬 GPU 미지원 mesh 렌더 오류 | `src/game/pixiSetup.ts` | `src/main.ts` 초기등록·Canvas quad 폴백 | `pixi-setup`, `hero-motion`, `world-boss-field` |
 | 월드보스 소개·전용필드·순위/보상 | `src/ui/modals/worldBossModal.ts`, `src/ui/worldBossField.ts`, `src/game/worldBossRehearsal.ts` | `worldBossPreview.ts`, `worldBossPresentation.ts`, `worldBossDefeat.ts`, `interface.ts`, `main.ts` Ticker수명, `styles/world-boss.css`, `public/assets/world-boss/*` | `world-boss-preview`, `world-boss-field`, `modal-ui`, `modal-interaction`, `hero-motion`, `appearance` |
+| 전투·이동·층·보스·AI | `src/game/world.ts` | `arena.ts`, `facing.ts`, `bagCapacity.ts`, `store.ts`(`floorKillTarget`) | `world-movement`, `arena`, `facing` |
+| 메인 사냥 드롭·1.5초 흡수 연출 | `src/game/world.ts`(`kill` 코인·`update` 드롭 대기/흡수), `src/game/loot.ts`(`lootRestSpots`·`lootAbsorbProgress`·`lootAbsorbPoint`) | `src/game/render/drops.ts`(`drawLoot`), `src/game/render.ts`(`lootBack`/`lootFront`·`lootViews`), `src/game/render/vfx.ts` | `field-loot`, `world-movement`, `bag-capacity` |
+| 내 정보·장비창 착용 미리보기 | `ui/equipmentPortrait.ts`(`equipmentPortraitPlan`·`renderEquipmentPortrait` — `planHeroCostume` 공용 계획을 **idle 0프레임**으로 합성), `ui/modals/equipModal.ts`(요약·6스탯·10칸) | `ui/interface.ts`(3탭 라우팅), `ui/modals/accountModal.ts`(성별 고정), `game/costume/manifest.ts`(매니페스트 1회 로드), `game/render/costumeHero.ts`(계획·셀 규약 **소비만**), `styles/modals.css`, `styles/hud.css`, `assets/warrior_equipped_starter|t2|t3|t4_{male,female}.png`(폴백, 작업 142 유지) | `equipment-info`, `equipped-detail`, `modal-ui`, `costume-manifest`, `costume-field-render`, `costume-atlas` |
 | 전투·이동·층·보스·AI | `src/game/world.ts`(`action` 평타는 `damage(..., maxTargets=1)`로 1마리만·피해 `attack × basicAttackPower(1.6)`, 스킬은 광역 그대로) | `arena.ts`, `facing.ts`, `bagCapacity.ts`, `store.ts`(`floorKillTarget`) | `world-movement`, `arena`, `facing` |
 | 내 정보·장비창 착용 미리보기 | `ui/equipmentPortrait.ts`(`equipmentPortraitPlan`·`renderEquipmentPortrait` — **작업 149 남녀 pilot idle 전신 그림 + 작업 151 착용 투구 머리 파츠 합성, 작업 152 투구 시 머리 없는 본체(`headless/`) 사용**, 장비 레이어 없음), `ui/modals/equipModal.ts`(요약·6스탯·10칸) | `ui/interface.ts`(3탭 라우팅), `ui/modals/accountModal.ts`(성별 고정), `public/assets/pilot-25d/warrior_{male,female}_idle_v1.png`, `public/assets/pilot-25d/headless/warrior_{male,female}_idle_v1.png`, `public/assets/pilot-25d/helmets/helm_{0..9}.png`·`helm_female_{0..2}.png`, `styles/modals.css`, `styles/hud.css` | `equipment-info`, `equipped-detail`, `helmet-head-render`, `modal-ui` |
 | 스킬·스킬북·쿨타임·버프 | `src/game/skills.ts`, `src/game/loadout.ts` | `world.ts`(`cooldowns`·`action`), `skillProgress.ts`, `ui/skillBooks.ts`, `ui/skillLoadout.ts`, `ui/modals/skillModal.ts`, `ui/skillFeedback.ts` | `skill-progression`, `loadout`, `skill-ui`, `skill-feedback`, `skillbook-art` |
@@ -40,6 +44,7 @@
 | 평타가 여러 마리를 한꺼번에 때림·평타 대상·평타가 약함 | `world.ts` `action`(평타 `damage(90, attack * basicAttackPower, angle, 1.15, 12, 0, p, 1)`), `basicAttackPower`(1.6), `damage`(`maxTargets`·거리 순 정렬) |
 | 걷기·공격(대검 휘두르기) 때 캐릭터가 작아짐 | `render/heroScale.ts` `heroBodyPx`의 `pilot*Walk`·`pilot*Attack`(시트별 알파 실측), `render/entities.ts` `drawHero`의 `heroScale` 호출 |
 | 보스가 안 나옴, 층 클리어 | `world.ts` `bossPending`·`floorKillTarget`, `store.ts` |
+| 드롭이 안 주워짐·1.5초 뒤 흡수·금화 코인 | `world.ts` `update`(드롭 `absorb`·`LOOT_REST_SECONDS`), `loot.ts`, `render/drops.ts` `drawLoot` |
 | 층 이동·최고층 | `world.ts` `travelToFloor`, `ui/modals/floorModal.ts` |
 | 쿨타임·버프(레이지)·광폭 | `world.ts` `cooldowns`·`cooldown[kind]`, `skills.ts` `skillDuration` |
 | 스킬 슬롯 비어 있음·퀵슬롯 | `loadout.ts`, `ui/skillLoadout.ts`, `ui/hud.ts` |
@@ -70,7 +75,8 @@
 ## 3. 폴더·파일별 레퍼런스
 
 ### `src/game/` — 게임 규칙·상태 (UI 없음)
-- `world.ts` (268) — 전투 루프·적 스폰/AI·층 이동·보스·드랍 획득·자동전투. `World`(`travelToFloor`,`action`,`nearest`,`damage`,`kill`,`update`), `cooldowns`, `enemyMoveSpeed`/`enemyMaxHp`/`enemyHitDamage`, 타입 `Enemy`/`Drop`/`Effect`/`Action`.
+- `world.ts` (289) — 전투 루프·적 스폰/AI·층 이동·보스·드롭 획득·자동전투. `World`(`travelToFloor`,`action`,`nearest`,`damage`,`kill`,`update`), `cooldowns`, `enemyMoveSpeed`/`enemyMaxHp`/`enemyHitDamage`, 타입 `Enemy`/`Drop`/`Coin`/`Effect`/`Action`. 처치는 금화를 **그 자리에서 지급**하고 그 금액을 `coins` 코인으로 남긴다(코인은 연출 전용, 흡수해도 다시 지급하지 않는다). `drops`는 `LOOT_REST_SECONDS` 동안 바닥에 머문 뒤 `absorb`가 찍히고 `LOOT_ABSORB_SECONDS` 뒤에야 가방에 들어간다(가방 초과 시 바닥에 남고 한 번만 경고).
+- `loot.ts` (작업 189) — 메인 필드 드롭 규칙(Pixi·DOM 비의존, 테스트가 직접 import). `LOOT_REST_SECONDS`(1.5)·`LOOT_ABSORB_SECONDS`·`LOOT_GAP`(36)·`LOOT_FAN`·`LOOT_GOLD_PILE_MIN/STEP`·`LOOT_DEPTH`(금화0<아이템1), `lootRestSpots`(캐릭터 실루엣 회피·±100° 부채꼴·아이템끼리만 간격·금화 뭉침·`reach` 한계), `lootAbsorbProgress`·`lootAbsorbPoint`.
 - `store.ts` (129) — 세이브 스키마·파싱·성장. `Save`, `Gender`, `MAX_LEVEL=30`, `freshSave`, `parseSave`, `readLegacySave`/`clearLegacySave`, `expToNext`, `floorKillTarget`, `addExperience`, `skillLevel`, `useSkillBook`. `items.ts`의 API를 재수출(배럴).
 - `items.ts` (169) — 등급·슬롯·기본형 목록·드랍·분해·자동장착. `rarityOrder`/`rarityRanks`/`rarityTiers`/`rarityScales`/`rarityPrefixes`/`salvageGold`/`salvageStones`, `slots`/`slotNames`/`rarityNames`/`statNames`, `baseItems`, `isSkillBook`, `isZweihander`, `equipmentImage`, `migrateItem`, `rollItem`, `rollSkillBook`, `equipmentDropChance`, `skillBookDropChance`, `totalStats`, `itemPower`, `autoEquipBest`, `salvageByRarity`.
 - `skills.ts` (53) — 스킬·패시브 정의와 스케일. `skills`, `passives`, `skillOrder`/`passiveOrder`, `MAX_SKILL_LEVEL=30`, `skillUpgradeCost`, `skillRange`, `skillDuration`, `skillDamageScale`, `dragonOrbitFactor`, `dragonRise`, `canLearn`.
@@ -91,14 +97,18 @@
 - `journey.ts` (39) — 우편·일일/주간/업적 클라이언트. `Journey`(`load`,`act`,`ready`), 타입 `JourneyTask`/`Mail`/`JourneyData`.
 - `preferences.ts` (4) — 기기 설정(흔들림·절전·이펙트). `preferences`, `savePreferences` — **localStorage 예외 허용 항목**.
 - `bootProgress.ts` (18) — 에셋 로딩 진행률. `createBootProgress`.
-- `render.ts` (208) — PixiJS 뷰·에셋 경로·draw 진입점. `GameView`(`mount`,`draw`, hero/enemy/vfx 위임 메서드), `paths`/`animationPaths`/`attackSheets`/`walkSheets`, `renderAssetPaths`, `Art`. `walkSheets`는 가로/세로 비가 2.5 초과면 4포즈 1줄(세로 290), 아니면 8포즈 4×2로 자른다.
+- `render.ts` (241) — PixiJS 뷰·에셋 경로·draw 진입점. `GameView`(`mount`,`draw`, hero/enemy/vfx/loot 위임 메서드, `lootBack`/`lootFront`·`lootViews`·`lootTaken`), `paths`/`animationPaths`/`attackSheets`/`walkSheets`, `renderAssetPaths`, `Art`. `walkSheets`는 가로/세로 비가 2.5 초과면 4포즈 1줄(세로 290), 아니면 8포즈 4×2로 자른다. 스테이지 순서: 바닥 → 조명 → 그림자 → 지형 → `lootBack` → 배우 → `lootFront` → 시체 → 스킬 → 이펙트 → 라벨 → 비네트.
 - `render/entities.ts` — 히어로·적·시체·잔상 그리기. `drawHero`, `activeSkillMotion`, `updateAfterimages`, `updateCorpses`, `drawEntities`. `drawHero`는 **코스튬 레이어 경로 → 폴백(통합 바디 + 무기 소켓) 경로** 순서로 시도하고, 모션·프레임·재생 배율은 `heroMotion.ts`, 본체 배율·그림자 반지는 두 경로가 같은 식을 쓴다. 잔상은 코스튬 모드에서 보이는 레이어를 모두 복제한다.
 - `render/costumeHero.ts` (작업 140, 신규) — 독립형 코스튬 필드 렌더러. `planHeroCostume`(본체 3파츠 + 장비 레이어·파츠 교체·zOrder). **장비 레이어는 `costumeAppearanceSlots` = 갑옷·투구·무기 3부위만 그린다**(2026-11-19 실기 제보 — 문장·장갑·신발은 착용은 되지만 그림 없음, `docs/COSTUME_SYSTEM.md` §7.9). **장비 레이어 페이지 이름은 `<부위>-<성별>`이다**(작업 142 — 갑옷이 전신 그림이라 남/여를 섞을 수 없다). 무기는 매니페스트 `fit`이 없으면 `costumeWeaponFit`(1.45배·`{-8, 110}`)을 쓴다(2026-11-19 실기 제보 — 검 확대·손잡이 허리·골반 높이, §7.10). `costumeLayerAnchor`/`costumeAtlasPageName`/`costumeLayerCell`(아틀라스 배치 규약), `beginCostumeHero`·`applyCostumeHeroRuntime`·`ensureCostumeAtlas`·`costumeLayerTexture`(현재 계획 최대 6페이지, 이전 Pixi 자산·셀 캐시 해제), `renderCostumeHero`·`hideCostumeHero`·`costumeGhostSources`. 계획 변경 때 스프라이트와 잔상을 해제하고, 페이지 로드 실패는 폴백을 알린다. 규약: `docs/COSTUME_SYSTEM.md` §7.2·§7.6.
 - `render/gearTint.ts` — 필드 통합 바디의 피부톤·갈색/금발 머리 보존 팔레트 합성, 머리 밴드·공격 틴트, 파생 텍스처 캐시. 브라우저 캔버스가 없는 Node 환경에서는 원본 텍스처로 폴백한다.
 - `render/heroSockets.ts` — 직업 × 성별 무기 손 소켓 표(`heroClass`, `weaponSocket`, `socketMotion`). **폴백(기존 통합 바디) 경로 전용**이며, 코스튬 모드의 무기 위치는 매니페스트 `anchor`/`fit`을 쓴다.
 - `render/field.ts` (54) — 룬·지형·먼지·조명·비네트. `drawRunes`, `drawTerrain`, `drawDust`, `drawLighting`, `drawVignette`.
-- `render/vfx.ts` (160) — 스킬 이펙트·드래곤·타격·데미지 라벨·드랍. `drawSkillVfx`, `drawDragon`, `drawHit`, `updateDamageLabels`, `drawDeath`, `drawDrops`, `drawEffects`.
+- `render/vfx.ts` (156) — 스킬 이펙트·드래곤·타격·데미지 라벨·사망 연출. `drawSkillVfx`, `drawDragon`, `drawHit`, `updateDamageLabels`, `drawDeath`, `drawEffects`. (드롭 빛기둥은 작업 189에서 `render/drops.ts`로 옮겨졌다.)
+- `render/drops.ts` (작업 189, 신규) — 메인 필드 바닥 드롭 렌더(Pixi). `drawLoot`·타입 `LootView`. 드롭은 `lootRestSpots`로 정해진 자리까지 **회전 없이 작은 포물선 한 번 + 1회 탭**(`TOSS_PEAK`=5·`TOSS_VARY`·`TOSS_REBOUND`·`TOSS_SETTLE`·`tapped`)으로 떨어져 머물고, `lootAbsorbProgress`에 따라 캐릭터 현재 위치로 빨려 들어간다. 금화는 아이콘만(외곽광·금액 없음), 장비·스킬북은 등급색 1px 하드 외곽선 + 등급색 헤일로, 아이템이 항상 금화 위(`LOOT_DEPTH`+`sortableChildren`). 아트 시트(`/assets/item-art/*`·`/assets/icons/*`)는 그 드롭이 처음 필요할 때만 `Assets.load`로 받고, 부딪히기 전에는 등급 다이아몬드로 보인다.
 - `render/heroMotion.ts` — 모드·프레임 선택과 코스튬 모션 계약. 폴백: `heroAnimationMode`, `heroMotion`(몸통 변형 없음, 회전값 0; `spin`은 VFX·잔상으로 표시). 코스튬: `HeroCostumeMotion`, `costumeMotionOrder`/`costumeMotionFrames`/`costumeMotionSlot`(아틀라스 프레임 슬롯), `heroCostumeMotion`(월드 상태→모션), `costumePlaybackRate`(공격 쿨다운의 역수, 상한 3), `costumeFrameIndex`.
+- `render/heroScale.ts` — 아트별 실측 몸통(머리~발) 높이 표와 스케일. `heroBodyFraction`, `heroBodyPx`, `heroBodyHeight`, `heroScale`, 코스튬 모드용 `costumeBodyPx`(잠정 190)·`costumeScale`. **시트별 1개 값**(프레임별 아님)이라 칼을 쳐든 프레임에서도 몸 크기가 변하지 않는다. PNG를 바꾸면 표도 다시 잰다.
+- `wasteland.ts` (34) — 637×1079 주변확장 배경·원본540×914 core 1:1·양축 카메라팬·원본→확장앵커 변환·마운트. `wastelandScene`, `wastelandCore`, `originalScenePoint`, `wastelandFireAnchors`, `wastelandLayout`, `mountWasteland`, `placeWasteland`.
+- `ambientScene.ts` (58) / `ambientMotion.ts` (67) — 원래 풀23/불3 앵커의 확장좌표 변환·core 기준 진폭 보정. `mountAmbientScene` / `ambientInfluence`, `ambientOffset`, `AmbientDeformation`, `fireFlicker`, `fireEmbers`, `grassPatches`.
 - `render/heroScale.ts` — 아트별 실측 몸통(머리~발) 높이 표와 스케일. `heroBodyFraction`, `heroBodyPx`, `heroBodyHeight`, `heroScale`, 코스튬 모드용 `costumeBodyPx`(잠정 190)·`costumeScale`. **시트별 1개 값**(프레임별 아님)이라 칼을 쳐든 프레임에서도 몸 크기가 변하지 않는다. PNG를 바꾸면 표도 다시 잰다. pilot 상태별 값은 idle 335, walk 300(4칸 평균 293~307), attack 270(내려찍는 칸 246~298 평균, 검을 머리 위로 든 1칸은 이상치) — 작업 149에서 셋 다 335를 쓰다 걷기·공격에서 캐릭터가 작아져 150에서 보정했다.
 - `wasteland.ts` (34) — 배경 씬 크기·화염 앵커·레이아웃·마운트. `wastelandScene`, `wastelandFireAnchors`, `wastelandLayout`, `mountWasteland`, `placeWasteland`.
 - `ambientScene.ts` (58) / `ambientMotion.ts` (67) — 풀·불 앰비언트 변형. `mountAmbientScene` / `ambientInfluence`, `ambientOffset`, `AmbientDeformation`, `fireFlicker`, `fireEmbers`, `grassPatches`.
@@ -168,7 +178,7 @@
 - `src/ui/worldBossIntro.ts` — 고정경기장2.7초기본→포효→기본·포효후idle호흡지속·시작글자1.1초완전퇴장후전투/호흡위상유지·시간분리, 스킵·카메라연출없음. `WorldBossIntro`
 - `src/ui/worldBossFooting.ts` — idle/복귀/연결프레임양발접점실측·하체mesh접점고정+동일idle부츠레이어/정강이경계mask(상체불변). `bossFootContacts`·`plantedBossVertex`·`plantedBossShift`
 - `src/ui/worldBossWeather.ts` — 깃발천정규좌표/변형·뒤구름이동좌표(색마스크mesh, 돌/봉고정·모션감소). `bannerOffset`·`cloudCenter`
-- `src/ui/worldBossImpact.ts` — 착지돌탄도/그림자·먼지확산/소멸의결정적입자상태. `slamParticles`
+- `src/ui/worldBossImpact.ts` — 착지돌탄도/그림자·먼지확산/소멸의결정적입자상태. `slamParticles`·`slamWarning` (내려찍기 시전1초의 붉은 타격원 점멸·타격 시 제거)
 - `src/game/pixiSetup.ts` — 필드 pipe 선등록·Canvas GPU 미지원시 mesh를 texture/bounds quad로 표시(WebGL mesh 유지). `CanvasMeshFallbackPipe`
 - `server/world-boss.mjs` — 공유HP 1,000만·KST05 초기화·계정3회·고정장비 서버전투재현·회피서버시간검증·실순위·참여/순위/막타/공동 우편 멱등지급. `worldBossOperation`·`replayBoss`; `worldBossSchema`는 `server/world-boss-schema.mjs`에서 가져와 재수출한다. (새 입장 0피해 쓰기/재조회 생략·순위 단일 쿼리)
 - `server/world-boss-schema.mjs` — 월드보스 Turso 4테이블·인덱스의 단일 DDL. 서버 실행과 DB 이관 스크립트가 같은 `worldBossSchema()`를 사용한다.
@@ -185,7 +195,7 @@
 - **단방향**: `ui/` → `src/game/` 규칙 → `sync.ts` → `server/endpoints/` → `server/database.mjs`. `server/*.mjs`는 `src/`를 import하지 않고, `src/`는 `server/*.mjs`를 직접 부르지 않는다(경계는 `/api/*` HTTP + `api/`·`functions/api/` 어댑터).
 - **예외는 1곳**: `src/game/sync.ts` → `src/ui/login.ts`(`accountRequest`·`Session`·`clearToken`). 로그인·저장 계약을 공유하므로 두 파일은 함께 본다.
 - **`render/`는 읽기 전용 뷰**: `world`·`save`를 읽어 그리기만 한다. 상태 변경·저장 트리거 금지 — 바뀌는 것은 뷰 로컬 데이터(`afterimages`·`corpses`·`ghosts`·`ghostEmissions`, `render/field.ts` 파티클)뿐이다.
-- **상태 소유권**: `world.ts` = 휘발성 전투 상태(`enemies`·`effects`·`drops`·`cooldown`·`bossPending`·`player.hp`)로 **저장되지 않는다**. `store.ts` = 세이브 스키마·성장 계산(`Save`·`Gender`·`parseSave`·`expToNext`·`floorKillTarget`·`useSkillBook`)으로 **Turso에 남는 것만**. `world.ts`가 `save`를 직접 고치고(층·골드·가방·레벨·`floorKills`) `world.onChange` → `Interface.onSave` → `sync.queueSave()`가 유일한 저장 트리거다.
+- **상태 소유권**: `world.ts` = 휘발성 전투 상태(`enemies`·`effects`·`drops`·`coins`·`cooldown`·`bossPending`·`player.hp`)로 **저장되지 않는다**. `store.ts` = 세이브 스키마·성장 계산(`Save`·`Gender`·`parseSave`·`expToNext`·`floorKillTarget`·`useSkillBook`)으로 **Turso에 남는 것만**. `world.ts`가 `save`를 직접 고치고(층·골드·가방·레벨·`floorKills`) `world.onChange` → `Interface.onSave` → `sync.queueSave()`가 유일한 저장 트리거다.
 
 ### 핵심 시퀀스 4종
 **① 로그인·세션(`sid` + `X-App-Version`)**
@@ -235,3 +245,48 @@ npm run check && npm test && npm run build # 공용 계약 수정·사용자 요
 - 새 버그 패턴·계약 추가 → §2 증상 색인 또는 §4 불변 계약에 한 줄 반영하고, 책임이 바뀐 기존 줄은 고쳐 쓴다.
 - 밀도 유지: 상단 색인(§1·§2)만으로 영역을 찾게 하고 산문 설명은 넣지 않는다(전수 읽기 불필요 상태 유지).
 - **`docs/QUICK_PATCH.md` 연계**: 자주 고치는 작업 레시피를 이 문서(§1 행·§2 증상·§3.5 시퀀스)에 반영할 때 `QUICK_PATCH.md` §1 표에도 같은 1줄(수정 파일·금지·단건 테스트)을 추가하고, 반대도 같이 맞춘다. 두 문서가 어긋나면 이 문서가 기준이다.
+
+### 상시 던전 대기창 (작업 168)
+- `src/ui/dungeonLobby.ts`: 다음 도전층·90초·일반3/3/정예1·5층 보스1 및 순위 정렬. 저장/서버 계약 없음.
+- `src/ui/modals/dungeonModal.ts`, `src/styles/dungeon.css`: 철문 대기창·도전/순위·현재층만 표시. 도전하기는 준비 안내만 표시. `interface.ts` utility 메뉴 업적 바로 아래 연결, `modalDefaults.ts` 새 입장 도전탭 초기화.
+- 아트 `public/assets/dungeon/lobby-gate-v1.png`, `public/assets/icons/utility_dungeon.png`. 검증 `tests/dungeon-lobby.test.mjs` + modal-ui/modal-interaction.
+
+- 작업169 대기창: 철문은 가림 없는 contain, 제목/층은 별도 행. 도전 내용 스크롤 제거·영역 높이 절약, 최초 보상은 금화PNG/강화석SVG로 강조. `dungeonModal.ts`·`dungeon.css`만 레이아웃 담당.
+
+- 작업170: 던전 `data-tab`별 하단만 교체, 철문은 고정 flex-basis. 순위는10행(미기록은 빈행)+내순위, CTA는 도전탭만 생성.
+
+### 던전1층 전투 미리보기 (작업171)
+- `ui/dungeonBattle.ts`: deep copy Save 전용 World, kill은 사망효과/처치수만, 드랍/XP/계정 저장 없음. 90초·3/3/정예1·10초 또는 직전 전멸 후 다음 웨이브·자동부활 대신 실패.
+- `ui/dungeonField.ts`: 메인 필드 pause/resume·독립 GameView·장착스킬 자동전투·철문 양문 회전/진입zoom 후 시작·재도전/나가기. 종료와 로딩 취소 시 전용 renderer 해제. 공용 world/render는 소비만.
+- `assets/dungeon/prison-floor-v1.png`: 현 철문과 같은 석조감옥 테마. 대기창 도전하기 연결, 결과 다음층은 준비중(1층만). 실제 보상/랭킹 API 미연동.
+
+- 작업172: 대기창 `gate-frame/left/right-v1.png` 3장(724² 동일좌표)으로 합성, 문틀고정/문짝만회전. `dungeonField.ts`는 대기창을 유지하며 로딩+문개방 후 .6초 fade, 관찰 전용 `dungeonPreviewHp`는 현재장비/스킬DPS×8·정예3배, 계정/최종층밸런스에는 미반영. 전환중 닫기 MutationObserver로 취소/메인복구.
+
+- 작업173 철문 겹침: `dungeon.css` 문틀z3 > 자물쇠 좌문z2 > 우문z1, 닫힘/개방 모두 동일 순서 유지.
+
+- 문 개방 최종 방향: 좌문 rotateY(-110deg), 우문(+110deg). 좌문은 hinge 오른쪽, 우문은 hinge 왼쪽 자유단이므로 두 자유단 z=-sin(각)*dx > 0. 개방시 문짝z5/4 > 문틀z3, 닫힘시 기존z2/1.
+
+- 작업174: `DungeonWorld.update` 중앙50/50 방어·자동추격이동 억제, nearest는110내만. 생성 y투영-180으로거리190초과 유지·적 기존걷기모션 소비. 공용 world/render 불변.
+
+- 작업175 사용자2층이동 승인: `DungeonBattle(save,floor:1|2)`·관찰HP DPS×4/정예2배, 2층HP1.2배·피해상한 일반0.5%/정예0.8%. 1층클리어 결과에2층버튼, .4초dark-fade아래 새세션(풀HP/90초). 2층까지만/3층미연결/저장기록없음. 문안은 기존 던전이미지 background로 표시.
+
+- 작업176: 문안 `corridor-front-v1.png` 정면복도+어두운gradient, 필드배경 `prison-room-v2.png`(중앙 baked문 제거). `dungeonField.ts` `.dungeon-exit-gate`를top8%/높이27%로완전표시·기존3문레이어 재사용. 다음층 클릭시결과닫기→출구문개방/정지1.8초→dark-fade→2층전환.
+
+- 작업177 `utilityModal.ts` orderedAchievements: category별첫미수령만, 전부수령시마지막단계1행을하단. 수령가능→진행중→전체완료 정렬, 모두받기는보이는단계만순차수령·오류시중단, 빨간점도보이는단계기준. 기존서버API/보상이력보존.
+- 작업178 `dungeonField.ts` resetBattle: 출구is-resetting에서문transition없이닫고style확정후fade진입. top10%/h28%로문턱접지, 문뒤떠있는wave안내제거/하단HUD유지.
+
+- 작업179 던전레이어: 방배경은field CSS, 문DOM z2, renderer.background.alpha=0의배우canvas z3, HUD z4. 기존불투명Sprite배경제거로문이배우를가리지않음. visualTime은종료후에도진행해시체소멸·effects정리, .75초후결과. resetBattle에서이전enemy/시체/피해라벨정리.
+
+- 작업180: 던전 전용 `view.app.init`는원래init을호출하면서backgroundAlpha0을초기옵션으로추가. CanvasContextSystem은생성시alpha고정이므로마운트후renderer.background.alpha만바꾸면배경이기본갈색으로가려짐. CSS방/문뒤·배우앞구조 유지.
+
+- 작업181 `lobby-wall-v1.png` 대기창석조벽 고정배경, 기존문틀/문짝3레이어유지. 작업182 `DUNGEON_MAX_FLOOR=10`(dungeonLobby), DungeonBattle.floor1..10/5·10boss단독/targetCount, 결과다음층/10종료·세션clearedFloor만(계정저장없음). 재입장은현재미클리어층, 완료층재도전없음.
+- 던전투명초기화색: init background/backgroundColor=0x000000, backgroundAlpha=0 및renderer.background.color=0. alpha0이어도갈색RGB가남으면밝은갈색이합성될수있어RGBA전체0보장.
+
+- 작업183: 대기창벽은 `lobby-wall-v2.png` 사용(하단석조연속/암부없음), `.dungeon-hero` bottom gradient제거·좌우약한vignette만유지.
+
+- 작업184 드롭/흡수: `DungeonWorld.loot`에만 기록(금화=필드식, 아이템=테스트50% 게이트·장비/스킬북 선택은 `equipmentDropChance`:`skillBookDropChance` 비율, 등급·종류는 `rollItem`/`rollSkillBook`). `world.drops`는 비워 공용 `render/**` 불변·계정 저장 없음. `dungeonField`가 투명 canvas 위 `.dungeon-loot-layer`(z3)로 포물선 낙하·정지 글로우를 그리고, `outcome===clear`에서만 캐릭터로 흡수한 뒤 `resultDelay` 뒤 결과창. 그림자 38×12px 기준, 등급색 `--loot-ink` 링/할로. 검증 `tests/dungeon-battle.test.mjs`.
+- 작업185 사용자 실기 5건: 착지점을 히어로 반경(화면높이10%,58~80px+12px팬) 밖으로 밀고 뒤쪽 드롭은 `.dungeon-loot-layer.is-behind`(z2, 투명 canvas 아래)로 깊이 분리(`dungeonLootLanding`). 원형 할로/링 제거→아이콘 알파 실루엣 다중 `drop-shadow` 외곽광, 금화 `+n` 금액 제거. 던전 몹 이동만 `DUNGEON_ENEMY_SPEED_SCALE=1.5`(super.update 뒤 0.5스텝 추가, 쿨다운·스킬·90초 타이머 불변). `ABSORB_DELAY=1.5`로 클리어 흡수를 마지막 처치 1.5초 뒤 시작하고 결과창은 흡수 종료 후. 검증 `tests/dungeon-battle.test.mjs`(14건).
+- 작업186: 드롭 착지=`dungeonLootSpots`(죽은 지점 유지, 캐릭터 실루엣 타원 밖으로 같은 방향으로만 밀고 ±100° 부채꼴 안, 아이콘 피치 36px로만 겹침 회피 — 옆으로 밀던 `dungeonLootLanding` 삭제). 흡수/결과는 `dungeonLootTimeline` 한 곳이 소유: `absorbAt=1.5`, `absorbEnd=1.5+(n-1)*.045+.55`, `resultAt=absorbEnd+.2`, 실패·시간종료는 .75. (185의 `resultDelay=.75` 기본값이 흡수 시작 전에 결과를 띄우던 버그 수정). 클리어 결과창은 처치/시간 대신 `world.lootGold`(금화 합계) 표시. 웨이브 스폰은 `dungeonSpawnPull`만큼(2스트라이드×해당 층 이동속도) 히어로 쪽으로 당김. 금화·스킬북 외곽광 제거, 장비만 진한 등급색 1px 외곽선+헤일로. 흡수 좌표는 `dungeonAbsorbPoint`(가속·좌우 아크·도착=캐릭터)로 분리. 검증 `tests/dungeon-battle.test.mjs`(18건, 60fps 프레임 재생 포함).
+- 작업187: `dungeonLootSpots`가 드롭별 `gold` 플래그(`LootDrop`)를 받아 **아이템끼리만** `gap`(36px)을 지키고, 금화는 죽은 좌표에 그대로 머문다(실루엣 안에서만 같은 방향으로 밖까지, 같은 픽셀 겹침은 `DUNGEON_GOLD_PILE_STEP=6`·`DUNGEON_GOLD_PILE_MIN=10`으로 몇 px만 비킴). 금화와 아이템이 겹치면 `.dungeon-loot.is-gold`(z1) < `.dungeon-loot.is-item`(z2)라 아이템이 항상 위에 그려지고, 레이어별 규칙이라 `is-behind` 안에서도 같다. 검증 `tests/dungeon-battle.test.mjs`(21건 중 금화 뭉침·겹침·z순서 3건 추가).
+- 작업188 사용자 실기 3건: ① `dungeon.css` 스택을 **문1 < 뒤드롭2 < canvas3 < 앞드롭4 < HUD5 < 결과6 < 페이드8**로 올려 철문이 어떤 드롭(금화·장비·스킬북)도 가리지 않는다(기존엔 문2=뒤드롭2 같은 z라 DOM상 뒤인 문이 덮었다). ② 스킬북 `.dungeon-loot-book`에 장비와 같은 `dungeon-loot-glow`(`--loot-ink` 1px 하드 외곽선+헤일로)를 되살리고 외곽선은 기본 규칙에도 둬 reduced-motion에서도 남는다(금화는 `filter:none` 유지). ③ `dungeonLootSpots(...,field?:LootField{top,reach})`가 착지점을 **문 아래 바닥**으로 제한: `dungeonField.lootField()`가 실제 `.dungeon-exit-gate` rect(문턱=top10%+h28%)를 읽어 `top=문턱+38px(아이콘 높이)+6px`, `reach=heroBodyH*2+8`을 넘기고 넘친 점은 히어로→점 방향 선을 따라 당겨진다(실루엣 회피가 항상 우선). 검증 `tests/dungeon-battle.test.mjs`(25건: 문 아래 착지·14드롭 전수·z래더·스킬북 외곽광 4건 추가).
+- 작업190 사용자 실기 1건 "빙글빙글 돌지 말고 작게 포물선으로 톡": 드롭의 **회전을 전부 제거**했다 — 필드 `render/drops.ts`는 `LootView`에서 `spin`/`spinV`와 `body.rotation` 대입을 지우고, 던전 `dungeonField.ts`는 낙하·정지·흡수 세 곳의 `rotate()`를 모두 뺐다(흡수는 `scale`만, `p*220°` 낙차 회전 삭제). 낙하 호도 작게: 두 화면 모두 같은 값 `TOSS_PEAK=5`(38px 본체의 1/6)·`TOSS_VARY=.2`·`TOSS_REBOUND=.35`·`TOSS_SETTLE=60`·`TOSS_SPEED=√(2·1200·5)`, 던전은 `LOOT_*` 접두사. 착지는 **정확히 1회 탭**(`tapped` 플래그 — 예전 `vh<-70` 임계값은 프레임 오버슈트로 2~3회 미세 바운스가 남았다), 그림자 축소 기준도 `h/150`→`h/(TOSS_PEAK*2)`로 낮춰 작은 호에서도 그림자가 반응한다. 착지 위치·외곽선/외곽광·금화 뭉침·아이템 상위 레이어·1.5초 흡수 타이밍은 불변. 검증 `npx tsc --noEmit`, `field-loot` 13건(회전 없음·1회 탭 2건 추가)·`dungeon-battle` 26건(회전 없음·같은 호 높이 2건 추가) 통과, 미리보기 `ba4dc989f608`(version.json 200)에서 번들에 `spinV` 0건·던전 transform `translateY`만·`sqrt(2*1200*5)` 확인.

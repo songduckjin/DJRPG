@@ -1,0 +1,91 @@
+.modal-dialog.dungeon-modal{padding:0;width:min(460px,calc(100vw - 24px));max-height:calc(100dvh - 24px);overflow:hidden;border:1px solid #8d6c40;background:#1d1718;box-shadow:0 18px 70px #000b}
+.dungeon-lobby{height:min(790px,calc(100dvh - 26px));display:flex;flex-direction:column;color:#d6c5a9}
+.dungeon-hero{flex:0 0 34%;min-height:0;position:relative;background:linear-gradient(to right,#0c0a0966,transparent 25%,transparent 75%,#0c0a0966),url(/assets/dungeon/lobby-wall-v2.png) center/cover,#161314}
+.dungeon-hero>img{display:block;width:100%;height:100%;object-fit:contain;padding:6px 48px 0;filter:drop-shadow(0 4px 15px #000)}
+.dungeon-close{position:absolute!important;right:8px;top:8px;z-index:3;width:44px;height:44px;background:#18131399!important;border:0!important}
+.dungeon-body{padding:0 16px 12px;flex:1;min-height:0;display:flex;flex-direction:column}.dungeon-current{text-align:center;padding:8px 0 10px;display:grid;gap:3px}.dungeon-current h2{margin:0;font-size:23px;color:#f0d49a}.dungeon-current>strong{font-size:18px;color:#edd4a3}
+.dungeon-tabs{display:flex;border-bottom:1px solid #a17d45;gap:3px}.dungeon-tabs button{flex:1;padding:9px;border:1px solid #68543e;border-bottom:0;background:#261d1c;color:#ad987d;border-radius:4px 4px 0 0}.dungeon-tabs button[aria-pressed=true]{background:#633028;color:#f0d29b;border-color:#a17d45}
+.dungeon-content{padding:8px 0;font-size:12px;overflow:visible}.dungeon-content h3{font-size:12px;margin:0 0 7px;color:#d7b578}.dungeon-content p{line-height:1.6;font-size:11px;color:#a99880;margin:8px 0}.dungeon-time-note{display:inline-block;margin-top:3px;color:#dfc499;font-weight:normal}
+.dungeon-waves{display:flex;align-items:center;gap:6px}.dungeon-waves>div{flex:1;display:grid;gap:4px;text-align:center;background:#2d2421;padding:8px 2px;border:1px solid #62503a}.dungeon-waves small{font-size:9px;color:#b29464}.dungeon-waves strong{font-size:12px}.dungeon-waves span{font-size:11px;color:#ae9c83}.dungeon-waves i{font-style:normal;color:#977243}
+.dungeon-prize{padding:10px;background:linear-gradient(120deg,#57402766,#30241d);border:1px solid #9b7842;text-align:center}.dungeon-prize h3{color:#f1d394;font-size:14px;margin:0 0 6px}.dungeon-prize-items{display:flex;justify-content:center;gap:38px}.dungeon-prize-items>div{display:flex;align-items:center;gap:8px;color:#f0d8a8}.dungeon-prize-items img{width:40px;height:40px;object-fit:contain;filter:drop-shadow(0 2px 3px #0008)}.dungeon-prize small{display:block;color:#a59175;font-size:10px;margin-top:4px}
+.dungeon-footer{padding-top:8px;display:grid;gap:5px;text-align:center;border-top:1px solid #51402e}.dungeon-enter{width:100%;padding:11px!important;background:linear-gradient(#76392c,#4a231f)!important;border:1px solid #b58a4a!important;color:#f5d7a2;font-size:16px;font-weight:bold}.dungeon-footer>small{font-size:10px;color:#95806b}
+.dungeon-rank-heading,.dungeon-rank-row{display:grid;grid-template-columns:40px 1fr 90px;align-items:center;gap:5px;padding:6px}.dungeon-rank-heading{font-size:10px;color:#ab9068;border-bottom:1px solid #665037}.dungeon-rank-heading>:last-child,.dungeon-rank-row>:last-child{text-align:right}.dungeon-rank-row{border-bottom:1px solid #3c3028}.dungeon-rank-row.is-mine,.dungeon-own-rank{background:#59402866;color:#e7c78d}.dungeon-own-rank{padding:10px;margin-top:8px;border:1px solid #86653b;font-size:12px}.dungeon-empty{text-align:center;padding:24px 0}
+@media(max-height:700px){.dungeon-body{padding:0 12px 8px}.dungeon-current{padding:4px 0 7px}.dungeon-current h2{font-size:20px}.dungeon-current>strong{font-size:16px}.dungeon-tabs button{padding:7px}.dungeon-waves>div{padding:6px 2px}.dungeon-prize{padding:7px}.dungeon-prize-items img{width:32px;height:32px}.dungeon-footer{padding-top:6px}.dungeon-enter{padding:9px!important}}
+@media(max-height:550px){.dungeon-current{gap:1px;padding:2px 0 5px}.dungeon-current h2{font-size:18px}.dungeon-current>strong{font-size:14px}.dungeon-content p{font-size:10px;margin:5px 0}.dungeon-waves>div{gap:2px;padding:4px 2px}.dungeon-prize{padding:5px}.dungeon-prize h3{margin-bottom:2px;font-size:12px}.dungeon-prize-items img{width:28px;height:28px}.dungeon-content{padding:6px 0}.dungeon-footer>small{font-size:9px}}
+
+/* Both tabs share fixed art/title/tab geometry; only content below the tabs changes. */
+.dungeon-content{flex:1;min-height:0}
+.dungeon-lobby[data-tab=ranking] .dungeon-content{display:flex;flex-direction:column;padding:6px 0;overflow:hidden}
+.dungeon-rank-heading,.dungeon-rank-row{flex:1;min-height:0;padding:3px 6px;font-size:11px}
+.dungeon-rank-heading{flex:0 0 22px;font-size:10px}
+.dungeon-rank-row.is-empty{color:#857663}
+.dungeon-own-rank{flex:0 0 auto;padding:7px 10px;margin-top:6px}
+.dungeon-lobby[data-tab=ranking] .dungeon-content>p{flex:0 0 auto;font-size:10px;line-height:1.4;margin:6px 0 0}
+@media(max-height:550px){.dungeon-hero{flex-basis:26%}.dungeon-rank-heading,.dungeon-rank-row{padding:1px 6px;font-size:10px}.dungeon-own-rank{padding:4px 8px}.dungeon-lobby[data-tab=ranking] .dungeon-content>p{font-size:9px}}
+
+.dungeon-field{opacity:0;visibility:hidden;pointer-events:none;transition:opacity .6s ease;position:absolute;inset:0;z-index:30;background:#100f0e url(/assets/dungeon/prison-room-v2.png) center/100% 100% no-repeat;color:#ddc9a6;overflow:hidden;isolation:isolate}
+.dungeon-field-canvas{position:absolute;inset:0;z-index:3;pointer-events:none}.dungeon-field-canvas canvas{display:block;width:100%;height:100%}
+.dungeon-field-hud{position:absolute;top:env(safe-area-inset-top,0px);left:0;right:0;display:flex;align-items:center;justify-content:space-between;padding:14px 16px;background:linear-gradient(#100e0fe8,transparent);z-index:5}.dungeon-field-hud>div{display:grid;gap:3px}.dungeon-field-hud small{font-size:11px;letter-spacing:2px;color:#ad9674}.dungeon-field-hud strong{font-size:22px;color:#eed09a}.dungeon-field-leave{min-height:42px;padding:8px 14px;border:1px solid #826741;background:#1c1615c9;color:#dcc6a1}
+.dungeon-battle-hud{position:absolute;z-index:5;left:12px;right:12px;bottom:calc(12px + env(safe-area-inset-bottom,0px));padding:12px;background:linear-gradient(#1e1918cf,#141111ed);border:1px solid #716045;box-shadow:0 5px 22px #0007;text-align:center;pointer-events:none}
+.dungeon-battle-record{display:flex;align-items:center;justify-content:space-between;font-size:11px;gap:8px;margin-bottom:9px}.dungeon-battle-record>strong{font-size:22px;color:#ecd097}.dungeon-hp{height:15px;position:relative;background:#291416;border:1px solid #8a6350;overflow:hidden}.dungeon-hp i{position:absolute;inset:0 auto 0 0;background:linear-gradient(#a94a3e,#682728);transition:width .1s}.dungeon-hp span{position:relative;display:block;line-height:13px;font-size:10px;color:#fff0d2;text-shadow:0 1px 2px #000}
+.dungeon-auto-skills{display:flex;justify-content:center;gap:14px;margin:9px 0}.dungeon-auto-skill{font-size:9px;display:grid;place-items:center;gap:3px;color:#b69e7b;min-width:46px}.dungeon-auto-skill>i{display:block;width:36px;height:36px;border-radius:50%;box-shadow:0 0 0 1px #8b7046;background-color:#100c0c}.dungeon-battle-hud>small{font-size:9px;color:#a28d72}
+.dungeon-wave-notice{position:absolute;top:24%;left:5%;right:5%;text-align:center;font-size:18px;font-weight:bold;letter-spacing:1px;color:#f1d7a6;text-shadow:0 2px 5px #000,0 0 15px #000;pointer-events:none}
+.dungeon-battle-result{position:absolute;inset:0;z-index:6;background:#090707b3;display:grid;place-items:center;padding:20px}.dungeon-battle-result[hidden],.dungeon-entry-transition[hidden]{display:none}.dungeon-battle-result>div{width:min(360px,100%);padding:25px 18px;background:#211a19;border:1px solid #a4824e;text-align:center;box-shadow:0 15px 50px #000}.dungeon-battle-result h2{font-size:24px;color:#f2d29a}.dungeon-battle-result p{font-size:12px;line-height:1.7;color:#baa486}.dungeon-battle-result button{width:100%;padding:12px;margin:5px 0;border:1px solid #977341;background:#653027;color:#f2d7aa}.dungeon-battle-result button[data-leave]{background:#2a2220}.dungeon-battle-result small{display:block;font-size:10px;color:#a89273;line-height:1.6}
+.dungeon-battle-result .dungeon-result-gold{display:flex;align-items:center;justify-content:center;gap:8px;margin:10px 0;font-size:14px;color:#e8cfa0}
+.dungeon-result-gold img{width:26px;height:26px;object-fit:contain;filter:drop-shadow(0 1px 2px #0008)}
+.dungeon-result-gold strong{font-size:19px;color:#ffd977}
+
+.dungeon-field.is-ready{opacity:1;visibility:visible;pointer-events:auto}
+.dungeon-lobby-gate{position:relative;height:100%;aspect-ratio:1;max-width:100%;margin:auto;perspective:800px}
+.dungeon-lobby-gate>img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;backface-visibility:visible;pointer-events:none}
+.dungeon-lobby-gate-dark{position:absolute;inset:19% 20% 7%;background:linear-gradient(#08060544,#08060566),url(/assets/dungeon/corridor-front-v1.png) center/cover;border-radius:46% 46% 0 0}
+.dungeon-gate-left{z-index:2;transform-origin:20.5% 53%;transition:transform 1.15s cubic-bezier(.3,.05,.2,1)}
+.dungeon-gate-right{z-index:1;transform-origin:79.3% 53%;transition:transform 1.15s cubic-bezier(.3,.05,.2,1)}
+.dungeon-gate-frame{z-index:3}
+.is-opening .dungeon-gate-left{z-index:5;transform:rotateY(-110deg)}
+.is-opening .dungeon-gate-right{z-index:4;transform:rotateY(110deg)}
+.dungeon-lobby.is-opening .dungeon-enter:after{content:' · 문 여는 중…'}
+@media(prefers-reduced-motion:reduce){.dungeon-gate-left,.dungeon-gate-right{transition-duration:.15s}.dungeon-field{transition-duration:.15s}}
+
+.dungeon-floor-transition{position:absolute;inset:0;z-index:8;background:#080707;opacity:0;pointer-events:none;transition:opacity .4s ease}
+.dungeon-field.is-changing-floor .dungeon-floor-transition{opacity:1;pointer-events:auto}
+
+/* Stacking inside `.dungeon-field` (which is its own stacking context): 1 exit gate < 2 loot behind
+   the hero < 3 arena canvas < 4 loot in front of the hero < 5 HUD < 6 result < 8 floor fade.
+   The door is the floor's backdrop, so no coin, weapon or skill book is ever hidden behind it. */
+.dungeon-exit-gate{position:absolute;z-index:1;top:10%;left:50%;transform:translateX(-50%);height:28%;aspect-ratio:1;max-width:70%;pointer-events:none}
+.dungeon-exit-gate .dungeon-lobby-gate{filter:drop-shadow(0 6px 7px #0008)}
+
+.dungeon-exit-gate.is-resetting .dungeon-gate-left,.dungeon-exit-gate.is-resetting .dungeon-gate-right{transition:none}
+
+/* Drop loot: DOM layer over the transparent arena canvas so `src/game/render/**` stays untouched.
+   Shadow ellipse matches a stationary monster's ground shadow (about 38px wide, 12px tall).
+   The is-behind layer sits under that canvas so loot that falls behind the hero stays behind it,
+   yet still over the door (see the ladder above `.dungeon-exit-gate`). */
+.dungeon-loot-layer{position:absolute;inset:0;z-index:4;pointer-events:none;overflow:hidden}
+.dungeon-loot-layer.is-behind{z-index:2}
+.dungeon-loot{position:absolute;left:0;top:0;width:0;height:0;will-change:transform}
+/* An item may land on a coin, and it covers it: only gold and items share a point, and the item is
+   always painted above the coin — inside the behind layer too, since it is the same rule per layer. */
+.dungeon-loot.is-gold{z-index:1}
+.dungeon-loot.is-item{z-index:2}
+.dungeon-loot-shadow{position:absolute;left:0;top:0;width:38px;height:12px;border-radius:50%;background:radial-gradient(ellipse at center,#000000b8 0%,#0000 72%);transform:translate(-50%,-50%);opacity:.5}
+.dungeon-loot-body{position:absolute;left:0;top:0;width:38px;height:38px;display:grid;place-items:center;transform:translate(-50%,-100%);will-change:transform,opacity}
+.dungeon-loot-art{position:relative;z-index:1;width:34px;height:34px;object-fit:contain;filter:drop-shadow(0 2px 3px #000a)}
+.dungeon-loot-art.atlas-icon{background-size:500% 100%;background-repeat:no-repeat}
+.dungeon-loot-book{position:relative;z-index:1;width:36px;height:36px;--book-badge-size:17px;filter:drop-shadow(1px 0 0 var(--loot-ink)) drop-shadow(-1px 0 0 var(--loot-ink)) drop-shadow(0 1px 0 var(--loot-ink)) drop-shadow(0 -1px 0 var(--loot-ink)) drop-shadow(0 2px 3px #000a)}
+/* Gold keeps no outer light at all: the coin art alone marks it. */
+.dungeon-loot.is-gold .dungeon-loot-coin{position:relative;z-index:1;width:30px;height:30px;object-fit:contain;filter:none;animation:none}
+/* Equipment and skill books carry grade light, and it wraps the drop's own outline: stacked
+   `drop-shadow` follows the icon's alpha silhouette, so there is no round halo plate or ring and the
+   glow leaves the item's shape. Saturated ink plus a hard 1px layer makes the grade read at a glance.
+   Gold alone stays plain — see `.dungeon-loot.is-gold .dungeon-loot-coin`. */
+.dungeon-loot.is-item .dungeon-loot-art{animation:dungeon-loot-glow 2.4s ease-in-out infinite}
+/* A skill book carries the same grade light as equipment: the stacked `drop-shadow` traces the book
+   art's own alpha (badge included), so the 1px hard outline and the halo follow its shape. The hard
+   outline is also on the base rule above, so it stays crisp with reduced motion. */
+.dungeon-loot.is-item .dungeon-loot-book{animation:dungeon-loot-glow 2.4s ease-in-out infinite}
+.dungeon-absorb-ring{position:absolute;width:76px;height:76px;margin:-38px 0 0 -38px;border-radius:50%;border:2px solid #ffd9a0;box-shadow:0 0 20px #ffce8faa,inset 0 0 16px #ffce8f66;pointer-events:none;animation:dungeon-absorb-ring .9s ease-out forwards}
+@keyframes dungeon-loot-glow{0%,100%{filter:drop-shadow(1px 0 0 var(--loot-ink)) drop-shadow(-1px 0 0 var(--loot-ink)) drop-shadow(0 1px 0 var(--loot-ink)) drop-shadow(0 -1px 0 var(--loot-ink)) drop-shadow(0 2px 3px #000a) drop-shadow(0 0 5px var(--loot-ink))}50%{filter:drop-shadow(1px 0 0 var(--loot-ink)) drop-shadow(-1px 0 0 var(--loot-ink)) drop-shadow(0 1px 0 var(--loot-ink)) drop-shadow(0 -1px 0 var(--loot-ink)) drop-shadow(0 2px 3px #000a) drop-shadow(0 0 8px var(--loot-ink))}}
+@keyframes dungeon-absorb-ring{0%{opacity:0;transform:scale(.3)}30%{opacity:.85}100%{opacity:0;transform:scale(1.6)}}
+@media(prefers-reduced-motion:reduce){.dungeon-loot.is-item .dungeon-loot-art,.dungeon-loot.is-item .dungeon-loot-book,.dungeon-absorb-ring{animation:none}}

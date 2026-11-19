@@ -1,11 +1,14 @@
 import { preferences } from './preferences';
 import { Application, Assets, Container, Graphics, Rectangle, Sprite, Text, Texture, TilingSprite } from 'pixi.js';
-import type { Effect, Enemy, World } from './world';
+import type { Effect, Enemy, World, Coin, Drop } from './world';
+import type { LootView } from './render/drops';
 import { wearableAssetPaths, type Slot } from './items';
 import { drawRunes, drawTerrain, drawDust, drawLighting, drawVignette } from './render/field';
 import { drawHero, updateAfterimages, updateCorpses, drawEntities } from './render/entities';
 import { createCostumeHeroState, type CostumeHeroState } from './render/costumeHero';
-import { drawSkillVfx, drawDragon, drawHit, updateDamageLabels, drawDeath, drawDrops, drawEffects } from './render/vfx';
+import { drawSkillVfx, drawDragon, drawHit, updateDamageLabels, drawDeath, drawEffects } from './render/vfx';
+import { drawLoot } from './render/drops';
+import type { LootDrop } from './loot';
 import { projectArenaPoint } from './arena';
 import { createBootProgress } from './bootProgress';
 import { helmetArtList, helmetArtPaths, headlessBodyPaths } from './render/helmets';
@@ -94,6 +97,14 @@ export class GameView {
   terrainSprites: Sprite[] = [];
   aura!: Sprite;
   dragonBack = new Container();
+  /** Ground loot behind the character / in front of him, and the drops they show (see `render/drops`). */
+  lootBack = new Container();
+  lootFront = new Container();
+  lootViews = new Map<Drop | Coin, LootView>();
+  lootTaken: LootDrop[] = [];
+  lootSheets = new Set<string>();
+  lootArtTextures = new Map<string, Texture>();
+  lootGlow?: Texture;
   ghosts = new Container();
   actors = new Container();
   fallen = new Container();
@@ -189,7 +200,10 @@ export class GameView {
     this.aura.anchor.set(.5);
     this.aura.blendMode = 'add';
     this.aura.alpha = 0;
-    this.app.stage.addChild(this.floor, this.glow, this.ground, this.terrainLayer, this.aura, this.dragonBack, this.ghosts, this.actors, this.fallen, this.skillVfx, this.effects, this.labels, this.shade);
+    this.app.stage.addChild(this.floor, this.glow, this.ground, this.terrainLayer, this.aura, this.dragonBack, this.ghosts, this.lootBack, this.actors, this.lootFront, this.fallen, this.skillVfx, this.effects, this.labels, this.shade);
+    // Loot keeps its own paint order: a coin of a heap stays under an item that fell on it.
+    this.lootBack.sortableChildren = true;
+    this.lootFront.sortableChildren = true;
     progress.report();
     // 코스튬 매니페스트는 화면을 막지 않고 뒤에서 한 번만 받는다. 없거나 실패하면
     // `fallback` 상태로 굳어 기존 통합 바디 렌더링이 그대로 이어진다(작업 140 §8).
@@ -216,7 +230,7 @@ export class GameView {
     this.skillVfx.alpha = preferences.effects === 'low' ? .35 : 1;
     this.dragonBack.alpha = preferences.effects === 'low' ? .35 : 1;
     this.app.stage.position.set(shake ? (Math.random() * 2 - 1) * shake : 0, shake ? (Math.random() * 2 - 1) * shake : 0);
-    drawDrops.call(this, world, project, time);
+    drawLoot.call(this, world, project, time, dt);
     drawEntities.call(this, world, project, time, dt, hx, hy, h);
     drawEffects.call(this, world, project, time);
     drawVignette.call(this, w, h, hx, hy, time);

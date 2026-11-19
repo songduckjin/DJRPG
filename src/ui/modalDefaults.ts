@@ -11,5 +11,6 @@ export function resetModalDefaults(ui: Interface): void {
   ui.codexQuery = ''; ui.codexSlot = ''; ui.codexRarity = ''; ui.codexState = 'all';
   ui.codexSelected = undefined;
   ui.confirmReset = false;
+  if(ui.dungeon)ui.dungeon.tab='challenge';
   if(ui.worldBoss)ui.worldBoss.tab='challenge';
 }

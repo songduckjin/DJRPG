@@ -16,7 +16,9 @@ test('save parsing retains all books plus forty gear and unequip respects only e
 });
 test('full equipment bag still picks up books while leaving equipment drops intact',()=>{
   const save=freshSave();save.tutorial=3;save.bag=Array.from({length:40},(_,i)=>gear(`g${i}`));
-  const world=new World(save),point={x:world.player.x,y:world.player.y,age:0,warned:false};world.drops=[{...point,item:book('book')},{...point,item:gear('full')}];world.update(0);
+  const world=new World(save),point={x:world.player.x,y:world.player.y,age:0,warned:false};world.drops=[{...point,item:book('book')},{...point,item:gear('full')}];
+  // Both drops rest for 1.5s first, then only the book has room in a full equipment bag.
+  for(let i=0;i<25;i++)world.update(.1);
   assert.equal(save.bag.length,41);assert.equal(save.bag.at(-1).id,'book');assert(world.drops.some(drop=>drop.item.id==='full'));
 });
 test('compact bag tooltip attaches above or below the tile without covering the same row',()=>{

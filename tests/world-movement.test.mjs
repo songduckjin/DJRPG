@@ -97,10 +97,12 @@ test('사거리 경계에서 때리다 멈추지 않고 쿨다운마다 계속 �
   assert(attacks >= 8, `6초 동안 쿨다운마다 공격했다(실제 ${attacks}회)`);
 });
 
-test('a distant drop still starts pursuit and can be collected', () => {
+test('a distant drop is pulled into the hero on its own and stored after the rest beat', () => {
   const world = new World(freshSave()); world.enemies = []; world.spawnTimer = 999;
   world.drops = [{ x: 90, y: 0, item: { id: 'loot', name: '낡은 두손검', slot: 'weapon', rarity: 'common', stats: { attack: 4 } }, age: 0, warned: false }];
-  world.update(.1); assert(world.player.x > 0);
+  world.update(.1); assert.equal(world.player.x, 0, 'the hero keeps his ground instead of walking to the loot');
+  for (let i = 0; i < 14; i++) world.update(.1);
+  assert(world.drops.length === 1, 'the drop still rests on the ground before its 1.5 second beat');
   for (let i = 0; i < 10 && world.drops.length; i++) world.update(.1);
   assert(world.save.bag.some(item => item.id === 'loot'));
 });
