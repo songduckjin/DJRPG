@@ -70,23 +70,27 @@ export const costumeVariantsPerPage = costumeAtlasCellsPerPage / costumeVariantS
 export const costumeBodyPivot = { x: .5, y: .96 } as const;
 
 /**
- * 무기 레이어 기본 보정 — 검 확대 1.35배 + 손 위치 내림.
+ * 무기 레이어 기본 보정 — 검 확대 1.45배 + 손 위치를 허리·골반까지 내림.
  *
- * 2026-11-19 실기 제보: "검 크기가 더 컸으면 좋겠다, 검이 머리 위에 떠 있나 봐".
+ * 2026-11-19 실기 제보 1: "검 크기가 더 컸으면 좋겠다, 검이 머리 위에 떠 있나 봐".
+ * 2026-11-19 실기 제보 2(1.35배·`+68` 배포 후): "검이 아직도 머리 위에 떠 있어, 가려도 되는데 왜".
  * 아틀라스 생성기(`scripts/build-costume-atlas.py` `weapon_cells`)는 손잡이를 발끝 기준
  * `hand_y = PIVOT_Y + (v - anchor_y) * frame * scale ≈ -120px`(어깨·목 높이)에 두고
  * 검 길이를 `BODY_PX * 0.55 = 104px`로 그린다. 셀 피벗(발끝, `anchor.y = .96`)을 축으로
- * 1.35배 키우면 손잡이가 `120 * 0.35 = 42px` 더 올라가므로 그 42px를 되돌리고 26px를 더
- * 내려(`+42 + 26 = +68`) 손잡이를 발끝 기준 `-94px`(허리·손 높이)에 둔다. 검 길이는
- * 104 → 140px가 되어 검날이 머리 위로 길게 솟되 손잡이는 몸에 붙어 있게 된다.
- * X는 정지 프레임 손잡이가 셀 중심에서 약 `+8px`이라, 1.35배가 만든 `+11px`를 `-3`으로
- * 되돌려 손 접점을 그대로 둔다.
+ * 1.35배만 키워서는 검 끝(`-204.3 * 1.35 + 68 = -208px`)이 머리 상단(`-193px`)보다 위에 남고
+ * 손잡이(`-94px`)도 아직 상체에 걸쳤다.
+ *
+ * 그래서 1.45배로 더 키우고 `y = +110`으로 내린다. 손잡이는
+ * `-119.3 * 1.45 + 110 = -63px`(몸높이 190px의 33% = 허리·골반 손 높이),
+ * 검 끝은 `-204.3 * 1.45 + 110 = -186px`로 머리 상단(`-193px`) 아래에 들어와 검날이 머리를
+ * 넘지 않고 몸을 덮는다(사용자 의사: "가려도 된다"). 검 길이는 104 → 151px.
+ * X는 1.45배 확대가 만든 손잡이 `+12px` 이동을 `-8`로 대부분 되돌려 손 접점을 유지한다.
  *
  * 공격 계열 프레임의 무기 셀은 투명하다(공격 시트에 검 그림이 내장). 그래서 이 보정은
  * idle/walk에만 보이고, 갑옷·투구 레이어는 건드리지 않는다. 매니페스트가 `fit`을 지정하면
  * 이 기본값보다 그 값이 우선한다.
  */
-export const costumeWeaponFit = { x: -3, y: 68, scaleX: 1.35, scaleY: 1.35 } as const;
+export const costumeWeaponFit = { x: -8, y: 110, scaleX: 1.45, scaleY: 1.45 } as const;
 
 /** 코스튬 레이어의 부위 키. 장비는 부위 이름, 본체는 `torso`·`arms`·`legs`. */
 export type CostumeLayerRole = CostumeBodyPart | CostumeSlotGroup | 'pilot';
@@ -193,10 +197,10 @@ export function planHeroCostume(save: Pick<Save, 'gender' | 'equipment'>, load: 
     const definition = plan.definition;
     const variant = variantIndex(manifest, definition);
     if (variant < 0) return { ok: false, reason: 'unmapped-costume', detail: `${definition.costumeId}가 매니페스트에 없습니다.` };
-    // 무기는 매니페스트 `fit`이 없을 때 `costumeWeaponFit`(1.35배 + 아래로 68px)을 기본으로 쓴다.
+    // 무기는 매니페스트 `fit`이 없을 때 `costumeWeaponFit`(1.45배 + 아래로 110px)을 기본으로 쓴다.
     // 2026-11-19 실기 제보로 70% 축소를 걷어낸 뒤에도 검이 작고 머리 위에 떠 보여, 크기를 키우고
-    // 손잡이를 허리 높이까지 내렸다(계산 근거는 `costumeWeaponFit` 주석). 다른 부위는 종전대로
-    // 매니페스트 `fit`(없으면 보정 없음)만 쓴다.
+    // 손잡이를 허리·골반 높이까지 내리고 검 끝을 머리 아래에 두었다(계산 근거는 `costumeWeaponFit`
+    // 주석). 다른 부위는 종전대로 매니페스트 `fit`(없으면 보정 없음)만 쓴다.
     const fit = definition.slot === 'weapon'
       ? {
           x: definition.fit?.x ?? costumeWeaponFit.x,
