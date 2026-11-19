@@ -1873,3 +1873,6 @@
 
 | 169 던전 대기창 간결화 | fks3997 | preview/gravel-background-fks3997 | src/ui/modals/dungeonModal.ts, src/styles/dungeon.css, public/assets/icons/dungeon-stone.svg, 문서 | 하 | [x] |
 - 169: tsc·관련14·아트 검증 통과. 사용자 미리보기 요청 전 로컬 수정만, push/운영배포 없음. 브라우저 실기 미실행.
+
+| 170 던전 탭 고정·10위 순위 | fks3997 | preview/gravel-background-fks3997 | src/ui/modals/dungeonModal.ts, src/styles/dungeon.css, 문서 | 하 | [x] |
+- 170: 철문 고정 높이·하단 탭전환·10위 기본행·도전탭 CTA. tsc/관련14/diff 통과. 미리보기 전용.

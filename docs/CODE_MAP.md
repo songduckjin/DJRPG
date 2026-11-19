@@ -231,3 +231,5 @@ npm run check && npm test && npm run build # 공용 계약 수정·사용자 요
 - 아트 `public/assets/dungeon/lobby-gate-v1.png`, `public/assets/icons/utility_dungeon.png`. 검증 `tests/dungeon-lobby.test.mjs` + modal-ui/modal-interaction.
 
 - 작업169 대기창: 철문은 가림 없는 contain, 제목/층은 별도 행. 도전 내용 스크롤 제거·영역 높이 절약, 최초 보상은 금화PNG/강화석SVG로 강조. `dungeonModal.ts`·`dungeon.css`만 레이아웃 담당.
+
+- 작업170: 던전 `data-tab`별 하단만 교체, 철문은 고정 flex-basis. 순위는10행(미기록은 빈행)+내순위, CTA는 도전탭만 생성.
