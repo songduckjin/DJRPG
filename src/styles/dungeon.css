@@ -61,6 +61,10 @@
 .dungeon-loot-layer{position:absolute;inset:0;z-index:3;pointer-events:none;overflow:hidden}
 .dungeon-loot-layer.is-behind{z-index:2}
 .dungeon-loot{position:absolute;left:0;top:0;width:0;height:0;will-change:transform}
+/* An item may land on a coin, and it covers it: only gold and items share a point, and the item is
+   always painted above the coin — inside the behind layer too, since it is the same rule per layer. */
+.dungeon-loot.is-gold{z-index:1}
+.dungeon-loot.is-item{z-index:2}
 .dungeon-loot-shadow{position:absolute;left:0;top:0;width:38px;height:12px;border-radius:50%;background:radial-gradient(ellipse at center,#000000b8 0%,#0000 72%);transform:translate(-50%,-50%);opacity:.5}
 .dungeon-loot-body{position:absolute;left:0;top:0;width:38px;height:38px;display:grid;place-items:center;transform:translate(-50%,-100%);will-change:transform,opacity}
 .dungeon-loot-art{position:relative;z-index:1;width:34px;height:34px;object-fit:contain;filter:drop-shadow(0 2px 3px #000a)}

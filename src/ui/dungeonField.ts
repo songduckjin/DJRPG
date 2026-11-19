@@ -5,7 +5,7 @@ import {projectArenaPoint} from '../game/arena';
 import {totalStats} from '../game/store';
 import {skills} from '../game/skills';
 import {equipmentImage,isSkillBook,type Rarity} from '../game/items';
-import {DungeonBattle,dungeonLootSpots,dungeonLootTimeline,dungeonAbsorbProgress,dungeonAbsorbPoint,type DungeonLoot,type LootSpot} from './dungeonBattle';
+import {DungeonBattle,dungeonLootSpots,dungeonLootTimeline,dungeonAbsorbProgress,dungeonAbsorbPoint,type DungeonLoot,type LootDrop} from './dungeonBattle';
 import {heroBodyFraction} from '../game/render/heroScale';
 import {setSkillIcon} from './skillArtwork';
 import {createSkillBookArt} from './skillBookArt';
@@ -31,7 +31,7 @@ export function openDungeonField(ui:Interface,lobby:HTMLElement):void {
   // glance, while gold and skill books carry no outer light at all.
   const rarityInk:Record<Rarity,string>={common:'#cdd6e0',magic:'#2f7bff',rare:'#ffd400',epic:'#a855f7',unique:'#ff8a00',legendary:'#ff2d2d'};
   type LootView={el:HTMLDivElement;body:HTMLDivElement;shadow:HTMLSpanElement;x:number;y:number;tx:number;ty:number;drift:number;h:number;vh:number;spin:number;spinV:number;settled:boolean;done:boolean};
-  let lootViews:LootView[]=[],restSpots:LootSpot[]=[],spawnedLoot=0,absorbStarted=false,absorbRing:HTMLDivElement|undefined;
+  let lootViews:LootView[]=[],restSpots:LootDrop[]=[],spawnedLoot=0,absorbStarted=false,absorbRing:HTMLDivElement|undefined;
   // One timeline owns the clear beat: hold on the ground, pull every drop in, then show the result.
   const timeline=()=>dungeonLootTimeline(battle.outcome,battle.world.loot.length);
   const LOOT_GAP=36;
@@ -53,9 +53,10 @@ export function openDungeonField(ui:Interface,lobby:HTMLElement):void {
     }
     // A kill lands almost on top of the hero, so the drop keeps its own death point unless that
     // point is inside the character: then it is pulled straight out along the same line until it
-    // clears the art, inside the fan, and only far enough apart from other drops not to overlap.
+    // clears the art, inside the fan. Only items are held `LOOT_GAP` apart from each other; gold
+    // piles up where the mob fell, so its coins stay bunched instead of scattering across the floor.
     const w=view.app.screen.width,h=view.app.screen.height,[heroX,heroY]=projectArenaPoint(battle.world.player.x,battle.world.player.y,w,h),[gx,gy]=projectArenaPoint(loot.x,loot.y,w,h);
-    const heroH=Math.max(48,h*heroBodyFraction),[spot]=dungeonLootSpots(heroX,heroY,[{x:gx,y:gy}],restSpots,Math.max(40,heroH*.5),heroH+8,LOOT_GAP),tx=spot.x-gx,ty=spot.y-gy;
+    const heroH=Math.max(48,h*heroBodyFraction),[spot]=dungeonLootSpots(heroX,heroY,[{x:gx,y:gy,gold:loot.kind==='gold'}],restSpots,Math.max(40,heroH*.5),heroH+8,LOOT_GAP),tx=spot.x-gx,ty=spot.y-gy;
     el.append(shadow,body);
     // Depth: loot that rests behind the hero's feet stays under the transparent arena canvas, loot
     // in front of them is drawn over the floor. Neither ever sits on the hero art.

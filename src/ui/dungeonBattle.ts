@@ -20,25 +20,40 @@ export function dungeonSpawnPull(floor:number,boss:boolean):number {
   return DUNGEON_SPAWN_STEPS*enemyMoveSpeed(floor,boss)*ENEMY_STRIDE_SECONDS;
 }
 export type LootSpot = { x:number; y:number };
+/** Ground loot resting on its spot: `gold` marks a coin, which is allowed to pile up on anything. */
+export type LootDrop = LootSpot & { gold?:boolean };
 /** Ground loot rests inside a fan opening from the hero: ±100° of straight up. That keeps every drop
  *  near the kill and never behind the feet where the skill bar sits. */
 export const DUNGEON_LOOT_FAN = Math.PI*100/180;
+/** Coins of one heap land this close together, so only a coin that would sit on the very same point
+ *  as another is stepped a few pixels aside — enough that two coins never read as a single coin. */
+export const DUNGEON_GOLD_PILE_MIN = 10;
+export const DUNGEON_GOLD_PILE_STEP = 6;
 /** Resting spots for the drops of a kill (or of several). A drop keeps the point it fell on whenever
  *  that point is already clear of the hero art; inside the hero's keep-out ellipse it is pulled out
- *  along the hero→drop direction — never shoved to the sides — just past the silhouette, and it only
- *  moves as far as needed for no two drops to overlap. `rx`/`ry` are the keep-out half-width and
- *  half-height of the character, `gap` the icon pitch. */
-export function dungeonLootSpots(heroX:number,heroY:number,drops:LootSpot[],taken:LootSpot[],rx:number,ry:number,gap:number):LootSpot[] {
+ *  along the hero→drop direction — never shoved to the sides — just past the silhouette.
+ *  Only equipment and skill books then keep `gap` from each other. A coin piles up with coins and
+ *  items alike, moving only to clear the silhouette or to step off a coin in its own heap.
+ *  `rx`/`ry` are the keep-out half-width and half-height of the character, `gap` the item pitch. */
+export function dungeonLootSpots(heroX:number,heroY:number,drops:LootDrop[],taken:LootDrop[],rx:number,ry:number,gap:number):LootSpot[] {
   const polar=(r:number,a:number):LootSpot=>({x:heroX+Math.sin(a)*r,y:heroY-Math.cos(a)*r});
   const rim=(a:number)=>1/Math.hypot(Math.sin(a)/rx,Math.cos(a)/ry);
   const fan=(a:number)=>Math.max(-DUNGEON_LOOT_FAN,Math.min(DUNGEON_LOOT_FAN,a));
   const angleOf=(p:LootSpot)=>Math.atan2(p.x-heroX,heroY-p.y);
-  const free=(p:LootSpot)=>taken.every(t=>Math.hypot(t.x-p.x,t.y-p.y)>=gap-1e-6);
+  // Coins are in `taken` too, but only another item can push an item away.
+  const free=(p:LootSpot)=>taken.every(t=>t.gold||Math.hypot(t.x-p.x,t.y-p.y)>=gap-1e-6);
   const spots:LootSpot[]=[];
   for(const drop of drops){
     const a=fan(angleOf(drop)),r=Math.max(Math.hypot(drop.x-heroX,drop.y-heroY),rim(a)+2),base=polar(r,a);
     let spot=base;
-    if(!free(base))for(let ring=1;ring<=12;ring++){
+    if(drop.gold){
+      const pile=taken.filter(t=>t.gold&&Math.hypot(t.x-base.x,t.y-base.y)<DUNGEON_GOLD_PILE_MIN).length;
+      if(pile){
+        const turn=pile*2.4,reach=DUNGEON_GOLD_PILE_STEP*(1+Math.floor(pile/6));
+        const nudge={x:base.x+Math.sin(turn)*reach,y:base.y-Math.cos(turn)*reach},nudgeAngle=fan(angleOf(nudge));
+        spot=polar(Math.max(Math.hypot(nudge.x-heroX,nudge.y-heroY),rim(nudgeAngle)+2),nudgeAngle);
+      }
+    }else if(!free(base))for(let ring=1;ring<=12;ring++){
       let nearest=Infinity;
       for(const turn of [0,.4,-.4,.8,-.8,1.2,-1.2,1.6,-1.6]){
         const candidate=polar(r+ring*gap,fan(a+turn));
@@ -48,7 +63,7 @@ export function dungeonLootSpots(heroX:number,heroY:number,drops:LootSpot[],take
       }
       if(nearest<Infinity)break;
     }
-    taken.push(spot);spots.push(spot);
+    taken.push({...spot,gold:drop.gold});spots.push(spot);
   }
   return spots;
 }

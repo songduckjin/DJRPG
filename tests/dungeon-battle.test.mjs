@@ -1,5 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
 import './ts-loader.mjs';
 const {DungeonBattle,DUNGEON_ITEM_DROP_CHANCE,DUNGEON_ENEMY_SPEED_SCALE,DUNGEON_SPAWN_STEPS,DUNGEON_LOOT_FAN,DUNGEON_ABSORB_DELAY,dungeonSpawnPull,dungeonLootSpots,dungeonLootTimeline,dungeonAbsorbProgress,dungeonAbsorbPoint}=await import('../src/ui/dungeonBattle.ts');
 const {World,enemyMoveSpeed}=await import('../src/game/world.ts');
@@ -118,6 +119,49 @@ test('drops keep the point they fell on unless the hero or another drop is there
   assert(Math.hypot(dx,dy)<260,`drifts from the kill ${Math.hypot(dx,dy)}`);
  }
  for(let i=0;i<taken.length;i++)for(let j=i+1;j<taken.length;j++)assert(Math.hypot(taken[i].x-taken[j].x,taken[i].y-taken[j].y)>=gap-1e-6,`overlap ${i},${j}`);
+});
+
+test('gold piles up where the mob fell while only items keep their pitch',()=>{
+ const hero={x:200,y:400},keepX=40,keepY=88,gap=36,taken=[];
+ const kill={x:hero.x+70,y:hero.y-46};
+ // Three coins of one kill stay on the death point: no 36px fan, only a few pixels apart.
+ const coins=dungeonLootSpots(hero.x,hero.y,Array.from({length:3},()=>({...kill,gold:true})),taken,keepX,keepY,gap);
+ for(const coin of coins)assert(Math.hypot(coin.x-kill.x,coin.y-kill.y)<=12,`coin scattered ${Math.hypot(coin.x-kill.x,coin.y-kill.y)}`);
+ for(let i=0;i<coins.length;i++)for(let j=i+1;j<coins.length;j++)assert(Math.hypot(coins[i].x-coins[j].x,coins[i].y-coins[j].y)>1,`coins ${i},${j} merged`);
+ // A coin on top of a heap of coins is a coin: it is never pushed aside to make room for an item,
+ // and an item is never pushed by a coin either — the item simply lands over the coin.
+ const overCoin=dungeonLootSpots(hero.x,hero.y,[{...kill,gold:true},{...kill}],taken,keepX,keepY,gap);
+ assert(Math.hypot(overCoin[0].x-kill.x,overCoin[0].y-kill.y)<=12);
+ assert.deepEqual(overCoin[1],kill);
+ // Two items still keep the icon pitch between them, and the item list is what decides it.
+ const both=dungeonLootSpots(hero.x,hero.y,[{...kill},{...kill}],[],keepX,keepY,gap);
+ assert(Math.hypot(both[0].x-both[1].x,both[0].y-both[1].y)>=gap-1e-6);
+ // A whole floor of kills piled around the hero: every coin stays at its own kill point instead
+ // of walking outward a full icon pitch per extra drop.
+ const spots=dungeonLootSpots(hero.x,hero.y,Array.from({length:7},(_,i)=>({x:hero.x+38+(i%3)*4,y:hero.y-40-(i%2)*3,gold:true})),[],keepX,keepY,gap);
+ const kills=Array.from({length:7},(_,i)=>({x:hero.x+38+(i%3)*4,y:hero.y-40-(i%2)*3}));
+ spots.forEach((spot,index)=>assert(Math.hypot(spot.x-kills[index].x,spot.y-kills[index].y)<=16,`coin ${index} drifted ${Math.hypot(spot.x-kills[index].x,spot.y-kills[index].y)}`));
+});
+
+test('a coin inside the hero art is pulled clear without breaking up its heap',()=>{
+ const hero={x:200,y:400},keepX=40,keepY=88,gap=36,near={x:hero.x+2,y:hero.y-20};
+ const pair=dungeonLootSpots(hero.x,hero.y,[{...near,gold:true},{...near,gold:true}],[],keepX,keepY,gap);
+ for(const coin of pair){
+  const dx=coin.x-hero.x,dy=coin.y-hero.y;
+  assert((dx/keepX)**2+(dy/keepY)**2>=1-1e-6,`coin still over the hero ${dx},${dy}`);
+  assert(Math.abs(Math.atan2(dx,-dy))<=DUNGEON_LOOT_FAN+1e-9,`coin left the fan ${dx},${dy}`);
+  assert(Math.hypot(dx,dy)<=keepY+12,`coin flew away ${Math.hypot(dx,dy)}`);
+ }
+ assert(Math.hypot(pair[0].x-pair[1].x,pair[0].y-pair[1].y)>1,'two coins share one pixel');
+});
+
+test('an item is painted above a coin that shares its spot, in either loot layer',()=>{
+ const css=readFileSync(new URL('../src/styles/dungeon.css',import.meta.url),'utf8');
+ const layer=css.match(/\.dungeon-loot\.is-gold\{z-index:(\d+)\}/),item=css.match(/\.dungeon-loot\.is-item\{z-index:(\d+)\}/);
+ assert(layer&&item,'gold and item stacking rules are missing');
+ // The rule sits on `.dungeon-loot` itself, and both loot layers use the same two classes.
+ assert.equal((css.match(/\.dungeon-loot-layer\.is-behind\{z-index:\d+\}/)||[]).length,1);
+ assert(Number(item[1])>Number(layer[1]),`item ${item[1]} is not above gold ${layer[1]}`);
 });
 
 test('every clear absorbs the ground loot before any result can show',()=>{
