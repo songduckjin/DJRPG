@@ -527,5 +527,7 @@
 
 - 179: CSS배경/DOM문z2/투명Pixi배우z3/HUDz4, 전투후에도visualTime진행·.75초후결과, 리셋시몬스터/시체/라벨청소. tsc/관련10/diff통과, 실기미실행. preview만.
 
-## [-] [작업180] 던전 배경 복구
+## [x] [작업180] 던전 배경 복구
 - Pixi불투명canvas생성후alpha0은지원안됨. 전용앱init부터backgroundAlpha0으로설정해기존CSS배경/문복구, 공용render무변경. preview만.
+
+- 180: Pixi BackgroundSystem/CanvasContextSystem에서초기alpha만context에반영확인, 전용앱init옵션backgroundAlpha0으로수정. tsc/관련10/diff통과. 미리보기만, 브라우저실기미실행.

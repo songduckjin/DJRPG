@@ -1901,3 +1901,6 @@
 
 | 179 던전 몬스터 문앞 레이어 | fks3997 | preview/gravel-background-fks3997 | ui/dungeonField.ts, styles/dungeon.css, 문서 | 하 | [x] |
 - 179: 투명배우canvas/문뒤레이어·독립시각시간·사망소멸후결과/층초기화잔상청소. tsc/던전10/diff 통과, 실기미실행, preview만.
+
+| 180 던전 배경 투명초기화 복구 | fks3997 | preview/gravel-background-fks3997 | ui/dungeonField.ts, 문서 | 하 | [x] |
+- 180: 전용Application.init에backgroundAlpha0(생성후전환불가원인), tsc/던전10/diff통과. 실기미실행, preview만.

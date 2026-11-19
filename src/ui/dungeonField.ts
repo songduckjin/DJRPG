@@ -19,6 +19,10 @@ export function openDungeonField(ui:Interface,lobby:HTMLElement):void {
   ui.root.querySelector('.game-shell')!.append(field);
   const get=<T extends HTMLElement>(s:string)=>field.querySelector<T>(s)!;
   const view=new GameView();let battle=new DungeonBattle(ui.world.save),closed=false,mounted=false,age=0,visualTime=0,finishAge=0,resultShown=false;
+  // Canvas alpha is fixed at context creation; changing it after mount cannot
+  // reveal the CSS chamber/door behind an opaque context (Pixi BackgroundSystem).
+  const initialize=view.app.init.bind(view.app);
+  view.app.init=options=>initialize({...options,backgroundAlpha:0});
   let destroyPending=false;
   const observer=new MutationObserver(()=>{if(ui.openModal!=='dungeon'||!lobbyRoot.isConnected)cleanup();});
   observer.observe(ui.modal,{attributes:true,attributeFilter:['hidden'],childList:true,subtree:true});
