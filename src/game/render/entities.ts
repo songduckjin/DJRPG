@@ -2,14 +2,13 @@ import { Assets, Container, Rectangle, Sprite, Text, Texture } from 'pixi.js';
 import type { World } from '../world';
 import type { Save } from '../store';
 import { enemyFacing } from '../facing';
-import { heroAppearance } from '../appearance';
-import { attackFacingFromAngle, costumeFrameIndex, costumePlaybackRate, heroAnimationMode, heroCostumeMotion, heroMotion } from './heroMotion';
-import { costumeBodyPx, costumeScale, heroScale, heroBodyHeight } from './heroScale';
+import { heroAnimationMode, heroMotion } from './heroMotion';
+import { heroScale, heroBodyHeight } from './heroScale';
 import { heroClass, socketMotion, weaponSocket } from './heroSockets';
 import { tintedGearTexture } from './gearTint';
-import { costumeGhostSources, hideCostumeHero, renderCostumeHero } from './costumeHero';
+import { costumeGhostSources, hideCostumeHero } from './costumeHero';
 import { resolveSkillMotion, type CostumeMotionTemplate } from '../costume/skillMotion';
-import { totalStats, wearableEquipmentImage } from '../items';
+import { wearableEquipmentImage } from '../items';
 import type { GameView } from '../render';
 
 function syncWeapon(view: GameView, save: Save, texture: Texture, art: string, attacking: boolean, motion: 'idle' | 'walk', walkingFrame: number): void {
@@ -70,18 +69,9 @@ function syncWeapon(view: GameView, save: Save, texture: Texture, art: string, a
     shown.sprite.rotation = socket.rotation;
 }
 
-function clearAfterimages(view: GameView): void {
-  for (const ghost of view.afterimages) {
-    for (const entry of ghost.sprites) {
-      view.ghosts.removeChild(entry.sprite);
-      entry.sprite.destroy();
-    }
-  }
-  view.afterimages = [];
-  view.ghostEmissions = new WeakMap();
-}
-
 const walkAnchors = {
+  pilotMaleWalk: [.97, .97, .97, .97, .97, .97, .97, .97],
+  pilotFemaleWalk: [.97, .97, .97, .97, .97, .97, .97, .97],
   maleBaseWalk: [.95, .95, .95, .95, .941, .944, .944, .923],
   maleBaseHelmWalk: [.97, .97, .97, .97, .97, .97, .97, .97],
   femaleBaseWalk: [.95, .948, .95, .944, .953, .953, .95, .928],
@@ -100,11 +90,6 @@ const walkAnchors = {
   skeletonWalk: [.917, .914, .91, .912, .898, .91, .905, .892],
   bossWalk: [.919, .901, .899, .899, .914, .907, .905, .905]
 } as const;
-const idleAnchors: Record<string, number> = {
-  armored: .957, armoredNoHelm: .982,
-  femaleArmoredNoHelm: .993, femaleArmoredHelm: .994, femaleArmoredOldHelm: .991
-};
-
 export type HeroSkillMotion = { template: CostumeMotionTemplate | null; progress: number };
 
 /**
@@ -128,58 +113,35 @@ export function activeSkillMotion(world: World): HeroSkillMotion {
 
 export function drawHero(this: GameView, world: World, x: number, y: number, time: number): void {
     const { player, save } = world;
-    const appearance = heroAppearance(save);
-    // Attack sheets already hold a sword. Idle/walk use swordless body art so
-    // the socket weapon is the only visible sword in those states.
-    const swordlessAppearance = save.equipment.weapon
-      ? heroAppearance({ ...save, equipment: { ...save.equipment, weapon: undefined } })
-      : appearance;
+    const pilotIdle = save.gender === 'female' ? 'pilotFemale' : 'pilotMale';
+    const pilotWalk = save.gender === 'female' ? 'pilotFemaleWalk' : 'pilotMaleWalk';
+    const pilotAttack = save.gender === 'female' ? 'pilotFemaleAttack' : 'pilotMaleAttack';
     const moving = Math.hypot(world.activeMove.x, world.activeMove.y) > .05;
     const walked = Math.hypot(player.x - this.lastHeroWorld.x, player.y - this.lastHeroWorld.y);
     this.lastHeroWorld = { x: player.x, y: player.y };
     if (moving) this.heroWalkDistance += Math.min(30, walked);
     const walkingFrame = Math.floor(this.heroWalkDistance / 12) % 8;
     const attackFrame = Math.min(3, Math.floor((1 - world.attackPose / .32) * 4));
-    const skill = activeSkillMotion(world);
-    // 대기·걷기·기본 공격·스킬 4종을 한 이름 공간으로 고른다(작업 140 요구 1).
-    const costumeMotion = heroCostumeMotion({ moving, attackPose: world.attackPose, skill: skill.template });
-    // 공격 속도는 시각 재생 배율로만 쓴다(요구 2). 전투 판정·월드 위치는 바꾸지 않는다.
-    const playbackRate = costumePlaybackRate({ speed: totalStats(save).speed, berserk: player.berserk, berserkLevel: player.berserkLevel });
-    const motionProgress = skill.template ? skill.progress : world.attackPose > 0 ? 1 - world.attackPose / .32 : 0;
-    const costumeFrame = costumeMotion === 'walk' ? walkingFrame : costumeFrameIndex(costumeMotion, motionProgress, playbackRate);
     const heroTint = player.hit > 0 ? 0xffd4cf : 0xffffff;
-
-    // 1) 독립형 코스튬 레이어 경로. 매니페스트·아틀라스가 없거나 계획이 서지 않으면
-    //    `false`를 받아 아래 2) 기존 통합 바디 경로로 같은 프레임을 그린다(무중단 폴백).
-    const costumeDrawn = renderCostumeHero({
-      heroLayer: this.heroLayer,
-      hero: this.hero,
-      onPlanChange: () => clearAfterimages(this)
-    }, this.costume, save, { motion: costumeMotion, frame: costumeFrame, tint: heroTint, direction: attackFacingFromAngle(player.facing) });
-    let bodyPx: number;
-    let scale: number;
-    if (costumeDrawn) {
-      bodyPx = costumeBodyPx;
-      scale = costumeScale(this.app.screen.height);
-    } else {
-      hideCostumeHero(this, this.costume);
-      const walkArt = swordlessAppearance.walk;
-      let texture = this.textures[swordlessAppearance.idle];
-      const animation = heroAnimationMode(moving, world.attackPose, !!appearance.attack);
-      const animatedAttack = animation === 'attack';
-      if (animation === 'walk') texture = this.animations[walkArt][walkingFrame];
-      else if (animatedAttack && appearance.attack) texture = this.animations[appearance.attack][Math.max(0, attackFrame)];
-      const textureKey = animation === 'walk' ? `${walkArt}:${walkingFrame}`
-        : animatedAttack && appearance.attack ? `${appearance.attack}:${Math.max(0, attackFrame)}` : swordlessAppearance.idle;
-      const displayTexture = tintedGearTexture(textureKey, texture, appearance.armorPalette, appearance.helmetPalette, animatedAttack);
-      if (this.hero.texture !== displayTexture) this.hero.texture = displayTexture;
-      this.hero.anchor.y = animatedAttack ? .97 : moving ? walkAnchors[walkArt][walkingFrame] : (idleAnchors[swordlessAppearance.idle] ?? .996);
-      const art = animation === 'walk' ? walkArt : animatedAttack && appearance.attack ? appearance.attack : swordlessAppearance.idle;
-      bodyPx = heroBodyHeight(art, texture.height);
-      scale = heroScale(this.app.screen.height, art, texture.height);
-      this.hero.tint = heroTint;
-      syncWeapon(this, save, texture, art, animatedAttack, socketMotion(animation), walkingFrame);
-    }
+    // The approved pilot sheets contain the complete armor and greatsword. Skip all
+    // equipment/costume overlays so the body and weapon are never drawn twice.
+    hideCostumeHero(this, this.costume);
+    const animation = heroAnimationMode(moving, world.attackPose, true);
+    const animatedAttack = animation === 'attack';
+    const art = animation === 'walk' ? pilotWalk : animatedAttack ? pilotAttack : pilotIdle;
+    let texture = this.textures[pilotIdle];
+    if (animation === 'walk') texture = this.animations[pilotWalk][walkingFrame];
+    else if (animatedAttack) texture = this.animations[pilotAttack][Math.max(0, attackFrame)];
+    const textureKey = animation === 'walk' ? `${pilotWalk}:${walkingFrame}`
+      : animatedAttack ? `${pilotAttack}:${Math.max(0, attackFrame)}` : pilotIdle;
+    const displayTexture = tintedGearTexture(textureKey, texture, null, null, animatedAttack);
+    if (this.hero.texture !== displayTexture) this.hero.texture = displayTexture;
+    this.hero.anchor.y = animation === 'walk' ? walkAnchors[pilotWalk][walkingFrame] : .97;
+    const bodyPx = heroBodyHeight(art, texture.height);
+    const scale = heroScale(this.app.screen.height, art, texture.height);
+    this.hero.tint = heroTint;
+    const withoutEquippedWeapon = { ...save, equipment: { ...save.equipment, weapon: undefined } };
+    syncWeapon(this, withoutEquippedWeapon, texture, art, true, socketMotion(animation), walkingFrame);
     let bob = 0;
     const local = world.effects.filter(effect => effect.kind !== 'hit' && effect.kind !== 'death' && Math.hypot(effect.x - player.x, effect.y - player.y) < 2);
     const slam = local.find(effect => effect.kind === 'slam' || effect.kind === 'hell');
@@ -187,8 +149,7 @@ export function drawHero(this: GameView, world: World, x: number, y: number, tim
     const attackPulse = motion.pulse;
     if (slam) bob -= Math.sin(Math.PI * slam.age / slam.duration) * 17;
     const face = player.facingSide;
-    const directionalPilotAttack = costumeDrawn && this.costume.sprites.has('pilot') && costumeMotion === 'attack';
-    const visualFace = directionalPilotAttack ? 1 : face;
+    const visualFace = face;
     const lungeX = (Math.cos(player.facing) - Math.sin(player.facing)) * .86 * attackPulse * 6;
     const lungeY = (Math.cos(player.facing) + Math.sin(player.facing)) * .43 * attackPulse * 6;
     this.heroLayer.scale.set(scale * visualFace * motion.scaleX, scale * motion.scaleY);

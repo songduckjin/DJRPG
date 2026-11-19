@@ -4,13 +4,14 @@ import type { Effect, Enemy, World } from './world';
 import { wearableAssetPaths, type Slot } from './items';
 import { drawRunes, drawTerrain, drawDust, drawLighting, drawVignette } from './render/field';
 import { drawHero, updateAfterimages, updateCorpses, drawEntities } from './render/entities';
-import { beginCostumeHero, createCostumeHeroState, type CostumeHeroState } from './render/costumeHero';
+import { createCostumeHeroState, type CostumeHeroState } from './render/costumeHero';
 import { drawSkillVfx, drawDragon, drawHit, updateDamageLabels, drawDeath, drawDrops, drawEffects } from './render/vfx';
 import { projectArenaPoint } from './arena';
 import { createBootProgress } from './bootProgress';
 
 const paths = {
   floor: '/assets/wasteland-ground.png', terrainProps: '/assets/wasteland-props.png', male: '/assets/warrior_male_base.png',
+  pilotMale: '/assets/pilot-25d/warrior_male_idle_v1.png', pilotFemale: '/assets/pilot-25d/warrior_female_idle_v1.png',
   female: '/assets/warrior_female_base.png', armored: '/assets/warrior_armored_swordless.png',
   armoredNoHelm: '/assets/warrior_armored_nohelm_swordless.png', femaleArmoredNoHelm: '/assets/warrior_female_armored_nohelm_swordless.png',
   femaleArmoredHelm: '/assets/warrior_female_armored_helm_swordless.png',
@@ -35,6 +36,8 @@ const animationPaths = {
 // 870/4 so no sword tip or foot reaches into the neighbouring frame. The sheet height
 // stays 290 px, which is what heroScale.ts measures a body height against.
 const attackSheets = {
+  pilotMaleAttack: '/assets/pilot-25d/warrior_male_attack_v1.png',
+  pilotFemaleAttack: '/assets/pilot-25d/warrior_female_attack_v1.png',
   femaleArmoredNoHelmAttack: '/assets/warrior_female_armored_attack.png?v=3',
   femaleArmoredHelmAttack: '/assets/warrior_female_armored_helm_attack.png?v=3',
   femaleHelmAttack: '/assets/warrior_female_helm_attack.png?v=3',
@@ -43,6 +46,8 @@ const attackSheets = {
   maleHelmAttack: '/assets/warrior_male_helm_attack.png?v=3'
 } as const;
 const walkSheets = {
+  pilotMaleWalk: '/assets/pilot-25d/warrior_male_walk_v1.png',
+  pilotFemaleWalk: '/assets/pilot-25d/warrior_female_walk_v1.png',
   maleBaseWalk: '/assets/walk8_male_base.png', femaleBaseWalk: '/assets/walk8_female_base.png',
   maleBaseHelmWalk: '/assets/walk8_male_base_helm.png',
   femaleBaseHelmWalk: '/assets/walk8_female_base_helm.png',
@@ -173,7 +178,8 @@ export class GameView {
     progress.report();
     // 코스튬 매니페스트는 화면을 막지 않고 뒤에서 한 번만 받는다. 없거나 실패하면
     // `fallback` 상태로 굳어 기존 통합 바디 렌더링이 그대로 이어진다(작업 140 §8).
-    void beginCostumeHero(this.costume);
+    // Task 149 uses one approved full-body warrior illustration for every gear state;
+    // skip costume-manifest loading so old overlays cannot replace or cover that art.
   }
 
   draw(world: World, time: number): void {

@@ -40,7 +40,7 @@
 ### [-] [작업 149] AI 시안 기반 전사 외형 전체 교체
 - **담당자**: `songduckjin` · **등록일**: 2026-11-19 · **브랜치**: `codex/149-ai-pilot-warrior-sprites` · **위험 등급**: 중 · **상태**: `[-]` 선점
 - **결정**: 사용자는 앞서 만든 서기·걷기·4단계 내려찍기 시안으로 실제 게임 전사 외형을 교체하기로 했다. 새 그림은 고정 갑옷·대검을 포함하므로 착용 아이템의 슬롯·능력치·저장은 유지하되 화면상 갑옷·투구·무기 모습은 고정된다. 남녀 스프라이트는 함께 적용한다.
-- **수정 파일**: `src/game/appearance.ts`, `src/game/render.ts`, `src/game/render/entities.ts`, `src/game/render/heroScale.ts`, `src/ui/equipmentPortrait.ts`, `public/assets/pilot-25d/**`, `tests/{appearance,hero-art,hero-motion,hero-weapon-render,equipped-detail}.test.mjs`, `docs/{CODE_MAP,QUICK_PATCH,TASK,TASK_songduckjin,WORKLOG}.md`.
+- **수정 파일**: `src/game/render.ts`, `src/game/render/entities.ts`, `src/game/render/heroScale.ts`, `src/ui/equipmentPortrait.ts`, `public/assets/pilot-25d/**`, `docs/references/djrpg_pilot_*_v1_sheet.png`, `tests/{hero-art,hero-weapon-render,equipped-detail}.test.mjs`, `docs/{COSTUME_SYSTEM,CODE_MAP,QUICK_PATCH,TASK,TASK_songduckjin,WORKLOG}.md`.
 - **금지**: `src/game/store.ts`, Save/API/DB, 전사 외 몬스터/NPC, 배포 전 사용자 확인 없이 production deploy. 기존 코스튬 v3·v4·v5 배포 파일은 삭제하지 않는다.
 - **검증**: `npx tsc --noEmit`; `node --test tests/appearance.test.mjs tests/hero-art.test.mjs tests/hero-motion.test.mjs tests/hero-weapon-render.test.mjs tests/equipped-detail.test.mjs`; 신규 PNG 투명도·시트 분할 확인; `git diff --check`.
 - **완료 기준**: 남녀 각각 idle·walk·attack 시트가 투명 배경과 4칸 프레임 규약을 지키고, 필드·장비창이 같은 새 외형을 보여준다. 화면에서 두 번 그려지는 무기·레거시 코스튬 덧그리기가 없다.

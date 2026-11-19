@@ -3,9 +3,7 @@ import assert from 'node:assert/strict';
 import {Container,Sprite,Texture} from 'pixi.js';
 import './ts-loader.mjs';
 const {drawHero,updateAfterimages}=await import('../src/game/render/entities.ts');
-const {heroAppearance}=await import('../src/game/appearance.ts');
 const {freshSave}=await import('../src/game/store.ts');
-const {wearableEquipmentImage}=await import('../src/game/items.ts');
 const {weaponSockets,weaponSocket,heroClass}=await import('../src/game/render/heroSockets.ts');
 const {drawSkillVfx,weaponSlashColor}=await import('../src/game/render/vfx.ts');
 
@@ -60,57 +58,26 @@ test('only skills leave afterimages, the basic attack does not',()=>{
  hero.destroy();
 });
 
-for(const gender of ['male','female'])test(`${gender}: integrated armor and helmet body has one socket weapon in idle and walk`,()=>{
- for(const moving of [false,true])for(const attackPose of [0,.08,.16,.24,.32]){
-  const save=freshSave(gender);save.equipment={weapon:item('weapon','낡은 두손검'),helmet:item('helmet','철제 바시넷'),armor:item('armor','사슬 갑옷'),gloves:item('gloves','강철 건틀릿'),boots:item('boots','기사의 사바톤')};
-  const before=JSON.stringify(save.equipment),appearance=heroAppearance(save),gearTextures=new Map();
-  const weaponArt=wearableEquipmentImage(save.equipment.weapon);gearTextures.set(`${weaponArt.path}:${weaponArt.frame}`,Texture.EMPTY);
-  const layer=new Container(),hero=new Sprite(Texture.EMPTY);layer.addChild(hero);
-  const view={hero,heroLayer:layer,heroGear:new Map(),gearTextures,gearLoading:new Set(),lastHeroWorld:{x:0,y:0},heroWalkDistance:0,textures:{[appearance.idle]:Texture.EMPTY},animations:{[appearance.walk]:Array(8).fill(Texture.EMPTY),[appearance.attack]:Array(4).fill(Texture.EMPTY)},app:{screen:{height:800}},ground:{ellipse(){return {fill(){}};}},glow:{circle(){return {fill(){}};}}};
-  const world={save,player:{x:0,y:0,facingSide:1,facing:0,hit:0,berserk:0},activeMove:{x:moving?1:0,y:0},attackPose,effects:[]};
-  drawHero.call(view,world,100,100,0);
-  assert.equal(layer.children.length,2);
-  assert.deepEqual([...view.heroGear.keys()],['weapon']);
-  const sprite=view.heroGear.get('weapon').sprite;
-  assert.equal(view.heroGear.get('weapon').path,`${weaponArt.path}:${weaponArt.frame}`);
-  assert.equal(sprite.visible,moving||attackPose===0);
-  assert(Number.isFinite(sprite.width)&&Number.isFinite(sprite.height)&&Number.isFinite(sprite.rotation));
-  assert(Number.isFinite(sprite.position.x)&&Number.isFinite(sprite.position.y));
-  assert.equal(JSON.stringify(save.equipment),before);
-  if(!moving&&attackPose===0){
-   const oldWeapon=view.heroGear.get('weapon').path;
-   save.equipment.weapon=item('weapon','바스타드 소드');
-   const replacement=wearableEquipmentImage(save.equipment.weapon);gearTextures.set(`${replacement.path}:${replacement.frame}`,Texture.EMPTY);
-   drawHero.call(view,world,100,100,0);
-   assert.notEqual(view.heroGear.get('weapon').path,oldWeapon,'weapon swap replaces the socket art');
-   assert.equal(view.heroGear.get('weapon').path,`${replacement.path}:${replacement.frame}`);
-   assert.equal(layer.children.length,2);
-   save.equipment.weapon=undefined;
-   drawHero.call(view,world,100,100,0);
-   assert.equal(view.heroGear.size,0);
-   assert.equal(layer.children.length,1);
-  }
-  layer.destroy({children:true});
- }
-});
-
-for(const gender of ['male','female'])test(`${gender}: unarmored sword uses the existing swordless body in idle and walk`,()=>{
- for(const helmet of [false,true]){
-  const save=freshSave(gender);save.equipment.weapon=item('weapon','두손검');
-  if(helmet)save.equipment.helmet=item('helmet','철제 바시넷');
-  const swordless=heroAppearance({...save,equipment:{...save.equipment,weapon:undefined}});
-  const armed=heroAppearance(save);
-  assert.notEqual(swordless.idle,armed.idle);
-  const weaponArt=wearableEquipmentImage(save.equipment.weapon),gearTextures=new Map([[`${weaponArt.path}:${weaponArt.frame}`,Texture.EMPTY]]);
-  const layer=new Container(),hero=new Sprite(Texture.EMPTY);layer.addChild(hero);
-  const view={hero,heroLayer:layer,heroGear:new Map(),gearTextures,gearLoading:new Set(),lastHeroWorld:{x:0,y:0},heroWalkDistance:0,textures:{[swordless.idle]:Texture.EMPTY},animations:{[swordless.walk]:Array(8).fill(Texture.EMPTY),[armed.attack]:Array(4).fill(Texture.EMPTY)},app:{screen:{height:800}},ground:{ellipse(){return {fill(){}};}},glow:{circle(){return {fill(){}};}}};
-  const world={save,player:{x:0,y:0,facingSide:1,facing:0,hit:0,berserk:0},activeMove:{x:0,y:0},attackPose:0,effects:[]};
-  drawHero.call(view,world,100,100,0);
-  assert.equal(view.heroGear.get('weapon').sprite.visible,true);
-  world.activeMove.x=1;drawHero.call(view,world,100,100,0);
-  assert.equal(view.heroGear.get('weapon').sprite.visible,true);
-  world.activeMove.x=0;world.attackPose=.16;drawHero.call(view,world,100,100,0);
-  assert.equal(view.heroGear.get('weapon').sprite.visible,false);
-  layer.destroy({children:true});
- }
+for (const gender of ['male', 'female']) test(`${gender}: field keeps the generated pilot sheet for every equipment set without drawing a second weapon`, () => {
+ const save=freshSave(gender);
+ save.equipment={weapon:item('weapon','낡은 두손검'),helmet:item('helmet','철제 바시넷'),armor:item('armor','사슬 갑옷'),gloves:item('gloves','강철 건틀릿'),boots:item('boots','기사의 사바톤')};
+ const before=JSON.stringify(save.equipment);
+ const idleKey=gender==='female'?'pilotFemale':'pilotMale';
+ const walkKey=gender==='female'?'pilotFemaleWalk':'pilotMaleWalk';
+ const attackKey=gender==='female'?'pilotFemaleAttack':'pilotMaleAttack';
+ const idle=Texture.EMPTY,walk=Array.from({length:8},()=>new Texture({source:Texture.EMPTY.source})),attack=Array.from({length:4},()=>new Texture({source:Texture.EMPTY.source}));
+ const layer=new Container(),hero=new Sprite(Texture.EMPTY);layer.addChild(hero);
+ const view={hero,heroLayer:layer,heroGear:new Map(),gearTextures:new Map(),gearLoading:new Set(),lastHeroWorld:{x:0,y:0},heroWalkDistance:0,textures:{[idleKey]:idle},animations:{[walkKey]:walk,[attackKey]:attack},app:{screen:{height:800}},ground:{ellipse(){return {fill(){}};}},glow:{circle(){return {fill(){}};}}};
+ const world={save,player:{x:0,y:0,facingSide:1,facing:0,hit:0,berserk:0,berserkLevel:0},activeMove:{x:0,y:0},attackPose:0,effects:[]};
+ drawHero.call(view,world,100,100,0);
+ assert.equal(hero.texture,idle,'idle uses the matching gender pilot image');
+ assert.equal(view.heroGear.size,0,'baked-in greatsword is not overdrawn from equipment art');
+ assert.equal(layer.children.length,1);
+ world.activeMove.x=1;world.player.x=1;drawHero.call(view,world,100,100,.1);
+ assert.equal(hero.texture,walk[0],'walk selects a pilot walk cell');
+ world.activeMove.x=0;world.attackPose=.16;drawHero.call(view,world,100,100,.2);
+ assert.equal(hero.texture,attack[2],'attack selects one of the four approved key poses');
+ assert.equal(view.heroGear.size,0);
+ assert.equal(JSON.stringify(save.equipment),before,'equipment ownership and stats stay unchanged');
+ layer.destroy({children:true});
 });

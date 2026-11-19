@@ -1,5 +1,12 @@
 # 작업 로그
 
+## 2026-11-19 — AI 시안 기반 남녀 전사 외형 전체 교체(작업 149)
+
+- **요청/결정**: 사용자가 필드 화면을 공유하고 기존 전사 그림을 앞서 만든 서기·양손 끌며 걷기·4단계 내려찍기 시안으로 교체해 달라고 했다. 사용자는 그림이 갑옷·대검 일체형이라 장착 아이템의 화면 외형이 고정되는 점을 확인하고 실제 게임 전체 교체를 선택했다. 장착 슬롯·능력치·Save는 그대로다. 이에 작업 145의 추가 실기 검수는 대체하고 기존 v3/v4/v5 코스튬 구현·파일은 보존한다.
+- **제작**: ImageGen으로 남녀 각 12셀 시트를 만들었다. 투명 배경 matte를 제거해 `public/assets/pilot-25d/warrior_{male,female}_{idle,walk,attack}_v1.png` 6장으로 자르고, 시트 원본은 `docs/references/djrpg_pilot_{male,female}_v1_sheet.png`에 기록했다. 프레임은 idle 1장, 걷기 4장 반복, 공격 4장이다.
+- **연결**: `render.ts`가 pilot 에셋을 로드하고 `render/entities.ts`가 남녀별 idle·walk·attack을 선택한다. 이미지에 무기가 포함되므로 필드 코스튬·장비 오버레이·외부 무기 스프라이트를 생략한다. `equipmentPortrait.ts`는 같은 남녀 idle 이미지를 쓰며 매니페스트 요청도 하지 않는다. 전투 데이터와 장비 통계는 읽기만 한다.
+- **검증**: `node node_modules/typescript/bin/tsc --noEmit` 통과, 관련 `node --test` 86건 통과, PNG 6장 투명도·셀 규격·프레임 경계 확인, `pnpm run build` 통과, `git diff --check` 통과(줄바꿈 CRLF 안내만 표시). Vite는 기존 Pixi dynamic-import와 500KB 초과 번들 경고를 출력했다. PR/Cloudflare 배포 상태는 작업 완료 시 갱신한다.
+
 ## 2026-11-19 — 3D→2.5D Blender 자동 렌더 파이프라인·확정 포즈 시안 등록 (작업 147)
 
 - **배경**: 캐릭터를 3D로 만들어 2.5D 쿼터뷰 셀로 뽑는 작업을 PC 코덱스가 반복할 수 있게, 렌더 절차를 명령 한 줄로 고정했다. 사용자가 확정한 대검 포즈(서기·양손 끌며 걷기·4단계 내려찍기)가 기준이다.
