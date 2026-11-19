@@ -197,6 +197,49 @@ test('매핑·매니페스트가 어긋나면 부분 합성 없이 전체 폴백
   assert.equal(missingEntry.reason, 'unmapped-costume');
 });
 
+test('낡은 투구는 닫힌 바이저가 있는 기존 본체로 폴백한다', () => {
+  for (const gender of ['male', 'female']) {
+    const save = fullEquipment(freshSave(gender));
+    save.equipment.helmet.name = '낡은 투구';
+    const plan = planHeroCostume(save, loadOk);
+    assert.equal(plan.ok, false);
+    assert.match(plan.detail, /낡은 투구/);
+  }
+});
+
+test('낡은 투구로 교체할 때 이전 코스튬 스프라이트와 페이지 참조를 해제한다', () => {
+  const save = fullEquipment(freshSave('female'));
+  const state = createCostumeHeroState();
+  applyCostumeHeroRuntime(state, loadOk, atlasFor(save));
+  const heroLayer = new Container(), hero = new Sprite(Texture.EMPTY);
+  heroLayer.addChild(hero);
+  assert.equal(renderCostumeHero({ heroLayer, hero }, state, save, { motion: 'idle', frame: 0 }), true);
+  save.equipment.helmet.name = '낡은 투구';
+  let cleared = 0;
+  assert.equal(renderCostumeHero({ heroLayer, hero, onPlanChange: () => cleared++ }, state, save, { motion: 'idle', frame: 0 }), false);
+  assert.equal(cleared, 1);
+  assert.equal(state.sprites.size, 0);
+  assert.equal(state.textures.size, 0);
+});
+
+test('필드·미리보기 공용 계획의 검은 손잡이를 고정한 채 머리 위 돌출을 줄인다', () => {
+  for (const gender of ['male', 'female']) {
+    const save = fullEquipment(freshSave(gender));
+    const plan = planHeroCostume(save, loadOk);
+    assert.equal(plan.ok, true);
+    const weapon = plan.layers.find(layer => layer.role === 'weapon');
+    const grip = gender === 'female' ? { x: 90, y: 126 } : { x: 126, y: 112 };
+    assert.equal(weapon.scale.x, .7);
+    assert.equal(weapon.scale.y, .7);
+    for (const axis of ['x', 'y']) {
+      const pivot = axis === 'x' ? 234 * weapon.anchor.x : 242 * weapon.anchor.y;
+      const before = grip[axis] - pivot;
+      const after = weapon.offset[axis] + weapon.scale[axis] * before;
+      assert(Math.abs(after - before) < 1e-9, `${gender} ${axis} grip stays on the hand`);
+    }
+  }
+});
+
 test('아틀라스 앵커는 정규화 피벗 또는 셀 픽셀 모두 받아 0..1로 고정된다', () => {
   assert.deepEqual(costumeLayerAnchor({ x: 0, y: 0 }), { x: .5, y: .96 });
   assert.deepEqual(costumeLayerAnchor({ x: .25, y: .75 }), { x: .25, y: .75 });

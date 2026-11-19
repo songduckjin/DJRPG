@@ -40,7 +40,7 @@ test('full bag prevents unequip and explains failure; dismiss only clears view s
 const { attachedDetailPosition } = await import('../src/ui/bagDetail.ts');
 const { deferEquippedDismiss } = await import('../src/ui/equippedDetail.ts');
 const { wrapEquipmentName } = await import('../src/ui/modals/equipModal.ts');
-const { equipmentPortraitPlan } = await import('../src/ui/equipmentPortrait.ts');
+const { equipmentFallbackPortrait, equipmentPortraitPlan } = await import('../src/ui/equipmentPortrait.ts');
 const { baseItems } = await import('../src/game/items.ts');
 const { armorTier, helmetTier, heroAppearance } = await import('../src/game/appearance.ts');
 const { resetCostumeManifestCache, loadCostumeManifest, COSTUME_MANIFEST_SCHEMA_VERSION } = await import('../src/game/costume/manifest.ts');
@@ -49,6 +49,15 @@ const { planHeroCostume } = await import('../src/game/render/costumeHero.ts');
 const portraitSource = readFileSync(new URL('../src/ui/equipmentPortrait.ts', import.meta.url), 'utf8');
 // 매니페스트 캐시를 비워 "실물 아틀라스 이전" 상태에서 시작한다(142 전 배포 상태).
 resetCostumeManifestCache();
+
+test('낡은 투구 미리보기는 얼굴을 덮는 통합 바디 초상화를 쓴다',()=>{
+  const save=freshSave('female');
+  save.equipment.armor={id:'armor',name:baseItems.armor[0],slot:'armor',rarity:'common',stats:{}};
+  save.equipment.helmet={id:'helmet',name:'낡은 투구',slot:'helmet',rarity:'common',stats:{}};
+  assert.equal(equipmentFallbackPortrait(save),'/assets/warrior_female_armored_oldhelm.png');
+  save.equipment.helmet.name='낡은투구';
+  assert.equal(equipmentFallbackPortrait(save),'/assets/warrior_female_armored_oldhelm.png');
+});
 
 test('equipment preview falls back to the tier full-body portrait until the costume manifest exists',()=>{
   const tierPaths={1:'starter',2:'t2',3:'t3',4:'t4'};

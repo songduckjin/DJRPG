@@ -29,6 +29,7 @@ const tierPortrait: Record<GearTier, string> = { 1: 'starter', 2: 't2', 3: 't3',
 /** 폴백 전신 초상화 경로. 갑옷+투구를 함께 착용하면 갑옷 티어별 시트를 쓴다. */
 export function equipmentFallbackPortrait(save: Save): string {
   const appearance = heroAppearance(save);
+  if (save.equipment.helmet?.name.normalize('NFKC').replace(/[\s\u200b\ufeff]/gu, '') === '낡은투구') return appearance.portrait;
   if (save.equipment.armor && save.equipment.helmet && appearance.armorTier) {
     return `/assets/warrior_equipped_${tierPortrait[appearance.armorTier]}_${save.gender}.png`;
   }

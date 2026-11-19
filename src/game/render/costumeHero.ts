@@ -119,6 +119,11 @@ function variantIndex(manifest: CostumeManifest, definition: CostumeDefinition):
 export function planHeroCostume(save: Pick<Save, 'gender' | 'equipment'>, load: CostumeLoadResult | undefined): CostumeHeroPlan {
   if (!load) return { ok: false, reason: 'manifest-missing', detail: '코스튬 매니페스트를 아직 불러오지 않았습니다.' };
   if (!load.ok) return { ok: false, reason: load.reason, detail: load.detail };
+  // The v3 helmet atlas uses an open-face source for every variant. The legacy
+  // helmet has a distinct closed visor in the integrated body sheets.
+  if (save.equipment.helmet?.name.normalize('NFKC').replace(/[\s\u200b\ufeff]/gu, '') === '낡은투구') {
+    return { ok: false, reason: 'unmapped-costume', detail: '낡은 투구의 얼굴 가림 아틀라스가 없어 기존 전신 시트를 사용합니다.' };
+  }
   const manifest = load.manifest;
   const bodyPage = `body-${save.gender}`;
   const body: CostumeLayerPlan[] = costumeBodyParts.map((part, variant) => ({
@@ -153,6 +158,16 @@ export function planHeroCostume(save: Pick<Save, 'gender' | 'equipment'>, load: 
       scale: { x: definition.fit?.scaleX ?? 1, y: definition.fit?.scaleY ?? 1 },
       rotation: definition.fit?.rotation ?? 0
     };
+    if (definition.slot === 'weapon') {
+      // v3's 104px idle sword crosses the head. Shrink around its hand socket
+      // so the grip remains attached in field and portrait plans alike.
+      const grip = save.gender === 'female' ? { x: 90, y: 126 } : { x: 126, y: 112 };
+      const scale = .7;
+      layer.offset.x += (1 - scale) * (grip.x - costumeAtlasCellWidth * costumeBodyPivot.x);
+      layer.offset.y += (1 - scale) * (grip.y - costumeAtlasCellHeight * costumeBodyPivot.y);
+      layer.scale.x *= scale;
+      layer.scale.y *= scale;
+    }
     if (definition.slot === 'armor') armor = layer;
     else equipment.push(layer);
   }
@@ -385,7 +400,13 @@ export function renderCostumeHero(
     return false;
   }
   const plan = planHeroCostume(save, state.load);
-  if (!plan.ok) return false;
+  if (!plan.ok) {
+    if (state.sprites.size > 0) clearCostumeSprites(target, state);
+    state.activePlanKey = '';
+    state.activePages.clear();
+    pruneStalePages(state);
+    return false;
+  }
   const planKey = plan.layers.map(layer => `${layer.role}:${layer.page}:${layer.variant}:${layer.zOrder}:${layer.anchor.x},${layer.anchor.y}:${layer.offset.x},${layer.offset.y}:${layer.scale.x},${layer.scale.y}:${layer.rotation}`).join('|');
   if (state.activePlanKey && state.activePlanKey !== planKey) {
     clearCostumeSprites(target, state);
