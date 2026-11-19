@@ -7,11 +7,10 @@
 
 | 작업 | 담당자 | 브랜치 | 수정 예정 파일 / 영향 영역 | 위험 등급 | 상태 |
 |---|---|---|---|---|---|
-| [작업 151] 남녀 전사 투구 10종 외형 전체 적용(필드·장비창) | songduckjin | `feat/151-helmet-head-overlay` | `src/game/render/helmets.ts`(신규), `src/game/render/entities.ts` `syncHelmet`, `src/game/render.ts`(프리로드), `src/ui/equipmentPortrait.ts`, `public/assets/pilot-25d/helmets/*`, `tests/helmet-head-render.test.mjs` | 중간 | [x] |
 | [작업 146] Turso 공용 DB에서 DJRPG 전용 DB 이관 | songduckjin | `codex/146-turso-db-isolation` | `scripts/migrate-turso-db.mjs`, `tests/migrate-turso-db.test.mjs`, `server/{database,market-connection,world-boss,world-boss-schema}.mjs`, `tests/functions-adapter.test.mjs`, `docs/TURSO_DB_GUIDE.md`, 운영 DB·Pages 비밀 변수 | 높음 | [-] |
 
 
-> 2026-11-19: `[작업 151]` — 승인 시안(`djrpg_pilot_helms_1to5.png`·`6to10.png`)에서 투구 머리 파츠 10종(여성 오픈페이스 0~2번은 여성용 시안 3장 추가)을 떠서 필드 `drawHero`와 장비창 초상화가 같은 파츠·같은 앵커(목 밑동·아래 중앙)로 그린다. 파츠 크기는 본체 362px 셀 좌표계이고, `render/helmets.ts`의 성별·동작·프레임별 앵커·배율 표로 idle·walk·attack 모든 프레임에 맞춘다. 투구를 벗으면 숨기고, 피격 tint는 본체와 같은 값을 쓴다. `store.ts`·`server/**`·`world.ts` 전투 로직은 무변경. 작업 146(서버·DB)과 파일이 겹치지 않는다.
+> 2026-11-19: `[작업 151]` — 승인 시안(`djrpg_pilot_helms_1to5.png`·`6to10.png`)에서 투구 머리 파츠 10종(여성 오픈페이스 0~2번은 여성용 시안 3장 추가)을 떠서 필드 `drawHero`와 장비창 초상화가 같은 파츠·같은 앵커(목 밑동·아래 중앙)로 그린다. 파츠 크기는 본체 362px 셀 좌표계이고, `render/helmets.ts`의 성별·동작·프레임별 앵커·배율 표로 idle·walk·attack 모든 프레임에 맞춘다. 투구를 벗으면 숨기고, 피격 tint는 본체와 같은 값을 쓴다. `store.ts`·`server/**`·`world.ts` 전투 로직은 무변경. [PR #105](https://github.com/songduckjin/DJRPG/pull/105) 스쿼시 병합 `c94216c`, 운영 `version.json` `c94216cdc194`·투구 파츠 13장 HTTP 200 확인. 자세한 기록은 `docs/WORKLOG.md`.
 
 
 > 2026-11-19: `[작업 150]` — 실기 제보 2건(평타가 여러 마리를 동시에 때림·대검을 휘두르거나 걸을 때 캐릭터가 작아짐)을 [PR #103](https://github.com/songduckjin/DJRPG/pull/103)으로 고쳤다. `world.ts` 평타만 `damage(..., maxTargets=1)`로 사거리·부채꼴 안의 가장 가까운 한 마리를 때리고(스킬 7종 광역 유지), `heroScale.ts`의 pilot walk 335→300·attack 335→270으로 보정했다. 한 마리만 맞히는 만큼 한 방을 무겁게 해 달라는 후속 지시로 평타 피해를 `attack × 1.6`(`basicAttackPower`)으로 올렸다. 검증: 타입 검사, 전체 테스트 389건 중 387 통과(`costume-field-render` 2건은 `17facd5` `main`에서도 동일하게 실패하는 기존 실패), 아트 검증, 빌드, `git diff --check`. PR #103은 스쿼시 병합 `11e99459be5b`로 `main`에 들어갔고 Cloudflare Pages 운영 `version.json`이 `11e99459be5b`(`2026-11-19T11:08:32Z`)로 갱신된 것과 `/`·pilot 공격 시트 HTTP 200을 확인했다. 실기 화면 확인은 사용자 몫이다.
