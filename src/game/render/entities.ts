@@ -8,7 +8,8 @@ import { heroClass, socketMotion, weaponSocket } from './heroSockets';
 import { tintedGearTexture } from './gearTint';
 import { costumeGhostSources, hideCostumeHero } from './costumeHero';
 import { resolveSkillMotion, type CostumeMotionTemplate } from '../costume/skillMotion';
-import { wearableEquipmentImage } from '../items';
+import { wearableEquipmentImage, baseItemIndex } from '../items';
+import { helmetArtFor, helmetArtPaths, helmetPlacement } from './helmets';
 import type { GameView } from '../render';
 
 function syncWeapon(view: GameView, save: Save, texture: Texture, art: string, attacking: boolean, motion: 'idle' | 'walk', walkingFrame: number): void {
@@ -93,6 +94,45 @@ const walkAnchors = {
 export type HeroSkillMotion = { template: CostumeMotionTemplate | null; progress: number };
 
 /**
+ * 착용 투구 머리 파츠를 본체 위에 얹는다(작업 151).
+ *
+ * 투구 파츠는 아래 중앙(목 밑동)이 앵커이고 크기는 본체 362px 셀 좌표계이므로, 현재 프레임의
+ * 목 밑동 좌표로 스프라이트만 옮기면 idle·walk·attack 어느 프레임에서도 같은 자리에 앉는다.
+ * 피격 틴트는 본체와 같은 값을 쓴다. 투구를 벗으면 스프라이트를 숨긴다.
+ */
+function syncHelmet(view: GameView, save: Save, motion: 'idle' | 'walk' | 'attack', frame: number, tint: number): void {
+  const item = save.equipment.helmet;
+  const index = item ? baseItemIndex(item) : -1;
+  const art = helmetArtFor(save.gender, index);
+  const shown = view.heroHelmet;
+  if (!art) {
+    if (shown) shown.visible = false;
+    return;
+  }
+  const texture = view.helmetTextures?.get(helmetArtPaths[art]);
+  if (!texture) return; // 아직 로딩 전 — 다음 프레임에 그린다.
+  const place = helmetPlacement(save.gender, motion, frame);
+  const layerX = place.x - view.hero.texture.width * view.hero.anchor.x;
+  const layerY = place.y - view.hero.texture.height * view.hero.anchor.y;
+  let sprite = shown;
+  if (!sprite) {
+    sprite = new Sprite(texture);
+    sprite.anchor.set(.5, 1);
+    sprite.zIndex = .5;
+    view.heroLayer.addChild(sprite);
+    view.heroLayer.sortableChildren = true;
+    view.heroHelmet = sprite;
+  }
+  if (sprite.texture !== texture) sprite.texture = texture;
+  sprite.position.set(layerX, layerY);
+  sprite.scale.set(place.scale);
+  sprite.tint = tint;
+  sprite.rotation = 0;
+  sprite.alpha = 1;
+  sprite.visible = true;
+}
+
+/**
  * 진행 중인 스킬 이펙트 → 코스튬 스킬 템플릿과 진행도 (작업 140).
  *
  * `world.ts`는 스킬을 스킬 ID와 같은 이름의 이펙트로 남기므로 모션 선택은 이펙트 종류만 보면 된다.
@@ -140,6 +180,7 @@ export function drawHero(this: GameView, world: World, x: number, y: number, tim
     const bodyPx = heroBodyHeight(art, texture.height);
     const scale = heroScale(this.app.screen.height, art, texture.height);
     this.hero.tint = heroTint;
+    syncHelmet(this, save, animation, animation === 'walk' ? walkingFrame : animatedAttack ? Math.max(0, attackFrame) : 0, heroTint);
     const withoutEquippedWeapon = { ...save, equipment: { ...save.equipment, weapon: undefined } };
     syncWeapon(this, withoutEquippedWeapon, texture, art, true, socketMotion(animation), walkingFrame);
     let bob = 0;
