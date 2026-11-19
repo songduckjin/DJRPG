@@ -46,17 +46,19 @@ resetEquipmentPortraitCache();
 
 for (const gender of ['male', 'female']) test(`${gender}: field and equipment preview keep the approved pilot art for every equipped set`, () => {
   const save = freshSave(gender);
-  // 투구를 쓰면 머리 없는 본체(작업 152) 위에 투구 파츠를 합성한다.
-  const expectedBase = () => `/assets/pilot-25d/${save.equipment.helmet ? 'headless/' : ''}warrior_${gender}_idle_v1.png`;
-  const check = () => {
-    const expected = expectedBase();
+  // 기본형 갑옷이면 그 티어의 시트(작업 155), 아니면 기준 본체 시트.
+  const expectedBase = (armorIndex = -1) => (armorIndex >= 0
+    ? `/assets/pilot-25d/armors/${save.equipment.helmet ? 'headless/' : ''}warrior_${gender}_armor_${armorIndex}_idle_v1.png`
+    : `/assets/pilot-25d/${save.equipment.helmet ? 'headless/' : ''}warrior_${gender}_idle_v1.png`);
+  const check = (armorIndex = -1) => {
+    const expected = expectedBase(armorIndex);
     assert.equal(equipmentFallbackPortrait(save), expected);
     const plan = equipmentPortraitPlan(save);
     assert.equal(plan.mode, 'fallback');
     assert.equal(plan.base, expected);
-    // 초상화 키는 성별 + 착용 투구 머리 파츠(작업 151). 투구가 없으면 '-'.
+    // 초상화 키는 성별 + 갑옷 티어(작업 155) + 착용 투구 머리 파츠(작업 151). 없으면 '-'.
     assert.match(plan.key, new RegExp(`^pilot:${gender}:`));
-    assert.equal(plan.key, `pilot:${gender}:${plan.helmet ? plan.helmet.path : '-'}`);
+    assert.equal(plan.key, `pilot:${gender}:a${armorIndex}:${plan.helmet ? plan.helmet.path : '-'}`);
     assert.deepEqual(plan.layers, []);
   };
   check();
@@ -67,7 +69,13 @@ for (const gender of ['male', 'female']) test(`${gender}: field and equipment pr
     offhand: { id: 'crest', name: '강철 문장', slot: 'offhand', rarity: 'common', stats: {} },
     boots: { id: 'boots', name: '기사의 사바톤', slot: 'boots', rarity: 'common', stats: {} }
   };
+  // 기본형이 아닌 갑옷 이름은 기준 시트를 그대로 쓴다.
   check();
+  // 기본형 10종은 그 티어 시트로 바뀐다(머리 없음 포함).
+  save.equipment.armor = { id: 'armor', name: '사슬 갑옷', slot: 'armor', rarity: 'rare', stats: {} };
+  check(2);
+  save.equipment.helmet = undefined;
+  check(2);
 });
 
 test('equipment portrait uses a cached full-body pilot image without loading costume manifests or overlays', () => {

@@ -159,3 +159,33 @@ for (const name of attackHelmetParts) {
   }
 }
 console.log(`작업 154 공격 투구 파츠 ${attackHelmetParts.length}종 확인 완료.`);
+
+// ── 작업 155: 착용 갑옷 10종 전신 시트 (서기·걷기·공격 × 전신/머리 없음) ───────────
+// 남녀 10종 × 3동작 × 2(전신·투구용 headless) = 120장. 기준 시트와 같은 362px 셀 좌표계라
+// idle 은 362×362, walk·attack 은 362px 셀 4개(1448×362)여야 한다. 용량은 256색 팔레트 PNG.
+const armorSheetRoot = fileURLToPath(new URL('../public/assets/pilot-25d/armors/', import.meta.url));
+const armorSheetSizes = { idle: [362, 362], walk: [1448, 362], attack: [1448, 362] };
+let armorSheetCount = 0;
+for (const gender of ['male', 'female']) {
+  for (let index = 0; index < 10; index++) {
+    for (const [motion, [expectWidth, expectHeight]] of Object.entries(armorSheetSizes)) {
+      for (const headless of [false, true]) {
+        const name = `warrior_${gender}_armor_${index}_${motion}_v1.png`;
+        const path = join(armorSheetRoot, headless ? 'headless' : '', name);
+        if (!existsSync(path)) throw new Error(`작업 155 갑옷 시트가 없습니다: ${headless ? 'headless/' : ''}${name}`);
+        const data = readFileSync(path), header = data.subarray(0, 26);
+        const width = header.readUInt32BE(16), height = header.readUInt32BE(20);
+        if (header.toString('ascii', 1, 4) !== 'PNG') throw new Error(`갑옷 시트가 PNG가 아닙니다: ${name}`);
+        if (width !== expectWidth || height !== expectHeight) {
+          throw new Error(`갑옷 시트 규격이 다릅니다(${width}×${height}, 기대 ${expectWidth}×${expectHeight}): ${name}`);
+        }
+        if (!(header[25] === 6 || (header[25] === 3 && data.includes('tRNS')))) {
+          throw new Error(`갑옷 시트는 투명도가 있는 PNG여야 합니다: ${name}`);
+        }
+        if (data.length > 200 * 1024) throw new Error(`갑옷 시트가 200KB를 넘습니다(${Math.round(data.length / 1024)}KB): ${name}`);
+        armorSheetCount += 1;
+      }
+    }
+  }
+}
+console.log(`작업 155 착용 갑옷 전신 시트 ${armorSheetCount}장 확인 완료.`);

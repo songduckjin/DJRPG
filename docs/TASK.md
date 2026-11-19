@@ -8,6 +8,7 @@
 | 작업 | 담당자 | 브랜치 | 수정 예정 파일 / 영향 영역 | 위험 등급 | 상태 |
 |---|---|---|---|---|---|
 | [작업 146] Turso 공용 DB에서 DJRPG 전용 DB 이관 | songduckjin | `codex/146-turso-db-isolation` | `scripts/migrate-turso-db.mjs`, `tests/migrate-turso-db.test.mjs`, `server/{database,market-connection,world-boss,world-boss-schema}.mjs`, `tests/functions-adapter.test.mjs`, `docs/TURSO_DB_GUIDE.md`, 운영 DB·Pages 비밀 변수 | 높음 | [-] |
+| [작업 155] 남녀 갑옷 10종 서기·걷기·공격 + headless 시트 제작·적용 | songduckjin | `feat/155-armor-10-idle-walk-attack` | `render/armors.ts`(신규), `render/entities.ts` `drawHero`, `render.ts`(티어별 동적 로드·캐시), `ui/equipmentPortrait.ts`, `scripts/verify-item-art.mjs`, `tests/armor-render.test.mjs`(신규), `public/assets/pilot-25d/armors/**` | 보통 | [-] |
 | 184 던전 드롭·클리어 흡수 연출 | fks3997 | preview/gravel-background-fks3997 | `ui/dungeonBattle.ts`(드롭 50%·필드 확률)·`ui/dungeonField.ts`(DOM 낙하/흡수)·`styles/dungeon.css`·`tests/dungeon-battle.test.mjs` | 낮음 | [x] |
 | 185 던전 드롭 가림·등급광·몹 속도·흡수 지연 | fks3997 | preview/gravel-background-fks3997 | `ui/dungeonBattle.ts`(던전 몹 1.5배 이동·드롭 착지 계산)·`ui/dungeonField.ts`(착지/깊이·금화 금액 제거·흡수 1.5초)·`styles/dungeon.css`(원형 테두리→외곽광)·`tests/dungeon-battle.test.mjs` | 낮음 | [x] |
 | 186 던전 드롭 부채꼴 배치·흡수 재생 복구·스폰 2걸음·클리어 금화 | fks3997 | preview/gravel-background-fks3997 | `ui/dungeonBattle.ts`(부채꼴 착지·흡수/결과 타임라인·스폰 2걸음·획득 금화)·`ui/dungeonField.ts`(흡수 재생·결과창 금화)·`styles/dungeon.css`(금화·스킬북 광 제거, 장비 등급 테두리 강화)·`tests/dungeon-battle.test.mjs` | 낮음 | [x] |

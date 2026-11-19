@@ -312,7 +312,7 @@ test('장비창 초상화는 착용 투구를 키와 합성 계획에 담는다'
   const save = freshSave('female');
   const bare = equipmentPortraitPlan(save);
   assert.equal(bare.helmet, undefined);
-  assert.equal(bare.key, 'pilot:female:-');
+  assert.equal(bare.key, 'pilot:female:a-1:-');
 
   save.equipment.helmet = helmetItem('사슬 코이프');
   const withHelmet = equipmentPortraitPlan(save);
