@@ -260,3 +260,5 @@ npm run check && npm test && npm run build # 공용 계약 수정·사용자 요
 
 - 작업181 `lobby-wall-v1.png` 대기창석조벽 고정배경, 기존문틀/문짝3레이어유지. 작업182 `DUNGEON_MAX_FLOOR=10`(dungeonLobby), DungeonBattle.floor1..10/5·10boss단독/targetCount, 결과다음층/10종료·세션clearedFloor만(계정저장없음). 재입장은현재미클리어층, 완료층재도전없음.
 - 던전투명초기화색: init background/backgroundColor=0x000000, backgroundAlpha=0 및renderer.background.color=0. alpha0이어도갈색RGB가남으면밝은갈색이합성될수있어RGBA전체0보장.
+
+- 작업183: 대기창벽은 `lobby-wall-v2.png` 사용(하단석조연속/암부없음), `.dungeon-hero` bottom gradient제거·좌우약한vignette만유지.

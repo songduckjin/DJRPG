@@ -1908,3 +1908,6 @@
 | 182 던전10층·투명배경 색상 | fks3997 | preview/gravel-background-fks3997 | ui/dungeon{Battle,Field,Lobby}.ts, modals/dungeonModal.ts, tests/dungeon-{battle,lobby}.test.mjs, 문서 | 중 | [x] |
 | 181 던전 대기창 석조벽 시안 적용 | fks3997 | preview/gravel-background-fks3997 | styles/dungeon.css, assets/dungeon/lobby-wall-v1.png, 문서 | 하 | [x] |
 - 181/182: 承認벽적용·10층/5·10보스·세션진행·clear RGBA검정0. tsc/관련24/아트/diff통과, 기본전층28~58초클리어시뮬. preview만.
+
+| 183 대기창벽 하단 암부 제거 | fks3997 | preview/gravel-background-fks3997 | styles/dungeon.css, assets/dungeon/lobby-wall-v2.png, 문서 | 하 | [x] |
+- 183: CSS하단fade/PNG하단암부제거 v2, tsc/관련3/아트/diff통과. 실기미실행, preview만.
