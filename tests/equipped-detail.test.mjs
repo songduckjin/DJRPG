@@ -40,7 +40,7 @@ test('full bag prevents unequip and explains failure; dismiss only clears view s
 const { attachedDetailPosition } = await import('../src/ui/bagDetail.ts');
 const { deferEquippedDismiss } = await import('../src/ui/equippedDetail.ts');
 const { wrapEquipmentName } = await import('../src/ui/modals/equipModal.ts');
-const { equipmentPortraitPlan } = await import('../src/ui/equipmentPortrait.ts');
+const { equipmentFallbackPortrait, equipmentPortraitPlan } = await import('../src/ui/equipmentPortrait.ts');
 const { baseItems } = await import('../src/game/items.ts');
 const { armorTier, helmetTier, heroAppearance } = await import('../src/game/appearance.ts');
 const { resetCostumeManifestCache, loadCostumeManifest, COSTUME_MANIFEST_SCHEMA_VERSION } = await import('../src/game/costume/manifest.ts');
@@ -49,6 +49,15 @@ const { planHeroCostume } = await import('../src/game/render/costumeHero.ts');
 const portraitSource = readFileSync(new URL('../src/ui/equipmentPortrait.ts', import.meta.url), 'utf8');
 // 매니페스트 캐시를 비워 "실물 아틀라스 이전" 상태에서 시작한다(142 전 배포 상태).
 resetCostumeManifestCache();
+
+test('낡은 투구 미리보기는 얼굴을 덮는 통합 바디 초상화를 쓴다',()=>{
+  const save=freshSave('female');
+  save.equipment.armor={id:'armor',name:baseItems.armor[0],slot:'armor',rarity:'common',stats:{}};
+  save.equipment.helmet={id:'helmet',name:'낡은 투구',slot:'helmet',rarity:'common',stats:{}};
+  assert.equal(equipmentFallbackPortrait(save),'/assets/warrior_female_armored_oldhelm.png');
+  save.equipment.helmet.name='낡은투구';
+  assert.equal(equipmentFallbackPortrait(save),'/assets/warrior_female_armored_oldhelm.png');
+});
 
 test('equipment preview falls back to the tier full-body portrait until the costume manifest exists',()=>{
   const tierPaths={1:'starter',2:'t2',3:'t3',4:'t4'};
@@ -116,10 +125,15 @@ test('info preview draws the shared field costume plan with the idle frame only'
   }
   resetCostumeManifestCache();
 });
-test('portrait module keeps no paper-doll path, one idle frame, and the 24-entry LRU cache',()=>{
+test('portrait module keeps one idle frame and bounds result and atlas image caches',()=>{
   assert.doesNotMatch(portraitSource,/from '\.\.\/game\/items'|\bequipmentImage\(|\btightFrame\b|\bgetImageData\b|const fit\b/,'종이인형·픽셀 스캔 경로가 남아 있지 않다');
   assert.match(portraitSource,/costumeLayerCell\(layer, 'idle', 0\)/);
   assert.match(portraitSource,/portraitCache\.size > 24/);
+  assert.match(portraitSource,/equipmentPortraitAtlasPageCacheLimit = 2/);
+  assert.match(portraitSource,/while \(atlasImages\.size > equipmentPortraitAtlasPageCacheLimit\)/);
+  assert.match(portraitSource,/pendingAtlasImages\.has\(url\)/,'합성 중인 페이지는 캐시 축출 대상에서 제외한다');
+  assert.match(portraitSource,/composingAtlasImages\.has\(url\)/,'캔버스 합성이 끝날 때까지 페이지를 캐시에 고정한다');
+  assert.match(portraitSource,/composingAtlasImages\.set\(url, \(composingAtlasImages\.get\(url\) \?\? 0\) \+ 1\)/);
   assert.match(portraitSource,/planHeroCostume/);
 });
 test('all six tier portraits are 720px tall transparent PNG assets',()=>{

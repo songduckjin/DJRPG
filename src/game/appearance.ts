@@ -52,7 +52,7 @@ export function heroAppearance(save: Save) {
   const femaleHelmet = gender === 'female' && !!save.equipment.helmet;
   const maleHelmet = gender === 'male' && !!save.equipment.helmet;
   const maleArmoredHelmet = maleHelmet && armored;
-  const oldHelmet = femaleHelmet && save.equipment.helmet?.name === '낡은 투구';
+  const oldHelmet = femaleHelmet && save.equipment.helmet?.name.normalize('NFKC').replace(/[\s\u200b\ufeff]/gu, '') === '낡은투구';
   return {
     armorTier: armorTier(save.equipment.armor),
     armorPalette: armorPalette(save.equipment.armor),

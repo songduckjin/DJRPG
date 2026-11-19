@@ -11,16 +11,16 @@ for (const gender of ['male', 'female']) test(`${gender}: helmet-only skills kee
   save.equipment.helmet = { id: 'helmet', name: '철제 바시넷', slot: 'helmet', rarity: 'rare', stats: {} };
   const art = heroAppearance(save);
   assert.equal(art.attack, undefined);
-  const motion = heroMotion(.16, 1);
+  const motion = heroMotion(.16);
   assert.deepEqual({ scaleX: motion.scaleX, scaleY: motion.scaleY, rotation: motion.rotation }, { scaleX: 1, scaleY: 1, rotation: 0 });
   assert(motion.pulse > 0);
-  assert.equal(heroMotion(.16, 1, { age: .25, duration: 1 }).rotation, Math.PI / 2);
+  assert.equal(heroMotion(.16).rotation, 0, 'spin is shown by VFX and afterimages, not a body turn');
   save.equipment.weapon = { id: 'weapon', name: '낡은 두손검', slot: 'weapon', rarity: 'common', stats: {} };
   const armed = heroAppearance(save);
   assert(armed.attack);
-  const armedMotion = heroMotion(.16, 1);
+  const armedMotion = heroMotion(.16);
   assert.deepEqual({ scaleX: armedMotion.scaleX, scaleY: armedMotion.scaleY, rotation: armedMotion.rotation }, { scaleX: 1, scaleY: 1, rotation: 0 });
-  assert.equal(heroMotion(.16, 1, { age: .25, duration: 1 }).rotation, Math.PI / 2);
+  assert.equal(heroMotion(.16).rotation, 0, 'weapon and gender do not change the spin body policy');
 });
 
 for (const gender of ['male', 'female']) for (const helmet of [false, true]) for (const armor of [false, true]) for (const weapon of [false, true]) {

@@ -49,6 +49,9 @@ export const costumeAtlasColumns = 8;
 export const costumeAtlasRows = 8;
 export const costumeAtlasCellsPerPage = costumeAtlasColumns * costumeAtlasRows;
 
+/** Maximum simultaneously resident costume atlas pages. One complete loadout needs at most six. */
+export const costumeAtlasPageCacheLimit = 6;
+
 /**
  * 변형 하나가 페이지에서 차지하는 칸 수. 한 파츠의 30프레임을 32칸 슬롯에 담아
  * 변형이 페이지 경계를 넘지 않게 한다(64칸 = 변형 2개).
@@ -116,6 +119,11 @@ function variantIndex(manifest: CostumeManifest, definition: CostumeDefinition):
 export function planHeroCostume(save: Pick<Save, 'gender' | 'equipment'>, load: CostumeLoadResult | undefined): CostumeHeroPlan {
   if (!load) return { ok: false, reason: 'manifest-missing', detail: '코스튬 매니페스트를 아직 불러오지 않았습니다.' };
   if (!load.ok) return { ok: false, reason: load.reason, detail: load.detail };
+  // The v3 helmet atlas uses an open-face source for every variant. The legacy
+  // helmet has a distinct closed visor in the integrated body sheets.
+  if (save.equipment.helmet?.name.normalize('NFKC').replace(/[\s\u200b\ufeff]/gu, '') === '낡은투구') {
+    return { ok: false, reason: 'unmapped-costume', detail: '낡은 투구의 얼굴 가림 아틀라스가 없어 기존 전신 시트를 사용합니다.' };
+  }
   const manifest = load.manifest;
   const bodyPage = `body-${save.gender}`;
   const body: CostumeLayerPlan[] = costumeBodyParts.map((part, variant) => ({
@@ -150,6 +158,16 @@ export function planHeroCostume(save: Pick<Save, 'gender' | 'equipment'>, load: 
       scale: { x: definition.fit?.scaleX ?? 1, y: definition.fit?.scaleY ?? 1 },
       rotation: definition.fit?.rotation ?? 0
     };
+    if (definition.slot === 'weapon') {
+      // v3's 104px idle sword crosses the head. Shrink around its hand socket
+      // so the grip remains attached in field and portrait plans alike.
+      const grip = save.gender === 'female' ? { x: 90, y: 126 } : { x: 126, y: 112 };
+      const scale = .7;
+      layer.offset.x += (1 - scale) * (grip.x - costumeAtlasCellWidth * costumeBodyPivot.x);
+      layer.offset.y += (1 - scale) * (grip.y - costumeAtlasCellHeight * costumeBodyPivot.y);
+      layer.scale.x *= scale;
+      layer.scale.y *= scale;
+    }
     if (definition.slot === 'armor') armor = layer;
     else equipment.push(layer);
   }
@@ -190,6 +208,13 @@ export type CostumeHeroState = {
   load?: CostumeLoadResult & { ok: true };
   /** 아틀라스 페이지 URL → 텍스처. */
   textures: Map<string, Texture>;
+  /** Pixi Assets가 소유하며, 축출 시 `Assets.unload()`해야 하는 페이지. */
+  ownedPages: Set<string>;
+  /** 진행 중인 Pixi Assets unload 작업. unload가 끝나기 전에는 새 페이지를 로드하지 않는다. */
+  unloading: Map<string, Promise<void>>;
+  /** 현재 장비 계획에서 쓰는 페이지. 이 페이지들은 캐시 정리에서 보호한다. */
+  activePages: Set<string>;
+  activePlanKey: string;
   /** 셀 자르기 결과 캐시. 매 프레임 `new Texture`를 만들지 않는다. */
   frames: Map<string, Texture>;
   loading: Set<string>;
@@ -202,7 +227,8 @@ export type CostumeHeroState = {
 
 export function createCostumeHeroState(): CostumeHeroState {
   return {
-    status: 'idle', textures: new Map(), frames: new Map(), loading: new Set(), failed: new Set(),
+    status: 'idle', textures: new Map(), ownedPages: new Set(), unloading: new Map(), activePages: new Set(), activePlanKey: '',
+    frames: new Map(), loading: new Set(), failed: new Set(),
     sprites: new Map(), reason: 'none', detail: ''
   };
 }
@@ -237,22 +263,79 @@ export function applyCostumeHeroRuntime(state: CostumeHeroState, load: CostumeLo
   state.status = 'idle';
   state.reason = 'none';
   state.detail = '';
-  for (const [url, texture] of textures) state.textures.set(url, texture);
+  for (const [url, texture] of textures) {
+    state.textures.set(url, texture);
+    // Test/preload textures are externally owned and must not be passed to Assets.unload().
+    state.ownedPages.delete(url);
+  }
 }
 
-/** 계획에 필요한 아틀라스 페이지를 한 번씩만 요청한다. 실패는 기록 후 재시도하지 않는다. */
+function touchPage(state: CostumeHeroState, url: string): Texture | undefined {
+  const texture = state.textures.get(url);
+  if (!texture) return undefined;
+  state.textures.delete(url);
+  state.textures.set(url, texture);
+  return texture;
+}
+
+function destroyFramesForPage(state: CostumeHeroState, url: string): void {
+  for (const [key, texture] of state.frames) {
+    if (!key.startsWith(`${url}#`)) continue;
+    state.frames.delete(key);
+    texture.destroy(false);
+  }
+}
+
+function unloadPage(state: CostumeHeroState, url: string): void {
+  const texture = state.textures.get(url);
+  if (!texture) return;
+  state.textures.delete(url);
+  destroyFramesForPage(state, url);
+  if (!state.ownedPages.delete(url)) return;
+  const unloading = Assets.unload(url).catch(error => {
+    console.info(`[costume] 아틀라스 해제 실패: ${url}`, error);
+  });
+  state.unloading.set(url, unloading);
+  void unloading.finally(() => state.unloading.delete(url));
+}
+
+function pruneStalePages(state: CostumeHeroState): void {
+  for (const url of [...state.textures.keys()]) {
+    if (!state.activePages.has(url)) unloadPage(state, url);
+  }
+}
+
+/** 계획에 필요한 아틀라스만 보유한다. 현재 장비 최대 6페이지 외에는 GPU 자산까지 해제한다. */
 export function ensureCostumeAtlas(state: CostumeHeroState, plan: CostumeLayerPlan[]): void {
-  for (const layer of plan) {
-    const url = costumeAtlasUrl(costumeAtlasPageName(layer.page, costumeLayerPageIndex(layer)));
-    if (state.textures.has(url) || state.loading.has(url) || state.failed.has(url)) continue;
+  const urls = [...new Set(plan.map(layer => costumeAtlasUrl(costumeAtlasPageName(layer.page, costumeLayerPageIndex(layer)))))];
+  if (urls.length > costumeAtlasPageCacheLimit) {
+    fallback(state, 'atlas-load', `장비 계획이 아틀라스 캐시 상한(${costumeAtlasPageCacheLimit})을 넘었습니다.`);
+    return;
+  }
+  state.activePages = new Set(urls);
+  pruneStalePages(state);
+  // Avoid transiently keeping an old decoded page and its replacement set on GPU together.
+  if (state.unloading.size > 0) return;
+  for (const url of urls) {
+    if (state.textures.has(url)) { touchPage(state, url); continue; }
+    if (state.loading.has(url) || state.failed.has(url)) continue;
+    if (state.textures.size + state.loading.size >= costumeAtlasPageCacheLimit) break;
     state.loading.add(url);
     void Assets.load<Texture>(url).then(texture => {
       texture.source.scaleMode = 'linear';
-      state.textures.set(url, texture);
+      state.ownedPages.add(url);
+      if (state.activePages.has(url) && state.status !== 'fallback') state.textures.set(url, texture);
+      else {
+        state.textures.set(url, texture);
+        unloadPage(state, url);
+      }
       state.loading.delete(url);
     }).catch(() => {
       state.loading.delete(url);
       state.failed.add(url);
+      fallback(state, 'atlas-load', url);
+      state.activePages.clear();
+      pruneStalePages(state);
       console.info(`[costume] 아틀라스 페이지 없음 → 기존 본체로 폴백: ${url}`);
     });
   }
@@ -265,7 +348,7 @@ export function ensureCostumeAtlas(state: CostumeHeroState, plan: CostumeLayerPl
 export function costumeLayerTexture(state: CostumeHeroState, layer: CostumeLayerPlan, motion: HeroCostumeMotion, frame: number): Texture | null {
   const pageIndex = costumeLayerPageIndex(layer);
   const url = costumeAtlasUrl(costumeAtlasPageName(layer.page, pageIndex));
-  const page = state.textures.get(url);
+  const page = touchPage(state, url);
   if (!page) return null;
   const columns = Math.floor(page.source.width / costumeAtlasCellWidth);
   const rows = Math.floor(page.source.height / costumeAtlasCellHeight);
@@ -287,9 +370,20 @@ export function costumeLayerTexture(state: CostumeHeroState, layer: CostumeLayer
 export type CostumeHeroTarget = {
   heroLayer: Container;
   hero?: Sprite;
+  /** Loadout changed: release short-lived ghost sprites before unloading their source pages. */
+  onPlanChange?: () => void;
 };
 
 export type CostumeHeroFrame = { motion: HeroCostumeMotion; frame: number; tint?: number };
+
+function clearCostumeSprites(target: CostumeHeroTarget, state: CostumeHeroState): void {
+  target.onPlanChange?.();
+  for (const sprite of state.sprites.values()) {
+    if (sprite.parent) sprite.parent.removeChild(sprite);
+    sprite.destroy();
+  }
+  state.sprites.clear();
+}
 
 /**
  * 코스튬 레이어로 캐릭터를 그린다. 그렸으면 `true`, 폴백이면 `false`.
@@ -300,9 +394,24 @@ export type CostumeHeroFrame = { motion: HeroCostumeMotion; frame: number; tint?
 export function renderCostumeHero(
   target: CostumeHeroTarget, state: CostumeHeroState | undefined, save: Pick<Save, 'gender' | 'equipment'>, frame: CostumeHeroFrame
 ): boolean {
-  if (!state || state.status === 'fallback' || !state.load) return false;
+  if (!state || !state.load) return false;
+  if (state.status === 'fallback') {
+    if (state.sprites.size > 0) clearCostumeSprites(target, state);
+    return false;
+  }
   const plan = planHeroCostume(save, state.load);
-  if (!plan.ok) return false;
+  if (!plan.ok) {
+    if (state.sprites.size > 0) clearCostumeSprites(target, state);
+    state.activePlanKey = '';
+    state.activePages.clear();
+    pruneStalePages(state);
+    return false;
+  }
+  const planKey = plan.layers.map(layer => `${layer.role}:${layer.page}:${layer.variant}:${layer.zOrder}:${layer.anchor.x},${layer.anchor.y}:${layer.offset.x},${layer.offset.y}:${layer.scale.x},${layer.scale.y}:${layer.rotation}`).join('|');
+  if (state.activePlanKey && state.activePlanKey !== planKey) {
+    clearCostumeSprites(target, state);
+  }
+  state.activePlanKey = planKey;
   ensureCostumeAtlas(state, plan.layers);
   const resolved: { layer: CostumeLayerPlan; texture: Texture }[] = [];
   for (const layer of plan.layers) {

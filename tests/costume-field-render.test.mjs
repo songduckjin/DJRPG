@@ -16,8 +16,8 @@ const {
 } = await import('../src/game/render/heroMotion.ts');
 const {
   applyCostumeHeroRuntime, costumeAtlasPageName, costumeBodyParts, costumeGhostSources, costumeLayerAnchor,
-  costumeLayerCell, costumeLayerPageIndex, createCostumeHeroState, hideCostumeHero,
-  planHeroCostume, renderCostumeHero, costumeAtlasCellsPerPage, costumeVariantsPerPage
+  costumeLayerCell, costumeLayerPageIndex, createCostumeHeroState, ensureCostumeAtlas, hideCostumeHero,
+  planHeroCostume, renderCostumeHero, costumeAtlasCellsPerPage, costumeAtlasPageCacheLimit, costumeVariantsPerPage
 } = await import('../src/game/render/costumeHero.ts');
 const { drawHero, updateAfterimages } = await import('../src/game/render/entities.ts');
 
@@ -197,6 +197,49 @@ test('매핑·매니페스트가 어긋나면 부분 합성 없이 전체 폴백
   assert.equal(missingEntry.reason, 'unmapped-costume');
 });
 
+test('낡은 투구는 닫힌 바이저가 있는 기존 본체로 폴백한다', () => {
+  for (const gender of ['male', 'female']) {
+    const save = fullEquipment(freshSave(gender));
+    save.equipment.helmet.name = '낡은 투구';
+    const plan = planHeroCostume(save, loadOk);
+    assert.equal(plan.ok, false);
+    assert.match(plan.detail, /낡은 투구/);
+  }
+});
+
+test('낡은 투구로 교체할 때 이전 코스튬 스프라이트와 페이지 참조를 해제한다', () => {
+  const save = fullEquipment(freshSave('female'));
+  const state = createCostumeHeroState();
+  applyCostumeHeroRuntime(state, loadOk, atlasFor(save));
+  const heroLayer = new Container(), hero = new Sprite(Texture.EMPTY);
+  heroLayer.addChild(hero);
+  assert.equal(renderCostumeHero({ heroLayer, hero }, state, save, { motion: 'idle', frame: 0 }), true);
+  save.equipment.helmet.name = '낡은 투구';
+  let cleared = 0;
+  assert.equal(renderCostumeHero({ heroLayer, hero, onPlanChange: () => cleared++ }, state, save, { motion: 'idle', frame: 0 }), false);
+  assert.equal(cleared, 1);
+  assert.equal(state.sprites.size, 0);
+  assert.equal(state.textures.size, 0);
+});
+
+test('필드·미리보기 공용 계획의 검은 손잡이를 고정한 채 머리 위 돌출을 줄인다', () => {
+  for (const gender of ['male', 'female']) {
+    const save = fullEquipment(freshSave(gender));
+    const plan = planHeroCostume(save, loadOk);
+    assert.equal(plan.ok, true);
+    const weapon = plan.layers.find(layer => layer.role === 'weapon');
+    const grip = gender === 'female' ? { x: 90, y: 126 } : { x: 126, y: 112 };
+    assert.equal(weapon.scale.x, .7);
+    assert.equal(weapon.scale.y, .7);
+    for (const axis of ['x', 'y']) {
+      const pivot = axis === 'x' ? 234 * weapon.anchor.x : 242 * weapon.anchor.y;
+      const before = grip[axis] - pivot;
+      const after = weapon.offset[axis] + weapon.scale[axis] * before;
+      assert(Math.abs(after - before) < 1e-9, `${gender} ${axis} grip stays on the hand`);
+    }
+  }
+});
+
 test('아틀라스 앵커는 정규화 피벗 또는 셀 픽셀 모두 받아 0..1로 고정된다', () => {
   assert.deepEqual(costumeLayerAnchor({ x: 0, y: 0 }), { x: .5, y: .96 });
   assert.deepEqual(costumeLayerAnchor({ x: .25, y: .75 }), { x: .25, y: .75 });
@@ -305,6 +348,24 @@ test('아틀라스가 일부만 있으면 아무것도 그리지 않고 기존 �
   assert.equal(hero.visible, true, '폴백 본체가 계속 보인다');
 });
 
+test('장비 계획 변경 시 이전 아틀라스 페이지를 캐시에서 제거하고 현재 페이지 수를 제한한다', () => {
+  const save = fullEquipment(freshSave('male'));
+  const plan = planHeroCostume(save, loadOk);
+  assert.equal(plan.ok, true);
+  const textures = atlasFor(save);
+  const staleUrl = costumeAtlasUrl('retired-page');
+  textures.set(staleUrl, pageTexture());
+  const state = createCostumeHeroState();
+  applyCostumeHeroRuntime(state, loadOk, textures);
+
+  ensureCostumeAtlas(state, plan.layers);
+
+  const expectedPages = new Set(plan.layers.map(layer => costumeAtlasUrl(costumeAtlasPageName(layer.page, costumeLayerPageIndex(layer)))));
+  assert.equal(state.textures.has(staleUrl), false, 'unneeded page is evicted');
+  assert.deepEqual(new Set(state.textures.keys()), expectedPages);
+  assert(state.textures.size <= costumeAtlasPageCacheLimit);
+});
+
 test('매니페스트 로드 실패 상태는 재시도 없이 폴백으로 굳는다', () => {
   const state = createCostumeHeroState();
   state.status = 'fallback';
@@ -313,6 +374,21 @@ test('매니페스트 로드 실패 상태는 재시도 없이 폴백으로 굳�
   const heroLayer = new Container(), hero = new Sprite(Texture.EMPTY);
   assert.equal(renderCostumeHero({ heroLayer, hero }, state, save, { motion: 'idle', frame: 0 }), false);
   assert(state.status === 'fallback');
+});
+
+test('아틀라스 실패 후 폴백 경로에서 코스튬 스프라이트와 잔상을 해제한다', () => {
+  const save = fullEquipment(freshSave('male'));
+  const state = createCostumeHeroState();
+  applyCostumeHeroRuntime(state, loadOk, atlasFor(save));
+  const heroLayer = new Container(), hero = new Sprite(Texture.EMPTY);
+  heroLayer.addChild(hero);
+  assert.equal(renderCostumeHero({ heroLayer, hero }, state, save, { motion: 'idle', frame: 0 }), true);
+  let releasedGhosts = 0;
+  state.status = 'fallback';
+  assert.equal(renderCostumeHero({ heroLayer, hero, onPlanChange: () => releasedGhosts++ }, state, save, { motion: 'idle', frame: 0 }), false);
+  assert.equal(state.sprites.size, 0);
+  assert.equal(heroLayer.children.length, 1);
+  assert.equal(releasedGhosts, 1);
 });
 
 /**
@@ -357,6 +433,7 @@ for (const gender of ['male', 'female']) test(`${gender}: drawHero가 코스튬 
   world.effects.push({ x: 0, y: 0, kind: 'spin', age: .3, duration: 1.2, angle: 0 });
   drawHero.call(view, world, 100, 100, .1);
   assert.notEqual(view.costume.sprites.get('armor').texture, idleCell);
+  assert.equal(view.heroLayer.rotation, 0, 'spin advances the costume pose without turning the whole body');
 
   // 피격 연출(tint) 호환
   world.effects.length = 0;

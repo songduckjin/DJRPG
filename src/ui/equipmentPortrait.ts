@@ -29,6 +29,7 @@ const tierPortrait: Record<GearTier, string> = { 1: 'starter', 2: 't2', 3: 't3',
 /** 폴백 전신 초상화 경로. 갑옷+투구를 함께 착용하면 갑옷 티어별 시트를 쓴다. */
 export function equipmentFallbackPortrait(save: Save): string {
   const appearance = heroAppearance(save);
+  if (save.equipment.helmet?.name.normalize('NFKC').replace(/[\s\u200b\ufeff]/gu, '') === '낡은투구') return appearance.portrait;
   if (save.equipment.armor && save.equipment.helmet && appearance.armorTier) {
     return `/assets/warrior_equipped_${tierPortrait[appearance.armorTier]}_${save.gender}.png`;
   }
@@ -105,14 +106,38 @@ function ensureManifest(): Promise<CostumeLoadResult | undefined> {
 /* ── 아틀라스 이미지·합성 결과 캐시 ─────────────────────────────────────── */
 
 const atlasImages = new Map<string, Promise<HTMLImageElement>>();
+const pendingAtlasImages = new Set<string>();
+const composingAtlasImages = new Map<string, number>();
 const failedPages = new Set<string>();
 const portraitCache = new Map<string, Promise<string>>();
 const fallbackImages = new Map<string, Promise<HTMLImageElement>>();
+/** Portraits are infrequent; keep only two decoded atlas pages after composition. */
+export const equipmentPortraitAtlasPageCacheLimit = 2;
+
+export function equipmentPortraitAtlasPageCacheSize(): number { return atlasImages.size; }
+
+function touchAtlasImage(url: string): void {
+  const hit = atlasImages.get(url);
+  if (!hit) return;
+  atlasImages.delete(url);
+  atlasImages.set(url, hit);
+}
+
+function trimAtlasImages(): void {
+  while (atlasImages.size > equipmentPortraitAtlasPageCacheLimit) {
+    const oldest = [...atlasImages.keys()].find(url => !pendingAtlasImages.has(url) && !composingAtlasImages.has(url));
+    if (!oldest) return;
+    atlasImages.delete(oldest);
+  }
+}
 
 /** 아틀라스/폴백 PNG 로드. 한 번 실패한 URL은 다시 요청하지 않는다(404 폭주 방지). */
 function loadImage(url: string, store: Map<string, Promise<HTMLImageElement>>, failed: Set<string>): Promise<HTMLImageElement> {
   const cached = store.get(url);
-  if (cached) return cached;
+  if (cached) {
+    if (store === atlasImages) touchAtlasImage(url);
+    return cached;
+  }
   if (failed.has(url)) return Promise.reject(new Error(`이미지 로드 실패(재시도 안 함): ${url}`));
   const loading = new Promise<HTMLImageElement>((resolve, reject) => {
     const image = new Image();
@@ -121,6 +146,14 @@ function loadImage(url: string, store: Map<string, Promise<HTMLImageElement>>, f
     image.src = url;
   });
   store.set(url, loading);
+  if (store === atlasImages) {
+    pendingAtlasImages.add(url);
+    void loading.then(() => {
+      pendingAtlasImages.delete(url);
+      touchAtlasImage(url);
+      trimAtlasImages();
+    }, () => pendingAtlasImages.delete(url));
+  }
   return loading;
 }
 
@@ -180,6 +213,9 @@ async function composeCostume(layers: CostumeLayerPlan[]): Promise<string> {
     const url = costumeAtlasUrl(costumeAtlasPageName(layer.page, costumeLayerPageIndex(layer)));
     pageUrls.set(`${layer.page}#${costumeLayerPageIndex(layer)}`, url);
   }
+  const pinnedUrls = [...new Set(pageUrls.values())];
+  for (const url of pinnedUrls) composingAtlasImages.set(url, (composingAtlasImages.get(url) ?? 0) + 1);
+  try {
   const entries = await Promise.all([...pageUrls].map(async ([key, url]) =>
     [key, await loadImage(url, atlasImages, failedPages)] as const));
   const pages = new Map(entries);
@@ -214,6 +250,14 @@ async function composeCostume(layers: CostumeLayerPlan[]): Promise<string> {
   }
   // 성별은 계획의 본체 페이지(`body-male`/`body-female`)에 이미 반영돼 있어 별도 분기가 없다.
   return canvas.toDataURL('image/png');
+  } finally {
+    for (const url of pinnedUrls) {
+      const count = (composingAtlasImages.get(url) ?? 1) - 1;
+      if (count <= 0) composingAtlasImages.delete(url);
+      else composingAtlasImages.set(url, count);
+    }
+    trimAtlasImages();
+  }
 }
 
 /** 폴백: 전신 초상화 한 장을 캔버스에 맞춰 그린다(빈 화면 방지). */
@@ -261,6 +305,7 @@ export async function renderEquipmentPortrait(save: Save): Promise<string> {
 export function resetEquipmentPortraitCache(): void {
   portraitCache.clear();
   atlasImages.clear();
+  pendingAtlasImages.clear();
   fallbackImages.clear();
   failedPages.clear();
   manifestAttempt = undefined;
