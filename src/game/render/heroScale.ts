@@ -11,9 +11,14 @@ export const heroBodyFraction = .0935;
 
 export const heroBodyPx: Record<string, number> = {
   // Task 149: fixed full-body pilot sheets (body head-to-feet measured once per sheet).
+  // Task 150: idle is drawn 335~337px tall, but the walk cells are 293~307px and the attack
+  // cells 246~341px, so reusing 335 for all three states shrank the hero whenever it walked
+  // or swung. Walk uses the mean of its four cells; attack sits at the mean of the crouched
+  // swing cells (the overhead-sword frame is the outlier), which keeps the greatsword looking
+  // as heavy as it does at rest.
   pilotMale: 335, pilotFemale: 335,
-  pilotMaleWalk: 335, pilotFemaleWalk: 335,
-  pilotMaleAttack: 335, pilotFemaleAttack: 335,
+  pilotMaleWalk: 300, pilotFemaleWalk: 300,
+  pilotMaleAttack: 270, pilotFemaleAttack: 270,
   // idle (single cropped texture)
   male: 189, female: 189, maleSword: 189, femaleSword: 186,
   armored: 1457, armoredNoHelm: 1445, femaleArmoredNoHelm: 1369, femaleArmoredHelm: 1381,

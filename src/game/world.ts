@@ -9,6 +9,8 @@ export type Drop = { x: number; y: number; item: Item; age: number; warned: bool
 export type Effect = { x: number; y: number; kind: 'slash' | 'slash2' | 'spin' | 'crushing' | 'slam' | 'warcry' | 'power' | 'destroy' | 'hell' | 'hit' | 'death'; age: number; duration: number; angle: number; swing?: number; amount?: number; nextHit?: number; power?: number; level?: number };
 export type Action = 'attack' | SkillId;
 export const cooldowns: Record<Action, number> = { attack: .48, slash2: skills.slash2.cooldown, spin: skills.spin.cooldown, crushing: skills.crushing.cooldown, slam: skills.slam.cooldown, warcry: skills.warcry.cooldown, power: skills.power.cooldown, destroy: skills.destroy.cooldown, hell: skills.hell.cooldown };
+/** 평타 한 방의 공격력 배율. 한 마리만 맞히는 대신 한 방이 무겁다(작업 150). */
+export const basicAttackPower = 1.6;
 export function enemyMoveSpeed(floor: number, boss: boolean): number {
   return boss ? 28 : Math.min(64, 38 + Math.max(0, floor - 1) * 1.2);
 }
@@ -76,7 +78,8 @@ export class World {
       const angle = p.facing;
       this.effects.push({ x: p.x, y: p.y, kind: 'slash', age: 0, duration: .25, angle, swing: this.swing });
       this.swing *= -1;
-      this.damage(90, attack, angle, 1.15);
+      // 평타는 한 마리만: 사거리·부채꼴 안에서 가장 가까운 적 한 마리를 공격력 ×1.6으로 때린다(스킬은 종전대로 광역).
+      this.damage(90, attack * basicAttackPower, angle, 1.15, 12, 0, p, 1);
     } else if (kind === 'slash2') {
       this.effects.push({ x: p.x, y: p.y, kind: 'slash2', age: 0, duration: skillDuration(kind, level), angle: p.facing, nextHit: .12, power: attack * 2.15 * damageScale, level });
     } else if (kind === 'spin') {
@@ -119,11 +122,17 @@ export class World {
     if (Math.abs(screenDx) > 4) this.player.facingSide = screenDx > 0 ? 1 : -1;
   }
 
-  damage(radius: number, amount: number, angle: number, arc: number, knockback = 12, slow = 0, origin: { x: number; y: number } = this.player): void {
+  damage(radius: number, amount: number, angle: number, arc: number, knockback = 12, slow = 0, origin: { x: number; y: number } = this.player, maxTargets = Infinity): void {
+    // 판정 대상은 사거리·부채꼴 안의 적. `maxTargets`를 주면 가까운 순으로 그 수만 맞는다(평타 1마리).
+    const inRange: { enemy: Enemy; dx: number; dy: number; dist: number }[] = [];
     for (const enemy of this.enemies) {
       const dx = enemy.x - origin.x, dy = enemy.y - origin.y, dist = Math.hypot(dx, dy);
       const diff = Math.atan2(Math.sin(Math.atan2(dy, dx) - angle), Math.cos(Math.atan2(dy, dx) - angle));
       if (dist > radius || Math.abs(diff) > arc) continue;
+      inRange.push({ enemy, dx, dy, dist });
+    }
+    const targets = inRange.length > maxTargets ? inRange.sort((a, b) => a.dist - b.dist).slice(0, maxTargets) : inRange;
+    for (const { enemy, dx, dy, dist } of targets) {
       enemy.hp -= amount;
       enemy.hit = .24;
       enemy.slow = Math.max(enemy.slow, slow);

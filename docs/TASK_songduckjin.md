@@ -7,6 +7,15 @@
 
 ## 진행 중 작업
 
+### [x] [작업 150] 평타 1마리 제한·평타 ×1.6·걷기/공격 몸 크기 보정
+- **담당자**: `songduckjin` · **브랜치**: `fix/150-basic-attack-single-target` · **위험 등급**: 중 · **상태**: `[x]` 완료(실기 확인은 사용자 몫)
+- **제보(2026-11-19 실기)**: ① 평타가 반경 90px·부채꼴 안의 모든 적을 동시에 때림 ② 대검을 휘두르거나 걸을 때 캐릭터가 작아짐. 후속 지시: 한 마리만 때리는 만큼 “한방한방이 쌔야 돼”.
+- **수정**: `src/game/world.ts` — `damage()`에 `maxTargets`(기본 `Infinity`, 가까운 순) 추가, 평타만 `maxTargets=1`이고 피해는 `basicAttackPower = 1.6`배. 스킬 7종 광역 판정·쿨다운·서버 계약 무변경. `src/game/render/heroScale.ts` — pilot walk 335→300(4칸 평균 293~307), attack 335→270(내려찍는 칸 평균, 머리 위 검 프레임은 이상치), idle 335 유지.
+- **테스트**: `tests/world-movement.test.mjs` 5건(단일 대상·처치·스킬 광역·×1.6 피해·두 방 합계), `tests/hero-art.test.mjs` 2건(남녀 pilot 시트 알파 실측 대조·상태별 보정값).
+- **검증**: `npx tsc --noEmit`, `node --test tests/*.test.mjs` 389건 중 387 통과(`costume-field-render` 2건은 `17facd5` `main`에서도 실패하는 기존 실패), `node scripts/verify-item-art.mjs`, `npm run build`, `git diff --check` 통과.
+- **머지·배포**: [PR #103](https://github.com/songduckjin/DJRPG/pull/103) — Cloudflare Pages 체크 통과 후 스쿼시 병합하고 운영 `version.json`의 SHA를 확인한다.
+- **남은 것**: 사용자 실기 화면 확인(평타 대상·타격감, 걷기/공격 체격), `costume-field-render` 기존 실패 2건은 별도 작업.
+
 ### [x] [작업 147] 3D→2.5D Blender 자동 렌더 파이프라인 가이드·스크립트·레퍼런스 시안
 - **담당자**: `songduckjin` · **브랜치**: `task/147-blender-25d-pipeline` · **위험 등급**: 낮음 · **상태**: `[x]` 완료
 - **완료 결과(2026-11-19)**: [PR #99](https://github.com/songduckjin/DJRPG/pull/99)가 머지 `d8110470a99c97a6ae38fa85b0d47e8eccdad22b`로 병합됐고 Cloudflare Pages 운영 `version.json`에서 `d8110470a99c`를 확인했다. `scripts/blender/render_25d_costume.py`(1026줄) + `docs/BLENDER_25D_PIPELINE.md` + `docs/references/` 시안 2장(484KB·372KB)을 넣었다. 자체 점검 `--selftest` 6/6, `--help`·`--print-spec`·`--dry-run` 동작, 합성 셀 아틀라스 패킹·슬롯 좌표(0·9·8 → col0row0·col1row1·col0row1)·매니페스트 출력 확인, `tsc --noEmit`, 전체 `node --test` 382건, `verify-item-art`, `npm run build`, `git diff --check` 통과. **실제 Blender 렌더는 이 환경에 Blender가 없어 미실행**이며 PC 몫이다(가이드 §1.2 자체 점검 → §5 실행). 배포 매니페스트·`COSTUME_ASSET_VERSION` 6 상승은 렌더 결과가 나온 뒤 별도 작업.

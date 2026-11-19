@@ -1,8 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import './ts-loader.mjs';
-const { freshSave, floorKillTarget } = await import('../src/game/store.ts');
-const { World, enemyMoveSpeed, enemyMaxHp, enemyHitDamage } = await import('../src/game/world.ts');
+const { freshSave, floorKillTarget, totalStats } = await import('../src/game/store.ts');
+const { World, enemyMoveSpeed, enemyMaxHp, enemyHitDamage, basicAttackPower } = await import('../src/game/world.ts');
 
 test('ordinary monsters approach more slowly and never outpace the player at deep floors', () => {
   assert.equal(enemyMoveSpeed(1, false), 38);
@@ -138,4 +138,68 @@ test('normal difficulty health and damage match the floor curves', () => {
     assert.equal(enemyHitDamage(floor, false, 10), normalDamage - 2);
   }
   assert.equal(enemyHitDamage(1, false, 1000), 1);
+});
+
+const dummyEnemy = (x, y, hp = 1000) => ({ x, y, hp, maxHp: hp, boss: false, hit: 0, step: 0, moving: false, knockX: 0, knockY: 0, slow: 0 });
+
+test('평타는 사거리·부채꼴 안에서 가장 가까운 한 마리만 때린다', () => {
+  const world = new World(freshSave()); world.spawnTimer = 999;
+  const far = dummyEnemy(70, 4), near = dummyEnemy(40, 0);
+  world.enemies = [far, near];   // 배열 순서와 무관하게 가까운 쪽이 맞는다
+  world.action('attack');
+  assert(near.hp < 1000, '가장 가까운 적이 맞았다');
+  assert.equal(far.hp, 1000, '같은 사거리·부채꼴 안의 다른 적은 그대로다');
+  assert.equal(world.effects.filter(effect => effect.kind === 'hit').length, 1, '피격 표시도 한 마리만');
+  assert(near.hit > 0); assert.equal(far.hit, 0);
+});
+
+test('평타가 한 마리를 처치해도 사거리 안의 다른 적은 그대로 살아 있다', () => {
+  const world = new World(freshSave()); world.spawnTimer = 999;
+  const far = dummyEnemy(70, 4), near = dummyEnemy(40, 0, 1);
+  world.enemies = [far, near];
+  const kills = world.save.kills;
+  world.action('attack');
+  assert.equal(world.enemies.length, 1, '처치된 한 마리만 빠진다');
+  assert.equal(world.enemies[0], far);
+  assert.equal(world.save.kills, kills + 1);
+});
+
+test('액티브 스킬은 종전처럼 사거리 안의 모든 적을 때린다', () => {
+  const save = freshSave(); save.learned = ['destroy']; save.quickSlots = ['destroy', null, null];
+  const world = new World(save); world.spawnTimer = 999;
+  const far = dummyEnemy(70, 4), near = dummyEnemy(40, 0);
+  world.enemies = [far, near];
+  world.action('destroy');
+  assert(near.hp < 1000, '가까운 적이 맞았다');
+  assert(far.hp < 1000, '먼 적도 함께 맞는다');
+});
+
+test('평타 한 방은 공격력 ×1.6으로 묵직하고, 한 번에 한 마리만 맞는다', () => {
+  const save = freshSave();
+  const world = new World(save); world.spawnTimer = 999;
+  const near = dummyEnemy(40, 0), far = dummyEnemy(70, 4);
+  world.enemies = [near, far];
+  const attack = totalStats(save).attack;
+  assert.equal(basicAttackPower, 1.6);
+  world.action('attack');
+  assert.equal(1000 - near.hp, attack * basicAttackPower, '가까운 한 마리에 공격력 1.6배가 들어간다');
+  assert.equal(far.hp, 1000, '다른 적은 맞지 않아 평타 총피해가 늘지 않는다');
+  const label = world.effects.find(effect => effect.kind === 'hit');
+  assert.equal(label.amount, Math.round(attack * basicAttackPower), '피해 숫자도 1.6배로 표시된다');
+});
+
+test('평타 두 방이면 이전 광역 평타 두 방보다 한 대상에게 더 큰 피해를 준다', () => {
+  const save = freshSave();
+  const world = new World(save); world.spawnTimer = 999;
+  const target = dummyEnemy(40, 0);
+  world.enemies = [target];
+  const attack = totalStats(save).attack;
+  world.action('attack');
+  const first = 1000 - target.hp;
+  world.cooldown.attack = 0; world.attackPose = 0;
+  world.action('attack');
+  const total = 1000 - target.hp;
+  assert.equal(first, attack * 1.6);
+  assert.equal(total, attack * 3.2);
+  assert(total > attack * 2, '같은 시간에 이전보다 1.6배 무겁다');
 });
