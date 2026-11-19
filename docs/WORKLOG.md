@@ -1,5 +1,19 @@
 # 작업 로그
 
+## 2026-11-19 — 투구 10종 머리 파츠 필드·장비창 적용 (작업 151)
+
+- **요청**: 승인 시안(`djrpg_pilot_helms_1to5.png`·`djrpg_pilot_helms_6to10.png`)의 남녀 전사 외형 위에 게임 내 투구 10종(`baseItems.helmet` 0~9, 옛 이름 `낡은 투구` 포함)을 착용하면 필드와 장비창(`내 정보`) 모두에 투구 외형이 보이게 하고, PR 병합·운영 배포까지 완료.
+- **시안 → 파츠**: 시안 두 장은 같은 몸통에 투구만 바꿔 그린 5열 그림이라, 목 칼라 위치를 기준으로 투구 머리 부분을 잘라 냈다. 검정 배경을 투명화할 때 투구 안쪽의 순수 검정 그림자가 배경과 색이 같아 얇은 통로로 새는 문제가 있어, 어두운 영역을 2px 깎고 플러드필한 뒤 다시 부풀리는 방식으로 안쪽 그림자를 보존했다. 목 아래로는 가운데 목 폭만 남기고 어깨 갑옷을 잘라 본체 갑옷과 겹쳐 보이지 않게 했고, 아래쪽 끝은 페이드했다. 결과는 `public/assets/pilot-25d/helmets/helm_0~9.png`(투명 RGBA, 폭 60~74px).
+- **여성 오픈페이스**: 0~2번(가죽 두건·철제 바시넷·사슬 코이프)은 얼굴이 드러나 남성 수염이 그대로 보이므로, `warrior_female_idle_v1.png`를 `images --edit`로 편집해 같은 여성 전사가 세 투구를 쓴 3열 시안을 1장 생성(검수 후 사용)하고 `helm_female_0~2.png`로 추출했다. 3~9번은 풀페이스라 남녀 공용이다.
+- **정렬**: 파츠는 전부 **아래 중앙(목 밑동) 앵커**이고 크기는 본체 362px 셀 좌표계로 맞췄다. 성별·동작(idle/walk/attack)·프레임별로 목 밑동 좌표와 배율을 실물 합성으로 재서 `src/game/render/helmets.ts` 표에 넣었다(걷기는 4포즈를 8프레임으로 반복 재생하므로 4개 값). 시트마다 머리 크기가 달라 프레임별 배율 보정이 필요했다.
+- **렌더**: `src/game/render.ts`가 파츠 13장을 부팅 때 프리로드(진행률에 합산)하고, `render/entities.ts`의 `drawHero`가 `syncHelmet`으로 현재 프레임 앵커에 스프라이트를 놓는다. 투구를 벗으면 숨기고, 피격 tint는 본체와 같은 `0xffd4cf`를 쓴다. zIndex는 본체(0)와 무기(1) 사이인 0.5다.
+- **장비창**: `ui/equipmentPortrait.ts`의 `equipmentPortraitPlan` 키에 착용 투구를 넣어 캐시가 섞이지 않게 하고, `composeFallback`이 pilot idle 전신 그림 위에 같은 좌표·배율로 투구를 합성한다.
+- **계약**: `store.ts`·`server/**`·`world.ts` 전투 로직·세이브 형식은 변경하지 않았다. `baseItems.helmet` 순서(= 파츠 인덱스)도 그대로다.
+- **테스트**: `tests/helmet-head-render.test.mjs` 8건(이름→인덱스 매핑·`낡은 투구`→7·여성 0~2 분기·파츠 PNG 규격·프리로드 목록·프레임 앵커 유한성·필드 스프라이트 생성/숨김/틴트·초상화 키 변화). `scripts/verify-item-art.mjs`에 파츠 13장 규격 확인을 추가했다. 기존 `tests/equipped-detail.test.mjs`의 초상화 키 기대값은 새 계약(성별 + 투구)에 맞게 고쳤다.
+- **검증**: `tsc --noEmit` 통과, 전체 테스트 397건 중 395 통과, `node scripts/verify-item-art.mjs` 통과, `vite build` 통과, `git diff --check` 통과. 실패 2건은 `tests/costume-field-render.test.mjs`의 "drawHero가 코스튬 레이어로 그리고…"로 `main`(`29a1e29`)에서도 동일하게 실패하는 기존 실패다.
+- **배포**: [PR #105](https://github.com/songduckjin/DJRPG/pull/105)를 스쿼시 병합했다(머지 `c94216cdc19445696fbaa7fa2f3436cfa43c1db6`). PR의 `Cloudflare Pages` 체크는 통과, `Workers Builds: djrpg`는 `main`에서도 계속 실패하는 기존 실패다. 병합 뒤 운영 `https://djrpg.pages.dev/version.json`이 `c94216cdc194`(`builtAt 2026-11-19T11:51:16Z`)로 갱신됐고, 투구 파츠 13장이 모두 HTTP 200, 배포 번들에 파츠 경로가 포함된 것을 확인했다. 원격 브랜치 삭제는 자격 증명 제한(403)으로 남아 있다.
+- **검수 이미지**: 남성 10종 `downloads/djrpg_helmet_overlay_male.png`, 남녀 대표 `downloads/djrpg_helmet_overlay_gender.png`, 18프레임 `downloads/djrpg_helmet_overlay_frames.png`. 실기 화면(투구가 머리에 앉은 느낌·걷기/공격 중 흔들림)은 사용자 확인 몫이다.
+
 ## 2026-11-19 — 평타 1마리 제한·걷기/공격 몸 크기 보정 (작업 150)
 
 - **제보**: 사용자가 실기 확인 후 「평타가 여러 마리를 한 번에 때린다」·「대검을 휘두르거나 걸을 때 캐릭터가 작아진다」를 알렸다.

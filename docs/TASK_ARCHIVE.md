@@ -5,6 +5,16 @@
 
 ---
 
+## [x] [작업 151] 남녀 전사 투구 10종 외형 전체 적용(필드·장비창)
+
+- **완료일**: 2026-11-19 · **담당자**: `songduckjin` · **브랜치**: `feat/151-helmet-head-overlay` · **PR**: #105 (머지 `c94216cdc194`, 운영 `version.json` `c94216cdc194` 확인)
+- **결과**: 승인 시안 두 장에서 투구 머리 파츠 10종(`helm_0~9`)을 떠서 pilot-25d 남녀 본체 위에 얹는다. 여성은 오픈페이스 0~2번만 여성용 시안 3장(`helm_female_0~2`)을 생성·검수해 쓰고 3~9번은 공용이다. 파츠는 아래 중앙(목 밑동) 앵커·본체 362px 셀 좌표계이고, `src/game/render/helmets.ts`의 성별·동작·프레임별 앵커·배율 표로 idle·walk·attack 모든 프레임을 맞춘다. `render/entities.ts` `syncHelmet`이 필드에, `ui/equipmentPortrait.ts`가 장비창 초상화에 같은 표를 쓴다. 투구를 벗으면 숨기고 피격 tint는 본체와 같다.
+- **운영 검증**: Cloudflare Pages 체크 성공, 병합 뒤 `/version.json` `c94216cdc194`(`builtAt 2026-11-19T11:51:16Z`) 확인, 투구 파츠 13장 HTTP 200, 배포 번들에 파츠 경로 포함 확인. `Workers Builds: djrpg`는 `main`에서도 계속 실패하는 기존 실패다.
+- **코드 검증**: `tsc --noEmit`, 전체 테스트 397건 중 395 통과(실패 2건은 작업 150 때와 같은 `costume-field-render` 기존 실패), 신규 `tests/helmet-head-render.test.mjs` 8건, `node scripts/verify-item-art.mjs`(파츠 13장 규격 추가), `vite build`, `git diff --check` 통과.
+- **범위**: `store.ts`·`server/**`·`world.ts` 전투·세이브 계약 무변경. 자세한 경과는 `docs/WORKLOG.md`.
+
+---
+
 ## [x] [작업 149] AI 시안 기반 전사 외형 전체 교체
 
 - **완료일**: 2026-11-19 · **담당자**: `songduckjin` · **브랜치**: `codex/149-ai-pilot-warrior-sprites` · **PR**: #101 (머지 `9e9d736883e0`, 운영 `version.json` `9e9d736883e0` 확인)
