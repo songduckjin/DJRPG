@@ -2,6 +2,11 @@ import { DUNGEON_MAX_FLOOR } from './dungeonLobby';
 import {World, type Enemy, enemyMaxHp, enemyHitDamage} from '../game/world';
 import {skillDamageScale,skills} from '../game/skills';
 import {totalStats,skillLevel,type Save} from '../game/store';
+import {equipmentDropChance,rollItem,rollSkillBook,skillBookDropChance,type Item} from '../game/items';
+/** Ground loot held by the preview only. Kept off `World.drops` so the shared field renderer stays untouched. */
+export type DungeonLoot = { id:number; kind:'gold'; x:number; y:number; gold:number } | { id:number; kind:'item'; x:number; y:number; item:Item };
+/** Test rate for the whole 1-10 floor preview. Which item falls keeps the field's own odds (see `dropLoot`). */
+export const DUNGEON_ITEM_DROP_CHANCE = .5;
 // Temporary encounter-observation balance, not the eventual fixed progression curve.
 export function dungeonPreviewHp(save:Save):number {
   const stats=totalStats(save);
@@ -12,6 +17,8 @@ export function dungeonPreviewHp(save:Save):number {
 }
 class DungeonWorld extends World {
   slain=0;
+  loot:DungeonLoot[]=[];
+  private lootId=0;
   // Defend the central position instead of chasing the previous wave's spawn point.
   override update(dt:number):void {
     this.player.x=50;this.player.y=50;
@@ -22,7 +29,17 @@ class DungeonWorld extends World {
     const enemy=super.nearest();
     return enemy&&Math.hypot(enemy.x-this.player.x,enemy.y-this.player.y)<=110?enemy:undefined;
   }
-  override kill(enemy:Enemy):void { this.slain++;this.effects.push({x:enemy.x,y:enemy.y,kind:'death',age:0,duration:.7,angle:0}); }
+  override kill(enemy:Enemy):void { this.slain++;this.effects.push({x:enemy.x,y:enemy.y,kind:'death',age:0,duration:.7,angle:0});this.dropLoot(enemy); }
+  // Same rewards the field grants, kept as ground loot for display only: gold on every kill and,
+  // on the test 50% gate, one item chosen by the field's equipment/skillbook drop odds.
+  private dropLoot(enemy:Enemy):void {
+    const floor=this.save.floor;
+    this.loot.push({id:++this.lootId,kind:'gold',x:enemy.x,y:enemy.y,gold:enemy.boss?70*floor:3+floor});
+    if(Math.random()>=DUNGEON_ITEM_DROP_CHANCE)return;
+    const equipment=equipmentDropChance(floor,enemy.boss),book=skillBookDropChance(floor,enemy.boss);
+    const item=Math.random()*(equipment+book)<equipment?rollItem(floor,false,enemy.boss):rollSkillBook(floor);
+    this.loot.push({id:++this.lootId,kind:'item',x:enemy.x,y:enemy.y,item});
+  }
 }
 /** Isolated ten-floor preview. Never mutates account save, drops, rewards or rankings. */
 export class DungeonBattle {

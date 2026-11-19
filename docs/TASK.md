@@ -7,6 +7,9 @@
 
 | 작업 | 담당자 | 브랜치 | 수정 예정 파일 / 영향 영역 | 위험 등급 | 상태 |
 |---|---|---|---|---|---|
+| 184 던전 드롭·클리어 흡수 연출 | fks3997 | preview/gravel-background-fks3997 | `ui/dungeonBattle.ts`(드롭 50%·필드 확률)·`ui/dungeonField.ts`(DOM 낙하/흡수)·`styles/dungeon.css`·`tests/dungeon-battle.test.mjs` | 낮음 | [x] |
+
+> 2026-11-19: `[작업 184]` — 던전 미리보기에서 적을 처치하면 금화와 50% 확률의 아이템(장비/스킬북)이 몬스터 정지 그림자 크기(≈38px)로 바닥에 튕겨 떨어지고 등급색 링·글로우로 구분된다. 어떤 아이템이 떨어지는지는 필드 확률을 그대로 쓴다(`equipmentDropChance`:`skillBookDropChance` 비율 → `rollItem`/`rollSkillBook`), 금화는 필드식(일반 3+층, 보스 70×층)이다. `outcome==='clear'`일 때만 캐릭터로 흡수된 뒤 결과창이 뜨고(실패·시간종료는 기존 .75초), 드롭은 `DungeonWorld.loot`에만 쌓여 `world.drops`·공용 renderer·계정 저장은 그대로다. tsc 통과·`tests/dungeon-battle.test.mjs` 12건 통과. 브라우저 실기 재생 확인은 미실시.
 
 
 > 2026-11-19: `[작업 143]` — 코스튬 v3(투구 싱크·몸통 겹침·공격 모션 수정)를 배포했다. 갑옷 착용 시 본체 파츠 3종을 모두 대체하고, 투구 레이어는 머리 창 안의 차이만 남기며, 맨몸용 투구 페이지(`helmet-body-*`)를 추가했다. 자세한 내용은 `docs/COSTUME_SYSTEM.md` §7.5.

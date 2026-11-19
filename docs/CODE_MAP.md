@@ -262,3 +262,5 @@ npm run check && npm test && npm run build # 공용 계약 수정·사용자 요
 - 던전투명초기화색: init background/backgroundColor=0x000000, backgroundAlpha=0 및renderer.background.color=0. alpha0이어도갈색RGB가남으면밝은갈색이합성될수있어RGBA전체0보장.
 
 - 작업183: 대기창벽은 `lobby-wall-v2.png` 사용(하단석조연속/암부없음), `.dungeon-hero` bottom gradient제거·좌우약한vignette만유지.
+
+- 작업184 드롭/흡수: `DungeonWorld.loot`에만 기록(금화=필드식, 아이템=테스트50% 게이트·장비/스킬북 선택은 `equipmentDropChance`:`skillBookDropChance` 비율, 등급·종류는 `rollItem`/`rollSkillBook`). `world.drops`는 비워 공용 `render/**` 불변·계정 저장 없음. `dungeonField`가 투명 canvas 위 `.dungeon-loot-layer`(z3)로 포물선 낙하·정지 글로우를 그리고, `outcome===clear`에서만 캐릭터로 흡수한 뒤 `resultDelay` 뒤 결과창. 그림자 38×12px 기준, 등급색 `--loot-ink` 링/할로. 검증 `tests/dungeon-battle.test.mjs`.

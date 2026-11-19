@@ -1,9 +1,11 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import './ts-loader.mjs';
-const {DungeonBattle}=await import('../src/ui/dungeonBattle.ts');
+const {DungeonBattle,DUNGEON_ITEM_DROP_CHANCE}=await import('../src/ui/dungeonBattle.ts');
 const {freshSave}=await import('../src/game/store.ts');
 function run(battle,seconds){for(let i=0;i<Math.ceil(seconds/.05);i++)battle.advance(.05);}
+// Fixed random stream so the drop gate and the equipment/skillbook split are deterministic.
+function withRandom(values,work){const original=Math.random;let index=0;Math.random=()=>values[Math.min(index++,values.length-1)]??0;try{return work();}finally{Math.random=original;}}
 test('first floor owns a deep copy and never writes loot or progression',()=>{const save=freshSave(),before=structuredClone(save),battle=new DungeonBattle(save);assert.notEqual(battle.world.save,save);assert.equal(battle.wave,1);assert.equal(battle.world.enemies.length,3);battle.world.kill(battle.world.enemies[0]);assert.equal(battle.world.slain,1);assert.equal(battle.world.drops.length,0);assert.deepEqual(save,before);});
 test('10 second timeout adds next wave while surviving enemies remain',()=>{const battle=new DungeonBattle(freshSave());battle.world.update=()=>{};run(battle,10.1);assert.equal(battle.wave,2);assert.equal(battle.world.enemies.length,6);run(battle,10.1);assert.equal(battle.wave,3);assert.equal(battle.world.enemies.length,7);assert.equal(battle.elite.boss,false);assert(battle.elite.maxHp>battle.world.enemies[0].maxHp);});
 test('clearing each wave early advances and ends only after elite dies',()=>{const battle=new DungeonBattle(freshSave());battle.world.update=()=>{};for(let i=0;i<3;i++){for(const enemy of battle.world.enemies)battle.world.kill(enemy);battle.world.enemies=[];battle.advance(.05);}assert.equal(battle.outcome,'clear');assert.equal(battle.world.slain,7);assert.equal(battle.finished,true);});
@@ -34,4 +36,34 @@ test('ten-floor preview uses solo bosses at 5/10 and stops its floor index at te
  if(battle.bossFloor){assert(battle.world.enemies[0].boss);battle.world.update=()=>{};battle.world.enemies=[];battle.advance(.05);assert.equal(battle.outcome,'clear');}
  }
  assert.equal(new DungeonBattle(freshSave(),11).floor,10);
+});
+
+test('every kill leaves field-matched gold and gates the item drop at the test 50 percent',()=>{
+ assert.equal(DUNGEON_ITEM_DROP_CHANCE,.5);
+ const battle=new DungeonBattle(freshSave());
+ withRandom([.9],()=>battle.world.kill(battle.world.enemies[0]));
+ assert.deepEqual(battle.world.loot.map(entry=>entry.kind),['gold']);
+ assert.equal(battle.world.loot[0].gold,3+battle.floor);
+ assert.equal(battle.world.drops.length,0);
+});
+
+test('which item falls follows the field equipment and skillbook odds',()=>{
+ // Floor 1 normal: equipment .0025 vs skillbook .001, so the split sits at 5/7 (≈.714).
+ const drop=(ratio)=>{const battle=new DungeonBattle(freshSave());withRandom([0,ratio],()=>battle.world.kill(battle.world.enemies[0]));return battle.world.loot.find(entry=>entry.kind==='item').item;};
+ const equipment=drop(.70),book=drop(.72);
+ assert.equal(equipment.kind,undefined);
+ assert.equal(equipment.slot==='skillbook',false);
+ assert.equal(book.kind,'skillbook');
+ assert.equal(book.rarity,'rare');
+ assert(book.name.startsWith('[스킬북]'));
+ assert.equal(book.skillId.length>0,true);
+});
+
+test('preview loot never enters the ground renderer or the account save',()=>{
+ const save=freshSave(),before=structuredClone(save),battle=new DungeonBattle(save,3);
+ withRandom([.1,.2],()=>{for(const enemy of [...battle.world.enemies])battle.world.kill(enemy);});
+ assert.equal(battle.world.loot.filter(entry=>entry.kind==='gold').length,3);
+ assert(battle.world.loot.some(entry=>entry.kind==='item'));
+ assert.equal(battle.world.drops.length,0);
+ assert.deepEqual(save,before);
 });

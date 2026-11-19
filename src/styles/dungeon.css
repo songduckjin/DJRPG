@@ -51,3 +51,23 @@
 .dungeon-exit-gate .dungeon-lobby-gate{filter:drop-shadow(0 6px 7px #0008)}
 
 .dungeon-exit-gate.is-resetting .dungeon-gate-left,.dungeon-exit-gate.is-resetting .dungeon-gate-right{transition:none}
+
+/* Drop loot: DOM layer over the transparent arena canvas so `src/game/render/**` stays untouched.
+   Shadow ellipse matches a stationary monster's ground shadow (about 38px wide, 12px tall). */
+.dungeon-loot-layer{position:absolute;inset:0;z-index:3;pointer-events:none;overflow:hidden}
+.dungeon-loot{position:absolute;left:0;top:0;width:0;height:0;will-change:transform}
+.dungeon-loot-shadow{position:absolute;left:0;top:0;width:38px;height:12px;border-radius:50%;background:radial-gradient(ellipse at center,#000000b8 0%,#0000 72%);transform:translate(-50%,-50%);opacity:.5}
+.dungeon-loot-body{position:absolute;left:0;top:0;width:38px;height:38px;display:grid;place-items:center;transform:translate(-50%,-100%);will-change:transform,opacity}
+.dungeon-loot-art{position:relative;z-index:1;width:34px;height:34px;object-fit:contain;filter:drop-shadow(0 2px 3px #000a)}
+.dungeon-loot-art.atlas-icon{background-size:500% 100%;background-repeat:no-repeat}
+.dungeon-loot-book{position:relative;z-index:1;width:36px;height:36px;--book-badge-size:17px;filter:drop-shadow(0 2px 3px #000a)}
+.dungeon-loot.is-gold .dungeon-loot-coin{position:relative;z-index:1;width:30px;height:30px;object-fit:contain;filter:drop-shadow(0 2px 3px #000b)}
+.dungeon-loot-value{position:absolute;left:50%;bottom:-9px;transform:translateX(-50%);font-size:10px;line-height:1;color:#ffe0a8;text-shadow:0 1px 2px #000,0 0 5px #0009;white-space:nowrap}
+/* Rarity ink: glow disc + outer ring + border keep grades apart at drop-icon size. */
+.dungeon-loot.is-item .dungeon-loot-body::before{content:'';position:absolute;inset:-7px;z-index:0;border-radius:50%;background:radial-gradient(circle,var(--loot-ink) 0%,#0000 70%);opacity:.4;animation:dungeon-loot-halo 1.9s ease-in-out infinite}
+.dungeon-loot-ring{position:absolute;inset:-1px;border-radius:50%;border:1.5px solid var(--loot-ink);box-shadow:0 0 9px 1px var(--loot-ink),inset 0 0 8px -2px var(--loot-ink);opacity:.7;animation:dungeon-loot-ring 1.9s ease-in-out infinite}
+.dungeon-absorb-ring{position:absolute;width:76px;height:76px;margin:-38px 0 0 -38px;border-radius:50%;border:2px solid #ffd9a0;box-shadow:0 0 20px #ffce8faa,inset 0 0 16px #ffce8f66;pointer-events:none;animation:dungeon-absorb-ring .9s ease-out forwards}
+@keyframes dungeon-loot-halo{0%,100%{opacity:.28;transform:scale(.9)}50%{opacity:.62;transform:scale(1.08)}}
+@keyframes dungeon-loot-ring{0%,100%{opacity:.5}50%{opacity:1}}
+@keyframes dungeon-absorb-ring{0%{opacity:0;transform:scale(.3)}30%{opacity:.85}100%{opacity:0;transform:scale(1.6)}}
+@media(prefers-reduced-motion:reduce){.dungeon-loot.is-item .dungeon-loot-body::before,.dungeon-loot-ring,.dungeon-absorb-ring{animation:none}}
