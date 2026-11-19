@@ -25,6 +25,7 @@
 | 계정 창고(warehouse) | `server/endpoints/warehouse.mjs` | `ui/modals/charactersModal.ts`(`loadWarehouse`·`renderWarehouse`·`moveItem`), `sync.ts`(`transferWarehouse`), `api/warehouse.mjs`, `functions/api/warehouse.js` | `characters` |
 | UI HUD·모달·스타일 CSS | `src/ui/interface.ts`, `src/ui/hud.ts` | `ui/modals/*`, `bagDetail.ts`, `equippedDetail.ts`, `modalInteraction.ts`, `modalClose.ts`, `modalDefaults.ts`, `src/styles/*.css` | `modal-ui`, `modal-interaction`, `bag-hover`, `equipment-badge`, `journey-ui`, `equipped-detail` |
 | Cloudflare Pages Functions·Vercel 어댑터·DB 스키마 | `server/database.mjs`(`schema`), `functions/api/*.js` | `api/*.mjs`, `server/node-adapter.mjs`, `database-config.mjs`, `env.mjs`, `wrangler.toml`, `vercel.json`, `public/_headers` | `functions-adapter`, `characters`, `market` |
+| Turso DB 분리·이관(공용 DB → DJRPG 전용 `djrpg`) | `scripts/migrate-turso-db.mjs`, `docs/TURSO_DB_GUIDE.md` | `server/database.mjs`(`schema()`를 타겟 초기화에 그대로 사용, 수정 없음), `scripts/backup-turso.mjs`(이관 전 백업) | `migrate-turso-db` |
 
 ## 2. 증상 한 줄 색인
 
@@ -143,6 +144,7 @@
 - `scripts/costume-contact-sheet.py` (작업 143, 신규) — **배포본 아틀라스**를 `costumeHero.ts`와 같은 규칙으로 합성해 검수용 접촉 시트를 만든다(`--only verify`·`helmets`·`motions`·`contact`). 생성기 중간 산출물이 아니라 실제 배포 PNG를 읽으므로 화면에 나갈 그림을 눈으로 확인할 수 있다.
 - `scripts/generate-version.mjs` — `npm run build` 첫 단계. `CF_PAGES_COMMIT_SHA`(없으면 `git rev-parse`·타임스탬프)로 `server/version.generated.mjs`와 `public/version.json`을 기록해 클라이언트 `__APP_VERSION__`과 Functions `APP_VERSION`을 같은 값으로 묶는다.
 - `scripts/backup-turso.mjs` — Turso → `.backups/*.sqlite` 덤프(stdin으로 `{url,authToken}`).
+- `scripts/migrate-turso-db.mjs` — 공용 Turso DB(`puzzle-mates`) → DJRPG 전용 DB 이관. `djrpg_*` 14개 테이블만 소스 읽기 전용 트랜잭션으로 청크 복사하고, 타겟은 `schema()`로 초기화, 복사 후 테이블별 `COUNT(*)` 일치·`djrpg_market_events` `sqlite_sequence`를 검증한다. `--dry-run`(행 수·게스트 계정 수만)·`--force`(타겟 비우고 재복사)·`--chunk-size=N`. 운영 절차·부작용(세션 만료, 게스트 계정)·롤백은 `docs/TURSO_DB_GUIDE.md`.
 - `tests/ts-loader.mjs` — `.ts`를 node:test에서 import하게 하는 로더. 각 테스트 첫 줄 `import './ts-loader.mjs'`.
 - 테스트는 `node --test tests/<이름>.test.mjs` 단건 실행 가능.
 
@@ -197,7 +199,7 @@
 - **`api/*.mjs` 삭제·이름 변경 금지**: `tests/characters.test.mjs`, `tests/market.test.mjs`, `tests/functions-adapter.test.mjs`가 직접 import. `api/account.mjs`의 `tokenId` 재수출도 계약.
 - **`server/database.mjs` 계약**: `assertRevision`(불일치 → 409 `SAVE_CONFLICT`), `reconcileItems`(소유자·캐릭터 슬롯·`identity` 불일치 → 409 `ITEM_CONFLICT`; 삭제 아이템은 `consumed` 처리), `writeSave`(revision+1, `gold`는 `djrpg_account_profiles.shared_gold`로 분리, `bossKills`/`playSeconds`는 최대값 유지, `equipmentCollection`은 합집합 75개, 슬롯 1~3). 이 세 함수의 시그니처·에러 코드를 바꾸지 않는다.
 - **단일 세션**: `login`·`register`·`guest` 성공마다 `assignSession`이 `djrpg_accounts.session_id`를 새 `sid`로 덮어쓰고 토큰은 `{id,sid,exp}`. `assertSession` 불일치 또는 `sid` 없는 구 토큰 → 401 `SESSION_REPLACED`(`다른 기기에서 로그인되어 접속이 해제되었습니다.`)를 account·market·warehouse 전 엔드포인트에서 반환한다. `session_id`가 NULL인 세션 열 도입 전 계정·모킹 행은 기존 동작을 유지하고, `session_id`는 클라이언트에 내려보내지 않는다.
-- **Turso 전용**: 세이브는 `djrpg_accounts`/`djrpg_characters`(+`_profiles`,`_item_owners`,`_save_versions`,`_save_requests`). **브라우저 localStorage 세이브 금지** — 허용되는 localStorage는 `djrpg.auth.token`(로그인 토큰)과 `djrpg_preferences`(기기 설정)뿐. `.env*`·`TURSO_*`는 커밋·로그·번들 금지.
+- **Turso 전용**: 세이브는 `djrpg_accounts`/`djrpg_characters`(+`_profiles`,`_item_owners`,`_save_versions`,`_save_requests`). **DJRPG는 전용 DB(`djrpg`)를 쓴다** — 퍼즐 메이츠의 공용 DB(`puzzle-mates`)와 테이블을 섞지 않는다(`docs/TURSO_DB_GUIDE.md`). **브라우저 localStorage 세이브 금지** — 허용되는 localStorage는 `djrpg.auth.token`(로그인 토큰)과 `djrpg_preferences`(기기 설정)뿐. `.env*`·`TURSO_*`는 커밋·로그·번들 금지.
 - **성별 교차 동기화(현행 구현)**: 기존 `appearance.ts`의 idle/walk/attack/portrait는 남/여 × 투구 유무 × 갑옷 × 무기 조합을 분기하고 `render.ts`의 대응 시트를 사용한다. 기존 외형 코드 수정 시 `tests/appearance.test.mjs`와 `hero-motion`을 확인한다. 신규 코스튬의 성별 공용화·분리 규칙 및 직업 확장 범위는 `docs/COSTUME_SYSTEM.md`와 해당 TASK에서 결정하며, 기존 통합 바디 분기 표를 신규 설계의 선결 조건으로 복제하지 않는다.
 - **현행 외형 구현(전환 대상)**: `appearance.ts`의 통합 바디 시트 선택, `render/entities.ts`의 무기 소켓, `render/gearTint.ts`의 4티어 팔레트는 기존 구현을 설명한다. 신규 장비 제작 시 이 방식을 새 정책으로 복제하지 않는다. **[작업 141·144] 미리보기 계약**: `ui/equipmentPortrait.ts`는 필드와 같은 `planHeroCostume()` 계획을 **idle 0프레임**으로만 그리고, 결과 dataURL LRU 24개와 디코딩 아틀라스 이미지 LRU 2장을 유지한다. 매니페스트·아틀라스가 없거나 셀 밖이면 `warrior_equipped_{starter|t2|t3|t4}_{gender}.png` 전신 초상화로 폴백하며, 매니페스트 실패는 세션 동안 다시 요청하지 않는다. **[작업 142·144] 실물 아틀라스**: `v3` 배포본이 있으므로 필드·미리보기가 실제 코스튬 레이어로 그려진다. 필드 캐시는 현재 계획 최대 6페이지를 유지하고 이전 Pixi 자산을 해제한다. 통합 바디 폴백 코드와 그 시트는 **계속 유지**한다(참조가 남음 — 삭제 금지). 상세: `docs/COSTUME_SYSTEM.md` §7.6.
 - **코스튬 정책**: 본체 분리·attach/frames·스킬 모션·도구 비교·캐시 한도는 `docs/COSTUME_SYSTEM.md`가 단일 기준이다. 실제 수정 파일과 범위는 `docs/TASK_songduckjin.md` 작업 138~144 및 `docs/TASK.md`에서 확인한다.
