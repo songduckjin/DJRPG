@@ -69,6 +69,25 @@ export const costumeVariantsPerPage = costumeAtlasCellsPerPage / costumeVariantS
 /** 본체 파츠의 셀 안 발 피벗(정규화). 142에서 실물 알파 경계로 재측정하는 잠정값이다. */
 export const costumeBodyPivot = { x: .5, y: .96 } as const;
 
+/**
+ * 무기 레이어 기본 보정 — 검 확대 1.35배 + 손 위치 내림.
+ *
+ * 2026-11-19 실기 제보: "검 크기가 더 컸으면 좋겠다, 검이 머리 위에 떠 있나 봐".
+ * 아틀라스 생성기(`scripts/build-costume-atlas.py` `weapon_cells`)는 손잡이를 발끝 기준
+ * `hand_y = PIVOT_Y + (v - anchor_y) * frame * scale ≈ -120px`(어깨·목 높이)에 두고
+ * 검 길이를 `BODY_PX * 0.55 = 104px`로 그린다. 셀 피벗(발끝, `anchor.y = .96`)을 축으로
+ * 1.35배 키우면 손잡이가 `120 * 0.35 = 42px` 더 올라가므로 그 42px를 되돌리고 26px를 더
+ * 내려(`+42 + 26 = +68`) 손잡이를 발끝 기준 `-94px`(허리·손 높이)에 둔다. 검 길이는
+ * 104 → 140px가 되어 검날이 머리 위로 길게 솟되 손잡이는 몸에 붙어 있게 된다.
+ * X는 정지 프레임 손잡이가 셀 중심에서 약 `+8px`이라, 1.35배가 만든 `+11px`를 `-3`으로
+ * 되돌려 손 접점을 그대로 둔다.
+ *
+ * 공격 계열 프레임의 무기 셀은 투명하다(공격 시트에 검 그림이 내장). 그래서 이 보정은
+ * idle/walk에만 보이고, 갑옷·투구 레이어는 건드리지 않는다. 매니페스트가 `fit`을 지정하면
+ * 이 기본값보다 그 값이 우선한다.
+ */
+export const costumeWeaponFit = { x: -3, y: 68, scaleX: 1.35, scaleY: 1.35 } as const;
+
 /** 코스튬 레이어의 부위 키. 장비는 부위 이름, 본체는 `torso`·`arms`·`legs`. */
 export type CostumeLayerRole = CostumeBodyPart | CostumeSlotGroup | 'pilot';
 
@@ -174,6 +193,18 @@ export function planHeroCostume(save: Pick<Save, 'gender' | 'equipment'>, load: 
     const definition = plan.definition;
     const variant = variantIndex(manifest, definition);
     if (variant < 0) return { ok: false, reason: 'unmapped-costume', detail: `${definition.costumeId}가 매니페스트에 없습니다.` };
+    // 무기는 매니페스트 `fit`이 없을 때 `costumeWeaponFit`(1.35배 + 아래로 68px)을 기본으로 쓴다.
+    // 2026-11-19 실기 제보로 70% 축소를 걷어낸 뒤에도 검이 작고 머리 위에 떠 보여, 크기를 키우고
+    // 손잡이를 허리 높이까지 내렸다(계산 근거는 `costumeWeaponFit` 주석). 다른 부위는 종전대로
+    // 매니페스트 `fit`(없으면 보정 없음)만 쓴다.
+    const fit = definition.slot === 'weapon'
+      ? {
+          x: definition.fit?.x ?? costumeWeaponFit.x,
+          y: definition.fit?.y ?? costumeWeaponFit.y,
+          scaleX: definition.fit?.scaleX ?? costumeWeaponFit.scaleX,
+          scaleY: definition.fit?.scaleY ?? costumeWeaponFit.scaleY
+        }
+      : definition.fit;
     const layer: CostumeLayerPlan = {
       role: definition.slot,
       costumeId: definition.costumeId,
@@ -183,13 +214,10 @@ export function planHeroCostume(save: Pick<Save, 'gender' | 'equipment'>, load: 
       variant,
       zOrder: definition.zOrder ?? costumeSlotZOrder[definition.slot],
       anchor: costumeLayerAnchor(definition.anchor),
-      offset: { x: definition.fit?.x ?? 0, y: definition.fit?.y ?? 0 },
-      scale: { x: definition.fit?.scaleX ?? 1, y: definition.fit?.scaleY ?? 1 },
+      offset: { x: fit?.x ?? 0, y: fit?.y ?? 0 },
+      scale: { x: fit?.scaleX ?? 1, y: fit?.scaleY ?? 1 },
       rotation: definition.fit?.rotation ?? 0
     };
-    // 무기는 매니페스트 `fit`(없으면 1배)만 쓴다. 작업 143의 70% 축소는 두손검이 작아 보인다는
-    // 실기 제보(2026-11-19)로 걷어냈다. 축소 보정식이 `(1 - scale)` 항이라 손 소켓 접점은
-    // 1배에서도 같은 자리이므로, 검만 원래 크기로 커지고 손에서 떨어지지 않는다.
     if (definition.slot === 'armor') armor = layer;
     else equipment.push(layer);
   }
