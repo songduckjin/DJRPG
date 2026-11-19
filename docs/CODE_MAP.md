@@ -25,7 +25,7 @@
 | 계정 창고(warehouse) | `server/endpoints/warehouse.mjs` | `ui/modals/charactersModal.ts`(`loadWarehouse`·`renderWarehouse`·`moveItem`), `sync.ts`(`transferWarehouse`), `api/warehouse.mjs`, `functions/api/warehouse.js` | `characters` |
 | UI HUD·모달·스타일 CSS | `src/ui/interface.ts`, `src/ui/hud.ts` | `ui/modals/*`, `bagDetail.ts`, `equippedDetail.ts`, `modalInteraction.ts`, `modalClose.ts`, `modalDefaults.ts`, `src/styles/*.css` | `modal-ui`, `modal-interaction`, `bag-hover`, `equipment-badge`, `journey-ui`, `equipped-detail` |
 | Cloudflare Pages Functions·Vercel 어댑터·DB 스키마 | `server/database.mjs`(`schema`), `functions/api/*.js` | `api/*.mjs`, `server/node-adapter.mjs`, `database-config.mjs`, `env.mjs`, `wrangler.toml`, `vercel.json`, `public/_headers` | `functions-adapter`, `characters`, `market` |
-| Turso DB 분리·이관(공용 DB → DJRPG 전용 `djrpg`) | `scripts/migrate-turso-db.mjs`, `docs/TURSO_DB_GUIDE.md` | `server/database.mjs`(`schema()`를 타겟 초기화에 그대로 사용, 수정 없음), `scripts/backup-turso.mjs`(이관 전 백업) | `migrate-turso-db` |
+| Turso DB 분리·이관(공용 DB → DJRPG 전용 `djrpg`) | `scripts/migrate-turso-db.mjs`, `docs/TURSO_DB_GUIDE.md` | `server/database.mjs`(`schema()`·별도 DB 접속 토큰), `server/market-connection.mjs`(접속 캐시), `server/world-boss-schema.mjs`(`worldBossSchema()`), `scripts/backup-turso.mjs`(이관 전 백업) | `migrate-turso-db`, `functions-adapter` |
 
 ## 2. 증상 한 줄 색인
 
@@ -144,7 +144,7 @@
 - `scripts/costume-contact-sheet.py` (작업 143, 신규) — **배포본 아틀라스**를 `costumeHero.ts`와 같은 규칙으로 합성해 검수용 접촉 시트를 만든다(`--only verify`·`helmets`·`motions`·`contact`). 생성기 중간 산출물이 아니라 실제 배포 PNG를 읽으므로 화면에 나갈 그림을 눈으로 확인할 수 있다.
 - `scripts/generate-version.mjs` — `npm run build` 첫 단계. `CF_PAGES_COMMIT_SHA`(없으면 `git rev-parse`·타임스탬프)로 `server/version.generated.mjs`와 `public/version.json`을 기록해 클라이언트 `__APP_VERSION__`과 Functions `APP_VERSION`을 같은 값으로 묶는다.
 - `scripts/backup-turso.mjs` — Turso → `.backups/*.sqlite` 덤프(stdin으로 `{url,authToken}`).
-- `scripts/migrate-turso-db.mjs` — 공용 Turso DB(`puzzle-mates`) → DJRPG 전용 DB 이관. `djrpg_*` 14개 테이블만 소스 읽기 전용 트랜잭션으로 청크 복사하고, 타겟은 `schema()`로 초기화, 복사 후 테이블별 `COUNT(*)` 일치·`djrpg_market_events` `sqlite_sequence`를 검증한다. `--dry-run`(행 수·게스트 계정 수만)·`--force`(타겟 비우고 재복사)·`--chunk-size=N`. 운영 절차·부작용(세션 만료, 게스트 계정)·롤백은 `docs/TURSO_DB_GUIDE.md`.
+- `scripts/migrate-turso-db.mjs` — 공용 Turso DB(`puzzle-mates`) → DJRPG 전용 DB 이관. `djrpg_*` 18개 테이블만 소스 읽기 전용 트랜잭션으로 청크 복사하고, 타겟은 `schema()`·`worldBossSchema()`로 초기화, 복사 후 테이블별 `COUNT(*)` 일치·`djrpg_market_events` `sqlite_sequence`를 검증한다. 목록 밖 `djrpg_*` 테이블 발견 시 중단한다. `--dry-run`(행 수·게스트 계정 수만)·`--force`(타겟 비우고 재복사)·`--chunk-size=N`. `server/database.mjs`는 새 `TURSO_DATABASE_AUTH_TOKEN`을 DB 접속에 우선 사용하고 기존 `TURSO_AUTH_TOKEN`은 세션 서명 키로 유지한다. 운영 절차·부작용·롤백은 `docs/TURSO_DB_GUIDE.md`.
 - `tests/ts-loader.mjs` — `.ts`를 node:test에서 import하게 하는 로더. 각 테스트 첫 줄 `import './ts-loader.mjs'`.
 - 테스트는 `node --test tests/<이름>.test.mjs` 단건 실행 가능.
 
@@ -161,7 +161,8 @@
 - `src/ui/worldBossWeather.ts` — 깃발천정규좌표/변형·뒤구름이동좌표(색마스크mesh, 돌/봉고정·모션감소). `bannerOffset`·`cloudCenter`
 - `src/ui/worldBossImpact.ts` — 착지돌탄도/그림자·먼지확산/소멸의결정적입자상태. `slamParticles`
 - `src/game/pixiSetup.ts` — 필드 pipe 선등록·Canvas GPU 미지원시 mesh를 texture/bounds quad로 표시(WebGL mesh 유지). `CanvasMeshFallbackPipe`
-- `server/world-boss.mjs` — 별도 Turso 4테이블/인덱스·공유HP 1,000만·KST05 초기화·계정3회·고정장비 서버전투재현·회피서버시간검증·실순위·참여/순위/막타/공동 우편 멱등지급. `worldBossOperation`·`replayBoss`·`worldBossSchema` (새 입장 0피해 쓰기/재조회 생략·순위 단일 쿼리)
+- `server/world-boss.mjs` — 공유HP 1,000만·KST05 초기화·계정3회·고정장비 서버전투재현·회피서버시간검증·실순위·참여/순위/막타/공동 우편 멱등지급. `worldBossOperation`·`replayBoss`; `worldBossSchema`는 `server/world-boss-schema.mjs`에서 가져와 재수출한다. (새 입장 0피해 쓰기/재조회 생략·순위 단일 쿼리)
+- `server/world-boss-schema.mjs` — 월드보스 Turso 4테이블·인덱스의 단일 DDL. 서버 실행과 DB 이관 스크립트가 같은 `worldBossSchema()`를 사용한다.
 - `server/endpoints/world-boss.mjs`, `functions/api/world-boss.js` — 인증/세션/버전 확인 POST `/api/world-boss` (list/start/tick/dodge/finish), 기존 Save·아이템·보상수령 계약 보존. `worldBossEndpoint`
 - `src/game/worldBossLive.ts` — 메인5초/전투2초 공유상태·순위 동기화·실전시 에셋/입장연출 중 prepare 저장선행(12초 제한)·서버 start 전 취소·단일 저장 재사용·게스트연습 구분. `WorldBossLive`·`mountWorldBossLive`
 - `src/ui/worldBossDefeat.ts` — 서버 공유HP 0에서만 한 번 시작하는 검꽂기/무릎꿇기/주저앉기 8프레임·검접점 보정·먼지 타이밍·처치문구(2.25초)·결과 대기(3.6초). `WorldBossDefeat`·`defeatFrameOffset`

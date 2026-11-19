@@ -4,6 +4,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createClient } from '@libsql/client';
+import { createClient as createWebClient } from '@libsql/client/web';
 import { randomUUID, createHmac, scrypt as scryptCallback } from 'node:crypto';
 import { promisify } from 'node:util';
 import { onRequest as accountFunction } from '../functions/api/account.js';
@@ -14,11 +15,35 @@ import { accountEndpoint } from '../server/endpoints/account.mjs';
 import { marketEndpoint } from '../server/endpoints/market.mjs';
 import { warehouseEndpoint } from '../server/endpoints/warehouse.mjs';
 import { verifyLegacyViaVercel } from '../server/legacy-auth.mjs';
+import { configureDatabase } from '../server/database-config.mjs';
+import { client } from '../server/database.mjs';
+import { tokenFor, tokenPayload } from '../server/auth.mjs';
 
 const post = (path, body, token) => new Request(`https://example.test/api/${path}`, {
   method: 'POST',
   headers: token ? { Authorization: `Bearer ${token}` } : {},
   body: JSON.stringify(body)
+});
+
+test('DB 접속 토큰을 분리해도 기존 세션 서명 키가 유지된다', () => {
+  const env = {
+    TURSO_DATABASE_URL: 'libsql://new-db.example.test',
+    TURSO_AUTH_TOKEN: 'old-session-signing-key',
+    TURSO_DATABASE_AUTH_TOKEN: 'new-database-token'
+  };
+  let connection;
+  try {
+    configureDatabase(options => { connection = options; return { close() {} }; });
+    client(env);
+    assert.deepEqual(connection, { url: env.TURSO_DATABASE_URL, authToken: env.TURSO_DATABASE_AUTH_TOKEN });
+    const token = tokenFor('guest_existing', env, 'copied-session-id');
+    assert.deepEqual(tokenPayload(post('account', { action: 'load' }, token), env), { id: 'guest_existing', sid: 'copied-session-id' });
+    assert.equal(tokenPayload(post('account', { action: 'load' }, token), { ...env, TURSO_AUTH_TOKEN: 'different-key' }), null);
+    client({ TURSO_DATABASE_URL: env.TURSO_DATABASE_URL, TURSO_AUTH_TOKEN: env.TURSO_AUTH_TOKEN });
+    assert.equal(connection.authToken, env.TURSO_AUTH_TOKEN, '새 변수가 없으면 기존 DB 접속 방식을 사용한다');
+  } finally {
+    configureDatabase(createWebClient);
+  }
 });
 
 test('Pages Functions preserve method, configuration, token and cache responses', async () => {

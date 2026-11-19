@@ -3,7 +3,7 @@ import { client, schema } from './database.mjs';
 export function connectionProvider(create = client, initialize = schema) {
   const ready = new Map();
   return env => {
-    const key = env ? `${env.TURSO_DATABASE_URL}\0${env.TURSO_AUTH_TOKEN}` : 'default';
+    const key = env ? `${env.TURSO_DATABASE_URL}\0${env.TURSO_DATABASE_AUTH_TOKEN || env.TURSO_AUTH_TOKEN}` : 'default';
     if (ready.has(key)) return ready.get(key);
     const pending = (async () => {
       const db = create(env);

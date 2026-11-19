@@ -8,18 +8,20 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createClient } from '@libsql/client';
 import { schema } from '../server/database.mjs';
+import { worldBossSchema } from '../server/world-boss-schema.mjs';
 import { TABLES } from '../scripts/migrate-turso-db.mjs';
 
 const script = fileURLToPath(new URL('../scripts/migrate-turso-db.mjs', import.meta.url));
 const save = name => JSON.stringify({ version: 1, name, gold: 120, floor: 3, bag: [], equipment: {} });
 
-// 공용 DB를 흉내 낸 소스: djrpg_* 14개 테이블 + puzzle-mates용 users 테이블.
+// 공용 DB를 흉내 낸 소스: djrpg_* 18개 테이블 + puzzle-mates용 users 테이블.
 async function prepared() {
   const directory = await mkdtemp(join(tmpdir(), 'djrpg-migrate-'));
   const source = `file:${join(directory, 'shared.db')}`;
   const target = `file:${join(directory, 'djrpg.db')}`;
   const db = createClient({ url: source });
   await schema(db, { TURSO_DATABASE_URL: source });
+  await worldBossSchema(db, source);
   await db.batch([
     { sql: 'CREATE TABLE users (id INTEGER PRIMARY KEY, nickname TEXT NOT NULL)' },
     { sql: "INSERT INTO users (id,nickname) VALUES (1,'puzzle-a'),(2,'puzzle-b'),(3,'puzzle-c')" },
@@ -36,7 +38,11 @@ async function prepared() {
     { sql: 'INSERT OR REPLACE INTO djrpg_market_requests (account_id,request_id,response_json) VALUES (?,?,?)', args: ['hero', 'req-m', '{}'] },
     { sql: 'INSERT OR REPLACE INTO djrpg_character_item_owners (item_id,account_id,slot) VALUES (?,?,?)', args: ['i-1', 'hero', 1] },
     { sql: 'INSERT OR REPLACE INTO djrpg_warehouse (account_id,item_id,item_json) VALUES (?,?,?)', args: ['hero', 'i-2', '{"id":"i-2"}'] },
-    { sql: 'INSERT OR REPLACE INTO djrpg_warehouse_requests (account_id,request_id,response_json) VALUES (?,?,?)', args: ['hero', 'req-w', '{}'] }
+    { sql: 'INSERT OR REPLACE INTO djrpg_warehouse_requests (account_id,request_id,response_json) VALUES (?,?,?)', args: ['hero', 'req-w', '{}'] },
+    { sql: 'INSERT INTO djrpg_boss_days (day,max_hp,hp,ends_at) VALUES (?,?,?,?)', args: ['2026-11-18', 10000000, 9000000, 100] },
+    { sql: 'INSERT INTO djrpg_boss_attempts (id,account_id,day,request_id,save_json,started_at,dodges_json) VALUES (?,?,?,?,?,?,?)', args: ['boss-1', 'hero', '2026-11-18', 'boss-req-1', save('전사'), 1, '[]'] },
+    { sql: 'INSERT INTO djrpg_boss_scores (day,account_id,name,damage,joined_at) VALUES (?,?,?,?,?)', args: ['2026-11-18', 'hero', '전사', 1000000, 1] },
+    { sql: 'INSERT INTO djrpg_boss_rewards (day,account_id,kind) VALUES (?,?,?)', args: ['2026-11-18', 'hero', 'rank'] }
   ], 'write');
   for (let index = 1; index <= 7; index += 1) {
     await db.execute({ sql: 'INSERT INTO djrpg_market_events (kind,listing_id,created_at) VALUES (?,?,?)', args: [`kind-${index}`, 'm-1', index] });
@@ -86,11 +92,11 @@ test('dry-run은 소스 djrpg_* 행 수만 출력하고 타겟을 만들지 않�
     assert.match(result.stdout, /아무 것도 쓰지 않았습니다/);
     assert.equal(existsSync(paths.target.replace('file:', '')), false);
   } finally {
-    await rm(paths.directory, { recursive: true, force: true });
+    await rm(paths.directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
   }
 });
 
-test('djrpg_* 14개 테이블만 복사하고 users는 넘기지 않으며 건수가 일치한다', async () => {
+test('djrpg_* 18개 테이블만 복사하고 users는 넘기지 않으며 건수가 일치한다', async () => {
   const paths = await prepared();
   try {
     const result = migrate(paths, ['--chunk-size=2']);
@@ -100,6 +106,7 @@ test('djrpg_* 14개 테이블만 복사하고 users는 넘기지 않으며 건�
     assert.deepEqual(await counts(paths.target), sourceCounts);
     assert.equal(sourceCounts.djrpg_accounts, 2);
     assert.equal(sourceCounts.djrpg_market_events, 6);
+    for (const table of ['djrpg_boss_days', 'djrpg_boss_attempts', 'djrpg_boss_scores', 'djrpg_boss_rewards']) assert.equal(sourceCounts[table], 1);
 
     const target = createClient({ url: paths.target });
     try {
@@ -128,7 +135,7 @@ test('djrpg_* 14개 테이블만 복사하고 users는 넘기지 않으며 건�
       await source.close();
     }
   } finally {
-    await rm(paths.directory, { recursive: true, force: true });
+    await rm(paths.directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
   }
 });
 
@@ -157,7 +164,7 @@ test('타겟에 이미 행이 있으면 --force 없이는 중단하고, --force�
     assert.deepEqual(await counts(paths.target), await counts(paths.source));
     assert.equal((await counts(paths.target)).djrpg_market, 1);
   } finally {
-    await rm(paths.directory, { recursive: true, force: true });
+    await rm(paths.directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
   }
 });
 
@@ -176,7 +183,26 @@ test('소스에만 있는 컬럼(스키마 드리프트)이 있으면 조용히 
     assert.match(result.stderr, /legacy_flag/);
     assert.equal((await counts(paths.target)).djrpg_accounts, 0);
   } finally {
-    await rm(paths.directory, { recursive: true, force: true });
+    await rm(paths.directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+  }
+});
+
+test('목록에 없는 DJRPG 테이블이 있으면 이관을 중단한다', async () => {
+  const paths = await prepared();
+  try {
+    const source = createClient({ url: paths.source });
+    try {
+      await source.execute('CREATE TABLE djrpg_future_data (id TEXT PRIMARY KEY)');
+    } finally {
+      await source.close();
+    }
+    const result = migrate(paths, ['--dry-run']);
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /이관 목록에 없는 DJRPG 테이블/);
+    assert.match(result.stderr, /djrpg_future_data/);
+    assert.equal(existsSync(paths.target.replace('file:', '')), false);
+  } finally {
+    await rm(paths.directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
   }
 });
 
@@ -191,6 +217,6 @@ test('환경변수가 없거나 소스·타겟이 같은 DB면 명확한 오류�
     assert.notEqual(same.status, 0);
     assert.match(same.stderr, /소스와 타겟 URL이 같습니다/);
   } finally {
-    await rm(paths.directory, { recursive: true, force: true });
+    await rm(paths.directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
   }
 });
