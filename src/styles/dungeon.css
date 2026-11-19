@@ -64,6 +64,7 @@
 .dungeon-loot.is-gold .dungeon-loot-coin{position:relative;z-index:1;width:30px;height:30px;object-fit:contain;filter:drop-shadow(0 2px 3px #000b)}
 .dungeon-loot-value{position:absolute;left:50%;bottom:-9px;transform:translateX(-50%);font-size:10px;line-height:1;color:#ffe0a8;text-shadow:0 1px 2px #000,0 0 5px #0009;white-space:nowrap}
 /* Rarity ink: glow disc + outer ring + border keep grades apart at drop-icon size. */
+.dungeon-loot.is-gold .dungeon-loot-body::before{content:'';position:absolute;inset:-6px;z-index:0;border-radius:50%;background:radial-gradient(circle,#ffcf6e 0%,#0000 70%);opacity:.38}
 .dungeon-loot.is-item .dungeon-loot-body::before{content:'';position:absolute;inset:-7px;z-index:0;border-radius:50%;background:radial-gradient(circle,var(--loot-ink) 0%,#0000 70%);opacity:.4;animation:dungeon-loot-halo 1.9s ease-in-out infinite}
 .dungeon-loot-ring{position:absolute;inset:-1px;border-radius:50%;border:1.5px solid var(--loot-ink);box-shadow:0 0 9px 1px var(--loot-ink),inset 0 0 8px -2px var(--loot-ink);opacity:.7;animation:dungeon-loot-ring 1.9s ease-in-out infinite}
 .dungeon-absorb-ring{position:absolute;width:76px;height:76px;margin:-38px 0 0 -38px;border-radius:50%;border:2px solid #ffd9a0;box-shadow:0 0 20px #ffce8faa,inset 0 0 16px #ffce8f66;pointer-events:none;animation:dungeon-absorb-ring .9s ease-out forwards}
