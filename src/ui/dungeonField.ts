@@ -5,7 +5,7 @@ import {projectArenaPoint} from '../game/arena';
 import {totalStats} from '../game/store';
 import {skills} from '../game/skills';
 import {equipmentImage,isSkillBook,type Rarity} from '../game/items';
-import {DungeonBattle,dungeonLootSpots,dungeonLootTimeline,dungeonAbsorbProgress,type DungeonLoot,type LootSpot} from './dungeonBattle';
+import {DungeonBattle,dungeonLootSpots,dungeonLootTimeline,dungeonAbsorbProgress,dungeonAbsorbPoint,type DungeonLoot,type LootSpot} from './dungeonBattle';
 import {heroBodyFraction} from '../game/render/heroScale';
 import {setSkillIcon} from './skillArtwork';
 import {createSkillBookArt} from './skillBookArt';
@@ -82,9 +82,9 @@ export function openDungeonField(ui:Interface,lobby:HTMLElement):void {
         entry.el.classList.remove('is-resting');
         const p=dungeonAbsorbProgress(finishAge,index);
         if(p>=1){entry.done=true;entry.el.remove();continue;}
-        const k=p*p;
-        entry.el.style.transform=`translate3d(${x+(heroX-x)*k+Math.sin(Math.PI*p)*10*(index%2?1:-1)}px,${y-entry.h+(heroY-26-(y-entry.h))*k}px,0)`;
-        entry.body.style.transform=`translate(-50%,-100%) rotate(${entry.spin+p*220}deg) scale(${1-.55*k})`;
+        const point=dungeonAbsorbPoint({x,y:y-entry.h},{x:heroX,y:heroY-26},p,index);
+        entry.el.style.transform=`translate3d(${point.x}px,${point.y}px,0)`;
+        entry.body.style.transform=`translate(-50%,-100%) rotate(${entry.spin+p*220}deg) scale(${1-.55*p*p})`;
         entry.body.style.opacity=String(1-p*.9);entry.shadow.style.opacity=String(.45*(1-p));
         continue;
       }

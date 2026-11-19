@@ -1,7 +1,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import './ts-loader.mjs';
-const {DungeonBattle,DUNGEON_ITEM_DROP_CHANCE,DUNGEON_ENEMY_SPEED_SCALE,DUNGEON_SPAWN_STEPS,DUNGEON_LOOT_FAN,DUNGEON_ABSORB_DELAY,dungeonSpawnPull,dungeonLootSpots,dungeonLootTimeline,dungeonAbsorbProgress}=await import('../src/ui/dungeonBattle.ts');
+const {DungeonBattle,DUNGEON_ITEM_DROP_CHANCE,DUNGEON_ENEMY_SPEED_SCALE,DUNGEON_SPAWN_STEPS,DUNGEON_LOOT_FAN,DUNGEON_ABSORB_DELAY,dungeonSpawnPull,dungeonLootSpots,dungeonLootTimeline,dungeonAbsorbProgress,dungeonAbsorbPoint}=await import('../src/ui/dungeonBattle.ts');
 const {World,enemyMoveSpeed}=await import('../src/game/world.ts');
 const {freshSave}=await import('../src/game/store.ts');
 function run(battle,seconds){for(let i=0;i<Math.ceil(seconds/.05);i++)battle.advance(.05);}
@@ -139,6 +139,23 @@ test('every clear absorbs the ground loot before any result can show',()=>{
  // Failing or timing out keeps the old quick result and never absorbs.
  assert.equal(dungeonLootTimeline('dead',5).resultAt,.75);
  assert.equal(dungeonLootTimeline('timeout',5).resultAt,.75);
+});
+
+test('a clear really moves every drop into the hero, frame by frame, before the result',()=>{
+ const timeline=dungeonLootTimeline('clear',5),to={x:195,y:465-26};
+ const ground=[{x:166,y:402},{x:151,y:369},{x:195,y:376},{x:224,y:402},{x:239,y:369}];
+ const at=(time,index)=>dungeonAbsorbPoint(ground[index],to,dungeonAbsorbProgress(time,index),index);
+ // Held on the ground: a 60fps replay moves nothing before the beat is over.
+ for(let frame=0;frame<Math.round(timeline.absorbAt*60);frame++)for(const [index,spot] of ground.entries())
+  assert.deepEqual(at(frame/60,index),spot,`frame ${frame} drop ${index} moved early`);
+ // In flight: each drop closes on the hero and is inside it once its own flight ends.
+ ground.forEach((spot,index)=>{
+  const distance=time=>Math.hypot(at(time,index).x-to.x,at(time,index).y-to.y),start=DUNGEON_ABSORB_DELAY+index*.045,end=start+.55;
+  assert(distance(start)>distance(start+.55/2)&&distance(start+.55/2)>distance(end-.001),`drop ${index} did not travel`);
+  assert(distance(end)<1e-9,`drop ${index} never reached the hero`);
+ });
+ // The result frame comes after the last drop is gone.
+ assert(timeline.resultAt>DUNGEON_ABSORB_DELAY+4*.045+.55);
 });
 
 test('the clear record totals the gold the floor left on the ground',()=>{

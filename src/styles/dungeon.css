@@ -75,6 +75,6 @@
 /* A skill book is told apart by its own shape, so it gets no grade light either. */
 .dungeon-loot.is-item .dungeon-loot-book{animation:none;filter:drop-shadow(0 2px 3px #000a)}
 .dungeon-absorb-ring{position:absolute;width:76px;height:76px;margin:-38px 0 0 -38px;border-radius:50%;border:2px solid #ffd9a0;box-shadow:0 0 20px #ffce8faa,inset 0 0 16px #ffce8f66;pointer-events:none;animation:dungeon-absorb-ring .9s ease-out forwards}
-@keyframes dungeon-loot-glow{0%,100%{filter:drop-shadow(0 2px 3px #000a) drop-shadow(0 0 1px var(--loot-ink)) drop-shadow(0 0 1px var(--loot-ink)) drop-shadow(0 0 4px var(--loot-ink)) drop-shadow(0 0 7px var(--loot-ink))}50%{filter:drop-shadow(0 2px 3px #000a) drop-shadow(0 0 1.5px var(--loot-ink)) drop-shadow(0 0 2px var(--loot-ink)) drop-shadow(0 0 6px var(--loot-ink)) drop-shadow(0 0 10px var(--loot-ink))}}
+@keyframes dungeon-loot-glow{0%,100%{filter:drop-shadow(1px 0 0 var(--loot-ink)) drop-shadow(-1px 0 0 var(--loot-ink)) drop-shadow(0 1px 0 var(--loot-ink)) drop-shadow(0 -1px 0 var(--loot-ink)) drop-shadow(0 2px 3px #000a) drop-shadow(0 0 5px var(--loot-ink))}50%{filter:drop-shadow(1px 0 0 var(--loot-ink)) drop-shadow(-1px 0 0 var(--loot-ink)) drop-shadow(0 1px 0 var(--loot-ink)) drop-shadow(0 -1px 0 var(--loot-ink)) drop-shadow(0 2px 3px #000a) drop-shadow(0 0 8px var(--loot-ink))}}
 @keyframes dungeon-absorb-ring{0%{opacity:0;transform:scale(.3)}30%{opacity:.85}100%{opacity:0;transform:scale(1.6)}}
 @media(prefers-reduced-motion:reduce){.dungeon-loot.is-item .dungeon-loot-art,.dungeon-absorb-ring{animation:none}}

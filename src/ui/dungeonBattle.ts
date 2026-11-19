@@ -69,6 +69,13 @@ export function dungeonLootTimeline(outcome:'clear'|'dead'|'timeout'|null,count:
 export function dungeonAbsorbProgress(timeSinceFinish:number,index:number):number {
   return Math.min(1,Math.max(0,(timeSinceFinish-DUNGEON_ABSORB_DELAY-index*DUNGEON_ABSORB_STAGGER)/DUNGEON_ABSORB_FLIGHT));
 }
+/** Screen point of a drop `progress` of the way into the hero: it starts at the ground, accelerates
+ *  (progress squared), swings a little sideways so drops of one pile do not merge, and lands exactly
+ *  on `to` at progress 1, where the node is removed. */
+export function dungeonAbsorbPoint(from:LootSpot,to:LootSpot,progress:number,index:number):LootSpot {
+  const k=progress*progress,swing=progress>=1?0:Math.sin(Math.PI*progress)*10*(index%2?1:-1);
+  return {x:from.x+(to.x-from.x)*k+swing,y:from.y+(to.y-from.y)*k};
+}
 // Temporary encounter-observation balance, not the eventual fixed progression curve.
 export function dungeonPreviewHp(save:Save):number {
   const stats=totalStats(save);
