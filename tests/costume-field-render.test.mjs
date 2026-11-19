@@ -169,7 +169,9 @@ for (const gender of ['male', 'female']) test(`${gender}: 본체 3영역이 같�
   }
   assert(armored.layers.some(layer => layer.role === 'armor'), '갑옷 파츠가 본체 자리에 들어간다');
   const roles = armored.layers.map(layer => layer.role);
-  for (const role of ['boots', 'gloves', 'helmet', 'offhand', 'weapon']) assert(roles.includes(role), `${role} 레이어 누락`);
+  for (const role of ['armor', 'helmet', 'weapon']) assert(roles.includes(role), `${role} 레이어 누락`);
+  // 2026-11-19 실기 제보: 문장·장갑·신발 그림이 캐릭터 밖으로 튀어나와 보였다 → 외형 3종만 표시.
+  for (const role of ['boots', 'gloves', 'offhand']) assert(!roles.includes(role), `${role}은 외형에 그리지 않는다`);
   assert(!roles.includes('necklace') && !roles.includes('belt') && !roles.includes('ring'), '목걸이·벨트·반지는 필드 미표시(§3.1)');
   // zOrder 오름차순으로 그려야 앞뒤가 맞는다.
   const orders = armored.layers.map(layer => layer.zOrder);
@@ -242,7 +244,7 @@ test('서리의 가죽두건 단일 조합은 양 성별 전용 전신 프레임
   assert(regular.layers.some(layer => layer.role === 'armor'), 'armor remains visible under the separate hood');
 });
 
-test('서리의 가죽두건은 문장·신발을 유지하면서 남녀 두건 전용 레이어를 쓴다', () => {
+test('서리의 가죽두건은 문장·신발을 착용해도 외형 레이어에 넣지 않고 남녀 두건 전용 레이어를 쓴다', () => {
   for (const gender of ['male', 'female']) {
     const save = freshSave(gender);
     save.equipment.helmet = item('helmet', '서리의 가죽두건');
@@ -251,7 +253,7 @@ test('서리의 가죽두건은 문장·신발을 유지하면서 남녀 두건 
     save.equipment.boots = item('boots', '기사의 사바톤');
     const plan = planHeroCostume(save, loadOk);
     assert.equal(plan.ok, true);
-    assert.deepEqual(new Set(plan.layers.map(layer => layer.role)), new Set(['torso', 'arms', 'legs', 'weapon', 'helmet', 'offhand', 'boots']));
+    assert.deepEqual(new Set(plan.layers.map(layer => layer.role)), new Set(['torso', 'arms', 'legs', 'weapon', 'helmet']));
     const hood = plan.layers.find(layer => layer.role === 'helmet');
     assert.equal(hood.variant, 0);
     assert.equal(costumeLayerAtlasUrl(hood), `/assets/costume/v5/atlas/frost-hood-body-${gender}.png`);
@@ -264,6 +266,7 @@ test('서리의 가죽두건은 문장·신발을 유지하면서 남녀 두건 
     assert.equal(renderCostumeHero({ heroLayer, hero }, state, save, { motion: 'attack', frame: 2 }), true);
     assert.equal(state.sprites.size, plan.layers.length);
     assert(state.sprites.has('helmet'));
+    assert(!state.sprites.has('offhand') && !state.sprites.has('boots'), '문장·신발은 스프라이트를 만들지 않는다');
     assert.equal(hero.visible, false);
   }
 });
@@ -301,22 +304,39 @@ test('낡은 투구로 교체할 때 이전 코스튬 스프라이트와 페이�
   assert.equal(state.textures.size, 0);
 });
 
-test('필드·미리보기 공용 계획의 검은 손잡이를 고정한 채 머리 위 돌출을 줄인다', () => {
+test('필드·미리보기 공용 계획의 무기는 축소 없이 셀 원본 크기(1배)로 그린다', () => {
   for (const gender of ['male', 'female']) {
     const save = fullEquipment(freshSave(gender));
     const plan = planHeroCostume(save, loadOk);
     assert.equal(plan.ok, true);
     const weapon = plan.layers.find(layer => layer.role === 'weapon');
-    const grip = gender === 'female' ? { x: 90, y: 126 } : { x: 126, y: 112 };
-    assert.equal(weapon.scale.x, .7);
-    assert.equal(weapon.scale.y, .7);
-    for (const axis of ['x', 'y']) {
-      const pivot = axis === 'x' ? 234 * weapon.anchor.x : 242 * weapon.anchor.y;
-      const before = grip[axis] - pivot;
-      const after = weapon.offset[axis] + weapon.scale[axis] * before;
-      assert(Math.abs(after - before) < 1e-9, `${gender} ${axis} grip stays on the hand`);
-    }
+    // 두손검이 작아 보인다는 실기 제보(2026-11-19)로 70% 축소를 걷어냈다. 매니페스트 fit이 없으면 1배.
+    assert.equal(weapon.scale.x, 1);
+    assert.equal(weapon.scale.y, 1);
+    assert.deepEqual(weapon.offset, { x: 0, y: 0 });
+    assert.equal(weapon.rotation, 0);
   }
+});
+
+test('문장·장갑·신발·매핑 밖 문장 이름은 캐릭터 외형을 바꾸거나 폴백을 만들지 않는다', () => {
+  for (const gender of ['male', 'female']) {
+    const save = freshSave(gender);
+    save.equipment.offhand = item('offhand', '알 수 없는 문장');
+    save.equipment.gloves = item('gloves', '알 수 없는 장갑');
+    save.equipment.boots = item('boots', '알 수 없는 신발');
+    const plan = planHeroCostume(save, loadOk);
+    assert.equal(plan.ok, true, '외형을 그리지 않는 부위는 폴백 사유가 되지 않는다');
+    assert.deepEqual(plan.layers.map(layer => layer.role), ['legs', 'torso', 'arms'], '맨몸 본체 3파츠만 계획한다');
+  }
+  // 문장·장갑·신발은 착용 상태로 남아 있다(Save·스탯·내 정보 10칸 슬롯 계약 유지).
+  const kept = freshSave('male');
+  kept.equipment.offhand = item('offhand', '강철 문장');
+  kept.equipment.gloves = item('gloves', '강철 건틀릿');
+  kept.equipment.boots = item('boots', '기사의 사바톤');
+  planHeroCostume(kept, loadOk);
+  assert.equal(kept.equipment.offhand.name, '강철 문장');
+  assert.equal(kept.equipment.gloves.name, '강철 건틀릿');
+  assert.equal(kept.equipment.boots.name, '기사의 사바톤');
 });
 
 test('아틀라스 앵커는 정규화 피벗 또는 셀 픽셀 모두 받아 0..1로 고정된다', () => {
@@ -419,7 +439,7 @@ test('아틀라스가 일부만 있으면 아무것도 그리지 않고 기존 �
   const bodyUrl = costumeAtlasUrl(costumeAtlasPageName('body-male', 0));
   textures.set(bodyUrl, pageTexture()); // 본체만 있고 장비 아틀라스는 없음
   applyCostumeHeroRuntime(state, loadOk, textures);
-  for (const url of [costumeAtlasUrl('helmet'), costumeAtlasUrl('armor'), costumeAtlasUrl('gloves'), costumeAtlasUrl('boots'), costumeAtlasUrl('weapon'), costumeAtlasUrl('offhand')]) state.failed.add(url);
+  for (const url of [costumeAtlasUrl('helmet'), costumeAtlasUrl('armor'), costumeAtlasUrl('weapon')]) state.failed.add(url);
   const heroLayer = new Container(), hero = new Sprite(Texture.EMPTY);
   heroLayer.addChild(hero);
   assert.equal(renderCostumeHero({ heroLayer, hero }, state, save, { motion: 'idle', frame: 0 }), false);

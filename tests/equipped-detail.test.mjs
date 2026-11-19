@@ -161,8 +161,10 @@ test('다른 장비를 착용한 서리의 가죽두건도 필드와 장비창�
     assert.deepEqual(preview.layers, field.layers);
     assert.equal(preview.layers.find(layer => layer.role === 'helmet')?.page, `frost-hood-armor-${gender}`);
     assert(field.layers.some(layer => layer.role === 'armor'));
-    assert(field.layers.some(layer => layer.role === 'offhand'));
-    assert(field.layers.some(layer => layer.role === 'boots'));
+    // 2026-11-19 실기 제보: 문장·신발 그림이 캐릭터 밖으로 튀어나와 외형 3종만 남겼다.
+    // 착용 상태는 그대로이므로 장비창 10칸 슬롯·스탯은 바뀌지 않고 그림 레이어만 빠진다.
+    assert(!field.layers.some(layer => layer.role === 'offhand'));
+    assert(!field.layers.some(layer => layer.role === 'boots'));
   }
   resetCostumeManifestCache();
 });
