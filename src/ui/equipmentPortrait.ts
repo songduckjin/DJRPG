@@ -3,6 +3,8 @@ import {
   type CostumeLayerPlan
 } from '../game/render/costumeHero';
 import type { Save } from '../game/store';
+import { baseItemIndex } from '../game/items';
+import { helmetArtFor, helmetArtPaths, helmetIdlePlacement } from '../game/render/helmets';
 
 /**
  * 내 정보(장비창) 초상화 — Task 149 full-body pilot image. Gear remains functional but its
@@ -14,6 +16,25 @@ export function equipmentFallbackPortrait(save: Save): string {
   return `/assets/pilot-25d/warrior_${save.gender}_idle_v1.png`;
 }
 
+export type EquipmentPortraitHelmet = {
+  /** 투구 머리 파츠 PNG 경로. */
+  path: string;
+  /** 본체 362px 셀 좌표에서 목 밑동의 x·y 와 배율. */
+  x: number;
+  y: number;
+  scale: number;
+};
+
+/** 착용 투구의 머리 파츠. 투구가 없으면 undefined(전신 그림만 그린다). */
+export function equipmentPortraitHelmet(save: Save): EquipmentPortraitHelmet | undefined {
+  const item = save.equipment.helmet;
+  if (!item) return undefined;
+  const art = helmetArtFor(save.gender, baseItemIndex(item));
+  if (!art) return undefined;
+  const place = helmetIdlePlacement(save.gender);
+  return { path: helmetArtPaths[art], x: place.x, y: place.y, scale: place.scale };
+}
+
 export type EquipmentPortraitPlan = {
   /**
    * `costume`: 공용 외형 계획으로 그린다(필드와 같은 레이어).
@@ -22,7 +43,9 @@ export type EquipmentPortraitPlan = {
   mode: 'costume' | 'fallback';
   /** 즉시 표시용 전신 초상화 경로. 코스튬 합성이 끝나기 전·에셋 없음일 때 이 그림이 보인다. */
   base: string;
-  /** 캐시 키(성별 + 레이어 구성 + 피벗/보정). */
+  /** 착용 투구가 있으면 전신 초상화 위에 같은 자리·배율로 합성한다. */
+  helmet?: EquipmentPortraitHelmet;
+  /** 캐시 키(성별 + 투구). */
   key: string;
   gender: Save['gender'];
   layers: CostumeLayerPlan[];
@@ -34,7 +57,9 @@ export type EquipmentPortraitPlan = {
  */
 export function equipmentPortraitPlan(save: Save): EquipmentPortraitPlan {
   const base = equipmentFallbackPortrait(save);
-  return { mode: 'fallback', base, key: `pilot:${save.gender}`, gender: save.gender, layers: [] };
+  const helmet = equipmentPortraitHelmet(save);
+  // 착용 투구가 바뀌면 합성 결과도 바뀌므로 키에 넣는다(성별 + 투구 파츠).
+  return { mode: 'fallback', base, key: `pilot:${save.gender}:${helmet ? helmet.path : '-'}`, gender: save.gender, layers: [], helmet };
 }
 
 /* ── 아틀라스 이미지·합성 결과 캐시 ─────────────────────────────────────── */
@@ -194,8 +219,8 @@ async function composeCostume(layers: CostumeLayerPlan[]): Promise<string> {
   }
 }
 
-/** 폴백: 전신 초상화 한 장을 캔버스에 맞춰 그린다(빈 화면 방지). */
-async function composeFallback(base: string): Promise<string> {
+/** 폴백: 전신 초상화 한 장(+착용 투구)을 캔버스에 맞춰 그린다(빈 화면 방지). */
+async function composeFallback(base: string, helmet?: EquipmentPortraitHelmet): Promise<string> {
   const image = await loadImage(base, fallbackImages, new Set());
   const canvas = fitCanvas(image.naturalWidth, image.naturalHeight);
   const context = canvas.getContext('2d');
@@ -205,6 +230,19 @@ async function composeFallback(base: string): Promise<string> {
   const scale = Math.min(canvas.width / image.naturalWidth, canvas.height / image.naturalHeight);
   const width = image.naturalWidth * scale, height = image.naturalHeight * scale;
   context.drawImage(image, (canvas.width - width) / 2, canvas.height - height, width, height);
+  if (helmet) {
+    try {
+      const patch = await loadImage(helmet.path, fallbackImages, new Set());
+      // 필드와 같은 362px 셀 좌표 → 초상화 캔버스 좌표(전신 그림이 그려진 배율 그대로).
+      const patchScale = helmet.scale * scale;
+      const patchWidth = patch.naturalWidth * patchScale, patchHeight = patch.naturalHeight * patchScale;
+      const left = (canvas.width - width) / 2 + helmet.x * scale - patchWidth / 2;
+      const top = canvas.height - height + helmet.y * scale - patchHeight;
+      context.drawImage(patch, left, top, patchWidth, patchHeight);
+    } catch (error) {
+      console.info('[장비창] 투구 머리 파츠 로딩 실패 → 전신 그림만 표시:', error);
+    }
+  }
   return canvas.toDataURL('image/png');
 }
 
@@ -225,7 +263,7 @@ export async function renderEquipmentPortrait(save: Save): Promise<string> {
         console.info('[장비창] 코스튬 합성 실패 → 전신 초상화로 폴백:', error);
       }
     }
-    return composeFallback(plan.base);
+    return composeFallback(plan.base, plan.helmet);
   })();
   storePortrait(plan.key, pending);
   void pending.catch(() => {

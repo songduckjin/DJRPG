@@ -8,6 +8,7 @@ import { createCostumeHeroState, type CostumeHeroState } from './render/costumeH
 import { drawSkillVfx, drawDragon, drawHit, updateDamageLabels, drawDeath, drawDrops, drawEffects } from './render/vfx';
 import { projectArenaPoint } from './arena';
 import { createBootProgress } from './bootProgress';
+import { helmetArtList, helmetArtPaths } from './render/helmets';
 
 const paths = {
   floor: '/assets/wasteland-ground.png', terrainProps: '/assets/wasteland-props.png', male: '/assets/warrior_male_base.png',
@@ -65,7 +66,9 @@ const walkSheets = {
 type Animation = keyof typeof animationPaths | keyof typeof attackSheets | keyof typeof walkSheets;
 export const renderAssetPaths = [
   ...Object.values(paths), ...Object.values(animationPaths).flat(),
-  ...Object.values(attackSheets), ...Object.values(walkSheets), ...Object.values(wearableAssetPaths)
+  ...Object.values(attackSheets), ...Object.values(walkSheets), ...Object.values(wearableAssetPaths),
+  // 착용 투구 머리 파츠(작업 151) — 장비창과 필드가 같은 PNG 를 쓴다.
+  ...helmetArtList.map(art => helmetArtPaths[art])
 ];
 type Dust = { x: number; y: number; vx: number; vy: number; age: number; duration: number; size: number };
 type Ghost = { sprites: { sprite: Sprite; dx: number; dy: number }[]; x: number; y: number; age: number; duration: number };
@@ -97,6 +100,10 @@ export class GameView {
   hero!: Sprite;
   gearTextures = new Map<string, Texture>();
   gearLoading = new Set<string>();
+  /** 투구 머리 파츠 텍스처 — 경로를 키로 쓴다(작업 151). */
+  helmetTextures = new Map<string, Texture>();
+  /** 현재 그려진 투구 스프라이트. 투구를 벗으면 숨긴다. */
+  heroHelmet?: Sprite;
   heroGear = new Map<Slot, { path: string; sprite: Sprite }>();
   /** 독립형 코스튬 렌더러 상태(작업 140). 매니페스트·아틀라스가 없으면 폴백으로 굳는다. */
   costume: CostumeHeroState = createCostumeHeroState();
@@ -146,6 +153,8 @@ export class GameView {
         return new Texture({ source: sheet.source, frame: new Rectangle(left, 0, right - left, sheet.source.height) });
       });
     }
+    const helmets = await Promise.all(helmetArtList.map(async art => [helmetArtPaths[art], await loadTexture(helmetArtPaths[art])] as const));
+    for (const [path, texture] of helmets) { texture.source.scaleMode = 'linear'; this.helmetTextures.set(path, texture); }
     const walking = await Promise.all((Object.keys(walkSheets) as (keyof typeof walkSheets)[]).map(async key => [key, await loadTexture(walkSheets[key])] as const));
     for (const [key, sheet] of walking) {
       sheet.source.scaleMode = 'linear';

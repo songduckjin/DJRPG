@@ -52,7 +52,9 @@ for (const gender of ['male', 'female']) test(`${gender}: field and equipment pr
     const plan = equipmentPortraitPlan(save);
     assert.equal(plan.mode, 'fallback');
     assert.equal(plan.base, expected);
-    assert.equal(plan.key, `pilot:${gender}`);
+    // 초상화 키는 성별 + 착용 투구 머리 파츠(작업 151). 투구가 없으면 '-'.
+    assert.match(plan.key, new RegExp(`^pilot:${gender}:`));
+    assert.equal(plan.key, `pilot:${gender}:${plan.helmet ? plan.helmet.path : '-'}`);
     assert.deepEqual(plan.layers, []);
   };
   check();

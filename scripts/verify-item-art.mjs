@@ -118,3 +118,22 @@ for (const gender of ['male', 'female']) for (const fit of ['armor', 'body']) {
   }
 }
 console.log('작업 145 두건 전용 v5 아틀라스 4종 확인 완료.');
+
+// ── 작업 151: 필드·장비창 투구 머리 파츠 ─────────────────────────────────────────
+// 투구 10종(남성)과 여성 오픈페이스 0~2번 파츠는 본체 362px 셀 좌표계의 RGBA PNG 여야 한다.
+const helmetRoot = fileURLToPath(new URL('../public/assets/pilot-25d/helmets/', import.meta.url));
+const helmetParts = [...Array.from({ length: 10 }, (_, index) => `helm_${index}.png`),
+  ...Array.from({ length: 3 }, (_, index) => `helm_female_${index}.png`)];
+for (const name of helmetParts) {
+  const path = join(helmetRoot, name);
+  if (!existsSync(path)) throw new Error(`작업 151 투구 머리 파츠가 없습니다: ${name}`);
+  const data = readFileSync(path), header = data.subarray(0, 26);
+  const width = header.readUInt32BE(16), height = header.readUInt32BE(20);
+  if (header.toString('ascii', 1, 4) !== 'PNG' || header[25] !== 6) {
+    throw new Error(`투구 머리 파츠는 투명도가 있는 RGBA PNG여야 합니다: ${name}`);
+  }
+  if (width < 40 || width > 140 || height < 40 || height > 140) {
+    throw new Error(`투구 머리 파츠 크기가 본체 셀 기준을 벗어났습니다(${width}×${height}): ${name}`);
+  }
+}
+console.log(`작업 151 투구 머리 파츠 ${helmetParts.length}종 확인 완료.`);
