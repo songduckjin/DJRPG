@@ -1,5 +1,14 @@
 # 작업 로그
 
+## 2026-11-19 — 3D→2.5D Blender 자동 렌더 파이프라인·확정 포즈 시안 등록 (작업 147)
+
+- **배경**: 캐릭터를 3D로 만들어 2.5D 쿼터뷰 셀로 뽑는 작업을 PC 코덱스가 반복할 수 있게, 렌더 절차를 명령 한 줄로 고정했다. 사용자가 확정한 대검 포즈(서기·양손 끌며 걷기·4단계 내려찍기)가 기준이다.
+- `scripts/blender/render_25d_costume.py`(신규, 1026줄) — Blender CLI 전용 렌더러. `.blend`/`.glb`/`.fbx` 로드, 액션 슬롯 수만큼 균등 프레임 샘플링(기본은 끝 프레임 제외), 쿼터뷰 직교 카메라 + 3점 조명 + `FILM_TRANSPARENT`, **발끝 앵커를 셀 피벗 `(117, 232.3)px`에 · 본체 높이를 190px에** 맞추는 카메라 피팅(1회 ortho_scale 보정 + 2~3회 위치 반복, 모든 액션·프레임 공통 고정), 파츠 분리 렌더(`--parts`·`--part-map`·`djrpg_part`·`--holdout`), 규약 8×8 아틀라스 패킹(`<out>/atlas/<파츠>-<라벨>-v0.png`, 1872×1936, 변형당 32칸)과 `render-manifest.json`. `--dry-run`/`--print-spec`/`--selftest`(bpy 없이 PNG 코덱·슬롯 계산 점검) 지원. `bpy`는 `require_bpy()` 안에서만 import한다.
+- `docs/BLENDER_25D_PIPELINE.md`(신규) — Blender 4.x 준비·엔진 선택(Cycles 기본), Mixamo/CC0 파일럿 모델과 파츠 분리 레시피, **확정 포즈 스펙**(idle·walk·attack 4단계 표), 본·소켓 명명(`hand_r`·`hand_l`·`weapon_socket`)과 양손 그립(Child-Of 권장 / IK), 4단계 키프레임 규약(샘플러가 범위를 등분하므로 키를 1·9·17·25에), CLI 인자·Windows 예시, 기존 `build-costume-atlas.py`·`costumeHero.ts`·`COSTUME_ASSET_VERSION` 연결 절차, 검수 체크리스트·문제 해결.
+- `docs/references/`(신규) — 확정 시안 2장을 가로 1024px·256색 PNG로 줄여 넣었다(`djrpg_25d_3poses_preview_v2.png` 1536²·1.7MB → 1024×683·484KB, `djrpg_attack_4frames_v2.png` → 1024×512·372KB). `public/assets/**`에 넣지 않아 번들·런타임 용량 영향 없음.
+- **범위**: `src/**`·`public/assets/**`·`server/**`·Save/API 무변경. 배포 매니페스트·버전 올리기는 실제 렌더가 나온 뒤 별도 작업이다(가이드 §8.2).
+- **검증**: `python3 -m py_compile` 통과, `--selftest` 6/6, `--help`·`--print-spec`·`--dry-run` 동작, 합성 셀로 아틀라스 패킹·슬롯 좌표·매니페스트 출력 확인, `npx tsc --noEmit`, `node --test tests/*.test.mjs`, `node scripts/verify-item-art.mjs`, `npm run build`, `git diff --check`. 실제 Blender 렌더는 이 환경에 Blender가 없어 PC 몫이다(가이드 §1.2 자체 점검으로 먼저 확인).
+
 ## 2026-11-19 — 무기 레이어 검 1.45배·손잡이 허리·골반까지 내림(실기 후속 2차)
 
 - **제보**: 직전 PR #96(1.35배·`{-3, 68}`) 배포 후에도 "검이 아직도 머리 위에 떠 있어, 가려도 되는데 왜". 실측상 `weapon-male` 정지 셀은 1.35배·`+68`에서도 검 끝이 발끝 기준 `-208px`로 본체 머리 상단 `-193px`보다 15px 위에 남고, 손잡이(`-94px`)도 아직 상체에 걸쳐 있었다.
