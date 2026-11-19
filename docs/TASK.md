@@ -7,6 +7,7 @@
 
 | 작업 | 담당자 | 브랜치 | 수정 예정 파일 / 영향 영역 | 위험 등급 | 상태 |
 |---|---|---|---|---|---|
+| 168 상시 던전 아이콘·대기창 시안 | fks3997 | preview/gravel-background-fks3997 | src/ui/{interface,modalDefaults,dungeonLobby}.ts, modals/dungeonModal.ts, src/styles/{main,dungeon}.css, public/assets/dungeon/*, public/assets/icons/utility_dungeon.png, tests/dungeon-lobby.test.mjs, 문서 / 업적아래아이콘·현재층·순위탭(전투미연동) | 중 | [-] |
 
 
 > 2026-11-19: `[작업 143]` — 코스튬 v3(투구 싱크·몸통 겹침·공격 모션 수정)를 배포했다. 갑옷 착용 시 본체 파츠 3종을 모두 대체하고, 투구 레이어는 머리 창 안의 차이만 남기며, 맨몸용 투구 페이지(`helmet-body-*`)를 추가했다. 자세한 내용은 `docs/COSTUME_SYSTEM.md` §7.5.
