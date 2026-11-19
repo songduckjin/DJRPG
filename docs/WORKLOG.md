@@ -1,5 +1,17 @@
 # 작업 로그
 
+## 2026-11-19 — 투구 착용 시 머리 매칭·머리카락 비침 수정 (작업 152)
+
+- **제보**: 「얼굴에 매칭이 제대로 안 되네요」. 작업 151은 본체 시트(긴 머리카락·정수리 포함) 위에 투구 파츠만 얹어, 투구 위·옆으로 본체 머리카락이 삐져나와 스티커처럼 보였고, 오픈페이스 투구에서는 본체 얼굴과 파츠 얼굴이 겹쳤다. 여성·공격 프레임은 앵커도 어긋나 있었다.
+- **머리 없는 본체 시트**: `public/assets/pilot-25d/headless/warrior_{male,female}_{idle,walk,attack}_v1.png` 6장을 새로 만들었다. 원본 시트의 18프레임을 머리 주변만 크롭해 `images --edit`로 머리·머리카락·수염을 지운 뒤, SIFT 특징 매칭으로 편집본을 원본 좌표계에 정합하고 `원본 실루엣 ∧ ¬편집본 실루엣` 마스크로 머리 영역만 지웠다(홀수 머리카락이 덮고 있던 갑옷은 편집본의 갑옷으로 채움). 어깨·갑옷·대검은 원본 픽셀 그대로다. 셀 크기·자리는 원본과 동일(idle 362², walk/attack 1448×362)이며 256색 PNG로 줄여 합계 278KB다.
+- **렌더**: `render/helmets.ts`의 `headlessBodyPaths`가 경로를, `render.ts`의 `paths`·`walkSheets`·`attackSheets`가 로딩·프레임 분할을 맡는다. `render/entities.ts` `drawHero`는 착용 투구가 있을 때만 이 시트로 갈아 끼우고(로딩 전에는 기존 시트로 폴백), 배율·앵커·무기 소켓은 기존 시트 값을 그대로 쓴다(같은 좌표계). 맨얼굴은 종전 시트를 그대로 쓴다.
+- **앵커 재측정**: 지운 머리 영역의 무게중심 x·정수리 높이를 기준으로 `helmetFrames` 표를 다시 쟀다(남 idle (228, 89)·여 idle (227, 88), 걷기 4프레임·공격 4프레임). 합성 검수에서 파츠가 칼라에 얹히는지 프레임별로 눈으로 확인했다.
+- **장비창**: `ui/equipmentPortrait.ts` `equipmentFallbackPortrait`가 투구 착용 시 `headless/` idle 시트를 돌려줘, 미리보기도 필드와 같은 머리 없는 본체 + 투구 파츠가 된다.
+- **계약**: `store.ts`·`server/**`·`world.ts` 전투·세이브 형식 무변경. 기존 본체 시트·투구 파츠 PNG는 손대지 않았다.
+- **테스트**: `tests/helmet-head-render.test.mjs`에 머리 없는 시트 6장 존재·크기 일치·프리로드, 투구 착용 시 필드 텍스처 교체(걷기·공격·여성 포함)와 해제 시 원복, 초상화 base가 `headless/`로 바뀌는지 확인을 추가(11건). `tests/equipped-detail.test.mjs`의 초상화 base 기대값을 새 계약에 맞게 고쳤다.
+- **검증**: `tsc --noEmit`, 전체 테스트 400건 중 398 통과(실패 2건은 `costume-field-render`의 기존 실패), `npm run build`, `git diff --check` 통과.
+- **검수 이미지**: 남성 10종 `downloads/djrpg_helmet_overlay_male_v2.png`, 남녀 대표 `downloads/djrpg_helmet_overlay_gender_v2.png`, 걷기 프레임 `downloads/djrpg_helmet_overlay_frames_v2.png`.
+
 ## 2026-11-19 — 투구 10종 머리 파츠 필드·장비창 적용 (작업 151)
 
 - **요청**: 승인 시안(`djrpg_pilot_helms_1to5.png`·`djrpg_pilot_helms_6to10.png`)의 남녀 전사 외형 위에 게임 내 투구 10종(`baseItems.helmet` 0~9, 옛 이름 `낡은 투구` 포함)을 착용하면 필드와 장비창(`내 정보`) 모두에 투구 외형이 보이게 하고, PR 병합·운영 배포까지 완료.

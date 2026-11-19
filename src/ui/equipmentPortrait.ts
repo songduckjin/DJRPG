@@ -13,6 +13,8 @@ import { helmetArtFor, helmetArtPaths, helmetIdlePlacement } from '../game/rende
 
 /** 전사 시안은 장착 조합과 무관하게 필드와 동일한 전신 그림을 쓴다. */
 export function equipmentFallbackPortrait(save: Save): string {
+  // 투구를 쓰면 필드와 같은 머리 없는 본체 위에 투구 파츠를 얹는다(작업 152).
+  if (save.equipment.helmet) return `/assets/pilot-25d/headless/warrior_${save.gender}_idle_v1.png`;
   return `/assets/pilot-25d/warrior_${save.gender}_idle_v1.png`;
 }
 

@@ -8,11 +8,13 @@ import { createCostumeHeroState, type CostumeHeroState } from './render/costumeH
 import { drawSkillVfx, drawDragon, drawHit, updateDamageLabels, drawDeath, drawDrops, drawEffects } from './render/vfx';
 import { projectArenaPoint } from './arena';
 import { createBootProgress } from './bootProgress';
-import { helmetArtList, helmetArtPaths } from './render/helmets';
+import { helmetArtList, helmetArtPaths, headlessBodyPaths } from './render/helmets';
 
 const paths = {
   floor: '/assets/wasteland-ground.png', terrainProps: '/assets/wasteland-props.png', male: '/assets/warrior_male_base.png',
   pilotMale: '/assets/pilot-25d/warrior_male_idle_v1.png', pilotFemale: '/assets/pilot-25d/warrior_female_idle_v1.png',
+  // 투구 착용 시에만 쓰는 머리 없는 본체(작업 152) — 같은 셀 좌표계라 배율·앵커를 공유한다.
+  pilotMaleHeadless: headlessBodyPaths.male.idle, pilotFemaleHeadless: headlessBodyPaths.female.idle,
   female: '/assets/warrior_female_base.png', armored: '/assets/warrior_armored_swordless.png',
   armoredNoHelm: '/assets/warrior_armored_nohelm_swordless.png', femaleArmoredNoHelm: '/assets/warrior_female_armored_nohelm_swordless.png',
   femaleArmoredHelm: '/assets/warrior_female_armored_helm_swordless.png',
@@ -39,6 +41,8 @@ const animationPaths = {
 const attackSheets = {
   pilotMaleAttack: '/assets/pilot-25d/warrior_male_attack_v1.png',
   pilotFemaleAttack: '/assets/pilot-25d/warrior_female_attack_v1.png',
+  pilotMaleAttackHeadless: headlessBodyPaths.male.attack,
+  pilotFemaleAttackHeadless: headlessBodyPaths.female.attack,
   femaleArmoredNoHelmAttack: '/assets/warrior_female_armored_attack.png?v=3',
   femaleArmoredHelmAttack: '/assets/warrior_female_armored_helm_attack.png?v=3',
   femaleHelmAttack: '/assets/warrior_female_helm_attack.png?v=3',
@@ -49,6 +53,8 @@ const attackSheets = {
 const walkSheets = {
   pilotMaleWalk: '/assets/pilot-25d/warrior_male_walk_v1.png',
   pilotFemaleWalk: '/assets/pilot-25d/warrior_female_walk_v1.png',
+  pilotMaleWalkHeadless: headlessBodyPaths.male.walk,
+  pilotFemaleWalkHeadless: headlessBodyPaths.female.walk,
   maleBaseWalk: '/assets/walk8_male_base.png', femaleBaseWalk: '/assets/walk8_female_base.png',
   maleBaseHelmWalk: '/assets/walk8_male_base_helm.png',
   femaleBaseHelmWalk: '/assets/walk8_female_base_helm.png',

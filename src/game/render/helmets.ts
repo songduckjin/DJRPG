@@ -39,6 +39,33 @@ export function helmetArtFor(gender: Gender, index: number): HelmetArt | undefin
   return `helm_${index}` as HelmetArt;
 }
 
+/**
+ * 투구를 쓸 때만 쓰는 **머리 없는 본체** 시트 (작업 152).
+ *
+ * 본체 시트에는 긴 머리카락과 정수리가 그려져 있어 투구 파츠를 얹으면 투구 둘레로
+ * 머리카락이 삐져나오고, 오픈페이스 투구에서는 본체 얼굴과 파츠 얼굴이 겹쳐 보였다.
+ * 그래서 목·갑옷 칼라 위쪽(머리·머리카락 픽셀)만 지운 같은 크기·같은 자리의 시트를
+ * 따로 두고, 투구를 착용했을 때만 이 시트를 쓴다. 좌표계가 같아 배율·앵커·무기
+ * 소켓은 기존 시트 값을 그대로 쓴다.
+ */
+export const headlessBodyPaths = {
+  male: {
+    idle: '/assets/pilot-25d/headless/warrior_male_idle_v1.png',
+    walk: '/assets/pilot-25d/headless/warrior_male_walk_v1.png',
+    attack: '/assets/pilot-25d/headless/warrior_male_attack_v1.png'
+  },
+  female: {
+    idle: '/assets/pilot-25d/headless/warrior_female_idle_v1.png',
+    walk: '/assets/pilot-25d/headless/warrior_female_walk_v1.png',
+    attack: '/assets/pilot-25d/headless/warrior_female_attack_v1.png'
+  }
+} as const;
+
+export const headlessBodyPathList: readonly string[] = [
+  headlessBodyPaths.male.idle, headlessBodyPaths.male.walk, headlessBodyPaths.male.attack,
+  headlessBodyPaths.female.idle, headlessBodyPaths.female.walk, headlessBodyPaths.female.attack
+];
+
 export type HelmetPlacement = {
   /** 본체 셀 좌표에서 목 밑동의 x. */
   x: number;
@@ -49,39 +76,42 @@ export type HelmetPlacement = {
 };
 
 /**
- * 성별·동작·프레임별 목 밑동 좌표와 배율. 값은 `idle`·`walk`(4포즈)·`attack`(4포즈)
- * 실물 합성 검수(2026-11-19)로 맞춘 실측치다. `walk` 는 시트가 4포즈를 8프레임으로
- * 반복 재생하므로 4개 값만 두고 `frame % 4` 로 조회한다.
+ * 성별·동작·프레임별 목 밑동 좌표와 배율.
+ *
+ * 작업 152에서 **머리 없는 본체**에 맞춰 다시 쟀다. 기준은 지운 머리 영역의 무게중심 x 와
+ * 정수리 높이(머리 영역 최상단)이며, 파츠가 본체 칼라에 자연스럽게 얹히는지 합성 검수로
+ * 확정했다(남 idle (228, 89) · 여 idle (227, 88), 걷기·공격은 프레임 실측). `walk` 는
+ * 시트가 4포즈를 8프레임으로 반복 재생하므로 4개 값만 두고 `frame % 4` 로 조회한다.
  */
 const helmetFrames: Record<Gender, Record<HelmetMotion, readonly HelmetPlacement[]>> = {
   male: {
-    idle: [{ x: 224, y: 88, scale: 1 }],
+    idle: [{ x: 228, y: 89, scale: 1 }],
     walk: [
-      { x: 247, y: 78.7, scale: .8 },
-      { x: 252, y: 80.7, scale: .8 },
-      { x: 258, y: 80.1, scale: .72 },
-      { x: 262, y: 82.2, scale: .73 }
+      { x: 248, y: 85, scale: .95 },
+      { x: 255, y: 86, scale: .95 },
+      { x: 258, y: 93, scale: .95 },
+      { x: 260, y: 94, scale: .95 }
     ],
     attack: [
-      { x: 215, y: 129, scale: 1 },
-      { x: 200, y: 140, scale: .93 },
-      { x: 195, y: 152, scale: .9 },
-      { x: 175, y: 175, scale: .87 }
+      { x: 202, y: 113, scale: 1 },
+      { x: 190, y: 107, scale: 1 },
+      { x: 191, y: 118, scale: 1 },
+      { x: 190, y: 180, scale: 1 }
     ]
   },
   female: {
-    idle: [{ x: 230, y: 90, scale: 1 }],
+    idle: [{ x: 227, y: 88, scale: 1 }],
     walk: [
-      { x: 250, y: 84.4, scale: .9 },
-      { x: 254, y: 85.4, scale: .9 },
-      { x: 258, y: 85, scale: .84 },
-      { x: 262, y: 85.8, scale: .82 }
+      { x: 247, y: 88, scale: .95 },
+      { x: 250, y: 89, scale: .95 },
+      { x: 252, y: 93, scale: .95 },
+      { x: 259, y: 95, scale: .95 }
     ],
     attack: [
-      { x: 185, y: 131.4, scale: 1.05 },
-      { x: 180, y: 144, scale: .92 },
-      { x: 196, y: 158, scale: .88 },
-      { x: 185, y: 170.4, scale: .92 }
+      { x: 208, y: 116, scale: 1 },
+      { x: 205, y: 108, scale: 1 },
+      { x: 215, y: 115, scale: 1 },
+      { x: 190, y: 155, scale: 1 }
     ]
   }
 };

@@ -100,6 +100,11 @@ export type HeroSkillMotion = { template: CostumeMotionTemplate | null; progress
  * 목 밑동 좌표로 스프라이트만 옮기면 idle·walk·attack 어느 프레임에서도 같은 자리에 앉는다.
  * 피격 틴트는 본체와 같은 값을 쓴다. 투구를 벗으면 스프라이트를 숨긴다.
  */
+function helmetIndex(save: Save): number {
+  const item = save.equipment.helmet;
+  return item ? baseItemIndex(item) : -1;
+}
+
 function syncHelmet(view: GameView, save: Save, motion: 'idle' | 'walk' | 'attack', frame: number, tint: number): void {
   const item = save.equipment.helmet;
   const index = item ? baseItemIndex(item) : -1;
@@ -172,8 +177,21 @@ export function drawHero(this: GameView, world: World, x: number, y: number, tim
     let texture = this.textures[pilotIdle];
     if (animation === 'walk') texture = this.animations[pilotWalk][walkingFrame];
     else if (animatedAttack) texture = this.animations[pilotAttack][Math.max(0, attackFrame)];
-    const textureKey = animation === 'walk' ? `${pilotWalk}:${walkingFrame}`
+    let textureKey = animation === 'walk' ? `${pilotWalk}:${walkingFrame}`
       : animatedAttack ? `${pilotAttack}:${Math.max(0, attackFrame)}` : pilotIdle;
+    // 투구를 쓰면 머리·머리카락이 지워진 같은 크기 시트로 갈아 끼운다(작업 152).
+    // 셀 좌표계가 같아 배율·앵커·무기 소켓은 기존 값을 그대로 쓴다.
+    if (helmetIndex(save) >= 0) {
+      const headless = save.gender === 'female'
+        ? (animation === 'walk' ? this.animations.pilotFemaleWalkHeadless?.[walkingFrame]
+          : animatedAttack ? this.animations.pilotFemaleAttackHeadless?.[Math.max(0, attackFrame)] : this.textures.pilotFemaleHeadless)
+        : (animation === 'walk' ? this.animations.pilotMaleWalkHeadless?.[walkingFrame]
+          : animatedAttack ? this.animations.pilotMaleAttackHeadless?.[Math.max(0, attackFrame)] : this.textures.pilotMaleHeadless);
+      if (headless) {
+        texture = headless;
+        textureKey = `${textureKey}!headless`;
+      }
+    }
     const displayTexture = tintedGearTexture(textureKey, texture, null, null, animatedAttack);
     if (this.hero.texture !== displayTexture) this.hero.texture = displayTexture;
     this.hero.anchor.y = animation === 'walk' ? walkAnchors[pilotWalk][walkingFrame] : .97;
