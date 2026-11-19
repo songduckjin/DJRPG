@@ -7,10 +7,11 @@
 
 ## 진행 중 작업
 
-### [-] [작업 147] 3D→2.5D Blender 자동 렌더 파이프라인 가이드·스크립트·레퍼런스 시안
-- **담당자**: `songduckjin` · **브랜치**: `task/147-blender-25d-pipeline` · **위험 등급**: 낮음 · **상태**: `[-]` 선점
+### [x] [작업 147] 3D→2.5D Blender 자동 렌더 파이프라인 가이드·스크립트·레퍼런스 시안
+- **담당자**: `songduckjin` · **브랜치**: `task/147-blender-25d-pipeline` · **위험 등급**: 낮음 · **상태**: `[x]` 완료
+- **완료 결과(2026-11-19)**: [PR #99](https://github.com/songduckjin/DJRPG/pull/99)가 머지 `d8110470a99c97a6ae38fa85b0d47e8eccdad22b`로 병합됐고 Cloudflare Pages 운영 `version.json`에서 `d8110470a99c`를 확인했다. `scripts/blender/render_25d_costume.py`(1026줄) + `docs/BLENDER_25D_PIPELINE.md` + `docs/references/` 시안 2장(484KB·372KB)을 넣었다. 자체 점검 `--selftest` 6/6, `--help`·`--print-spec`·`--dry-run` 동작, 합성 셀 아틀라스 패킹·슬롯 좌표(0·9·8 → col0row0·col1row1·col0row1)·매니페스트 출력 확인, `tsc --noEmit`, 전체 `node --test` 382건, `verify-item-art`, `npm run build`, `git diff --check` 통과. **실제 Blender 렌더는 이 환경에 Blender가 없어 미실행**이며 PC 몫이다(가이드 §1.2 자체 점검 → §5 실행). 배포 매니페스트·`COSTUME_ASSET_VERSION` 6 상승은 렌더 결과가 나온 뒤 별도 작업.
 - **목표/범위**: 확정된 2.5D 대검 포즈 시안을 기준으로 3D 모델을 Blender CLI에서 자동 렌더해 기존 코스튬 셀 규약으로 뽑는 파이프라인을 만든다. 실행 스크립트, 실행 가이드, 레퍼런스 시안, 작업 기록을 남기고 런타임 코드는 건드리지 않는다.
-- **확정 포즈 스펙**: ① 서기(`idle`) — 양손을 오른쪽 허리 옆에 모아 대검 자루를 잡고 가드·날이 허벅지 앞을 지나 등 뒤 대각선 아래로 끌리듯 뻗음 ② 걷기(`walk`) — 걷는 동안에도 왼손이 풀리지 않고 양손이 오른쪽에 모인 채 무거운 검을 뒤쪽 아래로 끌며 전진 ③ 공격(`attack`) — 등 뒤에서 끌어올리기(Wind-up) → 머리 위 번짝 듬(Apex) → 앞쪽 아래 세로 원호(Mid-swing) → 전장을 앞바닥까지 길게 뻗어 내리침(Impact), 피니시에서 검 길이가 파묻혀 짧아지지 않음.
+- **확정 포즈 스펙**: ① 서기(`idle`) — 양손을 오른쪽 허리 옆에 모아 대검 자루를 잡고 가드·날이 허벅지 앞을 지나 등 뒤 대각선 아래로 끌리듯 뻗음 ② 걷기(`walk`) — 걷는 동안에도 왼손이 풀리지 않고 양손이 오른쪽에 모인 채 무거운 검을 뒤쪽 아래로 끌며 전진 ③ 공격(`attack`) — 등 뒤에서 끌어올리기(Wind-up) → 머리 위 번쩍 듦(Apex) → 앞쪽 아래 세로 원호(Mid-swing) → 전장을 앞바닥까지 길게 뻗어 내리침(Impact), 피니시에서 검 길이가 파묻혀 짧아지지 않음.
 - **신규 파일**: `scripts/blender/render_25d_costume.py`(`--input/--out/--actions/--parts/--cell-width/--cell-height/--camera-pitch/--camera-yaw/--dry-run/--help`, `.blend`/`.glb`/`.fbx` 로드, 발끝 정렬·본체 190px 정규화, 파츠 분리 렌더·Holdout, 선택적 아틀라스 패킹), `docs/BLENDER_25D_PIPELINE.md`, `docs/references/{djrpg_25d_3poses_preview_v2,djrpg_attack_4frames_v2}.png`(1024px 이하·양자화 PNG).
 - **수정 파일**: `docs/{CODE_MAP,QUICK_PATCH,WORKLOG}.md`, `docs/TASK.md`, 본 작업 기록.
 - **금지**: `src/**`·`public/assets/**`·`server/**`·Save/API 변경 금지. `docs/references/`는 문서용 참고 이미지이며 번들·런타임에 포함하지 않는다(`public/assets/**`에 넣지 않음).

@@ -8,6 +8,7 @@
 - `docs/references/`(신규) — 확정 시안 2장을 가로 1024px·256색 PNG로 줄여 넣었다(`djrpg_25d_3poses_preview_v2.png` 1536²·1.7MB → 1024×683·484KB, `djrpg_attack_4frames_v2.png` → 1024×512·372KB). `public/assets/**`에 넣지 않아 번들·런타임 용량 영향 없음.
 - **범위**: `src/**`·`public/assets/**`·`server/**`·Save/API 무변경. 배포 매니페스트·버전 올리기는 실제 렌더가 나온 뒤 별도 작업이다(가이드 §8.2).
 - **검증**: `python3 -m py_compile` 통과, `--selftest` 6/6, `--help`·`--print-spec`·`--dry-run` 동작, 합성 셀로 아틀라스 패킹·슬롯 좌표·매니페스트 출력 확인, `npx tsc --noEmit`, `node --test tests/*.test.mjs`, `node scripts/verify-item-art.mjs`, `npm run build`, `git diff --check`. 실제 Blender 렌더는 이 환경에 Blender가 없어 PC 몫이다(가이드 §1.2 자체 점검으로 먼저 확인).
+- **반영**: [PR #99](https://github.com/songduckjin/DJRPG/pull/99) → 스쿼시 병합 `d8110470a99c97a6ae38fa85b0d47e8eccdad22b`. Cloudflare Pages 운영 `https://djrpg.pages.dev/version.json`이 `d8110470a99c`로 갱신된 것을 확인했다. 같은 PR에서 `Workers Builds: djrpg` 체크가 실패로 뜨는데, 이는 병합 전 `main` 헤드(`7ef716f`)에서도 동일하게 실패하는 기존 상태다(사이트 배포를 담당하는 `Cloudflare Pages` 체크는 통과).
 
 ## 2026-11-19 — 무기 레이어 검 1.45배·손잡이 허리·골반까지 내림(실기 후속 2차)
 
