@@ -5,6 +5,15 @@
 
 ---
 
+## [x] [작업 149] AI 시안 기반 전사 외형 전체 교체
+
+- **완료일**: 2026-11-19 · **담당자**: `songduckjin` · **브랜치**: `codex/149-ai-pilot-warrior-sprites` · **PR**: #101 (머지 `9e9d736883e0`, 운영 `version.json` `9e9d736883e0` 확인)
+- **결과**: 남녀 전사의 필드 idle·walk·attack과 장비창 초상화를 AI 파일럿 스프라이트로 바꿨다. 장착 슬롯·능력치·Save는 유지한다. 시트 그림에 갑옷·대검이 포함돼 게임 화면의 장비 외형은 고정되며, 사용자가 이 제약을 확인하고 전체 교체를 선택했다. 작업 145의 추가 실기 검수는 이 결정으로 대체했고 기존 v3/v4/v5 코스튬 코드·에셋은 보존했다.
+- **운영 검증**: Cloudflare Pages Production `/version.json`에서 머지 SHA를 확인하고 새 남녀 idle·walk·attack PNG 6개 모두 HTTP 200을 확인했다. GitHub `Cloudflare Pages` 체크는 성공했다. `Workers Builds: djrpg` 별도 체크는 실패했으며 이번 Pages 운영 버전과 에셋은 정상 제공 중이다. 로컬 `pnpm run deploy:cf`는 API 토큰 부재로 실패했지만, PR 병합 후 GitHub 연동 자동 Pages 배포가 완료됐다.
+- **코드 검증**: TypeScript `--noEmit`, 관련 Node 테스트 86건, 이미지 투명도·프레임 경계 확인, `pnpm run build`, `git diff --check` 통과. 빌드의 기존 Pixi dynamic-import 및 500KB 초과 번들 경고는 남아 있다.
+
+---
+
 ## [x] [작업 147] 3D→2.5D Blender 자동 렌더 파이프라인 가이드·스크립트·레퍼런스 시안
 
 - **완료일**: 2026-11-19 · **담당자**: `songduckjin` · **브랜치**: `task/147-blender-25d-pipeline` · **PR**: #99 (머지 `d8110470a99c`, 운영 `version.json` `d8110470a99c` 확인)
