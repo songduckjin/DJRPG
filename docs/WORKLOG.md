@@ -10,6 +10,7 @@
 - **계약**: `store.ts`·`server/**`·`world.ts` 전투·세이브 형식 무변경. 기존 본체 시트·투구 파츠 PNG는 손대지 않았다.
 - **테스트**: `tests/helmet-head-render.test.mjs`에 머리 없는 시트 6장 존재·크기 일치·프리로드, 투구 착용 시 필드 텍스처 교체(걷기·공격·여성 포함)와 해제 시 원복, 초상화 base가 `headless/`로 바뀌는지 확인을 추가(11건). `tests/equipped-detail.test.mjs`의 초상화 base 기대값을 새 계약에 맞게 고쳤다.
 - **검증**: `tsc --noEmit`, 전체 테스트 400건 중 398 통과(실패 2건은 `costume-field-render`의 기존 실패), `npm run build`, `git diff --check` 통과.
+- **배포**: [PR #107](https://github.com/songduckjin/DJRPG/pull/107)을 스쿼시 병합했다(머지 `6ba9330a22037e0d2de1775e2880699ff2937cf9`). PR의 `Cloudflare Pages` 체크는 통과, `Workers Builds: djrpg`는 `main`에서도 계속 실패하는 기존 실패다. 병합 뒤 운영 `https://djrpg.pages.dev/version.json`이 `6ba9330a2203`(`builtAt 2026-11-19T13:17:23Z`)로 갱신됐고, 머리 없는 시트 6장이 모두 HTTP 200, 배포 번들(`index-BLHBfVs_.js`)에 6개 경로가 들어간 것을 확인했다. 실기 화면(투구를 쓴 채 걷기·공격)은 사용자 확인 몫이다.
 - **검수 이미지**: 남성 10종 `downloads/djrpg_helmet_overlay_male_v2.png`, 남녀 대표 `downloads/djrpg_helmet_overlay_gender_v2.png`, 걷기 프레임 `downloads/djrpg_helmet_overlay_frames_v2.png`.
 
 ## 2026-11-19 — 투구 10종 머리 파츠 필드·장비창 적용 (작업 151)
