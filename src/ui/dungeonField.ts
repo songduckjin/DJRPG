@@ -31,10 +31,17 @@ export function openDungeonField(ui:Interface,lobby:HTMLElement):void {
   void (async()=>{try{
     const texture=await Assets.load<Texture>('/assets/dungeon/prison-floor-v1.png');if(closed)return;
     await view.mount(get('.dungeon-field-canvas'));mounted=true;if(closed||destroyPending){view.app.destroy(true,{children:true,texture:false,textureSource:false});return;}
-    await doorOpened;if(closed)return;observer.disconnect();ui.open(null);if(ui.openModal!==null){cleanup();return;}field.classList.add('is-ready');get<HTMLButtonElement>('.dungeon-field-leave').focus();
+    await doorOpened;if(closed)return;observer.disconnect();
     const background=new Sprite(texture);view.app.stage.addChildAt(background,0);
     for(const layer of [view.floor,view.terrainLayer,view.ambientLayer,view.glow,view.shade])layer.visible=false;
     view.drawTerrain=()=>{};view.drawDust=()=>{};view.drawRunes=()=>{};
+    // Render a complete frame before exposing the canvas. Keep the lobby underneath
+    // throughout the fade so neither main hunting nor the renderer's clear color flashes.
+    background.width=view.app.screen.width;background.height=view.app.screen.height;
+    view.draw(battle.world,0);view.app.renderer.render(view.app.stage);
+    requestAnimationFrame(()=>{if(closed)return;field.classList.add('is-ready');get<HTMLButtonElement>('.dungeon-field-leave').focus();
+      window.setTimeout(()=>{if(!closed&&ui.openModal==='dungeon')ui.open(null);},650);
+    });
     let previous=performance.now();
     view.app.ticker.add(()=>{if(closed)return;const now=performance.now(),dt=document.hidden?0:Math.min(.05,(now-previous)/1000);previous=now;age+=dt;
       if(age>.65&&!battle.finished){combatTime+=dt;battle.advance(dt);}
