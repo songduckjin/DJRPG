@@ -1950,3 +1950,10 @@
 
 | 183 대기창벽 하단 암부 제거 | fks3997 | preview/gravel-background-fks3997 | styles/dungeon.css, assets/dungeon/lobby-wall-v2.png, 문서 | 하 | [x] |
 - 183: CSS하단fade/PNG하단암부제거 v2, tsc/관련3/아트/diff통과. 실기미실행, preview만.
+
+| 191 테스트 변경 일괄 운영 배포 | fks3997 | preview/gravel-background-fks3997 | 최신 main 통합·충돌파일·검증·PR88 병합·Pages 운영확인·문서 | 중 | [x] |
+- 191: PR88 병합146a6ac4b8ef/Pages운영성공, production version.json일치·JS/CSS/이미지200확인. 전체448중446통과/기존main동일2실패, 빌드통과. 완료기록은불필요한추가운영빌드방지를위해로컬커밋보관.
+
+| 193 필드 드랍 바닥좌표 고정 | fks3997 | preview/gravel-background-fks3997 | game/render/drops.ts, game/lootGround.ts, tests/loot-ground.test.mjs, 문서 | 하 | [x] |
+| 192 필드 드랍 등급 테두리 통일 | fks3997 | preview/gravel-background-fks3997 | game/render/drops.ts, game/render/lootOutline.ts, tests/field-loot-outline.test.mjs, 문서 | 하 | [x] |
+- 192/193: 순수등급색alpha실루엣1px/형상광·바닥UV기준낙하/그림자/착지예약고정. tsc/관련38/build/diff통과. 사용자직접운영배포요청.

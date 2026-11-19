@@ -1,3 +1,5 @@
+import {createLootOutline,LOOT_OUTLINE_PAD} from './lootOutline';
+import {captureLootGround,projectLootGround} from '../lootGround';
 import { Assets, Container, Graphics, Rectangle, Sprite, Texture } from 'pixi.js';
 import type { Coin, Drop, World } from '../world';
 import { equipmentImage, isSkillBook, type Item, type Rarity } from '../items';
@@ -10,7 +12,7 @@ import type { GameView } from '../render';
  *  book drop reads as its grade at a glance. A coin carries no outer light at all. */
 const lootInk: Record<Rarity, number> = { common: 0xcdd6e0, magic: 0x2f7bff, rare: 0xffd400, epic: 0xa855f7, unique: 0xff8a00, legendary: 0xff2d2d };
 /** A drop is drawn at a stationary monster's ground-shadow size (about 38px). */
-const ART_SIZE = 34, COIN_SIZE = 30, ART_BOX = 38;
+const ART_SIZE = 34, COIN_SIZE = 30;
 /** Pull gravity of the toss, in pixels per second squared — the same beat as the dungeon's loot. */
 const BOUNCE_GRAVITY = 1200;
 /** Height of the little hop a drop makes before it falls: a sixth of its 34px icon, so it drops with
@@ -31,7 +33,7 @@ export type LootView = {
   fallback?: Graphics;
   taken?: LootDrop;
   /** Rest offset from the point the drop fell on, in screen pixels. */
-  tx: number; ty: number;
+  origin: {x:number;y:number}; landing: {x:number;y:number};
   drift: number;
   /** Height above the floor and its speed. A drop only travels straight up and down, so it keeps its
    *  upright icon all the way from the kill to the floor and into the character. */
@@ -73,16 +75,6 @@ function lootArtTexture(view: GameView, item: Item): Texture | undefined {
   return texture;
 }
 
-/** Soft halo behind a grade-coloured drop: one concentric falloff, tinted per grade. */
-function glowTexture(view: GameView): Texture {
-  if (view.lootGlow) return view.lootGlow;
-  const shape = new Graphics();
-  for (let step = 12; step >= 1; step--) shape.circle(0, 0, step * 2.4).fill({ color: 0xffffff, alpha: .055 });
-  view.lootGlow = view.app.renderer.generateTexture(shape);
-  shape.destroy();
-  return view.lootGlow;
-}
-
 /** The icon of a drop, plus for an item the hard 1px grade outline and the grade halo. Nothing is
  *  added when the art has not arrived yet; the caller keeps a diamond marker until it does. */
 function attachArt(view: GameView, body: Container, gold: boolean, item: Item | undefined, ink: number): Sprite[] {
@@ -96,15 +88,14 @@ function attachArt(view: GameView, body: Container, gold: boolean, item: Item | 
   }
   const texture = lootArtTexture(view, item!);
   if (!texture) return [];
-  // The outline is the same icon tinted and offset a pixel to each side, so it follows the icon's
-  // own silhouette instead of a plate or a ring; the art itself is added over it.
-  const sprites: Sprite[] = [];
-  for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
-    const edge = new Sprite(texture);
-    edge.anchor.set(.5, 1); edge.width = ART_SIZE; edge.height = ART_SIZE;
-    edge.position.set(dx, dy); edge.tint = ink;
-    sprites.push(edge); body.addChild(edge);
-  }
+  const key=`grade:${texture.uid}:${ink}`;
+  let outline=view.lootArtTextures.get(`${key}:outline`),halo=view.lootArtTextures.get(`${key}:halo`);
+  if(!outline||!halo){const created=createLootOutline(texture,ink,ART_SIZE);outline=created.outline;halo=created.halo;view.lootArtTextures.set(`${key}:outline`,outline);view.lootArtTextures.set(`${key}:halo`,halo);}
+  const glow=new Sprite(halo);glow.label='loot-grade-glow';
+  const edge=new Sprite(outline);
+  for(const sprite of [glow,edge]){sprite.anchor.set(.5,1);sprite.width=sprite.height=ART_SIZE+2*LOOT_OUTLINE_PAD;sprite.y=LOOT_OUTLINE_PAD;}
+  body.addChild(glow,edge);
+  const sprites:Sprite[]=[edge];
   const art = new Sprite(texture);
   art.anchor.set(.5, 1); art.width = ART_SIZE; art.height = ART_SIZE;
   sprites.push(art); body.addChild(art);
@@ -117,7 +108,7 @@ function attachArt(view: GameView, body: Container, gold: boolean, item: Item | 
  *  Painting only: `world.ts` decides when a drop is stored, so a drop held back by a full bag stays
  *  visible on the ground instead of looking swallowed. */
 export function drawLoot(this: GameView, world: World, project: (x: number, y: number) => [number, number], time: number, dt: number): void {
-  const h = this.app.screen.height;
+  const h = this.app.screen.height, viewport={width:this.app.screen.width,height:h};
   const [heroX, heroY] = project(world.player.x, world.player.y);
   const heroH = Math.max(48, h * heroBodyFraction);
   const rx = Math.max(40, heroH * .5), ry = heroH + 8, reach = Math.max(120, heroH * 2 + 8);
@@ -129,6 +120,9 @@ export function drawLoot(this: GameView, world: World, project: (x: number, y: n
     this.lootViews.delete(entry);
     if (view.taken) this.lootTaken = this.lootTaken.filter(t => t !== view.taken);
   }
+  // Reproject reserved landing spots before allocating new ones, so camera movement cannot
+  // make the old screen-space reservations displace the next pile.
+  for(const view of this.lootViews.values())if(view.taken)Object.assign(view.taken,projectLootGround(view.landing,viewport,world.player));
   let index = 0;
   for (const [entry, info] of entries) {
     const [groundX, groundY] = project(entry.x, entry.y);
@@ -139,15 +133,8 @@ export function drawLoot(this: GameView, world: World, project: (x: number, y: n
       const [spot] = lootRestSpots(heroX, heroY, [{ x: groundX, y: groundY, gold: info.gold }], this.lootTaken, rx, ry, LOOT_GAP, reach);
       const body = new Container();
       body.zIndex = info.gold ? LOOT_DEPTH.gold : LOOT_DEPTH.item;
-      let glow: Sprite | undefined;
-      if (!info.gold) {
-        glow = new Sprite(glowTexture(this));
-        glow.anchor.set(.5); glow.blendMode = 'add'; glow.tint = lootInk[info.item!.rarity];
-        glow.width = ART_BOX + 22; glow.height = ART_BOX + 22;
-        glow.position.set(0, -ART_SIZE / 2);
-        body.addChild(glow);
-      }
       const art = attachArt(this, body, info.gold, info.item, info.gold ? 0xf3c14b : lootInk[info.item!.rarity]);
+      const glow=body.children.find(child=>child.label==='loot-grade-glow') as Sprite|undefined;
       let fallback: Graphics | undefined;
       if (!art.length) {
         // Until (or instead of) the art a plain grade diamond keeps the drop visible.
@@ -158,22 +145,23 @@ export function drawLoot(this: GameView, world: World, project: (x: number, y: n
       (spot.y < heroY - 6 ? this.lootBack : this.lootFront).addChild(body);
       view = {
         body, art, glow, fallback, taken: this.lootTaken[this.lootTaken.length - 1],
-        tx: spot.x - groundX, ty: spot.y - groundY,
+        origin:captureLootGround({x:groundX,y:groundY},viewport,world.player),landing:captureLootGround(spot,viewport,world.player),
         drift: reducedMotion ? 1 : 0, h: reducedMotion ? 0 : 2, vh: reducedMotion ? 0 : TOSS_SPEED * (1 + (Math.random() * 2 - 1) * TOSS_VARY), tapped: false, settled: reducedMotion
       };
       this.lootViews.set(entry, view);
     }
     if (!view.art.length) {
       const art = attachArt(this, view.body, info.gold, info.item, info.gold ? 0xf3c14b : lootInk[info.item!.rarity]);
-      if (art.length) { if (view.fallback) { view.body.removeChild(view.fallback); view.fallback.destroy(); view.fallback = undefined; } view.art = art; }
+      if (art.length) { if (view.fallback) { view.body.removeChild(view.fallback); view.fallback.destroy(); view.fallback = undefined; } view.art = art;view.glow=view.body.children.find(child=>child.label==='loot-grade-glow') as Sprite|undefined; }
     }
     // Depth: loot resting above the character's feet is drawn behind him, the rest in front. Neither
     // sits on the character art, because the resting spot keeps clear of his silhouette.
-    const layer = groundY + view.ty < heroY - 6 ? this.lootBack : this.lootFront;
+    const origin=projectLootGround(view.origin,viewport,world.player),landing=projectLootGround(view.landing,viewport,world.player);
+    const layer = landing.y < heroY - 6 ? this.lootBack : this.lootFront;
     if (view.body.parent !== layer) layer.addChild(view.body);
     view.drift = Math.min(1, view.drift + dt / .45);
     const ease = 1 - Math.pow(1 - view.drift, 3);
-    const x = groundX + view.tx * ease, y = groundY + view.ty * ease;
+    const x = origin.x+(landing.x-origin.x)*ease, y = origin.y+(landing.y-origin.y)*ease;
     // A coin always flies in at the rest beat; an item only once the world marked the pull, which it
     // withholds while the bag is full.
     const started = info.gold ? LOOT_REST_SECONDS : 'absorb' in entry ? entry.absorb : undefined;
