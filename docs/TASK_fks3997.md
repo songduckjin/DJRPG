@@ -531,3 +531,6 @@
 - Pixi불투명canvas생성후alpha0은지원안됨. 전용앱init부터backgroundAlpha0으로설정해기존CSS배경/문복구, 공용render무변경. preview만.
 
 - 180: Pixi BackgroundSystem/CanvasContextSystem에서초기alpha만context에반영확인, 전용앱init옵션backgroundAlpha0으로수정. tsc/관련10/diff통과. 미리보기만, 브라우저실기미실행.
+
+## [-] [작업181] 대기창벽시안적용
+- 승인된회색석조벽/어두운가장자리, 기존문틀/문짝분리유지. 추천30층은설계제안만/현1~2층유지. 미리보기만.
