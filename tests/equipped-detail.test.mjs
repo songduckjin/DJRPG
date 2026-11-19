@@ -40,101 +40,41 @@ test('full bag prevents unequip and explains failure; dismiss only clears view s
 const { attachedDetailPosition } = await import('../src/ui/bagDetail.ts');
 const { deferEquippedDismiss } = await import('../src/ui/equippedDetail.ts');
 const { wrapEquipmentName } = await import('../src/ui/modals/equipModal.ts');
-const { equipmentFallbackPortrait, equipmentPortraitPlan } = await import('../src/ui/equipmentPortrait.ts');
-const { baseItems } = await import('../src/game/items.ts');
-const { armorTier, helmetTier, heroAppearance } = await import('../src/game/appearance.ts');
-const { resetCostumeManifestCache, loadCostumeManifest, COSTUME_MANIFEST_SCHEMA_VERSION } = await import('../src/game/costume/manifest.ts');
-const { costumeIdFor } = await import('../src/game/costume/mapping.ts');
-const { planHeroCostume } = await import('../src/game/render/costumeHero.ts');
+const { equipmentFallbackPortrait, equipmentPortraitPlan, resetEquipmentPortraitCache } = await import('../src/ui/equipmentPortrait.ts');
 const portraitSource = readFileSync(new URL('../src/ui/equipmentPortrait.ts', import.meta.url), 'utf8');
-// 매니페스트 캐시를 비워 "실물 아틀라스 이전" 상태에서 시작한다(142 전 배포 상태).
-resetCostumeManifestCache();
+resetEquipmentPortraitCache();
 
-test('낡은 투구 미리보기는 얼굴을 덮는 통합 바디 초상화를 쓴다',()=>{
-  const save=freshSave('female');
-  save.equipment.armor={id:'armor',name:baseItems.armor[0],slot:'armor',rarity:'common',stats:{}};
-  save.equipment.helmet={id:'helmet',name:'낡은 투구',slot:'helmet',rarity:'common',stats:{}};
-  assert.equal(equipmentFallbackPortrait(save),'/assets/warrior_female_armored_oldhelm.png');
-  save.equipment.helmet.name='낡은투구';
-  assert.equal(equipmentFallbackPortrait(save),'/assets/warrior_female_armored_oldhelm.png');
-});
-
-test('equipment preview falls back to the tier full-body portrait until the costume manifest exists',()=>{
-  const tierPaths={1:'starter',2:'t2',3:'t3',4:'t4'};
-  for(const gender of ['male','female']) for(const tier of [1,2,3,4]){
-    const armorName=baseItems.armor.find(name=>armorTier({slot:'armor',name})===tier);
-    const helmetName=baseItems.helmet.find(name=>helmetTier({slot:'helmet',name})===tier);
-    assert(armorName&&helmetName,`tier ${tier} gear names exist`);
-    const save=freshSave(gender);
-    save.equipment.armor={id:'armor',name:armorName,slot:'armor',rarity:'common',stats:{}};
-    save.equipment.helmet={id:'helmet',name:helmetName,slot:'helmet',rarity:'common',stats:{}};
-    const preview=equipmentPortraitPlan(save);
-    assert.equal(preview.base,`/assets/warrior_equipped_${tierPaths[tier]}_${gender}.png`);
-    assert.equal(preview.mode,'fallback');
-    assert.deepEqual(preview.layers,[]);
-    assert.match(preview.key,/^fallback:\/assets\/warrior_equipped_/);
-  }
-});
-test('helmet-only, armor-only, and unarmored previews use the existing full-body portrait',()=>{
-  for(const gender of ['male','female']){
-    const save=freshSave(gender);
-    save.equipment.helmet={id:'helmet',name:baseItems.helmet[0],slot:'helmet',rarity:'common',stats:{}};
-    let plan=equipmentPortraitPlan(save);
-    assert.equal(plan.base,heroAppearance(save).portrait);assert.equal(plan.mode,'fallback');assert.deepEqual(plan.layers,[]);
-    save.equipment.helmet=undefined;
-    save.equipment.armor={id:'armor',name:baseItems.armor[0],slot:'armor',rarity:'common',stats:{}};
-    plan=equipmentPortraitPlan(save);
-    assert.equal(plan.base,heroAppearance(save).portrait);assert.equal(plan.mode,'fallback');assert.deepEqual(plan.layers,[]);
-    save.equipment.armor=undefined;
-    save.equipment.weapon={id:'weapon',name:baseItems.weapon[0],slot:'weapon',rarity:'common',stats:{}};
-    plan=equipmentPortraitPlan(save);
-    assert.equal(plan.base,heroAppearance(save).portrait);assert.equal(plan.mode,'fallback');
-  }
-});
-test('info preview draws the shared field costume plan with the idle frame only',async()=>{
-  const equip=(slot,name)=>({id:slot,name,slot,rarity:'common',stats:{}});
-  const pick=(slot,save)=>{
-    const name=baseItems[slot][0], costumeId=costumeIdFor({slot,name});
-    assert(costumeId,`${slot} maps to a costumeId`);
-    save.equipment[slot]=equip(slot,name);
-    return { costumeId, slot:slot==='ring1'||slot==='ring2'?'ring':slot, animMode:'attach', anchor:{x:.5,y:.9} };
+for (const gender of ['male', 'female']) test(`${gender}: field and equipment preview keep the approved pilot art for every equipped set`, () => {
+  const save = freshSave(gender);
+  // 투구를 쓰면 머리 없는 본체(작업 152) 위에 투구 파츠를 합성한다.
+  const expectedBase = () => `/assets/pilot-25d/${save.equipment.helmet ? 'headless/' : ''}warrior_${gender}_idle_v1.png`;
+  const check = () => {
+    const expected = expectedBase();
+    assert.equal(equipmentFallbackPortrait(save), expected);
+    const plan = equipmentPortraitPlan(save);
+    assert.equal(plan.mode, 'fallback');
+    assert.equal(plan.base, expected);
+    // 초상화 키는 성별 + 착용 투구 머리 파츠(작업 151). 투구가 없으면 '-'.
+    assert.match(plan.key, new RegExp(`^pilot:${gender}:`));
+    assert.equal(plan.key, `pilot:${gender}:${plan.helmet ? plan.helmet.path : '-'}`);
+    assert.deepEqual(plan.layers, []);
   };
-  for(const gender of ['male','female']){
-    const save=freshSave(gender);
-    const costumes=['armor','helmet','weapon'].map(slot=>pick(slot,save));
-    // 팔레트·티어가 다른 두 번째 갑옷도 매니페스트에 넣어 장비 변경 시 계획이 다시 서게 한다.
-    costumes.push({costumeId:costumeIdFor({slot:'armor',name:baseItems.armor[1]}),slot:'armor',animMode:'attach',anchor:{x:.5,y:.9}});
-    const manifest={schemaVersion:COSTUME_MANIFEST_SCHEMA_VERSION,costumes};
-    const load=await loadCostumeManifest({fetch:async()=>({ok:true,json:async()=>manifest})});
-    assert.equal(load.ok,true,'injected manifest loads');
-    const preview=equipmentPortraitPlan(save), shared=planHeroCostume(save,load);
-    assert.equal(shared.ok,true);
-    assert.equal(preview.mode,'costume',`${gender} uses the costume plan`);
-    assert.deepEqual(preview.layers,shared.layers,'preview layers are the field layers');
-    const roles=preview.layers.map(layer=>layer.role);
-    // 갑옷을 입으면 본체 파츠 3종이 모두 빠진다(v3: 팔·다리가 갑옷 밖으로 나오던 버그 수정).
-    assert(!roles.includes('legs')&&!roles.includes('arms')&&!roles.includes('torso'),'equipped armor replaces every bare body part');
-    assert(roles.includes('armor')&&roles.includes('helmet')&&roles.includes('weapon'));
-    assert.match(preview.key,/^costume:/);
-    const changed=freshSave(gender);
-    changed.equipment.armor=equip('armor',baseItems.armor[1]);
-    changed.equipment.helmet=save.equipment.helmet;changed.equipment.weapon=save.equipment.weapon;
-    const other=equipmentPortraitPlan(changed);
-    assert.equal(other.mode,'costume');
-    assert.notEqual(other.key,preview.key,'changing equipment changes the preview cache key');
-  }
-  resetCostumeManifestCache();
+  check();
+  save.equipment = {
+    weapon: { id: 'weapon', name: '전설의 두손검', slot: 'weapon', rarity: 'legendary', stats: {} },
+    armor: { id: 'armor', name: '용비늘 갑옷', slot: 'armor', rarity: 'legendary', stats: {} },
+    helmet: { id: 'helmet', name: '낡은 투구', slot: 'helmet', rarity: 'common', stats: {} },
+    offhand: { id: 'crest', name: '강철 문장', slot: 'offhand', rarity: 'common', stats: {} },
+    boots: { id: 'boots', name: '기사의 사바톤', slot: 'boots', rarity: 'common', stats: {} }
+  };
+  check();
 });
-test('portrait module keeps one idle frame and bounds result and atlas image caches',()=>{
-  assert.doesNotMatch(portraitSource,/from '\.\.\/game\/items'|\bequipmentImage\(|\btightFrame\b|\bgetImageData\b|const fit\b/,'종이인형·픽셀 스캔 경로가 남아 있지 않다');
-  assert.match(portraitSource,/costumeLayerCell\(layer, 'idle', 0\)/);
-  assert.match(portraitSource,/portraitCache\.size > 24/);
-  assert.match(portraitSource,/equipmentPortraitAtlasPageCacheLimit = 2/);
-  assert.match(portraitSource,/while \(atlasImages\.size > equipmentPortraitAtlasPageCacheLimit\)/);
-  assert.match(portraitSource,/pendingAtlasImages\.has\(url\)/,'합성 중인 페이지는 캐시 축출 대상에서 제외한다');
-  assert.match(portraitSource,/composingAtlasImages\.has\(url\)/,'캔버스 합성이 끝날 때까지 페이지를 캐시에 고정한다');
-  assert.match(portraitSource,/composingAtlasImages\.set\(url, \(composingAtlasImages\.get\(url\) \?\? 0\) \+ 1\)/);
-  assert.match(portraitSource,/planHeroCostume/);
+
+test('equipment portrait uses a cached full-body pilot image without loading costume manifests or overlays', () => {
+  assert.match(portraitSource, /pilot:\$\{save\.gender\}/);
+  assert.match(portraitSource, /warrior_\$\{save\.gender\}_idle_v1\.png/);
+  assert.doesNotMatch(portraitSource, /loadCostumeManifest|planHeroCostume|wearableEquipmentImage/);
+  assert.match(portraitSource, /portraitCache\.size > 24/);
 });
 test('all six tier portraits are 720px tall transparent PNG assets',()=>{
   for(const gender of ['male','female']) for(const tier of [2,3,4]){

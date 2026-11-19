@@ -1,39 +1,40 @@
-import { heroAppearance, type GearTier } from '../game/appearance';
 import {
-  cachedCostumeManifest, costumeAtlasUrl, costumeManifestUrl, loadCostumeManifest,
-  type CostumeLoadResult, type CostumeManifest
-} from '../game/costume/manifest';
-import {
-  costumeAtlasCellHeight, costumeAtlasCellWidth, costumeAtlasPageName, costumeLayerCell,
-  costumeLayerPageIndex, planHeroCostume, type CostumeLayerPlan
+  costumeAtlasCellHeight, costumeAtlasCellWidth, costumeLayerAtlasUrl, costumeLayerCell, costumeLayerPageIndex,
+  type CostumeLayerPlan
 } from '../game/render/costumeHero';
 import type { Save } from '../game/store';
+import { baseItemIndex } from '../game/items';
+import { helmetArtFor, helmetArtPaths, helmetIdlePlacement } from '../game/render/helmets';
 
 /**
- * 내 정보(장비창) 초상화 — 필드와 **같은 공용 외형 계획**을 쓴다 (작업 141).
- *
- * - 계획: `planHeroCostume(save, 매니페스트)`(작업 140, `render/costumeHero.ts`)가 돌려주는
- *   본체 3파츠 + 장비 레이어를 그대로 그린다. UI 전용 `fit` 좌표 표나
- *   `wearableEquipmentImage` 5부위 덧그리기는 [작업 136]에서 제거했고 이 파일에 남기지 않는다.
- * - 필드와 다른 점은 **정지 1프레임(idle frame 0)** 하나뿐이다. 필드는 `world`의 이동·공격·스킬
- *   상태로 `idle`/`walk`/`attack`/`slash`/`spin`/`smash`/`cast`를 고르고 프레임을 진행하지만,
- *   이 미리보기는 장비 확인용 정지 그림이라 `idle` 0번 슬롯(`costumeLayerCell(layer, 'idle', 0)`)만
- *   쓴다. 그래서 계획 함수·아틀라스 셀 규약·피벗·`zOrder`·파츠 교체는 필드와 동일하고,
- *   모션 진행과 재생 배율만 없다.
- * - 실물 코스튬 아틀라스는 [작업 142]에서 배포된다. 매니페스트·아틀라스가 없거나 셀이 페이지
- *   밖이면 빈 화면 대신 136의 티어별 전신 초상화(`warrior_equipped_t*`)로 안전하게 폴백한다.
+ * 내 정보(장비창) 초상화 — Task 149 full-body pilot image. Gear remains functional but its
+ * visual is fixed to the same male/female pilot sheet used by the field renderer.
  */
 
-const tierPortrait: Record<GearTier, string> = { 1: 'starter', 2: 't2', 3: 't3', 4: 't4' };
-
-/** 폴백 전신 초상화 경로. 갑옷+투구를 함께 착용하면 갑옷 티어별 시트를 쓴다. */
+/** 전사 시안은 장착 조합과 무관하게 필드와 동일한 전신 그림을 쓴다. */
 export function equipmentFallbackPortrait(save: Save): string {
-  const appearance = heroAppearance(save);
-  if (save.equipment.helmet?.name.normalize('NFKC').replace(/[\s\u200b\ufeff]/gu, '') === '낡은투구') return appearance.portrait;
-  if (save.equipment.armor && save.equipment.helmet && appearance.armorTier) {
-    return `/assets/warrior_equipped_${tierPortrait[appearance.armorTier]}_${save.gender}.png`;
-  }
-  return appearance.portrait;
+  // 투구를 쓰면 필드와 같은 머리 없는 본체 위에 투구 파츠를 얹는다(작업 152).
+  if (save.equipment.helmet) return `/assets/pilot-25d/headless/warrior_${save.gender}_idle_v1.png`;
+  return `/assets/pilot-25d/warrior_${save.gender}_idle_v1.png`;
+}
+
+export type EquipmentPortraitHelmet = {
+  /** 투구 머리 파츠 PNG 경로. */
+  path: string;
+  /** 본체 362px 셀 좌표에서 목 밑동의 x·y 와 배율. */
+  x: number;
+  y: number;
+  scale: number;
+};
+
+/** 착용 투구의 머리 파츠. 투구가 없으면 undefined(전신 그림만 그린다). */
+export function equipmentPortraitHelmet(save: Save): EquipmentPortraitHelmet | undefined {
+  const item = save.equipment.helmet;
+  if (!item) return undefined;
+  const art = helmetArtFor(save.gender, baseItemIndex(item));
+  if (!art) return undefined;
+  const place = helmetIdlePlacement(save.gender);
+  return { path: helmetArtPaths[art], x: place.x, y: place.y, scale: place.scale };
 }
 
 export type EquipmentPortraitPlan = {
@@ -44,63 +45,23 @@ export type EquipmentPortraitPlan = {
   mode: 'costume' | 'fallback';
   /** 즉시 표시용 전신 초상화 경로. 코스튬 합성이 끝나기 전·에셋 없음일 때 이 그림이 보인다. */
   base: string;
-  /** 캐시 키(성별 + 레이어 구성 + 피벗/보정). */
+  /** 착용 투구가 있으면 전신 초상화 위에 같은 자리·배율로 합성한다. */
+  helmet?: EquipmentPortraitHelmet;
+  /** 캐시 키(성별 + 투구). */
   key: string;
   gender: Save['gender'];
   layers: CostumeLayerPlan[];
 };
 
-function cachedLoad(): CostumeLoadResult | undefined {
-  const manifest: CostumeManifest | undefined = cachedCostumeManifest();
-  return manifest ? { ok: true, manifest, url: costumeManifestUrl(), fallback: false, reason: 'none' } : undefined;
-}
-
 /**
  * Save → 초상화 계획. 동기 함수이며 이미 로드된 매니페스트만 쓴다(`renderEquipmentPortrait`가
- * 로드를 마친 뒤 다시 호출한다). 매니페스트가 아직 없으면 폴백 계획을 돌려준다.
+ * 로드를 마친 뒤 다시 호출한다). 고정 시안은 장비 레이어를 표시하지 않는다.
  */
 export function equipmentPortraitPlan(save: Save): EquipmentPortraitPlan {
   const base = equipmentFallbackPortrait(save);
-  const load = cachedLoad();
-  if (load) {
-    const plan = planHeroCostume(save, load);
-    if (plan.ok) {
-      const key = `costume:${save.gender}:${plan.layers.map(layer =>
-        `${layer.role}/${layer.page}/${layer.variant}/${layer.anchor.x},${layer.anchor.y}/${layer.offset.x},${layer.offset.y}/${layer.scale.x},${layer.scale.y}/${layer.rotation}`
-      ).join('|')}`;
-      return { mode: 'costume', base, key, gender: save.gender, layers: plan.layers };
-    }
-  }
-  return { mode: 'fallback', base, key: `fallback:${base}`, gender: save.gender, layers: [] };
-}
-
-/* ── 매니페스트 1회 로드 ───────────────────────────────────────────────── */
-
-let manifestAttempt: Promise<CostumeLoadResult | undefined> | undefined;
-let manifestFailed = false;
-
-/**
- * 매니페스트를 1회만 요청한다. 실패하면 세션 동안 폴백으로 굳는다 —
- * 장비창을 열 때마다 404를 반복하지 않기 위해서다(필드 렌더러의 폴백 고정과 같은 규율).
- */
-function ensureManifest(): Promise<CostumeLoadResult | undefined> {
-  if (manifestFailed) return Promise.resolve(undefined);
-  const cached = cachedLoad();
-  if (cached) return Promise.resolve(cached);
-  if (!manifestAttempt) {
-    manifestAttempt = loadCostumeManifest().then(result => {
-      if (!result.ok) {
-        manifestFailed = true;
-        console.info(`[장비창] 코스튬 매니페스트 없음 → 전신 초상화로 폴백: ${result.reason} ${result.detail}`);
-      }
-      return result;
-    }).catch(error => {
-      manifestFailed = true;
-      console.info('[장비창] 코스튬 매니페스트 요청 실패 → 전신 초상화로 폴백:', error);
-      return undefined;
-    });
-  }
-  return manifestAttempt;
+  const helmet = equipmentPortraitHelmet(save);
+  // 착용 투구가 바뀌면 합성 결과도 바뀌므로 키에 넣는다(성별 + 투구 파츠).
+  return { mode: 'fallback', base, key: `pilot:${save.gender}:${helmet ? helmet.path : '-'}`, gender: save.gender, layers: [], helmet };
 }
 
 /* ── 아틀라스 이미지·합성 결과 캐시 ─────────────────────────────────────── */
@@ -210,7 +171,7 @@ function fitCanvas(width: number, height: number): HTMLCanvasElement {
 async function composeCostume(layers: CostumeLayerPlan[]): Promise<string> {
   const pageUrls = new Map<string, string>();
   for (const layer of layers) {
-    const url = costumeAtlasUrl(costumeAtlasPageName(layer.page, costumeLayerPageIndex(layer)));
+    const url = costumeLayerAtlasUrl(layer);
     pageUrls.set(`${layer.page}#${costumeLayerPageIndex(layer)}`, url);
   }
   const pinnedUrls = [...new Set(pageUrls.values())];
@@ -260,8 +221,8 @@ async function composeCostume(layers: CostumeLayerPlan[]): Promise<string> {
   }
 }
 
-/** 폴백: 전신 초상화 한 장을 캔버스에 맞춰 그린다(빈 화면 방지). */
-async function composeFallback(base: string): Promise<string> {
+/** 폴백: 전신 초상화 한 장(+착용 투구)을 캔버스에 맞춰 그린다(빈 화면 방지). */
+async function composeFallback(base: string, helmet?: EquipmentPortraitHelmet): Promise<string> {
   const image = await loadImage(base, fallbackImages, new Set());
   const canvas = fitCanvas(image.naturalWidth, image.naturalHeight);
   const context = canvas.getContext('2d');
@@ -271,6 +232,19 @@ async function composeFallback(base: string): Promise<string> {
   const scale = Math.min(canvas.width / image.naturalWidth, canvas.height / image.naturalHeight);
   const width = image.naturalWidth * scale, height = image.naturalHeight * scale;
   context.drawImage(image, (canvas.width - width) / 2, canvas.height - height, width, height);
+  if (helmet) {
+    try {
+      const patch = await loadImage(helmet.path, fallbackImages, new Set());
+      // 필드와 같은 362px 셀 좌표 → 초상화 캔버스 좌표(전신 그림이 그려진 배율 그대로).
+      const patchScale = helmet.scale * scale;
+      const patchWidth = patch.naturalWidth * patchScale, patchHeight = patch.naturalHeight * patchScale;
+      const left = (canvas.width - width) / 2 + helmet.x * scale - patchWidth / 2;
+      const top = canvas.height - height + helmet.y * scale - patchHeight;
+      context.drawImage(patch, left, top, patchWidth, patchHeight);
+    } catch (error) {
+      console.info('[장비창] 투구 머리 파츠 로딩 실패 → 전신 그림만 표시:', error);
+    }
+  }
   return canvas.toDataURL('image/png');
 }
 
@@ -279,7 +253,6 @@ async function composeFallback(base: string): Promise<string> {
  * 픽셀 단위 스캔은 하지 않는다 — 팔레트·피부톤 보정은 142 아틀라스가 색으로 담당한다.
  */
 export async function renderEquipmentPortrait(save: Save): Promise<string> {
-  await ensureManifest();
   const plan = equipmentPortraitPlan(save);
   const cached = cachedPortrait(plan.key);
   if (cached) return cached;
@@ -292,7 +265,7 @@ export async function renderEquipmentPortrait(save: Save): Promise<string> {
         console.info('[장비창] 코스튬 합성 실패 → 전신 초상화로 폴백:', error);
       }
     }
-    return composeFallback(plan.base);
+    return composeFallback(plan.base, plan.helmet);
   })();
   storePortrait(plan.key, pending);
   void pending.catch(() => {
@@ -308,6 +281,4 @@ export function resetEquipmentPortraitCache(): void {
   pendingAtlasImages.clear();
   fallbackImages.clear();
   failedPages.clear();
-  manifestAttempt = undefined;
-  manifestFailed = false;
 }

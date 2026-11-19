@@ -5,15 +5,19 @@ import type { LootView } from './render/drops';
 import { wearableAssetPaths, type Slot } from './items';
 import { drawRunes, drawTerrain, drawDust, drawLighting, drawVignette } from './render/field';
 import { drawHero, updateAfterimages, updateCorpses, drawEntities } from './render/entities';
-import { beginCostumeHero, createCostumeHeroState, type CostumeHeroState } from './render/costumeHero';
+import { createCostumeHeroState, type CostumeHeroState } from './render/costumeHero';
 import { drawSkillVfx, drawDragon, drawHit, updateDamageLabels, drawDeath, drawEffects } from './render/vfx';
 import { drawLoot } from './render/drops';
 import type { LootDrop } from './loot';
 import { projectArenaPoint } from './arena';
 import { createBootProgress } from './bootProgress';
+import { helmetArtList, helmetArtPaths, headlessBodyPaths } from './render/helmets';
 
 const paths = {
   floor: '/assets/wasteland-ground.png', terrainProps: '/assets/wasteland-props.png', male: '/assets/warrior_male_base.png',
+  pilotMale: '/assets/pilot-25d/warrior_male_idle_v1.png', pilotFemale: '/assets/pilot-25d/warrior_female_idle_v1.png',
+  // 투구 착용 시에만 쓰는 머리 없는 본체(작업 152) — 같은 셀 좌표계라 배율·앵커를 공유한다.
+  pilotMaleHeadless: headlessBodyPaths.male.idle, pilotFemaleHeadless: headlessBodyPaths.female.idle,
   female: '/assets/warrior_female_base.png', armored: '/assets/warrior_armored_swordless.png',
   armoredNoHelm: '/assets/warrior_armored_nohelm_swordless.png', femaleArmoredNoHelm: '/assets/warrior_female_armored_nohelm_swordless.png',
   femaleArmoredHelm: '/assets/warrior_female_armored_helm_swordless.png',
@@ -38,6 +42,10 @@ const animationPaths = {
 // 870/4 so no sword tip or foot reaches into the neighbouring frame. The sheet height
 // stays 290 px, which is what heroScale.ts measures a body height against.
 const attackSheets = {
+  pilotMaleAttack: '/assets/pilot-25d/warrior_male_attack_v1.png',
+  pilotFemaleAttack: '/assets/pilot-25d/warrior_female_attack_v1.png',
+  pilotMaleAttackHeadless: headlessBodyPaths.male.attack,
+  pilotFemaleAttackHeadless: headlessBodyPaths.female.attack,
   femaleArmoredNoHelmAttack: '/assets/warrior_female_armored_attack.png?v=3',
   femaleArmoredHelmAttack: '/assets/warrior_female_armored_helm_attack.png?v=3',
   femaleHelmAttack: '/assets/warrior_female_helm_attack.png?v=3',
@@ -46,6 +54,10 @@ const attackSheets = {
   maleHelmAttack: '/assets/warrior_male_helm_attack.png?v=3'
 } as const;
 const walkSheets = {
+  pilotMaleWalk: '/assets/pilot-25d/warrior_male_walk_v1.png',
+  pilotFemaleWalk: '/assets/pilot-25d/warrior_female_walk_v1.png',
+  pilotMaleWalkHeadless: headlessBodyPaths.male.walk,
+  pilotFemaleWalkHeadless: headlessBodyPaths.female.walk,
   maleBaseWalk: '/assets/walk8_male_base.png', femaleBaseWalk: '/assets/walk8_female_base.png',
   maleBaseHelmWalk: '/assets/walk8_male_base_helm.png',
   femaleBaseHelmWalk: '/assets/walk8_female_base_helm.png',
@@ -63,7 +75,9 @@ const walkSheets = {
 type Animation = keyof typeof animationPaths | keyof typeof attackSheets | keyof typeof walkSheets;
 export const renderAssetPaths = [
   ...Object.values(paths), ...Object.values(animationPaths).flat(),
-  ...Object.values(attackSheets), ...Object.values(walkSheets), ...Object.values(wearableAssetPaths)
+  ...Object.values(attackSheets), ...Object.values(walkSheets), ...Object.values(wearableAssetPaths),
+  // 착용 투구 머리 파츠(작업 151) — 장비창과 필드가 같은 PNG 를 쓴다.
+  ...helmetArtList.map(art => helmetArtPaths[art])
 ];
 type Dust = { x: number; y: number; vx: number; vy: number; age: number; duration: number; size: number };
 type Ghost = { sprites: { sprite: Sprite; dx: number; dy: number }[]; x: number; y: number; age: number; duration: number };
@@ -103,6 +117,10 @@ export class GameView {
   hero!: Sprite;
   gearTextures = new Map<string, Texture>();
   gearLoading = new Set<string>();
+  /** 투구 머리 파츠 텍스처 — 경로를 키로 쓴다(작업 151). */
+  helmetTextures = new Map<string, Texture>();
+  /** 현재 그려진 투구 스프라이트. 투구를 벗으면 숨긴다. */
+  heroHelmet?: Sprite;
   heroGear = new Map<Slot, { path: string; sprite: Sprite }>();
   /** 독립형 코스튬 렌더러 상태(작업 140). 매니페스트·아틀라스가 없으면 폴백으로 굳는다. */
   costume: CostumeHeroState = createCostumeHeroState();
@@ -152,6 +170,8 @@ export class GameView {
         return new Texture({ source: sheet.source, frame: new Rectangle(left, 0, right - left, sheet.source.height) });
       });
     }
+    const helmets = await Promise.all(helmetArtList.map(async art => [helmetArtPaths[art], await loadTexture(helmetArtPaths[art])] as const));
+    for (const [path, texture] of helmets) { texture.source.scaleMode = 'linear'; this.helmetTextures.set(path, texture); }
     const walking = await Promise.all((Object.keys(walkSheets) as (keyof typeof walkSheets)[]).map(async key => [key, await loadTexture(walkSheets[key])] as const));
     for (const [key, sheet] of walking) {
       sheet.source.scaleMode = 'linear';
@@ -187,7 +207,8 @@ export class GameView {
     progress.report();
     // 코스튬 매니페스트는 화면을 막지 않고 뒤에서 한 번만 받는다. 없거나 실패하면
     // `fallback` 상태로 굳어 기존 통합 바디 렌더링이 그대로 이어진다(작업 140 §8).
-    void beginCostumeHero(this.costume);
+    // Task 149 uses one approved full-body warrior illustration for every gear state;
+    // skip costume-manifest loading so old overlays cannot replace or cover that art.
   }
 
   draw(world: World, time: number): void {

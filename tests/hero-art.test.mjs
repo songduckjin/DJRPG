@@ -139,3 +139,68 @@ for (const name of swordlessWalk) test(`${name} keeps eight walking poses inside
     }
   }
 });
+
+for (const gender of ['male', 'female']) {
+  const pilot = [
+    [`warrior_${gender}_idle_v1.png`, 362, 362, 1],
+    [`warrior_${gender}_walk_v1.png`, 1448, 362, 4],
+    [`warrior_${gender}_attack_v1.png`, 1448, 362, 4]
+  ];
+  for (const [name, expectedWidth, expectedHeight, frames] of pilot) test(`${name} is a transparent, frame-isolated pilot sprite`, () => {
+    const { width, height, alpha } = decodeAlpha(readFileSync(new URL(`../public/assets/pilot-25d/${name}`, import.meta.url)));
+    assert.equal(width, expectedWidth, `${name}: width`);
+    assert.equal(height, expectedHeight, `${name}: height`);
+    assert.equal(alpha[0], 0, `${name}: upper-left background is transparent`);
+    assert(alpha.some(value => value > 20), `${name}: sprite is empty`);
+    const cell = width / frames;
+    for (let frame = 0; frame < frames; frame += 1) {
+      let painted = 0;
+      for (let y = 0; y < height; y += 1) for (let x = frame * cell; x < (frame + 1) * cell; x += 1) {
+        if (alpha[y * width + x] > 20) painted += 1;
+      }
+      assert(painted > 1000, `${name}: missing frame ${frame}`);
+      if (frame > 0) for (let y = 0; y < height; y += 1) assert.equal(alpha[y * width + frame * cell], 0, `${name}: frame boundary ${frame} has stray pixels`);
+    }
+  });
+}
+
+// Task 150: the pilot sheets draw the body at different heights per state, so `heroBodyPx`
+// has to follow each sheet. Reusing the idle height (335) for all three states shrank the
+// hero about 10 % while walking and up to 27 % in the crouched swing frames.
+{
+  const { heroBodyPx } = await import('../src/game/render/heroScale.ts');
+  const states = [['idle', 1], ['walk', 4], ['attack', 4]];
+  for (const gender of ['male', 'female']) {
+    const key = state => `pilot${gender === 'male' ? 'Male' : 'Female'}${state === 'idle' ? '' : state === 'walk' ? 'Walk' : 'Attack'}`;
+    const measured = {};
+    for (const [state, frames] of states) {
+      const { width, height, alpha } = decodeAlpha(readFileSync(new URL(`../public/assets/pilot-25d/warrior_${gender}_${state}_v1.png`, import.meta.url)));
+      const cell = width / frames;
+      const heights = [];
+      for (let frame = 0; frame < frames; frame++) {
+        let top = height, bottom = -1;
+        for (let y = 0; y < height; y++) for (let x = frame * cell; x < (frame + 1) * cell; x++) {
+          if (alpha[y * width + x] > 20) { top = Math.min(top, y); bottom = Math.max(bottom, y); }
+        }
+        heights.push(bottom - top + 1);
+      }
+      measured[state] = heights;
+    }
+    test(`${gender}: walk and swing body heights match the drawn pilot sheets`, () => {
+      const idle = heroBodyPx[key('idle')];
+      // 서기는 포즈 한 장이라 시트 실측값이 곧 본체 높이다(픽셀 임계값 차이 ±1% 허용).
+      assert(Math.abs(idle - measured.idle[0]) <= idle * .01, `idle: heroBodyPx ${idle} vs drawn ${measured.idle[0]}`);
+      for (const [state, tolerance] of [['walk', .08], ['attack', .08]]) {
+        const mean = measured[state].reduce((sum, value) => sum + value, 0) / measured[state].length;
+        const bodyPx = heroBodyPx[key(state)];
+        assert(Math.abs(bodyPx - mean) <= mean * tolerance, `${state}: heroBodyPx ${bodyPx} vs drawn mean ${mean.toFixed(1)}`);
+      }
+      // 걷기·공격이 서기보다 작게 그려지지 않는다: 배율이 그만큼 커져 화면 크기는 같다.
+      assert(heroBodyPx[key('walk')] < idle);
+      assert(heroBodyPx[key('attack')] < heroBodyPx[key('walk')]);
+      for (const state of ['walk', 'attack']) {
+        assert(heroBodyPx[key(state)] / idle > .75, `${state}: hero must not shrink more than a quarter`);
+      }
+    });
+  }
+}

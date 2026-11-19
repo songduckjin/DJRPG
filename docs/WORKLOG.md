@@ -11,6 +11,116 @@
 
 # 작업 로그
 
+## 2026-11-19 — 공격 4프레임 투구 고개 방향·숙임 매칭 (작업 153)
+
+- **제보**: 「투구 낀 모습까진 완벽한데 공격할 때 머리 방향이 안 가서 머리가 떠다니는 느낌」 + 「다른 투구도 전부」.
+- **원인**: `render/helmets.ts` `helmetFrames`의 `attack` 앵커가 목 밑동보다 10~50px 위에 찍혀 있었다(남 2프레임 y=118, 여 2프레임 y=115). 파츠가 정수리·이마에 얹히고 턱·목이 비어 떠 보였고, `syncHelmet`이 `rotation = 0`으로 고정해 고개가 돌아가거나 숙여진 3·4프레임에서 정면 파츠가 몸통과 따로 놀았다.
+- **재측정**: 원본 공격 시트(`warrior_{male,female}_attack_v1.png`)를 머리 없는 시트와 나란히 놓고 4프레임의 턱·목 밑동을 다시 읽었다(남 0~3프레임 목 밑동 y≈122/118/168/185, 여 ≈133/136/158/188). 앵커를 그 높이로 내리고, 프레임별 고개 기울기와 숙임을 넣었다 — 남 `4°/-3°/12°/15°`·세로 `1/1/0.92/0.88`, 여 `4°/-2°/11°/14°`·세로 `1/1/0.92/0.88`. 3·4프레임은 고개를 깊게 숙인 자세라 세로만 12% 줄여 화면상 단축을 냈다.
+- **렌더**: `HelmetPlacement`에 `rotation?`(라디안, 목 밑동 앵커 피벗)·`scaleY?`(없으면 `scale`)를 추가하고 `render/entities.ts` `syncHelmet`이 `sprite.rotation`·`sprite.scale.set(scale, scaleY)`를 반영한다. 스프라이트 앵커가 (0.5, 1)이라 회전축이 곧 목 밑동이다.
+- **방향 파츠를 새로 굽지 않은 이유**: 승인 파츠 13장을 `images --edit`로 3/4·숙임 재생성해 봤지만 디자인이 1:1로 유지되지 않았다(리벳·바이저 문양 변형, 화풍도 3D 렌더로 이탈). 같은 투구가 프레임·각도마다 달라 보이는 것이 더 큰 문제라, 승인된 파츠를 그대로 두고 피벗 회전·숙임 축소로 맞췄다. 파츠 52장을 추가하지 않아 초기 로딩·에셋 용량(3.46MB 기준)도 늘지 않는다.
+- **계약**: `store.ts`·`server/**`·`world.ts` 전투·세이브 형식 무변경, 투구 파츠 PNG·`headless/` 시트·`idle`·`walk` 앵커 무변경(사용자 확인 완료 구간).
+- **테스트**: `tests/helmet-head-render.test.mjs`에 2건 추가(13건) — ① 성별·공격 프레임별 `rotation`·`scaleY` 유한성과 숙임 단조성(1프레임은 젖힌 고개라 ≤0, 2프레임 세로 ≥ 3프레임 > 4프레임, 2·3프레임 앵커가 옛값보다 아래) ② `drawHero`가 공격 `attackPose` .32/.24/.16/.08에서 `rotation`·`scale.y`를 그대로 적용하고 서기로 돌아오면 풀리는지.
+- **검증**: `npx tsc --noEmit`, 전체 테스트 402건 중 400 통과(실패 2건은 `tests/costume-field-render.test.mjs`의 "drawHero가 코스튬 레이어로 그리고…"로 `main`에서도 동일하게 실패하는 기존 실패), `node scripts/verify-item-art.mjs`, `npm run build`, `git diff --check` 통과.
+- **배포**: [PR #109](https://github.com/songduckjin/DJRPG/pull/109) 스쿼시 병합(`9d52aab261d7`). PR의 `Cloudflare Pages` 체크 통과(`Workers Builds: djrpg`는 `main`에서도 계속 실패하는 기존 실패). 운영 `https://djrpg.pages.dev/version.json`이 `9d52aab261d7`(`builtAt 2026-11-19T14:14:12Z`)로 갱신됐고, 배포 번들 `assets/index-Fq-JbBxw.js`에 새 공격 표(`x:196,y:192,scale:.97,scaleY:.88,rotation:Qr(15)}`·`x:194,y:194,scale:.95,scaleY:.88,rotation:Qr(14)}`)와 `Qr(4)·Qr(-2)·Qr(-3)·Qr(11)·Qr(12)`(deg 헬퍼)가 들어간 것, 머리 없는 공격 시트 2장과 투구 파츠가 HTTP 200인 것을 확인했다. 원격 브랜치 삭제는 자격 증명 제한(403)으로 남아 있다.
+- **검수 이미지**: 남성 10종×4프레임 `downloads/djrpg_attack_helm_all_v1.png`, 여성 10종×4프레임 `downloads/djrpg_attack_helm_female_v1.png`, 전후 `downloads/djrpg_attack_helm_before_after_v1.png`, 게임 배율 `downloads/djrpg_attack_helm_ingame_v1.png`. 폰 실기(공격 중 머리 따라오는 느낌)는 사용자 확인 몫이다.
+
+## 2026-11-19 — 투구 착용 시 머리 매칭·머리카락 비침 수정 (작업 152)
+
+- **제보**: 「얼굴에 매칭이 제대로 안 되네요」. 작업 151은 본체 시트(긴 머리카락·정수리 포함) 위에 투구 파츠만 얹어, 투구 위·옆으로 본체 머리카락이 삐져나와 스티커처럼 보였고, 오픈페이스 투구에서는 본체 얼굴과 파츠 얼굴이 겹쳤다. 여성·공격 프레임은 앵커도 어긋나 있었다.
+- **머리 없는 본체 시트**: `public/assets/pilot-25d/headless/warrior_{male,female}_{idle,walk,attack}_v1.png` 6장을 새로 만들었다. 원본 시트의 18프레임을 머리 주변만 크롭해 `images --edit`로 머리·머리카락·수염을 지운 뒤, SIFT 특징 매칭으로 편집본을 원본 좌표계에 정합하고 `원본 실루엣 ∧ ¬편집본 실루엣` 마스크로 머리 영역만 지웠다(홀수 머리카락이 덮고 있던 갑옷은 편집본의 갑옷으로 채움). 어깨·갑옷·대검은 원본 픽셀 그대로다. 셀 크기·자리는 원본과 동일(idle 362², walk/attack 1448×362)이며 256색 PNG로 줄여 합계 278KB다.
+- **렌더**: `render/helmets.ts`의 `headlessBodyPaths`가 경로를, `render.ts`의 `paths`·`walkSheets`·`attackSheets`가 로딩·프레임 분할을 맡는다. `render/entities.ts` `drawHero`는 착용 투구가 있을 때만 이 시트로 갈아 끼우고(로딩 전에는 기존 시트로 폴백), 배율·앵커·무기 소켓은 기존 시트 값을 그대로 쓴다(같은 좌표계). 맨얼굴은 종전 시트를 그대로 쓴다.
+- **앵커 재측정**: 지운 머리 영역의 무게중심 x·정수리 높이를 기준으로 `helmetFrames` 표를 다시 쟀다(남 idle (228, 89)·여 idle (227, 88), 걷기 4프레임·공격 4프레임). 합성 검수에서 파츠가 칼라에 얹히는지 프레임별로 눈으로 확인했다.
+- **장비창**: `ui/equipmentPortrait.ts` `equipmentFallbackPortrait`가 투구 착용 시 `headless/` idle 시트를 돌려줘, 미리보기도 필드와 같은 머리 없는 본체 + 투구 파츠가 된다.
+- **계약**: `store.ts`·`server/**`·`world.ts` 전투·세이브 형식 무변경. 기존 본체 시트·투구 파츠 PNG는 손대지 않았다.
+- **테스트**: `tests/helmet-head-render.test.mjs`에 머리 없는 시트 6장 존재·크기 일치·프리로드, 투구 착용 시 필드 텍스처 교체(걷기·공격·여성 포함)와 해제 시 원복, 초상화 base가 `headless/`로 바뀌는지 확인을 추가(11건). `tests/equipped-detail.test.mjs`의 초상화 base 기대값을 새 계약에 맞게 고쳤다.
+- **검증**: `tsc --noEmit`, 전체 테스트 400건 중 398 통과(실패 2건은 `costume-field-render`의 기존 실패), `npm run build`, `git diff --check` 통과.
+- **배포**: [PR #107](https://github.com/songduckjin/DJRPG/pull/107)을 스쿼시 병합했다(머지 `6ba9330a22037e0d2de1775e2880699ff2937cf9`). PR의 `Cloudflare Pages` 체크는 통과, `Workers Builds: djrpg`는 `main`에서도 계속 실패하는 기존 실패다. 병합 뒤 운영 `https://djrpg.pages.dev/version.json`이 `6ba9330a2203`(`builtAt 2026-11-19T13:17:23Z`)로 갱신됐고, 머리 없는 시트 6장이 모두 HTTP 200, 배포 번들(`index-BLHBfVs_.js`)에 6개 경로가 들어간 것을 확인했다. 실기 화면(투구를 쓴 채 걷기·공격)은 사용자 확인 몫이다.
+- **검수 이미지**: 남성 10종 `downloads/djrpg_helmet_overlay_male_v2.png`, 남녀 대표 `downloads/djrpg_helmet_overlay_gender_v2.png`, 걷기 프레임 `downloads/djrpg_helmet_overlay_frames_v2.png`.
+
+## 2026-11-19 — 투구 10종 머리 파츠 필드·장비창 적용 (작업 151)
+
+- **요청**: 승인 시안(`djrpg_pilot_helms_1to5.png`·`djrpg_pilot_helms_6to10.png`)의 남녀 전사 외형 위에 게임 내 투구 10종(`baseItems.helmet` 0~9, 옛 이름 `낡은 투구` 포함)을 착용하면 필드와 장비창(`내 정보`) 모두에 투구 외형이 보이게 하고, PR 병합·운영 배포까지 완료.
+- **시안 → 파츠**: 시안 두 장은 같은 몸통에 투구만 바꿔 그린 5열 그림이라, 목 칼라 위치를 기준으로 투구 머리 부분을 잘라 냈다. 검정 배경을 투명화할 때 투구 안쪽의 순수 검정 그림자가 배경과 색이 같아 얇은 통로로 새는 문제가 있어, 어두운 영역을 2px 깎고 플러드필한 뒤 다시 부풀리는 방식으로 안쪽 그림자를 보존했다. 목 아래로는 가운데 목 폭만 남기고 어깨 갑옷을 잘라 본체 갑옷과 겹쳐 보이지 않게 했고, 아래쪽 끝은 페이드했다. 결과는 `public/assets/pilot-25d/helmets/helm_0~9.png`(투명 RGBA, 폭 60~74px).
+- **여성 오픈페이스**: 0~2번(가죽 두건·철제 바시넷·사슬 코이프)은 얼굴이 드러나 남성 수염이 그대로 보이므로, `warrior_female_idle_v1.png`를 `images --edit`로 편집해 같은 여성 전사가 세 투구를 쓴 3열 시안을 1장 생성(검수 후 사용)하고 `helm_female_0~2.png`로 추출했다. 3~9번은 풀페이스라 남녀 공용이다.
+- **정렬**: 파츠는 전부 **아래 중앙(목 밑동) 앵커**이고 크기는 본체 362px 셀 좌표계로 맞췄다. 성별·동작(idle/walk/attack)·프레임별로 목 밑동 좌표와 배율을 실물 합성으로 재서 `src/game/render/helmets.ts` 표에 넣었다(걷기는 4포즈를 8프레임으로 반복 재생하므로 4개 값). 시트마다 머리 크기가 달라 프레임별 배율 보정이 필요했다.
+- **렌더**: `src/game/render.ts`가 파츠 13장을 부팅 때 프리로드(진행률에 합산)하고, `render/entities.ts`의 `drawHero`가 `syncHelmet`으로 현재 프레임 앵커에 스프라이트를 놓는다. 투구를 벗으면 숨기고, 피격 tint는 본체와 같은 `0xffd4cf`를 쓴다. zIndex는 본체(0)와 무기(1) 사이인 0.5다.
+- **장비창**: `ui/equipmentPortrait.ts`의 `equipmentPortraitPlan` 키에 착용 투구를 넣어 캐시가 섞이지 않게 하고, `composeFallback`이 pilot idle 전신 그림 위에 같은 좌표·배율로 투구를 합성한다.
+- **계약**: `store.ts`·`server/**`·`world.ts` 전투 로직·세이브 형식은 변경하지 않았다. `baseItems.helmet` 순서(= 파츠 인덱스)도 그대로다.
+- **테스트**: `tests/helmet-head-render.test.mjs` 8건(이름→인덱스 매핑·`낡은 투구`→7·여성 0~2 분기·파츠 PNG 규격·프리로드 목록·프레임 앵커 유한성·필드 스프라이트 생성/숨김/틴트·초상화 키 변화). `scripts/verify-item-art.mjs`에 파츠 13장 규격 확인을 추가했다. 기존 `tests/equipped-detail.test.mjs`의 초상화 키 기대값은 새 계약(성별 + 투구)에 맞게 고쳤다.
+- **검증**: `tsc --noEmit` 통과, 전체 테스트 397건 중 395 통과, `node scripts/verify-item-art.mjs` 통과, `vite build` 통과, `git diff --check` 통과. 실패 2건은 `tests/costume-field-render.test.mjs`의 "drawHero가 코스튬 레이어로 그리고…"로 `main`(`29a1e29`)에서도 동일하게 실패하는 기존 실패다.
+- **배포**: [PR #105](https://github.com/songduckjin/DJRPG/pull/105)를 스쿼시 병합했다(머지 `c94216cdc19445696fbaa7fa2f3436cfa43c1db6`). PR의 `Cloudflare Pages` 체크는 통과, `Workers Builds: djrpg`는 `main`에서도 계속 실패하는 기존 실패다. 병합 뒤 운영 `https://djrpg.pages.dev/version.json`이 `c94216cdc194`(`builtAt 2026-11-19T11:51:16Z`)로 갱신됐고, 투구 파츠 13장이 모두 HTTP 200, 배포 번들에 파츠 경로가 포함된 것을 확인했다. 원격 브랜치 삭제는 자격 증명 제한(403)으로 남아 있다.
+- **검수 이미지**: 남성 10종 `downloads/djrpg_helmet_overlay_male.png`, 남녀 대표 `downloads/djrpg_helmet_overlay_gender.png`, 18프레임 `downloads/djrpg_helmet_overlay_frames.png`. 실기 화면(투구가 머리에 앉은 느낌·걷기/공격 중 흔들림)은 사용자 확인 몫이다.
+
+## 2026-11-19 — 평타 1마리 제한·걷기/공격 몸 크기 보정 (작업 150)
+
+- **제보**: 사용자가 실기 확인 후 「평타가 여러 마리를 한 번에 때린다」·「대검을 휘두르거나 걸을 때 캐릭터가 작아진다」를 알렸다.
+- **평타 단일 대상**: `src/game/world.ts` `action`의 평타만 `this.damage(90, attack, angle, 1.15, 12, 0, p, 1)`로 호출한다. `damage()`에 선택 인자 `maxTargets`(기본 `Infinity`)를 추가해 사거리·부채꼴(±1.15rad) 안의 적을 가까운 순으로 정렬하고 그 수만 맞힌다. 스킬 7종(`slash2`·`spin`·`crushing`·`slam`·`power`·`destroy`·`hell`)은 인자를 넘기지 않아 종전처럼 광역이며, 스킬 이펙트의 지연 판정(`origin=effect`)도 그대로다. 피격 표시·넉백·처치·드랍 정리 순서는 그대로다. **한 방 무게(후속 지시)**: 한 마리만 맞히게 되면서 총피해가 줄어 "한방한방이 쌔야 돼"라는 사용자 지시를 받아 `basicAttackPower = 1.6`을 두고 평타 피해를 `attack` → `attack × 1.6`으로 올렸다. 기존 광역 평타와 비교하면 대상 하나에 주는 피해가 1.6배이고, 피해 숫자 표시도 `Math.round(attack × 1.6)`으로 커진다. 스킬 배율·쿨다운·오프라인 정산(`killsPerMinute`는 `attack`/`enemyMaxHp` 비율)·서버 계약은 건드리지 않았다.
+- **몸 크기**: pilot 시트 알파를 다시 재니 idle 남 337·여 335, walk 4칸 남 293~307·여 295~305, attack 4칸 남 246~342·여 246~342(1프레임은 머리 위로 든 검 포함). 작업 149가 세 상태 모두 `heroBodyPx` 335를 쓰고 있어 걷기에서 약 10%, 내려찍는 칸에서 최대 27% 작았다. `pilotMaleWalk`/`pilotFemaleWalk` **335 → 300**(4칸 평균), `pilotMaleAttack`/`pilotFemaleAttack` **335 → 270**(내려찍는 칸 평균, 검을 머리 위로 든 1칸은 이상치로 제외)으로 바꿨고, 서기(idle) 335는 건드리지 않았다. 그림자 반지름 `bodyPx × scale × .37`은 두 값이 약분돼 화면 크기가 변하지 않는다.
+- **테스트 추가**: `tests/world-movement.test.mjs`에 ① 평타가 사거리·부채꼴 안의 가장 가까운 한 마리만 때림(배열 순서 무관·피격 표시 1건) ② 평타로 한 마리를 처치해도 다른 적은 살아 있고 처치 수만 늘어남 ③ `destroy` 스킬은 가깝고 먼 적을 함께 때림 ④ 평타 피해가 `attack × basicAttackPower(1.6)`이고 피해 숫자도 1.6배 ⑤ 평타 두 방 합계가 이전 두 방 합계의 1.6배. `tests/hero-art.test.mjs`에 남녀 각각 pilot 시트 알파 실측과 `heroBodyPx` 를 대조(`idle` 1%·walk/attack 평균 8% 허용)하고 걷기·공격이 idle보다 작은 값으로 보정돼 있는지 확인하는 테스트를 넣었다.
+- **검증**: `npx tsc --noEmit`, `node --test tests/*.test.mjs` 389건 중 387 통과, `node scripts/verify-item-art.mjs`, `npm run build`, `git diff --check` 통과. 실패 2건은 `tests/costume-field-render.test.mjs`의 "drawHero가 코스튬 레이어로 그리고…"으로, 변경 전 `main`(`17facd5`)에서도 동일하게 실패하는 기존 실패다(작업 149의 pilot 전환으로 기대값이 낡았고 이 작업 범위 밖이라 손대지 않았다).
+- **배포**: [PR #103](https://github.com/songduckjin/DJRPG/pull/103)을 스쿼시 병합했다(머지 `11e99459be5bffb7b48b935ee6dbc0a96d0af317`). PR의 `Cloudflare Pages` 체크는 통과, `Workers Builds: djrpg`는 `main`에서도 계속 실패하는 기존 실패다. 병합 15초 뒤 운영 `https://djrpg.pages.dev/version.json`이 `11e99459be5b`(`builtAt 2026-11-19T11:08:32Z`)로 갱신됐고 `/`와 `/assets/pilot-25d/warrior_male_attack_v1.png`가 HTTP 200임을 확인했다. 원격 브랜치 삭제만 자격 증명 제한(403)으로 남아 있다. 실기 화면(타격감·평타 대상·걷기/공격 체격)은 사용자 확인 몫이다.
+
+## 2026-11-19 — AI 시안 기반 남녀 전사 외형 전체 교체(작업 149)
+
+- **요청/결정**: 사용자가 필드 화면을 공유하고 기존 전사 그림을 앞서 만든 서기·양손 끌며 걷기·4단계 내려찍기 시안으로 교체해 달라고 했다. 사용자는 그림이 갑옷·대검 일체형이라 장착 아이템의 화면 외형이 고정되는 점을 확인하고 실제 게임 전체 교체를 선택했다. 장착 슬롯·능력치·Save는 그대로다. 이에 작업 145의 추가 실기 검수는 대체하고 기존 v3/v4/v5 코스튬 구현·파일은 보존한다.
+- **제작**: ImageGen으로 남녀 각 12셀 시트를 만들었다. 투명 배경 matte를 제거해 `public/assets/pilot-25d/warrior_{male,female}_{idle,walk,attack}_v1.png` 6장으로 자르고, 시트 원본은 `docs/references/djrpg_pilot_{male,female}_v1_sheet.png`에 기록했다. 프레임은 idle 1장, 걷기 4장 반복, 공격 4장이다.
+- **연결**: `render.ts`가 pilot 에셋을 로드하고 `render/entities.ts`가 남녀별 idle·walk·attack을 선택한다. 이미지에 무기가 포함되므로 필드 코스튬·장비 오버레이·외부 무기 스프라이트를 생략한다. `equipmentPortrait.ts`는 같은 남녀 idle 이미지를 쓰며 매니페스트 요청도 하지 않는다. 전투 데이터와 장비 통계는 읽기만 한다.
+- **검증·배포**: `node node_modules/typescript/bin/tsc --noEmit`, 관련 `node --test` 86건, PNG 6장 투명도·셀 규격·프레임 경계 확인, `pnpm run build`, `git diff --check` 통과(줄바꿈 CRLF 안내만 표시). PR #101이 `9e9d736883e0`으로 병합됐고 운영 Pages `/version.json`이 같은 SHA, 남녀 idle·walk·attack 에셋 6장이 HTTP 200임을 확인했다. PR의 `Cloudflare Pages` 체크는 성공했지만 `Workers Builds: djrpg` 별도 체크는 실패했다. 수동 `pnpm run deploy:cf`는 로컬 `CLOUDFLARE_API_TOKEN` 부재로 실패했고, PR 병합 후 GitHub 연동 자동 Pages 배포가 완료됐다. Vite는 기존 Pixi dynamic-import와 500KB 초과 번들 경고를 출력했다.
+
+## 2026-11-19 — 3D→2.5D Blender 자동 렌더 파이프라인·확정 포즈 시안 등록 (작업 147)
+
+- **배경**: 캐릭터를 3D로 만들어 2.5D 쿼터뷰 셀로 뽑는 작업을 PC 코덱스가 반복할 수 있게, 렌더 절차를 명령 한 줄로 고정했다. 사용자가 확정한 대검 포즈(서기·양손 끌며 걷기·4단계 내려찍기)가 기준이다.
+- `scripts/blender/render_25d_costume.py`(신규, 1026줄) — Blender CLI 전용 렌더러. `.blend`/`.glb`/`.fbx` 로드, 액션 슬롯 수만큼 균등 프레임 샘플링(기본은 끝 프레임 제외), 쿼터뷰 직교 카메라 + 3점 조명 + `FILM_TRANSPARENT`, **발끝 앵커를 셀 피벗 `(117, 232.3)px`에 · 본체 높이를 190px에** 맞추는 카메라 피팅(1회 ortho_scale 보정 + 2~3회 위치 반복, 모든 액션·프레임 공통 고정), 파츠 분리 렌더(`--parts`·`--part-map`·`djrpg_part`·`--holdout`), 규약 8×8 아틀라스 패킹(`<out>/atlas/<파츠>-<라벨>-v0.png`, 1872×1936, 변형당 32칸)과 `render-manifest.json`. `--dry-run`/`--print-spec`/`--selftest`(bpy 없이 PNG 코덱·슬롯 계산 점검) 지원. `bpy`는 `require_bpy()` 안에서만 import한다.
+- `docs/BLENDER_25D_PIPELINE.md`(신규) — Blender 4.x 준비·엔진 선택(Cycles 기본), Mixamo/CC0 파일럿 모델과 파츠 분리 레시피, **확정 포즈 스펙**(idle·walk·attack 4단계 표), 본·소켓 명명(`hand_r`·`hand_l`·`weapon_socket`)과 양손 그립(Child-Of 권장 / IK), 4단계 키프레임 규약(샘플러가 범위를 등분하므로 키를 1·9·17·25에), CLI 인자·Windows 예시, 기존 `build-costume-atlas.py`·`costumeHero.ts`·`COSTUME_ASSET_VERSION` 연결 절차, 검수 체크리스트·문제 해결.
+- `docs/references/`(신규) — 확정 시안 2장을 가로 1024px·256색 PNG로 줄여 넣었다(`djrpg_25d_3poses_preview_v2.png` 1536²·1.7MB → 1024×683·484KB, `djrpg_attack_4frames_v2.png` → 1024×512·372KB). `public/assets/**`에 넣지 않아 번들·런타임 용량 영향 없음.
+- **범위**: `src/**`·`public/assets/**`·`server/**`·Save/API 무변경. 배포 매니페스트·버전 올리기는 실제 렌더가 나온 뒤 별도 작업이다(가이드 §8.2).
+- **검증**: `python3 -m py_compile` 통과, `--selftest` 6/6, `--help`·`--print-spec`·`--dry-run` 동작, 합성 셀로 아틀라스 패킹·슬롯 좌표·매니페스트 출력 확인, `npx tsc --noEmit`, `node --test tests/*.test.mjs`, `node scripts/verify-item-art.mjs`, `npm run build`, `git diff --check`. 실제 Blender 렌더는 이 환경에 Blender가 없어 PC 몫이다(가이드 §1.2 자체 점검으로 먼저 확인).
+- **반영**: [PR #99](https://github.com/songduckjin/DJRPG/pull/99) → 스쿼시 병합 `d8110470a99c97a6ae38fa85b0d47e8eccdad22b`. Cloudflare Pages 운영 `https://djrpg.pages.dev/version.json`이 `d8110470a99c`로 갱신된 것을 확인했다. 같은 PR에서 `Workers Builds: djrpg` 체크가 실패로 뜨는데, 이는 병합 전 `main` 헤드(`7ef716f`)에서도 동일하게 실패하는 기존 상태다(사이트 배포를 담당하는 `Cloudflare Pages` 체크는 통과).
+
+## 2026-11-19 — 무기 레이어 검 1.45배·손잡이 허리·골반까지 내림(실기 후속 2차)
+
+- **제보**: 직전 PR #96(1.35배·`{-3, 68}`) 배포 후에도 "검이 아직도 머리 위에 떠 있어, 가려도 되는데 왜". 실측상 `weapon-male` 정지 셀은 1.35배·`+68`에서도 검 끝이 발끝 기준 `-208px`로 본체 머리 상단 `-193px`보다 15px 위에 남고, 손잡이(`-94px`)도 아직 상체에 걸쳐 있었다.
+- `src/game/render/costumeHero.ts`: `costumeWeaponFit = { x: -8, y: 110, scaleX: 1.45, scaleY: 1.45 }`로 올렸다. 검 길이 104 → 151px, 손잡이 `-119.3 * 1.45 + 110 = -63px`(몸높이 190px의 33% = 허리·골반 손 높이), 검 끝 `-204.3 * 1.45 + 110 = -186px`로 머리 상단(`-193px`) 아래에 들어와 검날이 머리를 넘지 않고 몸을 덮는다. X는 1.45배가 만든 손잡이 이동을 `-8`로 되둘린다.
+- 적용 범위는 종전과 같다. `definition.slot === 'weapon'`에만 기본값으로 쓰이고 매니페스트 `fit`이 있으면 그 값이 우선하며, 갑옷·투구·v3 아틀라스 PNG·매니페스트·`COSTUME_ASSET_VERSION`·Save/API 계약은 바꾸지 않았다.
+- 테스트: `tests/costume-field-render.test.mjs`의 무기 보정 단언을 1.45배·`{-8, 110}`로 바꾸고, 아틀라스 생성기 손 소켓 실측(남 `-119.86`·여 `-105.69`)으로 성별별 손잡이 높이(남 `-64px`·여 `-43px`)와 검 끝이 머리 상단 `-193.32px` 아래에 남는지 확인하는 계산 단언으로 교체했다.
+- 문서: `docs/COSTUME_SYSTEM.md` v2.2(§7.10 보정값·1차 보정 이력), `docs/CODE_MAP.md`(캐릭터 외형 행·`costumeHero.ts` 항목).
+- 검증: `tsc --noEmit`, `node --test tests/*.test.mjs` 382건, `node scripts/verify-item-art.mjs`, `npm run build`, `git diff --check` 통과. PNG·스크린샷 열람은 이미지 입력 제한으로 하지 않았고 실제 화면 검수는 사용자 몫이다.
+
+## 2026-11-19 — 무기 레이어 검 확대(1.35배)·손잡이 내림(실기 후속)
+
+- **제보**: 실기(웹)에서 "검 크기가 더 컸으면 좋겠다, 그리고 검이 머리 위에 떠 있나 봐". §7.9에서 70% 축소를 걷어낸 1배 상태에서도 `scripts/build-costume-atlas.py` `weapon_cells()`가 손 소켓(`SOCKETS`)의 어깨·목 높이(`hand_y = PIVOT_Y + (v - anchor_y) * frame * scale ≈ -120px`)에 손잡이를 앉히고 검 길이를 `BODY_PX * 0.55 = 104px`로 그려, 검이 몸에서 떠 보이고 짧았다.
+- `src/game/render/costumeHero.ts`: `costumeWeaponFit = { x: -3, y: 68, scaleX: 1.35, scaleY: 1.35 }`를 신설하고 `planHeroCostume()`에서 `definition.slot === 'weapon'`일 때 매니페스트 `fit`이 없으면 이 값을 기본으로 쓴다. 발끝 피벗(`anchor.y = .96`) 기준 1.35배로 올라간 `120 * 0.35 = 42px`를 되돌리고 26px를 더 내려(`+42 + 26 = +68`) 손잡이를 발끝 기준 `-94px`(몸높이 190px의 49% = 허리·손 높이)에 둔다. X는 `+8px` 손잡이 접점을 유지하도록 `-3`. 검 길이는 104 → 140px.
+- 매니페스트가 `fit`을 지정하면 무기도 그 값이 우선하며, 갑옷·투구는 종전대로 `fit`(없으면 보정 없음)만 쓴다. 공격 계열 무기 셀은 투명(공격 시트에 검 내장)이라 이 보정은 idle·walk에만 보인다. v3 아틀라스 PNG·매니페스트·`COSTUME_ASSET_VERSION`·Save/API 계약은 그대로다.
+- 아틀라스 실측으로 검증: 정지 프레임 무기 bbox 남 `y -206..-101`·여 `-191..-86`, 본체 상단 `-193`. `tests/costume-field-render.test.mjs`의 "무기 1배" 단언을 1.35배·`{-3, 68}` 기대로 바꾸고, 손잡이가 발끝 기준 `-94px`에 오는지 계산 단언과 매니페스트 `fit` 우선 검사를 추가했다.
+- 문서: `docs/COSTUME_SYSTEM.md` v2.1(§7.10 신설, §7.7·§7.9에 후속 표시), `docs/CODE_MAP.md`(캐릭터 외형 행·`costumeHero.ts` 항목).
+- 검증: `tsc --noEmit`, `node --test tests/*.test.mjs` 전체, `node scripts/verify-item-art.mjs`, `npm run build`, `git diff --check` 통과. PNG·스크린샷 열람은 이미지 입력 제한으로 하지 않았고 실제 화면 검수는 사용자 몫이다.
+
+## 2026-11-19 — 자동전투 추격 후 공격 멈칫(사거리 경계 데드존) 수정
+
+- **제보**: 자동 사냥 중 캐릭터가 때리다가 멈추는 현상. `src/game/world.ts` `update`에서 적 추격 정지 거리(`stop = 89`)와 공격 사거리(`distance < 90`)가 1px 어긋나 있었다. 적이 89~90 구간에 있거나 넉백으로 경계에 걸친 프레임에는 `pursuing`이 참으로 남아 `activeMove`가 0이 아니고, `action()`의 "수동 이동 중이면 공격 취소" 규칙(`activeMove > .05`) 때문에 사거리 안인데도 공격이 씹혔다.
+- **수정**: 적(`drop` 아님)이면 `distance < 90`에서 추격을 **즉시** 끊고(`pursuing = false`) 그 프레임부터 서서 공격한다. 사거리 경계 90은 추격 쪽에 두어(`distance < 90` 아니면 추격) 정확히 90에서도 붙어 들어가 공격한다. 드랍 추격 정지 거리(60/20)·`action()`의 이동 차단·쿨다운·저장/API 계약은 그대로다.
+- 테스트: `tests/world-movement.test.mjs`에 회귀 검사 2건 추가 — ① 89.9·89.5·89·85.2·40에서 추격 상태로 시작해도 사거리 안이면 서서 그 프레임에 공격(걷기 0, 피해 발생) ② 89.5 경계에 6초 고정해도 쿨다운마다 계속 공격(8회 이상)하고 한 번도 걷기 시작하지 않음. 수정 전 코드에서 ①이 실패하는 것을 확인했다.
+- 검증: `tsc --noEmit`, 전체 `node --test tests/*.test.mjs`, `npm run build`, `git diff --check` 통과. PNG·스크린샷 확인은 이미지 입력 제한으로 하지 않았다.
+
+## 2026-11-19 — 캐릭터 외형 3부위(갑옷·투구·무기)·무기 크기 원복 (실기 후속)
+
+- **제보 2건**: 실기 화면에서 ① 문장(`offhand`)이 캐릭터 밖으로 튀어나와 보임 ② 두손검이 작아 보임. ①은 문장·장갑·신발 코스튬 레이어가 캐릭터에 붙어 그려진 결과였고, ②는 작업 143/144의 무기 70% 축소 보정 때문이었다.
+- `src/game/render/costumeHero.ts`: `costumeSlotDrawOrder`(6부위)를 `costumeAppearanceSlots = ['armor','helmet','weapon']`로 바꿔 `planHeroCostume()`이 갑옷·투구·무기 3부위만 계획한다. 문장·장갑·신발은 착용·스탯·`내 정보` 10칸 슬롯·코덱스·Save·매니페스트 계약과 아틀라스 PNG를 그대로 두고 **그림 레이어만** 없다. 외형을 그리지 않는 부위는 `planCostume()`을 호출하지 않아 매핑 밖 이름이어도 폴백을 만들지 않는다.
+- 무기 `if (definition.slot === 'weapon')` 70% 축소 블록을 제거해 매니페스트 `fit`(없으면 1배)만 쓴다. 축소 보정식이 `(1 - scale)` 항이라 손 소켓 접점은 1배에서도 같은 좌표다(검만 커진다).
+- 테스트: `tests/costume-field-render.test.mjs`에서 6부위 기대 단언을 3부위 기대로 바꾸고, 회귀 검사 2건(문장·장갑·신발 착용/미매핑 이름이어도 레이어·폴백 없음, 무기 `scale`·`offset`·`rotation` 원복)을 추가했다. `tests/equipped-detail.test.mjs`의 문장·신발 레이어 기대도 "없음"으로 바꿨다. 아틀라스 실패 목록은 실제로 쓰는 3페이지로 정리했다.
+- 문서: `docs/COSTUME_SYSTEM.md` v2.0(§7.9 신설, §7.7 축소 항목에 원복 표시), `docs/CODE_MAP.md`(캐릭터 외형 행·`costumeHero.ts` 항목).
+- 검증: `tsc --noEmit`, 전체 `node --test tests/*.test.mjs` **380건**, `node scripts/verify-item-art.mjs`, `npm run build`, `git diff --check` 통과. PNG·스크린샷 확인은 이미지 입력 제한(2026-11-19 17:45까지) 때문에 하지 않았고 화면 검수는 사용자 몫이다.
+
+## 2026-11-19 — 서리의 가죽두건 혼합 장비 레이어 (작업 145 후속)
+
+- **운영 화면 후속**: PR #89의 전신 시안은 `서리의 가죽두건 + 낡은 두손검` 단일 조합에서만 적용된다. 운영 화면에서 문장·신발 등 다른 장비를 함께 착용한 상태가 확인돼 전신 대체 조건을 벗어나면 v3 금속 투구가 그대로 보였다. `codex/145-frost-hood-layered-fix`에서 아이템 원본의 천 두건만 머리 위치에 배치하는 **두건 전용 레이어**를 추가했다.
+- `scripts/build-costume-atlas.py --pilot-145-overlay`: 아이템 원본 아이콘(`item-art/helmet_0.png`)의 천 두건만 잘라 남/여 × (갑옷 위 / 맨몸 위) 머리 기준점에 얹은 v5 페이지 4장(`public/assets/costume/v5/atlas/frost-hood-{armor,body}-{male,female}.png`)을 생성한다. v3 배포물·매니페스트와 `COSTUME_ASSET_VERSION`(3), v4 전신 페이지는 바꾸지 않았다.
+- `src/game/render/costumeHero.ts` `planHeroCostume()`: 혼합 장비에서는 투구 레이어만 `frost-hood-*` 페이지(variant 0, `assetVersion: 5`)로 바꾼다. 갑옷·문장·무기·신발 레이어와 레이어 순서, 전신 v4 경로, 장비창 공용 계획은 그대로이며 공격 방향은 기존 v3 정책(좌우 반전)을 따른다.
+- 테스트·검증 도구: `tests/costume-field-render.test.mjs`에 갑옷+두건, `tests/equipped-detail.test.mjs`에 갑옷·문장·신발+두건(필드 계획 = 장비창 계획) 검사 2건을 추가했고, `scripts/verify-item-art.mjs`가 v5 페이지 4장의 존재와 2048×2048 RGBA 규격을 검사한다.
+- 검증: `npx tsc --noEmit`, 관련 테스트 **66건**, 전체 `npm test` **379건**, `node scripts/verify-item-art.mjs`, `npm run build`, `git diff --check` 통과. Save/API·`src/game/store.ts`·`server/**` 무변경.
+- PR #92로 반영했다. 실제 운영 필드·장비창 화면(얼굴 가림·손잡이 접점)은 사용자 검수 전이므로 작업 145는 `[-]`를 유지한다.
+- **병합·배포 실측**: PR #92를 `7fc83660fdb0e3cdf219edf724511ffee306ab5f`로 스쿼시 병합했다. 운영 `https://djrpg.pages.dev/version.json` = `7fc83660fdb0`, v5 아틀라스 4장(`frost-hood-{armor,body}-{male,female}.png`)·v4 전신 1장·v3 매니페스트가 200으로 응답하고, 배포 번들에 `frost-hood-`·`pilot-frost-leather-hood-overlay` 코드가 포함된 것을 확인했다. 화면 캡처는 이미지 입력 제한으로 하지 않았고 실제 필드·장비창 검수는 사용자 몫으로 남긴다.
+
 ## 2026-11-19 — 코스튬 동작 싱크·캐시 제한 (작업 144)
 
 - **실기 후속 수정**: 무기 레이어의 104px 검이 머리 위까지 돌출되던 문제를 공용 외형 계획에서 70% 축소·손 소켓 유지로 보정했다. `낡은 투구`는 v3의 열린 얼굴 공용 투구로 그려지던 문제를 확인하고, 정확한 닫힌 바이저가 있는 통합 본체·초상화로 폴백시켰다. 기존 PNG·Save/API 계약은 변경하지 않았다.
@@ -708,3 +818,8 @@
 
 ## 2026-11-19 fks3997 — 작업183 벽하단암부제거
 - 대기창CSSbottomfade삭제·벽PNG자체bottomblack제거한v2로변경. 문턱양옆까지회색석조유지. tsc/대기창3/아트/diff통과, 실기미실행. 미리보기만.
+
+## 2026-11-19 fks3997 — 작업191 사용자명시운영배포
+- 사용자테스트변경(165~190, 다른AI드롭포함)을PR88로배포. 최신main c804d74의전사/투구외형·공격사거리경계수정보존, 렌더/월드/테스트/공용문서충돌수동통합. DB이관146/최고기록집계보류는불변.
+- tsc·build·아트·diff통과. 전체448중446통과/기존코스튬2실패는main독립worktree에서도동일재현(26중24통과). 새실패없음. 브라우저실기미실행.
+- 던전은10층세션미리보기/실제보상·순위미반영상태그대로, 필드드롭은기존저장흐름유지. 운영버전확인대기.

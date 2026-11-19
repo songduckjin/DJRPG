@@ -24,6 +24,45 @@
 - 모닥불3 실측 좌표와 풀 군락을 새 배치로 정렬했다. 불 일렁임/불티/광원·풀 바람·reduced-motion 동작 유지, 축소된 소스 해상도에 맞춰 변형 진폭을 보정했다.
 - TypeScript·부분12테스트·아트/코스튬 검사·diff 통과. 생성본을 637×1079로 축소 저장했으며 확대 보간은 추가하지 않았다. 미리보기 상태는 Draft PR에 기록한다.
 
+## [x] [작업 153] 공격 4프레임 투구 고개 방향·숙임 매칭
+
+- **완료일**: 2026-11-19 · **담당자**: `songduckjin` · **브랜치**: `codex/153-attack-helmet-head-direction` · **PR**: #109 (머지 `9d52aab261d7`, 운영 `version.json` `9d52aab261d7` 확인)
+- **결과**: 공격 4프레임에서 투구만 정면 그대로 얹혀 고개 방향을 따라가지 않던 문제를 고쳤다. 151·152의 `attack` 앵커가 목 밑동보다 10~50px 위여서 파츠가 정수리에 얹히고 턱·목이 비었고, 회전은 늘 0이었다. 원본 공격 시트의 턱·목 위치를 다시 재어 앵커를 내리고, `HelmetPlacement`에 `rotation`(라디안, 아래 중앙 앵커 피벗)·`scaleY`(숙임 세로 단축)를 더해 `syncHelmet`이 `sprite.rotation`·`scale.set(scale, scaleY)`로 반영한다. 남 4°/-3°/12°/15°·세로 1/1/0.92/0.88, 여 4°/-2°/11°/14°·세로 1/1/0.92/0.88. `idle`·`walk`는 종전 값 유지.
+- **방향 파츠 미제작 근거**: 승인 파츠를 `images --edit`로 3/4·숙임 재생성하면 디자인이 1:1로 유지되지 않고(리벳·바이저 변형, 3D 화풍 이탈) 프레임마다 같은 투구가 달라 보였다. 파츠 26~52장을 늘리지 않고 피벗 회전·숙임로 맞추는 쪽이 10종 일관성과 초기 로딩(에셋 3.46MB 예산)에 유리하다고 판단했다.
+- **운영 검증**: PR의 `Cloudflare Pages` 체크 성공(`Workers Builds: djrpg`는 `main`에서도 계속 실패하는 기존 실패). 병합 뒤 `/version.json` `9d52aab261d7`(`builtAt 2026-11-19T14:14:12Z`), 배포 번들 `assets/index-Fq-JbBxw.js`에 `x:196,y:192,scale:.97,scaleY:.88,rotation:Qr(15)}`·`x:194,y:194,scale:.95,scaleY:.88,rotation:Qr(14)}`와 `Qr(4)·Qr(-2)·Qr(-3)·Qr(11)·Qr(12)` 포함, 머리 없는 공격 시트 2장·투구 파츠 HTTP 200 확인.
+- **코드 검증**: `tsc --noEmit`, 전체 테스트 402건 중 400 통과(실패 2건은 `costume-field-render`의 기존 실패), 신규·수정 테스트 13건, `node scripts/verify-item-art.mjs`, `npm run build`, `git diff --check` 통과.
+- **범위**: `store.ts`·`server/**`·`world.ts` 전투·세이브 계약, 투구 파츠 PNG·`headless/` 시트 무변경. 자세한 경과는 `docs/WORKLOG.md`.
+
+---
+
+## [x] [작업 151] 남녀 전사 투구 10종 외형 전체 적용(필드·장비창)
+
+- **완료일**: 2026-11-19 · **담당자**: `songduckjin` · **브랜치**: `feat/151-helmet-head-overlay` · **PR**: #105 (머지 `c94216cdc194`, 운영 `version.json` `c94216cdc194` 확인)
+- **결과**: 승인 시안 두 장에서 투구 머리 파츠 10종(`helm_0~9`)을 떠서 pilot-25d 남녀 본체 위에 얹는다. 여성은 오픈페이스 0~2번만 여성용 시안 3장(`helm_female_0~2`)을 생성·검수해 쓰고 3~9번은 공용이다. 파츠는 아래 중앙(목 밑동) 앵커·본체 362px 셀 좌표계이고, `src/game/render/helmets.ts`의 성별·동작·프레임별 앵커·배율 표로 idle·walk·attack 모든 프레임을 맞춘다. `render/entities.ts` `syncHelmet`이 필드에, `ui/equipmentPortrait.ts`가 장비창 초상화에 같은 표를 쓴다. 투구를 벗으면 숨기고 피격 tint는 본체와 같다.
+- **운영 검증**: Cloudflare Pages 체크 성공, 병합 뒤 `/version.json` `c94216cdc194`(`builtAt 2026-11-19T11:51:16Z`) 확인, 투구 파츠 13장 HTTP 200, 배포 번들에 파츠 경로 포함 확인. `Workers Builds: djrpg`는 `main`에서도 계속 실패하는 기존 실패다.
+- **코드 검증**: `tsc --noEmit`, 전체 테스트 397건 중 395 통과(실패 2건은 작업 150 때와 같은 `costume-field-render` 기존 실패), 신규 `tests/helmet-head-render.test.mjs` 8건, `node scripts/verify-item-art.mjs`(파츠 13장 규격 추가), `vite build`, `git diff --check` 통과.
+- **범위**: `store.ts`·`server/**`·`world.ts` 전투·세이브 계약 무변경. 자세한 경과는 `docs/WORKLOG.md`.
+
+---
+
+## [x] [작업 149] AI 시안 기반 전사 외형 전체 교체
+
+- **완료일**: 2026-11-19 · **담당자**: `songduckjin` · **브랜치**: `codex/149-ai-pilot-warrior-sprites` · **PR**: #101 (머지 `9e9d736883e0`, 운영 `version.json` `9e9d736883e0` 확인)
+- **결과**: 남녀 전사의 필드 idle·walk·attack과 장비창 초상화를 AI 파일럿 스프라이트로 바꿨다. 장착 슬롯·능력치·Save는 유지한다. 시트 그림에 갑옷·대검이 포함돼 게임 화면의 장비 외형은 고정되며, 사용자가 이 제약을 확인하고 전체 교체를 선택했다. 작업 145의 추가 실기 검수는 이 결정으로 대체했고 기존 v3/v4/v5 코스튬 코드·에셋은 보존했다.
+- **운영 검증**: Cloudflare Pages Production `/version.json`에서 머지 SHA를 확인하고 새 남녀 idle·walk·attack PNG 6개 모두 HTTP 200을 확인했다. GitHub `Cloudflare Pages` 체크는 성공했다. `Workers Builds: djrpg` 별도 체크는 실패했으며 이번 Pages 운영 버전과 에셋은 정상 제공 중이다. 로컬 `pnpm run deploy:cf`는 API 토큰 부재로 실패했지만, PR 병합 후 GitHub 연동 자동 Pages 배포가 완료됐다.
+- **코드 검증**: TypeScript `--noEmit`, 관련 Node 테스트 86건, 이미지 투명도·프레임 경계 확인, `pnpm run build`, `git diff --check` 통과. 빌드의 기존 Pixi dynamic-import 및 500KB 초과 번들 경고는 남아 있다.
+
+---
+
+## [x] [작업 147] 3D→2.5D Blender 자동 렌더 파이프라인 가이드·스크립트·레퍼런스 시안
+
+- **완료일**: 2026-11-19 · **담당자**: `songduckjin` · **브랜치**: `task/147-blender-25d-pipeline` · **PR**: #99 (머지 `d8110470a99c`, 운영 `version.json` `d8110470a99c` 확인)
+- **결과**: 3D 모델(`.blend`/`.glb`/`.fbx`)을 Blender CLI에서 2.5D 쿼터뷰 코스튬 셀로 뽑는 `scripts/blender/render_25d_costume.py`(1026줄)를 추가했다. 셀 `234×242`·발끝 피벗 `(0.5,0.96)`·본체 190px를 지키고, 액션별 균등 샘플링 → 직교 쿼터뷰 카메라·3점 조명·`FILM_TRANSPARENT` → 카메라 피팅(모든 프레임 공통 고정) → 파츠 분리·`Holdout` → 선택적 8×8 아틀라스·`render-manifest.json` 순으로 동작한다. `--dry-run`·`--print-spec`(확정 포즈 스펙)·`--selftest`(bpy 없이 점검)를 지원한다.
+- **문서**: `docs/BLENDER_25D_PIPELINE.md`에 환경 준비·파일럿 모델(Mixamo/CC0)·확정 포즈 스펙(서기·양손 끌며 걷기·4단계 내려찍기)·본/소켓 명명과 양손 그립(Child-Of/IK)·4단계 키프레임 규약(샘플러가 범위를 등분하므로 키를 1·9·17·25에)·CLI 예시·기존 `build-costume-atlas.py`/`costumeHero.ts`/`COSTUME_ASSET_VERSION` 연결 절차·검수 체크리스트를 담았다. 확정 시안 2장은 `docs/references/`에 1024px·256색 PNG(484KB·372KB)로 넣었다(`public/assets/**` 아님).
+- **검증**: `python3 -m py_compile`, `--selftest` 6/6, `--help`·`--print-spec`·`--dry-run`, 합성 셀 아틀라스 패킹·슬롯 좌표·매니페스트 출력 확인, `npx tsc --noEmit`, 전체 `node --test` 382건, `node scripts/verify-item-art.mjs`, `npm run build`, `git diff --check` 통과. **실제 Blender 렌더는 미실행**(작업 환경에 Blender 없음)이라 PC에서 가이드 §1.2 → §5 순서로 확인한다.
+- **범위**: `src/**`·`public/assets/**`·`server/**`·Save/API 무변경. 배포 매니페스트와 `COSTUME_ASSET_VERSION` 6 상승은 렌더 결과가 나온 뒤 별도 작업.
+
+---
 
 ## [x] [작업 144] 코스튬 동작·캐시·실기 외형 수정
 

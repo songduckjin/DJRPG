@@ -2,14 +2,14 @@ import { Assets, Container, Rectangle, Sprite, Text, Texture } from 'pixi.js';
 import type { World } from '../world';
 import type { Save } from '../store';
 import { enemyFacing } from '../facing';
-import { heroAppearance } from '../appearance';
-import { costumeFrameIndex, costumePlaybackRate, heroAnimationMode, heroCostumeMotion, heroMotion } from './heroMotion';
-import { costumeBodyPx, costumeScale, heroScale, heroBodyHeight } from './heroScale';
+import { heroAnimationMode, heroMotion } from './heroMotion';
+import { heroScale, heroBodyHeight } from './heroScale';
 import { heroClass, socketMotion, weaponSocket } from './heroSockets';
 import { tintedGearTexture } from './gearTint';
-import { costumeGhostSources, hideCostumeHero, renderCostumeHero } from './costumeHero';
+import { costumeGhostSources, hideCostumeHero } from './costumeHero';
 import { resolveSkillMotion, type CostumeMotionTemplate } from '../costume/skillMotion';
-import { totalStats, wearableEquipmentImage } from '../items';
+import { wearableEquipmentImage, baseItemIndex } from '../items';
+import { helmetArtFor, helmetArtPaths, helmetPlacement } from './helmets';
 import type { GameView } from '../render';
 
 function syncWeapon(view: GameView, save: Save, texture: Texture, art: string, attacking: boolean, motion: 'idle' | 'walk', walkingFrame: number): void {
@@ -70,18 +70,9 @@ function syncWeapon(view: GameView, save: Save, texture: Texture, art: string, a
     shown.sprite.rotation = socket.rotation;
 }
 
-function clearAfterimages(view: GameView): void {
-  for (const ghost of view.afterimages) {
-    for (const entry of ghost.sprites) {
-      view.ghosts.removeChild(entry.sprite);
-      entry.sprite.destroy();
-    }
-  }
-  view.afterimages = [];
-  view.ghostEmissions = new WeakMap();
-}
-
 const walkAnchors = {
+  pilotMaleWalk: [.97, .97, .97, .97, .97, .97, .97, .97],
+  pilotFemaleWalk: [.97, .97, .97, .97, .97, .97, .97, .97],
   maleBaseWalk: [.95, .95, .95, .95, .941, .944, .944, .923],
   maleBaseHelmWalk: [.97, .97, .97, .97, .97, .97, .97, .97],
   femaleBaseWalk: [.95, .948, .95, .944, .953, .953, .95, .928],
@@ -100,12 +91,52 @@ const walkAnchors = {
   skeletonWalk: [.917, .914, .91, .912, .898, .91, .905, .892],
   bossWalk: [.919, .901, .899, .899, .914, .907, .905, .905]
 } as const;
-const idleAnchors: Record<string, number> = {
-  armored: .957, armoredNoHelm: .982,
-  femaleArmoredNoHelm: .993, femaleArmoredHelm: .994, femaleArmoredOldHelm: .991
-};
-
 export type HeroSkillMotion = { template: CostumeMotionTemplate | null; progress: number };
+
+/**
+ * 착용 투구 머리 파츠를 본체 위에 얹는다(작업 151).
+ *
+ * 투구 파츠는 아래 중앙(목 밑동)이 앵커이고 크기는 본체 362px 셀 좌표계이므로, 현재 프레임의
+ * 목 밑동 좌표로 스프라이트만 옮기면 idle·walk·attack 어느 프레임에서도 같은 자리에 앉는다.
+ * 피격 틴트는 본체와 같은 값을 쓴다. 투구를 벗으면 스프라이트를 숨긴다.
+ */
+function helmetIndex(save: Save): number {
+  const item = save.equipment.helmet;
+  return item ? baseItemIndex(item) : -1;
+}
+
+function syncHelmet(view: GameView, save: Save, motion: 'idle' | 'walk' | 'attack', frame: number, tint: number): void {
+  const item = save.equipment.helmet;
+  const index = item ? baseItemIndex(item) : -1;
+  const art = helmetArtFor(save.gender, index);
+  const shown = view.heroHelmet;
+  if (!art) {
+    if (shown) shown.visible = false;
+    return;
+  }
+  const texture = view.helmetTextures?.get(helmetArtPaths[art]);
+  if (!texture) return; // 아직 로딩 전 — 다음 프레임에 그린다.
+  const place = helmetPlacement(save.gender, motion, frame);
+  const layerX = place.x - view.hero.texture.width * view.hero.anchor.x;
+  const layerY = place.y - view.hero.texture.height * view.hero.anchor.y;
+  let sprite = shown;
+  if (!sprite) {
+    sprite = new Sprite(texture);
+    sprite.anchor.set(.5, 1);
+    sprite.zIndex = .5;
+    view.heroLayer.addChild(sprite);
+    view.heroLayer.sortableChildren = true;
+    view.heroHelmet = sprite;
+  }
+  if (sprite.texture !== texture) sprite.texture = texture;
+  sprite.position.set(layerX, layerY);
+  // 목 밑동 앵커(아래 중앙)를 축으로 기울이고, 숙인 고개는 세로만 줄인다(작업 153).
+  sprite.scale.set(place.scale, place.scaleY ?? place.scale);
+  sprite.tint = tint;
+  sprite.rotation = place.rotation ?? 0;
+  sprite.alpha = 1;
+  sprite.visible = true;
+}
 
 /**
  * 진행 중인 스킬 이펙트 → 코스튬 스킬 템플릿과 진행도 (작업 140).
@@ -128,58 +159,49 @@ export function activeSkillMotion(world: World): HeroSkillMotion {
 
 export function drawHero(this: GameView, world: World, x: number, y: number, time: number): void {
     const { player, save } = world;
-    const appearance = heroAppearance(save);
-    // Attack sheets already hold a sword. Idle/walk use swordless body art so
-    // the socket weapon is the only visible sword in those states.
-    const swordlessAppearance = save.equipment.weapon
-      ? heroAppearance({ ...save, equipment: { ...save.equipment, weapon: undefined } })
-      : appearance;
+    const pilotIdle = save.gender === 'female' ? 'pilotFemale' : 'pilotMale';
+    const pilotWalk = save.gender === 'female' ? 'pilotFemaleWalk' : 'pilotMaleWalk';
+    const pilotAttack = save.gender === 'female' ? 'pilotFemaleAttack' : 'pilotMaleAttack';
     const moving = Math.hypot(world.activeMove.x, world.activeMove.y) > .05;
     const walked = Math.hypot(player.x - this.lastHeroWorld.x, player.y - this.lastHeroWorld.y);
     this.lastHeroWorld = { x: player.x, y: player.y };
     if (moving) this.heroWalkDistance += Math.min(30, walked);
     const walkingFrame = Math.floor(this.heroWalkDistance / 12) % 8;
     const attackFrame = Math.min(3, Math.floor((1 - world.attackPose / .32) * 4));
-    const skill = activeSkillMotion(world);
-    // 대기·걷기·기본 공격·스킬 4종을 한 이름 공간으로 고른다(작업 140 요구 1).
-    const costumeMotion = heroCostumeMotion({ moving, attackPose: world.attackPose, skill: skill.template });
-    // 공격 속도는 시각 재생 배율로만 쓴다(요구 2). 전투 판정·월드 위치는 바꾸지 않는다.
-    const playbackRate = costumePlaybackRate({ speed: totalStats(save).speed, berserk: player.berserk, berserkLevel: player.berserkLevel });
-    const motionProgress = skill.template ? skill.progress : world.attackPose > 0 ? 1 - world.attackPose / .32 : 0;
-    const costumeFrame = costumeMotion === 'walk' ? walkingFrame : costumeFrameIndex(costumeMotion, motionProgress, playbackRate);
     const heroTint = player.hit > 0 ? 0xffd4cf : 0xffffff;
-
-    // 1) 독립형 코스튬 레이어 경로. 매니페스트·아틀라스가 없거나 계획이 서지 않으면
-    //    `false`를 받아 아래 2) 기존 통합 바디 경로로 같은 프레임을 그린다(무중단 폴백).
-    const costumeDrawn = renderCostumeHero({
-      heroLayer: this.heroLayer,
-      hero: this.hero,
-      onPlanChange: () => clearAfterimages(this)
-    }, this.costume, save, { motion: costumeMotion, frame: costumeFrame, tint: heroTint });
-    let bodyPx: number;
-    let scale: number;
-    if (costumeDrawn) {
-      bodyPx = costumeBodyPx;
-      scale = costumeScale(this.app.screen.height);
-    } else {
-      hideCostumeHero(this, this.costume);
-      const walkArt = swordlessAppearance.walk;
-      let texture = this.textures[swordlessAppearance.idle];
-      const animation = heroAnimationMode(moving, world.attackPose, !!appearance.attack);
-      const animatedAttack = animation === 'attack';
-      if (animation === 'walk') texture = this.animations[walkArt][walkingFrame];
-      else if (animatedAttack && appearance.attack) texture = this.animations[appearance.attack][Math.max(0, attackFrame)];
-      const textureKey = animation === 'walk' ? `${walkArt}:${walkingFrame}`
-        : animatedAttack && appearance.attack ? `${appearance.attack}:${Math.max(0, attackFrame)}` : swordlessAppearance.idle;
-      const displayTexture = tintedGearTexture(textureKey, texture, appearance.armorPalette, appearance.helmetPalette, animatedAttack);
-      if (this.hero.texture !== displayTexture) this.hero.texture = displayTexture;
-      this.hero.anchor.y = animatedAttack ? .97 : moving ? walkAnchors[walkArt][walkingFrame] : (idleAnchors[swordlessAppearance.idle] ?? .996);
-      const art = animation === 'walk' ? walkArt : animatedAttack && appearance.attack ? appearance.attack : swordlessAppearance.idle;
-      bodyPx = heroBodyHeight(art, texture.height);
-      scale = heroScale(this.app.screen.height, art, texture.height);
-      this.hero.tint = heroTint;
-      syncWeapon(this, save, texture, art, animatedAttack, socketMotion(animation), walkingFrame);
+    // The approved pilot sheets contain the complete armor and greatsword. Skip all
+    // equipment/costume overlays so the body and weapon are never drawn twice.
+    hideCostumeHero(this, this.costume);
+    const animation = heroAnimationMode(moving, world.attackPose, true);
+    const animatedAttack = animation === 'attack';
+    const art = animation === 'walk' ? pilotWalk : animatedAttack ? pilotAttack : pilotIdle;
+    let texture = this.textures[pilotIdle];
+    if (animation === 'walk') texture = this.animations[pilotWalk][walkingFrame];
+    else if (animatedAttack) texture = this.animations[pilotAttack][Math.max(0, attackFrame)];
+    let textureKey = animation === 'walk' ? `${pilotWalk}:${walkingFrame}`
+      : animatedAttack ? `${pilotAttack}:${Math.max(0, attackFrame)}` : pilotIdle;
+    // 투구를 쓰면 머리·머리카락이 지워진 같은 크기 시트로 갈아 끼운다(작업 152).
+    // 셀 좌표계가 같아 배율·앵커·무기 소켓은 기존 값을 그대로 쓴다.
+    if (helmetIndex(save) >= 0) {
+      const headless = save.gender === 'female'
+        ? (animation === 'walk' ? this.animations.pilotFemaleWalkHeadless?.[walkingFrame]
+          : animatedAttack ? this.animations.pilotFemaleAttackHeadless?.[Math.max(0, attackFrame)] : this.textures.pilotFemaleHeadless)
+        : (animation === 'walk' ? this.animations.pilotMaleWalkHeadless?.[walkingFrame]
+          : animatedAttack ? this.animations.pilotMaleAttackHeadless?.[Math.max(0, attackFrame)] : this.textures.pilotMaleHeadless);
+      if (headless) {
+        texture = headless;
+        textureKey = `${textureKey}!headless`;
+      }
     }
+    const displayTexture = tintedGearTexture(textureKey, texture, null, null, animatedAttack);
+    if (this.hero.texture !== displayTexture) this.hero.texture = displayTexture;
+    this.hero.anchor.y = animation === 'walk' ? walkAnchors[pilotWalk][walkingFrame] : .97;
+    const bodyPx = heroBodyHeight(art, texture.height);
+    const scale = heroScale(this.app.screen.height, art, texture.height);
+    this.hero.tint = heroTint;
+    syncHelmet(this, save, animation, animation === 'walk' ? walkingFrame : animatedAttack ? Math.max(0, attackFrame) : 0, heroTint);
+    const withoutEquippedWeapon = { ...save, equipment: { ...save.equipment, weapon: undefined } };
+    syncWeapon(this, withoutEquippedWeapon, texture, art, true, socketMotion(animation), walkingFrame);
     let bob = 0;
     const local = world.effects.filter(effect => effect.kind !== 'hit' && effect.kind !== 'death' && Math.hypot(effect.x - player.x, effect.y - player.y) < 2);
     const slam = local.find(effect => effect.kind === 'slam' || effect.kind === 'hell');
@@ -187,16 +209,17 @@ export function drawHero(this: GameView, world: World, x: number, y: number, tim
     const attackPulse = motion.pulse;
     if (slam) bob -= Math.sin(Math.PI * slam.age / slam.duration) * 17;
     const face = player.facingSide;
+    const visualFace = face;
     const lungeX = (Math.cos(player.facing) - Math.sin(player.facing)) * .86 * attackPulse * 6;
     const lungeY = (Math.cos(player.facing) + Math.sin(player.facing)) * .43 * attackPulse * 6;
-    this.heroLayer.scale.set(scale * face * motion.scaleX, scale * motion.scaleY);
+    this.heroLayer.scale.set(scale * visualFace * motion.scaleX, scale * motion.scaleY);
     this.heroLayer.position.set(x + lungeX + (player.hit > 0 ? Math.sin(time * 55) * 2 : 0), y + bob + lungeY);
     this.heroLayer.rotation = motion.rotation;
     // The ground shadow follows the drawn body, not the frame: an attack cell is wider
     // than the hero only to keep the sword inside its own frame, and a frame-width
     // shadow grew 25 % whenever the hero swung. 코스튬 모드도 같은 식(본체 높이 × 배율 × .37)을 쓴다.
     const shadowRadius = Math.max(20, bodyPx * scale * .37);
-    this.ground.ellipse(x - face * 4, y - 3, shadowRadius, 8).fill({ color: 0x000000, alpha: .5 });
+    this.ground.ellipse(x - visualFace * 4, y - 3, shadowRadius, 8).fill({ color: 0x000000, alpha: .5 });
     if (player.berserk > 0) {
       this.glow.circle(x, y - 25, 35).fill({ color: 0xb32d28, alpha: .12 });
     }
