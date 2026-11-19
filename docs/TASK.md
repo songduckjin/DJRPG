@@ -7,7 +7,7 @@
 
 | 작업 | 담당자 | 브랜치 | 수정 예정 파일 / 영향 영역 | 위험 등급 | 상태 |
 |---|---|---|---|---|---|
-| 144 코스튬 동작 싱크 및 아틀라스 캐시 제한 | songduckjin (`codex` 실행) | `codex/144-costume-sync-perf` | `src/game/render/{heroMotion,costumeHero,entities}.ts`, `src/ui/equipmentPortrait.ts`, 코스튬 렌더·장비창 테스트, `docs/COSTUME_SYSTEM.md`, `docs/CODE_MAP.md`, `docs/QUICK_PATCH.md`, 작업 기록 | 중 | [-] PR #87 Draft 리뷰 대기 |
+| 144 코스튬 동작 싱크·아틀라스 캐시 및 실기 외형 수정 | songduckjin (`codex` 실행) | `codex/144-costume-sync-perf` | 기존 렌더·UI 변경 + `scripts/build-costume-atlas.py`, `src/game/costume/{mapping,manifest}.ts`, `public/assets/costume/v4/**`, 관련 테스트·문서 | 중 | [-] PR #87 Draft 보완 중 |
 
 > 2026-11-19: `[작업 143]` — 코스튬 v3(투구 싱크·몸통 겹침·공격 모션 수정)를 배포했다. 갑옷 착용 시 본체 파츠 3종을 모두 대체하고, 투구 레이어는 머리 창 안의 차이만 남기며, 맨몸용 투구 페이지(`helmet-body-*`)를 추가했다. 자세한 내용은 `docs/COSTUME_SYSTEM.md` §7.5.
 > 2026-11-19: `[작업 144]` — `spin` 본체 회전 제거, 필드 아틀라스 6페이지·미리보기 이미지 2페이지 캐시 한도와 메모리 산정을 구현했다. 타입 검사·관련 테스트 70건·아트 검증 통과, 모바일 실기 성능은 미측정이다. [PR #87](https://github.com/songduckjin/DJRPG/pull/87) Draft.

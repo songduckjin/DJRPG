@@ -312,7 +312,8 @@
 ## 다음 작업 대기
 
 ### [-] [작업 144] 코스튬 동작 싱크 및 아틀라스 캐시 제한
-- **담당자**: `songduckjin` · **브랜치**: `codex/144-costume-sync-perf` · **위험 등급**: 중 · **상태**: `[-]` 구현·검증 완료, PR #87 Draft 리뷰 대기
+- **담당자**: `songduckjin` · **브랜치**: `codex/144-costume-sync-perf` · **위험 등급**: 중 · **상태**: `[-]` 실기 외형 추가 보완 중, PR #87 Draft
+- **추가 범위(2026-11-19 실기 보고)**: 무기가 머리 위에 뜨는 손 소켓·크기, `낡은 투구`가 다른 투구로 매핑되고 얼굴을 덜 가리는 문제를 수정한다. `scripts/build-costume-atlas.py`, `src/game/costume/{mapping,manifest}.ts`, `public/assets/costume/v4/**`, 관련 검증·문서를 포함한다. 사용자 보고로 기존 에셋·매핑 변경 금지보다 이 범위를 우선한다. v3 에셋은 버전 전환 전까지 유지한다.
 - **목표**: 코스튬 설계의 스킬 회전 규칙과 실제 렌더링을 일치시키고, 필드·장비창 아틀라스 이미지 캐시의 메모리 증가를 제한한다.
 - **수정 예정 파일**: `src/game/render/heroMotion.ts`, `src/game/render/entities.ts`, `src/game/render/costumeHero.ts`, `src/ui/equipmentPortrait.ts`, `tests/hero-motion.test.mjs`, `tests/costume-field-render.test.mjs`, `tests/equipped-detail.test.mjs`, `docs/COSTUME_SYSTEM.md`, `docs/CODE_MAP.md`, `docs/QUICK_PATCH.md`, `docs/TASK.md`, `docs/TASK_songduckjin.md`, `docs/WORKLOG.md`, `docs/TASK_ARCHIVE.md`.
 - **구현 항목**:
