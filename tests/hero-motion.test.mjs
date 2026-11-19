@@ -3,7 +3,17 @@ import assert from 'node:assert/strict';
 import './ts-loader.mjs';
 const { heroAppearance } = await import('../src/game/appearance.ts');
 const { freshSave } = await import('../src/game/store.ts');
-const { heroAnimationMode, heroMotion } = await import('../src/game/render/heroMotion.ts');
+const { attackFacingFromAngle, heroAnimationMode, heroMotion } = await import('../src/game/render/heroMotion.ts');
+
+test('isometric attack facing resolves right, left, far/back, and near/front targets', () => {
+  assert.equal(attackFacingFromAngle(0), 'right');
+  assert.equal(attackFacingFromAngle(Math.PI), 'left');
+  assert.equal(attackFacingFromAngle(-Math.PI / 4), 'right');
+  assert.equal(attackFacingFromAngle(3 * Math.PI / 4), 'left');
+  assert.equal(attackFacingFromAngle(-3 * Math.PI / 4), 'back');
+  assert.equal(attackFacingFromAngle(Math.PI / 4), 'front');
+  assert.equal(attackFacingFromAngle(Number.NaN), 'right');
+});
 const { heroBodyPx, heroBodyFraction, heroScale } = await import('../src/game/render/heroScale.ts');
 
 for (const gender of ['male', 'female']) test(`${gender}: helmet-only skills keep the body upright and undistorted`, () => {

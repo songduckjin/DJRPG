@@ -3,7 +3,7 @@ import type { World } from '../world';
 import type { Save } from '../store';
 import { enemyFacing } from '../facing';
 import { heroAppearance } from '../appearance';
-import { costumeFrameIndex, costumePlaybackRate, heroAnimationMode, heroCostumeMotion, heroMotion } from './heroMotion';
+import { attackFacingFromAngle, costumeFrameIndex, costumePlaybackRate, heroAnimationMode, heroCostumeMotion, heroMotion } from './heroMotion';
 import { costumeBodyPx, costumeScale, heroScale, heroBodyHeight } from './heroScale';
 import { heroClass, socketMotion, weaponSocket } from './heroSockets';
 import { tintedGearTexture } from './gearTint';
@@ -155,7 +155,7 @@ export function drawHero(this: GameView, world: World, x: number, y: number, tim
       heroLayer: this.heroLayer,
       hero: this.hero,
       onPlanChange: () => clearAfterimages(this)
-    }, this.costume, save, { motion: costumeMotion, frame: costumeFrame, tint: heroTint });
+    }, this.costume, save, { motion: costumeMotion, frame: costumeFrame, tint: heroTint, direction: attackFacingFromAngle(player.facing) });
     let bodyPx: number;
     let scale: number;
     if (costumeDrawn) {
@@ -187,16 +187,18 @@ export function drawHero(this: GameView, world: World, x: number, y: number, tim
     const attackPulse = motion.pulse;
     if (slam) bob -= Math.sin(Math.PI * slam.age / slam.duration) * 17;
     const face = player.facingSide;
+    const directionalPilotAttack = costumeDrawn && this.costume.sprites.has('pilot') && costumeMotion === 'attack';
+    const visualFace = directionalPilotAttack ? 1 : face;
     const lungeX = (Math.cos(player.facing) - Math.sin(player.facing)) * .86 * attackPulse * 6;
     const lungeY = (Math.cos(player.facing) + Math.sin(player.facing)) * .43 * attackPulse * 6;
-    this.heroLayer.scale.set(scale * face * motion.scaleX, scale * motion.scaleY);
+    this.heroLayer.scale.set(scale * visualFace * motion.scaleX, scale * motion.scaleY);
     this.heroLayer.position.set(x + lungeX + (player.hit > 0 ? Math.sin(time * 55) * 2 : 0), y + bob + lungeY);
     this.heroLayer.rotation = motion.rotation;
     // The ground shadow follows the drawn body, not the frame: an attack cell is wider
     // than the hero only to keep the sword inside its own frame, and a frame-width
     // shadow grew 25 % whenever the hero swung. 코스튬 모드도 같은 식(본체 높이 × 배율 × .37)을 쓴다.
     const shadowRadius = Math.max(20, bodyPx * scale * .37);
-    this.ground.ellipse(x - face * 4, y - 3, shadowRadius, 8).fill({ color: 0x000000, alpha: .5 });
+    this.ground.ellipse(x - visualFace * 4, y - 3, shadowRadius, 8).fill({ color: 0x000000, alpha: .5 });
     if (player.berserk > 0) {
       this.glow.circle(x, y - 25, 35).fill({ color: 0xb32d28, alpha: .12 });
     }

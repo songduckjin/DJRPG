@@ -85,3 +85,20 @@ for (const gender of ['male', 'female']) {
   pageCount += 2;
 }
 console.log(`코스튬 아틀라스 v${version} 확인 완료: 매니페스트 ${manifest.costumes.length}종 · 페이지 ${new Set([...sizes]).size}종 규격(${[...sizes].join(', ')}) · 변형 참조 ${pageCount}건.`);
+
+// ── 작업 145 단일 파일럿 아틀라스 ───────────────────────────────────────────────
+// v4는 서리의 가죽두건 검수용 두 페이지뿐이며, v3 매니페스트와 별도 버전 URL을 쓴다.
+const pilotRoot = fileURLToPath(new URL('../public/assets/costume/v4/atlas/', import.meta.url));
+for (const gender of ['male', 'female']) {
+  const name = `pilot-hood-${gender}.png`;
+  const path = join(pilotRoot, name);
+  if (!existsSync(path)) throw new Error(`작업 145 파일럿 아틀라스가 없습니다: ${name}`);
+  const data = readFileSync(path), header = data.subarray(0, 26);
+  if (header.toString('ascii', 1, 4) !== 'PNG'
+    || header.readUInt32BE(16) !== CELL.width * CELL.columns
+    || header.readUInt32BE(20) !== CELL.height * CELL.rows
+    || header[25] !== 6) {
+    throw new Error(`작업 145 파일럿 페이지는 ${CELL.width * CELL.columns}×${CELL.height * CELL.rows} RGBA PNG여야 합니다: ${name}`);
+  }
+}
+console.log('작업 145 서리의 가죽두건 파일럿 아틀라스 2종 확인 완료.');

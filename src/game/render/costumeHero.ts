@@ -1,12 +1,12 @@
 import { Assets, Container, Rectangle, Sprite, Texture } from 'pixi.js';
-import type { Slot } from '../items';
+import { baseItemIndex, type Slot } from '../items';
 import type { Save } from '../store';
 import {
   costumeAtlasUrl, loadCostumeManifest, planCostume,
   type CostumeAnchor, type CostumeDefinition, type CostumeFallbackReason, type CostumeLoadResult, type CostumeManifest
 } from '../costume/manifest';
 import type { CostumeSlotGroup } from '../costume/mapping';
-import { costumeMotionSlot, type HeroCostumeMotion } from './heroMotion';
+import { costumeMotionSlot, type AttackFacing, type HeroCostumeMotion } from './heroMotion';
 
 /**
  * 독립형 코스튬 필드 렌더러 (작업 140, `docs/COSTUME_SYSTEM.md` v1.1 §4·§7.1·§8).
@@ -63,7 +63,7 @@ export const costumeVariantsPerPage = costumeAtlasCellsPerPage / costumeVariantS
 export const costumeBodyPivot = { x: .5, y: .96 } as const;
 
 /** 코스튬 레이어의 부위 키. 장비는 부위 이름, 본체는 `torso`·`arms`·`legs`. */
-export type CostumeLayerRole = CostumeBodyPart | CostumeSlotGroup;
+export type CostumeLayerRole = CostumeBodyPart | CostumeSlotGroup | 'pilot';
 
 export type CostumeLayerPlan = {
   role: CostumeLayerRole;
@@ -80,6 +80,8 @@ export type CostumeLayerPlan = {
   offset: { x: number; y: number };
   scale: { x: number; y: number };
   rotation: number;
+  /** Only the isolated task-145 pilot page uses v4; the shared v3 manifest remains unchanged. */
+  assetVersion?: number;
 };
 
 export type CostumeHeroPlan =
@@ -102,6 +104,11 @@ export function costumeLayerAnchor(anchor: CostumeAnchor | undefined): { x: numb
     : { x: clamp01(anchor.x / costumeAtlasCellWidth), y: clamp01(anchor.y / costumeAtlasCellHeight) };
 }
 
+/** New versioned pilot atlases can be used beside the shared v3 assets without changing their URLs. */
+export function costumeLayerAtlasUrl(layer: CostumeLayerPlan): string {
+  return costumeAtlasUrl(costumeAtlasPageName(layer.page, costumeLayerPageIndex(layer)), layer.assetVersion);
+}
+
 function variantIndex(manifest: CostumeManifest, definition: CostumeDefinition): number {
   return manifest.costumes.filter(entry => entry.slot === definition.slot).findIndex(entry => entry.costumeId === definition.costumeId);
 }
@@ -119,6 +126,19 @@ function variantIndex(manifest: CostumeManifest, definition: CostumeDefinition):
 export function planHeroCostume(save: Pick<Save, 'gender' | 'equipment'>, load: CostumeLoadResult | undefined): CostumeHeroPlan {
   if (!load) return { ok: false, reason: 'manifest-missing', detail: '코스튬 매니페스트를 아직 불러오지 않았습니다.' };
   if (!load.ok) return { ok: false, reason: load.reason, detail: load.detail };
+  const compactName = (value: string | undefined) => value?.normalize('NFKC').replace(/[\s\u200b\ufeff]/gu, '') ?? '';
+  const helmet = save.equipment.helmet;
+  const weapon = save.equipment.weapon;
+  const pilotLoadout = compactName(helmet?.name) === compactName('서리의 가죽 두건')
+    && baseItemIndex(weapon ?? { id: '', slot: 'weapon', name: '', rarity: 'common', stats: {} }) === 0
+    && !save.equipment.armor && !save.equipment.offhand && !save.equipment.gloves && !save.equipment.boots;
+  if (pilotLoadout) {
+    return { ok: true, layers: [{
+      role: 'pilot', costumeId: 'pilot-frost-leather-hood', page: `pilot-hood-${save.gender}`, variant: 0,
+      zOrder: 10, anchor: { ...costumeBodyPivot }, offset: { x: 0, y: 0 }, scale: { x: 1, y: 1 }, rotation: 0,
+      assetVersion: 4
+    }] };
+  }
   // The v3 helmet atlas uses an open-face source for every variant. The legacy
   // helmet has a distinct closed visor in the integrated body sheets.
   if (save.equipment.helmet?.name.normalize('NFKC').replace(/[\s\u200b\ufeff]/gu, '') === '낡은투구') {
@@ -199,7 +219,12 @@ export function costumeLayerPageIndex(layer: CostumeLayerPlan): number {
 }
 
 /** 레이어·모션·프레임 → 그 페이지 안의 셀 위치(0..63). */
-export function costumeLayerCell(layer: CostumeLayerPlan, motion: HeroCostumeMotion, frame: number): number {
+export function costumeLayerCell(layer: CostumeLayerPlan, motion: HeroCostumeMotion, frame: number, direction?: AttackFacing): number {
+  if (layer.role === 'pilot' && motion !== 'idle' && motion !== 'walk') {
+    // Four generated key poses: left, right, far/back, near/front. One key pose
+    // holds through each attack/skill window so no empty pilot cell is rendered.
+    return 9 + Math.max(0, ['left', 'right', 'back', 'front'].indexOf(direction ?? 'right'));
+  }
   return (layer.variant % costumeVariantsPerPage) * costumeVariantStride + costumeMotionSlot(motion, frame);
 }
 
@@ -307,7 +332,7 @@ function pruneStalePages(state: CostumeHeroState): void {
 
 /** 계획에 필요한 아틀라스만 보유한다. 현재 장비 최대 6페이지 외에는 GPU 자산까지 해제한다. */
 export function ensureCostumeAtlas(state: CostumeHeroState, plan: CostumeLayerPlan[]): void {
-  const urls = [...new Set(plan.map(layer => costumeAtlasUrl(costumeAtlasPageName(layer.page, costumeLayerPageIndex(layer)))))];
+  const urls = [...new Set(plan.map(costumeLayerAtlasUrl))];
   if (urls.length > costumeAtlasPageCacheLimit) {
     fallback(state, 'atlas-load', `장비 계획이 아틀라스 캐시 상한(${costumeAtlasPageCacheLimit})을 넘었습니다.`);
     return;
@@ -345,15 +370,14 @@ export function ensureCostumeAtlas(state: CostumeHeroState, plan: CostumeLayerPl
  * 레이어·모션·프레임에 해당하는 셀 텍스처. 페이지가 없거나 셀이 페이지 밖이면 `null`(폴백).
  * 셀 크기는 실제 텍스처에서 계산해 2048² 미만 배포본도 잘라 쓸 수 있게 한다.
  */
-export function costumeLayerTexture(state: CostumeHeroState, layer: CostumeLayerPlan, motion: HeroCostumeMotion, frame: number): Texture | null {
-  const pageIndex = costumeLayerPageIndex(layer);
-  const url = costumeAtlasUrl(costumeAtlasPageName(layer.page, pageIndex));
+export function costumeLayerTexture(state: CostumeHeroState, layer: CostumeLayerPlan, motion: HeroCostumeMotion, frame: number, direction?: AttackFacing): Texture | null {
+  const url = costumeLayerAtlasUrl(layer);
   const page = touchPage(state, url);
   if (!page) return null;
   const columns = Math.floor(page.source.width / costumeAtlasCellWidth);
   const rows = Math.floor(page.source.height / costumeAtlasCellHeight);
   if (columns <= 0 || rows <= 0) return null;
-  const cell = costumeLayerCell(layer, motion, frame);
+  const cell = costumeLayerCell(layer, motion, frame, direction);
   const column = cell % columns, row = Math.floor(cell / columns);
   if (row >= rows) return null;
   const key = `${url}#${column},${row}`;
@@ -374,7 +398,7 @@ export type CostumeHeroTarget = {
   onPlanChange?: () => void;
 };
 
-export type CostumeHeroFrame = { motion: HeroCostumeMotion; frame: number; tint?: number };
+export type CostumeHeroFrame = { motion: HeroCostumeMotion; frame: number; tint?: number; direction?: AttackFacing };
 
 function clearCostumeSprites(target: CostumeHeroTarget, state: CostumeHeroState): void {
   target.onPlanChange?.();
@@ -415,7 +439,7 @@ export function renderCostumeHero(
   ensureCostumeAtlas(state, plan.layers);
   const resolved: { layer: CostumeLayerPlan; texture: Texture }[] = [];
   for (const layer of plan.layers) {
-    const texture = costumeLayerTexture(state, layer, frame.motion, frame.frame);
+    const texture = costumeLayerTexture(state, layer, frame.motion, frame.frame, frame.direction);
     if (!texture) return false; // 아직 로드 중이거나 셀 밖 → 이번 프레임은 폴백
     resolved.push({ layer, texture });
   }
