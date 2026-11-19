@@ -211,3 +211,69 @@ test('the clear record totals the gold the floor left on the ground',()=>{
  withRandom([.9],()=>boss.world.kill(boss.world.enemies[0]));
  assert.equal(boss.world.lootGold,70*5);
 });
+
+test('a drop rests on the floor below the exit door instead of climbing up the room',()=>{
+ // 390x700 phone: the door sill sits at 38% of the field and a drop's art hangs 38px over its spot.
+ const hero={x:195,y:393},keepX=40,keepY=73.5,gap=36,sill=.38*700,top=sill+38+6,high={x:hero.x+34,y:hero.y-210};
+ // Without a floor limit the drop still keeps the point it fell on (the old contract).
+ const unchanged=dungeonLootSpots(hero.x,hero.y,[high],[],keepX,keepY,gap)[0];
+ assert(Math.hypot(unchanged.x-high.x,unchanged.y-high.y)<1e-9,`unlimited drop moved to ${unchanged.x},${unchanged.y}`);
+ const [spot]=dungeonLootSpots(hero.x,hero.y,[high],[],keepX,keepY,gap,{top});
+ assert(spot.y>=top-1e-9,`drop rests at ${spot.y}, above the floor top ${top}`);
+ assert(spot.y-38>=sill,`drop art tops out at ${spot.y-38}, over the door sill ${sill}`);
+ assert(spot.y>high.y,'drop did not come down from the door');
+ // It comes back along its own line from the hero, so it reads as the same drop, nearer.
+ assert(Math.abs((spot.x-hero.x)*(high.y-hero.y)-(spot.y-hero.y)*(high.x-hero.x))<1e-6,'drop left its own line');
+ assert(Math.hypot(spot.x-hero.x,spot.y-hero.y)<Math.hypot(high.x-hero.x,high.y-hero.y));
+});
+
+test('a floor of drops stays under the door, off the hero and an icon apart',()=>{
+ const hero={x:195,y:393},keepX=40,keepY=73.5,gap=36,top=310,reach=139,taken=[],spots=[];
+ // Fourteen drops from kills above the hero: the limit has to hold for the whole pile, not one drop.
+ for(let i=0;i<14;i++){
+  const drop={x:hero.x+(i%3-1)*6,y:hero.y-40-(i%2)*6,gold:i%2===0};
+  const [spot]=dungeonLootSpots(hero.x,hero.y,[drop],taken,keepX,keepY,gap,{top,reach});
+  taken.push({...spot,gold:drop.gold});spots.push({...spot,gold:drop.gold});
+ }
+ for(const spot of spots){
+  const dx=spot.x-hero.x,dy=spot.y-hero.y;
+  assert(spot.y>=top-1e-9,`drop rests above the floor top: ${spot.y}`);
+  assert((dx/keepX)**2+(dy/keepY)**2>=1-1e-6,`drop lies on the hero ${dx},${dy}`);
+  assert(Math.hypot(dx,dy)<=reach+1e-6,`drop sits past the reach ${Math.hypot(dx,dy)}`);
+ }
+ // Items still keep the icon pitch, and a heap still stays bunched below the limit.
+ const items=spots.filter(spot=>!spot.gold),coins=spots.filter(spot=>spot.gold);
+ for(let i=0;i<items.length;i++)for(let j=i+1;j<items.length;j++)
+  assert(Math.hypot(items[i].x-items[j].x,items[i].y-items[j].y)>=gap-1e-6,`items ${i},${j} overlap`);
+ for(const coin of coins)assert(coin.y>=top-1e-9&&Math.hypot(coin.x-hero.x,coin.y-hero.y)<=reach+1e-6);
+});
+
+test('every ground drop is painted above the exit door, in either loot layer',()=>{
+ const css=readFileSync(new URL('../src/styles/dungeon.css',import.meta.url),'utf8');
+ const z=pattern=>{const match=css.match(pattern);return match?Number(match[1]):NaN;};
+ const gate=z(/\.dungeon-exit-gate\{[^}]*z-index:(-?\d+)/),behind=z(/\.dungeon-loot-layer\.is-behind\{z-index:(-?\d+)/),
+  canvas=z(/\.dungeon-field-canvas\{[^}]*z-index:(-?\d+)/),front=z(/\.dungeon-loot-layer\{[^}]*z-index:(-?\d+)/),
+  hud=z(/\.dungeon-battle-hud\{[^}]*z-index:(-?\d+)/),result=z(/\.dungeon-battle-result\{[^}]*z-index:(-?\d+)/);
+ for(const [name,value] of Object.entries({gate,behind,canvas,front,hud,result}))assert(Number.isFinite(value),`${name} stacking rule is missing`);
+ // The door is a backdrop: no coin, weapon or skill book is ever hidden behind it.
+ assert(behind>gate,`loot behind the hero (${behind}) is not above the door (${gate})`);
+ assert(front>gate,`loot in front of the hero (${front}) is not above the door (${gate})`);
+ assert(canvas>behind,`the arena canvas (${canvas}) does not cover the behind layer (${behind})`);
+ assert(front>canvas,`loot in front (${front}) is not above the canvas (${canvas})`);
+ assert(hud>front&&result>hud,`HUD (${hud}) or result (${result}) do not sit above the drops`);
+});
+
+test('a skill book carries the same grade outline as equipment while gold stays plain',()=>{
+ const css=readFileSync(new URL('../src/styles/dungeon.css',import.meta.url),'utf8');
+ const rule=pattern=>css.match(pattern)?.[0]??'';
+ const equipment=rule(/\.dungeon-loot\.is-item \.dungeon-loot-art\{[^}]*\}/),book=rule(/\.dungeon-loot\.is-item \.dungeon-loot-book\{[^}]*\}/);
+ assert(equipment.includes('animation:dungeon-loot-glow'),'equipment halo is missing');
+ assert(book.includes('animation:dungeon-loot-glow'),'skill book has no halo');
+ // The 1px hard outline sits on the book itself too, so it stays crisp with reduced motion.
+ const base=rule(/\.dungeon-loot-book\{[^}]*\}/);
+ for(const shadow of ['1px 0 0 var(--loot-ink)','-1px 0 0 var(--loot-ink)','0 1px 0 var(--loot-ink)','0 -1px 0 var(--loot-ink)'])
+  assert(base.includes(`drop-shadow(${shadow})`),`skill book outline misses ${shadow}`);
+ assert(/@media\(prefers-reduced-motion:reduce\)\{[^}]*\.dungeon-loot\.is-item \.dungeon-loot-book/.test(css),'reduced motion forgets the skill book');
+ // Gold alone keeps no light at all.
+ assert(/\.dungeon-loot\.is-gold \.dungeon-loot-coin\{[^}]*filter:none/.test(css),'gold must stay plain');
+});

@@ -22,6 +22,10 @@ export function dungeonSpawnPull(floor:number,boss:boolean):number {
 export type LootSpot = { x:number; y:number };
 /** Ground loot resting on its spot: `gold` marks a coin, which is allowed to pile up on anything. */
 export type LootDrop = LootSpot & { gold?:boolean };
+/** The floor a drop may rest on, in screen pixels around the hero. `top` is the highest resting y —
+ *  above it is the exit door — and `reach` is how far a drop may sit from the hero. Without them a
+ *  drop keeps the point it fell on, however far up the room that was. */
+export type LootField = { top?:number; reach?:number };
 /** Ground loot rests inside a fan opening from the hero: ±100° of straight up. That keeps every drop
  *  near the kill and never behind the feet where the skill bar sits. */
 export const DUNGEON_LOOT_FAN = Math.PI*100/180;
@@ -34,18 +38,31 @@ export const DUNGEON_GOLD_PILE_STEP = 6;
  *  along the hero→drop direction — never shoved to the sides — just past the silhouette.
  *  Only equipment and skill books then keep `gap` from each other. A coin piles up with coins and
  *  items alike, moving only to clear the silhouette or to step off a coin in its own heap.
- *  `rx`/`ry` are the keep-out half-width and half-height of the character, `gap` the item pitch. */
-export function dungeonLootSpots(heroX:number,heroY:number,drops:LootDrop[],taken:LootDrop[],rx:number,ry:number,gap:number):LootSpot[] {
+ *  `rx`/`ry` are the keep-out half-width and half-height of the character, `gap` the item pitch, and
+ *  `field` the floor the drops may rest on: a spot above `top` or beyond `reach` comes back along
+ *  its own line toward the hero, so drops stay on the floor in front of the character instead of
+ *  climbing up to the exit door. A drop never ends up on the hero art, even if that costs the top
+ *  limit on a very short screen. */
+export function dungeonLootSpots(heroX:number,heroY:number,drops:LootDrop[],taken:LootDrop[],rx:number,ry:number,gap:number,field:LootField={}):LootSpot[] {
   const polar=(r:number,a:number):LootSpot=>({x:heroX+Math.sin(a)*r,y:heroY-Math.cos(a)*r});
   const rim=(a:number)=>1/Math.hypot(Math.sin(a)/rx,Math.cos(a)/ry);
   const fan=(a:number)=>Math.max(-DUNGEON_LOOT_FAN,Math.min(DUNGEON_LOOT_FAN,a));
   const angleOf=(p:LootSpot)=>Math.atan2(p.x-heroX,heroY-p.y);
+  // Longest step this direction may take: the floor limit, the reach, and always clear of the hero.
+  const ceiling=(a:number):number=>{
+    let limit=field.reach??Infinity;const cos=Math.cos(a);
+    if(field.top!==undefined&&cos>1e-6)limit=Math.min(limit,(heroY-field.top)/cos);
+    return limit;
+  };
+  const place=(r:number,a:number):LootSpot=>polar(Math.max(Math.min(r,ceiling(a)),rim(a)+2),a);
   // Coins are in `taken` too, but only another item can push an item away.
   const free=(p:LootSpot)=>taken.every(t=>t.gold||Math.hypot(t.x-p.x,t.y-p.y)>=gap-1e-6);
   const spots:LootSpot[]=[];
   for(const drop of drops){
-    const a=fan(angleOf(drop)),r=Math.max(Math.hypot(drop.x-heroX,drop.y-heroY),rim(a)+2),base=polar(r,a);
+    const a=fan(angleOf(drop)),r=Math.max(Math.hypot(drop.x-heroX,drop.y-heroY),rim(a)+2),base=place(r,a);
     let spot=base;
+    // A heap only steps a few pixels off the point it fell on, so it never climbs toward the door even
+    // when the heap itself sits on the floor limit.
     if(drop.gold){
       const pile=taken.filter(t=>t.gold&&Math.hypot(t.x-base.x,t.y-base.y)<DUNGEON_GOLD_PILE_MIN).length;
       if(pile){
@@ -56,7 +73,7 @@ export function dungeonLootSpots(heroX:number,heroY:number,drops:LootDrop[],take
     }else if(!free(base))for(let ring=1;ring<=12;ring++){
       let nearest=Infinity;
       for(const turn of [0,.4,-.4,.8,-.8,1.2,-1.2,1.6,-1.6]){
-        const candidate=polar(r+ring*gap,fan(a+turn));
+        const candidate=place(r+ring*gap,fan(a+turn));
         if(!free(candidate))continue;
         const distance=Math.hypot(candidate.x-base.x,candidate.y-base.y);
         if(distance<nearest){nearest=distance;spot=candidate;}

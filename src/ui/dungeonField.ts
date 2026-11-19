@@ -5,7 +5,7 @@ import {projectArenaPoint} from '../game/arena';
 import {totalStats} from '../game/store';
 import {skills} from '../game/skills';
 import {equipmentImage,isSkillBook,type Rarity} from '../game/items';
-import {DungeonBattle,dungeonLootSpots,dungeonLootTimeline,dungeonAbsorbProgress,dungeonAbsorbPoint,type DungeonLoot,type LootDrop} from './dungeonBattle';
+import {DungeonBattle,dungeonLootSpots,dungeonLootTimeline,dungeonAbsorbProgress,dungeonAbsorbPoint,type DungeonLoot,type LootDrop,type LootField} from './dungeonBattle';
 import {heroBodyFraction} from '../game/render/heroScale';
 import {setSkillIcon} from './skillArtwork';
 import {createSkillBookArt} from './skillBookArt';
@@ -27,15 +27,25 @@ export function openDungeonField(ui:Interface,lobby:HTMLElement):void {
   // Ground loot is DOM on top of the transparent arena canvas: the shared field renderer keeps
   // drawing only the arena, so drops stay inside the isolated dungeon UI files.
   const lootLayer=get('.dungeon-loot-layer:not(.is-behind)'),backLootLayer=get('.dungeon-loot-layer.is-behind');
-  // Grade colours are pushed to full saturation: an equipment drop has to read as its grade at a
-  // glance, while gold and skill books carry no outer light at all.
+  // Grade colours are pushed to full saturation: an equipment or skill book drop has to read as its
+  // grade at a glance, while a coin carries no outer light at all.
   const rarityInk:Record<Rarity,string>={common:'#cdd6e0',magic:'#2f7bff',rare:'#ffd400',epic:'#a855f7',unique:'#ff8a00',legendary:'#ff2d2d'};
   type LootView={el:HTMLDivElement;body:HTMLDivElement;shadow:HTMLSpanElement;x:number;y:number;tx:number;ty:number;drift:number;h:number;vh:number;spin:number;spinV:number;settled:boolean;done:boolean};
   let lootViews:LootView[]=[],restSpots:LootDrop[]=[],spawnedLoot=0,absorbStarted=false,absorbRing:HTMLDivElement|undefined;
   // One timeline owns the clear beat: hold on the ground, pull every drop in, then show the result.
   const timeline=()=>dungeonLootTimeline(battle.outcome,battle.world.loot.length);
   const LOOT_GAP=36;
+  // A drop's art hangs 38px above its ground point, so a spot keeps that much room under the exit
+  // door's sill: drops rest on the floor in front of the door and never climb up to it.
+  const LOOT_ART_LIFT=38,LOOT_TOP_PAD=6;
   const reducedMotion=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  // The floor the drops may rest on, read off the real door box (`top:10%` + `height:28%` of the
+  // field in dungeon.css) so the limit follows the room art instead of a guessed fraction.
+  const lootField=(heroH:number):LootField=>{
+    const h=view.app.screen.height,box=field.getBoundingClientRect(),gate=get('.dungeon-exit-gate').getBoundingClientRect();
+    const sill=gate.height>0?gate.bottom-box.top:h*.38;
+    return {top:sill+LOOT_ART_LIFT+LOOT_TOP_PAD,reach:Math.max(120,heroH*2+8)};
+  };
   const spawnLoot=(loot:DungeonLoot):void=>{
     const el=document.createElement('div'),body=document.createElement('div'),shadow=document.createElement('span');
     el.className='dungeon-loot';body.className='dungeon-loot-body';shadow.className='dungeon-loot-shadow';
@@ -55,8 +65,10 @@ export function openDungeonField(ui:Interface,lobby:HTMLElement):void {
     // point is inside the character: then it is pulled straight out along the same line until it
     // clears the art, inside the fan. Only items are held `LOOT_GAP` apart from each other; gold
     // piles up where the mob fell, so its coins stay bunched instead of scattering across the floor.
+    // Whatever the fall point, the spot also comes back along its own line into the floor limit,
+    // so nothing rests up at the exit door or far from the character.
     const w=view.app.screen.width,h=view.app.screen.height,[heroX,heroY]=projectArenaPoint(battle.world.player.x,battle.world.player.y,w,h),[gx,gy]=projectArenaPoint(loot.x,loot.y,w,h);
-    const heroH=Math.max(48,h*heroBodyFraction),[spot]=dungeonLootSpots(heroX,heroY,[{x:gx,y:gy,gold:loot.kind==='gold'}],restSpots,Math.max(40,heroH*.5),heroH+8,LOOT_GAP),tx=spot.x-gx,ty=spot.y-gy;
+    const heroH=Math.max(48,h*heroBodyFraction),[spot]=dungeonLootSpots(heroX,heroY,[{x:gx,y:gy,gold:loot.kind==='gold'}],restSpots,Math.max(40,heroH*.5),heroH+8,LOOT_GAP,lootField(heroH)),tx=spot.x-gx,ty=spot.y-gy;
     el.append(shadow,body);
     // Depth: loot that rests behind the hero's feet stays under the transparent arena canvas, loot
     // in front of them is drawn over the floor. Neither ever sits on the hero art.
