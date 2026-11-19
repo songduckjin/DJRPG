@@ -11,7 +11,7 @@ import { drawLoot } from './render/drops';
 import type { LootDrop } from './loot';
 import { projectArenaPoint } from './arena';
 import { createBootProgress } from './bootProgress';
-import { helmetArtList, helmetArtPaths, headlessBodyPaths } from './render/helmets';
+import { helmetArtList, helmetArtPaths, helmetAttackArtList, helmetAttackArtPaths, headlessBodyPaths } from './render/helmets';
 
 const paths = {
   floor: '/assets/wasteland-ground.png', terrainProps: '/assets/wasteland-props.png', male: '/assets/warrior_male_base.png',
@@ -77,7 +77,9 @@ export const renderAssetPaths = [
   ...Object.values(paths), ...Object.values(animationPaths).flat(),
   ...Object.values(attackSheets), ...Object.values(walkSheets), ...Object.values(wearableAssetPaths),
   // 착용 투구 머리 파츠(작업 151) — 장비창과 필드가 같은 PNG 를 쓴다.
-  ...helmetArtList.map(art => helmetArtPaths[art])
+  ...helmetArtList.map(art => helmetArtPaths[art]),
+  // 공격 3/4 옆모습 투구 파츠(작업 154) — 남녀 10종 × 공격 4프레임.
+  ...helmetAttackArtList.map(art => helmetAttackArtPaths[art])
 ];
 type Dust = { x: number; y: number; vx: number; vy: number; age: number; duration: number; size: number };
 type Ghost = { sprites: { sprite: Sprite; dx: number; dy: number }[]; x: number; y: number; age: number; duration: number };
@@ -170,7 +172,10 @@ export class GameView {
         return new Texture({ source: sheet.source, frame: new Rectangle(left, 0, right - left, sheet.source.height) });
       });
     }
-    const helmets = await Promise.all(helmetArtList.map(async art => [helmetArtPaths[art], await loadTexture(helmetArtPaths[art])] as const));
+    // 정면(서기·걷기) 13장과 공격 3/4 파츠 80장을 함께 받는다 — 필드에서 프레임이 바뀌는
+    // 순간에 텍스처가 없어 투구가 한 프레임 사라지는 일이 없도록 부팅 때 모두 올린다.
+    const helmetPaths = [...helmetArtList.map(art => helmetArtPaths[art]), ...helmetAttackArtList.map(art => helmetAttackArtPaths[art])];
+    const helmets = await Promise.all(helmetPaths.map(async path => [path, await loadTexture(path)] as const));
     for (const [path, texture] of helmets) { texture.source.scaleMode = 'linear'; this.helmetTextures.set(path, texture); }
     const walking = await Promise.all((Object.keys(walkSheets) as (keyof typeof walkSheets)[]).map(async key => [key, await loadTexture(walkSheets[key])] as const));
     for (const [key, sheet] of walking) {

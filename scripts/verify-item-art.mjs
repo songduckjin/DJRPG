@@ -137,3 +137,25 @@ for (const name of helmetParts) {
   }
 }
 console.log(`작업 151 투구 머리 파츠 ${helmetParts.length}종 확인 완료.`);
+
+// ── 작업 154: 공격 3/4 옆모습 투구 파츠 ─────────────────────────────────────────
+// 남녀 10종 × 공격 4프레임 = 80장. 파일명·RGBA·크기(본체 362px 셀 기준)를 함께 본다.
+const attackHelmetRoot = join(helmetRoot, 'atk');
+const attackHelmetParts = ['male', 'female'].flatMap(gender =>
+  Array.from({ length: 10 }, (_, index) =>
+    Array.from({ length: 4 }, (_, frame) => `${gender}_${index}_f${frame}.png`)).flat());
+for (const name of attackHelmetParts) {
+  const path = join(attackHelmetRoot, name);
+  if (!existsSync(path)) throw new Error(`작업 154 공격 투구 파츠가 없습니다: atk/${name}`);
+  const data = readFileSync(path), header = data.subarray(0, 26);
+  const width = header.readUInt32BE(16), height = header.readUInt32BE(20);
+  // 256색 팔레트(tRNS) PNG 를 허용한다 — 정면 파츠와 같은 알파를 유지하면서 용량이 1/3이다.
+  if (header.toString('ascii', 1, 4) !== 'PNG' || !(header[25] === 6 || (header[25] === 3 && data.includes('tRNS')))) {
+    throw new Error(`공격 투구 파츠는 투명도가 있는 PNG여야 합니다: atk/${name}`);
+  }
+  // 크롭 아래가 목·칼라까지 내려가 정면 파츠(140px)보다 조금 크다.
+  if (width < 40 || width > 170 || height < 40 || height > 170) {
+    throw new Error(`공격 투구 파츠 크기가 본체 셀 기준을 벗어났습니다(${width}×${height}): atk/${name}`);
+  }
+}
+console.log(`작업 154 공격 투구 파츠 ${attackHelmetParts.length}종 확인 완료.`);

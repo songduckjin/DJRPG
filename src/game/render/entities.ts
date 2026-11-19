@@ -9,7 +9,7 @@ import { tintedGearTexture } from './gearTint';
 import { costumeGhostSources, hideCostumeHero } from './costumeHero';
 import { resolveSkillMotion, type CostumeMotionTemplate } from '../costume/skillMotion';
 import { wearableEquipmentImage, baseItemIndex } from '../items';
-import { helmetArtFor, helmetArtPaths, helmetPlacement } from './helmets';
+import { helmetArtFor, helmetArtPath, helmetPlacement } from './helmets';
 import type { GameView } from '../render';
 
 function syncWeapon(view: GameView, save: Save, texture: Texture, art: string, attacking: boolean, motion: 'idle' | 'walk', walkingFrame: number): void {
@@ -108,15 +108,16 @@ function helmetIndex(save: Save): number {
 function syncHelmet(view: GameView, save: Save, motion: 'idle' | 'walk' | 'attack', frame: number, tint: number): void {
   const item = save.equipment.helmet;
   const index = item ? baseItemIndex(item) : -1;
-  const art = helmetArtFor(save.gender, index);
+  // 공격은 그 프레임의 3/4 옆모습 파츠, 서기·걷기는 정면 파츠(작업 154).
+  const art = helmetArtFor(save.gender, index, motion, frame);
   const shown = view.heroHelmet;
   if (!art) {
     if (shown) shown.visible = false;
     return;
   }
-  const texture = view.helmetTextures?.get(helmetArtPaths[art]);
+  const texture = view.helmetTextures?.get(helmetArtPath(art));
   if (!texture) return; // 아직 로딩 전 — 다음 프레임에 그린다.
-  const place = helmetPlacement(save.gender, motion, frame);
+  const place = helmetPlacement(save.gender, motion, frame, index);
   const layerX = place.x - view.hero.texture.width * view.hero.anchor.x;
   const layerY = place.y - view.hero.texture.height * view.hero.anchor.y;
   let sprite = shown;
@@ -130,7 +131,7 @@ function syncHelmet(view: GameView, save: Save, motion: 'idle' | 'walk' | 'attac
   }
   if (sprite.texture !== texture) sprite.texture = texture;
   sprite.position.set(layerX, layerY);
-  // 목 밑동 앵커(아래 중앙)를 축으로 기울이고, 숙인 고개는 세로만 줄인다(작업 153).
+  // 앵커는 아래 중앙(목 밑동). 정면 파츠는 서기·걷기에서 배율만, 공격 3/4 파츠는 배율 1·회전 0.
   sprite.scale.set(place.scale, place.scaleY ?? place.scale);
   sprite.tint = tint;
   sprite.rotation = place.rotation ?? 0;
