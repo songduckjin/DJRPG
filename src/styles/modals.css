@@ -192,6 +192,25 @@
 .skill-points { margin: 0; padding: 9px; border: 1px solid #c79555; background: #493123; color: #ffe0aa; font-weight: 700; text-align: center; }
 .skill-list article { display: flex; gap: 11px; border: 1px solid #59463e; background: #201b1e; padding: 10px; }
 .skill-note { margin: 0 0 4px; padding: 8px; border: 1px solid #8e704c; background: #352820; color: #f0d5aa; font-size: 11px; line-height: 1.5; }
+/* [작업 240] 스킬 창 상단 바 — 보유 스킬로 3칸을 다시 채우는 `추천 자동 장착`과 `전체/액티브/패시브` 탭.
+   390px 폰에서 버튼과 탭 세 칸이 한 줄에 들어가고, 그보다 좁으면 버튼이 위 줄로 접힌다. */
+.skill-top-bar { display: flex; flex-wrap: wrap; gap: 5px; align-items: stretch; }
+.skill-auto-equip { flex: 1 1 132px; min-height: 34px; padding: 7px 10px; border: 1px solid #d0a05c; border-radius: 4px; background: linear-gradient(#6b4a30, #442d20); color: #ffe6bd; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
+.skill-auto-equip:hover { border-color: #f0c47e; background: linear-gradient(#7c5638, #4d3325); }
+.skill-auto-equip:active { background: #3a2820; }
+.skill-filter { display: flex; flex: 0 0 auto; border: 1px solid #6b5545; border-radius: 4px; overflow: hidden; background: #1d1719; }
+.skill-filter-tab { min-width: 52px; padding: 7px 9px; border: 0; border-left: 1px solid #4a3a33; background: transparent; color: #a99581; font: inherit; font-size: 11px; cursor: pointer; }
+.skill-filter-tab:first-child { border-left: 0; }
+.skill-filter-tab[aria-selected="true"] { background: #5a402d; color: #ffe6bd; font-weight: 700; box-shadow: inset 0 -2px 0 #e0b36e; }
+.skill-filter-tab:focus-visible { outline: 2px solid #e2bd78; outline-offset: -3px; }
+.skill-passive-section { display: flex; flex-direction: column; gap: 5px; }
+.skill-passive-hint { color: #b5a79e; }
+/* 한글은 단어 중간에서 끊기지 않게(예: `미습득 (스킬북 파밍 필요)`가 `필/요`로 갈라졌다) — 긴 영문·숫자는 상자 안에서 줄인다. */
+.passive-skill-card, .skill-passive-hint { word-break: keep-all; overflow-wrap: break-word; }
+@media (max-width: 380px) {
+  .skill-auto-equip { font-size: 11px; }
+  .skill-filter-tab { min-width: 44px; padding: 7px; font-size: 10px; }
+}
 .skill-group-title { margin: 10px 0 0; color: #e8d4ae; font-size: 15px; border-bottom: 1px solid #6b5545; padding-bottom: 6px; }
 .skill-info { min-width: 0; flex: 1; }
 .skill-level { display: block; margin: 4px 0 2px; color: #efc783; font-size: 11px; }
