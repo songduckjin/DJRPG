@@ -71,7 +71,9 @@ export function baseItemIndex(item: EquipmentItem): number {
   const name = compact(item.name);
   if (item.slot === 'helmet' && name === compact('낡은 투구')) return baseItems.helmet.indexOf('심연의 뿔투구');
   if (item.slot === 'weapon') {
-    const bow = bowBases.findIndex(base => name === compact(base) || name.endsWith(compact(base)));
+    // 활은 이름이 서로를 포함한다('각궁' ⊂ '룬 각궁', '장궁' ⊂ '혈염 장궁') — 가장 긴 기본형이
+    // 그 활의 티어다(작업 160: 접미사 우선 매칭만 쓰면 '룬 각궁'이 1번 각궁으로 읽혔다).
+    const bow = bowIndex(item);
     if (bow >= 0) return bow;
     const staff = staffBases.findIndex(base => name === compact(base) || name.endsWith(compact(base)));
     if (staff >= 0) return staff;
@@ -81,11 +83,19 @@ export function baseItemIndex(item: EquipmentItem): number {
 
 function compact(value: string): string { return value.normalize('NFKC').replace(/[\s\u200b\ufeff]/gu, ''); }
 
-/** 이름이 활 기본형이면 그 인덱스(0~9), 아니면 -1. */
+/** 이름이 활 기본형이면 그 인덱스(0~9), 아니면 -1. 가장 긴 기본형이 이긴다. */
 export function bowIndex(item: Item): number {
   if (item.slot !== 'weapon') return -1;
   const name = compact(item.name);
-  return bowBases.findIndex(base => name === compact(base) || name.endsWith(compact(base)));
+  let found = -1, bestLength = -1;
+  bowBases.forEach((base, index) => {
+    const key = compact(base);
+    if ((name === key || name.endsWith(key)) && key.length > bestLength) {
+      found = index;
+      bestLength = key.length;
+    }
+  });
+  return found;
 }
 
 /** 이름이 지팡이 기본형이면 그 인덱스(0~9), 아니면 -1. */

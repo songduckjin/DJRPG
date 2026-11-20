@@ -8,6 +8,7 @@ import { jobOrDefault } from '../game/skills';
 import { helmetArtFor, helmetArtPath, helmetIdlePlacement } from '../game/render/helmets';
 import { armorIndexFor, armorSheetPath } from '../game/render/armors';
 import { WEAPON_GUARD, weaponIndexFor, weaponPartPath, weaponPose, swordlessBodyPath } from '../game/render/weapons';
+import { BOW_GRIP, bowIndexFor, bowPartPath, bowPose, bowlessBodyPath } from '../game/render/bows';
 
 /**
  * 내 정보(장비창) 초상화 — Task 149 full-body pilot image. Gear remains functional but its
@@ -16,11 +17,17 @@ import { WEAPON_GUARD, weaponIndexFor, weaponPartPath, weaponPose, swordlessBody
 
 /** 전사 시안은 장착 조합에 맞춘 필드와 같은 전신 그림을 쓴다(작업 155: 갑옷 티어별 시트). */
 export function equipmentFallbackPortrait(save: Save): string {
-  // 궁수(작업 157)·마법사(작업 198)는 이번 단계에서 기본 시트만 쓴다 — 전용 갑옷·투구·무기 외형은 추후 별도 시안.
-  // 작업 159: 궁수 시트를 갈면서 `/assets/*` immutable 캐시를 피하려고 궁수 URL에 `?v=2`를 붙인다(필드 render.ts와 같은 경로).
+  // 궁수(작업 157·160)·마법사(작업 198)는 기본 시트만 쓴다 — 전용 갑옷·투구·무기 외형은 추후 별도 시안.
+  // 작업 159: 궁수 시트를 갈면서 `/assets/*` immutable 캐시를 피하려고 궁수 URL에 `?v=2`를 붙인다
+  // (render.ts·charactersModal.ts와 같은 규칙).
   if (usesBaseSheetOnly(save)) {
-    // 작업 159: 궁수 시트를 갈면서 `/assets/*` immutable 캐시를 피해 URL에 `?v=2`를 붙인다(render.ts·charactersModal.ts와 같은 규칙).
-    if (isArcher(save)) return `/assets/pilot-25d/archer_${save.gender}_idle_v1.png?v=2`;
+    // 작업 160: 궁수는 1번 이상 활을 차면 기본 활대를 지운 서기 시트 위에 활 파츠를 얹는다.
+    // `nobow/` 시트는 이번에 새로 만든 파일이라 쿼리 없이 그대로 캐시된다.
+    if (isArcher(save)) {
+      return bowIndexFor(save) >= 1
+        ? bowlessBodyPath(save.gender, 'idle')
+        : `/assets/pilot-25d/archer_${save.gender}_idle_v1.png?v=2`;
+    }
     return `/assets/pilot-25d/${jobOrDefault(save.job)}_${save.gender}_idle_v1.png`;
   }
   // 투구를 쓰면 필드와 같은 머리 없는 본체 위에 투구 파츠를 얹는다(작업 152).
@@ -47,12 +54,31 @@ export type EquipmentPortraitWeapon = {
   rotation: number;
 };
 
-/** 착용 무기의 파츠. 0번(기본 두손검)은 본체 시트에 그려져 있어 undefined. 궁수·마법사는 무기 외형이 없다. */
+/** 착용 무기의 파츠. 0번(기본 두손검)은 본체 시트에 그려져 있어 undefined. 궁수는 활 파츠를 따로 쓰고, 마법사는 무기 외형이 없다. */
 export function equipmentPortraitWeapon(save: Save): EquipmentPortraitWeapon | undefined {
   if (usesBaseSheetOnly(save)) return undefined;
   const path = weaponPartPath(weaponIndexFor(save));
   if (!path) return undefined;
   const pose = weaponPose(save.gender, 'idle', 0);
+  return { path, x: pose.x, y: pose.y, rotation: pose.rot };
+}
+
+/** 장비창에 합성하는 활 파츠(작업 160). 파츠는 서기 자세 그대로다. */
+export type EquipmentPortraitBow = {
+  /** 파츠 PNG 경로. */
+  path: string;
+  /** 본체 362px 셀 좌표에서 그립 점과 회전각(도). */
+  x: number;
+  y: number;
+  rotation: number;
+};
+
+/** 착용 활의 파츠. 0번(사냥꾼의 활)은 본체 시트에 그려져 있어 undefined. */
+export function equipmentPortraitBow(save: Save): EquipmentPortraitBow | undefined {
+  if (!isArcher(save)) return undefined;
+  const path = bowPartPath(bowIndexFor(save));
+  if (!path) return undefined;
+  const pose = bowPose(save.gender, 'idle', 0);
   return { path, x: pose.x, y: pose.y, rotation: pose.rot };
 }
 
@@ -88,6 +114,8 @@ export type EquipmentPortraitPlan = {
   helmet?: EquipmentPortraitHelmet;
   /** 착용 대검이 있으면(1번 이상) 같은 셀 좌표로 합성한다. */
   weapon?: EquipmentPortraitWeapon;
+  /** 착용 활이 있으면(1번 이상) 같은 셀 좌표로 합성한다(작업 160). */
+  bow?: EquipmentPortraitBow;
   /** 캐시 키(성별 + 투구). */
   key: string;
   gender: Save['gender'];
@@ -102,11 +130,14 @@ export function equipmentPortraitPlan(save: Save): EquipmentPortraitPlan {
   const base = equipmentFallbackPortrait(save);
   const helmet = equipmentPortraitHelmet(save);
   const weapon = equipmentPortraitWeapon(save);
+  const bow = equipmentPortraitBow(save);
   // 착용 투구·대검이 바뀌면 합성 결과도 바뀌므로 키에 넣는다(성별 + 갑옷 티어 + 투구 + 검 파츠).
   return {
     mode: 'fallback', base,
-    key: usesBaseSheetOnly(save) ? `${jobOrDefault(save.job)}:${save.gender}` : `pilot:${save.gender}:a${armorIndexFor(save)}:${helmet ? helmet.path : '-'}:${weapon ? weapon.path : '-'}`,
-    gender: save.gender, layers: [], helmet, weapon
+    key: usesBaseSheetOnly(save)
+      ? (isArcher(save) ? `archer:${save.gender}:${bow ? bow.path : '-'}` : `${jobOrDefault(save.job)}:${save.gender}`)
+      : `pilot:${save.gender}:a${armorIndexFor(save)}:${helmet ? helmet.path : '-'}:${weapon ? weapon.path : '-'}`,
+    gender: save.gender, layers: [], helmet, weapon, bow
   };
 }
 
@@ -268,7 +299,9 @@ async function composeCostume(layers: CostumeLayerPlan[]): Promise<string> {
 }
 
 /** 폴백: 전신 초상화 한 장(+착용 투구·대검)을 캔버스에 맞춰 그린다(빈 화면 방지). */
-async function composeFallback(base: string, helmet?: EquipmentPortraitHelmet, weapon?: EquipmentPortraitWeapon): Promise<string> {
+async function composeFallback(
+  base: string, helmet?: EquipmentPortraitHelmet, weapon?: EquipmentPortraitWeapon, bow?: EquipmentPortraitBow
+): Promise<string> {
   const image = await loadImage(base, fallbackImages, new Set());
   const canvas = fitCanvas(image.naturalWidth, image.naturalHeight);
   const context = canvas.getContext('2d');
@@ -289,6 +322,21 @@ async function composeFallback(base: string, helmet?: EquipmentPortraitHelmet, w
       context.drawImage(patch, left, top, patchWidth, patchHeight);
     } catch (error) {
       console.info('[장비창] 투구 머리 파츠 로딩 실패 → 전신 그림만 표시:', error);
+    }
+  }
+  if (bow) {
+    try {
+      const patch = await loadImage(bow.path, fallbackImages, new Set());
+      // 활 파츠도 362px 셀 좌표계라 전신 그림의 배율·위치에 그대로 얹고 그립 점을 축으로 돌린다.
+      const gripX = (canvas.width - width) / 2 + bow.x * scale;
+      const gripY = canvas.height - height + bow.y * scale;
+      context.save();
+      context.translate(gripX, gripY);
+      context.rotate(bow.rotation * Math.PI / 180);
+      context.drawImage(patch, -BOW_GRIP.x * scale, -BOW_GRIP.y * scale, patch.naturalWidth * scale, patch.naturalHeight * scale);
+      context.restore();
+    } catch (error) {
+      console.info('[장비창] 활 파츠 로딩 실패 → 전신 그림만 표시:', error);
     }
   }
   if (weapon) {
@@ -328,7 +376,7 @@ export async function renderEquipmentPortrait(save: Save): Promise<string> {
         console.info('[장비창] 코스튬 합성 실패 → 전신 초상화로 폴백:', error);
       }
     }
-    return composeFallback(plan.base, plan.helmet, plan.weapon);
+    return composeFallback(plan.base, plan.helmet, plan.weapon, plan.bow);
   })();
   storePortrait(plan.key, pending);
   void pending.catch(() => {
