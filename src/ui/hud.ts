@@ -1,4 +1,4 @@
-import { isSkillBook } from '../game/items';
+import { isSkillBook, starterWeaponName } from '../game/items';
 import { hasSkillUpgrade } from '../game/skillProgress';
 import { applySkillArtwork } from './skillArtwork';
 import { SkillFeedback } from './skillFeedback';
@@ -12,10 +12,11 @@ import type { Interface } from './interface';
 
 const shortNames: Record<SkillId, string> = {
   slash2: '이단참', spin: '용오름', crushing: '크러싱', slam: '스탬프', warcry: '레이지', power: '파워', destroy: '충격파', hell: '헬파이어',
-  doubleShot: '더블샷', multiShot: '멀티샷', pierceShot: '관통', iceArrow: '빙결', hawkEye: '호크아이', snipe: '저격', stormVolley: '연사', arrowRain: '화살비'
+  doubleShot: '더블샷', multiShot: '멀티샷', pierceShot: '관통', iceArrow: '빙결', hawkEye: '호크아이', snipe: '저격', stormVolley: '연사', arrowRain: '화살비',
+  fireBolt: '파이어', iceBolt: '아이스', chainLightning: '체인', manaBurst: '마력폭발', frostNova: '서리노바', arcaneShield: '아케인', meteorStrike: '메테오', arcaneOverlord: '오버로드'
 };
 /** 평타 이름 — 직업마다 다른 무기를 쓴다. */
-export function basicAttackName(job: Job): string { return job === 'archer' ? '활 사격' : '대검 베기'; }
+export function basicAttackName(job: Job): string { return job === 'archer' ? '활 사격' : job === 'mage' ? '마법탄' : '대검 베기'; }
 
 export function renderStatus(this: Interface): void {
     const { save, player } = this.world;
@@ -27,7 +28,7 @@ export function renderStatus(this: Interface): void {
     this.get('.hp b').textContent = `HP ${Math.ceil(player.hp)}/${totalStats(save).health}`;
     this.get('.hp').setAttribute('aria-valuenow', String(Math.ceil(player.hp)));
     this.get('.hp').setAttribute('aria-valuemax', String(totalStats(save).health));
-    const tutorial = ['자동 사냥이 시작되었습니다. 첫 해골전사를 처치하세요.', `${jobOrDefault(save.job) === 'archer' ? '낡은 사냥꾼의 활' : '낡은 두손검'}을 자동으로 줍고 있습니다.`, `하단 갑옷 아이콘을 눌러 가방의 ${jobOrDefault(save.job) === 'archer' ? '낡은 사냥꾼의 활' : '낡은 두손검'}을 장착하세요.`][save.tutorial];
+    const tutorial = ['자동 사냥이 시작되었습니다. 첫 해골전사를 처치하세요.', `${starterWeaponName(jobOrDefault(save.job))}을 자동으로 줍고 있습니다.`, `하단 갑옷 아이콘을 눌러 가방의 ${starterWeaponName(jobOrDefault(save.job))}을 장착하세요.`][save.tutorial];
     this.banner.textContent = tutorial ?? ''; this.banner.hidden = save.tutorial >= 3;
   }
 

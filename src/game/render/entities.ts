@@ -8,7 +8,8 @@ import { heroClass, socketMotion, weaponSocket } from './heroSockets';
 import { tintedGearTexture } from './gearTint';
 import { costumeGhostSources, hideCostumeHero } from './costumeHero';
 import { resolveSkillMotion, type CostumeMotionTemplate } from '../costume/skillMotion';
-import { wearableEquipmentImage, baseItemIndex, isArcher } from '../items';
+import { wearableEquipmentImage, baseItemIndex, usesBaseSheetOnly } from '../items';
+import { jobOrDefault } from '../skills';
 import { helmetArtFor, helmetArtPath, helmetPlacement } from './helmets';
 import { armorIndexFor } from './armors';
 import { WEAPON_GUARD, weaponIndexFor, weaponPose } from './weapons';
@@ -87,6 +88,8 @@ const walkAnchors = {
   femaleOldHelmWalk: [.97, .97, .97, .97, .97, .97, .97, .97],
   archerMaleWalk: [.97, .97, .97, .97, .97, .97, .97, .97],
   archerFemaleWalk: [.97, .97, .97, .97, .97, .97, .97, .97],
+  mageMaleWalk: [.97, .97, .97, .97, .97, .97, .97, .97],
+  mageFemaleWalk: [.97, .97, .97, .97, .97, .97, .97, .97],
   armoredWalk: [.907, .907, .907, .907, .903, .903, .903, .907],
   armoredNoHelmWalk: [.953, .948, .953, .948, .948, .953, .953, .953],
   femaleArmoredNoHelmWalk: [.984, .984, .984, .984, .98, .989, .989, .984],
@@ -205,12 +208,15 @@ export function activeSkillMotion(world: World): HeroSkillMotion {
 
 export function drawHero(this: GameView, world: World, x: number, y: number, time: number): void {
     const { player, save } = world;
-    // 궁수는 이번 단계에서 기본 시트만 그린다(작업 157) — 전사용 갑옷·투구·대검 파츠를 절대 적용하지 않는다.
-    const archer = isArcher(save);
-    const base = archer ? 'archer' : 'pilot';
-    const pilotIdle = `${base}${save.gender === 'female' ? 'Female' : 'Male'}` as 'pilotMale' | 'pilotFemale' | 'archerMale' | 'archerFemale';
-    const pilotWalk = `${base}${save.gender === 'female' ? 'Female' : 'Male'}Walk` as 'pilotMaleWalk' | 'pilotFemaleWalk' | 'archerMaleWalk' | 'archerFemaleWalk';
-    const pilotAttack = `${base}${save.gender === 'female' ? 'Female' : 'Male'}Attack` as 'pilotMaleAttack' | 'pilotFemaleAttack' | 'archerMaleAttack' | 'archerFemaleAttack';
+    // 궁수(작업 157)·마법사(작업 159)는 기본 시트만 그린다 — 전사용 갑옷·투구·대검 파츠를 절대 적용하지 않는다.
+    const job = jobOrDefault(save.job);
+    const baseSheet = job === 'warrior' ? 'pilot' : job;
+    // 전사만 장비 오버레이(투구·갑옷·검 파츠)를 얹는다.
+    const plain = usesBaseSheetOnly(save);
+    const side = save.gender === 'female' ? 'Female' : 'Male';
+    const pilotIdle = `${baseSheet}${side}` as 'pilotMale' | 'pilotFemale' | 'archerMale' | 'archerFemale' | 'mageMale' | 'mageFemale';
+    const pilotWalk = `${baseSheet}${side}Walk` as 'pilotMaleWalk' | 'pilotFemaleWalk' | 'archerMaleWalk' | 'archerFemaleWalk' | 'mageMaleWalk' | 'mageFemaleWalk';
+    const pilotAttack = `${baseSheet}${side}Attack` as 'pilotMaleAttack' | 'pilotFemaleAttack' | 'archerMaleAttack' | 'archerFemaleAttack' | 'mageMaleAttack' | 'mageFemaleAttack';
     const moving = Math.hypot(world.activeMove.x, world.activeMove.y) > .05;
     const walked = Math.hypot(player.x - this.lastHeroWorld.x, player.y - this.lastHeroWorld.y);
     this.lastHeroWorld = { x: player.x, y: player.y };
@@ -231,7 +237,7 @@ export function drawHero(this: GameView, world: World, x: number, y: number, tim
       : animatedAttack ? `${pilotAttack}:${Math.max(0, attackFrame)}` : pilotIdle;
     // 투구를 쓰면 머리·머리카락이 지워진 같은 크기 시트로 갈아 끼운다(작업 152).
     // 셀 좌표계가 같아 배율·앵커·무기 소켓은 기존 값을 그대로 쓴다.
-    const helmeted = !archer && helmetIndex(save) >= 0;
+    const helmeted = !plain && helmetIndex(save) >= 0;
     if (helmeted) {
       const headless = save.gender === 'female'
         ? (animation === 'walk' ? this.animations.pilotFemaleWalkHeadless?.[walkingFrame]
@@ -245,8 +251,8 @@ export function drawHero(this: GameView, world: World, x: number, y: number, tim
     }
     // 착용 갑옷 시트(작업 155). 기준 시트와 같은 셀 좌표계라 배율·앵커·소켓은 그대로다.
     // 아직 로딩 전인 티어는 위의 기준 시트(투구를 썼으면 머리 없는 시트)로 한 프레임 더 그린다.
-    const armor = archer ? -1 : armorIndexFor(save);
-    const weapon = archer ? 0 : weaponIndexFor(save);
+    const armor = plain ? -1 : armorIndexFor(save);
+    const weapon = plain ? 0 : weaponIndexFor(save);
     // 0번이 아닌 검을 차면 본체 시트도 기본 검을 지운 판(`noweapon/`)으로 갈아 끼운다(작업 156).
     const swordless = weapon >= 1;
     const bodyTier = `${save.gender}:${armor}:${swordless ? 1 : 0}`;
@@ -279,8 +285,8 @@ export function drawHero(this: GameView, world: World, x: number, y: number, tim
     const bodyPx = heroBodyHeight(art, texture.height);
     const scale = heroScale(this.app.screen.height, art, texture.height);
     this.hero.tint = heroTint;
-    if (archer) {
-      // 궁수: 장비 오버레이(투구·대검·착용 무기)는 숨기고 기본 시트만 그린다.
+    if (plain) {
+      // 궁수·마법사: 장비 오버레이(투구·대검·착용 무기)는 숨기고 기본 시트만 그린다.
       if (this.heroHelmet) this.heroHelmet.visible = false;
       if (this.heroWeapon) this.heroWeapon.visible = false;
       const shownGear = this.heroGear.get('weapon');

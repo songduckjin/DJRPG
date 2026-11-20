@@ -1,9 +1,17 @@
 import type { Item } from '../../game/store';
+import { jobNames, jobOrDefault, type Job } from '../../game/skills';
 import type { Interface } from '../interface';
 import { accountRequest } from '../login';
 import { apiHeaders, isOutdatedResponse, reloadForNewVersion } from '../../game/appVersion';
 
-export type CharacterSummary = { slot: number; name: string; gender: 'male' | 'female'; job?: 'warrior' | 'archer'; level: number; floor: number };
+export type CharacterSummary = { slot: number; name: string; gender: 'male' | 'female'; job?: Job; level: number; floor: number };
+
+/** 캐릭터 선택 카드 그림 — 전사는 기존 base 초상화, 궁수·마법사는 자기 기본 시트를 쓴다. */
+function characterImage(character: CharacterSummary): string {
+  const gender = character.gender === 'female' ? 'female' : 'male';
+  const job = jobOrDefault(character.job);
+  return job === 'warrior' ? `/assets/warrior_${gender}_base.png` : `/assets/pilot-25d/${job}_${gender}_idle_v1.png`;
+}
 type CharacterList = { characters: CharacterSummary[]; activeSlot: number; maxSlots: number; revision: number };
 
 export async function loadCharacters(ui: Interface): Promise<void> {
@@ -32,8 +40,8 @@ export function renderCharacters(ui: Interface, dialog: HTMLElement): void {
     });
     card.className = `character-slot${slot === ui.session.characterSlot ? ' selected' : ''}`;
     const image = document.createElement('img'); image.alt = '';
-    image.src = character ? (character.job === 'archer' ? `/assets/pilot-25d/archer_${character.gender === 'female' ? 'female' : 'male'}_idle_v1.png` : `/assets/warrior_${character.gender === 'female' ? 'female' : 'male'}_base.png`) : '';
-    const details = document.createElement('span'); details.textContent = character ? `${character.name} · ${character.job === 'archer' ? '궁수' : '전사'} · Lv.${character.level} · ${character.floor}층` : `슬롯 ${slot} · 새 캐릭터 만들기`;
+    image.src = character ? characterImage(character) : '';
+    const details = document.createElement('span'); details.textContent = character ? `${character.name} · ${jobNames[jobOrDefault(character.job)]} · Lv.${character.level} · ${character.floor}층` : `슬롯 ${slot} · 새 캐릭터 만들기`;
     if (character) card.append(image);
     else { const plus = document.createElement('strong'); plus.textContent = '+'; card.append(plus); }
     card.append(details); grid.append(card);
@@ -56,13 +64,13 @@ export function renderCreateCharacter(ui: Interface, dialog: HTMLElement): void 
   const form = document.createElement('form'); form.className = 'character-create';
   const label = document.createElement('label'); label.textContent = `슬롯 ${ui.characterCreateSlot} · 이름`;
   const name = document.createElement('input'); name.name = 'characterName'; name.required = true; name.minLength = 2; name.maxLength = 16; name.pattern = '[가-힣a-zA-Z0-9_]{2,16}'; label.append(name);
-  // 위 줄 = 직업, 아래 줄 = 성별. 성별 버튼 이름은 고른 직업을 따라간다(남성 전사 ↔ 남성 궁수).
-  let job: 'warrior' | 'archer' = 'warrior';
+  // 위 줄 = 직업, 아래 줄 = 성별. 성별 버튼 이름은 고른 직업을 따라간다(남성 전사 ↔ 남성 궁수 ↔ 남성 마법사).
+  let job: Job = 'warrior';
   let selected: 'male' | 'female' = 'male';
   const jobRow = document.createElement('div'); jobRow.className = 'character-gender character-job';
   const gender = document.createElement('div'); gender.className = 'character-gender';
-  const labelGenders = () => gender.querySelectorAll('button').forEach((node, index) => { node.textContent = `${index === 0 ? '남성' : '여성'} ${job === 'archer' ? '궁수' : '전사'}`; });
-  for (const [value, title] of [['warrior', '전사'], ['archer', '궁수']] as const) {
+  const labelGenders = () => gender.querySelectorAll('button').forEach((node, index) => { node.textContent = `${index === 0 ? '남성' : '여성'} ${jobNames[job]}`; });
+  for (const [value, title] of [['warrior', '전사'], ['archer', '궁수'], ['mage', '마법사']] as const) {
     const choice = button(title, () => { job = value; jobRow.querySelectorAll('button').forEach(node => node.classList.toggle('selected', node === choice)); labelGenders(); });
     choice.classList.toggle('selected', value === job); jobRow.append(choice);
   }

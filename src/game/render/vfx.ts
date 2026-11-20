@@ -30,6 +30,9 @@ export function drawSkillVfx(this: GameView, world: World, effect: Effect, x: nu
     if (effect.kind === 'shot') { drawArrow.call(this, effect, x, y, screenAngle); return true; }
     if (effect.kind === 'rain') { drawArrowRain.call(this, effect, x, y, t, time); return true; }
     if (effect.kind === 'hawk') { drawHawkEye.call(this, effect, x, y, t, time); return true; }
+    if (effect.kind === 'burst') { drawBurst.call(this, effect, x, y, t, time); return true; }
+    if (effect.kind === 'nova') { drawNova.call(this, effect, x, y, t, time); return true; }
+    if (effect.kind === 'ward') { drawWard.call(this, effect, x, y, t, time); return true; }
     if (effect.kind === 'slash2') {
       // [작업 157] 확정 시안(은빛 검기 + 황금빛 지면 충격파)대로 코드 선 2줄 대신
       // 검정 배경 VFX 스프라이트 두 장을 add 로 얹는다. 검기는 스윙 방향으로 돌고,
@@ -109,7 +112,12 @@ export function drawSkillVfx(this: GameView, world: World, effect: Effect, x: nu
     return true;
   }
 
-const arrowColors: Record<NonNullable<Effect['variant']>, number> = { normal: 0xffd9a0, ice: 0xa8dcff, pierce: 0xffe6a0, snipe: 0xfff4d0, volley: 0xffc27a };
+const arrowColors: Record<NonNullable<Effect['variant']>, number> = {
+  normal: 0xffd9a0, ice: 0xa8dcff, pierce: 0xffe6a0, snipe: 0xfff4d0, volley: 0xffc27a,
+  // 마법사 탄환(작업 159) — 남성은 푸른 마력, 여성은 붉은 화염, 스킬은 속성별 색을 쓴다.
+  arcane: 0x8fb4ff, fire: 0xff7a3c, frost: 0xbfe6ff, chain: 0xd0b4ff, meteor: 0xffb266
+};
+const magicVariants = new Set<NonNullable<Effect['variant']>>(['arcane', 'fire', 'frost', 'chain', 'meteor']);
 
 /**
  * 궁수 화살 — 출발점에서 도착점으로 화면 좌표를 직선 보간해 날아간다(작업 157).
@@ -117,6 +125,7 @@ const arrowColors: Record<NonNullable<Effect['variant']>, number> = { normal: 0x
  * 선형이라 두 점의 화면 변위만큼만 진행도로 밀면 실제로 날아가는 것처럼 보인다.
  */
 export function drawArrow(this: GameView, effect: Effect, x: number, y: number, _screenAngle: number): void {
+    if (magicVariants.has(effect.variant ?? 'normal')) { drawMagicBolt.call(this, effect, x, y); return; }
     const dx = (effect.tx ?? effect.x) - effect.x, dy = (effect.ty ?? effect.y) - effect.y;
     const progress = Math.max(0, Math.min(1, effect.age / Math.max(.01, effect.duration)));
     const px = x + (dx - dy) * .86 * progress;
@@ -136,6 +145,82 @@ export function drawArrow(this: GameView, effect: Effect, x: number, y: number, 
       .lineTo(px + Math.sin(angle) * 3.5, py - Math.cos(angle) * 3.5).closePath().fill({ color, alpha: 1 });
     if (effect.variant === 'ice') this.glow.circle(px, py, 10 + tail * 8).fill({ color: 0x8fd0ff, alpha: .12 });
     if (effect.variant === 'snipe') this.glow.circle(px, py, 14).fill({ color: 0xfff0c8, alpha: .18 });
+  }
+
+/**
+ * 마법사 마법 구슬 — 화살 대신 빛나는 구슬이 잔상 꼬리를 끌며 날아간다(작업 159).
+ * 궤적 계산(아이소메트릭 선형 이동)은 화살과 같고, 그리기만 구슬+광채로 바꾼다.
+ */
+export function drawMagicBolt(this: GameView, effect: Effect, x: number, y: number): void {
+    const dx = (effect.tx ?? effect.x) - effect.x, dy = (effect.ty ?? effect.y) - effect.y;
+    const progress = Math.max(0, Math.min(1, effect.age / Math.max(.01, effect.duration)));
+    const px = x + (dx - dy) * .86 * progress;
+    const py = y + (dx + dy) * .43 * progress - 20;
+    const color = arrowColors[effect.variant ?? 'arcane'];
+    const tail = 1 - Math.abs(progress - .5) * 2;
+    const radius = effect.variant === 'meteor' ? 11 : effect.variant === 'chain' ? 7 : 6 + tail * 2;
+    // 꼬리 — 진행 반대 방향으로 짧게 번지는 빛.
+    const angle = Math.atan2((dx + dy) * .43, (dx - dy) * .86);
+    this.glow.moveTo(px - Math.cos(angle) * 26, py - Math.sin(angle) * 26).lineTo(px, py)
+      .stroke({ color, width: 5 + tail * 3, alpha: .1 + tail * .22 });
+    this.glow.circle(px, py, radius * 2.2).fill({ color, alpha: .12 + tail * .1 });
+    this.effects.circle(px, py, radius).fill({ color, alpha: .92 });
+    this.effects.circle(px, py, radius * .45).fill({ color: 0xffffff, alpha: .85 });
+    if (effect.variant === 'frost') this.effects.circle(px, py, radius * 2.6).stroke({ color: 0xdff2ff, width: 1.4, alpha: .35 * tail });
+    if (effect.variant === 'fire' || effect.variant === 'meteor') this.glow.circle(px, py, radius * 3.4).fill({ color: 0xff8a3c, alpha: .1 * tail });
+  }
+
+/** 마법 폭발·메테오 — 대상 지점이 예고 뒤에 터진다(작업 159). */
+export function drawBurst(this: GameView, effect: Effect, x: number, y: number, t: number, time: number): void {
+    const color = effect.variant === 'meteor' ? 0xffa04a : 0x9ab8ff;
+    const radius = (effect.radius ?? 96) * .86;
+    if (t < .5) {
+      // 예고 — 바닥에 조여드는 원.
+      const squeeze = .35 + t * 1.3;
+      this.ground.ellipse(x, y, radius * squeeze, radius * squeeze * .5).stroke({ color, width: 2, alpha: .55 });
+      return;
+    }
+    const burst = (t - .5) / .5;
+    this.glow.ellipse(x, y - 8, radius * (1 + burst * .5), radius * (1 + burst * .5) * .55).fill({ color, alpha: .3 * (1 - burst) });
+    this.ground.ellipse(x, y, radius * (1 + burst * .4), radius * (1 + burst * .4) * .5).stroke({ color, width: 3 - burst * 2, alpha: .7 * (1 - burst) });
+    for (let index = 0; index < 7; index++) {
+      const angle = index * 2.1 + time * .4;
+      const reach = radius * burst * 1.1;
+      const px = x + Math.cos(angle) * reach, py = y + Math.sin(angle) * reach * .5 - burst * 46;
+      this.effects.circle(px, py, 3 + (1 - burst) * 4).fill({ color, alpha: .7 * (1 - burst) });
+    }
+  }
+
+/** 프로스트 노바·아르카나 오버로드 — 발밑에서 파동이 퍼진다(작업 159). */
+export function drawNova(this: GameView, effect: Effect, x: number, y: number, t: number, time: number): void {
+    const color = effect.variant === 'frost' ? 0xbfe6ff : 0xb79bff;
+    const radius = (effect.radius ?? 150) * .86;
+    const spread = Math.min(1, t * 1.4);
+    this.glow.ellipse(x, y - 6, radius * spread, radius * spread * .5).fill({ color, alpha: .16 * (1 - t) });
+    for (const [lag, width] of [[0, 3], [.18, 2], [.36, 1.4]] as const) {
+      const ring = Math.max(0, Math.min(1, spread - lag));
+      if (ring <= 0) continue;
+      this.ground.ellipse(x, y + 2, radius * ring, radius * ring * .5).stroke({ color, width, alpha: .6 * (1 - ring) });
+    }
+    for (let index = 0; index < 10; index++) {
+      const angle = index * .63 + time * .5;
+      const reach = radius * spread;
+      const px = x + Math.cos(angle) * reach, py = y + Math.sin(angle) * reach * .5;
+      this.effects.circle(px, py, 2.5 + Math.sin(time * 12 + index) * 1).fill({ color, alpha: .55 * (1 - t) });
+    }
+  }
+
+/** 아케인 실드 — 몸을 감싸는 비전 보호막(작업 159). */
+export function drawWard(this: GameView, _effect: Effect, x: number, y: number, t: number, time: number): void {
+    const color = 0x9ab8ff;
+    const radius = 30 + t * 16;
+    this.glow.circle(x, y - 34, radius).fill({ color, alpha: .12 * (1 - t) });
+    this.effects.circle(x, y - 34, radius).stroke({ color, width: 2, alpha: .75 * (1 - t) });
+    for (let index = 0; index < 6; index++) {
+      const angle = index * Math.PI / 3 + time * .8;
+      const px = x + Math.cos(angle) * radius * .9, py = y - 34 + Math.sin(angle) * radius * .62;
+      this.effects.circle(px, py, 2.4).fill({ color: 0xffffff, alpha: .6 * (1 - t) });
+    }
   }
 
 /** 애로우 레인 — 적 지점에 화살이 비처럼 떨어진다(작업 157). */

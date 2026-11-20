@@ -23,6 +23,10 @@ export const heroBodyPx: Record<string, number> = {
   archerMale: 337, archerFemale: 337,
   archerMaleWalk: 300, archerFemaleWalk: 300,
   archerMaleAttack: 268, archerFemaleAttack: 270,
+  // 마법사 기본 시트(작업 159) — 같은 362px 셀 좌표계로 만들었다.
+  mageMale: 337, mageFemale: 337,
+  mageMaleWalk: 300, mageFemaleWalk: 300,
+  mageMaleAttack: 268, mageFemaleAttack: 268,
   // idle (single cropped texture)
   male: 189, female: 189, maleSword: 189, femaleSword: 186,
   armored: 1457, armoredNoHelm: 1445, femaleArmoredNoHelm: 1369, femaleArmoredHelm: 1381,

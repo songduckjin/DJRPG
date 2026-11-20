@@ -15,14 +15,14 @@ export type Drop = { x: number; y: number; item: Item; age: number; warned: bool
  *  before); the coin itself is only what the field draws for a beat before it flies to the hero. */
 export type Coin = { x: number; y: number; age: number; gold: number };
 export type Effect = { x: number; y: number; kind: 'slash' | 'slash2' | 'spin' | 'crushing' | 'slam' | 'warcry' | 'power' | 'destroy' | 'hell' | 'hit' | 'death'
-  | 'shot' | 'rain' | 'hawk'; age: number; duration: number; angle: number; swing?: number; amount?: number; nextHit?: number; power?: number; level?: number;
+  | 'shot' | 'rain' | 'hawk' | 'burst' | 'nova' | 'ward'; age: number; duration: number; angle: number; swing?: number; amount?: number; nextHit?: number; power?: number; level?: number;
   /** 궁수 화살·화살비처럼 날아가서 맞는 이펙트의 도착지점과 위력(작업 157). */
   tx?: number; ty?: number; radius?: number; targets?: number; slow?: number; variant?: ArrowVariant; fired?: boolean;
   /** 화살이 쫓아가는 적(살아 있는 동안 도착지를 갱신한다). 없으면 발사 시점의 지점으로 날아간다. */
   aim?: Enemy;
   /** 이 이펙트를 만든 스킬(스킬 버튼 피드백용). 평타면 없다. */
   source?: SkillId };
-export type ArrowVariant = 'normal' | 'ice' | 'pierce' | 'snipe' | 'volley';
+export type ArrowVariant = 'normal' | 'ice' | 'pierce' | 'snipe' | 'volley' | 'arcane' | 'fire' | 'frost' | 'chain' | 'meteor';
 export type Action = 'attack' | SkillId;
 export const cooldowns = { attack: .48, ...Object.fromEntries(Object.keys(skills).map(id => [id, skills[id as SkillId].cooldown])) } as Record<Action, number>;
 /** 평타 한 방의 공격력 배율. 한 마리만 맞히는 대신 한 방이 무겁다(작업 150). */
@@ -33,6 +33,9 @@ export const basicAttackPower = 1.6;
  *  추격은 적이 꽤 가까워졌을 때만 한다. */
 export const archerAttackRange = 250;
 export const archerStopRange = 118;
+/** 마법사도 원거리다 — 궁수보다 조금 짧은 사거리에서 마법 구슬을 날린다(작업 159). */
+export const mageAttackRange = 240;
+export const mageStopRange = 118;
 export function enemyMoveSpeed(floor: number, boss: boolean): number {
   return boss ? 28 : Math.min(64, 38 + Math.max(0, floor - 1) * 1.2);
 }
@@ -68,6 +71,9 @@ export class World {
 
   /** 캐릭터 직업 — 값이 없는 예전 세이브는 전사로 본다. */
   get job(): Job { return jobOrDefault(this.save.job); }
+
+  /** 마법사 평타 구슬 색 — 남성은 푸른 마력, 여성은 붉은 화염이다. */
+  get mageBolt(): ArrowVariant { return this.save.gender === 'female' ? 'fire' : 'arcane'; }
 
   travelToFloor(floor: number): { ok: boolean; message: string } {
     if (!Number.isInteger(floor) || floor < 1 || floor > this.save.maxFloor) return { ok: false, message: `이동할 수 없는 층입니다. 현재 최고 도달 층은 ${this.save.maxFloor}층입니다.` };
@@ -105,6 +111,12 @@ export class World {
         // 궁수 평타: 활시위를 당겨 실제 화살이 적에게 날아가 적중한다(작업 157).
         const point = target ?? { x: p.x + Math.cos(angle) * archerAttackRange, y: p.y + Math.sin(angle) * archerAttackRange };
         this.shoot(point.x, point.y, attack * basicAttackPower, { speed: 820, radius: 42, arrow: 'normal', aim: target });
+        return;
+      }
+      if (this.job === 'mage') {
+        // 마법사 평타: 화살 대신 푸른/붉은 마법 구슬이 날아가 적중한다(작업 159).
+        const point = target ?? { x: p.x + Math.cos(angle) * mageAttackRange, y: p.y + Math.sin(angle) * mageAttackRange };
+        this.shoot(point.x, point.y, attack * basicAttackPower, { speed: 760, radius: 44, arrow: this.mageBolt, aim: target });
         return;
       }
       this.effects.push({ x: p.x, y: p.y, kind: 'slash', age: 0, duration: .25, angle, swing: this.swing });
@@ -172,6 +184,30 @@ export class World {
     } else if (kind === 'arrowRain') {
       const aim = this.aimPoint(target, range);
       this.effects.push({ x: aim.x, y: aim.y, kind: 'rain', age: 0, duration: skillDuration(kind, level), angle: 0, nextHit: .12, power: attack * .85 * damageScale, level, source: kind });
+    } else if (kind === 'fireBolt') {
+      const aim = this.aimPoint(target, range);
+      this.shoot(aim.x, aim.y, attack * 2 * damageScale, { speed: 780, radius: 46, arrow: 'fire', aim: target, source: kind });
+    } else if (kind === 'iceBolt') {
+      const aim = this.aimPoint(target, range);
+      this.shoot(aim.x, aim.y, attack * 1.7 * damageScale, { speed: 720, radius: 52, slow: 2.4 + (level - 1) * .06, arrow: 'frost', aim: target, source: kind });
+    } else if (kind === 'chainLightning') {
+      const aim = this.aimPoint(target, range);
+      this.shoot(aim.x, aim.y, attack * 1.25 * damageScale, { speed: 900, radius: 70, targets: 3, arrow: 'chain', aim: target, source: kind });
+    } else if (kind === 'manaBurst') {
+      const aim = this.aimPoint(target, range);
+      this.effects.push({ x: aim.x, y: aim.y, kind: 'burst', age: 0, duration: skillDuration(kind, level), angle: 0, nextHit: .35, power: attack * 2.5 * damageScale, radius: 96, variant: 'arcane', level, source: kind });
+    } else if (kind === 'frostNova') {
+      // 판정은 노바 이펙트가 한 번만 낸다(발동 즉시 피해를 또 주면 두 번 들어간다).
+      this.effects.push({ x: p.x, y: p.y, kind: 'nova', age: 0, duration: skillDuration(kind, level), angle: 0, nextHit: .12, power: attack * 1.5 * damageScale, radius: range, slow: 2.2 + (level - 1) * .06, variant: 'frost', level, source: kind });
+    } else if (kind === 'arcaneShield') {
+      p.berserk = skillDuration(kind, level);
+      p.berserkLevel = level;
+      this.effects.push({ x: p.x, y: p.y, kind: 'ward', age: 0, duration: .9, angle: 0, level, source: kind });
+    } else if (kind === 'meteorStrike') {
+      const aim = this.aimPoint(target, range);
+      this.effects.push({ x: aim.x, y: aim.y, kind: 'burst', age: 0, duration: skillDuration(kind, level), angle: 0, nextHit: .6, power: attack * 3.6 * damageScale, radius: 110, variant: 'meteor', level, source: kind });
+    } else if (kind === 'arcaneOverlord') {
+      this.effects.push({ x: p.x, y: p.y, kind: 'nova', age: 0, duration: skillDuration(kind, level), angle: 0, nextHit: .2, power: attack * 3 * damageScale, radius: range, variant: 'arcane', level, source: kind });
     }
   }
 
@@ -283,10 +319,10 @@ export class World {
       const dx = destination.x - p.x, dy = destination.y - p.y, distance = Math.hypot(dx, dy);
       if (destination !== this.chaseTarget) { this.chaseTarget = destination; this.pursuing = false; }
       // Keep the production boundary fix while loot now flies to the hero.
-      // 궁수는 사거리 밖에서만 다가가고, 사거리 안에서는 서서 활을 쏜다(작업 157).
-      const stopRange = this.job === 'archer' ? archerStopRange : 90;
-      const attackRange = this.job === 'archer' ? archerAttackRange : 90;
-      const engageRange = this.job === 'archer' ? archerAttackRange + 24 : 190;
+      // 궁수·마법사는 사거리 밖에서만 다가가고, 사거리 안에서는 서서 쏜다(작업 157·159).
+      const stopRange = this.job === 'archer' ? archerStopRange : this.job === 'mage' ? mageStopRange : 90;
+      const attackRange = this.job === 'archer' ? archerAttackRange : this.job === 'mage' ? mageAttackRange : 90;
+      const engageRange = this.job === 'archer' ? archerAttackRange + 24 : this.job === 'mage' ? mageAttackRange + 24 : 190;
       this.pursuing = distance >= stopRange;
       this.activeMove = this.pursuing && distance > 0 ? { x: dx / distance, y: dy / distance } : { x: 0, y: 0 };
       if (distance > 1) this.faceTarget(destination);
@@ -377,7 +413,9 @@ export class World {
         if (effect.kind === 'slam') this.damage(skillRange('slam', level), effect.power ?? 0, effect.angle, 1.35, 12, 2 + (level - 1) * .3, effect);
         if (effect.kind === 'hell') this.damage(skillRange('hell', level), effect.power ?? 0, 0, Math.PI, 14, 1 + (level - 1) * .2, effect);
         if (effect.kind === 'rain') this.damage(92, effect.power ?? 0, 0, Math.PI, 6, .9, effect);
-        if (effect.kind === 'slash2' || effect.kind === 'crushing') effect.nextHit = undefined;
+        if (effect.kind === 'burst') this.damage(effect.radius ?? 96, effect.power ?? 0, 0, Math.PI, 16, effect.slow ?? 0, effect);
+        if (effect.kind === 'nova') this.damage(effect.radius ?? 150, effect.power ?? 0, 0, Math.PI, 22, effect.slow ?? 0, effect);
+        if (effect.kind === 'slash2' || effect.kind === 'crushing' || effect.kind === 'burst' || effect.kind === 'nova') effect.nextHit = undefined;
         else effect.nextHit += effect.kind === 'spin' || effect.kind === 'slam' ? .45 : .4;
       }
     }
