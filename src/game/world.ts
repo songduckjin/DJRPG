@@ -19,7 +19,9 @@ export type Effect = { x: number; y: number; kind: 'slash' | 'slash2' | 'spin' |
   /** 궁수 화살·화살비처럼 날아가서 맞는 이펙트의 도착지점과 위력(작업 157). */
   tx?: number; ty?: number; radius?: number; targets?: number; slow?: number; variant?: ArrowVariant; fired?: boolean;
   /** 화살이 쫓아가는 적(살아 있는 동안 도착지를 갱신한다). 없으면 발사 시점의 지점으로 날아간다. */
-  aim?: Enemy };
+  aim?: Enemy;
+  /** 이 이펙트를 만든 스킬(스킬 버튼 피드백용). 평타면 없다. */
+  source?: SkillId };
 export type ArrowVariant = 'normal' | 'ice' | 'pierce' | 'snipe' | 'volley';
 export type Action = 'attack' | SkillId;
 export const cooldowns = { attack: .48, ...Object.fromEntries(Object.keys(skills).map(id => [id, skills[id as SkillId].cooldown])) } as Record<Action, number>;
@@ -139,37 +141,37 @@ export class World {
       this.damage(range, attack * 3.2 * damageScale, 0, Math.PI, 45, 1 + (level - 1) * .2);
     } else if (kind === 'doubleShot') {
       const aim = this.aimPoint(target, range);
-      this.shoot(aim.x, aim.y, attack * 1.35 * damageScale, { speed: 900, arrow: 'normal', aim: target });
-      this.shoot(aim.x + (Math.random() - .5) * 16, aim.y + (Math.random() - .5) * 16, attack * 1.35 * damageScale, { speed: 900, delay: .08, arrow: 'normal', aim: target });
+      this.shoot(aim.x, aim.y, attack * 1.35 * damageScale, { speed: 900, arrow: 'normal', aim: target, source: kind });
+      this.shoot(aim.x + (Math.random() - .5) * 16, aim.y + (Math.random() - .5) * 16, attack * 1.35 * damageScale, { speed: 900, delay: .08, arrow: 'normal', aim: target, source: kind });
     } else if (kind === 'multiShot') {
       const aim = this.aimPoint(target, range);
       const base = Math.atan2(aim.y - p.y, aim.x - p.x);
       for (let index = -2; index <= 2; index++) {
         const spread = base + index * .17;
         const distance = Math.hypot(aim.x - p.x, aim.y - p.y);
-        this.shoot(p.x + Math.cos(spread) * distance, p.y + Math.sin(spread) * distance, attack * .95 * damageScale, { speed: 860, radius: 34, arrow: 'normal' });
+        this.shoot(p.x + Math.cos(spread) * distance, p.y + Math.sin(spread) * distance, attack * .95 * damageScale, { speed: 860, radius: 34, arrow: 'normal', source: kind });
       }
     } else if (kind === 'pierceShot') {
       const aim = this.aimPoint(target, range);
-      this.shoot(aim.x, aim.y, attack * 2.6 * damageScale, { speed: 980, radius: 52, targets: 4, knockback: 4, arrow: 'pierce' });
+      this.shoot(aim.x, aim.y, attack * 2.6 * damageScale, { speed: 980, radius: 52, targets: 4, knockback: 4, arrow: 'pierce', source: kind });
     } else if (kind === 'iceArrow') {
       const aim = this.aimPoint(target, range);
-      this.shoot(aim.x, aim.y, attack * 1.9 * damageScale, { speed: 760, radius: 54, slow: 2.4 + (level - 1) * .06, arrow: 'ice', aim: target });
+      this.shoot(aim.x, aim.y, attack * 1.9 * damageScale, { speed: 760, radius: 54, slow: 2.4 + (level - 1) * .06, arrow: 'ice', aim: target, source: kind });
     } else if (kind === 'hawkEye') {
       p.berserk = skillDuration(kind, level);
       p.berserkLevel = level;
-      this.effects.push({ x: p.x, y: p.y, kind: 'hawk', age: 0, duration: .9, angle: 0, level });
+      this.effects.push({ x: p.x, y: p.y, kind: 'hawk', age: 0, duration: .9, angle: 0, level, source: kind });
     } else if (kind === 'snipe') {
       const aim = this.aimPoint(target, range);
-      this.shoot(aim.x, aim.y, attack * 4.3 * damageScale, { speed: 1500, radius: 38, knockback: 18, arrow: 'snipe', aim: target });
+      this.shoot(aim.x, aim.y, attack * 4.3 * damageScale, { speed: 1500, radius: 38, knockback: 18, arrow: 'snipe', aim: target, source: kind });
     } else if (kind === 'stormVolley') {
       const aim = this.aimPoint(target, range);
       for (let index = 0; index < 6; index++) {
-        this.shoot(aim.x + (Math.random() - .5) * 30, aim.y + (Math.random() - .5) * 30, attack * .8 * damageScale, { speed: 940, radius: 34, delay: index * .13, arrow: 'volley', aim: target });
+        this.shoot(aim.x + (Math.random() - .5) * 30, aim.y + (Math.random() - .5) * 30, attack * .8 * damageScale, { speed: 940, radius: 34, delay: index * .13, arrow: 'volley', aim: target, source: kind });
       }
     } else if (kind === 'arrowRain') {
       const aim = this.aimPoint(target, range);
-      this.effects.push({ x: aim.x, y: aim.y, kind: 'rain', age: 0, duration: skillDuration(kind, level), angle: 0, nextHit: .12, power: attack * .85 * damageScale, level });
+      this.effects.push({ x: aim.x, y: aim.y, kind: 'rain', age: 0, duration: skillDuration(kind, level), angle: 0, nextHit: .12, power: attack * .85 * damageScale, level, source: kind });
     }
   }
 
@@ -180,7 +182,7 @@ export class World {
   }
 
   /** 화살 하나를 쏜다. 도착하는 순간(`update`)에 그 지점 반경의 적에게 피해를 준다. */
-  private shoot(tx: number, ty: number, power: number, options: { speed?: number; radius?: number; targets?: number; slow?: number; knockback?: number; delay?: number; arrow?: ArrowVariant; aim?: Enemy } = {}): void {
+  private shoot(tx: number, ty: number, power: number, options: { speed?: number; radius?: number; targets?: number; slow?: number; knockback?: number; delay?: number; arrow?: ArrowVariant; aim?: Enemy; source?: SkillId } = {}): void {
     const p = this.player;
     const dx = tx - p.x, dy = ty - p.y;
     const distance = Math.hypot(dx, dy);
@@ -188,7 +190,7 @@ export class World {
     this.effects.push({
       x: p.x, y: p.y, kind: 'shot', age: 0, duration: Math.max(.05, distance / (options.speed ?? 820)) + delay,
       angle: Math.atan2(dy, dx), tx, ty, power, radius: options.radius ?? 40, targets: options.targets ?? 1,
-      slow: options.slow ?? 0, variant: options.arrow ?? 'normal', level: this.save.level, aim: options.aim
+      slow: options.slow ?? 0, variant: options.arrow ?? 'normal', level: this.save.level, aim: options.aim, source: options.source
     });
   }
 
