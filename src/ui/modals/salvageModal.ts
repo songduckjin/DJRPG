@@ -1,6 +1,7 @@
 import { salvageItems, salvagePlan } from '../../game/inventory';
-import { itemPower, rarityNames, slotNames, type Slot } from '../../game/store';
+import { slotNames, type Slot } from '../../game/store';
 import type { Interface } from '../interface';
+import { openSalvageProtection } from '../salvageProtection';
 export function finishSalvage(this: Interface, ids: string[]): void {
   if (this.world.paused) return;
   const result = salvageItems(this.world.save, ids);
@@ -12,30 +13,33 @@ export function requestSalvage(this: Interface, ids: string[]): void {
   if (ids.length === 1 && this.world.save.bag.some(item => item.id === ids[0] && 'locked' in item && item.locked)) { this.message('잠긴 장비입니다. 먼저 잠금을 해제하세요.'); return; }
   const plan = salvagePlan(this.world.save, ids);
   if (!plan.items.length) { this.message('분해할 장비가 없습니다.'); return; }
-  // Two things stop a salvage short of the bin and ask first (작업 196): an empty slot the selection
-  // would leave the character without, and a piece that beats what is worn — bulk salvage sweeps a
-  // whole grade, so it would otherwise eat the drop 자동 장착 would have taken.
-  if (plan.emptySlots.length || plan.upgrades.length) { this.salvageIds = plan.items.map(item => item.id); this.open('salvage'); }
-  else finishSalvage.call(this, plan.items.map(item => item.id));
+  const selected = plan.items.map(item => item.id);
+  // Two things stop a salvage short and ask first: a piece that beats what is worn (작업 196), and an
+  // empty slot the selection would leave the character without. The better piece is asked about in a
+  // small popup over the bag (작업 197) — the bag itself stays where it is, and only the gear worth
+  // keeping is shown, with '이 아이템 분해 제외' as the button to press.
+  if (plan.upgrades.length) {
+    const ui = this;
+    openSalvageProtection(this, plan.upgrades, {
+      exclude() {
+        const protectedIds = new Set(plan.upgrades.map(upgrade => upgrade.item.id));
+        const rest = selected.filter(id => !protectedIds.has(id));
+        if (!rest.length) { ui.salvageIds = undefined; ui.open('equipment'); ui.message('보호할 장비를 남기고 분해를 취소했습니다.'); return; }
+        const next = salvagePlan(ui.world.save, rest);
+        if (next.emptySlots.length) { ui.salvageIds = rest; ui.open('salvage'); return; }
+        finishSalvage.call(ui, rest);
+      },
+      confirm() { finishSalvage.call(ui, selected); },
+      cancel() { ui.salvageIds = undefined; ui.open('equipment'); }
+    });
+    return;
+  }
+  if (plan.emptySlots.length) { this.salvageIds = selected; this.open('salvage'); }
+  else finishSalvage.call(this, selected);
 }
 export function renderSalvage(this: Interface, dialog: HTMLElement): void {
   const plan = salvagePlan(this.world.save, this.salvageIds ?? []);
-  // The pieces worth keeping are named one by one, with what is worn in their place and the power
-  // they would add, so the choice is made on the actual gear instead of a count.
-  if (plan.upgrades.length) {
-    const note = document.createElement('p'); note.className = 'salvage-warning is-upgrade'; note.setAttribute('role', 'alert');
-    note.textContent = `지금 장착한 장비보다 좋은 장비가 ${plan.upgrades.length}개 포함되어 있습니다. 이대로 분해하면 다시 얻을 때까지 그 자리는 지금 장비로 싸워야 합니다.`;
-    const list = document.createElement('ul'); list.className = 'salvage-upgrade-list';
-    for (const upgrade of plan.upgrades) {
-      const line = document.createElement('li');
-      const part = document.createElement('strong'); part.textContent = slotNames[upgrade.slot as Slot];
-      const name = document.createElement('span'); name.textContent = `${upgrade.item.name} · ${rarityNames[upgrade.item.rarity]}`;
-      const worn = document.createElement('small');
-      worn.textContent = `장착 중: ${upgrade.equipped.name} (전투력 ${Math.round(itemPower(upgrade.item))} vs ${Math.round(itemPower(upgrade.equipped))}, +${Math.round(upgrade.gain)})`;
-      line.append(part, name, worn); list.appendChild(line);
-    }
-    dialog.append(note, list);
-  }
+  // The bag has something usable while a slot is empty: ask once, and list what the sale takes.
   if (plan.emptySlots.length) {
     const note = document.createElement('p'); note.className = 'salvage-warning';
     note.textContent = `${plan.emptySlots.map(slot => slotNames[slot as Slot]).join(', ')} 장착 칸이 비어 있습니다. 장착에 사용할 수 있는 장비를 포함해 ${plan.items.length}개를 분해할까요?`;

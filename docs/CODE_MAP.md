@@ -85,7 +85,7 @@
 - `skills.ts` (53) — 스킬·패시브 정의와 스케일. `skills`, `passives`, `skillOrder`/`passiveOrder`, `MAX_SKILL_LEVEL=30`, `skillUpgradeCost`, `skillRange`, `skillDuration`, `skillDamageScale`, `dragonOrbitFactor`, `dragonRise`, `canLearn`.
 - `loadout.ts` (25) — 퀵슬롯 3칸 정규화·장착/해제. `QuickSlots`, `normalizeQuickSlots`, `availableSkills`, `equipSkill`, `unequipSkill`.
 - `skillProgress.ts` (15) — 스킬북 비용·업그레이드 가능 판정. `skillBookCost`, `skillBookStatus`, `hasSkillUpgrade`.
-- `inventory.ts` — 자동장착 가능 여부·분해 계획/실행, 그리고 보호 규칙. `canAutoEquip`, `salvagePlan`(`items`·`emptySlots`·`upgrades`), `salvageUpgrades`(작업 196 — `itemPower` 기준, 반지는 약한 반지와 비교), `autoSalvageBlock`/`autoSalvageRecovered`(접속 중 자동 분해가 무엇을 남기는지), `salvageItems`.
+- `inventory.ts` — 자동장착 가능 여부·분해 계획/실행, 그리고 보호 규칙. `canAutoEquip`, `salvagePlan`(`items`·`emptySlots`·`upgrades`), `salvageUpgrades`(작업 196 — `itemPower` 기준, 반지는 약한 반지와 비교, 작업 197의 보호 팝업이 이 목록만 보여 준다), `autoSalvageBlock`/`autoSalvageRecovered`(접속 중 자동 분해가 무엇을 남기는지), `salvageItems`.
 - `itemComparison.ts` (14) — 장착 아이템 대비 스탯 비교(툴팁/구매 비교). `compareEquipment`.
 - `bagCapacity.ts` (4) — 가방 40칸 규칙(스킬북 제외). `EQUIPMENT_BAG_LIMIT`, `equipmentCount`, `canStoreItem`.
 - `appearance.ts` (94) — 성별·투구·갑옷·무기 조합 → idle/walk/attack/portrait 키. `heroAppearance`, `unequipItem`; 갑옷·투구 티어와 팔레트는 `items.ts` 기본 이름 인덱스로 파생한다. **직업 분기 없음(전사 단일)**.
@@ -138,7 +138,7 @@
 - `skillLoadout.ts` (37) — 퀵슬롯 배치/선택. `chooseSkill`, `pressSkillSlot`, `cancelSkillSelection`.
 - `equipmentPortrait.ts` — 내 정보 미리보기. `equipmentPortraitPlan`(공용 `planHeroCostume` 소비, 실패 시 티어 전신 초상화 폴백), `renderEquipmentPortrait`(idle 0프레임 합성·dataURL LRU 24·디코딩 아틀라스 이미지 LRU 2·매니페스트 1회 로드), `equipmentFallbackPortrait`.
 - `modals/` — `interface.ts` `renderModal`이 라우팅:
-  `accountModal.ts` 계정정보(캐릭터 생성 뒤 성별 변경 없음) `renderAccount` · `charactersModal.ts` 캐릭터 선택/생성·창고 `loadCharacters`,`renderCharacters`,`renderCreateCharacter`,`loadWarehouse`,`renderWarehouse` · `codexModal.ts` 도감 `renderCodex` · `equipModal.ts` 내 정보·장비/가방/분해 `renderEquipment`,`renderInventory`,`itemDetail`,`salvage`,`salvageValue`,`iconPath`, `equipmentInfoSlots`·`equipmentInfoStats` · `floorModal.ts` 층 선택 `renderFloor` · `marketModal.ts` 거래소 `renderMarket`,`updateMarketLive` · `offlineModal.ts` 정산 `renderOffline` · `salvageModal.ts` 분해 확인(더 좋은 장비 보호 포함) `requestSalvage`,`finishSalvage`,`renderSalvage` · `skillModal.ts` 스킬 `renderSkills` · `utilityModal.ts` 설정/우편/보상/업적 `renderSettings`,`renderUtility`,`updateUtilityBadges`,`orderedAchievements`.
+  `accountModal.ts` 계정정보(캐릭터 생성 뒤 성별 변경 없음) `renderAccount` · `charactersModal.ts` 캐릭터 선택/생성·창고 `loadCharacters`,`renderCharacters`,`renderCreateCharacter`,`loadWarehouse`,`renderWarehouse` · `codexModal.ts` 도감 `renderCodex` · `equipModal.ts` 내 정보·장비/가방/분해 `renderEquipment`,`renderInventory`,`itemDetail`,`salvage`,`salvageValue`,`iconPath`, `equipmentInfoSlots`·`equipmentInfoStats` · `floorModal.ts` 층 선택 `renderFloor` · `marketModal.ts` 거래소 `renderMarket`,`updateMarketLive` · `offlineModal.ts` 정산 `renderOffline` · `salvageModal.ts` 분해 확인(빈 칸 경고) `requestSalvage`,`finishSalvage`,`renderSalvage` · `skillModal.ts` 스킬 `renderSkills` · `utilityModal.ts` 설정/우편/보상/업적 `renderSettings`,`renderUtility`,`updateUtilityBadges`,`orderedAchievements`.
 
 ### `src/styles/`
 - `main.css` — `base`→`boot`→`hud`→`modals`→`login`→`market`→`codex` 순 import. `base.css`(폰트·리셋), `hud.css`(`.top-hud`,`.floor-button`), `modals.css`(장비·가방·분해 공통), `login.css`(로그인·캐릭터 선택), `market.css`(`.market-*`), `codex.css`(`.codex-*`,`#codex`), `boot.css`(`.boot-*`).

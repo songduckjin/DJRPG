@@ -16,15 +16,15 @@ const gear = (id, slot, attack, rarity = 'common') => ({ id, name: id, slot, rar
 function popup(save) {
   const ui = {
     world: { save, paused: false, onChange() {} },
-    openModal: null, messages: [], salvageIds: undefined,
+    openModal: 'equipment', messages: [], salvageIds: undefined,
+    root: node('main'), modal: { hidden: false },
     open(kind) { this.openModal = kind; },
     message(text) { this.messages.push(text); },
-    modal: { querySelector: () => null, querySelectorAll: () => [] },
   };
   return ui;
 }
 function node(tag = 'div') {
-  return { tag, children: [], className: '', textContent: '', attrs: {}, dataset: {}, style: {},
+  return { tag, children: [], className: '', textContent: '', attrs: {}, dataset: {}, style: { setProperty() {} },
     append(...children) { this.children.push(...children); },
     appendChild(child) { this.children.push(child); return child; },
     setAttribute(key, value) { this.attrs[key] = value; },
@@ -32,7 +32,7 @@ function node(tag = 'div') {
 }
 function withDocument(work) {
   const previous = globalThis.document;
-  globalThis.document = { createElement: tag => node(tag) };
+  globalThis.document = { createElement: tag => node(tag), createTextNode: text => ({ textContent: text, children: [] }), body: node('body') };
   try { return work(); } finally { globalThis.document = previous; }
 }
 const findByClass = (root, name) => {
@@ -75,56 +75,89 @@ test('a ring is an upgrade only when it beats the weaker of the two worn rings',
   assert(salvagePlan(save, ['ring-top']).emptySlots.includes('ring2'), 'it is the empty-slot case');
 });
 
-test('bulk salvage stops at the confirmation when the selection holds a better piece', () => {
-  const save = freshSave();
-  save.equipment.weapon = gear('worn', 'weapon', 10);
-  save.bag = [gear('better', 'weapon', 30), gear('junk', 'helmet', 1)];
-  const gold = save.gold, ui = popup(save);
-  requestSalvage.call(ui, ['better', 'junk']);
-  assert.equal(ui.openModal, 'salvage', 'the confirmation opens instead of salvaging');
-  assert.deepEqual(ui.salvageIds, ['better', 'junk'], 'with the selection kept for the confirmation');
-  assert.equal(save.bag.length, 2, 'and nothing is destroyed yet');
-  assert.equal(save.gold, gold, 'no gold is paid out yet');
-});
-
-test('the confirmation names the better piece, its slot and what is worn there', () => {
+test('a better piece opens a small popup over the bag instead of replacing it', () => {
   const save = freshSave();
   save.equipment.weapon = gear('worn', 'weapon', 10);
   save.bag = [gear('better', 'weapon', 30, 'epic'), gear('junk', 'helmet', 1)];
-  const ui = popup(save); ui.salvageIds = ['better', 'junk'];
-  const dialog = withDocument(() => { const box = node(); renderSalvage.call(ui, box); return box; });
-  const warning = findByClass(dialog, 'salvage-warning');
-  assert(warning && warning.textContent.includes('좋은 장비'), 'the popup warns first');
-  assert.equal(warning.attrs.role, 'alert', 'and reads as an alert');
-  const list = findByClass(dialog, 'salvage-upgrade-list');
-  assert(list, 'the better pieces are listed');
-  assert.equal(list.children.length, 1, 'one card for the one better piece');
-  const card = texts(list.children[0]).join(' ');
-  assert(card.includes('두손검'), `the slot is named (got "${card}")`);
-  assert(card.includes('better'), 'the piece is named');
-  assert(card.includes('장착 중: worn'), 'and what it would replace');
-  // The whole selection is still listed, so the player sees what else goes with it.
-  const items = findByClass(dialog, 'salvage-confirm-list');
-  assert.deepEqual(items.children.map(line => line.textContent), ['better', 'junk']);
-  const actions = findByClass(dialog, 'salvage-confirm-actions');
-  assert.deepEqual(actions.children.map(button => button.textContent), ['취소하고 보관', '2개 분해']);
+  const gold = save.gold, ui = popup(save);
+  withDocument(() => requestSalvage.call(ui, ['better', 'junk']));
+  // 장비창은 그대로 열려 있고, 그 위에 작은 팝업이 하나 얹힌다.
+  assert.equal(ui.openModal, 'equipment', 'the bag stays where it was');
+  const overlay = findByClass(ui.root, 'salvage-protect');
+  assert(overlay, 'one small popup is layered over the bag');
+  assert.equal(overlay.attrs.role, 'dialog');
+  assert.equal(overlay.attrs['aria-label'], '분해 보호');
+  assert.equal(save.bag.length, 2, 'nothing is destroyed yet');
+  assert.equal(save.gold, gold, 'no gold is paid out yet');
 });
 
-test('cancelling keeps the gear; confirming salvages exactly what was listed', () => {
+test('the popup shows only the piece worth keeping, with its art and the power it would add', () => {
+  const save = freshSave();
+  save.equipment.weapon = gear('worn', 'weapon', 10);
+  save.bag = [gear('better', 'weapon', 30, 'epic'), gear('junk', 'helmet', 1)];
+  const ui = popup(save);
+  withDocument(() => requestSalvage.call(ui, ['better', 'junk']));
+  const overlay = findByClass(ui.root, 'salvage-protect');
+  const cards = findByClass(overlay, 'salvage-protect-list').children;
+  assert.equal(cards.length, 1, 'only the protected piece is listed');
+  const card = cards[0];
+  const text = texts(card).join(' ');
+  assert(text.includes('better'), `the piece is named (got "${text}")`);
+  assert(text.includes('두손검'), 'its slot is named');
+  assert(text.includes('에픽'), 'and its grade');
+  assert(text.includes('장착 중 worn'), 'what it would replace');
+  const gain = Math.round(itemPower(gear('better', 'weapon', 30, 'epic')) - itemPower(gear('worn', 'weapon', 10)));
+  assert(text.includes('현재 투력'), 'the worn power is shown');
+  assert(text.includes(`+${gain}`), `and the power this piece adds (got "${text}")`);
+  assert(findByClass(card, 'salvage-protect-art'), 'the piece has its own picture');
+  assert(!text.includes('junk'), 'the rest of the selection is not listed');
+});
+
+test('the big button keeps only the protected piece and salvages the rest', () => {
+  const save = freshSave();
+  save.equipment.weapon = gear('worn', 'weapon', 10);
+  // The rest of the selection leaves no empty slot, so the rest goes straight to the bin.
+  save.equipment.boots = gear('worn-boots', 'boots', 5);
+  save.bag = [gear('better', 'weapon', 30), gear('junk', 'boots', 1)];
+  const gold = save.gold, ui = popup(save);
+  withDocument(() => requestSalvage.call(ui, ['better', 'junk']));
+  const buttons = findByClass(ui.root, 'salvage-protect-actions').children;
+  assert.equal(buttons[0].textContent, '이 아이템 분해 제외', 'the protected piece is the main button');
+  assert.deepEqual(buttons.slice(1).map(button => button.textContent), ['그대로 분해', '취소'], 'the rest are secondary');
+  buttons[0].onclick();
+  assert.deepEqual(save.bag.map(item => item.id), ['better'], 'the better piece is kept');
+  assert(save.gold > gold, 'and the rest is salvaged for its usual reward');
+  assert.equal(ui.openModal, 'equipment', 'back to the bag');
+});
+
+test('그대로 분해 salvages the whole selection, 취소 keeps it', () => {
   const save = freshSave();
   save.equipment.weapon = gear('worn', 'weapon', 10);
   save.bag = [gear('better', 'weapon', 30), gear('junk', 'helmet', 1)];
-  // Cancelling: the selection is dropped and the popup goes back to the bag, gear untouched.
-  const cancelled = popup(save); cancelled.salvageIds = ['better', 'junk'];
-  withDocument(() => renderSalvage.call(cancelled, node()));
+  // 취소: 아무것도 지우지 않고 장비창으로 돌아간다.
+  const quiet = popup(save);
+  withDocument(() => requestSalvage.call(quiet, ['better', 'junk']));
+  findByClass(quiet.root, 'salvage-protect-actions').children[2].onclick();
   assert.equal(save.bag.length, 2, 'cancelling changes nothing');
-  // Confirming: the same list is what gets salvaged, and the reward is the usual one.
-  const gold = save.gold;
+  assert.equal(quiet.openModal, 'equipment');
+  // 그대로 분해: 선택한 장비가 전부 분해된다.
+  const gold = save.gold, ui = popup(save);
+  withDocument(() => requestSalvage.call(ui, ['better', 'junk']));
+  findByClass(ui.root, 'salvage-protect-actions').children[1].onclick();
+  assert.equal(save.bag.length, 0, 'the whole selection is gone');
+  assert(save.gold > gold, 'and pays out');
+});
+
+test('the popup names how many pieces it protects when there are several', () => {
+  const save = freshSave();
+  save.equipment.weapon = gear('worn', 'weapon', 10);
+  save.equipment.helmet = gear('worn-helm', 'helmet', 5);
+  save.bag = [gear('better', 'weapon', 30), gear('helm', 'helmet', 20), gear('junk', 'boots', 1)];
   const ui = popup(save);
-  finishSalvage.call(ui, ['better', 'junk']);
-  assert.equal(save.bag.length, 0, 'the confirmed pieces are gone');
-  assert(save.gold > gold, 'and the salvage pays out');
-  assert.equal(ui.openModal, 'equipment', 'back to the bag');
+  withDocument(() => requestSalvage.call(ui, ['better', 'helm', 'junk']));
+  const overlay = findByClass(ui.root, 'salvage-protect');
+  assert.equal(findByClass(overlay, 'salvage-protect-list').children.length, 2, 'both protected pieces are shown');
+  assert.equal(findByClass(overlay, 'salvage-protect-actions').children[0].textContent, '보호할 장비 2개 빼고 분해');
 });
 
 test('a selection with nothing better is still salvaged in one tap', () => {
