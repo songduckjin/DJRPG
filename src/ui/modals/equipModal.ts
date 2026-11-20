@@ -18,6 +18,7 @@ import { showEquippedDetail, dismissEquippedDetail, deferEquippedDismiss } from 
 import { bagDetailPinned, createBagDetail, deferBagDismiss, dismissBagDetail, showBagDetail } from '../bagDetail';
 import { skillbookName } from '../skillbookBag';
 import { itemNameText, renderItemName } from '../itemName';
+import { slotAtlasStyle } from '../slotArtStyle';
 import type { BagFilter, Interface } from '../interface';
 
 export const equipmentInfoSlots = ['weapon', 'helmet', 'armor', 'gloves', 'boots', 'offhand', 'necklace', 'belt', 'ring1', 'ring2'] as const;
@@ -362,6 +363,8 @@ function itemIcon(this: Interface, slot: Slot | 'skillbook' | 'pouch', item: Ite
   if (isPouch(item)) return pouchIconMarkup(className);
   if (item && isEquipment(item)) {
     const art = equipmentImage(item);
+    // 장착 칸(작업 231): 내용 상자만 칸에 꽉 차게 그려 물건이 작아 보이지 않게 한다(비율은 그대로).
+    if (art.columns === 5 && className === 'slot-icon') return `<span class="${className} atlas-icon" style="${slotAtlasStyle(art.path, art.frame)}" aria-hidden="true"></span>`;
     if (art.columns === 5) return `<span class="${className} atlas-icon" style="background-image:url('${art.path}');background-position:${art.frame * 25}% center" aria-hidden="true"></span>`;
   }
   return `<img class="${className}" src="${this.iconPath(slot, item)}" alt="">`;
