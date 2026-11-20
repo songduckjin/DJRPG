@@ -24,34 +24,38 @@ test('weapon sockets cover both genders and eight walk frames',()=>{
  }
 });
 
-test('skill 1 draws the approved silver arc and gold ground shockwave as add-blended sprites',()=>{
+test('이단참(skill 1) draws two mirrored silver crescents and a gold ground shockwave as add-blended sprites',()=>{
  const texture=(width,height)=>new Texture({source:Texture.EMPTY.source,frame:new Rectangle(0,0,width,height)});
- const cast=(rarity,t,screenAngle=.4)=>{
+ const cast=(rarity,age=.1,screenAngle=.4)=>{
   const save=freshSave();
   if(rarity)save.equipment.weapon={...item('weapon','두손검'),rarity};
   const skillVfx=new Container();
-  const view={save,skillVfx,vfxSprites:new Map(),textures:{fxSlash2:texture(512,199),fxSlash2Ground:texture(384,131)},effects:{arc(){throw new Error('휘두르기는 코드 선 대신 스프라이트로 그린다');}}};
-  assert.equal(drawSkillVfx.call(view,{save},{kind:'slash2'},100,200,t,screenAngle,0),true);
-  const [arc,shock]=view.vfxSprites.get([...view.vfxSprites.keys()][0]);
-  return {arc,shock,save,skillVfx};
+  const view={save,skillVfx,vfxSprites:new Map(),textures:{fxSlash2Dual:texture(512,122),fxSlash2Ground:texture(384,131)},effects:{arc(){throw new Error('이단참은 코드 선 대신 스프라이트로 그린다');}}};
+  assert.equal(drawSkillVfx.call(view,{save},{kind:'slash2',age,duration:.55},100,200,Math.min(1,age/.55),screenAngle,0),true);
+  const [first,back,shock]=view.vfxSprites.get([...view.vfxSprites.keys()][0]);
+  return {first,back,shock,save,skillVfx};
  };
- const mid=cast('rare',.5);
- assert.equal(mid.skillVfx.children.length,2);
- assert.deepEqual(mid.skillVfx.children.map(child=>child.blendMode),['add','add'],'both layers use add blending');
- assert.equal(mid.arc.rotation,.4,'the sword arc follows the swing direction');
+ const mid=cast('rare',.1);
+ assert.equal(mid.skillVfx.children.length,3,'정방향·되받아 검기 두 장 + 지면 충격파');
+ assert.deepEqual(mid.skillVfx.children.map(child=>child.blendMode),['add','add','add'],'all layers use add blending');
+ assert.equal(mid.first.rotation,.4-.17,'the first crescent follows the swing direction');
+ assert.equal(mid.back.rotation,.4+.2,'the backhand crescent crosses the first');
+ assert(mid.back.scale.x<0,'the backhand crescent is mirrored left-to-right');
  assert.equal(mid.shock.rotation,0,'the ground shockwave stays flat on the floor');
- assert(mid.arc.alpha>.9,'the arc is brightest at mid swing');
- assert(cast('rare',0).arc.alpha<1e-9,'the arc starts invisible');
- assert(cast('rare',1).arc.alpha<1e-9,'the arc ends invisible');
+ assert(mid.first.alpha>.9,'the first crescent is brightest mid swing');
+ assert(cast('rare',0).first.alpha<1e-9,'the first crescent starts invisible');
+ assert(cast('rare',.55).first.alpha<1e-9,'the first crescent is gone by the end');
+ assert(cast('rare',.02).back.alpha<1e-9,'the backhand waits for the second hit');
+ assert(cast('rare',.3).back.alpha>.9,'the backhand is brightest after the 0.18s hit');
  assert(mid.shock.scale.y<mid.shock.scale.x,'the shockwave is squashed onto the ground plane');
- const common=cast('common',.5).arc,legendary=cast('legendary',.5).arc;
- assert(legendary.scale.x>common.scale.x,'a higher weapon rarity sweeps wider');
- const bare=cast(null,.5);
- assert.equal(bare.arc.tint,0xffffff,'unarmed keeps the approved silver and gold colours');
+ const common=cast('common',.1).first,legendary=cast('legendary',.1).first;
+ assert(Math.abs(legendary.scale.x)>Math.abs(common.scale.x),'a higher weapon rarity sweeps wider');
+ const bare=cast(null,.1);
+ assert.equal(bare.first.tint,0xffffff,'unarmed keeps the approved silver and gold colours');
  assert.equal(bare.save.equipment.weapon,undefined);
  assert.equal(weaponSlashColor({save:bare.save}),0xffffff);
  assert.equal(slashTint({save:bare.save}),0xffffff);
- const tinted=cast('legendary',.5).arc.tint;
+ const tinted=cast('legendary',.1).first.tint;
  assert.notEqual(tinted,0xffffff,'an equipped weapon leaves a faint rarity tint');
  for(const shift of [16,8,0])assert((tinted>>shift&255)>200,'the tint only leans the silver colour, it does not repaint it');
  const colours=[['common',0x9ca3af],['magic',0x60a5fa],['rare',0xfacc15],['epic',0xc084fc],['unique',0xfb923c],['legendary',0xf87171]];

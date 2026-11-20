@@ -1071,3 +1071,10 @@
 - 시트만 교체: `heroBodyPx`·전투 수치·Save/DB/API 무변경. 장비 오버레이는 종전대로 궁수에게 그리지 않는다.
 - tsc/archer 14·전체488중486(costume-field-render2건은 `86ac44e` 워크트리 동일실패)/아트6장/build/diff통과. 번들에 6경로 `?v=2` 확인. 검수 `downloads/djrpg_archer_starter_ingame_v2.png`(남녀 걷기·사격 4패널). 브라우저 실기 미실행.
 - 159 운영배포완료: PR#124 스쿼시`4ba39fdb63b7`, Pages production success, https://djrpg.pages.dev/version.json =4ba39fdb63b7(builtAt2026-11-20T02:29:42Z). ?v=2 시트6장 200·원격sha=로컬, 번들`index-j5_2NUhd.js`에 6경로 ?v=2 확인. 브라우저실기미실행.
+
+## 2026-11-20 songduckjin — 작업213 전사 1번 스킬 '이단참'(좌우 횡베기 2연격)
+- `skills.ts`: `slash2` 표시 이름 휘두르기→**이단참**(ID 유지), 설명·위력표기(`공격력 × 1.1 · 2연격`) 갱신. `slash2Hits`(0s 1.1배·0.18s 1.1배·합 2.2배, 넉백 6/12)·`slash2SecondHit`·`slash2SwingSeconds`(0.44)·`slash2TotalPower`를 단일 기준으로 추가. 퀵슬롯 단축명은 이미 `이단참`이라 표기가 일치하게 됐다.
+- `world.ts`: 발동 즉시 1타, 0.18초 뒤 2타 — 타마다 사거리·부채꼴을 다시 재는 독립 `damage()` 호출이라 데미지 팝업도 두 번. `Effect.hits`로 타수를 세고 두 타 뒤 `nextHit`을 비운다. 2연격 모션 창 `attackCombo='double'`·`attackPose=0.44`.
+- 모션(`heroMotion.slash2SwingMotion`·`entities.drawHero`): 공격 시트 4프레임을 1타 0→3, 2타 3→0으로 되감아 좌우 횡베기를 구분하고 스윙마다 전진 pulse. 무기·투구·갑옷 파츠가 같은 프레임을 쓴다.
+- 검기(`vfx.ts`): 새 에셋 `public/assets/fx_slash2_dual.png`(512×122, 17KB, 은빛·강철빛 초승달)를 add 합성. 1타는 정방향(−0.17rad), 2타는 좌우 반전(+0.2rad)으로 X자 교차, 2타 시점에 황금 지면 충격파. 새 파일명이라 `/assets/*` immutable 캐시를 피한다.
+- 검증: `tsc`, `vite build`, 전체 678건 중 676 통과(실패 2건은 변경 전 main과 같은 `costume-field-render`), 신규 `tests/skill-double-slash`(5). 검수 이미지 `downloads/djrpg_skill_1_double_slash_ingame_v1.png`(`scripts/preview-double-slash.py`). 브라우저·iOS 실기 확인은 사용자 몫.
