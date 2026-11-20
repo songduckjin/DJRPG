@@ -23,6 +23,18 @@
 .dungeon-lobby[data-tab=ranking] .dungeon-content>p{flex:0 0 auto;font-size:10px;line-height:1.4;margin:6px 0 0}
 @media(max-height:550px){.dungeon-hero{flex-basis:26%}.dungeon-rank-heading,.dungeon-rank-row{padding:1px 6px;font-size:10px}.dungeon-own-rank{padding:4px 8px}.dungeon-lobby[data-tab=ranking] .dungeon-content>p{font-size:9px}}
 
+/* 마지막 층을 깬 뒤: 로비와 결과창이 같은 커밍순 배지를 쓴다(다음 층은 아직 없다). */
+.dungeon-current>small{font-size:11px;color:#a59175;line-height:1.5}
+.dungeon-coming-soon{justify-self:center;display:inline-flex;align-items:baseline;gap:5px;padding:2px 10px;border:1px solid #a17d45;border-radius:999px;background:#4a2a2466;color:#f0d29b;font-size:10px;font-style:normal;letter-spacing:.4px}
+.dungeon-coming-soon>b{font-size:11px;color:#ffd977}
+.dungeon-coming-soon-panel{display:grid;gap:6px;justify-items:center;padding:14px 12px;border:1px solid #9b7842;background:linear-gradient(120deg,#57402766,#30241d);text-align:center}
+.dungeon-coming-soon-panel h3{margin:0;font-size:16px;color:#f1d394}
+.dungeon-coming-soon-panel p{margin:0;font-size:11px;color:#c3ac8b}
+.dungeon-coming-soon-panel small{font-size:10px;color:#a59175;line-height:1.5}
+.dungeon-rank-note{color:#a59175!important}
+.dungeon-battle-result .dungeon-result-coming{display:inline-flex;align-items:baseline;gap:6px;margin:6px 0 2px;padding:3px 12px;border:1px solid #a17d45;border-radius:999px;background:#4a2a2466;color:#f0d29b;font-size:12px}
+.dungeon-result-coming b{color:#ffd977;font-size:13px}
+
 .dungeon-field{opacity:0;visibility:hidden;pointer-events:none;transition:opacity .6s ease;position:absolute;inset:0;z-index:30;background:#100f0e url(/assets/dungeon/prison-room-v2.png) center/100% 100% no-repeat;color:#ddc9a6;overflow:hidden;isolation:isolate}
 .dungeon-field-canvas{position:absolute;inset:0;z-index:3;pointer-events:none}.dungeon-field-canvas canvas{display:block;width:100%;height:100%}
 .dungeon-field-hud{position:absolute;top:env(safe-area-inset-top,0px);left:0;right:0;display:flex;align-items:center;justify-content:space-between;padding:14px 16px;background:linear-gradient(#100e0fe8,transparent);z-index:5}.dungeon-field-hud>div{display:grid;gap:3px}.dungeon-field-hud small{font-size:11px;letter-spacing:2px;color:#ad9674}.dungeon-field-hud strong{font-size:22px;color:#eed09a}.dungeon-field-leave{min-height:42px;padding:8px 14px;border:1px solid #826741;background:#1c1615c9;color:#dcc6a1}
@@ -52,21 +64,26 @@
 
 /* Stacking inside `.dungeon-field` (which is its own stacking context): 1 exit gate < 2 loot behind
    the hero < 3 arena canvas < 4 loot in front of the hero < 5 HUD < 6 result < 8 floor fade.
-   The door is the floor's backdrop, so no coin, weapon or skill book is ever hidden behind it. */
+   The door is the floor's backdrop, so no coin, weapon or skill book is ever hidden behind it.
+   A gold heap always lives in layer 2 (작업 194): it lies flat on the floor, so the hero, every
+   monster and every item of either layer are painted over it. */
 .dungeon-exit-gate{position:absolute;z-index:1;top:10%;left:50%;transform:translateX(-50%);height:28%;aspect-ratio:1;max-width:70%;pointer-events:none}
 .dungeon-exit-gate .dungeon-lobby-gate{filter:drop-shadow(0 6px 7px #0008)}
 
 .dungeon-exit-gate.is-resetting .dungeon-gate-left,.dungeon-exit-gate.is-resetting .dungeon-gate-right{transition:none}
 
 /* Drop loot: DOM layer over the transparent arena canvas so `src/game/render/**` stays untouched.
-   Shadow ellipse matches a stationary monster's ground shadow (about 38px wide, 12px tall).
-   The is-behind layer sits under that canvas so loot that falls behind the hero stays behind it,
-   yet still over the door (see the ladder above `.dungeon-exit-gate`). */
+   Shadow ellipse matches a stationary monster's ground shadow (about 38px wide, 12px tall); a coin
+   heap's shadow is wider and flatter, set with the heap itself.
+   The is-behind layer (2) sits under that canvas so loot that falls behind the hero stays behind it,
+   yet still over the door (see the ladder above `.dungeon-exit-gate`). Every gold heap goes there,
+   whichever side of the hero it fell on. */
 .dungeon-loot-layer{position:absolute;inset:0;z-index:4;pointer-events:none;overflow:hidden}
 .dungeon-loot-layer.is-behind{z-index:2}
 .dungeon-loot{position:absolute;left:0;top:0;width:0;height:0;will-change:transform}
 /* An item may land on a coin, and it covers it: only gold and items share a point, and the item is
-   always painted above the coin — inside the behind layer too, since it is the same rule per layer. */
+   always painted above the coin — inside the behind layer too, since it is the same rule per layer.
+   Gold is always in the behind layer, so an item in the front layer is above it as well. */
 .dungeon-loot.is-gold{z-index:1}
 .dungeon-loot.is-item{z-index:2}
 .dungeon-loot-shadow{position:absolute;left:0;top:0;width:38px;height:12px;border-radius:50%;background:radial-gradient(ellipse at center,#000000b8 0%,#0000 72%);transform:translate(-50%,-50%);opacity:.5}
@@ -74,8 +91,14 @@
 .dungeon-loot-art{position:relative;z-index:1;width:34px;height:34px;object-fit:contain;filter:drop-shadow(0 2px 3px #000a)}
 .dungeon-loot-art.atlas-icon{background-size:500% 100%;background-repeat:no-repeat}
 .dungeon-loot-book{position:relative;z-index:1;width:36px;height:36px;--book-badge-size:17px;filter:drop-shadow(1px 0 0 var(--loot-ink)) drop-shadow(-1px 0 0 var(--loot-ink)) drop-shadow(0 1px 0 var(--loot-ink)) drop-shadow(0 -1px 0 var(--loot-ink)) drop-shadow(0 2px 3px #000a)}
-/* Gold keeps no outer light at all: the coin art alone marks it. */
-.dungeon-loot.is-gold .dungeon-loot-coin{position:relative;z-index:1;width:30px;height:30px;object-fit:contain;filter:none;animation:none}
+/* A coin lies flat on the floor: a small heap of two or three coins, each squashed to half its width
+   and placed a few pixels apart by `goldPile.ts` (sizes, offsets and the ground point come from
+   there), over a wide, flat shadow. Each coin is drawn from the chip baked by `goldCoinArt` — the
+   original coin art lifted out of the dark floor, with its own 1px warm brown boundary and 2px
+   darker-gold thickness already in the bitmap — so the heap carries no outer light, no grade ring
+   and no filter chain here; the image *is* the coin (작업 196). */
+.dungeon-loot.is-gold .dungeon-loot-coin{position:absolute;left:50%;bottom:0;object-fit:contain;transform:translateX(-50%);z-index:1;filter:none;animation:none}
+.dungeon-loot.is-gold .dungeon-loot-shadow{width:32px;height:8px;background:radial-gradient(ellipse at center,#000000a8 0%,#0000 70%)}
 /* Equipment and skill books carry grade light, and it wraps the drop's own outline: stacked
    `drop-shadow` follows the icon's alpha silhouette, so there is no round halo plate or ring and the
    glow leaves the item's shape. Saturated ink plus a hard 1px layer makes the grade read at a glance.

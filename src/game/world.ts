@@ -1,10 +1,12 @@
 import { canStoreItem } from './bagCapacity';
-import { addExperience, floorKillTarget, rollItem, skillLevel, totalStats, type Item, type Save } from './store';
+import { bossGoldPiles, bossGoldSpot } from './bossLoot';
+import { addExperience, floorKillTarget, rollItem, skillLevel, totalStats, type Item, type Rarity, type Save } from './store';
 import { equipmentDropChance, rollSkillBook, skillBookDropChance, starterWeaponName } from './items';
 import { dragonOrbitFactor, skillDamageScale, skillDuration, skillRange, skills, type Job, type SkillId } from './skills';
 import { jobOrDefault } from './skills';
 import { clampArenaPoint, spawnArenaEnemy } from './arena';
 import { LOOT_ABSORB_SECONDS, LOOT_REST_SECONDS } from './loot';
+import { autoSalvageBlock, autoSalvageRecovered } from './inventory';
 
 export type Enemy = { x: number; y: number; hp: number; maxHp: number; boss: boolean; hit: number; step: number; moving: boolean; knockX: number; knockY: number; slow: number };
 /** `absorb` is the age the pull into the character began at; while it is unset the drop still rests
@@ -12,8 +14,10 @@ export type Enemy = { x: number; y: number; hp: number; maxHp: number; boss: boo
  *  by a full bag from one already on its way in. */
 export type Drop = { x: number; y: number; item: Item; age: number; warned: boolean; absorb?: number };
 /** The coin a kill leaves behind. Its gold is already in `save.gold` (granted at the kill, as
- *  before); the coin itself is only what the field draws for a beat before it flies to the hero. */
-export type Coin = { x: number; y: number; age: number; gold: number };
+ *  before); the coin itself is only what the field draws for a beat before it flies to the hero.
+ *  `from` is the body a boss heap was thrown from (작업 196), so the field can fly it out on its own
+ *  arc instead of dropping it where it appears. */
+export type Coin = { x: number; y: number; age: number; gold: number; from?: { x: number; y: number } };
 export type Effect = { x: number; y: number; kind: 'slash' | 'slash2' | 'spin' | 'crushing' | 'slam' | 'warcry' | 'power' | 'destroy' | 'hell' | 'hit' | 'death'
   | 'shot' | 'rain' | 'hawk' | 'burst' | 'nova' | 'ward'; age: number; duration: number; angle: number; swing?: number; amount?: number; nextHit?: number; power?: number; level?: number;
   /** 궁수 화살·화살비처럼 날아가서 맞는 이펙트의 도착지점과 위력(작업 157). */
@@ -33,13 +37,30 @@ export const basicAttackPower = 1.6;
  *  추격은 적이 꽤 가까워졌을 때만 한다. */
 export const archerAttackRange = 250;
 export const archerStopRange = 118;
-/** 마법사도 원거리다 — 궁수보다 조금 짧은 사거리에서 마법 구슬을 날린다(작업 159). */
+/** 마법사도 원거리다 — 궁수보다 조금 짧은 사거리에서 마법 구슬을 날린다(작업 198). */
 export const mageAttackRange = 240;
 export const mageStopRange = 118;
 export function enemyMoveSpeed(floor: number, boss: boolean): number {
   return boss ? 28 : Math.min(64, 38 + Math.max(0, floor - 1) * 1.2);
 }
-export function enemyMaxHp(floor: number, boss: boolean): number { return boss ? Math.round(220 + floor * 95 + Math.pow(floor, 1.6) * 32) : Math.round(24 + floor * 12 + Math.pow(floor, 1.55) * 4); }
+/** The normal-mob curve the game had before 작업 196 (floor 78: ~4,380). It is kept as the floor of
+ *  the blend below so the early floors play exactly as they did, and `game/offline.ts` still settles
+ *  its standing rewards on it: the deeper curve is about a live fight taking longer, and 20 hours away
+ *  should not quietly pay 30% less. */
+export function offlineMobHp(floor: number): number { return 24 + floor * 12 + Math.pow(floor, 1.55) * 4; }
+/** The deep curve from 작업 196: floor 78 lands at ~15,300 instead of ~4,380, so a late mob stands for
+ *  a few hits instead of melting in a second. */
+function deepMobHp(floor: number): number { return 24 + floor * 14 + Math.pow(floor, 1.85) * 4.5; }
+/** Floors below this keep the old curve; the deep one has fully taken over by `HP_RAMP_BY`. The ramp is
+ *  what lets both halves of the request hold: 1~8층은 그대로, 25층부터는 깊은 층 곡선, 그 사이는 완만히. */
+const HP_RAMP_FROM = 8, HP_RAMP_BY = 25;
+/** Health of a mob on a floor. Bosses keep their own, heavier curve, which lands at two to three times
+ *  a normal mob of the same floor. */
+export function enemyMaxHp(floor: number, boss: boolean): number {
+  if (boss) return Math.round(220 + floor * 95 + Math.pow(floor, 1.6) * 32);
+  const ramp = Math.min(1, Math.max(0, (floor - HP_RAMP_FROM) / (HP_RAMP_BY - HP_RAMP_FROM)));
+  return Math.round(offlineMobHp(floor) + (deepMobHp(floor) - offlineMobHp(floor)) * ramp);
+}
 export function enemyHitDamage(floor: number, boss: boolean, defense: number): number { return Math.max(1, Math.round(boss ? 20 + floor * 5.5 + Math.pow(floor, 1.3) * 1.2 : 7 + floor * 2.4 + Math.pow(floor, 1.25) * .5) - defense * .2); }
 
 export class World {
@@ -60,6 +81,15 @@ export class World {
   private pursuing = false;
   onChange: () => void = () => {};
   onMessage: (text: string) => void = () => {};
+  /** Live auto-salvage (작업 196): the grade the player chose, or `undefined` while the switch is off.
+   *  The UI owns the switch and the stored value, so the world asks on every pickup instead of keeping
+   *  a copy that could drift. Offline rewards never pass through this. */
+  autoSalvage?: () => Exclude<Rarity, 'legendary'> | undefined;
+  /** Would this recovered piece be swept up right now? Used to let it fly in even with a full bag. */
+  private sweeps(item: Item): Exclude<Rarity, 'legendary'> | undefined {
+    const grade = this.autoSalvage?.();
+    return grade && !autoSalvageBlock(this.save, item, grade) ? grade : undefined;
+  }
 
   constructor(public save: Save) {
     this.save.auto = true;    this.player.hp = Math.min(save.health, totalStats(save).health);
@@ -114,7 +144,7 @@ export class World {
         return;
       }
       if (this.job === 'mage') {
-        // 마법사 평타: 화살 대신 푸른/붉은 마법 구슬이 날아가 적중한다(작업 159).
+        // 마법사 평타: 화살 대신 푸른/붉은 마법 구슬이 날아가 적중한다(작업 198).
         const point = target ?? { x: p.x + Math.cos(angle) * mageAttackRange, y: p.y + Math.sin(angle) * mageAttackRange };
         this.shoot(point.x, point.y, attack * basicAttackPower, { speed: 760, radius: 44, arrow: this.mageBolt, aim: target });
         return;
@@ -269,16 +299,29 @@ export class World {
     if (enemy.boss) this.save.bossKills++;
     const gold = enemy.boss ? 70 * this.save.floor : 3 + this.save.floor;
     this.save.gold += gold;
-    // The coin shows the gold that was just paid: nothing is credited when it flies in.
-    this.coins.push({ x: enemy.x, y: enemy.y, age: 0, gold });
+    // The coin shows the gold that was just paid: nothing is credited when it flies in. A boss's gold
+    // hits the floor in ten heaps scattered around the body (작업 194), each its own drop with its own
+    // fall; the heaps add up to the same gold, so the shower never pays twice.
+    const heaps = enemy.boss ? bossGoldPiles(gold) : [gold];
+    heaps.forEach((amount, index) => {
+      const spot = enemy.boss ? bossGoldSpot(enemy.x, enemy.y, index) : enemy;
+      const point = enemy.boss ? clampArenaPoint(spot.x, spot.y) : spot;
+      // A boss's heaps burst out of the body: each remembers where it was thrown from, so the field
+      // can fly it there on its own parabola (작업 196).
+      const from = enemy.boss ? clampArenaPoint(enemy.x, enemy.y) : undefined;
+      this.coins.push({ x: point.x, y: point.y, age: 0, gold: amount, from });
+    });
     const gained = addExperience(this.save, enemy.boss ? 45 : 8);
     if (gained) { this.player.hp = this.save.health; this.onMessage(`레벨 ${this.save.level} 달성!`); }
-    const guaranteed = this.save.tutorial === 0 && !enemy.boss;
-    if (guaranteed || Math.random() < equipmentDropChance(this.save.floor, enemy.boss)) {
-        this.drops.push({ x: enemy.x, y: enemy.y, item: rollItem(this.save.floor, guaranteed, enemy.boss, this.job), age: 0, warned: false });
+    // The gold is the boss's whole haul — ten heaps and nothing handed out on top (작업 195). Items
+    // still come from the one chance roll every kill makes below, against the same field drop table
+    // (the boss rates for a boss), so a boss never leaves five guaranteed pieces behind.
+    const guaranteed = this.save.tutorial === 0 && !enemy.boss, boss = enemy.boss;
+    if (guaranteed || Math.random() < equipmentDropChance(this.save.floor, boss)) {
+      this.drops.push({ x: enemy.x, y: enemy.y, item: rollItem(this.save.floor, guaranteed, boss, this.job), age: 0, warned: false });
       if (guaranteed) { this.save.tutorial = 1; this.onMessage(`${starterWeaponName(this.job)}이(가) 떨어졌습니다. 잠시 뒤 자동으로 획득됩니다!`); }
     }
-    if (Math.random() < skillBookDropChance(this.save.floor, enemy.boss)) {
+    if (Math.random() < skillBookDropChance(this.save.floor, boss)) {
       this.drops.push({ x: enemy.x, y: enemy.y, item: rollSkillBook(this.save.floor, this.job), age: 0, warned: false });
     }
     if (enemy.boss) {
@@ -363,7 +406,7 @@ export class World {
       if (d < 35 && p.hit <= 0) {
         p.hp = Math.max(0, p.hp - enemyHitDamage(this.save.floor, enemy.boss, totalStats(this.save).defense));
         p.hit = .85;
-        if (p.hp <= 0) { p.hp = totalStats(this.save).health; this.save.health = p.hp; p.x = 0; p.y = 0; this.save.gold = Math.max(0, this.save.gold - 10); this.onMessage('쓰러졌습니다. 10골드를 잃고 부활했습니다.'); this.onChange(); }
+        if (p.hp <= 0) { this.save.autoClimb = false; p.hp = totalStats(this.save).health; this.save.health = p.hp; p.x = 0; p.y = 0; this.save.gold = Math.max(0, this.save.gold - 10); this.onMessage('쓰러졌습니다. 10골드를 잃고 부활했습니다. 자동 등반이 중단됩니다.'); this.onChange(); }
       }
       enemy.hit = Math.max(0, enemy.hit - dt);
     }
@@ -373,13 +416,22 @@ export class World {
       drop.age += dt;
       if (drop.absorb === undefined) {
         if (drop.age < LOOT_REST_SECONDS) continue;
-        if (!canStoreItem(this.save.bag, drop.item)) {
+        // A piece auto-salvage will take needs no bag room, so it flies in even when the bag is full.
+        if (!canStoreItem(this.save.bag, drop.item) && !this.sweeps(drop.item)) {
           if (!drop.warned) { drop.warned = true; this.onMessage('가방이 가득 찼습니다. 장비를 분해하세요.'); }
           continue;
         }
         drop.absorb = drop.age;
       }
       if (drop.age - drop.absorb < LOOT_ABSORB_SECONDS) continue;
+      // 접속 중 자동 분해 (작업 196): a piece at or below the chosen grade, unlocked, in a filled slot
+      // and no better than what is worn becomes gold and stones here, and never reaches the bag.
+      const sweep = this.sweeps(drop.item);
+      if (sweep && autoSalvageRecovered(this.save, drop.item, sweep)) {
+        drop.age = -1;
+        this.onChange();
+        continue;
+      }
       this.save.bag.push(drop.item);
       drop.age = -1;
       if (drop.item.name === starterWeaponName(this.job) && this.save.tutorial === 1) this.save.tutorial = 2;

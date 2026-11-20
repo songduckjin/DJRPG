@@ -1,4 +1,4 @@
-## 2026-11-20 songduckjin — 작업159 마법사 직업(기본 시트·지팡이 10종·원거리 마법탄·스킬 8+3 뼈대)
+## 2026-11-20 songduckjin — 작업198 마법사 직업(기본 시트·지팡이 10종·원거리 마법탄·스킬 8+3 뼈대)
 - 세 번째 직업 `mage`를 `warrior`/`archer`와 같은 계약으로 붙였다. `Job`·`jobs`·`jobNames`·`jobOrDefault`(모르는 값은 전사)로 정규화하고, `store.parseSave`·`server/endpoints/account.mjs`(`jobOf`·`jobs`)가 `mage`를 허용·보존한다. 기존 전사·궁수 세이브는 장비·진행·퀵슬롯 그대로다.
 - 에셋: 승인 원본(`downloads/mage_preview/{male,female}_{3,walk,attack}.png`)에서 전사·궁수와 같은 셀 좌표계(서기 362×362·걷기/공격 1448×362, 검정 배경 휘도 키잉, 발끝 정렬)의 `pilot-25d/mage_{male,female}_{idle,walk,attack}_v1.png` 6장을 만들었다. 스트립은 인물끼리 닿지 않아 세로줄로 자르지 않고, 큰 덩어리(본체)를 x 순서로 놓은 뒤 떨어진 장화·손의 마법 구슬을 상자 겹침이 가장 큰 본체에 붙였다(합쳐진 스트립은 narrowest-gap 방식 폴백). 크기는 bbox가 아니라 **머리끝~발끝**으로 맞춰 여성 시트의 지팡이가 머리 위로 솟아도 본체가 작아지지 않는다(빌더 `scripts/build-mage-sheets.py`).
 - 지팡이 10종(`견습생의 지팡이`~`대현자의 성지팡이`)은 `staffBases`로 분리해 드랍·장착·표기('지팡이')만 마법사에 연결하고, 전사 대검·궁수 활의 드랍·코덱스·착용 시트는 그대로 뒀다. 아이콘은 `item-art/staff_0.png`·`staff_5.png`(870×290, 174×290 칸 5개), 스킬 아이콘은 `icons/mage-skills.png`(4×2)·`mage-passive-skills.png`(3×1), 빌더는 `scripts/build-staff-art.py`·`build-mage-icons.py`다.
@@ -911,3 +911,10 @@
 - 2번: 청룡머리·비늘몸통 PNG교체(짙은파랑), 한바퀴1.1→2.4초, 발밑파란지면광·링, 몸통방사1.25배. `/assets/*`immutable이라 dragon2장은`?v=2`.
 - tsc/부분6(검기·청룡계약 새로)/전체474중472(costume-field-render2건은종전실패)/build/아트/diff통과. PR#118 스쿼시`eef4e9d5251d`, 운영version.json`eef4e9d5251d`(builtAt2026-11-20T01:17:18Z)·새에셋4장200(원격sha=로컬, 머리평균RGB 35/105/189 파랑)·번들`index-QOXkJ41J.js`에 경로·`Math.PI*2/2.4`확인. 브라우저실기미실행.
 
+## 2026-11-20 songduckjin — 작업159 궁수 스타터 가죽 튜닉 시트 교체
+- 승인 원본(`downloads/archer_preview/{male,female}_starter.png`)에서 `images --edit`로 걷기·활사격 4프레임 스트립 생성. 후드·망토·견갑 없이 민소매 가죽 조끼+크림 셔츠, 퀴버·나무활 유지, 4프레임 얼굴·옷·바닥선 동일 확인.
+- `scripts/build-archer-sheets.py` 입력을 `{}_starter{,_walk,_attack}.png`로 교체 후 6장 재생성(362×362 / 1448×362, 검정 키잉·발끝정렬). 셀 높이 남 337/301·299·300·300/239·275·270·270, 여 337/300×4/239·277·279·263. 옛 후드 입력은 주석으로만 남김.
+- `/assets/*` immutable이라 `render.ts` 6경로·`equipmentPortrait.ts`·`charactersModal.ts`의 궁수 시트 URL에 `?v=2`. `tests/archer.test.mjs`에 캐시 버스터 누락 감시 1건 추가(궁수 시트 참조 줄은 전부 `?v=` 필요).
+- 시트만 교체: `heroBodyPx`·전투 수치·Save/DB/API 무변경. 장비 오버레이는 종전대로 궁수에게 그리지 않는다.
+- tsc/archer 14·전체488중486(costume-field-render2건은 `86ac44e` 워크트리 동일실패)/아트6장/build/diff통과. 번들에 6경로 `?v=2` 확인. 검수 `downloads/djrpg_archer_starter_ingame_v2.png`(남녀 걷기·사격 4패널). 브라우저 실기 미실행.
+- 159 운영배포완료: PR#124 스쿼시`4ba39fdb63b7`, Pages production success, https://djrpg.pages.dev/version.json =4ba39fdb63b7(builtAt2026-11-20T02:29:42Z). ?v=2 시트6장 200·원격sha=로컬, 번들`index-j5_2NUhd.js`에 6경로 ?v=2 확인. 브라우저실기미실행.

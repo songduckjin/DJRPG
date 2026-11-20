@@ -114,7 +114,7 @@ export function drawSkillVfx(this: GameView, world: World, effect: Effect, x: nu
 
 const arrowColors: Record<NonNullable<Effect['variant']>, number> = {
   normal: 0xffd9a0, ice: 0xa8dcff, pierce: 0xffe6a0, snipe: 0xfff4d0, volley: 0xffc27a,
-  // 마법사 탄환(작업 159) — 남성은 푸른 마력, 여성은 붉은 화염, 스킬은 속성별 색을 쓴다.
+  // 마법사 탄환(작업 198) — 남성은 푸른 마력, 여성은 붉은 화염, 스킬은 속성별 색을 쓴다.
   arcane: 0x8fb4ff, fire: 0xff7a3c, frost: 0xbfe6ff, chain: 0xd0b4ff, meteor: 0xffb266
 };
 const magicVariants = new Set<NonNullable<Effect['variant']>>(['arcane', 'fire', 'frost', 'chain', 'meteor']);
@@ -148,7 +148,7 @@ export function drawArrow(this: GameView, effect: Effect, x: number, y: number, 
   }
 
 /**
- * 마법사 마법 구슬 — 화살 대신 빛나는 구슬이 잔상 꼬리를 끌며 날아간다(작업 159).
+ * 마법사 마법 구슬 — 화살 대신 빛나는 구슬이 잔상 꼬리를 끌며 날아간다(작업 198).
  * 궤적 계산(아이소메트릭 선형 이동)은 화살과 같고, 그리기만 구슬+광채로 바꾼다.
  */
 export function drawMagicBolt(this: GameView, effect: Effect, x: number, y: number): void {
@@ -170,7 +170,7 @@ export function drawMagicBolt(this: GameView, effect: Effect, x: number, y: numb
     if (effect.variant === 'fire' || effect.variant === 'meteor') this.glow.circle(px, py, radius * 3.4).fill({ color: 0xff8a3c, alpha: .1 * tail });
   }
 
-/** 마법 폭발·메테오 — 대상 지점이 예고 뒤에 터진다(작업 159). */
+/** 마법 폭발·메테오 — 대상 지점이 예고 뒤에 터진다(작업 198). */
 export function drawBurst(this: GameView, effect: Effect, x: number, y: number, t: number, time: number): void {
     const color = effect.variant === 'meteor' ? 0xffa04a : 0x9ab8ff;
     const radius = (effect.radius ?? 96) * .86;
@@ -191,7 +191,7 @@ export function drawBurst(this: GameView, effect: Effect, x: number, y: number, 
     }
   }
 
-/** 프로스트 노바·아르카나 오버로드 — 발밑에서 파동이 퍼진다(작업 159). */
+/** 프로스트 노바·아르카나 오버로드 — 발밑에서 파동이 퍼진다(작업 198). */
 export function drawNova(this: GameView, effect: Effect, x: number, y: number, t: number, time: number): void {
     const color = effect.variant === 'frost' ? 0xbfe6ff : 0xb79bff;
     const radius = (effect.radius ?? 150) * .86;
@@ -210,7 +210,7 @@ export function drawNova(this: GameView, effect: Effect, x: number, y: number, t
     }
   }
 
-/** 아케인 실드 — 몸을 감싸는 비전 보호막(작업 159). */
+/** 아케인 실드 — 몸을 감싸는 비전 보호막(작업 198). */
 export function drawWard(this: GameView, _effect: Effect, x: number, y: number, t: number, time: number): void {
     const color = 0x9ab8ff;
     const radius = 30 + t * 16;

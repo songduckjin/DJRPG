@@ -7,6 +7,7 @@ const { rarityOrder, rarityRanks } = await import('../src/game/items.ts');
 const { compareEquipment } = await import('../src/game/itemComparison.ts');
 const { detailPosition, dismissBagDetail } = await import('../src/ui/bagDetail.ts');
 const { Interface } = await import('../src/ui/interface.ts');
+const { renderCharacters, renderCreateCharacter } = await import('../src/ui/modals/charactersModal.ts');
 const { Market } = await import('../src/game/market.ts');
 const equipment = (slot, stats) => ({ id: slot, name: slot, slot, rarity: 'rare', stats });
 
@@ -43,7 +44,10 @@ function uiFixture() {
 }
 test('closing and reopening popups restores defaults and scroll without changing saved game data', () => {
   const ui = uiFixture(); Interface.prototype.open.call(ui, 'equipment');
-  assert.equal(ui.selected, undefined); assert.equal(ui.bagFilter, 'all'); assert.equal(ui.salvageRarity, 'common');
+  assert.equal(ui.selected, undefined); assert.equal(ui.bagFilter, 'all');
+  // The bulk-salvage threshold is the user's own setting, not a view filter (작업 196): it survives
+  // closing the popup.
+  assert.equal(ui.salvageRarity, 'unique');
   assert.equal(ui.dialog.scrollTop, 0); assert.equal(ui.bag.scrollTop, 0);
   ui.bagFilter = 'armor'; ui.salvageRarity = 'epic'; ui.selected = 'new';
   Interface.prototype.open.call(ui, null); Interface.prototype.open.call(ui, 'codex');
@@ -95,4 +99,52 @@ test('world boss reopens on challenge while in-popup ranking and reward choices 
  Interface.prototype.open.call(ui,'worldBoss');assert.equal(ui.worldBoss.tab,'challenge');
  ui.worldBoss.tab='rewards';Interface.prototype.open.call(ui,'worldBoss');assert.equal(ui.worldBoss.tab,'rewards');
  Interface.prototype.open.call(ui,null);Interface.prototype.open.call(ui,'worldBoss');assert.equal(ui.worldBoss.tab,'challenge');
+});
+
+test('character selection shows one idle button for every created character only', () => {
+  const originalDocument = globalThis.document;
+  class Element {
+    children = []; attributes = {}; className = ''; textContent = ''; type = ''; onclick = null;
+    append(...nodes) { this.children.push(...nodes); }
+    setAttribute(name, value) { this.attributes[name] = value; }
+  }
+  globalThis.document = { createElement: () => new Element(), createTextNode: text => ({ textContent: text }) };
+  try {
+    const dialog = new Element();
+    const ui = { characterList: { characters: [
+      { slot: 1, name: '첫째', gender: 'male', level: 4, floor: 3 },
+      { slot: 3, name: '셋째', gender: 'female', level: 2, floor: 1 }
+    ], activeSlot: 1, maxSlots: 3 }, characterPage: 0, session: { characterSlot: 1 }, world: { save: { autoClimb: false }, onChange() { this.changed = true; } }, messages: [], message(value) { this.messages.push(value); }, open() {}, renderModal() {} };
+    renderCharacters(ui, dialog);
+    const visit = node => [node, ...(node.children || []).filter(child => child && typeof child === 'object').flatMap(visit)];
+    const idleButtons = visit(dialog).filter(node => node.textContent === '방치');
+    assert.equal(idleButtons.length, 2);
+    assert.deepEqual(idleButtons.map(node => node.attributes['aria-label']), ['첫째 방치 사냥 시작', '셋째 방치 사냥 시작']);
+    idleButtons[0].onclick();
+    assert.equal(ui.world.save.autoClimb, true);
+    assert.equal(ui.world.changed, true);
+  } finally { globalThis.document = originalDocument; }
+});
+
+test('character creation shows a full-screen loading state and restores retry on save failure', async () => {
+  const originalDocument = globalThis.document;
+  class Element {
+    children = []; classList = { toggle() {} }; hidden = false; textContent = '';
+    append(...nodes) { this.children.push(...nodes); }
+    setAttribute() {}
+  }
+  globalThis.document = { createElement: () => new Element() };
+  try {
+    let resolveFlush;
+    const ui = { characterCreateSlot: 2, market: { sync: { flush: () => new Promise(resolve => { resolveFlush = resolve; }) } }, open() {} };
+    const dialog = new Element();
+    renderCreateCharacter(ui, dialog);
+    const form = dialog.children[0], loading = form.children.at(-1), submit = form.children.at(-2), error = form.children.at(-3);
+    form.children[0].children[0].value = '새전사';
+    const pending = form.onsubmit({ preventDefault() {} });
+    assert.equal(loading.hidden, false); assert.equal(submit.disabled, true);
+    resolveFlush(false); await pending;
+    assert.equal(loading.hidden, true); assert.equal(submit.disabled, false);
+    assert.match(error.textContent, /저장 결과/);
+  } finally { globalThis.document = originalDocument; }
 });

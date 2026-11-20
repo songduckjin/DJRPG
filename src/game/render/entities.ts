@@ -208,7 +208,7 @@ export function activeSkillMotion(world: World): HeroSkillMotion {
 
 export function drawHero(this: GameView, world: World, x: number, y: number, time: number): void {
     const { player, save } = world;
-    // 궁수(작업 157)·마법사(작업 159)는 기본 시트만 그린다 — 전사용 갑옷·투구·대검 파츠를 절대 적용하지 않는다.
+    // 궁수(작업 157)·마법사(작업 198)는 기본 시트만 그린다 — 전사용 갑옷·투구·대검 파츠를 절대 적용하지 않는다.
     const job = jobOrDefault(save.job);
     const baseSheet = job === 'warrior' ? 'pilot' : job;
     // 전사만 장비 오버레이(투구·갑옷·검 파츠)를 얹는다.

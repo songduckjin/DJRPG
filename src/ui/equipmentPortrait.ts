@@ -3,7 +3,7 @@ import {
   type CostumeLayerPlan
 } from '../game/render/costumeHero';
 import type { Save } from '../game/store';
-import { baseItemIndex, usesBaseSheetOnly } from '../game/items';
+import { baseItemIndex, isArcher, usesBaseSheetOnly } from '../game/items';
 import { jobOrDefault } from '../game/skills';
 import { helmetArtFor, helmetArtPath, helmetIdlePlacement } from '../game/render/helmets';
 import { armorIndexFor, armorSheetPath } from '../game/render/armors';
@@ -16,8 +16,13 @@ import { WEAPON_GUARD, weaponIndexFor, weaponPartPath, weaponPose, swordlessBody
 
 /** 전사 시안은 장착 조합에 맞춘 필드와 같은 전신 그림을 쓴다(작업 155: 갑옷 티어별 시트). */
 export function equipmentFallbackPortrait(save: Save): string {
-  // 궁수(작업 157)·마법사(작업 159)는 이번 단계에서 기본 시트만 쓴다 — 전용 갑옷·투구·무기 외형은 추후 별도 시안.
-  if (usesBaseSheetOnly(save)) return `/assets/pilot-25d/${jobOrDefault(save.job)}_${save.gender}_idle_v1.png`;
+  // 궁수(작업 157)·마법사(작업 198)는 이번 단계에서 기본 시트만 쓴다 — 전용 갑옷·투구·무기 외형은 추후 별도 시안.
+  // 작업 159: 궁수 시트를 갈면서 `/assets/*` immutable 캐시를 피하려고 궁수 URL에 `?v=2`를 붙인다(필드 render.ts와 같은 경로).
+  if (usesBaseSheetOnly(save)) {
+    // 작업 159: 궁수 시트를 갈면서 `/assets/*` immutable 캐시를 피해 URL에 `?v=2`를 붙인다(render.ts·charactersModal.ts와 같은 규칙).
+    if (isArcher(save)) return `/assets/pilot-25d/archer_${save.gender}_idle_v1.png?v=2`;
+    return `/assets/pilot-25d/${jobOrDefault(save.job)}_${save.gender}_idle_v1.png`;
+  }
   // 투구를 쓰면 필드와 같은 머리 없는 본체 위에 투구 파츠를 얹는다(작업 152).
   const headless = !!save.equipment.helmet;
   const armor = armorIndexFor(save);

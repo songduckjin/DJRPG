@@ -16,13 +16,34 @@ import { marketEndpoint } from '../server/endpoints/market.mjs';
 import { warehouseEndpoint } from '../server/endpoints/warehouse.mjs';
 import { verifyLegacyViaVercel } from '../server/legacy-auth.mjs';
 import { configureDatabase } from '../server/database-config.mjs';
-import { client } from '../server/database.mjs';
+import { client, schema } from '../server/database.mjs';
 import { tokenFor, tokenPayload } from '../server/auth.mjs';
 
 const post = (path, body, token) => new Request(`https://example.test/api/${path}`, {
   method: 'POST',
   headers: token ? { Authorization: `Bearer ${token}` } : {},
   body: JSON.stringify(body)
+});
+
+test('schema initialization retries a transient batch failure and reuses its successful result', async () => {
+  const db = createClient({ url: 'file::memory:' });
+  let batchCalls = 0;
+  const wrapped = {
+    url: `schema-retry-${randomUUID()}`,
+    execute: statement => db.execute(statement),
+    batch: (statements, mode) => {
+      batchCalls += 1;
+      if (batchCalls === 1) { const error = new Error('network timeout'); error.code = 'ETIMEDOUT'; throw error; }
+      return db.batch(statements, mode);
+    }
+  };
+  try {
+    await schema(wrapped, {});
+    assert.equal(batchCalls, 2);
+    assert.equal((await db.execute("SELECT name FROM pragma_table_info('djrpg_accounts') WHERE name='session_id'")).rows.length, 1);
+    await schema(wrapped, {});
+    assert.equal(batchCalls, 2);
+  } finally { await db.close(); }
 });
 
 test('DB 접속 토큰을 분리해도 기존 세션 서명 키가 유지된다', () => {

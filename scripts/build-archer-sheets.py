@@ -2,9 +2,12 @@
 """궁수 기본 시트 6장을 승인된 원본 그림에서 만든다.
 
 입력(워크스페이스 `downloads/archer_preview/`):
-    male_1.png / female_1.png            서기 1장
-    male_walk.png / female_walk.png      걷기 4프레임 가로 스트립
-    male_attack.png / female_attack.png  활 사격 4프레임 가로 스트립
+    male_starter.png / female_starter.png            서기 1장 (승인된 스타터 가죽 튜닉 시안)
+    male_starter_walk.png / female_starter_walk.png      걷기 4프레임 가로 스트립
+    male_starter_attack.png / female_starter_attack.png  활 사격 4프레임 가로 스트립
+
+[작업 159] 스타터 가죽 튜닉 시트 — 승인 원본에서 `images --edit`로 만든 걷기·공격 스트립을 쓴다.
+(작업 157의 옛 입력 `{}_1.png`·`{}_walk.png`·`{}_attack.png`는 후드 망토 차림이라 쓰지 않는다.)
 
 출력(`public/assets/pilot-25d/`):
     archer_{male,female}_{idle,walk,attack}_v1.png
@@ -30,9 +33,9 @@ OUTPUT = ROOT / 'public/assets/pilot-25d'
 CELL = 362
 CENTER_X = 181
 SPEC = {
-    'idle': {'file': '{}_1.png', 'cells': 1, 'height': 337, 'foot': 353},
-    'walk': {'file': '{}_walk.png', 'cells': 4, 'height': 300, 'foot': 329},
-    'attack': {'file': '{}_attack.png', 'cells': 4, 'height': 270, 'foot': 348},
+    'idle': {'file': '{}_starter.png', 'cells': 1, 'height': 337, 'foot': 353},
+    'walk': {'file': '{}_starter_walk.png', 'cells': 4, 'height': 300, 'foot': 329},
+    'attack': {'file': '{}_starter_attack.png', 'cells': 4, 'height': 270, 'foot': 348},
 }
 # 검정 배경 키잉: 이 값 아래는 투명, 위로 갈수록 불투명(가장자리 계단 완화).
 ALPHA_LOW, ALPHA_HIGH = 5, 26
