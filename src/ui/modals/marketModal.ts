@@ -8,6 +8,8 @@ import { MARKET_JOB_ONLY_KEY, jobOnlyLabel, jobOnlyVisible, saveJobOnly } from '
 import { type MarketView, type Listing, type Market } from '../../game/market';
 import { compareEquipment } from '../../game/itemComparison';
 import type { Interface } from '../interface';
+import type { Save } from '../../game/store';
+import { appendUpgradeArrow } from '../upgradeBadge';
 import { renderItemName } from '../itemName';
 
 const money = (n: number) => n.toLocaleString('ko-KR');
@@ -15,13 +17,15 @@ const when = (n: number) => new Intl.DateTimeFormat('ko-KR', { month: 'numeric',
 const stateNames: Record<string,string> = { active: '판매 중', sold: '판매 완료', cancelled: '취소', expired: '기간 만료', unavailable: '판매 종료 · 새로고침' };
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, className = '', text = ''): HTMLElementTagNameMap[K] { const node = document.createElement(tag); node.className = className; node.textContent = text; return node; }
 function button(label: string, run: () => void, disabled = false): HTMLButtonElement { const node = el('button', '', label); node.type = 'button'; node.disabled = disabled; node.onclick = run; return node; }
-function icon(item: Item): HTMLElement {
+function icon(item: Item, save?: Save): HTMLElement {
   if(isSkillBook(item)){const node=createSkillBookArt(item);node.classList.add('market-icon');return node;}
   const node = el('span', 'market-icon');
   // 보물 주머니(작업 207)는 팔 수 없다 — 장비 그림이 없는 아이템은 빈 칸으로 둔다.
   if(!isEquipment(item)) return node;
   const art = equipmentImage(item);
   node.style.backgroundImage = `url("${art.path}")`; node.style.backgroundSize = `${art.columns * 100}% 100%`; node.style.backgroundPosition = `${art.columns > 1 ? art.frame / (art.columns - 1) * 100 : 0}% center`;
+  // 업그레이드 화살표(작업 241): 아이콘 상자의 우측 상단. `save`를 안 넘기는 곳(최근 거래·비교 패널)은 달지 않는다.
+  if (save) appendUpgradeArrow(node, save, item);
   return node;
 }
 function itemInfo(item: Item): HTMLElement {
@@ -88,7 +92,7 @@ export function renderMarket(this: Interface, dialog: HTMLElement): void {
     dialog.append(el('p', 'market-notice', '구매품·취소품·만료품·판매대금을 보관합니다. 가방이 가득 차도 수령함의 물품은 사라지지 않습니다.'));
     for (const delivery of data?.inbox ?? []) {
       const row = el('article', 'market-row');
-      if (delivery.item) row.append(icon(delivery.item), itemInfo(delivery.item));
+      if (delivery.item) row.append(icon(delivery.item, this.world.save), itemInfo(delivery.item));
       else { const coin = el('span', 'market-gold-icon'); coin.innerHTML = coinMarkup; row.append(coin, el('b', '', `${money(delivery.gold)} 금화`)); }
       const detail = el('div', 'market-row-bottom'); detail.append(el('small', '', `${delivery.reason} · ${when(delivery.createdAt)}`), button('수령', () => { void market.act('claim', { deliveryId: delivery.id }); }, blocked)); row.append(detail); dialog.append(row);
     }
@@ -163,7 +167,7 @@ function jobOnlyToggle(ui: Interface, market: Market, hidden: number): HTMLEleme
 }
 function renderListing(ui: Interface, dialog: HTMLElement, sale: Listing, blocked: boolean): void {
   const market = ui.market, row = el('article', 'market-row'); row.dataset.listing = sale.id;
-  row.append(icon(sale.item), itemInfo(sale.item));
+  row.append(icon(sale.item, ui.world.save), itemInfo(sale.item));
   const meta = el('div', 'market-meta'); meta.append(goldNode(sale.price), el('small', 'market-state', stateNames[sale.state] || sale.state)); row.append(meta);
   const bottom = el('div', 'market-row-bottom');
   bottom.append(el('small', '', `판매자 ${sale.sellerName} · ${sale.state === 'sold' ? `판매 ${when(sale.soldAt!)}` : `만료 ${when(sale.expiresAt)}`}${sale.purchased ? ' · 내가 구매' : ''}`));
@@ -235,7 +239,7 @@ function renderRegister(ui: Interface, dialog: HTMLElement, blocked: boolean): v
   for (const item of visible) {
     const pick = button('', () => { void market.selectItem(item); }, blocked);
     pick.className = `market-pick rarity-${item.rarity}${market.selectedItem === item.id ? ' selected' : ''}`;
-    pick.append(icon(item), el('small', `rarity-${item.rarity}`, rarityNames[item.rarity]), renderItemName(el('small'), item));
+    pick.append(icon(item, ui.world.save), el('small', `rarity-${item.rarity}`, rarityNames[item.rarity]), renderItemName(el('small'), item));
     const pickOwner = itemJob(item);
     if (pickOwner) pick.append(el('span', `job-badge job-${pickOwner}`, jobNames[pickOwner]));
     if (isEquipment(item) && item.locked) { const locked = el('span', 'lock-icon is-locked'); locked.setAttribute('aria-label', '잠긴 장비'); pick.append(locked); }
