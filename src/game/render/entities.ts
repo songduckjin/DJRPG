@@ -11,6 +11,7 @@ import { resolveSkillMotion, type CostumeMotionTemplate } from '../costume/skill
 import { wearableEquipmentImage, baseItemIndex, usesBaseSheetOnly } from '../items';
 import { jobOrDefault } from '../skills';
 import { helmetArtFor, helmetArtPath, helmetPlacement } from './helmets';
+import { archerHelmIndexFor, archerHelmPartPath, archerHelmPlacement } from './archerHelmets';
 import { armorIndexFor } from './armors';
 import { WEAPON_GUARD, weaponIndexFor, weaponPose } from './weapons';
 import { BOW_GRIP, bowIndexFor, bowPose } from './bows';
@@ -230,6 +231,45 @@ function syncBowPart(view: GameView, save: Save, motion: 'idle' | 'walk' | 'atta
 }
 
 /**
+ * 궁수 전용 투구 파츠를 본체 위에 얹는다(작업 200).
+ *
+ * 전사 투구(작업 151·154)는 목 밑동을 앵커로 쓰는 작은 파츠지만, 궁수 파츠는 **서기 셀 크기 그대로의
+ * 전체 셀 PNG**(362×362)이고 얼굴·머리카락까지 포함한다. 그래서 앵커는 좌상단(0,0)이고 자세 표
+ * (`archerHelmPlacement`)가 주는 좌상단 이동·배율만 적용한다. 본체는 같은 자리에서 머리를 지운
+ * 시트(`archer_headless/`)로 갈아 끼우므로 파츠가 그 구멍을 그대로 덮어 머리카락이 비치지 않는다.
+ * 파츠가 아직 로딩 전이면 숨기고 본체도 머리 있는 시트로 그린다(구멍이 뚫린 채로 그리지 않는다).
+ */
+function syncArcherHelmet(view: GameView, save: Save, motion: 'idle' | 'walk' | 'attack', frame: number, tint: number): void {
+  const index = archerHelmIndexFor(save);
+  const shown = view.heroHelmet;
+  const path = index >= 0 ? archerHelmPartPath(save.gender, index) : undefined;
+  const texture = path ? view.helmetTextures?.get(path) : undefined;
+  if (!texture) {
+    if (shown) shown.visible = false;
+    return;
+  }
+  const place = archerHelmPlacement(save.gender, motion, frame);
+  const layerX = place.x - view.hero.texture.width * view.hero.anchor.x;
+  const layerY = place.y - view.hero.texture.height * view.hero.anchor.y;
+  let sprite = shown;
+  if (!sprite) {
+    sprite = new Sprite(texture);
+    sprite.zIndex = .5;
+    view.heroLayer.addChild(sprite);
+    view.heroLayer.sortableChildren = true;
+    view.heroHelmet = sprite;
+  }
+  if (sprite.texture !== texture) sprite.texture = texture;
+  sprite.anchor.set(0, 0);
+  sprite.position.set(layerX, layerY);
+  sprite.scale.set(place.scale);
+  sprite.tint = tint;
+  sprite.rotation = 0;
+  sprite.alpha = 1;
+  sprite.visible = true;
+}
+
+/**
  * 진행 중인 스킬 이펙트 → 코스튬 스킬 템플릿과 진행도 (작업 140).
  *
  * `world.ts`는 스킬을 스킬 ID와 같은 이름의 이펙트로 남기므로 모션 선택은 이펙트 종류만 보면 된다.
@@ -253,8 +293,10 @@ export function drawHero(this: GameView, world: World, x: number, y: number, tim
     // 궁수(작업 157)·마법사(작업 198)는 기본 시트만 그린다 — 전사용 갑옷·투구·대검 파츠를 절대 적용하지 않는다.
     const job = jobOrDefault(save.job);
     const baseSheet = job === 'warrior' ? 'pilot' : job;
-    // 전사만 장비 오버레이(투구·갑옷·검 파츠)를 얹는다.
+    // 전사만 장비 오버레이(투구·갑옷·검 파츠)를 얹는다. 궁수는 자기 투구 파츠(작업 200)를 따로 얹고,
+    // 마법사는 아직 기본 시트만 그린다.
     const plain = usesBaseSheetOnly(save);
+    const archer = job === 'archer';
     const side = save.gender === 'female' ? 'Female' : 'Male';
     const pilotIdle = `${baseSheet}${side}` as 'pilotMale' | 'pilotFemale' | 'archerMale' | 'archerFemale' | 'mageMale' | 'mageFemale';
     const pilotWalk = `${baseSheet}${side}Walk` as 'pilotMaleWalk' | 'pilotFemaleWalk' | 'archerMaleWalk' | 'archerFemaleWalk' | 'mageMaleWalk' | 'mageFemaleWalk';
@@ -279,7 +321,7 @@ export function drawHero(this: GameView, world: World, x: number, y: number, tim
       : animatedAttack ? `${pilotAttack}:${Math.max(0, attackFrame)}` : pilotIdle;
     // 투구를 쓰면 머리·머리카락이 지워진 같은 크기 시트로 갈아 끼운다(작업 152).
     // 셀 좌표계가 같아 배율·앵커·무기 소켓은 기존 값을 그대로 쓴다.
-    const helmeted = !plain && helmetIndex(save) >= 0;
+    const helmeted = !plain && !archer && helmetIndex(save) >= 0;
     if (helmeted) {
       const headless = save.gender === 'female'
         ? (animation === 'walk' ? this.animations.pilotFemaleWalkHeadless?.[walkingFrame]
@@ -308,17 +350,36 @@ export function drawHero(this: GameView, world: World, x: number, y: number, tim
     }
     const poseFrame = animation === 'walk' ? walkingFrame : animatedAttack ? Math.max(0, attackFrame) : 0;
     // 궁수: 1번 이상 활을 차면 기본 활대를 지운 본체 시트로 갈아 끼우고 그 위에 활 파츠를 얹는다(작업 160).
-    const archer = job === 'archer';
+    // 투구를 쓰면 같은 자리에서 머리를 지운 시트(`archer_headless/`)로 한 단계 더 갈아 끼운다(작업 200).
     const bow = archer ? bowIndexFor(save) : 0;
+    const archerHelm = archer ? archerHelmIndexFor(save) : -1;
     if (archer && this.lastBowTier !== bow) {
       this.lastBowTier = bow;
       if (bow >= 1) this.prefetchBow(bow, save.gender);
+    }
+    if (archer && this.lastArcherHelm !== archerHelm) {
+      this.lastArcherHelm = archerHelm;
+    }
+    if (archer && this.lastArcherHelmBow !== `${archerHelm}:${bow >= 1 ? 1 : 0}`) {
+      this.lastArcherHelmBow = `${archerHelm}:${bow >= 1 ? 1 : 0}`;
+      if (archerHelm >= 0) this.prefetchArcherHeadless(save.gender, bow >= 1);
     }
     if (archer && bow >= 1) {
       const bowless = this.bowBodyFrame(save.gender, animation, poseFrame);
       if (bowless) {
         texture = bowless;
         textureKey = `nobow:${save.gender}:${animation}:${poseFrame}`;
+      }
+    }
+    // 궁수 투구: 파츠와 머리 없는 시트가 **둘 다** 준비됐을 때만 머리를 지운 시트로 그린다
+    // (파츠 없이 지우면 머리가 빈 채로 보인다).
+    if (archerHelm >= 0) {
+      const partPath = archerHelmPartPath(save.gender, archerHelm);
+      const partReady = !!partPath && !!this.helmetTextures?.get(partPath);
+      const headlessSheet = partReady ? this.archerHeadlessFrame(save.gender, animation, poseFrame, bow >= 1) : undefined;
+      if (headlessSheet) {
+        texture = headlessSheet;
+        textureKey = `archer-headless:${save.gender}:${animation}:${poseFrame}:${bow >= 1 ? 'nobow' : 'bow'}`;
       }
     }
     if (armor >= 0) {
@@ -343,11 +404,15 @@ export function drawHero(this: GameView, world: World, x: number, y: number, tim
     this.hero.tint = heroTint;
     if (plain) {
       // 궁수·마법사: 장비 오버레이(투구·대검·착용 무기)는 숨기고 기본 시트만 그린다.
-      // 궁수는 여기에 더해 활 파츠를 얹고, 마법사는 파츠 없이 시트만 쓴다(작업 160·198).
+      // 궁수는 여기에 더해 활 파츠와 **궁수 전용 투구 파츠**(작업 200)를 얹고, 마법사는 파츠 없이 시트만 쓴다.
       if (this.heroHelmet) this.heroHelmet.visible = false;
       if (this.heroWeapon) this.heroWeapon.visible = false;
-      if (archer) syncBowPart(this, save, animation, poseFrame, heroTint);
-      else if (this.heroBow) this.heroBow.visible = false;
+      if (archer) {
+        syncBowPart(this, save, animation, poseFrame, heroTint);
+        syncArcherHelmet(this, save, animation, poseFrame, heroTint);
+      } else {
+        if (this.heroBow) this.heroBow.visible = false;
+      }
       const shownGear = this.heroGear.get('weapon');
       if (shownGear) { this.heroLayer.removeChild(shownGear.sprite); shownGear.sprite.destroy(); this.heroGear.delete('weapon'); }
     } else {
