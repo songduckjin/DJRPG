@@ -11,10 +11,12 @@ const { canStoreItem, equipmentCount } = await import('../src/game/bagCapacity.t
 const { autoEquipBest, salvageByRarity } = await import('../src/game/items.ts');
 const { filterSaleItems } = await import('../src/ui/itemOrder.ts');
 const { equipmentCodexKey } = await import('../src/game/codex.ts');
-const { pouchRatesPanel, pouchResultCard, openPouchWindow, pouchGlowInk, POUCH_OPEN_MS, POUCH_FRAME_AT, POUCH_RESULT_MS } = await import('../src/ui/modals/pouchModal.ts');
+const { pouchRatesPanel, pouchResultCard, openPouchWindow, pouchGlowInk, POUCH_OPEN_MS, POUCH_FRAME_AT, POUCH_BURST_MS, POUCH_RESULT_MS } = await import('../src/ui/modals/pouchModal.ts');
 const pouchArt = await import('../src/ui/pouchArt.ts');
 const { itemDetail, renderInventory } = await import('../src/ui/modals/equipModal.ts');
 const css = readFileSync(new URL('../src/styles/modals.css', import.meta.url), 'utf8');
+// 주석에 적힌 말("`pouch-shake` 삭제")에 걸리지 않도록, 규칙만 남긴 사본으로 금지 규칙을 검사한다.
+const rules = css.replace(/\/\*[\s\S]*?\*\//g, '');
 
 /** 결정적인 난수(같은 순서면 같은 결과) — 분포 검사에 쓴다. */
 function seeded(seed = 1) {
@@ -267,22 +269,28 @@ test('상단 한 줄에 `확률표`·`보물 주머니` 제목·`×`가 나란�
   } finally { globalThis.document = previous; }
 });
 
-test('개봉 그림 6장은 투명 배경 512×512 PNG이고 금화 뭉치도 같은 규격이며 가방 아이콘은 닫힌 주머니를 쓴다', () => {
+test('개봉 그림 9장은 투명 배경 512×512 PNG이고 금화 뭉치도 같은 규격이며 가방 아이콘은 닫힌 주머니를 쓴다', () => {
   assert.deepEqual([...pouchArt.POUCH_FRAME_URLS], [
-    '/assets/icons/treasure_pouch_v2.png', '/assets/icons/treasure_pouch_step2_v2.png',
-    '/assets/icons/treasure_pouch_step3_v2.png', '/assets/icons/treasure_pouch_open_v2.png',
-    '/assets/icons/treasure_pouch_slump1_v2.png', '/assets/icons/treasure_pouch_slump2_v2.png'
-  ],'닫힘 → 끈 헐거워짐 → 빛 새어 나옴 → 활짝 → 내려앉기 → 바닥에 납작');
-  assert.equal(new Set(pouchArt.POUCH_FRAME_URLS).size, 6,'여섯 장은 서로 다른 파일');
+    '/assets/icons/treasure_pouch_v2.png', '/assets/icons/treasure_pouch_step1b_v3.png',
+    '/assets/icons/treasure_pouch_step2_v2.png', '/assets/icons/treasure_pouch_step2b_v3.png',
+    '/assets/icons/treasure_pouch_step3_v2.png', '/assets/icons/treasure_pouch_step3b_v3.png',
+    '/assets/icons/treasure_pouch_open_v2.png', '/assets/icons/treasure_pouch_slump0_v3.png',
+    '/assets/icons/treasure_pouch_slump2_v2.png'
+  ],'닫힘 → 끈이 당겨지며 부푸는 → 끈 헐거워짐 → 틈새 → 빛 새어 나옴 → 반쯤 활짝 → 활짝 → 무너짐 → 바닥에 납작');
+  assert.equal(new Set(pouchArt.POUCH_FRAME_URLS).size, 9,'아홉 컷은 서로 다른 파일');
+  // 작업 214 `#5222`: \"이미지를 흔들지 말고 프레임을 더 넣어서 모션으로\" — 기존 6컷 사이에 중간 컷 4장을 더했다.
+  for (const middle of ['treasure_pouch_step1b_v3.png', 'treasure_pouch_step2b_v3.png', 'treasure_pouch_step3b_v3.png', 'treasure_pouch_slump0_v3.png']) {
+    assert(pouchArt.POUCH_FRAME_URLS.some(url => url.endsWith(`/${middle}`)), `중간 컷 ${middle}`);
+  }
   assert.equal(pouchArt.POUCH_ART_URL, pouchArt.POUCH_FRAME_URLS[0],'개봉 창은 닫힌 주머니로 시작');
   assert.equal(pouchArt.POUCH_ICON_URL, pouchArt.POUCH_FRAME_URLS[0],'가방 아이콘도 닫힌 주머니');
   assert.equal(pouchArt.POUCH_GOLD_PILE_URL, '/assets/icons/pouch_gold_pile_v2.png','금화 뭉치 그림');
   assert.equal(pouchArt.pouchFrameUrl(0), pouchArt.POUCH_FRAME_URLS[0]);
-  assert.equal(pouchArt.pouchFrameUrl(5), pouchArt.POUCH_FRAME_URLS[5]);
-  assert.equal(pouchArt.pouchFrameUrl(9), pouchArt.POUCH_FRAME_URLS[5],'범위를 넘으면 마지막 단계');
-  assert.equal(pouchArt.pouchFrameUrl(-2), pouchArt.POUCH_FRAME_URLS[0],'음수는 1단계');
+  assert.equal(pouchArt.pouchFrameUrl(8), pouchArt.POUCH_FRAME_URLS[8]);
+  assert.equal(pouchArt.pouchFrameUrl(12), pouchArt.POUCH_FRAME_URLS[8],'범위를 넘으면 마지막 컷');
+  assert.equal(pouchArt.pouchFrameUrl(-2), pouchArt.POUCH_FRAME_URLS[0],'음수는 1컷');
   for (const url of [...pouchArt.POUCH_FRAME_URLS, pouchArt.POUCH_GOLD_PILE_URL]) {
-    assert.match(url, /^\/assets\/icons\/(treasure_pouch(_step\d|_open|_slump\d)?|pouch_gold_pile)_v2\.png$/,'캐시를 피하는 새 이름');
+    assert.match(url, /^\/assets\/icons\/(treasure_pouch(_step\d+b?|_open|_slump\d)?|pouch_gold_pile)_v[23]\.png$/,'캐시를 피하는 새 이름');
     const file = readFileSync(new URL(`../public${url}`, import.meta.url));
     assert.equal(file.toString('ascii', 1, 4), 'PNG', `${url} PNG`);
     assert.equal(file.readUInt32BE(16), 512, `${url} 가로 512`);
@@ -291,31 +299,28 @@ test('개봉 그림 6장은 투명 배경 512×512 PNG이고 금화 뭉치도 �
   }
 });
 
-test('개봉은 0.86·1.26·1.68·2.12·2.5초에 6단계로 바뀌고 2.28초에 결과 카드가 뜨며 모션 감소도 대응한다', () => {
-  assert.deepEqual([...POUCH_FRAME_AT], [0, 860, 1260, 1680, 2120, 2500], '그림이 바뀌는 시각');
-  assert.equal(POUCH_RESULT_MS, 2280, '보상 카드 등장');
-  assert.equal(POUCH_OPEN_MS, 2800, '연출 전체 길이(약 2.8초)');
-  // 사용자 `#5057`: 전체 2.7~3.0초 — 앞부분에 쪼으는 구간을 길게 둔다.
-  assert(POUCH_OPEN_MS >= 2700 && POUCH_OPEN_MS <= 3000, '2.7~3.0초');
-  assert(POUCH_FRAME_AT[1] >= 700, '닫힌 주머니로 힘을 모으는 구간이 0.7초 이상');
-  // 크로스페이드 — 두 장을 겹쳐 두고 opacity transition으로 서서히 넘긴다(360~420ms ease-in-out).
+test('개봉은 프레임 사이를 끊김 없이 잇고 1.075초 절정 뒤 0.36초 만에 보상이 뜬다 — 흔들기·각진 도형 없음(작업 214)', () => {
+  // 9컷 타임라인 — 앞쪽 텐션은 약 1.0~1.1초, 절정 뒤 마무리는 0.35~0.45초, 전체 1.7~1.9초.
+  assert.deepEqual([...POUCH_FRAME_AT], [0, 220, 470, 700, 890, 1000, 1075, 1180, 1300], '그림이 바뀌는 시각');
+  assert.equal(POUCH_FRAME_AT.length, pouchArt.POUCH_FRAME_URLS.length, '컷 수와 시각 수가 같다');
+  assert.equal(POUCH_BURST_MS, 1075, '절정(활짝 열림) 시각');
+  assert.equal(POUCH_RESULT_MS, 1440, '보상 카드 등장 = 절정 + 0.365초');
+  assert.equal(POUCH_OPEN_MS, 1800, '연출 전체 길이 약 1.8초');
+  assert(POUCH_BURST_MS >= 1000 && POUCH_BURST_MS <= 1100, '쪼으는 구간이 1.0~1.1초');
+  assert(POUCH_RESULT_MS - POUCH_BURST_MS >= 350 && POUCH_RESULT_MS - POUCH_BURST_MS <= 450, '절정 뒤 0.35~0.45초 안에 보상');
+  assert(POUCH_OPEN_MS >= 1700 && POUCH_OPEN_MS <= 1900, '전체 1.7~1.9초');
+  for (let i = 1; i < POUCH_FRAME_AT.length; i++) assert(POUCH_FRAME_AT[i] > POUCH_FRAME_AT[i - 1], '시각은 늘어난다');
+  // 컷 사이는 짧은 크로스페이드 — 두 장을 겹쳐 두고 opacity로 넘긴다.
   const fade = css.match(/img\.pouch-art\s*\{[^}]*transition: opacity (\d+)ms ([a-z-]+)/);
-  assert(fade && Number(fade[1]) >= 360 && Number(fade[1]) <= 420 && fade[2] === 'ease-in-out', '단계 그림은 360~420ms ease-in-out 크로스페이드');
+  assert(fade && Number(fade[1]) >= 80 && Number(fade[1]) <= 180 && fade[2] === 'linear', '컷 사이 80~180ms 크로스페이드');
   assert(/img\.pouch-art\s*\{[^}]*opacity: 0/.test(css),'두 장이 겹쳐 opacity로 넘어간다');
-  assert(/\.pouch-art-stack[^{]*\{[^}]*position: relative/.test(css) || css.includes('img.pouch-art'),'두 장을 겹치는 스택');
-  // CSS 애니메이션 지연이 위 시각과 같아야 한다(같은 박자로 움직인다).
-  assert(/pouch-shake 860ms/.test(css), '1단계 쪼으는 떨림은 0.86초');
-  assert(/pouch-burst 1660ms 840ms/.test(css), '2~4단계 부풀기는 0.84초부터 2.5초까지');
-  assert(/pouch-glow 1620ms[^;]*1180ms both/.test(css), '흰빛은 1.18초부터 새어 나와 1.68초에 가장 밝다');
-  assert(/pouch-flash 520ms[^;]*1660ms both/.test(css), '섬광은 활짝 열리는 1.68초');
-  assert(/pouch-halo 1160ms[^;]*1640ms both/.test(css), '팝업보다 큰 후광도 1.68초 무렵');
-  assert(/pouch-reveal 560ms[^;]*2280ms both/.test(css), '결과 등장은 주머니가 흘러내리기 시작한 2.28초');
-  for (const name of ['pouch-shake', 'pouch-burst', 'pouch-glow', 'pouch-flash', 'pouch-halo', 'pouch-reveal']) assert(css.includes(`@keyframes ${name}`), `${name} 키프레임`);
-  assert(css.includes('.pouch-window-stage.is-opening img.pouch-art'),'쪼으는 떨림은 그림에');
-  assert(css.includes('.pouch-window-stage.is-opening .pouch-art-stack'),'부풀기는 주머니 스택에');
-  assert(css.includes('.pouch-window-stage.is-opening .pouch-glow'),'빛은 글로우 레이어에');
-  assert(css.includes('.pouch-flash'),'섬광 레이어');
-  assert(css.includes('.pouch-window-stage.is-opening .pouch-window-result'),'결과 카드는 늦게 등장');
+  // 사용자 지시: 그림을 흔들지 않는다 — 예전 `pouch-shake`·`pouch-burst` 애니메이션은 없앴다.
+  assert(!/pouch-shake/.test(rules), '좌우로 흔들던 애니메이션 제거');
+  assert(!/@keyframes pouch-shake/.test(rules) && !/@keyframes pouch-burst/.test(rules), '흔들기·부풀리기 키프레임 제거');
+  assert(!/\.pouch-window-stage\.is-opening img\.pouch-art\s*\{/.test(rules), '그림 자체에 애니메이션을 걸지 않는다');
+  // 보상 카드는 절정 뒤 1.44초에 뜬다(애니메이션 지연 = 타임라인).
+  assert(/pouch-reveal \d+ms[^;]*1440ms both/.test(css), '결과 등장 1.44초');
+  assert(css.includes('@keyframes pouch-reveal'), '결과 등장 키프레임');
   assert(css.includes('mix-blend-mode: screen'),'빛은 주머니 위에 screen으로 얹는다');
   // 배경을 지운 투명 PNG라 사각 상자 그림자가 남지 않게 알파를 따라가는 shadow를 쓴다.
   assert(/\.pouch-art-stack\s*\{[^}]*drop-shadow/.test(css) && !/img\.pouch-art\s*\{[^}]*box-shadow:\s*0 8px 22px/.test(css),'투명 그림에는 drop-shadow');
@@ -323,9 +328,8 @@ test('개봉은 0.86·1.26·1.68·2.12·2.5초에 6단계로 바뀌고 2.28초�
   assert(/\.pouch-window-card\s*\{[^}]*overflow: visible/.test(css),'카드가 빛을 자르지 않는다');
   assert(/\.pouch-window-stage\s*\{[^}]*overflow: visible/.test(css),'무대가 빛을 자르지 않는다');
   assert(/\.pouch-window-card\s*\{[^}]*width: min\(100%, 330px\)/.test(css),'카드를 아담하게');
-  assert(!/\.pouch-window-card\s*\{[^}]*overflow-y: auto/.test(css),'카드가 다시 스크롤로 빛을 가두지 않는다');
   const reduce = css.slice(css.indexOf('@media (prefers-reduced-motion: reduce)'));
-  assert(reduce.includes('.pouch-window-stage.is-opening .pouch-art-stack') && reduce.includes('.pouch-glow') && reduce.includes('.pouch-flash') && reduce.includes('.pouch-halo'),'모션 감소 대응');
+  assert(reduce.includes('.pouch-light') && reduce.includes('display: none'), '모션 감소면 Canvas 빛을 그리지 않는다');
   // 작업 213(`#5057`): 빛은 보상 종류·등급과 무관하게 **깨끗한 흰빛**이다.
   assert.equal(pouchGlowInk(), '#ffffff', '빛은 순백색');
   const gearSave = withPouches(1), gear = pouch.openPouch(gearSave, undefined, constant([.60, .70]));
@@ -333,44 +337,85 @@ test('개봉은 0.86·1.26·1.68·2.12·2.5초에 6단계로 바뀌고 2.28초�
   assert(gear.result.kind === 'equipment');
 });
 
-test('흰빛 연출은 노란·주황빛 없이 순백색 중심 + 은은한 백색 글로우다(작업 213 `#5057`)', () => {
-  // 빛을 내는 규칙(글로우·섬광·후광·placeholder)에만 노란·주황 계열이 없어야 한다.
-  const lightRules = ['\\.pouch-glow\\s*\\{[^}]*\\}', '\\.pouch-glow::before\\s*\\{[^}]*\\}', '\\.pouch-glow::after\\s*\\{[^}]*\\}', '\\.pouch-flash::before\\s*\\{[^}]*\\}', '\\.pouch-halo\\s*\\{[^}]*\\}', '\\.pouch-art-glow\\s*\\{[^}]*\\}'];
-  for (const pattern of lightRules) {
-    const body = css.match(new RegExp(pattern));
-    assert(body, pattern);
-    assert(!/#(ffd977|f2b658|fffbe8|ffe[0-9a-f]{2}|fb923c|f59e0b|e8b64a)/i.test(body[0]), `${pattern} 에는 노란·주황빛이 없다`);
+test('빛은 각진 conic 부채꼴·단단한 흰 원판 없이 Canvas가 그린다(작업 214 `#5204`)', async () => {
+  // ① CSS에는 뾰족한 살(conic)·흰 원판(glow/flash/halo)·밝기 고정 레이어가 남아 있지 않다.
+  assert(!/conic-gradient/.test(rules), '각진 conic-gradient 완전 제거');
+  for (const name of ['pouch-glow', 'pouch-flash', 'pouch-halo']) {
+    assert(!new RegExp(`\\.${name}[\\s:{]`).test(rules), `${name} CSS 레이어 제거`);
   }
-  const glow = css.match(/\.pouch-glow\s*\{[^}]*--pouch-glow: ([^;]+);/);
-  assert(glow && glow[1].trim() === '#ffffff', '글로우 기본 색은 순백');
-  const flash = css.match(/\.pouch-flash::before\s*\{[^}]*radial-gradient\(circle, ([^,]+) 0%/);
-  assert(flash && flash[1].trim() === '#ffffff', '섬광 중심은 순백');
-  assert(css.includes('.pouch-glow::before { width: 260px; height: 260px; background: radial-gradient(circle, var(--pouch-glow) 0%, transparent 55%);'),'은은한 백색 글로우');
+  assert(!/@keyframes pouch-glow/.test(rules) && !/@keyframes pouch-flash/.test(rules) && !/@keyframes pouch-halo/.test(rules), 'CSS 빛 키프레임 제거');
+  // ② 대신 팝업보다 살짝 큰 투명 Canvas 한 장 — 누름을 막지 않고 screen으로 얹는다.
+  const rule = css.match(/\.pouch-light\s*\{([^}]*)\}/);
+  assert(rule, '.pouch-light 규칙');
+  assert(/pointer-events: none/.test(rule[1]), '누름을 막지 않는다');
+  assert(/mix-blend-mode: screen/.test(rule[1]), '빛으로만 얹는다');
+  assert(/position: absolute/.test(rule[1]) && !/position: fixed/.test(rule[1]), '화면 전체가 아니라 무대 안쪽 절대 위치');
+  const width = rule[1].match(/width: (\d+)px/);
+  assert(width && Number(width[1]) >= 480 && Number(width[1]) <= 640, '팝업(330px)보다 살짝 큰 480~640px');
+  // ③ Canvas는 60fps rAF로만 그리고, 빛은 순백색 하나만 쓴다.
+  const light = await import('../src/ui/pouchLight.ts');
+  assert(light.POUCH_LIGHT_MOTES >= 20 && light.POUCH_LIGHT_MOTES <= 30, '모여드는 가루 20~30개');
+  assert(light.POUCH_LIGHT_SPARKS >= 30 && light.POUCH_LIGHT_SPARKS <= 40, '사방으로 흩어지는 입자 30~40개');
+  const inks = [];
+  const ctx = {
+    setTransform() {}, clearRect() {}, beginPath() {}, arc() {}, fill() {}, stroke() {}, moveTo() {}, lineTo() {},
+    createRadialGradient() { return { addColorStop(_stop, color) { inks.push(color); } }; },
+    set fillStyle(value) { if (typeof value === 'string') inks.push(value); }, get fillStyle() { return ''; },
+    set strokeStyle(value) { if (typeof value === 'string') inks.push(value); }, get strokeStyle() { return ''; }, set lineWidth(_value) {},
+    globalCompositeOperation: 'source-over',
+  };
+  const previousDocument = globalThis.document;
+  const previousRaf = globalThis.requestAnimationFrame;
+  const frames = [];
+  globalThis.document = { createElement: tag => { const node = element(tag); if (tag === 'canvas') node.getContext = () => ctx; return node; } };
+  globalThis.requestAnimationFrame = callback => { frames.push(callback); return frames.length; };
+  globalThis.cancelAnimationFrame = () => {};
+  try {
+    const handle = light.createPouchLight('#ffffff');
+    assert(handle, 'Canvas 빛 핸들');
+    assert.equal(handle.canvas.className, 'pouch-light');
+    assert.equal(handle.canvas.attrs['aria-hidden'], 'true', '보조기기에서 숨긴다');
+    assert.equal(handle.canvas.width, light.POUCH_LIGHT_SIZE);
+    handle.start(1075, 1800);
+    assert(frames.length >= 1, 'rAF로 첫 프레임을 예약한다');
+    const startedAt = globalThis.performance.now();
+    inks.length = 0;
+    frames.shift()(startedAt + 520);          // 쪼으는 구간
+    assert(inks.length >= 4, '가우시안 빛을 여러 겹 그린다');
+    for (const ink of inks) assert(/^rgba\(255,255,255,[\d.]+\)$/.test(ink), `순백색만: ${ink}`);
+    assert(frames.length >= 1, '다음 프레임을 이어서 예약한다');
+    inks.length = 0;
+    frames.shift()(startedAt + 1100);         // 절정 + 25ms — 입자가 사방으로 흩어진다
+    const dots = inks.filter(ink => ink !== undefined).length;
+    assert(dots > light.POUCH_LIGHT_SPARKS, '절정에 입자를 그린다');
+    for (const ink of inks) assert(/^rgba\(255,255,255,[\d.]+\)$/.test(ink), '입자도 순백색만');
+    handle.stop();
+  } finally {
+    globalThis.document = previousDocument;
+    if (previousRaf === undefined) delete globalThis.requestAnimationFrame; else globalThis.requestAnimationFrame = previousRaf;
+  }
 });
 
-test('팝업보다 조금 큰 백색 후광이 팡 터지며 밝아졌다가 잦아든다(작업 213 `#5083`→`#5094`)', () => {
-  const halo = css.match(/\.pouch-halo\s*\{([^}]*)\}/);
-  assert(halo, '후광 레이어');
-  assert(/position: absolute/.test(halo[1]), '화면 전체(fixed inset: 0)가 아니라 팝업 안쪽 절대 위치');
-  assert(!/position: fixed/.test(halo[1]), '화면을 하얗게 덮지 않는다');
-  assert(/pointer-events: none/.test(halo[1]), '누름을 막지 않는다');
-  const size = halo[1].match(/width: clamp\((\d+)px, [\d.]+vw, (\d+)px\)/);
-  assert(size && Number(size[1]) >= 440 && Number(size[2]) >= 460 && Number(size[2]) <= 520, '팝업(330px)보다 조금 더 큰 460~520px');
-  assert(/radial-gradient\(circle, #ffffff 0%/.test(halo[1]), '부드러운 원형 백색');
+test('2D 컨텍스트가 없으면 Canvas 빛 없이 조용히 연출하고, 개봉 창에는 Canvas 한 장만 얹힌다', () => {
   const previous = globalThis.document;
   globalThis.document = { createElement: tag => element(tag) };
   try {
     const save = withPouches(1);
     const ui = { root: element(), modal: element(), openModal: 'equipment', renderModal() {}, message() {}, world: { save, onChange() {} } };
     const api = openPouchWindow(ui, undefined, { delay: 0 });
-    const layer = find(api.overlay, node => node.className === 'pouch-halo');
-    assert(layer, '개봉 창에 후광 레이어가 있다');
-    assert.equal(layer.attrs['aria-hidden'], 'true');
+    const stage = find(api.overlay, node => node.className === 'pouch-window-stage');
+    assert(stage, '연출 무대');
+    // Canvas 스텁에는 getContext가 없으므로 빛 없이 그림·결과만 남는다(브라우저가 아니어도 터지지 않는다).
+    assert(!find(api.overlay, node => node.className === 'pouch-light'), '컨텍스트가 없으면 Canvas를 만들지 않는다');
+    assert(!find(api.overlay, node => String(node.className).includes('pouch-glow')), 'CSS 글로우 레이어 없음');
+    assert(!find(api.overlay, node => String(node.className).includes('pouch-flash')), 'CSS 섬광 레이어 없음');
+    assert(!find(api.overlay, node => String(node.className).includes('pouch-halo')), 'CSS 후광 레이어 없음');
     assert(!find(api.overlay, node => node.className === 'pouch-flash-screen'), '전체 화면 섬광은 없다');
+    api.close();
   } finally { globalThis.document = previous; }
 });
 
-test('큰 개봉 창은 [열기]에서 닫힌 주머니부터 6단계로 그림을 겹쳐 넘긴다(0.86·1.26·1.68·2.12·2.5초)', async () => {
+test('큰 개봉 창은 [열기]에서 9컷을 차례로 겹쳐 넘긴다(0.22·0.47·0.7·0.89·1.0·1.075·1.18·1.3초)', async () => {
   const previous = globalThis.document;
   globalThis.document = { createElement: tag => element(tag) };
   try {
@@ -380,39 +425,55 @@ test('큰 개봉 창은 [열기]에서 닫힌 주머니부터 6단계로 그림�
     const stage = find(api.overlay, node => node.className === 'pouch-window-stage');
     const stack = find(api.overlay, node => node.className === 'pouch-art-stack');
     assert(stage && stack, '주머니 그림과 연출 무대');
-    // 크로스페이드 — 두 장이 겹쳐 있고 `is-front`인 장만 보인다.
     const layers = () => stack.children.filter(child => child.tag === 'img');
     assert.equal(layers().length, 2, '그림 두 장을 겹쳐 둔다');
     const front = () => layers().find(child => String(child.className).includes('is-front'));
-    const back = () => layers().find(child => !String(child.className).includes('is-front'));
     assert.equal(front().src, pouchArt.POUCH_FRAME_URLS[0], '처음에는 닫힌 주머니');
-    assert.equal(back().src, pouchArt.POUCH_FRAME_URLS[0], '두 장 모두 같은 그림으로 시작');
     assert.equal(stage.dataset.frame, '1');
     const open = find(api.overlay, node => node.textContent === '열기');
     open.onclick();
-    assert.equal(front().src, pouchArt.POUCH_FRAME_URLS[0], '누른 직후에도 1단계(흔들림)');
-    // 쪼으는 구간(0~0.86초)이 길어 단계 전환이 늦어진다 — 실제 타이머로 확인한다.
-    await new Promise(resolve => setTimeout(resolve, 950));
-    assert.equal(front().src, pouchArt.POUCH_FRAME_URLS[1], '0.86초 — 끈 헐거워짐');
-    assert.equal(stage.dataset.frame, '2');
-    await new Promise(resolve => setTimeout(resolve, 430));
-    assert.equal(front().src, pouchArt.POUCH_FRAME_URLS[2], '1.26초 — 끈 풀리고 흰빛이 새어 나옴');
-    await new Promise(resolve => setTimeout(resolve, 450));
-    assert.equal(front().src, pouchArt.POUCH_FRAME_URLS[3], '1.68초 — 활짝 열림');
-    assert.equal(stage.dataset.frame, '4');
-    await new Promise(resolve => setTimeout(resolve, 480));
-    assert.equal(front().src, pouchArt.POUCH_FRAME_URLS[4], '2.12초 — 힘없이 내려앉기 시작');
-    await new Promise(resolve => setTimeout(resolve, 420));
-    assert.equal(front().src, pouchArt.POUCH_FRAME_URLS[5], '2.5초 — 바닥에 납작하게 접힘');
-    assert.equal(stage.dataset.frame, '6');
-    // `1개 더 열기`는 다시 닫힌 주머니(1단계)부터 새로 시작한다(두 장 모두 되돌린다).
+    assert.equal(front().src, pouchArt.POUCH_FRAME_URLS[0], '누른 직후에는 1컷(닫힘)');
+    const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+    const steps = [[260, 1], [260, 2], [230, 3], [180, 4], [110, 5], [110, 6], [140, 7], [150, 8]];
+    let clock = 0;
+    for (const [gap, index] of steps) {
+      await wait(gap); clock += gap;
+      assert.equal(front().src, pouchArt.POUCH_FRAME_URLS[index], `${POUCH_FRAME_AT[index]}ms — ${index + 1}컷`);
+      assert.equal(stage.dataset.frame, String(index + 1));
+    }
+    assert(clock >= POUCH_RESULT_MS - 90, '보상 카드 시각에 가까이 왔다');
+    // `1개 더 열기`는 다시 닫힌 주머니(1컷)부터 새로 시작한다(두 장 모두 되돌린다).
     const again = find(api.overlay, node => node.textContent === '1개 더 열기');
     assert(again, '[1개 더 열기]');
     again.onclick();
-    assert.equal(front().src, pouchArt.POUCH_FRAME_URLS[0], '다시 1단계부터');
+    assert.equal(front().src, pouchArt.POUCH_FRAME_URLS[0], '다시 1컷부터');
     assert.equal(stack.dataset.pouchFront, '0', '되돌릴 때는 앞 장을 다시 1번 레이어로');
-    assert.equal(stage.dataset.frame, '1');
-    await new Promise(resolve => setTimeout(resolve, 10));
+    api.close();
+  } finally { globalThis.document = previous; }
+});
+
+test('결과 토스트·레전드 전광판은 누른 즉시가 아니라 보상 카드가 뜨는 1.44초에 나간다(작업 214 `#5228`)', async () => {
+  const previous = globalThis.document;
+  globalThis.document = { createElement: tag => element(tag) };
+  try {
+    const save = withPouches(1);
+    const messages = [];
+    const shared = [];
+    const ui = {
+      root: element(), modal: element(), openModal: 'equipment', renderModal() {},
+      message(text) { messages.push(text); }, sharePouchLegend(name) { shared.push(name); },
+      world: { save, onChange() {} }
+    };
+    const api = openPouchWindow(ui);            // 실제 연출 길이(1.8초)
+    const open = find(api.overlay, node => node.textContent === '열기');
+    open.onclick();
+    assert.equal(messages.length, 0, '누른 직후에는 정답을 알려 주지 않는다(스포일러 없음)');
+    assert.equal(shared.length, 0, '전광판도 아직');
+    await new Promise(resolve => setTimeout(resolve, POUCH_RESULT_MS - 220));
+    assert.equal(messages.length, 0, '절정 직후에도 아직 결과를 알리지 않는다');
+    await new Promise(resolve => setTimeout(resolve, 340));
+    assert.equal(messages.length, 1, '보상 카드가 뜨는 시각에 결과 토스트');
+    assert(messages[0].includes('무작위 보물 주머니'), '주머니 이름과 결과');
     api.close();
   } finally { globalThis.document = previous; }
 });

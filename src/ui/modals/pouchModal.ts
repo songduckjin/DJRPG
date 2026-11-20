@@ -3,29 +3,38 @@ import { openPouch, POUCH_OVERALL_RATES, pouchCount, POUCH_HINT, pouchResultText
 import { isLegendaryPouchResult } from '../../game/legendBoard';
 import { createSkillBookArt } from '../skillBookArt';
 import { createPouchArt, preloadPouchFrames, resetPouchArt, setPouchFrame, POUCH_FRAME_URLS, POUCH_GOLD_PILE_URL } from '../pouchArt';
+import { createPouchLight } from '../pouchLight';
 import { goldMarkup } from '../currency';
 import type { Interface } from '../interface';
 
 /**
- * 개봉 연출 타임라인 (작업 213 — 6단계 크로스페이드, 약 2.8초).
+ * 개봉 연출 타임라인 (작업 214 — 9컷 프레임 시퀀스, 약 1.8초).
  * 그림이 바뀌는 시각(ms, [열기]를 누른 순간부터)과 보상 카드가 뜨는 시각.
- * `POUCH_FRAME_AT`의 값은 `styles/modals.css`의 애니메이션 지연(`.pouch-art-stack`·`.pouch-glow`·
- * `.pouch-flash`·`.pouch-halo`·`.pouch-window-result`)과 **같은 시각**이어야 한다
- * (테스트가 둘을 함께 검사).
+ * `POUCH_FRAME_AT`의 값은 `styles/modals.css`의 `.pouch-window-result` 애니메이션 지연과
+ * **같은 시각**이어야 하고(테스트가 둘을 함께 검사), 절정(7번째 컷)은 Canvas 빛의 `burstAt`이다.
  *
- *  - `0ms`     1단계 닫힘 — 앞부분을 길게 잡아 **쪼으는 구간**(0~860ms). 부르르 떨림이 점점 커지고
- *              주머니가 힘을 모으듯 조금씩 움츠러든다(사용자 `#5057`).
- *  - `860ms`   2단계 끈 헐거워짐
- *  - `1260ms`  3단계 끈 풀리고 흰빛이 새어 나옴  (단계 사이는 380ms 크로스페이드)
- *  - `1680ms`  4단계 활짝 열림 + 흰빛이 팡 터짐(화면 전체가 환해지는 섬광)
- *  - `2120ms`  5단계 힘없이 내려앉기 시작 — 빛이 서서히 잦아든다
- *  - `2500ms`  6단계 바닥에 납작하게 접힘 — 그대로 유지되고 위쪽에 보상 카드가 드러난다
+ * 사용자 지시(작업 214 `#5222`·`#5241`): "이미지를 흔들지 말고 프레임을 더 넣어서 모션으로",
+ * "빛난 후에는 템 뜨는 거랑 주머니 바닥에 풀리는 게 더 빨랐으면 좋겠어". 그래서 좌우로 흔들던
+ * `pouch-shake`를 없애고 **중간 컷 4장을 더한 9컷**으로 모션을 만들며, 앞쪽 텐션은 ~1.0~1.1초로
+ * 길게 가져가고 절정 뒤에는 0.35~0.45초 안에 주머니가 풀리고 보상이 뜬다(전체 약 1.8초).
+ *
+ *  - `0ms`      1컷 닫힘 — **쪼으는 구간** 시작(끈이 당겨지며 부푼다, 흔들지 않는다)
+ *  - `220ms`    2컷 끈이 당겨지며 부푸는
+ *  - `470ms`    3컷 끈 헐거워짐
+ *  - `700ms`    4컷 입구가 틈새처럼 살짝 벌어짐
+ *  - `890ms`    5컷 끈 풀리고 빛이 새어 나옴
+ *  - `1000ms`   6컷 반쯤 활짝 열리며 빛이 비침
+ *  - `1075ms`   7컷 활짝 열림 — **절정**: 흰빛이 팡 번지고 입자 36개가 흩어진다
+ *  - `1180ms`   8컷 무너지며 풀리기 시작 (빛이 빠르게 잦아든다)
+ *  - `1300ms`   9컷 바닥에 납작하게 접힘 — 그대로 유지되고 위쪽에 보상 카드가 드러난다
  */
-export const POUCH_FRAME_AT = [0, 860, 1260, 1680, 2120, 2500] as const;
-/** 보상 카드가 드러나는 시각(빛이 잦아들며 주머니가 흘러내리는 사이). */
-export const POUCH_RESULT_MS = 2280;
-/** 연출 전체 길이(약 2.8초) — 이 뒤에 버튼 잠금이 풀리고 `1개 더 열기`가 보인다. */
-export const POUCH_OPEN_MS = 2800;
+export const POUCH_FRAME_AT = [0, 220, 470, 700, 890, 1000, 1075, 1180, 1300] as const;
+/** 절정(흰빛이 팡 터지는) 시각 — Canvas 빛·입자가 이 순간에 터진다. */
+export const POUCH_BURST_MS = POUCH_FRAME_AT[6];
+/** 보상 카드가 드러나는 시각(절정 + 0.36초 — 빛이 가라앉으며 주머니가 풀리는 사이). */
+export const POUCH_RESULT_MS = 1440;
+/** 연출 전체 길이(약 1.8초) — 이 뒤에 버튼 잠금이 풀리고 `1개 더 열기`가 보인다. */
+export const POUCH_OPEN_MS = 1800;
 
 function element<K extends keyof HTMLElementTagNameMap>(tag: K, className = '', text = ''): HTMLElementTagNameMap[K] {
   const node = document.createElement(tag);
@@ -98,14 +107,14 @@ export function pouchResultCard(result: PouchResult): HTMLElement {
 }
 
 /**
- * 개봉 연출의 빛 색 (작업 213 `#5057`) — 노란/주황빛 대신 **깨끗한 흰빛**.
- * 순백색 중심에 은은한 백색 글로우만 두고, 보상 종류·등급에 따라 색을 바꾸지 않는다.
+ * 개봉 연출의 빛 색 (작업 213 `#5057` → 214) — 노란/주황빛 대신 **깨끗한 흰빛**.
+ * 순백색 하나만 쓰고, 보상 종류·등급에 따라 색을 바꾸지 않는다. Canvas 빛·입자가 이 색을 쓴다.
  */
 export function pouchGlowInk(): string {
   return POUCH_WHITE_LIGHT;
 }
 
-/** 개봉 연출의 흰빛(순백) — 글로우 레이어 `--pouch-glow`와 섬광이 함께 쓴다. */
+/** 개봉 연출의 흰빛(순백) — Canvas 빛·입자(`pouchLight.createPouchLight`)가 함께 쓴다. */
 export const POUCH_WHITE_LIGHT = '#ffffff';
 
 type PouchWindowApi = { overlay: HTMLElement; open: () => void; close: () => void; rates: HTMLElement; result: HTMLElement };
@@ -120,15 +129,16 @@ type PouchWindowOptions = { /** 연출 길이 — 테스트가 0으로 줄인다
  * 한 번에 **주머니 1개씩** 열고, 개봉이 끝났을 때 가방에 주머니가 남아 있으면
  * `[1개 더 열기]`로 바로 다음 주머니를 이어서 깐다. 다 열었으면 `[확인]`, 언제든 `[닫기]`·`×`로 나간다.
  *
- * **[열기]의 연출**(작업 213 — `#5057`·`#5069`·`#5083`, 총 2.8초):
- * 0~0.86초 닫힌 주머니가 **부르르 떨리며 힘을 모으는 쪼으는 구간**(떨림이 점점 커진다), 0.86초 끈이
- * 헐거워진 2단계, 1.26초 끈이 풀리며 **흰빛**이 새어 나오는 3단계로 **겹쳐서 서서히**(380ms 크로스페이드)
- * 넘어간 뒤, 1.68초에 활짝 열린 4단계에서 흰빛이 팡 터지고 팝업보다 조금 큰 후광이 환해진다.
- * 2.12초부터 빛이 잦아들며 주머니가 5단계(내려앉기) → 2.5초 6단계(바닥에 납작하게 접힘)로
- * 흘러내려 그대로 유지되고, 2.28초부터 그 위쪽 빈 공간에 보상 카드가 드러난다.
- * 여섯 장은 창을 열 때 미리 받아 두어 전환이 깜빡이지 않는다.
+ * **[열기]의 연출**(작업 214 — `#5204`·`#5222`·`#5241`, 총 1.8초):
+ * 0~1.0초 닫힌 주머니가 **끈을 조이며 부푸는 텐션 구간**(중간 컷 3장 — 흔들지 않는다),
+ * 1.0초 반쯤 열리며 빛이 비치고, **1.075초 활짝 열리는 절정**에서 Canvas 흰빛이 팡 번지며
+ * 입자 36개가 사방으로 흩어진다. 곧바로 1.18초 무너지고 1.3초 바닥에 납작하게 풀리며,
+ * **1.44초** 위쪽 빈 공간에 보상 카드가 드러난다(1.8초에 버튼 잠금 해제).
+ * 아홉 장은 창을 열 때 미리 받아 두어 전환이 깜빡이지 않는다.
  * 세이브 차감은 **누르는 즉시 한 번만** 하고(연출은 화면만), 연출이 끝날 때까지 버튼을 잠가
- * 두 번 까이지 않게 한다. `prefers-reduced-motion`이면 애니메이션 없이 결과가 바로 보인다(CSS).
+ * 두 번 까이지 않게 한다. 결과 토스트·레전드 전광판은 **보상 카드가 뜨는 시각**까지 미룬다
+ * (누르자마자 위쪽 글자로 정답을 스포일러하던 것을 고쳤다 — `#5228`).
+ * `prefers-reduced-motion`이면 애니메이션·Canvas 없이 결과가 바로 보인다(CSS).
  */
 export function openPouchWindow(ui: Interface, itemId?: string, options: PouchWindowOptions = {}): PouchWindowApi {
   const delay = options.delay ?? POUCH_OPEN_MS;
@@ -157,20 +167,17 @@ export function openPouchWindow(ui: Interface, itemId?: string, options: PouchWi
   preloadPouchFrames();
   // 두 장을 겹쳐 둔 무대 — `setPouchFrame`이 `is-front`를 넘겨 크로스페이드한다.
   const art = createPouchArt();
-  // 주머니 입구에서 터지는 빛 — 주머니 그림 위에 screen으로 얹어 빛줄기처럼 보이게 한다.
-  const glow = element('span', 'pouch-glow');
-  glow.setAttribute('aria-hidden', 'true');
-  // 4단계로 넘어가는 순간(1.68초)의 한 번짜리 섬광 — 주머니 주변을 밝힌다.
-  const flash = element('span', 'pouch-flash');
-  flash.setAttribute('aria-hidden', 'true');
-  // 같은 순간 팝업보다 조금 더 큰 백색 후광이 환해졌다가 서서히 잦아든다(작업 213 `#5083` → `#5094`).
-  const halo = element('span', 'pouch-halo');
-  halo.setAttribute('aria-hidden', 'true');
+  // 개봉 연출의 빛과 입자 (작업 214) — CSS 도형 대신 60fps Canvas 한 장(투명·`pointer-events: none`).
+  // 모션 감소 사용자에겐 아예 만들지 않는다(빛이 필요 없다).
+  const light = reducedMotion ? null : createPouchLight(pouchGlowInk());
   const result = element('div', 'pouch-window-result');
   result.setAttribute('aria-live', 'polite');
   stage.dataset.frame = '1';
-  // 빛·섬광은 주머니 스택 **밖**에 둔다 — 스택의 drop-shadow가 빛까지 그림자로 만들지 않게.
-  stage.append(art, glow, flash, halo, result);
+  // 빛은 주머니 스택 **밖**에 둔다 — 스택의 drop-shadow가 빛까지 그림자로 만들지 않게.
+  // 결과 카드보다 **아래**에 깔아 아이템 그림을 빛이 덮지 않는다.
+  stage.append(art);
+  if (light) stage.append(light.canvas);
+  stage.append(result);
 
   const hint = element('p', 'pouch-window-hint', POUCH_HINT);
   const countLabel = element('p', 'pouch-window-count');
@@ -199,14 +206,29 @@ export function openPouchWindow(ui: Interface, itemId?: string, options: PouchWi
   let timer: ReturnType<typeof setTimeout> | undefined;
   const frameTimers: ReturnType<typeof setTimeout>[] = [];
   const clearFrameTimers = (): void => { while (frameTimers.length) clearTimeout(frameTimers.pop() as ReturnType<typeof setTimeout>); };
+  // 결과 알림(토스트·레전드 전광판)은 **보상 카드가 뜨는 시각**까지 미룬다 (작업 214 `#5228`).
+  let announceTimer: ReturnType<typeof setTimeout> | undefined;
+  let pendingAnnounce: (() => void) | undefined;
+  const announceResult = (): void => {
+    announceTimer = undefined;
+    const announce = pendingAnnounce;
+    pendingAnnounce = undefined;
+    announce?.();
+  };
   const close = (): void => {
+    const announce = pendingAnnounce;
     closed = true;
     if (timer !== undefined) clearTimeout(timer);
+    if (announceTimer !== undefined) clearTimeout(announceTimer);
+    announceTimer = undefined;
     clearFrameTimers();
+    light?.stop();
     if (typeof window !== 'undefined' && typeof window.removeEventListener === 'function') window.removeEventListener('keydown', onKey, true);
     observer?.disconnect();
     overlay.remove?.();
     if (ui.openModal === 'equipment') ui.renderModal();
+    // 연출이 끝나기 전에 창을 닫아도 깐 주머니의 결과는 잃지 않는다 — 남은 알림을 그 자리에서 보낸다.
+    if (announce) announce();
   };
   const onKey = (event: Event): void => {
     if ((event as KeyboardEvent).key !== 'Escape') return;
@@ -234,19 +256,20 @@ export function openPouchWindow(ui: Interface, itemId?: string, options: PouchWi
     }
     error.hidden = true;
     result.replaceChildren(pouchResultCard(opened.result));
-    // 보물 주머니에서 레전드 장비(작업 208) — 접속 중인 모두의 화면 위 전광판에 한 줄 띄운다.
-    if (isLegendaryPouchResult(opened.result)) ui.sharePouchLegend(itemDisplayName((opened.result as Extract<PouchResult, { kind: 'equipment' }>).item));
     result.setAttribute('data-kind', opened.result.kind);
-    glow.style.setProperty('--pouch-glow', pouchGlowInk());
     // 같은 연출을 다시 틀 수 있게 클래스를 지웠다가 리플로 뒤에 붙인다.
-    // `1개 더 열기`도 늘 1단계(닫힌 주머니)부터 새로 시작한다.
+    // `1개 더 열기`도 늘 1컷(닫힌 주머니)부터 새로 시작한다.
     clearFrameTimers();
+    if (announceTimer !== undefined) clearTimeout(announceTimer);
+    announceTimer = undefined; pendingAnnounce = undefined;
     stage.classList.remove('is-opening');
     stage.dataset.frame = '1';
     resetPouchArt(art);
     void (stage as HTMLElement).offsetWidth;
     stage.classList.add('is-opening');
-    // 0.86 / 1.26 / 1.68 / 2.12 / 2.5초에 그림을 2~6단계로 겹쳐 넘긴다(모션 감소면 곧바로 마지막 컷).
+    // Canvas 빛·입자 — 1.075초 절정에 터지고 1.8초에 스스로 멈춘다(모션 감소면 빛 자체가 없다).
+    light?.start(POUCH_BURST_MS, POUCH_OPEN_MS);
+    // 0.22 / 0.47 / 0.7 / 0.89 / 1.0 / 1.075 / 1.18 / 1.3초에 2~9컷으로 겹쳐 넘긴다(모션 감소면 곧바로 마지막 컷).
     if (reducedMotion) {
       stage.dataset.frame = String(POUCH_FRAME_URLS.length);
       setPouchFrame(art, POUCH_FRAME_URLS.length - 1);
@@ -268,7 +291,16 @@ export function openPouchWindow(ui: Interface, itemId?: string, options: PouchWi
       animating = false; openButton.disabled = false; showCount();
     }, delay);
     ui.world.onChange();
-    ui.message(`${opened.pouch.name} → ${pouchResultText(opened.result)}`);
+    // **스포일러 금지**(작업 214 `#5228`): 누르자마자 위쪽 토스트·전광판으로 정답을 알리지 않고,
+    // 보상 카드가 뜨는 1.44초에 맞춰 보낸다(모션 감소·테스트처럼 연출이 짧으면 그에 맞춰 더 일찍).
+    const announceDelay = reducedMotion ? 0 : Math.min(POUCH_RESULT_MS, delay);
+    pendingAnnounce = () => {
+      ui.message(`${opened.pouch.name} → ${pouchResultText(opened.result)}`);
+      // 보물 주머니에서 레전드 장비(작업 208) — 접속 중인 모두의 화면 위 전광판에 한 줄 띄운다.
+      if (isLegendaryPouchResult(opened.result)) ui.sharePouchLegend(itemDisplayName((opened.result as Extract<PouchResult, { kind: 'equipment' }>).item));
+    };
+    if (announceDelay <= 0) announceResult();
+    else announceTimer = setTimeout(announceResult, announceDelay);
   };
 
   ratesButton.onclick = () => {
