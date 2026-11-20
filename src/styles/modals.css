@@ -12,7 +12,7 @@
 .salvage-plus { border: 1px solid #b28a55; background: #443425; color: #ffe0ab; padding: 5px 4px; font: inherit; font-size: 11px; max-width: 46vw; }
 .bag-grid { display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); grid-auto-rows: max-content; align-content: start; align-items: start; gap: 3px; padding: 2px; }
 .equipment-modal .bag-grid { flex: 1 1 0%; min-height: 110px; overflow-y: auto; overflow-x: hidden; scrollbar-gutter: stable; }
-.equipment-modal .modal-bag > h3, .equipment-modal .bag-filters { flex: none; }
+.equipment-modal .modal-bag > h3, .equipment-modal .bag-filters, .equipment-modal .bag-job-only { flex: none; }
 .bag-item { position: relative; width: 100%; min-width: 0; aspect-ratio: 1; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; border: 1px solid #60534e; background: radial-gradient(circle at 50% 30%, #3a3130, #221e22); color: #ddcfc1; padding: 2px; }
 .bag-item.common, .equipment-slot.common { border-color: #9ca3af; box-shadow: inset 0 0 7px #9ca3af44; }
 .bag-item.magic, .equipment-slot.magic { border-color: #60a5fa; box-shadow: inset 0 0 8px #60a5fa55, 0 0 5px #60a5fa55; }
@@ -336,3 +336,16 @@
 .bag-rarity-sort.active { border-color:#c8a26a; background:#4a342a; color:#ffe1b5; }
 
 .modal-dialog .modal-close { flex:none; width:44px; height:44px; min-width:44px; min-height:44px; touch-action:manipulation; }
+
+/* 직업 표기·내 직업만 보기 (작업 205) — 세 직업의 무기·스킬북이 같은 확률로 떨어지므로, 어느 직업의
+   물건인지와 내가 쓸 수 있는지를 목록에서 바로 읽히게 한다. */
+.job-badge { display: inline-flex; align-items: center; justify-content: center; padding: 0 4px; min-height: 13px; border-radius: 3px; border: 1px solid currentColor; font-size: 9px; line-height: 11px; font-weight: 700; letter-spacing: -.2px; background: #171216cc; }
+.job-warrior { color: #f0b27a; }
+.job-archer { color: #7fd6a1; }
+.job-mage { color: #a7b4ff; }
+.bag-item .job-badge { position: absolute; left: 1px; top: 1px; padding: 0 2px; min-height: 11px; font-size: 8px; line-height: 9px; z-index: 1; pointer-events: none; }
+.skill-book-card .job-badge { position: absolute; left: 3px; top: 3px; }
+.bag-job-only { margin-bottom: 5px; border: 1px solid #6d5948; background: #292124; color: #bba998; padding: 5px 6px; font-size: 11px; }
+.bag-job-only.is-on { border-color: #c8a26a; background: #4a342a; color: #ffe1b5; }
+.bag-job-only-hint { color: #b9a486; }
+.item-detail-job { display: block; width: 100%; margin: 2px 0 4px; font-size: 10px; font-weight: 700; }

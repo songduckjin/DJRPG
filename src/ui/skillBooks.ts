@@ -3,7 +3,8 @@ import type { Interface } from './interface';
 import { skillbookName, skillbookStacks } from './skillbookBag';
 import { skillBookStatus } from '../game/skillProgress';
 import { totalStats, useSkillBook } from '../game/store';
-import type { SkillLevelId } from '../game/skills';
+import { jobNames, type SkillLevelId } from '../game/skills';
+import { skillBookJob } from '../game/items';
 
 export function renderSkillUpgrade(ui: Interface, parent: HTMLElement, id: SkillLevelId, statusParent: HTMLElement = parent): void {
   const status = skillBookStatus(ui.world.save, id);
@@ -41,6 +42,13 @@ export function renderSkillBooks(ui: Interface, parent: HTMLElement): void {
     const icon = createSkillBookArt(item);
     const name = document.createElement('b'); name.textContent = skillbookName(item);
     const quantity = document.createElement('span'); quantity.className = 'skill-book-quantity'; quantity.textContent = `×${count}`;
+    // 어느 직업의 스킬북인지 카드에서 바로 읽히게 한다(작업 205) — 세 직업 책이 같은 확률로 떨어진다.
+    const owner = skillBookJob(item);
+    if (owner) {
+      const badge = document.createElement('span'); badge.className = `job-badge job-${owner}`; badge.textContent = jobNames[owner];
+      badge.setAttribute('aria-label', `${jobNames[owner]} 전용 스킬북`);
+      card.append(badge);
+    }
     card.append(icon, name, quantity); renderSkillUpgrade(ui, card, item.skillId); grid.append(card);
   }
   if (!grid.childElementCount) { const empty = document.createElement('p'); empty.textContent = '보유한 스킬북이 없습니다.'; grid.append(empty); }

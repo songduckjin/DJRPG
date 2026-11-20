@@ -64,8 +64,11 @@ test('skillbook section groups copies and actual upgrade button consumes cost an
     save.learned=['spin'];save.skillLevels.spin=5;
     save.bag=Array.from({length:2},(_,i)=>({id:`book${i}`,kind:'skillbook',slot:'skillbook',skillId:'spin',rarity:'rare',name:'[스킬북] 드래곤 트위스터',stats:{}}));
     const parent=element();renderSkillBooks(ui,parent);const grid=parent.children[0].children[1];
-    assert.equal(grid.children.length,1);const card=grid.children[0];assert.equal(card.children[1].textContent,'드래곤 트위스터');assert.equal(card.children[2].textContent,'×2');
-    assert.equal(card.children[3].textContent,'보유 2 / 필요 2권');const button=card.children[4];assert.equal(button.disabled,false);button.onclick();
+    assert.equal(grid.children.length,1);const card=grid.children[0];
+    // 카드 맨 앞에 어느 직업의 책인지 배지가 붙는다(작업 205).
+    assert.equal(card.children[0].textContent,'전사');assert.equal(card.children[0].className,'job-badge job-warrior');
+    assert.equal(card.children[2].textContent,'드래곤 트위스터');assert.equal(card.children[3].textContent,'×2');
+    assert.equal(card.children[4].textContent,'보유 2 / 필요 2권');const button=card.children[5];assert.equal(button.disabled,false);button.onclick();
     assert.equal(save.skillLevels.spin,6);assert.equal(save.bag.length,0);assert.equal(changes,1);
   }finally{globalThis.document=previous;}
 });

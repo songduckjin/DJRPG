@@ -1,7 +1,8 @@
 import {equipmentCount} from '../../game/bagCapacity';
 import { autoEquipBest, equipmentImage, expToNext, MAX_LEVEL, rarityNames, statNames, totalStats, useSkillBook, type Item, type Save, type Slot, type Stat } from '../../game/store';
-import { rarityRanks, salvageGold, slotNameFor, canWield, weaponJob } from '../../game/items';
+import { rarityRanks, salvageGold, slotNameFor, canWield, weaponJob, itemJob, skillBookJob } from '../../game/items';
 import { jobNames, jobOrDefault } from '../../game/skills';
+import { BAG_JOB_ONLY_KEY, jobOnlyLabel, jobOnlyVisible, saveJobOnly } from '../jobFilter';
 import { nextSalvageRarity, saveSalvageRarity, type SalvageRarity } from '../salvageRarity';
 import { AUTO_SALVAGE_HINT } from '../autoSalvage';
 import { salvagePlusLabel, salvagePlusUnlocked, salvagePlusValues } from '../salvagePlus';
@@ -37,11 +38,28 @@ export function renderInventory(this: Interface, dialog: HTMLElement): void {
       filters.appendChild(button);
     }
     section.appendChild(filters);
+    // `내 직업만 보기` (작업 205): 다른 직업 전용 무기(와 스킬북)만 감춘다. 공용 방어구·장신구는 그대로
+    // 보이고, 켠 상태는 기기에 남긴다. 필터 버튼과 같은 줄에 두면 분류와 보기 범위를 한눈에 고를 수 있다.
+    const jobToggle = document.createElement('button'); jobToggle.type = 'button'; jobToggle.className = 'bag-job-only';
+    jobToggle.textContent = jobOnlyLabel(this.bagJobOnly);
+    jobToggle.classList.toggle('is-on', this.bagJobOnly);
+    jobToggle.setAttribute('aria-pressed', String(this.bagJobOnly));
+    jobToggle.setAttribute('aria-label', `내 직업만 보기 ${this.bagJobOnly ? '켜짐' : '꺼짐'}. 누르면 다른 직업 전용 무기·스킬북을 ${this.bagJobOnly ? '다시 보여 줍니다' : '숨깁니다'}`);
+    jobToggle.title = `${jobNames[jobOrDefault(save.job)]}가 쓸 수 없는 무기·스킬북을 숨깁니다. 공용 방어구·장신구는 그대로 보입니다.`;
+    jobToggle.onclick = () => {
+      this.bagJobOnly = !this.bagJobOnly; saveJobOnly(BAG_JOB_ONLY_KEY, this.bagJobOnly);
+      dismissBagDetail(this); this.renderModal();
+    };
+    section.appendChild(jobToggle);
     const grid = document.createElement('div'); grid.className = 'bag-grid'; section.appendChild(grid);
-    const stacks = save.bag.filter(item => !isSkillBook(item) && (this.bagFilter === 'all'
+    // 분류 필터로 한 번 고른 뒤 `내 직업만 보기`로 직업 전용 장비를 걷어 낸다(작업 205).
+    const candidates = save.bag.filter(item => !isSkillBook(item) && (this.bagFilter === 'all'
       || (this.bagFilter === 'weapon' && (item.slot === 'weapon' || item.slot === 'offhand'))
       || (this.bagFilter === 'armor' && ['helmet', 'armor', 'gloves', 'belt', 'boots'].includes(item.slot))
-      || (this.bagFilter === 'accessory' && ['necklace', 'ring1', 'ring2'].includes(item.slot))))
+      || (this.bagFilter === 'accessory' && ['necklace', 'ring1', 'ring2'].includes(item.slot))));
+    const shown = jobOnlyVisible(candidates, item => item, save.job, this.bagJobOnly);
+    const hiddenJob = candidates.length - shown.length;
+    const stacks = shown
       .sort((a, b) => this.bagRaritySort ? rarityRanks[b.rarity] - rarityRanks[a.rarity] : 0)
       .map(item => ({ item, count: 1 }));
     const visible = stacks.map(stack => stack.item);
@@ -50,12 +68,18 @@ export function renderInventory(this: Interface, dialog: HTMLElement): void {
       const cell = document.createElement('button'); cell.className = `bag-item ${book ? 'skillbook-item' : item.rarity} ${this.selected === item.id ? 'selected' : ''}`;
       cell.innerHTML = itemIcon.call(this, item.slot, item, 'item-icon');
       cell.type = 'button'; cell.dataset.itemId = item.id;
+      // 직업 전용 장비에는 `전사`/`궁수`/`마법사` 배지를 단다(작업 205) — 공용 방어구·장신구에는 붙지 않는다.
+      const owner = itemJob(item);
+      if (owner) {
+        const jobBadge = document.createElement('span'); jobBadge.className = `job-badge job-${owner}`; jobBadge.textContent = jobNames[owner];
+        jobBadge.setAttribute('aria-hidden', 'true'); cell.append(jobBadge);
+      }
       if (book) {
         const badge = document.createElement('span'); badge.className = 'skillbook-count'; badge.textContent = `×${quantity}`;
         cell.append(badge);
       }
       const locked = !isSkillBook(item) && !!item.locked;
-      cell.setAttribute('aria-label', `${name}${book ? ` · ${quantity}권` : ` · ${rarityNames[item.rarity]}`}${locked ? ' · 잠긴 장비' : ''}`);
+      cell.setAttribute('aria-label', `${name}${book ? ` · ${quantity}권` : ` · ${rarityNames[item.rarity]}`}${owner ? ` · ${jobNames[owner]} 전용` : ''}${locked ? ' · 잠긴 장비' : ''}`);
       if (locked) {
         const badge = document.createElement('span'); badge.className = 'lock-icon is-locked bag-lock-badge';
         badge.setAttribute('aria-hidden', 'true'); cell.appendChild(badge);
@@ -74,7 +98,7 @@ export function renderInventory(this: Interface, dialog: HTMLElement): void {
       };
       grid.appendChild(cell);
     }
-    if (!visible.length) grid.innerHTML = '<p class="empty">이 분류에 획득한 아이템이 없습니다.</p>';
+    if (!visible.length) grid.innerHTML = `<p class="empty">${hiddenJob ? '다른 직업 전용 장비만 있습니다. <b>내 직업만 보기</b>를 끄면 보입니다.' : '이 분류에 획득한 아이템이 없습니다.'}</p>`;
     const footer = document.createElement('div'); footer.className = 'modal-bag-footer';
     const count = document.createElement('span'); count.textContent = `장비 ${save.bag.filter(item => !isSkillBook(item)).length}개`;
     count.title = `장비 보관 ${equipmentCount(save.bag)}/40 · 스킬북 별도`;
@@ -120,7 +144,10 @@ export function renderInventory(this: Interface, dialog: HTMLElement): void {
     const autoHint = document.createElement('small'); autoHint.className = 'auto-salvage-hint'; autoHint.textContent = AUTO_SALVAGE_HINT;
     const plusHint = document.createElement('small'); plusHint.className = 'auto-salvage-hint';
     plusHint.textContent = '고른 단계보다 높은 장비는 자동 분해되지 않고 경매장 판매용으로 보관됩니다.';
-    controls.append(equip, rarityButton, auto, ...(plusSelect ? [plusSelect] : []), salvage, autoHint, ...(plusSelect ? [plusHint] : [])); footer.append(count, controls); section.appendChild(footer);
+    const jobHint = document.createElement('small'); jobHint.className = 'auto-salvage-hint bag-job-only-hint';
+    jobHint.textContent = `다른 직업 전용 장비 ${hiddenJob}개는 숨겨져 있습니다.`;
+    jobHint.hidden = !this.bagJobOnly || hiddenJob === 0;
+    controls.append(equip, rarityButton, auto, ...(plusSelect ? [plusSelect] : []), salvage, autoHint, ...(plusSelect ? [plusHint] : []), jobHint); footer.append(count, controls); section.appendChild(footer);
     dialog.appendChild(section);
     const selectedItem = visible.find(item => item.id === this.selected);
     if (selectedItem) {
@@ -148,6 +175,14 @@ export function itemDetail(this: Interface, save: Save, item: Item): HTMLElement
     const panel = document.createElement('div'); panel.className = `item-detail ${isSkillBook(item) ? 'skillbook-detail' : item.rarity}`;
     if (isSkillBook(item)) {
       const title = document.createElement('h2'); title.textContent = skillbookName(item); panel.appendChild(title);
+      // 어느 직업의 스킬북인지 바로 보이게 한다(작업 205) — 내 직업이 아니면 그 사실도 함께 적는다.
+      const owner = skillBookJob(item);
+      if (owner) {
+        const jobLine = document.createElement('span'); jobLine.className = `item-detail-job job-${owner}`;
+        const mine = owner === jobOrDefault(save.job);
+        jobLine.textContent = mine ? `${jobNames[owner]} 전용 스킬북 · 내 직업` : `${jobNames[owner]} 전용 스킬북`;
+        panel.appendChild(jobLine);
+      }
       const note = document.createElement('p'); note.textContent = '사용하면 해당 스킬을 습득하거나 1레벨 강화합니다. 최대 Lv.30'; panel.appendChild(note);
       const use = document.createElement('button'); use.type = 'button'; use.className = 'skillbook-use'; use.textContent = '사용하기';
       use.onclick = () => {
@@ -171,6 +206,14 @@ export function itemDetail(this: Interface, save: Save, item: Item): HTMLElement
     lock.onclick = () => { if (this.world.paused) return; item.locked = !item.locked; this.world.onChange(); };
     heading.append(title, lock); panel.append(heading);
     const grade = document.createElement('small'); grade.className = `item-detail-grade rarity-${item.rarity}`; grade.textContent = rarityNames[item.rarity]; panel.append(grade);
+    // 직업 전용 무기에는 어느 직업의 것인지 배지를 달고, 내 직업이 아니면 장착할 수 없다고 한 줄로 적는다(작업 205).
+    const ownerJob = itemJob(item);
+    if (ownerJob) {
+      const jobLine = document.createElement('span'); jobLine.className = `item-detail-job job-${ownerJob}`;
+      const mine = ownerJob === jobOrDefault(save.job);
+      jobLine.textContent = mine ? `${jobNames[ownerJob]} 전용 무기 · 내 직업` : `장착 불가 (${jobNames[ownerJob]} 전용)`;
+      panel.append(jobLine);
+    }
     const compared = new Set<Stat>([...Object.keys(item.stats), ...Object.keys(equipped?.stats ?? {})] as Stat[]);
     for (const stat of compared) {
       const diff = (item.stats[stat] ?? 0) - (equipped?.stats[stat] ?? 0);

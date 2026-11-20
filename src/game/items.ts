@@ -1,5 +1,5 @@
 import type { Save } from './store';
-import { allSkillIds, passiveOrderFor, passives, skillOrderFor, skills, type Job, type SkillLevelId } from './skills';
+import { allSkillIds, jobs, passiveOrderFor, passives, skillOrderFor, skills, type Job, type SkillLevelId } from './skills';
 import { jobOrDefault } from './skills';
 
 function isRecord(value: unknown): value is Record<string, unknown> { return typeof value === 'object' && value !== null && !Array.isArray(value); }
@@ -113,6 +113,28 @@ export const dropJobs: readonly Job[] = ['warrior', 'archer', 'mage'];
 export function dropJob(random: () => number = Math.random): Job {
   const index = Math.min(dropJobs.length - 1, Math.max(0, Math.floor(random() * dropJobs.length)));
   return dropJobs[index];
+}
+
+/** 이 스킬북이 전용인 직업 — 스킬·패시브 목록(`skillOrderFor`/`passiveOrderFor`)으로 판별한다.
+ *  스킬북이 아니면 undefined. 같은 스킬 id는 한 직업에만 있으므로 첫 일치가 곧 그 직업이다. */
+export function skillBookJob(item: Item): Job | undefined {
+  if (!isSkillBook(item)) return undefined;
+  for (const job of jobs) if (skillOrderFor(job).includes(item.skillId as never) || passiveOrderFor(job).includes(item.skillId as never)) return job;
+  return undefined;
+}
+
+/** 이 아이템을 쓸 수 있는 직업 — 무기는 직업별(대검·활·지팡이), 스킬북도 직업별이다.
+ *  방어구·장신구는 세 직업이 함께 쓰므로 `undefined`(공용)다. */
+export function itemJob(item: Item): Job | undefined {
+  if (isSkillBook(item)) return skillBookJob(item);
+  if (item.slot === 'weapon') return weaponJob(item);
+  return undefined;
+}
+
+/** `내 직업만 보기` 판정 — 직업 전용 아이템이 다른 직업의 것이면 false, 공용 아이템이면 늘 true. */
+export function usableByJob(item: Item, job: Job = 'warrior'): boolean {
+  const owner = itemJob(item);
+  return owner === undefined || owner === jobOrDefault(job);
 }
 
 /** 이 무기를 쓰는 직업 — 활은 궁수, 지팡이는 마법사, 나머지 대검은 전사. */

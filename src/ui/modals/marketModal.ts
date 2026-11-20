@@ -1,7 +1,9 @@
 import {createSkillBookArt} from '../skillBookArt';
 import { goldNode, coinMarkup } from '../currency';
 import { filterSaleItems } from '../itemOrder';
-import { equipmentImage, isBow, isSkillBook, itemDisplayName, rarityNames, slotNames, statNames, type Item, type Stat } from '../../game/items';
+import { equipmentImage, isBow, isSkillBook, itemDisplayName, itemJob, rarityNames, slotNames, statNames, usableByJob, type Item, type Stat } from '../../game/items';
+import { jobNames } from '../../game/skills';
+import { MARKET_JOB_ONLY_KEY, jobOnlyLabel, jobOnlyVisible, saveJobOnly } from '../jobFilter';
 import { type MarketView, type Listing, type Market } from '../../game/market';
 import { compareEquipment } from '../../game/itemComparison';
 import type { Interface } from '../interface';
@@ -21,7 +23,12 @@ function icon(item: Item): HTMLElement {
 }
 function itemInfo(item: Item): HTMLElement {
   const info = el('div', 'market-item-info');
-  info.append(renderItemName(el('b', `rarity-${item.rarity}`), item), el('small', '', `${rarityNames[item.rarity]} · ${isSkillBook(item) ? '스킬북' : isBow(item) ? '활' : slotNames[item.slot]}`));
+  const titleRow = el('div', 'market-item-title');
+  titleRow.append(renderItemName(el('b', `rarity-${item.rarity}`), item));
+  // 직업 전용 매물에는 `전사`/`궁수`/`마법사` 배지를 달아, 내 캐릭터가 쓸 수 있는 물건인지 목록에서 바로 보이게 한다(작업 205).
+  const owner = itemJob(item);
+  if (owner) titleRow.append(el('span', `job-badge job-${owner}`, jobNames[owner]));
+  info.append(titleRow, el('small', '', `${rarityNames[item.rarity]} · ${isSkillBook(item) ? '스킬북' : isBow(item) ? '활' : slotNames[item.slot]}`));
   const stats = Object.entries(item.stats).map(([key, amount]) => `${statNames[key as Stat]} +${amount}`).join(' · ');
   info.append(el('small', 'market-options', stats || '사용 시 습득 또는 스킬 +1레벨'));
   return info;
@@ -80,10 +87,18 @@ export function renderMarket(this: Interface, dialog: HTMLElement): void {
       check.onchange=()=>{market.mineActiveOnly=check.checked;market.filters.page=0;market.refresh();};label.append(check);dialog.append(label);
     }
     renderFilters(market, dialog);
-    dialog.append(el('p', 'market-result', `${money(data?.total ?? 0)}건${market.view === 'mine' ? ` · 판매 중 ${data?.myActive ?? 0}/${data?.rules?.maxListings ?? 30} · 내 판매 및 구매 기록` : ''}`));
+    // `내 직업만 보기` (작업 205): 판매 중·거래 완료 목록에서 다른 직업 전용 무기·스킬북을 걷어 낸다.
+    // 내 거래(mine)는 내가 올리고 산 기록이므로 같은 필터를 적용하지 않는다.
+    const listings = data?.listings ?? [];
+    const jobFiltered = market.view !== 'mine';
+    const visibleListings = jobOnlyVisible(listings, sale => sale.item, this.world.save.job, jobFiltered && this.marketJobOnly);
+    const hiddenListings = listings.length - visibleListings.length;
+    if (jobFiltered) dialog.append(jobOnlyToggle(this, market, hiddenListings));
+    dialog.append(el('p', 'market-result', `${money(data?.total ?? 0)}건${hiddenListings ? ` · 이 페이지에서 다른 직업 ${hiddenListings}개 숨김` : ''}${market.view === 'mine' ? ` · 판매 중 ${data?.myActive ?? 0}/${data?.rules?.maxListings ?? 30} · 내 판매 및 구매 기록` : ''}`));
     if (!data && market.loading) dialog.append(el('p', 'empty', '거래소를 불러오고 있습니다…'));
-    for (const sale of data?.listings ?? []) renderListing(this, dialog, sale, blocked);
-    if (data && !data.listings.length) dialog.append(el('p', 'empty', market.view === 'sold' ? '아직 거래 완료 기록이 없습니다.' : '조건에 맞는 매물이 없습니다. 판매 등록에서 첫 물품을 올려보세요.'));
+    for (const sale of visibleListings) renderListing(this, dialog, sale, blocked);
+    if (data && !listings.length) dialog.append(el('p', 'empty', market.view === 'sold' ? '아직 거래 완료 기록이 없습니다.' : '조건에 맞는 매물이 없습니다. 판매 등록에서 첫 물품을 올려보세요.'));
+    else if (listings.length && !visibleListings.length) dialog.append(el('p', 'empty', '이 페이지의 매물은 모두 다른 직업 전용입니다. 내 직업만 보기를 끄면 보입니다.'));
     const pages = Math.max(1, Math.ceil((data?.total ?? 0) / 20)), page = Number(market.filters.page);
     const nav = el('div', 'market-pagination'); nav.append(button('이전', () => { market.filters.page = page - 1; market.refresh(); }, page <= 0 || market.busy), el('span', '', `${page + 1} / ${pages}`), button('다음', () => { market.filters.page = page + 1; market.refresh(); }, page + 1 >= pages || market.busy)); dialog.append(nav);
   }
@@ -101,6 +116,16 @@ function renderFilters(market: Market, dialog: HTMLElement): void {
   advanced.append(grid); const reset = button('조건 초기화', () => { market.filters = { query: '', category: '', slot: '', rarity: '', sort: 'newest', page: 0 }; market.refresh(); }); reset.className = 'market-reset'; form.append(advanced, reset);
   form.onsubmit = e => { e.preventDefault(); market.filters.page = 0; market.refresh(); }; dialog.append(form);
 }
+/** 목록 위 `내 직업만 보기` 토글 (작업 205). 켜면 다른 직업 전용 무기·스킬북만 목록에서 빠지고,
+ *  공용 방어구·장신구는 그대로 남는다. 켠 상태는 기기에 남긴다. */
+function jobOnlyToggle(ui: Interface, market: Market, hidden: number): HTMLElement {
+  const label = el('label', 'market-job-only');
+  const check = el('input'); check.type = 'checkbox'; check.checked = ui.marketJobOnly; check.disabled = market.busy;
+  check.onchange = () => { ui.marketJobOnly = check.checked; saveJobOnly(MARKET_JOB_ONLY_KEY, check.checked); ui.renderModal(); };
+  label.append(check, el('span', '', `${jobOnlyLabel(ui.marketJobOnly)}${ui.marketJobOnly && hidden ? ` · ${hidden}개 숨김` : ''}`));
+  label.title = '내 직업이 쓸 수 없는 무기·스킬북을 목록에서 숨깁니다. 공용 방어구·장신구는 그대로 보입니다.';
+  return label;
+}
 function renderListing(ui: Interface, dialog: HTMLElement, sale: Listing, blocked: boolean): void {
   const market = ui.market, row = el('article', 'market-row'); row.dataset.listing = sale.id;
   row.append(icon(sale.item), itemInfo(sale.item));
@@ -114,6 +139,11 @@ function renderListing(ui: Interface, dialog: HTMLElement, sale: Listing, blocke
   if (market.selected?.id === sale.id && sale.state === 'active') {
     const detail = el('div', 'market-detail');
     if (sale.mine) detail.append(el('p', '', '등록을 취소하면 수령함으로 반환됩니다.'));
+    // 어느 직업의 물건인지, 내가 쓸 수 있는지 한 줄로 알린다(작업 205).
+    const ownerJob = itemJob(sale.item);
+    if (ownerJob && !usableByJob(sale.item, ui.world.save.job)) {
+      detail.append(el('p', 'market-job-warning', isSkillBook(sale.item) ? `${jobNames[ownerJob]} 전용 스킬북 (내 직업 아님)` : `장착 불가 (${jobNames[ownerJob]} 전용)`));
+    }
     if (!sale.mine && !isSkillBook(sale.item)) {
       const comparison = compareEquipment(ui.world.save, sale.item)!;
       const equipped = el('div', 'market-equipped');
@@ -171,6 +201,8 @@ function renderRegister(ui: Interface, dialog: HTMLElement, blocked: boolean): v
     const pick = button('', () => { void market.selectItem(item); }, blocked);
     pick.className = `market-pick rarity-${item.rarity}${market.selectedItem === item.id ? ' selected' : ''}`;
     pick.append(icon(item), el('small', `rarity-${item.rarity}`, rarityNames[item.rarity]), renderItemName(el('small'), item));
+    const pickOwner = itemJob(item);
+    if (pickOwner) pick.append(el('span', `job-badge job-${pickOwner}`, jobNames[pickOwner]));
     if (!isSkillBook(item) && item.locked) { const locked = el('span', 'lock-icon is-locked'); locked.setAttribute('aria-label', '잠긴 장비'); pick.append(locked); }
     pick.setAttribute('aria-label', `${itemDisplayName(item)} · ${rarityNames[item.rarity]} 판매 선택`); grid.append(pick);
   }

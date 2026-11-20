@@ -6,6 +6,9 @@ import {totalStats} from '../game/store';
 import {skills} from '../game/skills';
 import {equipmentImage,isSkillBook,type Rarity} from '../game/items';
 import {DungeonBattle,dungeonLootSpots,dungeonLootTimeline,dungeonAbsorbProgress,dungeonAbsorbPoint,type DungeonLoot,type LootDrop,type LootField} from './dungeonBattle';
+import {claimDungeonRewards,type DungeonRewardReceipt} from '../game/dungeonRewards';
+import {dungeonClearedFloor} from '../game/dungeonProgress';
+import {dungeonRewardMarkup} from './dungeonRewardMarkup';
 import {heroBodyFraction} from '../game/render/heroScale';
 import {GOLD_COIN_CHIP_DROP,GOLD_PILE,GOLD_PILE_RX,GOLD_PILE_RY,goldCoinChipHeight,goldCoinChipWidth,goldCoinHeight} from '../game/render/goldPile';
 import {goldCoinChipUrl,warmGoldCoinChips} from '../game/render/goldCoinArt';
@@ -21,8 +24,8 @@ export function openDungeonField(ui:Interface,lobby:HTMLElement):void {
   lobbyRoot.querySelectorAll<HTMLButtonElement>('button:not(.dungeon-close)').forEach(button=>button.disabled=true);
   const doorOpened=new Promise<void>(resolve=>window.setTimeout(resolve,1800));
   const wasPaused=ui.world.paused,resume=ui.suspendMainField?.();ui.world.paused=true;ui.world.attackHeld=false;
-  const field=document.createElement('section');field.className='dungeon-field';field.setAttribute('role','region');field.setAttribute('aria-label','끝없는 던전 1층 미리보기');
-  field.innerHTML=`<div class="dungeon-field-canvas"></div><div class="dungeon-loot-layer is-behind" aria-hidden="true"></div><div class="dungeon-loot-layer" aria-hidden="true"></div><div class="dungeon-exit-gate" aria-label="다음 층으로 이어지는 철문"><div class="dungeon-lobby-gate"><i class="dungeon-lobby-gate-dark"></i><img class="dungeon-gate-left" src="/assets/dungeon/gate-left-v1.png" alt=""><img class="dungeon-gate-right" src="/assets/dungeon/gate-right-v1.png" alt=""><img class="dungeon-gate-frame" src="/assets/dungeon/gate-frame-v1.png" alt=""></div></div><header class="dungeon-field-hud"><div><small>끝없는 던전</small><strong>제 1 층</strong></div><button type="button" class="dungeon-field-leave">나가기</button></header><footer class="dungeon-battle-hud"><div class="dungeon-battle-record"><strong data-clock>90초</strong><span data-wave>WAVE 1 / 3</span><span data-kills>처치 0 / 7</span></div><div class="dungeon-hp"><i></i><span></span></div><div class="dungeon-auto-skills"></div><small>자동 전투 · 1~10층 · 드롭 50% 테스트 · 보상은 준비 중</small></footer><div class="dungeon-battle-result" hidden></div><div class="dungeon-floor-transition" aria-hidden="true"></div>`;
+  const field=document.createElement('section');field.className='dungeon-field';field.setAttribute('role','region');field.setAttribute('aria-label','끝없는 던전 도전');
+  field.innerHTML=`<div class="dungeon-field-canvas"></div><div class="dungeon-loot-layer is-behind" aria-hidden="true"></div><div class="dungeon-loot-layer" aria-hidden="true"></div><div class="dungeon-exit-gate" aria-label="다음 층으로 이어지는 철문"><div class="dungeon-lobby-gate"><i class="dungeon-lobby-gate-dark"></i><img class="dungeon-gate-left" src="/assets/dungeon/gate-left-v1.png" alt=""><img class="dungeon-gate-right" src="/assets/dungeon/gate-right-v1.png" alt=""><img class="dungeon-gate-frame" src="/assets/dungeon/gate-frame-v1.png" alt=""></div></div><header class="dungeon-field-hud"><div><small>끝없는 던전</small><strong>제 1 층</strong></div><button type="button" class="dungeon-field-leave">나가기</button></header><footer class="dungeon-battle-hud"><div class="dungeon-battle-record"><strong data-clock>90초</strong><span data-wave>WAVE 1 / 3</span><span data-kills>처치 0 / 7</span></div><div class="dungeon-hp"><i></i><span></span></div><div class="dungeon-auto-skills"></div><small>자동 전투 · 1~${DUNGEON_MAX_FLOOR}층 · 클리어하면 처치 금화·강화석·떨어진 아이템을 그대로 받습니다</small></footer><div class="dungeon-battle-result" hidden></div><div class="dungeon-floor-transition" aria-hidden="true"></div>`;
   ui.root.querySelector('.game-shell')!.append(field);
   const get=<T extends HTMLElement>(s:string)=>field.querySelector<T>(s)!;
   const view=new GameView();let battle=new DungeonBattle(ui.world.save,ui.dungeon.floor.floor),closed=false,mounted=false,age=0,visualTime=0,finishAge=0,resultShown=false;
@@ -171,16 +174,26 @@ export function openDungeonField(ui:Interface,lobby:HTMLElement):void {
     battle=new DungeonBattle(ui.world.save,floor);clearLoot();finishAge=0;age=0;resultShown=false;
     get('.dungeon-battle-result').hidden=true;
     get('.dungeon-field-hud strong').textContent=`제 ${floor} 층`;
-    field.setAttribute('aria-label',`끝없는 던전 ${floor}층 미리보기`);
+    field.setAttribute('aria-label',`끝없는 던전 ${floor}층`);
   };
   const result=()=>{resultShown=true;absorbRing?.remove();absorbRing=undefined;const floor=battle.floor,canNext=battle.outcome==='clear'&&floor<DUNGEON_MAX_FLOOR;
-    // 클리어 층수는 계정 세이브에 적고(새로고침·재접속에도 유지), 정식 계정이면 서버 순위에도 올린다.
-    if(battle.outcome==='clear'){if(ui.dungeon.clear(ui.world.save,floor))ui.onSave();void ui.dungeon.live?.submit();}
+    // 클리어 보상은 여기서 한 번만 지급한다(작업 205): 바닥에 남은 금화와 떨어진 장비·스킬북이 그대로
+    // `ui.world.save`로 들어가고, 강화석은 층 비례분 + 최초 클리어 보너스가 더해진다. 실패·시간 초과에는
+    // `clearRewards()`가 undefined라 아무것도 들어가지 않는다.
+    let receipt:DungeonRewardReceipt|undefined;
+    if(battle.outcome==='clear'){
+      const save=ui.world.save,rewards=battle.clearRewards();
+      if(rewards)receipt=claimDungeonRewards(save,floor,rewards,{firstClear:floor>dungeonClearedFloor(save),
+        autoSalvage:ui.autoSalvage?ui.salvageRarity:undefined,autoSalvagePlus:ui.salvagePlus});
+      // 클리어 층수는 계정 세이브에 적고(새로고침·재접속에도 유지), 정식 계정이면 서버 순위에도 올린다.
+      ui.dungeon.clear(save,floor);
+      ui.onSave();ui.renderStatus();ui.renderBagBadge();
+      void ui.dungeon.live?.submit();
+    }
     const box=get('.dungeon-battle-result');box.hidden=false;
-    // A clear reports the gold this floor actually left on the ground and pulled in, not its clock.
-    const record=battle.outcome==='clear'?`<p class="dungeon-result-gold"><img src="/assets/icons/gold-coin.png" alt="">획득 금화 <strong>${battle.world.lootGold}</strong></p>`:`<p>처치 ${battle.world.slain} / ${battle.targetCount} · ${Math.ceil(battle.elapsed)}초</p>`;
+    const record=battle.outcome==='clear'&&receipt?dungeonRewardMarkup(receipt):`<p>처치 ${battle.world.slain} / ${battle.targetCount} · ${Math.ceil(battle.elapsed)}초</p>`;
     const completed=battle.outcome==='clear'&&!canNext;
-    const note=completed?`${DUNGEON_MAX_FLOOR+1}층 Coming Soon · 클리어 기록이 순위에 반영되었습니다.`:battle.outcome==='clear'?'클리어 기록이 순위에 반영되었습니다. · 보상은 준비 중입니다.':'전투 미리보기 · 보상은 준비 중입니다.';
+    const note=completed?`${DUNGEON_MAX_FLOOR+1}층 Coming Soon · 클리어 기록이 순위에 반영되었습니다.`:battle.outcome==='clear'?'획득한 보상은 계정에 저장되었습니다. · 클리어 기록이 순위에 반영되었습니다.':'보상은 클리어했을 때만 지급됩니다.';
     box.innerHTML=`<div><small>끝없는 던전 · 제${floor}층</small><h2>${battle.outcome==='clear'?`${floor}층 클리어`:battle.outcome==='dead'?'도전에 실패했습니다':'시간이 종료되었습니다'}</h2>${record}<p>${canNext?`열린 길을 따라 ${floor+1}층으로 이동할 수 있습니다.`:completed?`${DUNGEON_MAX_FLOOR}층 정복을 완료했습니다. 더 깊은 던전은 준비 중입니다.`:'재도전하면 체력과 제한 시간이 초기화됩니다.'}</p>${completed?'<p class="dungeon-result-coming"><b>'+(DUNGEON_MAX_FLOOR+1)+'층</b> Coming Soon</p>':''}${canNext?`<button type="button" data-next>다음 층으로 · ${floor+1}층</button>`:''}${battle.outcome!=='clear'?'<button type="button" data-retry>다시 도전하기</button>':''}<button type="button" data-leave>나가기</button><small>${note}${ui.dungeon.live?.guest?' 게스트 기록은 순위에 오르지 않습니다.':''}</small></div>`;
     const retry=field.querySelector<HTMLButtonElement>('[data-retry]');if(retry)retry.onclick=()=>resetBattle(floor);
     get<HTMLButtonElement>('[data-leave]').onclick=leave;

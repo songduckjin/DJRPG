@@ -13,6 +13,7 @@ import { resetModalDefaults } from './modalDefaults';
 import { readSalvageRarity, type SalvageRarity } from './salvageRarity';
 import { AUTO_SALVAGE_OFF_NOTICE, AUTO_SALVAGE_ON_NOTICE, readAutoSalvage, saveAutoSalvage } from './autoSalvage';
 import { isSalvagePlus, readSalvagePlus, SALVAGE_PLUS_DEFAULT, saveSalvagePlus } from './salvagePlus';
+import { BAG_JOB_ONLY_KEY, MARKET_JOB_ONLY_KEY, readJobOnly } from './jobFilter';
 import { dismissBagDetail, positionBagDetail } from './bagDetail';
 import type { Item, Save, Slot } from '../game/store';
 import { discoverEquipment } from '../game/codex';
@@ -57,6 +58,10 @@ export class Interface {
   equippedPinned = false;
   bagFilter: BagFilter = 'all';
   bagRaritySort = false;
+  /** `내 직업만 보기` (작업 205): 가방과 경매장이 각자 기억하는 보기 스위치다. 켜면 다른 직업 전용
+   *  무기·스킬북만 감추고 공용 장비는 그대로 둔다. 기본값은 전체 보기. */
+  bagJobOnly = readJobOnly(BAG_JOB_ONLY_KEY);
+  marketJobOnly = readJobOnly(MARKET_JOB_ONLY_KEY);
   /** The user's own bulk-salvage threshold, read back from the device so closing the popup or
    *  reloading never resets it (작업 196). */
   salvageRarity: SalvageRarity = readSalvageRarity();
