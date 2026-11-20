@@ -26,8 +26,10 @@ export function enemyMoveSpeed(floor: number, boss: boolean): number {
   return boss ? 28 : Math.min(64, 38 + Math.max(0, floor - 1) * 1.2);
 }
 /** The normal-mob curve the game had before 작업 196 (floor 78: ~4,380). It is kept as the floor of
- *  the blend below so the early floors play exactly as they did. */
-function shallowMobHp(floor: number): number { return 24 + floor * 12 + Math.pow(floor, 1.55) * 4; }
+ *  the blend below so the early floors play exactly as they did, and `game/offline.ts` still settles
+ *  its standing rewards on it: the deeper curve is about a live fight taking longer, and 20 hours away
+ *  should not quietly pay 30% less. */
+export function offlineMobHp(floor: number): number { return 24 + floor * 12 + Math.pow(floor, 1.55) * 4; }
 /** The deep curve from 작업 196: floor 78 lands at ~15,300 instead of ~4,380, so a late mob stands for
  *  a few hits instead of melting in a second. */
 function deepMobHp(floor: number): number { return 24 + floor * 14 + Math.pow(floor, 1.85) * 4.5; }
@@ -39,7 +41,7 @@ const HP_RAMP_FROM = 8, HP_RAMP_BY = 25;
 export function enemyMaxHp(floor: number, boss: boolean): number {
   if (boss) return Math.round(220 + floor * 95 + Math.pow(floor, 1.6) * 32);
   const ramp = Math.min(1, Math.max(0, (floor - HP_RAMP_FROM) / (HP_RAMP_BY - HP_RAMP_FROM)));
-  return Math.round(shallowMobHp(floor) + (deepMobHp(floor) - shallowMobHp(floor)) * ramp);
+  return Math.round(offlineMobHp(floor) + (deepMobHp(floor) - offlineMobHp(floor)) * ramp);
 }
 export function enemyHitDamage(floor: number, boss: boolean, defense: number): number { return Math.max(1, Math.round(boss ? 20 + floor * 5.5 + Math.pow(floor, 1.3) * 1.2 : 7 + floor * 2.4 + Math.pow(floor, 1.25) * .5) - defense * .2); }
 

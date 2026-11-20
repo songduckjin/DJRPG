@@ -5,7 +5,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import './ts-loader.mjs';
 const { rollItem, equipmentDropChance, rarityOrder } = await import('../src/game/items.ts');
-const { enemyMaxHp } = await import('../src/game/world.ts');
+const { enemyMaxHp, offlineMobHp } = await import('../src/game/world.ts');
 
 /** A seeded random stream, so the sampled grade shares are the same on every run. */
 function seeded(seed) {
@@ -83,4 +83,14 @@ test('a deep boss lands at two to three times a deep mob', () => {
   // Early bosses keep their weight instead of shrinking with the new curve.
   assert(enemyMaxHp(1, true) === 347);
   assert(enemyMaxHp(1, true) / enemyMaxHp(1, false) >= 7, 'the first boss is still a wall');
+});
+
+test('offline rewards keep the pace they had before the live curve moved', () => {
+  // 20 hours away must not pay 30% less because a live floor-78 fight got longer: offline settlement
+  // still measures its kills against the old curve (작업 196).
+  const old = floor => Math.round(24 + floor * 12 + Math.pow(floor, 1.55) * 4);
+  for (const floor of [1, 10, 30, 50, 78]) {
+    assert(Math.abs(offlineMobHp(floor) - old(floor)) <= 1, `floor ${floor} offline pace is unchanged (${offlineMobHp(floor)} vs ${old(floor)})`);
+    if (floor > 25) assert(enemyMaxHp(floor, false) > offlineMobHp(floor), 'while the live fight is longer');
+  }
 });

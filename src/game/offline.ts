@@ -1,7 +1,7 @@
 import { canStoreItem } from './bagCapacity';
 import { equipmentDropChance, rollItem, rollSkillBook, skillBookDropChance, totalStats, type Item } from './items';
 import { addExperience, floorKillTarget, type Save } from './store';
-import { enemyMaxHp } from './world';
+import { offlineMobHp } from './world';
 
 export type OfflineReward = { seconds: number; kills: number; exp: number; gold: number; items: Item[]; missedDrops: number; levels: number };
 
@@ -9,7 +9,9 @@ export function applyOfflineRewards(save: Save, elapsedSeconds: number): Offline
   if (!Number.isFinite(elapsedSeconds) || elapsedSeconds < 60) return undefined;
   const seconds = Math.min(43_200, Math.floor(elapsedSeconds));
   const attack = totalStats(save).attack;
-  const killsPerMinute = Math.max(8, Math.min(16, 8 + Math.floor(attack / enemyMaxHp(save.floor, false) * 16)));
+  // Offline settlement keeps the pace it always had (`offlineMobHp`): the steeper live curve from
+  // 작업 196 is about a fight taking longer in the field, not about paying less for time away.
+  const killsPerMinute = Math.max(8, Math.min(16, 8 + Math.floor(attack / offlineMobHp(save.floor) * 16)));
   const kills = Math.floor(seconds / 60 * killsPerMinute);
   const target = floorKillTarget(save.floor);
   const bossKills = Math.floor(kills / target);
