@@ -9,9 +9,11 @@
  * 몸통 뒤로 비치던 문제). 서기·걷기·공격과 파츠까지 거의 모든 시트가 바뀌었으므로, 예전처럼
  * 서기(`idle`)에만 `?v=2`를 붙이던 규칙 대신 **pilot-25d 경로 전체**에 이 버전을 붙인다.
  *
- * 새 시트를 같은 파일명으로 다시 구울 때는 이 값만 올린다(3 → 4).
+ * [작업 229]는 전사 서기 시트를 222 이전 그립으로 되돌렸다 — 파일명이 같으므로 3 → 4로 올린다.
+ *
+ * 새 시트를 같은 파일명으로 다시 구울 때는 이 값만 올린다(4 → 5).
  */
-export const PILOT_ASSET_VERSION = 3;
+export const PILOT_ASSET_VERSION = 4;
 
 /** pilot-25d 시트 URL 하나에 배포본 버전을 붙인다(기존 `?v=N`은 교체). */
 export function pilotSheet(path: string): string {

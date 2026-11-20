@@ -239,20 +239,20 @@ test('마법사는 갑옷 티어의 전용 로브를 쓰고 전사용 투구·�
   // 작업 204: 투구를 쓰면 마법사 전용 모자·투구 파츠를 쓰고, 본체는 같은 자리에서 머리를 지운 시트다.
   // 작업 208: 갑옷 7번(드래곤 메일)을 입으면 그 티어 로브(지팡이 없는) 시트를 쓰고, 투구를 함께 쓰면
   //           로브의 **머리 없는 판**을 쓴다. 지팡이·투구는 파츠로 얹는다.
-  assert.equal(plan.base, '/assets/pilot-25d/robes/headless/mage_female_robe_7_idle_v1.png?v=3');
+  assert.equal(plan.base, '/assets/pilot-25d/robes/headless/mage_female_robe_7_idle_v1.png?v=4');
   assert.equal(plan.helmet, undefined);
   assert.equal(plan.weapon, undefined);
-  assert.equal(plan.staff?.path, '/assets/pilot-25d/staffs/staff_6_v1.png?v=3', '황혼의 혈염 지팡이 → 6번');
-  assert.equal(plan.mageHelm?.path, '/assets/pilot-25d/mage_helms/female_3_v1.png?v=3', '황혼의 기사 헬름 → 3번');
-  assert.equal(plan.key, 'mage:female:r7:/assets/pilot-25d/staffs/staff_6_v1.png?v=3:/assets/pilot-25d/mage_helms/female_3_v1.png?v=3');
+  assert.equal(plan.staff?.path, '/assets/pilot-25d/staffs/staff_6_v1.png?v=4', '황혼의 혈염 지팡이 → 6번');
+  assert.equal(plan.mageHelm?.path, '/assets/pilot-25d/mage_helms/female_3_v1.png?v=4', '황혼의 기사 헬름 → 3번');
+  assert.equal(plan.key, 'mage:female:r7:/assets/pilot-25d/staffs/staff_6_v1.png?v=4:/assets/pilot-25d/mage_helms/female_3_v1.png?v=4');
   const bare = mageSave('female');
   // [작업 216] 지팡이를 안 찬 빈손이므로 기본 지팡이를 지운 판(nostaff)을 쓴다.
-  assert.equal(equipmentPortraitPlan(bare).base, '/assets/pilot-25d/mage_nostaff/mage_female_idle_v1.png?v=3');
+  assert.equal(equipmentPortraitPlan(bare).base, '/assets/pilot-25d/mage_nostaff/mage_female_idle_v1.png?v=4');
   // 능력치는 그대로 오른다.
   assert(totalStats(save).attack > totalStats(mageSave('female')).attack);
   // 전사 초상화 계획은 마법사와 섞이지 않는다.
-  // [작업 216] 빈손 전사는 기본 검을 지운 판, 작업 222: 서기 `?v=3`.
-  assert.equal(equipmentPortraitPlan(freshSave('female')).base, '/assets/pilot-25d/noweapon/warrior_female_idle_v1.png?v=3');
+  // [작업 216] 빈손 전사는 기본 검을 지운 판, 작업 222: 서기 `?v=4`.
+  assert.equal(equipmentPortraitPlan(freshSave('female')).base, '/assets/pilot-25d/noweapon/warrior_female_idle_v1.png?v=4');
 });
 
 test('마법사 기본 시트 6장은 전사와 같은 셀 규격의 RGBA PNG다', () => {

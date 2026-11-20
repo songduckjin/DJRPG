@@ -48,11 +48,11 @@ for (const gender of ['male', 'female']) test(`${gender}: field and equipment pr
   const save = freshSave(gender);
   // 기본형 갑옷이면 그 티어의 시트(작업 155), 아니면 기준 본체 시트.
   // [작업 216] 무기를 안 찼으면 기본 검을 지운 `noweapon/` 판을 쓴다(빈손).
-  // 작업 222: 서기 시트를 낮은 양손 그립으로 다시 구워 서기 URL 에 `?v=3`(불변 캐시 회피).
+  // 작업 222: 서기 시트를 낮은 양손 그립으로 다시 구워 서기 URL 에 `?v=4`(불변 캐시 회피).
   const expectedBase = (armorIndex = -1, swordless = !save.equipment.weapon) => {
     const headless = save.equipment.helmet ? 'headless/' : '';
-    if (armorIndex >= 0) return `/assets/pilot-25d/${swordless ? 'noweapon/' : ''}armors/${headless}warrior_${gender}_armor_${armorIndex}_idle_v1.png?v=3`;
-    return swordless ? `/assets/pilot-25d/noweapon/${headless}warrior_${gender}_idle_v1.png?v=3` : `/assets/pilot-25d/${headless}warrior_${gender}_idle_v1.png?v=3`;
+    if (armorIndex >= 0) return `/assets/pilot-25d/${swordless ? 'noweapon/' : ''}armors/${headless}warrior_${gender}_armor_${armorIndex}_idle_v1.png?v=4`;
+    return swordless ? `/assets/pilot-25d/noweapon/${headless}warrior_${gender}_idle_v1.png?v=4` : `/assets/pilot-25d/${headless}warrior_${gender}_idle_v1.png?v=4`;
   };
   const check = (armorIndex = -1) => {
     const expected = expectedBase(armorIndex);
@@ -83,15 +83,15 @@ for (const gender of ['male', 'female']) test(`${gender}: field and equipment pr
   // 기본형 대검(0번이 아닌 검)을 차면 필드·장비창 모두 기본 검을 지운 시트를 쓴다(작업 156).
   save.equipment.weapon = { id: 'weapon', name: '쯔바이핸드', slot: 'weapon', rarity: 'rare', stats: {} };
   assert.equal(equipmentFallbackPortrait(save),
-    `/assets/pilot-25d/noweapon/armors/warrior_${gender}_armor_2_idle_v1.png?v=3`);
+    `/assets/pilot-25d/noweapon/armors/warrior_${gender}_armor_2_idle_v1.png?v=4`);
   const armed = equipmentPortraitPlan(save);
-  assert.equal(armed.weapon?.path, '/assets/pilot-25d/weapons/weapon_3_v1.png?v=3');
-  assert.match(armed.key, /weapon_3_v1\.png\?v=3$/);
+  assert.equal(armed.weapon?.path, '/assets/pilot-25d/weapons/weapon_3_v1.png?v=4');
+  assert.match(armed.key, /weapon_3_v1\.png\?v=4$/);
   // 0번(두손검)은 본체 시트에 그려져 있으므로 파츠를 쓰지 않는다.
   save.equipment.weapon = { id: 'weapon', name: '두손검', slot: 'weapon', rarity: 'common', stats: {} };
   assert.equal(equipmentPortraitPlan(save).weapon, undefined);
   assert.equal(equipmentFallbackPortrait(save),
-    `/assets/pilot-25d/armors/warrior_${gender}_armor_2_idle_v1.png?v=3`);
+    `/assets/pilot-25d/armors/warrior_${gender}_armor_2_idle_v1.png?v=4`);
 });
 
 test('equipment portrait uses a cached full-body pilot image without loading costume manifests or overlays', () => {
