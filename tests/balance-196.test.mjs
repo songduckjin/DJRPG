@@ -60,29 +60,36 @@ test('the grade cuts stay ordered and the magic cut climbs with depth', () => {
 
 test('a deep mob stands for a few hits instead of melting in a second', () => {
   const old = floor => Math.round(24 + floor * 12 + Math.pow(floor, 1.55) * 4);
-  // Floor 78 goes from ~4,380 health to ~15,300: three and a half times the old curve.
+  // 작업 198: floor 78 goes from the pre-196 ~4,380 and 작업 196's ~15,360 to ~54,800 — three and a half
+  // times what the player tested last, so a late mob has to be worn down and a floor that is too hard
+  // sends the player back down to farm instead of handing out the 2.2% drop.
   const deep = enemyMaxHp(78, false);
-  assert(deep >= 14800 && deep <= 15800, `floor 78 health is ~15,300 (got ${deep})`);
-  assert(deep > old(78) * 3, 'more than three times the old curve');
+  assert(deep >= 53000 && deep <= 57000, `floor 78 health is ~54,800 (got ${deep})`);
+  assert(deep > old(78) * 12, 'over twelve times the old curve');
   // 1~15층 초반 난이도는 거의 유지: the old curve holds through floor 8 and the ramp stays gentle
   // until the teens, so a new character fights the same mobs it always did.
   for (const floor of [1, 2, 3, 5, 8]) assert.equal(enemyMaxHp(floor, false), old(floor), `floor ${floor} is exactly as before`);
   assert(enemyMaxHp(10, false) <= old(10) * 1.1, `floor 10 barely moves (${enemyMaxHp(10, false)} vs ${old(10)})`);
   assert(enemyMaxHp(15, false) <= old(15) * 1.4, `floor 15 is at most 40% tougher (${enemyMaxHp(15, false)} vs ${old(15)})`);
-  // 중·고층은 확실히 두꺼워진다: from floor 25 on the fight is more than twice as long.
-  for (const floor of [25, 30, 50, 78]) assert(enemyMaxHp(floor, false) >= old(floor) * 2, `floor ${floor} is at least twice as tough`);
+  // 25층부터 본격 상승: from floor 25 on the fight is more than three times the old curve.
+  for (const floor of [25, 30, 50, 78]) assert(enemyMaxHp(floor, false) >= old(floor) * 3, `floor ${floor} is at least three times as tough`);
   // The curve never goes backwards.
   for (let floor = 2; floor <= 100; floor++) assert(enemyMaxHp(floor, false) > enemyMaxHp(floor - 1, false), `floor ${floor} is tougher than ${floor - 1}`);
 });
 
-test('a deep boss lands at two to three times a deep mob', () => {
-  for (const floor of [50, 60, 70, 78, 90]) {
+test('a deep boss lands at six times a deep mob', () => {
+  // 작업 198: a boss used to sit at 2.6~3.1 times its mob (78층 41,700) and a geared player deleted it
+  // in one combo. It now stands at six mobs: 78층 ~329,000.
+  for (const floor of [25, 30, 50, 60, 70, 78, 90]) {
     const normal = enemyMaxHp(floor, false), boss = enemyMaxHp(floor, true), ratio = boss / normal;
-    assert(ratio >= 2.4 && ratio <= 3.2, `floor ${floor} boss is 2~3x its mob (got ${ratio.toFixed(2)}x)`);
+    assert(ratio >= 5.9 && ratio <= 6.1, `floor ${floor} boss is six mobs (got ${ratio.toFixed(2)}x)`);
   }
-  // Early bosses keep their weight instead of shrinking with the new curve.
+  assert(Math.abs(enemyMaxHp(78, true) - 330000) <= 5000, `floor 78 boss is ~330,000 (got ${enemyMaxHp(78, true)})`);
+  // Early bosses keep their weight instead of shrinking with the new curve: 1~8층은 완만히 블렌드.
+  for (const floor of [1, 2, 3, 5, 8]) assert.equal(enemyMaxHp(floor, true), Math.round(220 + floor * 95 + Math.pow(floor, 1.6) * 32), `floor ${floor} boss is exactly as before`);
   assert(enemyMaxHp(1, true) === 347);
   assert(enemyMaxHp(1, true) / enemyMaxHp(1, false) >= 7, 'the first boss is still a wall');
+  for (let floor = 2; floor <= 100; floor++) assert(enemyMaxHp(floor, true) > enemyMaxHp(floor - 1, true), `boss ${floor} is tougher than boss ${floor - 1}`);
 });
 
 test('offline rewards keep the pace they had before the live curve moved', () => {

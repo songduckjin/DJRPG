@@ -1,3 +1,8 @@
+## 2026-11-20 · fks3997 작업198 고층 일반·보스 체력 상향(미리보기)
+- `game/world.ts` `deepMobHp` 곡선을 `24 + floor*14 + floor^2.65*0.52`로 올리고(78층 15,359→54,826), 보스는 `earlyBossHp`(예전 곡선)에서 같은 램프(8→25층)로 `일반 몹 ×6`(78층 41,710→328,955)까지 넘어가게 했다. 1~8층 일반·보스는 예전 값 그대로, 10~15층은 작업 196 수준(299/653), 25층 3,008·40층 9,735·50층 17,254로 25층부터 본격 상승, 오프라인 정산(`offlineMobHp`)·던전 HP는 불변.
+- 테스트 기대치 갱신(`balance-196` 딥 몹/보스, `world-movement` HP 표). tsc·관련 79테스트·`npx vite build` 통과, 전체 538건 중 497 통과(41 실패는 sparse 체크아웃의 `public/assets/**`·`server/**` 없음에서 오는 기존 실패). 미리보기에서 사용자 확인 후 운영 배포를 위해 `main` 병합.
+- 번호 참고: 같은 번호 198을 songduckjin 님이 '마법사 직업'(PR #128)으로도 등록했다(미리보기 브랜치에만 있던 이 작업 등록이 main에 보이지 않아 생긴 중복). 문서에서는 담당자로 구분한다.
+
 ## 2026-11-20 songduckjin — 작업198 마법사 직업(기본 시트·지팡이 10종·원거리 마법탄·스킬 8+3 뼈대)
 - 세 번째 직업 `mage`를 `warrior`/`archer`와 같은 계약으로 붙였다. `Job`·`jobs`·`jobNames`·`jobOrDefault`(모르는 값은 전사)로 정규화하고, `store.parseSave`·`server/endpoints/account.mjs`(`jobOf`·`jobs`)가 `mage`를 허용·보존한다. 기존 전사·궁수 세이브는 장비·진행·퀵슬롯 그대로다.
 - 에셋: 승인 원본(`downloads/mage_preview/{male,female}_{3,walk,attack}.png`)에서 전사·궁수와 같은 셀 좌표계(서기 362×362·걷기/공격 1448×362, 검정 배경 휘도 키잉, 발끝 정렬)의 `pilot-25d/mage_{male,female}_{idle,walk,attack}_v1.png` 6장을 만들었다. 스트립은 인물끼리 닿지 않아 세로줄로 자르지 않고, 큰 덩어리(본체)를 x 순서로 놓은 뒤 떨어진 장화·손의 마법 구슬을 상자 겹침이 가장 큰 본체에 붙였다(합쳐진 스트립은 narrowest-gap 방식 폴백). 크기는 bbox가 아니라 **머리끝~발끝**으로 맞춰 여성 시트의 지팡이가 머리 위로 솟아도 본체가 작아지지 않는다(빌더 `scripts/build-mage-sheets.py`).
