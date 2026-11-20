@@ -332,8 +332,8 @@ test('a boss heap flies out of the body on a parabola, while an ordinary drop ke
 });
 
 test('a boss keeps the ordinary chance roll for items, never five at once', () => {
-  // A lucky boss kill still drops what the field drop table says it drops: at most one piece of
-  // equipment and one skill book, the boss rates, from the same single roll a normal kill makes.
+  // A lucky boss kill still drops what the field drop table says it drops: **one** item, the boss rate,
+  // from the same single roll a normal kill makes (장비 70% · 스킬북 30%, 작업 210).
   const hunt = () => {
     const world = quiet();
     const boss = { x: 60, y: 20, hp: 0, maxHp: 10, boss: true, hit: 0, step: 0, moving: false, knockX: 0, knockY: 0, slow: 0 };
@@ -343,16 +343,15 @@ test('a boss keeps the ordinary chance roll for items, never five at once', () =
     return world;
   };
   const world = hunt();
-  assert(world.drops.length <= 2, 'a boss leaves at most the two chance drops');
-  assert(world.drops.length >= 1, 'a certain roll still drops an item');
+  assert.equal(world.drops.length, 1, 'a boss leaves exactly one chance item — never two at once');
   for (const drop of world.drops) assert(drop.item.name.length > 0 && drop.item.id, 'each item is a real roll');
   const source = readFileSync(new URL('../src/game/world.ts', import.meta.url), 'utf8');
   assert.doesNotMatch(source, /bossItems\(/, 'the field no longer hands a boss five random items');
   assert.doesNotMatch(source, /BOSS_ITEM_DROPS/, 'and never counts them');
-  // The field's own rolls are the ones a boss makes, so a boss uses the boss rate the table already has.
-  assert.match(source, /equipmentDropChance\(this\.save\.floor, boss\)/, 'equipment uses the kill’s own rate');
-  assert.match(source, /rollItem\(this\.save\.floor, guaranteed, boss, this\.job\)/, 'and the item is rolled for a boss too');
-  assert.match(source, /skillBookDropChance\(this\.save\.floor, boss\)/, 'the skill book too');
+  // 한 마리당 한 번의 드롭 롤(작업 210) — 보스도 같은 함수에 보스 확률을 넘긴다.
+  assert.match(source, /itemDropChance\(this\.save\.floor, boss\)/, 'one drop roll with the kill’s own rate');
+  assert.match(source, /rollItemKind\(\) === 'skillbook'/, 'the kind is split 70:30');
+  assert.match(source, /rollItem\(this\.save\.floor, false, boss, this\.job\)/, 'equipment roll for a boss too');
 });
 
 test('a normal kill still leaves one coin and only the chance item', () => {

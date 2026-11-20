@@ -3,6 +3,16 @@
 .status-main b { font-family: Cinzel, serif; color: #f3e5ca; font-size: 15px; }
 .floor-button { display: flex; align-items: center; gap: 4px; min-height: 30px; padding: 2px 6px; border: 1px solid #8f7656; border-radius: 4px; background: #241c1fc9; color: #e9d2ad; font-size: 11px; pointer-events: auto; }
 .floor-button:focus-visible { outline: 2px solid #f0d8a5; outline-offset: 2px; }
+/* ⚔ 보스 도전 (작업 210) — 최고 도달 층에서 패배해 자동 등반이 꺼졌을 때만 .status-main에 나타난다.
+   보스를 이겨 다음 층으로 올라가면 사라지고, 또 지면 다시 살아난다. */
+.boss-retry { display: inline-flex; align-items: center; gap: 3px; min-height: 30px; padding: 2px 8px; border: 1px solid #d79a4c; border-radius: 4px; background: linear-gradient(#7c2a22, #4a1712); color: #ffe1b0; font: inherit; font-size: 11px; font-weight: 700; letter-spacing: .01em; white-space: nowrap; pointer-events: auto; box-shadow: 0 0 9px #ff9a3c55, inset 0 0 0 1px #ffd97722; animation: boss-retry-glow 1.8s ease-in-out infinite; }
+.boss-retry:active { background: linear-gradient(#5a1d17, #38110d); }
+.boss-retry:focus-visible { outline: 2px solid #f0d8a5; outline-offset: 2px; }
+@keyframes boss-retry-glow {
+  0%, 100% { box-shadow: 0 0 8px #ff9a3c44, inset 0 0 0 1px #ffd97722; }
+  50% { box-shadow: 0 0 15px #ffb06699, inset 0 0 0 1px #ffd97744; }
+}
+@media (prefers-reduced-motion: reduce) { .boss-retry { animation: none; } }
 .gold { color: #e6bb6c; font-weight: 700; }
 .diamonds { color: #a6dcff; font-weight: 700; white-space: nowrap; }
 .level-badge { position: absolute; left: 12px; top: 5px; width: 49px; height: 49px; display: flex; flex-direction: column; align-items: center; justify-content: center; border: 0; border-radius: 50%; color: #f1d7ae; background: conic-gradient(#d6a162 var(--progress), #4a3938 0); pointer-events: auto; box-shadow: 0 2px 10px #000b; }

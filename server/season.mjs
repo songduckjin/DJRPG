@@ -13,13 +13,25 @@ const hostOf = request => {
   try { return new URL(String(request?.url ?? '')).hostname.toLowerCase(); } catch { return ''; }
 };
 
+/** 이 요청의 호스트가 운영(`djrpg.pages.dev` + `DJRPG_PRODUCTION_HOSTS` 추가분)인가. */
+export function isProductionHost(request, env = runtimeEnv()) {
+  const extra = String(env?.DJRPG_PRODUCTION_HOSTS ?? '').split(',').map(value => value.trim().toLowerCase()).filter(Boolean);
+  const host = hostOf(request);
+  return Boolean(host) && [...PRODUCTION_HOSTS, ...extra].includes(host);
+}
+
+/** 미리보기 전용 기능(작업 210 테스트 우편 등)을 허용하는 호스트 — `preview`가 들어간 호스트이면서
+ *  **운영 호스트가 아닐 때만**이다. 운영(`djrpg.pages.dev`)은 절대 포함되지 않는다. */
+export function isPreviewHost(request, env = runtimeEnv()) {
+  const host = hostOf(request);
+  return Boolean(host) && host.includes('preview') && !isProductionHost(request, env);
+}
+
 /** 이 요청이 시즌 초기화를 실행할 수 있는 환경인가. 운영 호스트가 아니면 늘 false다. */
 export function seasonArmed(request, env = runtimeEnv()) {
   // 긴급 정지: 운영에서도 `DJRPG_SEASON_RESET=off` 하나로 초기화를 막아 둘 수 있다.
   if (String(env?.DJRPG_SEASON_RESET ?? '').toLowerCase() === 'off') return false;
-  const extra = String(env?.DJRPG_PRODUCTION_HOSTS ?? '').split(',').map(value => value.trim().toLowerCase()).filter(Boolean);
-  const host = hostOf(request);
-  return Boolean(host) && [...PRODUCTION_HOSTS, ...extra].includes(host);
+  return isProductionHost(request, env);
 }
 
 /** 비우는 공용·부캐·거래 데이터. 아이디·비밀번호(`djrpg_accounts`)와 결제 기록(`djrpg_shop_orders`·

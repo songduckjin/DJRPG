@@ -15,13 +15,13 @@ function rewards(save, entries) {
   }
   for(let i=0;i<pouches;i++) save.bag.push(pouchItem(randomUUID()));
 }
-export async function snapshot(db,id) {
+export async function snapshot(db,id,options={}) {
   return transaction(db,async tx=>{
-    const row=await account(tx,id),state=await journeyState(tx,row);
+    const row=await account(tx,id),state=await journeyState(tx,row,row.save,Date.now(),Boolean(options.preview));
     await tx.execute(journeyOperation(row.id,state)); return journeyView(state,row.save);
   });
 }
-export async function mutate(db,id,input) {
+export async function mutate(db,id,input,options={}) {
   return transaction(db,async tx=>{
     const row=await account(tx,id);
     if(Number(input.characterSlot??1)!==row.slot)fail(409,'CHARACTER_CONFLICT','다른 캐릭터가 선택되었습니다. 새로고침해 주세요.');
@@ -34,11 +34,11 @@ export async function mutate(db,id,input) {
     ]);
     row.journeyRecord=reads[1].rows[0]??null;
     const replay=reads[0].rows[0];
-    if(replay)return {...JSON.parse(replay.response_json),save:row.save,revision:row.revision,journey:journeyView(await journeyState(tx,row),row.save)};
+    if(replay)return {...JSON.parse(replay.response_json),save:row.save,revision:row.revision,journey:journeyView(await journeyState(tx,row,row.save,Date.now(),Boolean(options.preview)),row.save)};
     assertRevision(row,input.revision); if(input.progress!==undefined)validateSave(input.progress);
     const operations=[];
     const save=structuredClone(input.progress??row.save);await reconcileItems(tx,id,row.save,save,{slot:row.slot,owned:reads[2].rows,operations});
-    const now=Date.now(),state=await journeyState(tx,row,save,now),view=journeyView(state,save,now);
+    const now=Date.now(),state=await journeyState(tx,row,save,now,Boolean(options.preview)),view=journeyView(state,save,now);
     const beforeRewardIds=new Set(save.bag.map(item=>item.id));
     let selected=[];
     if(input.action==='journey-claim'){

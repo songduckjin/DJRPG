@@ -7,7 +7,8 @@ import {randomUUID} from 'node:crypto';
 import {createClient} from '@libsql/client';
 import {schema,account,transaction,writeSave,reconcileItems} from '../server/database.mjs';
 import {snapshot,mutate} from '../server/journey.mjs';
-import {periods,advanceJourney} from '../server/journey-state.mjs';
+import {periods,advanceJourney,PREVIEW_POUCH_MAIL_ID} from '../server/journey-state.mjs';
+import {isPreviewHost,isProductionHost} from '../server/season.mjs';
 let db,directory;
 const save=()=>({version:1,name:'전사',gender:'male',gold:0,bag:[],equipment:{},kills:0,bossKills:0,playSeconds:0,level:1,floor:1,maxFloor:1,equipmentCollection:[],learned:[],passives:[],skillLevels:{}});
 async function seed(id,guest=false){await db.execute({sql:'INSERT INTO djrpg_accounts (id,password_hash,save_json,updated_at) VALUES (?,?,?,?)',args:[id,guest?'guest':'hashed',JSON.stringify(save()),new Date().toISOString()]});}
@@ -198,4 +199,34 @@ test('claim returns an authoritative updated list and batches ownership and rece
  const input={action:'journey-claim',kind:'daily',id:'login',revision:row.revision,requestId};const result=await mutate(wrapped,'fast-claim',input);
  assert(result.journey.daily.find(t=>t.id==='login').claimed);assert(batchedReceipt);assert.equal(separateReceipt,false);
  const retry=await mutate(db,'fast-claim',input);assert.equal(retry.save.gold,result.save.gold);assert(retry.journey.daily.find(t=>t.id==='login').claimed);
+});
+
+test('미리보기 테스트 보물 주머니 우편은 preview 호스트에서만 1회 지급되고 운영에서는 지워진다(작업 210)', async () => {
+  const request = url => new Request(url);
+  assert.equal(isPreviewHost(request('https://preview-gravel-background-fk.djrpg.pages.dev/api/market')), true, '미리보기 호스트');
+  assert.equal(isPreviewHost(request('https://djrpg.pages.dev/api/market')), false, '운영 호스트는 미리보기가 아니다');
+  assert.equal(isProductionHost(request('https://djrpg.pages.dev/api/market')), true);
+  assert.equal(isPreviewHost(request('https://example.com/preview/api/market')), false, '경로에 preview만 있으면 아니다');
+  const empty = () => ({ achievements: [], mail: [] });
+  const preview = advanceJourney(empty(), save(), save(), Date.now(), true, true);
+  const mail = preview.mail.find(entry => entry.id === PREVIEW_POUCH_MAIL_ID);
+  assert(mail && mail.pouches === 1 && (mail.gold ?? 0) === 0 && (mail.books ?? 0) === 0 && mail.expiresAt === null, '주머니 1개·만료 없음');
+  assert.equal(mail.title, '[미리보기 테스트] 보물 주머니 1개');
+  const again = advanceJourney(preview, save(), save(), Date.now(), true, true);
+  assert.equal(again.mail.filter(entry => entry.id === PREVIEW_POUCH_MAIL_ID).length, 1, '계정당 1회');
+  const production = advanceJourney(again, save(), save(), Date.now(), true, false);
+  assert.equal(production.mail.some(entry => entry.id === PREVIEW_POUCH_MAIL_ID), false, '운영 호스트는 남아 있으면 지운다');
+  const offPreview = advanceJourney(empty(), save(), save(), Date.now(), true, false);
+  assert.equal(offPreview.mail.some(entry => entry.id === PREVIEW_POUCH_MAIL_ID), false, '운영 호스트에는 지급하지 않는다');
+});
+
+test('미리보기 journey 목록에만 테스트 우편이 내려오고 기본(운영) 목록에는 없다', async () => {
+  await seed('preview-mail');
+  const preview = await snapshot(db, 'preview-mail', { preview: true });
+  const mail = preview.mail.find(entry => entry.id === PREVIEW_POUCH_MAIL_ID);
+  assert(mail, '미리보기 목록에 테스트 우편');
+  assert.equal(mail.pouches, 1);
+  const normal = await snapshot(db, 'preview-mail');
+  assert.equal(normal.mail.some(entry => entry.id === PREVIEW_POUCH_MAIL_ID), false, '운영 목록에서는 지운다');
+  assert.equal(normal.mail.length, 4, '환영·업데이트 안내·새 시즌 안내·다이아 우편 4통은 그대로');
 });

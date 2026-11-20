@@ -15,6 +15,7 @@
 // 되고 가방에는 들어가지 않는다. 스킬북·잠금·등급 초과·빈 슬롯·더 좋은 장비 보호는 그대로다.
 
 import { canStoreItem } from './bagCapacity';
+import { jobOrDefault } from './skills';
 import { autoSalvageRecovered } from './inventory';
 import { DUNGEON_MAX_FLOOR, type Save } from './store';
 import type { Item, Rarity } from './items';
@@ -92,7 +93,7 @@ export function claimDungeonRewards(
       const sweep = autoSalvageRecovered(save, item, options.autoSalvage, options.autoSalvagePlus);
       if (sweep) { salvaged.count++; salvaged.gold += sweep.gold; salvaged.stones += sweep.stones; continue; }
     }
-    if (!canStoreItem(save.bag, item)) { missed++; continue; }
+    if (!canStoreItem(save.bag, item, jobOrDefault(save.job))) { missed++; continue; }
     save.bag.push(item);
     items.push(item);
   }

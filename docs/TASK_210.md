@@ -62,6 +62,56 @@
   `confirm('서버 저장에 실패했습니다. 저장되지 않은 상태로 로그아웃할까요?')`로 확인하고,
   확인하면 `clearToken(); location.reload();`, 취소하면 로그인 상태 유지.
 
+## 7. 미리보기 전용 테스트 우편 (`#4580`·`#4589`)
+
+사용자가 미리보기에서 이미 주머니를 다 열어 4단계 모션을 확인할 주머니가 없어 추가했다.
+
+- `server/season.mjs`: `isProductionHost(request, env)`(`djrpg.pages.dev` + `DJRPG_PRODUCTION_HOSTS`)를 빼고
+  `seasonArmed`가 그 함수를 쓴다. `isPreviewHost(request, env)` = 호스트에 `preview`가 들어 있고 **운영 호스트가 아닐 때**만 true.
+- `server/journey-state.mjs`: `PREVIEW_POUCH_MAIL_ID = 'preview-pouch-test-1'`,
+  `grantPreviewPouchMail(state, now, preview)`(계정당 1회 — `state.notices` 기록, `pouches: 1`·금화·스킬북 0·만료 없음),
+  `stripPreviewPouchMail(state)`(운영 호스트에서 남아 있는 그 우편 삭제).
+  `advanceJourney(..., preview)`가 `preview`면 지급, 아니면 삭제 — **운영(`djrpg.pages.dev`)에서는 지급도 표시도 없다.**
+- `server/journey.mjs`의 `snapshot`/`mutate`가 `{ preview }` 옵션을 받고, `server/endpoints/market.mjs`가
+  `isPreviewHost(request, env)`로 판정해 넘긴다(클라이언트는 부팅·30초마다 `journey-list`를 부른다).
+- 운영 배포 전 제거 지시가 오면 `grantPreviewPouchMail` 호출 한 줄만 빼면 된다(지급 이력이 남아 이미 받은 계정에 다시 붙지 않는다).
+
+## 8. `⚔ 보스 도전` · 아래층 보스 없음 (`#4566`·`#4599`)
+
+- `World.bossFloor()` = `save.floor >= save.maxFloor` — **보스는 최고 도달 층에서만** 나온다.
+  아래층(`save.floor < save.maxFloor`)에서는 `floorKills`가 목표에 닿아도 `bossPending`을 예약하지 않고
+  `floorKills`만 0으로 돌려 일반·정예 사냥을 계속한다. 스폰도 `bossFloor()`를 다시 확인한다.
+- `World.bossRetryReady` = 최고 도달 층 + 자동 등반 꺼짐 + `floor < MAX_FLOOR`.
+  패배(`p.hp <= 0`)하면 자동 등반이 꺼지므로 그 순간 true가 된다.
+- `World.challengeBoss()` — 자동 등반을 다시 켜고, 기존 몹을 정리한 뒤 `bossPending = true`·`spawnTimer = 0`으로
+  그 층 보스를 바로 소환한다. 또 지면 다시 버튼이 살아나 몇 번이든 재도전할 수 있고, 이겨 다음 층으로 올라가면 사라진다.
+- `src/ui/hud.ts`의 `.status-main`(층 버튼 옆)에 `⚔ 보스 도전` 버튼, `styles/hud.css`에 금빛 테두리·은은한 맥동
+  (`prefers-reduced-motion`이면 정지).
+- `src/game/offline.ts` — 아래층 오프라인 정산은 보스 몫(보스 처치·보스 금화·보스 드롭) 없이
+  `floorKills = (floorKills + kills) % target`으로만 돈다(접속 사냥과 같은 규칙).
+
+## 9. 타직업 스킬북은 가방으로, 40칸은 장비와 함께 (`#4617`)
+
+- `src/game/bagCapacity.ts`의 `countedInBag(item, job)`이 **장비 + 다른 직업 전용 스킬북**을 40칸에 세고,
+  내 직업 스킬북·보물 주머니는 빼다. `equipmentCount(items, job)`·`canStoreItem(items, item, job)`이 같은 규칙을 쓴다.
+  `server/skill-ids.mjs`의 `skillBookJobOf`·`countedInBag`이 서버 판본이고 `tests/bag-job-books.test.mjs`가 둘을 대조한다.
+- **스킬 창**(`src/ui/skillBooks.ts`): 내 직업 책만 카드로 보여 주고, 아래에 "다른 직업 전용 스킬북은 가방에서 확인"
+  안내 한 줄(`.skill-book-hint`)을 붙인다.
+- **가방**(`src/ui/modals/equipModal.ts`): 다른 직업 책을 직업 배지와 함께 보여 주고(`내 직업만 보기`가 켜지면 숨김),
+  상세에는 "다른 직업 전용 스킬북 · {직업} 캐릭터만 사용할 수 있습니다. 경매장 판매/공용창고 보관 가능."만 적고
+  사용 버튼을 두지 않는다. 아래 칸 표기는 `가방 N/40`(장비 + 다른 직업 책).
+- 40칸 검사를 쓰는 모든 곳이 `save.job`을 넘긴다 — `world.ts` 드롭 루프·`offline.ts`·`dungeonRewards.ts`·`pouch.ts`·
+  `appearance.ts`(장비 해제)·`inventory.ts` `bagEquipmentCount`/`sweepBagOnFull`, 서버는 `database.mjs` `reconcileItems`와
+  `market.mjs` 수령함 받기.
+
+## 10. 몹 한 마리당 아이템 1개 — 장비 70% · 스킬북 30% (`#4628`·`#4639`·`#4649`)
+
+- `src/game/items.ts`: `itemDropChance(floor, boss)` — **일반(정예 포함) 1층 0.20% → 20층 0.80%**,
+  **보스 1층 3.0% → 20층 12.0%**에서 멈춘다. `SKILLBOOK_DROP_SHARE = .3`·`rollItemKind()`가 당첨된 1개의 종류를 70:30으로 가른다.
+  `equipmentDropChance`·`skillBookDropChance`는 같은 값의 70%·30%(던전·보스战利品이 쓰는 비율 호환).
+- `world.ts` `kill`·`offline.ts`: 확률 드롭은 **한 번만** 굴리고 당첨되면 1개만 떨어진다(첫 확정 무기는 그대로).
+- 던전·던전 보스의 5개战利品은 종전 구조 그대로이고 종류 비율만 70:30이 된다.
+
 ## 검증
 
 - `npx tsc --noEmit` 통과.
@@ -73,5 +123,15 @@
 - `node --test tests/achievements.test.mjs` **9/9** — 필드 일반·정예는 `bossKills` 0, 사냥터 보스는 +1.
 - `node --test tests/journey-ui.test.mjs` **13/13** — 보상 칸의 `pouch-reward-icon`(19px)과 문구.
 - `node --test tests/world-boss-preview.test.mjs` **7/7** — 안내 문구 "계정당 하루 3회".
+- `node --test tests/world-movement.test.mjs` **16/16** — 최고 층 패배 뒤 `bossRetryReady`, `challengeBoss()`가 자동 등반을 켜고
+  기존 몹을 정리한 뒤 보스를 소환, 다시 패배하면 다시 도전 가능, 보스를 이기면 다음 층·버튼 사라짐, 아래층은 목표를 채워도 보스 없음.
+- `node --test tests/offline.test.mjs` — 아래층 오프라인 정산에 보스 몫 없음.
+- `node --test tests/journey.test.mjs` **15/15** — `isPreviewHost`/`isProductionHost` 판정, 미리보기 우편 계정당 1회,
+  운영 호스트에서는 지급하지 않고 남아 있으면 지운다, `journey` 목록에만 내려온다.
+- `node --test tests/bag-job-books.test.mjs` **5/5** — 40칸 셈(장비+타직업 책, 내 책·주머니 제외)·가득 찬 가방 드롭·
+  서버/클라이언트 규칙 일치·가방 화면(배지·안내·사용 버튼 없음·`내 직업만 보기`)·스킬 창 필터.
+- `node --test tests/offline.test.mjs` **5/5** — 70:30 단일 롤·드롭률 곡선(0.20/0.80·3/12%)·분포 30%.
+- `node --test tests/elite-mob.test.mjs`·`tests/field-loot.test.mjs`·`tests/dungeon-battle.test.mjs`·`tests/balance-196.test.mjs` 통과
+  (한 마리당 1개 계약으로 갱신).
 - `npx vite build` 통과(기존 Pixi dynamic-import·500KB 경고만).
 - 실기(모바일) 모션 확인은 사용자 몫이다.

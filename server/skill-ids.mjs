@@ -26,6 +26,27 @@ export const activeSkillIds = [...warriorSkillIds, ...archerSkillIds, ...mageSki
 export const passiveSkillIds = [...warriorPassiveIds, ...archerPassiveIds, ...magePassiveIds];
 /** 스킬북으로 떨어질 수 있는 33종 전체 (`[...allSkillIds, ...allPassiveIds]`). */
 export const skillBookIds = [...activeSkillIds, ...passiveSkillIds];
+/** 스킬북 `skillId`의 직업 — 서버가 가방 40칸 검사에서 "내 직업 책인지"를 볼 때 쓴다(작업 210). */
+export function skillBookJobOf(skillId) {
+  if (warriorSkillIds.includes(skillId) || warriorPassiveIds.includes(skillId)) return 'warrior';
+  if (archerSkillIds.includes(skillId) || archerPassiveIds.includes(skillId)) return 'archer';
+  if (mageSkillIds.includes(skillId) || magePassiveIds.includes(skillId)) return 'mage';
+  return undefined;
+}
+
+/**
+ * 가방 40칸에 세는 아이템인가 (작업 210, 사용자 지시 `#4617`).
+ * 장비와 **다른 직업 전용 스킬북**을 함께 세고, 내 직업 스킬북·보물 주머니는 빼다.
+ * 클라이언트 `src/game/bagCapacity.ts`의 `countedInBag`과 같은 규칙이다.
+ */
+export function countedInBag(item, job) {
+  if (!item || typeof item !== 'object') return false;
+  if (item.slot === 'pouch' || item.kind === 'pouch') return false;
+  if (item.slot !== 'skillbook' && item.kind !== 'skillbook') return true;
+  const owner = skillBookJobOf(item.skillId);
+  return Boolean(owner) && owner !== (job === 'archer' || job === 'mage' ? job : 'warrior');
+}
+
 /** `itemValid`가 쓰는 검사용 집합. */
 export const skillBookIdSet = new Set(skillBookIds);
 export const isSkillBookId = value => skillBookIdSet.has(value);

@@ -238,6 +238,8 @@
 .skill-book-card img { width: 32px; height: 32px; object-fit: contain; }
 .skill-book-card b { min-height: 0; line-height: 1.2; overflow-wrap: anywhere; }
 .skill-book-quantity { position: absolute; right: 3px; top: 3px; padding: 1px 3px; border-radius: 3px; background: #171216e6; color: #f2deb9; font-size: 10px; line-height: 12px; pointer-events: none; }
+/* 스킬 창은 내 직업 책만 보여 준다 — 다른 직업 책은 가방에서 판매·보관한다(작업 210). */
+.skill-book-hint { display: block; margin-top: 6px; color: #9c8b7b; font-size: 10px; line-height: 1.45; }
 .skill-book-card > .skill-book-cost { display: none; }
 .skill-book-card > .skillbook-use { width: 100%; min-height: 20px; padding: 2px 3px; font-size: 10px; line-height: 14px; }
 .skill-book-cost { color: #cbb89b; font-size: 10px; }

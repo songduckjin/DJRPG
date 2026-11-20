@@ -25,6 +25,31 @@ export function grantSeasonNotice(state, now = Date.now()) {
   state.mail.push({ id: SEASON_NOTICE_ID, title: SEASON_NOTICE_TITLE, sender: '운영팀', body: SEASON_NOTICE_BODY, createdAt: now, expiresAt: null, gold: 1000, books: 0, pouches: 1, claimedAt: null, read: false });
   return true;
 }
+/**
+ * 미리보기 전용 테스트 우편(작업 210, 사용자 요청 `#4580`·`#4589` "모션 확인할 주머니가 없다").
+ * **미리보기 호스트에서만** 계정당 1회 지급하고, 운영 호스트에서는 지급도 표시도 되지 않는다
+ * (`grantPreviewPouchMail(state, now, preview)`·`stripPreviewPouchMail`).
+ */
+export const PREVIEW_POUCH_MAIL_ID = 'preview-pouch-test-1';
+const PREVIEW_POUCH_MAIL_TITLE = '[미리보기 테스트] 보물 주머니 1개';
+const PREVIEW_POUCH_MAIL_BODY = `미리보기에서 새 개봉 모션(4단계)을 확인하실 수 있도록 보물 주머니 1개를 드립니다.
+가방에서 [열기]를 눌러 닫힌 주머니가 흔들리다 끈이 풀리고 활짝 열리는 연출을 확인해 주세요.
+이 우편은 미리보기 서버에서만 지급되며 운영 서버에는 나오지 않습니다.`;
+/** 미리보기 호스트용 테스트 우편을 계정마다 한 번만 준다. `preview`가 false면 아무것도 하지 않는다. */
+export function grantPreviewPouchMail(state, now = Date.now(), preview = false) {
+  if (!preview) return false;
+  state.notices ??= []; state.mail ??= [];
+  if (state.notices.includes(PREVIEW_POUCH_MAIL_ID) || state.mail.some(entry => entry.id === PREVIEW_POUCH_MAIL_ID)) return false;
+  state.notices.push(PREVIEW_POUCH_MAIL_ID);
+  state.mail.push({ id: PREVIEW_POUCH_MAIL_ID, title: PREVIEW_POUCH_MAIL_TITLE, sender: '운영팀', body: PREVIEW_POUCH_MAIL_BODY, createdAt: now, expiresAt: null, gold: 0, books: 0, pouches: 1, claimedAt: null, read: false });
+  return true;
+}
+/** 운영 호스트에서 남아 있는 미리보기 테스트 우편을 지운다(지급 이력은 남겨 다시 붙지 않게 한다). */
+export function stripPreviewPouchMail(state) {
+  state.notices ??= []; state.mail ??= [];
+  state.mail = state.mail.filter(entry => entry.id !== PREVIEW_POUCH_MAIL_ID);
+  return state;
+}
 const UPDATE_NOTICE_TITLE = '[업데이트 안내] 전투·가방 편의성 및 끝없는 던전 개선';
 const UPDATE_NOTICE_BODY = `안녕하세요, 모험가님!
 더 쾌적한 사냥과 파밍을 위해 아래 내용이 업데이트되었습니다.
@@ -66,7 +91,7 @@ export function periods(now = Date.now()) {
   const monday = midnight - ((day.getUTCDay() + 6) % 7) * DAY;
   return { daily: String(midnight / DAY), weekly: String(monday / DAY), dailyEnd: midnight + DAY - 4 * HOUR, weeklyEnd: monday + 7 * DAY - 4 * HOUR };
 }
-export function advanceJourney(state, before, save, now = Date.now(), diamondMailEligible = false) {
+export function advanceJourney(state, before, save, now = Date.now(), diamondMailEligible = false, preview = false) {
   const keys = periods(now);
   state ??= { achievements: [], mail: [{ id: 'welcome-v1', title: '황야에 오신 것을 환영합니다', sender: '운영팀', body: '모험을 시작하는 데 도움이 되길 바랍니다.', createdAt: now, expiresAt: now + 7 * DAY, gold: 1000, books: 1, claimedAt: null, read: false }] };
   for (const kind of ['daily', 'weekly']) {
@@ -83,6 +108,8 @@ export function advanceJourney(state, before, save, now = Date.now(), diamondMai
   state.achievements ??= []; state.mail ??= [];
   grantUpdateNotice(state, now);
   grantSeasonNotice(state, now);
+  // 미리보기 테스트 우편(작업 210): 미리보기 호스트에서만 지급하고, 운영 호스트에서는 남아 있으면 지운다.
+  if (preview) grantPreviewPouchMail(state, now, true); else stripPreviewPouchMail(state);
   if (diamondMailEligible) {
     state.notices ??= [];
     if (!state.notices.includes(DIAMOND_MAIL_ID) && !state.mail.some(entry => entry.id === DIAMOND_MAIL_ID)) {
@@ -92,9 +119,9 @@ export function advanceJourney(state, before, save, now = Date.now(), diamondMai
   }
   return state;
 }
-export async function journeyState(tx, row, save = row.save, now = Date.now()) {
+export async function journeyState(tx, row, save = row.save, now = Date.now(), preview = false) {
   const entry = 'journeyRecord' in row ? row.journeyRecord : (await tx.execute({sql:'SELECT state_json FROM djrpg_journey WHERE account_id=?',args:[row.id]})).rows[0];
-  return advanceJourney(entry ? JSON.parse(entry.state_json) : undefined, row.save, save, now, row.password_hash !== 'guest');
+  return advanceJourney(entry ? JSON.parse(entry.state_json) : undefined, row.save, save, now, row.password_hash !== 'guest', preview);
 }
 /**
  * 서버가 직접 아는 사건(월드보스 도전 시작 등)을 그 기간 카운터에 **1회** 더한다(작업 207).

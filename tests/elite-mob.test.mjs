@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import './ts-loader.mjs';
 const { freshSave, floorKillTarget } = await import('../src/game/store.ts');
 const { World, enemyMaxHp, ELITE_KILL_INTERVAL, ELITE_HP_SCALE, ELITE_REWARD_SCALE, ELITE_MOB_SCALE } = await import('../src/game/world.ts');
-const { equipmentDropChance, skillBookDropChance } = await import('../src/game/items.ts');
+const { equipmentDropChance, skillBookDropChance, itemDropChance } = await import('../src/game/items.ts');
 
 const enemyOf = (over = {}) => ({ x: 60, y: 20, hp: 0, maxHp: 10, boss: false, hit: 0, step: 0, moving: false, knockX: 0, knockY: 0, slow: 0, ...over });
 /** 다음 스폰을 즉시 돌린다 — 스폰 타이머를 0으로 두고 한 틱만 진행한다. */
@@ -59,24 +59,23 @@ test('정예 처치는 금화·경험치가 2배이고 장비·스킬북 드롭�
   const floor = 1, gold = 3 + floor;
   const originalRandom = Math.random;
   try {
-    // 일반 몹 장비 0.25%·스킬북 0.1% 사이 값 — 2배였다면 장비가 떨어진다.
+    // 한 마리당 아이템 드롭 롤은 **한 번**이고 일반·정예가 같은 0.20%(1층)다(작업 210).
     Math.random = () => .004;
     const blocked = freshSave(); blocked.tutorial = 3; blocked.floor = floor;
     const blockedWorld = new World(blocked); blockedWorld.enemies = [];
     blockedWorld.kill(enemyOf());
     const normalDrops = blockedWorld.drops.length;
     blockedWorld.kill(enemyOf({ elite: true, maxHp: enemyMaxHp(floor, false) * ELITE_HP_SCALE }));
-    assert.equal(normalDrops, 0, `일반 몹은 ${Math.round(equipmentDropChance(floor) * 10000) / 100}%에서 떨어지지 않는다`);
+    assert.equal(normalDrops, 0, `일반 몹은 ${Math.round(itemDropChance(floor) * 10000) / 100}%에서 떨어지지 않는다`);
     assert.equal(blockedWorld.drops.length, 0, '정예도 같은 1배 확률이라 떨어지지 않는다');
-    assert(equipmentDropChance(floor) < .004 && equipmentDropChance(floor) * 2 > .004, '판별 구간이 유효하다');
-    assert(skillBookDropChance(floor, false) < .004);
+    assert.equal(itemDropChance(floor, false), .002, '1층 일반 몹 0.20%');
 
-    // 확률 안쪽 값에서는 일반·정예 모두 장비가 하나씩 떨어진다.
-    Math.random = () => .002;
+    // 확률 안쪽 값에서는 일반·정예 모두 **한 개씩** 떨어진다(두 개가 같이 나오지 않는다).
+    Math.random = () => .001;
     const both = freshSave(); both.tutorial = 3; both.floor = floor;
     const bothWorld = new World(both); bothWorld.enemies = [];
     bothWorld.kill(enemyOf());
-    assert.equal(bothWorld.drops.length, 1, '일반 몹 장비 드롭');
+    assert.equal(bothWorld.drops.length, 1, '일반 몹 아이템 1개');
     bothWorld.kill(enemyOf({ elite: true }));
     assert.equal(bothWorld.drops.length, 2, '정예도 1배 그대로 한 번의 확률 롤');
 

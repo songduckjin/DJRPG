@@ -118,9 +118,9 @@ test('only a clear hands over the floor loot — a defeat or a timeout pays noth
 });
 
 test('which item falls follows the field equipment and skillbook odds',()=>{
- // Floor 1 normal: equipment .0025 vs skillbook .001, so the split sits at 5/7 (≈.714).
+ // 작업 210: 아이템은 70% 장비 · 30% 스킬북 — 경계는 .30(스킬북 몫)이다.
  const drop=(ratio)=>{const battle=new DungeonBattle(freshSave());withRandom([0,ratio],()=>battle.world.kill(battle.world.enemies[0]));return battle.world.loot.find(entry=>entry.kind==='item').item;};
- const equipment=drop(.70),book=drop(.72);
+ const equipment=drop(.10),book=drop(.70);
  assert.equal(equipment.kind,undefined);
  assert.equal(equipment.slot==='skillbook',false);
  assert.equal(book.kind,'skillbook');

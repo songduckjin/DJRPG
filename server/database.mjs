@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { journeyState, journeyOperation } from './journey-state.mjs';
-import { skillBookIdSet } from './skill-ids.mjs';
+import { skillBookIdSet, countedInBag } from './skill-ids.mjs';
 import { databaseFactory } from './database-config.mjs';
 import { runtimeEnv } from './env.mjs';
 
@@ -173,7 +173,8 @@ const sameItemBody = (a, b) => Boolean(a && b) && a.id === b.id && ringSlot(a) =
 const ownerItem = owner => { try { const value = JSON.parse(owner.item_json); return value && typeof value === 'object' ? value : undefined; } catch { return undefined; } };
 export async function reconcileItems(tx, id, before, after, options = {}) {
   const next = itemsOf(after), previous = itemsOf(before), ids = new Set();
-  if (!Array.isArray(after.bag) || after.bag.filter(item=>item?.slot!=='skillbook' && item?.slot!=='pouch').length > 40 || Object.values(after.equipment??{}).length > 10 || !after.equipment || typeof after.equipment !== 'object') fail(400, 'INVALID_SAVE', '가방 또는 장비 데이터가 올바르지 않습니다.');
+  // 40칸 검사는 장비 + **다른 직업 전용 스킬북**을 함께 센다(작업 210) — 내 직업 책과 보물 주머니는 빼다.
+  if (!Array.isArray(after.bag) || after.bag.filter(item => countedInBag(item, after.job)).length > 40 || Object.values(after.equipment??{}).length > 10 || !after.equipment || typeof after.equipment !== 'object') fail(400, 'INVALID_SAVE', '가방 또는 장비 데이터가 올바르지 않습니다.');
   const previousValid = previous.filter(itemValid);
   const previousById = new Map(previousValid.map(item => [item.id, item]));
   const allIds = [...new Set([...previousValid, ...next].map(item => item?.id).filter(id => typeof id === 'string'))];

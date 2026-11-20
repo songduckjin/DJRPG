@@ -1,4 +1,5 @@
 import { EQUIPMENT_BAG_LIMIT, equipmentCount } from './bagCapacity';
+import { jobOrDefault } from './skills';
 import {
   isPouch, POUCH_NAME, rollEquipment, rollSkillBook,
   type EquipmentItem, type Item, type Rarity, type SkillBook, type TreasurePouch
@@ -106,7 +107,7 @@ export type PouchOpenResult =
 export function openPouch(save: Save, id?: string, random: () => number = Math.random): PouchOpenResult {
   const pouch = (id ? save.bag.find(item => item.id === id) : undefined) ?? firstPouch(save);
   if (!pouch || !isPouch(pouch)) return { ok: false, message: `가방에 ${POUCH_NAME}이(가) 없습니다.` };
-  if (equipmentCount(save.bag) >= EQUIPMENT_BAG_LIMIT) return { ok: false, message: '가방이 가득 찼습니다. 장비를 분해한 뒤 열어 주세요.' };
+  if (equipmentCount(save.bag, jobOrDefault(save.job)) >= EQUIPMENT_BAG_LIMIT) return { ok: false, message: '가방이 가득 찼습니다. 장비를 분해한 뒤 열어 주세요.' };
   const result = rollPouch(save.maxFloor || save.floor || 1, random);
   save.bag = save.bag.filter(item => item.id !== pouch.id);
   if (result.kind === 'gold') save.gold += result.gold;

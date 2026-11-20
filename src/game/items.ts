@@ -45,7 +45,29 @@ export function rollSkillBook(floor: number, _job: Job = 'warrior'): SkillBook {
   const skillId = ids[Math.floor(Math.random() * ids.length)];
   return { id: crypto.randomUUID(), name: `[스킬북] ${skillId in skills ? skills[skillId as keyof typeof skills].name : passives[skillId as keyof typeof passives].name}`, slot: 'skillbook', rarity: 'rare', kind: 'skillbook', skillId, stats: {} };
 }
-export function skillBookDropChance(floor: number, boss: boolean): number { return boss ? Math.min(.15, .018 + (floor - 1) * .002) : Math.min(.015, .001 + (floor - 1) * .00012); }
+/**
+ * 한 마리당 **아이템 드롭률** (작업 210, 사용자 지시 `#4628`·`#4639`·`#4649`).
+ *
+ * 예전에는 장비·스킬북 확률을 따로 두 번 굴려 한 마리에서 두 개가 같이 떨어질 수 있었다. 이제는
+ * **한 번만 굴리고**, 당첨되면 `SKILLBOOK_DROP_SHARE`(30%)로 종류를 갈라 **한 개만** 떨어진다.
+ * - 일반 몹(정예 포함): 1층 0.20% → 20층 0.80%에서 멈춘다.
+ * - 보스: 1층 3.0% → 20층 12.0%에서 멈춘다.
+ */
+export function itemDropChance(floor: number, boss = false): number {
+  const depth = Math.max(0, floor - 1);
+  return boss ? Math.min(.12, .03 + depth * (.09 / 19)) : Math.min(.008, .002 + depth * (.006 / 19));
+}
+/** 당첨된 아이템 1개의 종류 — 스킬북 30%, 장비 70%. */
+export const SKILLBOOK_DROP_SHARE = .3;
+export const EQUIPMENT_DROP_SHARE = 1 - SKILLBOOK_DROP_SHARE;
+/** 당첨된 1개의 종류를 70:30으로 가른다. */
+export function rollItemKind(random: () => number = Math.random): 'skillbook' | 'equipment' {
+  return random() < SKILLBOOK_DROP_SHARE ? 'skillbook' : 'equipment';
+}
+/** 예전 이름 호환 — 단일 드롭률의 70%(던전·보스战利品이 이 비율만 쓴다). */
+export function equipmentDropChance(floor: number, boss = false): number { return itemDropChance(floor, boss) * EQUIPMENT_DROP_SHARE; }
+/** 예전 이름 호환 — 단일 드롭률의 30%. */
+export function skillBookDropChance(floor: number, boss: boolean): number { return itemDropChance(floor, boss) * SKILLBOOK_DROP_SHARE; }
 
 /** 강화 단계의 최고치 — 71~80층에서 +7이 나온다(작업 201). */
 export const MAX_PLUS = 7;
@@ -351,10 +373,6 @@ export function totalStats(save: Save): Record<Stat, number> {
   const sight = passiveLevel(save, ['hawkSight', 'arcaneSense']);
   if (sight) total.crit += 8 + (sight - 1) * 2;
   return total;
-}
-
-export function equipmentDropChance(floor: number, boss = false): number {
-  return boss ? Math.min(.24, .03 + (floor - 1) * .004) : Math.min(.022, .0025 + (floor - 1) * .00035);
 }
 
 export function rollItem(floor: number, guaranteed = false, boss = false, job: Job = 'warrior'): Item {

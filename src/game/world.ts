@@ -1,7 +1,7 @@
 import { canStoreItem } from './bagCapacity';
 import { bossGoldPiles, bossGoldSpot } from './bossLoot';
 import { addExperience, floorKillTarget, MAX_FLOOR, rollItem, skillLevel, totalStats, type Item, type Rarity, type Save } from './store';
-import { equipmentDropChance, itemDisplayName, rollSkillBook, skillBookDropChance, starterWeaponName } from './items';
+import { itemDisplayName, itemDropChance, rollItemKind, rollSkillBook, starterWeaponName } from './items';
 import { dragonOrbitFactor, skillDamageScale, skillDuration, skillRange, skills, type Job, type SkillId } from './skills';
 import { jobOrDefault } from './skills';
 import { clampArenaPoint, spawnArenaEnemy } from './arena';
@@ -126,10 +126,37 @@ export class World {
 
   constructor(public save: Save) {
     this.save.auto = true;    this.player.hp = Math.min(save.health, totalStats(save).health);
-    this.bossPending = save.floorKills >= floorKillTarget(save.floor);
+    // 보스는 **최고 도달 층에서만** 나오고, 자동 등반이 꺼진 상태(패배 뒤)에는 `⚔ 보스 도전`을 눌러야
+    // 다시 나온다(작업 210). 세이브를 다시 읽어도 보스가 저절로 소환되지 않는다.
+    this.bossPending = save.autoClimb && this.bossFloor() && save.floorKills >= floorKillTarget(save.floor);
     const hp = enemyMaxHp(save.floor, false);
     const start = clampArenaPoint(145, -45);
     this.enemies.push({ x: start.x, y: start.y, hp, maxHp: hp, boss: false, hit: 0, step: 0, moving: false, knockX: 0, knockY: 0, slow: 0 });
+  }
+
+  /** 보스가 나오는 층인가 — **최고 도달 층에서만**이다(작업 210, 사용자 지시 `#4566`).
+   *  아래층을 반복 사냥할 때는 보스가 뜨지 않고 일반·정예만 계속 나온다. */
+  bossFloor(): boolean { return this.save.floor >= this.save.maxFloor; }
+
+  /** `⚔ 보스 도전` 버튼이 살아나는 상태 — 최고 도달 층에서 패배해 자동 등반이 꺼진 상태다.
+   *  마지막 층(`MAX_FLOOR`)은 다음 층이 없으므로 버튼을 띄우지 않는다. */
+  get bossRetryReady(): boolean { return this.bossFloor() && !this.save.autoClimb && this.save.floor < MAX_FLOOR; }
+
+  /**
+   * `⚔ 보스 도전`(작업 210, 사용자 지시 `#4566` "패배시에만 활성화 … 계속 다시 도전해도 돼").
+   * 자동 등반을 다시 켜고, 지금 층 보스를 한 마리 새로 소환한다(있던 몹은 정리, 스폰 즉시).
+   * 보스에게 또 지면 패배 처리로 자동 등반이 다시 꺼져 버튼이 살아나므로 몇 번이든 재도전할 수 있고,
+   * 보스를 이겨 다음 층으로 올라가면 버튼은 사라진다.
+   */
+  challengeBoss(): boolean {
+    if (!this.bossRetryReady) return false;
+    this.save.autoClimb = true;
+    this.save.floorKills = Math.max(this.save.floorKills, floorKillTarget(this.save.floor));
+    this.enemies = []; this.chaseTarget = undefined; this.pursuing = false; this.activeMove = { x: 0, y: 0 };
+    this.spawnTimer = 0; this.bossPending = true;
+    this.onMessage('해골 군주에게 다시 도전합니다!');
+    this.onChange();
+    return true;
   }
 
   /** 캐릭터 직업 — 값이 없는 예전 세이브는 전사로 본다. */
@@ -357,12 +384,13 @@ export class World {
     // still come from the one chance roll every kill makes below, against the same field drop table
     // (the boss rates for a boss), so a boss never leaves five guaranteed pieces behind.
     const guaranteed = this.save.tutorial === 0 && !enemy.boss, boss = enemy.boss;
-    if (guaranteed || Math.random() < equipmentDropChance(this.save.floor, boss)) {
-      this.drops.push({ x: enemy.x, y: enemy.y, item: rollItem(this.save.floor, guaranteed, boss, this.job), age: 0, warned: false });
-      if (guaranteed) { this.save.tutorial = 1; this.onMessage(`${starterWeaponName(this.job)}이(가) 떨어졌습니다. 잠시 뒤 자동으로 획득됩니다!`); }
-    }
-    if (Math.random() < skillBookDropChance(this.save.floor, boss)) {
-      this.drops.push({ x: enemy.x, y: enemy.y, item: rollSkillBook(this.save.floor, this.job), age: 0, warned: false });
+    // 한 마리당 **한 번만** 굴려 아이템 1개(작업 210, 사용자 지시 `#4628`): 장비 70% · 스킬북 30%.
+    if (guaranteed) {
+      this.drops.push({ x: enemy.x, y: enemy.y, item: rollItem(this.save.floor, true, boss, this.job), age: 0, warned: false });
+      this.save.tutorial = 1; this.onMessage(`${starterWeaponName(this.job)}이(가) 떨어졌습니다. 잠시 뒤 자동으로 획득됩니다!`);
+    } else if (Math.random() < itemDropChance(this.save.floor, boss)) {
+      const item = rollItemKind() === 'skillbook' ? rollSkillBook(this.save.floor, this.job) : rollItem(this.save.floor, false, boss, this.job);
+      this.drops.push({ x: enemy.x, y: enemy.y, item, age: 0, warned: false });
     }
     if (enemy.boss) {
       if (this.save.autoClimb) {
@@ -391,7 +419,11 @@ export class World {
         this.eliteKills++;
         if (this.eliteKills >= ELITE_KILL_INTERVAL) { this.eliteKills = 0; this.elitePending = true; }
       }
-      if (this.save.floorKills >= floorKillTarget(this.save.floor) && !this.bossPending && !this.enemies.some(e => e.boss)) {
+      if (!this.bossFloor()) {
+        // 아래층 반복 사냥에는 보스가 없다(작업 210) — 목표를 채우면 0으로 돌리고 일반·정예만 계속 나온다.
+        if (this.save.floorKills >= floorKillTarget(this.save.floor)) this.save.floorKills = 0;
+      } else if (this.save.autoClimb && this.save.floorKills >= floorKillTarget(this.save.floor) && !this.bossPending && !this.enemies.some(e => e.boss)) {
+        // 보스는 자동 등반이 켜져 있을 때만 저절로 나온다 — 패배 뒤에는 `⚔ 보스 도전`으로 다시 부른다.
         this.bossPending = true;
         this.onMessage(`${floorKillTarget(this.save.floor)}마리 처치! 해골 군주가 나타납니다!`);
       }
@@ -442,7 +474,7 @@ export class World {
     if (this.spawnTimer <= 0 && this.enemies.length < 18) {
       this.spawnTimer = Math.max(.55, 1.8 - this.save.floor * .08);
       const angle = Math.random() * Math.PI * 2;
-      const boss = this.bossPending && !this.enemies.some(e => e.boss);
+      const boss = this.bossFloor() && this.bossPending && !this.enemies.some(e => e.boss);
       // 보스 타이밍과 겹치면 보스가 우선한다 — 정예 예약은 다음 스폰으로 미룬다(작업 206).
       const elite = !boss && this.elitePending;
       const spawn = spawnArenaEnemy(p, angle);
@@ -473,7 +505,7 @@ export class World {
       if (drop.absorb === undefined) {
         if (drop.age < LOOT_REST_SECONDS) continue;
         // A piece auto-salvage will take needs no bag room, so it flies in even when the bag is full.
-        if (!canStoreItem(this.save.bag, drop.item) && !this.sweeps(drop.item)) {
+        if (!canStoreItem(this.save.bag, drop.item, this.job) && !this.sweeps(drop.item)) {
           // 가방 40칸 만석(작업 209): 새 장비를 두기 전에 가방 안의 설정 이하 장비를 먼저 분해해 칸을 만든다.
           if (!this.sweepFullBag()) {
             if (!drop.warned) { drop.warned = true; this.onMessage('가방이 가득 찼습니다. 장비를 분해하세요.'); }

@@ -116,7 +116,7 @@ test('boss floor transition clears old enemies and pursuit but retains drops', (
       const boss = { ...oldEnemy, boss: true, hp: 0 };
       world.chaseTarget = oldEnemy; world.pursuing = true; world.activeMove = { x: 1, y: 0 };
       world.kill(boss);
-      assert(world.drops.length >= 2, 'boss equipment and skillbook drops remain on the ground');
+      assert.equal(world.drops.length, 1, 'the boss leaves its one chance item on the ground (한 마리당 1개, 작업 210)');
       assert.equal(save.floor, autoClimb ? 2 : 1);
       assert.equal(save.floorKills, 0);
       if (autoClimb) {
@@ -137,6 +137,59 @@ test('death stops auto-climb while retaining the existing respawn behavior', () 
   assert.equal(save.autoClimb, false);
   assert.equal(world.player.hp, totalStats(save).health);
   assert.equal(save.health, totalStats(save).health);
+});
+
+test('[⚔ 보스 도전]은 최고 도달 층에서 패배했을 때만 살아나고, 누르면 그 층 보스를 다시 부른다(작업 210)', async () => {
+  const { readFileSync } = await import('node:fs');
+  const save = freshSave(); save.tutorial = 1; save.autoClimb = true; save.floor = 5; save.maxFloor = 5; save.floorKills = 0;
+  const world = new World(save);
+  assert.equal(world.bossRetryReady, false, '살아 있는 동안에는 버튼이 없다');
+  // 보스전에서 패배 — 자동 등반이 꺼지고 버튼이 살아난다.
+  world.enemies = [{ x: 10, y: 0, hp: 999, maxHp: 999, boss: true, hit: 0, step: 0, moving: false, knockX: 0, knockY: 0, slow: 0 }];
+  world.player.hp = 1; world.update(.01);
+  assert.equal(save.autoClimb, false, '패배로 자동 등반 중단');
+  assert.equal(world.bossRetryReady, true, '최고 도달 층에서 패배 → ⚔ 보스 도전');
+  // 누르면 자동 등반이 다시 켜지고, 기존 몹을 정리한 뒤 그 층 보스가 바로 나온다.
+  assert.equal(world.challengeBoss(), true);
+  assert.equal(save.autoClimb, true, '재도전은 자동 등반을 다시 켠다');
+  assert.equal(world.bossPending, true, '보스 예약');
+  assert.equal(world.enemies.length, 0, '기존 몹 정리');
+  world.update(.05);
+  assert(world.enemies.some(enemy => enemy.boss), '다음 틱에 보스가 나온다');
+  // 또 지면 버튼이 다시 살아나 몇 번이든 재도전할 수 있다.
+  const boss = world.enemies.find(enemy => enemy.boss);
+  boss.x = 12; boss.y = 0; world.player.hp = 1; world.player.hit = 0; world.update(.01);
+  assert.equal(world.bossRetryReady, true, '다시 패배하면 다시 도전 가능');
+  assert.equal(world.challengeBoss(), true);
+  world.update(.05);
+  const reborn = world.enemies.find(enemy => enemy.boss);
+  assert(reborn, '재도전 보스가 다시 나온다');
+  // 보스를 이겨 다음 층으로 올라가면 버튼은 사라진다.
+  world.kill(reborn);
+  assert.equal(save.floor, 6, '보스를 이기면 다음 층');
+  assert.equal(world.bossRetryReady, false, '올라가면 버튼이 사라진다');
+  // HUD·CSS 계약 — 버튼은 .status-main에 붙고 금빛 테두리로 보인다.
+  const hud = readFileSync(new URL('../src/ui/hud.ts', import.meta.url), 'utf8');
+  const css = readFileSync(new URL('../src/styles/hud.css', import.meta.url), 'utf8');
+  assert(hud.includes('boss-retry') && hud.includes('challengeBoss'), 'HUD 버튼과 도전 호출');
+  assert(/\.boss-retry\s*\{[^}]*border:\s*1px solid #d79a4c/.test(css), '보스 도전 버튼 스타일');
+  assert(css.includes('prefers-reduced-motion: reduce') && css.includes('.boss-retry { animation: none; }'), '모션 감소 대응');
+});
+
+test('아래층 반복 사냥에는 보스가 나오지 않고 목표를 채우면 진행도만 0으로 돌린다(작업 210)', () => {
+  const save = freshSave(); save.tutorial = 1; save.floor = 2; save.maxFloor = 7; save.floorKills = floorKillTarget(2) - 1;
+  const world = new World(save);
+  assert.equal(world.bossPending, false, '아래층에서는 보스 예약 없음');
+  world.enemies = []; world.spawnTimer = 999;
+  const mob = { x: 60, y: 20, hp: 0, maxHp: 10, boss: false, hit: 0, step: 0, moving: false, knockX: 0, knockY: 0, slow: 0 };
+  world.kill(mob);
+  assert.equal(world.bossPending, false, '목표를 채워도 보스가 나오지 않는다');
+  assert.equal(save.floorKills, 0, '진행도만 0으로 돌려 계속 사냥');
+  // 예약이 남아 있어도 아래층 스폰은 보스가 아니다.
+  world.bossPending = true; world.spawnTimer = 0;
+  world.update(.05);
+  assert(!world.enemies.some(enemy => enemy.boss), '아래층에는 보스가 없다');
+  assert(save.enemies === undefined, '세이브에는 전투 상태를 남기지 않는다');
 });
 
 test('normal difficulty health and damage match the floor curves', () => {

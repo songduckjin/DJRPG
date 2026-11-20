@@ -41,7 +41,9 @@ export function renderSkillBooks(ui: Interface, parent: HTMLElement): void {
   const section = document.createElement('section'); section.className = 'skill-books';
   const title = document.createElement('h3'); title.textContent = '스킬북'; section.append(title);
   const grid = document.createElement('div'); grid.className = 'skill-book-grid';
-  for (const {item, count} of skillbookStacks(ui.world.save.bag)) {
+  // 스킬 창은 **내 직업 스킬북만** 보여 준다(작업 210, 사용자 지시 `#4617`). 다른 직업 책은 가방에서 판매·보관한다.
+  const mine = jobOrDefault(ui.world.save.job);
+  for (const {item, count} of skillbookStacks(ui.world.save.bag).filter(({item}) => (skillBookJob(item) ?? mine) === mine)) {
     const card = document.createElement('article'); card.className = 'skill-book-card';
     const icon = createSkillBookArt(item);
     const name = document.createElement('b'); name.textContent = skillbookName(item);
@@ -56,5 +58,7 @@ export function renderSkillBooks(ui: Interface, parent: HTMLElement): void {
     card.append(icon, name, quantity); renderSkillUpgrade(ui, card, item.skillId); grid.append(card);
   }
   if (!grid.childElementCount) { const empty = document.createElement('p'); empty.textContent = '보유한 스킬북이 없습니다.'; grid.append(empty); }
-  section.append(grid); parent.append(section);
+  const hint = document.createElement('small'); hint.className = 'skill-book-hint';
+  hint.textContent = '다른 직업 전용 스킬북은 가방에서 확인할 수 있습니다(경매장 판매/공용창고 보관).';
+  section.append(grid, hint); parent.append(section);
 }
