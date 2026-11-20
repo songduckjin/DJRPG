@@ -63,10 +63,10 @@ test('전사 액티브 순서 — 딜레이 크러싱·드래곤 트위스터가
   assert.deepEqual([...skillOrder], ['slash2', 'slam', 'warcry', 'power', 'destroy', 'hell', 'crushing', 'spin']);
   assert.deepEqual(skillOrder.map(id => skills[id].level), [2, 4, 5, 7, 10, 14, 18, 24]);
   assert.equal(skillOrder.length, 8);
-  assert.equal(canLearn(17, skills.crushing.level), false);
-  assert.equal(canLearn(18, skills.crushing.level), true);
-  assert.equal(canLearn(23, skills.spin.level), false);
-  assert.equal(canLearn(24, skills.spin.level), true);
+  // [작업 216] 캐릭터 레벨 잠금은 없어졌다 — 스킬북만 있으면 1레벨부터 습득·사용한다.
+  assert.equal(canLearn(1, skills.slash2.level), true);
+  assert.equal(canLearn(1, skills.crushing.level), true);
+  assert.equal(canLearn(1, skills.spin.level), true);
 });
 
 test('한 번 발동에 10타가 따로 들어가고, 타마다 팝업 자리가 다르다', () => {

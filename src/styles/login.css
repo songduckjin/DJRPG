@@ -31,3 +31,13 @@
 .season-setup .login-subtitle { margin-bottom: 4px; }
 .season-setup .season-note { margin: 0 0 4px; color: #c8a97e; font-size: 11px; line-height: 1.6; text-align: left; }
 .season-setup .login-submit, .season-setup .login-guest { margin-top: 0; }
+
+/* [작업 216] 가입 직후 캐릭터 생성 단계 — 로그인 패널 안에서 닉네임·직업·성별(남/여)만 고른다. */
+.login-create { display: flex; flex-direction: column; gap: 12px; text-align: left; }
+.login-create-title { margin: 0; color: #f4dcb0; font: 700 17px Cinzel, 'Noto Sans KR', serif; text-align: center; }
+.login-create-note { margin: -4px 0 0; color: #ab9685; font-size: 11px; text-align: center; }
+.login-create label { display: flex; flex-direction: column; gap: 6px; color: #d2b79b; font-size: 12px; }
+.login-create input { width: 100%; padding: 11px 12px; border: 1px solid #80634e; border-radius: 3px; outline: none; background: #100e13; color: #fff2dc; font: inherit; font-size: 16px; }
+.login-create input:focus { border-color: #e3ad68; box-shadow: 0 0 0 2px #b88a4530; }
+.login-create .login-gender button { min-width: 46px; }
+.login-tabs[hidden], .login-form[hidden], .login-guest[hidden], .login-note[hidden] { display: none; }

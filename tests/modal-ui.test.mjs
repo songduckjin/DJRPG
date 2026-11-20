@@ -173,7 +173,13 @@ test('selecting another character immediately shows loading while save confirmat
     const dialog = new Element(); renderCharacters(ui, dialog);
     const visit = node => [node, ...(node.children||[]).filter(child=>child&&typeof child==='object').flatMap(visit)];
     const selects = visit(dialog).filter(node=>node.className==='character-select');
+    // [작업 216] 카드를 누르면 그 카드가 펼쳐지기만 하고, 펼친 카드의 `선택`을 눌러야 접속한다.
     selects[1].onclick();
+    assert.equal(ui.characterFocus, 2);
+    assert.equal(body.children.length, 0, '카드 탭만으로는 접속하지 않는다');
+    const expanded = new Element(); renderCharacters(ui, expanded);
+    const connects = visit(expanded).filter(node=>node.className==='character-connect');
+    connects[1].onclick();
     assert.equal(body.children[0].className, 'character-create-loading');
     assert.equal(typeof resolveFlush, 'function');
     resolveFlush(false); await new Promise(resolve=>setImmediate(resolve));

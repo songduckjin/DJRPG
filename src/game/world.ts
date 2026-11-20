@@ -29,6 +29,11 @@ export type Effect = { x: number; y: number; kind: 'slash' | 'slash2' | 'spin' |
   tx?: number; ty?: number; radius?: number; targets?: number; slow?: number; variant?: ArrowVariant; fired?: boolean;
   /** 화살이 쫓아가는 적(살아 있는 동안 도착지를 갱신한다). 없으면 발사 시점의 지점으로 날아간다. */
   aim?: Enemy;
+  /** 발사까지 머무는 시간(초, 작업 216) — 파이어 볼트 화염구가 머리 위에 떠 있다가 날아간다.
+   *  `delay`와 달리 이 시간 동안은 제자리에 있다가 남은 시간(duration−launch) 동안만 날아간다. */
+  launch?: number;
+  /** 탄 크기 배율(작업 216) — 파이어 볼트 화염구는 스킬 레벨이 오를수록 커진다. */
+  size?: number;
   /** 이 이펙트를 만든 스킬(스킬 버튼 피드백용). 평타면 없다. */
   source?: SkillId;
   /** 딜레이 크러싱(작업 212) 타격 간격 — 연출이 그 간격마다 한 번씩 내리친다. */
@@ -64,9 +69,9 @@ export const basicAttackPower = 1.6;
 export const archerAttackRange = 280;
 export const archerStopRange = 150;
 /** 마법사도 원거리다 — 궁수보다 짧은 사거리에서 마법 구슬을 날린다(작업 198, 간격 조정 작업 207).
- *  직업별 간격은 궁수 > 마법사 > 전사(90) 순서를 지킨다. */
-export const mageAttackRange = 210;
-export const mageStopRange = 110;
+ *  직업별 간격은 궁수 280/150 > 마법사 240/130 > 전사 90 순서를 지긴다(작업 216 상향). */
+export const mageAttackRange = 240;
+export const mageStopRange = 130;
 export function enemyMoveSpeed(floor: number, boss: boolean): number {
   return boss ? 28 : Math.min(64, 38 + Math.max(0, floor - 1) * 1.2);
 }
@@ -103,8 +108,37 @@ export const ELITE_REWARD_SCALE = 2;
 /** 정예 몹의 몸 크기 — 일반 몹보다 살짝 큰 1.22배(작업 206). */
 export const ELITE_MOB_SCALE = 1.22;
 export function enemyHitDamage(floor: number, boss: boolean, defense: number): number { return Math.max(1, Math.round(boss ? 20 + floor * 5.5 + Math.pow(floor, 1.3) * 1.2 : 7 + floor * 2.4 + Math.pow(floor, 1.25) * .5) - defense * .2); }
+/** 광폭 버프(블러드 레이지·호크아이·아케인 실드)의 공격속도 배율(작업 216).
+ *  +20%에서 시작해 스킬 레벨당 +1%, 상한 1.5배 — `heroMotion.costumePlaybackRate`가 같은 식을 쓴다. */
+export function berserkSpeedScale(level: number): number { return Math.min(1.5, 1.2 + (Math.max(1, level) - 1) * .01); }
+/** 같은 버프의 공격력 배율 — +20%에서 시작해 스킬 레벨당 +1.5%(상한 없음, Lv.30 1.635배). */
+export function berserkAttackScale(level: number): number { return 1.2 + (Math.max(1, level) - 1) * .015; }
+
 /** 10연타 팝업을 흩뿌리는 자리(±12px) — 타마다 다른 조합이라 열 개 숫자가 한 곳에 모이지 않는다. */
 export function crushLabelOffset(index: number): { x: number; y: number } { return { x: (index % 5 - 2) * 6, y: index < 5 ? -8 : 4 }; }
+
+/** 무기 미장착 안내(작업 216). 자동 사냥이 매 프레임 공격을 시도해도 이 글자가 도배되지 않도록
+ *  한 번 띄우면 4.5초는 조용히 막는다. */
+export const WEAPON_REQUIRED_NOTICE = '무기를 장착해야 공격할 수 있습니다.';
+export const WEAPON_NOTICE_COOLDOWN = 4.5;
+/** 파이어 볼트가 띄우는 화염구 수(작업 216) — Lv.1~4는 1발, 이후 5레벨마다 +1발, 최대 6발. */
+export function fireBoltCount(level: number): number { return Math.min(6, 1 + Math.floor(Math.max(1, Math.floor(level)) / 5)); }
+/** 화염구 크기 배율(작업 216) — 레벨이 오를수록 점진적으로 커진다(Lv.1 1배 → Lv.30 2.45배). */
+export function fireBoltScale(level: number): number { return 1 + Math.max(0, Math.floor(level) - 1) * .05; }
+/** 머리 위 화염구 자리(월드 좌표, 작업 216).
+ *  아이소 투영이 화면 변위를 `(dx−dy)·.86`, `(dx+dy)·.43`으로 그리므로, 화면 기준 반원(가운데가
+ *  높고 양옆으로 퍼짐)을 그 역변환으로 옭려 머리 위에 띄운다. 1발이면 정수리 바로 위다. */
+export function fireBoltSpots(x: number, y: number, count: number): { x: number; y: number }[] {
+  const spots: { x: number; y: number }[] = [];
+  const n = Math.max(1, Math.floor(count));
+  for (let index = 0; index < n; index++) {
+    const spread = n === 1 ? 0 : index / (n - 1) - .5;            // -0.5 ~ +0.5
+    const screenX = spread * 64;
+    const screenY = -68 - (1 - Math.abs(spread) * 2) * 8;          // 가운데가 8px 더 높다
+    spots.push({ x: x + (screenX / .86 + screenY / .43) / 2, y: y + (screenY / .43 - screenX / .86) / 2 });
+  }
+  return spots;
+}
 
 export class World {
   player = { x: 0, y: 0, facing: 0, facingSide: 1, hp: 100, berserk: 0, berserkLevel: 1, hit: 0 };
@@ -125,6 +159,9 @@ export class World {
   crush?: { level: number; elapsed: number; next: number; hits: number; power: number };
   /** 지금 살아 있는 잔상들 — 렌더러가 이 목록으로 본체 복제본을 그리고 지운다(작업 212). */
   afterimages: HeroAfterimage[] = [];
+  /** 무기 미장착 안내를 다시 띄우기까지 남은 시간(작업 216). 자동 사냥이 매 프레임
+   *  `action()`을 불러도 토스트가 도배되지 않게 한다. */
+  weaponNotice = 0;
   activeMove = { x: 0, y: 0 };
   bossPending = false;
   /** `⚔ 보스 도전`을 띄울 상태인가(작업 212 `#5017`) — 보스에게 쓰러진 뒤 `true`,
@@ -202,6 +239,13 @@ export class World {
     return true;
   }
 
+  /** 무기 미장착 안내 — 쿨다운 안이면 조용히 지나간다. */
+  private warnWeapon(): void {
+    if (this.weaponNotice > 0) return;
+    this.weaponNotice = WEAPON_NOTICE_COOLDOWN;
+    this.onMessage(WEAPON_REQUIRED_NOTICE);
+  }
+
   /** 캐릭터 직업 — 값이 없는 예전 세이브는 전사로 본다. */
   get job(): Job { return jobOrDefault(this.save.job); }
 
@@ -227,6 +271,11 @@ export class World {
 
   action(kind: Action | null): void {
     if (this.paused || !kind) return;
+    // 무기가 없으면 평타·공격 스킬이 모두 나가지 않는다(작업 216). 자동 사냥도 같은 경로로 들어오므로
+    // 수동·자동이 함께 막히고, 안내는 `WEAPON_NOTICE_COOLDOWN`(4.5초)에 한 번만 뜬다.
+    // 단 첫 튜토리얼(첫 처치 전)만 예외다 — 시작 무기는 그 첫 처치의 100% 드랍이라 여기서까지 막으면
+    // 새 캐릭터가 무기를 영영 얻지 못한다.
+    if (!this.save.equipment.weapon && this.save.tutorial > 0) { this.warnWeapon(); return; }
     if (kind !== 'warcry' && Math.hypot(this.activeMove.x, this.activeMove.y) > .05) return;
     if (this.cooldown[kind] > 0) return;
     if (kind !== 'attack' && (!this.save.learned.includes(kind) || !this.save.quickSlots.includes(kind))) { this.onMessage('습득하고 퀵슬롯에 장착한 스킬만 사용할 수 있습니다.'); return; }
@@ -235,14 +284,17 @@ export class World {
     const range = kind === 'attack' ? 90 : skillRange(kind, level);
     const damageScale = skillDamageScale(level);
     const stats = totalStats(this.save);
-    this.cooldown[kind] = kind === 'attack' ? cooldowns.attack / (1 + stats.speed / 100) * (p.berserk > 0 ? 1 / (1.5 + (p.berserkLevel - 1) * .08) : 1) : cooldowns[kind];
+    // [작업 216] 광폭 버프(블러드 레이지·호크아이·아케인 실드)의 공속은 +20%에서 시작해 스킬 레벨당 +1%,
+    // 상한 1.5배다(예전 `1.5 + (레벨-1)*.08`은 Lv.1부터 +50%, Lv.30 3.8배로 비정상이었다).
+    this.cooldown[kind] = kind === 'attack' ? cooldowns.attack / (1 + stats.speed / 100) * (p.berserk > 0 ? 1 / berserkSpeedScale(p.berserkLevel) : 1) : cooldowns[kind];
     if (kind !== 'warcry') {
       // 이단참(작업 213)만 두 스윙(0.44초) 창을 쓰고, 나머지 스킬·평타는 0.32초 한 스윙이다.
       this.attackCombo = kind === 'slash2' ? 'double' : 'single';
       this.attackPose = kind === 'slash2' ? slash2SwingSeconds : .32;
       this.attackPoseSpan = this.attackPose;
     }
-    const attack = stats.attack * (p.berserk > 0 ? 1.5 + (p.berserkLevel - 1) * .05 : 1);
+    // 공격력은 +20%에서 시작해 스킬 레벨당 +1.5%(Lv.30 1.635배) — 예전 식은 Lv.1 +50%에 상한이 없었다.
+    const attack = stats.attack * (p.berserk > 0 ? berserkAttackScale(p.berserkLevel) : 1);
     const target = this.nearest();
     if (target) this.faceTarget(target);
     if (kind === 'attack') {
@@ -335,8 +387,17 @@ export class World {
       const aim = this.aimPoint(target, range);
       this.effects.push({ x: aim.x, y: aim.y, kind: 'rain', age: 0, duration: skillDuration(kind, level), angle: 0, nextHit: .12, power: attack * .85 * damageScale, level, source: kind });
     } else if (kind === 'fireBolt') {
+      // [작업 216] 머리 위에 화염구 N발을 띄운 뒤, 각 자리에서 목표 한 마리를 향해 곡선 없이
+      // 곧장 일직선으로 날아가 타격한다. 합계 위력은 예전 한 발(×2.0)과 같게 N으로 나눈다.
       const aim = this.aimPoint(target, range);
-      this.shoot(aim.x, aim.y, attack * 2 * damageScale, { speed: 780, radius: 46, arrow: 'fire', aim: target, source: kind });
+      const count = fireBoltCount(level), size = fireBoltScale(level);
+      const power = attack * 2 * damageScale / count;
+      fireBoltSpots(p.x, p.y, count).forEach((spot, index) => {
+        this.shoot(aim.x, aim.y, power, {
+          speed: 900, radius: 36, arrow: 'fire', aim: target, source: kind,
+          from: spot, launch: .18 + index * .05, size
+        });
+      });
     } else if (kind === 'iceBolt') {
       const aim = this.aimPoint(target, range);
       this.shoot(aim.x, aim.y, attack * 1.7 * damageScale, { speed: 720, radius: 52, slow: 2.4 + (level - 1) * .06, arrow: 'frost', aim: target, source: kind });
@@ -391,15 +452,20 @@ export class World {
   }
 
   /** 화살 하나를 쏜다. 도착하는 순간(`update`)에 그 지점 반경의 적에게 피해를 준다. */
-  private shoot(tx: number, ty: number, power: number, options: { speed?: number; radius?: number; targets?: number; slow?: number; knockback?: number; delay?: number; arrow?: ArrowVariant; aim?: Enemy; source?: SkillId } = {}): void {
+  private shoot(tx: number, ty: number, power: number, options: { speed?: number; radius?: number; targets?: number; slow?: number; knockback?: number; delay?: number; arrow?: ArrowVariant; aim?: Enemy; source?: SkillId; from?: { x: number; y: number }; launch?: number; size?: number } = {}): void {
     const p = this.player;
-    const dx = tx - p.x, dy = ty - p.y;
+    // `from`은 발사 자리다(파이어 볼트 화염구는 머리 위에서 출발한다). 없으면 캐릭터 자리.
+    const origin = options.from ?? p;
+    const dx = tx - origin.x, dy = ty - origin.y;
     const distance = Math.hypot(dx, dy);
-    const delay = options.delay ?? 0;
+    // `launch`는 제자리에 떠 있는 시간이다 — 발사 뒤 남은 비행 시간만큼만 도착이 늦어진다.
+    const launch = options.launch ?? 0;
+    const delay = Math.max(0, launch - (options.delay ?? 0)) + (options.delay ?? 0);
     this.effects.push({
-      x: p.x, y: p.y, kind: 'shot', age: 0, duration: Math.max(.05, distance / (options.speed ?? 820)) + delay,
+      x: origin.x, y: origin.y, kind: 'shot', age: 0, duration: Math.max(.05, distance / (options.speed ?? 820)) + delay,
       angle: Math.atan2(dy, dx), tx, ty, power, radius: options.radius ?? 40, targets: options.targets ?? 1,
-      slow: options.slow ?? 0, variant: options.arrow ?? 'normal', level: this.save.level, aim: options.aim, source: options.source
+      slow: options.slow ?? 0, variant: options.arrow ?? 'normal', level: this.save.level, aim: options.aim, source: options.source,
+      launch: launch || undefined, size: options.size
     });
   }
 
@@ -522,6 +588,7 @@ export class World {
     const p = this.player;
     for (const kind of Object.keys(this.cooldown) as Action[]) this.cooldown[kind] = Math.max(0, this.cooldown[kind] - dt);
     this.attackPose = Math.max(0, this.attackPose - dt);
+    this.weaponNotice = Math.max(0, this.weaponNotice - dt);
     p.berserk = Math.max(0, p.berserk - dt);
     p.hit = Math.max(0, p.hit - dt);
     // 딜레이 크러싱 10연타 — 타격 간격이 지난 만큼 한 타씩 판정하고, 10타가 끝나면 시퀀스를 닫는다(작업 212).

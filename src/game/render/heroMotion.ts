@@ -118,14 +118,15 @@ export const costumePlaybackRateLimit = 3;
 /**
  * 공격 속도 배율 → 시각 재생 배율 (작업 140 요구 3).
  *
- * `world.ts`의 공격 쿨다운(`cooldowns.attack / (1 + speed / 100)`, 광폭 시
- * `/ (1.5 + (berserkLevel - 1) * .08)`)과 **같은 식**을 역수로 쓴다. 즉 쿨다운이 짧아진
+ * `world.ts`의 공격 쿨다운(`cooldowns.attack / (1 + speed / 100)`, 광폭 시 `berserkSpeedScale` —
+ * `min(1.5, 1.2 + (레벨-1)*.01)`)과 **같은 식**을 역수로 쓴다. 즉 쿨다운이 짧아진
  * 비율만큼 모션 프레임이 빨리 넘어간다. 렌더러는 전투 판정·월드 위치를 바꾸지 않는다.
  */
 export function costumePlaybackRate(input: { speed: number; berserk?: number; berserkLevel?: number }): number {
   const speed = Number.isFinite(input.speed) ? Math.max(0, input.speed) : 0;
   const base = 1 + speed / 100;
-  const rage = input.berserk && input.berserk > 0 ? 1.5 + (Math.max(1, input.berserkLevel ?? 1) - 1) * .08 : 1;
+  // [작업 216] `world.berserkSpeedScale`과 같은 식(공속 +20% + 레벨당 +1%, 상한 1.5배).
+  const rage = input.berserk && input.berserk > 0 ? Math.min(1.5, 1.2 + (Math.max(1, input.berserkLevel ?? 1) - 1) * .01) : 1;
   return clamp(base * rage, 1, costumePlaybackRateLimit);
 }
 

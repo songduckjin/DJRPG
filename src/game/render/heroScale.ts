@@ -22,7 +22,12 @@ export const heroBodyPx: Record<string, number> = {
   // 궁수 기본 시트(작업 157) — 같은 셀 좌표계로 만들었으므로 전사와 같은 값을 쓴다.
   archerMale: 337, archerFemale: 337,
   archerMaleWalk: 300, archerFemaleWalk: 300,
-  archerMaleAttack: 268, archerFemaleAttack: 270,
+  // [작업 216] 궁수가 활을 쏠 때 작아지던 문제 — 예전 268/270은 공격 시트의 **불투명 영역**(머리 위로
+  // 솟은 활대까지 포함, 239~275px)을 잰 값이라, 몸통(정수리~발끝)은 233/229px뿐인데도 배율이 작게
+  // 나와 서기(333/331px)보다 약 13% 작게 그려졌다. 정수리~발끝만 다시 재어 서기와 같은 체격으로 맞춘다
+  // (전사·마법사 공격값은 건드리지 않는다). 갑옷 1~9번 공격 시트는 230~258px로 조금씩 다르지만
+  // 한 값으로 그리므로 서기 대비 ±8% 안에 들어온다.
+  archerMaleAttack: 235, archerFemaleAttack: 233,
   // 마법사 기본 시트(작업 198) — 같은 362px 셀 좌표계로 만들었다.
   mageMale: 337, mageFemale: 337,
   mageMaleWalk: 300, mageFemaleWalk: 300,

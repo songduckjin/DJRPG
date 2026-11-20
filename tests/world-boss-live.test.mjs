@@ -1,3 +1,4 @@
+import { withWeapon } from './helpers/armed.mjs';
 import './ts-loader.mjs';
 import {test,before,beforeEach,after} from 'node:test';
 import assert from 'node:assert/strict';
@@ -9,14 +10,14 @@ const {parseSave,freshSave}=await import('../src/game/store.ts');
 import {periods} from '../server/journey-state.mjs';
 const {worldBossEndpoint}=await import('../server/endpoints/world-boss.mjs');
 let db;let now=Date.parse('2026-11-18T10:00:00Z');
-async function seed(id,guest=false,connection=db){const save=parseSave({...freshSave('male'),name:id,auto:true,level:7,floor:1,learned:[],quickSlots:[null,null,null]},id);await connection.execute({sql:'INSERT INTO djrpg_accounts(id,password_hash,save_json,updated_at) VALUES (?,?,?,?)',args:[id,guest?'guest':'hash',JSON.stringify(save),new Date(now).toISOString()]});}
+async function seed(id,guest=false,connection=db){const save=parseSave(withWeapon({...freshSave('male'),name:id,auto:true,level:7,floor:1,learned:[],quickSlots:[null,null,null]}),id);await connection.execute({sql:'INSERT INTO djrpg_accounts(id,password_hash,save_json,updated_at) VALUES (?,?,?,?)',args:[id,guest?'guest':'hash',JSON.stringify(save),new Date(now).toISOString()]});}
 const act=(id,input={},time=now,sid)=>operation(db,id,{action:'list',...input},sid,time);
 const start=(id,time=now,requestId=randomUUID())=>act(id,{action:'start',requestId,characterSlot:1},time);
 before(async()=>{db=createClient({url:'file::memory:?cache=shared'});await schema(db);});
 beforeEach(()=>{now+=2*86400000;});
 after(async()=>{await db.close();});
 test('shared HP is ten million; server replay is deterministic and leaves save untouched',()=>{
- assert.equal(WORLD_BOSS_HP,10000000);const save=parseSave({...freshSave('male'),level:7},'replay'),before=structuredClone(save);
+ assert.equal(WORLD_BOSS_HP,10000000);const save=parseSave(withWeapon({...freshSave('male'),level:7},'replay-weapon'),'replay'),before=structuredClone(save);
  const first=replayBoss(save,15),again=replayBoss(save,15);assert.equal(first.damage,again.damage);assert(first.damage>0);assert.deepEqual(save,before);
  const evade=replayBoss(save,15,[3]);assert(evade.world.player.hp>=first.world.player.hp);
 });

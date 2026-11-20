@@ -285,15 +285,20 @@ export function drawArrow(this: GameView, effect: Effect, x: number, y: number, 
  */
 export function drawMagicBolt(this: GameView, effect: Effect, x: number, y: number): void {
     const dx = (effect.tx ?? effect.x) - effect.x, dy = (effect.ty ?? effect.y) - effect.y;
-    const progress = Math.max(0, Math.min(1, effect.age / Math.max(.01, effect.duration)));
+    // [작업 216] `launch`는 발사 전 머리 위에 떠 있는 시간이다 — 그동안은 제자리에서 숨쉬듯 작아졌다
+    // 커지고, 남은 시간(duration−launch)에만 곧장 일직선으로 날아간다(궤적은 선형 보간 그대로).
+    const launch = effect.launch ?? 0;
+    const progress = Math.max(0, Math.min(1, (effect.age - launch) / Math.max(.01, effect.duration - launch)));
+    const scale = effect.size ?? 1;
     const px = x + (dx - dy) * .86 * progress;
     const py = y + (dx + dy) * .43 * progress - 20;
     const color = arrowColors[effect.variant ?? 'arcane'];
     const tail = 1 - Math.abs(progress - .5) * 2;
-    const radius = effect.variant === 'meteor' ? 11 : effect.variant === 'chain' ? 7 : 6 + tail * 2;
+    const hover = effect.age < launch ? .82 + Math.sin(effect.age * 34) * .18 : 1;
+    const radius = (effect.variant === 'meteor' ? 11 : effect.variant === 'chain' ? 7 : 6 + tail * 2) * scale * hover;
     // 꼬리 — 진행 반대 방향으로 짧게 번지는 빛.
     const angle = Math.atan2((dx + dy) * .43, (dx - dy) * .86);
-    this.glow.moveTo(px - Math.cos(angle) * 26, py - Math.sin(angle) * 26).lineTo(px, py)
+    if (progress > 0) this.glow.moveTo(px - Math.cos(angle) * 26 * scale, py - Math.sin(angle) * 26 * scale).lineTo(px, py)
       .stroke({ color, width: 5 + tail * 3, alpha: .1 + tail * .22 });
     this.glow.circle(px, py, radius * 2.2).fill({ color, alpha: .12 + tail * .1 });
     this.effects.circle(px, py, radius).fill({ color, alpha: .92 });

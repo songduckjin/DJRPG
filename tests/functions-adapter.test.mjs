@@ -94,6 +94,16 @@ test('Fetch endpoints register, save, load and query shared data using the exist
     assert.equal(registration.status, 200);
     const registered = await registration.json();
     assert.equal(registered.characterSlot, 1);
+    // [작업 216] 가입은 아이디·비밀번호만 받고 캐릭터는 0개다 — 캐릭터를 먼저 만들어야 저장할 수 있다.
+    assert.equal(registered.needsCharacter, true);
+    const blockedSave = await accountEndpoint(post('account', { action: 'save', revision: 0, characterSlot: 1, save: registered.save }, registered.token), options);
+    assert.equal(blockedSave.status, 409);
+    assert.equal((await blockedSave.json()).code, 'CHARACTER_REQUIRED');
+    const creation = await accountEndpoint(post('account', { action: 'createCharacter', slot: 1, name: '테스터', gender: 'female', job: 'warrior', revision: registered.revision }, registered.token), options);
+    assert.equal(creation.status, 200);
+    const created = await creation.json();
+    assert.equal(created.save.name, '테스터');
+    registered.save = created.save; registered.revision = created.revision;
     const db = createClient({ url: env.TURSO_DATABASE_URL });
     try {
       const fresh = (await db.execute({ sql: 'SELECT password_hash FROM djrpg_accounts WHERE id=?', args: ['tester119'] })).rows[0].password_hash;
@@ -102,7 +112,7 @@ test('Fetch endpoints register, save, load and query shared data using the exist
     const token = registered.token;
     const item = { id: randomUUID(), name: '기존 검', slot: 'weapon', rarity: 'rare', stats: { attack: 10 } };
     const save = { ...registered.save, gold: 17, bag: [item] };
-    const savedResponse = await accountEndpoint(post('account', { action: 'save', revision: 0, characterSlot: 1, save }, token), options);
+    const savedResponse = await accountEndpoint(post('account', { action: 'save', revision: registered.revision, characterSlot: 1, save }, token), options);
     assert.equal(savedResponse.status, 200);
     const saved = await savedResponse.json();
     assert.equal(saved.save.gold, 17);

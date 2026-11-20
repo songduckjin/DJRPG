@@ -12,6 +12,8 @@ export function resetModalDefaults(ui: Interface): void {
   ui.codexQuery = ''; ui.codexSlot = ''; ui.codexRarity = ''; ui.codexState = 'all';
   ui.codexSelected = undefined;
   ui.confirmReset = false;
+  // 캐릭터 카드 펼침은 팝업을 닫으면 접힌다(작업 216).
+  ui.characterFocus = undefined;
   if(ui.dungeon)ui.dungeon.tab='challenge';
   if(ui.worldBoss)ui.worldBoss.tab='challenge';
 }

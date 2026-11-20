@@ -37,6 +37,9 @@ test('reduced motion preserves a short colored emphasis without moving or scalin
 test('changing artwork retains slot semantics and clears the art when a skill is removed',()=>{
   const art={style:{},hidden:false},classes=new Set(),button={querySelector:()=>art,classList:{toggle(name,on){if(on)classes.add(name);else classes.delete(name);}}};
   applySkillArtwork(button,'spin');assert(art.style.backgroundImage.includes('field-skills.png'));assert(classes.has('has-skill-art'));
-  applySkillArtwork(button,'attack');assert(art.style.backgroundImage.includes('nav_skills_v2.png'));assert.equal(art.style.backgroundSize,'contain');
+  // [작업 216] 기본 공격은 직업별 원형 아이콘이다(전사 대검·궁수 활·마법사 마법탄).
+  applySkillArtwork(button,'attack');assert(art.style.backgroundImage.includes('attack_warrior.png'));assert.equal(art.style.backgroundSize,'contain');
+  applySkillArtwork(button,'attack','archer');assert(art.style.backgroundImage.includes('attack_archer.png'));
+  applySkillArtwork(button,'attack','mage');assert(art.style.backgroundImage.includes('attack_mage.png'));
   applySkillArtwork(button,null);assert(art.hidden);assert(!classes.has('has-skill-art'));
 });

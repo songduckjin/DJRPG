@@ -1,3 +1,4 @@
+import { withWeapon } from './helpers/armed.mjs';
 import './ts-loader.mjs';
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -28,7 +29,7 @@ const sid = id => `sid-${id}`;
 const env = () => ({ TURSO_DATABASE_URL: url, TURSO_AUTH_TOKEN: 'dungeon-key' });
 const worldBossKey = () => url;
 async function seed(id, over = {}) {
-  const save = parseSave({ ...freshSave('male'), name: id, level: 7, ...over }, id);
+  const save = parseSave(withWeapon({ ...freshSave('male'), name: id, level: 7, ...over }), id);
   await db.execute({ sql: 'INSERT INTO djrpg_accounts(id,password_hash,save_json,updated_at,session_id) VALUES(?,?,?,?,?)', args: [id, 'hash', JSON.stringify(save), new Date().toISOString(), sid(id)] });
   await account(db, id);
   return save;
@@ -50,12 +51,12 @@ before(async () => {
 after(async () => { await db.close(); await removeTempDbDirectory(directory).catch(() => {}); });
 
 test('리플레이는 그 세이브로 그 층을 깰 수 있는지와 최소 클리어 시간을 알려 준다', () => {
-  const strong = parseSave({ ...freshSave('male'), level: 30, floor: 1 }, 'a');
+  const strong = parseSave(withWeapon({ ...freshSave('male'), level: 30, floor: 1 }, 'a-weapon'), 'a');
   const replay = replayDungeonFloat(strong, 1);
   assert.equal(replay.outcome, 'clear');
   assert(replay.seconds > 0 && replay.seconds <= 90);
   assert.equal(requiredClearSeconds(strong, 1), Math.max(DUNGEON_MIN_SECONDS, Math.round(replay.seconds * .5)));
-  const weak = parseSave({ ...freshSave('male'), level: 1, floor: 1 }, 'b');
+  const weak = parseSave(withWeapon({ ...freshSave('male'), level: 1, floor: 1 }, 'b-weapon'), 'b');
   const hard = replayDungeonFloat(weak, 10);
   assert.equal(requiredClearSeconds(weak, 10), hard.outcome === 'clear' ? Math.max(DUNGEON_MIN_SECONDS, Math.round(hard.seconds * .5)) : DUNGEON_UNVERIFIED_SECONDS);
   function replayDungeonFloat(save, floor) { return replayDungeonFloor(save, floor); }
@@ -127,7 +128,7 @@ test('순위 조회는 쓰기 없이 답한다(계정·기록·revision 그대�
 
 test('게스트는 순위를 볼 수만 있고 기록은 올리지 못한다', async () => {
   const now = Date.parse('2026-12-09T10:00:00Z');
-  const save = parseSave({ ...freshSave('male'), name: '게스트' }, 'guest-x');
+  const save = parseSave(withWeapon({ ...freshSave('male'), name: '게스트' }), 'guest-x');
   await db.execute({ sql: 'INSERT INTO djrpg_accounts(id,password_hash,save_json,updated_at,session_id) VALUES(?,?,?,?,?)', args: ['guest-x', 'guest', JSON.stringify(save), new Date().toISOString(), sid('guest-x')] });
   await account(db, 'guest-x');
   const listed = await call('guest-x', { action: 'list' }, now);
