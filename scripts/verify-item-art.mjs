@@ -370,3 +370,37 @@ for (let index = 1; index < 10; index += 1) {
   if (data.length > 200 * 1024) throw new Error(`활 파츠가 200KB를 넘습니다: bow_${index}_v1.png`);
 }
 console.log('작업 160 활 파츠 9장 확인 완료.');
+
+// ── 작업 199: 기본 지팡이를 지운 마법사 시트(mage_nostaff) + 지팡이 파츠 10장 ────────────
+// 0~9번을 모두 파츠로 얹으므로 짧은 완드를 들었을 때 뒤로 기본 긴 지팡이가 남지 않는다.
+const nostaffRoot = fileURLToPath(new URL('../public/assets/pilot-25d/mage_nostaff/', import.meta.url));
+for (const gender of ['male', 'female']) {
+  for (const [motion, width, height] of [['idle', 362, 362], ['walk', 1448, 362], ['attack', 1448, 362]]) {
+    const path = join(nostaffRoot, `mage_${gender}_${motion}_v1.png`);
+    if (!existsSync(path)) throw new Error(`작업 199 기본 지팡이 지운 시트가 없습니다: mage_${gender}_${motion}_v1.png`);
+    const data = readFileSync(path), header = data.subarray(0, 26);
+    if (header.toString('ascii', 1, 4) !== 'PNG' || header.readUInt32BE(16) !== width || header.readUInt32BE(20) !== height) {
+      throw new Error(`기본 지팡이 지운 시트 규격이 다릅니다(${header.readUInt32BE(16)}×${header.readUInt32BE(20)}): mage_${gender}_${motion}_v1.png`);
+    }
+    if (!(header[25] === 6 || (header[25] === 3 && data.includes('tRNS')))) {
+      throw new Error(`기본 지팡이 지운 시트는 투명도가 있는 PNG여야 합니다: mage_${gender}_${motion}_v1.png`);
+    }
+  }
+}
+console.log('작업 199 기본 지팡이 지운 마법사 시트 6장 확인 완료.');
+
+const staffPartRoot = fileURLToPath(new URL('../public/assets/pilot-25d/staffs/', import.meta.url));
+for (let index = 0; index < 10; index += 1) {
+  const path = join(staffPartRoot, `staff_${index}_v1.png`);
+  if (!existsSync(path)) throw new Error(`작업 199 지팡이 파츠가 없습니다: staff_${index}_v1.png`);
+  const data = readFileSync(path), header = data.subarray(0, 26);
+  const width = header.readUInt32BE(16), height = header.readUInt32BE(20);
+  if (header.toString('ascii', 1, 4) !== 'PNG' || width !== 362 || height !== 362) {
+    throw new Error(`지팡이 파츠는 362×362 PNG여야 합니다(${width}×${height}): staff_${index}_v1.png`);
+  }
+  if (!(header[25] === 6 || (header[25] === 3 && data.includes('tRNS')))) {
+    throw new Error(`지팡이 파츠는 투명도가 있는 PNG여야 합니다: staff_${index}_v1.png`);
+  }
+  if (data.length > 200 * 1024) throw new Error(`지팡이 파츠가 200KB를 넘습니다: staff_${index}_v1.png`);
+}
+console.log('작업 199 지팡이 파츠 10장 확인 완료.');
