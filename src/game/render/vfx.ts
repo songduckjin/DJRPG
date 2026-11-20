@@ -12,21 +12,57 @@ export function weaponSlashColor(world: Pick<World, 'save'>): number {
   return world.save.equipment.weapon ? rarityColors[world.save.equipment.weapon.rarity] : 0xffffff;
 }
 
+/**
+ * 휘두르기 검기 스프라이트의 틴트 — 무기 등급색을 12%만 섞는다.
+ *
+ * 확정 시안의 은빛 검기 + 황금빛 지면 충격파 색감이 기준이라 등급색으로 통째로 물들이지
+ * 않고, 등급이 높을수록 아주 조금만 그 색으로 기울게 한다(맨손은 흰색 그대로).
+ */
+export function slashTint(world: Pick<World, 'save'>): number {
+  if (!world.save.equipment.weapon) return 0xffffff;
+  const color = weaponSlashColor(world);
+  const mix = (channel: number): number => Math.round(255 * .88 + channel * .12);
+  return mix(color >> 16 & 255) << 16 | mix(color >> 8 & 255) << 8 | mix(color & 255);
+}
+
 export function drawSkillVfx(this: GameView, world: World, effect: Effect, x: number, y: number, t: number, screenAngle: number, time: number): boolean {
     if (effect.kind === 'slash') return true;
     if (effect.kind === 'shot') { drawArrow.call(this, effect, x, y, screenAngle); return true; }
     if (effect.kind === 'rain') { drawArrowRain.call(this, effect, x, y, t, time); return true; }
     if (effect.kind === 'hawk') { drawHawkEye.call(this, effect, x, y, t, time); return true; }
     if (effect.kind === 'slash2') {
+      // [작업 157] 확정 시안(은빛 검기 + 황금빛 지면 충격파)대로 코드 선 2줄 대신
+      // 검정 배경 VFX 스프라이트 두 장을 add 로 얹는다. 검기는 스윙 방향으로 돌고,
+      // 지면 충격파는 지면에 눕힌 채(세로 .62) 히어로 발밑에서 전방으로 번진다.
       const progress = Math.max(0, Math.min(1, t));
-      const radius = 53 + progress * 24;
-      const alpha = Math.sin(Math.PI * progress);
-      const centerX = x + Math.cos(screenAngle) * (30 + progress * 12);
-      const centerY = y + Math.sin(screenAngle) * (18 + progress * 7) - 48;
       const strength = world.save.equipment.weapon ? slashStrength[world.save.equipment.weapon.rarity] : 0;
-      const color = weaponSlashColor(world);
-      this.effects.arc(centerX, centerY, radius, screenAngle - 1.05, screenAngle + 1.05).stroke({ color, width: 9 + strength * .5, alpha: alpha * (.4 + strength * .025) });
-      this.effects.arc(centerX, centerY, radius, screenAngle - 1.05, screenAngle + 1.05).stroke({ color, width: 3.5 + strength * .2, alpha });
+      let sprites = this.vfxSprites.get(effect);
+      if (!sprites) {
+        const arc = new Sprite(this.textures.fxSlash2);
+        arc.anchor.set(.03, .9);
+        arc.blendMode = 'add';
+        const shock = new Sprite(this.textures.fxSlash2Ground);
+        shock.anchor.set(.5);
+        shock.blendMode = 'add';
+        this.skillVfx.addChild(shock, arc);
+        sprites = [arc, shock];
+        this.vfxSprites.set(effect, sprites);
+      }
+      const [arc, shock] = sprites;
+      const tint = slashTint(world);
+      const forwardX = Math.cos(screenAngle), forwardY = Math.sin(screenAngle);
+      const reach = 2 + progress * 6;
+      const arcScale = (232 + strength * 8) * (.9 + progress * .26) / arc.texture.width;
+      arc.position.set(x + forwardX * reach, y + forwardY * reach * .55 - 2);
+      arc.rotation = screenAngle;
+      arc.scale.set(arcScale);
+      arc.alpha = Math.min(1, Math.sin(Math.PI * progress) * 1.35);
+      arc.tint = tint;
+      const shockWidth = (196 + strength * 6) * (.9 + progress * .3);
+      shock.position.set(x + forwardX * shockWidth * .34, y + forwardY * shockWidth * .34 * .55);
+      shock.scale.set(shockWidth / shock.texture.width, shockWidth / shock.texture.width * .62);
+      shock.alpha = Math.sin(Math.PI * Math.min(1, progress * 1.15));
+      shock.tint = tint;
       return true;
     }
     if (effect.kind === 'warcry') return true;
@@ -147,8 +183,14 @@ export function drawDragon(this: GameView, effect: Effect, x: number, y: number,
       this.vfxSprites.set(effect, sprites);
     }
     const radius = Math.min(this.app.screen.width * .43, 170);
-    const theta = effect.age * Math.PI * 2 / 1.1 + progress * progress * Math.PI * 2;
+    // [작업 157] 묵직하게 선회하도록 회전을 절반 이하로 늦췄다(한 바퀴 1.1초 → 2.4초).
+    // 후반에는 궤도를 좁히며 144°만 더 돌아 하늘로 솟는다.
+    const theta = effect.age * Math.PI * 2 / 2.4 + progress * progress * Math.PI * .8;
     const fade = Math.min(1, progress * 8, (1 - progress) * 7);
+    // 청룡이 도는 동안 발밑 지면에 짙은 파란 기운이 번진다(확정 시안의 바닥 회오리).
+    this.glow.ellipse(x, y - 6, radius * 1.05, radius * .48).fill({ color: 0x1f4fff, alpha: .1 * fade });
+    this.ground.ellipse(x, y + 2, radius * .95, radius * .4).stroke({ color: 0x6fb0ff, width: 2, alpha: .2 * fade });
+    this.ground.ellipse(x, y + 2, radius * .55, radius * .23).stroke({ color: 0x9ad0ff, width: 1.5, alpha: .14 * fade });
     for (const [index, sprite] of sprites.entries()) {
       const segmentProgress = Math.max(0, Math.min(1, progress - index * .012));
       const orbit = dragonOrbitFactor(segmentProgress);
@@ -159,9 +201,10 @@ export function drawDragon(this: GameView, effect: Effect, x: number, y: number,
       const tail = 1 - index / (bodyCount + 1);
       sprite.position.set(x + Math.cos(angle) * r, y - 12 + Math.sin(angle) * r * .65 - ascent);
       sprite.rotation = angle + Math.PI / 2;
-      const width = index === 0 ? 102 : 37 + tail * 32;
+      const width = index === 0 ? 102 : 46 + tail * 36;
       const scale = width / sprite.texture.width;
-      sprite.scale.set(scale);
+      // 몸통은 궤도 접선 방향으로 길고, 방사 방향으로 1.25배 두껍게 그려 이음매가 벌어지지 않게 한다.
+      sprite.scale.set(scale, scale * (index === 0 ? 1 : 1.25));
       sprite.alpha = fade * Math.min(1, segmentProgress * 10) * (index === 0 ? 1 : .35 + tail * .6);
       const layer = Math.sin(angle) < 0 ? this.dragonBack : this.skillVfx;
       if (sprite.parent !== layer) layer.addChild(sprite);
