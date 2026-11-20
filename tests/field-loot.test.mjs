@@ -351,7 +351,7 @@ test('a boss keeps the ordinary chance roll for items, never five at once', () =
   assert.doesNotMatch(source, /BOSS_ITEM_DROPS/, 'and never counts them');
   // The field's own rolls are the ones a boss makes, so a boss uses the boss rate the table already has.
   assert.match(source, /equipmentDropChance\(this\.save\.floor, boss\)/, 'equipment uses the kill’s own rate');
-  assert.match(source, /rollItem\(this\.save\.floor, guaranteed, boss\)/, 'and the item is rolled for a boss too');
+  assert.match(source, /rollItem\(this\.save\.floor, guaranteed, boss, this\.job\)/, 'and the item is rolled for a boss too');
   assert.match(source, /skillBookDropChance\(this\.save\.floor, boss\)/, 'the skill book too');
 });
 

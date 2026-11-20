@@ -3,7 +3,7 @@ import type { Interface } from '../interface';
 import { accountRequest } from '../login';
 import { apiHeaders, isOutdatedResponse, reloadForNewVersion } from '../../game/appVersion';
 
-export type CharacterSummary = { slot: number; name: string; gender: 'male' | 'female'; level: number; floor: number };
+export type CharacterSummary = { slot: number; name: string; gender: 'male' | 'female'; job?: 'warrior' | 'archer'; level: number; floor: number; itemCount?: number };
 type CharacterList = { characters: CharacterSummary[]; activeSlot: number; maxSlots: number; revision: number };
 
 export async function loadCharacters(ui: Interface): Promise<void> {
@@ -25,17 +25,40 @@ export function renderCharacters(ui: Interface, dialog: HTMLElement): void {
   const grid = document.createElement('div'); grid.className = 'character-slots';
   for (let slot = ui.characterPage * 3 + 1; slot <= Math.min(list.maxSlots, (ui.characterPage + 1) * 3); slot++) {
     const character = list.characters.find(entry => Number(entry.slot) === slot);
-    const card = button('', () => {
+    const card = document.createElement('div');
+    card.className = `character-slot${slot === ui.session.characterSlot ? ' selected' : ''}`;
+    const select = button('', () => {
       if (!character) { ui.characterCreateSlot = slot; ui.open('createCharacter'); return; }
       if (slot === ui.session.characterSlot) { ui.message('현재 선택된 캐릭터입니다.'); return; }
       void changeCharacter(ui, 'selectCharacter', slot).catch(error => ui.message(error instanceof Error ? error.message : String(error)));
     });
-    card.className = `character-slot${slot === ui.session.characterSlot ? ' selected' : ''}`;
-    const image = document.createElement('img'); image.alt = ''; image.src = character ? `/assets/warrior_${character.gender === 'female' ? 'female' : 'male'}_base.png` : '';
-    const details = document.createElement('span'); details.textContent = character ? `${character.name} · 전사 · Lv.${character.level} · ${character.floor}층` : `슬롯 ${slot} · 새 캐릭터 만들기`;
-    if (character) card.append(image);
-    else { const plus = document.createElement('strong'); plus.textContent = '+'; card.append(plus); }
-    card.append(details); grid.append(card);
+    select.className = 'character-select';
+    const image = document.createElement('img'); image.alt = '';
+    image.src = character ? (character.job === 'archer' ? `/assets/pilot-25d/archer_${character.gender === 'female' ? 'female' : 'male'}_idle_v1.png?v=2` : `/assets/warrior_${character.gender === 'female' ? 'female' : 'male'}_base.png`) : '';
+    const details = document.createElement('span'); details.textContent = character ? `${character.name} · ${character.job === 'archer' ? '궁수' : '전사'} · Lv.${character.level} · ${character.floor}층` : `슬롯 ${slot} · 새 캐릭터 만들기`;
+    if (character) select.append(image);
+    else { const plus = document.createElement('strong'); plus.textContent = '+'; select.append(plus); }
+    select.append(details); card.append(select);
+    if (character) {
+      const idle = button('방치', () => {
+        if (slot === ui.session.characterSlot) {
+          if (!ui.world.save.autoClimb) { ui.world.save.autoClimb = true; ui.world.onChange(); }
+          ui.message('현재 캐릭터의 자동 등반을 시작합니다.');
+          return;
+        }
+        void changeCharacter(ui, 'selectCharacter', slot).catch(error => ui.message(error instanceof Error ? error.message : String(error)));
+      });
+      idle.className = 'character-idle';
+      idle.setAttribute('aria-label', `${character.name} 방치 사냥 시작`);
+      card.append(idle);
+      const remove = button('삭제', () => { void deleteCharacter(ui, character).catch(error => ui.message(error instanceof Error ? error.message : String(error))); });
+      remove.className = 'character-delete';
+      remove.setAttribute('aria-label', `${character.name} 캐릭터 삭제`);
+      remove.disabled = slot === ui.session.characterSlot;
+      remove.title = remove.disabled ? '다른 캐릭터를 선택한 뒤 삭제할 수 있습니다.' : `${character.name} 삭제`;
+      card.append(remove);
+    }
+    grid.append(card);
   }
   dialog.append(grid);
   if (totalPages > 1) {
@@ -48,6 +71,11 @@ export function renderCharacters(ui: Interface, dialog: HTMLElement): void {
     grid.addEventListener('touchend', event => { const dx = event.changedTouches[0].clientX - startX; if (Math.abs(dx) > 50) { ui.characterPage = Math.max(0, Math.min(totalPages - 1, ui.characterPage + (dx < 0 ? 1 : -1))); ui.renderModal(); } }, { passive: true });
     dialog.append(pages);
   }
+  if (list.maxSlots < 9) {
+    const addSlot = button('＋ 슬롯 추가 · ◆ 500', () => { ui.shopTab = 'packages'; ui.open('shop'); });
+    addSlot.className = 'character-add-slot';
+    dialog.append(addSlot);
+  }
   dialog.append(button('공용창고', () => ui.open('warehouse')));
 }
 
@@ -55,24 +83,47 @@ export function renderCreateCharacter(ui: Interface, dialog: HTMLElement): void 
   const form = document.createElement('form'); form.className = 'character-create';
   const label = document.createElement('label'); label.textContent = `슬롯 ${ui.characterCreateSlot} · 이름`;
   const name = document.createElement('input'); name.name = 'characterName'; name.required = true; name.minLength = 2; name.maxLength = 16; name.pattern = '[가-힣a-zA-Z0-9_]{2,16}'; label.append(name);
-  const gender = document.createElement('div'); gender.className = 'character-gender';
+  // 위 줄 = 직업, 아래 줄 = 성별. 성별 버튼 이름은 고른 직업을 따라간다(남성 전사 ↔ 남성 궁수).
+  let job: 'warrior' | 'archer' = 'warrior';
   let selected: 'male' | 'female' = 'male';
+  const jobRow = document.createElement('div'); jobRow.className = 'character-gender character-job';
+  const gender = document.createElement('div'); gender.className = 'character-gender';
+  const labelGenders = () => gender.querySelectorAll('button').forEach((node, index) => { node.textContent = `${index === 0 ? '남성' : '여성'} ${job === 'archer' ? '궁수' : '전사'}`; });
+  for (const [value, title] of [['warrior', '전사'], ['archer', '궁수']] as const) {
+    const choice = button(title, () => { job = value; jobRow.querySelectorAll('button').forEach(node => node.classList.toggle('selected', node === choice)); labelGenders(); });
+    choice.classList.toggle('selected', value === job); jobRow.append(choice);
+  }
   for (const [value, title] of [['male', '남성 전사'], ['female', '여성 전사']] as const) {
     const choice = button(title, () => { selected = value; gender.querySelectorAll('button').forEach(node => node.classList.toggle('selected', node === choice)); });
     choice.classList.toggle('selected', value === selected); gender.append(choice);
   }
   const error = document.createElement('p'); error.className = 'character-error'; error.setAttribute('role', 'alert');
   const submit = document.createElement('button'); submit.type = 'submit'; submit.textContent = '캐릭터 생성';
-  form.append(label, gender, error, submit);
-  form.onsubmit = async event => { event.preventDefault(); submit.disabled = true; error.textContent = ''; try { await changeCharacter(ui, 'createCharacter', ui.characterCreateSlot, name.value.trim(), selected); } catch (cause) { error.textContent = cause instanceof Error ? cause.message : String(cause); submit.disabled = false; } };
+  const loading = document.createElement('div'); loading.className = 'character-create-loading'; loading.hidden = true; loading.setAttribute('role', 'status');
+  const spinner = document.createElement('i'); spinner.setAttribute('aria-hidden', 'true');
+  const loadingText = document.createElement('span'); loadingText.textContent = '캐릭터를 생성하는 중입니다…'; loading.append(spinner, loadingText);
+  form.append(label, jobRow, gender, error, submit, loading);
+  form.onsubmit = async event => { event.preventDefault(); submit.disabled = true; loading.hidden = false; error.textContent = ''; try { await changeCharacter(ui, 'createCharacter', ui.characterCreateSlot, name.value.trim(), selected, job, () => { loadingText.textContent = '사냥터에 입장하는 중입니다…'; }); } catch (cause) { error.textContent = cause instanceof Error ? cause.message : String(cause); submit.disabled = false; loading.hidden = true; } };
   dialog.append(form, button('캐릭터 목록으로', () => ui.open('characters')));
 }
 
-async function changeCharacter(ui: Interface, action: 'selectCharacter' | 'createCharacter', slot: number, name?: string, gender?: string): Promise<void> {
+async function changeCharacter(ui: Interface, action: 'selectCharacter' | 'createCharacter', slot: number, name?: string, gender?: string, job?: string, onReady?: () => void): Promise<void> {
   const sync = ui.market.sync;
   if (!await sync.flush()) throw new Error('현재 캐릭터 저장 결과를 확인한 뒤 다시 시도하세요.');
-  await accountRequest(action, { slot, name, gender, revision: sync.revision }, ui.session.token);
+  await accountRequest(action, { slot, name, gender, job, revision: sync.revision }, ui.session.token);
+  onReady?.();
   location.reload();
+}
+
+async function deleteCharacter(ui: Interface, character: CharacterSummary): Promise<void> {
+  const name = window.prompt(`${character.name} 캐릭터와 착용 장비·가방 아이템 ${character.itemCount ?? 0}개가 영구 삭제됩니다. 정말 삭제하려면 캐릭터 이름을 입력하세요.`);
+  if (name !== character.name) return;
+  const sync = ui.market.sync;
+  if (!await sync.flush()) throw new Error('현재 캐릭터 저장 결과를 확인한 뒤 다시 시도하세요.');
+  await accountRequest('deleteCharacter', { slot: character.slot, name, revision: sync.revision }, ui.session.token);
+  ui.characterList = undefined;
+  await loadCharacters(ui);
+  ui.message(`${character.name} 캐릭터를 삭제했습니다.`);
 }
 
 export async function loadWarehouse(ui: Interface): Promise<void> {

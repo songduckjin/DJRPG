@@ -1,6 +1,7 @@
 import type { Save } from './store';
 import { isSkillBook } from './items';
-import { MAX_SKILL_LEVEL, passiveOrder, skillOrder, type SkillLevelId } from './skills';
+import { MAX_SKILL_LEVEL, passiveOrderFor, skillOrderFor, type SkillLevelId } from './skills';
+import { jobOrDefault } from './skills';
 
 export function skillBookCost(targetLevel: number): number { return Math.ceil(Math.max(1, targetLevel) / 5); }
 export function skillBookStatus(save: Save, id: SkillLevelId) {
@@ -11,5 +12,6 @@ export function skillBookStatus(save: Save, id: SkillLevelId) {
   return { level, count, cost, maxed, ready: !maxed && count >= cost };
 }
 export function hasSkillUpgrade(save: Save): boolean {
-  return [...skillOrder, ...passiveOrder].some(id => skillBookStatus(save, id).ready);
+  const job = jobOrDefault(save.job);
+  return [...skillOrderFor(job), ...passiveOrderFor(job)].some(id => skillBookStatus(save, id).ready);
 }

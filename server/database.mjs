@@ -13,8 +13,8 @@ export const client = (env = runtimeEnv()) => {
   return createClient({ url: env.TURSO_DATABASE_URL, authToken: env.TURSO_DATABASE_AUTH_TOKEN || env.TURSO_AUTH_TOKEN });
 };
 const initializedSchemas = new Map();
-// 이미 session_id 열이 있는 DB(재배포·재시작)에서만 ALTER가 실패하므로, 그때는 ALTER만 빼고 같은 배치를 한 번 더 적용한다.
 const sessionColumn = 'ALTER TABLE djrpg_accounts ADD COLUMN session_id TEXT';
+const transientDatabaseError = error => /SQLITE_BUSY|SQLITE_LOCKED|SERVER_ERROR|ETIMEDOUT|ECONNRESET|ECONNREFUSED|fetch failed|network|timeout|temporarily unavailable|service unavailable/i.test(String(error?.code ?? '') + ' ' + String(error?.message ?? ''));
 export async function schema(db, env = runtimeEnv()) {
   const key = db.url ?? env?.TURSO_DATABASE_URL ?? db;
   if (initializedSchemas.has(key)) return initializedSchemas.get(key);
@@ -38,8 +38,14 @@ export async function schema(db, env = runtimeEnv()) {
     , 'CREATE TABLE IF NOT EXISTS djrpg_character_item_owners (item_id TEXT PRIMARY KEY, account_id TEXT NOT NULL COLLATE NOCASE, slot INTEGER NOT NULL)'
     , 'CREATE TABLE IF NOT EXISTS djrpg_warehouse (account_id TEXT NOT NULL COLLATE NOCASE, item_id TEXT PRIMARY KEY, item_json TEXT NOT NULL)'
     , 'CREATE TABLE IF NOT EXISTS djrpg_warehouse_requests (account_id TEXT NOT NULL COLLATE NOCASE, request_id TEXT NOT NULL, response_json TEXT NOT NULL, PRIMARY KEY(account_id,request_id))'
+    , 'CREATE TABLE IF NOT EXISTS djrpg_shop_wallet (account_id TEXT PRIMARY KEY COLLATE NOCASE, diamonds INTEGER NOT NULL DEFAULT 0, max_slots INTEGER NOT NULL DEFAULT 3, customer_key TEXT NOT NULL)'
+    , 'CREATE TABLE IF NOT EXISTS djrpg_shop_orders (order_id TEXT PRIMARY KEY, account_id TEXT NOT NULL COLLATE NOCASE, product_id TEXT NOT NULL, amount INTEGER NOT NULL, currency TEXT NOT NULL, provider TEXT NOT NULL, grant_json TEXT NOT NULL, status TEXT NOT NULL, payment_key TEXT UNIQUE, created_at INTEGER NOT NULL, confirmed_at INTEGER)'
+    , 'CREATE TABLE IF NOT EXISTS djrpg_shop_ledger (id INTEGER PRIMARY KEY AUTOINCREMENT, account_id TEXT NOT NULL COLLATE NOCASE, source_type TEXT NOT NULL, source_id TEXT NOT NULL, diamonds_delta INTEGER NOT NULL, created_at INTEGER NOT NULL, UNIQUE(account_id,source_type,source_id))'
+    , 'CREATE TABLE IF NOT EXISTS djrpg_shop_entitlements (account_id TEXT NOT NULL COLLATE NOCASE, entitlement_key TEXT NOT NULL, quantity INTEGER NOT NULL DEFAULT 0, expires_at INTEGER, updated_at INTEGER NOT NULL, PRIMARY KEY(account_id,entitlement_key))'
+    , 'CREATE TABLE IF NOT EXISTS djrpg_shop_requests (account_id TEXT NOT NULL COLLATE NOCASE, request_id TEXT NOT NULL, response_json TEXT NOT NULL, PRIMARY KEY(account_id,request_id))'
     , "INSERT OR IGNORE INTO djrpg_account_profiles(account_id,shared_gold,active_slot) SELECT id, COALESCE(CAST(json_extract(save_json,'$.gold') AS INTEGER),0),1 FROM djrpg_accounts WHERE json_valid(save_json)"
     , "INSERT OR IGNORE INTO djrpg_characters(account_id,slot,save_json,updated_at) SELECT id,1,json_remove(save_json,'$.gold'),updated_at FROM djrpg_accounts WHERE json_valid(save_json)"
+    , "INSERT OR IGNORE INTO djrpg_shop_wallet(account_id,customer_key) SELECT id,lower(hex(randomblob(16))) FROM djrpg_accounts"
     , `INSERT OR IGNORE INTO djrpg_character_item_owners(item_id,account_id,slot)
        SELECT o.item_id,o.account_id,1 FROM djrpg_item_owners o JOIN djrpg_accounts a ON a.id=o.account_id
        WHERE json_valid(a.save_json) AND o.location='inventory' AND o.item_id IN (
@@ -47,10 +53,23 @@ export async function schema(db, env = runtimeEnv()) {
          UNION SELECT json_extract(j.value,'$.id') FROM json_each(a.save_json,'$.equipment') j
        )`
   ];
-  const initialized = db.batch([...statements, sessionColumn], 'write').catch(error => {
-    if (!/duplicate column name/i.test(String(error?.message ?? error))) { initializedSchemas.delete(key); throw error; }
-    return db.batch(statements, 'write');
-  });
+  const initialize = async () => {
+    await db.execute(statements[0]);
+    const sessionColumns = await db.execute("SELECT name FROM pragma_table_info('djrpg_accounts') WHERE name='session_id'");
+    if (!sessionColumns.rows.length) {
+      try { await db.execute(sessionColumn); }
+      catch (error) { if (!/duplicate column name/i.test(String(error?.message ?? error))) throw error; }
+    }
+    return db.batch(statements.slice(1), 'write');
+  };
+  const initialized = (async () => {
+    try { return await initialize(); }
+    catch (error) {
+      if (!transientDatabaseError(error)) throw error;
+      await new Promise(resolve => setTimeout(resolve, 200));
+      return initialize();
+    }
+  })().catch(error => { initializedSchemas.delete(key); throw error; });
   initializedSchemas.set(key, initialized);
   return initialized;
 }
@@ -61,9 +80,10 @@ export async function transaction(db, run) {
   finally { tx.close(); }
 }
 export async function account(tx, id) {
-  const query = { sql: `SELECT a.*, p.shared_gold, p.active_slot, c.save_json AS character_json, c.updated_at AS character_updated_at, COALESCE(v.revision,0) AS revision
+  const query = { sql: `SELECT a.*, p.shared_gold, p.active_slot, COALESCE(w.max_slots,3) AS max_slots, c.save_json AS character_json, c.updated_at AS character_updated_at, COALESCE(v.revision,0) AS revision
     FROM djrpg_accounts a JOIN djrpg_account_profiles p ON p.account_id=a.id
     JOIN djrpg_characters c ON c.account_id=a.id AND c.slot=p.active_slot
+    LEFT JOIN djrpg_shop_wallet w ON w.account_id=a.id
     LEFT JOIN djrpg_save_versions v ON v.account_id=a.id WHERE a.id=?`, args: [id] };
   let row = (await tx.execute(query)).rows[0];
   if (row) return decodeAccount(row);
@@ -247,7 +267,7 @@ export async function writeSave(tx, row, save, operations = [], preserveCollecti
   const incomingCollection = Array.isArray(save.equipmentCollection) ? save.equipmentCollection : [];
   save.equipmentCollection = [...new Set([...previousCollection, ...incomingCollection].filter(key => typeof key === 'string' && /^(weapon|offhand|helmet|armor|necklace|gloves|belt|boots|ring):[0-9]$/.test(key)))].slice(0, 75);
   if (!Number.isSafeInteger(save.gold) || save.gold < 0 || save.gold > 9_000_000_000_000) fail(400, 'INVALID_GOLD', '금화 값이 올바르지 않습니다.');
-  if (Number(row.slot) < 1 || Number(row.slot) > 3) fail(409, 'CHARACTER_CONFLICT', '현재 캐릭터를 다시 불러오세요.');
+  if (Number(row.slot) < 1 || Number(row.slot) > Number(row.max_slots ?? 3)) fail(409, 'CHARACTER_CONFLICT', '현재 캐릭터를 다시 불러오세요.');
   if (!row.skipJourney) operations = [...operations, journeyOperation(row.id, await journeyState(tx, row, save))];
   const revision = row.revision + 1;
   const characterSave = structuredClone(save);

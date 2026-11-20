@@ -128,6 +128,17 @@ test('boss floor transition clears old enemies and pursuit but retains drops', (
   } finally { Math.random = originalRandom; }
 });
 
+test('death stops auto-climb while retaining the existing respawn behavior', () => {
+  const save = freshSave(); save.autoClimb = true;
+  const world = new World(save);
+  world.enemies = [{ x: 10, y: 0, hp: 999, maxHp: 999, boss: false, hit: 0, step: 0, moving: false, knockX: 0, knockY: 0, slow: 0 }];
+  world.player.hp = 1;
+  world.update(.01);
+  assert.equal(save.autoClimb, false);
+  assert.equal(world.player.hp, totalStats(save).health);
+  assert.equal(save.health, totalStats(save).health);
+});
+
 test('normal difficulty health and damage match the floor curves', () => {
   for (const [floor, normalHp, bossHp, normalDamage, bossDamage] of [
     // 작업 196: floors 1~8 keep the old curve, the deep one takes over by 25 (floor 78 ≈ 15,300, not

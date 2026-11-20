@@ -7,6 +7,17 @@
 
 ## 진행 중 작업
 
+### [x] [작업 159] 궁수 스타터 가죽 튜닉 시트 교체·재배포
+- **담당자**: `songduckjin` · **브랜치**: `feat/159-archer-starter-leather-sheets` · **위험 등급**: 낮음 · **상태**: `[x]`
+- **배경**: 작업 157의 궁수 기본 시트는 후드 망토 + 견갑 차림이었다. 사용자가 승인한 스타터 시안(`downloads/archer_preview/{male,female}_starter.png`, 민소매 가죽 조끼 + 크림 셔츠, 후드·견갑·망토 없음)으로 기본 외형을 교체한다.
+- **제작**: `images --edit`로 승인 원본에서 걷기·활 사격 4프레임 가로 스트립(`{male,female}_starter_{walk,attack}.png`)을 만들고, `scripts/build-archer-sheets.py` 입력을 `{}_starter{,_walk,_attack}.png`로 바꿔 `public/assets/pilot-25d/archer_{male,female}_{idle,walk,attack}_v1.png` 6장을 재생성(서기 `362×362`, 걷기·공격 `1448×362` 4셀, 256색 PNG, 검정 배경 키잉·발끝 정렬).
+- **캐시 무효화**: `/assets/*`가 `immutable`이라 `src/game/render.ts`(6경로)·`src/ui/equipmentPortrait.ts`·`src/ui/modals/charactersModal.ts`의 궁수 시트 URL에 `?v=2`. `tests/archer.test.mjs`는 기대값을 새 URL로 고치고, 궁수 시트 참조에 버전 쿼리가 빠지면 실패하는 감시 테스트를 추가했다.
+- **불변**: `heroBodyPx`(남녀 337/300/268·270)·전투 수치·스킬·Save/DB/API 계약, 장비 오버레이 미적용 규칙(작업 157) 그대로.
+- **검증**: `tsc --noEmit`, `tests/archer.test.mjs` 14/14, 전체 488건 중 486 통과(`costume-field-render` 2건은 `origin/main` `86ac44e` 워크트리에서도 동일 실패), `verify-item-art`(궁수 시트 6장), `npm run build`, 배포 번들 6경로 `?v=2` 확인.
+- **검수 이미지**: `downloads/djrpg_archer_starter_ingame_v2.png` — `scripts/preview-archer-field.py`를 남녀 4패널(걷기·사격)로 확장하고 `heroBodyPx`로 배율을 맞춰 합성했다. 브라우저 실기 확인은 미실시(사용자 몫).
+- **머지·배포(완료)**: [PR #124](https://github.com/songduckjin/DJRPG/pull/124) 스쿼시 병합 `4ba39fdb63b7`. Pages production 성공(Workers Builds는 `main`과 같은 기존 실패), 운영 `version.json` `4ba39fdb63b7`(`builtAt 2026-11-20T02:29:42Z`), `?v=2` 시트 6장 전부 HTTP 200·원격 sha256=로컬, 배포 번들 `index-j5_2NUhd.js`에 6경로 `?v=2` 포함.
+- **남은 것**: 사용자 실기 화면(걷기·사격 모션, 장비창·캐릭터 카드 썸네일) 확인.
+
 ### [x] [작업 150] 평타 1마리 제한·평타 ×1.6·걷기/공격 몸 크기 보정
 - **담당자**: `songduckjin` · **브랜치**: `fix/150-basic-attack-single-target` · **위험 등급**: 중 · **상태**: `[x]` 완료(실기 확인은 사용자 몫)
 - **제보(2026-11-19 실기)**: ① 평타가 반경 90px·부채꼴 안의 모든 적을 동시에 때림 ② 대검을 휘두르거나 걸을 때 캐릭터가 작아짐. 후속 지시: 한 마리만 때리는 만큼 “한방한방이 쌔야 돼”.

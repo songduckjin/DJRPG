@@ -1,8 +1,9 @@
 import { canStoreItem } from './bagCapacity';
 import { bossGoldPiles, bossGoldSpot } from './bossLoot';
 import { addExperience, floorKillTarget, rollItem, skillLevel, totalStats, type Item, type Rarity, type Save } from './store';
-import { equipmentDropChance, rollSkillBook, skillBookDropChance } from './items';
-import { dragonOrbitFactor, skillDamageScale, skillDuration, skillRange, skills, type SkillId } from './skills';
+import { equipmentDropChance, rollSkillBook, skillBookDropChance, starterWeaponName } from './items';
+import { dragonOrbitFactor, skillDamageScale, skillDuration, skillRange, skills, type Job, type SkillId } from './skills';
+import { jobOrDefault } from './skills';
 import { clampArenaPoint, spawnArenaEnemy } from './arena';
 import { LOOT_ABSORB_SECONDS, LOOT_REST_SECONDS } from './loot';
 import { autoSalvageBlock, autoSalvageRecovered } from './inventory';
@@ -17,11 +18,25 @@ export type Drop = { x: number; y: number; item: Item; age: number; warned: bool
  *  `from` is the body a boss heap was thrown from (작업 196), so the field can fly it out on its own
  *  arc instead of dropping it where it appears. */
 export type Coin = { x: number; y: number; age: number; gold: number; from?: { x: number; y: number } };
-export type Effect = { x: number; y: number; kind: 'slash' | 'slash2' | 'spin' | 'crushing' | 'slam' | 'warcry' | 'power' | 'destroy' | 'hell' | 'hit' | 'death'; age: number; duration: number; angle: number; swing?: number; amount?: number; nextHit?: number; power?: number; level?: number };
+export type Effect = { x: number; y: number; kind: 'slash' | 'slash2' | 'spin' | 'crushing' | 'slam' | 'warcry' | 'power' | 'destroy' | 'hell' | 'hit' | 'death'
+  | 'shot' | 'rain' | 'hawk'; age: number; duration: number; angle: number; swing?: number; amount?: number; nextHit?: number; power?: number; level?: number;
+  /** 궁수 화살·화살비처럼 날아가서 맞는 이펙트의 도착지점과 위력(작업 157). */
+  tx?: number; ty?: number; radius?: number; targets?: number; slow?: number; variant?: ArrowVariant; fired?: boolean;
+  /** 화살이 쫓아가는 적(살아 있는 동안 도착지를 갱신한다). 없으면 발사 시점의 지점으로 날아간다. */
+  aim?: Enemy;
+  /** 이 이펙트를 만든 스킬(스킬 버튼 피드백용). 평타면 없다. */
+  source?: SkillId };
+export type ArrowVariant = 'normal' | 'ice' | 'pierce' | 'snipe' | 'volley';
 export type Action = 'attack' | SkillId;
-export const cooldowns: Record<Action, number> = { attack: .48, slash2: skills.slash2.cooldown, spin: skills.spin.cooldown, crushing: skills.crushing.cooldown, slam: skills.slam.cooldown, warcry: skills.warcry.cooldown, power: skills.power.cooldown, destroy: skills.destroy.cooldown, hell: skills.hell.cooldown };
+export const cooldowns = { attack: .48, ...Object.fromEntries(Object.keys(skills).map(id => [id, skills[id as SkillId].cooldown])) } as Record<Action, number>;
 /** 평타 한 방의 공격력 배율. 한 마리만 맞히는 대신 한 방이 무겁다(작업 150). */
 export const basicAttackPower = 1.6;
+/** 궁수가 서서 쏘는 거리와 추격을 멈추는 거리(작업 157). */
+/** 궁수 평타 사거리와, 이보다 멀 때만 다가가는 거리(작업 157).
+ *  아레나는 중심에서 153px 남짓이라, 사거리 250이면 사실상 화면 안의 적을 모두 쏠 수 있고
+ *  추격은 적이 꽤 가까워졌을 때만 한다. */
+export const archerAttackRange = 250;
+export const archerStopRange = 118;
 export function enemyMoveSpeed(floor: number, boss: boolean): number {
   return boss ? 28 : Math.min(64, 38 + Math.max(0, floor - 1) * 1.2);
 }
@@ -51,7 +66,7 @@ export class World {
   drops: Drop[] = [];
   coins: Coin[] = [];
   effects: Effect[] = [];
-  cooldown: Record<Action, number> = { attack: 0, slash2: 0, spin: 0, crushing: 0, slam: 0, warcry: 0, power: 0, destroy: 0, hell: 0 };
+  cooldown: Record<Action, number> = Object.fromEntries(Object.keys(cooldowns).map(id => [id, 0])) as Record<Action, number>;
   spawnTimer = 0;
   paused = false;
   attackHeld = false;
@@ -74,13 +89,15 @@ export class World {
   }
 
   constructor(public save: Save) {
-    this.save.auto = true;
-    this.player.hp = Math.min(save.health, totalStats(save).health);
+    this.save.auto = true;    this.player.hp = Math.min(save.health, totalStats(save).health);
     this.bossPending = save.floorKills >= floorKillTarget(save.floor);
     const hp = enemyMaxHp(save.floor, false);
     const start = clampArenaPoint(145, -45);
     this.enemies.push({ x: start.x, y: start.y, hp, maxHp: hp, boss: false, hit: 0, step: 0, moving: false, knockX: 0, knockY: 0, slow: 0 });
   }
+
+  /** 캐릭터 직업 — 값이 없는 예전 세이브는 전사로 본다. */
+  get job(): Job { return jobOrDefault(this.save.job); }
 
   travelToFloor(floor: number): { ok: boolean; message: string } {
     if (!Number.isInteger(floor) || floor < 1 || floor > this.save.maxFloor) return { ok: false, message: `이동할 수 없는 층입니다. 현재 최고 도달 층은 ${this.save.maxFloor}층입니다.` };
@@ -114,6 +131,12 @@ export class World {
     if (target) this.faceTarget(target);
     if (kind === 'attack') {
       const angle = p.facing;
+      if (this.job === 'archer') {
+        // 궁수 평타: 활시위를 당겨 실제 화살이 적에게 날아가 적중한다(작업 157).
+        const point = target ?? { x: p.x + Math.cos(angle) * archerAttackRange, y: p.y + Math.sin(angle) * archerAttackRange };
+        this.shoot(point.x, point.y, attack * basicAttackPower, { speed: 820, radius: 42, arrow: 'normal', aim: target });
+        return;
+      }
       this.effects.push({ x: p.x, y: p.y, kind: 'slash', age: 0, duration: .25, angle, swing: this.swing });
       this.swing *= -1;
       // 평타는 한 마리만: 사거리·부채꼴 안에서 가장 가까운 적 한 마리를 공격력 ×1.6으로 때린다(스킬은 종전대로 광역).
@@ -146,7 +169,59 @@ export class World {
     } else if (kind === 'hell') {
       this.effects.push({ x: p.x, y: p.y, kind: 'hell', age: 0, duration: skillDuration(kind, level), angle: p.facing, nextHit: .4, power: attack * .6 * damageScale, level });
       this.damage(range, attack * 3.2 * damageScale, 0, Math.PI, 45, 1 + (level - 1) * .2);
+    } else if (kind === 'doubleShot') {
+      const aim = this.aimPoint(target, range);
+      this.shoot(aim.x, aim.y, attack * 1.35 * damageScale, { speed: 900, arrow: 'normal', aim: target, source: kind });
+      this.shoot(aim.x + (Math.random() - .5) * 16, aim.y + (Math.random() - .5) * 16, attack * 1.35 * damageScale, { speed: 900, delay: .08, arrow: 'normal', aim: target, source: kind });
+    } else if (kind === 'multiShot') {
+      const aim = this.aimPoint(target, range);
+      const base = Math.atan2(aim.y - p.y, aim.x - p.x);
+      for (let index = -2; index <= 2; index++) {
+        const spread = base + index * .17;
+        const distance = Math.hypot(aim.x - p.x, aim.y - p.y);
+        this.shoot(p.x + Math.cos(spread) * distance, p.y + Math.sin(spread) * distance, attack * .95 * damageScale, { speed: 860, radius: 34, arrow: 'normal', source: kind });
+      }
+    } else if (kind === 'pierceShot') {
+      const aim = this.aimPoint(target, range);
+      this.shoot(aim.x, aim.y, attack * 2.6 * damageScale, { speed: 980, radius: 52, targets: 4, knockback: 4, arrow: 'pierce', source: kind });
+    } else if (kind === 'iceArrow') {
+      const aim = this.aimPoint(target, range);
+      this.shoot(aim.x, aim.y, attack * 1.9 * damageScale, { speed: 760, radius: 54, slow: 2.4 + (level - 1) * .06, arrow: 'ice', aim: target, source: kind });
+    } else if (kind === 'hawkEye') {
+      p.berserk = skillDuration(kind, level);
+      p.berserkLevel = level;
+      this.effects.push({ x: p.x, y: p.y, kind: 'hawk', age: 0, duration: .9, angle: 0, level, source: kind });
+    } else if (kind === 'snipe') {
+      const aim = this.aimPoint(target, range);
+      this.shoot(aim.x, aim.y, attack * 4.3 * damageScale, { speed: 1500, radius: 38, knockback: 18, arrow: 'snipe', aim: target, source: kind });
+    } else if (kind === 'stormVolley') {
+      const aim = this.aimPoint(target, range);
+      for (let index = 0; index < 6; index++) {
+        this.shoot(aim.x + (Math.random() - .5) * 30, aim.y + (Math.random() - .5) * 30, attack * .8 * damageScale, { speed: 940, radius: 34, delay: index * .13, arrow: 'volley', aim: target, source: kind });
+      }
+    } else if (kind === 'arrowRain') {
+      const aim = this.aimPoint(target, range);
+      this.effects.push({ x: aim.x, y: aim.y, kind: 'rain', age: 0, duration: skillDuration(kind, level), angle: 0, nextHit: .12, power: attack * .85 * damageScale, level, source: kind });
     }
+  }
+
+  /** 스킬을 쏠 지점 — 사거리 안의 가장 가까운 적, 없으면 정면 사거리 끝. */
+  private aimPoint(target: Enemy | undefined, range: number): { x: number; y: number } {
+    if (target && Math.hypot(target.x - this.player.x, target.y - this.player.y) <= range) return { x: target.x, y: target.y };
+    return { x: this.player.x + Math.cos(this.player.facing) * range * .75, y: this.player.y + Math.sin(this.player.facing) * range * .75 };
+  }
+
+  /** 화살 하나를 쏜다. 도착하는 순간(`update`)에 그 지점 반경의 적에게 피해를 준다. */
+  private shoot(tx: number, ty: number, power: number, options: { speed?: number; radius?: number; targets?: number; slow?: number; knockback?: number; delay?: number; arrow?: ArrowVariant; aim?: Enemy; source?: SkillId } = {}): void {
+    const p = this.player;
+    const dx = tx - p.x, dy = ty - p.y;
+    const distance = Math.hypot(dx, dy);
+    const delay = options.delay ?? 0;
+    this.effects.push({
+      x: p.x, y: p.y, kind: 'shot', age: 0, duration: Math.max(.05, distance / (options.speed ?? 820)) + delay,
+      angle: Math.atan2(dy, dx), tx, ty, power, radius: options.radius ?? 40, targets: options.targets ?? 1,
+      slow: options.slow ?? 0, variant: options.arrow ?? 'normal', level: this.save.level, aim: options.aim, source: options.source
+    });
   }
 
   nearest(): Enemy | undefined {
@@ -205,13 +280,13 @@ export class World {
     // The gold is the boss's whole haul — ten heaps and nothing handed out on top (작업 195). Items
     // still come from the one chance roll every kill makes below, against the same field drop table
     // (the boss rates for a boss), so a boss never leaves five guaranteed pieces behind.
-    const guaranteed = this.save.tutorial === 0, boss = enemy.boss;
+    const guaranteed = this.save.tutorial === 0 && !enemy.boss, boss = enemy.boss;
     if (guaranteed || Math.random() < equipmentDropChance(this.save.floor, boss)) {
-      this.drops.push({ x: enemy.x, y: enemy.y, item: rollItem(this.save.floor, guaranteed, boss), age: 0, warned: false });
-      if (guaranteed) { this.save.tutorial = 1; this.onMessage('낡은 두손검이 떨어졌습니다. 잠시 뒤 자동으로 획득됩니다!'); }
+      this.drops.push({ x: enemy.x, y: enemy.y, item: rollItem(this.save.floor, guaranteed, boss, this.job), age: 0, warned: false });
+      if (guaranteed) { this.save.tutorial = 1; this.onMessage(`${starterWeaponName(this.job)}이(가) 떨어졌습니다. 잠시 뒤 자동으로 획득됩니다!`); }
     }
     if (Math.random() < skillBookDropChance(this.save.floor, boss)) {
-      this.drops.push({ x: enemy.x, y: enemy.y, item: rollSkillBook(this.save.floor), age: 0, warned: false });
+      this.drops.push({ x: enemy.x, y: enemy.y, item: rollSkillBook(this.save.floor, this.job), age: 0, warned: false });
     }
     if (enemy.boss) {
       if (this.save.autoClimb) {
@@ -251,11 +326,15 @@ export class World {
       const dx = destination.x - p.x, dy = destination.y - p.y, distance = Math.hypot(dx, dy);
       if (destination !== this.chaseTarget) { this.chaseTarget = destination; this.pursuing = false; }
       // Keep the production boundary fix while loot now flies to the hero.
-      this.pursuing = distance >= 90;
+      // 궁수는 사거리 밖에서만 다가가고, 사거리 안에서는 서서 활을 쏜다(작업 157).
+      const stopRange = this.job === 'archer' ? archerStopRange : 90;
+      const attackRange = this.job === 'archer' ? archerAttackRange : 90;
+      const engageRange = this.job === 'archer' ? archerAttackRange + 24 : 190;
+      this.pursuing = distance >= stopRange;
       this.activeMove = this.pursuing && distance > 0 ? { x: dx / distance, y: dy / distance } : { x: 0, y: 0 };
       if (distance > 1) this.faceTarget(destination);
-      if (distance < 190) {
-        if (distance < 90) this.action('attack');
+      if (distance < engageRange) {
+        if (distance <= attackRange) this.action('attack');
         for (const skill of this.save.quickSlots) {
           if (!skill || !this.save.learned.includes(skill) || this.cooldown[skill] > 0 || distance > skillRange(skill, skillLevel(this.save, skill))) continue;
           this.action(skill);
@@ -291,7 +370,7 @@ export class World {
       if (d < 35 && p.hit <= 0) {
         p.hp = Math.max(0, p.hp - enemyHitDamage(this.save.floor, enemy.boss, totalStats(this.save).defense));
         p.hit = .85;
-        if (p.hp <= 0) { p.hp = totalStats(this.save).health; this.save.health = p.hp; p.x = 0; p.y = 0; this.save.gold = Math.max(0, this.save.gold - 10); this.onMessage('쓰러졌습니다. 10골드를 잃고 부활했습니다.'); this.onChange(); }
+        if (p.hp <= 0) { this.save.autoClimb = false; p.hp = totalStats(this.save).health; this.save.health = p.hp; p.x = 0; p.y = 0; this.save.gold = Math.max(0, this.save.gold - 10); this.onMessage('쓰러졌습니다. 10골드를 잃고 부활했습니다. 자동 등반이 중단됩니다.'); this.onChange(); }
       }
       enemy.hit = Math.max(0, enemy.hit - dt);
     }
@@ -319,16 +398,26 @@ export class World {
       }
       this.save.bag.push(drop.item);
       drop.age = -1;
-      if (drop.item.name === '낡은 두손검' && this.save.tutorial === 1) this.save.tutorial = 2;
+      if (drop.item.name === starterWeaponName(this.job) && this.save.tutorial === 1) this.save.tutorial = 2;
       this.onMessage(`${drop.item.name} 획득!`);
       this.onChange();
     }
-    this.drops = this.drops.filter(d => d.age >= 0 && (d.age < 90 || (d.item.name === '낡은 두손검' && this.save.tutorial < 3)));
+    this.drops = this.drops.filter(d => d.age >= 0 && (d.age < 90 || (d.item.name === starterWeaponName(this.job) && this.save.tutorial < 3)));
     // Coins are only what the field draws: the gold was paid at the kill and nothing is added here.
     for (const coin of this.coins) coin.age += dt;
     this.coins = this.coins.filter(coin => coin.age < LOOT_REST_SECONDS + LOOT_ABSORB_SECONDS);
     for (const effect of [...this.effects]) {
       effect.age += dt;
+      // 화살은 도착한 순간에만 판정한다 — 날아가는 동안에는 맞지 않는다(작업 157).
+      if (effect.kind === 'shot') {
+        // 적이 살아 있으면 날아가는 동안에도 도착지를 따라간다(빗나감 방지).
+        if (effect.aim && this.enemies.includes(effect.aim)) { effect.tx = effect.aim.x; effect.ty = effect.aim.y; }
+        if (!effect.fired && effect.age >= effect.duration) {
+          effect.fired = true;
+          this.damage(effect.radius ?? 40, effect.power ?? 0, effect.angle, Math.PI, 10, effect.slow ?? 0, { x: effect.tx ?? effect.x, y: effect.ty ?? effect.y }, effect.targets ?? 1);
+        }
+        continue;
+      }
       while (effect.nextHit !== undefined && effect.nextHit < effect.duration && effect.nextHit <= effect.age) {
         const level = effect.level ?? 1;
         if (effect.kind === 'slash2') this.damage(skillRange('slash2', level), effect.power ?? 0, effect.angle, .9, 12, 0, effect);
@@ -339,6 +428,7 @@ export class World {
         if (effect.kind === 'crushing') this.damage(skillRange('crushing', level) * .72, effect.power ?? 0, 0, Math.PI, 28, 1.2, effect);
         if (effect.kind === 'slam') this.damage(skillRange('slam', level), effect.power ?? 0, effect.angle, 1.35, 12, 2 + (level - 1) * .3, effect);
         if (effect.kind === 'hell') this.damage(skillRange('hell', level), effect.power ?? 0, 0, Math.PI, 14, 1 + (level - 1) * .2, effect);
+        if (effect.kind === 'rain') this.damage(92, effect.power ?? 0, 0, Math.PI, 6, .9, effect);
         if (effect.kind === 'slash2' || effect.kind === 'crushing') effect.nextHit = undefined;
         else effect.nextHit += effect.kind === 'spin' || effect.kind === 'slam' ? .45 : .4;
       }

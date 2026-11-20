@@ -1,5 +1,7 @@
 import type { Interface } from './interface';
-import { rarityNames, slotNames, statNames, type Slot, type Stat } from '../game/store';
+import { rarityNames, statNames, type Slot, type Stat } from '../game/store';
+import { slotNameFor } from '../game/items';
+import { jobOrDefault } from '../game/skills';
 import { unequipItem } from '../game/appearance';
 import { attachedDetailPosition, dismissBagDetail } from './bagDetail';
 
@@ -54,7 +56,7 @@ export function showEquippedDetail(ui: Interface, slot: Slot, pinned = false): v
       current.locked = !current.locked; updateLock(current.locked); ui.world.onChange();
     };
     heading.append(title, lock);
-    const grade = document.createElement('p'); grade.textContent = `${rarityNames[item.rarity]} · ${slotNames[slot]}`;
+    const grade = document.createElement('p'); grade.textContent = `${rarityNames[item.rarity]} · ${slotNameFor(slot, jobOrDefault(ui.world.save.job))}`;
     panel.append(heading, grade);
     for (const stat of Object.keys(item.stats) as Stat[]) {
       const line = document.createElement('span'); line.textContent = `${statNames[stat]} +${item.stats[stat]}`; panel.append(line);

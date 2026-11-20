@@ -21,6 +21,9 @@ import type { Gender } from './store';
 const paths = {
   floor: '/assets/wasteland-ground.png', terrainProps: '/assets/wasteland-props.png', male: '/assets/warrior_male_base.png',
   pilotMale: '/assets/pilot-25d/warrior_male_idle_v1.png', pilotFemale: '/assets/pilot-25d/warrior_female_idle_v1.png',
+  // 궁수 기본 시트(작업 157 → 159 스타터 가죽 튜닉) — 같은 362px 셀 좌표계다. 갑옷·투구·활 오버레이는 이번 단계에 없다.
+  // `/assets/*`는 immutable 캐시라 시트를 갈면 URL을 바꿔야 브라우저가 즉시 새 그림을 받는다(작업 159).
+  archerMale: '/assets/pilot-25d/archer_male_idle_v1.png?v=2', archerFemale: '/assets/pilot-25d/archer_female_idle_v1.png?v=2',
   // 투구 착용 시에만 쓰는 머리 없는 본체(작업 152) — 같은 셀 좌표계라 배율·앵커를 공유한다.
   pilotMaleHeadless: headlessBodyPaths.male.idle, pilotFemaleHeadless: headlessBodyPaths.female.idle,
   female: '/assets/warrior_female_base.png', armored: '/assets/warrior_armored_swordless.png',
@@ -32,9 +35,11 @@ const paths = {
   maleBaseHelm: '/assets/warrior_male_base_helm.png', maleSwordHelm: '/assets/warrior_male_sword_helm.png',
   maleSword: '/assets/warrior_male_sword.png', femaleSword: '/assets/warrior_female_sword.png',
   skeleton: '/assets/skeleton_warrior.png', boss: '/assets/skeleton_boss.png',
-  fxDragonHead: '/assets/fx_dragon_head.png', fxDragonBody: '/assets/fx_dragon_body.png', fxSlam: '/assets/fx_wild_stamp.png',
+  fxDragonHead: '/assets/fx_dragon_head.png?v=2', fxDragonBody: '/assets/fx_dragon_body.png?v=2', fxSlam: '/assets/fx_wild_stamp.png',
   fxRage: '/assets/fx_blood_rage.png', fxSlash: '/assets/fx_slash_arc.png',
-  fxPower: '/assets/fx_power_strike.png', fxDestroy: '/assets/fx_destroy_swing.png', fxHell: '/assets/fx_hell_fire.png'
+  fxPower: '/assets/fx_power_strike.png', fxDestroy: '/assets/fx_destroy_swing.png', fxHell: '/assets/fx_hell_fire.png',
+  // [작업 157] 휘두르기(1번) 확정 시안 — 은빛 검기 + 황금빛 지면 충격파, 검정 배경 add 블렌딩용.
+  fxSlash2: '/assets/fx_slash2.png', fxSlash2Ground: '/assets/fx_slash2_ground.png'
 } as const;
 export type Art = keyof typeof paths;
 const animationPaths = {
@@ -49,6 +54,8 @@ const animationPaths = {
 const attackSheets = {
   pilotMaleAttack: '/assets/pilot-25d/warrior_male_attack_v1.png',
   pilotFemaleAttack: '/assets/pilot-25d/warrior_female_attack_v1.png',
+  archerMaleAttack: '/assets/pilot-25d/archer_male_attack_v1.png?v=2',
+  archerFemaleAttack: '/assets/pilot-25d/archer_female_attack_v1.png?v=2',
   pilotMaleAttackHeadless: headlessBodyPaths.male.attack,
   pilotFemaleAttackHeadless: headlessBodyPaths.female.attack,
   femaleArmoredNoHelmAttack: '/assets/warrior_female_armored_attack.png?v=3',
@@ -61,6 +68,8 @@ const attackSheets = {
 const walkSheets = {
   pilotMaleWalk: '/assets/pilot-25d/warrior_male_walk_v1.png',
   pilotFemaleWalk: '/assets/pilot-25d/warrior_female_walk_v1.png',
+  archerMaleWalk: '/assets/pilot-25d/archer_male_walk_v1.png?v=2',
+  archerFemaleWalk: '/assets/pilot-25d/archer_female_walk_v1.png?v=2',
   pilotMaleWalkHeadless: headlessBodyPaths.male.walk,
   pilotFemaleWalkHeadless: headlessBodyPaths.female.walk,
   maleBaseWalk: '/assets/walk8_male_base.png', femaleBaseWalk: '/assets/walk8_female_base.png',

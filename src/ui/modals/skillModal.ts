@@ -3,7 +3,8 @@ import { markSkillUpgrade, renderSkillBooks, renderSkillUpgrade } from '../skill
 import { orderedSkills } from '../itemOrder';
 import { availableSkills, unequipSkill } from '../../game/loadout';
 import { skillLevel } from '../../game/store';
-import { MAX_SKILL_LEVEL, passiveOrder, passives, skillDuration, skillRange, skills } from '../../game/skills';
+import { MAX_SKILL_LEVEL, passiveOrderFor, passives, skillDuration, skillRange, skills } from '../../game/skills';
+import { jobOrDefault } from '../../game/skills';
 import type { Interface } from '../interface';
 
 export function renderSkills(this: Interface, dialog: HTMLElement): void {
@@ -13,15 +14,18 @@ export function renderSkills(this: Interface, dialog: HTMLElement): void {
     note.textContent = this.skillTarget !== undefined ? `${this.skillTarget + 1}번 스킬 원에 장착할 스킬을 선택하세요.` : '스킬북으로 습득·강화합니다. 장착 중인 스킬은 해제할 수 있고, 필드의 + 원에서 다시 장착할 수 있습니다.';
     list.appendChild(note);
     renderSkillBooks(this, list);
+    const archer = jobOrDefault(save.job) === 'archer';
     const base = document.createElement('article'); base.className = 'skill-card';
-    base.innerHTML = '<div class="skill-icon">⚔</div><div class="skill-info"><h3>대검 베기 <small>Lv.1 · 기본 보유</small></h3><p>묵직한 두손검 횡베기로 전방 넓은 부채꼴을 공격합니다.</p><small>기본 쿨타임 0.48초 · 공격력 × 1.0 · 고정 슬롯</small></div>';
+    base.innerHTML = archer
+      ? '<div class="skill-icon">🏹</div><div class="skill-info"><h3>활 사격 <small>Lv.1 · 기본 보유</small></h3><p>시위를 당겨 화살을 날려 먼 거리의 적을 맞힙니다.</p><small>기본 쿨타임 0.48초 · 공격력 × 1.6 · 고정 슬롯</small></div>'
+      : '<div class="skill-icon">⚔</div><div class="skill-info"><h3>대검 베기 <small>Lv.1 · 기본 보유</small></h3><p>묵직한 두손검 횡베기로 전방 넓은 부채꼴을 공격합니다.</p><small>기본 쿨타임 0.48초 · 공격력 × 1.0 · 고정 슬롯</small></div>';
     const baseIcon=base.querySelector<HTMLElement>('.skill-icon')!;baseIcon.textContent='';baseIcon.className='skill-icon skill-image-icon';setSkillIcon(baseIcon,'attack');
     list.appendChild(base);
     const equippedGroup=document.createElement('section');equippedGroup.className='equipped-skill-group';equippedGroup.setAttribute('role','group');equippedGroup.setAttribute('aria-label','장착 중 스킬');
     if(save.quickSlots.some(id=>id!==null)){const title=document.createElement('h3');title.className='equipped-group-title';title.textContent='장착 중';equippedGroup.append(title);list.append(equippedGroup);}
     for (const id of orderedSkills(save)) {
       const skill = skills[id], learned = save.learned.includes(id), level = learned ? skillLevel(save, id) : 1;
-      const growth = id === 'warcry' ? `공격 버프 +${50 + (level - 1) * 5}%` : `위력 +${(level - 1) * 10}%`;
+      const growth = id === 'warcry' || id === 'hawkEye' ? `공격 버프 +${50 + (level - 1) * 5}%` : `위력 +${(level - 1) * 10}%`;
       const card = document.createElement('article'); card.className = 'skill-card active-skill-card'; card.dataset.skill = id;
       card.innerHTML = `<div class="skill-icon">${skill.icon}</div><div class="skill-info"><div class="skill-card-top"><div class="skill-name-block"><h3>${skill.name} <small>권장 Lv.${skill.level}</small></h3><strong class="skill-level">${learned ? `스킬 Lv.${level} / ${MAX_SKILL_LEVEL}` : '스킬북으로 습득'}</strong></div><div class="skill-status-stack"><span>${learned ? '습득 완료' : '미습득'}</span></div></div><p>${skill.description}</p><small>쿨타임 ${skill.cooldown}초 · 지속 ${skillDuration(id, level).toFixed(1)}초 · 범위 ${skillRange(id, level)} · ${growth}</small><div class="skill-actions"></div></div>`;
       const icon=card.querySelector<HTMLElement>('.skill-icon')!;icon.textContent='';icon.className='skill-icon skill-image-icon';setSkillIcon(icon,id);
@@ -48,10 +52,17 @@ export function renderSkills(this: Interface, dialog: HTMLElement): void {
     }
     const heading = document.createElement('h3'); heading.className = 'skill-group-title'; heading.textContent = '패시브 스킬'; list.appendChild(heading);
     const passivesGrid = document.createElement('div'); passivesGrid.className = 'passive-skill-grid';
-    for (const id of passiveOrder) {
+    for (const id of passiveOrderFor(jobOrDefault(save.job))) {
       const passive = passives[id], learned = save.passives.includes(id), level = learned ? skillLevel(save, id) : 1;
       const card = document.createElement('article'); card.className = 'skill-card passive-skill-card'; card.dataset.skill = id;
-      const bonus = id === 'mastery' ? `공격 +${15 + (level - 1) * 2}%` : id === 'body' ? `HP·방어 +${15 + (level - 1) * 2}%` : `치명 +${8 + (level - 1) * 2}% · 공속 +${12 + (level - 1) * 2}%`;
+      const bonusById = {
+        mastery: `공격 +${15 + (level - 1) * 2}%`, bowMastery: `공격 +${15 + (level - 1) * 2}%`,
+        body: `HP·방어 +${15 + (level - 1) * 2}%`,
+        instinct: `치명 +${8 + (level - 1) * 2}% · 공속 +${12 + (level - 1) * 2}%`,
+        swiftStep: `이동·공속 +${12 + (level - 1) * 2}%`,
+        hawkSight: `치명 +${8 + (level - 1) * 2}% · 사거리 +8%`
+      } as const;
+      const bonus = bonusById[id];
       card.innerHTML = `<div class="skill-icon">${passive.icon}</div><div class="skill-info"><h3>${passive.name} <small>권장 Lv.${passive.level}</small></h3><p>${passive.description}</p><strong class="skill-level">${learned ? `스킬 Lv.${level} / ${MAX_SKILL_LEVEL}` : '미습득 (스킬북 파밍 필요)'}</strong><small>${bonus}</small><div class="skill-actions"></div></div>`;
       const icon=card.querySelector<HTMLElement>('.skill-icon')!;icon.textContent='';icon.className='skill-icon skill-image-icon passive-image-icon';setPassiveSkillIcon(icon,id);
       const action = card.querySelector<HTMLElement>('.skill-actions')!;

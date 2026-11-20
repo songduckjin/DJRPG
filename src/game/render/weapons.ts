@@ -1,5 +1,5 @@
 import type { Gender, Save } from '../store';
-import { baseItemIndex } from '../items';
+import { baseItemIndex, isBow } from '../items';
 
 /**
  * 착용 대검 10종 외형 파츠 (작업 156).
@@ -100,6 +100,8 @@ export const weaponTierCacheLimit = 3;
 export function weaponIndexFor(save: Save): number {
   const item = save.equipment.weapon;
   if (!item) return 0;
+  // 활은 대검 파츠가 없다 — 이번 단게에서 궁수는 기본 시트만 그린다(작업 157).
+  if (isBow(item)) return 0;
   const index = baseItemIndex(item);
   return Number.isInteger(index) && index >= 0 && index < WEAPON_COUNT ? index : 0;
 }
