@@ -13,6 +13,14 @@ const offlineSeconds = updatedAt => {
   const elapsed = Math.floor((Date.now() - Date.parse(String(updatedAt))) / 1000);
   return Number.isFinite(elapsed) && elapsed >= 60 ? Math.min(43_200, elapsed) : 0;
 };
+const idleSecondsUntil = (updatedAt, end) => {
+  const elapsed = Math.floor((end - Date.parse(String(updatedAt))) / 1000);
+  return Number.isFinite(elapsed) && elapsed >= 60 ? Math.min(43_200, elapsed) : 0;
+};
+const pendingOfflineSeconds = async (db, id, slot, updatedAt) => {
+  const claim = (await db.execute({ sql: 'SELECT quantity FROM djrpg_shop_entitlements WHERE account_id=? AND entitlement_key=?', args: [id, `idle_claim_${slot}`] })).rows[0];
+  return claim ? Math.min(43_200, Number(claim.quantity) + offlineSeconds(updatedAt)) : offlineSeconds(updatedAt);
+};
 export async function accountEndpoint(request, { env = runtimeEnv(), createDbClient, legacyVerifier } = {}) {
   const res = { status: status => ({ json: body => json(body, status) }) };
   const req = { method: request.method, headers: { authorization: request.headers.get('authorization') }, body: await readBody(request) };
@@ -58,7 +66,7 @@ export async function accountEndpoint(request, { env = runtimeEnv(), createDbCli
       const latest = await account(db, row.id);
       const save = latest.save;
       const sid = await assignSession(db, row.id);
-      return res.status(200).json({ revision: latest.revision, accountId: row.id, loginId: row.id, gender: save.gender, job: jobOf(save.job), guest: false, token: tokenFor(row.id, env, sid), save, characterSlot: latest.slot, offlineSeconds: offlineSeconds(latest.character_updated_at) });
+      return res.status(200).json({ revision: latest.revision, accountId: row.id, loginId: row.id, gender: save.gender, job: jobOf(save.job), guest: false, token: tokenFor(row.id, env, sid), save, characterSlot: latest.slot, offlineSeconds: await pendingOfflineSeconds(db, row.id, latest.slot, latest.character_updated_at) });
     }
     const signed = tokenPayload(request, env);
     if (!signed) return bad(res, 401, 'INVALID_TOKEN', '인증이 만료되었습니다. 다시 로그인하세요.');
@@ -68,15 +76,22 @@ export async function accountEndpoint(request, { env = runtimeEnv(), createDbCli
     if (action === 'load') {
       // 소유권 테이블과 어긋난 유령 아이템을 내려보내지 않는다. 그대로 내려보내면 클라이언트의 다음 save가 영구 409가 된다.
       const save = await healStaleLoadItems(db, row);
-      return res.status(200).json({ revision: row.revision, accountId: row.id, loginId: row.password_hash === 'guest' ? '게스트' : row.id, gender: save.gender, job: jobOf(save.job), guest: row.password_hash === 'guest', token: req.headers.authorization.slice(7), save, characterSlot: row.slot, offlineSeconds: offlineSeconds(row.character_updated_at) });
+      return res.status(200).json({ revision: row.revision, accountId: row.id, loginId: row.password_hash === 'guest' ? '게스트' : row.id, gender: save.gender, job: jobOf(save.job), guest: row.password_hash === 'guest', token: req.headers.authorization.slice(7), save, characterSlot: row.slot, offlineSeconds: await pendingOfflineSeconds(db, row.id, row.slot, row.character_updated_at) });
     }
     if (action === 'characters') {
       const characters = (await db.execute({ sql: `SELECT slot, save_json, json_extract(save_json,'$.name') AS name, json_extract(save_json,'$.gender') AS gender, json_extract(save_json,'$.job') AS job,
-        json_extract(save_json,'$.level') AS level, json_extract(save_json,'$.floor') AS floor FROM djrpg_characters WHERE account_id=? ORDER BY slot`, args: [id] })).rows;
-      return res.status(200).json({ characters: characters.map(({ save_json, ...character }) => {
+        json_extract(save_json,'$.level') AS level, json_extract(save_json,'$.floor') AS floor, updated_at FROM djrpg_characters WHERE account_id=? ORDER BY slot`, args: [id] })).rows;
+      const entitlement = (await db.execute({ sql: "SELECT expires_at FROM djrpg_shop_entitlements WHERE account_id=? AND entitlement_key='all_idle_30d'", args: [id] })).rows[0];
+      const claims = (await db.execute({ sql: "SELECT entitlement_key,quantity FROM djrpg_shop_entitlements WHERE account_id=? AND entitlement_key LIKE 'idle_claim_%'", args: [id] })).rows;
+      const claimBySlot = new Map(claims.map(claim => [Number(String(claim.entitlement_key).slice('idle_claim_'.length)), Number(claim.quantity)]));
+      const allIdleExpiresAt = Number(entitlement?.expires_at ?? 0);
+      const now = Date.now();
+      return res.status(200).json({ characters: characters.map(({ save_json, updated_at, ...character }) => {
         const save = JSON.parse(save_json);
-        return { ...character, job: jobOf(character.job), itemCount: (Array.isArray(save.bag) ? save.bag.length : 0) + Object.values(save.equipment ?? {}).filter(Boolean).length };
-      }), activeSlot: row.slot, maxSlots: Number(row.max_slots ?? 3), revision: row.revision });
+        return { ...character, job: jobOf(character.job), itemCount: (Array.isArray(save.bag) ? save.bag.length : 0) + Object.values(save.equipment ?? {}).filter(Boolean).length,
+          idleSeconds: Number(character.slot) !== row.slot ? Math.min(43_200, (claimBySlot.get(Number(character.slot)) ?? 0) +
+            (allIdleExpiresAt > Date.parse(String(updated_at)) ? idleSecondsUntil(updated_at, Math.min(now, allIdleExpiresAt)) : 0)) : 0 };
+      }), activeSlot: row.slot, maxSlots: Number(row.max_slots ?? 3), revision: row.revision, allIdleExpiresAt });
     }
     if (action === 'deleteCharacter') {
       const slot = Number(body.slot);
@@ -96,6 +111,7 @@ export async function accountEndpoint(request, { env = runtimeEnv(), createDbCli
           (SELECT item_id FROM djrpg_character_item_owners WHERE account_id=? AND slot=?)`, args: [id, id, slot] });
         await tx.execute({ sql: 'DELETE FROM djrpg_character_item_owners WHERE account_id=? AND slot=?', args: [id, slot] });
         await tx.execute({ sql: 'DELETE FROM djrpg_characters WHERE account_id=? AND slot=?', args: [id, slot] });
+        await tx.execute({ sql: 'DELETE FROM djrpg_shop_entitlements WHERE account_id=? AND entitlement_key=?', args: [id, `idle_claim_${slot}`] });
         await tx.execute({ sql: 'INSERT INTO djrpg_save_versions(account_id,revision) VALUES (?,?) ON CONFLICT(account_id) DO UPDATE SET revision=excluded.revision', args: [id, latest.revision + 1] });
         return { ok: true, revision: latest.revision + 1 };
       });
@@ -117,8 +133,17 @@ export async function accountEndpoint(request, { env = runtimeEnv(), createDbCli
           const save = initialSave(id, body.gender, name, body.job);
           await tx.execute({ sql: 'INSERT INTO djrpg_characters(account_id,slot,save_json,updated_at) VALUES (?,?,?,?)', args: [id, slot, JSON.stringify({ ...save, gold: undefined }), new Date().toISOString()] });
         } else {
-          const exists = (await tx.execute({ sql: 'SELECT slot FROM djrpg_characters WHERE account_id=? AND slot=?', args: [id, slot] })).rows[0];
+          const exists = (await tx.execute({ sql: 'SELECT slot,updated_at FROM djrpg_characters WHERE account_id=? AND slot=?', args: [id, slot] })).rows[0];
           if (!exists) fail(404, 'EMPTY_SLOT', '빈 슬롯입니다. 캐릭터를 먼저 생성하세요.');
+          if (slot !== latest.slot) {
+            const entitlement = (await tx.execute({ sql: "SELECT expires_at FROM djrpg_shop_entitlements WHERE account_id=? AND entitlement_key='all_idle_30d'", args: [id] })).rows[0];
+            const now = Date.now();
+            const expiresAt = Number(entitlement?.expires_at ?? 0);
+            const seconds = expiresAt > Date.parse(String(exists.updated_at)) ? idleSecondsUntil(exists.updated_at, Math.min(now, expiresAt)) : 0;
+            if (seconds > 0) await tx.execute({ sql: `INSERT INTO djrpg_shop_entitlements(account_id,entitlement_key,quantity,expires_at,updated_at) VALUES (?,?,?,NULL,?)
+              ON CONFLICT(account_id,entitlement_key) DO UPDATE SET quantity=MIN(43200,quantity+excluded.quantity),updated_at=excluded.updated_at`, args: [id, `idle_claim_${slot}`, seconds, now] });
+            await tx.execute({ sql: 'UPDATE djrpg_characters SET updated_at=? WHERE account_id=? AND slot=?', args: [new Date(now).toISOString(), id, slot] });
+          }
         }
         await tx.batch([
           { sql: 'UPDATE djrpg_account_profiles SET active_slot=? WHERE account_id=?', args: [slot, id] },
@@ -151,6 +176,7 @@ export async function accountEndpoint(request, { env = runtimeEnv(), createDbCli
         }
         await reconcileItems(tx, id, latest.save, save, { slot: latest.slot });
         const saved = await writeSave(tx, latest, save, [], action !== 'reset');
+        await tx.execute({ sql: 'DELETE FROM djrpg_shop_entitlements WHERE account_id=? AND entitlement_key=?', args: [id, `idle_claim_${latest.slot}`] });
         if (action === 'save' && typeof body.requestId === 'string' && body.requestId.length <= 80) await tx.execute({ sql: 'INSERT INTO djrpg_save_requests VALUES (?,?,?) ON CONFLICT(account_id) DO UPDATE SET request_id=excluded.request_id, revision=excluded.revision', args: [id, body.requestId, saved.revision] });
         return { ok: true, ...saved, offlineSeconds: 0 };
       });

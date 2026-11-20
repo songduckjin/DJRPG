@@ -40,7 +40,7 @@ export async function mutate(db,id,input) {
     if(input.action==='journey-claim'){
       if(!['daily','weekly','achievements','mail'].includes(input.kind))fail(400,'INVALID_KIND','보상 분류를 확인하세요.');
       if(input.kind==='mail'){
-        selected=state.mail.filter(entry=>(input.id==='all'||entry.id===input.id)&&!entry.claimedAt&&entry.expiresAt>now);
+        selected=state.mail.filter(entry=>(input.id==='all'||entry.id===input.id)&&!entry.claimedAt&&(entry.expiresAt===null||entry.expiresAt>now));
         if(!selected.length)fail(409,'NOT_AVAILABLE','수령할 우편 보상이 없습니다.');
         rewards(save,selected);for(const entry of selected){entry.claimedAt=now;entry.read=true;}
       }else{
@@ -57,6 +57,18 @@ export async function mutate(db,id,input) {
       state.mail=state.mail.filter(entry=>!entry.claimedAt); // unclaimed/expired attachments never silently disappear
     }else fail(400,'INVALID_ACTION','지원하지 않는 요청입니다.');
     const ops=[...operations,journeyOperation(id,state)];
+    if (input.action === 'journey-claim') {
+      const diamondMails = selected.filter(entry => Number(entry.diamonds ?? 0) > 0);
+      if (diamondMails.length) {
+        await tx.execute({ sql: 'INSERT OR IGNORE INTO djrpg_shop_wallet(account_id,customer_key) VALUES (?,?)', args: [id, randomUUID()] });
+        for (const entry of diamondMails) {
+          const amount = Number(entry.diamonds);
+          if (!Number.isSafeInteger(amount) || amount <= 0) fail(409, 'INVALID_REWARD', '우편 보상이 올바르지 않습니다.');
+          ops.push({ sql: 'INSERT INTO djrpg_shop_ledger(account_id,source_type,source_id,diamonds_delta,created_at) VALUES (?,?,?,?,?)', args: [id, 'mail', entry.id, amount, now] });
+          ops.push({ sql: 'UPDATE djrpg_shop_wallet SET diamonds=diamonds+? WHERE account_id=?', args: [amount, id] });
+        }
+      }
+    }
     for(const item of save.bag.filter(item=>!beforeRewardIds.has(item.id))){
       ops.push({sql:'INSERT INTO djrpg_item_owners VALUES (?,?,?,?)',args:[item.id,id,'inventory',JSON.stringify(item)]});
       ops.push({sql:'INSERT INTO djrpg_character_item_owners(item_id,account_id,slot) VALUES (?,?,?)',args:[item.id,id,row.slot]});
