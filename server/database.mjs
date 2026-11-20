@@ -143,7 +143,7 @@ function itemValid(item) {
 }
 const ringSlot = item => typeof item?.slot === 'string' && item.slot.startsWith('ring') ? 'ring' : item?.slot;
 const itemStats = ['attack','defense','health','crit','speed'];
-// 강화 단계(`plus`, 작업 199)는 **표시 전용**이다. 능력치는 이미 각 스탯에 8%씩 반영되어 stats에 들어 있으므로
+// 강화 단계(`plus`, 작업 201)는 **표시 전용**이다. 능력치는 이미 각 스탯에 8%씩 반영되어 stats에 들어 있으므로
 // identity·sameItemBody는 plus를 보지 않는다 — 옛 장비가 로드 때 보수적으로 역산한 plus를 얻어도, 값이 없는
 // 클라이언트가 plus: 0을 보내도 409 ITEM_CONFLICT가 나지 않는다(이름·스탯·등급 검사는 그대로).
 const normalizePlus = item => {

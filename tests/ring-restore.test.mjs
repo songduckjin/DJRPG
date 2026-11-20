@@ -8,7 +8,7 @@ for(const gender of ['male','female'])test(`${gender}: auto-equipped opposite-sl
   autoEquipBest(save);
   assert.equal(save.equipment.ring1.id,'strong');assert.equal(save.equipment.ring2.id,'new');
   const expected=totalStats(save),before=JSON.stringify(save.equipment);
-  // 강화 단계(작업 199)는 로드에서 채워지는 값이므로, "반복 파싱이 같은 값을 낸다"로 확인한다(첫 파싱 이후 불변).
+  // 강화 단계(작업 201)는 로드에서 채워지는 값이므로, "반복 파싱이 같은 값을 낸다"로 확인한다(첫 파싱 이후 불변).
   const first=parseSave(JSON.parse(JSON.stringify(save)));
   let restored=first;for(let i=0;i<3;i++)restored=parseSave(JSON.parse(JSON.stringify(restored)));
   assert.equal(JSON.stringify(restored.equipment),JSON.stringify(first.equipment),'반복 파싱해도 장비 JSON이 그대로다(plus 포함)');

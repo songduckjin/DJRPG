@@ -30,7 +30,7 @@ export function rollSkillBook(floor: number, job: Job = 'warrior'): SkillBook {
 }
 export function skillBookDropChance(floor: number, boss: boolean): number { return boss ? Math.min(.15, .018 + (floor - 1) * .002) : Math.min(.015, .001 + (floor - 1) * .00012); }
 
-/** 강화 단계의 최고치 — 71~80층에서 +7이 나온다(작업 199). */
+/** 강화 단계의 최고치 — 71~80층에서 +7이 나온다(작업 201). */
 export const MAX_PLUS = 7;
 /** `+1`마다 장비 스탯이 8%씩 오른다(`+7` = 기본의 1.56배). */
 export const PLUS_STAT_BONUS = .08;
@@ -182,7 +182,7 @@ export function maxTierBonus(slot: Slot): number {
 }
 
 /**
- * `plus`가 없는 예전 장비의 강화 단계를 **보수적으로** 되짚는다(작업 199).
+ * `plus`가 없는 예전 장비의 강화 단계를 **보수적으로** 되짚는다(작업 201).
  *
  * 드롭은 `scale = (1 + floor(층/2)) * 등급배율`에 무작위 1~3, 티어 보정 0~최대, (쯔바이핸드면) 공격 보정을
  * 더한 주 스탯을 가진다. 그래서 주 스탯에서 **가장 큰 부가치를 먼저 빼고** 남은 값으로 가장 낮은 층을
@@ -323,7 +323,7 @@ export function rollItem(floor: number, guaranteed = false, boss = false, job: J
     stats.attack = (stats.attack ?? 0) + 2 + Math.ceil(scale * .25);
     if (rarity !== 'common') stats.crit = (stats.crit ?? 0) + Math.max(1, Math.ceil(scale * .5));
   }
-  // 강화 단계(작업 199): 10층마다 한 단계씩 열리고, 단계마다 스탯이 8%씩 오른다. `plus`는 이름과 별도로
+  // 강화 단계(작업 201): 10층마다 한 단계씩 열리고, 단계마다 스탯이 8%씩 오른다. `plus`는 이름과 별도로
   // 저장되는 표시 값이라 `name`은 그대로 둔다(서버 아이템 동일성이 이름을 포함한다). 0단계도 적어 두어
   // 다음 로드에서 옛 장비 역산(`estimatePlus`)이 0층 아이템을 높게 잡는 일이 없다.
   const plus = rollPlus(floor, boss);
