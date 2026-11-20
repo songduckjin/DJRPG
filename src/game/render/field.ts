@@ -1,20 +1,24 @@
 import { placeWasteland, wastelandLayout } from '../wasteland';
+import { jobOrDefault } from '../skills';
 import type { World } from '../world';
 import type { GameView } from '../render';
 
 export function drawRunes(this: GameView, world: World, x: number, y: number, time: number): void {
-    const active = world.effects.find(effect => ['spin', 'slam', 'warcry', 'power', 'destroy', 'hell'].includes(effect.kind) && Math.hypot(effect.x - world.player.x, effect.y - world.player.y) < 2);
-    if (!active && world.player.berserk <= 0) return;
+    // [작업 214] 블러드 레이지(`warcry`)는 발밑 타원 링을 그리지 않는다 — 몸 주변 붉은 투기 오라
+    // (`render/bloodRage.ts`)가 그 역할을 맡는다. 다른 직업의 버프(호크아이·아케인 실드)는 종전대로 링을 쓴다.
+    const active = world.effects.find(effect => ['spin', 'slam', 'power', 'destroy', 'hell'].includes(effect.kind) && Math.hypot(effect.x - world.player.x, effect.y - world.player.y) < 2);
+    const raging = world.player.berserk > 0 && jobOrDefault(world.save.job) !== 'warrior';
+    if (!active && !raging) return;
     const t = active ? active.age / active.duration : 0;
-    const burst = active?.kind === 'spin' || active?.kind === 'slam' || active?.kind === 'warcry' || active?.kind === 'hell';
+    const burst = active?.kind === 'spin' || active?.kind === 'slam' || active?.kind === 'hell';
     const radius = burst ? 17 + t * 27 : 18;
-    const color = active?.kind === 'slam' || active?.kind === 'warcry' || active?.kind === 'hell' || world.player.berserk > 0 ? 0xff8d49 : 0x66d9d2;
+    const color = active?.kind === 'slam' || active?.kind === 'hell' || raging ? 0xff8d49 : 0x66d9d2;
     const alpha = active ? 1 - t : .32;
     this.glow.ellipse(x, y + 2, radius + 10, (radius + 10) * .43).fill({ color, alpha: .13 * alpha });
     this.ground.ellipse(x, y + 2, radius, radius * .42).stroke({ color, width: burst ? 3 : 2, alpha: .8 * alpha });
     this.ground.ellipse(x, y + 2, radius * .65, radius * .28).stroke({ color, width: 1, alpha: .6 * alpha });
     for (let i = 0; i < 8; i++) {
-      const angle = time * (world.player.berserk > 0 ? 2.5 : 4) + i * Math.PI / 4;
+      const angle = time * (raging ? 2.5 : 4) + i * Math.PI / 4;
       const px = x + Math.cos(angle) * radius, py = y + 2 + Math.sin(angle) * radius * .42;
       this.ground.circle(px, py, burst ? 2.5 : 1.6).fill({ color, alpha: .8 * alpha });
     }
