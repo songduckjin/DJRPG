@@ -15,7 +15,7 @@ import { removeTempDbDirectory } from './helpers/temp-db.mjs';
 const script = fileURLToPath(new URL('../scripts/migrate-turso-db.mjs', import.meta.url));
 const save = name => JSON.stringify({ version: 1, name, gold: 120, floor: 3, bag: [], equipment: {} });
 
-// 공용 DB를 흉내 낸 소스: djrpg_* 20개 테이블 + puzzle-mates용 users 테이블.
+// 공용 DB를 흉내 낸 소스: djrpg_* 22개 테이블(작업 206의 djrpg_meta·208 전광판·209 던전 기록 포함) + puzzle-mates용 users 테이블.
 async function prepared() {
   const directory = await mkdtemp(join(tmpdir(), 'djrpg-migrate-'));
   const source = `file:${join(directory, 'shared.db')}`;
@@ -107,7 +107,7 @@ test('dry-run은 소스 djrpg_* 행 수만 출력하고 타겟을 만들지 않�
   }
 });
 
-test('djrpg_* 20개 테이블만 복사하고 users는 넘기지 않으며 건수가 일치한다', async () => {
+test('djrpg_* 22개 테이블만 복사하고 users는 넘기지 않으며 건수가 일치한다', async () => {
   const paths = await prepared();
   try {
     const result = migrate(paths, ['--chunk-size=2']);

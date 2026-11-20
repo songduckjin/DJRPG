@@ -8,9 +8,11 @@
 .modal-bag-footer { display: flex; flex: none; align-items: center; justify-content: space-between; gap: 5px; border-top: 1px solid #655044; margin-top: 7px; padding-top: 7px 0 2px; color: #c4ac91; background: #211b1d; font-size: 11px; }
 .bag-footer-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; }
 .salvage-rarity { border: 1px solid #b28a55; background: #443425; color: #ffe0ab; padding: 5px 7px; font-size: 11px; }
+/* 41층부터 (작업 203): 자동 분해 `+N까지` 상한 선택. 등급 기준 버튼 옆에 같은 톤으로 놓는다. */
+.salvage-plus { border: 1px solid #b28a55; background: #443425; color: #ffe0ab; padding: 5px 4px; font: inherit; font-size: 11px; max-width: 46vw; }
 .bag-grid { display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); grid-auto-rows: max-content; align-content: start; align-items: start; gap: 3px; padding: 2px; }
 .equipment-modal .bag-grid { flex: 1 1 0%; min-height: 110px; overflow-y: auto; overflow-x: hidden; scrollbar-gutter: stable; }
-.equipment-modal .modal-bag > h3, .equipment-modal .bag-filters { flex: none; }
+.equipment-modal .modal-bag > h3, .equipment-modal .bag-filters, .equipment-modal .bag-job-only { flex: none; }
 .bag-item { position: relative; width: 100%; min-width: 0; aspect-ratio: 1; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; border: 1px solid #60534e; background: radial-gradient(circle at 50% 30%, #3a3130, #221e22); color: #ddcfc1; padding: 2px; }
 .bag-item.common, .equipment-slot.common { border-color: #9ca3af; box-shadow: inset 0 0 7px #9ca3af44; }
 /* 희귀 등급의 빛은 `styles/rarity.css`(등급별 펄스 글로우)가 등급색 토큰으로 그린다. 여기서는 테두리만 정한다. */
@@ -242,9 +244,13 @@
 
 .bag-item .bag-lock-badge { position: absolute; top: 1px; right: 1px; width: 18px; height: 18px; z-index: 1; pointer-events: none; }
 
-.bag-item.skillbook-item { aspect-ratio: auto; min-height: 84px; padding: 4px 3px; gap: 4px; }
-.bag-item.skillbook-item b { white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; line-height: 1.4; text-align: center; }
-.skillbook-count { position: absolute; top: 2px; right: 2px; padding: 1px 3px; background: #171216e6; color: #f2deb9; font-size: 10px; line-height: 1.3; border-radius: 3px; pointer-events: none; }
+/* 가방 10열 칸은 모두 **1:1 정사각형**이다(작업 212 `#4936` — 스킬북 칸만 세로로 길쭉해
+   다른 장비·주머니 칸과 줄이 어긋나 보이던 것을 없앴다). 이름은 다른 칸처럼 한 줄 말줄임이다. */
+.bag-item.skillbook-item { aspect-ratio: 1; min-height: 0; padding: 2px; gap: 1px; }
+.skillbook-count { position: absolute; top: 2px; right: 2px; padding: 0 2px; background: #171216e6; color: #f2deb9; font-size: 10px; line-height: 1.35; border-radius: 3px; pointer-events: none; white-space: nowrap; }
+/* 스킬북 칸은 왼쪽 위 `[전사]` 직업 배지와 `×1`이 겹쳐 글자가 깨지지 않도록 수량 배지를
+   **오른쪽 아래**로 내린다(작업 212 `#4960`). 보물 주머니 칸은 배지가 없어 오른쪽 위 그대로다. */
+.bag-item.skillbook-item .skillbook-count { top: auto; bottom: 1px; right: 2px; }
 
 .bag-capacity { display: block; color: #aa9b8f; font-size: 9px; margin-top: 2px; }
 
@@ -256,6 +262,8 @@
 .skill-book-card img { width: 32px; height: 32px; object-fit: contain; }
 .skill-book-card b { min-height: 0; line-height: 1.2; overflow-wrap: anywhere; }
 .skill-book-quantity { position: absolute; right: 3px; top: 3px; padding: 1px 3px; border-radius: 3px; background: #171216e6; color: #f2deb9; font-size: 10px; line-height: 12px; pointer-events: none; }
+/* 스킬 창은 내 직업 책만 보여 준다 — 다른 직업 책은 가방에서 판매·보관한다(작업 210). */
+.skill-book-hint { display: block; margin-top: 6px; color: #9c8b7b; font-size: 10px; line-height: 1.45; }
 .skill-book-card > .skill-book-cost { display: none; }
 .skill-book-card > .skillbook-use { width: 100%; min-height: 20px; padding: 2px 3px; font-size: 10px; line-height: 14px; }
 .skill-book-cost { color: #cbb89b; font-size: 10px; }
@@ -272,6 +280,21 @@
 .utility-note { color: #ad9d8e; line-height: 1.5; margin: 2px 0; font-size: 10px; }
 .utility-button { align-self: flex-start; border: 1px solid #806348; background: #392925; color: #ead4b3; padding: 4px 8px; min-height: 28px; font: inherit; touch-action: manipulation; }
 .utility-button:disabled { opacity: .45; }
+/* 우편함·보상의 받기/모두 받기(작업 209, 사용자 요청 #4246) — 누를 수 있으면 따뜻한 금빛 테두리와 밝은 배경으로
+   "지금 누를 수 있음"이 한눈에 보이게, 누를 수 없으면 어둡고 흐리게(명도·채도 ↓) 구분한다. */
+.utility-button.utility-claim { border-color: #6b5645; background: #241d1e; color: #93826f; }
+.utility-button.utility-claim.is-ready { border-color: #e6b866; background: linear-gradient(#8f6323, #5b3a12); color: #ffedc6; font-weight: 700; box-shadow: 0 0 0 1px rgba(230, 184, 102, .30), 0 1px 6px rgba(0, 0, 0, .5), inset 0 1px 0 rgba(255, 238, 201, .35); }
+.utility-button.utility-claim.is-ready:hover { border-color: #ffd98c; background: linear-gradient(#a8752c, #6d4717); color: #fff7de; }
+.utility-button.utility-claim.is-ready:active { background: linear-gradient(#6f4c1b, #4a2f0f); box-shadow: inset 0 2px 5px rgba(0, 0, 0, .55); }
+.utility-button.utility-claim.is-ready:focus-visible { outline: 2px solid #ffe6b0; outline-offset: 1px; }
+.utility-button.utility-claim:not(.is-ready), .utility-button.utility-claim:disabled { opacity: .38; filter: grayscale(.6) brightness(.8); border-color: #4a3c33; background: #221c1d; color: #8c7e70; box-shadow: none; }
+@keyframes utility-claim-glow {
+  0%, 100% { box-shadow: 0 0 0 1px rgba(230, 184, 102, .30), 0 1px 6px rgba(0, 0, 0, .5), inset 0 1px 0 rgba(255, 238, 201, .35); }
+  50% { box-shadow: 0 0 0 1px rgba(255, 214, 140, .55), 0 0 9px rgba(224, 168, 80, .40), 0 1px 6px rgba(0, 0, 0, .5), inset 0 1px 0 rgba(255, 238, 201, .35); }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .utility-button.utility-claim.is-ready { animation: utility-claim-glow 2.4s ease-in-out infinite; }
+}
 .utility-card { display: flex; flex-direction: column; gap: 4px; border: 1px solid #5e4b40; background: #211a1d; padding: 7px; }
 .utility-task { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 4px 6px; }
 .utility-task > b { font-size: 11px; line-height: 1.4; }
@@ -354,3 +377,164 @@
 .bag-rarity-sort.active { border-color:#c8a26a; background:#4a342a; color:#ffe1b5; }
 
 .modal-dialog .modal-close { flex:none; width:44px; height:44px; min-width:44px; min-height:44px; touch-action:manipulation; }
+
+/* 직업 표기·내 직업만 보기 (작업 205) — 세 직업의 무기·스킬북이 같은 확률로 떨어지므로, 어느 직업의
+   물건인지와 내가 쓸 수 있는지를 목록에서 바로 읽히게 한다. */
+.job-badge { display: inline-flex; align-items: center; justify-content: center; padding: 0 4px; min-height: 13px; border-radius: 3px; border: 1px solid currentColor; font-size: 9px; line-height: 11px; font-weight: 700; letter-spacing: -.2px; background: #171216cc; }
+.job-warrior { color: #f0b27a; }
+.job-archer { color: #7fd6a1; }
+.job-mage { color: #a7b4ff; }
+.bag-item .job-badge { position: absolute; left: 1px; top: 1px; padding: 0 2px; min-height: 11px; font-size: 8px; line-height: 9px; z-index: 1; pointer-events: none; }
+.skill-book-card .job-badge { position: absolute; left: 3px; top: 3px; }
+.bag-job-only { margin-bottom: 5px; border: 1px solid #6d5948; background: #292124; color: #bba998; padding: 5px 6px; font-size: 11px; }
+.bag-job-only.is-on { border-color: #c8a26a; background: #4a342a; color: #ffe1b5; }
+.bag-job-only-hint { color: #b9a486; }
+.item-detail-job { display: block; width: 100%; margin: 2px 0 4px; font-size: 10px; font-weight: 700; }
+
+/* ── 무작위 보물 주머니 (작업 207) ──────────────────────────────────────────────
+   주머니 그림은 아직 확정 이미지가 없어 CSS로 그린 플레이스홀더다(`ui/pouchArt.ts`).
+   확정 이미지가 오면 그 모듈의 두 경로만 채우면 가방 칸·상세·개봉 창이 함께 바뀐다. */
+.bag-item.pouch-item { background: radial-gradient(circle at 50% 28%, #4a3520, #221c1c); border-color: #fb923c; box-shadow: inset 0 0 9px #fb923c55, 0 0 6px #fb923c66; }
+.pouch-icon { position: relative; display: block; }
+.pouch-icon-body, .pouch-icon-tie { position: absolute; display: block; }
+.pouch-icon-body { left: 11%; right: 11%; bottom: 6%; height: 64%; border: 1px solid #2a1a06; border-radius: 46% 46% 40% 40% / 32% 32% 60% 60%; background: radial-gradient(ellipse at 34% 24%, #e6b45c, #8a5a1c 58%, #45290c); box-shadow: inset 0 -4px 7px #00000070; }
+.pouch-icon-tie { left: 17%; right: 17%; top: 20%; height: 12%; border-radius: 3px; background: linear-gradient(#f4d79c, #a9772f); box-shadow: 0 1px 2px #0009; }
+.pouch-reward { display: inline-flex; align-items: center; gap: 4px; color: #f9b365; font-weight: 700; }
+.pouch-reward-icon { display: inline-block; width: 19px; height: 19px; object-fit: contain; vertical-align: middle; flex: none; filter: drop-shadow(0 1px 2px #0009); }
+
+.pouch-detail-note { margin: 4px 0 0; color: #cbb89b; line-height: 1.5; }
+.pouch-detail-count { color: #e6c79a; font-size: 10px; }
+.pouch-open { border: 1px solid #d79a4c; background: linear-gradient(#8a5a1e, #5d3a12); color: #fff1d2; padding: 10px 20px; font: inherit; font-size: 13px; font-weight: 700; box-shadow: 0 3px 10px #0008; }
+.pouch-open:active { background: #6d4515; }
+
+/* 큰 개봉 창 — 장비창 위에 한 겹으로 얹힌다(분해 보호 팝업과 같은 방식).
+   작업 212(`#4973`): 카드·스테이지를 아담하게 줄이고 `overflow: visible`로 열어,
+   주머니가 터질 때의 빛이 팝업 테두리에 잘리지 않고 바깥까지 퍼져 나간다. */
+.pouch-window { position: fixed; inset: 0; z-index: 45; display: flex; align-items: center; justify-content: center; padding: 10px; background: #05030899; }
+.pouch-window-card { position: relative; display: flex; flex-direction: column; align-items: center; gap: 4px; width: min(100%, 330px); padding: 6px 10px 10px; border: 1px solid #b58a52; border-radius: 6px; background: radial-gradient(circle at 50% 18%, #3b2a20, #17111a 72%); box-shadow: 0 18px 40px #000c, inset 0 0 0 1px #f0c88a22; color: #e8d7c0; overflow: visible; }
+.pouch-window-top { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 6px; width: 100%; }
+.pouch-rates-toggle { justify-self: start; border: 1px solid #7d6242; background: #241c1d; color: #e3cba6; padding: 3px 7px; font: inherit; font-size: 10px; }
+.pouch-rates-toggle.is-on { border-color: #d3a45f; background: #40301f; color: #ffe6bc; }
+.pouch-window-close { justify-self: end; width: 30px; height: 30px; border: 0; background: transparent; color: #c9b49a; font-size: 20px; line-height: 1; }
+/* 제목도 `확률표`·`×`와 **같은 한 줄** 가운데에 앉힌다(작업 213 `#5057`). */
+.pouch-window-title { margin: 0; font-size: 12px; color: #f6dcb0; letter-spacing: .01em; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* 무대: 주머니 그림(두 장을 겹친 크로스페이드 스택)이 바닥에 앉고,
+   보상 카드는 그 **위쪽 빈 공간**에 절대 위치로 떠오른다(카드가 떠도 창 높이는 그대로다). */
+.pouch-window-stage { position: relative; display: flex; align-items: flex-end; justify-content: center; width: 100%; padding: 2px 0 0; overflow: visible; }
+.pouch-window-hint { margin: 0; color: #ad9a86; font-size: 9px; text-align: center; }
+.pouch-window-count { margin: 0; color: #e2c193; font-size: 10px; }
+.pouch-window-error { margin: 0; color: #ffb4a4; font-size: 10px; text-align: center; }
+.pouch-window-actions { display: flex; gap: 5px; width: 100%; margin-top: 2px; }
+.pouch-window-actions .pouch-open { flex: 1; width: auto; padding: 9px; font-size: 13px; }
+.pouch-window-actions .pouch-close { flex: 0 0 74px; border: 1px solid #6d5540; background: #251e1f; color: #c3ae96; padding: 9px; font: inherit; font-size: 12px; }
+.pouch-window-result { position: absolute; left: 0; right: 0; top: 0; z-index: 2; display: flex; flex-direction: column; align-items: center; gap: 1px; min-height: 0; text-shadow: 0 2px 6px #050308; }
+.pouch-window-result:empty { display: none; }
+
+/* 확정 그림(1번 클래식 가죽 보물 주머니, 6단계 — 작업 212) — 배경을 지운 투명 PNG라
+   상자는 그림자 대신 알파를 따라가는 drop-shadow를 스택에 건다(사각 상자 그림자가 보이지 않게). */
+.pouch-art-stack { position: relative; display: block; width: clamp(124px, 40vw, 158px); height: clamp(124px, 40vw, 158px); flex: none; filter: drop-shadow(0 10px 18px #000b); }
+/* 두 장을 겹쳐 두고 `is-front`인 장만 보인다 — 단계가 바뀌면 opacity transition이 서로 겹쳐
+   서서히 넘어간다(`setPouchFrame`이 뒤 장에 다음 그림을 넣고 `is-front`를 넘긴다).
+   작업 215: 컷마다 전환 길이를 다르게 준다 — 1→2번(흰빛 섬광 속) 180ms, 2→3번(바닥으로 풀림) 200ms.
+   `data-pouch-frame`은 다음 컷 번호로 먼저 바뀌므로, opacity가 변하는 순간 이 길이를 읽는다. */
+img.pouch-art { position: absolute; inset: 0; display: block; width: 100%; height: 100%; object-fit: contain; border-radius: 0; box-shadow: none; opacity: 0; transition: opacity 120ms linear; }
+.pouch-art-stack[data-pouch-frame="1"] img.pouch-art { transition-duration: 180ms; }
+.pouch-art-stack[data-pouch-frame="2"] img.pouch-art { transition-duration: 200ms; }
+img.pouch-art.is-front { opacity: 1; }
+.pouch-art-stack.is-resetting img.pouch-art { transition: none; }
+img.pouch-icon { display: block; object-fit: contain; border-radius: 4px; }
+
+/* 주머니 그림(확정 이미지가 없을 때의 CSS 플레이스홀더) */
+.pouch-art-glow { position: absolute; inset: 8%; border-radius: 50%; background: radial-gradient(circle, #ffffff55, #ffffff00 68%); }
+.pouch-art-body { position: absolute; left: 12%; right: 12%; bottom: 8%; height: 62%; border: 1px solid #2a1a06; border-radius: 46% 46% 40% 40% / 30% 30% 62% 62%; background: radial-gradient(ellipse at 34% 22%, #efc070, #9a6420 56%, #45290c); box-shadow: inset 0 -10px 18px #00000080, inset 0 6px 10px #ffe0a533; }
+.pouch-art-tie { position: absolute; left: 18%; right: 18%; top: 22%; height: 9%; border-radius: 5px; background: linear-gradient(#f7dfa8, #a9772f); box-shadow: 0 2px 4px #0009; }
+.pouch-art-knot { position: absolute; left: 44%; top: 12%; width: 12%; height: 12%; border-radius: 50%; background: radial-gradient(circle at 40% 35%, #ffe8b8, #a9772f); box-shadow: 0 2px 5px #000a; }
+.pouch-art-mark { position: absolute; left: 50%; top: 56%; width: 34%; height: 34%; transform: translate(-50%, -50%); border-radius: 50%; background: radial-gradient(circle at 40% 35%, #ffe6ac, #c98f2f 62%, #86540f); box-shadow: inset 0 0 0 1px #6b420c, 0 0 12px #ffcf7a88; }
+.pouch-art-mark::after { content: '?'; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #4d2f06; font: 800 60%/1 'Noto Sans KR', sans-serif; }
+
+/* ── 개봉 연출(작업 215 · 사용자 피드백 `#5297`: "이미지가 연결이 하나도 안 돼 … 모양이 막 변하고") ──
+   9컷 중 모양이 조금씩 달라 울렁거리던 중간 컷을 걷어 내고 **모양이 변하지 않는 3장**만 쓴다.
+   0~0.9초는 1번 컷 한 장을 **바닥(50% 92%)을 축으로 한 탄성(Squash & Stretch)** 으로만 움직이고
+   (좌우 흔들기 `rotate` 없음), 0.92초 **흰빛 섬광이 가장 밝은 순간**에 2번 컷, 1.08초에 3번 컷으로
+   짧게 크로스페이드하며 아래로 가라앉는다. 1.22초에 보상 카드가 드러난다(총 1.55초).
+   빛·입자는 Canvas(`.pouch-light`)가 그린다. 컷을 바꾸는 시각은
+   `src/ui/modals/pouchModal.ts`의 `POUCH_FRAME_AT`가 소유한다(테스트가 둘을 함께 검사). */
+
+/* 빛과 입자 — 각진 `conic-gradient` 부채꼴과 단단한 흰 원판(`radial-gradient`)을 모두 걷어 내고,
+   `src/ui/pouchLight.ts`가 60fps Canvas에 **경계선 없는 가우시안 빛 + 입자**만 그린다.
+   팝업(330px)보다 살짝 큰 560px 한 장이고 `pointer-events: none`이라 누름을 막지 않으며,
+   `mix-blend-mode: screen`으로 어두운 카드 위에 빛으로만 얹힌다(무대·카드가 `overflow: visible`). */
+.pouch-light { position: absolute; left: 50%; top: 40%; width: 560px; height: 560px; transform: translate(-50%, -50%); pointer-events: none; mix-blend-mode: screen; z-index: 1; }
+
+/* 0~0.92초 쪼으는 구간 — 그림은 1번 컷 그대로 두고 **바닥을 축으로** 숨을 고르며 팽팽하게 부풀었다 눌렸다를
+   반복하다가, 0.9초쯤 `scale(1.08)`로 힘을 모으고 섬광 순간(0.92초)에 `scale(1.1)`로 확 터진다.
+   `rotate`(좌우 흔들기)는 쓰지 않는다. 두 번째 애니메이션이 1.08초부터 아래로 가라앉는 마무리를 맡는다
+   (앞 애니메이션은 `both`로 그때까지 1.1배를 붙잡고, 뒤 애니메이션은 `forwards`만 써서 그 전에는 끼어들지 않는다). */
+.pouch-window-stage.is-opening .pouch-art-stack { transform-origin: 50% 92%; will-change: transform; animation: pouch-squash 920ms cubic-bezier(.37,0,.63,1) both, pouch-settle 320ms cubic-bezier(.2,.7,.3,1) 1080ms forwards; }
+@keyframes pouch-squash {
+  0% { transform: scale(1, 1); }
+  12% { transform: scale(1.04, .95); }
+  27% { transform: scale(.96, 1.05); }
+  42% { transform: scale(1.06, .93); }
+  56% { transform: scale(1.01, 1.02); }
+  72% { transform: scale(1.05, .96); }
+  88% { transform: scale(1.02, 1.03); }
+  97% { transform: scale(1.08, 1.08); }
+  100% { transform: scale(1.1, 1.1); }
+}
+@keyframes pouch-settle {
+  0% { transform: scale(1.08, 1.04) translateY(0); }
+  38% { transform: scale(1.05, .97) translateY(2px); }
+  100% { transform: scale(1, 1) translateY(0); }
+}
+/* 2→3번 컷: 서 있는 2번 컷과 바닥에 납작한 3번 컷은 윤곽 차이가 커서 그냥 겹치면 두 주머니·문양 두 개가
+   비쳐 보인다. 그래서 **나가는 2번 컷만** 바닥(50% 92%)을 축으로 아래로 납작하게 눌러 주며 사라지게 한다
+   (문양 높이가 3번 컷과 맞아 겹침 얼룩이 보이지 않는다). 좌우 회전은 없다. */
+.pouch-art-stack[data-pouch-frame="2"] img.pouch-art:not(.is-front) { transform-origin: 50% 92%; animation: pouch-collapse 200ms cubic-bezier(.4,0,.7,.4) forwards; }
+@keyframes pouch-collapse {
+  0% { transform: scale(1, 1); }
+  100% { transform: scale(1, .55); }
+}
+
+/* 결과 카드: 절정(0.92초) 뒤 0.3초인 **1.22초**에 위쪽 빈 공간으로 즉시 떠오른다. `both`라 그 전에는 보이지 않는다. */
+.pouch-window-stage.is-opening .pouch-window-result { animation: pouch-reveal 360ms cubic-bezier(.2,.9,.3,1.15) 1220ms both; }
+@keyframes pouch-reveal {
+  0% { opacity: 0; transform: translateY(8px) scale(.88); }
+  65% { opacity: 1; transform: translateY(-2px) scale(1.03); }
+  100% { opacity: 1; transform: none; }
+}
+.pouch-window-actions .pouch-open:disabled { opacity: .6; }
+@media (prefers-reduced-motion: reduce) {
+  .pouch-window-stage.is-opening .pouch-window-result { animation: none; }
+  .pouch-window-stage.is-opening .pouch-art-stack { animation: none; transform: none; }
+  .pouch-art-stack img.pouch-art { transition: none; animation: none; }
+  .pouch-art-stack[data-pouch-frame="2"] img.pouch-art:not(.is-front) { animation: none; transform: none; }
+  .pouch-light { display: none; }
+}
+
+/* 획득 결과 — 작업 213(`#5057`·`#5069`): 분류·등급 글자를 없애고 **그림을 주인공으로** 둔다.
+   이름·금화 수치는 그림보다 작고 단정하게(넘칠 때는 두 줄까지 줄바꿈). */
+.pouch-result { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.pouch-result-name { max-width: 100%; overflow-wrap: anywhere; font-size: 11.5px; line-height: 1.2; text-align: center; }
+.pouch-result-gold { display: inline-flex; align-items: center; gap: 3px; color: #ffd977; font-size: 12px; }
+.pouch-result-art { display: flex; align-items: center; justify-content: center; min-height: 56px; }
+.pouch-result-art img, .pouch-result-sheet { width: 56px; height: 56px; object-fit: contain; }
+.pouch-result-book { width: 52px; height: 52px; }
+/* 금화 당첨 — 우리 게임 금화 무늬 금화 뭉치를 장비·스킬북 그림보다 조금 더 크게 보여 준다. */
+.pouch-result-art.pouch-result-pile { min-height: 0; }
+.pouch-result-art.pouch-result-pile img { width: 84px; height: 84px; filter: drop-shadow(0 4px 9px #000b); }
+.pouch-result .rarity-common { color: #9ca3af; }.pouch-result .rarity-magic { color: #60a5fa; }.pouch-result .rarity-rare { color: #facc15; }
+.pouch-result .rarity-epic { color: #c084fc; }.pouch-result .rarity-unique { color: #fb923c; }.pouch-result .rarity-legendary { color: #f87171; }
+
+/* 확률표 — 아담한 카드 안에서 넘치지 않게 자체 스크롤을 둔다. */
+.pouch-rates { width: 100%; margin-top: 4px; padding-top: 6px; border-top: 1px solid #5d4a37; max-height: 42dvh; overflow-y: auto; }
+.pouch-rates[hidden] { display: none; }
+.pouch-rate-table { display: flex; flex-direction: column; gap: 1px; margin: 0; padding: 0; list-style: none; }
+.pouch-rate-row { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 1px 4px; border-bottom: 1px solid #3a2e26; color: #cbb79d; font-size: 10px; }
+.pouch-rate-row:last-child { border-bottom: 0; }
+.pouch-rate-value { font-style: normal; color: #e4d3bb; font-variant-numeric: tabular-nums; font-weight: 700; }
+.pouch-rate-row.rarity-common { color: #9ca3af; }.pouch-rate-row.rarity-magic { color: #60a5fa; }.pouch-rate-row.rarity-rare { color: #facc15; }
+.pouch-rate-row.rarity-epic { color: #c084fc; }.pouch-rate-row.rarity-unique { color: #fb923c; }.pouch-rate-row.rarity-legendary { color: #f87171; }
+.pouch-rate-row.rarity-common .pouch-rate-value, .pouch-rate-row.rarity-magic .pouch-rate-value, .pouch-rate-row.rarity-rare .pouch-rate-value,
+.pouch-rate-row.rarity-epic .pouch-rate-value, .pouch-rate-row.rarity-unique .pouch-rate-value, .pouch-rate-row.rarity-legendary .pouch-rate-value { color: inherit; }
+.pouch-rate-summary { margin: 5px 0 0; color: #94826f; font-size: 9px; text-align: center; line-height: 1.4; }

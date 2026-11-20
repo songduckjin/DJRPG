@@ -128,9 +128,10 @@ test('움직임을 줄인 기기에서는 숨쉬기를 멈추고 등급색만 �
 });
 
 test('렌더 코드는 등급 클래스를 그대로 붙여 CSS가 따라갈 수 있게 한다', () => {
-  assert.match(equipModal, /cell\.className = `bag-item \$\{book \? 'skillbook-item' : item\.rarity\}/, '가방 칸은 등급 이름 클래스');
+  // 보물 주머니(작업 207)는 등급 대신 `pouch-item` 칸을 쓴다 — 장비 칸만 등급 이름 클래스를 단다.
+  assert.match(equipModal, /cell\.className = `bag-item \$\{book \? 'skillbook-item' : pouch \? 'pouch-item' : item\.rarity\}/, '가방 칸은 등급 이름 클래스');
   assert.match(equipModal, /cell\.className = `equipment-slot \$\{item\?\.rarity \?\? 'empty-slot'\}`/, '장착 슬롯도 등급 이름 클래스');
-  assert.match(equipModal, /panel\.className = `item-detail \$\{isSkillBook\(item\) \? 'skillbook-detail' : item\.rarity\}`/, '가방 상세 카드');
+  assert.match(equipModal, /panel\.className = `item-detail \$\{isSkillBook\(item\) \? 'skillbook-detail' : isPouch\(item\) \? 'pouch-detail' : item\.rarity\}`/, '가방 상세 카드');
   assert.match(equippedDetail, /panel\.className = `item-detail equipped-detail \$\{item\.rarity\}`/, '장착 상세 카드');
   assert.match(marketModal, /pick\.className = `market-pick rarity-\$\{item\.rarity\}/, '거래소 목록·등록 카드');
   assert.match(codexModal, /`codex-card rarity-\$\{grade\}/, '도감 카드');

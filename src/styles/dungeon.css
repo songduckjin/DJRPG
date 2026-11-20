@@ -112,3 +112,19 @@
 @keyframes dungeon-loot-glow{0%,100%{filter:drop-shadow(1px 0 0 var(--loot-ink)) drop-shadow(-1px 0 0 var(--loot-ink)) drop-shadow(0 1px 0 var(--loot-ink)) drop-shadow(0 -1px 0 var(--loot-ink)) drop-shadow(0 2px 3px #000a) drop-shadow(0 0 5px var(--loot-ink))}50%{filter:drop-shadow(1px 0 0 var(--loot-ink)) drop-shadow(-1px 0 0 var(--loot-ink)) drop-shadow(0 1px 0 var(--loot-ink)) drop-shadow(0 -1px 0 var(--loot-ink)) drop-shadow(0 2px 3px #000a) drop-shadow(0 0 8px var(--loot-ink))}}
 @keyframes dungeon-absorb-ring{0%{opacity:0;transform:scale(.3)}30%{opacity:.85}100%{opacity:0;transform:scale(1.6)}}
 @media(prefers-reduced-motion:reduce){.dungeon-loot.is-item .dungeon-loot-art,.dungeon-loot.is-item .dungeon-loot-book,.dungeon-absorb-ring{animation:none}}
+
+/* 던전 실제 보상 (작업 205) — 로비의 최초 클리어 보상 수량과 결과창의 획득 내역. */
+.dungeon-prize-items>div>span{color:#ffd977;font-size:13px;font-weight:700}
+.dungeon-prize-items>div{gap:6px}
+.dungeon-battle-result .dungeon-result-stones{display:flex;align-items:center;justify-content:center;gap:7px;margin:2px 0 8px;font-size:13px;color:#e8cfa0}
+.dungeon-result-stones img{width:22px;height:22px;object-fit:contain;filter:drop-shadow(0 1px 2px #0008)}
+.dungeon-result-stones strong{font-size:17px;color:#9fe6ff}
+.dungeon-result-stones small{display:inline;font-size:9px;color:#a89273}
+.dungeon-battle-result .dungeon-result-items{display:grid;gap:3px;max-height:150px;overflow-y:auto;margin:6px 0 8px;padding:0;list-style:none;text-align:left}
+.dungeon-result-items li{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:3px 7px;border:1px solid #5a4636;background:#2a2220;font-size:11px;color:#e6d2ae}
+.dungeon-result-items li.rarity-rare{border-color:#facc1588;color:#f7e39a}
+.dungeon-result-items li.rarity-epic{border-color:#c084fc88;color:#e2ccff}
+.dungeon-result-items li.rarity-unique{border-color:#fb923c88;color:#ffd0a8}
+.dungeon-result-items li.rarity-legendary{border-color:#f8717188;color:#ffc4c4}
+.dungeon-result-items li small{font-size:9px;color:#a89273}
+.dungeon-battle-result .dungeon-result-note{margin:4px 0;font-size:10px;color:#b6a184}

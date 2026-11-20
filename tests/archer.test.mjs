@@ -7,8 +7,8 @@ import './ts-loader.mjs';
 
 const { freshSave, parseSave, totalStats } = await import('../src/game/store.ts');
 const { World, archerAttackRange, archerStopRange } = await import('../src/game/world.ts');
-const { archerSkillOrder, archerPassiveOrder, skillOrder, passiveOrder, passives, skills } = await import('../src/game/skills.ts');
-const { rollItem, rollSkillBook, bowBases, baseItems, equipmentImage, baseItemIndex, migrateItem } = await import('../src/game/items.ts');
+const { archerSkillOrder, archerPassiveOrder, mageSkillOrder, magePassiveOrder, skillOrder, passiveOrder, passives, skills } = await import('../src/game/skills.ts');
+const { rollItem, rollSkillBook, bowBases, staffBases, baseItems, equipmentImage, baseItemIndex, migrateItem } = await import('../src/game/items.ts');
 const { availableSkills, normalizeQuickSlots } = await import('../src/game/loadout.ts');
 const { hasSkillUpgrade } = await import('../src/game/skillProgress.ts');
 const { equipmentPortraitPlan } = await import('../src/ui/equipmentPortrait.ts');
@@ -82,38 +82,50 @@ test('궁수는 액티브 8종·패시브 3종을 따로 가지며 전사 목록
   assert.deepEqual(availableSkills(save), ['snipe']);
 });
 
-test('궁수 스킬북은 궁수 스킬만 떨어지고, 전사 스킬북은 그대로다', () => {
+test('스킬북은 세 직업이 같은 확률로 떨어진다 (작업 204 사용자 확정)', () => {
+  // "다른직업 장비나 스킬북도 동일확률로 뜰수있어" — 직업을 먼저 1/3로 고른 뒤 그 직업 목록에서 뽑는다.
+  const pools = {
+    warrior: [...skillOrder, ...passiveOrder],
+    archer: [...archerSkillOrder, ...archerPassiveOrder],
+    mage: [...mageSkillOrder, ...magePassiveOrder]
+  };
   const random = Math.random;
   try {
-    Math.random = () => .5;
-    for (let index = 0; index < 20; index++) {
-      const book = rollSkillBook(30, 'archer');
-      assert(archerSkillOrder.includes(book.skillId) || archerPassiveOrder.includes(book.skillId));
-      const warrior = rollSkillBook(30, 'warrior');
-      assert(skillOrder.includes(warrior.skillId) || passiveOrder.includes(warrior.skillId));
+    let state = 20260;
+    Math.random = () => { state = (state * 1664525 + 1013904223) >>> 0; return state / 4294967296; };
+    const samples = 3000, counts = { warrior: 0, archer: 0, mage: 0 };
+    for (let index = 0; index < samples; index++) {
+      const book = rollSkillBook(30);
+      const owner = Object.keys(pools).find(job => pools[job].includes(book.skillId));
+      assert(owner, `세 직업 스킬 목록에 없는 스킬북: ${book.skillId}`);
+      counts[owner]++;
     }
+    for (const [job, count] of Object.entries(counts)) assert(Math.abs(count / samples - 1 / 3) < .04, `${job} 스킬북 비중 ${(count / samples * 100).toFixed(1)}%`);
   } finally { Math.random = random; }
 });
 
-test('궁수 장비 드랍은 활 10종만 쓰고, 전사 드랍은 대검 그대로다', () => {
+test('무기 드랍은 세 직업 목록이 1/3씩 섞여 나오고, 튜토리얼 첫 무기는 내 직업이다', () => {
   const random = Math.random;
   try {
-    const seen = new Set();
-    for (let index = 0; index < 4000; index++) {
+    let state = 777;
+    Math.random = () => { state = (state * 1664525 + 1013904223) >>> 0; return state / 4294967296; };
+    const counts = { warrior: 0, archer: 0, mage: 0 };
+    let weapons = 0;
+    for (let index = 0; index < 6000; index++) {
       const item = rollItem(20, false, false, 'archer');
       if (item.slot !== 'weapon') continue;
-      seen.add(baseItemIndex(item));
-      const base = bowBases.find(name => item.name.endsWith(name));
-      assert(base, `활 목록에 없는 무기 이름: ${item.name}`);
+      weapons++;
+      const owner = bowBases.some(name => item.name.endsWith(name)) ? 'archer'
+        : staffBases.some(name => item.name.endsWith(name)) ? 'mage' : 'warrior';
+      if (owner === 'warrior') assert(baseItems.weapon.some(name => item.name.endsWith(name)), `대검 목록에 없는 무기 이름: ${item.name}`);
+      counts[owner]++;
     }
-    assert(seen.size > 1);
-    const warrior = rollItem(20, false, false, 'warrior');
-    if (warrior.slot === 'weapon') {
-      assert(!bowBases.some(name => warrior.name.endsWith(name)), '전사 드랍에 활이 섞였다');
-    }
+    assert(weapons > 400, `무기 드랍 표본이 너무 적다 (${weapons})`);
+    for (const [job, count] of Object.entries(counts)) assert(Math.abs(count / weapons - 1 / 3) < .05, `${job} 무기 비중 ${(count / weapons * 100).toFixed(1)}%`);
     const starter = rollItem(1, true, false, 'archer');
     assert.equal(starter.name, '낡은 사냥꾼의 활');
     assert.equal(rollItem(1, true).name, '낡은 두손검');
+    assert.equal(rollItem(1, true, false, 'mage').name, '낡은 견습생의 지팡이');
   } finally { Math.random = random; }
 });
 

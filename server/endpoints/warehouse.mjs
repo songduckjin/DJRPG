@@ -62,7 +62,7 @@ async function handle(request, { env = runtimeEnv(), createDbClient } = {}, cont
           WHERE w.account_id=? AND w.item_id=?`, args: [id, input.itemId] })).rows[0];
         if (!stored || stored.location !== 'warehouse' || Number(stored.slot) !== 0) fail(409, 'ITEM_NOT_AVAILABLE', '창고 아이템 상태가 달라졌습니다. 다시 불러오세요.');
         const item = JSON.parse(stored.item_json);
-        if (item.slot !== 'skillbook' && save.bag.filter(entry => entry.slot !== 'skillbook').length >= 40) fail(409, 'BAG_FULL', '가방이 가득 찼습니다.');
+        if (item.slot !== 'skillbook' && item.slot !== 'pouch' && save.bag.filter(entry => entry.slot !== 'skillbook' && entry.slot !== 'pouch').length >= 40) fail(409, 'BAG_FULL', '가방이 가득 찼습니다.');
         save.bag.push(item);
         operations.push({ sql: 'DELETE FROM djrpg_warehouse WHERE account_id=? AND item_id=?', args: [id, item.id] });
         operations.push({ sql: "UPDATE djrpg_item_owners SET location='inventory' WHERE item_id=? AND account_id=?", args: [item.id, id] });

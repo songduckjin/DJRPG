@@ -7,7 +7,8 @@ import {randomUUID} from 'node:crypto';
 import {createClient} from '@libsql/client';
 import {schema,account,transaction,writeSave,reconcileItems} from '../server/database.mjs';
 import {snapshot,mutate} from '../server/journey.mjs';
-import {periods,advanceJourney} from '../server/journey-state.mjs';
+import {periods,advanceJourney,PREVIEW_POUCH_MAIL_ID} from '../server/journey-state.mjs';
+import {isPreviewHost,isProductionHost} from '../server/season.mjs';
 let db,directory;
 const save=()=>({version:1,name:'전사',gender:'male',gold:0,bag:[],equipment:{},kills:0,bossKills:0,playSeconds:0,level:1,floor:1,maxFloor:1,equipmentCollection:[],learned:[],passives:[],skillLevels:{}});
 async function seed(id,guest=false){await db.execute({sql:'INSERT INTO djrpg_accounts (id,password_hash,save_json,updated_at) VALUES (?,?,?,?)',args:[id,guest?'guest':'hashed',JSON.stringify(save()),new Date().toISOString()]});}
@@ -34,19 +35,39 @@ test('daily login grants once; retry with same request ID never duplicates curre
 });
 test('persisted progress advances daily and weekly counters and book rewards bypass equipment capacity without losing equipment',async()=>{
   await seed('progress');await snapshot(db,'progress');await rewind('progress',20000);
-  await transaction(db,async tx=>{const row=await account(tx,'progress'),next={...row.save,kills:5000,bossKills:30,playSeconds:18000};await writeSave(tx,row,next);});
-  const data=await snapshot(db,'progress');assert.equal(data.daily.find(t=>t.id==='hunt').current,300);assert.equal(data.weekly.find(t=>t.id==='boss').current,30);
+  await transaction(db,async tx=>{const row=await account(tx,'progress'),next={...row.save,kills:5000,bossKills:30,playSeconds:18000,salvageCount:20};await writeSave(tx,row,next);});
+  // 월드보스 도전은 서버(`server/world-boss.mjs`)가 여정 상태에 적는다 — 여기서는 같은 상태를 직접 만든다.
+  const seedState=(await db.execute({sql:'SELECT state_json FROM djrpg_journey WHERE account_id=?',args:['progress']})).rows[0],seedParsed=JSON.parse(seedState.state_json);
+  seedParsed.daily.worldBoss=1;seedParsed.weekly.worldBoss=5;
+  await db.execute({sql:'UPDATE djrpg_journey SET state_json=? WHERE account_id=?',args:[JSON.stringify(seedParsed),'progress']});
+  const data=await snapshot(db,'progress');assert.equal(data.daily.find(t=>t.id==='hunt').current,300);
+  assert.equal(data.daily.find(t=>t.id==='salvage').current,3,'일일 장비 분해 3회');
+  assert.equal(data.daily.find(t=>t.id==='worldBoss').current,1,'월드보스 1회 도전(서버 기록)');
+  assert.equal(data.weekly.find(t=>t.id==='hunt').current,2000,'주간 사냥 2,000');
+  assert.equal(data.weekly.find(t=>t.id==='time').current,10800,'주간 3시간');
+  assert.equal(data.weekly.find(t=>t.id==='salvage').current,15,'주간 장비 분해 15회');
+  assert.equal(data.weekly.find(t=>t.id==='worldBoss').current,5,'주간 월드보스 5일');
   await transaction(db,async tx=>{const row=await account(tx,'progress');await writeSave(tx,row,{...row.save,bag:Array.from({length:40},()=>({id:randomUUID(),name:'검',slot:'weapon',rarity:'common',stats:{attack:1}}))});});
   const before=await account(db,'progress');await act('progress','daily');
-  const after=await account(db,'progress');assert.equal(after.save.gold,before.save.gold+5800);assert.equal(after.save.bag.filter(item=>item.slot!=='skillbook').length,40);assert.equal(after.save.bag.filter(item=>item.slot==='skillbook').length,5);assert((await snapshot(db,'progress')).daily.every(t=>t.claimed));
+  const after=await account(db,'progress');
+  // 일일·주간 개별 미션은 금화만, 전체 완료 보상만 무작위 보물 주머니 1개(작업 207).
+  assert.equal(after.save.gold,before.save.gold+6600,'일일 4,600 + 완료 2,000');
+  assert.equal(after.save.bag.filter(item=>!['skillbook','pouch'].includes(item.slot)).length,40,'장비 40칸은 그대로');
+  assert.equal(after.save.bag.filter(item=>item.slot==='skillbook').length,0,'개별 미션은 스킬북을 주지 않는다');
+  const pouches=after.save.bag.filter(item=>item.slot==='pouch');
+  assert.equal(pouches.length,1,'전체 완료 보상으로 보물 주머니 1개');
+  assert.equal(pouches[0].name,'무작위 보물 주머니');assert.equal(pouches[0].kind,'pouch');
+  assert((await snapshot(db,'progress')).daily.every(t=>t.claimed));
 });
 test('mail read, claim, deletion, item ownership and concurrent reward requests stay isolated and idempotent',async()=>{
-  // 환영·업데이트 안내·다이아 지급 우편이 각각 한 통씩 도착한다.
-  await seed('mail');const data=await snapshot(db,'mail');assert.equal(data.mail.length,3);
+  // 환영·업데이트 안내·새 시즌 안내·다이아 지급 우편이 각각 한 통씩 도착한다.
+  await seed('mail');const data=await snapshot(db,'mail');assert.equal(data.mail.length,4);
   assert.equal(data.mail[0].id,'welcome-v1');
   await act('mail',undefined,data.mail[0].id,'journey-read');assert((await snapshot(db,'mail')).mail[0].read);
-  await act('mail','mail');const row=await account(db,'mail');assert.equal(row.save.gold,4000);assert.equal(row.save.bag.length,3);
-  const wallet=(await db.execute({sql:'SELECT diamonds FROM djrpg_shop_wallet WHERE account_id=?',args:['mail']})).rows[0];assert.equal(Number(wallet.diamonds),1000);
+  // 환영 1,000 + 업데이트 3,000 + 새 시즌 오픈 1,000 = 5,000G, 스킬북 3권 + 보물 주머니 1개.
+  await act('mail','mail');const row=await account(db,'mail');assert.equal(row.save.gold,5000);assert.equal(row.save.bag.length,4);
+  assert.equal(row.save.bag.filter(item=>item.slot==='pouch').length,1,'새 시즌 오픈 기념 보물 주머니 1개');
+  const wallet=(await db.execute({sql:'SELECT diamonds FROM djrpg_shop_wallet WHERE account_id=?',args:['mail']})).rows[0];assert.equal(Number(wallet.diamonds),4000);
   await transaction(db,async tx=>{const latest=await account(tx,'mail');await reconcileItems(tx,'mail',latest.save,latest.save);});
   await assert.rejects(act('mail','mail'),e=>e.code==='NOT_AVAILABLE');
   await act('mail',undefined,'all','journey-delete');assert.equal((await snapshot(db,'mail')).mail.length,0);
@@ -71,7 +92,7 @@ test('업데이트 안내 우편은 계정마다 한 번만, 수령·삭제·만
   assert.equal(notice.sender,'운영팀');assert.equal(notice.gold,3000);assert.equal(notice.books,2);
   assert(notice.expiresAt>now,'만료 전에 수령할 수 있다');assert.equal(notice.claimedAt,null);assert.equal(notice.read,false);
   assert.match(notice.body,/끝없는 던전 진행 저장/);
-  assert.deepEqual(fresh.notices,['update-2026-11-20'],'지급 이력을 남긴다');
+  assert.deepEqual(fresh.notices,['update-2026-11-20','season-2-open'],'지급 이력을 남긴다');
   const again=advanceJourney(fresh,saveNow(),saveNow(),now+1000);
   assert.equal(again.mail.filter(entry=>entry.id==='update-2026-11-20').length,1,'두 번 붙지 않는다');
   // 수령해서 지운 계정: 우편함이 비어 있어도 지급 이력이 있어 다시 붙지 않는다.
@@ -80,7 +101,8 @@ test('업데이트 안내 우편은 계정마다 한 번만, 수령·삭제·만
   // 만료 시각(2026-11-28 00:00 KST)을 넘겨 처음 접속한 계정에는 늦은 보상을 주지 않는다.
   const late=advanceJourney(undefined,saveNow(),saveNow(),Date.UTC(2026,10,27,15,0,0));
   assert.equal(late.mail.filter(entry=>entry.id==='update-2026-11-20').length,0);
-  assert.deepEqual(late.notices,[]);
+  assert.deepEqual(late.notices,['season-2-open'],'만료된 업데이트 보상은 붙지 않고, 새 시즌 안내만 남는다');
+  assert.equal(late.mail.filter(entry=>entry.id==='season-2-open').length,1,'새 시즌 안내는 만료가 없다');
 });
 
 test('업데이트 우편 보상은 정확히 한 번만 지급되고 삭제 뒤 재지급되지 않는다',async()=>{
@@ -95,7 +117,7 @@ test('업데이트 우편 보상은 정확히 한 번만 지급되고 삭제 뒤
   await assert.rejects(act('notice','mail',notice.id),error=>error.code==='NOT_AVAILABLE','같은 우편을 두 번 받을 수 없다');
   await act('notice',undefined,'all','journey-delete');
   const after=await snapshot(db,'notice');
-  assert.deepEqual(after.mail.map(entry=>entry.id),['welcome-v1','all-idle-launch-diamonds-2026-11-20'],'수령한 업데이트 우편만 지운다');
+  assert.deepEqual(after.mail.map(entry=>entry.id),['welcome-v1','season-2-open','all-idle-launch-diamonds-2026-11-20'],'수령한 업데이트 우편만 지운다');
   assert.equal(after.mail.filter(entry=>entry.id==='update-2026-11-20').length,0,'삭제 뒤 다시 붙지 않는다');
   assert.equal((await account(db,'notice')).save.gold,3000,'보상도 한 번뿐이다');
 });
@@ -103,46 +125,81 @@ test('업데이트 우편 보상은 정확히 한 번만 지급되고 삭제 뒤
 test('다이아 우편은 계정당 한 번만 지급되고 수령은 원장에 기록된다',async()=>{
   await seed('diamonds');const first=await snapshot(db,'diamonds');
   const gift=first.mail.find(entry=>entry.id==='all-idle-launch-diamonds-2026-11-20');
-  assert.equal(gift.diamonds,1000);
+  assert.equal(gift.diamonds,4000);
   await act('diamonds','mail',gift.id);
   await assert.rejects(act('diamonds','mail',gift.id),error=>error.code==='NOT_AVAILABLE');
   const wallet=(await db.execute({sql:'SELECT diamonds FROM djrpg_shop_wallet WHERE account_id=?',args:['diamonds']})).rows[0];
   const ledger=(await db.execute({sql:"SELECT diamonds_delta FROM djrpg_shop_ledger WHERE account_id=? AND source_type='mail'",args:['diamonds']})).rows;
-  assert.equal(Number(wallet.diamonds),1000);assert.equal(ledger.length,1);assert.equal(Number(ledger[0].diamonds_delta),1000);
+  assert.equal(Number(wallet.diamonds),4000);assert.equal(ledger.length,1);assert.equal(Number(ledger[0].diamonds_delta),4000);
   await act('diamonds',undefined,'all','journey-delete');
   assert.equal((await snapshot(db,'diamonds')).mail.some(entry=>entry.id===gift.id),false);
 });
 
 test('period progress counts once per save and legacy clients retain new totals',async()=>{
   await seed('legacy');await snapshot(db,'legacy');await rewind('legacy',120);
-  await transaction(db,async tx=>{const row=await account(tx,'legacy');await writeSave(tx,row,{...row.save,kills:10,bossKills:2,playSeconds:15});});
+  await transaction(db,async tx=>{const row=await account(tx,'legacy');await writeSave(tx,row,{...row.save,kills:10,bossKills:2,playSeconds:15,salvageCount:2});});
   await transaction(db,async tx=>{const row=await account(tx,'legacy'),next=structuredClone(row.save);delete next.bossKills;delete next.playSeconds;await writeSave(tx,row,next);});
   const latest=await account(db,'legacy');assert.equal(latest.save.bossKills,2);assert.equal(latest.save.playSeconds,15);
-  const progress=await snapshot(db,'legacy');assert.equal(progress.daily.find(t=>t.id==='hunt').current,10);assert.equal(progress.daily.find(t=>t.id==='boss').current,2);
+  const progress=await snapshot(db,'legacy');assert.equal(progress.daily.find(t=>t.id==='hunt').current,10);assert.equal(progress.daily.find(t=>t.id==='salvage').current,2);
 });
 
 test('completion bonuses require all goals, separate daily and weekly claims and never pay twice',async()=>{
   await seed('completion');const start=await snapshot(db,'completion');assert(start.daily.some(task=>task.completion));await rewind('completion',20000);
   await assert.rejects(act('completion','daily','completion'),e=>e.code==='NOT_READY');
-  await transaction(db,async tx=>{const row=await account(tx,'completion');await writeSave(tx,row,{...row.save,kills:5000,bossKills:30,playSeconds:18000});});
-  await act('completion','daily');let row=await account(db,'completion');assert.equal(row.save.gold,5800);assert.equal(row.save.bag.length,5);
+  await transaction(db,async tx=>{const row=await account(tx,'completion');await writeSave(tx,row,{...row.save,kills:5000,playSeconds:18000,salvageCount:20});});
+  // 월드보스 도전 미션은 서버가 적는다 — 같은 상태를 직접 만든다.
+  const seedRow=(await db.execute({sql:'SELECT state_json FROM djrpg_journey WHERE account_id=?',args:['completion']})).rows[0],seedJson=JSON.parse(seedRow.state_json);
+  seedJson.daily.worldBoss=1;seedJson.weekly.worldBoss=5;
+  await db.execute({sql:'UPDATE djrpg_journey SET state_json=? WHERE account_id=?',args:[JSON.stringify(seedJson),'completion']});
+  await act('completion','daily');let row=await account(db,'completion');assert.equal(row.save.gold,6600);
+  assert.equal(row.save.bag.filter(item=>item.slot==='pouch').length,1,'일일 전체 완료 = 주머니 1개');
+  assert.equal(row.save.bag.filter(item=>item.slot==='skillbook').length,0,'일일 미션은 금화만');
   await assert.rejects(act('completion','daily','completion'),e=>e.code==='NOT_READY');
-  assert.equal((await snapshot(db,'completion')).weekly.find(task=>task.completion).current,3);
+  assert.equal((await snapshot(db,'completion')).weekly.find(task=>task.completion).current,4,'사냥·플레이·월드보스·분해 4개(일일 5일은 아직)');
   await assert.rejects(act('completion','weekly','completion'),e=>e.code==='NOT_READY');
   const stored=(await db.execute({sql:'SELECT state_json FROM djrpg_journey WHERE account_id=?',args:['completion']})).rows[0],state=JSON.parse(stored.state_json);state.weekly.days=5;
   await db.execute({sql:'UPDATE djrpg_journey SET state_json=? WHERE account_id=?',args:[JSON.stringify(state),'completion']});
   row=await account(db,'completion');const input={action:'journey-claim',kind:'weekly',id:'completion',revision:row.revision,requestId:randomUUID()};
-  const first=await mutate(db,'completion',input),retry=await mutate(db,'completion',input);assert.equal(first.save.gold,15800);assert.equal(retry.save.gold,15800);
-  await act('completion','weekly');const end=await account(db,'completion');assert.equal(end.save.gold,38800);assert.equal(end.save.bag.length,22);
+  const first=await mutate(db,'completion',input),retry=await mutate(db,'completion',input);assert.equal(first.save.gold,16600);assert.equal(retry.save.gold,16600);
+  await act('completion','weekly');const end=await account(db,'completion');assert.equal(end.save.gold,44600,'주간 28,000 + 완료 10,000');
+  assert.equal(end.save.bag.filter(item=>item.slot==='pouch').length,4,'일일 1 + 주간 3 주머니');
+  assert.equal(end.save.bag.filter(item=>item.slot==='skillbook').length,0,'주간 미션도 금화만');
   const claimed=await snapshot(db,'completion');assert(claimed.daily.every(task=>task.claimed));assert(claimed.weekly.every(task=>task.claimed));
 });
 test('existing base rewards claimed before the update still allow completion bonus without recounting a day',async()=>{
   await seed('old-completion');await snapshot(db,'old-completion');await rewind('old-completion',2000);
-  await transaction(db,async tx=>{const row=await account(tx,'old-completion');await writeSave(tx,row,{...row.save,kills:300,bossKills:3,playSeconds:1800});});
-  const stored=(await db.execute({sql:'SELECT state_json FROM djrpg_journey WHERE account_id=?',args:['old-completion']})).rows[0],state=JSON.parse(stored.state_json);state.daily.claims=['login','hunt','boss','time'];state.daily.completed=true;state.weekly.days=1;
+  await transaction(db,async tx=>{const row=await account(tx,'old-completion');await writeSave(tx,row,{...row.save,kills:300,bossKills:3,playSeconds:1800,salvageCount:3});});
+  const stored=(await db.execute({sql:'SELECT state_json FROM djrpg_journey WHERE account_id=?',args:['old-completion']})).rows[0],state=JSON.parse(stored.state_json);state.daily.worldBoss=1;state.daily.claims=['login','hunt','time','worldBoss','salvage'];state.daily.completed=true;state.weekly.days=1;
   await db.execute({sql:'UPDATE djrpg_journey SET state_json=? WHERE account_id=?',args:[JSON.stringify(state),'old-completion']});
-  const result=await act('old-completion','daily','completion');assert.equal(result.save.gold,2000);assert.equal(result.save.bag.length,2);
+  const result=await act('old-completion','daily','completion');assert.equal(result.save.gold,2000);assert.equal(result.save.bag.filter(item=>item.slot==='pouch').length,1);
   const latest=JSON.parse((await db.execute({sql:'SELECT state_json FROM djrpg_journey WHERE account_id=?',args:['old-completion']})).rows[0].state_json);assert.equal(latest.weekly.days,1);
+});
+
+test('업적 보상은 금화와 보물 주머니로 지급되고 스킬북은 주지 않는다 (작업 208)',async()=>{
+  await seed('achievement-reward');await snapshot(db,'achievement-reward');
+  // 레벨 30은 서버 상한(작업 209) 안에서만 저장된다 — 12시간 창 두 번으로 나눠 올린다.
+  for(const level of [25,30]){
+    await rewind('achievement-reward',43200);
+    await transaction(db,async tx=>{const row=await account(tx,'achievement-reward');await writeSave(tx,row,{...row.save,level});});
+  }
+  assert.equal((await account(db,'achievement-reward')).save.level,30,'레벨 30이 저장되었다');
+  await snapshot(db,'achievement-reward');
+  const first=await act('achievement-reward','achievements','level-5');
+  assert.equal(first.save.gold,1000,'첫 단계 1,000G');
+  assert.equal(first.save.bag.filter(item=>item.slot==='skillbook').length,0,'업적은 스킬북을 주지 않는다');
+  assert.equal(first.save.bag.filter(item=>item.slot==='pouch').length,0,'짧은 앞 단계는 주머니 없음');
+  const mid=await act('achievement-reward','achievements','level-15');
+  assert.equal(mid.save.gold,4000,'1,000 + 3,000');
+  assert.equal(mid.save.bag.filter(item=>item.slot==='pouch').length,1,'3번째 단계부터 주머니 1개');
+  const last=await act('achievement-reward','achievements','level-30');
+  assert.equal(last.save.gold,16000,'1,000 + 3,000 + 12,000(레벨 사슬 마지막 단계 index 5)');
+  assert.equal(last.save.bag.filter(item=>item.slot==='pouch').length,3,'마지막 단계는 주머니 2개(누적 3개)');
+  assert.equal(last.save.bag.filter(item=>item.slot==='skillbook').length,0,'끝까지 스킬북 0');
+  const pouches=last.save.bag.filter(item=>item.slot==='pouch');
+  assert(pouches.every(item=>item.name==='무작위 보물 주머니'&&item.kind==='pouch'));
+  // 가방 40칸은 장비만 센다 — 주머니를 3개 받아도 장비 칸은 그대로다.
+  const owners=(await db.execute({sql:"SELECT COUNT(*) AS n FROM djrpg_item_owners WHERE account_id='achievement-reward' AND json_extract(item_json,'$.slot')='pouch'",args:[]})).rows[0];
+  assert.equal(Number(owners.n),3,'주머니도 소유권에 기록된다');
 });
 
 test('claim returns an authoritative updated list and batches ownership and receipt writes with save',async()=>{
@@ -151,4 +208,53 @@ test('claim returns an authoritative updated list and batches ownership and rece
  const input={action:'journey-claim',kind:'daily',id:'login',revision:row.revision,requestId};const result=await mutate(wrapped,'fast-claim',input);
  assert(result.journey.daily.find(t=>t.id==='login').claimed);assert(batchedReceipt);assert.equal(separateReceipt,false);
  const retry=await mutate(db,'fast-claim',input);assert.equal(retry.save.gold,result.save.gold);assert(retry.journey.daily.find(t=>t.id==='login').claimed);
+});
+
+test('미리보기 테스트 보물 주머니 우편은 preview 호스트에서만 1회 지급되고 운영에서는 지워진다(작업 210)', async () => {
+  const request = url => new Request(url);
+  assert.equal(isPreviewHost(request('https://preview-gravel-background-fk.djrpg.pages.dev/api/market')), true, '미리보기 호스트');
+  assert.equal(isPreviewHost(request('https://djrpg.pages.dev/api/market')), false, '운영 호스트는 미리보기가 아니다');
+  assert.equal(isProductionHost(request('https://djrpg.pages.dev/api/market')), true);
+  assert.equal(isPreviewHost(request('https://example.com/preview/api/market')), false, '경로에 preview만 있으면 아니다');
+  const empty = () => ({ achievements: [], mail: [] });
+  const preview = advanceJourney(empty(), save(), save(), Date.now(), true, true);
+  const mail = preview.mail.find(entry => entry.id === PREVIEW_POUCH_MAIL_ID);
+  // 작업 212(`#4951`): 6단계 연출·`1개 더 열기`를 마음껏 확인하도록 100개를 준다.
+  assert(mail && mail.pouches === 100 && (mail.gold ?? 0) === 0 && (mail.books ?? 0) === 0 && mail.expiresAt === null, '주머니 100개·만료 없음');
+  assert.equal(mail.title, '[미리보기 테스트] 보물 주머니 100개');
+  assert.equal(PREVIEW_POUCH_MAIL_ID, 'preview-pouch-test-3', 'test-2를 받은 계정도 새로고침하면 다시 받는다');
+  const again = advanceJourney(preview, save(), save(), Date.now(), true, true);
+  assert.equal(again.mail.filter(entry => entry.id === PREVIEW_POUCH_MAIL_ID).length, 1, '계정당 1회');
+  const production = advanceJourney(structuredClone(again), save(), save(), Date.now(), true, 'production');
+  assert.equal(production.mail.some(entry => entry.id === PREVIEW_POUCH_MAIL_ID), false, '운영 호스트는 남아 있으면 지운다');
+  const unknownHost = advanceJourney(structuredClone(again), save(), save(), Date.now(), true, false);
+  assert.equal(unknownHost.mail.some(entry => entry.id === PREVIEW_POUCH_MAIL_ID), true, '호스트를 모르는 호출은 건드리지 않는다');
+  const offPreview = advanceJourney(empty(), save(), save(), Date.now(), true, 'production');
+  assert.equal(offPreview.mail.some(entry => entry.id === PREVIEW_POUCH_MAIL_ID), false, '운영 호스트에는 지급하지 않는다');
+});
+
+test('미리보기 journey 목록에만 테스트 우편이 내려오고 기본(운영) 목록에는 없다', async () => {
+  await seed('preview-mail');
+  const preview = await snapshot(db, 'preview-mail', { preview: true });
+  const mail = preview.mail.find(entry => entry.id === PREVIEW_POUCH_MAIL_ID);
+  assert(mail, '미리보기 목록에 테스트 우편');
+  assert.equal(mail.pouches, 100);
+  const normal = await snapshot(db, 'preview-mail', { preview: 'production' });
+  assert.equal(normal.mail.some(entry => entry.id === PREVIEW_POUCH_MAIL_ID), false, '운영 목록에서는 지운다');
+  assert.equal(normal.mail.length, 4, '환영·업데이트 안내·새 시즌 안내·다이아 우편 4통은 그대로');
+});
+
+test('자동 저장(writeSave, preview 생략)이 돌아도 미리보기 테스트 우편은 남고, 운영 호스트에서만 지워진다(작업 211)', async () => {
+  await seed('preview-keep');
+  const granted = await snapshot(db, 'preview-keep', { preview: 'preview' });
+  assert(granted.mail.some(entry => entry.id === PREVIEW_POUCH_MAIL_ID), '미리보기 호스트에서 지급');
+  // 1초 뒤 클라이언트 자동 저장(account.mjs → database.writeSave) — preview 인자를 넘기지 않는다.
+  const row = await account(db, 'preview-keep');
+  await transaction(db, tx => writeSave(tx, row, { ...save(), kills: 3 }));
+  const afterSave = await snapshot(db, 'preview-keep', { preview: 'preview' });
+  assert.equal(afterSave.mail.filter(entry => entry.id === PREVIEW_POUCH_MAIL_ID).length, 1, '자동 저장이 우편을 지우지 않는다');
+  const production = await snapshot(db, 'preview-keep', { preview: 'production' });
+  assert.equal(production.mail.some(entry => entry.id === PREVIEW_POUCH_MAIL_ID), false, '운영 호스트에서만 지운다');
+  const stale = advanceJourney({ achievements: [], mail: [{ id: 'preview-pouch-test-1', title: '옛 테스트', pouches: 1, claimedAt: null, read: false }] }, save(), save(), Date.now(), true, 'production');
+  assert.equal(stale.mail.some(entry => String(entry.id).startsWith('preview-pouch-test-')), false, 'ID를 올린 뒤 남은 예전 테스트 우편도 운영에서 지운다');
 });

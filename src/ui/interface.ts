@@ -12,12 +12,16 @@ import { bindModalClose } from './modalClose';
 import { resetModalDefaults } from './modalDefaults';
 import { readSalvageRarity, type SalvageRarity } from './salvageRarity';
 import { AUTO_SALVAGE_OFF_NOTICE, AUTO_SALVAGE_ON_NOTICE, readAutoSalvage, saveAutoSalvage } from './autoSalvage';
+import { isSalvagePlus, readSalvagePlus, SALVAGE_PLUS_DEFAULT, saveSalvagePlus } from './salvagePlus';
+import { BAG_JOB_ONLY_KEY, MARKET_JOB_ONLY_KEY, readJobOnly } from './jobFilter';
 import { dismissBagDetail, positionBagDetail } from './bagDetail';
 import type { Item, Save, Slot } from '../game/store';
 import { discoverEquipment } from '../game/codex';
 import { renderCodex } from './modals/codexModal';
 import type { SkillId } from '../game/skills';
 import { cancelSkillSelection, chooseSkill, pressSkillSlot } from './skillLoadout';
+import { LegendBoard } from '../game/legendBoard';
+import { mountLegendBar, sharePouchLegend } from './legendBar';
 import { renderSalvage } from './modals/salvageModal';
 import type { World } from '../game/world';
 
@@ -56,11 +60,17 @@ export class Interface {
   equippedPinned = false;
   bagFilter: BagFilter = 'all';
   bagRaritySort = false;
+  /** `내 직업만 보기` (작업 205): 가방과 경매장이 각자 기억하는 보기 스위치다. 켜면 다른 직업 전용
+   *  무기·스킬북만 감추고 공용 장비는 그대로 둔다. 기본값은 전체 보기. */
+  bagJobOnly = readJobOnly(BAG_JOB_ONLY_KEY);
+  marketJobOnly = readJobOnly(MARKET_JOB_ONLY_KEY);
   /** The user's own bulk-salvage threshold, read back from the device so closing the popup or
    *  reloading never resets it (작업 196). */
   salvageRarity: SalvageRarity = readSalvageRarity();
   /** 접속 중 자동 분해 (작업 196): kept on the device with the threshold, and off until turned on. */
   autoSalvage = readAutoSalvage();
+  /** 자동 분해가 갈 `+단계` 상한 (작업 203): 41층부터만 쓰이고, 기기에 저장된 값을 시작 시 읽는다. */
+  salvagePlus = readSalvagePlus();
   salvageIds?: string[];
   skillTarget?: number;
   pendingSkill?: SkillId;
@@ -78,6 +88,8 @@ export class Interface {
   attackButton!: HTMLButtonElement;
   slotButtons: HTMLButtonElement[] = [];
   skillFeedback = new SkillFeedback();
+  /** 보물 주머니 레전드 전광판 대기열(작업 208) — 접속 중 모두에게 같은 줄이 뜨다. */
+  legend = new LegendBoard();
   toast: HTMLElement;
   toastTimer = 0;
   saveStatus = '저장됨';
@@ -96,6 +108,7 @@ export class Interface {
     // The world asks on every pickup rather than keeping a copy, so the switch and the threshold are
     // always the latest thing the player set.
     world.autoSalvage = () => this.autoSalvage ? this.salvageRarity : undefined;
+    world.autoSalvagePlus = () => this.salvagePlus;
     this.market = new Market(sync);
     this.journey = new Journey(sync, world);
     discoverEquipment(world.save);
@@ -104,6 +117,7 @@ export class Interface {
     this.root.querySelector('.utility-nav')?.append(shopEntry);
     this.top = this.get('.top-hud'); this.banner = this.get('.tutorial');
     this.modal = this.get('.modal-backdrop'); this.toast = this.get('.toast');
+    mountLegendBar(this);
     this.modalRenderGate = bindModalInteraction(this.modal, window, () => this.renderModal());
     this.market.onMessage = text => this.message(text);
     sync.onWarehouseRecovered = () => { this.renderStatus(); this.renderBagBadge(); if (this.openModal === 'warehouse') void loadWarehouse(this); this.message('공용창고 이동 결과를 확인했습니다.'); };
@@ -161,6 +175,8 @@ export class Interface {
   get canvasHost(): HTMLElement { return this.get('.battle-canvas'); }
   get(selector: string): HTMLElement { const node = this.root.querySelector<HTMLElement>(selector); if (!node) throw new Error(`UI 구성 요소 누락: ${selector}`); return node; }
   message(text: string): void { this.toast.textContent = text.replace(/골드/g, '금화'); this.toast.classList.add('visible'); clearTimeout(this.toastTimer); this.toastTimer = window.setTimeout(() => this.toast.classList.remove('visible'), 3200); }
+  /** 내가 주머니에서 레전드를 뽑았다 — 전광판에 올린다(게스트는 내 화면에만). */
+  sharePouchLegend(itemName: string): void { void sharePouchLegend(this, itemName); }
   setSaveStatus(status: string): void { this.saveStatus = status; const label = this.modal.querySelector<HTMLElement>('[data-save-status]'); if (label) label.textContent = `서버 ${status}`; }
   showOfflineReward(reward: OfflineReward): void { this.offlineReward = reward; this.open('offline'); }
 
@@ -185,6 +201,12 @@ export class Interface {
   setAutoSalvage(on: boolean): void {
     this.autoSalvage = on; saveAutoSalvage(on);
     this.message(on ? AUTO_SALVAGE_ON_NOTICE : AUTO_SALVAGE_OFF_NOTICE);
+  }
+
+  /** 고른 `+N까지` 상한을 기기에 남긴다 (작업 203) — 창을 닫아도·새로고침해도 무엇이 지워질지 그대로다. */
+  setSalvagePlus(value: number): void {
+    this.salvagePlus = isSalvagePlus(value) ? value : SALVAGE_PLUS_DEFAULT;
+    saveSalvagePlus(this.salvagePlus);
   }
 
   open(kind: Modal | null): void {
@@ -273,5 +295,5 @@ export class Interface {
 
 
   salvageValue(item: Item): number { return salvageValue.call(this, item); }
-  iconPath(slot: Slot | 'skillbook', item?: Item): string { return iconPath.call(this, slot, item); }
+  iconPath(slot: Slot | 'skillbook' | 'pouch', item?: Item): string { return iconPath.call(this, slot, item); }
 }

@@ -1,5 +1,6 @@
 import {WorldBossDefeat,BOSS_DEFEAT_SHEET,defeatFrameOffset} from './worldBossDefeat';
 import {bossAttacks} from '../game/worldBossPattern';
+import {addBossKill} from '../game/bossCount';
 import {plantedBossVertex,plantedBossShift,bossFootContacts,bootMaskWeight} from './worldBossFooting';
 import {renderBossResult} from './worldBossResult';
 import {bannerOffset,cloudCenter} from './worldBossWeather';
@@ -43,7 +44,10 @@ export function openWorldBossField(ui:Interface):void {
     if(!real||!live||!attemptId||networkBusy)return;networkBusy=true;
     try{const data=await live.request(action,{attemptId});if(closed)return;updateShared();
       const battle=data.battle;if(battle){while(session.elapsed+.049< battle.elapsed&&!session.finished)session.advance(.05);session.world.player.hp=battle.hp;
-        if(battle.finished||data.killed){if(defeat.start(data.killed&&data.hp===0))defeatArtSelected=defeatFrames.length===8;finishSent=true;session.finished=true;session.damage=battle.damage;ui.worldBoss.standing=data.standing;void ui.journey.load();}}
+        if(battle.finished||data.killed){if(defeat.start(data.killed&&data.hp===0))defeatArtSelected=defeatFrames.length===8;
+          // 월드보스 도전/처치는 보스 업적에 1회로 합산한다(작업 208) — 끝난 도전 하나당 딱 한 번.
+          if(!finishSent){addBossKill(ui.world.save);ui.onSave();}
+          finishSent=true;session.finished=true;session.damage=battle.damage;ui.worldBoss.standing=data.standing;void ui.journey.load();}}
     }catch(error){if(!closed){finishSent=false;ui.message(error instanceof Error?error.message:String(error));}}finally{networkBusy=false;}
   };
   const cleanup=()=>{

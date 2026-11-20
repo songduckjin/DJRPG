@@ -48,7 +48,7 @@ export function renderWorldBoss(ui:Interface,dialog:HTMLElement):void {
     panel.append(text('p',practice?'게스트는 연습 모드입니다. 실전은 정식 계정으로 로그인해 주세요.':'매일 오전 5시 초기화 · 도전 횟수는 계정 내 캐릭터가 공유합니다. 보상은 우편함에서 수령하세요.','wb-preview-note'));
     if(live?.error)panel.append(text('p',live.error,'wb-preview-note'));
     if(preview.damage>0)panel.append(text('p',`최근 전투 피해량 ${preview.damage.toLocaleString('ko-KR')}`));
-    const start=document.createElement('button');start.type='button';start.className='wb-challenge';start.textContent=practice?'연습하기':`도전하기 · ${live?.data?.remaining??'…'}/3`;start.disabled=!practice&&(!live?.data||live.data.killed||live.data.remaining===0);start.onclick=()=>openWorldBossField(ui);panel.append(start);
+    const start=document.createElement('button');start.type='button';start.className='wb-challenge';start.textContent=practice?'연습하기':`도전하기 · ${live?.data?.remaining??'…'}/${live?.data?.maxAttempts??3}`;start.disabled=!practice&&(!live?.data||live.data.killed||live.data.remaining===0);start.onclick=()=>openWorldBossField(ui);panel.append(start);
   }else if(preview.tab==='ranking')renderBossRanking(panel,preview.standing);
   else renderBossRewards(panel,preview.standing?.mine?.rank);
   details.append(panel);body.append(details);dialog.append(body);

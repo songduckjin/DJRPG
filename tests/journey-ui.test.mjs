@@ -122,3 +122,52 @@ test('achievement all-claim receives visible steps only instead of skipping hidd
  assert.deepEqual(calls.filter(call=>call[0]==='journey-claim').map(call=>call[1].id),['skills-1','level-5']);
  }finally{globalThis.document=previous;}
 });
+
+test('업적 카드는 금화와 보물 주머니(그림 포함)를 함께 보여 주고 스킬북은 표시하지 않는다',async()=>{
+  const previous=globalThis.document;globalThis.document={createElement:node};
+  try{
+    const {ui}=fixture(),dialog=node();
+    ui.journey.data.achievements=[{...task('boss-200',200,200),gold:20000,books:0,pouches:2,category:'보스'},{...task('boss-10',10,10),gold:1000,books:0,pouches:0,category:'보스'}];
+    renderUtility(ui,dialog,'achievements');
+    assert(find(dialog,n=>n.textContent==='보물 주머니 2개'),'마지막 단계 주머니 표시');
+    // 주머니 보상은 글자만이 아니라 가죽 주머니 그림과 함께 보여 준다(작업 210, 사용자 지시 #4461).
+    const reward=find(dialog,n=>String(n.className).includes('pouch-reward'));
+    assert(reward,'보물 주머니 보상 칸');
+    const icon=reward.children.find(child=>child.tag==='img');
+    assert(icon&&String(icon.className).includes('pouch-reward-icon'),'주머니 그림 아이콘');
+    assert.equal(icon.src,'/assets/icons/treasure_pouch_v2.png','투명 배경 가죽 주머니');
+    const {readFileSync}=await import('node:fs');
+    const css=readFileSync(new URL('../src/styles/modals.css',import.meta.url),'utf8');
+    assert(/\.pouch-reward-icon\s*\{[^}]*width:\s*19px/.test(css),'금화 아이콘과 같은 인라인 크기');
+    assert(!find(dialog,n=>String(n.textContent).startsWith('스킬북')),'스킬북 표시 없음');
+  }finally{globalThis.document=previous;}
+});
+
+test('우편·보상의 받기/모두 받기 버튼은 누를 수 있을 때만 is-ready로 금빛 강조된다(작업 209)',async()=>{
+  const {readFileSync}=await import('node:fs');
+  const previous=globalThis.document;globalThis.document={createElement:node};
+  try{
+    const ready=button=>String(button.className).split(' ').includes('is-ready');
+    const {ui}=fixture(),mail=node();renderUtility(ui,mail,'mail');
+    // 미수령 우편이 있으면 '모두 받기'가 켜지고 강조된다.
+    const all=find(mail,n=>n.tag==='button'&&n.textContent==='모두 받기');
+    assert.equal(all.disabled,false);assert(ready(all),'활성 모두 받기는 is-ready');
+    const claim=find(mail,n=>n.tag==='button'&&n.textContent==='받기');
+    assert.equal(claim.disabled,false);assert(ready(claim),'활성 받기는 is-ready');
+    // 수령했거나 기한이 지난 우편은 흐리게(disabled) — 강조 클래스가 붙지 않는다.
+    ui.journey.data.mail[0].claimedAt=Date.now();const claimed=node();renderUtility(ui,claimed,'mail');
+    const allDone=find(claimed,n=>n.tag==='button'&&n.textContent==='모두 받기');
+    assert.equal(allDone.disabled,true);assert(!ready(allDone),'수령 뒤 모두 받기는 강조 없음');
+    assert(!ready(find(claimed,n=>n.tag==='button'&&n.textContent==='수령 완료')));
+    // 보상 탭도 같은 규칙 — 달성한 미션의 받기만 강조된다.
+    const rewards=node();renderUtility(ui,rewards,'rewards');
+    const daily=find(rewards,n=>n.attrs?.role==='tabpanel'&&!n.hidden);
+    assert(ready(find(daily,n=>n.tag==='button'&&n.textContent==='모두 받기')),'일일 모두 받기 강조');
+    assert(!ready(find(daily,n=>n.tag==='button'&&n.textContent==='진행 중')),'진행 중은 강조 없음');
+    // 강조/흐림은 스타일에서도 실제로 갈린다.
+    const css=readFileSync(new URL('../src/styles/modals.css',import.meta.url),'utf8');
+    assert(/\.utility-button\.utility-claim\.is-ready\s*\{[^}]*border-color:\s*#e6b866/.test(css),'활성 금빛 테두리');
+    assert(/\.utility-button\.utility-claim:not\(\.is-ready\)[^{]*\{[^}]*opacity:\s*\.38/.test(css),'비활성은 더 흐리게');
+    assert(/\.utility-button\.utility-claim:disabled[^{]*\{[^}]*filter:\s*grayscale/.test(css),'비활성은 채도도 낮춘다');
+  }finally{globalThis.document=previous;}
+});

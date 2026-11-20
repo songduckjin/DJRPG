@@ -78,3 +78,9 @@
 
 .market-icon.skill-book-art { width: 46px; height: 46px; flex-basis: 46px; border: 0; overflow: visible; --book-badge-size: 22px; }
 .market-pick .market-icon.skill-book-art { width: 34px; height: 34px; flex-basis: 34px; --book-badge-size: 17px; }
+
+/* 직업 표기·내 직업만 보기 (작업 205) */
+.market-item-title { display: flex; align-items: center; gap: 5px; min-width: 0; flex-wrap: wrap; }
+.market-job-only { display: flex; align-items: center; gap: 6px; margin: 6px 0 2px; padding: 5px 7px; border: 1px solid #80613e; border-radius: 4px; background: #2a2124; color: #e3cba4; font-size: 11px; }
+.market-job-only input { width: 15px; height: 15px; accent-color: #d8a860; }
+.market-job-warning { margin: 4px 0 8px; padding: 5px 8px; border-left: 2px solid #e2685c; background: #3a232166; color: #ffb9a6; font-size: 11px; font-weight: 700; }
