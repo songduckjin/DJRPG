@@ -1,3 +1,13 @@
+## 2026-11-21 · songduckjin 작업 230 — 일반 필드 몹 원거리 랜덤 스폰
+
+- **요청**: 사용자 "몹들이 필드 멀리서 뜨도록 랜덤하게 뜨게좀 해줘". 지금은 몹이 `arenaLimits`(±120/±180) 테두리에서만 떠서, 아이소메트릭 투영으로 **화면 중앙 기준 ±103×±77px** — 캐릭터 바로 코앞에 튀어나왔다.
+- **`arena.ts`**: 일반 필드용 `fieldSpawnLimits`(horizontal 250 · vertical 400 — `.43` 압축 때문에 세로가 크다. 화면으로 좌우 ±215px · 위아래 ±172px), `fieldSpawnMinDistance`(170), `fieldSpawnBand`(.78~1), `clampFieldPoint`를 더했다. `spawnArenaEnemy(player, angle, distanceRatio?)`는 플레이어에서 `angle` 방향 **필드 경계까지의 거리**에 밴드 비율을 곱한 지점을 고르고(최소 거리 미달이면 같은 방향 외곽까지 밀고, 그래도 모자라면 **반대편 → 가장 먼 외곽** 순), 반환점은 항상 필드 경계 안이다. 2인자 호출은 기본값(밴드 가운데)으로 그대로 동작한다. `arenaLimits`·`clampArenaPoint`·`arenaEdgePoint`는 건드리지 않아 던전(`ui/dungeonBattle.ts`) 경계는 그대로다.
+- **`world.ts`**: 스폰마다 `fieldSpawnBand.near + random() × 폭`을 넘겨 **거리도 함께 굴린다**(각도만 흔들면 매번 같은 경계선 한 줄에서 뜬다). 적 이동 클램프와 `warcry` 넉백을 `clampArenaPoint` → `clampFieldPoint`로 바꿔, 멀리 스폰된 적이 **첫 프레임에 아레나로 순간이동하지 않고** 외곽에서 걸어 들어온다. 플레이어 이동은 계속 `clampArenaPoint`(아레나) 안이다.
+- **테스트**: `tests/field-spawn.test.mjs`(신규 5건) — ① 아레나 가운데·네 모서리 × 36각도 × 3비율에서 필드 경계 안·최소 거리 170 이상 ② 밴드 비율이 커지면 거리도 단조 증가, 각도·거리가 매번 겹치지 않음 ③ 모서리에 몰린 플레이어도 반대편/가장 먼 외곽에서 170 이상 ④ 아레나 계약(120/180)과 필드(250/400) 경계 분리 ⑤ World에 실제로 스폰해 **프레임당 이동량 ≤ (플레이어 125 + 적 38)/60** — 순간이동 없이 아레나 밖에서 시작해 4초 안에 사거리 90까지 걸어 들어온다. `tests/arena.test.mjs`는 스폰 기대값을 아레나 → 필드로 갱신(플레이어는 아레나 안 유지).
+- **검증**: `npx tsc --noEmit` 통과, `node --test tests/*.test.mjs` **953건 중 950 통과**. 실패 3건(`costume-field-render` 2 · `skillbook-server` 1)은 `origin/main` `c2c1c27`·`f3c3c28`에서도 같은 파일이 그대로 실패하는 기존 실패다. `node scripts/verify-item-art.mjs` 통과. `vite build` 번들 단계는 이 컨테이너 RAM(2.5~3GB) 부족으로 OOM(`insufficient memory`) — Cloudflare Pages 빌드로 확인했다.
+- **머지·배포**: [PR #217](https://github.com/songduckjin/DJRPG/pull/217) 스쿼시 `2fe46aae498a`(Cloudflare Pages 체크 통과, `Workers Builds`는 상시 실패 체크), 운영 `https://djrpg.pages.dev/version.json` = `2fe46aae498a`(`builtAt 2026-11-20T15:58:47Z`) 확인. 배포 번들 `assets/index-YCnIObwm.js`에 새 필드 경계 `horizontal:250,vertical:400`과 기존 아레나 `horizontal:120,vertical:180`이 함께 있는 것을 확인했다. **모바일 실기 화면은 미확인**(사용자 몫).
+- **번호**: 처음 `[작업 229]`로 등록했다가 같은 시각 병합된 #214(전사 그립 원복)가 229를 써서 230으로 올렸다(PR #216 닫고 #217로 재발행).
+
 ## 2026-11-21 · songduckjin 작업 229 — 전사 서기 '이전 그립' 원복(작업 222 되돌리기) · 알파 기준 유지 · 캐시 버전 4
 
 - **요청**: [작업 222](https://github.com/songduckjin/DJRPG/pull/193)(낮은 양손 그립)로 바꾼 전사 남녀 서기 시트·대검 앵커를 **그 직전(이전 그립)**으로 되돌려 운영에 배포.
