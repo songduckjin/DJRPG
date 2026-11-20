@@ -347,3 +347,14 @@ test('삭제 실패는 확인창 안에 서버 메시지를 남기고 다시 시
     assert.deepEqual(ui.messages, []);
   } finally { globalThis.fetch = originalFetch; restore(); }
 });
+test('거래 결과 대기 중에도 거래소 창은 열려 다시 확인을 누를 수 있다(작업 226)', () => {
+  const ui = uiFixture(), market = ui.market;
+  market.sync.pendingMarket = { action: 'claim', data: { deliveryId: 'all' }, requestId: 'pending-1' };
+  Interface.prototype.open.call(ui, 'market');
+  assert.equal(ui.openModal, 'market', '잠긴 이유와 다시 확인 버튼이 있는 창은 열린다');
+  Interface.prototype.open.call(ui, 'equipment');
+  assert.equal(ui.openModal, 'market', '그 밖의 창은 확인 전까지 잠긴다');
+  market.sync.pendingMarket = undefined;
+  Interface.prototype.open.call(ui, 'equipment');
+  assert.equal(ui.openModal, 'equipment');
+});

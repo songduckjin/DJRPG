@@ -214,7 +214,9 @@ export class Interface {
   }
 
   open(kind: Modal | null): void {
-    if (this.market.busy || this.market.sync.locked || this.market.sync.pendingMarket || this.market.sync.pendingWarehouse) return;
+    // 거래 결과를 확인하지 못해 `pendingMarket`이 남아 있어도 거래소 창은 연다 — 그 창의 '거래 결과 다시 확인'이
+    // 아니면 풀 방법이 없어서, 막으면 네트워크가 끊긴 동안 모든 창이 잠긴다(작업 226).
+    if (this.market.busy || this.market.sync.locked || this.market.sync.pendingWarehouse || (this.market.sync.pendingMarket && kind !== 'market')) return;
     if (kind !== null && this.pendingSkill) cancelSkillSelection.call(this);
     if (kind !== 'skills') this.skillTarget = undefined;
     if (kind !== 'salvage') this.salvageIds = undefined;
