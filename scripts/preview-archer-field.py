@@ -7,7 +7,7 @@
     - 스켈레톤 = 화면 높이 × .095 (drawEntities)
     - 화살은 `render/vfx.ts` drawArrow 와 같은 진행도 보간
 
-출력: `downloads/djrpg_archer_ingame_v1.png`
+출력: `downloads/djrpg_archer_starter_ingame_v2.png` (작업 159 스타터 가죽 튜닉 시트)
 """
 from pathlib import Path
 
@@ -15,9 +15,11 @@ from PIL import Image, ImageDraw, ImageFont
 
 ROOT = Path(__file__).resolve().parent.parent
 ASSETS = ROOT / 'public/assets'
-OUTPUT = Path('/workspace/downloads/djrpg_archer_ingame_v1.png')
+OUTPUT = Path('/workspace/downloads/djrpg_archer_starter_ingame_v2.png')
 SCREEN = (390, 844)
 BODY_FRACTION = .0935
+# 게임과 같은 시트별 본체 높이(`render/heroScale.ts` `heroBodyPx`)로 배율을 잡는다.
+BODY_PX = {('male', 'walk'): 300, ('male', 'attack'): 268, ('female', 'walk'): 300, ('female', 'attack'): 270}
 
 
 def load(path: Path) -> Image.Image:
@@ -64,12 +66,13 @@ def draw_hp(draw: ImageDraw.ImageDraw, x: float, y: float, width: int, ratio: fl
     draw.rectangle([x - width / 2, y, x - width / 2 + width * max(0, ratio), y + 3], fill=(213, 59, 58, 255))
 
 
-def scene(shooting: bool, arrow_progress: float, name: str) -> Image.Image:
+def scene(shooting: bool, arrow_progress: float, name: str, gender: str = 'male') -> Image.Image:
     background = load(ASSETS / 'wasteland-ground.png')
     canvas = field(background)
     draw = ImageDraw.Draw(canvas, 'RGBA')
     height = SCREEN[1]
-    scale = height * BODY_FRACTION / 337
+    motion = 'attack' if shooting else 'walk'
+    scale = height * BODY_FRACTION / BODY_PX[(gender, motion)]
 
     # 적 두 마리 — 궁수 앞쪽에 몰려 온다.
     skeleton = load(ASSETS / 'skeleton_warrior.png')
@@ -80,9 +83,9 @@ def scene(shooting: bool, arrow_progress: float, name: str) -> Image.Image:
         draw.ellipse([px - 19, py - 7, px + 19, py + 7], fill=(0, 0, 0, 110))
         draw_hp(draw, px, py - height * .095 - 7, 26, ratio, False)
 
-    idle = load(ASSETS / 'pilot-25d/archer_male_idle_v1.png')
-    walk = load(ASSETS / 'pilot-25d/archer_male_walk_v1.png')
-    attack = load(ASSETS / 'pilot-25d/archer_male_attack_v1.png')
+    idle = load(ASSETS / f'pilot-25d/archer_{gender}_idle_v1.png')
+    walk = load(ASSETS / f'pilot-25d/archer_{gender}_walk_v1.png')
+    attack = load(ASSETS / f'pilot-25d/archer_{gender}_attack_v1.png')
     hero = attack if shooting else walk
     hero_frame = frame(hero, 1) if shooting else frame(walk, 0)
     hx, hy = project(0, 0)
@@ -153,12 +156,13 @@ def font(size: int):
 
 if __name__ == '__main__':
     panels = [
-        scene(False, 0, '1. BASE SHEET ONLY: NO ARMOR / HELMET / BOW OVERLAY'),
-        scene(True, .42, '2. BASIC ATTACK: ARROW IN FLIGHT'),
-        scene(True, .92, '3. ARROW RAIN MARKER + ARROW IMPACT'),
+        scene(False, 0, '1. MALE STARTER LEATHER TUNIC: WALK', 'male'),
+        scene(True, .92, '2. MALE : BOW SHOT', 'male'),
+        scene(False, 0, '3. FEMALE STARTER LEATHER TUNIC: WALK', 'female'),
+        scene(True, .92, '4. FEMALE : BOW SHOT', 'female'),
     ]
     gap = 14
-    result = Image.new('RGBA', (SCREEN[0] * 3 + gap * 4, SCREEN[1] + gap * 2), (18, 15, 17, 255))
+    result = Image.new('RGBA', (SCREEN[0] * 4 + gap * 5, SCREEN[1] + gap * 2), (18, 15, 17, 255))
     for index, panel in enumerate(panels):
         result.alpha_composite(panel, (gap + index * (SCREEN[0] + gap), gap))
     result.convert('RGB').save(OUTPUT, quality=92)

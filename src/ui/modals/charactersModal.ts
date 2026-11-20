@@ -34,7 +34,7 @@ export function renderCharacters(ui: Interface, dialog: HTMLElement): void {
     });
     select.className = 'character-select';
     const image = document.createElement('img'); image.alt = '';
-    image.src = character ? (character.job === 'archer' ? `/assets/pilot-25d/archer_${character.gender === 'female' ? 'female' : 'male'}_idle_v1.png` : `/assets/warrior_${character.gender === 'female' ? 'female' : 'male'}_base.png`) : '';
+    image.src = character ? (character.job === 'archer' ? `/assets/pilot-25d/archer_${character.gender === 'female' ? 'female' : 'male'}_idle_v1.png?v=2` : `/assets/warrior_${character.gender === 'female' ? 'female' : 'male'}_base.png`) : '';
     const details = document.createElement('span'); details.textContent = character ? `${character.name} · ${character.job === 'archer' ? '궁수' : '전사'} · Lv.${character.level} · ${character.floor}층` : `슬롯 ${slot} · 새 캐릭터 만들기`;
     if (character) select.append(image);
     else { const plus = document.createElement('strong'); plus.textContent = '+'; select.append(plus); }

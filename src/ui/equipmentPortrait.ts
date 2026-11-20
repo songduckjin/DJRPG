@@ -16,7 +16,8 @@ import { WEAPON_GUARD, weaponIndexFor, weaponPartPath, weaponPose, swordlessBody
 /** 전사 시안은 장착 조합에 맞춘 필드와 같은 전신 그림을 쓴다(작업 155: 갑옷 티어별 시트). */
 export function equipmentFallbackPortrait(save: Save): string {
   // 궁수는 이번 단계에서 기본 시트만 쓴다 — 갑옷·투구·활 외형은 추후 별도 시안(작업 157).
-  if (isArcher(save)) return `/assets/pilot-25d/archer_${save.gender}_idle_v1.png`;
+  // 작업 159: 시트를 갈면서 `/assets/*` immutable 캐시를 피하려고 URL에 `?v=2`를 붙인다(필드 render.ts와 같은 경로).
+  if (isArcher(save)) return `/assets/pilot-25d/archer_${save.gender}_idle_v1.png?v=2`;
   // 투구를 쓰면 필드와 같은 머리 없는 본체 위에 투구 파츠를 얹는다(작업 152).
   const headless = !!save.equipment.helmet;
   const armor = armorIndexFor(save);

@@ -901,3 +901,9 @@
 - 2번: 청룡머리·비늘몸통 PNG교체(짙은파랑), 한바퀴1.1→2.4초, 발밑파란지면광·링, 몸통방사1.25배. `/assets/*`immutable이라 dragon2장은`?v=2`.
 - tsc/부분6(검기·청룡계약 새로)/전체474중472(costume-field-render2건은종전실패)/build/아트/diff통과. PR#118 스쿼시`eef4e9d5251d`, 운영version.json`eef4e9d5251d`(builtAt2026-11-20T01:17:18Z)·새에셋4장200(원격sha=로컬, 머리평균RGB 35/105/189 파랑)·번들`index-QOXkJ41J.js`에 경로·`Math.PI*2/2.4`확인. 브라우저실기미실행.
 
+## 2026-11-20 songduckjin — 작업159 궁수 스타터 가죽 튜닉 시트 교체
+- 승인 원본(`downloads/archer_preview/{male,female}_starter.png`)에서 `images --edit`로 걷기·활사격 4프레임 스트립 생성. 후드·망토·견갑 없이 민소매 가죽 조끼+크림 셔츠, 퀴버·나무활 유지, 4프레임 얼굴·옷·바닥선 동일 확인.
+- `scripts/build-archer-sheets.py` 입력을 `{}_starter{,_walk,_attack}.png`로 교체 후 6장 재생성(362×362 / 1448×362, 검정 키잉·발끝정렬). 셀 높이 남 337/301·299·300·300/239·275·270·270, 여 337/300×4/239·277·279·263. 옛 후드 입력은 주석으로만 남김.
+- `/assets/*` immutable이라 `render.ts` 6경로·`equipmentPortrait.ts`·`charactersModal.ts`의 궁수 시트 URL에 `?v=2`. `tests/archer.test.mjs`에 캐시 버스터 누락 감시 1건 추가(궁수 시트 참조 줄은 전부 `?v=` 필요).
+- 시트만 교체: `heroBodyPx`·전투 수치·Save/DB/API 무변경. 장비 오버레이는 종전대로 궁수에게 그리지 않는다.
+- tsc/archer 14·전체488중486(costume-field-render2건은 `86ac44e` 워크트리 동일실패)/아트6장/build/diff통과. 번들에 6경로 `?v=2` 확인. 검수 `downloads/djrpg_archer_starter_ingame_v2.png`(남녀 걷기·사격 4패널). 브라우저 실기 미실행.

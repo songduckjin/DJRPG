@@ -187,7 +187,7 @@ test('궁수는 장비를 착용해도 기본 시트만 쓰고 전사용 갑옷�
   save.equipment.helmet = { id: 'h', name: '황혼의 기사 헬름', slot: 'helmet', rarity: 'rare', stats: { defense: 5 } };
   save.equipment.weapon = { id: 'w', name: '황혼의 혈염 장궁', slot: 'weapon', rarity: 'rare', stats: { attack: 30 } };
   const plan = equipmentPortraitPlan(save);
-  assert.equal(plan.base, '/assets/pilot-25d/archer_female_idle_v1.png');
+  assert.equal(plan.base, '/assets/pilot-25d/archer_female_idle_v1.png?v=2');
   assert.equal(plan.helmet, undefined);
   assert.equal(plan.weapon, undefined);
   assert.equal(plan.key, 'archer:female');
@@ -206,6 +206,16 @@ test('궁수 기본 시트 6장은 전사와 같은 셀 규격의 RGBA PNG다', 
     assert.equal(data.readUInt32BE(16), width);
     assert.equal(data.readUInt32BE(20), height);
     assert.equal(data[25], 6, 'RGBA PNG여야 한다');
+  }
+});
+
+test('궁수 시트 URL은 모두 캐시 버스터(?v=)를 단다', () => {
+  // `/assets/*`는 `public/_headers`가 immutable 1년 캐시로 고정한다. 시트를 갈아도 URL이 같으면
+  // 브라우저가 옛 그림을 계속 쓰므로, 궁수 시트를 참조하는 곳은 전부 버전 쿼리를 붙여야 한다(작업 159).
+  for (const file of ['src/game/render.ts', 'src/ui/equipmentPortrait.ts', 'src/ui/modals/charactersModal.ts']) {
+    const lines = readFileSync(new URL(`../${file}`, import.meta.url), 'utf8').split('\n').filter(line => line.includes('archer') && line.includes('_v1.png'));
+    assert(lines.length > 0, `${file}: 궁수 시트 경로가 없다`);
+    for (const line of lines) assert.doesNotMatch(line, /_v1\.png(?!\?v=\d)/, `${file}: 캐시 버스터 없는 경로 — ${line.trim()}`);
   }
 });
 
