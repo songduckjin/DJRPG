@@ -335,3 +335,38 @@ for (let index = 1; index < 10; index++) {
   if (data.length > 200 * 1024) throw new Error(`대검 파츠가 200KB를 넘습니다: weapon_${index}_v1.png`);
 }
 console.log('작업 156 대검 파츠 9장 확인 완료.');
+
+// ── 작업 160: 기본 활대를 지운 궁수 시트(nobow) + 활 파츠 9장 ─────────────────────────
+// 0번(사냥꾼의 활)은 본체 시트에 그려져 있고, 1~9번은 `bows/bow_{n}_v1.png` 파츠로 얹는다.
+// 파츠·본체 모두 기준 시트와 같은 362px 셀 좌표계여야 앵커를 다시 재지 않는다.
+const nobowRoot = fileURLToPath(new URL('../public/assets/pilot-25d/nobow/', import.meta.url));
+for (const gender of ['male', 'female']) {
+  for (const [motion, width, height] of [['idle', 362, 362], ['walk', 1448, 362], ['attack', 1448, 362]]) {
+    const path = join(nobowRoot, `archer_${gender}_${motion}_v1.png`);
+    if (!existsSync(path)) throw new Error(`작업 160 기본 활 지운 시트가 없습니다: archer_${gender}_${motion}_v1.png`);
+    const data = readFileSync(path), header = data.subarray(0, 26);
+    if (header.toString('ascii', 1, 4) !== 'PNG' || header.readUInt32BE(16) !== width || header.readUInt32BE(20) !== height) {
+      throw new Error(`기본 활 지운 시트 규격이 다릅니다(${header.readUInt32BE(16)}×${header.readUInt32BE(20)}): archer_${gender}_${motion}_v1.png`);
+    }
+    if (!(header[25] === 6 || (header[25] === 3 && data.includes('tRNS')))) {
+      throw new Error(`기본 활 지운 시트는 투명도가 있는 PNG여야 합니다: archer_${gender}_${motion}_v1.png`);
+    }
+  }
+}
+console.log('작업 160 기본 활 지운 궁수 시트 6장 확인 완료.');
+
+const bowPartRoot = fileURLToPath(new URL('../public/assets/pilot-25d/bows/', import.meta.url));
+for (let index = 1; index < 10; index += 1) {
+  const path = join(bowPartRoot, `bow_${index}_v1.png`);
+  if (!existsSync(path)) throw new Error(`작업 160 활 파츠가 없습니다: bow_${index}_v1.png`);
+  const data = readFileSync(path), header = data.subarray(0, 26);
+  const width = header.readUInt32BE(16), height = header.readUInt32BE(20);
+  if (header.toString('ascii', 1, 4) !== 'PNG' || width !== 362 || height !== 362) {
+    throw new Error(`활 파츠는 362×362 PNG여야 합니다(${width}×${height}): bow_${index}_v1.png`);
+  }
+  if (!(header[25] === 6 || (header[25] === 3 && data.includes('tRNS')))) {
+    throw new Error(`활 파츠는 투명도가 있는 PNG여야 합니다: bow_${index}_v1.png`);
+  }
+  if (data.length > 200 * 1024) throw new Error(`활 파츠가 200KB를 넘습니다: bow_${index}_v1.png`);
+}
+console.log('작업 160 활 파츠 9장 확인 완료.');
