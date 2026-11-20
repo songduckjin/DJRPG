@@ -194,9 +194,9 @@ test('buy and money claim group their independent reads and writes into two DB b
 
 test('older saves preserve recorded discoveries while an explicit reset clears them',async()=>{
   await seed('collection',[]);
-  await transaction(db,async tx=>{const row=await account(tx,'collection'),next=structuredClone(row.save);next.equipmentCollection=['weapon:3'];await writeSave(tx,row,next);});
+  await transaction(db,async tx=>{const row=await account(tx,'collection'),next=structuredClone(row.save);next.equipmentCollection=['weapon:3:rare'];await writeSave(tx,row,next);});
   await transaction(db,async tx=>{const row=await account(tx,'collection'),next=structuredClone(row.save);delete next.equipmentCollection;await writeSave(tx,row,next);});
-  assert.deepEqual((await account(db,'collection')).save.equipmentCollection,['weapon:3']);
+  assert.deepEqual((await account(db,'collection')).save.equipmentCollection,['weapon:3:rare']);
   await transaction(db,async tx=>{const row=await account(tx,'collection');await writeSave(tx,row,save([]),[],false);});
   assert.deepEqual((await account(db,'collection')).save.equipmentCollection,[]);
 });

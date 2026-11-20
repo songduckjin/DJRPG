@@ -69,12 +69,11 @@ test('던전 대기창과 결과창이 실제 순위·커밍순을 그린다',()
   assert.match(modal,/Coming Soon/,'the lobby states the coming-soon floor');
   assert(modal.includes('dungeon-coming-soon-panel'),'the challenge tab has a coming-soon panel');
   // 클리어는 세이브에 적고(새로고침 유지) 서버 순위로 보낸다.
-  assert(field.includes('ui.dungeon.clear(ui.world.save,floor)'),'a clear is written to the save');
+  assert(field.includes('ui.dungeon.clear(save,floor)'),'a clear is written to the save');
   assert(field.includes('ui.dungeon.live?.submit(floor,summary)'),'and pushed to the ranking with its floor');
   // 작업 209·210: 층에 들어갈 때 서버에서 시작 시각과 시드를 받고, 클리어는 그 전투의 요약을 함께 보낸다.
   assert(field.includes('ui.dungeon.live?.begin(floor)'),'a floor entry asks the server for its time and seed');
   assert(field.includes('dungeonBattleSummary(battle)'),'the clear sends the battle summary');
-  assert(field.includes('ui.dungeon.live?.submit(floor,summary)'),'the summary rides along with the ranking submit');
   assert(field.includes('DUNGEON_STEP'),'the battle advances in the fixed step the server replays');
   assert.match(field,/Coming Soon/,'the tenth clear result shows the coming-soon badge');
   assert.match(layout,/\.dungeon-coming-soon\{/,'the badge has its own style');

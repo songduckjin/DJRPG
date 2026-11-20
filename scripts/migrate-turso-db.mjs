@@ -26,10 +26,18 @@ export const TABLES = [
   'djrpg_boss_attempts',
   'djrpg_boss_scores',
   'djrpg_boss_rewards',
+  // 서버 전역 표시(작업 206: season_epoch). 시즌 초기화 표시가 새 DB로 함께 가야
+  // 이관 직후 같은 초기화가 다시 돌지 않는다. 예전 공용 DB에는 없을 수 있어 옵션으로 본다.
+  'djrpg_meta',
+  // 보물 주머니 레전드 전광판(작업 208) — 하루치만 남는 짧은 소식이라 비어 있어도 무관하다.
+  // 이관 뒤에 생긴 표라 예전 공용 DB에는 없을 수 있어 옵션으로 본다.
+  'djrpg_announcements',
   // 던전 순위·도전 시작 기록(작업 197·209). 세이브의 던전 최고층 검증 근거라 함께 옮긴다.
   'djrpg_dungeon_records',
   'djrpg_dungeon_attempts'
 ];
+// 최신 스키마에만 있는 표 — 소스에 없으면 0행으로 보고 건너뛴다.
+const OPTIONAL_TABLES = ['djrpg_meta', 'djrpg_announcements'];
 // AUTOINCREMENT 시퀀스를 이어받아야 하는 테이블(현재 djrpg_market_events 하나).
 const SEQUENCE_TABLES = ['djrpg_market_events'];
 const DEFAULT_CHUNK = 500;
@@ -56,7 +64,8 @@ const HELP = `DJRPG Turso DB 이관 (djrpg_* 테이블만 새 DB로 복사)
   - 소스 DB는 읽기 전용 트랜잭션으로만 조회한다(puzzle-mates 테이블은 건드리지 않는다).
   - 타겟에 이미 행이 있으면 --force 없이는 중단한다.
   - 예상하지 못한 djrpg_* 테이블이 소스에 있으면 중단한다.
-  - 복사 후 20개 테이블 COUNT(*)가 소스·타겟에서 일치하는지 검사하고, 하나라도 다르면 실패한다.
+  - 복사 후 22개 테이블 COUNT(*)가 소스·타겟에서 일치하는지 검사하고, 하나라도 다르면 실패한다.
+  - djrpg_meta·djrpg_announcements는 예전 소스에 없으면 0행으로 보고 건너뛴다(있으면 함께 옮긴다).
 `;
 
 const isLocalUrl = url => /^file:/i.test(url);
@@ -142,7 +151,8 @@ async function syncSequence(snapshot, target, table) {
 async function assertColumns(snapshot, target) {
   for (const table of TABLES) {
     const targetColumns = new Set((await target.execute(`PRAGMA table_info(${quote(table)})`)).rows.map(row => String(row.name)));
-    const sourceColumns = (await snapshot.execute(`SELECT * FROM ${quote(table)} LIMIT 0`)).columns;
+    let sourceColumns;
+    try { sourceColumns = (await snapshot.execute(`SELECT * FROM ${quote(table)} LIMIT 0`)).columns; } catch { continue; }
     const extra = sourceColumns.filter(column => !targetColumns.has(column));
     if (extra.length) throw new Error(`${table}: 소스에만 있는 컬럼이 있습니다(${extra.join(', ')}). 앱 스키마(server/database.mjs의 schema())와 소스 DB가 다릅니다 — 복사를 중단합니다.`);
   }
@@ -161,13 +171,13 @@ async function run(options, env = process.env) {
     snapshot = await source.transaction('read');
     console.log('소스 DB 연결 및 스키마 확인');
     const existing = await tableNames(snapshot);
-    const missing = TABLES.filter(table => !existing.has(table));
+    const missing = TABLES.filter(table => !existing.has(table) && !OPTIONAL_TABLES.includes(table));
     if (missing.length) throw new Error(`소스 DB에 다음 테이블이 없습니다: ${missing.join(', ')}`);
     const unexpected = [...existing].filter(table => table.startsWith('djrpg_') && !TABLES.includes(table));
     if (unexpected.length) throw new Error(`이관 목록에 없는 DJRPG 테이블이 있습니다: ${unexpected.join(', ')}`);
 
     const sourceCounts = {};
-    for (const table of TABLES) sourceCounts[table] = await countRows(snapshot, table);
+    for (const table of TABLES) sourceCounts[table] = existing.has(table) ? await countRows(snapshot, table) : 0;
     const guests = await guestCount(snapshot);
 
     if (options.dryRun) {
@@ -204,8 +214,8 @@ async function run(options, env = process.env) {
     console.log(`\n[복사] ${TABLES.length}개 테이블, ${number(totalOf(sourceCounts))}행`);
     const started = Date.now();
     for (const table of TABLES) {
-      const copied = await copyTable(snapshot, target, table, options.chunk);
-      console.log(`  ${table.padEnd(30)} ${number(copied).padStart(12)}행 복사`);
+      const copied = existing.has(table) ? await copyTable(snapshot, target, table, options.chunk) : 0;
+      console.log(`  ${table.padEnd(30)} ${number(copied).padStart(12)}행 복사${existing.has(table) ? '' : ' (소스에 없음 — 건너뜀)'}`);
     }
     for (const table of SEQUENCE_TABLES) {
       const seq = await syncSequence(snapshot, target, table);

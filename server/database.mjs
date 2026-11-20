@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { journeyState, journeyOperation } from './journey-state.mjs';
+import { skillBookIdSet, countedInBag } from './skill-ids.mjs';
 import { clampSaveProgress, itemWithinBounds, rewardBudget, elapsedSince } from './save-guard.mjs';
 import { databaseFactory } from './database-config.mjs';
 import { runtimeEnv } from './env.mjs';
@@ -8,6 +9,8 @@ export class ApiError extends Error {
   constructor(status, code, message) { super(message); this.status = status; this.code = code; }
 }
 export const fail = (status, code, message) => { throw new ApiError(status, code, message); };
+/** 메인 사냥의 마지막 층 — `src/game/store.ts`의 `MAX_FLOOR`와 같은 값이다(작업 204). */
+export const MAX_FLOOR = 20;
 export const client = (env = runtimeEnv()) => {
   const createClient = databaseFactory();
   if (!createClient || !env?.TURSO_DATABASE_URL || !env?.TURSO_AUTH_TOKEN) fail(503, 'DB_NOT_CONFIGURED', '서버 DB가 설정되지 않았습니다.');
@@ -58,6 +61,8 @@ export async function schema(db, env = runtimeEnv()) {
     'CREATE TABLE IF NOT EXISTS djrpg_market_events (seq INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT NOT NULL, listing_id TEXT NOT NULL, created_at INTEGER NOT NULL)',
     'CREATE TABLE IF NOT EXISTS djrpg_market_requests (account_id TEXT NOT NULL COLLATE NOCASE, request_id TEXT NOT NULL, response_json TEXT NOT NULL, PRIMARY KEY(account_id, request_id))'
     , 'CREATE TABLE IF NOT EXISTS djrpg_account_profiles (account_id TEXT PRIMARY KEY COLLATE NOCASE, shared_gold INTEGER NOT NULL, active_slot INTEGER NOT NULL DEFAULT 1)'
+    // 서버 전역 표시값(작업 206) — `season_epoch`처럼 한 번만 도는 마이그레이션의 완료 표시를 적는다.
+    , 'CREATE TABLE IF NOT EXISTS djrpg_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)'
     , 'CREATE TABLE IF NOT EXISTS djrpg_characters (account_id TEXT NOT NULL COLLATE NOCASE, slot INTEGER NOT NULL, save_json TEXT NOT NULL, updated_at TEXT NOT NULL, PRIMARY KEY(account_id, slot))'
     , 'CREATE TABLE IF NOT EXISTS djrpg_character_item_owners (item_id TEXT PRIMARY KEY, account_id TEXT NOT NULL COLLATE NOCASE, slot INTEGER NOT NULL)'
     , 'CREATE TABLE IF NOT EXISTS djrpg_warehouse (account_id TEXT NOT NULL COLLATE NOCASE, item_id TEXT PRIMARY KEY, item_json TEXT NOT NULL)'
@@ -67,6 +72,9 @@ export async function schema(db, env = runtimeEnv()) {
     , 'CREATE TABLE IF NOT EXISTS djrpg_shop_ledger (id INTEGER PRIMARY KEY AUTOINCREMENT, account_id TEXT NOT NULL COLLATE NOCASE, source_type TEXT NOT NULL, source_id TEXT NOT NULL, diamonds_delta INTEGER NOT NULL, created_at INTEGER NOT NULL, UNIQUE(account_id,source_type,source_id))'
     , 'CREATE TABLE IF NOT EXISTS djrpg_shop_entitlements (account_id TEXT NOT NULL COLLATE NOCASE, entitlement_key TEXT NOT NULL, quantity INTEGER NOT NULL DEFAULT 0, expires_at INTEGER, updated_at INTEGER NOT NULL, PRIMARY KEY(account_id,entitlement_key))'
     , 'CREATE TABLE IF NOT EXISTS djrpg_shop_requests (account_id TEXT NOT NULL COLLATE NOCASE, request_id TEXT NOT NULL, response_json TEXT NOT NULL, PRIMARY KEY(account_id,request_id))'
+    // 보물 주머니 레전드 전광판(작업 208) — 정식 계정이 테스트한 레전드 획득만 짧게 남는다.
+    , 'CREATE TABLE IF NOT EXISTS djrpg_announcements (id TEXT PRIMARY KEY, account_id TEXT NOT NULL COLLATE NOCASE, character TEXT NOT NULL, item TEXT NOT NULL, created_at INTEGER NOT NULL)'
+    , 'CREATE INDEX IF NOT EXISTS djrpg_announcements_time ON djrpg_announcements(created_at)'
     // 던전 최고층의 서버 사본(작업 209). 세이브의 dungeonFloor는 이 기록(+1)까지만 저장되고,
     // 기록은 검증된 submit만 올린다(`server/dungeon.mjs`).
     , 'CREATE TABLE IF NOT EXISTS djrpg_dungeon_records (account_id TEXT PRIMARY KEY COLLATE NOCASE,name TEXT NOT NULL,cleared_floor INTEGER NOT NULL,cleared_at INTEGER NOT NULL,updated_at INTEGER NOT NULL)'
@@ -170,7 +178,7 @@ export function inventoryOwnerQuery(id, incoming) {
   const bag = Array.isArray(incoming?.bag) ? incoming.bag : [];
   const equipment = incoming?.equipment && typeof incoming.equipment === 'object' ? Object.values(incoming.equipment) : [];
   if (incoming !== undefined) validateSave(incoming);
-  if (bag.filter(item=>item?.slot!=='skillbook').length > 40 || equipment.length > 10) fail(400, 'INVALID_SAVE', '가방 또는 장비 데이터가 올바르지 않습니다.');
+  if (bag.filter(item=>item?.slot!=='skillbook' && item?.slot!=='pouch').length > 40 || equipment.length > 10) fail(400, 'INVALID_SAVE', '가방 또는 장비 데이터가 올바르지 않습니다.');
   const ids = [...bag, ...equipment].map(item => item?.id).filter(value => typeof value === 'string');
   return { sql: `SELECT o.*, m.slot AS character_slot FROM djrpg_item_owners o LEFT JOIN djrpg_character_item_owners m ON m.item_id=o.item_id WHERE o.item_id IN (
     SELECT json_extract(j.value,'$.id') FROM djrpg_characters c, json_each(c.save_json,'$.bag') j WHERE c.account_id=?
@@ -179,8 +187,12 @@ export function inventoryOwnerQuery(id, incoming) {
   )`, args: [id, id, JSON.stringify(ids)] };
 }
 function itemValid(item) {
-  const slots = ['weapon','offhand','helmet','armor','necklace','gloves','belt','boots','ring1','ring2','skillbook'];
-  return item && (item.locked === undefined || typeof item.locked === 'boolean') && typeof item.id === 'string' && item.id.length > 0 && item.id.length <= 100 && typeof item.name === 'string' && item.name.length <= 100 && slots.includes(item.slot) && ['common','magic','rare','epic','unique','legendary'].includes(item.rarity) && item.stats && typeof item.stats === 'object' && !Array.isArray(item.stats) && Object.entries(item.stats).every(([key, value]) => ['attack','defense','health','crit','speed'].includes(key) && Number.isFinite(value) && value >= 0 && value <= 100000) && (item.slot !== 'skillbook' || (item.kind === 'skillbook' && ['slash2','spin','crushing','slam','warcry','power','destroy','hell','mastery','body','instinct'].includes(item.skillId)));
+  // 'pouch' = 무작위 보물 주머니(작업 207) — 장비·스킬북과 같은 이름·등급·stats 형식의 소모품이다.
+  const slots = ['weapon','offhand','helmet','armor','necklace','gloves','belt','boots','ring1','ring2','skillbook','pouch'];
+  // 스킬북 `skillId`는 **전사·궁수·마법사 33종**(액티브 24·패시브 9)을 모두 허용한다(작업 209).
+  // 예전에는 전사 11종만 하드코딩되어 궁수·마법사 스킬북이 저장 때 400 INVALID_ITEM으로 막혔다.
+  // 목록은 `server/skill-ids.mjs` 한 곳에 있고 `tests/skillbook-server.test.mjs`가 클라이언트와 같은지 검사한다.
+  return item && (item.locked === undefined || typeof item.locked === 'boolean') && typeof item.id === 'string' && item.id.length > 0 && item.id.length <= 100 && typeof item.name === 'string' && item.name.length <= 100 && slots.includes(item.slot) && ['common','magic','rare','epic','unique','legendary'].includes(item.rarity) && item.stats && typeof item.stats === 'object' && !Array.isArray(item.stats) && Object.entries(item.stats).every(([key, value]) => ['attack','defense','health','crit','speed'].includes(key) && Number.isFinite(value) && value >= 0 && value <= 100000) && (item.slot !== 'skillbook' || (item.kind === 'skillbook' && skillBookIdSet.has(item.skillId))) && (item.slot !== 'pouch' || item.kind === 'pouch');
 }
 const ringSlot = item => typeof item?.slot === 'string' && item.slot.startsWith('ring') ? 'ring' : item?.slot;
 const itemStats = ['attack','defense','health','crit','speed'];
@@ -202,11 +214,12 @@ const sameItemBody = (a, b) => Boolean(a && b) && a.id === b.id && ringSlot(a) =
 const ownerItem = owner => { try { const value = JSON.parse(owner.item_json); return value && typeof value === 'object' ? value : undefined; } catch { return undefined; } };
 export async function reconcileItems(tx, id, before, after, options = {}) {
   const next = itemsOf(after), previous = itemsOf(before), ids = new Set();
+  // 40칸 검사는 장비 + **다른 직업 전용 스킬북**을 함께 센다(작업 210) — 내 직업 책과 보물 주머니는 빼다.
   // 새로 만들어지는 아이템(소유 기록 없는 id)의 상한 — 마지막 저장 이후 서버가 아는 시간과 층으로 정한다.
   const guard = rewardBudget(before, options.elapsedSeconds);
   const mintFloor = Math.max(1, Number(before?.maxFloor ?? before?.floor ?? 1) || 1) + guard.bosses;
   let minted = 0;
-  if (!Array.isArray(after.bag) || after.bag.filter(item=>item?.slot!=='skillbook').length > 40 || Object.values(after.equipment??{}).length > 10 || !after.equipment || typeof after.equipment !== 'object') fail(400, 'INVALID_SAVE', '가방 또는 장비 데이터가 올바르지 않습니다.');
+  if (!Array.isArray(after.bag) || after.bag.filter(item => countedInBag(item, after.job)).length > 40 || Object.values(after.equipment??{}).length > 10 || !after.equipment || typeof after.equipment !== 'object') fail(400, 'INVALID_SAVE', '가방 또는 장비 데이터가 올바르지 않습니다.');
   const previousValid = previous.filter(itemValid);
   const previousById = new Map(previousValid.map(item => [item.id, item]));
   const allIds = [...new Set([...previousValid, ...next].map(item => item?.id).filter(id => typeof id === 'string'))];
@@ -317,7 +330,8 @@ export async function writeSave(tx, row, save, operations = [], preserveCollecti
     stoneCredit: credits.stoneCredit,
     dungeonFloorCap: row.dungeon_record_floor
   });
-  for (const field of ['bossKills','playSeconds']) {
+  // `salvageCount`(작업 207)도 누적 통계다 — 줄지 않게 하고, 옛 클라이언트가 값을 빼고 보내도 잃지 않는다.
+  for (const field of ['bossKills','playSeconds','salvageCount']) {
     if (save[field] !== undefined && (typeof save[field] !== 'number' || !Number.isFinite(save[field]) || save[field] < 0)) fail(400,'INVALID_SAVE','활동 통계 형식이 올바르지 않습니다.');
     save[field] = preserveCollection ? Math.max(row.save[field] ?? 0, save[field] ?? 0) : save[field] ?? 0;
   }
@@ -334,10 +348,17 @@ export async function writeSave(tx, row, save, operations = [], preserveCollecti
     : previousAt && incomingAt ? Math.min(previousAt, incomingAt)
     : previousAt || incomingAt;
   save.accountId = row.id; save.lastActiveAt = Date.now();
+  // 메인 층 상한(작업 204): 1~20의 정수만 저장한다. 21층 이상에 있던 예전 세이브는 20층으로 보정하고
+  // 최고 층도 20층을 넘지 않는다 — 장비·아이템·처치 기록은 그대로 둔다.
+  const previousMainFloor = Number.isInteger(row.save.floor) ? row.save.floor : 1;
+  save.floor = Math.max(1, Math.min(MAX_FLOOR, Number.isInteger(save.floor) ? save.floor : previousMainFloor));
+  save.maxFloor = Math.max(save.floor, Math.min(MAX_FLOOR, Number.isInteger(save.maxFloor) ? save.maxFloor : save.floor));
   // Older clients may omit discovery history; never erase already-recorded entries.
   const previousCollection = preserveCollection && Array.isArray(row.save.equipmentCollection) ? row.save.equipmentCollection : [];
   const incomingCollection = Array.isArray(save.equipmentCollection) ? save.equipmentCollection : [];
-  save.equipmentCollection = [...new Set([...previousCollection, ...incomingCollection].filter(key => typeof key === 'string' && /^(weapon|offhand|helmet|armor|necklace|gloves|belt|boots|ring):[0-9]$/.test(key)))].slice(0, 75);
+  // 발견 기록은 **등급별 한 칸**(`부위:번호:등급`)이다(작업 208) — 옛 `부위:번호` 키는 버린다.
+  // 무기는 대검 0~9 · 활 10~19 · 지팡이 20~29라 번호가 두 자리까지 온다. 95종 × 6등급 = 570칸.
+  save.equipmentCollection = [...new Set([...previousCollection, ...incomingCollection].filter(key => typeof key === 'string' && /^(weapon|offhand|helmet|armor|necklace|gloves|belt|boots|ring):\d{1,2}:(common|magic|rare|epic|unique|legendary)$/.test(key)))].slice(0, 570);
   if (!Number.isSafeInteger(save.gold) || save.gold < 0 || save.gold > 9_000_000_000_000) fail(400, 'INVALID_GOLD', '금화 값이 올바르지 않습니다.');
   if (Number(row.slot) < 1 || Number(row.slot) > Number(row.max_slots ?? 3)) fail(409, 'CHARACTER_CONFLICT', '현재 캐릭터를 다시 불러오세요.');
   if (!row.skipJourney) operations = [...operations, journeyOperation(row.id, await journeyState(tx, row, save))];

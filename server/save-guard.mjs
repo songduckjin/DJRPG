@@ -47,8 +47,10 @@ const STAT_SLACK = 4;
 /** 예전 공식으로 만들어진 장비(작업 194 이전 세이브)도 통과하도록 남기는 배율 여유. */
 export const STAT_TOLERANCE = 2.5;
 
-export function expToNext(level) { return Math.round(2400 * Math.pow(level, 2.2)); }
-export function floorKillTarget(floor) { return 120 + 40 * Math.max(0, floor - 1); }
+/** `src/game/store.ts`의 `expToNext`(작업 207 사용자 확정 곡선 `1400 × level²`). */
+export function expToNext(level) { return Math.round(1400 * Math.pow(level, 2)); }
+/** `src/game/store.ts`의 `floorKillTarget`(작업 204: 1층 150마리, 20층 3,505마리). */
+export function floorKillTarget(floor) { const depth = Math.max(0, floor - 1); return 150 + 55 * depth + Math.round(Math.pow(depth, 2) * 6.4); }
 
 /** 마지막 저장 이후 서버 시계로 흐른 초. 값이 없거나 깨졌으면 0. */
 export function elapsedSince(updatedAt, now = Date.now()) {
@@ -150,7 +152,9 @@ export function clampSaveProgress(previous, save, options = {}) {
  */
 export function itemWithinBounds(item, maxFloor = 1, tolerance = STAT_TOLERANCE) {
   if (!item || typeof item !== 'object') return false;
+  // 스킬북·보물 주머니(작업 207)는 능력치가 없다 — 상한 검사는 장비에만 의미가 있다.
   if (item.kind === 'skillbook' || item.slot === 'skillbook') return true;
+  if (item.kind === 'pouch' || item.slot === 'pouch') return true;
   const scale = RARITY_SCALES[item.rarity];
   const tierBonus = TIER_BONUS_MAX[item.slot];
   if (!scale || tierBonus === undefined) return false;

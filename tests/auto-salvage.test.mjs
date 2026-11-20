@@ -9,7 +9,7 @@ import './ts-loader.mjs';
 const { World } = await import('../src/game/world.ts');
 const { freshSave } = await import('../src/game/store.ts');
 const { salvageGold, salvageStones } = await import('../src/game/items.ts');
-const { autoSalvageBlock, autoSalvageRecovered } = await import('../src/game/inventory.ts');
+const { autoSalvageBlock, autoSalvageRecovered, sweepBagOnFull, bagEquipmentCount } = await import('../src/game/inventory.ts');
 const { readAutoSalvage, saveAutoSalvage, AUTO_SALVAGE_KEY, AUTO_SALVAGE_ON_NOTICE, AUTO_SALVAGE_HINT } = await import('../src/ui/autoSalvage.ts');
 
 const gear = (id, slot, attack, rarity = 'common', locked = false) => ({ id, name: id, slot, rarity, stats: { attack }, locked });
@@ -149,4 +149,75 @@ test('offline rewards never pass through live auto-salvage', () => {
   const world = readFileSync(new URL('../src/game/world.ts', import.meta.url), 'utf8');
   assert.match(world, /const sweep = this\.sweeps\(drop\.item\)/, 'the field picks up through the switch');
   assert.equal(world.includes('autoSalvageRecovered'), true);
+});
+
+// ── 가방 40칸 만석이면 옛 장비를 즉시 분해한다(작업 209, 사용자 확정 #4286) ──────────────────────
+test('a full bag sweeps only the pieces auto-salvage may take, and pays like a manual salvage', () => {
+  const save = freshSave();
+  save.maxFloor = 45; // +N까지 상한이 살아나는 층(작업 203)
+  save.equipment.weapon = gear('worn', 'weapon', 100);
+  save.equipment.armor = gear('worn-armor', 'armor', 100);
+  const plusHigh = { ...gear('plus', 'weapon', 6, 'rare'), plus: 5 };
+  save.bag = [
+    gear('junk-a', 'weapon', 5), gear('junk-b', 'armor', 5),
+    gear('locked', 'weapon', 5, 'common', true), plusHigh,
+    gear('high', 'weapon', 5, 'unique'), gear('better', 'weapon', 500, 'rare'),
+    book(),
+    ...Array.from({ length: 34 }, (_, index) => gear(`keep-${index}`, 'weapon', 5, 'unique')),
+  ];
+  assert.equal(bagEquipmentCount(save), 40, '장비 40칸(스킬북은 세지 않는다)');
+  const gold = save.gold, stones = save.stones, salvaged = save.salvageCount ?? 0;
+  const swept = sweepBagOnFull(save, 'rare', 3);
+  assert.deepEqual(swept, { count: 2, gold: salvageGold.common * 2, stones: salvageStones.common * 2 }, '설정 등급 이하 두 벌만');
+  assert.equal(bagEquipmentCount(save), 38, '두 칸이 비었다');
+  assert.deepEqual(save.bag.map(item => item.id).filter(id => id.startsWith('junk')), [], '분해한 장비는 가방에서 사라진다');
+  for (const id of ['locked', 'plus', 'high', 'better', 'book']) assert(save.bag.some(item => item.id === id), `${id}는 보호된다`);
+  assert.equal(save.gold, gold + swept.gold); assert.equal(save.stones, stones + swept.stones);
+  assert.equal(save.salvageCount, salvaged + 2, '분해 미션에 2회로 센다');
+});
+
+test('nothing happens when the bag is not full or everything in it is protected', () => {
+  const save = freshSave();
+  save.equipment.weapon = gear('worn', 'weapon', 100);
+  save.bag = [gear('junk', 'weapon', 5)];
+  const gold = save.gold;
+  assert.equal(sweepBagOnFull(save, 'rare', 3), undefined, '덜 찼으면 그대로');
+  save.bag = Array.from({ length: 40 }, (_, index) => gear(`keep-${index}`, 'weapon', 5, 'unique'));
+  assert.equal(sweepBagOnFull(save, 'rare', 3), undefined, '남길 장비밖에 없으면 그대로');
+  save.bag = Array.from({ length: 40 }, (_, index) => gear(`lock-${index}`, 'weapon', 5, 'common', true));
+  assert.equal(sweepBagOnFull(save, 'rare', 3), undefined, '잠근 장비는 채워도 남긴다');
+  assert.equal(save.gold, gold, '아무것도 지급되지 않는다');
+});
+
+test('with a full bag the field frees room first, then stores the drop and says what it swept', () => {
+  const save = freshSave();
+  save.equipment.weapon = gear('worn', 'weapon', 100);
+  save.bag = Array.from({ length: 40 }, (_, index) => gear(`junk-${index}`, 'weapon', 5));
+  const world = hunting({ grade: 'rare', save });
+  const messages = []; world.onMessage = text => messages.push(text);
+  const gold = save.gold, stones = save.stones;
+  // The drop itself is above the threshold(unique), so only the old bag gear decides whether it fits.
+  world.drops = [drop(gear('new', 'weapon', 6, 'unique'))];
+  settle(world);
+  assert.equal(bagEquipmentCount(save), 1, '가방이 비고 새 장비가 들어왔다');
+  assert.equal(save.bag[0].id, 'new');
+  assert.equal(save.gold, gold + salvageGold.common * 40, '분해한 40벌의 금화');
+  assert.equal(save.stones, stones + salvageStones.common * 40);
+  assert.equal(save.salvageCount, 40, '장비 분해 미션에 40회');
+  assert(messages.some(text => /가방이 가득 차 설정 이하 장비 40개를 자동 분해했습니다/.test(text)), messages.join(' / '));
+});
+
+test('with only protected gear in a full bag the drop still waits on the ground', () => {
+  const save = freshSave();
+  save.equipment.weapon = gear('worn', 'weapon', 100);
+  save.bag = Array.from({ length: 40 }, (_, index) => gear(`keep-${index}`, 'weapon', 5, 'unique'));
+  const world = hunting({ grade: 'rare', save });
+  const messages = []; world.onMessage = text => messages.push(text);
+  const gold = save.gold;
+  world.drops = [drop(gear('new', 'weapon', 6, 'unique'))];
+  settle(world);
+  assert.equal(bagEquipmentCount(save), 40, '가방은 그대로');
+  assert.equal(save.gold, gold, '분해도 없다');
+  assert.equal(world.drops.length, 1, '드롭은 바닥에 남아 있다');
+  assert(messages.some(text => text.includes('가방이 가득 찼습니다')), messages.join(' / '));
 });

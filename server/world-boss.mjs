@@ -1,11 +1,14 @@
 import {account,assertSession,transaction,fail} from './database.mjs';
-import {periods,advanceJourney,journeyOperation} from './journey-state.mjs';
+import {periods,advanceJourney,journeyOperation,recordJourneyMetric} from './journey-state.mjs';
 import {parseSave} from '../src/game/store.ts';
 import {WorldBossRehearsal} from '../src/game/worldBossRehearsal.ts';
 import {worldBossSchema} from './world-boss-schema.mjs';
 export {worldBossSchema} from './world-boss-schema.mjs';
 
 export const WORLD_BOSS_HP=10000000;
+// 하루 도전 횟수(작업 210, 사용자 지시 `#4445` "월드보스 3번 치게 해야지"): 207에서 1회로 줄였던 것을 **3회로 복구**.
+// `remaining`·안내 문구·테스트가 이 값 하나를 본다.
+export const WORLD_BOSS_DAILY_ATTEMPTS=3;
 // Re-run the same combat rules from the frozen server-owned loadout. Client damage is never trusted.
 export function replayBoss(save,seconds,dodges=[]){
   const session=new WorldBossRehearsal(parseSave(save,save.accountId));
@@ -129,9 +132,11 @@ async function writeOperation(db,id,input,sid,now,trace){
     if(input.action==='start'){
       if(owner.password_hash==='guest')fail(403,'GUEST_READ_ONLY','실전 도전은 정식 계정으로 로그인해 주세요.');
       if(typeof input.requestId!=='string'||! /^[\w-]{16,80}$/.test(input.requestId))fail(400,'INVALID_REQUEST','도전 요청 번호가 올바르지 않습니다.');
-      const [dayResult,attemptResult]=await tx.batch([
+      // 여정 상태도 같이 읽어 두면 도전 1회를 적을 때 추가 SELECT가 없다(작업 207).
+      const [dayResult,attemptResult,journeyResult]=await tx.batch([
         {sql:'SELECT * FROM djrpg_boss_days WHERE day=?',args:[daily]},
-        {sql:'SELECT * FROM djrpg_boss_attempts WHERE account_id=? AND (request_id=? OR day=?)',args:[id,input.requestId,daily]}
+        {sql:'SELECT * FROM djrpg_boss_attempts WHERE account_id=? AND (request_id=? OR day=?)',args:[id,input.requestId,daily]},
+        {sql:'SELECT state_json FROM djrpg_journey WHERE account_id=?',args:[id]}
       ]);
       attempt=attemptResult.rows.find(a=>a.request_id===input.requestId);
       if(!attempt){
@@ -140,10 +145,12 @@ async function writeOperation(db,id,input,sid,now,trace){
         if(Number(input.characterSlot)!==owner.slot)fail(409,'CHARACTER_CONFLICT','선택 캐릭터가 변경되었습니다.');
         const attempts=attemptResult.rows.filter(a=>a.day===daily);
         if(attempts.some(a=>!a.ended_at))fail(409,'BOSS_ALREADY_ACTIVE','진행 중인 월드보스 도전이 있습니다.');
-        if(attempts.length>=3)fail(409,'BOSS_LIMIT','오늘 도전 3회를 모두 사용했습니다.');
+        if(attempts.length>=WORLD_BOSS_DAILY_ATTEMPTS)fail(409,'BOSS_LIMIT',`오늘 도전 ${WORLD_BOSS_DAILY_ATTEMPTS}회를 모두 사용했습니다.`);
         const save=parseSave(owner.save,id);save.auto=true;
         attempt={id:crypto.randomUUID(),account_id:id,day:daily,request_id:input.requestId,save_json:JSON.stringify(save),started_at:now,dodges_json:'[]',credited:0,ended_at:null};
         await tx.execute({sql:'INSERT INTO djrpg_boss_attempts VALUES (?,?,?,?,?,?,?,?,?)',args:Object.values(attempt)});
+        // `월드보스 N회 도전` 미션(작업 207): 시도가 성립한 이 순간 1회. 같은 requestId 재시도는 위에서 걸러져 두 번 세지 않는다.
+        await recordJourneyMetric(tx,{...owner,journeyRecord:journeyResult.rows[0]??null},'worldBoss',save,now);
         // Fresh starts have zero elapsed time and damage: no credit write/re-read is needed.
         freshDay=day;freshCount=attempts.length+1;
         battleResult={attempt,day,battle:replayBoss(save,0)};
@@ -165,7 +172,7 @@ async function writeOperation(db,id,input,sid,now,trace){
       await settle(tx,battleResult.day,now,trace);
     }
     const day=freshDay??await dayRow(tx,daily),count=freshCount===undefined?(await tx.execute({sql:'SELECT COUNT(*) AS n FROM djrpg_boss_attempts WHERE account_id=? AND day=?',args:[id,daily]})).rows[0]:{n:freshCount};
-    const result={day:daily,hp:Number(day.hp),maxHp:Number(day.max_hp),endsAt:Number(day.ends_at),remaining:Math.max(0,3-Number(count.n)),killed:!!day.killed_at,guest:owner.password_hash==='guest',standing:await standing(tx,attempt?.day??daily,id),now};
+    const result={day:daily,hp:Number(day.hp),maxHp:Number(day.max_hp),endsAt:Number(day.ends_at),maxAttempts:WORLD_BOSS_DAILY_ATTEMPTS,remaining:Math.max(0,WORLD_BOSS_DAILY_ATTEMPTS-Number(count.n)),killed:!!day.killed_at,guest:owner.password_hash==='guest',standing:await standing(tx,attempt?.day??daily,id),now};
     if(attempt)result.battle={id:attempt.id,startedAt:Number(attempt.started_at),damage:Number(attempt.credited),elapsed:battleResult.battle.elapsed,hp:battleResult.battle.world.player.hp,finished:!!attempt.ended_at,defeated:battleResult.battle.defeated,...(input.action==='start'?{save:JSON.parse(attempt.save_json)}:{})};
     if(attempt?.ended_at){
       const previous=Number((await tx.execute({sql:'SELECT COALESCE(MAX(credited),0) AS damage FROM djrpg_boss_attempts WHERE day=? AND account_id=? AND id<>?',args:[attempt.day,id,attempt.id]})).rows[0].damage);

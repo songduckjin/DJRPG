@@ -14,7 +14,7 @@ const equipment = (slot, stats) => ({ id: slot, name: slot, slot, rarity: 'rare'
 
 test('codex groups all six grades in ascending order, retaining filters', () => {
   const save = freshSave(), variants = codexVariants(save);
-  assert.equal(variants.length, 450);
+  assert.equal(variants.length, 570);
   assert.deepEqual([...new Set(variants.map(v => v.rarity))], rarityOrder);
   for (let i = 1; i < variants.length; i++) assert(rarityRanks[variants[i-1].rarity] <= rarityRanks[variants[i].rarity]);
   const filtered = codexVariants(save, '', 'helmet', 'all', 'epic');

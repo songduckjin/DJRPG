@@ -261,7 +261,8 @@ export class GameView {
   /** 독립형 코스튬 렌더러 상태(작업 140). 매니페스트·아틀라스가 없으면 폴백으로 굳는다. */
   costume: CostumeHeroState = createCostumeHeroState();
   enemies = new Map<Enemy, Sprite>();
-  bossLabels = new Map<Enemy, Text>();
+  /** 보스·정예 이름표(작업 206에서 정예까지 함께 단다). */
+  enemyLabels = new Map<Enemy, Text>();
   afterimages: Ghost[] = [];
   /** 딜레이 크러싱 잔상(작업 212) — 월드의 잔상 기록 하나당 본체 복제본 한 별을 대응시킨다. */
   crushTrails = new Map<HeroAfterimage, Container>();
