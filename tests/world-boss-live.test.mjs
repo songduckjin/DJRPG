@@ -20,15 +20,13 @@ test('shared HP is ten million; server replay is deterministic and leaves save u
  const first=replayBoss(save,15),again=replayBoss(save,15);assert.equal(first.damage,again.damage);assert(first.damage>0);assert.deepEqual(save,before);
  const evade=replayBoss(save,15,[3]);assert(evade.world.player.hp>=first.world.player.hp);
 });
-test('start is idempotent; only one active battle and account-wide three attempts',async()=>{
- await seed('limit');const key=randomUUID(),first=await start('limit',now,key),again=await start('limit',now,key);assert.equal(first.battle.id,again.battle.id);assert.equal(again.remaining,2);
+test('start is idempotent; only one active battle and one attempt per account per day',async()=>{
+ await seed('limit');const key=randomUUID(),first=await start('limit',now,key),again=await start('limit',now,key);assert.equal(first.battle.id,again.battle.id);assert.equal(again.remaining,0,'하루 1회(작업 207)');
+ assert.equal(first.maxAttempts,1);
  await assert.rejects(start('limit'),e=>e.code==='BOSS_ALREADY_ACTIVE');
- for(let i=0;i<3;i++){
-  const battle=i===0?first:await start('limit',now+i*2000);
-  await act('limit',{action:'finish',attemptId:battle.battle.id},now+i*2000+1000);
- }
+ await act('limit',{action:'finish',attemptId:first.battle.id},now+1000);
  await assert.rejects(start('limit',now+10000),e=>e.code==='BOSS_LIMIT');
- const next=await start('limit',periods(now).dailyEnd+1);assert.equal(next.remaining,2);assert.notEqual(next.day,first.day);
+ const next=await start('limit',periods(now).dailyEnd+1);assert.equal(next.remaining,0,'다음 날에도 한 번 쓰면 0');assert.notEqual(next.day,first.day);
 });
 test('server ignores fabricated damage and elapsed; attempt ownership and sessions are checked',async()=>{
  await seed('authority');await seed('outsider');const first=await start('authority');
@@ -41,7 +39,7 @@ test('server ignores fabricated damage and elapsed; attempt ownership and sessio
 test('guests cannot start, slot conflicts do not consume attempts, snapshot freezes loadout',async()=>{
  await seed('guest',true);await assert.rejects(start('guest'),e=>e.code==='GUEST_READ_ONLY');
  await seed('freeze');await assert.rejects(act('freeze',{action:'start',requestId:randomUUID(),characterSlot:2}),e=>e.code==='CHARACTER_CONFLICT');
- const first=await start('freeze');assert.equal(first.remaining,2);const stored=await account(db,'freeze');assert.equal(stored.revision,0);assert.equal(stored.save.gold,0);
+ const first=await start('freeze');assert.equal(first.remaining,0);const stored=await account(db,'freeze');assert.equal(stored.revision,0);assert.equal(stored.save.gold,0);
  await db.execute({sql:"UPDATE djrpg_characters SET save_json=json_set(save_json,'$.level',30) WHERE account_id=?",args:['freeze']});
  const data=await act('freeze',{action:'tick',attemptId:first.battle.id},now+2000);assert.equal(data.battle.damage,replayBoss(first.battle.save,2).damage);
 });
@@ -70,7 +68,7 @@ test('shared kill has one last hitter, ranking, shared rewards and idempotent ma
  assert.equal(kill.standing.top.length,2);assert(kill.standing.mine.mine);
 });
 test('fresh day restores health and attempts; endpoint refuses missing auth and wrong method',async()=>{
- const next=await act('contributor',{},periods(now).dailyEnd+1);assert.equal(next.hp,WORLD_BOSS_HP);assert.equal(next.remaining,3);assert.equal(next.killed,false);
+ const next=await act('contributor',{},periods(now).dailyEnd+1);assert.equal(next.hp,WORLD_BOSS_HP);assert.equal(next.remaining,1,'새 날의 1회');assert.equal(next.killed,false);
  const get=await worldBossEndpoint(new Request('https://game.test/api/world-boss'));assert.equal(get.status,405);
  const auth=await worldBossEndpoint(new Request('https://game.test/api/world-boss',{method:'POST',body:'{}'}),{env:{TURSO_DATABASE_URL:'file:test',TURSO_AUTH_TOKEN:'test'}});assert.equal(auth.status,401);
 });
@@ -79,7 +77,7 @@ test('authorized endpoint starts a real battle and preserves API error codes',as
  const env={TURSO_DATABASE_URL:'file::memory:?cache=shared',TURSO_AUTH_TOKEN:'test-only-key'};
  const options={env,createDbClient:()=>createClient({url:env.TURSO_DATABASE_URL})};
  const post=body=>new Request('https://game.test/api/world-boss',{method:'POST',headers:{Authorization:`Bearer ${tokenFor('endpoint',env)}`},body:JSON.stringify(body)});
- const first=await worldBossEndpoint(post({action:'start',requestId:randomUUID(),characterSlot:1}),options),data=await first.json();assert.equal(first.status,200);assert.equal(data.maxHp,10000000);assert.equal(data.remaining,2);assert.equal(data.guest,false);assert(data.battle.save);
+ const first=await worldBossEndpoint(post({action:'start',requestId:randomUUID(),characterSlot:1}),options),data=await first.json();assert.equal(first.status,200);assert.equal(data.maxHp,10000000);assert.equal(data.remaining,0,'하루 1회');assert.equal(data.maxAttempts,1);assert.equal(data.guest,false);assert(data.battle.save);
  const again=await worldBossEndpoint(post({action:'start',requestId:randomUUID(),characterSlot:1}),options);assert.equal(again.status,409);assert.equal((await again.json()).code,'BOSS_ALREADY_ACTIVE');
 });
 test('boss mail uses the existing claim path and duplicate claims cannot duplicate gold or books',async()=>{
@@ -117,7 +115,7 @@ test('new battle avoids redundant credit writes and fits a bounded DB round-trip
   const tx=await isolated.transaction(...args);return new Proxy(tx,{get(target,key){const value=target[key];if(typeof value!=='function')return value;return (...args)=>{if(key==='execute'||key==='batch')trips++;return value.apply(target,args);};}});
  }};
  const result=await operation(wrapped,'rpc-budget',{action:'start',requestId:randomUUID(),characterSlot:1},undefined,now);
- assert.equal(result.battle.elapsed,0);assert.equal(result.battle.damage,0);assert.equal(result.remaining,2);await isolated.close();assert(trips<=9,`new start made ${trips} DB round trips`);
+ assert.equal(result.battle.elapsed,0);assert.equal(result.battle.damage,0);assert.equal(result.remaining,0);await isolated.close();assert(trips<=10,`new start made ${trips} DB round trips`);
 });
 test('single rank query keeps top ten and the previous nine plus successor around an outside rank',async()=>{
  await seed('rank-window');const day=periods(now).daily;await act('rank-window');

@@ -1,7 +1,7 @@
 import {createSkillBookArt} from '../skillBookArt';
 import { goldNode, coinMarkup } from '../currency';
 import { filterSaleItems } from '../itemOrder';
-import { equipmentImage, isBow, isSkillBook, itemDisplayName, itemJob, rarityNames, slotNames, statNames, usableByJob, type Item, type Stat } from '../../game/items';
+import { equipmentImage, isBow, isEquipment, isSkillBook, itemDisplayName, itemJob, rarityNames, slotNames, statNames, usableByJob, type Item, type Stat } from '../../game/items';
 import { jobNames } from '../../game/skills';
 import { MARKET_JOB_ONLY_KEY, jobOnlyLabel, jobOnlyVisible, saveJobOnly } from '../jobFilter';
 import { type MarketView, type Listing, type Market } from '../../game/market';
@@ -17,6 +17,8 @@ function button(label: string, run: () => void, disabled = false): HTMLButtonEle
 function icon(item: Item): HTMLElement {
   if(isSkillBook(item)){const node=createSkillBookArt(item);node.classList.add('market-icon');return node;}
   const node = el('span', 'market-icon');
+  // 보물 주머니(작업 207)는 팔 수 없다 — 장비 그림이 없는 아이템은 빈 칸으로 둔다.
+  if(!isEquipment(item)) return node;
   const art = equipmentImage(item);
   node.style.backgroundImage = `url("${art.path}")`; node.style.backgroundSize = `${art.columns * 100}% 100%`; node.style.backgroundPosition = `${art.columns > 1 ? art.frame / (art.columns - 1) * 100 : 0}% center`;
   return node;
@@ -28,7 +30,7 @@ function itemInfo(item: Item): HTMLElement {
   // 직업 전용 매물에는 `전사`/`궁수`/`마법사` 배지를 달아, 내 캐릭터가 쓸 수 있는 물건인지 목록에서 바로 보이게 한다(작업 205).
   const owner = itemJob(item);
   if (owner) titleRow.append(el('span', `job-badge job-${owner}`, jobNames[owner]));
-  info.append(titleRow, el('small', '', `${rarityNames[item.rarity]} · ${isSkillBook(item) ? '스킬북' : isBow(item) ? '활' : slotNames[item.slot]}`));
+  info.append(titleRow, el('small', '', `${rarityNames[item.rarity]} · ${isSkillBook(item) ? '스킬북' : isEquipment(item) ? isBow(item) ? '활' : slotNames[item.slot] : '소모품'}`));
   const stats = Object.entries(item.stats).map(([key, amount]) => `${statNames[key as Stat]} +${amount}`).join(' · ');
   info.append(el('small', 'market-options', stats || '사용 시 습득 또는 스킬 +1레벨'));
   return info;
@@ -203,7 +205,7 @@ function renderRegister(ui: Interface, dialog: HTMLElement, blocked: boolean): v
     pick.append(icon(item), el('small', `rarity-${item.rarity}`, rarityNames[item.rarity]), renderItemName(el('small'), item));
     const pickOwner = itemJob(item);
     if (pickOwner) pick.append(el('span', `job-badge job-${pickOwner}`, jobNames[pickOwner]));
-    if (!isSkillBook(item) && item.locked) { const locked = el('span', 'lock-icon is-locked'); locked.setAttribute('aria-label', '잠긴 장비'); pick.append(locked); }
+    if (isEquipment(item) && item.locked) { const locked = el('span', 'lock-icon is-locked'); locked.setAttribute('aria-label', '잠긴 장비'); pick.append(locked); }
     pick.setAttribute('aria-label', `${itemDisplayName(item)} · ${rarityNames[item.rarity]} 판매 선택`); grid.append(pick);
   }
   form.append(grid);
@@ -233,7 +235,7 @@ function renderRegister(ui: Interface, dialog: HTMLElement, blocked: boolean): v
   }
   form.onsubmit = e => {
     e.preventDefault(); if (blocked || !item || checkLimit()) return;
-    if (!isSkillBook(item) && item.locked) { market.unlockItem = item.id; market.onChange(true); ui.root.querySelector<HTMLElement>('.market-unlock-confirm')?.scrollIntoView({ block: 'nearest' }); return; }
+    if (isEquipment(item) && item.locked) { market.unlockItem = item.id; market.onChange(true); ui.root.querySelector<HTMLElement>('.market-unlock-confirm')?.scrollIntoView({ block: 'nearest' }); return; }
     void market.act('register', { itemId: item.id, price: Number(market.price) });
   }; dialog.append(form);
 }

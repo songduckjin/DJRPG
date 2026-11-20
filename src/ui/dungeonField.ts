@@ -4,7 +4,7 @@ import {GameView} from '../game/render';
 import {projectArenaPoint} from '../game/arena';
 import {totalStats} from '../game/store';
 import {skills} from '../game/skills';
-import {equipmentImage,isSkillBook,type Rarity} from '../game/items';
+import {equipmentImage,isEquipment,isSkillBook,type Rarity} from '../game/items';
 import {DungeonBattle,dungeonLootSpots,dungeonLootTimeline,dungeonAbsorbProgress,dungeonAbsorbPoint,type DungeonLoot,type LootDrop,type LootField} from './dungeonBattle';
 import {claimDungeonRewards,type DungeonRewardReceipt} from '../game/dungeonRewards';
 import {dungeonClearedFloor} from '../game/dungeonProgress';
@@ -80,7 +80,7 @@ export function openDungeonField(ui:Interface,lobby:HTMLElement):void {
     }else{
       const item=loot.item;el.classList.add('is-item');el.style.setProperty('--loot-ink',rarityInk[item.rarity]);
       if(isSkillBook(item)){const art=createSkillBookArt(item);art.classList.add('dungeon-loot-book');body.append(art);}
-      else{const art=equipmentImage(item);
+      else if(isEquipment(item)){const art=equipmentImage(item);
         if(art.columns>1){const atlas=document.createElement('span');atlas.className='dungeon-loot-art atlas-icon';atlas.style.backgroundImage=`url("${art.path}")`;atlas.style.backgroundPosition=`${art.frame/(art.columns-1)*100}% center`;body.append(atlas);}
         else{const img=document.createElement('img');img.className='dungeon-loot-art';img.src=art.path;img.alt='';body.append(img);}
       }

@@ -1,4 +1,4 @@
-import { autoEquipBest, canWield, isSkillBook, itemPower, plusOf, rarityRanks, salvageGold, salvageStones, type EquipmentItem, type Item, type Rarity, type Slot } from './items';
+import { autoEquipBest, canWield, isEquipment, isSkillBook, itemPower, plusOf, rarityRanks, salvageGold, salvageStones, type EquipmentItem, type Item, type Rarity, type Slot } from './items';
 import { jobOrDefault } from './skills';
 import type { Save } from './store';
 
@@ -45,7 +45,7 @@ export function salvageUpgrades(save: Save, items: EquipmentItem[]): SalvageUpgr
  *  character without, and the pieces that beat what is worn (`salvageUpgrades`). */
 export function salvagePlan(save: Save, ids: string[]): { items: EquipmentItem[]; emptySlots: string[]; upgrades: SalvageUpgrade[] } {
   const selected = new Set(ids);
-  const items = save.bag.filter((item): item is EquipmentItem => selected.has(item.id) && !isSkillBook(item) && !item.locked);
+  const items = save.bag.filter((item): item is EquipmentItem => selected.has(item.id) && isEquipment(item) && !item.locked);
   const emptySlots = [...new Set(items.filter(item => item.slot === 'ring1' || item.slot === 'ring2'
     ? !save.equipment.ring1 || !save.equipment.ring2 : !save.equipment[item.slot]).map(item => item.slot))];
   return { items, emptySlots, upgrades: salvageUpgrades(save, items) };
@@ -56,6 +56,8 @@ export function salvageItems(save: Save, ids: string[]): { count: number; gold: 
   const gold = items.reduce((sum, item) => sum + salvageGold[item.rarity], 0);
   const stones = items.reduce((sum, item) => sum + salvageStones[item.rarity], 0);
   save.bag = save.bag.filter(item => !removed.has(item.id)); save.gold += gold; save.stones += stones;
+  // 분해한 **장비 수**만큼 누적한다(작업 207) — 일일·주간 `장비 분해 N회` 미션의 근거.
+  save.salvageCount = (save.salvageCount ?? 0) + items.length;
   return { count: items.length, gold, stones };
 }
 
@@ -64,7 +66,7 @@ export function salvageItems(save: Save, ids: string[]): { count: number; gold: 
  *  reaches the hero: a skill book is never swept, a locked piece is the player's own mark, nothing
  *  above the chosen grade is taken, an empty slot needs something to wear, and a piece that beats what
  *  is worn is exactly what 자동 장착 would take, so it stays in the bag. */
-export type AutoSalvageBlock = 'skillbook' | 'locked' | 'grade' | 'plus' | 'empty-slot' | 'upgrade';
+export type AutoSalvageBlock = 'skillbook' | 'pouch' | 'locked' | 'grade' | 'plus' | 'empty-slot' | 'upgrade';
 
 /** From this floor a drop can carry a 강화 단계, so live auto-salvage also obeys the player's
  *  `+N까지` cap (작업 203). Below it every piece is `+0` and the grade rules alone decide. */
@@ -75,6 +77,8 @@ export const AUTO_SALVAGE_PLUS_FLOOR = 41;
  *  house, so it is kept even when it is weaker than what the hero wears. */
 export function autoSalvageBlock(save: Save, item: Item, maxRarity: Exclude<Rarity, 'legendary'>, maxPlus?: number): AutoSalvageBlock | undefined {
   if (isSkillBook(item)) return 'skillbook';
+  // 보물 주머니(작업 207)는 소모품이라 자동 분해가 삼키지 않는다.
+  if (!isEquipment(item)) return 'pouch';
   if (item.locked) return 'locked';
   if (rarityRanks[item.rarity] > rarityRanks[maxRarity]) return 'grade';
   if (save.maxFloor >= AUTO_SALVAGE_PLUS_FLOOR && typeof maxPlus === 'number' && plusOf(item) > maxPlus) return 'plus';
@@ -91,8 +95,10 @@ export function autoSalvageBlock(save: Save, item: Item, maxRarity: Exclude<Rari
  *  kept, so the caller stores it as usual. */
 export function autoSalvageRecovered(save: Save, item: Item, maxRarity: Exclude<Rarity, 'legendary'>, maxPlus?: number): { gold: number; stones: number } | undefined {
   const block = autoSalvageBlock(save, item, maxRarity, maxPlus);
-  if (block || isSkillBook(item)) return undefined;
+  if (block || !isEquipment(item)) return undefined;
   const gold = salvageGold[item.rarity], stones = salvageStones[item.rarity];
   save.gold += gold; save.stones += stones;
+  // 자동 분해도 한 벌 = 1회로 센다(작업 207).
+  save.salvageCount = (save.salvageCount ?? 0) + 1;
   return { gold, stones };
 }

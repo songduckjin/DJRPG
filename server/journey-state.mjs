@@ -49,9 +49,12 @@ export function advanceJourney(state, before, save, now = Date.now(), diamondMai
   const keys = periods(now);
   state ??= { achievements: [], mail: [{ id: 'welcome-v1', title: '황야에 오신 것을 환영합니다', sender: '운영팀', body: '모험을 시작하는 데 도움이 되길 바랍니다.', createdAt: now, expiresAt: now + 7 * DAY, gold: 1000, books: 1, claimedAt: null, read: false }] };
   for (const kind of ['daily', 'weekly']) {
-    if (state[kind]?.key !== keys[kind]) state[kind] = { key: keys[kind], kills: 0, bosses: 0, seconds: 0, days: 0, claims: [] };
+    if (state[kind]?.key !== keys[kind]) state[kind] = { key: keys[kind], kills: 0, bosses: 0, seconds: 0, days: 0, worldBoss: 0, salvage: 0, claims: [] };
     state[kind].days ??= 0;
-    for (const [metric, source] of [['kills','kills'],['bosses','bossKills'],['seconds','playSeconds']]) {
+    // 새 지표(작업 207)는 이전 기간의 상태에 없을 수 있다 — 없으면 0부터 센다.
+    state[kind].worldBoss ??= 0; state[kind].salvage ??= 0;
+    // 진행 카운터는 세이브의 누적 값 차이로 센다. `worldBoss`는 서버가 직접 올리므로 여기 없다.
+    for (const [metric, source] of [['kills','kills'],['bosses','bossKills'],['seconds','playSeconds'],['salvage','salvageCount']]) {
       const next = Number(save?.[source] ?? 0), prior = Number(before?.[source] ?? 0);
       if (Number.isFinite(next) && Number.isFinite(prior)) state[kind][metric] += Math.max(0, next - prior);
     }
@@ -71,22 +74,42 @@ export async function journeyState(tx, row, save = row.save, now = Date.now()) {
   const entry = 'journeyRecord' in row ? row.journeyRecord : (await tx.execute({sql:'SELECT state_json FROM djrpg_journey WHERE account_id=?',args:[row.id]})).rows[0];
   return advanceJourney(entry ? JSON.parse(entry.state_json) : undefined, row.save, save, now, row.password_hash !== 'guest');
 }
+/**
+ * 서버가 직접 아는 사건(월드보스 도전 시작 등)을 그 기간 카운터에 **1회** 더한다(작업 207).
+ * 세이브 차이로 셀 수 없는 지표의 자리다. `row.journeyRecord`가 미리 읽혀 있으면 그 사본을 쓴다(추가 SELECT 없음).
+ */
+export async function recordJourneyMetric(tx, row, metric, save = row.save, now = Date.now()) {
+  const state = await journeyState(tx, row, save, now);
+  for (const kind of ['daily', 'weekly']) state[kind][metric] = (state[kind][metric] ?? 0) + 1;
+  await tx.execute(journeyOperation(row.id, state));
+  return state;
+}
 export const journeyOperation = (id, state) => ({ sql: 'INSERT INTO djrpg_journey VALUES (?,?) ON CONFLICT(account_id) DO UPDATE SET state_json=excluded.state_json', args: [id, JSON.stringify(state)] });
+/** 무작위 보물 주머니 — 가방에 들어가는 소모품이다(작업 207). 서버는 이 모양 그대로 지급한다. */
+export const POUCH_NAME = '무작위 보물 주머니';
+export const POUCH_SLOT = 'pouch';
+export const pouchItem = (id) => ({ id, name: POUCH_NAME, slot: POUCH_SLOT, kind: 'pouch', rarity: 'unique', stats: {} });
+// 일일·주간 개별 미션은 **금화만** 준다(스킬북 0). 전체 완료 보상만 주머니를 준다(작업 207, 사용자 확정).
+// 미션은 다섯 개로 맞췄다(사용자 확정 #3748): 사냥터 보스 미션은 빼고 **월드보스 도전**과 **장비 분해**를 넣는다.
+//  - `worldBoss`는 서버(`server/world-boss.mjs` start)가 `recordJourneyMetric`으로 올린다 — 시도가 성립한 순간 1회.
+//  - `salvage`는 세이브의 누적 `salvageCount` 증가분을 센다(수동·일괄·자동 분해가 분해한 장비 수만큼).
 export const dailyTasks = [
   {id:'login',name:'오늘 접속',metric:'login',target:1,gold:300,books:0},
-  {id:'hunt',name:'몬스터 300마리 처치',metric:'kills',target:300,gold:1000,books:1},
-  {id:'boss',name:'보스 3회 처치',metric:'bosses',target:3,gold:1500,books:1},
-  {id:'time',name:'30분 플레이',metric:'seconds',target:1800,gold:1000,books:1}
+  {id:'hunt',name:'몬스터 300마리 처치',metric:'kills',target:300,gold:1000,books:0},
+  {id:'time',name:'30분 플레이',metric:'seconds',target:1800,gold:1000,books:0},
+  {id:'worldBoss',name:'월드보스 1회 도전',metric:'worldBoss',target:1,gold:1500,books:0},
+  {id:'salvage',name:'장비 분해 3회',metric:'salvage',target:3,gold:800,books:0}
 ];
 export const weeklyTasks = [
-  {id:'days',name:'일일 목표 5일 완료',metric:'days',target:5,gold:5000,books:3},
-  {id:'hunt',name:'몬스터 5,000마리 처치',metric:'kills',target:5000,gold:5000,books:3},
-  {id:'boss',name:'보스 30회 처치',metric:'bosses',target:30,gold:8000,books:3},
-  {id:'time',name:'5시간 플레이',metric:'seconds',target:18000,gold:5000,books:3}
+  {id:'days',name:'일일 목표 5일 완료',metric:'days',target:5,gold:5000,books:0},
+  {id:'hunt',name:'몬스터 2,000마리 처치',metric:'kills',target:2000,gold:5000,books:0},
+  {id:'time',name:'3시간 플레이',metric:'seconds',target:10800,gold:5000,books:0},
+  {id:'worldBoss',name:'월드보스 5일 도전',metric:'worldBoss',target:5,gold:8000,books:0},
+  {id:'salvage',name:'장비 분해 15회',metric:'salvage',target:15,gold:5000,books:0}
 ];
 export const completionRewards = {
-  daily:{id:'completion',name:'일일 전체 완료 보상',gold:2000,books:2,completion:true},
-  weekly:{id:'completion',name:'주간 전체 완료 보상',gold:10000,books:5,completion:true}
+  daily:{id:'completion',name:'일일 전체 완료 보상',gold:2000,books:0,pouches:1,completion:true},
+  weekly:{id:'completion',name:'주간 전체 완료 보상',gold:10000,books:0,pouches:3,completion:true}
 };
 const milestones = [
   ['level','성장','캐릭터 레벨',[5,10,20,30],save=>save.level],
@@ -99,7 +122,7 @@ const milestones = [
 ];
 export function journeyView(state, save, now = Date.now()) {
   const timed = (kind, tasks) => {
-    const rows=tasks.map(task=>({...task,current:Math.min(task.target,Math.floor(task.metric==='login'?1:state[kind][task.metric])),claimed:state[kind].claims.includes(task.id)}));
+    const rows=tasks.map(task=>({...task,current:Math.min(task.target,Math.floor(task.metric==='login'?1:(state[kind][task.metric]??0))),claimed:state[kind].claims.includes(task.id)}));
     return [...rows,{...completionRewards[kind],target:rows.length,current:rows.filter(task=>task.current>=task.target).length,claimed:state[kind].claims.includes('completion')}];
   };
   const achievements = milestones.flatMap(([key,category,name,targets,get])=>targets.map((target,index)=>({id:`${key}-${target}`,category,name:`${name} ${target.toLocaleString('ko-KR')}`,target,current:Math.min(target,Math.floor(get(save)??0)),gold:1000*(index+1),books:index+1,claimed:state.achievements.includes(`${key}-${target}`)})));

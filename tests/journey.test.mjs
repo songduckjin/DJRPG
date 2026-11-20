@@ -31,11 +31,28 @@ test('daily login grants once; retry with same request ID never duplicates curre
 });
 test('persisted progress advances daily and weekly counters and book rewards bypass equipment capacity without losing equipment',async()=>{
   await seed('progress');await snapshot(db,'progress');
-  await transaction(db,async tx=>{const row=await account(tx,'progress'),next={...row.save,kills:5000,bossKills:30,playSeconds:18000};await writeSave(tx,row,next);});
-  const data=await snapshot(db,'progress');assert.equal(data.daily.find(t=>t.id==='hunt').current,300);assert.equal(data.weekly.find(t=>t.id==='boss').current,30);
+  await transaction(db,async tx=>{const row=await account(tx,'progress'),next={...row.save,kills:5000,playSeconds:18000,salvageCount:20};await writeSave(tx,row,next);});
+  // 월드보스 도전은 서버(`server/world-boss.mjs`)가 여정 상태에 적는다 — 여기서는 같은 상태를 직접 만든다.
+  const seedState=(await db.execute({sql:'SELECT state_json FROM djrpg_journey WHERE account_id=?',args:['progress']})).rows[0],seedParsed=JSON.parse(seedState.state_json);
+  seedParsed.daily.worldBoss=1;seedParsed.weekly.worldBoss=5;
+  await db.execute({sql:'UPDATE djrpg_journey SET state_json=? WHERE account_id=?',args:[JSON.stringify(seedParsed),'progress']});
+  const data=await snapshot(db,'progress');assert.equal(data.daily.find(t=>t.id==='hunt').current,300);
+  assert.equal(data.daily.find(t=>t.id==='salvage').current,3,'일일 장비 분해 3회');
+  assert.equal(data.daily.find(t=>t.id==='worldBoss').current,1,'월드보스 1회 도전(서버 기록)');
+  assert.equal(data.weekly.find(t=>t.id==='hunt').current,2000,'주간 사냥 2,000');
+  assert.equal(data.weekly.find(t=>t.id==='time').current,10800,'주간 3시간');
+  assert.equal(data.weekly.find(t=>t.id==='salvage').current,15,'주간 장비 분해 15회');
   await transaction(db,async tx=>{const row=await account(tx,'progress');await writeSave(tx,row,{...row.save,bag:Array.from({length:40},()=>({id:randomUUID(),name:'검',slot:'weapon',rarity:'common',stats:{attack:1}}))});});
   const before=await account(db,'progress');await act('progress','daily');
-  const after=await account(db,'progress');assert.equal(after.save.gold,before.save.gold+5800);assert.equal(after.save.bag.filter(item=>item.slot!=='skillbook').length,40);assert.equal(after.save.bag.filter(item=>item.slot==='skillbook').length,5);assert((await snapshot(db,'progress')).daily.every(t=>t.claimed));
+  const after=await account(db,'progress');
+  // 일일·주간 개별 미션은 금화만, 전체 완료 보상만 무작위 보물 주머니 1개(작업 207).
+  assert.equal(after.save.gold,before.save.gold+6600,'일일 4,600 + 완료 2,000');
+  assert.equal(after.save.bag.filter(item=>!['skillbook','pouch'].includes(item.slot)).length,40,'장비 40칸은 그대로');
+  assert.equal(after.save.bag.filter(item=>item.slot==='skillbook').length,0,'개별 미션은 스킬북을 주지 않는다');
+  const pouches=after.save.bag.filter(item=>item.slot==='pouch');
+  assert.equal(pouches.length,1,'전체 완료 보상으로 보물 주머니 1개');
+  assert.equal(pouches[0].name,'무작위 보물 주머니');assert.equal(pouches[0].kind,'pouch');
+  assert((await snapshot(db,'progress')).daily.every(t=>t.claimed));
 });
 test('mail read, claim, deletion, item ownership and concurrent reward requests stay isolated and idempotent',async()=>{
   // 환영·업데이트 안내·다이아 지급 우편이 각각 한 통씩 도착한다.
@@ -112,33 +129,41 @@ test('다이아 우편은 계정당 한 번만 지급되고 수령은 원장에 
 
 test('period progress counts once per save and legacy clients retain new totals',async()=>{
   await seed('legacy');await snapshot(db,'legacy');
-  await transaction(db,async tx=>{const row=await account(tx,'legacy');await writeSave(tx,row,{...row.save,kills:10,bossKills:2,playSeconds:15});});
+  await transaction(db,async tx=>{const row=await account(tx,'legacy');await writeSave(tx,row,{...row.save,kills:10,bossKills:2,playSeconds:15,salvageCount:2});});
   await transaction(db,async tx=>{const row=await account(tx,'legacy'),next=structuredClone(row.save);delete next.bossKills;delete next.playSeconds;await writeSave(tx,row,next);});
   const latest=await account(db,'legacy');assert.equal(latest.save.bossKills,2);assert.equal(latest.save.playSeconds,15);
-  const progress=await snapshot(db,'legacy');assert.equal(progress.daily.find(t=>t.id==='hunt').current,10);assert.equal(progress.daily.find(t=>t.id==='boss').current,2);
+  const progress=await snapshot(db,'legacy');assert.equal(progress.daily.find(t=>t.id==='hunt').current,10);assert.equal(progress.daily.find(t=>t.id==='salvage').current,2);
 });
 
 test('completion bonuses require all goals, separate daily and weekly claims and never pay twice',async()=>{
   await seed('completion');const start=await snapshot(db,'completion');assert(start.daily.some(task=>task.completion));
   await assert.rejects(act('completion','daily','completion'),e=>e.code==='NOT_READY');
-  await transaction(db,async tx=>{const row=await account(tx,'completion');await writeSave(tx,row,{...row.save,kills:5000,bossKills:30,playSeconds:18000});});
-  await act('completion','daily');let row=await account(db,'completion');assert.equal(row.save.gold,5800);assert.equal(row.save.bag.length,5);
+  await transaction(db,async tx=>{const row=await account(tx,'completion');await writeSave(tx,row,{...row.save,kills:5000,playSeconds:18000,salvageCount:20});});
+  // 월드보스 도전 미션은 서버가 적는다 — 같은 상태를 직접 만든다.
+  const seedRow=(await db.execute({sql:'SELECT state_json FROM djrpg_journey WHERE account_id=?',args:['completion']})).rows[0],seedJson=JSON.parse(seedRow.state_json);
+  seedJson.daily.worldBoss=1;seedJson.weekly.worldBoss=5;
+  await db.execute({sql:'UPDATE djrpg_journey SET state_json=? WHERE account_id=?',args:[JSON.stringify(seedJson),'completion']});
+  await act('completion','daily');let row=await account(db,'completion');assert.equal(row.save.gold,6600);
+  assert.equal(row.save.bag.filter(item=>item.slot==='pouch').length,1,'일일 전체 완료 = 주머니 1개');
+  assert.equal(row.save.bag.filter(item=>item.slot==='skillbook').length,0,'일일 미션은 금화만');
   await assert.rejects(act('completion','daily','completion'),e=>e.code==='NOT_READY');
-  assert.equal((await snapshot(db,'completion')).weekly.find(task=>task.completion).current,3);
+  assert.equal((await snapshot(db,'completion')).weekly.find(task=>task.completion).current,4,'사냥·플레이·월드보스·분해 4개(일일 5일은 아직)');
   await assert.rejects(act('completion','weekly','completion'),e=>e.code==='NOT_READY');
   const stored=(await db.execute({sql:'SELECT state_json FROM djrpg_journey WHERE account_id=?',args:['completion']})).rows[0],state=JSON.parse(stored.state_json);state.weekly.days=5;
   await db.execute({sql:'UPDATE djrpg_journey SET state_json=? WHERE account_id=?',args:[JSON.stringify(state),'completion']});
   row=await account(db,'completion');const input={action:'journey-claim',kind:'weekly',id:'completion',revision:row.revision,requestId:randomUUID()};
-  const first=await mutate(db,'completion',input),retry=await mutate(db,'completion',input);assert.equal(first.save.gold,15800);assert.equal(retry.save.gold,15800);
-  await act('completion','weekly');const end=await account(db,'completion');assert.equal(end.save.gold,38800);assert.equal(end.save.bag.length,22);
+  const first=await mutate(db,'completion',input),retry=await mutate(db,'completion',input);assert.equal(first.save.gold,16600);assert.equal(retry.save.gold,16600);
+  await act('completion','weekly');const end=await account(db,'completion');assert.equal(end.save.gold,44600,'주간 28,000 + 완료 10,000');
+  assert.equal(end.save.bag.filter(item=>item.slot==='pouch').length,4,'일일 1 + 주간 3 주머니');
+  assert.equal(end.save.bag.filter(item=>item.slot==='skillbook').length,0,'주간 미션도 금화만');
   const claimed=await snapshot(db,'completion');assert(claimed.daily.every(task=>task.claimed));assert(claimed.weekly.every(task=>task.claimed));
 });
 test('existing base rewards claimed before the update still allow completion bonus without recounting a day',async()=>{
   await seed('old-completion');await snapshot(db,'old-completion');
-  await transaction(db,async tx=>{const row=await account(tx,'old-completion');await writeSave(tx,row,{...row.save,kills:300,bossKills:3,playSeconds:1800});});
-  const stored=(await db.execute({sql:'SELECT state_json FROM djrpg_journey WHERE account_id=?',args:['old-completion']})).rows[0],state=JSON.parse(stored.state_json);state.daily.claims=['login','hunt','boss','time'];state.daily.completed=true;state.weekly.days=1;
+  await transaction(db,async tx=>{const row=await account(tx,'old-completion');await writeSave(tx,row,{...row.save,kills:300,playSeconds:1800,salvageCount:3});});
+  const stored=(await db.execute({sql:'SELECT state_json FROM djrpg_journey WHERE account_id=?',args:['old-completion']})).rows[0],state=JSON.parse(stored.state_json);state.daily.worldBoss=1;state.daily.claims=['login','hunt','time','worldBoss','salvage'];state.daily.completed=true;state.weekly.days=1;
   await db.execute({sql:'UPDATE djrpg_journey SET state_json=? WHERE account_id=?',args:[JSON.stringify(state),'old-completion']});
-  const result=await act('old-completion','daily','completion');assert.equal(result.save.gold,2000);assert.equal(result.save.bag.length,2);
+  const result=await act('old-completion','daily','completion');assert.equal(result.save.gold,2000);assert.equal(result.save.bag.filter(item=>item.slot==='pouch').length,1);
   const latest=JSON.parse((await db.execute({sql:'SELECT state_json FROM djrpg_journey WHERE account_id=?',args:['old-completion']})).rows[0].state_json);assert.equal(latest.weekly.days,1);
 });
 

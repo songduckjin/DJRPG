@@ -1,7 +1,7 @@
 import { skillBookStatus } from './skillProgress';
 import { discoverEquipment, normalizeCollection } from './codex';
 import { normalizeQuickSlots, type QuickSlots } from './loadout';
-import { isSkillBook, migrateItem, skillBookJob, slots, totalStats, type EquipmentItem, type Item, type Slot } from './items';
+import { isEquipment, isSkillBook, migrateItem, skillBookJob, slots, totalStats, type EquipmentItem, type Item, type Slot } from './items';
 export { slots, slotNames, rarityNames, statNames, isZweihander, equipmentImage, totalStats, rollItem, itemPower, autoEquipBest, salvageByRarity } from './items';
 export type { Rarity, Slot, Stat, Item } from './items';
 import { allPassiveIds, allSkillIds, jobNames, jobOrDefault, MAX_SKILL_LEVEL, type Job, type PassiveId, type SkillId, type SkillLevelId } from './skills';
@@ -18,7 +18,7 @@ export const DUNGEON_MAX_FLOOR = 10;
  *  상한이 풀리면 고층 곡선이 그대로 이어진다. */
 export const MAX_FLOOR = 20;
 
-export type Save = { version: 1; name: string; accountId: string; gender: Gender; job?: Job; auto: boolean; autoClimb: boolean; level: number; exp: number; gold: number; floor: number; maxFloor: number; floorKills: number; kills: number; bossKills: number; playSeconds: number; health: number; equipment: Partial<Record<Slot, EquipmentItem>>; equipmentCollection: string[]; bag: Item[]; tutorial: number; stones: number; skillPoints: number; lastActiveAt: number; learned: SkillId[]; passives: PassiveId[]; quickSlots: QuickSlots; skillLevels: Partial<Record<SkillLevelId, number>>; dungeonFloor: number; dungeonClearAt: number;
+export type Save = { version: 1; name: string; accountId: string; gender: Gender; job?: Job; auto: boolean; autoClimb: boolean; level: number; exp: number; gold: number; floor: number; maxFloor: number; floorKills: number; kills: number; bossKills: number; playSeconds: number; /** 장비 분해 누적 횟수(작업 207) — 일일·주간 `장비 분해` 미션이 이 값의 증가분을 센다. */ salvageCount: number; health: number; equipment: Partial<Record<Slot, EquipmentItem>>; equipmentCollection: string[]; bag: Item[]; tutorial: number; stones: number; skillPoints: number; lastActiveAt: number; learned: SkillId[]; passives: PassiveId[]; quickSlots: QuickSlots; skillLevels: Partial<Record<SkillLevelId, number>>; dungeonFloor: number; dungeonClearAt: number;
   /** 시즌 번호와 새 시즌 설정 대기 표시(작업 206) — 서버가 시즌 초기화 뒤 내려보내며, 로그인 화면이
    *  직업·성별을 고른 뒤 `completeSetup`으로 지운다. 게임 세이브에는 남지 않는다. */
   season?: number; needsSetup?: boolean };
@@ -70,7 +70,7 @@ export function floorKillTarget(floor: number): number {
 }
 
 export function freshSave(gender: Gender = 'male', job: Job = 'warrior'): Save {
-  return { version: 1, name: '모험가', accountId: crypto.randomUUID().slice(0, 8).toUpperCase(), gender, job, auto: true, autoClimb: true, level: 1, exp: 0, gold: 0, floor: 1, maxFloor: 1, floorKills: 0, kills: 0, bossKills: 0, playSeconds: 0, health: 100, equipment: {}, equipmentCollection: [], bag: [], tutorial: 0, stones: 0, skillPoints: 0, lastActiveAt: Date.now(), learned: [], passives: [], quickSlots: [null, null, null], skillLevels: {}, dungeonFloor: 0, dungeonClearAt: 0 };
+  return { version: 1, name: '모험가', accountId: crypto.randomUUID().slice(0, 8).toUpperCase(), gender, job, auto: true, autoClimb: true, level: 1, exp: 0, gold: 0, floor: 1, maxFloor: 1, floorKills: 0, kills: 0, bossKills: 0, playSeconds: 0, salvageCount: 0, health: 100, equipment: {}, equipmentCollection: [], bag: [], tutorial: 0, stones: 0, skillPoints: 0, lastActiveAt: Date.now(), learned: [], passives: [], quickSlots: [null, null, null], skillLevels: {}, dungeonFloor: 0, dungeonClearAt: 0 };
 }
 
 export function parseSave(data: unknown, accountId?: string): Save {
@@ -95,12 +95,14 @@ export function parseSave(data: unknown, accountId?: string): Save {
     if (isRecord(value.equipment)) for (const slot of slots) {
       const item = migrateItem(value.equipment[slot]);
       const ringSlot = (slot === 'ring1' || slot === 'ring2') && (item?.slot === 'ring1' || item?.slot === 'ring2');
-      if (item && !isSkillBook(item) && (item.slot === slot || ringSlot)) equipment[slot] = item;
+      if (item && isEquipment(item) && (item.slot === slot || ringSlot)) equipment[slot] = item;
     }
     const bag: Item[] = []; let bagEquipment = 0;
     if (Array.isArray(value.bag)) for (const raw of value.bag) {
       const item = migrateItem(raw);
-      if (item && (isSkillBook(item) || bagEquipment < 40)) { bag.push(item); if (!isSkillBook(item)) bagEquipment++; }
+      // 40칸은 장비만 센다 — 스킬북과 보물 주머니(작업 207)는 칸을 쓰지 않는다.
+      const equipment = !!item && isEquipment(item);
+      if (item && (!equipment || bagEquipment < 40)) { bag.push(item); if (equipment) bagEquipment++; }
     }
     const collection = { bag, equipment, equipmentCollection: normalizeCollection(value.equipmentCollection) };
     discoverEquipment(collection);
@@ -112,7 +114,7 @@ export function parseSave(data: unknown, accountId?: string): Save {
     const skillPoints = Math.floor(safeNumber(value.skillPoints, Math.max(0, level - 1 - invested)));
     // 던전 최고층은 0~10의 정수, 최초 클리어 시각은 0 이상. 없는 세이브(구버전)는 0층부터 시작한다.
     const dungeonFloor = Math.min(DUNGEON_MAX_FLOOR, Math.floor(safeNumber(value.dungeonFloor, defaults.dungeonFloor)));
-    return { ...defaults, name: typeof value.name === 'string' && value.name.trim() ? value.name : defaults.name, accountId: accountId ?? (typeof value.accountId === 'string' && value.accountId ? value.accountId : defaults.accountId), gender: value.gender === 'female' ? 'female' : 'male', job: jobOrDefault(value.job), auto: true, autoClimb: typeof value.autoClimb === 'boolean' ? value.autoClimb : true, level, exp: level >= MAX_LEVEL ? 0 : safeNumber(value.exp, defaults.exp), gold: Math.floor(safeNumber(value.gold, defaults.gold)), floor, maxFloor, floorKills: Math.min(floorKillTarget(floor), Math.floor(safeNumber(value.floorKills, 0))), kills: Math.floor(safeNumber(value.kills, defaults.kills)), bossKills: Math.floor(safeNumber(value.bossKills, 0)), playSeconds: safeNumber(value.playSeconds, 0), health: safeNumber(value.health, defaults.health), equipment, equipmentCollection: collection.equipmentCollection, bag, tutorial: Math.min(3, Math.floor(safeNumber(value.tutorial, defaults.tutorial))), stones: Math.floor(safeNumber(value.stones, defaults.stones)), skillPoints, lastActiveAt: safeNumber(value.lastActiveAt, Date.now()), learned: active, passives, quickSlots, skillLevels, dungeonFloor, dungeonClearAt: dungeonFloor > 0 ? Math.floor(safeNumber(value.dungeonClearAt, 0)) : 0 };
+    return { ...defaults, name: typeof value.name === 'string' && value.name.trim() ? value.name : defaults.name, accountId: accountId ?? (typeof value.accountId === 'string' && value.accountId ? value.accountId : defaults.accountId), gender: value.gender === 'female' ? 'female' : 'male', job: jobOrDefault(value.job), auto: true, autoClimb: typeof value.autoClimb === 'boolean' ? value.autoClimb : true, level, exp: level >= MAX_LEVEL ? 0 : safeNumber(value.exp, defaults.exp), gold: Math.floor(safeNumber(value.gold, defaults.gold)), floor, maxFloor, floorKills: Math.min(floorKillTarget(floor), Math.floor(safeNumber(value.floorKills, 0))), kills: Math.floor(safeNumber(value.kills, defaults.kills)), bossKills: Math.floor(safeNumber(value.bossKills, 0)), playSeconds: safeNumber(value.playSeconds, 0), salvageCount: Math.floor(safeNumber(value.salvageCount, 0)), health: safeNumber(value.health, defaults.health), equipment, equipmentCollection: collection.equipmentCollection, bag, tutorial: Math.min(3, Math.floor(safeNumber(value.tutorial, defaults.tutorial))), stones: Math.floor(safeNumber(value.stones, defaults.stones)), skillPoints, lastActiveAt: safeNumber(value.lastActiveAt, Date.now()), learned: active, passives, quickSlots, skillLevels, dungeonFloor, dungeonClearAt: dungeonFloor > 0 ? Math.floor(safeNumber(value.dungeonClearAt, 0)) : 0 };
   } catch (error) {
     throw new Error(`저장 데이터를 읽지 못했습니다: ${String(error)}`);
   }

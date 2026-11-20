@@ -133,7 +133,7 @@ export function inventoryOwnerQuery(id, incoming) {
   const bag = Array.isArray(incoming?.bag) ? incoming.bag : [];
   const equipment = incoming?.equipment && typeof incoming.equipment === 'object' ? Object.values(incoming.equipment) : [];
   if (incoming !== undefined) validateSave(incoming);
-  if (bag.filter(item=>item?.slot!=='skillbook').length > 40 || equipment.length > 10) fail(400, 'INVALID_SAVE', '가방 또는 장비 데이터가 올바르지 않습니다.');
+  if (bag.filter(item=>item?.slot!=='skillbook' && item?.slot!=='pouch').length > 40 || equipment.length > 10) fail(400, 'INVALID_SAVE', '가방 또는 장비 데이터가 올바르지 않습니다.');
   const ids = [...bag, ...equipment].map(item => item?.id).filter(value => typeof value === 'string');
   return { sql: `SELECT o.*, m.slot AS character_slot FROM djrpg_item_owners o LEFT JOIN djrpg_character_item_owners m ON m.item_id=o.item_id WHERE o.item_id IN (
     SELECT json_extract(j.value,'$.id') FROM djrpg_characters c, json_each(c.save_json,'$.bag') j WHERE c.account_id=?
@@ -142,8 +142,9 @@ export function inventoryOwnerQuery(id, incoming) {
   )`, args: [id, id, JSON.stringify(ids)] };
 }
 function itemValid(item) {
-  const slots = ['weapon','offhand','helmet','armor','necklace','gloves','belt','boots','ring1','ring2','skillbook'];
-  return item && (item.locked === undefined || typeof item.locked === 'boolean') && typeof item.id === 'string' && item.id.length > 0 && item.id.length <= 100 && typeof item.name === 'string' && item.name.length <= 100 && slots.includes(item.slot) && ['common','magic','rare','epic','unique','legendary'].includes(item.rarity) && item.stats && typeof item.stats === 'object' && !Array.isArray(item.stats) && Object.entries(item.stats).every(([key, value]) => ['attack','defense','health','crit','speed'].includes(key) && Number.isFinite(value) && value >= 0 && value <= 100000) && (item.slot !== 'skillbook' || (item.kind === 'skillbook' && ['slash2','spin','crushing','slam','warcry','power','destroy','hell','mastery','body','instinct'].includes(item.skillId)));
+  // 'pouch' = 무작위 보물 주머니(작업 207) — 장비·스킬북과 같은 이름·등급·stats 형식의 소모품이다.
+  const slots = ['weapon','offhand','helmet','armor','necklace','gloves','belt','boots','ring1','ring2','skillbook','pouch'];
+  return item && (item.locked === undefined || typeof item.locked === 'boolean') && typeof item.id === 'string' && item.id.length > 0 && item.id.length <= 100 && typeof item.name === 'string' && item.name.length <= 100 && slots.includes(item.slot) && ['common','magic','rare','epic','unique','legendary'].includes(item.rarity) && item.stats && typeof item.stats === 'object' && !Array.isArray(item.stats) && Object.entries(item.stats).every(([key, value]) => ['attack','defense','health','crit','speed'].includes(key) && Number.isFinite(value) && value >= 0 && value <= 100000) && (item.slot !== 'skillbook' || (item.kind === 'skillbook' && ['slash2','spin','crushing','slam','warcry','power','destroy','hell','mastery','body','instinct'].includes(item.skillId))) && (item.slot !== 'pouch' || item.kind === 'pouch');
 }
 const ringSlot = item => typeof item?.slot === 'string' && item.slot.startsWith('ring') ? 'ring' : item?.slot;
 const itemStats = ['attack','defense','health','crit','speed'];
@@ -165,7 +166,7 @@ const sameItemBody = (a, b) => Boolean(a && b) && a.id === b.id && ringSlot(a) =
 const ownerItem = owner => { try { const value = JSON.parse(owner.item_json); return value && typeof value === 'object' ? value : undefined; } catch { return undefined; } };
 export async function reconcileItems(tx, id, before, after, options = {}) {
   const next = itemsOf(after), previous = itemsOf(before), ids = new Set();
-  if (!Array.isArray(after.bag) || after.bag.filter(item=>item?.slot!=='skillbook').length > 40 || Object.values(after.equipment??{}).length > 10 || !after.equipment || typeof after.equipment !== 'object') fail(400, 'INVALID_SAVE', '가방 또는 장비 데이터가 올바르지 않습니다.');
+  if (!Array.isArray(after.bag) || after.bag.filter(item=>item?.slot!=='skillbook' && item?.slot!=='pouch').length > 40 || Object.values(after.equipment??{}).length > 10 || !after.equipment || typeof after.equipment !== 'object') fail(400, 'INVALID_SAVE', '가방 또는 장비 데이터가 올바르지 않습니다.');
   const previousValid = previous.filter(itemValid);
   const previousById = new Map(previousValid.map(item => [item.id, item]));
   const allIds = [...new Set([...previousValid, ...next].map(item => item?.id).filter(id => typeof id === 'string'))];
@@ -260,7 +261,8 @@ export async function healStaleLoadItems(tx, row) {
   return healed;
 }
 export async function writeSave(tx, row, save, operations = [], preserveCollection = true) {
-  for (const field of ['bossKills','playSeconds']) {
+  // `salvageCount`(작업 207)도 누적 통계다 — 줄지 않게 하고, 옛 클라이언트가 값을 빼고 보내도 잃지 않는다.
+  for (const field of ['bossKills','playSeconds','salvageCount']) {
     if (save[field] !== undefined && (typeof save[field] !== 'number' || !Number.isFinite(save[field]) || save[field] < 0)) fail(400,'INVALID_SAVE','활동 통계 형식이 올바르지 않습니다.');
     save[field] = preserveCollection ? Math.max(row.save[field] ?? 0, save[field] ?? 0) : save[field] ?? 0;
   }

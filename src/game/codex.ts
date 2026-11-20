@@ -1,4 +1,4 @@
-import { baseItems, equipmentImage, isSkillBook, isZweihander, rarityOrder, rarityPrefixes, rarityRanks, rarityScales, rarityTiers, type EquipmentItem, type Item, type Rarity, type Slot, type Stat } from './items';
+import { baseItems, equipmentImage, isEquipment, isZweihander, rarityOrder, rarityPrefixes, rarityRanks, rarityScales, rarityTiers, type EquipmentItem, type Item, type Rarity, type Slot, type Stat } from './items';
 import type { Save } from './store';
 export type CodexSlot = Exclude<Slot, 'ring1' | 'ring2'> | 'ring';
 export type CodexEntry = { key: string; name: string; slot: CodexSlot; index: number; item: EquipmentItem; art: ReturnType<typeof equipmentImage> };
@@ -12,7 +12,8 @@ export const codexEntries: CodexEntry[] = Object.keys(codexSlotNames).flatMap(ra
 });
 const keys = new Set(codexEntries.map(entry => entry.key));
 export function equipmentCodexKey(item: Item): string | undefined {
-  if (isSkillBook(item)) return undefined;
+  // 스킬북·보물 주머니(작업 207)는 도감 대상이 아니다.
+  if (!isEquipment(item)) return undefined;
   const slot = item.slot === 'ring1' || item.slot === 'ring2' ? 'ring' : item.slot;
   const index = baseItems[item.slot].findIndex(name => item.name === name || item.name.endsWith(` ${name}`));
   return index >= 0 ? `${slot}:${index}` : isZweihander(item) ? 'weapon:3' : undefined;

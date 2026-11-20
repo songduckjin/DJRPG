@@ -44,11 +44,11 @@ export function renderWorldBoss(ui:Interface,dialog:HTMLElement):void {
   }
   details.append(tabs);const panel=document.createElement('div');panel.className='wb-panel';panel.setAttribute('role','tabpanel');
   if(preview.tab==='challenge'){
-    const guide=document.createElement('div');guide.className='wb-challenge-guide';guide.innerHTML='<h4>월드보스 도전 안내</h4><ul><li>계정당 하루 3회, 한 번에 최대 60초 참여합니다.</li><li>모든 유저가 하나의 보스 체력을 함께 깎습니다.</li><li>하루 누적 피해량으로 순위와 보상이 결정됩니다.</li><li>보스 처치 시 진행 중인 전투가 종료되며 추가 도전은 할 수 없습니다.</li><li>마지막 타격자에게 추가 보상을 지급합니다.</li><li>토벌 성공 시 피해를 기록한 모든 참여자가 공동 처치 보상을 받습니다.</li></ul>';panel.append(guide);
+    const guide=document.createElement('div');guide.className='wb-challenge-guide';guide.innerHTML='<h4>월드보스 도전 안내</h4><ul><li>계정당 하루 1회, 한 번에 최대 60초 참여합니다.</li><li>모든 유저가 하나의 보스 체력을 함께 깎습니다.</li><li>하루 누적 피해량으로 순위와 보상이 결정됩니다.</li><li>보스 처치 시 진행 중인 전투가 종료되며 추가 도전은 할 수 없습니다.</li><li>마지막 타격자에게 추가 보상을 지급합니다.</li><li>토벌 성공 시 피해를 기록한 모든 참여자가 공동 처치 보상을 받습니다.</li></ul>';panel.append(guide);
     panel.append(text('p',practice?'게스트는 연습 모드입니다. 실전은 정식 계정으로 로그인해 주세요.':'매일 오전 5시 초기화 · 도전 횟수는 계정 내 캐릭터가 공유합니다. 보상은 우편함에서 수령하세요.','wb-preview-note'));
     if(live?.error)panel.append(text('p',live.error,'wb-preview-note'));
     if(preview.damage>0)panel.append(text('p',`최근 전투 피해량 ${preview.damage.toLocaleString('ko-KR')}`));
-    const start=document.createElement('button');start.type='button';start.className='wb-challenge';start.textContent=practice?'연습하기':`도전하기 · ${live?.data?.remaining??'…'}/3`;start.disabled=!practice&&(!live?.data||live.data.killed||live.data.remaining===0);start.onclick=()=>openWorldBossField(ui);panel.append(start);
+    const start=document.createElement('button');start.type='button';start.className='wb-challenge';start.textContent=practice?'연습하기':`도전하기 · ${live?.data?.remaining??'…'}/${live?.data?.maxAttempts??1}`;start.disabled=!practice&&(!live?.data||live.data.killed||live.data.remaining===0);start.onclick=()=>openWorldBossField(ui);panel.append(start);
   }else if(preview.tab==='ranking')renderBossRanking(panel,preview.standing);
   else renderBossRewards(panel,preview.standing?.mine?.rank);
   details.append(panel);body.append(details);dialog.append(body);

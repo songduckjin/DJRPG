@@ -160,15 +160,15 @@ export async function mutate(db, id, input) {
       const all = input.deliveryId === 'all', deliveries = reads[2].rows;
       if (!deliveries.length) fail(409, 'ALREADY_CLAIMED', '이미 수령했거나 존재하지 않는 항목입니다.');
       const claimed = []; let gold = 0, skipped = 0;
-      let equipmentCount = save.bag.filter(item=>item.slot!=='skillbook').length;
+      let equipmentCount = save.bag.filter(item=>item.slot!=='skillbook' && item.slot!=='pouch').length;
       for (const delivery of deliveries) {
         const item = delivery.item_json ? JSON.parse(delivery.item_json) : null;
-        if (item && item.slot !== 'skillbook' && equipmentCount >= 40) {
+        if (item && item.slot !== 'skillbook' && item.slot !== 'pouch' && equipmentCount >= 40) {
           if (!all) fail(409,'BAG_FULL','가방이 가득 찼습니다. 수령함에 안전하게 보관되므로 공간을 비운 뒤 받아주세요.');
           skipped++;continue;
         }
         if (item) {
-          save.bag.push(item);if(item.slot!=='skillbook')equipmentCount++;
+          save.bag.push(item);if(item.slot!=='skillbook' && item.slot!=='pouch')equipmentCount++;
           write({sql:"UPDATE djrpg_item_owners SET location='inventory' WHERE item_id=? AND account_id=?",args:[item.id,id]});
           write({sql:'INSERT INTO djrpg_character_item_owners(item_id,account_id,slot) VALUES (?,?,?) ON CONFLICT(item_id) DO UPDATE SET account_id=excluded.account_id,slot=excluded.slot',args:[item.id,id,row.slot]});
         }

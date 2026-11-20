@@ -9,6 +9,8 @@ import { loadShop } from './shopModal';
 function element<K extends keyof HTMLElementTagNameMap>(tag:K,className='',text=''){const node=document.createElement(tag);node.className=className;node.textContent=text;return node;}
 function button(text:string,run:()=>void,disabled=false){const node=element('button','utility-button',text);node.type='button';node.disabled=disabled;node.onclick=run;return node;}
 function heading(parent:HTMLElement,text:string){parent.append(element('h3','utility-heading',text));}
+/** 보상 카드의 `보물 주머니 N개`(작업 207) — 스킬북과 같은 자리에, 주머니 색으로 적는다. */
+function pouchReward(count:number):HTMLElement{const node=element('span','pouch-reward',`보물 주머니 ${count}개`);node.title='무작위 보물 주머니 · 가방에서 열면 금화·장비·스킬북이 나옵니다';return node;}
 function persist(ui:Interface){if(!savePreferences())ui.message('이 기기에서 설정을 저장하지 못했습니다. 현재 실행에는 적용됩니다.');}
 export function renderSettings(ui:Interface,dialog:HTMLElement):void{
   const section=element('section','utility-content');heading(section,'화면');
@@ -39,7 +41,7 @@ export function renderSettings(ui:Interface,dialog:HTMLElement):void{
 function taskRow(ui:Interface,task:JourneyTask,kind:string):HTMLElement{
   const row=element('article',`utility-card utility-task${task.completion?' utility-completion':''}`);row.append(element('b','',`${task.category?task.category+' · ':''}${task.name}`),element('span','',`${task.current.toLocaleString()} / ${task.target.toLocaleString()}`));
   const progress=element('progress');progress.max=task.target;progress.value=task.current;progress.setAttribute('aria-label',`${task.name} 진행도`);row.append(progress);
-  const reward=element('div','utility-reward');reward.append(goldNode(task.gold));if(task.books)reward.append(element('span','',`스킬북 ${task.books}권`));row.append(reward);
+  const reward=element('div','utility-reward');reward.append(goldNode(task.gold));if(task.books)reward.append(element('span','',`스킬북 ${task.books}권`));if(task.pouches)reward.append(pouchReward(task.pouches));row.append(reward);
   row.append(button(task.claimed?'수령 완료':task.current>=task.target?'받기':'진행 중',()=>{void ui.journey.act('journey-claim',{kind,id:task.id});},task.claimed||task.current<task.target||ui.journey.busy||ui.session.guest));return row;
 }
 export function orderedAchievements(tasks:JourneyTask[]):JourneyTask[] {
@@ -69,7 +71,7 @@ export function renderUtility(ui:Interface,dialog:HTMLElement,kind:'mail'|'rewar
       row.append(element('small','mail-sender',`보낸 사람: ${mail.sender}`),element('p','mail-body',mail.body));
       const received=new Date(mail.createdAt).toLocaleString('ko-KR',{timeZone:'Asia/Seoul',month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'});
       row.append(element('small','mail-date',`받은 날짜 ${received} · ${mail.expiresAt===null?'수령 기한 없음':mail.expired?'수령 기한 만료':`남은 시간 ${Math.max(0,Math.ceil((mail.expiresAt-data.now)/3600000))}시간`}`));
-      const bottom=element('div','utility-toolbar'),reward=element('div','utility-reward');if(mail.gold)reward.append(goldNode(mail.gold));if(mail.books)reward.append(element('span','',`스킬북 ${mail.books}권`));if(mail.diamonds)reward.append(element('span','',`◆ 다이아 ${mail.diamonds.toLocaleString('ko-KR')}개`));
+      const bottom=element('div','utility-toolbar'),reward=element('div','utility-reward');if(mail.gold)reward.append(goldNode(mail.gold));if(mail.books)reward.append(element('span','',`스킬북 ${mail.books}권`));if(mail.pouches)reward.append(pouchReward(mail.pouches));if(mail.diamonds)reward.append(element('span','',`◆ 다이아 ${mail.diamonds.toLocaleString('ko-KR')}개`));
       bottom.append(reward,button(mail.claimedAt?'수령 완료':mail.expired?'기한 만료':'받기',()=>{void journey.act('journey-claim',{kind:'mail',id:mail.id}).then(()=>loadShop(ui));},!!mail.claimedAt||mail.expired||journey.busy||ui.session.guest));row.append(bottom);section.append(row);
     }
   }else{
