@@ -1091,3 +1091,11 @@
 - 시트만 교체: `heroBodyPx`·전투 수치·Save/DB/API 무변경. 장비 오버레이는 종전대로 궁수에게 그리지 않는다.
 - tsc/archer 14·전체488중486(costume-field-render2건은 `86ac44e` 워크트리 동일실패)/아트6장/build/diff통과. 번들에 6경로 `?v=2` 확인. 검수 `downloads/djrpg_archer_starter_ingame_v2.png`(남녀 걷기·사격 4패널). 브라우저 실기 미실행.
 - 159 운영배포완료: PR#124 스쿼시`4ba39fdb63b7`, Pages production success, https://djrpg.pages.dev/version.json =4ba39fdb63b7(builtAt2026-11-20T02:29:42Z). ?v=2 시트6장 200·원격sha=로컬, 번들`index-j5_2NUhd.js`에 6경로 ?v=2 확인. 브라우저실기미실행.
+
+## 2026-11-20 fks3997 — 작업215 보물 주머니 3컷 탄성·빛전환
+- 원인(`#5297`): AI로 만든 중간 컷 6장(`step1b`·`step2`·`step2b`·`step3`·`step3b`·`open`)의 각도·배 둘레·문양이 달라 9컷을 넘길수록 모양이 울렁거렸고 6·7번 컷에 어두운 후광 찌꺼기가 남아 더 끊겨 보였다.
+- `POUCH_FRAME_URLS`를 **3장**(`treasure_pouch_v2`·`slump0_v3`·`slump2_v2`)으로 줄이고 `preloadPouchFrames`도 3장. 그림 대신 `.pouch-art-stack`에 `transform-origin: 50% 92%` **Squash & Stretch**(`pouch-squash` 920ms, scaleX/scaleY 교대 → 0.9초 `scale(1.08)` 힘 모음, `rotate` 없음)와 `pouch-settle`(320ms 1080ms, translateY·scaleY로 가라앉기).
+- 타임라인 `POUCH_FRAME_AT` 0/920/1080·`BURST 920`(Canvas 흰빛 피크가 정확히 이 순간)·`RESULT 1220`·`OPEN 1550`. 1→2번 컷은 섬광 속 180ms, 2→3번 컷은 200ms 크로스페이드(`data-pouch-frame` 규칙). 토스트·전광판은 그대로 보상 카드 시각(스포일러 없음).
+- `pouchLight`는 `start(burstAt, endAt)`만 받아 그림 전환과 같은 프레임에 피크가 오고, `prefers-reduced-motion`이면 탄성·빛·전환 모두 끈다.
+- tsc·`node --test tests/treasure-pouch.test.mjs` 21/21·vite build 통과. `scripts/verify-item-art.mjs`는 이 작업 클론이 `public/assets` 아이콘만 받은 sparse 체크아웃이라 `item-art` 파일이 없어 실행 불가(이번 변경과 무관).
+- 브라우저 실기 미실행, 미리보기만.

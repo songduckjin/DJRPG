@@ -414,8 +414,12 @@
    상자는 그림자 대신 알파를 따라가는 drop-shadow를 스택에 건다(사각 상자 그림자가 보이지 않게). */
 .pouch-art-stack { position: relative; display: block; width: clamp(124px, 40vw, 158px); height: clamp(124px, 40vw, 158px); flex: none; filter: drop-shadow(0 10px 18px #000b); }
 /* 두 장을 겹쳐 두고 `is-front`인 장만 보인다 — 단계가 바뀌면 opacity transition이 서로 겹쳐
-   서서히 넘어간다(`setPouchFrame`이 뒤 장에 다음 그림을 넣고 `is-front`를 넘긴다). */
+   서서히 넘어간다(`setPouchFrame`이 뒤 장에 다음 그림을 넣고 `is-front`를 넘긴다).
+   작업 215: 컷마다 전환 길이를 다르게 준다 — 1→2번(흰빛 섬광 속) 180ms, 2→3번(바닥으로 풀림) 200ms.
+   `data-pouch-frame`은 다음 컷 번호로 먼저 바뀌므로, opacity가 변하는 순간 이 길이를 읽는다. */
 img.pouch-art { position: absolute; inset: 0; display: block; width: 100%; height: 100%; object-fit: contain; border-radius: 0; box-shadow: none; opacity: 0; transition: opacity 120ms linear; }
+.pouch-art-stack[data-pouch-frame="1"] img.pouch-art { transition-duration: 180ms; }
+.pouch-art-stack[data-pouch-frame="2"] img.pouch-art { transition-duration: 200ms; }
 img.pouch-art.is-front { opacity: 1; }
 .pouch-art-stack.is-resetting img.pouch-art { transition: none; }
 img.pouch-icon { display: block; object-fit: contain; border-radius: 4px; }
@@ -428,12 +432,13 @@ img.pouch-icon { display: block; object-fit: contain; border-radius: 4px; }
 .pouch-art-mark { position: absolute; left: 50%; top: 56%; width: 34%; height: 34%; transform: translate(-50%, -50%); border-radius: 50%; background: radial-gradient(circle at 40% 35%, #ffe6ac, #c98f2f 62%, #86540f); box-shadow: inset 0 0 0 1px #6b420c, 0 0 12px #ffcf7a88; }
 .pouch-art-mark::after { content: '?'; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #4d2f06; font: 800 60%/1 'Noto Sans KR', sans-serif; }
 
-/* ── 개봉 연출(작업 214 · 사용자 지시 `#5204`·`#5222`·`#5228`·`#5241`) ──────────
-   9컷 프레임 시퀀스가 0.22 → 0.47 → 0.70 → 0.89 → 1.00 → 1.075(절정) → 1.18 → 1.30초에
-   겹쳐 넘어가고 1.44초에 보상 카드가 드러난다(총 1.8초). 사용자 지시대로 **그림을 흔들지 않고**
-   (`pouch-shake` 삭제) 중간 컷만으로 움직이며, 1.075초 절정의 흰빛·입자는 Canvas(`.pouch-light`)가
-   그린다. 컷을 바꾸는 시각은 `src/ui/modals/pouchModal.ts`의 `POUCH_FRAME_AT`가 소유한다
-   (테스트가 둘을 함께 검사). */
+/* ── 개봉 연출(작업 215 · 사용자 피드백 `#5297`: "이미지가 연결이 하나도 안 돼 … 모양이 막 변하고") ──
+   9컷 중 모양이 조금씩 달라 울렁거리던 중간 컷을 걷어 내고 **모양이 변하지 않는 3장**만 쓴다.
+   0~0.9초는 1번 컷 한 장을 **바닥(50% 92%)을 축으로 한 탄성(Squash & Stretch)** 으로만 움직이고
+   (좌우 흔들기 `rotate` 없음), 0.92초 **흰빛 섬광이 가장 밝은 순간**에 2번 컷, 1.08초에 3번 컷으로
+   짧게 크로스페이드하며 아래로 가라앉는다. 1.22초에 보상 카드가 드러난다(총 1.55초).
+   빛·입자는 Canvas(`.pouch-light`)가 그린다. 컷을 바꾸는 시각은
+   `src/ui/modals/pouchModal.ts`의 `POUCH_FRAME_AT`가 소유한다(테스트가 둘을 함께 검사). */
 
 /* 빛과 입자 — 각진 `conic-gradient` 부채꼴과 단단한 흰 원판(`radial-gradient`)을 모두 걷어 내고,
    `src/ui/pouchLight.ts`가 60fps Canvas에 **경계선 없는 가우시안 빛 + 입자**만 그린다.
@@ -441,8 +446,30 @@ img.pouch-icon { display: block; object-fit: contain; border-radius: 4px; }
    `mix-blend-mode: screen`으로 어두운 카드 위에 빛으로만 얹힌다(무대·카드가 `overflow: visible`). */
 .pouch-light { position: absolute; left: 50%; top: 40%; width: 560px; height: 560px; transform: translate(-50%, -50%); pointer-events: none; mix-blend-mode: screen; z-index: 1; }
 
-/* 결과 카드: 절정(1.075초) 뒤 0.36초인 **1.44초**에 위쪽 빈 공간으로 떠오른다. `both`라 그 전에는 보이지 않는다. */
-.pouch-window-stage.is-opening .pouch-window-result { animation: pouch-reveal 420ms cubic-bezier(.2,.9,.3,1.2) 1440ms both; }
+/* 0~0.92초 쪼으는 구간 — 그림은 1번 컷 그대로 두고 **바닥을 축으로** 숨을 고르며 팽팽하게 부풀었다 눌렸다를
+   반복하다가, 0.9초쯤 `scale(1.08)`로 힘을 모으고 섬광 순간(0.92초)에 `scale(1.1)`로 확 터진다.
+   `rotate`(좌우 흔들기)는 쓰지 않는다. 두 번째 애니메이션이 1.08초부터 아래로 가라앉는 마무리를 맡는다
+   (앞 애니메이션은 `both`로 그때까지 1.1배를 붙잡고, 뒤 애니메이션은 `forwards`만 써서 그 전에는 끼어들지 않는다). */
+.pouch-window-stage.is-opening .pouch-art-stack { transform-origin: 50% 92%; will-change: transform; animation: pouch-squash 920ms cubic-bezier(.37,0,.63,1) both, pouch-settle 320ms cubic-bezier(.2,.7,.3,1) 1080ms forwards; }
+@keyframes pouch-squash {
+  0% { transform: scale(1, 1); }
+  12% { transform: scale(1.04, .95); }
+  27% { transform: scale(.96, 1.05); }
+  42% { transform: scale(1.06, .93); }
+  56% { transform: scale(1.01, 1.02); }
+  72% { transform: scale(1.05, .96); }
+  88% { transform: scale(1.02, 1.03); }
+  97% { transform: scale(1.08, 1.08); }
+  100% { transform: scale(1.1, 1.1); }
+}
+@keyframes pouch-settle {
+  0% { transform: scale(1.08, 1.04) translateY(0); }
+  38% { transform: scale(1.05, .97) translateY(2px); }
+  100% { transform: scale(1, 1) translateY(0); }
+}
+
+/* 결과 카드: 절정(0.92초) 뒤 0.3초인 **1.22초**에 위쪽 빈 공간으로 즉시 떠오른다. `both`라 그 전에는 보이지 않는다. */
+.pouch-window-stage.is-opening .pouch-window-result { animation: pouch-reveal 360ms cubic-bezier(.2,.9,.3,1.15) 1220ms both; }
 @keyframes pouch-reveal {
   0% { opacity: 0; transform: translateY(8px) scale(.88); }
   65% { opacity: 1; transform: translateY(-2px) scale(1.03); }
@@ -451,6 +478,7 @@ img.pouch-icon { display: block; object-fit: contain; border-radius: 4px; }
 .pouch-window-actions .pouch-open:disabled { opacity: .6; }
 @media (prefers-reduced-motion: reduce) {
   .pouch-window-stage.is-opening .pouch-window-result { animation: none; }
+  .pouch-window-stage.is-opening .pouch-art-stack { animation: none; transform: none; }
   .pouch-art-stack img.pouch-art { transition: none; animation: none; }
   .pouch-light { display: none; }
 }

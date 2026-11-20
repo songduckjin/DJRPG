@@ -269,28 +269,27 @@ test('상단 한 줄에 `확률표`·`보물 주머니` 제목·`×`가 나란�
   } finally { globalThis.document = previous; }
 });
 
-test('개봉 그림 9장은 투명 배경 512×512 PNG이고 금화 뭉치도 같은 규격이며 가방 아이콘은 닫힌 주머니를 쓴다', () => {
+test('개봉 그림은 모양이 변하지 않는 핵심 3장(투명 512×512 PNG)이고 금화 뭉치도 같은 규격이며 가방 아이콘은 닫힌 주머니를 쓴다(작업 215)', () => {
   assert.deepEqual([...pouchArt.POUCH_FRAME_URLS], [
-    '/assets/icons/treasure_pouch_v2.png', '/assets/icons/treasure_pouch_step1b_v3.png',
-    '/assets/icons/treasure_pouch_step2_v2.png', '/assets/icons/treasure_pouch_step2b_v3.png',
-    '/assets/icons/treasure_pouch_step3_v2.png', '/assets/icons/treasure_pouch_step3b_v3.png',
-    '/assets/icons/treasure_pouch_open_v2.png', '/assets/icons/treasure_pouch_slump0_v3.png',
+    '/assets/icons/treasure_pouch_v2.png',
+    '/assets/icons/treasure_pouch_slump0_v3.png',
     '/assets/icons/treasure_pouch_slump2_v2.png'
-  ],'닫힘 → 끈이 당겨지며 부푸는 → 끈 헐거워짐 → 틈새 → 빛 새어 나옴 → 반쯤 활짝 → 활짝 → 무너짐 → 바닥에 납작');
-  assert.equal(new Set(pouchArt.POUCH_FRAME_URLS).size, 9,'아홉 컷은 서로 다른 파일');
-  // 작업 214 `#5222`: \"이미지를 흔들지 말고 프레임을 더 넣어서 모션으로\" — 기존 6컷 사이에 중간 컷 4장을 더했다.
-  for (const middle of ['treasure_pouch_step1b_v3.png', 'treasure_pouch_step2b_v3.png', 'treasure_pouch_step3b_v3.png', 'treasure_pouch_slump0_v3.png']) {
-    assert(pouchArt.POUCH_FRAME_URLS.some(url => url.endsWith(`/${middle}`)), `중간 컷 ${middle}`);
+  ],'닫힘 → 풀리며 무너짐 → 바닥에 납작');
+  assert.equal(new Set(pouchArt.POUCH_FRAME_URLS).size, 3,'세 컷은 서로 다른 파일');
+  // 작업 215 `#5297`: AI로 만든 중간 컷(step1b·step2·step2b·step3·step3b·open)은 각도·배 둘레·문양이
+  // 조금씩 달라 넘길수록 주머니가 울렁거렸다 — 그 컷들은 다시 쓰지 않는다.
+  for (const dropped of ['step1b', 'step2', 'step2b', 'step3', 'step3b', 'open']) {
+    assert(!pouchArt.POUCH_FRAME_URLS.some(url => url.includes(`treasure_pouch_${dropped}`)), `모양이 달랐던 중간 컷 제외: ${dropped}`);
   }
   assert.equal(pouchArt.POUCH_ART_URL, pouchArt.POUCH_FRAME_URLS[0],'개봉 창은 닫힌 주머니로 시작');
   assert.equal(pouchArt.POUCH_ICON_URL, pouchArt.POUCH_FRAME_URLS[0],'가방 아이콘도 닫힌 주머니');
   assert.equal(pouchArt.POUCH_GOLD_PILE_URL, '/assets/icons/pouch_gold_pile_v2.png','금화 뭉치 그림');
   assert.equal(pouchArt.pouchFrameUrl(0), pouchArt.POUCH_FRAME_URLS[0]);
-  assert.equal(pouchArt.pouchFrameUrl(8), pouchArt.POUCH_FRAME_URLS[8]);
-  assert.equal(pouchArt.pouchFrameUrl(12), pouchArt.POUCH_FRAME_URLS[8],'범위를 넘으면 마지막 컷');
+  assert.equal(pouchArt.pouchFrameUrl(2), pouchArt.POUCH_FRAME_URLS[2]);
+  assert.equal(pouchArt.pouchFrameUrl(5), pouchArt.POUCH_FRAME_URLS[2],'범위를 넘으면 마지막 컷');
   assert.equal(pouchArt.pouchFrameUrl(-2), pouchArt.POUCH_FRAME_URLS[0],'음수는 1컷');
   for (const url of [...pouchArt.POUCH_FRAME_URLS, pouchArt.POUCH_GOLD_PILE_URL]) {
-    assert.match(url, /^\/assets\/icons\/(treasure_pouch(_step\d+b?|_open|_slump\d)?|pouch_gold_pile)_v[23]\.png$/,'캐시를 피하는 새 이름');
+    assert.match(url, /^\/assets\/icons\/(treasure_pouch(_slump\d)?|pouch_gold_pile)_v[23]\.png$/,'캐시를 피하는 새 이름');
     const file = readFileSync(new URL(`../public${url}`, import.meta.url));
     assert.equal(file.toString('ascii', 1, 4), 'PNG', `${url} PNG`);
     assert.equal(file.readUInt32BE(16), 512, `${url} 가로 512`);
@@ -299,27 +298,42 @@ test('개봉 그림 9장은 투명 배경 512×512 PNG이고 금화 뭉치도 �
   }
 });
 
-test('개봉은 프레임 사이를 끊김 없이 잇고 1.075초 절정 뒤 0.36초 만에 보상이 뜬다 — 흔들기·각진 도형 없음(작업 214)', () => {
-  // 9컷 타임라인 — 앞쪽 텐션은 약 1.0~1.1초, 절정 뒤 마무리는 0.35~0.45초, 전체 1.7~1.9초.
-  assert.deepEqual([...POUCH_FRAME_AT], [0, 220, 470, 700, 890, 1000, 1075, 1180, 1300], '그림이 바뀌는 시각');
+test('3컷 개봉은 바닥 축 탄성으로 0.92초 절정까지 버티고, 섬광 속에서 그림이 바뀐 뒤 0.3초 만에 보상이 뜬다(작업 215)', () => {
+  // 3컷 타임라인 — 쪼으는 구간 0.92초, 절정 뒤 보상은 0.3초, 전체 1.55초.
+  assert.deepEqual([...POUCH_FRAME_AT], [0, 920, 1080], '그림이 바뀌는 시각');
   assert.equal(POUCH_FRAME_AT.length, pouchArt.POUCH_FRAME_URLS.length, '컷 수와 시각 수가 같다');
-  assert.equal(POUCH_BURST_MS, 1075, '절정(활짝 열림) 시각');
-  assert.equal(POUCH_RESULT_MS, 1440, '보상 카드 등장 = 절정 + 0.365초');
-  assert.equal(POUCH_OPEN_MS, 1800, '연출 전체 길이 약 1.8초');
-  assert(POUCH_BURST_MS >= 1000 && POUCH_BURST_MS <= 1100, '쪼으는 구간이 1.0~1.1초');
-  assert(POUCH_RESULT_MS - POUCH_BURST_MS >= 350 && POUCH_RESULT_MS - POUCH_BURST_MS <= 450, '절정 뒤 0.35~0.45초 안에 보상');
-  assert(POUCH_OPEN_MS >= 1700 && POUCH_OPEN_MS <= 1900, '전체 1.7~1.9초');
-  for (let i = 1; i < POUCH_FRAME_AT.length; i++) assert(POUCH_FRAME_AT[i] > POUCH_FRAME_AT[i - 1], '시각은 늘어난다');
-  // 컷 사이는 짧은 크로스페이드 — 두 장을 겹쳐 두고 opacity로 넘긴다.
+  assert.equal(POUCH_BURST_MS, 920, '절정(흰빛이 가장 밝은 = 2번 컷으로 넘어가는) 시각');
+  assert.equal(POUCH_RESULT_MS, 1220, '보상 카드 등장 = 절정 + 0.3초');
+  assert.equal(POUCH_OPEN_MS, 1550, '연출 전체 길이 약 1.55초');
+  assert(POUCH_BURST_MS >= 880 && POUCH_BURST_MS <= 980, '쪼으는 구간이 0.88~0.98초');
+  assert(POUCH_RESULT_MS - POUCH_BURST_MS >= 250 && POUCH_RESULT_MS - POUCH_BURST_MS <= 350, '절정 뒤 0.25~0.35초 안에 보상');
+  assert(POUCH_OPEN_MS - POUCH_RESULT_MS >= 250 && POUCH_OPEN_MS - POUCH_RESULT_MS <= 400, '보상 뒤 0.25~0.4초에 버튼 잠금 해제');
+  assert(POUCH_FRAME_AT[2] > POUCH_FRAME_AT[1] && POUCH_FRAME_AT[1] > POUCH_FRAME_AT[0], '시각은 늘어난다');
+  // 컷 사이 전환 — 두 장을 겹쳐 두고 opacity로 넘기며, 1→2번 180ms·2→3번 200ms로 짧게 끝낸다.
   const fade = css.match(/img\.pouch-art\s*\{[^}]*transition: opacity (\d+)ms ([a-z-]+)/);
-  assert(fade && Number(fade[1]) >= 80 && Number(fade[1]) <= 180 && fade[2] === 'linear', '컷 사이 80~180ms 크로스페이드');
+  assert(fade && Number(fade[1]) >= 80 && Number(fade[1]) <= 180 && fade[2] === 'linear', '기본 크로스페이드 80~180ms');
+  assert(/\.pouch-art-stack\[data-pouch-frame="1"\] img\.pouch-art\s*\{[^}]*transition-duration: 180ms/.test(css), '1→2번 컷 180ms');
+  assert(/\.pouch-art-stack\[data-pouch-frame="2"\] img\.pouch-art\s*\{[^}]*transition-duration: 200ms/.test(css), '2→3번 컷 200ms');
   assert(/img\.pouch-art\s*\{[^}]*opacity: 0/.test(css),'두 장이 겹쳐 opacity로 넘어간다');
-  // 사용자 지시: 그림을 흔들지 않는다 — 예전 `pouch-shake`·`pouch-burst` 애니메이션은 없앴다.
+  // 사용자 피드백: 좌우로 흔들지 않는다 — 흔들기·부풀리기 키프레임은 없고 그림 자체에도 애니메이션을 걸지 않는다.
   assert(!/pouch-shake/.test(rules), '좌우로 흔들던 애니메이션 제거');
   assert(!/@keyframes pouch-shake/.test(rules) && !/@keyframes pouch-burst/.test(rules), '흔들기·부풀리기 키프레임 제거');
   assert(!/\.pouch-window-stage\.is-opening img\.pouch-art\s*\{/.test(rules), '그림 자체에 애니메이션을 걸지 않는다');
-  // 보상 카드는 절정 뒤 1.44초에 뜬다(애니메이션 지연 = 타임라인).
-  assert(/pouch-reveal \d+ms[^;]*1440ms both/.test(css), '결과 등장 1.44초');
+  // 대신 **바닥(50% 92%)을 축으로 한 탄성** — scaleX/scaleY를 번갈아 주고 `rotate`는 쓰지 않는다.
+  const squashRule = css.match(/\.pouch-window-stage\.is-opening \.pouch-art-stack\s*\{([^}]*)\}/);
+  assert(squashRule, '탄성 애니메이션 규칙');
+  assert(/transform-origin: 50% 92%/.test(squashRule[1]), '바닥을 축으로');
+  assert(/animation: pouch-squash 920ms/.test(squashRule[1]), '쪼으는 구간은 절정(0.92초)까지');
+  assert(/pouch-settle 320ms[^;]*1080ms forwards/.test(squashRule[1]), '바닥으로 가라앉는 마무리는 1.08초부터');
+  assert(css.includes('@keyframes pouch-squash') && css.includes('@keyframes pouch-settle'), '탄성·가라앉기 키프레임');
+  const squash = css.slice(css.indexOf('@keyframes pouch-squash'), css.indexOf('@keyframes pouch-settle'));
+  assert(/scale\(1\.04,\s*\.95\)/.test(squash) && /scale\(\.96,\s*1\.05\)/.test(squash) && /scale\(1\.06,\s*\.93\)/.test(squash), '부풀었다 눌렸다 반복');
+  assert(/scale\(1\.08,\s*1\.08\)/.test(squash), '0.9초쯤 힘을 모은다');
+  assert(!/rotate/.test(squash), '좌우 회전 없음');
+  const settle = css.slice(css.indexOf('@keyframes pouch-settle'));
+  assert(/translateY\(2px\)/.test(settle) && /scaleY|scale\(1\.05,\s*\.97\)/.test(settle), '아래로 가라앉는 translateY·scaleY');
+  // 보상 카드는 절정 뒤 1.22초에 뜬다(애니메이션 지연 = 타임라인).
+  assert(/pouch-reveal \d+ms[^;]*1220ms both/.test(css), '결과 등장 1.22초');
   assert(css.includes('@keyframes pouch-reveal'), '결과 등장 키프레임');
   assert(css.includes('mix-blend-mode: screen'),'빛은 주머니 위에 screen으로 얹는다');
   // 배경을 지운 투명 PNG라 사각 상자 그림자가 남지 않게 알파를 따라가는 shadow를 쓴다.
@@ -330,6 +344,7 @@ test('개봉은 프레임 사이를 끊김 없이 잇고 1.075초 절정 뒤 0.3
   assert(/\.pouch-window-card\s*\{[^}]*width: min\(100%, 330px\)/.test(css),'카드를 아담하게');
   const reduce = css.slice(css.indexOf('@media (prefers-reduced-motion: reduce)'));
   assert(reduce.includes('.pouch-light') && reduce.includes('display: none'), '모션 감소면 Canvas 빛을 그리지 않는다');
+  assert(/\.pouch-window-stage\.is-opening \.pouch-art-stack\s*\{[^}]*animation: none/.test(reduce), '모션 감소면 탄성도 끈다');
   // 작업 213(`#5057`): 빛은 보상 종류·등급과 무관하게 **깨끗한 흰빛**이다.
   assert.equal(pouchGlowInk(), '#ffffff', '빛은 순백색');
   const gearSave = withPouches(1), gear = pouch.openPouch(gearSave, undefined, constant([.60, .70]));
@@ -376,16 +391,28 @@ test('빛은 각진 conic 부채꼴·단단한 흰 원판 없이 Canvas가 그�
     assert.equal(handle.canvas.className, 'pouch-light');
     assert.equal(handle.canvas.attrs['aria-hidden'], 'true', '보조기기에서 숨긴다');
     assert.equal(handle.canvas.width, light.POUCH_LIGHT_SIZE);
-    handle.start(1075, 1800);
+    handle.start(POUCH_BURST_MS, POUCH_OPEN_MS);   // 920ms 절정 · 1550ms 종료
     assert(frames.length >= 1, 'rAF로 첫 프레임을 예약한다');
     const startedAt = globalThis.performance.now();
-    inks.length = 0;
-    frames.shift()(startedAt + 520);          // 쪼으는 구간
+    /** 한 프레임을 그리고, 그 프레임에서 가장 밝은 흰빛의 알파를 돌려준다. */
+    const paintAt = (time) => {
+      inks.length = 0;
+      frames.shift()(startedAt + time);
+      assert(frames.length >= 1, '다음 프레임을 이어서 예약한다');
+      const alphas = inks.map(ink => Number(ink.match(/,([\d.]+)\)$/)?.[1] ?? '0'));
+      return Math.max(0, ...alphas);
+    };
+    const build = paintAt(520);                // 쪼으는 구간
     assert(inks.length >= 4, '가우시안 빛을 여러 겹 그린다');
     for (const ink of inks) assert(/^rgba\(255,255,255,[\d.]+\)$/.test(ink), `순백색만: ${ink}`);
-    assert(frames.length >= 1, '다음 프레임을 이어서 예약한다');
+    const beforeBurst = paintAt(POUCH_BURST_MS - 60);
+    const atBurst = paintAt(POUCH_BURST_MS);   // 절정 — 순백 섬광이 가장 밝다
+    assert(atBurst > beforeBurst && atBurst > build, '빛의 피크가 정확히 0.92초 절정에 온다');
+    assert(atBurst >= .2, '절정은 팝업을 감싸는 밝은 섬광');
+    paintAt(POUCH_BURST_MS + 80);
+    assert(paintAt(POUCH_BURST_MS + 300) < atBurst, '섬광은 곧 가라앉는다');
     inks.length = 0;
-    frames.shift()(startedAt + 1100);         // 절정 + 25ms — 입자가 사방으로 흩어진다
+    frames.shift()(startedAt + POUCH_BURST_MS + 25);   // 절정 + 25ms — 입자가 사방으로 흩어진다
     const dots = inks.filter(ink => ink !== undefined).length;
     assert(dots > light.POUCH_LIGHT_SPARKS, '절정에 입자를 그린다');
     for (const ink of inks) assert(/^rgba\(255,255,255,[\d.]+\)$/.test(ink), '입자도 순백색만');
@@ -415,7 +442,7 @@ test('2D 컨텍스트가 없으면 Canvas 빛 없이 조용히 연출하고, 개
   } finally { globalThis.document = previous; }
 });
 
-test('큰 개봉 창은 [열기]에서 9컷을 차례로 겹쳐 넘긴다(0.22·0.47·0.7·0.89·1.0·1.075·1.18·1.3초)', async () => {
+test('큰 개봉 창은 [열기]에서 3컷을 0.92초·1.08초에 차례로 겹쳐 넘긴다(작업 215)', async () => {
   const previous = globalThis.document;
   globalThis.document = { createElement: tag => element(tag) };
   try {
@@ -434,14 +461,16 @@ test('큰 개봉 창은 [열기]에서 9컷을 차례로 겹쳐 넘긴다(0.22·
     open.onclick();
     assert.equal(front().src, pouchArt.POUCH_FRAME_URLS[0], '누른 직후에는 1컷(닫힘)');
     const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
-    const steps = [[260, 1], [260, 2], [230, 3], [180, 4], [110, 5], [110, 6], [140, 7], [150, 8]];
-    let clock = 0;
-    for (const [gap, index] of steps) {
-      await wait(gap); clock += gap;
-      assert.equal(front().src, pouchArt.POUCH_FRAME_URLS[index], `${POUCH_FRAME_AT[index]}ms — ${index + 1}컷`);
-      assert.equal(stage.dataset.frame, String(index + 1));
-    }
-    assert(clock >= POUCH_RESULT_MS - 90, '보상 카드 시각에 가까이 왔다');
+    // 0.92초 지점까지는 1번 컷 한 장 그대로(모양이 움직이지 않는다), 그 뒤 1.08초에 3번 컷.
+    await wait(POUCH_BURST_MS - 120);
+    assert.equal(front().src, pouchArt.POUCH_FRAME_URLS[0], '절정 직전까지 1컷(닫힘) 유지');
+    await wait(200);
+    assert.equal(front().src, pouchArt.POUCH_FRAME_URLS[1], `${POUCH_FRAME_AT[1]}ms — 2컷(풀리며 무너짐)`);
+    assert.equal(stage.dataset.frame, '2');
+    await wait(POUCH_FRAME_AT[2] - POUCH_FRAME_AT[1] + 120);
+    assert.equal(front().src, pouchArt.POUCH_FRAME_URLS[2], `${POUCH_FRAME_AT[2]}ms — 3컷(바닥에 납작)`);
+    assert.equal(stage.dataset.frame, '3');
+    assert.equal(stack.dataset.pouchFrame, '2', '넘긴 컷 번호가 스택에 남는다(전환 길이 규칙이 읽는다)');
     // `1개 더 열기`는 다시 닫힌 주머니(1컷)부터 새로 시작한다(두 장 모두 되돌린다).
     const again = find(api.overlay, node => node.textContent === '1개 더 열기');
     assert(again, '[1개 더 열기]');
@@ -452,7 +481,7 @@ test('큰 개봉 창은 [열기]에서 9컷을 차례로 겹쳐 넘긴다(0.22·
   } finally { globalThis.document = previous; }
 });
 
-test('결과 토스트·레전드 전광판은 누른 즉시가 아니라 보상 카드가 뜨는 1.44초에 나간다(작업 214 `#5228`)', async () => {
+test('결과 토스트·레전드 전광판은 누른 즉시가 아니라 보상 카드가 뜨는 1.22초에 나간다(작업 214 `#5228` → 215)', async () => {
   const previous = globalThis.document;
   globalThis.document = { createElement: tag => element(tag) };
   try {
@@ -469,7 +498,7 @@ test('결과 토스트·레전드 전광판은 누른 즉시가 아니라 보상
     open.onclick();
     assert.equal(messages.length, 0, '누른 직후에는 정답을 알려 주지 않는다(스포일러 없음)');
     assert.equal(shared.length, 0, '전광판도 아직');
-    await new Promise(resolve => setTimeout(resolve, POUCH_RESULT_MS - 220));
+    await new Promise(resolve => setTimeout(resolve, POUCH_RESULT_MS - 200));
     assert.equal(messages.length, 0, '절정 직후에도 아직 결과를 알리지 않는다');
     await new Promise(resolve => setTimeout(resolve, 340));
     assert.equal(messages.length, 1, '보상 카드가 뜨는 시각에 결과 토스트');
