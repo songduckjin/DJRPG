@@ -139,7 +139,7 @@ test('지팡이 10종 이름이 모두 기본형 인덱스 0~9 로 매핑되고,
     const save = mageSave('male', staffBases[index]);
     assert.equal(staffIndexFor(save), index, `${staffBases[index]} → ${index}`);
     assert.equal(usesStafflessBody(save), true, `${staffBases[index]} 도 기본 지팡이를 지운 시트를 쓴다`);
-    assert.equal(staffPartPath(index), `/assets/pilot-25d/staffs/staff_${index}_v1.png`);
+    assert.equal(staffPartPath(index), `/assets/pilot-25d/staffs/staff_${index}_v1.png?v=3`);
     // 접두사·강화 수식어가 붙은 드랍 이름도 같은 티어로 읽는다.
     assert.equal(staffIndexFor(mageSave('female', `황혼의 ${staffBases[index]}`)), index, `황혼의 ${staffBases[index]}`);
   }

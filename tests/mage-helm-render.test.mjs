@@ -211,8 +211,8 @@ test('머리 없는 마법사 본체 12장이 셀 규격대로 있고 머리만 
         if (motion !== 'idle') continue;
         // 서기 한 장은 머리·가슴을 직접 비교한다(걷기·공격은 프레임 좌표가 달라 규격만 본다).
         const source = staffless
-          ? `/assets/pilot-25d/mage_nostaff/mage_${gender}_idle_v1.png?v=2`
-          : `/assets/pilot-25d/mage_${gender}_idle_v1.png?v=2`;
+          ? `/assets/pilot-25d/mage_nostaff/mage_${gender}_idle_v1.png?v=3`
+          : `/assets/pilot-25d/mage_${gender}_idle_v1.png?v=3`;
         const before = decodeAlpha(readFileSync(fileOf(source)));
         assert(opaqueIn(before, head) > 300, `${source} 머리 영역 기준값`);
         assert(opaqueIn(art, face) <= opaqueIn(before, face) * .05, `${path} 에 얼굴이 남아 있습니다`);

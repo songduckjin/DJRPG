@@ -1,6 +1,6 @@
 import type { Gender, Save } from '../store';
 import { baseItemIndex, isBow, hasNoWeapon } from '../items';
-import { withMotionVersion } from './armors';
+import { pilotSheet } from './pilotAssets';
 
 /**
  * 착용 대검 10종 외형 파츠 (작업 156).
@@ -100,7 +100,7 @@ export function weaponPose(
 /** 파츠 PNG 경로. 인덱스가 1~9 밖이면 undefined(0번은 본체 시트에 그려져 있다). */
 export function weaponPartPath(index: number): string | undefined {
   if (!Number.isInteger(index) || index < 1 || index >= WEAPON_COUNT) return undefined;
-  return `${WEAPON_ROOT}/weapon_${index}_v1.png`;
+  return pilotSheet(`${WEAPON_ROOT}/weapon_${index}_v1.png`);
 }
 
 /** 장비를 바꿀 때 미리 받을 파츠. 티어당 1장이다. */
@@ -136,7 +136,7 @@ export function usesSwordlessBody(save: Save): boolean {
 export function swordlessBodyPath(gender: Gender, motion: WeaponMotion, headless = false): string {
   const sub = headless ? 'headless/' : '';
   // 작업 222: 서기 시트를 낮은 양손 그립으로 다시 구워 `?v=2`(걷기·공격은 같은 파일 그대로).
-  return withMotionVersion(`${NOWEAPON_ROOT}/${sub}warrior_${gender}_${motion}_v1.png`, motion);
+  return pilotSheet(`${NOWEAPON_ROOT}/${sub}warrior_${gender}_${motion}_v1.png`);
 }
 
 /** 갑옷 없이 쓰는 noweapon 시트 6장(서기·걷기·공격 × 전신·머리 없음). */

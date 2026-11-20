@@ -1,5 +1,6 @@
 import type { Gender, Save } from '../store';
 import { baseItemIndex, isMage } from '../items';
+import { pilotSheet } from './pilotAssets';
 
 /**
  * 마법사 전용 로브 10종 전신 시트 (작업 208).
@@ -32,14 +33,14 @@ const ROBE_HEADLESS_ROOT = '/assets/pilot-25d/robes/headless';
 export function robeSheetPath(gender: Gender, index: number, motion: RobeMotion): string | undefined {
   if (!Number.isInteger(index) || index < 1 || index >= ROBE_COUNT) return undefined;
   if (!robeMotionList.includes(motion)) return undefined;
-  return `${ROBE_ROOT}/mage_${gender}_robe_${index}_${motion}_v1.png`;
+  return pilotSheet(`${ROBE_ROOT}/mage_${gender}_robe_${index}_${motion}_v1.png`);
 }
 
 /** 투구를 쓸 때 쓰는 머리 없는 로브 시트 경로(작업 208). 1~9번만 있다. */
 export function robeHeadlessSheetPath(gender: Gender, index: number, motion: RobeMotion): string | undefined {
   const path = robeSheetPath(gender, index, motion);
   if (!path) return undefined;
-  return `${ROBE_HEADLESS_ROOT}/mage_${gender}_robe_${index}_${motion}_v1.png`;
+  return pilotSheet(`${ROBE_HEADLESS_ROOT}/mage_${gender}_robe_${index}_${motion}_v1.png`);
 }
 
 /**
