@@ -175,7 +175,7 @@
 - `ambientScene.ts` (58) / `ambientMotion.ts` (67) — 풀·불 앰비언트 변형. `mountAmbientScene` / `ambientInfluence`, `ambientOffset`, `AmbientDeformation`, `fireFlicker`, `fireEmbers`, `grassPatches`.
 
 ### `src/ui/` — HUD·모달·입력
-- `interface.ts` — UI 상태·**3탭** 모달 라우팅의 중심. `Interface`(`open`,`renderModal`,`message`,`setSaveStatus`,`showOfflineReward`, 렌더 위임 메서드), `Modal`, `BagFilter`. 하단 내비는 `내 정보`(=`equipment`)·`스킬`·`거래소` 3개이고, `equipment` 모달이 요약·6스탯·10칸 장비·가방을 함께 담는다([작업 141]에서 `statusModal` 제거).
+- `interface.ts` — UI 상태·**4탭** 모달 라우팅의 중심. `Interface`(`open`,`renderModal`,`message`,`setSaveStatus`,`showOfflineReward`, 렌더 위임 메서드), `Modal`, `BagFilter`. 하단 내비는 `내 정보`(=`equipment`)·`스킬`·`거래소`·`공용창고`(작업 221, `data-modal="warehouse"` → 이미 있던 `open('warehouse')` 모달) 4개이고, 아이콘은 `navIcons` 문자열(`/assets/icons/nav_{equipment_v2,skills_v2,market_v2,warehouse_v1}.png`, 128×128 투명 팔레트 PNG·보이는 폭 116px)로 넣는다. `equipment` 모달이 요약·6스탯·10칸 장비·가방을 함께 담는다([작업 141]에서 `statusModal` 제거). 새 하단 아이콘은 손으로 자르지 말고 생성 스크립트로 굽는다(공용창고 = `scripts/build-nav-warehouse-icon.py`, 확정 시안에서 배경 제거·톤 보정·빛 테두리).
 - `hud.ts` (66) — 상단 HUD·퀵슬롯·가방 배지. `renderStatus`, `tick`, `renderBagBadge`.
 - `login.ts` (71) — 로그인/가입/게스트 화면·API 호출. `openLogin`, `accountRequest`(모든 요청에 `X-App-Version`, 426이면 새로고침), `Session`, `clearToken`.
 - `boot.ts` (46) — 부팅 오버레이. `createBootOverlay`.
