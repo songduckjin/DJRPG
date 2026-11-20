@@ -907,3 +907,4 @@
 - `/assets/*` immutable이라 `render.ts` 6경로·`equipmentPortrait.ts`·`charactersModal.ts`의 궁수 시트 URL에 `?v=2`. `tests/archer.test.mjs`에 캐시 버스터 누락 감시 1건 추가(궁수 시트 참조 줄은 전부 `?v=` 필요).
 - 시트만 교체: `heroBodyPx`·전투 수치·Save/DB/API 무변경. 장비 오버레이는 종전대로 궁수에게 그리지 않는다.
 - tsc/archer 14·전체488중486(costume-field-render2건은 `86ac44e` 워크트리 동일실패)/아트6장/build/diff통과. 번들에 6경로 `?v=2` 확인. 검수 `downloads/djrpg_archer_starter_ingame_v2.png`(남녀 걷기·사격 4패널). 브라우저 실기 미실행.
+- 159 운영배포완료: PR#124 스쿼시`4ba39fdb63b7`, Pages production success, https://djrpg.pages.dev/version.json =4ba39fdb63b7(builtAt2026-11-20T02:29:42Z). ?v=2 시트6장 200·원격sha=로컬, 번들`index-j5_2NUhd.js`에 6경로 ?v=2 확인. 브라우저실기미실행.
