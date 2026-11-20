@@ -1,3 +1,12 @@
+## 2026-11-20 · fks3997 작업203 41층 이후 자동 분해 `+단계` 필터(미리보기 배포)
+- 사용자 확정 스펙: "41단계부터 필터활성화되게하자 그아래는 자동삭제해놔도 내꺼보다 높은공격력은못팔게막혀있으니깐" · "까지로표기하자" · "보호가아니고 저거선택하면 +4까지 삭제인거야". 즉 `save.maxFloor >= 41`에서 `+0까지`~`+7까지`(기본 `+4까지`)를 고르고, 고른 단계까지가 자동 분해 대상, 그 위는 경매장 판매용으로 보관한다.
+- `game/inventory.ts`: `AUTO_SALVAGE_PLUS_FLOOR = 41`, `autoSalvageBlock(save, item, maxRarity, maxPlus?)`/`autoSalvageRecovered(..., maxPlus?)`가 41층 이상에서 `plusOf(item) > maxPlus`면 `'plus'`로 남긴다(기존 3인자 호출은 그대로 동작). 40층 이하에서는 값을 무시해 예전 등급·장착품 비교 규칙만 남는다.
+- `game/world.ts`: `autoSalvagePlus` 훅(UI가 매 회수마다 최신값 전달)을 `sweeps`·`autoSalvageRecovered`에 넘긴다. 가방이 가득 차도 상한 안의 장비는 회수되고, 상한 위 장비는 바닥에 남아 가득 찬 가방을 기다린다.
+- UI: 신규 `ui/salvagePlus.ts`(`djrpg-auto-salvage-plus`·기본 4·`+4까지` 라벨·`salvagePlusUnlocked`), `ui/interface.ts` `salvagePlus`/`setSalvagePlus`, 장비창 가방 하단(`equipModal.ts` `select.salvage-plus` — 네이티브 선택창이라 8단계를 한 번에 고른다)과 설정 '사냥'(`utilityModal.ts` 같은 select)이 **41층 이상에서만** 보인다. 40층 이하 화면은 이전과 완전히 같다(테스트로 고정).
+- 일괄 분해(`salvagePlan`/`salvageItems`)는 플레이어가 직접 고른 목록이라 `maxPlus`를 적용하지 않고, 오프라인 정산(`offline.ts`)도 그대로 자동 분해 없음. 선택값은 기기 저장이고 세이브 초기화(`store.ts` `clearLegacySave`) 때 등급 기준·자동 분해 스위치와 함께 지운다. Save/서버 형식 무변경.
+- 검증: `npx tsc --noEmit`, `npx vite build` 통과, 신규 `tests/salvage-plus.test.mjs` 11/11(기본·저장·손상값·라벨·41층 게이트·40층 미적용·+4까지 기본/+5 보호·플레이어 상한·가방 가득·일괄 분해 무관·장비창 렌더), 관련 회귀 51 통과(`auto-salvage`·`salvage-rarity`·`salvage-protection`·`item-plus`·`modal-ui`·`item-protection-ui`), 전체 601건 중 554 통과 — 실패 47건은 모두 sparse 체크아웃에 `public/assets/**` 이미지가 없어 생기는 기존 실패이고(`api/**`·`functions/**`를 채운 뒤 `characters`·`dungeon-ranking`·`functions-adapter`·`market` 42건은 전부 통과).
+- 미리보기: `preview/gravel-background-fks3997` 푸시 `c10ff2b`, 미리보기 `version.json` `c10ff2b39eb0`(HTTP 200, `builtAt 2026-11-20T05:11:25Z`)·루트 200, 배포 번들 `index-DQtU14ck.js`에 `djrpg-auto-salvage-plus`·'경매장 판매용으로 보관됩니다', CSS `index-CbCq-oyt.css`에 `.salvage-plus` 확인. **`main` 병합·운영 배포는 사용자 "잠시" 요청으로 보류**(다음 말씀 후 진행). 모바일 실기 확인은 사용자 몫.
+
 ## 2026-11-20 · fks3997 작업201 장비 +1~+7 강화 단계(미리보기 → 운영 배포)
 - 사용자 확정 스펙: "10층마다 한 단계씩 열리고(최대 +7) 확률로 떨어지며, 이름 옆에 다른 색 +숫자로 보이고, 기존 보유 장비도 등급·스탯으로 알아서 보수적으로 표기".
 - `items.ts`: `maxPlusFor(floor)=min(7, floor((floor-1)/10))`, `plusWeights`/`rollPlus`(단계 가중치 `0.6^k`, 보스 `×1.2^k`), `applyPlus`(단계당 8% → `+7`=1.56배), `plusOf`, `itemDisplayName`, `estimatePlus`(최대 랜덤 3·최고 티어 보정·쯔바이핸드 보정을 먼저 뺀 보수적 역산), `normalizePlus`. `rollItem`은 `plus`(0 포함)를 항상 적고, `migrateItem`은 `plus`가 없는 옛 장비만 역산한다.
