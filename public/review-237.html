@@ -93,6 +93,7 @@
             return json({ message: '검수용 가짜 거래소입니다.' });
           }
           if (url.pathname.startsWith('/api/warehouse')) return json({ items: warehouse });
+          if (url.pathname.startsWith('/api/shop')) return json({ wallet: { diamonds: 0, maxSlots: 4 }, diamondPacks: [], packages: [] });
           return json({});
         };
         // 실제 배포 번들(해시 파일명)을 index.html에서 찾아 그대로 불러온다.
@@ -100,6 +101,11 @@
           const app = document.createElement('div'); app.id = 'app'; document.body.append(app);
           try {
             const html = await realFetch('./index.html?_' + Date.now(), { cache: 'no-store' }).then(response => response.text());
+            // index.html이 들고 있는 실제 CSS·엔트리 번들(해시 파일명)을 그대로 쓴다 — 동적 import만 하면
+            // Vite가 HTML 엔트리에 넣어 둔 CSS 링크가 빠져 스타일 없이 그려진다.
+            for (const css of html.matchAll(/href="\.?\/?(assets\/[^"]+\.css)"/g)) {
+              const link = document.createElement('link'); link.rel = 'stylesheet'; link.crossOrigin = 'anonymous'; link.href = './' + css[1]; document.head.append(link);
+            }
             const match = html.match(/src="\.?\/?(assets\/[^"]+\.js)"/);
             if (!match) throw new Error('번들을 찾지 못했습니다.');
             await import('./' + match[1]);
