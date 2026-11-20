@@ -7,6 +7,7 @@
 - **모바일(iOS 웹뷰)**: 입력창 `font-size:16px`(포커스 시 자동 확대 방지)·`autocapitalize/autocorrect off`·`spellcheck=false`·`enterkeyhint=done`, 버튼 `min-height:46px`·`touch-action:manipulation`, 오버레이 `z-index:60`(목록은 5, 생성 로딩은 100), 카드 `max-height:88dvh` 스크롤로 키보드가 올라와도 확인 버튼이 가려지지 않는다. 포커스는 확인창을 여는 클릭 안에서 바로 준다.
 - **작업 207 사거리**: `game/world.ts` — 궁수 `archerAttackRange 280`·`archerStopRange 150`, 마법사 `mageAttackRange 210`·`mageStopRange 110`, 전사 90 유지(사용자 확정). 궁수>마법사>전사 순서와 사거리>정지 거리를 테스트로 고정했다.
 - **테스트**: `tests/modal-ui.test.mjs` 4건 추가(렌더·`window.prompt` 미사용·불일치 안내·`삭제 중…`+중복 클릭 1회+목록 갱신·실패 메시지)로 16/16. `tests/archer.test.mjs`·`tests/mage.test.mjs`는 정지 거리 기대값을 하드코딩(99/70·118) 대신 상수 기준(`stopRange±20`)으로 바꾸고 확정 수치·순서 테스트를 넣어 29/29.
+- **검증**: `npx tsc --noEmit`, 관련 회귀(`characters`·`world-movement`·`arena`·`modal-interaction`·`bag-capacity`) 통과, 전체 608건 중 606 통과(실패 2건은 `origin/main`에서도 같은 `costume-field-render` 2건), `npm run build` 통과(배포 번들에 `character-delete-overlay`·`삭제 중…` 포함 확인).
 - **검증**: `npx tsc --noEmit`, 관련 회귀(`characters`·`world-movement`·`arena`·`modal-interaction`·`bag-capacity`) 통과, 전체 **621건 중 619 통과**(실패 2건은 `origin/main`에서도 같은 `costume-field-render` 2건), `npm run build` 통과(배포 번들에 `character-delete-overlay`·`삭제 중…`·`캐릭터 이름을 정확히 입력해 주세요.` 포함 확인).
 - **머지·배포**: [PR #155](https://github.com/songduckjin/DJRPG/pull/155) 스쿼시 병합 `404d7e1692d9`(2026-11-20T06:17:04Z). 운영 `https://djrpg.pages.dev/version.json` = `404d7e1692d9`(`builtAt 2026-11-20T06:17:28Z`, 루트 200), 배포 번들 `index-CFncNrmx.js`에 `character-delete-overlay`·`character-delete-confirm`·`삭제 중…`·`캐릭터 이름을 정확히 입력해 주세요.`, CSS `index-CLpTlbBa.css`에 `.character-delete-*`·`.character-delete-confirm.ready{border-color:#ff6a5e…}` 확인. 사거리는 배포 번들에서 `La=280,MI=150,Fa=210,kI=110`과 `job==="archer"?MI:job==="mage"?kI:90`·`job==="archer"?La:job==="mage"?Fa:90` 사용부까지 확인.
 - **남은 것**: iOS 실기(인게임 캐릭터 선택 → 삭제 → 이름 입력·키보드·버튼 터치) 확인은 사용자 몫. 서버 `deleteCharacter`(이름 불일치 `CHARACTER_NAME_MISMATCH`·현재 캐릭터 `ACTIVE_CHARACTER`·마지막 캐릭터 `LAST_CHARACTER` 차단)는 이번에 바꾸지 않았다.
@@ -63,6 +64,20 @@
 
 # 작업 로그
 
+## 2026-11-20 — 마법사 남녀 로브 10종 외형 적용 (작업 208)
+
+- **요청**: `baseItems.armor` 0~9번(가죽 조끼 ~ 패왕의 전갑)이 마법사에게 장착되면 전사용 판금 갑옷이 아니라 **마법사 전용 로브 10종**으로 보이게 하고, 필드·장비창·운영 배포까지 완료.
+- **로브 구성**: 0번(가죽 조끼)은 스타터 천 로브 기준 시트(`mage_{성별}_{동작}_v1.png`, 지팡이 파츠 구조에서는 `mage_nostaff/`)를 그대로 쓰고, **1~9번만 새 시트**를 둔다. 승인 확정본(`downloads/mage_armor_preview/{male,female}_robe_{1..4}.png` + `_robe_{5..9}_v5.png`, 1254²)을 서기로, 걷기·공격은 `images --edit`로 로브만 바꿔 만들었다.
+- **지팡이 파츠(작업 201)·마법사 투구(작업 204) 호환**: 로브 시트는 **기본 지팡이를 그리지 않은 판**이다. 걷기·공격 원본은 `mage_nostaff/` 시트에 `images --edit`를 걸어 손에 아무것도 쥐지 않은 4포즈로 생성했고(`downloads/mage_robe_gen/raw_nostaff/`), 서기는 승인 시안에서 지팡이만 지운 판(`downloads/mage_robe_gen/staffless/`)을 썼다. 그래서 지팡이를 차면 `staffs/` 파츠가, 투구를 쓰면 `mage_helms/` 파츠가 로브 위에 그대로 얹힌다. 투구용 **머리 없는 판**(`robes/headless/`)은 `mage_headless/nostaff` 와 `mage_nostaff` 의 차이(머리 영역)를 셀 좌표 그대로 옮겨 만들었다.
+- **정합(핵심)**: 기준은 `mage_nostaff/` 시트(플레이어에게 실제로 그려지는 본체)다. ① 배경을 알파로 키잉하고 ② 4프레임 시트는 캐릭터가 없는 열에서 칸을 나눈 뒤 ③ **성별·동작별 배율 하나**(1~4번 티어의 몸통 기둥 높이 비율 중앙값: 남 서기 0.2978·걷기 0.6651·공격 0.6169, 여 0.321·0.6484·0.675)를 고정하고 ④ **발끝 y·몸통 기둥 중심 x**를 기준 시트에 맞춘 뒤 상체(머리·어깨) 겹침이 최대가 되도록 ±70px 안에서 다듬었다. 칸 경계 1px은 비워 4프레임을 정확히 자를 때 옆 칸이 섞이지 않게 했다.
+- **에셋**: `public/assets/pilot-25d/robes/mage_{성별}_robe_{1..9}_{idle,walk,attack}_v1.png` 54장 + `robes/headless/` 같은 이름 54장 = **108장 9.2MB**(256색 팔레트 PNG + 투명 인덱스, 서기 362×362, 걷기·공격 1448×362, 장당 28~156KB). 부팅 프리로드에는 넣지 않았다.
+- **렌더**: `render/robes.ts`(신규)가 `mageRobeIndexFor(save)`(마법사+갑옷 기본형 0~9, 아니면 -1)·`robeSheetPath`/`robeHeadlessSheetPath`(1~9번만)·`robeFrameIndex`·`robeSheetKey`를 제공한다. `drawHero`는 ① 지팡이·투구 파츠를 먼저 고른 뒤 ② 착용 로브 티어가 있으면 로브 시트로 갈아 끼우고(투구 파츠가 준비됐으면 머리 없는 판) ③ 나머지 전사 오버레이는 그대로 건너뛴다. 티어가 바뀔 때만 `prefetchRobe`로 6장을 받고 최근 3티어만 유지한다(`robeTierCacheLimit=3`). 로딩 전에는 기준 시트로 한 프레임 더 그린다.
+- **장비창(내 정보)**: `equipmentFallbackPortrait`가 마법사면 착용 인덱스의 로브 서기 시트(투구를 쓰면 머리 없는 판)를, 0번·미착용이면 기존 마법사 본체/`nostaff` 시트를 쓴다. 캐시 키는 `mage:{성별}:r{인덱스}:{지팡이}:{투구}`.
+- **계약**: `store.ts`·`server/**`·`world.ts`·`baseItems` 순서·아이템 능력치/드랍 무변경. 전사·궁수 경로, 지팡이·투구 파츠, `mage_nostaff`·`mage_headless` 시트는 손대지 않았다.
+- **검증**: `npx tsc --noEmit`, `node scripts/verify-item-art.mjs`(로프 108장 규격), `npm run build`, `git diff --check`, 전체 `node --test tests/*.test.mjs` — 결과는 배포 기록에 함께 적는다. 신규 `tests/mage-robe-render.test.mjs` 11건(이름→인덱스·경로 규칙·프레임 접힘·108장 규격·칸 경계·필드 로딩 전 폴백/후 교체·4프레임 분할·0번/미착용/전사 비적용·장비창 경로·키·프리로드 제외).
+- **검수 이미지**: `downloads/djrpg_mage_robes_ingame_v1.png`(남녀 10티어 실게임 배율), `downloads/djrpg_mage_robes_preview_v1.png`(장비창 셀 크기), `downloads/djrpg_mage_robes_motion_v1.png`(남녀 1·5·9번 걷기·공격 4프레임), `downloads/djrpg_mage_robe_helm_v1.png`(로브+지팡이+마법사 모자 합성).
+
+## 2026-11-20 — 마법사 지팡이 10종 외형 적용: 남녀 서기·걷기 4프레임·공격 4프레임 (작업 201)
 ## 2026-11-20 — 궁수 남녀 갑옷 10종 외형: 서기·걷기·사격 + 활·투구 동시 착용 호환 (작업 205)
 
 - **요청**: `songduckjin/DJRPG`에 궁수 전용 남녀 갑옷 10종(가죽 조끼 ~ 패왕의 전갑) 외형을 붙이고 PR 머지·`djrpg.pages.dev` 운영 배포까지 완료. 승인 시안(`downloads/archer_armor_preview/{male,female}_armor_{0..9}.png`)이 이미 있었다.
