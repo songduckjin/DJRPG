@@ -53,6 +53,9 @@ test('legacy slot, shared gold and warehouse transfers preserve independent char
     assert.equal(replay.status, 200); assert.equal(replay.body.revision, deposited.body.revision);
     const created = await call(accountHandler, { action: 'createCharacter', slot: 2, name: '새전사', gender: 'male', revision: deposited.body.revision });
     assert.equal(created.status, 200); assert.equal(created.body.save.gold, 70);
+    // 작업 224: 전환 응답이 활성 캐릭터 이름·리비전·오프라인 초를 함께 준다(HUD 닉네임·즉시 입장).
+    assert.equal(created.body.characterName, '새전사'); assert.equal(created.body.characterSlot, 2);
+    assert.equal(created.body.revision, deposited.body.revision + 1); assert.equal(created.body.offlineSeconds, 0);
     await assert.rejects(mutate(db, 'hero', { action: 'register', requestId: marketRequestId, characterSlot: 1 }), error => error.code === 'CHARACTER_CONFLICT');
     const staleWarehouse = await call(warehouseHandler, { action: 'deposit', itemId: item.id, requestId: depositId, revision: deposited.body.revision, characterSlot: 1 });
     assert.equal(staleWarehouse.status, 409); assert.equal(staleWarehouse.body.code, 'CHARACTER_CONFLICT');
@@ -64,6 +67,9 @@ test('legacy slot, shared gold and warehouse transfers preserve independent char
     const selected = await call(accountHandler, { action: 'selectCharacter', slot: 1, revision: withdrawn.body.revision });
     assert.equal(selected.status, 200); assert.equal(selected.body.save.level, 8); assert.equal(selected.body.save.gold, 70);
     assert.equal(selected.body.save.bag.length, 0);
+    assert.equal(selected.body.characterName, '기존 전사'); assert.equal(selected.body.characterSlot, 1);
+    assert.equal(selected.body.revision, withdrawn.body.revision + 1);
+    assert.equal(typeof selected.body.offlineSeconds, 'number');
     const forged = structuredClone(selected.body.save); forged.bag.push(item);
     const rejected = await call(accountHandler, { action: 'save', save: forged, revision: selected.body.revision, requestId: randomUUID(), characterSlot: 1 });
     assert.equal(rejected.status, 409); assert.equal(rejected.body.code, 'ITEM_CONFLICT');
@@ -73,6 +79,8 @@ test('legacy slot, shared gold and warehouse transfers preserve independent char
     assert.equal(Number(profile.shared_gold), 70);
     const switched = await call(accountHandler, { action: 'selectCharacter', slot: 2, revision: selected.body.revision });
     assert.equal(switched.status, 200);
+    assert.equal(switched.body.characterName, '새전사'); assert.equal(switched.body.save.name, '새전사');
+    assert.equal(switched.body.save.gold, 70, '공용 금화는 캐릭터를 바꿔도 그대로');
     await assert.rejects(mutateJourney(db, 'hero', { action: 'journey-claim', kind: 'mail', id: 'all', revision: switched.body.revision, requestId: randomUUID(), characterSlot: 1 }), error => error.code === 'CHARACTER_CONFLICT');
     const reward = await mutateJourney(db, 'hero', { action: 'journey-claim', kind: 'mail', id: 'all', revision: switched.body.revision, requestId: randomUUID(), characterSlot: 2 });
     // 우편함에는 환영 1,000 · 2026-11-20 업데이트 안내 3,000 · 새 시즌 오픈 1,000(작업 208)이 함께 있다.

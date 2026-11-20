@@ -1,10 +1,12 @@
-import { freshSave, type Save } from '../../game/store';
+import { freshSave, parseSave, type Item, type Save } from '../../game/store';
 import { jobNames, jobOrDefault, type Job } from '../../game/skills';
 import type { Interface } from '../interface';
 import { accountRequest } from '../login';
 import { type EquipmentItem, type Slot } from '../../game/items';
 import { equipmentFallbackPortrait, equipmentPortraitPlan, renderEquipmentPortrait } from '../equipmentPortrait';
 import { loadWarehouse as loadWarehouseModal, renderWarehouse as renderWarehouseModal } from './warehouseModal';
+import { discoverEquipment } from '../../game/codex';
+import { applyOfflineRewards } from '../../game/offline';
 
 /** `characters` 응답이 슬롯마다 내려 주는 장비 외형 정보(작업 210) — 이름만 있고 능력치·가방은 없다. */
 export type CharacterEquipment = { helmet?: { name?: string } | null; armor?: { name?: string } | null; weapon?: { name?: string } | null } | null;
@@ -214,12 +216,53 @@ async function changeCharacter(ui: Interface, action: 'selectCharacter' | 'creat
   }
   try {
     const sync = ui.market.sync;
-    if (!await sync.flush()) throw new Error('현재 캐릭터 저장 결과를 확인한 뒤 다시 시도하세요.');
-    await accountRequest(action, { slot, name, gender, job, revision: sync.revision }, ui.session.token);
+    // 바뀐 것이 없으면(`flushIfDirty`) 저장 요청을 보내지 않고 바로 넘어간다 — 예전에는 캐릭터를
+    // 고를 때마다 `flush()`가 빈 저장을 한 번 더 왕복했다(작업 226).
+    if (!await sync.flushIfDirty()) throw new Error('현재 캐릭터 저장 결과를 확인한 뒤 다시 시도하세요.');
+    const result = await accountRequest<CharacterSwitchResult>(action, { slot, name, gender, job, revision: sync.revision }, ui.session.token);
+    if (!result || !result.save || !Number.isInteger(result.characterSlot) || !Number.isSafeInteger(result.revision)) throw new Error('캐릭터 전환 응답이 올바르지 않습니다. 다시 시도해 주세요.');
     if (label) label.textContent = '사냥터에 입장하는 중입니다…';
     onReady?.();
-    location.reload();
+    // **`location.reload()` 없이** 받은 세이브로 그 자리에서 갈아탄다(작업 226). 새로고침은 번들·에셋·
+    // `/api/account`을 처음부터 다시 받아 iOS에서 "접속하는 중입니다"가 오래 걸리는 원인이었다.
+    applyCharacterSwitch(ui, result);
+    loading?.remove();
   } catch (error) { loading?.remove(); throw error; }
+}
+
+/** `selectCharacter`·`createCharacter` 응답 — 서버가 새 세이브와 활성 슬롯을 함께 내려준다(작업 226). */
+export type CharacterSwitchResult = { characterSlot: number; revision: number; save: Save; characterName?: string; offlineSeconds?: number };
+
+/**
+ * 캐릭터 전환 결과를 화면 전체에 반영한다(작업 226). 새로고침 대신 인메모리로 갈아타므로,
+ * 월드·저장 동기화·세션·HUD·가방·임무 배지를 한 번에 새 캐릭터로 맞춘다.
+ */
+export function applyCharacterSwitch(ui: Interface, result: CharacterSwitchResult): void {
+  const save = parseSave(result.save, ui.session.accountId);
+  const sync = ui.market.sync;
+  // 월드는 같은 인스턴스를 쓰고(렌더러·저장 큐가 이 객체를 가리킨다) 세이브 내용만 갈아탄다.
+  ui.world.adoptSave(save);
+  // 보상 정산은 **월드가 들고 있는 세이브**(= 저장 동기화가 보는 객체)에 직접 적용한다.
+  const live = ui.world.save;
+  ui.session.save = live;
+  ui.session.characterSlot = result.characterSlot;
+  ui.session.revision = result.revision;
+  ui.session.gender = live.gender;
+  ui.session.job = live.job;
+  sync.revision = result.revision;
+  sync.session.characterSlot = result.characterSlot;
+  discoverEquipment(live);
+  // 모달·선택 상태는 새 캐릭터의 것으로 다시 시작한다(이전 캐릭터의 아이디·슬롯이 남지 않게).
+  ui.knownItems = new Set([...live.bag, ...Object.values(live.equipment)].filter(Boolean).map(item => (item as Item).id));
+  ui.newItems.clear();
+  ui.selected = undefined; ui.equippedSlot = undefined; ui.equippedPinned = false;
+  ui.characterFocus = undefined; ui.characterList = undefined;
+  ui.open(null);
+  // 아직 사냥하지 않은 캐릭터는 그동안의 오프라인 보상을 여기서 한 번에 정산한다(서버가 초를 내려준다).
+  const reward = result.offlineSeconds ? applyOfflineRewards(live, result.offlineSeconds) : undefined;
+  ui.renderStatus(); ui.renderBagBadge();
+  if (reward) { sync.markDirty(); ui.showOfflineReward(reward); void sync.flush(); }
+  void ui.journey.load();
 }
 
 const deleteNameMismatch = '캐릭터 이름을 정확히 입력해 주세요.';

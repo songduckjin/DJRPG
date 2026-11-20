@@ -31,18 +31,9 @@ export function renderInventory(this: Interface, dialog: HTMLElement): void {
     const sort = document.createElement('button'); sort.type = 'button'; sort.className = 'bag-rarity-sort'; sort.textContent = '등급순';
     sort.classList.toggle('active', this.bagRaritySort); sort.setAttribute('aria-pressed', String(this.bagRaritySort));
     sort.onclick = () => { this.bagRaritySort = !this.bagRaritySort; dismissBagDetail(this); this.renderModal(); };
-    heading.append(title, sort); section.appendChild(heading);
-    const filters = document.createElement('div'); filters.className = 'bag-filters';
-    const filterNames: Record<BagFilter, string> = { all: '장비 전체', weapon: '무기', armor: '방어구', accessory: '장신구' };
-    for (const filter of Object.keys(filterNames) as BagFilter[]) {
-      const button = document.createElement('button'); button.textContent = filterNames[filter];
-      button.classList.toggle('active', this.bagFilter === filter);
-      button.onclick = () => { this.bagFilter = filter; dismissBagDetail(this); this.renderModal(); };
-      filters.appendChild(button);
-    }
-    section.appendChild(filters);
     // `내 직업만 보기` (작업 205): 다른 직업 전용 무기(와 스킬북)만 감춘다. 공용 방어구·장신구는 그대로
-    // 보이고, 켠 상태는 기기에 남긴다. 필터 버튼과 같은 줄에 두면 분류와 보기 범위를 한눈에 고를 수 있다.
+    // 보이고, 켠 상태는 기기에 남긴다. [작업 226] 세로가 짧은 폰에서 가방 칸을 밀어내지 않도록
+    // 제목·`등급순`과 **한 줄**에 둔다(예전에는 필터 아래 따로 한 줄을 썼다).
     const jobToggle = document.createElement('button'); jobToggle.type = 'button'; jobToggle.className = 'bag-job-only';
     jobToggle.textContent = jobOnlyLabel(this.bagJobOnly);
     jobToggle.classList.toggle('is-on', this.bagJobOnly);
@@ -53,7 +44,16 @@ export function renderInventory(this: Interface, dialog: HTMLElement): void {
       this.bagJobOnly = !this.bagJobOnly; saveJobOnly(BAG_JOB_ONLY_KEY, this.bagJobOnly);
       dismissBagDetail(this); this.renderModal();
     };
-    section.appendChild(jobToggle);
+    heading.append(title, jobToggle, sort); section.appendChild(heading);
+    const filters = document.createElement('div'); filters.className = 'bag-filters';
+    const filterNames: Record<BagFilter, string> = { all: '장비 전체', weapon: '무기', armor: '방어구', accessory: '장신구' };
+    for (const filter of Object.keys(filterNames) as BagFilter[]) {
+      const button = document.createElement('button'); button.textContent = filterNames[filter];
+      button.classList.toggle('active', this.bagFilter === filter);
+      button.onclick = () => { this.bagFilter = filter; dismissBagDetail(this); this.renderModal(); };
+      filters.appendChild(button);
+    }
+    section.appendChild(filters);
     const grid = document.createElement('div'); grid.className = 'bag-grid'; section.appendChild(grid);
     // 분류 필터로 한 번 고른 뒤 `내 직업만 보기`로 직업 전용 장비를 걷어 낸다(작업 205).
     // 보물 주머니(작업 207)는 장비가 아니라 분류 필터와 상관없이 늘 보인다 — 보상으로 받은 주머니를
@@ -119,9 +119,13 @@ export function renderInventory(this: Interface, dialog: HTMLElement): void {
     const pouches = pouchCount(save);
     // 가방 40칸은 **장비 + 다른 직업 전용 스킬북**을 함께 센다(작업 210). 내 직업 스킬북·보물 주머니는 별도다.
     const bagUsed = equipmentCount(save.bag, save.job);
-    const count = document.createElement('span'); count.textContent = `가방 ${bagUsed}칸${pouches ? ` · 보물 주머니 ${pouches}개` : ''}`;
+    const count = document.createElement('span'); count.textContent = `가방 ${bagUsed}/40`;
     count.title = `가방 ${bagUsed}/40 · 장비와 다른 직업 전용 스킬북을 함께 세고, 내 직업 스킬북·보물 주머니는 별도입니다`;
-    const capacity = document.createElement('small'); capacity.className = 'bag-capacity'; capacity.textContent = `가방 ${bagUsed}/40`; count.append(capacity);
+    // [작업 226] `가방 16칸` · `가방 16/40` 두 줄로 적던 것을 한 줄로 합쳤다 — 세로가 짧은 폰에서
+    // 가방 칸을 밀어내던 한 줄을 바닥줄에서 돌려준다.
+    if (pouches) {
+      const capacity = document.createElement('small'); capacity.className = 'bag-capacity'; capacity.textContent = ` · 보물 주머니 ${pouches}개`; count.append(capacity);
+    }
     const controls = document.createElement('div'); controls.className = 'bag-footer-actions';
     const equip = document.createElement('button'); equip.className = 'salvage'; equip.textContent = '자동 장착';
     const canEquip = canAutoEquip(save); equip.disabled = !canEquip; equip.classList.toggle('auto-equip-ready', canEquip);

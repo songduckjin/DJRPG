@@ -168,7 +168,9 @@ export class Interface {
       discoverEquipment(world.save); this.onSave();
       for (const item of world.save.bag) if (!this.knownItems.has(item.id)) { this.knownItems.add(item.id); if (this.openModal !== 'equipment' && !isSkillBook(item)) this.newItems.add(item.id); }
       this.renderBagBadge(); this.renderStatus();
-      if (!(this.openModal === 'codex' && ['INPUT','SELECT'].includes(document.activeElement?.tagName ?? '')) && !['dungeon','market','worldBoss','createCharacter','settings','mail','rewards','achievements','shop'].includes(this.openModal ?? '') && (this.openModal !== 'account' || document.activeElement?.tagName !== 'INPUT')) this.renderModal();
+      // 캐릭터 선택·새 캐릭터 창은 사냥 중 매 처치(`world.onChange`)마다 다시 그리지 않는다(작업 226) —
+      // 목록은 열 때 한 번 읽고, 카드 초상화 합성이 무거워 재렌더가 잦으면 선택·생성이 느려진다.
+      if (!(this.openModal === 'codex' && ['INPUT','SELECT'].includes(document.activeElement?.tagName ?? '')) && !['dungeon','market','worldBoss','characters','createCharacter','settings','mail','rewards','achievements','shop'].includes(this.openModal ?? '') && (this.openModal !== 'account' || document.activeElement?.tagName !== 'INPUT')) this.renderModal();
     };
     world.onMessage = text => this.message(text);
     this.renderBagBadge(); this.renderStatus();

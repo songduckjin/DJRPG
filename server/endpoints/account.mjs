@@ -207,6 +207,10 @@ async function accountHandler(request, { env = runtimeEnv(), createDbClient, leg
         assertSession(latest, signed.sid);
         assertRevision(latest, body.revision);
         if (slot > Number(latest.max_slots ?? 3)) fail(403, 'SLOT_LOCKED', '추가 슬롯을 먼저 구매하세요.');
+        // 방금 고른·만든 캐릭터의 세이브를 그대로 응답에 실어 보낸다(작업 226). 예전에는 트랜잭션 끝에
+        // `account()`를 한 번 더 읽어 같은 행을 다시 가져왔다.
+        let characterSave;
+        let switchedAt;
         if (action === 'createCharacter') {
           const name = String(body.name ?? '').trim();
           if (!namePattern.test(name) || !['male', 'female'].includes(body.gender) || (body.job !== undefined && !jobs.includes(body.job))) fail(400, 'INVALID_CHARACTER', '이름은 한글·영문·숫자·밑줄 2~16자로 입력하고 성별과 직업을 선택하세요.');
@@ -215,15 +219,19 @@ async function accountHandler(request, { env = runtimeEnv(), createDbClient, leg
           const placeholder = exists && uncreatedIn(exists.save_json);
           if (exists && !placeholder) fail(409, 'SLOT_OCCUPIED', '이미 사용 중인 슬롯입니다. 목록을 새로 확인하세요.');
           const save = initialSave(id, body.gender, name, body.job);
+          characterSave = { ...save, gold: undefined };
+          switchedAt = new Date().toISOString();
           if (placeholder) {
             // 계정 행의 자리표시자도 같은 세이브로 바꿔 둔다(자기 복구 경로가 자리표시자를 다시 만들지 않게).
-            await tx.execute({ sql: 'UPDATE djrpg_characters SET save_json=?, updated_at=? WHERE account_id=? AND slot=?', args: [JSON.stringify({ ...save, gold: undefined }), new Date().toISOString(), id, slot] });
-            await tx.execute({ sql: 'UPDATE djrpg_accounts SET save_json=?, updated_at=? WHERE id=?', args: [JSON.stringify(save), new Date().toISOString(), id] });
+            await tx.execute({ sql: 'UPDATE djrpg_characters SET save_json=?, updated_at=? WHERE account_id=? AND slot=?', args: [JSON.stringify(characterSave), switchedAt, id, slot] });
+            await tx.execute({ sql: 'UPDATE djrpg_accounts SET save_json=?, updated_at=? WHERE id=?', args: [JSON.stringify(save), switchedAt, id] });
           }
-          else await tx.execute({ sql: 'INSERT INTO djrpg_characters(account_id,slot,save_json,updated_at) VALUES (?,?,?,?)', args: [id, slot, JSON.stringify({ ...save, gold: undefined }), new Date().toISOString()] });
+          else await tx.execute({ sql: 'INSERT INTO djrpg_characters(account_id,slot,save_json,updated_at) VALUES (?,?,?,?)', args: [id, slot, JSON.stringify(characterSave), switchedAt] });
         } else {
           const exists = (await tx.execute({ sql: 'SELECT slot,updated_at,save_json FROM djrpg_characters WHERE account_id=? AND slot=?', args: [id, slot] })).rows[0];
           if (!exists || uncreatedIn(exists.save_json)) fail(404, 'EMPTY_SLOT', '빈 슬롯입니다. 캐릭터를 먼저 생성하세요.');
+          characterSave = JSON.parse(exists.save_json);
+          switchedAt = String(exists.updated_at);
           if (slot !== latest.slot) {
             const entitlement = (await tx.execute({ sql: "SELECT expires_at FROM djrpg_shop_entitlements WHERE account_id=? AND entitlement_key='all_idle_30d'", args: [id] })).rows[0];
             const now = Date.now();
@@ -231,15 +239,20 @@ async function accountHandler(request, { env = runtimeEnv(), createDbClient, leg
             const seconds = expiresAt > Date.parse(String(exists.updated_at)) ? idleSecondsUntil(exists.updated_at, Math.min(now, expiresAt)) : 0;
             if (seconds > 0) await tx.execute({ sql: `INSERT INTO djrpg_shop_entitlements(account_id,entitlement_key,quantity,expires_at,updated_at) VALUES (?,?,?,NULL,?)
               ON CONFLICT(account_id,entitlement_key) DO UPDATE SET quantity=MIN(43200,quantity+excluded.quantity),updated_at=excluded.updated_at`, args: [id, `idle_claim_${slot}`, seconds, now] });
-            await tx.execute({ sql: 'UPDATE djrpg_characters SET updated_at=? WHERE account_id=? AND slot=?', args: [new Date(now).toISOString(), id, slot] });
+            switchedAt = new Date(now).toISOString();
+            await tx.execute({ sql: 'UPDATE djrpg_characters SET updated_at=? WHERE account_id=? AND slot=?', args: [switchedAt, id, slot] });
           }
         }
         await tx.batch([
           { sql: 'UPDATE djrpg_account_profiles SET active_slot=? WHERE account_id=?', args: [slot, id] },
           { sql: 'INSERT INTO djrpg_save_versions(account_id,revision) VALUES (?,?) ON CONFLICT(account_id) DO UPDATE SET revision=excluded.revision', args: [id, latest.revision + 1] }
         ]);
-        const selected = await account(tx, id);
-        return { characterSlot: slot, revision: selected.revision, save: selected.save };
+        const save = { ...characterSave, gold: Number(latest.shared_gold ?? characterSave.gold ?? 0) };
+        // 그동안 방치한 시간의 보상은 새로고침 없이 넘어온 클라이언트가 바로 정산할 수 있게 함께 보낸다.
+        const offlineSeconds = action === 'selectCharacter' && slot !== latest.slot
+          ? await pendingOfflineSeconds(tx, id, slot, switchedAt)
+          : 0;
+        return { characterSlot: slot, revision: latest.revision + 1, save, characterName: save.name, offlineSeconds };
       });
       return res.status(200).json(result);
     }
