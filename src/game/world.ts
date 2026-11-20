@@ -26,7 +26,29 @@ export type Effect = { x: number; y: number; kind: 'slash' | 'slash2' | 'spin' |
   /** 화살이 쫓아가는 적(살아 있는 동안 도착지를 갱신한다). 없으면 발사 시점의 지점으로 날아간다. */
   aim?: Enemy;
   /** 이 이펙트를 만든 스킬(스킬 버튼 피드백용). 평타면 없다. */
-  source?: SkillId };
+  source?: SkillId;
+  /** 딜레이 크러싱(작업 212) 타격 간격 — 연출이 그 간격마다 한 번씩 내리친다. */
+  strikeInterval?: number;
+  /** 타격 숫자(`hit`)를 기본 자리에서 옮길 오프셋 — 10연타 숫자가 한 점에 겹치지 않게 한다(작업 212). */
+  labelOffsetX?: number; labelOffsetY?: number };
+/** 딜레이 크러싱이 한 타마다 남기는 잔상 한 점(작업 212).
+ *  렌더러는 이 기록 하나당 본체·장비 레이어 한 벌을 복제해 본체보다 낮은 불투명도로 뒤에 그린다. */
+export type HeroAfterimage = {
+  x: number; y: number; age: number; duration: number;
+  /** 본체보다 낮은 불투명도 — 0.42에서 0.14까지 타마다 계단식으로 내려간다. */
+  alpha: number;
+  /** 그 타격 순간의 좌우 반전(잔상이 본체와 같은 방향을 본다). */
+  facingSide: number;
+  /** 이만큼 지난 뒤의 공격 자세를 복제한다 — 스윙 중간 실루엣이 남도록. */
+  capture: number };
+/** 딜레이 크러싱 10연타(작업 212) — 붉은보석1식으로, 한 번에 한 타가 아니라 짧은 간격으로 10번 따로 판정한다. */
+export const crushHits = 10;
+/** 타격 간격. 10타가 0.558초에 끝나 요청한 0.55~0.65초 안에 들어온다. */
+export const crushInterval = .062;
+/** 한 타가 재생하는 공격 동작 길이 — 평타(0.32초)의 1/5로 attack 4프레임을 빠르게 한 번 넘긴다. */
+export const crushPoseSpan = .062;
+/** 잔상이 남아 있는 시간 — 마지막 타가 끝나고 약 0.3초 뒤 모두 사라진다. */
+export const crushTrailLife = .3;
 export type ArrowVariant = 'normal' | 'ice' | 'pierce' | 'snipe' | 'volley' | 'arcane' | 'fire' | 'frost' | 'chain' | 'meteor';
 export type Action = 'attack' | SkillId;
 export const cooldowns = { attack: .48, ...Object.fromEntries(Object.keys(skills).map(id => [id, skills[id as SkillId].cooldown])) } as Record<Action, number>;
@@ -70,6 +92,8 @@ export function enemyMaxHp(floor: number, boss: boolean): number {
   return Math.round(offlineMobHp(floor) + (deepMobHp(floor) - offlineMobHp(floor)) * ramp);
 }
 export function enemyHitDamage(floor: number, boss: boolean, defense: number): number { return Math.max(1, Math.round(boss ? 20 + floor * 5.5 + Math.pow(floor, 1.3) * 1.2 : 7 + floor * 2.4 + Math.pow(floor, 1.25) * .5) - defense * .2); }
+/** 10연타 팝업을 흩뿌리는 자리(±12px) — 타마다 다른 조합이라 열 개 숫자가 한 곳에 모이지 않는다. */
+export function crushLabelOffset(index: number): { x: number; y: number } { return { x: (index % 5 - 2) * 6, y: index < 5 ? -8 : 4 }; }
 
 export class World {
   player = { x: 0, y: 0, facing: 0, facingSide: 1, hp: 100, berserk: 0, berserkLevel: 1, hit: 0 };
@@ -82,6 +106,12 @@ export class World {
   paused = false;
   attackHeld = false;
   attackPose = 0;
+  /** 지금 공격 동작이 재생되는 길이. 딜레이 크러싱 한 타는 62ms로 4프레임을 빠르게 넘긴다(작업 212). */
+  attackPoseSpan = .32;
+  /** 진행 중인 딜레이 크러싱 10연타(작업 212). 없으면 undefined. */
+  crush?: { level: number; elapsed: number; next: number; hits: number; power: number };
+  /** 지금 살아 있는 잔상들 — 렌더러가 이 목록으로 본체 복제본을 그리고 지운다(작업 212). */
+  afterimages: HeroAfterimage[] = [];
   activeMove = { x: 0, y: 0 };
   bossPending = false;
   private swing = 1;
@@ -120,6 +150,7 @@ export class World {
     this.save.floor = floor;
     this.save.floorKills = 0;
     this.enemies = []; this.drops = []; this.coins = []; this.effects = [];
+    this.crush = undefined; this.afterimages = []; this.attackPoseSpan = .32;
     this.bossPending = false; this.spawnTimer = 0;
     this.player.x = 0; this.player.y = 0; this.attackHeld = false;
     this.activeMove = { x: 0, y: 0 };
@@ -139,7 +170,7 @@ export class World {
     const damageScale = skillDamageScale(level);
     const stats = totalStats(this.save);
     this.cooldown[kind] = kind === 'attack' ? cooldowns.attack / (1 + stats.speed / 100) * (p.berserk > 0 ? 1 / (1.5 + (p.berserkLevel - 1) * .08) : 1) : cooldowns[kind];
-    if (kind !== 'warcry') this.attackPose = .32;
+    if (kind !== 'warcry') { this.attackPose = .32; this.attackPoseSpan = .32; }
     const attack = stats.attack * (p.berserk > 0 ? 1.5 + (p.berserkLevel - 1) * .05 : 1);
     const target = this.nearest();
     if (target) this.faceTarget(target);
@@ -167,8 +198,15 @@ export class World {
       this.effects.push({ x: p.x, y: p.y, kind: 'spin', age: 0, duration: skillDuration(kind, level), angle: 0, nextHit: .45, power: attack * .65 * damageScale, level });
       this.damage(range * dragonOrbitFactor(0), attack * 1.65 * damageScale, 0, Math.PI);
     } else if (kind === 'crushing') {
+      // [작업 212] 붉은보석1식 — 적 하나에게 본체가 빠르게 10번 내려치고, 타마다 잔상과 데미지 판정이 남는다.
+      // 연출(충격 링·내려찍기)은 대상이 있는 자리에서 62ms마다 한 번씩 깜빡인다.
       const point = target && Math.hypot(target.x - p.x, target.y - p.y) <= range ? target : { x: p.x + Math.cos(p.facing) * range * .65, y: p.y + Math.sin(p.facing) * range * .65 };
-      this.effects.push({ x: point.x, y: point.y, kind: 'crushing', age: 0, duration: skillDuration(kind, level), angle: p.facing, nextHit: .55, power: attack * 3.4 * damageScale, level });
+      this.effects.push({
+        x: point.x, y: point.y, kind: 'crushing', age: 0, duration: crushHits * crushInterval,
+        angle: p.facing, strikeInterval: crushInterval, power: attack * 3.4 * damageScale, level, aim: target
+      });
+      this.crush = { level, elapsed: 0, next: crushInterval, hits: 0, power: attack * 3.4 * damageScale };
+      this.crushStrike();
     } else if (kind === 'slam') {
       this.effects.push({ x: p.x, y: p.y, kind: 'slam', age: 0, duration: skillDuration(kind, level), angle: p.facing, nextHit: .45, power: attack * .55 * damageScale, level });
       this.damage(range, attack * 2.2 * damageScale, p.facing, 1.35, 55, 2 + (level - 1) * .3);
@@ -249,6 +287,28 @@ export class World {
     }
   }
 
+  /**
+   * 딜레이 크러싱 한 타(작업 212).
+   *
+   * 본체의 attack 4프레임을 62ms짜리로 한 번 더 재생하고, 사거리 안 가장 가까운 적 **한 마리**에게
+   * 따로 판정한다(대상이 이 타에 쓰러지면 다음 타가 사거리 안 다음 적으로 이어진다).
+   * 타마다 ±8% 흔들림을 두어 10번이 각각 다른 판정임을 보이고, 합계는 예전 한 방(× 3.4)과 같다.
+   * 마지막으로 본체 자세를 복제한 잔상 한 점을 남긴다(±14px 안에서만 흔든다).
+   */
+  private crushStrike(): void {
+    const crush = this.crush; if (!crush) return;
+    const p = this.player, index = crush.hits;
+    crush.hits++;
+    this.attackPose = crushPoseSpan;
+    this.attackPoseSpan = crushPoseSpan;
+    const amount = crush.power / crushHits * (.92 + random() * .16);
+    this.damage(skillRange('crushing', crush.level), amount, 0, Math.PI, 3, 0, p, 1, crushLabelOffset(index));
+    this.afterimages.push({
+      x: p.x + ((index * 11) % 29) - 14, y: p.y + ((index * 7) % 17) - 8,
+      age: 0, duration: crushTrailLife, alpha: .42 - index * .031, facingSide: p.facingSide, capture: .02
+    });
+  }
+
   /** 스킬을 쏠 지점 — 사거리 안의 가장 가까운 적, 없으면 정면 사거리 끝. */
   private aimPoint(target: Enemy | undefined, range: number): { x: number; y: number } {
     if (target && Math.hypot(target.x - this.player.x, target.y - this.player.y) <= range) return { x: target.x, y: target.y };
@@ -279,7 +339,7 @@ export class World {
     if (Math.abs(screenDx) > 4) this.player.facingSide = screenDx > 0 ? 1 : -1;
   }
 
-  damage(radius: number, amount: number, angle: number, arc: number, knockback = 12, slow = 0, origin: { x: number; y: number } = this.player, maxTargets = Infinity): void {
+  damage(radius: number, amount: number, angle: number, arc: number, knockback = 12, slow = 0, origin: { x: number; y: number } = this.player, maxTargets = Infinity, labelOffset?: { x: number; y: number }): void {
     // 판정 대상은 사거리·부채꼴 안의 적. `maxTargets`를 주면 가까운 순으로 그 수만 맞는다(평타 1마리).
     const inRange: { enemy: Enemy; dx: number; dy: number; dist: number }[] = [];
     for (const enemy of this.enemies) {
@@ -294,7 +354,7 @@ export class World {
       enemy.hit = .24;
       enemy.slow = Math.max(enemy.slow, slow);
       if (knockback && dist) { enemy.knockX += dx / dist * knockback * 16; enemy.knockY += dy / dist * knockback * 16; }
-      this.effects.push({ x: enemy.x, y: enemy.y, kind: 'hit', age: 0, duration: .45, angle: random() * Math.PI * 2, amount: Math.round(amount) });
+      this.effects.push({ x: enemy.x, y: enemy.y, kind: 'hit', age: 0, duration: .45, angle: random() * Math.PI * 2, amount: Math.round(amount), labelOffsetX: labelOffset?.x, labelOffsetY: labelOffset?.y });
     }
     const dead = this.enemies.filter(e => e.hp <= 0);
     this.enemies = this.enemies.filter(e => e.hp > 0);
@@ -362,6 +422,22 @@ export class World {
     this.attackPose = Math.max(0, this.attackPose - dt);
     p.berserk = Math.max(0, p.berserk - dt);
     p.hit = Math.max(0, p.hit - dt);
+    // 딜레이 크러싱 10연타 — 타격 간격이 지난 만큼 한 타씩 판정하고, 10타가 끝나면 시퀀스를 닫는다(작업 212).
+    if (this.crush) {
+      const crush = this.crush;
+      crush.elapsed += dt;
+      while (crush.hits < crushHits && crush.elapsed >= crush.next) {
+        crush.next += crushInterval;
+        this.crushStrike();
+      }
+      if (crush.hits >= crushHits) {
+        this.crush = undefined;
+        this.attackPoseSpan = .32;
+      }
+    }
+    // 잔상은 스스로 나이를 먹고 사라진다 — 마지막 타 뒤 약 0.3초면 목록이 비고 본체만 남는다(요구 6).
+    for (const image of this.afterimages) image.age += dt;
+    this.afterimages = this.afterimages.filter(image => image.age < image.duration);
     this.activeMove = { x: 0, y: 0 };
     // Ground loot comes to the hero on its own (see the drop loop below), so hunting only ever
     // walks toward an enemy and keeps the hero in the fight instead of on the way to a coin.
@@ -414,7 +490,7 @@ export class World {
       if (d < 35 && p.hit <= 0) {
         p.hp = Math.max(0, p.hp - enemyHitDamage(this.save.floor, enemy.boss, totalStats(this.save).defense));
         p.hit = .85;
-        if (p.hp <= 0) { this.save.autoClimb = false; p.hp = totalStats(this.save).health; this.save.health = p.hp; p.x = 0; p.y = 0; this.save.gold = Math.max(0, this.save.gold - 10); this.onMessage('쓰러졌습니다. 10골드를 잃고 부활했습니다. 자동 등반이 중단됩니다.'); this.onChange(); }
+        if (p.hp <= 0) { this.save.autoClimb = false; this.crush = undefined; this.afterimages = []; this.attackPoseSpan = .32; p.hp = totalStats(this.save).health; this.save.health = p.hp; p.x = 0; p.y = 0; this.save.gold = Math.max(0, this.save.gold - 10); this.onMessage('쓰러졌습니다. 10골드를 잃고 부활했습니다. 자동 등반이 중단됩니다.'); this.onChange(); }
       }
       enemy.hit = Math.max(0, enemy.hit - dt);
     }
@@ -462,6 +538,8 @@ export class World {
         }
         continue;
       }
+      // 딜레이 크러싱 연출은 지금 때리는 적의 자리를 따라간다(작업 212).
+      if (effect.kind === 'crushing' && effect.aim && this.enemies.includes(effect.aim)) { effect.x = effect.aim.x; effect.y = effect.aim.y; }
       while (effect.nextHit !== undefined && effect.nextHit < effect.duration && effect.nextHit <= effect.age) {
         const level = effect.level ?? 1;
         if (effect.kind === 'slash2') this.damage(skillRange('slash2', level), effect.power ?? 0, effect.angle, .9, 12, 0, effect);
@@ -469,13 +547,12 @@ export class World {
           const hitProgress = (effect.nextHit ?? effect.age) / effect.duration;
           this.damage(skillRange('spin', level) * dragonOrbitFactor(hitProgress), effect.power ?? 0, 0, Math.PI, 10, 0, effect);
         }
-        if (effect.kind === 'crushing') this.damage(skillRange('crushing', level) * .72, effect.power ?? 0, 0, Math.PI, 28, 1.2, effect);
         if (effect.kind === 'slam') this.damage(skillRange('slam', level), effect.power ?? 0, effect.angle, 1.35, 12, 2 + (level - 1) * .3, effect);
         if (effect.kind === 'hell') this.damage(skillRange('hell', level), effect.power ?? 0, 0, Math.PI, 14, 1 + (level - 1) * .2, effect);
         if (effect.kind === 'rain') this.damage(92, effect.power ?? 0, 0, Math.PI, 6, .9, effect);
         if (effect.kind === 'burst') this.damage(effect.radius ?? 96, effect.power ?? 0, 0, Math.PI, 16, effect.slow ?? 0, effect);
         if (effect.kind === 'nova') this.damage(effect.radius ?? 150, effect.power ?? 0, 0, Math.PI, 22, effect.slow ?? 0, effect);
-        if (effect.kind === 'slash2' || effect.kind === 'crushing' || effect.kind === 'burst' || effect.kind === 'nova') effect.nextHit = undefined;
+        if (effect.kind === 'slash2' || effect.kind === 'burst' || effect.kind === 'nova') effect.nextHit = undefined;
         else effect.nextHit += effect.kind === 'spin' || effect.kind === 'slam' ? .45 : .4;
       }
     }

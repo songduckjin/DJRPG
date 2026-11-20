@@ -290,7 +290,8 @@ test('스킬 8종이 4대 템플릿에 모두 매핑된다', () => {
   assert.equal(passiveOrder.length, 3);
   for (const id of passiveOrder) assert.equal(skillMotionTemplates[id], undefined);
   assert.deepEqual(motionTemplateSkills('slash'), ['slash2', 'power', 'destroy']);
-  assert.deepEqual(motionTemplateSkills('smash'), ['crushing', 'slam']);
+  // 결과 순서는 `skillOrder` 를 따른다 — 작업 212에서 slam 이 크러싱보다 앞자리로 왔다.
+  assert.deepEqual(motionTemplateSkills('smash'), ['slam', 'crushing']);
   assert.deepEqual(motionTemplateSkills('cast'), ['warcry', 'hell']);
   assert.deepEqual(costumeMotionTemplates.map(template => costumeMotionTemplateNames[template]), ['베기', '회전', '내려찍기', '발동 자세']);
 });

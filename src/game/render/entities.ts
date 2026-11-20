@@ -1,5 +1,5 @@
 import { Assets, Container, Rectangle, Sprite, Text, Texture } from 'pixi.js';
-import type { World } from '../world';
+import type { HeroAfterimage, World } from '../world';
 import type { Save } from '../store';
 import { enemyFacing } from '../facing';
 import { heroAnimationMode, heroMotion } from './heroMotion';
@@ -390,7 +390,7 @@ export function drawHero(this: GameView, world: World, x: number, y: number, tim
     this.lastHeroWorld = { x: player.x, y: player.y };
     if (moving) this.heroWalkDistance += Math.min(30, walked);
     const walkingFrame = Math.floor(this.heroWalkDistance / 12) % 8;
-    const attackFrame = Math.min(3, Math.floor((1 - world.attackPose / .32) * 4));
+    const attackFrame = Math.min(3, Math.floor((1 - world.attackPose / (world.attackPoseSpan ?? .32)) * 4));
     const heroTint = player.hit > 0 ? 0xffd4cf : 0xffffff;
     // The approved pilot sheets contain the complete armor and greatsword. Skip all
     // equipment/costume overlays so the body and weapon are never drawn twice.
@@ -589,7 +589,7 @@ export function drawHero(this: GameView, world: World, x: number, y: number, tim
     let bob = 0;
     const local = world.effects.filter(effect => effect.kind !== 'hit' && effect.kind !== 'death' && Math.hypot(effect.x - player.x, effect.y - player.y) < 2);
     const slam = local.find(effect => effect.kind === 'slam' || effect.kind === 'hell');
-    const motion = heroMotion(world.attackPose);
+    const motion = heroMotion(world.attackPose, world.attackPoseSpan ?? .32);
     const attackPulse = motion.pulse;
     if (slam) bob -= Math.sin(Math.PI * slam.age / slam.duration) * 17;
     const face = player.facingSide;
@@ -608,6 +608,31 @@ export function drawHero(this: GameView, world: World, x: number, y: number, tim
       this.glow.circle(x, y - 25, 35).fill({ color: 0xb32d28, alpha: .12 });
     }
   }
+
+/**
+ * 본체 레이어 한 벌을 그대로 복제한다(작업 212).
+ *
+ * 딜레이 크러싱 잔상은 지금 착용한 모습 그대로여야 하므로 통합 바디 한 장이 아니라 `heroLayer` 의
+ * 보이는 스프라이트(몸통·투구 파츠·대검 파츠·활·지팡이)를 모두 복사한다. 그리기 순서를 지키려고
+ * zIndex 로 정렬하며, 색은 살짝 푸른 은빛으로 물들인다.
+ */
+const ghostTint = 0xbfd4ff;
+function cloneHeroLayers(view: GameView): Container {
+  const container = new Container();
+  const layers = view.heroLayer.children
+    .filter((child): child is Sprite => child instanceof Sprite && child.visible)
+    .sort((a, b) => a.zIndex - b.zIndex);
+  for (const layer of layers) {
+    const ghost = new Sprite(layer.texture);
+    ghost.anchor.set(layer.anchor.x, layer.anchor.y);
+    ghost.position.set(layer.position.x, layer.position.y);
+    ghost.scale.set(layer.scale.x, layer.scale.y);
+    ghost.rotation = layer.rotation;
+    ghost.tint = ghostTint;
+    container.addChild(ghost);
+  }
+  return container;
+}
 
 export function updateAfterimages(this: GameView, world: World, project: (x: number, y: number) => [number, number], dt: number): void {
     // 코스튬 모드에서는 캐릭터가 여러 레이어이므로 보이는 레이어를 모두 복제해 잔상을 만든다.
@@ -653,6 +678,32 @@ export function updateAfterimages(this: GameView, world: World, project: (x: num
       for (const entry of ghost.sprites) { this.ghosts.removeChild(entry.sprite); entry.sprite.destroy(); }
       return false;
     });
+    // [작업 212] 딜레이 크러싱 10연타 잔상 — 월드가 남긴 잔상 기록 하나당 본체 복제본 한 벌을 깔고,
+    // 기록이 사라지면 복제본도 함께 지운다. 본체보다 낮은 불투명도(0.14~0.42)로 본체 뒤에 깔린다.
+    const trails = new Set(world.afterimages ?? []);
+    const tracked: Map<HeroAfterimage, Container> = this.crushTrails instanceof Map ? this.crushTrails : new Map();
+    for (const [record, container] of tracked) {
+      if (trails.has(record)) continue;
+      this.ghosts.removeChild(container);
+      container.destroy({ children: true });
+      tracked.delete(record);
+    }
+    for (const record of trails) {
+      let container = tracked.get(record);
+      if (!container) {
+        // 타격 직후(record.capture)에 복제한다 — 그 순간 본체는 스윙 중간 자세다.
+        if (record.age < record.capture) continue;
+        container = cloneHeroLayers(this);
+        this.ghosts.addChild(container);
+        tracked.set(record, container);
+      }
+      const [x, y] = project(record.x, record.y);
+      container.position.set(x, y);
+      container.scale.set(Math.abs(this.heroLayer.scale.x) * (record.facingSide < 0 ? -1 : 1), this.heroLayer.scale.y);
+      container.rotation = this.heroLayer.rotation;
+      const life = Math.max(.01, record.duration);
+      container.alpha = record.alpha * Math.min(1, Math.max(0, (1 - record.age / life) * 2.4));
+    }
   }
 
 export function updateCorpses(this: GameView, project: (x: number, y: number) => [number, number], dt: number): void {

@@ -1,6 +1,6 @@
 import { preferences } from './preferences';
 import { Application, Assets, Container, Graphics, Rectangle, Sprite, Text, Texture, TilingSprite } from 'pixi.js';
-import type { Effect, Enemy, World, Coin, Drop } from './world';
+import type { Effect, Enemy, World, Coin, Drop, HeroAfterimage } from './world';
 import type { LootView } from './render/drops';
 import { wearableAssetPaths, type Slot } from './items';
 import { drawRunes, drawTerrain, drawDust, drawLighting, drawVignette } from './render/field';
@@ -250,6 +250,8 @@ export class GameView {
   enemies = new Map<Enemy, Sprite>();
   bossLabels = new Map<Enemy, Text>();
   afterimages: Ghost[] = [];
+  /** 딜레이 크러싱 잔상(작업 212) — 월드의 잔상 기록 하나당 본체 복제본 한 별을 대응시킨다. */
+  crushTrails = new Map<HeroAfterimage, Container>();
   corpses: Fallen[] = [];
   ghostEmissions = new WeakMap<Effect, number>();
   damageLabels = new Map<Effect, Text>();
