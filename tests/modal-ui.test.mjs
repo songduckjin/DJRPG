@@ -123,6 +123,12 @@ test('character selection shows one idle button for every created character only
     idleButtons[0].onclick();
     assert.equal(ui.world.save.autoClimb, true);
     assert.equal(ui.world.changed, true);
+    ui.characterList.allIdleExpiresAt = Date.now() + 86400000;
+    ui.characterList.characters[1].idleSeconds = 3660;
+    const packageDialog = new Element(); renderCharacters(ui, packageDialog);
+    const packageNodes = visit(packageDialog);
+    assert(packageNodes.filter(node => node.textContent === '방치').every(node => node.disabled));
+    assert(packageNodes.some(node => node.textContent === '방치 시간 01:01'));
   } finally { globalThis.document = originalDocument; }
 });
 
@@ -146,5 +152,30 @@ test('character creation shows a full-screen loading state and restores retry on
     resolveFlush(false); await pending;
     assert.equal(loading.hidden, true); assert.equal(submit.disabled, false);
     assert.match(error.textContent, /저장 결과/);
+  } finally { globalThis.document = originalDocument; }
+});
+
+test('selecting another character immediately shows loading while save confirmation is pending', async () => {
+  const originalDocument = globalThis.document;
+  class Element {
+    children = []; className = ''; textContent = ''; removed = false;
+    append(...nodes) { this.children.push(...nodes); }
+    setAttribute() {}
+    remove() { this.removed = true; }
+  }
+  const body = new Element();
+  globalThis.document = { createElement: () => new Element(), createTextNode: text => ({ textContent: text }), body };
+  try {
+    let resolveFlush;
+    const ui = { characterList: { characters: [{slot:1,name:'첫째',gender:'male',level:1,floor:1},{slot:2,name:'둘째',gender:'female',level:1,floor:1}], activeSlot:1,maxSlots:3 }, characterPage:0,
+      session:{characterSlot:1}, market:{sync:{flush:()=>new Promise(resolve=>{resolveFlush=resolve;})}}, message(){}, renderModal(){} };
+    const dialog = new Element(); renderCharacters(ui, dialog);
+    const visit = node => [node, ...(node.children||[]).filter(child=>child&&typeof child==='object').flatMap(visit)];
+    const selects = visit(dialog).filter(node=>node.className==='character-select');
+    selects[1].onclick();
+    assert.equal(body.children[0].className, 'character-create-loading');
+    assert.equal(typeof resolveFlush, 'function');
+    resolveFlush(false); await new Promise(resolve=>setImmediate(resolve));
+    assert.equal(body.children[0].removed, true);
   } finally { globalThis.document = originalDocument; }
 });

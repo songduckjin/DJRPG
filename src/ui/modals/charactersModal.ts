@@ -5,7 +5,7 @@ import { accountRequest } from '../login';
 import { apiHeaders, isOutdatedResponse, reloadForNewVersion } from '../../game/appVersion';
 import { itemDisplayName } from '../../game/items';
 
-export type CharacterSummary = { slot: number; name: string; gender: 'male' | 'female'; job?: Job; level: number; floor: number; itemCount?: number };
+export type CharacterSummary = { slot: number; name: string; gender: 'male' | 'female'; job?: Job; level: number; floor: number; itemCount?: number; idleSeconds?: number };
 
 /** 캐릭터 선택 카드 그림 — 전사는 기존 base 초상화, 궁수·마법사는 자기 기본 시트를 쓴다. */
 function characterImage(character: CharacterSummary): string {
@@ -16,11 +16,17 @@ function characterImage(character: CharacterSummary): string {
   if (job === 'mage') return `/assets/pilot-25d/mage_${gender}_idle_v1.png`;
   return `/assets/warrior_${gender}_base.png`;
 }
-type CharacterList = { characters: CharacterSummary[]; activeSlot: number; maxSlots: number; revision: number };
+type CharacterList = { characters: CharacterSummary[]; activeSlot: number; maxSlots: number; revision: number; allIdleExpiresAt?: number; loadedAt?: number };
+let characterClock: ReturnType<typeof setTimeout> | undefined;
+
+function idleTime(seconds: number): string {
+  const minutes = Math.floor(Math.max(0, seconds) / 60);
+  return `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
+}
 
 export async function loadCharacters(ui: Interface): Promise<void> {
   try {
-    ui.characterList = await accountRequest<CharacterList>('characters', {}, ui.session.token);
+    ui.characterList = { ...await accountRequest<CharacterList>('characters', {}, ui.session.token), loadedAt: Date.now() };
     if (ui.openModal === 'characters') ui.renderModal();
   } catch (error) { ui.message(error instanceof Error ? error.message : String(error)); }
 }
@@ -33,12 +39,23 @@ export function renderCharacters(ui: Interface, dialog: HTMLElement): void {
   const list = ui.characterList;
   if (!list) { const note = document.createElement('p'); note.textContent = '캐릭터 목록을 불러오는 중…'; dialog.append(note); return; }
   const totalPages = Math.ceil(list.maxSlots / 3);
+  const allIdleActive = Number(list.allIdleExpiresAt ?? 0) > Date.now();
+  if (characterClock) clearTimeout(characterClock);
+  if (ui.openModal === 'characters' && allIdleActive) characterClock = setTimeout(() => {
+    if (ui.openModal === 'characters' && ui.characterList === list) ui.renderModal();
+  }, 60_000);
   ui.characterPage = Math.max(0, Math.min(ui.characterPage, totalPages - 1));
   const grid = document.createElement('div'); grid.className = 'character-slots';
   for (let slot = ui.characterPage * 3 + 1; slot <= Math.min(list.maxSlots, (ui.characterPage + 1) * 3); slot++) {
     const character = list.characters.find(entry => Number(entry.slot) === slot);
     const card = document.createElement('div');
     card.className = `character-slot${slot === ui.session.characterSlot ? ' selected' : ''}`;
+    if (character) {
+      const timer = document.createElement('span'); timer.className = 'character-idle-time';
+      const elapsed = allIdleActive ? Math.max(0, Math.floor((Date.now() - Number(list.loadedAt ?? Date.now())) / 1000)) : 0;
+      timer.textContent = slot === ui.session.characterSlot ? '접속 중' : `방치 시간 ${idleTime(Math.min(43_200, (character.idleSeconds ?? 0) + elapsed))}`;
+      card.append(timer);
+    }
     const select = button('', () => {
       if (!character) { ui.characterCreateSlot = slot; ui.open('createCharacter'); return; }
       if (slot === ui.session.characterSlot) { ui.message('현재 선택된 캐릭터입니다.'); return; }
@@ -62,6 +79,8 @@ export function renderCharacters(ui: Interface, dialog: HTMLElement): void {
       });
       idle.className = 'character-idle';
       idle.setAttribute('aria-label', `${character.name} 방치 사냥 시작`);
+      idle.disabled = allIdleActive;
+      if (allIdleActive) idle.title = '전 슬롯 방치 패키지가 활성화되어 있습니다. 캐릭터 카드를 눌러 보상을 회수하세요.';
       card.append(idle);
       const remove = button('삭제', () => { void deleteCharacter(ui, character).catch(error => ui.message(error instanceof Error ? error.message : String(error))); });
       remove.className = 'character-delete';
@@ -120,11 +139,22 @@ export function renderCreateCharacter(ui: Interface, dialog: HTMLElement): void 
 }
 
 async function changeCharacter(ui: Interface, action: 'selectCharacter' | 'createCharacter', slot: number, name?: string, gender?: string, job?: string, onReady?: () => void): Promise<void> {
-  const sync = ui.market.sync;
-  if (!await sync.flush()) throw new Error('현재 캐릭터 저장 결과를 확인한 뒤 다시 시도하세요.');
-  await accountRequest(action, { slot, name, gender, job, revision: sync.revision }, ui.session.token);
-  onReady?.();
-  location.reload();
+  const loading = action === 'selectCharacter' ? document.createElement('div') : undefined;
+  let label: HTMLSpanElement | undefined;
+  if (loading) {
+    loading.className = 'character-create-loading'; loading.setAttribute('role', 'status');
+    const spinner = document.createElement('i'); spinner.setAttribute('aria-hidden', 'true');
+    label = document.createElement('span'); label.textContent = '캐릭터에 접속하는 중입니다…';
+    loading.append(spinner, label); document.body.append(loading);
+  }
+  try {
+    const sync = ui.market.sync;
+    if (!await sync.flush()) throw new Error('현재 캐릭터 저장 결과를 확인한 뒤 다시 시도하세요.');
+    await accountRequest(action, { slot, name, gender, job, revision: sync.revision }, ui.session.token);
+    if (label) label.textContent = '사냥터에 입장하는 중입니다…';
+    onReady?.();
+    location.reload();
+  } catch (error) { loading?.remove(); throw error; }
 }
 
 async function deleteCharacter(ui: Interface, character: CharacterSummary): Promise<void> {

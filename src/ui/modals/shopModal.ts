@@ -5,7 +5,7 @@ import { loadCharacters } from './charactersModal';
 export type ShopCatalog = {
   wallet: { diamonds: number; maxSlots: number };
   diamondPacks: { id: string; diamonds: number; price: number }[];
-  packages: { id: string; name: string; diamonds: number; available: boolean }[];
+  packages: { id: string; name: string; diamonds: number; available: boolean; expiresAt?: number }[];
   paymentReady: boolean;
 };
 export type ShopCheckout = { orderId: string; orderName: string; amount: number; customerKey: string; clientKey: string };
@@ -62,7 +62,8 @@ export function renderShop(ui: Interface, dialog: HTMLElement): void {
     for (const pack of catalog.packages) {
       const card = element('article', 'shop-card');
       card.append(element('strong', '', pack.name), element('span', '', `◆ ${pack.diamonds.toLocaleString('ko-KR')}개`));
-      const buy = button(pack.available ? '구매' : pack.id === 'slot' ? '최대 슬롯' : '준비 중', () => { void buyPackage(ui, pack.id).catch(error => ui.message(error instanceof Error ? error.message : String(error))); });
+      if (pack.id === 'all_idle_30d' && Number(pack.expiresAt ?? 0) > Date.now()) card.append(element('span', '', `이용 중 · ${new Date(pack.expiresAt!).toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul' })}까지`));
+      const buy = button(pack.available ? pack.id === 'all_idle_30d' && Number(pack.expiresAt ?? 0) > Date.now() ? '30일 연장' : '구매' : pack.id === 'slot' ? '최대 슬롯' : '준비 중', () => { void buyPackage(ui, pack.id).catch(error => ui.message(error instanceof Error ? error.message : String(error))); });
       buy.disabled = !pack.available; buy.className = 'shop-buy'; card.append(buy); grid.append(card);
     }
   }
@@ -70,11 +71,11 @@ export function renderShop(ui: Interface, dialog: HTMLElement): void {
 }
 
 async function buyPackage(ui: Interface, id: string): Promise<void> {
-  if (id !== 'slot') return;
-  const result = await requestShop<{ wallet: ShopCatalog['wallet'] }>(ui, 'buySlot', { requestId: crypto.randomUUID() });
+  if (id !== 'slot' && id !== 'all_idle_30d') return;
+  const result = await requestShop<{ wallet: ShopCatalog['wallet'] }>(ui, id === 'slot' ? 'buySlot' : 'buyAllIdle', { requestId: crypto.randomUUID() });
   if (ui.shopCatalog) ui.shopCatalog.wallet = result.wallet;
   await loadShop(ui); await loadCharacters(ui);
-  ui.message('캐릭터 슬롯이 추가되었습니다.');
+  ui.message(id === 'slot' ? '캐릭터 슬롯이 추가되었습니다.' : '전 슬롯 방치가 활성화되었습니다.');
 }
 
 async function startCheckout(ui: Interface, packId: string): Promise<void> {

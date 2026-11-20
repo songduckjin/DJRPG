@@ -83,7 +83,7 @@ export class Interface {
   saveStatus = '저장됨';
   confirmReset = false;
   offlineReward?: OfflineReward;
-  characterList?: { characters: CharacterSummary[]; activeSlot: number; maxSlots: number; revision: number };
+  characterList?: { characters: CharacterSummary[]; activeSlot: number; maxSlots: number; revision: number; allIdleExpiresAt?: number; loadedAt?: number };
   characterPage = 0;
   characterCreateSlot = 2;
   warehouseItems?: Item[];

@@ -3,6 +3,7 @@ const HOUR = 3600000, DAY = 24 * HOUR;
 export const UPDATE_NOTICE_ID = 'update-2026-11-20';
 /** 우편 만료 = 2026-11-28 00:00 KST. 이 시각을 넘겨 처음 접속한 계정에는 보상을 붙이지 않는다. */
 export const UPDATE_NOTICE_UNTIL = Date.UTC(2026, 10, 27, 15, 0, 0);
+export const DIAMOND_MAIL_ID = 'all-idle-launch-diamonds-2026-11-20';
 const UPDATE_NOTICE_TITLE = '[업데이트 안내] 전투·가방 편의성 및 끝없는 던전 개선';
 const UPDATE_NOTICE_BODY = `안녕하세요, 모험가님!
 더 쾌적한 사냥과 파밍을 위해 아래 내용이 업데이트되었습니다.
@@ -44,7 +45,7 @@ export function periods(now = Date.now()) {
   const monday = midnight - ((day.getUTCDay() + 6) % 7) * DAY;
   return { daily: String(midnight / DAY), weekly: String(monday / DAY), dailyEnd: midnight + DAY - 4 * HOUR, weeklyEnd: monday + 7 * DAY - 4 * HOUR };
 }
-export function advanceJourney(state, before, save, now = Date.now()) {
+export function advanceJourney(state, before, save, now = Date.now(), diamondMailEligible = false) {
   const keys = periods(now);
   state ??= { achievements: [], mail: [{ id: 'welcome-v1', title: '황야에 오신 것을 환영합니다', sender: '운영팀', body: '모험을 시작하는 데 도움이 되길 바랍니다.', createdAt: now, expiresAt: now + 7 * DAY, gold: 1000, books: 1, claimedAt: null, read: false }] };
   for (const kind of ['daily', 'weekly']) {
@@ -57,11 +58,18 @@ export function advanceJourney(state, before, save, now = Date.now()) {
   }
   state.achievements ??= []; state.mail ??= [];
   grantUpdateNotice(state, now);
+  if (diamondMailEligible) {
+    state.notices ??= [];
+    if (!state.notices.includes(DIAMOND_MAIL_ID) && !state.mail.some(entry => entry.id === DIAMOND_MAIL_ID)) {
+      state.notices.push(DIAMOND_MAIL_ID);
+      state.mail.push({ id: DIAMOND_MAIL_ID, title: '다이아 1,000개 지급', sender: '운영팀', body: '전 슬롯 방치 기능 출시를 기념해 계정마다 다이아 1,000개를 드립니다.', createdAt: now, expiresAt: null, gold: 0, books: 0, diamonds: 1000, claimedAt: null, read: false });
+    }
+  }
   return state;
 }
 export async function journeyState(tx, row, save = row.save, now = Date.now()) {
   const entry = 'journeyRecord' in row ? row.journeyRecord : (await tx.execute({sql:'SELECT state_json FROM djrpg_journey WHERE account_id=?',args:[row.id]})).rows[0];
-  return advanceJourney(entry ? JSON.parse(entry.state_json) : undefined, row.save, save, now);
+  return advanceJourney(entry ? JSON.parse(entry.state_json) : undefined, row.save, save, now, row.password_hash !== 'guest');
 }
 export const journeyOperation = (id, state) => ({ sql: 'INSERT INTO djrpg_journey VALUES (?,?) ON CONFLICT(account_id) DO UPDATE SET state_json=excluded.state_json', args: [id, JSON.stringify(state)] });
 export const dailyTasks = [
@@ -95,5 +103,5 @@ export function journeyView(state, save, now = Date.now()) {
     return [...rows,{...completionRewards[kind],target:rows.length,current:rows.filter(task=>task.current>=task.target).length,claimed:state[kind].claims.includes('completion')}];
   };
   const achievements = milestones.flatMap(([key,category,name,targets,get])=>targets.map((target,index)=>({id:`${key}-${target}`,category,name:`${name} ${target.toLocaleString('ko-KR')}`,target,current:Math.min(target,Math.floor(get(save)??0)),gold:1000*(index+1),books:index+1,claimed:state.achievements.includes(`${key}-${target}`)})));
-  return {daily:timed('daily',dailyTasks),weekly:timed('weekly',weeklyTasks),achievements,mail:state.mail.map(mail=>({...mail,expired:mail.expiresAt<=now})),periods:periods(now),now};
+  return {daily:timed('daily',dailyTasks),weekly:timed('weekly',weeklyTasks),achievements,mail:state.mail.map(mail=>({...mail,expired:mail.expiresAt!==null&&mail.expiresAt<=now})),periods:periods(now),now};
 }

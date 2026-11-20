@@ -3,6 +3,7 @@ import { AUTO_SALVAGE_HINT } from '../autoSalvage';
 import type { JourneyTask } from '../../game/journey';
 import { preferences, savePreferences } from '../../game/preferences';
 import { goldNode } from '../currency';
+import { loadShop } from './shopModal';
 
 function element<K extends keyof HTMLElementTagNameMap>(tag:K,className='',text=''){const node=document.createElement(tag);node.className=className;node.textContent=text;return node;}
 function button(text:string,run:()=>void,disabled=false){const node=element('button','utility-button',text);node.type='button';node.disabled=disabled;node.onclick=run;return node;}
@@ -50,7 +51,7 @@ export function renderUtility(ui:Interface,dialog:HTMLElement,kind:'mail'|'rewar
   if(!data){section.append(element('p','utility-note',journey.loading?'목록을 불러오고 있습니다.':'불러오지 못했습니다. 창을 닫았다 다시 열어주세요.'));dialog.append(section);return;}
   if(kind==='mail'){
     const available=data.mail.filter(mail=>!mail.claimedAt&&!mail.expired),unread=data.mail.filter(mail=>!mail.read).length;
-    const toolbar=element('div','utility-toolbar');toolbar.append(element('span','mail-summary',`새 우편 ${unread} · 미수령 ${available.length}`),button('모두 받기',()=>{void journey.act('journey-claim',{kind:'mail',id:'all'});},!available.length||journey.busy||ui.session.guest),button('수령 완료 삭제',()=>{void journey.act('journey-delete');},!data.mail.some(mail=>mail.claimedAt)||journey.busy||ui.session.guest));section.append(toolbar);
+    const toolbar=element('div','utility-toolbar');toolbar.append(element('span','mail-summary',`새 우편 ${unread} · 미수령 ${available.length}`),button('모두 받기',()=>{void journey.act('journey-claim',{kind:'mail',id:'all'}).then(()=>loadShop(ui));},!available.length||journey.busy||ui.session.guest),button('수령 완료 삭제',()=>{void journey.act('journey-delete');},!data.mail.some(mail=>mail.claimedAt)||journey.busy||ui.session.guest));section.append(toolbar);
     if(!data.mail.length)section.append(element('p','utility-note','받은 우편이 없습니다.'));
     const ready=(mail:typeof data.mail[number])=>!mail.claimedAt&&!mail.expired;
     const mails=[...data.mail].sort((a,b)=>Number(ready(b))-Number(ready(a))||Number(a.read)-Number(b.read)||b.createdAt-a.createdAt);
@@ -60,9 +61,9 @@ export function renderUtility(ui:Interface,dialog:HTMLElement,kind:'mail'|'rewar
       top.append(title,element('span','mail-state',mail.claimedAt?'수령 완료':mail.expired?'기한 만료':mail.read?'미수령':'새 우편'));row.append(top);
       row.append(element('small','mail-sender',`보낸 사람: ${mail.sender}`),element('p','mail-body',mail.body));
       const received=new Date(mail.createdAt).toLocaleString('ko-KR',{timeZone:'Asia/Seoul',month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'});
-      row.append(element('small','mail-date',`받은 날짜 ${received} · ${mail.expired?'수령 기한 만료':`남은 시간 ${Math.max(0,Math.ceil((mail.expiresAt-data.now)/3600000))}시간`}`));
-      const bottom=element('div','utility-toolbar'),reward=element('div','utility-reward');reward.append(goldNode(mail.gold));if(mail.books)reward.append(element('span','',`스킬북 ${mail.books}권`));
-      bottom.append(reward,button(mail.claimedAt?'수령 완료':mail.expired?'기한 만료':'받기',()=>{void journey.act('journey-claim',{kind:'mail',id:mail.id});},!!mail.claimedAt||mail.expired||journey.busy||ui.session.guest));row.append(bottom);section.append(row);
+      row.append(element('small','mail-date',`받은 날짜 ${received} · ${mail.expiresAt===null?'수령 기한 없음':mail.expired?'수령 기한 만료':`남은 시간 ${Math.max(0,Math.ceil((mail.expiresAt-data.now)/3600000))}시간`}`));
+      const bottom=element('div','utility-toolbar'),reward=element('div','utility-reward');if(mail.gold)reward.append(goldNode(mail.gold));if(mail.books)reward.append(element('span','',`스킬북 ${mail.books}권`));if(mail.diamonds)reward.append(element('span','',`◆ 다이아 ${mail.diamonds.toLocaleString('ko-KR')}개`));
+      bottom.append(reward,button(mail.claimedAt?'수령 완료':mail.expired?'기한 만료':'받기',()=>{void journey.act('journey-claim',{kind:'mail',id:mail.id}).then(()=>loadShop(ui));},!!mail.claimedAt||mail.expired||journey.busy||ui.session.guest));row.append(bottom);section.append(row);
     }
   }else{
     if(kind==='rewards'){

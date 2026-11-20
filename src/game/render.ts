@@ -17,6 +17,9 @@ import {
   weaponPartPath, weaponPartPaths, weaponTierCacheLimit, swordlessBodyPath, swordlessBodyPaths
 } from './render/weapons';
 import { bowPartPath, bowPartPaths, bowTierCacheLimit, bowlessBodyPath, type BowMotion } from './render/bows';
+import {
+  staffPartPath, staffPartPaths, staffTierCacheLimit, stafflessBodyPath, type StaffMotion
+} from './render/staffs';
 import { archerHeadlessBodyPath, archerHeadlessBodyPaths, archerHelmPartPaths } from './render/archerHelmets';
 import type { Gender } from './store';
 
@@ -105,6 +108,11 @@ type Animation = keyof typeof animationPaths | keyof typeof attackSheets | keyof
  */
 function bowsheetPaths(gender: Gender): string[] {
   return [bowlessBodyPath(gender, 'idle'), bowlessBodyPath(gender, 'walk'), bowlessBodyPath(gender, 'attack')];
+}
+
+/** 기본 지팡이를 지운 마법사 본체 시트 3장(서기·걷기·공격) — 작업 201. */
+function staffSheetPaths(gender: Gender): string[] {
+  return [stafflessBodyPath(gender, 'idle'), stafflessBodyPath(gender, 'walk'), stafflessBodyPath(gender, 'attack')];
 }
 
 function sliceArmorSheet(sheet: Texture, motion: ArmorMotion): Texture[] {
@@ -201,6 +209,14 @@ export class GameView {
   lastArcherHelmBow = '';
   /** 지금 그려진 활 파츠 스프라이트(0번·로딩 전이면 숨김). */
   heroBow?: Sprite;
+  /** 착용 지팡이 파츠(경로 → 텍스처), 로딩 중인 경로, 최근 티어 (작업 201). */
+  staffSheets = new Map<string, Texture>();
+  staffLoading = new Set<string>();
+  staffTierOrder: number[] = [];
+  /** 마지막으로 본 지팡이 티어. 바뀔 때만 파츠·본체 시트를 미리 받는다. */
+  lastStaffTier = -1;
+  /** 지금 그려진 지팡이 파츠 스프라이트(로딩 전이면 숨김). */
+  heroStaff?: Sprite;
   heroGear = new Map<Slot, { path: string; sprite: Sprite }>();
   /** 독립형 코스튬 렌더러 상태(작업 140). 매니페스트·아틀라스가 없으면 폴백으로 굳는다. */
   costume: CostumeHeroState = createCostumeHeroState();
@@ -426,6 +442,49 @@ export class GameView {
       this.bowLoading.delete(path);
       console.error(`활 파츠 로딩 실패: ${path}`, error);
     });
+  }
+
+  /**
+   * 착용 지팡이 파츠 텍스처 (작업 201). 아직 로딩 전이면 `undefined` — 그 프레임은 기본 지팡이를
+   * 지운 본체 시트만 그려진다(부팅 직후·티어를 막 바꿨을 때).
+   */
+  staffPart(index: number): Texture | undefined {
+    const path = staffPartPath(index);
+    if (!path) return undefined;
+    const texture = this.staffSheets.get(path);
+    if (!texture) { this.loadStaffPart(path); return undefined; }
+    return texture;
+  }
+
+  /** 지팡이 티어가 바뀌면 그 파츠 1장과 기본 지팡이를 지운 본체 시트 6장을 받고, 최근 3티어 밖은 내린다. */
+  prefetchStaff(index: number, gender: Gender): void {
+    if (!this.staffTierOrder.includes(index)) this.staffTierOrder.push(index);
+    for (const path of staffPartPaths(index)) this.loadStaffPart(path);
+    for (const path of staffSheetPaths(gender)) this.loadArmorSheet(path);
+    while (this.staffTierOrder.length > staffTierCacheLimit) {
+      const oldest = this.staffTierOrder.shift() as number;
+      for (const path of staffPartPaths(oldest)) {
+        if (this.staffSheets.delete(path)) void Assets.unload(path).catch(() => undefined);
+      }
+    }
+  }
+
+  private loadStaffPart(path: string): void {
+    if (this.staffSheets.has(path) || this.staffLoading.has(path)) return;
+    this.staffLoading.add(path);
+    void Assets.load<Texture>(path).then(texture => {
+      texture.source.scaleMode = 'linear';
+      this.staffSheets.set(path, texture);
+      this.staffLoading.delete(path);
+    }).catch(error => {
+      this.staffLoading.delete(path);
+      console.error(`지팡이 파츠 로딩 실패: ${path}`, error);
+    });
+  }
+
+  /** 기본 지팡이를 지운 마법사 본체 시트의 프레임 (작업 201). */
+  staffBodyFrame(gender: Gender, motion: StaffMotion, frame: number): Texture | undefined {
+    return this.bodySheetFrame(stafflessBodyPath(gender, motion), motion, frame);
   }
 
   /**
