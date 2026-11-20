@@ -1,15 +1,17 @@
-// What a boss leaves on the floor (작업 194).
+// What a boss leaves on the floor (작업 194, 195).
 //
-// A boss appears every fifth floor, so its kill is the one moment that should read as a haul: five
-// random items and its gold split into ten heaps that scatter around the body. The items keep the
-// field's own equipment/skill-book odds (the same `equipmentDropChance` : `skillBookDropChance` split
-// a normal kill uses), and the heaps add up to exactly the gold the kill already pays — the shower is
-// how that gold is shown, never a second payment. Both the hunting field and the dungeon preview use
-// this table, so a boss drops the same way in either place.
+// The gold half is shared: a boss's gold hits the floor in ten heaps that scatter around the body,
+// and the heaps add up to exactly the gold the kill already pays — the shower is how that gold is
+// shown, never a second payment. Both the hunting field and the dungeon use that.
+//
+// The item half is the dungeon's alone. The dungeon is a ten-floor preview with a boss on floors 5
+// and 10, so its boss leaves five random items plus the heaps (`bossItems`); the main field hands out
+// no items of its own for a boss and keeps the one chance roll every kill makes (작업 195 — the user's
+// "메인층은 금화만 10무 더기" correction).
 
 import { equipmentDropChance, rollItem, rollSkillBook, skillBookDropChance, type Item } from './items';
 
-/** Random items a boss leaves on the ground. */
+/** Random items a dungeon boss leaves on the ground. The main field drops none of these for a boss. */
 export const BOSS_ITEM_DROPS = 5;
 /** Heaps a boss's gold hits the floor in. */
 export const BOSS_GOLD_PILES = 10;
@@ -23,7 +25,7 @@ export function rollBossItem(floor: number): Item {
   return Math.random() * (equipment + book) < equipment ? rollItem(floor, false, true) : rollSkillBook(floor);
 }
 
-/** The `BOSS_ITEM_DROPS` random items a boss leaves behind. */
+/** The `BOSS_ITEM_DROPS` random items a dungeon boss leaves behind. */
 export function bossItems(floor: number): Item[] {
   return Array.from({ length: BOSS_ITEM_DROPS }, () => rollBossItem(floor));
 }

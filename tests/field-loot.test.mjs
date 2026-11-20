@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import './ts-loader.mjs';
 const { LOOT_REST_SECONDS, LOOT_ABSORB_SECONDS, LOOT_FAN, LOOT_GAP, LOOT_DEPTH, lootRestSpots, lootAbsorbProgress, lootAbsorbPoint } = await import('../src/game/loot.ts');
 const { BOSS_GOLD_PILES, BOSS_ITEM_DROPS, bossGoldPiles } = await import('../src/game/bossLoot.ts');
-const { GOLD_PILE, GOLD_PILE_RX } = await import('../src/game/render/goldPile.ts');
+const { GOLD_PILE_ART, GOLD_PILE_H, GOLD_PILE_RX, GOLD_PILE_W } = await import('../src/game/render/goldPile.ts');
 const { World } = await import('../src/game/world.ts');
 const { freshSave } = await import('../src/game/store.ts');
 
@@ -179,21 +179,24 @@ test('a field drop makes one small hop and lands with a single soft tap', () => 
   }
 });
 
-test('a coin drop is a small heap of flat antique coins on the floor', () => {
-  assert(GOLD_PILE.length >= 2 && GOLD_PILE.length <= 3, 'two or three coins make the heap');
-  for (const coin of GOLD_PILE) {
-    assert(coin.size >= 14 && coin.size <= 20, `each coin is 14~20px wide (got ${coin.size})`);
-    assert(coin.squash >= .5 && coin.squash <= .68, `each coin is squashed flat (got ${coin.squash})`);
-    assert(coin.dy <= 0, 'no coin floats under the ground or far above the heap');
-    assert(coin.tint < 0xffffff, 'each coin is tinted to a heavier antique gold, not left as it is');
-  }
+test('a coin drop is one crisp heap of flat antique coins on the floor', () => {
+  // The heap is its own art, drawn at the size it is shown: no shrinking of the coin icon and no
+  // per-drop squash, which is what smeared the old 15~19px coins (작업 195).
+  const art = readFileSync(new URL('../public/assets/icons/gold-pile.png', import.meta.url));
+  assert(art.subarray(1, 4).toString('ascii') === 'PNG', 'the heap art is a PNG');
+  assert(GOLD_PILE_ART === '/assets/icons/gold-pile.png', 'both screens load the heap by this path');
+  // Built at twice the display size — one texel per device pixel on the sharpest phone the canvas uses.
+  assert.equal(art.readUInt32BE(16), GOLD_PILE_W * 2, 'the art is 2× wide');
+  assert.equal(art.readUInt32BE(20), GOLD_PILE_H * 2, 'the art is 2× tall');
+  assert(GOLD_PILE_W >= 40 && GOLD_PILE_W <= 48, `the heap is big enough to read (got ${GOLD_PILE_W})`);
+  assert(GOLD_PILE_H >= 16 && GOLD_PILE_H <= 24, `and flat rather than square (got ${GOLD_PILE_H})`);
   const source = readFileSync(new URL('../src/game/render/drops.ts', import.meta.url), 'utf8');
-  assert.match(source, /for \(const coin of GOLD_PILE\)/, 'the field draws every coin of the heap');
-  assert.match(source, /sprite\.height = coin\.size \* coin\.squash/, 'the squash is what lays the coin down');
-  assert.match(source, /sprite\.tint = coin\.tint/, 'and the antique tint is applied');
+  assert.match(source, /sheetTexture\(view, GOLD_PILE_ART\)/, 'the field loads the heap art');
+  assert.match(source, /sprite\.width = GOLD_PILE_W; sprite\.height = GOLD_PILE_H/, 'and draws it at its own size');
+  assert.doesNotMatch(source, /sprite\.height = coin\.size \* coin\.squash/, 'nothing squashes a coin at draw time');
   assert.doesNotMatch(source, /COIN_SIZE/, 'the single upright 30px coin is gone');
-  assert.doesNotMatch(source, /coin\.width = COIN_SIZE/, 'nothing draws the old one-coin icon');
-  assert(GOLD_PILE_RX * 2 <= 40, 'the heap keeps the footprint of a drop on the floor');
+  assert.doesNotMatch(source, /gold-coin\.png/, 'the detailed coin icon is not shrunk into a heap any more');
+  assert(GOLD_PILE_RX * 2 <= 48, 'the heap keeps the footprint of a drop on the floor');
 });
 
 test('a field coin always lies behind the hero, the monsters and every item', () => {
@@ -209,22 +212,49 @@ test('a field coin always lies behind the hero, the monsters and every item', ()
   assert(behind >= 0 && actors > behind && front > actors, `loot behind (${behind}) must precede the actors (${actors}) and loot in front (${front})`);
 });
 
-test('a boss kill scatters its gold in ten heaps and leaves five random items', () => {
+test('a boss kill scatters its gold in ten heaps and leaves only the chance item', () => {
   assert.equal(BOSS_GOLD_PILES, 10);
+  // The main field's boss drops gold only: the dungeon's five-item haul stays in the dungeon (작업 195).
   assert.equal(BOSS_ITEM_DROPS, 5);
   const world = quiet();
   const floor = world.save.floor, gold = 70 * floor, paid = world.save.gold;
   const boss = { x: 60, y: 20, hp: 0, maxHp: 10, boss: true, hit: 0, step: 0, moving: false, knockX: 0, knockY: 0, slow: 0 };
-  world.kill(boss);
+  const rolls = [0.999, 0.999];
+  const random = Math.random;
+  Math.random = () => rolls.length ? rolls.shift() : random();
+  try { world.kill(boss); } finally { Math.random = random; }
   assert.equal(world.save.gold, paid + gold, 'the boss still pays its gold exactly once');
   assert.equal(world.coins.length, BOSS_GOLD_PILES, 'the gold hits the floor in ten heaps');
   assert.equal(world.coins.reduce((sum, coin) => sum + coin.gold, 0), gold, 'the ten heaps add up to the gold paid');
-  assert.equal(world.drops.length, BOSS_ITEM_DROPS, 'five random items fall at once');
+  assert.equal(world.drops.length, 0, 'no item is handed out beyond the roll — the boss leaves gold alone');
   // Every heap is its own drop with its own point and its own fall, so they shower instead of stack.
   assert(bossGoldPiles(gold).every(amount => amount > 0) && bossGoldPiles(gold).reduce((a, b) => a + b, 0) === gold);
   assert.equal(new Set(world.coins.map(coin => `${Math.round(coin.x)},${Math.round(coin.y)}`)).size, BOSS_GOLD_PILES, 'no two heaps share a pixel');
   for (const coin of world.coins) assert(Math.hypot(coin.x - boss.x, coin.y - boss.y) <= 46, 'a heap stays around the body');
+});
+
+test('a boss keeps the ordinary chance roll for items, never five at once', () => {
+  // A lucky boss kill still drops what the field drop table says it drops: at most one piece of
+  // equipment and one skill book, the boss rates, from the same single roll a normal kill makes.
+  const hunt = () => {
+    const world = quiet();
+    const boss = { x: 60, y: 20, hp: 0, maxHp: 10, boss: true, hit: 0, step: 0, moving: false, knockX: 0, knockY: 0, slow: 0 };
+    const random = Math.random;
+    Math.random = () => 0;
+    try { world.kill(boss); } finally { Math.random = random; }
+    return world;
+  };
+  const world = hunt();
+  assert(world.drops.length <= 2, 'a boss leaves at most the two chance drops');
+  assert(world.drops.length >= 1, 'a certain roll still drops an item');
   for (const drop of world.drops) assert(drop.item.name.length > 0 && drop.item.id, 'each item is a real roll');
+  const source = readFileSync(new URL('../src/game/world.ts', import.meta.url), 'utf8');
+  assert.doesNotMatch(source, /bossItems\(/, 'the field no longer hands a boss five random items');
+  assert.doesNotMatch(source, /BOSS_ITEM_DROPS/, 'and never counts them');
+  // The field's own rolls are the ones a boss makes, so a boss uses the boss rate the table already has.
+  assert.match(source, /equipmentDropChance\(this\.save\.floor, boss\)/, 'equipment uses the kill’s own rate');
+  assert.match(source, /rollItem\(this\.save\.floor, guaranteed, boss\)/, 'and the item is rolled for a boss too');
+  assert.match(source, /skillBookDropChance\(this\.save\.floor, boss\)/, 'the skill book too');
 });
 
 test('a normal kill still leaves one coin and only the chance item', () => {

@@ -1,22 +1,20 @@
-// The heap of coins a gold drop leaves on the floor (작업 194).
+// The heap of coins a gold drop leaves on the floor (작업 194, art 작업 195).
 //
 // The old drop was one 30px coin standing upright, so a kill read like a platform-game pickup. A coin
-// lying on this floor is flat instead: two or three small coins, each squashed to roughly six tenths
-// of its height and tinted to a heavier antique gold, set a few pixels apart so they read as a heap.
-// Both screens draw this same table — the field renderer as Pixi sprites and the dungeon as DOM
-// images — so one coin looks the same wherever it falls. A heap carries no outer light at all.
+// lying on this floor is flat instead: a small heap of antique coins on the floor, drawn as its own
+// art at the size it is shown (`GOLD_PILE_W` × `GOLD_PILE_H`). It used to be the 256px
+// `gold-coin.png` shrunk to 15~19px per coin and squashed with `scaleY`, which smeared the sword
+// emblem and the ridged edge into a mush; the dedicated heap (built by `scripts/build-gold-pile.py`
+// at 2× the display size, the largest device pixel ratio the canvas draws at) keeps the coins, their
+// bronze rims and the engraved mark crisp. Both screens draw this one image — the field renderer as a
+// Pixi sprite and the dungeon as a DOM image — so a heap looks the same wherever it falls. A heap
+// carries no outer light at all.
 
-/** One coin of a heap. `dx` is pixels right of the spot the drop fell on, `dy` pixels above the
- *  floor (negative is up, 0 rests on the floor), `size` the coin's width and `squash` its height as
- *  a share of that width — the compression that makes a standing coin lie flat. */
-export type GoldCoin = { dx: number; dy: number; size: number; squash: number; tint: number };
+/** The heap art. One image for the whole pile, drawn at `GOLD_PILE_W` × `GOLD_PILE_H`. */
+export const GOLD_PILE_ART = '/assets/icons/gold-pile.png';
 
-/** The coins of one heap, lowest first so each coin overlaps the ones already on the floor. */
-export const GOLD_PILE: readonly GoldCoin[] = [
-  { dx: -9, dy: 0, size: 19, squash: .58, tint: 0xdcd0b8 },
-  { dx: 8, dy: -1, size: 17, squash: .6, tint: 0xc8bda6 },
-  { dx: 0, dy: -8, size: 15, squash: .56, tint: 0xf0e4cc },
-];
+/** Size the heap is drawn at on screen, in CSS pixels — the same on the field and in the dungeon. */
+export const GOLD_PILE_W = 44, GOLD_PILE_H = 20;
 
 /** Half the heap's footprint and the height of its ground shadow, in pixels. */
-export const GOLD_PILE_RX = 17, GOLD_PILE_RY = 4;
+export const GOLD_PILE_RX = GOLD_PILE_W / 2, GOLD_PILE_RY = 4.5;

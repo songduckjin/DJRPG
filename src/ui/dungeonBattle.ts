@@ -149,8 +149,9 @@ class DungeonWorld extends World {
   override kill(enemy:Enemy):void { this.slain++;this.effects.push({x:enemy.x,y:enemy.y,kind:'death',age:0,duration:.7,angle:0});this.dropLoot(enemy); }
   // Same rewards the field grants, kept as ground loot for display only: gold on every kill and,
   // on the test 50% gate, one item chosen by the field's equipment/skillbook drop odds. A boss
-  // (5층·10층, 작업 194) leaves the field haul instead — five random items and its gold in ten heaps
-  // scattered around the body, the heaps still adding up to the 70×floor the kill already paid.
+  // (5층·10층, 작업 194) leaves five random items and its gold in ten heaps scattered around the body,
+  // the heaps still adding up to the 70×floor the kill already paid. The main field's boss drops only
+  // the heaps and keeps the ordinary chance roll (작업 195) — this five-item haul is the dungeon's.
   private dropLoot(enemy:Enemy):void {
     const floor=this.save.floor;
     if(enemy.boss){

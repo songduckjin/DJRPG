@@ -1,5 +1,5 @@
 import {createLootOutline,LOOT_OUTLINE_PAD} from './lootOutline';
-import {GOLD_PILE,GOLD_PILE_RX,GOLD_PILE_RY} from './goldPile';
+import {GOLD_PILE_ART,GOLD_PILE_H,GOLD_PILE_RX,GOLD_PILE_RY,GOLD_PILE_W} from './goldPile';
 import {captureLootGround,projectLootGround} from '../lootGround';
 import { Assets, Container, Graphics, Rectangle, Sprite, Texture } from 'pixi.js';
 import type { Coin, Drop, World } from '../world';
@@ -81,19 +81,15 @@ function lootArtTexture(view: GameView, item: Item): Texture | undefined {
  *  added when the art has not arrived yet; the caller keeps a diamond marker until it does. */
 function attachArt(view: GameView, body: Container, gold: boolean, item: Item | undefined, ink: number): Sprite[] {
   if (gold) {
-    const texture = sheetTexture(view, '/assets/icons/gold-coin.png');
+    const texture = sheetTexture(view, GOLD_PILE_ART);
     if (!texture) return [];
-    // A heap of coins lying flat on the floor: two or three small coins, each squashed and tinted
-    // to antique gold, set a few pixels apart (see `render/goldPile`). No outer light at all.
-    const coins: Sprite[] = [];
-    for (const coin of GOLD_PILE) {
-      const sprite = new Sprite(texture);
-      sprite.anchor.set(.5, 1);
-      sprite.width = coin.size; sprite.height = coin.size * coin.squash;
-      sprite.x = coin.dx; sprite.y = coin.dy; sprite.tint = coin.tint;
-      body.addChild(sprite); coins.push(sprite);
-    }
-    return coins;
+    // A heap of coins lying flat on the floor: one piece of art drawn at the size it was built for
+    // (see `render/goldPile`), so nothing is squashed or shrunk per drop. No outer light at all.
+    const sprite = new Sprite(texture);
+    sprite.anchor.set(.5, 1);
+    sprite.width = GOLD_PILE_W; sprite.height = GOLD_PILE_H;
+    body.addChild(sprite);
+    return [sprite];
   }
   const texture = lootArtTexture(view, item!);
   if (!texture) return [];
