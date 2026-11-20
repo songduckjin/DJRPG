@@ -1,5 +1,6 @@
 import type { Gender, Save } from '../store';
 import { baseItemIndex } from '../items';
+import { pilotSheet } from './pilotAssets';
 
 /**
  * 마법사 전용 모자·투구 10종 외형 (작업 204).
@@ -40,12 +41,12 @@ const MAGE_HEADLESS_ROOT = '/assets/pilot-25d/mage_headless';
 /** 파츠 PNG 파일명. 인덱스가 범위를 벗어나면 `undefined`(호출부는 투구를 그리지 않는다). */
 export function mageHelmPartPath(gender: Gender, index: number): string | undefined {
   if (!Number.isInteger(index) || index < 0 || index >= MAGE_HELM_COUNT) return undefined;
-  return `${MAGE_HELM_ROOT}/${gender}_${index}_v1.png`;
+  return pilotSheet(`${MAGE_HELM_ROOT}/${gender}_${index}_v1.png`);
 }
 
 /** 부팅 프리로드용 20장 목록(장당 9~19KB). */
 export const mageHelmPartPaths: readonly string[] = ['male', 'female'].flatMap(gender =>
-  Array.from({ length: MAGE_HELM_COUNT }, (_, index) => `${MAGE_HELM_ROOT}/${gender}_${index}_v1.png`));
+  Array.from({ length: MAGE_HELM_COUNT }, (_, index) => pilotSheet(`${MAGE_HELM_ROOT}/${gender}_${index}_v1.png`)));
 
 /**
  * 머리 없는 마법사 본체 시트 (작업 204).
@@ -55,7 +56,7 @@ export const mageHelmPartPaths: readonly string[] = ['male', 'female'].flatMap(g
  */
 export function mageHeadlessBodyPath(gender: Gender, motion: MageHelmMotion, staffless = false): string {
   const directory = staffless ? `${MAGE_HEADLESS_ROOT}/nostaff` : MAGE_HEADLESS_ROOT;
-  return `${directory}/mage_${gender}_${motion}_v1.png`;
+  return pilotSheet(`${directory}/mage_${gender}_${motion}_v1.png`);
 }
 
 /** 머리 없는 시트 3장(서기·걷기·공격). 지팡이 착용 여부에 따라 판이 다르다. */

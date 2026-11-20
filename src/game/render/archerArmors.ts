@@ -1,5 +1,6 @@
 import type { Gender, Save } from '../store';
 import { baseItemIndex, isArcher } from '../items';
+import { pilotSheet } from './pilotAssets';
 
 /**
  * 궁수 갑옷 10종의 전신 시트 (작업 160).
@@ -43,7 +44,7 @@ export function archerArmorSheetPath(
   if (!archerArmorMotionList.includes(motion)) return undefined;
   const root = bowless ? BOWLESS_ARCHER_ARMOR_ROOT : ARCHER_ARMOR_ROOT;
   const directory = headless ? `${root}/headless` : root;
-  return `${directory}/archer_${gender}_armor_${index}_${motion}_v1.png`;
+  return pilotSheet(`${directory}/archer_${gender}_armor_${index}_${motion}_v1.png`);
 }
 
 /** 한 티어의 시트 3장(서기·걷기·사격). 장비를 바꿀 때 미리 받는다. */

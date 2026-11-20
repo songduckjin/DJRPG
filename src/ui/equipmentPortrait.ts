@@ -7,6 +7,7 @@ import { baseItemIndex, isArcher, isMage, usesBaseSheetOnly } from '../game/item
 import { jobOrDefault } from '../game/skills';
 import { helmetArtFor, helmetArtPath, helmetIdlePlacement } from '../game/render/helmets';
 import { armorIndexFor, armorSheetPath } from '../game/render/armors';
+import { pilotSheet } from '../game/render/pilotAssets';
 import { archerArmorIndexFor, archerArmorSheetPath } from '../game/render/archerArmors';
 import { mageRobeIndexFor, robeHeadlessSheetPath, robeSheetPath } from '../game/render/robes';
 import { WEAPON_GUARD, weaponIndexFor, weaponPartPath, weaponPose, swordlessBodyPath, usesSwordlessBody } from '../game/render/weapons';
@@ -45,7 +46,7 @@ export function equipmentFallbackPortrait(save: Save): string {
       if (helmeted) return archerHeadlessBodyPath(save.gender, 'idle', bowless);
       return bowless
         ? bowlessBodyPath(save.gender, 'idle')
-        : `/assets/pilot-25d/archer_${save.gender}_idle_v1.png?v=2`;
+        : pilotSheet(`/assets/pilot-25d/archer_${save.gender}_idle_v1.png`);
     }
     // 작업 201: 마법사는 지팡이를 찼으면 기본 지팡이를 지운 서기 시트 위에 지팡이 파츠를 얹는다.
     // 작업 204: 투구를 쓰면 필드와 같은 자리에서 머리를 지운 시트를 쓴다(지팡이 착용 여부로 판이 갈린다).
@@ -62,9 +63,9 @@ export function equipmentFallbackPortrait(save: Save): string {
       if (helm) return mageHeadlessBodyPath(save.gender, 'idle', staffless);
       return staffless
         ? stafflessBodyPath(save.gender, 'idle')
-        : `/assets/pilot-25d/mage_${save.gender}_idle_v1.png?v=2`;
+        : pilotSheet(`/assets/pilot-25d/mage_${save.gender}_idle_v1.png`);
     }
-    return `/assets/pilot-25d/${jobOrDefault(save.job)}_${save.gender}_idle_v1.png`;
+    return pilotSheet(`/assets/pilot-25d/${jobOrDefault(save.job)}_${save.gender}_idle_v1.png`);
   }
   // 투구를 쓰면 필드와 같은 머리 없는 본체 위에 투구 파츠를 얹는다(작업 152).
   const headless = !!save.equipment.helmet;
@@ -77,9 +78,9 @@ export function equipmentFallbackPortrait(save: Save): string {
     if (path) return path;
   }
   if (swordless) return swordlessBodyPath(save.gender, 'idle', headless);
-  if (headless) return `/assets/pilot-25d/headless/warrior_${save.gender}_idle_v1.png?v=2`;
+  if (headless) return pilotSheet(`/assets/pilot-25d/headless/warrior_${save.gender}_idle_v1.png`);
   // 작업 222: 서기 시트를 낮은 양손 그립으로 다시 구워 `?v=2`(render.ts·helmets.ts 와 같은 규칙).
-  return `/assets/pilot-25d/warrior_${save.gender}_idle_v1.png?v=2`;
+  return pilotSheet(`/assets/pilot-25d/warrior_${save.gender}_idle_v1.png`);
 }
 
 /** 장비창에 합성하는 대검 파츠(작업 156). 파츠는 idle 자세 그대로다. */

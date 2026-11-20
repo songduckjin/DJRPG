@@ -212,12 +212,12 @@ test('궁수는 전사용 갑옷·대검을 그리지 않고, 궁수 갑옷·투
   save.equipment.weapon = { id: 'w', name: '황혼의 혈염 장궁', slot: 'weapon', rarity: 'rare', stats: { attack: 30 } };
   const plan = equipmentPortraitPlan(save);
   // 작업 205: 궁수 갑옷 1~9번은 그 티어의 **머리 지운** 갑옷 시트(활도 지운 판) 위에 궁수 투구·활 파츠를 얹는다.
-  assert.equal(plan.base, '/assets/pilot-25d/archer_armors/nobow/headless/archer_female_armor_7_idle_v1.png');
+  assert.equal(plan.base, '/assets/pilot-25d/archer_armors/nobow/headless/archer_female_armor_7_idle_v1.png?v=3');
   assert.equal(plan.helmet, undefined, '전사 투구 파츠는 궁수에게 쓰지 않는다');
   assert.equal(plan.weapon, undefined, '전사 대검 파츠는 궁수에게 쓰지 않는다');
-  assert.equal(plan.archerHelm?.path, '/assets/pilot-25d/archer_helms/female_3_v1.png');
-  assert.equal(plan.bow?.path, '/assets/pilot-25d/bows/bow_6_v1.png');
-  assert.equal(plan.key, 'archer:female:a7:/assets/pilot-25d/bows/bow_6_v1.png:/assets/pilot-25d/archer_helms/female_3_v1.png');
+  assert.equal(plan.archerHelm?.path, '/assets/pilot-25d/archer_helms/female_3_v1.png?v=3');
+  assert.equal(plan.bow?.path, '/assets/pilot-25d/bows/bow_6_v1.png?v=3');
+  assert.equal(plan.key, 'archer:female:a7:/assets/pilot-25d/bows/bow_6_v1.png?v=3:/assets/pilot-25d/archer_helms/female_3_v1.png?v=3');
   // 능력치는 그대로 오른다.
   const bare = archerSave('female');
   assert(totalStats(save).attack > totalStats(bare).attack);
@@ -227,7 +227,7 @@ test('궁수 0번(사냥꾼의 활)은 기본 시트를 그대로 쓰고 활 파
   const save = archerSave('male');
   save.equipment.weapon = { id: 'w0', name: '사냥꾼의 활', slot: 'weapon', rarity: 'common', stats: { attack: 4 } };
   const plan = equipmentPortraitPlan(save);
-  assert.equal(plan.base, '/assets/pilot-25d/archer_male_idle_v1.png?v=2');
+  assert.equal(plan.base, '/assets/pilot-25d/archer_male_idle_v1.png?v=3');
   assert.equal(plan.bow, undefined);
 });
 
@@ -247,10 +247,17 @@ test('궁수 기본 시트 6장은 전사와 같은 셀 규격의 RGBA PNG다', 
 test('궁수 시트 URL은 모두 캐시 버스터(?v=)를 단다', () => {
   // `/assets/*`는 `public/_headers`가 immutable 1년 캐시로 고정한다. 시트를 갈아도 URL이 같으면
   // 브라우저가 옛 그림을 계속 쓰므로, 궁수 시트를 참조하는 곳은 전부 버전 쿼리를 붙여야 한다(작업 159).
+  // 작업 224: 버전은 `render/pilotAssets.ts`의 `PILOT_ASSET_VERSION` 한 곳에서 나오므로, 경로를 직접
+  // 적는 대신 `pilotSheet()`를 거치거나 `?v=N`을 붙인 줄만 통과한다.
   for (const file of ['src/game/render.ts', 'src/ui/equipmentPortrait.ts']) {
     const lines = readFileSync(new URL(`../${file}`, import.meta.url), 'utf8').split('\n').filter(line => line.includes('archer') && line.includes('_v1.png'));
     assert(lines.length > 0, `${file}: 궁수 시트 경로가 없다`);
-    for (const line of lines) assert.doesNotMatch(line, /_v1\.png(?!\?v=\d)/, `${file}: 캐시 버스터 없는 경로 — ${line.trim()}`);
+    for (const line of lines) {
+      assert(
+        /_v1\.png\?v=\d/.test(line) || line.includes('pilotSheet('),
+        `${file}: 캐시 버스터 없는 경로 — ${line.trim()}`
+      );
+    }
   }
   // 작업 210: 캐릭터 선택 카드는 자기 시트 경로를 직접 쓰지 않고 공용 초상화 경로(`equipmentPortrait.ts`)를
   // 그대로 쓴다 — 버전 쿼리 규칙이 한 곳에만 있어야 카드만 옛 그림을 캐시하는 일이 없다.

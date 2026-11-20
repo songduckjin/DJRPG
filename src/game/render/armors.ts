@@ -1,5 +1,6 @@
 import type { Gender, Save } from '../store';
 import { baseItemIndex } from '../items';
+import { PILOT_ASSET_VERSION, pilotSheet } from './pilotAssets';
 
 /**
  * 착용 갑옷 10종의 전신 시트 (작업 155).
@@ -24,19 +25,16 @@ const ARMOR_ROOT = '/assets/pilot-25d/armors';
 const SWORDLESS_ARMOR_ROOT = '/assets/pilot-25d/noweapon/armors';
 
 /**
- * 서기 시트 자산 버전 (작업 222).
+ * pilot-25d 시트 배포본 버전 (작업 222 → 226).
  *
- * 전사 서기 자세를 '낮은 양손 그립'으로 다시 구워 기존 파일명을 덮어썼다. `/assets/*`가 1년
- * 불변(`immutable`) 캐시라 URL 를 바꾸지 않으면 브라우저가 옛 그림을 계속 쓴다. 그래서 서기(idle)
- * 경로에만 `?v=2`를 붙인다(걷기·공격 시트는 같은 파일 그대로). `render.ts`·`weapons.ts`·
- * `helmets.ts`·`equipmentPortrait.ts`가 같은 규칙을 쓰고 `tests/weapon-render.test.mjs`가 감시한다.
+ * `/assets/*`가 1년 불변(`immutable`) 캐시라 URL 를 바꾸지 않으면 브라우저가 옛 그림을 계속 쓴다.
+ * 작업 222는 서기 시트만 다시 구워 서기(`idle`) 경로에만 버전을 붙였고, 작업 226은 알파 채널을
+ * 고치며 걷기·공격·파츠까지 모두 바뀌었으므로 **모든 pilot-25d 경로**에 버전을 붙인다
+ * (`render/pilotAssets.ts`의 `PILOT_ASSET_VERSION` 하나가 기준 — `render.ts`·`weapons.ts`·
+ * `helmets.ts`·`equipmentPortrait.ts`도 같은 값을 쓴다).
  */
-export const WARRIOR_IDLE_ASSET_VERSION = 2;
+export const WARRIOR_IDLE_ASSET_VERSION = PILOT_ASSET_VERSION;
 
-/** 서기 시트만 버전 쿼리를 붙인다. */
-export function withMotionVersion(path: string, motion: string): string {
-  return motion === 'idle' ? `${path}?v=${WARRIOR_IDLE_ASSET_VERSION}` : path;
-}
 
 /**
  * 갑옷 시트 경로. 인덱스가 범위를 벗어나면 `undefined`(호출부는 기준 시트로 폴백).
@@ -51,7 +49,7 @@ export function armorSheetPath(
   if (!armorMotionList.includes(motion)) return undefined;
   const root = swordless ? SWORDLESS_ARMOR_ROOT : ARMOR_ROOT;
   const directory = headless ? `${root}/headless` : root;
-  return withMotionVersion(`${directory}/warrior_${gender}_armor_${index}_${motion}_v1.png`, motion);
+  return pilotSheet(`${directory}/warrior_${gender}_armor_${index}_${motion}_v1.png`);
 }
 
 /** 한 티어의 시트 6장(서기·걷기·공격 × 전신·머리 없음). 장비를 바꿀 때 미리 받는다. */

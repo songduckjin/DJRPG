@@ -1,4 +1,5 @@
 import type { Gender } from '../store';
+import { pilotSheet, pilotSheets } from './pilotAssets';
 
 /**
  * pilot-25d 투구 머리 파츠 (작업 151).
@@ -11,7 +12,7 @@ import type { Gender } from '../store';
  * 이 13장은 서기(`idle`)·걷기(`walk`)의 **정면** 파츠다. 공격은 3/4 옆모습 파츠
  * (`helmetAttackArtPaths`, 작업 154)를 따로 쓴다.
  */
-export const helmetArtPaths = {
+const helmetArtBase = {
   helm_0: '/assets/pilot-25d/helmets/helm_0.png',
   helm_1: '/assets/pilot-25d/helmets/helm_1.png',
   helm_2: '/assets/pilot-25d/helmets/helm_2.png',
@@ -27,7 +28,10 @@ export const helmetArtPaths = {
   helm_female_2: '/assets/pilot-25d/helmets/helm_female_2.png'
 } as const;
 
-export type HelmetArt = keyof typeof helmetArtPaths;
+/** 작업 226: pilot-25d 시트는 파일명을 유지한 채 다시 구우므로 URL 버전을 붙인다. */
+export const helmetArtPaths: { [K in keyof typeof helmetArtBase]: string } = pilotSheets(helmetArtBase);
+
+export type HelmetArt = keyof typeof helmetArtBase;
 export const helmetArtList: readonly HelmetArt[] = Object.keys(helmetArtPaths) as HelmetArt[];
 
 /**
@@ -39,7 +43,7 @@ export const helmetArtList: readonly HelmetArt[] = Object.keys(helmetArtPaths) a
  * 고개 숙임을 담고 있으므로 회전·세로 축소 없이 배치만 하면 된다.
  * 파일명은 `atk/{성별}_{투구 인덱스}_f{프레임}.png` 이고, 앵커도 아래 중앙이다.
  */
-export const helmetAttackArtPaths = {
+const helmetAttackArtBase = {
   atk_male_0_f0: '/assets/pilot-25d/helmets/atk/male_0_f0.png',
   atk_male_0_f1: '/assets/pilot-25d/helmets/atk/male_0_f1.png',
   atk_male_0_f2: '/assets/pilot-25d/helmets/atk/male_0_f2.png',
@@ -122,7 +126,10 @@ export const helmetAttackArtPaths = {
   atk_female_9_f3: '/assets/pilot-25d/helmets/atk/female_9_f3.png'
 } as const;
 
-export type HelmetAtkArt = keyof typeof helmetAttackArtPaths;
+/** 작업 226: 80장 모두 알파가 복원된 파일이라 URL 버전을 붙인다. */
+export const helmetAttackArtPaths: { [K in keyof typeof helmetAttackArtBase]: string } = pilotSheets(helmetAttackArtBase);
+
+export type HelmetAtkArt = keyof typeof helmetAttackArtBase;
 export const helmetAttackArtList: readonly HelmetAtkArt[] = Object.keys(helmetAttackArtPaths) as HelmetAtkArt[];
 
 /** 정면·공격 파츠를 함께 다루는 타입과 경로 조회. */
@@ -158,16 +165,16 @@ export function helmetArtFor(gender: Gender, index: number, motion: HelmetMotion
  */
 export const headlessBodyPaths = {
   male: {
-    // 작업 222: 서기 시트를 낮은 양손 그립으로 갈아 `/assets/*` 불변 캐시를 피해 `?v=2`를 붙인다
-    // (걷기·공격 시트는 그대로라 버전도 그대로다 — render.ts·equipmentPortrait.ts 와 같은 규칙).
-    idle: '/assets/pilot-25d/headless/warrior_male_idle_v1.png?v=2',
-    walk: '/assets/pilot-25d/headless/warrior_male_walk_v1.png',
-    attack: '/assets/pilot-25d/headless/warrior_male_attack_v1.png'
+    // 작업 222 → 226: 서기 시트를 다시 구운 뒤 알파까지 복원했다. 걷기·공격도 같이 바뀌었으므로
+    // 세 동작 모두 `PILOT_ASSET_VERSION`을 붙인다(render.ts·equipmentPortrait.ts 와 같은 규칙).
+    idle: pilotSheet('/assets/pilot-25d/headless/warrior_male_idle_v1.png'),
+    walk: pilotSheet('/assets/pilot-25d/headless/warrior_male_walk_v1.png'),
+    attack: pilotSheet('/assets/pilot-25d/headless/warrior_male_attack_v1.png')
   },
   female: {
-    idle: '/assets/pilot-25d/headless/warrior_female_idle_v1.png?v=2',
-    walk: '/assets/pilot-25d/headless/warrior_female_walk_v1.png',
-    attack: '/assets/pilot-25d/headless/warrior_female_attack_v1.png'
+    idle: pilotSheet('/assets/pilot-25d/headless/warrior_female_idle_v1.png'),
+    walk: pilotSheet('/assets/pilot-25d/headless/warrior_female_walk_v1.png'),
+    attack: pilotSheet('/assets/pilot-25d/headless/warrior_female_attack_v1.png')
   }
 } as const;
 
