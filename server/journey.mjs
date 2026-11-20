@@ -1,12 +1,14 @@
 import { randomUUID } from 'node:crypto';
 import { account, transaction, assertRevision, validateSave, reconcileItems, writeSave, fail, inventoryOwnerQuery } from './database.mjs';
+import { elapsedSince } from './save-guard.mjs';
 import { journeyState, journeyOperation, journeyView, dailyTasks, pouchItem } from './journey-state.mjs';
 import { rollRewardSkillBook } from './skill-ids.mjs';
 function rewards(save, entries) {
   const books = entries.reduce((sum,entry)=>sum+Number(entry.books??0),0);
   // 보물 주머니(작업 207): 전체 완료 보상에 붙은 수량만큼 가방에 넣는다. 주머니는 장비 40칸을 쓰지 않는다.
   const pouches = entries.reduce((sum,entry)=>sum+Number(entry.pouches??0),0);
-  save.gold += entries.reduce((sum,entry)=>sum+entry.gold,0);
+  const gold = entries.reduce((sum,entry)=>sum+Number(entry.gold??0),0);
+  save.gold += gold;
   save.bag ??= [];
   // 우편·보상 스킬북도 세 직업 33종에서 고른다(작업 209) — 예전에는 전사 11종만 나왔다.
   for(let i=0;i<books;i++) {
@@ -14,6 +16,7 @@ function rewards(save, entries) {
     save.bag.push({id:randomUUID(),kind:'skillbook',slot:'skillbook',skillId,rarity:'rare',name,stats:{}});
   }
   for(let i=0;i<pouches;i++) save.bag.push(pouchItem(randomUUID()));
+  return gold;
 }
 export async function snapshot(db,id,options={}) {
   return transaction(db,async tx=>{
@@ -37,21 +40,21 @@ export async function mutate(db,id,input,options={}) {
     if(replay)return {...JSON.parse(replay.response_json),save:row.save,revision:row.revision,journey:journeyView(await journeyState(tx,row,row.save,Date.now(),options.preview ?? false),row.save)};
     assertRevision(row,input.revision); if(input.progress!==undefined)validateSave(input.progress);
     const operations=[];
-    const save=structuredClone(input.progress??row.save);await reconcileItems(tx,id,row.save,save,{slot:row.slot,owned:reads[2].rows,operations});
+    const save=structuredClone(input.progress??row.save);await reconcileItems(tx,id,row.save,save,{slot:row.slot,owned:reads[2].rows,operations,elapsedSeconds:elapsedSince(row.character_updated_at)});
     const now=Date.now(),state=await journeyState(tx,row,save,now,options.preview ?? false),view=journeyView(state,save,now);
     const beforeRewardIds=new Set(save.bag.map(item=>item.id));
-    let selected=[];
+    let selected=[], goldCredit=0;
     if(input.action==='journey-claim'){
       if(!['daily','weekly','achievements','mail'].includes(input.kind))fail(400,'INVALID_KIND','보상 분류를 확인하세요.');
       if(input.kind==='mail'){
         selected=state.mail.filter(entry=>(input.id==='all'||entry.id===input.id)&&!entry.claimedAt&&(entry.expiresAt===null||entry.expiresAt>now));
         if(!selected.length)fail(409,'NOT_AVAILABLE','수령할 우편 보상이 없습니다.');
-        rewards(save,selected);for(const entry of selected){entry.claimedAt=now;entry.read=true;}
+        goldCredit=rewards(save,selected);for(const entry of selected){entry.claimedAt=now;entry.read=true;}
       }else{
         const available=view[input.kind].filter(entry=>!entry.claimed&&entry.current>=entry.target);
         selected=available.filter(entry=>input.id==='all'||entry.id===input.id);
         if(!selected.length)fail(409,'NOT_READY','아직 달성하지 않았거나 이미 수령한 보상입니다.');
-        rewards(save,selected);const claims=input.kind==='achievements'?state.achievements:state[input.kind].claims;
+        goldCredit=rewards(save,selected);const claims=input.kind==='achievements'?state.achievements:state[input.kind].claims;
         claims.push(...selected.map(entry=>entry.id));
         if(input.kind==='daily'&&!state.daily.completed&&dailyTasks.every(task=>state.daily.claims.includes(task.id))){state.daily.completed=true;state.weekly.days=(state.weekly.days??0)+1;}
       }
@@ -79,7 +82,7 @@ export async function mutate(db,id,input,options={}) {
     }
     const message=input.action==='journey-claim'?`${selected.length}개 보상을 수령했습니다.`:input.action==='journey-delete'?'수령 완료 우편을 삭제했습니다.':'우편을 확인했습니다.';
     ops.push({sql:'INSERT INTO djrpg_market_requests VALUES (?,?,?)',args:[id,input.requestId,JSON.stringify({ok:true,message})]});
-    const saved=await writeSave(tx,{...row,skipJourney:true},save,ops);
+    const saved=await writeSave(tx,{...row,skipJourney:true},save,ops,true,{goldCredit});
     const result={ok:true,...saved,message,journey:journeyView(state,save,now)};
     return result;
   });

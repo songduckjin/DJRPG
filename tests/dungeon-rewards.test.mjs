@@ -121,7 +121,9 @@ test('the battlefield pays the rewards once, only on a clear, and saves the acco
   assert.match(source, /if\(battle\.outcome==='clear'\)\{/);
   assert.match(source, /const save=ui\.world\.save,rewards=battle\.clearRewards\(\)/);
   assert.match(source, /claimDungeonRewards\(save,floor,rewards,\{firstClear:floor>dungeonClearedFloor\(save\)/);
-  assert.match(source, /ui\.onSave\(\);ui\.renderStatus\(\);ui\.renderBagBadge\(\)/);
+  // 클리어는 세이브에 적고(변했을 때만 저장), HUD·가방 배지는 항상 다시 그린다.
+  assert.match(source, /if\(ui\.dungeon\.clear\(save,floor\)\)ui\.onSave\(\);/);
+  assert.match(source, /ui\.renderStatus\(\);ui\.renderBagBadge\(\)/);
   assert.match(source, /autoSalvage:ui\.autoSalvage\?ui\.salvageRarity:undefined,autoSalvagePlus:ui\.salvagePlus/);
   // 결과창은 실제 영수증을 그린다.
   assert.match(source, /dungeonRewardMarkup\(receipt\)/);

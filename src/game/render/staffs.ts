@@ -28,8 +28,14 @@ export const staffMotionList: readonly StaffMotion[] = ['idle', 'walk', 'attack'
 const STAFF_ROOT = '/assets/pilot-25d/staffs';
 const NOSTAFF_ROOT = '/assets/pilot-25d/mage_nostaff';
 
-/** 지팡이 파츠·본체 시트는 이번에 새로 만든 파일이라 캐시 버스터 없이 그대로 캐시된다. */
-export const STAFF_ASSET_VERSION = 1;
+/**
+ * 기본 지팡이를 지운 본체 시트의 캐시 버전.
+ *
+ * 작업 201에서 새로 만든 파일이라 버스터가 필요 없었지만, 작업 204에서 남성 서기 본체 시트를
+ * 정수리 잘림 없이 다시 구우면서 `mage_nostaff/mage_male_idle_v1.png` 내용이 바뀌었다.
+ * `/assets/*`는 1년 불변 캐시라 버전을 올려 새 URL로 받게 한다(지팡이 파츠 PNG 자체는 그대로).
+ */
+export const STAFF_ASSET_VERSION = 2;
 
 /**
  * 파츠 PNG 안에서 손이 지팡이를 쥔 그립 점. 모든 파츠가 같은 자리에 그립을 두고 그려졌으므로
@@ -87,6 +93,25 @@ export function staffPose(gender: Gender, motion: StaffMotion, frame: number): S
   return table[staffPoseKey(motion, frame)] ?? table.idle0;
 }
 
+/**
+ * 자세별 파츠 배율 — 표에 없으면 1(파츠 PNG 자체 크기).
+ *
+ * 작업 204에서 남성 서기 본체 시트의 정수리 잘림을 고치며(337px) 본체가 0.83525배 작아졌다.
+ * 지팡이 파츠 PNG는 그 전 셀(337/943)에서 떠 있어 서기에서만 같은 배율로 줄여 그린다. 걷기·공격
+ * 파츠는 각 자세에서 1배이며, 파츠를 새 셀 기준으로 다시 굽기 전까지 이 값이 그 차이를 메운다.
+ */
+const POSE_SCALE: Record<Gender, Record<string, number>> = {
+  male: { idle0: 0.83525 },
+  female: {}
+};
+
+/** 자세 + 파츠 배율. 필드와 장비창이 함께 쓴다. */
+export type StaffPlacement = StaffPose & { scale: number };
+
+export function staffPlacement(gender: Gender, motion: StaffMotion, frame: number): StaffPlacement {
+  return { ...staffPose(gender, motion, frame), scale: POSE_SCALE[gender]?.[staffPoseKey(motion, frame)] ?? 1 };
+}
+
 /** 파츠 PNG 경로. 0~9 밖이면 undefined. */
 export function staffPartPath(index: number): string | undefined {
   if (!Number.isInteger(index) || index < 0 || index >= STAFF_COUNT) return undefined;
@@ -117,7 +142,7 @@ export function usesStafflessBody(save: Save): boolean {
 
 /** 기본 지팡이를 지운 마법사 본체 시트 경로. */
 export function stafflessBodyPath(gender: Gender, motion: StaffMotion): string {
-  return `${NOSTAFF_ROOT}/mage_${gender}_${motion}_v1.png`;
+  return `${NOSTAFF_ROOT}/mage_${gender}_${motion}_v1.png?v=${STAFF_ASSET_VERSION}`;
 }
 
 /** 본체 시트 6장(서기·걷기·공격). */

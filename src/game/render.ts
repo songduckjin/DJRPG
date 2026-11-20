@@ -1,6 +1,6 @@
 import { preferences } from './preferences';
 import { Application, Assets, Container, Graphics, Rectangle, Sprite, Text, Texture, TilingSprite } from 'pixi.js';
-import type { Effect, Enemy, World, Coin, Drop } from './world';
+import type { Effect, Enemy, World, Coin, Drop, HeroAfterimage } from './world';
 import type { LootView } from './render/drops';
 import { wearableAssetPaths, type Slot } from './items';
 import { drawRunes, drawTerrain, drawDust, drawLighting, drawVignette } from './render/field';
@@ -13,6 +13,10 @@ import { projectArenaPoint } from './arena';
 import { createBootProgress } from './bootProgress';
 import { helmetArtList, helmetArtPaths, helmetAttackArtList, helmetAttackArtPaths, headlessBodyPaths } from './render/helmets';
 import { armorFrameIndex, armorSheetPath, armorSheetPaths, type ArmorMotion } from './render/armors';
+import { robeFrameIndex, robeHeadlessSheetPath, robeSheetPath, robeSheetPaths, type RobeMotion } from './render/robes';
+import {
+  ARCHER_ARMOR_COUNT, archerArmorSheetPath, archerArmorSheetPaths, archerArmorTierSheets, type ArcherArmorMotion
+} from './render/archerArmors';
 import {
   weaponPartPath, weaponPartPaths, weaponTierCacheLimit, swordlessBodyPath, swordlessBodyPaths
 } from './render/weapons';
@@ -21,6 +25,9 @@ import {
   staffPartPath, staffPartPaths, staffTierCacheLimit, stafflessBodyPath, type StaffMotion
 } from './render/staffs';
 import { archerHeadlessBodyPath, archerHeadlessBodyPaths, archerHelmPartPaths } from './render/archerHelmets';
+import {
+  mageHeadlessBodyPath, mageHeadlessBodyPaths, mageHelmPartPaths, type MageHelmMotion
+} from './render/mageHelmets';
 import type { Gender } from './store';
 
 const paths = {
@@ -30,7 +37,9 @@ const paths = {
   // `/assets/*`는 immutable 캐시라 시트를 갈면 URL을 바꿔야 브라우저가 즉시 새 그림을 받는다(작업 159).
   archerMale: '/assets/pilot-25d/archer_male_idle_v1.png?v=2', archerFemale: '/assets/pilot-25d/archer_female_idle_v1.png?v=2',
   // 마법사 기본 시트(작업 198) — 같은 362px 셀 좌표계다. 갑옷·투구·지팡이 오버레이는 이번 단계에 없다.
-  mageMale: '/assets/pilot-25d/mage_male_idle_v1.png', mageFemale: '/assets/pilot-25d/mage_female_idle_v1.png',
+  // 작업 204: 남성 서기 시트를 정수리 잘림 없이 다시 구워 `/assets/*` 불변 캐시를 피하려고 `?v=2`를 쓴다
+  // (작업 159 궁수 시트와 같은 규칙 — 여성도 같은 줄에서 함께 올린다).
+  mageMale: '/assets/pilot-25d/mage_male_idle_v1.png?v=2', mageFemale: '/assets/pilot-25d/mage_female_idle_v1.png?v=2',
   // 투구 착용 시에만 쓰는 머리 없는 본체(작업 152) — 같은 셀 좌표계라 배율·앵커를 공유한다.
   pilotMaleHeadless: headlessBodyPaths.male.idle, pilotFemaleHeadless: headlessBodyPaths.female.idle,
   female: '/assets/warrior_female_base.png', armored: '/assets/warrior_armored_swordless.png',
@@ -43,10 +52,14 @@ const paths = {
   maleSword: '/assets/warrior_male_sword.png', femaleSword: '/assets/warrior_female_sword.png',
   skeleton: '/assets/skeleton_warrior.png', boss: '/assets/skeleton_boss.png',
   fxDragonHead: '/assets/fx_dragon_head.png?v=2', fxDragonBody: '/assets/fx_dragon_body.png?v=2', fxSlam: '/assets/fx_wild_stamp.png',
-  fxRage: '/assets/fx_blood_rage.png', fxSlash: '/assets/fx_slash_arc.png',
+  fxRage: '/assets/fx_blood_rage.png', fxFlame: '/assets/fx_rage_flame_v1.png', fxRageGlow: '/assets/fx_rage_glow_v1.png',
+  fxSlash: '/assets/fx_slash_arc.png',
   fxPower: '/assets/fx_power_strike.png', fxDestroy: '/assets/fx_destroy_swing.png', fxHell: '/assets/fx_hell_fire.png',
   // [작업 157] 휘두르기(1번) 확정 시안 — 은빛 검기 + 황금빛 지면 충격파, 검정 배경 add 블렌딩용.
-  fxSlash2: '/assets/fx_slash2.png', fxSlash2Ground: '/assets/fx_slash2_ground.png'
+  fxSlash2: '/assets/fx_slash2.png', fxSlash2Ground: '/assets/fx_slash2_ground.png',
+  // [작업 213] 이단참(좌우 횡베기 2연격) — 1타 정방향·2타 되받아 베기에 같은 검기를 좌우 반전해 쓴다.
+  // `/assets/*`는 immutable 이라 새 파일명으로 배포한다(같은 경로 교체 금지).
+  fxSlash2Dual: '/assets/fx_slash2_dual.png'
 } as const;
 export type Art = keyof typeof paths;
 const animationPaths = {
@@ -128,8 +141,12 @@ function sliceArmorSheet(sheet: Texture, motion: ArmorMotion): Texture[] {
 
 /** 갑옷 시트 캐시에 남겨 두는 티어 수. 티어당 6장이라 3티어면 18장이다. */
 export const armorTierCacheLimit = 3;
+/** 궁수 갑옷 시트 캐시에 남기는 티어 수(작업 160). 티어당 3장이다. */
+export const archerArmorTierCacheLimit = 3;
 /** 대검 파츠 캐시에 남기는 티어 수(작업 156). 티어당 1장이다. */
 export { weaponTierCacheLimit };
+/** 마법사 로브 시트 캐시에 남기는 티어 수(작업 208). 티어당 6장(전신·머리 없음)이다. */
+export const robeTierCacheLimit = 3;
 export const renderAssetPaths = [
   ...Object.values(paths), ...Object.values(animationPaths).flat(),
   ...Object.values(attackSheets), ...Object.values(walkSheets), ...Object.values(wearableAssetPaths),
@@ -138,7 +155,9 @@ export const renderAssetPaths = [
   // 공격 3/4 옆모습 투구 파츠(작업 154) — 남녀 10종 × 공격 4프레임.
   ...helmetAttackArtList.map(art => helmetAttackArtPaths[art]),
   // 궁수 전용 투구 파츠 20장(작업 200) — 전체 셀 PNG 20장이 장당 ~5KB라 부팅 때 함께 받는다.
-  ...archerHelmPartPaths
+  ...archerHelmPartPaths,
+  // 마법사 전용 모자·투구 파츠 20장(작업 204) — 장당 9~19KB(고깔모·후광까지 담은 362×406).
+  ...mageHelmPartPaths
 ];
 type Dust = { x: number; y: number; vx: number; vy: number; age: number; duration: number; size: number };
 type Ghost = { sprites: { sprite: Sprite; dx: number; dy: number }[]; x: number; y: number; age: number; duration: number };
@@ -156,6 +175,10 @@ export class GameView {
   wastelandPlayer = { x: 0, y: 0 };
   terrainTextures: Texture[] = [];
   terrainSprites: Sprite[] = [];
+  /** 블러드 레이지 오라 (작업 214) — 몸 뒤 광휘는 뷰 뒤, 불꽃 혀·불티는 히어로 앞 레이어에 가산으로 그린다. */
+  rageBack = new Container();
+  rageFront = new Container();
+  /** 궁수 호크아이·마법사 아케인 실드가 쓰는 종전의 발밑 마법진(작업 16). 전사 블러드 레이지는 쓰지 않는다. */
   aura!: Sprite;
   dragonBack = new Container();
   /** Ground loot behind the character / in front of him, and the drops they show (see `render/drops`). */
@@ -190,12 +213,19 @@ export class GameView {
   armorTierOrder: string[] = [];
   /** 마지막으로 본 본체 시트 묶음(성별:갑옷:검없음). 바뀔 때만 미리 받는다. */
   lastBodyTier = '';
+  /** 최근에 받은 궁수 갑옷 티어(작업 160) — 전사 갑옷과 따로 센다. */
+  archerArmorOrder: string[] = [];
+  /** 마지막으로 본 궁수 갑옷 티어(성별:인덱스). 바뀔 때만 미리 받는다. */
+  lastArcherArmorTier = '';
   /** 착용 무기 파츠(경로 → 텍스처), 로딩 중인 경로, 최근 티어 (작업 156). */
   weaponSheets = new Map<string, Texture>();
   weaponLoading = new Set<string>();
   weaponTierOrder: number[] = [];
   /** 마지막으로 본 무기 티어. 바뀔 때만 파츠를 미리 받는다. */
   lastWeaponTier = -1;
+  /** 최근에 받은 마법사 로브 묶음 키(작업 208)와 마지막으로 본 티어. */
+  robeTierOrder: string[] = [];
+  lastRobeTier = '';
   /** 지금 그려진 검 파츠 스프라이트(0번·로딩 전이면 숨김). */
   heroWeapon?: Sprite;
   /** 착용 활 파츠(경로 → 텍스처), 로딩 중인 경로, 최근 티어 (작업 160). */
@@ -217,6 +247,11 @@ export class GameView {
   lastStaffTier = -1;
   /** 지금 그려진 지팡이 파츠 스프라이트(로딩 전이면 숨김). */
   heroStaff?: Sprite;
+  /** 마지막으로 본 마법사 투구 인덱스와 (투구:지팡이 착용) 키 (작업 204). */
+  lastMageHelm = -1;
+  lastMageHelmStaff = '';
+  /** 지금 그려진 마법사 투구 파츠 스프라이트(로딩 전이면 숨김). */
+  heroMageHelm?: Sprite;
   heroGear = new Map<Slot, { path: string; sprite: Sprite }>();
   /** 독립형 코스튬 렌더러 상태(작업 140). 매니페스트·아틀라스가 없으면 폴백으로 굳는다. */
   costume: CostumeHeroState = createCostumeHeroState();
@@ -224,6 +259,8 @@ export class GameView {
   /** 보스·정예 이름표(작업 206에서 정예까지 함께 단다). */
   enemyLabels = new Map<Enemy, Text>();
   afterimages: Ghost[] = [];
+  /** 딜레이 크러싱 잔상(작업 212) — 월드의 잔상 기록 하나당 본체 복제본 한 별을 대응시킨다. */
+  crushTrails = new Map<HeroAfterimage, Container>();
   corpses: Fallen[] = [];
   ghostEmissions = new WeakMap<Effect, number>();
   damageLabels = new Map<Effect, Text>();
@@ -271,7 +308,7 @@ export class GameView {
     // 순간에 텍스처가 없어 투구가 한 프레임 사라지는 일이 없도록 부팅 때 모두 올린다.
     const helmetPaths = [
       ...helmetArtList.map(art => helmetArtPaths[art]), ...helmetAttackArtList.map(art => helmetAttackArtPaths[art]),
-      ...archerHelmPartPaths
+      ...archerHelmPartPaths, ...mageHelmPartPaths
     ];
     const helmets = await Promise.all(helmetPaths.map(async path => [path, await loadTexture(path)] as const));
     for (const [path, texture] of helmets) { texture.source.scaleMode = 'linear'; this.helmetTextures.set(path, texture); }
@@ -299,11 +336,13 @@ export class GameView {
     this.hero.anchor.set(.5, .97);
     this.heroLayer.addChild(this.hero);
     this.actors.addChild(this.heroLayer);
+    this.rageBack.blendMode = 'add';
+    this.rageFront.blendMode = 'add';
     this.aura = new Sprite(this.textures.fxRage);
     this.aura.anchor.set(.5);
     this.aura.blendMode = 'add';
     this.aura.alpha = 0;
-    this.app.stage.addChild(this.floor, this.glow, this.ground, this.terrainLayer, this.aura, this.dragonBack, this.ghosts, this.lootBack, this.actors, this.lootFront, this.fallen, this.skillVfx, this.effects, this.labels, this.shade);
+    this.app.stage.addChild(this.floor, this.glow, this.ground, this.terrainLayer, this.aura, this.rageBack, this.dragonBack, this.ghosts, this.lootBack, this.actors, this.lootFront, this.fallen, this.rageFront, this.skillVfx, this.effects, this.labels, this.shade);
     // Loot keeps its own paint order: a coin of a heap stays under an item that fell on it.
     this.lootBack.sortableChildren = true;
     this.lootFront.sortableChildren = true;
@@ -328,11 +367,87 @@ export class GameView {
   }
 
   /**
+   * 궁수 갑옷 시트 프레임(작업 160).
+   *
+   * 전사 갑옷과 같은 `bodySheetFrame` 을 쓰므로 362px 셀 자르기·4프레임 규칙이 같다.
+   * 아직 로딩 전이면 `undefined` 를 돌려주고, `drawHero` 가 스타터 시트로 한 프레임 더 그린다.
+   */
+  archerArmorFrame(
+    gender: Gender, index: number, motion: ArcherArmorMotion, frame: number, bowless = false, headless = false
+  ): Texture | undefined {
+    const path = archerArmorSheetPath(gender, index, motion, bowless, headless);
+    if (!path) return undefined;
+    const texture = this.bodySheetFrame(path, motion, frame);
+    if (texture) return texture;
+    // 아직 로딩 전이면 같은 티어의 다른 판으로 한두 프레임 대신 그린다.
+    // (머리 지운 판 → 머리 있는 판 → 활 지운 판 → 기본 판 순서)
+    for (const [b, h] of [[bowless, false], [bowless, true], [false, false]]) {
+      if (b === bowless && h === headless) continue;
+      const fallback = archerArmorSheetPath(gender, index, motion, b, h);
+      if (!fallback) continue;
+      const fallbackTexture = this.bodySheetFrame(fallback, motion, frame);
+      if (fallbackTexture) return fallbackTexture;
+    }
+    return undefined;
+  }
+
+  /**
+   * 궁수 갑옷 한 티어의 시트 3장을 미리 받고, 최근 3티어 밖은 Pixi 에셋 캐시에서도 내린다(작업 160).
+   * 전사 갑옷(`prefetchBody`)과 캐시 목록을 나눠 서로 밀어내지 않게 한다.
+   */
+  prefetchArcherArmor(gender: Gender, index: number, bowless = false, headless = false): void {
+    if (!Number.isInteger(index) || index < 1 || index >= ARCHER_ARMOR_COUNT) return;
+    const tier = `${gender}:${index}`;
+    if (!this.archerArmorOrder.includes(tier)) this.archerArmorOrder.push(tier);
+    for (const path of archerArmorSheetPaths(gender, index, bowless, headless)) this.loadArmorSheet(path);
+    while (this.archerArmorOrder.length > archerArmorTierCacheLimit) {
+      const oldest = this.archerArmorOrder.shift() as string;
+      const [oldGender, oldIndex] = oldest.split(':');
+      for (const path of archerArmorTierSheets(oldGender as Gender, Number(oldIndex))) {
+        this.armorFrames.delete(path);
+        if (this.armorSheets.delete(path)) void Assets.unload(path).catch(() => undefined);
+      }
+    }
+  }
+
+  /**
    * 갑옷을 입지 않은 본체의 기본 검 없는 시트 프레임(작업 156).
    * 셀 규격이 같으므로 자르기·프레임 선택 규칙도 갑옷 시트와 같다.
    */
   swordlessBodyFrame(gender: Gender, motion: ArmorMotion, headless: boolean, frame: number): Texture | undefined {
     return this.bodySheetFrame(swordlessBodyPath(gender, motion, headless), motion, frame);
+  }
+
+  /**
+   * 착용 로브의 프레임 텍스처 (작업 208). 갑옷 시트와 같은 셀 규격이라 잘라 쓰는 규칙도 같다.
+   * 아직 로딩 전이면 `undefined` 를 돌려주고, `drawHero` 가 기준 시트(스타터 로브)로 그린다.
+   */
+  robeFrame(gender: Gender, index: number, motion: RobeMotion, frame: number, headless = false): Texture | undefined {
+    const path = headless ? robeHeadlessSheetPath(gender, index, motion) : robeSheetPath(gender, index, motion);
+    if (!path) return undefined;
+    let frames = this.armorFrames.get(path);
+    if (!frames) {
+      const sheet = this.armorSheets.get(path);
+      if (!sheet) { this.loadArmorSheet(path); return undefined; }
+      frames = sliceArmorSheet(sheet, motion);
+      this.armorFrames.set(path, frames);
+    }
+    return frames[robeFrameIndex(motion, frame) % frames.length];
+  }
+
+  /** 로브 티어가 바뀌면 그 티어 3장을 받고, 최근 3티어 밖은 내린다(작업 208). */
+  prefetchRobe(gender: Gender, index: number): void {
+    const tier = `${gender}:${index}`;
+    if (!this.robeTierOrder.includes(tier)) this.robeTierOrder.push(tier);
+    for (const path of robeSheetPaths(gender, index)) this.loadArmorSheet(path);
+    while (this.robeTierOrder.length > robeTierCacheLimit) {
+      const oldest = this.robeTierOrder.shift() as string;
+      const [oldGender, oldIndex] = oldest.split(':');
+      for (const path of robeSheetPaths(oldGender as Gender, Number(oldIndex))) {
+        this.armorFrames.delete(path);
+        if (this.armorSheets.delete(path)) void Assets.unload(path).catch(() => undefined);
+      }
+    }
   }
 
   private bodySheetFrame(path: string, motion: ArmorMotion, frame: number): Texture | undefined {
@@ -512,6 +627,22 @@ export class GameView {
     for (const path of archerHeadlessBodyPaths(gender, bowless)) this.loadArmorSheet(path);
   }
 
+  /**
+   * 머리를 지운 마법사 본체 시트의 프레임 (작업 204). 투구를 쓸 때만 부른다.
+   * 갑옷·지팡이 시트와 같은 셀 규격이라 자르기·프레임 선택 규칙도 같다.
+   */
+  mageHeadlessFrame(gender: Gender, motion: MageHelmMotion, frame: number, staffless = false): Texture | undefined {
+    return this.bodySheetFrame(mageHeadlessBodyPath(gender, motion, staffless), motion, frame);
+  }
+
+  /**
+   * 마법사 투구를 쓰기 시작했거나 지팡이 착용이 바뀌면 머리 없는 시트 3장을 미리 받는다.
+   * 파츠 20장은 부팅 프리로드라 여기서 받지 않는다.
+   */
+  prefetchMageHeadless(gender: Gender, staffless: boolean): void {
+    for (const path of mageHeadlessBodyPaths(gender, staffless)) this.loadArmorSheet(path);
+  }
+
   private loadArmorSheet(path: string): void {
     if (this.armorSheets.has(path) || this.armorLoading.has(path)) return;
     this.armorLoading.add(path);
@@ -542,6 +673,8 @@ export class GameView {
     const shake = slam && preferences.shake ? Math.max(0, 1 - slam.age / Math.min(slam.duration, .38)) * (slam.kind === 'hell' ? 8 : 4) : 0;
     this.effects.alpha = preferences.effects === 'low' ? .4 : 1;
     this.skillVfx.alpha = preferences.effects === 'low' ? .35 : 1;
+    this.rageFront.alpha = preferences.effects === 'low' ? .5 : 1;
+    this.rageBack.alpha = preferences.effects === 'low' ? .5 : 1;
     this.dragonBack.alpha = preferences.effects === 'low' ? .35 : 1;
     this.app.stage.position.set(shake ? (Math.random() * 2 - 1) * shake : 0, shake ? (Math.random() * 2 - 1) * shake : 0);
     drawLoot.call(this, world, project, time, dt);

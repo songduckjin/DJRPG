@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { journeyState, journeyOperation } from './journey-state.mjs';
 import { skillBookIdSet, countedInBag } from './skill-ids.mjs';
+import { clampSaveProgress, itemWithinBounds, rewardBudget, elapsedSince } from './save-guard.mjs';
 import { databaseFactory } from './database-config.mjs';
 import { runtimeEnv } from './env.mjs';
 
@@ -17,6 +18,29 @@ export const client = (env = runtimeEnv()) => {
 };
 const initializedSchemas = new Map();
 const sessionColumn = 'ALTER TABLE djrpg_accounts ADD COLUMN session_id TEXT';
+/**
+ * 거래소 스탯 정렬식 (작업 211).
+ *
+ * `server/market.mjs` `snapshot()`은 스탯을 필터·정렬에 함께 쓴다. 정렬은 `item_json` 안의 값이라
+ * 그냥은 임시 B-tree + 전행 스캔이 되는데, 매물이 10만 건이면 ms대가 아니라 70ms대가 된다. 그래서 이
+ * **같은 문자열**로 표현식 인덱스(`djrpg_market_sort_*`)를 만들고 `snapshot()`도 이 함수로 식을 만든다 —
+ * SQLite는 두 식이 같은 문자열일 때만 인덱스를 쓰기 때문이다(관계는 `tests/market-index.test.mjs`가 확인).
+ */
+export const marketStatExpression = stat => `COALESCE(json_extract(item_json,'$.stats.${stat}'),0)`;
+/** 스탯 정렬을 쓰는 컬럼(거래소 UI가 고를 수 있는 값과 같다). */
+export const MARKET_SORT_STATS = ['attack', 'defense', 'health', 'crit', 'speed'];
+/**
+ * 판매 중 매물의 정렬 인덱스 DDL. 스탯 5종과 가격 각각 하나씩이다.
+ *
+ * `state`를 첫 열로 두는 이유: 부분 인덱스(`WHERE state='active'`)는 질의의 `state=?`가 **바인딩 값**이라
+ * 플래너가 값을 모르는 준비 단계에서 쓸 수 없다(실측으로 확인 — 부분 인덱스는 채택되지 않았다).
+ * 정렬 꼬리(`created_at DESC, id ASC`)까지 인덱스에 넣어 `ORDER BY`가 인덱스 순서 그대로 끝나게 한다.
+ */
+export function marketSortIndexStatements() {
+  const statements = MARKET_SORT_STATS.map(stat => `CREATE INDEX IF NOT EXISTS djrpg_market_sort_${stat} ON djrpg_market(state, ${marketStatExpression(stat)} DESC, created_at DESC, id)`);
+  statements.push('CREATE INDEX IF NOT EXISTS djrpg_market_sort_price ON djrpg_market(state, price ASC, created_at DESC, id)');
+  return statements;
+}
 const transientDatabaseError = error => /SQLITE_BUSY|SQLITE_LOCKED|SERVER_ERROR|ETIMEDOUT|ECONNRESET|ECONNREFUSED|fetch failed|network|timeout|temporarily unavailable|service unavailable/i.test(String(error?.code ?? '') + ' ' + String(error?.message ?? ''));
 export async function schema(db, env = runtimeEnv()) {
   const key = db.url ?? env?.TURSO_DATABASE_URL ?? db;
@@ -51,6 +75,11 @@ export async function schema(db, env = runtimeEnv()) {
     // 보물 주머니 레전드 전광판(작업 208) — 정식 계정이 테스트한 레전드 획득만 짧게 남는다.
     , 'CREATE TABLE IF NOT EXISTS djrpg_announcements (id TEXT PRIMARY KEY, account_id TEXT NOT NULL COLLATE NOCASE, character TEXT NOT NULL, item TEXT NOT NULL, created_at INTEGER NOT NULL)'
     , 'CREATE INDEX IF NOT EXISTS djrpg_announcements_time ON djrpg_announcements(created_at)'
+    // 던전 최고층의 서버 사본(작업 209). 세이브의 dungeonFloor는 이 기록(+1)까지만 저장되고,
+    // 기록은 검증된 submit만 올린다(`server/dungeon.mjs`).
+    , 'CREATE TABLE IF NOT EXISTS djrpg_dungeon_records (account_id TEXT PRIMARY KEY COLLATE NOCASE,name TEXT NOT NULL,cleared_floor INTEGER NOT NULL,cleared_at INTEGER NOT NULL,updated_at INTEGER NOT NULL)'
+    , 'CREATE INDEX IF NOT EXISTS djrpg_dungeon_rank ON djrpg_dungeon_records(cleared_floor DESC, cleared_at, account_id)'
+    , 'CREATE TABLE IF NOT EXISTS djrpg_dungeon_attempts (account_id TEXT PRIMARY KEY COLLATE NOCASE,floor INTEGER NOT NULL,started_at INTEGER NOT NULL,updated_at INTEGER NOT NULL,seed INTEGER)'
     , "INSERT OR IGNORE INTO djrpg_account_profiles(account_id,shared_gold,active_slot) SELECT id, COALESCE(CAST(json_extract(save_json,'$.gold') AS INTEGER),0),1 FROM djrpg_accounts WHERE json_valid(save_json)"
     , "INSERT OR IGNORE INTO djrpg_characters(account_id,slot,save_json,updated_at) SELECT id,1,json_remove(save_json,'$.gold'),updated_at FROM djrpg_accounts WHERE json_valid(save_json)"
     , "INSERT OR IGNORE INTO djrpg_shop_wallet(account_id,customer_key) SELECT id,lower(hex(randomblob(16))) FROM djrpg_accounts"
@@ -68,7 +97,15 @@ export async function schema(db, env = runtimeEnv()) {
       try { await db.execute(sessionColumn); }
       catch (error) { if (!/duplicate column name/i.test(String(error?.message ?? error))) throw error; }
     }
-    return db.batch(statements.slice(1), 'write');
+    // 정렬 인덱스(작업 211)는 같은 배치에 넣는다 — 스키마는 프로세스마다 한 번이면 충분하다.
+    try { return await db.batch([...statements.slice(1), ...marketSortIndexStatements()], 'write'); }
+    catch (error) {
+      // 전송 오류는 바깥 재시도가 맡는다. 그 밖의 실패(인덱스 표현식을 지원하지 않는 DB 등)에서는 인덱스를
+      // 빼고 스키마만 다시 만든다 — 인덱스는 속도만 담당하므로 게임이 멈추면 안 된다.
+      if (transientDatabaseError(error)) throw error;
+      console.error(JSON.stringify({ event: 'market_index_skipped', name: error?.name ?? 'Error', message: String(error?.message ?? error).slice(0, 120) }));
+      return db.batch(statements.slice(1), 'write');
+    }
   };
   const initialized = (async () => {
     try { return await initialize(); }
@@ -88,11 +125,15 @@ export async function transaction(db, run) {
   finally { tx.close(); }
 }
 export async function account(tx, id) {
-  const query = { sql: `SELECT a.*, p.shared_gold, p.active_slot, COALESCE(w.max_slots,3) AS max_slots, c.save_json AS character_json, c.updated_at AS character_updated_at, COALESCE(v.revision,0) AS revision
+  // 던전 기록도 같은 읽기에 실어 둔다 — `writeSave`가 세이브의 최고층을 검증된 기록과 대조해야 하는데,
+  // 저장마다 왕복을 하나 더 쓰지 않기 위해서다.
+  const query = { sql: `SELECT a.*, p.shared_gold, p.active_slot, COALESCE(w.max_slots,3) AS max_slots, c.save_json AS character_json, c.updated_at AS character_updated_at, COALESCE(v.revision,0) AS revision,
+      d.cleared_floor AS dungeon_record_floor, d.cleared_at AS dungeon_record_at
     FROM djrpg_accounts a JOIN djrpg_account_profiles p ON p.account_id=a.id
     JOIN djrpg_characters c ON c.account_id=a.id AND c.slot=p.active_slot
     LEFT JOIN djrpg_shop_wallet w ON w.account_id=a.id
-    LEFT JOIN djrpg_save_versions v ON v.account_id=a.id WHERE a.id=?`, args: [id] };
+    LEFT JOIN djrpg_save_versions v ON v.account_id=a.id
+    LEFT JOIN djrpg_dungeon_records d ON d.account_id=a.id WHERE a.id=?`, args: [id] };
   let row = (await tx.execute(query)).rows[0];
   if (row) return decodeAccount(row);
   await tx.batch([
@@ -174,6 +215,10 @@ const ownerItem = owner => { try { const value = JSON.parse(owner.item_json); re
 export async function reconcileItems(tx, id, before, after, options = {}) {
   const next = itemsOf(after), previous = itemsOf(before), ids = new Set();
   // 40칸 검사는 장비 + **다른 직업 전용 스킬북**을 함께 센다(작업 210) — 내 직업 책과 보물 주머니는 빼다.
+  // 새로 만들어지는 아이템(소유 기록 없는 id)의 상한 — 마지막 저장 이후 서버가 아는 시간과 층으로 정한다.
+  const guard = rewardBudget(before, options.elapsedSeconds);
+  const mintFloor = Math.max(1, Number(before?.maxFloor ?? before?.floor ?? 1) || 1) + guard.bosses;
+  let minted = 0;
   if (!Array.isArray(after.bag) || after.bag.filter(item => countedInBag(item, after.job)).length > 40 || Object.values(after.equipment??{}).length > 10 || !after.equipment || typeof after.equipment !== 'object') fail(400, 'INVALID_SAVE', '가방 또는 장비 데이터가 올바르지 않습니다.');
   const previousValid = previous.filter(itemValid);
   const previousById = new Map(previousValid.map(item => [item.id, item]));
@@ -202,6 +247,13 @@ export async function reconcileItems(tx, id, before, after, options = {}) {
         if (item.name !== known.name) item.name = known.name;
         if (!stored || stored.name !== item.name) writes.push({ sql: 'UPDATE djrpg_item_owners SET item_json=? WHERE item_id=?', args: [JSON.stringify(item), item.id] });
       }
+    }
+    if (!owner && !previousById.has(item.id)) {
+      // 서버 기록에 없는, **이번에 처음 보이는** 아이템. 개수와 능력치를 드롭 공식 상한으로 제한한다.
+      // 이미 저장돼 있던 아이템(`previousById`)은 예전에 받아들인 것이므로 소유 기록만 채우고 넘긴다
+      // — 그러지 않으면 이 경계를 처음 배포한 날 기존 계정의 가방이 통째로 거부된다.
+      if (++minted > guard.items) fail(400, 'INVALID_ITEM', '아이템 생성이 서버 허용 범위를 넘었습니다.');
+      if (!itemWithinBounds(item, mintFloor)) fail(400, 'INVALID_ITEM', '아이템 능력치가 서버 기록과 다릅니다. 최신 데이터를 다시 불러오세요.');
     }
     if (slotsByItem.has(item.id) && slotsByItem.get(item.id) !== slot) fail(409, 'ITEM_CONFLICT', '다른 캐릭터의 아이템은 사용할 수 없습니다.');
     if (owner && !slotsByItem.has(item.id) && slot !== 1) fail(409, 'ITEM_CONFLICT', '기존 아이템의 소유 캐릭터를 확인할 수 없습니다.');
@@ -268,7 +320,16 @@ export async function healStaleLoadItems(tx, row) {
   await tx.execute({ sql: 'UPDATE djrpg_characters SET save_json=? WHERE account_id=? AND slot=? AND save_json=?', args: [JSON.stringify(characterSave), row.id, Number(row.slot ?? 1), row.character_json] });
   return healed;
 }
-export async function writeSave(tx, row, save, operations = [], preserveCollection = true) {
+export async function writeSave(tx, row, save, operations = [], preserveCollection = true, credits = {}) {
+  // 서버 검증 경계(작업 209): 마지막 저장 이후 **서버 시계로 흐른 시간**과 층·직업 규칙으로 계산한 상한만
+  // 인정한다. 정상 플레이 값은 상한 아래라 그대로 통과하고, 넘치는 값만 잘라 낸다(거부하지 않는다).
+  // 거래소 판매대금·우편 보상처럼 서버가 같은 트랜잭션에서 더해 준 몫은 `credits`로 넘겨 상한에 더한다.
+  const { clamped } = clampSaveProgress(row.save, save, {
+    elapsedSeconds: elapsedSince(row.character_updated_at),
+    goldCredit: credits.goldCredit,
+    stoneCredit: credits.stoneCredit,
+    dungeonFloorCap: row.dungeon_record_floor
+  });
   // `salvageCount`(작업 207)도 누적 통계다 — 줄지 않게 하고, 옛 클라이언트가 값을 빼고 보내도 잃지 않는다.
   for (const field of ['bossKills','playSeconds','salvageCount']) {
     if (save[field] !== undefined && (typeof save[field] !== 'number' || !Number.isFinite(save[field]) || save[field] < 0)) fail(400,'INVALID_SAVE','활동 통계 형식이 올바르지 않습니다.');
@@ -310,7 +371,7 @@ export async function writeSave(tx, row, save, operations = [], preserveCollecti
     { sql: 'UPDATE djrpg_accounts SET updated_at=? WHERE id=?', args: [new Date().toISOString(), row.id] },
     { sql: 'INSERT INTO djrpg_save_versions VALUES (?,?) ON CONFLICT(account_id) DO UPDATE SET revision=excluded.revision', args: [row.id, revision] }
   ]);
-  return { save, revision };
+  return { save, revision, clamped };
 }
 export function validateSave(save) {
   if (!save || typeof save !== 'object' || Array.isArray(save) || save.version !== 1 || JSON.stringify(save).length > 1_000_000) fail(400, 'INVALID_SAVE', '저장 데이터 형식이 올바르지 않습니다.');

@@ -1,20 +1,69 @@
-import type { Item } from '../../game/store';
+import { freshSave, type Item, type Save } from '../../game/store';
 import { jobNames, jobOrDefault, type Job } from '../../game/skills';
 import type { Interface } from '../interface';
 import { accountRequest } from '../login';
 import { apiHeaders, isOutdatedResponse, reloadForNewVersion } from '../../game/appVersion';
-import { itemDisplayName } from '../../game/items';
+import { itemDisplayName, type EquipmentItem, type Slot } from '../../game/items';
+import { equipmentFallbackPortrait, equipmentPortraitPlan, renderEquipmentPortrait } from '../equipmentPortrait';
 
-export type CharacterSummary = { slot: number; name: string; gender: 'male' | 'female'; job?: Job; level: number; floor: number; itemCount?: number; idleSeconds?: number };
+/** `characters` 응답이 슬롯마다 내려 주는 장비 외형 정보(작업 210) — 이름만 있고 능력치·가방은 없다. */
+export type CharacterEquipment = { helmet?: { name?: string } | null; armor?: { name?: string } | null; weapon?: { name?: string } | null } | null;
 
-/** 캐릭터 선택 카드 그림 — 전사는 기존 base 초상화, 궁수·마법사는 자기 기본 시트를 쓴다. */
-function characterImage(character: CharacterSummary): string {
-  const gender = character.gender === 'female' ? 'female' : 'male';
-  const job = jobOrDefault(character.job);
-  // 작업 159: 궁수 시트를 갈면서 `/assets/*` immutable 캐시를 피해 `?v=2`를 쓴다(render.ts·equipmentPortrait.ts와 같은 규칙).
-  if (job === 'archer') return `/assets/pilot-25d/archer_${gender}_idle_v1.png?v=2`;
-  if (job === 'mage') return `/assets/pilot-25d/mage_${gender}_idle_v1.png`;
-  return `/assets/warrior_${gender}_base.png`;
+export type CharacterSummary = { slot: number; name: string; gender: 'male' | 'female'; job?: Job; level: number; floor: number; itemCount?: number; idleSeconds?: number; equipment?: CharacterEquipment };
+
+/** 카드 초상화 높이(px) — 카드는 108px 높이라 360px면 충분하고, 장비창(720px)보다 캔버스가 가볍다. */
+export const characterPortraitHeight = 360;
+
+function portraitItem(slot: Slot, value?: { name?: string } | null): EquipmentItem | undefined {
+  const name = typeof value?.name === 'string' ? value.name.trim() : '';
+  return name ? { id: `card-${slot}`, name, slot, rarity: 'common', stats: {} } : undefined;
+}
+
+/**
+ * 캐릭터 선택 카드의 합성 초상화용 최소 `Save`(작업 210).
+ *
+ * 서버 `characters` 응답은 **다른 슬롯**의 장비 이름만 준다(능력치·가방·계정 정보 없음).
+ * 초상화 경로(`equipmentPortrait.ts`)는 성별·직업·장비 이름만 읽으므로 그 셋만 채운다.
+ * 접속 중인 슬롯은 이 함수 대신 `ui.world.save`를 그대로 써서, 장비를 갈아입고 모달을 열면
+ * 바로 바뀐 외형이 보이게 한다.
+ */
+export function characterPortraitSave(character: CharacterSummary): Save {
+  const save = freshSave(character.gender === 'female' ? 'female' : 'male', jobOrDefault(character.job));
+  save.name = character.name;
+  const level = Math.floor(Number(character.level)), floor = Math.floor(Number(character.floor));
+  if (Number.isFinite(level) && level >= 1) save.level = level;
+  if (Number.isFinite(floor) && floor >= 1) save.floor = floor;
+  const helmet = portraitItem('helmet', character.equipment?.helmet);
+  const armor = portraitItem('armor', character.equipment?.armor);
+  const weapon = portraitItem('weapon', character.equipment?.weapon);
+  save.equipment = {};
+  if (helmet) save.equipment.helmet = helmet;
+  if (armor) save.equipment.armor = armor;
+  if (weapon) save.equipment.weapon = weapon;
+  return save;
+}
+
+/** 합성 결과 캐시 — 사냥 중 모달이 자주 다시 그려져도 같은 장비는 기본 시트로 깜빡이지 않는다. */
+const cardPortraits = new Map<string, string>();
+
+/**
+ * 카드 그림을 채운다. 접속 중인 슬롯은 라이브 세이브, 다른 슬롯은 서버가 준 장비 이름으로
+ * 필드·장비창과 같은 합성 초상화(전신 + 투구 + 갑옷/로브 + 무기/활/지팡이)를 그린다.
+ * 합성이 끝나기 전에는 같은 조합의 전신 시트를 먼저 보여 준다.
+ */
+function paintCharacterPortrait(ui: Interface, image: HTMLImageElement, character: CharacterSummary, slot: number): void {
+  // 라이브 세이브는 초상화가 읽는 `equipment`가 있을 때만 쓴다(세이브가 아직 없는 화면·테스트 대비).
+  const live = slot === ui.session?.characterSlot && ui.world?.save?.equipment ? ui.world.save : undefined;
+  const save = live ?? characterPortraitSave(character);
+  const key = `${equipmentPortraitPlan(save).key}@${characterPortraitHeight}`;
+  const painted = cardPortraits.get(key);
+  image.src = painted ?? equipmentFallbackPortrait(save);
+  if (painted) return;
+  void renderEquipmentPortrait(save, { height: characterPortraitHeight }).then(source => {
+    if (cardPortraits.size >= 24) cardPortraits.clear();
+    cardPortraits.set(key, source);
+    if (image.isConnected) image.src = source;
+  }).catch(error => console.info('[캐릭터 선택] 초상화 합성 실패 → 전신 시트 표시:', error));
 }
 type CharacterList = { characters: CharacterSummary[]; activeSlot: number; maxSlots: number; revision: number; allIdleExpiresAt?: number; loadedAt?: number };
 let characterClock: ReturnType<typeof setTimeout> | undefined;
@@ -62,11 +111,14 @@ export function renderCharacters(ui: Interface, dialog: HTMLElement): void {
       void changeCharacter(ui, 'selectCharacter', slot).catch(error => ui.message(error instanceof Error ? error.message : String(error)));
     });
     select.className = 'character-select';
-    const image = document.createElement('img'); image.alt = '';
-    image.src = character ? characterImage(character) : '';
     const details = document.createElement('span'); details.textContent = character ? `${character.name} · ${jobNames[jobOrDefault(character.job)]} · Lv.${character.level} · ${character.floor}층` : `슬롯 ${slot} · 새 캐릭터 만들기`;
-    if (character) select.append(image);
-    else { const plus = document.createElement('strong'); plus.textContent = '+'; select.append(plus); }
+    if (character) {
+      const image = document.createElement('img');
+      image.className = 'character-portrait';
+      image.alt = `${character.name} ${jobNames[jobOrDefault(character.job)]} 외형`;
+      select.append(image);
+      paintCharacterPortrait(ui, image, character, slot);
+    } else { const plus = document.createElement('strong'); plus.textContent = '+'; select.append(plus); }
     select.append(details); card.append(select);
     if (character) {
       const idle = button('방치', () => {
@@ -82,7 +134,7 @@ export function renderCharacters(ui: Interface, dialog: HTMLElement): void {
       idle.disabled = allIdleActive;
       if (allIdleActive) idle.title = '전 슬롯 방치 패키지가 활성화되어 있습니다. 캐릭터 카드를 눌러 보상을 회수하세요.';
       card.append(idle);
-      const remove = button('삭제', () => { void deleteCharacter(ui, character).catch(error => ui.message(error instanceof Error ? error.message : String(error))); });
+      const remove = button('삭제', () => { openDeleteCharacter(ui, character); });
       remove.className = 'character-delete';
       remove.setAttribute('aria-label', `${character.name} 캐릭터 삭제`);
       remove.disabled = slot === ui.session.characterSlot;
@@ -157,15 +209,116 @@ async function changeCharacter(ui: Interface, action: 'selectCharacter' | 'creat
   } catch (error) { loading?.remove(); throw error; }
 }
 
-async function deleteCharacter(ui: Interface, character: CharacterSummary): Promise<void> {
-  const name = window.prompt(`${character.name} 캐릭터와 착용 장비·가방 아이템 ${character.itemCount ?? 0}개가 영구 삭제됩니다. 정말 삭제하려면 캐릭터 이름을 입력하세요.`);
-  if (name !== character.name) return;
-  const sync = ui.market.sync;
-  if (!await sync.flush()) throw new Error('현재 캐릭터 저장 결과를 확인한 뒤 다시 시도하세요.');
-  await accountRequest('deleteCharacter', { slot: character.slot, name, revision: sync.revision }, ui.session.token);
-  ui.characterList = undefined;
-  await loadCharacters(ui);
-  ui.message(`${character.name} 캐릭터를 삭제했습니다.`);
+const deleteNameMismatch = '캐릭터 이름을 정확히 입력해 주세요.';
+
+function element(tag: string, className = '', text = ''): HTMLElement {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  if (text) node.textContent = text;
+  return node;
+}
+
+/**
+ * 캐릭터 삭제 확인창(작업 206).
+ *
+ * 브라우저 기본 `prompt()`는 iOS 인앱 브라우저(구글 앱·사파리 웹뷰)에서 시스템 얼럿으로 떠 게임 UI와
+ * 어긋나고, 입력을 못 받거나 이름이 틀렸을 때 아무 말 없이 끝났다. 그래서 게임 모달과 같은
+ * 다크 판타지 톤의 확인창을 직접 그리고, 이름이 다르면 확인창 안에 안내를 남긴다.
+ *
+ * 캐릭터 목록 모달은 사냥 중 `world.onChange`마다 다시 그려지므로, 이 확인창은 목록 모달의
+ * `.modal-dialog` 안이 아니라 같은 화면 위에 한 겹 따로 얹는다 — 그래야 사냥이 계속돼도
+ * 입력하던 이름과 오류 문구가 사라지지 않는다. 목록 모달이 닫히면 함께 닫힌다.
+ */
+export function openDeleteCharacter(ui: Interface, character: CharacterSummary): HTMLElement {
+  // 빠르게 두 번 눌러도 확인창은 하나만 — 이미 떠 있으면 그 하나를 새로 그린다.
+  ui.root?.querySelectorAll?.('.character-delete-overlay').forEach(node => node.remove());
+  const overlay = element('div', 'character-delete-overlay');
+  overlay.setAttribute('role', 'dialog');
+  overlay.setAttribute('aria-modal', 'true');
+  overlay.setAttribute('aria-label', '캐릭터 삭제 확인');
+  const card = element('div', 'character-delete-card');
+  card.append(element('h3', 'character-delete-title', '캐릭터 삭제'));
+  card.append(element('p', 'character-delete-warning', `${character.name} 캐릭터와 착용 장비·가방 아이템 ${character.itemCount ?? 0}개가 영구 삭제됩니다.`));
+
+  const form = document.createElement('form');
+  form.className = 'character-delete-form';
+  const field = element('label', 'character-delete-field', '확인을 위해 캐릭터 이름을 입력하세요');
+  const input = document.createElement('input');
+  input.type = 'text'; input.name = 'deleteCharacterName'; input.value = '';
+  // iOS는 16px 미만 입력창에 포커스하면 화면을 확대하고, 자동 수정·첫 글자 대문자가 이름을 바꾼다.
+  input.autocomplete = 'off'; input.spellcheck = false;
+  input.setAttribute('autocapitalize', 'off'); input.setAttribute('autocorrect', 'off');
+  input.setAttribute('enterkeyhint', 'done'); input.setAttribute('aria-label', '캐릭터 이름 확인');
+  field.append(input);
+  const error = element('p', 'character-delete-error');
+  error.setAttribute('role', 'alert');
+  const actions = element('div', 'character-delete-actions');
+  const cancel = element('button', 'character-delete-cancel', '취소') as HTMLButtonElement;
+  cancel.type = 'button';
+  const confirm = element('button', 'character-delete-confirm', '영구 삭제') as HTMLButtonElement;
+  confirm.type = 'submit';
+  actions.append(cancel, confirm);
+  form.append(field, error, actions);
+  card.append(form);
+  overlay.append(card);
+
+  const matches = (): boolean => input.value.trim() === character.name;
+  let busy = false;
+  let observer: MutationObserver | undefined;
+  const onKey = (event: Event): void => {
+    if ((event as KeyboardEvent).key !== 'Escape' || busy) return;
+    event.preventDefault(); event.stopImmediatePropagation?.();
+    close();
+  };
+  const detach = (): void => {
+    observer?.disconnect();
+    if (typeof window !== 'undefined' && typeof window.removeEventListener === 'function') window.removeEventListener('keydown', onKey, true);
+  };
+  function close(): void { detach(); overlay.remove?.(); }
+  const setError = (text: string): void => { error.textContent = text; };
+  const setBusy = (next: boolean): void => {
+    busy = next;
+    confirm.disabled = next; cancel.disabled = next;
+    confirm.textContent = next ? '삭제 중…' : '영구 삭제';
+    if (next) setError('');
+  };
+  input.addEventListener('input', () => {
+    const ready = matches();
+    confirm.classList.toggle('ready', ready);
+    if (ready && error.textContent) setError('');
+  });
+  form.onsubmit = event => { event.preventDefault(); void submit(); };
+  cancel.onclick = () => { if (!busy) close(); };
+  overlay.onclick = event => { if (event.target === overlay && !busy) close(); };
+  if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') window.addEventListener('keydown', onKey, true);
+  if (typeof MutationObserver !== 'undefined' && ui.modal) {
+    observer = new MutationObserver(() => { if (ui.modal.hidden) close(); });
+    observer.observe(ui.modal, { attributes: true, attributeFilter: ['hidden'] });
+  }
+
+  async function submit(): Promise<void> {
+    if (busy) return;
+    // 틀린 이름은 조용히 돌려보내지 않는다 — 확인창 안에 바로 안내하고 입력창으로 되돌린다.
+    if (!matches()) { setError(deleteNameMismatch); try { input.focus({ preventScroll: true }); } catch { /* 포커스 불가 */ } return; }
+    setBusy(true);
+    try {
+      const sync = ui.market.sync;
+      if (!await sync.flush()) throw new Error('현재 캐릭터 저장 결과를 확인한 뒤 다시 시도하세요.');
+      await accountRequest('deleteCharacter', { slot: character.slot, name: input.value.trim(), revision: sync.revision }, ui.session.token);
+      close();
+      ui.characterList = undefined;
+      await loadCharacters(ui);
+      ui.message(`${character.name} 캐릭터를 삭제했습니다.`);
+    } catch (cause) {
+      setBusy(false);
+      setError(cause instanceof Error ? cause.message : String(cause));
+    }
+  }
+
+  (ui.root ?? document.body).append(overlay);
+  // 이미 이름을 알고 있으니 바로 입력할 수 있게 한다(키보드가 올라와도 카드가 스크롤된다).
+  try { input.focus({ preventScroll: true }); } catch { /* 자동 포커스 불가 */ }
+  return overlay;
 }
 
 export async function loadWarehouse(ui: Interface): Promise<void> {

@@ -73,7 +73,7 @@ test('마법사는 액티브 8종·패시브 3종을 따로 가지며 다른 직
   for (const id of mageSkillOrder) { assert(skills[id].name.length > 0); assert(skills[id].range >= 120); }
   for (const id of magePassiveOrder) assert(passives[id].description.length > 0);
   // 전사·궁수 목록은 그대로다.
-  assert.deepEqual([...skillOrder], ['slash2', 'spin', 'crushing', 'slam', 'warcry', 'power', 'destroy', 'hell']);
+  assert.deepEqual([...skillOrder], ['slash2', 'slam', 'warcry', 'power', 'destroy', 'hell', 'crushing', 'spin']);
   assert.deepEqual([...archerSkillOrder], ['doubleShot', 'multiShot', 'pierceShot', 'iceArrow', 'hawkEye', 'snipe', 'stormVolley', 'arrowRain']);
   assert.deepEqual([...passiveOrder], ['mastery', 'body', 'instinct']);
   // 마법사 세이브의 퀵슬롯은 마법사 스킬만 받는다.
@@ -174,14 +174,16 @@ test('마법사 평타는 멈춰 서서 마법 구슬을 쏘고, 구슬이 도�
 test('마법사는 사거리 밖에서만 다가가고, 사거리 안에서는 서서 쏜다', () => {
   const world = new World(mageSave());
   world.spawnTimer = 999; world.cooldown.attack = 999;
-  const enemy = world.enemies[0];
-  enemy.x = world.player.x + 99; enemy.y = world.player.y + 99; enemy.hp = enemy.maxHp = 10000;
+  const enemy = world.enemies[0]; enemy.hp = enemy.maxHp = 10000;
+  // 거리 기대값은 상수에서 만든다 — 사거리 간격을 조정해도(작업 207) 의미가 그대로다.
+  enemy.x = world.player.x + mageStopRange + 20; enemy.y = world.player.y;
   world.update(.05);
   assert(Math.hypot(world.activeMove.x, world.activeMove.y) > .05, '정지 거리 밖에서는 다가간다');
-  enemy.x = world.player.x + 70; enemy.y = world.player.y + 70;
+  enemy.x = world.player.x + mageStopRange - 20; enemy.y = world.player.y;
   world.update(.05);
   assert.equal(world.activeMove.x, 0);
   assert.equal(world.activeMove.y, 0);
+  assert.equal(world.pursuing, false);
   assert(mageAttackRange > mageStopRange);
 });
 
@@ -227,18 +229,24 @@ test('마법사 스킬 8종은 각자의 이펙트를 만들고 피해나 버프
   }
 });
 
-test('마법사는 장비를 착용해도 기본 시트만 쓰고 전사용 갑옷·투구·검을 그리지 않는다', () => {
+test('마법사는 갑옷 티어의 전용 로브를 쓰고 전사용 투구·검 파츠는 그리지 않는다', () => {
   const save = mageSave('female');
   save.equipment.armor = { id: 'a', name: '황혼의 드래곤 메일', slot: 'armor', rarity: 'rare', stats: { defense: 10 } };
   save.equipment.helmet = { id: 'h', name: '황혼의 기사 헬름', slot: 'helmet', rarity: 'rare', stats: { defense: 5 } };
   save.equipment.weapon = { id: 'w', name: '황혼의 혈염 지팡이', slot: 'weapon', rarity: 'rare', stats: { attack: 30 } };
   const plan = equipmentPortraitPlan(save);
   // 작업 201: 지팡이를 차면 기본 지팡이를 지운 시트 위에 지팡이 파츠를 얹는다(전사 갑옷·투구·검은 그대로 제외).
-  assert.equal(plan.base, '/assets/pilot-25d/mage_nostaff/mage_female_idle_v1.png');
+  // 작업 204: 투구를 쓰면 마법사 전용 모자·투구 파츠를 쓰고, 본체는 같은 자리에서 머리를 지운 시트다.
+  // 작업 208: 갑옷 7번(드래곤 메일)을 입으면 그 티어 로브(지팡이 없는) 시트를 쓰고, 투구를 함께 쓰면
+  //           로브의 **머리 없는 판**을 쓴다. 지팡이·투구는 파츠로 얹는다.
+  assert.equal(plan.base, '/assets/pilot-25d/robes/headless/mage_female_robe_7_idle_v1.png');
   assert.equal(plan.helmet, undefined);
   assert.equal(plan.weapon, undefined);
   assert.equal(plan.staff?.path, '/assets/pilot-25d/staffs/staff_6_v1.png', '황혼의 혈염 지팡이 → 6번');
-  assert.equal(plan.key, 'mage:female:/assets/pilot-25d/staffs/staff_6_v1.png');
+  assert.equal(plan.mageHelm?.path, '/assets/pilot-25d/mage_helms/female_3_v1.png', '황혼의 기사 헬름 → 3번');
+  assert.equal(plan.key, 'mage:female:r7:/assets/pilot-25d/staffs/staff_6_v1.png:/assets/pilot-25d/mage_helms/female_3_v1.png');
+  const bare = mageSave('female');
+  assert.equal(equipmentPortraitPlan(bare).base, '/assets/pilot-25d/mage_female_idle_v1.png?v=2');
   // 능력치는 그대로 오른다.
   assert(totalStats(save).attack > totalStats(mageSave('female')).attack);
   // 전사 초상화 계획은 마법사와 섞이지 않는다.

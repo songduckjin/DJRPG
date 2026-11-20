@@ -172,3 +172,57 @@ test('a replaced session clears the token, stops saving and reports the login sc
     assert.equal(requests.length, 1);
   } finally { delete globalThis.localStorage; }
 });
+
+test('변경이 없으면 5초 점검은 저장 요청을 보내지 않는다', async () => {
+  const sync = setup(), requests = [];
+  globalThis.fetch = async (_url, options) => { requests.push(JSON.parse(options.body)); return response({ ok: true, revision: requests.length }); };
+  // 아직 아무것도 바뀌지 않았다 → 요청 0건.
+  assert.equal(await sync.flushIfDirty(), true);
+  assert.equal(requests.length, 0);
+  sync.save.gold = 10; sync.markDirty();
+  assert.equal(await sync.flushIfDirty(), true);
+  assert.equal(requests.length, 1);
+  assert.equal(requests[0].save.gold, 10);
+  // 저장이 끝난 뒤에는 다시 보내지 않는다(예전에는 5초마다 무조건 보냈다).
+  assert.equal(await sync.flushIfDirty(), true);
+  assert.equal(requests.length, 1);
+});
+
+test('저장 중에 또 바뀐 진행은 응답을 받은 뒤 이어서 보낸다', async () => {
+  const sync = setup(), requests = [];
+  let release;
+  globalThis.fetch = async (_url, options) => {
+    const payload = JSON.parse(options.body);
+    requests.push(payload);
+    if (requests.length === 1) return new Promise(resolve => { release = () => resolve(response({ ok: true, revision: payload.revision + 1 })); });
+    return response({ ok: true, revision: payload.revision + 1 });
+  };
+  sync.markDirty();
+  const saving = sync.flush();
+  sync.save.gold = 77; sync.markDirty();
+  release();
+  assert.equal(await saving, true);
+  assert.equal(requests.length, 2, '저장 중 변경까지 두 번째 요청으로 보낸다');
+  assert.equal(requests[1].save.gold, 77);
+  assert.equal(requests[1].requestId === requests[0].requestId, false, '새 변경은 새 요청 번호');
+  assert.equal(sync.revision, 2);
+});
+
+test('저장이 실패하면 같은 요청 번호로 다시 보내고, 성공한 뒤에는 변경이 남지 않는다', async () => {
+  const sync = setup(), requests = [];
+  let fail = true;
+  globalThis.fetch = async (_url, options) => {
+    const payload = JSON.parse(options.body);
+    requests.push(payload);
+    if (fail) { fail = false; throw new Error('lost response'); }
+    return response({ ok: true, revision: payload.revision + 1 });
+  };
+  sync.save.kills = 3; sync.markDirty();
+  assert.equal(await sync.flush(), false);
+  assert.equal(await sync.flush(), true);
+  assert.equal(requests[0].requestId, requests[1].requestId, '재시도는 같은 요청 번호');
+  // 응답을 잃은 저장을 되살린 뒤에는 최신 상태를 한 번 더 확정 저장한다(그 뒤로는 조용하다).
+  assert.equal(requests.length, 3);
+  assert.equal(await sync.flushIfDirty(), true);
+  assert.equal(requests.length, 3, '성공 뒤에는 더 보내지 않는다');
+});

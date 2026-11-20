@@ -17,6 +17,7 @@
 // would look squashed and lopsided on screen but these do not.
 
 import { equipmentDropChance, rollItem, rollSkillBook, skillBookDropChance, type Item } from './items';
+import { random } from './rng';
 
 /** Random items a dungeon boss leaves on the ground. The main field drops none of these for a boss. */
 export const BOSS_ITEM_DROPS = 5;
@@ -44,7 +45,7 @@ const HEAP_BASE = [90, 54] as const;
  *  normal kill's item does, so a boss never invents a drop table of its own. */
 export function rollBossItem(floor: number): Item {
   const equipment = equipmentDropChance(floor, true), book = skillBookDropChance(floor, true);
-  return Math.random() * (equipment + book) < equipment ? rollItem(floor, false, true) : rollSkillBook(floor);
+  return random() * (equipment + book) < equipment ? rollItem(floor, false, true) : rollSkillBook(floor);
 }
 
 /** The `BOSS_ITEM_DROPS` random items a dungeon boss leaves behind. */

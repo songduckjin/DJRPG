@@ -76,11 +76,15 @@ test('서버 스킬북 목록은 클라이언트 33종과 ID·순서·이름이 
 
 test('궁수·마법사 스킬북과 보물 주머니가 400 INVALID_ITEM 없이 저장되고 다시 읽힌다', () => withDatabase(async db => {
   await seed(db, 'archer');
+  await account(db, 'archer');
+  // 34개를 한 번에 넣는 것은 정상 플레이가 아니다 — 서버의 생성 상한(작업 209: 8 + 초당 0.5개) 안에 들어오도록
+  // 마지막 저장 이후 시간을 넉넉히 되돌려 둔다.
+  await db.execute({ sql: 'UPDATE djrpg_characters SET updated_at=? WHERE account_id=?', args: [new Date(Date.now() - 120_000).toISOString(), 'archer'] });
   const items = [...serverSkills.skillBookIds.map(skillId => book(skillId)), pouch()];
   const saved = await transaction(db, async tx => {
     const row = await account(tx, 'archer');
     const incoming = { ...structuredClone(row.save), bag: structuredClone(items) };
-    await reconcileItems(tx, 'archer', row.save, incoming, { slot: row.slot });
+    await reconcileItems(tx, 'archer', row.save, incoming, { slot: row.slot, elapsedSeconds: 120 });
     return writeSave(tx, row, incoming);
   });
   assert.equal(saved.save.bag.length, 34, '스킬북 33권 + 주머니 1개가 모두 저장된다');

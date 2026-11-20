@@ -15,6 +15,9 @@ async function seed(id,guest=false){await db.execute({sql:'INSERT INTO djrpg_acc
 async function act(id,kind,itemId='all',action='journey-claim'){const row=await account(db,id);return mutate(db,id,{action,kind,id:itemId,revision:row.revision,requestId:randomUUID()});}
 before(async()=>{directory=await mkdtemp(join(tmpdir(),'journey-'));db=createClient({url:`file:${join(directory,'test.db')}`});await schema(db);});
 after(async()=>{await db.close();await rm(directory,{recursive:true,force:true,maxRetries:10,retryDelay:100});});
+// 세이브 변화량은 서버가 아는 경과 시간 안에서만 인정된다(작업 209). 이 테스트들이 한 번에 넣는
+// 큰 진행은 "그만큼 사냥한 시간"을 서버 시계로 되돌려 놓고 넣는다.
+const rewind=async(id,seconds)=>db.execute({sql:'UPDATE djrpg_characters SET updated_at=? WHERE account_id=?',args:[new Date(Date.now()-seconds*1000).toISOString(),id]});
 test('KST 05:00 daily and Monday weekly boundaries preserve lifetime claims and mail',()=>{
   const sunday=Date.parse('2026-11-15T19:59:59Z'),monday=sunday+1000;
   assert.notEqual(periods(sunday).daily,periods(monday).daily);assert.notEqual(periods(sunday).weekly,periods(monday).weekly);
@@ -31,8 +34,8 @@ test('daily login grants once; retry with same request ID never duplicates curre
   await seed('other');assert.equal((await snapshot(db,'other')).daily[0].claimed,false);
 });
 test('persisted progress advances daily and weekly counters and book rewards bypass equipment capacity without losing equipment',async()=>{
-  await seed('progress');await snapshot(db,'progress');
-  await transaction(db,async tx=>{const row=await account(tx,'progress'),next={...row.save,kills:5000,playSeconds:18000,salvageCount:20};await writeSave(tx,row,next);});
+  await seed('progress');await snapshot(db,'progress');await rewind('progress',20000);
+  await transaction(db,async tx=>{const row=await account(tx,'progress'),next={...row.save,kills:5000,bossKills:30,playSeconds:18000,salvageCount:20};await writeSave(tx,row,next);});
   // 월드보스 도전은 서버(`server/world-boss.mjs`)가 여정 상태에 적는다 — 여기서는 같은 상태를 직접 만든다.
   const seedState=(await db.execute({sql:'SELECT state_json FROM djrpg_journey WHERE account_id=?',args:['progress']})).rows[0],seedParsed=JSON.parse(seedState.state_json);
   seedParsed.daily.worldBoss=1;seedParsed.weekly.worldBoss=5;
@@ -43,6 +46,7 @@ test('persisted progress advances daily and weekly counters and book rewards byp
   assert.equal(data.weekly.find(t=>t.id==='hunt').current,2000,'주간 사냥 2,000');
   assert.equal(data.weekly.find(t=>t.id==='time').current,10800,'주간 3시간');
   assert.equal(data.weekly.find(t=>t.id==='salvage').current,15,'주간 장비 분해 15회');
+  assert.equal(data.weekly.find(t=>t.id==='worldBoss').current,5,'주간 월드보스 5일');
   await transaction(db,async tx=>{const row=await account(tx,'progress');await writeSave(tx,row,{...row.save,bag:Array.from({length:40},()=>({id:randomUUID(),name:'검',slot:'weapon',rarity:'common',stats:{attack:1}}))});});
   const before=await account(db,'progress');await act('progress','daily');
   const after=await account(db,'progress');
@@ -132,7 +136,7 @@ test('다이아 우편은 계정당 한 번만 지급되고 수령은 원장에 
 });
 
 test('period progress counts once per save and legacy clients retain new totals',async()=>{
-  await seed('legacy');await snapshot(db,'legacy');
+  await seed('legacy');await snapshot(db,'legacy');await rewind('legacy',120);
   await transaction(db,async tx=>{const row=await account(tx,'legacy');await writeSave(tx,row,{...row.save,kills:10,bossKills:2,playSeconds:15,salvageCount:2});});
   await transaction(db,async tx=>{const row=await account(tx,'legacy'),next=structuredClone(row.save);delete next.bossKills;delete next.playSeconds;await writeSave(tx,row,next);});
   const latest=await account(db,'legacy');assert.equal(latest.save.bossKills,2);assert.equal(latest.save.playSeconds,15);
@@ -140,7 +144,7 @@ test('period progress counts once per save and legacy clients retain new totals'
 });
 
 test('completion bonuses require all goals, separate daily and weekly claims and never pay twice',async()=>{
-  await seed('completion');const start=await snapshot(db,'completion');assert(start.daily.some(task=>task.completion));
+  await seed('completion');const start=await snapshot(db,'completion');assert(start.daily.some(task=>task.completion));await rewind('completion',20000);
   await assert.rejects(act('completion','daily','completion'),e=>e.code==='NOT_READY');
   await transaction(db,async tx=>{const row=await account(tx,'completion');await writeSave(tx,row,{...row.save,kills:5000,playSeconds:18000,salvageCount:20});});
   // 월드보스 도전 미션은 서버가 적는다 — 같은 상태를 직접 만든다.
@@ -163,8 +167,8 @@ test('completion bonuses require all goals, separate daily and weekly claims and
   const claimed=await snapshot(db,'completion');assert(claimed.daily.every(task=>task.claimed));assert(claimed.weekly.every(task=>task.claimed));
 });
 test('existing base rewards claimed before the update still allow completion bonus without recounting a day',async()=>{
-  await seed('old-completion');await snapshot(db,'old-completion');
-  await transaction(db,async tx=>{const row=await account(tx,'old-completion');await writeSave(tx,row,{...row.save,kills:300,playSeconds:1800,salvageCount:3});});
+  await seed('old-completion');await snapshot(db,'old-completion');await rewind('old-completion',2000);
+  await transaction(db,async tx=>{const row=await account(tx,'old-completion');await writeSave(tx,row,{...row.save,kills:300,bossKills:3,playSeconds:1800,salvageCount:3});});
   const stored=(await db.execute({sql:'SELECT state_json FROM djrpg_journey WHERE account_id=?',args:['old-completion']})).rows[0],state=JSON.parse(stored.state_json);state.daily.worldBoss=1;state.daily.claims=['login','hunt','time','worldBoss','salvage'];state.daily.completed=true;state.weekly.days=1;
   await db.execute({sql:'UPDATE djrpg_journey SET state_json=? WHERE account_id=?',args:[JSON.stringify(state),'old-completion']});
   const result=await act('old-completion','daily','completion');assert.equal(result.save.gold,2000);assert.equal(result.save.bag.filter(item=>item.slot==='pouch').length,1);
@@ -172,8 +176,13 @@ test('existing base rewards claimed before the update still allow completion bon
 });
 
 test('업적 보상은 금화와 보물 주머니로 지급되고 스킬북은 주지 않는다 (작업 208)',async()=>{
-  await seed('achievement-reward');
-  await transaction(db,async tx=>{const row=await account(tx,'achievement-reward');await writeSave(tx,row,{...row.save,level:30});});
+  await seed('achievement-reward');await snapshot(db,'achievement-reward');
+  // 레벨 30은 서버 상한(작업 209) 안에서만 저장된다 — 12시간 창 두 번으로 나눠 올린다.
+  for(const level of [25,30]){
+    await rewind('achievement-reward',43200);
+    await transaction(db,async tx=>{const row=await account(tx,'achievement-reward');await writeSave(tx,row,{...row.save,level});});
+  }
+  assert.equal((await account(db,'achievement-reward')).save.level,30,'레벨 30이 저장되었다');
   await snapshot(db,'achievement-reward');
   const first=await act('achievement-reward','achievements','level-5');
   assert.equal(first.save.gold,1000,'첫 단계 1,000G');

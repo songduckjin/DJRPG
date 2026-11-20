@@ -1,6 +1,9 @@
 import { client, schema, transaction, account, assertRevision, assertSession, assignSession, healStaleLoadItems, reconcileItems, writeSave, fail } from '../database.mjs';
 import { initialSave, jobOf, jobs } from '../save-seed.mjs';
 import { runSeasonReset } from '../season.mjs';
+import { sharedConnection } from '../connection.mjs';
+import { createTrace, logRequest } from '../metrics.mjs';
+import { elapsedSince } from '../save-guard.mjs';
 import { randomUUID } from 'node:crypto';
 import { tokenPayload, tokenFor, hashPassword, verifyPassword, needsPasswordUpgrade } from '../auth.mjs';
 import { runtimeEnv } from '../env.mjs';
@@ -8,6 +11,21 @@ import { json, readBody, errorResponse, versionGuard } from '../http.mjs';
 
 const namePattern = /^[가-힣a-zA-Z0-9_]{2,16}$/;
 const bad = (_res, status, code, error) => json({ code, error }, status);
+/**
+ * 캐릭터 목록 카드의 외형용 최소 장비 정보(작업 210).
+ *
+ * 카드는 필드·장비창과 같은 합성 초상화(투구·갑옷/로브·무기/활/지팡이)를 그리므로 장비 **이름**이
+ * 필요하다. 세이브 전체를 내려보내지 않고 외형 슬롯 3개의 이름만 짧게 잘라 보낸다(능력치·가방·계정
+ * 정보 없음). 이름은 외형 티어 판별(`baseItemIndex`)에만 쓰인다.
+ */
+const portraitEquipment = save => {
+  const pick = slot => {
+    const item = save?.equipment?.[slot];
+    const name = item && typeof item === 'object' && typeof item.name === 'string' ? item.name.trim().slice(0, 40) : '';
+    return name ? { name } : null;
+  };
+  return { helmet: pick('helmet'), armor: pick('armor'), weapon: pick('weapon') };
+};
 const offlineSeconds = updatedAt => {
   const elapsed = Math.floor((Date.now() - Date.parse(String(updatedAt))) / 1000);
   return Number.isFinite(elapsed) && elapsed >= 60 ? Math.min(43_200, elapsed) : 0;
@@ -20,7 +38,18 @@ const pendingOfflineSeconds = async (db, id, slot, updatedAt) => {
   const claim = (await db.execute({ sql: 'SELECT quantity FROM djrpg_shop_entitlements WHERE account_id=? AND entitlement_key=?', args: [id, `idle_claim_${slot}`] })).rows[0];
   return claim ? Math.min(43_200, Number(claim.quantity) + offlineSeconds(updatedAt)) : offlineSeconds(updatedAt);
 };
-export async function accountEndpoint(request, { env = runtimeEnv(), createDbClient, legacyVerifier } = {}) {
+/**
+ * 요청 한 건의 계측(작업 209)을 둘러 입힌 입구. `Server-Timing` 헤더와 구조화 로그 한 줄을 남기고,
+ * 세이브 본문·토큰은 로그에 넣지 않는다.
+ */
+export async function accountEndpoint(request, options = {}) {
+  const context = { trace: createTrace(), action: '', code: '', clamped: 0 };
+  const response = await accountHandler(request, options, context);
+  try { response?.headers?.set('Server-Timing', context.trace.header()); } catch { /* 헤더를 못 붙여도 응답은 그대로 */ }
+  logRequest({ path: '/api/account', action: context.action, status: response?.status, trace: context.trace, code: context.code, clamped: context.clamped });
+  return response;
+}
+async function accountHandler(request, { env = runtimeEnv(), createDbClient, legacyVerifier } = {}, context) {
   const res = { status: status => ({ json: body => json(body, status) }) };
   const req = { method: request.method, headers: { authorization: request.headers.get('authorization') }, body: await readBody(request) };
   if (req.method !== 'POST') return bad(res, 405, 'METHOD_NOT_ALLOWED', 'POST 요청만 허용합니다.');
@@ -29,12 +58,13 @@ export async function accountEndpoint(request, { env = runtimeEnv(), createDbCli
   if (!env.TURSO_DATABASE_URL || !env.TURSO_AUTH_TOKEN) return bad(res, 503, 'DB_NOT_CONFIGURED', '서버 DB가 설정되지 않았습니다. 관리자에게 문의하세요.');
   let db;
   try {
-    db = createDbClient ? createDbClient(env) : client(env);
-    await schema(db, env);
+    db = createDbClient ? createDbClient(env) : await sharedConnection(env);
+    if (createDbClient) await context.trace.step('schema', () => schema(db, env));
     // 시즌 초기화(작업 206): 운영 호스트에서만, `season_epoch`가 오를 때 딱 한 번 돈다.
     await runSeasonReset(db, request, env);
     const body = req.body ?? {};
     const action = body.action;
+    context.action = typeof action === 'string' ? action : '';
     if (action === 'register' || action === 'guest') {
       const id = action === 'guest' ? `guest_${randomUUID()}` : String(body.loginId ?? '').trim();
       const password = body.password;
@@ -89,7 +119,7 @@ export async function accountEndpoint(request, { env = runtimeEnv(), createDbCli
       const now = Date.now();
       return res.status(200).json({ characters: characters.map(({ save_json, updated_at, ...character }) => {
         const save = JSON.parse(save_json);
-        return { ...character, job: jobOf(character.job), itemCount: (Array.isArray(save.bag) ? save.bag.length : 0) + Object.values(save.equipment ?? {}).filter(Boolean).length,
+        return { ...character, job: jobOf(character.job), equipment: portraitEquipment(save), itemCount: (Array.isArray(save.bag) ? save.bag.length : 0) + Object.values(save.equipment ?? {}).filter(Boolean).length,
           idleSeconds: Number(character.slot) !== row.slot ? Math.min(43_200, (claimBySlot.get(Number(character.slot)) ?? 0) +
             (allIdleExpiresAt > Date.parse(String(updated_at)) ? idleSecondsUntil(updated_at, Math.min(now, allIdleExpiresAt)) : 0)) : 0 };
       }), activeSlot: row.slot, maxSlots: Number(row.max_slots ?? 3), revision: row.revision, allIdleExpiresAt });
@@ -172,7 +202,7 @@ export async function accountEndpoint(request, { env = runtimeEnv(), createDbCli
       return res.status(200).json({ revision: result.revision, accountId: id, loginId: row.password_hash === 'guest' ? '게스트' : row.id, gender, job: jobOf(body.job), guest: false, token: req.headers.authorization.slice(7), save: result.save, characterSlot: result.slot, needsSetup: false, offlineSeconds: 0 });
     }
     if (action === 'save' || action === 'reset') {
-      const result = await transaction(db, async tx => {
+      const result = await context.trace.step('tx', () => transaction(db, async tx => {
         const latest = await account(tx, id);
         assertSession(latest, signed.sid);
         // 새 시즌 설정 전에는 어떤 클라이언트도 세이브로 그 상태를 덮어쓸 수 없다(작업 206).
@@ -193,15 +223,16 @@ export async function accountEndpoint(request, { env = runtimeEnv(), createDbCli
           const inbox = (await tx.execute({ sql: 'SELECT COUNT(*) AS n FROM djrpg_market_inbox WHERE account_id=? AND claimed_at IS NULL', args: [id] })).rows[0];
           if (Number(open.n) || Number(inbox.n)) fail(409, 'MARKET_PENDING', '등록 매물과 미수령 거래가 있어 초기화할 수 없습니다. 먼저 거래소를 정리하세요.');
         }
-        await reconcileItems(tx, id, latest.save, save, { slot: latest.slot });
+        await reconcileItems(tx, id, latest.save, save, { slot: latest.slot, elapsedSeconds: elapsedSince(latest.character_updated_at) });
         const saved = await writeSave(tx, latest, save, [], action !== 'reset');
         await tx.execute({ sql: 'DELETE FROM djrpg_shop_entitlements WHERE account_id=? AND entitlement_key=?', args: [id, `idle_claim_${latest.slot}`] });
         if (action === 'save' && typeof body.requestId === 'string' && body.requestId.length <= 80) await tx.execute({ sql: 'INSERT INTO djrpg_save_requests VALUES (?,?,?) ON CONFLICT(account_id) DO UPDATE SET request_id=excluded.request_id, revision=excluded.revision', args: [id, body.requestId, saved.revision] });
+        if (saved.clamped?.length) context.clamped = saved.clamped.length;
         return { ok: true, ...saved, offlineSeconds: 0 };
-      });
+      }));
       return res.status(200).json(result);
     }
     return bad(res, 400, 'INVALID_ACTION', '지원하지 않는 요청입니다.');
-  } catch (error) { return errorResponse(error); }
-  finally { await db?.close(); }
+  } catch (error) { context.code = error?.code ?? error?.name ?? ''; return errorResponse(error); }
+  finally { if (createDbClient) await db?.close(); }
 }

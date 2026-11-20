@@ -31,7 +31,10 @@ export const TABLES = [
   'djrpg_meta',
   // 보물 주머니 레전드 전광판(작업 208) — 하루치만 남는 짧은 소식이라 비어 있어도 무관하다.
   // 이관 뒤에 생긴 표라 예전 공용 DB에는 없을 수 있어 옵션으로 본다.
-  'djrpg_announcements'
+  'djrpg_announcements',
+  // 던전 순위·도전 시작 기록(작업 197·209). 세이브의 던전 최고층 검증 근거라 함께 옮긴다.
+  'djrpg_dungeon_records',
+  'djrpg_dungeon_attempts'
 ];
 // 최신 스키마에만 있는 표 — 소스에 없으면 0행으로 보고 건너뛴다.
 const OPTIONAL_TABLES = ['djrpg_meta', 'djrpg_announcements'];
@@ -61,8 +64,8 @@ const HELP = `DJRPG Turso DB 이관 (djrpg_* 테이블만 새 DB로 복사)
   - 소스 DB는 읽기 전용 트랜잭션으로만 조회한다(puzzle-mates 테이블은 건드리지 않는다).
   - 타겟에 이미 행이 있으면 --force 없이는 중단한다.
   - 예상하지 못한 djrpg_* 테이블이 소스에 있으면 중단한다.
-  - 복사 후 19개 테이블 COUNT(*)가 소스·타겟에서 일치하는지 검사하고, 하나라도 다르면 실패한다.
-  - djrpg_meta는 예전 소스에 없으면 0행으로 보고 건너뛴다(있으면 함께 옮긴다).
+  - 복사 후 22개 테이블 COUNT(*)가 소스·타겟에서 일치하는지 검사하고, 하나라도 다르면 실패한다.
+  - djrpg_meta·djrpg_announcements는 예전 소스에 없으면 0행으로 보고 건너뛴다(있으면 함께 옮긴다).
 `;
 
 const isLocalUrl = url => /^file:/i.test(url);

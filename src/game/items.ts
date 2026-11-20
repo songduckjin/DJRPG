@@ -1,6 +1,7 @@
 import type { Save } from './store';
 import { allSkillIds, jobs, passiveOrderFor, passives, skillOrderFor, skills, type Job, type SkillLevelId } from './skills';
 import { jobOrDefault } from './skills';
+import { random } from './rng';
 
 function isRecord(value: unknown): value is Record<string, unknown> { return typeof value === 'object' && value !== null && !Array.isArray(value); }
 
@@ -42,7 +43,7 @@ export function rollSkillBook(floor: number, _job: Job = 'warrior'): SkillBook {
   const order = [...skillOrderFor(job), ...passiveOrderFor(job)];
   const available = order.filter(id => (id in skills ? skills[id as keyof typeof skills].level : passives[id as keyof typeof passives].level) <= floor * 2);
   const ids = available.length ? available : [order[0]];
-  const skillId = ids[Math.floor(Math.random() * ids.length)];
+  const skillId = ids[Math.floor(random() * ids.length)];
   return { id: crypto.randomUUID(), name: `[스킬북] ${skillId in skills ? skills[skillId as keyof typeof skills].name : passives[skillId as keyof typeof passives].name}`, slot: 'skillbook', rarity: 'rare', kind: 'skillbook', skillId, stats: {} };
 }
 /**
@@ -61,8 +62,8 @@ export function itemDropChance(floor: number, boss = false): number {
 export const SKILLBOOK_DROP_SHARE = .3;
 export const EQUIPMENT_DROP_SHARE = 1 - SKILLBOOK_DROP_SHARE;
 /** 당첨된 1개의 종류를 70:30으로 가른다. */
-export function rollItemKind(random: () => number = Math.random): 'skillbook' | 'equipment' {
-  return random() < SKILLBOOK_DROP_SHARE ? 'skillbook' : 'equipment';
+export function rollItemKind(draw: () => number = random): 'skillbook' | 'equipment' {
+  return draw() < SKILLBOOK_DROP_SHARE ? 'skillbook' : 'equipment';
 }
 /** 예전 이름 호환 — 단일 드롭률의 70%(던전·보스战利品이 이 비율만 쓴다). */
 export function equipmentDropChance(floor: number, boss = false): number { return itemDropChance(floor, boss) * EQUIPMENT_DROP_SHARE; }
@@ -100,11 +101,11 @@ export function applyPlus(stats: Partial<Record<Stat, number>>, plus: number): P
 }
 
 /** 이 층의 드롭 하나가 가질 강화 단계를 뽑는다. 10층 이하는 항상 0. */
-export function rollPlus(floor: number, boss = false, random: () => number = Math.random): number {
+export function rollPlus(floor: number, boss = false, draw: () => number = random): number {
   const maxPlus = maxPlusFor(floor);
   if (maxPlus === 0) return 0;
   const weights = plusWeights(maxPlus, boss);
-  let roll = random() * weights.reduce((sum, weight) => sum + weight, 0);
+  let roll = draw() * weights.reduce((sum, weight) => sum + weight, 0);
   for (const [plus, weight] of weights.entries()) { roll -= weight; if (roll < 0) return plus; }
   return 0;
 }
@@ -145,8 +146,8 @@ export function weaponBasesFor(job: Job): readonly string[] { return job === 'ar
 export const dropJobs: readonly Job[] = ['warrior', 'archer', 'mage'];
 
 /** 세 직업 중 하나를 균등(1/3)으로 고른다. */
-export function dropJob(random: () => number = Math.random): Job {
-  const index = Math.min(dropJobs.length - 1, Math.max(0, Math.floor(random() * dropJobs.length)));
+export function dropJob(draw: () => number = random): Job {
+  const index = Math.min(dropJobs.length - 1, Math.max(0, Math.floor(draw() * dropJobs.length)));
   return dropJobs[index];
 }
 
@@ -381,7 +382,7 @@ export function rollItem(floor: number, guaranteed = false, boss = false, job: J
 }
 
 /** 이 층·보스 여부에서 장비 하나의 등급을 뽑는다 — `rollItem`과 보물 주머니가 같은 표를 쓴다. */
-export function rollRarity(floor: number, boss = false, random: () => number = Math.random): Rarity {
+export function rollRarity(floor: number, boss = false, draw: () => number = random): Rarity {
   const depth = Math.max(0, floor - 1);
   // Grade cuts of a normal kill. The overall drop rate stays where it was (`equipmentDropChance`,
   // 2.2% at the deepest floor); what changes with depth is which grade a drop is (작업 196). A fixed
@@ -393,27 +394,29 @@ export function rollRarity(floor: number, boss = false, random: () => number = M
   const magic = boss ? .54 : Math.min(.40, .117 + depth * .0036);
   const unique = legendary + (rare - legendary) * .18;
   const epic = legendary + (rare - legendary) * .48;
-  const roll = random();
+  const roll = draw();
   return roll < legendary ? 'legendary' : roll < unique ? 'unique' : roll < epic ? 'epic' : roll < rare ? 'rare' : roll < magic ? 'magic' : 'common';
 }
 
 /** 그 층·등급의 장비 1개 — 슬롯·티어·스탯·`+단계` 규칙은 `rollItem`이 늘 쓰던 그대로다.
- *  `rollItem`은 이 함수에 스스로 뽑은 등급을 넘기고, 보물 주머니는 확률표가 정한 등급을 넘긴다(작업 207). */
+ *  `rollItem`은 이 함수에 스스로 뽑은 등급을 넘기고, 보물 주머니는 확률표가 정한 등급을 넘긴다(작업 207).
+ *  난수는 `rng`의 `random()`을 쓴다 — 던전은 시드로 전투를 다시 돌려 검증하므로 드롭 뽑기도 같은 난수를
+ *  따라야 한다(작업 211). 시드가 없으면 `Math.random`이다. */
 export function rollEquipment(floor: number, rarity: Rarity, boss = false): EquipmentItem {
   const depth = Math.max(0, floor - 1);
-  const slot = slots[Math.floor(Math.random() * slots.length)];
+  const slot = slots[Math.floor(random() * slots.length)];
   // 무기는 세 직업이 같은 확률로 떨어진다(작업 204, 사용자 확정 "다른직업 장비나 스킬북도 동일확률로
   // 뜰수있어"): 확률 드롭은 직업을 1/3로 먼저 고르고 그 직업의 무기 목록에서 뽑는다. 튜토리얼 첫 확정
   // 드롭(`guaranteed`)만 내 직업 무기다.
   const bases = slot === 'weapon' ? weaponBasesFor(dropJob()) : baseItems[slot];
   const rarityTier = rarityTiers[rarity];
   const maxTier = Math.min(bases.length - 1, Math.floor(depth / (bases.length === 10 ? 3 : 8)) + Math.floor(rarityTier * (bases.length - 1) / 9));
-  const tier = Math.floor(Math.random() * (maxTier + 1));
+  const tier = Math.floor(random() * (maxTier + 1));
   const base = bases[tier];
   const zweihander = slot === 'weapon' && base === '쯔바이핸드';  const prefix = rarityPrefixes[rarity];
   const scale = (1 + Math.floor(floor / 2)) * rarityScales[rarity];
   const primary: Stat = ['weapon', 'ring1', 'ring2', 'gloves'].includes(slot) ? 'attack' : 'defense';
-  const stats: Partial<Record<Stat, number>> = { [primary]: scale + Math.ceil(Math.random() * 3) + Math.ceil(tier * (slot === 'weapon' ? .6 : .4)) };
+  const stats: Partial<Record<Stat, number>> = { [primary]: scale + Math.ceil(random() * 3) + Math.ceil(tier * (slot === 'weapon' ? .6 : .4)) };
   if (rarity !== 'common') stats.health = 3 * scale;
   if (rarityRanks[rarity] >= rarityRanks.rare) stats.crit = scale;
   if (rarityRanks[rarity] >= rarityRanks.unique) stats.speed = scale;

@@ -11,10 +11,18 @@ const errorStatus = (error: unknown): number => error instanceof Error && 'statu
 const errorExpectedVersion = (error: unknown): unknown => error instanceof Error && 'expected' in error ? (error as Error & { expected?: unknown }).expected : undefined;
 
 export type SyncResult = { journey?: import('./journey').JourneyData; ok: boolean; save: Save; revision: number; message?: string; effect?: { listing?: { id: string; state: string; soldAt?: number }; deliveries: import('./market').Delivery[]; claimedId?: string; claimedIds?: string[] } };
+/** 자동 저장 간격 — 변경이 있을 때만, 마지막 저장에서 이만큼 지난 뒤에 보낸다(작업 209). */
+const autosaveMinDelay = 1_000;
+const autosaveMaxDelay = 5_000;
 export class SaveSync {
   revision: number;
   active?: Promise<boolean>;
   private pendingSave?: { save: Save; revision: number; requestId: string };
+  /** 세이브에 아직 서버로 못 보낸 변경이 있는지. 변경이 없으면 flush가 네트워크를 쓰지 않는다(작업 209). */
+  private dirty = false;
+  /** 변경 일련번호 — 저장을 시작한 시점과 비교해 "저장 중에 또 바뀌었는지"를 안다. */
+  private changeSeq = 0;
+  private lastSaveAt = 0;
   pending = false;
   locked = false;
   conflicted = false;
@@ -36,8 +44,19 @@ export class SaveSync {
   constructor(public save: Save, public session: Session) { this.revision = session.revision; }
   private autosaveTimer?: ReturnType<typeof setTimeout>;
   queueSave(): void {
+    this.markDirty();
     if (this.autosaveTimer !== undefined) return;
-    this.autosaveTimer = setTimeout(() => { this.autosaveTimer = undefined; void this.flush(); }, 1000);
+    // 바로 1초 뒤가 아니라, 마지막 저장에서 5초가 지난 시점까지 기다린다 — 사냥 중에는 처치마다 변경이
+    // 생기므로 이 간격이 없으면 1초에 한 번씩 저장 요청이 나간다.
+    const wait = Math.max(autosaveMinDelay, Math.min(autosaveMaxDelay, this.lastSaveAt + autosaveMaxDelay - Date.now()));
+    this.autosaveTimer = setTimeout(() => { this.autosaveTimer = undefined; void this.flush(); }, wait);
+  }
+  /** 세이브가 바뀌었다고 표시한다. 저장은 `queueSave`·`flush`가 맡는다. */
+  markDirty(): void { this.dirty = true; this.changeSeq++; }
+  /** 보낼 변경이 없으면 아무것도 하지 않는다 — 5초마다 빈 저장을 보내지 않기 위한 입구. */
+  flushIfDirty(): Promise<boolean> {
+    if (!this.dirty && !this.pendingSave && !this.pending) return Promise.resolve(true);
+    return this.flush();
   }
   private cancelQueuedSave(): void {
     if (this.autosaveTimer !== undefined) clearTimeout(this.autosaveTimer);
@@ -53,10 +72,18 @@ export class SaveSync {
         this.pending = false; this.onStatus('저장 중');
         try {
           const recovering = !!this.pendingSave;
+          // 저장을 시작한 시점의 변경 번호. 응답을 받은 뒤 번호가 그대로면 이 스냅샷이 최신이다.
+          const seq = this.changeSeq;
           this.pendingSave ??= { save: structuredClone(this.save), revision: this.revision, requestId: crypto.randomUUID() };
-          const result = await accountRequest<SyncResult>('save', { ...this.pendingSave, characterSlot: this.session.characterSlot }, this.session.token);
+          const request = this.pendingSave;
+          const result = await accountRequest<SyncResult>('save', { ...request, characterSlot: this.session.characterSlot }, this.session.token);
           if (!result.ok || !Number.isSafeInteger(result.revision)) throw new Error('서버가 저장 완료를 확인하지 않았습니다.');
-          this.revision = result.revision; this.pendingSave = undefined; this.pending ||= recovering; this.onStatus('저장됨'); this.onSaved();
+          this.revision = result.revision; this.pendingSave = undefined;
+          this.lastSaveAt = Date.now();
+          // 저장을 보낸 뒤에 또 바뀌었으면 dirty를 남겨 다음 차례에 다시 보낸다.
+          if (this.changeSeq === seq) this.dirty = false;
+          this.pending ||= recovering || this.dirty;
+          this.onStatus('저장됨'); this.onSaved();
         } catch (error) { this.pending = true; this.handleError(error); return false; }
       }
       return true;
@@ -129,6 +156,7 @@ export class SaveSync {
       const latest = await accountRequest<Session>('load', {}, this.session.token);
       const verified = parseSave(latest.save, this.session.accountId);
       Object.assign(this.save, verified);
+      this.dirty = false;
       this.revision = latest.revision;
       if (Number.isInteger(latest.characterSlot)) this.session.characterSlot = latest.characterSlot;
       this.pendingMarket = undefined; this.pendingWarehouse = undefined;
@@ -179,7 +207,7 @@ export class SaveSync {
       this.pendingMarket = undefined;
       this.revision = result.revision;
       Object.assign(this.save, verifiedSave);
-      this.pending = false; this.pendingSave = undefined; this.onSaved();
+      this.pending = false; this.pendingSave = undefined; this.dirty = false; this.lastSaveAt = Date.now(); this.onSaved();
       this.onStatus('저장됨'); return result as SyncResult;
     } catch (error) {
       const code = errorCode(error);
@@ -230,6 +258,7 @@ export class SaveSync {
       this.warehouseRecoveryTimer = undefined; this.warehouseRecoveryDelay = 2000;
       this.revision = result.revision;
       Object.assign(this.save, verifiedSave);
+      this.dirty = false; this.lastSaveAt = Date.now();
       this.onSaved(); this.onStatus('저장됨');
       return result;
     } catch (error) {

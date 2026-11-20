@@ -69,7 +69,9 @@ export function renderDungeonLobby(ui: Interface, dialog: HTMLElement): void {
     if (live) void (async () => {
       if (!live.fresh) await live.load();
       // 세이브와 서버 기록이 다르면(오프라인 클리어·전송 실패·계정 초기화) 한 번 더 맞춘다.
-      if (!live.guest && live.data && (live.data.standing.mine?.clearedFloor ?? 0) !== state.clearedFloor) await live.submit();
+      // 세이브의 층이 서버 기록보다 앞서 있으면(전송 실패) 그 전투 요약이 남아 있을 때만 다시 보낸다 —
+      // 요약 없이 보내면 서버가 거절하고(DUNGEON_SUMMARY_REQUIRED) 순위 탭에 실패 문구만 남는다.
+      if (!live.guest && live.data && (live.data.standing.mine?.clearedFloor ?? 0) !== state.clearedFloor && live.hasClear(state.clearedFloor)) await live.submit(state.clearedFloor);
       refresh();
     })();
   }

@@ -1,10 +1,11 @@
 import { Assets, Container, Rectangle, Sprite, Text, Texture } from 'pixi.js';
-import type { World } from '../world';
+import type { HeroAfterimage, World } from '../world';
 import { ELITE_MOB_SCALE } from '../world';
 import type { Save } from '../store';
 import { enemyFacing } from '../facing';
-import { heroAnimationMode, heroMotion } from './heroMotion';
-import { heroScale, heroBodyHeight } from './heroScale';
+import { heroAnimationMode, heroMotion, slash2SwingMotion } from './heroMotion';
+import { heroScale, heroBodyHeight, heroBodyFraction } from './heroScale';
+import { drawBloodRageAura } from './bloodRage';
 import { heroClass, socketMotion, weaponSocket } from './heroSockets';
 import { tintedGearTexture } from './gearTint';
 import { costumeGhostSources, hideCostumeHero } from './costumeHero';
@@ -13,10 +14,13 @@ import { wearableEquipmentImage, baseItemIndex, usesBaseSheetOnly } from '../ite
 import { jobOrDefault } from '../skills';
 import { helmetArtFor, helmetArtPath, helmetPlacement } from './helmets';
 import { archerHelmIndexFor, archerHelmPartPath, archerHelmPlacement } from './archerHelmets';
+import { mageHelmIndexFor, mageHelmPartPath, mageHelmPlacement } from './mageHelmets';
 import { armorIndexFor } from './armors';
+import { archerArmorIndexFor } from './archerArmors';
+import { hasRobeSheet, mageRobeIndexFor } from './robes';
 import { WEAPON_GUARD, weaponIndexFor, weaponPose } from './weapons';
 import { BOW_GRIP, bowIndexFor, bowPose } from './bows';
-import { STAFF_GRIP, staffIndexFor, staffPose } from './staffs';
+import { STAFF_GRIP, staffIndexFor, staffPlacement } from './staffs';
 import type { GameView } from '../render';
 
 function syncWeapon(view: GameView, save: Save, texture: Texture, art: string, attacking: boolean, motion: 'idle' | 'walk', walkingFrame: number): void {
@@ -272,6 +276,44 @@ function syncArcherHelmet(view: GameView, save: Save, motion: 'idle' | 'walk' | 
 }
 
 /**
+ * 마법사 전용 모자·투구 파츠를 본체 위에 얹는다(작업 204).
+ *
+ * 궁수 투구(작업 200)와 같은 전체 셀 PNG 지만, 마법사 파츠는 고깔모·후광·날개·뿔이 셀 위로 솟아
+ * PNG 가 `MAGE_HELM_EXTRA_TOP`(44)행 더 크다. 그래서 자세 표의 y 가 이미 그만큼 위로 올라가 있고,
+ * 앵커는 좌상단(0,0)·회전 0이다. 본체는 같은 자리에서 머리를 지운 시트(`mage_headless/`)로 갈아
+ * 끼우므로 파츠가 그 구멍을 그대로 덮는다. 지팡이가 앞으로 지나가도록 zIndex 는 지팡이(.4)보다 낮다.
+ */
+function syncMageHelmet(view: GameView, save: Save, motion: 'idle' | 'walk' | 'attack', frame: number, tint: number): void {
+  const index = mageHelmIndexFor(save);
+  const shown = view.heroMageHelm;
+  const path = index >= 0 ? mageHelmPartPath(save.gender, index) : undefined;
+  const texture = path ? view.helmetTextures?.get(path) : undefined;
+  if (!texture) {
+    if (shown) shown.visible = false;
+    return;
+  }
+  const place = mageHelmPlacement(save.gender, motion, frame);
+  const layerX = place.x - view.hero.texture.width * view.hero.anchor.x;
+  const layerY = place.y - view.hero.texture.height * view.hero.anchor.y;
+  let sprite = shown;
+  if (!sprite) {
+    sprite = new Sprite(texture);
+    sprite.zIndex = .35;
+    view.heroLayer.addChild(sprite);
+    view.heroLayer.sortableChildren = true;
+    view.heroMageHelm = sprite;
+  }
+  if (sprite.texture !== texture) sprite.texture = texture;
+  sprite.anchor.set(0, 0);
+  sprite.position.set(layerX, layerY);
+  sprite.scale.set(place.scale);
+  sprite.tint = tint;
+  sprite.rotation = 0;
+  sprite.alpha = 1;
+  sprite.visible = true;
+}
+
+/**
  * 착용 지팡이 파츠를 본체 위에 얹는다(작업 201).
  *
  * 파츠 PNG 는 서기 자세의 362px 셀 그대로이고 앵커가 손이 지팡이를 쥔 그립 점이다. 자세별로는
@@ -292,7 +334,7 @@ function syncStaffPart(view: GameView, save: Save, motion: 'idle' | 'walk' | 'at
     if (shown) shown.visible = false;
     return;
   }
-  const pose = staffPose(save.gender, motion, frame);
+  const pose = staffPlacement(save.gender, motion, frame);
   const layerX = pose.x - view.hero.texture.width * view.hero.anchor.x;
   const layerY = pose.y - view.hero.texture.height * view.hero.anchor.y;
   let sprite = shown;
@@ -307,6 +349,7 @@ function syncStaffPart(view: GameView, save: Save, motion: 'idle' | 'walk' | 'at
   sprite.anchor.set(STAFF_GRIP.x / texture.width, STAFF_GRIP.y / texture.height);
   sprite.position.set(layerX, layerY);
   sprite.rotation = pose.rot * Math.PI / 180;
+  sprite.scale.set(pose.scale);
   sprite.tint = tint;
   sprite.alpha = 1;
   sprite.visible = true;
@@ -349,7 +392,11 @@ export function drawHero(this: GameView, world: World, x: number, y: number, tim
     this.lastHeroWorld = { x: player.x, y: player.y };
     if (moving) this.heroWalkDistance += Math.min(30, walked);
     const walkingFrame = Math.floor(this.heroWalkDistance / 12) % 8;
-    const attackFrame = Math.min(3, Math.floor((1 - world.attackPose / .32) * 4));
+    // 이단참(작업 213): 2연격은 공격 시트 4프레임을 정방향(1타) → 역방향(2타 되받아 베기)으로
+    // 두 번 재생한다. 무기·투구·갑옷 파츠도 같은 프레임을 쓰므로 따로 놀지 않는다.
+    const doubleSwing = world.attackCombo === 'double' && world.attackPose > 0;
+    const swing = doubleSwing ? slash2SwingMotion(world.attackPose) : undefined;
+    const attackFrame = swing ? swing.frame : Math.min(3, Math.floor((1 - world.attackPose / (world.attackPoseSpan ?? .32)) * 4));
     const heroTint = player.hit > 0 ? 0xffd4cf : 0xffffff;
     // The approved pilot sheets contain the complete armor and greatsword. Skip all
     // equipment/costume overlays so the body and weapon are never drawn twice.
@@ -379,6 +426,16 @@ export function drawHero(this: GameView, world: World, x: number, y: number, tim
     // 착용 갑옷 시트(작업 155). 기준 시트와 같은 셀 좌표계라 배율·앵커·소켓은 그대로다.
     // 아직 로딩 전인 티어는 위의 기준 시트(투구를 썼으면 머리 없는 시트)로 한 프레임 더 그린다.
     const armor = plain ? -1 : armorIndexFor(save);
+    // 마법사 로브(작업 208): 장착 갑옷 인덱스가 1~9면 그 티어 로브 시트로 갈아 끼운다.
+    // 0번(가죽 조끼)은 기준 시트의 스타터 천 로브와 같은 옷이라 시트를 받지 않는다.
+    const robe = mageRobeIndexFor(save);
+    if (job === 'mage') {
+      const robeTier = `${save.gender}:${robe}`;
+      if (this.lastRobeTier !== robeTier) {
+        this.lastRobeTier = robeTier;
+        if (hasRobeSheet(robe)) this.prefetchRobe(save.gender, robe);
+      }
+    }
     const weapon = plain ? 0 : weaponIndexFor(save);
     // 0번이 아닌 검을 차면 본체 시트도 기본 검을 지운 판(`noweapon/`)으로 갈아 끼운다(작업 156).
     const swordless = weapon >= 1;
@@ -428,6 +485,23 @@ export function drawHero(this: GameView, world: World, x: number, y: number, tim
         textureKey = `nostaff:${save.gender}:${animation}:${poseFrame}`;
       }
     }
+    // 마법사 투구(작업 204): 파츠와 머리 없는 시트가 **둘 다** 준비됐을 때만 머리를 지운 시트로 그린다
+    // (파츠 없이 지우면 머리가 빈 채로 보인다). 지팡이를 찼으면 `nostaff` 판을 쓴다.
+    const mageHelm = mage ? mageHelmIndexFor(save) : -1;
+    if (mage && this.lastMageHelm !== mageHelm) this.lastMageHelm = mageHelm;
+    if (mage && this.lastMageHelmStaff !== `${mageHelm}:${staff >= 0 ? 1 : 0}`) {
+      this.lastMageHelmStaff = `${mageHelm}:${staff >= 0 ? 1 : 0}`;
+      if (mageHelm >= 0) this.prefetchMageHeadless(save.gender, staff >= 0);
+    }
+    if (mageHelm >= 0) {
+      const partPath = mageHelmPartPath(save.gender, mageHelm);
+      const partReady = !!partPath && !!this.helmetTextures?.get(partPath);
+      const headlessSheet = partReady ? this.mageHeadlessFrame(save.gender, animation, poseFrame, staff >= 0) : undefined;
+      if (headlessSheet) {
+        texture = headlessSheet;
+        textureKey = `mage-headless:${save.gender}:${animation}:${poseFrame}:${staff >= 0 ? 'nostaff' : 'body'}`;
+      }
+    }
     // 궁수 투구: 파츠와 머리 없는 시트가 **둘 다** 준비됐을 때만 머리를 지운 시트로 그린다
     // (파츠 없이 지우면 머리가 빈 채로 보인다).
     if (archerHelm >= 0) {
@@ -446,11 +520,44 @@ export function drawHero(this: GameView, world: World, x: number, y: number, tim
         textureKey = `armor:${save.gender}:${armor}:${animation}:${helmeted ? 'headless' : 'body'}:${animation === 'idle' ? 0 : animation === 'walk' ? walkingFrame : Math.max(0, attackFrame)}`;
       }
     }
+    if (hasRobeSheet(robe)) {
+      // 투구 파츠가 준비됐으면 로브의 **머리 없는 판**을 쓴다(작업 208) — 작업 204와 같은 규칙이다.
+      const helmPath = mageHelm >= 0 ? mageHelmPartPath(save.gender, mageHelm) : undefined;
+      const helmReady = !!helmPath && !!this.helmetTextures?.get(helmPath);
+      const robeTexture = this.robeFrame(save.gender, robe, animation, poseFrame, helmReady);
+      if (robeTexture) {
+        texture = robeTexture;
+        textureKey = `robe:${save.gender}:${robe}:${animation}:${poseFrame}${helmReady ? ':headless' : ''}`;
+      }
+    }
     if (swordless) {
       const stripped = this.swordlessBodyFrame(save.gender, animation, helmeted, poseFrame);
       if (stripped) {
         texture = stripped;
         textureKey = `noweapon:${save.gender}:${armor}:${animation}:${helmeted ? 'headless' : 'body'}:${poseFrame}`;
+      }
+    }
+    // 궁수 갑옷 시트(작업 160). 궁수는 전사 갑옷·투구·대검을 쓰지 않고 이 시트만 쓴다.
+    // 0번(가죽 조끼)·미착용은 스타터(또는 기본 활 지운) 시트 그대로이고, 갑옷 1~9번은 그 티어의
+    // 시트로 갈아 끼운다(활을 바꿨으면 `nobow/` 판). 로딩 전 티어는 위에서 고른 시트로 한 프레임 더 그린다.
+    if (archer) {
+      const tier = archerArmorIndexFor(save);
+      // 투구 파츠가 아직 로딩 전이면 머리 지운 판을 쓰지 않는다(머리만 빈 채로 보인다).
+      const helmPartPath = archerHelm >= 0 ? archerHelmPartPath(save.gender, archerHelm) : undefined;
+      const helmWorn = !!helmPartPath && !!this.helmetTextures?.get(helmPartPath);
+      const variant = `${bow >= 1 ? 'nobow' : 'bow'}:${helmWorn ? 'headless' : 'head'}`;
+      const tierKey = `${save.gender}:${tier}:${variant}`;
+      if (this.lastArcherArmorTier !== tierKey) {
+        this.lastArcherArmorTier = tierKey;
+        if (tier >= 1) this.prefetchArcherArmor(save.gender, tier, bow >= 1, helmWorn);
+      }
+      if (tier >= 1) {
+        // 활을 바꿨으면 기본 활대를 지운 판, 투구를 썼으면 머리 지운 판을 쓴다(둘 다일 수 있다).
+        const archerTexture = this.archerArmorFrame(save.gender, tier, animation, poseFrame, bow >= 1, helmWorn);
+        if (archerTexture) {
+          texture = archerTexture;
+          textureKey = `archerArmor:${save.gender}:${tier}:${animation}:${poseFrame}:${variant}`;
+        }
       }
     }
     const displayTexture = tintedGearTexture(textureKey, texture, null, null, animatedAttack);
@@ -470,8 +577,13 @@ export function drawHero(this: GameView, world: World, x: number, y: number, tim
       } else {
         if (this.heroBow) this.heroBow.visible = false;
       }
-      if (mage) syncStaffPart(this, save, animation, poseFrame, heroTint);
-      else if (this.heroStaff) this.heroStaff.visible = false;
+      if (mage) {
+        syncStaffPart(this, save, animation, poseFrame, heroTint);
+        syncMageHelmet(this, save, animation, poseFrame, heroTint);
+      } else if (this.heroStaff) {
+        this.heroStaff.visible = false;
+        if (this.heroMageHelm) this.heroMageHelm.visible = false;
+      }
       const shownGear = this.heroGear.get('weapon');
       if (shownGear) { this.heroLayer.removeChild(shownGear.sprite); shownGear.sprite.destroy(); this.heroGear.delete('weapon'); }
     } else {
@@ -483,8 +595,9 @@ export function drawHero(this: GameView, world: World, x: number, y: number, tim
     let bob = 0;
     const local = world.effects.filter(effect => effect.kind !== 'hit' && effect.kind !== 'death' && Math.hypot(effect.x - player.x, effect.y - player.y) < 2);
     const slam = local.find(effect => effect.kind === 'slam' || effect.kind === 'hell');
-    const motion = heroMotion(world.attackPose);
-    const attackPulse = motion.pulse;
+    const motion = heroMotion(world.attackPose, world.attackPoseSpan ?? .32);
+    // 2연격은 스윙마다 한 번씩 몸을 싣는다(한 스윙 기준 pulse 로는 0.44초 창에서 음수가 된다).
+    const attackPulse = swing ? swing.pulse : motion.pulse;
     if (slam) bob -= Math.sin(Math.PI * slam.age / slam.duration) * 17;
     const face = player.facingSide;
     const visualFace = face;
@@ -498,10 +611,33 @@ export function drawHero(this: GameView, world: World, x: number, y: number, tim
     // shadow grew 25 % whenever the hero swung. 코스튬 모드도 같은 식(본체 높이 × 배율 × .37)을 쓴다.
     const shadowRadius = Math.max(20, bodyPx * scale * .37);
     this.ground.ellipse(x - visualFace * 4, y - 3, shadowRadius, 8).fill({ color: 0x000000, alpha: .5 });
-    if (player.berserk > 0) {
-      this.glow.circle(x, y - 25, 35).fill({ color: 0xb32d28, alpha: .12 });
-    }
+    // 버프 중의 붉은 기운은 `drawBloodRageAura`가 몸 뒤 광휘로 그린다(작업 214 — 예전 단색 원 제거).
   }
+
+/**
+ * 본체 레이어 한 벌을 그대로 복제한다(작업 212).
+ *
+ * 딜레이 크러싱 잔상은 지금 착용한 모습 그대로여야 하므로 통합 바디 한 장이 아니라 `heroLayer` 의
+ * 보이는 스프라이트(몸통·투구 파츠·대검 파츠·활·지팡이)를 모두 복사한다. 그리기 순서를 지키려고
+ * zIndex 로 정렬하며, 색은 살짝 푸른 은빛으로 물들인다.
+ */
+const ghostTint = 0xbfd4ff;
+function cloneHeroLayers(view: GameView): Container {
+  const container = new Container();
+  const layers = view.heroLayer.children
+    .filter((child): child is Sprite => child instanceof Sprite && child.visible)
+    .sort((a, b) => a.zIndex - b.zIndex);
+  for (const layer of layers) {
+    const ghost = new Sprite(layer.texture);
+    ghost.anchor.set(layer.anchor.x, layer.anchor.y);
+    ghost.position.set(layer.position.x, layer.position.y);
+    ghost.scale.set(layer.scale.x, layer.scale.y);
+    ghost.rotation = layer.rotation;
+    ghost.tint = ghostTint;
+    container.addChild(ghost);
+  }
+  return container;
+}
 
 export function updateAfterimages(this: GameView, world: World, project: (x: number, y: number) => [number, number], dt: number): void {
     // 코스튬 모드에서는 캐릭터가 여러 레이어이므로 보이는 레이어를 모두 복제해 잔상을 만든다.
@@ -547,6 +683,32 @@ export function updateAfterimages(this: GameView, world: World, project: (x: num
       for (const entry of ghost.sprites) { this.ghosts.removeChild(entry.sprite); entry.sprite.destroy(); }
       return false;
     });
+    // [작업 212] 딜레이 크러싱 10연타 잔상 — 월드가 남긴 잔상 기록 하나당 본체 복제본 한 벌을 깔고,
+    // 기록이 사라지면 복제본도 함께 지운다. 본체보다 낮은 불투명도(0.14~0.42)로 본체 뒤에 깔린다.
+    const trails = new Set(world.afterimages ?? []);
+    const tracked: Map<HeroAfterimage, Container> = this.crushTrails instanceof Map ? this.crushTrails : new Map();
+    for (const [record, container] of tracked) {
+      if (trails.has(record)) continue;
+      this.ghosts.removeChild(container);
+      container.destroy({ children: true });
+      tracked.delete(record);
+    }
+    for (const record of trails) {
+      let container = tracked.get(record);
+      if (!container) {
+        // 타격 직후(record.capture)에 복제한다 — 그 순간 본체는 스윙 중간 자세다.
+        if (record.age < record.capture) continue;
+        container = cloneHeroLayers(this);
+        this.ghosts.addChild(container);
+        tracked.set(record, container);
+      }
+      const [x, y] = project(record.x, record.y);
+      container.position.set(x, y);
+      container.scale.set(Math.abs(this.heroLayer.scale.x) * (record.facingSide < 0 ? -1 : 1), this.heroLayer.scale.y);
+      container.rotation = this.heroLayer.rotation;
+      const life = Math.max(.01, record.duration);
+      container.alpha = record.alpha * Math.min(1, Math.max(0, (1 - record.age / life) * 2.4));
+    }
   }
 
 export function updateCorpses(this: GameView, project: (x: number, y: number) => [number, number], dt: number): void {
@@ -621,13 +783,20 @@ export function drawEntities(this: GameView, world: World, project: (x: number, 
       depths.push({ sprite, depth: enemy.x + enemy.y });
     }
     this.drawHero(world, hx, hy, time);
-    const rage = world.effects.find(effect => effect.kind === 'warcry');
-    const burst = rage ? 1 - rage.age / rage.duration : 0;
-    const auraScale = 165 / this.aura.texture.width * (1 + burst * .8);
-    this.aura.position.set(hx, hy - 3);
-    this.aura.scale.set(auraScale, auraScale * .6);
-    this.aura.rotation = time * .35;
-    this.aura.alpha = world.player.berserk > 0 ? .48 + burst * .48 + Math.sin(time * 4) * .08 : 0;
+    // [작업 214] 전사 블러드 레이지는 발밑 타원 링 대신 몸 윤곽을 따라 타오르는 붉은 투기 오라로 그린다.
+    drawBloodRageAura(this, world, hx, hy, time, dt, h * heroBodyFraction, this.textures.fxFlame, this.textures.fxRageGlow);
+    // 궁수 호크아이·마법사 아케인 실드는 종전의 발밑 마법진을 그대로 쓴다(전사만 새 오라).
+    if (world.player.berserk > 0 && jobOrDefault(world.save.job) !== 'warrior') {
+      const rage = world.effects.find(effect => effect.kind === 'warcry');
+      const burst = rage ? 1 - rage.age / rage.duration : 0;
+      const auraScale = 165 / this.aura.texture.width * (1 + burst * .8);
+      this.aura.position.set(hx, hy - 3);
+      this.aura.scale.set(auraScale, auraScale * .6);
+      this.aura.rotation = time * .35;
+      this.aura.alpha = .48 + burst * .48 + Math.sin(time * 4) * .08;
+    } else {
+      this.aura.alpha = 0;
+    }
     this.updateAfterimages(world, project, dt);
     this.updateCorpses(project, dt);
     depths.push({ sprite: this.heroLayer, depth: world.player.x + world.player.y });

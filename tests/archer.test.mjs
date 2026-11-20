@@ -149,7 +149,7 @@ test('궁수 평타는 멈춰 서서 화살을 쏘고, 화살이 도착한 뒤�
   world.spawnTimer = 999;
   const enemy = enemyAt(world, 100);
   world.update(.016);
-  // 정지 거리(118) 안이므로 다가가지 않고 그 자리에서 쏜다.
+  // 정지 거리 안이므로 다가가지 않고 그 자리에서 쏜다.
   assert.equal(Math.hypot(world.activeMove.x, world.activeMove.y), 0);
   assert.equal(world.player.x, 0);
   const shot = world.effects.find(effect => effect.kind === 'shot');
@@ -162,15 +162,26 @@ test('궁수 평타는 멈춰 서서 화살을 쏘고, 화살이 도착한 뒤�
 test('궁수는 사거리 밖에서만 다가가고, 사거리 안에서는 서서 쏜다', () => {
   const world = new World(archerSave());
   world.spawnTimer = 999; world.cooldown.attack = 999;
-  const enemy = world.enemies[0];
-  enemy.x = world.player.x + 99; enemy.y = world.player.y + 99; enemy.hp = enemy.maxHp = 10000;
+  const enemy = world.enemies[0]; enemy.hp = enemy.maxHp = 10000;
+  // 거리 기대값은 상수에서 만든다 — 사거리 간격을 조정해도(작업 207) 의미가 그대로다.
+  enemy.x = world.player.x + archerStopRange + 20; enemy.y = world.player.y;
   world.update(.05);
   assert(Math.hypot(world.activeMove.x, world.activeMove.y) > .05, '정지 거리 밖에서는 다가간다');
-  enemy.x = world.player.x + 70; enemy.y = world.player.y + 70;
+  enemy.x = world.player.x + archerStopRange - 20; enemy.y = world.player.y;
   world.update(.05);
   assert.equal(world.activeMove.x, 0);
   assert.equal(world.activeMove.y, 0);
+  assert.equal(world.pursuing, false);
   assert(archerAttackRange > archerStopRange);
+});
+
+test('직업별 사거리 간격은 궁수 > 마법사 > 전사(90) 순서다', async () => {
+  const { mageAttackRange, mageStopRange } = await import('../src/game/world.ts');
+  // 작업 207 확정 수치.
+  assert.equal(archerAttackRange, 280); assert.equal(archerStopRange, 150);
+  assert.equal(mageAttackRange, 210); assert.equal(mageStopRange, 110);
+  assert(archerAttackRange > mageAttackRange && mageAttackRange > 90, '사거리: 궁수 > 마법사 > 전사');
+  assert(archerStopRange > mageStopRange && mageStopRange > 90, '정지 거리: 궁수 > 마법사 > 전사');
 });
 
 test('궁수 스킬 8종은 화살·화살비 이펙트를 만들고 피해를 준다', () => {
@@ -193,20 +204,20 @@ test('궁수 스킬 8종은 화살·화살비 이펙트를 만들고 피해를 �
   }
 });
 
-test('궁수는 전사용 갑옷·대검을 그리지 않고, 활·궁수 전용 투구만 파츠로 얹는다', () => {
+test('궁수는 전사용 갑옷·대검을 그리지 않고, 궁수 갑옷·투구·활 시트와 파츠를 쓴다', () => {
   const save = archerSave('female');
   // 전사용 갑옷 이름을 입어도 궁수는 자기 시트를 쓴다.
   save.equipment.armor = { id: 'a', name: '황혼의 드래곤 메일', slot: 'armor', rarity: 'rare', stats: { defense: 10 } };
   save.equipment.helmet = { id: 'h', name: '황혼의 기사 헬름', slot: 'helmet', rarity: 'rare', stats: { defense: 5 } };
   save.equipment.weapon = { id: 'w', name: '황혼의 혈염 장궁', slot: 'weapon', rarity: 'rare', stats: { attack: 30 } };
   const plan = equipmentPortraitPlan(save);
-  // 작업 200: 궁수 투구를 쓰면 필드와 같이 머리를 지운 nobow 서기 시트 + 궁수 투구 파츠(기사 헬름 = 3번)를 쓴다.
-  assert.equal(plan.base, '/assets/pilot-25d/archer_headless/nobow/archer_female_idle_v1.png');
+  // 작업 205: 궁수 갑옷 1~9번은 그 티어의 **머리 지운** 갑옷 시트(활도 지운 판) 위에 궁수 투구·활 파츠를 얹는다.
+  assert.equal(plan.base, '/assets/pilot-25d/archer_armors/nobow/headless/archer_female_armor_7_idle_v1.png');
   assert.equal(plan.helmet, undefined, '전사 투구 파츠는 궁수에게 쓰지 않는다');
   assert.equal(plan.weapon, undefined, '전사 대검 파츠는 궁수에게 쓰지 않는다');
   assert.equal(plan.archerHelm?.path, '/assets/pilot-25d/archer_helms/female_3_v1.png');
   assert.equal(plan.bow?.path, '/assets/pilot-25d/bows/bow_6_v1.png');
-  assert.equal(plan.key, 'archer:female:/assets/pilot-25d/bows/bow_6_v1.png:/assets/pilot-25d/archer_helms/female_3_v1.png');
+  assert.equal(plan.key, 'archer:female:a7:/assets/pilot-25d/bows/bow_6_v1.png:/assets/pilot-25d/archer_helms/female_3_v1.png');
   // 능력치는 그대로 오른다.
   const bare = archerSave('female');
   assert(totalStats(save).attack > totalStats(bare).attack);
@@ -236,11 +247,16 @@ test('궁수 기본 시트 6장은 전사와 같은 셀 규격의 RGBA PNG다', 
 test('궁수 시트 URL은 모두 캐시 버스터(?v=)를 단다', () => {
   // `/assets/*`는 `public/_headers`가 immutable 1년 캐시로 고정한다. 시트를 갈아도 URL이 같으면
   // 브라우저가 옛 그림을 계속 쓰므로, 궁수 시트를 참조하는 곳은 전부 버전 쿼리를 붙여야 한다(작업 159).
-  for (const file of ['src/game/render.ts', 'src/ui/equipmentPortrait.ts', 'src/ui/modals/charactersModal.ts']) {
+  for (const file of ['src/game/render.ts', 'src/ui/equipmentPortrait.ts']) {
     const lines = readFileSync(new URL(`../${file}`, import.meta.url), 'utf8').split('\n').filter(line => line.includes('archer') && line.includes('_v1.png'));
     assert(lines.length > 0, `${file}: 궁수 시트 경로가 없다`);
     for (const line of lines) assert.doesNotMatch(line, /_v1\.png(?!\?v=\d)/, `${file}: 캐시 버스터 없는 경로 — ${line.trim()}`);
   }
+  // 작업 210: 캐릭터 선택 카드는 자기 시트 경로를 직접 쓰지 않고 공용 초상화 경로(`equipmentPortrait.ts`)를
+  // 그대로 쓴다 — 버전 쿼리 규칙이 한 곳에만 있어야 카드만 옛 그림을 캐시하는 일이 없다.
+  const card = readFileSync(new URL('../src/ui/modals/charactersModal.ts', import.meta.url), 'utf8');
+  assert.equal(/_v1\.png/.test(card), false, 'charactersModal.ts가 시트 경로를 직접 만들지 않는다');
+  assert(card.includes("from '../equipmentPortrait'"));
 });
 
 test('궁수 스킬북도 강화 가능 표시에 잡힌다', () => {

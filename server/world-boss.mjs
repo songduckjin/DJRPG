@@ -27,8 +27,11 @@ async function mail(tx,day,id,kind,title,gold,books,now){
   await tx.execute(journeyOperation(id,state));
 }
 function tier(rank){return rank===1?[50000,10]:rank<=3?[30000,7]:rank<=10?[20000,5]:rank<=50?[12000,4]:rank<=100?[8000,3]:[5000,2];}
-async function settle(tx,day,now){
+async function settle(tx,day,now,trace){
   if(day.settled_at||(!day.killed_at&&now<Number(day.ends_at)))return;
+  const startedAt=Date.now();try{await settleRows(tx,day,now);}finally{trace?.add('settle',Date.now()-startedAt);}
+}
+async function settleRows(tx,day,now){
   const scores=(await tx.execute({sql:`SELECT s.*,j.state_json FROM djrpg_boss_scores s LEFT JOIN djrpg_journey j ON j.account_id=s.account_id
     WHERE s.day=? AND s.damage>0 ORDER BY s.damage DESC,s.joined_at,s.account_id`,args:[day.day]})).rows;
   const existing=new Set((await tx.execute({sql:'SELECT account_id,kind FROM djrpg_boss_rewards WHERE day=?',args:[day.day]})).rows.map(r=>JSON.stringify([r.account_id.toLowerCase(),r.kind])));
@@ -51,10 +54,14 @@ async function settle(tx,day,now){
   await tx.execute({sql:'UPDATE djrpg_boss_days SET settled_at=? WHERE day=? AND settled_at IS NULL',args:[now,day.day]});
 }
 async function dayRow(tx,key){return (await tx.execute({sql:'SELECT * FROM djrpg_boss_days WHERE day=?',args:[key]})).rows[0];}
-async function credit(tx,attempt,now,finish=false){
+async function credit(tx,attempt,now,finish=false,trace){
   let day=await dayRow(tx,attempt.day);
   const elapsed=Math.min(60,Math.max(0,(Math.min(now,Number(day.ends_at),day.killed_at??Infinity,attempt.ended_at??Infinity)-Number(attempt.started_at))/1000));
-  const battle=replayBoss(JSON.parse(attempt.save_json),elapsed,JSON.parse(attempt.dodges_json));
+  // 서버 재계산(클라이언트 피해량을 믿지 않는다)은 비용이 있으므로 시간을 남긴다(작업 209 계측).
+  const replayStarted=Date.now();
+  let battle;
+  try{battle=replayBoss(JSON.parse(attempt.save_json),elapsed,JSON.parse(attempt.dodges_json));}
+  finally{trace?.add('replay',Date.now()-replayStarted);}
   if(!attempt.ended_at){
     const delta=day.settled_at?0:Math.min(Number(day.hp),Math.max(0,battle.damage-Number(attempt.credited)));
     if(delta>0){
@@ -79,18 +86,51 @@ async function standing(tx,day,id){
   const map=r=>({rank:Number(r.rank),name:r.name,damage:Number(r.damage),mine:r.account_id.toLowerCase()===id.toLowerCase()});
   return {top:rows.filter(r=>Number(r.rank)<=10).map(map),mine:mine?map(mine):undefined,nearMine:mine?rows.filter(r=>Number(r.rank)>=Number(mine.rank)-9&&Number(r.rank)<=Number(mine.rank)+1).map(map):[]};
 }
-export async function worldBossOperation(db,id,input={},sid,now=Date.now(),schemaKey){
+/**
+ * 조회 전용 경로(작업 209).
+ *
+ * 예전에는 `action:'list'`도 쓰기 트랜잭션을 열어 오늘 row를 INSERT하고, 만료 도전 정산까지 시도했다.
+ * 화면이 상태를 자주 확인하는 조회가 쓰기 잠금을 잡으면 `start`·`tick`이 그 뒤에 줄을 서므로,
+ * **읽기 배치 한 번**으로 답할 수 있는 경우(오늘 row가 이미 있고, 정산·정리할 것이 없음)는 쓰기 없이 돌려준다.
+ * 정산이 필요하거나 오늘 첫 요청이면 종전의 쓰기 트랜잭션 경로로 내려간다(그 경로는 그대로 유지).
+ */
+async function quickList(db,id,sid,now){
+  const {daily}=periods(now);
+  const [accounts,days,counts,pending]=await db.batch([
+    {sql:'SELECT session_id,password_hash FROM djrpg_accounts WHERE id=?',args:[id]},
+    {sql:'SELECT * FROM djrpg_boss_days WHERE day=?',args:[daily]},
+    {sql:'SELECT COUNT(*) AS n FROM djrpg_boss_attempts WHERE account_id=? AND day=?',args:[id,daily]},
+    {sql:`SELECT (SELECT COUNT(*) FROM djrpg_boss_attempts WHERE ended_at IS NULL AND (day<>? OR (account_id=? COLLATE NOCASE AND ?-started_at>=60000))) AS stale,
+      (SELECT COUNT(*) FROM djrpg_boss_days WHERE settled_at IS NULL AND (ends_at<=? OR hp<=0)) AS due`,args:[daily,id,now,now]}
+  ],'read');
+  const accountRow=accounts.rows[0];
+  if(!accountRow)fail(401,'INVALID_TOKEN','계정을 찾을 수 없습니다. 다시 로그인하세요.');
+  assertSession(accountRow,sid);
+  const day=days.rows[0];
+  const stale=Number(pending.rows[0]?.stale??0),due=Number(pending.rows[0]?.due??0);
+  // 오늘 row가 없거나(첫 요청) 정산·정리가 남아 있으면 쓰기 경로로 — 그 경로가 row 생성과 정산을 맡는다.
+  if(!day||stale>0||due>0)return undefined;
+  return {day:daily,hp:Number(day.hp),maxHp:Number(day.max_hp),endsAt:Number(day.ends_at),remaining:Math.max(0,3-Number(counts.rows[0]?.n??0)),killed:!!day.killed_at,guest:accountRow.password_hash==='guest',standing:await standing(db,daily,id),now};
+}
+export async function worldBossOperation(db,id,input={},sid,now=Date.now(),schemaKey,trace){
   await worldBossSchema(db,schemaKey);
   if(!['list','start','tick','dodge','finish'].includes(input.action))fail(400,'INVALID_ACTION','지원하지 않는 월드보스 요청입니다.');
+  if(input.action==='list'){
+    const quick=await (trace?trace.step('db',()=>quickList(db,id,sid,now)):quickList(db,id,sid,now));
+    if(quick)return quick;
+  }
+  return (trace?trace.step('tx',()=>writeOperation(db,id,input,sid,now,trace)):writeOperation(db,id,input,sid,now));
+}
+async function writeOperation(db,id,input,sid,now,trace){
   return transaction(db,async tx=>{
     const owner=await account(tx,id);assertSession(owner,sid);
     const {daily,dailyEnd}=periods(now);
     await tx.execute({sql:'INSERT OR IGNORE INTO djrpg_boss_days(day,max_hp,hp,ends_at) VALUES (?,?,?,?)',args:[daily,WORLD_BOSS_HP,WORLD_BOSS_HP,dailyEnd]});
     // Settle expired battles before closing their day so disconnected participants keep earned credit.
     const expired=(await tx.execute({sql:'SELECT * FROM djrpg_boss_attempts WHERE ended_at IS NULL AND (day<>? OR account_id=? COLLATE NOCASE)',args:[daily,id]})).rows;
-    for(const attempt of expired)if(attempt.day!==daily||now-Number(attempt.started_at)>=60000)await credit(tx,attempt,now);
+    for(const attempt of expired)if(attempt.day!==daily||now-Number(attempt.started_at)>=60000)await credit(tx,attempt,now,false,trace);
     const due=(await tx.execute({sql:'SELECT * FROM djrpg_boss_days WHERE settled_at IS NULL AND (ends_at<=? OR hp<=0)',args:[now]})).rows;
-    for(const day of due)await settle(tx,day,now);
+    for(const day of due)await settle(tx,day,now,trace);
     let battleResult,attempt,freshDay,freshCount;
     if(input.action==='start'){
       if(owner.password_hash==='guest')fail(403,'GUEST_READ_ONLY','실전 도전은 정식 계정으로 로그인해 주세요.');
@@ -131,8 +171,8 @@ export async function worldBossOperation(db,id,input={},sid,now=Date.now(),schem
           await tx.execute({sql:'UPDATE djrpg_boss_attempts SET dodges_json=? WHERE id=?',args:[attempt.dodges_json,attempt.id]});
         }
       }
-      battleResult=await credit(tx,attempt,now,input.action==='finish');attempt=battleResult.attempt;
-      await settle(tx,battleResult.day,now);
+      battleResult=await credit(tx,attempt,now,input.action==='finish',trace);attempt=battleResult.attempt;
+      await settle(tx,battleResult.day,now,trace);
     }
     const day=freshDay??await dayRow(tx,daily),count=freshCount===undefined?(await tx.execute({sql:'SELECT COUNT(*) AS n FROM djrpg_boss_attempts WHERE account_id=? AND day=?',args:[id,daily]})).rows[0]:{n:freshCount};
     const result={day:daily,hp:Number(day.hp),maxHp:Number(day.max_hp),endsAt:Number(day.ends_at),maxAttempts:WORLD_BOSS_DAILY_ATTEMPTS,remaining:Math.max(0,WORLD_BOSS_DAILY_ATTEMPTS-Number(count.n)),killed:!!day.killed_at,guest:owner.password_hash==='guest',standing:await standing(tx,attempt?.day??daily,id),now};

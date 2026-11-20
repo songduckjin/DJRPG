@@ -1,4 +1,5 @@
 import type { CostumeMotionTemplate } from '../costume/skillMotion';
+import { slash2SecondHit, slash2SwingSeconds } from '../skills';
 
 export function heroAnimationMode(moving: boolean, attackPose: number, hasAttackSheet: boolean): 'idle' | 'walk' | 'attack' {
   if (moving) return 'walk';
@@ -7,15 +8,51 @@ export function heroAnimationMode(moving: boolean, attackPose: number, hasAttack
 
 // The attack sheets already carry the swing, so the body itself never stretches, squashes,
 // tips over or rotates for the spin skill. Spin is shown by its VFX and afterimages.
+// `span` is how long the current attack pose lasts: 0.32s for a basic attack, 0.062s for one
+// strike of 딜레이 크러싱's ten-hit flurry (작업 212), so the lunge pulse keeps the same shape.
 export function heroMotion(
-  attackPose: number
+  attackPose: number,
+  span = .32
 ): { pulse: number; scaleX: number; scaleY: number; rotation: number } {
   return {
-    pulse: attackPose > 0 ? Math.sin(Math.PI * (1 - attackPose / .32)) : 0,
+    pulse: attackPose > 0 ? Math.sin(Math.PI * (1 - attackPose / Math.max(.01, span))) : 0,
     scaleX: 1,
     scaleY: 1,
     rotation: 0
   };
+}
+
+/** 이단참(작업 213) 2연격 모션의 한 순간. */
+export type Slash2SwingMotion = {
+  /** 공격 시트 프레임(0~3). */
+  frame: number;
+  /** 스윙마다 0→1→0 으로 솟는 미세 전진 세기. */
+  pulse: number;
+  /** 0 = 1타 정방향 횡베기, 1 = 2타 되받아 베기. */
+  swing: 0 | 1;
+  /** 그 스윙 안의 진행도(0~1). */
+  local: number;
+};
+
+/**
+ * 이단참 2연격 — 남은 모션 시간을 두 스윙으로 나눈다.
+ *
+ * 1타는 공격 시트 4프레임을 정방향(0→3)으로 재생하고, 2타는 되받아 베는 동작이라 같은 프레임을
+ * 역방향(3→0)으로 되감아 좌우 횡베기가 눈으로 구분되게 한다. 무기·투구·갑옷 파츠는 모두 이
+ * 프레임을 그대로 쓰므로, 필드에서 파츠가 따로 놀지 않는다. `pulse`는 스윙마다 한 번씩 몸을
+ * 앞으로 싣는 값이다(기존 `heroMotion.pulse`는 한 스윙 기준이라 0.44초 창에서는 음수가 된다).
+ */
+export function slash2SwingMotion(remaining: number, total = slash2SwingSeconds): Slash2SwingMotion {
+  const span = total > 0 ? total : slash2SwingSeconds;
+  const left = Math.min(span, Math.max(0, Number.isFinite(remaining) ? remaining : 0));
+  const elapsed = span - left;
+  const first = Math.min(Math.max(.001, slash2SecondHit), span);
+  if (elapsed < first) {
+    const local = Math.min(1, elapsed / first);
+    return { frame: Math.min(3, Math.floor(local * 4)), pulse: Math.sin(Math.PI * local), swing: 0, local };
+  }
+  const local = Math.min(1, (elapsed - first) / Math.max(.001, span - first));
+  return { frame: 3 - Math.min(3, Math.floor(local * 4)), pulse: Math.sin(Math.PI * local), swing: 1, local };
 }
 
 /**

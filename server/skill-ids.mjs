@@ -8,7 +8,7 @@
 // 순서는 클라이언트와 같다 — 액티브(전사 8 → 궁수 8 → 마법사 8) → 패시브(전사 3 → 궁수 3 → 마법사 3).
 
 /** 전사 액티브 8종 (`skillOrder`). */
-export const warriorSkillIds = ['slash2', 'spin', 'crushing', 'slam', 'warcry', 'power', 'destroy', 'hell'];
+export const warriorSkillIds = ['slash2', 'slam', 'warcry', 'power', 'destroy', 'hell', 'crushing', 'spin'];
 /** 궁수 액티브 8종 (`archerSkillOrder`). */
 export const archerSkillIds = ['doubleShot', 'multiShot', 'pierceShot', 'iceArrow', 'hawkEye', 'snipe', 'stormVolley', 'arrowRain'];
 /** 마법사 액티브 8종 (`mageSkillOrder`). */
@@ -53,7 +53,7 @@ export const isSkillBookId = value => skillBookIdSet.has(value);
 
 /** 스킬 이름 — 클라이언트 `skills`·`passives`의 `name`과 같다(스킬북 이름이 화면과 어긋나지 않게). */
 export const skillNames = {
-  slash2: '휘두르기', spin: '드래곤 트위스터', crushing: '딜레이 크러싱', slam: '와일드 스탬프',
+  slash2: '이단참', spin: '드래곤 트위스터', crushing: '딜레이 크러싱', slam: '와일드 스탬프',
   warcry: '블러드 레이지', power: '파워 스트라이크', destroy: '디스트로이 스윙', hell: '헬 파이어 소드',
   doubleShot: '더블 샷', multiShot: '멀티 샷', pierceShot: '관통 사격', iceArrow: '빙결 화살',
   hawkEye: '호크아이', snipe: '저격 일격', stormVolley: '폭풍 연사', arrowRain: '애로우 레인',

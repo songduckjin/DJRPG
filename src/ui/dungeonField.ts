@@ -6,10 +6,11 @@ import {projectArenaPoint} from '../game/arena';
 import {totalStats} from '../game/store';
 import {skills} from '../game/skills';
 import {equipmentImage,isEquipment,isSkillBook,type Rarity} from '../game/items';
-import {DungeonBattle,dungeonLootSpots,dungeonLootTimeline,dungeonAbsorbProgress,dungeonAbsorbPoint,type DungeonLoot,type LootDrop,type LootField} from './dungeonBattle';
+import {DungeonBattle,DUNGEON_STEP,dungeonBattleSummary,dungeonLootSpots,dungeonLootTimeline,dungeonAbsorbProgress,dungeonAbsorbPoint,type DungeonLoot,type LootDrop,type LootField} from './dungeonBattle';
 import {claimDungeonRewards,type DungeonRewardReceipt} from '../game/dungeonRewards';
 import {dungeonClearedFloor} from '../game/dungeonProgress';
 import {dungeonRewardMarkup} from './dungeonRewardMarkup';
+import {randomSeed} from '../game/rng';
 import {heroBodyFraction} from '../game/render/heroScale';
 import {GOLD_COIN_CHIP_DROP,GOLD_PILE,GOLD_PILE_RX,GOLD_PILE_RY,goldCoinChipHeight,goldCoinChipWidth,goldCoinHeight} from '../game/render/goldPile';
 import {goldCoinChipUrl,warmGoldCoinChips} from '../game/render/goldCoinArt';
@@ -29,7 +30,16 @@ export function openDungeonField(ui:Interface,lobby:HTMLElement):void {
   field.innerHTML=`<div class="dungeon-field-canvas"></div><div class="dungeon-loot-layer is-behind" aria-hidden="true"></div><div class="dungeon-loot-layer" aria-hidden="true"></div><div class="dungeon-exit-gate" aria-label="다음 층으로 이어지는 철문"><div class="dungeon-lobby-gate"><i class="dungeon-lobby-gate-dark"></i><img class="dungeon-gate-left" src="/assets/dungeon/gate-left-v1.png" alt=""><img class="dungeon-gate-right" src="/assets/dungeon/gate-right-v1.png" alt=""><img class="dungeon-gate-frame" src="/assets/dungeon/gate-frame-v1.png" alt=""></div></div><header class="dungeon-field-hud"><div><small>끝없는 던전</small><strong>제 1 층</strong></div><button type="button" class="dungeon-field-leave">나가기</button></header><footer class="dungeon-battle-hud"><div class="dungeon-battle-record"><strong data-clock>90초</strong><span data-wave>WAVE 1 / 3</span><span data-kills>처치 0 / 7</span></div><div class="dungeon-hp"><i></i><span></span></div><div class="dungeon-auto-skills"></div><small>자동 전투 · 1~${DUNGEON_MAX_FLOOR}층 · 클리어하면 처치 금화·강화석·떨어진 아이템을 그대로 받습니다</small></footer><div class="dungeon-battle-result" hidden></div><div class="dungeon-floor-transition" aria-hidden="true"></div>`;
   ui.root.querySelector('.game-shell')!.append(field);
   const get=<T extends HTMLElement>(s:string)=>field.querySelector<T>(s)!;
-  const view=new GameView();let battle=new DungeonBattle(ui.world.save,ui.dungeon.floor.floor),closed=false,mounted=false,age=0,visualTime=0,finishAge=0,resultShown=false;
+  const view=new GameView();let battle!:DungeonBattle,closed=false,mounted=false,age=0,visualTime=0,finishAge=0,resultShown=false,pendingStep=0,starting=false;
+  // 서버가 준 시드로 전투를 시작한다(작업 211). 서버는 같은 시드·같은 고정 스텝으로 다시 돌려 클리어를 확인한다.
+  // 게스트이거나 `start`가 실패하면 로컬 시드로 돈다 — 그 판은 서버 기록으로 올라가지 않는다.
+  const createBattle=async(floor:number):Promise<void>=>{
+    starting=true;
+    const start=await ui.dungeon.live?.begin(floor);
+    if(closed)return;
+    battle=new DungeonBattle(ui.world.save,floor,start?.seed??randomSeed());
+    pendingStep=0;starting=false;
+  };
   // Ground loot is DOM on top of the transparent arena canvas: the shared field renderer keeps
   // drawing only the arena, so drops stay inside the isolated dungeon UI files.
   const lootLayer=get('.dungeon-loot-layer:not(.is-behind)'),backLootLayer=get('.dungeon-loot-layer.is-behind');
@@ -165,17 +175,21 @@ export function openDungeonField(ui:Interface,lobby:HTMLElement):void {
   const cleanup=()=>{if(closed)return;closed=true;observer.disconnect();lobbyRoot.classList.remove('is-opening');lobbyRoot.querySelectorAll<HTMLButtonElement>('button').forEach(button=>button.disabled=false);field.remove();if(mounted)view.app.destroy(true,{children:true,texture:false,textureSource:false});else destroyPending=true;ui.world.paused=wasPaused||ui.market.sync.locked||ui.market.sync.conflicted;resume?.();};
   const leave=()=>{cleanup();ui.open('dungeon');};get<HTMLButtonElement>('.dungeon-field-leave').onclick=leave;
   field.addEventListener('keydown',e=>{e.stopPropagation();if(e.key==='Escape')leave();});get<HTMLButtonElement>('.dungeon-field-leave').focus();
-  for(const id of battle.world.save.quickSlots){const slot=document.createElement('div');slot.className='dungeon-auto-skill';if(id){const icon=document.createElement('i');setSkillIcon(icon,id);slot.append(icon);const name=document.createElement('span');name.textContent=skills[id].name;slot.append(name);}else slot.textContent='빈 슬롯';get('.dungeon-auto-skills').append(slot);}
+  for(const id of ui.world.save.quickSlots){const slot=document.createElement('div');slot.className='dungeon-auto-skill';if(id){const icon=document.createElement('i');setSkillIcon(icon,id);slot.append(icon);const name=document.createElement('span');name.textContent=skills[id].name;slot.append(name);}else slot.textContent='빈 슬롯';get('.dungeon-auto-skills').append(slot);}
   const resetBattle=(floor:number)=>{
     const gate=get('.dungeon-exit-gate');gate.classList.add('is-resetting');gate.classList.remove('is-opening');
     void gate.offsetWidth;gate.classList.remove('is-resetting');
     for(const sprite of view.enemies.values())sprite.destroy();view.enemies.clear();view.enemyWalkDistance.clear();
     for(const corpse of view.corpses)corpse.sprite.destroy();view.corpses=[];
     for(const label of view.damageLabels.values())label.destroy();view.damageLabels.clear();
-    battle=new DungeonBattle(ui.world.save,floor);clearLoot();finishAge=0;age=0;resultShown=false;
-    get('.dungeon-battle-result').hidden=true;
-    get('.dungeon-field-hud strong').textContent=`제 ${floor} 층`;
-    field.setAttribute('aria-label',`끝없는 던전 ${floor}층`);
+    clearLoot();finishAge=0;age=0;resultShown=false;
+    // 서버 검증(작업 209·210): 이 층의 서버 시각과 시드를 받아 그 시드로 전투를 시작한다.
+    void createBattle(floor).then(()=>{
+      if(closed)return;
+      get('.dungeon-battle-result').hidden=true;
+      get('.dungeon-field-hud strong').textContent=`제 ${floor} 층`;
+      field.setAttribute('aria-label',`끝없는 던전 ${floor}층`);
+    });
   };
   const result=()=>{resultShown=true;absorbRing?.remove();absorbRing=undefined;const floor=battle.floor,canNext=battle.outcome==='clear'&&floor<DUNGEON_MAX_FLOOR;
     // 클리어 보상은 여기서 한 번만 지급한다(작업 205): 바닥에 남은 금화와 떨어진 장비·스킬북이 그대로
@@ -189,9 +203,12 @@ export function openDungeonField(ui:Interface,lobby:HTMLElement):void {
       if(rewards)receipt=claimDungeonRewards(save,floor,rewards,{firstClear:floor>dungeonClearedFloor(save),
         autoSalvage:ui.autoSalvage?ui.salvageRarity:undefined,autoSalvagePlus:ui.salvagePlus});
       // 클리어 층수는 계정 세이브에 적고(새로고침·재접속에도 유지), 정식 계정이면 서버 순위에도 올린다.
-      ui.dungeon.clear(save,floor);
-      ui.onSave();ui.renderStatus();ui.renderBagBadge();
-      void ui.dungeon.live?.submit();
+      // 클리어는 세이브에 적고, 서버가 같은 시드로 다시 돌려 확인할 수 있게 전투 요약을 함께 보낸다(작업 211).
+      const summary=dungeonBattleSummary(battle);
+      ui.dungeon.live?.rememberClear(floor,summary);
+      if(ui.dungeon.clear(save,floor))ui.onSave();
+      ui.renderStatus();ui.renderBagBadge();
+      void ui.dungeon.live?.submit(floor,summary);
     }
     const box=get('.dungeon-battle-result');box.hidden=false;
     const record=battle.outcome==='clear'&&receipt?dungeonRewardMarkup(receipt):`<p>처치 ${battle.world.slain} / ${battle.targetCount} · ${Math.ceil(battle.elapsed)}초</p>`;
@@ -222,15 +239,22 @@ export function openDungeonField(ui:Interface,lobby:HTMLElement):void {
     view.drawTerrain=()=>{};view.drawDust=()=>{};view.drawRunes=()=>{};
     // Render a complete frame before exposing the canvas. Keep the lobby underneath
     // throughout the fade so neither main hunting nor the renderer's clear color flashes.
+    await createBattle(ui.dungeon.floor.floor);if(closed)return;
     view.draw(battle.world,0);view.app.renderer.render(view.app.stage);
     requestAnimationFrame(()=>{if(closed)return;field.classList.add('is-ready');get<HTMLButtonElement>('.dungeon-field-leave').focus();
       window.setTimeout(()=>{if(!closed&&ui.openModal==='dungeon')ui.open(null);},650);
     });
     get('.dungeon-field-hud strong').textContent=`제 ${battle.floor} 층`;
     let previous=performance.now();
-    view.app.ticker.add(()=>{if(closed)return;const now=performance.now(),dt=document.hidden?0:Math.min(.05,(now-previous)/1000);previous=now;age+=dt;
+    view.app.ticker.add(()=>{if(closed||starting)return;const now=performance.now(),dt=document.hidden?0:Math.min(.05,(now-previous)/1000);previous=now;age+=dt;
       visualTime+=dt;
-      if(age>.65&&!battle.finished)battle.advance(dt);
+      // 전투는 **고정 스텝**으로만 전진한다 — 남는 시간은 다음 프레임으로 넘긴다(작업 211). 서버 리플레이와
+      // 같은 스텝 수를 밟아야 같은 결과가 나온다.
+      if(age>.65&&!battle.finished){
+        pendingStep+=dt;
+        for(let steps=0;pendingStep>=DUNGEON_STEP&&!battle.finished&&steps<8;steps++){battle.advance(DUNGEON_STEP);pendingStep-=DUNGEON_STEP;}
+        if(battle.finished)pendingStep=0;
+      }
       if(battle.finished){
         finishAge+=dt;battle.world.attackPose=Math.max(0,battle.world.attackPose-dt);
         battle.world.effects=battle.world.effects.filter(effect=>{effect.age+=dt;return effect.age<effect.duration;});

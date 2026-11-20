@@ -18,7 +18,7 @@ export const costumeMotionTemplateNames: Record<CostumeMotionTemplate, string> =
 /**
  * | 스킬 ID | 스킬명 | 템플릿 | 근거 |
  * |---|---|---|---|
- * | `slash2` | 휘두르기 | 베기 | 전방 1회 휘두름 |
+ * | `slash2` | 이단참 | 베기 | 좌우 2연격 횡베기(작업 213 — 코스튬 모션은 베기 템플릿 그대로) |
  * | `power` | 파워 스트라이크 | 베기 | 좁은 전방 1격 |
  * | `destroy` | 디스트로이 스윙 | 베기 | 전방 검기 발사(발사 자세) |
  * | `spin` | 드래곤 트위스터 | 회전 | 회오리·잔상 중심(본체 360° 회전 없음) |
