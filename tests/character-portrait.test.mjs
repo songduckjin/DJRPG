@@ -97,7 +97,8 @@ test('a bare character summary falls back to its job sheet and legacy base portr
   assert.equal(equipmentFallbackPortrait(card), '/assets/pilot-25d/archer_female_idle_v1.png?v=2');
   // 서버가 장비 정보를 아직 안 보낸 응답(구버전 서버·guest)에서도 카드가 깨지지 않는다.
   const legacy = characterPortraitSave({ slot: 3, name: '옛캐릭', gender: 'male', level: 1, floor: 1 });
-  assert.equal(equipmentFallbackPortrait(legacy), '/assets/pilot-25d/warrior_male_idle_v1.png');
+  // 작업 218: 서기 시트를 다시 구워 `?v=2`.
+  assert.equal(equipmentFallbackPortrait(legacy), '/assets/pilot-25d/warrior_male_idle_v1.png?v=2');
   const source = readFileSync(new URL('../src/ui/modals/charactersModal.ts', import.meta.url), 'utf8');
   assert.equal(source.includes('warrior_${gender}_base.png'), false, '구형 warrior_*_base 초상화를 쓰지 않는다');
 });

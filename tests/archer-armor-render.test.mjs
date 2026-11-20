@@ -395,7 +395,7 @@ test('장비창 초상화도 착용한 궁수 갑옷 시트를 쓴다', () => {
   assert.equal(plan.helmet, undefined, '궁수는 투구 파츠를 합성하지 않는다');
   const warrior = freshSave('female');
   warrior.equipment.armor = armorItem('사슬 갑옷');
-  assert.equal(equipmentFallbackPortrait(warrior), '/assets/pilot-25d/armors/warrior_female_armor_2_idle_v1.png',
+  assert.equal(equipmentFallbackPortrait(warrior), '/assets/pilot-25d/armors/warrior_female_armor_2_idle_v1.png?v=2',
     '전사 장비창은 예전 경로 그대로');
 });
 

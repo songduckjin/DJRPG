@@ -158,12 +158,14 @@ export function helmetArtFor(gender: Gender, index: number, motion: HelmetMotion
  */
 export const headlessBodyPaths = {
   male: {
-    idle: '/assets/pilot-25d/headless/warrior_male_idle_v1.png',
+    // 작업 218: 서기 시트를 낮은 양손 그립으로 갈아 `/assets/*` 불변 캐시를 피해 `?v=2`를 붙인다
+    // (걷기·공격 시트는 그대로라 버전도 그대로다 — render.ts·equipmentPortrait.ts 와 같은 규칙).
+    idle: '/assets/pilot-25d/headless/warrior_male_idle_v1.png?v=2',
     walk: '/assets/pilot-25d/headless/warrior_male_walk_v1.png',
     attack: '/assets/pilot-25d/headless/warrior_male_attack_v1.png'
   },
   female: {
-    idle: '/assets/pilot-25d/headless/warrior_female_idle_v1.png',
+    idle: '/assets/pilot-25d/headless/warrior_female_idle_v1.png?v=2',
     walk: '/assets/pilot-25d/headless/warrior_female_walk_v1.png',
     attack: '/assets/pilot-25d/headless/warrior_female_attack_v1.png'
   }

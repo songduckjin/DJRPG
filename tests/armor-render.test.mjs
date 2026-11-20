@@ -15,7 +15,8 @@ const { equipmentPortraitPlan, equipmentFallbackPortrait } = await import('../sr
 
 const armorItem = name => ({ id: name, slot: 'armor', name, rarity: 'common', stats: {} });
 const helmetItem = name => ({ id: name, slot: 'helmet', name, rarity: 'common', stats: {} });
-const fileOf = path => new URL(`../public${path}`, import.meta.url);
+// `/assets/*` 불변 캐시 회피용 `?v=N` 쿼리는 파일 경로에서 떼어 낸다(작업 218).
+const fileOf = path => new URL(`../public${path.split('?')[0]}`, import.meta.url);
 
 /** 팔레트(tRNS)·RGBA PNG의 알파를 읽는다(hero-art.test.mjs와 같은 디코더). */
 function decodeAlpha(image) {
@@ -95,7 +96,9 @@ test('갑옷 10종 이름이 모두 기본형 인덱스 0~9 로 매핑된다', (
 });
 
 test('시트 경로는 성별·인덱스·동작·머리 없음마다 하나씩 있다', () => {
-  assert.equal(armorSheetPath('male', 0, 'idle'), '/assets/pilot-25d/armors/warrior_male_armor_0_idle_v1.png');
+  // 작업 218: 서기 시트를 낮은 양손 그립으로 다시 구워 `?v=2`(걷기·공격은 그대로).
+  assert.equal(armorSheetPath('male', 0, 'idle'), '/assets/pilot-25d/armors/warrior_male_armor_0_idle_v1.png?v=2');
+  assert.equal(armorSheetPath('female', 4, 'walk'), '/assets/pilot-25d/armors/warrior_female_armor_4_walk_v1.png');
   assert.equal(armorSheetPath('female', 9, 'attack'), '/assets/pilot-25d/armors/warrior_female_armor_9_attack_v1.png');
   assert.equal(armorSheetPath('male', 3, 'walk', true), '/assets/pilot-25d/armors/headless/warrior_male_armor_3_walk_v1.png');
   assert.equal(armorSheetPath('male', 10, 'idle'), undefined);
@@ -138,7 +141,8 @@ test('시트는 비어 있지 않고 배경이 투명하며 4프레임이 칸을
         const { width, height, alpha } = decodeAlpha(readFileSync(fileOf(path)));
         let painted = 0, clear = 0;
         for (const value of alpha) { if (value > 20) painted += 1; else clear += 1; }
-        assert(painted > 20000, `${path}: 그림이 비었습니다(${painted}px)`);
+        // 작업 218: 서기 시트는 낮은 양손 그립으로 다시 그려 실루엣이 조금 얇다(실측 1.1만~2.8만px, 하한 9000px).
+        assert(painted > 9000, `${path}: 그림이 비었습니다(${painted}px)`);
         assert(clear > 20000, `${path}: 배경이 투명하지 않습니다`);
         if (motion === 'idle') continue;
         const cell = width / 4;
@@ -263,17 +267,17 @@ test('투구를 쓰면 갑옷의 머리 없는 시트를 쓴다', () => {
 
 test('장비창 초상화도 착용 갑옷 시트를 쓴다', () => {
   const save = freshSave('female');
-  assert.equal(equipmentFallbackPortrait(save), '/assets/pilot-25d/warrior_female_idle_v1.png');
+  assert.equal(equipmentFallbackPortrait(save), '/assets/pilot-25d/warrior_female_idle_v1.png?v=2');
   save.equipment.armor = armorItem('사슬 갑옷');
-  assert.equal(equipmentFallbackPortrait(save), '/assets/pilot-25d/armors/warrior_female_armor_2_idle_v1.png');
+  assert.equal(equipmentFallbackPortrait(save), '/assets/pilot-25d/armors/warrior_female_armor_2_idle_v1.png?v=2');
   save.equipment.helmet = helmetItem('철제 바시넷');
-  assert.equal(equipmentFallbackPortrait(save), '/assets/pilot-25d/armors/headless/warrior_female_armor_2_idle_v1.png');
+  assert.equal(equipmentFallbackPortrait(save), '/assets/pilot-25d/armors/headless/warrior_female_armor_2_idle_v1.png?v=2');
   const plan = equipmentPortraitPlan(save);
   assert(plan.key.includes('a2'), `캐시 키에 갑옷 티어: ${plan.key}`);
   assert.equal(plan.base, equipmentFallbackPortrait(save));
   // 갑옷이 없으면 예전처럼 기준 시트(+머리 없음)다.
   const bare = freshSave('female');
-  assert.equal(equipmentPortraitPlan(bare).base, '/assets/pilot-25d/warrior_female_idle_v1.png');
+  assert.equal(equipmentPortraitPlan(bare).base, '/assets/pilot-25d/warrior_female_idle_v1.png?v=2');
 });
 
 test('갑옷 시트는 부팅 프리로드에 넣지 않고 티어별로만 받는다', () => {
