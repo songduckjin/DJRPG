@@ -15,11 +15,12 @@
 .equipment-modal .modal-bag > h3, .equipment-modal .bag-filters, .equipment-modal .bag-job-only { flex: none; }
 .bag-item { position: relative; width: 100%; min-width: 0; aspect-ratio: 1; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; border: 1px solid #60534e; background: radial-gradient(circle at 50% 30%, #3a3130, #221e22); color: #ddcfc1; padding: 2px; }
 .bag-item.common, .equipment-slot.common { border-color: #9ca3af; box-shadow: inset 0 0 7px #9ca3af44; }
-.bag-item.magic, .equipment-slot.magic { border-color: #60a5fa; box-shadow: inset 0 0 8px #60a5fa55, 0 0 5px #60a5fa55; }
-.bag-item.rare, .equipment-slot.rare { border-color: #facc15; box-shadow: inset 0 0 8px #facc1555, 0 0 5px #facc1555; }
-.bag-item.epic, .equipment-slot.epic { border-color: #c084fc; box-shadow: inset 0 0 8px #c084fc55, 0 0 5px #c084fc55; }
-.bag-item.unique, .equipment-slot.unique { border-color: #fb923c; box-shadow: inset 0 0 8px #fb923c55, 0 0 5px #fb923c55; }
-.bag-item.legendary, .equipment-slot.legendary { border-color: #f87171; box-shadow: inset 0 0 9px #f8717166, 0 0 6px #f8717177; }
+/* 희귀 등급의 빛은 `styles/rarity.css`(등급별 펄스 글로우)가 등급색 토큰으로 그린다. 여기서는 테두리만 정한다. */
+.bag-item.magic, .equipment-slot.magic { border-color: #60a5fa; }
+.bag-item.rare, .equipment-slot.rare { border-color: #facc15; }
+.bag-item.epic, .equipment-slot.epic { border-color: #c084fc; }
+.bag-item.unique, .equipment-slot.unique { border-color: #fb923c; }
+.bag-item.legendary, .equipment-slot.legendary { border-color: #f87171; }
 .bag-item.selected { background: #68513a; outline: 2px solid #ffe3a3; outline-offset: -3px; filter: brightness(1.2); }
 .item-icon { display: block; flex: none; width: 44px; height: 44px; object-fit: contain; }
 .atlas-icon { background-size: 500% 100%; background-repeat: no-repeat; }

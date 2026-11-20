@@ -283,7 +283,7 @@ test('스킬 8종이 4대 템플릿에 모두 매핑된다', () => {
     slash2: 'slash', power: 'slash', destroy: 'slash',
     spin: 'spin',
     crushing: 'smash', slam: 'smash',
-    warcry: 'cast', hell: 'cast'
+    warcry: 'cast', hell: 'spin'
   });
   for (const id of skillOrder) assert(costumeMotionTemplates.includes(skillMotionTemplate(id)));
   // 패시브 3종은 모션이 없어 매핑 대상이 아니다.
@@ -292,6 +292,8 @@ test('스킬 8종이 4대 템플릿에 모두 매핑된다', () => {
   assert.deepEqual(motionTemplateSkills('slash'), ['slash2', 'power', 'destroy']);
   // 결과 순서는 `skillOrder` 를 따른다 — 작업 212에서 slam 이 크러싱보다 앞자리로 왔다.
   assert.deepEqual(motionTemplateSkills('smash'), ['slam', 'crushing']);
-  assert.deepEqual(motionTemplateSkills('cast'), ['warcry', 'hell']);
+  // 회전참격(작업 215)은 제자리 360° 회전 베기 — 발동 자세가 아니라 회전 템플릿을 쓴다.
+  assert.deepEqual(motionTemplateSkills('spin'), ['hell', 'spin']);
+  assert.deepEqual(motionTemplateSkills('cast'), ['warcry']);
   assert.deepEqual(costumeMotionTemplates.map(template => costumeMotionTemplateNames[template]), ['베기', '회전', '내려찍기', '발동 자세']);
 });

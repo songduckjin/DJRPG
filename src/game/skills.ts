@@ -38,7 +38,7 @@ export const skills: Record<SkillId, Skill> = {
   warcry: { id: 'warcry', name: '블러드 레이지', level: 5, icon: '🩸', cooldown: 14, power: '공격력 × 1.5 · 공격속도 상승', description: '6초 동안 붉은 투기로 공격력·공격속도·이동속도가 상승한다.', range: 120 },
   power: { id: 'power', name: '파워 스트라이크', level: 7, icon: '⚡', cooldown: 6, power: '공격력 × 4.0', description: '좁은 전방에 강력한 일격을 꽂아 보스를 노린다.', range: 100 },
   destroy: { id: 'destroy', name: '디스트로이 스윙', level: 10, icon: '☄', cooldown: 9, power: '공격력 × 2.7', description: '전방으로 거대한 붉은 검기 충격파를 날린다.', range: 175 },
-  hell: { id: 'hell', name: '헬 파이어 소드', level: 14, icon: '🔥', cooldown: 16, power: '공격력 × 3.2', description: '불타는 대검 폭발로 넓은 범위의 적을 태운다.', range: 185 },
+  hell: { id: 'hell', name: '회전참격', level: 14, icon: '🌀', cooldown: 16, power: '공격력 × 3.2 · 360° 회전', description: '대검을 크게 휘둘러 제자리에서 360° 회전하며, 사방의 적을 암흑·진홍 혈풍과 함께 한 번에 베어낸다.', range: 185 },
   // [작업 212] 딜레이 크러싱 — 붉은보석1식 단일 타겟 10연타. 총 위력은 예전 한 방(× 3.4)과 같다.
   crushing: { id: 'crushing', name: '딜레이 크러싱', level: 18, icon: '◉', cooldown: 10, power: '공격력 × 3.4 · 단일 타겟 10연타', description: '적 하나에게 잔상을 남기며 빠르게 10번 내려친다.', range: 125 },
   spin: { id: 'spin', name: '드래곤 트위스터', level: 24, icon: '🐉', cooldown: 6, power: '공격력 × 1.65', description: '굵은 용이 넓게 선회하다 궤도를 좁혀 하늘로 솟는다.', range: 170 },

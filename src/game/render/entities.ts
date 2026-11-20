@@ -599,11 +599,20 @@ export function drawHero(this: GameView, world: World, x: number, y: number, tim
     // 2연격은 스윙마다 한 번씩 몸을 싣는다(한 스윙 기준 pulse 로는 0.44초 창에서 음수가 된다).
     const attackPulse = swing ? swing.pulse : motion.pulse;
     if (slam) bob -= Math.sin(Math.PI * slam.age / slam.duration) * 17;
+    // [작업 215] 회전참격 — 제자리에서 한 바퀴 도는 모션. 빌보드의 세로축 회전은 가로 배율을
+    // cos 으로 줄였다 되돌리며 한 번 뒤집는 방식으로 만든다(시트를 화면 안에서 돌리면
+    // 옆으로 누운 채 구르는 것처럼 보인다). 한 바퀴는 .46초 — 이펙트가 피어오르는 동안 끝난다.
+    const whirl = local.find(effect => effect.kind === 'hell');
+    const spin = whirl ? Math.min(1, whirl.age / Math.min(.46, whirl.duration * .62)) : 0;
+    const spinCos = whirl ? Math.cos(spin * Math.PI * 2) : 1;
+    const spinSquash = whirl ? Math.max(.08, Math.abs(spinCos)) : 1;
+    const spinFlip = whirl && spinCos < 0 ? -1 : 1;
+    if (whirl) bob -= Math.sin(Math.PI * spin) * 7;
     const face = player.facingSide;
     const visualFace = face;
     const lungeX = (Math.cos(player.facing) - Math.sin(player.facing)) * .86 * attackPulse * 6;
     const lungeY = (Math.cos(player.facing) + Math.sin(player.facing)) * .43 * attackPulse * 6;
-    this.heroLayer.scale.set(scale * visualFace * motion.scaleX, scale * motion.scaleY);
+    this.heroLayer.scale.set(scale * visualFace * spinFlip * spinSquash * motion.scaleX, scale * motion.scaleY);
     this.heroLayer.position.set(x + lungeX + (player.hit > 0 ? Math.sin(time * 55) * 2 : 0), y + bob + lungeY);
     this.heroLayer.rotation = motion.rotation;
     // The ground shadow follows the drawn body, not the frame: an attack cell is wider
@@ -648,7 +657,8 @@ export function updateAfterimages(this: GameView, world: World, project: (x: num
       const index = Math.floor(effect.age / .065);
       if (index >= 3 || index <= (this.ghostEmissions.get(effect) ?? -1)) continue;
       this.ghostEmissions.set(effect, index);
-      const tint = ['slam', 'destroy', 'hell'].includes(effect.kind) ? 0xffa06c : 0x8fe6dc;
+      // 회전참격(작업 215)의 잔상은 검붉은 혈풍색, 나머지 타격 계열은 종전 주황빛.
+      const tint = effect.kind === 'hell' ? 0xd2352f : ['slam', 'destroy'].includes(effect.kind) ? 0xffa06c : 0x8fe6dc;
       const sprites = costumeSources
         ? costumeSources.map(source => {
           const ghost = new Sprite(source.sprite.texture);
