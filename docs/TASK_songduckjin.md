@@ -15,6 +15,8 @@
 - **불변**: `heroBodyPx`(남녀 337/300/268·270)·전투 수치·스킬·Save/DB/API 계약, 장비 오버레이 미적용 규칙(작업 157) 그대로.
 - **검증**: `tsc --noEmit`, `tests/archer.test.mjs` 14/14, 전체 488건 중 486 통과(`costume-field-render` 2건은 `origin/main` `86ac44e` 워크트리에서도 동일 실패), `verify-item-art`(궁수 시트 6장), `npm run build`, 배포 번들 6경로 `?v=2` 확인.
 - **검수 이미지**: `downloads/djrpg_archer_starter_ingame_v2.png` — `scripts/preview-archer-field.py`를 남녀 4패널(걷기·사격)로 확장하고 `heroBodyPx`로 배율을 맞춰 합성했다. 브라우저 실기 확인은 미실시(사용자 몫).
+- **머지·배포(완료)**: [PR #124](https://github.com/songduckjin/DJRPG/pull/124) 스쿼시 병합 `4ba39fdb63b7`. Pages production 성공(Workers Builds는 `main`과 같은 기존 실패), 운영 `version.json` `4ba39fdb63b7`(`builtAt 2026-11-20T02:29:42Z`), `?v=2` 시트 6장 전부 HTTP 200·원격 sha256=로컬, 배포 번들 `index-j5_2NUhd.js`에 6경로 `?v=2` 포함.
+- **남은 것**: 사용자 실기 화면(걷기·사격 모션, 장비창·캐릭터 카드 썸네일) 확인.
 
 ### [x] [작업 150] 평타 1마리 제한·평타 ×1.6·걷기/공격 몸 크기 보정
 - **담당자**: `songduckjin` · **브랜치**: `fix/150-basic-attack-single-target` · **위험 등급**: 중 · **상태**: `[x]` 완료(실기 확인은 사용자 몫)
