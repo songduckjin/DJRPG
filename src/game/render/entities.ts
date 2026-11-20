@@ -3,7 +3,8 @@ import type { HeroAfterimage, World } from '../world';
 import type { Save } from '../store';
 import { enemyFacing } from '../facing';
 import { heroAnimationMode, heroMotion, slash2SwingMotion } from './heroMotion';
-import { heroScale, heroBodyHeight } from './heroScale';
+import { heroScale, heroBodyHeight, heroBodyFraction } from './heroScale';
+import { drawBloodRageAura } from './bloodRage';
 import { heroClass, socketMotion, weaponSocket } from './heroSockets';
 import { tintedGearTexture } from './gearTint';
 import { costumeGhostSources, hideCostumeHero } from './costumeHero';
@@ -609,9 +610,7 @@ export function drawHero(this: GameView, world: World, x: number, y: number, tim
     // shadow grew 25 % whenever the hero swung. 코스튬 모드도 같은 식(본체 높이 × 배율 × .37)을 쓴다.
     const shadowRadius = Math.max(20, bodyPx * scale * .37);
     this.ground.ellipse(x - visualFace * 4, y - 3, shadowRadius, 8).fill({ color: 0x000000, alpha: .5 });
-    if (player.berserk > 0) {
-      this.glow.circle(x, y - 25, 35).fill({ color: 0xb32d28, alpha: .12 });
-    }
+    // 버프 중의 붉은 기운은 `drawBloodRageAura`가 몸 뒤 광휘로 그린다(작업 214 — 예전 단색 원 제거).
   }
 
 /**
@@ -773,13 +772,20 @@ export function drawEntities(this: GameView, world: World, project: (x: number, 
       depths.push({ sprite, depth: enemy.x + enemy.y });
     }
     this.drawHero(world, hx, hy, time);
-    const rage = world.effects.find(effect => effect.kind === 'warcry');
-    const burst = rage ? 1 - rage.age / rage.duration : 0;
-    const auraScale = 165 / this.aura.texture.width * (1 + burst * .8);
-    this.aura.position.set(hx, hy - 3);
-    this.aura.scale.set(auraScale, auraScale * .6);
-    this.aura.rotation = time * .35;
-    this.aura.alpha = world.player.berserk > 0 ? .48 + burst * .48 + Math.sin(time * 4) * .08 : 0;
+    // [작업 214] 전사 블러드 레이지는 발밑 타원 링 대신 몸 윤곽을 따라 타오르는 붉은 투기 오라로 그린다.
+    drawBloodRageAura(this, world, hx, hy, time, dt, h * heroBodyFraction, this.textures.fxFlame, this.textures.fxRageGlow);
+    // 궁수 호크아이·마법사 아케인 실드는 종전의 발밑 마법진을 그대로 쓴다(전사만 새 오라).
+    if (world.player.berserk > 0 && jobOrDefault(world.save.job) !== 'warrior') {
+      const rage = world.effects.find(effect => effect.kind === 'warcry');
+      const burst = rage ? 1 - rage.age / rage.duration : 0;
+      const auraScale = 165 / this.aura.texture.width * (1 + burst * .8);
+      this.aura.position.set(hx, hy - 3);
+      this.aura.scale.set(auraScale, auraScale * .6);
+      this.aura.rotation = time * .35;
+      this.aura.alpha = .48 + burst * .48 + Math.sin(time * 4) * .08;
+    } else {
+      this.aura.alpha = 0;
+    }
     this.updateAfterimages(world, project, dt);
     this.updateCorpses(project, dt);
     depths.push({ sprite: this.heroLayer, depth: world.player.x + world.player.y });

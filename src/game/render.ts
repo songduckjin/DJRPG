@@ -52,7 +52,8 @@ const paths = {
   maleSword: '/assets/warrior_male_sword.png', femaleSword: '/assets/warrior_female_sword.png',
   skeleton: '/assets/skeleton_warrior.png', boss: '/assets/skeleton_boss.png',
   fxDragonHead: '/assets/fx_dragon_head.png?v=2', fxDragonBody: '/assets/fx_dragon_body.png?v=2', fxSlam: '/assets/fx_wild_stamp.png',
-  fxRage: '/assets/fx_blood_rage.png', fxSlash: '/assets/fx_slash_arc.png',
+  fxRage: '/assets/fx_blood_rage.png', fxFlame: '/assets/fx_rage_flame_v1.png', fxRageGlow: '/assets/fx_rage_glow_v1.png',
+  fxSlash: '/assets/fx_slash_arc.png',
   fxPower: '/assets/fx_power_strike.png', fxDestroy: '/assets/fx_destroy_swing.png', fxHell: '/assets/fx_hell_fire.png',
   // [작업 157] 휘두르기(1번) 확정 시안 — 은빛 검기 + 황금빛 지면 충격파, 검정 배경 add 블렌딩용.
   fxSlash2: '/assets/fx_slash2.png', fxSlash2Ground: '/assets/fx_slash2_ground.png',
@@ -174,6 +175,10 @@ export class GameView {
   wastelandPlayer = { x: 0, y: 0 };
   terrainTextures: Texture[] = [];
   terrainSprites: Sprite[] = [];
+  /** 블러드 레이지 오라 (작업 214) — 몸 뒤 광휘는 뷰 뒤, 불꽃 혀·불티는 히어로 앞 레이어에 가산으로 그린다. */
+  rageBack = new Container();
+  rageFront = new Container();
+  /** 궁수 호크아이·마법사 아케인 실드가 쓰는 종전의 발밑 마법진(작업 16). 전사 블러드 레이지는 쓰지 않는다. */
   aura!: Sprite;
   dragonBack = new Container();
   /** Ground loot behind the character / in front of him, and the drops they show (see `render/drops`). */
@@ -330,11 +335,13 @@ export class GameView {
     this.hero.anchor.set(.5, .97);
     this.heroLayer.addChild(this.hero);
     this.actors.addChild(this.heroLayer);
+    this.rageBack.blendMode = 'add';
+    this.rageFront.blendMode = 'add';
     this.aura = new Sprite(this.textures.fxRage);
     this.aura.anchor.set(.5);
     this.aura.blendMode = 'add';
     this.aura.alpha = 0;
-    this.app.stage.addChild(this.floor, this.glow, this.ground, this.terrainLayer, this.aura, this.dragonBack, this.ghosts, this.lootBack, this.actors, this.lootFront, this.fallen, this.skillVfx, this.effects, this.labels, this.shade);
+    this.app.stage.addChild(this.floor, this.glow, this.ground, this.terrainLayer, this.aura, this.rageBack, this.dragonBack, this.ghosts, this.lootBack, this.actors, this.lootFront, this.fallen, this.rageFront, this.skillVfx, this.effects, this.labels, this.shade);
     // Loot keeps its own paint order: a coin of a heap stays under an item that fell on it.
     this.lootBack.sortableChildren = true;
     this.lootFront.sortableChildren = true;
@@ -665,6 +672,8 @@ export class GameView {
     const shake = slam && preferences.shake ? Math.max(0, 1 - slam.age / Math.min(slam.duration, .38)) * (slam.kind === 'hell' ? 8 : 4) : 0;
     this.effects.alpha = preferences.effects === 'low' ? .4 : 1;
     this.skillVfx.alpha = preferences.effects === 'low' ? .35 : 1;
+    this.rageFront.alpha = preferences.effects === 'low' ? .5 : 1;
+    this.rageBack.alpha = preferences.effects === 'low' ? .5 : 1;
     this.dragonBack.alpha = preferences.effects === 'low' ? .35 : 1;
     this.app.stage.position.set(shake ? (Math.random() * 2 - 1) * shake : 0, shake ? (Math.random() * 2 - 1) * shake : 0);
     drawLoot.call(this, world, project, time, dt);
