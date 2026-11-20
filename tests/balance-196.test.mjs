@@ -23,9 +23,10 @@ function shares(floor, samples = 6000) {
 }
 
 test('the drop rate is untouched while deep floors stop paying in white gear', () => {
-  // 작업 210: 아이템 드롭은 한 번 굴려 70:30으로 가른다 — 1층 0.20%(장비 0.14%), 20층 위로 0.80%(장비 0.56%).
-  assert.equal(Math.round(equipmentDropChance(1) * 1e6) / 1e6, .0014, 'the first floor still drops rarely');
-  assert.equal(Math.round(equipmentDropChance(78) * 1e6) / 1e6, .0056, 'and the drop rate caps at the 20th floor');
+  // 작업 210: 아이템 드롭은 한 번 굴려 70:30으로 가른다. 작업 223에서 전 구간 2배 —
+  // 1층 0.40%(장비 0.28%), 20층 위로 1.60%(장비 1.12%).
+  assert.equal(Math.round(equipmentDropChance(1) * 1e6) / 1e6, .0028, 'the first floor still drops rarely');
+  assert.equal(Math.round(equipmentDropChance(78) * 1e6) / 1e6, .0112, 'and the drop rate caps at the 20th floor');
   const shallow = shares(1), deep = shares(78);
   // Floor 1 keeps the rare, mostly-white table players start with.
   assert(shallow.common >= .85, `floor 1 is still mostly common (got ${(shallow.common * 100).toFixed(1)}%)`);

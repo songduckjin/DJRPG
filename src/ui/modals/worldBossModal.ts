@@ -21,7 +21,7 @@ export function renderBossRewards(parent:HTMLElement,rank?:number):void {
   for(const tier of bossRewardTiers){const row=document.createElement('div');row.className='wb-reward-row';if(tier.id===myRewardTier(rank))row.classList.add('is-mine');
     row.append(text('b',tier.label),text('span',`${tier.gold.toLocaleString('ko-KR')} 금화 · 보물 주머니 ${tier.pouches}개`));if(tier.id===myRewardTier(rank))row.append(text('small','내 보상 구간'));list.append(row);
   }
-  for(const [label,content] of [['마지막 타격 보상','최종 처치자 · 2,000 금화'],['공동 처치 보상','유효 피해를 기록한 모든 참여자 · 1,500 금화 + 보물 주머니 1개']]){
+  for(const [label,content] of [['참여 보상','1회 도전 완료 시 · 1,000 금화'],['마지막 타격 보상','최종 처치자 · 2,000 금화'],['공동 처치 보상','유효 피해를 기록한 모든 참여자 · 1,500 금화 + 보물 주머니 1개']]){
     const row=document.createElement('div');row.className='wb-reward-extra';row.append(text('b',label),text('span',content));list.append(row);
   }
   parent.append(list);

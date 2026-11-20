@@ -210,7 +210,10 @@ export class World {
     // 버튼은 **보스에게 패배한 순간**에만 살아난다(작업 222, `#5781`·`#5792`).
     // 예전에는 `!save.autoClimb`로 시작해, 자동 등반을 끄거나 그런 세이브로 접속하면 보스에게 한 번도
     // 지지 않았는데 `⚔ 보스 도전`이 즉시 떴다. 세이브를 다시 읽어도 보스가 저절로 소환되지 않는다.
-    this.bossRetryAvailable = false;
+    // 작업 223(`#6086`): 이 상태를 세션 메모리에만 두면 새로고침·재접속·버전 업데이트 리로드로
+    // 보스에게 진 기록이 사라져 버튼이 없어졌다(사용자: "4층 넘어갈때까지 계속 있어야되는데").
+    // 이제 `save.bossRetryFloor`(= 진 층, 최고 도달 층과 같을 때만 의미)에서 되살린다.
+    this.bossRetryAvailable = save.bossRetryFloor === save.maxFloor && save.maxFloor < MAX_FLOOR;
     const hp = enemyMaxHp(save.floor, false);
     const start = clampArenaPoint(145, -45);
     this.enemies.push({ x: start.x, y: start.y, hp, maxHp: hp, boss: false, hit: 0, step: 0, moving: false, knockX: 0, knockY: 0, slow: 0 });
@@ -559,12 +562,15 @@ export class World {
         this.spawnTimer = .2;
         this.save.floorKills = 0;
         this.bossPending = false;
+        // 다음 층으로 올라갔으니 재도전 기록도 지운다(작업 223) — 새로고침해도 버튼이 돌아오지 않는다.
         this.bossRetryAvailable = false;
+        this.save.bossRetryFloor = 0;
         this.onMessage(capped ? `최고 ${MAX_FLOOR}층 달성! ${MAX_FLOOR}층에서 계속 사냥합니다.` : `${this.save.floor}층 진입`);
       } else {
         this.save.floorKills = 0;
         this.bossPending = false;
         this.bossRetryAvailable = this.save.floor < MAX_FLOOR;
+        this.save.bossRetryFloor = this.bossRetryAvailable ? this.save.floor : 0;
         this.onMessage(this.save.floor >= MAX_FLOOR ? `${this.save.floor}층 반복 사냥 · 최고 ${MAX_FLOOR}층` : `${this.save.floor}층 반복 사냥`);
       }
     } else {
@@ -663,6 +669,8 @@ export class World {
           // 층 보스는 **체력이 꽉 찬 상태로** 맞이한다(작업 222, 사용자 요청 `#5811` "층보스 떴을때 체력 꽉찬
           // 상태로 싸우게 해줘"). 자동 등반 중 소환과 `⚔ 보스 도전` 재도전 소환 모두 이 블록으로 합류한다.
           this.player.hp = totalStats(this.save).health; this.save.health = this.player.hp;
+          // 스킬 쿨타임도 함께 0으로 돌린다(작업 223, 사용자 요청 `#6108` "보스 도전 때 스킬 쿨도 돌려줘").
+          for (const kind of Object.keys(this.cooldown) as Action[]) this.cooldown[kind] = 0;
           // 보스가 나오는 순간 남은 일반 몹은 정리한다 — 보스만 단독으로 상대하게(작업 212).
           this.enemies = this.enemies.filter(enemy => enemy.boss);
           this.chaseTarget = undefined; this.pursuing = false;
@@ -705,13 +713,19 @@ export class World {
             this.save.floorKills = 0;
             this.bossPending = false;
             this.bossRetryAvailable = true;
+            // 진 층을 세이브에 남긴다(작업 223) — 새로고침·재접속에도 `⚔ 보스 도전`이 살아 있다.
+            this.save.bossRetryFloor = this.save.floor;
             this.enemies = this.enemies.filter(other => !other.boss);
           } else {
             this.save.autoClimb = false;
             // 보스에게 진 경우에만 도전 버튼을 살린다(작업 222, 사용자 확인 `#5792` "각 층 끝까지 등반해서
             // 실패해야 떠야되는데"). 일반·정예 몹에게 진 것으로는 켜지 않고, 이미 보스에게 져서 켜져 있던
             // 상태도 건드리지 않는다.
-            if (this.bossFloor() && enemy.boss) this.bossRetryAvailable = true;
+            if (this.bossFloor() && enemy.boss) {
+              this.bossRetryAvailable = true;
+              // 진 층을 세이브에 남긴다(작업 223) — 4층으로 올라갈 때까지 버튼이 유지된다.
+              this.save.bossRetryFloor = this.save.floor;
+            }
           }
           p.hp = totalStats(this.save).health; this.save.health = p.hp; p.x = 0; p.y = 0; this.chaseTarget = undefined; this.pursuing = false;
           this.save.gold = Math.max(0, this.save.gold - 10);
