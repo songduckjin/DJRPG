@@ -48,6 +48,8 @@ const navIcons = {
 };
 type Modal = 'dungeon' | 'worldBoss' | 'equipment' | 'skills' | 'account' | 'floor' | 'offline' | 'market' | 'salvage' | 'codex' | 'characters' | 'createCharacter' | 'warehouse' | 'settings' | 'mail' | 'rewards' | 'achievements' | 'shop';
 export type BagFilter = 'all' | 'weapon' | 'armor' | 'accessory';
+/** 스킬 창 탭(작업 238) — `전체`는 패시브 3종을 스킬북·기본기보다 위에 두고 모두 보여 준다. */
+export type SkillFilter = 'all' | 'active' | 'passive';
 
 export class Interface {
   dungeon = new DungeonLobby();
@@ -76,6 +78,8 @@ export class Interface {
   salvageIds?: string[];
   skillTarget?: number;
   pendingSkill?: SkillId;
+  /** 스킬 창의 `전체/액티브/패시브` 탭(작업 238) — 창을 닫으면 `modalDefaults`가 `전체`로 되돌린다. */
+  skillFilter: SkillFilter = 'all';
   codexQuery = '';
   codexSlot = '';
   codexState = 'all';
