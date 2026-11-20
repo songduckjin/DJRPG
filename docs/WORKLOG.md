@@ -1299,3 +1299,13 @@
 ### 작업 218 선행 배포 반영 후 검증
 - 보물 주머니 포함 운영 배포 #179(`b2fbe61`) 확인 후 최신 main 통합. 기존 업적 집계·서버 계측 보존. 변경은 월드보스 4개와 관련 테스트/문서뿐.
 - 관련 63개 테스트 전부 통과(기존 실패 주머니 4개 수령/재시도 검증 포함), 운영 빌드(tsc·아트 검사·Vite) 통과. PR #177 운영 병합 진행.
+
+## 2026-11-20 songduckjin — 작업222 전사 남녀 서기 '낮은 양손 그립' 시트·대검 앵커 교체
+- 사용자가 고른 시안(`downloads/warrior_grip_fix/twohand_drag_v1.png`, 낮은 양손 그립)대로 **전사 서기(`idle`)만** 다시 그렸다. 걷기·공격 시트는 이미 같은 낮은 그립(두 손이 자루에 모이고 칼날이 왼쪽 아래)이라 손대지 않았다.
+- 에셋 88장(서기 전용): `warrior_{male,female}_idle_v1.png`(RGBA) · `headless/` · `noweapon/` · `noweapon/headless/` · `armors/warrior_*_armor_{0..9}_idle_v1.png`(256색 팔레트) · `armors/headless/` · `noweapon/armors/` · `noweapon/armors/headless/`. 합계 2.8MB.
+- 제작: 승인 시안은 SIFT 유사변환으로 기준 셀(높이 337·발끝 y≈353·정수리 x≈230)에 그대로 넣었고, 여성·갑옷 10종은 `images --edit`으로 **자세(팔·그립)만** 바꾼 뒤 같은 방식으로 셀에 맞췄다(높이·발끝 오차 ≤4px, 기준 시트에 55% 톤 매칭). 머리 없는 시트는 기존 `headless`에서 뽑은 머리 영역(5px 확장)을 알파만 지워 만들고, 기본 검 지운 시트는 검만 지운 판을 다시 그려 정합했다(검 뒤의 스커트·다리를 새로 그림).
+- 검은 배경 키잉은 **경계에서 이어진 저경사 영역만** 배경으로 뺀다 — 흑요석·흑금 갑옷(6·9번)이 통째로 사라지던 문제를 잡았다(갑옷6 서기 6,237px → 23,292px).
+- 앵커: `WEAPON_POSES`에 `idle0`(맨몸, 남 158·226.5·-2.2 / 여 198.5·220·-0.2)과 `idleArmor`(갑옷, 남 203·221.5·-1.2 / 여 198.5·220·-0.2)를 두고 `weaponPose(gender, motion, frame, armor)`가 고른다 — 갑옷 서기 시트는 같은 낮은 그립이지만 손이 벨트 중앙이라 앵커가 다르다. `drawHero`·`equipmentPortraitWeapon`이 착용 갑옷 인덱스를 넘긴다.
+- 캐시: `/assets/*` 1년 불변이라 서기 경로에만 `?v=2`(`armors.ts` `WARRIOR_IDLE_ASSET_VERSION`·`withMotionVersion`, `weapons.ts` `swordlessBodyPath`, `helmets.ts` `headlessBodyPaths.*.idle`, `render.ts` `paths.pilot*`, `ui/equipmentPortrait.ts`). 걷기·공격 URL은 그대로.
+- 검증: `npx tsc --noEmit`, `npm test` 865건 중 861 통과(실패 4건은 변경 전 `main`과 같은 `costume-field-render` 2·`skillbook-server` 1 등), `node scripts/verify-item-art.mjs`, `npx vite build`, `git diff --check`. 캐시 버스터 감시 테스트 1건(`tests/weapon-render.test.mjs`) 추가. 검수 이미지 `downloads/djrpg_warrior_low_grip_ingame_v1.png`(남녀 × 갑옷 0~9 × 대검 0~9 + 투구 0번, 실게임 52px 포함). 브라우저·iOS 실기 화면은 미확인(사용자 몫).
+- 작업 번호는 218이 `docs/TASK.md`에서 먼저 쓰여(등급색 발광·월드보스 배포) **222**로 등록했다.

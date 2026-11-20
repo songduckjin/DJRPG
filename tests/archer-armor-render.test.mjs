@@ -398,10 +398,11 @@ test('장비창 초상화도 착용한 궁수 갑옷 시트를 쓴다', () => {
   const warrior = freshSave('female');
   warrior.equipment.armor = armorItem('사슬 갑옷');
   // [작업 216] 빈손 전사는 기본 검을 지운 `noweapon/armors/` 판을 쓴다(무기를 차면 예전 경로 그대로).
-  assert.equal(equipmentFallbackPortrait(warrior), '/assets/pilot-25d/noweapon/armors/warrior_female_armor_2_idle_v1.png',
+  // 작업 222: 서기 시트를 다시 구워 `?v=2`.
+  assert.equal(equipmentFallbackPortrait(warrior), '/assets/pilot-25d/noweapon/armors/warrior_female_armor_2_idle_v1.png?v=2',
     '전사 장비창도 빈손이면 기본 검을 지운 판');
   warrior.equipment.weapon = { id: 'w', name: baseItems.weapon[0], slot: 'weapon', rarity: 'common', stats: {} };
-  assert.equal(equipmentFallbackPortrait(warrior), '/assets/pilot-25d/armors/warrior_female_armor_2_idle_v1.png',
+  assert.equal(equipmentFallbackPortrait(warrior), '/assets/pilot-25d/armors/warrior_female_armor_2_idle_v1.png?v=2',
     '무기를 차면 예전 경로 그대로');
 });
 
