@@ -74,6 +74,7 @@
 - **계약**: `store.ts`·`server/**`·`world.ts`·`baseItems` 순서·아이템 능력치/드랍·전투 판정 무변경. 마법사는 여전히 전사 갑옷·투구·대검 파츠를 쓰지 않는다.
 - **검증**: `npx tsc --noEmit` 통과, 신규 `tests/mage-helm-render.test.mjs` 11/11, `tests/mage-helm-render`·`mage`·`staff-render` 34/34, 전체 `node --test tests/*.test.mjs` **601건 중 599 통과**(실패 2건은 `origin/main`에서도 동일한 `costume-field-render` 기존 실패), `node scripts/verify-item-art.mjs`(투구 파츠 20·머리 없는 시트 12 추가), `npm run build` 통과, `git diff --check`.
 - **검수 이미지**: `downloads/djrpg_mage_helms_ingame_v1.png`(남녀 10종, 게임 배율 .42), `downloads/djrpg_mage_helms_preview_v1.png`(셀 크기 1배 — 이음매·머리카락 비침), `downloads/djrpg_mage_helms_motion_v1.png`(남녀 대표 5종 × 걷기·공격 4프레임). 육안 확인: 후광·뿔·고깔모 잘림 없음, 머리카락 비침 없음, 셀 위 여유 행에 후광이 실제로 그려짐.
+- **머지·배포**: [PR #149](https://github.com/songduckjin/DJRPG/pull/149) 스쿼시 병합 `8c26b5d57379`. Cloudflare Pages 성공, 운영 `version.json` `8c26b5d57379`(`builtAt 2026-11-20T05:44:58Z`)·새 에셋 32장 전부 HTTP 200(원격 sha256=로컬)·바뀐 서기 시트 2장 `?v=2` 200(sha256=로컬)·배포 번들(`index-Cgp7Sog1.js`)에서 `mage_helms`/`mage_headless` 경로·서기 좌표 `y:-44`·지팡이 서기 배율 `.83525`·`STAFF_ASSET_VERSION=2` 확인. 브랜치 삭제는 API 권한 제한으로 실패(`feat/204-mage-helm-10-parts` 원격에 남음).
 
 ## 2026-11-20 — 마법사 지팡이 10종 외형 적용: 남녀 서기·걷기 4프레임·공격 4프레임 (작업 205)
 
