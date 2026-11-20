@@ -15,7 +15,7 @@ import { removeTempDbDirectory } from './helpers/temp-db.mjs';
 const script = fileURLToPath(new URL('../scripts/migrate-turso-db.mjs', import.meta.url));
 const save = name => JSON.stringify({ version: 1, name, gold: 120, floor: 3, bag: [], equipment: {} });
 
-// 공용 DB를 흉내 낸 소스: djrpg_* 18개 테이블 + puzzle-mates용 users 테이블.
+// 공용 DB를 흉내 낸 소스: djrpg_* 20개 테이블 + puzzle-mates용 users 테이블.
 async function prepared() {
   const directory = await mkdtemp(join(tmpdir(), 'djrpg-migrate-'));
   const source = `file:${join(directory, 'shared.db')}`;
@@ -51,7 +51,9 @@ async function prepared() {
     { sql: 'INSERT INTO djrpg_boss_days (day,max_hp,hp,ends_at) VALUES (?,?,?,?)', args: ['2026-11-18', 10000000, 9000000, 100] },
     { sql: 'INSERT INTO djrpg_boss_attempts (id,account_id,day,request_id,save_json,started_at,dodges_json) VALUES (?,?,?,?,?,?,?)', args: ['boss-1', 'hero', '2026-11-18', 'boss-req-1', save('전사'), 1, '[]'] },
     { sql: 'INSERT INTO djrpg_boss_scores (day,account_id,name,damage,joined_at) VALUES (?,?,?,?,?)', args: ['2026-11-18', 'hero', '전사', 1000000, 1] },
-    { sql: 'INSERT INTO djrpg_boss_rewards (day,account_id,kind) VALUES (?,?,?)', args: ['2026-11-18', 'hero', 'rank'] }
+    { sql: 'INSERT INTO djrpg_boss_rewards (day,account_id,kind) VALUES (?,?,?)', args: ['2026-11-18', 'hero', 'rank'] },
+    { sql: 'INSERT OR REPLACE INTO djrpg_dungeon_records (account_id,name,cleared_floor,cleared_at,updated_at) VALUES (?,?,?,?,?)', args: ['hero', '전사', 6, 5, 5] },
+    { sql: 'INSERT OR REPLACE INTO djrpg_dungeon_attempts (account_id,floor,started_at,updated_at) VALUES (?,?,?,?)', args: ['hero', 7, 6, 6] }
   ], 'write');
   for (let index = 1; index <= 7; index += 1) {
     await db.execute({ sql: 'INSERT INTO djrpg_market_events (kind,listing_id,created_at) VALUES (?,?,?)', args: [`kind-${index}`, 'm-1', index] });
@@ -105,7 +107,7 @@ test('dry-run은 소스 djrpg_* 행 수만 출력하고 타겟을 만들지 않�
   }
 });
 
-test('djrpg_* 18개 테이블만 복사하고 users는 넘기지 않으며 건수가 일치한다', async () => {
+test('djrpg_* 20개 테이블만 복사하고 users는 넘기지 않으며 건수가 일치한다', async () => {
   const paths = await prepared();
   try {
     const result = migrate(paths, ['--chunk-size=2']);
@@ -115,7 +117,7 @@ test('djrpg_* 18개 테이블만 복사하고 users는 넘기지 않으며 건�
     assert.deepEqual(await counts(paths.target), sourceCounts);
     assert.equal(sourceCounts.djrpg_accounts, 2);
     assert.equal(sourceCounts.djrpg_market_events, 6);
-    for (const table of ['djrpg_boss_days', 'djrpg_boss_attempts', 'djrpg_boss_scores', 'djrpg_boss_rewards']) assert.equal(sourceCounts[table], 1);
+    for (const table of ['djrpg_boss_days', 'djrpg_boss_attempts', 'djrpg_boss_scores', 'djrpg_boss_rewards', 'djrpg_dungeon_records', 'djrpg_dungeon_attempts']) assert.equal(sourceCounts[table], 1);
 
     const target = createClient({ url: paths.target });
     try {

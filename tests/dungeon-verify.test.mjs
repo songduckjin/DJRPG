@@ -1,0 +1,123 @@
+import './ts-loader.mjs';
+import { test, before, after } from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdtemp } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { createClient } from '@libsql/client';
+import { schema, account, transaction, writeSave } from '../server/database.mjs';
+import { removeTempDbDirectory } from './helpers/temp-db.mjs';
+const { dungeonOperation } = await import('../server/dungeon.mjs');
+const { requiredClearSeconds, replayDungeonFloor, DUNGEON_MIN_SECONDS, DUNGEON_UNVERIFIED_SECONDS } = await import('../server/dungeon-verify.mjs');
+const { parseSave, freshSave } = await import('../src/game/store.ts');
+
+/**
+ * 던전 클리어 서버 검증 (작업 209).
+ * 세이브의 `dungeonFloor`는 서버 기록+1까지만 저장되고, 기록은 `start`(서버 시각) → `submit`(충분한 경과)을
+ * 통과한 요청만 올린다. 리플레이가 그 층을 깰 수 있는 세이브면 그 시간의 절반, 아니면 더 긴 시간을 요구한다.
+ */
+let db, directory, url;
+const sid = id => `sid-${id}`;
+const env = () => ({ TURSO_DATABASE_URL: url, TURSO_AUTH_TOKEN: 'dungeon-key' });
+const worldBossKey = () => url;
+async function seed(id, over = {}) {
+  const save = parseSave({ ...freshSave('male'), name: id, level: 7, ...over }, id);
+  await db.execute({ sql: 'INSERT INTO djrpg_accounts(id,password_hash,save_json,updated_at,session_id) VALUES(?,?,?,?,?)', args: [id, 'hash', JSON.stringify(save), new Date().toISOString(), sid(id)] });
+  await account(db, id);
+  return save;
+}
+const saveFloor = (id, floor, now) => transaction(db, async tx => {
+  const row = await account(tx, id);
+  return writeSave(tx, row, { ...structuredClone(row.save), dungeonFloor: floor });
+});
+const call = (id, input, now) => dungeonOperation(db, id, input, sid(id), now, worldBossKey());
+const record = async id => (await db.execute({ sql: 'SELECT * FROM djrpg_dungeon_records WHERE account_id=?', args: [id] })).rows[0];
+const attempt = async id => (await db.execute({ sql: 'SELECT * FROM djrpg_dungeon_attempts WHERE account_id=?', args: [id] })).rows[0];
+
+before(async () => {
+  directory = await mkdtemp(join(tmpdir(), 'djrpg-dungeon-verify-'));
+  url = `file:${join(directory, 'verify.db')}`;
+  db = createClient({ url });
+  await schema(db, env());
+});
+after(async () => { await db.close(); await removeTempDbDirectory(directory).catch(() => {}); });
+
+test('리플레이는 그 세이브로 그 층을 깰 수 있는지와 최소 클리어 시간을 알려 준다', () => {
+  const strong = parseSave({ ...freshSave('male'), level: 30, floor: 1 }, 'a');
+  const replay = replayDungeonFloat(strong, 1);
+  assert.equal(replay.outcome, 'clear');
+  assert(replay.seconds > 0 && replay.seconds <= 90);
+  assert.equal(requiredClearSeconds(strong, 1), Math.max(DUNGEON_MIN_SECONDS, Math.round(replay.seconds * .5)));
+  const weak = parseSave({ ...freshSave('male'), level: 1, floor: 1 }, 'b');
+  const hard = replayDungeonFloat(weak, 10);
+  assert.equal(requiredClearSeconds(weak, 10), hard.outcome === 'clear' ? Math.max(DUNGEON_MIN_SECONDS, Math.round(hard.seconds * .5)) : DUNGEON_UNVERIFIED_SECONDS);
+  function replayDungeonFloat(save, floor) { return replayDungeonFloor(save, floor); }
+});
+
+test('도전 시작 없이 올린 클리어와 너무 빠른 클리어는 기록되지 않는다', async () => {
+  const now = Date.parse('2026-12-05T10:00:00Z');
+  await seed('no-start');
+  await saveFloor('no-start', 1, now);
+  await assert.rejects(call('no-start', { action: 'submit' }, now + 600_000), error => error.code === 'DUNGEON_NOT_STARTED');
+  assert.equal(await record('no-start'), undefined);
+
+  await seed('too-fast');
+  await saveFloor('too-fast', 1, now);
+  await call('too-fast', { action: 'start', floor: 1 }, now);
+  await assert.rejects(call('too-fast', { action: 'submit' }, now + 1000), error => error.code === 'DUNGEON_TOO_FAST');
+  const stored = await attempt('too-fast');
+  assert.equal(Number(stored.floor), 1, '실패한 도전의 시작 시각은 남아 다시 시도할 수 있다');
+  assert.equal(await record('too-fast'), undefined);
+});
+
+test('시작 시각에서 충분한 시간이 흐르면 한 층씩 기록되고 같은 요청은 멱등하다', async () => {
+  const now = Date.parse('2026-12-06T10:00:00Z');
+  await seed('climber');
+  for (const floor of [1, 2, 3]) {
+    await saveFloor('climber', floor, now);
+    await call('climber', { action: 'start', floor }, now + floor * 100_000);
+    const result = await call('climber', { action: 'submit' }, now + floor * 100_000 + 600_000);
+    assert.equal(result.recorded, floor);
+    assert.equal(result.verified, true);
+  }
+  const stored = await record('climber');
+  assert.equal(Number(stored.cleared_floor), 3);
+  // 이미 기록된 층을 다시 보내도 기록은 그대로이고 시간을 다시 요구하지 않는다.
+  const again = await call('climber', { action: 'submit' }, now + 1);
+  assert.equal(again.recorded, 3);
+});
+
+test('세이브는 서버 기록보다 두 층 앞서지 못하고, 앞선 주장은 거부된다', async () => {
+  const now = Date.parse('2026-12-07T10:00:00Z');
+  await seed('jumper');
+  const saved = await saveFloor('jumper', 10, now);
+  assert.equal(saved.save.dungeonFloor, 1, '검증 없이 저장되는 최고층은 한 층까지');
+  // 세이브를 직접 고쳐 두 층 앞을 주장해도 서버는 한 층씩만 받는다.
+  await db.execute({ sql: "UPDATE djrpg_characters SET save_json=json_set(save_json,'$.dungeonFloor',3) WHERE account_id='jumper'" });
+  await assert.rejects(call('jumper', { action: 'submit' }, now + 600_000), error => error.code === 'DUNGEON_OUT_OF_ORDER');
+});
+
+test('순위 조회는 쓰기 없이 답한다(계정·기록·revision 그대로)', async () => {
+  const now = Date.parse('2026-12-08T10:00:00Z');
+  await seed('viewer');
+  const before = await account(db, 'viewer');
+  const listed = await call('viewer', { action: 'list' }, now);
+  assert.equal(listed.recorded, 0);
+  assert.equal(listed.guest, false);
+  const after = await account(db, 'viewer');
+  assert.equal(after.revision, before.revision);
+  assert.equal(await record('viewer'), undefined);
+  assert.equal(await attempt('viewer'), undefined);
+});
+
+test('게스트는 순위를 볼 수만 있고 기록은 올리지 못한다', async () => {
+  const now = Date.parse('2026-12-09T10:00:00Z');
+  const save = parseSave({ ...freshSave('male'), name: '게스트' }, 'guest-x');
+  await db.execute({ sql: 'INSERT INTO djrpg_accounts(id,password_hash,save_json,updated_at,session_id) VALUES(?,?,?,?,?)', args: ['guest-x', 'guest', JSON.stringify(save), new Date().toISOString(), sid('guest-x')] });
+  await account(db, 'guest-x');
+  const listed = await call('guest-x', { action: 'list' }, now);
+  assert.equal(listed.guest, true);
+  await assert.rejects(call('guest-x', { action: 'start', floor: 1 }, now), error => error.code === 'GUEST_READ_ONLY');
+  await assert.rejects(call('guest-x', { action: 'submit' }, now), error => error.code === 'GUEST_READ_ONLY');
+  assert.equal(await record('guest-x'), undefined);
+});

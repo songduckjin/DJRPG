@@ -65,12 +65,14 @@ test('던전 대기창과 결과창이 실제 순위·커밍순을 그린다',()
   assert.doesNotMatch(modal,/순위 서버 연결은 준비 중입니다/);
   assert.match(modal,/renderDungeonRanking/,'the ranking tab draws the server standing');
   assert.match(modal,/live\.load\(\)/,'and asks the server for it');
-  assert.match(modal,/live\.submit\(\)/,'a record the server missed is submitted again');
+  assert.match(modal,/live\.submit\(state\.clearedFloor\)/,'a record the server missed is submitted again');
   assert.match(modal,/Coming Soon/,'the lobby states the coming-soon floor');
   assert(modal.includes('dungeon-coming-soon-panel'),'the challenge tab has a coming-soon panel');
   // 클리어는 세이브에 적고(새로고침 유지) 서버 순위로 보낸다.
   assert(field.includes('ui.dungeon.clear(ui.world.save,floor)'),'a clear is written to the save');
-  assert(field.includes('ui.dungeon.live?.submit()'),'and pushed to the ranking');
+  assert(field.includes('ui.dungeon.live?.submit(floor)'),'and pushed to the ranking with its floor');
+  // 작업 209: 서버는 층에 들어간 서버 시각에서 최소 클리어 시간이 흘렀는지 확인한다.
+  assert(field.includes('ui.dungeon.live?.enter(floor)'),'a floor entry tells the server when the attempt started');
   assert.match(field,/Coming Soon/,'the tenth clear result shows the coming-soon badge');
   assert.match(layout,/\.dungeon-coming-soon\{/,'the badge has its own style');
   assert.match(layout,/\.dungeon-result-coming\{/,'and so does the result badge');

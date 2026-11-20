@@ -14,6 +14,9 @@ async function seed(id,guest=false){await db.execute({sql:'INSERT INTO djrpg_acc
 async function act(id,kind,itemId='all',action='journey-claim'){const row=await account(db,id);return mutate(db,id,{action,kind,id:itemId,revision:row.revision,requestId:randomUUID()});}
 before(async()=>{directory=await mkdtemp(join(tmpdir(),'journey-'));db=createClient({url:`file:${join(directory,'test.db')}`});await schema(db);});
 after(async()=>{await db.close();await rm(directory,{recursive:true,force:true,maxRetries:10,retryDelay:100});});
+// 세이브 변화량은 서버가 아는 경과 시간 안에서만 인정된다(작업 209). 이 테스트들이 한 번에 넣는
+// 큰 진행은 "그만큼 사냥한 시간"을 서버 시계로 되돌려 놓고 넣는다.
+const rewind=async(id,seconds)=>db.execute({sql:'UPDATE djrpg_characters SET updated_at=? WHERE account_id=?',args:[new Date(Date.now()-seconds*1000).toISOString(),id]});
 test('KST 05:00 daily and Monday weekly boundaries preserve lifetime claims and mail',()=>{
   const sunday=Date.parse('2026-11-15T19:59:59Z'),monday=sunday+1000;
   assert.notEqual(periods(sunday).daily,periods(monday).daily);assert.notEqual(periods(sunday).weekly,periods(monday).weekly);
@@ -30,7 +33,7 @@ test('daily login grants once; retry with same request ID never duplicates curre
   await seed('other');assert.equal((await snapshot(db,'other')).daily[0].claimed,false);
 });
 test('persisted progress advances daily and weekly counters and book rewards bypass equipment capacity without losing equipment',async()=>{
-  await seed('progress');await snapshot(db,'progress');
+  await seed('progress');await snapshot(db,'progress');await rewind('progress',20000);
   await transaction(db,async tx=>{const row=await account(tx,'progress'),next={...row.save,kills:5000,bossKills:30,playSeconds:18000};await writeSave(tx,row,next);});
   const data=await snapshot(db,'progress');assert.equal(data.daily.find(t=>t.id==='hunt').current,300);assert.equal(data.weekly.find(t=>t.id==='boss').current,30);
   await transaction(db,async tx=>{const row=await account(tx,'progress');await writeSave(tx,row,{...row.save,bag:Array.from({length:40},()=>({id:randomUUID(),name:'검',slot:'weapon',rarity:'common',stats:{attack:1}}))});});
@@ -111,7 +114,7 @@ test('다이아 우편은 계정당 한 번만 지급되고 수령은 원장에 
 });
 
 test('period progress counts once per save and legacy clients retain new totals',async()=>{
-  await seed('legacy');await snapshot(db,'legacy');
+  await seed('legacy');await snapshot(db,'legacy');await rewind('legacy',120);
   await transaction(db,async tx=>{const row=await account(tx,'legacy');await writeSave(tx,row,{...row.save,kills:10,bossKills:2,playSeconds:15});});
   await transaction(db,async tx=>{const row=await account(tx,'legacy'),next=structuredClone(row.save);delete next.bossKills;delete next.playSeconds;await writeSave(tx,row,next);});
   const latest=await account(db,'legacy');assert.equal(latest.save.bossKills,2);assert.equal(latest.save.playSeconds,15);
@@ -119,7 +122,7 @@ test('period progress counts once per save and legacy clients retain new totals'
 });
 
 test('completion bonuses require all goals, separate daily and weekly claims and never pay twice',async()=>{
-  await seed('completion');const start=await snapshot(db,'completion');assert(start.daily.some(task=>task.completion));
+  await seed('completion');const start=await snapshot(db,'completion');assert(start.daily.some(task=>task.completion));await rewind('completion',20000);
   await assert.rejects(act('completion','daily','completion'),e=>e.code==='NOT_READY');
   await transaction(db,async tx=>{const row=await account(tx,'completion');await writeSave(tx,row,{...row.save,kills:5000,bossKills:30,playSeconds:18000});});
   await act('completion','daily');let row=await account(db,'completion');assert.equal(row.save.gold,5800);assert.equal(row.save.bag.length,5);
@@ -134,7 +137,7 @@ test('completion bonuses require all goals, separate daily and weekly claims and
   const claimed=await snapshot(db,'completion');assert(claimed.daily.every(task=>task.claimed));assert(claimed.weekly.every(task=>task.claimed));
 });
 test('existing base rewards claimed before the update still allow completion bonus without recounting a day',async()=>{
-  await seed('old-completion');await snapshot(db,'old-completion');
+  await seed('old-completion');await snapshot(db,'old-completion');await rewind('old-completion',2000);
   await transaction(db,async tx=>{const row=await account(tx,'old-completion');await writeSave(tx,row,{...row.save,kills:300,bossKills:3,playSeconds:1800});});
   const stored=(await db.execute({sql:'SELECT state_json FROM djrpg_journey WHERE account_id=?',args:['old-completion']})).rows[0],state=JSON.parse(stored.state_json);state.daily.claims=['login','hunt','boss','time'];state.daily.completed=true;state.weekly.days=1;
   await db.execute({sql:'UPDATE djrpg_journey SET state_json=? WHERE account_id=?',args:[JSON.stringify(state),'old-completion']});

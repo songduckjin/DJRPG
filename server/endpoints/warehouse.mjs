@@ -1,9 +1,18 @@
 import { client, schema, transaction, account, assertRevision, assertSession, assertSessionId, writeSave, fail } from '../database.mjs';
 import { tokenPayload } from '../auth.mjs';
+import { sharedConnection } from '../connection.mjs';
+import { createTrace, logRequest } from '../metrics.mjs';
 import { runtimeEnv } from '../env.mjs';
 import { json, readBody, errorResponse, versionGuard } from '../http.mjs';
 
-export async function warehouseEndpoint(request, { env = runtimeEnv(), createDbClient } = {}) {
+export async function warehouseEndpoint(request, options = {}) {
+  const context = { trace: createTrace(), action: '', code: '', clamped: 0 };
+  const response = await handle(request, options, context);
+  try { response?.headers?.set('Server-Timing', context.trace.header()); } catch { /* 헤더 실패는 응답을 막지 않는다 */ }
+  logRequest({ path: '/api/warehouse', action: context.action, status: response?.status, trace: context.trace, code: context.code, clamped: context.clamped });
+  return response;
+}
+async function handle(request, { env = runtimeEnv(), createDbClient } = {}, context) {
   const res = { status: status => ({ json: body => json(body, status) }) };
   const req = { method: request.method, body: await readBody(request) };
   if (req.method !== 'POST') return res.status(405).json({ code: 'METHOD_NOT_ALLOWED', error: 'POST 요청만 허용합니다.' });
@@ -15,8 +24,10 @@ export async function warehouseEndpoint(request, { env = runtimeEnv(), createDbC
   const id = signed.id;
   let db;
   try {
-    db = createDbClient ? createDbClient(env) : client(env); await schema(db, env);
+    db = createDbClient ? createDbClient(env) : await sharedConnection(env);
+    if (createDbClient) await context.trace.step('schema', () => schema(db, env));
     const input = req.body ?? {};
+    context.action = typeof input.action === 'string' ? input.action : '';
     if (input.action === 'list') {
       await assertSessionId(db, id, signed.sid);
       const rows = (await db.execute({ sql: 'SELECT item_json FROM djrpg_warehouse WHERE account_id=? ORDER BY item_id', args: [id] })).rows;
@@ -24,7 +35,7 @@ export async function warehouseEndpoint(request, { env = runtimeEnv(), createDbC
     }
     if (!['deposit', 'withdraw'].includes(input.action)) fail(400, 'INVALID_ACTION', '지원하지 않는 창고 요청입니다.');
     if (typeof input.requestId !== 'string' || !/^[\w-]{16,80}$/.test(input.requestId) || typeof input.itemId !== 'string') fail(400, 'INVALID_REQUEST', '창고 요청 번호 또는 아이템 정보가 올바르지 않습니다.');
-    const result = await transaction(db, async tx => {
+    const result = await context.trace.step('tx', () => transaction(db, async tx => {
       const row = await account(tx, id);
       assertSession(row, signed.sid);
       if (Number(input.characterSlot ?? 1) !== row.slot) fail(409, 'CHARACTER_CONFLICT', '다른 캐릭터가 선택되었습니다. 새로고침해 주세요.');
@@ -58,11 +69,12 @@ export async function warehouseEndpoint(request, { env = runtimeEnv(), createDbC
         operations.push({ sql: 'UPDATE djrpg_character_item_owners SET slot=? WHERE item_id=? AND account_id=?', args: [row.slot, item.id, id] });
       }
       const saved = await writeSave(tx, row, save, operations);
+      if (saved.clamped?.length) context.clamped = saved.clamped.length;
       const response = { ok: true, message: input.action === 'deposit' ? '공용창고에 보관했습니다.' : '가방으로 가져왔습니다.' };
       await tx.execute({ sql: 'INSERT INTO djrpg_warehouse_requests(account_id,request_id,response_json) VALUES (?,?,?)', args: [id, input.requestId, JSON.stringify(response)] });
       return { ...response, ...saved };
-    });
+    }));
     return res.status(200).json(result);
-  } catch (error) { return errorResponse(error); }
-  finally { await db?.close(); }
+  } catch (error) { context.code = error?.code ?? error?.name ?? ''; return errorResponse(error); }
+  finally { if (createDbClient) await db?.close(); }
 }

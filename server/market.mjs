@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { decodeAccount, assertRevision, fail, reconcileItems, inventoryOwnerQuery, transaction, validateSave, writeSave } from './database.mjs';
+import { elapsedSince } from './save-guard.mjs';
 export const rules = { fee: .05, maxListings: 30, durationHours: 72, maxPrice: 1_000_000_000, pageSize: 20 };
 const deliveryOperation = (listing, owner, kind, item, gold, reason) => {
   const delivery = { id: randomUUID(), item, gold, reason, createdAt: Date.now() };
@@ -74,10 +75,11 @@ export async function mutate(db, id, input) {
     // All input-dependent reads share one DB round trip inside the writer transaction.
     const reads = await tx.batch([
       { sql: `SELECT a.*, p.shared_gold, p.active_slot, c.save_json AS character_json, c.updated_at AS character_updated_at,
-        COALESCE(v.revision,0) AS revision FROM djrpg_accounts a
+        COALESCE(v.revision,0) AS revision, d.cleared_floor AS dungeon_record_floor, d.cleared_at AS dungeon_record_at FROM djrpg_accounts a
         JOIN djrpg_account_profiles p ON p.account_id=a.id
         JOIN djrpg_characters c ON c.account_id=a.id AND c.slot=p.active_slot
-        LEFT JOIN djrpg_save_versions v ON v.account_id=a.id WHERE a.id=?`, args: [id] },
+        LEFT JOIN djrpg_save_versions v ON v.account_id=a.id
+        LEFT JOIN djrpg_dungeon_records d ON d.account_id=a.id WHERE a.id=?`, args: [id] },
       { sql: 'SELECT response_json FROM djrpg_market_requests WHERE account_id=? AND request_id=?', args: [id, input.requestId] },
       input.action === 'buy' || input.action === 'cancel'
         ? { sql: 'SELECT * FROM djrpg_market WHERE id=?', args: [typeof input.listingId === 'string' ? input.listingId : ''] }
@@ -102,8 +104,10 @@ export async function mutate(db, id, input) {
     if (input.progress !== undefined) validateSave(input.progress);
     const save = structuredClone(input.progress ?? row.save);
     const operations = [], effect = { deliveries: [] };
+    // 판매대금 수령처럼 서버가 같은 트랜잭션에서 금화를 더해 주는 몫은 세이브 검증 상한에 함께 더한다.
+    let goldCredit = 0;
     // Validate ownership from the initial read batch, then persist it with the trade.
-    if (input.action === 'register' || JSON.stringify([row.save.bag, row.save.equipment]) !== JSON.stringify([save.bag, save.equipment])) await reconcileItems(tx, id, row.save, save, { owned: reads[3].rows, operations, slot: row.slot });
+    if (input.action === 'register' || JSON.stringify([row.save.bag, row.save.equipment]) !== JSON.stringify([save.bag, save.equipment])) await reconcileItems(tx, id, row.save, save, { owned: reads[3].rows, operations, slot: row.slot, elapsedSeconds: elapsedSince(row.character_updated_at) });
     let message = '';
     const inbox = (sale, owner, kind, item, gold, reason) => {
       const entry = deliveryOperation(sale, owner, kind, item, gold, reason);
@@ -176,12 +180,12 @@ export async function mutate(db, id, input) {
         write({sql:'UPDATE djrpg_market_inbox SET claimed_at=? WHERE id=? AND claimed_at IS NULL',args:[Date.now(),delivery.id]});
       }
       if(!claimed.length)fail(409,'BAG_FULL','장비 가방이 가득 찼습니다. 미수령 물품은 수령함에 보관됩니다.');
-      save.gold += gold;
+      save.gold += gold; goldCredit = gold;
       if(all)effect.claimedIds=claimed;else effect.claimedId=claimed[0];
       message=all?`${claimed.length}건 수령 완료${skipped?` · 공간 부족 장비 ${skipped}건은 수령함에 보관`:''}`:deliveries[0].item_json?'아이템을 가방으로 받았습니다.':`${gold.toLocaleString('ko-KR')} 금화를 받았습니다.`;
     } else fail(400, 'INVALID_ACTION', '지원하지 않는 거래 요청입니다.');
     write({ sql: 'INSERT INTO djrpg_market_requests VALUES (?,?,?)', args: [id, input.requestId, JSON.stringify({ ok: true, message, effect, revision: row.revision + 1 })] });
-    const result = { ok: true, message, effect, ...await writeSave(tx, row, save, operations) };
+    const result = { ok: true, message, effect, ...await writeSave(tx, row, save, operations, true, { goldCredit }) };
     return result;
   });
 }

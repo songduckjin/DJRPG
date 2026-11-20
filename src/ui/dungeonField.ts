@@ -169,13 +169,17 @@ export function openDungeonField(ui:Interface,lobby:HTMLElement):void {
     for(const corpse of view.corpses)corpse.sprite.destroy();view.corpses=[];
     for(const label of view.damageLabels.values())label.destroy();view.damageLabels.clear();
     battle=new DungeonBattle(ui.world.save,floor);clearLoot();finishAge=0;age=0;resultShown=false;
+    // 서버 검증(작업 209): 이 층에 들어간 서버 시각을 남겨 클리어 시간을 확인받는다.
+    void ui.dungeon.live?.enter(floor);
     get('.dungeon-battle-result').hidden=true;
     get('.dungeon-field-hud strong').textContent=`제 ${floor} 층`;
     field.setAttribute('aria-label',`끝없는 던전 ${floor}층 미리보기`);
   };
+  // 첫 층 전투는 위에서 만든 `battle`으로 바로 시작하므로, 그 층의 도전 시작도 서버에 알린다.
+  void ui.dungeon.live?.enter(battle.floor);
   const result=()=>{resultShown=true;absorbRing?.remove();absorbRing=undefined;const floor=battle.floor,canNext=battle.outcome==='clear'&&floor<DUNGEON_MAX_FLOOR;
     // 클리어 층수는 계정 세이브에 적고(새로고침·재접속에도 유지), 정식 계정이면 서버 순위에도 올린다.
-    if(battle.outcome==='clear'){if(ui.dungeon.clear(ui.world.save,floor))ui.onSave();void ui.dungeon.live?.submit();}
+    if(battle.outcome==='clear'){if(ui.dungeon.clear(ui.world.save,floor))ui.onSave();void ui.dungeon.live?.submit(floor);}
     const box=get('.dungeon-battle-result');box.hidden=false;
     // A clear reports the gold this floor actually left on the ground and pulled in, not its clock.
     const record=battle.outcome==='clear'?`<p class="dungeon-result-gold"><img src="/assets/icons/gold-coin.png" alt="">획득 금화 <strong>${battle.world.lootGold}</strong></p>`:`<p>처치 ${battle.world.slain} / ${battle.targetCount} · ${Math.ceil(battle.elapsed)}초</p>`;

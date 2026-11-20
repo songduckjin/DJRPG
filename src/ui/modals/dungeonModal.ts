@@ -68,7 +68,7 @@ export function renderDungeonLobby(ui: Interface, dialog: HTMLElement): void {
     if (live) void (async () => {
       if (!live.fresh) await live.load();
       // 세이브와 서버 기록이 다르면(오프라인 클리어·전송 실패·계정 초기화) 한 번 더 맞춘다.
-      if (!live.guest && live.data && (live.data.standing.mine?.clearedFloor ?? 0) !== state.clearedFloor) await live.submit();
+      if (!live.guest && live.data && (live.data.standing.mine?.clearedFloor ?? 0) !== state.clearedFloor) await live.submit(state.clearedFloor);
       refresh();
     })();
   }
