@@ -14,6 +14,7 @@ import { helmetArtFor, helmetArtPath, helmetPlacement } from './helmets';
 import { archerHelmIndexFor, archerHelmPartPath, archerHelmPlacement } from './archerHelmets';
 import { mageHelmIndexFor, mageHelmPartPath, mageHelmPlacement } from './mageHelmets';
 import { armorIndexFor } from './armors';
+import { archerArmorIndexFor } from './archerArmors';
 import { WEAPON_GUARD, weaponIndexFor, weaponPose } from './weapons';
 import { BOW_GRIP, bowIndexFor, bowPose } from './bows';
 import { STAFF_GRIP, staffIndexFor, staffPlacement } from './staffs';
@@ -507,6 +508,29 @@ export function drawHero(this: GameView, world: World, x: number, y: number, tim
       if (stripped) {
         texture = stripped;
         textureKey = `noweapon:${save.gender}:${armor}:${animation}:${helmeted ? 'headless' : 'body'}:${poseFrame}`;
+      }
+    }
+    // 궁수 갑옷 시트(작업 160). 궁수는 전사 갑옷·투구·대검을 쓰지 않고 이 시트만 쓴다.
+    // 0번(가죽 조끼)·미착용은 스타터(또는 기본 활 지운) 시트 그대로이고, 갑옷 1~9번은 그 티어의
+    // 시트로 갈아 끼운다(활을 바꿨으면 `nobow/` 판). 로딩 전 티어는 위에서 고른 시트로 한 프레임 더 그린다.
+    if (archer) {
+      const tier = archerArmorIndexFor(save);
+      // 투구 파츠가 아직 로딩 전이면 머리 지운 판을 쓰지 않는다(머리만 빈 채로 보인다).
+      const helmPartPath = archerHelm >= 0 ? archerHelmPartPath(save.gender, archerHelm) : undefined;
+      const helmWorn = !!helmPartPath && !!this.helmetTextures?.get(helmPartPath);
+      const variant = `${bow >= 1 ? 'nobow' : 'bow'}:${helmWorn ? 'headless' : 'head'}`;
+      const tierKey = `${save.gender}:${tier}:${variant}`;
+      if (this.lastArcherArmorTier !== tierKey) {
+        this.lastArcherArmorTier = tierKey;
+        if (tier >= 1) this.prefetchArcherArmor(save.gender, tier, bow >= 1, helmWorn);
+      }
+      if (tier >= 1) {
+        // 활을 바꿨으면 기본 활대를 지운 판, 투구를 썼으면 머리 지운 판을 쓴다(둘 다일 수 있다).
+        const archerTexture = this.archerArmorFrame(save.gender, tier, animation, poseFrame, bow >= 1, helmWorn);
+        if (archerTexture) {
+          texture = archerTexture;
+          textureKey = `archerArmor:${save.gender}:${tier}:${animation}:${poseFrame}:${variant}`;
+        }
       }
     }
     const displayTexture = tintedGearTexture(textureKey, texture, null, null, animatedAttack);
