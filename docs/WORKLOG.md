@@ -1,3 +1,14 @@
+## 2026-11-21 · songduckjin 작업 242 — 09시까지 서버 점검 중 안내(로그인 배너 + 405 안내)
+
+- **요청**: 사용자 "9시까지 점검중이라고 표시해줘"(07:51 KST). Cloudflare Pages 무료 플랜 **일일 요청 한도 소진**으로 `/api/*`가 빈 본문 **405**(정적 폴백)를 돌려주고, UTC 자정 = **09:00 KST**에 한도가 다시 열린다.
+- **증상**: 로그인 화면이 `response.json()` 실패로 **"서버 응답 형식이 올바르지 않습니다. API 배포를 확인하세요."** 를 빨갛게 띄웠다(이용자에게는 고장으로만 보임). 08:00 KST 실측 `POST /api/account` → 405·본문 0바이트, `version.json`은 200(`c3195acc2081`).
+- **점검 배너**(`src/ui/login.ts`·`src/styles/login.css`): `MAINTENANCE_UNTIL = Date.parse('2026-11-21T09:00:00+09:00')`, `inMaintenance(now?)`, `maintenanceBannerMarkup(now?)`. 로그인 패널의 제목·부제 아래·탭 위에 `.maintenance-banner`(`🛠️ 서버 점검 안내` / `오늘 오전 9시까지 서버 점검 중입니다. 9시 이후 정상 이용 가능합니다.`) — 어두운 갈색 그라데이션 + 왼쪽 주황 띠 3px, 700px 이하 화면에서는 여백·글자 크기를 줄인다. **시각으로만 판단**하므로 09:00이 지나면 **배너를 내리는 코드·타이머 없이** 화면에서 사라진다(추가 배포 불필요).
+- **API 폴백 안내**(`accountRequest`): `response.status === 405` 또는 본문이 JSON이 아니면 빨간 개발자용 문구 대신 **"현재 서버 점검 중입니다. 오전 9시 이후 다시 이용해 주세요."** 를 `login-error.is-notice`(주황 `#f3cd93`) 톤으로. 점검 시각이 지난 뒤 같은 상황이면 "현재 서버 점검 중입니다. 잠시 후 다시 이용해 주세요."(9시를 더 이상 말하지 않음). `NoticeError` 표시는 `fail()`이 그대로 읽어 색만 바꾼다 — 정상 응답·진짜 서버 오류(`400` JSON) 문구는 덮지 않는다.
+- **검증**: `npx tsc --noEmit` 통과, 신규 `tests/login-maintenance.test.mjs` **7/7**(09:00 경계·배너 문자열/자동 소멸·안내 문구·빈 405·HTML 본문·정상/진짜 오류 비간섭·CSS 규칙), `npm run build` 통과(`NODE_OPTIONS=--max-old-space-size=1400`).
+- **실브라우저 검수**: 브랜치 프리뷰(`feat-242-maintenance-notice.djrpg.pages.dev`, `4c14b0c91ad9`)와 **운영**(390×844, 실제 빌드 번들·CSS)에서 배너 표시 확인. 운영에서는 브라우저에 남은 토큰의 자동 복원이 405를 받아 아래 alert에 주황 점검 문구가 함께 떴다. 검수 이미지 `downloads/djrpg_maintenance_notice_v1.png`(운영)·`downloads/djrpg_maintenance_notice_preview_v1.png`(프리뷰).
+- **머지·배포**: [PR #244](https://github.com/songduckjin/DJRPG/pull/244) 스쿼시 `c37ad1628245`, 운영 `version.json` `c37ad1628245`(`builtAt` 2026-11-20T23:02:18Z = 08:03 KST)·루트 200. 배포 번들 `assets/index-BwqtjNXz.js`에 배너 클래스·세 안내 문구, CSS `assets/index-Be2jMXp2.css`에 `.maintenance-banner{…border-left:3px solid #e8a94e…}`·`.login-error.is-notice{color:#f3cd93}` 확인.
+- **남은 것**: 사용자 폰에서 로그인 화면 실기 확인. **09:00 KST 이후 배너·9시 안내는 자동으로 사라지고**, API 한도가 초기화되면 평소처럼 로그인된다. 한도가 계속 막히면 "잠시 후 다시" 안내만 남는다(원인은 Cloudflare 무료 플랜 하루 10만 요청 소진 — 유료 전환이나 Functions 요청 절감이 근본 대책).
+
 ## 2026-11-21 · songduckjin 작업 241 — 가방·공용창고·거래소 업그레이드 초록 화살표(`▲`)
 
 - **요청**: "내가 장착한템보다 좋은템들은 초록색 화살표 위로 표시 시안보여줘" → A안(`downloads/upgrade_arrow/opt_a.jpg`) 확정. 가방·공용창고·거래소 **전부**에서, 내 직업이 낄 수 있는 장비 중 지금 낀 것보다 좋은 것의 **아이콘 상자 우측 상단**에 초록 화살표.
