@@ -72,7 +72,17 @@ export async function dungeonOperation(db,id,input={},sid,now=Date.now(),schemaK
       if(nameOf(owner.save,id)!==row.name)await tx.execute({sql:'UPDATE djrpg_dungeon_records SET name=?,updated_at=? WHERE account_id=?',args:[nameOf(owner.save,id),now,id]});
       recorded = current;
     }else if(claim>current+1){
-      fail(409,'DUNGEON_OUT_OF_ORDER','던전은 한 층씩만 기록할 수 있습니다. 최신 진행을 다시 불러오세요.');
+      // 배포 전에 이미 더 깊이 간 계정: 서버 기록이 세이브를 따라오지 못한 경우다(순위·검증이 없던 시절의 세이브).
+      // **기록이 비어 있을 때 딱 한 번** 저장된 층을 그대로 인정해 따라잡게 한다 — 그러지 않으면 그 계정은
+      // 한 층씩 올리는 규칙에 걸려 영원히 순위에 오르지 못한다. 새 계정은 저장 단계에서 기록+1로 잘리므로
+      // 이 예외로 여러 층을 뛸 수 없다.
+      if(current===0){
+        await tx.execute({sql:'INSERT INTO djrpg_dungeon_records VALUES (?,?,?,?,?) ON CONFLICT(account_id) DO UPDATE SET name=excluded.name,cleared_floor=excluded.cleared_floor,cleared_at=excluded.cleared_at,updated_at=excluded.updated_at',args:[id,nameOf(owner.save,id),claim,now,now]});
+        await tx.execute({sql:'DELETE FROM djrpg_dungeon_attempts WHERE account_id=?',args:[id]});
+        recorded = claim;
+      }else{
+        fail(409,'DUNGEON_OUT_OF_ORDER','던전은 한 층씩만 기록할 수 있습니다. 최신 진행을 다시 불러오세요.');
+      }
     }else{
       const attempt = (await tx.execute({sql:'SELECT floor,started_at FROM djrpg_dungeon_attempts WHERE account_id=?',args:[id]})).rows[0];
       if(!attempt||Number(attempt.floor)!==claim)fail(409,'DUNGEON_NOT_STARTED','던전 도전 시작이 서버에 기록되지 않았습니다. 층에 다시 들어가 주세요.');

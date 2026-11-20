@@ -87,13 +87,18 @@ test('시작 시각에서 충분한 시간이 흐르면 한 층씩 기록되고 
   assert.equal(again.recorded, 3);
 });
 
-test('세이브는 서버 기록보다 두 층 앞서지 못하고, 앞선 주장은 거부된다', async () => {
+test('세이브는 서버 기록보다 한 층 앞까지만 저장되고, 기록이 있으면 여러 층 도약은 거부된다', async () => {
   const now = Date.parse('2026-12-07T10:00:00Z');
   await seed('jumper');
   const saved = await saveFloor('jumper', 10, now);
   assert.equal(saved.save.dungeonFloor, 1, '검증 없이 저장되는 최고층은 한 층까지');
-  // 세이브를 직접 고쳐 두 층 앞을 주장해도 서버는 한 층씩만 받는다.
+  // 검증된 기록이 생기기 전(배포 이전 세이브)이면 저장된 층을 한 번 따라잡게 한다 — 그러지 않으면 그 계정은
+  // 한 층씩 올리는 규칙에 걸려 영원히 순위에 오르지 못한다.
   await db.execute({ sql: "UPDATE djrpg_characters SET save_json=json_set(save_json,'$.dungeonFloor',3) WHERE account_id='jumper'" });
+  const caughtUp = await call('jumper', { action: 'submit' }, now + 600_000);
+  assert.equal(caughtUp.recorded, 3, '기록이 비어 있을 때 한 번만 저장된 층을 인정한다');
+  // 그 뒤로는 한 층씩만 — 이미 기록된 계정이 세이브를 고쳐 두 층을 뛰면 거부된다.
+  await db.execute({ sql: "UPDATE djrpg_characters SET save_json=json_set(save_json,'$.dungeonFloor',6) WHERE account_id='jumper'" });
   await assert.rejects(call('jumper', { action: 'submit' }, now + 600_000), error => error.code === 'DUNGEON_OUT_OF_ORDER');
 });
 
