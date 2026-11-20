@@ -42,21 +42,25 @@ export const skills: Record<SkillId, Skill> = {
   // [작업 212] 딜레이 크러싱 — 붉은보석1식 단일 타겟 10연타. 총 위력은 예전 한 방(× 3.4)과 같다.
   crushing: { id: 'crushing', name: '딜레이 크러싱', level: 18, icon: '◉', cooldown: 10, power: '공격력 × 3.4 · 단일 타겟 10연타', description: '적 하나에게 잔상을 남기며 빠르게 10번 내려친다.', range: 125 },
   spin: { id: 'spin', name: '드래곤 트위스터', level: 24, icon: '🐉', cooldown: 6, power: '공격력 × 1.65', description: '굵은 용이 넓게 선회하다 궤도를 좁혀 하늘로 솟는다.', range: 170 },
-  doubleShot: { id: 'doubleShot', name: '더블 샷', level: 2, icon: '🏹', cooldown: 4, power: '공격력 × 1.35 · 2발', description: '시위를 두 번 당겨 두 발의 화살을 빠르게 날린다.', range: 232 },
-  multiShot: { id: 'multiShot', name: '멀티 샷', level: 4, icon: '🎯', cooldown: 7, power: '공격력 × 0.95 · 5발', description: '부채꼴로 다섯 발의 화살을 흩뿌려 여러 적을 동시에 맞힌다.', range: 226 },
-  pierceShot: { id: 'pierceShot', name: '관통 사격', level: 5, icon: '➳', cooldown: 8, power: '공격력 × 2.6 · 관통', description: '강하게 당긴 화살이 여러 적을 꿰뚫고 지나간다.', range: 268 },
-  iceArrow: { id: 'iceArrow', name: '빙결 화살', level: 7, icon: '❄', cooldown: 9, power: '공격력 × 1.9 · 둔화', description: '서리 화살이 맞은 적을 얼려 잠시 느리게 만든다.', range: 236 },
+  // [작업 244] 궁수·마법사 평타 사거리를 330/285로 올리면서(작업 244, world.ts) **날아가는 공격 스킬의
+  // 사거리도 약 15% 함께 올렸다** — 평타만 멀어지고 스킬은 Lv.1 사거리가 그대로면(예: 더블 샷 232 < 평타 330)
+  // 평타는 닿는데 스킬은 닿지 않는 자리가 생긴다. 자기 몸을 중심으로 퍼지는 기술(프로스트 노바·아르카나
+  // 오버로드)과 버프(호크아이·아케인 실드)는 `range`가 곧 효과 반경이라 그대로 두었다.
+  doubleShot: { id: 'doubleShot', name: '더블 샷', level: 2, icon: '🏹', cooldown: 4, power: '공격력 × 1.35 · 2발', description: '시위를 두 번 당겨 두 발의 화살을 빠르게 날린다.', range: 265 },
+  multiShot: { id: 'multiShot', name: '멀티 샷', level: 4, icon: '🎯', cooldown: 7, power: '공격력 × 0.95 · 5발', description: '부채꼴로 다섯 발의 화살을 흩뿌려 여러 적을 동시에 맞힌다.', range: 260 },
+  pierceShot: { id: 'pierceShot', name: '관통 사격', level: 5, icon: '➳', cooldown: 8, power: '공격력 × 2.6 · 관통', description: '강하게 당긴 화살이 여러 적을 꿰뚫고 지나간다.', range: 305 },
+  iceArrow: { id: 'iceArrow', name: '빙결 화살', level: 7, icon: '❄', cooldown: 9, power: '공격력 × 1.9 · 둔화', description: '서리 화살이 맞은 적을 얼려 잠시 느리게 만든다.', range: 270 },
   hawkEye: { id: 'hawkEye', name: '호크아이', level: 10, icon: '🦅', cooldown: 16, power: '공격력 × 1.2 · 공격속도 상승', description: '7초 동안(레벨당 +0.17초) 매의 눈으로 공격력과 공격속도가 크게 오른다.', range: 200 },
-  snipe: { id: 'snipe', name: '저격 일격', level: 14, icon: '👁', cooldown: 11, power: '공격력 × 4.3', description: '숨을 멈추고 먼 거리의 적 하나를 정확히 꿰뚫는다.', range: 300 },
-  stormVolley: { id: 'stormVolley', name: '폭풍 연사', level: 18, icon: '🌪', cooldown: 12, power: '공격력 × 0.8 · 6발', description: '폭풍 같은 연사로 여섯 발의 화살을 연달아 퍼붓는다.', range: 248 },
-  arrowRain: { id: 'arrowRain', name: '애로우 레인', level: 24, icon: '☔', cooldown: 18, power: '공격력 × 0.85 · 화살비', description: '하늘로 쏘아 올린 화살이 적의 진영에 비처럼 쏟아진다.', range: 258 },
-  fireBolt: { id: 'fireBolt', name: '파이어 볼트', level: 2, icon: '🔥', cooldown: 4, power: '공격력 × 2.0', description: '지팡이 끝에서 불꽃 구슬을 날려 적 하나를 태운다.', range: 228 },
-  iceBolt: { id: 'iceBolt', name: '아이스 볼트', level: 4, icon: '❄', cooldown: 7, power: '공격력 × 1.7 · 둔화', description: '서리 구슬이 맞은 적을 얼려 잠시 느리게 만든다.', range: 236 },
-  chainLightning: { id: 'chainLightning', name: '체인 라이트닝', level: 5, icon: '⚡', cooldown: 8, power: '공격력 × 1.25 · 연쇄', description: '번개가 적에게 튀어 가까운 적 여럿을 연달아 감전시킨다.', range: 240 },
-  manaBurst: { id: 'manaBurst', name: '마력 폭발', level: 7, icon: '◉', cooldown: 10, power: '공격력 × 2.5 · 폭발', description: '적의 위치에 마력을 응축했다가 터뜨려 주변을 함께 삼킨다.', range: 220 },
+  snipe: { id: 'snipe', name: '저격 일격', level: 14, icon: '👁', cooldown: 11, power: '공격력 × 4.3', description: '숨을 멈추고 먼 거리의 적 하나를 정확히 꿰뚫는다.', range: 340 },
+  stormVolley: { id: 'stormVolley', name: '폭풍 연사', level: 18, icon: '🌪', cooldown: 12, power: '공격력 × 0.8 · 6발', description: '폭풍 같은 연사로 여섯 발의 화살을 연달아 퍼붓는다.', range: 285 },
+  arrowRain: { id: 'arrowRain', name: '애로우 레인', level: 24, icon: '☔', cooldown: 18, power: '공격력 × 0.85 · 화살비', description: '하늘로 쏘아 올린 화살이 적의 진영에 비처럼 쏟아진다.', range: 295 },
+  fireBolt: { id: 'fireBolt', name: '파이어 볼트', level: 2, icon: '🔥', cooldown: 4, power: '공격력 × 2.0', description: '지팡이 끝에서 불꽃 구슬을 날려 적 하나를 태운다.', range: 260 },
+  iceBolt: { id: 'iceBolt', name: '아이스 볼트', level: 4, icon: '❄', cooldown: 7, power: '공격력 × 1.7 · 둔화', description: '서리 구슬이 맞은 적을 얼려 잠시 느리게 만든다.', range: 270 },
+  chainLightning: { id: 'chainLightning', name: '체인 라이트닝', level: 5, icon: '⚡', cooldown: 8, power: '공격력 × 1.25 · 연쇄', description: '번개가 적에게 튀어 가까운 적 여럿을 연달아 감전시킨다.', range: 275 },
+  manaBurst: { id: 'manaBurst', name: '마력 폭발', level: 7, icon: '◉', cooldown: 10, power: '공격력 × 2.5 · 폭발', description: '적의 위치에 마력을 응축했다가 터뜨려 주변을 함께 삼킨다.', range: 250 },
   frostNova: { id: 'frostNova', name: '프로스트 노바', level: 10, icon: '✳', cooldown: 12, power: '공격력 × 1.5 · 둔화', description: '발밑에서 서리 파동이 퍼져 가까운 적을 얼리고 밀어낸다.', range: 150 },
   arcaneShield: { id: 'arcaneShield', name: '아케인 실드', level: 14, icon: '⛨', cooldown: 16, power: '공격력 × 1.2 · 공격속도 상승', description: '7초 동안(레벨당 +0.17초) 비전 보호막을 두르고 공격력과 공격속도가 오른다.', range: 120 },
-  meteorStrike: { id: 'meteorStrike', name: '메테오 스트라이크', level: 18, icon: '☄', cooldown: 13, power: '공격력 × 3.6', description: '하늘에서 불덩이를 떨어뜨려 적의 자리를 크게 내리친다.', range: 250 },
+  meteorStrike: { id: 'meteorStrike', name: '메테오 스트라이크', level: 18, icon: '☄', cooldown: 13, power: '공격력 × 3.6', description: '하늘에서 불덩이를 떨어뜨려 적의 자리를 크게 내리친다.', range: 285 },
   arcaneOverlord: { id: 'arcaneOverlord', name: '아르카나 오버로드', level: 24, icon: '✵', cooldown: 18, power: '공격력 × 3.0', description: '지팡이의 마력을 한꺼번에 터뜨려 주변을 비전 폭풍으로 휩쓴다.', range: 210 }
 };
 
