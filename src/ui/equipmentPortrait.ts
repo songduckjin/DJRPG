@@ -77,8 +77,9 @@ export function equipmentFallbackPortrait(save: Save): string {
     if (path) return path;
   }
   if (swordless) return swordlessBodyPath(save.gender, 'idle', headless);
-  if (headless) return `/assets/pilot-25d/headless/warrior_${save.gender}_idle_v1.png`;
-  return `/assets/pilot-25d/warrior_${save.gender}_idle_v1.png`;
+  if (headless) return `/assets/pilot-25d/headless/warrior_${save.gender}_idle_v1.png?v=2`;
+  // 작업 222: 서기 시트를 낮은 양손 그립으로 다시 구워 `?v=2`(render.ts·helmets.ts 와 같은 규칙).
+  return `/assets/pilot-25d/warrior_${save.gender}_idle_v1.png?v=2`;
 }
 
 /** 장비창에 합성하는 대검 파츠(작업 156). 파츠는 idle 자세 그대로다. */
@@ -96,7 +97,8 @@ export function equipmentPortraitWeapon(save: Save): EquipmentPortraitWeapon | u
   if (usesBaseSheetOnly(save)) return undefined;
   const path = weaponPartPath(weaponIndexFor(save));
   if (!path) return undefined;
-  const pose = weaponPose(save.gender, 'idle', 0);
+  // 갑옷을 입었으면 갑옷 서기 시트의 앵커를 쓴다(작업 222).
+  const pose = weaponPose(save.gender, 'idle', 0, armorIndexFor(save));
   return { path, x: pose.x, y: pose.y, rotation: pose.rot };
 }
 

@@ -11,6 +11,24 @@ export function clearToken(): void {
   if (typeof localStorage === 'undefined') return;
   try { localStorage.removeItem(tokenKey); } catch { /* 저장소 접근 불가 */ }
 }
+/**
+ * 탈퇴한 계정의 흔적을 이 기기에서 지운다(작업 223).
+ *
+ * 토큰만 지우면 로그인 화면이 옛 로컬 세이브(`djrpg.accounts.v1`·`djrpg.save.v1.*`)를 새 계정으로
+ * 끌어오려 하고, 게스트 화면에는 지운 계정의 진행이 남는다. 세션 토큰과 함께 그 키들도 지운다.
+ */
+export function clearLocalAccount(): void {
+  clearToken();
+  if (typeof localStorage === 'undefined') return;
+  try {
+    const keys = ['djrpg.accounts.v1', 'djrpg.lastLogin.v1', 'djrpg-save-v1'];
+    for (let index = 0; index < localStorage.length; index++) {
+      const key = localStorage.key(index);
+      if (key && key.startsWith('djrpg.save.v1')) keys.push(key);
+    }
+    for (const key of keys) localStorage.removeItem(key);
+  } catch { /* 저장소 접근 불가 */ }
+}
 export async function accountRequest<T>(action: string, data: Record<string, unknown> = {}, token?: string): Promise<T> {
   let response: Response;
   try { response = await fetch('/api/account', { method: 'POST', headers: apiHeaders(token ? { Authorization: `Bearer ${token}` } : {}), body: JSON.stringify({ action, ...data }), keepalive: action === 'save' }); }

@@ -251,7 +251,8 @@ test('마법사는 갑옷 티어의 전용 로브를 쓰고 전사용 투구·�
   // 능력치는 그대로 오른다.
   assert(totalStats(save).attack > totalStats(mageSave('female')).attack);
   // 전사 초상화 계획은 마법사와 섞이지 않는다.
-  assert.equal(equipmentPortraitPlan(freshSave('female')).base, '/assets/pilot-25d/noweapon/warrior_female_idle_v1.png');
+  // [작업 216] 빈손 전사는 기본 검을 지운 판, 작업 222: 서기 `?v=2`.
+  assert.equal(equipmentPortraitPlan(freshSave('female')).base, '/assets/pilot-25d/noweapon/warrior_female_idle_v1.png?v=2');
 });
 
 test('마법사 기본 시트 6장은 전사와 같은 셀 규격의 RGBA PNG다', () => {
