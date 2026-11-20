@@ -181,13 +181,22 @@ function view() {
     app: { screen: { height: 800 } },
     ground: { ellipse: () => ({ fill() {} }) },
     glow: { circle: () => ({ fill() {} }) },
-    armorSheets: new Map(), armorFrames: new Map(), armorLoading: new Set(), armorTierOrder: [], lastArmorTier: ''
+    armorSheets: new Map(), armorFrames: new Map(), armorLoading: new Set(), armorTierOrder: [], lastBodyTier: '',
+    // 대검 파츠(작업 156) — 이 테스트는 0번(기본 검) 상태만 본다.
+    weaponSheets: new Map(), weaponLoading: new Set(), weaponTierOrder: [], lastWeaponTier: -1, heroWeapon: undefined
   };
   game.armorFrame = GameView.prototype.armorFrame.bind(game);
+  game.bodySheetFrame = GameView.prototype.bodySheetFrame.bind(game);
+  game.swordlessBodyFrame = GameView.prototype.swordlessBodyFrame.bind(game);
   game.loadArmorSheet = () => {};
+  game.weaponPart = () => undefined;
   // 실제 프리로드는 Pixi 에셋 로더가 필요하므로 테스트에서는 끊고, 경로 구성만 따로 검사한다.
-  game.armorPrefetchCalls = [];
-  game.prefetchArmor = function prefetch(gender, index) { this.armorPrefetchCalls.push(armorSheetPaths(gender, index)); };
+  game.bodyPrefetchCalls = [];
+  game.weaponPrefetchCalls = [];
+  game.prefetchBody = function prefetch(gender, armor, swordless) {
+    this.bodyPrefetchCalls.push(armor >= 0 ? armorSheetPaths(gender, armor, swordless) : []);
+  };
+  game.prefetchWeapon = function prefetch(index) { this.weaponPrefetchCalls.push(index); };
   return game;
 }
 
@@ -202,8 +211,8 @@ test('착용 갑옷 시트가 로드되면 필드가 그 시트로 그린다', (
   const walking = world(save);
   drawHero.call(game, walking, 100, 100, 0);
   assert.equal(game.hero.texture, game.textures.pilotMale, '로딩 전에는 기준 시트로 폴백');
-  assert.deepEqual(game.armorPrefetchCalls.at(-1), armorSheetPaths('male', 5), '티어가 바뀌면 시트 6장을 미리 받는다');
-  assert.equal(game.armorPrefetchCalls.length, 1, '같은 티어에서는 다시 받지 않는다');
+  assert.deepEqual(game.bodyPrefetchCalls.at(-1), armorSheetPaths('male', 5), '티어가 바뀌면 시트 6장을 미리 받는다');
+  assert.equal(game.bodyPrefetchCalls.length, 1, '같은 티어에서는 다시 받지 않는다');
 
   const sheet = armorSheetTexture('idle');
   game.armorSheets.set(armorSheetPath('male', 5, 'idle'), sheet);
@@ -274,5 +283,6 @@ test('갑옷 시트는 부팅 프리로드에 넣지 않고 티어별로만 받�
   const game = view();
   const bare = world(freshSave('male'));
   drawHero.call(game, bare, 100, 100, 0);
-  assert.equal(game.armorPrefetchCalls.length, 0);
+  assert.equal(game.bodyPrefetchCalls.length, 1);
+  assert.deepEqual(game.bodyPrefetchCalls[0], [], '갑옷이 없으면 받을 갑옷 시트가 없다');
 });

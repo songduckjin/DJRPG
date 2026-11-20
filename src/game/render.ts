@@ -13,6 +13,9 @@ import { projectArenaPoint } from './arena';
 import { createBootProgress } from './bootProgress';
 import { helmetArtList, helmetArtPaths, helmetAttackArtList, helmetAttackArtPaths, headlessBodyPaths } from './render/helmets';
 import { armorFrameIndex, armorSheetPath, armorSheetPaths, type ArmorMotion } from './render/armors';
+import {
+  weaponPartPath, weaponPartPaths, weaponTierCacheLimit, swordlessBodyPath, swordlessBodyPaths
+} from './render/weapons';
 import type { Gender } from './store';
 
 const paths = {
@@ -96,6 +99,8 @@ function sliceArmorSheet(sheet: Texture, motion: ArmorMotion): Texture[] {
 
 /** 갑옷 시트 캐시에 남겨 두는 티어 수. 티어당 6장이라 3티어면 18장이다. */
 export const armorTierCacheLimit = 3;
+/** 대검 파츠 캐시에 남기는 티어 수(작업 156). 티어당 1장이다. */
+export { weaponTierCacheLimit };
 export const renderAssetPaths = [
   ...Object.values(paths), ...Object.values(animationPaths).flat(),
   ...Object.values(attackSheets), ...Object.values(walkSheets), ...Object.values(wearableAssetPaths),
@@ -146,14 +151,22 @@ export class GameView {
   helmetTextures = new Map<string, Texture>();
   /** 현재 그려진 투구 스프라이트. 투구를 벗으면 숨긴다. */
   heroHelmet?: Sprite;
-  /** 착용 갑옷 시트(경로 → 텍스처)와 프레임 캐시, 로딩 중인 경로 (작업 155). */
+  /** 착용 갑옷 시트(경로 → 텍스처)와 프레임 캐시, 로딩 중인 경로 (작업 155). 기본 검을 지운 시트(작업 156)도 같은 지도에 담는다. */
   armorSheets = new Map<string, Texture>();
   armorFrames = new Map<string, Texture[]>();
   armorLoading = new Set<string>();
-  /** 최근에 받은 갑옷 티어 키(오래된 것부터 버린다). */
+  /** 최근에 받은 본체 시트 묶음 키(오래된 것부터 버린다). */
   armorTierOrder: string[] = [];
-  /** 마지막으로 본 착용 티어(성별:인덱스). 바뀔 때만 시트를 미리 받는다. */
-  lastArmorTier = '';
+  /** 마지막으로 본 본체 시트 묶음(성별:갑옷:검없음). 바뀔 때만 미리 받는다. */
+  lastBodyTier = '';
+  /** 착용 무기 파츠(경로 → 텍스처), 로딩 중인 경로, 최근 티어 (작업 156). */
+  weaponSheets = new Map<string, Texture>();
+  weaponLoading = new Set<string>();
+  weaponTierOrder: number[] = [];
+  /** 마지막으로 본 무기 티어. 바뀔 때만 파츠를 미리 받는다. */
+  lastWeaponTier = -1;
+  /** 지금 그려진 검 파츠 스프라이트(0번·로딩 전이면 숨김). */
+  heroWeapon?: Sprite;
   heroGear = new Map<Slot, { path: string; sprite: Sprite }>();
   /** 독립형 코스튬 렌더러 상태(작업 140). 매니페스트·아틀라스가 없으면 폴백으로 굳는다. */
   costume: CostumeHeroState = createCostumeHeroState();
@@ -248,14 +261,27 @@ export class GameView {
   }
 
   /**
-   * 착용 갑옷 시트의 프레임 텍스처 (작업 155).
+   * 착용 본체 시트의 프레임 텍스처 (작업 155·156).
    *
    * 시트는 장비를 바꿀 때만 동적으로 받는다(120장 9.2MB 전체를 부팅 때 받지 않는다).
+   * `swordless` 면 기본 검을 지운 같은 시트(`noweapon/`)를 쓴다 — 0번이 아닌 검을 찼을 때다.
    * 아직 로딩 전이면 `undefined` 를 돌려주고, `drawHero` 가 기준 시트로 그린다.
    */
-  armorFrame(gender: Gender, index: number, motion: ArmorMotion, headless: boolean, frame: number): Texture | undefined {
-    const path = armorSheetPath(gender, index, motion, headless);
+  armorFrame(gender: Gender, index: number, motion: ArmorMotion, headless: boolean, frame: number, swordless = false): Texture | undefined {
+    const path = armorSheetPath(gender, index, motion, headless, swordless);
     if (!path) return undefined;
+    return this.bodySheetFrame(path, motion, frame);
+  }
+
+  /**
+   * 갑옷을 입지 않은 본체의 기본 검 없는 시트 프레임(작업 156).
+   * 셀 규격이 같으므로 자르기·프레임 선택 규칙도 갑옷 시트와 같다.
+   */
+  swordlessBodyFrame(gender: Gender, motion: ArmorMotion, headless: boolean, frame: number): Texture | undefined {
+    return this.bodySheetFrame(swordlessBodyPath(gender, motion, headless), motion, frame);
+  }
+
+  private bodySheetFrame(path: string, motion: ArmorMotion, frame: number): Texture | undefined {
     let frames = this.armorFrames.get(path);
     if (!frames) {
       const sheet = this.armorSheets.get(path);
@@ -267,21 +293,64 @@ export class GameView {
   }
 
   /**
-   * 장비를 바꾸면 그 티어의 시트 6장을 미리 받는다. 최근 3티어만 남기고 나머지는
-   * Pixi 에셋 캐시에서도 내려 모바일 메모리를 잡아 두지 않는다.
+   * 본체 시트 묶음을 미리 받는다. 갑옷 티어 또는 (기본 검을 지운 시트 여부)가 바뀔 때만 부른다.
+   * 최근 3묶음만 남기고 나머지는 Pixi 에셋 캐시에서도 내려 모바일 메모리를 잡아 두지 않는다.
    */
-  prefetchArmor(gender: Gender, index: number): void {
-    const tier = `${gender}:${index}`;
+  prefetchBody(gender: Gender, armor: number, swordless: boolean): void {
+    const tier = `${gender}:${armor}:${swordless ? 1 : 0}`;
     if (!this.armorTierOrder.includes(tier)) this.armorTierOrder.push(tier);
-    for (const path of armorSheetPaths(gender, index)) this.loadArmorSheet(path);
+    for (const path of this.bodySheetPaths(gender, armor, swordless)) this.loadArmorSheet(path);
     while (this.armorTierOrder.length > armorTierCacheLimit) {
       const oldest = this.armorTierOrder.shift() as string;
-      const [oldGender, oldIndex] = oldest.split(':');
-      for (const path of armorSheetPaths(oldGender as Gender, Number(oldIndex))) {
+      const [oldGender, oldArmor, oldSwordless] = oldest.split(':');
+      for (const path of this.bodySheetPaths(oldGender as Gender, Number(oldArmor), oldSwordless === '1')) {
         this.armorFrames.delete(path);
         if (this.armorSheets.delete(path)) void Assets.unload(path).catch(() => undefined);
       }
     }
+  }
+
+  /** 한 묶음의 시트 6장(서기·걷기·공격 × 전신·머리 없음). 갑옷이 없으면 기본 본체 시트. */
+  private bodySheetPaths(gender: Gender, armor: number, swordless: boolean): string[] {
+    if (armor >= 0) return armorSheetPaths(gender, armor, swordless);
+    return swordless ? swordlessBodyPaths(gender) : [];
+  }
+
+  /**
+   * 착용 대검 파츠 텍스처 (작업 156). 아직 로딩 전이면 `undefined` — 그 프레임은 기본 검을
+   * 가진 본체 시트로 그려진다(부팅 직후·티어를 막 바꿨을 때).
+   */
+  weaponPart(index: number): Texture | undefined {
+    const path = weaponPartPath(index);
+    if (!path) return undefined;
+    const texture = this.weaponSheets.get(path);
+    if (!texture) { this.loadWeaponPart(path); return undefined; }
+    return texture;
+  }
+
+  /** 무기 티어가 바뀌면 그 파츠 1장을 받고, 최근 3티어 밖은 내린다. */
+  prefetchWeapon(index: number): void {
+    if (!this.weaponTierOrder.includes(index)) this.weaponTierOrder.push(index);
+    for (const path of weaponPartPaths(index)) this.loadWeaponPart(path);
+    while (this.weaponTierOrder.length > weaponTierCacheLimit) {
+      const oldest = this.weaponTierOrder.shift() as number;
+      for (const path of weaponPartPaths(oldest)) {
+        if (this.weaponSheets.delete(path)) void Assets.unload(path).catch(() => undefined);
+      }
+    }
+  }
+
+  private loadWeaponPart(path: string): void {
+    if (this.weaponSheets.has(path) || this.weaponLoading.has(path)) return;
+    this.weaponLoading.add(path);
+    void Assets.load<Texture>(path).then(texture => {
+      texture.source.scaleMode = 'linear';
+      this.weaponSheets.set(path, texture);
+      this.weaponLoading.delete(path);
+    }).catch(error => {
+      this.weaponLoading.delete(path);
+      console.error(`무기 파츠 로딩 실패: ${path}`, error);
+    });
   }
 
   private loadArmorSheet(path: string): void {
