@@ -45,17 +45,24 @@ export function enemyMoveSpeed(floor: number, boss: boolean): number {
  *  its standing rewards on it: the deeper curve is about a live fight taking longer, and 20 hours away
  *  should not quietly pay 30% less. */
 export function offlineMobHp(floor: number): number { return 24 + floor * 12 + Math.pow(floor, 1.55) * 4; }
-/** The deep curve from 작업 196: floor 78 lands at ~15,300 instead of ~4,380, so a late mob stands for
- *  a few hits instead of melting in a second. */
-function deepMobHp(floor: number): number { return 24 + floor * 14 + Math.pow(floor, 1.85) * 4.5; }
+/** The deep curve from 작업 198: floor 78 lands at ~54,800 instead of ~15,360, so a high floor has to
+ *  be worn down and a floor you cannot clear sends you back down to farm. The exponent is what keeps the
+ *  early floors where they are — 10~15층 sits at the health 작업 196 left (10층 299·15층 653 vs 309·651)
+ *  — while from 25층 on it climbs fast: 25층 3,000 · 40층 9,700 · 50층 17,300 · 60층 27,700 · 78층 54,800(3.6배). */
+function deepMobHp(floor: number): number { return 24 + floor * 14 + Math.pow(floor, 2.65) * 0.52; }
 /** Floors below this keep the old curve; the deep one has fully taken over by `HP_RAMP_BY`. The ramp is
  *  what lets both halves of the request hold: 1~8층은 그대로, 25층부터는 깊은 층 곡선, 그 사이는 완만히. */
 const HP_RAMP_FROM = 8, HP_RAMP_BY = 25;
-/** Health of a mob on a floor. Bosses keep their own, heavier curve, which lands at two to three times
- *  a normal mob of the same floor. */
+/** The boss weight the game had before 작업 198 (floor 78: ~41,700, 2.7x a normal mob): a geared
+ *  player deleted a boss in one combo, which made its 2.2% drop feel handed out. */
+function earlyBossHp(floor: number): number { return 220 + floor * 95 + Math.pow(floor, 1.6) * 32; }
+/** A boss stands at six normal mobs of its floor, so 78층 lands at ~329,000. (작업 198) */
+const BOSS_HP_RATIO = 6;
+/** Health of a mob on a floor: the early curve and the deep one blended over `HP_RAMP_FROM`~`BY`, and
+ *  a boss blended the same way from its old weight into six times its mob — 1~8층 보스는 그대로다. */
 export function enemyMaxHp(floor: number, boss: boolean): number {
-  if (boss) return Math.round(220 + floor * 95 + Math.pow(floor, 1.6) * 32);
   const ramp = Math.min(1, Math.max(0, (floor - HP_RAMP_FROM) / (HP_RAMP_BY - HP_RAMP_FROM)));
+  if (boss) return Math.round(earlyBossHp(floor) + (deepMobHp(floor) * BOSS_HP_RATIO - earlyBossHp(floor)) * ramp);
   return Math.round(offlineMobHp(floor) + (deepMobHp(floor) - offlineMobHp(floor)) * ramp);
 }
 export function enemyHitDamage(floor: number, boss: boolean, defense: number): number { return Math.max(1, Math.round(boss ? 20 + floor * 5.5 + Math.pow(floor, 1.3) * 1.2 : 7 + floor * 2.4 + Math.pow(floor, 1.25) * .5) - defense * .2); }
