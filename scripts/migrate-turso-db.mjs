@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // DJRPG 전용 Turso DB 이관 스크립트.
-// 공용 DB(puzzle-mates)에서 djrpg_* 19개 테이블만 새 DB로 복사한다.
+// 공용 DB(puzzle-mates)에서 djrpg_* 20개 테이블만 새 DB로 복사한다.
 // 소스 DB에는 SELECT만 실행한다(어떤 쓰기도 하지 않는다). 사용법: node scripts/migrate-turso-db.mjs --dry-run
 import { createClient } from '@libsql/client';
 import { pathToFileURL } from 'node:url';
@@ -28,10 +28,13 @@ export const TABLES = [
   'djrpg_boss_rewards',
   // 서버 전역 표시(작업 206: season_epoch). 시즌 초기화 표시가 새 DB로 함께 가야
   // 이관 직후 같은 초기화가 다시 돌지 않는다. 예전 공용 DB에는 없을 수 있어 옵션으로 본다.
-  'djrpg_meta'
+  'djrpg_meta',
+  // 보물 주머니 레전드 전광판(작업 208) — 하루치만 남는 짧은 소식이라 비어 있어도 무관하다.
+  // 이관 뒤에 생긴 표라 예전 공용 DB에는 없을 수 있어 옵션으로 본다.
+  'djrpg_announcements'
 ];
 // 최신 스키마에만 있는 표 — 소스에 없으면 0행으로 보고 건너뛴다.
-const OPTIONAL_TABLES = ['djrpg_meta'];
+const OPTIONAL_TABLES = ['djrpg_meta', 'djrpg_announcements'];
 // AUTOINCREMENT 시퀀스를 이어받아야 하는 테이블(현재 djrpg_market_events 하나).
 const SEQUENCE_TABLES = ['djrpg_market_events'];
 const DEFAULT_CHUNK = 500;
@@ -49,8 +52,8 @@ const HELP = `DJRPG Turso DB 이관 (djrpg_* 테이블만 새 DB로 복사)
   TARGET_TURSO_AUTH_TOKEN     새 DB 토큰 (file: URL이면 생략 가능)
 
 옵션:
-  --dry-run                   소스 djrpg_* 테이블 19개의 행 수만 출력하고 종료
-  --force                     타겟 DB의 djrpg_* 19개 테이블 행을 모두 지우고 다시 복사
+  --dry-run                   소스 djrpg_* 테이블 20개의 행 수만 출력하고 종료
+  --force                     타겟 DB의 djrpg_* 20개 테이블 행을 모두 지우고 다시 복사
   --chunk-size=N              한 번에 복사할 행 수 (기본 ${DEFAULT_CHUNK}, 1~5000)
   -h, --help                  이 도움말
 
@@ -198,10 +201,10 @@ async function run(options, env = process.env) {
       if (rows > 0) occupied.push(`${table}(${number(rows)})`);
     }
     if (occupied.length && !options.force) {
-      throw new Error(`타겟 DB에 이미 행이 있습니다: ${occupied.join(', ')}\n빈 DB를 쓰거나, 정말 덮어쓰려면 --force를 붙여 다시 실행하세요. (--force는 타겟의 djrpg_* 19개 테이블 행을 지우고 다시 복사합니다)`);
+      throw new Error(`타겟 DB에 이미 행이 있습니다: ${occupied.join(', ')}\n빈 DB를 쓰거나, 정말 덮어쓰려면 --force를 붙여 다시 실행하세요. (--force는 타겟의 djrpg_* 20개 테이블 행을 지우고 다시 복사합니다)`);
     }
     if (occupied.length) {
-      console.log(`\n--force: 타겟의 djrpg_* 19개 테이블 행을 지우고 다시 복사합니다 (${occupied.join(', ')})`);
+      console.log(`\n--force: 타겟의 djrpg_* 20개 테이블 행을 지우고 다시 복사합니다 (${occupied.join(', ')})`);
       await target.batch(TABLES.map(table => ({ sql: `DELETE FROM ${quote(table)}` })), 'write');
     }
 

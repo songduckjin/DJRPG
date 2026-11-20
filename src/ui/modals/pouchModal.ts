@@ -1,5 +1,6 @@
 import { equipmentImage, isSkillBook, itemDisplayName, rarityNames, type Rarity } from '../../game/items';
 import { openPouch, POUCH_OVERALL_RATES, POUCH_RARITY_INK, pouchCount, POUCH_HINT, pouchResultText, firstPouch, type PouchResult } from '../../game/pouch';
+import { isLegendaryPouchResult } from '../../game/legendBoard';
 import { createSkillBookArt } from '../skillBookArt';
 import { pouchArt } from '../pouchArt';
 import { goldMarkup } from '../currency';
@@ -177,6 +178,8 @@ export function openPouchWindow(ui: Interface, itemId?: string, options: PouchWi
     }
     error.hidden = true;
     result.replaceChildren(pouchResultCard(opened.result));
+    // 보물 주머니에서 레전드 장비(작업 208) — 접속 중인 모두의 화면 위 전광판에 한 줄 띄운다.
+    if (isLegendaryPouchResult(opened.result)) ui.sharePouchLegend(itemDisplayName((opened.result as Extract<PouchResult, { kind: 'equipment' }>).item));
     result.setAttribute('data-kind', opened.result.kind);
     glow.style.setProperty('--pouch-glow', pouchGlowInk(opened.result));
     // 같은 연출을 다시 틀 수 있게 클래스를 지웠다가 리플로 뒤에 붙인다.

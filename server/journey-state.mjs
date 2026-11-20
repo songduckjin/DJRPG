@@ -4,6 +4,27 @@ export const UPDATE_NOTICE_ID = 'update-2026-11-20';
 /** 우편 만료 = 2026-11-28 00:00 KST. 이 시각을 넘겨 처음 접속한 계정에는 보상을 붙이지 않는다. */
 export const UPDATE_NOTICE_UNTIL = Date.UTC(2026, 10, 27, 15, 0, 0);
 export const DIAMOND_MAIL_ID = 'all-idle-launch-diamonds-2026-11-20';
+/** 새 시즌 안내 우편 — 시즌 초기화 뒤 처음 들어온 모험가가 당황하지 않도록 한 번만 넣는다(작업 208).
+ *  보상은 `1,000G + 무작위 보물 주머니 1개`다(작업 208 사용자 요청 `#4069`). */
+export const SEASON_NOTICE_ID = 'season-2-open';
+const SEASON_NOTICE_TITLE = '[새 시즌 오픈] 대공사 새 시즌 오픈! 기념 보물 주머니 1개를 드립니다';
+const SEASON_NOTICE_BODY = `안녕하세요, 모험가님!
+대공사 새 시즌 오픈! 기념 보물 주머니 1개를 드립니다.
+
+대공사 업데이트로 DJRPG의 새 시즌이 시작되었습니다.
+지난 시즌의 레벨·장비·가방·다이아·층수·거래소·창고·던전 기록은 모두 정리되었고, 아이디와 비밀번호는 그대로입니다.
+로그인하면 먼저 직업과 성별을 새로 고르는 화면이 나옵니다. 고른 직업의 무기를 받고 1층부터 다시 모험을 시작해 주세요!
+
+함께 드리는 기념 보물 주머니는 가방에서 열면 금화·장비·스킬북 중 하나가 나옵니다.
+새 시즌에서도 즐거운 모험 되시길 바랍니다.`;
+/** 새 시즌 안내 우편을 계정마다 **한 번만** 준다(업데이트 안내와 같은 지급 이력 방식). */
+export function grantSeasonNotice(state, now = Date.now()) {
+  state.notices ??= [];
+  if (state.notices.includes(SEASON_NOTICE_ID) || state.mail.some(entry => entry.id === SEASON_NOTICE_ID)) return false;
+  state.notices.push(SEASON_NOTICE_ID);
+  state.mail.push({ id: SEASON_NOTICE_ID, title: SEASON_NOTICE_TITLE, sender: '운영팀', body: SEASON_NOTICE_BODY, createdAt: now, expiresAt: null, gold: 1000, books: 0, pouches: 1, claimedAt: null, read: false });
+  return true;
+}
 const UPDATE_NOTICE_TITLE = '[업데이트 안내] 전투·가방 편의성 및 끝없는 던전 개선';
 const UPDATE_NOTICE_BODY = `안녕하세요, 모험가님!
 더 쾌적한 사냥과 파밍을 위해 아래 내용이 업데이트되었습니다.
@@ -61,11 +82,12 @@ export function advanceJourney(state, before, save, now = Date.now(), diamondMai
   }
   state.achievements ??= []; state.mail ??= [];
   grantUpdateNotice(state, now);
+  grantSeasonNotice(state, now);
   if (diamondMailEligible) {
     state.notices ??= [];
     if (!state.notices.includes(DIAMOND_MAIL_ID) && !state.mail.some(entry => entry.id === DIAMOND_MAIL_ID)) {
       state.notices.push(DIAMOND_MAIL_ID);
-      state.mail.push({ id: DIAMOND_MAIL_ID, title: '다이아 1,000개 지급', sender: '운영팀', body: '전 슬롯 방치 기능 출시를 기념해 계정마다 다이아 1,000개를 드립니다.', createdAt: now, expiresAt: null, gold: 0, books: 0, diamonds: 1000, claimedAt: null, read: false });
+      state.mail.push({ id: DIAMOND_MAIL_ID, title: '다이아 4,000개 지급', sender: '운영팀', body: '전 슬롯 방치 기능 출시를 기념해 계정마다 다이아 4,000개를 드립니다.', createdAt: now, expiresAt: null, gold: 0, books: 0, diamonds: 4000, claimedAt: null, read: false });
     }
   }
   return state;
@@ -111,20 +133,45 @@ export const completionRewards = {
   daily:{id:'completion',name:'일일 전체 완료 보상',gold:2000,books:0,pouches:1,completion:true},
   weekly:{id:'completion',name:'주간 전체 완료 보상',gold:10000,books:0,pouches:3,completion:true}
 };
+/** 장비 도감 발견 수 — **등급별 칸**(`부위:번호:등급`)만 센다(작업 208). 95종 × 6등급 = 570칸. */
+export function collectionCount(save) {
+  const keys = Array.isArray(save?.equipmentCollection) ? save.equipmentCollection : [];
+  return new Set(keys.filter(key => typeof key === 'string' && /^(weapon|offhand|helmet|armor|necklace|gloves|belt|boots|ring):\d{1,2}:(?:common|magic|rare|epic|unique|legendary)$/.test(key))).size;
+}
+/** 스킬 강화 횟수 — 배운 스킬의 1레벨을 뺀 레벨 합계(작업 208, 사용자 확정 기준). */
+export function skillUpgradeCount(save) {
+  return Object.values(save?.skillLevels ?? {}).reduce((sum, level) => sum + Math.max(0, (Number(level) || 1) - 1), 0);
+}
+/**
+ * 업적 보상 (작업 208 사용자 확정 `#4150`·`#4157`).
+ *
+ * 일일·주간과 같이 **스킬북을 직접 주지 않는다**(`books:0`). 대신 단계가 올라갈수록 금화가 커지고,
+ * 긴 사슬의 뒤쪽 단계부터 보물 주머니를 함께 준다 — 4단계 이상인 업적은 3번째 단계(index 2)부터 1개,
+ * 각 업적의 **마지막 단계**는 2개다. (3단계짜리 업적은 지금 없지만, 있다면 마지막 단계만 2개다.)
+ */
+export const achievementGold = [1000, 2000, 3000, 5000, 8000, 12000, 20000];
+export function achievementReward(index, count) {
+  const gold = achievementGold[Math.min(Math.max(0, index), achievementGold.length - 1)];
+  const last = index === count - 1;
+  const pouches = last ? 2 : count >= 4 && index >= 2 ? 1 : 0;
+  return { gold, books: 0, pouches };
+}
 const milestones = [
-  ['level','성장','캐릭터 레벨',[5,10,20,30],save=>save.level],
-  ['kills','사냥','몬스터 처치',[1000,10000,100000],save=>save.kills],
-  ['boss','보스','보스 처치',[10,100,1000],save=>save.bossKills??0],
-  ['floor','탐험','최고 도달 층',[10,30,50,100],save=>save.maxFloor??save.floor],
-  ['collection','수집','장비 도감 수집',[10,30,50],save=>new Set(save.equipmentCollection??[]).size],
-  ['skills','스킬','습득 스킬 수',[1,5,11],save=>new Set([...(save.learned??[]),...(save.passives??[])]).size],
-  ['rank','스킬','최고 스킬 레벨',[10,20,30],save=>Math.max(0,...Object.values(save.skillLevels??{}))]
+  ['level','성장','캐릭터 레벨',[5,10,15,20,25,30],save=>save.level],
+  ['kills','사냥','몬스터 처치',[500,1000,2000,4000,8000,16000,32000],save=>save.kills],
+  // 보스는 **모든 보스류 합산**이다(작업 208, 사용자 확정): 사냥터 층 보스 + 필드 정예 몹 + 던전 5·10층 보스
+  // + 월드보스 도전/처치가 모두 세이브의 `bossKills` 하나로 모인다.
+  ['boss','보스','보스 처치',[10,50,100,150,200],save=>save.bossKills??0],
+  ['floor','탐험','최고 도달 층',[5,10,15,20],save=>save.maxFloor??save.floor],
+  ['collection','수집','장비 도감 수집',[10,50,100,200,300,450,570],save=>collectionCount(save)],
+  ['skills','스킬','스킬 강화 횟수',[5,15,30,50,100],save=>skillUpgradeCount(save)],
+  ['rank','스킬','최고 스킬 레벨',[5,10,15,20,25,30],save=>Math.max(0,...Object.values(save.skillLevels??{}))]
 ];
 export function journeyView(state, save, now = Date.now()) {
   const timed = (kind, tasks) => {
     const rows=tasks.map(task=>({...task,current:Math.min(task.target,Math.floor(task.metric==='login'?1:(state[kind][task.metric]??0))),claimed:state[kind].claims.includes(task.id)}));
     return [...rows,{...completionRewards[kind],target:rows.length,current:rows.filter(task=>task.current>=task.target).length,claimed:state[kind].claims.includes('completion')}];
   };
-  const achievements = milestones.flatMap(([key,category,name,targets,get])=>targets.map((target,index)=>({id:`${key}-${target}`,category,name:`${name} ${target.toLocaleString('ko-KR')}`,target,current:Math.min(target,Math.floor(get(save)??0)),gold:1000*(index+1),books:index+1,claimed:state.achievements.includes(`${key}-${target}`)})));
+  const achievements = milestones.flatMap(([key,category,name,targets,get])=>targets.map((target,index)=>({id:`${key}-${target}`,category,name:`${name} ${target.toLocaleString('ko-KR')}`,target,current:Math.min(target,Math.floor(get(save)??0)),...achievementReward(index,targets.length),claimed:state.achievements.includes(`${key}-${target}`)})));
   return {daily:timed('daily',dailyTasks),weekly:timed('weekly',weeklyTasks),achievements,mail:state.mail.map(mail=>({...mail,expired:mail.expiresAt!==null&&mail.expiresAt<=now})),periods:periods(now),now};
 }

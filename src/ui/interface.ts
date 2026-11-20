@@ -20,6 +20,8 @@ import { discoverEquipment } from '../game/codex';
 import { renderCodex } from './modals/codexModal';
 import type { SkillId } from '../game/skills';
 import { cancelSkillSelection, chooseSkill, pressSkillSlot } from './skillLoadout';
+import { LegendBoard } from '../game/legendBoard';
+import { mountLegendBar, sharePouchLegend } from './legendBar';
 import { renderSalvage } from './modals/salvageModal';
 import type { World } from '../game/world';
 
@@ -86,6 +88,8 @@ export class Interface {
   attackButton!: HTMLButtonElement;
   slotButtons: HTMLButtonElement[] = [];
   skillFeedback = new SkillFeedback();
+  /** 보물 주머니 레전드 전광판 대기열(작업 208) — 접속 중 모두에게 같은 줄이 뜨다. */
+  legend = new LegendBoard();
   toast: HTMLElement;
   toastTimer = 0;
   saveStatus = '저장됨';
@@ -113,6 +117,7 @@ export class Interface {
     this.root.querySelector('.utility-nav')?.append(shopEntry);
     this.top = this.get('.top-hud'); this.banner = this.get('.tutorial');
     this.modal = this.get('.modal-backdrop'); this.toast = this.get('.toast');
+    mountLegendBar(this);
     this.modalRenderGate = bindModalInteraction(this.modal, window, () => this.renderModal());
     this.market.onMessage = text => this.message(text);
     sync.onWarehouseRecovered = () => { this.renderStatus(); this.renderBagBadge(); if (this.openModal === 'warehouse') void loadWarehouse(this); this.message('공용창고 이동 결과를 확인했습니다.'); };
@@ -170,6 +175,8 @@ export class Interface {
   get canvasHost(): HTMLElement { return this.get('.battle-canvas'); }
   get(selector: string): HTMLElement { const node = this.root.querySelector<HTMLElement>(selector); if (!node) throw new Error(`UI 구성 요소 누락: ${selector}`); return node; }
   message(text: string): void { this.toast.textContent = text.replace(/골드/g, '금화'); this.toast.classList.add('visible'); clearTimeout(this.toastTimer); this.toastTimer = window.setTimeout(() => this.toast.classList.remove('visible'), 3200); }
+  /** 내가 주머니에서 레전드를 뽑았다 — 전광판에 올린다(게스트는 내 화면에만). */
+  sharePouchLegend(itemName: string): void { void sharePouchLegend(this, itemName); }
   setSaveStatus(status: string): void { this.saveStatus = status; const label = this.modal.querySelector<HTMLElement>('[data-save-status]'); if (label) label.textContent = `서버 ${status}`; }
   showOfflineReward(reward: OfflineReward): void { this.offlineReward = reward; this.open('offline'); }
 

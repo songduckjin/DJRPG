@@ -1,8 +1,9 @@
 import { marketConnection } from '../market-connection.mjs';
 import { snapshot as journeySnapshot, mutate as journeyMutate } from '../journey.mjs';
 import { tokenPayload } from '../auth.mjs';
-import { assertSessionId, fail, schema } from '../database.mjs';
+import { account, assertSessionId, fail, schema } from '../database.mjs';
 import { snapshot, mutate, recentPrice } from '../market.mjs';
+import { announcePouchLegend, announcedItemName, recentAnnouncements } from '../announcements.mjs';
 import { runtimeEnv } from '../env.mjs';
 import { json, readBody, errorResponse, versionGuard } from '../http.mjs';
 
@@ -23,6 +24,15 @@ export async function marketEndpoint(request, { env = runtimeEnv(), createDbClie
     const id = signed.id;
     const body = req.body ?? {};
     if (body.action === 'recent-price') return res.status(200).json(await recentPrice(db,body));
+    // 보물 주머니 레전드 전광판(작업 208): 접속 중인 모두가 받아 가는 최근 공지와, 내가 뽑은 레전드 기록.
+    if (body.action === 'announcements') return res.status(200).json(await recentAnnouncements(db, Date.now()));
+    if (body.action === 'announcePouchLegend' || body.action === 'announce-pouch-legend') {
+      const row = await account(db, id);
+      if (row.password_hash === 'guest') fail(403, 'GUEST_READ_ONLY', '게스트는 전광판에 소식을 올릴 수 없습니다.');
+      const item = announcedItemName(body.itemName);
+      if (!item) fail(400, 'INVALID_ITEM', '알릴 아이템 이름을 확인하세요.');
+      return res.status(200).json(await announcePouchLegend(db, { accountId: id, character: row.save?.name, item }, Date.now()));
+    }
     if (body.action === 'journey-list') return res.status(200).json(await journeySnapshot(db, id));
     if (typeof body.action === 'string' && body.action.startsWith('journey-')) return res.status(200).json(await journeyMutate(db,id,body));
     return res.status(200).json(body.action === 'list' ? await snapshot(db, id, body) : await mutate(db, id, body));

@@ -47,6 +47,9 @@ export async function schema(db, env = runtimeEnv()) {
     , 'CREATE TABLE IF NOT EXISTS djrpg_shop_ledger (id INTEGER PRIMARY KEY AUTOINCREMENT, account_id TEXT NOT NULL COLLATE NOCASE, source_type TEXT NOT NULL, source_id TEXT NOT NULL, diamonds_delta INTEGER NOT NULL, created_at INTEGER NOT NULL, UNIQUE(account_id,source_type,source_id))'
     , 'CREATE TABLE IF NOT EXISTS djrpg_shop_entitlements (account_id TEXT NOT NULL COLLATE NOCASE, entitlement_key TEXT NOT NULL, quantity INTEGER NOT NULL DEFAULT 0, expires_at INTEGER, updated_at INTEGER NOT NULL, PRIMARY KEY(account_id,entitlement_key))'
     , 'CREATE TABLE IF NOT EXISTS djrpg_shop_requests (account_id TEXT NOT NULL COLLATE NOCASE, request_id TEXT NOT NULL, response_json TEXT NOT NULL, PRIMARY KEY(account_id,request_id))'
+    // 보물 주머니 레전드 전광판(작업 208) — 정식 계정이 테스트한 레전드 획득만 짧게 남는다.
+    , 'CREATE TABLE IF NOT EXISTS djrpg_announcements (id TEXT PRIMARY KEY, account_id TEXT NOT NULL COLLATE NOCASE, character TEXT NOT NULL, item TEXT NOT NULL, created_at INTEGER NOT NULL)'
+    , 'CREATE INDEX IF NOT EXISTS djrpg_announcements_time ON djrpg_announcements(created_at)'
     , "INSERT OR IGNORE INTO djrpg_account_profiles(account_id,shared_gold,active_slot) SELECT id, COALESCE(CAST(json_extract(save_json,'$.gold') AS INTEGER),0),1 FROM djrpg_accounts WHERE json_valid(save_json)"
     , "INSERT OR IGNORE INTO djrpg_characters(account_id,slot,save_json,updated_at) SELECT id,1,json_remove(save_json,'$.gold'),updated_at FROM djrpg_accounts WHERE json_valid(save_json)"
     , "INSERT OR IGNORE INTO djrpg_shop_wallet(account_id,customer_key) SELECT id,lower(hex(randomblob(16))) FROM djrpg_accounts"
@@ -287,7 +290,9 @@ export async function writeSave(tx, row, save, operations = [], preserveCollecti
   // Older clients may omit discovery history; never erase already-recorded entries.
   const previousCollection = preserveCollection && Array.isArray(row.save.equipmentCollection) ? row.save.equipmentCollection : [];
   const incomingCollection = Array.isArray(save.equipmentCollection) ? save.equipmentCollection : [];
-  save.equipmentCollection = [...new Set([...previousCollection, ...incomingCollection].filter(key => typeof key === 'string' && /^(weapon|offhand|helmet|armor|necklace|gloves|belt|boots|ring):[0-9]$/.test(key)))].slice(0, 75);
+  // 발견 기록은 **등급별 한 칸**(`부위:번호:등급`)이다(작업 208) — 옛 `부위:번호` 키는 버린다.
+  // 무기는 대검 0~9 · 활 10~19 · 지팡이 20~29라 번호가 두 자리까지 온다. 95종 × 6등급 = 570칸.
+  save.equipmentCollection = [...new Set([...previousCollection, ...incomingCollection].filter(key => typeof key === 'string' && /^(weapon|offhand|helmet|armor|necklace|gloves|belt|boots|ring):\d{1,2}:(common|magic|rare|epic|unique|legendary)$/.test(key)))].slice(0, 570);
   if (!Number.isSafeInteger(save.gold) || save.gold < 0 || save.gold > 9_000_000_000_000) fail(400, 'INVALID_GOLD', '금화 값이 올바르지 않습니다.');
   if (Number(row.slot) < 1 || Number(row.slot) > Number(row.max_slots ?? 3)) fail(409, 'CHARACTER_CONFLICT', '현재 캐릭터를 다시 불러오세요.');
   if (!row.skipJourney) operations = [...operations, journeyOperation(row.id, await journeyState(tx, row, save))];

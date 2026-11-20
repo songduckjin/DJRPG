@@ -122,3 +122,14 @@ test('achievement all-claim receives visible steps only instead of skipping hidd
  assert.deepEqual(calls.filter(call=>call[0]==='journey-claim').map(call=>call[1].id),['skills-1','level-5']);
  }finally{globalThis.document=previous;}
 });
+
+test('업적 카드는 금화와 보물 주머니를 함께 보여 주고 스킬북은 표시하지 않는다',()=>{
+  const previous=globalThis.document;globalThis.document={createElement:node};
+  try{
+    const {ui}=fixture(),dialog=node();
+    ui.journey.data.achievements=[{...task('boss-200',200,200),gold:20000,books:0,pouches:2,category:'보스'},{...task('boss-10',10,10),gold:1000,books:0,pouches:0,category:'보스'}];
+    renderUtility(ui,dialog,'achievements');
+    assert(find(dialog,n=>n.textContent==='보물 주머니 2개'),'마지막 단계 주머니 표시');
+    assert(!find(dialog,n=>String(n.textContent).startsWith('스킬북')),'스킬북 표시 없음');
+  }finally{globalThis.document=previous;}
+});

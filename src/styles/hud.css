@@ -115,3 +115,10 @@
 .utility-nav [data-modal="achievements"] { --menu-icon-scale: 1.2659; --menu-icon-x: -1.9531%; --menu-icon-y: 3.9062%; }
 
 .bottom-nav [data-modal="equipment"] > .new-badge { top: 0; right: 0; z-index: 1; }
+
+/* 보물 주머니 레전드 전광판 (작업 208) — 접속 중인 모든 유저 화면 위에 5.5초 뜨는 황금빛 띠. */
+.legend-bar { position: fixed; z-index: 70; top: calc(env(safe-area-inset-top, 0px) + 6px); left: 50%; max-width: 94vw; padding: 7px 14px; border: 1px solid #e8c46a; border-radius: 999px; background: linear-gradient(#3a2a12f5, #1b1309f5); color: #ffe7ad; font-size: 11.5px; line-height: 1.45; text-align: center; box-shadow: 0 0 0 1px #0009, 0 4px 18px #000b, 0 0 22px #e8b64a55; pointer-events: none; transform: translateX(-50%); animation: legend-bar-in .28s ease-out; }
+.legend-bar[hidden] { display: none; }
+.legend-bar-text { display: block; overflow-wrap: anywhere; }
+@keyframes legend-bar-in { from { opacity: 0; transform: translate(-50%, -8px); } to { opacity: 1; transform: translate(-50%, 0); } }
+@media (prefers-reduced-motion: reduce) { .legend-bar { animation: none; } }

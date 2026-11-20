@@ -30,7 +30,8 @@ export const RESET_TABLES = [
   'djrpg_item_owners', 'djrpg_character_item_owners',
   'djrpg_dungeon_records',
   'djrpg_boss_days', 'djrpg_boss_attempts', 'djrpg_boss_scores', 'djrpg_boss_rewards',
-  'djrpg_journey', 'djrpg_save_requests', 'djrpg_save_versions'
+  'djrpg_journey', 'djrpg_save_requests', 'djrpg_save_versions',
+  'djrpg_announcements'
 ];
 
 const confirmed = new Set();

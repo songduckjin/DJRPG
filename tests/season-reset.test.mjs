@@ -11,6 +11,10 @@ import { worldBossSchema } from '../server/world-boss-schema.mjs';
 import { accountEndpoint } from '../server/endpoints/account.mjs';
 import { hashPassword, tokenFor } from '../server/auth.mjs';
 import { runSeasonReset, seasonArmed, SEASON_EPOCH } from '../server/season.mjs';
+import { snapshot as journeySnapshot, mutate as journeyMutate } from '../server/journey.mjs';
+import { account } from '../server/database.mjs';
+import { advanceJourney, DIAMOND_MAIL_ID, SEASON_NOTICE_ID } from '../server/journey-state.mjs';
+import { randomUUID } from 'node:crypto';
 
 const PRODUCTION = 'https://djrpg.pages.dev/api/account';
 const PREVIEW = 'https://preview-gravel-background-fk.djrpg.pages.dev/api/account';
@@ -178,4 +182,48 @@ test('시즌 초기화 뒤 기존 비밀번호로 로그인하면 새 시즌 설
     assert.equal(next.body.needsSetup, false);
     assert.equal(next.body.save.job, 'archer');
   } finally { await db.close(); await removeTempDbDirectory(directory); }
+});
+
+test('새 시즌 초기화 뒤 첫 우편 조회에 전 슬롯 기념 다이아 4,000개와 새 시즌 환영 우편(1,000G + 보물 주머니 1개)이 함께 온다', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'djrpg-season-mail-'));
+  const url = `file:${join(directory, 'mail.db')}`;
+  const db = createClient({ url });
+  const env = envFor(url);
+  try {
+    await prepare(db, env);
+    await seed(db);
+    const call = await withDb(url);
+    assert.equal((await call({ action: 'load' }, { token: tokenFor('hero', env, 'sid-hero') })).body.needsSetup, true);
+    const setup = await call({ action: 'completeSetup', job: 'warrior', gender: 'male' }, { token: tokenFor('hero', env, 'sid-hero') });
+    assert.equal(setup.status, 200);
+    const data = await journeySnapshot(db, 'hero');
+    const diamond = data.mail.find(mail => mail.id === DIAMOND_MAIL_ID);
+    const seasonMail = data.mail.find(mail => mail.id === SEASON_NOTICE_ID);
+    assert(diamond, '전 슬롯 방치 기념 다이아 우편이 새 시즌에도 다시 온다');
+    assert.equal(diamond.diamonds, 4000); assert.equal(diamond.expiresAt, null, '만료가 없어 기간이 지나도 빠지지 않는다');
+    assert(seasonMail, '새 시즌 환영 우편이 온다');
+    assert.equal(seasonMail.gold, 1000); assert.equal(seasonMail.pouches, 1); assert.equal(seasonMail.books, 0);
+    assert.match(seasonMail.title, /보물 주머니 1개/);
+    assert.match(seasonMail.body, /대공사 새 시즌 오픈! 기념 보물 주머니 1개를 드립니다/);
+    // 두 우편을 받으면 다이아 4,000개·금화 1,000·보물 주머니 1개가 실제로 들어간다(환영 1,000G·업데이트 3,000G 포함).
+    const row = await account(db, 'hero');
+    await journeyMutate(db, 'hero', { action: 'journey-claim', kind: 'mail', id: 'all', revision: row.revision, requestId: randomUUID(), characterSlot: 1 });
+    const claimed = await account(db, 'hero');
+    assert.equal(claimed.save.gold, 5000, '환영 1,000 + 업데이트 3,000 + 새 시즌 1,000');
+    assert.equal(claimed.save.bag.filter(item => item.slot === 'pouch').length, 1, '새 시즌 환영 보물 주머니 1개');
+    const wallet = (await db.execute({ sql: "SELECT diamonds FROM djrpg_shop_wallet WHERE account_id='hero'", args: [] })).rows[0];
+    assert.equal(Number(wallet.diamonds), 4000, '전 슬롯 방치 기념 다이아');
+    const again = await journeySnapshot(db, 'hero');
+    assert.equal(again.mail.filter(mail => !mail.claimedAt).length, 0, '다시 붙지 않는다');
+  } finally { await db.close(); await removeTempDbDirectory(directory); }
+});
+
+test('게스트는 다이아 기념 우편을 받지 않고 새 시즌 환영 우편만 받는다', () => {
+  const saveNow = () => ({ version: 1, name: '게스트', gender: 'male', gold: 0, bag: [], equipment: {}, kills: 0, bossKills: 0, playSeconds: 0, level: 1, floor: 1, maxFloor: 1, equipmentCollection: [], learned: [], passives: [], skillLevels: {} });
+  const now = Date.parse('2026-11-20T03:00:00Z');
+  const guest = advanceJourney(undefined, saveNow(), saveNow(), now, false);
+  assert.equal(guest.mail.filter(mail => mail.id === DIAMOND_MAIL_ID).length, 0, '게스트에게는 다이아를 주지 않는다');
+  assert.equal(guest.mail.filter(mail => mail.id === SEASON_NOTICE_ID).length, 1);
+  const regular = advanceJourney(undefined, saveNow(), saveNow(), now, true);
+  assert.equal(regular.mail.filter(mail => mail.id === DIAMOND_MAIL_ID).length, 1, '정식 계정은 다이아 기념 우편을 받는다');
 });

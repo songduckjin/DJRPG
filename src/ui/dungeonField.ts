@@ -1,4 +1,5 @@
 import { DUNGEON_MAX_FLOOR } from './dungeonLobby';
+import { addBossKill, dungeonBossKills } from '../game/bossCount';
 import {Assets} from 'pixi.js';
 import {GameView} from '../game/render';
 import {projectArenaPoint} from '../game/arena';
@@ -183,6 +184,8 @@ export function openDungeonField(ui:Interface,lobby:HTMLElement):void {
     let receipt:DungeonRewardReceipt|undefined;
     if(battle.outcome==='clear'){
       const save=ui.world.save,rewards=battle.clearRewards();
+      // 보스 업적은 모든 보스류 합산이다(작업 208) — 던전 5·10층 보스를 깨면 보스 처치 1회로 센다.
+      if(dungeonBossKills(floor,true))addBossKill(save);
       if(rewards)receipt=claimDungeonRewards(save,floor,rewards,{firstClear:floor>dungeonClearedFloor(save),
         autoSalvage:ui.autoSalvage?ui.salvageRarity:undefined,autoSalvagePlus:ui.salvagePlus});
       // 클리어 층수는 계정 세이브에 적고(새로고침·재접속에도 유지), 정식 계정이면 서버 순위에도 올린다.

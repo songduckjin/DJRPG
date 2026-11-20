@@ -55,12 +55,14 @@ test('persisted progress advances daily and weekly counters and book rewards byp
   assert((await snapshot(db,'progress')).daily.every(t=>t.claimed));
 });
 test('mail read, claim, deletion, item ownership and concurrent reward requests stay isolated and idempotent',async()=>{
-  // 환영·업데이트 안내·다이아 지급 우편이 각각 한 통씩 도착한다.
-  await seed('mail');const data=await snapshot(db,'mail');assert.equal(data.mail.length,3);
+  // 환영·업데이트 안내·새 시즌 안내·다이아 지급 우편이 각각 한 통씩 도착한다.
+  await seed('mail');const data=await snapshot(db,'mail');assert.equal(data.mail.length,4);
   assert.equal(data.mail[0].id,'welcome-v1');
   await act('mail',undefined,data.mail[0].id,'journey-read');assert((await snapshot(db,'mail')).mail[0].read);
-  await act('mail','mail');const row=await account(db,'mail');assert.equal(row.save.gold,4000);assert.equal(row.save.bag.length,3);
-  const wallet=(await db.execute({sql:'SELECT diamonds FROM djrpg_shop_wallet WHERE account_id=?',args:['mail']})).rows[0];assert.equal(Number(wallet.diamonds),1000);
+  // 환영 1,000 + 업데이트 3,000 + 새 시즌 오픈 1,000 = 5,000G, 스킬북 3권 + 보물 주머니 1개.
+  await act('mail','mail');const row=await account(db,'mail');assert.equal(row.save.gold,5000);assert.equal(row.save.bag.length,4);
+  assert.equal(row.save.bag.filter(item=>item.slot==='pouch').length,1,'새 시즌 오픈 기념 보물 주머니 1개');
+  const wallet=(await db.execute({sql:'SELECT diamonds FROM djrpg_shop_wallet WHERE account_id=?',args:['mail']})).rows[0];assert.equal(Number(wallet.diamonds),4000);
   await transaction(db,async tx=>{const latest=await account(tx,'mail');await reconcileItems(tx,'mail',latest.save,latest.save);});
   await assert.rejects(act('mail','mail'),e=>e.code==='NOT_AVAILABLE');
   await act('mail',undefined,'all','journey-delete');assert.equal((await snapshot(db,'mail')).mail.length,0);
@@ -85,7 +87,7 @@ test('업데이트 안내 우편은 계정마다 한 번만, 수령·삭제·만
   assert.equal(notice.sender,'운영팀');assert.equal(notice.gold,3000);assert.equal(notice.books,2);
   assert(notice.expiresAt>now,'만료 전에 수령할 수 있다');assert.equal(notice.claimedAt,null);assert.equal(notice.read,false);
   assert.match(notice.body,/끝없는 던전 진행 저장/);
-  assert.deepEqual(fresh.notices,['update-2026-11-20'],'지급 이력을 남긴다');
+  assert.deepEqual(fresh.notices,['update-2026-11-20','season-2-open'],'지급 이력을 남긴다');
   const again=advanceJourney(fresh,saveNow(),saveNow(),now+1000);
   assert.equal(again.mail.filter(entry=>entry.id==='update-2026-11-20').length,1,'두 번 붙지 않는다');
   // 수령해서 지운 계정: 우편함이 비어 있어도 지급 이력이 있어 다시 붙지 않는다.
@@ -94,7 +96,8 @@ test('업데이트 안내 우편은 계정마다 한 번만, 수령·삭제·만
   // 만료 시각(2026-11-28 00:00 KST)을 넘겨 처음 접속한 계정에는 늦은 보상을 주지 않는다.
   const late=advanceJourney(undefined,saveNow(),saveNow(),Date.UTC(2026,10,27,15,0,0));
   assert.equal(late.mail.filter(entry=>entry.id==='update-2026-11-20').length,0);
-  assert.deepEqual(late.notices,[]);
+  assert.deepEqual(late.notices,['season-2-open'],'만료된 업데이트 보상은 붙지 않고, 새 시즌 안내만 남는다');
+  assert.equal(late.mail.filter(entry=>entry.id==='season-2-open').length,1,'새 시즌 안내는 만료가 없다');
 });
 
 test('업데이트 우편 보상은 정확히 한 번만 지급되고 삭제 뒤 재지급되지 않는다',async()=>{
@@ -109,7 +112,7 @@ test('업데이트 우편 보상은 정확히 한 번만 지급되고 삭제 뒤
   await assert.rejects(act('notice','mail',notice.id),error=>error.code==='NOT_AVAILABLE','같은 우편을 두 번 받을 수 없다');
   await act('notice',undefined,'all','journey-delete');
   const after=await snapshot(db,'notice');
-  assert.deepEqual(after.mail.map(entry=>entry.id),['welcome-v1','all-idle-launch-diamonds-2026-11-20'],'수령한 업데이트 우편만 지운다');
+  assert.deepEqual(after.mail.map(entry=>entry.id),['welcome-v1','season-2-open','all-idle-launch-diamonds-2026-11-20'],'수령한 업데이트 우편만 지운다');
   assert.equal(after.mail.filter(entry=>entry.id==='update-2026-11-20').length,0,'삭제 뒤 다시 붙지 않는다');
   assert.equal((await account(db,'notice')).save.gold,3000,'보상도 한 번뿐이다');
 });
@@ -117,12 +120,12 @@ test('업데이트 우편 보상은 정확히 한 번만 지급되고 삭제 뒤
 test('다이아 우편은 계정당 한 번만 지급되고 수령은 원장에 기록된다',async()=>{
   await seed('diamonds');const first=await snapshot(db,'diamonds');
   const gift=first.mail.find(entry=>entry.id==='all-idle-launch-diamonds-2026-11-20');
-  assert.equal(gift.diamonds,1000);
+  assert.equal(gift.diamonds,4000);
   await act('diamonds','mail',gift.id);
   await assert.rejects(act('diamonds','mail',gift.id),error=>error.code==='NOT_AVAILABLE');
   const wallet=(await db.execute({sql:'SELECT diamonds FROM djrpg_shop_wallet WHERE account_id=?',args:['diamonds']})).rows[0];
   const ledger=(await db.execute({sql:"SELECT diamonds_delta FROM djrpg_shop_ledger WHERE account_id=? AND source_type='mail'",args:['diamonds']})).rows;
-  assert.equal(Number(wallet.diamonds),1000);assert.equal(ledger.length,1);assert.equal(Number(ledger[0].diamonds_delta),1000);
+  assert.equal(Number(wallet.diamonds),4000);assert.equal(ledger.length,1);assert.equal(Number(ledger[0].diamonds_delta),4000);
   await act('diamonds',undefined,'all','journey-delete');
   assert.equal((await snapshot(db,'diamonds')).mail.some(entry=>entry.id===gift.id),false);
 });
@@ -165,6 +168,28 @@ test('existing base rewards claimed before the update still allow completion bon
   await db.execute({sql:'UPDATE djrpg_journey SET state_json=? WHERE account_id=?',args:[JSON.stringify(state),'old-completion']});
   const result=await act('old-completion','daily','completion');assert.equal(result.save.gold,2000);assert.equal(result.save.bag.filter(item=>item.slot==='pouch').length,1);
   const latest=JSON.parse((await db.execute({sql:'SELECT state_json FROM djrpg_journey WHERE account_id=?',args:['old-completion']})).rows[0].state_json);assert.equal(latest.weekly.days,1);
+});
+
+test('업적 보상은 금화와 보물 주머니로 지급되고 스킬북은 주지 않는다 (작업 208)',async()=>{
+  await seed('achievement-reward');
+  await transaction(db,async tx=>{const row=await account(tx,'achievement-reward');await writeSave(tx,row,{...row.save,level:30});});
+  await snapshot(db,'achievement-reward');
+  const first=await act('achievement-reward','achievements','level-5');
+  assert.equal(first.save.gold,1000,'첫 단계 1,000G');
+  assert.equal(first.save.bag.filter(item=>item.slot==='skillbook').length,0,'업적은 스킬북을 주지 않는다');
+  assert.equal(first.save.bag.filter(item=>item.slot==='pouch').length,0,'짧은 앞 단계는 주머니 없음');
+  const mid=await act('achievement-reward','achievements','level-15');
+  assert.equal(mid.save.gold,4000,'1,000 + 3,000');
+  assert.equal(mid.save.bag.filter(item=>item.slot==='pouch').length,1,'3번째 단계부터 주머니 1개');
+  const last=await act('achievement-reward','achievements','level-30');
+  assert.equal(last.save.gold,16000,'1,000 + 3,000 + 12,000(레벨 사슬 마지막 단계 index 5)');
+  assert.equal(last.save.bag.filter(item=>item.slot==='pouch').length,3,'마지막 단계는 주머니 2개(누적 3개)');
+  assert.equal(last.save.bag.filter(item=>item.slot==='skillbook').length,0,'끝까지 스킬북 0');
+  const pouches=last.save.bag.filter(item=>item.slot==='pouch');
+  assert(pouches.every(item=>item.name==='무작위 보물 주머니'&&item.kind==='pouch'));
+  // 가방 40칸은 장비만 센다 — 주머니를 3개 받아도 장비 칸은 그대로다.
+  const owners=(await db.execute({sql:"SELECT COUNT(*) AS n FROM djrpg_item_owners WHERE account_id='achievement-reward' AND json_extract(item_json,'$.slot')='pouch'",args:[]})).rows[0];
+  assert.equal(Number(owners.n),3,'주머니도 소유권에 기록된다');
 });
 
 test('claim returns an authoritative updated list and batches ownership and receipt writes with save',async()=>{
