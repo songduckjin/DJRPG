@@ -43,11 +43,16 @@ const ringBases = ['구리 반지', '은 반지', '혈옥 반지', '수호의 �
 /** 궁수 전용 활 10종 — 전사 대검 10종과 1:1로 대응하는 티어다. */
 export const bowBases = ['사냥꾼의 활', '각궁', '강철 합성궁', '바람결 장궁', '서리엽궁', '룬 각궁', '혈염 장궁', '용골 대궁', '폭풍의 성궁', '패왕의 신궁'] as const;
 
-/** 직업별 무기 기본형 목록. 무기 외 슬롯은 두 직업이 같은 목록을 쓴다(기존 세이브·드랍 호환). */
-export function weaponBasesFor(job: Job): readonly string[] { return job === 'archer' ? bowBases : baseItems.weapon; }
+/** 마법사 전용 지팡이 10종 — 전사 대검·궁수 활과 1:1로 대응하는 티어다. */
+export const staffBases = ['견습생의 지팡이', '참나무 지팡이', '강철 지팡이', '수정 지팡이', '서리 지팡이', '룬 지팡이', '혈염 지팡이', '용골 지팡이', '폭풍의 지팡이', '대현자의 성지팡이'] as const;
+
+/** 직업별 무기 기본형 목록. 무기 외 슬롯은 세 직업이 같은 목록을 쓴다(기존 세이브·드랍 호환). */
+export function weaponBasesFor(job: Job): readonly string[] { return job === 'archer' ? bowBases : job === 'mage' ? staffBases : baseItems.weapon; }
 
 /** 직업별 기본 무기 이름(첫 튜토리얼 드랍에 쓴다). */
-export function starterWeaponName(job: Job): string { return job === 'archer' ? '낡은 사냥꾼의 활' : '낡은 두손검'; }
+export function starterWeaponName(job: Job): string {
+  return job === 'archer' ? '낡은 사냥꾼의 활' : job === 'mage' ? '낡은 견습생의 지팡이' : '낡은 두손검';
+}
 
 export const baseItems: Record<Slot, readonly string[]> = {
   weapon: ['두손검', '바스타드 소드', '클레이모어', '쯔바이핸드', '플랑베르주', '룬 블레이드', '혈빛 대검', '아다만트 그레이트소드', '용살자의 대검', '패왕의 성검'],
@@ -68,6 +73,8 @@ export function baseItemIndex(item: EquipmentItem): number {
   if (item.slot === 'weapon') {
     const bow = bowBases.findIndex(base => name === compact(base) || name.endsWith(compact(base)));
     if (bow >= 0) return bow;
+    const staff = staffBases.findIndex(base => name === compact(base) || name.endsWith(compact(base)));
+    if (staff >= 0) return staff;
   }
   return baseItems[item.slot].findIndex(base => name === compact(base) || name.endsWith(compact(base)));
 }
@@ -81,15 +88,27 @@ export function bowIndex(item: Item): number {
   return bowBases.findIndex(base => name === compact(base) || name.endsWith(compact(base)));
 }
 
-export function isBow(item: Item): boolean { return bowIndex(item) >= 0; }
-
-/** 슬롯 표기 — 궁수의 무기 칸만 '활'로 부른다. */
-export function slotNameFor(slot: Slot, job: Job = 'warrior'): string {
-  return slot === 'weapon' && job === 'archer' ? '활' : slotNames[slot];
+/** 이름이 지팡이 기본형이면 그 인덱스(0~9), 아니면 -1. */
+export function staffIndex(item: Item): number {
+  if (item.slot !== 'weapon') return -1;
+  const name = compact(item.name);
+  return staffBases.findIndex(base => name === compact(base) || name.endsWith(compact(base)));
 }
 
-/** 궁수는 이번 단계에서 전용 갑옷·투구·활 외형 시트를 쓰지 않는다(기본 시트만 그린다). */
+export function isStaff(item: Item): boolean { return staffIndex(item) >= 0; }
+export function isBow(item: Item): boolean { return bowIndex(item) >= 0; }
+
+/** 슬롯 표기 — 궁수는 '활', 마법사는 '지팡이'로 부른다. */
+export function slotNameFor(slot: Slot, job: Job = 'warrior'): string {
+  if (slot !== 'weapon') return slotNames[slot];
+  return job === 'archer' ? '활' : job === 'mage' ? '지팡이' : slotNames[slot];
+}
+
+/** 궁수·마법사는 이번 단계에서 전용 갑옷·투구·무기 외형 시트를 쓰지 않는다(기본 시트만 그린다). */
 export function isArcher(save: Pick<Save, 'job'>): boolean { return jobOrDefault(save.job) === 'archer'; }
+export function isMage(save: Pick<Save, 'job'>): boolean { return jobOrDefault(save.job) === 'mage'; }
+/** 전사가 아닌 직업 — 장비 오버레이(갑옷·투구·대검 파츠)를 그리지 않고 기본 시트만 쓴다. */
+export function usesBaseSheetOnly(save: Pick<Save, 'job'>): boolean { return jobOrDefault(save.job) !== 'warrior'; }
 
 export function isZweihander(item: Item): boolean { return item.slot === 'weapon' && /쯔바이핸드|츠바이핸더/.test(item.name); }
 
@@ -97,6 +116,9 @@ export function equipmentImage(item: EquipmentItem): { path: string; frame: numb
   const index = baseItemIndex(item);
   if (item.slot === 'weapon' && bowIndex(item) >= 0) {
     return { path: `/assets/item-art/bow_${Math.floor(index / 5) * 5}.png`, frame: index % 5, columns: 5 };
+  }
+  if (item.slot === 'weapon' && staffIndex(item) >= 0) {
+    return { path: `/assets/item-art/staff_${Math.floor(index / 5) * 5}.png`, frame: index % 5, columns: 5 };
   }
   const slot = item.slot === 'ring1' || item.slot === 'ring2' ? 'ring' : item.slot;
   if (index >= 0) return { path: `/assets/item-art/${slot}_${Math.floor(index / 5) * 5}.png`, frame: index % 5, columns: 5 };
@@ -109,8 +131,8 @@ export const wearableAssetPaths = {
 } as const satisfies Partial<Record<Slot, string>>;
 
 export function wearableEquipmentImage(item: EquipmentItem): { path: string; frame: number; columns: number; rows: number } | undefined {
-  // 활은 착용 외형 시트(wearable/weapons.png 은 대검)가 없다 — 이번 단계에서 궁수는 기본 시트만 그린다.
-  if (isBow(item)) return undefined;
+  // 활·지팡이는 착용 외형 시트(wearable/weapons.png 은 대검)가 없다 — 궁수·마법사는 기본 시트만 그린다.
+  if (isBow(item) || isStaff(item)) return undefined;
   const path = wearableAssetPaths[item.slot as keyof typeof wearableAssetPaths], frame = baseItemIndex(item);
   return path && frame >= 0 ? { path, frame, columns: 5, rows: 2 } : undefined;
 }
@@ -151,15 +173,15 @@ export function totalStats(save: Save): Record<Stat, number> {
   for (const item of Object.values(save.equipment)) if (item && !isSkillBook(item)) {
     for (const stat of Object.keys(item.stats) as Stat[]) total[stat] += item.stats[stat] ?? 0;
   }
-  const attackBoost = passiveLevel(save, ['mastery', 'bowMastery']);
+  const attackBoost = passiveLevel(save, ['mastery', 'bowMastery', 'staffMastery']);
   if (attackBoost) total.attack = Math.ceil(total.attack * (1.15 + (attackBoost - 1) * .02));
   const body = passiveLevel(save, ['body']);
   if (body) { const bonus = 1.15 + (body - 1) * .02; total.defense = Math.ceil(total.defense * bonus); total.health = Math.ceil(total.health * bonus); }
   const instinct = passiveLevel(save, ['instinct']);
   if (instinct) { total.crit += 8 + (instinct - 1) * 2; total.speed += 12 + (instinct - 1) * 2; }
-  const swift = passiveLevel(save, ['swiftStep']);
+  const swift = passiveLevel(save, ['swiftStep', 'manaCircuit']);
   if (swift) total.speed += 12 + (swift - 1) * 2;
-  const sight = passiveLevel(save, ['hawkSight']);
+  const sight = passiveLevel(save, ['hawkSight', 'arcaneSense']);
   if (sight) total.crit += 8 + (sight - 1) * 2;
   return total;
 }

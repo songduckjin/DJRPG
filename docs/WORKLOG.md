@@ -1,3 +1,13 @@
+## 2026-11-20 songduckjin — 작업198 마법사 직업(기본 시트·지팡이 10종·원거리 마법탄·스킬 8+3 뼈대)
+- 세 번째 직업 `mage`를 `warrior`/`archer`와 같은 계약으로 붙였다. `Job`·`jobs`·`jobNames`·`jobOrDefault`(모르는 값은 전사)로 정규화하고, `store.parseSave`·`server/endpoints/account.mjs`(`jobOf`·`jobs`)가 `mage`를 허용·보존한다. 기존 전사·궁수 세이브는 장비·진행·퀵슬롯 그대로다.
+- 에셋: 승인 원본(`downloads/mage_preview/{male,female}_{3,walk,attack}.png`)에서 전사·궁수와 같은 셀 좌표계(서기 362×362·걷기/공격 1448×362, 검정 배경 휘도 키잉, 발끝 정렬)의 `pilot-25d/mage_{male,female}_{idle,walk,attack}_v1.png` 6장을 만들었다. 스트립은 인물끼리 닿지 않아 세로줄로 자르지 않고, 큰 덩어리(본체)를 x 순서로 놓은 뒤 떨어진 장화·손의 마법 구슬을 상자 겹침이 가장 큰 본체에 붙였다(합쳐진 스트립은 narrowest-gap 방식 폴백). 크기는 bbox가 아니라 **머리끝~발끝**으로 맞춰 여성 시트의 지팡이가 머리 위로 솟아도 본체가 작아지지 않는다(빌더 `scripts/build-mage-sheets.py`).
+- 지팡이 10종(`견습생의 지팡이`~`대현자의 성지팡이`)은 `staffBases`로 분리해 드랍·장착·표기('지팡이')만 마법사에 연결하고, 전사 대검·궁수 활의 드랍·코덱스·착용 시트는 그대로 뒀다. 아이콘은 `item-art/staff_0.png`·`staff_5.png`(870×290, 174×290 칸 5개), 스킬 아이콘은 `icons/mage-skills.png`(4×2)·`mage-passive-skills.png`(3×1), 빌더는 `scripts/build-staff-art.py`·`build-mage-icons.py`다.
+- 전투: 마법사는 `mageAttackRange`(240)·`mageStopRange`(118) 원거리로, 평타는 화살 대신 **마법 구슬**(`shot` + `variant` arcane/fire/frost/chain/meteor, 남성 푸른 마력·여성 붉은 화염)이 도착 시점에 판정된다(`world.action`→`shoot`, `render/vfx.ts` `drawMagicBolt`).
+- 스킬 뼈대 8종(파이어 볼트·아이스 볼트·체인 라이트닝·마력 폭발·프로스트 노바·아케인 실드·메테오 스트라이크·아르카나 오버로드)과 패시브 3종(지팡이 숙련·마나 회로·비전 감응). 투사체는 기존 `shoot`, 폭발·노바는 새 이펙트 `burst`/`nova`, 버프는 `ward`로 그리고 판정은 `update`의 `nextHit` 한 번만이다(노바 즉시 피해 중복 없음).
+- 외형 가드: `usesBaseSheetOnly(save)` 하나로 `drawHero`·`equipmentPortrait`가 마법사도 기본 시트만 그리고 전사 갑옷·투구·대검 파츠를 호출하지 않는다(능력치는 정상 적용). `render.ts`에 `mageMale/Female(+Walk/Attack)` 경로, `heroScale`에 337/300/268.
+- 생성 UI: 로그인 신규 가입과 `새 캐릭터` 모두 **위 줄 [전사][궁수][마법사] → 아래 줄 성별(남성/여성 마법사)**, 계정 창·캐릭터 카드·스킬 모달이 직업 이름과 시트를 따른다.
+- 검증: `npx tsc --noEmit`, `node --test tests/mage.test.mjs` 13/13, 전체 `node --test tests/*.test.mjs` 500건 중 498 통과(실패 2건은 `costume-field-render`로 origin/main 워크트리에서 동일 재현), `node scripts/verify-item-art.mjs`(마법사 시트 6·지팡이 10·아이콘 2 추가), `npm run build`, `git diff --check` 통과. 브라우저 실기 미실행(이 환경의 브라우저가 127.0.0.1 차단) — 게임 배율·아이소메트릭을 재현한 합성 검수 이미지 `downloads/djrpg_mage_ingame_v1.png`로 확인.
+
 ## 2026-11-19 · fks3997 작업167 로컬 경고 원 복원
 - 내려찍기 타격점에 시전1초 빨간 원 점멸을 복원했다. tsc·부분31테스트·diff 통과. 사용자 최신 지시로 로컬에만 저장하고 미리보기/운영 생성은 하지 않는다.
 
