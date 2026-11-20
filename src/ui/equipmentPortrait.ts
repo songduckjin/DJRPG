@@ -3,12 +3,13 @@ import {
   type CostumeLayerPlan
 } from '../game/render/costumeHero';
 import type { Save } from '../game/store';
-import { baseItemIndex, isArcher, usesBaseSheetOnly } from '../game/items';
+import { baseItemIndex, isArcher, isMage, usesBaseSheetOnly } from '../game/items';
 import { jobOrDefault } from '../game/skills';
 import { helmetArtFor, helmetArtPath, helmetIdlePlacement } from '../game/render/helmets';
 import { armorIndexFor, armorSheetPath } from '../game/render/armors';
 import { WEAPON_GUARD, weaponIndexFor, weaponPartPath, weaponPose, swordlessBodyPath } from '../game/render/weapons';
 import { BOW_GRIP, bowIndexFor, bowPartPath, bowPose, bowlessBodyPath } from '../game/render/bows';
+import { STAFF_GRIP, staffIndexFor, staffPartPath, staffPose, stafflessBodyPath } from '../game/render/staffs';
 import { archerHeadlessBodyPath, archerHelmIdlePlacement, archerHelmIndexFor, archerHelmPartPath } from '../game/render/archerHelmets';
 
 /**
@@ -32,6 +33,12 @@ export function equipmentFallbackPortrait(save: Save): string {
       return bowless
         ? bowlessBodyPath(save.gender, 'idle')
         : `/assets/pilot-25d/archer_${save.gender}_idle_v1.png?v=2`;
+    }
+    // 작업 201: 마법사는 지팡이를 찼으면 기본 지팡이를 지운 서기 시트 위에 지팡이 파츠를 얹는다.
+    if (isMage(save)) {
+      return staffIndexFor(save) >= 0
+        ? stafflessBodyPath(save.gender, 'idle')
+        : `/assets/pilot-25d/mage_${save.gender}_idle_v1.png`;
     }
     return `/assets/pilot-25d/${jobOrDefault(save.job)}_${save.gender}_idle_v1.png`;
   }
@@ -65,6 +72,25 @@ export function equipmentPortraitWeapon(save: Save): EquipmentPortraitWeapon | u
   const path = weaponPartPath(weaponIndexFor(save));
   if (!path) return undefined;
   const pose = weaponPose(save.gender, 'idle', 0);
+  return { path, x: pose.x, y: pose.y, rotation: pose.rot };
+}
+
+/** 장비창에 합성하는 지팡이 파츠(작업 201). 파츠는 서기 자세 그대로다. */
+export type EquipmentPortraitStaff = {
+  /** 파츠 PNG 경로. */
+  path: string;
+  /** 본체 362px 셀 좌표에서 그립 점과 회전각(도). */
+  x: number;
+  y: number;
+  rotation: number;
+};
+
+/** 착용 지팡이의 파츠. 지팡이가 아니면 undefined. */
+export function equipmentPortraitStaff(save: Save): EquipmentPortraitStaff | undefined {
+  if (!isMage(save)) return undefined;
+  const path = staffPartPath(staffIndexFor(save));
+  if (!path) return undefined;
+  const pose = staffPose(save.gender, 'idle', 0);
   return { path, x: pose.x, y: pose.y, rotation: pose.rot };
 }
 
@@ -147,6 +173,8 @@ export type EquipmentPortraitPlan = {
   weapon?: EquipmentPortraitWeapon;
   /** 착용 활이 있으면(1번 이상) 같은 셀 좌표로 합성한다(작업 160). */
   bow?: EquipmentPortraitBow;
+  /** 착용 지팡이가 있으면 같은 셀 좌표로 합성한다(작업 201). */
+  staff?: EquipmentPortraitStaff;
   /** 캐시 키(성별 + 투구). */
   key: string;
   gender: Save['gender'];
@@ -163,15 +191,16 @@ export function equipmentPortraitPlan(save: Save): EquipmentPortraitPlan {
   const archerHelm = equipmentPortraitArcherHelm(save);
   const weapon = equipmentPortraitWeapon(save);
   const bow = equipmentPortraitBow(save);
+  const staff = equipmentPortraitStaff(save);
   // 착용 투구·대검이 바뀌면 합성 결과도 바뀌므로 키에 넣는다(성별 + 갑옷 티어 + 투구 + 검 파츠).
   return {
     mode: 'fallback', base,
     key: usesBaseSheetOnly(save)
       ? (isArcher(save)
         ? `archer:${save.gender}:${bow ? bow.path : '-'}:${archerHelm ? archerHelm.path : '-'}`
-        : `${jobOrDefault(save.job)}:${save.gender}`)
+        : isMage(save) ? `mage:${save.gender}:${staff ? staff.path : '-'}` : `${jobOrDefault(save.job)}:${save.gender}`)
       : `pilot:${save.gender}:a${armorIndexFor(save)}:${helmet ? helmet.path : '-'}:${weapon ? weapon.path : '-'}`,
-    gender: save.gender, layers: [], helmet, archerHelm, weapon, bow
+    gender: save.gender, layers: [], helmet, archerHelm, weapon, bow, staff
   };
 }
 
@@ -335,7 +364,7 @@ async function composeCostume(layers: CostumeLayerPlan[]): Promise<string> {
 /** 폴백: 전신 초상화 한 장(+착용 투구·대검)을 캔버스에 맞춰 그린다(빈 화면 방지). */
 async function composeFallback(
   base: string, helmet?: EquipmentPortraitHelmet, weapon?: EquipmentPortraitWeapon, bow?: EquipmentPortraitBow,
-  archerHelm?: EquipmentPortraitArcherHelm
+  archerHelm?: EquipmentPortraitArcherHelm, staff?: EquipmentPortraitStaff
 ): Promise<string> {
   const image = await loadImage(base, fallbackImages, new Set());
   const canvas = fitCanvas(image.naturalWidth, image.naturalHeight);
@@ -386,6 +415,21 @@ async function composeFallback(
       console.info('[장비창] 궁수 투구 파츠 로딩 실패 → 전신 그림만 표시:', error);
     }
   }
+  if (staff) {
+    try {
+      const patch = await loadImage(staff.path, fallbackImages, new Set());
+      // 지팡이 파츠도 362px 셀 좌표계라 전신 그림의 배율·위치에 그대로 얹고 그립 점을 축으로 돌린다.
+      const gripX = (canvas.width - width) / 2 + staff.x * scale;
+      const gripY = canvas.height - height + staff.y * scale;
+      context.save();
+      context.translate(gripX, gripY);
+      context.rotate(staff.rotation * Math.PI / 180);
+      context.drawImage(patch, -STAFF_GRIP.x * scale, -STAFF_GRIP.y * scale, patch.naturalWidth * scale, patch.naturalHeight * scale);
+      context.restore();
+    } catch (error) {
+      console.info('[장비창] 지팡이 파츠 로딩 실패 → 전신 그림만 표시:', error);
+    }
+  }
   if (weapon) {
     try {
       const patch = await loadImage(weapon.path, fallbackImages, new Set());
@@ -423,7 +467,7 @@ export async function renderEquipmentPortrait(save: Save): Promise<string> {
         console.info('[장비창] 코스튬 합성 실패 → 전신 초상화로 폴백:', error);
       }
     }
-    return composeFallback(plan.base, plan.helmet, plan.weapon, plan.bow, plan.archerHelm);
+    return composeFallback(plan.base, plan.helmet, plan.weapon, plan.bow, plan.archerHelm, plan.staff);
   })();
   storePortrait(plan.key, pending);
   void pending.catch(() => {
