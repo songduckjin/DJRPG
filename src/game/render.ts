@@ -202,6 +202,11 @@ export class GameView {
   /** 눌린 지면 컨테이너(회전참격, 작업 215) — 자식 스프라이트를 통째로 눌러 바닥 원근을 만든다. */
   vfxLayers = new Map<Effect, Container[]>();
   effects = new Graphics();
+  /**
+   * 내 캐릭터 머리 위 초록 체력바(작업 233). 효과 설정(`preferences.effects`)으로 흐려지지 않도록
+   * `effects`·`skillVfx` 와 분리한 전용 레이어다 — 투명도·클리어는 `drawHeroHpBar` 가 소유한다.
+   */
+  heroHpBar = new Graphics();
   labels = new Container();
   shade = new Graphics();
   heroLayer = new Container();
@@ -353,7 +358,7 @@ export class GameView {
     this.aura.anchor.set(.5);
     this.aura.blendMode = 'add';
     this.aura.alpha = 0;
-    this.app.stage.addChild(this.floor, this.glow, this.ground, this.terrainLayer, this.aura, this.rageBack, this.dragonBack, this.ghosts, this.lootBack, this.actors, this.lootFront, this.fallen, this.rageFront, this.skillVfx, this.effects, this.labels, this.shade);
+    this.app.stage.addChild(this.floor, this.glow, this.ground, this.terrainLayer, this.aura, this.rageBack, this.dragonBack, this.ghosts, this.lootBack, this.actors, this.lootFront, this.fallen, this.rageFront, this.skillVfx, this.effects, this.heroHpBar, this.labels, this.shade);
     // Loot keeps its own paint order: a coin of a heap stays under an item that fell on it.
     this.lootBack.sortableChildren = true;
     this.lootFront.sortableChildren = true;
