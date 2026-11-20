@@ -41,6 +41,19 @@
 
 # 작업 로그
 
+## 2026-11-20 — 마법사 남녀 로브 10종 외형 적용·남성 서기 시트 머리 잘림 수정 (작업 203)
+
+- **요청**: `songduckjin/DJRPG`에 마법사 남녀 로브(갑옷 10종) 외형을 서기·걷기·공격 전체에 적용하고 운영(`djrpg.pages.dev`)까지 배포.
+- **선행 버그 수정(중요)**: 배포본 `pilot-25d/mage_male_idle_v1.png`는 **정수리가 셀 위로 잘려 턱·수염만 남아 있었다**. 작업 198의 `scripts/build-mage-sheets.py` `body_height`가 지팡이·바닥 그림자에 끌려 배율을 5% 크게 잡은 탓이다(여성 서기·남녀 걷기·공격은 정상). 같은 승인 원본(`downloads/mage_preview/male_3.png`)에서 머리끝~발끝을 직접 재(몸통 기둥·부츠 범위 기준) 본체 337px·발끝 y=353으로 다시 만들어 고쳤고, `/assets/*` 불변 캐시를 피해 `mage_{male,female}_idle_v1.png` URL에 `?v=2`를 붙였다(`render.ts` Art·`ui/equipmentPortrait.ts`·`ui/modals/charactersModal.ts`). 비교 이미지 `downloads/djrpg_mage_idle_head_fix_v1.png`.
+- **로브 구성**: `baseItems.armor` 0~9번이 마법사에게 장착되면 **0번(가죽 조끼)=스타터 천 로브 기준 시트**, 1~9번=전용 로브 시트로 보인다. 0번은 이미 승인된 기본 시트와 같은 옷이라 새로 만들지 않았다.
+- **시트 제작**: 서기 1~9번 남녀 18장은 승인 확정본(`downloads/mage_armor_preview/{male,female}_robe_{1..4}.png` + `_robe_{5..9}_v5.png`, 1254²)을 검정 배경 키잉 후 정합했다. 걷기·공격 36장은 기준 시트(`mage_{성별}_{walk,attack}_v1.png`, 4포즈)에 `images --edit`로 **로브만** 바꿔 생성하고(얼굴·머리·지팡이·마법 광채·4포즈·프레이밍·순수 검정 배경 유지), 원본은 `downloads/mage_robe_gen/raw/{성별}_{동작}_{1..9}.png`(약 2120×730)로 보관했다.
+- **정합(핵심)**: 원본은 게임 셀(362px)과 규격이 달라 ① 배경을 알파로 키잉하고 ② 4프레임 시트는 캐릭터가 없는 열에서 칸을 나눈 뒤 ③ **성별·동작별 배율 하나**(1~4번 티어의 몸통 기둥 높이 비율 중앙값: 남 서기 0.3001·걷기 0.6765·공격 0.6417, 여 0.3207·0.6716·0.6856)를 고정하고 ④ **발끝 y·몸통 기둥 중심 x를 기준 시트와 맞춘 뒤** 상체(머리·어깨) 겹침이 최대가 되도록 ±70px 안에서 다듬었다(±1% 배율 허용). 결과 프레임 IoU는 걷기 0.66~0.84, 공격 0.48~0.85(9번 대현자 망토·케이프처럼 실루엣이 크게 바뀌는 티어는 낮지만 머리끝·발끝·몸통 중심은 기준과 일치). 칸 경계 1px은 비워 4프레임을 정확히 자를 때 옆 칸이 섞이지 않게 했다.
+- **에셋**: `public/assets/pilot-25d/robes/mage_{성별}_robe_{1..9}_{idle,walk,attack}_v1.png` **54장 4.5MB**(256색 팔레트 PNG + 투명 인덱스, 서기 362×362, 걷기·공격 1448×362, 장당 28~156KB). 부팅 프리로드에는 넣지 않았다.
+- **렌더**: `render/robes.ts`(신규)가 `mageRobeIndexFor(save)`(마법사+갑옷 기본형 0~9, 아니면 -1)·`robeSheetPath(s)`(1~9번만)·`robeFrameIndex`·`robeSheetKey`를 제공하고, `drawHero`가 티어가 바뀔 때만 `prefetchRobe`로 3장을 받아 최근 3티어만 유지한다(`robeTierCacheLimit=3`). 로딩 전에는 기준 시트(스타터 로브)로 한 프레임 더 그린다. 전사·궁수 경로와 투구·대검 파츠는 그대로다(마법사는 여전히 장비 오버레이를 그리지 않는다).
+- **장비창(내 정보)**: `equipmentFallbackPortrait`가 마법사면 착용 인덱스의 로브 서기 시트를 쓰고, 0번·미착용은 `mage_{성별}_idle_v1.png?v=2`다. 캐시 키는 마법사만 `mage:{성별}:r{인덱스}`(궁수 키는 `archer:female` 그대로 유지).
+- **계약**: `store.ts`·`server/**`·`world.ts`·`baseItems` 순서·아이템 능력치/드랍 무변경. 지팡이는 아직 본체 시트에 그려져 있어 로브 시트도 같은 지팡이를 유지한 판본이다(지팡이 `nostaff` 파츠 구조가 들어오면 `robes.ts` 경로 규칙만 바꾸면 된다).
+- **검증**: `npx tsc --noEmit` 통과, `node scripts/verify-item-art.mjs`(로브 54장 규격 추가 확인), `npm run build` 통과, `git diff --check`, 전체 `node --test tests/*.test.mjs` **564건 중 561 통과** — 실패 3건은 `origin/main`(`d73b6b5`) 워크트리에서 동일 재현되는 기존 실패(`costume-field-render` 2, `market`의 `schema initialization` 1). 신규 `tests/mage-robe-render.test.mjs` 11건(이름→인덱스·경로·프레임 접힘·54장 규격·칸 경계·필드 로딩 전 폴백/후 교체·4프레임 분할·0번/미착용·전사 비적용·장비창 경로·키·프리로드 제외).
+- **검수 이미지**: `downloads/djrpg_mage_robes_ingame_v1.png`(남녀 10티어, 본체 150px 실게임 배율·그림자), `downloads/djrpg_mage_robes_preview_v1.png`(장비창 셀 크기 남녀 10티어), `downloads/djrpg_mage_robes_motion_v1.png`(남녀 1·5·9번 걷기·공격 4프레임). 얼굴·머리·소매·반망토/케이프·발끝 정렬을 육안 확인했다.
 ## 2026-11-20 — 궁수 활 10종 외형 적용: 남녀 서기·걷기 4프레임·사격 4프레임 (작업 160)
 
 - **요청**: `songduckjin/DJRPG`에서 궁수 활 10종(`사냥꾼의 활` ~ `패왕의 신궁`) 외형을 남녀 궁수의 서기·걷기·사격 모든 프레임에 적용하고 PR 머지·`djrpg.pages.dev` 배포까지 완료. 전사 대검 10종(작업 156)과 같은 아키텍처를 쓴다.

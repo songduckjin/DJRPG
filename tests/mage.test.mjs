@@ -218,16 +218,19 @@ test('마법사 스킬 8종은 각자의 이펙트를 만들고 피해나 버프
   }
 });
 
-test('마법사는 장비를 착용해도 기본 시트만 쓰고 전사용 갑옷·투구·검을 그리지 않는다', () => {
+test('마법사는 갑옷 티어의 전용 로브를 쓰고 전사용 투구·검 파츠는 그리지 않는다', () => {
   const save = mageSave('female');
   save.equipment.armor = { id: 'a', name: '황혼의 드래곤 메일', slot: 'armor', rarity: 'rare', stats: { defense: 10 } };
   save.equipment.helmet = { id: 'h', name: '황혼의 기사 헬름', slot: 'helmet', rarity: 'rare', stats: { defense: 5 } };
   save.equipment.weapon = { id: 'w', name: '황혼의 혈염 지팡이', slot: 'weapon', rarity: 'rare', stats: { attack: 30 } };
   const plan = equipmentPortraitPlan(save);
-  assert.equal(plan.base, '/assets/pilot-25d/mage_female_idle_v1.png');
+  // 작업 199: 갑옷 7번(드래곤 메일)이면 7번 로브 서기 시트를 쓴다(전사 판금 갑옷이 아니다).
+  assert.equal(plan.base, '/assets/pilot-25d/robes/mage_female_robe_7_idle_v1.png');
   assert.equal(plan.helmet, undefined);
   assert.equal(plan.weapon, undefined);
-  assert.equal(plan.key, 'mage:female');
+  assert.equal(plan.key, 'mage:female:r7');
+  const bare = mageSave('female');
+  assert.equal(equipmentPortraitPlan(bare).base, '/assets/pilot-25d/mage_female_idle_v1.png?v=2');
   // 능력치는 그대로 오른다.
   assert(totalStats(save).attack > totalStats(mageSave('female')).attack);
   // 전사 초상화 계획은 마법사와 섞이지 않는다.
