@@ -43,7 +43,10 @@ function uiFixture() {
 }
 test('closing and reopening popups restores defaults and scroll without changing saved game data', () => {
   const ui = uiFixture(); Interface.prototype.open.call(ui, 'equipment');
-  assert.equal(ui.selected, undefined); assert.equal(ui.bagFilter, 'all'); assert.equal(ui.salvageRarity, 'common');
+  assert.equal(ui.selected, undefined); assert.equal(ui.bagFilter, 'all');
+  // The bulk-salvage threshold is the user's own setting, not a view filter (작업 196): it survives
+  // closing the popup.
+  assert.equal(ui.salvageRarity, 'unique');
   assert.equal(ui.dialog.scrollTop, 0); assert.equal(ui.bag.scrollTop, 0);
   ui.bagFilter = 'armor'; ui.salvageRarity = 'epic'; ui.selected = 'new';
   Interface.prototype.open.call(ui, null); Interface.prototype.open.call(ui, 'codex');

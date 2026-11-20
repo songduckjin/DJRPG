@@ -132,8 +132,18 @@
 @media (max-height: 650px) { .equipment-showcase { height: 140px; flex-basis: 140px; } .equipment-grid { gap: 2px; margin-top: 3px; } .equipment-modal .modal-bag { margin-top: 4px; } }
 @media (max-height: 750px) { .modal-dialog.equipment-modal { overflow: hidden; } .equipment-modal .modal-bag { flex: 1 1 0%; min-height: 0; overflow: hidden; } .equipment-modal .bag-grid { min-height: 0; } .equipment-modal .modal-bag-footer { position: sticky; bottom: 0; z-index: 2; } }
 .salvage:disabled { opacity: .4; cursor: default; }
+.auto-salvage.is-on { border-color: #e4c075; background: #5b4529; color: #ffe8b8; box-shadow: 0 0 8px #d1ab4850; }
+.auto-salvage-hint { flex-basis: 100%; text-align: right; color: #b7a189; font-size: 10px; line-height: 1.5; }
 .salvage.auto-equip-ready { border-color: #e4c075; background: #5b4529; color: #ffe8b8; box-shadow: 0 0 8px #d1ab4850; }
 .salvage-warning { color: #f0c18b; font-size: 13px; line-height: 1.8; }
+/* A piece in the selection that beats what is worn (작업 196): named on its own card with the slot, the
+   piece and what stands in its place, so 일괄 분해 is never a blind grade sweep. */
+.salvage-warning.is-upgrade { color: #ffb37a; }
+.salvage-upgrade-list { display: grid; gap: 6px; margin: 8px 0 0; padding: 0; list-style: none; max-height: 30dvh; overflow-y: auto; }
+.salvage-upgrade-list li { display: grid; gap: 1px; padding: 7px 9px; border: 1px solid #8c5a33; border-radius: 6px; background: #3a2320; }
+.salvage-upgrade-list strong { color: #ffcf9a; font-size: 12px; }
+.salvage-upgrade-list span { color: #f3e3cf; font-size: 13px; }
+.salvage-upgrade-list small { color: #b7a189; font-size: 11px; }
 .salvage-confirm-list { max-height: 35dvh; overflow-y: auto; padding-left: 20px; color: #cdb99e; font-size: 12px; line-height: 1.8; }
 .salvage-confirm-actions { display: flex; gap: 8px; margin-top: 14px; }
 .salvage-confirm-actions button { flex: 1; border: 1px solid #a57c52; background: #4c3028; color: #f5d8b3; padding: 11px 6px; }

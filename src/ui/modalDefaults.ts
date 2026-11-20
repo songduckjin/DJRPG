@@ -7,7 +7,8 @@ export function resetModalDefaults(ui: Interface): void {
   dismissEquippedDetail(ui);
   dismissBagDetail(ui);
   ui.bagFilter = 'all'; ui.bagRaritySort = false;
-  ui.salvageRarity = 'common';
+  // The bulk-salvage threshold is the user's own setting, not a view filter: it decides which gear
+  // 일괄 분해 destroys, so it is kept as they left it (작업 196) and never reset here.
   ui.codexQuery = ''; ui.codexSlot = ''; ui.codexRarity = ''; ui.codexState = 'all';
   ui.codexSelected = undefined;
   ui.confirmReset = false;
