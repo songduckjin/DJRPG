@@ -37,6 +37,7 @@ import type { SaveSync } from '../game/sync';
 import { Market } from '../game/market';
 import { renderMarket, updateMarketLive } from './modals/marketModal';
 import { loadCharacters, loadWarehouse, renderCharacters, renderCreateCharacter, renderWarehouse, type CharacterSummary } from './modals/charactersModal';
+import { resetWarehouse } from './modals/warehouseModal';
 import { completeShopReturn, loadShop, renderShop, type ShopCatalog, type ShopCheckout } from './modals/shopModal';
 
 const navIcons = {
@@ -234,7 +235,7 @@ export class Interface {
     if (startMarket) this.market.open();
     if (kind === 'characters') void loadCharacters(this);
     if (kind === 'shop' && !this.shopCatalog) void loadShop(this);
-    if (kind === 'warehouse') { this.warehouseItems = undefined; void loadWarehouse(this); }
+    if (kind === 'warehouse') { this.warehouseItems = undefined; resetWarehouse(this); void loadWarehouse(this); }
     if (kind && ['mail','rewards','achievements'].includes(kind)) void this.journey.load();
   }
   renderModal(): void {
@@ -251,6 +252,7 @@ export class Interface {
     dialog.classList.toggle('utility-modal', ['settings','mail','rewards','achievements'].includes(this.openModal));
     dialog.classList.toggle('settings-modal', this.openModal === 'settings');
     dialog.classList.toggle('equipment-modal', this.openModal === 'equipment');
+    dialog.classList.toggle('warehouse-modal', this.openModal === 'warehouse');
     const scroll = dialog.scrollTop, bagScroll = dialog.querySelector<HTMLElement>('.bag-grid')?.scrollTop ?? 0;
     dialog.replaceChildren();
     const heading = document.createElement('header');

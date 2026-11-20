@@ -1,10 +1,10 @@
-import { freshSave, type Item, type Save } from '../../game/store';
+import { freshSave, type Save } from '../../game/store';
 import { jobNames, jobOrDefault, type Job } from '../../game/skills';
 import type { Interface } from '../interface';
 import { accountRequest } from '../login';
-import { apiHeaders, isOutdatedResponse, reloadForNewVersion } from '../../game/appVersion';
-import { itemDisplayName, type EquipmentItem, type Slot } from '../../game/items';
+import { type EquipmentItem, type Slot } from '../../game/items';
 import { equipmentFallbackPortrait, equipmentPortraitPlan, renderEquipmentPortrait } from '../equipmentPortrait';
+import { loadWarehouse as loadWarehouseModal, renderWarehouse as renderWarehouseModal } from './warehouseModal';
 
 /** `characters` 응답이 슬롯마다 내려 주는 장비 외형 정보(작업 210) — 이름만 있고 능력치·가방은 없다. */
 export type CharacterEquipment = { helmet?: { name?: string } | null; armor?: { name?: string } | null; weapon?: { name?: string } | null } | null;
@@ -334,43 +334,6 @@ export function openDeleteCharacter(ui: Interface, character: CharacterSummary):
   return overlay;
 }
 
-export async function loadWarehouse(ui: Interface): Promise<void> {
-  try {
-    const response = await fetch('/api/warehouse', { method: 'POST', headers: apiHeaders({ Authorization: `Bearer ${ui.session.token}` }), body: JSON.stringify({ action: 'list' }) });
-    const data = await response.json();
-    if (isOutdatedResponse(response.status, data.code, data.expected)) { reloadForNewVersion(); return; }
-    if (!response.ok) throw new Error(data.error || '공용창고를 읽지 못했습니다.');
-    ui.warehouseItems = data.items as Item[];
-    if (ui.openModal === 'warehouse') ui.renderModal();
-  } catch (error) { ui.message(error instanceof Error ? error.message : String(error)); }
-}
-
-export function renderWarehouse(ui: Interface, dialog: HTMLElement): void {
-  if (!ui.warehouseItems) { const note = document.createElement('p'); note.textContent = '공용창고를 불러오는 중…'; dialog.append(note); return; }
-  const note = document.createElement('p'); note.textContent = `계정 공용 금화 ${ui.world.save.gold.toLocaleString('ko-KR')} · 보관 ${ui.warehouseItems.length}/40`;
-  dialog.append(note);
-  const section = (title: string, items: Item[], action: 'deposit' | 'withdraw') => {
-    const heading = document.createElement('h3'); heading.textContent = title; dialog.append(heading);
-    if (!items.length) { const empty = document.createElement('p'); empty.textContent = '아이템이 없습니다.'; dialog.append(empty); }
-    for (const item of items) {
-      const row = document.createElement('div'); row.className = 'warehouse-item';
-      const label = document.createElement('span'); label.textContent = itemDisplayName(item);
-      const move = button(action === 'deposit' ? '보관' : '꺼내기', () => { void moveItem(ui, action, item.id, move); });
-      row.append(label, move); dialog.append(row);
-    }
-  };
-  section('캐릭터 가방', ui.world.save.bag, 'deposit');
-  section('공용창고', ui.warehouseItems, 'withdraw');
-  dialog.append(button('캐릭터 목록으로', () => ui.open('characters')));
-}
-
-async function moveItem(ui: Interface, action: 'deposit' | 'withdraw', itemId: string, buttonNode: HTMLButtonElement): Promise<void> {
-  buttonNode.disabled = true;
-  try {
-    const result = await ui.market.sync.transferWarehouse(action, itemId);
-    ui.message(result.message || '창고 이동을 완료했습니다.');
-    ui.warehouseItems = undefined;
-    ui.renderStatus(); ui.renderBagBadge();
-    await loadWarehouse(ui);
-  } catch (error) { ui.message(error instanceof Error ? error.message : String(error)); buttonNode.disabled = false; }
-}
+// 공용창고 화면은 `warehouseModal.ts`로 옮겼다(작업 225). 예전 import 경로(`interface.ts`)를 위해 이름만 유지한다.
+export const loadWarehouse = loadWarehouseModal;
+export const renderWarehouse = renderWarehouseModal;
