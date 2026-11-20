@@ -1,6 +1,6 @@
-import { equipmentImage, itemDisplayName } from '../game/items';
+import { equipDeltaLabel, equipmentImage, itemDisplayName } from '../game/items';
 import type { SalvageUpgrade } from '../game/inventory';
-import { itemPower, rarityNames, slotNames, type Slot } from '../game/store';
+import { rarityNames, slotNames, type Slot } from '../game/store';
 import type { Interface } from './interface';
 import { renderItemName } from './itemName';
 
@@ -52,9 +52,8 @@ export function openSalvageProtection(ui: Interface, upgrades: SalvageUpgrade[],
     info.append(renderItemName(element('strong'), upgrade.item));
     info.append(element('small', '', `${slotNames[upgrade.slot as Slot]} · ${rarityNames[upgrade.item.rarity]} · 장착 중 ${itemDisplayName(upgrade.equipped)}`));
     const power = element('span', 'salvage-protect-power');
-    power.append(document.createTextNode(`현재 투력 ${Math.round(itemPower(upgrade.equipped))} → `));
-    const next = element('b', '', String(Math.round(itemPower(upgrade.item)))); power.append(next);
-    power.append(element('em', '', `(+${Math.round(upgrade.gain)})`));
+    power.append(document.createTextNode('장착 시 '));
+    power.append(element('b', '', equipDeltaLabel(upgrade.delta)));
     info.append(power);
     row.append(info); list.append(row);
   }

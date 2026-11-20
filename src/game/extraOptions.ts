@@ -172,6 +172,26 @@ const extraOptionPowerWeights: Record<ExtraOptionKey, number> = {
   defensePct: 2, lifestealPct: 2, healthPct: 1, regenPct: 1, cdrPct: 4
 };
 
+/** 장비 교체 평가용 환산표. 새 옵션 키는 이 표에 추가하며, 아직 모르는 키도 작은 양수로 평가한다. */
+type CombatStats = { attack: number; defense: number; health: number; crit: number; speed: number; cdr: number };
+const optionValueTable: Partial<Record<ExtraOptionKey, (value: number, stats: CombatStats) => number>> = {
+  attackPct: (value, stats) => stats.attack * value / 100 * 3,
+  defensePct: (value, stats) => stats.defense * value / 100 * 2,
+  healthPct: (value, stats) => stats.health * value / 100 * .2,
+  bonusDmgPct: (value, stats) => stats.attack * value / 100 * 3,
+  critPct: (value, stats) => stats.attack * value / 100 * .6,
+  speedPct: (value, stats) => stats.attack * value / 100 * .6,
+  cdrPct: (value, stats) => stats.attack * value / 100 * .9,
+  lifestealPct: (value, stats) => Math.min(stats.attack * value / 100, stats.health * EXTRA_LIFESTEAL_SECOND_CAP) * .7,
+  evasionPct: (value, stats) => stats.health * value / 100 * .2,
+  regenPct: (value, stats) => stats.health * value / 100 / EXTRA_REGEN_SECONDS * .2
+};
+export function extraOptionValue(key: string, value: number, stats: CombatStats): number {
+  if (!Number.isFinite(value) || value <= 0) return 0;
+  return (optionValueTable as Record<string, ((value: number, stats: CombatStats) => number) | undefined>)[key]?.(value, stats)
+    ?? Math.max(.25, stats.attack * .001) * value;
+}
+
 /** 추가옵션만의 전투력 몫. */
 export function extraOptionPower(item: Pick<EquipmentItem, 'id' | 'rarity'> & { extraOptions?: unknown }): number {
   const options = extraOptionsFor(item);

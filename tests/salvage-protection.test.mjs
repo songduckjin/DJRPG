@@ -106,9 +106,8 @@ test('the popup shows only the piece worth keeping, with its art and the power i
   assert(text.includes('두손검'), 'its slot is named');
   assert(text.includes('에픽'), 'and its grade');
   assert(text.includes('장착 중 worn'), 'what it would replace');
-  const gain = Math.round(itemPower(gear('better', 'weapon', 30, 'epic')) - itemPower(gear('worn', 'weapon', 10)));
-  assert(text.includes('현재 투력'), 'the worn power is shown');
-  assert(text.includes(`+${gain}`), `and the power this piece adds (got "${text}")`);
+  assert(text.includes('장착 시'), 'the replacement comparison is shown');
+  assert(text.includes('공격 +20'), `and the actual attack change is shown (got "${text}")`);
   assert(findByClass(card, 'salvage-protect-art'), 'the piece has its own picture');
   assert(!text.includes('junk'), 'the rest of the selection is not listed');
 });

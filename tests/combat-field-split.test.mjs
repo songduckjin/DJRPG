@@ -42,7 +42,8 @@ test('서버 클로저는 전투 엔진과 그 의존(경계·보스 드랍)만 
   // 진짜 가드이고, 줄 수 상한은 그 위의 완만한 회귀선이다(파일 20개는 그대로).
   const total = src.reduce((sum, file) => sum + lineCount(file), 0);
   assert(src.length <= 20, `서버가 닿는 src 파일이 ${src.length}개다 — 필드 모듈이 다시 들어왔는지 확인하라`);
-  assert(total <= 4000, `서버가 닿는 src 코드가 ${total}줄이다 — 필드 모듈이 다시 들어왔는지 확인하라`);
+  // 장비 교체의 실효 스탯 비교(작업 277)가 기존 items.ts에 추가된 만큼만 여유를 둔다.
+  assert(total <= 4200, `서버가 닿는 src 코드가 ${total}줄이다 — 필드 모듈이 다시 들어왔는지 확인하라`);
 });
 
 const { CombatEngine } = await import('../src/game/combat/engine.ts');

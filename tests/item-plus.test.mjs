@@ -202,7 +202,8 @@ test('a piece with a 강화 단계 shows +N in its own colour beside the name, a
     assert.equal(findByClass(detail, 'item-plus').textContent, '+7');
     // 분해 보호 팝업: 보호할 장비 이름 옆, 장착 중인 장비 이름 옆.
     ui.world.save.equipment.weapon = plainItem;
-    const overlay = openSalvageProtection(ui, [{ item: plusItem, slot: 'weapon', equipped: plainItem, gain: 10 }], { exclude() {}, confirm() {}, cancel() {} });
+    const delta = items.equipDelta(ui.world.save, plusItem);
+    const overlay = openSalvageProtection(ui, [{ item: plusItem, slot: 'weapon', equipped: plainItem, gain: delta.score, delta }], { exclude() {}, confirm() {}, cancel() {} });
     const badgeInPopup = findByClass(overlay, 'item-plus');
     assert(badgeInPopup, '보호 팝업에도 배지');
     assert(allText(overlay).includes(plainItem.name), '장착 중 장비도 이름으로 보인다');
