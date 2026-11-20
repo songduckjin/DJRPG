@@ -50,7 +50,7 @@
 
 # 작업 로그
 
-## 2026-11-20 — 마법사 지팡이 10종 외형 적용: 남녀 서기·걷기 4프레임·공격 4프레임 (작업 201)
+## 2026-11-20 — 마법사 지팡이 10종 외형 적용: 남녀 서기·걷기 4프레임·공격 4프레임 (작업 202)
 
 - **요청**: `songduckjin/DJRPG`에서 마법사 지팡이 10종(짧은 완드 1~5 + 긴 그랜드 스태프 6~10) 외형을 남녀 마법사의 서기·걷기·공격 전체에 적용하고 운영(`djrpg.pages.dev`)까지 배포. 1~5번 짧은 지팡이를 들었을 때 뒤로 기본 긴 지팡이가 절대 삐져나오면 안 된다.
 - **시트 두 벌**: 마법사 기본 시트에는 기본 지팡이(긴 고목 지팡이)가 그려져 있어 ① 기본 지팡이를 지운 본체 시트(`public/assets/pilot-25d/mage_nostaff/mage_{male,female}_{idle,walk,attack}_v1.png` 6장, 324KB) ② 티어별 지팡이 파츠(`staffs/staff_{0..9}_v1.png` 10장, 60KB)로 나눴다. 두 시트 모두 기준 시트와 같은 362px 셀 좌표계다. 0번(견습생의 지팡이)도 파츠를 쓰므로 모든 티어가 "nostaff 시트 + 파츠" 한 규칙을 따른다.
@@ -60,6 +60,8 @@
 - **연결**: `render/entities.ts` `syncStaffPart` + `drawHero` 마법사 분기(지팡이를 차면 `mage_nostaff/` 시트로 갈아 끼우고 파츠를 얹는다), `render.ts`(`staffPart`·`prefetchStaff`·`staffBodyFrame`, 파츠 1장+시트 3장만 받고 최근 3티어 유지, 부팅 프리로드 제외), `ui/equipmentPortrait.ts`(`equipmentPortraitStaff` — 장비창도 같은 파츠·같은 좌표로 합성, 캐시 키에 파츠 경로 포함).
 - **캐시**: 파츠·`mage_nostaff` 시트는 이번에 새로 만든 파일이라 `/assets/*` immutable 캐시에 걸리지 않는다(캐시 버스터 불필요). 기존 마법사 시트 6장은 손대지 않았다.
 - **검증**: `npx tsc --noEmit`, `node --test tests/staff-render.test.mjs` **10/10**, `tests/mage.test.mjs` 13/13, 전체 `tests/*.test.mjs` 583건 중 578 통과(실패는 `costume-field-render` 2·`market`/`functions-adapter` schema 계열로 `origin/main`에서도 같은 기존 실패), `node scripts/verify-item-art.mjs`(지팡이 파츠 10장·nostaff 시트 6장 검사 추가), `npm run build`. 검수 이미지 `downloads/djrpg_staff_ingame_v1.png`(남녀 × 10티어, 게임 배율)·`downloads/djrpg_staff_walk_attack_v1.png`(남녀 짧은 1·긴 6·최상위 9의 걷기·공격 4프레임)을 열어 손 위치·잔상을 육안 확인했다.
+- **머지·배포**: [PR #141](https://github.com/songduckjin/DJRPG/pull/141) 스쿼시 병합 `4798c5e6b713`. Cloudflare Pages 운영 `version.json` `4798c5e6b713`(`builtAt 2026-11-20T04:50:04Z`), 루트 200, **새 에셋 16장(`mage_nostaff` 6·`staffs` 10) 전부 HTTP 200**(원격 sha256=로컬), 배포 번들 `index-Crw4pvhf.js`에 `mage_nostaff`·`staffs/`·`staffPart`·`nostaff:` 키 확인. `Workers Builds: djrpg`는 종전과 같이 실패(Cloudflare Pages 체크는 통과).
+- **번호 정정·충돌 해소**: 같은 번호 199를 다른 세션이 'Windows 임시 DB 잠금·market 스키마 모의 객체 정리'로 먼저 썼고, main에 궁수 전용 투구(작업 200)가 병합되어 충돌이 났다. 작업을 **201**로 다시 등록(PR #136 닫고 #141 재생성)하고, `render.ts`·`render/entities.ts`·`ui/equipmentPortrait.ts`(composeFallback 파라미터 `archerHelm`·`staff` 병존)·`scripts/verify-item-art.mjs`(활·투구·지팡이 블록 병존)를 손으로 합쳤다. 병합 후 `tsc`, `staff-render` 10/10·`mage` 13/13, 전체 583건 중 581 통과(실패 2건은 `costume-field-render` 종전 실패), `verify-item-art`, `npm run build` 재확인.
 
 ## 2026-11-20 — 궁수 활 10종 외형 적용: 남녀 서기·걷기 4프레임·사격 4프레임 (작업 160)
 
