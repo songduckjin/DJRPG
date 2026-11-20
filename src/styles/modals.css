@@ -5,7 +5,7 @@
 .bag-filters { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 3px; margin-bottom: 5px; }
 .bag-filters button { border: 1px solid #6d5948; padding: 5px 1px; min-width: 0; white-space: nowrap; background: #292124; color: #bba998; font-size: 11px; }
 .bag-filters button.active { border-color: #c8a26a; background: #4a342a; color: #ffe1b5; }
-.modal-bag-footer { display: flex; flex: none; align-items: center; justify-content: space-between; gap: 5px; border-top: 1px solid #655044; margin-top: 7px; padding-top: 7px 0 2px; color: #c4ac91; background: #211b1d; font-size: 11px; }
+.modal-bag-footer { display: flex; flex: none; align-items: center; justify-content: space-between; gap: 5px; border-top: 1px solid #655044; margin-top: 7px; padding: 7px 0 2px; color: #c4ac91; background: #211b1d; font-size: 11px; }
 .bag-footer-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; }
 .salvage-rarity { border: 1px solid #b28a55; background: #443425; color: #ffe0ab; padding: 5px 7px; font-size: 11px; }
 /* 41층부터 (작업 203): 자동 분해 `+N까지` 상한 선택. 등급 기준 버튼 옆에 같은 톤으로 놓는다. */
@@ -189,9 +189,30 @@
 .skill-list h3 { margin: 0 0 3px; font-size: 13px; color: #f2dfbb; }
 .skill-list p { margin: 0 0 3px; font-size: 11px; color: #b5a79e; line-height: 1.45; }
 .skill-list small { font-size: 10px; color: #d2a96d; }
-@media (max-width: 380px) { .equipment-showcase { grid-template-columns: minmax(82px, 32%) minmax(0, 1fr); height: 166px; flex-basis: 166px; } .equipment-grid { gap: 3px; } .equipment-slot .slot-part { font-size: 7px; } .equipment-info-stats > div { padding: 2px 3px; font-size: 8px; } }
-@media (max-height: 650px) { .equipment-showcase { height: 140px; flex-basis: 140px; } .equipment-grid { gap: 2px; margin-top: 3px; } .equipment-modal .modal-bag { margin-top: 4px; } }
-@media (max-height: 750px) { .modal-dialog.equipment-modal { overflow: hidden; } .equipment-modal .modal-bag { flex: 1 1 0%; min-height: 0; overflow: hidden; } .equipment-modal .bag-grid { min-height: 0; } .equipment-modal .modal-bag-footer { position: sticky; bottom: 0; z-index: 2; } }
+/* [작업 228] 모바일 장비창(`#19086` "인벤토리창아 안보여") — 세로가 짧은 폰에서도 가방 칸이 늘
+   2~3줄 보이도록 위쪽(전신 일러스트·장착 10칸)과 가방 머리·바닥 줄을 함께 줄인다. 전신 그림과 6개
+   스탯은 그대로 다 보이고(`object-fit: contain`), 장착 10칸은 정사각 대신 46~48px 높이의 납작한
+   칸이 된다. 가방 칸은 어느 화면에서도 최소 135px을 지켜 0px로 찌그러지지 않는다. */
+@media (max-width: 480px) {
+  .equipment-showcase { height: 146px; flex-basis: 146px; }
+  .equipment-slot { aspect-ratio: auto; height: 48px; }
+  .equipment-grid { grid-template-rows: repeat(2, 48px); }
+  .equipment-modal .bag-grid { min-height: 135px; }
+  .bag-heading h3 { font-size: 13px; }
+  .bag-heading .bag-rarity-sort, .bag-heading .bag-job-only { padding: 4px 7px; font-size: 10px; }
+  .modal-bag-footer { flex-wrap: wrap; gap: 4px; margin-top: 5px; padding-top: 5px; }
+  .modal-bag-footer .salvage, .modal-bag-footer .salvage-rarity, .modal-bag-footer .salvage-plus { padding: 4px 7px; font-size: 10px; }
+  .auto-salvage-hint { font-size: 9px; }
+}
+@media (max-width: 380px) { .equipment-showcase { grid-template-columns: minmax(82px, 32%) minmax(0, 1fr); height: 140px; flex-basis: 140px; } .equipment-grid { gap: 3px; } .equipment-slot { height: 46px; } .equipment-grid { grid-template-rows: repeat(2, 46px); } .equipment-slot .slot-part { font-size: 7px; } .equipment-info-stats > div { padding: 2px 3px; font-size: 8px; } }
+@media (max-height: 720px) { .equipment-showcase { height: 132px; flex-basis: 132px; } .equipment-grid { gap: 3px; margin-top: 4px; } .equipment-modal .modal-bag { margin-top: 5px; padding-top: 5px; } }
+/* 아주 낮은 화면(가로 화면·초소형): 창 자체가 스크롤되게 두고, 가방 칸은 최소 높이를 지킨다. */
+@media (max-height: 620px) {
+  .modal-dialog.equipment-modal { height: auto; max-height: 92dvh; overflow-y: auto; }
+  .equipment-modal .modal-bag { flex: none; overflow: visible; }
+  .equipment-modal .bag-grid { flex: none; min-height: 135px; }
+  .equipment-modal .modal-bag-footer { position: static; }
+}
 .salvage:disabled { opacity: .4; cursor: default; }
 .auto-salvage.is-on { border-color: #e4c075; background: #5b4529; color: #ffe8b8; box-shadow: 0 0 8px #d1ab4850; }
 .auto-salvage-hint { flex-basis: 100%; text-align: right; color: #b7a189; font-size: 10px; line-height: 1.5; }
@@ -268,7 +289,7 @@
    **오른쪽 아래**로 내린다(작업 212 `#4960`). 보물 주머니 칸은 배지가 없어 오른쪽 위 그대로다. */
 .bag-item.skillbook-item .skillbook-count { top: auto; bottom: 1px; right: 2px; }
 
-.bag-capacity { display: block; color: #aa9b8f; font-size: 9px; margin-top: 2px; }
+.bag-capacity { color: #aa9b8f; font-size: 9px; margin-left: 2px; }
 
 .skill-icon { position: relative; }
 .skill-upgrade-dot { position: absolute; right: -3px; top: -3px; width: 10px; height: 10px; background: #de352e; border: 1px solid #f2b2a0; border-radius: 50%; }
@@ -387,9 +408,12 @@
 .active-skill-card .skill-actions { margin-top:4px; gap:5px; }
 .active-skill-card .skill-actions button { min-height:24px; padding:3px 8px; }
 
-.bag-heading { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); align-items:center; gap:3px; margin-bottom:5px; flex:none; }
-.bag-heading h3 { grid-column:1 / 4; margin:0; }
-.bag-rarity-sort { grid-column:4; border:1px solid #6d5948; background:#292124; color:#bba998; padding:4px 1px; font-size:11px; }
+/* 가방 머리(작업 228): `가방` 제목과 `내 직업만 보기`, `등급순`을 **한 줄**에 나란히 둔다 — 예전에는
+   제목 줄·필터 줄·직업 줄로 세 줄을 써서 세로가 짧은 폰의 가방 칸을 밀어냈다. */
+.bag-heading { display:flex; align-items:center; gap:4px; margin-bottom:5px; flex:none; }
+.bag-heading h3 { flex:1 1 auto; min-width:0; margin:0; }
+.bag-heading .bag-job-only { flex:0 1 auto; margin:0; }
+.bag-rarity-sort { flex:0 0 auto; border:1px solid #6d5948; background:#292124; color:#bba998; padding:4px 8px; font-size:11px; }
 .bag-rarity-sort.active { border-color:#c8a26a; background:#4a342a; color:#ffe1b5; }
 
 .modal-dialog .modal-close { flex:none; width:44px; height:44px; min-width:44px; min-height:44px; touch-action:manipulation; }
@@ -402,7 +426,7 @@
 .job-mage { color: #a7b4ff; }
 .bag-item .job-badge { position: absolute; left: 1px; top: 1px; padding: 0 2px; min-height: 11px; font-size: 8px; line-height: 9px; z-index: 1; pointer-events: none; }
 .skill-book-card .job-badge { position: absolute; left: 3px; top: 3px; }
-.bag-job-only { margin-bottom: 5px; border: 1px solid #6d5948; background: #292124; color: #bba998; padding: 5px 6px; font-size: 11px; }
+.bag-job-only { border: 1px solid #6d5948; background: #292124; color: #bba998; padding: 4px 7px; font-size: 11px; }
 .bag-job-only.is-on { border-color: #c8a26a; background: #4a342a; color: #ffe1b5; }
 .bag-job-only-hint { color: #b9a486; }
 .item-detail-job { display: block; width: 100%; margin: 2px 0 4px; font-size: 10px; font-weight: 700; }
