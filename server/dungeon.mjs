@@ -1,11 +1,12 @@
 import {account,assertSession,assertSessionId,transaction,fail} from './database.mjs';
 import {dungeonSchema,DUNGEON_MAX_FLOOR} from './dungeon-schema.mjs';
-import {requiredClearSeconds,replayDungeonFloor,DUNGEON_MIN_SECONDS} from './dungeon-verify.mjs';
+import {verifyDungeonClear,DUNGEON_MIN_SECONDS,DUNGEON_DEFAULT_SEED} from './dungeon-verify.mjs';
+import { randomSeed } from '../src/game/rng.ts';
 
 // 순위 근거는 클라이언트가 보낸 층이 아니라 **서버가 들고 있는 계정 세이브의 최고층**이고, 그 세이브는
 // 다시 **서버가 검증한 기록(+1층)**까지만 저장된다(`server/database.mjs` `writeSave`). 즉 최고층을 올리는
-// 유일한 길은 이 파일의 `submit`이며, `submit`은 `start`로 받은 서버 시각과 리플레이가 계산한 최소
-// 클리어 시간을 함께 본다(작업 209).
+// 유일한 길은 이 파일의 `submit`이며, `submit`은 `start`로 받은 서버 시각과 시드로 리플레이한 최소
+// 클리어 시간, 클라이언트가 보낸 전투 요약을 함께 본다(작업 209·210).
 const floorOf = save => {
   const floor = Number(save?.dungeonFloor);
   return Number.isInteger(floor) && floor > 0 ? Math.min(DUNGEON_MAX_FLOOR, floor) : 0;
@@ -49,19 +50,24 @@ export async function dungeonOperation(db,id,input={},sid,now=Date.now(),schemaK
     const guest = owner.password_hash === 'guest';
     if(guest)fail(403,'GUEST_READ_ONLY','던전 순위는 정식 계정으로 로그인하면 기록됩니다.');
     if(action==='start'){
-      // 도전 시작 시각은 **서버**가 적는다. 같은 층을 다시 열면 이미 적힌 시각을 그대로 두어,
-      // 화면을 다시 그렸다는 이유로 검증 시간이 초기화되지 않게 한다.
+      // 도전 시작 시각과 **시드**는 서버가 정한다(작업 211). 같은 층을 다시 열면 이미 적힌 시각·시드를 그대로
+      // 두어, 화면을 다시 그렸다는 이유로 검증 시간이 초기화되거나 전투 난수가 바뀌지 않게 한다.
       const claimed = Number(input.floor);
       const floor = Number.isInteger(claimed) ? Math.min(DUNGEON_MAX_FLOOR, Math.max(1, claimed)) : Math.min(DUNGEON_MAX_FLOOR, floorOf(owner.save) + 1);
-      const existing = (await tx.execute({sql:'SELECT floor,started_at FROM djrpg_dungeon_attempts WHERE account_id=?',args:[id]})).rows[0];
-      const startedAt = existing && Number(existing.floor) === floor ? Number(existing.started_at) : now;
-      await tx.execute({sql:'INSERT INTO djrpg_dungeon_attempts(account_id,floor,started_at,updated_at) VALUES (?,?,?,?) ON CONFLICT(account_id) DO UPDATE SET floor=excluded.floor,started_at=excluded.started_at,updated_at=excluded.updated_at',args:[id,floor,startedAt,now]});
-      return {started:true,floor,startedAt,now};
+      const existing = (await tx.execute({sql:'SELECT floor,started_at,seed FROM djrpg_dungeon_attempts WHERE account_id=?',args:[id]})).rows[0];
+      const sameFloor = Boolean(existing && Number(existing.floor) === floor);
+      const startedAt = sameFloor ? Number(existing.started_at) : now;
+      const storedSeed = sameFloor && Number.isSafeInteger(Number(existing.seed)) && existing.seed !== null ? Number(existing.seed) >>> 0 : undefined;
+      const seed = storedSeed ?? randomSeed();
+      await tx.execute({sql:'INSERT INTO djrpg_dungeon_attempts(account_id,floor,started_at,updated_at,seed) VALUES (?,?,?,?,?) ON CONFLICT(account_id) DO UPDATE SET floor=excluded.floor,started_at=excluded.started_at,updated_at=excluded.updated_at,seed=excluded.seed',args:[id,floor,startedAt,now,seed]});
+      return {started:true,floor,startedAt,now,seed};
     }
     const claim = floorOf(owner.save);
     const row = (await tx.execute({sql:'SELECT cleared_floor,cleared_at FROM djrpg_dungeon_records WHERE account_id=?',args:[id]})).rows[0];
     const current = Math.max(0, Number(row?.cleared_floor ?? 0));
     let recorded = current;
+    // 서버 리플레이가 요약까지 확인했는지 — 응답과 로그에 남긴다(작업 211).
+    let verified = false;
     if(claim===0){
       // 계정 초기화처럼 세이브의 진행이 지워졌으면 순위 기록도 남기지 않는다.
       if(row)await tx.execute({sql:'DELETE FROM djrpg_dungeon_records WHERE account_id=?',args:[id]});
@@ -84,17 +90,25 @@ export async function dungeonOperation(db,id,input={},sid,now=Date.now(),schemaK
         fail(409,'DUNGEON_OUT_OF_ORDER','던전은 한 층씩만 기록할 수 있습니다. 최신 진행을 다시 불러오세요.');
       }
     }else{
-      const attempt = (await tx.execute({sql:'SELECT floor,started_at FROM djrpg_dungeon_attempts WHERE account_id=?',args:[id]})).rows[0];
+      const attempt = (await tx.execute({sql:'SELECT floor,started_at,seed FROM djrpg_dungeon_attempts WHERE account_id=?',args:[id]})).rows[0];
       if(!attempt||Number(attempt.floor)!==claim)fail(409,'DUNGEON_NOT_STARTED','던전 도전 시작이 서버에 기록되지 않았습니다. 층에 다시 들어가 주세요.');
-      const required = requiredClearSeconds(owner.save,claim);
+      // 시드·경과 시간·클라이언트가 보낸 전투 요약을 같은 잣대로 본다(작업 211). 시간만 흘려보낸 요청은
+      // 실제 전투 결과(스텝 수·남은 체력)를 알 수 없어 통과하지 못한다.
+      const seed = attempt.seed === null || attempt.seed === undefined ? DUNGEON_DEFAULT_SEED : Number(attempt.seed) >>> 0;
       const elapsed = (now-Number(attempt.started_at))/1000;
-      if(elapsed+1<required)fail(409,'DUNGEON_TOO_FAST',`${claim}층 클리어로 확인하기에 시간이 부족합니다. 잠시 뒤 다시 시도해 주세요.`);
+      const verdict = verifyDungeonClear({save:owner.save,floor:claim,seed,summary:input.summary,elapsedSeconds:elapsed});
+      // 세이브 본문·토큰 없이 판정 근거만 남긴다(metrics 정책과 같다).
+      try{console.log(JSON.stringify({event:'dungeon_verify',floor:claim,ok:verdict.ok,code:verdict.code??'',...verdict.diagnostics}));}catch{}
+      if(!verdict.ok)fail(409,verdict.code,verdict.code==='DUNGEON_TOO_FAST'?`${claim}층 클리어로 확인하기에 시간이 부족합니다. 잠시 뒤 다시 시도해 주세요.`
+        :verdict.code==='DUNGEON_SUMMARY_REQUIRED'?'전투 결과가 없어 클리어를 확인할 수 없습니다. 층에 다시 들어가 도전해 주세요.'
+        :'전투 기록이 서버 검증과 맞지 않습니다. 층에 다시 들어가 도전해 주세요.');
       // 최고층은 오르기만 하고, 같은 층을 다시 올리면 처음 기록한 시각을 그대로 둔다(동률 순서 보존).
       await tx.execute({sql:'INSERT INTO djrpg_dungeon_records VALUES (?,?,?,?,?) ON CONFLICT(account_id) DO UPDATE SET name=excluded.name,cleared_floor=excluded.cleared_floor,cleared_at=excluded.cleared_at,updated_at=excluded.updated_at',args:[id,nameOf(owner.save,id),claim,now,now]});
       await tx.execute({sql:'DELETE FROM djrpg_dungeon_attempts WHERE account_id=?',args:[id]});
       recorded = claim;
+      verified = verdict.verified;
     }
-    return {standing:await standing(tx,id),guest,recorded,now,verified:recorded>current};
+    return {standing:await standing(tx,id),guest,recorded,now,verified:verified&&recorded>current,summaryVerified:verified};
   });
 }
-export {replayDungeonFloor,DUNGEON_MIN_SECONDS};
+export {replayDungeonFloor,requiredClearSeconds,DUNGEON_MIN_SECONDS} from './dungeon-verify.mjs';

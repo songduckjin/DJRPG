@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { decodeAccount, assertRevision, fail, reconcileItems, inventoryOwnerQuery, transaction, validateSave, writeSave } from './database.mjs';
+import { decodeAccount, assertRevision, fail, reconcileItems, inventoryOwnerQuery, transaction, validateSave, writeSave, marketStatExpression } from './database.mjs';
 import { elapsedSince } from './save-guard.mjs';
 export const rules = { fee: .05, maxListings: 30, durationHours: 72, maxPrice: 1_000_000_000, pageSize: 20 };
 const deliveryOperation = (listing, owner, kind, item, gold, reason) => {
@@ -39,13 +39,16 @@ export async function snapshot(db, id, input, expirationChecked = false) {
   if (['common','magic','rare','epic','unique','legendary'].includes(input.rarity)) { where.push('rarity=?'); args.push(input.rarity); }
   for (const [key, comparison] of [['minPrice','>='],['maxPrice','<=']]) if (Number.isSafeInteger(input[key]) && input[key] >= 0) { where.push(`price${comparison}?`); args.push(input[key]); }
   const selectedStat = ['attack','defense','health','crit','speed'].includes(input.stat) ? input.stat : undefined;
+  // 스탯 식은 `server/database.mjs` `marketStatExpression` 한 곳에서 만든다 — 거래소 정렬 인덱스가 같은
+  // 문자열로 만들어져야 SQLite가 인덱스를 쓴다(작업 211).
+  const statExpression = selectedStat ? marketStatExpression(selectedStat) : undefined;
   if (selectedStat) {
-    where.push(`COALESCE(json_extract(item_json,'$.stats.${input.stat}'),0)>=?`);
+    where.push(`${statExpression}>=?`);
     args.push(Number.isFinite(input.minStat) && input.minStat > 0 ? input.minStat : 1);
   }
   const filter = where.join(' AND ');
   const page = Math.max(0, Math.min(10000, Number.isSafeInteger(input.page) ? input.page : 0));
-  const order = selectedStat ? `COALESCE(json_extract(item_json,'$.stats.${selectedStat}'),0) DESC,created_at DESC,id ASC` : input.sort === 'priceAsc' ? 'price ASC,created_at DESC,id ASC' : input.sort === 'priceDesc' ? 'price DESC,created_at DESC,id ASC' : view === 'sold' ? 'sold_at DESC,id ASC' : 'created_at DESC,id ASC';
+  const order = selectedStat ? `${statExpression} DESC,created_at DESC,id ASC` : input.sort === 'priceAsc' ? 'price ASC,created_at DESC,id ASC' : input.sort === 'priceDesc' ? 'price DESC,created_at DESC,id ASC' : view === 'sold' ? 'sold_at DESC,id ASC' : 'created_at DESC,id ASC';
   const watchIds = Array.isArray(input.watchIds) ? input.watchIds.filter(value => typeof value === 'string' && value.length <= 100).slice(0, 20) : [];
   // A single read batch does not contend with purchases for the writer lock.
   const results = await db.batch([

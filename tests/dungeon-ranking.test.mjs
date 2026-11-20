@@ -13,6 +13,9 @@ const {dungeonEndpoint} = await import('../server/endpoints/dungeon.mjs');
 const {onRequest: dungeonFunction} = await import('../functions/api/dungeon.js');
 const {dungeonOperation} = await import('../server/dungeon.mjs');
 const {tokenPayload} = await import('../server/auth.mjs');
+const {DungeonBattle, DUNGEON_STEP, dungeonBattleSummary} = await import('../src/ui/dungeonBattle.ts');
+/** 그 세이브로 그 층을 서버가 준 시드로 실제 플레이한 요약(작업 210) — 클라이언트가 submit에 싣는 값과 같다. */
+const play=(save,floor,seed)=>{const battle=new DungeonBattle(save,floor,seed);while(!battle.finished&&battle.steps<6000)battle.advance(DUNGEON_STEP);return dungeonBattleSummary(battle);};
 
 const post=(path,body,token)=>new Request(`https://example.test/api/${path}`,{method:'POST',headers:token?{Authorization:`Bearer ${token}`}:{},body:JSON.stringify(body)});
 
@@ -49,8 +52,8 @@ test('던전 순위는 검증된 클리어만 기록하고 상위 10위·내 기
   // 서버 시계(`at`)를 직접 넘겨 도전 시작 → (충분한 시간) → 클리어 제출을 한 층씩 반복한다.
   const clear=async(sess,floor,at)=>{
     assert.equal((await saveFloor(sess,floor)).status,200);
-    await operation(sess,'start',at,{floor});
-    const result=await operation(sess,'submit',at+600_000);
+    const started=await operation(sess,'start',at,{floor});
+    const result=await operation(sess,'submit',at+600_000,{summary:play(sess.save,floor,started.seed)});
     assert.equal(result.recorded,floor);
     return result;
   };
