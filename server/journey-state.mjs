@@ -32,6 +32,28 @@ export function grantSeasonNotice(state, now = Date.now()) {
   return true;
 }
 /**
+ * 2026-11-20~21 서버 연결 불안정(503) 사과 보상 우편 — 계정당 **한 번만** 무작위 보물 주머니 5개(작업 237).
+ * 사용자 요청: "서버 불안정 보상 주자 꾸러미상자인가 그 템 5개"(2026-11-21 01:10 KST).
+ * 업데이트 안내 우편(`UPDATE_NOTICE_ID`)과 같은 방식으로 `state.notices`에 지급 이력을 남겨
+ * 수령·삭제·만료 뒤에도 다시 붙지 않게 한다.
+ */
+export const APOLOGY_MAIL_ID = 'apology-db-20261120';
+/** 우편 만료 = 2026-12-05 00:00 KST(2주). 이 시각을 넘겨 처음 접속한 계정에는 보상을 붙이지 않는다. */
+export const APOLOGY_MAIL_UNTIL = Date.UTC(2026, 11, 4, 15, 0, 0);
+/** 사과 보상으로 드리는 무작위 보물 주머니 수(사용자 확정 5개). */
+export const APOLOGY_MAIL_POUCHES = 5;
+const APOLOGY_MAIL_TITLE = '서버 연결 불안정 사과 보상';
+const APOLOGY_MAIL_BODY = '서버 연결 불안정으로 이용에 불편을 드려 죄송합니다. 사과의 마음을 담아 무작위 보물 주머니 5개를 보내드립니다.';
+/** 사과 보상 우편을 계정마다 **한 번만** 준다. 기간(`APOLOGY_MAIL_UNTIL`)이 지나면 새로 붙이지 않는다. */
+export function grantApologyMail(state, now = Date.now()) {
+  state.notices ??= []; state.mail ??= [];
+  if (now >= APOLOGY_MAIL_UNTIL) return false;
+  if (state.notices.includes(APOLOGY_MAIL_ID) || state.mail.some(entry => entry.id === APOLOGY_MAIL_ID)) return false;
+  state.notices.push(APOLOGY_MAIL_ID);
+  state.mail.push({ id: APOLOGY_MAIL_ID, title: APOLOGY_MAIL_TITLE, sender: '운영팀', body: APOLOGY_MAIL_BODY, createdAt: now, expiresAt: APOLOGY_MAIL_UNTIL, gold: 0, books: 0, pouches: APOLOGY_MAIL_POUCHES, claimedAt: null, read: false });
+  return true;
+}
+/**
  * 미리보기 전용 테스트 우편(작업 210 → 212, 사용자 요청 `#4580`·`#4589` "모션 확인할 주머니가 없다").
  * **미리보기 호스트에서만** 계정당 1회 지급하고, 운영 호스트에서는 지급도 표시도 되지 않는다
  * (`grantPreviewPouchMail(state, now, preview)`·`stripPreviewPouchMail`).
@@ -128,6 +150,8 @@ export function advanceJourney(state, before, save, now = Date.now(), diamondMai
   migrateLegacyDiamondMail(state);
   grantUpdateNotice(state, now);
   grantSeasonNotice(state, now);
+  // 서버 연결 불안정 사과 보상(작업 237) — 계정당 1회, 무작위 보물 주머니 5개.
+  grantApologyMail(state, now);
   // 미리보기 테스트 우편(작업 210·211): 지급은 미리보기 호스트에서만, 삭제는 **운영 호스트에서만** 한다.
   // 호스트를 모르는 호출(`writeSave` 자동 저장 등, false)은 손대지 않는다.
   if (previewMode === true || previewMode === 'preview') grantPreviewPouchMail(state, now, true);
