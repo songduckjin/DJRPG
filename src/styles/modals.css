@@ -59,22 +59,26 @@
 .character-slot.focused .character-idle,
 .character-slot.focused .character-delete { display: block; }
 .character-slot.focused .character-select { flex: 0 0 auto; }
-/* 캐릭터 삭제 확인(작업 206): 목록 모달 위에 한 겹만 얹는다 — 사냥 중 목록이 다시 그려져도 입력·안내가 유지된다. */
-.character-delete-overlay { position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center; padding: 18px; background: #07050bdc; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
-.character-delete-card { width: min(340px, 100%); max-height: 88dvh; overflow-y: auto; display: grid; gap: 10px; padding: 16px 15px; border: 2px solid #9a7655; background: linear-gradient(#2b2224, #181318); box-shadow: 0 16px 44px #000c; }
-.character-delete-title { margin: 0; font: 700 18px Cinzel, 'Noto Sans KR', serif; color: #ffcf9a; }
-.character-delete-warning { margin: 0; padding: 9px 10px; border: 1px solid #7d3f36; background: #33191a; color: #f0c3bb; font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; }
-.character-delete-form { display: grid; gap: 8px; }
-.character-delete-field { display: grid; gap: 6px; font-size: 12px; color: #c9b49c; }
-.character-delete-field input { min-height: 46px; padding: 10px; border: 1px solid #967657; background: #151116; color: #f6e5cc; font-size: 16px; line-height: 1.2; touch-action: manipulation; }
-.character-delete-field input:focus { outline: none; border-color: #e0b16e; box-shadow: 0 0 0 2px #e0b16e44; }
-.character-delete-error { min-height: 1em; margin: 0; color: #f2a49d; font-size: 12px; line-height: 1.5; }
-.character-delete-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 2px; }
-.character-delete-cancel, .character-delete-confirm { min-height: 46px; padding: 10px 8px; border-radius: 4px; font-size: 14px; font-weight: 700; touch-action: manipulation; }
-.character-delete-cancel { border: 1px solid #6d5540; background: #251e1f; color: #c7b39c; }
-.character-delete-confirm { border: 1px solid #b4453c; background: #4a1d1c; color: #ffbdb6; }
-.character-delete-confirm.ready { border-color: #ff6a5e; background: linear-gradient(#a02b24, #6d1a16); color: #fff0ee; box-shadow: 0 0 12px #ff4b3e55; }
-.character-delete-cancel:disabled, .character-delete-confirm:disabled { opacity: .55; }
+/* 확인창(작업 206 캐릭터 삭제 · 작업 223 계정 탈퇴): 모달 위에 한 겹만 얹는다 — 사냥 중 모달이 다시 그려져도 입력·안내가 유지된다.
+   두 확인창은 같은 다크 판타지 톤을 쓰므로 규칙을 함께 적는다(클래스만 다르다). */
+.character-delete-overlay, .account-delete-overlay { position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center; padding: 18px; background: #07050bdc; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+.character-delete-card, .account-delete-card { width: min(340px, 100%); max-height: 88dvh; overflow-y: auto; display: grid; gap: 10px; padding: 16px 15px; border: 2px solid #9a7655; background: linear-gradient(#2b2224, #181318); box-shadow: 0 16px 44px #000c; }
+.character-delete-title, .account-delete-title { margin: 0; font: 700 18px Cinzel, 'Noto Sans KR', serif; color: #ffcf9a; }
+.character-delete-warning, .account-delete-warning { margin: 0; padding: 9px 10px; border: 1px solid #7d3f36; background: #33191a; color: #f0c3bb; font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; }
+.character-delete-form, .account-delete-form { display: grid; gap: 8px; }
+.character-delete-field, .account-delete-field { display: grid; gap: 6px; font-size: 12px; color: #c9b49c; }
+.character-delete-field input, .account-delete-field input { min-height: 46px; padding: 10px; border: 1px solid #967657; background: #151116; color: #f6e5cc; font-size: 16px; line-height: 1.2; touch-action: manipulation; }
+.character-delete-field input:focus, .account-delete-field input:focus { outline: none; border-color: #e0b16e; box-shadow: 0 0 0 2px #e0b16e44; }
+.character-delete-error, .account-delete-error { min-height: 1em; margin: 0; color: #f2a49d; font-size: 12px; line-height: 1.5; }
+.character-delete-actions, .account-delete-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 2px; }
+.character-delete-cancel, .account-delete-cancel, .character-delete-confirm, .account-delete-confirm { min-height: 46px; padding: 10px 8px; border-radius: 4px; font-size: 14px; font-weight: 700; touch-action: manipulation; }
+.character-delete-cancel, .account-delete-cancel { border: 1px solid #6d5540; background: #251e1f; color: #c7b39c; }
+.character-delete-confirm, .account-delete-confirm { border: 1px solid #b4453c; background: #4a1d1c; color: #ffbdb6; }
+.character-delete-confirm.ready, .account-delete-confirm.ready { border-color: #ff6a5e; background: linear-gradient(#a02b24, #6d1a16); color: #fff0ee; box-shadow: 0 0 12px #ff4b3e55; }
+.character-delete-cancel:disabled, .account-delete-cancel:disabled, .character-delete-confirm:disabled, .account-delete-confirm:disabled { opacity: .55; }
+.account-withdraw { margin-top: 16px; padding-top: 12px; border-top: 1px solid #3b2b30; display: grid; gap: 6px; }
+.account-withdraw button { min-height: 42px; border: 1px solid #6d4a44; border-radius: 4px; background: #241b1d; color: #cba79f; font-size: 13px; touch-action: manipulation; }
+.account-withdraw p { margin: 0; color: #8f7a70; font-size: 11px; line-height: 1.5; }
 .character-add-slot { width: 100%; min-height: 38px; margin: 10px 0; border: 1px dashed #7ca6c2; background: #182632; color: #bde6ff; }
 .character-create { position: relative; }
 .character-create-loading { position: fixed; inset: 0; z-index: 100; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 16px; background: #120e18f5; color: #f4dcb0; text-align: center; font-size: 16px; }

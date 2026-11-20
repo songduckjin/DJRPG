@@ -171,7 +171,7 @@ export function renderCharacters(ui: Interface, dialog: HTMLElement): void {
     addSlot.className = 'character-add-slot';
     dialog.append(addSlot);
   }
-  dialog.append(button('공용창고', () => ui.open('warehouse')));
+  // [작업 223/#18745] 공용창고는 하단 메뉴 아이콘으로 옮겼다 — 캐릭터 선택 화면에는 두지 않는다.
 }
 
 export function renderCreateCharacter(ui: Interface, dialog: HTMLElement): void {
