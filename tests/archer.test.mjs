@@ -177,9 +177,9 @@ test('궁수는 사거리 밖에서만 다가가고, 사거리 안에서는 서�
 
 test('직업별 사거리 간격은 궁수 > 마법사 > 전사(90) 순서다', async () => {
   const { mageAttackRange, mageStopRange } = await import('../src/game/world.ts');
-  // 작업 207 확정 수치.
+  // 작업 207 확정 수치, 마법사는 작업 216에서 240/130으로 상향(궁수 280/150 > 마법사 240/130 > 전사 90).
   assert.equal(archerAttackRange, 280); assert.equal(archerStopRange, 150);
-  assert.equal(mageAttackRange, 210); assert.equal(mageStopRange, 110);
+  assert.equal(mageAttackRange, 240); assert.equal(mageStopRange, 130);
   assert(archerAttackRange > mageAttackRange && mageAttackRange > 90, '사거리: 궁수 > 마법사 > 전사');
   assert(archerStopRange > mageStopRange && mageStopRange > 90, '정지 거리: 궁수 > 마법사 > 전사');
 });

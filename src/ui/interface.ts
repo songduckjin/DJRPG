@@ -98,6 +98,8 @@ export class Interface {
   offlineReward?: OfflineReward;
   characterList?: { characters: CharacterSummary[]; activeSlot: number; maxSlots: number; revision: number; allIdleExpiresAt?: number; loadedAt?: number };
   characterPage = 0;
+  /** 지금 눌러서 펼친 캐릭터 카드의 슬롯(작업 216) — 그 카드에만 `선택`·`방치`·`삭제`가 보인다. */
+  characterFocus?: number;
   characterCreateSlot = 2;
   warehouseItems?: Item[];
   shopCatalog?: ShopCatalog;

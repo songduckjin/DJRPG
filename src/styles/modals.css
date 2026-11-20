@@ -49,6 +49,16 @@
 .character-idle:disabled { opacity: .45; cursor: default; }
 .character-delete { min-height: 28px; border: 1px solid #86544e; border-radius: 5px; background: #322024; color: #e6b4ac; font-size: 11px; touch-action: manipulation; }
 .character-delete:disabled { opacity: .45; }
+
+/* [작업 216] 카드에는 평소 외형·정보만 보인다. 카드를 누르면 그 카드에만 `선택`·`방치`·`삭제`가 나타나고,
+   다른 카드를 누르면 그쪽만 펼쳐진다(한 번 더 누르면 접힌다). */
+.character-slot .character-connect, .character-slot .character-idle, .character-slot .character-delete { display: none; }
+.character-slot.focused { border-color: #d8ab66; box-shadow: 0 0 10px #d8ab6644; }
+.character-slot.focused .character-connect { display: block; min-height: 34px; border: 1px solid #d8ab66; border-radius: 5px; background: linear-gradient(180deg,#8a6132,#4a3221); color: #ffe9bd; font-size: 12px; font-weight: 700; touch-action: manipulation; }
+.character-slot.focused .character-connect,
+.character-slot.focused .character-idle,
+.character-slot.focused .character-delete { display: block; }
+.character-slot.focused .character-select { flex: 0 0 auto; }
 /* 캐릭터 삭제 확인(작업 206): 목록 모달 위에 한 겹만 얹는다 — 사냥 중 목록이 다시 그려져도 입력·안내가 유지된다. */
 .character-delete-overlay { position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center; padding: 18px; background: #07050bdc; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
 .character-delete-card { width: min(340px, 100%); max-height: 88dvh; overflow-y: auto; display: grid; gap: 10px; padding: 16px 15px; border: 2px solid #9a7655; background: linear-gradient(#2b2224, #181318); box-shadow: 0 16px 44px #000c; }

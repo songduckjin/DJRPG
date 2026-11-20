@@ -11,7 +11,7 @@ import { tintedGearTexture } from './gearTint';
 import { gearGlowAmount, gearGlowTone } from './gearGlow';
 import { costumeGhostSources, hideCostumeHero } from './costumeHero';
 import { resolveSkillMotion, type CostumeMotionTemplate } from '../costume/skillMotion';
-import { wearableEquipmentImage, baseItemIndex, usesBaseSheetOnly, type Rarity } from '../items';
+import { wearableEquipmentImage, baseItemIndex, usesBaseSheetOnly, hasNoWeapon, type Rarity } from '../items';
 import { jobOrDefault } from '../skills';
 import { helmetArtFor, helmetArtPath, helmetPlacement } from './helmets';
 import { archerHelmIndexFor, archerHelmPartPath, archerHelmPlacement } from './archerHelmets';
@@ -502,7 +502,8 @@ export function drawHero(this: GameView, world: World, x: number, y: number, tim
     }
     const weapon = plain ? 0 : weaponIndexFor(save);
     // 0번이 아닌 검을 차면 본체 시트도 기본 검을 지운 판(`noweapon/`)으로 갈아 끼운다(작업 156).
-    const swordless = weapon >= 1;
+    // [작업 216] 무기를 **아예 안 찼을 때도** 같은 판을 쓴다 — 기본 시트에 그려진 검을 지워 빈손으로.
+    const swordless = !plain && (weapon >= 1 || hasNoWeapon(save));
     const bodyTier = `${save.gender}:${armor}:${swordless ? 1 : 0}`;
     if (this.lastBodyTier !== bodyTier) {
       this.lastBodyTier = bodyTier;
@@ -516,6 +517,8 @@ export function drawHero(this: GameView, world: World, x: number, y: number, tim
     // 궁수: 1번 이상 활을 차면 기본 활대를 지운 본체 시트로 갈아 끼우고 그 위에 활 파츠를 얹는다(작업 160).
     // 투구를 쓰면 같은 자리에서 머리를 지운 시트(`archer_headless/`)로 한 단계 더 갈아 끼운다(작업 200).
     const bow = archer ? bowIndexFor(save) : 0;
+    // [작업 216] 활을 안 찼어도 기본 시트에 그려진 활대를 지운 판(`nobow/`)을 쓴다.
+    const bowlessBody = archer && (bow >= 1 || hasNoWeapon(save));
     const archerHelm = archer ? archerHelmIndexFor(save) : -1;
     if (archer && this.lastBowTier !== bow) {
       this.lastBowTier = bow;
@@ -524,11 +527,11 @@ export function drawHero(this: GameView, world: World, x: number, y: number, tim
     if (archer && this.lastArcherHelm !== archerHelm) {
       this.lastArcherHelm = archerHelm;
     }
-    if (archer && this.lastArcherHelmBow !== `${archerHelm}:${bow >= 1 ? 1 : 0}`) {
-      this.lastArcherHelmBow = `${archerHelm}:${bow >= 1 ? 1 : 0}`;
-      if (archerHelm >= 0) this.prefetchArcherHeadless(save.gender, bow >= 1);
+    if (archer && this.lastArcherHelmBow !== `${archerHelm}:${bowlessBody ? 1 : 0}`) {
+      this.lastArcherHelmBow = `${archerHelm}:${bowlessBody ? 1 : 0}`;
+      if (archerHelm >= 0) this.prefetchArcherHeadless(save.gender, bowlessBody);
     }
-    if (archer && bow >= 1) {
+    if (bowlessBody) {
       const bowless = this.bowBodyFrame(save.gender, animation, poseFrame);
       if (bowless) {
         texture = bowless;
@@ -538,11 +541,13 @@ export function drawHero(this: GameView, world: World, x: number, y: number, tim
     // 마법사: 지팡이를 찼으면 기본 지팡이를 지운 본체 시트로 갈아 끼우고 그 위에 지팡이 파츠를 얹는다(작업 201).
     const mage = job === 'mage';
     const staff = mage ? staffIndexFor(save) : -1;
+    // [작업 216] 지팡이를 안 찼어도 기본 시트에 그려진 지팡이를 지운 판(`mage_nostaff/`)을 쓴다.
+    const stafflessBody = mage && (staff >= 0 || hasNoWeapon(save));
     if (mage && this.lastStaffTier !== staff) {
       this.lastStaffTier = staff;
       if (staff >= 0) this.prefetchStaff(staff, save.gender);
     }
-    if (mage && staff >= 0) {
+    if (stafflessBody) {
       const nostaff = this.staffBodyFrame(save.gender, animation, poseFrame);
       if (nostaff) {
         texture = nostaff;
@@ -553,17 +558,17 @@ export function drawHero(this: GameView, world: World, x: number, y: number, tim
     // (파츠 없이 지우면 머리가 빈 채로 보인다). 지팡이를 찼으면 `nostaff` 판을 쓴다.
     const mageHelm = mage ? mageHelmIndexFor(save) : -1;
     if (mage && this.lastMageHelm !== mageHelm) this.lastMageHelm = mageHelm;
-    if (mage && this.lastMageHelmStaff !== `${mageHelm}:${staff >= 0 ? 1 : 0}`) {
-      this.lastMageHelmStaff = `${mageHelm}:${staff >= 0 ? 1 : 0}`;
-      if (mageHelm >= 0) this.prefetchMageHeadless(save.gender, staff >= 0);
+    if (mage && this.lastMageHelmStaff !== `${mageHelm}:${stafflessBody ? 1 : 0}`) {
+      this.lastMageHelmStaff = `${mageHelm}:${stafflessBody ? 1 : 0}`;
+      if (mageHelm >= 0) this.prefetchMageHeadless(save.gender, stafflessBody);
     }
     if (mageHelm >= 0) {
       const partPath = mageHelmPartPath(save.gender, mageHelm);
       const partReady = !!partPath && !!this.helmetTextures?.get(partPath);
-      const headlessSheet = partReady ? this.mageHeadlessFrame(save.gender, animation, poseFrame, staff >= 0) : undefined;
+      const headlessSheet = partReady ? this.mageHeadlessFrame(save.gender, animation, poseFrame, stafflessBody) : undefined;
       if (headlessSheet) {
         texture = headlessSheet;
-        textureKey = `mage-headless:${save.gender}:${animation}:${poseFrame}:${staff >= 0 ? 'nostaff' : 'body'}`;
+        textureKey = `mage-headless:${save.gender}:${animation}:${poseFrame}:${stafflessBody ? 'nostaff' : 'body'}`;
       }
     }
     // 궁수 투구: 파츠와 머리 없는 시트가 **둘 다** 준비됐을 때만 머리를 지운 시트로 그린다
@@ -571,10 +576,10 @@ export function drawHero(this: GameView, world: World, x: number, y: number, tim
     if (archerHelm >= 0) {
       const partPath = archerHelmPartPath(save.gender, archerHelm);
       const partReady = !!partPath && !!this.helmetTextures?.get(partPath);
-      const headlessSheet = partReady ? this.archerHeadlessFrame(save.gender, animation, poseFrame, bow >= 1) : undefined;
+      const headlessSheet = partReady ? this.archerHeadlessFrame(save.gender, animation, poseFrame, bowlessBody) : undefined;
       if (headlessSheet) {
         texture = headlessSheet;
-        textureKey = `archer-headless:${save.gender}:${animation}:${poseFrame}:${bow >= 1 ? 'nobow' : 'bow'}`;
+        textureKey = `archer-headless:${save.gender}:${animation}:${poseFrame}:${bowlessBody ? 'nobow' : 'bow'}`;
       }
     }
     if (armor >= 0) {
@@ -609,15 +614,16 @@ export function drawHero(this: GameView, world: World, x: number, y: number, tim
       // 투구 파츠가 아직 로딩 전이면 머리 지운 판을 쓰지 않는다(머리만 빈 채로 보인다).
       const helmPartPath = archerHelm >= 0 ? archerHelmPartPath(save.gender, archerHelm) : undefined;
       const helmWorn = !!helmPartPath && !!this.helmetTextures?.get(helmPartPath);
-      const variant = `${bow >= 1 ? 'nobow' : 'bow'}:${helmWorn ? 'headless' : 'head'}`;
+      // [작업 216] 활을 안 찼어도 기본 활대를 지운 판(`archer_armors/nobow/`)을 쓴다.
+      const variant = `${bowlessBody ? 'nobow' : 'bow'}:${helmWorn ? 'headless' : 'head'}`;
       const tierKey = `${save.gender}:${tier}:${variant}`;
       if (this.lastArcherArmorTier !== tierKey) {
         this.lastArcherArmorTier = tierKey;
-        if (tier >= 1) this.prefetchArcherArmor(save.gender, tier, bow >= 1, helmWorn);
+        if (tier >= 1) this.prefetchArcherArmor(save.gender, tier, bowlessBody, helmWorn);
       }
       if (tier >= 1) {
         // 활을 바꿨으면 기본 활대를 지운 판, 투구를 썼으면 머리 지운 판을 쓴다(둘 다일 수 있다).
-        const archerTexture = this.archerArmorFrame(save.gender, tier, animation, poseFrame, bow >= 1, helmWorn);
+        const archerTexture = this.archerArmorFrame(save.gender, tier, animation, poseFrame, bowlessBody, helmWorn);
         if (archerTexture) {
           texture = archerTexture;
           textureKey = `archerArmor:${save.gender}:${tier}:${animation}:${poseFrame}:${variant}`;

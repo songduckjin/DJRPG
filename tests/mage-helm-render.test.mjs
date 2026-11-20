@@ -9,7 +9,7 @@ const {
   MAGE_HELM_COUNT, MAGE_HELM_EXTRA_TOP, mageHelmPartPath, mageHelmPartPaths, mageHelmPlacement,
   mageHelmIdlePlacement, mageHelmIndexFor, mageHeadlessBodyPath, mageHeadlessBodyPaths
 } = await import('../src/game/render/mageHelmets.ts');
-const { staffPartPath } = await import('../src/game/render/staffs.ts');
+const { staffPartPath, stafflessBodyPath } = await import('../src/game/render/staffs.ts');
 const { GameView, renderAssetPaths } = await import('../src/game/render.ts');
 const { drawHero } = await import('../src/game/render/entities.ts');
 const { freshSave } = await import('../src/game/store.ts');
@@ -258,12 +258,13 @@ test('마법사가 투구를 쓰면 필드가 머리 없는 시트 + 투구 파�
   drawHero.call(game, running, 100, 100, 0);
   assert.equal(game.hero.texture, game.textures.mageMale, '파츠·시트 로딩 전에는 기본 시트로 폴백');
   assert.equal(game.heroMageHelm, undefined, '파츠가 없으면 투구 스프라이트를 만들지 않는다');
-  assert.deepEqual(game.mageHeadlessPrefetchCalls, [['male', false]], '머리 없는 시트 3장을 미리 받는다');
+  // [작업 216] 지팡이를 안 챘으므로 머리 없는 시트도 nostaff 판을 받는다.
+  assert.deepEqual(game.mageHeadlessPrefetchCalls, [['male', true]], '머리 없는 시트 3장을 미리 받는다');
 
   const part = texture();
   const headless = texture();
   game.helmetTextures.set(mageHelmPartPath('male', 5), part);
-  game.armorSheets.set(mageHeadlessBodyPath('male', 'idle'), headless);
+  game.armorSheets.set(mageHeadlessBodyPath('male', 'idle', true), headless);
   drawHero.call(game, running, 100, 100, .1);
   assert.equal(game.hero.texture, headless, '머리 없는 서기 시트로 갈아 끼운다');
   assert(game.heroMageHelm, '투구 파츠 스프라이트를 만든다');
@@ -339,7 +340,8 @@ test('전사·궁수는 마법사 투구 파츠를 쓰지 않고, 초상화에�
 test('장비창 초상화도 머리 없는 시트 + 같은 좌표의 마법사 투구 파츠를 쓴다', () => {
   const save = mageSave('female', baseItems.helmet[7]);
   const plan = equipmentPortraitPlan(save);
-  assert.equal(plan.base, mageHeadlessBodyPath('female', 'idle', false));
+  // [작업 216] 지팡이를 안 챈 빈손이므로 머리 없는 시트도 nostaff 판을 쓴다.
+  assert.equal(plan.base, mageHeadlessBodyPath('female', 'idle', true));
   assert.equal(plan.mageHelm?.path, mageHelmPartPath('female', 7));
   assert.equal(plan.mageHelm?.x, 0);
   assert.equal(plan.mageHelm?.y, -MAGE_HELM_EXTRA_TOP);
@@ -354,7 +356,7 @@ test('장비창 초상화도 머리 없는 시트 + 같은 좌표의 마법사 �
 
   const plain = mageSave('female');
   assert.equal(equipmentPortraitPlan(plain).mageHelm, undefined, '투구를 안 쓰면 파츠 없음');
-  assert.equal(equipmentPortraitPlan(plain).base, '/assets/pilot-25d/mage_female_idle_v1.png?v=2');
+  assert.equal(equipmentPortraitPlan(plain).base, stafflessBodyPath('female', 'idle'), '지팡이를 안 차면 빈손(nostaff) 시트');
 });
 
 test('남성 지팡이는 서기에서만 0.83525배로 줄어 그려진다(작업 204 서기 본체 재생성)', () => {

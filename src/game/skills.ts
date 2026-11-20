@@ -35,7 +35,7 @@ export const skills: Record<SkillId, Skill> = {
   slash2: { id: 'slash2', name: '이단참', level: 2, icon: '⚔', cooldown: 4, power: '공격력 × 1.1 · 2연격', description: '좌우로 두 번 크게 베어 넘긴다. 정방향 횡베기에 이어 되받아 베는 역방향 일격이 따로 들어간다.', range: 96 },
   // 1번 다음 다섯 자리는 작업 212에서 해금 레벨을 앞당겼다(4·5·7·10·14) — 크러싱·트위스터가 마지막 두 자리다.
   slam: { id: 'slam', name: '와일드 스탬프', level: 4, icon: '💥', cooldown: 8, power: '공격력 × 2.2', description: '지면을 내리찍어 붉은 균열을 만들고 적을 밀쳐 둔화시킨다.', range: 126 },
-  warcry: { id: 'warcry', name: '블러드 레이지', level: 5, icon: '🩸', cooldown: 14, power: '공격력 × 1.5 · 공격속도 상승', description: '6초 동안 붉은 투기로 공격력·공격속도·이동속도가 상승한다.', range: 120 },
+  warcry: { id: 'warcry', name: '블러드 레이지', level: 5, icon: '🩸', cooldown: 14, power: '공격력 × 1.2 · 공격속도 상승', description: '6초 동안(레벨당 +0.2초) 붉은 투기로 공격력·공격속도·이동속도가 상승한다.', range: 120 },
   power: { id: 'power', name: '파워 스트라이크', level: 7, icon: '⚡', cooldown: 6, power: '공격력 × 4.0', description: '좁은 전방에 강력한 일격을 꽂아 보스를 노린다.', range: 100 },
   destroy: { id: 'destroy', name: '디스트로이 스윙', level: 10, icon: '☄', cooldown: 9, power: '공격력 × 2.7', description: '전방으로 거대한 붉은 검기 충격파를 날린다.', range: 175 },
   hell: { id: 'hell', name: '회전참격', level: 14, icon: '🌀', cooldown: 16, power: '공격력 × 3.2 · 360° 회전', description: '대검을 크게 휘둘러 제자리에서 360° 회전하며, 사방의 적을 암흑·진홍 혈풍과 함께 한 번에 베어낸다.', range: 185 },
@@ -46,7 +46,7 @@ export const skills: Record<SkillId, Skill> = {
   multiShot: { id: 'multiShot', name: '멀티 샷', level: 4, icon: '🎯', cooldown: 7, power: '공격력 × 0.95 · 5발', description: '부채꼴로 다섯 발의 화살을 흩뿌려 여러 적을 동시에 맞힌다.', range: 226 },
   pierceShot: { id: 'pierceShot', name: '관통 사격', level: 5, icon: '➳', cooldown: 8, power: '공격력 × 2.6 · 관통', description: '강하게 당긴 화살이 여러 적을 꿰뚫고 지나간다.', range: 268 },
   iceArrow: { id: 'iceArrow', name: '빙결 화살', level: 7, icon: '❄', cooldown: 9, power: '공격력 × 1.9 · 둔화', description: '서리 화살이 맞은 적을 얼려 잠시 느리게 만든다.', range: 236 },
-  hawkEye: { id: 'hawkEye', name: '호크아이', level: 10, icon: '🦅', cooldown: 16, power: '공격력 × 1.35 · 공격속도 상승', description: '8초 동안 매의 눈으로 공격력과 공격속도가 크게 오른다.', range: 200 },
+  hawkEye: { id: 'hawkEye', name: '호크아이', level: 10, icon: '🦅', cooldown: 16, power: '공격력 × 1.2 · 공격속도 상승', description: '7초 동안(레벨당 +0.17초) 매의 눈으로 공격력과 공격속도가 크게 오른다.', range: 200 },
   snipe: { id: 'snipe', name: '저격 일격', level: 14, icon: '👁', cooldown: 11, power: '공격력 × 4.3', description: '숨을 멈추고 먼 거리의 적 하나를 정확히 꿰뚫는다.', range: 300 },
   stormVolley: { id: 'stormVolley', name: '폭풍 연사', level: 18, icon: '🌪', cooldown: 12, power: '공격력 × 0.8 · 6발', description: '폭풍 같은 연사로 여섯 발의 화살을 연달아 퍼붓는다.', range: 248 },
   arrowRain: { id: 'arrowRain', name: '애로우 레인', level: 24, icon: '☔', cooldown: 18, power: '공격력 × 0.85 · 화살비', description: '하늘로 쏘아 올린 화살이 적의 진영에 비처럼 쏟아진다.', range: 258 },
@@ -55,7 +55,7 @@ export const skills: Record<SkillId, Skill> = {
   chainLightning: { id: 'chainLightning', name: '체인 라이트닝', level: 5, icon: '⚡', cooldown: 8, power: '공격력 × 1.25 · 연쇄', description: '번개가 적에게 튀어 가까운 적 여럿을 연달아 감전시킨다.', range: 240 },
   manaBurst: { id: 'manaBurst', name: '마력 폭발', level: 7, icon: '◉', cooldown: 10, power: '공격력 × 2.5 · 폭발', description: '적의 위치에 마력을 응축했다가 터뜨려 주변을 함께 삼킨다.', range: 220 },
   frostNova: { id: 'frostNova', name: '프로스트 노바', level: 10, icon: '✳', cooldown: 12, power: '공격력 × 1.5 · 둔화', description: '발밑에서 서리 파동이 퍼져 가까운 적을 얼리고 밀어낸다.', range: 150 },
-  arcaneShield: { id: 'arcaneShield', name: '아케인 실드', level: 14, icon: '⛨', cooldown: 16, power: '공격력 × 1.3 · 공격속도 상승', description: '8초 동안 비전 보호막을 두르고 공격력과 공격속도가 오른다.', range: 120 },
+  arcaneShield: { id: 'arcaneShield', name: '아케인 실드', level: 14, icon: '⛨', cooldown: 16, power: '공격력 × 1.2 · 공격속도 상승', description: '7초 동안(레벨당 +0.17초) 비전 보호막을 두르고 공격력과 공격속도가 오른다.', range: 120 },
   meteorStrike: { id: 'meteorStrike', name: '메테오 스트라이크', level: 18, icon: '☄', cooldown: 13, power: '공격력 × 3.6', description: '하늘에서 불덩이를 떨어뜨려 적의 자리를 크게 내리친다.', range: 250 },
   arcaneOverlord: { id: 'arcaneOverlord', name: '아르카나 오버로드', level: 24, icon: '✵', cooldown: 18, power: '공격력 × 3.0', description: '지팡이의 마력을 한꺼번에 터뜨려 주변을 비전 폭풍으로 휩쓴다.', range: 210 }
 };
@@ -101,23 +101,28 @@ export const passives: Record<PassiveId, Passive> = {
   arcaneSense: { id: 'arcaneSense', name: '비전 감응', level: 12, icon: '◈', description: '치명타 확률 +8% · 사거리 +8%' }
 };
 
-export function canLearn(level: number, required: number): boolean { return UNLOCK_ALL_SKILLS_FOR_TEST || level >= required; }
+/** 스킬 습득·사용에 캐릭터 레벨 제한은 없다(작업 216).
+ *  예전에는 `skills[].level`(권장 레벨)보다 캐릭터 레벨이 낮으면 잠겼지만, 이제 **스킬북만 있으면
+ *  1레벨부터 습득·사용**할 수 있다. `skills[].level` 값은 스킬 순서를 정하는 표시용으로만 남기고
+ *  반환값은 항상 참이다(기존 호출부·테스트 계약을 위해 시그니처는 그대로 둔다). */
+export function canLearn(_level: number, _required: number): boolean { return true; }
 /** 스킬 레벨당 사거리 증가폭. */
 const rangeGrowth: Partial<Record<SkillId, number>> = { warcry: 0, destroy: 7, hawkEye: 0, arrowRain: 6, snipe: 8, stormVolley: 5, pierceShot: 6, arcaneShield: 0, frostNova: 4, fireBolt: 5, iceBolt: 5, chainLightning: 6, manaBurst: 5, meteorStrike: 7, arcaneOverlord: 6 };
 export function skillRange(id: SkillId, level: number): number { return skills[id].range + (rangeGrowth[id] ?? 4) * (level - 1); }
 export function skillDuration(id: SkillId, level: number): number {
   if (id === 'spin') return 1 + (level - 1) * .22;
-  if (id === 'warcry') return 6 + (level - 1) * 1.2;
+  // [작업 216] 버프 지속은 쿨타임(14·16초)보다 짧게 묶는다 — Lv.30에서도 11.8·11.9초라 무한 유지가 없다.
+  if (id === 'warcry') return 6 + (level - 1) * .2;
   if (id === 'slam') return .65 + (level - 1) * .12;
   if (id === 'hell') return .8 + (level - 1) * .16;
   if (id === 'slash2') return .55 + (level - 1) * .04;
   if (id === 'crushing') return .9 + (level - 1) * .06;
   if (id === 'power') return .4 + (level - 1) * .04;
-  if (id === 'hawkEye') return 8 + (level - 1) * 1.1;
+  if (id === 'hawkEye') return 7 + (level - 1) * .17;
   if (id === 'stormVolley') return 1.1 + (level - 1) * .05;
   if (id === 'arrowRain') return 1.6 + (level - 1) * .07;
   if (id === 'iceArrow') return .8 + (level - 1) * .05;
-  if (id === 'arcaneShield') return 8 + (level - 1) * 1.1;
+  if (id === 'arcaneShield') return 7 + (level - 1) * .17;
   if (id === 'manaBurst') return .9 + (level - 1) * .06;
   if (id === 'meteorStrike') return 1 + (level - 1) * .06;
   if (id === 'frostNova') return .8 + (level - 1) * .05;

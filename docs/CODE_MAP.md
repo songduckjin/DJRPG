@@ -12,6 +12,7 @@
 | 월드보스 실전·공유HP·순위·우편보상 | `server/world-boss.mjs`, `server/endpoints/world-boss.mjs`, `src/game/worldBossLive.ts` | `functions/api/world-boss.js`, `worldBossField.ts`, `worldBossModal.ts`, `worldBossResult.ts`, `main.ts` | `world-boss-live`, `world-boss-preview`, `world-boss-field`, `journey` |
 | 크롬 GPU 미지원 mesh 렌더 오류 | `src/game/pixiSetup.ts` | `src/main.ts` 초기등록·Canvas quad 폴백 | `pixi-setup`, `hero-motion`, `world-boss-field` |
 | 월드보스 소개·전용필드·순위/보상 | `src/ui/modals/worldBossModal.ts`, `src/ui/worldBossField.ts`, `src/game/worldBossRehearsal.ts` | `worldBossPreview.ts`, `worldBossPresentation.ts`, `worldBossDefeat.ts`, `interface.ts`, `main.ts` Ticker수명, `styles/world-boss.css`, `public/assets/world-boss/*` | `world-boss-preview`, `world-boss-field`, `modal-ui`, `modal-interaction`, `hero-motion`, `appearance` |
+| 통합 개선 7건 — 직업별 평타 원형 아이콘·파이어 볼트 다발·무기 미장착 차단·신규 가입 분리(캐릭터 0개)·마법사 사거리 240/130·스킬 레벨 잠금 제거·캐릭터 카드 액션(작업 216) | `src/game/world.ts`(`fireBoltCount`·`fireBoltScale`·`fireBoltSpots`·`WEAPON_REQUIRED_NOTICE`·`World.warnWeapon`·`shoot(from/launch/size)`), `src/ui/skillArtwork.ts`(`attackIconPath`), `src/ui/login.ts`(`characterStep`), `server/endpoints/account.mjs`(`isUncreated`/`uncreatedIn`) | `src/ui/hud.ts`·`src/ui/modals/{skillModal,charactersModal}.ts`·`src/game/render/vfx.ts`(`drawMagicBolt` launch/size)·`src/game/render/heroScale.ts`(`archer*Attack`)·`src/game/skills.ts`(`canLearn`)·`src/styles/{hud,modals,login}.css`·`public/assets/icons/attack_{warrior,archer,mage}.png`·`scripts/build-attack-icons.py` | `attack-icon`, `fire-bolt`, `weapon-required`, `register-flow`, `character-card-actions`, `archer-attack-scale`, `characters`, `modal-ui`, `world-movement` |
 | 전투·이동·층·보스·AI | `src/game/world.ts` | `arena.ts`, `facing.ts`, `bagCapacity.ts`, `store.ts`(`floorKillTarget`) | `world-movement`, `arena`, `facing` |
 | 메인 사냥 드롭·1.5초 흡수 연출 | `src/game/world.ts`(`kill` 코인·`update` 드롭 대기/흡수), `src/game/loot.ts`(`lootRestSpots`·`lootAbsorbProgress`·`lootAbsorbPoint`) | `src/game/render/drops.ts`(`drawLoot`), `src/game/render.ts`(`lootBack`/`lootFront`·`lootViews`), `src/game/render/vfx.ts` | `field-loot`, `world-movement`, `bag-capacity` |
 | 내 정보·장비창 착용 미리보기 | `ui/equipmentPortrait.ts`(`equipmentPortraitPlan`·`renderEquipmentPortrait` — `planHeroCostume` 공용 계획을 **idle 0프레임**으로 합성), `ui/modals/equipModal.ts`(요약·6스탯·10칸) | `ui/interface.ts`(3탭 라우팅), `ui/modals/accountModal.ts`(성별 고정), `game/costume/manifest.ts`(매니페스트 1회 로드), `game/render/costumeHero.ts`(계획·셀 규약 **소비만**), `styles/modals.css`, `styles/hud.css`, `assets/warrior_equipped_starter|t2|t3|t4_{male,female}.png`(폴백, 작업 142 유지) | `equipment-info`, `equipped-detail`, `modal-ui`, `costume-manifest`, `costume-field-render`, `costume-atlas` |
@@ -60,6 +61,13 @@
 |---|---|
 | 캐릭터 선택 카드가 옛 전사 초상화·유료 장비 미반영(작업 210) | `src/ui/modals/charactersModal.ts`(`characterPortraitSave`·`paintCharacterPortrait`), `src/ui/equipmentPortrait.ts`(`equipmentPortraitPlan`·`renderEquipmentPortrait(save,{height})`), `server/endpoints/account.mjs` `portraitEquipment`(`characters` 응답 `equipment` — 투구·갑옷·무기 이름만) |
 | 캐릭터 삭제가 안 됨·iOS에서 시스템 얼럿이 뜸·삭제 확인이 조용히 끝남 | `src/ui/modals/charactersModal.ts` `openDeleteCharacter`(목록 모달 밖 `.character-delete-overlay`·이름 불일치 안내·`삭제 중…`), `src/styles/modals.css` `.character-delete-*` |
+| 버프(블러드 레이지·호크아이·아케인 실드)가 과하게 세거나 지속이 무한 | `world.ts` `berserkSpeedScale`(공속 min(1.5, 1.2+(Lv-1)*.01))·`berserkAttackScale`(1.2+(Lv-1)*.015), `skills.ts` `skillDuration`(warcry 6+.2·hawkEye/arcaneShield 7+.17), `render/heroMotion.ts` `costumePlaybackRate` |
+| 무기를 안 찼는데 손에 기본 검·활·지팡이가 그려짐 | `items.ts` `hasNoWeapon`, `render/{weapons,bows,staffs}.ts` `uses*lessBody`(미착용도 참), `render/entities.ts` `drawHero`(noweapon/nobow/mage_nostaff 본체), `ui/equipmentPortrait.ts` |
+| 무기를 안 차도 공격이 나감·"무기를 장착해야 공격할 수 있습니다"가 매 프레임 뜸 | `world.ts` `action`(무기 없으면 평타·스킬 차단, 첫 튜토리얼만 예외)·`warnWeapon`/`weaponNotice`(4.5초 쿨다운) |
+| 궁수가 활을 쏠 때(공격 프레임)만 작아짐 | `render/heroScale.ts` `archerMaleAttack`/`archerFemaleAttack`(정수리~발끝 실측 235/233 — 활대 포함 bbox 268/270 금지), `render/entities.ts` `heroScale` |
+| 가입 직후 캐릭터 없이 사냥터로 들어감·가입에 직업/성별을 물음 | `server/endpoints/account.mjs` `register`(아이디·비밀번호만·`uncreated` 자리표시자)·`isUncreated`/`characters` 필터·`createCharacter` 덮어쓰기, `ui/login.ts` `characterStep` |
+| 캐릭터 카드마다 방치·삭제가 늘 보이고 카드를 누르면 바로 접속됨 | `ui/modals/charactersModal.ts` `renderCharacters`(`ui.characterFocus` 펼침·`character-connect`), `styles/modals.css` `.character-slot.focused` |
+| 파이어 볼트가 한 발만 나가거나 작게 보임 | `world.ts` `fireBolt` 분기(`fireBoltCount`/`fireBoltScale`/`fireBoltSpots`), `render/vfx.ts` `drawMagicBolt`(`launch`·`size`) |
 | 적이 안 다가옴·이동 속도·몹 체력·피해량 | `world.ts` `enemyMoveSpeed`/`enemyMaxHp`/`enemyHitDamage`/`update` |
 | 추격 중 공격이 끊기거나 적과 겹침 | `world.ts` `update`(적 추격 정지 거리=기본 공격 범위), `action`(수동 이동 중 차단) |
 | 평타가 여러 마리를 한꺼번에 때림·평타 대상·평타가 약함 | `world.ts` `action`(평타 `damage(90, attack * basicAttackPower, angle, 1.15, 12, 0, p, 1)`), `basicAttackPower`(1.6), `damage`(`maxTargets`·거리 순 정렬) |
@@ -270,6 +278,19 @@
 - `src/ui/worldBossField.ts` — 고정경기장짧은포효·별도전체GameView필드·고해상도보스텍스처·기본필드정지/복귀·Pixi내부흑요석제단/보스뒤하늘구름·탄도돌조각/그림자/확산먼지충격·프레임색감보정/공격분리조각제거·중앙보스·하단시간/딜/보스적색·내청록체력/수동회피·처치시트 background preload/처치연출 뒤 결과·실전API/서버결과와 게스트연습 분리·로딩/종료1회결과렌더·ticker정지/재도전·나가기. `openWorldBossField`·`pauseMainForBoss`
 - `src/ui/worldBossResult.ts` — 종료전용결과/상위10→직전9명+내행하강·기존유저행밀림/명시적예시·하단재도전/나가기. `renderBossResult`·`resultRankWindow`
 - `src/ui/worldBossPresentation.ts` — 상위10/내순위·1/2~3/4~10/11~50/51~100/101이하보상구간선택. 미연동시가짜순위금지. `topTen`·`myRewardTier`
+
+### 작업 216 — 통합 개선 7건(평타 아이콘·파이어 볼트·무기 미장착·가입 분리·마법사 사거리·스킬 레벨 제한·카드 액션)
+- `src/game/world.ts` — `fireBoltCount(level)`(Lv.1~4 1발, 5레벨마다 +1, 최대 6발)·`fireBoltScale(level)`(1→2.45배)·`fireBoltSpots(x,y,count)`(아이소 역변환으로 머리 위 반원) 추가, `fireBolt` 분기가 화염구 N발을 `shoot({from,launch,size})`로 쏘고 위력을 N으로 나눈다(합계는 예전 ×2.0 그대로). `WEAPON_REQUIRED_NOTICE`·`WEAPON_NOTICE_COOLDOWN`(4.5초)·`World.weaponNotice`/`warnWeapon`으로 `save.equipment.weapon`이 없으면 평타·공격 스킬을 막고 안내를 쿨다운마다 한 번 띄운다(첫 처치 전 `tutorial===0`만 예외 — 시작 무기는 첫 처치 드랍). `mageAttackRange`/`mageStopRange`는 240/130. `Effect`에 `launch`·`size` 추가.
+- `src/game/render/vfx.ts` — `drawMagicBolt`가 `launch` 전에는 제자리에서 맥동하고, 남은 시간에만 선형(직선) 비행하며 `size`로 반지름을 키운다.
+- `src/game/skills.ts` — `canLearn`은 항상 참(캐릭터 레벨 잠금 없음, 스킬북만 있으면 1레벨부터 습득·사용). `skills[].level`은 순서용으로만 남는다.
+- 빈손 외형(추가 지시) — 기본 시트에 그려진 0번 무기를 지운 판(`noweapon/`·`nobow/`·`mage_nostaff/`)을 무기 미착용에도 쓴다: `items.ts` `hasNoWeapon`, `usesSwordlessBody`/`usesBowlessBody`/`usesStafflessBody`(미착용 포함), `drawHero`의 `swordless`·`bowlessBody`·`stafflessBody`(투구 머리 없는 판·궁수 갑옷 `nobow/`·로브 판까지 같은 플래그), `equipmentPortrait.ts` 기본 시트.
+- 광폭 버프 3종 밸런스(추가 지시) — `world.ts` `berserkSpeedScale(level)=min(1.5, 1.2+(레벨-1)*.01)`·`berserkAttackScale(level)=1.2+(레벨-1)*.015`를 `action`의 쿨다운·공격력에 쓰고, `render/heroMotion.ts`의 `costumePlaybackRate`가 같은 공속 식을 역수로 쓴다. 지속은 `skillDuration`의 `warcry` 6+(레벨-1)*.2, `hawkEye`·`arcaneShield` 7+(레벨-1)*.17(쿨 14·16초보다 짧다).
+- `src/ui/skillArtwork.ts` — `attackIconPath(job)`(=`/assets/icons/attack_<job>.png`), `applySkillArtwork`/`setSkillIcon`이 직업 인자를 받아 기본 공격 원에 대검·활·마법탄 메달리온을 그린다. `src/ui/hud.ts` 액션 패드와 `ui/modals/skillModal.ts` 기본 공격 카드가 같은 함수를 쓴다(글자 `⚔`는 비움).
+- `src/game/render/heroScale.ts` — `archerMaleAttack` 268→235, `archerFemaleAttack` 270→233(공격 시트 정수리~발끝 실측 232.8/229px, 서기 333/331px 기준).
+- `src/ui/login.ts` — 가입 탭은 아이디·비밀번호만. `session.needsCharacter`면 패널 안에서 `characterStep`(닉네임·직업·성별 `남`/`여`)로 `createCharacter`를 호출한 뒤 세션을 갱신해 입장한다. 게스트·기존 로그인은 그대로.
+- `server/endpoints/account.mjs` — `register`가 캐릭터 행 없이 `uncreated: true` 자리표시자 세이브만 만들고 `needsCharacter: true`를 돌려준다. `isUncreated`/`uncreatedIn`으로 `characters` 목록에서 빼고 `load`/`login`에 `needsCharacter`를 싣고, `createCharacter`가 자리표시자 슬롯을 덮어쓴다. 자리표시자에 `save`를 보내면 `409 CHARACTER_REQUIRED`. 게스트는 종전대로 1번 캐릭터를 바로 만든다.
+- `src/ui/modals/charactersModal.ts` — 카드는 평소 외형·정보만, 누르면 `ui.characterFocus`가 그 슬롯을 펼쳐 `선택`(=`selectCharacter`)·`방치`·`삭제`가 나타난다(빈 슬롯은 누르면 바로 생성 화면). 생성 화면 성별 버튼은 `남`/`여`.
+- 아트 `public/assets/icons/attack_{warrior,archer,mage}.png`(256×256 RGBA, 원 밖 투명) — `scripts/build-attack-icons.py`가 승인 원본(`downloads/icon_greatsword/`)에서 굽고 `scripts/verify-item-art.mjs`가 규격을 본다. 테스트: `attack-icon`·`fire-bolt`·`weapon-required`·`register-flow`·`character-card-actions`·`archer-attack-scale`.
 
 ## 3.5 설계자 블록 — 레이어·소유권·시퀀스·영향 경계
 

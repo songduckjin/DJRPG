@@ -7,6 +7,7 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {createClient} from '@libsql/client';
 import {accountEndpoint} from '../server/endpoints/account.mjs';
+import {withWeapon} from './helpers/armed.mjs';
 // 던전 검증은 클라이언트와 같은 전투 로직(`src/ui/dungeonBattle.ts`)을 서버에서 리플레이한다 —
 // 확장자 없는 TS import를 풀어 주는 ts 로더를 먼저 등록한 뒤 동적으로 불러온다.
 const {dungeonEndpoint} = await import('../server/endpoints/dungeon.mjs');
@@ -36,9 +37,12 @@ test('던전 순위는 검증된 클리어만 기록하고 상위 10위·내 기
   const directory=await mkdtemp(join(tmpdir(),'djrpg-dungeon-'));
   const env={TURSO_DATABASE_URL:`file:${join(directory,'dungeon.db')}`,TURSO_AUTH_TOKEN:'local-dungeon-key'};
   const options={env,createDbClient:({TURSO_DATABASE_URL})=>createClient({url:TURSO_DATABASE_URL})};
+  // [작업 216] 가입은 캐릭터 0개로 시작하므로, 1번 슬롯 캐릭터를 만든 뒤 그 세이브로 진행한다.
+  // 무기도 함께 챙긴다 — 무기 미장착이면 던전에서 공격이 막혀 클리어가 불가능하다.
   const register=async(loginId,name)=>{
-    const body=await (await accountEndpoint(post('account',{action:'register',loginId,password:'dungeon-password-197',gender:'male'}),options)).json();
-    return {...body,save:{...body.save,name}};
+    const body=await (await accountEndpoint(post('account',{action:'register',loginId,password:'dungeon-password-197'}),options)).json();
+    const created=await (await accountEndpoint(post('account',{action:'createCharacter',slot:1,name,gender:'male',job:'warrior',revision:body.revision},body.token),options)).json();
+    return {...body,revision:created.revision,characterSlot:created.characterSlot,save:withWeapon({...created.save},`weapon-${loginId}`)};
   };
   const saveFloor=async(session,floor)=>{
     const response=await accountEndpoint(post('account',{action:'save',revision:session.revision,characterSlot:1,save:{...session.save,dungeonFloor:floor}},session.token),options);

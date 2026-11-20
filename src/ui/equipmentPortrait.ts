@@ -9,9 +9,9 @@ import { helmetArtFor, helmetArtPath, helmetIdlePlacement } from '../game/render
 import { armorIndexFor, armorSheetPath } from '../game/render/armors';
 import { archerArmorIndexFor, archerArmorSheetPath } from '../game/render/archerArmors';
 import { mageRobeIndexFor, robeHeadlessSheetPath, robeSheetPath } from '../game/render/robes';
-import { WEAPON_GUARD, weaponIndexFor, weaponPartPath, weaponPose, swordlessBodyPath } from '../game/render/weapons';
+import { WEAPON_GUARD, weaponIndexFor, weaponPartPath, weaponPose, swordlessBodyPath, usesSwordlessBody } from '../game/render/weapons';
 import { BOW_GRIP, bowIndexFor, bowPartPath, bowPose, bowlessBodyPath, usesBowlessBody } from '../game/render/bows';
-import { STAFF_GRIP, staffIndexFor, staffPartPath, staffPlacement, stafflessBodyPath } from '../game/render/staffs';
+import { STAFF_GRIP, staffIndexFor, staffPartPath, staffPlacement, stafflessBodyPath, usesStafflessBody } from '../game/render/staffs';
 import { archerHeadlessBodyPath, archerHelmIdlePlacement, archerHelmIndexFor, archerHelmPartPath } from '../game/render/archerHelmets';
 import { mageHeadlessBodyPath, mageHelmIdlePlacement, mageHelmIndexFor, mageHelmPartPath } from '../game/render/mageHelmets';
 import { gearGlowCss, gearGlowTone } from '../game/render/gearGlow';
@@ -33,6 +33,7 @@ export function equipmentFallbackPortrait(save: Save): string {
     // 작업 200: 궁수 투구를 쓰면 필드와 같이 머리를 지운 시트를 쓴다(투구 파츠가 그 자리를 덮는다).
     if (isArcher(save)) {
       const helmeted = archerHelmIndexFor(save) >= 0;
+      // [작업 216] 활을 안 찼어도 기본 활대를 지운 시트를 쓴다(빈손).
       const bowless = usesBowlessBody(save);
       const tier = archerArmorIndexFor(save);
       if (tier >= 1) {
@@ -50,7 +51,8 @@ export function equipmentFallbackPortrait(save: Save): string {
     // 작업 204: 투구를 쓰면 필드와 같은 자리에서 머리를 지운 시트를 쓴다(지팡이 착용 여부로 판이 갈린다).
     // 작업 208: 갑옷 1~9번이면 그 티어 로브 시트를 쓰고, 투구를 함께 쓰면 로브의 머리 없는 판을 쓴다.
     if (isMage(save)) {
-      const staffless = staffIndexFor(save) >= 0;
+      // [작업 216] 지팡이를 안 찼어도 기본 지팡이를 지운 시트를 쓴다(빈손).
+      const staffless = usesStafflessBody(save);
       const helm = mageHelmIndexFor(save) >= 0;
       const robe = mageRobeIndexFor(save);
       if (robe >= 1) {
@@ -68,7 +70,8 @@ export function equipmentFallbackPortrait(save: Save): string {
   const headless = !!save.equipment.helmet;
   const armor = armorIndexFor(save);
   // 0번이 아닌 검을 차면 필드와 같이 기본 검을 지운 시트를 쓴다(작업 156).
-  const swordless = weaponIndexFor(save) >= 1;
+  // [작업 216] 무기를 안 찼으면 빈손(기본 검을 지운 `noweapon/` 시트)으로 그린다.
+  const swordless = usesSwordlessBody(save);
   if (armor >= 0) {
     const path = armorSheetPath(save.gender, armor, 'idle', headless, swordless);
     if (path) return path;

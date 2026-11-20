@@ -48,9 +48,10 @@ export function tick(this: Interface): void {
       const name = empty ? canAdd ? '스킬 장착하기' : '미습득' : kind === 'attack' ? basicAttackName(jobOrDefault(this.world.save.job)) : skills[kind].name;
       const key = `${kind}:${canAdd}:${selecting}`;
       if (button.dataset.state !== key) {
-        feedback.clear(button); applySkillArtwork(button, kind);
+        feedback.clear(button); applySkillArtwork(button, kind, jobOrDefault(this.world.save.job));
         button.dataset.state = key; button.dataset.skill = kind ?? '';
-        button.querySelector('strong')!.textContent = empty ? canAdd || selecting ? '+' : '—' : kind === 'attack' ? '⚔' : skills[kind].icon;
+        // 기본 공격은 직업별 원형 아이콘(대검·활·마법탄)이 `.skill-art`로 덮으므로 글자 그림판은 비워 둔다(작업 216).
+        button.querySelector('strong')!.textContent = empty ? canAdd || selecting ? '+' : '—' : kind === 'attack' ? '' : skills[kind].icon;
         button.querySelector('small')!.textContent = selecting ? '선택' : empty ? canAdd ? '장착' : '미습득' : kind === 'attack' ? basicAttackName(jobOrDefault(this.world.save.job)) : shortNames[kind];
         button.setAttribute('aria-label', selecting ? `${index}번 원에 스킬 장착` : name);
         button.classList.toggle('skill-empty', empty); button.classList.toggle('skill-can-add', canAdd);

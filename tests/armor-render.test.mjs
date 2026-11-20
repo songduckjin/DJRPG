@@ -207,6 +207,9 @@ function world(save) {
 test('착용 갑옷 시트가 로드되면 필드가 그 시트로 그린다', () => {
   const save = freshSave('male');
   save.equipment.armor = armorItem('미스릴 아머');
+  // [작업 216] 무기를 안 차면 기본 검을 지운 판을 쓰므로, 갑옷 시트만 보는 이 테스트는 0번 검을 찬다.
+  save.equipment.weapon = { id: 'starter-sword', name: baseItems.weapon[0], slot: 'weapon', rarity: 'common', stats: { attack: 4 } };
+
   const game = view();
   const walking = world(save);
   drawHero.call(game, walking, 100, 100, 0);
@@ -223,6 +226,9 @@ test('착용 갑옷 시트가 로드되면 필드가 그 시트로 그린다', (
 test('걷기·공격은 갑옷 시트를 4프레임으로 잘라 쓴다', () => {
   const save = freshSave('female');
   save.equipment.armor = armorItem('드래곤 메일');
+  // [작업 216] 무기를 안 차면 기본 검을 지운 판을 쓰므로, 갑옷 시트만 보는 이 테스트는 0번 검을 찬다.
+  save.equipment.weapon = { id: 'starter-sword', name: baseItems.weapon[0], slot: 'weapon', rarity: 'common', stats: { attack: 4 } };
+
   const game = view();
   const hit = world(save);
   const walkSheet = armorSheetTexture('walk');
@@ -249,6 +255,9 @@ test('걷기·공격은 갑옷 시트를 4프레임으로 잘라 쓴다', () => 
 test('투구를 쓰면 갑옷의 머리 없는 시트를 쓴다', () => {
   const save = freshSave('male');
   save.equipment.armor = armorItem('성기사 풀플레이트');
+  // [작업 216] 무기를 안 차면 기본 검을 지운 판을 쓰므로, 갑옷 시트만 보는 이 테스트는 0번 검을 찬다.
+  save.equipment.weapon = { id: 'starter-sword', name: baseItems.weapon[0], slot: 'weapon', rarity: 'common', stats: { attack: 4 } };
+
   save.equipment.helmet = helmetItem('용린 투구');
   const game = view();
   const walking_ = world(save);
@@ -263,6 +272,8 @@ test('투구를 쓰면 갑옷의 머리 없는 시트를 쓴다', () => {
 
 test('장비창 초상화도 착용 갑옷 시트를 쓴다', () => {
   const save = freshSave('female');
+  // [작업 216] 무기를 안 차면 기본 검을 지운 판을 쓰므로, 갑옷 시트만 보는 이 테스트는 0번 검을 찬다.
+  save.equipment.weapon = { id: 'starter-sword', name: baseItems.weapon[0], slot: 'weapon', rarity: 'common', stats: { attack: 4 } };
   assert.equal(equipmentFallbackPortrait(save), '/assets/pilot-25d/warrior_female_idle_v1.png');
   save.equipment.armor = armorItem('사슬 갑옷');
   assert.equal(equipmentFallbackPortrait(save), '/assets/pilot-25d/armors/warrior_female_armor_2_idle_v1.png');
@@ -271,9 +282,9 @@ test('장비창 초상화도 착용 갑옷 시트를 쓴다', () => {
   const plan = equipmentPortraitPlan(save);
   assert(plan.key.includes('a2'), `캐시 키에 갑옷 티어: ${plan.key}`);
   assert.equal(plan.base, equipmentFallbackPortrait(save));
-  // 갑옷이 없으면 예전처럼 기준 시트(+머리 없음)다.
+  // 갑옷이 없으면 기준 시트(+머리 없음)다 — 무기를 안 찬 캐릭터는 기본 검을 지운 판(빈손).
   const bare = freshSave('female');
-  assert.equal(equipmentPortraitPlan(bare).base, '/assets/pilot-25d/warrior_female_idle_v1.png');
+  assert.equal(equipmentPortraitPlan(bare).base, '/assets/pilot-25d/noweapon/warrior_female_idle_v1.png');
 });
 
 test('갑옷 시트는 부팅 프리로드에 넣지 않고 티어별로만 받는다', () => {

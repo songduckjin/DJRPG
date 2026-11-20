@@ -2,7 +2,9 @@ import type { Gender, Job, Save } from '../game/store';
 import { jobNames, jobOrDefault } from '../game/skills';
 import { apiHeaders, clearVersionReloadMark, isOutdatedResponse, reloadForNewVersion } from '../game/appVersion';
 
-export type Session = { accountId: string; loginId: string; gender: Gender; guest: boolean; token: string; save: Save; revision: number; characterSlot: number; offlineSeconds?: number; newAccount?: boolean; needsSetup?: boolean };
+export type Session = { accountId: string; loginId: string; gender: Gender; job?: Job; guest: boolean; token: string; save: Save; revision: number; characterSlot: number; offlineSeconds?: number; newAccount?: boolean; needsSetup?: boolean;
+  /** 아직 캐릭터를 만들지 않은 계정(작업 216) — 가입 직후에는 사냥터 대신 캐릭터 생성 화면으로 간다. */
+  needsCharacter?: boolean };
 const tokenKey = 'djrpg.auth.token';
 // 저장소를 쓸 수 없는 환경(테스트·프라이빗 모드)에서도 토큰 정리가 예외로 번지지 않게 한다.
 export function clearToken(): void {
@@ -74,28 +76,70 @@ export function openSeasonSetup(root: HTMLElement, session: Session): Promise<Se
   });
 }
 
+/**
+ * 신규 가입 뒤(또는 아직 캐릭터를 만들지 않은 계정의 접속 뒤) 캐릭터 생성 단계(작업 216).
+ *
+ * 가입 단계에서는 아이디·비밀번호만 받으므로, 이 화면에서 **닉네임·직업·성별**을 정해 첫 캐릭터를
+ * 만든다(성별 버튼은 `남`/`여`만). 만들고 나면 그 캐릭터의 세이브·리비전으로 세션을 갱신해 바로
+ * 사냥터로 이어진다. 기존 계정 로그인·게스트 흐름은 이 단계를 거치지 않는다.
+ */
+function characterStep(overlay: HTMLElement, session: Session): Promise<Session> {
+  return new Promise(resolve => {
+    const panel = overlay.querySelector<HTMLElement>('.login-panel')!;
+    panel.querySelectorAll<HTMLElement>('.login-tabs, .login-form, .login-guest, .login-note').forEach(node => { node.hidden = true; });
+    const step = document.createElement('form'); step.className = 'login-create';
+    step.innerHTML = '<p class="login-create-title">캐릭터 만들기</p><p class="login-create-note">닉네임과 직업, 성별을 정하면 사냥터로 입장합니다.</p>'
+      + `<label>닉네임<input name="characterName" required minlength="2" maxlength="16" pattern="[가-힣a-zA-Z0-9_]{2,16}" autocomplete="off" enterkeyhint="done"></label>`
+      + '<div class="login-gender login-job"><span>직업</span><button type="button" data-job="warrior" class="active">전사</button><button type="button" data-job="archer">궁수</button><button type="button" data-job="mage">마법사</button></div>'
+      + '<div class="login-gender"><span>성별</span><button type="button" data-gender="male" class="active">남</button><button type="button" data-gender="female">여</button></div>'
+      + '<p class="login-error" role="alert" aria-live="polite"></p><button class="login-submit" type="submit">캐릭터 생성</button>';
+    panel.append(step);
+    const nameInput = step.elements.namedItem('characterName') as HTMLInputElement;
+    const error = step.querySelector<HTMLElement>('.login-error')!;
+    const submit = step.querySelector<HTMLButtonElement>('.login-submit')!;
+    let job: Job = 'warrior', gender: Gender = 'male';
+    step.querySelectorAll<HTMLButtonElement>('[data-job]').forEach(button => button.onclick = () => {
+      job = jobOrDefault(button.dataset.job);
+      step.querySelectorAll('[data-job]').forEach(choice => choice.classList.toggle('active', choice === button));
+    });
+    step.querySelectorAll<HTMLButtonElement>('[data-gender]').forEach(button => button.onclick = () => {
+      gender = button.dataset.gender === 'female' ? 'female' : 'male';
+      step.querySelectorAll('[data-gender]').forEach(choice => choice.classList.toggle('active', choice === button));
+    });
+    step.onsubmit = async event => {
+      event.preventDefault(); error.textContent = ''; submit.disabled = true;
+      try {
+        const created = await accountRequest<{ characterSlot: number; revision: number; save: Save }>('createCharacter',
+          { slot: session.characterSlot, name: nameInput.value.trim(), gender, job, revision: session.revision }, session.token);
+        resolve({ ...session, save: created.save, revision: created.revision, characterSlot: created.characterSlot, gender, job, needsCharacter: false });
+      } catch (cause) { error.textContent = cause instanceof Error ? cause.message : String(cause); submit.disabled = false; }
+    };
+    try { nameInput.focus({ preventScroll: true }); } catch { /* 자동 포커스 불가 */ }
+  });
+}
+
 export function openLogin(root: HTMLElement): Promise<Session> {
   return new Promise(resolve => {
     const overlay = document.createElement('div'); overlay.className = 'login-screen';
-    overlay.innerHTML = `<div class="login-panel"><small class="login-kicker">THE WASTELAND AWAITS</small><h1>DJRPG</h1><p class="login-subtitle">황야의 층계</p><div class="login-tabs"><button type="button" data-mode="login" class="active">로그인</button><button type="button" data-mode="register">신규 가입</button></div><form class="login-form"><label>아이디 · 닉네임<input name="loginId" autocomplete="username" maxlength="16" required></label><label>비밀번호<input name="password" type="password" autocomplete="current-password" minlength="8" maxlength="72" required></label><div class="login-gender login-job" hidden><span>직업</span><button type="button" data-job="warrior" class="active">전사</button><button type="button" data-job="archer">궁수</button><button type="button" data-job="mage">마법사</button></div><div class="login-gender" hidden><span>성별</span><button type="button" data-gender="male" class="active">남성 전사</button><button type="button" data-gender="female">여성 전사</button></div><p class="login-error" role="alert" aria-live="polite"></p><button class="login-submit" type="submit">로그인</button></form><button class="login-guest" type="button">게스트로 시작하기</button><p class="login-note">계정과 진행 상황은 서버에 저장됩니다.</p></div>`;
+    overlay.innerHTML = `<div class="login-panel"><small class="login-kicker">THE WASTELAND AWAITS</small><h1>DJRPG</h1><p class="login-subtitle">황야의 층계</p><div class="login-tabs"><button type="button" data-mode="login" class="active">로그인</button><button type="button" data-mode="register">신규 가입</button></div><form class="login-form"><label>아이디<input name="loginId" autocomplete="username" maxlength="16" required></label><label>비밀번호<input name="password" type="password" autocomplete="current-password" minlength="8" maxlength="72" required></label><p class="login-error" role="alert" aria-live="polite"></p><button class="login-submit" type="submit">로그인</button></form><button class="login-guest" type="button">게스트로 시작하기</button><p class="login-note">계정과 진행 상황은 서버에 저장됩니다.</p></div>`;
     root.appendChild(overlay);
     const form = overlay.querySelector<HTMLFormElement>('.login-form')!;
     const idInput = form.elements.namedItem('loginId') as HTMLInputElement;
     const passwordInput = form.elements.namedItem('password') as HTMLInputElement;
     const error = overlay.querySelector<HTMLElement>('.login-error')!;
-    const genderRow = overlay.querySelector<HTMLElement>('.login-gender:not(.login-job)')!;
-    const jobRow = overlay.querySelector<HTMLElement>('.login-job')!;
-    const genderButtons = overlay.querySelectorAll<HTMLButtonElement>('[data-gender]');
-    const labelGenders = () => genderButtons.forEach(button => { button.textContent = `${button.dataset.gender === 'female' ? '여성' : '남성'} ${jobNames[job]}`; });
     const submit = overlay.querySelector<HTMLButtonElement>('.login-submit')!;
     const guest = overlay.querySelector<HTMLButtonElement>('.login-guest')!;
-    let mode: 'login' | 'register' = 'login', gender: Gender = 'male', job: Job = 'warrior';
+    let mode: 'login' | 'register' = 'login';
     // 시즌 초기화된 계정은 로그인·자동 복원 직후 새 시즌 설정을 받는다(작업 206).
+    // 가입 직후(또는 아직 캐릭터가 없는 계정)는 캐릭터 생성 화면을 먼저 거친다(작업 216).
     const finish = async (session: Session) => {
       let ready = session;
-      if (session.needsSetup === true || session.save?.needsSetup === true) {
+      if (ready.needsSetup === true || ready.save?.needsSetup === true) {
         overlay.style.display = 'none';
-        try { ready = await openSeasonSetup(root, session); } catch { overlay.style.display = ''; return; }
+        try { ready = await openSeasonSetup(root, ready); } catch { overlay.style.display = ''; return; }
+      }
+      if (ready.needsCharacter === true) {
+        try { ready = await characterStep(overlay, ready); } catch (cause) { fail(cause); return; }
       }
       overlay.remove(); resolve(ready);
     };
@@ -105,26 +149,17 @@ export function openLogin(root: HTMLElement): Promise<Session> {
     overlay.querySelectorAll<HTMLButtonElement>('[data-mode]').forEach(button => button.onclick = () => {
       mode = button.dataset.mode === 'register' ? 'register' : 'login';
       overlay.querySelectorAll('[data-mode]').forEach(tab => tab.classList.toggle('active', tab === button));
-      genderRow.hidden = jobRow.hidden = mode !== 'register';
+      // [작업 216] 가입 탭은 아이디·비밀번호만 받는다 — 직업·성별은 캐릭터 생성 화면에서 고른다.
       passwordInput.autocomplete = mode === 'register' ? 'new-password' : 'current-password';
       submit.textContent = mode === 'register' ? '계정 만들기' : '로그인';
       error.textContent = '';
     });
-    overlay.querySelectorAll<HTMLButtonElement>('[data-gender]').forEach(button => button.onclick = () => {
-      gender = button.dataset.gender === 'female' ? 'female' : 'male';
-      overlay.querySelectorAll('[data-gender]').forEach(choice => choice.classList.toggle('active', choice === button));
-    });
-    overlay.querySelectorAll<HTMLButtonElement>('[data-job]').forEach(button => button.onclick = () => {
-      job = jobOrDefault(button.dataset.job);
-      overlay.querySelectorAll('[data-job]').forEach(choice => choice.classList.toggle('active', choice === button));
-      labelGenders();
-    });
     form.onsubmit = async event => {
       event.preventDefault(); error.textContent = ''; submit.disabled = true;
-      try { finish(await begin(mode, { loginId: idInput.value, password: passwordInput.value, gender, job })); }
+      try { await finish(await begin(mode, { loginId: idInput.value, password: passwordInput.value })); }
       catch (cause) { fail(cause); }
       finally { submit.disabled = false; }
     };
-    guest.onclick = async () => { error.textContent = ''; guest.disabled = true; try { finish(await begin('guest')); } catch (cause) { fail(cause); } finally { guest.disabled = false; } };
+    guest.onclick = async () => { error.textContent = ''; guest.disabled = true; try { await finish(await begin('guest')); } catch (cause) { fail(cause); } finally { guest.disabled = false; } };
   });
 }

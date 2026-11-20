@@ -26,6 +26,16 @@ const portraitEquipment = save => {
   };
   return { helmet: pick('helmet'), armor: pick('armor'), weapon: pick('weapon') };
 };
+/**
+ * 신규 가입 직후의 **아직 만들지 않은 캐릭터**(작업 216).
+ *
+ * 가입 단계에서는 아이디·비밀번호만 받으므로 이름·직업·성별이 없다. 계정 행은 `initialSave`를 그대로
+ * 들고 있지만(세션 응답 형식·`account()` 자기 복구 계약 유지) 이 표시가 붙은 세이브는 캐릭터가 없는
+ * 것으로 본다: 목록에서 빼고, `load`는 `needsCharacter: true`로 알리며, `createCharacter`가 그 슬롯을
+ * 덮어쓸 수 있게 한다. 세이브를 읽는 쪽은 이 필드를 모르는 채 지나가므로 기존 세이브와 호환된다.
+ */
+const isUncreated = save => save?.uncreated === true;
+const uncreatedIn = json => { try { return isUncreated(JSON.parse(json)); } catch { return false; } };
 const offlineSeconds = updatedAt => {
   const elapsed = Math.floor((Date.now() - Date.parse(String(updatedAt))) / 1000);
   return Number.isFinite(elapsed) && elapsed >= 60 ? Math.min(43_200, elapsed) : 0;
@@ -69,17 +79,28 @@ async function accountHandler(request, { env = runtimeEnv(), createDbClient, leg
       const id = action === 'guest' ? `guest_${randomUUID()}` : String(body.loginId ?? '').trim();
       const password = body.password;
       const gender = body.gender === 'female' ? 'female' : 'male';
-      if (action === 'register' && (!namePattern.test(id) || typeof password !== 'string' || password.length < 8 || password.length > 72 || !['male', 'female'].includes(body.gender) || (body.job !== undefined && !jobs.includes(body.job)))) return bad(res, 400, 'INVALID_ACCOUNT', '아이디는 한글·영문·숫자·밑줄 2~16자, 비밀번호는 8~72자로 입력하고 성별과 직업을 선택하세요.');
-      const save = initialSave(id, gender, action === 'guest' ? '모험가' : id, body.job);
+      // [작업 216] 신규 가입은 **아이디·비밀번호만** 받는다(직업·성별은 캐릭터 생성 화면에서 고른다).
+      // 예전 클라이언트가 gender·job을 함께 보내면 그대로 받아 자리표시자에 넣어 두되, 필수는 아니다.
+      if (action === 'register' && (!namePattern.test(id) || typeof password !== 'string' || password.length < 8 || password.length > 72 || (body.gender !== undefined && !['male', 'female'].includes(body.gender)) || (body.job !== undefined && !jobs.includes(body.job)))) return bad(res, 400, 'INVALID_ACCOUNT', '아이디는 한글·영문·숫자·밑줄 2~16자, 비밀번호는 8~72자로 입력하세요.');
+      // 가입 직후에는 캐릭터가 **0개**다 — 계정 행의 세이브는 자리표시자(`uncreated`)이고
+      // `djrpg_characters`에는 행을 넣지 않는다. 게스트는 종전대로 1번 슬롯 캐릭터를 바로 만든다.
+      const needsCharacter = action === 'register';
+      const save = needsCharacter
+        ? { ...initialSave(id, gender, id, body.job), uncreated: true }
+        : initialSave(id, gender, '모험가', body.job);
       const sid = randomUUID();
-      try { await db.batch([
-        { sql: 'INSERT INTO djrpg_accounts (id,password_hash,save_json,updated_at,session_id) VALUES (?,?,?,?,?)', args: [id, action === 'guest' ? 'guest' : await hashPassword(password), JSON.stringify(save), new Date().toISOString(), sid] },
-        { sql: 'INSERT INTO djrpg_account_profiles(account_id,shared_gold,active_slot) VALUES (?,?,1)', args: [id, 0] },
-        { sql: 'INSERT INTO djrpg_shop_wallet(account_id,customer_key) VALUES (?,?)', args: [id, randomUUID()] },
-        { sql: 'INSERT INTO djrpg_characters(account_id,slot,save_json,updated_at) VALUES (?,1,?,?)', args: [id, JSON.stringify({ ...save, gold: undefined }), new Date().toISOString()] }
-      ], 'write'); }
+      try {
+        const statements = [
+          { sql: 'INSERT INTO djrpg_accounts (id,password_hash,save_json,updated_at,session_id) VALUES (?,?,?,?,?)', args: [id, action === 'guest' ? 'guest' : await hashPassword(password), JSON.stringify(save), new Date().toISOString(), sid] },
+          { sql: 'INSERT INTO djrpg_account_profiles(account_id,shared_gold,active_slot) VALUES (?,?,1)', args: [id, 0] },
+          { sql: 'INSERT INTO djrpg_shop_wallet(account_id,customer_key) VALUES (?,?)', args: [id, randomUUID()] }
+        ];
+        // 가입 직후 캐릭터 0개 — 자리표시자는 계정 행에만 있고, 캐릭터 생성 때 그 슬롯을 덮어쓴다.
+        if (!needsCharacter) statements.push({ sql: 'INSERT INTO djrpg_characters(account_id,slot,save_json,updated_at) VALUES (?,1,?,?)', args: [id, JSON.stringify({ ...save, gold: undefined }), new Date().toISOString()] });
+        await db.batch(statements, 'write');
+      }
       catch (error) { if (/UNIQUE|constraint/i.test(String(error))) return bad(res, 409, 'ACCOUNT_EXISTS', '이미 사용 중인 아이디입니다.'); throw error; }
-      return res.status(200).json({ accountId: id, loginId: action === 'guest' ? '게스트' : id, gender, job: save.job, guest: action === 'guest', token: tokenFor(id, env, sid), save, revision: 0, characterSlot: 1 });
+      return res.status(200).json({ accountId: id, loginId: action === 'guest' ? '게스트' : id, gender, job: save.job, guest: action === 'guest', token: tokenFor(id, env, sid), save, revision: 0, characterSlot: 1, ...(needsCharacter ? { needsCharacter: true } : {}) });
     }
     if (action === 'login') {
       const id = String(body.loginId ?? '').trim();
@@ -97,7 +118,7 @@ async function accountHandler(request, { env = runtimeEnv(), createDbClient, leg
       const latest = await account(db, row.id);
       const save = latest.save;
       const sid = await assignSession(db, row.id);
-      return res.status(200).json({ revision: latest.revision, accountId: row.id, loginId: row.id, gender: save.gender, job: jobOf(save.job), guest: false, token: tokenFor(row.id, env, sid), save, characterSlot: latest.slot, needsSetup: save.needsSetup === true, offlineSeconds: await pendingOfflineSeconds(db, row.id, latest.slot, latest.character_updated_at) });
+      return res.status(200).json({ revision: latest.revision, accountId: row.id, loginId: row.id, gender: save.gender, job: jobOf(save.job), guest: false, token: tokenFor(row.id, env, sid), save, characterSlot: latest.slot, needsSetup: save.needsSetup === true, offlineSeconds: await pendingOfflineSeconds(db, row.id, latest.slot, latest.character_updated_at), ...(isUncreated(save) ? { needsCharacter: true } : {}) });
     }
     const signed = tokenPayload(request, env);
     if (!signed) return bad(res, 401, 'INVALID_TOKEN', '인증이 만료되었습니다. 다시 로그인하세요.');
@@ -107,17 +128,20 @@ async function accountHandler(request, { env = runtimeEnv(), createDbClient, leg
     if (action === 'load') {
       // 소유권 테이블과 어긋난 유령 아이템을 내려보내지 않는다. 그대로 내려보내면 클라이언트의 다음 save가 영구 409가 된다.
       const save = await healStaleLoadItems(db, row);
-      return res.status(200).json({ revision: row.revision, accountId: row.id, loginId: row.password_hash === 'guest' ? '게스트' : row.id, gender: save.gender, job: jobOf(save.job), guest: row.password_hash === 'guest', token: req.headers.authorization.slice(7), save, characterSlot: row.slot, needsSetup: save.needsSetup === true, offlineSeconds: await pendingOfflineSeconds(db, row.id, row.slot, row.character_updated_at) });
+      return res.status(200).json({ revision: row.revision, accountId: row.id, loginId: row.password_hash === 'guest' ? '게스트' : row.id, gender: save.gender, job: jobOf(save.job), guest: row.password_hash === 'guest', token: req.headers.authorization.slice(7), save, characterSlot: row.slot, needsSetup: save.needsSetup === true, offlineSeconds: await pendingOfflineSeconds(db, row.id, row.slot, row.character_updated_at), ...(isUncreated(save) ? { needsCharacter: true } : {}) });
     }
     if (action === 'characters') {
       const characters = (await db.execute({ sql: `SELECT slot, save_json, json_extract(save_json,'$.name') AS name, json_extract(save_json,'$.gender') AS gender, json_extract(save_json,'$.job') AS job,
         json_extract(save_json,'$.level') AS level, json_extract(save_json,'$.floor') AS floor, updated_at FROM djrpg_characters WHERE account_id=? ORDER BY slot`, args: [id] })).rows;
+      // 자리표시자(가입 직후 아직 만들지 않은 슬롯)는 캐릭터로 세지 않는다 — 목록에서 빼면 그 슬롯이
+      // `+ 새 캐릭터 만들기`로 보여 그대로 생성 화면으로 이어진다(작업 216).
+      const created = characters.filter(character => !uncreatedIn(character.save_json));
       const entitlement = (await db.execute({ sql: "SELECT expires_at FROM djrpg_shop_entitlements WHERE account_id=? AND entitlement_key='all_idle_30d'", args: [id] })).rows[0];
       const claims = (await db.execute({ sql: "SELECT entitlement_key,quantity FROM djrpg_shop_entitlements WHERE account_id=? AND entitlement_key LIKE 'idle_claim_%'", args: [id] })).rows;
       const claimBySlot = new Map(claims.map(claim => [Number(String(claim.entitlement_key).slice('idle_claim_'.length)), Number(claim.quantity)]));
       const allIdleExpiresAt = Number(entitlement?.expires_at ?? 0);
       const now = Date.now();
-      return res.status(200).json({ characters: characters.map(({ save_json, updated_at, ...character }) => {
+      return res.status(200).json({ characters: created.map(({ save_json, updated_at, ...character }) => {
         const save = JSON.parse(save_json);
         return { ...character, job: jobOf(character.job), equipment: portraitEquipment(save), itemCount: (Array.isArray(save.bag) ? save.bag.length : 0) + Object.values(save.equipment ?? {}).filter(Boolean).length,
           idleSeconds: Number(character.slot) !== row.slot ? Math.min(43_200, (claimBySlot.get(Number(character.slot)) ?? 0) +
@@ -159,13 +183,20 @@ async function accountHandler(request, { env = runtimeEnv(), createDbClient, leg
         if (action === 'createCharacter') {
           const name = String(body.name ?? '').trim();
           if (!namePattern.test(name) || !['male', 'female'].includes(body.gender) || (body.job !== undefined && !jobs.includes(body.job))) fail(400, 'INVALID_CHARACTER', '이름은 한글·영문·숫자·밑줄 2~16자로 입력하고 성별과 직업을 선택하세요.');
-          const exists = (await tx.execute({ sql: 'SELECT slot FROM djrpg_characters WHERE account_id=? AND slot=?', args: [id, slot] })).rows[0];
-          if (exists) fail(409, 'SLOT_OCCUPIED', '이미 사용 중인 슬롯입니다. 목록을 새로 확인하세요.');
+          const exists = (await tx.execute({ sql: 'SELECT slot, save_json FROM djrpg_characters WHERE account_id=? AND slot=?', args: [id, slot] })).rows[0];
+          // 가입 직후의 자리표시자는 캐릭터가 아니다 — 그 슬롯은 새 캐릭터로 덮어쓴다(작업 216).
+          const placeholder = exists && uncreatedIn(exists.save_json);
+          if (exists && !placeholder) fail(409, 'SLOT_OCCUPIED', '이미 사용 중인 슬롯입니다. 목록을 새로 확인하세요.');
           const save = initialSave(id, body.gender, name, body.job);
-          await tx.execute({ sql: 'INSERT INTO djrpg_characters(account_id,slot,save_json,updated_at) VALUES (?,?,?,?)', args: [id, slot, JSON.stringify({ ...save, gold: undefined }), new Date().toISOString()] });
+          if (placeholder) {
+            // 계정 행의 자리표시자도 같은 세이브로 바꿔 둔다(자기 복구 경로가 자리표시자를 다시 만들지 않게).
+            await tx.execute({ sql: 'UPDATE djrpg_characters SET save_json=?, updated_at=? WHERE account_id=? AND slot=?', args: [JSON.stringify({ ...save, gold: undefined }), new Date().toISOString(), id, slot] });
+            await tx.execute({ sql: 'UPDATE djrpg_accounts SET save_json=?, updated_at=? WHERE id=?', args: [JSON.stringify(save), new Date().toISOString(), id] });
+          }
+          else await tx.execute({ sql: 'INSERT INTO djrpg_characters(account_id,slot,save_json,updated_at) VALUES (?,?,?,?)', args: [id, slot, JSON.stringify({ ...save, gold: undefined }), new Date().toISOString()] });
         } else {
-          const exists = (await tx.execute({ sql: 'SELECT slot,updated_at FROM djrpg_characters WHERE account_id=? AND slot=?', args: [id, slot] })).rows[0];
-          if (!exists) fail(404, 'EMPTY_SLOT', '빈 슬롯입니다. 캐릭터를 먼저 생성하세요.');
+          const exists = (await tx.execute({ sql: 'SELECT slot,updated_at,save_json FROM djrpg_characters WHERE account_id=? AND slot=?', args: [id, slot] })).rows[0];
+          if (!exists || uncreatedIn(exists.save_json)) fail(404, 'EMPTY_SLOT', '빈 슬롯입니다. 캐릭터를 먼저 생성하세요.');
           if (slot !== latest.slot) {
             const entitlement = (await tx.execute({ sql: "SELECT expires_at FROM djrpg_shop_entitlements WHERE account_id=? AND entitlement_key='all_idle_30d'", args: [id] })).rows[0];
             const now = Date.now();
@@ -215,6 +246,8 @@ async function accountHandler(request, { env = runtimeEnv(), createDbClient, leg
             return { ok: true, save: latest.save, revision: latest.revision, offlineSeconds: 0 };
           }
         }
+        // 아직 만들지 않은 자리표시자 캐릭터에는 세이브를 받지 않는다(작업 216) — 캐릭터 생성이 먼저다.
+        if (isUncreated(latest.save)) fail(409, 'CHARACTER_REQUIRED', '캐릭터를 먼저 만드세요.');
         assertRevision(latest, body.revision);
         const save = action === 'reset' ? { ...initialSave(id, latest.save.gender === 'female' ? 'female' : 'male', latest.save.name, latest.save.job), gold: latest.save.gold } : body.save;
         if (!save || typeof save !== 'object' || Array.isArray(save) || save.version !== 1 || JSON.stringify(save).length > 1_000_000) fail(400, 'INVALID_SAVE', '저장 데이터 형식이 올바르지 않습니다.');
