@@ -20,6 +20,7 @@ import { bagDetailPinned, createBagDetail, deferBagDismiss, dismissBagDetail, sh
 import { skillbookName } from '../skillbookBag';
 import { itemNameText, renderItemName } from '../itemName';
 import { slotAtlasStyle } from '../slotArtStyle';
+import { upgradeArrowMarkup } from '../upgradeBadge';
 import type { BagFilter, Interface } from '../interface';
 
 export const equipmentInfoSlots = ['weapon', 'helmet', 'armor', 'gloves', 'boots', 'offhand', 'necklace', 'belt', 'ring1', 'ring2'] as const;
@@ -80,8 +81,12 @@ export function renderInventory(this: Interface, dialog: HTMLElement): void {
     const visible = stacks.map(stack => stack.item);
     for (const { item, count: quantity } of stacks) {
       const book = isSkillBook(item), pouch = isPouch(item), name = book ? skillbookName(item) : itemNameText(item);
+      // 업그레이드 화살표(작업 241): 내 직업이 낄 수 있는 장비 중 지금 낀 것보다 좋은 것만.
+      // 스킬북·보물 주머니는 `upgradeArrowMarkup`이 판정에서 걸러 빈 문자열을 돌려준다.
+      const upgrade = upgradeArrowMarkup(save, item);
       const cell = document.createElement('button'); cell.className = `bag-item ${book ? 'skillbook-item' : pouch ? 'pouch-item' : item.rarity} ${this.selected === item.id ? 'selected' : ''}`;
-      cell.innerHTML = itemIcon.call(this, item.slot, item, 'item-icon');
+      if (upgrade) cell.classList.add('has-upgrade');
+      cell.innerHTML = itemIcon.call(this, item.slot, item, 'item-icon') + upgrade;
       cell.type = 'button'; cell.dataset.itemId = item.id;
       // 직업 전용 장비에는 `전사`/`궁수`/`마법사` 배지를 단다(작업 205) — 공용 방어구·장신구에는 붙지 않는다.
       const owner = itemJob(item);
@@ -94,7 +99,7 @@ export function renderInventory(this: Interface, dialog: HTMLElement): void {
         cell.append(badge);
       }
       const locked = isEquipment(item) && !!item.locked;
-      cell.setAttribute('aria-label', `${name}${book ? ` · ${quantity}권` : pouch ? ` · ${quantity}개` : ` · ${rarityNames[item.rarity]}`}${owner ? ` · ${jobNames[owner]} 전용` : ''}${locked ? ' · 잠긴 장비' : ''}`);
+      cell.setAttribute('aria-label', `${name}${book ? ` · ${quantity}권` : pouch ? ` · ${quantity}개` : ` · ${rarityNames[item.rarity]}`}${owner ? ` · ${jobNames[owner]} 전용` : ''}${locked ? ' · 잠긴 장비' : ''}${upgrade ? ' · 지금 장착한 장비보다 좋음' : ''}`);
       if (locked) {
         const badge = document.createElement('span'); badge.className = 'lock-icon is-locked bag-lock-badge';
         badge.setAttribute('aria-hidden', 'true'); cell.appendChild(badge);

@@ -23,7 +23,11 @@
 .market-field { display: flex; flex-direction: column; gap: 5px; color: #b7a38d; font-size: 10px; }
 .market-result { font-size: 11px; color: #cdb895; }
 .market-row { display: grid; grid-template-columns: 48px minmax(0,1fr) auto; align-items: center; gap: 8px; padding: 10px 8px; margin: 8px 0; border: 1px solid #65503e; background: linear-gradient(110deg,#302723,#211b20); border-radius: 5px; }
-.market-icon { display: block; width: 46px; height: 46px; flex: 0 0 46px; background-repeat: no-repeat; border: 1px solid #856841; border-radius: 5px; }
+.market-icon { display: block; position: relative; width: 46px; height: 46px; flex: 0 0 46px; background-repeat: no-repeat; border: 1px solid #856841; border-radius: 5px; }
+/* 업그레이드 화살표(작업 241) — 아이콘 상자 안에서 우측 상단에 붙는다(등록 칸의 잠금 배지는
+   카드 모서리라 서로 겹치지 않는다). */
+.market-icon .upgrade-arrow { font-size: 14px; }
+.market-pick .market-icon .upgrade-arrow, .market-recent-row .market-icon .upgrade-arrow { font-size: 12px; }
 .market-item-info { display: flex; min-width: 0; flex-direction: column; gap: 4px; }
 .market-item-info b { overflow-wrap: anywhere; font-size: 12px; }
 .market-item-info small { color: #bba58d; font-size: 9px; line-height: 1.5; }

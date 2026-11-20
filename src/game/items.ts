@@ -471,6 +471,30 @@ export function itemPower(item: Item): number {
   return (item.stats.attack ?? 0) * 3 + (item.stats.defense ?? 0) * 2 + (item.stats.health ?? 0) * .2 + (item.stats.crit ?? 0) * 2 + (item.stats.speed ?? 0) * 2 + rarityRanks[item.rarity] * 2 + extraOptionPower(item);
 }
 
+/**
+ * 이 장비가 **내 캐릭터에게 업그레이드인가**(작업 241, 사용자 확정 A안 `downloads/upgrade_arrow/opt_a.jpg`).
+ *
+ * 가방·공용창고·거래소 카드의 우측 상단 초록 화살표(`▲`) 판정을 이 한 곳에서만 한다. 세 조건을 모두
+ * 만족해야 `true`다.
+ *  ① 장비일 것 — 스킬북·보물 주머니는 장비가 아니므로 늘 `false`.
+ *  ② 내 직업이 입을 수 있는 것 — 타 직업 전용 무기(활·지팡이·대검)는 절대 업그레이드로 치지 않는다
+ *     (`canWield`, [작업 204]). 방어구·장신구는 세 직업 공용이라 늘 통과한다.
+ *  ③ 지금 낀 것보다 셀 것(`itemPower`) — 반지는 두 칸을 함께 보므로 **약한 쪽(또는 빈 칸)**과 견준다.
+ *     빈 반지 칸이 하나라도 있으면 무엇을 껴도 그 칸에 들어가 이득이다. 나머지 부위는 빈 칸이면 `true`,
+ *     같은 부위를 끼고 있으면 그 장비보다 강해야 `true`(같으면 `false` — 바꿔도 나아지지 않는다).
+ */
+export function isUpgradeForHero(save: Save, item: Item): boolean {
+  if (!isEquipment(item)) return false;
+  if (!canWield(item, jobOrDefault(save.job))) return false;
+  if (item.slot === 'ring1' || item.slot === 'ring2') {
+    const worn = [save.equipment.ring1, save.equipment.ring2].filter((ring): ring is EquipmentItem => !!ring && isEquipment(ring));
+    if (worn.length < 2) return true;
+    return itemPower(item) > Math.min(...worn.map(ring => itemPower(ring)));
+  }
+  const current = save.equipment[item.slot];
+  return !current || itemPower(item) > itemPower(current);
+}
+
 export function autoEquipBest(save: Save): number {
   let changed = 0;
   const job = jobOrDefault(save.job);

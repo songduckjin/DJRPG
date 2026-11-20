@@ -316,6 +316,13 @@
 
 .bag-item .bag-lock-badge { position: absolute; top: 1px; right: 1px; width: 18px; height: 18px; z-index: 1; pointer-events: none; }
 
+/* 업그레이드 화살표(작업 241, 확정 A안 `downloads/upgrade_arrow/opt_a.jpg`) — 내 직업이 낄 수 있는
+   장비 중 지금 낀 것보다 좋은 것의 **아이콘 상자 우측 상단**에 선명한 초록 화살표를 띄운다.
+   좌상단 타직업 배지·우하단 `+N`/잠금과 자리가 겹치지 않는다. 잠금 배지가 함께 있는 칸만
+   CSS가 잠금을 **우측 아래**로 내린다(화살표가 위에 남는다). */
+.upgrade-arrow { position: absolute; top: 2px; right: 2px; z-index: 3; display: block; color: #34eb6e; font-size: clamp(11px, 2.9vw, 14px); line-height: 1; font-weight: 900; text-shadow: -1px -1px 0 #0a1a0d, 1px -1px 0 #0a1a0d, -1px 1px 0 #0a1a0d, 1px 1px 0 #0a1a0d, 0 0 5px #34eb6ecc; pointer-events: none; }
+.bag-item.has-upgrade .bag-lock-badge { top: auto; bottom: 1px; }
+
 /* 가방 10열 칸은 모두 **1:1 정사각형**이다(작업 212 `#4936` — 스킬북 칸만 세로로 길쭉해
    다른 장비·주머니 칸과 줄이 어긋나 보이던 것을 없앴다). 이름은 다른 칸처럼 한 줄 말줄임이다. */
 .bag-item.skillbook-item { aspect-ratio: 1; min-height: 0; padding: 2px; gap: 1px; }
