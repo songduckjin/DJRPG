@@ -1,5 +1,6 @@
 import type { Gender, Save } from '../store';
 import { baseItemIndex, isBow, hasNoWeapon } from '../items';
+import { withMotionVersion } from './armors';
 
 /**
  * 착용 대검 10종 외형 파츠 (작업 156).
@@ -45,7 +46,12 @@ export type WeaponPose = {
  */
 export const WEAPON_POSES: Record<Gender, Record<string, WeaponPose>> = {
   male: {
-    idle0: { x: 197.2, y: 220.7, rot: 0 },
+    // 작업 222: 서기 자세를 '낮은 양손 그립'(승인 시안 twohand_drag_v1)으로 바꿔 가드 점을
+    // 몸 아래 중앙~왼쪽으로 내리고 각도도 새 칼날선(≈140°)에 맞췄다(맨몸 서기 시트 기준).
+    idle0: { x: 158, y: 226.5, rot: -2.2 },
+    // 갑옷 10종 서기 시트는 같은 낮은 그립이지만 손이 벨트 중앙(=맨몸보다 오른쪽)이라
+    // 앵커가 다르다 — 갑옷 시트 위에 파트를 얹을 때는 이 값을 쓴다.
+    idleArmor: { x: 203, y: 221.5, rot: -1.2 },
     walk0: { x: 192.2, y: 208.1, rot: 1.5 },
     walk1: { x: 192.8, y: 206.2, rot: 2 },
     walk2: { x: 196.7, y: 208.6, rot: 3.49 },
@@ -56,7 +62,9 @@ export const WEAPON_POSES: Record<Gender, Record<string, WeaponPose>> = {
     attack3: { x: 240, y: 272, rot: -99.9 }
   },
   female: {
-    idle0: { x: 198, y: 219.6, rot: -0.31 },
+    // 작업 222: 여성도 같은 낮은 양손 그립. 그립이 몸 중앙에 가까워 맨몸·갑옷이 같은 앵커다.
+    idle0: { x: 198.5, y: 220, rot: -0.2 },
+    idleArmor: { x: 198.5, y: 220, rot: -0.2 },
     walk0: { x: 201.3, y: 207.8, rot: 3.17 },
     walk1: { x: 200.5, y: 207.7, rot: 3.94 },
     walk2: { x: 198.3, y: 209.1, rot: 4.03 },
@@ -75,9 +83,17 @@ export function weaponPoseKey(motion: WeaponMotion, frame: number): string {
   return `${motion}${index}`;
 }
 
-/** 자세별 파츠 배치. 표에 없는 키는 idle 로 폴백한다. */
-export function weaponPose(gender: Gender, motion: WeaponMotion, frame: number): WeaponPose {
+/** 자세별 파츠 배치. 표에 없는 키는 idle 로 폴백한다.
+ *
+ * `armor` 는 이번 프레임에 쓰는 갑옷 인덱스(0~9, 없으면 -1)다. 서기(`idle`)는 맨몸 시트와
+ * 갑옷 시트의 손 위치가 달라 앵커가 둘이다(작업 222). 걷기·공격은 맨몸·갑옷이 같은 시트 계보라
+ * 구분하지 않는다.
+ */
+export function weaponPose(
+  gender: Gender, motion: WeaponMotion, frame: number, armor = -1
+): WeaponPose {
   const table = WEAPON_POSES[gender] ?? WEAPON_POSES.male;
+  if (motion === 'idle' && armor >= 0 && table.idleArmor) return table.idleArmor;
   return table[weaponPoseKey(motion, frame)] ?? table.idle0;
 }
 
@@ -119,7 +135,8 @@ export function usesSwordlessBody(save: Save): boolean {
  */
 export function swordlessBodyPath(gender: Gender, motion: WeaponMotion, headless = false): string {
   const sub = headless ? 'headless/' : '';
-  return `${NOWEAPON_ROOT}/${sub}warrior_${gender}_${motion}_v1.png`;
+  // 작업 222: 서기 시트를 낮은 양손 그립으로 다시 구워 `?v=2`(걷기·공격은 같은 파일 그대로).
+  return withMotionVersion(`${NOWEAPON_ROOT}/${sub}warrior_${gender}_${motion}_v1.png`, motion);
 }
 
 /** 갑옷 없이 쓰는 noweapon 시트 6장(서기·걷기·공격 × 전신·머리 없음). */

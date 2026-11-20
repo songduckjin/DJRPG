@@ -163,7 +163,9 @@ function syncHelmet(view: GameView, save: Save, motion: 'idle' | 'walk' | 'attac
  * 떨어지거나 길이가 줄지 않는다. 0번(기본 두손검)은 본체 시트에 그려져 있어 숨긴다.
  * 피격 틴트는 본체·투구와 같은 값을 쓴다.
  */
-function syncWeaponPart(view: GameView, save: Save, motion: 'idle' | 'walk' | 'attack', frame: number, tint: number): void {
+function syncWeaponPart(
+  view: GameView, save: Save, motion: 'idle' | 'walk' | 'attack', frame: number, tint: number, armor = -1
+): void {
   const index = weaponIndexFor(save);
   const shown = view.heroWeapon;
   if (index < 1) {
@@ -176,7 +178,7 @@ function syncWeaponPart(view: GameView, save: Save, motion: 'idle' | 'walk' | 'a
     if (shown) shown.visible = false;
     return;
   }
-  const pose = weaponPose(save.gender, motion, frame);
+  const pose = weaponPose(save.gender, motion, frame, armor);
   const layerX = pose.x - view.hero.texture.width * view.hero.anchor.x;
   const layerY = pose.y - view.hero.texture.height * view.hero.anchor.y;
   let sprite = shown;
@@ -658,7 +660,7 @@ export function drawHero(this: GameView, world: World, x: number, y: number, tim
       if (shownGear) { this.heroLayer.removeChild(shownGear.sprite); shownGear.sprite.destroy(); this.heroGear.delete('weapon'); }
     } else {
       syncHelmet(this, save, animation, animation === 'walk' ? walkingFrame : animatedAttack ? Math.max(0, attackFrame) : 0, heroTint);
-      syncWeaponPart(this, save, animation, poseFrame, heroTint);
+      syncWeaponPart(this, save, animation, poseFrame, heroTint, armor);
       const withoutEquippedWeapon = { ...save, equipment: { ...save.equipment, weapon: undefined } };
       syncWeapon(this, withoutEquippedWeapon, texture, art, true, socketMotion(animation), walkingFrame);
     }
