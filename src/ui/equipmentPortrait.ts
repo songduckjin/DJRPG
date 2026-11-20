@@ -3,10 +3,11 @@ import {
   type CostumeLayerPlan
 } from '../game/render/costumeHero';
 import type { Save } from '../game/store';
-import { baseItemIndex, isArcher, usesBaseSheetOnly } from '../game/items';
+import { baseItemIndex, isArcher, isMage, usesBaseSheetOnly } from '../game/items';
 import { jobOrDefault } from '../game/skills';
 import { helmetArtFor, helmetArtPath, helmetIdlePlacement } from '../game/render/helmets';
 import { armorIndexFor, armorSheetPath } from '../game/render/armors';
+import { mageRobeIndexFor, robeSheetPath } from '../game/render/robes';
 import { WEAPON_GUARD, weaponIndexFor, weaponPartPath, weaponPose, swordlessBodyPath } from '../game/render/weapons';
 import { BOW_GRIP, bowIndexFor, bowPartPath, bowPose, bowlessBodyPath } from '../game/render/bows';
 
@@ -21,12 +22,19 @@ export function equipmentFallbackPortrait(save: Save): string {
   // 작업 159: 궁수 시트를 갈면서 `/assets/*` immutable 캐시를 피하려고 궁수 URL에 `?v=2`를 붙인다
   // (render.ts·charactersModal.ts와 같은 규칙).
   if (usesBaseSheetOnly(save)) {
-    // 작업 160: 궁수는 1번 이상 활을 차면 기본 활대를 지운 서기 시트 위에 활 파츠를 얹는다.
-    // `nobow/` 시트는 이번에 새로 만든 파일이라 쿼리 없이 그대로 캐시된다.
+    // 작업 159: 궁수 시트를 갈면서 `/assets/*` immutable 캐시를 피해 URL에 `?v=2`를 붙인다(render.ts·charactersModal.ts와 같은 규칙).
+    // 작업 160: 궁수는 1번 이상 활을 차면 기본 활대를 지운 서기 시트(`nobow/`) 위에 활 파츠를 얹는다.
     if (isArcher(save)) {
       return bowIndexFor(save) >= 1
         ? bowlessBodyPath(save.gender, 'idle')
         : `/assets/pilot-25d/archer_${save.gender}_idle_v1.png?v=2`;
+    }
+    if (isMage(save)) {
+      // 작업 199: 착용 갑옷 1~9번이면 그 티어 로브 서기 시트, 0번·미착용은 스타터 로브 시트.
+      const robe = mageRobeIndexFor(save);
+      const path = robeSheetPath(save.gender, robe, 'idle');
+      if (path) return path;
+      return `/assets/pilot-25d/mage_${save.gender}_idle_v1.png?v=2`;
     }
     return `/assets/pilot-25d/${jobOrDefault(save.job)}_${save.gender}_idle_v1.png`;
   }
@@ -135,7 +143,10 @@ export function equipmentPortraitPlan(save: Save): EquipmentPortraitPlan {
   return {
     mode: 'fallback', base,
     key: usesBaseSheetOnly(save)
-      ? (isArcher(save) ? `archer:${save.gender}:${bow ? bow.path : '-'}` : `${jobOrDefault(save.job)}:${save.gender}`)
+      // 마법사만 로브 티어를 키에 넣는다(궁수는 활 파츠, 그 외는 직업:성별).
+      ? (isArcher(save)
+        ? `archer:${save.gender}:${bow ? bow.path : '-'}`
+        : isMage(save) ? `mage:${save.gender}:r${mageRobeIndexFor(save)}` : `${jobOrDefault(save.job)}:${save.gender}`)
       : `pilot:${save.gender}:a${armorIndexFor(save)}:${helmet ? helmet.path : '-'}:${weapon ? weapon.path : '-'}`,
     gender: save.gender, layers: [], helmet, weapon, bow
   };

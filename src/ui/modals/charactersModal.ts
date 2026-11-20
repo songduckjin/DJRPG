@@ -12,7 +12,7 @@ function characterImage(character: CharacterSummary): string {
   const job = jobOrDefault(character.job);
   // 작업 159: 궁수 시트를 갈면서 `/assets/*` immutable 캐시를 피해 `?v=2`를 쓴다(render.ts·equipmentPortrait.ts와 같은 규칙).
   if (job === 'archer') return `/assets/pilot-25d/archer_${gender}_idle_v1.png?v=2`;
-  if (job === 'mage') return `/assets/pilot-25d/mage_${gender}_idle_v1.png`;
+  if (job === 'mage') return `/assets/pilot-25d/mage_${gender}_idle_v1.png?v=2`;
   return `/assets/warrior_${gender}_base.png`;
 }
 type CharacterList = { characters: CharacterSummary[]; activeSlot: number; maxSlots: number; revision: number };
