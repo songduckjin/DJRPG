@@ -1,3 +1,15 @@
+## 2026-11-21 · songduckjin 작업 241 — 가방·공용창고·거래소 업그레이드 초록 화살표(`▲`)
+
+- **요청**: "내가 장착한템보다 좋은템들은 초록색 화살표 위로 표시 시안보여줘" → A안(`downloads/upgrade_arrow/opt_a.jpg`) 확정. 가방·공용창고·거래소 **전부**에서, 내 직업이 낄 수 있는 장비 중 지금 낀 것보다 좋은 것의 **아이콘 상자 우측 상단**에 초록 화살표.
+- **판정은 한 곳**(`src/game/items.ts` `isUpgradeForHero(save,item)`): ① `isEquipment`(스킬북·보물 주머니 제외) ② `canWield(item, jobOrDefault(save.job))` — 타 직업 전용 무기(활·지팡이·대검)는 절대 표시하지 않는다(방어구·장신구는 세 직업 공용) ③ `itemPower` 비교 — **반지는 두 칸 중 약한 쪽(또는 빈 칸)**과 견주고, 나머지 부위는 빈 칸이면 `true`, 같은 부위를 끼고 있으면 더 강해야 `true`(같으면 바꿔도 이득이 없어 표시 안 함). `itemPower`가 [작업 238]의 추가옵션 몫(`extraOptionPower`)까지 더하므로 옵션이 좋은 템도 제대로 올라온다.
+- **그림도 한 곳**(`src/ui/upgradeBadge.ts` — `upgradeArrowMarkup`·`upgradeArrowNode`·`appendUpgradeArrow`): 색 `#34eb6e`, 어두운 `text-shadow` 외곽선, `position:absolute; top:2px; right:2px`, `pointer-events:none`. 좌상단 타직업 배지·우하단 `+N`과 겹치지 않게 우측 상단만 쓰고, 잠금 배지가 같이 있는 칸은 `.bag-item.has-upgrade .bag-lock-badge`가 잠금만 아래로 내린다.
+- **적용 3곳**: ① 내 정보 가방(`equipModal.ts` `renderInventory`) ② 공용창고(`warehouseModal.ts` `paintGrid` — **창고·내 가방 양쪽**, 접속 캐릭터 기준) ③ 거래소(`marketModal.ts` `icon(item, save?)` — 판매 중·거래 완료·내 거래 목록, 수령함, 판매 등록 칸. `최근 거래` 탭과 구매 비교 패널은 이미 성사된 기록/비교표라 제외).
+- **검증**: `npx tsc --noEmit` 통과, 신규 `tests/upgrade-badge.test.mjs` **8/8**(빈 슬롯·같은/약한/강한 장비·타직업 무기 3종 제외·스킬북/주머니 제외·반지 두 칸 약한 쪽 비교·빈 반지 칸·등급 가중·세 화면 배선·CSS 좌표), 전체 `node --test tests/*.test.mjs` **992건 중 989 통과**(실패 3건은 `06bbf92`에서도 동일한 기존 건 — `costume-field-render` 2·`skillbook-server` 1), `npm run build` 통과(이 컨테이너는 RAM 3.5GB·데이터 상한 2GB라 `NODE_OPTIONS=--max-old-space-size=1400`이 필요했다).
+- **실브라우저 검수**: 브랜치 프리뷰에 검수용 페이지를 잠시 올려 **실제 빌드 번들·실제 CSS**로 390×844에서 네 화면을 캡처했다(`/api/*`만 가짜 응답 — 계정·가방 8종·창고 4종·거래소 5건·수령함 2건). 업그레이드 3종(심연의 뿔투구·불멸의 각반·군주의 반지)에만 화살표가 떴고 **같은 방어력 투구·더 약한 장비·궁수/마법사 전용 무기·스킬북에는 뜨지 않았다**. 창고(패왕의 성검·미스릴 아머)·거래소(용살자의 대검·성기사 풀플레이트·낡은 부츠=빈 신발 칸)·수령함(불멸의 왕관·천 장갑=빈 장갑 칸)도 같았다. 검수 페이지는 확인 뒤 삭제(레포에 남기지 않음). 검수 이미지 `downloads/djrpg_upgrade_arrow_v1.png`.
+- **번호 조정**: 등록 시점 최신은 236이었으나 그 사이 237(사과 보상 우편)·238(추가옵션)·239(다캐릭터 거래소)·240(스킬 추천 장착)이 먼저 올라와 **241**로 정리했다(이 때문에 PR #239는 닫고 #241로 다시 올렸고, 브랜치 이름만 `feat/240-upgrade-arrow`로 남아 있다).
+- **머지·배포**: [PR #241](https://github.com/songduckjin/DJRPG/pull/241) 스쿼시 `caccb0daa02c`. 운영 `djrpg.pages.dev` `version.json` `caccb0daa02c`(`builtAt 2026-11-20T18:24:23.070Z`)·루트 200, 배포 번들 `assets/index-DpKhMUkD.js`에 `.upgrade-arrow`, `assets/index-B8qoA91C.css`에 `.upgrade-arrow{…top:2px;right:2px…color:#34eb6e…}`·`.market-icon{…position:relative…}` 포함 실측.
+- **남은 것**: 사용자 실기 확인(가방·공용창고·거래소에서 실제 사냥 템에 화살표가 뜨는지, 크기·가독성).
+
 ## 2026-11-21 · songduckjin 작업 240 — 스킬창 `추천 자동 장착` + 패시브 스킬 노출 개선
 
 - **요청**: 사용자 제보 "패시브 스킬 스킬 창에 안 나오는 현상 있는거같아" + 요청 "보유 스킬 추천 자동 장착". 두 가지를 한 작업으로 처리했다.
