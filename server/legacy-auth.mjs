@@ -11,7 +11,7 @@ export async function verifyLegacyViaVercel(id, password, env, fetchImpl = fetch
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'login', loginId: id, password }),
       redirect: 'error',
-      cache: 'no-store',
+      // Cloudflare Workers `fetch()`는 `cache` 옵션을 거부한다 — 넣으면 검증이 통째로 503이 됐다(작업 224).
       signal: AbortSignal.timeout(8000)
     });
   } catch { fail(503, 'DB_UNAVAILABLE', '서버 연결이 불안정합니다. 잠시 후 다시 시도하세요.'); }

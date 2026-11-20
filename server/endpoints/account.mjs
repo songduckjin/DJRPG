@@ -108,9 +108,20 @@ async function accountHandler(request, { env = runtimeEnv(), createDbClient, leg
       if (!namePattern.test(id) || typeof body.password !== 'string') return bad(res, 400, 'INVALID_ACCOUNT', '아이디와 비밀번호를 입력하세요.');
       const row = (await db.execute({ sql: 'SELECT id,password_hash,save_json,updated_at FROM djrpg_accounts WHERE id = ?', args: [id] })).rows[0];
       const legacy = row && needsPasswordUpgrade(row.password_hash);
-      const valid = row && (legacy && legacyVerifier
-        ? await legacyVerifier(row.id, body.password, env)
-        : await verifyPassword(body.password, row.password_hash));
+      // 작업 224(`#6466`·`#6486`·`#6510`): 구형 `salt:hex` 해시는 **서버 안에서** 직접 검증한다.
+      // 예전에는 외부 Vercel(`legacyVerifier`)에 먼저 물었는데, Workers의 `fetch`가 `cache:'no-store'`를
+      // 거부해 틀린 비밀번호도 503이 됐다. 이제 서버 scrypt(순수 JS 폴백 포함)로 결정하고,
+      // 내부 검증이 아예 돌지 않는 런타임에서만 외부 검증을 마지막 수단으로 쓴다.
+      let valid = false;
+      if (row) {
+        if (!legacy) valid = await verifyPassword(body.password, row.password_hash);
+        else {
+          let local;
+          try { local = await verifyPassword(body.password, row.password_hash); }
+          catch { local = undefined; }
+          valid = local !== undefined ? local : legacyVerifier ? await legacyVerifier(row.id, body.password, env) : false;
+        }
+      }
       if (!valid) return bad(res, 401, 'INVALID_CREDENTIALS', '아이디 또는 비밀번호가 올바르지 않습니다.');
       if (needsPasswordUpgrade(row.password_hash)) {
         const upgraded = await hashPassword(body.password);

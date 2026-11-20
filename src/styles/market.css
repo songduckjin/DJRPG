@@ -3,9 +3,9 @@
 .market-hero small { color: #b69768; font: 8px Cinzel, serif; letter-spacing: 3px; }
 .market-hero p { margin: 7px 0; color: #efdfbd; font: 700 23px Cinzel, 'Noto Sans KR', serif; }
 .market-hero span { color: #e6bb6c; font-size: 12px; }
-.market-tabs { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 3px; position: sticky; top: -12px; z-index: 1; background: #261e21; padding: 6px 0; }
+.market-tabs { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 3px; position: sticky; top: -12px; z-index: 1; background: #261e21; padding: 6px 0; }
 .market-modal button { border: 1px solid #80613e; background: linear-gradient(#49352b, #2b2021); color: #ecd6ad; padding: 8px; font-size: 11px; border-radius: 4px; }
-.market-tabs button { padding: 9px 1px; white-space: nowrap; font-size: 10px; }
+.market-tabs button { padding: 9px 0; white-space: nowrap; font-size: 9.5px; }
 .market-tabs .active { border-color: #e2b66d; background: #715032; color: #fff0ce; }
 .market-modal button:disabled { opacity: .45; cursor: default; }
 .market-modal button:focus-visible, .market-modal input:focus-visible, .market-modal select:focus-visible { outline: 2px solid #e5ba76; outline-offset: 2px; }
@@ -84,3 +84,15 @@
 .market-job-only { display: flex; align-items: center; gap: 6px; margin: 6px 0 2px; padding: 5px 7px; border: 1px solid #80613e; border-radius: 4px; background: #2a2124; color: #e3cba4; font-size: 11px; }
 .market-job-only input { width: 15px; height: 15px; accent-color: #d8a860; }
 .market-job-warning { margin: 4px 0 8px; padding: 5px 8px; border-left: 2px solid #e2685c; background: #3a232166; color: #ffb9a6; font-size: 11px; font-weight: 700; }
+
+/* 최근 거래 탭(작업 224 `#6313`) — 성사된 거래를 아이템명·등급·가격·거래 시각으로 압축해 보여준다. */
+.market-recent-summary { margin: 10px 0 2px; color: #cdb895; font-size: 11px; }
+.market-recent-list { display: flex; flex-direction: column; gap: 6px; }
+.market-recent-row { display: grid; grid-template-columns: 40px minmax(0,1fr) auto; align-items: center; gap: 8px; padding: 8px; border: 1px solid #574435; border-radius: 5px; background: linear-gradient(100deg,#2b2320,#1d181c); }
+.market-recent-row .market-icon { width: 38px; height: 38px; flex-basis: 38px; }
+.market-recent-meta { display: flex; flex-direction: column; align-items: end; gap: 3px; }
+.market-recent-meta strong { color: #f2cc7f; font-size: 12px; }
+.market-recent-time { color: #ae9e8a; font-size: 9px; white-space: nowrap; }
+.market-recent-owner { color: #98d7ac; font-size: 9px; white-space: nowrap; }
+/* 판매 등록 화면의 현재 최소 등록 금액 안내(작업 224) */
+.market-min-price { margin: 6px 0 0; color: #e4c28d; font-size: 10px; line-height: 1.6; }

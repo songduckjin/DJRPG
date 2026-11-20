@@ -240,13 +240,17 @@ const milestones = [
   ['floor','탐험','최고 도달 층',[5,10,15,20],save=>save.maxFloor??save.floor],
   ['collection','수집','장비 도감 수집',[10,50,100,200,300,450,570],save=>collectionCount(save)],
   ['skills','스킬','스킬 강화 횟수',[5,15,30,50,100],save=>skillUpgradeCount(save)],
-  ['rank','스킬','최고 스킬 레벨',[5,10,15,20,25,30],save=>Math.max(0,...Object.values(save.skillLevels??{}))]
+  ['rank','스킬','최고 스킬 레벨',[5,10,15,20,25,30],save=>Math.max(0,...Object.values(save.skillLevels??{}))],
+  // 거래소 거래 완료(작업 224, 사용자 확정 `#6289`·`#6294`) — 등록·취소는 세지 않고 **실제로 성사된 거래**만
+  // 구매·판매 양쪽에서 1씩 센다. 횟수는 계정 단위 거래 장부(`djrpg_journey.state_json.marketTrades`)에
+  // `server/market.mjs` buy가 직접 올리므로 세션 상태를 받아 읽는다.
+  ['market','거래','거래소 거래 완료',[1,5,15,30,50,100],(_save,state)=>state?.marketTrades??0]
 ];
 export function journeyView(state, save, now = Date.now()) {
   const timed = (kind, tasks) => {
     const rows=tasks.map(task=>({...task,current:Math.min(task.target,Math.floor(task.metric==='login'?1:(state[kind][task.metric]??0))),claimed:state[kind].claims.includes(task.id)}));
     return [...rows,{...completionRewards[kind],target:rows.length,current:rows.filter(task=>task.current>=task.target).length,claimed:state[kind].claims.includes('completion')}];
   };
-  const achievements = milestones.flatMap(([key,category,name,targets,get])=>targets.map((target,index)=>({id:`${key}-${target}`,category,name:`${name} ${target.toLocaleString('ko-KR')}`,target,current:Math.min(target,Math.floor(get(save)??0)),...achievementReward(index,targets.length),claimed:state.achievements.includes(`${key}-${target}`)})));
+  const achievements = milestones.flatMap(([key,category,name,targets,get])=>targets.map((target,index)=>({id:`${key}-${target}`,category,name:`${name} ${target.toLocaleString('ko-KR')}`,target,current:Math.min(target,Math.floor(get(save,state)??0)),...achievementReward(index,targets.length),claimed:state.achievements.includes(`${key}-${target}`)})));
   return {daily:timed('daily',dailyTasks),weekly:timed('weekly',weeklyTasks),achievements,mail:state.mail.map(mail=>({...mail,expired:mail.expiresAt!==null&&mail.expiresAt<=now})),periods:periods(now),now};
 }

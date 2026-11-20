@@ -1,11 +1,35 @@
 import { createHmac, randomBytes, scrypt as scryptCallback, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
 import { runtimeEnv } from './env.mjs';
+import { scryptJs } from './scrypt-js.mjs';
 
-const scrypt = promisify(scryptCallback);
+// Cloudflare Workers의 `node:crypto`에는 `scrypt`가 없거나 호출이 예외로 끝난다(구형 계정 로그인 503의 원인).
+// 그런 런타임에서는 `server/scrypt-js.mjs`(순수 JS)로 같은 값을 계산한다.
+let nativeScrypt = null;
+try { nativeScrypt = promisify(scryptCallback); } catch { nativeScrypt = null; }
+/** 구형 비밀번호(`salt:hex`)의 scrypt 파라미터 — 예전 Vercel 서버가 쓰던 기본값 그대로다. */
+export const legacyPasswordCost = { N: 16384, r: 8, p: 1 };
 const passwordCost = { N: 2048, r: 8, p: 1 };
 const hexSalt = /^[a-f\d]{32}$/;
 const hexHash = /^[a-f\d]{128}$/;
+/** scrypt 64바이트 — 네이티브가 안 되면 순수 JS로 폴백한다. `native`는 테스트가 주입한다. */
+export async function deriveScrypt(password, salt, keyLen, options, native = nativeScrypt) {
+  if (native) {
+    try {
+      const result = await native(password, salt, keyLen, options);
+      if (result && result.length === keyLen) return new Uint8Array(result);
+    } catch { /* Workers: scrypt 미지원 → 아래 순수 JS 폴백 */ }
+  }
+  return scryptJs(password, salt, keyLen, options ?? legacyPasswordCost);
+}
+const sameBytes = (a, b) => {
+  if (!a || !b || a.length !== b.length) return false;
+  let diff = 0;
+  for (let index = 0; index < a.length; index++) diff |= a[index] ^ b[index];
+  return diff === 0;
+};
+const bytesFromHex = hex => Uint8Array.from(String(hex).match(/../g) ?? [], value => parseInt(value, 16));
+const toHex = bytes => Array.from(bytes, value => value.toString(16).padStart(2, '0')).join('');
 export const sign = (value, env = runtimeEnv()) => createHmac('sha256', env.TURSO_AUTH_TOKEN).update(value).digest('base64url');
 // `sid`는 마지막 로그인에서 발급한 세션 번호다. 두 번째 기기 로그인이 덮어쓰면 이 토큰은 즉시 무효가 된다.
 export const tokenFor = (id, env = runtimeEnv(), sid) => {
@@ -32,7 +56,7 @@ export function tokenPayload(request, env = runtimeEnv()) {
 export const tokenId = (request, env = runtimeEnv()) => tokenPayload(request, env)?.id ?? null;
 export async function hashPassword(password) {
   const salt = randomBytes(16).toString('hex');
-  const hash = (await scrypt(password, salt, 64, passwordCost)).toString('hex');
+  const hash = toHex(await deriveScrypt(password, salt, 64, passwordCost));
   return `scrypt$${passwordCost.N}$${passwordCost.r}$${passwordCost.p}$${salt}$${hash}`;
 }
 export function needsPasswordUpgrade(stored) {
@@ -43,6 +67,7 @@ export async function verifyPassword(password, stored) {
   let salt, hex, options;
   if (needsPasswordUpgrade(stored)) {
     [salt, hex] = String(stored).split(':');
+    options = legacyPasswordCost;
   } else {
     const [algorithm, n, r, p, storedSalt, storedHash, extra] = String(stored).split('$');
     const N = Number(n), blockSize = Number(r), parallelism = Number(p);
@@ -52,6 +77,6 @@ export async function verifyPassword(password, stored) {
     hex = storedHash;
     options = { N, r: blockSize, p: parallelism };
   }
-  const actual = await scrypt(password, salt, 64, options);
-  return timingSafeEqual(actual, Buffer.from(hex, 'hex'));
+  const actual = await deriveScrypt(password, salt, 64, options);
+  return sameBytes(actual, bytesFromHex(hex));
 }
