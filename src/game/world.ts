@@ -335,7 +335,9 @@ export class World {
       const from = enemy.boss ? clampArenaPoint(enemy.x, enemy.y) : undefined;
       this.coins.push({ x: point.x, y: point.y, age: 0, gold: amount, from });
     });
-    const gained = addExperience(this.save, enemy.boss ? 45 : 8 * (enemy.elite ? ELITE_REWARD_SCALE : 1));
+    // 경험치(작업 207, 사용자 확정): 일반 `9 + 층`, 정예 2배, 보스 6배 — 1층 10/20/60 · 20층 29/58/174.
+    const baseExp = 9 + this.save.floor;
+    const gained = addExperience(this.save, enemy.boss ? baseExp * 6 : baseExp * (enemy.elite ? ELITE_REWARD_SCALE : 1));
     if (gained) { this.player.hp = this.save.health; this.onMessage(`레벨 ${this.save.level} 달성!`); }
     // The gold is the boss's whole haul — ten heaps and nothing handed out on top (작업 195). Items
     // still come from the one chance roll every kill makes below, against the same field drop table

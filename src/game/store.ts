@@ -61,7 +61,8 @@ export function clearLegacySave(key: string): void {
 function isRecord(value: unknown): value is Record<string, unknown> { return typeof value === 'object' && value !== null && !Array.isArray(value); }
 function safeNumber(value: unknown, fallback: number, min = 0): number { return typeof value === 'number' && Number.isFinite(value) && value >= min ? value : fallback; }
 
-export function expToNext(level: number): number { return Math.round(2400 * Math.pow(level, 2.2)); }
+/** 다음 레벨까지 필요한 경험치(작업 207, 사용자 확정 곡선 `1400 × level²`) — 1~5층 Lv.3~4 · 10층 Lv.6 · 20층 Lv.11~12 페이스. */
+export function expToNext(level: number): number { return Math.round(1400 * Math.pow(level, 2)); }
 /** 그 층에서 보스가 나오기까지 잡아야 하는 몬스터 수(작업 204). 1층 150마리에서 완만히 가팔라져
  *  20층 3,505마리 — 5층 472 · 10층 1,163 · 15층 2,174. 층이 오를수록 사냥 한 층이 길어진다. */
 export function floorKillTarget(floor: number): number {

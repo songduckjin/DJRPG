@@ -1,12 +1,13 @@
 /**
  * 무작위 보물 주머니의 그림 (작업 207).
  *
- * 사용자가 아직 **주머니 아이콘·일러스트 시안을 고르지 않았으므로**, 지금은 이미지 파일 없이 CSS로
- * 그린 주머니를 쓴다. 확정 이미지가 오면 아래 두 경로만 채우면 가방 칸·상세·개봉 창이 한꺼번에
- * 그 이미지로 바뀐다(크기·자리 규칙은 그대로).
+ * 사용자가 **1번 클래식 가죽 보물 주머니**를 확정했다(`downloads/pouch-option1-leather.png`).
+ * 그 그림을 `public/assets/icons/treasure_pouch.png`로 넣고 아래 두 경로로 연결한다 — 가방 칸·상세·
+ * 개봉 창이 같은 파일을 쓴다. 배경(짙은 갈흑색 #171315)은 게임 UI의 어두운 배경과 거의 같아 그대로 쓴다.
+ * (배경 제거·크롭 없이 해상도만 512px로 줄였다. 원본은 사용자 `downloads/`에 그대로 있다.)
  */
-export const POUCH_ART_URL = '';
-export const POUCH_ICON_URL = '';
+export const POUCH_ART_URL = '/assets/icons/treasure_pouch.png';
+export const POUCH_ICON_URL = '/assets/icons/treasure_pouch.png';
 
 /** 가방 칸·상세가 쓰는 작은 아이콘 마크업(문자열). */
 export function pouchIconMarkup(className = 'item-icon'): string {
@@ -18,7 +19,7 @@ export function pouchIconMarkup(className = 'item-icon'): string {
 export function pouchArt(className = 'pouch-art'): HTMLElement {
   if (POUCH_ART_URL) {
     const image = document.createElement('img');
-    image.className = className; image.src = POUCH_ART_URL; image.alt = '';
+    image.className = className; image.src = POUCH_ART_URL; image.alt = ''; image.draggable = false;
     return image;
   }
   const art = document.createElement('span');

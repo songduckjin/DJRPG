@@ -55,13 +55,16 @@
 
 ## 4. 개봉 — 확률·화면 (`src/game/pouch.ts`, `src/ui/modals/pouchModal.ts`, `ui/pouchArt.ts`)
 
-### 4.1 확률표 (사용자 확정 · 두 단계 추첨)
-1. 분류: **금화 55% · 장비 30% · 스킬북 15%**
+### 4.1 확률표 (사용자 최종 확정 · 두 단계 추첨)
+1. 분류: **금화 55% · 장비 40% · 스킬북 5%**
 2. 세부
    - 금화: `1,500G` 55% · `3,000G` 32% · `5,000G` 13% → `save.gold`
    - 장비: `일반` 34% · `매직` 30% · `레어` 20% · `에픽` 11% · `유니크` 4% · `레전드` 1%(**최고 층 기준 · 3직업 균등**)
      → `rollEquipment(save.maxFloor, 등급)` — 슬롯·티어·스탯·`+단계` 규칙은 `rollItem`과 같은 함수
    - 스킬북: 세 직업 모든 스킬북 같은 확률(100%) → `rollSkillBook(save.maxFloor)`
+3. **전체 확률 10항목**(분류 × 세부, 합 100.00%) — `POUCH_OVERALL_RATES`:
+   `1,500G` 30.25% · `3,000G` 17.60% · `일반 장비` 13.60% · `매직 장비` 12.00% · `레어 장비` 8.00% ·
+   `5,000G` 7.15% · `무작위 스킬북 1권` 5.00% · `에픽 장비` 4.40% · `유니크 장비` 1.60% · `레전드 장비` 0.40%
 - `rollItem`을 `rollRarity`(등급 뽑기) + `rollEquipment`(생성)로 나눠 **기존 드롭 확률이 바뀌지 않게** 했다
   (`item-drop-jobs`·`balance-196` 회귀 통과).
 
@@ -72,20 +75,29 @@
 
 ### 4.3 화면
 - 가방에서 주머니를 고르면 상세에 **`[열기]`** → 장비창 위에 큰 개봉 창(분해 보호 팝업과 같은 한 겹).
-- 창 **왼쪽 위 `[확률표]`** → 아래에 **3개 분류 박스** 확률표. 장비 6등급 줄은 인게임 등급 색
-  (`.pouch-rate-row.rarity-common` … `.rarity-legendary`). 스킬북 박스는 `전 직업 모든 스킬북 100%`.
-- `[열기]` → 주머니가 흔들리며 열리고(`@keyframes pouch-shake`) 결과 카드(아이콘 + 등급 색 이름 / 금화)가 창 안에 뜬다.
-- 그림은 `src/ui/pouchArt.ts`의 **CSS 플레이스홀더**(`POUCH_ART_URL`·`POUCH_ICON_URL` 비움). 확정 이미지가 오면
-  두 상수만 채우면 가방 칸·상세·개봉 창이 함께 바뀐다(이미지 크기·자리 규칙은 CSS가 이미 잡고 있다).
+- 창 **왼쪽 위 `[확률표]`** → 아래에 **전체 확률 10줄 표**(높은 확률 순, 확률은 소수 둘째 자리 `30.25%`).
+  장비 등급 줄은 인게임 등급 색(`.pouch-rate-row.rarity-common` … `.rarity-legendary`), 아래 요약 한 줄:
+  `합계 100% · 장비·스킬북은 3직업 균등`.
+- `[열기]` → **개봉 연출 0.95초**(사용자 요청 `#3933`): 주머니가 흔들리다 위로 벌어지고(0~0.55초,
+  `@keyframes pouch-open`) → 입구에서 당첨 색(장비는 그 등급 색, 나머지는 황금빛) 빛이 터져 퍼지고(0.25~0.9초,
+  `.pouch-glow` screen 블렌드) → 결과 카드가 짠 하고 떠오른다(0.6초~, `@keyframes pouch-reveal`).
+  세이브 차감은 누르는 즉시 **한 번**, 연출 중에는 버튼이 잠겨 중복으로 까지지 않는다.
+  `prefers-reduced-motion`이면 애니메이션 없이 결과가 바로 보인다.
+- 그림은 사용자가 고른 **1번 클래식 가죽 보물 주머니**(확정 `#3921`) — `public/assets/icons/treasure_pouch.png`
+  (원본 `downloads/pouch-option1-leather.png` 1254×1254를 512px로만 줄임, 배경·구도 무손실)로
+  `POUCH_ART_URL`·`POUCH_ICON_URL`이 연결되어 가방 칸·상세·개봉 창이 같은 파일을 쓴다.
 
 ## 5. 검증
 
 - `npx tsc --noEmit` 통과 · `npx vite build` 통과(`dist/assets/index-DGqNlkJG.js`에 `무작위 보물 주머니`, CSS에 `.pouch-window`·`.pouch-rates`·`.pouch-rate-row`).
-- 신규 `tests/treasure-pouch.test.mjs` **11/11** — 확률 합계 100%(분류·금화·등급) / 2만 회 분포 / 확률표 3박스 + 6등급 색 /
+- 신규 `tests/treasure-pouch.test.mjs` **12/12** — 확률 합계 100%(분류 55/40/5·금화·등급·**전체 10항목 내림차순**) / 2만 회 분포 / 확률표 10줄 표 + 등급 색·요약 렌더 /
   개봉 시 소모·지급·연속 300회 / 가방 가득이면 미소모 / 자동·일괄 분해·자동 장착·경매장·도감 제외 / `parseSave` 보존 /
   가방 `×N` + 상세 `[열기]` / 개봉 창 `[확률표]`·`[열기]`·`[한 번 더 열기]`·`[확인]` 흐름 / 결과 카드.
 - 신규 `tests/journey-metrics.test.mjs` **2/2** — 월드보스 `start`가 일일 1·주간 1로 기록되고 같은 `requestId` 재시도로 늘지 않음,
   다음 날 일일 1·주간 2 / 장비 분해가 분해한 벌 수만큼 `salvageCount`를 올림(수동 2 · 자동 1 · 등급 일괄 3).
+- 신규 레벨 곡선(사용자 확정 `#3976`): `expToNext(level) = 1400 × level²`(1~5층 Lv.3~4 · 10층 Lv.6 · 20층 Lv.11~12),
+  몹 경험치 일반 `9 + 층` · 정예 2배 · 보스 6배(1층 10/20/60 · 20층 29/58/174), 오프라인 정산도 같은 규칙
+  (`kills × (9+층) + 보스 × 5배 추가`) — `elite-mob` 4/4·`offline` 통과.
 - 회귀: `journey` 12/12(미션·금화 6,600/44,600 반영) · `world-boss-live` 8/8 · `world-boss-preview`·`world-boss-field` ·
   `journey-ui`·`modal-ui`·`item-drop-jobs`·`inventory`·`bag-capacity`·`market`·`characters`·`shop`·`dungeon-*`.
 - 전체 647건 중 600 통과 — 실패 47건은 전부 이 sparse 체크아웃에 `public/assets/**`가 없어 나는 기존 실패

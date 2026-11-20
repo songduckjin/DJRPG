@@ -17,7 +17,8 @@ export function applyOfflineRewards(save: Save, elapsedSeconds: number): Offline
   const target = floorKillTarget(save.floor);
   const bossKills = Math.floor(kills / target);
   save.bossKills += bossKills;
-  const exp = kills * 8;
+  // 경험치는 필드와 같은 `9 + 층`(작업 207) — 보스 몫(6배)도 함께 정산한다.
+  const exp = kills * (9 + save.floor) + bossKills * (9 + save.floor) * 5;
   const gold = kills * (3 + save.floor) + bossKills * 70 * save.floor;
   save.kills += kills;
   save.floorKills = Math.max(0, Math.min(target, save.floorKills + kills - bossKills * target));

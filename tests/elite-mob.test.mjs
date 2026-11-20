@@ -89,8 +89,8 @@ test('정예 처치는 금화·경험치가 2배이고 장비·스킬북 드롭�
     richWorld.kill(enemyOf({ elite: true }));
     assert.equal(normalGold, gold);
     assert.equal(rich.gold - normalGold, gold * ELITE_REWARD_SCALE, '정예 금화는 일반의 2배');
-    assert.equal(normalExp, 8);
-    assert.equal(rich.exp - normalExp, 8 * ELITE_REWARD_SCALE, '정예 경험치는 일반의 2배(16)');
+    assert.equal(normalExp, 9 + floor, '일반 경험치 = 9 + 층(작업 207)');
+    assert.equal(rich.exp - normalExp, (9 + floor) * ELITE_REWARD_SCALE, '정예 경험치는 일반의 2배');
   } finally { Math.random = originalRandom; }
 });
 

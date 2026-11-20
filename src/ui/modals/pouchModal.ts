@@ -1,9 +1,12 @@
 import { equipmentImage, isSkillBook, itemDisplayName, rarityNames, type Rarity } from '../../game/items';
-import { openPouch, POUCH_CATEGORIES, POUCH_GOLD_TIERS, POUCH_RARITY_TIERS, pouchCount, POUCH_HINT, pouchResultText, firstPouch, type PouchResult } from '../../game/pouch';
+import { openPouch, POUCH_OVERALL_RATES, POUCH_RARITY_INK, pouchCount, POUCH_HINT, pouchResultText, firstPouch, type PouchResult } from '../../game/pouch';
 import { createSkillBookArt } from '../skillBookArt';
 import { pouchArt } from '../pouchArt';
 import { goldMarkup } from '../currency';
 import type { Interface } from '../interface';
+
+/** 개봉 연출 길이(작업 207 사용자 요청: 0.8~1.0초) — 흔들림 → 끈 풀림/벌어짐 → 빛 → 결과 등장. */
+export const POUCH_OPEN_MS = 950;
 
 function element<K extends keyof HTMLElementTagNameMap>(tag: K, className = '', text = ''): HTMLElementTagNameMap[K] {
   const node = document.createElement(tag);
@@ -18,48 +21,21 @@ function button(text: string, className: string): HTMLButtonElement {
 }
 
 /**
- * 확률표 (작업 207) — 세 분류를 **박스 3개**로 나누고, 박스마다 그 안의 세부 확률을 적는다.
- * 장비 등급은 인게임 등급 색(`rarity-common` … `rarity-legendary`)을 그대로 입힌다.
+ * 확률표 (작업 207, 사용자 최종 확정) — **전체 확률 한 줄(10항목)**을 높은 확률 순으로 깔아
+ * 표로 보여 준다. 각 줄: 결과 이름(장비는 인게임 등급 색) + 확률(`30.25%` 소수 둘째 자리).
+ * 아래 한 줄 요약: `합계 100% · 장비·스킬북은 3직업 균등`.
  */
 export function pouchRatesPanel(): HTMLElement {
   const panel = element('div', 'pouch-rates');
   panel.setAttribute('role', 'group');
   panel.setAttribute('aria-label', '보물 주머니 확률표');
-  const gold = element('section', 'pouch-rate-box pouch-rate-box-gold');
-  const goldTitle = element('b', 'pouch-rate-title', POUCH_CATEGORIES[0].label);
-  goldTitle.append(element('em', 'pouch-rate-head', `${Math.round(POUCH_CATEGORIES[0].rate * 100)}%`));
-  gold.append(goldTitle, element('small', 'pouch-rate-note', '한 주머니를 열 때 가장 먼저 뽑는 분류'));
-  const goldList = element('ul', 'pouch-rate-list');
-  for (const tier of POUCH_GOLD_TIERS) {
-    const row = element('li', 'pouch-rate-row');
-    row.append(element('span', 'pouch-rate-name', `${tier.gold.toLocaleString('ko-KR')}G`), element('em', 'pouch-rate-value', `${Math.round(tier.rate * 100)}%`));
-    goldList.append(row);
+  const table = element('ul', 'pouch-rate-table');
+  for (const line of POUCH_OVERALL_RATES) {
+    const row = element('li', `pouch-rate-row${line.rarity ? ` rarity-${line.rarity}` : ''}`);
+    row.append(element('span', 'pouch-rate-name', line.label), element('em', 'pouch-rate-value', `${(line.rate * 100).toFixed(2)}%`));
+    table.append(row);
   }
-  gold.append(goldList);
-
-  const gear = element('section', 'pouch-rate-box pouch-rate-box-equipment');
-  const gearTitle = element('b', 'pouch-rate-title', POUCH_CATEGORIES[1].label);
-  gearTitle.append(element('em', 'pouch-rate-head', `${Math.round(POUCH_CATEGORIES[1].rate * 100)}%`));
-  gear.append(gearTitle, element('small', 'pouch-rate-note', '최고 층 기준 · 3직업 균등'));
-  const gearList = element('ul', 'pouch-rate-list');
-  for (const tier of POUCH_RARITY_TIERS) {
-    const row = element('li', `pouch-rate-row rarity-${tier.rarity}`);
-    row.append(element('span', 'pouch-rate-name', rarityNames[tier.rarity]), element('em', 'pouch-rate-value', `${Math.round(tier.rate * 100)}%`));
-    gearList.append(row);
-  }
-  gear.append(gearList);
-
-  const book = element('section', 'pouch-rate-box pouch-rate-box-skillbook');
-  const bookTitle = element('b', 'pouch-rate-title', POUCH_CATEGORIES[2].label);
-  bookTitle.append(element('em', 'pouch-rate-head', `${Math.round(POUCH_CATEGORIES[2].rate * 100)}%`));
-  book.append(bookTitle, element('small', 'pouch-rate-note', '3직업 균등'));
-  const bookList = element('ul', 'pouch-rate-list');
-  const bookRow = element('li', 'pouch-rate-row');
-  bookRow.append(element('span', 'pouch-rate-name', '전 직업 모든 스킬북'), element('em', 'pouch-rate-value', '100%'));
-  bookList.append(bookRow);
-  book.append(bookList);
-
-  panel.append(gold, gear, book);
+  panel.append(table, element('p', 'pouch-rate-summary', '합계 100% · 장비·스킬북은 3직업 균등'));
   return panel;
 }
 
@@ -97,7 +73,14 @@ export function pouchResultCard(result: PouchResult): HTMLElement {
   return card;
 }
 
+/** 개봉 연출의 빛 색 — 금화·스킬북은 황금빛, 장비는 그 등급의 색(레전드면 붉게). */
+export function pouchGlowInk(result: PouchResult): string {
+  if (result.kind === 'equipment') return POUCH_RARITY_INK[result.item.rarity] ?? POUCH_RARITY_INK.common;
+  return '#ffd977';
+}
+
 type PouchWindowApi = { overlay: HTMLElement; open: () => void; close: () => void; rates: HTMLElement; result: HTMLElement };
+type PouchWindowOptions = { /** 연출 길이 — 테스트가 0으로 줄인다(기본 950ms). */ delay?: number };
 
 /**
  * 큰 개봉 창 (작업 207).
@@ -105,8 +88,14 @@ type PouchWindowApi = { overlay: HTMLElement; open: () => void; close: () => voi
  * 장비창 위에 한 겹으로 얹히는 팝업이다(분해 보호 팝업과 같은 방식). 왼쪽 위 `[확률표]`를 누르면
  * 세 분류 박스 확률표가 창 안쪽에 펼쳐지고, 가운데 주머니를 `[열기]`로 까면 결과 카드가 뜬다.
  * 더 남아 있으면 `[한 번 더 열기]`, 아니면 `[확인]`으로 닫힌다.
+ *
+ * **[열기]의 연출**(사용자 요청 `#3933`): 주머니가 흔들리다 위로 벌어지고(0~0.5초), 입구에서 빛이
+ * 터지고(0.25~0.9초), 빛이 퍼진 뒤 결과 카드가 짠 하고 떠오른다(0.6초~). 세이브 차감은 **누르는 즉시
+ * 한 번만** 하고(연출은 화면만), 연출이 끝날 때까지 버튼을 잠가 두 번 까이지 않게 한다.
+ * `prefers-reduced-motion`이면 애니메이션 없이 결과가 바로 보인다(CSS).
  */
-export function openPouchWindow(ui: Interface, itemId?: string): PouchWindowApi {
+export function openPouchWindow(ui: Interface, itemId?: string, options: PouchWindowOptions = {}): PouchWindowApi {
+  const delay = options.delay ?? POUCH_OPEN_MS;
   const save = ui.world.save;
   const overlay = element('div', 'pouch-window');
   overlay.setAttribute('role', 'dialog');
@@ -123,9 +112,12 @@ export function openPouchWindow(ui: Interface, itemId?: string): PouchWindowApi 
 
   const stage = element('div', 'pouch-window-stage');
   const art = pouchArt('pouch-art');
+  // 주머니 입구에서 터지는 빛 — 주머니 그림 위에 screen으로 얹어 빛줄기처럼 보이게 한다.
+  const glow = element('span', 'pouch-glow');
+  glow.setAttribute('aria-hidden', 'true');
   const result = element('div', 'pouch-window-result');
   result.setAttribute('aria-live', 'polite');
-  stage.append(art, result);
+  stage.append(art, glow, result);
 
   const title = element('h3', 'pouch-window-title', firstPouch(save)?.name ?? '무작위 보물 주머니');
   const hint = element('p', 'pouch-window-hint', POUCH_HINT);
@@ -149,9 +141,12 @@ export function openPouchWindow(ui: Interface, itemId?: string): PouchWindowApi 
     countLabel.textContent = `보유 ${remaining}개`;
     countLabel.hidden = remaining === 0;
     openButton.textContent = result.childElementCount ? (remaining ? '한 번 더 열기' : '확인') : '열기';
-    openButton.hidden = false;
   };
+  let animating = false, closed = false;
+  let timer: ReturnType<typeof setTimeout> | undefined;
   const close = (): void => {
+    closed = true;
+    if (timer !== undefined) clearTimeout(timer);
     if (typeof window !== 'undefined' && typeof window.removeEventListener === 'function') window.removeEventListener('keydown', onKey, true);
     observer?.disconnect();
     overlay.remove?.();
@@ -170,8 +165,10 @@ export function openPouchWindow(ui: Interface, itemId?: string): PouchWindowApi 
   if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') window.addEventListener('keydown', onKey, true);
 
   const open = (): void => {
+    if (animating) return;                                   // 연출 중 중복 클릭은 무시한다.
     // [한 번 더 열기]가 [확인]으로 바뀐 뒤에는 닫기만 한다.
     if (result.childElementCount && !pouchCount(save)) { close(); return; }
+    // 세이브 차감·지급은 **누르는 이 순간 한 번** — 아래 연출은 화면만 바꾼다.
     const opened = openPouch(save, itemId);
     if (!opened.ok) {
       error.textContent = opened.message; error.hidden = false;
@@ -181,13 +178,21 @@ export function openPouchWindow(ui: Interface, itemId?: string): PouchWindowApi 
     error.hidden = true;
     result.replaceChildren(pouchResultCard(opened.result));
     result.setAttribute('data-kind', opened.result.kind);
+    glow.style.setProperty('--pouch-glow', pouchGlowInk(opened.result));
+    // 같은 연출을 다시 틀 수 있게 클래스를 지웠다가 리플로 뒤에 붙인다.
     stage.classList.remove('is-opening');
-    // 결과가 바로 뜨되, 주머니가 흔들리며 열리는 연출은 CSS가 맡는다(다시 열 때도 한 번 더).
-    void stage.offsetWidth;
+    void (stage as HTMLElement).offsetWidth;
     stage.classList.add('is-opening');
+    animating = true; openButton.disabled = true;
+    countLabel.textContent = `보유 ${pouchCount(save)}개`; countLabel.hidden = pouchCount(save) === 0;
+    if (timer !== undefined) clearTimeout(timer);
+    timer = setTimeout(() => {
+      timer = undefined;
+      if (closed) return;
+      animating = false; openButton.disabled = false; showCount();
+    }, delay);
     ui.world.onChange();
     ui.message(`${opened.pouch.name} → ${pouchResultText(opened.result)}`);
-    showCount();
   };
 
   ratesButton.onclick = () => {

@@ -11,7 +11,7 @@ const { canStoreItem, equipmentCount } = await import('../src/game/bagCapacity.t
 const { autoEquipBest, salvageByRarity } = await import('../src/game/items.ts');
 const { filterSaleItems } = await import('../src/ui/itemOrder.ts');
 const { equipmentCodexKey } = await import('../src/game/codex.ts');
-const { pouchRatesPanel, pouchResultCard, openPouchWindow } = await import('../src/ui/modals/pouchModal.ts');
+const { pouchRatesPanel, pouchResultCard, openPouchWindow, pouchGlowInk, POUCH_OPEN_MS } = await import('../src/ui/modals/pouchModal.ts');
 const { itemDetail, renderInventory } = await import('../src/ui/modals/equipModal.ts');
 const css = readFileSync(new URL('../src/styles/modals.css', import.meta.url), 'utf8');
 
@@ -29,13 +29,24 @@ function seeded(seed = 1) {
 const sum = table => table.reduce((total, entry) => total + entry.rate, 0);
 const close = (value, expected, tolerance) => Math.abs(value - expected) <= tolerance;
 
-test('확률표는 55/30/15 분류와 세부 확률이 각각 100%로 닫힌다', () => {
-  assert.deepEqual(pouch.POUCH_CATEGORIES.map(entry => [entry.kind, entry.rate]), [['gold', .55], ['equipment', .30], ['skillbook', .15]]);
+test('확률표는 55/40/5 분류·세부 확률·전체 10항목이 모두 100%로 닫힌다', () => {
+  assert.deepEqual(pouch.POUCH_CATEGORIES.map(entry => [entry.kind, entry.rate]), [['gold', .55], ['equipment', .40], ['skillbook', .05]]);
   assert.deepEqual(pouch.POUCH_GOLD_TIERS.map(entry => [entry.gold, entry.rate]), [[1500, .55], [3000, .32], [5000, .13]]);
   assert.deepEqual(pouch.POUCH_RARITY_TIERS.map(entry => [entry.rarity, entry.rate]), [['common', .34], ['magic', .30], ['rare', .20], ['epic', .11], ['unique', .04], ['legendary', .01]]);
   assert.equal(sum(pouch.POUCH_CATEGORIES), 1,'분류 합 100%');
   assert.equal(sum(pouch.POUCH_GOLD_TIERS), 1,'금화 세부 합 100%');
   assert.equal(sum(pouch.POUCH_RARITY_TIERS), 1,'등급 세부 합 100%');
+  // 사용자 확정 10항목(전체 확률) — 내림차순, 합 100.00%.
+  assert.deepEqual(pouch.POUCH_OVERALL_RATES.map(entry => [entry.label, entry.rate]), [
+    ['1,500G', .3025], ['3,000G', .1760], ['일반 장비', .1360], ['매직 장비', .1200], ['레어 장비', .0800],
+    ['5,000G', .0715], ['무작위 스킬북 1권', .0500], ['에픽 장비', .0440], ['유니크 장비', .0160], ['레전드 장비', .0040]
+  ]);
+  assert.equal(Math.round(sum(pouch.POUCH_OVERALL_RATES) * 10000) / 10000, 1,'전체 합 100.00%');
+  assert(pouch.POUCH_OVERALL_RATES.every((entry, index, list) => index === 0 || list[index - 1].rate >= entry.rate),'높은 확률 순');
+  // 전체 확률 = 분류 확률 × 세부 확률(정확히).
+  assert.equal(pouch.POUCH_OVERALL_RATES[0].rate, Math.round(.55 * .55 * 10000) / 10000,'1,500G = 55% × 55%');
+  assert.equal(pouch.POUCH_OVERALL_RATES[2].rate, Math.round(.40 * .34 * 10000) / 10000,'일반 장비 = 40% × 34%');
+  assert.equal(pouch.POUCH_OVERALL_RATES[6].rate, .05,'스킬북');
 });
 
 test('2만 번 개봉에서 분류·금화·등급 분포가 표를 따른다', () => {
@@ -47,8 +58,8 @@ test('2만 번 개봉에서 분류·금화·등급 분포가 표를 따른다', 
     if (result.kind === 'equipment') rarities.set(result.item.rarity, (rarities.get(result.item.rarity) ?? 0) + 1);
   }
   assert(close(counts.gold / rolls, .55, .02),`금화 ${counts.gold / rolls}`);
-  assert(close(counts.equipment / rolls, .30, .02),`장비 ${counts.equipment / rolls}`);
-  assert(close(counts.skillbook / rolls, .15, .015),`스킬북 ${counts.skillbook / rolls}`);
+  assert(close(counts.equipment / rolls, .40, .02),`장비 ${counts.equipment / rolls}`);
+  assert(close(counts.skillbook / rolls, .05, .01),`스킬북 ${counts.skillbook / rolls}`);
   for (const [gold, rate] of [[1500, .55], [3000, .32], [5000, .13]]) assert(close((golds.get(gold) ?? 0) / counts.gold, rate, .04),`${gold}G`);
   for (const [rarity, rate] of [['common', .34], ['magic', .30], ['rare', .20], ['epic', .11], ['unique', .04], ['legendary', .01]]) {
     const expected = Math.max(rate, .01);
@@ -56,27 +67,25 @@ test('2만 번 개봉에서 분류·금화·등급 분포가 표를 따른다', 
   }
 });
 
-test('확률표는 3개 분류 박스로 렌더되고 장비 6등급에 인게임 등급 색을 입힌다', () => {
+test('확률표는 전체 확률 10줄을 높은 확률 순으로 렌더하고 등급 색·요약을 유지한다', () => {
   const document = { createElement: tag => element(tag) };
   const previous = globalThis.document;
   globalThis.document = document;
   try {
     const panel = pouchRatesPanel();
-    const boxes = panel.children.filter(node => node.className.includes('pouch-rate-box'));
-    assert.equal(boxes.length, 3,'금화·장비·스킬북 세 박스');
-    assert(boxes[0].className.includes('pouch-rate-box-gold'),'금화 박스');
-    const text = toString(boxes[0]);
-    assert(text.includes('55%') && text.includes('32%') && text.includes('13%'),'금화 세부 확률');
-    assert(text.includes('1,500G') && text.includes('3,000G') && text.includes('5,000G'),'금화 세부 금액');
-    const rarityRows = boxes[1].children.flatMap(node => node.children.filter(child => child.className.includes('rarity-')));
-    assert.deepEqual(rarityRows.map(row => row.className.match(/rarity-(\w+)/)[1]), ['common', 'magic', 'rare', 'epic', 'unique', 'legendary'],'6등급 순서');
-    assert.deepEqual(rarityRows.map(row => toString(row)), ['일반34%', '매직30%', '레어20%', '에픽11%', '유니크4%', '레전드1%']);
-    assert(toString(boxes[1]).includes('최고 층 기준'),'장비 세부 조건 표기');
-    assert(toString(boxes[2]).includes('100%'),'스킬북 100%');
-    assert(toString(panel).includes('55%') && toString(panel).includes('30%') && toString(panel).includes('15%'),'분류 확률');
-    // 박스 제목의 분류 확률과 등급 색 CSS가 실제로 들어 있다.
+    const table = panel.children.find(node => node.className === 'pouch-rate-table');
+    assert(table,'10줄 표');
+    assert.equal(table.children.length, 10);
+    // fake 노드는 이름·확률을 각각 자식(span/em)의 textContent로 지닌다.
+    const rows = table.children.map(row => [row.children.map(child => child.textContent ?? '').join(''), row.className]);
+    assert.deepEqual(rows.map(([text]) => text.replace(/[0-9.,%]/g, '')), ['G', 'G', '일반 장비', '매직 장비', '레어 장비', 'G', '무작위 스킬북 권', '에픽 장비', '유니크 장비', '레전드 장비'],'높은 확률 순');
+    assert.deepEqual(rows.map(([text]) => text.match(/[0-9.]+%$/)?.[0]), ['30.25%','17.60%','13.60%','12.00%','8.00%','7.15%','5.00%','4.40%','1.60%','0.40%'],'소수 둘째 자리');
+    assert.deepEqual(rows.slice(2,5).concat(rows.slice(7)).map(([, cls]) => cls.match(/rarity-(\w+)/)?.[1]), ['common','magic','rare','epic','unique','legendary'],'등급 색 유지');
+    assert(!rows[0][1].includes('rarity-'),'금화 줄은 등급 색이 없다');
+    const summary = panel.children.find(node => node.className === 'pouch-rate-summary');
+    assert(summary && summary.textContent === '합계 100% · 장비·스킬북은 3직업 균등','요약 한 줄');
+    assert(css.includes('.pouch-rate-table') && css.includes('.pouch-rate-summary'),'표·요약 스타일');
     for (const rarity of ['common', 'magic', 'rare', 'epic', 'unique', 'legendary']) assert(css.includes(`.pouch-rate-row.rarity-${rarity}`),`${rarity} 색 규칙`);
-    assert(css.includes('.pouch-rates') && css.includes('grid-template-columns: repeat(3'));
   } finally { globalThis.document = previous; }
 });
 
@@ -86,7 +95,7 @@ test('주머니 1개를 열면 소모되고 결과가 세이브에 반영된다'
   const gold = pouch.openPouch(goldSave, undefined, constant([.10, .10]));
   assert.equal(gold.ok, true); assert.equal(gold.result.kind, 'gold'); assert.equal(gold.result.gold, 1500);
   assert.equal(goldSave.gold, 1500,'금화 지급'); assert.equal(pouch.pouchCount(goldSave), 0,'주머니 소모');
-  // 장비: 레어 (분류 30% 구간 → 금화 55% 뒤 equipment, 등급 .20 구간 → rare)
+  // 장비: 레어 (분류 55% 구간 뒤 equipment — 금화 55% · 장비 40% · 스킬북 5%)
   const gearSave = withPouches(1);
   const gear = pouch.openPouch(gearSave, undefined, constant([.60, .70]));
   assert.equal(gear.result.kind, 'equipment'); assert.equal(gear.result.item.rarity, 'rare');
@@ -94,9 +103,9 @@ test('주머니 1개를 열면 소모되고 결과가 세이브에 반영된다'
   assert(gearSave.bag.some(item => item.rarity === 'rare' && item.slot !== 'pouch'));
   // 장비 `+단계`·스탯 규칙: 20층 기준이면 `+1`까지 열려 있다.
   assert(gear.result.item.plus <= items.maxPlusFor(20));
-  // 스킬북: 분류 .90 → skillbook
+  // 스킬북: 분류 .98 → skillbook (금화 55% · 장비 40% 뒤의 마지막 5%)
   const bookSave = withPouches(1);
-  const book = pouch.openPouch(bookSave, undefined, constant([.90]));
+  const book = pouch.openPouch(bookSave, undefined, constant([.98]));
   assert.equal(book.result.kind, 'skillbook'); assert.equal(book.result.item.kind, 'skillbook');
   assert.equal(bookSave.bag.filter(item => item.kind === 'skillbook').length, 1);
   assert.equal(pouch.pouchCount(bookSave), 0);
@@ -184,18 +193,18 @@ test('가방 칸은 주머니를 한 칸에 ×N으로 모으고 상세에 [열�
     assert(detail.className.includes('pouch-detail'));
     const open = detail.children.find(node => node.className === 'detail-actions').children[0];
     assert.equal(open.textContent, '열기');
-    assert.equal(open.disabled, undefined,'열기는 잠기지 않는다');
+    assert.equal(open.disabled, false,'열기는 잠기지 않는다');
   } finally { globalThis.document = previous; }
 });
 
-test('큰 개봉 창은 왼쪽 위 [확률표]를 펼치고 [열기]로 주머니를 까서 결과를 보여 준다', () => {
+test('큰 개봉 창은 왼쪽 위 [확률표]를 펼치고 [열기]로 주머니를 까서 결과를 보여 준다', async () => {
   const previous = globalThis.document;
   globalThis.document = { createElement: tag => element(tag) };
   try {
     const save = withPouches(2), messages = [];
     let changes = 0;
     const ui = { root: element(), modal: element(), openModal: 'equipment', renderModal() {}, message(text) { messages.push(text); }, world: { save, onChange() { changes++; } } };
-    const api = openPouchWindow(ui);
+    const api = openPouchWindow(ui, undefined, { delay: 0 });
     assert.equal(ui.root.children.length, 1,'장비창 위에 한 겹으로 얹힌다');
     assert.equal(api.rates.hidden, true,'확률표는 처음에 접혀 있다');
     const toggle = find(api.overlay, node => node.className === 'pouch-rates-toggle');
@@ -204,8 +213,12 @@ test('큰 개봉 창은 왼쪽 위 [확률표]를 펼치고 [열기]로 주머�
     assert.equal(toggle.attrs['aria-expanded'], 'true');
     assert(find(api.overlay, node => node.className === 'pouch-window-title').textContent === '무작위 보물 주머니');
     const open = find(api.overlay, node => node.textContent === '열기');
-    open.onclick();
+    // 연출 중 두 번 눌러도 한 번만 깐다(중복 차감 방지).
+    open.onclick(); open.onclick();
     assert.equal(pouch.pouchCount(save), 1,'한 번 열면 하나 소모');
+    assert.equal(open.disabled, true,'연출 중에는 버튼이 잠긴다');
+    assert(api.result.children.length, '결과 카드는 연출과 함께 자리에 들어간다');
+    await new Promise(resolve => setTimeout(resolve, 10));
     assert.equal(api.result.children.length, 1,'결과 카드가 창 안에 뜬다');
     assert.equal(changes, 1,'세이브 반영');
     assert(messages.some(text => text.includes('무작위 보물 주머니')),'토스트 안내');
@@ -213,6 +226,7 @@ test('큰 개봉 창은 왼쪽 위 [확률표]를 펼치고 [열기]로 주머�
     assert(again,'더 남으면 [한 번 더 열기]');
     again.onclick();
     assert.equal(pouch.pouchCount(save), 0);
+    await new Promise(resolve => setTimeout(resolve, 10));
     const actions = find(api.overlay, node => node.className === 'pouch-window-actions');
     const primary = actions.children[0], closeAction = actions.children[1];
     assert.equal(primary.textContent, '확인','주머니가 없으면 [열기]가 [확인]이 된다');
@@ -220,6 +234,23 @@ test('큰 개봉 창은 왼쪽 위 [확률표]를 펼치고 [열기]로 주머�
     closeAction.onclick();
     assert.equal(ui.root.children.length, 0,'[확인]으로 닫힌다');
   } finally { globalThis.document = previous; }
+});
+
+test('개봉에는 흔들림→벌어짐→빛→결과 등장 연출이 0.8~1.0초로 들어가고 모션 감소도 대응한다', () => {
+  assert(POUCH_OPEN_MS >= 800 && POUCH_OPEN_MS <= 1000, `연출 ${POUCH_OPEN_MS}ms`);
+  for (const name of ['pouch-open', 'pouch-glow', 'pouch-reveal']) assert(css.includes(`@keyframes ${name}`), `${name} 키프레임`);
+  assert(css.includes('.pouch-window-stage.is-opening .pouch-art'),'흔들림·벌어짐은 주머니 그림에');
+  assert(css.includes('.pouch-window-stage.is-opening .pouch-glow'),'빛은 글로우 레이어에');
+  assert(css.includes('.pouch-window-stage.is-opening .pouch-window-result'),'결과 카드는 늦게 등장');
+  assert(/pouch-reveal 420ms[^;]*600ms both/.test(css),'결과 등장은 빛이 퍼진 뒤(0.6초) 시작');
+  assert(css.includes('mix-blend-mode: screen'),'빛은 주머니 위에 screen으로 얹는다');
+  const reduce = css.slice(css.indexOf('@media (prefers-reduced-motion: reduce)'));
+  assert(reduce.includes('.pouch-window-stage.is-opening .pouch-art') && reduce.includes('.pouch-glow'),'모션 감소 대응');
+  // 빛 색은 보상 종류를 따른다 — 금화·스킬북은 황금빛, 장비는 그 등급 색.
+  const goldSave = withPouches(1), gold = pouch.openPouch(goldSave, undefined, constant([.10, .10]));
+  assert.equal(pouchGlowInk(gold.result), '#ffd977');
+  const gearSave = withPouches(1), gear = pouch.openPouch(gearSave, undefined, constant([.60, .70]));
+  assert.equal(pouchGlowInk(gear.result), pouch.POUCH_RARITY_INK.rare);
 });
 
 test('개봉 결과 카드는 금화는 금화로, 장비·스킬북은 등급 색 이름으로 보여 준다', () => {
@@ -235,8 +266,8 @@ test('개봉 결과 카드는 금화는 금화로, 장비·스킬북은 등급 �
     const name = find(card, node => node.className?.includes('pouch-result-name'));
     assert(name.className.includes('rarity-rare'),'등급 색');
     assert(name.textContent.includes('황혼의'),'이름');
-    const book = pouch.openPouch(withPouches(1), undefined, constant([.90]));
-    assert(toString(pouchResultCard(book.result)).includes('스킬북'));
+    const book = pouch.openPouch(withPouches(1), undefined, constant([.98]));
+    assert(toString(pouchResultCard(book.result)).includes('스킬북 획득'));
   } finally { globalThis.document = previous; }
 });
 
@@ -250,7 +281,7 @@ function withPouches(count) {
 function constant(values) { let index = 0; return () => values[Math.min(index++, values.length - 1)]; }
 function element(tag = 'div') {
   const node = {
-    tag, children: [], dataset: {}, style: {}, className: '', textContent: '', innerHTML: '', attrs: {}, hidden: false,
+    tag, children: [], dataset: {}, style: { vars: {}, setProperty(key, value) { this.vars[key] = value; } }, className: '', textContent: '', innerHTML: '', attrs: {}, hidden: false, disabled: false, offsetWidth: 1,
     append(...children) { for (const child of children) { child.parent = this; this.children.push(child); } },
     appendChild(child) { this.append(child); return child; },
     replaceChildren(...children) { this.children = []; this.append(...children); }, setAttribute(key, value) { this.attrs[key] = value; },
