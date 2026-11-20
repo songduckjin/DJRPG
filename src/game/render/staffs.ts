@@ -1,5 +1,5 @@
 import type { Gender, Save } from '../store';
-import { isStaff, staffIndex } from '../items';
+import { isStaff, staffIndex, hasNoWeapon } from '../items';
 
 /**
  * 착용 지팡이 10종 외형 파츠 (작업 201).
@@ -137,7 +137,8 @@ export function staffIndexFor(save: Save): number {
 
 /** 기본 지팡이를 지운 본체 시트를 써야 하는가(= 지팡이를 찼는가). */
 export function usesStafflessBody(save: Save): boolean {
-  return staffIndexFor(save) >= 0;
+  // [작업 216] 지팡이를 안 찼어도 기본 지팡이를 지운 판(`mage_nostaff/`)을 쓴다.
+  return staffIndexFor(save) >= 0 || hasNoWeapon(save);
 }
 
 /** 기본 지팡이를 지운 마법사 본체 시트 경로. */

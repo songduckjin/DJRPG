@@ -47,9 +47,12 @@ resetEquipmentPortraitCache();
 for (const gender of ['male', 'female']) test(`${gender}: field and equipment preview keep the approved pilot art for every equipped set`, () => {
   const save = freshSave(gender);
   // 기본형 갑옷이면 그 티어의 시트(작업 155), 아니면 기준 본체 시트.
-  const expectedBase = (armorIndex = -1) => (armorIndex >= 0
-    ? `/assets/pilot-25d/armors/${save.equipment.helmet ? 'headless/' : ''}warrior_${gender}_armor_${armorIndex}_idle_v1.png`
-    : `/assets/pilot-25d/${save.equipment.helmet ? 'headless/' : ''}warrior_${gender}_idle_v1.png`);
+  // [작업 216] 무기를 안 찼으면 기본 검을 지운 `noweapon/` 판을 쓴다(빈손).
+  const expectedBase = (armorIndex = -1, swordless = !save.equipment.weapon) => {
+    const headless = save.equipment.helmet ? 'headless/' : '';
+    if (armorIndex >= 0) return `/assets/pilot-25d/${swordless ? 'noweapon/' : ''}armors/${headless}warrior_${gender}_armor_${armorIndex}_idle_v1.png`;
+    return swordless ? `/assets/pilot-25d/noweapon/${headless}warrior_${gender}_idle_v1.png` : `/assets/pilot-25d/${headless}warrior_${gender}_idle_v1.png`;
+  };
   const check = (armorIndex = -1) => {
     const expected = expectedBase(armorIndex);
     assert.equal(equipmentFallbackPortrait(save), expected);

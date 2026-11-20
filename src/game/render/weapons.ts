@@ -1,5 +1,5 @@
 import type { Gender, Save } from '../store';
-import { baseItemIndex, isBow } from '../items';
+import { baseItemIndex, isBow, hasNoWeapon } from '../items';
 
 /**
  * 착용 대검 10종 외형 파츠 (작업 156).
@@ -108,7 +108,9 @@ export function weaponIndexFor(save: Save): number {
 
 /** 기본 검을 지운 본체 시트를 써야 하는가(= 0번이 아닌 검을 찼는가). */
 export function usesSwordlessBody(save: Save): boolean {
-  return weaponIndexFor(save) >= 1;
+  // [작업 216] 무기를 안 찼어도(`hasNoWeapon`) 기본 검을 지운 판을 쓴다 — 기본 시트에 검·활·지팡이가
+  // 그림으로 들어 있어, 빈손인데도 손에 무기를 든 것처럼 보였다.
+  return weaponIndexFor(save) >= 1 || hasNoWeapon(save);
 }
 
 /**

@@ -306,7 +306,8 @@ test('대검을 벗으면 파츠를 숨기고 기준 시트로 돌아간다', ()
 test('장비창 초상화도 기본 검 없는 시트 + 파츠를 쓴다', () => {
   const save = freshSave('female');
   save.equipment.armor = { id: 'a', slot: 'armor', name: '드래곤 메일', rarity: 'unique', stats: {} };
-  assert.equal(equipmentFallbackPortrait(save), '/assets/pilot-25d/armors/warrior_female_armor_7_idle_v1.png');
+  // [작업 216] 무기를 안 찬 빈손이므로 기본 검을 지운 판(noweapon/armors)을 쓴다.
+  assert.equal(equipmentFallbackPortrait(save), '/assets/pilot-25d/noweapon/armors/warrior_female_armor_7_idle_v1.png');
   save.equipment.weapon = weaponItem('용살자의 대검');
   assert.equal(equipmentFallbackPortrait(save), '/assets/pilot-25d/noweapon/armors/warrior_female_armor_7_idle_v1.png');
   const plan = equipmentPortraitPlan(save);

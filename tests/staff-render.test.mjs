@@ -331,6 +331,7 @@ test('장비창 초상화도 nostaff 시트 + 지팡이 파츠를 쓴다', () =>
   assert(plan.key.includes(staffPartPath(9)), `캐시 키에 지팡이 파츠가 들어간다: ${plan.key}`);
 
   const none = equipmentPortraitPlan(mageSave('male'));
-  assert.equal(none.base, '/assets/pilot-25d/mage_male_idle_v1.png?v=2', '미착용은 기본 서기 시트');
+  // [작업 216] 지팡이를 안 챈 캐릭터는 기본 지팡이를 지운 시트(빈손)로 그린다.
+  assert.equal(none.base, stafflessBodyPath('male', 'idle'), '미착용은 nostaff(빈손) 서기 시트');
   assert.equal(none.staff, undefined);
 });
