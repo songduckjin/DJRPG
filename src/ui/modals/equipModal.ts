@@ -331,6 +331,7 @@ export function renderEquipment(this: Interface, dialog: HTMLElement): void {
         image.className = 'showcase-glow-layer'; image.alt = ''; image.decoding = 'async';
         image.src = layer.src;
         image.style.setProperty('--gear-cycle', `${layer.cycle}s`);
+        image.style.setProperty('--gear-color', layer.color);
         image.dataset.glowSlot = layer.slot;
         glowLayer.appendChild(image);
       }

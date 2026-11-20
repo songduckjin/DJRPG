@@ -112,11 +112,13 @@
 .showcase-hero { position: relative; display: flex; justify-content: center; align-items: center; min-width: 0; min-height: 0; overflow: hidden; border: 1px solid #655044; background: radial-gradient(ellipse at 50% 28%, #695544 0%, #302727 37%, #19161b 75%); box-shadow: inset 0 0 23px #000a; }
 .showcase-hero:after { content: ''; position: absolute; bottom: 7px; width: 75%; height: 14px; border-radius: 50%; background: #0008; filter: blur(5px); }
 .showcase-figure { position: relative; display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; }
-/* 장비 등급색 발광(작업 218) — 유니크·전설을 착용한 부위만 초상화 위에서 숨쉬다 원래 색으로 돌아온다. */
-.showcase-glow { position: absolute; inset: 0; display: block; pointer-events: none; }
-.showcase-glow-layer { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; mix-blend-mode: screen; animation: gear-rarity-pulse var(--gear-cycle, 2.6s) ease-in-out infinite; }
+/* 장비 등급색 발광(작업 218, 세기 강화 231) — 유니크·전설을 착용한 부위만 초상화 위에서 숨쉬다 원래 색으로 돌아온다.
+   발광 레이어는 몸 그림 **위**(z-index 2)에 얹어 장비 전체가 빛나게 하고, 등급색 후광(drop-shadow)과
+   채도·밝기를 함께 올려 예전보다 훨씬 진하게 보이게 한다. */
+.showcase-glow { position: absolute; inset: 0; z-index: 2; display: block; pointer-events: none; }
+.showcase-glow-layer { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; mix-blend-mode: screen; filter: saturate(1.3) brightness(1.08) drop-shadow(0 0 7px var(--gear-color, #ff7a00)); animation: gear-rarity-pulse var(--gear-cycle, 2.6s) ease-in-out infinite; }
 @keyframes gear-rarity-pulse { 0%, 100% { opacity: 0; } 50% { opacity: 1; } }
-@media (prefers-reduced-motion: reduce) { .showcase-glow-layer { animation: none; opacity: .5; } }
+@media (prefers-reduced-motion: reduce) { .showcase-glow-layer { animation: none; opacity: .7; } }
 .showcase-body { position: relative; z-index: 1; display: block; width: 100%; height: 100%; object-fit: contain; image-rendering: auto; }
 .showcase-figure { position: relative; display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; }
 .showcase-body { position: relative; z-index: 1; display: block; width: 100%; height: 100%; object-fit: contain; image-rendering: auto; }
