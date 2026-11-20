@@ -60,7 +60,7 @@
 - **불변**: `store.ts`·`server/**`·`world.ts`·`baseItems` 순서·전사/마법사 외형·코스튬 레이어 무변경. 능력치·드랍·전투 계산 그대로.
 - **검증**: `npx tsc --noEmit` 통과, `npm test` 605건 중 603 통과(실패 2건은 작업 149 이후 계속 실패하는 `costume-field-render`, `origin/main` 분리 워크트리에서 동일 재현), 신규 `tests/archer-armor-render.test.mjs` 13건, `node scripts/verify-item-art.mjs`(216장), `npm run build`, `git diff --check` 통과.
 - **검수 이미지**: `downloads/djrpg_archer_armor_10_male_v1.png`·`..._female_v1.png`(10티어 × 서기/걷기0·2/사격0·2 접촉 시트), `downloads/djrpg_archer_armor_ingame_v1.png`(필드 합성 — 게임 배율 9.35% + 2.4배 인셋, `scripts/preview-archer-armor.py`). 브라우저 실기 화면은 미확인(로컬 루프백 차단).
-- **PR/배포**: (아래 보고에서 갱신)
+- **배포**: [PR #152](https://github.com/songduckjin/DJRPG/pull/152) 스쿼시 병합 `36224b8dc5e8`, 운영 `version.json` `36224b8dc5e8`(`builtAt 2026-11-20T05:57:01Z`). 네 가지 판 표본 4장 **HTTP 200 `image/png`**(원격 sha256 = 로컬 2장 확인)·배포 번들 `index-CgKqItQ0.js`에 `archer_armors`·`archer_armors/nobow` 경로 포함. PR 체크는 `Cloudflare Pages` pass, `Workers Builds`는 main에서도 실패하는 상시 체크. 병합 전 마법사 지팡이(작업 202)·마법사 투구(작업 204) PR이 먼저 들어와 `equipmentPortrait.ts` 키·포트레이트 분기에서 충돌했고, 궁수 갑옷 티어를 키에 넣으면서 마법사 staff·mageHelm 분기를 그대로 유지하는 형태로 정리했다.
 
 
 ## 2026-11-20 — 마법사 전용 모자·투구 10종 외형 적용 + 남성 서기 시트 정수리 잘림 수정 (작업 204)
