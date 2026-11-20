@@ -154,7 +154,7 @@
 - `market.mjs` (194) — 거래소 규칙·등록/구매/취소/수령·시세. `rules`(fee .05, 30건, 72h), `expire`, `snapshot`, `mutate`, `recentPrice`.
 - `market-connection.mjs` (17) — DB 연결 1회 초기화 재사용. `connectionProvider`, `marketConnection`.
 - `market-events.mjs` (4) — 공개 변경 카운터. `latestSeq`.
-- `journey-state.mjs` (60) — 일일 05:00 KST/주간 월요일 경계·보상. `periods`, `advanceJourney`, `journeyState`, `journeyOperation`, `journeyView`, `dailyTasks`, `weeklyTasks`, `completionRewards`.
+- `journey-state.mjs` — 일일 05:00 KST/주간 월요일 경계·보상. `periods`, `advanceJourney`, `journeyState`, `journeyOperation`, `journeyView`, `dailyTasks`, `weeklyTasks`, `completionRewards`. **작업 197 업데이트 안내 우편**: `advanceJourney`가 계정마다 한 번 `grantUpdateNotice`로 `update-2026-11-20`(금화 3,000·스킬북 2권, 발신 `운영팀`, 만료 `UPDATE_NOTICE_UNTIL`=2026-11-28 00:00 KST)을 넣는다 — 지급 이력은 `state.notices`에 남겨 수령·삭제·만료 뒤에도 다시 붙지 않고, 만료 뒤 첫 접속 계정에는 주지 않는다.
 - `journey.mjs` (62) — 우편·보상 수령/읽음/삭제. `snapshot`, `mutate`.
 - `endpoints/account.mjs` (123) — `register`/`guest`/`login`/`load`/`characters`/`selectCharacter`/`createCharacter`/`save`/`reset`. 캐릭터 슬롯 1~3, 골드 공유.
 - `endpoints/market.mjs` (27) — `list`/`recent-price`/`journey-list`/`journey-*`/그 외 mutate.

@@ -13,7 +13,7 @@
 
 import { Texture } from 'pixi.js';
 import {
-  GOLD_COIN_EDGE, GOLD_COIN_RIM, GOLD_PILE, GOLD_PILE_BRIGHTNESS, GOLD_PILE_CONTRAST, GOLD_PILE_EDGE, GOLD_PILE_RIM,
+  GOLD_COIN_EDGE, GOLD_COIN_EDGE_ALPHA, GOLD_COIN_RIM, GOLD_PILE, GOLD_PILE_BRIGHTNESS, GOLD_PILE_CONTRAST, GOLD_PILE_EDGE, GOLD_PILE_RIM,
   goldCoinChipHeight, goldCoinChipWidth, goldCoinHeight, type GoldCoin,
 } from './goldPile';
 
@@ -63,7 +63,7 @@ function silhouette(image: CanvasImageSource, coin: GoldCoin, ink: string): HTML
   return canvas;
 }
 
-/** One coin's chip: boundary, thickness edge, then the lifted coin itself. */
+/** One coin's chip: a soft boundary, a 1px thickness edge, then the lifted coin itself. */
 export function paintGoldCoinChip(image: CanvasImageSource, width: number, height: number, coin: GoldCoin): HTMLCanvasElement | undefined {
   if (typeof document === 'undefined') return undefined;
   const coinArt = lifted(image, width, height), edge = silhouette(image, coin, edgeInk), rim = silhouette(image, coin, rimInk);
@@ -76,13 +76,22 @@ export function paintGoldCoinChip(image: CanvasImageSource, width: number, heigh
   context.imageSmoothingEnabled = true; context.imageSmoothingQuality = 'high';
   const step = CHIP_SCALE, artWidth = coin.size * step, artHeight = goldCoinHeight(coin) * step;
   const left = GOLD_COIN_EDGE * step, floor = (GOLD_COIN_EDGE + GOLD_COIN_RIM) * step;
-  // The boundary wraps the coin and the thickness under it together, so the edge reads as one solid
-  // coin standing on the floor rather than a coin floating over a band.
+  // The boundary wraps the coin once, as one layer: eight offset copies would stack into an opaque
+  // outline. It is built at full ink on its own canvas, then laid down at `GOLD_COIN_EDGE_ALPHA` so
+  // the floor shows through the line — a soft rim, not a drawn border (작업 197).
+  const boundary = document.createElement('canvas');
+  boundary.width = canvas.width; boundary.height = canvas.height;
+  const ink = boundary.getContext('2d');
+  if (!ink) return undefined;
+  ink.imageSmoothingEnabled = true; ink.imageSmoothingQuality = 'high';
   for (const [dx, dy] of EDGE_RING) {
-    context.drawImage(edge, left + dx * step, (GOLD_COIN_EDGE + dy) * step, artWidth, artHeight);
-    context.drawImage(edge, left + dx * step, floor + dy * step, artWidth, artHeight);
+    ink.drawImage(edge, left + dx * step, (GOLD_COIN_EDGE + dy) * step, artWidth, artHeight);
+    ink.drawImage(edge, left + dx * step, floor + dy * step, artWidth, artHeight);
   }
-  context.drawImage(rim, left, floor, artWidth, artHeight);
+  ink.drawImage(rim, left, floor, artWidth, artHeight);
+  context.globalAlpha = GOLD_COIN_EDGE_ALPHA;
+  context.drawImage(boundary, 0, 0);
+  context.globalAlpha = 1;
   context.drawImage(coinArt, left, GOLD_COIN_EDGE * step, artWidth, artHeight);
   return canvas;
 }

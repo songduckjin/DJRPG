@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import './ts-loader.mjs';
 const { LOOT_REST_SECONDS, LOOT_ABSORB_SECONDS, LOOT_FAN, LOOT_GAP, LOOT_DEPTH, lootRestSpots, lootAbsorbProgress, lootAbsorbPoint } = await import('../src/game/loot.ts');
 const { BOSS_GOLD_PILES, BOSS_ITEM_DROPS, bossGoldPiles } = await import('../src/game/bossLoot.ts');
-const { GOLD_PILE, GOLD_PILE_RX, GOLD_PILE_RY, GOLD_COIN_EDGE, GOLD_COIN_RIM, GOLD_PILE_EDGE, GOLD_PILE_RIM, GOLD_PILE_BRIGHTNESS, GOLD_PILE_CONTRAST, GOLD_COIN_CHIP_DROP, goldCoinChipWidth, goldCoinChipHeight, goldCoinHeight } = await import('../src/game/render/goldPile.ts');
+const { GOLD_PILE, GOLD_PILE_RX, GOLD_PILE_RY, GOLD_COIN_EDGE, GOLD_COIN_EDGE_ALPHA, GOLD_COIN_RIM, GOLD_PILE_EDGE, GOLD_PILE_RIM, GOLD_PILE_BRIGHTNESS, GOLD_PILE_CONTRAST, GOLD_COIN_CHIP_DROP, goldCoinChipWidth, goldCoinChipHeight, goldCoinHeight } = await import('../src/game/render/goldPile.ts');
 const { bossGoldSpot } = await import('../src/game/bossLoot.ts');
 const { World } = await import('../src/game/world.ts');
 const { freshSave } = await import('../src/game/store.ts');
@@ -217,13 +217,15 @@ test('a coin drop is a small heap of bright flat coins lying on the floor', () =
   assert.doesNotMatch(css, /is-gold \.dungeon-loot-body\{filter/, 'and applies no colour grade to the heap body');
 });
 
-test('every coin gets its own 1px warm brown boundary and 2px thickness, baked once for both screens', () => {
-  // The boundary is the warm brown the user picked ("오른쪽"), thin enough to read as a coin edge
-  // rather than a grade ring, and the thickness under it is a darker gold.
+test('every coin gets a soft 1px boundary and 1px thickness, baked once for both screens', () => {
+  // The boundary is the warm brown the user picked ("오른쪽") — but 작업 197: "테두리를완전빼면 또
+  // 잘안보일꺼고 지금보다 연하게" — so it stays one pixel, painted semi-transparent, and the
+  // thickness under a coin is one faint pixel instead of a two-pixel slab.
   assert.equal(GOLD_PILE_EDGE, 0x482e0c, 'the boundary is the warm brown #482e0c');
   assert.equal(GOLD_PILE_RIM, 0x8a5a12, 'the thickness under a coin is a darker gold');
   assert.equal(GOLD_COIN_EDGE, 1, 'the boundary is one pixel');
-  assert.equal(GOLD_COIN_RIM, 2, 'the thickness is two pixels');
+  assert.equal(GOLD_COIN_RIM, 1, 'the thickness is one pixel');
+  assert(GOLD_COIN_EDGE_ALPHA >= .35 && GOLD_COIN_EDGE_ALPHA <= .42, `the boundary is soft, not drawn (got ${GOLD_COIN_EDGE_ALPHA})`);
   assert.equal(GOLD_PILE_BRIGHTNESS, 1.1, 'the art is lifted 10% out of the dark floor');
   assert.equal(GOLD_PILE_CONTRAST, 1.08, 'and its contrast raised 8%');
   for (const coin of GOLD_PILE) {
@@ -239,6 +241,9 @@ test('every coin gets its own 1px warm brown boundary and 2px thickness, baked o
   // The boundary follows the art's own silhouette, one pixel out, and the thickness is that
   // silhouette set two pixels lower — no ellipse, no glow, no second picture.
   assert.match(art, /const EDGE_RING/, 'the boundary is the silhouette widened one pixel');
+  // The line is laid down once, semi-transparent, so eight offset copies never stack into an opaque outline.
+  assert.match(art, /context\.globalAlpha = GOLD_COIN_EDGE_ALPHA/, 'the boundary is painted at its soft alpha');
+  assert.match(art, /const boundary = document\.createElement\('canvas'\)/, 'as one layer, not eight stacked copies');
   assert.match(art, /globalCompositeOperation = 'source-in'/, 'and painted in the flat edge colour');
   assert.match(art, /GOLD_PILE_BRIGHTNESS/, 'the art is lifted before it is drawn');
   assert.match(art, /paintGoldCoinChip/, 'one painter bakes the chip');

@@ -32,14 +32,18 @@ export const GOLD_PILE: readonly GoldCoin[] = [
   { dx: 7, dy: -1, size: 15, squash: .50, tint: 0xfff3d6 },
 ];
 
-/** The 1px boundary of a coin: a warm brown, dark enough to cut the coin out of the floor and the
- *  coin behind it, warm enough to belong to the gold (not a grade outline or a neon rim). */
+/** The 1px boundary of a coin: a warm brown, thin enough that it separates the coin from the floor
+ *  and the coin behind it without drawing a cartoon outline. It is painted **semi-transparent**
+ *  (`GOLD_COIN_EDGE_ALPHA`), so the floor shows through the line (작업 197: 사용자 "지금보다 연하게"). */
 export const GOLD_PILE_EDGE = 0x482e0c;
 /** Width of that boundary, in screen pixels. */
 export const GOLD_COIN_EDGE = 1;
-/** The band of darker gold under a coin that gives it thickness, and its height in screen pixels. */
+/** How solid that line is. 0.40 reads as a soft shadowed rim, not a drawn border. */
+export const GOLD_COIN_EDGE_ALPHA = .40;
+/** The band of darker gold under a coin that gives it thickness, and its height in screen pixels.
+ *  작업 197: 2px → 1px, so a coin lying on the floor has a hint of thickness, not a slab. */
 export const GOLD_PILE_RIM = 0x8a5a12;
-export const GOLD_COIN_RIM = 2;
+export const GOLD_COIN_RIM = 1;
 /** The art's own gold, lifted a little so it does not sink into the dark floor. */
 export const GOLD_PILE_BRIGHTNESS = 1.10, GOLD_PILE_CONTRAST = 1.08;
 
