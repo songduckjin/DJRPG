@@ -1,7 +1,7 @@
 import {equipmentCount} from '../../game/bagCapacity';
 import { autoEquipBest, equipmentImage, expToNext, MAX_LEVEL, rarityNames, statNames, totalStats, useSkillBook, type Item, type Save, type Slot, type Stat } from '../../game/store';
-import { rarityRanks, salvageGold, slotNameFor } from '../../game/items';
-import { jobOrDefault } from '../../game/skills';
+import { rarityRanks, salvageGold, slotNameFor, canWield, weaponJob } from '../../game/items';
+import { jobNames, jobOrDefault } from '../../game/skills';
 import { nextSalvageRarity, saveSalvageRarity, type SalvageRarity } from '../salvageRarity';
 import { AUTO_SALVAGE_HINT } from '../autoSalvage';
 import { salvagePlusLabel, salvagePlusUnlocked, salvagePlusValues } from '../salvagePlus';
@@ -163,7 +163,7 @@ export function itemDetail(this: Interface, save: Save, item: Item): HTMLElement
     const equipped = save.equipment[item.slot];
     const heading = document.createElement('div'); heading.className = 'item-detail-heading';
     const title = document.createElement('h2'); renderItemName(title, item);
-    const slotTitle = document.createElement('span'); slotTitle.className = 'item-detail-slot'; slotTitle.textContent = ` · ${slotNameFor(item.slot, jobOrDefault(save.job))}`; title.append(slotTitle);
+    const slotTitle = document.createElement('span'); slotTitle.className = 'item-detail-slot'; slotTitle.textContent = ` · ${slotNameFor(item.slot, item.slot === 'weapon' ? weaponJob(item) : jobOrDefault(save.job))}`; title.append(slotTitle);
     const lock = document.createElement('button'); lock.type = 'button'; lock.className = 'item-lock';
     lock.setAttribute('aria-pressed', String(!!item.locked)); lock.setAttribute('aria-label', item.locked ? '장비 잠금 해제' : '장비 잠금');
     lock.title = item.locked ? '잠금 중 · 누르면 해제' : '열림 · 누르면 분해 방지 잠금';
@@ -178,7 +178,13 @@ export function itemDetail(this: Interface, save: Save, item: Item): HTMLElement
       line.textContent = `${statNames[stat]} +${item.stats[stat] ?? 0} (현재 +${equipped?.stats[stat] ?? 0}) ${diff >= 0 ? '▲' : '▼'}${Math.abs(diff)}`; panel.appendChild(line);
     }
     const buttons = document.createElement('div'); buttons.className = 'detail-actions';
-    const equip = document.createElement('button'); equip.textContent = '장착'; equip.onclick = () => {
+    // 다른 직업의 무기는 입을 수 없다(작업 204): 버튼을 잠그고 어느 직업의 무기인지 알린다.
+    const wieldable = canWield(item, jobOrDefault(save.job));
+    const equip = document.createElement('button'); equip.textContent = wieldable ? '장착' : `${jobNames[weaponJob(item)]} 전용`;
+    equip.disabled = !wieldable;
+    if (!wieldable) { equip.title = `${jobNames[weaponJob(item)]}만 쓸 수 있는 무기입니다. 경매장에 팔거나 분해하세요.`; equip.setAttribute('aria-label', `${itemNameText(item)} · ${jobNames[weaponJob(item)]} 전용 무기, 장착할 수 없음`); }
+    equip.onclick = () => {
+      if (!wieldable) { this.message(`${jobNames[weaponJob(item)]}만 쓸 수 있는 무기입니다.`); return; }
       const index = save.bag.findIndex(i => i.id === item.id); if (index < 0) return;
       save.bag.splice(index, 1); if (equipped) save.bag.push(equipped); save.equipment[item.slot] = item;
       if (item.name === '낡은 두손검' && save.tutorial === 2) { save.tutorial = 3; this.message('튜토리얼 완료! 두손검을 장착했습니다.'); }

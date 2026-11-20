@@ -58,8 +58,10 @@ test('every illustrated tier previews options consistent with generated loot at 
     const unique=legendary+(rare-legendary)*.18, epic=legendary+(rare-legendary)*.48;
     const rarityRoll={common:.5,magic:.05,rare:(epic+rare)/2,epic:(unique+epic)/2,unique:(legendary+unique)/2,legendary:legendary/2}[rarity];
     // 강화 단계(작업 201)는 기본 옵션 미리보기(`codexOptions`)와 별개다 — 여기서는 0단계로 뽑히도록
-    // 남은 난수를 0으로 둔다(첫 네 값만으로 등급·슬롯·티어·주 스탯을 고정).
-    const sequence=[rarityRoll,(slots.indexOf(entry.item.slot)+.1)/slots.length,(entry.index+.1)/(maxTier+1),.5];Math.random=()=>sequence.shift()??0;
+    // 남은 난수를 0으로 둔다(등급·슬롯·[무기면 드롭 직업]·티어·주 스탯을 고정). 무기 드랍은 세 직업
+    // 1/3 확률이라(작업 204) 도감의 대검 종이 나오게 직업 난수 0(전사)을 사이에 둔다.
+    const jobRoll = entry.item.slot === 'weapon' ? [0] : [];
+    const sequence=[rarityRoll,(slots.indexOf(entry.item.slot)+.1)/slots.length,...jobRoll,(entry.index+.1)/(maxTier+1),.5];Math.random=()=>sequence.shift()??0;
     const actual=rollItem(floor),preview=codexOptions(entry,rarity,floor);assert.equal(actual.name,codexVariantName(entry,rarity));
     for(const option of preview.stats){assert(actual.stats[option.stat]>=option.min);assert(actual.stats[option.stat]<=option.max);}
     assert.equal(Object.keys(actual.stats).length,preview.stats.length);

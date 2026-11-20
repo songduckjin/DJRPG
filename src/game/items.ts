@@ -21,7 +21,11 @@ export type EquipmentItem = { id: string; name: string; slot: Slot; rarity: Rari
 export type SkillBook = { id: string; name: string; slot: 'skillbook'; rarity: 'rare'; kind: 'skillbook'; skillId: SkillLevelId; stats: {} };
 export type Item = EquipmentItem | SkillBook;
 export function isSkillBook(item: Item): item is SkillBook { return item.kind === 'skillbook'; }
-export function rollSkillBook(floor: number, job: Job = 'warrior'): SkillBook {
+export function rollSkillBook(floor: number, _job: Job = 'warrior'): SkillBook {
+  // 스킬북도 세 직업이 같은 확률로 떨어진다(작업 204, 사용자 확정). 직업을 먼저 1/3로 고른 뒤,
+  // 그 직업의 `floor * 2` 해금 조건을 만족하는 스킬·패시브 중 하나를 뽑는다. 세 직업 모두 액티브 8 +
+  // 패시브 3으로 수가 같아, 직업을 먼저 고르면 전 스킬이 같은 확률이 된다.
+  const job = dropJob();
   const order = [...skillOrderFor(job), ...passiveOrderFor(job)];
   const available = order.filter(id => (id in skills ? skills[id as keyof typeof skills].level : passives[id as keyof typeof passives].level) <= floor * 2);
   const ids = available.length ? available : [order[0]];
@@ -101,6 +105,29 @@ export const staffBases = ['견습생의 지팡이', '참나무 지팡이', '강
 
 /** 직업별 무기 기본형 목록. 무기 외 슬롯은 세 직업이 같은 목록을 쓴다(기존 세이브·드랍 호환). */
 export function weaponBasesFor(job: Job): readonly string[] { return job === 'archer' ? bowBases : job === 'mage' ? staffBases : baseItems.weapon; }
+
+/** 드롭이 쓸 수 있는 세 직업 — 무기·스킬북은 이 셋이 같은 확률로 떨어진다(작업 204, 사용자 확정). */
+export const dropJobs: readonly Job[] = ['warrior', 'archer', 'mage'];
+
+/** 세 직업 중 하나를 균등(1/3)으로 고른다. */
+export function dropJob(random: () => number = Math.random): Job {
+  const index = Math.min(dropJobs.length - 1, Math.max(0, Math.floor(random() * dropJobs.length)));
+  return dropJobs[index];
+}
+
+/** 이 무기를 쓰는 직업 — 활은 궁수, 지팡이는 마법사, 나머지 대검은 전사. */
+export function weaponJob(item: Item): Job {
+  if (item.slot !== 'weapon') return 'warrior';
+  if (bowIndex(item) >= 0) return 'archer';
+  if (staffIndex(item) >= 0) return 'mage';
+  return 'warrior';
+}
+
+/** 그 직업이 이 장비를 입을 수 있는가 — 직업이 갈리는 것은 무기뿐이다(방어구·장신구는 공용).
+ *  다른 직업의 무기는 장착 대상이 아니므로 자동 장착·'더 좋은 장비' 보호에서도 빠진다. */
+export function canWield(item: Item, job: Job = 'warrior'): boolean {
+  return item.slot !== 'weapon' || weaponJob(item) === jobOrDefault(job);
+}
 
 /** 직업별 기본 무기 이름(첫 튜토리얼 드랍에 쓴다). */
 export function starterWeaponName(job: Job): string {
@@ -307,7 +334,10 @@ export function rollItem(floor: number, guaranteed = false, boss = false, job: J
   const epic = legendary + (rare - legendary) * .48;
   const rarity: Rarity = roll < legendary ? 'legendary' : roll < unique ? 'unique' : roll < epic ? 'epic' : roll < rare ? 'rare' : roll < magic ? 'magic' : 'common';
   const slot = slots[Math.floor(Math.random() * slots.length)];
-  const bases = slot === 'weapon' ? weaponBasesFor(job) : baseItems[slot];
+  // 무기는 세 직업이 같은 확률로 떨어진다(작업 204, 사용자 확정 "다른직업 장비나 스킬북도 동일확률로
+  // 뜰수있어"): 확률 드롭은 직업을 1/3로 먼저 고르고 그 직업의 무기 목록에서 뽑는다. 튜토리얼 첫 확정
+  // 드롭(`guaranteed`)만 내 직업 무기다.
+  const bases = slot === 'weapon' && !guaranteed ? weaponBasesFor(dropJob()) : slot === 'weapon' ? weaponBasesFor(job) : baseItems[slot];
   const rarityTier = rarityTiers[rarity];
   const maxTier = Math.min(bases.length - 1, Math.floor(depth / (bases.length === 10 ? 3 : 8)) + Math.floor(rarityTier * (bases.length - 1) / 9));
   const tier = Math.floor(Math.random() * (maxTier + 1));
@@ -338,9 +368,11 @@ export function itemPower(item: Item): number {
 
 export function autoEquipBest(save: Save): number {
   let changed = 0;
+  const job = jobOrDefault(save.job);
   for (const slot of slots.filter(slot => slot !== 'ring1' && slot !== 'ring2')) {
     const current = save.equipment[slot];
-    const best = save.bag.filter((item): item is EquipmentItem => item.slot === slot).sort((a, b) => itemPower(b) - itemPower(a))[0];
+    // 다른 직업의 무기는 이 캐릭터가 입을 수 없다(작업 204) — 무기 칸 자동 장착 후보에서 뺀다.
+    const best = save.bag.filter((item): item is EquipmentItem => item.slot === slot && canWield(item, job)).sort((a, b) => itemPower(b) - itemPower(a))[0];
     if (!best || (current && itemPower(best) <= itemPower(current))) continue;
     save.bag.splice(save.bag.findIndex(item => item.id === best.id), 1);
     if (current) save.bag.push(current);

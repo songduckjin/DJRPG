@@ -1,6 +1,6 @@
 import { canStoreItem } from './bagCapacity';
 import { bossGoldPiles, bossGoldSpot } from './bossLoot';
-import { addExperience, floorKillTarget, rollItem, skillLevel, totalStats, type Item, type Rarity, type Save } from './store';
+import { addExperience, floorKillTarget, MAX_FLOOR, rollItem, skillLevel, totalStats, type Item, type Rarity, type Save } from './store';
 import { equipmentDropChance, itemDisplayName, rollSkillBook, skillBookDropChance, starterWeaponName } from './items';
 import { dragonOrbitFactor, skillDamageScale, skillDuration, skillRange, skills, type Job, type SkillId } from './skills';
 import { jobOrDefault } from './skills';
@@ -116,7 +116,8 @@ export class World {
   get mageBolt(): ArrowVariant { return this.save.gender === 'female' ? 'fire' : 'arcane'; }
 
   travelToFloor(floor: number): { ok: boolean; message: string } {
-    if (!Number.isInteger(floor) || floor < 1 || floor > this.save.maxFloor) return { ok: false, message: `이동할 수 없는 층입니다. 현재 최고 도달 층은 ${this.save.maxFloor}층입니다.` };
+    const highest = Math.min(MAX_FLOOR, this.save.maxFloor);
+    if (!Number.isInteger(floor) || floor < 1 || floor > highest) return { ok: false, message: `이동할 수 없는 층입니다. 현재 최고 도달 층은 ${highest}층입니다.` };
     if (floor === this.save.floor) return { ok: true, message: `이미 ${floor}층에서 사냥 중입니다.` };
     const lostDrops = this.drops.length;
     this.save.floor = floor;
@@ -336,16 +337,24 @@ export class World {
     }
     if (enemy.boss) {
       if (this.save.autoClimb) {
-        this.save.floor++;
-        this.save.maxFloor = Math.max(this.save.maxFloor, this.save.floor);
+        // 20층이 마지막 층이다(작업 204): 20층 보스를 처치해도 21층으로 넘어가지 않고 20층에 머문다.
+        const capped = this.save.floor >= MAX_FLOOR;
+        if (!capped) {
+          this.save.floor++;
+          this.save.maxFloor = Math.min(MAX_FLOOR, Math.max(this.save.maxFloor, this.save.floor));
+        }
         this.enemies = [];
         this.chaseTarget = undefined; this.pursuing = false;
         this.activeMove = { x: 0, y: 0 };
         this.spawnTimer = .2;
+        this.save.floorKills = 0;
+        this.bossPending = false;
+        this.onMessage(capped ? `최고 ${MAX_FLOOR}층 달성! ${MAX_FLOOR}층에서 계속 사냥합니다.` : `${this.save.floor}층 진입`);
+      } else {
+        this.save.floorKills = 0;
+        this.bossPending = false;
+        this.onMessage(this.save.floor >= MAX_FLOOR ? `${this.save.floor}층 반복 사냥 · 최고 ${MAX_FLOOR}층` : `${this.save.floor}층 반복 사냥`);
       }
-      this.save.floorKills = 0;
-      this.bossPending = false;
-      this.onMessage(this.save.autoClimb ? `${this.save.floor}층 진입` : `${this.save.floor}층 반복 사냥`);
     } else {
       this.save.floorKills++;
       if (this.save.floorKills >= floorKillTarget(this.save.floor) && !this.bossPending && !this.enemies.some(e => e.boss)) {

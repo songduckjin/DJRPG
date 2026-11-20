@@ -1,4 +1,5 @@
-import { autoEquipBest, isSkillBook, itemPower, plusOf, rarityRanks, salvageGold, salvageStones, type EquipmentItem, type Item, type Rarity, type Slot } from './items';
+import { autoEquipBest, canWield, isSkillBook, itemPower, plusOf, rarityRanks, salvageGold, salvageStones, type EquipmentItem, type Item, type Rarity, type Slot } from './items';
+import { jobOrDefault } from './skills';
 import type { Save } from './store';
 
 export function canAutoEquip(save: Save): boolean {
@@ -26,7 +27,11 @@ export function salvageUpgrades(save: Save, items: EquipmentItem[]): SalvageUpgr
   // With a ring slot free there is nothing to beat — `emptySlots` covers it instead.
   const weakestRing = rings.length < 2 ? undefined : rings.reduce((weak, item) => itemPower(item) < itemPower(weak) ? item : weak);
   const upgrades: SalvageUpgrade[] = [];
+  const job = jobOrDefault(save.job);
   for (const item of items) {
+    // 다른 직업의 무기는 이 캐릭터가 입을 수 없다(작업 204): 지금 장착한 무기와 비교해 '더 좋은 장비'로
+    // 잡히면 안 된다. 그런 장비는 경매장·분해 대상일 뿐이다.
+    if (!canWield(item, job)) continue;
     const ring = item.slot === 'ring1' || item.slot === 'ring2';
     const equipped = ring ? weakestRing : save.equipment[item.slot];
     if (!equipped) continue;
@@ -73,6 +78,8 @@ export function autoSalvageBlock(save: Save, item: Item, maxRarity: Exclude<Rari
   if (item.locked) return 'locked';
   if (rarityRanks[item.rarity] > rarityRanks[maxRarity]) return 'grade';
   if (save.maxFloor >= AUTO_SALVAGE_PLUS_FLOOR && typeof maxPlus === 'number' && plusOf(item) > maxPlus) return 'plus';
+  // 다른 직업의 무기는 입을 수 없으므로 '빈 슬롯'·'더 좋은 장비' 보호 대상이 아니다(작업 204).
+  if (!canWield(item, jobOrDefault(save.job))) return undefined;
   const ring = item.slot === 'ring1' || item.slot === 'ring2';
   if (ring ? !save.equipment.ring1 || !save.equipment.ring2 : !save.equipment[item.slot]) return 'empty-slot';
   if (salvageUpgrades(save, [item]).length) return 'upgrade';

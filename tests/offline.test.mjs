@@ -6,20 +6,22 @@ const { freshSave, floorKillTarget } = await import('../src/game/store.ts');
 const { applyOfflineRewards } = await import('../src/game/offline.ts');
 const { equipmentDropChance, skillBookDropChance } = await import('../src/game/items.ts');
 
-test('offline hunts award equipment, skillbooks and estimated boss gold', () => {
+test('offline hunts award equipment, skillbooks and gold, and a boss only past the floor target', () => {
   const originalRandom = Math.random; Math.random = () => 0;
   try {
     const save = freshSave(); save.tutorial = 1;
     const reward = applyOfflineRewards(save, 600);
-    assert.equal(reward.kills, floorKillTarget(1));
-    assert.equal(reward.gold, reward.kills * 4 + 70);
+    // 10분 × 분당 12마리 = 120마리. 1층 목표가 150마리로 올라(작업 204) 600초 정산에는 보스가 없다.
+    assert.equal(reward.kills, 120);
+    assert(reward.kills < floorKillTarget(1), '1층 보스 목표보다 적게 잡았다');
+    assert.equal(reward.gold, reward.kills * 4);
     assert.equal(save.gold, reward.gold);
-    assert.equal(save.floorKills, 0);
+    assert.equal(save.floorKills, reward.kills);
     assert(reward.items.some(item => item.slot === 'skillbook'));
     assert(reward.items.some(item => item.slot === 'weapon'));
     assert.equal(reward.items.filter(item=>item.slot!=='skillbook').length, 40);
-    assert.equal(reward.items.filter(item=>item.slot==='skillbook').length,reward.kills+1);
-    assert.equal(reward.missedDrops, reward.kills + 1 - 40);
+    assert.equal(reward.items.filter(item=>item.slot==='skillbook').length,reward.kills);
+    assert.equal(reward.missedDrops, reward.kills - 40);
   } finally { Math.random = originalRandom; }
 });
 
@@ -32,7 +34,8 @@ test('full bag counts missed drops and tutorial suppresses all loot', () => {
     assert.equal(reward.items.length, reward.kills); assert(reward.items.every(item=>item.slot==='skillbook')); assert.equal(reward.missedDrops, reward.kills);
     const tutorial = freshSave(), early = applyOfflineRewards(tutorial, 600);
     assert.equal(early.items.length, 0); assert.equal(early.missedDrops, 0);
-    assert.equal(early.gold, early.kills * 4 + 70);
+    // 튜토리얼 전 600초는 120마리 — 새 1층 목표(150)에 못 미쳐 보스 금화가 붙지 않는다.
+    assert.equal(early.gold, early.kills * 4);
   } finally { Math.random = originalRandom; }
 });
 

@@ -7,6 +7,8 @@ export class ApiError extends Error {
   constructor(status, code, message) { super(message); this.status = status; this.code = code; }
 }
 export const fail = (status, code, message) => { throw new ApiError(status, code, message); };
+/** 메인 사냥의 마지막 층 — `src/game/store.ts`의 `MAX_FLOOR`와 같은 값이다(작업 204). */
+export const MAX_FLOOR = 20;
 export const client = (env = runtimeEnv()) => {
   const createClient = databaseFactory();
   if (!createClient || !env?.TURSO_DATABASE_URL || !env?.TURSO_AUTH_TOKEN) fail(503, 'DB_NOT_CONFIGURED', '서버 DB가 설정되지 않았습니다.');
@@ -273,6 +275,11 @@ export async function writeSave(tx, row, save, operations = [], preserveCollecti
     : previousAt && incomingAt ? Math.min(previousAt, incomingAt)
     : previousAt || incomingAt;
   save.accountId = row.id; save.lastActiveAt = Date.now();
+  // 메인 층 상한(작업 204): 1~20의 정수만 저장한다. 21층 이상에 있던 예전 세이브는 20층으로 보정하고
+  // 최고 층도 20층을 넘지 않는다 — 장비·아이템·처치 기록은 그대로 둔다.
+  const previousMainFloor = Number.isInteger(row.save.floor) ? row.save.floor : 1;
+  save.floor = Math.max(1, Math.min(MAX_FLOOR, Number.isInteger(save.floor) ? save.floor : previousMainFloor));
+  save.maxFloor = Math.max(save.floor, Math.min(MAX_FLOOR, Number.isInteger(save.maxFloor) ? save.maxFloor : save.floor));
   // Older clients may omit discovery history; never erase already-recorded entries.
   const previousCollection = preserveCollection && Array.isArray(row.save.equipmentCollection) ? row.save.equipmentCollection : [];
   const incomingCollection = Array.isArray(save.equipmentCollection) ? save.equipmentCollection : [];
