@@ -31,6 +31,7 @@ export function openWorldBossField(ui:Interface):void {
   let session=new WorldBossRehearsal(ui.world.save);
   const view=new GameView(),intro=new WorldBossIntro(),defeat=new WorldBossDefeat();
   let attemptId:string|undefined,starting=false,started=!real,networkBusy=false,networkAt=0,finishSent=false,accumulator=0;
+  let recordNotified=false;
   const requestId=crypto.randomUUID();
   const field=document.createElement('section');field.className='world-boss-field';field.setAttribute('role','region');field.setAttribute('aria-label','월드보스 전용 연습 필드');
   field.innerHTML='<div class="wb-field-canvas"></div><header class="wb-field-header"><button class="wb-field-leave" type="button">나가기</button></header><div class="wb-battle-start" hidden>전투 시작</div><div class="wb-field-loading" role="status">전장을 준비하고 있습니다…</div><div class="wb-field-warning" hidden>광역 공격! 내려찍기를 준비합니다</div><footer class="wb-field-footer"><div class="wb-field-record"><strong class="wb-field-clock">60초</strong><span>누적 피해량 <b class="wb-field-damage">0</b></span></div><div class="wb-field-health-label">잿불의 군주 발카론 <small>보스 · 연습용</small></div><div class="wb-field-boss-hp"><i></i><span>공유 체력 미연동</span></div><div class="wb-field-health-label wb-player-label">내 체력 <b class="wb-player-value"></b></div><div class="wb-field-player-hp"><i></i><b></b></div><div class="wb-field-controls"><div><small class="wb-auto-label">메인 장착 스킬 · 자동 사용</small><div class="wb-field-skills"></div></div><button class="wb-field-dodge" type="button"><span aria-hidden="true">↝</span><small>회피</small><b class="wb-dodge-cd"></b></button></div><p>60초 전투 연습 · 실제 도전 횟수와 보상은 소모되지 않습니다.</p></footer><div class="wb-field-result" hidden></div>' ;
@@ -47,6 +48,7 @@ export function openWorldBossField(ui:Interface):void {
         if(battle.finished||data.killed){if(defeat.start(data.killed&&data.hp===0))defeatArtSelected=defeatFrames.length===8;
           // 월드보스 도전/처치는 보스 업적에 1회로 합산한다(작업 208) — 끝난 도전 하나당 딱 한 번.
           if(!finishSent){addBossKill(ui.world.save);ui.onSave();}
+          if(!recordNotified&&battle.record){recordNotified=true;if(battle.record.status==='first')ui.message('월드보스 기록이 등록되었습니다.');else if(battle.record.status==='improved')ui.message('월드보스 최고 기록을 갱신했습니다.');}
           finishSent=true;session.finished=true;session.damage=battle.damage;ui.worldBoss.standing=data.standing;void ui.journey.load();}}
     }catch(error){if(!closed){finishSent=false;ui.message(error instanceof Error?error.message:String(error));}}finally{networkBusy=false;}
   };
