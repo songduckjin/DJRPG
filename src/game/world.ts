@@ -219,6 +219,32 @@ export class World {
     this.enemies.push({ x: start.x, y: start.y, hp, maxHp: hp, boss: false, hit: 0, step: 0, moving: false, knockX: 0, knockY: 0, slow: 0 });
   }
 
+  /**
+   * 캐릭터를 바꾸거나 새로 만들었을 때 — **새로고침 없이** 같은 World가 새 세이브로 갈아탄다(작업 228).
+   *
+   * 화면(필드·HUD·모달)과 저장 동기화는 이 인스턴스와 `save` 객체를 계속 들고 있으므로, 객체 정체성은
+   * 그대로 두고 내용만 새 세이브로 바꿔야 한다(새 World를 만들면 렌더러·저장 큐가 옛 객체를 가리킨다).
+   * 필드에 남아 있던 몹·드랍·연출·쿨타임·보스 상태는 생성자와 같은 초기값으로 되돌린다.
+   */
+  adoptSave(save: Save): void {
+    const target = this.save as unknown as Record<string, unknown>;
+    for (const key of Object.keys(target)) delete target[key];
+    Object.assign(this.save, save);
+    this.save.auto = true;
+    this.player = { x: 0, y: 0, facing: 0, facingSide: 1, hp: Math.min(this.save.health, totalStats(this.save).health), berserk: 0, berserkLevel: 1, hit: 0 };
+    this.enemies = []; this.drops = []; this.coins = []; this.effects = []; this.afterimages = [];
+    this.cooldown = Object.fromEntries(Object.keys(cooldowns).map(id => [id, 0])) as Record<Action, number>;
+    this.spawnTimer = 0; this.paused = false; this.attackHeld = false; this.attackPose = 0;
+    this.attackPoseSpan = .32; this.attackCombo = 'single';
+    this.crush = undefined; this.weaponNotice = 0; this.activeMove = { x: 0, y: 0 };
+    this.bossPending = this.save.autoClimb && this.bossFloor() && this.save.floorKills >= floorKillTarget(this.save.floor);
+    this.bossRetryAvailable = false; this.eliteKills = 0; this.elitePending = false;
+    this.swing = 1; this.chaseTarget = undefined; this.pursuing = false;
+    const hp = enemyMaxHp(this.save.floor, false);
+    const start = clampArenaPoint(145, -45);
+    this.enemies.push({ x: start.x, y: start.y, hp, maxHp: hp, boss: false, hit: 0, step: 0, moving: false, knockX: 0, knockY: 0, slow: 0 });
+  }
+
   /** 보스가 나오는 층인가 — **최고 도달 층에서만**이다(작업 210, 사용자 지시 `#4566`).
    *  아래층을 반복 사냥할 때는 보스가 뜨지 않고 일반·정예만 계속 나온다. */
   bossFloor(): boolean { return this.save.floor >= this.save.maxFloor; }
