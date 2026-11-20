@@ -92,11 +92,13 @@ export function paintGoldCoinChip(image: CanvasImageSource, width: number, heigh
 export function goldCoinChipTexture(source: Texture, coin: GoldCoin): Texture | undefined {
   const image = source.source.resource as unknown as CanvasImageSource | undefined;
   if (!image) return undefined;
-  const canvas = paintGoldCoinChip(image, source.source.width, source.source.height, coin);
-  if (!canvas) return undefined;
-  const texture = Texture.from(canvas);
-  texture.source.scaleMode = 'linear';
-  return texture;
+  try {
+    const canvas = paintGoldCoinChip(image, source.source.width, source.source.height, coin);
+    if (!canvas) return undefined;
+    const texture = Texture.from(canvas);
+    texture.source.scaleMode = 'linear';
+    return texture;
+  } catch { return undefined; /* an art the canvas cannot draw: the plain coin is still a coin */ }
 }
 
 /** The coin art the dungeon bakes from, decoded once when the arena opens. */
@@ -125,9 +127,11 @@ function chipUrl(coin: GoldCoin): string | undefined {
   const cached = chipUrls.get(key);
   if (cached) return cached;
   if (!coinImage) return undefined;
-  const canvas = paintGoldCoinChip(coinImage, coinImage.naturalWidth || 256, coinImage.naturalHeight || 256, coin);
-  if (!canvas) return undefined;
-  const url = canvas.toDataURL('image/png');
-  chipUrls.set(key, url);
-  return url;
+  try {
+    const canvas = paintGoldCoinChip(coinImage, coinImage.naturalWidth || 256, coinImage.naturalHeight || 256, coin);
+    if (!canvas) return undefined;
+    const url = canvas.toDataURL('image/png');
+    chipUrls.set(key, url);
+    return url;
+  } catch { return undefined; }
 }
