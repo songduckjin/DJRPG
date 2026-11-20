@@ -4,6 +4,7 @@ import { rarityRanks, salvageGold, slotNameFor } from '../../game/items';
 import { jobOrDefault } from '../../game/skills';
 import { nextSalvageRarity, saveSalvageRarity, type SalvageRarity } from '../salvageRarity';
 import { AUTO_SALVAGE_HINT } from '../autoSalvage';
+import { salvagePlusLabel, salvagePlusUnlocked, salvagePlusValues } from '../salvagePlus';
 import { canAutoEquip } from '../../game/inventory';
 import { requestSalvage } from './salvageModal';
 import { equipmentPortraitPlan, renderEquipmentPortrait } from '../equipmentPortrait';
@@ -113,8 +114,13 @@ export function renderInventory(this: Interface, dialog: HTMLElement): void {
     };
     showAuto();
     auto.onclick = () => { this.setAutoSalvage(!this.autoSalvage); showAuto(); };
+    // 41층부터 (작업 203): 고단계 장비는 경매장에 팔 수 있으므로, 자동 분해가 갈 `+단계` 상한을 등급 기준
+    // 바로 옆에서 고른다. 40층 이하면 어떤 장비도 `+0`이라 예전과 똑같이 이 칸이 아예 없다.
+    const plusSelect = salvagePlusUnlocked(save.maxFloor) ? salvagePlusPicker.call(this) : undefined;
     const autoHint = document.createElement('small'); autoHint.className = 'auto-salvage-hint'; autoHint.textContent = AUTO_SALVAGE_HINT;
-    controls.append(equip, rarityButton, auto, salvage, autoHint); footer.append(count, controls); section.appendChild(footer);
+    const plusHint = document.createElement('small'); plusHint.className = 'auto-salvage-hint';
+    plusHint.textContent = '고른 단계보다 높은 장비는 자동 분해되지 않고 경매장 판매용으로 보관됩니다.';
+    controls.append(equip, rarityButton, auto, ...(plusSelect ? [plusSelect] : []), salvage, autoHint, ...(plusSelect ? [plusHint] : [])); footer.append(count, controls); section.appendChild(footer);
     dialog.appendChild(section);
     const selectedItem = visible.find(item => item.id === this.selected);
     if (selectedItem) {
@@ -122,6 +128,21 @@ export function renderInventory(this: Interface, dialog: HTMLElement): void {
       dialog.append(detail);
     }
   }
+
+/** The `+N까지` picker (작업 203). A native select rather than a cycling button: eight values stepped one
+ *  tap at a time would be seven taps to go from `+4까지` down to `+3까지`, and the phone already opens its
+ *  own picker for a select. The label carries the whole meaning — `자동 분해 +4까지` — so no extra caption
+ *  is needed beside the 자동 분해 switch. */
+function salvagePlusPicker(this: Interface): HTMLSelectElement {
+  const select = document.createElement('select'); select.className = 'salvage-plus';
+  select.setAttribute('aria-label', `자동 분해 +단계 상한 ${salvagePlusLabel(this.salvagePlus)}. 고른 단계까지만 자동 분해하고 그 위는 보관합니다`);
+  for (const value of salvagePlusValues) {
+    const option = document.createElement('option'); option.value = String(value); option.textContent = `자동 분해 ${salvagePlusLabel(value)}`; select.append(option);
+  }
+  select.value = String(this.salvagePlus);
+  select.onchange = () => this.setSalvagePlus(Number(select.value));
+  return select;
+}
 
 export function itemDetail(this: Interface, save: Save, item: Item): HTMLElement {
     const panel = document.createElement('div'); panel.className = `item-detail ${isSkillBook(item) ? 'skillbook-detail' : item.rarity}`;

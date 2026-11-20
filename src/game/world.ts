@@ -92,10 +92,13 @@ export class World {
    *  The UI owns the switch and the stored value, so the world asks on every pickup instead of keeping
    *  a copy that could drift. Offline rewards never pass through this. */
   autoSalvage?: () => Exclude<Rarity, 'legendary'> | undefined;
+  /** 41층부터 쓰는 `+N까지` 상한 (작업 203): 이 단계보다 높은 장비는 경매장용으로 남긴다. 40층
+   *  이하에서는 값이 있어도 `autoSalvageBlock`이 보지 않으므로 설정 화면도 그때만 열린다. */
+  autoSalvagePlus?: () => number | undefined;
   /** Would this recovered piece be swept up right now? Used to let it fly in even with a full bag. */
   private sweeps(item: Item): Exclude<Rarity, 'legendary'> | undefined {
     const grade = this.autoSalvage?.();
-    return grade && !autoSalvageBlock(this.save, item, grade) ? grade : undefined;
+    return grade && !autoSalvageBlock(this.save, item, grade, this.autoSalvagePlus?.()) ? grade : undefined;
   }
 
   constructor(public save: Save) {
@@ -434,7 +437,7 @@ export class World {
       // 접속 중 자동 분해 (작업 196): a piece at or below the chosen grade, unlocked, in a filled slot
       // and no better than what is worn becomes gold and stones here, and never reaches the bag.
       const sweep = this.sweeps(drop.item);
-      if (sweep && autoSalvageRecovered(this.save, drop.item, sweep)) {
+      if (sweep && autoSalvageRecovered(this.save, drop.item, sweep, this.autoSalvagePlus?.())) {
         drop.age = -1;
         this.onChange();
         continue;

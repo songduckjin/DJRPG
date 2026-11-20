@@ -1,5 +1,6 @@
 import type { Interface } from '../interface';
 import { AUTO_SALVAGE_HINT } from '../autoSalvage';
+import { salvagePlusLabel, salvagePlusUnlocked, salvagePlusValues } from '../salvagePlus';
 import type { JourneyTask } from '../../game/journey';
 import { preferences, savePreferences } from '../../game/preferences';
 import { goldNode } from '../currency';
@@ -24,7 +25,13 @@ export function renderSettings(ui:Interface,dialog:HTMLElement):void{
   const auto=element('label','setting-row','자동 분해 (접속 중)'),autoToggle=element('input');autoToggle.type='checkbox';autoToggle.checked=ui.autoSalvage;
   autoToggle.onchange=()=>{ui.setAutoSalvage(autoToggle.checked);};
   auto.append(autoToggle);section.append(auto,element('p','utility-note',AUTO_SALVAGE_HINT));
-  section.append(element('p','utility-note','일괄 분해 기준은 장비창에서 설정 · 소리 기능 미지원'));
+  // 41층부터 (작업 203): 자동 분해가 갈 `+단계` 상한 — 장비창과 같은 기기 저장값을 쓰고, 40층 이하에서는 줄 자체가 없다.
+  if(salvagePlusUnlocked(ui.world.save.maxFloor)){
+    const plus=element('label','setting-row','자동 분해 +단계'),plusSelect=element('select');
+    for(const value of salvagePlusValues){const option=element('option','',salvagePlusLabel(value));option.value=String(value);plusSelect.append(option);}
+    plusSelect.value=String(ui.salvagePlus);plusSelect.onchange=()=>{ui.setSalvagePlus(Number(plusSelect.value));};
+    plus.append(plusSelect);section.append(plus,element('p','utility-note','고른 단계보다 높은 장비는 경매장 판매용으로 보관됩니다.'));
+  }  section.append(element('p','utility-note','일괄 분해 기준은 장비창에서 설정 · 소리 기능 미지원'));
   heading(section,'계정');const account=element('div','utility-toolbar'),status=element('small','',`서버 ${ui.saveStatus}`);status.dataset.saveStatus='';account.append(element('span','',ui.session.loginId),status,button('계정 정보',()=>ui.open('account')));section.append(account);
   const help=element('details','utility-help');help.append(element('summary','','도움말'),element('p','utility-note','몬스터를 자동으로 사냥합니다. 장비창에서 장착·분해하고 스킬창에서 습득·강화하세요. 보상은 한국 시간 매일 오전 5시, 주간은 월요일 오전 5시에 초기화됩니다.'),element('small','','DJRPG'));section.append(help);
   section.append(button('로그아웃 · 계정 전환',()=>window.dispatchEvent(new Event('game-logout'))));dialog.append(section);

@@ -48,6 +48,7 @@ export function clearLegacySave(key: string): void {
   localStorage.removeItem('djrpg.lastLogin.v1');
   localStorage.removeItem('djrpg-salvage-rarity');
   localStorage.removeItem('djrpg-auto-salvage');
+  localStorage.removeItem('djrpg-auto-salvage-plus');
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> { return typeof value === 'object' && value !== null && !Array.isArray(value); }

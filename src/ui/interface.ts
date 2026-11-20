@@ -12,6 +12,7 @@ import { bindModalClose } from './modalClose';
 import { resetModalDefaults } from './modalDefaults';
 import { readSalvageRarity, type SalvageRarity } from './salvageRarity';
 import { AUTO_SALVAGE_OFF_NOTICE, AUTO_SALVAGE_ON_NOTICE, readAutoSalvage, saveAutoSalvage } from './autoSalvage';
+import { isSalvagePlus, readSalvagePlus, SALVAGE_PLUS_DEFAULT, saveSalvagePlus } from './salvagePlus';
 import { dismissBagDetail, positionBagDetail } from './bagDetail';
 import type { Item, Save, Slot } from '../game/store';
 import { discoverEquipment } from '../game/codex';
@@ -61,6 +62,8 @@ export class Interface {
   salvageRarity: SalvageRarity = readSalvageRarity();
   /** 접속 중 자동 분해 (작업 196): kept on the device with the threshold, and off until turned on. */
   autoSalvage = readAutoSalvage();
+  /** 자동 분해가 갈 `+단계` 상한 (작업 203): 41층부터만 쓰이고, 기기에 저장된 값을 시작 시 읽는다. */
+  salvagePlus = readSalvagePlus();
   salvageIds?: string[];
   skillTarget?: number;
   pendingSkill?: SkillId;
@@ -96,6 +99,7 @@ export class Interface {
     // The world asks on every pickup rather than keeping a copy, so the switch and the threshold are
     // always the latest thing the player set.
     world.autoSalvage = () => this.autoSalvage ? this.salvageRarity : undefined;
+    world.autoSalvagePlus = () => this.salvagePlus;
     this.market = new Market(sync);
     this.journey = new Journey(sync, world);
     discoverEquipment(world.save);
@@ -185,6 +189,12 @@ export class Interface {
   setAutoSalvage(on: boolean): void {
     this.autoSalvage = on; saveAutoSalvage(on);
     this.message(on ? AUTO_SALVAGE_ON_NOTICE : AUTO_SALVAGE_OFF_NOTICE);
+  }
+
+  /** 고른 `+N까지` 상한을 기기에 남긴다 (작업 203) — 창을 닫아도·새로고침해도 무엇이 지워질지 그대로다. */
+  setSalvagePlus(value: number): void {
+    this.salvagePlus = isSalvagePlus(value) ? value : SALVAGE_PLUS_DEFAULT;
+    saveSalvagePlus(this.salvagePlus);
   }
 
   open(kind: Modal | null): void {

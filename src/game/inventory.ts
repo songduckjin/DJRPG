@@ -1,4 +1,4 @@
-import { autoEquipBest, isSkillBook, itemPower, rarityRanks, salvageGold, salvageStones, type EquipmentItem, type Item, type Rarity, type Slot } from './items';
+import { autoEquipBest, isSkillBook, itemPower, plusOf, rarityRanks, salvageGold, salvageStones, type EquipmentItem, type Item, type Rarity, type Slot } from './items';
 import type { Save } from './store';
 
 export function canAutoEquip(save: Save): boolean {
@@ -59,12 +59,20 @@ export function salvageItems(save: Save, ids: string[]): { count: number; gold: 
  *  reaches the hero: a skill book is never swept, a locked piece is the player's own mark, nothing
  *  above the chosen grade is taken, an empty slot needs something to wear, and a piece that beats what
  *  is worn is exactly what 자동 장착 would take, so it stays in the bag. */
-export type AutoSalvageBlock = 'skillbook' | 'locked' | 'grade' | 'empty-slot' | 'upgrade';
+export type AutoSalvageBlock = 'skillbook' | 'locked' | 'grade' | 'plus' | 'empty-slot' | 'upgrade';
 
-export function autoSalvageBlock(save: Save, item: Item, maxRarity: Exclude<Rarity, 'legendary'>): AutoSalvageBlock | undefined {
+/** From this floor a drop can carry a 강화 단계, so live auto-salvage also obeys the player's
+ *  `+N까지` cap (작업 203). Below it every piece is `+0` and the grade rules alone decide. */
+export const AUTO_SALVAGE_PLUS_FLOOR = 41;
+
+/** How far down the sweep may reach: `maxPlus` is the chosen `+N까지` cap (0~7) and is read only from
+ *  `AUTO_SALVAGE_PLUS_FLOOR` on. A piece above the cap is a rare drop worth selling at the auction
+ *  house, so it is kept even when it is weaker than what the hero wears. */
+export function autoSalvageBlock(save: Save, item: Item, maxRarity: Exclude<Rarity, 'legendary'>, maxPlus?: number): AutoSalvageBlock | undefined {
   if (isSkillBook(item)) return 'skillbook';
   if (item.locked) return 'locked';
   if (rarityRanks[item.rarity] > rarityRanks[maxRarity]) return 'grade';
+  if (save.maxFloor >= AUTO_SALVAGE_PLUS_FLOOR && typeof maxPlus === 'number' && plusOf(item) > maxPlus) return 'plus';
   const ring = item.slot === 'ring1' || item.slot === 'ring2';
   if (ring ? !save.equipment.ring1 || !save.equipment.ring2 : !save.equipment[item.slot]) return 'empty-slot';
   if (salvageUpgrades(save, [item]).length) return 'upgrade';
@@ -74,8 +82,8 @@ export function autoSalvageBlock(save: Save, item: Item, maxRarity: Exclude<Rari
 /** Auto-salvages one recovered piece on the spot: it never enters the bag, and its gold and stones are
  *  paid exactly as a manual salvage of the same piece would pay. Returns `undefined` when the piece is
  *  kept, so the caller stores it as usual. */
-export function autoSalvageRecovered(save: Save, item: Item, maxRarity: Exclude<Rarity, 'legendary'>): { gold: number; stones: number } | undefined {
-  const block = autoSalvageBlock(save, item, maxRarity);
+export function autoSalvageRecovered(save: Save, item: Item, maxRarity: Exclude<Rarity, 'legendary'>, maxPlus?: number): { gold: number; stones: number } | undefined {
+  const block = autoSalvageBlock(save, item, maxRarity, maxPlus);
   if (block || isSkillBook(item)) return undefined;
   const gold = salvageGold[item.rarity], stones = salvageStones[item.rarity];
   save.gold += gold; save.stones += stones;
