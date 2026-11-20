@@ -260,8 +260,8 @@ export async function reconcileItems(tx, id, before, after, options = {}) {
       if (++minted > guard.items) fail(400, 'INVALID_ITEM', '아이템 생성이 서버 허용 범위를 넘었습니다.');
       if (!itemWithinBounds(item, mintFloor)) fail(400, 'INVALID_ITEM', '아이템 능력치가 서버 기록과 다릅니다. 최신 데이터를 다시 불러오세요.');
     }
-    if (slotsByItem.has(item.id) && slotsByItem.get(item.id) !== slot) fail(409, 'ITEM_CONFLICT', '다른 캐릭터의 아이템은 사용할 수 없습니다.');
-    if (owner && !slotsByItem.has(item.id) && slot !== 1) fail(409, 'ITEM_CONFLICT', '기존 아이템의 소유 캐릭터를 확인할 수 없습니다.');
+    if (slotsByItem.has(item.id) && slotsByItem.get(item.id) !== slot) fail(409, 'ITEM_CONFLICT', '다른 캐릭터가 가진 아이템입니다. 그 캐릭터로 접속해 사용하세요.');
+    if (owner && !slotsByItem.has(item.id) && slot !== 1) fail(409, 'ITEM_CONFLICT', '기존 아이템의 소유 캐릭터를 확인할 수 없습니다. 1번 캐릭터로 한 번 저장한 뒤 다시 시도하세요.');
     if (!slotsByItem.has(item.id)) writes.push({ sql: 'INSERT INTO djrpg_character_item_owners(item_id,account_id,slot) VALUES (?,?,?)', args: [item.id, id, slot] });
   }
   // Include removed legacy items, preventing resurrection after consumption.

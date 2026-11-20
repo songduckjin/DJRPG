@@ -41,6 +41,19 @@ export class Market {
     this.registerCategory = ''; this.registerRarity = ''; this.unlockItem = undefined;
     this.data = undefined; this.candidate = undefined; this.newCount = 0;
   }
+  /**
+   * 캐릭터를 바꿨을 때 **이전 캐릭터의 화면 선택**만 버린다(작업 239).
+   *
+   * 거래소 데이터(`data`)는 계정 공용(판매 중 매물·내 거래·수령함·판매 한도)이라 그대로 두고, 새 캐릭터에는
+   * 의미가 없는 것만 지운다 — 등록 탭에서 고른 아이템·입력한 가격·최근 거래가, 펼친 상세, 오류 문구다.
+   * 그대로 두면 새 캐릭터의 가방에 없는 아이템의 가격표·시세가 남아 등록 버튼이 헷갈린다.
+   */
+  resetForCharacterSwitch(): void {
+    this.listRequest?.abort(); this.generation++; this.loading = false;
+    this.selected = undefined; this.selectedItem = ''; this.price = ''; this.unlockItem = undefined;
+    this.quote = undefined; this.quoteGeneration++;
+    this.candidate = undefined; this.newCount = 0; this.error = '';
+  }
   open(): void {
     this.opened = true; this.error = ''; void this.load(true);
   }
