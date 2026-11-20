@@ -1,5 +1,6 @@
 import type { Save } from './store';
-import { passiveOrder, passives, skillOrder, skills, type SkillLevelId } from './skills';
+import { allSkillIds, passiveOrderFor, passives, skillOrderFor, skills, type Job, type SkillLevelId } from './skills';
+import { jobOrDefault } from './skills';
 
 function isRecord(value: unknown): value is Record<string, unknown> { return typeof value === 'object' && value !== null && !Array.isArray(value); }
 
@@ -20,9 +21,10 @@ export type EquipmentItem = { id: string; name: string; slot: Slot; rarity: Rari
 export type SkillBook = { id: string; name: string; slot: 'skillbook'; rarity: 'rare'; kind: 'skillbook'; skillId: SkillLevelId; stats: {} };
 export type Item = EquipmentItem | SkillBook;
 export function isSkillBook(item: Item): item is SkillBook { return item.kind === 'skillbook'; }
-export function rollSkillBook(floor: number): SkillBook {
-  const available = [...skillOrder, ...passiveOrder].filter(id => (id in skills ? skills[id as keyof typeof skills].level : passives[id as keyof typeof passives].level) <= floor * 2);
-  const ids = available.length ? available : [skillOrder[0]];
+export function rollSkillBook(floor: number, job: Job = 'warrior'): SkillBook {
+  const order = [...skillOrderFor(job), ...passiveOrderFor(job)];
+  const available = order.filter(id => (id in skills ? skills[id as keyof typeof skills].level : passives[id as keyof typeof passives].level) <= floor * 2);
+  const ids = available.length ? available : [order[0]];
   const skillId = ids[Math.floor(Math.random() * ids.length)];
   return { id: crypto.randomUUID(), name: `[스킬북] ${skillId in skills ? skills[skillId as keyof typeof skills].name : passives[skillId as keyof typeof passives].name}`, slot: 'skillbook', rarity: 'rare', kind: 'skillbook', skillId, stats: {} };
 }
@@ -38,6 +40,15 @@ export const statNames: Record<Stat, string> = { attack: '공격', defense: '방
 
 const ringBases = ['구리 반지', '은 반지', '혈옥 반지', '수호의 인장', '군주의 반지'] as const;
 
+/** 궁수 전용 활 10종 — 전사 대검 10종과 1:1로 대응하는 티어다. */
+export const bowBases = ['사냥꾼의 활', '각궁', '강철 합성궁', '바람결 장궁', '서리엽궁', '룬 각궁', '혈염 장궁', '용골 대궁', '폭풍의 성궁', '패왕의 신궁'] as const;
+
+/** 직업별 무기 기본형 목록. 무기 외 슬롯은 두 직업이 같은 목록을 쓴다(기존 세이브·드랍 호환). */
+export function weaponBasesFor(job: Job): readonly string[] { return job === 'archer' ? bowBases : baseItems.weapon; }
+
+/** 직업별 기본 무기 이름(첫 튜토리얼 드랍에 쓴다). */
+export function starterWeaponName(job: Job): string { return job === 'archer' ? '낡은 사냥꾼의 활' : '낡은 두손검'; }
+
 export const baseItems: Record<Slot, readonly string[]> = {
   weapon: ['두손검', '바스타드 소드', '클레이모어', '쯔바이핸드', '플랑베르주', '룬 블레이드', '혈빛 대검', '아다만트 그레이트소드', '용살자의 대검', '패왕의 성검'],
   offhand: ['수련자의 문장', '강철 문장', '기사단 휘장', '피빛 맹세 문장', '붉은보석 문장'],
@@ -52,17 +63,42 @@ export const baseItems: Record<Slot, readonly string[]> = {
 };
 
 export function baseItemIndex(item: EquipmentItem): number {
-  const compact = (value: string) => value.normalize('NFKC').replace(/[\s\u200b\ufeff]/gu, '');
   const name = compact(item.name);
   if (item.slot === 'helmet' && name === compact('낡은 투구')) return baseItems.helmet.indexOf('심연의 뿔투구');
+  if (item.slot === 'weapon') {
+    const bow = bowBases.findIndex(base => name === compact(base) || name.endsWith(compact(base)));
+    if (bow >= 0) return bow;
+  }
   return baseItems[item.slot].findIndex(base => name === compact(base) || name.endsWith(compact(base)));
 }
+
+function compact(value: string): string { return value.normalize('NFKC').replace(/[\s\u200b\ufeff]/gu, ''); }
+
+/** 이름이 활 기본형이면 그 인덱스(0~9), 아니면 -1. */
+export function bowIndex(item: Item): number {
+  if (item.slot !== 'weapon') return -1;
+  const name = compact(item.name);
+  return bowBases.findIndex(base => name === compact(base) || name.endsWith(compact(base)));
+}
+
+export function isBow(item: Item): boolean { return bowIndex(item) >= 0; }
+
+/** 슬롯 표기 — 궁수의 무기 칸만 '활'로 부른다. */
+export function slotNameFor(slot: Slot, job: Job = 'warrior'): string {
+  return slot === 'weapon' && job === 'archer' ? '활' : slotNames[slot];
+}
+
+/** 궁수는 이번 단계에서 전용 갑옷·투구·활 외형 시트를 쓰지 않는다(기본 시트만 그린다). */
+export function isArcher(save: Pick<Save, 'job'>): boolean { return jobOrDefault(save.job) === 'archer'; }
 
 export function isZweihander(item: Item): boolean { return item.slot === 'weapon' && /쯔바이핸드|츠바이핸더/.test(item.name); }
 
 export function equipmentImage(item: EquipmentItem): { path: string; frame: number; columns: number } {
-  const slot = item.slot === 'ring1' || item.slot === 'ring2' ? 'ring' : item.slot;
   const index = baseItemIndex(item);
+  if (item.slot === 'weapon' && bowIndex(item) >= 0) {
+    return { path: `/assets/item-art/bow_${Math.floor(index / 5) * 5}.png`, frame: index % 5, columns: 5 };
+  }
+  const slot = item.slot === 'ring1' || item.slot === 'ring2' ? 'ring' : item.slot;
   if (index >= 0) return { path: `/assets/item-art/${slot}_${Math.floor(index / 5) * 5}.png`, frame: index % 5, columns: 5 };
   return { path: isZweihander(item) ? '/assets/icons/icon_zweihander.png' : `/assets/icons/${slot}.png`, frame: 0, columns: 1 };
 }
@@ -73,13 +109,15 @@ export const wearableAssetPaths = {
 } as const satisfies Partial<Record<Slot, string>>;
 
 export function wearableEquipmentImage(item: EquipmentItem): { path: string; frame: number; columns: number; rows: number } | undefined {
+  // 활은 착용 외형 시트(wearable/weapons.png 은 대검)가 없다 — 이번 단계에서 궁수는 기본 시트만 그린다.
+  if (isBow(item)) return undefined;
   const path = wearableAssetPaths[item.slot as keyof typeof wearableAssetPaths], frame = baseItemIndex(item);
   return path && frame >= 0 ? { path, frame, columns: 5, rows: 2 } : undefined;
 }
 
 export function migrateItem(value: unknown): Item | undefined {
   if (!isRecord(value)) return undefined;
-  if (value.kind === 'skillbook' && value.slot === 'skillbook' && typeof value.skillId === 'string' && [...skillOrder, ...passiveOrder].includes(value.skillId as SkillLevelId)) {
+  if (value.kind === 'skillbook' && value.slot === 'skillbook' && typeof value.skillId === 'string' && (allSkillIds as SkillLevelId[]).includes(value.skillId as SkillLevelId)) {
     const skillId = value.skillId as SkillLevelId;
     const fallback = `[스킬북] ${skillId in skills ? skills[skillId as keyof typeof skills].name : passives[skillId as keyof typeof passives].name}`;
     // 서버가 소유권 identity(이름 포함)로 아이템을 대조하므로, 저장된 이름이 있으면 그대로 유지한다.
@@ -100,16 +138,29 @@ export function migrateItem(value: unknown): Item | undefined {
   return { id: typeof value.id === 'string' && value.id ? value.id : crypto.randomUUID(), name, slot, rarity, stats, locked: value.locked === true };
 }
 
-function itemSkillLevel(save: Save, id: 'mastery' | 'body' | 'instinct'): number { return save.skillLevels[id] ?? 1; }
+function itemSkillLevel(save: Save, id: SkillLevelId): number { return save.skillLevels[id] ?? 1; }
+
+/** 직업별 패시브 배율 — 전사·궁수 각각 같은 효과를 다른 이름으로 가진다. */
+function passiveLevel(save: Save, ids: SkillLevelId[]): number | undefined {
+  const found = ids.find(id => save.passives.includes(id as never));
+  return found ? itemSkillLevel(save, found) : undefined;
+}
 
 export function totalStats(save: Save): Record<Stat, number> {
   const total = { attack: 8 + save.level * 2, defense: 2 + save.level, health: 100 + (save.level - 1) * 12, crit: 2, speed: 0 };
   for (const item of Object.values(save.equipment)) if (item && !isSkillBook(item)) {
     for (const stat of Object.keys(item.stats) as Stat[]) total[stat] += item.stats[stat] ?? 0;
   }
-  if (save.passives.includes('mastery')) total.attack = Math.ceil(total.attack * (1.15 + (itemSkillLevel(save, 'mastery') - 1) * .02));
-  if (save.passives.includes('body')) { const bonus = 1.15 + (itemSkillLevel(save, 'body') - 1) * .02; total.defense = Math.ceil(total.defense * bonus); total.health = Math.ceil(total.health * bonus); }
-  if (save.passives.includes('instinct')) { total.crit += 8 + (itemSkillLevel(save, 'instinct') - 1) * 2; total.speed += 12 + (itemSkillLevel(save, 'instinct') - 1) * 2; }
+  const attackBoost = passiveLevel(save, ['mastery', 'bowMastery']);
+  if (attackBoost) total.attack = Math.ceil(total.attack * (1.15 + (attackBoost - 1) * .02));
+  const body = passiveLevel(save, ['body']);
+  if (body) { const bonus = 1.15 + (body - 1) * .02; total.defense = Math.ceil(total.defense * bonus); total.health = Math.ceil(total.health * bonus); }
+  const instinct = passiveLevel(save, ['instinct']);
+  if (instinct) { total.crit += 8 + (instinct - 1) * 2; total.speed += 12 + (instinct - 1) * 2; }
+  const swift = passiveLevel(save, ['swiftStep']);
+  if (swift) total.speed += 12 + (swift - 1) * 2;
+  const sight = passiveLevel(save, ['hawkSight']);
+  if (sight) total.crit += 8 + (sight - 1) * 2;
   return total;
 }
 
@@ -117,8 +168,8 @@ export function equipmentDropChance(floor: number, boss = false): number {
   return boss ? Math.min(.24, .03 + (floor - 1) * .004) : Math.min(.022, .0025 + (floor - 1) * .00035);
 }
 
-export function rollItem(floor: number, guaranteed = false, boss = false): Item {
-  if (guaranteed) return { id: crypto.randomUUID(), name: '낡은 두손검', slot: 'weapon', rarity: 'common', stats: { attack: 4 } };
+export function rollItem(floor: number, guaranteed = false, boss = false, job: Job = 'warrior'): Item {
+  if (guaranteed) return { id: crypto.randomUUID(), name: starterWeaponName(job), slot: 'weapon', rarity: 'common', stats: { attack: 4 } };
   const roll = Math.random();
   const depth = Math.max(0, floor - 1);
   const legendary = boss ? Math.min(.04, .02 + depth * .0002) : Math.min(.006, .002 + depth * .00005);
@@ -127,13 +178,12 @@ export function rollItem(floor: number, guaranteed = false, boss = false): Item 
   const epic = legendary + (rare - legendary) * .48;
   const rarity: Rarity = roll < legendary ? 'legendary' : roll < unique ? 'unique' : roll < epic ? 'epic' : roll < rare ? 'rare' : roll < (boss ? .54 : .117) ? 'magic' : 'common';
   const slot = slots[Math.floor(Math.random() * slots.length)];
-  const bases = baseItems[slot];
+  const bases = slot === 'weapon' ? weaponBasesFor(job) : baseItems[slot];
   const rarityTier = rarityTiers[rarity];
   const maxTier = Math.min(bases.length - 1, Math.floor(depth / (bases.length === 10 ? 3 : 8)) + Math.floor(rarityTier * (bases.length - 1) / 9));
   const tier = Math.floor(Math.random() * (maxTier + 1));
   const base = bases[tier];
-  const zweihander = slot === 'weapon' && base === '쯔바이핸드';
-  const prefix = rarityPrefixes[rarity];
+  const zweihander = slot === 'weapon' && base === '쯔바이핸드';  const prefix = rarityPrefixes[rarity];
   const scale = (1 + Math.floor(floor / 2)) * rarityScales[rarity];
   const primary: Stat = ['weapon', 'ring1', 'ring2', 'gloves'].includes(slot) ? 'attack' : 'defense';
   const stats: Partial<Record<Stat, number>> = { [primary]: scale + Math.ceil(Math.random() * 3) + Math.ceil(tier * (slot === 'weapon' ? .6 : .4)) };

@@ -3,7 +3,7 @@ import {
   type CostumeLayerPlan
 } from '../game/render/costumeHero';
 import type { Save } from '../game/store';
-import { baseItemIndex } from '../game/items';
+import { baseItemIndex, isArcher } from '../game/items';
 import { helmetArtFor, helmetArtPath, helmetIdlePlacement } from '../game/render/helmets';
 import { armorIndexFor, armorSheetPath } from '../game/render/armors';
 import { WEAPON_GUARD, weaponIndexFor, weaponPartPath, weaponPose, swordlessBodyPath } from '../game/render/weapons';
@@ -15,6 +15,8 @@ import { WEAPON_GUARD, weaponIndexFor, weaponPartPath, weaponPose, swordlessBody
 
 /** 전사 시안은 장착 조합에 맞춘 필드와 같은 전신 그림을 쓴다(작업 155: 갑옷 티어별 시트). */
 export function equipmentFallbackPortrait(save: Save): string {
+  // 궁수는 이번 단계에서 기본 시트만 쓴다 — 갑옷·투구·활 외형은 추후 별도 시안(작업 157).
+  if (isArcher(save)) return `/assets/pilot-25d/archer_${save.gender}_idle_v1.png`;
   // 투구를 쓰면 필드와 같은 머리 없는 본체 위에 투구 파츠를 얹는다(작업 152).
   const headless = !!save.equipment.helmet;
   const armor = armorIndexFor(save);
@@ -39,8 +41,9 @@ export type EquipmentPortraitWeapon = {
   rotation: number;
 };
 
-/** 착용 무기의 파츠. 0번(기본 두손검)은 본체 시트에 그려져 있어 undefined. */
+/** 착용 무기의 파츠. 0번(기본 두손검)은 본체 시트에 그려져 있어 undefined. 궁수는 활 외형이 없다. */
 export function equipmentPortraitWeapon(save: Save): EquipmentPortraitWeapon | undefined {
+  if (isArcher(save)) return undefined;
   const path = weaponPartPath(weaponIndexFor(save));
   if (!path) return undefined;
   const pose = weaponPose(save.gender, 'idle', 0);
@@ -56,10 +59,10 @@ export type EquipmentPortraitHelmet = {
   scale: number;
 };
 
-/** 착용 투구의 머리 파츠. 투구가 없으면 undefined(전신 그림만 그린다). */
+/** 착용 투구의 머리 파츠. 투구가 없거나 궁수면 undefined(전신 그림만 그린다). */
 export function equipmentPortraitHelmet(save: Save): EquipmentPortraitHelmet | undefined {
   const item = save.equipment.helmet;
-  if (!item) return undefined;
+  if (!item || isArcher(save)) return undefined;
   // 장비창은 서기 1프레임이라 정면 파츠를 그대로 쓴다(공격 3/4 파츠는 필드 전용).
   const art = helmetArtFor(save.gender, baseItemIndex(item), 'idle', 0);
   if (!art) return undefined;
@@ -96,7 +99,7 @@ export function equipmentPortraitPlan(save: Save): EquipmentPortraitPlan {
   // 착용 투구·대검이 바뀌면 합성 결과도 바뀌므로 키에 넣는다(성별 + 갑옷 티어 + 투구 + 검 파츠).
   return {
     mode: 'fallback', base,
-    key: `pilot:${save.gender}:a${armorIndexFor(save)}:${helmet ? helmet.path : '-'}:${weapon ? weapon.path : '-'}`,
+    key: isArcher(save) ? `archer:${save.gender}` : `pilot:${save.gender}:a${armorIndexFor(save)}:${helmet ? helmet.path : '-'}:${weapon ? weapon.path : '-'}`,
     gender: save.gender, layers: [], helmet, weapon
   };
 }

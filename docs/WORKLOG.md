@@ -11,6 +11,20 @@
 
 # 작업 로그
 
+## 2026-11-20 — 궁수 직업 추가: 기본 시트·활 10종·원거리 전투·스킬 8+3 (작업 158)
+
+- **요청**: `songduckjin/DJRPG`에 두 번째 직업 **궁수(`archer`)**를 전사 기준으로 자연스럽게 추가하고 PR 머지·`djrpg.pages.dev` 운영 배포까지 완료. 승인된 궁수 원본 그림(서기 1장·걷기 4프레임·활 사격 4프레임, 남녀)이 이미 워크스페이스에 있었다.
+- **세이브 호환**: `Save.job?: 'warrior' | 'archer'`를 추가하고 `freshSave(gender, job)`·`parseSave`가 항상 값을 채운다(없는 예전 세이브·DB 레코드는 `'warrior'`). 서버 `initialSave`·`register`·`createCharacter`·`characters`·`reset`이 `job`을 검증·보존하고, 클라이언트는 `jobOrDefault()` 하나로 판정한다. 전사 세이브는 장비·진행·퀵슬롯이 그대로 유지된다(테스트 `archer.test.mjs`).
+- **생성 UI**: 로그인 신규 가입과 `새 캐릭터` 모달 모두 **위 줄 = 직업(전사/궁수), 아래 줄 = 성별**로 배치하고, 성별 버튼 이름은 고른 직업을 따라간다(`남성 전사 ↔ 남성 궁수`). 계정 창의 직업 표기도 세이브 값을 읽는다.
+- **에셋**: `scripts/build-archer-sheets.py`가 승인 원본(`downloads/archer_preview/*.png`)에서 전사 기준 시트와 **같은 셀 좌표계**(서기 362×362 몸높이 337·발끝 353, 걷기·공격 1448×362 = 362px 셀 4개, 몸높이 300/270)로 6장을 만든다. 순수 검정 배경은 휘도 알파(5~26)로 키잉하고, 망토가 옆 인물과 닿은 스트립(남자 걷기·남자 공격)은 가장 좁은 세로 틈에서 잘라 프레임을 나눈다(연결성분 중심으로 프레임 배정). 활 10종 아이콘은 `scripts/build-bow-art.py`가 `item-art/bow_0|5.png`(870×290, 174×290 칸 5개)로, 스킬 아이콘은 `scripts/build-archer-icons.py`가 `icons/archer-skills.png`(708×354, 4×2)와 `icons/archer-passive-skills.png`(384×128, 3×1)로 만든다 — 전사 시트와 같은 `background-size` 규칙을 그대로 쓴다.
+- **필드 렌더**: `render.ts`가 `archer{Male,Female}`·걷기/공격 시트를 부팅 때 함께 받고, `drawHero`는 직업이 `archer`면 궁수 시트만 그리며 **전사용 갑옷 시트·투구 파츠·대검 파츠·착용 무기(`wearable/weapons.png`) 오버레이를 전부 생략**한다(`syncHelmet`/`syncWeaponPart`/`syncWeapon` 호출 자체를 건너뛰고, 남아 있던 스프라이트는 숨긴다). `heroScale`에 궁수 6개 항목, `walkAnchors`에 궁수 걷기 앵커를 추가했다. 장비창 초상화(`equipmentPortrait`)도 궁수면 `archer_{gender}_idle_v1.png` 한 장만 합성하고 투구·검 파츠를 계획에서 뺀다(능력치는 정상 반영).
+- **원거리 전투**: `World`에 `archerAttackRange=250`·`archerStopRange=118`을 두고, 궁수는 정지 거리 밖에서만 추격하고 사거리 안이면 서서 쏜다. 평타는 `Effect.kind='shot'` 화살을 만들어 **도착 시점에만** 판정하며(`damage` 반경 42, 최대 1마리), 살아 있는 목표는 비행 중에도 도착지가 갱신돼 빗나가지 않는다. `drawArrow`는 월드 좌표 진행도를 아이소메트릭 화면 변위로 보간해 화살대·촉·잔상 궤적을 그리고, `rain`(애로우 레인)·`hawk`(호크아이) 이펙트를 추가했다.
+- **활 10종**: `bowBases`(`사냥꾼의 활` ~ `패왕의 신궁`)를 전사 `baseItems.weapon`(대검 10종)과 분리해 두고 `rollItem(floor, guaranteed, boss, job)`·`rollSkillBook(floor, job)`·`equipmentImage`가 직업을 따른다. 활은 전용 아이콘 시트(`item-art/bow_0|5.png`)를 쓰고, `wearableEquipmentImage`는 `undefined`라 대검 착용 이미지가 붙지 않는다. 1번 튜토리얼 드랍 이름도 `낡은 사냥꾼의 활`로 갈린다. 대검 목록·코덱스 75종·드랍 확률표는 그대로다.
+- **스킬 8+3**: `skills.ts`에 `Job`·`archerSkillOrder`(더블 샷·멀티 샷·관통 사격·빙결 화살·호크아이·저격 일격·폭풍 연사·애로우 레인)·`archerPassiveOrder`(궁술 숙련·신속의 발걸음·매의 눈)를 추가하고 `skillOrderFor(job)`·`passiveOrderFor(job)`로 기존 레벨 해금·스킬북·쿨타임·퀵슬롯 구조를 그대로 쓴다. `cooldowns`는 스킬 표에서 자동 생성되므로 궁수 스킬도 같은 쿨타임 표에 들어가고, `totalStats`는 직업별 패시브(공격 +15% / 이동·공속 / 치명)를 같은 식으로 적용한다. 스킬 모달·HUD·스킬북 강화 표시·퀵슬롯 목록은 모두 직업별 8+3만 보여 준다.
+- **검증**: `npx tsc --noEmit` 통과, `npm test` 486건 중 484 통과 — 실패 2건은 `costume-field-render`(작업 149 이후 계속 실패하던 기존 2건, 분리 worktree의 `b009d42`·`eef4e9d`에서 동일 재현). 신규 `tests/archer.test.mjs` 12건(직업 기본값·전사 세이브 보존·궁수 스킬/패시브·스킬북·활 드랍·활 아이콘·원거리 판정·정지 거리·스킬 8종 이펙트·외형 분기·시트 규격·강화 표시). `node scripts/verify-item-art.mjs` 통과(궁수 시트 6장·활 아이콘 2장·아이콘 시트 2장 추가 확인), `npm run build` 통과, `git diff --check` 통과.
+- **검수 이미지**: `downloads/djrpg_archer_ingame_v1.png` — 실제 배포 에셋(황야 배경·궁수 시트·스켈레톤)을 게임과 같은 배율(본체 = 화면 높이 9.35%)·아이소메트릭 투영으로 합성한 3패널 검수본(서기/걷기, 화살 비행, 애로우 레인 착탄)과 2.0배 확대 인셋. 생성 스크립트 `scripts/preview-archer-field.py`. **브라우저 실기 확인은 미실시**(로컬 빌드를 띄우는 루프백 주소가 이 환경의 브라우저에서 차단됨).
+- **배포**: (PR 머지 후 기록)
+
 ## 2026-11-20 — 대검 10종 외형 전체 적용: 남녀 서기·걷기·공격 파츠 (작업 156)
 
 - **요청**: `baseItems.weapon` 10종(두손검 ~ 패왕의 성검) 외형을 남녀 전사의 **서기·걷기 4프레임·공격 4프레임** 전체에 적용하고 PR 병합·운영 배포까지 완료. 갑옷 10종(작업 155)·투구 10종과 조합해도 조합마다 검을 다시 그리지 않는다.
@@ -880,3 +894,9 @@
 - 던전과등급테두리차이: tint는어두운원본RGB에곱해져탁해짐. 순수alpha색마스크1px선/형상halo로교체·원본색보존·원형glow제거.
 - 화면고정드랍을배경scene UV에고정, 카메라양축/경계/resize/그림자/착지예약동기화. 흡수때만캐릭터추적. world/Save/획득/확률무변경.
 - tsc/부분38/build/아트/diff통과, 실기미실행. 사용자직접운영요청으로별도미리보기검수생략.
+
+## 2026-11-20 songduckjin — 작업157 스킬1·2 이펙트(은빛검기·푸른청룡)
+- 1번휘두르기: 코드arc2줄→검정배경 add스프라이트2장(fx_slash2 검기·fx_slash2_ground 황금지면충격파). 검기만 스윙방향회전, 지면파는 눕힌채(세로.62) 전방34%. 등급은 폭+8px·12%틴트만.
+- 2번: 청룡머리·비늘몸통 PNG교체(짙은파랑), 한바퀴1.1→2.4초, 발밑파란지면광·링, 몸통방사1.25배. `/assets/*`immutable이라 dragon2장은`?v=2`.
+- tsc/부분6(검기·청룡계약 새로)/전체474중472(costume-field-render2건은종전실패)/build/아트/diff통과. PR#118 스쿼시`eef4e9d5251d`, 운영version.json`eef4e9d5251d`(builtAt2026-11-20T01:17:18Z)·새에셋4장200(원격sha=로컬, 머리평균RGB 35/105/189 파랑)·번들`index-QOXkJ41J.js`에 경로·`Math.PI*2/2.4`확인. 브라우저실기미실행.
+
