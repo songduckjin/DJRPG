@@ -110,7 +110,8 @@
 | `ITEM_CONFLICT`/`CHARACTER_CONFLICT` 토스트 무한 반복 | `sync.ts` `handleError`·`reloadLatest`·`stopConflictLoop`(`conflictReloadWindow`) |
 | 옛 번들이 그대로 뜨고 426·새로고침이 반복됨 | `server/app-version.mjs`, `src/game/appVersion.ts`(`reloadForNewVersion`), `public/_headers`, `scripts/generate-version.mjs` |
 | 로그인·토큰 만료·게스트 | `ui/login.ts`, `endpoints/account.mjs`, `auth.mjs` `tokenPayload`/`tokenFor` |
-| 거래소 빈 목록·시세·수수료 | `server/market.mjs` `snapshot`/`mutate`/`recentPrice`/`rules`, `src/game/market.ts` |
+| 거래소 빈 목록·시세·수수료 | `server/market.mjs` `snapshot`/`mutate`/`recentPrice`/`rules`, `src/game/market.ts`
+| 거래소 수령함 받기 `409 ITEM_CONFLICT`(작업 222, `#5921`) | `server/market.mjs` `mutate`의 `claim` — 이 요청이 받을 배달 아이템 id만 `claimable`로 모아 `reconcileItems`의 `owned`에서 `location:'inventory'`·`character_slot: row.slot`으로 미리 보정하고, 이미 가방에 같은 id가 있으면 중복 삽입하지 않는다. `operations`의 주인 기록 UPDATE는 종전처럼 `writeSave` 배치에서 한 번에 실행(배치 수 2 계약 유지). |
 | 우편·일일/주간·업적 보상(작업 208: 업적 = 금화 사다리 + 보물 주머니·스킬북 0) | `journey.mjs`, `journey-state.mjs`(`achievementReward`), `ui/modals/utilityModal.ts`(`taskRow`) |
 | 거래소 스탯·가격 정렬이 느림(10만 건 70~100ms, 작업 211) | `server/database.mjs` `marketStatExpression`·`marketSortIndexStatements`(DDL), `server/market.mjs` `snapshot`(같은 식 사용), `scripts/explain-market-query.mjs` |
 
