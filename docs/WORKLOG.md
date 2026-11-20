@@ -1,3 +1,11 @@
+## 2026-11-20 · songduckjin 작업 217 롤백 — 장비 등급색 펄스 글로우(PR #175) 원복
+
+- **요청(사용자)**: "아까 그건 롤백해야돼". 19:41(KST)에 배포한 카드·슬롯 등급색 펄스 글로우는 사용자가 원한 화면이 아니었다 — 실제로 원한 것은 **전투 중 내 캐릭터의 검·투구·갑옷 파츠**와 **내 정보 장착 화면 전신 캐릭터**에 각 장비 등급색 빛이 들어왔다 돌아오는 것이고, 그쪽은 시안 확인 뒤 별도 작업으로 한다. 그래서 카드 펄스 기능만 깔끔히 되돌린다.
+- **원복 방식**: `git revert 8d474348bbed` — PR #175는 스쿼시 커밋(부모 `17f2eb9` 하나)이라 `-m` 없이 되돌린다. `docs/TASK.md`만 충돌했고(그 뒤 문서 커밋 #176·#178이 같은 블록을 고쳤다), 217 표 행을 **롤백 행**으로 바꾸고 217 이력 줄을 롤백 사유로 교체해 해소했다. 작업 중 `main`이 크게 움직여(#179 미리보기 대공사·#177 월드보스·#181 부팅 복구 병합, 원 `33a2505` → `a8ddc85`) 최신 `origin/main` 위로 리베이스했고, 그 충돌(`docs/{TASK,WORKLOG,CODE_MAP,QUICK_PATCH}.md`, 삭제한 `tests/rarity-glow.test.mjs`가 `main`에서 수정됨)은 `main`의 새 내용을 살리고 217 항목만 걷어내는 쪽으로 풀었다.
+- **되돌린 것**: `src/styles/rarity.css`(68줄) 삭제, `src/styles/main.css`의 `@import './rarity.css'` 제거, `src/styles/modals.css`·`src/styles/codex.css`의 등급별 정적 `box-shadow`(magic~legendary) 복구, `tests/rarity-glow.test.mjs`(138줄) 삭제, `docs/CODE_MAP.md`·`docs/QUICK_PATCH.md`의 217 안내 제거.
+- **그대로 둔 것**: 등급별 `border-color` 규칙과 `market.css`의 `.market-pick` 테두리색 — PR #175 이전과 같은 상태다.
+- **검증**: `npx tsc --noEmit` 통과, `npx vite build` 통과(빌드 CSS `dist/assets/index-CF2jIIg1.css`에 `rarity-pulse` 키프레임 0건, `#60a5fa55`·`#f8717166` 등 정적 등급 그림자가 복귀한 것을 확인). `npm test` **820건 중 795 통과 / 25 실패** — 실패 25건은 같은 체크아웃의 `origin/main`(`a8ddc85`)을 같은 방식으로 돌린 결과와 **완전히 같은 목록**이다(이 체크아웃에 파츠 PNG·코스튬 아틀라스가 없어 생기는 기존 실패: 궁수·마법사·전사 시트/파츠, v3 아틀라스, 보물 주머니 개봉 그림 등). 즉 회귀 0건.
+
 ## 2026-11-20 · fks3997 작업220 운영 핫픽스 — 시즌2 다이아 우편 받기 500(원장 UNIQUE 충돌)
 - 요청: 운영(`djrpg.pages.dev`)에서 **우편 `받기`·`모두 받기`가 안 되는 긴급 버그**(사용자 제보 `#5539`). 원인은 시즌 초기화가 `djrpg_journey`만 비우고 다이아 원장(`djrpg_shop_ledger`, `UNIQUE(account_id,source_type,source_id)`)은 남기기 때문에, 시즌1에 `all-idle-launch-diamonds-2026-11-20`(1,000 다이아)를 이미 받은 계정이 시즌2에 같은 ID로 4,000 다이아를 다시 받으면 `INSERT`가 UNIQUE 충돌 → 500.
 - **시즌2 전용 ID** (`server/journey-state.mjs`): `DIAMOND_MAIL_ID = 'all-idle-launch-diamonds-2026-11-20-s2'`, 옛 값은 `LEGACY_DIAMOND_MAIL_ID`로 남겨 마이그레이션 기준으로만 쓴다.
