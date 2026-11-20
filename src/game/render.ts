@@ -13,6 +13,7 @@ import { projectArenaPoint } from './arena';
 import { createBootProgress } from './bootProgress';
 import { helmetArtList, helmetArtPaths, helmetAttackArtList, helmetAttackArtPaths, headlessBodyPaths } from './render/helmets';
 import { armorFrameIndex, armorSheetPath, armorSheetPaths, type ArmorMotion } from './render/armors';
+import { robeFrameIndex, robeHeadlessSheetPath, robeSheetPath, robeSheetPaths, type RobeMotion } from './render/robes';
 import {
   weaponPartPath, weaponPartPaths, weaponTierCacheLimit, swordlessBodyPath, swordlessBodyPaths
 } from './render/weapons';
@@ -135,6 +136,8 @@ function sliceArmorSheet(sheet: Texture, motion: ArmorMotion): Texture[] {
 export const armorTierCacheLimit = 3;
 /** 대검 파츠 캐시에 남기는 티어 수(작업 156). 티어당 1장이다. */
 export { weaponTierCacheLimit };
+/** 마법사 로브 시트 캐시에 남기는 티어 수(작업 205). 티어당 6장(전신·머리 없음)이다. */
+export const robeTierCacheLimit = 3;
 export const renderAssetPaths = [
   ...Object.values(paths), ...Object.values(animationPaths).flat(),
   ...Object.values(attackSheets), ...Object.values(walkSheets), ...Object.values(wearableAssetPaths),
@@ -203,6 +206,9 @@ export class GameView {
   weaponTierOrder: number[] = [];
   /** 마지막으로 본 무기 티어. 바뀔 때만 파츠를 미리 받는다. */
   lastWeaponTier = -1;
+  /** 최근에 받은 마법사 로브 묶음 키(작업 205)와 마지막으로 본 티어. */
+  robeTierOrder: string[] = [];
+  lastRobeTier = '';
   /** 지금 그려진 검 파츠 스프라이트(0번·로딩 전이면 숨김). */
   heroWeapon?: Sprite;
   /** 착용 활 파츠(경로 → 텍스처), 로딩 중인 경로, 최근 티어 (작업 160). */
@@ -344,6 +350,38 @@ export class GameView {
    */
   swordlessBodyFrame(gender: Gender, motion: ArmorMotion, headless: boolean, frame: number): Texture | undefined {
     return this.bodySheetFrame(swordlessBodyPath(gender, motion, headless), motion, frame);
+  }
+
+  /**
+   * 착용 로브의 프레임 텍스처 (작업 205). 갑옷 시트와 같은 셀 규격이라 잘라 쓰는 규칙도 같다.
+   * 아직 로딩 전이면 `undefined` 를 돌려주고, `drawHero` 가 기준 시트(스타터 로브)로 그린다.
+   */
+  robeFrame(gender: Gender, index: number, motion: RobeMotion, frame: number, headless = false): Texture | undefined {
+    const path = headless ? robeHeadlessSheetPath(gender, index, motion) : robeSheetPath(gender, index, motion);
+    if (!path) return undefined;
+    let frames = this.armorFrames.get(path);
+    if (!frames) {
+      const sheet = this.armorSheets.get(path);
+      if (!sheet) { this.loadArmorSheet(path); return undefined; }
+      frames = sliceArmorSheet(sheet, motion);
+      this.armorFrames.set(path, frames);
+    }
+    return frames[robeFrameIndex(motion, frame) % frames.length];
+  }
+
+  /** 로브 티어가 바뀌면 그 티어 3장을 받고, 최근 3티어 밖은 내린다(작업 205). */
+  prefetchRobe(gender: Gender, index: number): void {
+    const tier = `${gender}:${index}`;
+    if (!this.robeTierOrder.includes(tier)) this.robeTierOrder.push(tier);
+    for (const path of robeSheetPaths(gender, index)) this.loadArmorSheet(path);
+    while (this.robeTierOrder.length > robeTierCacheLimit) {
+      const oldest = this.robeTierOrder.shift() as string;
+      const [oldGender, oldIndex] = oldest.split(':');
+      for (const path of robeSheetPaths(oldGender as Gender, Number(oldIndex))) {
+        this.armorFrames.delete(path);
+        if (this.armorSheets.delete(path)) void Assets.unload(path).catch(() => undefined);
+      }
+    }
   }
 
   private bodySheetFrame(path: string, motion: ArmorMotion, frame: number): Texture | undefined {

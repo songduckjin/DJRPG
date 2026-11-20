@@ -7,6 +7,7 @@ import { baseItemIndex, isArcher, isMage, usesBaseSheetOnly } from '../game/item
 import { jobOrDefault } from '../game/skills';
 import { helmetArtFor, helmetArtPath, helmetIdlePlacement } from '../game/render/helmets';
 import { armorIndexFor, armorSheetPath } from '../game/render/armors';
+import { mageRobeIndexFor, robeHeadlessSheetPath, robeSheetPath } from '../game/render/robes';
 import { WEAPON_GUARD, weaponIndexFor, weaponPartPath, weaponPose, swordlessBodyPath } from '../game/render/weapons';
 import { BOW_GRIP, bowIndexFor, bowPartPath, bowPose, bowlessBodyPath } from '../game/render/bows';
 import { STAFF_GRIP, staffIndexFor, staffPartPath, staffPlacement, stafflessBodyPath } from '../game/render/staffs';
@@ -37,9 +38,16 @@ export function equipmentFallbackPortrait(save: Save): string {
     }
     // 작업 201: 마법사는 지팡이를 찼으면 기본 지팡이를 지운 서기 시트 위에 지팡이 파츠를 얹는다.
     // 작업 204: 투구를 쓰면 필드와 같은 자리에서 머리를 지운 시트를 쓴다(지팡이 착용 여부로 판이 갈린다).
+    // 작업 205: 갑옷 1~9번이면 그 티어 로브 시트를 쓰고, 투구를 함께 쓰면 로브의 머리 없는 판을 쓴다.
     if (isMage(save)) {
       const staffless = staffIndexFor(save) >= 0;
-      if (mageHelmIndexFor(save) >= 0) return mageHeadlessBodyPath(save.gender, 'idle', staffless);
+      const helm = mageHelmIndexFor(save) >= 0;
+      const robe = mageRobeIndexFor(save);
+      if (robe >= 1) {
+        const robePath = helm ? robeHeadlessSheetPath(save.gender, robe, 'idle') : robeSheetPath(save.gender, robe, 'idle');
+        if (robePath) return robePath;
+      }
+      if (helm) return mageHeadlessBodyPath(save.gender, 'idle', staffless);
       return staffless
         ? stafflessBodyPath(save.gender, 'idle')
         : `/assets/pilot-25d/mage_${save.gender}_idle_v1.png?v=2`;
@@ -229,10 +237,11 @@ export function equipmentPortraitPlan(save: Save): EquipmentPortraitPlan {
   return {
     mode: 'fallback', base,
     key: usesBaseSheetOnly(save)
+      // 마법사만 로브 티어를 키에 넣는다(궁수는 활·투구 파츠, 그 외는 직업:성별).
       ? (isArcher(save)
         ? `archer:${save.gender}:${bow ? bow.path : '-'}:${archerHelm ? archerHelm.path : '-'}`
         : isMage(save)
-          ? `mage:${save.gender}:${staff ? staff.path : '-'}:${mageHelm ? mageHelm.path : '-'}`
+          ? `mage:${save.gender}:r${mageRobeIndexFor(save)}:${staff ? staff.path : '-'}:${mageHelm ? mageHelm.path : '-'}`
           : `${jobOrDefault(save.job)}:${save.gender}`)
       : `pilot:${save.gender}:a${armorIndexFor(save)}:${helmet ? helmet.path : '-'}:${weapon ? weapon.path : '-'}`,
     gender: save.gender, layers: [], helmet, archerHelm, mageHelm, weapon, bow, staff

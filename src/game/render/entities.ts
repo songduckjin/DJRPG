@@ -14,6 +14,7 @@ import { helmetArtFor, helmetArtPath, helmetPlacement } from './helmets';
 import { archerHelmIndexFor, archerHelmPartPath, archerHelmPlacement } from './archerHelmets';
 import { mageHelmIndexFor, mageHelmPartPath, mageHelmPlacement } from './mageHelmets';
 import { armorIndexFor } from './armors';
+import { hasRobeSheet, mageRobeIndexFor } from './robes';
 import { WEAPON_GUARD, weaponIndexFor, weaponPose } from './weapons';
 import { BOW_GRIP, bowIndexFor, bowPose } from './bows';
 import { STAFF_GRIP, staffIndexFor, staffPlacement } from './staffs';
@@ -418,6 +419,16 @@ export function drawHero(this: GameView, world: World, x: number, y: number, tim
     // 착용 갑옷 시트(작업 155). 기준 시트와 같은 셀 좌표계라 배율·앵커·소켓은 그대로다.
     // 아직 로딩 전인 티어는 위의 기준 시트(투구를 썼으면 머리 없는 시트)로 한 프레임 더 그린다.
     const armor = plain ? -1 : armorIndexFor(save);
+    // 마법사 로브(작업 205): 장착 갑옷 인덱스가 1~9면 그 티어 로브 시트로 갈아 끼운다.
+    // 0번(가죽 조끼)은 기준 시트의 스타터 천 로브와 같은 옷이라 시트를 받지 않는다.
+    const robe = mageRobeIndexFor(save);
+    if (job === 'mage') {
+      const robeTier = `${save.gender}:${robe}`;
+      if (this.lastRobeTier !== robeTier) {
+        this.lastRobeTier = robeTier;
+        if (hasRobeSheet(robe)) this.prefetchRobe(save.gender, robe);
+      }
+    }
     const weapon = plain ? 0 : weaponIndexFor(save);
     // 0번이 아닌 검을 차면 본체 시트도 기본 검을 지운 판(`noweapon/`)으로 갈아 끼운다(작업 156).
     const swordless = weapon >= 1;
@@ -500,6 +511,16 @@ export function drawHero(this: GameView, world: World, x: number, y: number, tim
       if (armorTexture) {
         texture = armorTexture;
         textureKey = `armor:${save.gender}:${armor}:${animation}:${helmeted ? 'headless' : 'body'}:${animation === 'idle' ? 0 : animation === 'walk' ? walkingFrame : Math.max(0, attackFrame)}`;
+      }
+    }
+    if (hasRobeSheet(robe)) {
+      // 투구 파츠가 준비됐으면 로브의 **머리 없는 판**을 쓴다(작업 205) — 작업 204와 같은 규칙이다.
+      const helmPath = mageHelm >= 0 ? mageHelmPartPath(save.gender, mageHelm) : undefined;
+      const helmReady = !!helmPath && !!this.helmetTextures?.get(helmPath);
+      const robeTexture = this.robeFrame(save.gender, robe, animation, poseFrame, helmReady);
+      if (robeTexture) {
+        texture = robeTexture;
+        textureKey = `robe:${save.gender}:${robe}:${animation}:${poseFrame}${helmReady ? ':headless' : ''}`;
       }
     }
     if (swordless) {
