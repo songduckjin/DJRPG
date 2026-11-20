@@ -172,11 +172,17 @@ export function rollItem(floor: number, guaranteed = false, boss = false, job: J
   if (guaranteed) return { id: crypto.randomUUID(), name: starterWeaponName(job), slot: 'weapon', rarity: 'common', stats: { attack: 4 } };
   const roll = Math.random();
   const depth = Math.max(0, floor - 1);
-  const legendary = boss ? Math.min(.04, .02 + depth * .0002) : Math.min(.006, .002 + depth * .00005);
-  const rare = boss ? Math.min(.22, .14 + depth * .001) : Math.min(.035, .017 + depth * .0004);
+  // Grade cuts of a normal kill. The overall drop rate stays where it was (`equipmentDropChance`,
+  // 2.2% at the deepest floor); what changes with depth is which grade a drop is (작업 196). A fixed
+  // magic cut left 88% of drops white on floor 78, so the magic cut now climbs with depth up to .40
+  // and the rare-and-above band widens to 7.5% with a 1% legendary cap — deep floors pay in colour,
+  // not in more drops. A boss keeps its own, far richer table.
+  const legendary = boss ? Math.min(.04, .02 + depth * .0002) : Math.min(.01, .002 + depth * .00005);
+  const rare = boss ? Math.min(.22, .14 + depth * .001) : Math.min(.075, .017 + depth * .00075);
+  const magic = boss ? .54 : Math.min(.40, .117 + depth * .0036);
   const unique = legendary + (rare - legendary) * .18;
   const epic = legendary + (rare - legendary) * .48;
-  const rarity: Rarity = roll < legendary ? 'legendary' : roll < unique ? 'unique' : roll < epic ? 'epic' : roll < rare ? 'rare' : roll < (boss ? .54 : .117) ? 'magic' : 'common';
+  const rarity: Rarity = roll < legendary ? 'legendary' : roll < unique ? 'unique' : roll < epic ? 'epic' : roll < rare ? 'rare' : roll < magic ? 'magic' : 'common';
   const slot = slots[Math.floor(Math.random() * slots.length)];
   const bases = slot === 'weapon' ? weaponBasesFor(job) : baseItems[slot];
   const rarityTier = rarityTiers[rarity];

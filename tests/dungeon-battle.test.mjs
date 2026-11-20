@@ -4,6 +4,8 @@ import {readFileSync} from 'node:fs';
 import './ts-loader.mjs';
 const {DungeonBattle,DUNGEON_ITEM_DROP_CHANCE,DUNGEON_ENEMY_SPEED_SCALE,DUNGEON_SPAWN_STEPS,DUNGEON_LOOT_FAN,DUNGEON_ABSORB_DELAY,dungeonSpawnPull,dungeonLootSpots,dungeonLootTimeline,dungeonAbsorbProgress,dungeonAbsorbPoint}=await import('../src/ui/dungeonBattle.ts');
 const {World,enemyMoveSpeed}=await import('../src/game/world.ts');
+const bossLoot=await import('../src/game/bossLoot.ts');
+const goldPile=await import('../src/game/render/goldPile.ts');
 const {freshSave}=await import('../src/game/store.ts');
 function run(battle,seconds){for(let i=0;i<Math.ceil(seconds/.05);i++)battle.advance(.05);}
 // Fixed random stream so the drop gate and the equipment/skillbook split are deterministic.
@@ -314,4 +316,60 @@ test('a dungeon drop makes the same one small hop as the field',()=>{
   assert(tap<=2,`the tap is about a pixel (got ${tap.toFixed(2)})`);
   assert(seconds<.6,'the fall is over in well under a second');
  }
+});
+
+test('a boss floor leaves five random items and ten scattered gold heaps', () => {
+  const { BOSS_GOLD_PILES, BOSS_ITEM_DROPS } = bossLoot;
+  const battle = new DungeonBattle(freshSave(), 5);
+  assert(battle.bossFloor, 'the 5th floor is a boss floor');
+  const boss = battle.world.enemies[0];
+  assert(boss.boss);
+  withRandom([.5, .5, .5, .5, .5, .5], () => battle.world.kill(boss));
+  const gold = battle.world.loot.filter(entry => entry.kind === 'gold'), items = battle.world.loot.filter(entry => entry.kind === 'item');
+  assert.equal(gold.length, BOSS_GOLD_PILES, 'the boss gold falls in ten heaps');
+  assert.equal(items.length, BOSS_ITEM_DROPS, 'and five random items fall with it');
+  assert.equal(gold.reduce((sum, entry) => sum + entry.gold, 0), 70 * 5, 'the heaps add up to the boss gold');
+  assert.equal(battle.world.lootGold, 70 * 5, 'the clear screen still reports the same gold');
+  assert.equal(new Set(gold.map(entry => `${Math.round(entry.x)},${Math.round(entry.y)}`)).size, BOSS_GOLD_PILES, 'every heap has its own point');
+  for (const entry of items) assert(entry.item.name.length > 0 && entry.item.id, 'each item is a real roll');
+  // A normal floor keeps the old beat: one coin and the test 50% item gate.
+  const normal = new DungeonBattle(freshSave(), 1);
+  withRandom([.9], () => normal.world.kill(normal.world.enemies[0]));
+  assert.equal(normal.world.loot.filter(entry => entry.kind === 'gold').length, 1);
+  assert.equal(normal.world.loot.filter(entry => entry.kind === 'item').length, 0);
+});
+
+test('a dungeon gold heap always sits in the behind layer, under monsters and items', () => {
+  const source = readFileSync(new URL('../src/ui/dungeonField.ts', import.meta.url), 'utf8');
+  const css = readFileSync(new URL('../src/styles/dungeon.css', import.meta.url), 'utf8');
+  assert.match(source, /loot\.kind==='gold'\|\|spot\.y<heroY-6\?backLootLayer:lootLayer/, 'a coin always goes to the behind layer');
+  const z = pattern => { const match = css.match(pattern); return match ? Number(match[1]) : NaN; };
+  const gate = z(/\.dungeon-exit-gate\{[^}]*z-index:(-?\d+)/), behind = z(/\.dungeon-loot-layer\.is-behind\{z-index:(-?\d+)/),
+    canvas = z(/\.dungeon-field-canvas\{[^}]*z-index:(-?\d+)/), gold = z(/\.dungeon-loot\.is-gold\{z-index:(-?\d+)/), item = z(/\.dungeon-loot\.is-item\{z-index:(-?\d+)/);
+  assert(gate < behind && behind < canvas, `the door (${gate}) < the behind layer (${behind}) < the arena (${canvas})`);
+  assert(gold < item, `a coin (${gold}) is painted under an item (${item}) even in the same layer`);
+});
+
+test('a dungeon coin heap is the same bright flat heap as the field', () => {
+  const { GOLD_PILE, GOLD_COIN_CHIP_DROP } = goldPile;
+  assert(GOLD_PILE.length >= 2 && GOLD_PILE.length <= 3);
+  // The coins lie down at half their width and keep the art's own bright gold (작업 196).
+  for (const coin of GOLD_PILE) {
+    assert(coin.size >= 15 && coin.size <= 16, `each coin is 15~16px wide (got ${coin.size})`);
+    assert.equal(coin.squash, .5, `each coin is squashed to .50 (got ${coin.squash})`);
+  }
+  // 작업 197: the heap stays smaller than the 34px item icon beside it.
+  const left = Math.min(...GOLD_PILE.map(coin => coin.dx - coin.size / 2)), right = Math.max(...GOLD_PILE.map(coin => coin.dx + coin.size / 2));
+  assert(right - left <= 30 && right - left < 34, `the heap is about 29~30px wide (got ${right - left})`);
+  const source = readFileSync(new URL('../src/ui/dungeonField.ts', import.meta.url), 'utf8');
+  const css = readFileSync(new URL('../src/styles/dungeon.css', import.meta.url), 'utf8');
+  assert.match(source, /for\(const coin of GOLD_PILE\)/, 'the dungeon draws every coin of the heap');
+  assert(source.includes('const chip=goldCoinChipUrl(coin)'), 'each coin is the chip baked for both screens');
+  assert(source.includes('const width=chip?goldCoinChipWidth(coin):coin.size'), 'the chip sets the box, the plain art the fallback');
+  assert(source.includes('art.style.bottom=`${-coin.dy-(chip?GOLD_COIN_CHIP_DROP:0)}px`'), 'and the shared heap table places it');
+  assert.match(source, /warmGoldCoinChips\(\)/, 'the chips are baked when the arena opens, before the first kill');
+  assert.doesNotMatch(source, /gold-pile\.png/, 'no second heap asset is loaded');
+  // No colour grade or outline is stacked on a coin here: the baked chip already carries both.
+  assert(/\.dungeon-loot\.is-gold \.dungeon-loot-coin\{[^}]*filter:none/.test(css), 'a coin heap carries no outer light');
+  assert.doesNotMatch(css, /is-gold \.dungeon-loot-body\{filter/, 'and is not toned down any more');
 });

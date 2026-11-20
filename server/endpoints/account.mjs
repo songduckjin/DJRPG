@@ -6,7 +6,7 @@ import { json, readBody, errorResponse, versionGuard } from '../http.mjs';
 
 const namePattern = /^[가-힣a-zA-Z0-9_]{2,16}$/;
 const bad = (_res, status, code, error) => json({ code, error }, status);
-const initialSave = (id, gender, name, job = 'warrior') => ({ version: 1, name, accountId: id, gender, job: job === 'archer' ? 'archer' : 'warrior', auto: true, autoClimb: true, level: 1, exp: 0, gold: 0, floor: 1, maxFloor: 1, floorKills: 0, kills: 0, health: 100, equipment: {}, equipmentCollection: [], bag: [], tutorial: 0, stones: 0, skillPoints: 0, lastActiveAt: Date.now(), learned: [], passives: [], quickSlots: [null, null, null], skillLevels: {} });
+const initialSave = (id, gender, name, job = 'warrior') => ({ version: 1, name, accountId: id, gender, job: job === 'archer' ? 'archer' : 'warrior', auto: true, autoClimb: true, level: 1, exp: 0, gold: 0, floor: 1, maxFloor: 1, floorKills: 0, kills: 0, health: 100, equipment: {}, equipmentCollection: [], bag: [], tutorial: 0, stones: 0, skillPoints: 0, lastActiveAt: Date.now(), learned: [], passives: [], quickSlots: [null, null, null], skillLevels: {}, dungeonFloor: 0, dungeonClearAt: 0 });
 const jobs = ['warrior', 'archer'];
 const offlineSeconds = updatedAt => {
   const elapsed = Math.floor((Date.now() - Date.parse(String(updatedAt))) / 1000);

@@ -10,8 +10,10 @@ import { dismissEquippedDetail, positionEquippedDetail, showEquippedDetail } fro
 import { SkillFeedback } from './skillFeedback';
 import { bindModalClose } from './modalClose';
 import { resetModalDefaults } from './modalDefaults';
+import { readSalvageRarity, type SalvageRarity } from './salvageRarity';
+import { AUTO_SALVAGE_OFF_NOTICE, AUTO_SALVAGE_ON_NOTICE, readAutoSalvage, saveAutoSalvage } from './autoSalvage';
 import { dismissBagDetail, positionBagDetail } from './bagDetail';
-import type { Item, Rarity, Save, Slot } from '../game/store';
+import type { Item, Save, Slot } from '../game/store';
 import { discoverEquipment } from '../game/codex';
 import { renderCodex } from './modals/codexModal';
 import type { SkillId } from '../game/skills';
@@ -54,7 +56,11 @@ export class Interface {
   equippedPinned = false;
   bagFilter: BagFilter = 'all';
   bagRaritySort = false;
-  salvageRarity: Exclude<Rarity, 'legendary'> = 'common';
+  /** The user's own bulk-salvage threshold, read back from the device so closing the popup or
+   *  reloading never resets it (작업 196). */
+  salvageRarity: SalvageRarity = readSalvageRarity();
+  /** 접속 중 자동 분해 (작업 196): kept on the device with the threshold, and off until turned on. */
+  autoSalvage = readAutoSalvage();
   salvageIds?: string[];
   skillTarget?: number;
   pendingSkill?: SkillId;
@@ -87,6 +93,9 @@ export class Interface {
   shopTab: 'diamonds' | 'packages' = 'diamonds';
 
   constructor(public root: HTMLElement, public world: World, public onSave: () => void, public session: Session, public onReset: () => Promise<void>, sync: SaveSync) {
+    // The world asks on every pickup rather than keeping a copy, so the switch and the threshold are
+    // always the latest thing the player set.
+    world.autoSalvage = () => this.autoSalvage ? this.salvageRarity : undefined;
     this.market = new Market(sync);
     this.journey = new Journey(sync, world);
     discoverEquipment(world.save);
@@ -170,6 +179,13 @@ export class Interface {
   pressSkillSlot(index: number): void { pressSkillSlot.call(this, index); }
 
   chooseSkill(id: SkillId): void { chooseSkill.call(this, id); }
+
+  /** Turns live auto-salvage on or off, stores the choice, and says out loud that it only works while
+   *  the player is in the field (작업 196). */
+  setAutoSalvage(on: boolean): void {
+    this.autoSalvage = on; saveAutoSalvage(on);
+    this.message(on ? AUTO_SALVAGE_ON_NOTICE : AUTO_SALVAGE_OFF_NOTICE);
+  }
 
   open(kind: Modal | null): void {
     if (this.market.busy || this.market.sync.locked || this.market.sync.pendingMarket || this.market.sync.pendingWarehouse) return;

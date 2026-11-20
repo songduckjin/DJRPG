@@ -1,4 +1,5 @@
 import type { Interface } from '../interface';
+import { AUTO_SALVAGE_HINT } from '../autoSalvage';
 import type { JourneyTask } from '../../game/journey';
 import { preferences, savePreferences } from '../../game/preferences';
 import { goldNode } from '../currency';
@@ -18,7 +19,11 @@ export function renderSettings(ui:Interface,dialog:HTMLElement):void{
   select.onchange=()=>{preferences.effects=select.value==='low'?'low':'full';persist(ui);};effects.append(select);section.append(effects);
   heading(section,'사냥');const climb=element('label','setting-row','보스 처치 후 자동 등반'),toggle=element('input');toggle.type='checkbox';toggle.checked=ui.world.save.autoClimb;
   toggle.onchange=()=>{if(ui.world.paused){toggle.checked=ui.world.save.autoClimb;ui.message('동기화 후 변경해 주세요.');return;}ui.world.save.autoClimb=toggle.checked;ui.world.onChange();};climb.append(toggle);section.append(climb);
-  section.append(element('p','utility-note','일괄 분해는 장비창에서 설정 · 소리 기능 미지원'));
+  // 접속 중 자동 분해 (작업 196): the same switch as the equipment popup, with the same limit spelled out.
+  const auto=element('label','setting-row','자동 분해 (접속 중)'),autoToggle=element('input');autoToggle.type='checkbox';autoToggle.checked=ui.autoSalvage;
+  autoToggle.onchange=()=>{ui.setAutoSalvage(autoToggle.checked);};
+  auto.append(autoToggle);section.append(auto,element('p','utility-note',AUTO_SALVAGE_HINT));
+  section.append(element('p','utility-note','일괄 분해 기준은 장비창에서 설정 · 소리 기능 미지원'));
   heading(section,'계정');const account=element('div','utility-toolbar'),status=element('small','',`서버 ${ui.saveStatus}`);status.dataset.saveStatus='';account.append(element('span','',ui.session.loginId),status,button('계정 정보',()=>ui.open('account')));section.append(account);
   const help=element('details','utility-help');help.append(element('summary','','도움말'),element('p','utility-note','몬스터를 자동으로 사냥합니다. 장비창에서 장착·분해하고 스킬창에서 습득·강화하세요. 보상은 한국 시간 매일 오전 5시, 주간은 월요일 오전 5시에 초기화됩니다.'),element('small','','DJRPG'));section.append(help);
   section.append(button('로그아웃 · 계정 전환',()=>window.dispatchEvent(new Event('game-logout'))));dialog.append(section);

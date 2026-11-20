@@ -4,8 +4,11 @@ import {clampArenaPoint} from '../game/arena';
 import {skillDamageScale,skills,jobOrDefault} from '../game/skills';
 import {totalStats,skillLevel,type Save} from '../game/store';
 import {equipmentDropChance,rollItem,rollSkillBook,skillBookDropChance,type Item} from '../game/items';
-/** Ground loot held by the preview only. Kept off `World.drops` so the shared field renderer stays untouched. */
-export type DungeonLoot = { id:number; kind:'gold'; x:number; y:number; gold:number } | { id:number; kind:'item'; x:number; y:number; item:Item };
+import {bossGoldPiles,bossGoldSpot,bossItems} from '../game/bossLoot';
+/** Ground loot held by the preview only. Kept off `World.drops` so the shared field renderer stays untouched.
+ *  `from` is the body a boss heap was thrown from (작업 196): the dungeon flies the heap out of the boss
+ *  to the spot it lands on, exactly as the field does. */
+export type DungeonLoot = { id:number; kind:'gold'; x:number; y:number; gold:number; from?:{x:number;y:number} } | { id:number; kind:'item'; x:number; y:number; item:Item };
 /** Test rate for the whole 1-10 floor preview. Which item falls keeps the field's own odds (see `dropLoot`). */
 export const DUNGEON_ITEM_DROP_CHANCE = .5;
 /** Dungeon mobs close ground 1.5x the shared field pace; only travel distance scales, never timers. */
@@ -147,10 +150,22 @@ class DungeonWorld extends World {
   }
   override kill(enemy:Enemy):void { this.slain++;this.effects.push({x:enemy.x,y:enemy.y,kind:'death',age:0,duration:.7,angle:0});this.dropLoot(enemy); }
   // Same rewards the field grants, kept as ground loot for display only: gold on every kill and,
-  // on the test 50% gate, one item chosen by the field's equipment/skillbook drop odds.
+  // on the test 50% gate, one item chosen by the field's equipment/skillbook drop odds. A boss
+  // (5층·10층, 작업 194) leaves five random items and its gold in ten heaps bursting out of the body
+  // (작업 196), the heaps still adding up to the 70×floor the kill already paid. The main field's boss
+  // drops only the heaps and keeps the ordinary chance roll (작업 195) — this five-item haul is the
+  // dungeon's.
   private dropLoot(enemy:Enemy):void {
     const floor=this.save.floor;
-    this.loot.push({id:++this.lootId,kind:'gold',x:enemy.x,y:enemy.y,gold:enemy.boss?70*floor:3+floor});
+    if(enemy.boss){
+      bossGoldPiles(70*floor).forEach((gold,index)=>{
+        const spot=bossGoldSpot(enemy.x,enemy.y,index);
+        this.loot.push({id:++this.lootId,kind:'gold',x:spot.x,y:spot.y,gold,from:{x:enemy.x,y:enemy.y}});
+      });
+      for(const item of bossItems(floor))this.loot.push({id:++this.lootId,kind:'item',x:enemy.x,y:enemy.y,item});
+      return;
+    }
+    this.loot.push({id:++this.lootId,kind:'gold',x:enemy.x,y:enemy.y,gold:3+floor});
     if(Math.random()>=DUNGEON_ITEM_DROP_CHANCE)return;
     const equipment=equipmentDropChance(floor,enemy.boss),book=skillBookDropChance(floor,enemy.boss);
     const item=Math.random()*(equipment+book)<equipment?rollItem(floor,false,enemy.boss,this.save.job):rollSkillBook(floor,jobOrDefault(this.save.job));

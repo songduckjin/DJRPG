@@ -38,9 +38,11 @@ test('persisted progress advances daily and weekly counters and book rewards byp
   const after=await account(db,'progress');assert.equal(after.save.gold,before.save.gold+5800);assert.equal(after.save.bag.filter(item=>item.slot!=='skillbook').length,40);assert.equal(after.save.bag.filter(item=>item.slot==='skillbook').length,5);assert((await snapshot(db,'progress')).daily.every(t=>t.claimed));
 });
 test('mail read, claim, deletion, item ownership and concurrent reward requests stay isolated and idempotent',async()=>{
-  await seed('mail');const data=await snapshot(db,'mail');assert.equal(data.mail.length,1);
+  // 우편함은 환영 우편 + 2026-11-20 업데이트 안내(금화 3,000·스킬북 2권) 두 통으로 시작한다.
+  await seed('mail');const data=await snapshot(db,'mail');assert.equal(data.mail.length,2);
+  assert.equal(data.mail[0].id,'welcome-v1');
   await act('mail',undefined,data.mail[0].id,'journey-read');assert((await snapshot(db,'mail')).mail[0].read);
-  await act('mail','mail');const row=await account(db,'mail');assert.equal(row.save.gold,1000);assert.equal(row.save.bag.length,1);
+  await act('mail','mail');const row=await account(db,'mail');assert.equal(row.save.gold,4000);assert.equal(row.save.bag.length,3);
   await transaction(db,async tx=>{const latest=await account(tx,'mail');await reconcileItems(tx,'mail',latest.save,latest.save);});
   await assert.rejects(act('mail','mail'),e=>e.code==='NOT_AVAILABLE');
   await act('mail',undefined,'all','journey-delete');assert.equal((await snapshot(db,'mail')).mail.length,0);
@@ -51,9 +53,47 @@ test('mail read, claim, deletion, item ownership and concurrent reward requests 
 test('guests cannot claim; expired mail and unmet achievements never grant rewards',async()=>{
   await seed('guest',true);await assert.rejects(act('guest','daily'),e=>e.code==='GUEST_READ_ONLY');
   await seed('expired');await snapshot(db,'expired');
-  const stored=(await db.execute({sql:'SELECT state_json FROM djrpg_journey WHERE account_id=?',args:['expired']})).rows[0];const state=JSON.parse(stored.state_json);state.mail[0].expiresAt=0;
+  const stored=(await db.execute({sql:'SELECT state_json FROM djrpg_journey WHERE account_id=?',args:['expired']})).rows[0];const state=JSON.parse(stored.state_json);for(const entry of state.mail)entry.expiresAt=0;
   await db.execute({sql:'UPDATE djrpg_journey SET state_json=? WHERE account_id=?',args:[JSON.stringify(state),'expired']});
   await assert.rejects(act('expired','mail'),e=>e.code==='NOT_AVAILABLE');await assert.rejects(act('expired','achievements'),e=>e.code==='NOT_READY');assert.equal((await account(db,'expired')).save.gold,0);
+});
+
+test('업데이트 안내 우편은 계정마다 한 번만, 수령·삭제·만료 뒤에도 다시 붙지 않는다',()=>{
+  const saveNow=()=>save(),now=Date.parse('2026-11-20T03:00:00Z');
+  const fresh=advanceJourney(undefined,saveNow(),saveNow(),now);
+  const notice=fresh.mail.find(entry=>entry.id==='update-2026-11-20');
+  assert(notice,'새 계정에도 한 통 지급된다');
+  assert.equal(notice.title,'[업데이트 안내] 전투·가방 편의성 및 끝없는 던전 개선');
+  assert.equal(notice.sender,'운영팀');assert.equal(notice.gold,3000);assert.equal(notice.books,2);
+  assert(notice.expiresAt>now,'만료 전에 수령할 수 있다');assert.equal(notice.claimedAt,null);assert.equal(notice.read,false);
+  assert.match(notice.body,/끝없는 던전 진행 저장/);
+  assert.deepEqual(fresh.notices,['update-2026-11-20'],'지급 이력을 남긴다');
+  const again=advanceJourney(fresh,saveNow(),saveNow(),now+1000);
+  assert.equal(again.mail.filter(entry=>entry.id==='update-2026-11-20').length,1,'두 번 붙지 않는다');
+  // 수령해서 지운 계정: 우편함이 비어 있어도 지급 이력이 있어 다시 붙지 않는다.
+  const cleaned=advanceJourney({...fresh,mail:[]},saveNow(),saveNow(),now+2000);
+  assert.equal(cleaned.mail.filter(entry=>entry.id==='update-2026-11-20').length,0);
+  // 만료 시각(2026-11-28 00:00 KST)을 넘겨 처음 접속한 계정에는 늦은 보상을 주지 않는다.
+  const late=advanceJourney(undefined,saveNow(),saveNow(),Date.UTC(2026,10,27,15,0,0));
+  assert.equal(late.mail.filter(entry=>entry.id==='update-2026-11-20').length,0);
+  assert.deepEqual(late.notices,[]);
+});
+
+test('업데이트 우편 보상은 정확히 한 번만 지급되고 삭제 뒤 재지급되지 않는다',async()=>{
+  await seed('notice');
+  const first=await snapshot(db,'notice');
+  const notice=first.mail.find(entry=>entry.id==='update-2026-11-20');
+  assert(notice,'업데이트 우편이 우편함에 있다');
+  await act('notice','mail',notice.id);
+  const row=await account(db,'notice');
+  assert.equal(row.save.gold,3000,'금화 3,000');
+  assert.equal(row.save.bag.length,2,'스킬북 2권');
+  await assert.rejects(act('notice','mail',notice.id),error=>error.code==='NOT_AVAILABLE','같은 우편을 두 번 받을 수 없다');
+  await act('notice',undefined,'all','journey-delete');
+  const after=await snapshot(db,'notice');
+  assert.deepEqual(after.mail.map(entry=>entry.id),['welcome-v1'],'수령한 업데이트 우편만 지워지고 환영 우편은 남는다');
+  assert.equal(after.mail.filter(entry=>entry.id==='update-2026-11-20').length,0,'삭제 뒤 다시 붙지 않는다');
+  assert.equal((await account(db,'notice')).save.gold,3000,'보상도 한 번뿐이다');
 });
 
 test('period progress counts once per save and legacy clients retain new totals',async()=>{
