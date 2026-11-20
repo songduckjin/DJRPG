@@ -57,8 +57,11 @@ test('automatic attacks and equipped skills start when the hero reaches attack r
   assert(world.effects.some(effect => effect.kind === 'slash2'));
   const afterBasicAttack = enemy.hp;
   enemy.x = world.player.x + 40; enemy.y = world.player.y;
-  world.update(.15);
-  assert(enemy.hp < afterBasicAttack, 'the greatsword skill hits after its swing becomes visible');
+  // 이단참(작업 213)은 발동 즉시 1타, 0.18초 뒤 2타가 들어간다 — 2타는 그 뒤 업데이트에 들어온다.
+  world.update(.05);
+  assert.equal(enemy.hp, afterBasicAttack, 'the second crescent is still winding up');
+  world.update(.2);
+  assert(enemy.hp < afterBasicAttack, 'the backhand second hit lands at 0.18s');
 });
 test('사거리 경계(89~90)에서 추격 플래그가 공격을 삼키지 않는다', () => {
   const world = new World(freshSave()); world.spawnTimer = 999;

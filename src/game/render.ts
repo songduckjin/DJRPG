@@ -55,7 +55,10 @@ const paths = {
   fxRage: '/assets/fx_blood_rage.png', fxSlash: '/assets/fx_slash_arc.png',
   fxPower: '/assets/fx_power_strike.png', fxDestroy: '/assets/fx_destroy_swing.png', fxHell: '/assets/fx_hell_fire.png',
   // [작업 157] 휘두르기(1번) 확정 시안 — 은빛 검기 + 황금빛 지면 충격파, 검정 배경 add 블렌딩용.
-  fxSlash2: '/assets/fx_slash2.png', fxSlash2Ground: '/assets/fx_slash2_ground.png'
+  fxSlash2: '/assets/fx_slash2.png', fxSlash2Ground: '/assets/fx_slash2_ground.png',
+  // [작업 213] 이단참(좌우 횡베기 2연격) — 1타 정방향·2타 되받아 베기에 같은 검기를 좌우 반전해 쓴다.
+  // `/assets/*`는 immutable 이라 새 파일명으로 배포한다(같은 경로 교체 금지).
+  fxSlash2Dual: '/assets/fx_slash2_dual.png'
 } as const;
 export type Art = keyof typeof paths;
 const animationPaths = {

@@ -2,7 +2,7 @@ import { Assets, Container, Rectangle, Sprite, Text, Texture } from 'pixi.js';
 import type { HeroAfterimage, World } from '../world';
 import type { Save } from '../store';
 import { enemyFacing } from '../facing';
-import { heroAnimationMode, heroMotion } from './heroMotion';
+import { heroAnimationMode, heroMotion, slash2SwingMotion } from './heroMotion';
 import { heroScale, heroBodyHeight } from './heroScale';
 import { heroClass, socketMotion, weaponSocket } from './heroSockets';
 import { tintedGearTexture } from './gearTint';
@@ -390,7 +390,11 @@ export function drawHero(this: GameView, world: World, x: number, y: number, tim
     this.lastHeroWorld = { x: player.x, y: player.y };
     if (moving) this.heroWalkDistance += Math.min(30, walked);
     const walkingFrame = Math.floor(this.heroWalkDistance / 12) % 8;
-    const attackFrame = Math.min(3, Math.floor((1 - world.attackPose / (world.attackPoseSpan ?? .32)) * 4));
+    // 이단참(작업 213): 2연격은 공격 시트 4프레임을 정방향(1타) → 역방향(2타 되받아 베기)으로
+    // 두 번 재생한다. 무기·투구·갑옷 파츠도 같은 프레임을 쓰므로 따로 놀지 않는다.
+    const doubleSwing = world.attackCombo === 'double' && world.attackPose > 0;
+    const swing = doubleSwing ? slash2SwingMotion(world.attackPose) : undefined;
+    const attackFrame = swing ? swing.frame : Math.min(3, Math.floor((1 - world.attackPose / (world.attackPoseSpan ?? .32)) * 4));
     const heroTint = player.hit > 0 ? 0xffd4cf : 0xffffff;
     // The approved pilot sheets contain the complete armor and greatsword. Skip all
     // equipment/costume overlays so the body and weapon are never drawn twice.
@@ -590,7 +594,8 @@ export function drawHero(this: GameView, world: World, x: number, y: number, tim
     const local = world.effects.filter(effect => effect.kind !== 'hit' && effect.kind !== 'death' && Math.hypot(effect.x - player.x, effect.y - player.y) < 2);
     const slam = local.find(effect => effect.kind === 'slam' || effect.kind === 'hell');
     const motion = heroMotion(world.attackPose, world.attackPoseSpan ?? .32);
-    const attackPulse = motion.pulse;
+    // 2연격은 스윙마다 한 번씩 몸을 싣는다(한 스윙 기준 pulse 로는 0.44초 창에서 음수가 된다).
+    const attackPulse = swing ? swing.pulse : motion.pulse;
     if (slam) bob -= Math.sin(Math.PI * slam.age / slam.duration) * 17;
     const face = player.facingSide;
     const visualFace = face;

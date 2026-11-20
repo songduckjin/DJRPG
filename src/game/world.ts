@@ -2,7 +2,7 @@ import { canStoreItem } from './bagCapacity';
 import { bossGoldPiles, bossGoldSpot } from './bossLoot';
 import { addExperience, floorKillTarget, rollItem, skillLevel, totalStats, type Item, type Rarity, type Save } from './store';
 import { equipmentDropChance, itemDisplayName, rollSkillBook, skillBookDropChance, starterWeaponName } from './items';
-import { dragonOrbitFactor, skillDamageScale, skillDuration, skillRange, skills, type Job, type SkillId } from './skills';
+import { dragonOrbitFactor, skillDamageScale, skillDuration, skillRange, skills, slash2Hits, slash2SwingSeconds, type Job, type SkillId } from './skills';
 import { jobOrDefault } from './skills';
 import { clampArenaPoint, spawnArenaEnemy } from './arena';
 import { LOOT_ABSORB_SECONDS, LOOT_REST_SECONDS } from './loot';
@@ -21,6 +21,8 @@ export type Drop = { x: number; y: number; item: Item; age: number; warned: bool
 export type Coin = { x: number; y: number; age: number; gold: number; from?: { x: number; y: number } };
 export type Effect = { x: number; y: number; kind: 'slash' | 'slash2' | 'spin' | 'crushing' | 'slam' | 'warcry' | 'power' | 'destroy' | 'hell' | 'hit' | 'death'
   | 'shot' | 'rain' | 'hawk' | 'burst' | 'nova' | 'ward'; age: number; duration: number; angle: number; swing?: number; amount?: number; nextHit?: number; power?: number; level?: number;
+  /** 이단참(작업 213)처럼 한 번 발동에 여러 번 때리는 스킬의 지금까지 들어간 타격 수. */
+  hits?: number;
   /** 궁수 화살·화살비처럼 날아가서 맞는 이펙트의 도착지점과 위력(작업 157). */
   tx?: number; ty?: number; radius?: number; targets?: number; slow?: number; variant?: ArrowVariant; fired?: boolean;
   /** 화살이 쫓아가는 적(살아 있는 동안 도착지를 갱신한다). 없으면 발사 시점의 지점으로 날아간다. */
@@ -108,6 +110,8 @@ export class World {
   attackPose = 0;
   /** 지금 공격 동작이 재생되는 길이. 딜레이 크러싱 한 타는 62ms로 4프레임을 빠르게 넘긴다(작업 212). */
   attackPoseSpan = .32;
+  /** 지금 재생 중인 공격 모션 종류 — 이단참(작업 213)만 `double`(두 스윙)이다. */
+  attackCombo: 'single' | 'double' = 'single';
   /** 진행 중인 딜레이 크러싱 10연타(작업 212). 없으면 undefined. */
   crush?: { level: number; elapsed: number; next: number; hits: number; power: number };
   /** 지금 살아 있는 잔상들 — 렌더러가 이 목록으로 본체 복제본을 그리고 지운다(작업 212). */
@@ -170,7 +174,12 @@ export class World {
     const damageScale = skillDamageScale(level);
     const stats = totalStats(this.save);
     this.cooldown[kind] = kind === 'attack' ? cooldowns.attack / (1 + stats.speed / 100) * (p.berserk > 0 ? 1 / (1.5 + (p.berserkLevel - 1) * .08) : 1) : cooldowns[kind];
-    if (kind !== 'warcry') { this.attackPose = .32; this.attackPoseSpan = .32; }
+    if (kind !== 'warcry') {
+      // 이단참(작업 213)만 두 스윙(0.44초) 창을 쓰고, 나머지 스킬·평타는 0.32초 한 스윙이다.
+      this.attackCombo = kind === 'slash2' ? 'double' : 'single';
+      this.attackPose = kind === 'slash2' ? slash2SwingSeconds : .32;
+      this.attackPoseSpan = this.attackPose;
+    }
     const attack = stats.attack * (p.berserk > 0 ? 1.5 + (p.berserkLevel - 1) * .05 : 1);
     const target = this.nearest();
     if (target) this.faceTarget(target);
@@ -193,7 +202,10 @@ export class World {
       // 평타는 한 마리만: 사거리·부채꼴 안에서 가장 가까운 적 한 마리를 공격력 ×1.6으로 때린다(스킬은 종전대로 광역).
       this.damage(90, attack * basicAttackPower, angle, 1.15, 12, 0, p, 1);
     } else if (kind === 'slash2') {
-      this.effects.push({ x: p.x, y: p.y, kind: 'slash2', age: 0, duration: skillDuration(kind, level), angle: p.facing, nextHit: .12, power: attack * 2.15 * damageScale, level });
+      // 이단참(작업 213): 발동 즉시 정방향 횡베기, 0.18초 뒤 되받아 베기가 각각 따로 들어간다.
+      // `power`에는 두 타에 공통으로 곱할 기본 위력(공격력 × 스킬레벨 배율)을 실어 두고,
+      // 타당 배율은 판정 순간에 `slash2Hits`에서 꺼낸다.
+      this.effects.push({ x: p.x, y: p.y, kind: 'slash2', age: 0, duration: skillDuration(kind, level), angle: p.facing, nextHit: slash2Hits[0].at, power: attack * damageScale, level, hits: 0 });
     } else if (kind === 'spin') {
       this.effects.push({ x: p.x, y: p.y, kind: 'spin', age: 0, duration: skillDuration(kind, level), angle: 0, nextHit: .45, power: attack * .65 * damageScale, level });
       this.damage(range * dragonOrbitFactor(0), attack * 1.65 * damageScale, 0, Math.PI);
@@ -301,6 +313,7 @@ export class World {
     crush.hits++;
     this.attackPose = crushPoseSpan;
     this.attackPoseSpan = crushPoseSpan;
+    this.attackCombo = 'single';
     const amount = crush.power / crushHits * (.92 + random() * .16);
     this.damage(skillRange('crushing', crush.level), amount, 0, Math.PI, 3, 0, p, 1, crushLabelOffset(index));
     this.afterimages.push({
@@ -542,7 +555,15 @@ export class World {
       if (effect.kind === 'crushing' && effect.aim && this.enemies.includes(effect.aim)) { effect.x = effect.aim.x; effect.y = effect.aim.y; }
       while (effect.nextHit !== undefined && effect.nextHit < effect.duration && effect.nextHit <= effect.age) {
         const level = effect.level ?? 1;
-        if (effect.kind === 'slash2') this.damage(skillRange('slash2', level), effect.power ?? 0, effect.angle, .9, 12, 0, effect);
+        // 이단참(작업 213): 한 번 발동에 두 번 때린다. 타마다 사거리·부채꼴을 그 순간의 적 배치로
+        // 다시 재고, `damage()`가 타마다 데미지 팝업을 따로 띄운다. 두 타가 끝나면 `nextHit`을 비운다.
+        if (effect.kind === 'slash2') {
+          const swing = slash2Hits[effect.hits ?? 0] ?? slash2Hits[0];
+          this.damage(skillRange('slash2', level), (effect.power ?? 0) * swing.power, effect.angle, .9, swing.knockback, 0, effect);
+          effect.hits = (effect.hits ?? 0) + 1;
+          effect.nextHit = slash2Hits[effect.hits]?.at;
+          continue;
+        }
         if (effect.kind === 'spin') {
           const hitProgress = (effect.nextHit ?? effect.age) / effect.duration;
           this.damage(skillRange('spin', level) * dragonOrbitFactor(hitProgress), effect.power ?? 0, 0, Math.PI, 10, 0, effect);
@@ -552,7 +573,7 @@ export class World {
         if (effect.kind === 'rain') this.damage(92, effect.power ?? 0, 0, Math.PI, 6, .9, effect);
         if (effect.kind === 'burst') this.damage(effect.radius ?? 96, effect.power ?? 0, 0, Math.PI, 16, effect.slow ?? 0, effect);
         if (effect.kind === 'nova') this.damage(effect.radius ?? 150, effect.power ?? 0, 0, Math.PI, 22, effect.slow ?? 0, effect);
-        if (effect.kind === 'slash2' || effect.kind === 'burst' || effect.kind === 'nova') effect.nextHit = undefined;
+        if (effect.kind === 'burst' || effect.kind === 'nova') effect.nextHit = undefined;
         else effect.nextHit += effect.kind === 'spin' || effect.kind === 'slam' ? .45 : .4;
       }
     }

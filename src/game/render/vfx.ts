@@ -4,7 +4,7 @@ import type { World } from '../world';
 
 const rarityColors: Record<Rarity, number> = { common: 0x9ca3af, magic: 0x60a5fa, rare: 0xfacc15, epic: 0xc084fc, unique: 0xfb923c, legendary: 0xf87171 };
 const slashStrength: Record<Rarity, number> = { common: 0, magic: 1, rare: 2, epic: 3, unique: 4, legendary: 5 };
-import { dragonOrbitFactor, dragonRise } from '../skills';
+import { dragonOrbitFactor, dragonRise, slash2SecondHit } from '../skills';
 import type { Effect } from '../world';
 import type { Art, GameView } from '../render';
 
@@ -34,37 +34,54 @@ export function drawSkillVfx(this: GameView, world: World, effect: Effect, x: nu
     if (effect.kind === 'nova') { drawNova.call(this, effect, x, y, t, time); return true; }
     if (effect.kind === 'ward') { drawWard.call(this, effect, x, y, t, time); return true; }
     if (effect.kind === 'slash2') {
-      // [작업 157] 확정 시안(은빛 검기 + 황금빛 지면 충격파)대로 코드 선 2줄 대신
-      // 검정 배경 VFX 스프라이트 두 장을 add 로 얹는다. 검기는 스윙 방향으로 돌고,
-      // 지면 충격파는 지면에 눕힌 채(세로 .62) 히어로 발밑에서 전방으로 번진다.
-      const progress = Math.max(0, Math.min(1, t));
-      const strength = world.save.equipment.weapon ? slashStrength[world.save.equipment.weapon.rarity] : 0;
+      // [작업 213] 이단참 — 은빛·강철빛 이중 초승달 횡베기.
+      // 1타(0초)는 정방향으로 크게 지나가고, 2타(`slash2SecondHit`초)는 같은 검기를 좌우 반전해
+      // 되받아 베는 역방향으로 잔상처럼 얹는다. 지면 충격파는 2타가 들어갈 때 발밑에서 번진다.
       let sprites = this.vfxSprites.get(effect);
       if (!sprites) {
-        const arc = new Sprite(this.textures.fxSlash2);
-        arc.anchor.set(.03, .9);
-        arc.blendMode = 'add';
+        const first = new Sprite(this.textures.fxSlash2Dual);
+        first.anchor.set(.5);
+        first.blendMode = 'add';
+        const back = new Sprite(this.textures.fxSlash2Dual);
+        back.anchor.set(.5);
+        back.blendMode = 'add';
         const shock = new Sprite(this.textures.fxSlash2Ground);
         shock.anchor.set(.5);
         shock.blendMode = 'add';
-        this.skillVfx.addChild(shock, arc);
-        sprites = [arc, shock];
+        this.skillVfx.addChild(back, shock, first);
+        sprites = [first, back, shock];
         this.vfxSprites.set(effect, sprites);
       }
-      const [arc, shock] = sprites;
+      const [first, back, shock] = sprites;
       const tint = slashTint(world);
+      const strength = world.save.equipment.weapon ? slashStrength[world.save.equipment.weapon.rarity] : 0;
       const forwardX = Math.cos(screenAngle), forwardY = Math.sin(screenAngle);
-      const reach = 2 + progress * 6;
-      const arcScale = (232 + strength * 8) * (.9 + progress * .26) / arc.texture.width;
-      arc.position.set(x + forwardX * reach, y + forwardY * reach * .55 - 2);
-      arc.rotation = screenAngle;
-      arc.scale.set(arcScale);
-      arc.alpha = Math.min(1, Math.sin(Math.PI * progress) * 1.35);
-      arc.tint = tint;
-      const shockWidth = (196 + strength * 6) * (.9 + progress * .3);
+      const age = Number.isFinite(effect.age) ? effect.age : t * (effect.duration || .55);
+      const phase = (start: number, life: number): number => Math.max(0, Math.min(1, (age - start) / life));
+      const firstPhase = phase(0, .2);
+      const backPhase = phase(slash2SecondHit, .26);
+      // 1타: 정방향 횡베기 — 히어로 앞쪽에서 뻗어 나가며 사라진다.
+      const firstWidth = (176 + strength * 7) * (.84 + firstPhase * .34);
+      const firstScale = firstWidth / first.texture.width;
+      const reach = 18 + firstPhase * 26;
+      first.position.set(x + forwardX * reach, y + forwardY * reach * .55 - 36);
+      first.rotation = screenAngle - .17;
+      first.scale.set(firstScale, firstScale * .82);
+      first.alpha = firstPhase > 0 && firstPhase < 1 ? Math.sin(Math.PI * firstPhase) : 0;
+      first.tint = tint;
+      // 2타: 되받아 베기 — 좌우를 뒤집고 반대 각도로 그어 두 궤적이 X자로 교차한다.
+      const backWidth = (204 + strength * 8) * (.8 + backPhase * .34);
+      const backScale = backWidth / back.texture.width;
+      const backReach = 24 + backPhase * 30;
+      back.position.set(x + forwardX * backReach, y + forwardY * backReach * .55 - 44);
+      back.rotation = screenAngle + .2;
+      back.scale.set(-backScale, backScale * .86);
+      back.alpha = backPhase > 0 && backPhase < 1 ? Math.sin(Math.PI * backPhase) : 0;
+      back.tint = tint;
+      const shockWidth = (186 + strength * 6) * (.86 + backPhase * .32);
       shock.position.set(x + forwardX * shockWidth * .34, y + forwardY * shockWidth * .34 * .55);
       shock.scale.set(shockWidth / shock.texture.width, shockWidth / shock.texture.width * .62);
-      shock.alpha = Math.sin(Math.PI * Math.min(1, progress * 1.15));
+      shock.alpha = backPhase > 0 && backPhase < 1 ? Math.sin(Math.PI * backPhase) : 0;
       shock.tint = tint;
       return true;
     }
