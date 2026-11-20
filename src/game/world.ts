@@ -79,15 +79,17 @@ export const CRIT_DAMAGE_SCALE = 1.8;
 export const cooldowns = { attack: .48, ...Object.fromEntries(Object.keys(skills).map(id => [id, skills[id as SkillId].cooldown])) } as Record<Action, number>;
 /** 평타 한 방의 공격력 배율. 한 마리만 맞히는 대신 한 방이 무겁다(작업 150). */
 export const basicAttackPower = 1.6;
-/** 궁수 평타 사거리와, 이보다 멀 때만 다가가는 거리(작업 157, 간격 조정 작업 207).
- *  아레나는 중심에서 153px 남짓이라, 사거리 280이면 화면 밖 끝의 적까지 닿고
- *  추격은 적이 아레나 가장자리에 몰렸을 때만 한다. */
-export const archerAttackRange = 280;
-export const archerStopRange = 150;
-/** 마법사도 원거리다 — 궁수보다 짧은 사거리에서 마법 구슬을 날린다(작업 198, 간격 조정 작업 207).
- *  직업별 간격은 궁수 280/150 > 마법사 240/130 > 전사 90 순서를 지긴다(작업 216 상향). */
-export const mageAttackRange = 240;
-export const mageStopRange = 130;
+/** 궁수 평타 사거리와, 이보다 멀 때만 다가가는 거리(작업 157, 간격 조정 작업 207, 상향 작업 244).
+ *  사용자 요청 "궁수 법사 사거리 조금씩늘려줘"(2026-11-21)로 280/150 → 330/180.
+ *  필드 스폰 밴드가 170~333 남짓이라(작업 230) 이제 거의 모든 적을 뜨자마자 쏘고,
+ *  추격은 적이 정지 거리(180) 안으로 들어올 때만 한다. 정지 거리는 평타의 약 55%로 종전 비율 그대로다. */
+export const archerAttackRange = 330;
+export const archerStopRange = 180;
+/** 마법사도 원거리다 — 궁수보다 짧은 사거리에서 마법 구슬을 날린다(작업 198, 간격 조정 작업 207·216·244).
+ *  직업별 간격은 궁수 330/180 > 마법사 285/160 > 전사 90 순서를 지긴다.
+ *  궁수의 약 86%를 유지해 두 원거리 직업의 체감 차등은 그대로 두고 함께 올렸다(240/130 → 285/160). */
+export const mageAttackRange = 285;
+export const mageStopRange = 160;
 export function enemyMoveSpeed(floor: number, boss: boolean): number {
   return boss ? 28 : Math.min(64, 38 + Math.max(0, floor - 1) * 1.2);
 }
