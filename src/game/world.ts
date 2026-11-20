@@ -12,7 +12,9 @@ import { EXTRA_LIFESTEAL_HIT_CAP, EXTRA_REGEN_SECONDS, effectiveExtraOptions } f
 
 export type Enemy = { x: number; y: number; hp: number; maxHp: number; boss: boolean; hit: number; step: number; moving: boolean; knockX: number; knockY: number; slow: number;
   /** 정예 몹(작업 206) — 일반 몹 30마리마다 한 마리. 보스 타이밍이 오면 보스가 우선이라 둘은 같이 서지 않는다. */
-  elite?: boolean };
+  elite?: boolean;
+  /** 적 공격 모션(작업 245) — 남은 재생 시간. 0보다 크면 플레이어 쪽으로 내딛으며 때린다. */
+  attack?: number };
 /** `absorb` is the age the pull into the character began at; while it is unset the drop still rests
  *  where it fell (`LOOT_REST_SECONDS`). Without that mark the renderer cannot tell a drop held back
  *  by a full bag from one already on its way in. */
@@ -26,7 +28,11 @@ export type Effect = { x: number; y: number; kind: 'slash' | 'slash2' | 'spin' |
   /** 추가옵션(작업 238)의 피드백 — `evade`는 회피(피해 없음), `heal`은 피흡·5초 회복으로 찬 체력이다.
    *  둘 다 그림 없이 숫자·글자만 띄운다(`render/vfx.ts` `updateDamageLabels`). */
   | 'heal' | 'evade'
+  /** 적의 공격이 플레이어에게 닿은 순간(작업 245) — 할퀴는 궤적과 잃은 체력 숫자를 띄운다. */
+  | 'enemyStrike'
   | 'shot' | 'rain' | 'hawk' | 'burst' | 'nova' | 'ward'; age: number; duration: number; angle: number; swing?: number; amount?: number; nextHit?: number; power?: number; level?: number;
+  /** 치명타로 들어간 타격(작업 245) — 피해 숫자를 크게·금빛으로 띄운다. */
+  crit?: boolean;
   /** 이단참(작업 213)처럼 한 번 발동에 여러 번 때리는 스킬의 지금까지 들어간 타격 수. */
   hits?: number;
   /** 궁수 화살·화살비처럼 날아가서 맞는 이펙트의 도착지점과 위력(작업 157). */
@@ -64,6 +70,12 @@ export const crushPoseSpan = .062;
 export const crushTrailLife = .3;
 export type ArrowVariant = 'normal' | 'ice' | 'pierce' | 'snipe' | 'volley' | 'arcane' | 'fire' | 'frost' | 'chain' | 'meteor';
 export type Action = 'attack' | SkillId;
+/** 적 공격 모션 길이(작업 245) — 이 시간 동안 적이 플레이어 쪽으로 내딛고, 끝나면 제자리로 돌아온다. */
+export const ENEMY_STRIKE_SECONDS = .42;
+/** 치명타(작업 245) — 장비 추가옵션 `치명타 확률`·패시브를 합산한 스탯 `crit`이 곧 발동 확률(%)이다.
+ *  배수는 1.8배, 확률 상한은 80%(넘는 값은 80%로 자른다). */
+export const CRIT_CHANCE_CAP = 80;
+export const CRIT_DAMAGE_SCALE = 1.8;
 export const cooldowns = { attack: .48, ...Object.fromEntries(Object.keys(skills).map(id => [id, skills[id as SkillId].cooldown])) } as Record<Action, number>;
 /** 평타 한 방의 공격력 배율. 한 마리만 맞히는 대신 한 방이 무겁다(작업 150). */
 export const basicAttackPower = 1.6;
@@ -156,6 +168,10 @@ export class World {
   coins: Coin[] = [];
   effects: Effect[] = [];
   cooldown: Record<Action, number> = Object.fromEntries(Object.keys(cooldowns).map(id => [id, 0])) as Record<Action, number>;
+  /** 치명타 굴림(작업 245). 기본은 흐르는 난수 그대로이고, 서버가 같은 전투를 다시 돌리는
+   *  월드보스 연습(`WorldBossRehearsal`)만 시드 난수로 바꿔 끼운다 — 그래야 클라이언트와 서버의
+   *  치명타가 같은 순서로 나온다. */
+  critRoll: () => number = random;
   spawnTimer = 0;
   paused = false;
   attackHeld = false;
@@ -525,6 +541,10 @@ export class World {
     // 두 값 모두 상한이 걸려 있다(`effectiveExtraOptions`) — 피흡은 한 번의 타격에 최대 체력의 4%까지다.
     const extras = effectiveExtraOptions(this.save.equipment);
     const power = extras.bonusDmgPct > 0 ? amount * (1 + extras.bonusDmgPct / 100) : amount;
+    // 치명타(작업 245): 장비 추가옵션 `치명타 확률`은 이제 표시가 아니라 실제 발동이다. 스탯 `crit`(%)을
+    // 그대로 확률로 쓰고, 타마다 한 번씩 굴려 들어가면 1.8배로 터뜨린다(상한 80%). 굴림은 `critRoll`을
+    // 거치므로 월드보스 서버 재계산도 같은 순서로 나온다.
+    const critChance = Math.min(CRIT_CHANCE_CAP, Math.max(0, totalStats(this.save).crit));
     // 판정 대상은 사거리·부채꼴 안의 적. `maxTargets`를 주면 가까운 순으로 그 수만 맞는다(평타 1마리).
     const inRange: { enemy: Enemy; dx: number; dy: number; dist: number }[] = [];
     for (const enemy of this.enemies) {
@@ -536,12 +556,14 @@ export class World {
     const targets = inRange.length > maxTargets ? inRange.sort((a, b) => a.dist - b.dist).slice(0, maxTargets) : inRange;
     let dealt = 0;
     for (const { enemy, dx, dy, dist } of targets) {
-      enemy.hp -= power;
-      dealt += power;
+      const crit = critChance > 0 && this.critRoll() * 100 < critChance;
+      const hit = crit ? power * CRIT_DAMAGE_SCALE : power;
+      enemy.hp -= hit;
+      dealt += hit;
       enemy.hit = .24;
       enemy.slow = Math.max(enemy.slow, slow);
       if (knockback && dist) { enemy.knockX += dx / dist * knockback * 16; enemy.knockY += dy / dist * knockback * 16; }
-      this.effects.push({ x: enemy.x, y: enemy.y, kind: 'hit', age: 0, duration: .45, angle: random() * Math.PI * 2, amount: Math.round(power), labelOffsetX: labelOffset?.x, labelOffsetY: labelOffset?.y });
+      this.effects.push({ x: enemy.x, y: enemy.y, kind: 'hit', age: 0, duration: .45, angle: random() * Math.PI * 2, amount: Math.round(hit), labelOffsetX: labelOffset?.x, labelOffsetY: labelOffset?.y, crit });
     }
     if (extras.lifestealPct > 0 && dealt > 0) this.lifesteal(dealt, extras.lifestealPct);
     const dead = this.enemies.filter(e => e.hp <= 0);
@@ -745,6 +767,7 @@ export class World {
     }
     for (const enemy of this.enemies) {
       const dx = p.x - enemy.x, dy = p.y - enemy.y, d = Math.hypot(dx, dy);
+      enemy.attack = Math.max(0, (enemy.attack ?? 0) - dt);
       enemy.moving = d > 27;
       if (enemy.moving && d > 0) { const step = enemyMoveSpeed(this.save.floor, enemy.boss) * (enemy.slow > 0 ? .55 : 1) * dt; enemy.x += dx / d * step; enemy.y += dy / d * step; enemy.step += dt * Math.PI * (enemy.boss ? 3.25 : 4.25); }
       enemy.x += enemy.knockX * dt; enemy.y += enemy.knockY * dt;
@@ -754,6 +777,8 @@ export class World {
       enemy.knockX *= Math.exp(-dt * 12); enemy.knockY *= Math.exp(-dt * 12);
       enemy.slow = Math.max(0, enemy.slow - dt);
       if (d < 35 && p.hit <= 0) {
+        // 적의 공격 모션(작업 245): 때리는 적이 플레이어 쪽으로 내딛는다(`enemy.attack`).
+        enemy.attack = ENEMY_STRIKE_SECONDS;
         // 추가옵션 회피율(작업 238, 합산 상한 30%): 맞을 순간 한 번 굴려 성공하면 피해를 통째로 무시하고
         // `회피`를 띄운다. `p.hit`을 그대로 세워 두어 프레임마다 다시 굴리지 않는다(연속 회피로 무적이 되지 않게).
         const evasion = effectiveExtraOptions(this.save.equipment).evasionPct;
@@ -764,7 +789,10 @@ export class World {
           enemy.hit = Math.max(0, enemy.hit - dt);
           continue;
         }
-        p.hp = Math.max(0, p.hp - enemyHitDamage(this.save.floor, enemy.boss, totalStats(this.save).defense));
+        const taken = enemyHitDamage(this.save.floor, enemy.boss, totalStats(this.save).defense);
+        p.hp = Math.max(0, p.hp - taken);
+        // 맞은 표시 — 적이 할퀴고 지나간 자국과 잃은 체력 숫자(작업 245).
+        this.effects.push({ x: p.x, y: p.y, kind: 'enemyStrike', age: 0, duration: .5, angle: Math.atan2(dy, dx), amount: taken });
         if (p.hp <= 0) {
           // 보스에게 쓰러졌고 최고층에서 자동 등반 중이면(작업 212 `#5017`·`#5028`) 자동 등반을
           // 끄지 않는다 — 1마리부터 다시 잡게 킬 카운트를 0으로 돌리고, 보스는 물러나게 한다.

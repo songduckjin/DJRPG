@@ -96,8 +96,9 @@ async function start(): Promise<void> {
     });
     window.addEventListener('blur', () => { world.attackHeld = false; void flush(); });
     document.addEventListener('visibilitychange', () => { if (document.hidden) void flush(); });
-    // 변경이 있을 때만 보낸다 — 예전에는 진행이 없어도 5초마다 저장 요청이 나갔다(작업 209).
-    setInterval(() => { void sync.flushIfDirty(); }, 5000);
+    // 변경이 있을 때만 보낸다 — 예전에는 진행이 없어도 5초(작업 245 이전)마다 저장 요청이 나갔다.
+    // 작업 245: 무료 Functions 한도 때문에 확인 간격을 10초로 늘렸다(실제 전송 간격은 `SaveSync.queueSave`).
+    setInterval(() => { void sync.flushIfDirty(); }, 10000);
 
     let previous = performance.now(), time = 0;
     view.app.ticker.add(() => {

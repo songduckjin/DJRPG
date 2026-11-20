@@ -13,9 +13,13 @@ const errorStatus = (error: unknown): number => error instanceof Error && 'statu
 const errorExpectedVersion = (error: unknown): unknown => error instanceof Error && 'expected' in error ? (error as Error & { expected?: unknown }).expected : undefined;
 
 export type SyncResult = { journey?: import('./journey').JourneyData; ok: boolean; save: Save; revision: number; message?: string; effect?: { listing?: { id: string; state: string; soldAt?: number }; deliveries: import('./market').Delivery[]; claimedId?: string; claimedIds?: string[] }; /** 창고 이동 뒤 창고 목록(작업 225) — 있으면 `list`를 다시 부르지 않고 이 값으로 그리드를 다시 그린다. */ items?: import('./items').Item[]; moved?: string[] };
-/** 자동 저장 간격 — 변경이 있을 때만, 마지막 저장에서 이만큼 지난 뒤에 보낸다(작업 209). */
+/** 자동 저장 간격 — 변경이 있을 때만, 마지막 저장에서 이만큼 지난 뒤에 보낸다(작업 209).
+ *  무료 Cloudflare Functions 한도(10만 건/일)를 넘기지 않도록 작업 245에서 간격을 늘렸다: 화면을 보고 있을 때
+ *  10초, 앱을 내려 두었을 때(탭 숨김) 45초. 숨김으로 바뀌는 순간 `main.ts`가 한 번 저장하므로
+ *  기기 화면을 끄기 전 진행은 그대로 남는다. */
 const autosaveMinDelay = 1_000;
-const autosaveMaxDelay = 5_000;
+const autosaveMaxDelay = 10_000;
+const autosaveHiddenDelay = 45_000;
 export class SaveSync {
   revision: number;
   active?: Promise<boolean>;
@@ -54,7 +58,8 @@ export class SaveSync {
     if (this.autosaveTimer !== undefined) return;
     // 바로 1초 뒤가 아니라, 마지막 저장에서 5초가 지난 시점까지 기다린다 — 사냥 중에는 처치마다 변경이
     // 생기므로 이 간격이 없으면 1초에 한 번씩 저장 요청이 나간다.
-    const wait = Math.max(autosaveMinDelay, Math.min(autosaveMaxDelay, this.lastSaveAt + autosaveMaxDelay - Date.now()));
+    const ceiling = typeof document !== 'undefined' && document.hidden ? autosaveHiddenDelay : autosaveMaxDelay;
+    const wait = Math.max(autosaveMinDelay, Math.min(ceiling, this.lastSaveAt + ceiling - Date.now()));
     this.autosaveTimer = setTimeout(() => { this.autosaveTimer = undefined; void this.flush(); }, wait);
   }
   /**

@@ -46,5 +46,5 @@ export function mountWorldBossLive(ui:Interface):void {
     const start=ui.root.querySelector<HTMLButtonElement>('.world-boss-content .wb-challenge');if(start&&!live.practice){start.disabled=!data||data.killed||data.remaining===0;start.textContent=!data?'연결 중…':data.killed?'토벌 완료':data.remaining===0?'오늘 도전 완료':`도전하기 · ${data.remaining}/${data.maxAttempts??3}`;}
   };
   live.onChange();const refresh=()=>{if(!document.hidden&&!ui.worldBossField&&!live.sync.locked&&!live.sync.conflicted)void live.load().catch(()=>{});};
-  refresh();const timer=setInterval(refresh,5000);window.addEventListener('pagehide',()=>clearInterval(timer),{once:true});
+  refresh();const timer=setInterval(refresh,20000);window.addEventListener('pagehide',()=>clearInterval(timer),{once:true});
 }

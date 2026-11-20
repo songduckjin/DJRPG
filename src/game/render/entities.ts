@@ -1,6 +1,6 @@
 import { Assets, Container, Rectangle, Sprite, Text, Texture } from 'pixi.js';
 import type { HeroAfterimage, World } from '../world';
-import { ELITE_MOB_SCALE } from '../world';
+import { ELITE_MOB_SCALE, ENEMY_STRIKE_SECONDS } from '../world';
 import type { Save } from '../store';
 import { enemyFacing } from '../facing';
 import { heroAnimationMode, heroMotion, slash2SwingMotion } from './heroMotion';
@@ -889,12 +889,19 @@ export function drawEntities(this: GameView, world: World, project: (x: number, 
         this.ground.ellipse(x, y - 3, 27 + pulse * 2, 9 + pulse).fill({ color: 0xffb347, alpha: .16 + pulse * .1 });
         this.ground.ellipse(x, y - 3, 27 + pulse * 2, 9 + pulse).stroke({ width: 1, color: 0xffd166, alpha: .32 + pulse * .18 });
       }
+      // 적 공격 모션(작업 245): 때리는 순간 플레이어 쪽으로 몸을 실어 내딛고(빠르게 나갔다 천천히 돌아온다)
+      // 몸을 살짝 앞으로 늘인다. 이동·피격과 무관하게 시각만 움직인다.
+      const strikeLeft = enemy.attack ?? 0;
+      const strike = strikeLeft > 0 ? 1 - strikeLeft / ENEMY_STRIKE_SECONDS : 0;
+      const jab = strike <= 0 ? 0 : strike < .34 ? strike / .34 : Math.max(0, 1 - (strike - .34) / .66);
+      const reach = (enemy.boss ? 26 : 16) * jab;
+      const towardX = hx - x, towardY = hy - y, toward = Math.hypot(towardX, towardY) || 1;
       this.ground.ellipse(x, y - 3, Math.max(enemy.boss ? 32 : 19, texture.width * scale * .42), enemy.boss ? 10 : 7).fill({ color: 0x000000, alpha: .48 });
-      sprite.position.set(x + (enemy.hit > 0 ? Math.sin(time * 58) * 3 : 0), y + (enemy.hit > 0 ? 2 : 0));
+      sprite.position.set(x + (enemy.hit > 0 ? Math.sin(time * 58) * 3 : 0) + towardX / toward * reach, y + (enemy.hit > 0 ? 2 : 0) + towardY / toward * reach * .55);
       const face = enemyFacing(enemy, world.player, sprite.scale.x);
-      sprite.scale.set(scale * face * (enemy.hit > 0 ? 1.08 : 1), scale * (enemy.hit > 0 ? .84 : 1));
+      sprite.scale.set(scale * face * (enemy.hit > 0 ? 1.08 : 1) * (1 + jab * .08), scale * (enemy.hit > 0 ? .84 : 1) * (1 - jab * .07));
       sprite.rotation = 0;
-      sprite.tint = enemy.hit > 0 ? 0xffffff : elite ? 0xffe4bb : 0xcfcac5;
+      sprite.tint = enemy.hit > 0 ? 0xffffff : jab > .18 ? 0xffb9a4 : elite ? 0xffe4bb : 0xcfcac5;
       sprite.alpha = 1;
       const barWidth = enemy.boss ? 40 : elite ? 30 : 26;
       const barY = y - h * bodyScale - 7;
