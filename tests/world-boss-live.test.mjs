@@ -1,9 +1,6 @@
 import './ts-loader.mjs';
 import {test,before,beforeEach,after} from 'node:test';
 import assert from 'node:assert/strict';
-import {mkdtemp,rm} from 'node:fs/promises';
-import {tmpdir} from 'node:os';
-import {join} from 'node:path';
 import {randomUUID} from 'node:crypto';
 import {createClient} from '@libsql/client';
 import {schema,account} from '../server/database.mjs';
@@ -11,13 +8,13 @@ const {worldBossOperation:operation,replayBoss,WORLD_BOSS_HP}=await import('../s
 const {parseSave,freshSave}=await import('../src/game/store.ts');
 import {periods} from '../server/journey-state.mjs';
 const {worldBossEndpoint}=await import('../server/endpoints/world-boss.mjs');
-let db,directory;let now=Date.parse('2026-11-18T10:00:00Z');
+let db;let now=Date.parse('2026-11-18T10:00:00Z');
 async function seed(id,guest=false,connection=db){const save=parseSave({...freshSave('male'),name:id,auto:true,level:7,floor:1,learned:[],quickSlots:[null,null,null]},id);await connection.execute({sql:'INSERT INTO djrpg_accounts(id,password_hash,save_json,updated_at) VALUES (?,?,?,?)',args:[id,guest?'guest':'hash',JSON.stringify(save),new Date(now).toISOString()]});}
 const act=(id,input={},time=now,sid)=>operation(db,id,{action:'list',...input},sid,time);
 const start=(id,time=now,requestId=randomUUID())=>act(id,{action:'start',requestId,characterSlot:1},time);
-before(async()=>{directory=await mkdtemp(join(tmpdir(),'boss-'));db=createClient({url:`file:${join(directory,'test.db')}`});await schema(db);});
+before(async()=>{db=createClient({url:'file::memory:?cache=shared'});await schema(db);});
 beforeEach(()=>{now+=2*86400000;});
-after(async()=>{await db.close();await rm(directory,{recursive:true,force:true});});
+after(async()=>{await db.close();});
 test('shared HP is ten million; server replay is deterministic and leaves save untouched',()=>{
  assert.equal(WORLD_BOSS_HP,10000000);const save=parseSave({...freshSave('male'),level:7},'replay'),before=structuredClone(save);
  const first=replayBoss(save,15),again=replayBoss(save,15);assert.equal(first.damage,again.damage);assert(first.damage>0);assert.deepEqual(save,before);
@@ -79,7 +76,7 @@ test('fresh day restores health and attempts; endpoint refuses missing auth and 
 });
 test('authorized endpoint starts a real battle and preserves API error codes',async()=>{
  await seed('endpoint');const {tokenFor}=await import('../server/auth.mjs');
- const env={TURSO_DATABASE_URL:`file:${join(directory,'test.db')}`,TURSO_AUTH_TOKEN:'test-only-key'};
+ const env={TURSO_DATABASE_URL:'file::memory:?cache=shared',TURSO_AUTH_TOKEN:'test-only-key'};
  const options={env,createDbClient:()=>createClient({url:env.TURSO_DATABASE_URL})};
  const post=body=>new Request('https://game.test/api/world-boss',{method:'POST',headers:{Authorization:`Bearer ${tokenFor('endpoint',env)}`},body:JSON.stringify(body)});
  const first=await worldBossEndpoint(post({action:'start',requestId:randomUUID(),characterSlot:1}),options),data=await first.json();assert.equal(first.status,200);assert.equal(data.maxHp,10000000);assert.equal(data.remaining,2);assert.equal(data.guest,false);assert(data.battle.save);
@@ -115,7 +112,7 @@ test('stalled preparation ends with a retryable message and cannot start a battl
  try{await assert.rejects(client.start(randomUUID(),client.prepare(5)),/저장 확인이 지연/);finishSave(true);await Promise.resolve();assert.equal(calls,0);}finally{globalThis.fetch=original;}
 });
 test('new battle avoids redundant credit writes and fits a bounded DB round-trip budget',async()=>{
- const isolated=createClient({url:`file:${join(directory,'budget.db')}`});await schema(isolated);await seed('rpc-budget',false,isolated);await account(isolated,'rpc-budget');let trips=0;
+ const isolated=createClient({url:'file::memory:'});await schema(isolated);await seed('rpc-budget',false,isolated);await account(isolated,'rpc-budget');let trips=0;
  const wrapped={batch:async(...args)=>{trips++;return isolated.batch(...args);},transaction:async(...args)=>{
   const tx=await isolated.transaction(...args);return new Proxy(tx,{get(target,key){const value=target[key];if(typeof value!=='function')return value;return (...args)=>{if(key==='execute'||key==='batch')trips++;return value.apply(target,args);};}});
  }};

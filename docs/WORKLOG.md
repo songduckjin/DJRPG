@@ -1,3 +1,14 @@
+## 2026-11-20 · songduckjin 작업200 궁수 전용 투구 10종 외형(서기·걷기·사격 파츠 + 머리 없는 본체)
+- 궁수(`job === 'archer'`)가 투구를 쓰면 전사 판금 투구 대신 **궁수 전용 투구·모자 10종**(가죽 두건 ~ 신궁의 황금 왕관)이 나온다. 파츠는 승인 시안 `downloads/archer_helm_preview/{male,female}_helm_{0..9}.png`에서 뽑았고, 빌더는 `scripts/build-archer-helm-parts.py` 하나다.
+- **파츠 20장** `public/assets/pilot-25d/archer_helms/{성별}_{0..9}_v1.png`: 시안을 기본 원본과 같은 캔버스 변환(높이 337·발끝 y=353·중심 x=181 — `build-archer-sheets.py`의 서기 규칙)으로 362px 셀에 옮긴 뒤 **머리 영역 다각형**(`HEAD_POLYGON`, 여성은 포니테일·옆 땋은 머리 포함)만 오려 낸 전체 셀 PNG(256색, 장당 5KB·합계 164KB). 얼굴·머리카락이 파츠 안에 함께 들어 있어 오픈페이스(서클릿·왕관)도 얼굴이 겹치지 않는다.
+- **머리 없는 본체 12장** `public/assets/pilot-25d/archer_headless/{,nobow}/archer_{성별}_{동작}_v1.png`(합계 436KB): 같은 다각형을 본체에서 지운 판. 파츠와 구멍이 **같은 도형**이라 목·칼라 이음매가 남지 않고, 파츠가 로딩되기 전에는 머리 있는 시트로 그려 머리가 빈 채로 보이지 않는다.
+- **자세 표** `archerHelmFrames`(`src/game/render/archerHelmets.ts`): 걷기·사격은 인물이 작게 그려져 서기 얼굴(150,25)-(200,80)을 각 프레임에서 템플릿 매칭(TM_CCOEFF_NORMED)해 배율·좌상단을 잰 값이다 — 남 걷기 0.90~0.93/사격 0.66~0.72, 여 걷기 0.92~0.93/사격 0.65~0.70. 파츠 앵커는 좌상단(0,0), 회전 없음(사격 자세의 고개 숙임은 그림에 이미 들어 있다).
+- **조합**: 활을 1번 이상 차면 기본 활 지운 `nobow` 본체의 머리 없는 판을 써서 활·투구를 함께 착용해도 셀 좌표계가 같다(갑옷 10종 시트도 같은 규격 — 갑옷 작업이 붙을 때 머리 없는 판만 추가하면 된다).
+- 코드: `render/entities.ts` `syncArcherHelmet`·`drawHero`(머리 없는 시트 교체·`lastArcherHelmBow` 키로 머리 없는 시트 3장 프리페치), `render.ts`(`archerHeadlessFrame`·`prefetchArcherHeadless`·투구 파츠 20장 부팅 프리로드), `ui/equipmentPortrait.ts`(`equipmentPortraitArcherHelm`·`composeFallback` 좌상단 합성·캐시 키에 투구 포함). `store.ts`·`server/**`·`world.ts`·`baseItems.helmet` 순서·전사 투구 파이프라인은 그대로다.
+- 검증: `npx tsc --noEmit`, `tests/archer-helm-render.test.mjs` 10/10(파츠 규격·머리 지움·자세 표·drawHero·장비창), `tests/archer.test.mjs` 15/15, 전체 573건 중 570 통과(실패 3건은 `origin/main` 953c52f에서 동일 재현 — `costume-field-render` 2, `market` schema 1), `node scripts/verify-item-art.mjs`(투구 20·머리 없는 시트 12 추가), `npm run build`, `git diff --check`.
+- 검수: `downloads/djrpg_archer_helms_preview_v1.png`(남녀 10종 서기), `djrpg_archer_helms_motion_v1.png`(대표 3종 × 걷기·사격 4프레임), `djrpg_archer_helms_ingame_v1.png`(390×844 실게임 배율) — 머리카락 비침·이중 머리·목 이음매 없음 확인. 브라우저 실기 화면은 미확인(로컬 루프백 차단 — 사용자 몫).
+- 번호 참고: 199는 마법사 로브 작업, 200으로 등록했다(198은 마법사 직업과 fks3997 체력 상향이 겹쳐 있는 상태).
+
 ## 2026-11-20 · fks3997 작업198 고층 일반·보스 체력 상향(미리보기)
 - `game/world.ts` `deepMobHp` 곡선을 `24 + floor*14 + floor^2.65*0.52`로 올리고(78층 15,359→54,826), 보스는 `earlyBossHp`(예전 곡선)에서 같은 램프(8→25층)로 `일반 몹 ×6`(78층 41,710→328,955)까지 넘어가게 했다. 1~8층 일반·보스는 예전 값 그대로, 10~15층은 작업 196 수준(299/653), 25층 3,008·40층 9,735·50층 17,254로 25층부터 본격 상승, 오프라인 정산(`offlineMobHp`)·던전 HP는 불변.
 - 테스트 기대치 갱신(`balance-196` 딥 몹/보스, `world-movement` HP 표). tsc·관련 79테스트·`npx vite build` 통과, 전체 538건 중 497 통과(41 실패는 sparse 체크아웃의 `public/assets/**`·`server/**` 없음에서 오는 기존 실패). 미리보기에서 사용자 확인 후 운영 배포를 위해 `main` 병합.

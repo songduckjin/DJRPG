@@ -9,6 +9,7 @@ import { helmetArtFor, helmetArtPath, helmetIdlePlacement } from '../game/render
 import { armorIndexFor, armorSheetPath } from '../game/render/armors';
 import { WEAPON_GUARD, weaponIndexFor, weaponPartPath, weaponPose, swordlessBodyPath } from '../game/render/weapons';
 import { BOW_GRIP, bowIndexFor, bowPartPath, bowPose, bowlessBodyPath } from '../game/render/bows';
+import { archerHeadlessBodyPath, archerHelmIdlePlacement, archerHelmIndexFor, archerHelmPartPath } from '../game/render/archerHelmets';
 
 /**
  * 내 정보(장비창) 초상화 — Task 149 full-body pilot image. Gear remains functional but its
@@ -23,8 +24,12 @@ export function equipmentFallbackPortrait(save: Save): string {
   if (usesBaseSheetOnly(save)) {
     // 작업 160: 궁수는 1번 이상 활을 차면 기본 활대를 지운 서기 시트 위에 활 파츠를 얹는다.
     // `nobow/` 시트는 이번에 새로 만든 파일이라 쿼리 없이 그대로 캐시된다.
+    // 작업 200: 궁수 투구를 쓰면 필드와 같은 자리에서 머리를 지운 시트를 쓴다.
     if (isArcher(save)) {
-      return bowIndexFor(save) >= 1
+      const helmeted = archerHelmIndexFor(save) >= 0;
+      const bowless = bowIndexFor(save) >= 1;
+      if (helmeted) return archerHeadlessBodyPath(save.gender, 'idle', bowless);
+      return bowless
         ? bowlessBodyPath(save.gender, 'idle')
         : `/assets/pilot-25d/archer_${save.gender}_idle_v1.png?v=2`;
     }
@@ -82,6 +87,30 @@ export function equipmentPortraitBow(save: Save): EquipmentPortraitBow | undefin
   return { path, x: pose.x, y: pose.y, rotation: pose.rot };
 }
 
+/**
+ * 장비창에 합성하는 궁수 투구 파츠(작업 200).
+ *
+ * 전사 투구 파츠는 목 밑동을 앵커로 쓰는 작은 그림이지만, 궁수 파츠는 서기 셀 크기 그대로의
+ * **전체 셀 PNG**라 필드와 같이 좌상단 좌표·배율만 쓴다(서기라 (0,0)·1).
+ */
+export type EquipmentPortraitArcherHelm = {
+  /** 전체 셀 파츠 PNG 경로. */
+  path: string;
+  /** 362px 셀 좌표에서 파츠 좌상단과 배율. */
+  x: number;
+  y: number;
+  scale: number;
+};
+
+/** 착용 궁수 투구 파츠. 궁수가 아니거나 투구가 없으면 undefined. */
+export function equipmentPortraitArcherHelm(save: Save): EquipmentPortraitArcherHelm | undefined {
+  if (!isArcher(save)) return undefined;
+  const path = archerHelmPartPath(save.gender, archerHelmIndexFor(save));
+  if (!path) return undefined;
+  const place = archerHelmIdlePlacement;
+  return { path, x: place.x, y: place.y, scale: place.scale };
+}
+
 export type EquipmentPortraitHelmet = {
   /** 투구 머리 파츠 PNG 경로. */
   path: string;
@@ -112,6 +141,8 @@ export type EquipmentPortraitPlan = {
   base: string;
   /** 착용 투구가 있으면 전신 초상화 위에 같은 자리·배율로 합성한다. */
   helmet?: EquipmentPortraitHelmet;
+  /** 궁수 전용 투구 파츠(전체 셀). 있으면 전신 초상화 위에 좌상단 좌표로 얹는다(작업 200). */
+  archerHelm?: EquipmentPortraitArcherHelm;
   /** 착용 대검이 있으면(1번 이상) 같은 셀 좌표로 합성한다. */
   weapon?: EquipmentPortraitWeapon;
   /** 착용 활이 있으면(1번 이상) 같은 셀 좌표로 합성한다(작업 160). */
@@ -129,15 +160,18 @@ export type EquipmentPortraitPlan = {
 export function equipmentPortraitPlan(save: Save): EquipmentPortraitPlan {
   const base = equipmentFallbackPortrait(save);
   const helmet = equipmentPortraitHelmet(save);
+  const archerHelm = equipmentPortraitArcherHelm(save);
   const weapon = equipmentPortraitWeapon(save);
   const bow = equipmentPortraitBow(save);
   // 착용 투구·대검이 바뀌면 합성 결과도 바뀌므로 키에 넣는다(성별 + 갑옷 티어 + 투구 + 검 파츠).
   return {
     mode: 'fallback', base,
     key: usesBaseSheetOnly(save)
-      ? (isArcher(save) ? `archer:${save.gender}:${bow ? bow.path : '-'}` : `${jobOrDefault(save.job)}:${save.gender}`)
+      ? (isArcher(save)
+        ? `archer:${save.gender}:${bow ? bow.path : '-'}:${archerHelm ? archerHelm.path : '-'}`
+        : `${jobOrDefault(save.job)}:${save.gender}`)
       : `pilot:${save.gender}:a${armorIndexFor(save)}:${helmet ? helmet.path : '-'}:${weapon ? weapon.path : '-'}`,
-    gender: save.gender, layers: [], helmet, weapon, bow
+    gender: save.gender, layers: [], helmet, archerHelm, weapon, bow
   };
 }
 
@@ -300,7 +334,8 @@ async function composeCostume(layers: CostumeLayerPlan[]): Promise<string> {
 
 /** 폴백: 전신 초상화 한 장(+착용 투구·대검)을 캔버스에 맞춰 그린다(빈 화면 방지). */
 async function composeFallback(
-  base: string, helmet?: EquipmentPortraitHelmet, weapon?: EquipmentPortraitWeapon, bow?: EquipmentPortraitBow
+  base: string, helmet?: EquipmentPortraitHelmet, weapon?: EquipmentPortraitWeapon, bow?: EquipmentPortraitBow,
+  archerHelm?: EquipmentPortraitArcherHelm
 ): Promise<string> {
   const image = await loadImage(base, fallbackImages, new Set());
   const canvas = fitCanvas(image.naturalWidth, image.naturalHeight);
@@ -337,6 +372,18 @@ async function composeFallback(
       context.restore();
     } catch (error) {
       console.info('[장비창] 활 파츠 로딩 실패 → 전신 그림만 표시:', error);
+    }
+  }
+  if (archerHelm) {
+    try {
+      const patch = await loadImage(archerHelm.path, fallbackImages, new Set());
+      // 궁수 투구 파츠는 본체와 같은 362px 셀 전체 크기라, 본체 그림의 배율·좌상단에 그대로 얹는다.
+      const layerScale = archerHelm.scale * scale;
+      const left = (canvas.width - width) / 2 + archerHelm.x * scale;
+      const top = canvas.height - height + archerHelm.y * scale;
+      context.drawImage(patch, left, top, patch.naturalWidth * layerScale, patch.naturalHeight * layerScale);
+    } catch (error) {
+      console.info('[장비창] 궁수 투구 파츠 로딩 실패 → 전신 그림만 표시:', error);
     }
   }
   if (weapon) {
@@ -376,7 +423,7 @@ export async function renderEquipmentPortrait(save: Save): Promise<string> {
         console.info('[장비창] 코스튬 합성 실패 → 전신 초상화로 폴백:', error);
       }
     }
-    return composeFallback(plan.base, plan.helmet, plan.weapon, plan.bow);
+    return composeFallback(plan.base, plan.helmet, plan.weapon, plan.bow, plan.archerHelm);
   })();
   storePortrait(plan.key, pending);
   void pending.catch(() => {

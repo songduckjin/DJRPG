@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -10,6 +10,7 @@ import { createClient } from '@libsql/client';
 import { schema } from '../server/database.mjs';
 import { worldBossSchema } from '../server/world-boss-schema.mjs';
 import { TABLES } from '../scripts/migrate-turso-db.mjs';
+import { removeTempDbDirectory } from './helpers/temp-db.mjs';
 
 const script = fileURLToPath(new URL('../scripts/migrate-turso-db.mjs', import.meta.url));
 const save = name => JSON.stringify({ version: 1, name, gold: 120, floor: 3, bag: [], equipment: {} });
@@ -100,7 +101,7 @@ test('dry-run은 소스 djrpg_* 행 수만 출력하고 타겟을 만들지 않�
     assert.match(result.stdout, /아무 것도 쓰지 않았습니다/);
     assert.equal(existsSync(paths.target.replace('file:', '')), false);
   } finally {
-    await rm(paths.directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+    await removeTempDbDirectory(paths.directory);
   }
 });
 
@@ -143,7 +144,7 @@ test('djrpg_* 18개 테이블만 복사하고 users는 넘기지 않으며 건�
       await source.close();
     }
   } finally {
-    await rm(paths.directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+    await removeTempDbDirectory(paths.directory);
   }
 });
 
@@ -172,7 +173,7 @@ test('타겟에 이미 행이 있으면 --force 없이는 중단하고, --force�
     assert.deepEqual(await counts(paths.target), await counts(paths.source));
     assert.equal((await counts(paths.target)).djrpg_market, 1);
   } finally {
-    await rm(paths.directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+    await removeTempDbDirectory(paths.directory);
   }
 });
 
@@ -191,7 +192,7 @@ test('소스에만 있는 컬럼(스키마 드리프트)이 있으면 조용히 
     assert.match(result.stderr, /legacy_flag/);
     assert.equal((await counts(paths.target)).djrpg_accounts, 0);
   } finally {
-    await rm(paths.directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+    await removeTempDbDirectory(paths.directory);
   }
 });
 
@@ -210,7 +211,7 @@ test('목록에 없는 DJRPG 테이블이 있으면 이관을 중단한다', asy
     assert.match(result.stderr, /djrpg_future_data/);
     assert.equal(existsSync(paths.target.replace('file:', '')), false);
   } finally {
-    await rm(paths.directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+    await removeTempDbDirectory(paths.directory);
   }
 });
 
@@ -225,6 +226,6 @@ test('환경변수가 없거나 소스·타겟이 같은 DB면 명확한 오류�
     assert.notEqual(same.status, 0);
     assert.match(same.stderr, /소스와 타겟 URL이 같습니다/);
   } finally {
-    await rm(paths.directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+    await removeTempDbDirectory(paths.directory);
   }
 });
