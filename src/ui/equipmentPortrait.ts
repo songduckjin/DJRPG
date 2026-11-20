@@ -465,19 +465,23 @@ function paintPatch(
   const rgb = parseGlowColor(glow);
   const frame = paint.getImageData(0, 0, tinted.width, tinted.height);
   const pixels = frame.data;
+  // [작업 231] 광량 곡선을 올렸다 — 어두운 무늬는 그대로 두고 밝은 금속면이 더 세게 타오르도록
+  // 하한(.3 → .45)과 기울기(1.2 → 1.55)를 키웠다. 다만 상한은 1.6 → 1.25로 좁혔다 — 2배까지
+  // 곱하면 주황이 노랗게, 빨강이 분홍으로 날아가 진한 등급색이 아니라 흰빛이 된다.
   for (let index = 0; index < pixels.length; index += 4) {
     const alpha = pixels[index + 3];
     if (alpha === 0) continue;
     const lum = (0.299 * pixels[index] + 0.587 * pixels[index + 1] + 0.114 * pixels[index + 2]) / 255;
-    const light = Math.min(1.6, .3 + 1.2 * lum);
+    const light = Math.min(1.25, .45 + 1.55 * lum);
     pixels[index] = Math.min(255, rgb[0] * light);
     pixels[index + 1] = Math.min(255, rgb[1] * light);
     pixels[index + 2] = Math.min(255, rgb[2] * light);
   }
   paint.putImageData(frame, 0, 0);
   context.save();
+  // [작업 231] 장비 윤곽 밖으로 번지는 후광도 두 배 가까이 넓혔다.
   context.shadowColor = glow;
-  context.shadowBlur = Math.max(6, Math.round(width * .022));
+  context.shadowBlur = Math.max(10, Math.round(width * .045));
   context.drawImage(tinted, x, y, width, height);
   context.restore();
 }
