@@ -13,8 +13,8 @@ export const client = (env = runtimeEnv()) => {
   return createClient({ url: env.TURSO_DATABASE_URL, authToken: env.TURSO_DATABASE_AUTH_TOKEN || env.TURSO_AUTH_TOKEN });
 };
 const initializedSchemas = new Map();
-// 이미 session_id 열이 있는 DB(재배포·재시작)에서만 ALTER가 실패하므로, 그때는 ALTER만 빼고 같은 배치를 한 번 더 적용한다.
 const sessionColumn = 'ALTER TABLE djrpg_accounts ADD COLUMN session_id TEXT';
+const transientDatabaseError = error => /SQLITE_BUSY|SQLITE_LOCKED|SERVER_ERROR|ETIMEDOUT|ECONNRESET|ECONNREFUSED|fetch failed|network|timeout|temporarily unavailable|service unavailable/i.test(String(error?.code ?? '') + ' ' + String(error?.message ?? ''));
 export async function schema(db, env = runtimeEnv()) {
   const key = db.url ?? env?.TURSO_DATABASE_URL ?? db;
   if (initializedSchemas.has(key)) return initializedSchemas.get(key);
@@ -53,10 +53,23 @@ export async function schema(db, env = runtimeEnv()) {
          UNION SELECT json_extract(j.value,'$.id') FROM json_each(a.save_json,'$.equipment') j
        )`
   ];
-  const initialized = db.batch([...statements, sessionColumn], 'write').catch(error => {
-    if (!/duplicate column name/i.test(String(error?.message ?? error))) { initializedSchemas.delete(key); throw error; }
-    return db.batch(statements, 'write');
-  });
+  const initialize = async () => {
+    await db.execute(statements[0]);
+    const sessionColumns = await db.execute("SELECT name FROM pragma_table_info('djrpg_accounts') WHERE name='session_id'");
+    if (!sessionColumns.rows.length) {
+      try { await db.execute(sessionColumn); }
+      catch (error) { if (!/duplicate column name/i.test(String(error?.message ?? error))) throw error; }
+    }
+    return db.batch(statements.slice(1), 'write');
+  };
+  const initialized = (async () => {
+    try { return await initialize(); }
+    catch (error) {
+      if (!transientDatabaseError(error)) throw error;
+      await new Promise(resolve => setTimeout(resolve, 200));
+      return initialize();
+    }
+  })().catch(error => { initializedSchemas.delete(key); throw error; });
   initializedSchemas.set(key, initialized);
   return initialized;
 }
