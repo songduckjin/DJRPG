@@ -214,7 +214,8 @@ test('legacy password upgrades only after a successful login without changing sa
     assert.match(upgraded, /^scrypt\$2048\$8\$1\$[a-f\d]{32}\$[a-f\d]{128}$/);
     assert.equal((await accountEndpoint(post('account', { action: 'load' }, loginBody.token), options)).status, 200);
     assert.equal((await accountEndpoint(post('account', { action: 'login', loginId: 'legacy119', password: 'legacy-password' }), options)).status, 200);
-    assert.equal(legacyCalls, 2);
+    // 작업 224(`#6466`): 구형 해시도 서버 scrypt로 직접 판정하므로 외부 Vercel 검증은 호출되지 않는다.
+    assert.equal(legacyCalls, 0, '서버가 직접 검증한다 — 외부 Vercel이 죽어도 로그인된다');
     await assert.rejects(verifyLegacyViaVercel('legacy119', 'legacy-password', env, async () => Response.json({ accountId: 'legacy119', token: 'forged' })), error => error.code === 'DB_UNAVAILABLE');
   } finally {
     await rm(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
