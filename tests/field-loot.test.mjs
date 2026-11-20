@@ -4,7 +4,8 @@ import { readFileSync } from 'node:fs';
 import './ts-loader.mjs';
 const { LOOT_REST_SECONDS, LOOT_ABSORB_SECONDS, LOOT_FAN, LOOT_GAP, LOOT_DEPTH, lootRestSpots, lootAbsorbProgress, lootAbsorbPoint } = await import('../src/game/loot.ts');
 const { BOSS_GOLD_PILES, BOSS_ITEM_DROPS, bossGoldPiles } = await import('../src/game/bossLoot.ts');
-const { GOLD_PILE, GOLD_PILE_RX } = await import('../src/game/render/goldPile.ts');
+const { GOLD_PILE, GOLD_PILE_RX, GOLD_COIN_EDGE, GOLD_COIN_RIM, GOLD_PILE_EDGE, GOLD_PILE_RIM, GOLD_PILE_BRIGHTNESS, GOLD_PILE_CONTRAST, GOLD_COIN_CHIP_DROP, goldCoinChipWidth, goldCoinChipHeight, goldCoinHeight } = await import('../src/game/render/goldPile.ts');
+const { bossGoldSpot } = await import('../src/game/bossLoot.ts');
 const { World } = await import('../src/game/world.ts');
 const { freshSave } = await import('../src/game/store.ts');
 
@@ -179,21 +180,25 @@ test('a field drop makes one small hop and lands with a single soft tap', () => 
   }
 });
 
-test('a coin drop is a small heap of flat antique coins on the floor', () => {
+test('a coin drop is a small heap of bright flat coins lying on the floor', () => {
   assert(GOLD_PILE.length >= 2 && GOLD_PILE.length <= 3, 'two or three coins make the heap');
   for (const coin of GOLD_PILE) {
     // A coin squeezed under 20px is mostly resampling, so the sizes stay big enough to read sharp.
     assert(coin.size >= 21 && coin.size <= 24, `each coin is 21~24px wide (got ${coin.size})`);
-    assert(coin.squash >= .62 && coin.squash <= .68, `each coin is only gently squashed (got ${coin.squash})`);
+    // 작업 196: the coins lie down at half their width instead of standing or gently leaning.
+    assert.equal(coin.squash, .5, `each coin is squashed to .50 so it lies on the floor (got ${coin.squash})`);
     // A coin may sit a pixel into the floor (the big left coin does), never float above it.
     assert(coin.dy <= 2 && coin.dy >= -14, `no coin floats far above the heap (got ${coin.dy})`);
-    assert(coin.tint < 0xffffff, 'each coin is tinted to a heavier antique gold, not left as it is');
+    // The tone-down is gone: no coin is multiplied darker than the art, only warmed a touch.
+    const red = (coin.tint >> 16) & 255, green = (coin.tint >> 8) & 255, blue = coin.tint & 255;
+    assert(red >= 250 && green >= 225 && blue >= 190, `each coin keeps the art's bright gold (got #${coin.tint.toString(16)})`);
   }
   const source = readFileSync(new URL('../src/game/render/drops.ts', import.meta.url), 'utf8');
+  const css = readFileSync(new URL('../src/styles/dungeon.css', import.meta.url), 'utf8');
   assert.match(source, /for \(const coin of GOLD_PILE\)/, 'the field draws every coin of the heap');
-  assert.match(source, /sprite\.height = coin\.size \* coin\.squash/, 'the squash is what lays the coin down');
-  assert.match(source, /sprite\.tint = coin\.tint/, 'and the antique tint is applied');
-  // The heap keeps the original coin art: no second heap image is introduced (작업 195).
+  assert.match(source, /sprite\.height = chip \? goldCoinChipHeight\(coin\)/, 'the squash is what lays the coin down');
+  assert.match(source, /sprite\.tint = coin.tint/, 'and the warm tint is applied');
+  // The heap keeps the original coin art: no second heap image is introduced (작업 195, 196).
   assert.match(source, /sheetTexture\(view, '\/assets\/icons\/gold-coin\.png', true\)/, 'the heap still draws the coin art');
   assert.doesNotMatch(source, /gold-pile\.png/, 'no second heap asset is loaded');
   // Shrinking 256px art to a 20-something-pixel coin needs a mip chain, or it shimmers.
@@ -202,6 +207,41 @@ test('a coin drop is a small heap of flat antique coins on the floor', () => {
   assert.doesNotMatch(source, /COIN_SIZE/, 'the single upright 30px coin is gone');
   assert.doesNotMatch(source, /coin\.width = COIN_SIZE/, 'nothing draws the old one-coin icon');
   assert(GOLD_PILE_RX * 2 <= 48, 'the heap keeps the footprint of a drop on the floor');
+  // The dark grade that made a heap sink into the floor is gone from both screens (작업 196).
+  assert.doesNotMatch(css, /saturate\(\.85\) brightness\(\.88\)/, 'the dungeon no longer dulls the heap');
+  assert.doesNotMatch(css, /is-gold \.dungeon-loot-body\{filter/, 'and applies no colour grade to the heap body');
+});
+
+test('every coin gets its own 1px warm brown boundary and 2px thickness, baked once for both screens', () => {
+  // The boundary is the warm brown the user picked ("오른쪽"), thin enough to read as a coin edge
+  // rather than a grade ring, and the thickness under it is a darker gold.
+  assert.equal(GOLD_PILE_EDGE, 0x482e0c, 'the boundary is the warm brown #482e0c');
+  assert.equal(GOLD_PILE_RIM, 0x8a5a12, 'the thickness under a coin is a darker gold');
+  assert.equal(GOLD_COIN_EDGE, 1, 'the boundary is one pixel');
+  assert.equal(GOLD_COIN_RIM, 2, 'the thickness is two pixels');
+  assert.equal(GOLD_PILE_BRIGHTNESS, 1.1, 'the art is lifted 10% out of the dark floor');
+  assert.equal(GOLD_PILE_CONTRAST, 1.08, 'and its contrast raised 8%');
+  for (const coin of GOLD_PILE) {
+    // The chip's box is the coin plus the thickness under it plus one pixel on every side.
+    assert.equal(goldCoinChipWidth(coin), coin.size + 2);
+    assert.equal(goldCoinChipHeight(coin), goldCoinHeight(coin) + GOLD_COIN_RIM + 2);
+    assert.equal(goldCoinHeight(coin), Math.round(coin.size * coin.squash));
+  }
+  assert.equal(GOLD_COIN_CHIP_DROP, GOLD_COIN_EDGE + GOLD_COIN_RIM);
+  const art = readFileSync(new URL('../src/game/render/goldCoinArt.ts', import.meta.url), 'utf8');
+  const source = readFileSync(new URL('../src/game/render/drops.ts', import.meta.url), 'utf8');
+  const dungeon = readFileSync(new URL('../src/ui/dungeonField.ts', import.meta.url), 'utf8');
+  // The boundary follows the art's own silhouette, one pixel out, and the thickness is that
+  // silhouette set two pixels lower — no ellipse, no glow, no second picture.
+  assert.match(art, /const EDGE_RING/, 'the boundary is the silhouette widened one pixel');
+  assert.match(art, /globalCompositeOperation = 'source-in'/, 'and painted in the flat edge colour');
+  assert.match(art, /GOLD_PILE_BRIGHTNESS/, 'the art is lifted before it is drawn');
+  assert.match(art, /paintGoldCoinChip/, 'one painter bakes the chip');
+  // Both screens draw that same chip: Pixi texture in the field, data URL in the dungeon.
+  assert.match(source, /goldCoinChipTexture\(texture, coin\)/, 'the field draws the baked chip');
+  assert.match(dungeon, /goldCoinChipUrl\(coin\)/, 'the dungeon draws the same chip');
+  assert.match(dungeon, /warmGoldCoinChips\(\)/, 'and bakes it when the arena opens');
+  assert.match(dungeon, /art\.src=chip\?\?'\/assets\/icons\/gold-coin\.png'/, 'the plain coin stays the fallback');
 });
 
 test('a field coin always lies behind the hero, the monsters and every item', () => {
@@ -217,7 +257,7 @@ test('a field coin always lies behind the hero, the monsters and every item', ()
   assert(behind >= 0 && actors > behind && front > actors, `loot behind (${behind}) must precede the actors (${actors}) and loot in front (${front})`);
 });
 
-test('a boss kill scatters its gold in ten heaps and leaves only the chance item', () => {
+test('a boss kill bursts its gold out in ten heaps and leaves only the chance item', () => {
   assert.equal(BOSS_GOLD_PILES, 10);
   // The main field's boss drops gold only: the dungeon's five-item haul stays in the dungeon (작업 195).
   assert.equal(BOSS_ITEM_DROPS, 5);
@@ -232,10 +272,53 @@ test('a boss kill scatters its gold in ten heaps and leaves only the chance item
   assert.equal(world.coins.length, BOSS_GOLD_PILES, 'the gold hits the floor in ten heaps');
   assert.equal(world.coins.reduce((sum, coin) => sum + coin.gold, 0), gold, 'the ten heaps add up to the gold paid');
   assert.equal(world.drops.length, 0, 'no item is handed out beyond the roll — the boss leaves gold alone');
-  // Every heap is its own drop with its own point and its own fall, so they shower instead of stack.
-  assert(bossGoldPiles(gold).every(amount => amount > 0) && bossGoldPiles(gold).reduce((a, b) => a + b, 0) === gold);
   assert.equal(new Set(world.coins.map(coin => `${Math.round(coin.x)},${Math.round(coin.y)}`)).size, BOSS_GOLD_PILES, 'no two heaps share a pixel');
-  for (const coin of world.coins) assert(Math.hypot(coin.x - boss.x, coin.y - boss.y) <= 46, 'a heap stays around the body');
+  // Every heap remembers the body it was thrown from, so the field can fly it out on its own arc.
+  for (const coin of world.coins) assert.deepEqual(coin.from, { x: boss.x, y: boss.y }, 'a heap was thrown from the body');
+  assert.equal(new Set(world.coins.map(coin => Math.round(Math.hypot(coin.x - boss.x, coin.y - boss.y)))).size >= 7, true, 'the heaps land at many different distances');
+});
+
+test('a boss scatters its ten heaps wide around the body, not into one pile', () => {
+  const heaps = Array.from({ length: BOSS_GOLD_PILES }, (_, index) => bossGoldSpot(0, 0, index));
+  const radii = heaps.map(heap => Math.hypot(heap.x, heap.y));
+  // 작업 196: the old rings of 22 and 34 pixels bunched the shower into one spot. The heaps now leave
+  // on an inner ring around the body and an outer one well clear of it.
+  assert(Math.min(...radii) >= 35, `the closest heap is off the body (got ${Math.min(...radii).toFixed(1)}px)`);
+  assert(Math.max(...radii) >= 80, `the furthest heap clears the body widely (got ${Math.max(...radii).toFixed(1)}px)`);
+  assert(Math.max(...radii) <= 110, 'yet no heap is thrown out of the arena');
+  const spread = (list) => list.filter(radius => radius >= 60).length;
+  assert(spread(radii) >= 4, 'at least four heaps take the outer ring');
+  // All ten around the body, not down one side: every direction has a heap inside ±45° of it.
+  const directions = heaps.map(heap => Math.atan2(heap.y, heap.x));
+  for (let step = 0; step < 8; step++) {
+    const middle = -Math.PI + step * Math.PI / 4;
+    assert(directions.some(angle => Math.abs(Math.atan2(Math.sin(angle - middle), Math.cos(angle - middle))) <= Math.PI / 4), `a heap is thrown towards ${Math.round(middle * 180 / Math.PI)}°`);
+  }
+  // And they stay apart from each other, so ten heaps never merge into one.
+  let closest = Infinity;
+  for (let a = 0; a < heaps.length; a++) for (let b = a + 1; b < heaps.length; b++) {
+    closest = Math.min(closest, Math.hypot(heaps[a].x - heaps[b].x, heaps[a].y - heaps[b].y));
+  }
+  assert(closest >= 20, `no two heaps land on top of each other (closest ${closest.toFixed(1)}px)`);
+  // The layout is fixed, not random: the field, the dungeon and this test all see the same burst.
+  assert.deepEqual(bossGoldSpot(12, -4, 3), { x: 12 + heaps[3].x, y: -4 + heaps[3].y });
+});
+
+test('a boss heap flies out of the body on a parabola, while an ordinary drop keeps its little hop', () => {
+  const source = readFileSync(new URL('../src/game/render/drops.ts', import.meta.url), 'utf8');
+  const dungeon = readFileSync(new URL('../src/ui/dungeonField.ts', import.meta.url), 'utf8');
+  // A drop thrown further than the little hop is a burst: it gets a longer flight and a higher arc.
+  // Whitespace differs between the two files, so compare them with it stripped.
+  const packed = text => text.replace(/\s+/g, '');
+  for (const body of [source, dungeon]) {
+    const code = packed(body);
+    assert(code.includes('burst:true,flight:Math.min(.95,.3+travel/420),peak:Math.min(30,8+travel*.2)'), 'a burst heap gets its own flight and apex');
+    assert(code.includes('burst:false,flight:.45,peak:'), 'every other drop keeps the small hop');
+    assert.match(code, /4\*(view|entry)\.peak\*(view|entry)\.drift\*\(1-(view|entry)\.drift\)/, 'the heap follows a real parabola');
+  }
+  // The field starts a burst at the body the coin remembers, and the dungeon at the boss's own point.
+  assert.match(source, /'from' in entry \? entry\.from : undefined/, 'the field throws from the body');
+  assert.match(dungeon, /loot\.kind==='gold'\?loot\.from:undefined/, 'the dungeon throws from the boss');
 });
 
 test('a boss keeps the ordinary chance roll for items, never five at once', () => {

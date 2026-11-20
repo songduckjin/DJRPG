@@ -7,7 +7,8 @@ import {skills} from '../game/skills';
 import {equipmentImage,isSkillBook,type Rarity} from '../game/items';
 import {DungeonBattle,dungeonLootSpots,dungeonLootTimeline,dungeonAbsorbProgress,dungeonAbsorbPoint,type DungeonLoot,type LootDrop,type LootField} from './dungeonBattle';
 import {heroBodyFraction} from '../game/render/heroScale';
-import {GOLD_PILE,GOLD_PILE_RX,GOLD_PILE_RY} from '../game/render/goldPile';
+import {GOLD_COIN_CHIP_DROP,GOLD_PILE,GOLD_PILE_RX,GOLD_PILE_RY,goldCoinChipHeight,goldCoinChipWidth,goldCoinHeight} from '../game/render/goldPile';
+import {goldCoinChipUrl,warmGoldCoinChips} from '../game/render/goldCoinArt';
 import {setSkillIcon} from './skillArtwork';
 import {createSkillBookArt} from './skillBookArt';
 import type {Interface} from './interface';
@@ -31,14 +32,18 @@ export function openDungeonField(ui:Interface,lobby:HTMLElement):void {
   // Grade colours are pushed to full saturation: an equipment or skill book drop has to read as its
   // grade at a glance, while a coin carries no outer light at all.
   const rarityInk:Record<Rarity,string>={common:'#cdd6e0',magic:'#2f7bff',rare:'#ffd400',epic:'#a855f7',unique:'#ff8a00',legendary:'#ff2d2d'};
-  type LootView={el:HTMLDivElement;body:HTMLDivElement;shadow:HTMLSpanElement;x:number;y:number;tx:number;ty:number;drift:number;h:number;vh:number;tapped:boolean;settled:boolean;done:boolean;gold:boolean};
+  type LootView={el:HTMLDivElement;body:HTMLDivElement;shadow:HTMLSpanElement;x:number;y:number;tx:number;ty:number;flight:number;peak:number;burst:boolean;drift:number;h:number;vh:number;tapped:boolean;settled:boolean;done:boolean;gold:boolean};
   let lootViews:LootView[]=[],restSpots:LootDrop[]=[],spawnedLoot=0,absorbStarted=false,absorbRing:HTMLDivElement|undefined;
   // One timeline owns the clear beat: hold on the ground, pull every drop in, then show the result.
   const timeline=()=>dungeonLootTimeline(battle.outcome,battle.world.loot.length);
   const LOOT_GAP=36;
   // The fall is one small hop and one soft tap: the first arc tops out around 5px (a sixth of the 38px
   // body) and the rebound is a third of that, so a drop drops onto the floor instead of being lobbed.
+  // A boss heap is the exception (작업 196): it is thrown out of the body, so it flies a real parabola
+  // across the floor — `LOOT_BURST_MIN`/`LOOT_BURST_FLIGHT`/`LOOT_BURST_APEX` below.
   const LOOT_GRAVITY=1200,LOOT_TOSS_PEAK=5,LOOT_TOSS_VARY=.2,LOOT_TOSS_REBOUND=.35,LOOT_TOSS_SETTLE=60,LOOT_TOSS_SPEED=Math.sqrt(2*LOOT_GRAVITY*LOOT_TOSS_PEAK);
+  const LOOT_BURST_MIN=8;
+  const tossOf=(travel:number)=>{if(reducedMotion)return{burst:false,flight:1,peak:LOOT_TOSS_PEAK};if(travel<=LOOT_BURST_MIN)return{burst:false,flight:.45,peak:LOOT_TOSS_PEAK};return{burst:true,flight:Math.min(.95,.3+travel/420),peak:Math.min(30,8+travel*.2)};};
   // A drop's art hangs 38px above its ground point, so a spot keeps that much room under the exit
   // door's sill: drops rest on the floor in front of the door and never climb up to it.
   const LOOT_ART_LIFT=38,LOOT_TOP_PAD=6;
@@ -57,13 +62,16 @@ export function openDungeonField(ui:Interface,lobby:HTMLElement):void {
       el.classList.add('is-gold');
       // A coin heap is wide and flat, so its ground shadow is too instead of an icon-sized circle.
       shadow.style.width=`${GOLD_PILE_RX*2}px`;shadow.style.height=`${GOLD_PILE_RY*2}px`;
-      // A heap of coins lying flat on the floor: two or three coins of the standing art, each
-      // squashed and tinted to antique gold, set a few pixels apart — the same table the field
-      // renderer draws (작업 194). The art is the original coin, so the heap keeps its look.
+      // A heap of coins lying flat on the floor: every coin of the shared table, each drawn from the
+      // chip baked by `goldCoinArt` — the original coin art lifted out of the floor, with its own 1px
+      // warm brown boundary and 2px darker-gold thickness — set a few pixels apart (작업 196). If the
+      // art could not be baked, the plain coin keeps the heap readable.
       for(const coin of GOLD_PILE){
-        const art=document.createElement('img');art.className='dungeon-loot-coin';art.src='/assets/icons/gold-coin.png';art.alt='';
-        art.style.width=`${coin.size}px`;art.style.height=`${coin.size*coin.squash}px`;
-        art.style.left=`calc(50% + ${coin.dx}px)`;art.style.bottom=`${-coin.dy}px`;
+        const art=document.createElement('img');art.className='dungeon-loot-coin';art.alt='';
+        const chip=goldCoinChipUrl(coin);art.src=chip??'/assets/icons/gold-coin.png';
+        const width=chip?goldCoinChipWidth(coin):coin.size,height=chip?goldCoinChipHeight(coin):goldCoinHeight(coin);
+        art.style.width=`${width}px`;art.style.height=`${height}px`;art.style.left=`calc(50% + ${coin.dx}px)`;
+        art.style.bottom=`${-coin.dy-(chip?GOLD_COIN_CHIP_DROP:0)}px`;
         body.append(art);
       }
     }else{
@@ -81,14 +89,18 @@ export function openDungeonField(ui:Interface,lobby:HTMLElement):void {
     // Whatever the fall point, the spot also comes back along its own line into the floor limit,
     // so nothing rests up at the exit door or far from the character.
     const w=view.app.screen.width,h=view.app.screen.height,[heroX,heroY]=projectArenaPoint(battle.world.player.x,battle.world.player.y,w,h),[gx,gy]=projectArenaPoint(loot.x,loot.y,w,h);
-    const heroH=Math.max(48,h*heroBodyFraction),[spot]=dungeonLootSpots(heroX,heroY,[{x:gx,y:gy,gold:loot.kind==='gold'}],restSpots,Math.max(40,heroH*.5),heroH+8,LOOT_GAP,lootField(heroH)),tx=spot.x-gx,ty=spot.y-gy;
+    const heroH=Math.max(48,h*heroBodyFraction),[spot]=dungeonLootSpots(heroX,heroY,[{x:gx,y:gy,gold:loot.kind==='gold'}],restSpots,Math.max(40,heroH*.5),heroH+8,LOOT_GAP,lootField(heroH));
+    // A boss heap is thrown from the body (`from`), so it starts there and flies to its spot on the
+    // floor; every other drop simply falls where it appeared (작업 196).
+    const from=loot.kind==='gold'?loot.from:undefined;
+    const [startX,startY]=from?projectArenaPoint(from.x,from.y,w,h):[gx,gy],tx=spot.x-startX,ty=spot.y-startY,toss=tossOf(Math.hypot(tx,ty));
     el.append(shadow,body);
     // Depth: an item that rests behind the hero's feet stays under the transparent arena canvas and
     // one in front of them is drawn over the floor. A coin lies flat on the floor, so it is always
     // put in the behind layer (작업 194): every monster, the hero and every item — in either layer —
     // is painted over it, whatever side of the hero it fell on.
-    (loot.kind==='gold'||gy+ty<heroY-6?backLootLayer:lootLayer).append(el);
-    lootViews.push({el,body,shadow,x:loot.x,y:loot.y,tx,ty,drift:reducedMotion?1:0,h:reducedMotion?0:2,vh:reducedMotion?0:LOOT_TOSS_SPEED*(1+(Math.random()*2-1)*LOOT_TOSS_VARY),tapped:false,settled:false,done:false,gold:loot.kind==='gold'});
+    (loot.kind==='gold'||spot.y<heroY-6?backLootLayer:lootLayer).append(el);
+    lootViews.push({el,body,shadow,x:from?.x??loot.x,y:from?.y??loot.y,tx,ty,flight:toss.flight,peak:toss.peak,burst:toss.burst,drift:reducedMotion?1:0,h:reducedMotion?0:2,vh:reducedMotion?0:LOOT_TOSS_SPEED*(1+(Math.random()*2-1)*LOOT_TOSS_VARY),tapped:false,settled:reducedMotion,done:false,gold:loot.kind==='gold'});
   };
   const clearLoot=():void=>{for(const entry of lootViews)entry.el.remove();lootViews=[];restSpots=[];spawnedLoot=0;absorbStarted=false;absorbRing?.remove();absorbRing=undefined;};
   // Bounce until resting; on a clear the same nodes are pulled in an accelerating arc into the hero.
@@ -104,8 +116,11 @@ export function openDungeonField(ui:Interface,lobby:HTMLElement):void {
     }
     for(const [index,entry] of lootViews.entries()){
       if(entry.done)continue;
-      entry.drift=Math.min(1,entry.drift+dt/.45);
-      const [groundX,groundY]=projectArenaPoint(entry.x,entry.y,w,h),ease=1-Math.pow(1-entry.drift,3),x=groundX+entry.tx*ease,y=groundY+entry.ty*ease;
+      entry.drift=Math.min(1,entry.drift+dt/entry.flight);
+      const [groundX,groundY]=projectArenaPoint(entry.x,entry.y,w,h);
+      // A burst heap crosses the floor at a steady pace under its arc; every other drop eases into its
+      // spot from the short hop above it.
+      const path=entry.burst?entry.drift:1-Math.pow(1-entry.drift,3),x=groundX+entry.tx*path,y=groundY+entry.ty*path;
       if(absorbStarted){
         entry.el.classList.remove('is-resting');
         const p=dungeonAbsorbProgress(finishAge,index);
@@ -116,7 +131,10 @@ export function openDungeonField(ui:Interface,lobby:HTMLElement):void {
         entry.body.style.opacity=String(1-p*.9);entry.shadow.style.opacity=String((entry.gold ? .3 : .45)*(1-p));
         continue;
       }
-      if(!entry.settled){
+      if(entry.burst){
+        entry.h=Math.max(0,4*entry.peak*entry.drift*(1-entry.drift));
+        if(entry.drift>=1){entry.settled=true;entry.el.classList.add('is-resting');}
+      }else if(!entry.settled){
         entry.h+=entry.vh*dt;entry.vh-=LOOT_GRAVITY*dt;
         if(entry.h<=0){entry.h=0;
           if(!entry.tapped&&entry.vh<-LOOT_TOSS_SETTLE){entry.tapped=true;entry.vh=-entry.vh*LOOT_TOSS_REBOUND;}
@@ -126,7 +144,7 @@ export function openDungeonField(ui:Interface,lobby:HTMLElement):void {
       entry.el.style.transform=`translate3d(${x}px,${y}px,0)`;
       // The bounce carries the drop and nothing turns it: it falls and lands the way it left the mob.
       entry.body.style.transform=`translate(-50%,-100%) translateY(${-entry.h}px)`;
-      const lift=Math.min(1,entry.h/(LOOT_TOSS_PEAK*2));
+      const lift=Math.min(1,entry.h/(entry.peak*2));
       entry.shadow.style.transform=`translate(-50%,-50%) scale(${1-lift*.55})`;
       // Ten boss heaps lying together must not stack into one black puddle, so a coin's shadow is
       // lighter than an item's.
@@ -176,6 +194,7 @@ export function openDungeonField(ui:Interface,lobby:HTMLElement):void {
     };
   };
   void (async()=>{try{
+    await warmGoldCoinChips();if(closed)return;
     await Assets.load('/assets/dungeon/prison-room-v2.png');if(closed)return;
     await view.mount(get('.dungeon-field-canvas'));mounted=true;if(closed||destroyPending){view.app.destroy(true,{children:true,texture:false,textureSource:false});return;}
     await doorOpened;if(closed)return;observer.disconnect();

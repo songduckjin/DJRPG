@@ -342,7 +342,7 @@ test('a boss floor leaves five random items and ten scattered gold heaps', () =>
 test('a dungeon gold heap always sits in the behind layer, under monsters and items', () => {
   const source = readFileSync(new URL('../src/ui/dungeonField.ts', import.meta.url), 'utf8');
   const css = readFileSync(new URL('../src/styles/dungeon.css', import.meta.url), 'utf8');
-  assert.match(source, /loot\.kind==='gold'\|\|gy\+ty<heroY-6\?backLootLayer:lootLayer/, 'a coin always goes to the behind layer');
+  assert.match(source, /loot\.kind==='gold'\|\|spot\.y<heroY-6\?backLootLayer:lootLayer/, 'a coin always goes to the behind layer');
   const z = pattern => { const match = css.match(pattern); return match ? Number(match[1]) : NaN; };
   const gate = z(/\.dungeon-exit-gate\{[^}]*z-index:(-?\d+)/), behind = z(/\.dungeon-loot-layer\.is-behind\{z-index:(-?\d+)/),
     canvas = z(/\.dungeon-field-canvas\{[^}]*z-index:(-?\d+)/), gold = z(/\.dungeon-loot\.is-gold\{z-index:(-?\d+)/), item = z(/\.dungeon-loot\.is-item\{z-index:(-?\d+)/);
@@ -350,22 +350,23 @@ test('a dungeon gold heap always sits in the behind layer, under monsters and it
   assert(gold < item, `a coin (${gold}) is painted under an item (${item}) even in the same layer`);
 });
 
-test('a dungeon coin heap is the same flat antique heap as the field', () => {
-  const { GOLD_PILE } = goldPile;
+test('a dungeon coin heap is the same bright flat heap as the field', () => {
+  const { GOLD_PILE, GOLD_COIN_CHIP_DROP } = goldPile;
   assert(GOLD_PILE.length >= 2 && GOLD_PILE.length <= 3);
-  // The coins are drawn big enough (20~24px) to keep the standing art readable (작업 195).
+  // The coins lie down at half their width and keep the art's own bright gold (작업 196).
   for (const coin of GOLD_PILE) {
     assert(coin.size >= 21 && coin.size <= 24, `each coin is 21~24px wide (got ${coin.size})`);
-    assert(coin.squash >= .62 && coin.squash <= .68, `each coin is only gently squashed (got ${coin.squash})`);
+    assert.equal(coin.squash, .5, `each coin is squashed to .50 (got ${coin.squash})`);
   }
   const source = readFileSync(new URL('../src/ui/dungeonField.ts', import.meta.url), 'utf8');
   const css = readFileSync(new URL('../src/styles/dungeon.css', import.meta.url), 'utf8');
   assert.match(source, /for\(const coin of GOLD_PILE\)/, 'the dungeon draws every coin of the heap');
-  assert(source.includes('art.style.height=`${coin.size*coin.squash}px`'), 'each coin is squashed flat');
-  assert(source.includes('art.style.bottom=`${-coin.dy}px`'), 'and placed by the shared heap table');
-  assert.match(source, /art\.src='\/assets\/icons\/gold-coin\.png'/, 'the heap uses the original coin art');
+  assert(source.includes('const chip=goldCoinChipUrl(coin)'), 'each coin is the chip baked for both screens');
+  assert(source.includes('const width=chip?goldCoinChipWidth(coin):coin.size'), 'the chip sets the box, the plain art the fallback');
+  assert(source.includes('art.style.bottom=`${-coin.dy-(chip?GOLD_COIN_CHIP_DROP:0)}px`'), 'and the shared heap table places it');
+  assert.match(source, /warmGoldCoinChips\(\)/, 'the chips are baked when the arena opens, before the first kill');
   assert.doesNotMatch(source, /gold-pile\.png/, 'no second heap asset is loaded');
-  // The heap is a colour grade of the art: no outer light, no outline, no animation on a coin.
+  // No colour grade or outline is stacked on a coin here: the baked chip already carries both.
   assert(/\.dungeon-loot\.is-gold \.dungeon-loot-coin\{[^}]*filter:none/.test(css), 'a coin heap carries no outer light');
-  assert(/\.dungeon-loot\.is-gold \.dungeon-loot-coin\{[^}]*width:24px/.test(css), 'the CSS fallback size matches the heap');
+  assert.doesNotMatch(css, /is-gold \.dungeon-loot-body\{filter/, 'and is not toned down any more');
 });
