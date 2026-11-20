@@ -29,8 +29,11 @@ export function grantSeasonNotice(state, now = Date.now()) {
  * 미리보기 전용 테스트 우편(작업 210, 사용자 요청 `#4580`·`#4589` "모션 확인할 주머니가 없다").
  * **미리보기 호스트에서만** 계정당 1회 지급하고, 운영 호스트에서는 지급도 표시도 되지 않는다
  * (`grantPreviewPouchMail(state, now, preview)`·`stripPreviewPouchMail`).
+ * 작업 211: `preview-pouch-test-1` 지급 이력이 `state.notices`에 남은 계정도 다시 받도록 ID를 올렸다.
  */
-export const PREVIEW_POUCH_MAIL_ID = 'preview-pouch-test-1';
+export const PREVIEW_POUCH_MAIL_ID = 'preview-pouch-test-2';
+/** 테스트 우편 접두사 — ID를 올려도 예전 테스트 우편이 운영에 남지 않도록 함께 지운다(작업 211). */
+const PREVIEW_POUCH_MAIL_PREFIX = 'preview-pouch-test-';
 const PREVIEW_POUCH_MAIL_TITLE = '[미리보기 테스트] 보물 주머니 1개';
 const PREVIEW_POUCH_MAIL_BODY = `미리보기에서 새 개봉 모션(4단계)을 확인하실 수 있도록 보물 주머니 1개를 드립니다.
 가방에서 [열기]를 눌러 닫힌 주머니가 흔들리다 끈이 풀리고 활짝 열리는 연출을 확인해 주세요.
@@ -47,7 +50,7 @@ export function grantPreviewPouchMail(state, now = Date.now(), preview = false) 
 /** 운영 호스트에서 남아 있는 미리보기 테스트 우편을 지운다(지급 이력은 남겨 다시 붙지 않게 한다). */
 export function stripPreviewPouchMail(state) {
   state.notices ??= []; state.mail ??= [];
-  state.mail = state.mail.filter(entry => entry.id !== PREVIEW_POUCH_MAIL_ID);
+  state.mail = state.mail.filter(entry => !String(entry?.id ?? '').startsWith(PREVIEW_POUCH_MAIL_PREFIX));
   return state;
 }
 const UPDATE_NOTICE_TITLE = '[업데이트 안내] 전투·가방 편의성 및 끝없는 던전 개선';
@@ -91,7 +94,12 @@ export function periods(now = Date.now()) {
   const monday = midnight - ((day.getUTCDay() + 6) % 7) * DAY;
   return { daily: String(midnight / DAY), weekly: String(monday / DAY), dailyEnd: midnight + DAY - 4 * HOUR, weeklyEnd: monday + 7 * DAY - 4 * HOUR };
 }
-export function advanceJourney(state, before, save, now = Date.now(), diamondMailEligible = false, preview = false) {
+/**
+ * `previewMode`는 테스트 우편을 다루는 범위다 — `'preview'`(미리보기 호스트: 지급)·`'production'`(운영 호스트: 삭제)·
+ * `false`(호스트를 모르는 일반 저장: **그대로 둔다**). 작업 211 이전에는 false가 곧 운영이라
+ * `writeSave` 한 번에 방금 받은 미리보기 우편이 사라졌다.
+ */
+export function advanceJourney(state, before, save, now = Date.now(), diamondMailEligible = false, previewMode = false) {
   const keys = periods(now);
   state ??= { achievements: [], mail: [{ id: 'welcome-v1', title: '황야에 오신 것을 환영합니다', sender: '운영팀', body: '모험을 시작하는 데 도움이 되길 바랍니다.', createdAt: now, expiresAt: now + 7 * DAY, gold: 1000, books: 1, claimedAt: null, read: false }] };
   for (const kind of ['daily', 'weekly']) {
@@ -108,8 +116,10 @@ export function advanceJourney(state, before, save, now = Date.now(), diamondMai
   state.achievements ??= []; state.mail ??= [];
   grantUpdateNotice(state, now);
   grantSeasonNotice(state, now);
-  // 미리보기 테스트 우편(작업 210): 미리보기 호스트에서만 지급하고, 운영 호스트에서는 남아 있으면 지운다.
-  if (preview) grantPreviewPouchMail(state, now, true); else stripPreviewPouchMail(state);
+  // 미리보기 테스트 우편(작업 210·211): 지급은 미리보기 호스트에서만, 삭제는 **운영 호스트에서만** 한다.
+  // 호스트를 모르는 호출(`writeSave` 자동 저장 등, false)은 손대지 않는다.
+  if (previewMode === true || previewMode === 'preview') grantPreviewPouchMail(state, now, true);
+  else if (previewMode === 'production') stripPreviewPouchMail(state);
   if (diamondMailEligible) {
     state.notices ??= [];
     if (!state.notices.includes(DIAMOND_MAIL_ID) && !state.mail.some(entry => entry.id === DIAMOND_MAIL_ID)) {
@@ -119,9 +129,10 @@ export function advanceJourney(state, before, save, now = Date.now(), diamondMai
   }
   return state;
 }
-export async function journeyState(tx, row, save = row.save, now = Date.now(), preview = false) {
+/** `previewMode`: `'preview'`·`'production'`·`false`(모름) — `advanceJourney`의 6번째 인자와 같은 뜻이다(작업 211). */
+export async function journeyState(tx, row, save = row.save, now = Date.now(), previewMode = false) {
   const entry = 'journeyRecord' in row ? row.journeyRecord : (await tx.execute({sql:'SELECT state_json FROM djrpg_journey WHERE account_id=?',args:[row.id]})).rows[0];
-  return advanceJourney(entry ? JSON.parse(entry.state_json) : undefined, row.save, save, now, row.password_hash !== 'guest', preview);
+  return advanceJourney(entry ? JSON.parse(entry.state_json) : undefined, row.save, save, now, row.password_hash !== 'guest', previewMode);
 }
 /**
  * 서버가 직접 아는 사건(월드보스 도전 시작 등)을 그 기간 카운터에 **1회** 더한다(작업 207).

@@ -214,9 +214,11 @@ test('미리보기 테스트 보물 주머니 우편은 preview 호스트에서�
   assert.equal(mail.title, '[미리보기 테스트] 보물 주머니 1개');
   const again = advanceJourney(preview, save(), save(), Date.now(), true, true);
   assert.equal(again.mail.filter(entry => entry.id === PREVIEW_POUCH_MAIL_ID).length, 1, '계정당 1회');
-  const production = advanceJourney(again, save(), save(), Date.now(), true, false);
+  const production = advanceJourney(structuredClone(again), save(), save(), Date.now(), true, 'production');
   assert.equal(production.mail.some(entry => entry.id === PREVIEW_POUCH_MAIL_ID), false, '운영 호스트는 남아 있으면 지운다');
-  const offPreview = advanceJourney(empty(), save(), save(), Date.now(), true, false);
+  const unknownHost = advanceJourney(structuredClone(again), save(), save(), Date.now(), true, false);
+  assert.equal(unknownHost.mail.some(entry => entry.id === PREVIEW_POUCH_MAIL_ID), true, '호스트를 모르는 호출은 건드리지 않는다');
+  const offPreview = advanceJourney(empty(), save(), save(), Date.now(), true, 'production');
   assert.equal(offPreview.mail.some(entry => entry.id === PREVIEW_POUCH_MAIL_ID), false, '운영 호스트에는 지급하지 않는다');
 });
 
@@ -226,7 +228,22 @@ test('미리보기 journey 목록에만 테스트 우편이 내려오고 기본(
   const mail = preview.mail.find(entry => entry.id === PREVIEW_POUCH_MAIL_ID);
   assert(mail, '미리보기 목록에 테스트 우편');
   assert.equal(mail.pouches, 1);
-  const normal = await snapshot(db, 'preview-mail');
+  const normal = await snapshot(db, 'preview-mail', { preview: 'production' });
   assert.equal(normal.mail.some(entry => entry.id === PREVIEW_POUCH_MAIL_ID), false, '운영 목록에서는 지운다');
   assert.equal(normal.mail.length, 4, '환영·업데이트 안내·새 시즌 안내·다이아 우편 4통은 그대로');
+});
+
+test('자동 저장(writeSave, preview 생략)이 돌아도 미리보기 테스트 우편은 남고, 운영 호스트에서만 지워진다(작업 211)', async () => {
+  await seed('preview-keep');
+  const granted = await snapshot(db, 'preview-keep', { preview: 'preview' });
+  assert(granted.mail.some(entry => entry.id === PREVIEW_POUCH_MAIL_ID), '미리보기 호스트에서 지급');
+  // 1초 뒤 클라이언트 자동 저장(account.mjs → database.writeSave) — preview 인자를 넘기지 않는다.
+  const row = await account(db, 'preview-keep');
+  await transaction(db, tx => writeSave(tx, row, { ...save(), kills: 3 }));
+  const afterSave = await snapshot(db, 'preview-keep', { preview: 'preview' });
+  assert.equal(afterSave.mail.filter(entry => entry.id === PREVIEW_POUCH_MAIL_ID).length, 1, '자동 저장이 우편을 지우지 않는다');
+  const production = await snapshot(db, 'preview-keep', { preview: 'production' });
+  assert.equal(production.mail.some(entry => entry.id === PREVIEW_POUCH_MAIL_ID), false, '운영 호스트에서만 지운다');
+  const stale = advanceJourney({ achievements: [], mail: [{ id: 'preview-pouch-test-1', title: '옛 테스트', pouches: 1, claimedAt: null, read: false }] }, save(), save(), Date.now(), true, 'production');
+  assert.equal(stale.mail.some(entry => String(entry.id).startsWith('preview-pouch-test-')), false, 'ID를 올린 뒤 남은 예전 테스트 우편도 운영에서 지운다');
 });
