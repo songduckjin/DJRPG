@@ -247,6 +247,23 @@ test('체력회복력은 5초마다 최대 체력의 N%를 회복한다', () => 
   assert(world.effects.some(effect => effect.kind === 'heal'));
 });
 
+test('던전 전투도 같은 World 규칙이라 추가 데미지가 보스 클리어를 앞당긴다', async () => {
+  const { runDungeonBattle } = await import('../src/ui/dungeonBattle.ts');
+  const dungeonSave = extraOptions => {
+    const save = freshSave('male', 'warrior');
+    save.level = 20; save.tutorial = 3; save.health = 100000;
+    save.equipment = { weapon: { id: `dungeon-${JSON.stringify(extraOptions)}`, name: '비전의 룬 블레이드', slot: 'weapon', rarity: 'epic', stats: { attack: 120 }, plus: 0, extraOptions } };
+    return save;
+  };
+  for (const seed of [11, 22]) {
+    const plain = runDungeonBattle(dungeonSave({ defensePct: 1 }), 5, seed);
+    const buffed = runDungeonBattle(dungeonSave({ bonusDmgPct: 3 }), 5, seed);
+    assert.equal(plain.outcome, 'clear');
+    assert.equal(buffed.outcome, 'clear');
+    assert(buffed.elapsed < plain.elapsed, `5층 보스 ${seed}: ${buffed.elapsed} < ${plain.elapsed}`);
+  }
+});
+
 test('월드보스 연습도 같은 세이브·같은 순서면 같은 피해를 낸다(회피 굴림 고정)', async () => {
   const { WorldBossRehearsal } = await import('../src/game/worldBossRehearsal.ts');
   const save = heroSave({ evasionPct: 3, bonusDmgPct: 2 }, 'unique');
