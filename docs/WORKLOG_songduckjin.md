@@ -1,3 +1,12 @@
+## 2026-11-20 · 작업 157 · songduckjin
+- 사용자가 고른 확정 시안 두 장을 게임에 넣었다. 1번 `slash2`(휘두르기)는 `render/vfx.ts`의 코드 선 2줄(`effects.arc` 두 겹)을 지우고 검정 배경 add 스프라이트 2장으로 바꿨다 — `public/assets/fx_slash2.png`(은빛 검기 fan 512×199·48KB), `fx_slash2_ground.png`(황금빛 지면 충격파·파편 384×131·33KB, 256색 PNG). 검기는 `screenAngle`로 회전하고 지면 충격파는 회전 0으로 눕혀(세로 .62) 발밑에서 전방 34%로 번진다. 폭은 진행도에 따라 .9→1.16배, 밝기는 `sin(πt)`.
+- 무기 등급 연동은 유지하되 색을 덮지 않게 **폭 +8px(등급당)·12% 틴트**(`slashTint`)만 반영했고, 맨손은 순백이다.
+- 2번 `spin`(드래곤 트위스터)은 `fx_dragon_head.png`(160×138)·`fx_dragon_body.png`(128×57)를 **짙은 파란 청룡**으로 교체했다. `/assets/*`가 `immutable` 1년 캐시라 같은 파일명 교체가 기존 이용자에게 남지 않도록 두 경로에 `?v=2`를 붙였다.
+- `drawDragon` 회전을 `age·2π/1.1 + p²·2π` → **`age·2π/2.4 + p²·0.8π`** 로 늦춰(한 바퀴 2.4초) 묵직하게 선회하다 144°만 더 돌아 상승한다. 확정 시안의 바닥 회오리에 맞춰 발밑에 파란 지면광+링 2겹(fade 연동)을 남기고, 몸통은 접선 방향으로 길게·방사 방향 1.25배로 그려 마디 이음매를 붙였다.
+- 스킬 수치·사거리·판정(`skills.ts`·`world.ts`)과 Save/DB/API는 무변경. `tests/hero-weapon-render.test.mjs`에 새 계약 2건(검기·충격파 스프라이트/청룡 2.4초·지면광)을 넣었다.
+- 검증: `npx tsc --noEmit`, `node --test tests/hero-weapon-render.test.mjs` 6/6, 전체 `npm test` 474건 중 472 통과(`costume-field-render` 2건은 종전부터 같은 실패), `npm run build`, `node scripts/verify-item-art.mjs`, `git diff --check`. 에셋·구도는 `read_file`로 직접 확인하고, 실게임 배율(390×844) 합성 검수 이미지 `downloads/djrpg_skill_1_slash2_ingame_v3.png`·`downloads/djrpg_skill_2_spin_blue_ingame_v3.png`를 남겼다.
+- [PR #118](https://github.com/songduckjin/DJRPG/pull/118) 스쿼시 병합 `eef4e9d5251d`, 운영 `version.json` `eef4e9d5251d`(`builtAt 2026-11-20T01:17:18Z`). 새 에셋 4장 HTTP 200(`fx_slash2` 48335B·`fx_slash2_ground` 32754B·`fx_dragon_head?v=2` 12153B·`fx_dragon_body?v=2` 6197B, 원격 sha256 = 로컬), 머리 그림 픽셀 평균 RGB 35/105/189(파랑) 확인, 배포 번들 `index-QOXkJ41J.js`에 네 경로와 `Math.PI*2/2.4` 포함. 브라우저 실기·Playwright는 미실행(프로젝트 규칙), 폰 화면 확인은 사용자 몫.
+
 ## 2026-11-18 · 작업 129 · songduckjin
 - 부위별 10종씩 무기·투구·갑옷·장갑·신발 착용 아트를 생성해 총 50프레임을 캐릭터 장비 레이어로 연결했다. 남녀 idle·이동·공격 포즈를 각각 반영했다.
 - 공백 제거 및 유니코드 정규화로 `낡은가죽두건` 이름을 인벤토리 그림과 착용 프레임에 매핑했다.
