@@ -27,6 +27,8 @@ export const ITEMS_FLOOR = 8;
 /** 금화·경험치 상한에 곱하는 안전 계수 — 자동 분해·보스 무더기 같은 정상 경로가 상한에 닿지 않게 한다. */
 export const GOLD_HEADROOM = 2;
 export const EXP_HEADROOM = 2;
+/** `src/game/store.ts`의 `MAX_FLOOR`(작업 204: 1~20층). */
+export const MAX_FLOOR = 20;
 /** `src/game/items.ts`의 `rarityScales`. */
 export const RARITY_SCALES = { common: 1, magic: 2, rare: 3, epic: 4, unique: 5, legendary: 6 };
 /** `src/game/store.ts`의 `MAX_LEVEL`. */
@@ -65,12 +67,19 @@ const int = (value, fallback = 0) => Number.isSafeInteger(value) ? value : Math.
 /**
  * 한 저장 창에서 서버가 인정하는 최대 변화량. 모든 값은 `previous`(서버가 들고 있던 세이브)에 더해 쓴다.
  */
-export function rewardBudget(previous, elapsedSeconds) {
+/**
+ * 한 저장 창에서 서버가 인정하는 최대 변화량. 모든 값은 `previous`(서버가 들고 있던 세이브)에 더해 쓴다.
+ *
+ * `depthOption`은 금화·경험치를 계산할 층이다. 비워 두면 `previous`의 최고 층을 쓴다. 오프라인 정산도
+ * 보스를 잡아 층을 올리므로(작업 235), 등반이 서버 검증을 통과한 뒤에는 **그 층 값으로** 다시 계산해
+ * 정당한 보상이 클램프로 깎이지 않게 한다.
+ */
+export function rewardBudget(previous, elapsedSeconds, depthOption) {
   const elapsed = Math.max(0, Math.min(MAX_OFFLINE_SECONDS, finite(elapsedSeconds, 0)));
   const kills = Math.ceil(KILLS_FLOOR + KILLS_PER_SECOND * elapsed);
   // 보스는 한 층에 floorKillTarget마리(1층 120마리)를 잡아야 나오므로, 처치 수 대비 아주 넉넉히 잡는다.
   const bosses = Math.ceil(kills / 30) + 1;
-  const depth = Math.max(1, Math.min(500, int(previous?.maxFloor ?? previous?.floor ?? 1, 1)));
+  const depth = Math.max(1, Math.min(MAX_FLOOR, int(depthOption ?? previous?.maxFloor ?? previous?.floor ?? 1, 1)));
   const killGold = (kills * (3 + depth) + bosses * 70 * depth) * GOLD_HEADROOM + 1000;
   return {
     elapsed, kills, bosses, depth,
@@ -103,11 +112,16 @@ export function clampSaveProgress(previous, save, options = {}) {
   const secondsCap = finite(previous.playSeconds) + budget.elapsed + 5;
   if (finite(save.playSeconds) > secondsCap) { save.playSeconds = secondsCap; clamped.push('playSeconds'); }
 
-  // 도달 층은 보스 처치로만 오른다(보스 1마리 = 1층).
-  const floorCap = Math.max(1, int(previous.maxFloor ?? previous.floor ?? 1, 1)) + Math.max(0, cap(save.bossKills) - cap(previous.bossKills));
+  // 도달 층은 보스 처치로만 오른다(보스 1마리 = 1층). 마지막 층(`MAX_FLOOR`)이 상한이다.
+  const floorCap = Math.min(MAX_FLOOR, Math.max(1, int(previous.maxFloor ?? previous.floor ?? 1, 1)) + Math.max(0, cap(save.bossKills) - cap(previous.bossKills)));
   if (cap(save.maxFloor) > floorCap) { save.maxFloor = floorCap; clamped.push('maxFloor'); }
   if (cap(save.floor) > Math.max(1, cap(save.maxFloor))) { save.floor = Math.max(1, cap(save.maxFloor)); clamped.push('floor'); }
   if (cap(save.floorKills) > floorKillTarget(cap(save.floor))) { save.floorKills = floorKillTarget(cap(save.floor)); clamped.push('floorKills'); }
+
+  // 오프라인 등반(작업 235): 보스를 잡아 올라간 층은 그 층의 킬당 금화·보스 금화로 정산된다.
+  // 위에서 서버가 인정한 층(`save.maxFloor`)까지만 값을 올려 잡는다 — 시작 층보다 낮아지지 않는다.
+  const depth = Math.max(budget.depth, Math.min(MAX_FLOOR, cap(save.maxFloor) || 1));
+  const payout = depth > budget.depth ? rewardBudget(previous, options.elapsedSeconds, depth) : budget;
 
   // 레벨·경험치: 같은 창의 경험치 상한을 실제 성장식에 넣어 본 결과까지만 인정한다.
   const grown = { level: Math.max(1, Math.min(MAX_LEVEL, int(previous.level, 1))), exp: Math.max(0, finite(previous.exp)) };
@@ -124,10 +138,11 @@ export function clampSaveProgress(previous, save, options = {}) {
   else if (level === grown.level && finite(save.exp) > grown.exp) { save.exp = grown.exp; clamped.push('exp'); }
 
   // 금화·강화석: 처치 보상 + 서버가 같은 요청에서 준 몫까지만.
-  const goldCap = cap(previous.gold) + budget.gold + Math.max(0, cap(options.goldCredit));
+  const goldCap = cap(previous.gold) + payout.gold + Math.max(0, cap(options.goldCredit));
   if (cap(save.gold) > goldCap) { save.gold = goldCap; clamped.push('gold'); }
   const stoneCap = cap(previous.stones) + budget.stones + Math.max(0, cap(options.stoneCredit));
   if (cap(save.stones) > stoneCap) { save.stones = stoneCap; clamped.push('stones'); }
+  // (`payout.stones`는 `budget.stones`와 같은 값이다 — 강화석은 층과 무관하다.)
 
   // 스킬 포인트는 레벨업으로만 쌓인다 — 찍은 만큼을 뺀 나머지가 상한이다.
   const invested = Object.values(save.skillLevels ?? {}).reduce((sum, rank) => sum + Math.max(0, cap(rank) - 1), 0);
@@ -143,7 +158,7 @@ export function clampSaveProgress(previous, save, options = {}) {
   if (cap(save.dungeonClearAt) > now) { save.dungeonClearAt = now; clamped.push('dungeonClearAt'); }
 
   if (cap(save.tutorial) > 3) { save.tutorial = 3; clamped.push('tutorial'); }
-  return { clamped, budget };
+  return { clamped, budget: payout };
 }
 
 /**
