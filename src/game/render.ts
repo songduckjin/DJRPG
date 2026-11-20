@@ -21,6 +21,9 @@ import {
   staffPartPath, staffPartPaths, staffTierCacheLimit, stafflessBodyPath, type StaffMotion
 } from './render/staffs';
 import { archerHeadlessBodyPath, archerHeadlessBodyPaths, archerHelmPartPaths } from './render/archerHelmets';
+import {
+  mageHeadlessBodyPath, mageHeadlessBodyPaths, mageHelmPartPaths, type MageHelmMotion
+} from './render/mageHelmets';
 import type { Gender } from './store';
 
 const paths = {
@@ -30,7 +33,9 @@ const paths = {
   // `/assets/*`는 immutable 캐시라 시트를 갈면 URL을 바꿔야 브라우저가 즉시 새 그림을 받는다(작업 159).
   archerMale: '/assets/pilot-25d/archer_male_idle_v1.png?v=2', archerFemale: '/assets/pilot-25d/archer_female_idle_v1.png?v=2',
   // 마법사 기본 시트(작업 198) — 같은 362px 셀 좌표계다. 갑옷·투구·지팡이 오버레이는 이번 단계에 없다.
-  mageMale: '/assets/pilot-25d/mage_male_idle_v1.png', mageFemale: '/assets/pilot-25d/mage_female_idle_v1.png',
+  // 작업 204: 남성 서기 시트를 정수리 잘림 없이 다시 구워 `/assets/*` 불변 캐시를 피하려고 `?v=2`를 쓴다
+  // (작업 159 궁수 시트와 같은 규칙 — 여성도 같은 줄에서 함께 올린다).
+  mageMale: '/assets/pilot-25d/mage_male_idle_v1.png?v=2', mageFemale: '/assets/pilot-25d/mage_female_idle_v1.png?v=2',
   // 투구 착용 시에만 쓰는 머리 없는 본체(작업 152) — 같은 셀 좌표계라 배율·앵커를 공유한다.
   pilotMaleHeadless: headlessBodyPaths.male.idle, pilotFemaleHeadless: headlessBodyPaths.female.idle,
   female: '/assets/warrior_female_base.png', armored: '/assets/warrior_armored_swordless.png',
@@ -138,7 +143,9 @@ export const renderAssetPaths = [
   // 공격 3/4 옆모습 투구 파츠(작업 154) — 남녀 10종 × 공격 4프레임.
   ...helmetAttackArtList.map(art => helmetAttackArtPaths[art]),
   // 궁수 전용 투구 파츠 20장(작업 200) — 전체 셀 PNG 20장이 장당 ~5KB라 부팅 때 함께 받는다.
-  ...archerHelmPartPaths
+  ...archerHelmPartPaths,
+  // 마법사 전용 모자·투구 파츠 20장(작업 204) — 장당 9~19KB(고깔모·후광까지 담은 362×406).
+  ...mageHelmPartPaths
 ];
 type Dust = { x: number; y: number; vx: number; vy: number; age: number; duration: number; size: number };
 type Ghost = { sprites: { sprite: Sprite; dx: number; dy: number }[]; x: number; y: number; age: number; duration: number };
@@ -217,6 +224,11 @@ export class GameView {
   lastStaffTier = -1;
   /** 지금 그려진 지팡이 파츠 스프라이트(로딩 전이면 숨김). */
   heroStaff?: Sprite;
+  /** 마지막으로 본 마법사 투구 인덱스와 (투구:지팡이 착용) 키 (작업 204). */
+  lastMageHelm = -1;
+  lastMageHelmStaff = '';
+  /** 지금 그려진 마법사 투구 파츠 스프라이트(로딩 전이면 숨김). */
+  heroMageHelm?: Sprite;
   heroGear = new Map<Slot, { path: string; sprite: Sprite }>();
   /** 독립형 코스튬 렌더러 상태(작업 140). 매니페스트·아틀라스가 없으면 폴백으로 굳는다. */
   costume: CostumeHeroState = createCostumeHeroState();
@@ -270,7 +282,7 @@ export class GameView {
     // 순간에 텍스처가 없어 투구가 한 프레임 사라지는 일이 없도록 부팅 때 모두 올린다.
     const helmetPaths = [
       ...helmetArtList.map(art => helmetArtPaths[art]), ...helmetAttackArtList.map(art => helmetAttackArtPaths[art]),
-      ...archerHelmPartPaths
+      ...archerHelmPartPaths, ...mageHelmPartPaths
     ];
     const helmets = await Promise.all(helmetPaths.map(async path => [path, await loadTexture(path)] as const));
     for (const [path, texture] of helmets) { texture.source.scaleMode = 'linear'; this.helmetTextures.set(path, texture); }
@@ -509,6 +521,22 @@ export class GameView {
    */
   prefetchArcherHeadless(gender: Gender, bowless: boolean): void {
     for (const path of archerHeadlessBodyPaths(gender, bowless)) this.loadArmorSheet(path);
+  }
+
+  /**
+   * 머리를 지운 마법사 본체 시트의 프레임 (작업 204). 투구를 쓸 때만 부른다.
+   * 갑옷·지팡이 시트와 같은 셀 규격이라 자르기·프레임 선택 규칙도 같다.
+   */
+  mageHeadlessFrame(gender: Gender, motion: MageHelmMotion, frame: number, staffless = false): Texture | undefined {
+    return this.bodySheetFrame(mageHeadlessBodyPath(gender, motion, staffless), motion, frame);
+  }
+
+  /**
+   * 마법사 투구를 쓰기 시작했거나 지팡이 착용이 바뀌면 머리 없는 시트 3장을 미리 받는다.
+   * 파츠 20장은 부팅 프리로드라 여기서 받지 않는다.
+   */
+  prefetchMageHeadless(gender: Gender, staffless: boolean): void {
+    for (const path of mageHeadlessBodyPaths(gender, staffless)) this.loadArmorSheet(path);
   }
 
   private loadArmorSheet(path: string): void {

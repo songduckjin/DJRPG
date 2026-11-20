@@ -37,6 +37,13 @@ SPEC = {
     'walk': {'file': '{}_walk.png', 'cells': 4, 'height': 300, 'foot': 329},
     'attack': {'file': '{}_attack.png', 'cells': 4, 'height': 270, 'foot': 348},
 }
+# 작업 204: 서기(idle)만 승인 원본에서 **정수리~발끝**을 직접 잰 값으로 배율을 고정한다.
+# `body_height()`는 발끝 무게중심 ±34px 띠에서 처음 만나는 픽셀을 정수리로 보는데, 마법사 남성은
+# 발끝(부츠)이 머리 중심에서 크게 벗어나 있어 어깨를 정수리로 오인했다(943px). 그 결과 서기 본체가
+# 의도(337px)보다 17% 크게 그려져 정수리가 셀 위로 잘리고, 걷기(300px)·공격(270px)과 크기가 어긋났다.
+# 남성은 정수리 74행(정수리 머리카락 끝)~발끝 1202행 = 1129px, 여성은 지팡이 끝이 정수리보다 높아
+# 기존 승인 배율(1053px)을 그대로 유지한다(여성 서기는 정상 렌더).
+IDLE_BODY_PX = {'male': 1129, 'female': 1053}
 # 검정 배경 키잉: 이 값 아래는 투명, 위로 갈수록 불투명(가장자리 계단 완화).
 ALPHA_LOW, ALPHA_HIGH = 5, 26
 MIN_AREA = 120
@@ -154,6 +161,8 @@ def build(gender: str) -> None:
         image = keyed(SOURCE / spec['file'].format(gender))
         parts = figures(image, spec['cells'])
         reference = float(np.median([body_height(part[0]) for part in parts]))
+        if motion == 'idle':
+            reference = float(IDLE_BODY_PX[gender])
         scale = spec['height'] / reference
         sheet = Image.new('RGBA', (CELL * spec['cells'], CELL), (0, 0, 0, 0))
         for index, (crop, _center, _bottom) in enumerate(parts):

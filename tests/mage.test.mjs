@@ -225,11 +225,13 @@ test('마법사는 장비를 착용해도 기본 시트만 쓰고 전사용 갑�
   save.equipment.weapon = { id: 'w', name: '황혼의 혈염 지팡이', slot: 'weapon', rarity: 'rare', stats: { attack: 30 } };
   const plan = equipmentPortraitPlan(save);
   // 작업 201: 지팡이를 차면 기본 지팡이를 지운 시트 위에 지팡이 파츠를 얹는다(전사 갑옷·투구·검은 그대로 제외).
-  assert.equal(plan.base, '/assets/pilot-25d/mage_nostaff/mage_female_idle_v1.png');
+  // 작업 204: 투구를 쓰면 마법사 전용 모자·투구 파츠를 쓰고, 본체는 같은 자리에서 머리를 지운 시트다.
+  assert.equal(plan.base, '/assets/pilot-25d/mage_headless/nostaff/mage_female_idle_v1.png');
   assert.equal(plan.helmet, undefined);
   assert.equal(plan.weapon, undefined);
   assert.equal(plan.staff?.path, '/assets/pilot-25d/staffs/staff_6_v1.png', '황혼의 혈염 지팡이 → 6번');
-  assert.equal(plan.key, 'mage:female:/assets/pilot-25d/staffs/staff_6_v1.png');
+  assert.equal(plan.mageHelm?.path, '/assets/pilot-25d/mage_helms/female_3_v1.png', '황혼의 기사 헬름 → 3번');
+  assert.equal(plan.key, 'mage:female:/assets/pilot-25d/staffs/staff_6_v1.png:/assets/pilot-25d/mage_helms/female_3_v1.png');
   // 능력치는 그대로 오른다.
   assert(totalStats(save).attack > totalStats(mageSave('female')).attack);
   // 전사 초상화 계획은 마법사와 섞이지 않는다.

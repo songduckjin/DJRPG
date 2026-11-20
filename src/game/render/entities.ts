@@ -12,10 +12,11 @@ import { wearableEquipmentImage, baseItemIndex, usesBaseSheetOnly } from '../ite
 import { jobOrDefault } from '../skills';
 import { helmetArtFor, helmetArtPath, helmetPlacement } from './helmets';
 import { archerHelmIndexFor, archerHelmPartPath, archerHelmPlacement } from './archerHelmets';
+import { mageHelmIndexFor, mageHelmPartPath, mageHelmPlacement } from './mageHelmets';
 import { armorIndexFor } from './armors';
 import { WEAPON_GUARD, weaponIndexFor, weaponPose } from './weapons';
 import { BOW_GRIP, bowIndexFor, bowPose } from './bows';
-import { STAFF_GRIP, staffIndexFor, staffPose } from './staffs';
+import { STAFF_GRIP, staffIndexFor, staffPlacement } from './staffs';
 import type { GameView } from '../render';
 
 function syncWeapon(view: GameView, save: Save, texture: Texture, art: string, attacking: boolean, motion: 'idle' | 'walk', walkingFrame: number): void {
@@ -271,6 +272,44 @@ function syncArcherHelmet(view: GameView, save: Save, motion: 'idle' | 'walk' | 
 }
 
 /**
+ * 마법사 전용 모자·투구 파츠를 본체 위에 얹는다(작업 204).
+ *
+ * 궁수 투구(작업 200)와 같은 전체 셀 PNG 지만, 마법사 파츠는 고깔모·후광·날개·뿔이 셀 위로 솟아
+ * PNG 가 `MAGE_HELM_EXTRA_TOP`(44)행 더 크다. 그래서 자세 표의 y 가 이미 그만큼 위로 올라가 있고,
+ * 앵커는 좌상단(0,0)·회전 0이다. 본체는 같은 자리에서 머리를 지운 시트(`mage_headless/`)로 갈아
+ * 끼우므로 파츠가 그 구멍을 그대로 덮는다. 지팡이가 앞으로 지나가도록 zIndex 는 지팡이(.4)보다 낮다.
+ */
+function syncMageHelmet(view: GameView, save: Save, motion: 'idle' | 'walk' | 'attack', frame: number, tint: number): void {
+  const index = mageHelmIndexFor(save);
+  const shown = view.heroMageHelm;
+  const path = index >= 0 ? mageHelmPartPath(save.gender, index) : undefined;
+  const texture = path ? view.helmetTextures?.get(path) : undefined;
+  if (!texture) {
+    if (shown) shown.visible = false;
+    return;
+  }
+  const place = mageHelmPlacement(save.gender, motion, frame);
+  const layerX = place.x - view.hero.texture.width * view.hero.anchor.x;
+  const layerY = place.y - view.hero.texture.height * view.hero.anchor.y;
+  let sprite = shown;
+  if (!sprite) {
+    sprite = new Sprite(texture);
+    sprite.zIndex = .35;
+    view.heroLayer.addChild(sprite);
+    view.heroLayer.sortableChildren = true;
+    view.heroMageHelm = sprite;
+  }
+  if (sprite.texture !== texture) sprite.texture = texture;
+  sprite.anchor.set(0, 0);
+  sprite.position.set(layerX, layerY);
+  sprite.scale.set(place.scale);
+  sprite.tint = tint;
+  sprite.rotation = 0;
+  sprite.alpha = 1;
+  sprite.visible = true;
+}
+
+/**
  * 착용 지팡이 파츠를 본체 위에 얹는다(작업 201).
  *
  * 파츠 PNG 는 서기 자세의 362px 셀 그대로이고 앵커가 손이 지팡이를 쥔 그립 점이다. 자세별로는
@@ -291,7 +330,7 @@ function syncStaffPart(view: GameView, save: Save, motion: 'idle' | 'walk' | 'at
     if (shown) shown.visible = false;
     return;
   }
-  const pose = staffPose(save.gender, motion, frame);
+  const pose = staffPlacement(save.gender, motion, frame);
   const layerX = pose.x - view.hero.texture.width * view.hero.anchor.x;
   const layerY = pose.y - view.hero.texture.height * view.hero.anchor.y;
   let sprite = shown;
@@ -306,6 +345,7 @@ function syncStaffPart(view: GameView, save: Save, motion: 'idle' | 'walk' | 'at
   sprite.anchor.set(STAFF_GRIP.x / texture.width, STAFF_GRIP.y / texture.height);
   sprite.position.set(layerX, layerY);
   sprite.rotation = pose.rot * Math.PI / 180;
+  sprite.scale.set(pose.scale);
   sprite.tint = tint;
   sprite.alpha = 1;
   sprite.visible = true;
@@ -427,6 +467,23 @@ export function drawHero(this: GameView, world: World, x: number, y: number, tim
         textureKey = `nostaff:${save.gender}:${animation}:${poseFrame}`;
       }
     }
+    // 마법사 투구(작업 204): 파츠와 머리 없는 시트가 **둘 다** 준비됐을 때만 머리를 지운 시트로 그린다
+    // (파츠 없이 지우면 머리가 빈 채로 보인다). 지팡이를 찼으면 `nostaff` 판을 쓴다.
+    const mageHelm = mage ? mageHelmIndexFor(save) : -1;
+    if (mage && this.lastMageHelm !== mageHelm) this.lastMageHelm = mageHelm;
+    if (mage && this.lastMageHelmStaff !== `${mageHelm}:${staff >= 0 ? 1 : 0}`) {
+      this.lastMageHelmStaff = `${mageHelm}:${staff >= 0 ? 1 : 0}`;
+      if (mageHelm >= 0) this.prefetchMageHeadless(save.gender, staff >= 0);
+    }
+    if (mageHelm >= 0) {
+      const partPath = mageHelmPartPath(save.gender, mageHelm);
+      const partReady = !!partPath && !!this.helmetTextures?.get(partPath);
+      const headlessSheet = partReady ? this.mageHeadlessFrame(save.gender, animation, poseFrame, staff >= 0) : undefined;
+      if (headlessSheet) {
+        texture = headlessSheet;
+        textureKey = `mage-headless:${save.gender}:${animation}:${poseFrame}:${staff >= 0 ? 'nostaff' : 'body'}`;
+      }
+    }
     // 궁수 투구: 파츠와 머리 없는 시트가 **둘 다** 준비됐을 때만 머리를 지운 시트로 그린다
     // (파츠 없이 지우면 머리가 빈 채로 보인다).
     if (archerHelm >= 0) {
@@ -469,8 +526,13 @@ export function drawHero(this: GameView, world: World, x: number, y: number, tim
       } else {
         if (this.heroBow) this.heroBow.visible = false;
       }
-      if (mage) syncStaffPart(this, save, animation, poseFrame, heroTint);
-      else if (this.heroStaff) this.heroStaff.visible = false;
+      if (mage) {
+        syncStaffPart(this, save, animation, poseFrame, heroTint);
+        syncMageHelmet(this, save, animation, poseFrame, heroTint);
+      } else if (this.heroStaff) {
+        this.heroStaff.visible = false;
+        if (this.heroMageHelm) this.heroMageHelm.visible = false;
+      }
       const shownGear = this.heroGear.get('weapon');
       if (shownGear) { this.heroLayer.removeChild(shownGear.sprite); shownGear.sprite.destroy(); this.heroGear.delete('weapon'); }
     } else {
