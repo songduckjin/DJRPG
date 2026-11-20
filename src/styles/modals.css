@@ -44,6 +44,22 @@
 .character-idle:disabled { opacity: .45; cursor: default; }
 .character-delete { min-height: 28px; border: 1px solid #86544e; border-radius: 5px; background: #322024; color: #e6b4ac; font-size: 11px; touch-action: manipulation; }
 .character-delete:disabled { opacity: .45; }
+/* 캐릭터 삭제 확인(작업 206): 목록 모달 위에 한 겹만 얹는다 — 사냥 중 목록이 다시 그려져도 입력·안내가 유지된다. */
+.character-delete-overlay { position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center; padding: 18px; background: #07050bdc; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+.character-delete-card { width: min(340px, 100%); max-height: 88dvh; overflow-y: auto; display: grid; gap: 10px; padding: 16px 15px; border: 2px solid #9a7655; background: linear-gradient(#2b2224, #181318); box-shadow: 0 16px 44px #000c; }
+.character-delete-title { margin: 0; font: 700 18px Cinzel, 'Noto Sans KR', serif; color: #ffcf9a; }
+.character-delete-warning { margin: 0; padding: 9px 10px; border: 1px solid #7d3f36; background: #33191a; color: #f0c3bb; font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; }
+.character-delete-form { display: grid; gap: 8px; }
+.character-delete-field { display: grid; gap: 6px; font-size: 12px; color: #c9b49c; }
+.character-delete-field input { min-height: 46px; padding: 10px; border: 1px solid #967657; background: #151116; color: #f6e5cc; font-size: 16px; line-height: 1.2; touch-action: manipulation; }
+.character-delete-field input:focus { outline: none; border-color: #e0b16e; box-shadow: 0 0 0 2px #e0b16e44; }
+.character-delete-error { min-height: 1em; margin: 0; color: #f2a49d; font-size: 12px; line-height: 1.5; }
+.character-delete-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 2px; }
+.character-delete-cancel, .character-delete-confirm { min-height: 46px; padding: 10px 8px; border-radius: 4px; font-size: 14px; font-weight: 700; touch-action: manipulation; }
+.character-delete-cancel { border: 1px solid #6d5540; background: #251e1f; color: #c7b39c; }
+.character-delete-confirm { border: 1px solid #b4453c; background: #4a1d1c; color: #ffbdb6; }
+.character-delete-confirm.ready { border-color: #ff6a5e; background: linear-gradient(#a02b24, #6d1a16); color: #fff0ee; box-shadow: 0 0 12px #ff4b3e55; }
+.character-delete-cancel:disabled, .character-delete-confirm:disabled { opacity: .55; }
 .character-add-slot { width: 100%; min-height: 38px; margin: 10px 0; border: 1px dashed #7ca6c2; background: #182632; color: #bde6ff; }
 .character-create { position: relative; }
 .character-create-loading { position: fixed; inset: 0; z-index: 100; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 16px; background: #120e18f5; color: #f4dcb0; text-align: center; font-size: 16px; }

@@ -31,15 +31,15 @@ export type Action = 'attack' | SkillId;
 export const cooldowns = { attack: .48, ...Object.fromEntries(Object.keys(skills).map(id => [id, skills[id as SkillId].cooldown])) } as Record<Action, number>;
 /** 평타 한 방의 공격력 배율. 한 마리만 맞히는 대신 한 방이 무겁다(작업 150). */
 export const basicAttackPower = 1.6;
-/** 궁수가 서서 쏘는 거리와 추격을 멈추는 거리(작업 157). */
-/** 궁수 평타 사거리와, 이보다 멀 때만 다가가는 거리(작업 157).
- *  아레나는 중심에서 153px 남짓이라, 사거리 250이면 사실상 화면 안의 적을 모두 쏠 수 있고
- *  추격은 적이 꽤 가까워졌을 때만 한다. */
-export const archerAttackRange = 250;
-export const archerStopRange = 118;
-/** 마법사도 원거리다 — 궁수보다 조금 짧은 사거리에서 마법 구슬을 날린다(작업 198). */
-export const mageAttackRange = 240;
-export const mageStopRange = 118;
+/** 궁수 평타 사거리와, 이보다 멀 때만 다가가는 거리(작업 157, 간격 조정 작업 207).
+ *  아레나는 중심에서 153px 남짓이라, 사거리 280이면 화면 밖 끝의 적까지 닿고
+ *  추격은 적이 아레나 가장자리에 몰렸을 때만 한다. */
+export const archerAttackRange = 280;
+export const archerStopRange = 150;
+/** 마법사도 원거리다 — 궁수보다 짧은 사거리에서 마법 구슬을 날린다(작업 198, 간격 조정 작업 207).
+ *  직업별 간격은 궁수 > 마법사 > 전사(90) 순서를 지킨다. */
+export const mageAttackRange = 210;
+export const mageStopRange = 110;
 export function enemyMoveSpeed(floor: number, boss: boolean): number {
   return boss ? 28 : Math.min(64, 38 + Math.max(0, floor - 1) * 1.2);
 }
