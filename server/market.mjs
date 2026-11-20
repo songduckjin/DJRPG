@@ -177,7 +177,10 @@ export async function mutate(db, id, input) {
         effect.listing = { id: sale.id, state: 'cancelled' };
         message = '등록을 취소했습니다. 아이템은 수령함에 보관됩니다.';
       } else {
-        if (mine) fail(400, 'OWN_LISTING', '본인 매물은 구매할 수 없습니다.');
+        // 거래소는 **계정 공용**이라 다른 캐릭터(2·3번)로 올린 매물도 `mine`으로 잡힌다. 예전 문구("본인 매물은
+        // 구매할 수 없습니다")는 캐릭터를 바꿔 쓰는 계정에는 "내 매물이 아닌데 막힌다"로 읽혔다(작업 239) —
+        // 왜 막히는지와 대신 무엇을 하면 되는지(취소 → 수령함 → 그 캐릭터로 받기)를 함께 알린다.
+        if (mine) fail(400, 'OWN_LISTING', '내 계정이 등록한 매물입니다(다른 캐릭터로 올린 매물 포함). 등록을 취소하면 수령함에서 받을 수 있습니다.');
         if (save.gold < Number(sale.price)) fail(400, 'INSUFFICIENT_GOLD', '금화가 부족합니다.');
         save.gold -= Number(sale.price);
         write({ sql: "UPDATE djrpg_market SET state='sold', buyer=?, sold_at=? WHERE id=? AND state='active'", args: [id, Date.now(), sale.id] });
@@ -215,7 +218,7 @@ export async function mutate(db, id, input) {
       if(!claimed.length)fail(409,'BAG_FULL','장비 가방이 가득 찼습니다. 미수령 물품은 수령함에 보관됩니다.');
       save.gold += gold; goldCredit = gold;
       if(all)effect.claimedIds=claimed;else effect.claimedId=claimed[0];
-      message=all?`${claimed.length}건 수령 완료${skipped?` · 공간 부족 장비 ${skipped}건은 수령함에 보관`:''}`:deliveries[0].item_json?'아이템을 가방으로 받았습니다.':`${gold.toLocaleString('ko-KR')} 금화를 받았습니다.`;
+      message=all?`${claimed.length}건 수령 완료${skipped?` · 공간 부족 장비 ${skipped}건은 수령함에 보관`:''}`:deliveries[0].item_json?`아이템을 ${String(save.name || '캐릭터').slice(0, 16)}의 가방으로 받았습니다.`:`${gold.toLocaleString('ko-KR')} 금화를 받았습니다.`;
     } else fail(400, 'INVALID_ACTION', '지원하지 않는 거래 요청입니다.');
     write({ sql: 'INSERT INTO djrpg_market_requests VALUES (?,?,?)', args: [id, input.requestId, JSON.stringify({ ok: true, message, effect, revision: row.revision + 1 })] });
     if (tradeParties) {

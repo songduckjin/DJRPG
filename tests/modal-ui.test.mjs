@@ -143,7 +143,7 @@ test('character creation shows a full-screen loading state and restores retry on
   globalThis.document = { createElement: () => new Element() };
   try {
     let resolveFlush;
-    const ui = { characterCreateSlot: 2, market: { sync: { flushIfDirty: () => new Promise(resolve => { resolveFlush = resolve; }) } }, open() {} };
+    const ui = { characterCreateSlot: 2, market: { sync: { trading: false, beginSwitch() {}, endSwitch() {}, flushIfDirty: () => new Promise(resolve => { resolveFlush = resolve; }) } }, open() {} };
     const dialog = new Element();
     renderCreateCharacter(ui, dialog);
     const form = dialog.children[0], loading = form.children.at(-1), submit = form.children.at(-2), error = form.children.at(-3);
@@ -169,7 +169,7 @@ test('selecting another character immediately shows loading while save confirmat
   try {
     let resolveFlush;
     const ui = { characterList: { characters: [{slot:1,name:'첫째',gender:'male',level:1,floor:1},{slot:2,name:'둘째',gender:'female',level:1,floor:1}], activeSlot:1,maxSlots:3 }, characterPage:0,
-      session:{characterSlot:1}, market:{sync:{flushIfDirty:()=>new Promise(resolve=>{resolveFlush=resolve;})}}, message(){}, renderModal(){} };
+      session:{characterSlot:1}, market:{sync:{trading:false,beginSwitch(){},endSwitch(){},flushIfDirty:()=>new Promise(resolve=>{resolveFlush=resolve;})}}, message(){}, renderModal(){} };
     const dialog = new Element(); renderCharacters(ui, dialog);
     const visit = node => [node, ...(node.children||[]).filter(child=>child&&typeof child==='object').flatMap(visit)];
     const selects = visit(dialog).filter(node=>node.className==='character-select');

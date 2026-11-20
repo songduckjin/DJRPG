@@ -216,6 +216,15 @@ async function changeCharacter(ui: Interface, action: 'selectCharacter' | 'creat
   }
   try {
     const sync = ui.market.sync;
+    // 거래(구매·등록·취소·수령·창고)가 진행 중이거나 결과를 확인하지 못한 요청이 남아 있으면 전환하지 않는다.
+    // 그 응답은 **이전 캐릭터의 세이브·revision**을 들고 오므로 새 캐릭터의 화면을 덮어쓰고, 남은 대기 요청은
+    // 옛 revision으로 다시 나가 409(동기화 잠금)로 끝난다(작업 239).
+    if (sync.trading) throw new Error(sync.pendingMarket || sync.pendingWarehouse
+      ? '거래 결과를 확인하지 못한 요청이 있습니다. 거래소에서 `거래 결과 다시 확인`을 눌러 마무리한 뒤 캐릭터를 바꿔 주세요.'
+      : '거래를 처리하는 중입니다. 잠시 후 다시 시도해 주세요.');
+    // 전환하는 동안 사냥을 멈추고 예약 저장을 취소한다 — 전환 응답의 revision과 전환 직전에 나간 저장이
+    // 엇갈리면 다음 저장이 409 SAVE_CONFLICT로 화면 전체를 잠근다(작업 239).
+    sync.beginSwitch();
     // 바뀐 것이 없으면(`flushIfDirty`) 저장 요청을 보내지 않고 바로 넘어간다 — 예전에는 캐릭터를
     // 고를 때마다 `flush()`가 빈 저장을 한 번 더 왕복했다(작업 228).
     if (!await sync.flushIfDirty()) throw new Error('현재 캐릭터 저장 결과를 확인한 뒤 다시 시도하세요.');
@@ -228,6 +237,7 @@ async function changeCharacter(ui: Interface, action: 'selectCharacter' | 'creat
     applyCharacterSwitch(ui, result);
     loading?.remove();
   } catch (error) { loading?.remove(); throw error; }
+  finally { ui.market.sync.endSwitch(); }
 }
 
 /** `selectCharacter`·`createCharacter` 응답 — 서버가 새 세이브와 활성 슬롯을 함께 내려준다(작업 228). */
@@ -251,6 +261,10 @@ export function applyCharacterSwitch(ui: Interface, result: CharacterSwitchResul
   ui.session.job = live.job;
   sync.revision = result.revision;
   sync.session.characterSlot = result.characterSlot;
+  // 이전 캐릭터의 거래 대기·저장 스냅샷과 거래소 등록 선택은 새 캐릭터에 의미가 없다(작업 239).
+  // 남겨 두면 `Interface.open`이 `pendingMarket` 때문에 모달도 닫지 못하고, 거래소는 계속 잠긴다.
+  sync.resetForCharacterSwitch?.();
+  ui.market.resetForCharacterSwitch?.();
   discoverEquipment(live);
   // 모달·선택 상태는 새 캐릭터의 것으로 다시 시작한다(이전 캐릭터의 아이디·슬롯이 남지 않게).
   ui.knownItems = new Set([...live.bag, ...Object.values(live.equipment)].filter(Boolean).map(item => (item as Item).id));

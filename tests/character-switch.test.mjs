@@ -153,3 +153,87 @@ test('모바일 장비창은 가방 칸 최소 높이를 지키고, 낮은 화�
   assert.match(modalStyles, /\.equipment-slot \{ aspect-ratio: auto; height: 48px; \}/, '장착 10칸은 모바일에서 납작하게');
   assert.match(equipSource, /heading\.append\(title, jobToggle, sort\)/, '가방 제목·내 직업만 보기·등급순은 한 줄');
 });
+
+test('전환 응답을 반영하면 이전 캐릭터의 거래 대기·저장 스냅샷을 버린다(작업 239)', async () => {
+  // 거래 대기(`pendingMarket`)가 남은 채로 갈아타면 `Interface.open`이 모달도 닫지 못하고, 다음 재확인이
+  // 옛 캐릭터의 revision으로 나가 409가 된다 — 전환 응답이 새 세이브·revision을 들고 오므로 대기는 버린다.
+  const { SaveSync } = await import('../src/game/sync.ts');
+  const save = freshSave('male', 'warrior');
+  const session = { accountId: 'ACC1', loginId: 'hero', guest: false, token: 'token', characterSlot: 1, revision: 5, save, gender: 'male', job: 'warrior' };
+  const sync = new SaveSync(save, session);
+  sync.pendingMarket = { action: 'buy', data: { listingId: 'L' }, requestId: 'pending-request-1', revision: 5, progress: clone(save) };
+  sync.pendingWarehouse = { action: 'deposit', itemIds: ['item-1'], requestId: 'pending-request-2', revision: 5 };
+  assert.equal(sync.trading, true, '대기 중인 거래는 전환 금지 신호다');
+  const { ui } = harness();
+  ui.market = { sync };
+  const next = freshSave('female', 'mage');
+  next.name = '새마법사';
+  applyCharacterSwitch(ui, { characterSlot: 2, revision: 9, save: clone(next), offlineSeconds: 0 });
+  assert.equal(sync.pendingMarket, undefined, '옛 캐릭터의 거래 대기를 남기지 않는다');
+  assert.equal(sync.pendingWarehouse, undefined, '옛 캐릭터의 창고 대기도 남기지 않는다');
+  assert.equal(sync.trading, false);
+  assert.equal(session.characterSlot, 2);
+  assert.equal(sync.revision, 9);
+
+  const ticket = harness();
+  ticket.sync.pendingMarket = { action: 'claim', data: {}, requestId: 'r-1', revision: 1, progress: {} };
+  ticket.ui.market = { sync: ticket.sync };
+  let reset = 0;
+  ticket.ui.market.resetForCharacterSwitch = () => { reset++; };
+  applyCharacterSwitch(ticket.ui, { characterSlot: 2, revision: 4, save: clone(next), offlineSeconds: 0 });
+  assert.equal(reset, 1, '거래소 등록 선택도 새 캐릭터 기준으로 초기화한다');
+});
+
+test('거래 응답을 기다리는 사이 캐릭터가 바뀌면 새 캐릭터의 세이브·revision을 덮어쓰지 않는다(작업 239)', async () => {
+  const { SaveSync } = await import('../src/game/sync.ts');
+  const save = freshSave('male', 'warrior');
+  save.name = '옛전사'; save.gold = 10;
+  const session = { accountId: 'ACC1', loginId: 'hero', guest: false, token: 'token', characterSlot: 1, revision: 5, save, gender: 'male', job: 'warrior' };
+  const sync = new SaveSync(save, session);
+  const messages = [];
+  sync.onMessage = text => messages.push(text);
+  let release;
+  const gate = new Promise(resolve => { release = resolve; });
+  globalThis.fetch = async () => {
+    await gate;
+    return { ok: true, status: 200, json: async () => ({ ok: true, revision: 6, save: { ...clone(save), name: '옛전사', gold: 999 }, message: '구매 완료' }) };
+  };
+  const request = sync.mutate('buy', { listingId: 'L' }, 'late-response-request');
+  // 응답을 기다리는 사이 다른 탭에서 캐릭터를 바꾸고, 이 화면도 그 응답(세이브·revision)을 받아 갈아탄 상황.
+  const next = freshSave('female', 'mage');
+  next.name = '새마법사'; next.gold = 3;
+  Object.assign(save, next); Object.assign(sync.save, next);
+  session.characterSlot = 2; session.revision = 7; sync.revision = 7;
+  release();
+  const result = await request;
+  assert.equal(result.message, '구매 완료', '거래 자체의 결과는 그대로 돌려준다');
+  assert.equal(sync.save.name, '새마법사', '옛 캐릭터의 세이브로 화면을 덮지 않는다');
+  assert.equal(sync.save.gold, 3, '옛 캐릭터의 골드가 되살아나지 않는다');
+  assert.equal(sync.revision, 7, '전환 응답의 revision을 유지한다');
+  assert.equal(sync.pendingMarket, undefined, '대기 상태는 풀어 준다');
+  assert.match(messages.at(-1), /캐릭터가 바뀌어/);
+});
+
+test('거래가 떠 있는 동안에는 캐릭터를 바꾸지 않고, 전환하는 동안 사냥·예약 저장을 멈춘다(작업 239)', () => {
+  assert.match(modalSource, /if \(sync\.trading\) throw new Error\(sync\.pendingMarket \|\| sync\.pendingWarehouse/, '대기 중인 거래가 있으면 전환을 막는다');
+  assert.match(modalSource, /거래 결과 다시 확인/, '무엇을 먼저 하면 되는지 알려 준다');
+  assert.match(modalSource, /sync\.beginSwitch\(\)/, '전환하는 동안 사냥을 멈춘다');
+  assert.match(modalSource, /finally \{ ui\.market\.sync\.endSwitch\(\); \}/, '전환이 끝나면(실패해도) 사냥을 다시 돌린다');
+});
+
+test('캐릭터를 바꾸면 거래소 등록 선택·시세·펼친 상세만 버리고 계정 공용 목록은 남긴다(작업 239)', async () => {
+  const { Market } = await import('../src/game/market.ts');
+  const market = new Market({});
+  market.selectedItem = 'old-item'; market.price = '1000'; market.selected = { id: 'L' }; market.error = '오류'; market.newCount = 3;
+  market.quote = { itemId: 'old-item', loading: false, lastPrice: 90 };
+  market.data = { watched: [], listings: [], inbox: [{ id: 'd1' }], seq: 1, total: 0, page: 0, myActive: 2, revision: 3, rules: { fee: .05, maxListings: 30, durationHours: 72, maxPrice: 1, minPrice: 1, pageSize: 20 } };
+  market.resetForCharacterSwitch();
+  assert.equal(market.selectedItem, '');
+  assert.equal(market.price, '');
+  assert.equal(market.selected, undefined);
+  assert.equal(market.quote, undefined);
+  assert.equal(market.error, '');
+  assert.equal(market.newCount, 0);
+  assert.equal(market.data.inbox.length, 1, '수령함·판매 한도는 계정 공용이라 그대로 둔다');
+  assert.equal(market.data.myActive, 2);
+});
