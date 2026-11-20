@@ -30,6 +30,8 @@
 .item-detail h2 { font-size: 13px; width: 100%; margin: 0; }
 .item-detail .up { color: #77c696; }
 .item-detail .down { color: #d77b75; }
+/* 추가옵션(작업 238) — 스탯 줄과 구분되는 보랏빛 한 줄, `✨`는 글자에 들어 있다. */
+.item-detail .item-extra { display: block; width: 100%; color: #d9c2ff; font-size: 10.5px; letter-spacing: .1px; }
 .detail-actions { display: flex; width: 100%; gap: 7px; }
 .detail-actions button { border: 1px solid #836546; background: #3a2926; color: #ecd8bb; padding: 5px 12px; font-size: 11px; }
 .modal-backdrop { position: absolute; inset: 0; z-index: 5; display: flex; align-items: center; justify-content: center; background: #07050bdc; padding: 16px; }
@@ -129,6 +131,8 @@
 .equipment-info-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: repeat(3, minmax(0, 1fr)); gap: 3px; min-height: 0; }
 .equipment-info-stats > div { display: flex; justify-content: space-between; align-items: center; gap: 3px; min-width: 0; border: 1px solid #54443f; padding: 3px 5px; color: #b19d86; font-size: 9px; }
 .equipment-info-stats b { overflow: hidden; color: #efd3a8; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+/* 장착 장비 추가옵션 합계(작업 238) — 스탯 표 아래 한 줄. */
+.equipment-info-extras { overflow: hidden; color: #d9c2ff; font-size: 9px; line-height: 1.3; text-overflow: ellipsis; white-space: nowrap; }
 .equipment-grid { display: grid; flex: none; grid-template-columns: repeat(5, minmax(0, 1fr)); grid-template-rows: repeat(2, minmax(0, 1fr)); gap: 4px; margin-top: 5px; }
 /* [작업 231] 장착 칸 아이콘 정비율(`#19923` "중간쯤 장착한 템들 너무 늘려트려져 보여") — 칸 높이(48/46px)와
    가방 영역은 그대로 두고, 안의 아이콘만 가로로 늘어나지 않게 원본 비율(1:1 정비율)로 가운데 정렬한다.
@@ -623,6 +627,7 @@ img.pouch-icon { display: block; object-fit: contain; border-radius: 4px; }
 .warehouse-grade.rarity-epic { color: #c084fc; } .warehouse-grade.rarity-unique { color: #fb923c; } .warehouse-grade.rarity-legendary { color: #f87171; }
 .warehouse-detail-meta { color: #ac9e94; font-size: 10px; }
 .warehouse-detail-stats { display: flex; flex-wrap: wrap; gap: 2px 10px; color: #cbe3cf; font-size: 10.5px; }
+.warehouse-detail-stats .warehouse-extra { width: 100%; color: #d9c2ff; }
 .warehouse-detail-note { margin: 0; color: #b7a696; font-size: 10.5px; line-height: 1.35; }
 .warehouse-detail-actions { display: flex; gap: 6px; margin-top: 2px; }
 .warehouse-detail-actions button { flex: 1 1 0; min-height: 30px; border: 1px solid #987652; border-radius: 4px; background: #38272a; color: #f3dbb6; font-size: 11.5px; touch-action: manipulation; }

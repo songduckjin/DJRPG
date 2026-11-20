@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { journeyState, journeyOperation } from './journey-state.mjs';
 import { skillBookIdSet, countedInBag } from './skill-ids.mjs';
 import { clampSaveProgress, itemWithinBounds, rewardBudget, elapsedSince } from './save-guard.mjs';
+import { extraOptionsWithin, normalizeExtraOptions } from './extra-options.mjs';
 import { databaseFactory } from './database-config.mjs';
 import { runtimeEnv } from './env.mjs';
 
@@ -192,7 +193,9 @@ function itemValid(item) {
   // 스킬북 `skillId`는 **전사·궁수·마법사 33종**(액티브 24·패시브 9)을 모두 허용한다(작업 209).
   // 예전에는 전사 11종만 하드코딩되어 궁수·마법사 스킬북이 저장 때 400 INVALID_ITEM으로 막혔다.
   // 목록은 `server/skill-ids.mjs` 한 곳에 있고 `tests/skillbook-server.test.mjs`가 클라이언트와 같은지 검사한다.
-  return item && (item.locked === undefined || typeof item.locked === 'boolean') && typeof item.id === 'string' && item.id.length > 0 && item.id.length <= 100 && typeof item.name === 'string' && item.name.length <= 100 && slots.includes(item.slot) && ['common','magic','rare','epic','unique','legendary'].includes(item.rarity) && item.stats && typeof item.stats === 'object' && !Array.isArray(item.stats) && Object.entries(item.stats).every(([key, value]) => ['attack','defense','health','crit','speed'].includes(key) && Number.isFinite(value) && value >= 0 && value <= 100000) && (item.slot !== 'skillbook' || (item.kind === 'skillbook' && skillBookIdSet.has(item.skillId))) && (item.slot !== 'pouch' || item.kind === 'pouch');
+  return item && (item.locked === undefined || typeof item.locked === 'boolean') && typeof item.id === 'string' && item.id.length > 0 && item.id.length <= 100 && typeof item.name === 'string' && item.name.length <= 100 && slots.includes(item.slot) && ['common','magic','rare','epic','unique','legendary'].includes(item.rarity) && item.stats && typeof item.stats === 'object' && !Array.isArray(item.stats) && Object.entries(item.stats).every(([key, value]) => ['attack','defense','health','crit','speed'].includes(key) && Number.isFinite(value) && value >= 0 && value <= 100000) && (item.slot !== 'skillbook' || (item.kind === 'skillbook' && skillBookIdSet.has(item.skillId))) && (item.slot !== 'pouch' || item.kind === 'pouch')
+    // 추가옵션(작업 238): 에픽 1·유니크 2·전설 3개, 허용 키 9종·1~3% 정수만.
+    && extraOptionsWithin(item);
 }
 const ringSlot = item => typeof item?.slot === 'string' && item.slot.startsWith('ring') ? 'ring' : item?.slot;
 const itemStats = ['attack','defense','health','crit','speed'];
@@ -232,6 +235,8 @@ export async function reconcileItems(tx, id, before, after, options = {}) {
   const writes = [];
   for (const item of next) {
     normalizePlus(item);
+    // 추가옵션(작업 238)은 `id`에서 다시 계산해 덮어쓴다 — 클라이언트가 보낸 값을 믿지 않는다.
+    normalizeExtraOptions(item);
     if (!itemValid(item) || ids.has(item.id)) fail(400, 'INVALID_ITEM', '중복되었거나 잘못된 아이템입니다.');
     ids.add(item.id);
     const owner = owners.get(item.id);

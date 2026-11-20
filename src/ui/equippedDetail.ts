@@ -1,6 +1,7 @@
 import type { Interface } from './interface';
 import { rarityNames, statNames, type Slot, type Stat } from '../game/store';
 import { slotNameFor } from '../game/items';
+import { extraOptionLines } from '../game/extraOptions';
 import { jobOrDefault } from '../game/skills';
 import { unequipItem } from '../game/appearance';
 import { attachedDetailPosition, dismissBagDetail } from './bagDetail';
@@ -61,6 +62,10 @@ export function showEquippedDetail(ui: Interface, slot: Slot, pinned = false): v
     panel.append(heading, grade);
     for (const stat of Object.keys(item.stats) as Stat[]) {
       const line = document.createElement('span'); line.textContent = `${statNames[stat]} +${item.stats[stat]}`; panel.append(line);
+    }
+    // 추가옵션(작업 238).
+    for (const extra of extraOptionLines(item)) {
+      const line = document.createElement('span'); line.className = 'item-extra'; line.textContent = extra; panel.append(line);
     }
     const remove = document.createElement('button'); remove.type = 'button'; remove.textContent = '장착 해제';
     remove.onclick = () => {

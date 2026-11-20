@@ -8,6 +8,7 @@ import { clampArenaPoint, clampFieldPoint, fieldSpawnBand, spawnArenaEnemy } fro
 import { LOOT_ABSORB_SECONDS, LOOT_REST_SECONDS } from './loot';
 import { autoSalvageBlock, autoSalvageRecovered, sweepBagOnFull } from './inventory';
 import { random } from './rng';
+import { EXTRA_LIFESTEAL_HIT_CAP, EXTRA_REGEN_SECONDS, effectiveExtraOptions } from './extraOptions';
 
 export type Enemy = { x: number; y: number; hp: number; maxHp: number; boss: boolean; hit: number; step: number; moving: boolean; knockX: number; knockY: number; slow: number;
   /** 정예 몹(작업 206) — 일반 몹 30마리마다 한 마리. 보스 타이밍이 오면 보스가 우선이라 둘은 같이 서지 않는다. */
@@ -22,6 +23,9 @@ export type Drop = { x: number; y: number; item: Item; age: number; warned: bool
  *  arc instead of dropping it where it appears. */
 export type Coin = { x: number; y: number; age: number; gold: number; from?: { x: number; y: number } };
 export type Effect = { x: number; y: number; kind: 'slash' | 'slash2' | 'spin' | 'crushing' | 'slam' | 'warcry' | 'power' | 'destroy' | 'hell' | 'hit' | 'death'
+  /** 추가옵션(작업 238)의 피드백 — `evade`는 회피(피해 없음), `heal`은 피흡·5초 회복으로 찬 체력이다.
+   *  둘 다 그림 없이 숫자·글자만 띄운다(`render/vfx.ts` `updateDamageLabels`). */
+  | 'heal' | 'evade'
   | 'shot' | 'rain' | 'hawk' | 'burst' | 'nova' | 'ward'; age: number; duration: number; angle: number; swing?: number; amount?: number; nextHit?: number; power?: number; level?: number;
   /** 이단참(작업 213)처럼 한 번 발동에 여러 번 때리는 스킬의 지금까지 들어간 타격 수. */
   hits?: number;
@@ -145,6 +149,8 @@ export function fireBoltSpots(x: number, y: number, count: number): { x: number;
 
 export class World {
   player = { x: 0, y: 0, facing: 0, facingSide: 1, hp: 100, berserk: 0, berserkLevel: 1, hit: 0 };
+  /** 추가옵션 체력회복력(작업 238)의 5초 타이머. */
+  regenClock = 0;
   enemies: Enemy[] = [];
   drops: Drop[] = [];
   coins: Coin[] = [];
@@ -515,6 +521,10 @@ export class World {
   }
 
   damage(radius: number, amount: number, angle: number, arc: number, knockback = 12, slow = 0, origin: { x: number; y: number } = this.player, maxTargets = Infinity, labelOffset?: { x: number; y: number }): void {
+    // 추가옵션(작업 238): `추가 데미지`는 최종 피해에 곱하고, `피흡`은 실제로 가한 피해에서 회복한다.
+    // 두 값 모두 상한이 걸려 있다(`effectiveExtraOptions`) — 피흡은 한 번의 타격에 최대 체력의 4%까지다.
+    const extras = effectiveExtraOptions(this.save.equipment);
+    const power = extras.bonusDmgPct > 0 ? amount * (1 + extras.bonusDmgPct / 100) : amount;
     // 판정 대상은 사거리·부채꼴 안의 적. `maxTargets`를 주면 가까운 순으로 그 수만 맞는다(평타 1마리).
     const inRange: { enemy: Enemy; dx: number; dy: number; dist: number }[] = [];
     for (const enemy of this.enemies) {
@@ -524,16 +534,29 @@ export class World {
       inRange.push({ enemy, dx, dy, dist });
     }
     const targets = inRange.length > maxTargets ? inRange.sort((a, b) => a.dist - b.dist).slice(0, maxTargets) : inRange;
+    let dealt = 0;
     for (const { enemy, dx, dy, dist } of targets) {
-      enemy.hp -= amount;
+      enemy.hp -= power;
+      dealt += power;
       enemy.hit = .24;
       enemy.slow = Math.max(enemy.slow, slow);
       if (knockback && dist) { enemy.knockX += dx / dist * knockback * 16; enemy.knockY += dy / dist * knockback * 16; }
-      this.effects.push({ x: enemy.x, y: enemy.y, kind: 'hit', age: 0, duration: .45, angle: random() * Math.PI * 2, amount: Math.round(amount), labelOffsetX: labelOffset?.x, labelOffsetY: labelOffset?.y });
+      this.effects.push({ x: enemy.x, y: enemy.y, kind: 'hit', age: 0, duration: .45, angle: random() * Math.PI * 2, amount: Math.round(power), labelOffsetX: labelOffset?.x, labelOffsetY: labelOffset?.y });
     }
+    if (extras.lifestealPct > 0 && dealt > 0) this.lifesteal(dealt, extras.lifestealPct);
     const dead = this.enemies.filter(e => e.hp <= 0);
     this.enemies = this.enemies.filter(e => e.hp > 0);
     for (const enemy of dead) this.kill(enemy);
+  }
+
+  /** 피흡(작업 238) — 가한 피해의 N%를 회복한다. 한 번의 타격은 최대 체력의 4%까지만 찬다. */
+  private lifesteal(dealt: number, percent: number): void {
+    const p = this.player, maxHp = totalStats(this.save).health;
+    if (p.hp <= 0 || p.hp >= maxHp) return;
+    const heal = Math.min(Math.round(dealt * percent / 100), Math.max(1, Math.ceil(maxHp * EXTRA_LIFESTEAL_HIT_CAP)));
+    if (!(heal > 0)) return;
+    p.hp = Math.min(maxHp, p.hp + heal);
+    this.effects.push({ x: p.x, y: p.y, kind: 'heal', age: 0, duration: .6, angle: Math.PI / 2, amount: heal });
   }
 
   kill(enemy: Enemy): void {
@@ -731,8 +754,17 @@ export class World {
       enemy.knockX *= Math.exp(-dt * 12); enemy.knockY *= Math.exp(-dt * 12);
       enemy.slow = Math.max(0, enemy.slow - dt);
       if (d < 35 && p.hit <= 0) {
-        p.hp = Math.max(0, p.hp - enemyHitDamage(this.save.floor, enemy.boss, totalStats(this.save).defense));
+        // 추가옵션 회피율(작업 238, 합산 상한 30%): 맞을 순간 한 번 굴려 성공하면 피해를 통째로 무시하고
+        // `회피`를 띄운다. `p.hit`을 그대로 세워 두어 프레임마다 다시 굴리지 않는다(연속 회피로 무적이 되지 않게).
+        const evasion = effectiveExtraOptions(this.save.equipment).evasionPct;
+        const evaded = evasion > 0 && random() < evasion / 100;
         p.hit = .85;
+        if (evaded) {
+          this.effects.push({ x: p.x, y: p.y, kind: 'evade', age: 0, duration: .7, angle: Math.PI / 2 });
+          enemy.hit = Math.max(0, enemy.hit - dt);
+          continue;
+        }
+        p.hp = Math.max(0, p.hp - enemyHitDamage(this.save.floor, enemy.boss, totalStats(this.save).defense));
         if (p.hp <= 0) {
           // 보스에게 쓰러졌고 최고층에서 자동 등반 중이면(작업 212 `#5017`·`#5028`) 자동 등반을
           // 끄지 않는다 — 1마리부터 다시 잡게 킬 카운트를 0으로 돌리고, 보스는 물러나게 한다.
@@ -758,6 +790,7 @@ export class World {
             }
           }
           p.hp = totalStats(this.save).health; this.save.health = p.hp; p.x = 0; p.y = 0; this.chaseTarget = undefined; this.pursuing = false;
+          this.regenClock = 0;
           this.save.gold = Math.max(0, this.save.gold - 10);
           this.onMessage(climbOn
             ? '쓰러졌습니다. 10골드를 잃고 부활했습니다. 1마리부터 다시 잡으면 보스가 다시 나타납니다.'
@@ -767,6 +800,20 @@ export class World {
       }
       enemy.hit = Math.max(0, enemy.hit - dt);
     }
+    // 추가옵션 체력회복력(작업 238): 5초마다 최대 체력의 N%를 회복한다(합산 상한 12%). 체력이 가득이면
+    // 타이머를 비워, 피가 빠진 순간부터 다시 5초를 센다.
+    const regenPct = effectiveExtraOptions(this.save.equipment).regenPct;
+    if (regenPct > 0 && p.hp > 0 && p.hp < totalStats(this.save).health) {
+      this.regenClock += dt;
+      while (this.regenClock >= EXTRA_REGEN_SECONDS) {
+        this.regenClock -= EXTRA_REGEN_SECONDS;
+        const maxHp = totalStats(this.save).health;
+        if (p.hp >= maxHp) break;
+        const heal = Math.max(1, Math.ceil(maxHp * regenPct / 100)), before = p.hp;
+        p.hp = Math.min(maxHp, p.hp + heal);
+        this.effects.push({ x: p.x, y: p.y, kind: 'heal', age: 0, duration: .8, angle: Math.PI / 2, amount: Math.round(p.hp - before) });
+      }
+    } else this.regenClock = 0;
     // A drop rests on the ground for a beat, then is pulled to wherever the hero stands now. A full
     // bag keeps it on the ground (it still expires as before) and it flies in once there is room.
     for (const drop of this.drops) {

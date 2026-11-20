@@ -87,7 +87,7 @@ export function drawSkillVfx(this: GameView, world: World, effect: Effect, x: nu
       return true;
     }
     if (effect.kind === 'warcry') return true;
-    if (effect.kind === 'hit' || effect.kind === 'death') return false;
+    if (effect.kind === 'hit' || effect.kind === 'death' || effect.kind === 'evade' || effect.kind === 'heal') return false;
     if (effect.kind === 'spin') { this.drawDragon(effect, x, y, t, time); return true; }
     // `hell`(회전참격)은 위에서 전용 이펙트로 처리한다(작업 215).
     const art: Art = effect.kind === 'slam' || effect.kind === 'crushing' ? 'fxSlam' : effect.kind === 'power' ? 'fxPower' : effect.kind === 'destroy' ? 'fxDestroy' : 'fxSlash';
@@ -444,12 +444,16 @@ export function drawHit(this: GameView, x: number, y: number, t: number, seed: n
   }
 
 export function updateDamageLabels(this: GameView, effects: Effect[], project: (x: number, y: number) => [number, number]): void {
-    const hits = new Set(effects.filter(effect => effect.kind === 'hit'));
+    // 추가옵션(작업 238): 피해 숫자에 회피(`회피`)와 회복(`+N`, 피흡·5초 회복)을 더한다.
+    const labeled = effects.filter(effect => effect.kind === 'hit' || effect.kind === 'evade' || effect.kind === 'heal');
+    const hits = new Set(labeled);
     for (const [effect, label] of this.damageLabels) if (!hits.has(effect)) { this.labels.removeChild(label); label.destroy(); this.damageLabels.delete(effect); }
-    for (const effect of hits) {
+    for (const effect of labeled) {
       let label = this.damageLabels.get(effect);
       if (!label) {
-        label = new Text({ text: `-${effect.amount ?? 0}`, style: { fontFamily: 'Cinzel', fontSize: 16, fontWeight: 'bold', fill: 0xffd6a0 } });
+        const text = effect.kind === 'evade' ? '회피' : `${effect.kind === 'heal' ? '+' : '-'}${effect.amount ?? 0}`;
+        const fill = effect.kind === 'evade' ? 0xbfe4ff : effect.kind === 'heal' ? 0x86f0a2 : 0xffd6a0;
+        label = new Text({ text, style: { fontFamily: 'Cinzel', fontSize: effect.kind === 'evade' ? 14 : 16, fontWeight: 'bold', fill } });
         label.anchor.set(.5, 1); this.labels.addChild(label); this.damageLabels.set(effect, label);
       }
       const t = effect.age / effect.duration, [x, y] = project(effect.x, effect.y);
@@ -480,6 +484,7 @@ export function drawEffects(this: GameView, world: World, project: (x: number, y
       const [x, y] = project(effect.x, effect.y), t = effect.age / effect.duration;
       const screenAngle = Math.atan2(Math.sin(effect.angle) * .43 + Math.cos(effect.angle) * .43, Math.cos(effect.angle) * .86 - Math.sin(effect.angle) * .86);
       if (this.drawSkillVfx(world, effect, x, y, t, screenAngle, time)) continue;
+      if (effect.kind === 'evade' || effect.kind === 'heal') continue;
       if (effect.kind === 'death') this.drawDeath(x, y, t, effect.angle);
       else this.drawHit(x, y, t, effect.angle);
     }

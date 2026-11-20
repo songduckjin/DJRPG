@@ -14,6 +14,7 @@
  * ts 로더 없이 `node`로 도는 스크립트가 DB 모듈을 그대로 쓰기 때문이다. 아래 상수는 `src/game/`의 값을
  * 옮겨 적은 것이고, `tests/save-guard.test.mjs`가 원본과 같은지 대조한다(값이 갈라지면 테스트가 먼저 깨진다).
  */
+import { extraOptionsWithin } from './extra-options.mjs';
 
 export const MAX_OFFLINE_SECONDS = 43_200;
 /** 초당 처치 상한. 실제 사냥은 스폰 간격(≥0.55초)과 18마리 상한 때문에 초당 2마리 안팎이고,
@@ -192,5 +193,8 @@ export function itemWithinBounds(item, maxFloor = 1, tolerance = STAT_TOLERANCE)
     const ceiling = Math.ceil((allowed + STAT_SLACK) * factor * tolerance) + 2;
     if (!Number.isFinite(value) || value < 0 || value > ceiling) return false;
   }
+  // 추가옵션(작업 238): 등급별 1/2/3개·허용 키 9종·1~3% 정수만 통과한다. 스탯과 달리 상한 계산이
+  // 필요 없다 — 값 자체가 1~3%로 고정이고, 서버는 저장 전에 id로 다시 계산해 덮어쓴다.
+  if (!extraOptionsWithin(item)) return false;
   return true;
 }
