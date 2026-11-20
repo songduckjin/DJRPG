@@ -165,14 +165,16 @@ test('마법사 평타는 멈춰 서서 마법 구슬을 쏘고, 구슬이 도�
 test('마법사는 사거리 밖에서만 다가가고, 사거리 안에서는 서서 쏜다', () => {
   const world = new World(mageSave());
   world.spawnTimer = 999; world.cooldown.attack = 999;
-  const enemy = world.enemies[0];
-  enemy.x = world.player.x + 99; enemy.y = world.player.y + 99; enemy.hp = enemy.maxHp = 10000;
+  const enemy = world.enemies[0]; enemy.hp = enemy.maxHp = 10000;
+  // 거리 기대값은 상수에서 만든다 — 사거리 간격을 조정해도(작업 206) 의미가 그대로다.
+  enemy.x = world.player.x + mageStopRange + 20; enemy.y = world.player.y;
   world.update(.05);
   assert(Math.hypot(world.activeMove.x, world.activeMove.y) > .05, '정지 거리 밖에서는 다가간다');
-  enemy.x = world.player.x + 70; enemy.y = world.player.y + 70;
+  enemy.x = world.player.x + mageStopRange - 20; enemy.y = world.player.y;
   world.update(.05);
   assert.equal(world.activeMove.x, 0);
   assert.equal(world.activeMove.y, 0);
+  assert.equal(world.pursuing, false);
   assert(mageAttackRange > mageStopRange);
 });
 

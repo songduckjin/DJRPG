@@ -137,7 +137,7 @@ test('궁수 평타는 멈춰 서서 화살을 쏘고, 화살이 도착한 뒤�
   world.spawnTimer = 999;
   const enemy = enemyAt(world, 100);
   world.update(.016);
-  // 정지 거리(118) 안이므로 다가가지 않고 그 자리에서 쏜다.
+  // 정지 거리 안이므로 다가가지 않고 그 자리에서 쏜다.
   assert.equal(Math.hypot(world.activeMove.x, world.activeMove.y), 0);
   assert.equal(world.player.x, 0);
   const shot = world.effects.find(effect => effect.kind === 'shot');
@@ -150,15 +150,26 @@ test('궁수 평타는 멈춰 서서 화살을 쏘고, 화살이 도착한 뒤�
 test('궁수는 사거리 밖에서만 다가가고, 사거리 안에서는 서서 쏜다', () => {
   const world = new World(archerSave());
   world.spawnTimer = 999; world.cooldown.attack = 999;
-  const enemy = world.enemies[0];
-  enemy.x = world.player.x + 99; enemy.y = world.player.y + 99; enemy.hp = enemy.maxHp = 10000;
+  const enemy = world.enemies[0]; enemy.hp = enemy.maxHp = 10000;
+  // 거리 기대값은 상수에서 만든다 — 사거리 간격을 조정해도(작업 206) 의미가 그대로다.
+  enemy.x = world.player.x + archerStopRange + 20; enemy.y = world.player.y;
   world.update(.05);
   assert(Math.hypot(world.activeMove.x, world.activeMove.y) > .05, '정지 거리 밖에서는 다가간다');
-  enemy.x = world.player.x + 70; enemy.y = world.player.y + 70;
+  enemy.x = world.player.x + archerStopRange - 20; enemy.y = world.player.y;
   world.update(.05);
   assert.equal(world.activeMove.x, 0);
   assert.equal(world.activeMove.y, 0);
+  assert.equal(world.pursuing, false);
   assert(archerAttackRange > archerStopRange);
+});
+
+test('직업별 사거리 간격은 궁수 > 마법사 > 전사(90) 순서다', async () => {
+  const { mageAttackRange, mageStopRange } = await import('../src/game/world.ts');
+  // 작업 206 확정 수치.
+  assert.equal(archerAttackRange, 280); assert.equal(archerStopRange, 150);
+  assert.equal(mageAttackRange, 210); assert.equal(mageStopRange, 110);
+  assert(archerAttackRange > mageAttackRange && mageAttackRange > 90, '사거리: 궁수 > 마법사 > 전사');
+  assert(archerStopRange > mageStopRange && mageStopRange > 90, '정지 거리: 궁수 > 마법사 > 전사');
 });
 
 test('궁수 스킬 8종은 화살·화살비 이펙트를 만들고 피해를 준다', () => {
