@@ -355,9 +355,12 @@ test('a dungeon coin heap is the same bright flat heap as the field', () => {
   assert(GOLD_PILE.length >= 2 && GOLD_PILE.length <= 3);
   // The coins lie down at half their width and keep the art's own bright gold (작업 196).
   for (const coin of GOLD_PILE) {
-    assert(coin.size >= 21 && coin.size <= 24, `each coin is 21~24px wide (got ${coin.size})`);
+    assert(coin.size >= 15 && coin.size <= 16, `each coin is 15~16px wide (got ${coin.size})`);
     assert.equal(coin.squash, .5, `each coin is squashed to .50 (got ${coin.squash})`);
   }
+  // 작업 197: the heap stays smaller than the 34px item icon beside it.
+  const left = Math.min(...GOLD_PILE.map(coin => coin.dx - coin.size / 2)), right = Math.max(...GOLD_PILE.map(coin => coin.dx + coin.size / 2));
+  assert(right - left <= 30 && right - left < 34, `the heap is about 29~30px wide (got ${right - left})`);
   const source = readFileSync(new URL('../src/ui/dungeonField.ts', import.meta.url), 'utf8');
   const css = readFileSync(new URL('../src/styles/dungeon.css', import.meta.url), 'utf8');
   assert.match(source, /for\(const coin of GOLD_PILE\)/, 'the dungeon draws every coin of the heap');

@@ -23,6 +23,18 @@
 .dungeon-lobby[data-tab=ranking] .dungeon-content>p{flex:0 0 auto;font-size:10px;line-height:1.4;margin:6px 0 0}
 @media(max-height:550px){.dungeon-hero{flex-basis:26%}.dungeon-rank-heading,.dungeon-rank-row{padding:1px 6px;font-size:10px}.dungeon-own-rank{padding:4px 8px}.dungeon-lobby[data-tab=ranking] .dungeon-content>p{font-size:9px}}
 
+/* 마지막 층을 깬 뒤: 로비와 결과창이 같은 커밍순 배지를 쓴다(다음 층은 아직 없다). */
+.dungeon-current>small{font-size:11px;color:#a59175;line-height:1.5}
+.dungeon-coming-soon{justify-self:center;display:inline-flex;align-items:baseline;gap:5px;padding:2px 10px;border:1px solid #a17d45;border-radius:999px;background:#4a2a2466;color:#f0d29b;font-size:10px;font-style:normal;letter-spacing:.4px}
+.dungeon-coming-soon>b{font-size:11px;color:#ffd977}
+.dungeon-coming-soon-panel{display:grid;gap:6px;justify-items:center;padding:14px 12px;border:1px solid #9b7842;background:linear-gradient(120deg,#57402766,#30241d);text-align:center}
+.dungeon-coming-soon-panel h3{margin:0;font-size:16px;color:#f1d394}
+.dungeon-coming-soon-panel p{margin:0;font-size:11px;color:#c3ac8b}
+.dungeon-coming-soon-panel small{font-size:10px;color:#a59175;line-height:1.5}
+.dungeon-rank-note{color:#a59175!important}
+.dungeon-battle-result .dungeon-result-coming{display:inline-flex;align-items:baseline;gap:6px;margin:6px 0 2px;padding:3px 12px;border:1px solid #a17d45;border-radius:999px;background:#4a2a2466;color:#f0d29b;font-size:12px}
+.dungeon-result-coming b{color:#ffd977;font-size:13px}
+
 .dungeon-field{opacity:0;visibility:hidden;pointer-events:none;transition:opacity .6s ease;position:absolute;inset:0;z-index:30;background:#100f0e url(/assets/dungeon/prison-room-v2.png) center/100% 100% no-repeat;color:#ddc9a6;overflow:hidden;isolation:isolate}
 .dungeon-field-canvas{position:absolute;inset:0;z-index:3;pointer-events:none}.dungeon-field-canvas canvas{display:block;width:100%;height:100%}
 .dungeon-field-hud{position:absolute;top:env(safe-area-inset-top,0px);left:0;right:0;display:flex;align-items:center;justify-content:space-between;padding:14px 16px;background:linear-gradient(#100e0fe8,transparent);z-index:5}.dungeon-field-hud>div{display:grid;gap:3px}.dungeon-field-hud small{font-size:11px;letter-spacing:2px;color:#ad9674}.dungeon-field-hud strong{font-size:22px;color:#eed09a}.dungeon-field-leave{min-height:42px;padding:8px 14px;border:1px solid #826741;background:#1c1615c9;color:#dcc6a1}
@@ -86,7 +98,7 @@
    darker-gold thickness already in the bitmap — so the heap carries no outer light, no grade ring
    and no filter chain here; the image *is* the coin (작업 196). */
 .dungeon-loot.is-gold .dungeon-loot-coin{position:absolute;left:50%;bottom:0;object-fit:contain;transform:translateX(-50%);z-index:1;filter:none;animation:none}
-.dungeon-loot.is-gold .dungeon-loot-shadow{width:40px;height:9px;background:radial-gradient(ellipse at center,#000000a8 0%,#0000 70%)}
+.dungeon-loot.is-gold .dungeon-loot-shadow{width:32px;height:8px;background:radial-gradient(ellipse at center,#000000a8 0%,#0000 70%)}
 /* Equipment and skill books carry grade light, and it wraps the drop's own outline: stacked
    `drop-shadow` follows the icon's alpha silhouette, so there is no round halo plate or ring and the
    glow leaves the item's shape. Saturated ink plus a hard 1px layer makes the grade read at a glance.

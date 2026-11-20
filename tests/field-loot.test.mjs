@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import './ts-loader.mjs';
 const { LOOT_REST_SECONDS, LOOT_ABSORB_SECONDS, LOOT_FAN, LOOT_GAP, LOOT_DEPTH, lootRestSpots, lootAbsorbProgress, lootAbsorbPoint } = await import('../src/game/loot.ts');
 const { BOSS_GOLD_PILES, BOSS_ITEM_DROPS, bossGoldPiles } = await import('../src/game/bossLoot.ts');
-const { GOLD_PILE, GOLD_PILE_RX, GOLD_COIN_EDGE, GOLD_COIN_RIM, GOLD_PILE_EDGE, GOLD_PILE_RIM, GOLD_PILE_BRIGHTNESS, GOLD_PILE_CONTRAST, GOLD_COIN_CHIP_DROP, goldCoinChipWidth, goldCoinChipHeight, goldCoinHeight } = await import('../src/game/render/goldPile.ts');
+const { GOLD_PILE, GOLD_PILE_RX, GOLD_PILE_RY, GOLD_COIN_EDGE, GOLD_COIN_RIM, GOLD_PILE_EDGE, GOLD_PILE_RIM, GOLD_PILE_BRIGHTNESS, GOLD_PILE_CONTRAST, GOLD_COIN_CHIP_DROP, goldCoinChipWidth, goldCoinChipHeight, goldCoinHeight } = await import('../src/game/render/goldPile.ts');
 const { bossGoldSpot } = await import('../src/game/bossLoot.ts');
 const { World } = await import('../src/game/world.ts');
 const { freshSave } = await import('../src/game/store.ts');
@@ -183,8 +183,8 @@ test('a field drop makes one small hop and lands with a single soft tap', () => 
 test('a coin drop is a small heap of bright flat coins lying on the floor', () => {
   assert(GOLD_PILE.length >= 2 && GOLD_PILE.length <= 3, 'two or three coins make the heap');
   for (const coin of GOLD_PILE) {
-    // A coin squeezed under 20px is mostly resampling, so the sizes stay big enough to read sharp.
-    assert(coin.size >= 21 && coin.size <= 24, `each coin is 21~24px wide (got ${coin.size})`);
+    // A coin squeezed under 15px is mostly resampling, so the sizes stay big enough to read sharp.
+    assert(coin.size >= 15 && coin.size <= 16, `each coin is 15~16px wide (got ${coin.size})`);
     // 작업 196: the coins lie down at half their width instead of standing or gently leaning.
     assert.equal(coin.squash, .5, `each coin is squashed to .50 so it lies on the floor (got ${coin.squash})`);
     // A coin may sit a pixel into the floor (the big left coin does), never float above it.
@@ -207,6 +207,11 @@ test('a coin drop is a small heap of bright flat coins lying on the floor', () =
   assert.doesNotMatch(source, /COIN_SIZE/, 'the single upright 30px coin is gone');
   assert.doesNotMatch(source, /coin\.width = COIN_SIZE/, 'nothing draws the old one-coin icon');
   assert(GOLD_PILE_RX * 2 <= 48, 'the heap keeps the footprint of a drop on the floor');
+  // 작업 197: the heap sits clearly under the 34px item icon it fell beside.
+  const left = Math.min(...GOLD_PILE.map(coin => coin.dx - coin.size / 2)), right = Math.max(...GOLD_PILE.map(coin => coin.dx + coin.size / 2));
+  assert(right - left >= 28 && right - left <= 30, `the whole heap is about 29~30px wide (got ${right - left})`);
+  assert(right - left < 34, 'a coin heap is smaller than a dropped item');
+  assert(GOLD_PILE_RX * 2 <= 34 && GOLD_PILE_RY * 2 <= 8, 'the shadow follows the smaller heap');
   // The dark grade that made a heap sink into the floor is gone from both screens (작업 196).
   assert.doesNotMatch(css, /saturate\(\.85\) brightness\(\.88\)/, 'the dungeon no longer dulls the heap');
   assert.doesNotMatch(css, /is-gold \.dungeon-loot-body\{filter/, 'and applies no colour grade to the heap body');

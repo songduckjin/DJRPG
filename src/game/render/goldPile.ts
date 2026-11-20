@@ -22,11 +22,14 @@
 export type GoldCoin = { dx: number; dy: number; size: number; squash: number; tint: number };
 
 /** The coins of one heap, back first: the coin resting on the two below it is drawn before them, so
- *  the two on the floor overlap its lower edge instead of its border cutting across them. */
+ *  the two on the floor overlap its lower edge instead of its border cutting across them.
+ *  작업 197: the heap was still bigger than the 34px item icon beside it, so it is drawn at about
+ *  two thirds of that (three 15~16px coins, 29.5px across) — a coin pile reads as small change on
+ *  the floor next to the loot it fell with. */
 export const GOLD_PILE: readonly GoldCoin[] = [
-  { dx: 0, dy: -9, size: 22, squash: .50, tint: 0xffffff },
-  { dx: -10, dy: 1, size: 23, squash: .50, tint: 0xffe9c4 },
-  { dx: 10, dy: -1, size: 22, squash: .50, tint: 0xfff3d6 },
+  { dx: 0, dy: -6, size: 15, squash: .50, tint: 0xffffff },
+  { dx: -7, dy: 1, size: 16, squash: .50, tint: 0xffe9c4 },
+  { dx: 7, dy: -1, size: 15, squash: .50, tint: 0xfff3d6 },
 ];
 
 /** The 1px boundary of a coin: a warm brown, dark enough to cut the coin out of the floor and the
@@ -40,8 +43,9 @@ export const GOLD_COIN_RIM = 2;
 /** The art's own gold, lifted a little so it does not sink into the dark floor. */
 export const GOLD_PILE_BRIGHTNESS = 1.10, GOLD_PILE_CONTRAST = 1.08;
 
-/** Half the heap's footprint and the height of its ground shadow, in pixels. */
-export const GOLD_PILE_RX = 23, GOLD_PILE_RY = 5;
+/** Half the heap's footprint and the height of its ground shadow, in pixels (작업 197: follows the
+ *  smaller heap — 32×8 on screen, still wider than it is tall so it lies flat). */
+export const GOLD_PILE_RX = 16, GOLD_PILE_RY = 4;
 
 /** Height of one coin on screen: its width squashed, rounded to whole pixels so the baked art and
  *  the sprite agree on the same box. */
