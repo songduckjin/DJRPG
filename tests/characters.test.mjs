@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp } from 'node:fs/promises';
+import { removeTempDbDirectory } from './helpers/temp-db.mjs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createHmac, randomUUID } from 'node:crypto';
@@ -81,7 +82,7 @@ test('legacy slot, shared gold and warehouse transfers preserve independent char
     assert.equal(Number(rewardOwner.slot), 2);
   } finally {
     await db.close(); delete process.env.TURSO_DATABASE_URL; delete process.env.TURSO_AUTH_TOKEN;
-    await rm(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+    await removeTempDbDirectory(directory);
   }
 });
 
@@ -176,7 +177,7 @@ test('loading a save drops ghost items and restores tampered ones so the next sa
     assert.deepEqual(clean.body.save.bag.map(entry => entry.id), ['clean', 'tampered']);
   } finally {
     await db.close(); delete process.env.TURSO_DATABASE_URL; delete process.env.TURSO_AUTH_TOKEN;
-    await rm(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+    await removeTempDbDirectory(directory);
   }
 });
 
@@ -220,6 +221,6 @@ test('legacy item names survive parseSave, so load then save no longer deadlocks
     assert.equal(rejected.status, 409); assert.equal(rejected.body.code, 'ITEM_CONFLICT');
   } finally {
     await db.close(); delete process.env.TURSO_DATABASE_URL; delete process.env.TURSO_AUTH_TOKEN;
-    await rm(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+    await removeTempDbDirectory(directory);
   }
 });

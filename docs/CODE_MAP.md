@@ -174,6 +174,7 @@
 - `scripts/generate-version.mjs` — `npm run build` 첫 단계. `CF_PAGES_COMMIT_SHA`(없으면 `git rev-parse`·타임스탬프)로 `server/version.generated.mjs`와 `public/version.json`을 기록해 클라이언트 `__APP_VERSION__`과 Functions `APP_VERSION`을 같은 값으로 묶는다.
 - `scripts/backup-turso.mjs` — Turso → `.backups/*.sqlite` 덤프(stdin으로 `{url,authToken}`).
 - `scripts/migrate-turso-db.mjs` — 공용 Turso DB(`puzzle-mates`) → DJRPG 전용 DB 이관. `djrpg_*` 18개 테이블만 소스 읽기 전용 트랜잭션으로 청크 복사하고, 타겟은 `schema()`·`worldBossSchema()`로 초기화, 복사 후 테이블별 `COUNT(*)` 일치·`djrpg_market_events` `sqlite_sequence`를 검증한다. 목록 밖 `djrpg_*` 테이블 발견 시 중단한다. `--dry-run`(행 수·게스트 계정 수만)·`--force`(타겟 비우고 재복사)·`--chunk-size=N`. `server/database.mjs`는 새 `TURSO_DATABASE_AUTH_TOKEN`을 DB 접속에 우선 사용하고 기존 `TURSO_AUTH_TOKEN`은 세션 서명 키로 유지한다. 운영 절차·부작용·롤백은 `docs/TURSO_DB_GUIDE.md`.
+- `tests/helpers/temp-db.mjs`, `remove-temp-db.mjs` (작업 199) — Windows libsql 파일 DB가 테스트 프로세스 종료 전 `EBUSY`로 잠긴 경우, 허용된 OS 임시 폴더의 테스트 디렉터리만 숨김 후속 프로세스에서 재시도해 삭제한다. `migrate-turso-db`·`characters` 테스트가 사용하고, `world-boss-live`는 공유 메모리 DB를 사용한다.
 - `tests/ts-loader.mjs` — `.ts`를 node:test에서 import하게 하는 로더. 각 테스트 첫 줄 `import './ts-loader.mjs'`.
 - 테스트는 `node --test tests/<이름>.test.mjs` 단건 실행 가능.
 
