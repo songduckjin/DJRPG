@@ -12,6 +12,7 @@ const modalSource = readFileSync(new URL('../src/ui/modals/charactersModal.ts', 
 const equipSource = readFileSync(new URL('../src/ui/modals/equipModal.ts', import.meta.url), 'utf8');
 const hudSource = readFileSync(new URL('../src/ui/hud.ts', import.meta.url), 'utf8');
 const hudStyles = readFileSync(new URL('../src/styles/hud.css', import.meta.url), 'utf8');
+const worldBossStyles = readFileSync(new URL('../src/styles/world-boss.css', import.meta.url), 'utf8');
 const modalStyles = readFileSync(new URL('../src/styles/modals.css', import.meta.url), 'utf8');
 
 function element(tag = 'div') {
@@ -125,6 +126,23 @@ test('HUD는 레벨 배지 아래에 현재 캐릭터 닉네임을 보여 준다
     renderStatus.call(ui);
     assert.equal(heroName.textContent, '이름없음없음', '캐릭터가 바뀌면 다음 렌더에서 바로 새 이름');
   } finally { globalThis.document = previous; }
+});
+
+test('좌상단 HUD는 레벨 배지 → 닉네임 → HP → 월드보스 순서로 겹치지 않는다(작업 234)', () => {
+  // 실기 IMG_1143: `top: 40px`이던 이름판이 배지 원(5~54px) 안쪽이라 레벨 숫자 아래를 가렸다.
+  const value = (source, pattern) => { const found = source.match(pattern); assert.ok(found, `규칙을 찾는다: ${pattern}`); return Number(found[1]); };
+  const badgeTop = value(hudStyles, /\.level-badge \{[^}]*top: (-?\d+)px/);
+  const badgeHeight = value(hudStyles, /\.level-badge \{[^}]*height: (\d+)px/);
+  const nameTop = value(hudStyles, /\.hero-name \{[^}]*top: (\d+)px/);
+  const healthTop = value(hudStyles, /\.health-bar \{[^}]*top: (\d+)px/);
+  const healthHeight = value(hudStyles, /\.health-bar \{[^}]*height: (\d+)px/);
+  const bossTop = value(worldBossStyles, /\.world-boss-entry \{[^}]*top:calc\(env\(safe-area-inset-top, 0px\) \+ (\d+)px\)/);
+  // 이름판 높이 = 글자 13px(10px·line-height 1.3) + 위아래 여백 2px + 테두리 2px.
+  const NAME_HEIGHT = 17;
+  assert.ok(nameTop >= badgeTop + badgeHeight, `닉네임(${nameTop}px)은 배지 원(${badgeTop + badgeHeight}px)보다 아래`);
+  assert.ok(healthTop >= nameTop + NAME_HEIGHT, `HP(${healthTop}px)는 이름판(${nameTop + NAME_HEIGHT}px)보다 아래`);
+  assert.ok(bossTop >= healthTop + healthHeight, `월드보스 진입(${bossTop}px)은 HP(${healthTop + healthHeight}px)보다 아래`);
+  assert.doesNotMatch(hudStyles, /\.hero-name \{[^}]*translateX\(-50%\)/, '이름판은 배지 왼쪽에 붙어 오른쪽으로만 늘어난다(16자 닉네임이 화면 밖으로 나가지 않는다)');
 });
 
 test('모바일 장비창은 가방 칸 최소 높이를 지키고, 낮은 화면에서는 창이 스크롤된다(작업 228)', () => {
