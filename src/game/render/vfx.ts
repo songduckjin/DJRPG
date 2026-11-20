@@ -1,4 +1,4 @@
-import { Sprite, Text } from 'pixi.js';
+import { Container, Sprite, Text } from 'pixi.js';
 import type { Rarity } from '../store';
 import type { World } from '../world';
 
@@ -27,6 +27,7 @@ export function slashTint(world: Pick<World, 'save'>): number {
 
 export function drawSkillVfx(this: GameView, world: World, effect: Effect, x: number, y: number, t: number, screenAngle: number, time: number): boolean {
     if (effect.kind === 'slash') return true;
+    if (effect.kind === 'hell') { drawWhirlSlash.call(this, effect, x, y, t, time); return true; }
     if (effect.kind === 'shot') { drawArrow.call(this, effect, x, y, screenAngle); return true; }
     if (effect.kind === 'rain') { drawArrowRain.call(this, effect, x, y, t, time); return true; }
     if (effect.kind === 'hawk') { drawHawkEye.call(this, effect, x, y, t, time); return true; }
@@ -88,7 +89,8 @@ export function drawSkillVfx(this: GameView, world: World, effect: Effect, x: nu
     if (effect.kind === 'warcry') return true;
     if (effect.kind === 'hit' || effect.kind === 'death') return false;
     if (effect.kind === 'spin') { this.drawDragon(effect, x, y, t, time); return true; }
-    const art: Art = effect.kind === 'slam' || effect.kind === 'crushing' ? 'fxSlam' : effect.kind === 'power' ? 'fxPower' : effect.kind === 'destroy' ? 'fxDestroy' : effect.kind === 'hell' ? 'fxHell' : 'fxSlash';
+    // `hell`(회전참격)은 위에서 전용 이펙트로 처리한다(작업 215).
+    const art: Art = effect.kind === 'slam' || effect.kind === 'crushing' ? 'fxSlam' : effect.kind === 'power' ? 'fxPower' : effect.kind === 'destroy' ? 'fxDestroy' : 'fxSlash';
     let sprites = this.vfxSprites.get(effect);
     if (!sprites) {
       const sprite = new Sprite(this.textures[art]);
@@ -98,8 +100,7 @@ export function drawSkillVfx(this: GameView, world: World, effect: Effect, x: nu
       sprites = [sprite];
       this.vfxSprites.set(effect, sprites);
     }
-    const width = this.app.screen.width;
-    const size = effect.kind === 'hell' ? width * .95 : effect.kind === 'destroy' ? 260 : effect.kind === 'slam' ? 335 : effect.kind === 'crushing' ? 245 : effect.kind === 'power' ? 165 : 150;
+    const size = effect.kind === 'destroy' ? 260 : effect.kind === 'slam' ? 335 : effect.kind === 'crushing' ? 245 : effect.kind === 'power' ? 165 : 150;
     for (const sprite of sprites) {
       if (effect.kind === 'crushing') {
         // [작업 212] 10연타 — 타격 간격(62ms)마다 지면 링과 내려찍기 스프라이트가 한 번씩 깜빡인다.
@@ -122,12 +123,125 @@ export function drawSkillVfx(this: GameView, world: World, effect: Effect, x: nu
       const distance = effect.kind === 'destroy' ? 40 + t * 125 : effect.kind === 'power' ? 70 : 0;
       sprite.position.set(x + Math.cos(screenAngle) * distance, y + Math.sin(screenAngle) * distance - (effect.kind === 'power' ? 45 : effect.kind === 'slam' ? 4 : 18));
       sprite.scale.set(scale, scale * (effect.kind === 'slam' ? .6 : 1));
-      sprite.rotation = effect.kind === 'slam' || effect.kind === 'hell' || effect.kind === 'power' ? 0 : screenAngle;
-      const sustained = effect.kind === 'slam' || effect.kind === 'hell';
+      sprite.rotation = effect.kind === 'slam' || effect.kind === 'power' ? 0 : screenAngle;
+      const sustained = effect.kind === 'slam';
       sprite.alpha = sustained ? Math.min(1, phase * 6, (1 - phase) * 6) : Math.min(1, (1 - phase) * 1.5);
       sprite.tint = 0xffffff;
     }
     return true;
+  }
+
+/**
+ * 회전참격(작업 215) — 암흑·진홍 혈풍 회오리.
+ *
+ * 확정 시안(3번 `opt_c.png`)의 360° 혈풍 회오리를 그대로 옮긴다.
+ *
+ * ① **지면 회오리**: 회오리 텍스처를 담은 컨테이너를 세로로 눌러(scale.y ≈ .52) 바닥 원근을
+ *    만들고, 그 **안에서** 두 겹을 서로 반대로 빠르게 돌린다. 스프라이트를 직접 돌리면 눌린
+ *    타원이 통째로 기울어(모양이 고무판처럼 흔들려) 바닥이 아니라 공중에서 도는 것처럼 보인다.
+ * ② **몸을 감싸는 혈풍 벽**: 같은 텍스처를 누르지 않고 히어로 허리 높이에서 낮은 알파로
+ *    천천히 반대로 돌려, 대검을 휘두르는 몸 주위로 혈풍이 감기는 느낌을 준다.
+ * ③ **칼끝 괄적**: 회오리 반경을 따라 빠르게 도는 밝은 호 두 줄과, 밖으로 튀는 혈점·불티.
+ */
+export function drawWhirlSlash(this: GameView, effect: Effect, x: number, y: number, t: number, time: number): void {
+    const level = Math.max(1, Math.min(10, effect.level ?? 1));
+    const radius = Math.min(this.app.screen.width * .46, 168) + (level - 1) * 5;
+    const fade = Math.min(1, t * 7, (1 - t) * 6);
+    let floor = this.vfxLayers.get(effect)?.[0];
+    let sprites = this.vfxSprites.get(effect);
+    if (!floor || !sprites) {
+      // 지면 회오리 — 눌린 컨테이너의 자식으로 넣어야 회전이 바닥 평면에서 일어난다.
+      floor = new Container();
+      floor.scale.set(1, .52);
+      // 진홍 본체는 일반 합성 — `add` 로만 얹으면 어두운 안개가 사라져 분홍 번짐만 남는다.
+      // 텍스처 알파가 곧 밝기라 어두운 혈풍은 반투명한 검붉은 연기로 깔린다.
+      const ringOuter = new Sprite(this.textures.fxWhirl);
+      ringOuter.anchor.set(.5);
+      const ringInner = new Sprite(this.textures.fxWhirl);
+      ringInner.anchor.set(.5);
+      ringInner.blendMode = 'add';
+      ringInner.tint = 0xff7a66;
+      // 위로 갈수록 작아지는 고리 — 눌린 컨테이너 안에서 y를 올리면 화면에서도 그만큼 솟아,
+      // 바닥 회오리가 전사 주위를 감싸고 도는 깔때기(혈풍)가 된다.
+      const ringMid = new Sprite(this.textures.fxWhirl);
+      ringMid.anchor.set(.5);
+      const ringTop = new Sprite(this.textures.fxWhirl);
+      ringTop.anchor.set(.5);
+      floor.addChild(ringOuter, ringInner, ringMid, ringTop);
+      // 몸을 감싸는 혈풍 벽 — 누르지 않으므로 지면 컨테이너 밖에 둔다.
+      const wall = new Sprite(this.textures.fxWhirl);
+      wall.anchor.set(.5);
+      wall.blendMode = 'add';
+      // 바닥 회오리는 **캐릭터 뒤**(`dragonBack`)에 깐다 — skillVfx 는 액터 위라, 거기 두면
+      // 회오리가 전사 몸을 덮어 버린다. 몸을 감싸는 혈풍 벽만 캐릭터 위에 얹는다.
+      this.dragonBack.addChild(floor);
+      this.skillVfx.addChild(wall);
+      this.vfxLayers.set(effect, [floor]);
+      sprites = [wall];
+      this.vfxSprites.set(effect, sprites);
+    }
+    const [outer, inner, mid, top] = floor.children as [Sprite, Sprite, Sprite, Sprite];
+    const wall = sprites[0];
+    const diameter = radius * 2;
+    floor.position.set(x, y - 2);
+    // 바깥 회오리와 안쪽 회오리는 반대 방향으로 돈다 — 혈풍이 서로를 휘감는 느낌.
+    outer.position.set(0, 0);
+    outer.rotation = -.6 - effect.age * 7.4;
+    const outerScale = diameter * 1.02 / outer.texture.width;
+    outer.scale.set(outerScale);
+    outer.alpha = fade * .92;
+    inner.rotation = effect.age * 10.5;
+    const innerScale = diameter * .62 / inner.texture.width;
+    inner.scale.set(innerScale);
+    // 안쪽은 같은 텍스처를 `add` 로 한 번 더 얹어 밝은 혈흔 하이라이트만 살린다.
+    inner.alpha = fade * .62;
+    // 위로 솟는 고리 두 겹(서로 반대로 돈다) — 혈풍이 전사를 감싸고 도는 깔때기.
+    mid.position.set(0, -44);
+    mid.rotation = -.2 + effect.age * 6.2;
+    mid.scale.set(diameter * .76 / mid.texture.width);
+    mid.alpha = fade * .5;
+    mid.tint = 0xff8f7a;
+    top.position.set(0, -88);
+    top.rotation = effect.age * 8.4;
+    top.scale.set(diameter * .52 / top.texture.width);
+    top.alpha = fade * .34;
+    wall.position.set(x, y - 44);
+    wall.rotation = effect.age * 3.1;
+    const wallScale = diameter * .8 / wall.texture.width;
+    wall.scale.set(wallScale, wallScale * 1.06);
+    wall.alpha = fade * .26;
+    // 바닥의 암흑·진홍 기운 — 여러 겹의 타원으로 부드럽게 깔아 물웅덩이 같은 하드 엣지를 없앤다.
+    const pulse = .88 + Math.sin(time * 9) * .12;
+    for (const [scale, alpha] of [[1.12, .1], [.94, .12], [.76, .14], [.56, .16], [.34, .18]] as const) {
+      this.glow.ellipse(x, y - 2, radius * scale, radius * scale * .54)
+        .fill({ color: scale > .9 ? 0x240104 : 0x560509, alpha: alpha * fade });
+    }
+    this.glow.ellipse(x, y - 2, radius * .5, radius * .27).fill({ color: 0x8a1015, alpha: .2 * fade * pulse });
+    // 조여드는 테두리 — 회오리가 돌수록 짙어졌다가 옅어진다.
+    const ringIn = Math.min(1, .35 + t * 1.4);
+    this.ground.ellipse(x, y, radius * ringIn, radius * ringIn * .52).stroke({ color: 0xd8392f, width: 2.2, alpha: .34 * fade });
+    // 칼날 궤적 — 회오리 반경을 따라 도는 칼자국. 머리로 갈수록 굵고 밝고, 꼬리는 가늘게 사라진다.
+    const sweep = effect.age * 10;
+    for (const base of [sweep, sweep + Math.PI]) {
+      for (let seg = 0; seg < 7; seg++) {
+        const head = base - seg * .07;
+        const arcRadius = radius * .88;
+        const hx = x + Math.cos(head) * arcRadius, hy = y + Math.sin(head) * arcRadius * .52 - 8;
+        const tx = x + Math.cos(head - .07) * arcRadius, ty = y + Math.sin(head - .07) * arcRadius * .52 - 8;
+        const keep = 1 - seg / 7;
+        this.effects.moveTo(tx, ty).lineTo(hx, hy)
+          .stroke({ color: 0xff8e64, width: 1.2 + 3.4 * keep, alpha: .65 * keep * fade });
+      }
+    }
+    // 밖으로 튀는 혈점·불티 — 회오리에 휩쓸려 조금씩 위로 솟는다.
+    for (let index = 0; index < 12; index++) {
+      const angle = index * 2.4 + effect.age * 2.6;
+      const reach = radius * (.55 + ((index * 37) % 100) / 100 * .75);
+      const px = x + Math.cos(angle) * reach;
+      const py = y + Math.sin(angle) * reach * .52 - 10 - ((index * 13) % 7) * 4 - t * 18;
+      const size = 1.8 + ((index * 29) % 10) / 10 * 2.4;
+      this.effects.circle(px, py, Math.max(.6, size * (1 - t * .4))).fill({ color: index % 3 === 0 ? 0xff9a6a : 0xc2231c, alpha: .7 * fade });
+    }
   }
 
 const arrowColors: Record<NonNullable<Effect['variant']>, number> = {
@@ -356,6 +470,7 @@ export function drawDeath(this: GameView, x: number, y: number, t: number, seed:
 export function drawEffects(this: GameView, world: World, project: (x: number, y: number) => [number, number], time: number): void {
     const liveEffects = new Set(world.effects);
     for (const [effect, sprites] of this.vfxSprites) if (!liveEffects.has(effect)) { for (const sprite of sprites) sprite.destroy(); this.vfxSprites.delete(effect); }
+    for (const [effect, layers] of this.vfxLayers) if (!liveEffects.has(effect)) { for (const layer of layers) layer.destroy({ children: true }); this.vfxLayers.delete(effect); }
     for (const effect of world.effects) {
       const [x, y] = project(effect.x, effect.y), t = effect.age / effect.duration;
       const screenAngle = Math.atan2(Math.sin(effect.angle) * .43 + Math.cos(effect.angle) * .43, Math.cos(effect.angle) * .86 - Math.sin(effect.angle) * .86);
