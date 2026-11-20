@@ -111,7 +111,18 @@ export async function mutate(db, id, input) {
     // 판매대금 수령처럼 서버가 같은 트랜잭션에서 금화를 더해 주는 몫은 세이브 검증 상한에 함께 더한다.
     let goldCredit = 0;
     // Validate ownership from the initial read batch, then persist it with the trade.
-    if (input.action === 'register' || JSON.stringify([row.save.bag, row.save.equipment]) !== JSON.stringify([save.bag, save.equipment])) await reconcileItems(tx, id, row.save, save, { owned: reads[3].rows, operations, slot: row.slot, elapsedSeconds: elapsedSince(row.character_updated_at) });
+    // 작업 222(`#5921`): 수령함에서 받는 아이템은 이 트랜잭션에서 주인 기록을 `location='inbox'`→`'inventory'`로
+    // 바꾸는 중인데, 그 UPDATE는 `operations`에 쌓여 있어 아래 reconcile보다 **나중에** 실행된다. 그래서 클라이언트
+    // 세이브가 그 아이템을 이미 들고 있으면(받기 직후 저장·재시도) 옛 `inbox` 행을 읽혀
+    // `409 ITEM_CONFLICT`로 수령이 막혔다. 이 요청에서 실제로 받을 배달의 아이템만 '가방에 들어간 상태'로
+    // 미리 보고 통과시킨다(다른 배달·다른 계정 아이템은 종전대로 막힌다).
+    const claimable = input.action === 'claim'
+      ? new Set(reads[2].rows.filter(delivery => delivery.item_json).map(delivery => JSON.parse(delivery.item_json).id))
+      : new Set();
+    const ownedRows = claimable.size
+      ? reads[3].rows.map(owner => claimable.has(owner.item_id) ? { ...owner, location: 'inventory', character_slot: row.slot } : owner)
+      : reads[3].rows;
+    if (input.action === 'register' || JSON.stringify([row.save.bag, row.save.equipment]) !== JSON.stringify([save.bag, save.equipment])) await reconcileItems(tx, id, row.save, save, { owned: ownedRows, operations, slot: row.slot, elapsedSeconds: elapsedSince(row.character_updated_at) });
     let message = '';
     const inbox = (sale, owner, kind, item, gold, reason) => {
       const entry = deliveryOperation(sale, owner, kind, item, gold, reason);
@@ -177,7 +188,8 @@ export async function mutate(db, id, input) {
           skipped++;continue;
         }
         if (item) {
-          save.bag.push(item);if(countedInBag(item, save.job))equipmentCount++;
+          // 클라이언트 세이브가 이미 같은 아이템을 들고 있으면(수령 직후 저장·재시도) 두 번 넣지 않는다(작업 222).
+          if (!save.bag.some(entry => entry.id === item.id)) { save.bag.push(item); if (countedInBag(item, save.job)) equipmentCount++; }
           write({sql:"UPDATE djrpg_item_owners SET location='inventory' WHERE item_id=? AND account_id=?",args:[item.id,id]});
           write({sql:'INSERT INTO djrpg_character_item_owners(item_id,account_id,slot) VALUES (?,?,?) ON CONFLICT(item_id) DO UPDATE SET account_id=excluded.account_id,slot=excluded.slot',args:[item.id,id,row.slot]});
         }

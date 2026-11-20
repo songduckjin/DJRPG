@@ -107,6 +107,9 @@ export const ELITE_HP_SCALE = 2;
 export const ELITE_REWARD_SCALE = 2;
 /** 정예 몹의 몸 크기 — 일반 몹보다 살짝 큰 1.22배(작업 206). */
 export const ELITE_MOB_SCALE = 1.22;
+/** 필드에 동시에 설 수 있는 몹 상한(작업 222, 사용자 요청 `#5827` "몹이 30마리 이상 생성되면 층 하락").
+ *  상한에 닿아 30마리가 되면 더 싸우지 않고 한 층 내려간다(1층에는 내려갈 곳이 없어 상한만 지킨다). */
+export const MOB_CAP = 30;
 export function enemyHitDamage(floor: number, boss: boolean, defense: number): number { return Math.max(1, Math.round(boss ? 20 + floor * 5.5 + Math.pow(floor, 1.3) * 1.2 : 7 + floor * 2.4 + Math.pow(floor, 1.25) * .5) - defense * .2); }
 /** 광폭 버프(블러드 레이지·호크아이·아케인 실드)의 공격속도 배율(작업 216).
  *  +20%에서 시작해 스킬 레벨당 +1%, 상한 1.5배 — `heroMotion.costumePlaybackRate`가 같은 식을 쓴다. */
@@ -204,8 +207,10 @@ export class World {
     // 보스는 **최고 도달 층에서만** 나오고, 자동 등반이 꺼진 상태(패배 뒤)에는 `⚔ 보스 도전`을 눌러야
     // 다시 나온다(작업 210). 세이브를 다시 읽어도 보스가 저절로 소환되지 않는다.
     this.bossPending = save.autoClimb && this.bossFloor() && save.floorKills >= floorKillTarget(save.floor);
-    // 자동 등반이 꺼진 세이브로 들어오면 이미 한 번 쓰러진 상태로 본다(작업 210).
-    this.bossRetryAvailable = !save.autoClimb;
+    // 버튼은 **보스에게 패배한 순간**에만 살아난다(작업 222, `#5781`·`#5792`).
+    // 예전에는 `!save.autoClimb`로 시작해, 자동 등반을 끄거나 그런 세이브로 접속하면 보스에게 한 번도
+    // 지지 않았는데 `⚔ 보스 도전`이 즉시 떴다. 세이브를 다시 읽어도 보스가 저절로 소환되지 않는다.
+    this.bossRetryAvailable = false;
     const hp = enemyMaxHp(save.floor, false);
     const start = clampArenaPoint(145, -45);
     this.enemies.push({ x: start.x, y: start.y, hp, maxHp: hp, boss: false, hit: 0, step: 0, moving: false, knockX: 0, knockY: 0, slow: 0 });
@@ -642,7 +647,7 @@ export class World {
     // 보스전(보스 예약·보스 생존) 중에는 **일반 몹을 부르지 않는다**(작업 212 `#5017`) —
     // `⚔ 보스 도전`으로 시작한 승부는 보스와 단독으로 붙는다.
     const bossFight = this.bossPending || this.enemies.some(enemy => enemy.boss);
-    if (this.spawnTimer <= 0 && (bossFight || this.enemies.length < 18)) {
+    if (this.spawnTimer <= 0 && (bossFight || this.enemies.length < MOB_CAP)) {
       this.spawnTimer = Math.max(.55, 1.8 - this.save.floor * .08);
       const angle = random() * Math.PI * 2;
       const boss = this.bossFloor() && this.bossPending && !this.enemies.some(enemy => enemy.boss);
@@ -655,6 +660,9 @@ export class World {
         const spawn = spawnArenaEnemy(p, angle);
         const hp = enemyMaxHp(this.save.floor, boss) * (elite ? ELITE_HP_SCALE : 1);
         if (boss) {
+          // 층 보스는 **체력이 꽉 찬 상태로** 맞이한다(작업 222, 사용자 요청 `#5811` "층보스 떴을때 체력 꽉찬
+          // 상태로 싸우게 해줘"). 자동 등반 중 소환과 `⚔ 보스 도전` 재도전 소환 모두 이 블록으로 합류한다.
+          this.player.hp = totalStats(this.save).health; this.save.health = this.player.hp;
           // 보스가 나오는 순간 남은 일반 몹은 정리한다 — 보스만 단독으로 상대하게(작업 212).
           this.enemies = this.enemies.filter(enemy => enemy.boss);
           this.chaseTarget = undefined; this.pursuing = false;
@@ -663,6 +671,18 @@ export class World {
         if (boss) this.bossPending = false;
         if (elite) { this.elitePending = false; this.onMessage('정예 해골이 나타났습니다!'); }
       }
+    }
+    // 몹이 상한(30마리)까지 쌓이면 한 층 내려간다(작업 222, 사용자 요청 `#5827`). 보스전 중에는
+    // 보스 한 마리만 서므로 해당되지 않고, 1층에는 더 내려갈 층이 없어 30마리 상한만 지킨다.
+    // 바닥에 떨어진 드랍·금화(`this.drops`)는 그대로 두어 잃지 않는다.
+    if (this.enemies.length >= MOB_CAP && this.save.floor > 1) {
+      this.save.floor--;
+      this.save.floorKills = 0;
+      this.enemies = [];
+      this.chaseTarget = undefined; this.pursuing = false;
+      this.bossPending = false; this.elitePending = false; this.spawnTimer = .2;
+      this.onMessage(`적이 너무 많아 ${this.save.floor}층으로 내려갑니다.`);
+      this.onChange();
     }
     for (const enemy of this.enemies) {
       const dx = p.x - enemy.x, dy = p.y - enemy.y, d = Math.hypot(dx, dy);
@@ -688,8 +708,10 @@ export class World {
             this.enemies = this.enemies.filter(other => !other.boss);
           } else {
             this.save.autoClimb = false;
-            // 자동 등반이 꺼졌으면 최고층에서는 다시 도전 버튼을 띄운다(작업 210 규칙 유지).
-            this.bossRetryAvailable = this.bossFloor();
+            // 보스에게 진 경우에만 도전 버튼을 살린다(작업 222, 사용자 확인 `#5792` "각 층 끝까지 등반해서
+            // 실패해야 떠야되는데"). 일반·정예 몹에게 진 것으로는 켜지 않고, 이미 보스에게 져서 켜져 있던
+            // 상태도 건드리지 않는다.
+            if (this.bossFloor() && enemy.boss) this.bossRetryAvailable = true;
           }
           p.hp = totalStats(this.save).health; this.save.health = p.hp; p.x = 0; p.y = 0; this.chaseTarget = undefined; this.pursuing = false;
           this.save.gold = Math.max(0, this.save.gold - 10);

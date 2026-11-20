@@ -194,7 +194,7 @@ export const dailyTasks = [
   {id:'hunt',name:'몬스터 300마리 처치',metric:'kills',target:300,gold:1000,books:0},
   {id:'time',name:'30분 플레이',metric:'seconds',target:1800,gold:1000,books:0},
   {id:'worldBoss',name:'월드보스 1회 도전',metric:'worldBoss',target:1,gold:1500,books:0},
-  {id:'salvage',name:'장비 분해 3회',metric:'salvage',target:3,gold:800,books:0}
+  {id:'salvage',name:'장비 1개 분해',metric:'salvage',target:1,gold:800,books:0}
 ];
 export const weeklyTasks = [
   {id:'days',name:'일일 목표 5일 완료',metric:'days',target:5,gold:5000,books:0},
