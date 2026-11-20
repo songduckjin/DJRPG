@@ -32,7 +32,7 @@ const paths = {
   maleBaseHelm: '/assets/warrior_male_base_helm.png', maleSwordHelm: '/assets/warrior_male_sword_helm.png',
   maleSword: '/assets/warrior_male_sword.png', femaleSword: '/assets/warrior_female_sword.png',
   skeleton: '/assets/skeleton_warrior.png', boss: '/assets/skeleton_boss.png',
-  fxDragonHead: '/assets/fx_dragon_head.png', fxDragonBody: '/assets/fx_dragon_body.png', fxSlam: '/assets/fx_wild_stamp.png',
+  fxDragonHead: '/assets/fx_dragon_head.png?v=2', fxDragonBody: '/assets/fx_dragon_body.png?v=2', fxSlam: '/assets/fx_wild_stamp.png',
   fxRage: '/assets/fx_blood_rage.png', fxSlash: '/assets/fx_slash_arc.png',
   fxPower: '/assets/fx_power_strike.png', fxDestroy: '/assets/fx_destroy_swing.png', fxHell: '/assets/fx_hell_fire.png',
   // [작업 157] 휘두르기(1번) 확정 시안 — 은빛 검기 + 황금빛 지면 충격파, 검정 배경 add 블렌딩용.
