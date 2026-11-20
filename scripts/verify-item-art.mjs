@@ -190,6 +190,37 @@ for (const gender of ['male', 'female']) {
 }
 console.log(`작업 155 착용 갑옷 전신 시트 ${armorSheetCount}장 확인 완료.`);
 
+// ── 작업 160: 궁수 갑옷 1~9번 전신 시트 (서기·걷기·사격) ─────────────────────
+// 0번(가죽 조끼)은 궁수 스타터 시트를 그대로 쓰므로 파일을 두지 않는다. 9티어 × 남녀 × 3동작 = 54장,
+// 전사 갑옷과 같은 362px 셀 좌표계(idle 362×362, walk·attack 1448×362) · 256색 팔레트 PNG다.
+const archerArmorRoot = fileURLToPath(new URL('../public/assets/pilot-25d/archer_armors/', import.meta.url));
+let archerArmorCount = 0;
+// 네 가지 판: 전신 / 기본 활 지움(nobow) / 머리 지움(headless) / 둘 다(nobow/headless).
+const archerArmorVariants = ['', 'nobow', 'headless', join('nobow', 'headless')];
+for (const gender of ['male', 'female']) {
+  for (let index = 1; index <= 9; index++) {
+    for (const [motion, [expectWidth, expectHeight]] of Object.entries(armorSheetSizes)) {
+      for (const variant of archerArmorVariants) {
+      const name = `archer_${gender}_armor_${index}_${motion}_v1.png`;
+      const path = join(archerArmorRoot, variant, name);
+      if (!existsSync(path)) throw new Error(`작업 160 궁수 갑옷 시트가 없습니다: ${name}`);
+      const data = readFileSync(path), header = data.subarray(0, 26);
+      const width = header.readUInt32BE(16), height = header.readUInt32BE(20);
+      if (header.toString('ascii', 1, 4) !== 'PNG') throw new Error(`궁수 갑옷 시트가 PNG가 아닙니다: ${name}`);
+      if (width !== expectWidth || height !== expectHeight) {
+        throw new Error(`궁수 갑옷 시트 규격이 다릅니다(${width}×${height}, 기대 ${expectWidth}×${expectHeight}): ${name}`);
+      }
+      if (!(header[25] === 6 || (header[25] === 3 && data.includes('tRNS')))) {
+        throw new Error(`궁수 갑옷 시트는 투명도가 있는 PNG여야 합니다: ${name}`);
+      }
+      if (data.length > 200 * 1024) throw new Error(`궁수 갑옷 시트가 200KB를 넘습니다(${Math.round(data.length / 1024)}KB): ${name}`);
+      archerArmorCount += 1;
+      }
+    }
+  }
+}
+console.log(`작업 202 궁수 갑옷 시트 ${archerArmorCount}장(전신·활 지움·머리 지움·둘 다) 확인 완료.`);
+
 // ── 작업 157: 궁수 기본 시트·활 10종 아이콘·스킬 아이콘 ───────────────────────────
 // 전사 기준 시트와 같은 셀 좌표계(서기 362×362, 걷기·공격 1448×362)와 투명도를 함께 본다.
 const archerSheetSizes = { idle: [362, 362], walk: [1448, 362], attack: [1448, 362] };
