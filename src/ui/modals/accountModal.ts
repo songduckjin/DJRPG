@@ -1,4 +1,5 @@
 import { expToNext, MAX_LEVEL } from '../../game/store';
+import { jobNames, jobOrDefault } from '../../game/skills';
 import type { Interface } from '../interface';
 
 export function renderAccount(this: Interface, dialog: HTMLElement): void {
@@ -20,7 +21,7 @@ export function renderAccount(this: Interface, dialog: HTMLElement): void {
     identity.innerHTML = '<span>계정 ID</span><b></b>';
     identity.querySelector('b')!.textContent = save.accountId;
     content.appendChild(identity);
-    const role = document.createElement('div'); role.className = 'account-line'; role.innerHTML = `<span>직업</span><b>${save.job === 'archer' ? '궁수' : '전사'}</b>`; content.appendChild(role);
+    const role = document.createElement('div'); role.className = 'account-line'; role.innerHTML = `<span>직업</span><b>${jobNames[jobOrDefault(save.job)]}</b>`; content.appendChild(role);
     const level = document.createElement('div'); level.className = 'account-progress';
     level.innerHTML = `<b>LV ${save.level >= MAX_LEVEL ? '30 MAX' : save.level}</b><span>${save.level >= MAX_LEVEL ? '100% / MAX' : `${save.exp} / ${expToNext(save.level)} EXP`}</span><div><i style="width:${save.level >= MAX_LEVEL ? 100 : Math.min(100, save.exp / expToNext(save.level) * 100)}%"></i></div>`;
     content.appendChild(level);

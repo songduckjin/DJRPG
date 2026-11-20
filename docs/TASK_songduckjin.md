@@ -18,6 +18,15 @@
 - **머지·배포(완료)**: [PR #124](https://github.com/songduckjin/DJRPG/pull/124) 스쿼시 병합 `4ba39fdb63b7`. Pages production 성공(Workers Builds는 `main`과 같은 기존 실패), 운영 `version.json` `4ba39fdb63b7`(`builtAt 2026-11-20T02:29:42Z`), `?v=2` 시트 6장 전부 HTTP 200·원격 sha256=로컬, 배포 번들 `index-j5_2NUhd.js`에 6경로 `?v=2` 포함.
 - **남은 것**: 사용자 실기 화면(걷기·사격 모션, 장비창·캐릭터 카드 썸네일) 확인.
 
+### [x] [작업 198] 마법사 직업 추가 — 기본 시트·지팡이 10종·원거리 마법탄·스킬 8+3 뼈대
+- **담당자**: `songduckjin` · **브랜치**: `feat/198-mage-job` · **위험 등급**: 보통 · **상태**: `[x]` 코드·검증 완료(운영 배포는 PR 머지 후 기록)
+- **범위**: 세 번째 직업 `mage`(마법사). 캐릭터·장비·원거리 평타 뼈대만 잡고, 전용 스킬 연출·방어구/모자 외형은 추후 시안 확인 후 고도화한다(사용자 결정).
+- **수정**: `game/skills.ts`(`Job`·`mageSkillOrder`·`magePassiveOrder`), `game/items.ts`(`staffBases`·`slotNameFor`·`usesBaseSheetOnly`), `game/store.ts`(`parseSave` job 정규화), `game/world.ts`(`mageAttackRange` 240·마법 구슬 평타·스킬 8종 판정), `game/render/vfx.ts`(`drawMagicBolt`·`drawBurst`·`drawNova`·`drawWard`), `render/entities.ts`·`render.ts`·`render/heroScale.ts`(마법사 시트 경로·배율), `ui/{login,skillArtwork,hud,equipmentPortrait}.ts`·`ui/modals/{charactersModal,skillModal,accountModal}.ts`, `server/endpoints/account.mjs`(`jobOf`·`jobs`), 에셋 12장 + 빌더 3개, `tests/mage.test.mjs`(신규 13건), `scripts/verify-item-art.mjs`.
+- **검증**: `npx tsc --noEmit`, `tests/mage.test.mjs` 13/13, 전체 500건 중 498 통과(`costume-field-render` 2건은 `origin/main` 워크트리에서 동일 재현), 아트 검증, `npm run build`, `git diff --check`. 실기 화면은 미실행(브라우저 loopback 차단) — 합성 검수 이미지 `downloads/djrpg_mage_ingame_v1.png`.
+- **번호 정정**: 159가 궁수 스타터 가죽 튜닉(PR #124)으로 먼저 병합돼 **198**로 재등록(브랜치 `feat/198-mage-job`, PR #128).
+- **머지·배포**: [PR #128](https://github.com/songduckjin/DJRPG/pull/128) 스쿼시 병합 `bc0a2617470c`, 운영 `version.json` `bc0a2617470c`(`builtAt 2026-11-20T03:23:31Z`)·새 에셋 10장 HTTP 200(원격 sha256=로컬)·배포 번들에 마법사 경로/스킬 확인.
+- **남은 것**: 사용자 실기 확인(마법 구슬·스킬 8종 연출, 생성 UI 3버튼), 추후 마법사 전용 스킬 연출·갑옷/모자 외형 시안.
+
 ### [x] [작업 150] 평타 1마리 제한·평타 ×1.6·걷기/공격 몸 크기 보정
 - **담당자**: `songduckjin` · **브랜치**: `fix/150-basic-attack-single-target` · **위험 등급**: 중 · **상태**: `[x]` 완료(실기 확인은 사용자 몫)
 - **제보(2026-11-19 실기)**: ① 평타가 반경 90px·부채꼴 안의 모든 적을 동시에 때림 ② 대검을 휘두르거나 걸을 때 캐릭터가 작아짐. 후속 지시: 한 마리만 때리는 만큼 “한방한방이 쌔야 돼”.

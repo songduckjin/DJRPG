@@ -11,8 +11,8 @@ export class SkillFeedback {
       if (this.seen.has(effect)) continue;
       this.seen.add(effect);
       if (effect.age > .25 || effect.kind === 'hit' || effect.kind === 'death') continue;
-      // 궁수 화살·화살비·호크아이는 버튼 아이콘을 깜빡이는 대상이 아니다(스킬 이펙트만 그린다).
-      if (effect.kind === 'shot' || effect.kind === 'rain' || effect.kind === 'hawk') {
+      // 궁수 화살·화살비·호크아이와 마법사 폭발·노바·보호막은 버튼 아이콘을 깜빡이는 대상이 아니다(스킬 이펙트만 그린다).
+      if (effect.kind === 'shot' || effect.kind === 'rain' || effect.kind === 'hawk' || effect.kind === 'burst' || effect.kind === 'nova' || effect.kind === 'ward') {
         if (effect.source) casts.add(effect.source);
         continue;
       }

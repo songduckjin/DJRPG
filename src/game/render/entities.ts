@@ -8,10 +8,12 @@ import { heroClass, socketMotion, weaponSocket } from './heroSockets';
 import { tintedGearTexture } from './gearTint';
 import { costumeGhostSources, hideCostumeHero } from './costumeHero';
 import { resolveSkillMotion, type CostumeMotionTemplate } from '../costume/skillMotion';
-import { wearableEquipmentImage, baseItemIndex, isArcher } from '../items';
+import { wearableEquipmentImage, baseItemIndex, usesBaseSheetOnly } from '../items';
+import { jobOrDefault } from '../skills';
 import { helmetArtFor, helmetArtPath, helmetPlacement } from './helmets';
 import { armorIndexFor } from './armors';
 import { WEAPON_GUARD, weaponIndexFor, weaponPose } from './weapons';
+import { BOW_GRIP, bowIndexFor, bowPose } from './bows';
 import type { GameView } from '../render';
 
 function syncWeapon(view: GameView, save: Save, texture: Texture, art: string, attacking: boolean, motion: 'idle' | 'walk', walkingFrame: number): void {
@@ -87,6 +89,8 @@ const walkAnchors = {
   femaleOldHelmWalk: [.97, .97, .97, .97, .97, .97, .97, .97],
   archerMaleWalk: [.97, .97, .97, .97, .97, .97, .97, .97],
   archerFemaleWalk: [.97, .97, .97, .97, .97, .97, .97, .97],
+  mageMaleWalk: [.97, .97, .97, .97, .97, .97, .97, .97],
+  mageFemaleWalk: [.97, .97, .97, .97, .97, .97, .97, .97],
   armoredWalk: [.907, .907, .907, .907, .903, .903, .903, .907],
   armoredNoHelmWalk: [.953, .948, .953, .948, .948, .953, .953, .953],
   femaleArmoredNoHelmWalk: [.984, .984, .984, .984, .98, .989, .989, .984],
@@ -185,6 +189,47 @@ function syncWeaponPart(view: GameView, save: Save, motion: 'idle' | 'walk' | 'a
 }
 
 /**
+ * 착용 활 파츠를 본체 위에 얹는다(작업 160).
+ *
+ * 파츠 PNG 는 서기 자세의 362px 셀 그대로이고 앵커가 손이 활을 쥔 그립 점이다. 자세별로는
+ * `bowPose` 의 그립 좌표와 회전각만 주므로, 걷기·사격 어느 프레임에서도 활이 손에서 떨어지거나
+ * 길이가 줄지 않는다. 0번(사냥꾼의 활)은 본체 시트에 그려져 있어 숨긴다. 피격 틴트는
+ * 본체·투구와 같은 값을 쓴다.
+ */
+function syncBowPart(view: GameView, save: Save, motion: 'idle' | 'walk' | 'attack', frame: number, tint: number): void {
+  const index = bowIndexFor(save);
+  const shown = view.heroBow;
+  if (index < 1) {
+    if (shown) shown.visible = false;
+    return;
+  }
+  const texture = view.bowPart(index);
+  if (!texture) {
+    // 아직 로딩 전 — 이 프레임은 기본 활을 가진 본체 시트가 그려진다.
+    if (shown) shown.visible = false;
+    return;
+  }
+  const pose = bowPose(save.gender, motion, frame);
+  const layerX = pose.x - view.hero.texture.width * view.hero.anchor.x;
+  const layerY = pose.y - view.hero.texture.height * view.hero.anchor.y;
+  let sprite = shown;
+  if (!sprite) {
+    sprite = new Sprite(texture);
+    sprite.zIndex = .4;
+    view.heroLayer.addChild(sprite);
+    view.heroLayer.sortableChildren = true;
+    view.heroBow = sprite;
+  }
+  if (sprite.texture !== texture) sprite.texture = texture;
+  sprite.anchor.set(BOW_GRIP.x / texture.width, BOW_GRIP.y / texture.height);
+  sprite.position.set(layerX, layerY);
+  sprite.rotation = pose.rot * Math.PI / 180;
+  sprite.tint = tint;
+  sprite.alpha = 1;
+  sprite.visible = true;
+}
+
+/**
  * 진행 중인 스킬 이펙트 → 코스튬 스킬 템플릿과 진행도 (작업 140).
  *
  * `world.ts`는 스킬을 스킬 ID와 같은 이름의 이펙트로 남기므로 모션 선택은 이펙트 종류만 보면 된다.
@@ -205,12 +250,15 @@ export function activeSkillMotion(world: World): HeroSkillMotion {
 
 export function drawHero(this: GameView, world: World, x: number, y: number, time: number): void {
     const { player, save } = world;
-    // 궁수는 이번 단계에서 기본 시트만 그린다(작업 157) — 전사용 갑옷·투구·대검 파츠를 절대 적용하지 않는다.
-    const archer = isArcher(save);
-    const base = archer ? 'archer' : 'pilot';
-    const pilotIdle = `${base}${save.gender === 'female' ? 'Female' : 'Male'}` as 'pilotMale' | 'pilotFemale' | 'archerMale' | 'archerFemale';
-    const pilotWalk = `${base}${save.gender === 'female' ? 'Female' : 'Male'}Walk` as 'pilotMaleWalk' | 'pilotFemaleWalk' | 'archerMaleWalk' | 'archerFemaleWalk';
-    const pilotAttack = `${base}${save.gender === 'female' ? 'Female' : 'Male'}Attack` as 'pilotMaleAttack' | 'pilotFemaleAttack' | 'archerMaleAttack' | 'archerFemaleAttack';
+    // 궁수(작업 157)·마법사(작업 198)는 기본 시트만 그린다 — 전사용 갑옷·투구·대검 파츠를 절대 적용하지 않는다.
+    const job = jobOrDefault(save.job);
+    const baseSheet = job === 'warrior' ? 'pilot' : job;
+    // 전사만 장비 오버레이(투구·갑옷·검 파츠)를 얹는다.
+    const plain = usesBaseSheetOnly(save);
+    const side = save.gender === 'female' ? 'Female' : 'Male';
+    const pilotIdle = `${baseSheet}${side}` as 'pilotMale' | 'pilotFemale' | 'archerMale' | 'archerFemale' | 'mageMale' | 'mageFemale';
+    const pilotWalk = `${baseSheet}${side}Walk` as 'pilotMaleWalk' | 'pilotFemaleWalk' | 'archerMaleWalk' | 'archerFemaleWalk' | 'mageMaleWalk' | 'mageFemaleWalk';
+    const pilotAttack = `${baseSheet}${side}Attack` as 'pilotMaleAttack' | 'pilotFemaleAttack' | 'archerMaleAttack' | 'archerFemaleAttack' | 'mageMaleAttack' | 'mageFemaleAttack';
     const moving = Math.hypot(world.activeMove.x, world.activeMove.y) > .05;
     const walked = Math.hypot(player.x - this.lastHeroWorld.x, player.y - this.lastHeroWorld.y);
     this.lastHeroWorld = { x: player.x, y: player.y };
@@ -231,7 +279,7 @@ export function drawHero(this: GameView, world: World, x: number, y: number, tim
       : animatedAttack ? `${pilotAttack}:${Math.max(0, attackFrame)}` : pilotIdle;
     // 투구를 쓰면 머리·머리카락이 지워진 같은 크기 시트로 갈아 끼운다(작업 152).
     // 셀 좌표계가 같아 배율·앵커·무기 소켓은 기존 값을 그대로 쓴다.
-    const helmeted = !archer && helmetIndex(save) >= 0;
+    const helmeted = !plain && helmetIndex(save) >= 0;
     if (helmeted) {
       const headless = save.gender === 'female'
         ? (animation === 'walk' ? this.animations.pilotFemaleWalkHeadless?.[walkingFrame]
@@ -245,8 +293,8 @@ export function drawHero(this: GameView, world: World, x: number, y: number, tim
     }
     // 착용 갑옷 시트(작업 155). 기준 시트와 같은 셀 좌표계라 배율·앵커·소켓은 그대로다.
     // 아직 로딩 전인 티어는 위의 기준 시트(투구를 썼으면 머리 없는 시트)로 한 프레임 더 그린다.
-    const armor = archer ? -1 : armorIndexFor(save);
-    const weapon = archer ? 0 : weaponIndexFor(save);
+    const armor = plain ? -1 : armorIndexFor(save);
+    const weapon = plain ? 0 : weaponIndexFor(save);
     // 0번이 아닌 검을 차면 본체 시트도 기본 검을 지운 판(`noweapon/`)으로 갈아 끼운다(작업 156).
     const swordless = weapon >= 1;
     const bodyTier = `${save.gender}:${armor}:${swordless ? 1 : 0}`;
@@ -259,6 +307,20 @@ export function drawHero(this: GameView, world: World, x: number, y: number, tim
       if (weapon >= 1) this.prefetchWeapon(weapon);
     }
     const poseFrame = animation === 'walk' ? walkingFrame : animatedAttack ? Math.max(0, attackFrame) : 0;
+    // 궁수: 1번 이상 활을 차면 기본 활대를 지운 본체 시트로 갈아 끼우고 그 위에 활 파츠를 얹는다(작업 160).
+    const archer = job === 'archer';
+    const bow = archer ? bowIndexFor(save) : 0;
+    if (archer && this.lastBowTier !== bow) {
+      this.lastBowTier = bow;
+      if (bow >= 1) this.prefetchBow(bow, save.gender);
+    }
+    if (archer && bow >= 1) {
+      const bowless = this.bowBodyFrame(save.gender, animation, poseFrame);
+      if (bowless) {
+        texture = bowless;
+        textureKey = `nobow:${save.gender}:${animation}:${poseFrame}`;
+      }
+    }
     if (armor >= 0) {
       const armorTexture = this.armorFrame(save.gender, armor, animation, helmeted, walkingFrame, swordless);
       if (armorTexture) {
@@ -279,10 +341,13 @@ export function drawHero(this: GameView, world: World, x: number, y: number, tim
     const bodyPx = heroBodyHeight(art, texture.height);
     const scale = heroScale(this.app.screen.height, art, texture.height);
     this.hero.tint = heroTint;
-    if (archer) {
-      // 궁수: 장비 오버레이(투구·대검·착용 무기)는 숨기고 기본 시트만 그린다.
+    if (plain) {
+      // 궁수·마법사: 장비 오버레이(투구·대검·착용 무기)는 숨기고 기본 시트만 그린다.
+      // 궁수는 여기에 더해 활 파츠를 얹고, 마법사는 파츠 없이 시트만 쓴다(작업 160·198).
       if (this.heroHelmet) this.heroHelmet.visible = false;
       if (this.heroWeapon) this.heroWeapon.visible = false;
+      if (archer) syncBowPart(this, save, animation, poseFrame, heroTint);
+      else if (this.heroBow) this.heroBow.visible = false;
       const shownGear = this.heroGear.get('weapon');
       if (shownGear) { this.heroLayer.removeChild(shownGear.sprite); shownGear.sprite.destroy(); this.heroGear.delete('weapon'); }
     } else {
