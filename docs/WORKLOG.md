@@ -2004,8 +2004,8 @@
 - **검증**: `npx tsc --noEmit` 통과, `npx vite build` 통과(배포 번들 `assets/index-DOfdWWIs.js` 815.95kB에 `16731469`(`0xff4d4d`)·`16768832`(`0xffdf40`)·`16747084`(`0xff8a4c`)·`stroke:{color:1314828,width:3}` 포함, 옛 색 `0xffd75e`·`0xffd6a0` 0건). 신규 `tests/damage-labels.test.mjs` **5/5**(소수 피해 방어력에서 정수·일반 흰색/치명 빨강·추가 데미지 분리와 합계 불변·치명타+추가 조합·여섯 색 중복 없음), 관련 `enemy-strike-crit`·`enemy-range-90`·`world-movement`·`crushing`·`skill-double-slash`·`extra-options` **72/72**, `dungeon-battle`·`skill-feedback`·`offline`·`world-boss-*` **89/90**(실패 1건은 이 체크아웃에 `public/assets/world-boss/valkaron-defeat-hd-v1.png`가 없는 기존 ENOENT).
 - **머지·배포 보류**: 사용자 지시 "변경사항 모아서 한 번에 배포" — PR만 열어 둔다.
 
-## 2026-11-21 · Codex 작업 277 — 실제 장착 변화 기반 장비 판정 (검토 대기)
+## 2026-11-21 · Codex 작업 277 — 실제 장착 변화 기반 장비 판정 (390×844 시안 승인)
 
 - 원인: `itemPower`가 캐릭터 성장과 옵션 상한을 보지 않아, 장착해도 오르지 않는 수치를 업그레이드로 표시했다.
 - 수정: `equipDelta`가 교체 전후 `totalStats`·실효 추가옵션을 비교한다. 자동 장착·분해 보호·화살표가 같은 점수를 쓰고, 툴팁·팝업에 실제 증감과 상한을 보여 준다. 서버 옵션/저장 계약은 변경하지 않았다.
-- 검증: 신규 `upgrade-real-value` 5건이 수정 전 실패함을 확인했다. 수정 뒤 `tsc --noEmit`·장비 관련 10파일 78/78 통과. 전체 테스트 1차 실행은 1,469건 중 1,460 통과·9 실패였고, 이 중 변경으로 생긴 `item-plus`·`combat-field-split` 2건은 수정 뒤 부분 재검증을 통과했다. 나머지는 Windows CRLF/경로·DB 잠금 오류로 별도 확인 중이다. 모바일 390×844 시안은 사용자 검토 대기.
+- 검증: 신규 `upgrade-real-value` 5건이 수정 전 실패함을 확인했다. 수정 뒤 `tsc --noEmit`·장비 관련 7파일 67/67 통과. 최종 전체 테스트는 1,470건 중 1,460 통과·10 실패. 실패는 Windows의 임시 DB 파일 `EBUSY`, CRLF 단언, Windows 경로 단언이며 `origin/main`도 같은 환경에서 1,464건 중 8건 실패했다. 전체 통과로 기록하지 않는다. 사용자에게 장비 3개 각각의 증감 수치를 보여 주는 390×844 시안을 제시했고 “이대로 적용” 승인을 받았다.
