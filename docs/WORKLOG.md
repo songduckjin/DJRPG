@@ -24,6 +24,7 @@
 - **테스트**: `tests/weapon-render.test.mjs` 9건 신규 — ① 10종 이름→인덱스·1~9번만 파츠·`usesSwordlessBody` ② 파츠 9장 규격(362², 불투명 1200px 초과, 손잡이 자리에 검, 200KB 이하) ③ noweapon 132장 존재·규격·기본 검 영역 픽셀이 절반 이하 ④ 자세 표 9자세·프레임 4접힘·음수 프레임 ⑤ 파츠·noweapon 부팅 프리로드 미포함 ⑥ 로딩 전 폴백·로드 후 시트 교체·파츠 위치·앵커·회전 ⑦ 걷기·공격 프레임에서 자세 표 추종 ⑧ 검을 벗으면 파츠 숨김·기준 시트 복귀 ⑨ 장비창 초상화 시트·파츠·키.
 - **검증**: `npx tsc --noEmit`, 전체 테스트 **473건 중 471 통과**(실패 2건은 `tests/costume-field-render.test.mjs`의 종전부터 같은 실패), `node scripts/verify-item-art.mjs`(noweapon 132장·파츠 9장 추가 확인), `npm run build`, `git diff --check`.
 - **검수 이미지**: `downloads/djrpg_weapon_10_idle_v1.png`(갑옷 9+투구 9 남 / 갑옷 4+투구 여 × 10티어 서기), `downloads/djrpg_weapon_walk_attack_v1.png`(남녀 × 걷기·공격 4프레임 × 2·5·8번), `downloads/djrpg_weapon_ingame_scale_v1.png`(0·1·2·5·8·9번 남녀 서기, 본체 150px 배율).
+- **배포**: [PR #115](https://github.com/songduckjin/DJRPG/pull/115) 스쿼시 병합(`88dd1b95ea7b`). PR의 `Cloudflare Pages` 체크 통과(`Workers Builds: djrpg`는 종전부터 같은 실패). 운영 `https://djrpg.pages.dev/version.json`이 `88dd1b95ea7b`(`builtAt 2026-11-20T00:11:48Z`)로 갱신됐고, **새 에셋 141장(파츠 9 + noweapon 132) 전부 HTTP 200**(실패 0), 배포 번들 `assets/index-NYhj-_cK.js`에 `/assets/pilot-25d/weapons`·`noweapon/armors`·`weapon_${n}_v1.png` 템플릿과 `noweapon:${성별}:…` 캐시 키가 들어간 것을 확인했다. 배포 페이지는 로그인 화면까지 정상 로드(부트 프리로드 진행). **모바일 실기 화면은 미확인** — 게스트 계정을 새로 만들지 않았고, 1번 이상 검을 착용한 세이브가 필요하다.
 
 ## 2026-11-20 — 남녀 갑옷 10종 서기·걷기·공격 + headless 시트 제작·적용 (작업 155)
 
