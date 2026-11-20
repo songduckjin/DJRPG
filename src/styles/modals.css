@@ -175,6 +175,7 @@
 .account-reset button:first-of-type { border-color: #a45c55; color: #ffd1c6; }
 .floor-summary { margin: 0 0 10px; color: #c1ae9a; font-size: 11px; line-height: 1.5; }
 .offline-summary { padding: 12px; border: 1px solid #ad7e49; background: #39271f; color: #f6d8aa; line-height: 1.7; font-size: 12px; }
+.offline-floors { margin: 8px 0 0; padding: 8px 10px; border: 1px solid #8d6a3f; background: #2f2019; color: #ffd79a; font-size: 12px; line-height: 1.6; }
 .offline-items { max-height: 240px; overflow-y: auto; padding-left: 20px; color: #dfc8aa; font-size: 12px; }
 .floor-mode { width: 100%; margin-bottom: 12px; padding: 9px; border: 1px solid #a27d52; background: #4b3327; color: #ffe0b4; font-size: 12px; }
 .floor-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }

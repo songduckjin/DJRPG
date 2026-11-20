@@ -7,6 +7,13 @@ export function renderOffline(dialog: HTMLElement, reward: OfflineReward): void 
   const hours = Math.floor(reward.seconds / 3600), minutes = Math.floor(reward.seconds % 3600 / 60);
   summary.innerHTML = `방치 시간 ${hours ? `${hours}시간 ` : ''}${minutes}분 · 처치 ${reward.kills}마리 · EXP +${reward.exp} · ${goldMarkup(reward.gold)}${reward.levels ? ` · 레벨 +${reward.levels} / SP +${reward.levels}` : ''}`;
   dialog.appendChild(summary);
+  // 층 변화(작업 235) — 방치하는 동안에도 보스를 잡아 층이 올라갔는지 한눈에 보이게 한다.
+  const climbed = reward.endFloor > reward.startFloor;
+  const floorNotes: string[] = [];
+  if (climbed) floorNotes.push(`${reward.startFloor}층 → ${reward.endFloor}층 돌파!`);
+  if (reward.bossKills) floorNotes.push(`보스 ${reward.bossKills}마리 처치`);
+  if (!climbed && reward.deaths) floorNotes.push(`보스에게 ${reward.deaths}번 져서 층이 멈췄습니다`);
+  if (floorNotes.length) { const note = document.createElement('p'); note.className = 'offline-floors'; note.textContent = floorNotes.join(' · '); dialog.appendChild(note); }
   const heading = document.createElement('h3'); heading.textContent = `획득 아이템 ${reward.items.length}개`; dialog.appendChild(heading);
   const list = document.createElement('ul'); list.className = 'offline-items';
   for (const item of reward.items) { const row = document.createElement('li'); row.textContent = `${itemDisplayName(item)} · ${rarityNames[item.rarity]}`; list.appendChild(row); }
