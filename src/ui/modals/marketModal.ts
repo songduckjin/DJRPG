@@ -1,10 +1,11 @@
 import {createSkillBookArt} from '../skillBookArt';
 import { goldNode, coinMarkup } from '../currency';
 import { filterSaleItems } from '../itemOrder';
-import { equipmentImage, isBow, isSkillBook, rarityNames, slotNames, statNames, type Item, type Stat } from '../../game/items';
+import { equipmentImage, isBow, isSkillBook, itemDisplayName, rarityNames, slotNames, statNames, type Item, type Stat } from '../../game/items';
 import { type MarketView, type Listing, type Market } from '../../game/market';
 import { compareEquipment } from '../../game/itemComparison';
 import type { Interface } from '../interface';
+import { renderItemName } from '../itemName';
 
 const money = (n: number) => n.toLocaleString('ko-KR');
 const when = (n: number) => new Intl.DateTimeFormat('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Seoul' }).format(n);
@@ -20,7 +21,7 @@ function icon(item: Item): HTMLElement {
 }
 function itemInfo(item: Item): HTMLElement {
   const info = el('div', 'market-item-info');
-  info.append(el('b', `rarity-${item.rarity}`, item.name), el('small', '', `${rarityNames[item.rarity]} · ${isSkillBook(item) ? '스킬북' : isBow(item) ? '활' : slotNames[item.slot]}`));
+  info.append(renderItemName(el('b', `rarity-${item.rarity}`), item), el('small', '', `${rarityNames[item.rarity]} · ${isSkillBook(item) ? '스킬북' : isBow(item) ? '활' : slotNames[item.slot]}`));
   const stats = Object.entries(item.stats).map(([key, amount]) => `${statNames[key as Stat]} +${amount}`).join(' · ');
   info.append(el('small', 'market-options', stats || '사용 시 습득 또는 스킬 +1레벨'));
   return info;
@@ -118,7 +119,7 @@ function renderListing(ui: Interface, dialog: HTMLElement, sale: Listing, blocke
       const equipped = el('div', 'market-equipped');
       if (comparison.equipped) {
         const info = el('div', 'market-equipped-info');
-        info.append(el('small', '', '현재 장착 중'), el('b', `rarity-${comparison.equipped.rarity}`, comparison.equipped.name), el('small', '', `${rarityNames[comparison.equipped.rarity]} · ${isBow(comparison.equipped) ? '활' : slotNames[comparison.equipped.slot]}`));
+        info.append(el('small', '', '현재 장착 중'), renderItemName(el('b', `rarity-${comparison.equipped.rarity}`), comparison.equipped), el('small', '', `${rarityNames[comparison.equipped.rarity]} · ${isBow(comparison.equipped) ? '활' : slotNames[comparison.equipped.slot]}`));
         equipped.append(icon(comparison.equipped), info);
       } else equipped.append(el('small', '', '현재 이 부위에 장착한 장비가 없습니다. (능력치 0 기준)'));
       detail.append(equipped);
@@ -169,9 +170,9 @@ function renderRegister(ui: Interface, dialog: HTMLElement, blocked: boolean): v
   for (const item of visible) {
     const pick = button('', () => { void market.selectItem(item); }, blocked);
     pick.className = `market-pick rarity-${item.rarity}${market.selectedItem === item.id ? ' selected' : ''}`;
-    pick.append(icon(item), el('small', `rarity-${item.rarity}`, rarityNames[item.rarity]), el('small', '', item.name));
+    pick.append(icon(item), el('small', `rarity-${item.rarity}`, rarityNames[item.rarity]), renderItemName(el('small'), item));
     if (!isSkillBook(item) && item.locked) { const locked = el('span', 'lock-icon is-locked'); locked.setAttribute('aria-label', '잠긴 장비'); pick.append(locked); }
-    pick.setAttribute('aria-label', `${item.name} · ${rarityNames[item.rarity]} 판매 선택`); grid.append(pick);
+    pick.setAttribute('aria-label', `${itemDisplayName(item)} · ${rarityNames[item.rarity]} 판매 선택`); grid.append(pick);
   }
   form.append(grid);
   if (!visible.length) form.append(el('p', 'empty', '조건에 맞는 판매 가능 아이템이 없습니다.'));
