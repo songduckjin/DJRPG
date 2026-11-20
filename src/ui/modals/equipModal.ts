@@ -105,6 +105,9 @@ export function renderInventory(this: Interface, dialog: HTMLElement): void {
       cell.onfocus = () => { dismissEquippedDetail(this); showBagDetail(this, item.id); };
       cell.onblur = () => { if (cell.isConnected) deferBagDismiss(this); };
       cell.onclick = () => {
+        // 보물 주머니는 **가방에서 그림을 한 번 누르면 바로 개봉 창**이 뜨다(작업 212 `#4984`) —
+        // 상세 패널의 [열기]를 한 번 더 누르게 하지 않는다.
+        if (pouch) { dismissBagDetail(this); openPouchWindow(this, item.id); return; }
         dismissEquippedDetail(this);
         if (this.selected === item.id && bagDetailPinned(this)) dismissBagDetail(this);
         else showBagDetail(this, item.id, true);

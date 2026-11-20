@@ -26,17 +26,22 @@ export function grantSeasonNotice(state, now = Date.now()) {
   return true;
 }
 /**
- * 미리보기 전용 테스트 우편(작업 210, 사용자 요청 `#4580`·`#4589` "모션 확인할 주머니가 없다").
+ * 미리보기 전용 테스트 우편(작업 210 → 212, 사용자 요청 `#4580`·`#4589` "모션 확인할 주머니가 없다").
  * **미리보기 호스트에서만** 계정당 1회 지급하고, 운영 호스트에서는 지급도 표시도 되지 않는다
  * (`grantPreviewPouchMail(state, now, preview)`·`stripPreviewPouchMail`).
- * 작업 211: `preview-pouch-test-1` 지급 이력이 `state.notices`에 남은 계정도 다시 받도록 ID를 올렸다.
+ * 작업 212: 6단계 개봉·`1개 더 열기`를 마음껏 확인하도록 **주머니 100개**를 주고,
+ * 방금 `test-2`를 받은 계정도 새로고침하면 다시 받도록 ID를 `preview-pouch-test-3`으로 올렸다.
  */
-export const PREVIEW_POUCH_MAIL_ID = 'preview-pouch-test-2';
+export const PREVIEW_POUCH_MAIL_ID = 'preview-pouch-test-3';
+/** 테스트 우편 한 통에 담는 주머니 수(작업 212 `#4951` 사용자 요청 100개). */
+export const PREVIEW_POUCH_MAIL_POUCHES = 100;
 /** 테스트 우편 접두사 — ID를 올려도 예전 테스트 우편이 운영에 남지 않도록 함께 지운다(작업 211). */
 const PREVIEW_POUCH_MAIL_PREFIX = 'preview-pouch-test-';
-const PREVIEW_POUCH_MAIL_TITLE = '[미리보기 테스트] 보물 주머니 1개';
-const PREVIEW_POUCH_MAIL_BODY = `미리보기에서 새 개봉 모션(4단계)을 확인하실 수 있도록 보물 주머니 1개를 드립니다.
-가방에서 [열기]를 눌러 닫힌 주머니가 흔들리다 끈이 풀리고 활짝 열리는 연출을 확인해 주세요.
+const PREVIEW_POUCH_MAIL_TITLE = `[미리보기 테스트] 보물 주머니 ${PREVIEW_POUCH_MAIL_POUCHES}개`;
+const PREVIEW_POUCH_MAIL_BODY = `미리보기에서 새 개봉 모션(6단계)을 마음껏 확인하실 수 있도록 보물 주머니 ${PREVIEW_POUCH_MAIL_POUCHES}개를 드립니다.
+가방에서 주머니 그림을 누르면 바로 개봉 창이 열립니다. 닫힌 주머니가 흔들리다 끈이 풀리고 활짝 열려 빛이 터진 뒤,
+주머니가 바닥에 납작하게 흘러내리며 그 위에 보상이 나타나는 연출을 확인해 주세요.
+남은 주머니는 [1개 더 열기]로 이어서 까고, [닫기]·×로 언제든 나갈 수 있습니다.
 이 우편은 미리보기 서버에서만 지급되며 운영 서버에는 나오지 않습니다.`;
 /** 미리보기 호스트용 테스트 우편을 계정마다 한 번만 준다. `preview`가 false면 아무것도 하지 않는다. */
 export function grantPreviewPouchMail(state, now = Date.now(), preview = false) {
@@ -44,7 +49,7 @@ export function grantPreviewPouchMail(state, now = Date.now(), preview = false) 
   state.notices ??= []; state.mail ??= [];
   if (state.notices.includes(PREVIEW_POUCH_MAIL_ID) || state.mail.some(entry => entry.id === PREVIEW_POUCH_MAIL_ID)) return false;
   state.notices.push(PREVIEW_POUCH_MAIL_ID);
-  state.mail.push({ id: PREVIEW_POUCH_MAIL_ID, title: PREVIEW_POUCH_MAIL_TITLE, sender: '운영팀', body: PREVIEW_POUCH_MAIL_BODY, createdAt: now, expiresAt: null, gold: 0, books: 0, pouches: 1, claimedAt: null, read: false });
+  state.mail.push({ id: PREVIEW_POUCH_MAIL_ID, title: PREVIEW_POUCH_MAIL_TITLE, sender: '운영팀', body: PREVIEW_POUCH_MAIL_BODY, createdAt: now, expiresAt: null, gold: 0, books: 0, pouches: PREVIEW_POUCH_MAIL_POUCHES, claimedAt: null, read: false });
   return true;
 }
 /** 운영 호스트에서 남아 있는 미리보기 테스트 우편을 지운다(지급 이력은 남겨 다시 붙지 않게 한다). */

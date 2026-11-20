@@ -92,6 +92,9 @@ export class World {
   attackPose = 0;
   activeMove = { x: 0, y: 0 };
   bossPending = false;
+  /** `⚔ 보스 도전`을 띄울 상태인가(작업 212 `#5017`) — 보스에게 쓰러진 뒤 `true`,
+   *  보스를 잡아 다음 층으로 올라가면 `false`. 세션 동안만 기억한다. */
+  bossRetryAvailable = false;
   /** 정예 몹 처치 카운터(작업 206) — 30마리가 되면 다음 스폰을 정예로 예약한다. */
   eliteKills = 0;
   elitePending = false;
@@ -129,6 +132,8 @@ export class World {
     // 보스는 **최고 도달 층에서만** 나오고, 자동 등반이 꺼진 상태(패배 뒤)에는 `⚔ 보스 도전`을 눌러야
     // 다시 나온다(작업 210). 세이브를 다시 읽어도 보스가 저절로 소환되지 않는다.
     this.bossPending = save.autoClimb && this.bossFloor() && save.floorKills >= floorKillTarget(save.floor);
+    // 자동 등반이 꺼진 세이브로 들어오면 이미 한 번 쓰러진 상태로 본다(작업 210).
+    this.bossRetryAvailable = !save.autoClimb;
     const hp = enemyMaxHp(save.floor, false);
     const start = clampArenaPoint(145, -45);
     this.enemies.push({ x: start.x, y: start.y, hp, maxHp: hp, boss: false, hit: 0, step: 0, moving: false, knockX: 0, knockY: 0, slow: 0 });
@@ -138,22 +143,25 @@ export class World {
    *  아래층을 반복 사냥할 때는 보스가 뜨지 않고 일반·정예만 계속 나온다. */
   bossFloor(): boolean { return this.save.floor >= this.save.maxFloor; }
 
-  /** `⚔ 보스 도전` 버튼이 살아나는 상태 — 최고 도달 층에서 패배해 자동 등반이 꺼진 상태다.
+  /** `⚔ 보스 도전` 버튼이 살아나는 상태 — 최고 도달 층에서 보스에게 한 번 쓰러진 뒤다.
+   *  작업 212(`#5017`): 자동 등반이 **켜져 있어도** 버튼을 띄운다 — 일반 몹을 다시 잡아
+   *  목표를 채우기 전이라도 바로 보스에게 다시 도전할 수 있다.
    *  마지막 층(`MAX_FLOOR`)은 다음 층이 없으므로 버튼을 띄우지 않는다. */
-  get bossRetryReady(): boolean { return this.bossFloor() && !this.save.autoClimb && this.save.floor < MAX_FLOOR; }
+  get bossRetryReady(): boolean { return this.bossFloor() && this.bossRetryAvailable && this.save.floor < MAX_FLOOR; }
 
   /**
-   * `⚔ 보스 도전`(작업 210, 사용자 지시 `#4566` "패배시에만 활성화 … 계속 다시 도전해도 돼").
-   * 자동 등반을 다시 켜고, 지금 층 보스를 한 마리 새로 소환한다(있던 몹은 정리, 스폰 즉시).
-   * 보스에게 또 지면 패배 처리로 자동 등반이 다시 꺼져 버튼이 살아나므로 몇 번이든 재도전할 수 있고,
-   * 보스를 이겨 다음 층으로 올라가면 버튼은 사라진다.
-   */
+   * `⚔ 보스 도전`(작업 210 → 212, 사용자 지시 `#4566` "패배시에만 활성화 … 계속 다시 도전해도 돼",
+   * `#5017` "버튼 안 눌러도 자동으로 다시"·"보스 도전 시 일반 몹은 안 나와야 함").
+   * 자동 등반을 다시 켜고, 지금 층 보스를 한 마리 새로 소환한다 — **일반 몹은 모두 정리하고
+   * 보스전이 끝날 때까지 새로 부르지 않는다**(보스와 단독 승부).
+   * 보스에게 또 지면 패배 처리로 버튼이 다시 살아나므로 몇 번이든 재도전할 수 있고,
+   * 보스를 이겨 다음 층으로 올라가면 버튼은 사라진다. */
   challengeBoss(): boolean {
     if (!this.bossRetryReady) return false;
     this.save.autoClimb = true;
     this.save.floorKills = Math.max(this.save.floorKills, floorKillTarget(this.save.floor));
     this.enemies = []; this.chaseTarget = undefined; this.pursuing = false; this.activeMove = { x: 0, y: 0 };
-    this.spawnTimer = 0; this.bossPending = true;
+    this.spawnTimer = 0; this.bossPending = true; this.elitePending = false;
     this.onMessage('해골 군주에게 다시 도전합니다!');
     this.onChange();
     return true;
@@ -406,10 +414,12 @@ export class World {
         this.spawnTimer = .2;
         this.save.floorKills = 0;
         this.bossPending = false;
+        this.bossRetryAvailable = false;
         this.onMessage(capped ? `최고 ${MAX_FLOOR}층 달성! ${MAX_FLOOR}층에서 계속 사냥합니다.` : `${this.save.floor}층 진입`);
       } else {
         this.save.floorKills = 0;
         this.bossPending = false;
+        this.bossRetryAvailable = this.save.floor < MAX_FLOOR;
         this.onMessage(this.save.floor >= MAX_FLOOR ? `${this.save.floor}층 반복 사냥 · 최고 ${MAX_FLOOR}층` : `${this.save.floor}층 반복 사냥`);
       }
     } else {
@@ -423,7 +433,8 @@ export class World {
         // 아래층 반복 사냥에는 보스가 없다(작업 210) — 목표를 채우면 0으로 돌리고 일반·정예만 계속 나온다.
         if (this.save.floorKills >= floorKillTarget(this.save.floor)) this.save.floorKills = 0;
       } else if (this.save.autoClimb && this.save.floorKills >= floorKillTarget(this.save.floor) && !this.bossPending && !this.enemies.some(e => e.boss)) {
-        // 보스는 자동 등반이 켜져 있을 때만 저절로 나온다 — 패배 뒤에는 `⚔ 보스 도전`으로 다시 부른다.
+        // 자동 등반 중이면 목표를 채울 때마다 보스가 저절로 온다(작업 212 `#5017`).
+        // 보스에게 지고 1마리부터 다시 잡는 중에도 여기로 다시 보스가 나타난다.
         this.bossPending = true;
         this.onMessage(`${floorKillTarget(this.save.floor)}마리 처치! 해골 군주가 나타납니다!`);
       }
@@ -471,17 +482,30 @@ export class World {
     }
     if (this.attackHeld) this.action('attack');
     this.spawnTimer -= dt;
-    if (this.spawnTimer <= 0 && this.enemies.length < 18) {
+    // 보스전(보스 예약·보스 생존) 중에는 **일반 몹을 부르지 않는다**(작업 212 `#5017`) —
+    // `⚔ 보스 도전`으로 시작한 승부는 보스와 단독으로 붙는다.
+    const bossFight = this.bossPending || this.enemies.some(enemy => enemy.boss);
+    if (this.spawnTimer <= 0 && (bossFight || this.enemies.length < 18)) {
       this.spawnTimer = Math.max(.55, 1.8 - this.save.floor * .08);
       const angle = Math.random() * Math.PI * 2;
-      const boss = this.bossFloor() && this.bossPending && !this.enemies.some(e => e.boss);
+      const boss = this.bossFloor() && this.bossPending && !this.enemies.some(enemy => enemy.boss);
       // 보스 타이밍과 겹치면 보스가 우선한다 — 정예 예약은 다음 스폰으로 미룬다(작업 206).
       const elite = !boss && this.elitePending;
-      const spawn = spawnArenaEnemy(p, angle);
-      const hp = enemyMaxHp(this.save.floor, boss) * (elite ? ELITE_HP_SCALE : 1);
-      this.enemies.push({ x: spawn.x, y: spawn.y, hp, maxHp: hp, boss, elite, hit: 0, step: Math.random() * Math.PI * 2, moving: false, knockX: 0, knockY: 0, slow: 0 });
-      if (boss) this.bossPending = false;
-      if (elite) { this.elitePending = false; this.onMessage('정예 해골이 나타났습니다!'); }
+      if (bossFight && !boss) {
+        // 보스전 중에는 빈 타이머만 돌리고 아무도 부르지 않는다(정예 예약도 미룬다).
+        this.spawnTimer = .4;
+      } else {
+        const spawn = spawnArenaEnemy(p, angle);
+        const hp = enemyMaxHp(this.save.floor, boss) * (elite ? ELITE_HP_SCALE : 1);
+        if (boss) {
+          // 보스가 나오는 순간 남은 일반 몹은 정리한다 — 보스만 단독으로 상대하게(작업 212).
+          this.enemies = this.enemies.filter(enemy => enemy.boss);
+          this.chaseTarget = undefined; this.pursuing = false;
+        }
+        this.enemies.push({ x: spawn.x, y: spawn.y, hp, maxHp: hp, boss, elite, hit: 0, step: Math.random() * Math.PI * 2, moving: false, knockX: 0, knockY: 0, slow: 0 });
+        if (boss) this.bossPending = false;
+        if (elite) { this.elitePending = false; this.onMessage('정예 해골이 나타났습니다!'); }
+      }
     }
     for (const enemy of this.enemies) {
       const dx = p.x - enemy.x, dy = p.y - enemy.y, d = Math.hypot(dx, dy);
@@ -494,7 +518,28 @@ export class World {
       if (d < 35 && p.hit <= 0) {
         p.hp = Math.max(0, p.hp - enemyHitDamage(this.save.floor, enemy.boss, totalStats(this.save).defense));
         p.hit = .85;
-        if (p.hp <= 0) { this.save.autoClimb = false; p.hp = totalStats(this.save).health; this.save.health = p.hp; p.x = 0; p.y = 0; this.save.gold = Math.max(0, this.save.gold - 10); this.onMessage('쓰러졌습니다. 10골드를 잃고 부활했습니다. 자동 등반이 중단됩니다.'); this.onChange(); }
+        if (p.hp <= 0) {
+          // 보스에게 쓰러졌고 최고층에서 자동 등반 중이면(작업 212 `#5017`·`#5028`) 자동 등반을
+          // 끄지 않는다 — 1마리부터 다시 잡게 킬 카운트를 0으로 돌리고, 보스는 물러나게 한다.
+          // 목표 마릿수를 채우면 `kill()`의 기존 규칙이 보스를 자동으로 다시 부른다.
+          const climbOn = this.save.autoClimb && this.bossFloor() && enemy.boss;
+          if (climbOn) {
+            this.save.floorKills = 0;
+            this.bossPending = false;
+            this.bossRetryAvailable = true;
+            this.enemies = this.enemies.filter(other => !other.boss);
+          } else {
+            this.save.autoClimb = false;
+            // 자동 등반이 꺼졌으면 최고층에서는 다시 도전 버튼을 띄운다(작업 210 규칙 유지).
+            this.bossRetryAvailable = this.bossFloor();
+          }
+          p.hp = totalStats(this.save).health; this.save.health = p.hp; p.x = 0; p.y = 0; this.chaseTarget = undefined; this.pursuing = false;
+          this.save.gold = Math.max(0, this.save.gold - 10);
+          this.onMessage(climbOn
+            ? '쓰러졌습니다. 10골드를 잃고 부활했습니다. 1마리부터 다시 잡으면 보스가 다시 나타납니다.'
+            : '쓰러졌습니다. 10골드를 잃고 부활했습니다. 자동 등반이 중단됩니다.');
+          this.onChange();
+        }
       }
       enemy.hit = Math.max(0, enemy.hit - dt);
     }

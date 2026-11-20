@@ -210,8 +210,10 @@ test('미리보기 테스트 보물 주머니 우편은 preview 호스트에서�
   const empty = () => ({ achievements: [], mail: [] });
   const preview = advanceJourney(empty(), save(), save(), Date.now(), true, true);
   const mail = preview.mail.find(entry => entry.id === PREVIEW_POUCH_MAIL_ID);
-  assert(mail && mail.pouches === 1 && (mail.gold ?? 0) === 0 && (mail.books ?? 0) === 0 && mail.expiresAt === null, '주머니 1개·만료 없음');
-  assert.equal(mail.title, '[미리보기 테스트] 보물 주머니 1개');
+  // 작업 212(`#4951`): 6단계 연출·`1개 더 열기`를 마음껏 확인하도록 100개를 준다.
+  assert(mail && mail.pouches === 100 && (mail.gold ?? 0) === 0 && (mail.books ?? 0) === 0 && mail.expiresAt === null, '주머니 100개·만료 없음');
+  assert.equal(mail.title, '[미리보기 테스트] 보물 주머니 100개');
+  assert.equal(PREVIEW_POUCH_MAIL_ID, 'preview-pouch-test-3', 'test-2를 받은 계정도 새로고침하면 다시 받는다');
   const again = advanceJourney(preview, save(), save(), Date.now(), true, true);
   assert.equal(again.mail.filter(entry => entry.id === PREVIEW_POUCH_MAIL_ID).length, 1, '계정당 1회');
   const production = advanceJourney(structuredClone(again), save(), save(), Date.now(), true, 'production');
@@ -227,7 +229,7 @@ test('미리보기 journey 목록에만 테스트 우편이 내려오고 기본(
   const preview = await snapshot(db, 'preview-mail', { preview: true });
   const mail = preview.mail.find(entry => entry.id === PREVIEW_POUCH_MAIL_ID);
   assert(mail, '미리보기 목록에 테스트 우편');
-  assert.equal(mail.pouches, 1);
+  assert.equal(mail.pouches, 100);
   const normal = await snapshot(db, 'preview-mail', { preview: 'production' });
   assert.equal(normal.mail.some(entry => entry.id === PREVIEW_POUCH_MAIL_ID), false, '운영 목록에서는 지운다');
   assert.equal(normal.mail.length, 4, '환영·업데이트 안내·새 시즌 안내·다이아 우편 4통은 그대로');

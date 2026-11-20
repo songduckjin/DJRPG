@@ -223,34 +223,40 @@ test('큰 개봉 창은 왼쪽 위 [확률표]를 펼치고 [열기]로 주머�
     assert.equal(api.result.children.length, 1,'결과 카드가 창 안에 뜬다');
     assert.equal(changes, 1,'세이브 반영');
     assert(messages.some(text => text.includes('무작위 보물 주머니')),'토스트 안내');
-    const again = find(api.overlay, node => node.textContent === '한 번 더 열기');
-    assert(again,'더 남으면 [한 번 더 열기]');
-    again.onclick();
-    assert.equal(pouch.pouchCount(save), 0);
-    await new Promise(resolve => setTimeout(resolve, 10));
     const actions = find(api.overlay, node => node.className === 'pouch-window-actions');
     const primary = actions.children[0], closeAction = actions.children[1];
-    assert.equal(primary.textContent, '확인','주머니가 없으면 [열기]가 [확인]이 된다');
+    // 작업 212(`#4951`): 남은 주머니가 있으면 [1개 더 열기], 곁에는 언제든 나갈 수 있는 [닫기].
+    const again = find(api.overlay, node => node.textContent === '1개 더 열기');
+    assert(again,'더 남으면 [1개 더 열기]');
+    assert.equal(primary, again,'주 버튼이 [1개 더 열기]로 바뀐다');
+    assert.equal(closeAction.textContent, '닫기','보조 [닫기] 버튼은 늘 남는다');
     assert.equal(closeAction.className, 'pouch-close');
+    again.onclick();
+    assert.equal(pouch.pouchCount(save), 0,'[1개 더 열기]로 다음 주머니를 이어서 깐다');
+    await new Promise(resolve => setTimeout(resolve, 10));
+    assert.equal(primary.textContent, '확인','주머니가 없으면 [확인]이 된다');
+    assert.equal(primary.disabled, false,'연출이 끝나면 버튼이 풀린다');
     closeAction.onclick();
-    assert.equal(ui.root.children.length, 0,'[확인]으로 닫힌다');
+    assert.equal(ui.root.children.length, 0,'[닫기]로 닫힌다');
   } finally { globalThis.document = previous; }
 });
 
-test('개봉 그림 4장은 투명 배경 512×512 PNG이고 가방 아이콘은 닫힌 주머니를 쓴다', () => {
+test('개봉 그림 6장은 투명 배경 512×512 PNG이고 금화 뭉치도 같은 규격이며 가방 아이콘은 닫힌 주머니를 쓴다', () => {
   assert.deepEqual([...pouchArt.POUCH_FRAME_URLS], [
     '/assets/icons/treasure_pouch_v2.png', '/assets/icons/treasure_pouch_step2_v2.png',
-    '/assets/icons/treasure_pouch_step3_v2.png', '/assets/icons/treasure_pouch_open_v2.png'
-  ],'닫힘 → 끈 헐거워짐 → 빛 새어 나옴 → 활짝');
-  assert.equal(new Set(pouchArt.POUCH_FRAME_URLS).size, 4,'네 장은 서로 다른 파일');
+    '/assets/icons/treasure_pouch_step3_v2.png', '/assets/icons/treasure_pouch_open_v2.png',
+    '/assets/icons/treasure_pouch_slump1_v2.png', '/assets/icons/treasure_pouch_slump2_v2.png'
+  ],'닫힘 → 끈 헐거워짐 → 빛 새어 나옴 → 활짝 → 내려앉기 → 바닥에 납작');
+  assert.equal(new Set(pouchArt.POUCH_FRAME_URLS).size, 6,'여섯 장은 서로 다른 파일');
   assert.equal(pouchArt.POUCH_ART_URL, pouchArt.POUCH_FRAME_URLS[0],'개봉 창은 닫힌 주머니로 시작');
   assert.equal(pouchArt.POUCH_ICON_URL, pouchArt.POUCH_FRAME_URLS[0],'가방 아이콘도 닫힌 주머니');
+  assert.equal(pouchArt.POUCH_GOLD_PILE_URL, '/assets/icons/pouch_gold_pile_v2.png','금화 뭉치 그림');
   assert.equal(pouchArt.pouchFrameUrl(0), pouchArt.POUCH_FRAME_URLS[0]);
-  assert.equal(pouchArt.pouchFrameUrl(3), pouchArt.POUCH_FRAME_URLS[3]);
-  assert.equal(pouchArt.pouchFrameUrl(9), pouchArt.POUCH_FRAME_URLS[3],'범위를 넘으면 마지막 단계');
+  assert.equal(pouchArt.pouchFrameUrl(5), pouchArt.POUCH_FRAME_URLS[5]);
+  assert.equal(pouchArt.pouchFrameUrl(9), pouchArt.POUCH_FRAME_URLS[5],'범위를 넘으면 마지막 단계');
   assert.equal(pouchArt.pouchFrameUrl(-2), pouchArt.POUCH_FRAME_URLS[0],'음수는 1단계');
-  for (const url of pouchArt.POUCH_FRAME_URLS) {
-    assert.match(url, /^\/assets\/icons\/treasure_pouch(_step\d|_open)?_v2\.png$/,'캐시를 피하는 새 이름');
+  for (const url of [...pouchArt.POUCH_FRAME_URLS, pouchArt.POUCH_GOLD_PILE_URL]) {
+    assert.match(url, /^\/assets\/icons\/(treasure_pouch(_step\d|_open|_slump\d)?|pouch_gold_pile)_v2\.png$/,'캐시를 피하는 새 이름');
     const file = readFileSync(new URL(`../public${url}`, import.meta.url));
     assert.equal(file.toString('ascii', 1, 4), 'PNG', `${url} PNG`);
     assert.equal(file.readUInt32BE(16), 512, `${url} 가로 512`);
@@ -259,26 +265,34 @@ test('개봉 그림 4장은 투명 배경 512×512 PNG이고 가방 아이콘은
   }
 });
 
-test('개봉은 0.2·0.42·0.64초에 그림이 4단계로 바뀌고 0.9초에 결과 카드가 뜨며 모션 감소도 대응한다', () => {
-  assert.deepEqual([...POUCH_FRAME_AT], [0, 200, 420, 640], '그림이 바뀌는 시각');
-  assert.equal(POUCH_RESULT_MS, 900, '보상 카드 등장');
-  assert(POUCH_OPEN_MS >= 800 && POUCH_OPEN_MS <= 1000, `연출 ${POUCH_OPEN_MS}ms`);
+test('개봉은 0.26·0.47·0.65·1.15·1.48초에 6단계로 바뀌고 1.3초에 결과 카드가 뜨며 모션 감소도 대응한다', () => {
+  assert.deepEqual([...POUCH_FRAME_AT], [0, 260, 470, 650, 1150, 1480], '그림이 바뀌는 시각');
+  assert.equal(POUCH_RESULT_MS, 1300, '보상 카드 등장');
+  assert.equal(POUCH_OPEN_MS, 1850, '연출 전체 길이(약 1.85초)');
+  // 크로스페이드 — 두 장을 겹쳐 두고 opacity transition으로 서서히 넘긴다.
+  assert(/img\.pouch-art\s*\{[^}]*opacity: 0[^}]*transition: opacity \d+ms/.test(css),'단계 그림은 opacity 크로스페이드');
+  assert(/\.pouch-art-stack[^{]*\{[^}]*position: relative/.test(css) && css.includes('.pouch-art-stack img.pouch-art') || css.includes('img.pouch-art'),'두 장을 겹치는 스택');
   // CSS 애니메이션 지연이 위 시각과 같아야 한다(같은 박자로 움직인다).
-  assert(/pouch-shake 200ms/.test(css), '1단계 흔들림은 0.20초');
-  assert(/pouch-burst 700ms 200ms/.test(css), '2~4단계 부풀기는 0.20초부터 0.90초까지');
-  assert(/pouch-glow 520ms[^;]*420ms both/.test(css), '빛은 끈이 풀리는 0.42초부터');
-  assert(/pouch-flash 300ms[^;]*620ms both/.test(css), '섬광은 활짝 열리는 0.64초 언저리');
-  assert(/pouch-reveal 420ms[^;]*900ms both/.test(css), '결과 등장은 빛이 퍼진 뒤(0.90초) 시작');
+  assert(/pouch-shake 320ms/.test(css), '1단계 흔들림은 0.32초');
+  assert(/pouch-burst 700ms 250ms/.test(css), '2~4단계 부풀기는 0.25초부터');
+  assert(/pouch-glow 700ms[^;]*650ms both/.test(css), '빛은 활짝 열리는 0.65초에 터진다');
+  assert(/pouch-flash 320ms[^;]*650ms both/.test(css), '섬광은 활짝 열리는 0.65초');
+  assert(/pouch-reveal 460ms[^;]*1300ms both/.test(css), '결과 등장은 주머니가 흘러내리기 시작한 1.30초');
   for (const name of ['pouch-shake', 'pouch-burst', 'pouch-glow', 'pouch-flash', 'pouch-reveal']) assert(css.includes(`@keyframes ${name}`), `${name} 키프레임`);
-  assert(css.includes('.pouch-window-stage.is-opening .pouch-art'),'단계 전환은 주머니 그림에');
+  assert(css.includes('.pouch-window-stage.is-opening .pouch-art-stack'),'단계 전환·흔들림은 주머니 스택에');
   assert(css.includes('.pouch-window-stage.is-opening .pouch-glow'),'빛은 글로우 레이어에');
   assert(css.includes('.pouch-flash'),'섬광 레이어');
   assert(css.includes('.pouch-window-stage.is-opening .pouch-window-result'),'결과 카드는 늦게 등장');
   assert(css.includes('mix-blend-mode: screen'),'빛은 주머니 위에 screen으로 얹는다');
   // 배경을 지운 투명 PNG라 사각 상자 그림자가 남지 않게 알파를 따라가는 shadow를 쓴다.
-  assert(/img\.pouch-art\s*\{[^}]*drop-shadow/.test(css) && !/img\.pouch-art\s*\{[^}]*box-shadow:\s*0 8px 22px/.test(css),'투명 그림에는 drop-shadow');
+  assert(/\.pouch-art-stack\s*\{[^}]*drop-shadow/.test(css) && !/img\.pouch-art\s*\{[^}]*box-shadow:\s*0 8px 22px/.test(css),'투명 그림에는 drop-shadow');
+  // 작업 212(`#4973`): 아담한 카드 + 카드·무대 `overflow: visible` — 빛이 팝업 밖까지 퍼진다.
+  assert(/\.pouch-window-card\s*\{[^}]*overflow: visible/.test(css),'카드가 빛을 자르지 않는다');
+  assert(/\.pouch-window-stage\s*\{[^}]*overflow: visible/.test(css),'무대가 빛을 자르지 않는다');
+  assert(/\.pouch-window-card\s*\{[^}]*width: min\(100%, 330px\)/.test(css),'카드를 아담하게');
+  assert(!/\.pouch-window-card\s*\{[^}]*overflow-y: auto/.test(css),'카드가 다시 스크롤로 빛을 가두지 않는다');
   const reduce = css.slice(css.indexOf('@media (prefers-reduced-motion: reduce)'));
-  assert(reduce.includes('.pouch-window-stage.is-opening .pouch-art') && reduce.includes('.pouch-glow') && reduce.includes('.pouch-flash'),'모션 감소 대응');
+  assert(reduce.includes('.pouch-window-stage.is-opening .pouch-art-stack') && reduce.includes('.pouch-glow') && reduce.includes('.pouch-flash'),'모션 감소 대응');
   // 빛 색은 보상 종류를 따른다 — 금화·스킬북은 황금빛, 장비는 그 등급 색.
   const goldSave = withPouches(1), gold = pouch.openPouch(goldSave, undefined, constant([.10, .10]));
   assert.equal(pouchGlowInk(gold.result), '#ffd977');
@@ -286,7 +300,7 @@ test('개봉은 0.2·0.42·0.64초에 그림이 4단계로 바뀌고 0.9초에 �
   assert.equal(pouchGlowInk(gear.result), pouch.POUCH_RARITY_INK.rare);
 });
 
-test('큰 개봉 창은 [열기]에서 닫힌 주머니부터 4단계로 그림을 갈아 끼운다(0.2·0.42·0.64초)', async () => {
+test('큰 개봉 창은 [열기]에서 닫힌 주머니부터 6단계로 그림을 겹쳐 넘긴다(0.26·0.47·0.65·1.15·1.48초)', async () => {
   const previous = globalThis.document;
   globalThis.document = { createElement: tag => element(tag) };
   try {
@@ -294,30 +308,92 @@ test('큰 개봉 창은 [열기]에서 닫힌 주머니부터 4단계로 그림�
     const ui = { root: element(), modal: element(), openModal: 'equipment', renderModal() {}, message() {}, world: { save, onChange() {} } };
     const api = openPouchWindow(ui, undefined, { delay: 30 });
     const stage = find(api.overlay, node => node.className === 'pouch-window-stage');
-    const art = find(api.overlay, node => typeof node.className === 'string' && node.className.includes('pouch-art'));
-    assert(stage && art, '주머니 그림과 연출 무대');
-    assert.equal(art.src, pouchArt.POUCH_FRAME_URLS[0], '처음에는 닫힌 주머니');
+    const stack = find(api.overlay, node => node.className === 'pouch-art-stack');
+    assert(stage && stack, '주머니 그림과 연출 무대');
+    // 크로스페이드 — 두 장이 겹쳐 있고 `is-front`인 장만 보인다.
+    const layers = () => stack.children.filter(child => child.tag === 'img');
+    assert.equal(layers().length, 2, '그림 두 장을 겹쳐 둔다');
+    const front = () => layers().find(child => String(child.className).includes('is-front'));
+    const back = () => layers().find(child => !String(child.className).includes('is-front'));
+    assert.equal(front().src, pouchArt.POUCH_FRAME_URLS[0], '처음에는 닫힌 주머니');
+    assert.equal(back().src, pouchArt.POUCH_FRAME_URLS[0], '두 장 모두 같은 그림으로 시작');
     assert.equal(stage.dataset.frame, '1');
     const open = find(api.overlay, node => node.textContent === '열기');
     open.onclick();
-    assert.equal(art.src, pouchArt.POUCH_FRAME_URLS[0], '누른 직후에도 1단계(흔들림)');
-    await new Promise(resolve => setTimeout(resolve, 260));
-    assert.equal(art.src, pouchArt.POUCH_FRAME_URLS[1], '0.2초 — 끈 헐거워짐');
-    assert.equal(stage.dataset.frame, '2');
-    await new Promise(resolve => setTimeout(resolve, 220));
-    assert.equal(art.src, pouchArt.POUCH_FRAME_URLS[2], '0.42초 — 끈 풀리고 빛이 새어 나옴');
-    await new Promise(resolve => setTimeout(resolve, 220));
-    assert.equal(art.src, pouchArt.POUCH_FRAME_URLS[3], '0.64초 — 활짝 열림');
-    assert.equal(stage.dataset.frame, '4');
+    assert.equal(front().src, pouchArt.POUCH_FRAME_URLS[0], '누른 직후에도 1단계(흔들림)');
     await new Promise(resolve => setTimeout(resolve, 300));
-    // `한 번 더 열기`는 다시 닫힌 주머니(1단계)부터 새로 시작한다.
-    const again = find(api.overlay, node => node.textContent === '한 번 더 열기');
-    assert(again, '[한 번 더 열기]');
+    assert.equal(front().src, pouchArt.POUCH_FRAME_URLS[1], '0.26초 — 끈 헐거워짐');
+    assert.equal(stage.dataset.frame, '2');
+    await new Promise(resolve => setTimeout(resolve, 230));
+    assert.equal(front().src, pouchArt.POUCH_FRAME_URLS[2], '0.47초 — 끈 풀리고 빛이 새어 나옴');
+    await new Promise(resolve => setTimeout(resolve, 200));
+    assert.equal(front().src, pouchArt.POUCH_FRAME_URLS[3], '0.65초 — 활짝 열림');
+    assert.equal(stage.dataset.frame, '4');
+    await new Promise(resolve => setTimeout(resolve, 520));
+    assert.equal(front().src, pouchArt.POUCH_FRAME_URLS[4], '1.15초 — 힘없이 내려앉기 시작');
+    await new Promise(resolve => setTimeout(resolve, 360));
+    assert.equal(front().src, pouchArt.POUCH_FRAME_URLS[5], '1.48초 — 바닥에 납작하게 접힘');
+    assert.equal(stage.dataset.frame, '6');
+    // `1개 더 열기`는 다시 닫힌 주머니(1단계)부터 새로 시작한다(두 장 모두 되돌린다).
+    const again = find(api.overlay, node => node.textContent === '1개 더 열기');
+    assert(again, '[1개 더 열기]');
     again.onclick();
-    assert.equal(art.src, pouchArt.POUCH_FRAME_URLS[0], '다시 1단계부터');
+    assert.equal(front().src, pouchArt.POUCH_FRAME_URLS[0], '다시 1단계부터');
+    assert.equal(stack.dataset.pouchFront, '0', '되돌릴 때는 앞 장을 다시 1번 레이어로');
     assert.equal(stage.dataset.frame, '1');
     await new Promise(resolve => setTimeout(resolve, 10));
     api.close();
+  } finally { globalThis.document = previous; }
+});
+
+test('가방 칸 수량 배지는 스킬북은 오른쪽 아래·주머니는 오른쪽 위에 붙고 칸은 모두 1:1 정사각형이다(작업 212 `#4936`·`#4960`·`#5006`)', () => {
+  // 스킬북 칸에서 세로로 길쭉하게 만들던 규칙은 없어졌다(다른 칸과 같은 정사각형).
+  assert(!/\.bag-item\.skillbook-item\s*\{[^}]*aspect-ratio: auto/.test(css), '스킬북 칸 aspect-ratio: auto 제거');
+  assert(!/\.bag-item\.skillbook-item\s*\{[^}]*min-height: 84px/.test(css), '스킬북 칸 min-height: 84px 제거');
+  assert(/\.bag-item\.skillbook-item\s*\{[^}]*aspect-ratio: 1/.test(css), '스킬북 칸도 1:1 정사각형');
+  // 직업 배지(왼쪽 위)와 `×1`이 겹치지 않게 스킬북 수량은 오른쪽 아래로.
+  assert(/\.bag-item\.skillbook-item \.skillbook-count\s*\{[^}]*bottom: 1px/.test(css), '스킬북 ×1은 오른쪽 아래');
+  assert(/\.bag-item\.skillbook-item \.skillbook-count\s*\{[^}]*right: 2px/.test(css), '스킬북 ×1은 오른쪽');
+  // 주머니 칸은 `×100` 같은 세 자리도 들어가게 오른쪽 위 그대로.
+  assert(/\.skillbook-count\s*\{[^}]*top: 2px[^}]*right: 2px/.test(css), '주머니 ×N은 오른쪽 위');
+  assert(/\.skillbook-count\s*\{[^}]*white-space: nowrap/.test(css), '세 자리 수량이 줄바꿈되지 않는다');
+  // 가방 10칸은 셀에서도 수량 배지를 단다(스킬북 ×1 유지 — `#4960`).
+  const previous = globalThis.document;
+  globalThis.document = { createElement: tag => element(tag) };
+  try {
+    const save = withPouches(100);
+    save.job = 'warrior';
+    save.bag.push({ id: 'b1', name: '[스킬북] 더블 샷', slot: 'skillbook', kind: 'skillbook', skillId: 'doubleShot', rarity: 'rare', stats: {} });
+    const ui = { world: { save, onChange() {} }, selected: undefined, bagFilter: 'all', bagRaritySort: false, bagJobOnly: false, salvageRarity: 'common', autoSalvage: false, salvagePlus: 4, openModal: 'equipment', modal: element(), renderModal() {}, message() {}, iconPath() { return ''; } };
+    const dialog = element();
+    renderInventory.call(ui, dialog);
+    const grid = find(dialog, node => node.className?.includes('bag-grid'));
+    const pouchCell = grid.children.find(node => String(node.className).includes('pouch-item'));
+    assert(toString(pouchCell).includes('×100'), '주머니 100개도 ×100으로 표시');
+    const bookCell = grid.children.find(node => String(node.className).includes('skillbook-item'));
+    assert(bookCell, '스킬북 칸');
+    assert(toString(bookCell).includes('×1'), '스킬북도 ×1 표시');
+  } finally { globalThis.document = previous; }
+});
+
+test('가방에서 주머니 그림을 한 번 누르면 상세 패널 없이 바로 개봉 창이 열린다(작업 212 `#4984`)', () => {
+  const previous = globalThis.document;
+  globalThis.document = { createElement: tag => element(tag), body: element() };
+  try {
+    const save = withPouches(2);
+    const modal = element(); modal.querySelector = () => undefined;
+    const ui = { root: element(), modal, bagFilter: 'all', bagRaritySort: false, bagJobOnly: false, salvageRarity: 'common', autoSalvage: false, salvagePlus: 4, openModal: 'equipment', renderModal() {}, message() {}, world: { save, onChange() {} }, iconPath() { return ''; } };
+    const dialog = element();
+    renderInventory.call(ui, dialog);
+    const grid = find(dialog, node => node.className?.includes('bag-grid'));
+    const cell = grid.children.find(node => String(node.className).includes('pouch-item'));
+    assert(cell, '가방의 주머니 칸');
+    cell.onclick();
+    assert.equal(ui.root.children.length, 1, '한 번 누르면 개봉 창이 바로 얹힌다');
+    const overlay = ui.root.children[0];
+    assert(String(overlay.className).includes('pouch-window'));
+    assert(find(overlay, node => node.textContent === '열기'), '가운데 [열기] 버튼');
+    assert.equal(find(overlay, node => node.className === 'pouch-window-title').textContent, '무작위 보물 주머니');
   } finally { globalThis.document = previous; }
 });
 
@@ -328,6 +404,11 @@ test('개봉 결과 카드는 금화는 금화로, 장비·스킬북은 등급 �
     const gold = pouchResultCard({ kind: 'gold', gold: 3000 });
     assert(gold.className.includes('pouch-result-gold'));
     assert(toString(gold).includes('3,000'));
+    // 작업 212(`#4936`): 금화 당첨도 장비·스킬북처럼 큰 그림으로 드러난다 — 우리 게임 금화 뭉치.
+    const pile = find(gold, node => node.tag === 'img' && node.src === pouchArt.POUCH_GOLD_PILE_URL);
+    assert(pile, '금화 뭉치 그림');
+    assert(find(gold, node => String(node.className).includes('pouch-result-pile')), '금화는 큰 그림 자리');
+    assert(css.includes('.pouch-result-art.pouch-result-pile img'), '금화 뭉치 크기 규칙');
     const gearSave = withPouches(1);
     const gear = pouch.openPouch(gearSave, undefined, constant([.60, .70]));
     const card = pouchResultCard(gear.result);
