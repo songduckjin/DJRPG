@@ -8,6 +8,7 @@
 
 | 작업 | 담당자 | 브랜치 | 수정 예정 파일 / 영향 영역 | 위험 등급 | 상태 |
 |---|---|---|---|---|---|
+| [작업 220] **운영 우편 받기 500 핫픽스**(사용자 제보 `#5539`) — 시즌2 다이아 우편 ID를 `all-idle-launch-diamonds-2026-11-20-s2`로 올리고, 시즌1 ID 우편을 이미 받아 둔 계정은 `journeyState`에서 미수령 우편 ID를 새 ID로 바꿔 `djrpg_shop_ledger` UNIQUE 충돌 없이 4,000 다이아를 한 번만 받게 함 | fks3997 | `hotfix/220-diamond-mail-dup` | `server/journey-state.mjs`·`tests/journey.test.mjs`·`docs/{TASK,WORKLOG}.md` | 낮음 | [x] |
 | [작업 219] 첫 화면 `Failed to fetch dynamically imported module` 초기화 오류 완화 — 배경 모듈 정적 로딩·순환 참조 분리·Vite 청크 실패 1회 재시도 | Codex | `codex/219-boot-import` | `src/game/{wasteland,wastelandGeometry,ambientMotion,ambientScene}.ts`, `index.html`, `public/boot-recovery.js`(신규), `tests/boot-recovery.test.mjs`(신규), `docs/{TASK,CODE_MAP,QUICK_PATCH}.md` | 보통 | [-] |
 | [작업 218] 월드보스 4개 변경만 운영 배포(216) | fks3997 | `release/218-worldboss-rewards` | 월드보스 서버/클라이언트/보상 UI·관련 테스트·문서. 주머니 배포 후 통합, 나머지 누적 변경 제외 | 보통 | [x] |
 | [작업 216] 월드보스 보상 재조정·하루 3회 최고 기록·등록/갱신 알림 | fks3997 | `preview/gravel-background-fks3997` | `server/world-boss.mjs`·`src/game/worldBossLive.ts`·`src/ui/{worldBossPresentation,worldBossField}.ts`·`src/ui/modals/worldBossModal.ts`·관련 테스트·공개/개인 작업 문서 | 보통 | [x] |

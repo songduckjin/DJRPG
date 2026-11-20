@@ -3,7 +3,13 @@ const HOUR = 3600000, DAY = 24 * HOUR;
 export const UPDATE_NOTICE_ID = 'update-2026-11-20';
 /** 우편 만료 = 2026-11-28 00:00 KST. 이 시각을 넘겨 처음 접속한 계정에는 보상을 붙이지 않는다. */
 export const UPDATE_NOTICE_UNTIL = Date.UTC(2026, 10, 27, 15, 0, 0);
-export const DIAMOND_MAIL_ID = 'all-idle-launch-diamonds-2026-11-20';
+/** 시즌1에 지급한 옛 다이아 우편 ID — 시즌2 우편은 **다른 ID**를 쓴다.
+ *  다이아 지급은 `djrpg_shop_ledger`의 `UNIQUE(account_id,source_type,source_id)`로 한 번만 기록되는데,
+ *  시즌 초기화는 `djrpg_journey`만 비우고 원장은 남긴다(`server/season.mjs`). 그래서 시즌1에 이 우편을
+ *  받은 계정이 시즌2에 같은 ID로 다시 받으면 `INSERT`가 UNIQUE 충돌(500)로 터졌다(핫픽스 220, 사용자 제보 `#5539`). */
+export const LEGACY_DIAMOND_MAIL_ID = 'all-idle-launch-diamonds-2026-11-20';
+/** 시즌2 전 슬롯 방치 기능 기념 다이아 4,000개 우편 — 시즌마다 새 ID를 쓴다. */
+export const DIAMOND_MAIL_ID = 'all-idle-launch-diamonds-2026-11-20-s2';
 /** 새 시즌 안내 우편 — 시즌 초기화 뒤 처음 들어온 모험가가 당황하지 않도록 한 번만 넣는다(작업 208).
  *  보상은 `1,000G + 무작위 보물 주머니 1개`다(작업 208 사용자 요청 `#4069`). */
 export const SEASON_NOTICE_ID = 'season-2-open';
@@ -119,6 +125,7 @@ export function advanceJourney(state, before, save, now = Date.now(), diamondMai
     }
   }
   state.achievements ??= []; state.mail ??= [];
+  migrateLegacyDiamondMail(state);
   grantUpdateNotice(state, now);
   grantSeasonNotice(state, now);
   // 미리보기 테스트 우편(작업 210·211): 지급은 미리보기 호스트에서만, 삭제는 **운영 호스트에서만** 한다.
@@ -126,12 +133,33 @@ export function advanceJourney(state, before, save, now = Date.now(), diamondMai
   if (previewMode === true || previewMode === 'preview') grantPreviewPouchMail(state, now, true);
   else if (previewMode === 'production') stripPreviewPouchMail(state);
   if (diamondMailEligible) {
+    // 옛 ID 우편을 이미 받아 둔 계정은 위 `migrateLegacyDiamondMail`이 새 ID로 바꿔 두었다 — 새로 붙이지 않는다.
     state.notices ??= [];
     if (!state.notices.includes(DIAMOND_MAIL_ID) && !state.mail.some(entry => entry.id === DIAMOND_MAIL_ID)) {
       state.notices.push(DIAMOND_MAIL_ID);
       state.mail.push({ id: DIAMOND_MAIL_ID, title: '다이아 4,000개 지급', sender: '운영팀', body: '전 슬롯 방치 기능 출시를 기념해 계정마다 다이아 4,000개를 드립니다.', createdAt: now, expiresAt: null, gold: 0, books: 0, diamonds: 4000, claimedAt: null, read: false });
     }
   }
+  return state;
+}
+/**
+ * 시즌1 다이아 우편(`LEGACY_DIAMOND_MAIL_ID`)이 우편함에 **미수령**으로 남아 있으면 시즌2 ID로 바꾼다(핫픽스 220).
+ *
+ * 시즌 초기화 전에 들어온 우편은 세이브로 남아 있어 시즌2에도 `받기`가 눌리는데, 옛 ID는 시즌1 원장 행과
+ * 부딪혀 500이 났다. ID만 새 시즌 것으로 바꾸면 같은 보상을 그대로 한 번 받을 수 있고,
+ * 이미 받은(`claimedAt`) 우편은 건드리지 않는다. `state.notices`의 지급 이력도 새 ID로 맞춰 다시 붙지 않게 한다.
+ */
+export function migrateLegacyDiamondMail(state) {
+  if (!state || !Array.isArray(state.mail)) return state;
+  const legacy = state.mail.find(entry => entry?.id === LEGACY_DIAMOND_MAIL_ID && !entry.claimedAt);
+  if (!legacy) return state;
+  if (state.mail.some(entry => entry?.id === DIAMOND_MAIL_ID)) {
+    // 새 시즌 우편이 이미 따로 있으면 옛 우편은 지운다 — 같은 4,000 다이아를 두 통 받지 않게.
+    state.mail = state.mail.filter(entry => entry !== legacy);
+  } else legacy.id = DIAMOND_MAIL_ID;
+  state.notices ??= [];
+  state.notices = state.notices.map(id => (id === LEGACY_DIAMOND_MAIL_ID ? DIAMOND_MAIL_ID : id));
+  if (!state.notices.includes(DIAMOND_MAIL_ID)) state.notices.push(DIAMOND_MAIL_ID);
   return state;
 }
 /** `previewMode`: `'preview'`·`'production'`·`false`(모름) — `advanceJourney`의 6번째 인자와 같은 뜻이다(작업 211). */

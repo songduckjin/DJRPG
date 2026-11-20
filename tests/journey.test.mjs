@@ -7,7 +7,7 @@ import {randomUUID} from 'node:crypto';
 import {createClient} from '@libsql/client';
 import {schema,account,transaction,writeSave,reconcileItems} from '../server/database.mjs';
 import {snapshot,mutate} from '../server/journey.mjs';
-import {periods,advanceJourney,PREVIEW_POUCH_MAIL_ID} from '../server/journey-state.mjs';
+import {periods,advanceJourney,PREVIEW_POUCH_MAIL_ID,DIAMOND_MAIL_ID,LEGACY_DIAMOND_MAIL_ID} from '../server/journey-state.mjs';
 import {isPreviewHost,isProductionHost} from '../server/season.mjs';
 let db,directory;
 const save=()=>({version:1,name:'전사',gender:'male',gold:0,bag:[],equipment:{},kills:0,bossKills:0,playSeconds:0,level:1,floor:1,maxFloor:1,equipmentCollection:[],learned:[],passives:[],skillLevels:{}});
@@ -76,7 +76,7 @@ test('mail read, claim, deletion, item ownership and concurrent reward requests 
   assert.equal(results.filter(r=>r.status==='fulfilled').length,1);assert.equal((await account(db,'race')).save.gold,300);
 });
 test('guests cannot claim; expired mail and unmet achievements never grant rewards',async()=>{
-  await seed('guest',true);assert.equal((await snapshot(db,'guest')).mail.some(entry=>entry.id==='all-idle-launch-diamonds-2026-11-20'),false);await assert.rejects(act('guest','daily'),e=>e.code==='GUEST_READ_ONLY');
+  await seed('guest',true);assert.equal((await snapshot(db,'guest')).mail.some(entry=>entry.id===DIAMOND_MAIL_ID),false);await assert.rejects(act('guest','daily'),e=>e.code==='GUEST_READ_ONLY');
   await seed('expired');await snapshot(db,'expired');
   const stored=(await db.execute({sql:'SELECT state_json FROM djrpg_journey WHERE account_id=?',args:['expired']})).rows[0];const state=JSON.parse(stored.state_json);for(const entry of state.mail)entry.expiresAt=0;
   await db.execute({sql:'UPDATE djrpg_journey SET state_json=? WHERE account_id=?',args:[JSON.stringify(state),'expired']});
@@ -117,14 +117,14 @@ test('업데이트 우편 보상은 정확히 한 번만 지급되고 삭제 뒤
   await assert.rejects(act('notice','mail',notice.id),error=>error.code==='NOT_AVAILABLE','같은 우편을 두 번 받을 수 없다');
   await act('notice',undefined,'all','journey-delete');
   const after=await snapshot(db,'notice');
-  assert.deepEqual(after.mail.map(entry=>entry.id),['welcome-v1','season-2-open','all-idle-launch-diamonds-2026-11-20'],'수령한 업데이트 우편만 지운다');
+  assert.deepEqual(after.mail.map(entry=>entry.id),['welcome-v1','season-2-open',DIAMOND_MAIL_ID],'수령한 업데이트 우편만 지운다');
   assert.equal(after.mail.filter(entry=>entry.id==='update-2026-11-20').length,0,'삭제 뒤 다시 붙지 않는다');
   assert.equal((await account(db,'notice')).save.gold,3000,'보상도 한 번뿐이다');
 });
 
 test('다이아 우편은 계정당 한 번만 지급되고 수령은 원장에 기록된다',async()=>{
   await seed('diamonds');const first=await snapshot(db,'diamonds');
-  const gift=first.mail.find(entry=>entry.id==='all-idle-launch-diamonds-2026-11-20');
+  const gift=first.mail.find(entry=>entry.id===DIAMOND_MAIL_ID);
   assert.equal(gift.diamonds,4000);
   await act('diamonds','mail',gift.id);
   await assert.rejects(act('diamonds','mail',gift.id),error=>error.code==='NOT_AVAILABLE');
@@ -133,6 +133,60 @@ test('다이아 우편은 계정당 한 번만 지급되고 수령은 원장에 
   assert.equal(Number(wallet.diamonds),4000);assert.equal(ledger.length,1);assert.equal(Number(ledger[0].diamonds_delta),4000);
   await act('diamonds',undefined,'all','journey-delete');
   assert.equal((await snapshot(db,'diamonds')).mail.some(entry=>entry.id===gift.id),false);
+});
+
+// 핫픽스 220(`#5539`): 시즌 초기화는 `djrpg_journey`만 비우고 다이아 원장은 남긴다. 시즌1에 우편 다이아를
+// 받은 계정이 시즌2 우편을 다시 받으면 같은 원장 ID로 INSERT하다 UNIQUE 충돌(500)로 우편 받기가 막혔다.
+const seasonOneClaim = async (id, amount = 1000) => {
+  await db.execute({ sql: 'INSERT INTO djrpg_shop_ledger(account_id,source_type,source_id,diamonds_delta,created_at) VALUES (?,?,?,?,?)', args: [id, 'mail', LEGACY_DIAMOND_MAIL_ID, amount, 1] });
+};
+const resetToSeasonTwo = async id => {
+  await db.execute({ sql: 'DELETE FROM djrpg_journey WHERE account_id=?', args: [id] });
+  await db.execute({ sql: 'UPDATE djrpg_shop_wallet SET diamonds=0 WHERE account_id=?', args: [id] });
+};
+const walletOf = async id => Number((await db.execute({ sql: 'SELECT diamonds FROM djrpg_shop_wallet WHERE account_id=?', args: [id] })).rows[0].diamonds);
+
+test('시즌1에 다이아 우편을 받은 계정도 시즌2 우편을 모두 받기·개별 받기로 오류 없이 받는다 (핫픽스 220)', async () => {
+  // 시즌1 원장 기록이 남은 채 시즌2로 초기화된 두 계정 — 하나는 `모두 받기`, 하나는 개별 `받기`.
+  for (const id of ['s1-all', 's1-one']) { await seed(id); await seasonOneClaim(id); await resetToSeasonTwo(id); }
+  const all = await snapshot(db, 's1-all');
+  const diamondAll = all.mail.find(entry => entry.id === DIAMOND_MAIL_ID);
+  assert(diamondAll, '시즌2 다이아 우편은 새 ID로 온다');
+  assert.equal(diamondAll.diamonds, 4000);
+  assert.equal(all.mail.some(entry => entry.id === LEGACY_DIAMOND_MAIL_ID), false, '옛 ID 우편은 새로 붙지 않는다');
+  const claimedAll = await act('s1-all', 'mail', 'all');
+  assert.equal(await walletOf('s1-all'), 4000, '모두 받기로 4,000 다이아가 들어간다');
+  assert.equal(claimedAll.journey.mail.filter(entry => !entry.claimedAt).length, 0);
+  const ledger = (await db.execute({ sql: "SELECT source_id FROM djrpg_shop_ledger WHERE account_id='s1-all' AND source_type='mail' ORDER BY id", args: [] })).rows;
+  assert.deepEqual(ledger.map(row => row.source_id), [LEGACY_DIAMOND_MAIL_ID, DIAMOND_MAIL_ID], '시즌1·시즌2 기록이 따로 남는다');
+
+  const one = await snapshot(db, 's1-one');
+  const diamondOne = one.mail.find(entry => entry.id === DIAMOND_MAIL_ID);
+  const claimedOne = await act('s1-one', 'mail', diamondOne.id);
+  assert(claimedOne.journey.mail.find(entry => entry.id === DIAMOND_MAIL_ID).claimedAt, '개별 받기도 성공한다');
+  assert.equal(await walletOf('s1-one'), 4000);
+  await assert.rejects(act('s1-one', 'mail', DIAMOND_MAIL_ID), error => error.code === 'NOT_AVAILABLE', '두 번째 받기는 500이 아니라 안내 오류다');
+});
+
+test('시즌 초기화 전에 받아 둔 옛 ID 다이아 우편은 새 시즌 ID로 바뀌어 한 번만 받힌다 (핫픽스 220)', async () => {
+  await seed('s1-pending');
+  await seasonOneClaim('s1-pending');
+  // 시즌2 서버가 옛 코드로 붙여 둔 상태: 옛 ID 미수령 우편 + 옛 ID 지급 이력.
+  const legacyMail = { id: LEGACY_DIAMOND_MAIL_ID, title: '다이아 4,000개 지급', sender: '운영팀', body: '전 슬롯 방치 기능 출시를 기념해 계정마다 다이아 4,000개를 드립니다.', createdAt: 1, expiresAt: null, gold: 0, books: 0, diamonds: 4000, claimedAt: null, read: false };
+  await db.execute({ sql: 'INSERT INTO djrpg_journey(account_id,state_json) VALUES (?,?)', args: ['s1-pending', JSON.stringify({ achievements: [], notices: [LEGACY_DIAMOND_MAIL_ID], mail: [legacyMail] })] });
+  const view = await snapshot(db, 's1-pending');
+  const diamonds = view.mail.filter(entry => Number(entry.diamonds ?? 0) > 0);
+  assert.equal(diamonds.length, 1, '같은 4,000 다이아 우편이 두 통이 되지 않는다');
+  assert.equal(diamonds[0].id, DIAMOND_MAIL_ID, '미수령 옛 우편은 새 시즌 ID로 바뀐다');
+  assert.equal(diamonds[0].claimedAt, null);
+  const stored = JSON.parse((await db.execute({ sql: 'SELECT state_json FROM djrpg_journey WHERE account_id=?', args: ['s1-pending'] })).rows[0].state_json);
+  assert(stored.notices.includes(DIAMOND_MAIL_ID), '지급 이력도 새 ID로 맞춘다');
+  assert.equal(stored.notices.includes(LEGACY_DIAMOND_MAIL_ID), false, '옛 ID 지급 이력은 남지 않는다');
+  const claimed = await act('s1-pending', 'mail', DIAMOND_MAIL_ID);
+  assert(claimed.journey.mail.find(entry => entry.id === DIAMOND_MAIL_ID).claimedAt, '옛 우편을 그대로 받을 수 있다');
+  assert.equal(await walletOf('s1-pending'), 4000);
+  const again = await snapshot(db, 's1-pending');
+  assert.equal(again.mail.some(entry => entry.id === LEGACY_DIAMOND_MAIL_ID), false, '받은 뒤 옛 ID 우편이 다시 붙지 않는다');
 });
 
 test('period progress counts once per save and legacy clients retain new totals',async()=>{
