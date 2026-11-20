@@ -27,6 +27,13 @@
 .login-submit:disabled { opacity: .55; cursor: wait; }
 .login-guest { margin-top: 12px; border-color: #6b5a4d; background: #282126; color: #d5c3b2; font-weight: 500; }
 .login-note { margin: 12px 0 0; color: #9e8c83; font-size: 10px; }
+/* [작업 242] 서버 점검 안내 — 2026-11-21 09:00 KST까지 API 일일 한도가 열리지 않는 동안 로그인 화면 상단에 뜨는 배너다.
+   시각이 지나면 안내가 생기지 않으므로 배너를 내리는 코드는 따로 두지 않는다. */
+.maintenance-banner { margin: 0 0 16px; padding: 10px 12px; border: 1px solid #b9843c; border-left: 3px solid #e8a94e; background: linear-gradient(160deg, #3a2a1bf2, #221a17f2); box-shadow: inset 0 0 20px #d79a3a24, 0 2px 10px #00000059; text-align: left; }
+.maintenance-banner strong { display: block; color: #ffcf87; font: 700 12px 'Noto Sans KR', sans-serif; letter-spacing: .3px; }
+.maintenance-banner span { display: block; margin-top: 4px; color: #e9c9a1; font-size: 11px; line-height: 1.55; }
+.login-error.is-notice { color: #f3cd93; }
+@media (max-height: 700px) { .maintenance-banner { margin-bottom: 12px; padding: 8px 10px; } .maintenance-banner span { font-size: 10px; } }
 .season-setup .login-panel { display: flex; flex-direction: column; gap: 10px; }
 .season-setup .login-subtitle { margin-bottom: 4px; }
 .season-setup .season-note { margin: 0 0 4px; color: #c8a97e; font-size: 11px; line-height: 1.6; text-align: left; }
