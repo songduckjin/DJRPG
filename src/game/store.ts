@@ -62,11 +62,13 @@ export function parseSave(data: unknown, accountId?: string): Save {
     if (typeof data !== 'object' || data === null) throw new Error('저장 데이터가 손상되었습니다.');
     const value = data as Partial<Save>;
     if (value.version !== 1) throw new Error('지원하지 않는 저장 버전입니다.');
-    const defaults = freshSave(value.gender === 'female' ? 'female' : 'male', value.job === 'archer' ? 'archer' : 'warrior');
+    const job: Job = value.job === 'archer' ? 'archer' : 'warrior';
+    const defaults = freshSave(value.gender === 'female' ? 'female' : 'male', job);
     if (accountId) defaults.accountId = accountId;
     const learned = Array.isArray(value.learned) ? value.learned.filter(id => allSkillIds.includes(id)) : defaults.learned;
     const active = [...new Set(learned)];
-    const quickSlots = normalizeQuickSlots(value.quickSlots, active);
+    // 퀵슬롯은 그 직업의 스킬만 인정한다 — 직업을 넘기지 않으면 궁수 슬롯이 전사 목록으로 걸러져 사라진다.
+    const quickSlots = normalizeQuickSlots(value.quickSlots, active, job);
     const passives = Array.isArray(value.passives) ? [...new Set(value.passives.filter(id => allPassiveIds.includes(id)))] : [];
     const storedLevels = isRecord(value.skillLevels) ? value.skillLevels : {};
     const skillLevels = Object.fromEntries([...active, ...passives].map(id => {
