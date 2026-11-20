@@ -102,9 +102,7 @@
 .character-create input { min-height: 44px; padding: 8px; background: #151116; color: #f6e5cc; border: 1px solid #967657; }
 .character-gender button.selected { border-color: #e0b16e; background: #60412e; }
 .character-error { min-height: 1em; color: #f2a49d; }
-.warehouse-item { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 7px 0; border-bottom: 1px solid #57453e; }
-.warehouse-item span { overflow-wrap: anywhere; }
-.warehouse-item button, .character-pages button, .character-gender button, .character-create button, .modal-dialog > button { min-height: 44px; padding: 8px 12px; border: 1px solid #987652; background: #38272a; color: #f3dbb6; }
+.character-pages button, .character-gender button, .character-create button, .modal-dialog > button { min-height: 44px; padding: 8px 12px; border: 1px solid #987652; background: #38272a; color: #f3dbb6; }
 .modal-dialog > button { margin-top: 12px; }
 .modal-dialog.equipment-modal { display: flex; flex-direction: column; height: min(92dvh, 850px); max-height: 92dvh; overflow: hidden; padding: 9px; }
 .modal-dialog header { display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #73574b; margin-bottom: 8px; }
@@ -556,3 +554,51 @@ img.pouch-icon { display: block; object-fit: contain; border-radius: 4px; }
 .pouch-rate-row.rarity-common .pouch-rate-value, .pouch-rate-row.rarity-magic .pouch-rate-value, .pouch-rate-row.rarity-rare .pouch-rate-value,
 .pouch-rate-row.rarity-epic .pouch-rate-value, .pouch-rate-row.rarity-unique .pouch-rate-value, .pouch-rate-row.rarity-legendary .pouch-rate-value { color: inherit; }
 .pouch-rate-summary { margin: 5px 0 0; color: #94826f; font-size: 9px; text-align: center; line-height: 1.4; }
+
+/* ── 공용창고 (작업 225) ────────────────────────────────────────────────────────
+   예전 공용창고는 이름 줄 목록(`.warehouse-item`)이라 무엇인지 알아보기 어려웠다.
+   장비창 가방과 같은 아이콘 슬롯(`.bag-item`)을 쓰되, 두 영역(공용창고 · 내 가방)이
+   360~390px 폰 화면에서도 각자 스크롤되도록 모달을 세로 flex로 고정한다.
+   선택자는 전부 `.warehouse-*`로만 두어 다른 모달 규칙을 건드리지 않는다. */
+.modal-dialog.warehouse-modal { display: flex; flex-direction: column; gap: 5px; height: auto; max-height: 92dvh; overflow: hidden; padding: 9px; }
+.warehouse-modal .warehouse-summary { display: flex; flex: none; align-items: baseline; justify-content: space-between; gap: 6px; padding: 0 1px; color: #cbb79d; font-size: 11px; }
+.warehouse-gold { color: #ffd977; font-weight: 700; }
+.warehouse-counts { color: #d9c4a6; font-variant-numeric: tabular-nums; }
+.warehouse-tools { display: flex; flex: none; flex-wrap: wrap; align-items: center; gap: 4px; }
+.warehouse-mode { border: 1px solid #6d5948; border-radius: 4px; background: #282023; color: #bba998; padding: 5px 8px; font-size: 11px; touch-action: manipulation; }
+.warehouse-mode.is-on { border-color: #c8a26a; background: #4a342a; color: #ffe1b5; font-weight: 700; }
+.warehouse-batch { border: 1px solid #c8a26a; border-radius: 4px; background: linear-gradient(#6d492b, #3a281f); color: #ffe0a6; padding: 5px 9px; font-size: 11px; font-weight: 700; touch-action: manipulation; }
+.warehouse-batch[hidden], .warehouse-detail[hidden] { display: none; }
+.warehouse-batch:disabled { opacity: .45; }
+.warehouse-panes { display: flex; flex: 0 1 auto; flex-direction: column; gap: 5px; min-height: 0; overflow: hidden; }
+.warehouse-pane { display: flex; flex: 1 1 auto; flex-direction: column; min-height: 126px; max-height: 44dvh; padding: 3px 5px 4px; border: 1px solid #4c3f39; background: #1c171a; }
+.warehouse-pane-title { flex: none; margin: 0 0 3px; color: #e0c79f; font-size: 11.5px; font-variant-numeric: tabular-nums; }
+.warehouse-pane .warehouse-grid { flex: 1 1 auto; min-height: 0; max-height: 34dvh; overflow-y: auto; overflow-x: hidden; scrollbar-gutter: stable; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 3px; padding: 1px; }
+.warehouse-modal .bag-item .item-icon { width: 100%; height: 100%; max-width: 34px; max-height: 34px; min-height: 0; }
+.warehouse-modal .bag-item .warehouse-plus { position: absolute; left: 1px; bottom: 1px; margin: 0; font-size: 9px; line-height: 1; }
+.warehouse-slot.is-busy { opacity: .4; filter: grayscale(.5); }
+.warehouse-slot.is-picked { outline: 2px solid #7ce1b0; outline-offset: -3px; box-shadow: inset 0 0 10px #7ce1b055; }
+.warehouse-slot.is-picked::after { content: '✓'; position: absolute; top: 0; left: 1px; color: #7ce1b0; font-size: 10px; font-weight: 900; line-height: 1.1; pointer-events: none; }
+.warehouse-detail { display: flex; flex: none; flex-direction: column; gap: 3px; margin-top: 1px; padding: 6px 8px; border: 1px solid #6d5948; background: #241d20; }
+.warehouse-detail-head { display: flex; align-items: baseline; justify-content: space-between; gap: 6px; }
+.warehouse-detail-head b { color: #f3e2c6; font-size: 12.5px; overflow-wrap: anywhere; }
+.warehouse-grade { flex: none; font-size: 10.5px; font-weight: 700; }
+.warehouse-grade.rarity-common { color: #9ca3af; } .warehouse-grade.rarity-magic { color: #60a5fa; } .warehouse-grade.rarity-rare { color: #facc15; }
+.warehouse-grade.rarity-epic { color: #c084fc; } .warehouse-grade.rarity-unique { color: #fb923c; } .warehouse-grade.rarity-legendary { color: #f87171; }
+.warehouse-detail-meta { color: #ac9e94; font-size: 10px; }
+.warehouse-detail-stats { display: flex; flex-wrap: wrap; gap: 2px 10px; color: #cbe3cf; font-size: 10.5px; }
+.warehouse-detail-note { margin: 0; color: #b7a696; font-size: 10.5px; line-height: 1.35; }
+.warehouse-detail-actions { display: flex; gap: 6px; margin-top: 2px; }
+.warehouse-detail-actions button { flex: 1 1 0; min-height: 30px; border: 1px solid #987652; border-radius: 4px; background: #38272a; color: #f3dbb6; font-size: 11.5px; touch-action: manipulation; }
+.warehouse-detail-actions .warehouse-move { border-color: #c8a26a; background: linear-gradient(#6d492b, #3a281f); color: #ffe0a6; font-weight: 700; }
+.warehouse-detail-actions button:disabled { opacity: .45; }
+.warehouse-detail-actions .warehouse-detail-close { flex: 0 0 34%; }
+.warehouse-note { margin: 6px 0; color: #cbb79d; font-size: 12px; text-align: center; }
+.warehouse-retry, .warehouse-refresh { flex: none; min-height: 28px; padding: 4px 9px; border: 1px solid #836546; background: #2c2226; color: #e7d4b4; font-size: 11px; }
+.warehouse-refresh { margin-left: auto; }
+.warehouse-retry { align-self: center; margin-top: 2px; }
+@media (max-height: 700px) {
+  .modal-dialog.warehouse-modal { max-height: 94dvh; }
+  .warehouse-pane { min-height: 96px; }
+  .warehouse-detail-actions button { min-height: 28px; }
+}

@@ -10,7 +10,7 @@ const errorCode = (error: unknown): string => error instanceof Error && 'code' i
 const errorStatus = (error: unknown): number => error instanceof Error && 'status' in error ? Number((error as Error & { status?: unknown }).status) : 0;
 const errorExpectedVersion = (error: unknown): unknown => error instanceof Error && 'expected' in error ? (error as Error & { expected?: unknown }).expected : undefined;
 
-export type SyncResult = { journey?: import('./journey').JourneyData; ok: boolean; save: Save; revision: number; message?: string; effect?: { listing?: { id: string; state: string; soldAt?: number }; deliveries: import('./market').Delivery[]; claimedId?: string; claimedIds?: string[] } };
+export type SyncResult = { journey?: import('./journey').JourneyData; ok: boolean; save: Save; revision: number; message?: string; effect?: { listing?: { id: string; state: string; soldAt?: number }; deliveries: import('./market').Delivery[]; claimedId?: string; claimedIds?: string[] }; /** 창고 이동 뒤 창고 목록(작업 225) — 있으면 `list`를 다시 부르지 않고 이 값으로 그리드를 다시 그린다. */ items?: import('./items').Item[]; moved?: string[] };
 /** 자동 저장 간격 — 변경이 있을 때만, 마지막 저장에서 이만큼 지난 뒤에 보낸다(작업 209). */
 const autosaveMinDelay = 1_000;
 const autosaveMaxDelay = 5_000;
@@ -27,7 +27,7 @@ export class SaveSync {
   locked = false;
   conflicted = false;
   pendingMarket?: { action: string; data: Record<string, unknown>; requestId: string; revision: number; progress: Save };
-  pendingWarehouse?: { action: 'deposit' | 'withdraw'; itemId: string; requestId: string; revision: number };
+  pendingWarehouse?: { action: 'deposit' | 'withdraw'; itemIds: string[]; requestId: string; revision: number };
   private warehouseRecoveryTimer?: ReturnType<typeof setTimeout>;
   private warehouseRecoveryDelay = 2000;
   private preparingMarket = false;
@@ -225,12 +225,16 @@ export class SaveSync {
       await accountRequest('reset', { revision: this.revision, characterSlot: this.session.characterSlot }, this.session.token); location.reload();
     } finally { this.locked = false; if (!this.conflicted && !this.pendingMarket) this.onPause(false); }
   }
-  async transferWarehouse(action: 'deposit' | 'withdraw', itemId: string): Promise<SyncResult> {
+  /** 창고 이동(작업 225). 문자열 하나면 단건, 배열이면 한 요청으로 여러 개를 옮긴다(서버 `itemIds`). */
+  async transferWarehouse(action: 'deposit' | 'withdraw', itemIds: string | string[]): Promise<SyncResult> {
+    const ids = [...new Set(Array.isArray(itemIds) ? itemIds : [itemIds])];
+    if (!ids.length) throw new Error('옮길 아이템이 없습니다.');
+    const sameIds = (pending: string[]): boolean => pending.length === ids.length && pending.every((id, index) => id === ids[index]);
     if (this.locked || this.conflicted || this.pendingMarket || this.preparingMarket) throw new Error('다른 요청을 처리 중입니다.');
-    if (this.pendingWarehouse && (this.pendingWarehouse.action !== action || this.pendingWarehouse.itemId !== itemId)) throw new Error('이전 창고 이동 결과를 확인 중입니다.');
+    if (this.pendingWarehouse && (this.pendingWarehouse.action !== action || !sameIds(this.pendingWarehouse.itemIds))) throw new Error('이전 창고 이동 결과를 확인 중입니다.');
     if (!this.pendingWarehouse) {
       if (!await this.flush()) throw new Error('저장 결과를 확인한 뒤 다시 시도하세요.');
-      this.pendingWarehouse = { action, itemId, requestId: crypto.randomUUID(), revision: this.revision };
+      this.pendingWarehouse = { action, itemIds: ids, requestId: crypto.randomUUID(), revision: this.revision };
     }
     this.locked = true; this.onPause(true);
     try {
@@ -239,7 +243,10 @@ export class SaveSync {
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 10_000);
         try {
-          const response = await fetch('/api/warehouse', { method: 'POST', headers: apiHeaders({ Authorization: `Bearer ${this.session.token}` }), body: JSON.stringify({ ...this.pendingWarehouse, characterSlot: this.session.characterSlot }), signal: controller.signal });
+          // 한 개는 예전 그대로 `itemId`로 보낸다(구서버 호환) — 여러 개일 때만 `itemIds` 배열(작업 225).
+          const pending = this.pendingWarehouse;
+          const payload = pending.itemIds.length === 1 ? { action: pending.action, itemId: pending.itemIds[0], requestId: pending.requestId, revision: pending.revision } : { action: pending.action, itemIds: pending.itemIds, requestId: pending.requestId, revision: pending.revision };
+          const response = await fetch('/api/warehouse', { method: 'POST', headers: apiHeaders({ Authorization: `Bearer ${this.session.token}` }), body: JSON.stringify({ ...payload, characterSlot: this.session.characterSlot }), signal: controller.signal });
           const body = await response.json();
           if (!response.ok) {
             if (response.status >= 500) throw new Error(body.error || '창고 이동 결과를 확인 중입니다.');
@@ -275,7 +282,7 @@ export class SaveSync {
     this.warehouseRecoveryTimer = setTimeout(() => {
       this.warehouseRecoveryTimer = undefined;
       const pending = this.pendingWarehouse;
-      if (pending) void this.transferWarehouse(pending.action, pending.itemId).then(() => this.onWarehouseRecovered()).catch(() => {});
+      if (pending) void this.transferWarehouse(pending.action, pending.itemIds).then(() => this.onWarehouseRecovered()).catch(() => {});
     }, delay);
   }
 }
