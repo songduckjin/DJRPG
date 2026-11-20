@@ -9,3 +9,16 @@
 
 /version.json
   Cache-Control: no-store, max-age=0
+
+/admin.html
+  Cache-Control: no-store, max-age=0
+  X-Robots-Tag: noindex, nofollow
+
+/admin.js
+  Cache-Control: no-store, max-age=0
+
+/admin.css
+  Cache-Control: no-store, max-age=0
+
+/admin-updates.json
+  Cache-Control: no-store, max-age=0
