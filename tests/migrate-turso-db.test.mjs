@@ -22,6 +22,14 @@ async function prepared() {
   const db = createClient({ url: source });
   await schema(db, { TURSO_DATABASE_URL: source });
   await worldBossSchema(db, source);
+  // 이관 대상은 상점 도입 전 공용 DB다. 현재 스키마가 만든 신규 테이블은 제외한다.
+  await db.batch([
+    { sql: 'DROP TABLE IF EXISTS djrpg_shop_requests' },
+    { sql: 'DROP TABLE IF EXISTS djrpg_shop_entitlements' },
+    { sql: 'DROP TABLE IF EXISTS djrpg_shop_ledger' },
+    { sql: 'DROP TABLE IF EXISTS djrpg_shop_orders' },
+    { sql: 'DROP TABLE IF EXISTS djrpg_shop_wallet' }
+  ], 'write');
   await db.batch([
     { sql: 'CREATE TABLE users (id INTEGER PRIMARY KEY, nickname TEXT NOT NULL)' },
     { sql: "INSERT INTO users (id,nickname) VALUES (1,'puzzle-a'),(2,'puzzle-b'),(3,'puzzle-c')" },

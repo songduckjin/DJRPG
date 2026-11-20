@@ -24,13 +24,14 @@
 | 스킬 1·2 이펙트(은빛 검기·푸른 청룡) | `src/game/render/vfx.ts`(`slash2`·`slashTint`·`drawDragon`), `src/game/render.ts` `paths` | `fx_slash2.png`, `fx_slash2_ground.png`, `fx_dragon_head.png`, `fx_dragon_body.png` | `hero-weapon-render` |
 | 화면 렌더링·필드·배경·VFX·조명 | `src/game/render.ts`(`GameView`) | `render/field.ts`, `render/vfx.ts`, `render/entities.ts`, `wasteland.ts`, `ambientScene.ts`, `ambientMotion.ts` | `wasteland`, `ambient-motion`, `hero-weapon-render` |
 | 오프라인 보상·경험치·레벨업 | `src/game/offline.ts`, `src/game/store.ts`(`addExperience`·`expToNext`) | `ui/modals/offlineModal.ts`, `server/endpoints/account.mjs`(`offlineSeconds`) | `offline` |
-| 로그인·회원가입·게스트·캐릭터 선택/생성 | `src/ui/login.ts`, `server/endpoints/account.mjs` | `ui/modals/charactersModal.ts`, `server/auth.mjs`, `api/account.mjs`, `functions/api/account.js` | `characters`, `functions-adapter` |
+| 로그인·회원가입·게스트·캐릭터 선택/생성·삭제·구매 슬롯 | `src/ui/login.ts`, `server/endpoints/account.mjs` | `ui/modals/charactersModal.ts`(방치·삭제·슬롯 추가·생성 로딩), `server/database.mjs`(계정별 슬롯 한도), `server/auth.mjs`, `api/account.mjs`, `functions/api/account.js` | `characters`, `shop`, `modal-ui`, `functions-adapter` |
 | 다른 기기 로그인으로 접속이 해제됨(`SESSION_REPLACED`) | `database.mjs` `assertSession`/`assignSession`, `auth.mjs` `tokenPayload` | `endpoints/account.mjs`, `sync.ts` `endSession`/`onSessionEnded`, `main.ts` | `functions-adapter`, `sync` |
 | 서버 저장·동기화·충돌(`SAVE_CONFLICT`/`ITEM_CONFLICT`) | `src/game/sync.ts`, `server/database.mjs` | `server/endpoints/account.mjs`, `server/http.mjs`, `src/game/store.ts`(`parseSave`) | `sync`, `functions-adapter`, `characters`, `market` |
 | 구버전 클라이언트 차단·최신 버전 강제(426 `VERSION_OUTDATED`) | `server/app-version.mjs`, `src/game/appVersion.ts` | `server/http.mjs`(`versionGuard`), `server/endpoints/{account,market,warehouse}.mjs`, `src/ui/login.ts`, `src/game/sync.ts`, `src/game/{market,journey}.ts`, `public/_headers`, `scripts/generate-version.mjs`, `vite.config.ts` | `app-version` |
 | 거래소·시세·여정(journey) | `server/market.mjs`, `server/journey.mjs` | `server/endpoints/market.mjs`, `journey-state.mjs`, `market-events.mjs`, `src/game/market.ts`, `src/game/journey.ts`, `ui/modals/marketModal.ts`, `ui/modals/utilityModal.ts`, `api/market*.mjs`, `functions/api/market*.js` | `market`, `market-actions`, `market-connection`, `journey`, `journey-ui` |
 | 계정 창고(warehouse) | `server/endpoints/warehouse.mjs` | `ui/modals/charactersModal.ts`(`loadWarehouse`·`renderWarehouse`·`moveItem`), `sync.ts`(`transferWarehouse`), `api/warehouse.mjs`, `functions/api/warehouse.js` | `characters` |
 | UI HUD·모달·스타일 CSS | `src/ui/interface.ts`, `src/ui/hud.ts` | `ui/modals/*`, `bagDetail.ts`, `equippedDetail.ts`, `modalInteraction.ts`, `modalClose.ts`, `modalDefaults.ts`, `src/styles/*.css` | `modal-ui`, `modal-interaction`, `bag-hover`, `equipment-badge`, `journey-ui`, `equipped-detail` |
+| 다이아 상점·결제·상품 권한 | `server/endpoints/shop.mjs`, `src/ui/modals/shopModal.ts` | `server/database.mjs`(`djrpg_shop_*`), `functions/api/shop.js`, `src/ui/interface.ts`(상점 진입), `src/ui/hud.ts`(잔액), `src/ui/modals/charactersModal.ts`(슬롯 추가) | `shop`, `characters`, `modal-ui` |
 | Cloudflare Pages Functions·Vercel 어댑터·DB 스키마 | `server/database.mjs`(`schema`), `functions/api/*.js` | `api/*.mjs`, `server/node-adapter.mjs`, `database-config.mjs`, `env.mjs`, `wrangler.toml`, `vercel.json`, `public/_headers` | `functions-adapter`, `characters`, `market` |
 | Turso DB 분리·이관(공용 DB → DJRPG 전용 `djrpg`) | `scripts/migrate-turso-db.mjs`, `docs/TURSO_DB_GUIDE.md` | `server/database.mjs`(`schema()`·별도 DB 접속 토큰), `server/market-connection.mjs`(접속 캐시), `server/world-boss-schema.mjs`(`worldBossSchema()`), `scripts/backup-turso.mjs`(이관 전 백업) | `migrate-turso-db`, `functions-adapter` |
 
@@ -47,7 +48,7 @@
 | 걷기·공격(대검 휘두르기) 때 캐릭터가 작아짐 | `render/heroScale.ts` `heroBodyPx`의 `pilot*Walk`·`pilot*Attack`(시트별 알파 실측), `render/entities.ts` `drawHero`의 `heroScale` 호출 |
 | 보스가 안 나옴, 층 클리어 | `world.ts` `bossPending`·`floorKillTarget`, `store.ts` |
 | 드롭이 안 주워짐·1.5초 뒤 흡수·금화 코인 | `world.ts` `update`(드롭 `absorb`·`LOOT_REST_SECONDS`), `loot.ts`, `render/drops.ts` `drawLoot` |
-| 층 이동·최고층 | `world.ts` `travelToFloor`, `ui/modals/floorModal.ts` |
+| 층 이동·최고층·방치 자동등반 | `world.ts` `travelToFloor`·보스 처치 시 `autoClimb`·사망 시 자동등반 해제, `ui/modals/floorModal.ts` |
 | 궁수가 갑옷·투구·검을 입어도 전사처럼 보임 / 활 대신 대검 드랍 | `render/entities.ts` `drawHero`의 `isArcher` 분기, `items.ts` `weaponBasesFor`·`rollItem(...,job)`, `store.ts` `Save.job` |
 | 쿨타임·버프(레이지)·광폭 | `world.ts` `cooldowns`·`cooldown[kind]`, `skills.ts` `skillDuration` |
 | 스킬 슬롯 비어 있음·퀵슬롯 | `loadout.ts`, `ui/skillLoadout.ts`, `ui/hud.ts` |
@@ -81,7 +82,7 @@
 ## 3. 폴더·파일별 레퍼런스
 
 ### `src/game/` — 게임 규칙·상태 (UI 없음)
-- `world.ts` (289) — 전투 루프·적 스폰/AI·층 이동·보스·드롭 획득·자동전투. `World`(`travelToFloor`,`action`,`nearest`,`damage`,`kill`,`update`), `cooldowns`, `enemyMoveSpeed`/`enemyMaxHp`/`enemyHitDamage`, 타입 `Enemy`/`Drop`/`Coin`/`Effect`/`Action`. 처치는 금화를 **그 자리에서 지급**하고 그 금액을 `coins` 코인으로 남긴다(코인은 연출 전용, 흡수해도 다시 지급하지 않는다). `drops`는 `LOOT_REST_SECONDS` 동안 바닥에 머문 뒤 `absorb`가 찍히고 `LOOT_ABSORB_SECONDS` 뒤에야 가방에 들어간다(가방 초과 시 바닥에 남고 한 번만 경고).
+- `world.ts` (289) — 전투 루프·적 스폰/AI·층 이동·보스·드롭 획득·자동전투. `World`(`travelToFloor`,`action`,`nearest`,`damage`,`kill`,`update`), `cooldowns`, `enemyMoveSpeed`/`enemyMaxHp`/`enemyHitDamage`, 타입 `Enemy`/`Drop`/`Coin`/`Effect`/`Action`. `autoClimb`은 보스 처치 뒤 다음 층으로 이동하고, 사망 시 해제되지만 기존 자동 부활과 현재 층 사냥은 유지된다. 처치는 금화를 **그 자리에서 지급**하고 그 금액을 `coins` 코인으로 남긴다(코인은 연출 전용, 흡수해도 다시 지급하지 않는다). `drops`는 `LOOT_REST_SECONDS` 동안 바닥에 머문 뒤 `absorb`가 찍히고 `LOOT_ABSORB_SECONDS` 뒤에야 가방에 들어간다(가방 초과 시 바닥에 남고 한 번만 경고).
 - `loot.ts` (작업 189) — 메인 필드 드롭 규칙(Pixi·DOM 비의존, 테스트가 직접 import). `LOOT_REST_SECONDS`(1.5)·`LOOT_ABSORB_SECONDS`·`LOOT_GAP`(36)·`LOOT_FAN`·`LOOT_GOLD_PILE_MIN/STEP`·`LOOT_DEPTH`(금화0<아이템1), `lootRestSpots`(캐릭터 실루엣 회피·±100° 부채꼴·아이템끼리만 간격·금화 뭉침·`reach` 한계), `lootAbsorbProgress`·`lootAbsorbPoint`.
 - `store.ts` (129) — 세이브 스키마·파싱·성장. `Save`, `Gender`, `MAX_LEVEL=30`, `freshSave`, `parseSave`, `readLegacySave`/`clearLegacySave`, `expToNext`, `floorKillTarget`, `addExperience`, `skillLevel`, `useSkillBook`. `items.ts`의 API를 재수출(배럴).
 - `items.ts` (169) — 등급·슬롯·기본형 목록·드랍·분해·자동장착. `rarityOrder`/`rarityRanks`/`rarityTiers`/`rarityScales`/`rarityPrefixes`/`salvageGold`/`salvageStones`, `slots`/`slotNames`/`rarityNames`/`statNames`, `baseItems`, `isSkillBook`, `isZweihander`, `equipmentImage`, `migrateItem`, `rollItem`, `rollSkillBook`, `equipmentDropChance`, `skillBookDropChance`, `totalStats`, `itemPower`, `autoEquipBest`, `salvageByRarity`.
@@ -137,8 +138,8 @@
 - `skillFeedback.ts` (47) — 스킬 발동 하이라이트 1회 보장. `SkillFeedback.collect`.
 - `skillLoadout.ts` (37) — 퀵슬롯 배치/선택. `chooseSkill`, `pressSkillSlot`, `cancelSkillSelection`.
 - `equipmentPortrait.ts` — 내 정보 미리보기. `equipmentPortraitPlan`(공용 `planHeroCostume` 소비, 실패 시 티어 전신 초상화 폴백), `renderEquipmentPortrait`(idle 0프레임 합성·dataURL LRU 24·디코딩 아틀라스 이미지 LRU 2·매니페스트 1회 로드), `equipmentFallbackPortrait`.
-- `modals/` — `interface.ts` `renderModal`이 라우팅:
-  `accountModal.ts` 계정정보(캐릭터 생성 뒤 성별 변경 없음) `renderAccount` · `charactersModal.ts` 캐릭터 선택/생성·창고 `loadCharacters`,`renderCharacters`,`renderCreateCharacter`,`loadWarehouse`,`renderWarehouse` · `codexModal.ts` 도감 `renderCodex` · `equipModal.ts` 내 정보·장비/가방/분해 `renderEquipment`,`renderInventory`,`itemDetail`,`salvage`,`salvageValue`,`iconPath`, `equipmentInfoSlots`·`equipmentInfoStats` · `floorModal.ts` 층 선택 `renderFloor` · `marketModal.ts` 거래소 `renderMarket`,`updateMarketLive` · `offlineModal.ts` 정산 `renderOffline` · `salvageModal.ts` 분해 확인 `requestSalvage`,`finishSalvage`,`renderSalvage` · `skillModal.ts` 스킬 `renderSkills` · `utilityModal.ts` 설정/우편/보상/업적 `renderSettings`,`renderUtility`,`updateUtilityBadges`,`orderedAchievements`.
+- `modals/` — `interface.ts` `renderModal`이 라우팅. `shopModal.ts`는 다이아 8종·패키지 탭, 서버 주문 생성·토스페이먼츠 v2 주문서·승인 복귀, 계정 다이아 잔액을 담당한다:
+  `accountModal.ts` 계정정보(캐릭터 생성 뒤 성별 변경 없음) `renderAccount` · `charactersModal.ts` 캐릭터 선택/생성·창고·슬롯별 방치 버튼(작업 191) `loadCharacters`,`renderCharacters`,`renderCreateCharacter`,`loadWarehouse`,`renderWarehouse` · `codexModal.ts` 도감 `renderCodex` · `equipModal.ts` 내 정보·장비/가방/분해 `renderEquipment`,`renderInventory`,`itemDetail`,`salvage`,`salvageValue`,`iconPath`, `equipmentInfoSlots`·`equipmentInfoStats` · `floorModal.ts` 층 선택 `renderFloor` · `marketModal.ts` 거래소 `renderMarket`,`updateMarketLive` · `offlineModal.ts` 정산 `renderOffline` · `salvageModal.ts` 분해 확인 `requestSalvage`,`finishSalvage`,`renderSalvage` · `skillModal.ts` 스킬 `renderSkills` · `utilityModal.ts` 설정/우편/보상/업적 `renderSettings`,`renderUtility`,`updateUtilityBadges`,`orderedAchievements`.
 
 ### `src/styles/`
 - `main.css` — `base`→`boot`→`hud`→`modals`→`login`→`market`→`codex` 순 import. `base.css`(폰트·리셋), `hud.css`(`.top-hud`,`.floor-button`), `modals.css`(장비·가방·분해 공통), `login.css`(로그인·캐릭터 선택), `market.css`(`.market-*`), `codex.css`(`.codex-*`,`#codex`), `boot.css`(`.boot-*`).
@@ -156,7 +157,8 @@
 - `market-events.mjs` (4) — 공개 변경 카운터. `latestSeq`.
 - `journey-state.mjs` (60) — 일일 05:00 KST/주간 월요일 경계·보상. `periods`, `advanceJourney`, `journeyState`, `journeyOperation`, `journeyView`, `dailyTasks`, `weeklyTasks`, `completionRewards`.
 - `journey.mjs` (62) — 우편·보상 수령/읽음/삭제. `snapshot`, `mutate`.
-- `endpoints/account.mjs` (123) — `register`/`guest`/`login`/`load`/`characters`/`selectCharacter`/`createCharacter`/`save`/`reset`. 캐릭터 슬롯 1~3, 골드 공유.
+- `endpoints/account.mjs` — `register`/`guest`/`login`/`load`/`characters`/`selectCharacter`/`createCharacter`/`deleteCharacter`/`save`/`reset`. 계정별 해금 슬롯 3~9, 금화 공유. 삭제는 현재 캐릭터를 제외하고 이름 확인 뒤 장비·가방 소유권을 `consumed`로 전환한다.
+- `endpoints/shop.mjs`, `functions/api/shop.js` — 계정별 다이아 잔액·슬롯 해금, 다이아 충전 8종 주문·토스페이먼츠 서버 승인·중복 지급 방지. `database.mjs`의 `djrpg_shop_orders`는 상품 ID·통화·결제사·지급 스냅샷을 보관하고, `djrpg_shop_ledger`는 지급 원천별 재화 변동을 기록한다. `djrpg_shop_entitlements`는 향후 기간제·수량형 패키지 권한을 담는 공용 테이블이며, `wallet`/`requests`는 잔액·중복 요청을 관리한다. `TOSS_CLIENT_KEY`는 주문 응답으로만 공개하고 `TOSS_SECRET_KEY`는 서버 결제 승인에만 쓴다. 전 슬롯 방치·광고 제거는 목록에만 표시하고 판매하지 않는다.
 - `endpoints/market.mjs` (27) — `list`/`recent-price`/`journey-list`/`journey-*`/그 외 mutate.
 - `endpoints/market-events.mjs` (42) — SSE 45초 스트림.
 - `endpoints/warehouse.mjs` (63) — `list`/`deposit`/`withdraw`, 창고 40칸.
