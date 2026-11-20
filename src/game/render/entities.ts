@@ -23,6 +23,7 @@ import { WEAPON_GUARD, weaponIndexFor, weaponPose } from './weapons';
 import { BOW_GRIP, bowIndexFor, bowPose } from './bows';
 import { STAFF_GRIP, staffIndexFor, staffPlacement } from './staffs';
 import type { GameView } from '../render';
+import { drawHeroHpBar, HERO_HP_BAR } from './heroHpBar';
 
 function syncWeapon(view: GameView, save: Save, texture: Texture, art: string, attacking: boolean, motion: 'idle' | 'walk', walkingFrame: number): void {
     const item = save.equipment.weapon;
@@ -704,6 +705,11 @@ export function drawHero(this: GameView, world: World, x: number, y: number, tim
     // shadow grew 25 % whenever the hero swung. 코스튬 모드도 같은 식(본체 높이 × 배율 × .37)을 쓴다.
     const shadowRadius = Math.max(20, bodyPx * scale * .37);
     this.ground.ellipse(x - visualFace * 4, y - 3, shadowRadius, 8).fill({ color: 0x000000, alpha: .5 });
+    // 머리 위 초록 체력바(작업 233) — 이번 프레임에 그린 레이어의 위치·세로 배율에서 머리 꼭대기를
+    // 재므로 걷기·공격·투구·갑옷으로 시트가 바뀌어도 같은 간격으로 따라간다(몹 빨간 바는 `effects`).
+    // 마법사 고깔모자는 정수리 위로 솟으므로 그 높이만큼 더 띄워 바가 모자를 가리지 않게 한다.
+    const hatLift = mage && mageHelmIndexFor(save) >= 0 ? HERO_HP_BAR.hatLiftArtPx : 0;
+    drawHeroHpBar(this, world, bodyPx, hatLift);
     // 버프 중의 붉은 기운은 `drawBloodRageAura`가 몸 뒤 광휘로 그린다(작업 214 — 예전 단색 원 제거).
   }
 
