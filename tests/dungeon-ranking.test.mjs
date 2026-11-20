@@ -60,31 +60,33 @@ test('던전 순위는 검증된 클리어만 기록하고 상위 10위·내 기
   try{
     db=createClient({url:env.TURSO_DATABASE_URL});
     const first=await register('dungeon197a','가람'),second=await register('dungeon197b','누리');
-    for(let floor=1;floor<=4;floor++)await clear(first,floor,1_000_000+floor*60_000);
+    // 5·10층은 보스층(일반의 30배 체력, 작업 205)이라 장비 없는 새 계정으로는 깰 수 없다 — 이 테스트는
+    // 순위 규칙만 보므로 보스가 아닌 층(1~4)으로 진행한다.
+    for(let floor=1;floor<=3;floor++)await clear(first,floor,1_000_000+floor*60_000);
     const firstSubmit=await operation(first,'submit',9_000_000);
-    assert.equal(firstSubmit.recorded,4);
-    assert.deepEqual(firstSubmit.standing.top.map(row=>[row.rank,row.name,row.clearedFloor,row.mine]),[[1,'가람',4,true]]);
+    assert.equal(firstSubmit.recorded,3);
+    assert.deepEqual(firstSubmit.standing.top.map(row=>[row.rank,row.name,row.clearedFloor,row.mine]),[[1,'가람',3,true]]);
     assert.equal(firstSubmit.standing.mine.rank,1);
     assert.equal(firstSubmit.guest,false);
 
     // 같은 층은 먼저 기록한 쪽이 위에 남는다.
-    for(let floor=1;floor<=4;floor++)await clear(second,floor,2_000_000+floor*60_000);
+    for(let floor=1;floor<=3;floor++)await clear(second,floor,2_000_000+floor*60_000);
     const secondSubmit=await operation(second,'submit',9_000_000);
     assert.deepEqual(secondSubmit.standing.top.map(row=>[row.rank,row.name]),[[1,'가람'],[2,'누리']]);
     assert.equal(secondSubmit.standing.mine.rank,2);
 
     // 더 깊이 간 쪽이 1위가 되고, 최고층은 되돌릴 수 없다.
-    for(let floor=5;floor<=6;floor++)await clear(first,floor,3_000_000+floor*60_000);
+    await clear(first,4,3_240_000);
     const deeper=await operation(first,'submit',9_000_000);
-    assert.equal(deeper.standing.top[0].clearedFloor,6);
+    assert.equal(deeper.standing.top[0].clearedFloor,4);
     assert.equal(deeper.standing.top[0].name,'가람');
-    // 세이브는 서버 기록보다 앞서지 못한다 — 검증 없이 2층으로 내려도 6층 그대로다.
+    // 세이브는 서버 기록보다 앞서지 못한다 — 검증 없이 2층으로 내려도 4층 그대로다.
     const lowered=await saveFloor(first,2);
     assert.equal(lowered.status,200);
     const reloaded=await (await accountEndpoint(post('account',{action:'load'},first.token),options)).json();
-    assert.equal(reloaded.save.dungeonFloor,6,'서버는 저장된 최고층을 낮추지 않는다');
+    assert.equal(reloaded.save.dungeonFloor,4,'서버는 저장된 최고층을 낮추지 않는다');
     const again=await operation(first,'submit',9_000_000);
-    assert.equal(again.standing.top[0].clearedFloor,6);
+    assert.equal(again.standing.top[0].clearedFloor,4);
 
     // 목록은 로그인만 있으면 누구나(쓰기 없이), 게스트 기록은 올리지 않는다.
     const guest=await (await accountEndpoint(post('account',{action:'guest'}),options)).json();

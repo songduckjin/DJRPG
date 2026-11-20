@@ -1,9 +1,9 @@
 import { DUNGEON_MAX_FLOOR } from './dungeonLobby';
 import { random, seededRandom, useRandom, type Random } from '../game/rng';
-import {World, type Enemy, enemyMaxHp, enemyHitDamage, enemyMoveSpeed} from '../game/world';
+import {World, type Enemy, enemyHitDamage, enemyMoveSpeed} from '../game/world';
 import {clampArenaPoint} from '../game/arena';
-import {skillDamageScale,skills,jobOrDefault} from '../game/skills';
-import {totalStats,skillLevel,type Save} from '../game/store';
+import {jobOrDefault} from '../game/skills';
+import {totalStats, type Save} from '../game/store';
 import {equipmentDropChance,rollItem,rollSkillBook,skillBookDropChance,type Item} from '../game/items';
 import {bossGoldPiles,bossGoldSpot,bossItems} from '../game/bossLoot';
 /** Ground loot held by the preview only. Kept off `World.drops` so the shared field renderer stays untouched.
@@ -27,8 +27,37 @@ export const DUNGEON_TRACE_EVERY = 30;
 export type DungeonBattleSummary = {
   won: boolean; steps: number; seconds: number; heroHp: number; heroHpMax: number; enemyHp: number; slain: number; digest: string;
 };
-/** Test rate for the whole 1-10 floor preview. Which item falls keeps the field's own odds (see `dropLoot`). */
-export const DUNGEON_ITEM_DROP_CHANCE = .5;
+/** 던전 일반 몹의 아이템 드롭률 (작업 205). */
+//
+// 미리보기 때는 확인용 50%였는데, 이제 클리어 보상이 계정에 들어가므로 실제 확률로 되돌린다. 필드 일반
+// 몹은 0.25~2.2%라 던전이 그대로면 "들어갈 값어치"가 없다. 그래서 1층 15%에서 층마다 .5%p씩 올려
+// 10층 19.5%(상한 20%)로 두고, 무엇이 떨어지는지는 필드와 같은 장비:스킬북 비율을 그대로 쓴다.
+export const DUNGEON_DROP_CHANCE_BASE = .15;
+export const DUNGEON_DROP_CHANCE_STEP = .005;
+export const DUNGEON_DROP_CHANCE_MAX = .2;
+export function dungeonDropChance(floor:number):number {
+  const depth=Math.max(1,Math.min(DUNGEON_MAX_FLOOR,Math.floor(floor)||1));
+  return Math.min(DUNGEON_DROP_CHANCE_MAX,DUNGEON_DROP_CHANCE_BASE+(depth-1)*DUNGEON_DROP_CHANCE_STEP);
+}
+/** 층별 고정 몬스터 체력 (작업 205) — 내 장비·스킬과 무관한 고정 곡선이다. */
+//
+// 전에는 `dungeonPreviewHp`가 내 DPS에 4배를 곱해 "아무리 세도 4초"로 맞추는 고무줄이었다. 실제 보상을
+// 지급하는 지금은 그럴 수 없어 층마다 값을 고정했다. 기준은 필드 자체의 곡선 `enemyMaxHp(2 × 층)`이고,
+// 그래서 던전 3층은 필드 6층, 10층은 필드 20층과 같은 손맛이 된다. 첫 층 60은 Lv.5~10·저층 장비
+// (평타 DPS 80~130)로 3~6초, 9층 1,055는 20층 언저리 장비로 10여 초, 10층 보스는 보스 배율(30배)로
+// 43,320이라 15~20층을 파밍한 장비(대략 DPS 500~1,000)라야 90초 안에 끝난다.
+export const DUNGEON_MOB_HP: readonly number[] = [60,106,160,220,299,406,557,767,1055,1444];
+/** 이 층의 일반 몹 체력. 1~10층 밖의 값은 가장 가까운 층으로 잘라 쓴다. */
+export function dungeonMobHp(floor:number):number {
+  const depth=Math.max(1,Math.min(DUNGEON_MOB_HP.length,Math.floor(floor)||1));
+  return DUNGEON_MOB_HP[depth-1];
+}
+/** 보스 층(5·10층)은 같은 층 일반 몹의 30배 — 필드 보스(일반의 6배)보다 훨씬 묵직하다.
+ *  10층 보스는 43,320이라 평타 DPS 400(공격 120)짜리 장비로는 90초를 넘기고, 15~20층을 파밍한
+ *  장비(DPS 1,000 전후)라야 40초 안팎에 끝난다. */
+export const DUNGEON_BOSS_HP_SCALE = 30;
+/** 3웨이브 정예는 일반 몹의 2배(예전 그대로). */
+export const DUNGEON_ELITE_HP_SCALE = 2;
 /** Dungeon mobs close ground 1.5x the shared field pace; only travel distance scales, never timers. */
 export const DUNGEON_ENEMY_SPEED_SCALE = 1.5;
 /** Every enemy walks 4.25 half turns a second, so one visible stride (a full turn) lasts 2/4.25 s. */
@@ -129,14 +158,6 @@ export function dungeonAbsorbPoint(from:LootSpot,to:LootSpot,progress:number,ind
   const k=progress*progress,swing=progress>=1?0:Math.sin(Math.PI*progress)*10*(index%2?1:-1);
   return {x:from.x+(to.x-from.x)*k+swing,y:from.y+(to.y-from.y)*k};
 }
-// Temporary encounter-observation balance, not the eventual fixed progression curve.
-export function dungeonPreviewHp(save:Save):number {
-  const stats=totalStats(save);
-  const powers:Record<string,number>={slash2:2.15,spin:5,crushing:4.5,slam:5,warcry:2,power:4,destroy:2.7,hell:7,doubleShot:2.7,multiShot:4.75,pierceShot:2.6,iceArrow:1.9,hawkEye:0,snipe:4.3,stormVolley:4.8,arrowRain:3.4};
-  const skillDps=save.quickSlots.reduce<number>((sum,id)=>id&&save.learned.includes(id)?(powers[id]??0)*skillDamageScale(skillLevel(save,id))/skills[id].cooldown:sum,0);
-  const dps=stats.attack*((1+stats.speed/100)/.48+skillDps)*(1+stats.crit/100);
-  return Math.max(enemyMaxHp(1,false),Math.ceil(dps*4));
-}
 class DungeonWorld extends World {
   slain=0;
   loot:DungeonLoot[]=[];
@@ -167,12 +188,13 @@ class DungeonWorld extends World {
     return enemy&&Math.hypot(enemy.x-this.player.x,enemy.y-this.player.y)<=110?enemy:undefined;
   }
   override kill(enemy:Enemy):void { this.slain++;this.effects.push({x:enemy.x,y:enemy.y,kind:'death',age:0,duration:.7,angle:0});this.dropLoot(enemy); }
-  // Same rewards the field grants, kept as ground loot for display only: gold on every kill and,
-  // on the test 50% gate, one item chosen by the field's equipment/skillbook drop odds. A boss
-  // (5층·10층, 작업 194) leaves five random items and its gold in ten heaps bursting out of the body
-  // (작업 196), the heaps still adding up to the 70×floor the kill already paid. The main field's boss
-  // drops only the heaps and keeps the ordinary chance roll (작업 195) — this five-item haul is the
-  // dungeon's.
+  // Same rewards the field grants, kept as ground loot until the floor is cleared: a coin on every
+  // kill and one item on the floor's own dungeon rate (`dungeonDropChance`) chosen by the field's
+  // equipment/skillbook odds. A boss (5층·10층, 작업 194) leaves five random items and its gold in ten
+  // heaps bursting out of the body (작업 196), the heaps still adding up to the 70×floor the kill paid.
+  // The main field's boss drops only the heaps and keeps the ordinary chance roll (작업 195) — this
+  // five-item haul is the dungeon's. Nothing here is paid yet: `clearRewards` hands it to the account
+  // only when the floor is actually cleared (작업 205).
   private dropLoot(enemy:Enemy):void {
     const floor=this.save.floor;
     if(enemy.boss){
@@ -184,13 +206,13 @@ class DungeonWorld extends World {
       return;
     }
     this.loot.push({id:++this.lootId,kind:'gold',x:enemy.x,y:enemy.y,gold:3+floor});
-    if(random()>=DUNGEON_ITEM_DROP_CHANCE)return;
+    if(random()>=dungeonDropChance(floor))return;
     const equipment=equipmentDropChance(floor,enemy.boss),book=skillBookDropChance(floor,enemy.boss);
     const item=random()*(equipment+book)<equipment?rollItem(floor,false,enemy.boss,this.save.job):rollSkillBook(floor,jobOrDefault(this.save.job));
     this.loot.push({id:++this.lootId,kind:'item',x:enemy.x,y:enemy.y,item});
   }
 }
-/** Isolated ten-floor preview. Never mutates account save, drops, rewards or rankings. */
+/** 끝없는 던전 1~10층 전투. 클리어하면 금화·강화석·아이템이 계정 세이브로 들어간다(작업 205). */
 export class DungeonBattle {
   readonly world:DungeonWorld;
   readonly floor:number;
@@ -205,6 +227,12 @@ export class DungeonBattle {
   get targetCount(){return this.bossFloor?1:7;}
   elapsed=0;wave=0;waveStarted=0;finished=false;outcome:'clear'|'dead'|'timeout'|null=null;
   elite?:Enemy;private hitCooldown=0;
+  /** A clear pays exactly what this floor left on the ground — the gold the kills were worth and every
+   *  equipment piece or skill book that fell. A defeat or a timeout pays nothing at all (작업 205). */
+  clearRewards():{gold:number;items:Item[]}|undefined {
+    if(this.outcome!=='clear')return undefined;
+    return {gold:this.world.lootGold,items:this.world.loot.flatMap(entry=>entry.kind==='item'?[entry.item]:[])};
+  }
   constructor(save:Save,floor=1,seed?:number){this.floor=Math.min(DUNGEON_MAX_FLOOR,Math.max(1,Math.floor(floor)));const copy=structuredClone(save);copy.floor=this.floor;copy.floorKills=0;copy.tutorial=3;copy.autoClimb=false;
     if(Number.isFinite(seed)){this.seed=Math.floor(Number(seed))>>>0;this.rng=seededRandom(this.seed);}
     this.world=new DungeonWorld(copy);this.world.enemies=[];this.world.spawnTimer=Infinity;this.world.bossPending=false;
@@ -219,7 +247,7 @@ export class DungeonBattle {
     // ±8.6°·±8%만 돌려, 도전마다 전투가 같은 요약으로 접히지 않게 한다. 시드가 없으면(연습·게스트) 지금까지와 같다.
     const turn=this.rng?(random()-.5)*.3:0, drift=this.rng?1+(random()-.5)*.16:1, spin=Math.cos(turn), swing=Math.sin(turn);
     for(let i=0;i<count;i++){
-      const hp=dungeonPreviewHp(this.world.save)*(this.bossFloor?4:this.wave===3?2:1)*(1+(this.floor-1)*.12), side=(i-(count-1)/2)*65;
+      const hp=dungeonMobHp(this.floor)*(this.bossFloor?DUNGEON_BOSS_HP_SCALE:this.wave===3?DUNGEON_ELITE_HP_SCALE:1), side=(i-(count-1)/2)*65;
       // The old arena corner, stepped toward the hero along its own approach line.
       const cornerX=(-180+side)/2, cornerY=(-180-side)/2, ax=50-cornerX, ay=50-cornerY, reach=Math.hypot(ax,ay)||1;
       let x=cornerX+ax/reach*pull, y=cornerY+ay/reach*pull;

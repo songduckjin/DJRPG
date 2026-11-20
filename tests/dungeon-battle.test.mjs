@@ -2,7 +2,7 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import './ts-loader.mjs';
-const {DungeonBattle,DUNGEON_ITEM_DROP_CHANCE,DUNGEON_ENEMY_SPEED_SCALE,DUNGEON_SPAWN_STEPS,DUNGEON_LOOT_FAN,DUNGEON_ABSORB_DELAY,dungeonSpawnPull,dungeonLootSpots,dungeonLootTimeline,dungeonAbsorbProgress,dungeonAbsorbPoint}=await import('../src/ui/dungeonBattle.ts');
+const {DungeonBattle,dungeonDropChance,DUNGEON_DROP_CHANCE_BASE,DUNGEON_DROP_CHANCE_MAX,DUNGEON_DROP_CHANCE_STEP,DUNGEON_MOB_HP,DUNGEON_BOSS_HP_SCALE,DUNGEON_ELITE_HP_SCALE,dungeonMobHp,DUNGEON_ENEMY_SPEED_SCALE,DUNGEON_SPAWN_STEPS,DUNGEON_LOOT_FAN,DUNGEON_ABSORB_DELAY,dungeonSpawnPull,dungeonLootSpots,dungeonLootTimeline,dungeonAbsorbProgress,dungeonAbsorbPoint}=await import('../src/ui/dungeonBattle.ts');
 const {World,enemyMoveSpeed}=await import('../src/game/world.ts');
 const bossLoot=await import('../src/game/bossLoot.ts');
 const goldPile=await import('../src/game/render/goldPile.ts');
@@ -15,11 +15,40 @@ test('10 second timeout adds next wave while surviving enemies remain',()=>{cons
 test('clearing each wave early advances and ends only after elite dies',()=>{const battle=new DungeonBattle(freshSave());battle.world.update=()=>{};for(let i=0;i<3;i++){for(const enemy of battle.world.enemies)battle.world.kill(enemy);battle.world.enemies=[];battle.advance(.05);}assert.equal(battle.outcome,'clear');assert.equal(battle.world.slain,7);assert.equal(battle.finished,true);});
 test('death stops instead of reviving; fresh retry starts full health and 90 seconds',()=>{const save=freshSave(),battle=new DungeonBattle(save);battle.world.update=()=>{};battle.world.player.hp=0;battle.advance(.05);assert.equal(battle.outcome,'dead');const time=battle.elapsed;battle.advance(.05);assert.equal(battle.elapsed,time);const retry=new DungeonBattle(save);assert(retry.world.player.hp>0);assert.equal(retry.elapsed,0);assert.equal(retry.wave,1);});
 test('90 second timeout terminates with remaining enemies',()=>{const battle=new DungeonBattle(freshSave());battle.world.update=()=>{};run(battle,90.1);assert.equal(battle.outcome,'timeout');assert.equal(battle.elapsed,90);});
-test('preview toughness scales with equipped attack so high gear cannot erase floor in one second',()=>{
- const save=freshSave();save.equipment.weapon={id:'preview-weapon',name:'preview',slot:'weapon',rarity:'legendary',stats:{attack:100000}};
- const before=structuredClone(save),battle=new DungeonBattle(save),base=new DungeonBattle(freshSave());
- assert(battle.world.enemies[0].maxHp>base.world.enemies[0].maxHp*100);
- run(battle,1);assert.equal(battle.finished,false);assert.equal(battle.wave,1);assert.deepEqual(save,before);
+test('every floor has a fixed toughness that gear cannot change',()=>{
+ // 층별 고정 난이도 (작업 205): 예전 `dungeonPreviewHp`는 내 DPS에 4배를 곱해 장비가 세면 몹도 같이
+ // 세졌다. 실제 보상을 주는 지금은 그 층의 값이 그대로여야 한다 — 장비를 바꿔도 체력이 같다.
+ const plain=freshSave(),geared=structuredClone(plain);
+ geared.equipment.weapon={id:'geared',name:'두손검',slot:'weapon',rarity:'legendary',stats:{attack:100000}};
+ const before=structuredClone(geared);
+ for(let floor=1;floor<=10;floor++){
+  const base=new DungeonBattle(plain,floor),full=new DungeonBattle(geared,floor);
+  assert.equal(base.world.enemies[0].maxHp,full.world.enemies[0].maxHp,`floor ${floor} moved with gear`);
+  assert.equal(base.world.enemies[0].maxHp,dungeonMobHp(floor)*(base.bossFloor?DUNGEON_BOSS_HP_SCALE:1));
+ }
+ assert.deepEqual(geared,before);
+ assert.equal(DUNGEON_MOB_HP.length,10);
+ for(let index=1;index<DUNGEON_MOB_HP.length;index++)
+  assert(DUNGEON_MOB_HP[index]>DUNGEON_MOB_HP[index-1],`floor ${index+1} is not harder than ${index}`);
+ assert.equal(DUNGEON_ELITE_HP_SCALE,2);
+ assert.equal(dungeonMobHp(0),DUNGEON_MOB_HP[0]);
+ assert.equal(dungeonMobHp(99),DUNGEON_MOB_HP[9]);
+});
+
+test('floor 1 is a beginner floor and the 10th boss needs a deep-farming kit inside 90 seconds',()=>{
+ // 평타 DPS(스킬 없음, 치명 무시) = 공격력 × 1.6 / 0.48. 일반 층은 6마리 + 정예 1마리(2배) = 8배.
+ const dps=attack=>attack*1.6/.48;
+ const floorHp=floor=>floor%5===0?dungeonMobHp(floor)*DUNGEON_BOSS_HP_SCALE:8*dungeonMobHp(floor);
+ // Lv.5~10·저층 장비(공격 40 안팎)도 1층을 90초 안에 넉넉히 깬다.
+ assert(dps(40)>0);
+ assert(floorHp(1)/dps(40)<25,`floor 1 takes ${(floorHp(1)/dps(40)).toFixed(1)}s for a beginner`);
+ // 15~20층을 파밍한 장비(공격 320·치명 24%·공속 20%)는 10층 보스를 90초 안에 끝낸다.
+ const deep=dps(320)*(1+20/100)*(1+24/100);
+ assert(floorHp(10)/deep<90,`floor 10 boss takes ${(floorHp(10)/deep).toFixed(1)}s with deep gear`);
+ // 그 절반짜리 장비로는 90초를 넘긴다 — 10층은 '고스펙'의 층이다.
+ assert(floorHp(10)/dps(120)>90,`floor 10 boss falls to a 120 attack kit in ${(floorHp(10)/dps(120)).toFixed(1)}s`);
+ // 5·10층 보스는 같은 층 일반 몹보다 훨씬 묵직하다(필드 보스의 6배보다도 무겁다).
+ for(const floor of [5,10])assert(dungeonMobHp(floor)*DUNGEON_BOSS_HP_SCALE>dungeonMobHp(floor)*6);
 });
 
 test('enemies spawn away, visibly approach, and hero does not chase into the next spawn',()=>{
@@ -29,10 +58,13 @@ test('enemies spawn away, visibly approach, and hero does not chase into the nex
  for(const target of battle.world.enemies)battle.world.kill(target);battle.world.enemies=[];battle.advance(.05);
  assert.equal(battle.wave,2);assert(battle.world.enemies.every(e=>Math.hypot(e.x-p.x,e.y-p.y)>150));
 });
-test('second floor is a fresh preview encounter with full health and modestly higher toughness',()=>{
+test('second floor is a fresh encounter with full health and a harder, fixed mob',()=>{
  const save=freshSave(),before=structuredClone(save),first=new DungeonBattle(save),second=new DungeonBattle(save,2);
  assert.equal(second.floor,2);assert.equal(second.world.save.floor,2);assert.equal(second.elapsed,0);assert.equal(second.wave,1);assert.equal(second.world.player.hp,first.world.player.hp);
- assert(second.world.enemies[0].maxHp>first.world.enemies[0].maxHp);assert(second.world.enemies[0].maxHp<first.world.enemies[0].maxHp*1.3);assert.deepEqual(save,before);
+ assert(second.world.enemies[0].maxHp>first.world.enemies[0].maxHp);
+ // 고정 곡선이라 2층 체력은 필드 4층 곡선 그대로다(작업 205).
+ assert.equal(second.world.enemies[0].maxHp,DUNGEON_MOB_HP[1]);
+ assert.deepEqual(save,before);
 });
 test('ten-floor preview uses solo bosses at 5/10 and stops its floor index at ten',()=>{
  for(let floor=1;floor<=10;floor++){
@@ -42,19 +74,53 @@ test('ten-floor preview uses solo bosses at 5/10 and stops its floor index at te
  assert.equal(new DungeonBattle(freshSave(),11).floor,10);
 });
 
-test('every kill leaves field-matched gold and gates the item drop at the test 50 percent',()=>{
- assert.equal(DUNGEON_ITEM_DROP_CHANCE,.5);
+test('a dungeon mob drops an item on its own 15~20 percent rate, well above the field',()=>{
+ // 실제 드롭률 (작업 205): 1층 15%에서 층마다 .5%p씩 올라 10층 19.5%(상한 20%).
+ assert.equal(DUNGEON_DROP_CHANCE_BASE,.15);
+ assert.equal(DUNGEON_DROP_CHANCE_STEP,.005);
+ assert.equal(dungeonDropChance(1),.15);
+ assert.equal(dungeonDropChance(10),.195);
+ // 10층 밖의 층은 10층으로 잘라 쓴다(던전 상한).
+ assert.equal(dungeonDropChance(20),.195);
+ assert(dungeonDropChance(10)<=DUNGEON_DROP_CHANCE_MAX);
+ for(let floor=1;floor<10;floor++)assert(dungeonDropChance(floor)<dungeonDropChance(floor+1));
  const battle=new DungeonBattle(freshSave());
  withRandom([.9],()=>battle.world.kill(battle.world.enemies[0]));
  assert.deepEqual(battle.world.loot.map(entry=>entry.kind),['gold']);
  assert.equal(battle.world.loot[0].gold,3+battle.floor);
  assert.equal(battle.world.drops.length,0);
+ // 게이트를 넘으면 필드의 장비:스킬북 비율로 하나가 떨어진다.
+ const lucky=new DungeonBattle(freshSave());
+ withRandom([.1,.99],()=>lucky.world.kill(lucky.world.enemies[0]));
+ assert.deepEqual(lucky.world.loot.map(entry=>entry.kind),['gold','item']);
+ // 보스 층은 5개 랜덤템 + 금화 10무더기 그대로다.
+ const boss=new DungeonBattle(freshSave(),5);
+ withRandom([.9],()=>boss.world.kill(boss.world.enemies[0]));
+ assert.equal(boss.world.loot.filter(entry=>entry.kind==='item').length,5);
+ assert.equal(boss.world.loot.filter(entry=>entry.kind==='gold').length,10);
+});
+
+test('only a clear hands over the floor loot — a defeat or a timeout pays nothing',()=>{
+ const clear=new DungeonBattle(freshSave());
+ assert.equal(clear.clearRewards(),undefined,'a running floor already pays out');
+ clear.world.update=()=>{};
+ withRandom([.9],()=>{for(let i=0;i<3;i++){for(const enemy of clear.world.enemies)clear.world.kill(enemy);clear.world.enemies=[];clear.advance(.05);}});
+ assert.equal(clear.outcome,'clear');
+ const rewards=clear.clearRewards();
+ assert.equal(rewards.gold,7*(3+clear.floor));
+ assert.equal(rewards.gold,clear.world.lootGold);
+ assert.deepEqual(rewards.items,[]);
+ const dead=new DungeonBattle(freshSave());dead.world.update=()=>{};dead.world.player.hp=0;dead.advance(.05);
+ assert.equal(dead.outcome,'dead');assert.equal(dead.clearRewards(),undefined);
+ const timeout=new DungeonBattle(freshSave());timeout.world.update=()=>{};
+ for(let i=0;i<Math.ceil(90.1/.05);i++)timeout.advance(.05);
+ assert.equal(timeout.outcome,'timeout');assert.equal(timeout.clearRewards(),undefined);
 });
 
 test('which item falls follows the field equipment and skillbook odds',()=>{
- // Floor 1 normal: equipment .0025 vs skillbook .001, so the split sits at 5/7 (≈.714).
+ // 작업 210: 아이템은 70% 장비 · 30% 스킬북 — 경계는 .30(스킬북 몫)이다.
  const drop=(ratio)=>{const battle=new DungeonBattle(freshSave());withRandom([0,ratio],()=>battle.world.kill(battle.world.enemies[0]));return battle.world.loot.find(entry=>entry.kind==='item').item;};
- const equipment=drop(.70),book=drop(.72);
+ const equipment=drop(.10),book=drop(.70);
  assert.equal(equipment.kind,undefined);
  assert.equal(equipment.slot==='skillbook',false);
  assert.equal(book.kind,'skillbook');

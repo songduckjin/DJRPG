@@ -21,8 +21,10 @@
 import { parseSave } from '../src/game/store.ts';
 import { DUNGEON_STEP, DUNGEON_MAX_STEPS, dungeonBattleSummary, runDungeonBattle } from '../src/ui/dungeonBattle.ts';
 
-/** 어떤 층이든 이 시간보다 빨리 클리어할 수는 없다고 본다(방 입장·연출 포함). */
-export const DUNGEON_MIN_SECONDS = 10;
+/** 어떤 층이든 이 시간보다 빨리 클리어할 수는 없다고 본다(방 입장·연출 포함).
+ *  층별 고정 체력(작업 205)에서는 30레벨 캐릭터가 1층을 6초 남짓에 끝낼 수 있으므로 10초는 정상 클리어를
+ *  막았다 — 입장 연출(1.8초)보다 조금 긴 3초로 낮추고, "실제로 그 전투를 돌렸는가"는 스텝·digest 대조가 맡는다. */
+export const DUNGEON_MIN_SECONDS = 3;
 /** 리플레이가 클리어하지 못한 세이브가 클리어를 주장할 때 요구하는 시간 — 근거가 약하므로 더 길게 본다. */
 export const DUNGEON_UNVERIFIED_SECONDS = 30;
 /** 서버 리플레이와 클라이언트 요약을 대조할 때 허용하는 오차(비율). 브라우저 엔진 차이를 흡수하는 폭이다. */

@@ -1,4 +1,4 @@
-import { codexEntries, codexRarities, codexOptions, codexOwnership, codexSlotNames, codexVariantName, codexVariants, firstDropFloor, type CodexEntry } from '../../game/codex';
+import { codexEntries, codexRarities, codexOptions, codexSlotNames, codexVariantCount, codexVariantName, codexVariants, firstDropFloor, normalizeCollection, type CodexEntry } from '../../game/codex';
 import { rarityNames, statNames, type Rarity } from '../../game/items';
 import type { Interface } from '../interface';
 function element<K extends keyof HTMLElementTagNameMap>(tag: K, className = '', text = ''): HTMLElementTagNameMap[K] { const node = document.createElement(tag); node.className = className; node.textContent = text; return node; }
@@ -7,12 +7,16 @@ function art(entry: CodexEntry, large = false): HTMLElement {
   node.style.backgroundImage = `url("${entry.art.path}")`; node.style.backgroundSize = `${entry.art.columns * 100}% 100%`; node.style.backgroundPosition = `${entry.art.columns > 1 ? entry.art.frame / (entry.art.columns - 1) * 100 : 0}% center`;
   node.setAttribute('aria-hidden', 'true'); return node;
 }
+/** 부위 표기 — 무기는 대검·활·지팡이를 함께 보여 준다(작업 208). */
+function slotLabel(entry: CodexEntry): string { return entry.group ? `${codexSlotNames[entry.slot]} · ${entry.group}` : codexSlotNames[entry.slot]; }
 export function renderCodex(this: Interface, dialog: HTMLElement): void {
   const save = this.world.save;
-  const found = codexEntries.filter(entry => codexOwnership(save, entry).discovered).length;
+  // 발견 수는 **등급별 칸**(95종 × 6등급 = 570) 기준이다(작업 208) — 일반 한 벌만 먹어도
+  // 레전드까지 발견으로 잡히던 버그를 없앴다.
+  const found = normalizeCollection(save.equipmentCollection).length;
   const summary = element('section', 'codex-summary');
-  summary.append(element('b', '', `발견 ${found} / ${codexEntries.length}`), element('span', '', '발견 기록은 기본형 기준 · 분해·판매 후에도 유지'));
-  const progress = element('progress'); progress.value = found; progress.max = codexEntries.length; progress.setAttribute('aria-label', '장비 도감 발견 진행도'); summary.append(progress); dialog.append(summary);
+  summary.append(element('b', '', `발견 ${found} / ${codexVariantCount}`), element('span', '', '등급별 발견 기록 · 분해·판매 후에도 유지'));
+  const progress = element('progress'); progress.value = found; progress.max = codexVariantCount; progress.setAttribute('aria-label', '장비 도감 발견 진행도'); summary.append(progress); dialog.append(summary);
   const toolbar = element('div', 'codex-toolbar');
   const search = element('input'); search.type = 'search'; search.placeholder = '장비 이름 검색'; search.setAttribute('aria-label', '도감 장비 이름 검색'); search.value = this.codexQuery; search.maxLength = 80;
   const slot = element('select'); slot.setAttribute('aria-label', '장비 부위');
@@ -27,9 +31,11 @@ export function renderCodex(this: Interface, dialog: HTMLElement): void {
   dialog.append(count, grid, empty);
   for (const variant of codexVariants(save)) {
     const { entry, rarity: grade } = variant;
-    const ownership = variant, card = element('button', `codex-card rarity-${grade}${ownership.discovered ? ' discovered' : ''}${this.codexSelected === variant.key ? ' selected' : ''}`);
-    card.type = 'button'; card.dataset.codexKey = variant.key; card.setAttribute('aria-expanded', String(this.codexSelected === variant.key)); card.setAttribute('aria-label', `${variant.name} · ${ownership.discovered ? '발견' : '미발견'} · 상세 보기`);
-    card.append(art(entry), element('b', '', variant.name), element('small', '', codexSlotNames[entry.slot]), element('span', 'codex-owned', ownership.bag + ownership.equipped ? `보유 ${ownership.bag + ownership.equipped}${ownership.equipped ? ' · 착용 중' : ''}` : ownership.discovered ? '기본형 발견' : '미발견'));
+    const discovered = variant.discovered;
+    const card = element('button', `codex-card rarity-${grade}${discovered ? ' discovered' : ''}${this.codexSelected === variant.key ? ' selected' : ''}`);
+    card.type = 'button'; card.dataset.codexKey = variant.key; card.setAttribute('aria-expanded', String(this.codexSelected === variant.key)); card.setAttribute('aria-label', `${variant.name} · ${discovered ? '발견' : '미발견'} · 상세 보기`);
+    const owned = variant.bag + variant.equipped;
+    card.append(art(entry), element('b', '', variant.name), element('small', '', slotLabel(entry)), element('span', 'codex-owned', owned ? `보유 ${owned}${variant.equipped ? ' · 착용 중' : ''}` : discovered ? '발견' : '미발견'));
     card.onclick = () => {
       this.codexSelected = this.codexSelected === variant.key ? undefined : variant.key; this.renderModal();
       this.root.querySelector<HTMLElement>('.codex-detail')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
@@ -49,7 +55,7 @@ export function renderCodex(this: Interface, dialog: HTMLElement): void {
 function codexDetail(entry: CodexEntry, floor: number, grade: Rarity): HTMLElement {
   const detail = element('section', `codex-detail rarity-${grade}`); detail.setAttribute('aria-label', `${entry.name} 상세 정보`);
   const heading = element('div', 'codex-detail-heading'); heading.append(art(entry, true), element('h3', '', codexVariantName(entry, grade))); detail.append(heading);
-  detail.append(element('p', '', `${codexSlotNames[entry.slot]} · ${rarityNames[grade]} · 일반 몬스터/보스 사냥에서 드랍`));
+  detail.append(element('p', '', `${slotLabel(entry)} · ${rarityNames[grade]} · 일반 몬스터/보스 사냥에서 드랍`));
   const preview = codexOptions(entry, grade, floor), options = element('div', 'codex-option-list');
   options.append(element('p', '', `${firstDropFloor(entry, grade)}층부터 등장 가능 · ${preview.floor}층 드랍 옵션 기준`));
   for (const option of preview.stats) options.append(element('span', '', `${statNames[option.stat]} +${option.min}${option.min !== option.max ? `~${option.max}` : ''}`));

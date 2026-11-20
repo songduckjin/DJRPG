@@ -1,15 +1,17 @@
 import { canStoreItem } from './bagCapacity';
 import { bossGoldPiles, bossGoldSpot } from './bossLoot';
-import { addExperience, floorKillTarget, rollItem, skillLevel, totalStats, type Item, type Rarity, type Save } from './store';
-import { equipmentDropChance, itemDisplayName, rollSkillBook, skillBookDropChance, starterWeaponName } from './items';
+import { addExperience, floorKillTarget, MAX_FLOOR, rollItem, skillLevel, totalStats, type Item, type Rarity, type Save } from './store';
+import { itemDisplayName, itemDropChance, rollItemKind, rollSkillBook, starterWeaponName } from './items';
 import { dragonOrbitFactor, skillDamageScale, skillDuration, skillRange, skills, slash2Hits, slash2SwingSeconds, type Job, type SkillId } from './skills';
 import { jobOrDefault } from './skills';
 import { clampArenaPoint, spawnArenaEnemy } from './arena';
 import { LOOT_ABSORB_SECONDS, LOOT_REST_SECONDS } from './loot';
-import { autoSalvageBlock, autoSalvageRecovered } from './inventory';
+import { autoSalvageBlock, autoSalvageRecovered, sweepBagOnFull } from './inventory';
 import { random } from './rng';
 
-export type Enemy = { x: number; y: number; hp: number; maxHp: number; boss: boolean; hit: number; step: number; moving: boolean; knockX: number; knockY: number; slow: number };
+export type Enemy = { x: number; y: number; hp: number; maxHp: number; boss: boolean; hit: number; step: number; moving: boolean; knockX: number; knockY: number; slow: number;
+  /** 정예 몹(작업 206) — 일반 몹 30마리마다 한 마리. 보스 타이밍이 오면 보스가 우선이라 둘은 같이 서지 않는다. */
+  elite?: boolean };
 /** `absorb` is the age the pull into the character began at; while it is unset the drop still rests
  *  where it fell (`LOOT_REST_SECONDS`). Without that mark the renderer cannot tell a drop held back
  *  by a full bag from one already on its way in. */
@@ -93,6 +95,13 @@ export function enemyMaxHp(floor: number, boss: boolean): number {
   if (boss) return Math.round(earlyBossHp(floor) + (deepMobHp(floor) * BOSS_HP_RATIO - earlyBossHp(floor)) * ramp);
   return Math.round(offlineMobHp(floor) + (deepMobHp(floor) - offlineMobHp(floor)) * ramp);
 }
+/** 정예 몹은 일반 몹 **30마리 처치마다 한 마리** 나온다(작업 206). 보스가 대기 중이면 그 스폰은 보스가 가져간다. */
+export const ELITE_KILL_INTERVAL = 30;
+/** 정예 몹의 체력·보상 배율 — 체력 2배, 금화·경험치 2배. 장비·스킬북 드롭률은 일반 몹과 **같다(1배)**. */
+export const ELITE_HP_SCALE = 2;
+export const ELITE_REWARD_SCALE = 2;
+/** 정예 몹의 몸 크기 — 일반 몹보다 살짝 큰 1.22배(작업 206). */
+export const ELITE_MOB_SCALE = 1.22;
 export function enemyHitDamage(floor: number, boss: boolean, defense: number): number { return Math.max(1, Math.round(boss ? 20 + floor * 5.5 + Math.pow(floor, 1.3) * 1.2 : 7 + floor * 2.4 + Math.pow(floor, 1.25) * .5) - defense * .2); }
 /** 10연타 팝업을 흩뿌리는 자리(±12px) — 타마다 다른 조합이라 열 개 숫자가 한 곳에 모이지 않는다. */
 export function crushLabelOffset(index: number): { x: number; y: number } { return { x: (index % 5 - 2) * 6, y: index < 5 ? -8 : 4 }; }
@@ -118,6 +127,12 @@ export class World {
   afterimages: HeroAfterimage[] = [];
   activeMove = { x: 0, y: 0 };
   bossPending = false;
+  /** `⚔ 보스 도전`을 띄울 상태인가(작업 212 `#5017`) — 보스에게 쓰러진 뒤 `true`,
+   *  보스를 잡아 다음 층으로 올라가면 `false`. 세션 동안만 기억한다. */
+  bossRetryAvailable = false;
+  /** 정예 몹 처치 카운터(작업 206) — 30마리가 되면 다음 스폰을 정예로 예약한다. */
+  eliteKills = 0;
+  elitePending = false;
   private swing = 1;
   private chaseTarget?: Enemy;
   private pursuing = false;
@@ -127,18 +142,64 @@ export class World {
    *  The UI owns the switch and the stored value, so the world asks on every pickup instead of keeping
    *  a copy that could drift. Offline rewards never pass through this. */
   autoSalvage?: () => Exclude<Rarity, 'legendary'> | undefined;
+  /** 41층부터 쓰는 `+N까지` 상한 (작업 203): 이 단계보다 높은 장비는 경매장용으로 남긴다. 40층
+   *  이하에서는 값이 있어도 `autoSalvageBlock`이 보지 않으므로 설정 화면도 그때만 열린다. */
+  autoSalvagePlus?: () => number | undefined;
   /** Would this recovered piece be swept up right now? Used to let it fly in even with a full bag. */
   private sweeps(item: Item): Exclude<Rarity, 'legendary'> | undefined {
     const grade = this.autoSalvage?.();
-    return grade && !autoSalvageBlock(this.save, item, grade) ? grade : undefined;
+    return grade && !autoSalvageBlock(this.save, item, grade, this.autoSalvagePlus?.()) ? grade : undefined;
+  }
+  /** 가방 40칸이 꽉 찼을 때 설정 이하의 **가방 안** 장비를 즉시 일괄 분해해 칸을 만든다(작업 209, #4286).
+   *  분해된 것이 1개 이상이면 금화·강화석을 알리고 `true`. 스위치가 꺼졌거나 남길 장비밖에 없으면 `false`. */
+  private sweepFullBag(): boolean {
+    const grade = this.autoSalvage?.();
+    if (!grade) return false;
+    const swept = sweepBagOnFull(this.save, grade, this.autoSalvagePlus?.());
+    if (!swept) return false;
+    this.onMessage(`가방이 가득 차 설정 이하 장비 ${swept.count}개를 자동 분해했습니다 (+${swept.gold.toLocaleString()}G, +${swept.stones.toLocaleString()}강화석)`);
+    this.onChange();
+    return true;
   }
 
   constructor(public save: Save) {
     this.save.auto = true;    this.player.hp = Math.min(save.health, totalStats(save).health);
-    this.bossPending = save.floorKills >= floorKillTarget(save.floor);
+    // 보스는 **최고 도달 층에서만** 나오고, 자동 등반이 꺼진 상태(패배 뒤)에는 `⚔ 보스 도전`을 눌러야
+    // 다시 나온다(작업 210). 세이브를 다시 읽어도 보스가 저절로 소환되지 않는다.
+    this.bossPending = save.autoClimb && this.bossFloor() && save.floorKills >= floorKillTarget(save.floor);
+    // 자동 등반이 꺼진 세이브로 들어오면 이미 한 번 쓰러진 상태로 본다(작업 210).
+    this.bossRetryAvailable = !save.autoClimb;
     const hp = enemyMaxHp(save.floor, false);
     const start = clampArenaPoint(145, -45);
     this.enemies.push({ x: start.x, y: start.y, hp, maxHp: hp, boss: false, hit: 0, step: 0, moving: false, knockX: 0, knockY: 0, slow: 0 });
+  }
+
+  /** 보스가 나오는 층인가 — **최고 도달 층에서만**이다(작업 210, 사용자 지시 `#4566`).
+   *  아래층을 반복 사냥할 때는 보스가 뜨지 않고 일반·정예만 계속 나온다. */
+  bossFloor(): boolean { return this.save.floor >= this.save.maxFloor; }
+
+  /** `⚔ 보스 도전` 버튼이 살아나는 상태 — 최고 도달 층에서 보스에게 한 번 쓰러진 뒤다.
+   *  작업 212(`#5017`): 자동 등반이 **켜져 있어도** 버튼을 띄운다 — 일반 몹을 다시 잡아
+   *  목표를 채우기 전이라도 바로 보스에게 다시 도전할 수 있다.
+   *  마지막 층(`MAX_FLOOR`)은 다음 층이 없으므로 버튼을 띄우지 않는다. */
+  get bossRetryReady(): boolean { return this.bossFloor() && this.bossRetryAvailable && this.save.floor < MAX_FLOOR; }
+
+  /**
+   * `⚔ 보스 도전`(작업 210 → 212, 사용자 지시 `#4566` "패배시에만 활성화 … 계속 다시 도전해도 돼",
+   * `#5017` "버튼 안 눌러도 자동으로 다시"·"보스 도전 시 일반 몹은 안 나와야 함").
+   * 자동 등반을 다시 켜고, 지금 층 보스를 한 마리 새로 소환한다 — **일반 몹은 모두 정리하고
+   * 보스전이 끝날 때까지 새로 부르지 않는다**(보스와 단독 승부).
+   * 보스에게 또 지면 패배 처리로 버튼이 다시 살아나므로 몇 번이든 재도전할 수 있고,
+   * 보스를 이겨 다음 층으로 올라가면 버튼은 사라진다. */
+  challengeBoss(): boolean {
+    if (!this.bossRetryReady) return false;
+    this.save.autoClimb = true;
+    this.save.floorKills = Math.max(this.save.floorKills, floorKillTarget(this.save.floor));
+    this.enemies = []; this.chaseTarget = undefined; this.pursuing = false; this.activeMove = { x: 0, y: 0 };
+    this.spawnTimer = 0; this.bossPending = true; this.elitePending = false;
+    this.onMessage('해골 군주에게 다시 도전합니다!');
+    this.onChange();
+    return true;
   }
 
   /** 캐릭터 직업 — 값이 없는 예전 세이브는 전사로 본다. */
@@ -148,14 +209,15 @@ export class World {
   get mageBolt(): ArrowVariant { return this.save.gender === 'female' ? 'fire' : 'arcane'; }
 
   travelToFloor(floor: number): { ok: boolean; message: string } {
-    if (!Number.isInteger(floor) || floor < 1 || floor > this.save.maxFloor) return { ok: false, message: `이동할 수 없는 층입니다. 현재 최고 도달 층은 ${this.save.maxFloor}층입니다.` };
+    const highest = Math.min(MAX_FLOOR, this.save.maxFloor);
+    if (!Number.isInteger(floor) || floor < 1 || floor > highest) return { ok: false, message: `이동할 수 없는 층입니다. 현재 최고 도달 층은 ${highest}층입니다.` };
     if (floor === this.save.floor) return { ok: true, message: `이미 ${floor}층에서 사냥 중입니다.` };
     const lostDrops = this.drops.length;
     this.save.floor = floor;
     this.save.floorKills = 0;
     this.enemies = []; this.drops = []; this.coins = []; this.effects = [];
     this.crush = undefined; this.afterimages = []; this.attackPoseSpan = .32;
-    this.bossPending = false; this.spawnTimer = 0;
+    this.bossPending = false; this.eliteKills = 0; this.elitePending = false; this.spawnTimer = 0;
     this.player.x = 0; this.player.y = 0; this.attackHeld = false;
     this.activeMove = { x: 0, y: 0 };
     this.chaseTarget = undefined; this.pursuing = false;
@@ -377,8 +439,12 @@ export class World {
   kill(enemy: Enemy): void {
     this.effects.push({ x: enemy.x, y: enemy.y, kind: 'death', age: 0, duration: .7, angle: random() * Math.PI * 2 });
     this.save.kills++;
+    // 보스 업적은 **보스만** 센다(작업 210, 사용자 지시 `#4475`·`#4486` "보스가 아니잖아"):
+    // 사냥터 층 보스 + 던전 5·10층 보스 + 월드보스 도전(하루 3회, 도전마다 1회).
+    // 필드 정예 몹은 보스가 아니므로 세지 않는다. 던전·월드보스 화면이 같은 `bossKills`에 더한다.
     if (enemy.boss) this.save.bossKills++;
-    const gold = enemy.boss ? 70 * this.save.floor : 3 + this.save.floor;
+    // 정예는 금화·경험치 2배, 장비·스킬북 드롭률은 일반 몹과 같은 1배다(작업 206).
+    const gold = enemy.boss ? 70 * this.save.floor : (3 + this.save.floor) * (enemy.elite ? ELITE_REWARD_SCALE : 1);
     this.save.gold += gold;
     // The coin shows the gold that was just paid: nothing is credited when it flies in. A boss's gold
     // hits the floor in ten heaps scattered around the body (작업 194), each its own drop with its own
@@ -392,34 +458,57 @@ export class World {
       const from = enemy.boss ? clampArenaPoint(enemy.x, enemy.y) : undefined;
       this.coins.push({ x: point.x, y: point.y, age: 0, gold: amount, from });
     });
-    const gained = addExperience(this.save, enemy.boss ? 45 : 8);
+    // 경험치(작업 207, 사용자 확정): 일반 `9 + 층`, 정예 2배, 보스 6배 — 1층 10/20/60 · 20층 29/58/174.
+    const baseExp = 9 + this.save.floor;
+    const gained = addExperience(this.save, enemy.boss ? baseExp * 6 : baseExp * (enemy.elite ? ELITE_REWARD_SCALE : 1));
     if (gained) { this.player.hp = this.save.health; this.onMessage(`레벨 ${this.save.level} 달성!`); }
     // The gold is the boss's whole haul — ten heaps and nothing handed out on top (작업 195). Items
     // still come from the one chance roll every kill makes below, against the same field drop table
     // (the boss rates for a boss), so a boss never leaves five guaranteed pieces behind.
     const guaranteed = this.save.tutorial === 0 && !enemy.boss, boss = enemy.boss;
-    if (guaranteed || random() < equipmentDropChance(this.save.floor, boss)) {
-      this.drops.push({ x: enemy.x, y: enemy.y, item: rollItem(this.save.floor, guaranteed, boss, this.job), age: 0, warned: false });
-      if (guaranteed) { this.save.tutorial = 1; this.onMessage(`${starterWeaponName(this.job)}이(가) 떨어졌습니다. 잠시 뒤 자동으로 획득됩니다!`); }
-    }
-    if (random() < skillBookDropChance(this.save.floor, boss)) {
-      this.drops.push({ x: enemy.x, y: enemy.y, item: rollSkillBook(this.save.floor, this.job), age: 0, warned: false });
+    // 한 마리당 **한 번만** 굴려 아이템 1개(작업 210, 사용자 지시 `#4628`): 장비 70% · 스킬북 30%.
+    if (guaranteed) {
+      this.drops.push({ x: enemy.x, y: enemy.y, item: rollItem(this.save.floor, true, boss, this.job), age: 0, warned: false });
+      this.save.tutorial = 1; this.onMessage(`${starterWeaponName(this.job)}이(가) 떨어졌습니다. 잠시 뒤 자동으로 획득됩니다!`);
+    } else if (random() < itemDropChance(this.save.floor, boss)) {
+      const item = rollItemKind() === 'skillbook' ? rollSkillBook(this.save.floor, this.job) : rollItem(this.save.floor, false, boss, this.job);
+      this.drops.push({ x: enemy.x, y: enemy.y, item, age: 0, warned: false });
     }
     if (enemy.boss) {
       if (this.save.autoClimb) {
-        this.save.floor++;
-        this.save.maxFloor = Math.max(this.save.maxFloor, this.save.floor);
+        // 20층이 마지막 층이다(작업 204): 20층 보스를 처치해도 21층으로 넘어가지 않고 20층에 머문다.
+        const capped = this.save.floor >= MAX_FLOOR;
+        if (!capped) {
+          this.save.floor++;
+          this.save.maxFloor = Math.min(MAX_FLOOR, Math.max(this.save.maxFloor, this.save.floor));
+        }
         this.enemies = [];
         this.chaseTarget = undefined; this.pursuing = false;
         this.activeMove = { x: 0, y: 0 };
         this.spawnTimer = .2;
+        this.save.floorKills = 0;
+        this.bossPending = false;
+        this.bossRetryAvailable = false;
+        this.onMessage(capped ? `최고 ${MAX_FLOOR}층 달성! ${MAX_FLOOR}층에서 계속 사냥합니다.` : `${this.save.floor}층 진입`);
+      } else {
+        this.save.floorKills = 0;
+        this.bossPending = false;
+        this.bossRetryAvailable = this.save.floor < MAX_FLOOR;
+        this.onMessage(this.save.floor >= MAX_FLOOR ? `${this.save.floor}층 반복 사냥 · 최고 ${MAX_FLOOR}층` : `${this.save.floor}층 반복 사냥`);
       }
-      this.save.floorKills = 0;
-      this.bossPending = false;
-      this.onMessage(this.save.autoClimb ? `${this.save.floor}층 진입` : `${this.save.floor}층 반복 사냥`);
     } else {
       this.save.floorKills++;
-      if (this.save.floorKills >= floorKillTarget(this.save.floor) && !this.bossPending && !this.enemies.some(e => e.boss)) {
+      // 일반 몹 30마리마다 정예 한 마리(작업 206). 정예 자신은 다음 정예의 카운트에 넣지 않는다.
+      if (!enemy.elite) {
+        this.eliteKills++;
+        if (this.eliteKills >= ELITE_KILL_INTERVAL) { this.eliteKills = 0; this.elitePending = true; }
+      }
+      if (!this.bossFloor()) {
+        // 아래층 반복 사냥에는 보스가 없다(작업 210) — 목표를 채우면 0으로 돌리고 일반·정예만 계속 나온다.
+        if (this.save.floorKills >= floorKillTarget(this.save.floor)) this.save.floorKills = 0;
+      } else if (this.save.autoClimb && this.save.floorKills >= floorKillTarget(this.save.floor) && !this.bossPending && !this.enemies.some(e => e.boss)) {
+        // 자동 등반 중이면 목표를 채울 때마다 보스가 저절로 온다(작업 212 `#5017`).
+        // 보스에게 지고 1마리부터 다시 잡는 중에도 여기로 다시 보스가 나타난다.
         this.bossPending = true;
         this.onMessage(`${floorKillTarget(this.save.floor)}마리 처치! 해골 군주가 나타납니다!`);
       }
@@ -483,14 +572,30 @@ export class World {
     }
     if (this.attackHeld) this.action('attack');
     this.spawnTimer -= dt;
-    if (this.spawnTimer <= 0 && this.enemies.length < 18) {
+    // 보스전(보스 예약·보스 생존) 중에는 **일반 몹을 부르지 않는다**(작업 212 `#5017`) —
+    // `⚔ 보스 도전`으로 시작한 승부는 보스와 단독으로 붙는다.
+    const bossFight = this.bossPending || this.enemies.some(enemy => enemy.boss);
+    if (this.spawnTimer <= 0 && (bossFight || this.enemies.length < 18)) {
       this.spawnTimer = Math.max(.55, 1.8 - this.save.floor * .08);
       const angle = random() * Math.PI * 2;
-      const boss = this.bossPending && !this.enemies.some(e => e.boss);
-      const spawn = spawnArenaEnemy(p, angle);
-      const hp = enemyMaxHp(this.save.floor, boss);
-      this.enemies.push({ x: spawn.x, y: spawn.y, hp, maxHp: hp, boss, hit: 0, step: random() * Math.PI * 2, moving: false, knockX: 0, knockY: 0, slow: 0 });
-      if (boss) this.bossPending = false;
+      const boss = this.bossFloor() && this.bossPending && !this.enemies.some(enemy => enemy.boss);
+      // 보스 타이밍과 겹치면 보스가 우선한다 — 정예 예약은 다음 스폰으로 미룬다(작업 206).
+      const elite = !boss && this.elitePending;
+      if (bossFight && !boss) {
+        // 보스전 중에는 빈 타이머만 돌리고 아무도 부르지 않는다(정예 예약도 미룬다).
+        this.spawnTimer = .4;
+      } else {
+        const spawn = spawnArenaEnemy(p, angle);
+        const hp = enemyMaxHp(this.save.floor, boss) * (elite ? ELITE_HP_SCALE : 1);
+        if (boss) {
+          // 보스가 나오는 순간 남은 일반 몹은 정리한다 — 보스만 단독으로 상대하게(작업 212).
+          this.enemies = this.enemies.filter(enemy => enemy.boss);
+          this.chaseTarget = undefined; this.pursuing = false;
+        }
+        this.enemies.push({ x: spawn.x, y: spawn.y, hp, maxHp: hp, boss, elite, hit: 0, step: random() * Math.PI * 2, moving: false, knockX: 0, knockY: 0, slow: 0 });
+        if (boss) this.bossPending = false;
+        if (elite) { this.elitePending = false; this.onMessage('정예 해골이 나타났습니다!'); }
+      }
     }
     for (const enemy of this.enemies) {
       const dx = p.x - enemy.x, dy = p.y - enemy.y, d = Math.hypot(dx, dy);
@@ -503,7 +608,29 @@ export class World {
       if (d < 35 && p.hit <= 0) {
         p.hp = Math.max(0, p.hp - enemyHitDamage(this.save.floor, enemy.boss, totalStats(this.save).defense));
         p.hit = .85;
-        if (p.hp <= 0) { this.save.autoClimb = false; this.crush = undefined; this.afterimages = []; this.attackPoseSpan = .32; p.hp = totalStats(this.save).health; this.save.health = p.hp; p.x = 0; p.y = 0; this.save.gold = Math.max(0, this.save.gold - 10); this.onMessage('쓰러졌습니다. 10골드를 잃고 부활했습니다. 자동 등반이 중단됩니다.'); this.onChange(); }
+        if (p.hp <= 0) {
+          // 보스에게 쓰러졌고 최고층에서 자동 등반 중이면(작업 212 `#5017`·`#5028`) 자동 등반을
+          // 끄지 않는다 — 1마리부터 다시 잡게 킬 카운트를 0으로 돌리고, 보스는 물러나게 한다.
+          // 목표 마릿수를 채우면 `kill()`의 기존 규칙이 보스를 자동으로 다시 부른다.
+          const climbOn = this.save.autoClimb && this.bossFloor() && enemy.boss;
+          this.crush = undefined; this.afterimages = []; this.attackPoseSpan = .32;
+          if (climbOn) {
+            this.save.floorKills = 0;
+            this.bossPending = false;
+            this.bossRetryAvailable = true;
+            this.enemies = this.enemies.filter(other => !other.boss);
+          } else {
+            this.save.autoClimb = false;
+            // 자동 등반이 꺼졌으면 최고층에서는 다시 도전 버튼을 띄운다(작업 210 규칙 유지).
+            this.bossRetryAvailable = this.bossFloor();
+          }
+          p.hp = totalStats(this.save).health; this.save.health = p.hp; p.x = 0; p.y = 0; this.chaseTarget = undefined; this.pursuing = false;
+          this.save.gold = Math.max(0, this.save.gold - 10);
+          this.onMessage(climbOn
+            ? '쓰러졌습니다. 10골드를 잃고 부활했습니다. 1마리부터 다시 잡으면 보스가 다시 나타납니다.'
+            : '쓰러졌습니다. 10골드를 잃고 부활했습니다. 자동 등반이 중단됩니다.');
+          this.onChange();
+        }
       }
       enemy.hit = Math.max(0, enemy.hit - dt);
     }
@@ -514,9 +641,12 @@ export class World {
       if (drop.absorb === undefined) {
         if (drop.age < LOOT_REST_SECONDS) continue;
         // A piece auto-salvage will take needs no bag room, so it flies in even when the bag is full.
-        if (!canStoreItem(this.save.bag, drop.item) && !this.sweeps(drop.item)) {
-          if (!drop.warned) { drop.warned = true; this.onMessage('가방이 가득 찼습니다. 장비를 분해하세요.'); }
-          continue;
+        if (!canStoreItem(this.save.bag, drop.item, this.job) && !this.sweeps(drop.item)) {
+          // 가방 40칸 만석(작업 209): 새 장비를 두기 전에 가방 안의 설정 이하 장비를 먼저 분해해 칸을 만든다.
+          if (!this.sweepFullBag()) {
+            if (!drop.warned) { drop.warned = true; this.onMessage('가방이 가득 찼습니다. 장비를 분해하세요.'); }
+            continue;
+          }
         }
         drop.absorb = drop.age;
       }
@@ -524,7 +654,7 @@ export class World {
       // 접속 중 자동 분해 (작업 196): a piece at or below the chosen grade, unlocked, in a filled slot
       // and no better than what is worn becomes gold and stones here, and never reaches the bag.
       const sweep = this.sweeps(drop.item);
-      if (sweep && autoSalvageRecovered(this.save, drop.item, sweep)) {
+      if (sweep && autoSalvageRecovered(this.save, drop.item, sweep, this.autoSalvagePlus?.())) {
         drop.age = -1;
         this.onChange();
         continue;

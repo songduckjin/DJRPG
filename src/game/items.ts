@@ -1,5 +1,5 @@
 import type { Save } from './store';
-import { allSkillIds, passiveOrderFor, passives, skillOrderFor, skills, type Job, type SkillLevelId } from './skills';
+import { allSkillIds, jobs, passiveOrderFor, passives, skillOrderFor, skills, type Job, type SkillLevelId } from './skills';
 import { jobOrDefault } from './skills';
 import { random } from './rng';
 
@@ -20,16 +20,55 @@ export type Stat = 'attack' | 'defense' | 'health' | 'crit' | 'speed';
 
 export type EquipmentItem = { id: string; name: string; slot: Slot; rarity: Rarity; stats: Partial<Record<Stat, number>>; kind?: 'equipment'; locked?: boolean; plus?: number };
 export type SkillBook = { id: string; name: string; slot: 'skillbook'; rarity: 'rare'; kind: 'skillbook'; skillId: SkillLevelId; stats: {} };
-export type Item = EquipmentItem | SkillBook;
+/** 가방에서 까는 무작위 보물 주머니(작업 207) — 장비도 스킬북도 아닌 소모품이다.
+ *  장비 40칸에 세지 않고, 자동 장착·분해·경매장 판매·도감 어디에도 끼지 않는다. */
+export type TreasurePouch = { id: string; name: string; slot: 'pouch'; rarity: Rarity; kind: 'pouch'; stats: {} };
+export type Item = EquipmentItem | SkillBook | TreasurePouch;
+export const POUCH_SLOT = 'pouch' as const;
+export const POUCH_NAME = '무작위 보물 주머니';
+/** 주머니의 등급 표기 — 아이템 등급표(6단계)를 그대로 쓰되, 보물 상자답게 주황(유니크)으로 둔다. */
+export const POUCH_RARITY: Rarity = 'unique';
 export function isSkillBook(item: Item): item is SkillBook { return item.kind === 'skillbook'; }
-export function rollSkillBook(floor: number, job: Job = 'warrior'): SkillBook {
+export function isPouch(item: Item | undefined): item is TreasurePouch { return !!item && item.kind === 'pouch'; }
+/** 장비(착용·분해·거래 대상)인가 — 스킬북과 보물 주머니는 장비가 아니다. */
+export function isEquipment(item: Item): item is EquipmentItem { return item.kind !== 'skillbook' && item.kind !== 'pouch'; }
+export function pouchItem(id: string = crypto.randomUUID(), name: string = POUCH_NAME): TreasurePouch {
+  return { id, name, slot: POUCH_SLOT, rarity: POUCH_RARITY, kind: 'pouch', stats: {} };
+}
+export function rollSkillBook(floor: number, _job: Job = 'warrior'): SkillBook {
+  // 스킬북도 세 직업이 같은 확률로 떨어진다(작업 204, 사용자 확정). 직업을 먼저 1/3로 고른 뒤,
+  // 그 직업의 `floor * 2` 해금 조건을 만족하는 스킬·패시브 중 하나를 뽑는다. 세 직업 모두 액티브 8 +
+  // 패시브 3으로 수가 같아, 직업을 먼저 고르면 전 스킬이 같은 확률이 된다.
+  const job = dropJob();
   const order = [...skillOrderFor(job), ...passiveOrderFor(job)];
   const available = order.filter(id => (id in skills ? skills[id as keyof typeof skills].level : passives[id as keyof typeof passives].level) <= floor * 2);
   const ids = available.length ? available : [order[0]];
   const skillId = ids[Math.floor(random() * ids.length)];
   return { id: crypto.randomUUID(), name: `[스킬북] ${skillId in skills ? skills[skillId as keyof typeof skills].name : passives[skillId as keyof typeof passives].name}`, slot: 'skillbook', rarity: 'rare', kind: 'skillbook', skillId, stats: {} };
 }
-export function skillBookDropChance(floor: number, boss: boolean): number { return boss ? Math.min(.15, .018 + (floor - 1) * .002) : Math.min(.015, .001 + (floor - 1) * .00012); }
+/**
+ * 한 마리당 **아이템 드롭률** (작업 210, 사용자 지시 `#4628`·`#4639`·`#4649`).
+ *
+ * 예전에는 장비·스킬북 확률을 따로 두 번 굴려 한 마리에서 두 개가 같이 떨어질 수 있었다. 이제는
+ * **한 번만 굴리고**, 당첨되면 `SKILLBOOK_DROP_SHARE`(30%)로 종류를 갈라 **한 개만** 떨어진다.
+ * - 일반 몹(정예 포함): 1층 0.20% → 20층 0.80%에서 멈춘다.
+ * - 보스: 1층 3.0% → 20층 12.0%에서 멈춘다.
+ */
+export function itemDropChance(floor: number, boss = false): number {
+  const depth = Math.max(0, floor - 1);
+  return boss ? Math.min(.12, .03 + depth * (.09 / 19)) : Math.min(.008, .002 + depth * (.006 / 19));
+}
+/** 당첨된 아이템 1개의 종류 — 스킬북 30%, 장비 70%. */
+export const SKILLBOOK_DROP_SHARE = .3;
+export const EQUIPMENT_DROP_SHARE = 1 - SKILLBOOK_DROP_SHARE;
+/** 당첨된 1개의 종류를 70:30으로 가른다. */
+export function rollItemKind(draw: () => number = random): 'skillbook' | 'equipment' {
+  return draw() < SKILLBOOK_DROP_SHARE ? 'skillbook' : 'equipment';
+}
+/** 예전 이름 호환 — 단일 드롭률의 70%(던전·보스战利品이 이 비율만 쓴다). */
+export function equipmentDropChance(floor: number, boss = false): number { return itemDropChance(floor, boss) * EQUIPMENT_DROP_SHARE; }
+/** 예전 이름 호환 — 단일 드롭률의 30%. */
+export function skillBookDropChance(floor: number, boss: boolean): number { return itemDropChance(floor, boss) * SKILLBOOK_DROP_SHARE; }
 
 /** 강화 단계의 최고치 — 71~80층에서 +7이 나온다(작업 201). */
 export const MAX_PLUS = 7;
@@ -73,7 +112,7 @@ export function rollPlus(floor: number, boss = false, draw: () => number = rando
 
 /** 장비 하나의 강화 단계(0~7). 스킬북·값이 없는 장비는 0. */
 export function plusOf(item: Item): number {
-  if (isSkillBook(item)) return 0;
+  if (!isEquipment(item)) return 0;
   const plus = item.plus;
   return typeof plus === 'number' && Number.isFinite(plus) ? Math.max(0, Math.min(MAX_PLUS, Math.floor(plus))) : 0;
 }
@@ -102,6 +141,51 @@ export const staffBases = ['견습생의 지팡이', '참나무 지팡이', '강
 
 /** 직업별 무기 기본형 목록. 무기 외 슬롯은 세 직업이 같은 목록을 쓴다(기존 세이브·드랍 호환). */
 export function weaponBasesFor(job: Job): readonly string[] { return job === 'archer' ? bowBases : job === 'mage' ? staffBases : baseItems.weapon; }
+
+/** 드롭이 쓸 수 있는 세 직업 — 무기·스킬북은 이 셋이 같은 확률로 떨어진다(작업 204, 사용자 확정). */
+export const dropJobs: readonly Job[] = ['warrior', 'archer', 'mage'];
+
+/** 세 직업 중 하나를 균등(1/3)으로 고른다. */
+export function dropJob(draw: () => number = random): Job {
+  const index = Math.min(dropJobs.length - 1, Math.max(0, Math.floor(draw() * dropJobs.length)));
+  return dropJobs[index];
+}
+
+/** 이 스킬북이 전용인 직업 — 스킬·패시브 목록(`skillOrderFor`/`passiveOrderFor`)으로 판별한다.
+ *  스킬북이 아니면 undefined. 같은 스킬 id는 한 직업에만 있으므로 첫 일치가 곧 그 직업이다. */
+export function skillBookJob(item: Item): Job | undefined {
+  if (!isSkillBook(item)) return undefined;
+  for (const job of jobs) if (skillOrderFor(job).includes(item.skillId as never) || passiveOrderFor(job).includes(item.skillId as never)) return job;
+  return undefined;
+}
+
+/** 이 아이템을 쓸 수 있는 직업 — 무기는 직업별(대검·활·지팡이), 스킬북도 직업별이다.
+ *  방어구·장신구는 세 직업이 함께 쓰므로 `undefined`(공용)다. */
+export function itemJob(item: Item): Job | undefined {
+  if (isSkillBook(item)) return skillBookJob(item);
+  if (item.slot === 'weapon') return weaponJob(item);
+  return undefined;
+}
+
+/** `내 직업만 보기` 판정 — 직업 전용 아이템이 다른 직업의 것이면 false, 공용 아이템이면 늘 true. */
+export function usableByJob(item: Item, job: Job = 'warrior'): boolean {
+  const owner = itemJob(item);
+  return owner === undefined || owner === jobOrDefault(job);
+}
+
+/** 이 무기를 쓰는 직업 — 활은 궁수, 지팡이는 마법사, 나머지 대검은 전사. */
+export function weaponJob(item: Item): Job {
+  if (item.slot !== 'weapon') return 'warrior';
+  if (bowIndex(item) >= 0) return 'archer';
+  if (staffIndex(item) >= 0) return 'mage';
+  return 'warrior';
+}
+
+/** 그 직업이 이 장비를 입을 수 있는가 — 직업이 갈리는 것은 무기뿐이다(방어구·장신구는 공용).
+ *  다른 직업의 무기는 장착 대상이 아니므로 자동 장착·'더 좋은 장비' 보호에서도 빠진다. */
+export function canWield(item: Item, job: Job = 'warrior'): boolean {
+  return item.slot !== 'weapon' || weaponJob(item) === jobOrDefault(job);
+}
 
 /** 직업별 기본 무기 이름(첫 튜토리얼 드랍에 쓴다). */
 export function starterWeaponName(job: Job): string {
@@ -238,6 +322,10 @@ export function wearableEquipmentImage(item: EquipmentItem): { path: string; fra
 
 export function migrateItem(value: unknown): Item | undefined {
   if (!isRecord(value)) return undefined;
+  // 보물 주머니(작업 207): 서버가 이름 포함 identity로 대조하므로 저장된 이름이 있으면 그대로 둔다.
+  if (value.kind === 'pouch' || value.slot === 'pouch') {
+    return pouchItem(typeof value.id === 'string' && value.id ? value.id : crypto.randomUUID(), typeof value.name === 'string' && value.name.trim() ? value.name : POUCH_NAME);
+  }
   if (value.kind === 'skillbook' && value.slot === 'skillbook' && typeof value.skillId === 'string' && (allSkillIds as SkillLevelId[]).includes(value.skillId as SkillLevelId)) {
     const skillId = value.skillId as SkillLevelId;
     const fallback = `[스킬북] ${skillId in skills ? skills[skillId as keyof typeof skills].name : passives[skillId as keyof typeof passives].name}`;
@@ -288,13 +376,13 @@ export function totalStats(save: Save): Record<Stat, number> {
   return total;
 }
 
-export function equipmentDropChance(floor: number, boss = false): number {
-  return boss ? Math.min(.24, .03 + (floor - 1) * .004) : Math.min(.022, .0025 + (floor - 1) * .00035);
-}
-
 export function rollItem(floor: number, guaranteed = false, boss = false, job: Job = 'warrior'): Item {
   if (guaranteed) return { id: crypto.randomUUID(), name: starterWeaponName(job), slot: 'weapon', rarity: 'common', stats: { attack: 4 }, plus: 0 };
-  const roll = random();
+  return rollEquipment(floor, rollRarity(floor, boss), boss);
+}
+
+/** 이 층·보스 여부에서 장비 하나의 등급을 뽑는다 — `rollItem`과 보물 주머니가 같은 표를 쓴다. */
+export function rollRarity(floor: number, boss = false, draw: () => number = random): Rarity {
   const depth = Math.max(0, floor - 1);
   // Grade cuts of a normal kill. The overall drop rate stays where it was (`equipmentDropChance`,
   // 2.2% at the deepest floor); what changes with depth is which grade a drop is (작업 196). A fixed
@@ -306,9 +394,21 @@ export function rollItem(floor: number, guaranteed = false, boss = false, job: J
   const magic = boss ? .54 : Math.min(.40, .117 + depth * .0036);
   const unique = legendary + (rare - legendary) * .18;
   const epic = legendary + (rare - legendary) * .48;
-  const rarity: Rarity = roll < legendary ? 'legendary' : roll < unique ? 'unique' : roll < epic ? 'epic' : roll < rare ? 'rare' : roll < magic ? 'magic' : 'common';
+  const roll = draw();
+  return roll < legendary ? 'legendary' : roll < unique ? 'unique' : roll < epic ? 'epic' : roll < rare ? 'rare' : roll < magic ? 'magic' : 'common';
+}
+
+/** 그 층·등급의 장비 1개 — 슬롯·티어·스탯·`+단계` 규칙은 `rollItem`이 늘 쓰던 그대로다.
+ *  `rollItem`은 이 함수에 스스로 뽑은 등급을 넘기고, 보물 주머니는 확률표가 정한 등급을 넘긴다(작업 207).
+ *  난수는 `rng`의 `random()`을 쓴다 — 던전은 시드로 전투를 다시 돌려 검증하므로 드롭 뽑기도 같은 난수를
+ *  따라야 한다(작업 211). 시드가 없으면 `Math.random`이다. */
+export function rollEquipment(floor: number, rarity: Rarity, boss = false): EquipmentItem {
+  const depth = Math.max(0, floor - 1);
   const slot = slots[Math.floor(random() * slots.length)];
-  const bases = slot === 'weapon' ? weaponBasesFor(job) : baseItems[slot];
+  // 무기는 세 직업이 같은 확률로 떨어진다(작업 204, 사용자 확정 "다른직업 장비나 스킬북도 동일확률로
+  // 뜰수있어"): 확률 드롭은 직업을 1/3로 먼저 고르고 그 직업의 무기 목록에서 뽑는다. 튜토리얼 첫 확정
+  // 드롭(`guaranteed`)만 내 직업 무기다.
+  const bases = slot === 'weapon' ? weaponBasesFor(dropJob()) : baseItems[slot];
   const rarityTier = rarityTiers[rarity];
   const maxTier = Math.min(bases.length - 1, Math.floor(depth / (bases.length === 10 ? 3 : 8)) + Math.floor(rarityTier * (bases.length - 1) / 9));
   const tier = Math.floor(random() * (maxTier + 1));
@@ -333,15 +433,17 @@ export function rollItem(floor: number, guaranteed = false, boss = false, job: J
 }
 
 export function itemPower(item: Item): number {
-  if (isSkillBook(item)) return 0;
+  if (!isEquipment(item)) return 0;
   return (item.stats.attack ?? 0) * 3 + (item.stats.defense ?? 0) * 2 + (item.stats.health ?? 0) * .2 + (item.stats.crit ?? 0) * 2 + (item.stats.speed ?? 0) * 2 + rarityRanks[item.rarity] * 2;
 }
 
 export function autoEquipBest(save: Save): number {
   let changed = 0;
+  const job = jobOrDefault(save.job);
   for (const slot of slots.filter(slot => slot !== 'ring1' && slot !== 'ring2')) {
     const current = save.equipment[slot];
-    const best = save.bag.filter((item): item is EquipmentItem => item.slot === slot).sort((a, b) => itemPower(b) - itemPower(a))[0];
+    // 다른 직업의 무기는 이 캐릭터가 입을 수 없다(작업 204) — 무기 칸 자동 장착 후보에서 뺀다.
+    const best = save.bag.filter((item): item is EquipmentItem => item.slot === slot && canWield(item, job)).sort((a, b) => itemPower(b) - itemPower(a))[0];
     if (!best || (current && itemPower(best) <= itemPower(current))) continue;
     save.bag.splice(save.bag.findIndex(item => item.id === best.id), 1);
     if (current) save.bag.push(current);
@@ -350,7 +452,7 @@ export function autoEquipBest(save: Save): number {
   }
   const ringSlots: Slot[] = ['ring1', 'ring2'];
   const equippedRings = ringSlots.map(slot => save.equipment[slot]).filter((item): item is EquipmentItem => !!item);
-  const bagRings = save.bag.filter((item): item is EquipmentItem => item.slot !== 'skillbook' && ringSlots.includes(item.slot));
+  const bagRings = save.bag.filter((item): item is EquipmentItem => isEquipment(item) && ringSlots.includes(item.slot));
   const bestRings = [...equippedRings, ...bagRings].sort((a, b) => itemPower(b) - itemPower(a)).slice(0, 2);
   const used = new Set(bestRings.map(item => item.id));
   save.bag = save.bag.filter(item => !used.has(item.id));
@@ -366,11 +468,13 @@ export function autoEquipBest(save: Save): number {
 }
 
 export function salvageByRarity(save: Save, maxRarity: Exclude<Rarity, 'legendary'>): { count: number; gold: number; stones: number } {
-  const chosen = save.bag.filter(item => !isSkillBook(item) && !item.locked && rarityRanks[item.rarity] <= rarityRanks[maxRarity]);
+  const chosen = save.bag.filter((item): item is EquipmentItem => isEquipment(item) && !item.locked && rarityRanks[item.rarity] <= rarityRanks[maxRarity]);
   const gold = chosen.reduce((sum, item) => sum + salvageGold[item.rarity], 0);
   const stones = chosen.reduce((sum, item) => sum + salvageStones[item.rarity], 0);
   const ids = new Set(chosen.map(item => item.id));
   save.bag = save.bag.filter(item => !ids.has(item.id));
   save.gold += gold; save.stones += stones;
+  // 분해한 장비 수만큼 누적한다(작업 207) — 일일·주간 `장비 분해 N회` 미션.
+  save.salvageCount = (save.salvageCount ?? 0) + chosen.length;
   return { count: chosen.length, gold, stones };
 }
