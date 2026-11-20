@@ -20,6 +20,7 @@ import {
 import { jobNames, jobOrDefault } from '../../game/skills';
 import type { Save } from '../../game/store';
 import { pouchIconMarkup } from '../pouchArt';
+import { upgradeArrowMarkup } from '../upgradeBadge';
 import type { Interface } from '../interface';
 
 export type WarehouseSide = 'storage' | 'bag';
@@ -241,7 +242,10 @@ function paintGrid(ui: Interface, grid: HTMLElement, side: WarehouseSide, stacks
     if (state.picked.has(key)) cell.classList.add('is-picked');
     cell.dataset.itemId = item.id;
     cell.dataset.side = side;
-    cell.innerHTML = cellIcon(ui, item);
+    // 업그레이드 화살표(작업 237): 공용창고·가방 **양쪽** 모두, 접속 중인 캐릭터 기준으로 판정한다.
+    const upgrade = upgradeArrowMarkup(ui.world.save, item);
+    if (upgrade) cell.classList.add('has-upgrade');
+    cell.innerHTML = cellIcon(ui, item) + upgrade;
     if (stack.items.length > 1) {
       const badge = document.createElement('span'); badge.className = 'skillbook-count';
       badge.textContent = `×${stack.items.length}`; cell.append(badge);
