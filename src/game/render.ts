@@ -14,6 +14,9 @@ import { createBootProgress } from './bootProgress';
 import { helmetArtList, helmetArtPaths, helmetAttackArtList, helmetAttackArtPaths, headlessBodyPaths } from './render/helmets';
 import { armorFrameIndex, armorSheetPath, armorSheetPaths, type ArmorMotion } from './render/armors';
 import {
+  ARCHER_ARMOR_COUNT, archerArmorSheetPath, archerArmorSheetPaths, archerArmorTierSheets, type ArcherArmorMotion
+} from './render/archerArmors';
+import {
   weaponPartPath, weaponPartPaths, weaponTierCacheLimit, swordlessBodyPath, swordlessBodyPaths
 } from './render/weapons';
 import { bowPartPath, bowPartPaths, bowTierCacheLimit, bowlessBodyPath, type BowMotion } from './render/bows';
@@ -128,6 +131,8 @@ function sliceArmorSheet(sheet: Texture, motion: ArmorMotion): Texture[] {
 
 /** 갑옷 시트 캐시에 남겨 두는 티어 수. 티어당 6장이라 3티어면 18장이다. */
 export const armorTierCacheLimit = 3;
+/** 궁수 갑옷 시트 캐시에 남기는 티어 수(작업 160). 티어당 3장이다. */
+export const archerArmorTierCacheLimit = 3;
 /** 대검 파츠 캐시에 남기는 티어 수(작업 156). 티어당 1장이다. */
 export { weaponTierCacheLimit };
 export const renderAssetPaths = [
@@ -190,6 +195,10 @@ export class GameView {
   armorTierOrder: string[] = [];
   /** 마지막으로 본 본체 시트 묶음(성별:갑옷:검없음). 바뀔 때만 미리 받는다. */
   lastBodyTier = '';
+  /** 최근에 받은 궁수 갑옷 티어(작업 160) — 전사 갑옷과 따로 센다. */
+  archerArmorOrder: string[] = [];
+  /** 마지막으로 본 궁수 갑옷 티어(성별:인덱스). 바뀔 때만 미리 받는다. */
+  lastArcherArmorTier = '';
   /** 착용 무기 파츠(경로 → 텍스처), 로딩 중인 경로, 최근 티어 (작업 156). */
   weaponSheets = new Map<string, Texture>();
   weaponLoading = new Set<string>();
@@ -324,6 +333,50 @@ export class GameView {
     const path = armorSheetPath(gender, index, motion, headless, swordless);
     if (!path) return undefined;
     return this.bodySheetFrame(path, motion, frame);
+  }
+
+  /**
+   * 궁수 갑옷 시트 프레임(작업 160).
+   *
+   * 전사 갑옷과 같은 `bodySheetFrame` 을 쓰므로 362px 셀 자르기·4프레임 규칙이 같다.
+   * 아직 로딩 전이면 `undefined` 를 돌려주고, `drawHero` 가 스타터 시트로 한 프레임 더 그린다.
+   */
+  archerArmorFrame(
+    gender: Gender, index: number, motion: ArcherArmorMotion, frame: number, bowless = false, headless = false
+  ): Texture | undefined {
+    const path = archerArmorSheetPath(gender, index, motion, bowless, headless);
+    if (!path) return undefined;
+    const texture = this.bodySheetFrame(path, motion, frame);
+    if (texture) return texture;
+    // 아직 로딩 전이면 같은 티어의 다른 판으로 한두 프레임 대신 그린다.
+    // (머리 지운 판 → 머리 있는 판 → 활 지운 판 → 기본 판 순서)
+    for (const [b, h] of [[bowless, false], [bowless, true], [false, false]]) {
+      if (b === bowless && h === headless) continue;
+      const fallback = archerArmorSheetPath(gender, index, motion, b, h);
+      if (!fallback) continue;
+      const fallbackTexture = this.bodySheetFrame(fallback, motion, frame);
+      if (fallbackTexture) return fallbackTexture;
+    }
+    return undefined;
+  }
+
+  /**
+   * 궁수 갑옷 한 티어의 시트 3장을 미리 받고, 최근 3티어 밖은 Pixi 에셋 캐시에서도 내린다(작업 160).
+   * 전사 갑옷(`prefetchBody`)과 캐시 목록을 나눠 서로 밀어내지 않게 한다.
+   */
+  prefetchArcherArmor(gender: Gender, index: number, bowless = false, headless = false): void {
+    if (!Number.isInteger(index) || index < 1 || index >= ARCHER_ARMOR_COUNT) return;
+    const tier = `${gender}:${index}`;
+    if (!this.archerArmorOrder.includes(tier)) this.archerArmorOrder.push(tier);
+    for (const path of archerArmorSheetPaths(gender, index, bowless, headless)) this.loadArmorSheet(path);
+    while (this.archerArmorOrder.length > archerArmorTierCacheLimit) {
+      const oldest = this.archerArmorOrder.shift() as string;
+      const [oldGender, oldIndex] = oldest.split(':');
+      for (const path of archerArmorTierSheets(oldGender as Gender, Number(oldIndex))) {
+        this.armorFrames.delete(path);
+        if (this.armorSheets.delete(path)) void Assets.unload(path).catch(() => undefined);
+      }
+    }
   }
 
   /**

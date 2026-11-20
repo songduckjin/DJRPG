@@ -7,8 +7,9 @@ import { baseItemIndex, isArcher, isMage, usesBaseSheetOnly } from '../game/item
 import { jobOrDefault } from '../game/skills';
 import { helmetArtFor, helmetArtPath, helmetIdlePlacement } from '../game/render/helmets';
 import { armorIndexFor, armorSheetPath } from '../game/render/armors';
+import { archerArmorIndexFor, archerArmorSheetPath } from '../game/render/archerArmors';
 import { WEAPON_GUARD, weaponIndexFor, weaponPartPath, weaponPose, swordlessBodyPath } from '../game/render/weapons';
-import { BOW_GRIP, bowIndexFor, bowPartPath, bowPose, bowlessBodyPath } from '../game/render/bows';
+import { BOW_GRIP, bowIndexFor, bowPartPath, bowPose, bowlessBodyPath, usesBowlessBody } from '../game/render/bows';
 import { STAFF_GRIP, staffIndexFor, staffPartPath, staffPose, stafflessBodyPath } from '../game/render/staffs';
 import { archerHeadlessBodyPath, archerHelmIdlePlacement, archerHelmIndexFor, archerHelmPartPath } from '../game/render/archerHelmets';
 
@@ -19,16 +20,24 @@ import { archerHeadlessBodyPath, archerHelmIdlePlacement, archerHelmIndexFor, ar
 
 /** 전사 시안은 장착 조합에 맞춘 필드와 같은 전신 그림을 쓴다(작업 155: 갑옷 티어별 시트). */
 export function equipmentFallbackPortrait(save: Save): string {
-  // 궁수(작업 157·160)·마법사(작업 198)는 기본 시트만 쓴다 — 전용 갑옷·투구·무기 외형은 추후 별도 시안.
+  // 궁수(작업 157·160)·마법사(작업 198)는 기본 시트 계열만 쓴다 — 전용 갑옷·투구·무기 외형은 추후 별도 시안.
   // 작업 159: 궁수 시트를 갈면서 `/assets/*` immutable 캐시를 피하려고 궁수 URL에 `?v=2`를 붙인다
-  // (render.ts·charactersModal.ts와 같은 규칙).
+  // (render.ts·charactersModal.ts와 같은 규칙). 새로 만든 `nobow/`·`archer_armors/` 시트는 새 파일이라 그대로 캐시된다.
   if (usesBaseSheetOnly(save)) {
-    // 작업 160: 궁수는 1번 이상 활을 차면 기본 활대를 지운 서기 시트 위에 활 파츠를 얹는다.
-    // `nobow/` 시트는 이번에 새로 만든 파일이라 쿼리 없이 그대로 캐시된다.
-    // 작업 200: 궁수 투구를 쓰면 필드와 같은 자리에서 머리를 지운 시트를 쓴다.
+    // 작업 160(활): 1번 이상 활을 차면 기본 활대를 지운 서기 시트 위에 활 파츠를 얹는다.
+    // 작업 160(갑옷): 갑옷 1~9번은 그 티어의 궁수 갑옷 서기 시트를 쓰고, 활을 바꿨으면 같은 티어의
+    // 기본 활대를 지운 판(`archer_armors/nobow/`)을 쓴다.
+    // 작업 200: 궁수 투구를 쓰면 필드와 같이 머리를 지운 시트를 쓴다(투구 파츠가 그 자리를 덮는다).
     if (isArcher(save)) {
       const helmeted = archerHelmIndexFor(save) >= 0;
-      const bowless = bowIndexFor(save) >= 1;
+      const bowless = usesBowlessBody(save);
+      const tier = archerArmorIndexFor(save);
+      if (tier >= 1) {
+        // 갑옷 1~9번은 그 티어 시트 — 투구를 썼으면 머리 지운 판, 활을 바꿨으면 활 지운 판.
+        const armorSheet = archerArmorSheetPath(save.gender, tier, 'idle', bowless, helmeted)
+          ?? archerArmorSheetPath(save.gender, tier, 'idle', bowless);
+        if (armorSheet) return armorSheet;
+      }
       if (helmeted) return archerHeadlessBodyPath(save.gender, 'idle', bowless);
       return bowless
         ? bowlessBodyPath(save.gender, 'idle')
@@ -197,7 +206,7 @@ export function equipmentPortraitPlan(save: Save): EquipmentPortraitPlan {
     mode: 'fallback', base,
     key: usesBaseSheetOnly(save)
       ? (isArcher(save)
-        ? `archer:${save.gender}:${bow ? bow.path : '-'}:${archerHelm ? archerHelm.path : '-'}`
+        ? `archer:${save.gender}:a${archerArmorIndexFor(save)}:${bow ? bow.path : '-'}:${archerHelm ? archerHelm.path : '-'}`
         : isMage(save) ? `mage:${save.gender}:${staff ? staff.path : '-'}` : `${jobOrDefault(save.job)}:${save.gender}`)
       : `pilot:${save.gender}:a${armorIndexFor(save)}:${helmet ? helmet.path : '-'}:${weapon ? weapon.path : '-'}`,
     gender: save.gender, layers: [], helmet, archerHelm, weapon, bow, staff

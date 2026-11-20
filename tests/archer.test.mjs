@@ -181,20 +181,20 @@ test('궁수 스킬 8종은 화살·화살비 이펙트를 만들고 피해를 �
   }
 });
 
-test('궁수는 전사용 갑옷·대검을 그리지 않고, 활·궁수 전용 투구만 파츠로 얹는다', () => {
+test('궁수는 전사용 갑옷·대검을 그리지 않고, 궁수 갑옷·투구·활 시트와 파츠를 쓴다', () => {
   const save = archerSave('female');
   // 전사용 갑옷 이름을 입어도 궁수는 자기 시트를 쓴다.
   save.equipment.armor = { id: 'a', name: '황혼의 드래곤 메일', slot: 'armor', rarity: 'rare', stats: { defense: 10 } };
   save.equipment.helmet = { id: 'h', name: '황혼의 기사 헬름', slot: 'helmet', rarity: 'rare', stats: { defense: 5 } };
   save.equipment.weapon = { id: 'w', name: '황혼의 혈염 장궁', slot: 'weapon', rarity: 'rare', stats: { attack: 30 } };
   const plan = equipmentPortraitPlan(save);
-  // 작업 200: 궁수 투구를 쓰면 필드와 같이 머리를 지운 nobow 서기 시트 + 궁수 투구 파츠(기사 헬름 = 3번)를 쓴다.
-  assert.equal(plan.base, '/assets/pilot-25d/archer_headless/nobow/archer_female_idle_v1.png');
+  // 작업 203: 궁수 갑옷 1~9번은 그 티어의 **머리 지운** 갑옷 시트(활도 지운 판) 위에 궁수 투구·활 파츠를 얹는다.
+  assert.equal(plan.base, '/assets/pilot-25d/archer_armors/nobow/headless/archer_female_armor_7_idle_v1.png');
   assert.equal(plan.helmet, undefined, '전사 투구 파츠는 궁수에게 쓰지 않는다');
   assert.equal(plan.weapon, undefined, '전사 대검 파츠는 궁수에게 쓰지 않는다');
   assert.equal(plan.archerHelm?.path, '/assets/pilot-25d/archer_helms/female_3_v1.png');
   assert.equal(plan.bow?.path, '/assets/pilot-25d/bows/bow_6_v1.png');
-  assert.equal(plan.key, 'archer:female:/assets/pilot-25d/bows/bow_6_v1.png:/assets/pilot-25d/archer_helms/female_3_v1.png');
+  assert.equal(plan.key, 'archer:female:a7:/assets/pilot-25d/bows/bow_6_v1.png:/assets/pilot-25d/archer_helms/female_3_v1.png');
   // 능력치는 그대로 오른다.
   const bare = archerSave('female');
   assert(totalStats(save).attack > totalStats(bare).attack);
