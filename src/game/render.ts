@@ -29,17 +29,18 @@ import {
   mageHeadlessBodyPath, mageHeadlessBodyPaths, mageHelmPartPaths, type MageHelmMotion
 } from './render/mageHelmets';
 import type { Gender } from './store';
+import { pilotSheet } from './render/pilotAssets';
 
 const paths = {
   floor: '/assets/wasteland-ground.png', terrainProps: '/assets/wasteland-props.png', male: '/assets/warrior_male_base.png',
-  pilotMale: '/assets/pilot-25d/warrior_male_idle_v1.png?v=2', pilotFemale: '/assets/pilot-25d/warrior_female_idle_v1.png?v=2',
+  pilotMale: pilotSheet('/assets/pilot-25d/warrior_male_idle_v1.png'), pilotFemale: pilotSheet('/assets/pilot-25d/warrior_female_idle_v1.png'),
   // 궁수 기본 시트(작업 157 → 159 스타터 가죽 튜닉) — 같은 362px 셀 좌표계다. 갑옷·투구·활 오버레이는 이번 단계에 없다.
   // `/assets/*`는 immutable 캐시라 시트를 갈면 URL을 바꿔야 브라우저가 즉시 새 그림을 받는다(작업 159).
-  archerMale: '/assets/pilot-25d/archer_male_idle_v1.png?v=2', archerFemale: '/assets/pilot-25d/archer_female_idle_v1.png?v=2',
+  archerMale: pilotSheet('/assets/pilot-25d/archer_male_idle_v1.png'), archerFemale: pilotSheet('/assets/pilot-25d/archer_female_idle_v1.png'),
   // 마법사 기본 시트(작업 198) — 같은 362px 셀 좌표계다. 갑옷·투구·지팡이 오버레이는 이번 단계에 없다.
   // 작업 204: 남성 서기 시트를 정수리 잘림 없이 다시 구워 `/assets/*` 불변 캐시를 피하려고 `?v=2`를 쓴다
   // (작업 159 궁수 시트와 같은 규칙 — 여성도 같은 줄에서 함께 올린다).
-  mageMale: '/assets/pilot-25d/mage_male_idle_v1.png?v=2', mageFemale: '/assets/pilot-25d/mage_female_idle_v1.png?v=2',
+  mageMale: pilotSheet('/assets/pilot-25d/mage_male_idle_v1.png'), mageFemale: pilotSheet('/assets/pilot-25d/mage_female_idle_v1.png'),
   // 투구 착용 시에만 쓰는 머리 없는 본체(작업 152) — 같은 셀 좌표계라 배율·앵커를 공유한다.
   // 작업 222: 서기 시트를 낮은 양손 그립으로 다시 구워 `?v=2`(helmets.ts `headlessBodyPaths`가 들고 있다).
   pilotMaleHeadless: headlessBodyPaths.male.idle, pilotFemaleHeadless: headlessBodyPaths.female.idle,
@@ -76,12 +77,12 @@ const animationPaths = {
 // 870/4 so no sword tip or foot reaches into the neighbouring frame. The sheet height
 // stays 290 px, which is what heroScale.ts measures a body height against.
 const attackSheets = {
-  pilotMaleAttack: '/assets/pilot-25d/warrior_male_attack_v1.png',
-  pilotFemaleAttack: '/assets/pilot-25d/warrior_female_attack_v1.png',
-  archerMaleAttack: '/assets/pilot-25d/archer_male_attack_v1.png?v=2',
-  archerFemaleAttack: '/assets/pilot-25d/archer_female_attack_v1.png?v=2',
-  mageMaleAttack: '/assets/pilot-25d/mage_male_attack_v1.png',
-  mageFemaleAttack: '/assets/pilot-25d/mage_female_attack_v1.png',
+  pilotMaleAttack: pilotSheet('/assets/pilot-25d/warrior_male_attack_v1.png'),
+  pilotFemaleAttack: pilotSheet('/assets/pilot-25d/warrior_female_attack_v1.png'),
+  archerMaleAttack: pilotSheet('/assets/pilot-25d/archer_male_attack_v1.png'),
+  archerFemaleAttack: pilotSheet('/assets/pilot-25d/archer_female_attack_v1.png'),
+  mageMaleAttack: pilotSheet('/assets/pilot-25d/mage_male_attack_v1.png'),
+  mageFemaleAttack: pilotSheet('/assets/pilot-25d/mage_female_attack_v1.png'),
   pilotMaleAttackHeadless: headlessBodyPaths.male.attack,
   pilotFemaleAttackHeadless: headlessBodyPaths.female.attack,
   femaleArmoredNoHelmAttack: '/assets/warrior_female_armored_attack.png?v=3',
@@ -92,12 +93,12 @@ const attackSheets = {
   maleHelmAttack: '/assets/warrior_male_helm_attack.png?v=3'
 } as const;
 const walkSheets = {
-  pilotMaleWalk: '/assets/pilot-25d/warrior_male_walk_v1.png',
-  pilotFemaleWalk: '/assets/pilot-25d/warrior_female_walk_v1.png',
-  archerMaleWalk: '/assets/pilot-25d/archer_male_walk_v1.png?v=2',
-  archerFemaleWalk: '/assets/pilot-25d/archer_female_walk_v1.png?v=2',
-  mageMaleWalk: '/assets/pilot-25d/mage_male_walk_v1.png',
-  mageFemaleWalk: '/assets/pilot-25d/mage_female_walk_v1.png',
+  pilotMaleWalk: pilotSheet('/assets/pilot-25d/warrior_male_walk_v1.png'),
+  pilotFemaleWalk: pilotSheet('/assets/pilot-25d/warrior_female_walk_v1.png'),
+  archerMaleWalk: pilotSheet('/assets/pilot-25d/archer_male_walk_v1.png'),
+  archerFemaleWalk: pilotSheet('/assets/pilot-25d/archer_female_walk_v1.png'),
+  mageMaleWalk: pilotSheet('/assets/pilot-25d/mage_male_walk_v1.png'),
+  mageFemaleWalk: pilotSheet('/assets/pilot-25d/mage_female_walk_v1.png'),
   pilotMaleWalkHeadless: headlessBodyPaths.male.walk,
   pilotFemaleWalkHeadless: headlessBodyPaths.female.walk,
   maleBaseWalk: '/assets/walk8_male_base.png', femaleBaseWalk: '/assets/walk8_female_base.png',

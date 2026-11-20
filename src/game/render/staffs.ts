@@ -1,5 +1,6 @@
 import type { Gender, Save } from '../store';
 import { isStaff, staffIndex, hasNoWeapon } from '../items';
+import { PILOT_ASSET_VERSION, pilotSheet } from './pilotAssets';
 
 /**
  * 착용 지팡이 10종 외형 파츠 (작업 201).
@@ -35,7 +36,7 @@ const NOSTAFF_ROOT = '/assets/pilot-25d/mage_nostaff';
  * 정수리 잘림 없이 다시 구우면서 `mage_nostaff/mage_male_idle_v1.png` 내용이 바뀌었다.
  * `/assets/*`는 1년 불변 캐시라 버전을 올려 새 URL로 받게 한다(지팡이 파츠 PNG 자체는 그대로).
  */
-export const STAFF_ASSET_VERSION = 2;
+export const STAFF_ASSET_VERSION = PILOT_ASSET_VERSION;
 
 /**
  * 파츠 PNG 안에서 손이 지팡이를 쥔 그립 점. 모든 파츠가 같은 자리에 그립을 두고 그려졌으므로
@@ -115,7 +116,7 @@ export function staffPlacement(gender: Gender, motion: StaffMotion, frame: numbe
 /** 파츠 PNG 경로. 0~9 밖이면 undefined. */
 export function staffPartPath(index: number): string | undefined {
   if (!Number.isInteger(index) || index < 0 || index >= STAFF_COUNT) return undefined;
-  return `${STAFF_ROOT}/staff_${index}_v1.png`;
+  return pilotSheet(`${STAFF_ROOT}/staff_${index}_v1.png`);
 }
 
 /** 장비를 바꿀 때 미리 받을 파츠. 티어당 1장이다. */
@@ -143,7 +144,7 @@ export function usesStafflessBody(save: Save): boolean {
 
 /** 기본 지팡이를 지운 마법사 본체 시트 경로. */
 export function stafflessBodyPath(gender: Gender, motion: StaffMotion): string {
-  return `${NOSTAFF_ROOT}/mage_${gender}_${motion}_v1.png?v=${STAFF_ASSET_VERSION}`;
+  return pilotSheet(`${NOSTAFF_ROOT}/mage_${gender}_${motion}_v1.png`);
 }
 
 /** 본체 시트 6장(서기·걷기·공격). */

@@ -1,5 +1,6 @@
 import type { Gender, Save } from '../store';
 import { baseItemIndex } from '../items';
+import { pilotSheet } from './pilotAssets';
 
 /**
  * 궁수 전용 투구 10종 외형 (작업 200).
@@ -31,12 +32,12 @@ const ARCHER_HEADLESS_ROOT = '/assets/pilot-25d/archer_headless';
 /** 파츠 PNG 파일명. 인덱스가 범위를 벗어나면 `undefined`(호출부는 투구를 그리지 않는다). */
 export function archerHelmPartPath(gender: Gender, index: number): string | undefined {
   if (!Number.isInteger(index) || index < 0 || index >= ARCHER_HELM_COUNT) return undefined;
-  return `${ARCHER_HELM_ROOT}/${gender}_${index}_v1.png`;
+  return pilotSheet(`${ARCHER_HELM_ROOT}/${gender}_${index}_v1.png`);
 }
 
 /** 부팅 프리로드용 20장 목록. */
 export const archerHelmPartPaths: readonly string[] = ['male', 'female'].flatMap(gender =>
-  Array.from({ length: ARCHER_HELM_COUNT }, (_, index) => `${ARCHER_HELM_ROOT}/${gender}_${index}_v1.png`));
+  Array.from({ length: ARCHER_HELM_COUNT }, (_, index) => pilotSheet(`${ARCHER_HELM_ROOT}/${gender}_${index}_v1.png`)));
 
 /**
  * 머리 없는 궁수 본체 시트 (작업 200).
@@ -46,7 +47,7 @@ export const archerHelmPartPaths: readonly string[] = ['male', 'female'].flatMap
  */
 export function archerHeadlessBodyPath(gender: Gender, motion: ArcherHelmMotion, bowless = false): string {
   const directory = bowless ? `${ARCHER_HEADLESS_ROOT}/nobow` : ARCHER_HEADLESS_ROOT;
-  return `${directory}/archer_${gender}_${motion}_v1.png`;
+  return pilotSheet(`${directory}/archer_${gender}_${motion}_v1.png`);
 }
 
 /** 머리 없는 시트 6장(서기·걷기·사격 × 기본·활 지움). 장비를 바꿀 때 미리 받는다. */
