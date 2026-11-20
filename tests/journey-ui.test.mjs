@@ -171,3 +171,21 @@ test('우편·보상의 받기/모두 받기 버튼은 누를 수 있을 때만 
     assert(/\.utility-button\.utility-claim:disabled[^{]*\{[^}]*filter:\s*grayscale/.test(css),'비활성은 채도도 낮춘다');
   }finally{globalThis.document=previous;}
 });
+
+test('거래소 거래가 막혀 있어도 우편함에서 거래 결과 다시 확인으로 풀 수 있다(작업 226)',()=>{
+  const previous=globalThis.document;globalThis.document={createElement:node};
+  try{
+    const {ui}=fixture();ui.journey.sync.pendingMarket={action:'claim',data:{deliveryId:'all'},requestId:'pending-1'};
+    let retried=0;ui.market={retry:()=>{retried++;}};
+    const dialog=node();renderUtility(ui,dialog,'mail');
+    const retry=find(dialog,n=>n.tag==='button'&&n.textContent==='거래 결과 다시 확인');
+    assert(retry,'거래소 대기도 우편함에서 풀 수 있다');retry.onclick();
+    assert.equal(retried,1);assert(!ui.market.error);
+    assert(find(dialog,n=>typeof n.textContent==='string'&&n.textContent.includes('거래소 거래 결과를 확인하지 못해')));
+    assert(!find(dialog,n=>n.tag==='button'&&n.textContent==='수령 결과 다시 확인'));
+    ui.journey.sync.pendingMarket={action:'journey-claim',data:{kind:'mail',id:'all'},requestId:'pending-2'};
+    const claim=node();renderUtility(ui,claim,'mail');
+    assert(find(claim,n=>n.tag==='button'&&n.textContent==='수령 결과 다시 확인'),'우편 수령 대기는 수령 결과 다시 확인');
+    assert(!find(claim,n=>n.tag==='button'&&n.textContent==='거래 결과 다시 확인'));
+  }finally{globalThis.document=previous;}
+});

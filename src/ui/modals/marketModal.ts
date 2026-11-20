@@ -69,7 +69,12 @@ export function renderMarket(this: Interface, dialog: HTMLElement): void {
   const live = el('div', 'market-live'); live.append(el('span', 'market-connection'), button('목록 새로고침', () => market.refresh(), market.busy)); live.lastElementChild!.classList.add('market-refresh'); dialog.append(live);
   if (guest) dialog.append(el('p', 'market-notice', '게스트는 모든 매물과 시세를 볼 수 있습니다. 등록·구매는 정식 계정으로 로그인하세요.'));
   if (market.error) dialog.append(el('p', 'market-error', market.error));
-  if (market.sync.pendingMarket && !market.busy) dialog.append(button('거래 결과 다시 확인', () => { void market.retry(); }));
+  // 거래 결과를 확인하지 못해 `pendingMarket`이 남아 있으면 구매·수령·탭이 모두 잠긴다 — 왜 잠겼는지와
+  // 어떻게 풀지(같은 requestId로 다시 확인)를 버튼 옆에 같이 보여 준다(작업 226).
+  if (market.sync.pendingMarket && !market.busy) {
+    dialog.append(el('p', 'market-notice', '이전 거래의 결과를 확인하지 못해 구매·수령 버튼이 잠겨 있습니다. 서버 연결이 돌아오면 `거래 결과 다시 확인`을 눌러 마무리하세요.'));
+    dialog.append(button('거래 결과 다시 확인', () => { void market.retry(); }));
+  }
   if (market.busy) dialog.append(el('p', 'market-notice', '거래를 안전하게 처리하고 있습니다…'));
   const blocked = guest || market.busy || market.sync.conflicted || !!market.sync.pendingMarket;
   if (market.view === 'register') renderRegister(this, dialog, blocked);

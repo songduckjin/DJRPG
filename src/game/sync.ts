@@ -4,6 +4,8 @@ import { apiHeaders, isOutdatedResponse, OUTDATED_MESSAGE, reloadForNewVersion }
 
 const sessionErrorCodes = ['SESSION_REPLACED', 'INVALID_TOKEN', 'UNAUTHORIZED'];
 const conflictErrorCodes = ['ITEM_CONFLICT', 'CHARACTER_CONFLICT'];
+/** 서버가 거래 트랜잭션에 들어가기 전에 거절한 코드 — `pendingMarket`을 남기지 않는다(작업 226). */
+const transactionSkippedCodes = ['DB_UNAVAILABLE', 'DB_NOT_CONFIGURED'];
 const conflictReloadWindow = 10_000;
 const conflictReloadMessage = '데이터 동기화가 어긋났습니다. 새로고침해 주세요.';
 const errorCode = (error: unknown): string => error instanceof Error && 'code' in error ? String((error as Error & { code?: unknown }).code ?? '') : '';
@@ -192,6 +194,14 @@ export class SaveSync {
           response = await fetch('/api/market', { method: 'POST', headers: apiHeaders({ Authorization: `Bearer ${this.session.token}` }), body: JSON.stringify({ action: this.pendingMarket!.action, ...this.pendingMarket!.data, requestId: this.pendingMarket!.requestId, revision: this.pendingMarket!.revision, progress: this.pendingMarket!.progress, characterSlot: this.session.characterSlot }) });
           const body = await response.json();
           if (!response.ok) {
+            // `503 DB_UNAVAILABLE`(서버 `errorResponse`의 기본 5xx)와 `DB_NOT_CONFIGURED`는 DB 연결·설정 단계에서
+            // 거절돼 거래 트랜잭션이 시작되지 않은 응답이다. 이때도 `pendingMarket`을 남기면 서버가 회복될 때까지
+            // 거래소 수령·우편 모두 받기가 함께 잠기고 '다시 확인'도 같은 503만 반복한다(작업 226).
+            // 응답 유실·코드 없는 5xx는 결과를 알 수 없으므로 지금처럼 남겨 같은 requestId로 멱등 재확인한다.
+            if (response.status >= 500 && transactionSkippedCodes.includes(body.code)) {
+              this.pendingMarket = undefined;
+              throw Object.assign(new Error(body.error || '서버 연결이 불안정합니다. 잠시 후 다시 시도하세요.'), { code: body.code, status: response.status });
+            }
             if (response.status >= 500) throw new Error(body.error || '서버 응답을 확인 중입니다.');
             this.pendingMarket = undefined;
             throw Object.assign(new Error(body.error || '거래 요청 실패'), { code: body.code, status: response.status, expected: body.expected });

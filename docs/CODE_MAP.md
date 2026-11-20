@@ -321,6 +321,7 @@
 
 **③ 거래·창고(`mutate` → `flush` 선행 → `reconcileItems`)**
 `Market.act` → `sync.mutate(action,data,requestId)` → `active` 저장 완료 대기 후 밀린 `pendingSave`는 `flush()`로 먼저 확정(실패하면 거래 중단) → `locked=true` + `pendingMarket` 고정 → `/api/market`(네트워크 오류는 **같은 `requestId`로 3회**) → `market.mutate`가 `assertRevision` → 아이템 변동 시 `reconcileItems`(소유자·캐릭터 슬롯·`identity`) → `writeSave` → 응답 `save`를 `parseSave` 후 `Object.assign(this.save)`, `locked=false`. 창고는 `transferWarehouse`가 같은 순서로 `/api/warehouse`(10초 타임아웃, `pendingWarehouse` 복구 타이머 2초).
+**5xx 판정(작업 226)**: 응답 코드가 `DB_UNAVAILABLE`·`DB_NOT_CONFIGURED`인 5xx는 서버가 거래 트랜잭션에 들어가기 전에 거절한 응답이므로 `pendingMarket`을 **해제**하고 서버 문구를 그대로 던진다(재시도 없음 → 수령·우편 버튼 잠금 해제). 응답 유실·코드 없는 5xx는 결과를 모르므로 `pendingMarket`을 남겨 같은 `requestId`로 멱등 재확인하고, UI는 거래소 창의 `거래 결과 다시 확인`·우편함의 거래 대기 안내로 그 상태를 보여 준다.
 
 **④ 충돌·버전 오류 복구(`sync.handleError`)**
 `401`(`SESSION_REPLACED`·`INVALID_TOKEN`·`UNAUTHORIZED`) → `endSession`: 저장 중단·토큰 삭제·`onSessionEnded` 안내 후 로그인 복귀. `409 SAVE_CONFLICT` → `conflicted=true`·일시정지·새로고침 안내(자동 재저장 금지). `409 ITEM_CONFLICT`/`CHARACTER_CONFLICT` → `reloadLatest`로 최신 세이브 재로드, 10초 안 재충돌이면 `stopConflictLoop`(반복 중단). `426 VERSION_OUTDATED` → `stopForOutdatedVersion` → `reloadForNewVersion`(번들당 1회 새로고침, 캐시면 안내만).

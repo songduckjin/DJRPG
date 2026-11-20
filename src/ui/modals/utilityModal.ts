@@ -68,6 +68,11 @@ export function renderUtility(ui:Interface,dialog:HTMLElement,kind:'mail'|'rewar
   const journey=ui.journey,section=element('section',`utility-content utility-${kind}`);
   if(journey.error)section.append(element('p','market-error',journey.error));
   if(journey.sync.pendingMarket?.action.startsWith('journey-'))section.append(button('수령 결과 다시 확인',()=>{void journey.act('journey-claim');},journey.busy));
+  // 거래소 거래가 걸려 있어도 우편함에서 바로 풀 수 있게 같은 안내와 재확인 버튼을 둔다(작업 226).
+  if(journey.sync.pendingMarket&&!journey.sync.pendingMarket.action.startsWith('journey-')){
+    if(ui.market)section.append(button('거래 결과 다시 확인',()=>{void ui.market.retry();},journey.busy));
+    section.append(element('p','utility-note','거래소 거래 결과를 확인하지 못해 받기 버튼이 잠겨 있습니다. 위 버튼으로 거래를 먼저 마무리하세요.'));
+  }
   if(ui.session.guest)section.append(element('p','utility-note','정식 계정으로 로그인하면 보상을 수령할 수 있습니다.'));
   const data=journey.data;
   if(!data){section.append(element('p','utility-note',journey.loading?'목록을 불러오고 있습니다.':'불러오지 못했습니다. 창을 닫았다 다시 열어주세요.'));dialog.append(section);return;}
