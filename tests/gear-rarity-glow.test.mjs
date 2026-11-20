@@ -69,7 +69,8 @@ test('장착 화면은 부위별 투명 발광 레이어를 따로 만든다', (
   assert.match(portrait, /gearGlowTone\(save\.equipment\.(\w+)\?\.rarity\)/, '등급 표에서 톤을 읽는다');
   assert.match(portrait, /const helmetPart = !!\(plan\.helmet \|\| plan\.archerHelm \|\| plan\.mageHelm\)/, '파츠가 있을 때만 투구 발광');
   assert.match(portrait, /const weaponPart = !!\(plan\.weapon \|\| plan\.bow \|\| plan\.staff\)/, '파츠가 있을 때만 무기 발광');
-  assert.match(portrait, /paint\.globalAlpha = \.74/, '원본 음영을 남기는 반투명 등급색');
+  assert.match(portrait, /const light = Math\.min\(1\.6, \.3 \+ 1\.2 \* lum\);/, '원본 밝기를 광량으로 쓴다(물감칠 아님)');
+  assert.match(portrait, /pixels\[index\] = Math\.min\(255, rgb\[0\] \* light\);/, '픽셀별 등급색 빛');
   assert.match(portrait, /context\.globalCompositeOperation = 'destination-out'/, '갑옷 발광에서 맨 얼굴은 도려낸다');
 });
 

@@ -455,16 +455,32 @@ function paintPatch(
   paint.imageSmoothingEnabled = true;
   paint.imageSmoothingQuality = 'high';
   paint.drawImage(image, 0, 0);
-  // 원본의 음영·무늬는 남기고 색만 등급색 쪽으로 기울인다(불투명하게 덮지 않는다).
-  paint.globalCompositeOperation = 'source-atop';
-  paint.globalAlpha = .74;
-  paint.fillStyle = glow;
-  paint.fillRect(0, 0, tinted.width, tinted.height);
+  // 원본 픽셀의 **밝기(루미넌스)** 를 광량으로 써서 등급색 빛으로 바꾼다 — 어두운 틈새·무늬는 어둡게
+  // 남아 질감이 살고, 밝은 금속면이 세게 빛난다(불투명하게 덮는 '물감칠'이 아니다).
+  const rgb = parseGlowColor(glow);
+  const frame = paint.getImageData(0, 0, tinted.width, tinted.height);
+  const pixels = frame.data;
+  for (let index = 0; index < pixels.length; index += 4) {
+    const alpha = pixels[index + 3];
+    if (alpha === 0) continue;
+    const lum = (0.299 * pixels[index] + 0.587 * pixels[index + 1] + 0.114 * pixels[index + 2]) / 255;
+    const light = Math.min(1.6, .3 + 1.2 * lum);
+    pixels[index] = Math.min(255, rgb[0] * light);
+    pixels[index + 1] = Math.min(255, rgb[1] * light);
+    pixels[index + 2] = Math.min(255, rgb[2] * light);
+  }
+  paint.putImageData(frame, 0, 0);
   context.save();
   context.shadowColor = glow;
   context.shadowBlur = Math.max(6, Math.round(width * .022));
   context.drawImage(tinted, x, y, width, height);
   context.restore();
+}
+
+/** CSS·캔버스용 `#rrggbb` → [r, g, b]. */
+function parseGlowColor(color: string): [number, number, number] {
+  const value = Number.parseInt(color.replace('#', ''), 16);
+  return [(value >> 16) & 0xff, (value >> 8) & 0xff, value & 0xff];
 }
 
 /** 폴백: 전신 초상화 한 장(+착용 투구·대검)을 캔버스에 맞춰 그린다(빈 화면 방지). */
