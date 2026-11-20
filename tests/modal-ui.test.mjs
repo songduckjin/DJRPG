@@ -7,6 +7,7 @@ const { rarityOrder, rarityRanks } = await import('../src/game/items.ts');
 const { compareEquipment } = await import('../src/game/itemComparison.ts');
 const { detailPosition, dismissBagDetail } = await import('../src/ui/bagDetail.ts');
 const { Interface } = await import('../src/ui/interface.ts');
+const { renderCharacters } = await import('../src/ui/modals/charactersModal.ts');
 const { Market } = await import('../src/game/market.ts');
 const equipment = (slot, stats) => ({ id: slot, name: slot, slot, rarity: 'rare', stats });
 
@@ -95,4 +96,29 @@ test('world boss reopens on challenge while in-popup ranking and reward choices 
  Interface.prototype.open.call(ui,'worldBoss');assert.equal(ui.worldBoss.tab,'challenge');
  ui.worldBoss.tab='rewards';Interface.prototype.open.call(ui,'worldBoss');assert.equal(ui.worldBoss.tab,'rewards');
  Interface.prototype.open.call(ui,null);Interface.prototype.open.call(ui,'worldBoss');assert.equal(ui.worldBoss.tab,'challenge');
+});
+
+test('character selection shows one idle button for every created character only', () => {
+  const originalDocument = globalThis.document;
+  class Element {
+    children = []; attributes = {}; className = ''; textContent = ''; type = ''; onclick = null;
+    append(...nodes) { this.children.push(...nodes); }
+    setAttribute(name, value) { this.attributes[name] = value; }
+  }
+  globalThis.document = { createElement: () => new Element(), createTextNode: text => ({ textContent: text }) };
+  try {
+    const dialog = new Element();
+    const ui = { characterList: { characters: [
+      { slot: 1, name: '첫째', gender: 'male', level: 4, floor: 3 },
+      { slot: 3, name: '셋째', gender: 'female', level: 2, floor: 1 }
+    ], activeSlot: 1, maxSlots: 3 }, characterPage: 0, session: { characterSlot: 1 }, world: { save: { autoClimb: false }, onChange() { this.changed = true; } }, messages: [], message(value) { this.messages.push(value); }, open() {}, renderModal() {} };
+    renderCharacters(ui, dialog);
+    const visit = node => [node, ...(node.children || []).filter(child => child && typeof child === 'object').flatMap(visit)];
+    const idleButtons = visit(dialog).filter(node => node.textContent === '방치');
+    assert.equal(idleButtons.length, 2);
+    assert.deepEqual(idleButtons.map(node => node.attributes['aria-label']), ['첫째 방치 사냥 시작', '셋째 방치 사냥 시작']);
+    idleButtons[0].onclick();
+    assert.equal(ui.world.save.autoClimb, true);
+    assert.equal(ui.world.changed, true);
+  } finally { globalThis.document = originalDocument; }
 });

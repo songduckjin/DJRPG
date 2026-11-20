@@ -25,17 +25,33 @@ export function renderCharacters(ui: Interface, dialog: HTMLElement): void {
   const grid = document.createElement('div'); grid.className = 'character-slots';
   for (let slot = ui.characterPage * 3 + 1; slot <= Math.min(list.maxSlots, (ui.characterPage + 1) * 3); slot++) {
     const character = list.characters.find(entry => Number(entry.slot) === slot);
-    const card = button('', () => {
+    const card = document.createElement('div');
+    card.className = `character-slot${slot === ui.session.characterSlot ? ' selected' : ''}`;
+    const select = button('', () => {
       if (!character) { ui.characterCreateSlot = slot; ui.open('createCharacter'); return; }
       if (slot === ui.session.characterSlot) { ui.message('현재 선택된 캐릭터입니다.'); return; }
       void changeCharacter(ui, 'selectCharacter', slot).catch(error => ui.message(error instanceof Error ? error.message : String(error)));
     });
-    card.className = `character-slot${slot === ui.session.characterSlot ? ' selected' : ''}`;
+    select.className = 'character-select';
     const image = document.createElement('img'); image.alt = ''; image.src = character ? `/assets/warrior_${character.gender === 'female' ? 'female' : 'male'}_base.png` : '';
     const details = document.createElement('span'); details.textContent = character ? `${character.name} · 전사 · Lv.${character.level} · ${character.floor}층` : `슬롯 ${slot} · 새 캐릭터 만들기`;
-    if (character) card.append(image);
-    else { const plus = document.createElement('strong'); plus.textContent = '+'; card.append(plus); }
-    card.append(details); grid.append(card);
+    if (character) select.append(image);
+    else { const plus = document.createElement('strong'); plus.textContent = '+'; select.append(plus); }
+    select.append(details); card.append(select);
+    if (character) {
+      const idle = button('방치', () => {
+        if (slot === ui.session.characterSlot) {
+          if (!ui.world.save.autoClimb) { ui.world.save.autoClimb = true; ui.world.onChange(); }
+          ui.message('현재 캐릭터의 자동 등반을 시작합니다.');
+          return;
+        }
+        void changeCharacter(ui, 'selectCharacter', slot).catch(error => ui.message(error instanceof Error ? error.message : String(error)));
+      });
+      idle.className = 'character-idle';
+      idle.setAttribute('aria-label', `${character.name} 방치 사냥 시작`);
+      card.append(idle);
+    }
+    grid.append(card);
   }
   dialog.append(grid);
   if (totalPages > 1) {

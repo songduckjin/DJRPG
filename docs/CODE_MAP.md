@@ -23,7 +23,7 @@
 | 스킬 1·2 이펙트(은빛 검기·푸른 청룡) | `src/game/render/vfx.ts`(`slash2`·`slashTint`·`drawDragon`), `src/game/render.ts` `paths` | `fx_slash2.png`, `fx_slash2_ground.png`, `fx_dragon_head.png`, `fx_dragon_body.png` | `hero-weapon-render` |
 | 화면 렌더링·필드·배경·VFX·조명 | `src/game/render.ts`(`GameView`) | `render/field.ts`, `render/vfx.ts`, `render/entities.ts`, `wasteland.ts`, `ambientScene.ts`, `ambientMotion.ts` | `wasteland`, `ambient-motion`, `hero-weapon-render` |
 | 오프라인 보상·경험치·레벨업 | `src/game/offline.ts`, `src/game/store.ts`(`addExperience`·`expToNext`) | `ui/modals/offlineModal.ts`, `server/endpoints/account.mjs`(`offlineSeconds`) | `offline` |
-| 로그인·회원가입·게스트·캐릭터 선택/생성 | `src/ui/login.ts`, `server/endpoints/account.mjs` | `ui/modals/charactersModal.ts`, `server/auth.mjs`, `api/account.mjs`, `functions/api/account.js` | `characters`, `functions-adapter` |
+| 로그인·회원가입·게스트·캐릭터 선택/생성 | `src/ui/login.ts`, `server/endpoints/account.mjs` | `ui/modals/charactersModal.ts`(캐릭터별 방치 버튼·선택), `server/auth.mjs`, `api/account.mjs`, `functions/api/account.js` | `characters`, `modal-ui`, `functions-adapter` |
 | 다른 기기 로그인으로 접속이 해제됨(`SESSION_REPLACED`) | `database.mjs` `assertSession`/`assignSession`, `auth.mjs` `tokenPayload` | `endpoints/account.mjs`, `sync.ts` `endSession`/`onSessionEnded`, `main.ts` | `functions-adapter`, `sync` |
 | 서버 저장·동기화·충돌(`SAVE_CONFLICT`/`ITEM_CONFLICT`) | `src/game/sync.ts`, `server/database.mjs` | `server/endpoints/account.mjs`, `server/http.mjs`, `src/game/store.ts`(`parseSave`) | `sync`, `functions-adapter`, `characters`, `market` |
 | 구버전 클라이언트 차단·최신 버전 강제(426 `VERSION_OUTDATED`) | `server/app-version.mjs`, `src/game/appVersion.ts` | `server/http.mjs`(`versionGuard`), `server/endpoints/{account,market,warehouse}.mjs`, `src/ui/login.ts`, `src/game/sync.ts`, `src/game/{market,journey}.ts`, `public/_headers`, `scripts/generate-version.mjs`, `vite.config.ts` | `app-version` |
@@ -46,7 +46,7 @@
 | 걷기·공격(대검 휘두르기) 때 캐릭터가 작아짐 | `render/heroScale.ts` `heroBodyPx`의 `pilot*Walk`·`pilot*Attack`(시트별 알파 실측), `render/entities.ts` `drawHero`의 `heroScale` 호출 |
 | 보스가 안 나옴, 층 클리어 | `world.ts` `bossPending`·`floorKillTarget`, `store.ts` |
 | 드롭이 안 주워짐·1.5초 뒤 흡수·금화 코인 | `world.ts` `update`(드롭 `absorb`·`LOOT_REST_SECONDS`), `loot.ts`, `render/drops.ts` `drawLoot` |
-| 층 이동·최고층 | `world.ts` `travelToFloor`, `ui/modals/floorModal.ts` |
+| 층 이동·최고층·방치 자동등반 | `world.ts` `travelToFloor`·보스 처치 시 `autoClimb`·사망 시 자동등반 해제, `ui/modals/floorModal.ts` |
 | 쿨타임·버프(레이지)·광폭 | `world.ts` `cooldowns`·`cooldown[kind]`, `skills.ts` `skillDuration` |
 | 스킬 슬롯 비어 있음·퀵슬롯 | `loadout.ts`, `ui/skillLoadout.ts`, `ui/hud.ts` |
 | 스킬북 사용·레벨업 비용 | `store.ts` `useSkillBook`, `skillProgress.ts`, `skills.ts` `skillUpgradeCost` |
@@ -79,7 +79,7 @@
 ## 3. 폴더·파일별 레퍼런스
 
 ### `src/game/` — 게임 규칙·상태 (UI 없음)
-- `world.ts` (289) — 전투 루프·적 스폰/AI·층 이동·보스·드롭 획득·자동전투. `World`(`travelToFloor`,`action`,`nearest`,`damage`,`kill`,`update`), `cooldowns`, `enemyMoveSpeed`/`enemyMaxHp`/`enemyHitDamage`, 타입 `Enemy`/`Drop`/`Coin`/`Effect`/`Action`. 처치는 금화를 **그 자리에서 지급**하고 그 금액을 `coins` 코인으로 남긴다(코인은 연출 전용, 흡수해도 다시 지급하지 않는다). `drops`는 `LOOT_REST_SECONDS` 동안 바닥에 머문 뒤 `absorb`가 찍히고 `LOOT_ABSORB_SECONDS` 뒤에야 가방에 들어간다(가방 초과 시 바닥에 남고 한 번만 경고).
+- `world.ts` (289) — 전투 루프·적 스폰/AI·층 이동·보스·드롭 획득·자동전투. `World`(`travelToFloor`,`action`,`nearest`,`damage`,`kill`,`update`), `cooldowns`, `enemyMoveSpeed`/`enemyMaxHp`/`enemyHitDamage`, 타입 `Enemy`/`Drop`/`Coin`/`Effect`/`Action`. `autoClimb`은 보스 처치 뒤 다음 층으로 이동하고, 사망 시 해제되지만 기존 자동 부활과 현재 층 사냥은 유지된다. 처치는 금화를 **그 자리에서 지급**하고 그 금액을 `coins` 코인으로 남긴다(코인은 연출 전용, 흡수해도 다시 지급하지 않는다). `drops`는 `LOOT_REST_SECONDS` 동안 바닥에 머문 뒤 `absorb`가 찍히고 `LOOT_ABSORB_SECONDS` 뒤에야 가방에 들어간다(가방 초과 시 바닥에 남고 한 번만 경고).
 - `loot.ts` (작업 189) — 메인 필드 드롭 규칙(Pixi·DOM 비의존, 테스트가 직접 import). `LOOT_REST_SECONDS`(1.5)·`LOOT_ABSORB_SECONDS`·`LOOT_GAP`(36)·`LOOT_FAN`·`LOOT_GOLD_PILE_MIN/STEP`·`LOOT_DEPTH`(금화0<아이템1), `lootRestSpots`(캐릭터 실루엣 회피·±100° 부채꼴·아이템끼리만 간격·금화 뭉침·`reach` 한계), `lootAbsorbProgress`·`lootAbsorbPoint`.
 - `store.ts` (129) — 세이브 스키마·파싱·성장. `Save`, `Gender`, `MAX_LEVEL=30`, `freshSave`, `parseSave`, `readLegacySave`/`clearLegacySave`, `expToNext`, `floorKillTarget`, `addExperience`, `skillLevel`, `useSkillBook`. `items.ts`의 API를 재수출(배럴).
 - `items.ts` (169) — 등급·슬롯·기본형 목록·드랍·분해·자동장착. `rarityOrder`/`rarityRanks`/`rarityTiers`/`rarityScales`/`rarityPrefixes`/`salvageGold`/`salvageStones`, `slots`/`slotNames`/`rarityNames`/`statNames`, `baseItems`, `isSkillBook`, `isZweihander`, `equipmentImage`, `migrateItem`, `rollItem`, `rollSkillBook`, `equipmentDropChance`, `skillBookDropChance`, `totalStats`, `itemPower`, `autoEquipBest`, `salvageByRarity`.
@@ -136,7 +136,7 @@
 - `skillLoadout.ts` (37) — 퀵슬롯 배치/선택. `chooseSkill`, `pressSkillSlot`, `cancelSkillSelection`.
 - `equipmentPortrait.ts` — 내 정보 미리보기. `equipmentPortraitPlan`(공용 `planHeroCostume` 소비, 실패 시 티어 전신 초상화 폴백), `renderEquipmentPortrait`(idle 0프레임 합성·dataURL LRU 24·디코딩 아틀라스 이미지 LRU 2·매니페스트 1회 로드), `equipmentFallbackPortrait`.
 - `modals/` — `interface.ts` `renderModal`이 라우팅:
-  `accountModal.ts` 계정정보(캐릭터 생성 뒤 성별 변경 없음) `renderAccount` · `charactersModal.ts` 캐릭터 선택/생성·창고 `loadCharacters`,`renderCharacters`,`renderCreateCharacter`,`loadWarehouse`,`renderWarehouse` · `codexModal.ts` 도감 `renderCodex` · `equipModal.ts` 내 정보·장비/가방/분해 `renderEquipment`,`renderInventory`,`itemDetail`,`salvage`,`salvageValue`,`iconPath`, `equipmentInfoSlots`·`equipmentInfoStats` · `floorModal.ts` 층 선택 `renderFloor` · `marketModal.ts` 거래소 `renderMarket`,`updateMarketLive` · `offlineModal.ts` 정산 `renderOffline` · `salvageModal.ts` 분해 확인 `requestSalvage`,`finishSalvage`,`renderSalvage` · `skillModal.ts` 스킬 `renderSkills` · `utilityModal.ts` 설정/우편/보상/업적 `renderSettings`,`renderUtility`,`updateUtilityBadges`,`orderedAchievements`.
+  `accountModal.ts` 계정정보(캐릭터 생성 뒤 성별 변경 없음) `renderAccount` · `charactersModal.ts` 캐릭터 선택/생성·창고·슬롯별 방치 버튼(작업 191) `loadCharacters`,`renderCharacters`,`renderCreateCharacter`,`loadWarehouse`,`renderWarehouse` · `codexModal.ts` 도감 `renderCodex` · `equipModal.ts` 내 정보·장비/가방/분해 `renderEquipment`,`renderInventory`,`itemDetail`,`salvage`,`salvageValue`,`iconPath`, `equipmentInfoSlots`·`equipmentInfoStats` · `floorModal.ts` 층 선택 `renderFloor` · `marketModal.ts` 거래소 `renderMarket`,`updateMarketLive` · `offlineModal.ts` 정산 `renderOffline` · `salvageModal.ts` 분해 확인 `requestSalvage`,`finishSalvage`,`renderSalvage` · `skillModal.ts` 스킬 `renderSkills` · `utilityModal.ts` 설정/우편/보상/업적 `renderSettings`,`renderUtility`,`updateUtilityBadges`,`orderedAchievements`.
 
 ### `src/styles/`
 - `main.css` — `base`→`boot`→`hud`→`modals`→`login`→`market`→`codex` 순 import. `base.css`(폰트·리셋), `hud.css`(`.top-hud`,`.floor-button`), `modals.css`(장비·가방·분해 공통), `login.css`(로그인·캐릭터 선택), `market.css`(`.market-*`), `codex.css`(`.codex-*`,`#codex`), `boot.css`(`.boot-*`).
