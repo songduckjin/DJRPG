@@ -10,7 +10,8 @@
 - **검증**: `npx tsc --noEmit` 통과. 관련 7파일(`weapon-render`·`armor-render`·`archer-armor-render`·`character-portrait`·`equipped-detail`·`mage`·`weaponless-body`·`pilot-alpha`) **86/86**, 전체 `node --test tests/*.test.mjs` **948건 중 945 통과** — 실패 3건은 `c2c1c27`(main)에서 그대로 재현되는 기존 실패(`costume-field-render` 남/여 "코스튬 모드에서 통합 바디가 남아 있다", `skillbook-server` `hell` 이름 불일치)로 이번 변경과 무관하다(별도 워크트리에서 같은 3건 실패 확인). `npm run build` 통과.
 - **알파 전수 확인**: 되돌린 88장 전부에 대해 227 규칙(내부 반투명 < 1.5%·불투명 중앙값 ≥ 250/255)을 5×5 침식 기준으로 재검사 — **88/88 통과**.
 - **검수 이미지**: `downloads/djrpg_warrior_grip_revert_ingame_v1.png` — 남/여 × (맨몸 서기 · 맨몸+대검 파츠 · 갑옷 5번 서기 · 갑옷 5번+대검) 8칸을 `wasteland-ground` 위에 실게임 규칙(`WEAPON_POSES.idle0`의 가드 좌표·회전, 파츠 앵커 `WEAPON_GUARD`)으로 합성. 대검 파츠는 기본 검을 지운 `noweapon/` 시트 위에 얹었다(게임과 같은 경로). 확대해 보면 파츠 손잡이가 두 손 안에 들어오고 칼날선이 이전 그립과 나란하다.
-- **배포**: PR·운영 반영은 병합 뒤 이 항목에 기록한다.
+- **배포**: [PR #214](https://github.com/songduckjin/DJRPG/pull/214) 스쿼시 병합 `86d554b6980a`(2026-11-20T15:22:34Z, Cloudflare Pages 체크 SUCCESS — `Workers Builds: djrpg`는 이 저장소 상시 실패). 운영 `https://djrpg.pages.dev/version.json` = `86d554b6980a`(`builtAt 2026-11-20T15:22:50.361Z`, 루트 200). 배포 번들 `assets/index-CY_1dsE0.js`(741,943B)에 `const r2=4`(=`PILOT_ASSET_VERSION`)와 `pilotSheet()`(`?v=${r2}`)가 들어 있고 `idleArmor`는 없다. 실서버 자산 확인(`?v=4`, HTTP 200 · 로컬 파일과 md5 동일): `warrior_male_idle_v1.png` 179,731B `997dee81…` · `armors/warrior_female_armor_5_idle_v1.png` 32,225B `1a905bf0…` · `noweapon/warrior_female_idle_v1.png` 17,806B `06d1efc5…` · `headless/warrior_male_idle_v1.png` 19,921B `61a0bf3c…` · `noweapon/armors/headless/warrior_male_armor_9_idle_v1.png` 19,289B `d5f89dd5…`.
+- **남는 것**: 폰 실기(iOS Safari)에서 이전 그립·대검 위치 확인은 사용자 몫이다. 원격 브랜치 `fix/229-warrior-grip-revert`는 삭제 권한(403)으로 남아 있다.
 
 ## 2026-11-20 · songduckjin 작업 226 — 우편·거래소 `503 DB_UNAVAILABLE`에서 버튼 잠금·교착 해소 + 잠긴 이유 안내
 
