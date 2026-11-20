@@ -4,6 +4,7 @@ import { sharedConnection } from '../connection.mjs';
 import { createTrace, logRequest } from '../metrics.mjs';
 import { runtimeEnv } from '../env.mjs';
 import { json, readBody, errorResponse, versionGuard } from '../http.mjs';
+import { normalizeExtraOptions } from '../extra-options.mjs';
 
 /** 창고 40칸 · 한 번에 옮길 수 있는 최대 개수(가방 40칸과 같은 상한). */
 const WAREHOUSE_LIMIT = 40;
@@ -78,6 +79,8 @@ async function handle(request, { env = runtimeEnv(), createDbClient } = {}, cont
           const index = save.bag.findIndex(item => item.id === itemId);
           if (index < 0) reject('ITEM_NOT_AVAILABLE', '가방에 있는 아이템만 창고에 넣을 수 있습니다.', '가방에 없는 아이템이 있어 아무것도 보관하지 않았습니다. 새로고침 후 다시 시도하세요.');
           const item = save.bag[index];
+          // 추가옵션(작업 238)은 `id`에서 다시 계산해 저장한다 — 창고로 들어가는 사본도 서버가 정한다.
+          normalizeExtraOptions(item);
           const owner = (await tx.execute({ sql: 'SELECT o.location,m.slot FROM djrpg_item_owners o LEFT JOIN djrpg_character_item_owners m ON m.item_id=o.item_id WHERE o.item_id=? AND o.account_id=?', args: [item.id, id] })).rows[0];
           if (!owner || owner.location !== 'inventory' || Number(owner.slot) !== row.slot) reject('ITEM_CONFLICT', '아이템 소유 상태가 달라졌습니다. 다시 불러오세요.', '소유 상태가 달라진 아이템이 있어 아무것도 보관하지 않았습니다. 새로고침 후 다시 시도하세요.');
           if (!batch) stored = Number((await tx.execute({ sql: 'SELECT COUNT(*) AS n FROM djrpg_warehouse WHERE account_id=?', args: [id] })).rows[0].n);
@@ -98,6 +101,7 @@ async function handle(request, { env = runtimeEnv(), createDbClient } = {}, cont
             WHERE w.account_id=? AND w.item_id=?`, args: [id, itemId] })).rows[0];
           if (!stored || stored.location !== 'warehouse' || Number(stored.slot) !== 0) reject('ITEM_NOT_AVAILABLE', '창고 아이템 상태가 달라졌습니다. 다시 불러오세요.', '창고에 없는 아이템이 있어 아무것도 꺼내지 않았습니다. 새로고침 후 다시 시도하세요.');
           const item = JSON.parse(stored.item_json);
+          normalizeExtraOptions(item);
           if (!batch) bagCount = equipment();
           if (item.slot !== 'skillbook' && item.slot !== 'pouch') {
             if (bagCount >= WAREHOUSE_LIMIT) reject('BAG_FULL', '가방이 가득 찼습니다.', `가방이 가득 차 ${ids.length}개를 꺼내지 못했습니다.`);

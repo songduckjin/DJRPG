@@ -1,6 +1,7 @@
 import {equipmentCount} from '../../game/bagCapacity';
 import { autoEquipBest, equipmentImage, expToNext, MAX_LEVEL, rarityNames, statNames, totalStats, useSkillBook, type Item, type Save, type Slot, type Stat } from '../../game/store';
 import { isEquipment, isPouch, rarityRanks, salvageGold, slotNameFor, canWield, weaponJob, itemJob, skillBookJob, type TreasurePouch } from '../../game/items';
+import { extraOptionLines, extraOptionSummary } from '../../game/extraOptions';
 import { jobNames, jobOrDefault } from '../../game/skills';
 import { BAG_JOB_ONLY_KEY, jobOnlyLabel, jobOnlyVisible, saveJobOnly } from '../jobFilter';
 import { nextSalvageRarity, saveSalvageRarity, type SalvageRarity } from '../salvageRarity';
@@ -253,6 +254,10 @@ export function itemDetail(this: Interface, save: Save, item: Item): HTMLElement
       const line = document.createElement('span'); line.className = diff >= 0 ? 'up' : 'down';
       line.textContent = `${statNames[stat]} +${item.stats[stat] ?? 0} (현재 +${equipped?.stats[stat] ?? 0}) ${diff >= 0 ? '▲' : '▼'}${Math.abs(diff)}`; panel.appendChild(line);
     }
+    // 추가옵션(작업 238): 애픽 1 · 유니크 2 · 전설 3줄을 스탯 아래에 붙인다.
+    for (const extra of extraOptionLines(item)) {
+      const line = document.createElement('span'); line.className = 'item-extra'; line.textContent = extra; panel.appendChild(line);
+    }
     const buttons = document.createElement('div'); buttons.className = 'detail-actions';
     // 다른 직업의 무기는 입을 수 없다(작업 204): 버튼을 잠그고 어느 직업의 무기인지 알린다.
     const wieldable = canWield(item, jobOrDefault(save.job));
@@ -350,6 +355,13 @@ export function renderEquipment(this: Interface, dialog: HTMLElement): void {
       const cell = document.createElement('div'); cell.innerHTML = `<span>${label}</span><b>${values[index]}</b>`; statGrid.appendChild(cell);
     });
     info.appendChild(statGrid);
+    // 추가옵션(작업 238) 합계 — 상한이 걸린 실제 전투 값(회피 30%·회복 12%/5초·피흡 15%).
+    const extraSummary = extraOptionSummary(save.equipment);
+    if (extraSummary) {
+      const extraLine = document.createElement('div'); extraLine.className = 'equipment-info-extras';
+      extraLine.textContent = `✨ ${extraSummary}`;
+      info.appendChild(extraLine);
+    }
     showcase.append(center, info); dialog.appendChild(showcase);
     const grid = document.createElement('div'); grid.className = 'equipment-grid'; grid.setAttribute('aria-label', '장착 장비 10칸');
     for (const slot of equipmentInfoSlots) addSlot(slot, grid);

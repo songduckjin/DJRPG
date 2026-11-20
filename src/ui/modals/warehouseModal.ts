@@ -17,6 +17,7 @@ import {
   equipmentImage, isEquipment, isPouch, isSkillBook, itemDisplayName, itemJob, plusOf,
   rarityNames, skillBookJob, slotNameFor, statNames, type Item, type Stat
 } from '../../game/items';
+import { extraOptionLines } from '../../game/extraOptions';
 import { jobNames, jobOrDefault } from '../../game/skills';
 import type { Save } from '../../game/store';
 import { pouchIconMarkup } from '../pouchArt';
@@ -373,6 +374,10 @@ function paintDetail(ui: Interface, save: Save, detail: HTMLElement, state: Ware
       const stats = document.createElement('div'); stats.className = 'warehouse-detail-stats';
       for (const [stat, value] of entries) {
         const line = document.createElement('span'); line.textContent = `${statNames[stat]} +${value}`; stats.append(line);
+      }
+      // 추가옵션(작업 238) — 창고에 넣어 둔 장비도 상세에서 옵션을 확인할 수 있다.
+      for (const extra of extraOptionLines(item)) {
+        const line = document.createElement('span'); line.className = 'warehouse-extra'; line.textContent = extra; stats.append(line);
       }
       detail.append(stats);
     }

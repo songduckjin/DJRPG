@@ -2,6 +2,7 @@ import {createSkillBookArt} from '../skillBookArt';
 import { goldNode, coinMarkup } from '../currency';
 import { filterSaleItems } from '../itemOrder';
 import { equipmentImage, isBow, isEquipment, isSkillBook, itemDisplayName, itemJob, rarityNames, slotNames, statNames, usableByJob, type Item, type Stat } from '../../game/items';
+import { extraOptionLines } from '../../game/extraOptions';
 import { jobNames } from '../../game/skills';
 import { MARKET_JOB_ONLY_KEY, jobOnlyLabel, jobOnlyVisible, saveJobOnly } from '../jobFilter';
 import { type MarketView, type Listing, type Market } from '../../game/market';
@@ -33,6 +34,9 @@ function itemInfo(item: Item): HTMLElement {
   info.append(titleRow, el('small', '', `${rarityNames[item.rarity]} · ${isSkillBook(item) ? '스킬북' : isEquipment(item) ? isBow(item) ? '활' : slotNames[item.slot] : '소모품'}`));
   const stats = Object.entries(item.stats).map(([key, amount]) => `${statNames[key as Stat]} +${amount}`).join(' · ');
   info.append(el('small', 'market-options', stats || '사용 시 습득 또는 스킬 +1레벨'));
+  // 추가옵션(작업 238) — 목록에서도 매물의 옵션을 한 줄로 보여 준다.
+  const extras = isEquipment(item) ? extraOptionLines(item) : [];
+  if (extras.length) info.append(el('small', 'market-options item-extra', extras.join(' · ')));
   return info;
 }
 function select(label: string, values: [string,string][], market: Market, key: string): HTMLElement {
