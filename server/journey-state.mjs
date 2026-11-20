@@ -135,7 +135,10 @@ export function advanceJourney(state, before, save, now = Date.now(), diamondMai
   if (diamondMailEligible) {
     // 옛 ID 우편을 이미 받아 둔 계정은 위 `migrateLegacyDiamondMail`이 새 ID로 바꿔 두었다 — 새로 붙이지 않는다.
     state.notices ??= [];
-    if (!state.notices.includes(DIAMOND_MAIL_ID) && !state.mail.some(entry => entry.id === DIAMOND_MAIL_ID)) {
+    // 핫픽스 직전 20여 분 사이에 옛 ID로 4,000 다이아를 이미 받은 계정(수령 후 우편 삭제)에게 같은 보상을
+    // 한 번 더 주지 않는다 — 시즌1에 1,000을 받은 계정은 옛 ID 우편이 우편함에 남아 있어 마이그레이션으로 받는다.
+    const alreadyGranted = state.notices.includes(LEGACY_DIAMOND_MAIL_ID) || state.mail.some(entry => entry.id === LEGACY_DIAMOND_MAIL_ID || entry.id === DIAMOND_MAIL_ID);
+    if (!alreadyGranted && !state.notices.includes(DIAMOND_MAIL_ID)) {
       state.notices.push(DIAMOND_MAIL_ID);
       state.mail.push({ id: DIAMOND_MAIL_ID, title: '다이아 4,000개 지급', sender: '운영팀', body: '전 슬롯 방치 기능 출시를 기념해 계정마다 다이아 4,000개를 드립니다.', createdAt: now, expiresAt: null, gold: 0, books: 0, diamonds: 4000, claimedAt: null, read: false });
     }

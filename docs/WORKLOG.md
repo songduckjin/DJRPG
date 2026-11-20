@@ -3,6 +3,7 @@
 - **시즌2 전용 ID** (`server/journey-state.mjs`): `DIAMOND_MAIL_ID = 'all-idle-launch-diamonds-2026-11-20-s2'`, 옛 값은 `LEGACY_DIAMOND_MAIL_ID`로 남겨 마이그레이션 기준으로만 쓴다.
 - **이미 받아 둔 옛 우편 구제** (`migrateLegacyDiamondMail`, `advanceJourney`에서 우편 지급 전에 호출 → `journeyState`를 지나는 모든 경로): 우편함에 옛 ID **미수령** 우편이 있으면 그 자리에서 새 ID로 바꾸고 `state.notices`의 지급 이력도 새 ID로 맞춘다. 이미 새 ID 우편이 따로 있으면 옛 우편은 지워 4,000 다이아가 두 통이 되지 않는다. 받은 우편(`claimedAt`)은 건드리지 않는다. 시즌 초기화 직후 새 코드로 접속한 계정은 새 ID로 한 통만 받는다.
 - 검증: `tests/journey.test.mjs`에 2건 추가(① 시즌1 원장 기록이 남은 계정의 `모두 받기`·개별 `받기` → 4,000 다이아 지급·원장에 시즌1·시즌2 행 공존·두 번째 받기는 `NOT_AVAILABLE` ② 옛 ID 미수령 우편이 새 ID로 바뀌어 한 통만 남고 지급 이력도 새 ID). 수정 전 코드로 되돌리면 이 2건이 실제로 실패하는 것까지 확인. `journey` **18/18**, `season-reset`·`journey-ui`·`journey-metrics`·`shop`·`achievements` **30/30** 통과, `tsc --noEmit`·`vite build` 통과. 전체 826건 중 769 통과/57 실패는 수정 전과 같은 수(스파스 체크아웃에 원본 아트가 없어 실패하는 자산·렌더 테스트).
+- **후속(같은 날 배포)**: 시즌1에 다이아를 받지 않은 계정은 초기화(20:10)~핫픽스 배포(20:31) 사이에 옛 ID로 4,000을 정상 수령할 수 있었고, 그러면 새 ID로 한 번 더 붙었다. `advanceJourney` 지급 조건에 **“옛 ID가 `state.notices`나 `state.mail`에 이미 있으면 주지 않는다”**를 1줄 추가해 수령 뒤 우편을 지운 계정에도 중복 지급이 없게 했다(시즌1에 1,000을 받은 계정은 옛 ID 우편이 우편함에 남아 마이그레이션으로 받으므로 영향 없음). `journey` **19/19**, 관련 묶음 **49/49**, 가드를 빼면 새 테스트가 실패하는 것까지 확인.
 - 배포: PR 스쿼시 병합 → `main` 자동 배포 → `https://djrpg.pages.dev/version.json` 새 커밋 확인.
 
 ## 2026-11-20 · fks3997 작업214 보물 주머니 9컷 프레임 모션·Canvas 빛/입자·1.8초 마무리·스포일러 제거(미리보기 배포)
