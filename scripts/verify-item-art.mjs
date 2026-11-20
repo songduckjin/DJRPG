@@ -371,6 +371,47 @@ for (let index = 1; index < 10; index += 1) {
 }
 console.log('작업 160 활 파츠 9장 확인 완료.');
 
+// ── 작업 200: 궁수 전용 투구 파츠 20장 + 머리 없는 본체 12장 ─────────────────────────
+// 투구 파츠는 서기 셀 전체(362×362)를 쓰고, 본체는 같은 자리에서 머리를 지운 시트로 갈아 끼운다.
+// 갑옷(작업 155·archer_armors)·활(작업 160)과 셀 좌표계가 같아야 셋을 조합해도 앵커를 다시 재지 않는다.
+const archerHelmRoot = fileURLToPath(new URL('../public/assets/pilot-25d/archer_helms/', import.meta.url));
+for (const gender of ['male', 'female']) {
+  for (let index = 0; index < 10; index += 1) {
+    const name = `${gender}_${index}_v1.png`;
+    const path = join(archerHelmRoot, name);
+    if (!existsSync(path)) throw new Error(`작업 200 궁수 투구 파츠가 없습니다: ${name}`);
+    const data = readFileSync(path), header = data.subarray(0, 26);
+    const width = header.readUInt32BE(16), height = header.readUInt32BE(20);
+    if (header.toString('ascii', 1, 4) !== 'PNG' || width !== 362 || height !== 362) {
+      throw new Error(`궁수 투구 파츠는 362×362 PNG여야 합니다(${width}×${height}): ${name}`);
+    }
+    if (!(header[25] === 6 || (header[25] === 3 && data.includes('tRNS')))) {
+      throw new Error(`궁수 투구 파츠는 투명도가 있는 PNG여야 합니다: ${name}`);
+    }
+    if (data.length > 40 * 1024) throw new Error(`궁수 투구 파츠가 40KB를 넘습니다: ${name}`);
+  }
+}
+console.log('작업 200 궁수 투구 파츠 20장 확인 완료.');
+
+const archerHeadlessRoot = fileURLToPath(new URL('../public/assets/pilot-25d/archer_headless/', import.meta.url));
+for (const gender of ['male', 'female']) {
+  for (const bowless of [false, true]) {
+    for (const [motion, width, height] of [['idle', 362, 362], ['walk', 1448, 362], ['attack', 1448, 362]]) {
+      const path = join(archerHeadlessRoot, ...(bowless ? ['nobow'] : []), `archer_${gender}_${motion}_v1.png`);
+      if (!existsSync(path)) throw new Error(`작업 200 머리 없는 궁수 시트가 없습니다: ${path}`);
+      const data = readFileSync(path), header = data.subarray(0, 26);
+      if (header.toString('ascii', 1, 4) !== 'PNG' || header.readUInt32BE(16) !== width || header.readUInt32BE(20) !== height) {
+        throw new Error(`머리 없는 궁수 시트 규격이 다릅니다(${header.readUInt32BE(16)}×${header.readUInt32BE(20)}): ${path}`);
+      }
+      if (!(header[25] === 6 || (header[25] === 3 && data.includes('tRNS')))) {
+        throw new Error(`머리 없는 궁수 시트는 투명도가 있는 PNG여야 합니다: ${path}`);
+      }
+      if (data.length > 160 * 1024) throw new Error(`머리 없는 궁수 시트가 160KB를 넘습니다: ${path}`);
+    }
+  }
+}
+console.log('작업 200 머리 없는 궁수 시트 12장 확인 완료.');
+
 // ── 작업 201: 기본 지팡이를 지운 마법사 시트(mage_nostaff) + 지팡이 파츠 10장 ────────────
 // 0~9번을 모두 파츠로 얹으므로 짧은 완드를 들었을 때 뒤로 기본 긴 지팡이가 남지 않는다.
 const nostaffRoot = fileURLToPath(new URL('../public/assets/pilot-25d/mage_nostaff/', import.meta.url));

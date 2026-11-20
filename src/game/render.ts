@@ -20,6 +20,7 @@ import { bowPartPath, bowPartPaths, bowTierCacheLimit, bowlessBodyPath, type Bow
 import {
   staffPartPath, staffPartPaths, staffTierCacheLimit, stafflessBodyPath, type StaffMotion
 } from './render/staffs';
+import { archerHeadlessBodyPath, archerHeadlessBodyPaths, archerHelmPartPaths } from './render/archerHelmets';
 import type { Gender } from './store';
 
 const paths = {
@@ -135,7 +136,9 @@ export const renderAssetPaths = [
   // 착용 투구 머리 파츠(작업 151) — 장비창과 필드가 같은 PNG 를 쓴다.
   ...helmetArtList.map(art => helmetArtPaths[art]),
   // 공격 3/4 옆모습 투구 파츠(작업 154) — 남녀 10종 × 공격 4프레임.
-  ...helmetAttackArtList.map(art => helmetAttackArtPaths[art])
+  ...helmetAttackArtList.map(art => helmetAttackArtPaths[art]),
+  // 궁수 전용 투구 파츠 20장(작업 200) — 전체 셀 PNG 20장이 장당 ~5KB라 부팅 때 함께 받는다.
+  ...archerHelmPartPaths
 ];
 type Dust = { x: number; y: number; vx: number; vy: number; age: number; duration: number; size: number };
 type Ghost = { sprites: { sprite: Sprite; dx: number; dy: number }[]; x: number; y: number; age: number; duration: number };
@@ -201,6 +204,9 @@ export class GameView {
   bowTierOrder: number[] = [];
   /** 마지막으로 본 활 티어. 바뀔 때만 파츠·본체 시트를 미리 받는다. */
   lastBowTier = -1;
+  /** 마지막으로 본 궁수 투구 인덱스와 (투구:활 지움 여부) 키 (작업 200). */
+  lastArcherHelm = -1;
+  lastArcherHelmBow = '';
   /** 지금 그려진 활 파츠 스프라이트(0번·로딩 전이면 숨김). */
   heroBow?: Sprite;
   /** 착용 지팡이 파츠(경로 → 텍스처), 로딩 중인 경로, 최근 티어 (작업 201). */
@@ -262,7 +268,10 @@ export class GameView {
     }
     // 정면(서기·걷기) 13장과 공격 3/4 파츠 80장을 함께 받는다 — 필드에서 프레임이 바뀌는
     // 순간에 텍스처가 없어 투구가 한 프레임 사라지는 일이 없도록 부팅 때 모두 올린다.
-    const helmetPaths = [...helmetArtList.map(art => helmetArtPaths[art]), ...helmetAttackArtList.map(art => helmetAttackArtPaths[art])];
+    const helmetPaths = [
+      ...helmetArtList.map(art => helmetArtPaths[art]), ...helmetAttackArtList.map(art => helmetAttackArtPaths[art]),
+      ...archerHelmPartPaths
+    ];
     const helmets = await Promise.all(helmetPaths.map(async path => [path, await loadTexture(path)] as const));
     for (const [path, texture] of helmets) { texture.source.scaleMode = 'linear'; this.helmetTextures.set(path, texture); }
     const walking = await Promise.all((Object.keys(walkSheets) as (keyof typeof walkSheets)[]).map(async key => [key, await loadTexture(walkSheets[key])] as const));
@@ -484,6 +493,22 @@ export class GameView {
    */
   bowBodyFrame(gender: Gender, motion: BowMotion, frame: number): Texture | undefined {
     return this.bodySheetFrame(bowlessBodyPath(gender, motion), motion, frame);
+  }
+
+  /**
+   * 머리를 지운 궁수 본체 시트의 프레임 (작업 200). 투구를 쓸 때만 부른다.
+   * 갑옷·활 시트와 같은 셀 규격이라 자르기·프레임 선택 규칙도 같다.
+   */
+  archerHeadlessFrame(gender: Gender, motion: BowMotion, frame: number, bowless = false): Texture | undefined {
+    return this.bodySheetFrame(archerHeadlessBodyPath(gender, motion, bowless), motion, frame);
+  }
+
+  /**
+   * 궁수 투구를 쓰기 시작했거나 활 티어(기본 활 지움 여부)가 바뀌면 머리 없는 시트 3장을 미리 받는다.
+   * 파츠 20장은 부팅 프리로드라 여기서 받지 않는다(장당 5KB).
+   */
+  prefetchArcherHeadless(gender: Gender, bowless: boolean): void {
+    for (const path of archerHeadlessBodyPaths(gender, bowless)) this.loadArmorSheet(path);
   }
 
   private loadArmorSheet(path: string): void {
