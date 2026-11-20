@@ -68,7 +68,10 @@ test('shared kill has one last hitter, ranking, shared rewards and idempotent ma
  await act('killer',{action:'finish',attemptId:two.battle.id},now+4000);await act('contributor',{},now+4000);
  for(const id of ['contributor','killer']){
   const row=(await db.execute({sql:'SELECT state_json FROM djrpg_journey WHERE account_id=?',args:[id]})).rows[0];const mail=JSON.parse(row.state_json).mail.filter(m=>m.id.startsWith('boss:'));
-  assert.equal(mail.filter(m=>m.title.includes('공동 처치')).length,1);assert.equal(mail.filter(m=>m.title.includes('위 보상')).length,1);assert.equal(mail.filter(m=>m.title.includes('도전 참여')).length,0);
+  assert.equal(mail.filter(m=>m.title.includes('공동 처치')).length,1);assert.equal(mail.filter(m=>m.title.includes('위 보상')).length,1);
+  // 1회 도전 참여 보상은 **금화 1,000만** — 도전마다 한 장, 주머니·스킬북 없음(작업 223, 사용자 요청 `#6127`·`#6139`).
+  assert.equal(mail.filter(m=>m.title.includes('도전 참여')).length,1,'1회 도전 참여 보상 우편');
+  const participation=mail.find(m=>m.title.includes('도전 참여'));assert.equal(participation.gold,1000);assert.equal(participation.pouches,0);assert.equal(participation.books,0);
   const shared=mail.find(m=>m.title.includes('공동 처치'));assert.equal(shared.gold,1500);assert.equal(shared.pouches,1);assert.equal(shared.books,0);
   assert.equal(mail.filter(m=>m.title.includes('마지막 타격')).length,id==='killer'?1:0);assert.equal((await account(db,id)).save.gold,0);
  }
@@ -150,9 +153,13 @@ test('three attempts reduce shared HP by their sum but rank by best; legacy sums
  const repeat=await act('best-record',{action:'finish',attemptId:three.battle.id},now+11000);assert.equal(repeat.hp,lower.hp);assert.equal(repeat.battle.record.status,'unchanged');
  await act('best-record',{},periods(now).dailyEnd+1);
  const state=JSON.parse((await db.execute({sql:'SELECT state_json FROM djrpg_journey WHERE account_id=?',args:['best-record']})).rows[0].state_json);
- const rewards=state.mail.filter(m=>m.id.startsWith(`boss:${first.day}:`));assert.equal(rewards.length,1);assert.equal(rewards[0].gold,10000);assert.equal(rewards[0].books,0);assert.equal(rewards[0].pouches,4);
+ const rewards=state.mail.filter(m=>m.id.startsWith(`boss:${first.day}:`));
+ // 도전 3회 → 참여 보상 우편 3장(재정산해도 늘지 않는다). 금화 1,000만, 주머니·스킬북 없음(작업 223).
+ const participation=rewards.filter(m=>m.title.includes('도전 참여'));assert.equal(participation.length,3);
+ for(const mail of participation){assert.equal(mail.gold,1000);assert.equal(mail.books,0);assert.equal(mail.pouches,0);}
+ const rank=rewards.filter(m=>m.title.includes('위 보상'));assert.equal(rank.length,1);assert.equal(rank[0].gold,10000);assert.equal(rank[0].books,0);assert.equal(rank[0].pouches,4);
  const owner=await account(db,'best-record'),{mutate}=await import('../server/journey.mjs');
- const input={action:'journey-claim',kind:'mail',id:rewards[0].id,revision:owner.revision,requestId:randomUUID()};
+ const input={action:'journey-claim',kind:'mail',id:rank[0].id,revision:owner.revision,requestId:randomUUID()};
  const claimed=await mutate(db,'best-record',input),retried=await mutate(db,'best-record',input);
  assert.equal(claimed.save.gold,10000);assert.equal(claimed.save.bag.filter(i=>i.slot==='pouch').length,4);assert.deepEqual(retried.save.bag,claimed.save.bag);
 });

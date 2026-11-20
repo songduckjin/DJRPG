@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import './ts-loader.mjs';
-const { freshSave, floorKillTarget, totalStats } = await import('../src/game/store.ts');
+const { freshSave, floorKillTarget, parseSave, totalStats } = await import('../src/game/store.ts');
 const { World, enemyMoveSpeed, enemyMaxHp, enemyHitDamage, basicAttackPower } = await import('../src/game/world.ts');
 
 test('ordinary monsters approach more slowly and never outpace the player at deep floors', () => {
@@ -213,6 +213,68 @@ test('층 보스가 나타나는 순간 체력을 최대치로 회복한 뒤 싸
   assert(again.enemies.some(enemy => enemy.boss), '재도전 보스 등장');
   assert.equal(again.player.hp, max, '재도전도 체력을 채우고 시작한다');
   assert.equal(retry.health, max);
+});
+
+test('보스에게 진 기록은 세이브에 남아 새로고침·재접속에도 [⚔ 보스 도전]이 유지된다(작업 223, `#6086`)', () => {
+  // 사용자 제보 `#6086` "3층 보스 실패했는데 보스도전버튼이 생겼다가 없어졌어 4층 넘어갈때까지 계속 있어야되는데"
+  // — HUD 상태가 세션 메모리에만 있어 새로고침·재접속·버전 업데이트 리로드마다 사라졌다.
+  const save = freshSave(); save.tutorial = 1; save.autoClimb = true;
+  save.floor = 3; save.maxFloor = 3; save.floorKills = 0;
+  const world = new World(save);
+  world.enemies = [{ x: 10, y: 0, hp: 999, maxHp: 999, boss: true, hit: 0, step: 0, moving: false, knockX: 0, knockY: 0, slow: 0 }];
+  world.player.hp = 1; world.update(.01);
+  assert.equal(world.bossRetryReady, true, '3층 보스에게 패배 → ⚔ 보스 도전');
+  assert.equal(save.bossRetryFloor, 3, '진 층이 세이브에 남는다');
+
+  // 새로고침·재접속 — 세이브를 JSON으로 한 번 돌려 다시 읽어도 버튼이 살아 있다.
+  const reopen = () => new World(parseSave(JSON.parse(JSON.stringify(save))));
+  const again = reopen();
+  assert.equal(again.bossRetryReady, true, '다시 접속해도 ⚔ 보스 도전이 그대로');
+
+  // 몹이 30마리 차 2층으로 내려가도 기록은 남고, 3층에 돌아오면 버튼이 다시 보인다(보스는 최고 층에서만).
+  save.floor = 2;
+  const dropped = reopen();
+  assert.equal(dropped.bossRetryReady, false, '2층에서는 보스가 없으니 버튼도 없다');
+  assert(dropped.travelToFloor(3).ok);
+  assert.equal(dropped.bossRetryReady, true, '3층으로 돌아오면 바로 다시 도전할 수 있다');
+
+  // 보스를 이겨 4층으로 올라가면 기록이 지워져 다시 접속해도 버튼이 없다.
+  dropped.save.floorKills = floorKillTarget(3);
+  dropped.challengeBoss();
+  dropped.update(.05);
+  const boss = dropped.enemies.find(enemy => enemy.boss);
+  assert(boss, '재도전 보스가 나온다');
+  dropped.kill(boss);
+  assert.equal(dropped.save.floor, 4, '보스를 이기면 4층');
+  assert.equal(dropped.save.bossRetryFloor, 0, '올라가면 기록을 지운다');
+  assert.equal(new World(parseSave(JSON.parse(JSON.stringify(dropped.save)))).bossRetryReady, false, '새로고침해도 버튼이 돌아오지 않는다');
+
+  // 옛 세이브(값 없음)는 0으로 읽고, 서버가 20층 밖의 값을 보내도 1~20 정수만 남긴다.
+  assert.equal(parseSave({ ...save, bossRetryFloor: undefined }).bossRetryFloor, 0);
+  assert.equal(parseSave({ ...save, bossRetryFloor: 99 }).bossRetryFloor, 20);
+});
+
+test('층 보스가 나타나면 스킬 쿨타임도 함께 0으로 돌아온다(작업 223, 사용자 요청 `#6108`)', () => {
+  // 사용자 요청 `#6108` "보스 도전 때 스킬 쿨도 돌려줘" — 자동 소환과 ⚔ 재도전 모두 같은 스폰 블록을 지난다.
+  const bossSave = () => {
+    const save = freshSave(); save.tutorial = 1; save.autoClimb = true;
+    save.floor = 5; save.maxFloor = 5; save.floorKills = floorKillTarget(5);
+    return save;
+  };
+  const auto = bossSave(); const world = new World(auto);
+  for (const kind of Object.keys(world.cooldown)) world.cooldown[kind] = 9;
+  world.spawnTimer = 0; world.update(.001);
+  assert(world.enemies.some(enemy => enemy.boss), '보스 등장');
+  assert.deepEqual(Object.values(world.cooldown).filter(left => left !== 0), [], '모든 스킬·평타 쿨타임 0');
+
+  const retry = bossSave(); retry.floorKills = 0;
+  const again = new World(retry);
+  again.bossRetryAvailable = true;
+  assert(again.challengeBoss());
+  for (const kind of Object.keys(again.cooldown)) again.cooldown[kind] = 9;
+  again.update(.05);
+  assert(again.enemies.some(enemy => enemy.boss), '재도전 보스 등장');
+  assert.deepEqual(Object.values(again.cooldown).filter(left => left !== 0), [], '재도전도 쿨타임 0');
 });
 
 test('[⚔ 보스 도전]은 보스에게 쓰러진 뒤 살아나고, 자동 등반 중이어도 바로 재도전할 수 있다(작업 210 → 212)', async () => {

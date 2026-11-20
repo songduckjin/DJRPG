@@ -19,6 +19,10 @@ export const DUNGEON_MAX_FLOOR = 10;
 export const MAX_FLOOR = 20;
 
 export type Save = { version: 1; name: string; accountId: string; gender: Gender; job?: Job; auto: boolean; autoClimb: boolean; level: number; exp: number; gold: number; floor: number; maxFloor: number; floorKills: number; kills: number; bossKills: number; playSeconds: number; /** 장비 분해 누적 횟수(작업 207) — 일일·주간 `장비 분해` 미션이 이 값의 증가분을 센다. */ salvageCount: number; health: number; equipment: Partial<Record<Slot, EquipmentItem>>; equipmentCollection: string[]; bag: Item[]; tutorial: number; stones: number; skillPoints: number; lastActiveAt: number; learned: SkillId[]; passives: PassiveId[]; quickSlots: QuickSlots; skillLevels: Partial<Record<SkillLevelId, number>>; dungeonFloor: number; dungeonClearAt: number;
+  /** 보스에게 진 층(작업 223, 사용자 제보 `#6086`) — 0/없음이면 재도전 없음, `maxFloor`와 같으면
+   *  `⚔ 보스 도전`이 살아 있다. HUD 상태를 세션 메모리에만 두면 새로고침·재접속·버전 업데이트로
+   *  보스 앞에서 실패한 기록이 날아가 버튼이 사라졌다(사용자: "4층 넘어갈때까지 계속 있어야되는데"). */
+  bossRetryFloor?: number;
   /** 시즌 번호와 새 시즌 설정 대기 표시(작업 206) — 서버가 시즌 초기화 뒤 내려보내며, 로그인 화면이
    *  직업·성별을 고른 뒤 `completeSetup`으로 지운다. 게임 세이브에는 남지 않는다. */
   season?: number; needsSetup?: boolean };
@@ -71,7 +75,7 @@ export function floorKillTarget(floor: number): number {
 }
 
 export function freshSave(gender: Gender = 'male', job: Job = 'warrior'): Save {
-  return { version: 1, name: '모험가', accountId: crypto.randomUUID().slice(0, 8).toUpperCase(), gender, job, auto: true, autoClimb: true, level: 1, exp: 0, gold: 0, floor: 1, maxFloor: 1, floorKills: 0, kills: 0, bossKills: 0, playSeconds: 0, salvageCount: 0, health: 100, equipment: {}, equipmentCollection: [], bag: [], tutorial: 0, stones: 0, skillPoints: 0, lastActiveAt: Date.now(), learned: [], passives: [], quickSlots: [null, null, null], skillLevels: {}, dungeonFloor: 0, dungeonClearAt: 0 };
+  return { version: 1, name: '모험가', accountId: crypto.randomUUID().slice(0, 8).toUpperCase(), gender, job, auto: true, autoClimb: true, level: 1, exp: 0, gold: 0, floor: 1, maxFloor: 1, floorKills: 0, kills: 0, bossKills: 0, playSeconds: 0, salvageCount: 0, health: 100, equipment: {}, equipmentCollection: [], bag: [], tutorial: 0, stones: 0, skillPoints: 0, lastActiveAt: Date.now(), learned: [], passives: [], quickSlots: [null, null, null], skillLevels: {}, dungeonFloor: 0, dungeonClearAt: 0, bossRetryFloor: 0 };
 }
 
 export function parseSave(data: unknown, accountId?: string): Save {
@@ -110,12 +114,14 @@ export function parseSave(data: unknown, accountId?: string): Save {
     // 메인 층은 1~20(작업 204): 21층 이상에 있던 예전 세이브는 20층으로 보정한다(장비·진행은 그대로).
     const floor = Math.max(1, Math.min(MAX_FLOOR, Math.floor(safeNumber(value.floor, defaults.floor, 1))));
     const maxFloor = Math.max(floor, Math.min(MAX_FLOOR, Math.floor(safeNumber(value.maxFloor, floor, 1))));
+    // 보스에게 진 층(작업 223): 0~MAX_FLOOR의 정수만 남기고, 없는 세이브(구버전)는 0으로 둔다.
+    const bossRetryFloor = Math.min(MAX_FLOOR, Math.max(0, Math.floor(safeNumber(value.bossRetryFloor, 0))));
     const level = Math.min(MAX_LEVEL, Math.floor(safeNumber(value.level, defaults.level, 1)));
     const invested = Object.values(skillLevels).reduce<number>((sum, rank) => sum + Math.max(0, (rank ?? 1) - 1), 0);
     const skillPoints = Math.floor(safeNumber(value.skillPoints, Math.max(0, level - 1 - invested)));
     // 던전 최고층은 0~10의 정수, 최초 클리어 시각은 0 이상. 없는 세이브(구버전)는 0층부터 시작한다.
     const dungeonFloor = Math.min(DUNGEON_MAX_FLOOR, Math.floor(safeNumber(value.dungeonFloor, defaults.dungeonFloor)));
-    return { ...defaults, name: typeof value.name === 'string' && value.name.trim() ? value.name : defaults.name, accountId: accountId ?? (typeof value.accountId === 'string' && value.accountId ? value.accountId : defaults.accountId), gender: value.gender === 'female' ? 'female' : 'male', job: jobOrDefault(value.job), auto: true, autoClimb: typeof value.autoClimb === 'boolean' ? value.autoClimb : true, level, exp: level >= MAX_LEVEL ? 0 : safeNumber(value.exp, defaults.exp), gold: Math.floor(safeNumber(value.gold, defaults.gold)), floor, maxFloor, floorKills: Math.min(floorKillTarget(floor), Math.floor(safeNumber(value.floorKills, 0))), kills: Math.floor(safeNumber(value.kills, defaults.kills)), bossKills: Math.floor(safeNumber(value.bossKills, 0)), playSeconds: safeNumber(value.playSeconds, 0), salvageCount: Math.floor(safeNumber(value.salvageCount, 0)), health: safeNumber(value.health, defaults.health), equipment, equipmentCollection: collection.equipmentCollection, bag, tutorial: Math.min(3, Math.floor(safeNumber(value.tutorial, defaults.tutorial))), stones: Math.floor(safeNumber(value.stones, defaults.stones)), skillPoints, lastActiveAt: safeNumber(value.lastActiveAt, Date.now()), learned: active, passives, quickSlots, skillLevels, dungeonFloor, dungeonClearAt: dungeonFloor > 0 ? Math.floor(safeNumber(value.dungeonClearAt, 0)) : 0 };
+    return { ...defaults, name: typeof value.name === 'string' && value.name.trim() ? value.name : defaults.name, accountId: accountId ?? (typeof value.accountId === 'string' && value.accountId ? value.accountId : defaults.accountId), gender: value.gender === 'female' ? 'female' : 'male', job: jobOrDefault(value.job), auto: true, autoClimb: typeof value.autoClimb === 'boolean' ? value.autoClimb : true, level, exp: level >= MAX_LEVEL ? 0 : safeNumber(value.exp, defaults.exp), gold: Math.floor(safeNumber(value.gold, defaults.gold)), floor, maxFloor, floorKills: Math.min(floorKillTarget(floor), Math.floor(safeNumber(value.floorKills, 0))), kills: Math.floor(safeNumber(value.kills, defaults.kills)), bossKills: Math.floor(safeNumber(value.bossKills, 0)), playSeconds: safeNumber(value.playSeconds, 0), salvageCount: Math.floor(safeNumber(value.salvageCount, 0)), health: safeNumber(value.health, defaults.health), equipment, equipmentCollection: collection.equipmentCollection, bag, tutorial: Math.min(3, Math.floor(safeNumber(value.tutorial, defaults.tutorial))), stones: Math.floor(safeNumber(value.stones, defaults.stones)), skillPoints, lastActiveAt: safeNumber(value.lastActiveAt, Date.now()), learned: active, passives, quickSlots, skillLevels, bossRetryFloor, dungeonFloor, dungeonClearAt: dungeonFloor > 0 ? Math.floor(safeNumber(value.dungeonClearAt, 0)) : 0 };
   } catch (error) {
     throw new Error(`저장 데이터를 읽지 못했습니다: ${String(error)}`);
   }

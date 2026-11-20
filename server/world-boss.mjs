@@ -1,5 +1,5 @@
 import {account,assertSession,transaction,fail,ApiError} from './database.mjs';
-import {periods,advanceJourney,journeyOperation,recordJourneyMetric} from './journey-state.mjs';
+import {periods,advanceJourney,journeyOperation,journeyState,recordJourneyMetric} from './journey-state.mjs';
 import {parseSave} from '../src/game/store.ts';
 import {WorldBossRehearsal} from '../src/game/worldBossRehearsal.ts';
 import {worldBossSchema} from './world-boss-schema.mjs';
@@ -51,6 +51,17 @@ async function settleRows(tx,day,now){
   await tx.execute({sql:'UPDATE djrpg_boss_days SET settled_at=? WHERE day=? AND settled_at IS NULL',args:[now,day.day]});
 }
 async function dayRow(tx,key){return (await tx.execute({sql:'SELECT * FROM djrpg_boss_days WHERE day=?',args:[key]})).rows[0];}
+/** 도전 1회 참여 보상(작업 223, 사용자 요청 `#6127`·`#6139` "1회도전당 금화만줘야지") — 끝난 도전마다
+ *  1,000 금화를 **우편으로 한 번만** 준다. 보물 주머니·스킬북은 주지 않는다(금화만).
+ *  `djrpg_boss_rewards`의 `participation:<도전 id>`가 중복 지급을 막으므로 같은 도전을 다시 정산해도
+ *  우편이 두 장 생기지 않는다. 216/218에서 이 보상이 통째로 빠져 "1회 도전 보상이 없어졌다"는 제보가 왔다. */
+async function participationMail(tx,day,id,kind,title,gold,now){
+  const inserted=await tx.execute({sql:'INSERT OR IGNORE INTO djrpg_boss_rewards VALUES (?,?,?)',args:[day,id,kind]});
+  if(!inserted.rowsAffected)return;
+  const row=await account(tx,id),state=await journeyState(tx,row,row.save,now);
+  state.mail.push({id:`boss:${day}:${kind}`,title,sender:'월드보스 토벌대',body:`잿불의 군주 발카론 · ${title}. 우편에서 보상을 받아 주세요.`,gold,books:0,pouches:0,createdAt:now,expiresAt:now+30*86400000,claimedAt:null,read:false});
+  await tx.execute(journeyOperation(id,state));
+}
 async function credit(tx,attempt,now,finish=false,trace){
   let day=await dayRow(tx,attempt.day);
   const elapsed=Math.min(60,Math.max(0,(Math.min(now,Number(day.ends_at),day.killed_at??Infinity,attempt.ended_at??Infinity)-Number(attempt.started_at))/1000));
@@ -70,6 +81,8 @@ async function credit(tx,attempt,now,finish=false,trace){
     const ended=finish||battle.finished||elapsed>=59.999||now>=Number(day.ends_at)||Number(day.hp)<=delta||!!day.killed_at;
     await tx.execute({sql:'UPDATE djrpg_boss_attempts SET credited=credited+?,ended_at=? WHERE id=?',args:[delta,ended?now:null,attempt.id]});
     attempt={...attempt,credited:Number(attempt.credited)+delta,ended_at:ended?now:null};
+    // 1회 도전 참여 보상 — 피해를 한 번이라도 넣고 도전이 끝났으면 1,000 금화(작업 223).
+    if(ended&&Number(attempt.credited)>0)await participationMail(tx,day.day,attempt.account_id,`participation:${attempt.id}`,'월드보스 도전 참여 보상',1000,now);
     day=await dayRow(tx,day.day);
   }
   return {attempt,battle,day};

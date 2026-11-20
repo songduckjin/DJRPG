@@ -353,6 +353,10 @@ export async function writeSave(tx, row, save, operations = [], preserveCollecti
   const previousMainFloor = Number.isInteger(row.save.floor) ? row.save.floor : 1;
   save.floor = Math.max(1, Math.min(MAX_FLOOR, Number.isInteger(save.floor) ? save.floor : previousMainFloor));
   save.maxFloor = Math.max(save.floor, Math.min(MAX_FLOOR, Number.isInteger(save.maxFloor) ? save.maxFloor : save.floor));
+  // 보스 재도전 기록(작업 223): 0~20의 정수만 저장한다. 옛 클라이언트가 값을 빼고 보내도 0으로 두고,
+  // 최고 도달 층과 다른 값(아래층 기록)은 의미가 없으므로 0으로 정리한다 — 거부하지 않는다.
+  save.bossRetryFloor = Number.isInteger(save.bossRetryFloor) && save.bossRetryFloor > 0 && save.bossRetryFloor <= save.maxFloor
+    ? save.bossRetryFloor : 0;
   // Older clients may omit discovery history; never erase already-recorded entries.
   const previousCollection = preserveCollection && Array.isArray(row.save.equipmentCollection) ? row.save.equipmentCollection : [];
   const incomingCollection = Array.isArray(save.equipmentCollection) ? save.equipmentCollection : [];

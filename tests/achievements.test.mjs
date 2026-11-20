@@ -25,7 +25,7 @@ test('업적 단계는 사용자 확정 7개 분류·목표로 바뀌었다 (작
   const achievements = view().achievements;
   assert.deepEqual(groups(achievements), ['캐릭터 레벨', '몬스터 처치', '보스 처치', '최고 도달 층', '장비 도감 수집', '스킬 강화 횟수', '최고 스킬 레벨']);
   assert.deepEqual(steps(achievements, '캐릭터 레벨').map(step => step[0]), [5, 10, 15, 20, 25, 30]);
-  assert.deepEqual(steps(achievements, '몬스터 처치').map(step => step[0]), [500, 1000, 2000, 4000, 8000, 16000, 32000]);
+  assert.deepEqual(steps(achievements, '몬스터 처치').map(step => step[0]), [1000, 5000, 15000, 30000, 60000, 120000, 250000]);
   assert.deepEqual(steps(achievements, '보스 처치').map(step => step[0]), [10, 50, 100, 150, 200]);
   assert.deepEqual(steps(achievements, '최고 도달 층').map(step => step[0]), [5, 10, 15, 20]);
   assert.deepEqual(steps(achievements, '장비 도감 수집').map(step => step[0]), [10, 50, 100, 200, 300, 450, 570]);
@@ -36,7 +36,7 @@ test('업적 단계는 사용자 확정 7개 분류·목표로 바뀌었다 (작
   const pouches = achievements.filter(task => task.pouches).map(task => [task.id, task.pouches]);
   assert.deepEqual(pouches, [
     ['level-15', 1], ['level-20', 1], ['level-25', 1], ['level-30', 2],
-    ['kills-2000', 1], ['kills-4000', 1], ['kills-8000', 1], ['kills-16000', 1], ['kills-32000', 2],
+    ['kills-15000', 1], ['kills-30000', 1], ['kills-60000', 1], ['kills-120000', 1], ['kills-250000', 2],
     ['boss-100', 1], ['boss-150', 1], ['boss-200', 2],
     ['floor-15', 1], ['floor-20', 2],
     ['collection-100', 1], ['collection-200', 1], ['collection-300', 1], ['collection-450', 1], ['collection-570', 2],
