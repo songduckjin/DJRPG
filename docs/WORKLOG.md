@@ -50,6 +50,18 @@
 
 # 작업 로그
 
+## 2026-11-20 — 마법사 전용 모자·투구 10종 외형 적용 + 남성 서기 시트 정수리 잘림 수정 (작업 204)
+
+- **요청**: `songduckjin/DJRPG`에 확정된 마법사 남·여 모자·투구 10종(v2)을 서기·걷기·공격 전체에 적용하고 운영(`djrpg.pages.dev`)까지 배포.
+- **선행 버그 수정(중요)**: 배포본 `pilot-25d/mage_male_idle_v1.png`는 **정수리가 셀 위로 잘려 머리가 없는 그림**이었고 본체가 의도(337px)보다 17% 크게 그려져 걷기(300px)·공격(268px)과 크기가 어긋났다. 원인은 `scripts/build-mage-sheets.py`의 `body_height()` — 발끝 무게중심 ±34px 띠로 정수리를 찾는데, 마법사 남성은 발끝이 머리 중심에서 벗어나 어깨를 정수리로 오인했다(943px). 승인 원본에서 직접 잰 정수리~발끝(`IDLE_BODY_PX`: 남 1129px)으로 서기 시트를 다시 구웠고(본체 337px·발끝 y=353), `/assets/*` 불변 캐시를 피해 `mage_{male,female}_idle_v1.png` URL에 `?v=2`를 붙였다(`render.ts`·`ui/equipmentPortrait.ts`·`ui/modals/charactersModal.ts`). 여성 서기는 이미 정상이라 기존 승인 배율(1053px)을 유지했다.
+- **연동 수정**: 서기 본체가 0.83525배 작아진 만큼 ① `mage_nostaff/mage_male_idle_v1.png`를 같은 규칙으로 다시 구웠고(지팡이 지우는 자세 좌표를 새 셀로 이동, `?v=2`), ② 지팡이 파츠 PNG는 예전 셀에서 떴으므로 `staffs.ts`에 자세별 파츠 배율(`staffPlacement().scale`, 남 서기 0.83525)을 더해 손에서 떨어지지 않게 했다. 걷기·공격 자세와 지팡이 파츠 10장은 그대로다.
+- **파츠 20장**: 승인 시안(`downloads/mage_helm_v2/{male,female}_helm_{0..9}.png`, 1254²)을 서기 셀 좌표계로 옮겨 **모자·투구 + 얼굴·머리카락·목덜미**를 뜬 PNG. 고깔모·후광·날개·뿔이 셀 위로 솟아 파츠는 **362×406(위 44행 여유)**이고 장당 9~19KB·합계 328KB.
+- **머리 없는 본체 12장**: 게임 서기 셀의 실루엣에서 지우는 구멍을 자동으로 떠서(상자 안 실루엣 ∩ 지팡이 통로 제외, 작은 구멍 메움 → 2px 침식) `mage_headless/`(기본)·`mage_headless/nostaff/`(지팡이 지움) × 남녀 × 3동작. 걷기·공격은 서기 얼굴을 템플릿 매칭한 (배율·이동)으로 구멍을 옮긴다.
+- **렌더**: `src/game/render/mageHelmets.ts`(신규)가 인덱스·경로·자세 표(`male walk 0.95~0.98 / attack 0.94~0.95`, `female walk 0.98~1.0 / attack 0.89~0.98`)·머리 없는 시트 경로를 제공하고, `drawHero`가 마법사 분기에서 파츠와 시트가 **둘 다** 준비됐을 때만 머리 없는 시트로 갈아 끼운다(지팡이를 찼으면 `nostaff` 판). 투구 파츠는 zIndex .35로 지팡이(.4)보다 뒤에 그려 지팡이가 앞을 지나간다. 장비창(`equipmentPortrait.ts`)도 같은 시트·좌표로 합성하고, 파츠가 셀 위로 솟는 만큼 초상화 위 여백을 늘려(`composeFallback` overflow) 고깔모가 잘리지 않는다.
+- **계약**: `store.ts`·`server/**`·`world.ts`·`baseItems` 순서·아이템 능력치/드랍·전투 판정 무변경. 마법사는 여전히 전사 갑옷·투구·대검 파츠를 쓰지 않는다.
+- **검증**: `npx tsc --noEmit` 통과, 신규 `tests/mage-helm-render.test.mjs` 11/11, `tests/mage-helm-render`·`mage`·`staff-render` 34/34, 전체 `node --test tests/*.test.mjs` **601건 중 599 통과**(실패 2건은 `origin/main`에서도 동일한 `costume-field-render` 기존 실패), `node scripts/verify-item-art.mjs`(투구 파츠 20·머리 없는 시트 12 추가), `npm run build` 통과, `git diff --check`.
+- **검수 이미지**: `downloads/djrpg_mage_helms_ingame_v1.png`(남녀 10종, 게임 배율 .42), `downloads/djrpg_mage_helms_preview_v1.png`(셀 크기 1배 — 이음매·머리카락 비침), `downloads/djrpg_mage_helms_motion_v1.png`(남녀 대표 5종 × 걷기·공격 4프레임). 육안 확인: 후광·뿔·고깔모 잘림 없음, 머리카락 비침 없음, 셀 위 여유 행에 후광이 실제로 그려짐.
+
 ## 2026-11-20 — 마법사 지팡이 10종 외형 적용: 남녀 서기·걷기 4프레임·공격 4프레임 (작업 202)
 
 - **요청**: `songduckjin/DJRPG`에서 마법사 지팡이 10종(짧은 완드 1~5 + 긴 그랜드 스태프 6~10) 외형을 남녀 마법사의 서기·걷기·공격 전체에 적용하고 운영(`djrpg.pages.dev`)까지 배포. 1~5번 짧은 지팡이를 들었을 때 뒤로 기본 긴 지팡이가 절대 삐져나오면 안 된다.

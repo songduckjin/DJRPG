@@ -73,7 +73,10 @@ REF_ANGLE = float(np.degrees(np.arctan2(REF_BUTT[1] - REF_HEAD[1], REF_BUTT[0] -
 # 그립이 회전축이므로 이 값이 조금 어긋나도 지우는 띠가 기본 지팡이를 모두 덮는다.
 POSES = {
     'male': {
-        'idle0': ((66, 0), (144, 326), (93, 114)),
+        # 작업 204: 서기 본체 시트를 정수리 잘림 없이(337px) 다시 구우면서 서기 자세 좌표도 새 셀 기준으로
+        # 옮겼다(기존 → 새 셀: x +69.96+(x-48.06)*0.83525, y 16+(y+50.47)*0.83525). 부품 PNG 는 예전 셀
+        # 기준 그대로라 `POSE_SCALE` 의 배율로 줄여 그린다.
+        'idle0': ((85, 58), (150, 330), (107, 153)),
         'walk0': ((100, 43), (143, 310), (116, 150)),
         'walk1': ((107, 44), (151, 322), (121, 144)),
         'walk2': ((100, 49), (150, 320), (116, 147)),
@@ -97,6 +100,9 @@ POSES = {
 }
 
 POSE_KEYS = ['idle0'] + [f'walk{i}' for i in range(4)] + [f'attack{i}' for i in range(4)]
+
+# 작업 204: 서기 파츠는 새 셀 배율(0.83525배)로 줄여 그린다 — PNG 는 예전 337/943 셀에서 떴기 때문이다.
+POSE_SCALE = {('male', 'idle0'): 0.83525}
 
 # 지우는 띠: 자루 반폭 + 여유. 머리(장식)는 더 넓게 지운다.
 SHAFT_HALF = 4.0
@@ -426,7 +432,8 @@ def over(*layers):
 def place_part(part, gender, key):
     head, butt, grip = POSES[gender][key][:3]
     rot = pose_angle((head, butt)) - REF_ANGLE
-    M = cv2.getRotationMatrix2D((float(REF_GRIP[0]), float(REF_GRIP[1])), float(rot), 1.0)
+    k = POSE_SCALE.get((gender, key), 1.0)
+    M = cv2.getRotationMatrix2D((float(REF_GRIP[0]), float(REF_GRIP[1])), float(rot), k)
     M[0, 2] += grip[0] - REF_GRIP[0]
     M[1, 2] += grip[1] - REF_GRIP[1]
     return cv2.warpAffine(part, M, (CELL, CELL), flags=cv2.INTER_LINEAR)

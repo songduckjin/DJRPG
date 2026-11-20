@@ -445,3 +445,44 @@ for (let index = 0; index < 10; index += 1) {
   if (data.length > 200 * 1024) throw new Error(`지팡이 파츠가 200KB를 넘습니다: staff_${index}_v1.png`);
 }
 console.log('작업 201 지팡이 파츠 10장 확인 완료.');
+
+// ── 작업 204: 마법사 전용 모자·투구 파츠 20장 + 머리 없는 본체 12장 ─────────────────────
+// 파츠는 서기 셀(362)보다 위로 44행 큰 362×406 이다(고깔모·후광·날개·뿔). 본체는 셀 규격 그대로이고
+// 같은 자리에서 머리를 지운 시트로 갈아 끼운다. 로브(작업 203)·지팡이(작업 201)와 좌표계가 같다.
+const mageHelmRoot = fileURLToPath(new URL('../public/assets/pilot-25d/mage_helms/', import.meta.url));
+for (const gender of ['male', 'female']) {
+  for (let index = 0; index < 10; index += 1) {
+    const name = `${gender}_${index}_v1.png`;
+    const path = join(mageHelmRoot, name);
+    if (!existsSync(path)) throw new Error(`작업 204 마법사 투구 파츠가 없습니다: ${name}`);
+    const data = readFileSync(path), header = data.subarray(0, 26);
+    const width = header.readUInt32BE(16), height = header.readUInt32BE(20);
+    if (header.toString('ascii', 1, 4) !== 'PNG' || width !== 362 || height !== 406) {
+      throw new Error(`마법사 투구 파츠는 362×406 PNG여야 합니다(${width}×${height}): ${name}`);
+    }
+    if (!(header[25] === 6 || (header[25] === 3 && data.includes('tRNS')))) {
+      throw new Error(`마법사 투구 파츠는 투명도가 있는 PNG여야 합니다: ${name}`);
+    }
+    if (data.length > 60 * 1024) throw new Error(`마법사 투구 파츠가 60KB를 넘습니다: ${name}`);
+  }
+}
+console.log('작업 204 마법사 투구 파츠 20장 확인 완료.');
+
+const mageHeadlessRoot = fileURLToPath(new URL('../public/assets/pilot-25d/mage_headless/', import.meta.url));
+for (const gender of ['male', 'female']) {
+  for (const staffless of [false, true]) {
+    for (const [motion, width, height] of [['idle', 362, 362], ['walk', 1448, 362], ['attack', 1448, 362]]) {
+      const path = join(mageHeadlessRoot, ...(staffless ? ['nostaff'] : []), `mage_${gender}_${motion}_v1.png`);
+      if (!existsSync(path)) throw new Error(`작업 204 머리 없는 마법사 시트가 없습니다: ${path}`);
+      const data = readFileSync(path), header = data.subarray(0, 26);
+      if (header.toString('ascii', 1, 4) !== 'PNG' || header.readUInt32BE(16) !== width || header.readUInt32BE(20) !== height) {
+        throw new Error(`머리 없는 마법사 시트 규격이 다릅니다(${header.readUInt32BE(16)}×${header.readUInt32BE(20)}): ${path}`);
+      }
+      if (!(header[25] === 6 || (header[25] === 3 && data.includes('tRNS')))) {
+        throw new Error(`머리 없는 마법사 시트는 투명도가 있는 PNG여야 합니다: ${path}`);
+      }
+      if (data.length > 200 * 1024) throw new Error(`머리 없는 마법사 시트가 200KB를 넘습니다: ${path}`);
+    }
+  }
+}
+console.log('작업 204 머리 없는 마법사 시트 12장 확인 완료.');

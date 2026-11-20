@@ -191,7 +191,8 @@ test('기본 지팡이를 지운 마법사 시트 6장이 셀 규격대로 있�
   // 서기 셀에서 기본 지팡이 자루 영역의 불투명 픽셀이 크게 줄었는지 본다(자루가 허공으로 뻗은 자리).
   const original = decodeAlpha(readFileSync(fileOf('/assets/pilot-25d/mage_male_idle_v1.png')));
   const stripped = decodeAlpha(readFileSync(fileOf(stafflessBodyPath('male', 'idle'))));
-  const shaft = { x0: 96, x1: 152, y0: 150, y1: 300 };
+  // 작업 204: 남성 서기 시트를 337px로 다시 구우면서 자루·주먹 자리가 같은 비율로 작아졌다.
+  const shaft = { x0: 104, x1: 146, y0: 170, y1: 300 };
   const count = art => {
     let n = 0;
     for (let y = shaft.y0; y <= shaft.y1; y++) {
@@ -201,9 +202,9 @@ test('기본 지팡이를 지운 마법사 시트 6장이 셀 규격대로 있�
   };
   const before = count(original), after = count(stripped);
   assert(before > 300, `기본 지팡이 자루 영역 픽셀: ${before}`);
-  assert(after < before * .35, `기본 지팡이가 지워지지 않았습니다: ${before} → ${after}`);
+  assert(after < before * .2, `기본 지팡이가 지워지지 않았습니다: ${before} → ${after}`);
   // 손(그립)은 살아 있어야 한다 — 주먹이 지워지면 지팡이를 쥔 모습이 사라진다.
-  const hand = { x0: 84, x1: 106, y0: 104, y1: 128 };
+  const hand = { x0: 96, x1: 118, y0: 140, y1: 166 };
   let handBefore = 0, handAfter = 0;
   for (let y = hand.y0; y <= hand.y1; y++) {
     for (let x = hand.x0; x <= hand.x1; x++) {
@@ -330,6 +331,6 @@ test('장비창 초상화도 nostaff 시트 + 지팡이 파츠를 쓴다', () =>
   assert(plan.key.includes(staffPartPath(9)), `캐시 키에 지팡이 파츠가 들어간다: ${plan.key}`);
 
   const none = equipmentPortraitPlan(mageSave('male'));
-  assert.equal(none.base, '/assets/pilot-25d/mage_male_idle_v1.png', '미착용은 기본 서기 시트');
+  assert.equal(none.base, '/assets/pilot-25d/mage_male_idle_v1.png?v=2', '미착용은 기본 서기 시트');
   assert.equal(none.staff, undefined);
 });
