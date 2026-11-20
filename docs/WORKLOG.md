@@ -65,6 +65,7 @@
 - 판정 불변: `world.ts` `hell` 360° 광역(사거리 185, 시전 즉시 + 0.4초 간격) 그대로 — 4방향 피격/사거리 밖 무피해 테스트 추가.
 - 테스트: 신규 `tests/skill-whirl-slash.test.mjs` 6/6, `costume-manifest` 14/14(템플릿 표 갱신), 전체 622건 중 620(실패 2건은 `origin/main`에서도 같은 `costume-field-render`), `verify-item-art`, `npm run build`.
 - 검수 이미지: `downloads/djrpg_skill_whirl_slash_ingame_v1.png`(필드 합성).
+- 배포: [PR #172](https://github.com/songduckjin/DJRPG/pull/172) 스쿼시 병합 `17f2eb9aaefc`. 그 사이 작업 212·213·214가 먼저 머지돼`skills.ts`(새 스킬 순서·`hell` 해금 레벨 14)·`costume-manifest.test.mjs`·`TASK`/`WORKLOG`/`CODE_MAP` 충돌을 풀며 두 번 리베이스했다(파일이 겹치지 않아 기능 충돌은 없었고, `hell`은 새 순서의 6번 자리를 유지한다). 운영 `version.json` `17f2eb9aaefc`(`builtAt 2026-11-20T10:38:55Z`)·루트 200·새 에셋 **HTTP 200 `image/png` 63,895B(원격 sha256=로컬)**·배포 번들 `index-BicZHXvC.js`에 `fx_whirl_slash_ring.png`·`회전참격`×2·`fxWhirl`×6·`vfxLayers`·틴트 `0xd2352f`(13776175) 포함, 옛 이름 `헬파이어` 0건 확인.
 
 ## 2026-11-20 · fks3997 작업201 장비 +1~+7 강화 단계(미리보기 → 운영 배포)
 - 사용자 확정 스펙: "10층마다 한 단계씩 열리고(최대 +7) 확률로 떨어지며, 이름 옆에 다른 색 +숫자로 보이고, 기존 보유 장비도 등급·스탯으로 알아서 보수적으로 표기".
