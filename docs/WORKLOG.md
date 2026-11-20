@@ -1,3 +1,15 @@
+## 2026-11-20 · fks3997 작업204 20층 체제 개편 + 3직업 교차 드롭(미리보기 배포)
+- 사용자 확정: `#3361`·`#3368`·`#3381`·`#3388`(20층 상한·층당 몹 수·압축 곡선·+1~+7/12층 자동분해) → `#3411` 정정 **"20층기준 +1만뜨고 체렵압축하면안되"**(압축·+단계·자동분해 변경 전부 철회) → `#3422` 추가 **"다른직업 장비나 스킬북도 동일확률로 뜰수있어"**.
+- `store.ts`: `MAX_FLOOR = 20`. `parseSave`가 `floor`·`maxFloor`를 1~20으로 클램프 — 21층 이상에 있던 세이브는 **층·최고 층만** 20으로 당기고 장비·가방·처치 기록은 그대로 둔다. `floorKillTarget = 150 + 55×(f−1) + round((f−1)²×6.4)` → 1층 150 · 5층 472 · 10층 1,163 · 15층 2,174 · 20층 3,505(기존 120+40×(f−1)).
+- `world.ts`: 보스 처치 시 `floor < MAX_FLOOR`일 때만 다음 층으로 오르고, 20층에서는 `최고 20층 달성! 20층에서 계속 사냥합니다.`를 알린 뒤 20층에서 사냥을 이어 간다(적 정리·`spawnTimer .2`·`floorKills` 초기화는 종전과 같다). `travelToFloor`는 20층 위를 거부한다.
+- `server/database.mjs`: `MAX_FLOOR = 20` 상수(store.ts와 같은 값)와 `writeSave` 저장 전 클램프 — 21층 이상 요청은 20층으로 저장되고 최고 층도 20을 넘지 않는다.
+- UI: `floorModal`이 최고 20층이면 잠긴 `21층` 칸 대신 `🏆 최고 20층 · 20층 달성 · 마지막 층` 칸을 보여 주고, 20층에서 자동 등반을 켜면 최고 층 안내를 띄운다.
+- **불변(정정 반영)**: `enemyMaxHp`·`offlineMobHp`·`enemyHitDamage`·`enemyMoveSpeed`·`spawnTimer`·`rollItem` 스탯/등급 확률·`maxPlusFor`(11~20층 `+1`까지)·`AUTO_SALVAGE_PLUS_FLOOR(41)`을 한 줄도 바꾸지 않았다 — 20층은 예전 20층 그대로이고 상한이 풀리면 고층 곡선이 이어진다.
+- 3직업 교차 드롭(`items.ts`): `dropJobs`/`dropJob`으로 확률 드롭의 무기·스킬북이 전사·궁수·마법사 1/3씩. 튜토리얼 첫 확정 드롭(`guaranteed`)은 내 직업 `starterWeaponName(job)` 그대로. `rollSkillBook`은 직업을 먼저 고른 뒤 그 직업의 `floor×2` 해금 풀에서 뽑고 `job` 인자는 호환용(`_job`). 오프라인 정산도 같은 함수라 자동 적용.
+- 안전장치: `weaponJob`·`canWield` 신규. `autoEquipBest`가 무기 칸 후보를 `canWield`로 거르고, 장비창 `itemDetail`은 타직업 무기의 장착 버튼을 `"{직업} 전용"`으로 잠그며 슬롯 표기도 그 무기의 직업 기준으로 보여 준다. `salvageUpgrades`는 입을 수 없는 무기를 비교에서 빼고, `autoSalvageBlock`은 그런 무기에 `empty-slot`·`upgrade` 보호를 걸지 않는다(등급·`+단계` 보호는 유지).
+- 검증: `npx tsc --noEmit`·`npx vite build` 통과. 신규 `tests/floor-cap.test.mjs` 4/4(클램프·몹 수 곡선·20층 정지·`writeSave` 보정), `tests/item-drop-jobs.test.mjs` 4/4(1/3 드롭·직업 판별·자동 장착 차단·분해 보호). 새 스펙에 맞춰 기존 테스트 갱신: `offline`(600초 120마리 < 새 1층 목표 150 → 보스 없음), `archer`/`mage`(직업 전용 드롭 → 3직업 1/3), `codex`(무기 슬롯 난수 시퀀스에 직업 값). 전체 609건 중 562 통과 — 실패 47건은 sparse 체크아웃에 `public/assets/**`가 없어 생기는 기존 45건 + `costume-field-render` 2건(변경 전 상태에서도 동일 실패 확인).
+- 미리보기: `preview/gravel-background-fks3997` 푸시 `1f9d281`, `version.json` `1f9d281db9a9`(HTTP 200, `builtAt 2026-11-20T05:58:22Z`)·루트 200, 배포 번들 `index-DLv3erw4.js`에 `150+55*e+Math.round(Math.pow(e,2)*6.4)`·`최고 ${Ft}층 달성! ${Ft}층에서 계속 사냥합니다.`·`${Ft}층 달성 · 마지막 층`·`만 쓸 수 있는 무기입니다` 확인. **`main` 병합·운영 배포는 사용자 확인 대기**. 모바일 실기 확인은 사용자 몫.
+
 ## 2026-11-20 · fks3997 작업203 41층 이후 자동 분해 `+단계` 필터(미리보기 배포)
 - 사용자 확정 스펙: "41단계부터 필터활성화되게하자 그아래는 자동삭제해놔도 내꺼보다 높은공격력은못팔게막혀있으니깐" · "까지로표기하자" · "보호가아니고 저거선택하면 +4까지 삭제인거야". 즉 `save.maxFloor >= 41`에서 `+0까지`~`+7까지`(기본 `+4까지`)를 고르고, 고른 단계까지가 자동 분해 대상, 그 위는 경매장 판매용으로 보관한다.
 - `game/inventory.ts`: `AUTO_SALVAGE_PLUS_FLOOR = 41`, `autoSalvageBlock(save, item, maxRarity, maxPlus?)`/`autoSalvageRecovered(..., maxPlus?)`가 41층 이상에서 `plusOf(item) > maxPlus`면 `'plus'`로 남긴다(기존 3인자 호출은 그대로 동작). 40층 이하에서는 값을 무시해 예전 등급·장착품 비교 규칙만 남는다.

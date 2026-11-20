@@ -1,6 +1,6 @@
 # 작업 204 — 20층 체제 개편(최대 20층 상한 · 층당 몹 수 상향) + 3직업 교차 드롭
 
-> 담당: fks3997 · 브랜치: `preview/gravel-background-fks3997` · 상태: `[-]` → 검증 후 `[x]`
+> 담당: fks3997 · 브랜치: `preview/gravel-background-fks3997` · 상태: `[x]`
 > 사용자 확정 발언: `#3361`·`#3368`·`#3381`·`#3388` → `#3411`(정정) → `#3422`(추가)
 
 ## 확정 스펙(최종)
@@ -42,7 +42,7 @@
 - 신규 `tests/floor-cap.test.mjs`(클램프·몹 수 곡선·20층 정지·`writeSave` 보정) **4/4**, `tests/item-drop-jobs.test.mjs`(1/3 드롭·직업 판별·자동 장착 차단·분해 보호) **4/4**.
 - 관련 회귀: `balance-196`·`item-plus`·`salvage-plus`·`auto-salvage`·`world-movement`·`field-loot`·`dungeon-battle`·`offline`·`codex`·`archer`·`mage` 통과(에셋 없는 sparse 체크아웃의 기존 `public/assets` 실패 제외).
 - `npx vite build` 통과.
-- 미리보기 `preview/gravel-background-fks3997` 푸시 → `https://preview-gravel-background-fk.djrpg.pages.dev/version.json` 200 확인. **`main` 병합 금지**(사용자 확인 대기).
+- 미리보기 배포: `1f9d281` 푸시 → `version.json` `1f9d281db9a9`(HTTP 200, `builtAt 2026-11-20T05:58:22Z`)·루트 200, 배포 번들 `index-DLv3erw4.js`에 `150+55*e+Math.round(Math.pow(e,2)*6.4)`·`최고 ${...}층 달성!`·`${...}층 달성 · 마지막 층`·`만 쓸 수 있는 무기입니다` 확인. **`main` 병합 금지**(사용자 확인 대기) — 브랜치·미리보기까지만.
 
 ## 남긴 메모
 - `server/journey-state.mjs`의 업적 '최고 도달 층' 단계가 `[10, 30, 50, 100]`이라 30·50·100단계는 20층 상한 동안 도달할 수 없다. 사용자가 언급하지 않아 건드리지 않았다(상한이 풀리면 그대로 살아난다).
