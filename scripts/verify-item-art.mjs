@@ -259,6 +259,35 @@ for (const gender of ['male', 'female']) {
 }
 console.log('마법사 기본 시트 6장(남녀 × 서기·걷기·공격) 확인 완료.');
 
+// ── 작업 199: 마법사 로브 10종 전신 시트 (남녀 × 1~9번 × 서기·걷기·공격) ───────────────
+// 0번(가죽 조끼)은 스타터 천 로브 기준 시트를 그대로 쓰므로 시트가 없다. 1~9번 54장은
+// 기준 시트와 같은 셀 좌표계(서기 362×362, 걷기·공격 1448×362)와 256색 팔레트 투명도를 본다.
+const robeRoot = fileURLToPath(new URL('../public/assets/pilot-25d/robes/', import.meta.url));
+const robeSheetSizes = { idle: [362, 362], walk: [1448, 362], attack: [1448, 362] };
+let robeSheetCount = 0;
+for (const gender of ['male', 'female']) {
+  for (let index = 1; index < 10; index++) {
+    for (const [motion, [expectWidth, expectHeight]] of Object.entries(robeSheetSizes)) {
+      const name = `mage_${gender}_robe_${index}_${motion}_v1.png`;
+      const path = join(robeRoot, name);
+      if (!existsSync(path)) throw new Error(`작업 199 마법사 로브 시트가 없습니다: ${name}`);
+      const data = readFileSync(path), header = data.subarray(0, 26);
+      const width = header.readUInt32BE(16), height = header.readUInt32BE(20);
+      if (header.toString('ascii', 1, 4) !== 'PNG') throw new Error(`마법사 로브 시트가 PNG가 아닙니다: ${name}`);
+      if (width !== expectWidth || height !== expectHeight) {
+        throw new Error(`마법사 로브 시트 규격이 다릅니다(${width}×${height}, 기대 ${expectWidth}×${expectHeight}): ${name}`);
+      }
+      if (!(header[25] === 6 || (header[25] === 3 && data.includes('tRNS')))) {
+        throw new Error(`마법사 로브 시트는 투명도가 있는 PNG여야 합니다: ${name}`);
+      }
+      if (data.length > 200 * 1024) throw new Error(`마법사 로브 시트가 200KB를 넘습니다(${Math.round(data.length / 1024)}KB): ${name}`);
+      robeSheetCount += 1;
+    }
+  }
+}
+if (robeSheetCount !== 54) throw new Error(`마법사 로브 시트가 54장이 아닙니다: ${robeSheetCount}`);
+console.log(`작업 199 마법사 로브 전신 시트 ${robeSheetCount}장 확인 완료.`);
+
 // 지팡이 10종 아이콘 — `staffBases` 두 목록(각 5개)이 모두 그려져 있어야 한다.
 const staffBases = items.match(/const staffBases = \[([^\]]+)\]/)?.[1];
 if (!staffBases) throw new Error('staffBases 목록을 찾을 수 없습니다.');

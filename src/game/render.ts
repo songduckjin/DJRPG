@@ -13,6 +13,7 @@ import { projectArenaPoint } from './arena';
 import { createBootProgress } from './bootProgress';
 import { helmetArtList, helmetArtPaths, helmetAttackArtList, helmetAttackArtPaths, headlessBodyPaths } from './render/helmets';
 import { armorFrameIndex, armorSheetPath, armorSheetPaths, type ArmorMotion } from './render/armors';
+import { robeFrameIndex, robeSheetPath, robeSheetPaths, type RobeMotion } from './render/robes';
 import {
   weaponPartPath, weaponPartPaths, weaponTierCacheLimit, swordlessBodyPath, swordlessBodyPaths
 } from './render/weapons';
@@ -27,7 +28,8 @@ const paths = {
   // `/assets/*`는 immutable 캐시라 시트를 갈면 URL을 바꿔야 브라우저가 즉시 새 그림을 받는다(작업 159).
   archerMale: '/assets/pilot-25d/archer_male_idle_v1.png?v=2', archerFemale: '/assets/pilot-25d/archer_female_idle_v1.png?v=2',
   // 마법사 기본 시트(작업 198) — 같은 362px 셀 좌표계다. 갑옷·투구·지팡이 오버레이는 이번 단계에 없다.
-  mageMale: '/assets/pilot-25d/mage_male_idle_v1.png', mageFemale: '/assets/pilot-25d/mage_female_idle_v1.png',
+  // 작업 201: 남성 서기 시트를 다시 만들면서(머리 잘림 수정) immutable 캐시를 피해 `?v=2`를 붙인다.
+  mageMale: '/assets/pilot-25d/mage_male_idle_v1.png?v=2', mageFemale: '/assets/pilot-25d/mage_female_idle_v1.png?v=2',
   // 투구 착용 시에만 쓰는 머리 없는 본체(작업 152) — 같은 셀 좌표계라 배율·앵커를 공유한다.
   pilotMaleHeadless: headlessBodyPaths.male.idle, pilotFemaleHeadless: headlessBodyPaths.female.idle,
   female: '/assets/warrior_female_base.png', armored: '/assets/warrior_armored_swordless.png',
@@ -122,6 +124,8 @@ function sliceArmorSheet(sheet: Texture, motion: ArmorMotion): Texture[] {
 export const armorTierCacheLimit = 3;
 /** 대검 파츠 캐시에 남기는 티어 수(작업 156). 티어당 1장이다. */
 export { weaponTierCacheLimit };
+/** 마법사 로브 시트 캐시에 남기는 티어 수(작업 201). 티어당 3장이다. */
+export const robeTierCacheLimit = 3;
 export const renderAssetPaths = [
   ...Object.values(paths), ...Object.values(animationPaths).flat(),
   ...Object.values(attackSheets), ...Object.values(walkSheets), ...Object.values(wearableAssetPaths),
@@ -188,6 +192,9 @@ export class GameView {
   weaponTierOrder: number[] = [];
   /** 마지막으로 본 무기 티어. 바뀔 때만 파츠를 미리 받는다. */
   lastWeaponTier = -1;
+  /** 최근에 받은 마법사 로브 묶음 키(작업 201)와 마지막으로 본 티어. */
+  robeTierOrder: string[] = [];
+  lastRobeTier = '';
   /** 지금 그려진 검 파츠 스프라이트(0번·로딩 전이면 숨김). */
   heroWeapon?: Sprite;
   /** 착용 활 파츠(경로 → 텍스처), 로딩 중인 경로, 최근 티어 (작업 160). */
@@ -316,6 +323,38 @@ export class GameView {
    */
   swordlessBodyFrame(gender: Gender, motion: ArmorMotion, headless: boolean, frame: number): Texture | undefined {
     return this.bodySheetFrame(swordlessBodyPath(gender, motion, headless), motion, frame);
+  }
+
+  /**
+   * 착용 로브의 프레임 텍스처 (작업 201). 갑옷 시트와 같은 셀 규격이라 잘라 쓰는 규칙도 같다.
+   * 아직 로딩 전이면 `undefined` 를 돌려주고, `drawHero` 가 기준 시트(스타터 로브)로 그린다.
+   */
+  robeFrame(gender: Gender, index: number, motion: RobeMotion, frame: number): Texture | undefined {
+    const path = robeSheetPath(gender, index, motion);
+    if (!path) return undefined;
+    let frames = this.armorFrames.get(path);
+    if (!frames) {
+      const sheet = this.armorSheets.get(path);
+      if (!sheet) { this.loadArmorSheet(path); return undefined; }
+      frames = sliceArmorSheet(sheet, motion);
+      this.armorFrames.set(path, frames);
+    }
+    return frames[robeFrameIndex(motion, frame) % frames.length];
+  }
+
+  /** 로브 티어가 바뀌면 그 티어 3장을 받고, 최근 3티어 밖은 내린다(작업 201). */
+  prefetchRobe(gender: Gender, index: number): void {
+    const tier = `${gender}:${index}`;
+    if (!this.robeTierOrder.includes(tier)) this.robeTierOrder.push(tier);
+    for (const path of robeSheetPaths(gender, index)) this.loadArmorSheet(path);
+    while (this.robeTierOrder.length > robeTierCacheLimit) {
+      const oldest = this.robeTierOrder.shift() as string;
+      const [oldGender, oldIndex] = oldest.split(':');
+      for (const path of robeSheetPaths(oldGender as Gender, Number(oldIndex))) {
+        this.armorFrames.delete(path);
+        if (this.armorSheets.delete(path)) void Assets.unload(path).catch(() => undefined);
+      }
+    }
   }
 
   private bodySheetFrame(path: string, motion: ArmorMotion, frame: number): Texture | undefined {

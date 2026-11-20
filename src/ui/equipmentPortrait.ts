@@ -3,10 +3,11 @@ import {
   type CostumeLayerPlan
 } from '../game/render/costumeHero';
 import type { Save } from '../game/store';
-import { baseItemIndex, isArcher, usesBaseSheetOnly } from '../game/items';
+import { baseItemIndex, isArcher, isMage, usesBaseSheetOnly } from '../game/items';
 import { jobOrDefault } from '../game/skills';
 import { helmetArtFor, helmetArtPath, helmetIdlePlacement } from '../game/render/helmets';
 import { armorIndexFor, armorSheetPath } from '../game/render/armors';
+import { mageRobeIndexFor, robeSheetPath } from '../game/render/robes';
 import { WEAPON_GUARD, weaponIndexFor, weaponPartPath, weaponPose, swordlessBodyPath } from '../game/render/weapons';
 import { BOW_GRIP, bowIndexFor, bowPartPath, bowPose, bowlessBodyPath } from '../game/render/bows';
 import { archerHeadlessBodyPath, archerHelmIdlePlacement, archerHelmIndexFor, archerHelmPartPath } from '../game/render/archerHelmets';
@@ -32,6 +33,13 @@ export function equipmentFallbackPortrait(save: Save): string {
       return bowless
         ? bowlessBodyPath(save.gender, 'idle')
         : `/assets/pilot-25d/archer_${save.gender}_idle_v1.png?v=2`;
+    }
+    if (isMage(save)) {
+      // 작업 201: 착용 갑옷 1~9번이면 그 티어 로브 서기 시트, 0번·미착용은 스타터 로브 시트.
+      const robe = mageRobeIndexFor(save);
+      const path = robeSheetPath(save.gender, robe, 'idle');
+      if (path) return path;
+      return `/assets/pilot-25d/mage_${save.gender}_idle_v1.png?v=2`;
     }
     return `/assets/pilot-25d/${jobOrDefault(save.job)}_${save.gender}_idle_v1.png`;
   }
@@ -167,9 +175,10 @@ export function equipmentPortraitPlan(save: Save): EquipmentPortraitPlan {
   return {
     mode: 'fallback', base,
     key: usesBaseSheetOnly(save)
+      // 마법사만 로브 티어를 키에 넣는다(궁수는 활·투구 파츠, 그 외는 직업:성별).
       ? (isArcher(save)
         ? `archer:${save.gender}:${bow ? bow.path : '-'}:${archerHelm ? archerHelm.path : '-'}`
-        : `${jobOrDefault(save.job)}:${save.gender}`)
+        : isMage(save) ? `mage:${save.gender}:r${mageRobeIndexFor(save)}` : `${jobOrDefault(save.job)}:${save.gender}`)
       : `pilot:${save.gender}:a${armorIndexFor(save)}:${helmet ? helmet.path : '-'}:${weapon ? weapon.path : '-'}`,
     gender: save.gender, layers: [], helmet, archerHelm, weapon, bow
   };
