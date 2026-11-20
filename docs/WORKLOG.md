@@ -1,3 +1,16 @@
+## 2026-11-21 · songduckjin 작업 234 — 좌상단 HUD 닉네임 이름판이 레벨 숫자를 가리던 문제(배지·이름판·HP·월드보스 세로 배치)
+
+- **요청**: 실기 스크린샷(`attachments/2026-11-21/IMG_1143-1d9e57e1d7f546608ec5f5240e3df121.jpg`, iOS Safari·`djrpg.pages.dev`)에서 좌상단 **닉네임 이름판(`덕진`)이 레벨 배지 원 안으로 올라와 `LV` 아래 숫자(`4`)의 아래쪽을 가리는** 문제.
+- **원인**: 작업 228이 넣은 `.hero-name`이 `left: 36px; transform: translateX(-50%); top: 40px`. `.level-badge`는 `left:12px; top:5px; width:49px; height:49px`(=원 5~54px)이고 레벨 숫자(`.level-badge b`)는 26~48px라, 높이 17px짜리 이름판이 40~57px에 걸쳐 숫자 아래 8px를 덮었다. `max-width: 74px` + 좌우 여백·테두리(총 86px)를 배지 중심(36px)에 가운데 정렬해 **16자 닉네임은 왼쪽 −7px까지 화면 밖으로** 나가는 문제도 함께 있었다.
+- **수정** (`src/styles/hud.css`·`src/styles/world-boss.css`): 좌상단 세로 배치를 한 번에 다시 잡았다. `.hero-name`은 `left: 12px`(배지 왼쪽에 붙여 오른쪽으로만 신장)·`top: 56px`(배지 원 아래 2px)·`max-width: 76px`(총 76px, 16자 닉네임은 줄임표)로 내리고 `translateX(-50%)`를 없앴다. 그 아래로 `.health-bar` `top: 59px → 77px`, `.world-boss-entry` `top: 84px → calc(env(safe-area-inset-top, 0px) + 97px)`, `.tutorial` 배너 `calc(safe + 83px) → calc(safe + 173px)`. 월드보스 진입 버튼은 `.top-hud`와 달리 세이프 에어리어를 쓰지 않아 노치 기기에서 HUD만 내려가면 다시 HP를 덮었으므로 `.utility-nav`와 같은 기준으로 맞췄다.
+- **실측(빌드 번들 + 가짜 세션, headless Chromium `deviceScaleFactor 2`)**: 375×667에서 배지 5~54 · 레벨 숫자 26~48 · 이름판 56~73 · HP 77~92 · 월드보스 97~167 · 튜토리얼 173~224(간격 2/4/5/6px). 레벨 1·4·9·12(1·2자리), 닉네임 2자(`진이`·`덕진`)·8자(`송덕진입니다`)·16자(`검은황야의방랑검객`), 튜토리얼 배너 표시 조합 모두 **겹침 0** — 390×844·360×640도 같다. 닉네임판 폭은 2자 30px·8자 65px·16자 76px(말줄임)이고 화면 왼쪽 밖으로 나가지 않는다.
+- **테스트**: `tests/character-switch.test.mjs`에 「좌상단 HUD는 레벨 배지 → 닉네임 → HP → 월드보스 순서로 겹치지 않는다(작업 234)」 추가 — CSS 숫자로 `배지 top+height ≤ 이름판 top ≤ HP top ≤ 월드보스 top`을 검사하고, `.hero-name`에 `translateX(-50%)`가 돌아오면 실패한다.
+- **검증**: `npx tsc --noEmit` 통과, `npm run build` 통과, `node --test tests/*.test.mjs` **949건 중 946 통과**. 실패 3건은 `main`(f3c3c28) 워크트리에서 그대로 재현되는 기존 실패(`costume-field-render` 남/여 "코스튬 모드에서 통합 바디가 남아 있다", `skillbook-server` `hell` 이름 불일치)로 이번 변경과 무관하다.
+- **번호·브랜치**: 처음 **작업 230**으로 등록했으나 그 사이 같은 번호의 **필드 몹 원거리 랜덤 스폰**(PR #217)과 **작업 233**(머리 위 초록 체력바, PR #219)이 `main`에 병합되어 `docs/TASK.md`가 충돌했다. **234**로 다시 등록하고 브랜치를 `fix/234-hud-hero-name`으로 옮겨 rebase한 뒤 새 PR을 열었다(원 PR #220은 닫음, 원격 `fix/230-hud-hero-name`은 같은 번호 브랜치와 삭제 권한 403으로 남아 있다).
+- **배포**: [PR #222](https://github.com/songduckjin/DJRPG/pull/222) 스쿼시 병합 `b78d14eeb72a`(2026-11-20T16:32:27Z, Cloudflare Pages 체크 SUCCESS — `Workers Builds: djrpg`는 이 저장소 상시 실패). 운영 `https://djrpg.pages.dev/version.json` = `b78d14eeb72a`(`builtAt 2026-11-20T16:32:53.400Z`)·루트 200. 배포 CSS `assets/index-BhRQyYWJ.css`(117,121B)에 `.hero-name{…left:12px;top:56px;…max-width:76px…}`·`.health-bar{…top:77px…}`·`.world-boss-entry{…top:calc(env(safe-area-inset-top,0px) + 97px)…}`·`.tutorial{…+ 173px…}`가 그대로 실려 있다.
+- **검수 이미지**: `downloads/djrpg_hud_name_fix_v1.png` — 375×667 4조합(Lv 1·2자 닉네임 / Lv 12·2자리 레벨 / Lv 12·16자 닉네임 / Lv 4·튜토리얼 배너) 실브라우저 캡처. 전체 화면은 `downloads/djrpg_hud_name_fix_v1_full.png`.
+- **남는 것**: iOS 실기(Safari·홈 화면 앱) 확인은 사용자 몫이다. 스크립트로 `env(safe-area-inset-top)`를 흉내 낼 수는 없어, 노치 보정은 `.utility-nav`와 같은 `calc()` 패턴을 쓰는 것으로만 확인했다.
+
 ## 2026-11-21 · songduckjin 작업 233 — 내 캐릭터 머리 위 초록 체력바
 
 - **요청**: 확정 시안 `downloads/hp_orb/rec_1_hero_bar.jpg` 대로 **내 캐릭터 머리 바로 위(실제 머리 높이 기준)** 에 초록 체력바를 추가해 운영(`djrpg.pages.dev`)에 배포. 기존 상단 `.hp-pill`(HP 280/280)은 유지 — 화면 위쪽은 고정 수치, 캐릭터 위는 눈이 따라가는 게이지다.
