@@ -37,6 +37,7 @@ test('reward brackets highlight exactly my tier and show last hit and shared kil
  const parent=node();renderBossRewards(parent,5);const rows=parent.children[1].children;
  assert.equal(rows.filter(r=>r.className.includes('is-mine')).length,1);assert.equal(rows.find(r=>r.className.includes('is-mine')).children[0].textContent,'4~10위');
  for(const [rank,label] of [[50,'11~50위'],[100,'51~100위'],[101,'101위 이하 공통']]){const out=node();renderBossRewards(out,rank);const mine=out.children[1].children.filter(r=>r.className.includes('is-mine'));assert.equal(mine.length,1);assert.equal(mine[0].children[0].textContent,label);}
+ assert.equal(rows.find(r=>r.children[0].textContent==='1위').children[1].textContent,'10,000 금화 · 보물 주머니 4개');assert(!rows.some(r=>r.children[0].textContent==='도전 참여 보상'));
  assert(rows.some(r=>r.children[0].textContent==='마지막 타격 보상'));assert(rows.some(r=>r.children[0].textContent==='공동 처치 보상'));
  }finally{globalThis.document=old;}
 });

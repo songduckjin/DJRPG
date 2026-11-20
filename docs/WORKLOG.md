@@ -1205,3 +1205,8 @@
 - 검기(`vfx.ts`): 새 에셋 `public/assets/fx_slash2_dual.png`(512×122, 17KB, 은빛·강철빛 초승달)를 add 합성. 1타는 정방향(−0.17rad), 2타는 좌우 반전(+0.2rad)으로 X자 교차, 2타 시점에 황금 지면 충격파. 새 파일명이라 `/assets/*` immutable 캐시를 피한다.
 - 검증: `tsc`, `vite build`, 전체 678건 중 676 통과(실패 2건은 변경 전 main과 같은 `costume-field-render`), 신규 `tests/skill-double-slash`(5). 검수 이미지 `downloads/djrpg_skill_1_double_slash_ingame_v1.png`(`scripts/preview-double-slash.py`). 브라우저·iOS 실기 확인은 사용자 몫.
 - 213 운영배포완료: PR#170 스쿼시`14c378662bd0`(2026-11-20T10:11:17Z), Pages production success, https://djrpg.pages.dev/version.json =14c378662bd0(builtAt2026-11-20T10:11:36Z). 루트200·번들`index-ex5_BV8U.js`에`fx_slash2_dual`·`이단참`·`2연격`·`attackCombo`·새 에셋 200(17,311B, sha256 일치, immutable). 작업 212와 리베이스 병합(skills.ts 순서·world.ts attackPoseSpan/crush 공존). 브라우저·iOS 실기 미실행.
+## 2026-11-20 · fks3997 · 작업 216 · 월드보스 보상/최고 기록(미리보기)
+- 사용자 승인 보상: 1위 10,000/주머니4, 2~3위 8,000/3, 4~10위 6,000/2, 11~50위 4,000/1, 51~100위 3,000/1, 101위~ 2,000/1. 공동 처치 1,500/1, 막타 2,000/0. 직접 스킬북 및 매 도전 참여 보상 제거. 기존 지급 우편은 유지.
+- 3회 중 최고 서버 인정 피해로 순위와 정산. 보스 공유 HP에는 모든 도전 피해 반영. 기존 합산 score 값도 attempts MAX로 읽어 바로 정정. 첫 등록/갱신 응답과 전투당 1회 알림. DB 스키마 변경 없음.
+- 기존 원자적 정산·보상 마커·우편 수령 경로 유지. 최고 기록, 기존 합산 데이터, 재시도, 보상 경계, 주머니 실제 수령/중복 방지 검증.
+- tsc --noEmit, world-boss-live/field/preview + journey 63개 테스트, git diff --check 통과. 브라우저 실기 미실행. 운영 배포 없음.

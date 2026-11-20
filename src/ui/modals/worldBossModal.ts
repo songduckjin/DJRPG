@@ -19,9 +19,9 @@ export function renderBossRewards(parent:HTMLElement,rank?:number):void {
   parent.append(text('p','순위 보상은 토벌 완료 또는 매일 오전 5시 정산 후 우편으로 지급됩니다.','wb-reward-note'));
   const list=document.createElement('div');list.className='wb-reward-list';
   for(const tier of bossRewardTiers){const row=document.createElement('div');row.className='wb-reward-row';if(tier.id===myRewardTier(rank))row.classList.add('is-mine');
-    row.append(text('b',tier.label),text('span',`${tier.gold.toLocaleString('ko-KR')} 금화 · 스킬북 ${tier.books}권`));if(tier.id===myRewardTier(rank))row.append(text('small','내 보상 구간'));list.append(row);
+    row.append(text('b',tier.label),text('span',`${tier.gold.toLocaleString('ko-KR')} 금화 · 보물 주머니 ${tier.pouches}개`));if(tier.id===myRewardTier(rank))row.append(text('small','내 보상 구간'));list.append(row);
   }
-  for(const [label,content] of [['도전 참여 보상','매 도전 1,000 금화'],['마지막 타격 보상','최종 처치자 · 5,000 금화 + 스킬북 2권'],['공동 처치 보상','유효 피해를 기록한 모든 참여자 · 2,000 금화 + 스킬북 1권']]){
+  for(const [label,content] of [['마지막 타격 보상','최종 처치자 · 2,000 금화'],['공동 처치 보상','유효 피해를 기록한 모든 참여자 · 1,500 금화 + 보물 주머니 1개']]){
     const row=document.createElement('div');row.className='wb-reward-extra';row.append(text('b',label),text('span',content));list.append(row);
   }
   parent.append(list);
@@ -44,7 +44,7 @@ export function renderWorldBoss(ui:Interface,dialog:HTMLElement):void {
   }
   details.append(tabs);const panel=document.createElement('div');panel.className='wb-panel';panel.setAttribute('role','tabpanel');
   if(preview.tab==='challenge'){
-    const guide=document.createElement('div');guide.className='wb-challenge-guide';guide.innerHTML='<h4>월드보스 도전 안내</h4><ul><li>계정당 하루 3회, 한 번에 최대 60초 참여합니다.</li><li>모든 유저가 하나의 보스 체력을 함께 깎습니다.</li><li>하루 누적 피해량으로 순위와 보상이 결정됩니다.</li><li>보스 처치 시 진행 중인 전투가 종료되며 추가 도전은 할 수 없습니다.</li><li>마지막 타격자에게 추가 보상을 지급합니다.</li><li>토벌 성공 시 피해를 기록한 모든 참여자가 공동 처치 보상을 받습니다.</li></ul>';panel.append(guide);
+    const guide=document.createElement('div');guide.className='wb-challenge-guide';guide.innerHTML='<h4>월드보스 도전 안내</h4><ul><li>계정당 하루 3회, 한 번에 최대 60초 참여합니다.</li><li>모든 유저가 하나의 보스 체력을 함께 깎습니다.</li><li>하루 3회 도전 중 가장 높은 피해량으로 순위와 보상이 결정됩니다.</li><li>보스 처치 시 진행 중인 전투가 종료되며 추가 도전은 할 수 없습니다.</li><li>마지막 타격자에게 추가 보상을 지급합니다.</li><li>토벌 성공 시 피해를 기록한 모든 참여자가 공동 처치 보상을 받습니다.</li></ul>';panel.append(guide);
     panel.append(text('p',practice?'게스트는 연습 모드입니다. 실전은 정식 계정으로 로그인해 주세요.':'매일 오전 5시 초기화 · 도전 횟수는 계정 내 캐릭터가 공유합니다. 보상은 우편함에서 수령하세요.','wb-preview-note'));
     if(live?.error)panel.append(text('p',live.error,'wb-preview-note'));
     if(preview.damage>0)panel.append(text('p',`최근 전투 피해량 ${preview.damage.toLocaleString('ko-KR')}`));

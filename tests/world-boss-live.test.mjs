@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import {randomUUID} from 'node:crypto';
 import {createClient} from '@libsql/client';
 import {schema,account} from '../server/database.mjs';
-const {worldBossOperation:operation,replayBoss,WORLD_BOSS_HP}=await import('../server/world-boss.mjs');
+const {worldBossOperation:operation,replayBoss,tier,WORLD_BOSS_HP}=await import('../server/world-boss.mjs');
 const {parseSave,freshSave}=await import('../src/game/store.ts');
 import {periods} from '../server/journey-state.mjs';
 const {worldBossEndpoint}=await import('../server/endpoints/world-boss.mjs');
@@ -67,7 +67,8 @@ test('shared kill has one last hitter, ranking, shared rewards and idempotent ma
  await act('killer',{action:'finish',attemptId:two.battle.id},now+4000);await act('contributor',{},now+4000);
  for(const id of ['contributor','killer']){
   const row=(await db.execute({sql:'SELECT state_json FROM djrpg_journey WHERE account_id=?',args:[id]})).rows[0];const mail=JSON.parse(row.state_json).mail.filter(m=>m.id.startsWith('boss:'));
-  assert.equal(mail.filter(m=>m.title.includes('공동 처치')).length,1);assert.equal(mail.filter(m=>m.title.includes('위 보상')).length,1);assert.equal(mail.filter(m=>m.title.includes('도전 참여')).length,1);
+  assert.equal(mail.filter(m=>m.title.includes('공동 처치')).length,1);assert.equal(mail.filter(m=>m.title.includes('위 보상')).length,1);assert.equal(mail.filter(m=>m.title.includes('도전 참여')).length,0);
+  const shared=mail.find(m=>m.title.includes('공동 처치'));assert.equal(shared.gold,1500);assert.equal(shared.pouches,1);assert.equal(shared.books,0);
   assert.equal(mail.filter(m=>m.title.includes('마지막 타격')).length,id==='killer'?1:0);assert.equal((await account(db,id)).save.gold,0);
  }
  assert.equal(kill.standing.top.length,2);assert(kill.standing.mine.mine);
@@ -90,7 +91,7 @@ test('boss mail uses the existing claim path and duplicate claims cannot duplica
  const state=JSON.parse((await db.execute({sql:'SELECT state_json FROM djrpg_journey WHERE account_id=?',args:['killer']})).rows[0].state_json);
  const mail=state.mail.find(m=>m.title.includes('마지막 타격'));assert(mail);
  const input={action:'journey-claim',kind:'mail',id:mail.id,revision:row.revision,requestId:randomUUID()};
- const first=await mutate(db,'killer',input),again=await mutate(db,'killer',input);assert.equal(first.save.gold,5000);assert.equal(again.save.gold,5000);assert.equal(first.save.bag.filter(i=>i.slot==='skillbook').length,2);
+ const first=await mutate(db,'killer',input),again=await mutate(db,'killer',input);assert.equal(first.save.gold,2000);assert.equal(again.save.gold,2000);assert.equal(first.save.bag.filter(i=>i.slot==='skillbook').length,0);
 });
 test('client coalesces refreshes and never starts a battle when the required save flush fails',async()=>{
  const {WorldBossLive}=await import('../src/game/worldBossLive.ts'),original=globalThis.fetch;let calls=0;
@@ -125,5 +126,35 @@ test('new battle avoids redundant credit writes and fits a bounded DB round-trip
 test('single rank query keeps top ten and the previous nine plus successor around an outside rank',async()=>{
  await seed('rank-window');const day=periods(now).daily;await act('rank-window');
  await db.batch(Array.from({length:20},(_,i)=>({sql:'INSERT INTO djrpg_boss_scores VALUES (?,?,?,?,?)',args:[day,i===14?'rank-window':`rank-${i}`,`전사${i}`,2000-i*10,now]})));
+ await db.batch(Array.from({length:20},(_,i)=>({sql:'INSERT INTO djrpg_boss_attempts VALUES (?,?,?,?,?,?,?,?,?)',args:[randomUUID(),i===14?'rank-window':`rank-${i}`,day,randomUUID(),'{}',now,'[]',2000-i*10,now]})));
  const result=await act('rank-window');assert.equal(result.standing.mine.rank,15);assert.deepEqual(result.standing.top.map(r=>r.rank),[1,2,3,4,5,6,7,8,9,10]);assert.deepEqual(result.standing.nearMine.map(r=>r.rank),[6,7,8,9,10,11,12,13,14,15,16]);
+});
+
+test('three attempts reduce shared HP by their sum but rank by best; legacy sums and retries are safe',async()=>{
+ await seed('best-record');
+ const one=await start('best-record');
+ const first=await act('best-record',{action:'finish',attemptId:one.battle.id},now+1000);
+ assert(first.battle.damage>0);assert.equal(first.battle.record.status,'first');
+ const two=await start('best-record',now+2000);
+ const improved=await act('best-record',{action:'finish',attemptId:two.battle.id},now+7000);
+ assert(improved.battle.damage>first.battle.damage);assert.equal(improved.battle.record.status,'improved');
+ assert.equal(improved.battle.record.previousBestDamage,first.battle.damage);
+ const three=await start('best-record',now+8000);
+ const lower=await act('best-record',{action:'finish',attemptId:three.battle.id},now+9000);
+ assert.equal(lower.battle.record.status,'unchanged');
+ assert.equal(lower.hp,WORLD_BOSS_HP-first.battle.damage-improved.battle.damage-lower.battle.damage);
+ assert.equal(lower.standing.mine.damage,improved.battle.damage);
+ await db.execute({sql:'UPDATE djrpg_boss_scores SET damage=9999999 WHERE day=? AND account_id=?',args:[first.day,'best-record']});
+ const listed=await act('best-record',{},now+10000);assert.equal(listed.standing.mine.damage,improved.battle.damage);
+ const repeat=await act('best-record',{action:'finish',attemptId:three.battle.id},now+11000);assert.equal(repeat.hp,lower.hp);assert.equal(repeat.battle.record.status,'unchanged');
+ await act('best-record',{},periods(now).dailyEnd+1);
+ const state=JSON.parse((await db.execute({sql:'SELECT state_json FROM djrpg_journey WHERE account_id=?',args:['best-record']})).rows[0].state_json);
+ const rewards=state.mail.filter(m=>m.id.startsWith(`boss:${first.day}:`));assert.equal(rewards.length,1);assert.equal(rewards[0].gold,10000);assert.equal(rewards[0].books,0);assert.equal(rewards[0].pouches,4);
+ const owner=await account(db,'best-record'),{mutate}=await import('../server/journey.mjs');
+ const input={action:'journey-claim',kind:'mail',id:rewards[0].id,revision:owner.revision,requestId:randomUUID()};
+ const claimed=await mutate(db,'best-record',input),retried=await mutate(db,'best-record',input);
+ assert.equal(claimed.save.gold,10000);assert.equal(claimed.save.bag.filter(i=>i.slot==='pouch').length,4);assert.deepEqual(retried.save.bag,claimed.save.bag);
+});
+test('rank reward boundaries match the approved gold and pouch table',()=>{
+ for(const [rank,gold,pouches] of [[1,10000,4],[2,8000,3],[3,8000,3],[4,6000,2],[10,6000,2],[11,4000,1],[50,4000,1],[51,3000,1],[100,3000,1],[101,2000,1]])assert.deepEqual(tier(rank),[gold,pouches]);
 });
