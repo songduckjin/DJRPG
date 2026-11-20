@@ -1,4 +1,5 @@
 import { canStoreItem } from './bagCapacity';
+import { bossGoldPiles, bossGoldSpot, bossItems } from './bossLoot';
 import { addExperience, floorKillTarget, rollItem, skillLevel, totalStats, type Item, type Save } from './store';
 import { equipmentDropChance, rollSkillBook, skillBookDropChance } from './items';
 import { dragonOrbitFactor, skillDamageScale, skillDuration, skillRange, skills, type SkillId } from './skills';
@@ -158,17 +159,30 @@ export class World {
     if (enemy.boss) this.save.bossKills++;
     const gold = enemy.boss ? 70 * this.save.floor : 3 + this.save.floor;
     this.save.gold += gold;
-    // The coin shows the gold that was just paid: nothing is credited when it flies in.
-    this.coins.push({ x: enemy.x, y: enemy.y, age: 0, gold });
+    // The coin shows the gold that was just paid: nothing is credited when it flies in. A boss's gold
+    // hits the floor in ten heaps scattered around the body (작업 194), each its own drop with its own
+    // fall; the heaps add up to the same gold, so the shower never pays twice.
+    const heaps = enemy.boss ? bossGoldPiles(gold) : [gold];
+    heaps.forEach((amount, index) => {
+      const spot = enemy.boss ? bossGoldSpot(enemy.x, enemy.y, index) : enemy;
+      const point = enemy.boss ? clampArenaPoint(spot.x, spot.y) : spot;
+      this.coins.push({ x: point.x, y: point.y, age: 0, gold: amount });
+    });
     const gained = addExperience(this.save, enemy.boss ? 45 : 8);
     if (gained) { this.player.hp = this.save.health; this.onMessage(`레벨 ${this.save.level} 달성!`); }
-    const guaranteed = this.save.tutorial === 0 && !enemy.boss;
-    if (guaranteed || Math.random() < equipmentDropChance(this.save.floor, enemy.boss)) {
-      this.drops.push({ x: enemy.x, y: enemy.y, item: rollItem(this.save.floor, guaranteed, enemy.boss), age: 0, warned: false });
-      if (guaranteed) { this.save.tutorial = 1; this.onMessage('낡은 두손검이 떨어졌습니다. 잠시 뒤 자동으로 획득됩니다!'); }
-    }
-    if (Math.random() < skillBookDropChance(this.save.floor, enemy.boss)) {
-      this.drops.push({ x: enemy.x, y: enemy.y, item: rollSkillBook(this.save.floor), age: 0, warned: false });
+    if (enemy.boss) {
+      // A boss leaves a haul instead of the per-kill chance rolls: five random items at once, each
+      // picked by the field's own equipment/skill-book odds (작업 194).
+      for (const item of bossItems(this.save.floor)) this.drops.push({ x: enemy.x, y: enemy.y, item, age: 0, warned: false });
+    } else {
+      const guaranteed = this.save.tutorial === 0;
+      if (guaranteed || Math.random() < equipmentDropChance(this.save.floor, false)) {
+        this.drops.push({ x: enemy.x, y: enemy.y, item: rollItem(this.save.floor, guaranteed, false), age: 0, warned: false });
+        if (guaranteed) { this.save.tutorial = 1; this.onMessage('낡은 두손검이 떨어졌습니다. 잠시 뒤 자동으로 획득됩니다!'); }
+      }
+      if (Math.random() < skillBookDropChance(this.save.floor, false)) {
+        this.drops.push({ x: enemy.x, y: enemy.y, item: rollSkillBook(this.save.floor), age: 0, warned: false });
+      }
     }
     if (enemy.boss) {
       if (this.save.autoClimb) {

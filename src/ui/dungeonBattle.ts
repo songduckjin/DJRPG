@@ -4,6 +4,7 @@ import {clampArenaPoint} from '../game/arena';
 import {skillDamageScale,skills} from '../game/skills';
 import {totalStats,skillLevel,type Save} from '../game/store';
 import {equipmentDropChance,rollItem,rollSkillBook,skillBookDropChance,type Item} from '../game/items';
+import {bossGoldPiles,bossGoldSpot,bossItems} from '../game/bossLoot';
 /** Ground loot held by the preview only. Kept off `World.drops` so the shared field renderer stays untouched. */
 export type DungeonLoot = { id:number; kind:'gold'; x:number; y:number; gold:number } | { id:number; kind:'item'; x:number; y:number; item:Item };
 /** Test rate for the whole 1-10 floor preview. Which item falls keeps the field's own odds (see `dropLoot`). */
@@ -147,13 +148,23 @@ class DungeonWorld extends World {
   }
   override kill(enemy:Enemy):void { this.slain++;this.effects.push({x:enemy.x,y:enemy.y,kind:'death',age:0,duration:.7,angle:0});this.dropLoot(enemy); }
   // Same rewards the field grants, kept as ground loot for display only: gold on every kill and,
-  // on the test 50% gate, one item chosen by the field's equipment/skillbook drop odds.
+  // on the test 50% gate, one item chosen by the field's equipment/skillbook drop odds. A boss
+  // (5층·10층, 작업 194) leaves the field haul instead — five random items and its gold in ten heaps
+  // scattered around the body, the heaps still adding up to the 70×floor the kill already paid.
   private dropLoot(enemy:Enemy):void {
     const floor=this.save.floor;
-    this.loot.push({id:++this.lootId,kind:'gold',x:enemy.x,y:enemy.y,gold:enemy.boss?70*floor:3+floor});
+    if(enemy.boss){
+      bossGoldPiles(70*floor).forEach((gold,index)=>{
+        const spot=bossGoldSpot(enemy.x,enemy.y,index);
+        this.loot.push({id:++this.lootId,kind:'gold',x:spot.x,y:spot.y,gold});
+      });
+      for(const item of bossItems(floor))this.loot.push({id:++this.lootId,kind:'item',x:enemy.x,y:enemy.y,item});
+      return;
+    }
+    this.loot.push({id:++this.lootId,kind:'gold',x:enemy.x,y:enemy.y,gold:3+floor});
     if(Math.random()>=DUNGEON_ITEM_DROP_CHANCE)return;
-    const equipment=equipmentDropChance(floor,enemy.boss),book=skillBookDropChance(floor,enemy.boss);
-    const item=Math.random()*(equipment+book)<equipment?rollItem(floor,false,enemy.boss):rollSkillBook(floor);
+    const equipment=equipmentDropChance(floor,false),book=skillBookDropChance(floor,false);
+    const item=Math.random()*(equipment+book)<equipment?rollItem(floor,false,false):rollSkillBook(floor);
     this.loot.push({id:++this.lootId,kind:'item',x:enemy.x,y:enemy.y,item});
   }
 }

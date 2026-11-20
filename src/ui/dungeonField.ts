@@ -7,6 +7,7 @@ import {skills} from '../game/skills';
 import {equipmentImage,isSkillBook,type Rarity} from '../game/items';
 import {DungeonBattle,dungeonLootSpots,dungeonLootTimeline,dungeonAbsorbProgress,dungeonAbsorbPoint,type DungeonLoot,type LootDrop,type LootField} from './dungeonBattle';
 import {heroBodyFraction} from '../game/render/heroScale';
+import {GOLD_PILE,GOLD_PILE_RX,GOLD_PILE_RY} from '../game/render/goldPile';
 import {setSkillIcon} from './skillArtwork';
 import {createSkillBookArt} from './skillBookArt';
 import type {Interface} from './interface';
@@ -30,7 +31,7 @@ export function openDungeonField(ui:Interface,lobby:HTMLElement):void {
   // Grade colours are pushed to full saturation: an equipment or skill book drop has to read as its
   // grade at a glance, while a coin carries no outer light at all.
   const rarityInk:Record<Rarity,string>={common:'#cdd6e0',magic:'#2f7bff',rare:'#ffd400',epic:'#a855f7',unique:'#ff8a00',legendary:'#ff2d2d'};
-  type LootView={el:HTMLDivElement;body:HTMLDivElement;shadow:HTMLSpanElement;x:number;y:number;tx:number;ty:number;drift:number;h:number;vh:number;tapped:boolean;settled:boolean;done:boolean};
+  type LootView={el:HTMLDivElement;body:HTMLDivElement;shadow:HTMLSpanElement;x:number;y:number;tx:number;ty:number;drift:number;h:number;vh:number;tapped:boolean;settled:boolean;done:boolean;gold:boolean};
   let lootViews:LootView[]=[],restSpots:LootDrop[]=[],spawnedLoot=0,absorbStarted=false,absorbRing:HTMLDivElement|undefined;
   // One timeline owns the clear beat: hold on the ground, pull every drop in, then show the result.
   const timeline=()=>dungeonLootTimeline(battle.outcome,battle.world.loot.length);
@@ -54,8 +55,16 @@ export function openDungeonField(ui:Interface,lobby:HTMLElement):void {
     el.className='dungeon-loot';body.className='dungeon-loot-body';shadow.className='dungeon-loot-shadow';
     if(loot.kind==='gold'){
       el.classList.add('is-gold');
-      const coin=document.createElement('img');coin.className='dungeon-loot-coin';coin.src='/assets/icons/gold-coin.png';coin.alt='';
-      body.append(coin);
+      // A coin heap is wide and flat, so its ground shadow is too instead of an icon-sized circle.
+      shadow.style.width=`${GOLD_PILE_RX*2}px`;shadow.style.height=`${GOLD_PILE_RY*2}px`;
+      // A heap of coins lying flat on the floor: two or three small coins, each squashed and tinted
+      // to antique gold, set a few pixels apart — the same table the field renderer draws (작업 194).
+      for(const coin of GOLD_PILE){
+        const art=document.createElement('img');art.className='dungeon-loot-coin';art.src='/assets/icons/gold-coin.png';art.alt='';
+        art.style.width=`${coin.size}px`;art.style.height=`${coin.size*coin.squash}px`;
+        art.style.left=`calc(50% + ${coin.dx}px)`;art.style.bottom=`${-coin.dy}px`;
+        body.append(art);
+      }
     }else{
       const item=loot.item;el.classList.add('is-item');el.style.setProperty('--loot-ink',rarityInk[item.rarity]);
       if(isSkillBook(item)){const art=createSkillBookArt(item);art.classList.add('dungeon-loot-book');body.append(art);}
@@ -73,10 +82,12 @@ export function openDungeonField(ui:Interface,lobby:HTMLElement):void {
     const w=view.app.screen.width,h=view.app.screen.height,[heroX,heroY]=projectArenaPoint(battle.world.player.x,battle.world.player.y,w,h),[gx,gy]=projectArenaPoint(loot.x,loot.y,w,h);
     const heroH=Math.max(48,h*heroBodyFraction),[spot]=dungeonLootSpots(heroX,heroY,[{x:gx,y:gy,gold:loot.kind==='gold'}],restSpots,Math.max(40,heroH*.5),heroH+8,LOOT_GAP,lootField(heroH)),tx=spot.x-gx,ty=spot.y-gy;
     el.append(shadow,body);
-    // Depth: loot that rests behind the hero's feet stays under the transparent arena canvas, loot
-    // in front of them is drawn over the floor. Neither ever sits on the hero art.
-    (gy+ty<heroY-6?backLootLayer:lootLayer).append(el);
-    lootViews.push({el,body,shadow,x:loot.x,y:loot.y,tx,ty,drift:reducedMotion?1:0,h:reducedMotion?0:2,vh:reducedMotion?0:LOOT_TOSS_SPEED*(1+(Math.random()*2-1)*LOOT_TOSS_VARY),tapped:false,settled:false,done:false});
+    // Depth: an item that rests behind the hero's feet stays under the transparent arena canvas and
+    // one in front of them is drawn over the floor. A coin lies flat on the floor, so it is always
+    // put in the behind layer (작업 194): every monster, the hero and every item — in either layer —
+    // is painted over it, whatever side of the hero it fell on.
+    (loot.kind==='gold'||gy+ty<heroY-6?backLootLayer:lootLayer).append(el);
+    lootViews.push({el,body,shadow,x:loot.x,y:loot.y,tx,ty,drift:reducedMotion?1:0,h:reducedMotion?0:2,vh:reducedMotion?0:LOOT_TOSS_SPEED*(1+(Math.random()*2-1)*LOOT_TOSS_VARY),tapped:false,settled:false,done:false,gold:loot.kind==='gold'});
   };
   const clearLoot=():void=>{for(const entry of lootViews)entry.el.remove();lootViews=[];restSpots=[];spawnedLoot=0;absorbStarted=false;absorbRing?.remove();absorbRing=undefined;};
   // Bounce until resting; on a clear the same nodes are pulled in an accelerating arc into the hero.
@@ -101,7 +112,7 @@ export function openDungeonField(ui:Interface,lobby:HTMLElement):void {
         const point=dungeonAbsorbPoint({x,y:y-entry.h},{x:heroX,y:heroY-26},p,index);
         entry.el.style.transform=`translate3d(${point.x}px,${point.y}px,0)`;
         entry.body.style.transform=`translate(-50%,-100%) scale(${1-.55*p*p})`;
-        entry.body.style.opacity=String(1-p*.9);entry.shadow.style.opacity=String(.45*(1-p));
+        entry.body.style.opacity=String(1-p*.9);entry.shadow.style.opacity=String((entry.gold ? .3 : .45)*(1-p));
         continue;
       }
       if(!entry.settled){
@@ -116,7 +127,9 @@ export function openDungeonField(ui:Interface,lobby:HTMLElement):void {
       entry.body.style.transform=`translate(-50%,-100%) translateY(${-entry.h}px)`;
       const lift=Math.min(1,entry.h/(LOOT_TOSS_PEAK*2));
       entry.shadow.style.transform=`translate(-50%,-50%) scale(${1-lift*.55})`;
-      entry.shadow.style.opacity=String(.5-lift*.3);
+      // Ten boss heaps lying together must not stack into one black puddle, so a coin's shadow is
+      // lighter than an item's.
+      entry.shadow.style.opacity=String((entry.gold ? .3 : .5)-lift*.3);
     }
   };
   // Canvas alpha is fixed at context creation; changing it after mount cannot

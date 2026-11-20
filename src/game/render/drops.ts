@@ -1,4 +1,5 @@
 import {createLootOutline,LOOT_OUTLINE_PAD} from './lootOutline';
+import {GOLD_PILE,GOLD_PILE_RX,GOLD_PILE_RY} from './goldPile';
 import {captureLootGround,projectLootGround} from '../lootGround';
 import { Assets, Container, Graphics, Rectangle, Sprite, Texture } from 'pixi.js';
 import type { Coin, Drop, World } from '../world';
@@ -11,8 +12,9 @@ import type { GameView } from '../render';
 /** Grade ink of a ground drop: the same saturated colours the dungeon uses, so an equipment or skill
  *  book drop reads as its grade at a glance. A coin carries no outer light at all. */
 const lootInk: Record<Rarity, number> = { common: 0xcdd6e0, magic: 0x2f7bff, rare: 0xffd400, epic: 0xa855f7, unique: 0xff8a00, legendary: 0xff2d2d };
-/** A drop is drawn at a stationary monster's ground-shadow size (about 38px). */
-const ART_SIZE = 34, COIN_SIZE = 30;
+/** A drop is drawn at a stationary monster's ground-shadow size (about 38px); a coin is no icon of
+ *  its own but the flat heap in `render/goldPile` (작업 194), so only items take this size. */
+const ART_SIZE = 34;
 /** Pull gravity of the toss, in pixels per second squared — the same beat as the dungeon's loot. */
 const BOUNCE_GRAVITY = 1200;
 /** Height of the little hop a drop makes before it falls: a sixth of its 34px icon, so it drops with
@@ -81,10 +83,17 @@ function attachArt(view: GameView, body: Container, gold: boolean, item: Item | 
   if (gold) {
     const texture = sheetTexture(view, '/assets/icons/gold-coin.png');
     if (!texture) return [];
-    const coin = new Sprite(texture);
-    coin.anchor.set(.5, 1); coin.width = COIN_SIZE; coin.height = COIN_SIZE;
-    body.addChild(coin);
-    return [coin];
+    // A heap of coins lying flat on the floor: two or three small coins, each squashed and tinted
+    // to antique gold, set a few pixels apart (see `render/goldPile`). No outer light at all.
+    const coins: Sprite[] = [];
+    for (const coin of GOLD_PILE) {
+      const sprite = new Sprite(texture);
+      sprite.anchor.set(.5, 1);
+      sprite.width = coin.size; sprite.height = coin.size * coin.squash;
+      sprite.x = coin.dx; sprite.y = coin.dy; sprite.tint = coin.tint;
+      body.addChild(sprite); coins.push(sprite);
+    }
+    return coins;
   }
   const texture = lootArtTexture(view, item!);
   if (!texture) return [];
@@ -137,12 +146,17 @@ export function drawLoot(this: GameView, world: World, project: (x: number, y: n
       const glow=body.children.find(child=>child.label==='loot-grade-glow') as Sprite|undefined;
       let fallback: Graphics | undefined;
       if (!art.length) {
-        // Until (or instead of) the art a plain grade diamond keeps the drop visible.
+        // Until (or instead of) the art a plain grade diamond keeps the drop visible; a coin's is a
+        // flat one, in the shape of the heap it will become.
         fallback = new Graphics();
-        fallback.moveTo(0, -14).lineTo(6, -7).lineTo(0, 0).lineTo(-6, -7).closePath().fill(info.gold ? 0xf3c14b : lootInk[info.item!.rarity]);
+        if (info.gold) fallback.ellipse(0, -4, 9, 4).fill(0xf3c14b);
+        else fallback.moveTo(0, -14).lineTo(6, -7).lineTo(0, 0).lineTo(-6, -7).closePath().fill(lootInk[info.item!.rarity]);
         body.addChild(fallback);
       }
-      (spot.y < heroY - 6 ? this.lootBack : this.lootFront).addChild(body);
+      // A coin lies flat on the floor, so it is always drawn behind the character and the monsters
+      // (작업 194): the field's loot layer behind the actors holds it even when it fell in front of
+      // the hero's feet. Items keep the depth rule, and stay above a coin in the same layer.
+      (info.gold || spot.y < heroY - 6 ? this.lootBack : this.lootFront).addChild(body);
       view = {
         body, art, glow, fallback, taken: this.lootTaken[this.lootTaken.length - 1],
         origin:captureLootGround({x:groundX,y:groundY},viewport,world.player),landing:captureLootGround(spot,viewport,world.player),
@@ -154,10 +168,12 @@ export function drawLoot(this: GameView, world: World, project: (x: number, y: n
       const art = attachArt(this, view.body, info.gold, info.item, info.gold ? 0xf3c14b : lootInk[info.item!.rarity]);
       if (art.length) { if (view.fallback) { view.body.removeChild(view.fallback); view.fallback.destroy(); view.fallback = undefined; } view.art = art;view.glow=view.body.children.find(child=>child.label==='loot-grade-glow') as Sprite|undefined; }
     }
-    // Depth: loot resting above the character's feet is drawn behind him, the rest in front. Neither
-    // sits on the character art, because the resting spot keeps clear of his silhouette.
+    // Depth: an item resting above the character's feet is drawn behind him, the rest in front. A
+    // coin stays in the behind layer whichever side it fell on, so no monster or item ever covers a
+    // coin the other way round. Neither sits on the character art, because the resting spot keeps
+    // clear of his silhouette.
     const origin=projectLootGround(view.origin,viewport,world.player),landing=projectLootGround(view.landing,viewport,world.player);
-    const layer = landing.y < heroY - 6 ? this.lootBack : this.lootFront;
+    const layer = info.gold || landing.y < heroY - 6 ? this.lootBack : this.lootFront;
     if (view.body.parent !== layer) layer.addChild(view.body);
     view.drift = Math.min(1, view.drift + dt / .45);
     const ease = 1 - Math.pow(1 - view.drift, 3);
@@ -185,8 +201,13 @@ export function drawLoot(this: GameView, world: World, project: (x: number, y: n
       view.body.position.set(x, y - view.h);
     }
     // The ground shadow stays on the floor while the drop is in the air and fades as it is swallowed.
+    // A coin heap is wide and flat, so its shadow is too — and lighter than an item's, because ten
+    // boss heaps lying together must not stack into one black puddle.
     const lifted = Math.min(1, view.h / (TOSS_PEAK * 2));
-    this.ground.ellipse(x, y + 2, 19 - lifted * 8, 7 - lifted * 3).fill({ color: 0x000000, alpha: Math.max(0, .45 - lifted * .2 - pull * .3) });
+    const shadowX = (info.gold ? GOLD_PILE_RX * .78 : 19) - lifted * (info.gold ? 5 : 8);
+    const shadowY = (info.gold ? GOLD_PILE_RY * .8 : 7) - lifted * (info.gold ? 1.2 : 3);
+    const shadowAlpha = (info.gold ? .3 : .45) - lifted * (info.gold ? .12 : .2) - pull * .3;
+    this.ground.ellipse(x, y + 2, Math.max(3, shadowX), Math.max(2, shadowY)).fill({ color: 0x000000, alpha: Math.max(0, shadowAlpha) });
     if (view.glow) {
       view.glow.alpha = pull > 0 ? 0 : .62 + Math.sin(time * 5) * .2;
     }

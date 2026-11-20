@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import './ts-loader.mjs';
 const { LOOT_REST_SECONDS, LOOT_ABSORB_SECONDS, LOOT_FAN, LOOT_GAP, LOOT_DEPTH, lootRestSpots, lootAbsorbProgress, lootAbsorbPoint } = await import('../src/game/loot.ts');
+const { BOSS_GOLD_PILES, BOSS_ITEM_DROPS, bossGoldPiles } = await import('../src/game/bossLoot.ts');
+const { GOLD_PILE, GOLD_PILE_RX } = await import('../src/game/render/goldPile.ts');
 const { World } = await import('../src/game/world.ts');
 const { freshSave } = await import('../src/game/store.ts');
 
@@ -148,8 +150,7 @@ test('the field renderer keeps loot in its own layers with coins under items', (
   assert.doesNotMatch(source, /'#ff|linear-gradient|dungeon-loot/, 'the field loot is drawn by the renderer, not pasted DOM');
 });
 
-test('a field drop makes one small hop and lands with a single soft tap', () => {
-  const source = readFileSync(new URL('../src/game/render/drops.ts', import.meta.url), 'utf8');
+test('a field drop makes one small hop and lands with a single soft tap', () => {  const source = readFileSync(new URL('../src/game/render/drops.ts', import.meta.url), 'utf8');
   const num = name => Number(source.match(new RegExp(`${name} = ([0-9.]+)`))[1]);
   const gravity = num('BOUNCE_GRAVITY'), peak = num('TOSS_PEAK'), vary = num('TOSS_VARY'), rebound = num('TOSS_REBOUND'), settle = num('TOSS_SETTLE');
   // A light toss on a 34px icon: a hop of a few pixels, then one tap of about a pixel.
@@ -176,4 +177,62 @@ test('a field drop makes one small hop and lands with a single soft tap', () => 
     assert(tap <= 2, `the tap after landing is about a pixel (got ${tap.toFixed(2)})`);
     assert(seconds < .6, 'the whole fall is over in well under a second');
   }
+});
+
+test('a coin drop is a small heap of flat antique coins on the floor', () => {
+  assert(GOLD_PILE.length >= 2 && GOLD_PILE.length <= 3, 'two or three coins make the heap');
+  for (const coin of GOLD_PILE) {
+    assert(coin.size >= 14 && coin.size <= 20, `each coin is 14~20px wide (got ${coin.size})`);
+    assert(coin.squash >= .5 && coin.squash <= .68, `each coin is squashed flat (got ${coin.squash})`);
+    assert(coin.dy <= 0, 'no coin floats under the ground or far above the heap');
+    assert(coin.tint < 0xffffff, 'each coin is tinted to a heavier antique gold, not left as it is');
+  }
+  const source = readFileSync(new URL('../src/game/render/drops.ts', import.meta.url), 'utf8');
+  assert.match(source, /for \(const coin of GOLD_PILE\)/, 'the field draws every coin of the heap');
+  assert.match(source, /sprite\.height = coin\.size \* coin\.squash/, 'the squash is what lays the coin down');
+  assert.match(source, /sprite\.tint = coin\.tint/, 'and the antique tint is applied');
+  assert.doesNotMatch(source, /COIN_SIZE/, 'the single upright 30px coin is gone');
+  assert.doesNotMatch(source, /coin\.width = COIN_SIZE/, 'nothing draws the old one-coin icon');
+  assert(GOLD_PILE_RX * 2 <= 40, 'the heap keeps the footprint of a drop on the floor');
+});
+
+test('a field coin always lies behind the hero, the monsters and every item', () => {
+  const source = readFileSync(new URL('../src/game/render/drops.ts', import.meta.url), 'utf8');
+  const scene = readFileSync(new URL('../src/game/render.ts', import.meta.url), 'utf8');
+  // A coin goes to the behind layer when it is created and stays there whenever it falls.
+  assert.match(source, /info\.gold \|\| spot\.y < heroY - 6 \? this\.lootBack : this\.lootFront/, 'a new coin is put behind the actors');
+  assert.match(source, /info\.gold \|\| landing\.y < heroY - 6 \? this\.lootBack : this\.lootFront/, 'a landed coin stays behind the actors');
+  assert.match(source, /body\.zIndex = info\.gold \? LOOT_DEPTH\.gold : LOOT_DEPTH\.item/, 'and under every item of its layer');
+  // Paint order of the scene: loot behind -> actors (hero and monsters) -> loot in front.
+  const order = scene.match(/app\.stage\.addChild\(([^)]*)\)/)[1].split(',').map(part => part.trim());
+  const behind = order.indexOf('this.lootBack'), actors = order.indexOf('this.actors'), front = order.indexOf('this.lootFront');
+  assert(behind >= 0 && actors > behind && front > actors, `loot behind (${behind}) must precede the actors (${actors}) and loot in front (${front})`);
+});
+
+test('a boss kill scatters its gold in ten heaps and leaves five random items', () => {
+  assert.equal(BOSS_GOLD_PILES, 10);
+  assert.equal(BOSS_ITEM_DROPS, 5);
+  const world = quiet();
+  const floor = world.save.floor, gold = 70 * floor, paid = world.save.gold;
+  const boss = { x: 60, y: 20, hp: 0, maxHp: 10, boss: true, hit: 0, step: 0, moving: false, knockX: 0, knockY: 0, slow: 0 };
+  world.kill(boss);
+  assert.equal(world.save.gold, paid + gold, 'the boss still pays its gold exactly once');
+  assert.equal(world.coins.length, BOSS_GOLD_PILES, 'the gold hits the floor in ten heaps');
+  assert.equal(world.coins.reduce((sum, coin) => sum + coin.gold, 0), gold, 'the ten heaps add up to the gold paid');
+  assert.equal(world.drops.length, BOSS_ITEM_DROPS, 'five random items fall at once');
+  // Every heap is its own drop with its own point and its own fall, so they shower instead of stack.
+  assert(bossGoldPiles(gold).every(amount => amount > 0) && bossGoldPiles(gold).reduce((a, b) => a + b, 0) === gold);
+  assert.equal(new Set(world.coins.map(coin => `${Math.round(coin.x)},${Math.round(coin.y)}`)).size, BOSS_GOLD_PILES, 'no two heaps share a pixel');
+  for (const coin of world.coins) assert(Math.hypot(coin.x - boss.x, coin.y - boss.y) <= 46, 'a heap stays around the body');
+  for (const drop of world.drops) assert(drop.item.name.length > 0 && drop.item.id, 'each item is a real roll');
+});
+
+test('a normal kill still leaves one coin and only the chance item', () => {
+  const world = quiet();
+  const paid = world.save.gold;
+  const enemy = { x: 30, y: 10, hp: 0, maxHp: 10, boss: false, hit: 0, step: 0, moving: false, knockX: 0, knockY: 0, slow: 0 };
+  world.kill(enemy);
+  assert.equal(world.coins.length, 1, 'a normal kill keeps its single coin');
+  assert.equal(world.save.gold, paid + 3 + world.save.floor);
+  assert(world.drops.length <= 2, 'and at most the two chance rolls');
 });
