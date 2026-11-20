@@ -7,6 +7,8 @@
 - **테스트**: 신규 `tests/character-portrait.test.mjs` 5건 — ① `characters` 응답이 장비 이름 3종만 내려보내고 세이브 본문이 없음 ② 전사·궁수·마법사 × 남녀로 `characterPortraitSave`의 전신 시트·합성 키·파츠가 라이브 세이브와 완전히 같음 ③ 장비 없는 요약의 폴백 시트와 `warrior_*_base` 미사용 ④ 카드 렌더가 접속 슬롯은 라이브 세이브, 다른 슬롯은 서버 장비로 첫 페인트 ⑤ 카드 높이(360) 합성이 전신+투구+대검 3장을 그린다. `tests/archer.test.mjs`의 캐시 버스터 검사는 카드가 시트 경로를 직접 만들지 않게 바뀐 책임에 맞춰 `charactersModal.ts`가 시트 경로를 갖지 않는지로 교체.
 - **검증**: `npx tsc --noEmit` 통과, 전체 663건 중 661 통과(실패 2건은 변경 전 `origin/main`에서도 같은 `costume-field-render` — 스태시 후 재현 확인), `npx vite build` 통과(번들에 `character-portrait`·합성 폴백 로그 확인).
 - **미리보기**: 필드·장비창과 같은 합성으로 남녀·직업별 초상화와 카드(112px) 배치를 확인 — 전사 대검·궁수 활/투구·마법사 로브/모자/지팡이가 모두 카드 안에 들어온다.
+- **머지·배포**: [PR #164](https://github.com/songduckjin/DJRPG/pull/164) 스쿼시 병합 `dd5ec4dc3f63`(2026-11-20T08:35:18Z). Cloudflare Pages 체크 통과(`Workers Builds: djrpg`는 종전과 같은 상시 실패 잔재). 운영 `https://djrpg.pages.dev/version.json` = `dd5ec4dc3f63`(`builtAt 2026-11-20T08:35:18.200Z`), 루트 200. 운영 API: 게스트 등록 → `/api/account` `characters` 응답에 `equipment:{"helmet":null,"armor":null,"weapon":null}`(새 게스트) 확인. 배포 번들 `index-BGbZXgNB.js`에 `character-portrait`·`캐릭터 … 외형` alt·합성 폴백 문구, CSS `index-CVZnLEOs.css`에 `.character-portrait{height:112px;object-position:center bottom}` 확인.
+- **사용자 확인 몫**: 캐릭터 선택 모달 실기 — 접속 중 슬롯의 장비를 바꾼 뒤 다시 열었을 때 카드가 즉시 바뀌는지, 다른 슬롯 카드가 그 캐릭터의 실제 착용 장비(투구·갑옷·무기/활/지팡이)와 같은지, 3장이 한 화면에서 잘리지 않는지.
 
 ## 2026-11-20 · songduckjin 작업 209 100명 동시 접속 대응(서버 검증 경계·저장 최소화·읽기/쓰기 분리·계측·부하 테스트)
 - **먼저 확인**: main의 `reconcileItems`(소유권·스탯), `djrpg_save_requests`(멱등), 거래소 `mutate` 단일 트랜잭션, 월드보스 `replayBoss`·`djrpg_boss_rewards`, `schema()`·`market-connection.mjs` 캐시는 **이미 해결**돼 있어 손대지 않았다.
