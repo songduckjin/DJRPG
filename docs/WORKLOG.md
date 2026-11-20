@@ -8,7 +8,7 @@
 - **잔상 분리**: 겹이 셋이 되며 잔상 복제(`cloneHeroLayers`)가 `blendMode !== 'add'`로 거르면 곱하기 겹이 잔상에 섞였다 — `GEAR_GLOW_LABEL`(`gear-glow`) 표식으로 바꿔 셋 다 뺀다.
 - **검증**: `npx tsc --noEmit` 통과, 전체 `node --test tests/*.test.mjs` **950건 중 947 통과**(실패 3건은 `origin/main` 에서도 동일하게 실패하는 기존 건 — `costume-field-render` 2건·`skillbook-server` 1건), `npm run build` 통과.
 - **실기 검수**: 실제 빌드 번들을 헤드리스 크롬(SwiftShader WebGL)으로 열고 `/api/account` 만 가짜 세션으로 응답해 **같은 장비(패왕의 성검·불멸의 왕관·패왕의 전갑)** 로 유니크·전설을 착용시켜 필드와 `내 정보` 장착 화면을 발광 정점 프레임으로 캡처했다 → `downloads/djrpg_gear_glow_boost_v1.png`(수정 전/후 6칸). 수정 전에는 검이 살짝 물드는 정도·장착 화면은 윤곽 후광만이었고, 수정 후에는 장비 전체가 등급색으로 타오르며 판금 경계·무늬가 남는다.
-- **배포**: PR·운영 반영은 병합 뒤 기록한다.
+- **머지·배포**: [PR #225](https://github.com/songduckjin/DJRPG/pull/225) 스쿼시 `8f64cacdb949` → 운영 `djrpg.pages.dev` `version.json` `8f64cacdb949`(`builtAt 2026-11-20T16:54:06Z`) 확인. 운영 번들 `assets/index-CG3G5PNM.js`에서 `#ff7a00`·`#ef1a1a`(십진 16742912·15669786), `peak:.92`·`peak:1`, `gear-glow` 문자열을 확인했고, `Workers Builds: djrpg` 체크는 이전 Workers 설정 잔재로 여전히 실패 표시(실제 배포 경로는 Cloudflare Pages — 통과).
 ## 2026-11-21 · songduckjin 작업 234 — 좌상단 HUD 닉네임 이름판이 레벨 숫자를 가리던 문제(배지·이름판·HP·월드보스 세로 배치)
 
 - **요청**: 실기 스크린샷(`attachments/2026-11-21/IMG_1143-1d9e57e1d7f546608ec5f5240e3df121.jpg`, iOS Safari·`djrpg.pages.dev`)에서 좌상단 **닉네임 이름판(`덕진`)이 레벨 배지 원 안으로 올라와 `LV` 아래 숫자(`4`)의 아래쪽을 가리는** 문제.
