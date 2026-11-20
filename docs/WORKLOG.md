@@ -1,3 +1,12 @@
+## 2026-11-20 · fks3997 작업201 장비 +1~+7 강화 단계(미리보기 → 운영 배포)
+- 사용자 확정 스펙: "10층마다 한 단계씩 열리고(최대 +7) 확률로 떨어지며, 이름 옆에 다른 색 +숫자로 보이고, 기존 보유 장비도 등급·스탯으로 알아서 보수적으로 표기".
+- `items.ts`: `maxPlusFor(floor)=min(7, floor((floor-1)/10))`, `plusWeights`/`rollPlus`(단계 가중치 `0.6^k`, 보스 `×1.2^k`), `applyPlus`(단계당 8% → `+7`=1.56배), `plusOf`, `itemDisplayName`, `estimatePlus`(최대 랜덤 3·최고 티어 보정·쯔바이핸드 보정을 먼저 뺀 보수적 역산), `normalizePlus`. `rollItem`은 `plus`(0 포함)를 항상 적고, `migrateItem`은 `plus`가 없는 옛 장비만 역산한다.
+- UI: 신규 `ui/itemName.ts` `renderItemName`/`itemNameText`가 이름은 그대로 두고 `<span class="item-plus">+N</span>`(밝은 에메랄드 `#43f6c5`)만 덧붙인다 — 장비창 가방/상세, 장착 상세, 분해 보호 팝업, 분해 확인, 오프라인 보상, 거래소, 공용창고, 필드 획득 문구. `item.name`을 바꾸면 서버 `identity`(이름 포함) 때문에 409가 나므로 이름은 절대 손대지 않는다.
+- 서버: `database.mjs` `identity`/`sameItemBody`는 `plus`를 보지 않고 `reconcileItems`가 0~7로 정규화 — 옛 장비가 로드에서 plus를 얻어도 409 ITEM_CONFLICT가 없고, 스탯 변조는 그대로 막힌다(실제 sqlite 모듈 테스트로 확인).
+- 테스트: 신규 `tests/item-plus.test.mjs` 7/7(해금 10층 단위, 20,000회 분포, +8%, 옛 장비 전수 보수성, `plus:0` 유지, UI 색 클래스, ITEM_CONFLICT). 기존 계약 2건은 새 필드에 맞춰 갱신(`ring-restore` 반복 파싱 동일성, `codex` 0단계 기준 미리보기). `npx tsc --noEmit`·`npx vite build` 통과, 전체 505건 중 450 통과(55 실패는 sparse 체크아웃의 에셋/서버 파일 없음 + 종전 `costume-field-render` 2건).
+- 번호: 199(마법사 로브·지팡이 PR #135·#136)·200(궁수 투구 PR #134)과 겹쳐 **201**로 등록.
+- 배포: [PR #137](https://github.com/songduckjin/DJRPG/pull/137) 스쿼시 병합 `a55b97384569`(브랜치 유지). 운영 `version.json` `a55b97384569`·`builtAt 2026-11-20T04:45:30Z`(HTTP 200), 루트 200, 번들 `index-BXKKPRVo.js`에 `item-plus`·`강화 +`·`Math.min(7`, CSS `index-Y4PlZyty.css`에 `#43f6c5`. API: 게스트 등록 200·load 200·plus 붙은 아이템 저장 200·재load에서 `plus:4` 유지·`/api/dungeon` list 200·`/api/market` list/recent-price 200.
+
 ## 2026-11-20 · songduckjin 작업200 궁수 전용 투구 10종 외형(서기·걷기·사격 파츠 + 머리 없는 본체)
 - 궁수(`job === 'archer'`)가 투구를 쓰면 전사 판금 투구 대신 **궁수 전용 투구·모자 10종**(가죽 두건 ~ 신궁의 황금 왕관)이 나온다. 파츠는 승인 시안 `downloads/archer_helm_preview/{male,female}_helm_{0..9}.png`에서 뽑았고, 빌더는 `scripts/build-archer-helm-parts.py` 하나다.
 - **파츠 20장** `public/assets/pilot-25d/archer_helms/{성별}_{0..9}_v1.png`: 시안을 기본 원본과 같은 캔버스 변환(높이 337·발끝 y=353·중심 x=181 — `build-archer-sheets.py`의 서기 규칙)으로 362px 셀에 옮긴 뒤 **머리 영역 다각형**(`HEAD_POLYGON`, 여성은 포니테일·옆 땋은 머리 포함)만 오려 낸 전체 셀 PNG(256색, 장당 5KB·합계 164KB). 얼굴·머리카락이 파츠 안에 함께 들어 있어 오픈페이스(서클릿·왕관)도 얼굴이 겹치지 않는다.
