@@ -41,6 +41,17 @@
 
 # 작업 로그
 
+## 2026-11-20 — 마법사 지팡이 10종 외형 적용: 남녀 서기·걷기 4프레임·공격 4프레임 (작업 201)
+
+- **요청**: `songduckjin/DJRPG`에서 마법사 지팡이 10종(짧은 완드 1~5 + 긴 그랜드 스태프 6~10) 외형을 남녀 마법사의 서기·걷기·공격 전체에 적용하고 운영(`djrpg.pages.dev`)까지 배포. 1~5번 짧은 지팡이를 들었을 때 뒤로 기본 긴 지팡이가 절대 삐져나오면 안 된다.
+- **시트 두 벌**: 마법사 기본 시트에는 기본 지팡이(긴 고목 지팡이)가 그려져 있어 ① 기본 지팡이를 지운 본체 시트(`public/assets/pilot-25d/mage_nostaff/mage_{male,female}_{idle,walk,attack}_v1.png` 6장, 324KB) ② 티어별 지팡이 파츠(`staffs/staff_{0..9}_v1.png` 10장, 60KB)로 나눴다. 두 시트 모두 기준 시트와 같은 362px 셀 좌표계다. 0번(견습생의 지팡이)도 파츠를 쓰므로 모든 티어가 "nostaff 시트 + 파츠" 한 규칙을 따른다.
+- **파츠 뜨기**(`scripts/build-staff-parts.py`): 승인 시안 `tools/staff-src/male_staff_{0..9}.png`(1254²)는 같은 캐릭터·같은 자세에서 지팡이만 바꾼 그림이다. 시안 전체 상자 대신 **몸통 기준**(발끝 열의 몸통 중심 x·발끝 y·머리끝~발끝 높이)으로 10장에 같은 정합 하나를 잡는다(얼굴 NCC는 지팡이 장식이 머리 위로 솟으면 배율이 흔들렸다). 그 위에서 지팡이 통로(머리 → 손 → 자루 끝) 안·본체 실루엣 밖 영역을 지팡이로 떠고, 주먹 자리에서 끊긴 위·아래 덩어리를 **둘 다** 살린 뒤 256색 팔레트 PNG로 굽는다.
+- **기본 지팡이 지우기**: 프레임마다 (머리 점·자루 끝·그립 점)을 표로 두고 자루 띠 + 장식 원을 지운다. 지운 자리의 RGB는 투명 영역의 검정을 끌어오지 않도록 **가장 가까운 불투명 색으로 먼저 채운 뒤** 인페인트하고, 띠가 몸통 속을 지나면(가장자리에서 6px보다 먼 픽셀) 알파를 살려 옷 색으로만 메운다 — 배경 쪽 지팡이는 알파가 0으로 사라지고 옷 위 구간만 색이 메워진다.
+- **자세 표**(`src/game/render/staffs.ts` `STAFF_POSES`): 남녀 × 9자세(서기1·걷기4·공격4). 회전축이 그립 점(`STAFF_GRIP` (92,114))이라 걷기·공격 어느 프레임에서도 지팡이가 손에서 떨어지거나 길이가 줄지 않는다(강체).
+- **연결**: `render/entities.ts` `syncStaffPart` + `drawHero` 마법사 분기(지팡이를 차면 `mage_nostaff/` 시트로 갈아 끼우고 파츠를 얹는다), `render.ts`(`staffPart`·`prefetchStaff`·`staffBodyFrame`, 파츠 1장+시트 3장만 받고 최근 3티어 유지, 부팅 프리로드 제외), `ui/equipmentPortrait.ts`(`equipmentPortraitStaff` — 장비창도 같은 파츠·같은 좌표로 합성, 캐시 키에 파츠 경로 포함).
+- **캐시**: 파츠·`mage_nostaff` 시트는 이번에 새로 만든 파일이라 `/assets/*` immutable 캐시에 걸리지 않는다(캐시 버스터 불필요). 기존 마법사 시트 6장은 손대지 않았다.
+- **검증**: `npx tsc --noEmit`, `node --test tests/staff-render.test.mjs` **10/10**, `tests/mage.test.mjs` 13/13, 전체 `tests/*.test.mjs` 583건 중 578 통과(실패는 `costume-field-render` 2·`market`/`functions-adapter` schema 계열로 `origin/main`에서도 같은 기존 실패), `node scripts/verify-item-art.mjs`(지팡이 파츠 10장·nostaff 시트 6장 검사 추가), `npm run build`. 검수 이미지 `downloads/djrpg_staff_ingame_v1.png`(남녀 × 10티어, 게임 배율)·`downloads/djrpg_staff_walk_attack_v1.png`(남녀 짧은 1·긴 6·최상위 9의 걷기·공격 4프레임)을 열어 손 위치·잔상을 육안 확인했다.
+
 ## 2026-11-20 — 궁수 활 10종 외형 적용: 남녀 서기·걷기 4프레임·사격 4프레임 (작업 160)
 
 - **요청**: `songduckjin/DJRPG`에서 궁수 활 10종(`사냥꾼의 활` ~ `패왕의 신궁`) 외형을 남녀 궁수의 서기·걷기·사격 모든 프레임에 적용하고 PR 머지·`djrpg.pages.dev` 배포까지 완료. 전사 대검 10종(작업 156)과 같은 아키텍처를 쓴다.

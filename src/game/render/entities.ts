@@ -15,6 +15,7 @@ import { archerHelmIndexFor, archerHelmPartPath, archerHelmPlacement } from './a
 import { armorIndexFor } from './armors';
 import { WEAPON_GUARD, weaponIndexFor, weaponPose } from './weapons';
 import { BOW_GRIP, bowIndexFor, bowPose } from './bows';
+import { STAFF_GRIP, staffIndexFor, staffPose } from './staffs';
 import type { GameView } from '../render';
 
 function syncWeapon(view: GameView, save: Save, texture: Texture, art: string, attacking: boolean, motion: 'idle' | 'walk', walkingFrame: number): void {
@@ -270,6 +271,47 @@ function syncArcherHelmet(view: GameView, save: Save, motion: 'idle' | 'walk' | 
 }
 
 /**
+ * 착용 지팡이 파츠를 본체 위에 얹는다(작업 201).
+ *
+ * 파츠 PNG 는 서기 자세의 362px 셀 그대로이고 앵커가 손이 지팡이를 쥔 그립 점이다. 자세별로는
+ * `staffPose` 의 그립 좌표와 회전각만 주므로, 걷기·공격 어느 프레임에서도 지팡이가 손에서
+ * 떨어지거나 길이가 줄지 않는다. 기본 지팡이는 `mage_nostaff/` 시트에서 이미 지워져 있다.
+ * 피격 틴트는 본체·투구와 같은 값을 쓴다.
+ */
+function syncStaffPart(view: GameView, save: Save, motion: 'idle' | 'walk' | 'attack', frame: number, tint: number): void {
+  const index = staffIndexFor(save);
+  const shown = view.heroStaff;
+  if (index < 0) {
+    if (shown) shown.visible = false;
+    return;
+  }
+  const texture = view.staffPart(index);
+  if (!texture) {
+    // 아직 로딩 전 — 이 프레임은 기본 지팡이를 지운 본체 시트만 그려진다.
+    if (shown) shown.visible = false;
+    return;
+  }
+  const pose = staffPose(save.gender, motion, frame);
+  const layerX = pose.x - view.hero.texture.width * view.hero.anchor.x;
+  const layerY = pose.y - view.hero.texture.height * view.hero.anchor.y;
+  let sprite = shown;
+  if (!sprite) {
+    sprite = new Sprite(texture);
+    sprite.zIndex = .4;
+    view.heroLayer.addChild(sprite);
+    view.heroLayer.sortableChildren = true;
+    view.heroStaff = sprite;
+  }
+  if (sprite.texture !== texture) sprite.texture = texture;
+  sprite.anchor.set(STAFF_GRIP.x / texture.width, STAFF_GRIP.y / texture.height);
+  sprite.position.set(layerX, layerY);
+  sprite.rotation = pose.rot * Math.PI / 180;
+  sprite.tint = tint;
+  sprite.alpha = 1;
+  sprite.visible = true;
+}
+
+/**
  * 진행 중인 스킬 이펙트 → 코스튬 스킬 템플릿과 진행도 (작업 140).
  *
  * `world.ts`는 스킬을 스킬 ID와 같은 이름의 이펙트로 남기므로 모션 선택은 이펙트 종류만 보면 된다.
@@ -371,6 +413,20 @@ export function drawHero(this: GameView, world: World, x: number, y: number, tim
         textureKey = `nobow:${save.gender}:${animation}:${poseFrame}`;
       }
     }
+    // 마법사: 지팡이를 찼으면 기본 지팡이를 지운 본체 시트로 갈아 끼우고 그 위에 지팡이 파츠를 얹는다(작업 201).
+    const mage = job === 'mage';
+    const staff = mage ? staffIndexFor(save) : -1;
+    if (mage && this.lastStaffTier !== staff) {
+      this.lastStaffTier = staff;
+      if (staff >= 0) this.prefetchStaff(staff, save.gender);
+    }
+    if (mage && staff >= 0) {
+      const nostaff = this.staffBodyFrame(save.gender, animation, poseFrame);
+      if (nostaff) {
+        texture = nostaff;
+        textureKey = `nostaff:${save.gender}:${animation}:${poseFrame}`;
+      }
+    }
     // 궁수 투구: 파츠와 머리 없는 시트가 **둘 다** 준비됐을 때만 머리를 지운 시트로 그린다
     // (파츠 없이 지우면 머리가 빈 채로 보인다).
     if (archerHelm >= 0) {
@@ -413,6 +469,8 @@ export function drawHero(this: GameView, world: World, x: number, y: number, tim
       } else {
         if (this.heroBow) this.heroBow.visible = false;
       }
+      if (mage) syncStaffPart(this, save, animation, poseFrame, heroTint);
+      else if (this.heroStaff) this.heroStaff.visible = false;
       const shownGear = this.heroGear.get('weapon');
       if (shownGear) { this.heroLayer.removeChild(shownGear.sprite); shownGear.sprite.destroy(); this.heroGear.delete('weapon'); }
     } else {
