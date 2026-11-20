@@ -85,17 +85,18 @@ export function drawSkillVfx(this: GameView, world: World, effect: Effect, x: nu
     const size = effect.kind === 'hell' ? width * .95 : effect.kind === 'destroy' ? 260 : effect.kind === 'slam' ? 335 : effect.kind === 'crushing' ? 245 : effect.kind === 'power' ? 165 : 150;
     for (const sprite of sprites) {
       if (effect.kind === 'crushing') {
-        const impactAt = .55 / effect.duration;
-        const impact = Math.max(0, Math.min(1, (t - impactAt) / (1 - impactAt)));
-        if (t < impactAt) {
-          const pulse = .55 + Math.sin(time * 18) * .12;
-          this.ground.ellipse(x, y + 3, 36 + t * 15, 18 + t * 7).stroke({ color: 0xa8d4ff, width: 2.5, alpha: pulse });
-          this.glow.circle(x, y, 45).fill({ color: 0x8abfff, alpha: .09 + t * .12 });
-        }
+        // [작업 212] 10연타 — 타격 간격(62ms)마다 지면 링과 내려찍기 스프라이트가 한 번씩 깜빡인다.
+        // 처음부터 때리므로 예고용 링 단계는 없고, 한 타가 끝날 때마다 다음 타가 시작된다.
+        const interval = Math.max(.02, effect.strikeInterval ?? .062);
+        const step = Math.min(1, (effect.age % interval) / interval);
+        const swing = 1 - step;
+        this.ground.ellipse(x, y + 3, 30 + step * 42, 15 + step * 21).stroke({ color: 0xa8d4ff, width: 2.5, alpha: .7 * swing });
+        this.glow.circle(x, y, 44).fill({ color: 0x8abfff, alpha: .1 * swing });
         sprite.position.set(x, y - 8);
-        sprite.scale.set(size / sprite.texture.width * (.5 + impact * .65), size / sprite.texture.height * (.3 + impact * .45));
+        const scale = size / sprite.texture.width * (.42 + step * .5);
+        sprite.scale.set(scale, scale * .62);
         sprite.rotation = 0;
-        sprite.alpha = t < impactAt ? 0 : Math.max(0, 1 - impact);
+        sprite.alpha = .95 * swing;
         sprite.tint = 0xb1d8ff;
         continue;
       }
@@ -316,7 +317,10 @@ export function updateDamageLabels(this: GameView, effects: Effect[], project: (
         label.anchor.set(.5, 1); this.labels.addChild(label); this.damageLabels.set(effect, label);
       }
       const t = effect.age / effect.duration, [x, y] = project(effect.x, effect.y);
-      label.position.set(x + Math.cos(effect.angle) * 6, y - 24 - t * 25);
+      // [작업 212] 10연타 숫자는 한 점에 겹치지 않도록 타마다 다른 자리에서 떠오른다.
+      const driftX = effect.labelOffsetX ?? Math.cos(effect.angle) * 6;
+      const driftY = effect.labelOffsetY ?? 0;
+      label.position.set(x + driftX, y - 24 - t * 25 + driftY);
       label.scale.set(1 + Math.sin(Math.PI * t) * .25);
       label.alpha = Math.max(0, 1 - t);
     }

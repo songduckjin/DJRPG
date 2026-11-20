@@ -73,7 +73,7 @@ test('마법사는 액티브 8종·패시브 3종을 따로 가지며 다른 직
   for (const id of mageSkillOrder) { assert(skills[id].name.length > 0); assert(skills[id].range >= 120); }
   for (const id of magePassiveOrder) assert(passives[id].description.length > 0);
   // 전사·궁수 목록은 그대로다.
-  assert.deepEqual([...skillOrder], ['slash2', 'spin', 'crushing', 'slam', 'warcry', 'power', 'destroy', 'hell']);
+  assert.deepEqual([...skillOrder], ['slash2', 'slam', 'warcry', 'power', 'destroy', 'hell', 'crushing', 'spin']);
   assert.deepEqual([...archerSkillOrder], ['doubleShot', 'multiShot', 'pierceShot', 'iceArrow', 'hawkEye', 'snipe', 'stormVolley', 'arrowRain']);
   assert.deepEqual([...passiveOrder], ['mastery', 'body', 'instinct']);
   // 마법사 세이브의 퀵슬롯은 마법사 스킬만 받는다.

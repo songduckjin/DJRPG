@@ -7,11 +7,14 @@ export function heroAnimationMode(moving: boolean, attackPose: number, hasAttack
 
 // The attack sheets already carry the swing, so the body itself never stretches, squashes,
 // tips over or rotates for the spin skill. Spin is shown by its VFX and afterimages.
+// `span` is how long the current attack pose lasts: 0.32s for a basic attack, 0.062s for one
+// strike of 딜레이 크러싱's ten-hit flurry (작업 212), so the lunge pulse keeps the same shape.
 export function heroMotion(
-  attackPose: number
+  attackPose: number,
+  span = .32
 ): { pulse: number; scaleX: number; scaleY: number; rotation: number } {
   return {
-    pulse: attackPose > 0 ? Math.sin(Math.PI * (1 - attackPose / .32)) : 0,
+    pulse: attackPose > 0 ? Math.sin(Math.PI * (1 - attackPose / Math.max(.01, span))) : 0,
     scaleX: 1,
     scaleY: 1,
     rotation: 0

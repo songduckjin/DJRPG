@@ -20,8 +20,10 @@ export function skillUpgradeCost(level: number): number { return 40 * level * le
 export type Skill = { id: SkillId; name: string; level: number; icon: string; cooldown: number; power: string; description: string; range: number };
 export type Passive = { id: PassiveId; name: string; level: number; icon: string; description: string };
 
-/** 전사 액티브 8종 — `skillOrder` 는 전사 기본 순서로 남겨 둔다(기존 저장·테스트 호환). */
-export const skillOrder: WarriorSkillId[] = ['slash2', 'spin', 'crushing', 'slam', 'warcry', 'power', 'destroy', 'hell'];
+/** 전사 액티브 8종 — 배열 순서가 스킬창·퀵슬롯·스킬북 순서다.
+ *  작업 212에서 사용자가 정한 순서로 바꿨다: **딜레이 크러싱·드래곤 트위스터가 마지막 두 자리**이고,
+ *  그 앞은 slam·warcry·power·destroy·hell 이 해금 레벨 순(4·5·7·10·14)으로 이어진다. */
+export const skillOrder: WarriorSkillId[] = ['slash2', 'slam', 'warcry', 'power', 'destroy', 'hell', 'crushing', 'spin'];
 /** 궁수 액티브 8종 — 붉은보석식 원거리 사격 트리. */
 export const archerSkillOrder: ArcherSkillId[] = ['doubleShot', 'multiShot', 'pierceShot', 'iceArrow', 'hawkEye', 'snipe', 'stormVolley', 'arrowRain'];
 /** 마법사 액티브 8종 — 원거리 마법탄 트리(스킬 연출은 추후 고도화, 지금은 뼈대). */
@@ -31,13 +33,15 @@ export function skillOrderFor(job: Job): SkillId[] { return job === 'archer' ? a
 
 export const skills: Record<SkillId, Skill> = {
   slash2: { id: 'slash2', name: '휘두르기', level: 2, icon: '⚔', cooldown: 4, power: '공격력 × 2.15', description: '대검을 한 번 크게 휘둘러 전방의 적을 공격한다.', range: 96 },
-  spin: { id: 'spin', name: '드래곤 트위스터', level: 4, icon: '🐉', cooldown: 6, power: '공격력 × 1.65', description: '굵은 용이 넓게 선회하다 궤도를 좁혀 하늘로 솟는다.', range: 170 },
-  crushing: { id: 'crushing', name: '딜레이 크러싱', level: 5, icon: '◉', cooldown: 10, power: '공격력 × 3.4 · 지연 폭발', description: '적의 위치에 충격 지점을 예고하고 잠시 뒤 강하게 내려찍는다.', range: 125 },
-  slam: { id: 'slam', name: '와일드 스탬프', level: 7, icon: '💥', cooldown: 8, power: '공격력 × 2.2', description: '지면을 내리찍어 붉은 균열을 만들고 적을 밀쳐 둔화시킨다.', range: 126 },
-  warcry: { id: 'warcry', name: '블러드 레이지', level: 10, icon: '🩸', cooldown: 14, power: '공격력 × 1.5 · 공격속도 상승', description: '6초 동안 붉은 투기로 공격력·공격속도·이동속도가 상승한다.', range: 120 },
-  power: { id: 'power', name: '파워 스트라이크', level: 14, icon: '⚡', cooldown: 6, power: '공격력 × 4.0', description: '좁은 전방에 강력한 일격을 꽂아 보스를 노린다.', range: 100 },
-  destroy: { id: 'destroy', name: '디스트로이 스윙', level: 18, icon: '☄', cooldown: 9, power: '공격력 × 2.7', description: '전방으로 거대한 붉은 검기 충격파를 날린다.', range: 175 },
-  hell: { id: 'hell', name: '헬 파이어 소드', level: 24, icon: '🔥', cooldown: 16, power: '공격력 × 3.2', description: '불타는 대검 폭발로 넓은 범위의 적을 태운다.', range: 185 },
+  // 1번 다음 다섯 자리는 작업 212에서 해금 레벨을 앞당겼다(4·5·7·10·14) — 크러싱·트위스터가 마지막 두 자리다.
+  slam: { id: 'slam', name: '와일드 스탬프', level: 4, icon: '💥', cooldown: 8, power: '공격력 × 2.2', description: '지면을 내리찍어 붉은 균열을 만들고 적을 밀쳐 둔화시킨다.', range: 126 },
+  warcry: { id: 'warcry', name: '블러드 레이지', level: 5, icon: '🩸', cooldown: 14, power: '공격력 × 1.5 · 공격속도 상승', description: '6초 동안 붉은 투기로 공격력·공격속도·이동속도가 상승한다.', range: 120 },
+  power: { id: 'power', name: '파워 스트라이크', level: 7, icon: '⚡', cooldown: 6, power: '공격력 × 4.0', description: '좁은 전방에 강력한 일격을 꽂아 보스를 노린다.', range: 100 },
+  destroy: { id: 'destroy', name: '디스트로이 스윙', level: 10, icon: '☄', cooldown: 9, power: '공격력 × 2.7', description: '전방으로 거대한 붉은 검기 충격파를 날린다.', range: 175 },
+  hell: { id: 'hell', name: '헬 파이어 소드', level: 14, icon: '🔥', cooldown: 16, power: '공격력 × 3.2', description: '불타는 대검 폭발로 넓은 범위의 적을 태운다.', range: 185 },
+  // [작업 212] 딜레이 크러싱 — 붉은보석1식 단일 타겟 10연타. 총 위력은 예전 한 방(× 3.4)과 같다.
+  crushing: { id: 'crushing', name: '딜레이 크러싱', level: 18, icon: '◉', cooldown: 10, power: '공격력 × 3.4 · 단일 타겟 10연타', description: '적 하나에게 잔상을 남기며 빠르게 10번 내려친다.', range: 125 },
+  spin: { id: 'spin', name: '드래곤 트위스터', level: 24, icon: '🐉', cooldown: 6, power: '공격력 × 1.65', description: '굵은 용이 넓게 선회하다 궤도를 좁혀 하늘로 솟는다.', range: 170 },
   doubleShot: { id: 'doubleShot', name: '더블 샷', level: 2, icon: '🏹', cooldown: 4, power: '공격력 × 1.35 · 2발', description: '시위를 두 번 당겨 두 발의 화살을 빠르게 날린다.', range: 232 },
   multiShot: { id: 'multiShot', name: '멀티 샷', level: 4, icon: '🎯', cooldown: 7, power: '공격력 × 0.95 · 5발', description: '부채꼴로 다섯 발의 화살을 흩뿌려 여러 적을 동시에 맞힌다.', range: 226 },
   pierceShot: { id: 'pierceShot', name: '관통 사격', level: 5, icon: '➳', cooldown: 8, power: '공격력 × 2.6 · 관통', description: '강하게 당긴 화살이 여러 적을 꿰뚫고 지나간다.', range: 268 },
