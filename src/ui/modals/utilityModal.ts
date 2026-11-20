@@ -4,6 +4,7 @@ import { salvagePlusLabel, salvagePlusUnlocked, salvagePlusValues } from '../sal
 import type { JourneyTask } from '../../game/journey';
 import { preferences, savePreferences } from '../../game/preferences';
 import { goldNode } from '../currency';
+import { POUCH_ICON_URL } from '../pouchArt';
 import { loadShop } from './shopModal';
 
 function element<K extends keyof HTMLElementTagNameMap>(tag:K,className='',text=''){const node=document.createElement(tag);node.className=className;node.textContent=text;return node;}
@@ -11,8 +12,18 @@ function button(text:string,run:()=>void,disabled=false){const node=element('but
 /** 받기·모두 받기(작업 209) — 지금 누를 수 있으면 `is-ready`로 금빛 강조, 아니면 `:disabled`로 흐리게(사용자 요청 #4246). */
 function claimButton(text:string,run:()=>void,disabled=false){const node=button(text,run,disabled);node.classList.add('utility-claim');if(!disabled)node.classList.add('is-ready');return node;}
 function heading(parent:HTMLElement,text:string){parent.append(element('h3','utility-heading',text));}
-/** 보상 카드의 `보물 주머니 N개`(작업 207) — 스킬북과 같은 자리에, 주머니 색으로 적는다. */
-function pouchReward(count:number):HTMLElement{const node=element('span','pouch-reward',`보물 주머니 ${count}개`);node.title='무작위 보물 주머니 · 가방에서 열면 금화·장비·스킬북이 나옵니다';return node;}
+/**
+ * 보상 카드의 `[주머니 그림] 보물 주머니 N개`(작업 207 → 210, 사용자 지시 `#4461` "보상주는거 이미지로 넣어줘").
+ * 금화 보상의 금화 아이콘(`goldNode`)과 같은 인라인 크기로 투명 배경 가죽 주머니 그림을 붙인다 —
+ * 일일·주간·업적·우편함이 모두 이 함수를 쓰므로 네 화면이 같은 아이콘을 본다.
+ */
+function pouchReward(count:number):HTMLElement{
+  const node=element('span','pouch-reward');
+  const icon=document.createElement('img');icon.className='pouch-reward-icon';icon.src=POUCH_ICON_URL;icon.alt='';icon.draggable=false;
+  node.append(icon,element('span','pouch-reward-label',`보물 주머니 ${count}개`));
+  node.title='무작위 보물 주머니 · 가방에서 열면 금화·장비·스킬북이 나옵니다';
+  return node;
+}
 function persist(ui:Interface){if(!savePreferences())ui.message('이 기기에서 설정을 저장하지 못했습니다. 현재 실행에는 적용됩니다.');}
 export function renderSettings(ui:Interface,dialog:HTMLElement):void{
   const section=element('section','utility-content');heading(section,'화면');

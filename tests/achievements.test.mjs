@@ -46,7 +46,7 @@ test('업적 단계는 사용자 확정 7개 분류·목표로 바뀌었다 (작
   assert.equal(achievements.every(task => task.books === 0), true, '스킬북 직접 지급 없음');
 });
 
-test('보스 업적 현재 값은 사냥터 보스·정예·던전 보스·월드보스가 합쳐진 bossKills 하나를 센다', () => {
+test('보스 업적 현재 값은 사냥터 보스·던전 보스·월드보스가 합쳐진 bossKills 하나를 센다(정예 제외)', () => {
   const achievements = view({ bossKills: 50 }).achievements;
   const boss = achievements.filter(task => task.name.startsWith('보스 처치'));
   assert.deepEqual(boss.map(task => task.current), [10, 50, 50, 50, 50], '50회면 10·50단계 달성');
@@ -54,14 +54,15 @@ test('보스 업적 현재 값은 사냥터 보스·정예·던전 보스·월�
   assert.deepEqual(bossReady, ['boss-10', 'boss-50']);
 });
 
-test('필드 정예 몹은 bossKills를 올리고 일반 몹은 올리지 않는다 — 합산의 시작점', () => {
+test('필드에서는 사냥터 층 보스만 bossKills를 올린다 — 일반 몹·정예 몹은 세지 않는다', () => {
   const originalRandom = Math.random; Math.random = () => .99;
   try {
     const world = new World(freshSave()); world.enemies = []; world.spawnTimer = 999;
     const enemy = over => ({ x: 60, y: 20, hp: 0, maxHp: 10, boss: false, hit: 0, step: 0, moving: false, knockX: 0, knockY: 0, slow: 0, ...over });
     world.kill(enemy({})); assert.equal(world.save.bossKills, 0, '일반 몹');
-    world.kill(enemy({ elite: true })); assert.equal(world.save.bossKills, 1, '정예 몹');
-    world.kill(enemy({ boss: true })); assert.equal(world.save.bossKills, 2, '사냥터 층 보스');
+    world.kill(enemy({ elite: true })); assert.equal(world.save.bossKills, 0, '필드 정예 몹은 보스가 아니다(작업 210)');
+    world.kill(enemy({ boss: true })); assert.equal(world.save.bossKills, 1, '사냥터 층 보스');
+    world.kill(enemy({ boss: true, elite: true })); assert.equal(world.save.bossKills, 2, '보스가 정예 표시를 가져도 1회만');
   } finally { Math.random = originalRandom; }
 });
 

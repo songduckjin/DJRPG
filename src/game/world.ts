@@ -330,9 +330,10 @@ export class World {
   kill(enemy: Enemy): void {
     this.effects.push({ x: enemy.x, y: enemy.y, kind: 'death', age: 0, duration: .7, angle: Math.random() * Math.PI * 2 });
     this.save.kills++;
-    // 보스 업적은 **모든 보스류 합산**이다(작업 208): 사냥터 층 보스 + 필드 정예 몹.
-    // 던전 5·10층 보스와 월드보스 도전은 던전·월드보스 화면이 같은 `bossKills`에 더한다.
-    if (enemy.boss || enemy.elite) this.save.bossKills++;
+    // 보스 업적은 **보스만** 센다(작업 210, 사용자 지시 `#4475`·`#4486` "보스가 아니잖아"):
+    // 사냥터 층 보스 + 던전 5·10층 보스 + 월드보스 도전(하루 3회, 도전마다 1회).
+    // 필드 정예 몹은 보스가 아니므로 세지 않는다. 던전·월드보스 화면이 같은 `bossKills`에 더한다.
+    if (enemy.boss) this.save.bossKills++;
     // 정예는 금화·경험치 2배, 장비·스킬북 드롭률은 일반 몹과 같은 1배다(작업 206).
     const gold = enemy.boss ? 70 * this.save.floor : (3 + this.save.floor) * (enemy.elite ? ELITE_REWARD_SCALE : 1);
     this.save.gold += gold;

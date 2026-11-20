@@ -11,7 +11,8 @@ const { canStoreItem, equipmentCount } = await import('../src/game/bagCapacity.t
 const { autoEquipBest, salvageByRarity } = await import('../src/game/items.ts');
 const { filterSaleItems } = await import('../src/ui/itemOrder.ts');
 const { equipmentCodexKey } = await import('../src/game/codex.ts');
-const { pouchRatesPanel, pouchResultCard, openPouchWindow, pouchGlowInk, POUCH_OPEN_MS } = await import('../src/ui/modals/pouchModal.ts');
+const { pouchRatesPanel, pouchResultCard, openPouchWindow, pouchGlowInk, POUCH_OPEN_MS, POUCH_FRAME_AT, POUCH_RESULT_MS } = await import('../src/ui/modals/pouchModal.ts');
+const pouchArt = await import('../src/ui/pouchArt.ts');
 const { itemDetail, renderInventory } = await import('../src/ui/modals/equipModal.ts');
 const css = readFileSync(new URL('../src/styles/modals.css', import.meta.url), 'utf8');
 
@@ -236,21 +237,88 @@ test('큰 개봉 창은 왼쪽 위 [확률표]를 펼치고 [열기]로 주머�
   } finally { globalThis.document = previous; }
 });
 
-test('개봉에는 흔들림→벌어짐→빛→결과 등장 연출이 0.8~1.0초로 들어가고 모션 감소도 대응한다', () => {
+test('개봉 그림 4장은 투명 배경 512×512 PNG이고 가방 아이콘은 닫힌 주머니를 쓴다', () => {
+  assert.deepEqual([...pouchArt.POUCH_FRAME_URLS], [
+    '/assets/icons/treasure_pouch_v2.png', '/assets/icons/treasure_pouch_step2_v2.png',
+    '/assets/icons/treasure_pouch_step3_v2.png', '/assets/icons/treasure_pouch_open_v2.png'
+  ],'닫힘 → 끈 헐거워짐 → 빛 새어 나옴 → 활짝');
+  assert.equal(new Set(pouchArt.POUCH_FRAME_URLS).size, 4,'네 장은 서로 다른 파일');
+  assert.equal(pouchArt.POUCH_ART_URL, pouchArt.POUCH_FRAME_URLS[0],'개봉 창은 닫힌 주머니로 시작');
+  assert.equal(pouchArt.POUCH_ICON_URL, pouchArt.POUCH_FRAME_URLS[0],'가방 아이콘도 닫힌 주머니');
+  assert.equal(pouchArt.pouchFrameUrl(0), pouchArt.POUCH_FRAME_URLS[0]);
+  assert.equal(pouchArt.pouchFrameUrl(3), pouchArt.POUCH_FRAME_URLS[3]);
+  assert.equal(pouchArt.pouchFrameUrl(9), pouchArt.POUCH_FRAME_URLS[3],'범위를 넘으면 마지막 단계');
+  assert.equal(pouchArt.pouchFrameUrl(-2), pouchArt.POUCH_FRAME_URLS[0],'음수는 1단계');
+  for (const url of pouchArt.POUCH_FRAME_URLS) {
+    assert.match(url, /^\/assets\/icons\/treasure_pouch(_step\d|_open)?_v2\.png$/,'캐시를 피하는 새 이름');
+    const file = readFileSync(new URL(`../public${url}`, import.meta.url));
+    assert.equal(file.toString('ascii', 1, 4), 'PNG', `${url} PNG`);
+    assert.equal(file.readUInt32BE(16), 512, `${url} 가로 512`);
+    assert.equal(file.readUInt32BE(20), 512, `${url} 세로 512`);
+    assert.equal(file[25], 6, `${url} RGBA(투명 배경)`);
+  }
+});
+
+test('개봉은 0.2·0.42·0.64초에 그림이 4단계로 바뀌고 0.9초에 결과 카드가 뜨며 모션 감소도 대응한다', () => {
+  assert.deepEqual([...POUCH_FRAME_AT], [0, 200, 420, 640], '그림이 바뀌는 시각');
+  assert.equal(POUCH_RESULT_MS, 900, '보상 카드 등장');
   assert(POUCH_OPEN_MS >= 800 && POUCH_OPEN_MS <= 1000, `연출 ${POUCH_OPEN_MS}ms`);
-  for (const name of ['pouch-open', 'pouch-glow', 'pouch-reveal']) assert(css.includes(`@keyframes ${name}`), `${name} 키프레임`);
-  assert(css.includes('.pouch-window-stage.is-opening .pouch-art'),'흔들림·벌어짐은 주머니 그림에');
+  // CSS 애니메이션 지연이 위 시각과 같아야 한다(같은 박자로 움직인다).
+  assert(/pouch-shake 200ms/.test(css), '1단계 흔들림은 0.20초');
+  assert(/pouch-burst 700ms 200ms/.test(css), '2~4단계 부풀기는 0.20초부터 0.90초까지');
+  assert(/pouch-glow 520ms[^;]*420ms both/.test(css), '빛은 끈이 풀리는 0.42초부터');
+  assert(/pouch-flash 300ms[^;]*620ms both/.test(css), '섬광은 활짝 열리는 0.64초 언저리');
+  assert(/pouch-reveal 420ms[^;]*900ms both/.test(css), '결과 등장은 빛이 퍼진 뒤(0.90초) 시작');
+  for (const name of ['pouch-shake', 'pouch-burst', 'pouch-glow', 'pouch-flash', 'pouch-reveal']) assert(css.includes(`@keyframes ${name}`), `${name} 키프레임`);
+  assert(css.includes('.pouch-window-stage.is-opening .pouch-art'),'단계 전환은 주머니 그림에');
   assert(css.includes('.pouch-window-stage.is-opening .pouch-glow'),'빛은 글로우 레이어에');
+  assert(css.includes('.pouch-flash'),'섬광 레이어');
   assert(css.includes('.pouch-window-stage.is-opening .pouch-window-result'),'결과 카드는 늦게 등장');
-  assert(/pouch-reveal 420ms[^;]*600ms both/.test(css),'결과 등장은 빛이 퍼진 뒤(0.6초) 시작');
   assert(css.includes('mix-blend-mode: screen'),'빛은 주머니 위에 screen으로 얹는다');
+  // 배경을 지운 투명 PNG라 사각 상자 그림자가 남지 않게 알파를 따라가는 shadow를 쓴다.
+  assert(/img\.pouch-art\s*\{[^}]*drop-shadow/.test(css) && !/img\.pouch-art\s*\{[^}]*box-shadow:\s*0 8px 22px/.test(css),'투명 그림에는 drop-shadow');
   const reduce = css.slice(css.indexOf('@media (prefers-reduced-motion: reduce)'));
-  assert(reduce.includes('.pouch-window-stage.is-opening .pouch-art') && reduce.includes('.pouch-glow'),'모션 감소 대응');
+  assert(reduce.includes('.pouch-window-stage.is-opening .pouch-art') && reduce.includes('.pouch-glow') && reduce.includes('.pouch-flash'),'모션 감소 대응');
   // 빛 색은 보상 종류를 따른다 — 금화·스킬북은 황금빛, 장비는 그 등급 색.
   const goldSave = withPouches(1), gold = pouch.openPouch(goldSave, undefined, constant([.10, .10]));
   assert.equal(pouchGlowInk(gold.result), '#ffd977');
   const gearSave = withPouches(1), gear = pouch.openPouch(gearSave, undefined, constant([.60, .70]));
   assert.equal(pouchGlowInk(gear.result), pouch.POUCH_RARITY_INK.rare);
+});
+
+test('큰 개봉 창은 [열기]에서 닫힌 주머니부터 4단계로 그림을 갈아 끼운다(0.2·0.42·0.64초)', async () => {
+  const previous = globalThis.document;
+  globalThis.document = { createElement: tag => element(tag) };
+  try {
+    const save = withPouches(2);
+    const ui = { root: element(), modal: element(), openModal: 'equipment', renderModal() {}, message() {}, world: { save, onChange() {} } };
+    const api = openPouchWindow(ui, undefined, { delay: 30 });
+    const stage = find(api.overlay, node => node.className === 'pouch-window-stage');
+    const art = find(api.overlay, node => typeof node.className === 'string' && node.className.includes('pouch-art'));
+    assert(stage && art, '주머니 그림과 연출 무대');
+    assert.equal(art.src, pouchArt.POUCH_FRAME_URLS[0], '처음에는 닫힌 주머니');
+    assert.equal(stage.dataset.frame, '1');
+    const open = find(api.overlay, node => node.textContent === '열기');
+    open.onclick();
+    assert.equal(art.src, pouchArt.POUCH_FRAME_URLS[0], '누른 직후에도 1단계(흔들림)');
+    await new Promise(resolve => setTimeout(resolve, 260));
+    assert.equal(art.src, pouchArt.POUCH_FRAME_URLS[1], '0.2초 — 끈 헐거워짐');
+    assert.equal(stage.dataset.frame, '2');
+    await new Promise(resolve => setTimeout(resolve, 220));
+    assert.equal(art.src, pouchArt.POUCH_FRAME_URLS[2], '0.42초 — 끈 풀리고 빛이 새어 나옴');
+    await new Promise(resolve => setTimeout(resolve, 220));
+    assert.equal(art.src, pouchArt.POUCH_FRAME_URLS[3], '0.64초 — 활짝 열림');
+    assert.equal(stage.dataset.frame, '4');
+    await new Promise(resolve => setTimeout(resolve, 300));
+    // `한 번 더 열기`는 다시 닫힌 주머니(1단계)부터 새로 시작한다.
+    const again = find(api.overlay, node => node.textContent === '한 번 더 열기');
+    assert(again, '[한 번 더 열기]');
+    again.onclick();
+    assert.equal(art.src, pouchArt.POUCH_FRAME_URLS[0], '다시 1단계부터');
+    assert.equal(stage.dataset.frame, '1');
+    await new Promise(resolve => setTimeout(resolve, 10));
+    api.close();
+  } finally { globalThis.document = previous; }
 });
 
 test('개봉 결과 카드는 금화는 금화로, 장비·스킬북은 등급 색 이름으로 보여 준다', () => {

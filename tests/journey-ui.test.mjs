@@ -123,13 +123,22 @@ test('achievement all-claim receives visible steps only instead of skipping hidd
  }finally{globalThis.document=previous;}
 });
 
-test('업적 카드는 금화와 보물 주머니를 함께 보여 주고 스킬북은 표시하지 않는다',()=>{
+test('업적 카드는 금화와 보물 주머니(그림 포함)를 함께 보여 주고 스킬북은 표시하지 않는다',async()=>{
   const previous=globalThis.document;globalThis.document={createElement:node};
   try{
     const {ui}=fixture(),dialog=node();
     ui.journey.data.achievements=[{...task('boss-200',200,200),gold:20000,books:0,pouches:2,category:'보스'},{...task('boss-10',10,10),gold:1000,books:0,pouches:0,category:'보스'}];
     renderUtility(ui,dialog,'achievements');
     assert(find(dialog,n=>n.textContent==='보물 주머니 2개'),'마지막 단계 주머니 표시');
+    // 주머니 보상은 글자만이 아니라 가죽 주머니 그림과 함께 보여 준다(작업 210, 사용자 지시 #4461).
+    const reward=find(dialog,n=>String(n.className).includes('pouch-reward'));
+    assert(reward,'보물 주머니 보상 칸');
+    const icon=reward.children.find(child=>child.tag==='img');
+    assert(icon&&String(icon.className).includes('pouch-reward-icon'),'주머니 그림 아이콘');
+    assert.equal(icon.src,'/assets/icons/treasure_pouch_v2.png','투명 배경 가죽 주머니');
+    const {readFileSync}=await import('node:fs');
+    const css=readFileSync(new URL('../src/styles/modals.css',import.meta.url),'utf8');
+    assert(/\.pouch-reward-icon\s*\{[^}]*width:\s*19px/.test(css),'금화 아이콘과 같은 인라인 크기');
     assert(!find(dialog,n=>String(n.textContent).startsWith('스킬북')),'스킬북 표시 없음');
   }finally{globalThis.document=previous;}
 });

@@ -6,8 +6,9 @@ import {worldBossSchema} from './world-boss-schema.mjs';
 export {worldBossSchema} from './world-boss-schema.mjs';
 
 export const WORLD_BOSS_HP=10000000;
-// 하루 도전 횟수(작업 207, 사용자 확정): 3회 → **1회**. `remaining`·안내 문구·테스트가 이 값 하나를 본다.
-export const WORLD_BOSS_DAILY_ATTEMPTS=1;
+// 하루 도전 횟수(작업 210, 사용자 지시 `#4445` "월드보스 3번 치게 해야지"): 207에서 1회로 줄였던 것을 **3회로 복구**.
+// `remaining`·안내 문구·테스트가 이 값 하나를 본다.
+export const WORLD_BOSS_DAILY_ATTEMPTS=3;
 // Re-run the same combat rules from the frozen server-owned loadout. Client damage is never trusted.
 export function replayBoss(save,seconds,dodges=[]){
   const session=new WorldBossRehearsal(parseSave(save,save.accountId));

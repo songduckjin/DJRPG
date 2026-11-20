@@ -159,8 +159,8 @@ export function achievementReward(index, count) {
 const milestones = [
   ['level','성장','캐릭터 레벨',[5,10,15,20,25,30],save=>save.level],
   ['kills','사냥','몬스터 처치',[500,1000,2000,4000,8000,16000,32000],save=>save.kills],
-  // 보스는 **모든 보스류 합산**이다(작업 208, 사용자 확정): 사냥터 층 보스 + 필드 정예 몹 + 던전 5·10층 보스
-  // + 월드보스 도전/처치가 모두 세이브의 `bossKills` 하나로 모인다.
+  // 보스는 **보스만 합산**한다(작업 210, 사용자 지시 `#4475`·`#4486`): 사냥터 층 보스 + 던전 5·10층 보스
+  // + 월드보스 도전(하루 3회, 도전마다 1회)이 세이브의 `bossKills` 하나로 모인다. 필드 정예 몹은 제외.
   ['boss','보스','보스 처치',[10,50,100,150,200],save=>save.bossKills??0],
   ['floor','탐험','최고 도달 층',[5,10,15,20],save=>save.maxFloor??save.floor],
   ['collection','수집','장비 도감 수집',[10,50,100,200,300,450,570],save=>collectionCount(save)],

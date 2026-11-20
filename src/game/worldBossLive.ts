@@ -3,7 +3,7 @@ import type {SaveSync} from './sync';
 import type {Save} from './store';
 import type {BossStanding} from '../ui/worldBossPresentation';
 import type {Interface} from '../ui/interface';
-export type BossData={day:string;hp:number;maxHp:number;remaining:number;/** 하루 도전 횟수 상한(서버 WORLD_BOSS_DAILY_ATTEMPTS, 작업 207 - 1회). */maxAttempts?:number;endsAt:number;killed:boolean;guest:boolean;standing:BossStanding;now:number;battle?:{id:string;startedAt:number;elapsed:number;damage:number;hp:number;finished:boolean;defeated:boolean;save?:Save}};
+export type BossData={day:string;hp:number;maxHp:number;remaining:number;/** 하루 도전 횟수 상한(서버 WORLD_BOSS_DAILY_ATTEMPTS, 작업 210 - 3회). */maxAttempts?:number;endsAt:number;killed:boolean;guest:boolean;standing:BossStanding;now:number;battle?:{id:string;startedAt:number;elapsed:number;damage:number;hp:number;finished:boolean;defeated:boolean;save?:Save}};
 export type BossPreparation=Promise<{ok:true}|{ok:false;message:string}>;
 export class WorldBossLive {
   data?:BossData;error='';loading=false;private loadPromise?:Promise<BossData>;
@@ -37,13 +37,13 @@ export function mountWorldBossLive(ui:Interface):void {
   live.onChange=()=>{
     const data=live.data;if(data)ui.worldBoss.standing=data.standing;
     const entry=ui.root.querySelector<HTMLElement>('.world-boss-entry');
-    if(entry){entry.setAttribute('aria-label',live.practice?'월드보스 연습':'월드보스');entry.title=live.error||(!data?'월드보스 연결 중':`공유 체력 ${data.hp.toLocaleString('ko-KR')} / ${data.maxHp.toLocaleString('ko-KR')} · 남은 도전 ${data.remaining}/${data.maxAttempts??1}`);
+    if(entry){entry.setAttribute('aria-label',live.practice?'월드보스 연습':'월드보스');entry.title=live.error||(!data?'월드보스 연결 중':`공유 체력 ${data.hp.toLocaleString('ko-KR')} / ${data.maxHp.toLocaleString('ko-KR')} · 남은 도전 ${data.remaining}/${data.maxAttempts??3}`);
       entry.style.setProperty('--wb-hp-angle',`${data?280*data.hp/data.maxHp:0}deg`);
-      const count=entry.querySelector('.wb-entry-count');if(count)count.textContent=live.practice?'연습':data?`${data.remaining}/${data.maxAttempts??1}`:'…';
+      const count=entry.querySelector('.wb-entry-count');if(count)count.textContent=live.practice?'연습':data?`${data.remaining}/${data.maxAttempts??3}`:'…';
     }
     const health=ui.root.querySelector<HTMLElement>('.world-boss-content .wb-health');
     if(health){const bar=health.querySelector<HTMLElement>('i'),label=health.querySelector('span');if(bar)bar.style.width=`${data?data.hp/data.maxHp*100:0}%`;if(label)label.textContent=live.error||(!data?'공유 체력 확인 중…':data.killed?'오늘의 월드보스 처치 완료':`${data.hp.toLocaleString('ko-KR')} / ${data.maxHp.toLocaleString('ko-KR')}`);}
-    const start=ui.root.querySelector<HTMLButtonElement>('.world-boss-content .wb-challenge');if(start&&!live.practice){start.disabled=!data||data.killed||data.remaining===0;start.textContent=!data?'연결 중…':data.killed?'토벌 완료':data.remaining===0?'오늘 도전 완료':`도전하기 · ${data.remaining}/${data.maxAttempts??1}`;}
+    const start=ui.root.querySelector<HTMLButtonElement>('.world-boss-content .wb-challenge');if(start&&!live.practice){start.disabled=!data||data.killed||data.remaining===0;start.textContent=!data?'연결 중…':data.killed?'토벌 완료':data.remaining===0?'오늘 도전 완료':`도전하기 · ${data.remaining}/${data.maxAttempts??3}`;}
   };
   live.onChange();const refresh=()=>{if(!document.hidden&&!ui.worldBossField&&!live.sync.locked&&!live.sync.conflicted)void live.load().catch(()=>{});};
   refresh();const timer=setInterval(refresh,5000);window.addEventListener('pagehide',()=>clearInterval(timer),{once:true});

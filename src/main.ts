@@ -61,7 +61,12 @@ async function start(): Promise<void> {
       overlay.append(note, button); document.body.appendChild(overlay);
       setTimeout(() => location.reload(), 8000);
     };
-    window.addEventListener('game-logout', async () => { const ok = await flush(); if (ok) { clearToken(); location.reload(); } });
+    // 로그아웃(작업 210, #4347 후속): 저장이 실패해도 유저가 이 화면에 갇히지 않게 한 번 확인하고 나갈 길을 준다.
+    window.addEventListener('game-logout', async () => {
+      const ok = await flush();
+      if (!ok && !confirm('서버 저장에 실패했습니다. 저장되지 않은 상태로 로그아웃할까요?')) return;
+      clearToken(); location.reload();
+    });
     gameUi = ui;
     if (pendingMessage) ui.message(pendingMessage);
     if (offlineReward) ui.showOfflineReward(offlineReward);

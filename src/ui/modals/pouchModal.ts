@@ -2,11 +2,20 @@ import { equipmentImage, isSkillBook, itemDisplayName, rarityNames, type Rarity 
 import { openPouch, POUCH_OVERALL_RATES, POUCH_RARITY_INK, pouchCount, POUCH_HINT, pouchResultText, firstPouch, type PouchResult } from '../../game/pouch';
 import { isLegendaryPouchResult } from '../../game/legendBoard';
 import { createSkillBookArt } from '../skillBookArt';
-import { pouchArt } from '../pouchArt';
+import { pouchArt, preloadPouchFrames, setPouchFrame, POUCH_FRAME_URLS } from '../pouchArt';
 import { goldMarkup } from '../currency';
 import type { Interface } from '../interface';
 
-/** 개봉 연출 길이(작업 207 사용자 요청: 0.8~1.0초) — 흔들림 → 끈 풀림/벌어짐 → 빛 → 결과 등장. */
+/**
+ * 개봉 연출 타임라인 (작업 210 — 사용자 지시 `#4404` "당연히 부드럽게 열어야지").
+ * 4단계 그림이 바뀌는 시각(ms, [열기]를 누른 순간부터)과 보상 카드가 뜨는 시각.
+ * `POUCH_FRAME_AT`의 값은 `styles/modals.css`의 애니메이션 지연(`.pouch-art`·`.pouch-glow`·
+ * `.pouch-flash`·`.pouch-window-result`)과 **같은 시각**이어야 한다(테스트가 둘을 함께 검사).
+ */
+export const POUCH_FRAME_AT = [0, 200, 420, 640] as const;      // 닫힘 → 끈 헐거워짐 → 빛 새어 나옴 → 활짝
+/** 보상 카드가 떠오르는 시각(빛이 퍼진 뒤). */
+export const POUCH_RESULT_MS = 900;
+/** 연출 전체 길이(작업 207 사용자 요청 0.8~1.0초 유지) — 이 뒤에 버튼 잠금이 풀린다. */
 export const POUCH_OPEN_MS = 950;
 
 function element<K extends keyof HTMLElementTagNameMap>(tag: K, className = '', text = ''): HTMLElementTagNameMap[K] {
@@ -90,13 +99,19 @@ type PouchWindowOptions = { /** 연출 길이 — 테스트가 0으로 줄인다
  * 세 분류 박스 확률표가 창 안쪽에 펼쳐지고, 가운데 주머니를 `[열기]`로 까면 결과 카드가 뜬다.
  * 더 남아 있으면 `[한 번 더 열기]`, 아니면 `[확인]`으로 닫힌다.
  *
- * **[열기]의 연출**(사용자 요청 `#3933`): 주머니가 흔들리다 위로 벌어지고(0~0.5초), 입구에서 빛이
- * 터지고(0.25~0.9초), 빛이 퍼진 뒤 결과 카드가 짠 하고 떠오른다(0.6초~). 세이브 차감은 **누르는 즉시
- * 한 번만** 하고(연출은 화면만), 연출이 끝날 때까지 버튼을 잠가 두 번 까이지 않게 한다.
- * `prefers-reduced-motion`이면 애니메이션 없이 결과가 바로 보인다(CSS).
+ * **[열기]의 연출**(작업 210, 4단계 — 사용자 지시 `#4404`): 0~0.20초 닫힌 주머니가 살짝 부풀며
+ * 흔들리고, 0.20초에 끈이 헐거워진 2단계, 0.42초에 끈이 풀리며 안쪽 황금빛이 새어 나오는 3단계,
+ * 0.64초에 활짝 열린 4단계로 갈아 끼우며 입구에서 등급색/황금빛 광선이 퍼지고, 0.90초에 결과
+ * 카드가 짠 하고 떠오른다. 네 장은 창을 열 때 미리 받아 두어 전환이 깜빡이지 않는다.
+ * 세이브 차감은 **누르는 즉시 한 번만** 하고(연출은 화면만), 연출이 끝날 때까지 버튼을 잠가
+ * 두 번 까이지 않게 한다. `prefers-reduced-motion`이면 애니메이션 없이 결과가 바로 보인다(CSS).
  */
 export function openPouchWindow(ui: Interface, itemId?: string, options: PouchWindowOptions = {}): PouchWindowApi {
   const delay = options.delay ?? POUCH_OPEN_MS;
+  // 모션 감소 사용자는 단계 전환 없이 곧바로 활짝 열린 그림과 결과를 본다.
+  const reducedMotion = typeof window !== 'undefined'
+    && typeof window.matchMedia === 'function'
+    && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const save = ui.world.save;
   const overlay = element('div', 'pouch-window');
   overlay.setAttribute('role', 'dialog');
@@ -112,13 +127,19 @@ export function openPouchWindow(ui: Interface, itemId?: string, options: PouchWi
   top.append(ratesButton, closeButton);
 
   const stage = element('div', 'pouch-window-stage');
-  const art = pouchArt('pouch-art');
+  // 개봉 창을 열 때 네 장을 미리 받아 두어, 단계가 바뀔 때 그림이 깜빡이지 않게 한다.
+  preloadPouchFrames();
+  const art = pouchArt('pouch-art') as HTMLImageElement;
   // 주머니 입구에서 터지는 빛 — 주머니 그림 위에 screen으로 얹어 빛줄기처럼 보이게 한다.
   const glow = element('span', 'pouch-glow');
   glow.setAttribute('aria-hidden', 'true');
+  // 4단계로 넘어가는 순간(0.64초)의 한 번짜리 섬광.
+  const flash = element('span', 'pouch-flash');
+  flash.setAttribute('aria-hidden', 'true');
   const result = element('div', 'pouch-window-result');
   result.setAttribute('aria-live', 'polite');
-  stage.append(art, glow, result);
+  stage.dataset.frame = '1';
+  stage.append(art, glow, flash, result);
 
   const title = element('h3', 'pouch-window-title', firstPouch(save)?.name ?? '무작위 보물 주머니');
   const hint = element('p', 'pouch-window-hint', POUCH_HINT);
@@ -145,9 +166,12 @@ export function openPouchWindow(ui: Interface, itemId?: string, options: PouchWi
   };
   let animating = false, closed = false;
   let timer: ReturnType<typeof setTimeout> | undefined;
+  const frameTimers: ReturnType<typeof setTimeout>[] = [];
+  const clearFrameTimers = (): void => { while (frameTimers.length) clearTimeout(frameTimers.pop() as ReturnType<typeof setTimeout>); };
   const close = (): void => {
     closed = true;
     if (timer !== undefined) clearTimeout(timer);
+    clearFrameTimers();
     if (typeof window !== 'undefined' && typeof window.removeEventListener === 'function') window.removeEventListener('keydown', onKey, true);
     observer?.disconnect();
     overlay.remove?.();
@@ -183,9 +207,26 @@ export function openPouchWindow(ui: Interface, itemId?: string, options: PouchWi
     result.setAttribute('data-kind', opened.result.kind);
     glow.style.setProperty('--pouch-glow', pouchGlowInk(opened.result));
     // 같은 연출을 다시 틀 수 있게 클래스를 지웠다가 리플로 뒤에 붙인다.
+    // `한 번 더 열기`도 늘 1단계(닫힌 주머니)부터 새로 시작한다.
+    clearFrameTimers();
     stage.classList.remove('is-opening');
+    stage.dataset.frame = '1';
+    setPouchFrame(art, 0);
     void (stage as HTMLElement).offsetWidth;
     stage.classList.add('is-opening');
+    // 0.20 / 0.42 / 0.64초에 그림을 2·3·4단계로 갈아 끼운다(모션 감소면 곧바로 활짝 열린 컷).
+    if (reducedMotion) {
+      stage.dataset.frame = String(POUCH_FRAME_URLS.length);
+      setPouchFrame(art, POUCH_FRAME_URLS.length - 1);
+    } else {
+      for (let step = 1; step < POUCH_FRAME_URLS.length; step++) {
+        frameTimers.push(setTimeout(() => {
+          if (closed) return;
+          stage.dataset.frame = String(step + 1);
+          setPouchFrame(art, step);
+        }, POUCH_FRAME_AT[step]));
+      }
+    }
     animating = true; openButton.disabled = true;
     countLabel.textContent = `보유 ${pouchCount(save)}개`; countLabel.hidden = pouchCount(save) === 0;
     if (timer !== undefined) clearTimeout(timer);
