@@ -1,3 +1,18 @@
+## 2026-11-21 · songduckjin 작업 236 — 장착 10칸 아이콘이 가로로 늘어나던 문제(1:1 정비율 복구)
+
+- **요청**: 실기 스크린샷(`attachments/2026-11-21/IMG_1144-59eabbefb7084c15a7310901ef745e04.jpg`, iOS Safari·`djrpg.pages.dev`)에서 `내 정보` 장착 5×2칸 아이콘이 가로로 늘어나(찌그러져) 보임 — "중간쯤 장착한 템들 너무 늘려트려져 보여 비율 조정해서 보여줘". 확정 시안 A안(`downloads/equip_slot_fix/opt_a_compact.jpg`): **칸 높이는 그대로 두고 아이콘만 1:1 정비율로**.
+- **원인**: [작업 228]이 모바일 가방 노출을 위해 칸을 `.equipment-slot{aspect-ratio:auto;height:48px}`로 납작하게 만들면서 아이콘이 `width:100%;height:0;flex:1 1 auto`로 **칸 폭을 그대로 채우게** 되어 있었다. 장비 그림은 5칸 아틀라스(`item-art/*.png` 870×290, 한 칸 174×290)이고 배경이 `background-size:500% 100%`라, 390px 화면의 칸 상자(약 70×33)에 한 칸이 그대로 그려져 **가로로 1.6~3배** 늘어났다(`<img>` 아이콘은 `object-fit:contain` 덕에 무사 — 아틀라스 `span`은 `object-fit`이 안 듣는다).
+- **칸 구조**(`src/styles/modals.css`): `.equipment-slot`의 `display:flex`를 **grid 두 줄**(`minmax(0,1fr)` 아이콘 · `auto` 라벨)로 바꿔 아이콘 영역 높이를 확정했다(퍼센트 높이가 흔들리지 않는다). `.slot-icon`은 `width/height:auto` + `max-width/max-height:100%` + `object-fit:contain`으로 상자 안에서만 줄고, `.slot-part`는 `grid-row:2`. 모바일 칸 높이(48/46px)·가방 최소 135px·테두리·라벨은 그대로.
+- **아틀라스 아이콘**: `src/ui/slotArtStyle.ts`(신규) `slotAtlasStyle`이 `background-size`·`background-position`(퍼센트)과 그 상자의 `aspect-ratio`를 인라인으로 준다. 파일마다 **내용 상자**(물건이 든 부분)를 `scripts/build-item-art-trim.py`(신규)가 아틀라스 19장의 5칸 합집합으로 재서 `src/ui/itemArtTrim.generated.ts`(신규)로 만든다. 칸 경계에 닿은 변은 2px 물려 이웃 칸이 1~2px 비치는 것과 `290-h=0`으로 퍼센트가 깨지는 것을 함께 막는다.
+- **왜 칸 전체 프레임(174:290)만 맞추지 않았나**: 그림은 안 늘어나지만 칸 안 여백이 30~55%라 투구가 20×33px로 너무 작아 보인다(첫 시도가 이랬다). 승인 시안처럼 칸을 채우려면 물건이 있는 상자만 그려야 한다 — 다른 물건과의 상대 크기는 원본 그대로다(반지는 크게, 활은 가늘게).
+- **퍼센트 식**: `p_x=(frame·174+x)/(870−w)`, `p_y=y/(290−h)`, `size=(870/w, 290/h)·100%`. 배경 퍼센트가 `p·(상자−그림)`이라 상자 픽셀 크기가 약분돼 칸 크기와 무관하게 성립한다.
+- **잡은 실수 두 건(테스트가 잡음)**: ① 배경 크기를 `174/w`(칸 폭 기준)로 잡아 다섯 칸이 한 칸에 겹쳐 보였다 → 아틀라스 전체 폭 `870/w`로 고치고, **배경 계산을 역산해 한 프레임의 내용 상자만 보이는지** 검사하는 테스트를 넣었다. ② 위치 분모를 `174−w`로 써 퍼센트가 2011%까지 튀었다 → `870−w`.
+- **검증**: `npx tsc --noEmit`, 신규 `tests/equipment-slot-aspect.test.mjs` **10/10**(CSS 규칙·칸 높이 유지·아틀라스 규격 870×290·내용 상자 표 유효 범위·퍼센트 역산), 전체 959건 중 **956 통과**(실패 3건은 `origin/main` 워크트리에서도 동일한 기존 실패 — `costume-field-render` 2·`skillbook-server` 1), `npm run build` 통과(이 환경 메모리 부족으로 간헐 OOM → 재시도 통과, CI 빌드도 성공).
+- **실브라우저 검수**: 프리뷰 배포(실제 컴파일 CSS·실제 아틀라스)에서 390×844·375×667 iframe을 실측 — 칸 70.4×48.0 / 68.2×46.0 그대로, 투구 27.3×32.6(비율 0.837 = 원본 0.838)·갑옷 26.9×32.6·장갑 28.7×32.6·신발 26.7×32.6·문장 25.1×32.6·목걸이 21.5×32.6·반지 32.4×32.6(0.993)·활 6.6×32.6(0.202), 빈 칸 `<img>` 32.6×32.6, **아이콘 비율 최대오차 0.000·라벨 겹침 0·상자 넘침 0**, 가방 영역 413.3px(390)/275.4px(375) 유지, 내용 상자 표와 그림 픽셀 대조 8종 전부 일치. 검수 이미지 `downloads/djrpg_equip_slot_aspect_v1.png`.
+- **번호·머지**: `main`에 이미 231(유니크·전설 발광 강화, PR #225)이 등록되어 **236**으로 올렸고, 그 사이 `main`이 두 번 더 앞서가 TASK.md가 충돌해 최신 `main`(8104b0c) 기준으로 다시 올렸다(대체한 PR #224는 닫음). [PR #228](https://github.com/songduckjin/DJRPG/pull/228) 스쿼시 `9279bbbc8c8d`.
+- **배포**: 운영 `https://djrpg.pages.dev/version.json` = `9279bbbc8c8d`(`builtAt 2026-11-20T17:02:42Z`), 배포 CSS `assets/index-B3ZOKGYE.css`에 `.equipment-slot{--slot-art-ratio:…;display:grid;grid-template-rows:minmax(0,1fr) auto;…}`·`.slot-icon{…object-fit:contain}`·모바일 `height:48px`/`46px`·`min-height:135px`, 배포 번들 `assets/index-DIsjnvO1.js`에 `aspect-ratio:${…}`·`helmet_0` 포함 확인. 로그인 화면 정상 로드(`Failed to fetch dynamically imported module` 없음).
+- **남는 것**: iOS 실기(사용자 계정으로 10칸을 채운 화면) 확인은 사용자 몫이다. **가방 칸**(`.bag-item .item-icon.atlas-icon`)은 정사각 칸에 배경을 늘려 그려 검 모양이 세로로 늘어나 보이는 같은 문제가 남아 있다 — 이번 요청 범위(장착 10칸) 밖이라 손대지 않았다.
+
 ## 2026-11-21 · songduckjin 작업 231 — 유니크·전설 장비 발광을 "훨씬 진하게" (색·세기 강화)
 
 - **요청**: "유니크 전설 발광 진하게 강화" — [작업 218]의 숨쉬기 발광이 실기에서 너무 은은했다. 파형(0 → 최대 → 0)과 주기(유니크 2.6초·전설 2.3초)는 그대로 두고 **색·세기·겹 구성**만 올렸다.
