@@ -75,6 +75,7 @@
 - **장비창(내 정보)**: `equipmentFallbackPortrait`가 마법사면 착용 인덱스의 로브 서기 시트(투구를 쓰면 머리 없는 판)를, 0번·미착용이면 기존 마법사 본체/`nostaff` 시트를 쓴다. 캐시 키는 `mage:{성별}:r{인덱스}:{지팡이}:{투구}`.
 - **계약**: `store.ts`·`server/**`·`world.ts`·`baseItems` 순서·아이템 능력치/드랍 무변경. 전사·궁수 경로, 지팡이·투구 파츠, `mage_nostaff`·`mage_headless` 시트는 손대지 않았다.
 - **검증**: `npx tsc --noEmit`, `node scripts/verify-item-art.mjs`(로프 108장 규격), `npm run build`, `git diff --check`, 전체 `node --test tests/*.test.mjs` — 결과는 배포 기록에 함께 적는다. 신규 `tests/mage-robe-render.test.mjs` 11건(이름→인덱스·경로 규칙·프레임 접힘·108장 규격·칸 경계·필드 로딩 전 폴백/후 교체·4프레임 분할·0번/미착용/전사 비적용·장비창 경로·키·프리로드 제외).
+- **배포**: [PR #158](https://github.com/songduckjin/DJRPG/pull/158) 스쿼시 병합 `f2ae099377ac`. 운영 `https://djrpg.pages.dev/version.json`이 `f2ae099377ac`(`builtAt 2026-11-20T06:37:23Z`)로 갱신됐고, **로브 시트 108장(전신 54 + 머리 없음 54) 전부 HTTP 200**, 표본 2장은 원격 sha256 = 로컬과 일치, 배포 번들 `assets/index-BERYNNWv.js`에 `pilot-25d/robes`·`robes/headless`·`mage_*_robe_*` 템플릿과 `robe:` 캐시 키가 들어간 것을 확인했다. **모바일 실기 화면은 미확인**(게스트 계정을 만들지 않았다).
 - **검수 이미지**: `downloads/djrpg_mage_robes_ingame_v1.png`(남녀 10티어 실게임 배율), `downloads/djrpg_mage_robes_preview_v1.png`(장비창 셀 크기), `downloads/djrpg_mage_robes_motion_v1.png`(남녀 1·5·9번 걷기·공격 4프레임), `downloads/djrpg_mage_robe_helm_v1.png`(로브+지팡이+마법사 모자 합성).
 
 ## 2026-11-20 — 마법사 지팡이 10종 외형 적용: 남녀 서기·걷기 4프레임·공격 4프레임 (작업 201)
