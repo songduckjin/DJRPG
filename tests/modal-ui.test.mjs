@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import './ts-loader.mjs';
 const { freshSave } = await import('../src/game/store.ts');
 const { codexVariants } = await import('../src/game/codex.ts');
@@ -7,7 +8,7 @@ const { rarityOrder, rarityRanks } = await import('../src/game/items.ts');
 const { compareEquipment } = await import('../src/game/itemComparison.ts');
 const { detailPosition, dismissBagDetail } = await import('../src/ui/bagDetail.ts');
 const { Interface } = await import('../src/ui/interface.ts');
-const { renderCharacters, renderCreateCharacter } = await import('../src/ui/modals/charactersModal.ts');
+const { renderCharacters, renderCreateCharacter, openDeleteCharacter } = await import('../src/ui/modals/charactersModal.ts');
 const { Market } = await import('../src/game/market.ts');
 const equipment = (slot, stats) => ({ id: slot, name: slot, slot, rarity: 'rare', stats });
 
@@ -178,4 +179,165 @@ test('selecting another character immediately shows loading while save confirmat
     resolveFlush(false); await new Promise(resolve=>setImmediate(resolve));
     assert.equal(body.children[0].removed, true);
   } finally { globalThis.document = originalDocument; }
+});
+
+// 캐릭터 삭제 확인 모달(작업 206) — window.prompt() 없이, 목록 모달 밖에 한 겹 얹는다.
+class FakeClassList {
+  values = new Set();
+  toggle(name, force) {
+    const next = force === undefined ? !this.values.has(name) : Boolean(force);
+    if (next) this.values.add(name); else this.values.delete(name);
+    return next;
+  }
+  has(name) { return this.values.has(name); }
+}
+class FakeElement {
+  constructor(tag = 'div') {
+    this.tagName = tag.toUpperCase(); this.children = []; this.attributes = {}; this.listeners = {};
+    this.classList = new FakeClassList(); this.className = ''; this.textContent = '';
+    this.value = ''; this.disabled = false; this.removed = false;
+  }
+  append(...nodes) { this.children.push(...nodes); }
+  setAttribute(name, value) { this.attributes[name] = value; }
+  addEventListener(type, handler) { (this.listeners[type] ||= []).push(handler); }
+  fire(type, event = {}) { for (const handler of this.listeners[type] || []) handler({ target: this, ...event }); }
+  focus() { this.focused = true; }
+  remove() { this.removed = true; }
+}
+function installDeleteDom() {
+  const original = globalThis.document;
+  const body = new FakeElement('body');
+  globalThis.document = { createElement: tag => new FakeElement(tag), createTextNode: text => ({ textContent: text }), body };
+  return () => { globalThis.document = original; };
+}
+const visit = node => [node, ...((node.children || []).filter(child => child && typeof child === 'object')).flatMap(visit)];
+function deleteFixture(character = { slot: 2, name: '둘째', gender: 'female', job: 'mage', level: 5, floor: 4, itemCount: 7 }) {
+  const root = new FakeElement('main'), dialog = new FakeElement('div');
+  dialog.className = 'modal-dialog'; dialog.scrollTop = 0;
+  dialog.querySelector = () => null;
+  const ui = {
+    root, modal: { hidden: false, querySelector: selector => selector === '.modal-dialog' ? dialog : null },
+    session: { token: 'token', characterSlot: 1 }, openModal: 'characters', characterPage: 0,
+    characterList: { characters: [character], activeSlot: 1, maxSlots: 3, revision: 4 },
+    messages: [], message(text) { this.messages.push(text); }, renderModal() { this.renders = (this.renders || 0) + 1; },
+    market: { sync: { revision: 4, flush: async () => true } }
+  };
+  return { ui, root, dialog, character };
+}
+
+test('캐릭터 삭제 확인은 window.prompt 대신 경고·이름 입력·취소·영구 삭제를 그린다', () => {
+  const restore = installDeleteDom();
+  try {
+    const { ui, root, dialog, character } = deleteFixture();
+    const overlay = openDeleteCharacter(ui, character);
+    const nodes = visit(overlay), texts = nodes.map(node => node.textContent).filter(Boolean);
+    assert.equal(overlay.className, 'character-delete-overlay');
+    assert.equal(overlay.attributes.role, 'dialog');
+    assert.equal(overlay.attributes['aria-modal'], 'true');
+    assert(texts.includes('둘째 캐릭터와 착용 장비·가방 아이템 7개가 영구 삭제됩니다.'), '경고 문구가 캐릭터 이름·아이템 수를 담는다');
+    const input = nodes.find(node => node.tagName === 'INPUT');
+    assert(input, '이름 확인 입력창이 있다');
+    assert.equal(input.attributes.autocapitalize, 'off'); assert.equal(input.attributes.autocorrect, 'off'); assert.equal(input.attributes.enterkeyhint, 'done');
+    const buttons = nodes.filter(node => node.tagName === 'BUTTON');
+    const cancel = buttons.find(node => node.textContent === '취소'), confirm = buttons.find(node => node.textContent === '영구 삭제');
+    assert(cancel && confirm, '취소·영구 삭제 버튼이 있다');
+    assert.equal(cancel.type, 'button'); assert.equal(confirm.type, 'submit');
+    assert.equal(confirm.classList.has('ready'), false, '이름을 입력하기 전에는 강조하지 않는다');
+    // 목록 모달(world.onChange마다 다시 그려지는 곳)이 아니라 그 위에 얹는다 — 입력 중인 이름이 살아남는다.
+    assert(root.children.includes(overlay));
+    assert.equal(dialog.children.length, 0);
+    // 이름이 맞으면 영구 삭제 버튼이 위험 강조로 바뀐다.
+    input.value = '둘째'; input.fire('input');
+    assert.equal(confirm.classList.has('ready'), true);
+    // 소스에 브라우저 기본 입력창이 남아 있지 않다.
+    const source = readFileSync(new URL('../src/ui/modals/charactersModal.ts', import.meta.url), 'utf8');
+    assert(!source.includes('window.prompt'), 'window.prompt()를 쓰지 않는다');
+    assert(source.includes('openDeleteCharacter(ui, character)'), '목록의 삭제 버튼이 새 확인창을 연다');
+  } finally { restore(); }
+});
+
+test('삭제 확인은 이름이 다르면 조용히 끝내지 않고 모달 안에 안내를 남긴다', async () => {
+  const restore = installDeleteDom();
+  const originalFetch = globalThis.fetch;
+  try {
+    const requests = [];
+    globalThis.fetch = async (url, options) => { requests.push(JSON.parse(options.body)); return { ok: true, json: async () => ({}) }; };
+    const { ui, character } = deleteFixture();
+    let flushed = 0;
+    ui.market.sync.flush = async () => { flushed++; return true; };
+    const overlay = openDeleteCharacter(ui, character);
+    const nodes = visit(overlay);
+    const form = nodes.find(node => node.tagName === 'FORM');
+    const input = nodes.find(node => node.tagName === 'INPUT');
+    const error = nodes.find(node => node.className === 'character-delete-error');
+    const confirm = nodes.find(node => node.className === 'character-delete-confirm');
+    input.value = '둘쨰';
+    form.onsubmit({ preventDefault() {} });
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(error.textContent, '캐릭터 이름을 정확히 입력해 주세요.');
+    assert.equal(input.focused, true, '입력창으로 되돌린다');
+    assert.equal(flushed, 0); assert.equal(requests.length, 0);
+    assert.equal(overlay.removed, false); assert.equal(confirm.disabled, false);
+    // 이름을 고치면 안내가 사라진다.
+    input.value = '둘째'; input.fire('input');
+    assert.equal(error.textContent, '');
+  } finally { globalThis.fetch = originalFetch; restore(); }
+});
+
+test('삭제 중에는 중복 클릭을 막고 "삭제 중…"을 보여 준 뒤 목록을 갱신한다', async () => {
+  const restore = installDeleteDom();
+  const originalFetch = globalThis.fetch;
+  try {
+    const requests = [];
+    globalThis.fetch = async (url, options) => {
+      requests.push(JSON.parse(options.body));
+      return { ok: true, json: async () => ({ characters: [{ slot: 1, name: '첫째', gender: 'male', level: 9, floor: 6 }], activeSlot: 1, maxSlots: 3, revision: 5 }) };
+    };
+    const { ui, character } = deleteFixture();
+    let release;
+    ui.market.sync.flush = () => new Promise(resolve => { release = resolve; });
+    const overlay = openDeleteCharacter(ui, character);
+    const nodes = visit(overlay);
+    const form = nodes.find(node => node.tagName === 'FORM');
+    const input = nodes.find(node => node.tagName === 'INPUT');
+    const confirm = nodes.find(node => node.className === 'character-delete-confirm');
+    const cancel = nodes.find(node => node.className === 'character-delete-cancel');
+    input.value = '둘째';
+    form.onsubmit({ preventDefault() {} });
+    form.onsubmit({ preventDefault() {} });
+    assert.equal(confirm.disabled, true); assert.equal(cancel.disabled, true);
+    assert.equal(confirm.textContent, '삭제 중…');
+    release(true);
+    await new Promise(resolve => setImmediate(resolve));
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(requests.filter(request => request.action === 'deleteCharacter').length, 1, '두 번 눌러도 요청은 한 번');
+    const deletion = requests.find(request => request.action === 'deleteCharacter');
+    assert.deepEqual({ slot: deletion.slot, name: deletion.name, revision: deletion.revision }, { slot: 2, name: '둘째', revision: 4 });
+    assert.equal(overlay.removed, true, '완료하면 확인창을 닫는다');
+    assert.deepEqual(ui.messages, ['둘째 캐릭터를 삭제했습니다.']);
+    assert(requests.some(request => request.action === 'characters'), '삭제 뒤 목록을 다시 읽는다');
+    assert.deepEqual(ui.characterList.characters.map(entry => entry.slot), [1]);
+  } finally { globalThis.fetch = originalFetch; restore(); }
+});
+
+test('삭제 실패는 확인창 안에 서버 메시지를 남기고 다시 시도할 수 있게 둔다', async () => {
+  const restore = installDeleteDom();
+  const originalFetch = globalThis.fetch;
+  try {
+    globalThis.fetch = async () => ({ ok: false, status: 409, json: async () => ({ error: '현재 사용 중인 캐릭터는 다른 캐릭터를 선택한 뒤 삭제하세요.', code: 'ACTIVE_CHARACTER' }) });
+    const { ui, character } = deleteFixture();
+    const overlay = openDeleteCharacter(ui, character);
+    const nodes = visit(overlay);
+    const form = nodes.find(node => node.tagName === 'FORM');
+    const input = nodes.find(node => node.tagName === 'INPUT');
+    const error = nodes.find(node => node.className === 'character-delete-error');
+    const confirm = nodes.find(node => node.className === 'character-delete-confirm');
+    input.value = '둘째';
+    form.onsubmit({ preventDefault() {} });
+    await new Promise(resolve => setImmediate(resolve));
+    assert.match(error.textContent, /현재 사용 중인 캐릭터/);
+    assert.equal(overlay.removed, false);
+    assert.equal(confirm.disabled, false); assert.equal(confirm.textContent, '영구 삭제');
+    assert.deepEqual(ui.messages, []);
+  } finally { globalThis.fetch = originalFetch; restore(); }
 });
