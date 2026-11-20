@@ -75,7 +75,8 @@ test('legacy slot, shared gold and warehouse transfers preserve independent char
     assert.equal(switched.status, 200);
     await assert.rejects(mutateJourney(db, 'hero', { action: 'journey-claim', kind: 'mail', id: 'all', revision: switched.body.revision, requestId: randomUUID(), characterSlot: 1 }), error => error.code === 'CHARACTER_CONFLICT');
     const reward = await mutateJourney(db, 'hero', { action: 'journey-claim', kind: 'mail', id: 'all', revision: switched.body.revision, requestId: randomUUID(), characterSlot: 2 });
-    assert.equal(reward.save.gold, 1070);
+    // 우편함에는 환영 우편(1,000)과 2026-11-20 업데이트 안내(3,000)가 함께 있다.
+    assert.equal(reward.save.gold, 4070);
     const rewardItem = reward.save.bag.find(entry => entry.slot === 'skillbook');
     assert(rewardItem);
     const rewardOwner = (await db.execute({ sql: 'SELECT slot FROM djrpg_character_item_owners WHERE item_id=?', args: [rewardItem.id] })).rows[0];

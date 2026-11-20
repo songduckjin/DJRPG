@@ -1,8 +1,9 @@
 import {equipmentCount} from '../../game/bagCapacity';
-import { autoEquipBest, equipmentImage, expToNext, MAX_LEVEL, rarityNames, statNames, totalStats, useSkillBook, type Item, type Rarity, type Save, type Slot, type Stat } from '../../game/store';
-import { slotNameFor } from '../../game/items';
+import { autoEquipBest, equipmentImage, expToNext, MAX_LEVEL, rarityNames, statNames, totalStats, useSkillBook, type Item, type Save, type Slot, type Stat } from '../../game/store';
+import { rarityRanks, salvageGold, slotNameFor } from '../../game/items';
 import { jobOrDefault } from '../../game/skills';
-import { rarityOrder, rarityRanks, salvageGold } from '../../game/items';
+import { nextSalvageRarity, saveSalvageRarity, type SalvageRarity } from '../salvageRarity';
+import { AUTO_SALVAGE_HINT } from '../autoSalvage';
 import { canAutoEquip } from '../../game/inventory';
 import { requestSalvage } from './salvageModal';
 import { equipmentPortraitPlan, renderEquipmentPortrait } from '../equipmentPortrait';
@@ -85,18 +86,34 @@ export function renderInventory(this: Interface, dialog: HTMLElement): void {
       this.selected = undefined; this.world.onChange();
       this.message(changed ? `${changed}부위 자동 장착 완료` : '이미 최고 장비 장착 중');
     };
-    const salvageOrder = rarityOrder.filter((rarity): rarity is Exclude<Rarity, 'legendary'> => rarity !== 'legendary');
-    const rarityLabels: Record<Exclude<Rarity, 'legendary'>, string> = { common: '일반만', magic: '매직 이하', rare: '레어 이하', epic: '에픽 이하', unique: '유니크 이하' };
+    const rarityLabels: Record<SalvageRarity, string> = { common: '일반만', magic: '매직 이하', rare: '레어 이하', epic: '에픽 이하', unique: '유니크 이하' };
     const rarityButton = document.createElement('button'); rarityButton.className = 'salvage-rarity'; rarityButton.type = 'button';
-    rarityButton.textContent = `기준: ${rarityLabels[this.salvageRarity]}`;
-    rarityButton.setAttribute('aria-label', `일괄 분해 기준 ${rarityLabels[this.salvageRarity]}. 누르면 다음 등급으로 변경`);
-    rarityButton.onclick = () => {
-      this.salvageRarity = salvageOrder[(salvageOrder.indexOf(this.salvageRarity) + 1) % salvageOrder.length];
+    // The threshold is the user's own setting: it survives closing the popup and reloading the app
+    // (작업 196), and every change is stored as it is made.
+    const showRarity = () => {
       rarityButton.textContent = `기준: ${rarityLabels[this.salvageRarity]}`;
       rarityButton.setAttribute('aria-label', `일괄 분해 기준 ${rarityLabels[this.salvageRarity]}. 누르면 다음 등급으로 변경`);
     };
+    showRarity();
+    rarityButton.onclick = () => {
+      this.salvageRarity = nextSalvageRarity(this.salvageRarity);
+      saveSalvageRarity(this.salvageRarity);
+      showRarity();
+    };
     const salvage = document.createElement('button'); salvage.className = 'salvage'; salvage.textContent = '일괄 분해'; salvage.onclick = () => this.salvage();
-    controls.append(equip, rarityButton, salvage); footer.append(count, controls); section.appendChild(footer);
+    // 접속 중 자동 분해 (작업 196): the switch sits beside the threshold it uses, and says right under it
+    // that it only works while hunting — offline rewards keep every piece.
+    const auto = document.createElement('button'); auto.className = 'salvage auto-salvage'; auto.type = 'button';
+    const showAuto = () => {
+      auto.textContent = `자동 분해 ${this.autoSalvage ? '켬' : '끔'}`;
+      auto.classList.toggle('is-on', this.autoSalvage);
+      auto.setAttribute('aria-pressed', String(this.autoSalvage));
+      auto.setAttribute('aria-label', `접속 중 자동 분해 ${this.autoSalvage ? '켜짐' : '꺼짐'}. 누르면 ${this.autoSalvage ? '끕니다' : '켭니다'}`);
+    };
+    showAuto();
+    auto.onclick = () => { this.setAutoSalvage(!this.autoSalvage); showAuto(); };
+    const autoHint = document.createElement('small'); autoHint.className = 'auto-salvage-hint'; autoHint.textContent = AUTO_SALVAGE_HINT;
+    controls.append(equip, rarityButton, auto, salvage, autoHint); footer.append(count, controls); section.appendChild(footer);
     dialog.appendChild(section);
     const selectedItem = visible.find(item => item.id === this.selected);
     if (selectedItem) {

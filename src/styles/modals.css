@@ -153,8 +153,31 @@
 @media (max-height: 650px) { .equipment-showcase { height: 140px; flex-basis: 140px; } .equipment-grid { gap: 2px; margin-top: 3px; } .equipment-modal .modal-bag { margin-top: 4px; } }
 @media (max-height: 750px) { .modal-dialog.equipment-modal { overflow: hidden; } .equipment-modal .modal-bag { flex: 1 1 0%; min-height: 0; overflow: hidden; } .equipment-modal .bag-grid { min-height: 0; } .equipment-modal .modal-bag-footer { position: sticky; bottom: 0; z-index: 2; } }
 .salvage:disabled { opacity: .4; cursor: default; }
+.auto-salvage.is-on { border-color: #e4c075; background: #5b4529; color: #ffe8b8; box-shadow: 0 0 8px #d1ab4850; }
+.auto-salvage-hint { flex-basis: 100%; text-align: right; color: #b7a189; font-size: 10px; line-height: 1.5; }
 .salvage.auto-equip-ready { border-color: #e4c075; background: #5b4529; color: #ffe8b8; box-shadow: 0 0 8px #d1ab4850; }
 .salvage-warning { color: #f0c18b; font-size: 13px; line-height: 1.8; }
+/* 분해 보호 (작업 197): 장비창을 덮는 긴 확인창 대신 장비창 위에 얹는 작은 팝업 하나. 보호할 장비만
+   카드로(그림·이름·부위, 현재 투력 → 이 장비 투력) 보여 주고, '이 아이템 분해 제외'가 가장 큰 버튼,
+   '그대로 분해'·'취소'는 그 아래 작은 보조 버튼이다. */
+.salvage-protect { position: fixed; inset: 0; z-index: 40; display: flex; align-items: center; justify-content: center; padding: 18px; background: #07050ba6; }
+.salvage-protect-card { width: min(330px, 100%); display: grid; gap: 8px; padding: 15px 14px; border: 1px solid #b98a55; background: #2a1f20; box-shadow: 0 14px 40px #000c; }
+.salvage-protect-title { margin: 0; font-size: 15px; color: #ffcf9a; }
+.salvage-protect-note { margin: 0; font-size: 11px; line-height: 1.55; color: #c0ab93; }
+.salvage-protect-list { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; max-height: 38dvh; overflow-y: auto; }
+.salvage-protect-item { display: flex; align-items: center; gap: 9px; padding: 7px 8px; border: 1px solid #8c5a33; border-radius: 6px; background: #3a2320; }
+.salvage-protect-art { flex: 0 0 auto; width: 40px; height: 40px; display: grid; place-items: center; border-radius: 5px; background: #1d1414; box-shadow: inset 0 0 0 1px var(--salvage-ink, #cdd6e0); }
+.salvage-protect-art img { display: block; width: 34px; height: 34px; object-fit: contain; }
+.salvage-protect-sheet { display: block; width: 34px; height: 34px; background-size: 500% 100%; background-repeat: no-repeat; }
+.salvage-protect-info { display: grid; gap: 1px; min-width: 0; }
+.salvage-protect-info strong { font-size: 12.5px; color: #f3e3cf; }
+.salvage-protect-info small { font-size: 10px; color: #b7a189; }
+.salvage-protect-power { font-size: 11px; color: #d9c3a5; }
+.salvage-protect-power b { font-size: 13px; color: #ffd977; }
+.salvage-protect-power em { margin-left: 3px; font-style: normal; color: #8ce08c; }
+.salvage-protect-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 4px; }
+.salvage-protect-keep { grid-column: 1 / -1; width: 100%; padding: 12px; border: 1px solid #e0b46a; background: linear-gradient(#8a5a1e, #5d3a12); color: #fff3d6; font-size: 14px; font-weight: bold; box-shadow: 0 3px 10px #0008; }
+.salvage-protect-all, .salvage-protect-cancel { width: 100%; padding: 7px; border: 1px solid #6d5540; background: #251e1f; color: #b7a189; font-size: 11px; }
 .salvage-confirm-list { max-height: 35dvh; overflow-y: auto; padding-left: 20px; color: #cdb99e; font-size: 12px; line-height: 1.8; }
 .salvage-confirm-actions { display: flex; gap: 8px; margin-top: 14px; }
 .salvage-confirm-actions button { flex: 1; border: 1px solid #a57c52; background: #4c3028; color: #f5d8b3; padding: 11px 6px; }

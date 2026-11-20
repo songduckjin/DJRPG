@@ -181,19 +181,29 @@ test('궁수 스킬 8종은 화살·화살비 이펙트를 만들고 피해를 �
   }
 });
 
-test('궁수는 장비를 착용해도 기본 시트만 쓰고 전사용 갑옷·투구·검을 그리지 않는다', () => {
+test('궁수는 전사용 갑옷·투구·검을 그리지 않고, 활만 파츠로 얹는다', () => {
   const save = archerSave('female');
   save.equipment.armor = { id: 'a', name: '황혼의 드래곤 메일', slot: 'armor', rarity: 'rare', stats: { defense: 10 } };
   save.equipment.helmet = { id: 'h', name: '황혼의 기사 헬름', slot: 'helmet', rarity: 'rare', stats: { defense: 5 } };
   save.equipment.weapon = { id: 'w', name: '황혼의 혈염 장궁', slot: 'weapon', rarity: 'rare', stats: { attack: 30 } };
   const plan = equipmentPortraitPlan(save);
-  assert.equal(plan.base, '/assets/pilot-25d/archer_female_idle_v1.png?v=2');
+  // 1번 이상 활을 차면 기본 활대를 지운 시트 위에 활 파츠를 얹는다(작업 160).
+  assert.equal(plan.base, '/assets/pilot-25d/nobow/archer_female_idle_v1.png');
   assert.equal(plan.helmet, undefined);
-  assert.equal(plan.weapon, undefined);
-  assert.equal(plan.key, 'archer:female');
+  assert.equal(plan.weapon, undefined, '전사 대검 파츠는 궁수에게 쓰지 않는다');
+  assert.equal(plan.bow?.path, '/assets/pilot-25d/bows/bow_6_v1.png');
+  assert.equal(plan.key, 'archer:female:/assets/pilot-25d/bows/bow_6_v1.png');
   // 능력치는 그대로 오른다.
   const bare = archerSave('female');
   assert(totalStats(save).attack > totalStats(bare).attack);
+});
+
+test('궁수 0번(사냥꾼의 활)은 기본 시트를 그대로 쓰고 활 파츠를 얹지 않는다', () => {
+  const save = archerSave('male');
+  save.equipment.weapon = { id: 'w0', name: '사냥꾼의 활', slot: 'weapon', rarity: 'common', stats: { attack: 4 } };
+  const plan = equipmentPortraitPlan(save);
+  assert.equal(plan.base, '/assets/pilot-25d/archer_male_idle_v1.png?v=2');
+  assert.equal(plan.bow, undefined);
 });
 
 test('궁수 기본 시트 6장은 전사와 같은 셀 규격의 RGBA PNG다', () => {

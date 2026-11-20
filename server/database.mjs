@@ -249,6 +249,18 @@ export async function writeSave(tx, row, save, operations = [], preserveCollecti
     if (save[field] !== undefined && (typeof save[field] !== 'number' || !Number.isFinite(save[field]) || save[field] < 0)) fail(400,'INVALID_SAVE','활동 통계 형식이 올바르지 않습니다.');
     save[field] = preserveCollection ? Math.max(row.save[field] ?? 0, save[field] ?? 0) : save[field] ?? 0;
   }
+  // 던전 최고 클리어 층은 순위의 근거다: 0~10의 정수만 받고, 저장된 기록보다 낮아지지 않게 한다
+  // (src/game/store.ts의 DUNGEON_MAX_FLOOR). 클리어 시각은 그 층을 처음 기록한 값을 남긴다.
+  const previousFloor = Number.isInteger(row.save.dungeonFloor) ? Math.min(10, Math.max(0, row.save.dungeonFloor)) : 0;
+  const incomingFloor = save.dungeonFloor === undefined ? previousFloor : save.dungeonFloor;
+  if (!Number.isInteger(incomingFloor) || incomingFloor < 0 || incomingFloor > 10) fail(400, 'INVALID_SAVE', '던전 진행 기록 형식이 올바르지 않습니다.');
+  const previousAt = Number(row.save.dungeonClearAt) > 0 ? Math.floor(Number(row.save.dungeonClearAt)) : 0;
+  const incomingAt = Number(save.dungeonClearAt) > 0 ? Math.floor(Number(save.dungeonClearAt)) : 0;
+  save.dungeonFloor = preserveCollection ? Math.max(previousFloor, incomingFloor) : incomingFloor;
+  save.dungeonClearAt = save.dungeonFloor === 0 ? 0
+    : save.dungeonFloor > incomingFloor ? previousAt
+    : previousAt && incomingAt ? Math.min(previousAt, incomingAt)
+    : previousAt || incomingAt;
   save.accountId = row.id; save.lastActiveAt = Date.now();
   // Older clients may omit discovery history; never erase already-recorded entries.
   const previousCollection = preserveCollection && Array.isArray(row.save.equipmentCollection) ? row.save.equipmentCollection : [];

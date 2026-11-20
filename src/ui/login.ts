@@ -1,4 +1,5 @@
 import type { Gender, Job, Save } from '../game/store';
+import { jobNames, jobOrDefault } from '../game/skills';
 import { apiHeaders, clearVersionReloadMark, isOutdatedResponse, reloadForNewVersion } from '../game/appVersion';
 
 export type Session = { accountId: string; loginId: string; gender: Gender; guest: boolean; token: string; save: Save; revision: number; characterSlot: number; offlineSeconds?: number; newAccount?: boolean };
@@ -34,7 +35,7 @@ async function begin(action: string, data: Record<string, unknown> = {}, token?:
 export function openLogin(root: HTMLElement): Promise<Session> {
   return new Promise(resolve => {
     const overlay = document.createElement('div'); overlay.className = 'login-screen';
-    overlay.innerHTML = `<div class="login-panel"><small class="login-kicker">THE WASTELAND AWAITS</small><h1>DJRPG</h1><p class="login-subtitle">황야의 층계</p><div class="login-tabs"><button type="button" data-mode="login" class="active">로그인</button><button type="button" data-mode="register">신규 가입</button></div><form class="login-form"><label>아이디 · 닉네임<input name="loginId" autocomplete="username" maxlength="16" required></label><label>비밀번호<input name="password" type="password" autocomplete="current-password" minlength="8" maxlength="72" required></label><div class="login-gender login-job" hidden><span>직업</span><button type="button" data-job="warrior" class="active">전사</button><button type="button" data-job="archer">궁수</button></div><div class="login-gender" hidden><span>성별</span><button type="button" data-gender="male" class="active">남성 전사</button><button type="button" data-gender="female">여성 전사</button></div><p class="login-error" role="alert" aria-live="polite"></p><button class="login-submit" type="submit">로그인</button></form><button class="login-guest" type="button">게스트로 시작하기</button><p class="login-note">계정과 진행 상황은 서버에 저장됩니다.</p></div>`;
+    overlay.innerHTML = `<div class="login-panel"><small class="login-kicker">THE WASTELAND AWAITS</small><h1>DJRPG</h1><p class="login-subtitle">황야의 층계</p><div class="login-tabs"><button type="button" data-mode="login" class="active">로그인</button><button type="button" data-mode="register">신규 가입</button></div><form class="login-form"><label>아이디 · 닉네임<input name="loginId" autocomplete="username" maxlength="16" required></label><label>비밀번호<input name="password" type="password" autocomplete="current-password" minlength="8" maxlength="72" required></label><div class="login-gender login-job" hidden><span>직업</span><button type="button" data-job="warrior" class="active">전사</button><button type="button" data-job="archer">궁수</button><button type="button" data-job="mage">마법사</button></div><div class="login-gender" hidden><span>성별</span><button type="button" data-gender="male" class="active">남성 전사</button><button type="button" data-gender="female">여성 전사</button></div><p class="login-error" role="alert" aria-live="polite"></p><button class="login-submit" type="submit">로그인</button></form><button class="login-guest" type="button">게스트로 시작하기</button><p class="login-note">계정과 진행 상황은 서버에 저장됩니다.</p></div>`;
     root.appendChild(overlay);
     const form = overlay.querySelector<HTMLFormElement>('.login-form')!;
     const idInput = form.elements.namedItem('loginId') as HTMLInputElement;
@@ -43,7 +44,7 @@ export function openLogin(root: HTMLElement): Promise<Session> {
     const genderRow = overlay.querySelector<HTMLElement>('.login-gender:not(.login-job)')!;
     const jobRow = overlay.querySelector<HTMLElement>('.login-job')!;
     const genderButtons = overlay.querySelectorAll<HTMLButtonElement>('[data-gender]');
-    const labelGenders = () => genderButtons.forEach(button => { button.textContent = `${button.dataset.gender === 'female' ? '여성' : '남성'} ${job === 'archer' ? '궁수' : '전사'}`; });
+    const labelGenders = () => genderButtons.forEach(button => { button.textContent = `${button.dataset.gender === 'female' ? '여성' : '남성'} ${jobNames[job]}`; });
     const submit = overlay.querySelector<HTMLButtonElement>('.login-submit')!;
     const guest = overlay.querySelector<HTMLButtonElement>('.login-guest')!;
     let mode: 'login' | 'register' = 'login', gender: Gender = 'male', job: Job = 'warrior';
@@ -64,7 +65,7 @@ export function openLogin(root: HTMLElement): Promise<Session> {
       overlay.querySelectorAll('[data-gender]').forEach(choice => choice.classList.toggle('active', choice === button));
     });
     overlay.querySelectorAll<HTMLButtonElement>('[data-job]').forEach(button => button.onclick = () => {
-      job = button.dataset.job === 'archer' ? 'archer' : 'warrior';
+      job = jobOrDefault(button.dataset.job);
       overlay.querySelectorAll('[data-job]').forEach(choice => choice.classList.toggle('active', choice === button));
       labelGenders();
     });

@@ -14,11 +14,13 @@ export function renderSkills(this: Interface, dialog: HTMLElement): void {
     note.textContent = this.skillTarget !== undefined ? `${this.skillTarget + 1}번 스킬 원에 장착할 스킬을 선택하세요.` : '스킬북으로 습득·강화합니다. 장착 중인 스킬은 해제할 수 있고, 필드의 + 원에서 다시 장착할 수 있습니다.';
     list.appendChild(note);
     renderSkillBooks(this, list);
-    const archer = jobOrDefault(save.job) === 'archer';
+    const job = jobOrDefault(save.job);
     const base = document.createElement('article'); base.className = 'skill-card';
-    base.innerHTML = archer
+    base.innerHTML = job === 'archer'
       ? '<div class="skill-icon">🏹</div><div class="skill-info"><h3>활 사격 <small>Lv.1 · 기본 보유</small></h3><p>시위를 당겨 화살을 날려 먼 거리의 적을 맞힙니다.</p><small>기본 쿨타임 0.48초 · 공격력 × 1.6 · 고정 슬롯</small></div>'
-      : '<div class="skill-icon">⚔</div><div class="skill-info"><h3>대검 베기 <small>Lv.1 · 기본 보유</small></h3><p>묵직한 두손검 횡베기로 전방 넓은 부채꼴을 공격합니다.</p><small>기본 쿨타임 0.48초 · 공격력 × 1.0 · 고정 슬롯</small></div>';
+      : job === 'mage'
+        ? '<div class="skill-icon">✦</div><div class="skill-info"><h3>마법탄 <small>Lv.1 · 기본 보유</small></h3><p>지팡이 끝에서 마력 구슬을 날려 먼 거리의 적을 맞힙니다.</p><small>기본 쿨타임 0.48초 · 공격력 × 1.6 · 고정 슬롯</small></div>'
+        : '<div class="skill-icon">⚔</div><div class="skill-info"><h3>대검 베기 <small>Lv.1 · 기본 보유</small></h3><p>묵직한 두손검 횡베기로 전방 넓은 부채꼴을 공격합니다.</p><small>기본 쿨타임 0.48초 · 공격력 × 1.0 · 고정 슬롯</small></div>';
     const baseIcon=base.querySelector<HTMLElement>('.skill-icon')!;baseIcon.textContent='';baseIcon.className='skill-icon skill-image-icon';setSkillIcon(baseIcon,'attack');
     list.appendChild(base);
     const equippedGroup=document.createElement('section');equippedGroup.className='equipped-skill-group';equippedGroup.setAttribute('role','group');equippedGroup.setAttribute('aria-label','장착 중 스킬');
@@ -60,7 +62,10 @@ export function renderSkills(this: Interface, dialog: HTMLElement): void {
         body: `HP·방어 +${15 + (level - 1) * 2}%`,
         instinct: `치명 +${8 + (level - 1) * 2}% · 공속 +${12 + (level - 1) * 2}%`,
         swiftStep: `이동·공속 +${12 + (level - 1) * 2}%`,
-        hawkSight: `치명 +${8 + (level - 1) * 2}% · 사거리 +8%`
+        hawkSight: `치명 +${8 + (level - 1) * 2}% · 사거리 +8%`,
+        staffMastery: `공격 +${15 + (level - 1) * 2}%`,
+        manaCircuit: `이동·공속 +${12 + (level - 1) * 2}%`,
+        arcaneSense: `치명 +${8 + (level - 1) * 2}% · 사거리 +8%`
       } as const;
       const bonus = bonusById[id];
       card.innerHTML = `<div class="skill-icon">${passive.icon}</div><div class="skill-info"><h3>${passive.name} <small>권장 Lv.${passive.level}</small></h3><p>${passive.description}</p><strong class="skill-level">${learned ? `스킬 Lv.${level} / ${MAX_SKILL_LEVEL}` : '미습득 (스킬북 파밍 필요)'}</strong><small>${bonus}</small><div class="skill-actions"></div></div>`;

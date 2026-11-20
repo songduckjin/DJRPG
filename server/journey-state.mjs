@@ -1,4 +1,42 @@
 const HOUR = 3600000, DAY = 24 * HOUR;
+// 2026-11-20 업데이트 안내 + 점검 보상 우편(사용자 확정: 금화 3,000 + 스킬북 2권).
+export const UPDATE_NOTICE_ID = 'update-2026-11-20';
+/** 우편 만료 = 2026-11-28 00:00 KST. 이 시각을 넘겨 처음 접속한 계정에는 보상을 붙이지 않는다. */
+export const UPDATE_NOTICE_UNTIL = Date.UTC(2026, 10, 27, 15, 0, 0);
+const UPDATE_NOTICE_TITLE = '[업데이트 안내] 전투·가방 편의성 및 끝없는 던전 개선';
+const UPDATE_NOTICE_BODY = `안녕하세요, 모험가님!
+더 쾌적한 사냥과 파밍을 위해 아래 내용이 업데이트되었습니다.
+
+1. 금화 드롭 & 보스 연출 개선
+- 바닥에 떨어지는 금화 표현을 다크 판타지 분위기에 맞게 다듬었습니다.
+- 보스 몬스터 처치 시 금화 무더기가 보스 주변으로 시원하게 흩뿌려집니다. (던전 보스는 추가 장비와 함께 드롭됩니다.)
+
+2. 가방·분해 편의 기능 추가
+- 일괄 분해 기준 유지: 설정한 등급 기준이 창을 닫거나 재접속해도 그대로 유지됩니다.
+- 자동 분해 추가: 장비창과 설정에서 켤 수 있으며, 접속 중 사냥 시 설정 등급 이하 장비를 자동으로 분해합니다. (미접속 방치 보상은 기존처럼 가방에 보관됩니다.)
+- 좋은 장비 분해 보호: 현재 장착 중인 장비보다 더 좋은 장비가 포함되면 분해 전 확인 팝업으로 한 번 더 안내합니다.
+
+3. 중·고층 사냥 밸런스 조정
+- 중·고층 몬스터 체력을 상향해 전투 밸런스를 다듬었습니다.
+- 층수가 높아질수록 일반 등급 비중이 줄어들고, 더 높은 등급의 장비가 잘 나오도록 조정했습니다.
+
+4. 끝없는 던전 진행 저장 & 순위 오픈
+- 던전 클리어 최고 층수가 계정에 저장되며, 서버 순위표가 연결되었습니다.
+- 현재 최고층인 10층 이후 구간은 추후 업데이트로 찾아뵙겠습니다.
+
+앞으로도 즐거운 모험 되시길 바랍니다!`;
+/**
+ * 업데이트 안내 우편을 계정마다 **한 번만** 준다. 우편함(`state.mail`)만 보고 판단하면 수령해 지운
+ * 계정에 다시 붙으므로, 지급 이력을 `state.notices`에 남겨 삭제·만료 뒤에도 재지급하지 않는다.
+ */
+export function grantUpdateNotice(state, now = Date.now()) {
+  state.notices ??= [];
+  if (now >= UPDATE_NOTICE_UNTIL) return false;
+  if (state.notices.includes(UPDATE_NOTICE_ID) || state.mail.some(entry => entry.id === UPDATE_NOTICE_ID)) return false;
+  state.notices.push(UPDATE_NOTICE_ID);
+  state.mail.push({ id: UPDATE_NOTICE_ID, title: UPDATE_NOTICE_TITLE, sender: '운영팀', body: UPDATE_NOTICE_BODY, createdAt: now, expiresAt: UPDATE_NOTICE_UNTIL, gold: 3000, books: 2, claimedAt: null, read: false });
+  return true;
+}
 export function periods(now = Date.now()) {
   // Shift 05:00 KST to midnight UTC. The resulting UTC weekday gives Monday resets.
   const shifted = now + 4 * HOUR, day = new Date(shifted);
@@ -18,6 +56,7 @@ export function advanceJourney(state, before, save, now = Date.now()) {
     }
   }
   state.achievements ??= []; state.mail ??= [];
+  grantUpdateNotice(state, now);
   return state;
 }
 export async function journeyState(tx, row, save = row.save, now = Date.now()) {

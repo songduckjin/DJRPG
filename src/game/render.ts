@@ -16,6 +16,7 @@ import { armorFrameIndex, armorSheetPath, armorSheetPaths, type ArmorMotion } fr
 import {
   weaponPartPath, weaponPartPaths, weaponTierCacheLimit, swordlessBodyPath, swordlessBodyPaths
 } from './render/weapons';
+import { bowPartPath, bowPartPaths, bowTierCacheLimit, bowlessBodyPath, type BowMotion } from './render/bows';
 import type { Gender } from './store';
 
 const paths = {
@@ -24,6 +25,8 @@ const paths = {
   // 궁수 기본 시트(작업 157 → 159 스타터 가죽 튜닉) — 같은 362px 셀 좌표계다. 갑옷·투구·활 오버레이는 이번 단계에 없다.
   // `/assets/*`는 immutable 캐시라 시트를 갈면 URL을 바꿔야 브라우저가 즉시 새 그림을 받는다(작업 159).
   archerMale: '/assets/pilot-25d/archer_male_idle_v1.png?v=2', archerFemale: '/assets/pilot-25d/archer_female_idle_v1.png?v=2',
+  // 마법사 기본 시트(작업 198) — 같은 362px 셀 좌표계다. 갑옷·투구·지팡이 오버레이는 이번 단계에 없다.
+  mageMale: '/assets/pilot-25d/mage_male_idle_v1.png', mageFemale: '/assets/pilot-25d/mage_female_idle_v1.png',
   // 투구 착용 시에만 쓰는 머리 없는 본체(작업 152) — 같은 셀 좌표계라 배율·앵커를 공유한다.
   pilotMaleHeadless: headlessBodyPaths.male.idle, pilotFemaleHeadless: headlessBodyPaths.female.idle,
   female: '/assets/warrior_female_base.png', armored: '/assets/warrior_armored_swordless.png',
@@ -56,6 +59,8 @@ const attackSheets = {
   pilotFemaleAttack: '/assets/pilot-25d/warrior_female_attack_v1.png',
   archerMaleAttack: '/assets/pilot-25d/archer_male_attack_v1.png?v=2',
   archerFemaleAttack: '/assets/pilot-25d/archer_female_attack_v1.png?v=2',
+  mageMaleAttack: '/assets/pilot-25d/mage_male_attack_v1.png',
+  mageFemaleAttack: '/assets/pilot-25d/mage_female_attack_v1.png',
   pilotMaleAttackHeadless: headlessBodyPaths.male.attack,
   pilotFemaleAttackHeadless: headlessBodyPaths.female.attack,
   femaleArmoredNoHelmAttack: '/assets/warrior_female_armored_attack.png?v=3',
@@ -70,6 +75,8 @@ const walkSheets = {
   pilotFemaleWalk: '/assets/pilot-25d/warrior_female_walk_v1.png',
   archerMaleWalk: '/assets/pilot-25d/archer_male_walk_v1.png?v=2',
   archerFemaleWalk: '/assets/pilot-25d/archer_female_walk_v1.png?v=2',
+  mageMaleWalk: '/assets/pilot-25d/mage_male_walk_v1.png',
+  mageFemaleWalk: '/assets/pilot-25d/mage_female_walk_v1.png',
   pilotMaleWalkHeadless: headlessBodyPaths.male.walk,
   pilotFemaleWalkHeadless: headlessBodyPaths.female.walk,
   maleBaseWalk: '/assets/walk8_male_base.png', femaleBaseWalk: '/assets/walk8_female_base.png',
@@ -95,6 +102,10 @@ type Animation = keyof typeof animationPaths | keyof typeof attackSheets | keyof
  * `walk`·`attack` 은 가로 4칸을 한 줄로 쓴다. 옆 칸 그림자가 섞이지 않도록 칸 경계를 정확히
  * 나누며, 프레임 조회는 `armorFrameIndex`(0~3 반복)로 한다.
  */
+function bowsheetPaths(gender: Gender): string[] {
+  return [bowlessBodyPath(gender, 'idle'), bowlessBodyPath(gender, 'walk'), bowlessBodyPath(gender, 'attack')];
+}
+
 function sliceArmorSheet(sheet: Texture, motion: ArmorMotion): Texture[] {
   if (motion === 'idle') return [sheet];
   const source = sheet.source;
@@ -176,6 +187,14 @@ export class GameView {
   lastWeaponTier = -1;
   /** 지금 그려진 검 파츠 스프라이트(0번·로딩 전이면 숨김). */
   heroWeapon?: Sprite;
+  /** 착용 활 파츠(경로 → 텍스처), 로딩 중인 경로, 최근 티어 (작업 160). */
+  bowSheets = new Map<string, Texture>();
+  bowLoading = new Set<string>();
+  bowTierOrder: number[] = [];
+  /** 마지막으로 본 활 티어. 바뀔 때만 파츠·본체 시트를 미리 받는다. */
+  lastBowTier = -1;
+  /** 지금 그려진 활 파츠 스프라이트(0번·로딩 전이면 숨김). */
+  heroBow?: Sprite;
   heroGear = new Map<Slot, { path: string; sprite: Sprite }>();
   /** 독립형 코스튬 렌더러 상태(작업 140). 매니페스트·아틀라스가 없으면 폴백으로 굳는다. */
   costume: CostumeHeroState = createCostumeHeroState();
@@ -360,6 +379,52 @@ export class GameView {
       this.weaponLoading.delete(path);
       console.error(`무기 파츠 로딩 실패: ${path}`, error);
     });
+  }
+
+  /**
+   * 착용 활 파츠 텍스처 (작업 160). 아직 로딩 전이면 `undefined` — 그 프레임은 기본 활을
+   * 가진 본체 시트로 그려진다(부팅 직후·티어를 막 바꿨을 때).
+   */
+  bowPart(index: number): Texture | undefined {
+    const path = bowPartPath(index);
+    if (!path) return undefined;
+    const texture = this.bowSheets.get(path);
+    if (!texture) { this.loadBowPart(path); return undefined; }
+    return texture;
+  }
+
+  /** 활 티어가 바뀌면 그 파츠 1장과 기본 활을 지운 본체 시트 6장을 받고, 최근 3티어 밖은 내린다. */
+  prefetchBow(index: number, gender: Gender): void {
+    if (!this.bowTierOrder.includes(index)) this.bowTierOrder.push(index);
+    for (const path of bowPartPaths(index)) this.loadBowPart(path);
+    for (const path of bowsheetPaths(gender)) this.loadArmorSheet(path);
+    while (this.bowTierOrder.length > bowTierCacheLimit) {
+      const oldest = this.bowTierOrder.shift() as number;
+      for (const path of bowPartPaths(oldest)) {
+        if (this.bowSheets.delete(path)) void Assets.unload(path).catch(() => undefined);
+      }
+    }
+  }
+
+  private loadBowPart(path: string): void {
+    if (this.bowSheets.has(path) || this.bowLoading.has(path)) return;
+    this.bowLoading.add(path);
+    void Assets.load<Texture>(path).then(texture => {
+      texture.source.scaleMode = 'linear';
+      this.bowSheets.set(path, texture);
+      this.bowLoading.delete(path);
+    }).catch(error => {
+      this.bowLoading.delete(path);
+      console.error(`활 파츠 로딩 실패: ${path}`, error);
+    });
+  }
+
+  /**
+   * 기본 활을 지운 궁수 본체 시트의 프레임 (작업 160).
+   * 갑옷 시트와 셀 규격이 같으므로 자르기·프레임 선택 규칙도 같다.
+   */
+  bowBodyFrame(gender: Gender, motion: BowMotion, frame: number): Texture | undefined {
+    return this.bodySheetFrame(bowlessBodyPath(gender, motion), motion, frame);
   }
 
   private loadArmorSheet(path: string): void {

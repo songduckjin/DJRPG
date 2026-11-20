@@ -1,3 +1,16 @@
+## 2026-11-20 songduckjin — 작업198 마법사 직업(기본 시트·지팡이 10종·원거리 마법탄·스킬 8+3 뼈대)
+- 세 번째 직업 `mage`를 `warrior`/`archer`와 같은 계약으로 붙였다. `Job`·`jobs`·`jobNames`·`jobOrDefault`(모르는 값은 전사)로 정규화하고, `store.parseSave`·`server/endpoints/account.mjs`(`jobOf`·`jobs`)가 `mage`를 허용·보존한다. 기존 전사·궁수 세이브는 장비·진행·퀵슬롯 그대로다.
+- 에셋: 승인 원본(`downloads/mage_preview/{male,female}_{3,walk,attack}.png`)에서 전사·궁수와 같은 셀 좌표계(서기 362×362·걷기/공격 1448×362, 검정 배경 휘도 키잉, 발끝 정렬)의 `pilot-25d/mage_{male,female}_{idle,walk,attack}_v1.png` 6장을 만들었다. 스트립은 인물끼리 닿지 않아 세로줄로 자르지 않고, 큰 덩어리(본체)를 x 순서로 놓은 뒤 떨어진 장화·손의 마법 구슬을 상자 겹침이 가장 큰 본체에 붙였다(합쳐진 스트립은 narrowest-gap 방식 폴백). 크기는 bbox가 아니라 **머리끝~발끝**으로 맞춰 여성 시트의 지팡이가 머리 위로 솟아도 본체가 작아지지 않는다(빌더 `scripts/build-mage-sheets.py`).
+- 지팡이 10종(`견습생의 지팡이`~`대현자의 성지팡이`)은 `staffBases`로 분리해 드랍·장착·표기('지팡이')만 마법사에 연결하고, 전사 대검·궁수 활의 드랍·코덱스·착용 시트는 그대로 뒀다. 아이콘은 `item-art/staff_0.png`·`staff_5.png`(870×290, 174×290 칸 5개), 스킬 아이콘은 `icons/mage-skills.png`(4×2)·`mage-passive-skills.png`(3×1), 빌더는 `scripts/build-staff-art.py`·`build-mage-icons.py`다.
+- 전투: 마법사는 `mageAttackRange`(240)·`mageStopRange`(118) 원거리로, 평타는 화살 대신 **마법 구슬**(`shot` + `variant` arcane/fire/frost/chain/meteor, 남성 푸른 마력·여성 붉은 화염)이 도착 시점에 판정된다(`world.action`→`shoot`, `render/vfx.ts` `drawMagicBolt`).
+- 스킬 뼈대 8종(파이어 볼트·아이스 볼트·체인 라이트닝·마력 폭발·프로스트 노바·아케인 실드·메테오 스트라이크·아르카나 오버로드)과 패시브 3종(지팡이 숙련·마나 회로·비전 감응). 투사체는 기존 `shoot`, 폭발·노바는 새 이펙트 `burst`/`nova`, 버프는 `ward`로 그리고 판정은 `update`의 `nextHit` 한 번만이다(노바 즉시 피해 중복 없음).
+- 외형 가드: `usesBaseSheetOnly(save)` 하나로 `drawHero`·`equipmentPortrait`가 마법사도 기본 시트만 그리고 전사 갑옷·투구·대검 파츠를 호출하지 않는다(능력치는 정상 적용). `render.ts`에 `mageMale/Female(+Walk/Attack)` 경로, `heroScale`에 337/300/268.
+- 생성 UI: 로그인 신규 가입과 `새 캐릭터` 모두 **위 줄 [전사][궁수][마법사] → 아래 줄 성별(남성/여성 마법사)**, 계정 창·캐릭터 카드·스킬 모달이 직업 이름과 시트를 따른다.
+- 검증(최신 main 병합 후): `npx tsc --noEmit`, `node --test tests/mage.test.mjs` 13/13, 전체 `node --test tests/*.test.mjs` **553건 중 550 통과** — 실패 3건은 `origin/main`에서 동일 재현되는 기존 실패(`costume-field-render` 2, `market`의 schema 초기화 1: `db.execute is not a function`). `node scripts/verify-item-art.mjs`(마법사 시트 6·지팡이 10·아이콘 2 추가), `npm run build`, `git diff --check` 통과. 브라우저 실기 미실행(이 환경의 브라우저가 127.0.0.1 차단) — 게임 배율·아이소메트릭을 재현한 합성 검수 이미지 `downloads/djrpg_mage_ingame_v1.png`로 확인.
+- **번호 정정**: 같은 번호 159를 다른 작업 세션이 '궁수 스타터 가죽 튜닉'(PR #124, 이미 main)으로 먼저 등록해, 이 작업을 **198**로 다시 등록하고 브랜치도 `feat/198-mage-job`으로 바꿨다(같은 내용의 PR #127은 닫고 #128로 재생성). 궁수 159의 코드·기록은 그대로다.
+- **최신 main 통합**: `d6a701e`(작업 159·194~197)와 병합하며 `render.ts`·`store.ts`·`equipmentPortrait.ts`·`charactersModal.ts` 4파일을 손으로 합쳤다 — 궁수 시트 `?v=2` 캐시 버스터, 던전 `dungeonFloor`/`dungeonClearAt` 세이브 정규화, 캐릭터 카드의 방치/삭제·`itemCount` 구조를 보존하고 그 위에 마법사를 얹었다(캐시 버스터 테스트 포함 27/27).
+- **머지·배포**: [PR #128](https://github.com/songduckjin/DJRPG/pull/128) 스쿼시 병합 `bc0a2617470c`. Cloudflare Pages 운영 `version.json` `bc0a2617470c`(`builtAt 2026-11-20T03:23:31Z`), 루트 200, **새 에셋 10장 전부 HTTP 200**(`mage_*_v1.png` 6·`item-art/staff_0|5.png`·`icons/mage-skills.png`·`mage-passive-skills.png`, 원격 sha256=로컬), 배포 번들 `index-C2qf-TOP.js`에 6경로·`item-art/staff_`·`mage-skills`·`fireBolt`·`arcaneOverlord`·'마법사'·'지팡이' 확인. `Workers Builds: djrpg`는 기존과 같이 실패(Cloudflare Pages 체크는 통과).
+
 ## 2026-11-19 · fks3997 작업167 로컬 경고 원 복원
 - 내려찍기 타격점에 시전1초 빨간 원 점멸을 복원했다. tsc·부분31테스트·diff 통과. 사용자 최신 지시로 로컬에만 저장하고 미리보기/운영 생성은 하지 않는다.
 
@@ -10,6 +23,20 @@
 - 사용자 지시: 이후 변경은 미리보기로 모으고 명시적 배포 요청 때 일괄배포한다. 본 작업은 Draft PR/Pages Preview만 생성하며 main은 병합하지 않는다.
 
 # 작업 로그
+
+## 2026-11-20 — 궁수 활 10종 외형 적용: 남녀 서기·걷기 4프레임·사격 4프레임 (작업 160)
+
+- **요청**: `songduckjin/DJRPG`에서 궁수 활 10종(`사냥꾼의 활` ~ `패왕의 신궁`) 외형을 남녀 궁수의 서기·걷기·사격 모든 프레임에 적용하고 PR 머지·`djrpg.pages.dev` 배포까지 완료. 전사 대검 10종(작업 156)과 같은 아키텍처를 쓴다.
+- **시트 두 벌**: 스타터 가죽 궁수 시트에는 0번 기본 활이 이미 그려져 있어 ① 기본 활대만 지운 본체 시트(`public/assets/pilot-25d/nobow/archer_{male,female}_{idle,walk,attack}_v1.png` 6장, 252KB) ② 티어별 활 파츠(`bows/bow_{1..9}_v1.png` 9장, 76KB)로 나눴다. 두 시트 모두 기준 시트와 같은 362px 셀 좌표계라 배율·앵커를 다시 재지 않는다.
+- **지우기(빌더 `scripts/build-bow-parts.py`)**: 4배 확대해 읽은 기본 활대 중심선(반폭 표 포함)을 자세별로 강체 회전·이동해 덮는 띠만 지우고, 지운 자리 색은 띠 법선 양쪽의 **본체 픽셀(피부 제외)**을 선형으로 섞어 채운 뒤 주변 고주파(가죽 결)를 25px 아래에서 옮겨 얹는다. 알파는 지운 자리를 모폴로지 close 로 닫아 본체 안쪽이면 살리고 허공으로 나온 부분이면 투명하게 둔다. 손가락(그립)은 보호 원으로 남기고, 사격 프레임에서 휘어 띠를 벗어난 활대 조각은 "본체 테두리에서 4px 이상 들어간 곳을 보호한 채 두께 2.4px 이상인 덩어리만" 지워 정리한다. **시위(활줄)는 지우지 않는다** — 사격 프레임에서 얼굴 쪽으로 당겨진 시위가 그대로 살아 있다.
+- **파츠**: 승인 시안(`downloads/bow_preview/male_bow_{1..9}.png`)은 0번 시안(스타터 원본과 픽셀 동일)과 같은 캐릭터·같은 자세에서 활만 바꾼 그림이다. 얼굴 NCC(배율 0.278, NCC 0.863)로 셀 좌표에 정합한 뒤 0번과 색이 달라진 영역 + 본체 밖 영역을 활 통로 안에서 합쳐 활 실루엣을 뜨고, 손(피부 마스크)·검은 배경·활줄(9px 열림 연산)을 뺐다. 그립 자리는 손이 본체에 그려져 있으므로 파츠에서도 비워 손이 활을 쥔 모양이 한 번만 그려진다.
+- **자세 표**: 파츠 그립 점(232,193)을 회전축으로 남녀 × 9자세(서기 1·걷기 4·사격 4)의 그립 좌표·회전각을 `BOW_POSES`에 두었다(사격은 −50° 안팎, 서기 대비 크게 돈다). 걷기·사격의 8프레임 재생은 4프레임으로 접는다.
+- **렌더**: `src/game/render/bows.ts`(신규) → `render.ts`가 `bowPart`/`prefetchBow`/`bowBodyFrame`을, `entities.ts`의 `drawHero`가 궁수일 때 nobow 시트로 갈아 끼우고 `syncBowPart`로 파츠를 얹는다(피격 틴트 공유, 전사 투구·대검·착용 무기 오버레이는 계속 숨김). 부팅 프리로드에는 넣지 않고 장착 티어의 파츠 1장 + nobow 3장만 동적으로 받아 최근 3티어를 유지하며, 로딩 전에는 기본 시트로 폴백한다. 장비창 초상화도 같은 nobow 시트 + 활 파츠를 캔버스에 합성한다.
+- **티어 매칭 버그 수정**: 활 이름이 서로를 포함해(`각궁` ⊂ `룬 각궁`, `장궁` ⊂ `혈염 장궁`) 접미사 첫 일치만 쓰면 `룬 각궁`이 1번 각궁으로 읽혔다(아이콘도 1번을 썼다). `items.ts` `bowIndex`를 **가장 긴 기본형이 이기는** 방식으로 고치고 `baseItemIndex`도 그 결과를 쓰게 했다.
+- **검증**: `npx tsc --noEmit` 통과, 전체 `node --test tests/*.test.mjs` 550건 중 547 통과 — 실패 3건은 `costume-field-render` 2건(작업 149 이후 계속 실패하던 기존 실패, `origin/main` `d6a701e` 워크트리에서 동일 재현)과 `market.test.mjs`의 DB 스키마 1건(같은 워크트리에서 동일 재현). 신규 `tests/bow-render.test.mjs` 9건(이름→티어 매핑·파츠 규격과 그립 주변 활대·nobow 6장 규격과 실제 삭제/손 보존·자세 표·프리로드 제외·필드 합성·걷기/사격 회전·0번 폴백·초상화), `tests/archer.test.mjs` 15건(초상화 기대값을 활 파츠 기준으로 갱신). `node scripts/verify-item-art.mjs`(nobow 6장·활 파츠 9장 검사 추가)·`npm run build`·`git diff --check` 통과.
+- **검수 이미지**: `downloads/djrpg_bow_10_idle_v1.png`(남녀 10종 서기), `downloads/djrpg_bow_walk_attack_v1.png`(걷기·사격 4프레임 × 2·5·8번), `downloads/djrpg_bow_ingame_scale_v1.png`(게임 배율), `downloads/bow_nobow_check.png`(기본 활 지운 시트), 보조 `downloads/bow_parts_only.png`. 생성은 `python3 scripts/build-bow-parts.py`(=`--preview` 로 에셋 없이 이미지 만 확인).
+- **브라우저 실기 확인 미실시**: 로컬 빌드를 띄우는 루프백 주소가 이 환경 브라우저에서 차단된다(작업 158·159와 같은 조건). 게스트 검수용으로 `scripts/preview-server.mjs`에 `?bow=1..9` 를 추가해 두었다(계정·DB 무접촉).
+- **배포**: [PR #130](https://github.com/songduckjin/DJRPG/pull/130) 스쿼시 병합 `5586ffba0fbe`, 운영 `version.json` `5586ffba0fbe`(`builtAt 2026-11-20T03:35:35Z`). 새 에셋 **15장(활 파츠 9 + nobow 6) 전부 HTTP 200 `image/png`**, 원격 sha256 = 로컬(활 1·5·9번, nobow 남녀 서기·걷기·사격 확인). 배포 번들 `index-tyFHcoTm.js`(1,263,659B)에 `pilot-25d/bows`·`pilot-25d/nobow` 경로와 `nobow:${gender}:${animation}:${poseFrame}` 키가 포함된 것을 확인. PR 체크는 `Cloudflare Pages` pass, `Workers Builds: djrpg`는 `main`에서도 같이 실패하는 상시 체크(기존 PR과 동일). 병합 전 마법사 직업 PR(#128, 작업 198)이 먼저 들어와 `render/entities.ts`·`ui/equipmentPortrait.ts`에서 `usesBaseSheetOnly`(전사 외 직업 공통 분기)와 충돌했고, 그 공통 분기 위에 궁수 활 파츠를 얹는 형태로 정리해 리베이스했다(마법사는 파츠 없이 기본 시트만 — 기존 동작 유지).
 
 ## 2026-11-20 — 궁수 직업 추가: 기본 시트·활 10종·원거리 전투·스킬 8+3 (작업 158)
 
