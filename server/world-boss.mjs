@@ -1,4 +1,4 @@
-import {account,assertSession,transaction,fail} from './database.mjs';
+import {account,assertSession,transaction,fail,ApiError} from './database.mjs';
 import {periods,advanceJourney,journeyOperation,recordJourneyMetric} from './journey-state.mjs';
 import {parseSave} from '../src/game/store.ts';
 import {WorldBossRehearsal} from '../src/game/worldBossRehearsal.ts';
@@ -113,7 +113,16 @@ export async function worldBossOperation(db,id,input={},sid,now=Date.now(),schem
   await worldBossSchema(db,schemaKey);
   if(!['list','start','tick','dodge','finish'].includes(input.action))fail(400,'INVALID_ACTION','지원하지 않는 월드보스 요청입니다.');
   if(input.action==='list'){
-    const quick=await (trace?trace.step('db',()=>quickList(db,id,sid,now)):quickList(db,id,sid,now));
+    let quick;
+    try{
+      quick=await (trace?trace.step('db',()=>quickList(db,id,sid,now)):quickList(db,id,sid,now));
+    }catch(error){
+      // 조회 전용 경로(읽기 배치·지역 레플리카)가 실패해도 503을 내지 않고 주 DB 쓰기 트랜잭션 경로로 내려간다
+      // (작업 222, `#5666`·`#5729`: 미국 PDX는 200, 한국 ICN 브라우저는 30ms 만에 `DB_UNAVAILABLE` 503).
+      // 인증·세션 오류는 그 자체가 답이다 — 쓰기 경로에서도 같은 오류가 나므로 그대로 올린다.
+      if(error instanceof ApiError)throw error;
+      quick=undefined;
+    }
     if(quick)return quick;
   }
   return (trace?trace.step('tx',()=>writeOperation(db,id,input,sid,now,trace)):writeOperation(db,id,input,sid,now));

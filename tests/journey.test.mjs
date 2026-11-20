@@ -41,7 +41,7 @@ test('persisted progress advances daily and weekly counters and book rewards byp
   seedParsed.daily.worldBoss=1;seedParsed.weekly.worldBoss=5;
   await db.execute({sql:'UPDATE djrpg_journey SET state_json=? WHERE account_id=?',args:[JSON.stringify(seedParsed),'progress']});
   const data=await snapshot(db,'progress');assert.equal(data.daily.find(t=>t.id==='hunt').current,300);
-  assert.equal(data.daily.find(t=>t.id==='salvage').current,3,'일일 장비 분해 3회');
+  assert.equal(data.daily.find(t=>t.id==='salvage').current,1,'일일 장비 1개 분해(작업 222)');
   assert.equal(data.daily.find(t=>t.id==='worldBoss').current,1,'월드보스 1회 도전(서버 기록)');
   assert.equal(data.weekly.find(t=>t.id==='hunt').current,2000,'주간 사냥 2,000');
   assert.equal(data.weekly.find(t=>t.id==='time').current,10800,'주간 3시간');
@@ -212,7 +212,7 @@ test('period progress counts once per save and legacy clients retain new totals'
   await transaction(db,async tx=>{const row=await account(tx,'legacy');await writeSave(tx,row,{...row.save,kills:10,bossKills:2,playSeconds:15,salvageCount:2});});
   await transaction(db,async tx=>{const row=await account(tx,'legacy'),next=structuredClone(row.save);delete next.bossKills;delete next.playSeconds;await writeSave(tx,row,next);});
   const latest=await account(db,'legacy');assert.equal(latest.save.bossKills,2);assert.equal(latest.save.playSeconds,15);
-  const progress=await snapshot(db,'legacy');assert.equal(progress.daily.find(t=>t.id==='hunt').current,10);assert.equal(progress.daily.find(t=>t.id==='salvage').current,2);
+  const progress=await snapshot(db,'legacy');assert.equal(progress.daily.find(t=>t.id==='hunt').current,10);assert.equal(progress.daily.find(t=>t.id==='salvage').current,1,'일일 분해 목표는 1개(작업 222)');
 });
 
 test('completion bonuses require all goals, separate daily and weekly claims and never pay twice',async()=>{
