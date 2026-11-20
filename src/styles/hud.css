@@ -121,6 +121,7 @@
 .bottom-nav [data-modal="equipment"] { --menu-icon-scale: .9931; --menu-icon-x: 0%; --menu-icon-y: 0%; }
 .bottom-nav [data-modal="skills"] { --menu-icon-scale: .9931; --menu-icon-x: .3906%; --menu-icon-y: 0%; }
 .bottom-nav [data-modal="market"] { --menu-icon-scale: .9931; --menu-icon-x: 0%; --menu-icon-y: .3906%; }
+.bottom-nav [data-modal="warehouse"] { --menu-icon-scale: .9931; --menu-icon-x: 0%; --menu-icon-y: .3906%; }
 .utility-nav [data-modal="settings"] { --menu-icon-scale: 1.28; --menu-icon-x: -3.125%; --menu-icon-y: 5.8594%; }
 .utility-nav [data-modal="mail"] { --menu-icon-scale: 1.44; --menu-icon-x: -1.5625%; --menu-icon-y: .7812%; }
 .utility-nav [data-modal="rewards"] { --menu-icon-scale: 1.4222; --menu-icon-x: .7812%; --menu-icon-y: 1.1719%; }
