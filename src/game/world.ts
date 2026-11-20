@@ -4,7 +4,7 @@ import { addExperience, floorKillTarget, MAX_FLOOR, rollItem, skillLevel, totalS
 import { itemDisplayName, itemDropChance, rollItemKind, rollSkillBook, starterWeaponName } from './items';
 import { dragonOrbitFactor, skillDamageScale, skillDuration, skillRange, skills, slash2Hits, slash2SwingSeconds, type Job, type SkillId } from './skills';
 import { jobOrDefault } from './skills';
-import { clampArenaPoint, spawnArenaEnemy } from './arena';
+import { clampArenaPoint, clampFieldPoint, fieldSpawnBand, spawnArenaEnemy } from './arena';
 import { LOOT_ABSORB_SECONDS, LOOT_REST_SECONDS } from './loot';
 import { autoSalvageBlock, autoSalvageRecovered, sweepBagOnFull } from './inventory';
 import { random } from './rng';
@@ -376,7 +376,7 @@ export class World {
       this.effects.push({ x: p.x, y: p.y, kind: 'warcry', age: 0, duration: .7, angle: 0 });
       for (const enemy of this.enemies) {
         const dx = enemy.x - p.x, dy = enemy.y - p.y, d = Math.hypot(dx, dy);
-        if (d < 115 && d > 0) { const bounded = clampArenaPoint(enemy.x + dx / d * 40, enemy.y + dy / d * 40); enemy.x = bounded.x; enemy.y = bounded.y; }
+        if (d < 115 && d > 0) { const bounded = clampFieldPoint(enemy.x + dx / d * 40, enemy.y + dy / d * 40); enemy.x = bounded.x; enemy.y = bounded.y; }
       }
     } else if (kind === 'power') {
       this.effects.push({ x: p.x, y: p.y, kind: 'power', age: 0, duration: skillDuration(kind, level), angle: p.facing });
@@ -689,7 +689,9 @@ export class World {
         // 보스전 중에는 빈 타이머만 돌리고 아무도 부르지 않는다(정예 예약도 미룬다).
         this.spawnTimer = .4;
       } else {
-        const spawn = spawnArenaEnemy(p, angle);
+        // 필드 외곽 밴드에서 **랜덤한 거리**로 뜬다(작업 229) — 각도만 흔들면 매번 같은 경계선 한 줄에서
+        // 나타나 코앞에 튀어나오는 것처럼 보인다. 거리 비율도 함께 굴려 멀리서 제각각 걸어 들어오게 한다.
+        const spawn = spawnArenaEnemy(p, angle, fieldSpawnBand.near + random() * (fieldSpawnBand.far - fieldSpawnBand.near));
         const hp = enemyMaxHp(this.save.floor, boss) * (elite ? ELITE_HP_SCALE : 1);
         if (boss) {
           // 층 보스는 **체력이 꽉 찬 상태로** 맞이한다(작업 222, 사용자 요청 `#5811` "층보스 떴을때 체력 꽉찬
@@ -723,7 +725,9 @@ export class World {
       enemy.moving = d > 27;
       if (enemy.moving && d > 0) { const step = enemyMoveSpeed(this.save.floor, enemy.boss) * (enemy.slow > 0 ? .55 : 1) * dt; enemy.x += dx / d * step; enemy.y += dy / d * step; enemy.step += dt * Math.PI * (enemy.boss ? 3.25 : 4.25); }
       enemy.x += enemy.knockX * dt; enemy.y += enemy.knockY * dt;
-      const bounded = clampArenaPoint(enemy.x, enemy.y); enemy.x = bounded.x; enemy.y = bounded.y;
+      // 적은 아레나가 아니라 **필드 경계**로 자른다(작업 229) — 아레나로 자르면 멀리 스폰된 적이 첫
+      // 프레임에 플레이어 코앞으로 순간이동해 버린다. 플레이어는 계속 아레나 안에 머문다.
+      const bounded = clampFieldPoint(enemy.x, enemy.y); enemy.x = bounded.x; enemy.y = bounded.y;
       enemy.knockX *= Math.exp(-dt * 12); enemy.knockY *= Math.exp(-dt * 12);
       enemy.slow = Math.max(0, enemy.slow - dt);
       if (d < 35 && p.hit <= 0) {
