@@ -1,4 +1,7 @@
 import { client, schema, transaction, account, assertRevision, assertSession, assignSession, healStaleLoadItems, reconcileItems, writeSave, fail } from '../database.mjs';
+import { sharedConnection } from '../connection.mjs';
+import { createTrace, logRequest } from '../metrics.mjs';
+import { elapsedSince } from '../save-guard.mjs';
 import { randomUUID } from 'node:crypto';
 import { tokenPayload, tokenFor, hashPassword, verifyPassword, needsPasswordUpgrade } from '../auth.mjs';
 import { runtimeEnv } from '../env.mjs';
@@ -21,7 +24,18 @@ const pendingOfflineSeconds = async (db, id, slot, updatedAt) => {
   const claim = (await db.execute({ sql: 'SELECT quantity FROM djrpg_shop_entitlements WHERE account_id=? AND entitlement_key=?', args: [id, `idle_claim_${slot}`] })).rows[0];
   return claim ? Math.min(43_200, Number(claim.quantity) + offlineSeconds(updatedAt)) : offlineSeconds(updatedAt);
 };
-export async function accountEndpoint(request, { env = runtimeEnv(), createDbClient, legacyVerifier } = {}) {
+/**
+ * 요청 한 건의 계측(작업 209)을 둘러 입힌 입구. `Server-Timing` 헤더와 구조화 로그 한 줄을 남기고,
+ * 세이브 본문·토큰은 로그에 넣지 않는다.
+ */
+export async function accountEndpoint(request, options = {}) {
+  const context = { trace: createTrace(), action: '', code: '', clamped: 0 };
+  const response = await accountHandler(request, options, context);
+  try { response?.headers?.set('Server-Timing', context.trace.header()); } catch { /* 헤더를 못 붙여도 응답은 그대로 */ }
+  logRequest({ path: '/api/account', action: context.action, status: response?.status, trace: context.trace, code: context.code, clamped: context.clamped });
+  return response;
+}
+async function accountHandler(request, { env = runtimeEnv(), createDbClient, legacyVerifier } = {}, context) {
   const res = { status: status => ({ json: body => json(body, status) }) };
   const req = { method: request.method, headers: { authorization: request.headers.get('authorization') }, body: await readBody(request) };
   if (req.method !== 'POST') return bad(res, 405, 'METHOD_NOT_ALLOWED', 'POST 요청만 허용합니다.');
@@ -30,10 +44,11 @@ export async function accountEndpoint(request, { env = runtimeEnv(), createDbCli
   if (!env.TURSO_DATABASE_URL || !env.TURSO_AUTH_TOKEN) return bad(res, 503, 'DB_NOT_CONFIGURED', '서버 DB가 설정되지 않았습니다. 관리자에게 문의하세요.');
   let db;
   try {
-    db = createDbClient ? createDbClient(env) : client(env);
-    await schema(db, env);
+    db = createDbClient ? createDbClient(env) : await sharedConnection(env);
+    if (createDbClient) await context.trace.step('schema', () => schema(db, env));
     const body = req.body ?? {};
     const action = body.action;
+    context.action = typeof action === 'string' ? action : '';
     if (action === 'register' || action === 'guest') {
       const id = action === 'guest' ? `guest_${randomUUID()}` : String(body.loginId ?? '').trim();
       const password = body.password;
@@ -155,7 +170,7 @@ export async function accountEndpoint(request, { env = runtimeEnv(), createDbCli
       return res.status(200).json(result);
     }
     if (action === 'save' || action === 'reset') {
-      const result = await transaction(db, async tx => {
+      const result = await context.trace.step('tx', () => transaction(db, async tx => {
         const latest = await account(tx, id);
         assertSession(latest, signed.sid);
         if (Number(body.characterSlot ?? 1) !== latest.slot) fail(409, 'CHARACTER_CONFLICT', '다른 캐릭터가 선택되었습니다. 새로고침해 주세요.');
@@ -174,15 +189,16 @@ export async function accountEndpoint(request, { env = runtimeEnv(), createDbCli
           const inbox = (await tx.execute({ sql: 'SELECT COUNT(*) AS n FROM djrpg_market_inbox WHERE account_id=? AND claimed_at IS NULL', args: [id] })).rows[0];
           if (Number(open.n) || Number(inbox.n)) fail(409, 'MARKET_PENDING', '등록 매물과 미수령 거래가 있어 초기화할 수 없습니다. 먼저 거래소를 정리하세요.');
         }
-        await reconcileItems(tx, id, latest.save, save, { slot: latest.slot });
+        await reconcileItems(tx, id, latest.save, save, { slot: latest.slot, elapsedSeconds: elapsedSince(latest.character_updated_at) });
         const saved = await writeSave(tx, latest, save, [], action !== 'reset');
         await tx.execute({ sql: 'DELETE FROM djrpg_shop_entitlements WHERE account_id=? AND entitlement_key=?', args: [id, `idle_claim_${latest.slot}`] });
         if (action === 'save' && typeof body.requestId === 'string' && body.requestId.length <= 80) await tx.execute({ sql: 'INSERT INTO djrpg_save_requests VALUES (?,?,?) ON CONFLICT(account_id) DO UPDATE SET request_id=excluded.request_id, revision=excluded.revision', args: [id, body.requestId, saved.revision] });
+        if (saved.clamped?.length) context.clamped = saved.clamped.length;
         return { ok: true, ...saved, offlineSeconds: 0 };
-      });
+      }));
       return res.status(200).json(result);
     }
     return bad(res, 400, 'INVALID_ACTION', '지원하지 않는 요청입니다.');
-  } catch (error) { return errorResponse(error); }
-  finally { await db?.close(); }
+  } catch (error) { context.code = error?.code ?? error?.name ?? ''; return errorResponse(error); }
+  finally { if (createDbClient) await db?.close(); }
 }

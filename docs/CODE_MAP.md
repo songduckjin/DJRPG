@@ -29,6 +29,8 @@
 | 오프라인 보상·경험치·레벨업 | `src/game/offline.ts`, `src/game/store.ts`(`addExperience`·`expToNext`) | `ui/modals/offlineModal.ts`, `server/endpoints/account.mjs`(`offlineSeconds`) | `offline` |
 | 로그인·회원가입·게스트·캐릭터 선택/생성·삭제·구매 슬롯 | `src/ui/login.ts`, `server/endpoints/account.mjs` | `ui/modals/charactersModal.ts`(방치·**삭제 확인 모달 `openDeleteCharacter`**·슬롯 추가·생성 로딩), `styles/modals.css`(`.character-delete-*`), `server/database.mjs`(계정별 슬롯 한도), `server/auth.mjs`, `api/account.mjs`, `functions/api/account.js` | `characters`, `shop`, `modal-ui`, `functions-adapter` |
 | 다른 기기 로그인으로 접속이 해제됨(`SESSION_REPLACED`) | `database.mjs` `assertSession`/`assignSession`, `auth.mjs` `tokenPayload` | `endpoints/account.mjs`, `sync.ts` `endSession`/`onSessionEnded`, `main.ts` | `functions-adapter`, `sync` |
+| 서버 검증 경계(골드·경험치·레벨·아이템 생성·던전 최고층, 작업 209) | `server/save-guard.mjs`(`rewardBudget`·`clampSaveProgress`·`itemWithinBounds`·`elapsedSince`), `server/database.mjs`(`writeSave` 클램프·`reconcileItems` 새 아이템 검사·`account()` 던전 기록 조인) | `server/dungeon-verify.mjs`(`requiredClearSeconds`·`replayDungeonFloor`), `server/dungeon.mjs`(`start`/`submit` 검증), `src/game/dungeonLive.ts`(`enter`·`submit(floor)`), `src/ui/dungeonField.ts`, `server/{market,journey}.mjs`(`goldCredit`), `docs/SCALE_100.md` | `save-guard`, `dungeon-verify`, `concurrency`, `dungeon-ranking`, `market`, `journey` |
+| 100명 동시 접속·계측·부하 테스트(작업 209) | `server/metrics.mjs`(Server-Timing·구조화 로그), `server/connection.mjs`(연결 재사용), `src/game/sync.ts`(dirty·`flushIfDirty`), `src/main.ts`(5초 점검) | `server/world-boss.mjs`(`quickList` 읽기 경로), `server/endpoints/{account,market,warehouse,world-boss,dungeon}.mjs`, `scripts/load-test-100.mjs`, `scripts/explain-market-query.mjs`, `docs/SCALE_100.md` | `concurrency`, `sync`, `functions-adapter`, `world-boss-live` |
 | 서버 저장·동기화·충돌(`SAVE_CONFLICT`/`ITEM_CONFLICT`) | `src/game/sync.ts`, `server/database.mjs` | `server/endpoints/account.mjs`, `server/http.mjs`, `src/game/store.ts`(`parseSave`) | `sync`, `functions-adapter`, `characters`, `market` |
 | 구버전 클라이언트 차단·최신 버전 강제(426 `VERSION_OUTDATED`) | `server/app-version.mjs`, `src/game/appVersion.ts` | `server/http.mjs`(`versionGuard`), `server/endpoints/{account,market,warehouse}.mjs`, `src/ui/login.ts`, `src/game/sync.ts`, `src/game/{market,journey}.ts`, `public/_headers`, `scripts/generate-version.mjs`, `vite.config.ts` | `app-version` |
 | 거래소·시세·여정(journey) | `server/market.mjs`, `server/journey.mjs` | `server/endpoints/market.mjs`, `journey-state.mjs`, `market-events.mjs`, `src/game/market.ts`, `src/game/journey.ts`, `ui/modals/marketModal.ts`, `ui/modals/utilityModal.ts`, `api/market*.mjs`, `functions/api/market*.js` | `market`, `market-actions`, `market-connection`, `journey`, `journey-ui` |
@@ -83,6 +85,10 @@
 | 내 정보 미리보기가 필드와 다르거나 빈 화면 | `ui/equipmentPortrait.ts` `equipmentPortraitPlan`·`renderEquipmentPortrait`(공용 `planHeroCostume` 소비·idle 0프레임·`warrior_equipped_t*` 폴백)·`ui/modals/equipModal.ts`·`styles/modals.css` |
 | 서버 저장 충돌(409 `SAVE_CONFLICT`) | `database.mjs` `assertRevision`, `sync.ts` `handleError` |
 | 장비 강화 단계 `+1~+7`(드랍·표기·역산, 작업 201) | `items.ts`(`maxPlusFor`·`plusWeights`·`rollPlus`·`applyPlus`·`estimatePlus`·`normalizePlus`·`plusOf`·`itemDisplayName`), `ui/itemName.ts`(`renderItemName`), `ui/modals/{equipModal,marketModal,salvageModal,offlineModal,charactersModal}.ts`, `ui/{equippedDetail,salvageProtection}.ts`, `styles/modals.css`(`.item-plus`) | `item.name` 문자열 변경(서버 `ITEM_CONFLICT`)·`identity`/`sameItemBody`에 `plus` 넣기·신규 드롭의 `plus: 0` 생략(로드에서 역산되어 단계가 튄다)·10층 이하 드롭에 강화 부여·`itemPower`에 plus 이중 반영(스탯에 이미 반영됨) |
+| 저장이 400 `INVALID_ITEM`·`INVALID_GOLD`로 막히거나 금화·레벨이 저장 뒤 줄어듦(작업 209) | `server/save-guard.mjs`(`rewardBudget`·`clampSaveProgress`·`itemWithinBounds`), `server/database.mjs` `writeSave`·`reconcileItems`, 클라면 `src/game/sync.ts`(`clamped` 로그)·`src/main.ts` |
+| 던전 클리어가 순위에 안 올라감(`DUNGEON_NOT_STARTED`·`DUNGEON_TOO_FAST`·`DUNGEON_OUT_OF_ORDER`, 작업 209) | `server/dungeon.mjs` `start`/`submit`, `server/dungeon-verify.mjs`, `src/game/dungeonLive.ts` `enter`·`submit`, `src/ui/dungeonField.ts` `resetBattle` |
+| 저장 요청이 너무 자주 나감·변경 없이 5초마다 저장(작업 209) | `src/game/sync.ts`(`markDirty`·`queueSave`·`flushIfDirty`·`changeSeq`), `src/main.ts` |
+| 어느 API가 느린지 모르겠음(작업 209) | `server/metrics.mjs`, 각 `server/endpoints/*.mjs`의 `context.trace.step`, 응답 `Server-Timing` |
 | 아이템 소유권 충돌(`ITEM_CONFLICT`) | `database.mjs` `reconcileItems`·`identity`·`sameItemBody`(이름만 다르면 서버 이름으로 정리, `plus`는 동일성 **밖**), `items.ts` `migrateItem`(저장 이름 보존·`plus`만 정규화), `warehouse.mjs` |
 | `ITEM_CONFLICT`/`CHARACTER_CONFLICT` 토스트 무한 반복 | `sync.ts` `handleError`·`reloadLatest`·`stopConflictLoop`(`conflictReloadWindow`) |
 | 옛 번들이 그대로 뜨고 426·새로고침이 반복됨 | `server/app-version.mjs`, `src/game/appVersion.ts`(`reloadForNewVersion`), `public/_headers`, `scripts/generate-version.mjs` |
@@ -165,7 +171,7 @@
 - `main.css` — `base`→`boot`→`hud`→`modals`→`login`→`market`→`codex` 순 import. `base.css`(폰트·리셋), `hud.css`(`.top-hud`,`.floor-button`), `modals.css`(장비·가방·분해 공통), `login.css`(로그인·캐릭터 선택), `market.css`(`.market-*`), `codex.css`(`.codex-*`,`#codex`), `boot.css`(`.boot-*`).
 
 ### `server/` — API 코어 (프레임워크 비의존, 테스트가 직접 import)
-- `database.mjs` (154, 193) — libsql 래퍼·스키마·트랜잭션·세이브/아이템 계약. `schema()`는 `session_id` 열 존재를 먼저 확인해 정상 재배포에서 실패하는 ALTER와 전체 DDL 재실행을 피하고, 멱등 초기화의 일시적 연결 오류만 한 번 재시도한다. `ApiError`, `fail`, `client`, `transaction`, `account`, `decodeAccount`, `assertRevision`, `assertSession`/`assertSessionId`/`assignSession`(단일 세션), `inventoryOwnerQuery`, `reconcileItems`, `writeSave`, `validateSave`. 내부 `identity(item)`(이름·슬롯(반지 정규화)·등급·kind·skillId·5스탯).
+- `database.mjs` (154, 193, 209) — libsql 래퍼·스키마·트랜잭션·세이브/아이템 계약. **작업 209**: `writeSave`가 `clampSaveProgress`로 골드·경험치·레벨·처치·도달 층·던전 층을 서버 상한 안으로 자르고(`credits`로 거래소 판매대금·우편 보상을 더한다) `clamped`를 돌려준다. `reconcileItems`는 **이번에 처음 보이는** 아이템만 개수·능력치 상한으로 검사한다(기존 보유 아이템은 소유 기록만 채운다). `account()`는 `djrpg_dungeon_records`를 LEFT JOIN해 `dungeon_record_floor`를 함께 준다. `schema()`에 `djrpg_dungeon_records`·`djrpg_dungeon_attempts` DDL 추가. `schema()`는 `session_id` 열 존재를 먼저 확인해 정상 재배포에서 실패하는 ALTER와 전체 DDL 재실행을 피하고, 멱등 초기화의 일시적 연결 오류만 한 번 재시도한다. `ApiError`, `fail`, `client`, `transaction`, `account`, `decodeAccount`, `assertRevision`, `assertSession`/`assertSessionId`/`assignSession`(단일 세션), `inventoryOwnerQuery`, `reconcileItems`, `writeSave`, `validateSave`. 내부 `identity(item)`(이름·슬롯(반지 정규화)·등급·kind·skillId·5스탯).
 - `auth.mjs` (49) — HMAC 토큰(비밀키 `TURSO_AUTH_TOKEN`)·비번 해시. `sign`, `tokenFor`(`{id,sid,exp}`), `tokenPayload`, `tokenId`, `hashPassword`, `needsPasswordUpgrade`, `verifyPassword`.
 - `http.mjs` (16) — 응답/본문/에러. `json`, `readBody`, `versionGuard`(다른 `X-App-Version` → 426 `VERSION_OUTDATED`), `errorResponse`.
 - `app-version.mjs` (18) / `version.generated.mjs` (3) — 배포 버전 식별자. `APP_VERSION`, `OUTDATED_MESSAGE`, `requestVersion`, `versionMismatch` / `BUILD_VERSION`(빌드 시 `scripts/generate-version.mjs`가 덮어씀, 저장소 값은 `dev`).
@@ -174,6 +180,10 @@
 - `legacy-auth.mjs` (26) — 구 Vercel 비번 검증 위임. `verifyLegacyViaVercel`.
 - `market.mjs` (194) — 거래소 규칙·등록/구매/취소/수령·시세. `rules`(fee .05, 30건, 72h), `expire`, `snapshot`, `mutate`, `recentPrice`.
 - `market-connection.mjs` (17) — DB 연결 1회 초기화 재사용. `connectionProvider`, `marketConnection`.
+- `connection.mjs` (작업 209) — account·dungeon·world-boss도 같은 연결 재사용을 쓴다. `sharedConnection`.
+- `save-guard.mjs` (작업 209) — 저장 검증 경계(순수 JS — ts 로더 없이 도는 스크립트가 DB 모듈을 쓰기 때문). `rewardBudget`(경과 시간·층으로 킬/보스/경험치/금화/강화석/아이템 상한), `clampSaveProgress`(넘친 값만 잘라 내고 `clamped` 반환), `itemWithinBounds`(새 아이템 능력치 상한 — `rollItem` 공식 ×2.5), `elapsedSince`(최대 12시간), `expToNext`/`floorKillTarget`/`RARITY_SCALES`/`TIER_BONUS_MAX`(게임 원본과 같은 값, 테스트가 대조).
+- `dungeon-verify.mjs` (작업 209) — 던전 클리어 검증. `replayDungeonFloor`(`src/ui/dungeonBattle.ts` `DungeonBattle` 리플레이), `requiredClearSeconds`(리플레이 클리어 시간의 절반, 최소 10초/미클리어 30초), `DUNGEON_MIN_SECONDS`, `DUNGEON_UNVERIFIED_SECONDS`.
+- `metrics.mjs` (작업 209) — 계측. `createTrace`(`step`/`add`/`header`), `timingHeaders`, `logRequest`(세이브 본문·토큰 없이 한 줄).
 - `market-events.mjs` (4) — 공개 변경 카운터. `latestSeq`.
 - `journey-state.mjs` — 일일 05:00 KST/주간 월요일 경계·보상. `periods`, `advanceJourney`, `journeyState`, `journeyOperation`, `journeyView`, `dailyTasks`, `weeklyTasks`, `completionRewards`. **작업 197 업데이트 안내 우편**: `advanceJourney`가 계정마다 한 번 `grantUpdateNotice`로 `update-2026-11-20`(금화 3,000·스킬북 2권, 발신 `운영팀`, 만료 `UPDATE_NOTICE_UNTIL`=2026-11-28 00:00 KST)을 넣는다 — 지급 이력은 `state.notices`에 남겨 수령·삭제·만료 뒤에도 다시 붙지 않고, 만료 뒤 첫 접속 계정에는 주지 않는다.
 - 작업 205 — `shop.mjs`의 `buyAllIdle`은 다이아 1,500개를 원장에 기록하고 `all_idle_30d` 권한을 30일 부여·연장한다. `account.mjs`의 `characters`는 비접속 슬롯별 누적 시간과 권한 만료 시각을 반환하며, 슬롯 선택 시 `idle_claim_<slot>`에 만료 전 적립분을 보관해 입장 뒤 정산 저장까지 유지한다. `journey-state.mjs`는 정식 계정마다 다이아 1,000개 우편을 한 번 만들고, `journey.mjs`는 수령 시에만 원장·지갑에 반영한다.
@@ -183,6 +193,9 @@
 - `endpoints/market.mjs` (27) — `list`/`recent-price`/`journey-list`/`journey-*`/그 외 mutate.
 - `endpoints/market-events.mjs` (42) — SSE 45초 스트림.
 - `endpoints/warehouse.mjs` (63) — `list`/`deposit`/`withdraw`, 창고 40칸.
+- `endpoints/dungeon.mjs`·`dungeon.mjs` (197, 209) — `list`(읽기 배치만)/`start`(도전 시작 시각)/`submit`(검증된 클리어만 기록). `dungeon-schema.mjs`에 `djrpg_dungeon_attempts`.
+- `world-boss.mjs` (209) — `list`는 `quickList` 읽기 경로(오늘 row가 있고 정산할 것이 없으면 쓰기 트랜잭션 없이 답한다). `replayBoss`·`settle` 시간을 `trace`에 남긴다.
+- `endpoints/*` (209) — 모두 `Server-Timing` 헤더 + `{"event":"api",...}` 구조화 로그를 남기고, 저장 응답의 `clamped` 개수를 로그에 적는다.
 
 ### `api/` · `functions/api/` · `scripts/` · `tests/`
 - `api/{account,market,market-events,warehouse}.mjs` — **Vercel(Node) 어댑터, 테스트가 직접 import하므로 삭제 금지.** `account.mjs`는 `tokenId` 재수출, `market-events.mjs`는 `config.maxDuration=60`.
