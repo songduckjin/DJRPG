@@ -1,4 +1,5 @@
-.world-boss-entry {position:absolute;z-index:3;left:12px;top:84px;width:58px;height:80px;padding:0;border:0;border-radius:0;background:transparent;box-shadow:none;touch-action:manipulation;overflow:visible;}
+/* 좌상단 세로 배치(작업 230): 레벨 배지 5~54px → 닉네임 56~73px → HP 77~92px → 월드보스 진입 97~167px → 튜토리얼 배너 173px~. */
+.world-boss-entry {position:absolute;z-index:3;left:12px;top:calc(env(safe-area-inset-top, 0px) + 97px);width:58px;height:80px;padding:0;border:0;border-radius:0;background:transparent;box-shadow:none;touch-action:manipulation;overflow:visible;}
 .world-boss-entry .wb-entry-art {position:absolute;width:58px;height:58px;left:0;top:0;background-image:url('/assets/world-boss/valkaron-face-hd-v1.png');background-size:contain;background-position:center;background-repeat:no-repeat;pointer-events:none;filter:drop-shadow(0 1px 1px #000d);}
 .wb-entry-health {position:absolute;top:60px;left:4px;right:4px;height:4px;border-radius:2px;background:#271014;overflow:hidden;pointer-events:none;}
 .wb-entry-health i {display:block;width:100%;height:100%;background:linear-gradient(#e16b55,#8c242c);box-shadow:0 0 3px #f04c3b;}
