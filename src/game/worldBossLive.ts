@@ -3,7 +3,7 @@ import type {SaveSync} from './sync';
 import type {Save} from './store';
 import type {BossStanding} from '../ui/worldBossPresentation';
 import type {Interface} from '../ui/interface';
-export type BossData={day:string;hp:number;maxHp:number;remaining:number;endsAt:number;killed:boolean;guest:boolean;standing:BossStanding;now:number;battle?:{id:string;startedAt:number;elapsed:number;damage:number;hp:number;finished:boolean;defeated:boolean;save?:Save}};
+export type BossData={day:string;hp:number;maxHp:number;remaining:number;/** 하루 도전 횟수 상한(서버 WORLD_BOSS_DAILY_ATTEMPTS, 작업 210 - 3회). */maxAttempts?:number;endsAt:number;killed:boolean;guest:boolean;standing:BossStanding;now:number;battle?:{id:string;startedAt:number;elapsed:number;damage:number;hp:number;finished:boolean;defeated:boolean;record?:{status:'first'|'improved'|'unchanged';previousBestDamage:number;bestDamage:number};save?:Save}};
 export type BossPreparation=Promise<{ok:true}|{ok:false;message:string}>;
 export class WorldBossLive {
   data?:BossData;error='';loading=false;private loadPromise?:Promise<BossData>;

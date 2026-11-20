@@ -1091,3 +1091,6 @@
 - 검기(`vfx.ts`): 새 에셋 `public/assets/fx_slash2_dual.png`(512×122, 17KB, 은빛·강철빛 초승달)를 add 합성. 1타는 정방향(−0.17rad), 2타는 좌우 반전(+0.2rad)으로 X자 교차, 2타 시점에 황금 지면 충격파. 새 파일명이라 `/assets/*` immutable 캐시를 피한다.
 - 검증: `tsc`, `vite build`, 전체 678건 중 676 통과(실패 2건은 변경 전 main과 같은 `costume-field-render`), 신규 `tests/skill-double-slash`(5). 검수 이미지 `downloads/djrpg_skill_1_double_slash_ingame_v1.png`(`scripts/preview-double-slash.py`). 브라우저·iOS 실기 확인은 사용자 몫.
 - 213 운영배포완료: PR#170 스쿼시`14c378662bd0`(2026-11-20T10:11:17Z), Pages production success, https://djrpg.pages.dev/version.json =14c378662bd0(builtAt2026-11-20T10:11:36Z). 루트200·번들`index-ex5_BV8U.js`에`fx_slash2_dual`·`이단참`·`2연격`·`attackCombo`·새 에셋 200(17,311B, sha256 일치, immutable). 작업 212와 리베이스 병합(skills.ts 순서·world.ts attackPoseSpan/crush 공존). 브라우저·iOS 실기 미실행.
+
+## 2026-11-20 · fks3997 · 작업 218 · 월드보스 한정 배포
+- 사용자 지시로 누적 전체 통합(217)을 취소하고 월드보스 216 변경만 최신 main에 적용. 주머니 수령 기능은 다른 AI 배포가 선행됨을 사용자 확인. 기존 서버 읽기/쓰기 분리와 계측 유지.

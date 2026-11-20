@@ -1,5 +1,5 @@
 import {account,assertSession,transaction,fail} from './database.mjs';
-import {periods,advanceJourney,journeyState,journeyOperation} from './journey-state.mjs';
+import {periods,advanceJourney,journeyOperation} from './journey-state.mjs';
 import {parseSave} from '../src/game/store.ts';
 import {WorldBossRehearsal} from '../src/game/worldBossRehearsal.ts';
 import {worldBossSchema} from './world-boss-schema.mjs';
@@ -16,33 +16,30 @@ export function replayBoss(save,seconds,dodges=[]){
   }
   return session;
 }
-async function mail(tx,day,id,kind,title,gold,books,now){
-  const inserted=await tx.execute({sql:'INSERT OR IGNORE INTO djrpg_boss_rewards VALUES (?,?,?)',args:[day,id,kind]});
-  if(!inserted.rowsAffected)return;
-  const row=await account(tx,id),state=await journeyState(tx,row,row.save,now);
-  state.mail.push({id:`boss:${day}:${kind}`,title,sender:'월드보스 토벌대',body:`잿불의 군주 발카론 · ${title}. 우편에서 보상을 받아 주세요.`,gold,books,createdAt:now,expiresAt:now+30*86400000,claimedAt:null,read:false});
-  await tx.execute(journeyOperation(id,state));
-}
-function tier(rank){return rank===1?[50000,10]:rank<=3?[30000,7]:rank<=10?[20000,5]:rank<=50?[12000,4]:rank<=100?[8000,3]:[5000,2];}
+// Derive the record from server-credited attempts, including days saved by the old sum rule.
+const bestScores=`SELECT s.day,s.account_id,s.name,s.joined_at,MAX(a.credited) AS damage
+  FROM djrpg_boss_scores s JOIN djrpg_boss_attempts a ON a.day=s.day AND a.account_id=s.account_id
+  WHERE s.day=? GROUP BY s.day,s.account_id HAVING MAX(a.credited)>0`;
+export function tier(rank){return rank===1?[10000,4]:rank<=3?[8000,3]:rank<=10?[6000,2]:rank<=50?[4000,1]:rank<=100?[3000,1]:[2000,1];}
 async function settle(tx,day,now,trace){
   if(day.settled_at||(!day.killed_at&&now<Number(day.ends_at)))return;
   const startedAt=Date.now();try{await settleRows(tx,day,now);}finally{trace?.add('settle',Date.now()-startedAt);}
 }
 async function settleRows(tx,day,now){
-  const scores=(await tx.execute({sql:`SELECT s.*,j.state_json FROM djrpg_boss_scores s LEFT JOIN djrpg_journey j ON j.account_id=s.account_id
-    WHERE s.day=? AND s.damage>0 ORDER BY s.damage DESC,s.joined_at,s.account_id`,args:[day.day]})).rows;
+  const scores=(await tx.execute({sql:`SELECT s.*,j.state_json FROM (${bestScores}) s LEFT JOIN djrpg_journey j ON j.account_id=s.account_id
+    ORDER BY s.damage DESC,s.joined_at,s.account_id`,args:[day.day]})).rows;
   const existing=new Set((await tx.execute({sql:'SELECT account_id,kind FROM djrpg_boss_rewards WHERE day=?',args:[day.day]})).rows.map(r=>JSON.stringify([r.account_id.toLowerCase(),r.kind])));
   const operations=[];
   for(let i=0;i<scores.length;i++){
-    const score=scores[i],id=score.account_id,[gold,books]=tier(i+1),state=advanceJourney(score.state_json?JSON.parse(score.state_json):undefined,undefined,undefined,now);
-    const rewards=[['rank',`월드보스 ${i+1}위 보상`,gold,books]];
-    if(day.killed_at)rewards.push(['shared','월드보스 공동 처치 보상',2000,1]);
-    if(day.killer===id)rewards.push(['last','월드보스 마지막 타격 보상',5000,2]);
+    const score=scores[i],id=score.account_id,[gold,pouches]=tier(i+1),state=advanceJourney(score.state_json?JSON.parse(score.state_json):undefined,undefined,undefined,now);
+    const rewards=[['rank',`월드보스 ${i+1}위 보상`,gold,pouches]];
+    if(day.killed_at)rewards.push(['shared','월드보스 공동 처치 보상',1500,1]);
+    if(day.killer===id)rewards.push(['last','월드보스 마지막 타격 보상',2000,0]);
     let changed=false;
-    for(const [kind,title,gold,books] of rewards){
+    for(const [kind,title,gold,pouches] of rewards){
       if(existing.has(JSON.stringify([id.toLowerCase(),kind])))continue;
       operations.push({sql:'INSERT OR IGNORE INTO djrpg_boss_rewards VALUES (?,?,?)',args:[day.day,id,kind]});
-      state.mail.push({id:`boss:${day.day}:${kind}`,title,sender:'월드보스 토벌대',body:`잿불의 군주 발카론 · ${title}. 우편에서 보상을 받아 주세요.`,gold,books,createdAt:now,expiresAt:now+30*86400000,claimedAt:null,read:false});changed=true;
+      state.mail.push({id:`boss:${day.day}:${kind}`,title,sender:'월드보스 토벌대',body:`잿불의 군주 발카론 · ${title}. 우편에서 보상을 받아 주세요.`,gold,books:0,pouches,createdAt:now,expiresAt:now+30*86400000,claimedAt:null,read:false});changed=true;
     }
     if(changed)operations.push(journeyOperation(id,state));
   }
@@ -64,19 +61,19 @@ async function credit(tx,attempt,now,finish=false,trace){
     if(delta>0){
       await tx.execute({sql:'UPDATE djrpg_boss_days SET hp=hp-?,killer=CASE WHEN hp<=? THEN ? ELSE killer END,killed_at=CASE WHEN hp<=? THEN ? ELSE killed_at END WHERE day=?',args:[delta,delta,attempt.account_id,delta,now,day.day]});
       const save=JSON.parse(attempt.save_json);
-      await tx.execute({sql:'INSERT INTO djrpg_boss_scores VALUES (?,?,?,?,?) ON CONFLICT(day,account_id) DO UPDATE SET damage=damage+excluded.damage',args:[day.day,attempt.account_id,save.name,delta,Number(attempt.started_at)]});
+      await tx.execute({sql:`INSERT INTO djrpg_boss_scores VALUES (?,?,?,MAX(?,(SELECT COALESCE(MAX(credited),0) FROM djrpg_boss_attempts WHERE day=? AND account_id=?)),?)
+        ON CONFLICT(day,account_id) DO UPDATE SET damage=excluded.damage`,args:[day.day,attempt.account_id,save.name,Number(attempt.credited)+delta,day.day,attempt.account_id,Number(attempt.started_at)]});
     }
     const ended=finish||battle.finished||elapsed>=59.999||now>=Number(day.ends_at)||Number(day.hp)<=delta||!!day.killed_at;
     await tx.execute({sql:'UPDATE djrpg_boss_attempts SET credited=credited+?,ended_at=? WHERE id=?',args:[delta,ended?now:null,attempt.id]});
     attempt={...attempt,credited:Number(attempt.credited)+delta,ended_at:ended?now:null};
-    if(ended&&Number(attempt.credited)>0)await mail(tx,day.day,attempt.account_id,`participation:${attempt.id}`,'월드보스 도전 참여 보상',1000,0,now);
     day=await dayRow(tx,day.day);
   }
   return {attempt,battle,day};
 }
 async function standing(tx,day,id){
   const rows=(await tx.execute({sql:`WITH ranked AS (
-    SELECT account_id,name,damage,ROW_NUMBER() OVER (ORDER BY damage DESC,joined_at,account_id) AS rank FROM djrpg_boss_scores WHERE day=? AND damage>0
+    SELECT account_id,name,damage,ROW_NUMBER() OVER (ORDER BY damage DESC,joined_at,account_id) AS rank FROM (${bestScores})
   ),mine AS (SELECT rank FROM ranked WHERE account_id=? COLLATE NOCASE)
   SELECT r.* FROM ranked r LEFT JOIN mine m ON 1=1 WHERE r.rank<=10 OR r.rank BETWEEN m.rank-9 AND m.rank+1 ORDER BY r.rank`,args:[day,id]})).rows;
   const mine=rows.find(r=>r.account_id.toLowerCase()===id.toLowerCase());
@@ -170,6 +167,11 @@ async function writeOperation(db,id,input,sid,now,trace){
     const day=freshDay??await dayRow(tx,daily),count=freshCount===undefined?(await tx.execute({sql:'SELECT COUNT(*) AS n FROM djrpg_boss_attempts WHERE account_id=? AND day=?',args:[id,daily]})).rows[0]:{n:freshCount};
     const result={day:daily,hp:Number(day.hp),maxHp:Number(day.max_hp),endsAt:Number(day.ends_at),remaining:Math.max(0,3-Number(count.n)),killed:!!day.killed_at,guest:owner.password_hash==='guest',standing:await standing(tx,attempt?.day??daily,id),now};
     if(attempt)result.battle={id:attempt.id,startedAt:Number(attempt.started_at),damage:Number(attempt.credited),elapsed:battleResult.battle.elapsed,hp:battleResult.battle.world.player.hp,finished:!!attempt.ended_at,defeated:battleResult.battle.defeated,...(input.action==='start'?{save:JSON.parse(attempt.save_json)}:{})};
+    if(attempt?.ended_at){
+      const previous=Number((await tx.execute({sql:'SELECT COALESCE(MAX(credited),0) AS damage FROM djrpg_boss_attempts WHERE day=? AND account_id=? AND id<>?',args:[attempt.day,id,attempt.id]})).rows[0].damage);
+      const damage=Number(attempt.credited);
+      result.battle.record={status:damage>previous?(previous>0?'improved':'first'):'unchanged',previousBestDamage:previous,bestDamage:Math.max(previous,damage)};
+    }
     return result;
   });
 }
