@@ -235,11 +235,16 @@ test('궁수 기본 시트 6장은 전사와 같은 셀 규격의 RGBA PNG다', 
 test('궁수 시트 URL은 모두 캐시 버스터(?v=)를 단다', () => {
   // `/assets/*`는 `public/_headers`가 immutable 1년 캐시로 고정한다. 시트를 갈아도 URL이 같으면
   // 브라우저가 옛 그림을 계속 쓰므로, 궁수 시트를 참조하는 곳은 전부 버전 쿼리를 붙여야 한다(작업 159).
-  for (const file of ['src/game/render.ts', 'src/ui/equipmentPortrait.ts', 'src/ui/modals/charactersModal.ts']) {
+  for (const file of ['src/game/render.ts', 'src/ui/equipmentPortrait.ts']) {
     const lines = readFileSync(new URL(`../${file}`, import.meta.url), 'utf8').split('\n').filter(line => line.includes('archer') && line.includes('_v1.png'));
     assert(lines.length > 0, `${file}: 궁수 시트 경로가 없다`);
     for (const line of lines) assert.doesNotMatch(line, /_v1\.png(?!\?v=\d)/, `${file}: 캐시 버스터 없는 경로 — ${line.trim()}`);
   }
+  // 작업 210: 캐릭터 선택 카드는 자기 시트 경로를 직접 쓰지 않고 공용 초상화 경로(`equipmentPortrait.ts`)를
+  // 그대로 쓴다 — 버전 쿼리 규칙이 한 곳에만 있어야 카드만 옛 그림을 캐시하는 일이 없다.
+  const card = readFileSync(new URL('../src/ui/modals/charactersModal.ts', import.meta.url), 'utf8');
+  assert.equal(/_v1\.png/.test(card), false, 'charactersModal.ts가 시트 경로를 직접 만들지 않는다');
+  assert(card.includes("from '../equipmentPortrait'"));
 });
 
 test('궁수 스킬북도 강화 가능 표시에 잡힌다', () => {

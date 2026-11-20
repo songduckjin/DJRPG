@@ -12,6 +12,21 @@ const bad = (_res, status, code, error) => json({ code, error }, status);
 const jobOf = value => value === 'archer' || value === 'mage' ? value : 'warrior';
 const initialSave = (id, gender, name, job = 'warrior') => ({ version: 1, name, accountId: id, gender, job: jobOf(job), auto: true, autoClimb: true, level: 1, exp: 0, gold: 0, floor: 1, maxFloor: 1, floorKills: 0, kills: 0, health: 100, equipment: {}, equipmentCollection: [], bag: [], tutorial: 0, stones: 0, skillPoints: 0, lastActiveAt: Date.now(), learned: [], passives: [], quickSlots: [null, null, null], skillLevels: {}, dungeonFloor: 0, dungeonClearAt: 0 });
 const jobs = ['warrior', 'archer', 'mage'];
+/**
+ * 캐릭터 목록 카드의 외형용 최소 장비 정보(작업 210).
+ *
+ * 카드는 필드·장비창과 같은 합성 초상화(투구·갑옷/로브·무기/활/지팡이)를 그리므로 장비 **이름**이
+ * 필요하다. 세이브 전체를 내려보내지 않고 외형 슬롯 3개의 이름만 짧게 잘라 보낸다(능력치·가방·계정
+ * 정보 없음). 이름은 외형 티어 판별(`baseItemIndex`)에만 쓰인다.
+ */
+const portraitEquipment = save => {
+  const pick = slot => {
+    const item = save?.equipment?.[slot];
+    const name = item && typeof item === 'object' && typeof item.name === 'string' ? item.name.trim().slice(0, 40) : '';
+    return name ? { name } : null;
+  };
+  return { helmet: pick('helmet'), armor: pick('armor'), weapon: pick('weapon') };
+};
 const offlineSeconds = updatedAt => {
   const elapsed = Math.floor((Date.now() - Date.parse(String(updatedAt))) / 1000);
   return Number.isFinite(elapsed) && elapsed >= 60 ? Math.min(43_200, elapsed) : 0;
@@ -103,7 +118,7 @@ async function accountHandler(request, { env = runtimeEnv(), createDbClient, leg
       const now = Date.now();
       return res.status(200).json({ characters: characters.map(({ save_json, updated_at, ...character }) => {
         const save = JSON.parse(save_json);
-        return { ...character, job: jobOf(character.job), itemCount: (Array.isArray(save.bag) ? save.bag.length : 0) + Object.values(save.equipment ?? {}).filter(Boolean).length,
+        return { ...character, job: jobOf(character.job), equipment: portraitEquipment(save), itemCount: (Array.isArray(save.bag) ? save.bag.length : 0) + Object.values(save.equipment ?? {}).filter(Boolean).length,
           idleSeconds: Number(character.slot) !== row.slot ? Math.min(43_200, (claimBySlot.get(Number(character.slot)) ?? 0) +
             (allIdleExpiresAt > Date.parse(String(updated_at)) ? idleSecondsUntil(updated_at, Math.min(now, allIdleExpiresAt)) : 0)) : 0 };
       }), activeSlot: row.slot, maxSlots: Number(row.max_slots ?? 3), revision: row.revision, allIdleExpiresAt });

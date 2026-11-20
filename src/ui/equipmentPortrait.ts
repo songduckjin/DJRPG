@@ -328,7 +328,15 @@ function storePortrait(key: string, value: Promise<string>): void {
 /* ── 합성 ──────────────────────────────────────────────────────────────── */
 
 /** 미리보기 출력 높이(px). 표시 영역이 190px대라 720px면 축소 표시에 충분하다. */
-const portraitOutputHeight = 720;
+export const portraitOutputHeight = 720;
+
+/**
+ * 초상화 합성 옵션(작업 210).
+ *
+ * 캐릭터 선택 카드처럼 작게 보이는 곳은 `height`를 낮춰 같은 그림을 가볍게 만든다 —
+ * 결과는 높이까지 포함한 키로 캐시되므로 장비창(720px)과 카드(360px)가 서로를 덮어쓰지 않는다.
+ */
+export type EquipmentPortraitOptions = { height?: number };
 /** 레이어 회전이 있어도 잘리지 않도록 두는 여백(아트 픽셀). */
 const layerPadding = 8;
 
@@ -352,11 +360,11 @@ function planBounds(layers: CostumeLayerPlan[]): Rect {
   return { x: left - layerPadding, y: top - layerPadding, w: right - left + layerPadding * 2, h: bottom - top + layerPadding * 2 };
 }
 
-function fitCanvas(width: number, height: number): HTMLCanvasElement {
-  const scale = portraitOutputHeight / Math.max(1, height);
+function fitCanvas(width: number, height: number, outputHeight = portraitOutputHeight): HTMLCanvasElement {
+  const scale = outputHeight / Math.max(1, height);
   const canvas = document.createElement('canvas');
   canvas.width = Math.max(1, Math.round(width * scale));
-  canvas.height = portraitOutputHeight;
+  canvas.height = outputHeight;
   return canvas;
 }
 
@@ -417,14 +425,15 @@ async function composeCostume(layers: CostumeLayerPlan[]): Promise<string> {
 /** 폴백: 전신 초상화 한 장(+착용 투구·대검)을 캔버스에 맞춰 그린다(빈 화면 방지). */
 async function composeFallback(
   base: string, helmet?: EquipmentPortraitHelmet, weapon?: EquipmentPortraitWeapon, bow?: EquipmentPortraitBow,
-  archerHelm?: EquipmentPortraitArcherHelm, staff?: EquipmentPortraitStaff, mageHelm?: EquipmentPortraitMageHelm
+  archerHelm?: EquipmentPortraitArcherHelm, staff?: EquipmentPortraitStaff, mageHelm?: EquipmentPortraitMageHelm,
+  outputHeight = portraitOutputHeight
 ): Promise<string> {
   const image = await loadImage(base, fallbackImages, new Set());
   // 마법사 투구 파츠는 셀 위로 솟는다(고깔모·후광). 그만큼 초상화 위쪽에 여백을 두고 전체를 맞춘다
   // (`object-fit: contain` 이라 그림이 잘리지 않고 조금 작아질 뿐이다).
   const overflow = mageHelm ? Math.max(0, -mageHelm.y * mageHelm.scale) : 0;
   const artHeight = image.naturalHeight + overflow;
-  const canvas = fitCanvas(image.naturalWidth, artHeight);
+  const canvas = fitCanvas(image.naturalWidth, artHeight, outputHeight);
   const context = canvas.getContext('2d');
   if (!context) throw new Error('장비 초상화 캔버스를 만들 수 없습니다.');
   context.imageSmoothingEnabled = true;
@@ -525,9 +534,12 @@ async function composeFallback(
  * 초상화 dataURL. 결과는 계획 키로 캐시하고(LRU 24) 합성 중 같은 요청은 한 번만 만든다.
  * 픽셀 단위 스캔은 하지 않는다 — 팔레트·피부톤 보정은 142 아틀라스가 색으로 담당한다.
  */
-export async function renderEquipmentPortrait(save: Save): Promise<string> {
+export async function renderEquipmentPortrait(save: Save, options: EquipmentPortraitOptions = {}): Promise<string> {
   const plan = equipmentPortraitPlan(save);
-  const cached = cachedPortrait(plan.key);
+  const height = Number(options.height) > 0 ? Math.round(Number(options.height)) : portraitOutputHeight;
+  // 높이가 다르면 같은 장비라도 다른 그림이라 키를 나눈다(장비창 720 · 캐릭터 카드 360).
+  const key = height === portraitOutputHeight ? plan.key : `${plan.key}@${height}`;
+  const cached = cachedPortrait(key);
   if (cached) return cached;
 
   const pending = (async () => {
@@ -538,11 +550,11 @@ export async function renderEquipmentPortrait(save: Save): Promise<string> {
         console.info('[장비창] 코스튬 합성 실패 → 전신 초상화로 폴백:', error);
       }
     }
-    return composeFallback(plan.base, plan.helmet, plan.weapon, plan.bow, plan.archerHelm, plan.staff, plan.mageHelm);
+    return composeFallback(plan.base, plan.helmet, plan.weapon, plan.bow, plan.archerHelm, plan.staff, plan.mageHelm, height);
   })();
-  storePortrait(plan.key, pending);
+  storePortrait(key, pending);
   void pending.catch(() => {
-    if (portraitCache.get(plan.key) === pending) portraitCache.delete(plan.key);
+    if (portraitCache.get(key) === pending) portraitCache.delete(key);
   });
   return pending;
 }
