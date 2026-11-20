@@ -249,7 +249,7 @@ test('활 파츠·nobow 시트는 부팅 프리로드에 넣지 않고 티어별
   for (const gender of ['male', 'female']) {
     for (const path of bowlessBodyPaths(gender)) {
       assert(!renderAssetPaths.includes(path), `${path} 가 부팅 프리로드에 들어감`);
-      assert(!renderAssetPaths.includes(`${path}?v=3`), `${path}?v=3 가 부팅 프리로드에 들어감`);
+      assert(!renderAssetPaths.includes(`${path}?v=4`), `${path}?v=4 가 부팅 프리로드에 들어감`);
     }
   }
   assert.equal(bowTierCacheLimit, 3);

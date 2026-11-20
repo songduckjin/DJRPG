@@ -42,7 +42,7 @@ const paths = {
   // (작업 159 궁수 시트와 같은 규칙 — 여성도 같은 줄에서 함께 올린다).
   mageMale: pilotSheet('/assets/pilot-25d/mage_male_idle_v1.png'), mageFemale: pilotSheet('/assets/pilot-25d/mage_female_idle_v1.png'),
   // 투구 착용 시에만 쓰는 머리 없는 본체(작업 152) — 같은 셀 좌표계라 배율·앵커를 공유한다.
-  // 작업 222: 서기 시트를 낮은 양손 그립으로 다시 구워 `?v=2`(helmets.ts `headlessBodyPaths`가 들고 있다).
+  // [작업 229] 서기 시트를 222 이전 그립으로 되돌렸다 — 버전은 `PILOT_ASSET_VERSION` 하나(현재 4).
   pilotMaleHeadless: headlessBodyPaths.male.idle, pilotFemaleHeadless: headlessBodyPaths.female.idle,
   female: '/assets/warrior_female_base.png', armored: '/assets/warrior_armored_swordless.png',
   armoredNoHelm: '/assets/warrior_armored_nohelm_swordless.png', femaleArmoredNoHelm: '/assets/warrior_female_armored_nohelm_swordless.png',

@@ -54,10 +54,10 @@ test('장비창·캐릭터 카드 초상화도 빈손 판을 쓴다', () => {
   assert.equal(equipmentFallbackPortrait(freshSave('female', 'archer')), bowlessBodyPath('female', 'idle'));
   assert.equal(equipmentFallbackPortrait(freshSave('male', 'mage')), stafflessBodyPath('male', 'idle'));
   // 무기를 차면 예전처럼 기준 시트(+파츠)를 쓴다.
-  // 작업 222: 서기 시트를 다시 구워 `?v=3`.
-  assert.match(equipmentFallbackPortrait(saveFor('warrior', 'male', baseItems.weapon[0])), /pilot-25d\/warrior_male_idle_v1\.png\?v=3$/);
-  assert.match(equipmentFallbackPortrait(saveFor('archer', 'female', bowBases[0])), /archer_female_idle_v1\.png\?v=3$/);
-  assert.match(equipmentFallbackPortrait(saveFor('mage', 'male', staffBases[0])), /mage_male_idle_v1\.png\?v=3$/);
+  // 작업 222: 서기 시트를 다시 구워 `?v=4`.
+  assert.match(equipmentFallbackPortrait(saveFor('warrior', 'male', baseItems.weapon[0])), /pilot-25d\/warrior_male_idle_v1\.png\?v=4$/);
+  assert.match(equipmentFallbackPortrait(saveFor('archer', 'female', bowBases[0])), /archer_female_idle_v1\.png\?v=4$/);
+  assert.match(equipmentFallbackPortrait(saveFor('mage', 'male', staffBases[0])), /mage_male_idle_v1\.png\?v=4$/);
 });
 
 test('빈손 판 시트 6장씩이 실제로 배포본에 있다(서기·걷기·공격)', () => {

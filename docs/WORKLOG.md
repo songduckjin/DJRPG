@@ -1,3 +1,17 @@
+## 2026-11-21 · songduckjin 작업 229 — 전사 서기 '이전 그립' 원복(작업 222 되돌리기) · 알파 기준 유지 · 캐시 버전 4
+
+- **요청**: [작업 222](https://github.com/songduckjin/DJRPG/pull/193)(낮은 양손 그립)로 바꾼 전사 남녀 서기 시트·대검 앵커를 **그 직전(이전 그립)**으로 되돌려 운영에 배포.
+- **기준 커밋**: `4a1e95c`(PR #193, 작업 222)의 변경 목록을 `git show --stat`으로 확인 — PNG 88장 + 코드 6파일 + 테스트 8파일 + 문서 3파일. 원복 원본은 `4a1e95c^`(=`985f7f5`)다.
+- **에셋 88장**: `4a1e95c^`의 서기 PNG만 되돌렸다 — 기준 `warrior_{male,female}_idle_v1.png`, `headless/`, `noweapon/`, `noweapon/headless/`, `armors/`·`armors/headless/`·`noweapon/armors/`·`noweapon/armors/headless/`의 `warrior_*_armor_{0..9}_idle_v1.png`. 걷기·공격 시트는 작업 222가 건드리지 않았으므로 그대로다.
+- **`git revert`를 쓰지 않은 이유**: 작업 227(PR #209, 알파 복원 + `pilotSheet()`/`PILOT_ASSET_VERSION` 통합)이 222 뒤에 들어와, 222 커밋을 통째로 되돌리면 227의 알파 복원과 버전 표준화가 깨진다. 그래서 ① 에셋만 `4a1e95c^`에서 꺼내고 ② `python3 scripts/restore-pilot-alpha.py --only <서기 22개 파일명>`으로 227 기준(배경에서 2px 넘게 떨어진 내부 `alpha>=30` → 255, 외곽 AA 유지)을 다시 적용(28장 723,999px 복원) ③ 코드는 222가 바꾼 서기 앵커·시그니처만 이전 값으로 되돌리되 `pilotSheet()` 래퍼는 그대로 두었다.
+- **코드**: `WEAPON_POSES.male.idle0` = `{197.2, 220.7, 0°}`, `female.idle0` = `{198, 219.6, -0.31°}`(222 이전 값). 222가 더한 갑옷 전용 앵커 `idleArmor`와 `weaponPose(gender, motion, frame, armor)` 4번째 인자, `syncWeaponPart(..., armor)`·`drawHero`의 `armor` 전달, `equipmentPortraitWeapon`의 `armorIndexFor(save)`를 제거했다 — 이전 그립에서는 맨몸·갑옷 서기 시트의 손 위치가 같아 앵커가 하나다. `armors.ts`의 `WARRIOR_IDLE_ASSET_VERSION`·`withMotionVersion`은 작업 227에서 이미 `pilotSheet()`로 대체돼 있어 건드리지 않았다.
+- **캐시 무효화**: `src/game/render/pilotAssets.ts`의 `PILOT_ASSET_VERSION`을 **3 → 4**로 올렸다. 서기 시트를 같은 파일명으로 덮어썼고 `/assets/*`는 1년 `immutable`이므로 URL 버전이 바뀌어야 브라우저·CDN이 새 그림을 받는다. `pilotSheet()`가 붙는 모든 pilot-25d URL(본체·머리 없음·무기 지운 판·갑옷·투구·무기 파츠)이 함께 `?v=4`가 된다.
+- **테스트**: `?v=3`을 기대하던 76곳을 `?v=4`로 갱신(대부분 `pilotSheet()` 경유라 값만 바뀐다). `tests/weapon-render.test.mjs`의 자세 표 검사를 222 이전 기준으로 되돌렸다 — 키 9개(`idleArmor` 없음), `weaponPose(gender,'idle',0) === idle0`, 남성 `idle0.rot === 0`, 여성 `|rot| < 1`.
+- **검증**: `npx tsc --noEmit` 통과. 관련 7파일(`weapon-render`·`armor-render`·`archer-armor-render`·`character-portrait`·`equipped-detail`·`mage`·`weaponless-body`·`pilot-alpha`) **86/86**, 전체 `node --test tests/*.test.mjs` **948건 중 945 통과** — 실패 3건은 `c2c1c27`(main)에서 그대로 재현되는 기존 실패(`costume-field-render` 남/여 "코스튬 모드에서 통합 바디가 남아 있다", `skillbook-server` `hell` 이름 불일치)로 이번 변경과 무관하다(별도 워크트리에서 같은 3건 실패 확인). `npm run build` 통과.
+- **알파 전수 확인**: 되돌린 88장 전부에 대해 227 규칙(내부 반투명 < 1.5%·불투명 중앙값 ≥ 250/255)을 5×5 침식 기준으로 재검사 — **88/88 통과**.
+- **검수 이미지**: `downloads/djrpg_warrior_grip_revert_ingame_v1.png` — 남/여 × (맨몸 서기 · 맨몸+대검 파츠 · 갑옷 5번 서기 · 갑옷 5번+대검) 8칸을 `wasteland-ground` 위에 실게임 규칙(`WEAPON_POSES.idle0`의 가드 좌표·회전, 파츠 앵커 `WEAPON_GUARD`)으로 합성. 대검 파츠는 기본 검을 지운 `noweapon/` 시트 위에 얹었다(게임과 같은 경로). 확대해 보면 파츠 손잡이가 두 손 안에 들어오고 칼날선이 이전 그립과 나란하다.
+- **배포**: PR·운영 반영은 병합 뒤 이 항목에 기록한다.
+
 ## 2026-11-20 · songduckjin 작업 226 — 우편·거래소 `503 DB_UNAVAILABLE`에서 버튼 잠금·교착 해소 + 잠긴 이유 안내
 
 - **배경**: 서버 `server/http.mjs` `errorResponse`가 DB 연결·설정 단계 예외(그리고 트랜잭션 밖 예외)를 `503 DB_UNAVAILABLE`로 돌려주는데, 클라이언트 `SaveSync.mutate`는 **모든 5xx**에서 `pendingMarket`을 남겼다. 그 결과 DB가 잠깐 죽은 동안 거래소 `수령`·`모두 수령`과 우편 `모두 받기`가 함께 잠기고, `거래 결과 다시 확인`을 눌러도 같은 503만 반복돼 서버가 회복될 때까지 거래·저장이 멈췄다. 게다가 `Interface.open()`이 `pendingMarket`을 이유로 **모든 창 열기를 막아** 그 다시 확인 버튼이 있는 거래소 창조차 열 수 없는 교착이었다(사용자 제보의 "버튼이 잠기거나 안내가 안 뜬다").

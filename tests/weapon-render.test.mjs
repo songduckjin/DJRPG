@@ -143,7 +143,7 @@ test('대검 10종 이름이 모두 기본형 인덱스 0~9 로 매핑되고, 1~
   }
   assert.equal(weaponPartPath(0), undefined, '0번(두손검)은 본체 시트에 그려져 있다');
   for (let index = 1; index < WEAPON_COUNT; index++) {
-    assert.equal(weaponPartPath(index), `/assets/pilot-25d/weapons/weapon_${index}_v1.png?v=3`);
+    assert.equal(weaponPartPath(index), `/assets/pilot-25d/weapons/weapon_${index}_v1.png?v=4`);
     assert.deepEqual(weaponPartPaths(index), [weaponPartPath(index)]);
   }
   assert.equal(weaponPartPath(10), undefined);
@@ -220,16 +220,16 @@ test('기본 검을 지운 시트가 본체 6종·갑옷 120장에 짝으로 있
   }
 });
 
-test('자세 표는 남녀 × 9자세(+갑옷 서기 앵커)고, 걷기·공격 프레임은 4프레임 안으로 접힌다', () => {
+test('자세 표는 남녀 × 9자세고, 걷기·공격 프레임은 4프레임 안으로 접힌다', () => {
   for (const gender of ['male', 'female']) {
     const table = WEAPON_POSES[gender];
-    // 작업 222: 갑옷 서기 시트는 손 위치가 달라 `idleArmor` 앵커를 하나 더 둔다.
-    assert.deepEqual(Object.keys(table).sort(), ['attack0', 'attack1', 'attack2', 'attack3', 'idle0', 'idleArmor', 'walk0', 'walk1', 'walk2', 'walk3']);
-    assert.equal(weaponPose(gender, 'idle', 0, 0), table.idleArmor, '갑옷 0번은 갑옷 앵커');
-    assert.equal(weaponPose(gender, 'idle', 0, -1), table.idle0, '맨몸은 기준 앵커');
-    assert.equal(weaponPose(gender, 'walk', 0, 3), table.walk0, '걷기는 갑옷과 무관');
-    // 작업 222: 서기 자세가 '낮은 양손 그립'으로 바뀌어 파츠를 칼날선에 맞춰 조금만 돌린다(±8° 이내).
-    assert(Math.abs(table.idle0.rot) < 8, `${gender} idle 보정 각 ${table.idle0.rot}°`);
+    // [작업 229] 갑옷 전용 서기 앵커(`idleArmor`)는 이전 그립 시트로 되돌리며 없앴다 — 9자세다.
+    assert.deepEqual(Object.keys(table).sort(), ['attack0', 'attack1', 'attack2', 'attack3', 'idle0', 'walk0', 'walk1', 'walk2', 'walk3']);
+    assert.equal(weaponPose(gender, 'idle', 0), table.idle0, '서기는 기준 앵커 하나');
+    assert.equal(weaponPose(gender, 'walk', 0), table.walk0, '걷기 프레임');
+    // [작업 229] 이전 그립 서기에서는 남성 파츠가 PNG 자세 그대로이고, 여성은 1도 미만 보정이다.
+    if (gender === 'male') assert.equal(table.idle0.rot, 0, '남성 idle 은 파츠 자세 그대로');
+    else assert(Math.abs(table.idle0.rot) < 1, `여성 idle 보정 각 ${table.idle0.rot}°`);
     for (const pose of Object.values(table)) {
       assert(Number.isFinite(pose.x) && Number.isFinite(pose.y) && Number.isFinite(pose.rot));
       assert(pose.x > 0 && pose.x < 362 && pose.y > 0 && pose.y < 362);
@@ -324,25 +324,25 @@ test('대검을 벗으면 파츠를 숨기고 기준 시트로 돌아간다', ()
 test('장비창 초상화도 기본 검 없는 시트 + 파츠를 쓴다', () => {
   const save = freshSave('female');
   save.equipment.armor = { id: 'a', slot: 'armor', name: '드래곤 메일', rarity: 'unique', stats: {} };
-  // [작업 216] 무기를 안 찬 빈손이므로 기본 검을 지운 판(noweapon/armors)을 쓴다. 작업 222: `?v=3`.
-  assert.equal(equipmentFallbackPortrait(save), '/assets/pilot-25d/noweapon/armors/warrior_female_armor_7_idle_v1.png?v=3');
+  // [작업 216] 무기를 안 찬 빈손이므로 기본 검을 지운 판(noweapon/armors)을 쓴다. 작업 222: `?v=4`.
+  assert.equal(equipmentFallbackPortrait(save), '/assets/pilot-25d/noweapon/armors/warrior_female_armor_7_idle_v1.png?v=4');
   save.equipment.weapon = weaponItem('용살자의 대검');
-  assert.equal(equipmentFallbackPortrait(save), '/assets/pilot-25d/noweapon/armors/warrior_female_armor_7_idle_v1.png?v=3');
+  assert.equal(equipmentFallbackPortrait(save), '/assets/pilot-25d/noweapon/armors/warrior_female_armor_7_idle_v1.png?v=4');
   const plan = equipmentPortraitPlan(save);
-  assert.equal(plan.weapon?.path, '/assets/pilot-25d/weapons/weapon_8_v1.png?v=3');
+  assert.equal(plan.weapon?.path, '/assets/pilot-25d/weapons/weapon_8_v1.png?v=4');
   assert.equal(plan.weapon?.x, WEAPON_POSES.female.idle0.x);
   assert.equal(plan.weapon?.y, WEAPON_POSES.female.idle0.y);
   assert.equal(plan.weapon?.rotation, WEAPON_POSES.female.idle0.rot);
   // 갑옷이 없으면 기본 검 없는 본체 시트를 쓴다.
   save.equipment.armor = undefined;
-  assert.equal(equipmentFallbackPortrait(save), '/assets/pilot-25d/noweapon/warrior_female_idle_v1.png?v=3');
+  assert.equal(equipmentFallbackPortrait(save), '/assets/pilot-25d/noweapon/warrior_female_idle_v1.png?v=4');
 });
 
 test('pilot-25d 시트 URL 은 동작과 무관하게 같은 캐시 버스터(?v=)를 단다', () => {
   // `/assets/*`는 1년 불변 캐시다 — 시트를 덮어썼으면 URL 이 바뀌어야 새 그림이 나간다(작업 222).
   // 작업 227은 걷기·공격·파츠의 알파까지 고쳤으므로 서기만이 아니라 세 동작 모두 버전을 단다.
   for (const gender of ['male', 'female']) {
-    const idle = gender === 'male' ? '/assets/pilot-25d/warrior_male_idle_v1.png?v=3' : '/assets/pilot-25d/warrior_female_idle_v1.png?v=3';
+    const idle = gender === 'male' ? '/assets/pilot-25d/warrior_male_idle_v1.png?v=4' : '/assets/pilot-25d/warrior_female_idle_v1.png?v=4';
     assert(renderAssetPaths.includes(idle), `${idle} 가 부팅 프리로드에 없다`);
     assert(!renderAssetPaths.includes(idle.split('?')[0]), '버전 없는 옛 서기 URL 이 남아 있다');
     assert(renderAssetPaths.includes(headlessBodyPaths[gender].idle), '투구용 서기 시트도 같은 버전');
@@ -351,7 +351,7 @@ test('pilot-25d 시트 URL 은 동작과 무관하게 같은 캐시 버스터(?v
       assert(swordlessBodyPath(gender, motion).endsWith(`?v=${PILOT_ASSET_VERSION}`), `${motion} 무기 지운 시트 버전`);
       assert(armorSheetPath(gender, 0, motion).endsWith(`_v1.png?v=${PILOT_ASSET_VERSION}`), `${motion} 갑옷 시트 버전`);
     }
-    assert.equal(swordlessBodyPath(gender, 'idle', true), `/assets/pilot-25d/noweapon/headless/warrior_${gender}_idle_v1.png?v=3`);
+    assert.equal(swordlessBodyPath(gender, 'idle', true), `/assets/pilot-25d/noweapon/headless/warrior_${gender}_idle_v1.png?v=4`);
     for (const index of [0, 9]) assert(armorSheetPath(gender, index, 'idle', true, true).includes('/noweapon/armors/headless/'));
   }
   // 부팅 프리로드에 버전 없는 pilot-25d 경로가 섞이지 않았는지.
