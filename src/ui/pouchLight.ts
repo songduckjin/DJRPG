@@ -154,6 +154,15 @@ export function createPouchLight(ink = '#ffffff'): PouchLightHandle | null {
         paint.lineTo(x, y);
         paint.stroke();
       }
+      if (size > 1.8) {
+        const bloom = paint.createRadialGradient(x, y, 0, x, y, size * 3.2);
+        bloom.addColorStop(0, white(fade * 0.22));
+        bloom.addColorStop(1, white(0));
+        paint.fillStyle = bloom;
+        paint.beginPath();
+        paint.arc(x, y, size * 3.2, 0, TAU);
+        paint.fill();
+      }
       paint.fillStyle = white(fade * 0.9);
       paint.beginPath();
       paint.arc(x, y, size, 0, TAU);
@@ -167,7 +176,7 @@ export function createPouchLight(ink = '#ffffff'): PouchLightHandle | null {
     // 쪼으는 구간 — 아주 천천히 고조되고 숨쉬듯 미세하게 흔들린다.
     const build = clamp01(time / Math.max(1, burstAt));
     const breath = 1 + 0.07 * Math.sin(time / 80) * build;
-    paintGlow(70 + 58 * easeOutCubic(build), (0.05 + 0.3 * build * build) * breath);
+    paintGlow(78 + 56 * easeOutCubic(build), (0.05 + 0.38 * build * build) * breath);
     if (time <= burstAt + 90) paintMotes(time, build);
     const age = time - burstAt;
     if (age >= 0) {
