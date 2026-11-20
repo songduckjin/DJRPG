@@ -189,6 +189,24 @@ test('시즌 초기화 전에 받아 둔 옛 ID 다이아 우편은 새 시즌 I
   assert.equal(again.mail.some(entry => entry.id === LEGACY_DIAMOND_MAIL_ID), false, '받은 뒤 옛 ID 우편이 다시 붙지 않는다');
 });
 
+test('핫픽스 전에 옛 ID로 이미 받은 계정에는 4,000 다이아를 한 번 더 주지 않는다 (작업 220 후속)', () => {
+  const now = Date.parse('2026-11-20T12:00:00Z');
+  // 시즌1에 1,000을 받았고 시즌2 옛 ID 우편도 받아 지운 계정 — `notices`에 옛 ID만 남아 있다.
+  const early = advanceJourney({ achievements: [], notices: [LEGACY_DIAMOND_MAIL_ID], mail: [] }, save(), save(), now, true);
+  assert.equal(early.mail.some(entry => Number(entry.diamonds ?? 0) > 0), false, '이미 받은 보상은 새 ID로 다시 붙지 않는다');
+  assert.deepEqual(early.notices.filter(id => id.startsWith('all-idle-launch')), [LEGACY_DIAMOND_MAIL_ID], '다이아 지급 이력은 옛 ID 그대로(새 ID로 다시 주지 않는다)');
+  // 아직 아무것도 받지 않은 계정은 새 ID로 한 통 받는다.
+  const fresh = advanceJourney({ achievements: [], notices: [], mail: [] }, save(), save(), now, true);
+  assert.equal(fresh.mail.filter(entry => entry.id === DIAMOND_MAIL_ID).length, 1);
+  assert.equal(fresh.mail.find(entry => entry.id === DIAMOND_MAIL_ID).diamonds, 4000);
+  // 시즌1 ID 미수령 우편이 남아 있는 계정은 마이그레이션된 한 통을 받는다(중복 없음).
+  const pending = { achievements: [], notices: [LEGACY_DIAMOND_MAIL_ID], mail: [{ id: LEGACY_DIAMOND_MAIL_ID, diamonds: 4000, claimedAt: null, read: false, gold: 0, books: 0, title: '다이아 4,000개 지급', sender: '운영팀', body: '', createdAt: 1, expiresAt: null }] };
+  const migrated = advanceJourney(pending, save(), save(), now, true);
+  const diamondMails = migrated.mail.filter(entry => Number(entry.diamonds ?? 0) > 0);
+  assert.equal(diamondMails.length, 1);
+  assert.equal(diamondMails[0].id, DIAMOND_MAIL_ID);
+});
+
 test('period progress counts once per save and legacy clients retain new totals',async()=>{
   await seed('legacy');await snapshot(db,'legacy');await rewind('legacy',120);
   await transaction(db,async tx=>{const row=await account(tx,'legacy');await writeSave(tx,row,{...row.save,kills:10,bossKills:2,playSeconds:15,salvageCount:2});});
