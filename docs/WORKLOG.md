@@ -23,7 +23,7 @@
 - **스킬 8+3**: `skills.ts`에 `Job`·`archerSkillOrder`(더블 샷·멀티 샷·관통 사격·빙결 화살·호크아이·저격 일격·폭풍 연사·애로우 레인)·`archerPassiveOrder`(궁술 숙련·신속의 발걸음·매의 눈)를 추가하고 `skillOrderFor(job)`·`passiveOrderFor(job)`로 기존 레벨 해금·스킬북·쿨타임·퀵슬롯 구조를 그대로 쓴다. `cooldowns`는 스킬 표에서 자동 생성되므로 궁수 스킬도 같은 쿨타임 표에 들어가고, `totalStats`는 직업별 패시브(공격 +15% / 이동·공속 / 치명)를 같은 식으로 적용한다. 스킬 모달·HUD·스킬북 강화 표시·퀵슬롯 목록은 모두 직업별 8+3만 보여 준다.
 - **검증**: `npx tsc --noEmit` 통과, `npm test` 486건 중 484 통과 — 실패 2건은 `costume-field-render`(작업 149 이후 계속 실패하던 기존 2건, 분리 worktree의 `b009d42`·`eef4e9d`에서 동일 재현). 신규 `tests/archer.test.mjs` 12건(직업 기본값·전사 세이브 보존·궁수 스킬/패시브·스킬북·활 드랍·활 아이콘·원거리 판정·정지 거리·스킬 8종 이펙트·외형 분기·시트 규격·강화 표시). `node scripts/verify-item-art.mjs` 통과(궁수 시트 6장·활 아이콘 2장·아이콘 시트 2장 추가 확인), `npm run build` 통과, `git diff --check` 통과.
 - **검수 이미지**: `downloads/djrpg_archer_ingame_v1.png` — 실제 배포 에셋(황야 배경·궁수 시트·스켈레톤)을 게임과 같은 배율(본체 = 화면 높이 9.35%)·아이소메트릭 투영으로 합성한 3패널 검수본(서기/걷기, 화살 비행, 애로우 레인 착탄)과 2.0배 확대 인셋. 생성 스크립트 `scripts/preview-archer-field.py`. **브라우저 실기 확인은 미실시**(로컬 빌드를 띄우는 루프백 주소가 이 환경의 브라우저에서 차단됨).
-- **배포**: (PR 머지 후 기록)
+- **배포**: [PR #120](https://github.com/songduckjin/DJRPG/pull/120) 스쿼시 병합 `7dd9d67643e2`, 운영 `version.json` `7dd9d67643e2`(`builtAt 2026-11-20T01:30:06Z`). 새 에셋 10장(궁수 시트 6 + 활 아이콘 2 + 스킬 아이콘 2) 전부 **HTTP 200 `image/png`**, 원격 sha256 = 로컬(궁수 남자 서기·활 2번 시트 확인). 배포 번들 `index-B7aBXvAW.js`(1,228,551B)에 `archer_male_idle_v1`·`archer_female_attack_v1`·`item-art/bow_`·`archer-skills`·`archer-passive-skills`·`"archer"` 문자열과 `doubleShot`·`arrowRain` 스킬이 포함된 것을 확인. PR 체크는 `Cloudflare Pages` pass, `Workers Builds: djrpg`는 이전 Workers 설정 잔재로 상시 실패(기존 PR과 동일). 브랜치 삭제는 권한(403)으로 실패해 원격에 `feat/158-archer-job`이 남아 있다.
 
 ## 2026-11-20 — 대검 10종 외형 전체 적용: 남녀 서기·걷기·공격 파츠 (작업 156)
 
