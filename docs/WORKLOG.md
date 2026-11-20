@@ -17,6 +17,7 @@
 - 검증: `npx tsc --noEmit`, `tests/archer-helm-render.test.mjs` 10/10(파츠 규격·머리 지움·자세 표·drawHero·장비창), `tests/archer.test.mjs` 15/15, 전체 573건 중 570 통과(실패 3건은 `origin/main` 953c52f에서 동일 재현 — `costume-field-render` 2, `market` schema 1), `node scripts/verify-item-art.mjs`(투구 20·머리 없는 시트 12 추가), `npm run build`, `git diff --check`.
 - 검수: `downloads/djrpg_archer_helms_preview_v1.png`(남녀 10종 서기), `djrpg_archer_helms_motion_v1.png`(대표 3종 × 걷기·사격 4프레임), `djrpg_archer_helms_ingame_v1.png`(390×844 실게임 배율) — 머리카락 비침·이중 머리·목 이음매 없음 확인. 브라우저 실기 화면은 미확인(로컬 루프백 차단 — 사용자 몫).
 - 번호 참고: 199는 마법사 로브 작업, 200으로 등록했다(198은 마법사 직업과 fks3997 체력 상향이 겹쳐 있는 상태).
+- **머지·배포**: [PR #134](https://github.com/songduckjin/DJRPG/pull/134) 스쿼시 병합 `1dfb08910e79`. Cloudflare Pages 운영 `version.json` `1dfb08910e79`(`builtAt 2026-11-20T04:34:29Z`), **새 에셋 32장(투구 파츠 20 + 머리 없는 시트 12) 전부 HTTP 200 `image/png`·원격 sha256=로컬**, 배포 번들 `index-bvyg8b6g.js`에 `archer_helms/`·`archer_headless`·`nobow` 경로와 자세 표(`x:66,y:97,scale:.72` 등) 포함 확인. `Workers Builds: djrpg`는 기존과 같이 실패(실제 배포 경로인 Cloudflare Pages 체크는 통과).
 
 ## 2026-11-20 · fks3997 작업198 고층 일반·보스 체력 상향(미리보기)
 - `game/world.ts` `deepMobHp` 곡선을 `24 + floor*14 + floor^2.65*0.52`로 올리고(78층 15,359→54,826), 보스는 `earlyBossHp`(예전 곡선)에서 같은 램프(8→25층)로 `일반 몹 ×6`(78층 41,710→328,955)까지 넘어가게 했다. 1~8층 일반·보스는 예전 값 그대로, 10~15층은 작업 196 수준(299/653), 25층 3,008·40층 9,735·50층 17,254로 25층부터 본격 상승, 오프라인 정산(`offlineMobHp`)·던전 HP는 불변.
