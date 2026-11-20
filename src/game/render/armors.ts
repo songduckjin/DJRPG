@@ -20,6 +20,8 @@ export const ARMOR_COUNT = 10;
 export const armorMotionList: readonly ArmorMotion[] = ['idle', 'walk', 'attack'];
 
 const ARMOR_ROOT = '/assets/pilot-25d/armors';
+/** 기본 검을 지운 같은 시트(작업 156). 셀 좌표계·파일명 규칙이 같고 폴더만 다르다. */
+const SWORDLESS_ARMOR_ROOT = '/assets/pilot-25d/noweapon/armors';
 
 /**
  * 갑옷 시트 경로. 인덱스가 범위를 벗어나면 `undefined`(호출부는 기준 시트로 폴백).
@@ -28,20 +30,21 @@ const ARMOR_ROOT = '/assets/pilot-25d/armors';
  * `headless/` 아래 같은 이름으로 들어간다(작업 152의 `headless/` 규칙과 같다).
  */
 export function armorSheetPath(
-  gender: Gender, index: number, motion: ArmorMotion, headless = false
+  gender: Gender, index: number, motion: ArmorMotion, headless = false, swordless = false
 ): string | undefined {
   if (!Number.isInteger(index) || index < 0 || index >= ARMOR_COUNT) return undefined;
   if (!armorMotionList.includes(motion)) return undefined;
-  const directory = headless ? `${ARMOR_ROOT}/headless` : ARMOR_ROOT;
+  const root = swordless ? SWORDLESS_ARMOR_ROOT : ARMOR_ROOT;
+  const directory = headless ? `${root}/headless` : root;
   return `${directory}/warrior_${gender}_armor_${index}_${motion}_v1.png`;
 }
 
 /** 한 티어의 시트 6장(서기·걷기·공격 × 전신·머리 없음). 장비를 바꿀 때 미리 받는다. */
-export function armorSheetPaths(gender: Gender, index: number): string[] {
+export function armorSheetPaths(gender: Gender, index: number, swordless = false): string[] {
   const paths: string[] = [];
   for (const motion of armorMotionList) {
     for (const headless of [false, true]) {
-      const path = armorSheetPath(gender, index, motion, headless);
+      const path = armorSheetPath(gender, index, motion, headless, swordless);
       if (path) paths.push(path);
     }
   }

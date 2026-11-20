@@ -67,7 +67,7 @@ for (const gender of ['male', 'female']) test(`${gender}: field keeps the genera
  const attackKey=gender==='female'?'pilotFemaleAttack':'pilotMaleAttack';
  const idle=Texture.EMPTY,walk=Array.from({length:8},()=>new Texture({source:Texture.EMPTY.source})),attack=Array.from({length:4},()=>new Texture({source:Texture.EMPTY.source}));
  const layer=new Container(),hero=new Sprite(Texture.EMPTY);layer.addChild(hero);
- const view={hero,heroLayer:layer,heroGear:new Map(),gearTextures:new Map(),gearLoading:new Set(),lastHeroWorld:{x:0,y:0},heroWalkDistance:0,textures:{[idleKey]:idle},animations:{[walkKey]:walk,[attackKey]:attack},app:{screen:{height:800}},ground:{ellipse(){return {fill(){}};}},glow:{circle(){return {fill(){}};}},armorFrame:()=>undefined,prefetchArmor:()=>{},lastArmorTier:''};
+ const view={hero,heroLayer:layer,heroGear:new Map(),gearTextures:new Map(),gearLoading:new Set(),lastHeroWorld:{x:0,y:0},heroWalkDistance:0,textures:{[idleKey]:idle},animations:{[walkKey]:walk,[attackKey]:attack},app:{screen:{height:800}},ground:{ellipse(){return {fill(){}};}},glow:{circle(){return {fill(){}};}},armorFrame:()=>undefined,prefetchBody:()=>{},lastBodyTier:'',swordlessBodyFrame:()=>undefined,weaponPart:()=>undefined,prefetchWeapon:()=>{},lastWeaponTier:0,heroWeapon:undefined};
  const world={save,player:{x:0,y:0,facingSide:1,facing:0,hit:0,berserk:0,berserkLevel:0},activeMove:{x:0,y:0},attackPose:0,effects:[]};
  drawHero.call(view,world,100,100,0);
  assert.equal(hero.texture,idle,'idle uses the matching gender pilot image');

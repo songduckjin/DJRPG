@@ -11,6 +11,7 @@ import { resolveSkillMotion, type CostumeMotionTemplate } from '../costume/skill
 import { wearableEquipmentImage, baseItemIndex } from '../items';
 import { helmetArtFor, helmetArtPath, helmetPlacement } from './helmets';
 import { armorIndexFor } from './armors';
+import { WEAPON_GUARD, weaponIndexFor, weaponPose } from './weapons';
 import type { GameView } from '../render';
 
 function syncWeapon(view: GameView, save: Save, texture: Texture, art: string, attacking: boolean, motion: 'idle' | 'walk', walkingFrame: number): void {
@@ -141,6 +142,47 @@ function syncHelmet(view: GameView, save: Save, motion: 'idle' | 'walk' | 'attac
 }
 
 /**
+ * 착용 대검 파츠를 본체 위에 얹는다(작업 156).
+ *
+ * 파츠 PNG 는 idle 자세의 362px 셀 그대로이고 앵커가 손잡이(가드) 점이다. 자세별로는
+ * `weaponPose` 의 가드 좌표와 회전각만 주므로, 걷기·공격 어느 프레임에서도 칼이 손에서
+ * 떨어지거나 길이가 줄지 않는다. 0번(기본 두손검)은 본체 시트에 그려져 있어 숨긴다.
+ * 피격 틴트는 본체·투구와 같은 값을 쓴다.
+ */
+function syncWeaponPart(view: GameView, save: Save, motion: 'idle' | 'walk' | 'attack', frame: number, tint: number): void {
+  const index = weaponIndexFor(save);
+  const shown = view.heroWeapon;
+  if (index < 1) {
+    if (shown) shown.visible = false;
+    return;
+  }
+  const texture = view.weaponPart(index);
+  if (!texture) {
+    // 아직 로딩 전 — 이 프레임은 기본 검을 가진 본체 시트가 그려져 있다.
+    if (shown) shown.visible = false;
+    return;
+  }
+  const pose = weaponPose(save.gender, motion, frame);
+  const layerX = pose.x - view.hero.texture.width * view.hero.anchor.x;
+  const layerY = pose.y - view.hero.texture.height * view.hero.anchor.y;
+  let sprite = shown;
+  if (!sprite) {
+    sprite = new Sprite(texture);
+    sprite.zIndex = .4;
+    view.heroLayer.addChild(sprite);
+    view.heroLayer.sortableChildren = true;
+    view.heroWeapon = sprite;
+  }
+  if (sprite.texture !== texture) sprite.texture = texture;
+  sprite.anchor.set(WEAPON_GUARD.x / texture.width, WEAPON_GUARD.y / texture.height);
+  sprite.position.set(layerX, layerY);
+  sprite.rotation = pose.rot * Math.PI / 180;
+  sprite.tint = tint;
+  sprite.alpha = 1;
+  sprite.visible = true;
+}
+
+/**
  * 진행 중인 스킬 이펙트 → 코스튬 스킬 템플릿과 진행도 (작업 140).
  *
  * `world.ts`는 스킬을 스킬 ID와 같은 이름의 이펙트로 남기므로 모션 선택은 이펙트 종류만 보면 된다.
@@ -199,16 +241,31 @@ export function drawHero(this: GameView, world: World, x: number, y: number, tim
     // 착용 갑옷 시트(작업 155). 기준 시트와 같은 셀 좌표계라 배율·앵커·소켓은 그대로다.
     // 아직 로딩 전인 티어는 위의 기준 시트(투구를 썼으면 머리 없는 시트)로 한 프레임 더 그린다.
     const armor = armorIndexFor(save);
-    const armorTier = `${save.gender}:${armor}`;
-    if (this.lastArmorTier !== armorTier) {
-      this.lastArmorTier = armorTier;
-      if (armor >= 0) this.prefetchArmor(save.gender, armor);
+    const weapon = weaponIndexFor(save);
+    // 0번이 아닌 검을 차면 본체 시트도 기본 검을 지운 판(`noweapon/`)으로 갈아 끼운다(작업 156).
+    const swordless = weapon >= 1;
+    const bodyTier = `${save.gender}:${armor}:${swordless ? 1 : 0}`;
+    if (this.lastBodyTier !== bodyTier) {
+      this.lastBodyTier = bodyTier;
+      this.prefetchBody(save.gender, armor, swordless);
     }
+    if (this.lastWeaponTier !== weapon) {
+      this.lastWeaponTier = weapon;
+      if (weapon >= 1) this.prefetchWeapon(weapon);
+    }
+    const poseFrame = animation === 'walk' ? walkingFrame : animatedAttack ? Math.max(0, attackFrame) : 0;
     if (armor >= 0) {
-      const armorTexture = this.armorFrame(save.gender, armor, animation, helmeted, walkingFrame);
+      const armorTexture = this.armorFrame(save.gender, armor, animation, helmeted, walkingFrame, swordless);
       if (armorTexture) {
         texture = armorTexture;
         textureKey = `armor:${save.gender}:${armor}:${animation}:${helmeted ? 'headless' : 'body'}:${animation === 'idle' ? 0 : animation === 'walk' ? walkingFrame : Math.max(0, attackFrame)}`;
+      }
+    }
+    if (swordless) {
+      const stripped = this.swordlessBodyFrame(save.gender, animation, helmeted, poseFrame);
+      if (stripped) {
+        texture = stripped;
+        textureKey = `noweapon:${save.gender}:${armor}:${animation}:${helmeted ? 'headless' : 'body'}:${poseFrame}`;
       }
     }
     const displayTexture = tintedGearTexture(textureKey, texture, null, null, animatedAttack);
@@ -218,6 +275,7 @@ export function drawHero(this: GameView, world: World, x: number, y: number, tim
     const scale = heroScale(this.app.screen.height, art, texture.height);
     this.hero.tint = heroTint;
     syncHelmet(this, save, animation, animation === 'walk' ? walkingFrame : animatedAttack ? Math.max(0, attackFrame) : 0, heroTint);
+    syncWeaponPart(this, save, animation, poseFrame, heroTint);
     const withoutEquippedWeapon = { ...save, equipment: { ...save.equipment, weapon: undefined } };
     syncWeapon(this, withoutEquippedWeapon, texture, art, true, socketMotion(animation), walkingFrame);
     let bob = 0;

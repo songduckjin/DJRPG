@@ -160,7 +160,10 @@ function view() {
     },
     app: { screen: { height: 800 } },
     ground: { ellipse: () => ({ fill() {} }) },
-    glow: { circle: () => ({ fill() {} }) }
+    glow: { circle: () => ({ fill() {} }) },
+    // 작업 156: 무기는 0번(기본 검)이라 파츠를 그리지 않는다.
+    armorFrame: () => undefined, prefetchBody: () => {}, lastBodyTier: '',
+    swordlessBodyFrame: () => undefined, weaponPart: () => undefined, prefetchWeapon: () => {}, lastWeaponTier: 0, heroWeapon: undefined
   };
 }
 
@@ -312,7 +315,7 @@ test('장비창 초상화는 착용 투구를 키와 합성 계획에 담는다'
   const save = freshSave('female');
   const bare = equipmentPortraitPlan(save);
   assert.equal(bare.helmet, undefined);
-  assert.equal(bare.key, 'pilot:female:a-1:-');
+  assert.equal(bare.key, 'pilot:female:a-1:-:-', '갑옷·투구·검 파츠가 모두 없음');
 
   save.equipment.helmet = helmetItem('사슬 코이프');
   const withHelmet = equipmentPortraitPlan(save);

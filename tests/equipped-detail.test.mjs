@@ -58,7 +58,7 @@ for (const gender of ['male', 'female']) test(`${gender}: field and equipment pr
     assert.equal(plan.base, expected);
     // 초상화 키는 성별 + 갑옷 티어(작업 155) + 착용 투구 머리 파츠(작업 151). 없으면 '-'.
     assert.match(plan.key, new RegExp(`^pilot:${gender}:`));
-    assert.equal(plan.key, `pilot:${gender}:a${armorIndex}:${plan.helmet ? plan.helmet.path : '-'}`);
+    assert.equal(plan.key, `pilot:${gender}:a${armorIndex}:${plan.helmet ? plan.helmet.path : '-'}:${plan.weapon ? plan.weapon.path : '-'}`);
     assert.deepEqual(plan.layers, []);
   };
   check();
@@ -76,6 +76,18 @@ for (const gender of ['male', 'female']) test(`${gender}: field and equipment pr
   check(2);
   save.equipment.helmet = undefined;
   check(2);
+  // 기본형 대검(0번이 아닌 검)을 차면 필드·장비창 모두 기본 검을 지운 시트를 쓴다(작업 156).
+  save.equipment.weapon = { id: 'weapon', name: '쯔바이핸드', slot: 'weapon', rarity: 'rare', stats: {} };
+  assert.equal(equipmentFallbackPortrait(save),
+    `/assets/pilot-25d/noweapon/armors/warrior_${gender}_armor_2_idle_v1.png`);
+  const armed = equipmentPortraitPlan(save);
+  assert.equal(armed.weapon?.path, '/assets/pilot-25d/weapons/weapon_3_v1.png');
+  assert.match(armed.key, /weapon_3_v1\.png$/);
+  // 0번(두손검)은 본체 시트에 그려져 있으므로 파츠를 쓰지 않는다.
+  save.equipment.weapon = { id: 'weapon', name: '두손검', slot: 'weapon', rarity: 'common', stats: {} };
+  assert.equal(equipmentPortraitPlan(save).weapon, undefined);
+  assert.equal(equipmentFallbackPortrait(save),
+    `/assets/pilot-25d/armors/warrior_${gender}_armor_2_idle_v1.png`);
 });
 
 test('equipment portrait uses a cached full-body pilot image without loading costume manifests or overlays', () => {

@@ -189,3 +189,52 @@ for (const gender of ['male', 'female']) {
   }
 }
 console.log(`작업 155 착용 갑옷 전신 시트 ${armorSheetCount}장 확인 완료.`);
+
+// ── 작업 156: 기본 검을 지운 본체 시트(noweapon) + 대검 파츠 9장 ────────────────────
+// 0번(기본 두손검)은 본체 시트에 그려져 있고, 1~9번은 `weapons/weapon_{n}_v1.png` 파츠로
+// 362px 셀 위에 얹는다. 그래서 기본 검을 지운 같은 시트가 본체 6종(갑옷 없음)과
+// 갑옷 120장에 짝으로 있어야 한다(서기 362×362, 걷기·공격 1448×362).
+const swordlessRoot = fileURLToPath(new URL('../public/assets/pilot-25d/noweapon/', import.meta.url));
+let swordlessCount = 0;
+const checkSwordlessSheet = (path, expectWidth, expectHeight) => {
+  if (!existsSync(path)) throw new Error(`작업 156 기본 검 없는 시트가 없습니다: ${path}`);
+  const data = readFileSync(path), header = data.subarray(0, 26);
+  const width = header.readUInt32BE(16), height = header.readUInt32BE(20);
+  if (header.toString('ascii', 1, 4) !== 'PNG') throw new Error(`기본 검 없는 시트가 PNG가 아닙니다: ${path}`);
+  if (width !== expectWidth || height !== expectHeight) {
+    throw new Error(`기본 검 없는 시트 규격이 다릅니다(${width}×${height}): ${path}`);
+  }
+  if (!(header[25] === 6 || (header[25] === 3 && data.includes('tRNS')))) {
+    throw new Error(`기본 검 없는 시트는 투명도가 있는 PNG여야 합니다: ${path}`);
+  }
+  if (data.length > 200 * 1024) throw new Error(`기본 검 없는 시트가 200KB를 넘습니다(${Math.round(data.length / 1024)}KB): ${path}`);
+  swordlessCount += 1;
+};
+for (const gender of ['male', 'female']) {
+  for (const [motion, [expectWidth, expectHeight]] of Object.entries(armorSheetSizes)) {
+    for (const headless of [false, true]) {
+      checkSwordlessSheet(join(swordlessRoot, headless ? 'headless' : '', `warrior_${gender}_${motion}_v1.png`), expectWidth, expectHeight);
+      for (let index = 0; index < 10; index++) {
+        const name = `warrior_${gender}_armor_${index}_${motion}_v1.png`;
+        checkSwordlessSheet(join(swordlessRoot, 'armors', headless ? 'headless' : '', name), expectWidth, expectHeight);
+      }
+    }
+  }
+}
+console.log(`작업 156 기본 검 없는 본체 시트 ${swordlessCount}장 확인 완료.`);
+
+const weaponPartRoot = fileURLToPath(new URL('../public/assets/pilot-25d/weapons/', import.meta.url));
+for (let index = 1; index < 10; index++) {
+  const path = join(weaponPartRoot, `weapon_${index}_v1.png`);
+  if (!existsSync(path)) throw new Error(`작업 156 대검 파츠가 없습니다: weapon_${index}_v1.png`);
+  const data = readFileSync(path), header = data.subarray(0, 26);
+  const width = header.readUInt32BE(16), height = header.readUInt32BE(20);
+  if (header.toString('ascii', 1, 4) !== 'PNG' || width !== 362 || height !== 362) {
+    throw new Error(`대검 파츠는 362×362 PNG여야 합니다(${width}×${height}): weapon_${index}_v1.png`);
+  }
+  if (!(header[25] === 6 || (header[25] === 3 && data.includes('tRNS')))) {
+    throw new Error(`대검 파츠는 투명도가 있는 PNG여야 합니다: weapon_${index}_v1.png`);
+  }
+  if (data.length > 200 * 1024) throw new Error(`대검 파츠가 200KB를 넘습니다: weapon_${index}_v1.png`);
+}
+console.log('작업 156 대검 파츠 9장 확인 완료.');

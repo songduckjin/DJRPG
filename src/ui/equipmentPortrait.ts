@@ -6,6 +6,7 @@ import type { Save } from '../game/store';
 import { baseItemIndex } from '../game/items';
 import { helmetArtFor, helmetArtPath, helmetIdlePlacement } from '../game/render/helmets';
 import { armorIndexFor, armorSheetPath } from '../game/render/armors';
+import { WEAPON_GUARD, weaponIndexFor, weaponPartPath, weaponPose, swordlessBodyPath } from '../game/render/weapons';
 
 /**
  * 내 정보(장비창) 초상화 — Task 149 full-body pilot image. Gear remains functional but its
@@ -17,12 +18,33 @@ export function equipmentFallbackPortrait(save: Save): string {
   // 투구를 쓰면 필드와 같은 머리 없는 본체 위에 투구 파츠를 얹는다(작업 152).
   const headless = !!save.equipment.helmet;
   const armor = armorIndexFor(save);
+  // 0번이 아닌 검을 차면 필드와 같이 기본 검을 지운 시트를 쓴다(작업 156).
+  const swordless = weaponIndexFor(save) >= 1;
   if (armor >= 0) {
-    const path = armorSheetPath(save.gender, armor, 'idle', headless);
+    const path = armorSheetPath(save.gender, armor, 'idle', headless, swordless);
     if (path) return path;
   }
+  if (swordless) return swordlessBodyPath(save.gender, 'idle', headless);
   if (headless) return `/assets/pilot-25d/headless/warrior_${save.gender}_idle_v1.png`;
   return `/assets/pilot-25d/warrior_${save.gender}_idle_v1.png`;
+}
+
+/** 장비창에 합성하는 대검 파츠(작업 156). 파츠는 idle 자세 그대로다. */
+export type EquipmentPortraitWeapon = {
+  /** 파츠 PNG 경로. */
+  path: string;
+  /** 본체 362px 셀 좌표에서 손잡이(가드) 점과 회전각(도). */
+  x: number;
+  y: number;
+  rotation: number;
+};
+
+/** 착용 무기의 파츠. 0번(기본 두손검)은 본체 시트에 그려져 있어 undefined. */
+export function equipmentPortraitWeapon(save: Save): EquipmentPortraitWeapon | undefined {
+  const path = weaponPartPath(weaponIndexFor(save));
+  if (!path) return undefined;
+  const pose = weaponPose(save.gender, 'idle', 0);
+  return { path, x: pose.x, y: pose.y, rotation: pose.rot };
 }
 
 export type EquipmentPortraitHelmet = {
@@ -55,6 +77,8 @@ export type EquipmentPortraitPlan = {
   base: string;
   /** 착용 투구가 있으면 전신 초상화 위에 같은 자리·배율로 합성한다. */
   helmet?: EquipmentPortraitHelmet;
+  /** 착용 대검이 있으면(1번 이상) 같은 셀 좌표로 합성한다. */
+  weapon?: EquipmentPortraitWeapon;
   /** 캐시 키(성별 + 투구). */
   key: string;
   gender: Save['gender'];
@@ -68,8 +92,13 @@ export type EquipmentPortraitPlan = {
 export function equipmentPortraitPlan(save: Save): EquipmentPortraitPlan {
   const base = equipmentFallbackPortrait(save);
   const helmet = equipmentPortraitHelmet(save);
-  // 착용 투구가 바뀌면 합성 결과도 바뀌므로 키에 넣는다(성별 + 갑옷 티어 + 투구 파츠).
-  return { mode: 'fallback', base, key: `pilot:${save.gender}:a${armorIndexFor(save)}:${helmet ? helmet.path : '-'}`, gender: save.gender, layers: [], helmet };
+  const weapon = equipmentPortraitWeapon(save);
+  // 착용 투구·대검이 바뀌면 합성 결과도 바뀌므로 키에 넣는다(성별 + 갑옷 티어 + 투구 + 검 파츠).
+  return {
+    mode: 'fallback', base,
+    key: `pilot:${save.gender}:a${armorIndexFor(save)}:${helmet ? helmet.path : '-'}:${weapon ? weapon.path : '-'}`,
+    gender: save.gender, layers: [], helmet, weapon
+  };
 }
 
 /* ── 아틀라스 이미지·합성 결과 캐시 ─────────────────────────────────────── */
@@ -229,8 +258,8 @@ async function composeCostume(layers: CostumeLayerPlan[]): Promise<string> {
   }
 }
 
-/** 폴백: 전신 초상화 한 장(+착용 투구)을 캔버스에 맞춰 그린다(빈 화면 방지). */
-async function composeFallback(base: string, helmet?: EquipmentPortraitHelmet): Promise<string> {
+/** 폴백: 전신 초상화 한 장(+착용 투구·대검)을 캔버스에 맞춰 그린다(빈 화면 방지). */
+async function composeFallback(base: string, helmet?: EquipmentPortraitHelmet, weapon?: EquipmentPortraitWeapon): Promise<string> {
   const image = await loadImage(base, fallbackImages, new Set());
   const canvas = fitCanvas(image.naturalWidth, image.naturalHeight);
   const context = canvas.getContext('2d');
@@ -253,6 +282,23 @@ async function composeFallback(base: string, helmet?: EquipmentPortraitHelmet): 
       console.info('[장비창] 투구 머리 파츠 로딩 실패 → 전신 그림만 표시:', error);
     }
   }
+  if (weapon) {
+    try {
+      const patch = await loadImage(weapon.path, fallbackImages, new Set());
+      // 파츠는 본체와 같은 362px 셀 좌표계라, 전신 그림이 그려진 배율·위치에 그대로 얹고
+      // 손잡이(가드) 점을 축으로 회전시킨다(필드 `syncWeaponPart` 와 같은 규칙).
+      const guardX = (canvas.width - width) / 2 + weapon.x * scale;
+      const guardY = canvas.height - height + weapon.y * scale;
+      const dexed = { x: WEAPON_GUARD.x, y: WEAPON_GUARD.y };
+      context.save();
+      context.translate(guardX, guardY);
+      context.rotate(weapon.rotation * Math.PI / 180);
+      context.drawImage(patch, -dexed.x * scale, -dexed.y * scale, patch.naturalWidth * scale, patch.naturalHeight * scale);
+      context.restore();
+    } catch (error) {
+      console.info('[장비창] 대검 파츠 로딩 실패 → 전신 그림만 표시:', error);
+    }
+  }
   return canvas.toDataURL('image/png');
 }
 
@@ -273,7 +319,7 @@ export async function renderEquipmentPortrait(save: Save): Promise<string> {
         console.info('[장비창] 코스튬 합성 실패 → 전신 초상화로 폴백:', error);
       }
     }
-    return composeFallback(plan.base, plan.helmet);
+    return composeFallback(plan.base, plan.helmet, plan.weapon);
   })();
   storePortrait(plan.key, pending);
   void pending.catch(() => {
