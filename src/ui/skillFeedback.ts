@@ -10,8 +10,8 @@ export class SkillFeedback {
     for (const effect of effects) {
       if (this.seen.has(effect)) continue;
       this.seen.add(effect);
-      // 피흡·회복·회피(작업 238)는 스킬 버튼을 깜빡이는 대상이 아니다.
-      if (effect.age > .25 || effect.kind === 'hit' || effect.kind === 'death' || effect.kind === 'heal' || effect.kind === 'evade') continue;
+      // 피흡·회복·회피(작업 238)와 적의 반격(작업 245)은 스킬 버튼을 깜빡이는 대상이 아니다.
+      if (effect.age > .25 || effect.kind === 'hit' || effect.kind === 'death' || effect.kind === 'heal' || effect.kind === 'evade' || effect.kind === 'enemyStrike') continue;
       // 궁수 화살·화살비·호크아이와 마법사 폭발·노바·보호막은 버튼 아이콘을 깜빡이는 대상이 아니다(스킬 이펙트만 그린다).
       if (effect.kind === 'shot' || effect.kind === 'rain' || effect.kind === 'hawk' || effect.kind === 'burst' || effect.kind === 'nova' || effect.kind === 'ward') {
         if (effect.source) casts.add(effect.source);

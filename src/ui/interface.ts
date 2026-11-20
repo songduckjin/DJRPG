@@ -136,7 +136,7 @@ export class Interface {
     this.journey.onMessage = text => this.message(text);
     this.journey.onChange = () => { this.renderStatus(); this.renderBagBadge(); updateUtilityBadges(this); if (['mail','rewards','achievements'].includes(this.openModal ?? '')) this.renderModal(); };
     void this.journey.load();
-    window.setInterval(() => { if (!document.hidden) void this.journey.load(); }, 30000);
+    window.setInterval(() => { if (!document.hidden) void this.journey.load(); }, 120000);
     for (const item of [...world.save.bag, ...Object.values(world.save.equipment)]) if (item) this.knownItems.add(item.id);
     this.root.querySelectorAll<HTMLButtonElement>('[data-modal]').forEach(button => button.onclick = () => { cancelSkillSelection.call(this); this.open(button.dataset.modal as Modal); });
     this.root.addEventListener('pointerdown', event => {

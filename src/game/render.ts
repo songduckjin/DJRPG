@@ -6,7 +6,7 @@ import { wearableAssetPaths, type Slot } from './items';
 import { drawRunes, drawTerrain, drawDust, drawLighting, drawVignette } from './render/field';
 import { drawHero, updateAfterimages, updateCorpses, drawEntities } from './render/entities';
 import { createCostumeHeroState, type CostumeHeroState } from './render/costumeHero';
-import { drawSkillVfx, drawDragon, drawHit, updateDamageLabels, drawDeath, drawEffects } from './render/vfx';
+import { drawSkillVfx, drawDragon, drawHit, drawEnemyStrike, updateDamageLabels, drawDeath, drawEffects } from './render/vfx';
 import { drawLoot } from './render/drops';
 import type { LootDrop } from './loot';
 import { projectArenaPoint } from './arena';
@@ -711,6 +711,8 @@ export class GameView {
   updateCorpses(project: (x: number, y: number) => [number, number], dt: number): void { return updateCorpses.call(this, project, dt); }
 
   drawHit(x: number, y: number, t: number, seed: number): void { return drawHit.call(this, x, y, t, seed); }
+  /** 적의 반격(작업 245) — 플레이어 몸 위 할퀴기 자국. */
+  drawEnemyStrike(x: number, y: number, t: number, angle: number): void { return drawEnemyStrike.call(this, x, y, t, angle); }
 
   updateDamageLabels(effects: Effect[], project: (x: number, y: number) => [number, number]): void { return updateDamageLabels.call(this, effects, project); }
 

@@ -5,6 +5,7 @@ import {GameView} from '../game/render';
 import {projectArenaPoint} from '../game/arena';
 import {totalStats} from '../game/store';
 import {skills} from '../game/skills';
+import {cooldowns} from '../game/world';
 import {equipmentImage,isEquipment,isSkillBook,type Rarity} from '../game/items';
 import {DungeonBattle,DUNGEON_STEP,dungeonBattleSummary,dungeonLootSpots,dungeonLootTimeline,dungeonAbsorbProgress,dungeonAbsorbPoint,type DungeonLoot,type LootDrop,type LootField} from './dungeonBattle';
 import {claimDungeonRewards,type DungeonRewardReceipt} from '../game/dungeonRewards';
@@ -175,7 +176,9 @@ export function openDungeonField(ui:Interface,lobby:HTMLElement):void {
   const cleanup=()=>{if(closed)return;closed=true;observer.disconnect();lobbyRoot.classList.remove('is-opening');lobbyRoot.querySelectorAll<HTMLButtonElement>('button').forEach(button=>button.disabled=false);field.remove();if(mounted)view.app.destroy(true,{children:true,texture:false,textureSource:false});else destroyPending=true;ui.world.paused=wasPaused||ui.market.sync.locked||ui.market.sync.conflicted;resume?.();};
   const leave=()=>{cleanup();ui.open('dungeon');};get<HTMLButtonElement>('.dungeon-field-leave').onclick=leave;
   field.addEventListener('keydown',e=>{e.stopPropagation();if(e.key==='Escape')leave();});get<HTMLButtonElement>('.dungeon-field-leave').focus();
-  for(const id of ui.world.save.quickSlots){const slot=document.createElement('div');slot.className='dungeon-auto-skill';if(id){const icon=document.createElement('i');setSkillIcon(icon,id);slot.append(icon);const name=document.createElement('span');name.textContent=skills[id].name;slot.append(name);}else slot.textContent='빈 슬롯';get('.dungeon-auto-skills').append(slot);}
+  // 하단 자동 스킬 칸(작업 245) — 장전된 스킬의 남은 쿨타임을 매 프레임 숫자와 어두운 마스크로 보여 준다.
+  const autoSkillViews:{id:string;el:HTMLElement;cd:HTMLElement;mask:HTMLElement}[]=[];
+  for(const id of ui.world.save.quickSlots){const slot=document.createElement('div');slot.className='dungeon-auto-skill';if(id){const icon=document.createElement('i');setSkillIcon(icon,id);const mask=document.createElement('b');mask.className='dungeon-auto-skill-mask';const cd=document.createElement('em');cd.className='dungeon-auto-skill-cd';icon.append(mask,cd);slot.append(icon);const name=document.createElement('span');name.textContent=skills[id].name;slot.append(name);autoSkillViews.push({id,el:slot,cd,mask});}else slot.textContent='빈 슬롯';get('.dungeon-auto-skills').append(slot);}
   const resetBattle=(floor:number)=>{
     const gate=get('.dungeon-exit-gate');gate.classList.add('is-resetting');gate.classList.remove('is-opening');
     void gate.offsetWidth;gate.classList.remove('is-resetting');
@@ -266,6 +269,15 @@ export function openDungeonField(ui:Interface,lobby:HTMLElement):void {
       const hp=battle.world.player.hp,max=totalStats(battle.world.save).health;
       get('.dungeon-hp i').style.width=`${hp/max*100}%`;get('.dungeon-hp span').textContent=`HP ${Math.ceil(hp)} / ${max}`;
       get('[data-clock]').textContent=`${Math.ceil(90-battle.elapsed)}초`;get('[data-wave]').textContent=battle.bossFloor?'보스전':`WAVE ${battle.wave} / 3`;get('[data-kills]').textContent=`처치 ${battle.world.slain} / ${battle.targetCount}`;
+      // 장전 스킬의 남은 쿨타임(작업 245) — 각 칸이 자기 쿨타임을 초 단위로 줄여 가며 마스크를 걷는다.
+      for(const view of autoSkillViews){
+        const total=Math.max(.001,cooldowns[view.id as keyof typeof cooldowns]??1);
+        const left=Math.max(0,battle.world.cooldown[view.id as keyof typeof battle.world.cooldown]??0);
+        const ratio=Math.min(1,left/total);
+        view.el.classList.toggle('is-cooling',left>0);
+        view.cd.textContent=left>0?(left>=10?String(Math.ceil(left)):left.toFixed(1)):'';
+        view.mask.style.transform=`scaleY(${ratio})`;
+      }
       if(battle.finished&&finishAge>=timeline().resultAt&&!resultShown)result();
     });
   }catch(error){if(closed)return;cleanup();ui.message(`전장 로딩 실패: ${error instanceof Error?error.message:String(error)}`);}})();

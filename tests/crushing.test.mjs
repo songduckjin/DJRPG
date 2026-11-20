@@ -23,6 +23,8 @@ function battlefield(options = {}) {
   save.quickSlots = ['crushing', null, null];
   if (options.level) save.skillLevels = { crushing: options.level };
   const world = new World(save);
+  // 치명타(작업 245)는 이 테스트의 관심사가 아니다 — 항상 "안 터지게" 고정해 10타 합계가 흔들리지 않게 한다.
+  world.critRoll = () => 1;
   world.spawnTimer = 999;            // 사냥 도중 새 적이 끼어들지 않게
   world.cooldown.attack = 999;       // 평타 피해가 섞이지 않게
   const enemy = world.enemies[0];

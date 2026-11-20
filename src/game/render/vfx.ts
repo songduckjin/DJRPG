@@ -87,7 +87,7 @@ export function drawSkillVfx(this: GameView, world: World, effect: Effect, x: nu
       return true;
     }
     if (effect.kind === 'warcry') return true;
-    if (effect.kind === 'hit' || effect.kind === 'death' || effect.kind === 'evade' || effect.kind === 'heal') return false;
+    if (effect.kind === 'hit' || effect.kind === 'death' || effect.kind === 'evade' || effect.kind === 'heal' || effect.kind === 'enemyStrike') return false;
     if (effect.kind === 'spin') { this.drawDragon(effect, x, y, t, time); return true; }
     // `hell`(회전참격)은 위에서 전용 이펙트로 처리한다(작업 215).
     const art: Art = effect.kind === 'slam' || effect.kind === 'crushing' ? 'fxSlam' : effect.kind === 'power' ? 'fxPower' : effect.kind === 'destroy' ? 'fxDestroy' : 'fxSlash';
@@ -445,15 +445,18 @@ export function drawHit(this: GameView, x: number, y: number, t: number, seed: n
 
 export function updateDamageLabels(this: GameView, effects: Effect[], project: (x: number, y: number) => [number, number]): void {
     // 추가옵션(작업 238): 피해 숫자에 회피(`회피`)와 회복(`+N`, 피흡·5초 회복)을 더한다.
-    const labeled = effects.filter(effect => effect.kind === 'hit' || effect.kind === 'evade' || effect.kind === 'heal');
+    // 적의 반격(작업 245)도 같은 숫자판을 써서 잃은 체력을 보여 준다.
+    const labeled = effects.filter(effect => effect.kind === 'hit' || effect.kind === 'evade' || effect.kind === 'heal' || effect.kind === 'enemyStrike');
     const hits = new Set(labeled);
     for (const [effect, label] of this.damageLabels) if (!hits.has(effect)) { this.labels.removeChild(label); label.destroy(); this.damageLabels.delete(effect); }
     for (const effect of labeled) {
       let label = this.damageLabels.get(effect);
       if (!label) {
         const text = effect.kind === 'evade' ? '회피' : `${effect.kind === 'heal' ? '+' : '-'}${effect.amount ?? 0}`;
-        const fill = effect.kind === 'evade' ? 0xbfe4ff : effect.kind === 'heal' ? 0x86f0a2 : 0xffd6a0;
-        label = new Text({ text, style: { fontFamily: 'Cinzel', fontSize: effect.kind === 'evade' ? 14 : 16, fontWeight: 'bold', fill } });
+        // 치명타는 크고 금빛으로(작업 245), 내가 맞은 피해는 붉게 — 적 타격과 내 피해가 한눈에 갈린다.
+        const fill = effect.kind === 'evade' ? 0xbfe4ff : effect.kind === 'heal' ? 0x86f0a2 : effect.kind === 'enemyStrike' ? 0xff7a6a : effect.crit ? 0xffd75e : 0xffd6a0;
+        const size = effect.kind === 'evade' ? 14 : effect.crit ? 21 : 16;
+        label = new Text({ text, style: { fontFamily: 'Cinzel', fontSize: size, fontWeight: 'bold', fill } });
         label.anchor.set(.5, 1); this.labels.addChild(label); this.damageLabels.set(effect, label);
       }
       const t = effect.age / effect.duration, [x, y] = project(effect.x, effect.y);
@@ -476,6 +479,20 @@ export function drawDeath(this: GameView, x: number, y: number, t: number, seed:
   }
 
 
+export function drawEnemyStrike(this: GameView, x: number, y: number, t: number, angle: number): void {
+    // 적의 반격(작업 245) — 플레이어 몸 위를 스치는 세 줄 할퀴기와 짧은 충격 섬광.
+    const alpha = 1 - t;
+    for (let i = 0; i < 3; i++) {
+      const lean = (i - 1) * .26, a = angle + lean;
+      const cx = x + Math.cos(a) * 3, cy = y - 24 + Math.sin(a) * 3;
+      const reach = 18 + t * 16;
+      this.effects.moveTo(cx - Math.cos(a) * reach * .7, cy - 11 + Math.sin(a) * reach * .3)
+        .lineTo(cx + Math.cos(a) * reach, cy + 9 + Math.sin(a) * reach * .3)
+        .stroke({ color: i === 1 ? 0xfff1e0 : 0xff5a4a, width: .8 + 2.4 * alpha, alpha: .9 * alpha });
+    }
+    this.effects.circle(x, y - 22, 8 + t * 14).fill({ color: 0xffb0a0, alpha: .22 * alpha });
+  }
+
 export function drawEffects(this: GameView, world: World, project: (x: number, y: number) => [number, number], time: number): void {
     const liveEffects = new Set(world.effects);
     for (const [effect, sprites] of this.vfxSprites) if (!liveEffects.has(effect)) { for (const sprite of sprites) sprite.destroy(); this.vfxSprites.delete(effect); }
@@ -485,6 +502,7 @@ export function drawEffects(this: GameView, world: World, project: (x: number, y
       const screenAngle = Math.atan2(Math.sin(effect.angle) * .43 + Math.cos(effect.angle) * .43, Math.cos(effect.angle) * .86 - Math.sin(effect.angle) * .86);
       if (this.drawSkillVfx(world, effect, x, y, t, screenAngle, time)) continue;
       if (effect.kind === 'evade' || effect.kind === 'heal') continue;
+      if (effect.kind === 'enemyStrike') { this.drawEnemyStrike(x, y, t, effect.angle); continue; }
       if (effect.kind === 'death') this.drawDeath(x, y, t, effect.angle);
       else this.drawHit(x, y, t, effect.angle);
     }
