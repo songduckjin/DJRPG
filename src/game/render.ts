@@ -109,7 +109,7 @@ function bowsheetPaths(gender: Gender): string[] {
   return [bowlessBodyPath(gender, 'idle'), bowlessBodyPath(gender, 'walk'), bowlessBodyPath(gender, 'attack')];
 }
 
-/** 기본 지팡이를 지운 마법사 본체 시트 3장(서기·걷기·공격) — 작업 199. */
+/** 기본 지팡이를 지운 마법사 본체 시트 3장(서기·걷기·공격) — 작업 201. */
 function staffSheetPaths(gender: Gender): string[] {
   return [stafflessBodyPath(gender, 'idle'), stafflessBodyPath(gender, 'walk'), stafflessBodyPath(gender, 'attack')];
 }
@@ -203,7 +203,7 @@ export class GameView {
   lastBowTier = -1;
   /** 지금 그려진 활 파츠 스프라이트(0번·로딩 전이면 숨김). */
   heroBow?: Sprite;
-  /** 착용 지팡이 파츠(경로 → 텍스처), 로딩 중인 경로, 최근 티어 (작업 199). */
+  /** 착용 지팡이 파츠(경로 → 텍스처), 로딩 중인 경로, 최근 티어 (작업 201). */
   staffSheets = new Map<string, Texture>();
   staffLoading = new Set<string>();
   staffTierOrder: number[] = [];
@@ -436,7 +436,7 @@ export class GameView {
   }
 
   /**
-   * 착용 지팡이 파츠 텍스처 (작업 199). 아직 로딩 전이면 `undefined` — 그 프레임은 기본 지팡이를
+   * 착용 지팡이 파츠 텍스처 (작업 201). 아직 로딩 전이면 `undefined` — 그 프레임은 기본 지팡이를
    * 지운 본체 시트만 그려진다(부팅 직후·티어를 막 바꿨을 때).
    */
   staffPart(index: number): Texture | undefined {
@@ -473,7 +473,7 @@ export class GameView {
     });
   }
 
-  /** 기본 지팡이를 지운 마법사 본체 시트의 프레임 (작업 199). */
+  /** 기본 지팡이를 지운 마법사 본체 시트의 프레임 (작업 201). */
   staffBodyFrame(gender: Gender, motion: StaffMotion, frame: number): Texture | undefined {
     return this.bodySheetFrame(stafflessBodyPath(gender, motion), motion, frame);
   }

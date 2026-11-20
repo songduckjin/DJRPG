@@ -224,7 +224,7 @@ test('마법사는 장비를 착용해도 기본 시트만 쓰고 전사용 갑�
   save.equipment.helmet = { id: 'h', name: '황혼의 기사 헬름', slot: 'helmet', rarity: 'rare', stats: { defense: 5 } };
   save.equipment.weapon = { id: 'w', name: '황혼의 혈염 지팡이', slot: 'weapon', rarity: 'rare', stats: { attack: 30 } };
   const plan = equipmentPortraitPlan(save);
-  // 작업 199: 지팡이를 차면 기본 지팡이를 지운 시트 위에 지팡이 파츠를 얹는다(전사 갑옷·투구·검은 그대로 제외).
+  // 작업 201: 지팡이를 차면 기본 지팡이를 지운 시트 위에 지팡이 파츠를 얹는다(전사 갑옷·투구·검은 그대로 제외).
   assert.equal(plan.base, '/assets/pilot-25d/mage_nostaff/mage_female_idle_v1.png');
   assert.equal(plan.helmet, undefined);
   assert.equal(plan.weapon, undefined);

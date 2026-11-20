@@ -2,7 +2,7 @@ import type { Gender, Save } from '../store';
 import { isStaff, staffIndex } from '../items';
 
 /**
- * 착용 지팡이 10종 외형 파츠 (작업 199).
+ * 착용 지팡이 10종 외형 파츠 (작업 201).
  *
  * `staffBases` 0~9번(견습생의 지팡이 ~ 대현자의 성지팡이)을 **본체 시트와 분리된 파츠 PNG**로 그린다.
  * 파츠는 기준 시트의 362px 셀 좌표계를 그대로 쓰고, 손이 지팡이를 쥔 그립 점을 축으로 자세마다

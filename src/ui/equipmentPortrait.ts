@@ -29,7 +29,7 @@ export function equipmentFallbackPortrait(save: Save): string {
         ? bowlessBodyPath(save.gender, 'idle')
         : `/assets/pilot-25d/archer_${save.gender}_idle_v1.png?v=2`;
     }
-    // 작업 199: 마법사는 지팡이를 찼으면 기본 지팡이를 지운 서기 시트 위에 지팡이 파츠를 얹는다.
+    // 작업 201: 마법사는 지팡이를 찼으면 기본 지팡이를 지운 서기 시트 위에 지팡이 파츠를 얹는다.
     if (isMage(save)) {
       return staffIndexFor(save) >= 0
         ? stafflessBodyPath(save.gender, 'idle')
@@ -70,7 +70,7 @@ export function equipmentPortraitWeapon(save: Save): EquipmentPortraitWeapon | u
   return { path, x: pose.x, y: pose.y, rotation: pose.rot };
 }
 
-/** 장비창에 합성하는 지팡이 파츠(작업 199). 파츠는 서기 자세 그대로다. */
+/** 장비창에 합성하는 지팡이 파츠(작업 201). 파츠는 서기 자세 그대로다. */
 export type EquipmentPortraitStaff = {
   /** 파츠 PNG 경로. */
   path: string;
@@ -142,7 +142,7 @@ export type EquipmentPortraitPlan = {
   weapon?: EquipmentPortraitWeapon;
   /** 착용 활이 있으면(1번 이상) 같은 셀 좌표로 합성한다(작업 160). */
   bow?: EquipmentPortraitBow;
-  /** 착용 지팡이가 있으면 같은 셀 좌표로 합성한다(작업 199). */
+  /** 착용 지팡이가 있으면 같은 셀 좌표로 합성한다(작업 201). */
   staff?: EquipmentPortraitStaff;
   /** 캐시 키(성별 + 투구). */
   key: string;

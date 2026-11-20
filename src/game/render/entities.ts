@@ -231,7 +231,7 @@ function syncBowPart(view: GameView, save: Save, motion: 'idle' | 'walk' | 'atta
 }
 
 /**
- * 착용 지팡이 파츠를 본체 위에 얹는다(작업 199).
+ * 착용 지팡이 파츠를 본체 위에 얹는다(작업 201).
  *
  * 파츠 PNG 는 서기 자세의 362px 셀 그대로이고 앵커가 손이 지팡이를 쥔 그립 점이다. 자세별로는
  * `staffPose` 의 그립 좌표와 회전각만 주므로, 걷기·공격 어느 프레임에서도 지팡이가 손에서
@@ -363,7 +363,7 @@ export function drawHero(this: GameView, world: World, x: number, y: number, tim
         textureKey = `nobow:${save.gender}:${animation}:${poseFrame}`;
       }
     }
-    // 마법사: 지팡이를 찼으면 기본 지팡이를 지운 본체 시트로 갈아 끼우고 그 위에 지팡이 파츠를 얹는다(작업 199).
+    // 마법사: 지팡이를 찼으면 기본 지팡이를 지운 본체 시트로 갈아 끼우고 그 위에 지팡이 파츠를 얹는다(작업 201).
     const mage = job === 'mage';
     const staff = mage ? staffIndexFor(save) : -1;
     if (mage && this.lastStaffTier !== staff) {
