@@ -7,7 +7,7 @@ import {skills} from '../game/skills';
 import {equipmentImage,isSkillBook,type Rarity} from '../game/items';
 import {DungeonBattle,dungeonLootSpots,dungeonLootTimeline,dungeonAbsorbProgress,dungeonAbsorbPoint,type DungeonLoot,type LootDrop,type LootField} from './dungeonBattle';
 import {heroBodyFraction} from '../game/render/heroScale';
-import {GOLD_PILE_ART,GOLD_PILE_H,GOLD_PILE_RX,GOLD_PILE_RY,GOLD_PILE_W} from '../game/render/goldPile';
+import {GOLD_PILE,GOLD_PILE_RX,GOLD_PILE_RY} from '../game/render/goldPile';
 import {setSkillIcon} from './skillArtwork';
 import {createSkillBookArt} from './skillBookArt';
 import type {Interface} from './interface';
@@ -57,12 +57,15 @@ export function openDungeonField(ui:Interface,lobby:HTMLElement):void {
       el.classList.add('is-gold');
       // A coin heap is wide and flat, so its ground shadow is too instead of an icon-sized circle.
       shadow.style.width=`${GOLD_PILE_RX*2}px`;shadow.style.height=`${GOLD_PILE_RY*2}px`;
-      // A heap of coins lying flat on the floor: one image built at the size it is drawn (작업 195),
-      // so nothing is shrunk from the coin icon and squashed flat per drop — the same heap the field
-      // draws. No outer light at all.
-      const art=document.createElement('img');art.className='dungeon-loot-coin';art.src=GOLD_PILE_ART;art.alt='';
-      art.style.width=`${GOLD_PILE_W}px`;art.style.height=`${GOLD_PILE_H}px`;
-      body.append(art);
+      // A heap of coins lying flat on the floor: two or three coins of the standing art, each
+      // squashed and tinted to antique gold, set a few pixels apart — the same table the field
+      // renderer draws (작업 194). The art is the original coin, so the heap keeps its look.
+      for(const coin of GOLD_PILE){
+        const art=document.createElement('img');art.className='dungeon-loot-coin';art.src='/assets/icons/gold-coin.png';art.alt='';
+        art.style.width=`${coin.size}px`;art.style.height=`${coin.size*coin.squash}px`;
+        art.style.left=`calc(50% + ${coin.dx}px)`;art.style.bottom=`${-coin.dy}px`;
+        body.append(art);
+      }
     }else{
       const item=loot.item;el.classList.add('is-item');el.style.setProperty('--loot-ink',rarityInk[item.rarity]);
       if(isSkillBook(item)){const art=createSkillBookArt(item);art.classList.add('dungeon-loot-book');body.append(art);}

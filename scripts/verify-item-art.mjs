@@ -238,22 +238,3 @@ for (let index = 1; index < 10; index++) {
   if (data.length > 200 * 1024) throw new Error(`대검 파츠가 200KB를 넘습니다: weapon_${index}_v1.png`);
 }
 console.log('작업 156 대검 파츠 9장 확인 완료.');
-
-// ── 작업 195: 바닥 금화 무더기 전용 아트 ─────────────────────────────────────────
-// `gold-coin.png`(256×256)를 15~19px로 줄여 쓰면 뭉개지므로, 무더기는 표시 크기의 2배
-// (88×40)로 따로 그린 한 장을 쓴다. 크기·투명도·용량만 본다(그림 자체는 build-gold-pile.py).
-const goldPile = readFileSync(new URL('../src/game/render/goldPile.ts', import.meta.url), 'utf8');
-const pileWidth = Number(goldPile.match(/GOLD_PILE_W = (\d+)/)?.[1]);
-const pileHeight = Number(goldPile.match(/GOLD_PILE_H = (\d+)/)?.[1]);
-if (!pileWidth || !pileHeight) throw new Error('금화 무더기 표시 크기(GOLD_PILE_W/H)를 찾을 수 없습니다.');
-const pilePath = fileURLToPath(new URL('../public/assets/icons/gold-pile.png', import.meta.url));
-if (!existsSync(pilePath)) throw new Error('금화 무더기 아트가 없습니다: public/assets/icons/gold-pile.png');
-const pileData = readFileSync(pilePath), pileHeader = pileData.subarray(0, 26);
-if (pileHeader.toString('ascii', 1, 4) !== 'PNG'
-  || pileHeader.readUInt32BE(16) !== pileWidth * 2
-  || pileHeader.readUInt32BE(20) !== pileHeight * 2
-  || !(pileHeader[25] === 6 || (pileHeader[25] === 3 && pileData.includes('tRNS')))) {
-  throw new Error(`금화 무더기 아트는 ${pileWidth * 2}×${pileHeight * 2} 투명 PNG여야 합니다: ${pileHeader.readUInt32BE(16)}×${pileHeader.readUInt32BE(20)}`);
-}
-if (pileData.length > 60 * 1024) throw new Error(`금화 무더기 아트가 60KB를 넘습니다(${Math.round(pileData.length / 1024)}KB)`);
-console.log(`작업 195 금화 무더기 아트 확인 완료(${pileWidth * 2}×${pileHeight * 2}, ${Math.round(pileData.length / 1024)}KB).`);

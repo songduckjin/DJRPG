@@ -79,11 +79,15 @@
 .dungeon-loot-art{position:relative;z-index:1;width:34px;height:34px;object-fit:contain;filter:drop-shadow(0 2px 3px #000a)}
 .dungeon-loot-art.atlas-icon{background-size:500% 100%;background-repeat:no-repeat}
 .dungeon-loot-book{position:relative;z-index:1;width:36px;height:36px;--book-badge-size:17px;filter:drop-shadow(1px 0 0 var(--loot-ink)) drop-shadow(-1px 0 0 var(--loot-ink)) drop-shadow(0 1px 0 var(--loot-ink)) drop-shadow(0 -1px 0 var(--loot-ink)) drop-shadow(0 2px 3px #000a)}
-/* A coin lies flat on the floor: one heap image built at the size it is drawn (`goldPile.ts` owns
-   the path and the size), over a wide, flat shadow. The heap carries no outer light at all and is
-   already graded to antique gold in the art itself, so it is never dimmed or tinted again in CSS. */
-.dungeon-loot.is-gold .dungeon-loot-coin{position:absolute;left:50%;bottom:0;width:44px;height:20px;object-fit:contain;transform:translateX(-50%);z-index:1;filter:none;animation:none}
-.dungeon-loot.is-gold .dungeon-loot-shadow{width:34px;height:8px;background:radial-gradient(ellipse at center,#000000a8 0%,#0000 70%)}
+/* A coin lies flat on the floor: a small heap of two or three coins, each squashed and placed a few
+   pixels apart by `goldPile.ts` (sizes, offsets and the ground point come from there), over a wide,
+   flat shadow. The heap carries no outer light at all and is tinted to a heavier antique gold, which
+   is a colour grade on the heap — never a halo or outline on a coin. The coins are drawn 22~24px wide
+   at only `.64~.68` vertical compression so shrinking the standing art stays readable (작업 195);
+   nothing blurs them further, so no extra filter is stacked on the image. */
+.dungeon-loot.is-gold .dungeon-loot-coin{position:absolute;left:50%;bottom:0;width:24px;height:16px;object-fit:contain;transform:translateX(-50%);z-index:1;filter:none;animation:none}
+.dungeon-loot.is-gold .dungeon-loot-body{filter:saturate(.85) brightness(.88)}
+.dungeon-loot.is-gold .dungeon-loot-shadow{width:40px;height:9px;background:radial-gradient(ellipse at center,#000000a8 0%,#0000 70%)}
 /* Equipment and skill books carry grade light, and it wraps the drop's own outline: stacked
    `drop-shadow` follows the icon's alpha silhouette, so there is no round halo plate or ring and the
    glow leaves the item's shape. Saturated ink plus a hard 1px layer makes the grade read at a glance.

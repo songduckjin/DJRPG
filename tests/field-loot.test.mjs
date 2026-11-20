@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import './ts-loader.mjs';
 const { LOOT_REST_SECONDS, LOOT_ABSORB_SECONDS, LOOT_FAN, LOOT_GAP, LOOT_DEPTH, lootRestSpots, lootAbsorbProgress, lootAbsorbPoint } = await import('../src/game/loot.ts');
 const { BOSS_GOLD_PILES, BOSS_ITEM_DROPS, bossGoldPiles } = await import('../src/game/bossLoot.ts');
-const { GOLD_PILE_ART, GOLD_PILE_H, GOLD_PILE_RX, GOLD_PILE_W } = await import('../src/game/render/goldPile.ts');
+const { GOLD_PILE, GOLD_PILE_RX } = await import('../src/game/render/goldPile.ts');
 const { World } = await import('../src/game/world.ts');
 const { freshSave } = await import('../src/game/store.ts');
 
@@ -179,23 +179,28 @@ test('a field drop makes one small hop and lands with a single soft tap', () => 
   }
 });
 
-test('a coin drop is one crisp heap of flat antique coins on the floor', () => {
-  // The heap is its own art, drawn at the size it is shown: no shrinking of the coin icon and no
-  // per-drop squash, which is what smeared the old 15~19px coins (작업 195).
-  const art = readFileSync(new URL('../public/assets/icons/gold-pile.png', import.meta.url));
-  assert(art.subarray(1, 4).toString('ascii') === 'PNG', 'the heap art is a PNG');
-  assert(GOLD_PILE_ART === '/assets/icons/gold-pile.png', 'both screens load the heap by this path');
-  // Built at twice the display size — one texel per device pixel on the sharpest phone the canvas uses.
-  assert.equal(art.readUInt32BE(16), GOLD_PILE_W * 2, 'the art is 2× wide');
-  assert.equal(art.readUInt32BE(20), GOLD_PILE_H * 2, 'the art is 2× tall');
-  assert(GOLD_PILE_W >= 40 && GOLD_PILE_W <= 48, `the heap is big enough to read (got ${GOLD_PILE_W})`);
-  assert(GOLD_PILE_H >= 16 && GOLD_PILE_H <= 24, `and flat rather than square (got ${GOLD_PILE_H})`);
+test('a coin drop is a small heap of flat antique coins on the floor', () => {
+  assert(GOLD_PILE.length >= 2 && GOLD_PILE.length <= 3, 'two or three coins make the heap');
+  for (const coin of GOLD_PILE) {
+    // A coin squeezed under 20px is mostly resampling, so the sizes stay big enough to read sharp.
+    assert(coin.size >= 21 && coin.size <= 24, `each coin is 21~24px wide (got ${coin.size})`);
+    assert(coin.squash >= .62 && coin.squash <= .68, `each coin is only gently squashed (got ${coin.squash})`);
+    // A coin may sit a pixel into the floor (the big left coin does), never float above it.
+    assert(coin.dy <= 2 && coin.dy >= -14, `no coin floats far above the heap (got ${coin.dy})`);
+    assert(coin.tint < 0xffffff, 'each coin is tinted to a heavier antique gold, not left as it is');
+  }
   const source = readFileSync(new URL('../src/game/render/drops.ts', import.meta.url), 'utf8');
-  assert.match(source, /sheetTexture\(view, GOLD_PILE_ART\)/, 'the field loads the heap art');
-  assert.match(source, /sprite\.width = GOLD_PILE_W; sprite\.height = GOLD_PILE_H/, 'and draws it at its own size');
-  assert.doesNotMatch(source, /sprite\.height = coin\.size \* coin\.squash/, 'nothing squashes a coin at draw time');
+  assert.match(source, /for \(const coin of GOLD_PILE\)/, 'the field draws every coin of the heap');
+  assert.match(source, /sprite\.height = coin\.size \* coin\.squash/, 'the squash is what lays the coin down');
+  assert.match(source, /sprite\.tint = coin\.tint/, 'and the antique tint is applied');
+  // The heap keeps the original coin art: no second heap image is introduced (작업 195).
+  assert.match(source, /sheetTexture\(view, '\/assets\/icons\/gold-coin\.png', true\)/, 'the heap still draws the coin art');
+  assert.doesNotMatch(source, /gold-pile\.png/, 'no second heap asset is loaded');
+  // Shrinking 256px art to a 20-something-pixel coin needs a mip chain, or it shimmers.
+  assert.match(source, /data: \{ scaleMode: 'linear', autoGenerateMipmaps: true \}/, 'the coin texture is loaded with mipmaps');
+  assert.match(source, /texture\.source\.mipmapFilter = 'linear'/, 'and sampled through a linear mip filter');
   assert.doesNotMatch(source, /COIN_SIZE/, 'the single upright 30px coin is gone');
-  assert.doesNotMatch(source, /gold-coin\.png/, 'the detailed coin icon is not shrunk into a heap any more');
+  assert.doesNotMatch(source, /coin\.width = COIN_SIZE/, 'nothing draws the old one-coin icon');
   assert(GOLD_PILE_RX * 2 <= 48, 'the heap keeps the footprint of a drop on the floor');
 });
 

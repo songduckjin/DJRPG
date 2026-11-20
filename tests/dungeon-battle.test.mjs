@@ -350,19 +350,22 @@ test('a dungeon gold heap always sits in the behind layer, under monsters and it
   assert(gold < item, `a coin (${gold}) is painted under an item (${item}) even in the same layer`);
 });
 
-test('a dungeon coin heap is the same crisp heap art as the field', () => {
-  const { GOLD_PILE_ART, GOLD_PILE_H, GOLD_PILE_W } = goldPile;
-  assert.equal(GOLD_PILE_ART, '/assets/icons/gold-pile.png');
+test('a dungeon coin heap is the same flat antique heap as the field', () => {
+  const { GOLD_PILE } = goldPile;
+  assert(GOLD_PILE.length >= 2 && GOLD_PILE.length <= 3);
+  // The coins are drawn big enough (20~24px) to keep the standing art readable (작업 195).
+  for (const coin of GOLD_PILE) {
+    assert(coin.size >= 21 && coin.size <= 24, `each coin is 21~24px wide (got ${coin.size})`);
+    assert(coin.squash >= .62 && coin.squash <= .68, `each coin is only gently squashed (got ${coin.squash})`);
+  }
   const source = readFileSync(new URL('../src/ui/dungeonField.ts', import.meta.url), 'utf8');
   const css = readFileSync(new URL('../src/styles/dungeon.css', import.meta.url), 'utf8');
-  assert.match(source, /art\.src=GOLD_PILE_ART/, 'the dungeon loads the same heap art as the field');
-  assert(source.includes('art.style.width=`${GOLD_PILE_W}px`') && source.includes('art.style.height=`${GOLD_PILE_H}px`'),
-    'drawn at the same size as on the field');
-  assert.doesNotMatch(source, /for\(const coin of GOLD_PILE\)/, 'no per-coin shrink table is left');
-  assert.doesNotMatch(source, /art\.src='\/assets\/icons\/gold-coin\.png'/, 'the coin icon is not shrunk into a heap any more');
-  // The heap carries no outer light, and it is not dimmed again in CSS: the art is already antique.
+  assert.match(source, /for\(const coin of GOLD_PILE\)/, 'the dungeon draws every coin of the heap');
+  assert(source.includes('art.style.height=`${coin.size*coin.squash}px`'), 'each coin is squashed flat');
+  assert(source.includes('art.style.bottom=`${-coin.dy}px`'), 'and placed by the shared heap table');
+  assert.match(source, /art\.src='\/assets\/icons\/gold-coin\.png'/, 'the heap uses the original coin art');
+  assert.doesNotMatch(source, /gold-pile\.png/, 'no second heap asset is loaded');
+  // The heap is a colour grade of the art: no outer light, no outline, no animation on a coin.
   assert(/\.dungeon-loot\.is-gold \.dungeon-loot-coin\{[^}]*filter:none/.test(css), 'a coin heap carries no outer light');
-  assert(!/\.dungeon-loot\.is-gold \.dungeon-loot-body\{[^}]*filter:/.test(css), 'nothing dims the heap art again');
-  assert(new RegExp(`\\.dungeon-loot\\.is-gold \\.dungeon-loot-coin\\{[^}]*width:${GOLD_PILE_W}px`).test(css),
-    'the CSS fallback size matches the art');
+  assert(/\.dungeon-loot\.is-gold \.dungeon-loot-coin\{[^}]*width:24px/.test(css), 'the CSS fallback size matches the heap');
 });

@@ -1,5 +1,5 @@
 import {createLootOutline,LOOT_OUTLINE_PAD} from './lootOutline';
-import {GOLD_PILE_ART,GOLD_PILE_H,GOLD_PILE_RX,GOLD_PILE_RY,GOLD_PILE_W} from './goldPile';
+import {GOLD_PILE,GOLD_PILE_RX,GOLD_PILE_RY} from './goldPile';
 import {captureLootGround,projectLootGround} from '../lootGround';
 import { Assets, Container, Graphics, Rectangle, Sprite, Texture } from 'pixi.js';
 import type { Coin, Drop, World } from '../world';
@@ -48,15 +48,24 @@ export type LootView = {
 const reducedMotion = typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 /** Texture of a sheet path, requested the first time a drop needs it. Only the art of a drop that
- *  actually fell is ever downloaded, and a failed request is not repeated every frame. */
-function sheetTexture(view: GameView, path: string): Texture | undefined {
+ *  actually fell is ever downloaded, and a failed request is not repeated every frame. `mipmaps`
+ *  asks the loader for a mip chain before the texture is ever uploaded, which is what lets a 256px
+ *  coin land on a 20-something-pixel heap without shimmering (작업 195). */
+function sheetTexture(view: GameView, path: string, mipmaps = false): Texture | undefined {
   const loaded = Assets.get<Texture>(path);
-  if (loaded) return loaded;
+  if (loaded) {
+    if (mipmaps) { loaded.source.scaleMode = 'linear'; loaded.source.mipmapFilter = 'linear'; loaded.source.autoGenerateMipmaps = true; }
+    return loaded;
+  }
   if (view.lootSheets.has(path)) return undefined;
   view.lootSheets.add(path);
-  void Assets.load<Texture>(path).then(texture => {
+  const request = mipmaps
+    ? Assets.load<Texture>({ alias: path, src: path, data: { scaleMode: 'linear', autoGenerateMipmaps: true } })
+    : Assets.load<Texture>(path);
+  void request.then(texture => {
     if (!texture) return;
     texture.source.scaleMode = 'linear';
+    if (mipmaps) { texture.source.autoGenerateMipmaps = true; texture.source.mipmapFilter = 'linear'; }
     view.lootSheets.delete(path);
   }).catch(() => { /* keep it in the set: one attempt per art per session */ });
   return undefined;
@@ -81,15 +90,21 @@ function lootArtTexture(view: GameView, item: Item): Texture | undefined {
  *  added when the art has not arrived yet; the caller keeps a diamond marker until it does. */
 function attachArt(view: GameView, body: Container, gold: boolean, item: Item | undefined, ink: number): Sprite[] {
   if (gold) {
-    const texture = sheetTexture(view, GOLD_PILE_ART);
+    // A heap of coins lying flat on the floor: two or three coins of the standing art, each squashed
+    // and tinted to antique gold, set a few pixels apart (see `render/goldPile`). The texture is
+    // loaded with mipmaps so shrinking 256px art down to a 20-something-pixel coin stays clean
+    // instead of shivering (작업 195). No outer light at all.
+    const texture = sheetTexture(view, '/assets/icons/gold-coin.png', true);
     if (!texture) return [];
-    // A heap of coins lying flat on the floor: one piece of art drawn at the size it was built for
-    // (see `render/goldPile`), so nothing is squashed or shrunk per drop. No outer light at all.
-    const sprite = new Sprite(texture);
-    sprite.anchor.set(.5, 1);
-    sprite.width = GOLD_PILE_W; sprite.height = GOLD_PILE_H;
-    body.addChild(sprite);
-    return [sprite];
+    const coins: Sprite[] = [];
+    for (const coin of GOLD_PILE) {
+      const sprite = new Sprite(texture);
+      sprite.anchor.set(.5, 1);
+      sprite.width = coin.size; sprite.height = coin.size * coin.squash;
+      sprite.x = coin.dx; sprite.y = coin.dy; sprite.tint = coin.tint;
+      body.addChild(sprite); coins.push(sprite);
+    }
+    return coins;
   }
   const texture = lootArtTexture(view, item!);
   if (!texture) return [];
