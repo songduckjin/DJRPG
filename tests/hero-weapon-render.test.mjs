@@ -1,11 +1,11 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {Container,Sprite,Texture} from 'pixi.js';
+import {Container,Sprite,Texture,Rectangle} from 'pixi.js';
 import './ts-loader.mjs';
 const {drawHero,updateAfterimages}=await import('../src/game/render/entities.ts');
 const {freshSave}=await import('../src/game/store.ts');
 const {weaponSockets,weaponSocket,heroClass}=await import('../src/game/render/heroSockets.ts');
-const {drawSkillVfx,weaponSlashColor}=await import('../src/game/render/vfx.ts');
+const {drawSkillVfx,drawDragon,weaponSlashColor,slashTint}=await import('../src/game/render/vfx.ts');
 
 const item=(slot,name)=>({id:slot,slot,name,rarity:'common',stats:{}});
 
@@ -24,23 +24,38 @@ test('weapon sockets cover both genders and eight walk frames',()=>{
  }
 });
 
-test('two-layer skill slash follows equipped weapon rarity and unarmed white',()=>{
- const samples=[['common',0x9ca3af],['magic',0x60a5fa],['rare',0xfacc15],['epic',0xc084fc],['unique',0xfb923c],['legendary',0xf87171]];
- const widths=[];
- for(const [rarity,color] of samples){
-  const save=freshSave();save.equipment.weapon={...item('weapon','두손검'),rarity};
-  const strokes=[];const view={effects:{arc(){return {stroke(style){strokes.push(style);}};}}};
-  assert.equal(weaponSlashColor({save}),color);
-  assert.equal(drawSkillVfx.call(view,{save},{kind:'slash2'},0,0,.5,0,0),true);
-  assert.equal(strokes.length,2);assert(strokes.every(style=>style.color===color));
-  widths.push(strokes[0].width);
- }
- assert(widths.at(-1)>widths[0]);
- const save=freshSave(),strokes=[];
- const view={effects:{arc(){return {stroke(style){strokes.push(style);}};}}};
- assert.equal(weaponSlashColor({save}),0xffffff);
- drawSkillVfx.call(view,{save},{kind:'slash2'},0,0,.5,0,0);
- assert(strokes.every(style=>style.color===0xffffff));
+test('skill 1 draws the approved silver arc and gold ground shockwave as add-blended sprites',()=>{
+ const texture=(width,height)=>new Texture({source:Texture.EMPTY.source,frame:new Rectangle(0,0,width,height)});
+ const cast=(rarity,t,screenAngle=.4)=>{
+  const save=freshSave();
+  if(rarity)save.equipment.weapon={...item('weapon','두손검'),rarity};
+  const skillVfx=new Container();
+  const view={save,skillVfx,vfxSprites:new Map(),textures:{fxSlash2:texture(512,199),fxSlash2Ground:texture(384,131)},effects:{arc(){throw new Error('휘두르기는 코드 선 대신 스프라이트로 그린다');}}};
+  assert.equal(drawSkillVfx.call(view,{save},{kind:'slash2'},100,200,t,screenAngle,0),true);
+  const [arc,shock]=view.vfxSprites.get([...view.vfxSprites.keys()][0]);
+  return {arc,shock,save,skillVfx};
+ };
+ const mid=cast('rare',.5);
+ assert.equal(mid.skillVfx.children.length,2);
+ assert.deepEqual(mid.skillVfx.children.map(child=>child.blendMode),['add','add'],'both layers use add blending');
+ assert.equal(mid.arc.rotation,.4,'the sword arc follows the swing direction');
+ assert.equal(mid.shock.rotation,0,'the ground shockwave stays flat on the floor');
+ assert(mid.arc.alpha>.9,'the arc is brightest at mid swing');
+ assert(cast('rare',0).arc.alpha<1e-9,'the arc starts invisible');
+ assert(cast('rare',1).arc.alpha<1e-9,'the arc ends invisible');
+ assert(mid.shock.scale.y<mid.shock.scale.x,'the shockwave is squashed onto the ground plane');
+ const common=cast('common',.5).arc,legendary=cast('legendary',.5).arc;
+ assert(legendary.scale.x>common.scale.x,'a higher weapon rarity sweeps wider');
+ const bare=cast(null,.5);
+ assert.equal(bare.arc.tint,0xffffff,'unarmed keeps the approved silver and gold colours');
+ assert.equal(bare.save.equipment.weapon,undefined);
+ assert.equal(weaponSlashColor({save:bare.save}),0xffffff);
+ assert.equal(slashTint({save:bare.save}),0xffffff);
+ const tinted=cast('legendary',.5).arc.tint;
+ assert.notEqual(tinted,0xffffff,'an equipped weapon leaves a faint rarity tint');
+ for(const shift of [16,8,0])assert((tinted>>shift&255)>200,'the tint only leans the silver colour, it does not repaint it');
+ const colours=[['common',0x9ca3af],['magic',0x60a5fa],['rare',0xfacc15],['epic',0xc084fc],['unique',0xfb923c],['legendary',0xf87171]];
+ for(const [rarity,color] of colours){const save=freshSave();save.equipment.weapon={...item('weapon','두손검'),rarity};assert.equal(weaponSlashColor({save}),color);}
 });
 
 test('only skills leave afterimages, the basic attack does not',()=>{
@@ -56,6 +71,29 @@ test('only skills leave afterimages, the basic attack does not',()=>{
  assert.equal(view.afterimages.length,1,'스킬은 잔상을 남긴다');
  view.ghosts.destroy({children:true});
  hero.destroy();
+});
+
+test('skill 2 circles the blue dragon at a slow, heavy pace on a lit floor',()=>{
+ const texture=(width,height)=>new Texture({source:Texture.EMPTY.source,frame:new Rectangle(0,0,width,height)});
+ const head=texture(160,138),body=texture(128,57);
+ const skillVfx=new Container(),dragonBack=new Container(),floor=[];
+ const view={app:{screen:{width:390,height:844}},textures:{fxDragonHead:head,fxDragonBody:body},skillVfx,dragonBack,vfxSprites:new Map(),
+  glow:{ellipse(){return {fill(){floor.push('glow');}};}},ground:{ellipse(){return {stroke(){floor.push('ring');}};}}};
+ const effect={kind:'spin',level:4,age:0,duration:1,angle:0,x:0,y:0};
+ view.drawDragon=(...args)=>drawDragon.call(view,...args);
+ const draw=(age,progress)=>{effect.age=age;drawSkillVfx.call(view,{save:freshSave()},{...effect},195,520,progress,0,0);return view.vfxSprites.get([...view.vfxSprites.keys()].at(-1));};
+ const sprites=draw(0,.1);
+ assert.equal(sprites.length,13,'level 4 dragon is a head plus twelve body segments');
+ assert.equal(sprites[0].texture,head);
+ assert(sprites.slice(1).every(sprite=>sprite.texture===body));
+ assert(sprites.every(sprite=>sprite.blendMode==='add'),'the blue dragon is drawn additively on black');
+ const slow=draw(.1,0)[0].rotation-draw(0,0)[0].rotation;
+ const fast=Math.PI*2*.1/1.1;
+ assert(Math.abs(slow-Math.PI*2*.1/2.4)<1e-6,'one revolution now takes 2.4 seconds');
+ assert(slow<fast*.5,'the dragon circles at less than half its old speed');
+ assert.equal(floor.filter(entry=>entry==='glow').length>0,true,'a blue floor light burns under the circling dragon');
+ assert.equal(floor.filter(entry=>entry==='ring').length>0,true,'the swirl throws blue rings onto the ground');
+ skillVfx.destroy({children:true});dragonBack.destroy({children:true});
 });
 
 for (const gender of ['male', 'female']) test(`${gender}: field keeps the generated pilot sheet for every equipment set without drawing a second weapon`, () => {
