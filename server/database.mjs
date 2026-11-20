@@ -36,6 +36,8 @@ export async function schema(db, env = runtimeEnv()) {
     'CREATE TABLE IF NOT EXISTS djrpg_market_events (seq INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT NOT NULL, listing_id TEXT NOT NULL, created_at INTEGER NOT NULL)',
     'CREATE TABLE IF NOT EXISTS djrpg_market_requests (account_id TEXT NOT NULL COLLATE NOCASE, request_id TEXT NOT NULL, response_json TEXT NOT NULL, PRIMARY KEY(account_id, request_id))'
     , 'CREATE TABLE IF NOT EXISTS djrpg_account_profiles (account_id TEXT PRIMARY KEY COLLATE NOCASE, shared_gold INTEGER NOT NULL, active_slot INTEGER NOT NULL DEFAULT 1)'
+    // 서버 전역 표시값(작업 206) — `season_epoch`처럼 한 번만 도는 마이그레이션의 완료 표시를 적는다.
+    , 'CREATE TABLE IF NOT EXISTS djrpg_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)'
     , 'CREATE TABLE IF NOT EXISTS djrpg_characters (account_id TEXT NOT NULL COLLATE NOCASE, slot INTEGER NOT NULL, save_json TEXT NOT NULL, updated_at TEXT NOT NULL, PRIMARY KEY(account_id, slot))'
     , 'CREATE TABLE IF NOT EXISTS djrpg_character_item_owners (item_id TEXT PRIMARY KEY, account_id TEXT NOT NULL COLLATE NOCASE, slot INTEGER NOT NULL)'
     , 'CREATE TABLE IF NOT EXISTS djrpg_warehouse (account_id TEXT NOT NULL COLLATE NOCASE, item_id TEXT PRIMARY KEY, item_json TEXT NOT NULL)'

@@ -1,10 +1,10 @@
 import { skillBookStatus } from './skillProgress';
 import { discoverEquipment, normalizeCollection } from './codex';
 import { normalizeQuickSlots, type QuickSlots } from './loadout';
-import { isSkillBook, migrateItem, slots, totalStats, type EquipmentItem, type Item, type Slot } from './items';
+import { isSkillBook, migrateItem, skillBookJob, slots, totalStats, type EquipmentItem, type Item, type Slot } from './items';
 export { slots, slotNames, rarityNames, statNames, isZweihander, equipmentImage, totalStats, rollItem, itemPower, autoEquipBest, salvageByRarity } from './items';
 export type { Rarity, Slot, Stat, Item } from './items';
-import { allPassiveIds, allSkillIds, jobOrDefault, MAX_SKILL_LEVEL, type Job, type PassiveId, type SkillId, type SkillLevelId } from './skills';
+import { allPassiveIds, allSkillIds, jobNames, jobOrDefault, MAX_SKILL_LEVEL, type Job, type PassiveId, type SkillId, type SkillLevelId } from './skills';
 
 export type Gender = 'male' | 'female';
 /** 직업은 캐릭터 생성 시 1회 선택해 고정한다. 값이 없는 예전 세이브는 모두 전사다. */
@@ -18,7 +18,10 @@ export const DUNGEON_MAX_FLOOR = 10;
  *  상한이 풀리면 고층 곡선이 그대로 이어진다. */
 export const MAX_FLOOR = 20;
 
-export type Save = { version: 1; name: string; accountId: string; gender: Gender; job?: Job; auto: boolean; autoClimb: boolean; level: number; exp: number; gold: number; floor: number; maxFloor: number; floorKills: number; kills: number; bossKills: number; playSeconds: number; health: number; equipment: Partial<Record<Slot, EquipmentItem>>; equipmentCollection: string[]; bag: Item[]; tutorial: number; stones: number; skillPoints: number; lastActiveAt: number; learned: SkillId[]; passives: PassiveId[]; quickSlots: QuickSlots; skillLevels: Partial<Record<SkillLevelId, number>>; dungeonFloor: number; dungeonClearAt: number };
+export type Save = { version: 1; name: string; accountId: string; gender: Gender; job?: Job; auto: boolean; autoClimb: boolean; level: number; exp: number; gold: number; floor: number; maxFloor: number; floorKills: number; kills: number; bossKills: number; playSeconds: number; health: number; equipment: Partial<Record<Slot, EquipmentItem>>; equipmentCollection: string[]; bag: Item[]; tutorial: number; stones: number; skillPoints: number; lastActiveAt: number; learned: SkillId[]; passives: PassiveId[]; quickSlots: QuickSlots; skillLevels: Partial<Record<SkillLevelId, number>>; dungeonFloor: number; dungeonClearAt: number;
+  /** 시즌 번호와 새 시즌 설정 대기 표시(작업 206) — 서버가 시즌 초기화 뒤 내려보내며, 로그인 화면이
+   *  직업·성별을 고른 뒤 `completeSetup`으로 지운다. 게임 세이브에는 남지 않는다. */
+  season?: number; needsSetup?: boolean };
 
 const legacyKeys = ['djrpg-save-v1', 'djrpg.save.v1', 'djrpg.save.v1.guest'];
 export function readLegacySave(loginId?: string): { save: Save; key: string } | undefined {
@@ -134,6 +137,9 @@ export function useSkillBook(save: Save, itemId: string): { ok: boolean; message
   if (index < 0) return { ok: false, message: '가방에 스킬북이 없습니다.' };
   const item = save.bag[index];
   if (!isSkillBook(item)) return { ok: false, message: '스킬북만 사용할 수 있습니다.' };
+  // 다른 직업의 스킬북은 펼쳐도 소모되지 않는다 — 가방·스킬북 탭 어디서 눌러도 같다(작업 206).
+  const owner = skillBookJob(item);
+  if (owner && owner !== jobOrDefault(save.job)) return { ok: false, message: `${jobNames[owner]} 전용 스킬북입니다` };
   const id = item.skillId;
   const learned = allSkillIds.includes(id as SkillId) ? save.learned.includes(id as SkillId) : save.passives.includes(id as PassiveId);
   const status = skillBookStatus(save, id), level = status.level;

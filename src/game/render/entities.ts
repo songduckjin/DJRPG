@@ -1,5 +1,6 @@
 import { Assets, Container, Rectangle, Sprite, Text, Texture } from 'pixi.js';
 import type { World } from '../world';
+import { ELITE_MOB_SCALE } from '../world';
 import type { Save } from '../store';
 import { enemyFacing } from '../facing';
 import { heroAnimationMode, heroMotion } from './heroMotion';
@@ -570,19 +571,21 @@ export function drawEntities(this: GameView, world: World, project: (x: number, 
       this.actors.removeChild(sprite); this.fallen.addChild(sprite); this.enemies.delete(enemy);
       this.enemyWalkDistance.delete(enemy);
       this.corpses.push({ sprite, x: enemy.x, y: enemy.y, age: 0, duration: enemy.boss ? .85 : .55, scaleX: sprite.scale.x, scaleY: sprite.scale.y, rotation: sprite.rotation });
-      const label = this.bossLabels.get(enemy); if (label) { this.labels.removeChild(label); label.destroy(); this.bossLabels.delete(enemy); }
+      const label = this.enemyLabels.get(enemy); if (label) { this.labels.removeChild(label); label.destroy(); this.enemyLabels.delete(enemy); }
     }
     const depths: { sprite: Container; depth: number }[] = [];
     for (const enemy of world.enemies) {
+      const elite = enemy.elite === true && !enemy.boss;
       let sprite = this.enemies.get(enemy);
       if (!sprite) {
         sprite = new Sprite(enemy.boss ? this.textures.boss : this.textures.skeleton);
         sprite.anchor.set(.5, .97);
         this.actors.addChild(sprite);
         this.enemies.set(enemy, sprite);
-        if (enemy.boss) {
-          const label = new Text({ text: '해골 군주', style: { fontFamily: 'Noto Sans KR', fontSize: 11, fill: 0xf0d7c4, fontWeight: 'bold' } });
-          label.anchor.set(.5, 1); this.labels.addChild(label); this.bossLabels.set(enemy, label);
+        if (enemy.boss || elite) {
+          // 보스는 이름을, 정예는 금빛 `정예` 배지를 머리 위에 단다(작업 206).
+          const label = new Text({ text: enemy.boss ? '해골 군주' : '정예 해골', style: { fontFamily: 'Noto Sans KR', fontSize: enemy.boss ? 11 : 10, fill: enemy.boss ? 0xf0d7c4 : 0xffd166, fontWeight: 'bold' } });
+          label.anchor.set(.5, 1); this.labels.addChild(label); this.enemyLabels.set(enemy, label);
         }
       }
       const [x, y] = project(enemy.x, enemy.y);
@@ -595,18 +598,26 @@ export function drawEntities(this: GameView, world: World, project: (x: number, 
       const texture = enemy.moving ? enemy.boss ? this.animations.bossWalk[frame] : this.animations.skeletonWalk[frame] : enemy.boss ? this.textures.boss : this.textures.skeleton;
       if (sprite.texture !== texture) sprite.texture = texture;
       sprite.anchor.y = enemy.moving ? walkAnchors[enemy.boss ? 'bossWalk' : 'skeletonWalk'][frame] : .995;
-      const scale = h * (enemy.boss ? .16 : .095) / texture.height;
+      // 정예는 일반 몹보다 1.22배 큰 몸으로 서고, 발밑에 금빛 오라가 돈다(작업 206).
+      const bodyScale = enemy.boss ? .16 : elite ? .095 * ELITE_MOB_SCALE : .095;
+      const scale = h * bodyScale / texture.height;
+      if (elite) {
+        const pulse = .5 + Math.sin(time * 2.6 + enemy.step) * .5;
+        this.ground.ellipse(x, y - 3, 27 + pulse * 2, 9 + pulse).fill({ color: 0xffb347, alpha: .16 + pulse * .1 });
+        this.ground.ellipse(x, y - 3, 27 + pulse * 2, 9 + pulse).stroke({ width: 1, color: 0xffd166, alpha: .32 + pulse * .18 });
+      }
       this.ground.ellipse(x, y - 3, Math.max(enemy.boss ? 32 : 19, texture.width * scale * .42), enemy.boss ? 10 : 7).fill({ color: 0x000000, alpha: .48 });
       sprite.position.set(x + (enemy.hit > 0 ? Math.sin(time * 58) * 3 : 0), y + (enemy.hit > 0 ? 2 : 0));
       const face = enemyFacing(enemy, world.player, sprite.scale.x);
       sprite.scale.set(scale * face * (enemy.hit > 0 ? 1.08 : 1), scale * (enemy.hit > 0 ? .84 : 1));
       sprite.rotation = 0;
-      sprite.tint = enemy.hit > 0 ? 0xffffff : 0xcfcac5;
+      sprite.tint = enemy.hit > 0 ? 0xffffff : elite ? 0xffe4bb : 0xcfcac5;
       sprite.alpha = 1;
-      const barY = y - h * (enemy.boss ? .16 : .095) - 7;
-      this.effects.rect(x - (enemy.boss ? 20 : 13), barY, enemy.boss ? 40 : 26, 3).fill(0x251517);
-      this.effects.rect(x - (enemy.boss ? 20 : 13), barY, (enemy.boss ? 40 : 26) * Math.max(0, enemy.hp / enemy.maxHp), 3).fill(0xd53b3a);
-      this.bossLabels.get(enemy)?.position.set(x, barY - 3);
+      const barWidth = enemy.boss ? 40 : elite ? 30 : 26;
+      const barY = y - h * bodyScale - 7;
+      this.effects.rect(x - barWidth / 2, barY, barWidth, 3).fill(0x251517);
+      this.effects.rect(x - barWidth / 2, barY, barWidth * Math.max(0, enemy.hp / enemy.maxHp), 3).fill(elite ? 0xe0873a : 0xd53b3a);
+      this.enemyLabels.get(enemy)?.position.set(x, barY - 3);
       depths.push({ sprite, depth: enemy.x + enemy.y });
     }
     this.drawHero(world, hx, hy, time);

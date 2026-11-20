@@ -8,7 +8,9 @@ import { clampArenaPoint, spawnArenaEnemy } from './arena';
 import { LOOT_ABSORB_SECONDS, LOOT_REST_SECONDS } from './loot';
 import { autoSalvageBlock, autoSalvageRecovered } from './inventory';
 
-export type Enemy = { x: number; y: number; hp: number; maxHp: number; boss: boolean; hit: number; step: number; moving: boolean; knockX: number; knockY: number; slow: number };
+export type Enemy = { x: number; y: number; hp: number; maxHp: number; boss: boolean; hit: number; step: number; moving: boolean; knockX: number; knockY: number; slow: number;
+  /** 정예 몹(작업 206) — 일반 몹 30마리마다 한 마리. 보스 타이밍이 오면 보스가 우선이라 둘은 같이 서지 않는다. */
+  elite?: boolean };
 /** `absorb` is the age the pull into the character began at; while it is unset the drop still rests
  *  where it fell (`LOOT_REST_SECONDS`). Without that mark the renderer cannot tell a drop held back
  *  by a full bag from one already on its way in. */
@@ -68,6 +70,13 @@ export function enemyMaxHp(floor: number, boss: boolean): number {
   if (boss) return Math.round(earlyBossHp(floor) + (deepMobHp(floor) * BOSS_HP_RATIO - earlyBossHp(floor)) * ramp);
   return Math.round(offlineMobHp(floor) + (deepMobHp(floor) - offlineMobHp(floor)) * ramp);
 }
+/** 정예 몹은 일반 몹 **30마리 처치마다 한 마리** 나온다(작업 206). 보스가 대기 중이면 그 스폰은 보스가 가져간다. */
+export const ELITE_KILL_INTERVAL = 30;
+/** 정예 몹의 체력·보상 배율 — 체력 2배, 금화·경험치 2배. 장비·스킬북 드롭률은 일반 몹과 **같다(1배)**. */
+export const ELITE_HP_SCALE = 2;
+export const ELITE_REWARD_SCALE = 2;
+/** 정예 몹의 몸 크기 — 일반 몹보다 살짝 큰 1.22배(작업 206). */
+export const ELITE_MOB_SCALE = 1.22;
 export function enemyHitDamage(floor: number, boss: boolean, defense: number): number { return Math.max(1, Math.round(boss ? 20 + floor * 5.5 + Math.pow(floor, 1.3) * 1.2 : 7 + floor * 2.4 + Math.pow(floor, 1.25) * .5) - defense * .2); }
 
 export class World {
@@ -83,6 +92,9 @@ export class World {
   attackPose = 0;
   activeMove = { x: 0, y: 0 };
   bossPending = false;
+  /** 정예 몹 처치 카운터(작업 206) — 30마리가 되면 다음 스폰을 정예로 예약한다. */
+  eliteKills = 0;
+  elitePending = false;
   private swing = 1;
   private chaseTarget?: Enemy;
   private pursuing = false;
@@ -123,7 +135,7 @@ export class World {
     this.save.floor = floor;
     this.save.floorKills = 0;
     this.enemies = []; this.drops = []; this.coins = []; this.effects = [];
-    this.bossPending = false; this.spawnTimer = 0;
+    this.bossPending = false; this.eliteKills = 0; this.elitePending = false; this.spawnTimer = 0;
     this.player.x = 0; this.player.y = 0; this.attackHeld = false;
     this.activeMove = { x: 0, y: 0 };
     this.chaseTarget = undefined; this.pursuing = false;
@@ -308,7 +320,8 @@ export class World {
     this.effects.push({ x: enemy.x, y: enemy.y, kind: 'death', age: 0, duration: .7, angle: Math.random() * Math.PI * 2 });
     this.save.kills++;
     if (enemy.boss) this.save.bossKills++;
-    const gold = enemy.boss ? 70 * this.save.floor : 3 + this.save.floor;
+    // 정예는 금화·경험치 2배, 장비·스킬북 드롭률은 일반 몹과 같은 1배다(작업 206).
+    const gold = enemy.boss ? 70 * this.save.floor : (3 + this.save.floor) * (enemy.elite ? ELITE_REWARD_SCALE : 1);
     this.save.gold += gold;
     // The coin shows the gold that was just paid: nothing is credited when it flies in. A boss's gold
     // hits the floor in ten heaps scattered around the body (작업 194), each its own drop with its own
@@ -322,7 +335,7 @@ export class World {
       const from = enemy.boss ? clampArenaPoint(enemy.x, enemy.y) : undefined;
       this.coins.push({ x: point.x, y: point.y, age: 0, gold: amount, from });
     });
-    const gained = addExperience(this.save, enemy.boss ? 45 : 8);
+    const gained = addExperience(this.save, enemy.boss ? 45 : 8 * (enemy.elite ? ELITE_REWARD_SCALE : 1));
     if (gained) { this.player.hp = this.save.health; this.onMessage(`레벨 ${this.save.level} 달성!`); }
     // The gold is the boss's whole haul — ten heaps and nothing handed out on top (작업 195). Items
     // still come from the one chance roll every kill makes below, against the same field drop table
@@ -357,6 +370,11 @@ export class World {
       }
     } else {
       this.save.floorKills++;
+      // 일반 몹 30마리마다 정예 한 마리(작업 206). 정예 자신은 다음 정예의 카운트에 넣지 않는다.
+      if (!enemy.elite) {
+        this.eliteKills++;
+        if (this.eliteKills >= ELITE_KILL_INTERVAL) { this.eliteKills = 0; this.elitePending = true; }
+      }
       if (this.save.floorKills >= floorKillTarget(this.save.floor) && !this.bossPending && !this.enemies.some(e => e.boss)) {
         this.bossPending = true;
         this.onMessage(`${floorKillTarget(this.save.floor)}마리 처치! 해골 군주가 나타납니다!`);
@@ -409,10 +427,13 @@ export class World {
       this.spawnTimer = Math.max(.55, 1.8 - this.save.floor * .08);
       const angle = Math.random() * Math.PI * 2;
       const boss = this.bossPending && !this.enemies.some(e => e.boss);
+      // 보스 타이밍과 겹치면 보스가 우선한다 — 정예 예약은 다음 스폰으로 미룬다(작업 206).
+      const elite = !boss && this.elitePending;
       const spawn = spawnArenaEnemy(p, angle);
-      const hp = enemyMaxHp(this.save.floor, boss);
-      this.enemies.push({ x: spawn.x, y: spawn.y, hp, maxHp: hp, boss, hit: 0, step: Math.random() * Math.PI * 2, moving: false, knockX: 0, knockY: 0, slow: 0 });
+      const hp = enemyMaxHp(this.save.floor, boss) * (elite ? ELITE_HP_SCALE : 1);
+      this.enemies.push({ x: spawn.x, y: spawn.y, hp, maxHp: hp, boss, elite, hit: 0, step: Math.random() * Math.PI * 2, moving: false, knockX: 0, knockY: 0, slow: 0 });
       if (boss) this.bossPending = false;
+      if (elite) { this.elitePending = false; this.onMessage('정예 해골이 나타났습니다!'); }
     }
     for (const enemy of this.enemies) {
       const dx = p.x - enemy.x, dy = p.y - enemy.y, d = Math.hypot(dx, dy);

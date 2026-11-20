@@ -3,16 +3,20 @@ import type { Interface } from './interface';
 import { skillbookName, skillbookStacks } from './skillbookBag';
 import { skillBookStatus } from '../game/skillProgress';
 import { totalStats, useSkillBook } from '../game/store';
-import { jobNames, type SkillLevelId } from '../game/skills';
+import { jobNames, jobOrDefault, type SkillLevelId } from '../game/skills';
 import { skillBookJob } from '../game/items';
 
 export function renderSkillUpgrade(ui: Interface, parent: HTMLElement, id: SkillLevelId, statusParent: HTMLElement = parent): void {
   const status = skillBookStatus(ui.world.save, id);
+  // 다른 직업의 스킬북은 카드에서 `{직업} 전용`으로 잠기게 보여 준다 — 눌러도 소모되지 않는다(작업 206).
+  const held = ui.world.save.bag.find(item => item.kind === 'skillbook' && item.skillId === id);
+  const owner = held ? skillBookJob(held) : undefined;
+  const foreign = owner && owner !== jobOrDefault(ui.world.save.job) ? owner : undefined;
   const note = document.createElement('span'); note.className = 'skill-book-cost';
-  note.textContent = status.maxed ? '최대 레벨' : `보유 ${status.count} / 필요 ${status.cost}권`;
+  note.textContent = foreign ? `${jobNames[foreign]} 전용 스킬북` : status.maxed ? '최대 레벨' : `보유 ${status.count} / 필요 ${status.cost}권`;
   const button = document.createElement('button'); button.type = 'button'; button.className = 'skillbook-use';
-  button.textContent = status.level ? '강화' : '습득'; button.disabled = !status.ready;
-  button.title = status.maxed ? '최대 레벨' : `${status.level ? '강화' : '습득'} · 보유 ${status.count} / 필요 ${status.cost}권`;
+  button.textContent = foreign ? `${jobNames[foreign]} 전용` : status.level ? '강화' : '습득'; button.disabled = !status.ready || Boolean(foreign);
+  button.title = foreign ? `${jobNames[foreign]} 전용 스킬북입니다` : status.maxed ? '최대 레벨' : `${status.level ? '강화' : '습득'} · 보유 ${status.count} / 필요 ${status.cost}권`;
   button.setAttribute('aria-label', button.title);
   button.onclick = () => {
     if (ui.world.paused || ui.market.busy || ui.market.sync.locked) { ui.message('동기화 중에는 스킬을 강화할 수 없습니다.'); return; }

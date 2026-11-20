@@ -1,4 +1,6 @@
 import { client, schema, transaction, account, assertRevision, assertSession, assignSession, healStaleLoadItems, reconcileItems, writeSave, fail } from '../database.mjs';
+import { initialSave, jobOf, jobs } from '../save-seed.mjs';
+import { runSeasonReset } from '../season.mjs';
 import { randomUUID } from 'node:crypto';
 import { tokenPayload, tokenFor, hashPassword, verifyPassword, needsPasswordUpgrade } from '../auth.mjs';
 import { runtimeEnv } from '../env.mjs';
@@ -6,9 +8,6 @@ import { json, readBody, errorResponse, versionGuard } from '../http.mjs';
 
 const namePattern = /^[가-힣a-zA-Z0-9_]{2,16}$/;
 const bad = (_res, status, code, error) => json({ code, error }, status);
-const jobOf = value => value === 'archer' || value === 'mage' ? value : 'warrior';
-const initialSave = (id, gender, name, job = 'warrior') => ({ version: 1, name, accountId: id, gender, job: jobOf(job), auto: true, autoClimb: true, level: 1, exp: 0, gold: 0, floor: 1, maxFloor: 1, floorKills: 0, kills: 0, health: 100, equipment: {}, equipmentCollection: [], bag: [], tutorial: 0, stones: 0, skillPoints: 0, lastActiveAt: Date.now(), learned: [], passives: [], quickSlots: [null, null, null], skillLevels: {}, dungeonFloor: 0, dungeonClearAt: 0 });
-const jobs = ['warrior', 'archer', 'mage'];
 const offlineSeconds = updatedAt => {
   const elapsed = Math.floor((Date.now() - Date.parse(String(updatedAt))) / 1000);
   return Number.isFinite(elapsed) && elapsed >= 60 ? Math.min(43_200, elapsed) : 0;
@@ -32,6 +31,8 @@ export async function accountEndpoint(request, { env = runtimeEnv(), createDbCli
   try {
     db = createDbClient ? createDbClient(env) : client(env);
     await schema(db, env);
+    // 시즌 초기화(작업 206): 운영 호스트에서만, `season_epoch`가 오를 때 딱 한 번 돈다.
+    await runSeasonReset(db, request, env);
     const body = req.body ?? {};
     const action = body.action;
     if (action === 'register' || action === 'guest') {
@@ -66,7 +67,7 @@ export async function accountEndpoint(request, { env = runtimeEnv(), createDbCli
       const latest = await account(db, row.id);
       const save = latest.save;
       const sid = await assignSession(db, row.id);
-      return res.status(200).json({ revision: latest.revision, accountId: row.id, loginId: row.id, gender: save.gender, job: jobOf(save.job), guest: false, token: tokenFor(row.id, env, sid), save, characterSlot: latest.slot, offlineSeconds: await pendingOfflineSeconds(db, row.id, latest.slot, latest.character_updated_at) });
+      return res.status(200).json({ revision: latest.revision, accountId: row.id, loginId: row.id, gender: save.gender, job: jobOf(save.job), guest: false, token: tokenFor(row.id, env, sid), save, characterSlot: latest.slot, needsSetup: save.needsSetup === true, offlineSeconds: await pendingOfflineSeconds(db, row.id, latest.slot, latest.character_updated_at) });
     }
     const signed = tokenPayload(request, env);
     if (!signed) return bad(res, 401, 'INVALID_TOKEN', '인증이 만료되었습니다. 다시 로그인하세요.');
@@ -76,7 +77,7 @@ export async function accountEndpoint(request, { env = runtimeEnv(), createDbCli
     if (action === 'load') {
       // 소유권 테이블과 어긋난 유령 아이템을 내려보내지 않는다. 그대로 내려보내면 클라이언트의 다음 save가 영구 409가 된다.
       const save = await healStaleLoadItems(db, row);
-      return res.status(200).json({ revision: row.revision, accountId: row.id, loginId: row.password_hash === 'guest' ? '게스트' : row.id, gender: save.gender, job: jobOf(save.job), guest: row.password_hash === 'guest', token: req.headers.authorization.slice(7), save, characterSlot: row.slot, offlineSeconds: await pendingOfflineSeconds(db, row.id, row.slot, row.character_updated_at) });
+      return res.status(200).json({ revision: row.revision, accountId: row.id, loginId: row.password_hash === 'guest' ? '게스트' : row.id, gender: save.gender, job: jobOf(save.job), guest: row.password_hash === 'guest', token: req.headers.authorization.slice(7), save, characterSlot: row.slot, needsSetup: save.needsSetup === true, offlineSeconds: await pendingOfflineSeconds(db, row.id, row.slot, row.character_updated_at) });
     }
     if (action === 'characters') {
       const characters = (await db.execute({ sql: `SELECT slot, save_json, json_extract(save_json,'$.name') AS name, json_extract(save_json,'$.gender') AS gender, json_extract(save_json,'$.job') AS job,
@@ -154,10 +155,28 @@ export async function accountEndpoint(request, { env = runtimeEnv(), createDbCli
       });
       return res.status(200).json(result);
     }
+    if (action === 'completeSetup') {
+      // 시즌 초기화로 직업·성별을 비운 계정이 새 1층 캐릭터를 만든다(작업 206). 이미 설정이 끝난
+      // 계정에는 아무것도 하지 않는다 — 오래된 기기의 완료 요청이 진행을 덮어쓰지 않는다.
+      const gender = body.gender === 'male' || body.gender === 'female' ? body.gender : undefined;
+      if (!gender || !jobs.includes(body.job)) return bad(res, 400, 'INVALID_CHARACTER', '직업과 성별을 선택하세요.');
+      const result = await transaction(db, async tx => {
+        const latest = await account(tx, id);
+        assertSession(latest, signed.sid);
+        if (latest.save.needsSetup !== true) fail(409, 'SETUP_DONE', '이미 새 시즌 설정이 끝났습니다. 새로고침해 주세요.');
+        const save = initialSave(id, gender, latest.save.name || id, body.job);
+        const saved = await writeSave(tx, latest, save, [], false);
+        await tx.execute({ sql: 'UPDATE djrpg_accounts SET save_json=?, updated_at=? WHERE id=?', args: [JSON.stringify(save), new Date().toISOString(), id] });
+        return { ok: true, ...saved, slot: latest.slot };
+      });
+      return res.status(200).json({ revision: result.revision, accountId: id, loginId: row.password_hash === 'guest' ? '게스트' : row.id, gender, job: jobOf(body.job), guest: false, token: req.headers.authorization.slice(7), save: result.save, characterSlot: result.slot, needsSetup: false, offlineSeconds: 0 });
+    }
     if (action === 'save' || action === 'reset') {
       const result = await transaction(db, async tx => {
         const latest = await account(tx, id);
         assertSession(latest, signed.sid);
+        // 새 시즌 설정 전에는 어떤 클라이언트도 세이브로 그 상태를 덮어쓸 수 없다(작업 206).
+        if (latest.save.needsSetup === true) fail(409, 'SEASON_SETUP_REQUIRED', '새 시즌 직업·성별 선택이 필요합니다. 로그인 화면에서 선택해 주세요.');
         if (Number(body.characterSlot ?? 1) !== latest.slot) fail(409, 'CHARACTER_CONFLICT', '다른 캐릭터가 선택되었습니다. 새로고침해 주세요.');
         if (action === 'save' && typeof body.requestId === 'string') {
           const replay = (await tx.execute({ sql: 'SELECT * FROM djrpg_save_requests WHERE account_id=?', args: [id] })).rows[0];

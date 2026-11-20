@@ -27,3 +27,7 @@
 .login-submit:disabled { opacity: .55; cursor: wait; }
 .login-guest { margin-top: 12px; border-color: #6b5a4d; background: #282126; color: #d5c3b2; font-weight: 500; }
 .login-note { margin: 12px 0 0; color: #9e8c83; font-size: 10px; }
+.season-setup .login-panel { display: flex; flex-direction: column; gap: 10px; }
+.season-setup .login-subtitle { margin-bottom: 4px; }
+.season-setup .season-note { margin: 0 0 4px; color: #c8a97e; font-size: 11px; line-height: 1.6; text-align: left; }
+.season-setup .login-submit, .season-setup .login-guest { margin-top: 0; }
