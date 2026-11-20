@@ -50,6 +50,19 @@
 
 # 작업 로그
 
+## 2026-11-20 — 궁수 남녀 갑옷 10종 외형: 서기·걷기·사격 + 활·투구 동시 착용 호환 (작업 205)
+
+- **요청**: `songduckjin/DJRPG`에 궁수 전용 남녀 갑옷 10종(가죽 조끼 ~ 패왕의 전갑) 외형을 붙이고 PR 머지·`djrpg.pages.dev` 운영 배포까지 완료. 승인 시안(`downloads/archer_armor_preview/{male,female}_armor_{0..9}.png`)이 이미 있었다.
+- **에셋**: 0번(가죽 조끼)은 궁수 스타터 시트(작업 159)가 이미 그 차림이라 새 파일을 두지 않고, 1~9번만 `public/assets/pilot-25d/archer_armors/` 아래에 **네 가지 판 216장(12MB)**으로 만들었다 — ① 전신 ② 기본 활 지운 판(`nobow/`, 활 10종과 동시 착용) ③ 머리 지운 판(`headless/`, 궁수 투구 10종과 동시 착용) ④ 둘 다(`nobow/headless/`). 규격은 전사 갑옷(작업 155)과 같은 362px 셀(서기 362×362, 걷기·사격 1448×362, 256색 팔레트 + 투명 인덱스 0, 장당 ≤128KB).
+- **제작**: 걷기·사격 36장은 궁수 스타터 시트에 `images --edit`으로 **갑옷만** 바꿔 만들고(얼굴·머리·화살통·활·4포즈·순수 검정 배경 유지), 서기 18장은 승인 시안(1254²)을 쓴다. 활 지운 판은 그 갑옷 시트에 "활만 지우고 가려진 갑옷·다리를 채워라"를 `images --edit`으로 맡겨 다시 그린 뒤, **같은 티어 갑옷 시트**에 허리 아래 실루엣 IoU로 배율을, 상체 겹침으로 위치를 맞췄다(`scripts/build-archer-armor-nobow.py`, 발끝 오차 ±5px). 머리 지운 판은 투구 빌더의 `HEAD_POLYGON` 을 그대로 써(파츠와 구멍이 같은 도형) 프레임별로 같은 티어 서기 얼굴을 템플릿으로 찾아 다각형을 옮겨 지운다(`scripts/build-archer-armor-headless.py`).
+- **정합**: 전체 실루엣 IoU만으로 배율을 잡으면 망토·날개 견갑(8·9번)에서 몸이 8~20% 작아졌다(티어 9 발끝이 60px 떠오름). 그래서 배율은 **성별·동작 묶음마다 하나**(남 서기 .2777·걷기 .6723·사격 .6816, 여 .2604·.6689·.6651)로 고정하고, 이동은 프레임마다 상체 겹침 → 전체 실루엣 순으로 다듬었다. 결과는 스타터 시트 대비 오차 서기 ≤5px·걷기 ≤8px·사격 ≤15px이고 회귀 테스트가 지킨다.
+- **렌더**: `render/archerArmors.ts`(신규)가 경로·인덱스·프레임·판 규칙을 소유하고, `drawHero`는 궁수 갑옷 1~9번이면 그 시트를 쓰되 활 인덱스 ≥ 1 → `nobow`, 궁수 투구 파츠가 **로딩된 뒤** → `headless` 를 함께 고른다(파츠가 없으면 머리 있는 판으로 그려 머리만 빈 채로 보이지 않게). `render.ts`는 티어·판별로 동적 로드하고 최근 3티어만 유지하며(전사 갑옷 캐시와 분리) 부팅 프리로드에는 넣지 않는다. 장비창 초상화도 같은 조합을 쓰고 키에 갑옷 티어·활·투구를 넣는다.
+- **불변**: `store.ts`·`server/**`·`world.ts`·`baseItems` 순서·전사/마법사 외형·코스튬 레이어 무변경. 능력치·드랍·전투 계산 그대로.
+- **검증**: `npx tsc --noEmit` 통과, `npm test` 605건 중 603 통과(실패 2건은 작업 149 이후 계속 실패하는 `costume-field-render`, `origin/main` 분리 워크트리에서 동일 재현), 신규 `tests/archer-armor-render.test.mjs` 13건, `node scripts/verify-item-art.mjs`(216장), `npm run build`, `git diff --check` 통과.
+- **검수 이미지**: `downloads/djrpg_archer_armor_10_male_v1.png`·`..._female_v1.png`(10티어 × 서기/걷기0·2/사격0·2 접촉 시트), `downloads/djrpg_archer_armor_ingame_v1.png`(필드 합성 — 게임 배율 9.35% + 2.4배 인셋, `scripts/preview-archer-armor.py`). 브라우저 실기 화면은 미확인(로컬 루프백 차단).
+- **PR/배포**: (아래 보고에서 갱신)
+
+
 ## 2026-11-20 — 마법사 전용 모자·투구 10종 외형 적용 + 남성 서기 시트 정수리 잘림 수정 (작업 204)
 
 - **요청**: `songduckjin/DJRPG`에 확정된 마법사 남·여 모자·투구 10종(v2)을 서기·걷기·공격 전체에 적용하고 운영(`djrpg.pages.dev`)까지 배포.
@@ -62,7 +75,7 @@
 - **검증**: `npx tsc --noEmit` 통과, 신규 `tests/mage-helm-render.test.mjs` 11/11, `tests/mage-helm-render`·`mage`·`staff-render` 34/34, 전체 `node --test tests/*.test.mjs` **601건 중 599 통과**(실패 2건은 `origin/main`에서도 동일한 `costume-field-render` 기존 실패), `node scripts/verify-item-art.mjs`(투구 파츠 20·머리 없는 시트 12 추가), `npm run build` 통과, `git diff --check`.
 - **검수 이미지**: `downloads/djrpg_mage_helms_ingame_v1.png`(남녀 10종, 게임 배율 .42), `downloads/djrpg_mage_helms_preview_v1.png`(셀 크기 1배 — 이음매·머리카락 비침), `downloads/djrpg_mage_helms_motion_v1.png`(남녀 대표 5종 × 걷기·공격 4프레임). 육안 확인: 후광·뿔·고깔모 잘림 없음, 머리카락 비침 없음, 셀 위 여유 행에 후광이 실제로 그려짐.
 
-## 2026-11-20 — 마법사 지팡이 10종 외형 적용: 남녀 서기·걷기 4프레임·공격 4프레임 (작업 202)
+## 2026-11-20 — 마법사 지팡이 10종 외형 적용: 남녀 서기·걷기 4프레임·공격 4프레임 (작업 205)
 
 - **요청**: `songduckjin/DJRPG`에서 마법사 지팡이 10종(짧은 완드 1~5 + 긴 그랜드 스태프 6~10) 외형을 남녀 마법사의 서기·걷기·공격 전체에 적용하고 운영(`djrpg.pages.dev`)까지 배포. 1~5번 짧은 지팡이를 들었을 때 뒤로 기본 긴 지팡이가 절대 삐져나오면 안 된다.
 - **시트 두 벌**: 마법사 기본 시트에는 기본 지팡이(긴 고목 지팡이)가 그려져 있어 ① 기본 지팡이를 지운 본체 시트(`public/assets/pilot-25d/mage_nostaff/mage_{male,female}_{idle,walk,attack}_v1.png` 6장, 324KB) ② 티어별 지팡이 파츠(`staffs/staff_{0..9}_v1.png` 10장, 60KB)로 나눴다. 두 시트 모두 기준 시트와 같은 362px 셀 좌표계다. 0번(견습생의 지팡이)도 파츠를 쓰므로 모든 티어가 "nostaff 시트 + 파츠" 한 규칙을 따른다.
