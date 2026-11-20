@@ -39,6 +39,20 @@ test('직업은 생성할 때 정해지고, 직업이 없는 예전 세이브는
   assert.equal(archer.gender, 'female');
 });
 
+test('궁수 세이브는 저장·로그인을 거쳐도 습득 스킬과 퀵슬롯이 그대로 남는다', () => {
+  const save = archerSave('female');
+  save.learned = ['doubleShot', 'snipe'];
+  save.quickSlots = ['snipe', 'doubleShot', null];
+  save.passives = ['bowMastery'];
+  save.skillLevels = { doubleShot: 4, snipe: 2, bowMastery: 6 };
+  const loaded = parseSave(JSON.parse(JSON.stringify(save)));
+  assert.deepEqual(loaded.learned, ['doubleShot', 'snipe']);
+  assert.deepEqual(loaded.quickSlots, ['snipe', 'doubleShot', null]);
+  assert.deepEqual(loaded.passives, ['bowMastery']);
+  assert.equal(loaded.skillLevels.doubleShot, 4);
+  assert.equal(loaded.skillLevels.bowMastery, 6);
+});
+
 test('전사 세이브는 직업 필드가 생겨도 장비·진행이 그대로 보존된다', () => {
   const save = freshSave();
   save.level = 17; save.gold = 1234; save.equipment.weapon = { id: 'w', name: '영원의 패왕의 성검', slot: 'weapon', rarity: 'legendary', stats: { attack: 99 } };
