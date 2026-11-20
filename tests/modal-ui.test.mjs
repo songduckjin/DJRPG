@@ -7,7 +7,7 @@ const { rarityOrder, rarityRanks } = await import('../src/game/items.ts');
 const { compareEquipment } = await import('../src/game/itemComparison.ts');
 const { detailPosition, dismissBagDetail } = await import('../src/ui/bagDetail.ts');
 const { Interface } = await import('../src/ui/interface.ts');
-const { renderCharacters } = await import('../src/ui/modals/charactersModal.ts');
+const { renderCharacters, renderCreateCharacter } = await import('../src/ui/modals/charactersModal.ts');
 const { Market } = await import('../src/game/market.ts');
 const equipment = (slot, stats) => ({ id: slot, name: slot, slot, rarity: 'rare', stats });
 
@@ -120,5 +120,28 @@ test('character selection shows one idle button for every created character only
     idleButtons[0].onclick();
     assert.equal(ui.world.save.autoClimb, true);
     assert.equal(ui.world.changed, true);
+  } finally { globalThis.document = originalDocument; }
+});
+
+test('character creation shows a full-screen loading state and restores retry on save failure', async () => {
+  const originalDocument = globalThis.document;
+  class Element {
+    children = []; classList = { toggle() {} }; hidden = false; textContent = '';
+    append(...nodes) { this.children.push(...nodes); }
+    setAttribute() {}
+  }
+  globalThis.document = { createElement: () => new Element() };
+  try {
+    let resolveFlush;
+    const ui = { characterCreateSlot: 2, market: { sync: { flush: () => new Promise(resolve => { resolveFlush = resolve; }) } }, open() {} };
+    const dialog = new Element();
+    renderCreateCharacter(ui, dialog);
+    const form = dialog.children[0], loading = form.children.at(-1), submit = form.children.at(-2), error = form.children.at(-3);
+    form.children[0].children[0].value = '새전사';
+    const pending = form.onsubmit({ preventDefault() {} });
+    assert.equal(loading.hidden, false); assert.equal(submit.disabled, true);
+    resolveFlush(false); await pending;
+    assert.equal(loading.hidden, true); assert.equal(submit.disabled, false);
+    assert.match(error.textContent, /저장 결과/);
   } finally { globalThis.document = originalDocument; }
 });
