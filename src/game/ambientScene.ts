@@ -1,7 +1,7 @@
 import { Graphics, MeshPlane, UPDATE_PRIORITY, type Texture, type Ticker } from 'pixi.js';
 import type { GameView } from './render';
 import { AmbientDeformation, fireEmbers, fireFlicker } from './ambientMotion';
-import { wastelandFireAnchors } from './wasteland';
+import { wastelandFireAnchors } from './wastelandGeometry';
 
 const mounted = new WeakSet<GameView>();
 type SceneLayout = (width: number, height: number, player?: { x: number; y: number }) => {

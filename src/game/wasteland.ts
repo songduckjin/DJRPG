@@ -1,10 +1,8 @@
+import { Assets } from 'pixi.js';
+import { mountAmbientScene } from './ambientScene';
 import type { GameView } from './render';
-export const wastelandScene = { path: '/assets/wasteland-scene-extended-v1.png', width: 637, height: 1079 };
-// The original, unzoomed image occupies this rectangle. Only the outside is extended.
-export const wastelandCore = { x: 48, y: 82, width: 540, height: 914 };
-export function originalScenePoint(x:number,y:number){return {x:(wastelandCore.x+x*wastelandCore.width)/wastelandScene.width,y:(wastelandCore.y+y*wastelandCore.height)/wastelandScene.height};}
-const fires = [[.5,.044],[.813,.30],[.176,.694]] as const;
-export const wastelandFireAnchors = fires.map(([x,y])=>originalScenePoint(x,y));
+import { wastelandScene, wastelandCore, wastelandFireAnchors } from './wastelandGeometry';
+export { wastelandScene, wastelandCore, originalScenePoint, wastelandFireAnchors } from './wastelandGeometry';
 export function wastelandLayout(width: number, height: number, player = { x: 0, y: 0 }) {
   // Fit the ORIGINAL core to the viewport, then reveal added scenery when the camera pans.
   // At a 540x914 viewport every core pixel is 1:1; the image itself is never zoomed 1.18x.
@@ -16,7 +14,6 @@ export function wastelandLayout(width: number, height: number, player = { x: 0, 
     fires:wastelandFireAnchors.map(({x,y})=>({x:offsetX+x*sceneWidth,y:offsetY+y*sceneHeight,radius:Math.min(width/540,height/914)*38}))};
 }
 export async function mountWasteland(view: GameView, onReady?: () => void): Promise<void> {
-  const [{ Assets }, { mountAmbientScene }] = await Promise.all([import('pixi.js'), import('./ambientScene')]);
   let texture;
   try { texture = await Assets.load(wastelandScene.path); }
   catch (error) { throw new Error(`그래픽 리소스 ${wastelandScene.path} 로딩 실패: ${error instanceof Error ? error.message : String(error)}`); }
