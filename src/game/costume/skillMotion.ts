@@ -25,13 +25,13 @@ export const costumeMotionTemplateNames: Record<CostumeMotionTemplate, string> =
  * | `crushing` | 딜레이 크러싱 | 내려찍기 | 지연 폭발을 예고하는 내려찍기 |
  * | `slam` | 와일드 스탬프 | 내려찍기 | 지면 강타·균열 |
  * | `warcry` | 블러드 레이지 | 발동 자세 | 6초 버프 발동 |
- * | `hell` | 헬 파이어 소드 | 발동 자세 | 대검 폭발 발동 |
+ * | `hell` | 회전참격 | 회전 | 제자리 360° 혈풍 회전 베기(작업 215) |
  */
 export const skillMotionTemplates: Record<WarriorSkillId, CostumeMotionTemplate> = {
   slash2: 'slash', power: 'slash', destroy: 'slash',
   spin: 'spin',
   crushing: 'smash', slam: 'smash',
-  warcry: 'cast', hell: 'cast'
+  warcry: 'cast', hell: 'spin'
 };
 
 export function skillMotionTemplate(id: WarriorSkillId): CostumeMotionTemplate { return skillMotionTemplates[id]; }

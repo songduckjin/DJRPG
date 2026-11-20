@@ -54,6 +54,18 @@
 - **머지·배포**: [PR #155](https://github.com/songduckjin/DJRPG/pull/155) 스쿼시 병합 `404d7e1692d9`(2026-11-20T06:17:04Z). 운영 `https://djrpg.pages.dev/version.json` = `404d7e1692d9`(`builtAt 2026-11-20T06:17:28Z`, 루트 200), 배포 번들 `index-CFncNrmx.js`에 `character-delete-overlay`·`character-delete-confirm`·`삭제 중…`·`캐릭터 이름을 정확히 입력해 주세요.`, CSS `index-CLpTlbBa.css`에 `.character-delete-*`·`.character-delete-confirm.ready{border-color:#ff6a5e…}` 확인. 사거리는 배포 번들에서 `La=280,MI=150,Fa=210,kI=110`과 `job==="archer"?MI:job==="mage"?kI:90`·`job==="archer"?La:job==="mage"?Fa:90` 사용부까지 확인.
 - **남은 것**: iOS 실기(인게임 캐릭터 선택 → 삭제 → 이름 입력·키보드·버튼 터치) 확인은 사용자 몫. 서버 `deleteCharacter`(이름 불일치 `CHARACTER_NAME_MISMATCH`·현재 캐릭터 `ACTIVE_CHARACTER`·마지막 캐릭터 `LAST_CHARACTER` 차단)는 이번에 바꾸지 않았다.
 - **겹침 참고**: `docs/TASK.md`의 `[-]` 작업 191·192가 같은 파일(`charactersModal.ts`·`world.ts`)을 잡고 있었으나 원격에 해당 브랜치(`codex/191-*`·`codex/192-shop`)와 커밋이 없어 실제 진행 흔적이 없었다. 변경은 `charactersModal.ts`의 새 함수/오버레이와 `modals.css` 새 클래스로만 한정했다.
+## 2026-11-20 · songduckjin 작업215 전사 `hell` → 회전참격(암흑·진홍 혈풍 회오리)
+- 사용자 확정: 3번 시안(`downloads/skill_whirl_slash/opt_c.png`) — 전사 주변 360°를 감싸고 도는 암흑·진홍 혈풍 회오리. 스킬명 `회전참격`, ID `hell` 유지(세이브 호환).
+- 스킬 표: `skills.ts` `hell` 이름·설명(`360° 회전`·`사방`)·위력(`공격력 × 3.2 · 360° 회전`), 쿨 16·사거리 185 그대로(해금 레벨 14는 작업 212 순서). `ui/hud.ts` 짧은 이름 `회전참격`.
+- 이펙트: `render/vfx.ts` `drawWhirlSlash`. 텍스처 `fx_whirl_slash_ring.png`(512², 62KB)는 `downloads/whirl/ring_b.png`(시안에서 캐릭터 없이 뽑은 위에서 본 혈풍)를 `scripts/build-whirl-slash-fx.py`로 굽는다 — 중심 구멍 0.22~0.40, **알파=밝기×3.4**, 색 ×1.6, 128색 팔레트.
+- 왜 `add`가 아니라 일반 합성인가: `add`로만 얹으면 어두운 안개가 전부 사라져 밝은 분홍 번짐만 남았다. 본체는 일반 합성으로 어둡게 깔고, 밝은 혈흔만 같은 텍스처를 `add`로 한 겹 더 얹는다.
+- 왜 컨테이너인가: 눌린 타원 스프라이트를 직접 돌리면 타원이 통째로 기울어 공중에서 도는 것처럼 보인다. `scale.y .52` 컨테이너 `floor`(`vfxLayers`)의 자식으로 넣어 회전이 바닥 평면에서 일어나게 했다. 지면은 `dragonBack`(액터 뒤)에 깔아 전사 몸을 덮지 않는다.
+- 구성: 바깥 회오리(−.6−age×7.4rad/s)·안쪽 하이라이트(age×10.5, `add`)·위로 솟는 고리 2겹(y −44·−88, 6.2·8.4rad/s), 바닥 암흑 기운 5겹 타원, 조여드는 테두리, 칼날 궤적(굵기 변화 선), 혈점·불티 12개.
+- 모션: `drawHero`가 `hell` 동안 가로 배율 cos 스핀(.46초 한 바퀴 — 뒤집힘 포함)과 7px 도약, 잔상 색 `0xd2352f`. 코스튬 템플릿 `hell` → `spin`.
+- 판정 불변: `world.ts` `hell` 360° 광역(사거리 185, 시전 즉시 + 0.4초 간격) 그대로 — 4방향 피격/사거리 밖 무피해 테스트 추가.
+- 테스트: 신규 `tests/skill-whirl-slash.test.mjs` 6/6, `costume-manifest` 14/14(템플릿 표 갱신), 전체 622건 중 620(실패 2건은 `origin/main`에서도 같은 `costume-field-render`), `verify-item-art`, `npm run build`.
+- 검수 이미지: `downloads/djrpg_skill_whirl_slash_ingame_v1.png`(필드 합성).
+
 ## 2026-11-20 · fks3997 작업201 장비 +1~+7 강화 단계(미리보기 → 운영 배포)
 - 사용자 확정 스펙: "10층마다 한 단계씩 열리고(최대 +7) 확률로 떨어지며, 이름 옆에 다른 색 +숫자로 보이고, 기존 보유 장비도 등급·스탯으로 알아서 보수적으로 표기".
 - `items.ts`: `maxPlusFor(floor)=min(7, floor((floor-1)/10))`, `plusWeights`/`rollPlus`(단계 가중치 `0.6^k`, 보스 `×1.2^k`), `applyPlus`(단계당 8% → `+7`=1.56배), `plusOf`, `itemDisplayName`, `estimatePlus`(최대 랜덤 3·최고 티어 보정·쯔바이핸드 보정을 먼저 뺀 보수적 역산), `normalizePlus`. `rollItem`은 `plus`(0 포함)를 항상 적고, `migrateItem`은 `plus`가 없는 옛 장비만 역산한다.
