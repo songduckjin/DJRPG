@@ -1,6 +1,7 @@
 import { expToNext, MAX_LEVEL } from '../../game/store';
 import { jobNames, jobOrDefault } from '../../game/skills';
 import type { Interface } from '../interface';
+import { openDeleteAccount } from './accountDelete';
 
 export function renderAccount(this: Interface, dialog: HTMLElement): void {
     const save = this.world.save;
@@ -43,5 +44,14 @@ export function renderAccount(this: Interface, dialog: HTMLElement): void {
     content.appendChild(reset);
     const logout = document.createElement('button'); logout.className = 'account-logout'; logout.textContent = '로그아웃 · 계정 전환';
     logout.onclick = () => window.dispatchEvent(new Event('game-logout'));
-    content.appendChild(logout); dialog.appendChild(content);
+    content.appendChild(logout);
+    // 계정 탈퇴(아이디 삭제, 작업 223) — 가장 위험한 동작이라 맨 아래에 작고 어둡게 둔다.
+    const withdraw = document.createElement('div'); withdraw.className = 'account-withdraw';
+    const withdrawButton = document.createElement('button'); withdrawButton.type = 'button'; withdrawButton.textContent = '계정 탈퇴 (아이디 삭제)';
+    withdrawButton.setAttribute('aria-label', '계정 탈퇴 — 아이디와 모든 기록 삭제');
+    withdrawButton.onclick = () => { openDeleteAccount(this); };
+    const withdrawNote = document.createElement('p'); withdrawNote.textContent = '탈퇴하면 같은 아이디로 바로 다시 가입할 수 있습니다.';
+    withdraw.append(withdrawButton, withdrawNote);
+    content.appendChild(withdraw);
+    dialog.appendChild(content);
   }

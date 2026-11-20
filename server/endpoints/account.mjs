@@ -1,6 +1,7 @@
 import { client, schema, transaction, account, assertRevision, assertSession, assignSession, healStaleLoadItems, reconcileItems, writeSave, fail } from '../database.mjs';
 import { initialSave, jobOf, jobs } from '../save-seed.mjs';
 import { runSeasonReset } from '../season.mjs';
+import { deleteAccountData } from '../account-delete.mjs';
 import { sharedConnection } from '../connection.mjs';
 import { createTrace, logRequest } from '../metrics.mjs';
 import { elapsedSince } from '../save-guard.mjs';
@@ -171,6 +172,21 @@ async function accountHandler(request, { env = runtimeEnv(), createDbClient, leg
         return { ok: true, revision: latest.revision + 1 };
       });
       return res.status(200).json(result);
+    }
+    if (action === 'deleteAccount') {
+      // 계정 탈퇴(작업 223): 지금 로그인한 세션 + 비밀번호 재확인 + 아이디 확인을 모두 통과해야 한다.
+      // 지운 뒤에는 같은 아이디로 바로 다시 가입할 수 있어야 하므로, 계정에 매달린 표를 한 트랜잭션에서
+      // 모두 비운다(`server/account-delete.mjs`). 게스트는 비밀번호가 없어 토큰(세션)만으로 확인한다.
+      const guest = row.password_hash === 'guest';
+      const expected = guest ? '게스트' : row.id;
+      if (!guest && (typeof body.password !== 'string' || !body.password || !(await verifyPassword(body.password, row.password_hash)))) return bad(res, 401, 'INVALID_CREDENTIALS', '비밀번호가 올바르지 않습니다.');
+      if (String(body.confirmId ?? '').trim().toLocaleLowerCase('ko-KR') !== String(expected).toLocaleLowerCase('ko-KR')) return bad(res, 400, 'ACCOUNT_ID_MISMATCH', `확인을 위해 ${guest ? '게스트' : '아이디'}를 정확히 입력하세요.`);
+      const deleted = await transaction(db, async tx => {
+        const latest = await account(tx, id);
+        assertSession(latest, signed.sid);
+        return deleteAccountData(tx, id);
+      });
+      return res.status(200).json({ ok: true, deleted });
     }
     if (action === 'selectCharacter' || action === 'createCharacter') {
       const slot = Number(body.slot);
