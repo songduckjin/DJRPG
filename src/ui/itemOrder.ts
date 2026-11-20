@@ -1,10 +1,10 @@
 import { isSkillBook, type Item } from '../game/items';
 import type { Save } from '../game/store';
-import { skillOrder } from '../game/skills';
+import { jobOrDefault, skillOrderFor } from '../game/skills';
 
-export function orderedSkills(save: Pick<Save, 'quickSlots'>) {
+export function orderedSkills(save: Pick<Save, 'quickSlots' | 'job'>) {
   const equipped = save.quickSlots.filter(id => id !== null);
-  return [...equipped, ...skillOrder.filter(id => !equipped.includes(id))];
+  return [...equipped, ...skillOrderFor(jobOrDefault(save.job)).filter(id => !equipped.includes(id))];
 }
 export function filterSaleItems(items: Item[], category: string, rarity: string): Item[] {
   return items.filter(item => (!rarity || item.rarity === rarity) && (!category

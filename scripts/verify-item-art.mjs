@@ -190,6 +190,56 @@ for (const gender of ['male', 'female']) {
 }
 console.log(`작업 155 착용 갑옷 전신 시트 ${armorSheetCount}장 확인 완료.`);
 
+// ── 작업 157: 궁수 기본 시트·활 10종 아이콘·스킬 아이콘 ───────────────────────────
+// 전사 기준 시트와 같은 셀 좌표계(서기 362×362, 걷기·공격 1448×362)와 투명도를 함께 본다.
+const archerSheetSizes = { idle: [362, 362], walk: [1448, 362], attack: [1448, 362] };
+const archerRoot = fileURLToPath(new URL('../public/assets/pilot-25d/', import.meta.url));
+for (const gender of ['male', 'female']) {
+  for (const [motion, [expectWidth, expectHeight]] of Object.entries(archerSheetSizes)) {
+    const name = `archer_${gender}_${motion}_v1.png`;
+    const path = join(archerRoot, name);
+    if (!existsSync(path)) throw new Error(`궁수 기본 시트가 없습니다: ${name}`);
+    const data = readFileSync(path), header = data.subarray(0, 26);
+    const width = header.readUInt32BE(16), height = header.readUInt32BE(20);
+    if (header.toString('ascii', 1, 4) !== 'PNG') throw new Error(`궁수 시트가 PNG가 아닙니다: ${name}`);
+    if (width !== expectWidth || height !== expectHeight) {
+      throw new Error(`궁수 시트 규격이 다릅니다(${width}×${height}, 기대 ${expectWidth}×${expectHeight}): ${name}`);
+    }
+    if (header[25] !== 6) throw new Error(`궁수 시트는 RGBA PNG여야 합니다: ${name}`);
+  }
+}
+console.log('궁수 기본 시트 6장(남녀 × 서기·걷기·공격) 확인 완료.');
+
+// 활 10종 아이콘 — `bowBases` 두 목록(각 5개)이 모두 그려져 있어야 한다.
+const bowBases = items.match(/const bowBases = \[([^\]]+)\]/)?.[1];
+if (!bowBases) throw new Error('bowBases 목록을 찾을 수 없습니다.');
+const bowNames = [...bowBases.matchAll(/'([^']+)'/g)].map(([, name]) => name);
+if (bowNames.length !== 10) throw new Error(`활 기본형이 10종이 아닙니다: ${bowNames.length}`);
+for (let index = 0; index < bowNames.length; index += 5) {
+  const path = join(directory, `bow_${index}.png`);
+  if (!existsSync(path)) throw new Error(`활 아이콘 시트가 없습니다: bow_${index}.png`);
+  const data = readFileSync(path), header = data.subarray(0, 26);
+  if (header.toString('ascii', 1, 4) !== 'PNG' || header.readUInt32BE(16) !== 870 || header.readUInt32BE(20) !== 290) {
+    throw new Error(`활 아이콘 시트는 870×290 PNG여야 합니다: bow_${index}.png`);
+  }
+  if (!(header[25] === 6 || (header[25] === 3 && data.includes('tRNS')))) throw new Error(`활 아이콘 시트에 투명도가 없습니다: bow_${index}.png`);
+}
+console.log(`궁수 활 ${bowNames.length}종 아이콘 확인 완료.`);
+
+// 궁수 스킬·패시브 아이콘 시트 — 전사 시트와 같은 칸 규칙(4×2, 3×1)을 쓴다.
+const iconRoot = fileURLToPath(new URL('../public/assets/icons/', import.meta.url));
+const archerIcons = [['archer-skills.png', 4, 2], ['archer-passive-skills.png', 3, 1]];
+for (const [name, columns, rows] of archerIcons) {
+  const path = join(iconRoot, String(name));
+  if (!existsSync(path)) throw new Error(`궁수 스킬 아이콘 시트가 없습니다: ${String(name)}`);
+  const data = readFileSync(path), header = data.subarray(0, 26);
+  const width = header.readUInt32BE(16), height = header.readUInt32BE(20);
+  if (header.toString('ascii', 1, 4) !== 'PNG' || width % Number(columns) || height % Number(rows)) {
+    throw new Error(`궁수 스킬 아이콘 시트가 ${String(columns)}×${String(rows)} 격자가 아닙니다: ${String(name)}`);
+  }
+}
+console.log('궁수 스킬·패시브 아이콘 시트 2종 확인 완료.');
+
 // ── 작업 156: 기본 검을 지운 본체 시트(noweapon) + 대검 파츠 9장 ────────────────────
 // 0번(기본 두손검)은 본체 시트에 그려져 있고, 1~9번은 `weapons/weapon_{n}_v1.png` 파츠로
 // 362px 셀 위에 얹는다. 그래서 기본 검을 지운 같은 시트가 본체 6종(갑옷 없음)과

@@ -1,7 +1,7 @@
 import { DUNGEON_MAX_FLOOR } from './dungeonLobby';
 import {World, type Enemy, enemyMaxHp, enemyHitDamage, enemyMoveSpeed} from '../game/world';
 import {clampArenaPoint} from '../game/arena';
-import {skillDamageScale,skills} from '../game/skills';
+import {skillDamageScale,skills,jobOrDefault} from '../game/skills';
 import {totalStats,skillLevel,type Save} from '../game/store';
 import {equipmentDropChance,rollItem,rollSkillBook,skillBookDropChance,type Item} from '../game/items';
 /** Ground loot held by the preview only. Kept off `World.drops` so the shared field renderer stays untouched. */
@@ -111,8 +111,8 @@ export function dungeonAbsorbPoint(from:LootSpot,to:LootSpot,progress:number,ind
 // Temporary encounter-observation balance, not the eventual fixed progression curve.
 export function dungeonPreviewHp(save:Save):number {
   const stats=totalStats(save);
-  const powers={slash2:2.15,spin:5,crushing:4.5,slam:5,warcry:2,power:4,destroy:2.7,hell:7};
-  const skillDps=save.quickSlots.reduce<number>((sum,id)=>id&&save.learned.includes(id)?sum+powers[id]*skillDamageScale(skillLevel(save,id))/skills[id].cooldown:sum,0);
+  const powers:Record<string,number>={slash2:2.15,spin:5,crushing:4.5,slam:5,warcry:2,power:4,destroy:2.7,hell:7,doubleShot:2.7,multiShot:4.75,pierceShot:2.6,iceArrow:1.9,hawkEye:0,snipe:4.3,stormVolley:4.8,arrowRain:3.4};
+  const skillDps=save.quickSlots.reduce<number>((sum,id)=>id&&save.learned.includes(id)?(powers[id]??0)*skillDamageScale(skillLevel(save,id))/skills[id].cooldown:sum,0);
   const dps=stats.attack*((1+stats.speed/100)/.48+skillDps)*(1+stats.crit/100);
   return Math.max(enemyMaxHp(1,false),Math.ceil(dps*4));
 }
@@ -153,7 +153,7 @@ class DungeonWorld extends World {
     this.loot.push({id:++this.lootId,kind:'gold',x:enemy.x,y:enemy.y,gold:enemy.boss?70*floor:3+floor});
     if(Math.random()>=DUNGEON_ITEM_DROP_CHANCE)return;
     const equipment=equipmentDropChance(floor,enemy.boss),book=skillBookDropChance(floor,enemy.boss);
-    const item=Math.random()*(equipment+book)<equipment?rollItem(floor,false,enemy.boss):rollSkillBook(floor);
+    const item=Math.random()*(equipment+book)<equipment?rollItem(floor,false,enemy.boss,this.save.job):rollSkillBook(floor,jobOrDefault(this.save.job));
     this.loot.push({id:++this.lootId,kind:'item',x:enemy.x,y:enemy.y,item});
   }
 }
