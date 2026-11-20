@@ -548,3 +548,18 @@ for (const gender of ['male', 'female']) {
   }
 }
 console.log('작업 204 머리 없는 마법사 시트 12장 확인 완료.');
+
+// ── 작업 215: 회전참격(전사 `hell`) 혈풍 회오리 ─────────────────────────────────────
+// 필드 VFX는 add 블렌딩이라 검정 배경(색상형 PNG, 알파 없음) 512×512 한 장이어야 하고,
+// 부팅 프리로드에 들어가므로 200KB를 넘지 않는다. 경로는 `render.ts` `paths.fxWhirl`과 같다.
+const whirlPath = fileURLToPath(new URL('../public/assets/fx_whirl_slash_ring.png', import.meta.url));
+if (!existsSync(whirlPath)) throw new Error('작업 215 회전참격 이펙트가 없습니다: fx_whirl_slash_ring.png');
+{
+  const data = readFileSync(whirlPath), header = data.subarray(0, 26);
+  const width = header.readUInt32BE(16), height = header.readUInt32BE(20);
+  if (header.toString('ascii', 1, 4) !== 'PNG' || width !== 512 || height !== 512) {
+    throw new Error(`회전참격 이펙트는 512×512 PNG여야 합니다(${width}×${height}).`);
+  }
+  if (data.length > 200 * 1024) throw new Error(`회전참격 이펙트가 200KB를 넘습니다: ${data.length}B`);
+}
+console.log('작업 215 회전참격 혈풍 회오리 1장 확인 완료.');
