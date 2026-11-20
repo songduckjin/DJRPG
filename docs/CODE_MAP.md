@@ -256,7 +256,7 @@
 - `src/ui/worldBossWeather.ts` — 깃발천정규좌표/변형·뒤구름이동좌표(색마스크mesh, 돌/봉고정·모션감소). `bannerOffset`·`cloudCenter`
 - `src/ui/worldBossImpact.ts` — 착지돌탄도/그림자·먼지확산/소멸의결정적입자상태. `slamParticles`·`slamWarning` (내려찍기 시전1초의 붉은 타격원 점멸·타격 시 제거)
 - `src/game/pixiSetup.ts` — 필드 pipe 선등록·Canvas GPU 미지원시 mesh를 texture/bounds quad로 표시(WebGL mesh 유지). `CanvasMeshFallbackPipe`
-- `server/world-boss.mjs` — 공유HP 1,000만·KST05 초기화·계정3회·고정장비 서버전투재현·회피서버시간검증·실순위·참여/순위/막타/공동 우편 멱등지급. `worldBossOperation`·`replayBoss`; `worldBossSchema`는 `server/world-boss-schema.mjs`에서 가져와 재수출한다. (새 입장 0피해 쓰기/재조회 생략·순위 단일 쿼리)
+- `server/world-boss.mjs` — 작업 216: 계정당 3회 중 최고 서버 인정 피해로 순위·정산(기존 합산 행도 attempts MAX), 첫 등록/갱신 응답, 순위 금화+주머니·공동 1,500+주머니1·막타 2,000·직접 스킬북/매회 참여 보상 없음. 공유HP 1,000만·KST05 초기화·계정3회·고정장비 서버전투재현·회피서버시간검증·실순위·참여/순위/막타/공동 우편 멱등지급. `worldBossOperation`·`replayBoss`; `worldBossSchema`는 `server/world-boss-schema.mjs`에서 가져와 재수출한다. (새 입장 0피해 쓰기/재조회 생략·순위 단일 쿼리)
 - `server/world-boss-schema.mjs` — 월드보스 Turso 4테이블·인덱스의 단일 DDL. 서버 실행과 DB 이관 스크립트가 같은 `worldBossSchema()`를 사용한다.
 - `server/endpoints/world-boss.mjs`, `functions/api/world-boss.js` — 인증/세션/버전 확인 POST `/api/world-boss` (list/start/tick/dodge/finish), 기존 Save·아이템·보상수령 계약 보존. `worldBossEndpoint`
 - `server/dungeon.mjs` (작업 197, 신규) — 던전 순위. `dungeonOperation(db,id,{action},sid)`의 `submit`은 **클라이언트가 보낸 층이 아니라 계정 세이브의 `dungeonFloor`를 서버가 다시 읽어** `djrpg_dungeon_records`에 적고(최고층은 오르기만·같은 층은 처음 기록 시각 유지·이름은 세이브 이름), `list`는 상위 10명+내 순위(`ROW_NUMBER() OVER (ORDER BY cleared_floor DESC,cleared_at,account_id)`)와 참가자 수를 돌려준다. 게스트는 `list`만 되고 `submit`은 `GUEST_READ_ONLY`(403).
