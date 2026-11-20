@@ -17,7 +17,7 @@ export type Slot = 'weapon' | 'offhand' | 'helmet' | 'armor' | 'necklace' | 'glo
 
 export type Stat = 'attack' | 'defense' | 'health' | 'crit' | 'speed';
 
-export type EquipmentItem = { id: string; name: string; slot: Slot; rarity: Rarity; stats: Partial<Record<Stat, number>>; kind?: 'equipment'; locked?: boolean };
+export type EquipmentItem = { id: string; name: string; slot: Slot; rarity: Rarity; stats: Partial<Record<Stat, number>>; kind?: 'equipment'; locked?: boolean; plus?: number };
 export type SkillBook = { id: string; name: string; slot: 'skillbook'; rarity: 'rare'; kind: 'skillbook'; skillId: SkillLevelId; stats: {} };
 export type Item = EquipmentItem | SkillBook;
 export function isSkillBook(item: Item): item is SkillBook { return item.kind === 'skillbook'; }
@@ -29,6 +29,59 @@ export function rollSkillBook(floor: number, job: Job = 'warrior'): SkillBook {
   return { id: crypto.randomUUID(), name: `[스킬북] ${skillId in skills ? skills[skillId as keyof typeof skills].name : passives[skillId as keyof typeof passives].name}`, slot: 'skillbook', rarity: 'rare', kind: 'skillbook', skillId, stats: {} };
 }
 export function skillBookDropChance(floor: number, boss: boolean): number { return boss ? Math.min(.15, .018 + (floor - 1) * .002) : Math.min(.015, .001 + (floor - 1) * .00012); }
+
+/** 강화 단계의 최고치 — 71~80층에서 +7이 나온다(작업 201). */
+export const MAX_PLUS = 7;
+/** `+1`마다 장비 스탯이 8%씩 오른다(`+7` = 기본의 1.56배). */
+export const PLUS_STAT_BONUS = .08;
+/** 낮은 단계일수록 흔하고 높은 단계일수록 드물다: 단계마다 확률을 0.6배로 줄인다. */
+export const PLUS_WEIGHT_DECAY = .6;
+/** 보스는 높은 단계를 조금 더 자주 준다(가중치를 단계마다 1.2배). */
+export const PLUS_BOSS_LIFT = 1.2;
+
+/** 층수로 열리는 최고 강화 단계: 1~10층 0, 11~20층 1, …, 51~60층 5, 71~80층 7. */
+export function maxPlusFor(floor: number): number {
+  const depth = Math.max(1, Math.floor(Number.isFinite(floor) ? floor : 1));
+  return Math.max(0, Math.min(MAX_PLUS, Math.floor((depth - 1) / 10)));
+}
+
+/** `0 ~ maxPlus` 단계별 가중치 — 낮은 단계가 크고, 보스는 높은 단계의 몫을 조금 키운다. */
+export function plusWeights(maxPlus: number, boss = false): number[] {
+  const weights: number[] = [];
+  for (let plus = 0; plus <= maxPlus; plus++) weights.push(Math.pow(PLUS_WEIGHT_DECAY, plus) * (boss ? Math.pow(PLUS_BOSS_LIFT, plus) : 1));
+  return weights;
+}
+
+/** 장비 스탯에 강화 단계 보너스(단계당 8%)를 적용한다 — `+7`이면 기본의 1.56배. */
+export function applyPlus(stats: Partial<Record<Stat, number>>, plus: number): Partial<Record<Stat, number>> {
+  if (!(plus > 0)) return stats;
+  const factor = 1 + plus * PLUS_STAT_BONUS;
+  for (const stat of Object.keys(stats) as Stat[]) stats[stat] = Math.round((stats[stat] ?? 0) * factor);
+  return stats;
+}
+
+/** 이 층의 드롭 하나가 가질 강화 단계를 뽑는다. 10층 이하는 항상 0. */
+export function rollPlus(floor: number, boss = false, random: () => number = Math.random): number {
+  const maxPlus = maxPlusFor(floor);
+  if (maxPlus === 0) return 0;
+  const weights = plusWeights(maxPlus, boss);
+  let roll = random() * weights.reduce((sum, weight) => sum + weight, 0);
+  for (const [plus, weight] of weights.entries()) { roll -= weight; if (roll < 0) return plus; }
+  return 0;
+}
+
+/** 장비 하나의 강화 단계(0~7). 스킬북·값이 없는 장비는 0. */
+export function plusOf(item: Item): number {
+  if (isSkillBook(item)) return 0;
+  const plus = item.plus;
+  return typeof plus === 'number' && Number.isFinite(plus) ? Math.max(0, Math.min(MAX_PLUS, Math.floor(plus))) : 0;
+}
+
+/** 강화 단계를 붙여 읽는 이름 — 이름 자체(DB 동일성)는 절대 바꾸지 않고 표시할 때만 쓴다. */
+export function itemDisplayName(item: Item): string {
+  const plus = plusOf(item);
+  return plus > 0 ? `${item.name} +${plus}` : item.name;
+}
 
 export const slots: Slot[] = ['weapon', 'offhand', 'helmet', 'armor', 'necklace', 'gloves', 'belt', 'boots', 'ring1', 'ring2'];
 
@@ -122,6 +175,41 @@ export function usesBaseSheetOnly(save: Pick<Save, 'job'>): boolean { return job
 
 export function isZweihander(item: Item): boolean { return item.slot === 'weapon' && /쯔바이핸드|츠바이핸더/.test(item.name); }
 
+/** 그 슬롯의 티어 보정이 더할 수 있는 최대치 — `rollItem`의 `Math.ceil(tier * .6/.4)` 중 제일 큰 값. */
+export function maxTierBonus(slot: Slot): number {
+  const tiers = slot === 'weapon' ? 10 : baseItems[slot].length;
+  return Math.ceil(Math.max(0, tiers - 1) * (slot === 'weapon' ? .6 : .4));
+}
+
+/**
+ * `plus`가 없는 예전 장비의 강화 단계를 **보수적으로** 되짚는다(작업 201).
+ *
+ * 드롭은 `scale = (1 + floor(층/2)) * 등급배율`에 무작위 1~3, 티어 보정 0~최대, (쯔바이핸드면) 공격 보정을
+ * 더한 주 스탯을 가진다. 그래서 주 스탯에서 **가장 큰 부가치를 먼저 빼고** 남은 값으로 가장 낮은 층을
+ * 구한다 — 경계에서 헷갈리면 언제나 낮은 `+N`이 나오고, 실제보다 높게 표시되는 일은 없다.
+ * 새로 떨어지는 장비는 `rollItem`이 `plus`를 늘 함께 적으므로 이 역산은 옛 세이브에만 쓰인다.
+ */
+export function estimatePlus(item: EquipmentItem): number {
+  const gradeScale = rarityScales[item.rarity];
+  if (!gradeScale) return 0;
+  const primary: Stat = ['weapon', 'ring1', 'ring2', 'gloves'].includes(item.slot) ? 'attack' : 'defense';
+  const observed = item.stats[primary] ?? 0;
+  if (!(observed > 0)) return 0;
+  const extra = 3 + maxTierBonus(item.slot);
+  const scale = isZweihander(item) ? (observed - 2 - extra) / 1.25 : observed - extra;
+  if (!(scale > 0)) return 0;
+  const steps = Math.floor(scale / gradeScale) - 1;
+  if (steps <= 0) return 0;
+  const floor = Math.max(1, steps * 2);
+  return Math.max(0, Math.min(MAX_PLUS, Math.floor((floor - 1) / 10)));
+}
+
+/** 저장된 `plus`는 0~7 정수로 다듬고, 아예 없는 옛 장비만 역산한다. */
+export function normalizePlus(raw: unknown, item: EquipmentItem): number {
+  if (typeof raw === 'number' && Number.isFinite(raw)) return Math.max(0, Math.min(MAX_PLUS, Math.floor(raw)));
+  return estimatePlus(item);
+}
+
 export function equipmentImage(item: EquipmentItem): { path: string; frame: number; columns: number } {
   const index = baseItemIndex(item);
   if (item.slot === 'weapon' && bowIndex(item) >= 0) {
@@ -167,7 +255,10 @@ export function migrateItem(value: unknown): Item | undefined {
   // 이름은 서버에 저장된 값을 그대로 쓴다(표기가 달라도 isZweihander·codex가 둘 다 인식한다).
   const savedName = typeof value.name === 'string' && value.name.trim() ? value.name : '';
   const name = savedName || slotNames[slot];
-  return { id: typeof value.id === 'string' && value.id ? value.id : crypto.randomUUID(), name, slot, rarity, stats, locked: value.locked === true };
+  const item: EquipmentItem = { id: typeof value.id === 'string' && value.id ? value.id : crypto.randomUUID(), name, slot, rarity, stats, locked: value.locked === true };
+  // 강화 단계는 표시 전용이다 — 이름·스탯·등급은 그대로 두고 `plus`만 정규화(또는 옛 장비면 역산)한다.
+  item.plus = normalizePlus(value.plus, item);
+  return item;
 }
 
 function itemSkillLevel(save: Save, id: SkillLevelId): number { return save.skillLevels[id] ?? 1; }
@@ -201,7 +292,7 @@ export function equipmentDropChance(floor: number, boss = false): number {
 }
 
 export function rollItem(floor: number, guaranteed = false, boss = false, job: Job = 'warrior'): Item {
-  if (guaranteed) return { id: crypto.randomUUID(), name: starterWeaponName(job), slot: 'weapon', rarity: 'common', stats: { attack: 4 } };
+  if (guaranteed) return { id: crypto.randomUUID(), name: starterWeaponName(job), slot: 'weapon', rarity: 'common', stats: { attack: 4 }, plus: 0 };
   const roll = Math.random();
   const depth = Math.max(0, floor - 1);
   // Grade cuts of a normal kill. The overall drop rate stays where it was (`equipmentDropChance`,
@@ -232,7 +323,12 @@ export function rollItem(floor: number, guaranteed = false, boss = false, job: J
     stats.attack = (stats.attack ?? 0) + 2 + Math.ceil(scale * .25);
     if (rarity !== 'common') stats.crit = (stats.crit ?? 0) + Math.max(1, Math.ceil(scale * .5));
   }
-  return { id: crypto.randomUUID(), name: base.startsWith(`${prefix} `) ? base : `${prefix} ${base}`, slot, rarity, stats };
+  // 강화 단계(작업 201): 10층마다 한 단계씩 열리고, 단계마다 스탯이 8%씩 오른다. `plus`는 이름과 별도로
+  // 저장되는 표시 값이라 `name`은 그대로 둔다(서버 아이템 동일성이 이름을 포함한다). 0단계도 적어 두어
+  // 다음 로드에서 옛 장비 역산(`estimatePlus`)이 0층 아이템을 높게 잡는 일이 없다.
+  const plus = rollPlus(floor, boss);
+  applyPlus(stats, plus);
+  return { id: crypto.randomUUID(), name: base.startsWith(`${prefix} `) ? base : `${prefix} ${base}`, slot, rarity, stats, plus };
 }
 
 export function itemPower(item: Item): number {

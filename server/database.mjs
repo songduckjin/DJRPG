@@ -143,6 +143,16 @@ function itemValid(item) {
 }
 const ringSlot = item => typeof item?.slot === 'string' && item.slot.startsWith('ring') ? 'ring' : item?.slot;
 const itemStats = ['attack','defense','health','crit','speed'];
+// 강화 단계(`plus`, 작업 201)는 **표시 전용**이다. 능력치는 이미 각 스탯에 8%씩 반영되어 stats에 들어 있으므로
+// identity·sameItemBody는 plus를 보지 않는다 — 옛 장비가 로드 때 보수적으로 역산한 plus를 얻어도, 값이 없는
+// 클라이언트가 plus: 0을 보내도 409 ITEM_CONFLICT가 나지 않는다(이름·스탯·등급 검사는 그대로).
+const normalizePlus = item => {
+  if (item && item.plus !== undefined) {
+    const plus = Math.floor(Number(item.plus));
+    item.plus = Number.isFinite(plus) ? Math.min(7, Math.max(0, plus)) : 0;
+  }
+  return item;
+};
 const identity = item => JSON.stringify([item.name, ringSlot(item), item.rarity, item.kind ?? 'equipment', item.skillId ?? '', ...itemStats.map(key => item.stats?.[key] ?? 0)]);
 // 이름만 다른 같은 아이템인지(구버전 클라이언트가 저장 이름을 마이그레이션하며 바꾼 경우) 판정한다.
 // stats·rarity·slot·kind·skillId가 달라지면 거짓이므로 능력치·등급 변조 차단은 그대로 유지된다.
@@ -163,6 +173,7 @@ export async function reconcileItems(tx, id, before, after, options = {}) {
   const slotsByItem = new Map(mapped.map(row => [row.item_id, Number(row.slot)]));
   const writes = [];
   for (const item of next) {
+    normalizePlus(item);
     if (!itemValid(item) || ids.has(item.id)) fail(400, 'INVALID_ITEM', '중복되었거나 잘못된 아이템입니다.');
     ids.add(item.id);
     const owner = owners.get(item.id);

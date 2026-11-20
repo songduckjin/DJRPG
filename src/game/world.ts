@@ -1,7 +1,7 @@
 import { canStoreItem } from './bagCapacity';
 import { bossGoldPiles, bossGoldSpot } from './bossLoot';
 import { addExperience, floorKillTarget, rollItem, skillLevel, totalStats, type Item, type Rarity, type Save } from './store';
-import { equipmentDropChance, rollSkillBook, skillBookDropChance, starterWeaponName } from './items';
+import { equipmentDropChance, itemDisplayName, rollSkillBook, skillBookDropChance, starterWeaponName } from './items';
 import { dragonOrbitFactor, skillDamageScale, skillDuration, skillRange, skills, type Job, type SkillId } from './skills';
 import { jobOrDefault } from './skills';
 import { clampArenaPoint, spawnArenaEnemy } from './arena';
@@ -442,7 +442,7 @@ export class World {
       this.save.bag.push(drop.item);
       drop.age = -1;
       if (drop.item.name === starterWeaponName(this.job) && this.save.tutorial === 1) this.save.tutorial = 2;
-      this.onMessage(`${drop.item.name} 획득!`);
+      this.onMessage(`${itemDisplayName(drop.item)} 획득!`);
       this.onChange();
     }
     this.drops = this.drops.filter(d => d.age >= 0 && (d.age < 90 || (d.item.name === starterWeaponName(this.job) && this.save.tutorial < 3)));
