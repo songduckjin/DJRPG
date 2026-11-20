@@ -2,7 +2,7 @@ import type { SaveSync } from './sync';
 import type { World } from './world';
 import { apiHeaders, isOutdatedResponse, reloadForNewVersion } from './appVersion';
 export type JourneyTask = {id:string;name:string;category?:string;target:number;current:number;gold:number;books:number;claimed:boolean;completion?:boolean};
-export type Mail = {id:string;title:string;sender:string;body:string;createdAt:number;expiresAt:number;expired:boolean;gold:number;books:number;claimedAt:number|null;read:boolean};
+export type Mail = {id:string;title:string;sender:string;body:string;createdAt:number;expiresAt:number|null;expired:boolean;gold:number;books:number;diamonds?:number;claimedAt:number|null;read:boolean};
 export type JourneyData = {daily:JourneyTask[];weekly:JourneyTask[];achievements:JourneyTask[];mail:Mail[];periods:{dailyEnd:number;weeklyEnd:number};now:number};
 export class Journey {
   private generation=0;

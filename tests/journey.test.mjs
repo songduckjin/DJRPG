@@ -38,11 +38,12 @@ test('persisted progress advances daily and weekly counters and book rewards byp
   const after=await account(db,'progress');assert.equal(after.save.gold,before.save.gold+5800);assert.equal(after.save.bag.filter(item=>item.slot!=='skillbook').length,40);assert.equal(after.save.bag.filter(item=>item.slot==='skillbook').length,5);assert((await snapshot(db,'progress')).daily.every(t=>t.claimed));
 });
 test('mail read, claim, deletion, item ownership and concurrent reward requests stay isolated and idempotent',async()=>{
-  // 우편함은 환영 우편 + 2026-11-20 업데이트 안내(금화 3,000·스킬북 2권) 두 통으로 시작한다.
-  await seed('mail');const data=await snapshot(db,'mail');assert.equal(data.mail.length,2);
+  // 환영·업데이트 안내·다이아 지급 우편이 각각 한 통씩 도착한다.
+  await seed('mail');const data=await snapshot(db,'mail');assert.equal(data.mail.length,3);
   assert.equal(data.mail[0].id,'welcome-v1');
   await act('mail',undefined,data.mail[0].id,'journey-read');assert((await snapshot(db,'mail')).mail[0].read);
   await act('mail','mail');const row=await account(db,'mail');assert.equal(row.save.gold,4000);assert.equal(row.save.bag.length,3);
+  const wallet=(await db.execute({sql:'SELECT diamonds FROM djrpg_shop_wallet WHERE account_id=?',args:['mail']})).rows[0];assert.equal(Number(wallet.diamonds),1000);
   await transaction(db,async tx=>{const latest=await account(tx,'mail');await reconcileItems(tx,'mail',latest.save,latest.save);});
   await assert.rejects(act('mail','mail'),e=>e.code==='NOT_AVAILABLE');
   await act('mail',undefined,'all','journey-delete');assert.equal((await snapshot(db,'mail')).mail.length,0);
@@ -51,7 +52,7 @@ test('mail read, claim, deletion, item ownership and concurrent reward requests 
   assert.equal(results.filter(r=>r.status==='fulfilled').length,1);assert.equal((await account(db,'race')).save.gold,300);
 });
 test('guests cannot claim; expired mail and unmet achievements never grant rewards',async()=>{
-  await seed('guest',true);await assert.rejects(act('guest','daily'),e=>e.code==='GUEST_READ_ONLY');
+  await seed('guest',true);assert.equal((await snapshot(db,'guest')).mail.some(entry=>entry.id==='all-idle-launch-diamonds-2026-11-20'),false);await assert.rejects(act('guest','daily'),e=>e.code==='GUEST_READ_ONLY');
   await seed('expired');await snapshot(db,'expired');
   const stored=(await db.execute({sql:'SELECT state_json FROM djrpg_journey WHERE account_id=?',args:['expired']})).rows[0];const state=JSON.parse(stored.state_json);for(const entry of state.mail)entry.expiresAt=0;
   await db.execute({sql:'UPDATE djrpg_journey SET state_json=? WHERE account_id=?',args:[JSON.stringify(state),'expired']});
@@ -91,9 +92,22 @@ test('업데이트 우편 보상은 정확히 한 번만 지급되고 삭제 뒤
   await assert.rejects(act('notice','mail',notice.id),error=>error.code==='NOT_AVAILABLE','같은 우편을 두 번 받을 수 없다');
   await act('notice',undefined,'all','journey-delete');
   const after=await snapshot(db,'notice');
-  assert.deepEqual(after.mail.map(entry=>entry.id),['welcome-v1'],'수령한 업데이트 우편만 지워지고 환영 우편은 남는다');
+  assert.deepEqual(after.mail.map(entry=>entry.id),['welcome-v1','all-idle-launch-diamonds-2026-11-20'],'수령한 업데이트 우편만 지운다');
   assert.equal(after.mail.filter(entry=>entry.id==='update-2026-11-20').length,0,'삭제 뒤 다시 붙지 않는다');
   assert.equal((await account(db,'notice')).save.gold,3000,'보상도 한 번뿐이다');
+});
+
+test('다이아 우편은 계정당 한 번만 지급되고 수령은 원장에 기록된다',async()=>{
+  await seed('diamonds');const first=await snapshot(db,'diamonds');
+  const gift=first.mail.find(entry=>entry.id==='all-idle-launch-diamonds-2026-11-20');
+  assert.equal(gift.diamonds,1000);
+  await act('diamonds','mail',gift.id);
+  await assert.rejects(act('diamonds','mail',gift.id),error=>error.code==='NOT_AVAILABLE');
+  const wallet=(await db.execute({sql:'SELECT diamonds FROM djrpg_shop_wallet WHERE account_id=?',args:['diamonds']})).rows[0];
+  const ledger=(await db.execute({sql:"SELECT diamonds_delta FROM djrpg_shop_ledger WHERE account_id=? AND source_type='mail'",args:['diamonds']})).rows;
+  assert.equal(Number(wallet.diamonds),1000);assert.equal(ledger.length,1);assert.equal(Number(ledger[0].diamonds_delta),1000);
+  await act('diamonds',undefined,'all','journey-delete');
+  assert.equal((await snapshot(db,'diamonds')).mail.some(entry=>entry.id===gift.id),false);
 });
 
 test('period progress counts once per save and legacy clients retain new totals',async()=>{

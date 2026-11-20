@@ -6,6 +6,8 @@ import { json, readBody, errorResponse, versionGuard } from '../http.mjs';
 
 export const diamondPacks = [100, 300, 500, 1000, 2000, 5000, 10000, 20000].map(count => ({ id: `diamond_${count}`, diamonds: count, price: count * 11 }));
 const slotPrice = 500;
+const allIdlePrice = 1500;
+const allIdleDuration = 30 * 24 * 60 * 60 * 1000;
 const maxSlots = 9;
 const walletFor = async (db, id) => {
   await db.execute({ sql: 'INSERT OR IGNORE INTO djrpg_shop_wallet(account_id,customer_key) VALUES (?,?)', args: [id, randomUUID()] });
@@ -30,9 +32,10 @@ export async function shopEndpoint(request, { env = runtimeEnv(), createDbClient
     const body = await readBody(request) ?? {};
     if (body.action === 'catalog') {
       const wallet = await walletFor(db, id);
+      const entitlement = (await db.execute({ sql: "SELECT expires_at FROM djrpg_shop_entitlements WHERE account_id=? AND entitlement_key='all_idle_30d'", args: [id] })).rows[0];
       return json({ wallet: publicWallet(wallet), diamondPacks, packages: [
         { id: 'slot', name: '캐릭터 슬롯 추가', diamonds: slotPrice, available: Number(wallet.max_slots) < maxSlots },
-        { id: 'all_idle_30d', name: '전 슬롯 방치 30일', diamonds: 1500, available: false },
+        { id: 'all_idle_30d', name: '전 슬롯 방치 30일', diamonds: allIdlePrice, available: row.password_hash !== 'guest', expiresAt: Number(entitlement?.expires_at ?? 0) },
         { id: 'ad_free', name: '광고 제거', diamonds: 1000, available: false }
       ], paymentReady: !!(env.TOSS_CLIENT_KEY && env.TOSS_SECRET_KEY) });
     }
@@ -44,14 +47,56 @@ export async function shopEndpoint(request, { env = runtimeEnv(), createDbClient
         const current = await account(tx, id);
         assertSession(current, signed.sid);
         const replay = (await tx.execute({ sql: 'SELECT response_json FROM djrpg_shop_requests WHERE account_id=? AND request_id=?', args: [id, requestId] })).rows[0];
-        if (replay) return JSON.parse(replay.response_json);
+        if (replay) {
+          const previous = JSON.parse(replay.response_json);
+          if (previous.type && previous.type !== 'slot') fail(409, 'REQUEST_CONFLICT', '다른 상품의 구매 요청 ID입니다.');
+          return previous;
+        }
         const wallet = await walletFor(tx, id);
         if (Number(wallet.max_slots) >= maxSlots) fail(409, 'MAX_SLOTS', '모든 캐릭터 슬롯이 열려 있습니다.');
         if (Number(wallet.diamonds) < slotPrice) fail(400, 'INSUFFICIENT_DIAMONDS', '다이아가 부족합니다.');
         await tx.execute({ sql: 'UPDATE djrpg_shop_wallet SET diamonds=diamonds-?,max_slots=max_slots+1 WHERE account_id=?', args: [slotPrice, id] });
         await tx.execute({ sql: 'INSERT INTO djrpg_shop_ledger(account_id,source_type,source_id,diamonds_delta,created_at) VALUES (?,?,?,?,?)', args: [id, 'slot', requestId, -slotPrice, Date.now()] });
         const updated = await walletFor(tx, id);
-        const response = { wallet: publicWallet(updated) };
+        const response = { type: 'slot', wallet: publicWallet(updated) };
+        await tx.execute({ sql: 'INSERT INTO djrpg_shop_requests(account_id,request_id,response_json) VALUES (?,?,?)', args: [id, requestId, JSON.stringify(response)] });
+        return response;
+      });
+      return json(result);
+    }
+    if (body.action === 'buyAllIdle') {
+      if (row.password_hash === 'guest') fail(403, 'GUEST_PURCHASE_DISABLED', '정식 계정에서 구매할 수 있습니다.');
+      const requestId = String(body.requestId ?? '');
+      if (!/^[\w-]{8,80}$/.test(requestId)) fail(400, 'INVALID_REQUEST', '구매 요청을 다시 시도하세요.');
+      const result = await transaction(db, async tx => {
+        const current = await account(tx, id);
+        assertSession(current, signed.sid);
+        const replay = (await tx.execute({ sql: 'SELECT response_json FROM djrpg_shop_requests WHERE account_id=? AND request_id=?', args: [id, requestId] })).rows[0];
+        if (replay) {
+          const previous = JSON.parse(replay.response_json);
+          if (previous.type !== 'all_idle_30d') fail(409, 'REQUEST_CONFLICT', '다른 상품의 구매 요청 ID입니다.');
+          return previous;
+        }
+        const wallet = await walletFor(tx, id);
+        if (Number(wallet.diamonds) < allIdlePrice) fail(400, 'INSUFFICIENT_DIAMONDS', '다이아가 부족합니다.');
+        const now = Date.now();
+        const previous = (await tx.execute({ sql: "SELECT expires_at FROM djrpg_shop_entitlements WHERE account_id=? AND entitlement_key='all_idle_30d'", args: [id] })).rows[0];
+        const wasActive = Number(previous?.expires_at ?? 0) > now;
+        const expiresAt = Math.max(now, Number(previous?.expires_at ?? 0)) + allIdleDuration;
+        await tx.execute({ sql: 'UPDATE djrpg_shop_wallet SET diamonds=diamonds-? WHERE account_id=?', args: [allIdlePrice, id] });
+        await tx.execute({ sql: 'INSERT INTO djrpg_shop_ledger(account_id,source_type,source_id,diamonds_delta,created_at) VALUES (?,?,?,?,?)', args: [id, 'all_idle_30d', requestId, -allIdlePrice, now] });
+        await tx.execute({ sql: "INSERT INTO djrpg_shop_entitlements(account_id,entitlement_key,quantity,expires_at,updated_at) VALUES (?,'all_idle_30d',1,?,?) ON CONFLICT(account_id,entitlement_key) DO UPDATE SET quantity=1,expires_at=excluded.expires_at,updated_at=excluded.updated_at", args: [id, expiresAt, now] });
+        if (!wasActive) {
+          const idleSlots = (await tx.execute({ sql: 'SELECT slot,updated_at FROM djrpg_characters WHERE account_id=? AND slot<>?', args: [id, current.slot] })).rows;
+          const oldExpiry = Number(previous?.expires_at ?? 0);
+          for (const slot of idleSlots) {
+            const earned = oldExpiry > Date.parse(String(slot.updated_at)) ? Math.min(43_200, Math.max(0, Math.floor((oldExpiry-Date.parse(String(slot.updated_at)))/1000))) : 0;
+            if (earned >= 60) await tx.execute({ sql: `INSERT INTO djrpg_shop_entitlements(account_id,entitlement_key,quantity,expires_at,updated_at) VALUES (?,?,?,NULL,?)
+              ON CONFLICT(account_id,entitlement_key) DO UPDATE SET quantity=MIN(43200,quantity+excluded.quantity),updated_at=excluded.updated_at`, args: [id, `idle_claim_${slot.slot}`, earned, now] });
+          }
+          await tx.execute({ sql: 'UPDATE djrpg_characters SET updated_at=? WHERE account_id=? AND slot<>?', args: [new Date(now).toISOString(), id, current.slot] });
+        }
+        const response = { type: 'all_idle_30d', wallet: publicWallet(await walletFor(tx, id)), expiresAt };
         await tx.execute({ sql: 'INSERT INTO djrpg_shop_requests(account_id,request_id,response_json) VALUES (?,?,?)', args: [id, requestId, JSON.stringify(response)] });
         return response;
       });
