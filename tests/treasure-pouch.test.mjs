@@ -332,6 +332,12 @@ test('3컷 개봉은 바닥 축 탄성으로 0.92초 절정까지 버티고, 섬
   assert(!/rotate/.test(squash), '좌우 회전 없음');
   const settle = css.slice(css.indexOf('@keyframes pouch-settle'));
   assert(/translateY\(2px\)/.test(settle) && /scaleY|scale\(1\.05,\s*\.97\)/.test(settle), '아래로 가라앉는 translateY·scaleY');
+  // 2→3번 컷은 윤곽 차이가 커서 그냥 겹치면 두 주머니가 비친다 — 나가는 2번 컷만 아래로 납작하게 눌러 사라진다.
+  const collapseRule = css.match(/\.pouch-art-stack\[data-pouch-frame="2"\] img\.pouch-art:not\(\.is-front\)\s*\{([^}]*)\}/);
+  assert(collapseRule, '나가는 2번 컷만 눌러 겹침 얼룩 제거');
+  assert(/animation: pouch-collapse 200ms/.test(collapseRule[1]) && /transform-origin: 50% 92%/.test(collapseRule[1]), '0.2초 동안 바닥 축으로 눌린다');
+  const collapse = css.slice(css.indexOf('@keyframes pouch-collapse'), css.indexOf('@keyframes pouch-collapse') + 200);
+  assert(/scale\(1,\s*\.55\)/.test(collapse) && !/rotate/.test(collapse), '아래로 눌리기만 하고 회전하지 않는다');
   // 보상 카드는 절정 뒤 1.22초에 뜬다(애니메이션 지연 = 타임라인).
   assert(/pouch-reveal \d+ms[^;]*1220ms both/.test(css), '결과 등장 1.22초');
   assert(css.includes('@keyframes pouch-reveal'), '결과 등장 키프레임');

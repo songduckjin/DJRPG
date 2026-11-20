@@ -1096,6 +1096,7 @@
 - 원인(`#5297`): AI로 만든 중간 컷 6장(`step1b`·`step2`·`step2b`·`step3`·`step3b`·`open`)의 각도·배 둘레·문양이 달라 9컷을 넘길수록 모양이 울렁거렸고 6·7번 컷에 어두운 후광 찌꺼기가 남아 더 끊겨 보였다.
 - `POUCH_FRAME_URLS`를 **3장**(`treasure_pouch_v2`·`slump0_v3`·`slump2_v2`)으로 줄이고 `preloadPouchFrames`도 3장. 그림 대신 `.pouch-art-stack`에 `transform-origin: 50% 92%` **Squash & Stretch**(`pouch-squash` 920ms, scaleX/scaleY 교대 → 0.9초 `scale(1.08)` 힘 모음, `rotate` 없음)와 `pouch-settle`(320ms 1080ms, translateY·scaleY로 가라앉기).
 - 타임라인 `POUCH_FRAME_AT` 0/920/1080·`BURST 920`(Canvas 흰빛 피크가 정확히 이 순간)·`RESULT 1220`·`OPEN 1550`. 1→2번 컷은 섬광 속 180ms, 2→3번 컷은 200ms 크로스페이드(`data-pouch-frame` 규칙). 토스트·전광판은 그대로 보상 카드 시각(스포일러 없음).
+- 2→3번 컷은 윤곽 차이가 커서 그냥 겹치면 문양이 두 개로 비쳤다(정지 프레임 목업 `downloads/djrpg_pouch_3frames_215_sheet.png`·`pouch215_collapse_compare.png`로 확인) — **나가는 2번 컷만** `pouch-collapse` 200ms로 바닥 축 `scaleY(.55)`까지 눌러 사라지게 해 겹침 얼룩을 없앴다.
 - `pouchLight`는 `start(burstAt, endAt)`만 받아 그림 전환과 같은 프레임에 피크가 오고, `prefers-reduced-motion`이면 탄성·빛·전환 모두 끈다.
 - tsc·`node --test tests/treasure-pouch.test.mjs` 21/21·vite build 통과. `scripts/verify-item-art.mjs`는 이 작업 클론이 `public/assets` 아이콘만 받은 sparse 체크아웃이라 `item-art` 파일이 없어 실행 불가(이번 변경과 무관).
 - 브라우저 실기 미실행, 미리보기만.

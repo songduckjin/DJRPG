@@ -467,6 +467,14 @@ img.pouch-icon { display: block; object-fit: contain; border-radius: 4px; }
   38% { transform: scale(1.05, .97) translateY(2px); }
   100% { transform: scale(1, 1) translateY(0); }
 }
+/* 2→3번 컷: 서 있는 2번 컷과 바닥에 납작한 3번 컷은 윤곽 차이가 커서 그냥 겹치면 두 주머니·문양 두 개가
+   비쳐 보인다. 그래서 **나가는 2번 컷만** 바닥(50% 92%)을 축으로 아래로 납작하게 눌러 주며 사라지게 한다
+   (문양 높이가 3번 컷과 맞아 겹침 얼룩이 보이지 않는다). 좌우 회전은 없다. */
+.pouch-art-stack[data-pouch-frame="2"] img.pouch-art:not(.is-front) { transform-origin: 50% 92%; animation: pouch-collapse 200ms cubic-bezier(.4,0,.7,.4) forwards; }
+@keyframes pouch-collapse {
+  0% { transform: scale(1, 1); }
+  100% { transform: scale(1, .55); }
+}
 
 /* 결과 카드: 절정(0.92초) 뒤 0.3초인 **1.22초**에 위쪽 빈 공간으로 즉시 떠오른다. `both`라 그 전에는 보이지 않는다. */
 .pouch-window-stage.is-opening .pouch-window-result { animation: pouch-reveal 360ms cubic-bezier(.2,.9,.3,1.15) 1220ms both; }
@@ -480,6 +488,7 @@ img.pouch-icon { display: block; object-fit: contain; border-radius: 4px; }
   .pouch-window-stage.is-opening .pouch-window-result { animation: none; }
   .pouch-window-stage.is-opening .pouch-art-stack { animation: none; transform: none; }
   .pouch-art-stack img.pouch-art { transition: none; animation: none; }
+  .pouch-art-stack[data-pouch-frame="2"] img.pouch-art:not(.is-front) { animation: none; transform: none; }
   .pouch-light { display: none; }
 }
 
