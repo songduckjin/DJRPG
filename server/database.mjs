@@ -15,6 +15,29 @@ export const client = (env = runtimeEnv()) => {
 };
 const initializedSchemas = new Map();
 const sessionColumn = 'ALTER TABLE djrpg_accounts ADD COLUMN session_id TEXT';
+/**
+ * 거래소 스탯 정렬식 (작업 211).
+ *
+ * `server/market.mjs` `snapshot()`은 스탯을 필터·정렬에 함께 쓴다. 정렬은 `item_json` 안의 값이라
+ * 그냥은 임시 B-tree + 전행 스캔이 되는데, 매물이 10만 건이면 ms대가 아니라 70ms대가 된다. 그래서 이
+ * **같은 문자열**로 표현식 인덱스(`djrpg_market_sort_*`)를 만들고 `snapshot()`도 이 함수로 식을 만든다 —
+ * SQLite는 두 식이 같은 문자열일 때만 인덱스를 쓰기 때문이다(관계는 `tests/market-index.test.mjs`가 확인).
+ */
+export const marketStatExpression = stat => `COALESCE(json_extract(item_json,'$.stats.${stat}'),0)`;
+/** 스탯 정렬을 쓰는 컬럼(거래소 UI가 고를 수 있는 값과 같다). */
+export const MARKET_SORT_STATS = ['attack', 'defense', 'health', 'crit', 'speed'];
+/**
+ * 판매 중 매물의 정렬 인덱스 DDL. 스탯 5종과 가격 각각 하나씩이다.
+ *
+ * `state`를 첫 열로 두는 이유: 부분 인덱스(`WHERE state='active'`)는 질의의 `state=?`가 **바인딩 값**이라
+ * 플래너가 값을 모르는 준비 단계에서 쓸 수 없다(실측으로 확인 — 부분 인덱스는 채택되지 않았다).
+ * 정렬 꼬리(`created_at DESC, id ASC`)까지 인덱스에 넣어 `ORDER BY`가 인덱스 순서 그대로 끝나게 한다.
+ */
+export function marketSortIndexStatements() {
+  const statements = MARKET_SORT_STATS.map(stat => `CREATE INDEX IF NOT EXISTS djrpg_market_sort_${stat} ON djrpg_market(state, ${marketStatExpression(stat)} DESC, created_at DESC, id)`);
+  statements.push('CREATE INDEX IF NOT EXISTS djrpg_market_sort_price ON djrpg_market(state, price ASC, created_at DESC, id)');
+  return statements;
+}
 const transientDatabaseError = error => /SQLITE_BUSY|SQLITE_LOCKED|SERVER_ERROR|ETIMEDOUT|ECONNRESET|ECONNREFUSED|fetch failed|network|timeout|temporarily unavailable|service unavailable/i.test(String(error?.code ?? '') + ' ' + String(error?.message ?? ''));
 export async function schema(db, env = runtimeEnv()) {
   const key = db.url ?? env?.TURSO_DATABASE_URL ?? db;
@@ -48,7 +71,7 @@ export async function schema(db, env = runtimeEnv()) {
     // 기록은 검증된 submit만 올린다(`server/dungeon.mjs`).
     , 'CREATE TABLE IF NOT EXISTS djrpg_dungeon_records (account_id TEXT PRIMARY KEY COLLATE NOCASE,name TEXT NOT NULL,cleared_floor INTEGER NOT NULL,cleared_at INTEGER NOT NULL,updated_at INTEGER NOT NULL)'
     , 'CREATE INDEX IF NOT EXISTS djrpg_dungeon_rank ON djrpg_dungeon_records(cleared_floor DESC, cleared_at, account_id)'
-    , 'CREATE TABLE IF NOT EXISTS djrpg_dungeon_attempts (account_id TEXT PRIMARY KEY COLLATE NOCASE,floor INTEGER NOT NULL,started_at INTEGER NOT NULL,updated_at INTEGER NOT NULL)'
+    , 'CREATE TABLE IF NOT EXISTS djrpg_dungeon_attempts (account_id TEXT PRIMARY KEY COLLATE NOCASE,floor INTEGER NOT NULL,started_at INTEGER NOT NULL,updated_at INTEGER NOT NULL,seed INTEGER)'
     , "INSERT OR IGNORE INTO djrpg_account_profiles(account_id,shared_gold,active_slot) SELECT id, COALESCE(CAST(json_extract(save_json,'$.gold') AS INTEGER),0),1 FROM djrpg_accounts WHERE json_valid(save_json)"
     , "INSERT OR IGNORE INTO djrpg_characters(account_id,slot,save_json,updated_at) SELECT id,1,json_remove(save_json,'$.gold'),updated_at FROM djrpg_accounts WHERE json_valid(save_json)"
     , "INSERT OR IGNORE INTO djrpg_shop_wallet(account_id,customer_key) SELECT id,lower(hex(randomblob(16))) FROM djrpg_accounts"
@@ -66,7 +89,15 @@ export async function schema(db, env = runtimeEnv()) {
       try { await db.execute(sessionColumn); }
       catch (error) { if (!/duplicate column name/i.test(String(error?.message ?? error))) throw error; }
     }
-    return db.batch(statements.slice(1), 'write');
+    // 정렬 인덱스(작업 211)는 같은 배치에 넣는다 — 스키마는 프로세스마다 한 번이면 충분하다.
+    try { return await db.batch([...statements.slice(1), ...marketSortIndexStatements()], 'write'); }
+    catch (error) {
+      // 전송 오류는 바깥 재시도가 맡는다. 그 밖의 실패(인덱스 표현식을 지원하지 않는 DB 등)에서는 인덱스를
+      // 빼고 스키마만 다시 만든다 — 인덱스는 속도만 담당하므로 게임이 멈추면 안 된다.
+      if (transientDatabaseError(error)) throw error;
+      console.error(JSON.stringify({ event: 'market_index_skipped', name: error?.name ?? 'Error', message: String(error?.message ?? error).slice(0, 120) }));
+      return db.batch(statements.slice(1), 'write');
+    }
   };
   const initialized = (async () => {
     try { return await initialize(); }

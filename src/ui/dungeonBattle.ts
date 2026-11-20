@@ -1,4 +1,5 @@
 import { DUNGEON_MAX_FLOOR } from './dungeonLobby';
+import { random, seededRandom, useRandom, type Random } from '../game/rng';
 import {World, type Enemy, enemyMaxHp, enemyHitDamage, enemyMoveSpeed} from '../game/world';
 import {clampArenaPoint} from '../game/arena';
 import {skillDamageScale,skills,jobOrDefault} from '../game/skills';
@@ -9,6 +10,23 @@ import {bossGoldPiles,bossGoldSpot,bossItems} from '../game/bossLoot';
  *  `from` is the body a boss heap was thrown from (작업 196): the dungeon flies the heap out of the boss
  *  to the spot it lands on, exactly as the field does. */
 export type DungeonLoot = { id:number; kind:'gold'; x:number; y:number; gold:number; from?:{x:number;y:number} } | { id:number; kind:'item'; x:number; y:number; item:Item };
+/**
+ * 서버 검증용 고정 스텝 (작업 211).
+ *
+ * `start`가 준 시드로 전투를 돌리고 서버가 **같은 시드·같은 스텝**으로 다시 돌려 클리어를 확인하므로,
+ * 전투는 프레임 시간이 아니라 이 간격으로만 전진한다. 남는 시간은 다음 스텝으로 넘긴다(`dungeonField`).
+ * 이 상수는 `server/dungeon-verify.mjs`의 `DUNGEON_STEP`과 같은 값이어야 한다(테스트가 대조한다).
+ */
+export const DUNGEON_STEP = 1 / 60;
+/** 90초 한 판의 최대 스텝 수 — 이보다 긴 요약은 서버가 받지 않는다. */
+export const DUNGEON_MAX_STEPS = Math.ceil(90 / DUNGEON_STEP) + 2;
+/** digest 표본 간격(스텝). 0.5초마다 남은 체력과 처치 수를 남겨 서버 리플레이와 대조한다. */
+export const DUNGEON_TRACE_EVERY = 30;
+/** 전투가 끝난 뒤 클라이언트가 `submit`에 실어 보내는 결과 요약. 서버는 같은 시드로 다시 돌린 결과와
+ *  이 값을 비교한다(층을 깰 수 있는지·시간이 흘렀는지·실제로 그 전투를 돌렀는지). */
+export type DungeonBattleSummary = {
+  won: boolean; steps: number; seconds: number; heroHp: number; heroHpMax: number; enemyHp: number; slain: number; digest: string;
+};
 /** Test rate for the whole 1-10 floor preview. Which item falls keeps the field's own odds (see `dropLoot`). */
 export const DUNGEON_ITEM_DROP_CHANCE = .5;
 /** Dungeon mobs close ground 1.5x the shared field pace; only travel distance scales, never timers. */
@@ -166,9 +184,9 @@ class DungeonWorld extends World {
       return;
     }
     this.loot.push({id:++this.lootId,kind:'gold',x:enemy.x,y:enemy.y,gold:3+floor});
-    if(Math.random()>=DUNGEON_ITEM_DROP_CHANCE)return;
+    if(random()>=DUNGEON_ITEM_DROP_CHANCE)return;
     const equipment=equipmentDropChance(floor,enemy.boss),book=skillBookDropChance(floor,enemy.boss);
-    const item=Math.random()*(equipment+book)<equipment?rollItem(floor,false,enemy.boss,this.save.job):rollSkillBook(floor,jobOrDefault(this.save.job));
+    const item=random()*(equipment+book)<equipment?rollItem(floor,false,enemy.boss,this.save.job):rollSkillBook(floor,jobOrDefault(this.save.job));
     this.loot.push({id:++this.lootId,kind:'item',x:enemy.x,y:enemy.y,item});
   }
 }
@@ -176,27 +194,55 @@ class DungeonWorld extends World {
 export class DungeonBattle {
   readonly world:DungeonWorld;
   readonly floor:number;
+  /** 서버가 준 시드(작업 211). 없으면 지금까지처럼 `Math.random`으로 돈다(게스트·시드 실패). */
+  readonly seed?:number;
+  /** 지금까지 밟은 고정 스텝 수 — 서버 리플레이와 같은 수여야 한다. */
+  steps=0;
+  private rng?:Random;
+  private traceValues:number[]=[];
+  get trace():readonly number[]{return this.traceValues;}
   get bossFloor(){return this.floor%5===0;}
   get targetCount(){return this.bossFloor?1:7;}
   elapsed=0;wave=0;waveStarted=0;finished=false;outcome:'clear'|'dead'|'timeout'|null=null;
   elite?:Enemy;private hitCooldown=0;
-  constructor(save:Save,floor=1){this.floor=Math.min(DUNGEON_MAX_FLOOR,Math.max(1,Math.floor(floor)));const copy=structuredClone(save);copy.floor=this.floor;copy.floorKills=0;copy.tutorial=3;copy.autoClimb=false;
+  constructor(save:Save,floor=1,seed?:number){this.floor=Math.min(DUNGEON_MAX_FLOOR,Math.max(1,Math.floor(floor)));const copy=structuredClone(save);copy.floor=this.floor;copy.floorKills=0;copy.tutorial=3;copy.autoClimb=false;
+    if(Number.isFinite(seed)){this.seed=Math.floor(Number(seed))>>>0;this.rng=seededRandom(this.seed);}
     this.world=new DungeonWorld(copy);this.world.enemies=[];this.world.spawnTimer=Infinity;this.world.bossPending=false;
-    this.world.player.hp=totalStats(copy).health;this.world.player.x=50;this.world.player.y=50;this.spawnWave();
+    this.world.player.hp=totalStats(copy).health;this.world.player.x=50;this.world.player.y=50;
+    // 첫 웨이브도 시드 난수로 세운다 — 서버 리플레이가 같은 자리에서 시작해야 한다.
+    if(this.rng){const previous=useRandom(this.rng);try{this.spawnWave();}finally{useRandom(previous);}}else this.spawnWave();
   }
   private spawnWave():void {
     this.wave++;this.waveStarted=this.elapsed;
     const count=this.bossFloor||this.wave===3?1:3, pull=dungeonSpawnPull(this.floor,this.bossFloor);
+    // 시드가 걸린 전투는 웨이브마다 등장 자리를 조금 흔든다(작업 211): 자리는 그대로 두고 아레나 중심을 축으로
+    // ±8.6°·±8%만 돌려, 도전마다 전투가 같은 요약으로 접히지 않게 한다. 시드가 없으면(연습·게스트) 지금까지와 같다.
+    const turn=this.rng?(random()-.5)*.3:0, drift=this.rng?1+(random()-.5)*.16:1, spin=Math.cos(turn), swing=Math.sin(turn);
     for(let i=0;i<count;i++){
       const hp=dungeonPreviewHp(this.world.save)*(this.bossFloor?4:this.wave===3?2:1)*(1+(this.floor-1)*.12), side=(i-(count-1)/2)*65;
       // The old arena corner, stepped toward the hero along its own approach line.
-      const cornerX=(-180+side)/2, cornerY=(-180-side)/2, ax=50-cornerX, ay=50-cornerY, reach=Math.hypot(ax,ay)||1, x=cornerX+ax/reach*pull, y=cornerY+ay/reach*pull;
+      const cornerX=(-180+side)/2, cornerY=(-180-side)/2, ax=50-cornerX, ay=50-cornerY, reach=Math.hypot(ax,ay)||1;
+      let x=cornerX+ax/reach*pull, y=cornerY+ay/reach*pull;
+      if(this.rng){const dx=x-50, dy=y-50;x=50+(dx*spin-dy*swing)*drift;y=50+(dx*swing+dy*spin)*drift;}
       const enemy:Enemy={x,y,hp,maxHp:hp,boss:this.bossFloor,hit:0,step:0,moving:false,knockX:0,knockY:0,slow:0};
       this.world.enemies.push(enemy);if(this.wave===3||this.bossFloor)this.elite=enemy;
     }
   }
+  /** 한 스텝 전진. 시드가 걸려 있으면 이 스텝 동안만 그 시드의 난수를 쓴다 — 서버 리플레이도 같은
+   *  시드·같은 스텝 수로 돌기 때문에 적 스폰·드롭·연출의 난수가 모두 같은 순서로 나온다. */
   advance(seconds:number):void {
-    if(this.finished)return;const dt=Math.min(.05,Math.max(0,seconds),90-this.elapsed);this.elapsed+=dt;
+    if(this.finished)return;
+    if(this.rng){const previous=useRandom(this.rng);try{this.step(seconds);}finally{useRandom(previous);}}else this.step(seconds);
+    this.steps++;
+    if(this.finished||this.steps%DUNGEON_TRACE_EVERY===0)this.sample();
+  }
+  /** 지금 상태를 digest 표본으로 남긴다(남은 체력·남은 적 체력·처치 수). */
+  private sample():void {
+    this.traceValues.push(Math.round(this.world.player.hp),Math.round(this.enemyHpLeft()),this.world.slain);
+  }
+  private enemyHpLeft():number { let total=0;for(const enemy of this.world.enemies)total+=Math.max(0,enemy.hp);return total; }
+  private step(seconds:number):void {
+    const dt=Math.min(.05,Math.max(0,seconds),90-this.elapsed);this.elapsed+=dt;
     // Suppress the main field's immediate revive; this session owns defeat and retry.
     const hit=this.world.player.hit;this.world.player.hit=Infinity;
     try{this.world.update(dt);}finally{this.world.player.hit=Math.max(0,hit-dt);}
@@ -209,4 +255,35 @@ export class DungeonBattle {
     if(this.outcome){this.finished=true;return;}
     if(!this.bossFloor&&this.wave<3&&(this.elapsed-this.waveStarted>=10||!this.world.enemies.length))this.spawnWave();
   }
+}
+
+/** FNV-1a 32비트 — 표본 정수 배열을 8자리 16진수 한 줄로 접는다(작업 211). */
+export function dungeonDigest(values: readonly number[]): string {
+  let hash = 0x811c9dc5;
+  for (const value of values) {
+    const int = Math.max(-2147483648, Math.min(2147483647, Math.round(value))) | 0;
+    for (const shift of [24, 16, 8, 0]) { hash ^= (int >>> shift) & 255; hash = Math.imul(hash, 0x01000193) >>> 0; }
+  }
+  return hash.toString(16).padStart(8, '0');
+}
+
+/** 끝난 전투의 결과 요약. 클라이언트가 `submit`에 싣고, 서버는 같은 시드로 돌린 결과와 비교한다. */
+export function dungeonBattleSummary(battle: DungeonBattle): DungeonBattleSummary {
+  const playerHp = Math.max(0, Math.ceil(battle.world.player.hp));
+  const enemyHp = Math.max(0, Math.ceil(battle.world.enemies.reduce((sum, enemy) => sum + Math.max(0, enemy.hp), 0)));
+  const health = Math.max(1, Math.ceil(totalStats(battle.world.save).health));
+  return {
+    won: battle.outcome === 'clear',
+    steps: battle.steps,
+    seconds: Math.round(battle.elapsed * 10) / 10,
+    heroHp: playerHp, heroHpMax: health, enemyHp, slain: battle.world.slain,
+    digest: dungeonDigest([...battle.trace, playerHp, enemyHp, battle.world.slain])
+  };
+}
+
+/** 그 세이브로 그 층을 고정 스텝으로 끝까지 돌린다 — 클라이언트 재생과 서버 리플레이가 같은 함수를 쓴다. */
+export function runDungeonBattle(save: Save, floor: number, seed?: number): DungeonBattle {
+  const battle = new DungeonBattle(save, floor, seed);
+  while (!battle.finished && battle.steps < DUNGEON_MAX_STEPS) battle.advance(DUNGEON_STEP);
+  return battle;
 }

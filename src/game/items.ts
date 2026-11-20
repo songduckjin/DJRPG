@@ -1,6 +1,7 @@
 import type { Save } from './store';
 import { allSkillIds, passiveOrderFor, passives, skillOrderFor, skills, type Job, type SkillLevelId } from './skills';
 import { jobOrDefault } from './skills';
+import { random } from './rng';
 
 function isRecord(value: unknown): value is Record<string, unknown> { return typeof value === 'object' && value !== null && !Array.isArray(value); }
 
@@ -25,7 +26,7 @@ export function rollSkillBook(floor: number, job: Job = 'warrior'): SkillBook {
   const order = [...skillOrderFor(job), ...passiveOrderFor(job)];
   const available = order.filter(id => (id in skills ? skills[id as keyof typeof skills].level : passives[id as keyof typeof passives].level) <= floor * 2);
   const ids = available.length ? available : [order[0]];
-  const skillId = ids[Math.floor(Math.random() * ids.length)];
+  const skillId = ids[Math.floor(random() * ids.length)];
   return { id: crypto.randomUUID(), name: `[스킬북] ${skillId in skills ? skills[skillId as keyof typeof skills].name : passives[skillId as keyof typeof passives].name}`, slot: 'skillbook', rarity: 'rare', kind: 'skillbook', skillId, stats: {} };
 }
 export function skillBookDropChance(floor: number, boss: boolean): number { return boss ? Math.min(.15, .018 + (floor - 1) * .002) : Math.min(.015, .001 + (floor - 1) * .00012); }
@@ -61,11 +62,11 @@ export function applyPlus(stats: Partial<Record<Stat, number>>, plus: number): P
 }
 
 /** 이 층의 드롭 하나가 가질 강화 단계를 뽑는다. 10층 이하는 항상 0. */
-export function rollPlus(floor: number, boss = false, random: () => number = Math.random): number {
+export function rollPlus(floor: number, boss = false, draw: () => number = random): number {
   const maxPlus = maxPlusFor(floor);
   if (maxPlus === 0) return 0;
   const weights = plusWeights(maxPlus, boss);
-  let roll = random() * weights.reduce((sum, weight) => sum + weight, 0);
+  let roll = draw() * weights.reduce((sum, weight) => sum + weight, 0);
   for (const [plus, weight] of weights.entries()) { roll -= weight; if (roll < 0) return plus; }
   return 0;
 }
@@ -293,7 +294,7 @@ export function equipmentDropChance(floor: number, boss = false): number {
 
 export function rollItem(floor: number, guaranteed = false, boss = false, job: Job = 'warrior'): Item {
   if (guaranteed) return { id: crypto.randomUUID(), name: starterWeaponName(job), slot: 'weapon', rarity: 'common', stats: { attack: 4 }, plus: 0 };
-  const roll = Math.random();
+  const roll = random();
   const depth = Math.max(0, floor - 1);
   // Grade cuts of a normal kill. The overall drop rate stays where it was (`equipmentDropChance`,
   // 2.2% at the deepest floor); what changes with depth is which grade a drop is (작업 196). A fixed
@@ -306,16 +307,16 @@ export function rollItem(floor: number, guaranteed = false, boss = false, job: J
   const unique = legendary + (rare - legendary) * .18;
   const epic = legendary + (rare - legendary) * .48;
   const rarity: Rarity = roll < legendary ? 'legendary' : roll < unique ? 'unique' : roll < epic ? 'epic' : roll < rare ? 'rare' : roll < magic ? 'magic' : 'common';
-  const slot = slots[Math.floor(Math.random() * slots.length)];
+  const slot = slots[Math.floor(random() * slots.length)];
   const bases = slot === 'weapon' ? weaponBasesFor(job) : baseItems[slot];
   const rarityTier = rarityTiers[rarity];
   const maxTier = Math.min(bases.length - 1, Math.floor(depth / (bases.length === 10 ? 3 : 8)) + Math.floor(rarityTier * (bases.length - 1) / 9));
-  const tier = Math.floor(Math.random() * (maxTier + 1));
+  const tier = Math.floor(random() * (maxTier + 1));
   const base = bases[tier];
   const zweihander = slot === 'weapon' && base === '쯔바이핸드';  const prefix = rarityPrefixes[rarity];
   const scale = (1 + Math.floor(floor / 2)) * rarityScales[rarity];
   const primary: Stat = ['weapon', 'ring1', 'ring2', 'gloves'].includes(slot) ? 'attack' : 'defense';
-  const stats: Partial<Record<Stat, number>> = { [primary]: scale + Math.ceil(Math.random() * 3) + Math.ceil(tier * (slot === 'weapon' ? .6 : .4)) };
+  const stats: Partial<Record<Stat, number>> = { [primary]: scale + Math.ceil(random() * 3) + Math.ceil(tier * (slot === 'weapon' ? .6 : .4)) };
   if (rarity !== 'common') stats.health = 3 * scale;
   if (rarityRanks[rarity] >= rarityRanks.rare) stats.crit = scale;
   if (rarityRanks[rarity] >= rarityRanks.unique) stats.speed = scale;

@@ -7,6 +7,7 @@ import { jobOrDefault } from './skills';
 import { clampArenaPoint, spawnArenaEnemy } from './arena';
 import { LOOT_ABSORB_SECONDS, LOOT_REST_SECONDS } from './loot';
 import { autoSalvageBlock, autoSalvageRecovered } from './inventory';
+import { random } from './rng';
 
 export type Enemy = { x: number; y: number; hp: number; maxHp: number; boss: boolean; hit: number; step: number; moving: boolean; knockX: number; knockY: number; slow: number };
 /** `absorb` is the age the pull into the character began at; while it is unset the drop still rests
@@ -191,7 +192,7 @@ export class World {
     } else if (kind === 'doubleShot') {
       const aim = this.aimPoint(target, range);
       this.shoot(aim.x, aim.y, attack * 1.35 * damageScale, { speed: 900, arrow: 'normal', aim: target, source: kind });
-      this.shoot(aim.x + (Math.random() - .5) * 16, aim.y + (Math.random() - .5) * 16, attack * 1.35 * damageScale, { speed: 900, delay: .08, arrow: 'normal', aim: target, source: kind });
+      this.shoot(aim.x + (random() - .5) * 16, aim.y + (random() - .5) * 16, attack * 1.35 * damageScale, { speed: 900, delay: .08, arrow: 'normal', aim: target, source: kind });
     } else if (kind === 'multiShot') {
       const aim = this.aimPoint(target, range);
       const base = Math.atan2(aim.y - p.y, aim.x - p.x);
@@ -216,7 +217,7 @@ export class World {
     } else if (kind === 'stormVolley') {
       const aim = this.aimPoint(target, range);
       for (let index = 0; index < 6; index++) {
-        this.shoot(aim.x + (Math.random() - .5) * 30, aim.y + (Math.random() - .5) * 30, attack * .8 * damageScale, { speed: 940, radius: 34, delay: index * .13, arrow: 'volley', aim: target, source: kind });
+        this.shoot(aim.x + (random() - .5) * 30, aim.y + (random() - .5) * 30, attack * .8 * damageScale, { speed: 940, radius: 34, delay: index * .13, arrow: 'volley', aim: target, source: kind });
       }
     } else if (kind === 'arrowRain') {
       const aim = this.aimPoint(target, range);
@@ -293,7 +294,7 @@ export class World {
       enemy.hit = .24;
       enemy.slow = Math.max(enemy.slow, slow);
       if (knockback && dist) { enemy.knockX += dx / dist * knockback * 16; enemy.knockY += dy / dist * knockback * 16; }
-      this.effects.push({ x: enemy.x, y: enemy.y, kind: 'hit', age: 0, duration: .45, angle: Math.random() * Math.PI * 2, amount: Math.round(amount) });
+      this.effects.push({ x: enemy.x, y: enemy.y, kind: 'hit', age: 0, duration: .45, angle: random() * Math.PI * 2, amount: Math.round(amount) });
     }
     const dead = this.enemies.filter(e => e.hp <= 0);
     this.enemies = this.enemies.filter(e => e.hp > 0);
@@ -301,7 +302,7 @@ export class World {
   }
 
   kill(enemy: Enemy): void {
-    this.effects.push({ x: enemy.x, y: enemy.y, kind: 'death', age: 0, duration: .7, angle: Math.random() * Math.PI * 2 });
+    this.effects.push({ x: enemy.x, y: enemy.y, kind: 'death', age: 0, duration: .7, angle: random() * Math.PI * 2 });
     this.save.kills++;
     if (enemy.boss) this.save.bossKills++;
     const gold = enemy.boss ? 70 * this.save.floor : 3 + this.save.floor;
@@ -324,11 +325,11 @@ export class World {
     // still come from the one chance roll every kill makes below, against the same field drop table
     // (the boss rates for a boss), so a boss never leaves five guaranteed pieces behind.
     const guaranteed = this.save.tutorial === 0 && !enemy.boss, boss = enemy.boss;
-    if (guaranteed || Math.random() < equipmentDropChance(this.save.floor, boss)) {
+    if (guaranteed || random() < equipmentDropChance(this.save.floor, boss)) {
       this.drops.push({ x: enemy.x, y: enemy.y, item: rollItem(this.save.floor, guaranteed, boss, this.job), age: 0, warned: false });
       if (guaranteed) { this.save.tutorial = 1; this.onMessage(`${starterWeaponName(this.job)}이(가) 떨어졌습니다. 잠시 뒤 자동으로 획득됩니다!`); }
     }
-    if (Math.random() < skillBookDropChance(this.save.floor, boss)) {
+    if (random() < skillBookDropChance(this.save.floor, boss)) {
       this.drops.push({ x: enemy.x, y: enemy.y, item: rollSkillBook(this.save.floor, this.job), age: 0, warned: false });
     }
     if (enemy.boss) {
@@ -395,11 +396,11 @@ export class World {
     this.spawnTimer -= dt;
     if (this.spawnTimer <= 0 && this.enemies.length < 18) {
       this.spawnTimer = Math.max(.55, 1.8 - this.save.floor * .08);
-      const angle = Math.random() * Math.PI * 2;
+      const angle = random() * Math.PI * 2;
       const boss = this.bossPending && !this.enemies.some(e => e.boss);
       const spawn = spawnArenaEnemy(p, angle);
       const hp = enemyMaxHp(this.save.floor, boss);
-      this.enemies.push({ x: spawn.x, y: spawn.y, hp, maxHp: hp, boss, hit: 0, step: Math.random() * Math.PI * 2, moving: false, knockX: 0, knockY: 0, slow: 0 });
+      this.enemies.push({ x: spawn.x, y: spawn.y, hp, maxHp: hp, boss, hit: 0, step: random() * Math.PI * 2, moving: false, knockX: 0, knockY: 0, slow: 0 });
       if (boss) this.bossPending = false;
     }
     for (const enemy of this.enemies) {

@@ -10,6 +10,13 @@ import { removeTempDbDirectory } from './helpers/temp-db.mjs';
 const { dungeonOperation } = await import('../server/dungeon.mjs');
 const { requiredClearSeconds, replayDungeonFloor, DUNGEON_MIN_SECONDS, DUNGEON_UNVERIFIED_SECONDS } = await import('../server/dungeon-verify.mjs');
 const { parseSave, freshSave } = await import('../src/game/store.ts');
+const { DungeonBattle, DUNGEON_STEP, dungeonBattleSummary } = await import('../src/ui/dungeonBattle.ts');
+/** 그 세이브로 그 층을 그 시드로 실제로 플레이한 결과 요약 — 클라이언트가 보내는 값과 같다. */
+const play = (save, floor, seed) => {
+  const battle = new DungeonBattle(save, floor, seed);
+  while (!battle.finished && battle.steps < 6000) battle.advance(DUNGEON_STEP);
+  return dungeonBattleSummary(battle);
+};
 
 /**
  * 던전 클리어 서버 검증 (작업 209).
@@ -75,8 +82,11 @@ test('시작 시각에서 충분한 시간이 흐르면 한 층씩 기록되고 
   await seed('climber');
   for (const floor of [1, 2, 3]) {
     await saveFloor('climber', floor, now);
-    await call('climber', { action: 'start', floor }, now + floor * 100_000);
-    const result = await call('climber', { action: 'submit' }, now + floor * 100_000 + 600_000);
+    const started = await call('climber', { action: 'start', floor }, now + floor * 100_000);
+    assert.equal(started.seed !== undefined && Number.isInteger(started.seed), true, 'start가 전투 시드를 준다');
+    const save = (await account(db, 'climber')).save;
+    const summary = play(save, floor, started.seed);
+    const result = await call('climber', { action: 'submit', summary }, now + floor * 100_000 + 600_000);
     assert.equal(result.recorded, floor);
     assert.equal(result.verified, true);
   }
