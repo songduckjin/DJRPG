@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { journeyState, journeyOperation } from './journey-state.mjs';
+import { skillBookIdSet } from './skill-ids.mjs';
 import { databaseFactory } from './database-config.mjs';
 import { runtimeEnv } from './env.mjs';
 
@@ -147,7 +148,10 @@ export function inventoryOwnerQuery(id, incoming) {
 function itemValid(item) {
   // 'pouch' = 무작위 보물 주머니(작업 207) — 장비·스킬북과 같은 이름·등급·stats 형식의 소모품이다.
   const slots = ['weapon','offhand','helmet','armor','necklace','gloves','belt','boots','ring1','ring2','skillbook','pouch'];
-  return item && (item.locked === undefined || typeof item.locked === 'boolean') && typeof item.id === 'string' && item.id.length > 0 && item.id.length <= 100 && typeof item.name === 'string' && item.name.length <= 100 && slots.includes(item.slot) && ['common','magic','rare','epic','unique','legendary'].includes(item.rarity) && item.stats && typeof item.stats === 'object' && !Array.isArray(item.stats) && Object.entries(item.stats).every(([key, value]) => ['attack','defense','health','crit','speed'].includes(key) && Number.isFinite(value) && value >= 0 && value <= 100000) && (item.slot !== 'skillbook' || (item.kind === 'skillbook' && ['slash2','spin','crushing','slam','warcry','power','destroy','hell','mastery','body','instinct'].includes(item.skillId))) && (item.slot !== 'pouch' || item.kind === 'pouch');
+  // 스킬북 `skillId`는 **전사·궁수·마법사 33종**(액티브 24·패시브 9)을 모두 허용한다(작업 209).
+  // 예전에는 전사 11종만 하드코딩되어 궁수·마법사 스킬북이 저장 때 400 INVALID_ITEM으로 막혔다.
+  // 목록은 `server/skill-ids.mjs` 한 곳에 있고 `tests/skillbook-server.test.mjs`가 클라이언트와 같은지 검사한다.
+  return item && (item.locked === undefined || typeof item.locked === 'boolean') && typeof item.id === 'string' && item.id.length > 0 && item.id.length <= 100 && typeof item.name === 'string' && item.name.length <= 100 && slots.includes(item.slot) && ['common','magic','rare','epic','unique','legendary'].includes(item.rarity) && item.stats && typeof item.stats === 'object' && !Array.isArray(item.stats) && Object.entries(item.stats).every(([key, value]) => ['attack','defense','health','crit','speed'].includes(key) && Number.isFinite(value) && value >= 0 && value <= 100000) && (item.slot !== 'skillbook' || (item.kind === 'skillbook' && skillBookIdSet.has(item.skillId))) && (item.slot !== 'pouch' || item.kind === 'pouch');
 }
 const ringSlot = item => typeof item?.slot === 'string' && item.slot.startsWith('ring') ? 'ring' : item?.slot;
 const itemStats = ['attack','defense','health','crit','speed'];

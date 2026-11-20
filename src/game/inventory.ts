@@ -1,4 +1,5 @@
 import { autoEquipBest, canWield, isEquipment, isSkillBook, itemPower, plusOf, rarityRanks, salvageGold, salvageStones, type EquipmentItem, type Item, type Rarity, type Slot } from './items';
+import { EQUIPMENT_BAG_LIMIT, equipmentCount } from './bagCapacity';
 import { jobOrDefault } from './skills';
 import type { Save } from './store';
 
@@ -101,4 +102,25 @@ export function autoSalvageRecovered(save: Save, item: Item, maxRarity: Exclude<
   // 자동 분해도 한 벌 = 1회로 센다(작업 207).
   save.salvageCount = (save.salvageCount ?? 0) + 1;
   return { gold, stones };
+}
+
+/** 가방 40칸에 세는 장비 수 — `bagCapacity.equipmentCount`와 같은 셈(스킬북·주머니는 제외). */
+export function bagEquipmentCount(save: Save): number { return equipmentCount(save.bag); }
+
+/** 가방 40칸이 **꽉 찬** 상태에서 이미 들고 있던 장비를 즉시 분해해 빈 칸을 만든다(작업 209, 사용자 확정
+ *  #4286 "꽉차면 바로 자동분해 되도록").
+ *
+ *  접속 중 자동 분해는 지금까지 **새로 주워 오는 장비**만 갈아냈기 때문에, 40칸이 차면 설정 등급 이하의
+ *  장비가 가방에 그대로 남아 있어도 새 드롭을 줍지 못했다. 이 함수는 `autoSalvageBlock`이 허용하는
+ *  장비만(설정 등급 이하·잠금 아님·`+N까지` 이하·입을 수 있는 직업·이미 채워진 칸·장착보다 나쁨) 골라
+ *  `salvageItems`와 **같은 값**(금화·강화석·`salvageCount`)으로 분해한다. 스킬북·보물 주머니·보호 대상은
+ *  건드리지 않으며, 가방이 덜 찾거나 남길 장비밖에 없으면 `undefined`(아무 일도 없다). */
+export function sweepBagOnFull(save: Save, maxRarity: Exclude<Rarity, 'legendary'>, maxPlus?: number): { count: number; gold: number; stones: number } | undefined {
+  if (bagEquipmentCount(save) < EQUIPMENT_BAG_LIMIT) return undefined;
+  const ids = save.bag
+    .filter(item => isEquipment(item) && !autoSalvageBlock(save, item, maxRarity, maxPlus))
+    .map(item => item.id);
+  if (!ids.length) return undefined;
+  const swept = salvageItems(save, ids);
+  return swept.count ? swept : undefined;
 }

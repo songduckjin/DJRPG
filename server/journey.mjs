@@ -1,16 +1,17 @@
 import { randomUUID } from 'node:crypto';
 import { account, transaction, assertRevision, validateSave, reconcileItems, writeSave, fail, inventoryOwnerQuery } from './database.mjs';
 import { journeyState, journeyOperation, journeyView, dailyTasks, pouchItem } from './journey-state.mjs';
-const bookNames = { slash2:'소드 슬래시',spin:'드래곤 트위스터',crushing:'딜레이 크러싱',slam:'와일드 스탬프',warcry:'블러드 레이지',power:'파워 스트라이크',destroy:'디스트로이 스윙',hell:'헬 파이어 소드',mastery:'대검 숙련',body:'강인한 육체',instinct:'전투 본능' };
+import { rollRewardSkillBook } from './skill-ids.mjs';
 function rewards(save, entries) {
   const books = entries.reduce((sum,entry)=>sum+Number(entry.books??0),0);
   // 보물 주머니(작업 207): 전체 완료 보상에 붙은 수량만큼 가방에 넣는다. 주머니는 장비 40칸을 쓰지 않는다.
   const pouches = entries.reduce((sum,entry)=>sum+Number(entry.pouches??0),0);
   save.gold += entries.reduce((sum,entry)=>sum+entry.gold,0);
   save.bag ??= [];
+  // 우편·보상 스킬북도 세 직업 33종에서 고른다(작업 209) — 예전에는 전사 11종만 나왔다.
   for(let i=0;i<books;i++) {
-    const skillId=Object.keys(bookNames)[Math.floor(Math.random()*Object.keys(bookNames).length)];
-    save.bag.push({id:randomUUID(),kind:'skillbook',slot:'skillbook',skillId,rarity:'rare',name:`[스킬북] ${bookNames[skillId]}`,stats:{}});
+    const {skillId,name}=rollRewardSkillBook();
+    save.bag.push({id:randomUUID(),kind:'skillbook',slot:'skillbook',skillId,rarity:'rare',name,stats:{}});
   }
   for(let i=0;i<pouches;i++) save.bag.push(pouchItem(randomUUID()));
 }

@@ -6,7 +6,7 @@ import { dragonOrbitFactor, skillDamageScale, skillDuration, skillRange, skills,
 import { jobOrDefault } from './skills';
 import { clampArenaPoint, spawnArenaEnemy } from './arena';
 import { LOOT_ABSORB_SECONDS, LOOT_REST_SECONDS } from './loot';
-import { autoSalvageBlock, autoSalvageRecovered } from './inventory';
+import { autoSalvageBlock, autoSalvageRecovered, sweepBagOnFull } from './inventory';
 
 export type Enemy = { x: number; y: number; hp: number; maxHp: number; boss: boolean; hit: number; step: number; moving: boolean; knockX: number; knockY: number; slow: number;
   /** 정예 몹(작업 206) — 일반 몹 30마리마다 한 마리. 보스 타이밍이 오면 보스가 우선이라 둘은 같이 서지 않는다. */
@@ -111,6 +111,17 @@ export class World {
   private sweeps(item: Item): Exclude<Rarity, 'legendary'> | undefined {
     const grade = this.autoSalvage?.();
     return grade && !autoSalvageBlock(this.save, item, grade, this.autoSalvagePlus?.()) ? grade : undefined;
+  }
+  /** 가방 40칸이 꽉 찼을 때 설정 이하의 **가방 안** 장비를 즉시 일괄 분해해 칸을 만든다(작업 209, #4286).
+   *  분해된 것이 1개 이상이면 금화·강화석을 알리고 `true`. 스위치가 꺼졌거나 남길 장비밖에 없으면 `false`. */
+  private sweepFullBag(): boolean {
+    const grade = this.autoSalvage?.();
+    if (!grade) return false;
+    const swept = sweepBagOnFull(this.save, grade, this.autoSalvagePlus?.());
+    if (!swept) return false;
+    this.onMessage(`가방이 가득 차 설정 이하 장비 ${swept.count}개를 자동 분해했습니다 (+${swept.gold.toLocaleString()}G, +${swept.stones.toLocaleString()}강화석)`);
+    this.onChange();
+    return true;
   }
 
   constructor(public save: Save) {
@@ -462,8 +473,11 @@ export class World {
         if (drop.age < LOOT_REST_SECONDS) continue;
         // A piece auto-salvage will take needs no bag room, so it flies in even when the bag is full.
         if (!canStoreItem(this.save.bag, drop.item) && !this.sweeps(drop.item)) {
-          if (!drop.warned) { drop.warned = true; this.onMessage('가방이 가득 찼습니다. 장비를 분해하세요.'); }
-          continue;
+          // 가방 40칸 만석(작업 209): 새 장비를 두기 전에 가방 안의 설정 이하 장비를 먼저 분해해 칸을 만든다.
+          if (!this.sweepFullBag()) {
+            if (!drop.warned) { drop.warned = true; this.onMessage('가방이 가득 찼습니다. 장비를 분해하세요.'); }
+            continue;
+          }
         }
         drop.absorb = drop.age;
       }

@@ -254,6 +254,21 @@
 .utility-note { color: #ad9d8e; line-height: 1.5; margin: 2px 0; font-size: 10px; }
 .utility-button { align-self: flex-start; border: 1px solid #806348; background: #392925; color: #ead4b3; padding: 4px 8px; min-height: 28px; font: inherit; touch-action: manipulation; }
 .utility-button:disabled { opacity: .45; }
+/* 우편함·보상의 받기/모두 받기(작업 209, 사용자 요청 #4246) — 누를 수 있으면 따뜻한 금빛 테두리와 밝은 배경으로
+   "지금 누를 수 있음"이 한눈에 보이게, 누를 수 없으면 어둡고 흐리게(명도·채도 ↓) 구분한다. */
+.utility-button.utility-claim { border-color: #6b5645; background: #241d1e; color: #93826f; }
+.utility-button.utility-claim.is-ready { border-color: #e6b866; background: linear-gradient(#8f6323, #5b3a12); color: #ffedc6; font-weight: 700; box-shadow: 0 0 0 1px rgba(230, 184, 102, .30), 0 1px 6px rgba(0, 0, 0, .5), inset 0 1px 0 rgba(255, 238, 201, .35); }
+.utility-button.utility-claim.is-ready:hover { border-color: #ffd98c; background: linear-gradient(#a8752c, #6d4717); color: #fff7de; }
+.utility-button.utility-claim.is-ready:active { background: linear-gradient(#6f4c1b, #4a2f0f); box-shadow: inset 0 2px 5px rgba(0, 0, 0, .55); }
+.utility-button.utility-claim.is-ready:focus-visible { outline: 2px solid #ffe6b0; outline-offset: 1px; }
+.utility-button.utility-claim:not(.is-ready), .utility-button.utility-claim:disabled { opacity: .38; filter: grayscale(.6) brightness(.8); border-color: #4a3c33; background: #221c1d; color: #8c7e70; box-shadow: none; }
+@keyframes utility-claim-glow {
+  0%, 100% { box-shadow: 0 0 0 1px rgba(230, 184, 102, .30), 0 1px 6px rgba(0, 0, 0, .5), inset 0 1px 0 rgba(255, 238, 201, .35); }
+  50% { box-shadow: 0 0 0 1px rgba(255, 214, 140, .55), 0 0 9px rgba(224, 168, 80, .40), 0 1px 6px rgba(0, 0, 0, .5), inset 0 1px 0 rgba(255, 238, 201, .35); }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .utility-button.utility-claim.is-ready { animation: utility-claim-glow 2.4s ease-in-out infinite; }
+}
 .utility-card { display: flex; flex-direction: column; gap: 4px; border: 1px solid #5e4b40; background: #211a1d; padding: 7px; }
 .utility-task { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 4px 6px; }
 .utility-task > b { font-size: 11px; line-height: 1.4; }

@@ -77,6 +77,9 @@
 | Windows 테스트 임시 SQLite 잠금(작업 199) | `tests/helpers/{temp-db,remove-temp-db}.mjs`, `tests/{migrate-turso-db,characters,world-boss-live,market}.test.mjs` | 필요한 이관 파일 DB 테스트 삭제·임시 파일 방치·검증 없는 재귀 삭제 금지 | `node --test tests/migrate-turso-db.test.mjs tests/characters.test.mjs tests/world-boss-live.test.mjs tests/market.test.mjs` |
 | DB 스키마 첫 요청 지연·일시 접속 오류(작업 193) | `server/database.mjs` `schema()`, `tests/functions-adapter.test.mjs` | 정상 재배포에서 `session_id` ALTER 실패·전체 DDL 반복, DB 접속 정보 로그 출력 금지 | `node --test tests/functions-adapter.test.mjs` |
 | 그 외 영역(오프라인·도감·가방·필드 렌더 등) | `docs/CODE_MAP.md` §1 표의 해당 행 | 그 행의 `연관 파일`을 넘겨 수정하지 않는다 | 그 행의 `관련 테스트`만 `node --test tests/<이름>.test.mjs` |
+| 타직업 스킬북 저장이 `400 INVALID_ITEM`(작업 209) | `server/skill-ids.mjs`(33종 단일 목록·`skillBookIdSet`·`skillNames`·`rollRewardSkillBook`), `server/database.mjs`(`itemValid` 스킬북 검사), `server/journey.mjs`(`rewards` 보상 스킬북) | **`itemValid`에 스킬 ID 목록을 다시 인라인으로 적기**(한 곳 `skill-ids.mjs`만)·전사 11종으로 되돌리기·`server/*.mjs`에서 `src/game/skills.ts` import(Functions는 TS를 실행하지 못한다) | `node --test tests/skillbook-server.test.mjs tests/skillbook-job.test.mjs` |
+| 가방 40칸 만석인데 새 장비를 못 줍음(작업 209) | `src/game/inventory.ts`(`sweepBagOnFull`·`bagEquipmentCount`), `src/game/world.ts`(`sweepFullBag`·드롭 루프의 만석 분기) | **`autoSalvageBlock` 보호(잠금·설정 등급 위·`+N` 초과·빈 칸·장착보다 좋은 장비) 우회**·스킬북·주머니를 분해·`offline.ts`(오프라인 정산)에 넣기·`salvageItems`와 다른 값 지급 | `node --test tests/auto-salvage.test.mjs tests/bag-capacity.test.mjs` |
+| 우편함·보상 받기 버튼이 비활성처럼 보임(작업 209) | `src/ui/modals/utilityModal.ts`(`claimButton`·`is-ready`), `src/styles/modals.css`(`.utility-button.utility-claim*`) | 받기 이외 버튼(계정·설정·삭제)에 `is-ready` 붙이기·`disabled`를 진짜 활성처럼 보이게 하기·수령 로직 변경 | `node --test tests/journey-ui.test.mjs` |
 
 ## 2. 자주 건드는 패턴 자동 메뉴얼화 규칙
 

@@ -63,7 +63,7 @@
 | 쿨타임·버프(레이지)·광폭 | `world.ts` `cooldowns`·`cooldown[kind]`, `skills.ts` `skillDuration` |
 | 스킬 슬롯 비어 있음·퀵슬롯 | `loadout.ts`, `ui/skillLoadout.ts`, `ui/hud.ts` |
 | 스킬북 사용·레벨업 비용 | `store.ts` `useSkillBook`, `skillProgress.ts`, `skills.ts` `skillUpgradeCost` |
-| 가방 40칸·드랍 못 주움 | `bagCapacity.ts`, `world.ts` 드랍 루프, `store.ts` `parseSave` |
+| 가방 40칸·드랍 못 주움 | `bagCapacity.ts`, `world.ts` 드롭 루프(`sweepFullBag`), `store.ts` `parseSave`, `game/inventory.ts` `sweepBagOnFull`(작업 209: 만석이면 설정 이하 옛 장비를 먼저 분해) |
 | 드랍률·등급·아이템 능력치·강화 단계 | `items.ts` `equipmentDropChance`/`rollItem`/`totalStats`/`maxPlusFor`/`rollPlus`/`applyPlus`/`estimatePlus` |
 | 마법사 평타가 화살로 보임 / 지팡이가 안 떨어짐 / 마법사에게 전사 갑옷·투구가 겹쳐 보임(작업 159) | `world.ts` `action`(`this.job === 'mage'` → `shoot(..., arrow: this.mageBolt)`), `render/vfx.ts` `drawMagicBolt`, `items.ts` `staffBases`·`equipmentImage`, `render/entities.ts` `drawHero` `plain`, `ui/equipmentPortrait.ts` |
 | 직업을 추가·바꿀 때 세이브가 전사로 돌아감 / 퀵슬롯 스킬이 사라짐 | `skills.ts` `jobOrDefault`(모르는 값은 전사), `store.ts` `parseSave`(`job` 정규화·`normalizeQuickSlots(..., job)`), `server/endpoints/account.mjs` `jobOf`·`jobs` |
@@ -108,7 +108,7 @@
 - `skills.ts` (53) — 스킬·패시브 정의와 스케일. `Job`(전사·궁수·마법사)·`jobs`·`jobNames`·`jobOrDefault`, `mageSkillOrder`/`magePassiveOrder`(`skillOrderFor(job)`·`passiveOrderFor(job)`), `skills`, `passives`, `skillOrder`/`passiveOrder`, `MAX_SKILL_LEVEL=30`, `skillUpgradeCost`, `skillRange`, `skillDuration`, `skillDamageScale`, `dragonOrbitFactor`, `dragonRise`, `canLearn`.
 - `loadout.ts` (25) — 퀵슬롯 3칸 정규화·장착/해제. `QuickSlots`, `normalizeQuickSlots`, `availableSkills`, `equipSkill`, `unequipSkill`.
 - `skillProgress.ts` (15) — 스킬북 비용·업그레이드 가능 판정. `skillBookCost`, `skillBookStatus`, `hasSkillUpgrade`.
-- `inventory.ts` — 자동장착 가능 여부·분해 계획/실행, 그리고 보호 규칙. `canAutoEquip`, `salvagePlan`(`items`·`emptySlots`·`upgrades`), `salvageUpgrades`(작업 196 — `itemPower` 기준, 반지는 약한 반지와 비교, 작업 197의 보호 팝업이 이 목록만 보여 준다), `autoSalvageBlock`/`autoSalvageRecovered`(접속 중 자동 분해가 무엇을 남기는지), `salvageItems`. 41층부터(작업 203)는 `maxPlus`(고른 `+N까지`)를 받아 그보다 높은 단계를 `'plus'`로 남기고, `AUTO_SALVAGE_PLUS_FLOOR` 미만에서는 값을 무시한다.
+- `inventory.ts` — 자동장착 가능 여부·분해 계획/실행, 그리고 보호 규칙. `canAutoEquip`, `salvagePlan`(`items`·`emptySlots`·`upgrades`), `salvageUpgrades`(작업 196 — `itemPower` 기준, 반지는 약한 반지와 비교, 작업 197의 보호 팝업이 이 목록만 보여 준다), `autoSalvageBlock`/`autoSalvageRecovered`(접속 중 자동 분해가 무엇을 남기는지), `salvageItems`. 41층부터(작업 203)는 `maxPlus`(고른 `+N까지`)를 받아 그보다 높은 단계를 `'plus'`로 남기고, `AUTO_SALVAGE_PLUS_FLOOR` 미만에서는 값을 무시한다. `bagEquipmentCount`·`sweepBagOnFull`(작업 209)은 **가방 40칸이 꽉 찼을 때** 이미 들고 있던 장비 중 `autoSalvageBlock`이 허용하는 것만 `salvageItems`와 같은 값으로 일괄 분해해 빈 칸을 만든다(스킬북·주머니·보호 대상 제외).
 - `itemComparison.ts` (14) — 장착 아이템 대비 스탯 비교(툴팁/구매 비교). `compareEquipment`.
 - `bagCapacity.ts` (4) — 가방 40칸 규칙(스킬북 제외). `EQUIPMENT_BAG_LIMIT`, `equipmentCount`, `canStoreItem`.
 - `appearance.ts` (94) — 성별·투구·갑옷·무기 조합 → idle/walk/attack/portrait 키. `heroAppearance`, `unequipItem`; 갑옷·투구 티어와 팔레트는 `items.ts` 기본 이름 인덱스로 파생한다. **직업 분기 없음(전사 단일)**.
@@ -172,7 +172,8 @@
 - `main.css` — `base`→`boot`→`hud`→`modals`→`login`→`market`→`codex` 순 import. `base.css`(폰트·리셋), `hud.css`(`.top-hud`,`.floor-button`,작업 208 `.legend-bar`), `modals.css`(장비·가방·분해 공통), `login.css`(로그인·캐릭터 선택), `market.css`(`.market-*`), `codex.css`(`.codex-*`,`#codex`), `boot.css`(`.boot-*`).
 
 ### `server/` — API 코어 (프레임워크 비의존, 테스트가 직접 import)
-- `database.mjs` (154, 193) — libsql 래퍼·스키마·트랜잭션·세이브/아이템 계약. `schema()`는 `session_id` 열 존재를 먼저 확인해 정상 재배포에서 실패하는 ALTER와 전체 DDL 재실행을 피하고, 멱등 초기화의 일시적 연결 오류만 한 번 재시도한다. `ApiError`, `fail`, `client`, `transaction`, `account`, `decodeAccount`, `assertRevision`, `assertSession`/`assertSessionId`/`assignSession`(단일 세션), `inventoryOwnerQuery`, `reconcileItems`, `writeSave`, `validateSave`. 내부 `identity(item)`(이름·슬롯(반지 정규화)·등급·kind·skillId·5스탯).
+- `database.mjs` (154, 193) — libsql 래퍼·스키마·트랜잭션·세이브/아이템 계약. `schema()`는 `session_id` 열 존재를 먼저 확인해 정상 재배포에서 실패하는 ALTER와 전체 DDL 재실행을 피하고, 멱등 초기화의 일시적 연결 오류만 한 번 재시도한다. `ApiError`, `fail`, `client`, `transaction`, `account`, `decodeAccount`, `assertRevision`, `assertSession`/`assertSessionId`/`assignSession`(단일 세션), `inventoryOwnerQuery`, `reconcileItems`, `writeSave`, `validateSave`. 내부 `identity(item)`(이름·슬롯(반지 정규화)·등급·kind·skillId·5스탯). `itemValid`의 스킬북 `skillId` 검사는 **`skill-ids.mjs`의 33종 집합**을 본다(작업 209 — 전사 11종 하드코딩이 궁수·마법사 책을 400으로 막던 버그).
+- `skill-ids.mjs` (작업 209) — 스킬북 33종의 **서버 쪽 단일 목록**. Functions는 `src/game/skills.ts`(TS)를 실행할 수 없어 같은 값을 여기 두고, `tests/skillbook-server.test.mjs`가 `allSkillIds`·`allPassiveIds`·`skills`·`passives`와 순서·ID·이름이 같은지 검사한다. `warrior/archer/mageSkillIds`, `warrior/archer/magePassiveIds`, `activeSkillIds`, `passiveSkillIds`, `skillBookIds`, `skillBookIdSet`/`isSkillBookId`, `skillNames`, `skillBookName`, `rollRewardSkillBook`. 스킬을 더하면 `skills.ts`와 이 파일을 함께 고친다.
 - `auth.mjs` (49) — HMAC 토큰(비밀키 `TURSO_AUTH_TOKEN`)·비번 해시. `sign`, `tokenFor`(`{id,sid,exp}`), `tokenPayload`, `tokenId`, `hashPassword`, `needsPasswordUpgrade`, `verifyPassword`.
 - `http.mjs` (16) — 응답/본문/에러. `json`, `readBody`, `versionGuard`(다른 `X-App-Version` → 426 `VERSION_OUTDATED`), `errorResponse`.
 - `app-version.mjs` (18) / `version.generated.mjs` (3) — 배포 버전 식별자. `APP_VERSION`, `OUTDATED_MESSAGE`, `requestVersion`, `versionMismatch` / `BUILD_VERSION`(빌드 시 `scripts/generate-version.mjs`가 덮어씀, 저장소 값은 `dev`).
