@@ -1,4 +1,4 @@
-import {wastelandCore,wastelandScene,originalScenePoint} from './wasteland';
+import {wastelandCore,wastelandScene,originalScenePoint} from './wastelandGeometry';
 // Normalized image coordinates: [horizontal center, root line, half width, canopy height].
 const originalGrassPatches = [
   [.086,.165,.074,.040], [.187,.130,.040,.027], [.423,.168,.050,.036], [.469,.186,.035,.027],
