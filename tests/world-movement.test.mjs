@@ -130,8 +130,10 @@ test('boss floor transition clears old enemies and pursuit but retains drops', (
 
 test('normal difficulty health and damage match the floor curves', () => {
   for (const [floor, normalHp, bossHp, normalDamage, bossDamage] of [
-    [1, 40, 347, 10, 27], [10, 286, 2444, 40, 99],
-    [30, 1163, 10458, 114, 285], [50, 2344, 21700, 193, 489]
+    // 작업 196: floors 1~8 keep the old curve, the deep one takes over by 25 (floor 78 ≈ 15,300, not
+    // ~4,380), and a boss stays on its own curve.
+    [1, 40, 347, 10, 27], [10, 309, 2444, 40, 99],
+    [30, 2876, 10458, 114, 285], [50, 6980, 21700, 193, 489]
   ]) {
     assert.equal(enemyMaxHp(floor, false), normalHp);
     assert.equal(enemyMaxHp(floor, true), bossHp);
