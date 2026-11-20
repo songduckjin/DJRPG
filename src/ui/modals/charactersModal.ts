@@ -1,21 +1,69 @@
-import type { Item } from '../../game/store';
+import { freshSave, type Item, type Save } from '../../game/store';
 import { jobNames, jobOrDefault, type Job } from '../../game/skills';
 import type { Interface } from '../interface';
 import { accountRequest } from '../login';
 import { apiHeaders, isOutdatedResponse, reloadForNewVersion } from '../../game/appVersion';
-import { itemDisplayName } from '../../game/items';
+import { itemDisplayName, type EquipmentItem, type Slot } from '../../game/items';
+import { equipmentFallbackPortrait, equipmentPortraitPlan, renderEquipmentPortrait } from '../equipmentPortrait';
 
-export type CharacterSummary = { slot: number; name: string; gender: 'male' | 'female'; job?: Job; level: number; floor: number; itemCount?: number; idleSeconds?: number };
+/** `characters` 응답이 슬롯마다 내려 주는 장비 외형 정보(작업 210) — 이름만 있고 능력치·가방은 없다. */
+export type CharacterEquipment = { helmet?: { name?: string } | null; armor?: { name?: string } | null; weapon?: { name?: string } | null } | null;
 
-/** 캐릭터 선택 카드 그림 — 전사는 기존 base 초상화, 궁수·마법사는 자기 기본 시트를 쓴다. */
-function characterImage(character: CharacterSummary): string {
-  const gender = character.gender === 'female' ? 'female' : 'male';
-  const job = jobOrDefault(character.job);
-  // 작업 159: 궁수 시트를 갈면서 `/assets/*` immutable 캐시를 피해 `?v=2`를 쓴다(render.ts·equipmentPortrait.ts와 같은 규칙).
-  if (job === 'archer') return `/assets/pilot-25d/archer_${gender}_idle_v1.png?v=2`;
-  // 작업 204: 서기 시트를 다시 구워 `?v=2`(render.ts·equipmentPortrait.ts와 같은 규칙).
-  if (job === 'mage') return `/assets/pilot-25d/mage_${gender}_idle_v1.png?v=2`;
-  return `/assets/warrior_${gender}_base.png`;
+export type CharacterSummary = { slot: number; name: string; gender: 'male' | 'female'; job?: Job; level: number; floor: number; itemCount?: number; idleSeconds?: number; equipment?: CharacterEquipment };
+
+/** 카드 초상화 높이(px) — 카드는 108px 높이라 360px면 충분하고, 장비창(720px)보다 캔버스가 가볍다. */
+export const characterPortraitHeight = 360;
+
+function portraitItem(slot: Slot, value?: { name?: string } | null): EquipmentItem | undefined {
+  const name = typeof value?.name === 'string' ? value.name.trim() : '';
+  return name ? { id: `card-${slot}`, name, slot, rarity: 'common', stats: {} } : undefined;
+}
+
+/**
+ * 캐릭터 선택 카드의 합성 초상화용 최소 `Save`(작업 210).
+ *
+ * 서버 `characters` 응답은 **다른 슬롯**의 장비 이름만 준다(능력치·가방·계정 정보 없음).
+ * 초상화 경로(`equipmentPortrait.ts`)는 성별·직업·장비 이름만 읽으므로 그 셋만 채운다.
+ * 접속 중인 슬롯은 이 함수 대신 `ui.world.save`를 그대로 써서, 장비를 갈아입고 모달을 열면
+ * 바로 바뀐 외형이 보이게 한다.
+ */
+export function characterPortraitSave(character: CharacterSummary): Save {
+  const save = freshSave(character.gender === 'female' ? 'female' : 'male', jobOrDefault(character.job));
+  save.name = character.name;
+  const level = Math.floor(Number(character.level)), floor = Math.floor(Number(character.floor));
+  if (Number.isFinite(level) && level >= 1) save.level = level;
+  if (Number.isFinite(floor) && floor >= 1) save.floor = floor;
+  const helmet = portraitItem('helmet', character.equipment?.helmet);
+  const armor = portraitItem('armor', character.equipment?.armor);
+  const weapon = portraitItem('weapon', character.equipment?.weapon);
+  save.equipment = {};
+  if (helmet) save.equipment.helmet = helmet;
+  if (armor) save.equipment.armor = armor;
+  if (weapon) save.equipment.weapon = weapon;
+  return save;
+}
+
+/** 합성 결과 캐시 — 사냥 중 모달이 자주 다시 그려져도 같은 장비는 기본 시트로 깜빡이지 않는다. */
+const cardPortraits = new Map<string, string>();
+
+/**
+ * 카드 그림을 채운다. 접속 중인 슬롯은 라이브 세이브, 다른 슬롯은 서버가 준 장비 이름으로
+ * 필드·장비창과 같은 합성 초상화(전신 + 투구 + 갑옷/로브 + 무기/활/지팡이)를 그린다.
+ * 합성이 끝나기 전에는 같은 조합의 전신 시트를 먼저 보여 준다.
+ */
+function paintCharacterPortrait(ui: Interface, image: HTMLImageElement, character: CharacterSummary, slot: number): void {
+  // 라이브 세이브는 초상화가 읽는 `equipment`가 있을 때만 쓴다(세이브가 아직 없는 화면·테스트 대비).
+  const live = slot === ui.session?.characterSlot && ui.world?.save?.equipment ? ui.world.save : undefined;
+  const save = live ?? characterPortraitSave(character);
+  const key = `${equipmentPortraitPlan(save).key}@${characterPortraitHeight}`;
+  const painted = cardPortraits.get(key);
+  image.src = painted ?? equipmentFallbackPortrait(save);
+  if (painted) return;
+  void renderEquipmentPortrait(save, { height: characterPortraitHeight }).then(source => {
+    if (cardPortraits.size >= 24) cardPortraits.clear();
+    cardPortraits.set(key, source);
+    if (image.isConnected) image.src = source;
+  }).catch(error => console.info('[캐릭터 선택] 초상화 합성 실패 → 전신 시트 표시:', error));
 }
 type CharacterList = { characters: CharacterSummary[]; activeSlot: number; maxSlots: number; revision: number; allIdleExpiresAt?: number; loadedAt?: number };
 let characterClock: ReturnType<typeof setTimeout> | undefined;
@@ -63,11 +111,14 @@ export function renderCharacters(ui: Interface, dialog: HTMLElement): void {
       void changeCharacter(ui, 'selectCharacter', slot).catch(error => ui.message(error instanceof Error ? error.message : String(error)));
     });
     select.className = 'character-select';
-    const image = document.createElement('img'); image.alt = '';
-    image.src = character ? characterImage(character) : '';
     const details = document.createElement('span'); details.textContent = character ? `${character.name} · ${jobNames[jobOrDefault(character.job)]} · Lv.${character.level} · ${character.floor}층` : `슬롯 ${slot} · 새 캐릭터 만들기`;
-    if (character) select.append(image);
-    else { const plus = document.createElement('strong'); plus.textContent = '+'; select.append(plus); }
+    if (character) {
+      const image = document.createElement('img');
+      image.className = 'character-portrait';
+      image.alt = `${character.name} ${jobNames[jobOrDefault(character.job)]} 외형`;
+      select.append(image);
+      paintCharacterPortrait(ui, image, character, slot);
+    } else { const plus = document.createElement('strong'); plus.textContent = '+'; select.append(plus); }
     select.append(details); card.append(select);
     if (character) {
       const idle = button('방치', () => {

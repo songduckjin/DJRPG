@@ -1,3 +1,13 @@
+## 2026-11-20 · songduckjin 작업 210 캐릭터 선택 카드 외형 동기화(실제 착용 장비 합성 초상화)
+- **배경**: 캐릭터 선택 카드가 전사는 `/assets/warrior_{gender}_base.png`(구형 필드 스프라이트), 궁수·마법사는 장비를 반영하지 않은 정적 `idle_v1` 시트를 보여 줘서 인게임 캐릭터와 달랐다.
+- **서버**(`server/endpoints/account.mjs`): `characters` 응답에 `equipment`를 더한다 — `portraitEquipment(save)`가 `save_json`에서 **투구·갑옷·무기 이름만**(각 40자 컷, 빈 슬롯은 `null`) 꺼내고 능력치·가방·세이브 본문은 내려보내지 않는다. 카드 그림이 `baseItemIndex`(이름 기반 외형 티어)만 요구해서 이름으로 충분하다.
+- **클라이언트**(`src/ui/modals/charactersModal.ts`): `characterPortraitSave(summary)`가 요약(성별·직업·장비 이름)을 최소 `Save`로 만들고 `equipmentPortraitPlan`·`renderEquipmentPortrait`에 넘긴다 — 필드·장비창과 **같은 합성 경로**(전신 시트 + 투구/모자 + 갑옷/로브 + 대검/활/지팡이 파츠)를 그대로 쓴다. 접속 중인 슬롯(`slot === ui.session.characterSlot`)은 `ui.world.save`를 써서 장비를 갈아입고 모달을 다시 열면 바로 반영된다. 합성 전에는 같은 조합의 전신 시트를 먼저 보여 주고, 결과는 `cardPortraits`(키별, 24개)에 기억해 사냥 중 재렌더에도 깜빡이지 않는다. `warrior_*_base` 경로와 `characterImage()`는 삭제.
+- **출력 높이 옵션**(`src/ui/equipmentPortrait.ts`): `renderEquipmentPortrait(save, { height })`·`EquipmentPortraitOptions`·`portraitOutputHeight` 추가. 카드는 360px로 그려 캔버스가 가볍고, 캐시 키에 높이를 붙여 장비창(720px) 결과를 덮어쓰지 않는다.
+- **CSS**(`src/styles/modals.css`): `.character-slot img.character-portrait` — 112px·`object-fit: contain`·`object-position: center bottom`. 세 직업 모두 머리·무기가 잘리지 않고 발끝이 같은 높이에 맞는다. 합성 PNG에서 알파가 캔버스 가장자리에 닿지 않는 것(좌우·상하 여백 ≥13px, 마법사 투구 여유 44행)을 확인했다.
+- **테스트**: 신규 `tests/character-portrait.test.mjs` 5건 — ① `characters` 응답이 장비 이름 3종만 내려보내고 세이브 본문이 없음 ② 전사·궁수·마법사 × 남녀로 `characterPortraitSave`의 전신 시트·합성 키·파츠가 라이브 세이브와 완전히 같음 ③ 장비 없는 요약의 폴백 시트와 `warrior_*_base` 미사용 ④ 카드 렌더가 접속 슬롯은 라이브 세이브, 다른 슬롯은 서버 장비로 첫 페인트 ⑤ 카드 높이(360) 합성이 전신+투구+대검 3장을 그린다. `tests/archer.test.mjs`의 캐시 버스터 검사는 카드가 시트 경로를 직접 만들지 않게 바뀐 책임에 맞춰 `charactersModal.ts`가 시트 경로를 갖지 않는지로 교체.
+- **검증**: `npx tsc --noEmit` 통과, 전체 663건 중 661 통과(실패 2건은 변경 전 `origin/main`에서도 같은 `costume-field-render` — 스태시 후 재현 확인), `npx vite build` 통과(번들에 `character-portrait`·합성 폴백 로그 확인).
+- **미리보기**: 필드·장비창과 같은 합성으로 남녀·직업별 초상화와 카드(112px) 배치를 확인 — 전사 대검·궁수 활/투구·마법사 로브/모자/지팡이가 모두 카드 안에 들어온다.
+
 ## 2026-11-20 · songduckjin 작업 209 100명 동시 접속 대응(서버 검증 경계·저장 최소화·읽기/쓰기 분리·계측·부하 테스트)
 - **먼저 확인**: main의 `reconcileItems`(소유권·스탯), `djrpg_save_requests`(멱등), 거래소 `mutate` 단일 트랜잭션, 월드보스 `replayBoss`·`djrpg_boss_rewards`, `schema()`·`market-connection.mjs` 캐시는 **이미 해결**돼 있어 손대지 않았다.
 - **신규 `server/save-guard.mjs`**(순수 JS — ts 로더 없이 도는 `scripts/migrate-turso-db.mjs`가 DB 모듈을 그대로 쓴다): `rewardBudget`이 마지막 저장 이후 서버 시계 경과(최대 12시간)와 층으로 킬(60+6/초)·보스·경험치(×2)·금화·강화석·아이템 개수(8+0.5/초) 상한을 계산하고, `clampSaveProgress`가 **넘친 값만** 잘라 낸다(거부 아님). `itemWithinBounds`는 `rollItem` 공식(등급배율·티어 보정·plus 8%/단계)에 옛 세이브 여유 2.5배를 둔 능력치 상한이다. 상수는 게임 원본과 같은지 테스트가 대조하고, 1~120층 × 등급 × 직업 드롭 3,000여 개가 전부 통과하는 것을 고정했다.
