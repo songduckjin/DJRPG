@@ -12,6 +12,7 @@ import { isSkillBook } from '../../game/items';
 import { showEquippedDetail, dismissEquippedDetail, deferEquippedDismiss } from '../equippedDetail';
 import { bagDetailPinned, createBagDetail, deferBagDismiss, dismissBagDetail, showBagDetail } from '../bagDetail';
 import { skillbookName } from '../skillbookBag';
+import { itemNameText, renderItemName } from '../itemName';
 import type { BagFilter, Interface } from '../interface';
 
 export const equipmentInfoSlots = ['weapon', 'helmet', 'armor', 'gloves', 'boots', 'offhand', 'necklace', 'belt', 'ring1', 'ring2'] as const;
@@ -44,7 +45,7 @@ export function renderInventory(this: Interface, dialog: HTMLElement): void {
       .map(item => ({ item, count: 1 }));
     const visible = stacks.map(stack => stack.item);
     for (const { item, count: quantity } of stacks) {
-      const book = isSkillBook(item), name = book ? skillbookName(item) : item.name;
+      const book = isSkillBook(item), name = book ? skillbookName(item) : itemNameText(item);
       const cell = document.createElement('button'); cell.className = `bag-item ${book ? 'skillbook-item' : item.rarity} ${this.selected === item.id ? 'selected' : ''}`;
       cell.innerHTML = itemIcon.call(this, item.slot, item, 'item-icon');
       cell.type = 'button'; cell.dataset.itemId = item.id;
@@ -140,7 +141,8 @@ export function itemDetail(this: Interface, save: Save, item: Item): HTMLElement
     }
     const equipped = save.equipment[item.slot];
     const heading = document.createElement('div'); heading.className = 'item-detail-heading';
-    const title = document.createElement('h2'); title.textContent = `${item.name} · ${slotNameFor(item.slot, jobOrDefault(save.job))}`;
+    const title = document.createElement('h2'); renderItemName(title, item);
+    const slotTitle = document.createElement('span'); slotTitle.className = 'item-detail-slot'; slotTitle.textContent = ` · ${slotNameFor(item.slot, jobOrDefault(save.job))}`; title.append(slotTitle);
     const lock = document.createElement('button'); lock.type = 'button'; lock.className = 'item-lock';
     lock.setAttribute('aria-pressed', String(!!item.locked)); lock.setAttribute('aria-label', item.locked ? '장비 잠금 해제' : '장비 잠금');
     lock.title = item.locked ? '잠금 중 · 누르면 해제' : '열림 · 누르면 분해 방지 잠금';
@@ -179,8 +181,8 @@ export function renderEquipment(this: Interface, dialog: HTMLElement): void {
       cell.type = 'button'; cell.dataset.equippedSlot = slot; cell.disabled = !item;
       const slotLabel = slotNameFor(slot, jobOrDefault(save.job));
       cell.innerHTML = `${itemIcon.call(this, slot, item, 'slot-icon')}<small class="slot-part">${slotLabel}</small>`;
-      cell.setAttribute('aria-label', `${slotLabel} · ${item?.name ?? '빈 슬롯'}`);
-      cell.title = item?.name ?? '빈 슬롯';
+      cell.setAttribute('aria-label', `${slotLabel} · ${item ? itemNameText(item) : '빈 슬롯'}`);
+      cell.title = item ? itemNameText(item) : '빈 슬롯';
       cell.setAttribute('aria-expanded', String(this.equippedSlot === slot));
       cell.onpointerenter = event => { if (event.pointerType !== 'touch') showEquippedDetail(this, slot); };
       cell.onpointerleave = () => { if (cell.isConnected) deferEquippedDismiss(this); };

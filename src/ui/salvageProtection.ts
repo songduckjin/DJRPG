@@ -1,7 +1,8 @@
-import { equipmentImage } from '../game/items';
+import { equipmentImage, itemDisplayName } from '../game/items';
 import type { SalvageUpgrade } from '../game/inventory';
 import { itemPower, rarityNames, slotNames, type Slot } from '../game/store';
 import type { Interface } from './interface';
+import { renderItemName } from './itemName';
 
 /** 분해 보호 팝업의 버튼: 보호할 장비를 빼고 나머지를 분해 / 그대로 전부 분해 / 그만두기. */
 export type SalvageProtectionActions = { exclude: () => void; confirm: () => void; cancel: () => void };
@@ -48,8 +49,8 @@ export function openSalvageProtection(ui: Interface, upgrades: SalvageUpgrade[],
     const row = element('li', 'salvage-protect-item');
     row.append(itemArt(upgrade.item));
     const info = element('div', 'salvage-protect-info');
-    info.append(element('strong', '', upgrade.item.name));
-    info.append(element('small', '', `${slotNames[upgrade.slot as Slot]} · ${rarityNames[upgrade.item.rarity]} · 장착 중 ${upgrade.equipped.name}`));
+    info.append(renderItemName(element('strong'), upgrade.item));
+    info.append(element('small', '', `${slotNames[upgrade.slot as Slot]} · ${rarityNames[upgrade.item.rarity]} · 장착 중 ${itemDisplayName(upgrade.equipped)}`));
     const power = element('span', 'salvage-protect-power');
     power.append(document.createTextNode(`현재 투력 ${Math.round(itemPower(upgrade.equipped))} → `));
     const next = element('b', '', String(Math.round(itemPower(upgrade.item)))); power.append(next);

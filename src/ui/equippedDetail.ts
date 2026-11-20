@@ -4,6 +4,7 @@ import { slotNameFor } from '../game/items';
 import { jobOrDefault } from '../game/skills';
 import { unequipItem } from '../game/appearance';
 import { attachedDetailPosition, dismissBagDetail } from './bagDetail';
+import { renderItemName } from './itemName';
 
 const timers = new WeakMap<Interface, ReturnType<typeof setTimeout>>();
 function cancelDismiss(ui: Interface): void { clearTimeout(timers.get(ui)); timers.delete(ui); }
@@ -41,7 +42,7 @@ export function showEquippedDetail(ui: Interface, slot: Slot, pinned = false): v
     panel.className = `item-detail equipped-detail ${item.rarity}`; panel.dataset.itemId = item.id;
     panel.setAttribute('role', 'region'); panel.setAttribute('aria-label', '장착 장비 설명');
     const heading = document.createElement('div'); heading.className = 'item-detail-heading';
-    const title = document.createElement('h2'); title.textContent = item.name;
+    const title = document.createElement('h2'); renderItemName(title, item);
     const lock = document.createElement('button'); lock.type = 'button'; lock.className = 'item-lock';
     const updateLock = (locked: boolean): void => {
       lock.setAttribute('aria-pressed', String(locked)); lock.setAttribute('aria-label', locked ? '장비 잠금 해제' : '장비 잠금');

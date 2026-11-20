@@ -1,4 +1,5 @@
 import { salvageItems, salvagePlan } from '../../game/inventory';
+import { itemDisplayName } from '../../game/items';
 import { slotNames, type Slot } from '../../game/store';
 import type { Interface } from '../interface';
 import { openSalvageProtection } from '../salvageProtection';
@@ -46,7 +47,7 @@ export function renderSalvage(this: Interface, dialog: HTMLElement): void {
     dialog.append(note);
   }
   const list = document.createElement('ul'); list.className = 'salvage-confirm-list';
-  for (const item of plan.items) { const line = document.createElement('li'); line.textContent = item.name; list.appendChild(line); }
+  for (const item of plan.items) { const line = document.createElement('li'); line.textContent = itemDisplayName(item); list.appendChild(line); }
   const actions = document.createElement('div'); actions.className = 'salvage-confirm-actions';
   const cancel = document.createElement('button'); cancel.type = 'button'; cancel.textContent = '취소하고 보관'; cancel.onclick = () => { this.salvageIds = undefined; this.open('equipment'); };
   const confirm = document.createElement('button'); confirm.type = 'button'; confirm.textContent = `${plan.items.length}개 분해`; confirm.disabled = !plan.items.length; confirm.onclick = () => finishSalvage.call(this, this.salvageIds ?? []);

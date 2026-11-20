@@ -3,6 +3,7 @@ import { jobNames, jobOrDefault, type Job } from '../../game/skills';
 import type { Interface } from '../interface';
 import { accountRequest } from '../login';
 import { apiHeaders, isOutdatedResponse, reloadForNewVersion } from '../../game/appVersion';
+import { itemDisplayName } from '../../game/items';
 
 export type CharacterSummary = { slot: number; name: string; gender: 'male' | 'female'; job?: Job; level: number; floor: number; itemCount?: number; idleSeconds?: number };
 
@@ -187,7 +188,7 @@ export function renderWarehouse(ui: Interface, dialog: HTMLElement): void {
     if (!items.length) { const empty = document.createElement('p'); empty.textContent = '아이템이 없습니다.'; dialog.append(empty); }
     for (const item of items) {
       const row = document.createElement('div'); row.className = 'warehouse-item';
-      const label = document.createElement('span'); label.textContent = item.name;
+      const label = document.createElement('span'); label.textContent = itemDisplayName(item);
       const move = button(action === 'deposit' ? '보관' : '꺼내기', () => { void moveItem(ui, action, item.id, move); });
       row.append(label, move); dialog.append(row);
     }

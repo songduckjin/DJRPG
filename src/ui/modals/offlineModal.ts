@@ -1,6 +1,6 @@
 import { goldMarkup } from '../currency';
 import type { OfflineReward } from '../../game/offline';
-import { rarityNames } from '../../game/items';
+import { itemDisplayName, rarityNames } from '../../game/items';
 
 export function renderOffline(dialog: HTMLElement, reward: OfflineReward): void {
   const summary = document.createElement('div'); summary.className = 'offline-summary';
@@ -9,7 +9,7 @@ export function renderOffline(dialog: HTMLElement, reward: OfflineReward): void 
   dialog.appendChild(summary);
   const heading = document.createElement('h3'); heading.textContent = `획득 아이템 ${reward.items.length}개`; dialog.appendChild(heading);
   const list = document.createElement('ul'); list.className = 'offline-items';
-  for (const item of reward.items) { const row = document.createElement('li'); row.textContent = `${item.name} · ${rarityNames[item.rarity]}`; list.appendChild(row); }
+  for (const item of reward.items) { const row = document.createElement('li'); row.textContent = `${itemDisplayName(item)} · ${rarityNames[item.rarity]}`; list.appendChild(row); }
   if (!reward.items.length) { const row = document.createElement('li'); row.textContent = '획득한 아이템이 없습니다.'; list.appendChild(row); }
   dialog.appendChild(list);
   if (reward.missedDrops) { const note = document.createElement('p'); note.textContent = `가방이 가득 차 아이템 ${reward.missedDrops}개를 받지 못했습니다.`; dialog.appendChild(note); }
