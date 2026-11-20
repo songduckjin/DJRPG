@@ -1,5 +1,7 @@
 import {equipmentCount} from '../../game/bagCapacity';
-import { autoEquipBest, equipmentImage, expToNext, MAX_LEVEL, rarityNames, slotNames, statNames, totalStats, useSkillBook, type Item, type Rarity, type Save, type Slot, type Stat } from '../../game/store';
+import { autoEquipBest, equipmentImage, expToNext, MAX_LEVEL, rarityNames, statNames, totalStats, useSkillBook, type Item, type Rarity, type Save, type Slot, type Stat } from '../../game/store';
+import { slotNameFor } from '../../game/items';
+import { jobOrDefault } from '../../game/skills';
 import { rarityOrder, rarityRanks, salvageGold } from '../../game/items';
 import { canAutoEquip } from '../../game/inventory';
 import { requestSalvage } from './salvageModal';
@@ -121,7 +123,7 @@ export function itemDetail(this: Interface, save: Save, item: Item): HTMLElement
     }
     const equipped = save.equipment[item.slot];
     const heading = document.createElement('div'); heading.className = 'item-detail-heading';
-    const title = document.createElement('h2'); title.textContent = `${item.name} · ${slotNames[item.slot]}`;
+    const title = document.createElement('h2'); title.textContent = `${item.name} · ${slotNameFor(item.slot, jobOrDefault(save.job))}`;
     const lock = document.createElement('button'); lock.type = 'button'; lock.className = 'item-lock';
     lock.setAttribute('aria-pressed', String(!!item.locked)); lock.setAttribute('aria-label', item.locked ? '장비 잠금 해제' : '장비 잠금');
     lock.title = item.locked ? '잠금 중 · 누르면 해제' : '열림 · 누르면 분해 방지 잠금';
@@ -158,8 +160,9 @@ export function renderEquipment(this: Interface, dialog: HTMLElement): void {
     const addSlot = (slot: Slot, grid: HTMLElement) => {
       const item = save.equipment[slot]; const cell = document.createElement('button'); cell.className = `equipment-slot ${item?.rarity ?? 'empty-slot'}`;
       cell.type = 'button'; cell.dataset.equippedSlot = slot; cell.disabled = !item;
-      cell.innerHTML = `${itemIcon.call(this, slot, item, 'slot-icon')}<small class="slot-part">${slotNames[slot]}</small>`;
-      cell.setAttribute('aria-label', `${slotNames[slot]} · ${item?.name ?? '빈 슬롯'}`);
+      const slotLabel = slotNameFor(slot, jobOrDefault(save.job));
+      cell.innerHTML = `${itemIcon.call(this, slot, item, 'slot-icon')}<small class="slot-part">${slotLabel}</small>`;
+      cell.setAttribute('aria-label', `${slotLabel} · ${item?.name ?? '빈 슬롯'}`);
       cell.title = item?.name ?? '빈 슬롯';
       cell.setAttribute('aria-expanded', String(this.equippedSlot === slot));
       cell.onpointerenter = event => { if (event.pointerType !== 'touch') showEquippedDetail(this, slot); };

@@ -1,5 +1,6 @@
 import { canStoreItem } from './bagCapacity';
 import { equipmentDropChance, rollItem, rollSkillBook, skillBookDropChance, totalStats, type Item } from './items';
+import { jobOrDefault as jobOf } from './skills';
 import { addExperience, floorKillTarget, type Save } from './store';
 import { enemyMaxHp } from './world';
 
@@ -30,12 +31,12 @@ export function applyOfflineRewards(save: Save, elapsedSeconds: number): Offline
   };
   if (save.tutorial >= 1) {
     for (let index = 0; index < kills; index++) {
-      if (Math.random() < equipmentDropChance(save.floor, false)) receive(() => rollItem(save.floor));
-      if (Math.random() < skillBookDropChance(save.floor, false)) receive(() => rollSkillBook(save.floor));
+      if (Math.random() < equipmentDropChance(save.floor, false)) receive(() => rollItem(save.floor, false, false, jobOf(save)));
+      if (Math.random() < skillBookDropChance(save.floor, false)) receive(() => rollSkillBook(save.floor, jobOf(save)));
     }
     for (let index = 0; index < bossKills; index++) {
-      if (Math.random() < equipmentDropChance(save.floor, true)) receive(() => rollItem(save.floor, false, true));
-      if (Math.random() < skillBookDropChance(save.floor, true)) receive(() => rollSkillBook(save.floor));
+      if (Math.random() < equipmentDropChance(save.floor, true)) receive(() => rollItem(save.floor, false, true, jobOf(save)));
+      if (Math.random() < skillBookDropChance(save.floor, true)) receive(() => rollSkillBook(save.floor, jobOf(save)));
     }
   }
   save.lastActiveAt = Date.now();

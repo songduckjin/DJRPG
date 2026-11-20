@@ -14,6 +14,9 @@ export function weaponSlashColor(world: Pick<World, 'save'>): number {
 
 export function drawSkillVfx(this: GameView, world: World, effect: Effect, x: number, y: number, t: number, screenAngle: number, time: number): boolean {
     if (effect.kind === 'slash') return true;
+    if (effect.kind === 'shot') { drawArrow.call(this, effect, x, y, screenAngle); return true; }
+    if (effect.kind === 'rain') { drawArrowRain.call(this, effect, x, y, t, time); return true; }
+    if (effect.kind === 'hawk') { drawHawkEye.call(this, effect, x, y, t, time); return true; }
     if (effect.kind === 'slash2') {
       const progress = Math.max(0, Math.min(1, t));
       const radius = 53 + progress * 24;
@@ -68,6 +71,65 @@ export function drawSkillVfx(this: GameView, world: World, effect: Effect, x: nu
       sprite.tint = 0xffffff;
     }
     return true;
+  }
+
+const arrowColors: Record<NonNullable<Effect['variant']>, number> = { normal: 0xffd9a0, ice: 0xa8dcff, pierce: 0xffe6a0, snipe: 0xfff4d0, volley: 0xffc27a };
+
+/**
+ * 궁수 화살 — 출발점에서 도착점으로 화면 좌표를 직선 보간해 날아간다(작업 157).
+ * 이펙트 좌표는 활을 쏜 자리이고 도착지는 `tx`·`ty`(월드 좌표)다. 아이소메트릭 투영이
+ * 선형이라 두 점의 화면 변위만큼만 진행도로 밀면 실제로 날아가는 것처럼 보인다.
+ */
+export function drawArrow(this: GameView, effect: Effect, x: number, y: number, _screenAngle: number): void {
+    const dx = (effect.tx ?? effect.x) - effect.x, dy = (effect.ty ?? effect.y) - effect.y;
+    const progress = Math.max(0, Math.min(1, effect.age / Math.max(.01, effect.duration)));
+    const px = x + (dx - dy) * .86 * progress;
+    const py = y + (dx + dy) * .43 * progress - 20;
+    const angle = Math.atan2((dx + dy) * .43, (dx - dy) * .86);
+    const color = arrowColors[effect.variant ?? 'normal'];
+    const length = effect.variant === 'snipe' ? 34 : effect.variant === 'pierce' ? 28 : 20;
+    // 잔상 궤적
+    const tail = 1 - Math.abs(progress - .5) * 2;
+    this.effects.moveTo(px - Math.cos(angle) * length * 3.2, py - Math.sin(angle) * length * 3.2)
+      .lineTo(px, py).stroke({ color, width: 2 + tail * 2.4, alpha: .16 + tail * .24 });
+    // 화살대와 촉
+    this.effects.moveTo(px - Math.cos(angle) * length, py - Math.sin(angle) * length)
+      .lineTo(px, py).stroke({ color, width: 2.6, alpha: .95 });
+    this.effects.moveTo(px + Math.cos(angle) * 5, py + Math.sin(angle) * 5)
+      .lineTo(px - Math.sin(angle) * 3.5, py + Math.cos(angle) * 3.5)
+      .lineTo(px + Math.sin(angle) * 3.5, py - Math.cos(angle) * 3.5).closePath().fill({ color, alpha: 1 });
+    if (effect.variant === 'ice') this.glow.circle(px, py, 10 + tail * 8).fill({ color: 0x8fd0ff, alpha: .12 });
+    if (effect.variant === 'snipe') this.glow.circle(px, py, 14).fill({ color: 0xfff0c8, alpha: .18 });
+  }
+
+/** 애로우 레인 — 적 지점에 화살이 비처럼 떨어진다(작업 157). */
+export function drawArrowRain(this: GameView, _effect: Effect, x: number, y: number, t: number, time: number): void {
+    const radius = 92 * .86;
+    this.ground.ellipse(x, y, radius, radius * .5).stroke({ color: 0xffcf8a, width: 2, alpha: .18 + .22 * Math.sin(t * Math.PI) });
+    const arrows = 16;
+    for (let index = 0; index < arrows; index++) {
+      const spread = ((index * 37) % 100) / 100 - .5;
+      const depth = ((index * 53) % 100) / 100 - .5;
+      const fall = ((t * 2.6 + index / arrows) % 1);
+      const ax = x + spread * radius * 1.7;
+      const ay = y + depth * radius * .9;
+      const height = 150 * (1 - fall);
+      this.effects.moveTo(ax + height * .22, ay - height).lineTo(ax, ay).stroke({ color: 0xffcf8a, width: 2, alpha: .1 + .5 * fall });
+      if (fall > .86) this.effects.circle(ax, ay, 3 + Math.sin(time * 30 + index) * 1.2).fill({ color: 0xffe3b0, alpha: .5 * (1 - t) });
+    }
+  }
+
+/** 호크아이 — 매의 눈 표식이 퍼진다(작업 157). */
+export function drawHawkEye(this: GameView, effect: Effect, x: number, y: number, t: number, time: number): void {
+    const level = Math.max(1, Math.min(10, effect.level ?? 1));
+    const radius = 26 + t * (46 + level * 2);
+    this.effects.circle(x, y - 34, radius).stroke({ color: 0xffd27a, width: 2.4, alpha: .7 * (1 - t) });
+    this.effects.circle(x, y - 34, radius * .62).stroke({ color: 0xfff0c0, width: 1.4, alpha: .5 * (1 - t) });
+    for (let index = 0; index < 6; index++) {
+      const angle = index * Math.PI / 3 + time * .6;
+      const px = x + Math.cos(angle) * radius * .9, py = y - 34 + Math.sin(angle) * radius * .55;
+      this.effects.moveTo(px, py).lineTo(px + Math.cos(angle) * 9, py + Math.sin(angle) * 6).stroke({ color: 0xffe1a0, width: 2, alpha: .55 * (1 - t) });
+    }
   }
 
 export function drawDragon(this: GameView, effect: Effect, x: number, y: number, progress: number, time: number): void {

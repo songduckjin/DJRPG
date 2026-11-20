@@ -6,7 +6,8 @@ import { json, readBody, errorResponse, versionGuard } from '../http.mjs';
 
 const namePattern = /^[가-힣a-zA-Z0-9_]{2,16}$/;
 const bad = (_res, status, code, error) => json({ code, error }, status);
-const initialSave = (id, gender, name) => ({ version: 1, name, accountId: id, gender, auto: true, autoClimb: true, level: 1, exp: 0, gold: 0, floor: 1, maxFloor: 1, floorKills: 0, kills: 0, health: 100, equipment: {}, equipmentCollection: [], bag: [], tutorial: 0, stones: 0, skillPoints: 0, lastActiveAt: Date.now(), learned: [], passives: [], quickSlots: [null, null, null], skillLevels: {} });
+const initialSave = (id, gender, name, job = 'warrior') => ({ version: 1, name, accountId: id, gender, job: job === 'archer' ? 'archer' : 'warrior', auto: true, autoClimb: true, level: 1, exp: 0, gold: 0, floor: 1, maxFloor: 1, floorKills: 0, kills: 0, health: 100, equipment: {}, equipmentCollection: [], bag: [], tutorial: 0, stones: 0, skillPoints: 0, lastActiveAt: Date.now(), learned: [], passives: [], quickSlots: [null, null, null], skillLevels: {} });
+const jobs = ['warrior', 'archer'];
 const offlineSeconds = updatedAt => {
   const elapsed = Math.floor((Date.now() - Date.parse(String(updatedAt))) / 1000);
   return Number.isFinite(elapsed) && elapsed >= 60 ? Math.min(43_200, elapsed) : 0;
@@ -28,8 +29,8 @@ export async function accountEndpoint(request, { env = runtimeEnv(), createDbCli
       const id = action === 'guest' ? `guest_${randomUUID()}` : String(body.loginId ?? '').trim();
       const password = body.password;
       const gender = body.gender === 'female' ? 'female' : 'male';
-      if (action === 'register' && (!namePattern.test(id) || typeof password !== 'string' || password.length < 8 || password.length > 72 || !['male', 'female'].includes(body.gender))) return bad(res, 400, 'INVALID_ACCOUNT', '아이디는 한글·영문·숫자·밑줄 2~16자, 비밀번호는 8~72자로 입력하고 성별을 선택하세요.');
-      const save = initialSave(id, gender, action === 'guest' ? '모험가' : id);
+      if (action === 'register' && (!namePattern.test(id) || typeof password !== 'string' || password.length < 8 || password.length > 72 || !['male', 'female'].includes(body.gender) || (body.job !== undefined && !jobs.includes(body.job)))) return bad(res, 400, 'INVALID_ACCOUNT', '아이디는 한글·영문·숫자·밑줄 2~16자, 비밀번호는 8~72자로 입력하고 성별과 직업을 선택하세요.');
+      const save = initialSave(id, gender, action === 'guest' ? '모험가' : id, body.job);
       const sid = randomUUID();
       try { await db.batch([
         { sql: 'INSERT INTO djrpg_accounts (id,password_hash,save_json,updated_at,session_id) VALUES (?,?,?,?,?)', args: [id, action === 'guest' ? 'guest' : await hashPassword(password), JSON.stringify(save), new Date().toISOString(), sid] },
@@ -37,7 +38,7 @@ export async function accountEndpoint(request, { env = runtimeEnv(), createDbCli
         { sql: 'INSERT INTO djrpg_characters(account_id,slot,save_json,updated_at) VALUES (?,1,?,?)', args: [id, JSON.stringify({ ...save, gold: undefined }), new Date().toISOString()] }
       ], 'write'); }
       catch (error) { if (/UNIQUE|constraint/i.test(String(error))) return bad(res, 409, 'ACCOUNT_EXISTS', '이미 사용 중인 아이디입니다.'); throw error; }
-      return res.status(200).json({ accountId: id, loginId: action === 'guest' ? '게스트' : id, gender, guest: action === 'guest', token: tokenFor(id, env, sid), save, revision: 0, characterSlot: 1 });
+      return res.status(200).json({ accountId: id, loginId: action === 'guest' ? '게스트' : id, gender, job: save.job, guest: action === 'guest', token: tokenFor(id, env, sid), save, revision: 0, characterSlot: 1 });
     }
     if (action === 'login') {
       const id = String(body.loginId ?? '').trim();
@@ -55,7 +56,7 @@ export async function accountEndpoint(request, { env = runtimeEnv(), createDbCli
       const latest = await account(db, row.id);
       const save = latest.save;
       const sid = await assignSession(db, row.id);
-      return res.status(200).json({ revision: latest.revision, accountId: row.id, loginId: row.id, gender: save.gender, guest: false, token: tokenFor(row.id, env, sid), save, characterSlot: latest.slot, offlineSeconds: offlineSeconds(latest.character_updated_at) });
+      return res.status(200).json({ revision: latest.revision, accountId: row.id, loginId: row.id, gender: save.gender, job: save.job ?? 'warrior', guest: false, token: tokenFor(row.id, env, sid), save, characterSlot: latest.slot, offlineSeconds: offlineSeconds(latest.character_updated_at) });
     }
     const signed = tokenPayload(request, env);
     if (!signed) return bad(res, 401, 'INVALID_TOKEN', '인증이 만료되었습니다. 다시 로그인하세요.');
@@ -65,12 +66,12 @@ export async function accountEndpoint(request, { env = runtimeEnv(), createDbCli
     if (action === 'load') {
       // 소유권 테이블과 어긋난 유령 아이템을 내려보내지 않는다. 그대로 내려보내면 클라이언트의 다음 save가 영구 409가 된다.
       const save = await healStaleLoadItems(db, row);
-      return res.status(200).json({ revision: row.revision, accountId: row.id, loginId: row.password_hash === 'guest' ? '게스트' : row.id, gender: save.gender, guest: row.password_hash === 'guest', token: req.headers.authorization.slice(7), save, characterSlot: row.slot, offlineSeconds: offlineSeconds(row.character_updated_at) });
+      return res.status(200).json({ revision: row.revision, accountId: row.id, loginId: row.password_hash === 'guest' ? '게스트' : row.id, gender: save.gender, job: save.job ?? 'warrior', guest: row.password_hash === 'guest', token: req.headers.authorization.slice(7), save, characterSlot: row.slot, offlineSeconds: offlineSeconds(row.character_updated_at) });
     }
     if (action === 'characters') {
-      const characters = (await db.execute({ sql: `SELECT slot, json_extract(save_json,'$.name') AS name, json_extract(save_json,'$.gender') AS gender,
+      const characters = (await db.execute({ sql: `SELECT slot, json_extract(save_json,'$.name') AS name, json_extract(save_json,'$.gender') AS gender, json_extract(save_json,'$.job') AS job,
         json_extract(save_json,'$.level') AS level, json_extract(save_json,'$.floor') AS floor FROM djrpg_characters WHERE account_id=? ORDER BY slot`, args: [id] })).rows;
-      return res.status(200).json({ characters, activeSlot: row.slot, maxSlots: 3, revision: row.revision });
+      return res.status(200).json({ characters: characters.map(character => ({ ...character, job: character.job === 'archer' ? 'archer' : 'warrior' })), activeSlot: row.slot, maxSlots: 3, revision: row.revision });
     }
     if (action === 'selectCharacter' || action === 'createCharacter') {
       const slot = Number(body.slot);
@@ -81,10 +82,10 @@ export async function accountEndpoint(request, { env = runtimeEnv(), createDbCli
         assertRevision(latest, body.revision);
         if (action === 'createCharacter') {
           const name = String(body.name ?? '').trim();
-          if (!namePattern.test(name) || !['male', 'female'].includes(body.gender)) fail(400, 'INVALID_CHARACTER', '이름은 한글·영문·숫자·밑줄 2~16자로 입력하고 성별을 선택하세요.');
+          if (!namePattern.test(name) || !['male', 'female'].includes(body.gender) || (body.job !== undefined && !jobs.includes(body.job))) fail(400, 'INVALID_CHARACTER', '이름은 한글·영문·숫자·밑줄 2~16자로 입력하고 성별과 직업을 선택하세요.');
           const exists = (await tx.execute({ sql: 'SELECT slot FROM djrpg_characters WHERE account_id=? AND slot=?', args: [id, slot] })).rows[0];
           if (exists) fail(409, 'SLOT_OCCUPIED', '이미 사용 중인 슬롯입니다. 목록을 새로 확인하세요.');
-          const save = initialSave(id, body.gender, name);
+          const save = initialSave(id, body.gender, name, body.job);
           await tx.execute({ sql: 'INSERT INTO djrpg_characters(account_id,slot,save_json,updated_at) VALUES (?,?,?,?)', args: [id, slot, JSON.stringify({ ...save, gold: undefined }), new Date().toISOString()] });
         } else {
           const exists = (await tx.execute({ sql: 'SELECT slot FROM djrpg_characters WHERE account_id=? AND slot=?', args: [id, slot] })).rows[0];
@@ -112,7 +113,7 @@ export async function accountEndpoint(request, { env = runtimeEnv(), createDbCli
           }
         }
         assertRevision(latest, body.revision);
-        const save = action === 'reset' ? { ...initialSave(id, latest.save.gender === 'female' ? 'female' : 'male', latest.save.name), gold: latest.save.gold } : body.save;
+        const save = action === 'reset' ? { ...initialSave(id, latest.save.gender === 'female' ? 'female' : 'male', latest.save.name, latest.save.job), gold: latest.save.gold } : body.save;
         if (!save || typeof save !== 'object' || Array.isArray(save) || save.version !== 1 || JSON.stringify(save).length > 1_000_000) fail(400, 'INVALID_SAVE', '저장 데이터 형식이 올바르지 않습니다.');
         if (action === 'reset') {
           const open = (await tx.execute({ sql: "SELECT COUNT(*) AS n FROM djrpg_market WHERE seller=? AND state='active'", args: [id] })).rows[0];
