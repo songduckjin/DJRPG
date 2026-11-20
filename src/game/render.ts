@@ -258,6 +258,10 @@ export class GameView {
   /** 지금 그려진 마법사 투구 파츠 스프라이트(로딩 전이면 숨김). */
   heroMageHelm?: Sprite;
   heroGear = new Map<Slot, { path: string; sprite: Sprite }>();
+  /** 등급색 발광 복제본(작업 218) — 부위 키(armor·helmet·weapon)별 가산 블렌드 스프라이트. */
+  heroGlow = new Map<string, Sprite>();
+  /** 갑옷 발광을 목 아래로 자르는 마스크(작업 218) — 얼굴은 원래 색으로 남긴다. */
+  heroGlowMask?: Sprite;
   /** 독립형 코스튬 렌더러 상태(작업 140). 매니페스트·아틀라스가 없으면 폴백으로 굳는다. */
   costume: CostumeHeroState = createCostumeHeroState();
   enemies = new Map<Enemy, Sprite>();

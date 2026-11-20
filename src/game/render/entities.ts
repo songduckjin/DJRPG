@@ -8,9 +8,10 @@ import { heroScale, heroBodyHeight, heroBodyFraction } from './heroScale';
 import { drawBloodRageAura } from './bloodRage';
 import { heroClass, socketMotion, weaponSocket } from './heroSockets';
 import { tintedGearTexture } from './gearTint';
+import { gearGlowAmount, gearGlowTone } from './gearGlow';
 import { costumeGhostSources, hideCostumeHero } from './costumeHero';
 import { resolveSkillMotion, type CostumeMotionTemplate } from '../costume/skillMotion';
-import { wearableEquipmentImage, baseItemIndex, usesBaseSheetOnly } from '../items';
+import { wearableEquipmentImage, baseItemIndex, usesBaseSheetOnly, type Rarity } from '../items';
 import { jobOrDefault } from '../skills';
 import { helmetArtFor, helmetArtPath, helmetPlacement } from './helmets';
 import { archerHelmIndexFor, archerHelmPartPath, archerHelmPlacement } from './archerHelmets';
@@ -362,6 +363,69 @@ function syncStaffPart(view: GameView, save: Save, motion: 'idle' | 'walk' | 'at
  * 기본 공격(`slash`)은 스킬이 아니므로 `template: null`이고, 호출부가 기본 공격 모션을 쓴다.
  * 전투 판정·월드 위치는 읽기만 한다.
  */
+/**
+ * 착용 파츠 위에 등급색 발광 복제본을 얹는다(작업 218).
+ *
+ * 유니크·전설만 빛난다. 원본 스프라이트는 그대로 두고 같은 텍스처·같은 변형의 복제본을
+ * `add`(가산) 블렌드로 읽어 alpha 만 `0 → 최대 → 0` 으로 흔든다 — 그래서 파동의 끝에서는
+ * 원래 장비 색으로 완전히 돌아오고, 가운데에서만 등급색 빛이 스며든다.
+ * 빛이 없는 등급이거나 그 부위가 보이지 않으면 복제본을 숨긴다.
+ */
+/** 직업별로 실제 착용 무기 파츠 스프라이트 — 전사 대검 · 궁수 활 · 마법사 지팡이. */
+function weaponGlowSource(view: GameView, job: string): Sprite | undefined {
+  if (job === 'archer') return view.heroBow;
+  if (job === 'mage') return view.heroStaff;
+  return view.heroWeapon;
+}
+
+function syncGearGlow(
+  view: GameView, key: 'armor' | 'helmet' | 'weapon', source: Sprite | undefined, rarity: Rarity | undefined,
+  time: number, neckY?: number
+): void {
+  const tone = gearGlowTone(rarity);
+  // 테스트용 스텁 뷰는 이 지도를 만들지 않는다 — 없으면 그 자리에서 만든다.
+  const registry = view.heroGlow instanceof Map ? view.heroGlow : (view.heroGlow = new Map<string, Sprite>());
+  const shown = registry.get(key);
+  const amount = tone && source && source.visible ? gearGlowAmount(time, tone) : 0;
+  if (!tone || !source || amount <= .004) {
+    if (shown) shown.visible = false;
+    return;
+  }
+  let glow = shown;
+  if (!glow) {
+    glow = new Sprite(source.texture);
+    glow.blendMode = 'add';
+    view.heroLayer.addChild(glow);
+    registry.set(key, glow);
+  }
+  glow.texture = source.texture;
+  glow.anchor.set(source.anchor.x, source.anchor.y);
+  glow.position.set(source.position.x, source.position.y);
+  glow.scale.set(source.scale.x, source.scale.y);
+  glow.rotation = source.rotation;
+  glow.zIndex = source.zIndex + .005;
+  glow.tint = tone.color;
+  glow.alpha = amount;
+  glow.visible = true;
+  // 갑옷은 몸체 시트라 얼굴까지 함께 그려진다 — 목 아래로만 빛나게 잘라 맨 얼굴은 원래 색으로 둔다.
+  if (key === 'armor' && neckY !== undefined) {
+    const mask = view.heroGlowMask ?? (() => {
+      const span = new Sprite(Texture.WHITE);
+      span.anchor.set(0, 0);
+      view.heroLayer.addChild(span);
+      view.heroGlowMask = span;
+      return span;
+    })();
+    const width = source.texture.width, height = source.texture.height;
+    const top = neckY - height * source.anchor.y;
+    const bottom = height * (1 - source.anchor.y);
+    mask.position.set(-width * source.anchor.x, top);
+    mask.width = width;
+    mask.height = Math.max(1, bottom - top);
+    glow.mask = mask;
+  }
+}
+
 export function activeSkillMotion(world: World): HeroSkillMotion {
   const player = world.player;
   for (const effect of world.effects) {
@@ -592,6 +656,18 @@ export function drawHero(this: GameView, world: World, x: number, y: number, tim
       const withoutEquippedWeapon = { ...save, equipment: { ...save.equipment, weapon: undefined } };
       syncWeapon(this, withoutEquippedWeapon, texture, art, true, socketMotion(animation), walkingFrame);
     }
+    // 등급색 발광(작업 218) — 착용 투구·갑옷·무기 파츠를 같은 변형의 복제본으로 덧칠한다.
+    // 갑옷은 몸체 시트에 함께 그려지므로 몸통 스프라이트가 곧 갑옷이다(투구를 쓰면 머리는 시트에 없다).
+    const wornHelmet = mage ? this.heroMageHelm : this.heroHelmet;
+    const wornWeapon = weaponGlowSource(this, job);
+    // 갑옷 발광은 목 밑동 아래로만 — 자세 표(투구 앵커)가 그 자리를 알려 준다.
+    // 궁수·마법사 파츠는 셀 전체 PNG라 앵커가 좌상단이므로, 목 밑동은 셀 좌표 상수로 잡는다.
+    const neckY = archer || mage
+      ? 104
+      : helmetPlacement(save.gender, animation, animation === 'walk' ? walkingFrame : animatedAttack ? Math.max(0, attackFrame) : 0, Math.max(0, helmetIndex(save))).y;
+    syncGearGlow(this, 'armor', this.hero, save.equipment.armor?.rarity, time, neckY);
+    syncGearGlow(this, 'helmet', wornHelmet, save.equipment.helmet?.rarity, time);
+    syncGearGlow(this, 'weapon', wornWeapon, save.equipment.weapon?.rarity, time);
     let bob = 0;
     const local = world.effects.filter(effect => effect.kind !== 'hit' && effect.kind !== 'death' && Math.hypot(effect.x - player.x, effect.y - player.y) < 2);
     const slam = local.find(effect => effect.kind === 'slam' || effect.kind === 'hell');
@@ -633,8 +709,9 @@ export function drawHero(this: GameView, world: World, x: number, y: number, tim
 const ghostTint = 0xbfd4ff;
 function cloneHeroLayers(view: GameView): Container {
   const container = new Container();
+  // 등급색 발광 복제본(작업 218)은 잔상에 넣지 않는다 — 넣으면 같은 파츠가 두 번 그려진다.
   const layers = view.heroLayer.children
-    .filter((child): child is Sprite => child instanceof Sprite && child.visible)
+    .filter((child): child is Sprite => child instanceof Sprite && child.visible && child.blendMode !== 'add')
     .sort((a, b) => a.zIndex - b.zIndex);
   for (const layer of layers) {
     const ghost = new Sprite(layer.texture);
