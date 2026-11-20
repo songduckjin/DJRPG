@@ -17,9 +17,11 @@ async function requestAdmin(view, params = {}) {
     headers: { Authorization: `Basic ${btoa(`${username}:${password}`)}` },
     cache: 'no-store'
   });
-  const body = await response.json();
+  const body = await response.json().catch(() => null);
   if (!response.ok) {
     if (response.status === 401) logout();
+    if (response.status === 404 || !body) throw new Error('관리자 API가 아직 운영 사이트에 배포되지 않았습니다.');
+    if (body.code === 'ADMIN_NOT_CONFIGURED') throw new Error('운영 서버에 관리자 비밀번호가 아직 설정되지 않았습니다.');
     throw new Error(body.error || `요청 실패 (${response.status})`);
   }
   return body;
@@ -29,8 +31,8 @@ function logout() {
   username = '';
   password = '';
   byId('password').value = '';
+  byId('top-search').value = '';
   byId('dashboard').hidden = true;
-  byId('logout').hidden = true;
   byId('login-panel').hidden = false;
 }
 
@@ -48,19 +50,23 @@ function stat(label, value, positive = false) {
 }
 const count = value => value == null ? '—' : Number(value).toLocaleString('ko-KR');
 
+function renderStatus(data) {
+  byId('status-grid').replaceChildren(
+    stat('데이터베이스', data.database === 'ok' ? '정상' : data.database === 'unconfigured' ? '설정 필요' : '연결 오류', data.database === 'ok'),
+    stat('등록 계정', count(data.accounts)),
+    stat('캐릭터', count(data.characters)),
+    stat('최근 24시간 활동 계정', count(data.active24h)),
+    stat('DB 응답', data.databaseMs == null ? '—' : `${data.databaseMs} ms`),
+    stat('배포 버전', data.version),
+    stat('확인 시각', localTime(data.checkedAt))
+  );
+}
+
 async function loadStatus() {
   byId('status-error').textContent = '';
   try {
     const data = await requestAdmin('status');
-    byId('status-grid').replaceChildren(
-      stat('데이터베이스', data.database === 'ok' ? '정상' : data.database === 'unconfigured' ? '설정 필요' : '연결 오류', data.database === 'ok'),
-      stat('등록 계정', count(data.accounts)),
-      stat('캐릭터', count(data.characters)),
-      stat('최근 24시간 활동 계정', count(data.active24h)),
-      stat('DB 응답', data.databaseMs == null ? '—' : `${data.databaseMs} ms`),
-      stat('배포 버전', data.version),
-      stat('확인 시각', localTime(data.checkedAt))
-    );
+    renderStatus(data);
   } catch (error) { byId('status-error').textContent = error.message; }
 }
 
@@ -79,6 +85,15 @@ async function loadAccounts() {
         cell.textContent = value;
         row.append(cell);
       }
+      body.append(row);
+    }
+    if (!data.accounts.length) {
+      const row = document.createElement('tr');
+      const cell = document.createElement('td');
+      cell.colSpan = 5;
+      cell.className = 'empty-row';
+      cell.textContent = '검색 결과가 없습니다.';
+      row.append(cell);
       body.append(row);
     }
     byId('accounts-summary').textContent = `${totalAccounts.toLocaleString('ko-KR')}개 계정${totalAccounts ? '' : ' · 결과 없음'}`;
@@ -119,10 +134,17 @@ async function loadUpdates() {
   } catch (error) { byId('updates-error').textContent = `${error.message}. 전체 작업 기록 링크를 이용하세요.`; }
 }
 
-function showView(view) {
-  for (const button of document.querySelectorAll('.tab')) button.classList.toggle('active', button.dataset.view === view);
+function showView(view, skipLoad = false) {
+  const labels = { status: '서버 상태', accounts: '계정 관리', logs: '운영 로그', updates: '업데이트 기록' };
+  byId('current-view-label').textContent = labels[view];
+  for (const button of document.querySelectorAll('.tab')) {
+    const active = button.dataset.view === view;
+    button.classList.toggle('active', active);
+    if (active) button.setAttribute('aria-current', 'page');
+    else button.removeAttribute('aria-current');
+  }
   for (const section of document.querySelectorAll('.view')) section.hidden = section.id !== `${view}-view`;
-  if (view === 'status') loadStatus();
+  if (view === 'status' && !skipLoad) loadStatus();
   if (view === 'accounts') loadAccounts();
   if (view === 'updates') loadUpdates();
 }
@@ -133,17 +155,19 @@ byId('login-form').addEventListener('submit', async event => {
   password = byId('password').value;
   byId('login-error').textContent = '';
   try {
-    await requestAdmin('status');
+    const data = await requestAdmin('status');
     byId('password').value = '';
     byId('login-panel').hidden = true;
     byId('dashboard').hidden = false;
-    byId('logout').hidden = false;
-    showView('status');
+    renderStatus(data);
+    showView('status', true);
   } catch (error) { byId('login-error').textContent = error.message; }
 });
 byId('logout').addEventListener('click', logout);
 byId('refresh-status').addEventListener('click', loadStatus);
+byId('top-search-form').addEventListener('submit', event => { event.preventDefault(); accountQuery = byId('top-search').value.trim(); byId('search').value = accountQuery; currentPage = 1; showView('accounts'); });
 byId('search-form').addEventListener('submit', event => { event.preventDefault(); accountQuery = byId('search').value.trim(); currentPage = 1; loadAccounts(); });
 byId('prev-page').addEventListener('click', () => { if (currentPage > 1) { currentPage--; loadAccounts(); } });
 byId('next-page').addEventListener('click', () => { if (currentPage * 25 < totalAccounts) { currentPage++; loadAccounts(); } });
 for (const button of document.querySelectorAll('.tab')) button.addEventListener('click', () => showView(button.dataset.view));
+for (const button of document.querySelectorAll('[data-go]')) button.addEventListener('click', () => showView(button.dataset.go));
