@@ -163,13 +163,12 @@ test('ordinary snapshot is a single read batch without acquiring a write transac
   const result=await snapshot(readOnly,'buyer',{view:'sold'});assert(result.listings.length);assert.equal(batches,1);
 });
 test('schema initialization is reused, not rewritten for every request',async()=>{
-  let batches=0;const wrapped={batch(...args){batches++;return db.batch(...args);}};
+  let batches=0;const wrapped={execute(...args){return db.execute(...args);},batch(...args){batches++;return db.batch(...args);}};
   await schema(wrapped);const settled=batches;
-  // session_id 열이 이미 있는 DB는 ALTER만 건너뛰고 한 번 더 적용한다(새 DB는 1회).
-  assert(settled<=2);
+  assert.equal(settled,1);
   await schema(wrapped);assert.equal(batches,settled);
-  let fresh=0;const freshDb=createClient({url:`file:${join(directory,'fresh-schema.db')}`});
-  const created={url:'fresh-schema-check',batch(...args){fresh++;return freshDb.batch(...args);}};
+  let fresh=0;const freshDb=createClient({url:'file::memory:'});
+  const created={url:'fresh-schema-check',execute(...args){return freshDb.execute(...args);},batch(...args){fresh++;return freshDb.batch(...args);}};
   try { await schema(created);assert.equal(fresh,1); } finally { await freshDb.close(); }
 });
 test('unsaved progression and a purchase commit atomically, including response effects',async()=>{
