@@ -65,9 +65,9 @@
    다른 장비·주머니 칸과 줄이 어긋나 보이던 것을 없앴다). 이름은 다른 칸처럼 한 줄 말줄임이다. */
 .bag-item.skillbook-item { aspect-ratio: 1; min-height: 0; padding: 2px; gap: 1px; }
 .skillbook-count { position: absolute; top: 2px; right: 2px; padding: 0 2px; background: #171216e6; color: #f2deb9; font-size: 10px; line-height: 1.35; border-radius: 3px; pointer-events: none; white-space: nowrap; }
-/* 스킬북 칸은 왼쪽 위 `[전사]` 직업 배지와 `×1`이 겹쳐 글자가 깨지지 않도록 수량 배지를
-   **오른쪽 아래**로 내린다(작업 212 `#4960`). 보물 주머니 칸은 배지가 없어 오른쪽 위 그대로다. */
-.bag-item.skillbook-item .skillbook-count { top: auto; bottom: 1px; right: 2px; }
+/* 스킬북 칸의 `×N`은 **오른쪽 위**로 돌아왔다 — 직업 배지가 오른쪽 아래로 비켰으므로(등급 배지 `L`·`U`·`E` 작업)
+   예전에 겹치던 자리가 비었다. 보물 주머니 칸도 같은 자리(오른쪽 위)다. */
+.bag-item.skillbook-item .skillbook-count { top: 2px; bottom: auto; right: 2px; }
 .skill-icon { position: relative; }
 .skill-upgrade-dot { position: absolute; right: -3px; top: -3px; width: 10px; height: 10px; background: #de352e; border: 1px solid #f2b2a0; border-radius: 50%; }
 .skill-books { padding-bottom: 12px; border-bottom: 1px solid #73574b; }

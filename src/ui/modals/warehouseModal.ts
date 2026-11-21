@@ -28,12 +28,13 @@ import {
   rarityNames, rarityOrder, skillBookJob, slotNameFor, slots as equipmentSlots, statNames, type Item, type Stat
 } from '../../game/items';
 import { extraOptionLines } from '../../game/extraOptions';
-import { jobNames, jobOrDefault, type Job } from '../../game/skills';
+import { jobNames, jobShortNames, jobOrDefault, type Job } from '../../game/skills';
 import type { Save } from '../../game/store';
 import { pouchIconMarkup } from '../pouchArt';
 import { skillBookJobRank } from '../bagStacks';
 import { upgradeArrowMarkup } from '../upgradeBadge';
 import { appendPlusBadge } from '../plusBadge';
+import { appendRarityBadge } from '../rarityBadge';
 import type { Interface } from '../interface';
 
 export type WarehouseSide = 'storage' | 'bag';
@@ -353,6 +354,8 @@ function paintGrid(ui: Interface, grid: HTMLElement, side: WarehouseSide, stacks
     const upgrade = upgradeArrowMarkup(ui.world.save, item);
     if (upgrade) cell.classList.add('has-upgrade');
     cell.innerHTML = cellIcon(ui, item) + upgrade;
+    // 등급 배지(`L`·`U`·`E`)는 칸의 **왼쪽 위** — 가방(`equipModal`)과 같은 자리·같은 헬퍼다.
+    appendRarityBadge(cell, item);
     if (stack.items.length > 1) {
       const badge = document.createElement('span'); badge.className = 'skillbook-count';
       badge.textContent = `×${stack.items.length}`; cell.append(badge);
@@ -361,8 +364,10 @@ function paintGrid(ui: Interface, grid: HTMLElement, side: WarehouseSide, stacks
     appendPlusBadge(cell, item);
     const owner = itemJob(item);
     if (owner) {
+      // 30~40px 칸에서는 등급 배지가 왼쪽 위를 쓰므로 직업 배지는 한 글자(`전`·`궁`·`법`)로 오른쪽 아래.
       const badge = document.createElement('span'); badge.className = `job-badge job-${owner}`;
-      badge.textContent = jobNames[owner]; badge.setAttribute('aria-hidden', 'true'); cell.append(badge);
+      badge.textContent = jobShortNames[owner]; badge.title = `${jobNames[owner]} 전용`;
+      badge.setAttribute('aria-hidden', 'true'); cell.append(badge);
     }
     if (isEquipment(item) && item.locked) {
       const badge = document.createElement('span'); badge.className = 'lock-icon is-locked bag-lock-badge';

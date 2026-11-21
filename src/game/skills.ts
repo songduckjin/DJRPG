@@ -3,6 +3,12 @@ export const UNLOCK_ALL_SKILLS_FOR_TEST = false;
 export type Job = 'warrior' | 'archer' | 'mage';
 export const jobs: readonly Job[] = ['warrior', 'archer', 'mage'];
 export const jobNames: Record<Job, string> = { warrior: '전사', archer: '궁수', mage: '마법사' };
+/**
+ * 좁은 칸(가방·공용창고·거래소 판매 칸)용 한 글자 직업 표기 — 사용자가 부르던 `전·궁·법` 그대로.
+ * 30~40px 칸에서는 두 글자 `전사`가 칸을 다 덮어 `+N`·등급 배지와 겹치므로, 칸 안 배지만 한 글자를 쓴다.
+ * 전체 이름은 `jobNames`(상세·툴팁·`aria-label`)가 계속 맡는다.
+ */
+export const jobShortNames: Record<Job, string> = { warrior: '전', archer: '궁', mage: '법' };
 /** 저장·서버 응답의 직업 값 정규화 — 모르는 값과 없는 값은 전사다(기존 세이브 호환). */
 export function jobOrDefault(value: unknown): Job { return value === 'archer' || value === 'mage' ? value : 'warrior'; }
 

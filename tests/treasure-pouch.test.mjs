@@ -528,13 +528,15 @@ test('결과 토스트·레전드 전광판은 누른 즉시가 아니라 보상
   } finally { globalThis.document = previous; }
 });
 
-test('가방 칸 수량 배지는 스킬북은 오른쪽 아래·주머니는 오른쪽 위에 붙고 칸은 모두 1:1 정사각형이다(작업 212 `#4936`·`#4960`·`#5006`)', () => {
+test('가방 칸 수량 배지는 스킬북·주머니 모두 오른쪽 위에 붙고 칸은 모두 1:1 정사각형이다(작업 212 `#4936`·`#4960`·`#5006`)', () => {
   // 스킬북 칸에서 세로로 길쭉하게 만들던 규칙은 없어졌다(다른 칸과 같은 정사각형).
   assert(!/\.bag-item\.skillbook-item\s*\{[^}]*aspect-ratio: auto/.test(css), '스킬북 칸 aspect-ratio: auto 제거');
   assert(!/\.bag-item\.skillbook-item\s*\{[^}]*min-height: 84px/.test(css), '스킬북 칸 min-height: 84px 제거');
   assert(/\.bag-item\.skillbook-item\s*\{[^}]*aspect-ratio: 1/.test(css), '스킬북 칸도 1:1 정사각형');
-  // 직업 배지(왼쪽 위)와 `×1`이 겹치지 않게 스킬북 수량은 오른쪽 아래로.
-  assert(/\.bag-item\.skillbook-item \.skillbook-count\s*\{[^}]*bottom: 1px/.test(css), '스킬북 ×1은 오른쪽 아래');
+  // 등급 배지(`L`·`U`·`E`)가 왼쪽 위를 쓰고 직업 배지는 오른쪽 아래 한 글자로 비켰다 — 스킬북 수량은
+  // 예전 자리(오른쪽 위)로 돌아왔다. 주머니도 같은 자리다.
+  assert(/\.bag-item\.skillbook-item \.skillbook-count\s*\{[^}]*top: 2px/.test(css), '스킬북 ×1은 오른쪽 위');
+  assert(/\.bag-item\.skillbook-item \.skillbook-count\s*\{[^}]*bottom: auto/.test(css), '스킬북 ×1은 아래로 내려가지 않는다');
   assert(/\.bag-item\.skillbook-item \.skillbook-count\s*\{[^}]*right: 2px/.test(css), '스킬북 ×1은 오른쪽');
   // 주머니 칸은 `×100` 같은 세 자리도 들어가게 오른쪽 위 그대로.
   assert(/\.skillbook-count\s*\{[^}]*top: 2px[^}]*right: 2px/.test(css), '주머니 ×N은 오른쪽 위');

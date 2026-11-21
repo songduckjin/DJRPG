@@ -181,6 +181,17 @@
 /* `+N` 강화 배지는 **모든 아이템 칸의 왼쪽 아래** 한 곳에만 붙는다(작업 246) — 가방·장비창 장착 칸·
    공용창고가 같은 자리를 쓴다. 좌상단 직업 배지, 우상단 추천 화살표, 우하단 수량 `×N`·잠금과
    겹치지 않는 유일한 모서리다. 이름 옆 배지(`.item-plus`, 작업 201)와 같은 색을 쓴다. */
+/* ── 등급 배지 `L`·`U`·`E` (2026-11-21 사용자 확정 B안 '필 배지') ─────────────────────────────
+   전설(`legendary`)·유니크(`unique`)·에픽(`epic`) 장비만 아이템 칸의 **왼쪽 위**에 등급 첫 글자를 얹는다.
+   왼쪽 아래 `+N`(plusBadge.ts)과 같은 어두운 알약 바탕(`#120f14cc`)·같은 radius(3px)이고, 1px 테두리와
+   글자는 그 장비의 등급색(`currentColor` ← `.rarity-legendary`·`.rarity-unique`·`.rarity-epic`)이다.
+
+   **칸 안 네 모서리 규칙(하나도 겹치지 않는다)**
+     왼쪽 위 = 등급 `L`·`U`·`E` · 오른쪽 위 = 추천 화살표(없으면 잠금) · 왼쪽 아래 = `+N` ·
+     오른쪽 아래 = `×N`(스킬북·주머니)·잠금(추천 화살표가 위를 쓸 때).
+   예전에 왼쪽 위를 쓰던 타직업 배지(`.job-badge`)는 좁은 칸(가방·공용창고·거래소 판매 칸)에서
+   **한 글자(`전`·`궁`·`법`)** 로 오른쪽 아래로 비키고, 넓은 거래소 카드에서는 등급 배지 아래로 쌓인다. */
+.rarity-badge { position: absolute; left: 2px; top: 2px; z-index: 3; padding: 0 2px; border-radius: 3px; background: #120f14cc; border: 1px solid currentColor; font-size: 9px; line-height: 1; font-weight: 800; letter-spacing: .02em; text-shadow: 0 0 4px #000a; pointer-events: none; }
 .bag-item .item-plus-badge, .equipment-slot .item-plus-badge, .market-pick .item-plus-badge { position: absolute; left: 3px; bottom: 2px; z-index: 2; margin: 0; padding: 0 2px; border-radius: 3px; background: #120f14cc; color: #43f6c5; font-size: 9px; line-height: 1.25; font-weight: 800; letter-spacing: .01em; text-shadow: 0 0 5px #43f6c599; pointer-events: none; white-space: nowrap; }
 .bag-capacity { color: #aa9b8f; font-size: 9px; margin-left: 2px; }
 /* 가방이 40칸을 넘은 세이브(작업 248) — 정리가 필요하다는 것을 바로 보이게 한다. */
@@ -204,7 +215,13 @@
 .job-warrior { color: #f0b27a; }
 .job-archer { color: #7fd6a1; }
 .job-mage { color: #a7b4ff; }
-.bag-item .job-badge { position: absolute; left: 1px; top: 1px; padding: 0 2px; min-height: 11px; font-size: 8px; line-height: 9px; z-index: 1; pointer-events: none; }
+/* 좁은 칸(가방·공용창고)의 직업 배지 — 왼쪽 위는 등급 배지가 쓰므로 **오른쪽 아래**로 가고,
+   30~40px 칸에서 두 글자가 칸을 덮지 않도록 한 글자(`전`·`궁`·`법`, `jobShortNames`)로 줄인다.
+   전체 이름(`전사`·`마법사`)은 `title`·`aria-label`·상세 패널이 계속 밝힌다. */
+.bag-item .job-badge { position: absolute; right: 1px; bottom: 1px; left: auto; top: auto; padding: 0 1px; min-height: 0; font-size: 8px; line-height: 9px; z-index: 2; pointer-events: none; }
+/* 잠긴 장비가 추천 대상이면 잠금 배지가 오른쪽 아래로 내려온다(작업 241) — 그 칸에서만 직업 배지를 감춘다.
+   잠금(상태)이 직업(정보)보다 먼저이고, 직업 이름은 위 설명대로 `aria-label`·상세에 남는다. */
+.bag-item.has-upgrade:has(.bag-lock-badge) .job-badge { display: none; }
 .bag-job-only { border: 1px solid #6d5948; background: #292124; color: #bba998; padding: 4px 7px; font-size: 11px; }
 .bag-job-only.is-on { border-color: #c8a26a; background: #4a342a; color: #ffe1b5; }
 .bag-job-only-hint { color: #b9a486; }

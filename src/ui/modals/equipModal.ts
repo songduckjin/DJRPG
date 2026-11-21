@@ -3,7 +3,7 @@ import {EQUIPMENT_BAG_LIMIT,equipmentCount} from '../../game/bagCapacity';
 import { autoEquipBest, equipmentImage, expToNext, MAX_LEVEL, rarityNames, statNames, totalStats, useSkillBook, type Item, type Save, type Slot, type Stat } from '../../game/store';
 import { isEquipment, isPouch, rarityRanks, salvageGold, slotNameFor, canWield, weaponJob, itemJob, skillBookJob, type TreasurePouch } from '../../game/items';
 import { extraOptionLines, extraOptionSummary } from '../../game/extraOptions';
-import { jobNames, jobOrDefault } from '../../game/skills';
+import { jobNames, jobShortNames, jobOrDefault } from '../../game/skills';
 import { BAG_JOB_ONLY_KEY, jobOnlyLabel, jobOnlyVisible, saveJobOnly } from '../jobFilter';
 import { nextSalvageRarity, saveSalvageRarity, type SalvageRarity } from '../salvageRarity';
 import { AUTO_SALVAGE_HINT } from '../autoSalvage';
@@ -24,6 +24,7 @@ import { bagDetailPinned, createBagDetail, deferBagDismiss, dismissBagDetail, sh
 import { skillbookName } from '../skillbookBag';
 import { bagStacks, orderedBagItems } from '../bagStacks';
 import { plusBadgeMarkup } from '../plusBadge';
+import { rarityBadgeMarkup } from '../rarityBadge';
 import { itemNameText, renderItemName } from '../itemName';
 import { slotAtlasStyle } from '../slotArtStyle';
 import { upgradeArrowMarkup } from '../upgradeBadge';
@@ -106,15 +107,19 @@ export function renderInventory(this: Interface, dialog: HTMLElement): void {
       // `+N` 강화 배지(작업 246): 업그레이드 화살표가 우상단, 타직업 배지가 좌상단, 수량이 우하단이라
       // 비어 있는 **왼쪽 아래**에 붙인다 — 장비창 장착 칸·공용창고와 같은 자리(plusBadge.ts).
       const plus = plusBadgeMarkup(item);
+      // 등급 배지(`L`·`U`·`E`, 전설·유니크·에픽 장비만) — 칸의 **왼쪽 위**. 이 자리를 쓰던 타직업
+      // 배지는 좁은 칸에서 오른쪽 아래로 비킨다(`styles/modals/equip.css`).
+      const rarity = rarityBadgeMarkup(item);
       const cell = document.createElement('button'); cell.className = `bag-item ${book ? 'skillbook-item' : pouch ? 'pouch-item' : item.rarity} ${this.selected === item.id ? 'selected' : ''}`;
       if (upgrade) cell.classList.add('has-upgrade');
-      cell.innerHTML = itemIcon.call(this, item.slot, item, 'item-icon') + upgrade + plus;
+      cell.innerHTML = itemIcon.call(this, item.slot, item, 'item-icon') + upgrade + plus + rarity;
       cell.type = 'button'; cell.dataset.itemId = item.id;
       // 직업 전용 장비에는 `전사`/`궁수`/`마법사` 배지를 단다(작업 205) — 공용 방어구·장신구에는 붙지 않는다.
+      // 좁은 가방 칸(30~40px)에서는 등급 배지가 왼쪽 위를 쓰므로 **한 글자**(`전`·`궁`·`법`)로 오른쪽 아래에 붙는다.
       const owner = itemJob(item);
       if (owner) {
-        const jobBadge = document.createElement('span'); jobBadge.className = `job-badge job-${owner}`; jobBadge.textContent = jobNames[owner];
-        jobBadge.setAttribute('aria-hidden', 'true'); cell.append(jobBadge);
+        const jobBadge = document.createElement('span'); jobBadge.className = `job-badge job-${owner}`; jobBadge.textContent = jobShortNames[owner];
+        jobBadge.title = `${jobNames[owner]} 전용`; jobBadge.setAttribute('aria-hidden', 'true'); cell.append(jobBadge);
       }
       if (book || pouch) {
         const badge = document.createElement('span'); badge.className = 'skillbook-count'; badge.textContent = `×${quantity}`;
@@ -347,8 +352,8 @@ export function renderEquipment(this: Interface, dialog: HTMLElement): void {
       cell.type = 'button'; cell.dataset.equippedSlot = slot; cell.disabled = !item;
       const slotLabel = slotNameFor(slot, jobOrDefault(save.job));
       // 착용 중 장비에도 강화 단계를 **왼쪽 아래**에 붙인다(작업 246) — 예전에는 장착 칸에만 `+N`이 빠져
-      // 가방·공용창고와 보이는 자리가 달랐다.
-      cell.innerHTML = `${itemIcon.call(this, slot, item, 'slot-icon')}<small class="slot-part">${slotLabel}</small>${item ? plusBadgeMarkup(item) : ''}`;
+      // 가방·공용창고와 보이는 자리가 달랐다. 등급 배지(`L`·`U`·`E`)는 칸의 **왼쪽 위**에 얹는다.
+      cell.innerHTML = `${itemIcon.call(this, slot, item, 'slot-icon')}<small class="slot-part">${slotLabel}</small>${item ? plusBadgeMarkup(item) : ''}${rarityBadgeMarkup(item)}`;
       cell.setAttribute('aria-label', `${slotLabel} · ${item ? itemNameText(item) : '빈 슬롯'}`);
       cell.title = item ? itemNameText(item) : '빈 슬롯';
       cell.setAttribute('aria-expanded', String(this.equippedSlot === slot));

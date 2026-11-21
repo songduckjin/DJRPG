@@ -87,8 +87,8 @@ test('장착 칸·공용창고도 같은 `plusBadge` 헬퍼를 쓰고 CSS 자리
   const css = modalStyles();
   // 장착 10칸 — 아이콘·부위 이름 뒤에 `+N`을 붙인다.
   assert.match(equipSource, /<small class="slot-part">\$\{slotLabel\}<\/small>\$\{item \? plusBadgeMarkup\(item\) : ''\}/);
-  // 가방 칸 — 아이콘 + 추천 화살표 + `+N`.
-  assert.match(equipSource, /cell\.innerHTML = itemIcon\.call\(this, item\.slot, item, 'item-icon'\) \+ upgrade \+ plus;/);
+  // 가방 칸 — 아이콘 + 추천 화살표 + `+N` + 등급 배지(`L`·`U`·`E`).
+  assert.match(equipSource, /cell\.innerHTML = itemIcon\.call\(this, item\.slot, item, 'item-icon'\) \+ upgrade \+ plus \+ rarity;/);
   // 공용창고 칸.
   assert.match(warehouseSource, /import \{ appendPlusBadge \} from '\.\.\/plusBadge'/);
   assert.match(warehouseSource, /appendPlusBadge\(cell, item\);/);
