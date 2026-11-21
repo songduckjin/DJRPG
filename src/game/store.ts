@@ -105,7 +105,9 @@ export function parseSave(data: unknown, accountId?: string): Save {
     const bag: Item[] = []; let bagEquipment = 0;
     if (Array.isArray(value.bag)) for (const raw of value.bag) {
       const item = migrateItem(raw);
-      // 40칸은 장비만 센다 — 스킬북과 보물 주머니(작업 207)는 칸을 쓰지 않는다.
+      // 읽을 때는 아이템을 지우지 않는다. 40칸은 **가방 안의 모든 아이템**(작업 248 — 스킬북·보물 주머니 포함)이고,
+      // 예전 규칙으로 40개를 넘긴 세이브도 있으므로 저장 쪽(`server/database.mjs` reconcileItems)이
+      // "지금 개수 이하 유지"만 허용한다. 여기서 잘라 버리면 플레이어의 책·주머니가 사라진다.
       const equipment = !!item && isEquipment(item);
       if (item && (!equipment || bagEquipment < 40)) { bag.push(item); if (equipment) bagEquipment++; }
     }
