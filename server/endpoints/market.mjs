@@ -42,6 +42,10 @@ async function handle(request, { env = runtimeEnv(), createDbClient } = {}, cont
       if (!item) fail(400, 'INVALID_ITEM', '알릴 아이템 이름을 확인하세요.');
       return res.status(200).json(await announcePouchLegend(db, { accountId: id, character: row.save?.name, item }, Date.now()));
     }
+    // ── 폐지 예정(작업 260 · 설계서 PR-5): 여정(우편함·일일/주간 보상·업적)은 `/api/journey`로 옴겼다.
+    //    이 배포 직전에 받아 둔 구번들은 아직 `/api/market`으로 `journey-list`·`journey-*`을 보내므로 한 릴리스
+    //    동안 같은 핵심으로 계속 처리한다(구번들 호환·진행 중 재확인). 새 코드는 이 두 줄을 쓰지 않는다.
+    //    다음 릴리스에서 이 라우팅·journey import를 지운다.
     if (body.action === 'journey-list') return res.status(200).json(await journeySnapshot(db, id));
     if (typeof body.action === 'string' && body.action.startsWith('journey-')) return res.status(200).json(await journeyMutate(db,id,body));
     if (body.action === 'list') return res.status(200).json(await context.trace.step('db', () => snapshot(db, id, body)));

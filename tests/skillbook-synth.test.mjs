@@ -7,6 +7,7 @@ import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { createClient } from '@libsql/client';
 import './ts-loader.mjs';
+import { modalStyles } from './helpers/modal-styles.mjs';
 
 const { freshSave } = await import('../src/game/store.ts');
 const items = await import('../src/game/items.ts');
@@ -16,7 +17,7 @@ const skills = await import('../src/game/skills.ts');
 const { openSynthWindow } = await import('../src/ui/modals/synthModal.ts');
 const { schema, account, transaction, reconcileItems } = await import('../server/database.mjs');
 const { skillBookJobOf } = await import('../server/skill-ids.mjs');
-const css = readFileSync(new URL('../src/styles/modals.css', import.meta.url), 'utf8');
+const css = modalStyles();
 const rules = css.replace(/\/\*[\s\S]*?\*\//g, '');
 
 /** 작업 251 — 가방 `합성`(타직업 스킬북 5권 → 내 직업 1권)과 미리보기 전용 보물 주머니 정리. */
@@ -292,7 +293,7 @@ test('가방 `합성` 버튼은 머리줄에서 `내 직업만 보기` 바로 �
   const source = readFileSync(new URL('../src/ui/modals/equipModal.ts', import.meta.url), 'utf8');
   assert.match(source, /heading\.append\(title, synth, jobToggle, sort\);/, '머리줄 순서: 가방 → 합성 → 내 직업만 보기 → 등급순');
   assert.doesNotMatch(source, /controls\.append\([^)]*synth/, '바닥줄에서는 뺐다');
-  const css = readFileSync(new URL('../src/styles/modals.css', import.meta.url), 'utf8');
+  const css = modalStyles();
   assert.match(css, /\.bag-heading \.synth-open \{[^}]*padding:4px 7px/, '머리줄 버튼과 같은 납작한 크기');
 });
 
@@ -324,7 +325,7 @@ test('합성 팝업은 빈칸 아래 설명을 한 줄만 두고, 목록은 글�
 });
 
 test('합성 팝업 목록 스크롤바는 다크/골드 톤이다(작업 252 ④)', () => {
-  const css = readFileSync(new URL('../src/styles/modals.css', import.meta.url), 'utf8');
+  const css = modalStyles();
   assert.match(css, /\.synth-materials, \.synth-result-list \{ scrollbar-width: thin; scrollbar-color: #6b5239 #1c1518; \}/);
   assert.match(css, /\.synth-materials::-webkit-scrollbar-track[^{]*\{ background: #1c1518/);
   assert.match(css, /\.synth-materials::-webkit-scrollbar-thumb[^{]*\{ background: #6b5239/);

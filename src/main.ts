@@ -6,6 +6,7 @@ import { mountWasteland } from './game/wasteland';
 import { GameView } from './game/render';
 import { clearLegacySave, parseSave, readLegacySave } from './game/store';
 import { applyOfflineRewards } from './game/offline';
+import { wireDomainEvents } from './game/domainWiring';
 import { readAutoSalvage } from './ui/autoSalvage';
 import { readSalvagePlus } from './ui/salvagePlus';
 import { readSalvageRarity } from './ui/salvageRarity';
@@ -35,6 +36,8 @@ window.addEventListener('unhandledrejection', event => { if (booting) boot.fail(
 
 async function start(): Promise<void> {
   try {
+    // 도메인 신호(작업 256) — 화면·도감이 사건을 듣도록 앱 시작 때 한 번 등록한다.
+    wireDomainEvents();
     const session = await openLogin(appRoot);
     boot.show();
     const save = parseSave(session.save, session.accountId);

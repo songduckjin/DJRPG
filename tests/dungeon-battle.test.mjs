@@ -2,7 +2,7 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import './ts-loader.mjs';
-const {DungeonBattle,DUNGEON_STEP,dungeonDropChance,DUNGEON_DROP_CHANCE_BASE,DUNGEON_DROP_CHANCE_MAX,DUNGEON_DROP_CHANCE_STEP,DUNGEON_MOB_HP,DUNGEON_BOSS_HP_SCALE,DUNGEON_ELITE_HP_SCALE,dungeonMobHp,DUNGEON_ENEMY_SPEED_SCALE,DUNGEON_SPAWN_STEPS,DUNGEON_LOOT_FAN,DUNGEON_ABSORB_DELAY,dungeonSpawnPull,dungeonLootSpots,dungeonLootTimeline,dungeonAbsorbProgress,dungeonAbsorbPoint}=await import('../src/ui/dungeonBattle.ts');
+const {DungeonBattle,DUNGEON_STEP,dungeonDropChance,DUNGEON_DROP_CHANCE_BASE,DUNGEON_DROP_CHANCE_MAX,DUNGEON_DROP_CHANCE_STEP,DUNGEON_MOB_HP,DUNGEON_BOSS_HP_SCALE,DUNGEON_ELITE_HP_SCALE,dungeonMobHp,DUNGEON_ENEMY_SPEED_SCALE,DUNGEON_SPAWN_STEPS,DUNGEON_LOOT_FAN,DUNGEON_ABSORB_DELAY,dungeonSpawnPull,dungeonLootSpots,dungeonLootTimeline,dungeonAbsorbProgress,dungeonAbsorbPoint}=await import('../src/game/dungeon/battle.ts');
 const {clampArenaPoint,projectArenaPoint}=await import('../src/game/arena.ts');
 const {World,enemyMoveSpeed,ENEMY_STOP_RANGE,ENEMY_ATTACK_RANGE}=await import('../src/game/world.ts');
 const bossLoot=await import('../src/game/bossLoot.ts');

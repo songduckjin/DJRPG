@@ -1,3 +1,4 @@
+import { emitDomainEvent } from '../../core/domainEvents';
 import {EQUIPMENT_BAG_LIMIT,equipmentCount} from '../../game/bagCapacity';
 import { autoEquipBest, equipmentImage, expToNext, MAX_LEVEL, rarityNames, statNames, totalStats, useSkillBook, type Item, type Save, type Slot, type Stat } from '../../game/store';
 import { isEquipment, isPouch, rarityRanks, salvageGold, slotNameFor, canWield, weaponJob, itemJob, skillBookJob, type TreasurePouch } from '../../game/items';
@@ -307,6 +308,7 @@ export function itemDetail(this: Interface, save: Save, item: Item): HTMLElement
       if (!wieldable) { this.message(`${ownerName}만 쓸 수 있는 ${gearWord}입니다.`); return; }
       const index = save.bag.findIndex(i => i.id === item.id); if (index < 0) return;
       save.bag.splice(index, 1); if (equipped) save.bag.push(equipped); save.equipment[item.slot] = item;
+      emitDomainEvent('equipmentChanged', { save, slot: item.slot, item, previous: equipped, source: 'equip' });
       if (item.name === '낡은 두손검' && save.tutorial === 2) { save.tutorial = 3; this.message('튜토리얼 완료! 두손검을 장착했습니다.'); }
       this.selected = undefined; this.world.onChange();
     };
