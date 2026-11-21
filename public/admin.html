@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'">
+  <title>DJRPG 운영 포털</title>
+  <link rel="stylesheet" href="/admin.css">
+  <script src="/admin.js" defer></script>
+</head>
+<body>
+  <main id="login-panel" class="login-page" aria-labelledby="login-title">
+    <div class="login-brand" aria-hidden="true">
+      <div class="brand-mark">D</div>
+      <div class="brand-copy"><span>DJRPG</span><strong>운영 포털</strong><p>게임 운영 현황을 한곳에서 확인하세요.</p></div>
+      <div class="brand-lines"></div>
+    </div>
+    <div class="login-main">
+      <div class="login-card">
+        <span class="login-kicker">DJRPG ADMIN</span>
+        <h1 id="login-title">관리자 로그인</h1>
+        <p class="login-description">계정과 서버 운영 정보를 확인하려면 로그인하세요.</p>
+        <form id="login-form" autocomplete="on">
+          <label for="username">아이디</label>
+          <input id="username" name="username" autocomplete="username" value="djsong" required>
+          <label for="password">비밀번호</label>
+          <input id="password" name="password" type="password" autocomplete="current-password" required>
+          <button class="primary login-submit" type="submit">로그인 <span aria-hidden="true">→</span></button>
+        </form>
+        <p id="login-error" class="error" role="alert"></p>
+        <p class="login-footnote">접속 정보는 브라우저에 저장하지 않습니다.</p>
+      </div>
+    </div>
+  </main>
+
+  <div id="dashboard" class="dashboard" hidden>
+    <nav class="rail" aria-label="관리자 메뉴">
+      <div class="rail-brand" aria-label="DJRPG">D</div>
+      <div class="rail-links">
+        <button class="tab active" type="button" data-view="status" aria-label="서버 상태" title="서버 상태">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5M5.5 9.5V20h13V9.5M9 20v-6h6v6"/></svg><span>홈</span>
+        </button>
+        <button class="tab" type="button" data-view="accounts" aria-label="계정" title="계정">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c.5-4 3-6 7-6s6.5 2 7 6"/></svg><span>계정</span>
+        </button>
+        <button class="tab" type="button" data-view="logs" aria-label="로그" title="로그">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg><span>로그</span>
+        </button>
+        <button class="tab" type="button" data-view="updates" aria-label="업데이트 기록" title="업데이트 기록">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/><circle cx="7" cy="6" r="1"/><circle cx="7" cy="12" r="1"/><circle cx="7" cy="18" r="1"/></svg><span>기록</span>
+        </button>
+      </div>
+    </nav>
+
+    <div class="workspace">
+      <header class="topbar">
+        <div class="topbar-title"><strong>DJRPG Portal</strong><span id="current-view-label">서버 상태</span></div>
+        <div class="topbar-actions">
+          <form id="top-search-form" class="top-search" role="search"><input id="top-search" type="search" placeholder="계정 검색" aria-label="계정 검색" maxlength="50"><button type="submit" aria-label="검색"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></svg></button></form>
+          <span class="top-avatar" aria-hidden="true">D</span><span class="top-username">djsong</span>
+          <button id="logout" class="logout" type="button">로그아웃</button>
+        </div>
+      </header>
+
+      <div class="content">
+        <section id="status-view" class="view" aria-labelledby="status-title">
+          <div class="page-heading"><div><p class="eyebrow">OVERVIEW</p><h1 id="status-title">서버 상태</h1><p>지금 접속 현황과 서버 연결 상태를 확인하세요.</p></div><button id="refresh-status" class="outline" type="button">↻ 새로고침</button></div>
+          <div id="status-grid" class="stat-grid" aria-live="polite"></div>
+          <p id="status-error" class="error" role="alert"></p>
+          <div class="secondary-grid">
+            <article class="panel notice-panel"><div class="panel-header"><h2>운영 안내</h2><span class="panel-subtitle">DJRPG</span></div><div class="notice-content"><span class="notice-icon">i</span><div><strong>표시된 수치는 조회 시점 기준입니다.</strong><p>새로고침을 누르면 데이터베이스 상태와 계정 수를 다시 확인합니다.</p></div></div></article>
+            <article class="panel quick-panel"><div class="panel-header"><h2>빠른 이동</h2></div><button class="quick-link" type="button" data-go="accounts"><span>계정 목록 확인</span><span aria-hidden="true">→</span></button><button class="quick-link" type="button" data-go="updates"><span>업데이트 기록 보기</span><span aria-hidden="true">→</span></button></article>
+          </div>
+        </section>
+
+        <section id="accounts-view" class="view" aria-labelledby="accounts-title" hidden>
+          <div class="page-heading"><div><p class="eyebrow">ACCOUNTS</p><h1 id="accounts-title">계정 관리</h1><p>등록된 계정과 최근 활동을 조회합니다.</p></div></div>
+          <article class="panel account-panel"><div class="panel-header account-header"><div><h2>전체 계정</h2><p id="accounts-summary" class="muted"></p></div><form id="search-form" class="search"><input id="search" type="search" placeholder="아이디 검색" aria-label="계정 아이디 검색" maxlength="50"><button class="primary" type="submit">검색</button></form></div><div class="table-wrap"><table><thead><tr><th>아이디</th><th>구분</th><th>캐릭터</th><th>최고 층</th><th>최근 활동</th></tr></thead><tbody id="accounts-body"></tbody></table></div><div class="pager"><button id="prev-page" class="outline" type="button">‹ 이전</button><span id="page-label"></span><button id="next-page" class="outline" type="button">다음 ›</button></div></article><p id="accounts-error" class="error" role="alert"></p>
+        </section>
+
+        <section id="logs-view" class="view" aria-labelledby="logs-title" hidden>
+          <div class="page-heading"><div><p class="eyebrow">LOGS</p><h1 id="logs-title">운영 로그</h1><p>API 요청과 오류 기록을 확인하는 곳입니다.</p></div></div>
+          <article class="panel logs-panel"><div class="panel-header"><h2>Cloudflare 실시간 로그</h2><span class="panel-subtitle">외부 대시보드</span></div><div class="logs-content"><span class="logs-symbol" aria-hidden="true">≡</span><div><h3>로그는 Cloudflare에 저장됩니다</h3><p>Workers &amp; Pages → djrpg → Logs에서 <code>"event":"api"</code>를 검색하세요. 요청 경로, 응답 상태, 처리 시간과 DB 시간을 확인할 수 있습니다.</p><a class="primary link-button" href="https://dash.cloudflare.com/" target="_blank" rel="noopener noreferrer">Cloudflare 열기 <span aria-hidden="true">↗</span></a></div></div><div class="panel-footer">터미널: <code>pnpm exec wrangler pages deployment tail djrpg</code></div></article><p class="muted note">과거 로그를 이 페이지에서 직접 조회하려면 별도의 로그 저장소 연결이 필요합니다.</p>
+        </section>
+
+        <section id="updates-view" class="view" aria-labelledby="updates-title" hidden>
+          <div class="page-heading"><div><p class="eyebrow">CHANGE HISTORY</p><h1 id="updates-title">업데이트 기록</h1><p>운영 배포와 최근 작업 이력을 확인하세요.</p></div></div>
+          <div id="deployment" class="deployment-card panel"></div>
+          <article class="panel updates-panel"><div class="panel-header"><h2>최근 작업</h2><a class="text-link" href="https://github.com/songduckjin/DJRPG/blob/main/docs/WORKLOG.md" target="_blank" rel="noopener noreferrer">전체 기록 보기 ↗</a></div><div id="commits" class="commit-list"></div></article><p id="updates-error" class="error" role="alert"></p>
+        </section>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
