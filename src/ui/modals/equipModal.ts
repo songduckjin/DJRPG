@@ -18,6 +18,8 @@ import { pouchIconMarkup } from '../pouchArt';
 import { showEquippedDetail, dismissEquippedDetail, deferEquippedDismiss } from '../equippedDetail';
 import { bagDetailPinned, createBagDetail, deferBagDismiss, dismissBagDetail, showBagDetail } from '../bagDetail';
 import { skillbookName } from '../skillbookBag';
+import { bagStacks } from '../bagStacks';
+import { plusBadgeMarkup } from '../plusBadge';
 import { itemNameText, renderItemName } from '../itemName';
 import { slotAtlasStyle } from '../slotArtStyle';
 import { upgradeArrowMarkup } from '../upgradeBadge';
@@ -72,21 +74,22 @@ export function renderInventory(this: Interface, dialog: HTMLElement): void {
     const shown = jobOnlyVisible(candidates, item => item, save.job, this.bagJobOnly);
     const hiddenJob = candidates.length - shown.length;
     const ordered = shown.sort((a, b) => this.bagRaritySort ? rarityRanks[b.rarity] - rarityRanks[a.rarity] : 0);
-    // 같은 주머니는 한 칸에 `×N`으로 모아 보여 준다(개별 id는 그대로 남아 하나씩 열린다).
-    const pouchItems = ordered.filter(isPouch);
-    const stacks = [
-      ...(pouchItems.length ? [{ item: pouchItems[0] as Item, count: pouchItems.length }] : []),
-      ...ordered.filter(item => !isPouch(item)).map(item => ({ item, count: 1 }))
-    ];
+    // 같은 주머니는 한 칸에 `×N`, **같은 스킬북도 한 칸에 `×N`**으로 모아 보여 준다(작업 246 — 예전에는
+    // 스킬북을 `count: 1`로 하나씩 그려 세 권이 있어도 `×1` 세 칸이었다). 칸의 `data-item-id`는 그 묶음의
+    // 첫 아이템 id이고, 사용·판매·창고 이동은 지금처럼 개별 id로 처리된다.
+    const stacks = bagStacks(ordered);
     const visible = stacks.map(stack => stack.item);
     for (const { item, count: quantity } of stacks) {
       const book = isSkillBook(item), pouch = isPouch(item), name = book ? skillbookName(item) : itemNameText(item);
       // 업그레이드 화살표(작업 241): 내 직업이 낄 수 있는 장비 중 지금 낀 것보다 좋은 것만.
       // 스킬북·보물 주머니는 `upgradeArrowMarkup`이 판정에서 걸러 빈 문자열을 돌려준다.
       const upgrade = upgradeArrowMarkup(save, item);
+      // `+N` 강화 배지(작업 246): 업그레이드 화살표가 우상단, 타직업 배지가 좌상단, 수량이 우하단이라
+      // 비어 있는 **왼쪽 아래**에 붙인다 — 장비창 장착 칸·공용창고와 같은 자리(plusBadge.ts).
+      const plus = plusBadgeMarkup(item);
       const cell = document.createElement('button'); cell.className = `bag-item ${book ? 'skillbook-item' : pouch ? 'pouch-item' : item.rarity} ${this.selected === item.id ? 'selected' : ''}`;
       if (upgrade) cell.classList.add('has-upgrade');
-      cell.innerHTML = itemIcon.call(this, item.slot, item, 'item-icon') + upgrade;
+      cell.innerHTML = itemIcon.call(this, item.slot, item, 'item-icon') + upgrade + plus;
       cell.type = 'button'; cell.dataset.itemId = item.id;
       // 직업 전용 장비에는 `전사`/`궁수`/`마법사` 배지를 단다(작업 205) — 공용 방어구·장신구에는 붙지 않는다.
       const owner = itemJob(item);
@@ -310,7 +313,9 @@ export function renderEquipment(this: Interface, dialog: HTMLElement): void {
       const item = save.equipment[slot]; const cell = document.createElement('button'); cell.className = `equipment-slot ${item?.rarity ?? 'empty-slot'}`;
       cell.type = 'button'; cell.dataset.equippedSlot = slot; cell.disabled = !item;
       const slotLabel = slotNameFor(slot, jobOrDefault(save.job));
-      cell.innerHTML = `${itemIcon.call(this, slot, item, 'slot-icon')}<small class="slot-part">${slotLabel}</small>`;
+      // 착용 중 장비에도 강화 단계를 **왼쪽 아래**에 붙인다(작업 246) — 예전에는 장착 칸에만 `+N`이 빠져
+      // 가방·공용창고와 보이는 자리가 달랐다.
+      cell.innerHTML = `${itemIcon.call(this, slot, item, 'slot-icon')}<small class="slot-part">${slotLabel}</small>${item ? plusBadgeMarkup(item) : ''}`;
       cell.setAttribute('aria-label', `${slotLabel} · ${item ? itemNameText(item) : '빈 슬롯'}`);
       cell.title = item ? itemNameText(item) : '빈 슬롯';
       cell.setAttribute('aria-expanded', String(this.equippedSlot === slot));

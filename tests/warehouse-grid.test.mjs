@@ -171,7 +171,7 @@ function uiFixture(save, items) {
   return { ui, calls };
 }
 
-test('공용창고는 아이콘 슬롯 그리드로 그려지고, 빠른 이동·선택 일괄 이동이 한 요청으로 나간다(작업 225)', async () => {
+test('공용창고는 아이콘 슬롯 그리드로 그려지고, 모드 전환 없이 바로 다중 선택해 한 요청으로 옮긴다(작업 246)', async () => {
   const previous = globalThis.document;
   globalThis.document = { createElement: tag => element(tag) };
   try {
@@ -190,37 +190,58 @@ test('공용창고는 아이콘 슬롯 그리드로 그려지고, 빠른 이동�
     // 가방: 장비 2 + 스킬북 한 칸(×2) + 주머니 한 칸(×2) = 4칸
     assert.equal(cellsIn(bagGrid).length, 4);
     assert.equal(cellsIn(bagGrid).filter(cell => all(cell, node => node.className === 'skillbook-count').some(node => node.textContent === '×2')).length, 2, '같은 책·같은 주머니는 ×2로 모은다');
-    assert(all(dialog, node => node.className.includes('warehouse-plus')).length >= 1, '+N 배지');
+    assert(all(dialog, node => node.className.includes('item-plus-badge')).length >= 1, '+N 배지');
     assert(text(dialog).includes('계정 공용 금화 1,234'));
     assert(text(dialog).includes('공용창고 1/40'));
     assert(text(dialog).includes('가방 2/40'), '가방은 장비 2개만 센다');
     assert(!text(dialog).includes('불러오는 중'), '목록이 있으면 로딩 문구가 없다');
+    // `선택 끔/켬`·`빠른 이동` 모드 버튼은 없어졌다(작업 246).
+    assert.equal(all(dialog, node => node.classList.contains('warehouse-quick')).length, 0, '빠른 이동 없음');
+    assert.equal(all(dialog, node => node.classList.contains('warehouse-select')).length, 0, '선택 모드 버튼 없음');
+    assert.equal(all(dialog, node => node.classList.contains('warehouse-mode')).length, 0, '모드 버튼 없음');
 
-    // 빠른 이동: 탭 한 번에 보관 요청 — 상세 바는 뜨지 않는다.
-    const quick = all(dialog, node => node.classList.contains('warehouse-quick'))[0];
-    quick.onclick();
+    const batch = all(dialog, node => node.classList.contains('warehouse-deposit-picked'))[0];
+    const withdraw = all(dialog, node => node.classList.contains('warehouse-withdraw-picked'))[0];
+    const detail = all(dialog, node => node.classList.contains('warehouse-detail'))[0];
+    assert.equal(batch.hidden, true, '아무것도 안 고르면 숨김');
+    assert.equal(withdraw.hidden, true);
+
+    // 탭 = 바로 선택. 모드 버튼이 없고, 고른 칸에 맞는 액션 버튼만 보인다.
     const bagCells = cellsIn(bagGrid);
     bagCells[0].onclick();
-    await new Promise(resolve => setImmediate(resolve));
-    assert.deepEqual(calls[0], { action: 'deposit', ids: [bagCells[0].dataset.itemId] });
-    assert.equal(all(dialog, node => node.classList.contains('warehouse-detail'))[0].hidden, true, '빠른 이동은 상세를 열지 않는다');
-
-    // 선택 모드: 두 칸을 고르면 한 요청으로 묶인다.
-    const select = all(dialog, node => node.classList.contains('warehouse-select'))[0];
-    select.onclick();
-    const pickable = cellsIn(bagGrid);
-    pickable[0].onclick(); pickable[1].onclick();
-    const batch = all(dialog, node => node.classList.contains('warehouse-deposit-picked'))[0];
+    assert.equal(warehouseState(ui).picked.size, 1);
     assert.equal(batch.hidden, false);
+    assert.equal(batch.textContent, '선택 보관 (1)');
+    assert.equal(withdraw.hidden, true, '가방을 고르면 꺼내기는 숨김');
+    assert.equal(detail.hidden, false, '고른 칸은 상세 바에도 띄운다');
+    assert.equal(calls.length, 0, '탭만으로는 옮기지 않는다');
+
+    bagCells[1].onclick();
     assert.equal(batch.textContent, '선택 보관 (2)');
+    bagCells[0].onclick();
+    assert.equal(batch.textContent, '선택 보관 (1)', '다시 탭하면 선택이 풀린다');
+    bagCells[0].onclick();
     assert.equal(warehouseState(ui).picked.size, 2);
+
+    // 선택은 한 쪽만 — 창고 칸을 고르면 가방 선택은 지워지고 꺼내기 버튼으로 바뀐다.
+    cellsIn(storageGrid)[0].onclick();
+    assert.equal(batch.hidden, true);
+    assert.equal(withdraw.hidden, false);
+    assert.equal(withdraw.textContent, '선택 꺼내기 (1)');
+    assert.equal(warehouseState(ui).picked.size, 1);
+    withdraw.onclick();
+    await new Promise(resolve => setImmediate(resolve));
+    assert.deepEqual(calls.at(-1), { action: 'withdraw', ids: ['s1'] });
+    assert.equal(warehouseState(ui).picked.size, 0, '옮긴 뒤 선택은 비운다');
+
+    // 가방 쪽 두 칸을 다시 골라 한 요청으로 보관한다.
+    bagCells[0].onclick(); bagCells[1].onclick();
     const before = calls.length;
     batch.onclick();
     await new Promise(resolve => setImmediate(resolve));
     assert.equal(calls.length, before + 1);
     assert.deepEqual(calls.at(-1).action, 'deposit');
     assert.equal(calls.at(-1).ids.length, 2);
-    assert.equal(warehouseState(ui).picked.size, 0, '옮긴 뒤 선택은 비운다');
   } finally { globalThis.document = previous; }
 });
 
@@ -259,7 +280,7 @@ test('슬롯을 탭하면 상세 바가 뜨고 [보관하기]/[꺼내기]로 옮
   } finally { globalThis.document = previous; }
 });
 
-test('창고를 다시 열면 선택·상세는 비고, 이동 응답의 창고 목록으로 그리드가 갱신된다(작업 225)', async () => {
+test('창고를 다시 열면 선택·상세는 비고, 이동 응답의 창고 목록으로 그리드가 갱신된다(작업 225·246)', async () => {
   const previous = globalThis.document;
   globalThis.document = { createElement: tag => element(tag) };
   try {
@@ -267,19 +288,18 @@ test('창고를 다시 열면 선택·상세는 비고, 이동 응답의 창고 
     const { ui } = uiFixture(save, []);
     const dialog = element();
     renderWarehouse(ui, dialog);
-    warehouseState(ui).select = true;
     cellsIn(all(dialog, node => node.classList.contains('warehouse-grid'))[1])[0].onclick();
     assert.equal(warehouseState(ui).picked.size, 1);
     resetWarehouse(ui);
     assert.equal(warehouseState(ui).picked.size, 0);
-    assert.equal(warehouseState(ui).select, false);
+    assert.equal(warehouseState(ui).focus, undefined, '다시 열면 상세도 비운다');
 
     // 이동 응답에 실린 창고 목록으로 다시 그린다 — 로딩 문구로 돌아가지 않는다.
     ui.market.sync.transferWarehouse = async () => ({ ok: true, message: '보관했습니다.', items: [{ id: 'new', name: '새 검', slot: 'weapon', rarity: 'common', stats: {} }] });
     const view = element();
     renderWarehouse(ui, view);
-    warehouseState(ui).quick = true;
     cellsIn(all(view, node => node.classList.contains('warehouse-grid'))[1])[0].onclick();
+    all(view, node => node.classList.contains('warehouse-move'))[0].onclick();
     await new Promise(resolve => setImmediate(resolve));
     assert.equal(ui.warehouseItems.length, 1);
     assert(!text(view).includes('불러오는 중') && !text(view).includes('공용창고를 불러오는 중'), '깜빡임 없음');

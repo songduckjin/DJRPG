@@ -7,9 +7,10 @@
  *
  * 지금은 이동 뒤에도 목록을 비우지 않는다 — 서버가 응답에 실어 준 `items`(창고 목록)와
  * `save`(가방)로 인메모리 상태를 바로 맞추고 그리드만 다시 그린다. 옮기는 동안에는 그 칸만
- * 잠깐 흐려지고(`is-busy`) 나머지는 그대로다. 여러 개는 `선택` 모드로 골라 한 요청(`itemIds`)으로
- * 한꺼번에 옮긴다. `equipModal.ts`는 건드리지 않고 그리드 모양(`.bag-grid`·`.bag-item`)과
- * 헬퍼(`iconPath`)만 빌려 쓴다.
+ * 잠깐 흐려지고(`is-busy`) 나머지는 그대로다. 여러 개는 칸을 그냥 탭해 고르면 한 요청(`itemIds`)으로
+ * 한꺼번에 옮긴다(작업 246 — `선택` 모드 버튼과 `빠른 이동`은 없애고 **다중 선택이 기본**이며, 고른
+ * 쪽에만 `선택 보관`/`선택 꺼내기`가 나타난다). `equipModal.ts`는 건드리지 않고 그리드 모양
+ * (`.bag-grid`·`.bag-item`)과 헬퍼(`iconPath`)만 빌려 쓴다.
  */
 import { equipmentCount } from '../../game/bagCapacity';
 import { apiHeaders, isOutdatedResponse, reloadForNewVersion } from '../../game/appVersion';
@@ -22,6 +23,7 @@ import { jobNames, jobOrDefault } from '../../game/skills';
 import type { Save } from '../../game/store';
 import { pouchIconMarkup } from '../pouchArt';
 import { upgradeArrowMarkup } from '../upgradeBadge';
+import { appendPlusBadge } from '../plusBadge';
 import type { Interface } from '../interface';
 
 export type WarehouseSide = 'storage' | 'bag';
@@ -30,10 +32,6 @@ export type WarehouseSide = 'storage' | 'bag';
 type Stack = { key: string; items: Item[] };
 
 type WarehouseState = {
-  /** `빠른 이동` — 상세 없이 탭 한 번에 반대편으로 옮긴다. */
-  quick: boolean;
-  /** `선택` — 여러 칸을 골라 한 번에 옮긴다. `quick`과는 함께 켜지지 않는다. */
-  select: boolean;
   /** 고른 칸 — 키는 `bag:`/`storage:` 접두사가 붙은 스택 키, 값은 그 쪽(side). */
   picked: Map<string, WarehouseSide>;
   /** 상세 바에 띄운 칸. */
@@ -51,14 +49,14 @@ const queues = new WeakMap<Interface, Promise<void>>();
 
 export function warehouseState(ui: Interface): WarehouseState {
   let state = states.get(ui);
-  if (!state) { state = { quick: false, select: false, picked: new Map(), busy: new Set() }; states.set(ui, state); }
+  if (!state) { state = { picked: new Map(), busy: new Set() }; states.set(ui, state); }
   return state;
 }
 
-/** 창고를 새로 열 때 — 선택·상세·잠금 표시는 남기지 않는다(빠른 이동 설정만 기억). */
+/** 창고를 새로 열 때 — 선택·상세·잠금 표시는 남기지 않는다. */
 export function resetWarehouse(ui: Interface): void {
   const state = warehouseState(ui);
-  state.select = false; state.picked.clear(); state.focus = undefined; state.busy.clear(); state.error = undefined;
+  state.picked.clear(); state.focus = undefined; state.busy.clear(); state.error = undefined;
 }
 
 const keyOf = (side: WarehouseSide, stackKey: string): string => `${side}:${stackKey}`;
@@ -141,8 +139,8 @@ export function renderWarehouse(ui: Interface, dialog: HTMLElement): void {
   summary.append(gold, counts);
 
   const tools = document.createElement('div'); tools.className = 'warehouse-tools';
-  const quick = document.createElement('button'); quick.type = 'button'; quick.className = 'warehouse-mode warehouse-quick';
-  const select = document.createElement('button'); select.type = 'button'; select.className = 'warehouse-mode warehouse-select';
+  // [작업 246] `선택 끔/켬` 모드 버튼과 `빠른 이동`은 없앴다 — 창고를 열면 **바로 탭해서 여러 칸을
+  // 고르는** 것이 기본이고, 고른 쪽에만 `선택 보관`/`선택 꺼내기`가 나타난다(사용자 요청).
   const depositPicked = document.createElement('button'); depositPicked.type = 'button'; depositPicked.className = 'warehouse-batch warehouse-deposit-picked';
   const withdrawPicked = document.createElement('button'); withdrawPicked.type = 'button'; withdrawPicked.className = 'warehouse-batch warehouse-withdraw-picked';
   // 새로고침은 도구 줄 오른쪽 끝에 둔다 — 아래에 따로 두면 그만큼 그리드가 좁아진다.
@@ -150,7 +148,7 @@ export function renderWarehouse(ui: Interface, dialog: HTMLElement): void {
   reset.textContent = '새로고침';
   reset.title = '공용창고 목록을 서버에서 다시 읽습니다.';
   reset.onclick = () => { ui.warehouseItems = undefined; painters.delete(ui); ui.renderModal(); void loadWarehouse(ui); };
-  tools.append(quick, select, depositPicked, withdrawPicked, reset);
+  tools.append(depositPicked, withdrawPicked, reset);
 
   const storageHeading = document.createElement('h3'); storageHeading.className = 'warehouse-pane-title';
   const bagHeading = document.createElement('h3'); bagHeading.className = 'warehouse-pane-title';
@@ -185,19 +183,11 @@ export function renderWarehouse(ui: Interface, dialog: HTMLElement): void {
     storageHeading.textContent = `공용창고 ${warehouseCount}/40`;
     bagHeading.textContent = `내 가방 ${bagCount}/40`;
 
-    quick.textContent = `빠른 이동 ${state.quick ? '켬' : '끔'}`;
-    quick.classList.toggle('is-on', state.quick);
-    quick.setAttribute('aria-pressed', String(state.quick));
-    quick.setAttribute('aria-label', `빠른 이동 ${state.quick ? '켜짐' : '꺼짐'}. 켜면 상세창 없이 탭 한 번에 반대편으로 옮깁니다`);
-    select.textContent = `선택 ${state.select ? '켬' : '끔'}`;
-    select.classList.toggle('is-on', state.select);
-    select.setAttribute('aria-pressed', String(state.select));
-    select.setAttribute('aria-label', `선택 모드 ${state.select ? '켜짐' : '꺼짐'}. 켜면 여러 칸을 골라 한 번에 옮깁니다`);
-
     const idsOn = (side: WarehouseSide): string[] => pickIds(state, side, side === 'bag' ? bagStacks : storageStacks);
     const bagIds = idsOn('bag'), storageIds = idsOn('storage');
-    const showDeposit = state.select && bagIds.length > 0;
-    const showWithdraw = state.select && storageIds.length > 0;
+    // 고른 칸이 있는 쪽에만 액션 버튼이 나타난다(작업 246) — 모드 전환 없이 바로 다중 선택.
+    const showDeposit = bagIds.length > 0;
+    const showWithdraw = storageIds.length > 0;
     depositPicked.hidden = !showDeposit; withdrawPicked.hidden = !showWithdraw;
     depositPicked.textContent = `선택 보관 (${bagIds.length})`;
     withdrawPicked.textContent = `선택 꺼내기 (${storageIds.length})`;
@@ -211,16 +201,6 @@ export function renderWarehouse(ui: Interface, dialog: HTMLElement): void {
     paintDetail(ui, save, detail, state, paint);
   };
 
-  quick.onclick = () => {
-    state.quick = !state.quick;
-    if (state.quick) { state.select = false; state.picked.clear(); state.focus = undefined; }
-    paint();
-  };
-  select.onclick = () => {
-    state.select = !state.select;
-    if (state.select) { state.quick = false; state.focus = undefined; }
-    state.picked.clear(); paint();
-  };
   depositPicked.onclick = () => {
     const ids = pickIds(state, 'bag', bagStacks);
     if (!ids.length) return;
@@ -272,11 +252,8 @@ function paintGrid(ui: Interface, grid: HTMLElement, side: WarehouseSide, stacks
       const badge = document.createElement('span'); badge.className = 'skillbook-count';
       badge.textContent = `×${stack.items.length}`; cell.append(badge);
     }
-    const plus = plusOf(item);
-    if (plus > 0) {
-      const badge = document.createElement('span'); badge.className = 'item-plus warehouse-plus';
-      badge.textContent = `+${plus}`; cell.append(badge);
-    }
+    // `+N`은 가방·장착 칸과 **같은 자리(왼쪽 아래)**에 붙인다(작업 246, `plusBadge.ts`).
+    appendPlusBadge(cell, item);
     const owner = itemJob(item);
     if (owner) {
       const badge = document.createElement('span'); badge.className = `job-badge job-${owner}`;
@@ -304,18 +281,15 @@ function paintGrid(ui: Interface, grid: HTMLElement, side: WarehouseSide, stacks
 function tap(ui: Interface, side: WarehouseSide, stack: Stack): void {
   const state = warehouseState(ui);
   const key = keyOf(side, stack.key);
-  if (state.select) {
-    if (state.picked.has(key)) state.picked.delete(key);
-    else {
-      // 한 번에 한 쪽만 고른다 — 가방에서 고른 것을 창고에서 고르면 섞이지 않게 지운다.
-      for (const [pickedKey, pickedSide] of [...state.picked]) if (pickedSide !== side) state.picked.delete(pickedKey);
-      state.picked.set(key, side);
-    }
-    repaint(ui);
-    return;
+  // [작업 246] 탭 = **바로 선택**이다. 모드 버튼이 없어졌고, 고른 칸은 상세 바에도 띄운다(정보는
+  // 그대로 볼 수 있고, 같은 칸을 다시 탭하면 선택이 풀린다).
+  if (state.picked.has(key)) state.picked.delete(key);
+  else {
+    // 한 번에 한 쪽만 고른다 — 가방에서 고른 것을 창고에서 고르면 섞이지 않게 지운다.
+    for (const [pickedKey, pickedSide] of [...state.picked]) if (pickedSide !== side) state.picked.delete(pickedKey);
+    state.picked.set(key, side);
   }
-  if (state.quick) { move(ui, side, stack.items.map(item => item.id)); return; }
-  state.focus = state.focus && state.focus.side === side && state.focus.key === stack.key ? undefined : { side, key: stack.key };
+  state.focus = { side, key: stack.key };
   repaint(ui);
 }
 

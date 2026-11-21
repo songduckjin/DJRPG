@@ -5,6 +5,7 @@ import { autoEquipRecommendedSkills, availableSkills, unequipSkill } from '../..
 import { skillLevel, totalStats, type Save } from '../../game/store';
 import { MAX_SKILL_LEVEL, passiveOrderFor, passives, skillDuration, skillRange, skills, type Job } from '../../game/skills';
 import { jobOrDefault } from '../../game/skills';
+import { hasSkillUpgrade } from '../../game/skillProgress';
 import type { Interface, SkillFilter } from '../interface';
 
 /**
@@ -45,10 +46,18 @@ function skillTopBar(ui: Interface, filter: SkillFilter): HTMLElement {
     ui.message(result.message);
   };
   // 작업 245: 내 직업 스킬북을 가능한 만큼 연속 습득·강화한다(최대 체력이 오르는 패시브도 반영).
+  // 작업 246: **지금 쓸 수 있는 책이 없으면 흐리게 잠근다** — 사용자 요청. `hasSkillUpgrade`가
+  // `skillBookStatus(...).ready`를 직업별로 확인하는 그 판정을 그대로 써서 버튼과 실제 동작이 갈리지 않는다.
+  const ready = hasSkillUpgrade(ui.world.save);
   const upgrade = document.createElement('button');
   upgrade.type = 'button'; upgrade.className = 'skill-auto-upgrade'; upgrade.textContent = '자동 강화';
-  upgrade.setAttribute('aria-label', '보유한 내 직업 스킬북으로 가능한 만큼 강화');
+  upgrade.disabled = !ready;
+  upgrade.classList.toggle('is-ready', ready);
+  upgrade.setAttribute('aria-disabled', String(!ready));
+  upgrade.title = ready ? '가방의 내 직업 스킬북으로 가능한 만큼 한 번에 강화합니다.' : '습득하거나 강화할 수 있는 내 직업 스킬북이 없습니다.';
+  upgrade.setAttribute('aria-label', ready ? '보유한 내 직업 스킬북으로 가능한 만큼 강화' : '자동 강화할 스킬북이 없어 잠김');
   upgrade.onclick = () => {
+    if (!ready) return;
     if (ui.world.paused || ui.market.busy || ui.market.sync.locked) { ui.message('동기화 중에는 스킬을 강화할 수 없습니다.'); return; }
     const before = totalStats(ui.world.save).health;
     const result = useAllReadySkillBooks(ui.world.save);

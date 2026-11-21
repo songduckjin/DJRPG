@@ -38,15 +38,17 @@ export function isEquipment(item: Item): item is EquipmentItem { return item.kin
 export function pouchItem(id: string = crypto.randomUUID(), name: string = POUCH_NAME): TreasurePouch {
   return { id, name, slot: POUCH_SLOT, rarity: POUCH_RARITY, kind: 'pouch', stats: {} };
 }
-export function rollSkillBook(floor: number, _job: Job = 'warrior'): SkillBook {
-  // 스킬북도 세 직업이 같은 확률로 떨어진다(작업 204, 사용자 확정). 직업을 먼저 1/3로 고른 뒤,
-  // 그 직업의 `floor * 2` 해금 조건을 만족하는 스킬·패시브 중 하나를 뽑는다. 세 직업 모두 액티브 8 +
-  // 패시브 3으로 수가 같아, 직업을 먼저 고르면 전 스킬이 같은 확률이 된다.
+export function rollSkillBook(_floor: number, _job: Job = 'warrior'): SkillBook {
+  // 스킬북도 세 직업이 같은 확률로 떨어진다(작업 204, 사용자 확정). 직업을 먼저 1/3로 고른 뒤
+  // 그 직업의 스킬·패시브 중 하나를 뽑는다. 세 직업 모두 액티브 8 + 패시브 3으로 수가 같아,
+  // 직업을 먼저 고르면 전 스킬이 같은 확률이 된다.
+  // [작업 246] 사용자 확정: **층 제한을 없앤다** — 예전에는 `스킬.level <= floor * 2`인 책만
+  // 떨어져 1층에서는 초반 스킬만 나왔다. 이제 1층을 포함한 모든 층에서 그 직업의 11종
+  // (액티브 8 + 패시브 3)이 **똑같이 1/11**로 나온다. 습득 자체에 레벨 제한은 없으므로
+  // (`useSkillBook`) 낮은 층에서 높은 스킬북을 먼저 모아 둘 수 있다.
   const job = dropJob();
   const order = [...skillOrderFor(job), ...passiveOrderFor(job)];
-  const available = order.filter(id => (id in skills ? skills[id as keyof typeof skills].level : passives[id as keyof typeof passives].level) <= floor * 2);
-  const ids = available.length ? available : [order[0]];
-  const skillId = ids[Math.floor(random() * ids.length)];
+  const skillId = order[Math.floor(random() * order.length)];
   return { id: crypto.randomUUID(), name: `[스킬북] ${skillId in skills ? skills[skillId as keyof typeof skills].name : passives[skillId as keyof typeof passives].name}`, slot: 'skillbook', rarity: 'rare', kind: 'skillbook', skillId, stats: {} };
 }
 /**

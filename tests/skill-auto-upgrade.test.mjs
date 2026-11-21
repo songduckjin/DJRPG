@@ -113,6 +113,56 @@ test('자동 강화 버튼 한 번으로 내 직업 책을 모두 쓰고 저장�
   } finally { delete globalThis.document; }
 });
 
+test('자동 강화 버튼은 쓸 수 있는 책이 있을 때만 활성화되고, 없으면 흐리게 잠긴다(작업 246)', () => {
+  globalThis.document = { createElement: tag => element(tag) };
+  try {
+    // 책이 없으면 비활성 + 안내(aria-disabled)·클릭해도 아무 일도 없다.
+    const idle = uiFixture('warrior');
+    idle.world.save.bag = [];
+    const locked = render(idle).find(node => node.textContent === '자동 강화');
+    assert.equal(locked.disabled, true, '책이 없으면 disabled');
+    assert.equal(locked.attrs['aria-disabled'], 'true');
+    assert.match(locked.title, /습득하거나 강화할 수 있는 내 직업 스킬북이 없습니다/);
+    assert.match(locked.attrs['aria-label'], /잠김/);
+    locked.onclick();
+    assert.equal(idle.changes(), 0, '비활성 버튼은 아무것도 바꾸지 않는다');
+    assert.equal(idle.messages.length, 0, '비활성 버튼은 안내도 띄우지 않는다');
+
+    // 다른 직업 책만 있으면 여전히 비활성.
+    const foreign = uiFixture('warrior');
+    foreign.world.save.bag = [book('f1', 'doubleShot')];
+    assert.equal(render(foreign).find(node => node.textContent === '자동 강화').disabled, true, '타직업 책만으로는 잠김');
+
+    // 바로 쓸 수 있는 내 직업 책이 1권이라도 있으면 활성.
+    const ready = uiFixture('warrior');
+    ready.world.save.bag = [book('r1', 'power')];
+    const live = render(ready).find(node => node.textContent === '자동 강화');
+    assert.equal(live.disabled, false, '쓸 책이 있으면 누를 수 있다');
+    assert.equal(live.attrs['aria-disabled'], 'false');
+    assert.match(live.title, /가능한 만큼 한 번에 강화/);
+
+    // 권수가 모자란 책만 있으면(레벨 5 스킬 1권) 비활성 — `skillBookStatus().ready` 판정 그대로.
+    const short = uiFixture('warrior');
+    short.world.save.learned = ['slam']; short.world.save.skillLevels = { slam: 5 };
+    short.world.save.bag = [book('s1', 'slam')];
+    assert.equal(render(short).find(node => node.textContent === '자동 강화').disabled, true, '권수 부족은 잠김');
+  } finally { delete globalThis.document; }
+});
+
+test('자동 강화 버튼의 활성·비활성 스타일이 CSS에 있다(작업 246)', async () => {
+  const { readFileSync } = await import('node:fs');
+  const css = readFileSync(new URL('../src/styles/modals.css', import.meta.url), 'utf8');
+  const rule = selector => { const index = css.indexOf(`${selector} {`); assert.notEqual(index, -1, `${selector} 규칙이 없다`); return css.slice(index, css.indexOf('}', index) + 1); };
+  const ready = rule('.skill-auto-upgrade.is-ready');
+  assert.match(ready, /border-color: #f0c47e/, '활성은 금빛 테두리');
+  assert.match(ready, /box-shadow: 0 0 9px #e8b64a66/, '활성은 은은한 금빛 발광');
+  assert.match(ready, /color: #fff0cf/);
+  const off = rule('.skill-auto-upgrade:disabled');
+  assert.match(off, /opacity: \.5/, '비활성은 흐리게');
+  assert.match(off, /filter: grayscale\(\.75\)/, '비활성은 채도 낮춤');
+  assert.match(off, /cursor: default/);
+});
+
 test('자동 강화로 최대 체력이 오르면 지금 체력도 같이 올린다', () => {
   globalThis.document = { createElement: tag => element(tag) };
   try {

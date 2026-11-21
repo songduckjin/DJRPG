@@ -142,10 +142,12 @@
    들어 있는 부분, `itemArtTrim.generated.ts`)의 `background-size`·`background-position`과 그 상자의
    `aspect-ratio`를 인라인으로 준다 — 칸 가장자리의 빈 여백 때문에 물건이 작아 보이지도, 그림이 늘어나지도 않는다.
    아래는 인라인 값이 없는(표에 없는) 아틀라스의 마지막 기본값이다(한 칸 174:290 = 870×290 ÷ 5열). */
-.equipment-slot { --slot-art-ratio: 174 / 290; display: grid; grid-template-rows: minmax(0, 1fr) auto; justify-items: center; align-items: center; min-width: 0; aspect-ratio: 1; gap: 1px; border: 1px solid #655348; background: #252126; color: #b9ada6; padding: 2px; }
+.equipment-slot { --slot-art-ratio: 174 / 290; position: relative; display: grid; grid-template-rows: minmax(0, 1fr) auto; justify-items: center; align-items: center; min-width: 0; aspect-ratio: 1; gap: 1px; border: 1px solid #655348; background: #252126; color: #b9ada6; padding: 2px; }
 .equipment-slot .slot-icon { display: block; grid-row: 1; justify-self: center; align-self: center; width: auto; height: auto; max-width: 100%; max-height: 100%; min-width: 0; min-height: 0; object-fit: contain; }
 .equipment-slot .slot-icon.atlas-icon { width: auto; height: 100%; max-width: 100%; aspect-ratio: var(--slot-art-ratio); background-size: 500% 100%; }
-.equipment-slot .slot-part { grid-row: 2; max-width: 100%; overflow: hidden; color: #ccb49b; font-size: 8px; line-height: 1.05; text-overflow: ellipsis; white-space: nowrap; }
+/* 부위 이름은 가운데 정렬 그대로 두되, 왼쪽 아래 `+N` 배지(작업 246)가 글자와 겹치지 않게
+   왼쪽 여백만큼 비워 둔다(배지 폭 ≈ 13px). */
+.equipment-slot .slot-part { grid-row: 2; max-width: 100%; padding-left: 13px; overflow: hidden; color: #ccb49b; font-size: 8px; line-height: 1.05; text-overflow: ellipsis; white-space: nowrap; }
 .equipment-slot[aria-expanded="true"] { background: #3c3231; outline: 1px solid #e0c699; outline-offset: 1px; }
 .equipment-slot:disabled { opacity: .65; }
 .equipped-detail { margin: 0; display: flex; flex-direction: column; align-items: flex-start; position: fixed; z-index: 30; width: max-content; overflow-y: auto; box-shadow: 0 8px 24px #000b; }
@@ -202,9 +204,14 @@
 .skill-auto-equip:hover { border-color: #f0c47e; background: linear-gradient(#7c5638, #4d3325); }
 .skill-auto-equip:active { background: #3a2820; }
 /* 자동 강화(작업 245) — 추천 버튼과 나란한 짙은 책빛 버튼. */
-.skill-auto-upgrade { flex: 1 1 96px; min-height: 34px; padding: 7px 10px; border: 1px solid #8f7ad0; border-radius: 4px; background: linear-gradient(#4a3d72, #2f2750); color: #e8e0ff; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
-.skill-auto-upgrade:hover { border-color: #b7a6f2; background: linear-gradient(#584a86, #382f5e); }
-.skill-auto-upgrade:active { background: #251f40; }
+/* 자동 강화(작업 245 → 246): 지금 습득·강화할 수 있는 내 직업 스킬북이 있으면 금빛 테루·발광으로
+   "누를 수 있다"를 보이고(`.is-ready`), 없으면 `disabled` + 어둡게 흐린 상태로 잠근다. */
+.skill-auto-upgrade { flex: 1 1 96px; min-height: 34px; padding: 7px 10px; border: 1px solid #8f7ad0; border-radius: 4px; background: linear-gradient(#4a3d72, #2f2750); color: #e8e0ff; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; transition: filter .15s, opacity .15s; }
+.skill-auto-upgrade:hover:not(:disabled) { border-color: #b7a6f2; background: linear-gradient(#584a86, #382f5e); }
+.skill-auto-upgrade:active:not(:disabled) { background: #251f40; }
+.skill-auto-upgrade.is-ready { border-color: #f0c47e; background: linear-gradient(#7a5a2c, #4a3220); color: #fff0cf; box-shadow: 0 0 9px #e8b64a66, inset 0 0 0 1px #ffe1a733; }
+.skill-auto-upgrade.is-ready:hover { border-color: #ffe0a0; background: linear-gradient(#8b6733, #563a25); }
+.skill-auto-upgrade:disabled { border-color: #60606e; background: #2a2733; color: #7e7a8c; opacity: .5; filter: grayscale(.75); cursor: default; box-shadow: none; }
 .skill-filter { display: flex; flex: 0 0 auto; border: 1px solid #6b5545; border-radius: 4px; overflow: hidden; background: #1d1719; }
 .skill-filter-tab { min-width: 52px; padding: 7px 9px; border: 0; border-left: 1px solid #4a3a33; background: transparent; color: #a99581; font: inherit; font-size: 11px; cursor: pointer; }
 .skill-filter-tab:first-child { border-left: 0; }
@@ -323,12 +330,17 @@
 
 .bag-item .bag-lock-badge { position: absolute; top: 1px; right: 1px; width: 18px; height: 18px; z-index: 1; pointer-events: none; }
 
-/* 업그레이드 화살표(작업 241, 확정 A안 `downloads/upgrade_arrow/opt_a.jpg`) — 내 직업이 낄 수 있는
-   장비 중 지금 낀 것보다 좋은 것의 **아이콘 상자 우측 상단**에 선명한 초록 화살표를 띄운다.
-   좌상단 타직업 배지·우하단 `+N`/잠금과 자리가 겹치지 않는다. 잠금 배지가 함께 있는 칸만
-   CSS가 잠금을 **우측 아래**로 내린다(화살표가 위에 남는다). */
-.upgrade-arrow { position: absolute; top: 2px; right: 2px; z-index: 3; display: block; color: #34eb6e; font-size: clamp(11px, 2.9vw, 14px); line-height: 1; font-weight: 900; text-shadow: -1px -1px 0 #0a1a0d, 1px -1px 0 #0a1a0d, -1px 1px 0 #0a1a0d, 1px 1px 0 #0a1a0d, 0 0 5px #34eb6ecc; pointer-events: none; }
+/* 업그레이드 화살표(작업 241 → 246) — 사용자가 고른 **3번 슬림 더블 셰브론 PNG**를 아이콘 상자
+   우측 상단에 9px 이하로 작게 얹고, 주변에만 은은한 녹색 발광을 준다(글자 `▲`는 크고 투박해
+   아이템을 가렸다). 좌상단 타직업 배지·왼쪽 아래 `+N`·우하단 수량/잠금과 겹치지 않는다.
+   잠금 배지가 함께 있는 칸만 CSS가 잠금을 **우측 아래**로 내린다(화살표가 위에 남는다). */
+.upgrade-arrow { position: absolute; top: 2px; right: 2px; z-index: 3; display: block; width: clamp(7px, 1.9vw, 9px); height: auto; filter: drop-shadow(0 0 3px rgba(52, 211, 153, .8)) drop-shadow(0 0 6px rgba(16, 185, 129, .5)); pointer-events: none; user-select: none; }
 .bag-item.has-upgrade .bag-lock-badge { top: auto; bottom: 1px; }
+
+/* `+N` 강화 배지는 **모든 아이템 칸의 왼쪽 아래** 한 곳에만 붙는다(작업 246) — 가방·장비창 장착 칸·
+   공용창고가 같은 자리를 쓴다. 좌상단 직업 배지, 우상단 추천 화살표, 우하단 수량 `×N`·잠금과
+   겹치지 않는 유일한 모서리다. 이름 옆 배지(`.item-plus`, 작업 201)와 같은 색을 쓴다. */
+.bag-item .item-plus-badge, .equipment-slot .item-plus-badge { position: absolute; left: 3px; bottom: 2px; z-index: 2; margin: 0; padding: 0 2px; border-radius: 3px; background: #120f14cc; color: #43f6c5; font-size: 9px; line-height: 1.25; font-weight: 800; letter-spacing: .01em; text-shadow: 0 0 5px #43f6c599; pointer-events: none; white-space: nowrap; }
 
 /* 가방 10열 칸은 모두 **1:1 정사각형**이다(작업 212 `#4936` — 스킬북 칸만 세로로 길쭉해
    다른 장비·주머니 칸과 줄이 어긋나 보이던 것을 없앴다). 이름은 다른 칸처럼 한 줄 말줄임이다. */
@@ -638,9 +650,9 @@ img.pouch-icon { display: block; object-fit: contain; border-radius: 4px; }
 .warehouse-gold { color: #ffd977; font-weight: 700; }
 .warehouse-counts { color: #d9c4a6; font-variant-numeric: tabular-nums; }
 .warehouse-tools { display: flex; flex: none; flex-wrap: wrap; align-items: center; gap: 4px; }
-.warehouse-mode { border: 1px solid #6d5948; border-radius: 4px; background: #282023; color: #bba998; padding: 5px 8px; font-size: 11px; touch-action: manipulation; }
-.warehouse-mode.is-on { border-color: #c8a26a; background: #4a342a; color: #ffe1b5; font-weight: 700; }
-.warehouse-batch { border: 1px solid #c8a26a; border-radius: 4px; background: linear-gradient(#6d492b, #3a281f); color: #ffe0a6; padding: 5px 9px; font-size: 11px; font-weight: 700; touch-action: manipulation; }
+/* [작업 246] `선택 끔/켬` 모드 버튼(`.warehouse-mode`)은 없어졌다 — 도구 줄에는 고른 칸이 있을
+   때만 나타나는 `선택 보관`·`선택 꺼내기`와 `새로고침`만 남는다. */
+.warehouse-batch { border: 1px solid #c8a26a; border-radius: 4px; background: linear-gradient(#6d492b, #3a281f); color: #ffe0a6; padding: 5px 9px; font-size: 11px; font-weight: 700; touch-action: manipulation; box-shadow: 0 0 7px #d5aa4933; }
 .warehouse-batch[hidden], .warehouse-detail[hidden] { display: none; }
 .warehouse-batch:disabled { opacity: .45; }
 .warehouse-panes { display: flex; flex: 0 1 auto; flex-direction: column; gap: 5px; min-height: 0; overflow: hidden; }
@@ -648,10 +660,12 @@ img.pouch-icon { display: block; object-fit: contain; border-radius: 4px; }
 .warehouse-pane-title { flex: none; margin: 0 0 3px; color: #e0c79f; font-size: 11.5px; font-variant-numeric: tabular-nums; }
 .warehouse-pane .warehouse-grid { flex: 1 1 auto; min-height: 0; max-height: 34dvh; overflow-y: auto; overflow-x: hidden; scrollbar-gutter: stable; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 3px; padding: 1px; }
 .warehouse-modal .bag-item .item-icon { width: 100%; height: 100%; max-width: 34px; max-height: 34px; min-height: 0; }
-.warehouse-modal .bag-item .warehouse-plus { position: absolute; left: 1px; bottom: 1px; margin: 0; font-size: 9px; line-height: 1; }
 .warehouse-slot.is-busy { opacity: .4; filter: grayscale(.5); }
+/* 선택 표시(작업 246) — 네 모서리는 이미 직업·화살표·`+N`·수량이 쓰므로 체크는 **가운데**에
+   반투명 초록으로 얹는다. 테두리·내부 발광만으로도 고른 칸이 보이지만, 체크가 있으면
+   아이콘이 어두운 칸에서도 한눈에 들어온다. */
 .warehouse-slot.is-picked { outline: 2px solid #7ce1b0; outline-offset: -3px; box-shadow: inset 0 0 10px #7ce1b055; }
-.warehouse-slot.is-picked::after { content: '✓'; position: absolute; top: 0; left: 1px; color: #7ce1b0; font-size: 10px; font-weight: 900; line-height: 1.1; pointer-events: none; }
+.warehouse-slot.is-picked::after { content: '✓'; position: absolute; inset: 0; display: grid; place-items: center; background: #1d6b4a2e; color: #b9ffdb; font-size: 15px; font-weight: 900; line-height: 1; text-shadow: 0 1px 3px #0008; pointer-events: none; }
 .warehouse-detail { display: flex; flex: none; flex-direction: column; gap: 3px; margin-top: 1px; padding: 6px 8px; border: 1px solid #6d5948; background: #241d20; }
 .warehouse-detail-head { display: flex; align-items: baseline; justify-content: space-between; gap: 6px; }
 .warehouse-detail-head b { color: #f3e2c6; font-size: 12.5px; overflow-wrap: anywhere; }
