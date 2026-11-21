@@ -12,7 +12,7 @@
 import { isSkillBook, itemDisplayName, rarityNames, type Item } from '../game/items';
 import { BOSS_ITEM_DROPS } from '../game/bossLoot';
 import { dungeonClearStones, dungeonKillGold, type DungeonRewardReceipt } from '../game/dungeonRewards';
-import { dungeonDropChance } from './dungeonBattle';
+import { dungeonDropChance } from '../game/dungeon/battle';
 import { skillbookName } from './skillbookBag';
 
 function escapeHtml(value: string): string {

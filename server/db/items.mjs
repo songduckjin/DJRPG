@@ -13,13 +13,14 @@ import { validateSave } from './save.mjs';
 import { itemWithinBounds, rewardBudget } from '../save-guard.mjs';
 import { extraOptionsWithin, normalizeExtraOptions } from '../extra-options.mjs';
 import { countedInBag, skillBookIdSet } from '../skill-ids.mjs';
+import { bagSlotCount } from '../core/rewardGrant.mjs';
 
 export const itemsOf = save => [...(save.bag ?? []), ...Object.values(save.equipment ?? {}).filter(Boolean)];
 
 /** 가방 40칸 — `src/game/bagCapacity.ts`·`server/skill-ids.mjs`와 같은 규칙(장비 + 다른 직업 전용 스킬북). */
 export const EQUIPMENT_BAG_LIMIT = 40;
-/** 가방 40칸에 세는 수. 배열이 아니면 0. */
-export const countedBagItems = (bag, job) => (Array.isArray(bag) ? bag : []).filter(item => countedInBag(item, job)).length;
+/** 가방 40칸에 세는 수. 배열이 아니면 0. 규칙은 `server/core/rewardGrant.mjs` 한 곳에 있다. */
+export const countedBagItems = (bag, job) => bagSlotCount({ bag: Array.isArray(bag) ? bag : [], job });
 
 /**
  * 이 세이브에 허용하는 가방 상한(작업 246).

@@ -2,13 +2,14 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import './ts-loader.mjs';
+import { modalStyles } from './helpers/modal-styles.mjs';
 const { freshSave } = await import('../src/game/store.ts');
 const { autoEquipRecommendedSkills, recommendedSkillOrder } = await import('../src/game/loadout.ts');
 const { passiveOrderFor, archerSkillOrder, mageSkillOrder, skillOrder } = await import('../src/game/skills.ts');
 const { renderSkills } = await import('../src/ui/modals/skillModal.ts');
 const { resetModalDefaults } = await import('../src/ui/modalDefaults.ts');
 
-const styles = readFileSync(new URL('../src/styles/modals.css', import.meta.url), 'utf8');
+const styles = modalStyles();
 const modalDefaults = readFileSync(new URL('../src/ui/modalDefaults.ts', import.meta.url), 'utf8');
 
 /** 작업 240 — 스킬 창 추천 자동 장착·패시브 노출. */
