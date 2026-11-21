@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { journeyState, journeyOperation } from './journey-state.mjs';
 import { skillBookIdSet, countedInBag } from './skill-ids.mjs';
-import { clampSaveProgress, itemWithinBounds, rewardBudget, elapsedSince } from './save-guard.mjs';
+import { clampSaveProgress, itemWithinBounds, rewardBudget, elapsedSince, MAX_FLOOR } from './save-guard.mjs';
 import { extraOptionsWithin, normalizeExtraOptions } from './extra-options.mjs';
 import { databaseFactory } from './database-config.mjs';
 import { runtimeEnv } from './env.mjs';
@@ -10,8 +10,9 @@ export class ApiError extends Error {
   constructor(status, code, message) { super(message); this.status = status; this.code = code; }
 }
 export const fail = (status, code, message) => { throw new ApiError(status, code, message); };
-/** 메인 사냥의 마지막 층 — `src/game/store.ts`의 `MAX_FLOOR`와 같은 값이다(작업 204). */
-export const MAX_FLOOR = 20;
+/** 메인 사냥의 마지막 층 — 정의는 `src/game/progress.ts` 한 곳이고 `save-guard.mjs`를 거쳐 여기서 재export한다.
+ *  (예전에는 이 파일에도 `20`을 적어 두었지만, PR-3에서 한 곳만 남겼다.) */
+export { MAX_FLOOR };
 export const client = (env = runtimeEnv()) => {
   const createClient = databaseFactory();
   if (!createClient || !env?.TURSO_DATABASE_URL || !env?.TURSO_AUTH_TOKEN) fail(503, 'DB_NOT_CONFIGURED', '서버 DB가 설정되지 않았습니다.');

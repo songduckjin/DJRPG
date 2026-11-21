@@ -2,7 +2,8 @@ import { canStoreItem } from './bagCapacity';
 import { autoSalvageRecovered } from './inventory';
 import { offlineDropChance, rollItem, rollItemKind, rollSkillBook, totalStats, type Item, type Rarity } from './items';
 import { jobOrDefault as jobOf, skillDamageScale, skillDuration, skills, type SkillId } from './skills';
-import { addExperience, floorKillTarget, MAX_FLOOR, skillLevel, type Save } from './store';
+import { skillLevel, type Save } from './store';
+import { afterBossLose, afterBossWin, applyBossReward, applyKillBatch, defeatPenalty, killsToBoss } from './progress';
 import { basicAttackPower, berserkAttackScale, berserkSpeedScale, cooldowns, enemyHitDamage, enemyMaxHp, offlineMobHp } from './world';
 
 /**
@@ -114,24 +115,25 @@ export function applyOfflineRewards(save: Save, elapsedSeconds: number, options:
     save.bag.push(item);
     items.push(item);
   };
-  /** 그 층에서 `count`마리 사냥 — 금화·경험치·드롭은 `world.ts` `kill()`과 같은 식이다. */
+  /** 그 층에서 `count`마리 사냥 — 금화·경험치·처치 수는 `progress.ts`가 정한다(PR-3). 드롭만 방치 몫을 쓴다. */
   const hunt = (count: number, floor: number): void => {
     if (count <= 0) return;
-    reward.kills += count; save.kills += count;
-    const gold = count * (3 + floor); reward.gold += gold; save.gold += gold;
-    // 경험치는 필드와 같은 `9 + 층`(작업 207).
-    const exp = count * (9 + floor); reward.exp += exp; reward.levels += addExperience(save, exp);
-    if (save.tutorial >= 1) for (let index = 0; index < count; index++) {
+    const batch = applyKillBatch(save, floor, count);
+    reward.kills += batch.kills; reward.gold += batch.gold; reward.exp += batch.exp; reward.levels += batch.levels;
+    // 레벨업 뒤 최대 체력 — 경험치 규칙은 progress가, 체력은 최대 체력을 아는 이쪽이 맞춘다.
+    if (batch.levels) save.health = totalStats(save).health;
+    if (save.tutorial >= 1) for (let index = 0; index < batch.kills; index++) {
       // 한 마리당 한 번만 굴려 1개 — 장비 70% · 스킬북 30%(작업 210, 접속 사냥과 같은 규칙).
       // 확률만 방치 몫(전 층 0.30%)을 쓴다(작업 254).
       if (Math.random() < offlineDropChance(floor, false)) receive(() => rollItemKind() === 'skillbook' ? rollSkillBook(floor, jobOf(save)) : rollItem(floor, false, false, jobOf(save)));
     }
   };
-  /** 층 보스 처치 보상 — 금화 `70 × 층`, 경험치 `(9 + 층) × 6`, 드롭 한 번(작업 195·207). */
+  /** 층 보스 처치 보상 — 금화 `70 × 층`, 경험치 `(9 + 층) × 6`, 드롭 한 번(작업 195·207). 금액은 `progress.ts`.
+   *  방치는 보스 처치를 `kills`에 세지 않는다 — 기존 동작 그대로(일일 미션 카운터 불변). */
   const beatBoss = (floor: number): void => {
-    reward.bossKills++; save.bossKills++;
-    const gold = 70 * floor; reward.gold += gold; save.gold += gold;
-    const exp = (9 + floor) * 6; reward.exp += exp; reward.levels += addExperience(save, exp);
+    const boss = applyBossReward(save, floor);
+    reward.bossKills++; reward.gold += boss.gold; reward.exp += boss.exp; reward.levels += boss.levels;
+    if (boss.levels) save.health = totalStats(save).health;
     if (save.tutorial >= 1 && Math.random() < offlineDropChance(floor, true)) {
       receive(() => rollItemKind() === 'skillbook' ? rollSkillBook(floor, jobOf(save)) : rollItem(floor, false, true, jobOf(save)));
     }
@@ -140,7 +142,7 @@ export function applyOfflineRewards(save: Save, elapsedSeconds: number, options:
   let remaining = seconds;
   for (let guard = 0; remaining > 0 && guard < 50_000; guard++) {
     const floor = save.floor;
-    const target = floorKillTarget(floor);
+    const target = killsToBoss(floor);
     const perKill = 60 / offlineKillsPerMinute(save);
     // 보스는 **최고 도달 층에서만** 나온다(작업 210) — 자동 등반이 꺼졌거나 아래층을 도는 중이면 없다.
     // 작업 245: 자동 등반이 켜져 있고 아직 최고층이 아니면 층 목표를 채울 때마다 한 층씩 올라간다
@@ -184,17 +186,13 @@ export function applyOfflineRewards(save: Save, elapsedSeconds: number, options:
     save.floorKills = 0;
     if (battle.win) {
       beatBoss(floor);
-      save.bossRetryFloor = 0;
-      // 마지막 층에서는 이겨도 더 올라갈 곳이 없다(작업 204) — 그 층에서 보스를 계속 잡는다.
-      if (floor < MAX_FLOOR) {
-        save.floor = floor + 1;
-        save.maxFloor = Math.min(MAX_FLOOR, Math.max(save.maxFloor, save.floor));
-      }
+      // 이기면 재도전 기록을 지우고 한 층 올라간다. 마지막 층(`MAX_FLOOR`)에서는 그 층에서 계속 잡는다(작업 204).
+      afterBossWin(save);
     } else {
       // 켜 놓고 보던 사람과 같다: 10골드를 잃고 1마리부터 다시 잡아, 목표를 채우면 또 도전한다.
       reward.deaths++;
-      save.gold = Math.max(0, save.gold - 10);
-      save.bossRetryFloor = floor < MAX_FLOOR ? floor : 0;
+      defeatPenalty(save);
+      afterBossLose(save);
     }
   }
   save.lastActiveAt = Date.now();
