@@ -39,16 +39,17 @@ test('서버 클로저는 전투 엔진과 그 의존(경계·보스 드랍)만 
   // 클로저 크기 회귀 가드 — PR-2B 직후 실측 17파일/3,196줄. 크게 늘면 필드 모듈이 다시 새어 들어온 것이다.
   // 2026-11-22 일괄 배포 뒤 실측 19파일/3,801줄: 밸런스 v2(`battle/formulas.ts`·`combat/engine.ts`)와
   // 기념 버프(`patchBuff.ts`)가 엔진·던전이 실제로 쓰는 의존이라 늘었다. 파일 수 상한이 누출을 잡는
-  // 진짜 가드이고, 줄 수 상한은 그 위의 완만한 회귀선이다(파일 20개는 그대로).
+  // 진짜 가드이고, 줄 수 상한은 그 위의 완만한 회귀선이다.
   // 2026-11-22 캐릭터 카드 전투력(백로그 11·B안) 뒤 실측 21파일/4,014줄: `characters` 응답이 접속 중이
   // 아닌 슬롯의 전투력도 세어야 해서 `server/character-power.mjs`가 `store.ts`(parseSave)·`items.ts`
   // (totalStats)·`power.ts`(combatPower)를 쓴다 — 화면과 **같은 식**으로 계산하려면 이 셋이 필요하다
   // (식을 서버에 다시 적으면 카드와 HUD가 갈라진다). 필드 모듈은 위 테스트가 그대로 막는다.
   // 2026-11-23 백로그 2·3 뒤 실측 21파일/4,123줄: `battle/formulas.ts` 치명타 피해 배수(+13줄)와
   // 추가옵션 키·상한(+20줄)이 늘었고, 유니크·전설 획득 띠(`raritySpotlight*`)는 화면 전용이라 서버가 닿지 않는다.
+  // 작업 278: 판정·VFX 공용 순수 규격 skillAreas.ts가 엔진 의존으로 1파일 늘었다.
   const total = src.reduce((sum, file) => sum + lineCount(file), 0);
-  assert(src.length <= 21, `서버가 닿는 src 파일이 ${src.length}개다 — 필드 모듈이 다시 들어왔는지 확인하라`);
-  assert(total <= 4200, `서버가 닿는 src 코드가 ${total}줄이다 — 필드 모듈이 다시 들어왔는지 확인하라`);
+  assert(src.length <= 22, `서버가 닿는 src 파일이 ${src.length}개다 — 필드 모듈이 다시 들어왔는지 확인하라`);
+  assert(total <= 4300, `서버가 닿는 src 코드가 ${total}줄이다 — 필드 모듈이 다시 들어왔는지 확인하라`);
 });
 
 const { CombatEngine } = await import('../src/game/combat/engine.ts');

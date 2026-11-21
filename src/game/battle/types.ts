@@ -33,7 +33,7 @@ export type Effect = { x: number; y: number; kind: 'slash' | 'slash2' | 'spin' |
   | 'heal' | 'evade'
   /** 적의 공격이 플레이어에게 닿은 순간(작업 245) — 할퀴는 궤적과 잃은 체력 숫자를 띄운다. */
   | 'enemyStrike'
-  | 'shot' | 'rain' | 'hawk' | 'burst' | 'nova' | 'ward'; age: number; duration: number; angle: number; swing?: number; amount?: number; nextHit?: number; power?: number; level?: number;
+  | 'shot' | 'impactArea' | 'rain' | 'hawk' | 'burst' | 'nova' | 'ward'; age: number; duration: number; angle: number; swing?: number; amount?: number; nextHit?: number; power?: number; level?: number;
   /** 치명타로 들어간 타격(작업 245) — 피해 숫자를 크게·빨갛게 띄운다(작업 260). */
   crit?: boolean;
   /** 추가 데미지(작업 260) — 장비 추가옵션 `추가 데미지` 몫을 기본 피해와 **따로** 띄우는 숫자다.
