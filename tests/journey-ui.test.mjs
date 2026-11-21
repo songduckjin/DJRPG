@@ -29,6 +29,21 @@ test('settings persist real display preferences and auto climb; account actions 
     find(dialog,n=>n.textContent==='계정 정보').onclick();assert.equal(calls.at(-1),'account');
   }finally{Object.assign(preferences,prior);globalThis.document=previous;globalThis.localStorage=storage;}
 });
+test('mail modal warns that the bag is full before and after claiming',()=>{
+  const previous=globalThis.document;globalThis.document={createElement:node};
+  try{
+    const {ui}=fixture();const dialog=node();renderUtility(ui,dialog,'mail');
+    assert.equal(find(dialog,n=>n.className==='mail-bag-full'),undefined,'가방이 비었을 때는 안내가 없다');
+    const gear=id=>({id,name:'검',slot:'weapon',rarity:'common',stats:{attack:2}});
+    ui.world.save.bag=Array.from({length:40},(_,i)=>gear(`g${i}`));
+    const full=node();renderUtility(ui,full,'mail');
+    const notice=find(full,n=>n.className==='mail-bag-full');
+    assert(notice,'가방이 40칸이면 우편함 위에 안내가 뜬다');
+    assert.match(notice.textContent,/가방이 가득 찼습니다 \(40\/40칸\)/);
+    // 보상 수령 버튼은 그대로 살아 있다 — 받을 것을 잃지 않는 것이 우선이다(작업 246).
+    assert.equal(find(full,n=>n.textContent==='모두 받기').disabled,false);
+  }finally{globalThis.document=previous;}
+});
 test('reward tabs select distinct claim scopes and disable unmet, claimed and guest actions',()=>{
   const previous=globalThis.document;globalThis.document={createElement:node};
   try{

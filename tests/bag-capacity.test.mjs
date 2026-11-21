@@ -14,6 +14,18 @@ test('save parsing retains all books plus forty gear and unequip respects only e
   assert(unequipItem(restored,'weapon').ok);assert.equal(equipmentCount(restored.bag),40);assert(canStoreItem(restored.bag,book('extra')));assert(!canStoreItem(restored.bag,gear('extra')));
   restored.equipment.weapon=gear('another');assert(!unequipItem(restored,'weapon').ok);assert.equal(restored.bag.length,240);
 });
+test('가방 40칸이 차면 하단 내 정보 버튼과 가방 창에 가득 참이 표시된다',async()=>{
+  const {renderBagBadge}=await import('../src/ui/hud.ts');
+  const badge={textContent:'',hidden:true},fullBadge={textContent:'',hidden:true};
+  const nav={className:'',attrs:{},title:'',classList:{toggle(name,on){this.last=[name,on];}},setAttribute(k,v){this.attrs[k]=v;}};
+  const save=freshSave();save.bag=Array.from({length:40},(_,i)=>gear(`g${i}`));
+  const ui={world:{save},newItems:new Set(),root:{querySelector:sel=>sel==='.new-badge'?badge:sel==='.bag-full-badge'?fullBadge:sel.includes('data-modal')?nav:null},get:sel=>sel==='.new-badge'?badge:undefined};
+  renderBagBadge.call(ui);
+  assert.equal(fullBadge.hidden,false);assert.equal(fullBadge.textContent,'FULL');
+  assert.deepEqual(nav.classList.last,['is-bag-full',true]);assert.match(nav.attrs['aria-label'],/가방 가득 참 \(40\/40\)/);
+  save.bag=save.bag.slice(0,39);renderBagBadge.call(ui);
+  assert.equal(fullBadge.hidden,true);assert.deepEqual(nav.classList.last,['is-bag-full',false]);assert.equal(nav.attrs['aria-label'],'내 정보');
+});
 test('full equipment bag still picks up books while leaving equipment drops intact',()=>{
   const save=freshSave();save.tutorial=3;save.bag=Array.from({length:40},(_,i)=>gear(`g${i}`));
   const world=new World(save),point={x:world.player.x,y:world.player.y,age:0,warned:false};world.drops=[{...point,item:book('book')},{...point,item:gear('full')}];

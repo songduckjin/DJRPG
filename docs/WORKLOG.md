@@ -1,3 +1,13 @@
+## 2026-11-21 · songduckjin 작업 246 — 가방 40칸 초과 저장 거절로 우편함·거래소가 잠기던 문제(+ FULL 표시·가득 참 안내)
+
+- **제보**: `#20869` "우편함 안받아져"·`#20887` "이전저장결과를 확인하래"·`#20915` "가방또는 징비데이터도 올바르지 않대"·`#20938` "가방 꽉차면 가방 풀 표시 해주고 우편도 받을따 가방이 꽉차짔다거 알림주기"(10:37~10:44 KST).
+- **원인(재현 완료)**: `server/journey.mjs` `rewards()`가 우편·일일·주간·업적 보상 스킬북을 칸 검사 없이 `save.bag.push`로 넣는데, 저장 검사 `reconcileItems()`는 `countedInBag`(장비 + 다른 직업 전용 스킬북)이 40을 넘으면 `400 INVALID_SAVE "가방 또는 장비 데이터가 올바르지 않습니다."`. 즉 **서버가 보상으로 넘겨 둔 세이브를 서버가 거절**했다. 그러면 클라이언트 `sync.flush()`가 계속 false라 `mutate()`가 `이전 저장 결과를 확인해야 거래할 수 있습니다.`로 우편함·거래소를 영구히 잠갔다. 재현: 로컬 libSQL에 계정을 만들고 40장비 + 다른 직업 책 2권(더블 샷·파이어 볼트)을 서버 세이브에 넣은 뒤 `accountEndpoint` `save` → **400 INVALID_SAVE**(`work/DJRPG-226` 임시 스크립트로 확인, 테스트로 고정). 11-20 스캔에 남아 있던 "계정 가방 가득 참(드롭 43개 미수령)" 상태에서 오늘 업데이트 안내 우편(스킬북 2권)을 받은 것이 이 경로다.
+- **서버 수정**: `server/database.mjs`에 `EQUIPMENT_BAG_LIMIT`·`countedBagItems`·`bagCapacityLimit(save) = max(40, 해당 세이브의 counted 수)`를 두고 `reconcileItems`가 이 상한을 쓴다. **서버가 들고 있는 초과분은 저장 허용, 클라이언트가 그 위로 더 넣는 것만 거절**(문구: `가방이 N칸까지입니다. 장비·다른 직업 스킬북을 분해하거나 거래소에 올려 자리를 비워 주세요.`). `inventoryOwnerQuery`의 중복 40칸 선검사는 장비 칸(>10)만 남겼다 — 트랜잭션 첫 배치에서 서버 세이브를 읽기 전에 불리므로, 그 자리에서 400을 내면 초과 상태가 영구히 잠긴다. **아이템 손실 없음**: 넘친 계정은 그대로 저장되고 분해·판매로 40칸 아래로 내려오면 종전 규칙으로 돌아간다.
+- **보상 수령 안내**(`server/journey.mjs`): 수령 뒤 `countedBagItems > 40`이면 응답 메시지에 `가방이 N칸이 되어 새 장비를 주울 수 없습니다. 분해·판매로 자리를 비워 주세요.`를 붙인다. 수령 자체를 막지는 않는다(받을 것을 잃지 않는 것이 우선).
+- **클라이언트 교착 방지**(`src/game/sync.ts`): `lastSaveError`에 실제 저장 실패 이유를 남겨 `이전 저장 결과를 확인해야 거래할 수 있습니다. (사유)`로 보여 주고, 재시도로 풀리지 않는 `400 INVALID_SAVE`·`INVALID_ITEM`·`INVALID_GOLD`는 `saveRejectedCodes`로 보고 **서버 최신 세이브로 재동기화**(`reloadLatest`, 기존 10초 충돌 루프 가드)해 잠금에서 벗어난다.
+- **UI**: ① 하단 `내 정보` 버튼에 빨간 **`FULL`** 배지(`src/ui/hud.ts` `renderBagBadge`·`src/ui/interface.ts` 마크업·`src/styles/hud.css` — 40칸 이상일 때만, `aria-label` `내 정보 · 가방 가득 참 (N/40)`·테두리 강조) ② 가방 창 바닥 줄 `가방 N/40` 옆 **`가득 참`**(`equipModal.ts`) ③ 우편함 상단에 **`가방이 가득 찼습니다 (N/40칸). 우편 보상은 그대로 받을 수 있지만, 새 장비를 주우려면 분해·판매로 자리를 비워 주세요.`**(`utilityModal.ts`, 받기·모두 받기 버튼은 그대로 활성).
+- **검증**: `npx tsc --noEmit` 통과, 신규 `tests/bag-limit-recovery.test.mjs` **3/3**, `tests/sync.test.mjs` **23/23**, `tests/{bag-capacity,journey-ui,journey,equipment-badge}` 통과, 전체 1,058건 중 1,055 통과(실패 3건은 변경 전 `origin/main`과 동일한 기존 건 — `costume-field-render` 2·`skillbook-server` 1), `npm run build` 통과.
+
 ## 2026-11-21 · songduckjin 작업 244 — 궁수·마법사 사거리 소폭 상향(330/180 · 285/160)
 
 - **요청**: 사용자 "그리고 궁수 법사 사거리 조금씩늘려줘"(08:28 KST). 09:00 API 복구 전까지 구현·검증·운영 배포.
