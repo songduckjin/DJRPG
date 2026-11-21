@@ -77,11 +77,22 @@ test('판매 등록 화면만 모달을 고정 flex로 바꿔 아이템을 골�
 
   const css = readFileSync(new URL('../src/styles/market.css', import.meta.url), 'utf8');
   assert.match(css, /\.modal-dialog\.market-modal\.market-registering\s*\{[^}]*display:\s*flex[^}]*overflow:\s*hidden/);
-  assert.match(css, /\.market-register \.market-register-grid\s*\{[^}]*flex:\s*1 1 auto[^}]*max-height:\s*none[^}]*overflow-y:\s*auto/);
+  assert.match(css, /\.market-register \.market-register-grid\s*\{[^}]*flex:\s*1 1 auto[^}]*max-height:\s*none[^}]*overflow-y:\s*auto[^}]*align-content:\s*start/);
   assert.match(css, /\.market-register-detail\s*\{[^}]*flex:\s*0 0 auto[^}]*max-height:\s*60%[^}]*overflow-y:\s*auto/);
   // 사용자 확정(11-21): 판매 등록 칸은 한 줄에 **8칸**이다(간격은 4px로 좁혔다).
   assert.match(css, /\.market-register-grid\s*\{[^}]*grid-template-columns:\s*repeat\(8,/, '한 줄 8칸');
   assert.match(css, /\.market-register-grid\s*\{[^}]*gap:\s*4px/);
+});
+
+// 작업 253 — 판매 등록 그리드가 `flex: 1 1 auto`로 모달 높이를 채우면서, CSS Grid 기본값(`align-content: stretch`)이
+// 자동 행을 늘려 줄 사이가 모달 높이만큼 벌어지던 문제. `align-content: start`가 없으면 회귀다.
+test('판매 등록 물품 그리드는 줄(row)이 모달 높이만큼 늘어나지 않는다 — `align-content: start`(작업 253)', () => {
+  const css = readFileSync(new URL('../src/styles/market.css', import.meta.url), 'utf8');
+  const registerGrid = /\.market-register \.market-register-grid\s*\{([^}]*)\}/.exec(css);
+  assert(registerGrid, '판매 등록 그리드 규칙이 있다');
+  assert.match(registerGrid[1], /flex:\s*1 1 auto/, '모달 남은 높이를 채운다');
+  assert.match(registerGrid[1], /align-content:\s*start/, '행을 위에서부터 쌓고 늘리지 않는다(`stretch` 아님)');
+  assert.doesNotMatch(registerGrid[1], /align-content:\s*(stretch|normal)/, '`stretch`/`normal`로 돌아가면 줄 간격이 다시 벌어진다');
 });
 
 test('묶음 칸을 고르면 수량(최대 10개)·개당 가격 카드가 열리고 고른 수량만큼 itemIds로 등록한다(작업 249)', () => withDoc(() => {
