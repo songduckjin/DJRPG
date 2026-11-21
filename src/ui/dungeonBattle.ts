@@ -159,6 +159,8 @@ export function dungeonAbsorbPoint(from:LootSpot,to:LootSpot,progress:number,ind
   return {x:from.x+(to.x-from.x)*k+swing,y:from.y+(to.y-from.y)*k};
 }
 class DungeonWorld extends World {
+  /** 던전 적은 히어로 (50,50) 고정 전투 때문에 종전 간격(27)을 그대로 쓴다 — `world.ts` `enemyRange` 주석 참고(작업 254). */
+  protected override enemyRange = 27;
   slain=0;
   loot:DungeonLoot[]=[];
   private lootId=0;
@@ -175,8 +177,8 @@ class DungeonWorld extends World {
     const extra=(DUNGEON_ENEMY_SPEED_SCALE-1)*dt;
     for(const enemy of this.enemies){
       const dx=this.player.x-enemy.x,dy=this.player.y-enemy.y,d=Math.hypot(dx,dy);
-      if(!enemy.moving||d<=27||extra<=0)continue;
-      const step=Math.min(enemyMoveSpeed(this.save.floor,enemy.boss)*(enemy.slow>0?.55:1)*extra,d-27);
+      if(!enemy.moving||d<=this.enemyRange||extra<=0)continue;
+      const step=Math.min(enemyMoveSpeed(this.save.floor,enemy.boss)*(enemy.slow>0?.55:1)*extra,d-this.enemyRange);
       if(step<=0)continue;
       const bounded=clampArenaPoint(enemy.x+dx/d*step,enemy.y+dy/d*step);
       enemy.step+=extra*Math.PI*(enemy.boss?3.25:4.25);

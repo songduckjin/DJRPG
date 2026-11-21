@@ -140,15 +140,16 @@ test('preview loot never enters the ground renderer or the account save',()=>{
 
 test('dungeon mobs close ground 1.5x the shared field pace',()=>{
  // Same enemy, same dt: only travel distance may differ, so attacks/skills are stubbed out.
- const travel=(world)=>{const p=world.player,enemy={x:p.x+50,y:p.y,hp:1e9,maxHp:1e9,boss:false,hit:0,step:0,moving:false,knockX:0,knockY:0,slow:0};
+ // 작업 254로 필드 적은 전사 사거리(90)에서 서므로, 히어로 코앞(50)에서는 필드 적이 움직이지 않는다.
+ // 그래서 필드 걸음 폭은 사거리 밖에서, 던전 걸음 폭은 던전이 실제로 걷는 50 자리에서 한 프레임씩 잰다.
+ const place=(world)=>{const p=world.player,enemy={x:p.x+50,y:p.y,hp:1e9,maxHp:1e9,boss:false,hit:0,step:0,moving:false,knockX:0,knockY:0,slow:0};
   world.enemies=[enemy];world.action=()=>{};world.spawnTimer=Infinity;
-  const before=Math.hypot(enemy.x-p.x,enemy.y-p.y);
-  for(let i=0;i<6;i++)world.update(.05);
-  return before-Math.hypot(enemy.x-p.x,enemy.y-p.y);};
+  return {world,enemy,before:Math.hypot(enemy.x-p.x,enemy.y-p.y)};};
+ const dungeon=place(new DungeonBattle(freshSave()).world),field=place(new World(freshSave()));
+ dungeon.world.update(.05);
+ assert.equal(Math.hypot(field.enemy.x-field.world.player.x,field.enemy.y-field.world.player.y),50,'필드 적은 90 안에서 제자리다');
  assert.equal(DUNGEON_ENEMY_SPEED_SCALE,1.5);
- const fieldTravel=travel(new World(freshSave())),dungeonTravel=travel(new DungeonBattle(freshSave()).world);
- assert(Math.abs(fieldTravel-enemyMoveSpeed(1,false)*.3)<1e-9);
- assert(Math.abs(dungeonTravel-fieldTravel*DUNGEON_ENEMY_SPEED_SCALE)<1e-9);
+ assert(Math.abs(dungeon.before-Math.hypot(dungeon.enemy.x-dungeon.world.player.x,dungeon.enemy.y-dungeon.world.player.y)-enemyMoveSpeed(1,false)*.05*DUNGEON_ENEMY_SPEED_SCALE)<1e-9);
 });
 
 test('each wave starts two of its own strides closer to the hero than the old corner',()=>{

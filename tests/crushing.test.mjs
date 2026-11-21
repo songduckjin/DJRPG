@@ -131,11 +131,14 @@ test('잔상은 타마다 남고 본체보다 낮은 불투명도로 10번째 �
   const cast = firstStrike(world, [], () => world.action('crushing'));
   assert.equal(cast.length, 0);
   assert.equal(world.crush.next, crushInterval, '두 번째 타는 62ms 뒤다');
+  const home = { x: world.player.x, y: world.player.y };
   const { images } = advance(world, crushHits * crushInterval, []);
+  // 작업 254로 적이 90에서 서므로, 타마다 밀려난 적(넉백 3)을 쫓아 본체가 걷는다 — 그 걸음만큼은 잔상도 뒤에 남는다.
+  const walked = Math.hypot(world.player.x - home.x, world.player.y - home.y);
   assert.equal(images.length, crushHits, '10타 각각이 잔상을 하나씩 남긴다');
   for (const image of images) {
     assert(image.alpha >= .14 && image.alpha <= .42, `잔상 불투명도 ${image.alpha} 는 0.14~0.42 안이다`);
-    assert(Math.abs(image.x - world.player.x) <= 14 && Math.abs(image.y - world.player.y) <= 14, '잔상은 본체에서 ±14px 안에만 흩어진다');
+    assert(Math.abs(image.x - world.player.x) <= 14 + walked && Math.abs(image.y - world.player.y) <= 14 + walked, '잔상은 본체에서 ±14px(걸은 거리 포함) 안에만 흩어진다');
     assert.equal(image.facingSide, world.player.facingSide);
     assert.equal(image.duration, crushTrailLife);
   }

@@ -90,6 +90,13 @@ export const archerStopRange = 180;
  *  궁수의 약 86%를 유지해 두 원거리 직업의 체감 차등은 그대로 두고 함께 올렸다(240/130 → 285/160). */
 export const mageAttackRange = 285;
 export const mageStopRange = 160;
+/** 전사 평타 사거리 — 아래 `ENEMY_ATTACK_RANGE`가 이 값을 그대로 쓴다(작업 254). */
+export const warriorAttackRange = 90;
+/** 적의 공격 사거리(작업 254, 사용자 제보 "적들 공격 사거리를 전사랑 같아야 공격할거같아").
+ *  예전에는 적이 플레이어 27px 앞에서 멈추고 35px 안에서만 때려, 전사가 검을 휘두르는 거리(90)보다
+ *  훨씬 바짝 붙어야 공격했다(적이 캐릭터 몸 위로 겹쳐 들어옴). 이제 적도 전사와 같은 90에서 멈춰
+ *  그 자리에서 공격한다 — 서로의 사거리가 같아 경계에서 빈틈(적은 멈췄는데 내 평타는 못 닿는 자리)이 없다. */
+export const ENEMY_ATTACK_RANGE = warriorAttackRange;
 export function enemyMoveSpeed(floor: number, boss: boolean): number {
   return boss ? 28 : Math.min(64, 38 + Math.max(0, floor - 1) * 1.2);
 }
@@ -162,6 +169,10 @@ export function fireBoltSpots(x: number, y: number, count: number): { x: number;
 }
 
 export class World {
+  /** 적이 멈추고 공격하는 거리 — 필드는 전사 사거리(90). 던전(`DungeonWorld`)만 27로 덮는다(작업 254):
+   *  던전은 프레임마다 히어로를 (50,50)에 되돌리는 기존 전투(작업 248 PR #253이 없애는 중)라, 적을 90에
+   *  세우면 히어로가 걸어간 만큼 되돌아와 서로 92에서 마주 보고 아무도 닿지 못한 채 90초가 끝난다. */
+  protected enemyRange = ENEMY_ATTACK_RANGE;
   player = { x: 0, y: 0, facing: 0, facingSide: 1, hp: 100, berserk: 0, berserkLevel: 1, hit: 0 };
   /** 추가옵션 체력회복력(작업 238)의 5초 타이머. */
   regenClock = 0;
@@ -339,7 +350,7 @@ export class World {
     if (kind !== 'attack' && (!this.save.learned.includes(kind) || !this.save.quickSlots.includes(kind))) { this.onMessage('습득하고 퀵슬롯에 장착한 스킬만 사용할 수 있습니다.'); return; }
     const p = this.player;
     const level = kind === 'attack' ? 1 : skillLevel(this.save, kind);
-    const range = kind === 'attack' ? 90 : skillRange(kind, level);
+    const range = kind === 'attack' ? warriorAttackRange : skillRange(kind, level);
     const damageScale = skillDamageScale(level);
     const stats = totalStats(this.save);
     // [작업 216] 광폭 버프(블러드 레이지·호크아이·아케인 실드)의 공속은 +20%에서 시작해 스킬 레벨당 +1%,
@@ -700,8 +711,8 @@ export class World {
       if (destination !== this.chaseTarget) { this.chaseTarget = destination; this.pursuing = false; }
       // Keep the production boundary fix while loot now flies to the hero.
       // 궁수·마법사는 사거리 밖에서만 다가가고, 사거리 안에서는 서서 쏜다(작업 157·159).
-      const stopRange = this.job === 'archer' ? archerStopRange : this.job === 'mage' ? mageStopRange : 90;
-      const attackRange = this.job === 'archer' ? archerAttackRange : this.job === 'mage' ? mageAttackRange : 90;
+      const stopRange = this.job === 'archer' ? archerStopRange : this.job === 'mage' ? mageStopRange : warriorAttackRange;
+      const attackRange = this.job === 'archer' ? archerAttackRange : this.job === 'mage' ? mageAttackRange : warriorAttackRange;
       const engageRange = this.job === 'archer' ? archerAttackRange + 24 : this.job === 'mage' ? mageAttackRange + 24 : 190;
       this.pursuing = distance >= stopRange;
       this.activeMove = this.pursuing && distance > 0 ? { x: dx / distance, y: dy / distance } : { x: 0, y: 0 };
@@ -770,7 +781,7 @@ export class World {
     for (const enemy of this.enemies) {
       const dx = p.x - enemy.x, dy = p.y - enemy.y, d = Math.hypot(dx, dy);
       enemy.attack = Math.max(0, (enemy.attack ?? 0) - dt);
-      enemy.moving = d > 27;
+      enemy.moving = d > this.enemyRange;
       if (enemy.moving && d > 0) { const step = enemyMoveSpeed(this.save.floor, enemy.boss) * (enemy.slow > 0 ? .55 : 1) * dt; enemy.x += dx / d * step; enemy.y += dy / d * step; enemy.step += dt * Math.PI * (enemy.boss ? 3.25 : 4.25); }
       enemy.x += enemy.knockX * dt; enemy.y += enemy.knockY * dt;
       // 적은 아레나가 아니라 **필드 경계**로 자른다(작업 230) — 아레나로 자르면 멀리 스폰된 적이 첫
@@ -778,7 +789,7 @@ export class World {
       const bounded = clampFieldPoint(enemy.x, enemy.y); enemy.x = bounded.x; enemy.y = bounded.y;
       enemy.knockX *= Math.exp(-dt * 12); enemy.knockY *= Math.exp(-dt * 12);
       enemy.slow = Math.max(0, enemy.slow - dt);
-      if (d < 35 && p.hit <= 0) {
+      if (d <= this.enemyRange && p.hit <= 0) {
         // 적의 공격 모션(작업 245): 때리는 적이 플레이어 쪽으로 내딛는다(`enemy.attack`).
         enemy.attack = ENEMY_STRIKE_SECONDS;
         // 추가옵션 회피율(작업 238, 합산 상한 30%): 맞을 순간 한 번 굴려 성공하면 피해를 통째로 무시하고

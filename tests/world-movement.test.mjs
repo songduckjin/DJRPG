@@ -51,7 +51,9 @@ test('automatic attacks and equipped skills start when the hero reaches attack r
   for (let i = 0; i < 6 && Math.hypot(enemy.x - world.player.x, enemy.y - world.player.y) > 90; i++) world.update(.1);
   world.update(.016);
   assert.equal(Math.hypot(world.activeMove.x, world.activeMove.y), 0);
-  assert(Math.hypot(enemy.x - world.player.x, enemy.y - world.player.y) <= 90);
+  // 작업 254로 적도 90에서 서므로, 이단참의 넉백(55)이 적을 90 밖으로 밀어낸 자국까지 허용한다 —
+  // 미는 순간 사거리 안이었다는 것은 체력이 깎인 것으로 확인한다(아래).
+  assert(Math.hypot(enemy.x - world.player.x, enemy.y - world.player.y) <= 90 + 55);
   assert(enemy.hp < 10000);
   assert(world.effects.some(effect => effect.kind === 'slash'));
   assert(world.effects.some(effect => effect.kind === 'slash2'));
