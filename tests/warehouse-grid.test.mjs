@@ -458,10 +458,11 @@ test('이동하는 동안 그 칸만 잠기고 응답의 세이브·창고 목�
   } finally { globalThis.document = previous; }
 });
 
-// 작업 253 — 사용자 제보(11-21) "공용창고 선택 꺼내기 너무 느리다". 예전에는 아이템마다 `await tx.execute`로
-// 소유 기록을 읽어 10개면 10번, 30개면 30번 원격 DB를 왕복했다(수 초~타임아웃). 지금은 `IN (...)` 한 번으로
-// 읽어 `Map`으로 검증하고, 쓰기도 `INSERT`(다중 VALUES) 1 + `UPDATE ... IN (...)` 2 / `DELETE` 1 + `UPDATE ... IN (...)` 2로 묶는다.
-test('일괄 보관·꺼내기는 아이템 수만큼 DB를 왕복하지 않는다(작업 253)', () => {
+// 작업 253 → 258 — 사용자 제보(11-21) "공용창고 선택 꺼내기 너무 느리다". 예전에는 아이템마다 `await tx.execute`로
+// 소유 기록을 읽어 10개면 10번, 30개면 30번 원격 DB를 왕복했다(수 초~타임아웃). 지금은 계정·재요청·창고 목록·
+// 소유 기록·여정 상태를 **`tx.batch` 한 번**으로 읽고, 쓰기도 `INSERT`(다중 VALUES) 1 + `UPDATE ... IN (...)` 2 /
+// `DELETE` 1 + `UPDATE ... IN (...)` 2로 묶는다. 응답의 창고 목록도 다시 읽지 않고 이미 읽은 행에서 만든다.
+test('일괄 보관·꺼내기는 아이템 수만큼 DB를 왕복하지 않고, 읽기는 한 묶음이다(작업 253·258)', () => {
   const source = readFileSync(new URL('../server/endpoints/warehouse.mjs', import.meta.url), 'utf8');
   const start = source.indexOf("if (input.action === 'deposit')");
   const end = source.indexOf('const saved = await writeSave');
@@ -469,12 +470,24 @@ test('일괄 보관·꺼내기는 아이템 수만큼 DB를 왕복하지 않는�
   const block = source.slice(start, end);
   const loops = [...block.matchAll(/for \(const itemId of ids\) \{([\s\S]*?)\n        \}/g)].map(match => match[1]);
   assert.equal(loops.length, 2, '보관·꺼내기 각각 하나의 루프');
-  for (const body of loops) assert.doesNotMatch(body, /await tx\.execute/, '아이템 루프 안에서 DB를 왕복하지 않는다');
-  assert.match(block, /o\.item_id IN \(\$\{placeholders\(ids\)\}\)/, '보관: 소유 기록을 1회 조회');
-  assert.match(block, /w\.item_id IN \(\$\{placeholders\(ids\)\}\)/, '꺼내기: 창고+소유 기록을 1회 조회');
-  assert.match(block, /UPDATE djrpg_item_owners SET location='warehouse' WHERE account_id=\? AND item_id IN \(\$\{marks\}\)/);
-  assert.match(block, /DELETE FROM djrpg_warehouse WHERE account_id=\? AND item_id IN \(\$\{marks\}\)/);
-  assert.equal((block.match(/INSERT INTO djrpg_warehouse/g) ?? []).length, 1, '보관 INSERT도 1문장(다중 VALUES)');
+  for (const body of loops) {
+    assert.doesNotMatch(body, /await tx\.execute|await tx\.batch/, '아이템 루프 안에서 DB를 왕복하지 않는다');
+  }
+  // 읽기는 문장 여러 개를 한 번에 보내는 `tx.batch` 하나 — 계정·재요청·창고·소유 기록·(진행 세이브)·여정 상태.
+  assert.match(source, /const queries = \[/, '읽기 목록을 한데 모은다');
+  assert.match(source, /const reads = await tx\.batch\(queries\)/, '읽기는 `tx.batch` 한 번(왕복 1회)');
+  assert.match(source, /accountQuery\(id\)/, '계정 행도 같은 읽기 묶음에 넣는다');
+  assert.match(source, /inventoryOwnerQuery\(id, progress\)/, '함께 보낸 진행 세이브의 소유 기록도 같은 묶음에 넣는다');
+  assert.match(source, /ownerRows = reads\[3\]\.rows/, '보관·꺼내기 모두 그 묶음의 소유 기록을 쓴다');
+  assert.match(source, /o\.item_id IN \(\$\{marks\(ids\.length\)\}\)/, '소유 기록을 1회 조회');
+  assert.match(block, /UPDATE djrpg_item_owners SET location='warehouse' WHERE account_id=\? AND item_id IN \(\$\{slots\}\)/);
+  assert.match(block, /DELETE FROM djrpg_warehouse WHERE account_id=\? AND item_id IN \(\$\{slots\}\)/);
+  assert.equal((block.match(/INSERT INTO djrpg_warehouse\(/g) ?? []).length, 1, '보관 INSERT도 1문장(다중 VALUES)');
+  // 응답의 창고 목록은 다시 SELECT하지 않는다 — 이미 읽은 `storedRows`에 이번 이동을 반영한다.
+  assert.match(block, /itemsById = new Map\(storedRows/, '응답 목록은 읽어 둔 행에서 만든다');
+  assert.equal((source.match(/warehouseItems\(/g) ?? []).length, 2, '`list`에서만 창고 목록을 따로 읽는다(정의 + 1회)');
+  // 멱등 기록도 같은 쓰기 묶음으로 — 이동·저장·요청 기록이 한 트랜잭션에서 확정된다.
+  assert.match(block, /INSERT INTO djrpg_warehouse_requests/, '요청 기록도 같은 쓰기 묶음에 넣는다');
 });
 
 // 작업 253 — 사용자 제보(11-21) "로딩인지 모르겠음": 옮기는 동안 버튼이 잠기고 문구가 `보관 중…`/`꺼내는 중…`으로 바뀐다.
@@ -534,4 +547,104 @@ test('옮기는 동안 선택 버튼·상세 버튼은 잠기고 `보관 중…`
     await new Promise(resolve => setImmediate(resolve));
     assert(bagCell('s9'), '응답 뒤 가방에 들어온다');
   } finally { globalThis.document = previous; }
+});
+
+// 작업 258 — 사용자 제보 "창고시스템 오류가 너무 많은데". ① 주머니·스킬북 묶음이 5개인데 창고에 2칸만 남으면
+// 예전에는 버튼을 통째로 잠가 **하나도** 못 옮겼다. 지금은 남은 칸만큼만 옮기고 `(2/5)`로 몇 개가 나가는지 밝힌다.
+test('칸이 모자라면 스택도 남은 칸만큼 먼저 옮기고 `(2/5)`로 밝힌다(작업 258)', async () => {
+  const previous = globalThis.document;
+  globalThis.document = { createElement: tag => element(tag) };
+  try {
+    const save = freshSave(); save.job = 'warrior';
+    save.bag = [pouch('p1'), pouch('p2'), pouch('p3'), pouch('p4'), pouch('p5')];
+    // 창고 38/40 — 남은 칸 2.
+    const stored = Array.from({ length: 38 }, (_, index) => ({ id: `s${String(index).padStart(2, '0')}`, name: `창고 검 ${index}`, slot: 'weapon', rarity: 'common', stats: { attack: 1 } }));
+    const { ui, calls } = uiFixture(save, stored.slice());
+    const dialog = element();
+    renderWarehouse(ui, dialog);
+    const [storageGrid, bagGrid] = all(dialog, node => node.classList.contains('warehouse-grid'));
+    assert.equal(cellsIn(storageGrid).length, 38);
+    const pouchCell = cellsIn(bagGrid)[0];
+    assert.equal(pouchCell.dataset.itemId, 'p1', '주머니 묶음이 첫 칸');
+    pouchCell.onclick();
+    const header = all(dialog, node => node.classList.contains('warehouse-deposit-picked'))[0];
+    assert.equal(header.textContent, '선택 보관 (2/5)', '남은 2칸만 나간다는 것을 밝힌다');
+    assert.equal(header.disabled, false, '전부 못 옮겨도 남은 칸만큼은 옮길 수 있다(예전에는 잠겼다)');
+    assert(header.title.includes('2칸'), '남은 칸을 툴팁으로도 알린다');
+    const detail = all(dialog, node => node.classList.contains('warehouse-detail'))[0];
+    const moveButton = all(detail, node => node.classList.contains('warehouse-move'))[0];
+    assert.equal(moveButton.textContent, '선택 보관 (2/5)', '한 묶음을 골라도 몇 개가 나가는지 밝힌다');
+    moveButton.onclick();
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].action, 'deposit');
+    assert.equal(calls[0].ids.length, 2, '남은 칸 수만큼만 보낸다');
+    assert.equal(warehouseState(ui).picked.size, 1, '못 옮긴 3개는 골라 둔 채 다시 누를 수 있게 둔다');
+    assert(ui.messages.at(-1).includes('나머지 3개'), '몇 개가 남았는지 알린다');
+
+    // 창고가 가득(0칸)이면 그때만 잠근다.
+    const full = uiFixture(save, Array.from({ length: 40 }, (_, index) => ({ id: `f${String(index).padStart(2, '0')}`, name: `가득 ${index}`, slot: 'weapon', rarity: 'common', stats: { attack: 1 } })));
+    const fullDialog = element();
+    renderWarehouse(full.ui, fullDialog);
+    cellsIn(all(fullDialog, node => node.classList.contains('warehouse-grid'))[1])[0].onclick();
+    const fullHeader = all(fullDialog, node => node.classList.contains('warehouse-deposit-picked'))[0];
+    assert.equal(fullHeader.disabled, true, '0칸이면 잠근다');
+    assert.equal(fullHeader.textContent, '선택 보관 (0/5)');
+  } finally { globalThis.document = previous; }
+});
+
+// 작업 258 — 예전 `renderWarehouse`는 그릴 때마다 `state.busy`를 비워, 응답을 기다리는 칸을 다시 탭하면 같은
+// 요청을 또 보낼 수 있었다(서버는 409로 거절 → "이전 창고 이동 결과를 확인 중입니다." 무한 반복).
+test('이동 중인 칸은 창고를 다시 그려도 잠긴 채로 남는다(작업 258)', async () => {
+  const previous = globalThis.document;
+  globalThis.document = { createElement: tag => element(tag) };
+  try {
+    const save = freshSave(); save.job = 'warrior';
+    save.bag = [sword('w1'), helmet('h1')];
+    const { ui, calls } = uiFixture(save, []);
+    let release = () => {};
+    ui.market.sync.transferWarehouse = async (action, ids) => { await new Promise(resolve => { release = resolve; }); calls.push({ action, ids }); return { ok: true, message: '보관했습니다.', items: ui.warehouseItems, save }; };
+    const dialog = element();
+    renderWarehouse(ui, dialog);
+    const cellOf = (tree, id) => cellsIn(all(tree, node => node.classList.contains('warehouse-grid'))[1]).find(cell => cell.dataset.itemId === id);
+    cellOf(dialog, 'w1').onclick();
+    all(dialog, node => node.classList.contains('warehouse-move'))[0].onclick();
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(cellOf(dialog, 'w1').disabled, true);
+    // 응답을 기다리는 동안 창고를 닫았다 다시 열어도(=다시 그려도) 그 칸은 잠긴 채다.
+    const reopened = element();
+    resetWarehouse(ui);
+    renderWarehouse(ui, reopened);
+    assert.equal(cellOf(reopened, 'w1').disabled, true, '보내는 중인 칸은 다시 열어도 잠긴다');
+    assert.equal(cellOf(reopened, 'h1').disabled, false, '다른 칸은 그대로 누를 수 있다');
+    release();
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(calls.length, 1, '같은 아이템을 두 번 보내지 않는다');
+  } finally { globalThis.document = previous; }
+});
+
+// 작업 258 — 예전에는 409에서 `ui.warehouseItems = undefined`로 목록을 지워 `공용창고를 불러오는 중…`이 화면을 덮었다.
+test('이동이 409로 거절되면 목록을 지우지 않고 조용히 다시 읽는다(작업 258)', async () => {
+  const previous = globalThis.document;
+  const fetchBefore = globalThis.fetch;
+  globalThis.document = { createElement: tag => element(tag) };
+  try {
+    const save = freshSave(); save.job = 'warrior';
+    save.bag = [sword('w1')];
+    const { ui } = uiFixture(save, [sword('s1')]);
+    ui.market.sync.transferWarehouse = async () => { throw Object.assign(new Error('아이템 소유 상태가 달라졌습니다. 다시 불러오세요.'), { status: 409, code: 'ITEM_CONFLICT' }); };
+    const lists = [];
+    globalThis.fetch = async (url, options) => { const body = JSON.parse(options.body); lists.push(body); return { ok: true, status: 200, json: async () => ({ items: [{ id: 's2', name: '새 창고 검', slot: 'weapon', rarity: 'common', stats: { attack: 1 } }] }) }; };
+    const dialog = element();
+    renderWarehouse(ui, dialog);
+    cellsIn(all(dialog, node => node.classList.contains('warehouse-grid'))[1])[0].onclick();
+    all(dialog, node => node.classList.contains('warehouse-move'))[0].onclick();
+    await new Promise(resolve => setImmediate(resolve));
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(ui.messages.at(-1), '아이템 소유 상태가 달라졌습니다. 다시 불러오세요.');
+    assert.deepEqual(lists.map(body => body.action), ['list'], '서버 기준으로 조용히 다시 읽는다');
+    assert.equal(ui.warehouseItems.length, 1, '목록을 비우지 않고 응답으로 갈아 끼운다');
+    assert(!text(dialog).includes('불러오는 중'), '로딩 문구가 화면을 덮지 않는다');
+    assert.equal(cellsIn(all(dialog, node => node.classList.contains('warehouse-grid'))[1]).length, 1, '그리드는 그대로 남아 있다');
+  } finally { globalThis.document = previous; globalThis.fetch = fetchBefore; }
 });

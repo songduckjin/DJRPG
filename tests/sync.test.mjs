@@ -264,24 +264,48 @@ test('창고 이동은 보낼 변경이 없으면 저장 왕복 없이 요청 �
   assert.deepEqual(payloads[0].itemIds,['a','b']);
   assert.equal(result.message,'보관했습니다.');assert.equal(sync.revision,1);assert.equal(sync.locked,false);
 });
-test('보낼 변경이 있으면 창고 이동 전에 한 번 저장하고 그 revision으로 옮긴다(작업 250)',async()=>{
-  const sync=setup(),urls=[];
+test('보낼 변경이 있으면 저장을 따로 왕복하지 않고 진행 세이브를 창고 요청에 실어 보낸다(작업 258)',async()=>{
+  const sync=setup(),urls=[],payloads=[];
   sync.save.gold=77;sync.markDirty();
-  globalThis.fetch=async(url,options)=>{urls.push(url);const payload=JSON.parse(options.body);if(url==='/api/account')return response({ok:true,revision:1});return response({ok:true,revision:2,save:sync.save,items:[]});};
-  await sync.transferWarehouse('withdraw','a');
-  assert.deepEqual(urls,['/api/account','/api/warehouse'],'진행 중 변경을 먼저 저장한다');
-  assert.equal(sync.revision,2);
+  globalThis.fetch=async(url,options)=>{urls.push(url);const payload=JSON.parse(options.body);payloads.push(payload);return response({ok:true,revision:1,save:{...sync.save,bag:[]},items:[],message:'보관했습니다.'});};
+  await sync.transferWarehouse('deposit','a');
+  // 예전에는 사냥 중이면 `/api/account`(저장) → `/api/warehouse` 두 번을 왕복했다. 지금은 한 번이다.
+  assert.deepEqual(urls,['/api/warehouse'],'저장(/api/account) 왕복 없이 요청 한 번');
+  assert.equal(payloads[0].progress.gold,77,'보낼 변경을 progress로 함께 보낸다');
+  assert.equal(payloads[0].revision,0,'서버가 이 revision 위에 이동+저장을 한 트랜잭션으로 적용한다');
+  assert.equal(sync.revision,1);assert.equal(sync.dirty,false);assert.equal(sync.locked,false);
 });
-test('창고 이동은 6초 타임아웃으로 한 번만 재확인하고 결과 미확인 상태는 자동 복구에 맡긴다(작업 250)',async()=>{
-  const sync=setup(),messages=[];let tries=0;
-  sync.onMessage=message=>messages.push(message);
-  globalThis.fetch=async(url)=>{if(url==='/api/warehouse'){tries++;throw new Error('offline');}return response({ok:true,revision:1});};
+test('응답을 잃은 창고 이동은 화면을 잠그지 않고 같은 requestId로 뒤에서 다시 확인한다(작업 258)',async()=>{
+  const sync=setup(),messages=[],pauses=[],requests=[];let offline=true;
+  sync.onMessage=message=>messages.push(message);sync.onPause=value=>pauses.push(value);
+  globalThis.fetch=async(url,options)=>{const payload=JSON.parse(options.body);requests.push(payload);if(offline)throw new Error('offline');return response({ok:true,revision:1,save:sync.save,moved:['bag-1'],items:[],message:'보관했습니다.'});};
   try{
-    await assert.rejects(sync.transferWarehouse('withdraw',['a']),/확인하지 못했습니다/);
-    assert.equal(tries,2,'무응답·5xx는 3회(최대 30초)가 아니라 2회(6초×2)만 기다린다');
+    await assert.rejects(sync.transferWarehouse('deposit',['bag-1']),/확인하지 못했습니다/);
+    assert.equal(requests.length,2,'6초×2회까지만 기다린다');
+    assert.equal(requests[0].requestId,requests[1].requestId,'재확인은 같은 requestId(서버 멱등)');
+    assert.equal(sync.pendingWarehouse,undefined,'결과 미확인 상태를 남겨 다음 이동을 막지 않는다');
     assert.equal(sync.locked,false,'실패해도 화면 잠금은 풀린다');
-    assert(sync.pendingWarehouse,'결과를 모르는 이동은 같은 requestId로 다시 확인할 수 있게 남긴다');
+    assert.equal(pauses.at(-1),false,'게임이 멈춘 채 얼지 않는다');
     assert(messages.length>=1,'실패는 화면에 바로 알린다');
+    assert.equal(sync.warehouseSettling,true,'화면 밖에서 같은 요청으로 결과를 확인한다');
+    // 그 사이 새 이동은 "이전 창고 이동 결과를 확인 중"이 아니라 무엇을 기다리는지 분명한 문구로 막는다.
+    await assert.rejects(sync.transferWarehouse('withdraw',['s-1']),/창고 상태를 다시 확인하는 중입니다/);
+    assert.equal(await sync.flush(),false,'확인이 끝날 때까지 저장은 잠깐 미룬다(revision 경합 방지)');
+    offline=false;
+    const recovered=new Promise((resolve,reject)=>{sync.onWarehouseRecovered=()=>resolve();setTimeout(()=>reject(new Error('자동 확인이 끝나지 않았다')),4_000);});
+    await recovered;
+    assert.equal(sync.revision,1,'재확인이 revision을 서버 값으로 맞춘다');
+    assert.equal(sync.warehouseSettling,false);
+    assert.equal(sync.locked,false);
+  }finally{sync.resetForCharacterSwitch();}
+});
+test('창고 이동의 서버 거절(409)은 결과를 남기지 않고 바로 선택을 다시 누를 수 있게 한다(작업 258)',async()=>{
+  const sync=setup(),requests=[];
+  globalThis.fetch=async(_url,options)=>{requests.push(JSON.parse(options.body));return response({code:'ITEM_NOT_AVAILABLE',error:'창고 아이템 상태가 달라졌습니다. 다시 불러오세요.'},409);};
+  try{
+    await assert.rejects(sync.transferWarehouse('withdraw',['s-1']),/창고 아이템 상태가 달라졌습니다/);
+    assert.equal(requests.length,1,'4xx는 확정 결과 — 같은 요청을 다시 보내지 않는다');
+    assert.equal(sync.pendingWarehouse,undefined);assert.equal(sync.locked,false);assert.equal(sync.warehouseSettling,false);
   }finally{sync.resetForCharacterSwitch();}
 });
 

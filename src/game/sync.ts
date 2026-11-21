@@ -15,6 +15,16 @@ const transactionSkippedCodes = ['DB_UNAVAILABLE', 'DB_NOT_CONFIGURED'];
 const saveRejectedCodes = ['INVALID_SAVE', 'INVALID_ITEM', 'INVALID_GOLD'];
 const conflictReloadWindow = 10_000;
 const conflictReloadMessage = '데이터 동기화가 어긋났습니다. 새로고침해 주세요.';
+/**
+ * 창고 이동 한 번의 요청(작업 258).
+ *
+ * 화면 세이브(`progress`)를 함께 실어 보내므로 서버는 **저장 1 + 이동 1**을 한 트랜잭션에서 끝낸다 —
+ * 사냥 중(보낼 변경이 있는 상태)에도 저장 요청을 따로 왕복하지 않는다. 같은 `requestId`로 다시 보내면
+ * 서버가 이미 처리한 요청이면 저장된 응답을 그대로 돌려주므로(멱등), 응답을 잃어도 두 번 옮기지 않는다.
+ */
+type WarehouseRequest = { action: 'deposit' | 'withdraw'; itemIds: string[]; requestId: string; revision: number; progress: Save };
+/** 결과를 확인하지 못한 창고 이동을 다시 확인하는 간격 — 첫 확인은 짧게, 뒤로 갈수록 늘린다(합계 약 11.6초). */
+const warehouseSettleDelays = [800, 1_600, 3_200, 6_000];
 const errorCode = (error: unknown): string => error instanceof Error && 'code' in error ? String((error as Error & { code?: unknown }).code ?? '') : '';
 const errorStatus = (error: unknown): number => error instanceof Error && 'status' in error ? Number((error as Error & { status?: unknown }).status) : 0;
 const errorExpectedVersion = (error: unknown): unknown => error instanceof Error && 'expected' in error ? (error as Error & { expected?: unknown }).expected : undefined;
@@ -42,9 +52,11 @@ export class SaveSync {
   locked = false;
   conflicted = false;
   pendingMarket?: { action: string; data: Record<string, unknown>; requestId: string; revision: number; progress: Save };
-  pendingWarehouse?: { action: 'deposit' | 'withdraw'; itemIds: string[]; requestId: string; revision: number };
-  private warehouseRecoveryTimer?: ReturnType<typeof setTimeout>;
-  private warehouseRecoveryDelay = 2000;
+  /** 지금 보내고 있는 창고 이동 — 보내는 동안만 채워 두고 `finally`에서 반드시 비운다(작업 258). */
+  pendingWarehouse?: WarehouseRequest;
+  /** 결과를 확인하지 못한 이동을 같은 `requestId`로 다시 확인하는 중인가 — 화면은 잠그지 않는다. */
+  warehouseSettling = false;
+  private warehouseSettleTimer?: ReturnType<typeof setTimeout>;
   private preparingMarket = false;
   onStatus: (status: string) => void = () => {};
   onMessage: (message: string) => void = () => {};
@@ -89,7 +101,7 @@ export class SaveSync {
    * 재확인이 409로 끝난다. 그래서 전환 전에 이 값으로 막고, 전환 응답을 받은 뒤에는 `resetForCharacterSwitch`로
    * 쓸모없어진 대기 상태를 버린다.
    */
-  get trading(): boolean { return this.locked || this.preparingMarket || !!this.pendingMarket || !!this.pendingWarehouse; }
+  get trading(): boolean { return this.locked || this.preparingMarket || !!this.pendingMarket || !!this.pendingWarehouse || this.warehouseSettling; }
   /** 캐릭터 전환 시작 — 사냥을 멈추고 예약 저장을 취소해 저장·revision이 전환 경계를 넘지 않게 한다. */
   beginSwitch(): void {
     this.switching = true;
@@ -99,7 +111,7 @@ export class SaveSync {
   /** 전환 응답을 화면에 반영한 뒤 사냥을 다시 돌린다(거래 대기·동기화 잠금이 남아 있으면 풀지 않는다). */
   endSwitch(): void {
     this.switching = false;
-    if (!this.conflicted && !this.locked && !this.pendingMarket && !this.pendingWarehouse) this.onPause(false);
+    if (!this.conflicted && !this.locked && !this.pendingMarket && !this.pendingWarehouse && !this.warehouseSettling) this.onPause(false);
   }
   /**
    * 캐릭터가 바뀌었으니 **이전 캐릭터의** 거래 대기·저장 스냅샷·변경 표시를 버린다(작업 239).
@@ -109,8 +121,9 @@ export class SaveSync {
    */
   resetForCharacterSwitch(): void {
     this.cancelQueuedSave();
-    if (this.warehouseRecoveryTimer !== undefined) clearTimeout(this.warehouseRecoveryTimer);
-    this.warehouseRecoveryTimer = undefined; this.warehouseRecoveryDelay = 2000;
+    // 결과를 확인하던 창고 이동도 버린다 — 옛 캐릭터의 revision·진행 세이브로 재확인하면 409가 난다(작업 258).
+    if (this.warehouseSettleTimer !== undefined) clearTimeout(this.warehouseSettleTimer);
+    this.warehouseSettleTimer = undefined; this.warehouseSettling = false;
     this.pendingMarket = undefined; this.pendingWarehouse = undefined;
     this.pendingSave = undefined; this.pending = false; this.preparingMarket = false;
     this.dirty = false;
@@ -128,7 +141,9 @@ export class SaveSync {
   }
   flush(): Promise<boolean> {
     this.cancelQueuedSave();
-    if (this.locked || this.conflicted || this.pendingMarket || this.pendingWarehouse) return Promise.resolve(false);
+    // 결과를 확인하지 못한 창고 이동이 있으면 그 확인이 끝날 때까지 저장을 미룬다 — 그 사이 저장이 revision을
+    // 올리면 재확인이 409로 끝나기 때문이다. 화면(사냥)은 멈추지 않으므로 진행은 그대로 쌓인다(작업 258).
+    if (this.locked || this.conflicted || this.pendingMarket || this.pendingWarehouse || this.warehouseSettling) return Promise.resolve(false);
     this.pending = true;
     if (this.active) return this.active;
     this.active = (async () => {
@@ -232,7 +247,8 @@ export class SaveSync {
     overlay.append(note, button); document.body.appendChild(overlay);
   }
   // ITEM_CONFLICT・CHARACTER_CONFLICT는 같은 저장을 다시 보내면 계속 실패하므로, 서버 최신 세이브를 받아 화면을 맞춘다.
-  private async reloadLatest(): Promise<void> {
+  // `quiet`면 안내 문구를 띄우지 않는다 — 창고 이동 결과를 확인하지 못해 조용히 다시 맞추는 자리(작업 258).
+  private async reloadLatest(quiet = false): Promise<void> {
     if (this.reloadingConflict) return;
     this.reloadingConflict = true;
     this.conflictReloadAt = Date.now();
@@ -249,7 +265,7 @@ export class SaveSync {
       this.pendingMarket = undefined; this.pendingWarehouse = undefined;
       this.lastSaveError = '';
       this.onSaved(); this.onStatus('저장됨');
-      this.onMessage('서버의 최신 진행 상황과 달라 자동으로 다시 불러왔습니다.');
+      if (!quiet) this.onMessage('서버의 최신 진행 상황과 달라 자동으로 다시 불러왔습니다.');
       if (!this.conflicted && !this.pendingMarket && !this.pendingWarehouse) this.onPause(false);
     } catch (error) { this.handleError(error); }
     finally { this.reloadingConflict = false; }
@@ -260,6 +276,7 @@ export class SaveSync {
   }
   async mutate(action: string, data: Record<string, unknown>, requestId: string): Promise<SyncResult> {
     if (this.locked || this.conflicted || this.preparingMarket || this.pendingWarehouse) throw new Error('다른 요청을 처리 중입니다.');
+    if (this.warehouseSettling) throw new Error('창고 상태를 다시 확인하는 중입니다. 잠시 후 다시 시도하세요.');
     this.preparingMarket = true;
     this.cancelQueuedSave();
     this.onPause(true);
@@ -337,88 +354,140 @@ export class SaveSync {
     } finally { this.locked = false; if (!this.conflicted && !this.pendingMarket) this.onPause(false); }
   }
   /**
-   * 창고 이동(작업 225). 문자열 하나면 단건, 배열이면 한 요청으로 여러 개를 옮긴다(서버 `itemIds`).
+   * 창고 이동(작업 225 → 250 → 258). 문자열 하나면 단건, 배열이면 한 요청으로 여러 개를 옮긴다(서버 `itemIds`).
    *
-   * 작업 250 — 사용자가 "물품 옮길 때 로딩이 너무 길고 템이 비활성화된 채로 변화 없음"이라고 보고했다. 원인은
-   * ① 보낼 변경이 없어도 매번 `flush()` 저장 왕복을 기다린 점 ② 실패 시 10초 타임아웃 × 3회(최대 30초) 동안
-   * 화면이 잠긴 채 기다린 점이다. 지금은 **저장할 변경이 없으면 `flush()`를 건너뛰어 요청 한 번으로** 옮기고,
-   * 받은 응답의 `items`·`save`로 화면을 바로 맞춘다. 결과를 모르는 실패는 6초 타임아웃 + 재확인 1회로 줄이고
-   * 확인은 `scheduleWarehouseRecovery`가 화면 밖에서 이어 간다.
+   * **요청 한 번 = 저장 + 이동**(작업 258). 화면 세이브를 `progress`로 함께 실어 보내므로 사냥 중(보낼 변경이
+   * 있는 상태)에도 저장(`/api/account`)을 따로 왕복하지 않는다. 서버는 그 세이브를 거래소와 같은 규칙으로 검증하고
+   * (`reconcileItems`) 이동과 저장을 한 트랜잭션에서 끝낸다 — 예전에는 저장 왕복 1 + 창고 왕복 1이었다.
+   *
+   * **멈춘 화면을 만들지 않는다**(작업 258). 예전에는 응답을 잃으면 `pendingWarehouse`가 남아 `onPause(true)`가
+   * 풀리지 않고(사냥이 통째로 멈춤) 다음 이동이 "이전 창고 이동 결과를 확인 중입니다."로 막혔으며, 복구 타이머가
+   * 같은 요청을 계속 다시 보냈다. 지금은 보내는 동안만 잠그고 `finally`에서 **반드시** 풀며, 결과를 모르는
+   * 실패는 화면 밖(`scheduleWarehouseSettle`)에서 **같은 `requestId`로** 다시 확인한다(서버 멱등 기록 덕분에
+   * 두 번 옮겨지지 않는다). 확인이 끝나면 옮긴 아이템만 화면 세이브에 반영하고 revision만 맞춘다 — 그 사이
+   * 사냥한 진행을 서버 세이브로 덮지 않는다.
    */
   async transferWarehouse(action: 'deposit' | 'withdraw', itemIds: string | string[]): Promise<SyncResult> {
     const ids = [...new Set(Array.isArray(itemIds) ? itemIds : [itemIds])];
     const slotAtStart = this.session.characterSlot;
     if (!ids.length) throw new Error('옮길 아이템이 없습니다.');
-    const sameIds = (pending: string[]): boolean => pending.length === ids.length && pending.every((id, index) => id === ids[index]);
-    if (this.locked || this.conflicted || this.pendingMarket || this.preparingMarket) throw new Error('다른 요청을 처리 중입니다.');
-    if (this.pendingWarehouse && (this.pendingWarehouse.action !== action || !sameIds(this.pendingWarehouse.itemIds))) throw new Error('이전 창고 이동 결과를 확인 중입니다.');
-    if (!this.pendingWarehouse) {
-      // 서버는 이 `revision`의 세이브 위에 이동을 적용하므로, 아직 못 보낸 변경(dirty)이나 진행 중인 저장이
-      // 있을 때만 먼저 저장한다. 변경이 없으면 저장 왕복을 건너뛰어 이동 한 번 = 요청 한 번으로 끝난다(작업 250).
-      // 저장이 거절되면(작업 246) 그 사유를 함께 보여 준다.
-      if (this.dirty || this.pendingSave || this.pending || this.active) {
-        if (!await this.flush()) throw new Error(this.saveBlockedMessage('저장 결과를 확인한 뒤 다시 시도하세요.'));
-      }
-      this.pendingWarehouse = { action, itemIds: ids, requestId: crypto.randomUUID(), revision: this.revision };
-    }
+    if (this.locked || this.conflicted || this.preparingMarket || this.pendingMarket) throw new Error('다른 요청을 처리 중입니다.');
+    // 같은 아이템을 두 번 보내지 않도록 보내는 동안만 막는다(작업 258 — 결과를 확인하는 동안은 화면을 열어 둔다).
+    if (this.pendingWarehouse) throw new Error('창고 이동을 처리 중입니다. 잠시 후 다시 시도하세요.');
+    if (this.warehouseSettling) throw new Error('창고 상태를 다시 확인하는 중입니다. 잠시 후 다시 시도하세요.');
+    // 진행 중인 저장이 있으면 그 응답의 revision만 먼저 확정한다. 보낼 변경 자체는 `progress`에 실려
+    // 이동과 같은 트랜잭션에서 저장되므로 저장 요청을 한 번 더 보내지 않는다.
+    if (this.active) await this.active;
+    if (this.conflicted) throw new Error('최신 진행 상황을 다시 불러와야 거래할 수 있습니다.');
+    const request: WarehouseRequest = { action, itemIds: ids, requestId: crypto.randomUUID(), revision: this.revision, progress: structuredClone(this.save) };
+    this.pendingWarehouse = request;
     this.locked = true; this.onPause(true);
     try {
-      let result: SyncResult | undefined;
-      // 최초 1회 + 재확인 1회 — 무응답이면 6초 안에 빠르게 알리고, 남은 확인은 복구 타이머가 맡는다(작업 250).
-      const attempts = 2;
-      for (let attempt = 0; attempt < attempts; attempt++) {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 6_000);
-        try {
-          // 한 개는 예전 그대로 `itemId`로 보낸다(구서버 호환) — 여러 개일 때만 `itemIds` 배열(작업 225).
-          const pending = this.pendingWarehouse;
-          const payload = pending.itemIds.length === 1 ? { action: pending.action, itemId: pending.itemIds[0], requestId: pending.requestId, revision: pending.revision } : { action: pending.action, itemIds: pending.itemIds, requestId: pending.requestId, revision: pending.revision };
-          const response = await fetch('/api/warehouse', { method: 'POST', headers: apiHeaders({ Authorization: `Bearer ${this.session.token}` }), body: JSON.stringify({ ...payload, characterSlot: this.session.characterSlot }), signal: controller.signal });
-          const body = await response.json();
-          if (!response.ok) {
-            if (response.status >= 500) throw new Error(body.error || '창고 이동 결과를 확인 중입니다.');
-            throw Object.assign(new Error(body.error || '창고 요청 실패'), { status: response.status, code: body.code, expected: body.expected });
-          }
-          result = body as SyncResult; break;
-        } catch (error) {
-          if (isNetworkOffline(error)) this.reportOffline();
-          if (error instanceof Error && 'status' in error) throw error;
-          if (attempt === attempts - 1) throw new Error('창고 이동 결과를 확인하지 못했습니다. 연결이 회복되면 자동으로 다시 확인합니다.');
-        } finally { clearTimeout(timeout); }
-      }
-      if (!result || !Number.isSafeInteger(result.revision)) throw new Error('창고 응답이 올바르지 않습니다.');
+      const result = await this.sendWarehouse(request);
       if (this.session.characterSlot !== slotAtStart) {
         // 캐릭터가 바뀐 뒤 도착한 창고 응답 — 옛 캐릭터의 세이브로 새 캐릭터의 화면을 덮지 않는다(작업 239).
-        this.pendingWarehouse = undefined;
-        if (this.warehouseRecoveryTimer !== undefined) clearTimeout(this.warehouseRecoveryTimer);
-        this.warehouseRecoveryTimer = undefined; this.warehouseRecoveryDelay = 2000;
         return result;
       }
-      const verifiedSave = parseSave(result.save, this.session.accountId);
-      this.pendingWarehouse = undefined;
-      if (this.warehouseRecoveryTimer) clearTimeout(this.warehouseRecoveryTimer);
-      this.warehouseRecoveryTimer = undefined; this.warehouseRecoveryDelay = 2000;
-      this.revision = result.revision;
-      Object.assign(this.save, verifiedSave);
-      this.dirty = false; this.lastSaveAt = Date.now();
-      this.reportOnline();
-      this.onSaved(); this.onStatus('저장됨');
+      this.applyWarehouseResult(result, action, true);
       return result;
     } catch (error) {
-      if (error instanceof Error && 'status' in error) this.pendingWarehouse = undefined;
-      else this.scheduleWarehouseRecovery();
+      // 4xx는 서버가 트랜잭션을 되돌린 **확정** 결과이고, 타임아웃·네트워크·5xx는 결과를 모른다. 모르는 경우만
+      // 같은 `requestId`로 조용히 다시 확인한다 — 화면은 잠그지 않는다(작업 258).
+      if (!(error instanceof Error && 'status' in error)) this.scheduleWarehouseSettle(request);
       this.handleError(error); throw error;
+    } finally {
+      this.pendingWarehouse = undefined;
+      this.locked = false;
+      if (!this.conflicted) this.onPause(false);
     }
-    finally { this.locked = false; if (!this.conflicted && !this.pendingWarehouse) this.onPause(false); }
   }
-  private scheduleWarehouseRecovery(): void {
-    if (!this.pendingWarehouse || this.warehouseRecoveryTimer) return;
-    const delay = this.warehouseRecoveryDelay;
-    this.warehouseRecoveryDelay = Math.min(30_000, delay * 2);
-    this.warehouseRecoveryTimer = setTimeout(() => {
-      this.warehouseRecoveryTimer = undefined;
-      const pending = this.pendingWarehouse;
-      if (pending) void this.transferWarehouse(pending.action, pending.itemIds).then(() => this.onWarehouseRecovered()).catch(() => {});
-    }, delay);
+  /** `/api/warehouse` 한 번 — 응답을 받은 실패는 `status`를 실어 던지고, 못 받은 실패는 그냥 던진다. */
+  private async sendWarehouse(request: WarehouseRequest, timeoutMs = 6_000, attempts = 2): Promise<SyncResult> {
+    for (let attempt = 0; attempt < attempts; attempt++) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), timeoutMs);
+      try {
+        // 한 개는 예전 그대로 `itemId`로 보낸다(구서버 호환) — 여러 개일 때만 `itemIds` 배열(작업 225).
+        const target = request.itemIds.length === 1 ? { itemId: request.itemIds[0] } : { itemIds: request.itemIds };
+        const response = await fetch('/api/warehouse', { method: 'POST', headers: apiHeaders({ Authorization: `Bearer ${this.session.token}` }), body: JSON.stringify({ action: request.action, ...target, requestId: request.requestId, revision: request.revision, progress: request.progress, characterSlot: this.session.characterSlot }), signal: controller.signal });
+        const body = await response.json();
+        if (!response.ok) {
+          // 5xx는 서버가 트랜잭션을 시작했는지 알 수 없다 — 결과 미확인으로 다루고 같은 `requestId`로 다시 확인한다.
+          if (response.status >= 500) throw new Error(body.error || '창고 이동 결과를 확인 중입니다.');
+          throw Object.assign(new Error(body.error || '창고 요청 실패'), { status: response.status, code: body.code, expected: body.expected });
+        }
+        if (!Number.isSafeInteger(body.revision)) throw new Error('창고 응답이 올바르지 않습니다.');
+        return body as SyncResult;
+      } catch (error) {
+        if (error instanceof Error && 'status' in error) throw error;
+        // 연결이 끊긴 것이라면 재접속 안내를 띄운다(작업 251) — 결과는 아래에서 같은 `requestId`로 다시 확인한다.
+        if (isNetworkOffline(error)) this.reportOffline();
+        if (attempt === attempts - 1) throw new Error('창고 이동 결과를 확인하지 못했습니다. 잠시 후 자동으로 다시 확인합니다.');
+      } finally { clearTimeout(timer); }
+    }
+    throw new Error('창고 이동 결과를 확인하지 못했습니다. 잠시 후 자동으로 다시 확인합니다.');
+  }
+  /**
+   * 응답을 반영한다. `replace`면 화면 세이브를 서버 세이브로 통째로 갈아 끼우고(게임이 잠겨 있던 정상 경로),
+   * 아니면 **옮긴 아이템만** 화면 세이브에 적용한다 — 화면 밖에서 결과를 확인하는 동안 사냥한 진행을 지키기 위해서다.
+   */
+  private applyWarehouseResult(result: SyncResult, action: 'deposit' | 'withdraw', replace: boolean): void {
+    const verified = parseSave(result.save, this.session.accountId);
+    this.revision = result.revision;
+    if (replace) {
+      Object.assign(this.save, verified);
+      this.pending = false; this.pendingSave = undefined; this.dirty = false; this.lastSaveAt = Date.now();
+    } else {
+      const moved = new Set(result.moved ?? []);
+      const bag = this.save.bag.filter(item => !moved.has(item.id));
+      if (action === 'withdraw') {
+        const have = new Set(bag.map(item => item.id));
+        for (const item of verified.bag) if (moved.has(item.id) && !have.has(item.id)) bag.push(item);
+      }
+      this.save.bag.splice(0, this.save.bag.length, ...bag);
+      this.lastSaveAt = Date.now();
+      this.queueSave();
+    }
+    this.reportOnline();
+    this.onSaved(); this.onStatus('저장됨');
+  }
+  /**
+   * 결과를 확인하지 못한 이동을 **화면 밖에서** 같은 `requestId`로 다시 확인한다(작업 258).
+   * 사냥은 계속 돌고(`onPause`를 건드리지 않는다), 확인이 끝날 때까지 새 이동·저장만 잠깐 미룬다.
+   */
+  private scheduleWarehouseSettle(request: WarehouseRequest): void {
+    if (this.warehouseSettling) return;
+    this.warehouseSettling = true;
+    const slot = this.session.characterSlot;
+    let round = 0;
+    const giveUp = (): void => {
+      this.warehouseSettling = false;
+      this.onMessage('창고 이동 결과를 확인하지 못했습니다. 창고를 다시 열어 확인해 주세요.');
+      // revision이 어긋난 채로 두면 다음 저장이 409로 막힌다 — 서버 기준으로 조용히 다시 맞춘다.
+      void this.reloadLatest(true).then(() => this.onWarehouseRecovered(), () => {});
+    };
+    const tick = async (): Promise<void> => {
+      this.warehouseSettleTimer = undefined;
+      if (this.conflicted || this.session.characterSlot !== slot) { this.warehouseSettling = false; return; }
+      try {
+        const result = await this.sendWarehouse(request, 6_000, 1);
+        this.applyWarehouseResult(result, request.action, false);
+        this.warehouseSettling = false;
+        // 창고를 열어 두었으면 서버가 준 목록으로 다시 그린다(이동이 실제로 반영됐는지 눈으로 확인된다).
+        this.onWarehouseRecovered();
+        return;
+      } catch (error) {
+        const status = errorStatus(error), code = errorCode(error);
+        if (status && status < 500) {
+          // 거절(4xx)은 확정 결과다. 화면과 서버가 어긋난 경우만 조용히 최신 세이브로 맞춘다.
+          this.warehouseSettling = false;
+          if (code === 'SAVE_CONFLICT' || conflictErrorCodes.includes(code) || saveRejectedCodes.includes(code)) void this.reloadLatest(true).then(() => this.onWarehouseRecovered(), () => {});
+          return;
+        }
+        if (round >= warehouseSettleDelays.length) { giveUp(); return; }
+        this.warehouseSettleTimer = setTimeout(tick, warehouseSettleDelays[round++]);
+      }
+    };
+    this.warehouseSettleTimer = setTimeout(tick, warehouseSettleDelays[round++]);
   }
 }

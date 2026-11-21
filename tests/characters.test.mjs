@@ -95,45 +95,52 @@ test('legacy slot, shared gold and warehouse transfers preserve independent char
   }
 });
 
-test('unknown warehouse result retries the same transfer and resumes combat', async t => {
+test('unknown warehouse result resumes combat and is re-checked in the background', async t => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const save = structuredClone(legacy), sync = new SaveSync(save, { accountId: 'hero', token: 'token', revision: 0, characterSlot: 1, save });
   const pauses = [], requests = []; let recovered = 0;
   sync.onPause = value => pauses.push(value);
   sync.onWarehouseRecovered = () => { recovered++; };
   t.mock.method(globalThis, 'fetch', async (url, options) => {
-    if (url === '/api/account') return { ok: true, json: async () => ({ ok: true, revision: 1 }) };
     const request = JSON.parse(options.body); requests.push(request);
-    if (requests.length <= 3) throw new Error('response lost');
-    return { ok: true, json: async () => ({ ok: true, revision: 2, save }) };
+    if (requests.length <= 2) throw new Error('response lost');
+    return { ok: true, json: async () => ({ ok: true, revision: 2, save, moved: [item.id], items: [] }) };
   });
   await assert.rejects(sync.transferWarehouse('deposit', item.id), /자동으로 다시 확인/);
-  assert(sync.pendingWarehouse); assert.deepEqual(pauses, [true]);
-  t.mock.timers.tick(2000);
+  // 작업 258 — 결과를 모르는 이동이 화면을 잠근 채 남지 않는다(사냥이 바로 다시 돈다).
+  assert.equal(sync.pendingWarehouse, undefined, '결과 미확인 상태를 화면에 남기지 않는다');
+  assert.deepEqual(pauses, [true, false], '보내는 동안만 멈추고 곧 다시 돈다');
+  assert.equal(sync.warehouseSettling, true, '화면 밖에서 같은 요청으로 결과를 확인한다');
+  assert.equal(sync.locked, false);
+  t.mock.timers.tick(800);
   await new Promise(resolve => setImmediate(resolve));
-  assert.equal(sync.pendingWarehouse, undefined); assert.equal(pauses.at(-1), false);
-  assert.equal(recovered, 1); assert.equal(requests.length, 4);
-  assert(requests.every(request => request.requestId === requests[0].requestId));
+  assert.equal(sync.warehouseSettling, false);
+  assert.equal(pauses.at(-1), false, '확인이 끝나도 사냥은 계속 돈다');
+  assert.equal(recovered, 1); assert.equal(requests.length, 3);
+  assert(requests.every(request => request.requestId === requests[0].requestId), '같은 requestId(서버 멱등)로만 다시 확인한다');
+  assert.equal(sync.revision, 2);
 });
 
-test('server errors keep the warehouse request pending until its result is confirmed', async t => {
+test('server errors resume combat and the transfer is confirmed in the background', async t => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const save = structuredClone(legacy), sync = new SaveSync(save, { accountId: 'hero', token: 'token', revision: 0, characterSlot: 1, save });
   const pauses = [], requests = [];
   sync.onPause = value => pauses.push(value);
   t.mock.method(globalThis, 'fetch', async (url, options) => {
-    if (url === '/api/account') return { ok: true, json: async () => ({ ok: true, revision: 1 }) };
     requests.push(JSON.parse(options.body));
-    if (requests.length <= 3) return { ok: false, status: 503, json: async () => ({ error: '일시적인 서버 오류' }) };
-    return { ok: true, json: async () => ({ ok: true, revision: 2, save }) };
+    if (requests.length <= 2) return { ok: false, status: 503, json: async () => ({ error: '일시적인 서버 오류' }) };
+    return { ok: true, json: async () => ({ ok: true, revision: 2, save, moved: [item.id], items: [] }) };
   });
   await assert.rejects(sync.transferWarehouse('deposit', item.id), /자동으로 다시 확인/);
-  assert(sync.pendingWarehouse); assert.deepEqual(pauses, [true]);
-  t.mock.timers.tick(2000);
+  assert.equal(sync.pendingWarehouse, undefined);
+  assert.deepEqual(pauses, [true, false]);
+  assert.equal(sync.warehouseSettling, true);
+  t.mock.timers.tick(800);
   await new Promise(resolve => setImmediate(resolve));
-  assert.equal(sync.pendingWarehouse, undefined); assert.equal(pauses.at(-1), false);
-  assert.equal(requests.length, 4);
+  assert.equal(sync.warehouseSettling, false);
+  assert.equal(requests.length, 3);
   assert(requests.every(request => request.requestId === requests[0].requestId));
+  assert.equal(sync.revision, 2);
 });
 
 test('loading a save drops ghost items and restores tampered ones so the next save is not stuck', async () => {
