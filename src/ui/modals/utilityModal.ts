@@ -83,7 +83,7 @@ export function renderUtility(ui:Interface,dialog:HTMLElement,kind:'mail'|'rewar
     if(!data.mail.length)section.append(element('p','utility-note','받은 우편이 없습니다.'));
     const ready=(mail:typeof data.mail[number])=>!mail.claimedAt&&!mail.expired;
     const mails=[...data.mail].sort((a,b)=>Number(ready(b))-Number(ready(a))||Number(a.read)-Number(b.read)||b.createdAt-a.createdAt);
-    // 가방 40칸에는 스킬북·보물 주머니도 함께 센다(작업 248) — 자리가 없으면 아이템이 든 우편은 받을 수 없다.
+    // 가방 40칸에는 타직업 스킬북·보물 주머니를 함께 센다(내 직업 스킬북 제외, 작업 253) — 자리가 없으면 아이템이 든 우편은 받을 수 없다.
     // 금화만 있는 우편은 칸을 쓰지 않으므로 늘 받을 수 있다(서버 규칙과 같다).
     const bagFree=Math.max(0,EQUIPMENT_BAG_LIMIT-equipmentCount(ui.world.save.bag,ui.world.save.job));
     const mailItems=(mail:{books?:number;pouches?:number})=>Math.max(0,mail.books??0)+Math.max(0,mail.pouches??0);

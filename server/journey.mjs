@@ -7,7 +7,7 @@ import { countedInBag, rollRewardSkillBook, rollRewardSkillBookOfJob } from './s
 function rewardItemCount(entries) {
   return entries.reduce((sum, entry) => sum + Math.max(0, Math.floor(Number(entry.books ?? 0) || 0)) + Math.max(0, Math.floor(Number(entry.pouches ?? 0) || 0)), 0);
 }
-/** 가방 40칸에 지금 차 있는 칸 수 — 가방 안의 모든 아이템(작업 248). */
+/** 가방 40칸에 지금 차 있는 칸 수 — 장비·타직업 스킬북·보물 주머니(내 직업 스킬북 제외, 작업 253). */
 function bagSlots(save) {
   return (save.bag ?? []).filter(item => countedInBag(item, save.job)).length;
 }

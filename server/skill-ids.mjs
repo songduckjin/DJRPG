@@ -35,14 +35,23 @@ export function skillBookJobOf(skillId) {
 }
 
 /**
- * 가방 40칸에 세는 아이템인가 (작업 248, 사용자 확정 11-21).
- * **가방 안의 모든 아이템 1개 = 1칸**이다 — 장비·내 직업 스킬북·다른 직업 스킬북·보물 주머니를
- * 구분하지 않는다(작업 210의 '내 직업 책·주머니는 빼다'를 대체).
- * 클라이언트 `src/game/bagCapacity.ts`의 `countedInBag`과 같은 규칙이다.
+ * 가방 40칸에 세는 아이템인가 (작업 248 → 253, 사용자 확정 11-21).
+ * **장비·다른 직업 스킬북·보물 주머니는 1개 = 1칸**이고, **내 직업 스킬북만 세지 않는다**
+ * (작업 253 사용자 지시 "가방에 내 직업 스킬북 수량도 더하지 말라(별개로 빼라)").
+ * 직업을 알 수 없는 스킬북은 칸을 쓴다. 클라이언트 `src/game/bagCapacity.ts`의 `countedInBag`과 같은 규칙이다.
  */
 export function countedInBag(item, job) {
-  void job;
-  return Boolean(item) && typeof item === 'object';
+  if (!item || typeof item !== 'object') return false;
+  if (item.kind === 'skillbook') {
+    const owner = skillBookJobOf(item.skillId);
+    if (owner && owner === jobOrDefault(job)) return false;
+  }
+  return true;
+}
+
+/** `job` 값 정규화 — 클라이언트 `jobOrDefault`와 같다(모르는 값·빈 값은 전사). */
+export function jobOrDefault(job) {
+  return job === 'archer' || job === 'mage' ? job : 'warrior';
 }
 
 /** `itemValid`가 쓰는 검사용 집합. */

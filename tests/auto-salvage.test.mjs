@@ -13,7 +13,7 @@ const { autoSalvageBlock, autoSalvageRecovered, sweepBagOnFull, bagEquipmentCoun
 const { readAutoSalvage, saveAutoSalvage, AUTO_SALVAGE_KEY, AUTO_SALVAGE_ON_NOTICE, AUTO_SALVAGE_HINT } = await import('../src/ui/autoSalvage.ts');
 
 const gear = (id, slot, attack, rarity = 'common', locked = false) => ({ id, name: id, slot, rarity, stats: { attack }, locked });
-const book = () => ({ id: 'book', kind: 'skillbook', slot: 'skillbook', rarity: 'epic', stats: {}, skillId: 'slash2' });
+const book = () => ({ id: 'book', kind: 'skillbook', slot: 'skillbook', rarity: 'epic', stats: {}, skillId: 'fireBolt' });
 
 function withStorage(entries = {}) {
   const store = new Map(Object.entries(entries));
@@ -165,7 +165,7 @@ test('a full bag sweeps only the pieces auto-salvage may take, and pays like a m
     book(),
     ...Array.from({ length: 34 }, (_, index) => gear(`keep-${index}`, 'weapon', 5, 'unique')),
   ];
-  // 작업 248: 스킬북도 한 칸을 쓴다 — 장비 39 + 스킬북 1 = 40칸.
+  // 작업 253: 타직업 스킬북은 한 칸을 쓴다(내 직업 스킬북만 제외) — 장비 40 + 타직업 책 1 = 41칸.
   assert.equal(bagEquipmentCount(save), 41, '가방 41개(장비 40 + 스킬북 1) — 40칸을 넘은 상태');
   const gold = save.gold, stones = save.stones, salvaged = save.salvageCount ?? 0;
   const swept = sweepBagOnFull(save, 'rare', 3);
