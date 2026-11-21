@@ -19,5 +19,12 @@ export function renderOffline(dialog: HTMLElement, reward: OfflineReward): void 
   for (const item of reward.items) { const row = document.createElement('li'); row.textContent = `${itemDisplayName(item)} · ${rarityNames[item.rarity]}`; list.appendChild(row); }
   if (!reward.items.length) { const row = document.createElement('li'); row.textContent = '획득한 아이템이 없습니다.'; list.appendChild(row); }
   dialog.appendChild(list);
+  // 방치 자동 분해(작업 254) — 가방에 안 들어간 장비가 금화·강화석이 된 몫을 함께 적어, 팝업의 아이템 수와
+  // 가방·금화가 어깋나 보이지 않게 한다(던전 결과창과 같은 문구).
+  if (reward.salvaged?.count > 0) {
+    const note = document.createElement('p'); note.className = 'offline-salvaged';
+    note.innerHTML = `자동 분해 ${reward.salvaged.count}개 → ${goldMarkup(reward.salvaged.gold)} · 강화석 ${reward.salvaged.stones.toLocaleString('ko-KR')}`;
+    dialog.appendChild(note);
+  }
   if (reward.missedDrops) { const note = document.createElement('p'); note.textContent = `가방이 가득 차 아이템 ${reward.missedDrops}개를 받지 못했습니다.`; dialog.appendChild(note); }
 }

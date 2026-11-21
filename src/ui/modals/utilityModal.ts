@@ -37,8 +37,8 @@ export function renderSettings(ui:Interface,dialog:HTMLElement):void{
   select.onchange=()=>{preferences.effects=select.value==='low'?'low':'full';persist(ui);};effects.append(select);section.append(effects);
   heading(section,'사냥');const climb=element('label','setting-row','보스 처치 후 자동 등반'),toggle=element('input');toggle.type='checkbox';toggle.checked=ui.world.save.autoClimb;
   toggle.onchange=()=>{if(ui.world.paused){toggle.checked=ui.world.save.autoClimb;ui.message('동기화 후 변경해 주세요.');return;}ui.world.save.autoClimb=toggle.checked;ui.world.onChange();};climb.append(toggle);section.append(climb);
-  // 접속 중 자동 분해 (작업 196): the same switch as the equipment popup, with the same limit spelled out.
-  const auto=element('label','setting-row','자동 분해 (접속 중)'),autoToggle=element('input');autoToggle.type='checkbox';autoToggle.checked=ui.autoSalvage;
+  // 자동 분해 (작업 196, 작업 254에서 방치에도 적용): the same switch as the equipment popup, with the same limit spelled out.
+  const auto=element('label','setting-row','자동 분해'),autoToggle=element('input');autoToggle.type='checkbox';autoToggle.checked=ui.autoSalvage;
   autoToggle.onchange=()=>{ui.setAutoSalvage(autoToggle.checked);};
   auto.append(autoToggle);section.append(auto,element('p','utility-note',AUTO_SALVAGE_HINT));
   // 41층부터 (작업 203): 자동 분해가 갈 `+단계` 상한 — 장비창과 같은 기기 저장값을 쓰고, 40층 이하에서는 줄 자체가 없다.
@@ -87,6 +87,12 @@ export function renderUtility(ui:Interface,dialog:HTMLElement,kind:'mail'|'rewar
     if(!data.mail.length)section.append(element('p','utility-note','받은 우편이 없습니다.'));
     const ready=(mail:typeof data.mail[number])=>!mail.claimedAt&&!mail.expired;
     const mails=[...data.mail].sort((a,b)=>Number(ready(b))-Number(ready(a))||Number(a.read)-Number(b.read)||b.createdAt-a.createdAt);
+    // 가방 40칸에는 타직업 스킬북·보물 주머니를 함께 센다(내 직업 스킬북 제외, 작업 253) — 자리가 없으면 아이템이 든 우편은 받을 수 없다.
+    // 금화만 있는 우편은 칸을 쓰지 않으므로 늘 받을 수 있다(서버 규칙과 같다).
+    const bagFree=Math.max(0,EQUIPMENT_BAG_LIMIT-equipmentCount(ui.world.save.bag,ui.world.save.job));
+    const mailItems=(mail:{books?:number;pouches?:number})=>Math.max(0,mail.books??0)+Math.max(0,mail.pouches??0);
+    const bagBlocked=(mail:{books?:number;pouches?:number,claimedAt?:number|null,expired?:boolean})=>!mail.claimedAt&&!mail.expired&&mailItems(mail)>bagFree;
+    if(mails.some(bagBlocked))section.append(element('p','utility-note','가방이 가득 차 아이템이 든 우편은 받을 수 없습니다. 가방을 비우면 받을 수 있고, 금화만 있는 우편은 지금도 받을 수 있습니다.'));
     for(const mail of mails){
       const row=element('article',`utility-card mail-card${ready(mail)?' mail-pending':''}`),top=element('div','mail-heading');
       const title=button(mail.title,()=>{if(!mail.read&&!ui.session.guest)void journey.act('journey-read',{id:mail.id});},mail.read||journey.busy||ui.session.guest);title.classList.add('mail-title');title.title=mail.read?'읽은 우편':'클릭하여 읽음 표시';
@@ -95,22 +101,34 @@ export function renderUtility(ui:Interface,dialog:HTMLElement,kind:'mail'|'rewar
       const received=new Date(mail.createdAt).toLocaleString('ko-KR',{timeZone:'Asia/Seoul',month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'});
       row.append(element('small','mail-date',`받은 날짜 ${received} · ${mail.expiresAt===null?'수령 기한 없음':mail.expired?'수령 기한 만료':`남은 시간 ${Math.max(0,Math.ceil((mail.expiresAt-data.now)/3600000))}시간`}`));
       const bottom=element('div','utility-toolbar'),reward=element('div','utility-reward');if(mail.gold)reward.append(goldNode(mail.gold));if(mail.books)reward.append(element('span','',`스킬북 ${mail.books}권`));if(mail.pouches)reward.append(pouchReward(mail.pouches));if(mail.diamonds)reward.append(element('span','',`◆ 다이아 ${mail.diamonds.toLocaleString('ko-KR')}개`));
-      bottom.append(reward,claimButton(mail.claimedAt?'수령 완료':mail.expired?'기한 만료':'받기',()=>{void journey.act('journey-claim',{kind:'mail',id:mail.id}).then(()=>loadShop(ui));},!!mail.claimedAt||mail.expired||journey.busy||ui.session.guest));row.append(bottom);section.append(row);
+      const blocked=bagBlocked(mail),claim=claimButton(mail.claimedAt?'수령 완료':mail.expired?'기한 만료':blocked?'가방 가득':'받기',()=>{void journey.act('journey-claim',{kind:'mail',id:mail.id}).then(()=>loadShop(ui));},!!mail.claimedAt||mail.expired||blocked||journey.busy||ui.session.guest);
+      if(blocked)claim.title='가방이 가득 찼습니다. 공간을 비운 뒤 우편을 받아주세요. (금화만 있는 우편은 받을 수 있습니다)';
+      bottom.append(reward,claim);row.append(bottom);section.append(row);
     }
   }else{
     if(kind==='rewards'){
+      // 탭 위 빨간 점(작업 247) — 그 기간에 **받을 보상**(개별 미션 또는 전체 완료)이 있을 때만 켠다.
+      const readyOf=(scope:'daily'|'weekly')=>data[scope].some(task=>!task.claimed&&task.current>=task.target);
       const tabs=element('div','reward-index-tabs');tabs.setAttribute('role','tablist');tabs.setAttribute('aria-label','보상 기간');
-      for(const[scope,label]of [['daily','일일'],['weekly','주간']]as const){
+      for(const[scope,label]of [['daily','일일 보상'],['weekly','주간 보상']]as const){
         const tab=button(label,()=>{journey.tab=scope;ui.renderModal();});tab.id=`reward-tab-${scope}`;tab.className='reward-index-tab';tab.setAttribute('role','tab');tab.setAttribute('aria-controls',`reward-panel-${scope}`);tab.setAttribute('aria-selected',String(journey.tab===scope));tab.tabIndex=journey.tab===scope?0:-1;
+        const dot=element('i','reward-tab-dot');dot.setAttribute('aria-hidden','true');dot.hidden=!readyOf(scope);tab.append(dot);
+        tab.title=readyOf(scope)?`${label} · 받을 보상이 있습니다`:`${label}`;
         tab.onkeydown=event=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;event.preventDefault();journey.tab=event.key==='Home'?'daily':event.key==='End'?'weekly':scope==='daily'?'weekly':'daily';ui.renderModal();ui.modal?.querySelector<HTMLElement>(`#reward-tab-${journey.tab}`)?.focus();};tabs.append(tab);
       }
       section.append(tabs);
-      for(const[scope,label]of [['daily','일일'],['weekly','주간']]as const){
+      for(const[scope,label]of [['daily','일일 보상'],['weekly','주간 보상']]as const){
         const panel=element('section','reward-panel');panel.id=`reward-panel-${scope}`;panel.hidden=journey.tab!==scope;panel.setAttribute('role','tabpanel');panel.setAttribute('aria-labelledby',`reward-tab-${scope}`);
-        const tasks=data[scope],ready=tasks.some(task=>!task.claimed&&task.current>=task.target),toolbar=element('div','utility-toolbar reward-panel-toolbar');
-        const all=claimButton('모두 받기',()=>{void journey.act('journey-claim',{kind:scope,id:'all'});},!ready||journey.busy||ui.session.guest);all.setAttribute('aria-label',`${label} 보상 모두 받기`);
-        toolbar.append(element('small','utility-note',`${label} 보상`),all);panel.append(toolbar,element('p','utility-note',`초기화: ${new Date(scope==='daily'?data.periods.dailyEnd:data.periods.weeklyEnd).toLocaleString('ko-KR',{timeZone:'Asia/Seoul'})} (한국 시간)`));
-        for(const task of tasks)panel.append(taskRow(ui,task,scope));section.append(panel);
+        const tasks=data[scope],ready=readyOf(scope),toolbar=element('div','utility-toolbar reward-panel-toolbar');
+        const all=claimButton('모두 받기',()=>{void journey.act('journey-claim',{kind:scope,id:'all'});},!ready||journey.busy||ui.session.guest);all.setAttribute('aria-label',`${label} 모두 받기`);
+        toolbar.append(element('small','utility-note',label),all);panel.append(toolbar,element('p','utility-note',`초기화: ${new Date(scope==='daily'?data.periods.dailyEnd:data.periods.weeklyEnd).toLocaleString('ko-KR',{timeZone:'Asia/Seoul'})} (한국 시간)`));
+        // 전체 완료 보상은 **맨 위**, 개별 미션은 별도 묶음으로 아래에(작업 247 — 사용자 요청).
+        const completion=tasks.find(task=>task.completion),missions=tasks.filter(task=>!task.completion);
+        if(completion){const block=element('section','reward-completion');heading(block,'전체 완료 보상');block.append(taskRow(ui,completion,scope));panel.append(block);}
+        panel.append(element('h3','utility-heading reward-missions-heading',`${scope==='daily'?'일일':'주간'} 미션`));
+        const group=element('section','reward-mission-group');
+        for(const task of missions)group.append(taskRow(ui,task,scope));
+        panel.append(group);section.append(panel);
       }
     }else{
       const tasks=orderedAchievements(data.achievements),ready=tasks.some(task=>!task.claimed&&task.current>=task.target),toolbar=element('div','utility-toolbar');

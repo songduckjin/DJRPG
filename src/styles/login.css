@@ -27,13 +27,23 @@
 .login-submit:disabled { opacity: .55; cursor: wait; }
 .login-guest { margin-top: 12px; border-color: #6b5a4d; background: #282126; color: #d5c3b2; font-weight: 500; }
 .login-note { margin: 12px 0 0; color: #9e8c83; font-size: 10px; }
-/* [작업 242] 서버 점검 안내 — 2026-11-21 09:00 KST까지 API 일일 한도가 열리지 않는 동안 로그인 화면 상단에 뜨는 배너다.
-   시각이 지나면 안내가 생기지 않으므로 배너를 내리는 코드는 따로 두지 않는다. */
-.maintenance-banner { margin: 0 0 16px; padding: 10px 12px; border: 1px solid #b9843c; border-left: 3px solid #e8a94e; background: linear-gradient(160deg, #3a2a1bf2, #221a17f2); box-shadow: inset 0 0 20px #d79a3a24, 0 2px 10px #00000059; text-align: left; }
-.maintenance-banner strong { display: block; color: #ffcf87; font: 700 12px 'Noto Sans KR', sans-serif; letter-spacing: .3px; }
-.maintenance-banner span { display: block; margin-top: 4px; color: #e9c9a1; font-size: 11px; line-height: 1.55; }
+/* [작업 256] 배포 점검 모달 — 로그인 화면과 사냥 화면(document.body) 위에 같은 모달을 얹는다.
+   예전 [작업 242]의 시각 하드코딩 점검 배너를 대신한다. */
+.maintenance-layer { position: fixed; z-index: 200; inset: 0; display: grid; place-items: center; overflow-y: auto; padding: max(18px, env(safe-area-inset-top)) 18px max(18px, env(safe-area-inset-bottom)); background: #080609dc; backdrop-filter: blur(6px); }
+.maintenance-card { width: min(100%, 360px); padding: 24px 20px 18px; border: 1px solid #b9843c; background: linear-gradient(160deg, #33251ef7, #17121afa); box-shadow: 0 20px 60px #080609e6, inset 0 0 26px #d79a3a1a; text-align: center; }
+.maintenance-kicker { display: block; color: #d3a56a; font: 10px Cinzel, serif; letter-spacing: 3px; }
+.maintenance-card h2 { margin: 8px 0 0; color: #ffd79a; font: 700 21px Cinzel, 'Noto Sans KR', serif; line-height: 1.35; letter-spacing: .5px; word-break: keep-all; }
+.maintenance-eta { display: flex; flex-direction: column; gap: 3px; margin: 16px 0 0; padding: 10px 12px; border: 1px solid #8a6338; background: #22191499; }
+.maintenance-eta span { color: #b89b7b; font-size: 10px; letter-spacing: 2px; }
+.maintenance-eta strong { color: #ffd79a; font: 700 18px Cinzel, 'Noto Sans KR', serif; }
+.maintenance-eta.is-unknown strong { color: #e2c9a3; font: 600 14px 'Noto Sans KR', sans-serif; }
+.maintenance-note { margin: 12px 0 0; color: #d9bf9b; font-size: 12px; line-height: 1.6; white-space: pre-line; word-break: keep-all; }
+.maintenance-lock { margin: 12px 0 0; color: #9c8a7c; font-size: 11px; line-height: 1.5; }
+.maintenance-check { width: 100%; margin-top: 16px; min-height: 46px; border: 1px solid #b78a51; background: linear-gradient(#77502e, #513321); color: #fff0d1; font: 700 13px 'Noto Sans KR', sans-serif; touch-action: manipulation; }
+.maintenance-check:disabled { opacity: .55; cursor: wait; }
+.login-screen.is-maintenance .login-tabs, .login-screen.is-maintenance .login-form, .login-screen.is-maintenance .login-guest { opacity: .35; filter: grayscale(.5); }
 .login-error.is-notice { color: #f3cd93; }
-@media (max-height: 700px) { .maintenance-banner { margin-bottom: 12px; padding: 8px 10px; } .maintenance-banner span { font-size: 10px; } }
+@media (max-height: 700px) { .maintenance-card { padding: 18px 16px 14px; } .maintenance-eta { margin-top: 12px; padding: 8px 10px; } .maintenance-eta strong { font-size: 16px; } }
 .season-setup .login-panel { display: flex; flex-direction: column; gap: 10px; }
 .season-setup .login-subtitle { margin-bottom: 4px; }
 .season-setup .season-note { margin: 0 0 4px; color: #c8a97e; font-size: 11px; line-height: 1.6; text-align: left; }

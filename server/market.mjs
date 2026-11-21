@@ -3,12 +3,45 @@ import { decodeAccount, assertRevision, fail, reconcileItems, inventoryOwnerQuer
 import { journeyState, journeyOperation } from './journey-state.mjs';
 import { countedInBag } from './skill-ids.mjs';
 import { elapsedSince } from './save-guard.mjs';
-export const rules = { fee: .05, maxListings: 30, durationHours: 72, maxPrice: 1_000_000_000, minPrice: 1, pageSize: 20 };
+/**
+ * 거래소 규칙. `price`는 **개당** 가격이고 `maxBundle`은 한 매물에 묶을 수 있는 최대 수량이다(작업 249,
+ * 사용자 확정 "묶음판매는 한번에 10개까지"). `maxListings`(동시 등록)와 `maxInbox`(수령함)는 묶음도 한 건/한 줄씩 센다.
+ */
+export const rules = { fee: .05, maxListings: 30, durationHours: 72, maxPrice: 1_000_000_000, minPrice: 1, pageSize: 20, maxInbox: 30, maxBundle: 10 };
+export const maxBundleMessage = `묶음 판매는 한 번에 최대 ${rules.maxBundle}개까지 등록할 수 있습니다.`;
+/** 수령함 상한 안내 문구(작업 247) — 구매·판매 등록 화면과 서버가 같은 말을 쓴다. */
+export const inboxFullMessage = `수령함이 가득 찼습니다(최대 ${rules.maxInbox}건). 수령함에서 먼저 받아 주세요.`;
 const deliveryOperation = (listing, owner, kind, item, gold, reason) => {
   const delivery = { id: randomUUID(), item, gold, reason, createdAt: Date.now() };
   return { owner, delivery, operation: { sql: 'INSERT OR IGNORE INTO djrpg_market_inbox VALUES (?,?,?,?,?,?,?,?,NULL)', args: [delivery.id, owner, listing.id, kind, item ? JSON.stringify(item) : null, gold, reason, delivery.createdAt] } };
 };
 const eventOperation = (kind, id) => ({ sql: 'INSERT INTO djrpg_market_events(kind,listing_id,created_at) VALUES (?,?,?)', args: [kind, id, Date.now()] });
+/** 등록할 수 있는 물건인가 — 미장착 장비와 미사용 스킬북만. 보물 주머니(소모품)는 예전부터 화면에 없었다. */
+const sellable = item => ['weapon','offhand','helmet','armor','necklace','gloves','belt','boots','ring1','ring2','skillbook'].includes(item?.slot);
+/**
+ * 묶음 기준 — 스킬북은 같은 `skillId`, 나머지는 아이템 id(장비는 한 개씩).
+ * 화면의 가방 칸(`src/ui/bagStacks.ts` `stackKey`)과 같은 규칙이라 `×N` 칸 하나가 그대로 한 묶음이 된다.
+ */
+const bundleKey = item => item?.slot === 'skillbook' ? `book:${item.skillId ?? item.name}` : `item:${item?.id}`;
+/**
+ * 매물의 남은 아이템들 — `items_json`(작업 249)이 없으면 대표 `item_json` 한 개짜리 단건 매물이다.
+ */
+const parseItems = row => {
+  if (typeof row.items_json === 'string' && row.items_json) {
+    try {
+      const parsed = JSON.parse(row.items_json);
+      if (Array.isArray(parsed) && parsed.length && parsed.every(item => item && typeof item.id === 'string')) return parsed;
+    } catch { /* 깨진 사본은 대표 아이템으로 본다 */ }
+  }
+  return [JSON.parse(row.item_json)];
+};
+/**
+ * 수령함 한 행의 종류(작업 249). 수령함은 `UNIQUE(listing_id, kind)`로 중복 배달을 막는데, 묶음 매물은
+ * **부분 구매·남은 수량 반환**으로 같은 매물에서 배달이 여러 번 생긴다. 그래서 묶음 매물은 아이템 id를 붙여
+ * (`purchase:<id>`·`return:<id>`) 아이템마다 한 줄이 되게 하고, 단건 매물은 종전 그대로(`purchase`·`return`) 둔다
+ * — 기존 행·화면·테스트 계약을 바꾸지 않으면서 중복 배달은 그대로 막힌다.
+ */
+const deliveryItemKind = (kind, listing, item) => Number(listing.quantity ?? 1) > 1 ? `${kind}:${item.id}` : kind;
 /**
  * 거래 완료 업적 카운터 (작업 224, 사용자 확정 `#6289`·`#6294`).
  *
@@ -25,18 +58,22 @@ export async function expire(tx, owner) {
   const rows = (await tx.execute({ sql: "SELECT * FROM djrpg_market WHERE state='active' AND expires_at<=?" + (owner ? " AND seller=?" : ""), args: owner ? [Date.now(), owner] : [Date.now()] })).rows;
   const operations = [];
   for (const row of rows) {
-    const item = JSON.parse(row.item_json);
-    operations.push(
-      { sql: "UPDATE djrpg_market SET state='expired' WHERE id=? AND state='active'", args: [row.id] },
-      deliveryOperation(row, row.seller, 'return', item, 0, '등록 기간 만료').operation,
-      { sql: "UPDATE djrpg_item_owners SET location='inbox' WHERE item_id=?", args: [item.id] },
-      eventOperation('expired', row.id)
+    // 묶음 매물은 남은 아이템을 **모두** 판매자에게 돌려준다(작업 249) — 하나라도 잃으면 안 된다.
+    operations.push({ sql: "UPDATE djrpg_market SET state='expired' WHERE id=? AND state='active'", args: [row.id] });
+    for (const item of parseItems(row)) operations.push(
+      deliveryOperation(row, row.seller, deliveryItemKind('return', row, item), item, 0, '등록 기간 만료').operation,
+      { sql: "UPDATE djrpg_item_owners SET location='inbox' WHERE item_id=?", args: [item.id] }
     );
+    operations.push(eventOperation('expired', row.id));
   }
   if (operations.length) await tx.batch(operations);
 }
 
-const listing = row => ({ id: row.id, sellerName: row.seller_name, item: JSON.parse(row.item_json), price: Number(row.price), state: row.state, createdAt: Number(row.created_at), expiresAt: Number(row.expires_at), soldAt: row.sold_at ? Number(row.sold_at) : null });
+/**
+ * 매물 한 건의 화면 표현. `price`는 **개당 가격**(기존 계약과 호환), `quantity`는 남은 수량
+ * (판매 완료 행은 **팔린 수량**), `totalPrice`는 개당 × 수량이다(작업 249).
+ */
+const listing = row => { const price = Number(row.price), quantity = Math.max(0, Number(row.quantity ?? 1)); return { id: row.id, sellerName: row.seller_name, item: JSON.parse(row.item_json), price, unitPrice: price, quantity, totalPrice: price * quantity, state: row.state, createdAt: Number(row.created_at), expiresAt: Number(row.expires_at), soldAt: row.sold_at ? Number(row.sold_at) : null }; };
 export async function snapshot(db, id, input, expirationChecked = false) {
   const view = ['active','sold','mine','register','inbox'].includes(input.view) ? input.view : 'active';
   const where = [], args = [];
@@ -106,11 +143,14 @@ export async function mutate(db, id, input) {
             : { sql: 'SELECT * FROM djrpg_market_inbox WHERE id=? AND account_id=? AND claimed_at IS NULL', args: [typeof input.deliveryId === 'string' ? input.deliveryId : '', id] }
           : { sql: "SELECT COUNT(*) AS n FROM djrpg_market WHERE seller=? AND state='active' AND expires_at>?", args: [id, Date.now()] },
       inventoryOwnerQuery(id, input.progress),
-      { sql: 'SELECT state_json FROM djrpg_journey WHERE account_id=?', args: [id] }
+      { sql: 'SELECT state_json FROM djrpg_journey WHERE account_id=?', args: [id] },
+      // 수령함에 남은 건수(작업 247) — 구매·판매 등록이 30건 상한을 넘기지 않게 같은 읽기 배치에서 센다.
+      { sql: 'SELECT COUNT(*) AS n FROM djrpg_market_inbox WHERE account_id=? AND claimed_at IS NULL', args: [id] }
     ]);
     const row = decodeAccount(reads[0].rows[0]), replay = reads[1].rows[0];
     if (Number(input.characterSlot ?? 1) !== row.slot) fail(409, 'CHARACTER_CONFLICT', '다른 캐릭터가 선택되었습니다. 새로고침해 주세요.');
     row.journeyRecord = reads[4].rows[0] ?? null;
+    const inboxCount = Number(reads[5]?.rows?.[0]?.n ?? 0);
     if (replay) {
       const result = JSON.parse(replay.response_json);
       if (result.revision !== undefined && result.revision !== row.revision) delete result.effect;
@@ -149,56 +189,108 @@ export async function mutate(db, id, input) {
     if (input.action === 'register') {
       const price = input.price;
       if (!Number.isSafeInteger(price) || price < 1 || price > rules.maxPrice) fail(400, 'INVALID_PRICE', '가격은 1~1,000,000,000 금화의 정수로 입력하세요.');
+      // 수령함 상한(작업 247): 등록을 취소·만료되면 물건이 돌아갈 자리가 없으므로, 가득 찬 상태에서는
+      // **새 판매 등록 자체를 막고** 먼저 받으라고 안내한다.
+      if (inboxCount >= rules.maxInbox) fail(409, 'INBOX_FULL', inboxFullMessage);
       const count = Number(reads[2].rows[0].n);
       if (count >= rules.maxListings) fail(409, 'LISTING_LIMIT', `동시에 ${rules.maxListings}개까지 등록할 수 있습니다. 판매 중인 물품을 취소하거나 판매 완료 후 다시 등록하세요.`);
-      const index = save.bag.findIndex(item => item.id === input.itemId);
-      if (index < 0) fail(409, 'ITEM_NOT_AVAILABLE', '가방에 있는 미장착 아이템만 등록할 수 있습니다.');
-      const selected = save.bag[index];
-      if (selected.locked === true && input.unlockItem !== true) fail(409, 'ITEM_LOCKED', '잠긴 장비입니다. 잠금을 해제한 뒤 판매 등록하세요.');
-      if (selected.locked === true) selected.locked = false;
-      const [item] = save.bag.splice(index, 1), now = Date.now(), listingId = randomUUID();
-      write({ sql: 'INSERT INTO djrpg_market VALUES (?,?,?,NULL,?,?,?,?,?,?,?, ?,NULL)', args: [listingId, id, String(save.name || '모험가').slice(0, 20), JSON.stringify(item), item.name, item.slot, item.rarity, price, 'active', now, now + rules.durationHours * 3600_000] });
-      write({ sql: "UPDATE djrpg_item_owners SET location='escrow' WHERE item_id=?", args: [item.id] });
-      write({ sql: 'UPDATE djrpg_character_item_owners SET slot=0 WHERE item_id=? AND account_id=?', args: [item.id, id] });
+      // ① 요청한 판매 아이템 — UI가 고른 묶음(`itemIds`) 또는 대표 하나(`itemId`) + `quantity`(작업 249).
+      const requested = Array.isArray(input.itemIds)
+        ? [...new Set(input.itemIds.filter(value => typeof value === 'string'))]
+        : typeof input.itemId === 'string' ? [input.itemId] : [];
+      if (!requested.length) fail(409, 'ITEM_NOT_AVAILABLE', '가방에 있는 미장착 아이템만 등록할 수 있습니다.');
+      const wanted = Number.isSafeInteger(input.quantity) ? input.quantity : requested.length;
+      if (Array.isArray(input.itemIds) && wanted !== requested.length) fail(400, 'INVALID_QUANTITY', '묶음 수량과 고른 아이템 수가 다릅니다. 다시 선택해 주세요.');
+      if (wanted < 1) fail(400, 'INVALID_QUANTITY', '판매 수량은 1개 이상이어야 합니다.');
+      if (wanted > rules.maxBundle) fail(400, 'INVALID_QUANTITY', maxBundleMessage);
+      const selected = save.bag.find(item => item.id === requested[0]);
+      if (!selected) fail(409, 'ITEM_NOT_AVAILABLE', '가방에 있는 미장착 아이템만 등록할 수 있습니다.');
+      if (!sellable(selected)) fail(409, 'ITEM_NOT_AVAILABLE', '미장착 장비와 미사용 스킬북만 등록할 수 있습니다.');
+      // ② 실제로 꺼낼 아이템 — 같은 묶음 기준(스킬북은 같은 `skillId`)에서 요청 수량만큼 가방 순서대로.
+      const key = bundleKey(selected);
+      const picked = Array.isArray(input.itemIds)
+        ? requested.map(entry => save.bag.find(item => item.id === entry))
+        : save.bag.filter(item => bundleKey(item) === key).slice(0, wanted);
+      if (picked.some(item => !item)) fail(409, 'ITEM_NOT_AVAILABLE', '가방에 있는 미장착 아이템만 등록할 수 있습니다.');
+      if (!Array.isArray(input.itemIds) && picked.length < wanted) fail(400, 'INVALID_QUANTITY', '보유한 수량보다 많이 등록할 수 없습니다.');
+      if (picked.some(item => !sellable(item))) fail(409, 'ITEM_NOT_AVAILABLE', '미장착 장비와 미사용 스킬북만 등록할 수 있습니다.');
+      if (picked.some(item => bundleKey(item) !== key)) fail(400, 'INVALID_QUANTITY', '같은 아이템(같은 스킬북)만 한 묶음으로 등록할 수 있습니다.');
+      if (picked.some(item => item.locked === true) && input.unlockItem !== true) fail(409, 'ITEM_LOCKED', '잠긴 장비입니다. 잠금을 해제한 뒤 판매 등록하세요.');
+      for (const item of picked) if (item.locked === true) item.locked = false;
+      if (price * picked.length > rules.maxPrice) fail(400, 'INVALID_PRICE', '총 판매 금액은 1,000,000,000 금화 이하로 입력하세요.');
+      const removed = new Set(picked.map(item => item.id)), now = Date.now(), listingId = randomUUID(), quantity = picked.length;
+      save.bag = save.bag.filter(item => !removed.has(item.id));
+      // 대표 `item_json`은 검색·정렬 인덱스용이고, 실제 아이템 배열은 `items_json`에 보관한다.
+      // INSERT는 **예전 열 목록 그대로** 쓴다 — `quantity`(기본 1)·`items_json`(NULL=단건 매물)은 기본값으로 두고,
+      // 묶음일 때만 아래 UPDATE로 채운다. 이렇게 하면 (혹시) 열 보정이 안 된 DB에서도 **단건 등록·구매는 종전대로**
+      // 동작하고, 묶음 등록만 실패한다(전체 거래가 막히는 것보다 낫다).
+      write({ sql: 'INSERT INTO djrpg_market (id,seller,seller_name,buyer,item_json,name,slot,rarity,price,state,created_at,expires_at,sold_at) VALUES (?,?,?,NULL,?,?,?,?,?,?,?,?,NULL)', args: [listingId, id, String(save.name || '모험가').slice(0, 20), JSON.stringify(picked[0]), picked[0].name, picked[0].slot, picked[0].rarity, price, 'active', now, now + rules.durationHours * 3600_000] });
+      if (quantity > 1) write({ sql: 'UPDATE djrpg_market SET quantity=?, items_json=? WHERE id=?', args: [quantity, JSON.stringify(picked), listingId] });
+      for (const item of picked) {
+        write({ sql: "UPDATE djrpg_item_owners SET location='escrow' WHERE item_id=?", args: [item.id] });
+        write({ sql: 'UPDATE djrpg_character_item_owners SET slot=0 WHERE item_id=? AND account_id=?', args: [item.id, id] });
+      }
       event('registered', listingId);
-      effect.listing = { id: listingId, state: 'active' };
-      message = '판매 등록 완료 · 72시간 동안 공개됩니다.';
+      effect.listing = { id: listingId, state: 'active', quantity, mine: true };
+      message = quantity > 1 ? `${quantity}개 묶음 판매 등록 완료 · 72시간 동안 공개됩니다.` : '판매 등록 완료 · 72시간 동안 공개됩니다.';
     } else if (input.action === 'buy' || input.action === 'cancel') {
       const sale = reads[2].rows[0];
       if (!sale || sale.state !== 'active' || Number(sale.expires_at) <= Date.now()) fail(409, 'NOT_AVAILABLE', '이미 판매되었거나 취소·만료된 매물입니다.');
-      const mine = String(sale.seller).toLowerCase() === id.toLowerCase(), item = JSON.parse(sale.item_json);
+      const mine = String(sale.seller).toLowerCase() === id.toLowerCase(), items = parseItems(sale);
       if (input.action === 'cancel') {
         if (!mine) fail(403, 'NOT_OWNER', '본인이 등록한 매물만 취소할 수 있습니다.');
         write({ sql: "UPDATE djrpg_market SET state='cancelled' WHERE id=?", args: [sale.id] });
-        inbox(sale, id, 'return', item, 0, '판매 등록 취소');
-        write({ sql: "UPDATE djrpg_item_owners SET location='inbox' WHERE item_id=?", args: [item.id] });
-        write({ sql: 'UPDATE djrpg_character_item_owners SET slot=0 WHERE item_id=? AND account_id=?', args: [item.id, id] });
+        // 묶음 매물은 남은 아이템을 **전부** 돌려준다(작업 249) — 아이템마다 수령함 한 줄(아이템 id로 중복 방지).
+        for (const item of items) {
+          inbox(sale, id, deliveryItemKind('return', sale, item), item, 0, '판매 등록 취소');
+          write({ sql: "UPDATE djrpg_item_owners SET location='inbox' WHERE item_id=?", args: [item.id] });
+          write({ sql: 'UPDATE djrpg_character_item_owners SET slot=0 WHERE item_id=? AND account_id=?', args: [item.id, id] });
+        }
         event('cancelled', sale.id);
         effect.listing = { id: sale.id, state: 'cancelled' };
-        message = '등록을 취소했습니다. 아이템은 수령함에 보관됩니다.';
+        message = items.length > 1 ? `등록을 취소했습니다. 아이템 ${items.length}개는 수령함에 보관됩니다.` : '등록을 취소했습니다. 아이템은 수령함에 보관됩니다.';
       } else {
         // 거래소는 **계정 공용**이라 다른 캐릭터(2·3번)로 올린 매물도 `mine`으로 잡힌다. 예전 문구("본인 매물은
         // 구매할 수 없습니다")는 캐릭터를 바꿔 쓰는 계정에는 "내 매물이 아닌데 막힌다"로 읽혔다(작업 239) —
         // 왜 막히는지와 대신 무엇을 하면 되는지(취소 → 수령함 → 그 캐릭터로 받기)를 함께 알린다.
         if (mine) fail(400, 'OWN_LISTING', '내 계정이 등록한 매물입니다(다른 캐릭터로 올린 매물 포함). 등록을 취소하면 수령함에서 받을 수 있습니다.');
-        if (save.gold < Number(sale.price)) fail(400, 'INSUFFICIENT_GOLD', '금화가 부족합니다.');
-        save.gold -= Number(sale.price);
-        write({ sql: "UPDATE djrpg_market SET state='sold', buyer=?, sold_at=? WHERE id=? AND state='active'", args: [id, Date.now(), sale.id] });
-        inbox(sale, id, 'purchase', item, 0, '구매한 아이템');
-        const proceeds = Number(sale.price) - Math.ceil(Number(sale.price) * 5 / 100);
-        inbox(sale, sale.seller, 'proceeds', null, proceeds, `${item.name} 판매대금 (수수료 5% 차감)`);
-        write({ sql: "UPDATE djrpg_item_owners SET account_id=?,location='inbox' WHERE item_id=?", args: [id, item.id] });
-        write({ sql: 'UPDATE djrpg_character_item_owners SET account_id=?,slot=0 WHERE item_id=?', args: [id, item.id] });
+        // ③ 구매 수량(작업 249) — 없으면 매물 전체. `1 <= quantity <= 남은 수량`만 받는다.
+        const remaining = Math.max(1, Number(sale.quantity ?? items.length));
+        const unitPrice = Number(sale.price);
+        const wanted = input.quantity === undefined ? remaining : input.quantity;
+        if (!Number.isSafeInteger(wanted) || wanted < 1 || wanted > remaining || wanted > items.length) fail(400, 'INVALID_QUANTITY', `구매 수량은 1~${Math.min(remaining, items.length)}개 사이로 선택하세요.`);
+        const total = unitPrice * wanted;
+        // 구매 배달도 아이템마다 한 줄이라, 남은 자리가 모자라면 사지 못하게 막는다(작업 247 상한).
+        if (inboxCount + wanted > rules.maxInbox) fail(409, 'INBOX_FULL', inboxFullMessage);
+        if (save.gold < total) fail(400, 'INSUFFICIENT_GOLD', '금화가 부족합니다.');
+        save.gold -= total;
+        const bought = items.slice(0, wanted), rest = items.slice(wanted), soldAt = Date.now(), full = rest.length === 0;
+        for (const item of bought) {
+          inbox(sale, id, deliveryItemKind('purchase', sale, item), item, 0, '구매한 아이템');
+          write({ sql: "UPDATE djrpg_item_owners SET account_id=?,location='inbox' WHERE item_id=?", args: [id, item.id] });
+          write({ sql: 'UPDATE djrpg_character_item_owners SET account_id=?,slot=0 WHERE item_id=?', args: [id, item.id] });
+        }
+        // 판매대금은 실제로 팔린 만큼만(개당 × 수량, 수수료 5% 올림). 부분 구매는 대금 배달도 여러 번 생긴다.
+        const proceeds = total - Math.ceil(total * 5 / 100);
+        inbox(sale, sale.seller, full ? 'proceeds' : `proceeds:${randomUUID().slice(0, 8)}`, null, proceeds, `${bought[0].name} 판매대금 (수수료 5% 차감)`);
+        // 판매 완료 행의 `quantity`는 **팔린 수량**이다(화면이 `총 N개`로 보여 준다).
+        // 마지막 한 개를 사면 예전 UPDATE(열 추가 이전과 같은 문장)로 닫는다 — 팔린 수량은 이미 1이고
+        // `items_json`은 다시 쓰지 않는다. 묶음에서 일부만 남아 있던 경우까지 안전하다(열 보정 실패 DB 포함).
+        if (full && items.length > 1) write({ sql: "UPDATE djrpg_market SET state='sold', buyer=?, sold_at=?, quantity=?, items_json=? WHERE id=? AND state='active'", args: [id, soldAt, wanted, JSON.stringify(bought), sale.id] });
+        else if (full) write({ sql: "UPDATE djrpg_market SET state='sold', buyer=?, sold_at=? WHERE id=? AND state='active'", args: [id, soldAt, sale.id] });
+        else write({ sql: "UPDATE djrpg_market SET quantity=?, items_json=? WHERE id=? AND state='active'", args: [rest.length, JSON.stringify(rest), sale.id] });
         event('sold', sale.id);
-        effect.listing = { id: sale.id, state: 'sold', soldAt: Date.now() };
+        effect.listing = { id: sale.id, state: full ? 'sold' : 'active', quantity: full ? wanted : rest.length, soldAt: full ? soldAt : undefined };
         tradeParties = { buyer: id, seller: sale.seller };
-        message = '구매 완료! 수령함에서 아이템을 받아주세요.';
+        message = full
+          ? (wanted > 1 ? `구매 완료! ${wanted}개를 수령함에서 받아주세요.` : '구매 완료! 수령함에서 아이템을 받아주세요.')
+          : `${wanted}개 구매 완료 · ${rest.length}개는 계속 판매 중입니다. 수령함에서 받아주세요.`;
       }
     } else if (input.action === 'claim') {
       const all = input.deliveryId === 'all', deliveries = reads[2].rows;
       if (!deliveries.length) fail(409, 'ALREADY_CLAIMED', '이미 수령했거나 존재하지 않는 항목입니다.');
       const claimed = []; let gold = 0, skipped = 0;
-      // 가방 40칸은 장비 + 다른 직업 전용 스킬북을 함께 센다(작업 210).
+      // 가방 40칸은 장비 + 타직업 전용 스킬북 + 보물 주머니를 센다(내 직업 스킬북 제외, 작업 253).
       let equipmentCount = save.bag.filter(item => countedInBag(item, save.job)).length;
       for (const delivery of deliveries) {
         const item = delivery.item_json ? JSON.parse(delivery.item_json) : null;

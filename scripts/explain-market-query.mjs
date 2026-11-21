@@ -39,7 +39,7 @@ const seedBatch = async from => {
   for (let index = from; index < Math.min(rows, from + 500); index++) {
     const slot = slots[index % slots.length], rarity = rarities[index % rarities.length];
     const item = { id: `i-${index}`, name: names[index % names.length], slot, rarity, stats: { attack: index % 400, defense: index % 200, health: index % 50 }, plus: index % 8 };
-    statements.push({ sql: 'INSERT INTO djrpg_market VALUES (?,?,?,NULL,?,?,?,?,?,?,?,?,NULL)', args: [`m-${index}`, `seller${index % 4000}`, '전사', JSON.stringify(item), item.name, slot, rarity, 100 + (index % 90000), 'active', now - index * 1000, now + 72 * 3600_000] });
+    statements.push({ sql: 'INSERT INTO djrpg_market (id,seller,seller_name,buyer,item_json,name,slot,rarity,price,state,created_at,expires_at,sold_at) VALUES (?,?,?,NULL,?,?,?,?,?,?,?,?,NULL)', args: [`m-${index}`, `seller${index % 4000}`, '전사', JSON.stringify(item), item.name, slot, rarity, 100 + (index % 90000), 'active', now - index * 1000, now + 72 * 3600_000] });
   }
   if (statements.length) await db.batch(statements, 'write');
 };

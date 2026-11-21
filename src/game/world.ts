@@ -273,11 +273,13 @@ export class World {
    *  아래층을 반복 사냥할 때는 보스가 뜨지 않고 일반·정예만 계속 나온다. */
   bossFloor(): boolean { return this.save.floor >= this.save.maxFloor; }
 
-  /** `⚔ 보스 도전` 버튼이 살아나는 상태 — 최고 도달 층에서 보스에게 한 번 쓰러진 뒤다.
+  /** `⚔ 보스 도전` 버튼이 살아나는 상태 — 보스에게 한 번 쓰러진 뒤다.
    *  작업 212(`#5017`): 자동 등반이 **켜져 있어도** 버튼을 띄운다 — 일반 몹을 다시 잡아
    *  목표를 채우기 전이라도 바로 보스에게 다시 도전할 수 있다.
+   *  작업 245: 몹이 쌓여 아래층으로 강등돼도 버튼은 그대로 남는다(`this.bossFloor()` 제한 없음).
+   *  누르면 최고층으로 올라가 보스와 붙는다(`challengeBoss`).
    *  마지막 층(`MAX_FLOOR`)은 다음 층이 없으므로 버튼을 띄우지 않는다. */
-  get bossRetryReady(): boolean { return this.bossFloor() && this.bossRetryAvailable && this.save.floor < MAX_FLOOR; }
+  get bossRetryReady(): boolean { return this.bossRetryAvailable && this.save.maxFloor < MAX_FLOOR; }
 
   /**
    * `⚔ 보스 도전`(작업 210 → 212, 사용자 지시 `#4566` "패배시에만 활성화 … 계속 다시 도전해도 돼",
@@ -288,6 +290,9 @@ export class World {
    * 보스를 이겨 다음 층으로 올라가면 버튼은 사라진다. */
   challengeBoss(): boolean {
     if (!this.bossRetryReady) return false;
+    // 강등돼 아래층에 있어도 도전은 **최고층 보스**에게 한다(작업 245) — 먼저 최고층으로 올라간다.
+    // `travelToFloor`는 바닥 드랍·진행도·몹을 정리하고, 아래에서 보스 예약을 다시 세운다.
+    if (this.save.floor < this.save.maxFloor) this.travelToFloor(this.save.maxFloor);
     this.save.autoClimb = true;
     this.save.floorKills = Math.max(this.save.floorKills, floorKillTarget(this.save.floor));
     this.enemies = []; this.chaseTarget = undefined; this.pursuing = false; this.activeMove = { x: 0, y: 0 };
@@ -654,8 +659,20 @@ export class World {
         if (this.eliteKills >= ELITE_KILL_INTERVAL) { this.eliteKills = 0; this.elitePending = true; }
       }
       if (!this.bossFloor()) {
-        // 아래층 반복 사냥에는 보스가 없다(작업 210) — 목표를 채우면 0으로 돌리고 일반·정예만 계속 나온다.
-        if (this.save.floorKills >= floorKillTarget(this.save.floor)) this.save.floorKills = 0;
+        // 아래층 반복 사냥에는 보스가 없다(작업 210).
+        // 작업 245: 자동 등반이 **켜져** 있으면 아래층에서도 목표를 채울 때마다 한 층씩 올라간다.
+        // 자동 등반이 꺼진 상태(강등 직후 등)에는 예전처럼 목표를 0으로 돌리고 그 층에서 계속 사냥한다.
+        if (this.save.floorKills >= floorKillTarget(this.save.floor)) {
+          if (this.save.autoClimb) {
+            this.save.floor++;
+            this.save.floorKills = 0;
+            this.enemies = []; this.chaseTarget = undefined; this.pursuing = false;
+            this.spawnTimer = .2; this.elitePending = false;
+            this.onMessage(`${this.save.floor}층 진입`);
+          } else {
+            this.save.floorKills = 0;
+          }
+        }
       } else if (this.save.autoClimb && this.save.floorKills >= floorKillTarget(this.save.floor) && !this.bossPending && !this.enemies.some(e => e.boss)) {
         // 자동 등반 중이면 목표를 채울 때마다 보스가 저절로 온다(작업 212 `#5017`).
         // 보스에게 지고 1마리부터 다시 잡는 중에도 여기로 다시 보스가 나타난다.
@@ -764,7 +781,10 @@ export class World {
       this.enemies = [];
       this.chaseTarget = undefined; this.pursuing = false;
       this.bossPending = false; this.elitePending = false; this.spawnTimer = .2;
-      this.onMessage(`적이 너무 많아 ${this.save.floor}층으로 내려갑니다.`);
+      // 자동 등반은 **강등당했을 때만** 꺼진다(작업 245). 다시 켜면 이 층부터 목표를 채워 한 층씩 올라가고,
+      // `⚔ 보스 도전`은 그대로 남아 최고층 보스에게 다시 도전할 수 있다.
+      this.save.autoClimb = false;
+      this.onMessage(`적이 너무 많아 ${this.save.floor}층으로 내려갑니다. 자동 등반이 중단됩니다.`);
       this.onChange();
     }
     for (const enemy of this.enemies) {
@@ -808,23 +828,23 @@ export class World {
             // 진 층을 세이브에 남긴다(작업 223) — 새로고침·재접속에도 `⚔ 보스 도전`이 살아 있다.
             this.save.bossRetryFloor = this.save.floor;
             this.enemies = this.enemies.filter(other => !other.boss);
-          } else {
-            this.save.autoClimb = false;
-            // 보스에게 진 경우에만 도전 버튼을 살린다(작업 222, 사용자 확인 `#5792` "각 층 끝까지 등반해서
-            // 실패해야 떠야되는데"). 일반·정예 몹에게 진 것으로는 켜지 않고, 이미 보스에게 져서 켜져 있던
-            // 상태도 건드리지 않는다.
-            if (this.bossFloor() && enemy.boss) {
-              this.bossRetryAvailable = true;
-              // 진 층을 세이브에 남긴다(작업 223) — 4층으로 올라갈 때까지 버튼이 유지된다.
-              this.save.bossRetryFloor = this.save.floor;
-            }
+          } else if (this.bossFloor() && enemy.boss) {
+            // 자동 등반이 꺼진 채 보스에게 진 경우에만 도전 버튼을 살린다(작업 222, 사용자 확인 `#5792`).
+            // 일반·정예 몹에게 진 것으로는 켜지 않고, 이미 보스에게 져서 켜져 있던 상태도 건드리지 않는다.
+            this.bossRetryAvailable = true;
+            // 진 층을 세이브에 남긴다(작업 223) — 4층으로 올라갈 때까지 버튼이 유지된다.
+            this.save.bossRetryFloor = this.save.floor;
           }
+          // 작업 245: 일반·정예 몹에게 쓰러져도 자동 등반은 **끄지 않는다** — 10골드를 잃고 부활해 계속
+          // 사냥한다. 자동 등반이 꺼지는 곳은 몹이 쌓여 한 층 강등될 때(위 `MOB_CAP` 블록)뿐이다.
           p.hp = totalStats(this.save).health; this.save.health = p.hp; p.x = 0; p.y = 0; this.chaseTarget = undefined; this.pursuing = false;
           this.regenClock = 0;
           this.save.gold = Math.max(0, this.save.gold - 10);
           this.onMessage(climbOn
             ? '쓰러졌습니다. 10골드를 잃고 부활했습니다. 1마리부터 다시 잡으면 보스가 다시 나타납니다.'
-            : '쓰러졌습니다. 10골드를 잃고 부활했습니다. 자동 등반이 중단됩니다.');
+            : this.save.autoClimb
+              ? '쓰러졌습니다. 10골드를 잃고 부활했습니다. 자동 등반은 계속됩니다.'
+              : '쓰러졌습니다. 10골드를 잃고 부활했습니다.');
           this.onChange();
         }
       }
@@ -853,8 +873,9 @@ export class World {
         // A piece auto-salvage will take needs no bag room, so it flies in even when the bag is full.
         if (!canStoreItem(this.save.bag, drop.item, this.job) && !this.sweeps(drop.item)) {
           // 가방 40칸 만석(작업 209): 새 장비를 두기 전에 가방 안의 설정 이하 장비를 먼저 분해해 칸을 만든다.
+          // 40칸에는 타직업 스킬북·보물 주머니도 포함한다(내 직업 스킬북 제외, 작업 253).
           if (!this.sweepFullBag()) {
-            if (!drop.warned) { drop.warned = true; this.onMessage('가방이 가득 찼습니다. 장비를 분해하세요.'); }
+            if (!drop.warned) { drop.warned = true; this.onMessage('가방이 가득 찼습니다. 아이템을 분해하거나 공용창고에 보관하세요.'); }
             continue;
           }
         }
@@ -868,6 +889,15 @@ export class World {
         drop.age = -1;
         this.onChange();
         continue;
+      }
+      // 날아온 사이에 다른 드롭이 먼저 칸을 채웠을 수 있다 — 넣기 **직전에** 다시 확인한다(작업 248).
+      // (같은 프레임에 여러 개가 흡수를 시작해도 가방이 40칸을 넘지 않는다.)
+      if (!canStoreItem(this.save.bag, drop.item, this.job)) {
+        if (!this.sweepFullBag() || !canStoreItem(this.save.bag, drop.item, this.job)) {
+          drop.absorb = undefined;
+          if (!drop.warned) { drop.warned = true; this.onMessage('가방이 가득 찼습니다. 아이템을 분해하거나 공용창고에 보관하세요.'); }
+          continue;
+        }
       }
       this.save.bag.push(drop.item);
       drop.age = -1;

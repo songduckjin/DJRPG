@@ -28,8 +28,16 @@ let db, directory, url;
 const sid = id => `sid-${id}`;
 const env = () => ({ TURSO_DATABASE_URL: url, TURSO_AUTH_TOKEN: 'dungeon-key' });
 const worldBossKey = () => url;
+// 던전 몹·보스 공격력 정상화(작업 248) 뒤로는 맨몸 캐릭터가 2층부터 버티지 못한다 — 실제 플레이어처럼
+// 장비를 갖춘 세이브로 검증 규칙을 본다(이 파일은 `writeSave`를 직접 쓰므로 소유 기록 검증을 거치지 않는다).
+const testGear = id => ({
+  armor: { id: `${id}-armor`, name: '시험 갑옷', slot: 'armor', rarity: 'rare', stats: { defense: 40, health: 120 }, plus: 0 },
+  helmet: { id: `${id}-helmet`, name: '시험 투구', slot: 'helmet', rarity: 'rare', stats: { defense: 20, health: 60 }, plus: 0 },
+  boots: { id: `${id}-boots`, name: '시험 장화', slot: 'boots', rarity: 'rare', stats: { defense: 20, health: 60 }, plus: 0 }
+});
 async function seed(id, over = {}) {
-  const save = parseSave(withWeapon({ ...freshSave('male'), name: id, level: 7, ...over }), id);
+  const base = withWeapon({ ...freshSave('male'), name: id, level: 7, ...over }, `${id}-weapon`);
+  const save = parseSave({ ...base, equipment: { ...testGear(id), ...(base.equipment ?? {}), ...(over.equipment ?? {}) } }, id);
   await db.execute({ sql: 'INSERT INTO djrpg_accounts(id,password_hash,save_json,updated_at,session_id) VALUES(?,?,?,?,?)', args: [id, 'hash', JSON.stringify(save), new Date().toISOString(), sid(id)] });
   await account(db, id);
   return save;

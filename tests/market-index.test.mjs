@@ -38,7 +38,7 @@ before(async () => {
     const statements = [];
     for (let index = start; index < Math.min(rows, start + 500); index++) {
       const item = { id: `i-${index}`, name: '황혼의 두손검', slot: slots[index % slots.length], rarity: rarities[index % rarities.length], stats: { attack: index % 97, defense: index % 13, health: index % 7 } };
-      statements.push({ sql: 'INSERT INTO djrpg_market VALUES (?,?,?,NULL,?,?,?,?,?,?,?,?,NULL)', args: [`m-${index}`, `seller${index % 50}`, '전사', JSON.stringify(item), item.name, item.slot, item.rarity, 100 + index, 'active', now - index * 1000, now + 72 * 3600_000] });
+      statements.push({ sql: 'INSERT INTO djrpg_market (id,seller,seller_name,buyer,item_json,name,slot,rarity,price,state,created_at,expires_at,sold_at) VALUES (?,?,?,NULL,?,?,?,?,?,?,?,?,NULL)', args: [`m-${index}`, `seller${index % 50}`, '전사', JSON.stringify(item), item.name, item.slot, item.rarity, 100 + index, 'active', now - index * 1000, now + 72 * 3600_000] });
     }
     await db.batch(statements, 'write');
   }

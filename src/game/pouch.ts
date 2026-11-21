@@ -1,5 +1,3 @@
-import { EQUIPMENT_BAG_LIMIT, equipmentCount } from './bagCapacity';
-import { jobOrDefault } from './skills';
 import {
   isPouch, POUCH_NAME, rollEquipment, rollSkillBook,
   type EquipmentItem, type Item, type Rarity, type SkillBook, type TreasurePouch
@@ -101,13 +99,16 @@ export type PouchOpenResult =
 /**
  * 주머니 1개를 소모하고 결과를 세이브에 넣는다.
  *
- * 가방 40칸은 **장비**만 세므로 주머니를 여는 것 자체는 칸을 쓰지 않지만, 결과가 장비일 수 있으므로
- * 가득 찬 가방에서는 열지 않고 그대로 둔다(주머니를 잃지 않게). 스킬북은 40칸에 세지 않는다.
+ * 가방 40칸은 **장비·타직업 스킬북·보물 주머니**를 1개씩 센다(작업 253 — 내 직업 스킬북은 세지 않는다). 주머니를 여는 것은
+ * 주머니 1개를 빼고 결과 1개(또는 금화)를 넣는 **자리 바꿈**이라 칸 수가 **늘지 않는다**(금화면 -1, 아이템이면 0).
+ * 그래서 40칸이 찬 상태는 물론 **이미 40칸을 넘긴 세이브에서도** 주머니를 열 수 있다(작업 251).
+ * 40칸 상한이 스킬북·주머니까지 세게 된 작업 248 뒤에는 예전 세이브가 40칸을 넘긴 채 남을 수 있는데,
+ * 개봉이 칸을 늘리지 않으므로 막지 않는 편이 그 계정을 가두지 않는다. 서버 `reconcileItems`도
+ * "지금 개수 이하 유지" 저장은 통과시킨다.
  */
 export function openPouch(save: Save, id?: string, random: () => number = Math.random): PouchOpenResult {
   const pouch = (id ? save.bag.find(item => item.id === id) : undefined) ?? firstPouch(save);
   if (!pouch || !isPouch(pouch)) return { ok: false, message: `가방에 ${POUCH_NAME}이(가) 없습니다.` };
-  if (equipmentCount(save.bag, jobOrDefault(save.job)) >= EQUIPMENT_BAG_LIMIT) return { ok: false, message: '가방이 가득 찼습니다. 장비를 분해한 뒤 열어 주세요.' };
   const result = rollPouch(save.maxFloor || save.floor || 1, random);
   save.bag = save.bag.filter(item => item.id !== pouch.id);
   if (result.kind === 'gold') save.gold += result.gold;
