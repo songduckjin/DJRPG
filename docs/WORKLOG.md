@@ -11,6 +11,7 @@
 - **서버 허용치**(`server/save-guard.mjs`): `ITEMS_FLOOR` 8→40(가방 40칸과 동일, 초당 0.5개는 그대로).
 - **검증**: `npx tsc --noEmit` 통과, `npm run build` 통과(번들 `index-C9T7QLoR.js`). 전체 `npm test` 1,074건 중 **1,071 통과** — 실패 3건은 `origin/main` `a4bf0de`에서도 그대로 실패하는 기존 `costume-field-render` 2·`skillbook-server` 1(로컬 기준선 실측). 신규 `tests/climb-rules` 5/5·`skill-picker` 7/7·`skill-auto-upgrade` 6/6·`item-mint-budget` 3/3, 갱신 `world-movement` 27/27·`offline` 6/6·`offline-climb`·`skill-auto-loadout` 10/10·`skill-ui` 12/12·`warehouse-grid` 8/8.
 
+- **미리보기 배포**: `preview/gravel-background-fks3997` 푸시 `262f072d350e`(2026-11-21 10:31 KST 빌드). `https://preview-gravel-background-fk.djrpg.pages.dev/version.json` HTTP 200 · `version` `262f072d350e` · 루트 200, 배포 번들(`assets/index-DqyO72YC.js`)에 `자동 강화`·`skill-auto-upgrade`·`skill-picker`·`is-recommended`·`자동 등반이 중단됩니다`·`자동 등반은 계속됩니다`·`⚔ 보스 도전` 확인. **`main` 병합·운영 배포는 하지 않았다**(사용자 지시). 모바일 실기 확인은 사용자 몫.
 ## 2026-11-21 · songduckjin 작업 244 — 궁수·마법사 사거리 소폭 상향(330/180 · 285/160)
 
 - **요청**: 사용자 "그리고 궁수 법사 사거리 조금씩늘려줘"(08:28 KST). 09:00 API 복구 전까지 구현·검증·운영 배포.
