@@ -88,7 +88,11 @@ async function start(): Promise<void> {
     gameUi = ui;
     if (pendingMessage) ui.message(pendingMessage);
     if (offlineReward) ui.showOfflineReward(offlineReward);
-    if (legacyKey || offlineReward) void flush();
+    // 방치 정산·기존 세이브 이전으로 세이브가 바뀌었으니 **변경 표시를 남기고** 저장한다(작업 255).
+    // `flush()`는 dirty와 무관하게 스냅샷을 보내므로 지금도 저장되지만, 표시가 없으면 이 저장이
+    // 시작 전에 건너뛰였을 때(`locked`·`pendingWarehouse` 등) `transferWarehouse`가 `dirty`를 보고
+    // flush를 생략해 **서버에 없는 보상이 응답 세이브에 덮인다**. 표시를 남기면 그 경우에도 먼저 저장한다.
+    if (legacyKey || offlineReward) { sync.markDirty(); void flush(); }
     const view = new GameView();
     let renderTotal = 0;
     await view.mount(ui.canvasHost, (loaded, total) => {

@@ -1,5 +1,5 @@
 import type { Save } from './store';
-import { allSkillIds, jobs, passiveOrderFor, passives, skillOrderFor, skills, type Job, type SkillLevelId } from './skills';
+import { allPassiveIds, allSkillIds, jobs, passiveOrderFor, passives, skillOrderFor, skills, type Job, type SkillLevelId } from './skills';
 import { jobOrDefault } from './skills';
 import { random } from './rng';
 import { effectiveExtraOptions, extraOptionPower, normalizeExtraOptions, type ExtraOptionKey } from './extraOptions';
@@ -597,13 +597,24 @@ export function wearableEquipmentImage(item: EquipmentItem): { path: string; fra
   return path && frame >= 0 ? { path, frame, columns: 5, rows: 2 } : undefined;
 }
 
+/**
+ * 세이브에서 **읽어 들이는** 스킬북 33종 — 액티브 24(`allSkillIds`) + 패시브 9(`allPassiveIds`).
+ *
+ * (작업 255, 사용자 제보 `#8898`) 예전에는 액티브 목록만 대조해서, **패시브 스킬북이 서버 응답을 읽을 때마다
+ * 조용히 사라졌다** — 방치 보상으로 받은 책은 `applyOfflineRewards`가 파싱 **뒤에** 넣으므로 가방에 보이다가,
+ * 다음 `parseSave`(창고 꺼내기·거래·캐릭터 전환 응답)에서 빠지고, 그 세이브가 서버로 가면 `reconcileItems`가
+ * 소유 기록을 `consumed`로 바꿔 새로고침해도 돌아오지 않았다. 서버 쪽 검사(`server/skill-ids.mjs`
+ * `skillBookIdSet`)는 처음부터 33종을 허용하므로, 클라이언트만 33종을 받아야 한다.
+ */
+const skillBookReadIds = new Set<SkillLevelId>([...allSkillIds, ...allPassiveIds]);
+
 export function migrateItem(value: unknown): Item | undefined {
   if (!isRecord(value)) return undefined;
   // 보물 주머니(작업 207): 서버가 이름 포함 identity로 대조하므로 저장된 이름이 있으면 그대로 둔다.
   if (value.kind === 'pouch' || value.slot === 'pouch') {
     return pouchItem(typeof value.id === 'string' && value.id ? value.id : crypto.randomUUID(), typeof value.name === 'string' && value.name.trim() ? value.name : POUCH_NAME);
   }
-  if (value.kind === 'skillbook' && value.slot === 'skillbook' && typeof value.skillId === 'string' && (allSkillIds as SkillLevelId[]).includes(value.skillId as SkillLevelId)) {
+  if (value.kind === 'skillbook' && value.slot === 'skillbook' && typeof value.skillId === 'string' && skillBookReadIds.has(value.skillId as SkillLevelId)) {
     const skillId = value.skillId as SkillLevelId;
     const fallback = `[스킬북] ${skillId in skills ? skills[skillId as keyof typeof skills].name : passives[skillId as keyof typeof passives].name}`;
     // 서버가 소유권 identity(이름 포함)로 아이템을 대조하므로, 저장된 이름이 있으면 그대로 유지한다.
