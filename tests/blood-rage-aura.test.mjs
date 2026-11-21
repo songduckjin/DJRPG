@@ -164,7 +164,8 @@ test('전사가 아닌 직업의 버프는 전사 오라를 쓰지 않는다', (
 test('예전 발밑 타원 링은 전사 블러드 레이지에서 사라졌다', () => {
   const entities = readFileSync(new URL('../src/game/render/entities.ts', import.meta.url), 'utf8');
   assert.ok(entities.includes('drawBloodRageAura'), '몸 주변 오라를 그린다');
-  assert.ok(entities.includes("jobOrDefault(world.save.job) !== 'warrior'"), '마법진은 전사가 아닌 직업만 쓴다');
+  // [작업 261] 궁수 호크아이도 발밑 링을 떼고 몸 주변 바람 오라를 쓴다 — 남은 링은 마법사 것뿐이다.
+  assert.ok(entities.includes("jobOrDefault(world.save.job) === 'mage'"), '마법진은 마법사만 쓴다');
   const field = readFileSync(new URL('../src/game/render/field.ts', import.meta.url), 'utf8');
   assert.ok(!field.includes("'warcry'"), '블러드 레이지는 지면 링 목록에서 빠졌다');
   assert.ok(field.includes('jobOrDefault'), '다른 직업 버프의 링은 그대로 둔다');
