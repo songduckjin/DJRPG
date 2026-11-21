@@ -240,3 +240,41 @@ test('legacy item names survive parseSave, so load then save no longer deadlocks
     await removeTempDbDirectory(directory);
   }
 });
+
+// 캐릭터 슬롯 최대 8칸 — 계정 API도 8칸까지만 새 캐릭터를 만들고, 9번째 슬롯은 `SLOT_LOCKED`로 막는다.
+test('character creation stops at the eighth purchased slot', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'djrpg-characters-slot-eight-'));
+  const url = `file:${join(directory, 'slot-eight.db')}`;
+  process.env.TURSO_DATABASE_URL = url; process.env.TURSO_AUTH_TOKEN = 'local-slot-eight-test';
+  const db = createClient({ url });
+  try {
+    await schema(db);
+    await db.execute({ sql: 'INSERT INTO djrpg_accounts (id,password_hash,save_json,updated_at) VALUES (?,?,?,?)', args: ['hero', 'test-hash', JSON.stringify(legacy), new Date().toISOString()] });
+    await db.execute({ sql: 'INSERT INTO djrpg_shop_wallet(account_id,diamonds,max_slots,customer_key) VALUES (?,?,?,?)', args: ['hero', 0, 8, randomUUID()] });
+    const signed = Buffer.from(JSON.stringify({ id: 'hero', exp: Date.now() + 60_000 })).toString('base64url');
+    const token = `${signed}.${createHmac('sha256', process.env.TURSO_AUTH_TOKEN).update(signed).digest('base64url')}`;
+    const call = async body => {
+      const result = {};
+      const res = { status(code) { result.status = code; return this; }, json(data) { result.body = data; return this; } };
+      await accountHandler({ method: 'POST', headers: { authorization: `Bearer ${token}` }, body }, res);
+      return result;
+    };
+    const list = await call({ action: 'characters' });
+    assert.equal(list.status, 200);
+    assert.equal(list.body.maxSlots, 8, '캐릭터 목록도 8칸 상한을 그대로 알려 준다');
+    const eighth = await call({ action: 'createCharacter', slot: 8, name: '여덟째', gender: 'female', revision: list.body.revision });
+    assert.equal(eighth.status, 200);
+    assert.equal(eighth.body.characterSlot, 8);
+    const ninth = await call({ action: 'createCharacter', slot: 9, name: '아홉째', gender: 'male', revision: eighth.body.revision });
+    assert.equal(ninth.status, 403);
+    assert.equal(ninth.body.code, 'SLOT_LOCKED');
+    const intoNinth = await call({ action: 'selectCharacter', slot: 9, revision: eighth.body.revision });
+    assert.equal(intoNinth.status, 403);
+    assert.equal(intoNinth.body.code, 'SLOT_LOCKED');
+    const rows = (await db.execute({ sql: 'SELECT slot FROM djrpg_characters WHERE account_id=? ORDER BY slot', args: ['hero'] })).rows;
+    assert.deepEqual(rows.map(row => Number(row.slot)), [1, 8], '9번째 슬롯에는 캐릭터가 생기지 않는다');
+  } finally {
+    await db.close(); delete process.env.TURSO_DATABASE_URL; delete process.env.TURSO_AUTH_TOKEN;
+    await removeTempDbDirectory(directory);
+  }
+});

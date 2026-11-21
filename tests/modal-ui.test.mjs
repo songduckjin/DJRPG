@@ -359,3 +359,40 @@ test('거래 결과 대기 중에도 거래소 창은 열려 다시 확인을 �
   Interface.prototype.open.call(ui, 'equipment');
   assert.equal(ui.openModal, 'equipment');
 });
+
+// 캐릭터 슬롯 최대 8칸 — 8칸이면 `＋ 슬롯 추가`를 숨기고, 7칸 이하에서만 보여 준다.
+test('the add-slot button hides at the eight-slot cap and stays for lower limits', () => {
+  const originalDocument = globalThis.document;
+  class Element {
+    children = []; attributes = {}; className = ''; textContent = ''; type = ''; onclick = null; innerHTML = ''; disabled = false;
+    constructor(tag = 'div') { this.tagName = String(tag).toUpperCase(); }
+    append(...nodes) { this.children.push(...nodes); }
+    setAttribute(name, value) { this.attributes[name] = value; }
+    addEventListener() {}
+    querySelectorAll() { return this.children.filter(child => child && child.tagName === 'BUTTON'); }
+  }
+  globalThis.document = { createElement: tag => new Element(tag), createTextNode: text => ({ textContent: text }) };
+  try {
+    const visit = node => [node, ...(node.children || []).filter(child => child && typeof child === 'object').flatMap(visit)];
+    const render = (maxSlots, characterPage = 0) => {
+      const ui = { characterList: { characters: [], activeSlot: 1, maxSlots }, characterPage, session: { characterSlot: 1 },
+        world: { save: { autoClimb: false }, onChange() {} }, messages: [], message(value) { this.messages.push(value); }, open() {}, renderModal() {} };
+      const dialog = new Element();
+      renderCharacters(ui, dialog);
+      return { ui, nodes: visit(dialog) };
+    };
+    const addButtons = nodes => nodes.filter(node => node.className === 'character-add-slot');
+    const seven = render(7);
+    assert.equal(addButtons(seven.nodes).length, 1, '슬롯 7칸이면 추가 버튼이 있다');
+    assert.equal(addButtons(seven.nodes)[0].attributes['aria-label'], '캐릭터 슬롯 추가 · 다이아 500개');
+    assert.equal(render(8).ui.characterList.maxSlots, 8);
+    assert.equal(addButtons(render(8).nodes).length, 0, '슬롯 8칸이면 최대 — 추가 버튼을 숨긴다');
+    assert.equal(addButtons(render(9).nodes).length, 0, '이전에 9칸을 산 계정도 더 살 수 없어 버튼이 없다');
+    // 8칸은 3쪽(3·3·2), 마지막 쪽은 슬롯 7·8 두 칸만 그린다.
+    const first = render(8);
+    assert(first.nodes.some(node => node.textContent === '1 / 3'), '8칸은 3쪽으로 나뉜다');
+    const last = render(8, 2);
+    const labels = last.nodes.filter(node => node.className === 'character-select').map(node => node.children.at(-1).textContent);
+    assert.deepEqual(labels, ['슬롯 7 · 새 캐릭터 만들기', '슬롯 8 · 새 캐릭터 만들기']);
+  } finally { globalThis.document = originalDocument; }
+});
