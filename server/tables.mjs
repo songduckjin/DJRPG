@@ -181,6 +181,16 @@ export const GLOBAL_TABLES = names(table => table.owner === 'global');
 export const ITEM_TABLES = names(table => table.owner === 'item');
 
 /**
+ * 공통코드 표(작업 260) — 계정·캐릭터에 귀속되지 않는 **전역 사전 표**다.
+ *
+ * `djrpg_` 접두어를 쓰지 않아 위 `TABLES`(이관·탈퇴·시즌 대상)에는 넣지 않는다. 표를 만드는 것은
+ * `schema()`이고(`server/db/schema.mjs` → `commonCodeStatements`), 값을 채우는 것은 시드
+ * (`scripts/sync-common-codes.mjs`)다 — DB 행을 복사하는 이관 대상이 아니라 **코드에서 다시 만드는** 표다.
+ * 그래도 이름을 여기 적어 두는 이유는 "서버가 만드는 표"를 한 곳에서 찾을 수 있게 하기 위해서다.
+ */
+export const CODE_TABLES = Object.freeze(['common_code_majors', 'common_code_minors']);
+
+/**
  * DDL을 가진 모듈별 표 목록 — 스키마 검사(등록부 ↔ 실제 DDL)에 쓴다.
  * `server/db/schema.mjs`·`server/dungeon-schema.mjs`·`server/world-boss-schema.mjs`가 만드는 표가
  * 여기와 같아야 한다.

@@ -141,6 +141,13 @@ test('schema()가 만드는 표가 등록부와 정확히 같고, 공통코드 �
       'DDL은 만들었는데 등록부에 없는 표가 있다(또는 그 반대).');
     const codes = (await db.execute("SELECT name FROM sqlite_master WHERE type='table' AND name IN ('common_code_majors','common_code_minors')")).rows;
     assert.equal(codes.length, 2, '공통코드 2표(작업 260)가 schema()에서 만들어지지 않았다');
+    assert.deepEqual(codes.map(row => String(row.name)).sort(), [...registry.CODE_TABLES].sort());
+    // 공통코드는 **시드가 진실**이다 — DB 행을 복사하는 이관·탈퇴·시즌 대상이 아니다.
+    for (const table of registry.CODE_TABLES) {
+      assert.ok(!registry.MIGRATION_TABLES.includes(table), `${table}: 이관 목록에 넣지 않는다(시드에서 다시 만든다)`);
+      assert.ok(!registry.ACCOUNT_TABLES.includes(table));
+      assert.ok(!registry.RESET_TABLES.includes(table));
+    }
   } finally {
     await db.close();
     await removeTempDbDirectory(directory);
