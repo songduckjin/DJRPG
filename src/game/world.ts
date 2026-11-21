@@ -9,6 +9,8 @@ import { LOOT_ABSORB_SECONDS, LOOT_REST_SECONDS } from './loot';
 import { autoSalvageBlock, autoSalvageRecovered, sweepBagOnFull } from './inventory';
 import { random } from './rng';
 import { EXTRA_LIFESTEAL_HIT_CAP, EXTRA_REGEN_SECONDS, effectiveExtraOptions } from './extraOptions';
+import { emitDomainEvent } from '../core/domainEvents';
+import { addItemToBag } from './rewardGrant';
 
 export type Enemy = { x: number; y: number; hp: number; maxHp: number; boss: boolean; hit: number; step: number; moving: boolean; knockX: number; knockY: number; slow: number;
   /** 정예 몹(작업 206) — 일반 몹 30마리마다 한 마리. 보스 타이밍이 오면 보스가 우선이라 둘은 같이 서지 않는다. */
@@ -347,9 +349,11 @@ export class World {
     const highest = Math.min(MAX_FLOOR, this.save.maxFloor);
     if (!Number.isInteger(floor) || floor < 1 || floor > highest) return { ok: false, message: `이동할 수 없는 층입니다. 현재 최고 도달 층은 ${highest}층입니다.` };
     if (floor === this.save.floor) return { ok: true, message: `이미 ${floor}층에서 사냥 중입니다.` };
+    const previousFloor = this.save.floor;
     const lostDrops = this.drops.length;
     this.save.floor = floor;
     this.save.floorKills = 0;
+    emitDomainEvent('floorAdvanced', { save: this.save, from: previousFloor, to: floor, reason: 'travel' });
     this.enemies = []; this.drops = []; this.coins = []; this.effects = [];
     this.crush = undefined; this.afterimages = []; this.attackPoseSpan = .32;
     this.bossPending = false; this.eliteKills = 0; this.elitePending = false; this.spawnTimer = 0;
@@ -626,6 +630,9 @@ export class World {
     // 정예는 금화·경험치 2배, 장비·스킬북 드롭률은 일반 몹과 같은 1배다(작업 206).
     const gold = enemy.boss ? 70 * this.save.floor : (3 + this.save.floor) * (enemy.elite ? ELITE_REWARD_SCALE : 1);
     this.save.gold += gold;
+    // 도메인 신호(작업 256): 처치는 사냥 도메인의 사건이다 — 금화·경험치가 세이브에 반영된 **뒤**에 낸다.
+    // 화면·미션·전광판 같은 다른 도메인은 이 신호만 듣고 자기 일을 한다(이벤트는 상태 사본이 아니라 신호).
+    emitDomainEvent('monsterKilled', { save: this.save, floor: this.save.floor, boss: !!enemy.boss, elite: !!enemy.elite, gold, x: enemy.x, y: enemy.y });
     // The coin shows the gold that was just paid: nothing is credited when it flies in. A boss's gold
     // hits the floor in ten heaps scattered around the body (작업 194), each its own drop with its own
     // fall; the heaps add up to the same gold, so the shower never pays twice.
@@ -659,8 +666,10 @@ export class World {
         // 20층이 마지막 층이다(작업 204): 20층 보스를 처치해도 21층으로 넘어가지 않고 20층에 머문다.
         const capped = this.save.floor >= MAX_FLOOR;
         if (!capped) {
+          const from = this.save.floor;
           this.save.floor++;
           this.save.maxFloor = Math.min(MAX_FLOOR, Math.max(this.save.maxFloor, this.save.floor));
+          emitDomainEvent('floorAdvanced', { save: this.save, from, to: this.save.floor, reason: 'boss' });
         }
         this.enemies = [];
         this.chaseTarget = undefined; this.pursuing = false;
@@ -692,8 +701,10 @@ export class World {
         // 자동 등반이 꺼진 상태(강등 직후 등)에는 예전처럼 목표를 0으로 돌리고 그 층에서 계속 사냥한다.
         if (this.save.floorKills >= floorKillTarget(this.save.floor)) {
           if (this.save.autoClimb) {
+            const from = this.save.floor;
             this.save.floor++;
             this.save.floorKills = 0;
+            emitDomainEvent('floorAdvanced', { save: this.save, from, to: this.save.floor, reason: 'climb' });
             this.enemies = []; this.chaseTarget = undefined; this.pursuing = false;
             this.spawnTimer = .2; this.elitePending = false;
             this.onMessage(`${this.save.floor}층 진입`);
@@ -929,7 +940,7 @@ export class World {
           continue;
         }
       }
-      this.save.bag.push(drop.item);
+      addItemToBag(this.save, drop.item, 'field');
       drop.age = -1;
       if (drop.item.name === starterWeaponName(this.job) && this.save.tutorial === 1) this.save.tutorial = 2;
       this.onMessage(`${itemDisplayName(drop.item)} 획득!`);

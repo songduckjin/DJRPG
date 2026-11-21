@@ -1,0 +1,65 @@
+/* DJRPG 모달 — 캐릭터 선택·생성
+   캐릭터 카드, 생성 폼, 캐릭터 삭제·계정 탈퇴 확인창(두 확인창은 같은 톤을 공유한다).
+
+   원래 한 파일이던 `styles/modals.css`를 도메인별로 나눈 것이다. 규칙 본문과 순서는 원본 그대로이고,
+   `styles/modals.css`가 정해진 순서로 @import 한다. 선택자·우선순위·렌더 결과가 원본과 같아야 하므로
+   규칙을 다른 파일로 옮길 때는 앞뒤 순서(캐스케이드)를 반드시 확인한다. */
+
+.character-slots { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 8px; }
+.character-slot { min-height: 170px; padding: 8px; border: 1px solid #80674e; background: #171319; color: #e9d5b7; display: flex; flex-direction: column; align-items: stretch; gap: 8px; text-align: center; font-size: 11px; touch-action: manipulation; }
+.character-slot.selected { border: 2px solid #d8ab66; box-shadow: 0 0 12px #d8ab6666; }
+.character-idle-time { min-height: 20px; color: #e8c890; font-size: 12px; font-weight: 700; }
+.character-select { flex: 1; min-width: 0; padding: 0; border: 0; background: transparent; color: inherit; display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; font-size: inherit; touch-action: manipulation; }
+.character-slot img { width: 100%; height: 108px; object-fit: contain; object-position: center bottom; }
+/* 캐릭터 카드 초상화(작업 210): 필드·장비창과 같은 합성 그림이라 362px 정사각(마법사 투구는 위 44행 여유)이다.
+   `contain` 이라 머리·무기가 잘리지 않고, 발끝을 아래에 맞춰 카드마다 서 있는 높이를 맞춘다. */
+.character-slot img.character-portrait { height: 112px; object-position: center bottom; }
+.character-slot strong { display: grid; place-items: center; height: 108px; font-size: 54px; font-weight: 300; color: #b88e62; }
+.character-idle { min-height: 34px; border: 1px solid #a97943; border-radius: 5px; background: linear-gradient(180deg,#6d492b,#3a281f); color: #ffe0a6; font-weight: 700; touch-action: manipulation; }
+.character-idle:disabled { opacity: .45; cursor: default; }
+.character-delete { min-height: 28px; border: 1px solid #86544e; border-radius: 5px; background: #322024; color: #e6b4ac; font-size: 11px; touch-action: manipulation; }
+.character-delete:disabled { opacity: .45; }
+/* [작업 216] 카드에는 평소 외형·정보만 보인다. 카드를 누르면 그 카드에만 `선택`·`방치`·`삭제`가 나타나고,
+   다른 카드를 누르면 그쪽만 펼쳐진다(한 번 더 누르면 접힌다). */
+.character-slot .character-connect, .character-slot .character-idle, .character-slot .character-delete { display: none; }
+.character-slot.focused { border-color: #d8ab66; box-shadow: 0 0 10px #d8ab6644; }
+.character-slot.focused .character-connect { display: block; min-height: 34px; border: 1px solid #d8ab66; border-radius: 5px; background: linear-gradient(180deg,#8a6132,#4a3221); color: #ffe9bd; font-size: 12px; font-weight: 700; touch-action: manipulation; }
+.character-slot.focused .character-connect,
+.character-slot.focused .character-idle,
+.character-slot.focused .character-delete { display: block; }
+.character-slot.focused .character-select { flex: 0 0 auto; }
+/* 확인창(작업 206 캐릭터 삭제 · 작업 223 계정 탈퇴): 모달 위에 한 겹만 얹는다 — 사냥 중 모달이 다시 그려져도 입력·안내가 유지된다.
+   두 확인창은 같은 다크 판타지 톤을 쓰므로 규칙을 함께 적는다(클래스만 다르다). */
+.character-delete-overlay, .account-delete-overlay { position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center; padding: 18px; background: #07050bdc; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+.character-delete-card, .account-delete-card { width: min(340px, 100%); max-height: 88dvh; overflow-y: auto; display: grid; gap: 10px; padding: 16px 15px; border: 2px solid #9a7655; background: linear-gradient(#2b2224, #181318); box-shadow: 0 16px 44px #000c; }
+.character-delete-title, .account-delete-title { margin: 0; font: 700 18px Cinzel, 'Noto Sans KR', serif; color: #ffcf9a; }
+.character-delete-warning, .account-delete-warning { margin: 0; padding: 9px 10px; border: 1px solid #7d3f36; background: #33191a; color: #f0c3bb; font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; }
+.character-delete-form, .account-delete-form { display: grid; gap: 8px; }
+.character-delete-field, .account-delete-field { display: grid; gap: 6px; font-size: 12px; color: #c9b49c; }
+.character-delete-field input, .account-delete-field input { min-height: 46px; padding: 10px; border: 1px solid #967657; background: #151116; color: #f6e5cc; font-size: 16px; line-height: 1.2; touch-action: manipulation; }
+.character-delete-field input:focus, .account-delete-field input:focus { outline: none; border-color: #e0b16e; box-shadow: 0 0 0 2px #e0b16e44; }
+.character-delete-error, .account-delete-error { min-height: 1em; margin: 0; color: #f2a49d; font-size: 12px; line-height: 1.5; }
+.character-delete-actions, .account-delete-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 2px; }
+.character-delete-cancel, .account-delete-cancel, .character-delete-confirm, .account-delete-confirm { min-height: 46px; padding: 10px 8px; border-radius: 4px; font-size: 14px; font-weight: 700; touch-action: manipulation; }
+.character-delete-cancel, .account-delete-cancel { border: 1px solid #6d5540; background: #251e1f; color: #c7b39c; }
+.character-delete-confirm, .account-delete-confirm { border: 1px solid #b4453c; background: #4a1d1c; color: #ffbdb6; }
+.character-delete-confirm.ready, .account-delete-confirm.ready { border-color: #ff6a5e; background: linear-gradient(#a02b24, #6d1a16); color: #fff0ee; box-shadow: 0 0 12px #ff4b3e55; }
+.character-delete-cancel:disabled, .account-delete-cancel:disabled, .character-delete-confirm:disabled, .account-delete-confirm:disabled { opacity: .55; }
+.character-add-slot { width: 100%; min-height: 38px; margin: 10px 0; border: 1px dashed #7ca6c2; background: #182632; color: #bde6ff; }
+.character-create { position: relative; }
+.character-create-loading { position: fixed; inset: 0; z-index: 100; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 16px; background: #120e18f5; color: #f4dcb0; text-align: center; font-size: 16px; }
+.character-create-loading[hidden] { display: none; }
+.character-create-loading i { width: 22px; height: 22px; border: 3px solid #65536b; border-top-color: #b9e2ff; border-radius: 50%; animation: character-loading-spin .8s linear infinite; }
+@keyframes character-loading-spin { to { transform: rotate(360deg); } }
+.character-pages, .character-gender { display: flex; gap: 8px; align-items: center; justify-content: center; margin: 12px 0; }
+.character-create { display: grid; gap: 12px; }
+.character-create label { display: grid; gap: 6px; }
+.character-create input { min-height: 44px; padding: 8px; background: #151116; color: #f6e5cc; border: 1px solid #967657; }
+.character-gender button.selected { border-color: #e0b16e; background: #60412e; }
+.character-error { min-height: 1em; color: #f2a49d; }
+.character-pages button, .character-gender button, .character-create button, .modal-dialog > button { min-height: 44px; padding: 8px 12px; border: 1px solid #987652; background: #38272a; color: #f3dbb6; }
+.character-overview { display: flex; flex-direction: column; gap: 5px; color: #c4b0a1; font-size: 12px; padding: 3px 0 13px; }
+.character-overview b { font: 700 19px Cinzel, 'Noto Sans KR', serif; color: #f1d8ab; }
+.character-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+.character-stats div { display: flex; justify-content: space-between; border: 1px solid #54443f; padding: 9px; font-size: 12px; }
+.character-stats b { color: #efd3a8; }

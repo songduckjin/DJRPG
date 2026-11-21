@@ -22,6 +22,7 @@ import type { SkillId } from '../game/skills';
 import { cancelSkillSelection, chooseSkill, closeSkillPicker, openSkillPicker, pressSkillSlot } from './skillLoadout';
 import { LegendBoard } from '../game/legendBoard';
 import { mountLegendBar, sharePouchLegend } from './legendBar';
+import { bindDomainEvents } from './domainBindings';
 import { renderSalvage } from './modals/salvageModal';
 import type { World } from '../game/world';
 
@@ -127,6 +128,8 @@ export class Interface {
     this.top = this.get('.top-hud'); this.banner = this.get('.tutorial');
     this.modal = this.get('.modal-backdrop'); this.toast = this.get('.toast');
     mountLegendBar(this);
+    // 도메인 신호 구독(작업 256) — 화면은 사건을 듣기만 한다.
+    bindDomainEvents(this);
     this.modalRenderGate = bindModalInteraction(this.modal, window, () => this.renderModal());
     this.market.onMessage = text => this.message(text);
     sync.onWarehouseRecovered = () => { this.renderStatus(); this.renderBagBadge(); if (this.openModal === 'warehouse') void loadWarehouse(this); this.message('공용창고 이동 결과를 확인했습니다.'); };

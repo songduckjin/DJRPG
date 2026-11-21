@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { modalStyles as readModalStyles } from './helpers/modal-styles.mjs';
 
 // 작업 218 — 장비 등급색 발광. 유니크·전설만 필드 캐릭터와 장착 화면의 착용 부위(투구·갑옷·무기)에서
 // 숨쉬고, 일반·매직·래어·에픽은 아무 효과도 없다. 값(색·주기·세기)은 `src/game/render/gearGlow.ts` 한 곳이 기준이다.
@@ -11,7 +12,7 @@ const entities = readFileSync(new URL('../src/game/render/entities.ts', import.m
 const render = readFileSync(new URL('../src/game/render.ts', import.meta.url), 'utf8');
 const portrait = readFileSync(new URL('../src/ui/equipmentPortrait.ts', import.meta.url), 'utf8');
 const equipModal = readFileSync(new URL('../src/ui/modals/equipModal.ts', import.meta.url), 'utf8');
-const modalStyles = readFileSync(new URL('../src/styles/modals.css', import.meta.url), 'utf8');
+const modalStyles = readModalStyles();
 
 test('빛이 나는 등급은 유니크·전설 둘뿐이다', () => {
   const table = glow.match(/gearGlowTones[^{]*\{([\s\S]*?)\n\};/)?.[1];

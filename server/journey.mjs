@@ -1,36 +1,7 @@
-import { randomUUID } from 'node:crypto';
 import { account, transaction, assertRevision, validateSave, reconcileItems, writeSave, fail, inventoryOwnerQuery, countedBagItems, EQUIPMENT_BAG_LIMIT } from './database.mjs';
 import { elapsedSince } from './save-guard.mjs';
-import { journeyState, journeyOperation, journeyView, dailyTasks, pouchItem } from './journey-state.mjs';
-import { countedInBag, rollRewardSkillBook } from './skill-ids.mjs';
-/** 우편·보상이 가방에 넣는 아이템 수 — 스킬북 `books` + 보물 주머니 `pouches`(작업 248). */
-function rewardItemCount(entries) {
-  return entries.reduce((sum, entry) => sum + Math.max(0, Math.floor(Number(entry.books ?? 0) || 0)) + Math.max(0, Math.floor(Number(entry.pouches ?? 0) || 0)), 0);
-}
-/** 가방 40칸에 지금 차 있는 칸 수 — 장비·타직업 스킬북·보물 주머니(내 직업 스킬북 제외, 작업 253). */
-function bagSlots(save) {
-  return (save.bag ?? []).filter(item => countedInBag(item, save.job)).length;
-}
-function rewards(save, entries) {
-  // 보물 주머니(작업 207): 전체 완료 보상에 붙은 수량만큼 가방에 넣는다. 주머니는 장비 40칸을 쓰지 않는다.
-  const pouches = entries.reduce((sum,entry)=>sum+Number(entry.pouches??0),0);
-  const gold = entries.reduce((sum,entry)=>sum+Number(entry.gold??0),0);
-  save.gold += gold;
-  save.bag ??= [];
-  for (const entry of entries) {
-    const books = Math.max(0, Math.floor(Number(entry.books??0) || 0));
-    // 우편·보상 스킬북은 세 직업 33종에서 고른다(작업 209) — 예전에는 전사 11종만 나왔다.
-    // 직업을 지정해 주던 미리보기용 우편 경로는 운영 배포에서 정리했다(작업 252).
-    // 보상은 칸 검사를 하지 않고 넣는다(받을 것을 잃지 않게). 다른 직업 책이면 40칸을 넘길 수 있고,
-    // 그 초과분은 `reconcileItems`가 "서버가 들고 있는 수"까지 인정해 저장을 막지 않는다(작업 246).
-    for (let i = 0; i < books; i++) {
-      const {skillId,name} = rollRewardSkillBook();
-      save.bag.push({id:randomUUID(),kind:'skillbook',slot:'skillbook',skillId,rarity:'rare',name,stats:{}});
-    }
-  }
-  for(let i=0;i<pouches;i++) save.bag.push(pouchItem(randomUUID()));
-  return gold;
-}
+import { journeyState, journeyOperation, journeyView, dailyTasks } from './journey-state.mjs';
+import { BAG_SLOT_LIMIT, RewardGrantError, bagSlotCount, diamondGrantOperations, grantRewardsToSave, planRewards, rewardSlotNeed } from './core/rewardGrant.mjs';
 export async function snapshot(db,id,options={}) {
   return transaction(db,async tx=>{
     const row=await account(tx,id),state=await journeyState(tx,row,row.save);
@@ -68,23 +39,25 @@ export async function mutate(db,id,input,options={}) {
         if(!wanted.length)fail(409,'NOT_AVAILABLE','수령할 우편 보상이 없습니다.');
         // 가방 40칸이 꽉 차거나 이번 우편의 아이템 때문에 넘어가면 받지 않는다(작업 248, 사용자 확정).
         // `모두 받기`는 자리가 없는 아이템 우편만 건너뛰어 미수령으로 남기고, 금화만 있는 우편은 그대로 받는다.
-        const bagLimit=40, all=input.id==='all';
-        let slots=bagSlots(save);
+        const bagLimit=BAG_SLOT_LIMIT, all=input.id==='all';
+        let slots=bagSlotCount(save);
         selected=wanted.filter(entry=>{
-          const need=rewardItemCount([entry]);
+          const need=rewardSlotNeed([entry], save.job);
           if(!need||slots+need<=bagLimit){slots+=need;return true;}
           if(!all)fail(409,'BAG_FULL','가방이 가득 찼습니다. 공간을 비운 뒤 우편을 받아주세요.');
           mailSkipped++;return false;
         });
         if(!selected.length)fail(409,'BAG_FULL','가방이 가득 찼습니다. 공간을 비운 뒤 우편을 받아주세요.');
-        goldCredit=rewards(save,selected);for(const entry of selected){entry.claimedAt=now;entry.read=true;}
+        // 자리는 위에서 확인했다 — 지급은 공통 창구가 한 번에 반영한다(`onOverflow:'keep'`: 받을 것을 잃지 않게).
+        goldCredit=grantRewardsToSave(save,selected,{bagLimit,onOverflow:'keep'}).gold;
+        for(const entry of selected){entry.claimedAt=now;entry.read=true;}
       }else{
         const available=view[input.kind].filter(entry=>!entry.claimed&&entry.current>=entry.target);
         selected=available.filter(entry=>input.id==='all'||entry.id===input.id);
         if(!selected.length)fail(409,'NOT_READY','아직 달성하지 않았거나 이미 수령한 보상입니다.');
         // 일일·주간 전체 완료·업적 보상도 보물 주머니를 줄 수 있다 — 가방 자리가 없으면 받지 않는다(작업 248).
-        if(bagSlots(save)+rewardItemCount(selected)>40)fail(409,'BAG_FULL','가방이 가득 찼습니다. 공간을 비운 뒤 보상을 받아주세요.');
-        goldCredit=rewards(save,selected);const claims=input.kind==='achievements'?state.achievements:state[input.kind].claims;
+        if(!planRewards(save,selected,{bagLimit:BAG_SLOT_LIMIT}).fits)fail(409,'BAG_FULL','가방이 가득 찼습니다. 공간을 비운 뒤 보상을 받아주세요.');
+        goldCredit=grantRewardsToSave(save,selected,{bagLimit:BAG_SLOT_LIMIT}).gold;const claims=input.kind==='achievements'?state.achievements:state[input.kind].claims;
         claims.push(...selected.map(entry=>entry.id));
         if(input.kind==='daily'&&!state.daily.completed&&dailyTasks.every(task=>state.daily.claims.includes(task.id))){state.daily.completed=true;state.weekly.days=(state.weekly.days??0)+1;}
       }
@@ -95,15 +68,11 @@ export async function mutate(db,id,input,options={}) {
     }else fail(400,'INVALID_ACTION','지원하지 않는 요청입니다.');
     const ops=[...operations,journeyOperation(id,state)];
     if (input.action === 'journey-claim') {
-      const diamondMails = selected.filter(entry => Number(entry.diamonds ?? 0) > 0);
-      if (diamondMails.length) {
-        await tx.execute({ sql: 'INSERT OR IGNORE INTO djrpg_shop_wallet(account_id,customer_key) VALUES (?,?)', args: [id, randomUUID()] });
-        for (const entry of diamondMails) {
-          const amount = Number(entry.diamonds);
-          if (!Number.isSafeInteger(amount) || amount <= 0) fail(409, 'INVALID_REWARD', '우편 보상이 올바르지 않습니다.');
-          ops.push({ sql: 'INSERT INTO djrpg_shop_ledger(account_id,source_type,source_id,diamonds_delta,created_at) VALUES (?,?,?,?,?)', args: [id, 'mail', entry.id, amount, now] });
-          ops.push({ sql: 'UPDATE djrpg_shop_wallet SET diamonds=diamonds+? WHERE account_id=?', args: [amount, id] });
-        }
+      // 다이아는 세이브가 아니라 지갑에 있다 — 금액 검사와 원장 기록도 공통 창구가 맡는다.
+      try { ops.push(...diamondGrantOperations(id, selected, { now, sourceType: 'mail' })); }
+      catch (error) {
+        if (!(error instanceof RewardGrantError)) throw error;
+        fail(409, error.code, error.message);
       }
     }
     for(const item of save.bag.filter(item=>!beforeRewardIds.has(item.id))){
