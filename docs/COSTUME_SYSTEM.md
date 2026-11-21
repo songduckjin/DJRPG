@@ -339,3 +339,10 @@ v2는 갑옷을 입어도 `body`의 `arms`·`legs` 파츠를 그대로 그렸다
 - **1차 보정(이력)**: 같은 날 `{ x: -3, y: 68, scaleX: 1.35, scaleY: 1.35 }`로 먼저 넣었다. 손잡이는 `-94px`까지 내려왔지만 검 끝이 `-208px`로 머리 상단 `-193px`보다 15px 위에 남아 제보가 반복됐다. 위 값이 이를 대체한다.
 - **적용 범위**: `definition.slot === 'weapon'`에만 적용하며 매니페스트가 `fit`을 지정하면 그 값이 우선한다(갑옷·투구는 종전대로 `fit` 또는 보정 없음). 공격 계열 셀은 투명이고 검은 공격 시트에 내장돼 있으므로 이 보정은 idle·walk에만 보인다. v3 아틀라스 PNG·매니페스트·`COSTUME_ASSET_VERSION`·Save/API는 바꾸지 않는다.
 - **검증**: 아틀라스 셀 실측(정지 프레임 무기 bbox 남 `y -206..-101`·여 `-191..-86`, 본체 상단 `-193`)으로 손잡이·검끝 좌표를 계산해 확인했고, `tests/costume-field-render.test.mjs`에 1.45배·`{-8, 110}`·성별별 손잡이 높이(남 `-64px`·여 `-43px`)와 검 끝이 머리 상단 아래에 남는지 계산 단언, 매니페스트 `fit` 우선 검사를 넣었다. 화면 검수는 사용자 몫이다(이미지 열람 제한).
+
+## 7.11 등급 발광 마스크 (작업 218 → 231 → 247 → 256)
+
+- **필드**: `src/game/render/gearGlow.ts`가 등급색·파동·겹 표를 갖고, `entities.ts` `syncGearGlow(view, key, source, rarity, time, options)`가 그린다.
+- **투구는 파츠만 발광**(작업 256): 파츠와 같은 파일명·같은 크기의 알파 마스크 PNG를 `public/assets/pilot-25d/helmets_glow/**`·`archer_helms_glow/**`에 두고(생성기 `scripts/build-helm-glow-masks.py`, 113장), `options.mask`로 넘긴다. 마스크가 아직 로딩 전이면 그 프레임 발광을 숨긴다 — 마스크 없이 그리면 얼굴·목까지 등급색이 된다.
+- **갑옷**은 `options.neckY`로 목 밑동 아래만 칠한다(파츠가 아니라 몸통 시트라 목선 좌표를 자세 표에서 받는다).
+- **장착 화면(내 정보)**은 필드와 별개로 `mageHelmGlowMaskCanvas`(캔버스, 성별당 1장)를 `destination-in`으로 쓴다. 런타임 캔버스 마스크를 필드에 다시 넣지 않는다.

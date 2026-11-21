@@ -118,18 +118,22 @@ test('장착 화면은 발광 레이어를 몸 위에 얹고 CSS로 숨쉬게 �
   assert.match(modalStyles, /prefers-reduced-motion: reduce\) \{ \.showcase-glow-layer \{ animation: none; opacity: \.7; \} \}/, '움직임을 줄인 기기에서는 은은하게 고정');
 });
 
-test('마법사 투구 발광은 얼굴·목선 아래로 번지지 않는다(작업 247)', () => {
-  // 파츠에 얼굴이 함께 들어 있어 그대로 두면 유니크·전설 투구에서 얼굴이 등급색 덩어리가 되고,
-  // 파츠가 목선에서 끊긴 자리에 직선으로 잘린 발광 띠가 남는다 → 성별 발광 마스크를 건다.
-  assert.match(entities, /else if \(maskTexture\)/, '투구 발광에도 마스크를 건다');
-  assert.match(entities, /mask\.texture = maskTexture;[\s\S]*mask\.anchor\.set\(source\.anchor\.x, source\.anchor\.y\);[\s\S]*mask\.scale\.set\(source\.scale\.x, source\.scale\.y\);/, '마스크를 파츠와 같은 앵커·위치·배율로 얹는다');
-  assert.match(entities, /mageHelmGlowMaskTexture\(save\.gender\)/, '성별 마스크를 고른다');
-  assert.match(render, /heroHelmGlowMask\?: Sprite;/, 'GameView.heroHelmGlowMask');
+test('투구 발광은 파츠 알파 마스크로만 칠한다(작업 247 → 256)', () => {
+  // 작업 247은 마법사 투구만 캔버스 마스크를 썼고, 작업 256에서 **전 직업 투구**가 파츠와 같은 크기의
+  // 알파 마스크 PNG(얼굴·목·어깨·머리카락 제외)를 쓴다. 마스크 없이 그리면 얼굴까지 등급색이 된다.
+  assert.match(entities, /else if \(options\.mask\)/, '투구 발광에도 마스크를 건다');
+  assert.match(entities, /mask\.texture = options\.mask;[\s\S]*mask\.anchor\.set\(source\.anchor\.x, source\.anchor\.y\);[\s\S]*mask\.scale\.set\(source\.scale\.x, source\.scale\.y\);/, '마스크를 파츠와 같은 앵커·위치·배율로 얹는다');
+  assert.match(entities, /syncGearGlow\(this, 'helmet', helmetGlowReady \? wornHelmet : undefined, save\.equipment\.helmet\?\.rarity, time, \{ mask: helmetGlowMask \}\)/, '마스크가 아직 없으면 이번 프레임 발광을 숨긴다');
+  assert.match(entities, /const helmetGlowMaskPath = this\.heroHelmetGlowMaskPath;/);
+  assert.match(render, /helmetGlowMask\(path: string\): Texture \| undefined/, 'GameView가 마스크 텍스처를 캐시해 준다');
+  assert.match(render, /heroHelmetGlowMaskPath\?: string;/);
+  // 마스크는 파츠와 같은 이름·같은 크기의 PNG로 미리 굽는다(생성기 1개 · 런타임 캔버스 없음).
+  const builder = readFileSync(new URL('../scripts/build-helm-glow-masks.py', import.meta.url), 'utf8');
+  assert.match(builder, /helmets_glow/);
+  assert.match(builder, /archer_helms_glow/);
+  assert.match(readFileSync(new URL('../src/game/render/helmets.ts', import.meta.url), 'utf8'), /export const HELMET_GLOW_DIR = 'helmets_glow'/);
+  assert.match(readFileSync(new URL('../src/game/render/archerHelmets.ts', import.meta.url), 'utf8'), /export const ARCHER_HELM_GLOW_DIR = 'archer_helms_glow'/);
+  // 장착 화면(미리보기)은 필드와 별개로 캔버스 마스크를 그대로 쓴다.
   assert.match(portrait, /globalCompositeOperation = 'destination-in'[\s\S]{0,200}drawImage\(mask/, '장착 화면도 마스크로 도려낸다');
   assert.match(portrait, /glow \? mageHelmGlowMaskCanvas\(mageHelm\.gender\) : undefined/, '투구 발광일 때만 마스크');
-  // 마스크는 새 파일을 받지 않고 캔버스로 굽는다(캐시는 성별당 1장).
-  const mageHelmets = readFileSync(new URL('../src/game/render/mageHelmets.ts', import.meta.url), 'utf8');
-  assert.match(mageHelmets, /const glowMaskTextures = new Map/, '성별당 1장 캐시');
-  assert.match(mageHelmets, /export function mageHelmGlowMaskTexture/, '필드용 텍스처');
-  assert.doesNotMatch(mageHelmets, /mage_helm_glow_mask_\w*\.png/, '마스크 PNG 파일을 따로 받지 않는다');
 });
