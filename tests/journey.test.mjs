@@ -379,3 +379,13 @@ test('자동 저장(writeSave, preview 생략)이 돌아도 미리보기 테스�
   const stale = advanceJourney({ achievements: [], mail: [{ id: 'preview-pouch-test-1', title: '옛 테스트', pouches: 1, claimedAt: null, read: false }] }, save(), save(), Date.now(), true, 'production');
   assert.equal(stale.mail.some(entry => String(entry.id).startsWith('preview-pouch-test-')), false, 'ID를 올린 뒤 남은 예전 테스트 우편도 운영에서 지운다');
 });
+
+test('여정 응답이 거래소 수령함 건수(marketInbox)를 함께 준다 — 거래소 아이콘 빨간 점의 근거(작업 247)', async () => {
+  await seed('inbox-count');
+  assert.equal((await snapshot(db, 'inbox-count')).marketInbox, 0);
+  await db.execute({ sql: 'INSERT INTO djrpg_market_inbox VALUES (?,?,?,?,?,?,?,?,NULL)', args: ['ji-1', 'inbox-count', 'ji-l', 'proceeds', null, 50, '판매대금', 1] });
+  assert.equal((await snapshot(db, 'inbox-count')).marketInbox, 1);
+  // 수령하면 다시 0 — 거래소 창을 열지 않아도 다음 폴링에서 점이 꺼진다.
+  await db.execute({ sql: 'UPDATE djrpg_market_inbox SET claimed_at=? WHERE id=?', args: [Date.now(), 'ji-1'] });
+  assert.equal((await snapshot(db, 'inbox-count')).marketInbox, 0);
+});
