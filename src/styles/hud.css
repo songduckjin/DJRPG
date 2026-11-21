@@ -37,7 +37,7 @@
    `전사 │ 모험가`를 한 줄로 얹는다. 직업 태그는 `data-job`(renderStatus)을 `::before`가 그린다.
    높이 17.6px이라 배지 아래(54px)와 HP 바 위(77px) 사이에 3.4px씩 여유를 두고 들어간다. */
 .hero-name { position: absolute; left: 12px; top: 56px; z-index: 2; display: block; box-sizing: border-box; height: 17.6px; max-width: 140px; padding: 0 6px 0 5px; border: 1px solid #d6af7288; border-radius: 5px; background: #120c12ad; color: #fff0d2; font: 700 13px/15.6px 'Noto Sans KR', sans-serif; letter-spacing: -.2px; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-shadow: 0 1px 2px #000; pointer-events: none; box-shadow: 0 2px 6px #0009, inset 0 1.5px 0 #f6d28e55; }
-.hero-name::before { content: attr(data-job); margin-right: 5px; padding-right: 5px; border-right: 1px solid #d6af7280; color: #eec57a; font-size: 7.6px; font-weight: 700; line-height: 10px; letter-spacing: 0; vertical-align: middle; }
+.hero-name::before { content: attr(data-job); display: inline-block; height: 10px; margin-right: 5px; padding-right: 5px; border-right: 1px solid #d6af7280; color: #eec57a; font-size: 7.6px; font-weight: 700; line-height: 10px; letter-spacing: 0; vertical-align: middle; }
 .exp { height: 3px; width: calc(100% - 61px); margin-left: 61px; background: #413341; margin-top: 7px; }
 .exp i { display: block; height: 100%; background: #b5824c; }
 .tutorial { position: absolute; top: calc(env(safe-area-inset-top) + 173px); left: 50%; transform: translateX(-50%); max-width: 83%; min-width: 60%; padding: 8px 12px; text-align: center; font-size: 11px; line-height: 1.5; color: #f4dcb0; background: #20191ae8; border: 1px solid #805b3b; border-radius: 5px; box-shadow: 0 3px 15px #0009; }
