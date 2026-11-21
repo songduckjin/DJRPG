@@ -1,6 +1,6 @@
 import { DUNGEON_MAX_FLOOR } from './dungeonLobby';
 import { random, seededRandom, useRandom, type Random } from '../game/rng';
-import {World, type Enemy, ENEMY_STRIKE_SECONDS, enemyHitDamage, enemyMoveSpeed} from '../game/world';
+import {World, type Enemy, ENEMY_STOP_RANGE, ENEMY_ATTACK_RANGE, ENEMY_STRIKE_SECONDS, enemyHitDamage, enemyMoveSpeed} from '../game/world';
 import {clampArenaPoint} from '../game/arena';
 import {jobOrDefault} from '../game/skills';
 import {totalStats, type Save} from '../game/store';
@@ -64,11 +64,12 @@ export const DUNGEON_ENEMY_SPEED_SCALE = 1.5;
  *
  * 예전에는 `Math.min(피해, 최대 체력의 0.5%/0.8%)` 상한이 있어 한 대에 체력 0.5%만 잃었다 — 던전이
  * 사실상 무피해였다. 상한을 없애고, 공격력의 층수 기준을 몹 체력 곡선(`DUNGEON_MOB_HP` = 필드 `2 × 층`)과
- * 맞춘 `enemyHitDamage(층 × 2, …)`로 바꾼다. 정예는 2배(작업 205 그대로). 서버 리플레이
+ * 맞춘 `enemyHitDamage(층 × 1, …)`로 바꾼다(작업 254: 사거리가 90이 되며 층×2는 5층이 Lv60 구간이 될 만큼
+ *  무거워져 한 단계 낮췄다 — 사용자 확정). 정예는 2배(작업 205 그대로). 서버 리플레이
  * (`server/dungeon-verify.mjs`)도 이 파일의 `DungeonBattle`을 그대로 돌리므로 피해 식은 여기 한 곳뿐이다.
  */
 export function dungeonHitDamage(floor:number,boss:boolean,defense:number,elite=false):number {
-  return enemyHitDamage(Math.max(1,Math.floor(floor)||1)*2,boss,defense)*(elite?2:1);
+  return enemyHitDamage(Math.max(1,Math.floor(floor)||1),boss,defense)*(elite?2:1);
 }
 /** Every enemy walks 4.25 half turns a second, so one visible stride (a full turn) lasts 2/4.25 s. */
 const ENEMY_STRIDE_SECONDS = 2 / 4.25;
@@ -190,8 +191,10 @@ class DungeonWorld extends World {
     const extra=(DUNGEON_ENEMY_SPEED_SCALE-1)*dt;
     for(const enemy of this.enemies){
       const dx=this.player.x-enemy.x,dy=this.player.y-enemy.y,d=Math.hypot(dx,dy);
-      if(!enemy.moving||d<=27||extra<=0)continue;
-      const step=Math.min(enemyMoveSpeed(this.save.floor,enemy.boss)*(enemy.slow>0?.55:1)*extra,d-27);
+      // 정지 거리는 필드와 같은 `ENEMY_STOP_RANGE`(60)다(작업 254) — 27은 몸에 닿는 접촉 거리라
+      // 새 정지 거리에서 서는 적을 추가 걸음만 몸까지 파고들게 만들었다.
+      if(!enemy.moving||d<=ENEMY_STOP_RANGE||extra<=0)continue;
+      const step=Math.min(enemyMoveSpeed(this.save.floor,enemy.boss)*(enemy.slow>0?.55:1)*extra,d-ENEMY_STOP_RANGE);
       if(step<=0)continue;
       const bounded=clampArenaPoint(enemy.x+dx/d*step,enemy.y+dy/d*step);
       enemy.step+=extra*Math.PI*(enemy.boss?3.25:4.25);
@@ -287,7 +290,8 @@ export class DungeonBattle {
     const hit=this.world.player.hit;this.world.player.hit=Infinity;
     try{this.world.update(dt);}finally{this.world.player.hit=Math.max(0,hit-dt);}
     this.hitCooldown=Math.max(0,this.hitCooldown-dt);
-    if(this.hitCooldown===0){const enemy=this.world.enemies.find(e=>Math.hypot(e.x-this.world.player.x,e.y-this.world.player.y)<36);
+    // 사거리는 전사 평타와 같은 `ENEMY_ATTACK_RANGE`(90)다(작업 254) — 종전 36은 몸에 닿아야 때리는 접촉 거리였다.
+    if(this.hitCooldown===0){const enemy=this.world.enemies.find(e=>Math.hypot(e.x-this.world.player.x,e.y-this.world.player.y)<=ENEMY_ATTACK_RANGE);
       if(enemy){
         // 던전 몹·보스 공격력 정상화(작업 248, 사용자 확정): 최대 체력 0.5%/0.8% 상한을 없애고,
         // 공격력의 층수 기준을 몹 체력 곡선(`DUNGEON_MOB_HP` = 필드 `2 × 층`)과 맞춘다.
