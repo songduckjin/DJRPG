@@ -248,7 +248,7 @@ test('체력회복력은 5초마다 최대 체력의 N%를 회복한다', () => 
 });
 
 test('던전 전투도 같은 World 규칙이라 추가 데미지가 보스 클리어를 앞당긴다', async () => {
-  const { runDungeonBattle } = await import('../src/ui/dungeonBattle.ts');
+  const { runDungeonBattle } = await import('../src/game/dungeon/battle.ts');
   const dungeonSave = extraOptions => {
     const save = freshSave('male', 'warrior');
     save.level = 20; save.tutorial = 3;
