@@ -284,14 +284,14 @@ test('카드 그리드·서브 필터·`+N` 배지 CSS 계약(작업 257)', () =
   assert.match(rule('.market-card .market-icon.skill-book-art'), /inset: 3px/, '스킬북 아이콘도 크게');
   assert.match(rule('.market-card .market-icon'), /inset: 6px/, '아이콘을 칸에 꽉 차게 크게');
   // 피드백(`#9105`): 큰 카드에 맞춰 `+N`은 또렷하게, 하지만 여전히 모서리에만(이미지 중앙은 가리지 않는다).
-  assert.match(rule('.market-card .item-plus-badge'), /font-size: 10\.5px/);
-  assert.match(rule('.market-card .item-plus-badge'), /padding: 0 3px/);
+  assert.match(rule('.market-card .item-plus-badge'), /font-size: 11\.5px/);
+  assert.match(rule('.market-card .item-plus-badge'), /padding: 0 4px/);
   assert.match(rule('.market-card .item-plus-badge'), /left: 2px/);
   assert.match(rule('.market-card .item-plus-badge'), /bottom: 2px/, '왼쪽 아래 모서리');
   // 직업 배지·화살표·스킬북 동그라미도 카드 비율에 맞춰 키운다.
-  assert.match(rule('.market-card .job-badge'), /font-size: 9px/);
-  assert.match(rule('.market-card .upgrade-arrow'), /width: 14px/);
-  assert.match(rule('.market-card .market-icon.skill-book-art'), /--book-badge-size: clamp\(22px, 6vw, 30px\)/, '스킬북 동그라미를 크게');
+  assert.match(rule('.market-card .job-badge'), /font-size: 10\.5px/);
+  assert.match(rule('.market-card .upgrade-arrow'), /width: 16px/);
+  assert.match(rule('.market-card .market-icon.skill-book-art'), /--book-badge-size: clamp\(24px, 6.6vw, 32px\)/, '스킬북 동그라미를 크게');
   assert.match(rule('.market-card-price'), /font-size: 10px/, '카드에는 가격만');
   assert.match(rule('.market-kind-tabs'), /display: flex/);
   // 사용자 피드백(`#9078`): 종류 탭과 보기 아이콘은 한 flex 줄에 나란히 둔다(세로 1줄 절약).
