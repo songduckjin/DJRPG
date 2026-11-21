@@ -219,9 +219,10 @@ export function inventoryOwnerQuery(id, incoming) {
   const bag = Array.isArray(incoming?.bag) ? incoming.bag : [];
   const equipment = incoming?.equipment && typeof incoming.equipment === 'object' ? Object.values(incoming.equipment) : [];
   if (incoming !== undefined) validateSave(incoming);
-  // 가방 40칸은 **모든 아이템**을 세고(작업 248), 최종 판정은 `before`를 아는 `reconcileItems` 한 곳에서
-  // 한다(작업 246). 여기서는 장비 칸 수만 본다 — 이 함수는 트랜잭션의 첫 배치에서 서버 세이브를 읽기 전에
-  // 불리므로, 넘친 가방을 400으로 막으면 서버가 스스로 만든 초과분 때문에 거래·우편이 영구히 잠긴다.
+  // 가방 40칸은 **장비·타직업 스킬북·보물 주머니**를 세고 내 직업 스킬북은 세지 않는다(작업 253·248).
+  // 최종 판정은 `before`를 아는 `reconcileItems` 한 곳에서 한다(작업 246) — 이 함수는 트랜잭션의 첫 배치에서
+  // 서버 세이브를 읽기 전에 불리므로, 여기서는 장비 칸 수만 본다. 넘친 가방을 400으로 막으면 서버가 스스로
+  // 만든 초과분 때문에 거래·우편이 영구히 잠긴다.
   if (equipment.length > 10) fail(400, 'INVALID_SAVE', '가방 또는 장비 데이터가 올바르지 않습니다.');
   const ids = [...bag, ...equipment].map(item => item?.id).filter(value => typeof value === 'string');
   return { sql: `SELECT o.*, m.slot AS character_slot FROM djrpg_item_owners o LEFT JOIN djrpg_character_item_owners m ON m.item_id=o.item_id WHERE o.item_id IN (
@@ -260,8 +261,8 @@ const sameItemBody = (a, b) => Boolean(a && b) && a.id === b.id && ringSlot(a) =
 const ownerItem = owner => { try { const value = JSON.parse(owner.item_json); return value && typeof value === 'object' ? value : undefined; } catch { return undefined; } };
 export async function reconcileItems(tx, id, before, after, options = {}) {
   const next = itemsOf(after), previous = itemsOf(before), ids = new Set();
-  // 40칸 검사는 **가방 안의 모든 아이템**(장비·스킬북·보물 주머니) 1개 = 1칸으로 센다(작업 248).
-  // 이미 40개를 넘긴 세이브(예전 규칙에서 받아 둔 내 직업 스킬북·주머니)는 저장을 거부하면 게임이
+  // 가방 40칸은 **장비·타직업 스킬북·보물 주머니** 1개 = 1칸으로 센다(작업 253 — 내 직업 스킬북은 세지 않는다).
+  // 이미 40개를 넘긴 세이브(예전 규칙에서 받아 둔 스킬북·주머니)는 저장을 거부하면 게임이
   // 통째로 잠기므로 **지금 개수 이하를 유지하는 저장은 허용**하고, 늘리는 저장만 막는다.
   // 새로 만들어지는 아이템(소유 기록 없는 id)의 상한 — 마지막 저장 이후 서버가 아는 시간과 층으로 정한다.
   const guard = rewardBudget(before, options.elapsedSeconds);

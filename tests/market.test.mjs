@@ -252,9 +252,9 @@ test('selected option sorts all matches by stat descending before pagination, ov
   const second=await snapshot(db,'buyer',{query:'옵션정렬검',stat:'attack',page:1});assert.deepEqual(second.listings.map(s=>s.item.stats.attack),[3,2,1]);
 });
 
-test('가방 40칸이 차면 스킬북 배달도 막히고, 39칸이면 들어간다(작업 248)',async()=>{
-  const bookA={id:randomUUID(),name:'[스킬북] 드래곤 트위스터',slot:'skillbook',kind:'skillbook',skillId:'spin',rarity:'rare',stats:{}};
-  const bookB={id:randomUUID(),name:'[스킬북] 파이어 볼트',slot:'skillbook',kind:'skillbook',skillId:'fireBolt',rarity:'rare',stats:{}};
+test('가방 40칸이 차면 타직업 스킬북 배달도 막히고, 39칸이면 들어간다(작업 253)',async()=>{
+  const bookA={id:randomUUID(),name:'[스킬북] 파이어 볼트',slot:'skillbook',kind:'skillbook',skillId:'fireBolt',rarity:'rare',stats:{}};
+  const bookB={id:randomUUID(),name:'[스킬북] 드래곤 트위스터',slot:'skillbook',kind:'skillbook',skillId:'spin',rarity:'rare',stats:{}};
   await seed('book-seller',[bookA,bookB]);
   await seed('book-buyer',Array.from({length:40},()=>item()));
   await seed('book-room',Array.from({length:39},()=>item()));
@@ -298,10 +298,10 @@ test('bulk delivery claim is one two-batch transaction, fills equipment space an
   const row=await account(db,'bulk'),requestId=randomUUID();let batches=0,executes=0;
   const measured={async transaction(mode){const tx=await db.transaction(mode);return {get closed(){return tx.closed;},execute(...args){executes++;return tx.execute(...args);},batch(...args){batches++;return tx.batch(...args);},commit:()=>tx.commit(),rollback:()=>tx.rollback(),close:()=>tx.close()};}};
   const input={action:'claim',deliveryId:'all',revision:row.revision,requestId};const result=await mutate(measured,'bulk',input);
-  assert.equal(batches,2);assert.equal(executes,0);assert.deepEqual(result.effect.claimedIds,['bulk-0','bulk-3'],'장비 1개로 40칸이 차면 장비·스킬북은 건너뛰고 금화만 받는다');
-  assert.equal(result.save.bag.length,40);assert(!result.save.bag.some(entry=>entry.id===book.id),'스킬북도 자리가 없어 수령함에 남는다');assert.equal(result.save.gold,row.save.gold+250);
+  assert.equal(batches,2);assert.equal(executes,0);assert.deepEqual(result.effect.claimedIds,['bulk-0','bulk-2','bulk-3'],'장비는 40칸에서 건너뛰지만 내 직업 스킬북은 받는다(작업 253)');
+  assert.equal(result.save.bag.length,41);assert(result.save.bag.some(entry=>entry.id===book.id),'내 직업 스킬북은 40칸이어도 받는다');assert.equal(result.save.gold,row.save.gold+250);
   const retry=await mutate(db,'bulk',input);assert.equal(retry.save.gold,result.save.gold);assert.equal(retry.save.bag.length,result.save.bag.length);
-  const inbox=(await snapshot(db,'bulk',{})).inbox;assert.deepEqual(inbox.map(entry=>entry.id).sort(),['bulk-1','bulk-2'],'못 받은 장비·스킬북은 수령함에 남는다');
+  const inbox=(await snapshot(db,'bulk',{})).inbox;assert.deepEqual(inbox.map(entry=>entry.id).sort(),['bulk-1'],'못 받은 장비는 수령함에 남는다');
   await transaction(db,async tx=>{const latest=await account(tx,'bulk');await reconcileItems(tx,'bulk',latest.save,latest.save);});
 });
 test('my active-only filter excludes purchases sold expired and other sellers, and recent prices match item grade and ring family',async()=>{

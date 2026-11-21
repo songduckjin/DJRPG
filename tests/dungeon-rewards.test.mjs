@@ -53,20 +53,25 @@ test('only the first clear adds the bonus, and the save floor is the evidence', 
   assert.equal(again.stones, 3 * DUNGEON_STONES_PER_FLOOR);
 });
 
-test('a full bag keeps nothing — skill books take a slot too and everything is reported as missed (작업 248)', () => {
+test('a full bag keeps nothing — other-job skill books take a slot too and everything is reported as missed (작업 253)', () => {
   const save = freshSave();
   fillBag(save, 40);
-  const receipt = claimDungeonRewards(save, 2, { gold: 0, items: [equipment('extra', 'boots'), book('extra-book', 'spin'), equipment('extra-2', 'ring1')] });
+  const receipt = claimDungeonRewards(save, 2, { gold: 0, items: [equipment('extra', 'boots'), book('extra-book', 'fireBolt'), equipment('extra-2', 'ring1')] });
   assert.equal(receipt.missed, 3);
   assert.equal(receipt.items.length, 0);
   assert.equal(save.bag.length, 40, '가방은 40칸을 넘지 않는다');
   // 39칸이면 스킬북이 40번째 칸으로 들어간다.
   const room = freshSave();
   fillBag(room, 39);
-  const kept = claimDungeonRewards(room, 2, { gold: 0, items: [book('room-book', 'spin')] });
+  const kept = claimDungeonRewards(room, 2, { gold: 0, items: [book('room-book', 'fireBolt')] });
   assert.equal(kept.missed, 0);
   assert.equal(room.bag.length, 40);
   assert.equal(room.bag.at(-1).id, 'room-book');
+  // 내 직업 스킬북은 40칸에 세지 않으므로 가득 차도 받는다(작업 253).
+  const mine = freshSave(); fillBag(mine, 40);
+  const keptMine = claimDungeonRewards(mine, 2, { gold: 0, items: [book('mine-book', 'spin')] });
+  assert.equal(keptMine.missed, 0);
+  assert(keptMine.items.some(item => item.id === 'mine-book'), '내 직업 책은 40칸이어도 받는다');
 });
 
 test('live auto-salvage takes a weak drop the way the field does, and it never reaches the bag', () => {

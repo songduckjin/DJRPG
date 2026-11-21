@@ -156,7 +156,7 @@
 .market-registering > .market-notice, .market-registering > .market-error, .market-registering > .market-rules { flex: 0 0 auto; }
 .market-registering > .market-rules { margin: 4px 0 0; font-size: 9px; line-height: 1.45; }
 .modal-dialog.market-modal.market-registering > .market-register { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
-.market-register .market-register-grid { flex: 1 1 auto; min-height: 76px; max-height: none; overflow-y: auto; margin-bottom: 8px; }
+.market-register .market-register-grid { flex: 1 1 auto; min-height: 76px; max-height: none; overflow-y: auto; margin-bottom: 8px; align-content: start; }
 .market-register .market-register-filters { margin-bottom: 8px; }
 .market-register .market-notice { padding: 6px 8px; font-size: 9.5px; line-height: 1.5; }
 /* 선택 카드 — 그리드와 겹치지 않게 아래 고정. 길어지면 카드 안에서만 스크롤된다. */

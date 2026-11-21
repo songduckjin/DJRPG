@@ -290,7 +290,7 @@ export async function mutate(db, id, input) {
       const all = input.deliveryId === 'all', deliveries = reads[2].rows;
       if (!deliveries.length) fail(409, 'ALREADY_CLAIMED', '이미 수령했거나 존재하지 않는 항목입니다.');
       const claimed = []; let gold = 0, skipped = 0;
-      // 가방 40칸은 장비 + 다른 직업 전용 스킬북을 함께 센다(작업 210).
+      // 가방 40칸은 장비 + 타직업 전용 스킬북 + 보물 주머니를 센다(내 직업 스킬북 제외, 작업 253).
       let equipmentCount = save.bag.filter(item => countedInBag(item, save.job)).length;
       for (const delivery of deliveries) {
         const item = delivery.item_json ? JSON.parse(delivery.item_json) : null;
