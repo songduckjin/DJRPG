@@ -14,16 +14,34 @@ export function applyOfflineRewards(save: Save, elapsedSeconds: number): Offline
   // 작업 196 is about a fight taking longer in the field, not about paying less for time away.
   const killsPerMinute = Math.max(8, Math.min(16, 8 + Math.floor(attack / offlineMobHp(save.floor) * 16)));
   const kills = Math.floor(seconds / 60 * killsPerMinute);
+  // 자동 등반이 켜져 있으면 방치 중에도 접속 사냥과 같은 규칙으로 한 층씩 올라간다(작업 225) —
+  // 층 목표를 채운 만큼만 소모하고 다음 층으로 넘어가며, 최고층에 닿으면 남은 시간은 보스 몫으로 정산한다.
+  // 층마다 경험치·금화 기준이 달라서, 올라간 층의 사냥은 그 층 기준으로 따로 더한다.
+  let climbedExp = 0, climbedGold = 0;
+  let remaining = kills;
+  if (save.autoClimb) {
+    while (remaining > 0 && save.floor < save.maxFloor) {
+      const need = Math.max(1, floorKillTarget(save.floor) - save.floorKills);
+      const step = Math.min(need, remaining);
+      climbedExp += step * (9 + save.floor);
+      climbedGold += step * (3 + save.floor);
+      save.floorKills += step;
+      remaining -= step;
+      if (save.floorKills < floorKillTarget(save.floor)) break;   // 이 층 목표를 다 못 채웠다
+      save.floorKills = 0;
+      save.floor++;
+    }
+  }
   const target = floorKillTarget(save.floor);
   // 아래층 반복 사냥에는 보스가 없다(작업 210) — 최고 도달 층에서만 보스 몫(금화·경험치·드롭)을 정산한다.
   const bossFloor = save.floor >= save.maxFloor;
-  const bossKills = bossFloor ? Math.floor(kills / target) : 0;
+  const bossKills = bossFloor ? Math.floor(remaining / target) : 0;
   save.bossKills += bossKills;
   // 경험치는 필드와 같은 `9 + 층`(작업 207) — 보스 몫(6배)도 함께 정산한다.
-  const exp = kills * (9 + save.floor) + bossKills * (9 + save.floor) * 5;
-  const gold = kills * (3 + save.floor) + bossKills * 70 * save.floor;
+  const exp = climbedExp + remaining * (9 + save.floor) + bossKills * (9 + save.floor) * 5;
+  const gold = climbedGold + remaining * (3 + save.floor) + bossKills * 70 * save.floor;
   save.kills += kills;
-  save.floorKills = bossFloor ? Math.max(0, Math.min(target, save.floorKills + kills - bossKills * target)) : (save.floorKills + kills) % target;
+  save.floorKills = bossFloor ? Math.max(0, Math.min(target, save.floorKills + remaining - bossKills * target)) : (save.floorKills + remaining) % target;
   save.gold += gold;
   const levels = addExperience(save, exp);
   const items: Item[] = [];

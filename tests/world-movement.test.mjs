@@ -131,17 +131,23 @@ test('boss floor transition clears old enemies and pursuit but retains drops', (
   } finally { Math.random = originalRandom; }
 });
 
-test('death stops auto-climb while retaining the existing respawn behavior', () => {
-  const save = freshSave(); save.autoClimb = true;
+test('일반·정예 몹에게 쓰러져도 자동 등반은 꺼지지 않고 10골드를 잃고 부활한다(작업 225)', () => {
+  const save = freshSave(); save.autoClimb = true; save.gold = 50;
   const world = new World(save);
   assert.equal(world.bossRetryReady, false, '한 번도 지지 않았으면 버튼이 없다');
+  const messages = []; world.onMessage = text => messages.push(text);
   world.enemies = [{ x: 10, y: 0, hp: 999, maxHp: 999, boss: false, hit: 0, step: 0, moving: false, knockX: 0, knockY: 0, slow: 0 }];
   world.player.hp = 1;
   world.update(.01);
-  assert.equal(save.autoClimb, false);
+  // 작업 225: 자동 등반을 끄는 곳은 30마리 강등뿐이다 — 일반·정예 몹에게 진 것으로는 끄지 않는다.
+  assert.equal(save.autoClimb, true, '자동 등반은 그대로 켜져 있다');
   assert.equal(world.player.hp, totalStats(save).health);
   assert.equal(save.health, totalStats(save).health);
+  assert.equal(save.gold, 40, '10골드를 잃는다');
   assert.equal(world.bossRetryReady, false, '일반 몹에게 진 것으로는 버튼이 뜨지 않는다');
+  assert.equal(messages.length, 1);
+  assert.match(messages[0], /10골드를 잃고 부활/);
+  assert.doesNotMatch(messages[0], /자동 등반이 중단/, '중단 문구는 강등 때만 나온다');
 });
 
 test('자동 등반을 끈 세이브로 접속해도 보스에게 지기 전에는 [⚔ 보스 도전]이 없다(작업 222, `#5781`)', () => {
@@ -167,7 +173,7 @@ test('일반·정예 몹에게 지면 최고 도달 층이어도 [⚔ 보스 도
     assert.equal(world.bossFloor(), true);
     world.enemies = [{ x: 10, y: 0, hp: 999, maxHp: 999, boss: false, elite, hit: 0, step: 0, moving: false, knockX: 0, knockY: 0, slow: 0 }];
     world.player.hp = 1; world.update(.01);
-    assert.equal(save.autoClimb, false, `${elite ? '정예' : '일반'} 몹에게 진 자동 등반 중단 규칙은 그대로`);
+    assert.equal(save.autoClimb, true, `${elite ? '정예' : '일반'} 몹에게 진 것으로는 자동 등반을 끄지 않는다(작업 225)`);
     assert.equal(world.bossRetryAvailable, false, '보스 패배가 아니면 버튼이 켜지지 않는다');
     assert.equal(world.bossRetryReady, false);
   }
@@ -231,12 +237,15 @@ test('보스에게 진 기록은 세이브에 남아 새로고침·재접속에�
   const again = reopen();
   assert.equal(again.bossRetryReady, true, '다시 접속해도 ⚔ 보스 도전이 그대로');
 
-  // 몹이 30마리 차 2층으로 내려가도 기록은 남고, 3층에 돌아오면 버튼이 다시 보인다(보스는 최고 층에서만).
+  // 몹이 30마리 차 2층으로 내려가도 버튼은 그대로 남는다(작업 225 — 누르면 최고층으로 올라가 도전한다).
   save.floor = 2;
   const dropped = reopen();
-  assert.equal(dropped.bossRetryReady, false, '2층에서는 보스가 없으니 버튼도 없다');
-  assert(dropped.travelToFloor(3).ok);
-  assert.equal(dropped.bossRetryReady, true, '3층으로 돌아오면 바로 다시 도전할 수 있다');
+  assert.equal(dropped.bossRetryReady, true, '강등돼도 ⚔ 보스 도전은 남는다');
+  // 누르면 최고층(3층)으로 올라가 그 층 보스와 붙는다.
+  assert.equal(dropped.challengeBoss(), true);
+  assert.equal(dropped.save.floor, 3, '최고층으로 올라간다');
+  dropped.update(.05);
+  assert(dropped.enemies.some(enemy => enemy.boss), '최고층 보스가 나온다');
 
   // 보스를 이겨 4층으로 올라가면 기록이 지워져 다시 접속해도 버튼이 없다.
   dropped.save.floorKills = floorKillTarget(3);
@@ -360,17 +369,24 @@ test('자동 등반 중 보스에게 지면 킬 카운트 0부터 다시 잡고,
   assert(world.enemies.some(enemy => enemy.boss), '보스 재등장');
 });
 
-test('아래층 파밍(floor < maxFloor)에서는 보스도 없고, 보스에게 진 것이 아니면 자동 등반 규칙이 그대로다(작업 212 `#5028`)', () => {
+test('아래층 파밍(floor < maxFloor)에서도 도전 버튼은 남고, 일반 몹에게 진 것으로 자동 등반이 꺼지지 않는다(작업 225)', () => {
   const save = freshSave(); save.tutorial = 1; save.autoClimb = true; save.floor = 3; save.maxFloor = 5; save.floorKills = floorKillTarget(3);
   const world = new World(save);
   assert.equal(world.bossFloor(), false, '아래층에는 보스가 없다');
-  assert.equal(world.bossRetryReady, false, '아래층에는 도전 버튼도 없다');
-  // 아래층에서 일반 몹에게 지면 기존처럼 자동 등반이 꺼진다.
+  assert.equal(world.bossRetryReady, false, '보스에게 진 적이 없으면 버튼도 없다');
+  // 아래층에서 일반 몹에게 져도 자동 등반은 유지된다(작업 225).
   world.enemies = [{ x: 10, y: 0, hp: 999, maxHp: 999, boss: false, hit: 0, step: 0, moving: false, knockX: 0, knockY: 0, slow: 0 }];
   world.player.hp = 1; world.update(.01);
-  assert.equal(save.autoClimb, false, '아래층 패배는 기존 규칙대로');
+  assert.equal(save.autoClimb, true, '아래층 패배로도 자동 등반은 꺼지지 않는다');
   assert.equal(save.floorKills, floorKillTarget(3), '아래층 킬 카운트 규칙은 그대로');
-  assert.equal(world.bossRetryReady, false, '아래층에는 버튼이 뜨지 않는다');
+  assert.equal(world.bossRetryReady, false, '보스에게 진 적이 없으면 버튼도 없다');
+  // 보스에게 진 기록이 있으면 아래층에서도 버튼이 보인다.
+  world.bossRetryAvailable = true;
+  assert.equal(world.bossRetryReady, true, '강등된 아래층에서도 ⚔ 보스 도전 유지');
+  assert.equal(world.challengeBoss(), true);
+  assert.equal(save.floor, 5, '누르면 최고층으로 올라간다');
+  world.update(.05);
+  assert(world.enemies.some(enemy => enemy.boss), '최고층 보스 소환');
 });
 
 test('아래층 반복 사냥에는 보스가 나오지 않고 목표를 채우면 진행도만 0으로 돌린다(작업 210)', () => {
@@ -494,7 +510,8 @@ test('몹이 30마리까지 쌓이면 한 층 내려가고, 1층에서는 내려
   assert.equal(world.bossPending, false); assert.equal(world.elitePending, false);
   assert.equal(world.spawnTimer, .2, '곧 다시 채운다');
   assert.equal(world.drops.length, 1, '바닥 드랍은 그대로');
-  assert.deepEqual(messages, ['적이 너무 많아 4층으로 내려갑니다.']);
+  assert.deepEqual(messages, ['적이 너무 많아 4층으로 내려갑니다. 자동 등반이 중단됩니다.']);
+  assert.equal(save.autoClimb, false, '강등당했을 때만 자동 등반이 꺼진다(작업 225)');
   assert.equal(changes, 1, '화면 갱신');
   // ② 1층에서는 더 내려갈 층이 없어 1층 유지 — 정리도 하지 않고 30마리 상한만 지킨다.
   const bottom = freshSave(); bottom.tutorial = 1; bottom.floor = 1; bottom.maxFloor = 1; bottom.floorKills = 0;
