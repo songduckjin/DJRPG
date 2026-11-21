@@ -30,36 +30,49 @@ export function useAllReadySkillBooks(save: Save): { used: number; upgrades: Ski
   return { used: upgrades.length, upgrades };
 }
 
-export function renderSkillUpgrade(ui: Interface, parent: HTMLElement, id: SkillLevelId, statusParent: HTMLElement = parent): void {
+/**
+ * 스킬 하나의 `강화`(미습득이면 `습득`) 상태 — 스킬북 칸과 스킬 창 하단 액션 바가 같은 판정을 쓴다.
+ *
+ * `ready`는 `skillBookStatus(...).ready` 그대로이고, 다른 판정을 만들지 않는다. 화면들은 이 값으로
+ * 버튼 문구·잠금·설명만 정한다(작업 266).
+ */
+export type SkillUpgradeInfo = { note: string; label: string; title: string; disabled: boolean; ready: boolean; maxed: boolean; foreign?: string };
+export function skillUpgradeInfo(ui: Interface, id: SkillLevelId): SkillUpgradeInfo {
   const status = skillBookStatus(ui.world.save, id);
   // 다른 직업의 스킬북은 카드에서 `{직업} 전용`으로 잠기게 보여 준다 — 눌러도 소모되지 않는다(작업 206).
   const held = ui.world.save.bag.find(item => item.kind === 'skillbook' && item.skillId === id);
   const owner = held ? skillBookJob(held) : undefined;
   const foreign = owner && owner !== jobOrDefault(ui.world.save.job) ? owner : undefined;
-  const note = document.createElement('span'); note.className = 'skill-book-cost';
-  note.textContent = foreign ? `${jobNames[foreign]} 전용 스킬북` : status.maxed ? '최대 레벨' : `보유 ${status.count} / 필요 ${status.cost}권`;
-  const button = document.createElement('button'); button.type = 'button'; button.className = 'skillbook-use';
-  button.textContent = foreign ? `${jobNames[foreign]} 전용` : status.level ? '강화' : '습득'; button.disabled = !status.ready || Boolean(foreign);
-  button.title = foreign ? `${jobNames[foreign]} 전용 스킬북입니다` : status.maxed ? '최대 레벨' : `${status.level ? '강화' : '습득'} · 보유 ${status.count} / 필요 ${status.cost}권`;
-  button.setAttribute('aria-label', button.title);
-  button.onclick = () => {
-    if (ui.world.paused || ui.market.busy || ui.market.sync.locked) { ui.message('동기화 중에는 스킬을 강화할 수 없습니다.'); return; }
-    const book = ui.world.save.bag.find(item => item.kind === 'skillbook' && item.skillId === id);
-    if (!book) { ui.message('보유한 스킬북이 없습니다.'); return; }
-    const before = totalStats(ui.world.save).health;
-    const result = useSkillBook(ui.world.save, book.id);
-    if (result.ok) {
-      ui.world.player.hp += totalStats(ui.world.save).health - before; ui.world.save.health = ui.world.player.hp;
-      ui.world.onChange();
-    }
-    ui.message(result.message);
-  };
-  statusParent.append(note); parent.append(button);
+  const note = foreign ? `${jobNames[foreign]} 전용 스킬북` : status.maxed ? '최대 레벨' : `보유 ${status.count} / 필요 ${status.cost}권`;
+  const label = foreign ? `${jobNames[foreign]} 전용` : status.level ? '강화' : '습득';
+  const title = foreign ? `${jobNames[foreign]} 전용 스킬북입니다` : status.maxed ? '최대 레벨' : `${label} · 보유 ${status.count} / 필요 ${status.cost}권`;
+  return { note, label, title, disabled: !status.ready || Boolean(foreign), ready: status.ready && !foreign, maxed: status.maxed, foreign };
 }
-export function markSkillUpgrade(ui: Interface, card: HTMLElement, id: SkillLevelId): void {
-  if (!skillBookStatus(ui.world.save, id).ready) return;
-  const dot = document.createElement('i'); dot.className = 'skill-upgrade-dot'; dot.setAttribute('aria-label', '습득·강화 가능');
-  card.querySelector('.skill-icon')?.append(dot);
+
+/** 스킬북 한 권을 써서 습득·강화한다 — 가드·체력 보정·저장 호출까지 `renderSkillUpgrade`와 같은 한 벌. */
+export function upgradeSkill(ui: Interface, id: SkillLevelId): void {
+  if (ui.world.paused || ui.market.busy || ui.market.sync.locked) { ui.message('동기화 중에는 스킬을 강화할 수 없습니다.'); return; }
+  const book = ui.world.save.bag.find(item => item.kind === 'skillbook' && item.skillId === id);
+  if (!book) { ui.message('보유한 스킬북이 없습니다.'); return; }
+  const before = totalStats(ui.world.save).health;
+  const result = useSkillBook(ui.world.save, book.id);
+  if (result.ok) {
+    ui.world.player.hp += totalStats(ui.world.save).health - before; ui.world.save.health = ui.world.player.hp;
+    ui.world.onChange();
+  }
+  ui.message(result.message);
+}
+
+export function renderSkillUpgrade(ui: Interface, parent: HTMLElement, id: SkillLevelId, statusParent: HTMLElement = parent): void {
+  const info = skillUpgradeInfo(ui, id);
+  const note = document.createElement('span'); note.className = 'skill-book-cost';
+  note.textContent = info.note;
+  const button = document.createElement('button'); button.type = 'button'; button.className = 'skillbook-use';
+  button.textContent = info.label; button.disabled = info.disabled;
+  button.title = info.title;
+  button.setAttribute('aria-label', button.title);
+  button.onclick = () => upgradeSkill(ui, id);
+  statusParent.append(note); parent.append(button);
 }
 export function renderSkillBooks(ui: Interface, parent: HTMLElement): void {
   const section = document.createElement('section'); section.className = 'skill-books';

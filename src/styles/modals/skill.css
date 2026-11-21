@@ -1,11 +1,16 @@
 /* DJRPG 모달 — 스킬 창
-   보유 스킬·스킬북·패시브 카드·장착 그룹, 스킬 창 머리글 고정, 빈 스킬 원 선택 팝업(`.skill-picker`).
+   보유 스킬·스킬북·패시브·액티브 타일, 하단 고정 액션 바, 스킬 창 머리글 고정, 빈 스킬 원 선택 팝업(`.skill-picker`).
 
    원래 한 파일이던 `styles/modals.css`를 도메인별로 나눈 것이다. 규칙 본문과 순서는 원본 그대로이고,
    `styles/modals.css`가 정해진 순서로 @import 한다. 선택자·우선순위·렌더 결과가 원본과 같아야 하므로
    규칙을 다른 파일로 옮길 때는 앞뒤 순서(캐스케이드)를 반드시 확인한다. */
 
-.skill-list { display: flex; flex-direction: column; gap: 9px; }
+/* ── 창틀: 머리글·상단 바·목록·액션 바 4단(작업 266 B안) ─────────────────────
+   스크롤은 `.skill-list`만 갖고, 하단 액션 바는 그 **밖**에 붙어 늘 보인다. */
+.modal-dialog.skills-modal { display: flex; flex-direction: column; overflow: hidden; }
+.modal-dialog.skills-modal > header { flex: 0 0 auto; }
+.modal-dialog.skills-modal > .skill-top-bar { flex: 0 0 auto; margin-bottom: 6px; }
+.skill-list { display: flex; flex: 1 1 auto; flex-direction: column; gap: 8px; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding-right: 3px; scrollbar-color: #735548 #171219; }
 .skill-points { margin: 0; padding: 9px; border: 1px solid #c79555; background: #493123; color: #ffe0aa; font-weight: 700; text-align: center; }
 .skill-list article { display: flex; gap: 11px; border: 1px solid #59463e; background: #201b1e; padding: 10px; }
 .skill-note { margin: 0 0 4px; padding: 8px; border: 1px solid #8e704c; background: #352820; color: #f0d5aa; font-size: 11px; line-height: 1.5; }
@@ -33,27 +38,80 @@
 .skill-filter-tab[aria-selected="true"] { background: #5a402d; color: #ffe6bd; font-weight: 700; box-shadow: inset 0 -2px 0 #e0b36e; }
 .skill-filter-tab:focus-visible { outline: 2px solid #e2bd78; outline-offset: -3px; }
 .skill-passive-section { display: flex; flex-direction: column; gap: 5px; }
-.skill-passive-hint { color: #b5a79e; }
-/* 한글은 단어 중간에서 끊기지 않게(예: `미습득 (스킬북 파밍 필요)`가 `필/요`로 갈라졌다) — 긴 영문·숫자는 상자 안에서 줄인다. */
-.passive-skill-card, .skill-passive-hint { word-break: keep-all; overflow-wrap: break-word; }
 @media (max-width: 380px) {
   .skill-auto-equip, .skill-auto-upgrade { font-size: 11px; padding: 7px 6px; }
   .skill-filter-tab { min-width: 44px; padding: 7px; font-size: 10px; }
 }
-.skill-group-title { margin: 10px 0 0; color: #e8d4ae; font-size: 15px; border-bottom: 1px solid #6b5545; padding-bottom: 6px; }
-.skill-info { min-width: 0; flex: 1; }
-.skill-level { display: block; margin: 4px 0 2px; color: #efc783; font-size: 11px; }
-.skill-info h3 small { color: #c9a36a; font-weight: 400; font-size: 10px; }
-.skill-actions { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; margin-top: 8px; }
-.skill-actions button { border: 1px solid #8b6a4b; background: #3a2c28; color: #edd2ac; padding: 5px 7px; font-size: 10px; }
-.skill-actions button.active { border-color: #e0b36e; background: #74513a; color: #fff0cf; }
-.skill-actions button:disabled { opacity: .55; cursor: not-allowed; }
-.skill-actions span { color: #9bc893; font-size: 10px; }
-.skill-icon { flex: 0 0 40px; height: 40px; display: grid; place-items: center; border: 1px solid #997653; border-radius: 50%; color: #f1d5ab; font-size: 23px; }
+/* 그룹 제목 — 오른쪽에 그 그룹의 요약(`2 / 3 습득`·`장착 3 / 3`)을 붙인다. */
+.skill-group-title { display: flex; align-items: baseline; gap: 8px; margin: 4px 0 0; color: #e8d4ae; font-size: 13px; border-bottom: 1px solid #6b5545; padding-bottom: 5px; }
+.skill-group-count { margin-left: auto; color: #b5a79e; font-size: 10px; font-weight: 600; }
 .skill-list h3 { margin: 0 0 3px; font-size: 13px; color: #f2dfbb; }
 .skill-list p { margin: 0 0 3px; font-size: 11px; color: #b5a79e; line-height: 1.45; }
 .skill-list small { font-size: 10px; color: #d2a96d; }
 .skill-equipped { color: #99cea4; }
+.skill-icon { flex: 0 0 40px; height: 40px; display: grid; place-items: center; border: 1px solid #997653; border-radius: 50%; color: #f1d5ab; font-size: 23px; position: relative; }
+.skill-level { display: inline-block; margin: 0; color: #efc783; font-size: 11px; }
+.skill-list .skill-image-icon { border: 0; border-radius: 0; width: 44px; height: 44px; flex: 0 0 44px; background-color: transparent; }
+
+/* ── 타일 그리드 (작업 266 B안) ───────────────────────────────────────────────
+   액티브·패시브 모두 **2열**. 타일은 아이콘 + 이름 + `Lv.N` + 상태 칩만 두고 설명은 두지 않는다.
+   왼쪽 세로 막대가 상태를 한눈에 알려 준다(장착 금빛 · 강화 가능 금빛 · 고정 청회색 · 미습득 회색). */
+.skill-tile-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.skill-list .skill-tile { position: relative; display: block; padding: 0; border: 1px solid #4a3a35; border-radius: 6px; overflow: hidden; background: linear-gradient(#241d21, #1b1518); word-break: keep-all; }
+.skill-list .skill-tile.is-selected { border-color: #e0b36e; background: linear-gradient(#33261f, #221a19); box-shadow: 0 0 0 1px #e0b36e55, 0 0 12px #c9903a33; }
+.skill-tile::before { content: ''; position: absolute; left: 0; top: 8px; bottom: 8px; width: 3px; border-radius: 0 2px 2px 0; background: #5c4a42; }
+.skill-tile.is-equipped::before { background: linear-gradient(#f0cd8a, #b9863c); }
+.skill-tile.has-upgrade::before { background: linear-gradient(#f0c47e, #c8933f); }
+.skill-tile.is-fixed::before { background: linear-gradient(#b9cfe4, #7e9ab5); }
+.skill-tile.is-locked::before { background: #443c39; }
+.skill-tile-button { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 60px; padding: 8px 8px 8px 11px; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.skill-tile-button:focus-visible { outline: 2px solid #e2bd78; outline-offset: -3px; }
+.skill-tile-button:active { background: #ffffff08; }
+.skill-tile .skill-icon { flex: 0 0 36px; width: 36px; height: 36px; }
+.skill-tile .passive-image-icon { flex: 0 0 36px; width: 36px; height: 36px; }
+.skill-tile-body { display: flex; flex: 1 1 auto; flex-direction: column; align-items: stretch; gap: 3px; min-width: 0; padding-right: 12px; }
+.skill-tile-name { max-width: 100%; overflow: hidden; color: #f2dfbb; font-size: 12.5px; font-weight: 700; line-height: 1.25; text-overflow: ellipsis; white-space: nowrap; }
+.skill-tile-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 3px; }
+.skill-tile .skill-level { padding: 0 5px; border: 1px solid #a97c41; border-radius: 3px; background: #3a2a1e; color: #ffd591; font-size: 10px; font-weight: 800; line-height: 15px; }
+.skill-tile .skill-level.is-unlearned { border-color: transparent; background: transparent; padding-left: 0; color: #9c8b7b; font-weight: 600; }
+.skill-tile.is-locked .skill-tile-name { color: #9c8b7b; }
+.skill-tile.is-locked .skill-icon { opacity: .5; filter: grayscale(.55); }
+.skill-tile-chips { display: flex; gap: 3px; margin-left: auto; }
+.skill-chip { padding: 0 5px; border: 1px solid #4d4340; border-radius: 3px; background: #221c1e; color: #cbb997; font-size: 9px; font-style: normal; font-weight: 800; line-height: 14px; white-space: nowrap; }
+.skill-chip-upgrade { border-color: #a97c41; background: #4a321c; color: #ffd591; }
+.skill-chip-upgrade::before { content: '✦'; margin-right: 2px; font-size: 8px; }
+.skill-chip-equipped { border-color: #3f7f5f; background: #1e3a2c; color: #9fe0bc; }
+.skill-chip-fixed { border-color: #4d5c6b; background: #232d36; color: #b9cfe4; }
+.skill-chip-unlearned { border-color: #4d4340; background: #221c1e; color: #a3948b; }
+.skill-tile-check { position: absolute; right: 8px; top: 6px; color: #ffe0a0; font-size: 12px; line-height: 1; }
+
+/* ── 하단 고정 액션 바 (작업 266 B안) ─────────────────────────────────────────
+   스크롤 목록 밖에 있어 늘 보인다. 아이콘·이름·`Lv.N` + 같은 폭 버튼 한 줄,
+   `정보`를 누르면 그 사이에 설명·능력치 줄(`쿨·지속·범위·위력`)이 펼쳐진다. */
+.skill-action-bar { display: flex; flex: 0 0 auto; flex-direction: column; gap: 6px; margin-top: 8px; padding: 8px 9px; border: 1px solid #8d6c40; border-radius: 6px; background: linear-gradient(#2c2320, #1c1616); box-shadow: 0 -6px 14px #0c080acc; }
+.skill-action-empty { margin: 0; color: #b5a79e; font-size: 11px; }
+.skill-action-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.skill-action-icon { flex: 0 0 30px; width: 30px; height: 30px; }
+.skill-action-title { display: flex; flex: 1 1 auto; align-items: center; gap: 6px; min-width: 0; }
+.skill-action-name { overflow: hidden; color: #ffe6bd; font-size: 13px; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
+.skill-action-level { flex: none; padding: 0 5px; border: 1px solid #a97c41; border-radius: 3px; background: #3a2a1e; color: #ffd591; font-size: 10px; font-weight: 800; line-height: 15px; }
+.skill-action-label { flex: none; color: #9c8b7b; font-size: 10px; }
+.skill-action-detail { display: none; flex-direction: column; gap: 4px; }
+.skill-action-bar.is-info-open .skill-action-detail { display: flex; }
+.skill-action-desc { margin: 0; color: #dccbb6; font-size: 11px; line-height: 1.45; word-break: keep-all; }
+.skill-action-stats { margin: 0; padding: 4px 6px; border: 1px solid #4a3a33; border-radius: 4px; background: #16110f; color: #d2a96d; font-size: 10px; line-height: 1.4; }
+.skill-action-cost { color: #b5a79e; font-size: 10px; }
+.skill-action-buttons { display: flex; gap: 6px; }
+.skill-action-button { flex: 1 1 0; min-width: 0; min-height: 34px; padding: 7px 6px; border: 1px solid #8b6a4b; border-radius: 4px; background: linear-gradient(#3f302a, #2a201e); color: #edd2ac; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
+.skill-action-button:focus-visible { outline: 2px solid #e2bd78; outline-offset: 2px; }
+.skill-action-equip { border-color: #b0864f; background: linear-gradient(#6b4a30, #422c20); color: #ffe6bd; }
+.skill-action-upgrade { border-color: #8f7ad0; background: linear-gradient(#4a3d72, #2f2750); color: #e8e0ff; }
+/* 강화는 보라(스킬북) 정체성을 유지하고, 지금 쓸 책이 있을 때만 금빛 테두리·발광을 더한다. */
+.skill-action-upgrade.is-ready { border-color: #f0c47e; color: #fff0ff; box-shadow: 0 0 9px #e8b64a66, inset 0 0 0 1px #ffe1a733; }
+.skill-action-upgrade:hover:not(:disabled) { border-color: #b7a6f2; }
+.skill-action-info[aria-expanded="true"] { border-color: #e0b36e; color: #fff0cf; }
+.skill-action-button:disabled { opacity: .45; filter: grayscale(.6); cursor: default; }
+
 .modal-dialog.skills-modal > header, .modal-dialog.market-modal > header { position: sticky; z-index: 4; height: 44px; min-height: 44px; background: #2b2224; box-shadow: 0 4px 8px #130f1480; }
 .modal-dialog.skills-modal > header { top: -14px; }
 .modal-dialog.skills-modal > header h2, .modal-dialog.market-modal > header h2 { margin: 0; }
@@ -82,38 +140,9 @@
 .skill-book-card > .skillbook-use { width: 100%; min-height: 20px; padding: 2px 3px; font-size: 10px; line-height: 14px; }
 .skill-book-cost { color: #cbb89b; font-size: 10px; }
 .skillbook-use:disabled { opacity: .45; }
-.passive-skill-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px; }
-.skill-list .passive-skill-card { min-width: 0; flex-direction: column; align-items: center; gap: 5px; padding: 7px 4px; text-align: center; }
-.passive-skill-card .skill-icon { flex: none; width: 34px; height: 34px; font-size: 21px; }
-.passive-skill-card .skill-info { width: 100%; display: flex; flex: 1; flex-direction: column; }
-.passive-skill-card .skill-info h3 { font-size: 11px; line-height: 1.35; }
-.passive-skill-card .skill-info h3 small { display: block; font-size: 9px; margin-top: 2px; }
-.passive-skill-card .skill-info p { font-size: 10px; }
-.passive-skill-card .skill-level, .passive-skill-card .skill-info > small { font-size: 9px; line-height: 1.4; }
-.passive-skill-card .skill-actions { justify-content: center; margin-top: auto; padding-top: 5px; gap: 3px; }
-.passive-skill-card .skill-actions .skill-book-cost { width: 100%; }
-.passive-skill-card .skillbook-use { min-height: 28px; padding: 4px 7px; }
-.skill-list .skill-image-icon { border: 0; border-radius: 0; width: 44px; height: 44px; flex: 0 0 44px; background-color: transparent; }
-.passive-skill-card .passive-image-icon { width: 40px; height: 40px; flex: none; }
 .skill-book-art { position: relative; display: inline-block; width: 40px; height: 40px; flex: none; background-size: contain; background-position: center; background-repeat: no-repeat; --book-badge-size: 20px; }
 .skill-book-emblem { position: absolute; right: -2px; bottom: -2px; width: var(--book-badge-size); height: var(--book-badge-size); padding: 1px; border: 1px solid #94703f; border-radius: 50%; background: #171318; overflow: hidden; box-shadow: 0 1px 2px #0009; }
 .skill-book-emblem-art { display: block; width: 100%; height: 100%; }
-.equipped-skill-group { display: flex; flex-direction: column; border: 1px solid #9a784e; background: #30241f66; padding: 6px; gap: 0; }
-.skill-list .equipped-group-title { margin: 0 0 4px; color: #edcd97; font-size: 12px; }
-.skill-list .equipped-skill-group .skill-card { border: 0; border-top: 1px solid #59463e; padding: 6px 0; background: transparent; }
-.skill-list .equipped-group-title + .skill-card { border-top: 0; }
-.skill-card-top { display:flex; justify-content:space-between; align-items:center; gap:6px; }
-.skill-name-block { min-width:0; }
-.skill-status-stack { display:flex; flex-direction:column; align-items:flex-end; gap:2px; flex:none; font-size:10px; color:#cbb997; white-space:nowrap; }
-.skill-status-stack .skill-book-cost { margin:0; font-size:9px; }
-.skill-list .active-skill-card { padding:7px; gap:7px; }
-.active-skill-card .skill-info { min-width:0; flex:1; }
-.skill-list .active-skill-card h3 { margin:0; font-size:12px; }
-.active-skill-card .skill-level { margin:1px 0; font-size:10px; }
-.skill-list .active-skill-card p { margin:3px 0; font-size:10px; line-height:1.35; }
-.active-skill-card .skill-info > small { font-size:9px; line-height:1.3; }
-.active-skill-card .skill-actions { margin-top:4px; gap:5px; }
-.active-skill-card .skill-actions button { min-height:24px; padding:3px 8px; }
 .skill-book-card .job-badge { position: absolute; left: 3px; top: 3px; }
 /* ── 빈 스킬 원(`+`) 장착 선택 팝업 (작업 245) ─────────────────────────────────
    전체 스킬 창 대신 이 원에 넣을 수 있는 스킬만 추천 순서(초당 딜량)로 보여 준다.

@@ -5,6 +5,7 @@ const { freshSave }=await import('../src/game/store.ts');
 const { tick }=await import('../src/ui/hud.ts');
 const { chooseSkill, pressSkillSlot, cancelSkillSelection }=await import('../src/ui/skillLoadout.ts');
 const { renderSkills }=await import('../src/ui/modals/skillModal.ts');
+const { passives }=await import('../src/game/skills.ts');
 function node(){const classes=new Set(),children=new Map();return {dataset:{},hidden:false,disabled:false,textContent:'',style:{setProperty(){}},classList:{toggle(key,on){if(on)classes.add(key);else classes.delete(key);},contains:key=>classes.has(key)},setAttribute(key,value){this[key]=value;},querySelector(key){if(!children.has(key))children.set(key,node());return children.get(key);},append(){},appendChild(){},remove(){},focus(){}};}
 function uiFixture(){
   // 밸런스 v2: 새 캐릭터는 첫 액티브 스킬을 '습득한 상태'로 시작한다 — 이 파일은 슬롯 규칙만 보므로 비운다.
@@ -82,14 +83,20 @@ test('skillbook section groups copies and actual upgrade button consumes cost an
   }finally{globalThis.document=previous;}
 });
 
-test('three passive cards share a single grid and keep upgrade controls without redundant learned status',()=>{
+test('three passive cards share a single 2-column tile grid that carries only name, level and status chips',()=>{
   const previous=globalThis.document,created=[];globalThis.document={createElement(){const element=node();element.children=[];element.appendChild=function(child){this.children.push(child);};created.push(element);return element;}};
   try{
     const ui=uiFixture();ui.world.save.passives=['mastery','body','instinct'];renderSkills.call(ui,node());
-    const grid=created.find(n=>n.className==='passive-skill-grid');assert(grid);assert.equal(grid.children.length,3);
+    // [작업 266] 패시브도 액티브와 같은 2열 타일 그리드를 쓴다.
+    const grid=created.find(n=>String(n.className).split(' ').includes('passive-skill-grid'));assert(grid);assert(String(grid.className).split(' ').includes('skill-tile-grid'));assert.equal(grid.children.length,3);
     assert.deepEqual(grid.children.map(card=>card.dataset.skill),['mastery','body','instinct']);
-    for(const [index,card] of grid.children.entries()){const icon=card.querySelector('.skill-icon');assert.equal(icon.textContent,'');assert(icon.style.backgroundImage.includes('passive-skills.png'));assert.equal(icon.style.backgroundSize,'300% 100%');assert.equal(icon.style.backgroundPosition,`${index*50}% center`);}
-    assert(!created.some(n=>n.textContent==='습득 완료 · 상시 적용'));assert(created.filter(n=>n.textContent==='강화').length>=3);
+    for(const [index,card] of grid.children.entries()){const icon=card.querySelector('.skill-icon');assert.equal(icon.textContent,'');assert(icon.style.backgroundImage.includes('passive-skills.png'));assert.equal(icon.style.backgroundSize,'300% 100%');assert.equal(icon.style.backgroundPosition,`${index*50}% center`);
+      // 타일에는 이름·Lv 배지만 있고 긴 설명은 없다(설명은 액션 바의 `정보`).
+      assert(String(card.className).split(' ').includes('passive-skill-card'));}
+    // 패시브 3장 + 기본 공격(대검 베기 Lv.1)이 Lv 배지를 갖는다.
+    assert(created.filter(n=>n.className==='skill-level'&&n.textContent==='Lv.1').length>=3,'타일마다 Lv 배지 하나');
+    assert(!created.some(n=>n.textContent==='습득 완료 · 상시 적용'));
+    for(const id of ['mastery','body','instinct']) assert(!created.some(n=>n.textContent===passives[id].description),'타일에 설명을 넣지 않는다');
   }finally{globalThis.document=previous;}
 });
 
@@ -107,18 +114,20 @@ test('all eight active skill cards use the exact field artwork and basic attack 
 });
 
 
-test('equipped skills share one group and upgrade counts live in the right status column',()=>{
+test('equipped skills come first in the active grid and the action bar works on the selected tile',()=>{
   const previous=globalThis.document,created=[];
   globalThis.document={createElement(){const el=node();el.children=[];el.append=function(...children){this.children.push(...children);};el.appendChild=function(child){this.children.push(child);};created.push(el);return el;}};
   try {
     const ui=uiFixture();ui.world.save.learned=['spin','slam','power','warcry'];ui.world.save.quickSlots=['spin','slam','power'];
     renderSkills.call(ui,node());
-    const group=created.find(el=>el.className==='equipped-skill-group');assert(group);
-    assert.deepEqual(group.children.filter(el=>el.dataset?.skill).map(el=>el.dataset.skill),['spin','slam','power']);
-    assert(!group.children.some(el=>el.dataset?.skill==='warcry'));
-    const card=created.find(el=>el.dataset?.skill==='spin');
-    const status=card.querySelector('.skill-status-stack');assert(status);
-    const cost=created.find(el=>el.className==='skill-book-cost'&&el.textContent.startsWith('보유'));
-    assert(cost);assert(created.some(el=>el.textContent==='해제'));
+    // [작업 266] 장착 전용 묶음 없이 액티브 한 그리드 — 장착한 스킬이 먼저 오고 `장착중` 칩이 붙는다.
+    for(const id of ['spin','slam','power']) assert(String(created.find(el=>el.dataset?.skill===id).className).split(' ').includes('is-equipped'),`${id} 장착중`);
+    const spin=created.find(el=>el.dataset?.skill==='spin');assert(spin);assert(String(spin.className).split(' ').includes('active-skill-card'));
+    assert(!String(created.find(el=>el.dataset?.skill==='warcry').className).includes('is-equipped'));
+    // 액션 바는 기본으로 장착 중인 첫 스킬을 잡고, 비용 안내와 해제 버튼을 함께 보여 준다.
+    const bar=created.find(el=>el.className==='skill-action-bar');assert(bar);
+    assert(created.some(el=>el.textContent==='해제'));
+    // 선택한 스킬의 아이콘/이름은 액션 바 머리에 한 번만 보인다.
+    assert(created.some(el=>String(el.className).includes('skill-action-name')&&el.textContent==='드래곤 트위스터'));
   } finally {globalThis.document=previous;}
 });

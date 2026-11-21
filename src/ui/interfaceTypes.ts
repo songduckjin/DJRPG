@@ -1,3 +1,5 @@
+import type { SkillLevelId } from '../game/skills';
+
 /**
  * `Interface`가 나눠 쓰는 타입들 (PR-4 구조 분리) — 팝업 이름과 화면 보기 상태의 이름표만 모아 둔다.
  *
@@ -32,3 +34,9 @@ export type BagFilter = 'all' | 'weapon' | 'armor' | 'accessory';
 
 /** 스킬 창 탭(작업 240) — `전체`는 패시브 3종을 스킬북·기본기보다 위에 두고 모두 보여 준다. */
 export type SkillFilter = 'all' | 'active' | 'passive';
+
+/**
+ * 스킬 창에서 고른 타일(작업 266) — 스킬 ID이거나, 스킬 ID가 없는 **기본 공격**(`attack`)이다.
+ * 기본 공격은 고정 슬롯이라 장착·강화가 없지만 설명·능력치는 다른 타일과 같은 자리에서 보여 준다.
+ */
+export type SkillSelection = SkillLevelId | 'attack';
