@@ -20,7 +20,7 @@ import { armorIndexFor } from './armors';
 import { archerArmorIndexFor } from './archerArmors';
 import { hasRobeSheet, mageRobeIndexFor } from './robes';
 import { WEAPON_GUARD, weaponIndexFor, weaponPose } from './weapons';
-import { BOW_GRIP, bowIndexFor, bowPose } from './bows';
+import { BOW_GRIP, bowIndexFor, bowPlacement } from './bows';
 import { STAFF_GRIP, staffIndexFor, staffPlacement } from './staffs';
 import type { GameView } from '../render';
 import { drawHeroHpBar, HERO_HP_BAR } from './heroHpBar';
@@ -220,7 +220,7 @@ function syncBowPart(view: GameView, save: Save, motion: 'idle' | 'walk' | 'atta
     if (shown) shown.visible = false;
     return;
   }
-  const pose = bowPose(save.gender, motion, frame);
+  const pose = bowPlacement(save.gender, motion, frame);
   const layerX = pose.x - view.hero.texture.width * view.hero.anchor.x;
   const layerY = pose.y - view.hero.texture.height * view.hero.anchor.y;
   let sprite = shown;
@@ -235,6 +235,8 @@ function syncBowPart(view: GameView, save: Save, motion: 'idle' | 'walk' | 'atta
   sprite.anchor.set(BOW_GRIP.x / texture.width, BOW_GRIP.y / texture.height);
   sprite.position.set(layerX, layerY);
   sprite.rotation = pose.rot * Math.PI / 180;
+  // [작업 250] 사격·걷기 시트는 본체를 작게 그린 판이라 활도 같은 배율로 줄인다(그립이 앵커).
+  sprite.scale.set(pose.scale);
   sprite.tint = tint;
   sprite.alpha = 1;
   sprite.visible = true;
@@ -478,11 +480,88 @@ export function activeSkillMotion(world: World): HeroSkillMotion {
   return { template: null, progress: 0 };
 }
 
+/**
+ * 이 프레임에 없는 직업의 파츠 스프라이트를 숨긴다(작업 250).
+ *
+ * 파츠 스프라이트(`heroBow`·`heroStaff`·`heroMageHelm`·`heroWeapon`·`heroHelmet`)는 뷰에 하나씩만
+ * 있어 직업을 바꾸면 그 스프라이트를 다시 쓰거나 숨겨야 한다. 예전에는 궁수·마법사 분기 안에서만
+ * 숨겼기 때문에 **궁수·마법사 → 전사**로 바꾸면 이전 직업의 활·지팡이·마법사 모자가 화면에 그대로
+ * 남아 본체 위에 떠 있었고(`#21206` "전사인데 다른캐릭도 보이고 활도 떠다니고"), 잔상(`cloneHeroLayers`)도
+ * 그 스프라이트를 복제했다. 또 궁수 분기에서 지팡이를 `else if`로만 숨기던 탓에 지팡이 없이 모자만
+ * 쓴 마법사에서 넘어오면 모자가 남았다.
+ *
+ * 그래서 매 프레임 **직업별로 보여야 하는 것만 남기고 모두 숨긴다** — 동기화 함수(`sync*Part`)가
+ * 바로 아래에서 필요한 것만 다시 `visible = true`로 그린다.
+ */
+function hideOtherJobParts(view: GameView, job: string): void {
+  // 활은 궁수만, 지팡이·마법사 모자는 마법사만 쓴다.
+  if (job !== 'archer' && view.heroBow) view.heroBow.visible = false;
+  if (job !== 'mage') {
+    if (view.heroStaff) view.heroStaff.visible = false;
+    if (view.heroMageHelm) view.heroMageHelm.visible = false;
+  }
+  // 투구·검 파츠(`heroHelmet`·`heroWeapon`)는 전사와 궁수가 함께 쓰므로 마법사에서만 숨긴다.
+  if (job === 'mage') {
+    if (view.heroHelmet) view.heroHelmet.visible = false;
+    if (view.heroWeapon) view.heroWeapon.visible = false;
+  }
+}
+
+/**
+ * 캐릭터를 바꿨을 때 히어로 레이어에 남은 것들을 비운다(작업 250).
+ *
+ * `World.adoptSave`는 월드(적·드롭·이펙트·잔상 기록)를 비우지만, 그리기 쪽 스프라이트(파츠·발광
+ * 복제본·잔상·크러싱 Trail)는 뷰가 들고 있어 그대로 남았다. 남은 스프라이트는 이전 캐릭터의
+ * 장비·직업 그림이라 새 캐릭터 위에 겹쳐 그려지고, 잔상에도 복제된다(`#21206`).
+ * 지연 로딩 캐시(시트 텍스처)는 그대로 두고 **화면에 그린 것과 미리 받기 기억(`last*`)** 만 비운다.
+ */
+export function resetHeroLayers(view: GameView): void {
+  const drop = (sprite?: Sprite): void => {
+    if (!sprite) return;
+    sprite.visible = false;
+    sprite.parent?.removeChild(sprite);
+    sprite.destroy();
+  };
+  drop(view.heroHelmet); view.heroHelmet = undefined;
+  drop(view.heroWeapon); view.heroWeapon = undefined;
+  drop(view.heroBow); view.heroBow = undefined;
+  drop(view.heroStaff); view.heroStaff = undefined;
+  drop(view.heroMageHelm); view.heroMageHelm = undefined;
+  const gear = view.heroGear;
+  if (gear && typeof gear.forEach === 'function') {
+    gear.forEach(entry => drop(entry.sprite));
+    gear.clear();
+  }
+  const glow = view.heroGlow;
+  if (glow && typeof glow.forEach === 'function') {
+    glow.forEach(layers => layers.forEach(drop));
+    glow.clear();
+  }
+  drop(view.heroGlowMask); view.heroGlowMask = undefined;
+  view.ghosts?.removeChildren().forEach(child => child.destroy({ children: true }));
+  view.afterimages = [];
+  view.crushTrails?.forEach(container => container.destroy({ children: true }));
+  view.crushTrails?.clear();
+  // 새 캐릭터의 장비 티어는 다시 재야 하므로 기억을 비운다(다음 프레임에 미리 받기부터 다시 한다).
+  view.lastBodyTier = ''; view.lastWeaponTier = -1; view.lastBowTier = -1;
+  view.lastArcherHelm = -1; view.lastArcherHelmBow = ''; view.lastStaffTier = -1;
+  view.lastMageHelm = -1; view.lastMageHelmStaff = ''; view.lastRobeTier = ''; view.lastArcherArmorTier = '';
+  view.lastHeroWorld = { x: 0, y: 0 }; view.heroWalkDistance = 0;
+}
+
 export function drawHero(this: GameView, world: World, x: number, y: number, time: number): void {
     const { player, save } = world;
+    // 캐릭터를 바꿨으면 이전 캐릭터의 파츠·발광·잔상을 먼저 비운다(작업 250).
+    const epoch = (world as World & { switchEpoch?: number }).switchEpoch;
+    if (epoch !== undefined && this.heroSwitchEpoch !== epoch) {
+      this.heroSwitchEpoch = epoch;
+      resetHeroLayers(this);
+    }
     // 궁수(작업 157)·마법사(작업 198)는 기본 시트만 그린다 — 전사용 갑옷·투구·대검 파츠를 절대 적용하지 않는다.
     const job = jobOrDefault(save.job);
     const baseSheet = job === 'warrior' ? 'pilot' : job;
+    // [작업 250] 이전 직업의 파츠가 남아 본체 위에 떠 있지 않게 매 프레임 정리한다.
+    hideOtherJobParts(this, job);
     // 전사만 장비 오버레이(투구·갑옷·검 파츠)를 얹는다. 궁수는 자기 투구 파츠(작업 200)를 따로 얹고,
     // 마법사는 아직 기본 시트만 그린다.
     const plain = usesBaseSheetOnly(save);
