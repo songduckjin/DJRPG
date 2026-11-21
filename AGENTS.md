@@ -36,6 +36,7 @@ Vite+TS+PixiJS 모바일 2.5D 다크 판타지 RPG. 수정 전 이 규칙 적용
 2. **배포한다**: 점검이 켜진 것을 확인한 뒤 기능 브랜치를 `main`에 병합·배포한다(점검 중에는 다른 병합을 하지 않는다).
 3. **전수 정상화 확인**(모두 통과해야 한다): 운영 `version.json`의 `commit`이 병합 커밋인지, `/` 200, `/maintenance.json`이 방금 올린 파일인지, `/api/account`가 정상 JSON(401 또는 성공 — 405·HTML 아님)인지, 게스트 로그인 → 저장 200 스모크, Cloudflare Pages·`deploy` 체크 SUCCESS.
 4. **점검을 끈다**: 3번을 모두 통과한 뒤에만 `ops/maintenance-off-<날짜>` PR로 `active:false`를 병합해 연다. 하나라도 실패하면 **점검을 켜 둔 채** 보고한다.
+- **예외 — 게임에 영향을 주지 않는 단독 수정은 점검을 켜지 않고 바로 배포할 수 있다**(2026-11-21 사용자 지시 "게임기능에 영향없으면 점검안넣어도돼"). 게임 플레이·저장·게임 API(`/api/account`·`/api/warehouse`·`/api/market`·`/api/dungeon`·`/api/world-boss`·`/api/journey` 등)와 `src/game/**`·`src/ui/**`·`public/assets/**`·`index.html`을 건드리지 않는 변경이 대상이다 — 예: 관리자 포털(`public/admin.html`·`admin.js`·`admin.css`·`server/endpoints/admin.mjs`·`/api/admin`), `docs/**` 문서, `AGENTS.md`·`CONTRIBUTING.md` 같은 정책 문서. 이때도 3번 정상화 확인(`version.json` 커밋 일치·`/` 200·`/api/account` 정상 JSON·Cloudflare Pages SUCCESS)은 배포 뒤에 한다. 게임 코드나 공용 계약에 닿는지 판단이 서지 않으면 예외를 쓰지 말고 **점검을 켠다**.
 - 저장소 기본값은 `active:false`(열린 상태)이고, 점검 파일을 읽지 못하거나 형식이 깨져도 열린 상태로 둔다. 코드·환경변수로 점검을 끄지 않는다. 서버에서도 함께 막아야 하면 Pages 환경변수 `DJRPG_MAINTENANCE=1`(계정 API가 `503 MAINTENANCE`)을 쓴다.
 
 ## 매뉴얼 갱신
