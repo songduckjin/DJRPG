@@ -38,6 +38,8 @@ export function seasonArmed(request, env = runtimeEnv()) {
  *  `djrpg_shop_ledger`)·결제 멱등 기록(`djrpg_shop_requests`)은 남긴다 — 잔액(다이아)만 0으로 돌린다. */
 export const RESET_TABLES = [
   'djrpg_market', 'djrpg_market_events', 'djrpg_market_inbox', 'djrpg_market_requests',
+  // 여정(우편·보상) 멱등 표(작업 260) — 시즌이 바뀌면 지난 시즌 요청 응답도 함께 지운다.
+  'djrpg_journey_requests',
   'djrpg_warehouse', 'djrpg_warehouse_requests',
   'djrpg_item_owners', 'djrpg_character_item_owners',
   'djrpg_dungeon_records',

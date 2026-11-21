@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { journeyState, journeyOperation } from './journey-state.mjs';
 import { skillBookIdSet, countedInBag } from './skill-ids.mjs';
+// 여정(우편·보상) 멱등 표(작업 260 · 설계서 PR-5) — 문장은 `server/journey-requests.mjs`가 소유한다.
+import { journeyRequestTableDDL } from './journey-requests.mjs';
 import { clampSaveProgress, itemWithinBounds, rewardBudget, elapsedSince } from './save-guard.mjs';
 import { extraOptionsWithin, normalizeExtraOptions } from './extra-options.mjs';
 import { databaseFactory } from './database-config.mjs';
@@ -80,6 +82,8 @@ export async function schema(db, env = runtimeEnv()) {
     'CREATE TABLE IF NOT EXISTS djrpg_item_owners (item_id TEXT PRIMARY KEY, account_id TEXT NOT NULL COLLATE NOCASE, location TEXT NOT NULL, item_json TEXT NOT NULL)',
     'CREATE TABLE IF NOT EXISTS djrpg_market_events (seq INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT NOT NULL, listing_id TEXT NOT NULL, created_at INTEGER NOT NULL)',
     'CREATE TABLE IF NOT EXISTS djrpg_market_requests (account_id TEXT NOT NULL COLLATE NOCASE, request_id TEXT NOT NULL, response_json TEXT NOT NULL, PRIMARY KEY(account_id, request_id))'
+    // 여정 요청은 거래소 요청 표와 분리한다(작업 260). 구번들이 거래소 표에 남긴 응답은 읽기에서 함께 본다.
+    , journeyRequestTableDDL
     , 'CREATE TABLE IF NOT EXISTS djrpg_account_profiles (account_id TEXT PRIMARY KEY COLLATE NOCASE, shared_gold INTEGER NOT NULL, active_slot INTEGER NOT NULL DEFAULT 1)'
     // 서버 전역 표시값(작업 206) — `season_epoch`처럼 한 번만 도는 마이그레이션의 완료 표시를 적는다.
     , 'CREATE TABLE IF NOT EXISTS djrpg_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)'

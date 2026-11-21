@@ -218,9 +218,11 @@ async function changeCharacter(ui: Interface, action: 'selectCharacter' | 'creat
     const sync = ui.market.sync;
     // 거래(구매·등록·취소·수령·창고)가 진행 중이거나 결과를 확인하지 못한 요청이 남아 있으면 전환하지 않는다.
     // 그 응답은 **이전 캐릭터의 세이브·revision**을 들고 오므로 새 캐릭터의 화면을 덮어쓰고, 남은 대기 요청은
-    // 옛 revision으로 다시 나가 409(동기화 잠금)로 끝난다(작업 239).
-    if (sync.trading) throw new Error(sync.pendingMarket || sync.pendingWarehouse
-      ? '거래 결과를 확인하지 못한 요청이 있습니다. 거래소에서 `거래 결과 다시 확인`을 눌러 마무리한 뒤 캐릭터를 바꿔 주세요.'
+    // 옛 revision으로 다시 나가 409(동기화 잠금)로 끝난다(작업 239). 우편·보상 대기(`pendingJourney`)도 같은 이유로 포함한다(작업 260).
+    if (sync.trading) throw new Error(sync.pendingMarket || sync.pendingWarehouse || sync.pendingJourney
+      ? sync.pendingJourney && !sync.pendingMarket && !sync.pendingWarehouse
+        ? '우편·보상 수령 결과를 확인하지 못한 요청이 있습니다. 우편함에서 `수령 결과 다시 확인`을 눌러 마무리한 뒤 캐릭터를 바꿔 주세요.'
+        : '거래 결과를 확인하지 못한 요청이 있습니다. 거래소에서 `거래 결과 다시 확인`을 눌러 마무리한 뒤 캐릭터를 바꿔 주세요.'
       : '거래를 처리하는 중입니다. 잠시 후 다시 시도해 주세요.');
     // 전환하는 동안 사냥을 멈추고 예약 저장을 취소한다 — 전환 응답의 revision과 전환 직전에 나간 저장이
     // 엇갈리면 다음 저장이 409 SAVE_CONFLICT로 화면 전체를 잠근다(작업 239).

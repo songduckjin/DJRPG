@@ -22,6 +22,8 @@ export const ACCOUNT_TABLES = [
   'djrpg_save_requests',
   'djrpg_market_inbox',
   'djrpg_market_requests',
+  // 여정(우편·보상) 멱등 표 — 거래소 표와 분리했다(작업 260). 계정 id가 들어가므로 탈퇴 때 함께 지운다.
+  'djrpg_journey_requests',
   'djrpg_dungeon_records',
   'djrpg_dungeon_attempts',
   'djrpg_boss_attempts',

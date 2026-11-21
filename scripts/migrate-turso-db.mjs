@@ -17,6 +17,9 @@ export const TABLES = [
   'djrpg_item_owners',
   'djrpg_market_events',
   'djrpg_market_requests',
+  // 여정(우편·보상) 멱등 표(작업 260) — 거래소 요청 표와 분리했다. 이관 뒤에 생긴 표라 예전 공용 DB에는 없을 수
+  // 있어 옵션으로 본다.
+  'djrpg_journey_requests',
   'djrpg_account_profiles',
   'djrpg_characters',
   'djrpg_character_item_owners',
@@ -37,7 +40,7 @@ export const TABLES = [
   'djrpg_dungeon_attempts'
 ];
 // 최신 스키마에만 있는 표 — 소스에 없으면 0행으로 보고 건너뛴다.
-const OPTIONAL_TABLES = ['djrpg_meta', 'djrpg_announcements'];
+const OPTIONAL_TABLES = ['djrpg_meta', 'djrpg_announcements', 'djrpg_journey_requests'];
 // AUTOINCREMENT 시퀀스를 이어받아야 하는 테이블(현재 djrpg_market_events 하나).
 const SEQUENCE_TABLES = ['djrpg_market_events'];
 const DEFAULT_CHUNK = 500;

@@ -60,24 +60,40 @@ test('mail and achievement red dots reflect claimability; expired mail does not 
   ui.journey.data.mail[0].expired=true;ui.journey.data.daily[0].claimed=true;ui.journey.data.achievements[0].current=5;
   updateUtilityBadges(ui);assert.deepEqual(dots.map(d=>d.hidden),[true,true,false]);
 });
-test('unknown claim result retries original request ID and payload through shared save sync',async()=>{
-  const save=freshSave(),pending={action:'journey-claim',data:{kind:'mail',id:'welcome'},requestId:'same-request'},calls=[];
-  const sync={save,session:{token:'token'},pendingMarket:pending,async mutate(...args){calls.push(args);this.pendingMarket=undefined;return {message:'수령 완료'};}};
-  const journey=new Journey(sync,{save,player:{hp:100},onChange(){}});journey.load=()=>{};
-  await journey.act('journey-claim',{kind:'daily',id:'other'});
-  assert.deepEqual(calls,[['journey-claim',pending.data,'same-request']]);assert.equal(journey.busy,false);
+test('결과를 확인하지 못한 수령은 자기 requestId·revision으로 /api/journey에 다시 보낸다(작업 260)',async()=>{
+  const original=globalThis.fetch,requests=[];
+  try{
+    const save=freshSave(),applied=[],calls={begin:0,finish:0};
+    const pending={action:'journey-claim',data:{kind:'mail',id:'welcome'},requestId:'same-request',revision:7,progress:{...save}};
+    // 거래소 경로(`sync.mutate`)는 아예 주지 않는다 — 여정이 그 경로를 쓰지 않는 것이 이 분리의 핵심이다.
+    const sync={save,session:{token:'token',characterSlot:1},revision:7,pendingJourney:pending,beginJourney(){calls.begin++;},finishJourney(){calls.finish++;},journeySnapshot:()=>({revision:9,progress:{...save}}),applyJourneyResult(result){applied.push(result);this.pendingJourney=undefined;},handleError(){}};
+    globalThis.fetch=async(url,options)=>{requests.push({url,payload:JSON.parse(options.body)});return{ok:true,status:200,json:async()=>({ok:true,message:'수령 완료',revision:8,save})};};
+    const journey=new Journey(sync,{save,player:{hp:100},onChange(){}});journey.load=()=>{};
+    await journey.act('journey-claim',{kind:'daily',id:'other'});
+    assert.equal(requests.length,1);assert.equal(requests[0].url,'/api/journey');
+    assert.equal(requests[0].payload.action,'journey-claim');assert.equal(requests[0].payload.kind,'mail');assert.equal(requests[0].payload.id,'welcome','새 인자가 아니라 남은 대기의 본문을 다시 보낸다');
+    assert.equal(requests[0].payload.requestId,'same-request');assert.equal(requests[0].payload.revision,7,'대기에 고정한 revision');
+    assert.equal(requests[0].payload.characterSlot,1);assert.deepEqual(requests[0].payload.progress,save);
+    assert.equal(applied.length,1);assert.equal(applied[0].revision,8);
+    assert.deepEqual(calls,{begin:1,finish:1});assert.equal(journey.busy,false);
+  }finally{globalThis.fetch=original;}
 });
 
 test('a list response started before a claim cannot overwrite post-claim reward state',async()=>{
-  const original=globalThis.fetch;let resolve;
-  globalThis.fetch=()=>new Promise(r=>{resolve=r;});
+  const original=globalThis.fetch;let release;
+  const save=freshSave();
+  globalThis.fetch=(url,options)=>{
+    const payload=JSON.parse(options.body);
+    if(payload.action==='journey-list')return new Promise(r=>{release=r;});
+    return Promise.resolve({ok:true,status:200,json:async()=>({ok:true,message:'수령 완료',revision:1,save,journey:{daily:[{id:'login',claimed:true}]}})});
+  };
   try{
-    const save=freshSave(),sync={session:{token:'t'},async mutate(){return {message:'완료'};}};
+    const sync={save,session:{token:'t',characterSlot:1},revision:0,pendingJourney:undefined,beginJourney(){},finishJourney(){},journeySnapshot:()=>({revision:0,progress:save}),applyJourneyResult(){this.pendingJourney=undefined;},handleError(){}};
     const journey=new Journey(sync,{save,player:{hp:100},onChange(){}});
-    const request=journey.load();journey.load=()=>{};await journey.act('journey-claim',{kind:'daily',id:'login'});
-    const current={daily:[{id:'login',claimed:true}]};journey.data=current;
-    resolve({ok:true,json:async()=>({daily:[{id:'login',claimed:false}]})});await request;
-    assert.equal(journey.data,current);assert.equal(journey.loading,false);
+    const request=journey.load();await journey.act('journey-claim',{kind:'daily',id:'login'});
+    const current=journey.data;assert(current.daily[0].claimed,'수령 응답이 반영됐다');
+    release({ok:true,status:200,json:async()=>({daily:[{id:'login',claimed:false}]})});await request;
+    assert.equal(journey.data,current,'수령 전에 시작한 목록 요청이 수령 뒤 상태를 덮지 않는다');assert.equal(journey.loading,false);
   }finally{globalThis.fetch=original;}
 });
 
@@ -136,10 +152,18 @@ test('daily and weekly index tabs own distinct all-claim buttons and panels',()=
 });
 
 test('reward claim applies the confirmed journey state without an additional list request',async()=>{
- const {ui}=fixture(),data=ui.journey.data;data.daily[0].claimed=true;
- let resaves=0;const world=ui.world;world.onChange=()=>{resaves++;};const sync={session:{token:'t'},async mutate(){return {save:world.save,revision:2,journey:data,message:'수령 완료'};}};
- const journey=new Journey(sync,world);let reloads=0;journey.load=async()=>{reloads++;};
- await journey.act('journey-claim',{kind:'daily',id:'login'});assert.equal(journey.data,data);assert.equal(reloads,0);assert.equal(resaves,0);assert.equal(journey.busy,false);
+ const original=globalThis.fetch,requests=[];
+ try{
+  const {ui}=fixture(),data=ui.journey.data;data.daily[0].claimed=true;
+  let resaves=0;const world=ui.world;world.onChange=()=>{resaves++;};const save=freshSave();
+  const sync={save,session:{token:'t',characterSlot:1},revision:2,pendingJourney:undefined,beginJourney(){},finishJourney(){},journeySnapshot:()=>({revision:2,progress:save}),applyJourneyResult(result){this.applied=result;this.pendingJourney=undefined;},handleError(){}};
+  globalThis.fetch=async(_url,options)=>{requests.push(JSON.parse(options.body));return{ok:true,status:200,json:async()=>({ok:true,save,revision:3,message:'수령 완료',journey:data})};};
+  const journey=new Journey(sync,world);let reloads=0;journey.load=async()=>{reloads++;};
+  await journey.act('journey-claim',{kind:'daily',id:'login'});
+  assert.equal(journey.data,data);assert.equal(reloads,0);assert.equal(resaves,0);assert.equal(journey.busy,false);
+  assert.equal(requests.length,1,'수령 응답이 목록을 대신하므로 추가 요청이 없다');
+  assert.equal(sync.applied.revision,3,'응답의 revision을 화면 기준으로 받는다');
+ }finally{globalThis.fetch=original;}
 });
 
 test('achievement category shows only next unclaimed step and moves finished category to bottom',async()=>{
@@ -209,21 +233,25 @@ test('우편·보상의 받기/모두 받기 버튼은 누를 수 있을 때만 
   }finally{globalThis.document=previous;}
 });
 
-test('거래소 거래가 막혀 있어도 우편함에서 거래 결과 다시 확인으로 풀 수 있다(작업 226)',()=>{
+test('거래소 대기가 우편 수령을 잠그지 않고, 우편 대기는 우편함에서만 다시 확인한다(작업 260)',()=>{
   const previous=globalThis.document;globalThis.document={createElement:node};
   try{
     const {ui}=fixture();ui.journey.sync.pendingMarket={action:'claim',data:{deliveryId:'all'},requestId:'pending-1'};
     let retried=0;ui.market={retry:()=>{retried++;}};
     const dialog=node();renderUtility(ui,dialog,'mail');
     const retry=find(dialog,n=>n.tag==='button'&&n.textContent==='거래 결과 다시 확인');
-    assert(retry,'거래소 대기도 우편함에서 풀 수 있다');retry.onclick();
+    assert(retry,'거래소 대기는 우편함에서도 풀 수 있다');retry.onclick();
     assert.equal(retried,1);assert(!ui.market.error);
-    assert(find(dialog,n=>typeof n.textContent==='string'&&n.textContent.includes('거래소 거래 결과를 확인하지 못해')));
-    assert(!find(dialog,n=>n.tag==='button'&&n.textContent==='수령 결과 다시 확인'));
-    ui.journey.sync.pendingMarket={action:'journey-claim',data:{kind:'mail',id:'all'},requestId:'pending-2'};
+    assert(find(dialog,n=>n.className==='utility-note'&&n.textContent.includes('우편·보상 수령은 그대로 이용할 수 있습니다')));
+    // 이 분리의 핵심(설계서 C-3): 거래소 결과를 확인하지 못해도 우편 `받기`는 그대로 눌 수 있다.
+    assert.equal(find(dialog,n=>n.tag==='button'&&n.textContent==='받기').disabled,false,'거래소 대기가 우편 수령을 잠그지 않는다');
+    assert.equal(find(dialog,n=>n.tag==='button'&&n.textContent==='모두 받기').disabled,false);
+    assert(!find(dialog,n=>n.tag==='button'&&n.textContent==='수령 결과 다시 확인'),'여정 대기가 없으면 여정 재확인 버튼도 없다');
+    // 여정 대기는 자기 자리(우편함)의 버튼으로만 다시 확인한다.
+    ui.journey.sync.pendingJourney={action:'journey-claim',data:{kind:'mail',id:'all'},requestId:'pending-2'};
     const claim=node();renderUtility(ui,claim,'mail');
     assert(find(claim,n=>n.tag==='button'&&n.textContent==='수령 결과 다시 확인'),'우편 수령 대기는 수령 결과 다시 확인');
-    assert(!find(claim,n=>n.tag==='button'&&n.textContent==='거래 결과 다시 확인'));
+    assert(find(claim,n=>n.tag==='button'&&n.textContent==='거래 결과 다시 확인'),'거래소 대기 안내는 그대로 남는다');
   }finally{globalThis.document=previous;}
 });
 

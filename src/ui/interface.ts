@@ -51,6 +51,20 @@ export type BagFilter = 'all' | 'weapon' | 'armor' | 'accessory';
 /** 스킬 창 탭(작업 240) — `전체`는 패시브 3종을 스킬북·기본기보다 위에 두고 모두 보여 준다. */
 export type SkillFilter = 'all' | 'active' | 'passive';
 
+/**
+ * 지금 창을 열 수 없는가 — **결과를 확인하지 못한 요청은 자기 창만** 막는다(작업 260 · 설계서 PR-5).
+ *
+ * 거래소 거래가 걸려 있으면 거래소 창만 막히고(그 창의 `거래 결과 다시 확인`으로 풀어야 하므로 거래소 자체는 연다),
+ * 우편·여정 대기(`pendingJourney`)는 어느 창도 막지 않는다. 예전에는 `pendingMarket` 하나가 거래소 외 모든 창을
+ * 막아, 네트워크가 끊긴 동안 우편함·설정·내 정보까지 잠겼다(작업 226). 반면 보내는 중인 요청(`locked`·창고)은
+ * 그 응답의 세이브·revision이 화면 기준과 엇갈리므로 창을 열지 않는다.
+ */
+export function modalBlocked(market: Pick<Market, 'busy' | 'sync'>, kind: Modal | null): boolean {
+  const sync = market.sync;
+  if (market.busy || sync.locked || sync.pendingWarehouse) return true;
+  return !!sync.pendingMarket && kind !== 'market';
+}
+
 export class Interface {
   dungeon = new DungeonLobby();
   worldBoss = new WorldBossPreview();
@@ -225,9 +239,7 @@ export class Interface {
   }
 
   open(kind: Modal | null): void {
-    // 거래 결과를 확인하지 못해 `pendingMarket`이 남아 있어도 거래소 창은 연다 — 그 창의 '거래 결과 다시 확인'이
-    // 아니면 풀 방법이 없어서, 막으면 네트워크가 끊긴 동안 모든 창이 잠긴다(작업 226).
-    if (this.market.busy || this.market.sync.locked || this.market.sync.pendingWarehouse || (this.market.sync.pendingMarket && kind !== 'market')) return;
+    if (modalBlocked(this.market, kind)) return;
     if (kind !== null && this.pendingSkill) cancelSkillSelection.call(this);
     if (kind !== 'skills') this.skillTarget = undefined;
     if (kind !== 'salvage') this.salvageIds = undefined;
@@ -251,6 +263,7 @@ export class Interface {
     if (kind === 'warehouse') { this.warehouseItems = undefined; resetWarehouse(this); void loadWarehouse(this); }
     if (kind && ['mail','rewards','achievements'].includes(kind)) void this.journey.load();
   }
+
   renderModal(): void {
     if(this.openModal!=='worldBoss')this.worldBoss?.dispose();
     if (this.openModal && this.modalRenderGate?.defer()) return;
