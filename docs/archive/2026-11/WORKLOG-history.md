@@ -1,6 +1,6 @@
 # WORKLOG 아카이브 — 2026-11 (최근 20건 이전)
 
-> `docs/WORKLOG.md`에서 분리한 과거 작업·PR·배포 기록 219건. 최신 기록은 `docs/WORKLOG.md`.
+> `docs/WORKLOG.md`에서 분리한 과거 작업·PR·배포 기록 220건. 최신 기록은 `docs/WORKLOG.md`.
 > 검색은 이 파일에서 한다: `rg -n "<키워드>" docs/archive/2026-11/`.
 
 ## 2026-11-21 · songduckjin 작업 242 — 09시까지 서버 점검 중 안내(로그인 배너 + 405 안내)
@@ -1651,3 +1651,15 @@
 - **전수 정상화 확인**(`AGENTS.md` 배포·점검 정책 3번, 운영 `https://djrpg.pages.dev`): `version.json` `990798fa15ef`(`builtAt` 2026-11-21T08:06:16Z) = 병합 커밋, `/` 200, `/maintenance.json` 방금 올린 점검 파일, `/api/account` POST 401 JSON(토큰 없음)·GET 405 JSON(POST 전용 설계 — HTML 아님), **게스트 가입 200 → 저장 200(revision 0→1) → 창고 보관 200(moved 1·창고 1개·rev 1→2·`tx` 343ms) → 목록 200 → 회수 200(가방 1개·`tx` 323ms) → 계정 탈퇴 200**, 탈퇴 뒤 같은 토큰 `load` 401. Cloudflare Pages 체크 **SUCCESS**(`Workers Builds: djrpg` 실패는 이전 `main` `a165616`에서도 같은 상시 체크).
 - **점검 해제**: [PR #278](https://github.com/songduckjin/DJRPG/pull/278) 스쿼시 **`92313ad502ab`** (08:08:48Z) — `public/maintenance.json` 하나만 `active:false`·`eta:""`·`message:""`(이전 OFF 커밋 #270과 같은 형식으로 `title` 유지). 배포 뒤 `version.json` `92313ad502ab`(`builtAt` 2026-11-21T08:09:34Z)·`/maintenance.json` `active:false`(`cache-control: no-store`)·루트 200, 로그인 화면에 점검 모달 없이 `게스트로 시작하기` 노출(브라우저 실측), 열린 상태에서 게스트 가입 → 저장 → 보관 → 회수 → 탈퇴 스모크 재통과.
 - **남은 확인**: 폰 실기에서 보관·꺼내기 체감 속도, 부분 이동 `(2/5)`, 이동 중 잠금 유지는 사용자 몫이다.
+
+## 작업 257 — 거래소 판매 중 서브 필터 탭·간편보기 4~5열 카드 그리드·카드 상세 팝업·카드 배지 확대 (미리보기, 2026-11-21)
+- **사용자 지시(`#8958`)**: "간편보기는 간편하지가 않아. 한 줄에 4~5개 표시돼도 되고 이미지가 크게 한 화면에 여러 개 볼 수 있게 해야 간편보기지" / "간편보기일 때 +1 표시가 이미지를 다 가려".
+  - 판매 중 목록 위에 **`전체`·`장비`·`스킬북`** 서브 필터 탭(`Market.kind`, 서버 `filters` 계약은 그대로 — 받은 한 페이지를 화면에서 거른다, 칩에 이 페이지 건수).
+  - 간편 보기를 한 줄 목록 → **정사각형 카드 그리드**(`.market-compact-grid` = `repeat(auto-fill, minmax(76px, 1fr))` → 폰 4열·모달 5열). 카드에는 큰 아이콘 + 가격(개당)만, 묶음 `×N`·내 매물 표시·등급 테두리·추천 화살표는 유지.
+  - 카드의 `상세`/`구매` 버튼을 없애고, **카드를 누르면 `.market-sheet` 바텀시트**가 즉시 뜬다 — 능력치·추가옵션·판매자·개당/총 수량 + `listingDetail`(장비 비교·`전체 구매`/`선택 수량 구매`·등록 취소). 게스트는 읽기만 되고 구매만 잠긴다.
+  - `+N`은 아이콘 칸(`.market-card-art`) 왼쪽 아래 모서리에만 작게(아이콘 중앙을 가리지 않는다).
+- **피드백 `#9078`**: 종류 탭을 `간편보기/자세히보기` 아이콘과 **같은 한 줄**(`.market-list-toolbar`)로 옮기고 인덱스 탭 톤으로 정리(세로 1줄 절약).
+- **피드백 `#9089`**: 종류 탭·보기 전환·상단 메인 탭을 바꾸면 `Market.clearSelection()`으로 선택된 매물·상세 바·판매 등록 포커스·수량·시세 상자가 초기화된다.
+- **피드백 `#9105`**: 카드가 커진 만큼 직업 배지 10.5px·업그레이드 화살표 16px·`+N` 11.5px·스킬북 동그라미 스킬 아이콘 `clamp(24px, 6.6vw, 32px)`. 스킬북 카드는 동그라미와 겹치지 않게 `×N`을 오른쪽 위로 올린다(`:has`).
+- **검증**: `npx tsc --noEmit`·`npx vite build`(792.17kB) 통과, 신규 `tests/market-compact-grid.test.mjs` **12/12**, `market-view-toggle` 5/5, 거래소 관련(`market`·`market-bundle-ui`·`market-actions`·`market-inbox-ui`·`market-index`·`multi-character-market`·`item-protection-ui`·`upgrade-badge`·`plus-badge`) 전부 통과. 전체 1,141건 중 1,048 통과 — 실패 93건은 `public/assets/**`가 없는 이 체크아웃의 기존 건.
+- **미리보기 배포 확인**: `preview/gravel-background-fks3997` `76540cb` → `7132f93` → `ce1dc4d` → `9fba6d3` → **`04b146e`**, `version.json` = `04b146e5aa19`(`builtAt` 2026-11-21T07:27:59Z). 실브라우저(게스트·390~500px 모달)에서 5열 카드·가격만·`궁수`/`마법사` 배지·초록 화살표·`+1`·스킬북 동그라미 확인, 카드 탭 → 상세 팝업(`공격 +18 · 체력 +39`·비교표·`구매 확정` 잠김) 확인. 스크린샷 `browser/market257-final-2026-11-21-162916.png`·`browser/market257-sheet-2026-11-21-162931.png`. **`main` 병합·운영 배포는 하지 않았다**(미리보기 전용, 사용자 지시 대기).

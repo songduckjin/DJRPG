@@ -5,7 +5,7 @@ import { equipmentImage, isBow, isEquipment, isSkillBook, itemDisplayName, itemJ
 import { extraOptionLines } from '../../game/extraOptions';
 import { jobNames } from '../../game/skills';
 import { MARKET_JOB_ONLY_KEY, jobOnlyLabel, jobOnlyVisible, saveJobOnly } from '../jobFilter';
-import { type MarketView, type Listing, type Market } from '../../game/market';
+import { MARKET_KIND_LABELS, type MarketKind, type MarketView, type Listing, type Market } from '../../game/market';
 import { compareEquipment } from '../../game/itemComparison';
 import type { Interface } from '../interface';
 import type { Save } from '../../game/store';
@@ -99,7 +99,7 @@ export function updateMarketLive(ui: Interface): void {
     const row = ui.root.querySelector<HTMLElement>(`[data-listing="${CSS.escape(sale.id)}"]`);
     if (!row) continue;
     const state = row.querySelector<HTMLElement>('.market-state'); if (state) state.textContent = stateNames[sale.state] || sale.state;
-    if (sale.state !== 'active') { row.classList.add('market-ended'); row.querySelectorAll<HTMLButtonElement>('.market-buy, .market-detail button').forEach(button => { button.disabled = true; }); }
+    if (sale.state !== 'active') { row.classList.add('market-ended'); row.querySelectorAll<HTMLButtonElement>('.market-buy, .market-card, .market-detail button').forEach(button => { button.disabled = true; }); }
   }
 }
 export function renderMarket(this: Interface, dialog: HTMLElement): void {
@@ -164,21 +164,42 @@ export function renderMarket(this: Interface, dialog: HTMLElement): void {
       const label=el('label','market-mine-filter','판매 중인 물건만 보기'),check=el('input');check.type='checkbox';check.checked=market.mineActiveOnly;check.disabled=market.busy;
       check.onchange=()=>{market.mineActiveOnly=check.checked;market.filters.page=0;market.refresh();};label.append(check);bar.append(label);dialog.append(bar);
     }
+    const listings = data?.listings ?? [];
+    // 판매 중 목록의 서브 필터 탭(작업 257) — `전체`·`장비`·`스킬북`. 목록 맨 위에서 한 페이지의 매물을 거른다.
+    // 사용자 피드백(`#9078`): `간편보기`/`자세히보기` 아이콘과 **같은 한 줄**에 두어 세로 공간을 아낸다.
+    const kindTabbed = market.view === 'active';
     renderFilters(market, dialog);
     // `내 직업만 보기` (작업 205): 판매 중·거래 완료 목록에서 다른 직업 전용 무기·스킬북을 걷어 낸다.
     // 내 거래(mine)는 내가 올리고 산 기록이므로 같은 필터를 적용하지 않는다.
-    const listings = data?.listings ?? [];
     const jobFiltered = market.view !== 'mine';
     const visibleListings = jobOnlyVisible(listings, sale => sale.item, this.world.save.job, jobFiltered && this.marketJobOnly);
     const hiddenListings = listings.length - visibleListings.length;
+    // 종류 필터(작업 257) — 직업 필터를 통과한 뒤 한 번 더 거른다(내 거래·최근 거래에는 적용하지 않는다).
+    const kindListings = kindTabbed ? visibleListings.filter(sale => kindMatches(sale.item, market.kind)) : visibleListings;
+    const hiddenByKind = visibleListings.length - kindListings.length;
     if (jobFiltered) dialog.append(jobOnlyToggle(this, market, hiddenListings));
-    dialog.append(el('p', 'market-result', `${money(data?.total ?? 0)}건${hiddenListings ? ` · 이 페이지에서 다른 직업 ${hiddenListings}개 숨김` : ''}${market.view === 'mine' ? ` · 판매 중 ${data?.myActive ?? 0}/${data?.rules?.maxListings ?? 30} · 내 판매 및 구매 기록` : ''}`));
+    dialog.append(el('p', 'market-result', `${money(data?.total ?? 0)}건${hiddenListings ? ` · 이 페이지에서 다른 직업 ${hiddenListings}개 숨김` : ''}${hiddenByKind ? ` · ${MARKET_KIND_LABELS[market.kind]} 필터로 ${hiddenByKind}개 숨김` : ''}${market.view === 'mine' ? ` · 판매 중 ${data?.myActive ?? 0}/${data?.rules?.maxListings ?? 30} · 내 판매 및 구매 기록` : ''}`));
     // 판매 중 탭의 `간편 보기`/`상세 보기`(작업 248) — 간편 보기는 한 화면에 훨씬 많은 매물을 보여 준다.
     const compact = market.view === 'active' && listingView === 'compact';
-    if (market.view === 'active') dialog.append(listingViewToggle(this));
+    // 판매 중 탭에서만 결과 줄 바로 아래에 **한 줄 툴바**를 둔다(사용자 피드백 `#9155`):
+    // 왼쪽은 오밀조밀한 종류 탭(`전체`·`장비`·`스킬북`), 오른쪽은 예전 자리 그대로 `간편/자세히` 아이콘.
+    if (kindTabbed) {
+      const listToolbar = el('div', 'market-list-toolbar');
+      listToolbar.append(kindTabs(market, listings), listingViewToggle(this));
+      dialog.append(listToolbar);
+    }
     if (!data && market.loading) dialog.append(el('p', 'empty', '거래소를 불러오고 있습니다…'));
-    for (const sale of visibleListings) { if (compact) renderListingCompact(this, dialog, sale, blocked); else renderListing(this, dialog, sale, blocked); }
+    if (compact) {
+      // 작업 257: 한 줄 4~5열 카드 그리드. 카드에는 아이콘과 가격만 있고, 누르면 상세 팝업이 뜬다.
+      const grid = el('div', 'market-compact-grid');
+      for (const sale of kindListings) grid.append(compactCard(this, sale));
+      dialog.append(grid);
+    } else for (const sale of kindListings) renderListing(this, dialog, sale, blocked);
+    // 카드를 눌러 고른 매물의 상세 팝업(작업 257) — 상세·구매 버튼 없이 카드 하나로 연다.
+    const chosen = compact ? market.selected : undefined;
+    if (chosen && chosen.state === 'active' && kindListings.some(sale => sale.id === chosen.id)) dialog.append(listingSheet(this, chosen, blocked));
     if (data && !listings.length) dialog.append(el('p', 'empty', '조건에 맞는 매물이 없습니다. 판매 등록에서 첫 물품을 올려보세요.'));
+    else if (visibleListings.length && !kindListings.length) dialog.append(el('p', 'empty', `이 페이지에는 ${MARKET_KIND_LABELS[market.kind]} 매물이 없습니다. \`전체\`를 누르면 ${visibleListings.length}개가 보입니다.`));
     else if (listings.length && !visibleListings.length) dialog.append(el('p', 'empty', '이 페이지의 매물은 모두 다른 직업 전용입니다. 내 직업만 보기를 끄면 보입니다.'));
     const pages = Math.max(1, Math.ceil((data?.total ?? 0) / 20)), page = Number(market.filters.page);
     const nav = el('div', 'market-pagination'); nav.append(button('이전', () => { market.filters.page = page - 1; market.refresh(); }, page <= 0 || market.busy), el('span', '', `${page + 1} / ${pages}`), button('다음', () => { market.filters.page = page + 1; market.refresh(); }, page + 1 >= pages || market.busy)); dialog.append(nav);
@@ -238,7 +259,8 @@ function listingViewToggle(ui: Interface): HTMLElement {
   const market = ui.market, bar = el('div', 'market-view-toggle');
   bar.setAttribute('role', 'group'); bar.setAttribute('aria-label', '매물 보기 방식');
   for (const [view, label, art] of [['compact', '간편 보기', '/assets/icons/market-view-compact.png'], ['detail', '상세 보기', '/assets/icons/market-view-detail.png']] as const) {
-    const pick = button('', () => { setListingView(view); ui.renderModal(); }, market.busy);
+    // 보기 방식을 바꾸면 카드/줄이 통째로 달라지므로 선택·상세 바를 초기화한다(작업 257 피드백 `#9089`).
+    const pick = button('', () => { setListingView(view); market.clearSelection(); ui.renderModal(); }, market.busy);
     pick.className = `market-view-button${listingView === view ? ' is-on' : ''}`;
     pick.dataset.view = view;
     pick.setAttribute('aria-label', label); pick.setAttribute('aria-pressed', String(listingView === view)); pick.title = label;
@@ -338,28 +360,114 @@ function renderListing(ui: Interface, dialog: HTMLElement, sale: Listing, blocke
   if (market.selected?.id === sale.id && sale.state === 'active') row.append(listingDetail(ui, sale, blocked));
   dialog.append(row);
 }
+/** 매물의 종류(작업 257) — 판매 중 서브 필터(`전체`·`장비`·`스킬북`)가 쓰는 구분. */
+function listingKind(item: Item): MarketKind | 'other' {
+  if (isSkillBook(item)) return 'skillbook';
+  if (isEquipment(item)) return 'equipment';
+  return 'other';
+}
+function kindMatches(item: Item, kind: MarketKind): boolean {
+  if (kind === 'all') return true;
+  return listingKind(item) === kind;
+}
 /**
- * 간편 보기 한 줄(작업 248) — 아이콘(등급 테두리·`+N`·추천 화살표) + 이름 + 가격 + 구매 버튼만 남겨
- * 한 화면에 훨씬 많은 매물을 담는다. 카드를 누르면 그 매물의 상세(능력치·비교·구매 확정)가 아래에 펼쳐진다.
+ * 판매 중 목록의 서브 필터 탭(작업 257, 사용자 지시 `#8958`) — `전체`·`장비`·`스킬북` 칩.
+ *
+ * 서버 목록 계약(`filters.category`는 한 값만 받는다)은 그대로 두고 **이미 받은 한 페이지**를
+ * 화면에서 거른다(`내 직업만 보기`와 같은 방식). 칩에는 이 페이지의 건수를 함께 보여 준다.
  */
-function renderListingCompact(ui: Interface, dialog: HTMLElement, sale: Listing, blocked: boolean): void {
-  const market = ui.market, row = el('article', 'market-row market-row-compact'); row.dataset.listing = sale.id;
-  const pic = icon(sale.item, ui.world.save); pic.classList.add(`rarity-${sale.item.rarity}`); appendPlusBadge(pic, sale.item);
-  const name = el('div', 'market-compact-name');
-  name.append(renderItemName(el('b', `rarity-${sale.item.rarity}`), sale.item));
-  name.append(el('small', 'market-compact-meta', `${rarityNames[sale.item.rarity]} · ${isSkillBook(sale.item) ? '스킬북' : isEquipment(sale.item) ? (isBow(sale.item) ? '활' : slotNames[sale.item.slot]) : '소모품'}${sale.purchased ? ' · 내가 구매' : ''}`));
-  const quantity = Math.max(1, Number(sale.quantity ?? 1));
-  const price = el('div', 'market-compact-price');
-  if (quantity > 1) price.append(el('small', 'market-unit-label', '개당'));
+function kindTabs(market: Market, listings: Listing[]): HTMLElement {
+  const bar = el('div', 'market-kind-tabs');
+  bar.setAttribute('role', 'tablist'); bar.setAttribute('aria-label', '매물 종류');
+  const counts: Record<MarketKind, number> = { all: listings.length, equipment: 0, skillbook: 0 };
+  for (const sale of listings) { const kind = listingKind(sale.item); if (kind === 'equipment' || kind === 'skillbook') counts[kind] += 1; }
+  for (const kind of ['all', 'equipment', 'skillbook'] as MarketKind[]) {
+    const tab = button('', () => {
+      if (market.kind === kind) return;
+      // 종류를 바꾸면 이전 목록에서 연 상세·선택을 모두 버린다(작업 257 피드백 `#9089`).
+      market.kind = kind; market.clearSelection(); market.onChange(true);
+    }, market.busy || !!market.sync.pendingMarket);
+    tab.className = `market-kind-tab${market.kind === kind ? ' active' : ''}`;
+    tab.dataset.kind = kind;
+    tab.setAttribute('role', 'tab'); tab.setAttribute('aria-selected', String(market.kind === kind));
+    tab.append(el('span', 'market-kind-label', MARKET_KIND_LABELS[kind]), el('small', 'market-kind-count', String(counts[kind])));
+    tab.title = `${MARKET_KIND_LABELS[kind]} 매물만 보기 (이 페이지 ${counts[kind]}건)`;
+    bar.append(tab);
+  }
+  return bar;
+}
+/**
+ * 간편 보기 카드 한 장(작업 257) — 사용자 지시 "한 줄에 4~5개 표시돼도 되고 이미지가 크게
+ * 한 화면에 여러 개 볼 수 있게 해야 간편보기지".
+ *
+ * 정사각형 아이콘 칸을 크게 두고 아래에 **가격만** 남긴다. 별도 `상세`/`구매` 버튼은 없앴다 —
+ * 카드를 누르면 그 매물의 상세 팝업(`listingSheet`)이 즉시 뜬다. 묶음 `×N`·내 매물·등급 테두리·
+ * 추천 화살표는 그대로 두고, `+N`은 왼쪽 아래 모서리에 작게 얹어 아이콘을 가리지 않는다.
+ */
+function compactCard(ui: Interface, sale: Listing): HTMLButtonElement {
+  const market = ui.market, quantity = Math.max(1, Number(sale.quantity ?? 1));
+  const card = button('', () => {
+    if (sale.state !== 'active' || market.busy || market.sync.pendingMarket) return;
+    market.selected = market.selected?.id === sale.id ? undefined : sale; market.onChange(true);
+  });
+  // 게스트도 카드를 눌러 상세를 **읽을** 수 있다(구매 버튼만 `blocked`로 잠긴다) — 카드 자체는 상태가 끝난 매물만 잠근다.
+  card.disabled = sale.state !== 'active' || market.busy || !!market.sync.pendingMarket;
+  card.className = `market-card rarity-${sale.item.rarity}${sale.mine ? ' is-mine' : ''}`;
+  card.dataset.listing = sale.id;
+  card.setAttribute('aria-label', `${itemDisplayName(sale.item)} · ${rarityNames[sale.item.rarity]} · ${money(sale.price)} 금화${quantity > 1 ? ` · 총 ${quantity}개` : ''} 상세 보기`);
+  card.title = `${itemDisplayName(sale.item)} · ${rarityNames[sale.item.rarity]} · ${sale.sellerName} · ${money(sale.price)} 금화${quantity > 1 ? ` (개당, 총 ${quantity}개)` : ''}`;
+  const art = el('span', 'market-card-art');
+  art.append(icon(sale.item, ui.world.save));
+  // `+N`(작업 257) — 카드 모서리(왼쪽 아래)에만 작게. 아이콘 중앙을 가리지 않는다.
+  appendPlusBadge(art, sale.item);
+  const owner = itemJob(sale.item);
+  if (owner) art.append(el('span', `job-badge job-${owner}`, jobNames[owner]));
+  if (quantity > 1) { const badge = el('span', 'market-card-count', `×${quantity}`); badge.setAttribute('aria-hidden', 'true'); art.append(badge); }
+  const price = el('span', 'market-card-price');
   price.append(goldNode(sale.price));
-  if (quantity > 1) price.append(el('small', 'market-compact-qty', `총 ${quantity}개`));
-  const action = button(sale.mine ? '취소' : '구매', () => { market.selected = market.selected?.id === sale.id ? undefined : sale; market.onChange(true); }, market.busy || !!market.sync.pendingMarket);
-  action.className = 'market-buy';
-  action.setAttribute('aria-label', `${itemDisplayName(sale.item)} ${sale.mine ? '등록 취소' : '구매'} 상세`);
-  action.title = sale.mine ? '등록 취소 상세' : '구매 확인 창을 엽니다';
-  row.append(pic, name, price, action);
-  if (market.selected?.id === sale.id && sale.state === 'active') row.append(listingDetail(ui, sale, blocked));
-  dialog.append(row);
+  if (sale.mine) price.append(el('small', 'market-card-mine', '내 매물'));
+  card.append(art, price);
+  return card;
+}
+/**
+ * 간편 보기 카드의 상세 팝업(작업 257) — "카드를 클릭하면 능력치·추가옵션·판매자·단가/묶음 수량이
+ * 보이고 바로 구매할 수 있는 상세 창".
+ *
+ * 모달 위에 뜨는 바텀시트(`.market-sheet`) 하나로, 능력치·추가옵션·판매자·가격 요약을 머리에 두고
+ * 몸통에는 상세 보기와 같은 `listingDetail`(장비 비교·전체/선택 수량 구매·등록 취소)을 그대로 쓴다.
+ * 바깥(어두운 영역)을 누르거나 `닫기`를 누르면 닫힌다.
+ */
+function listingSheet(ui: Interface, sale: Listing, blocked: boolean): HTMLElement {
+  const market = ui.market, quantity = Math.max(1, Number(sale.quantity ?? 1));
+  const sheet = el('div', 'market-sheet');
+  sheet.setAttribute('role', 'dialog'); sheet.setAttribute('aria-modal', 'true');
+  sheet.setAttribute('aria-label', `${itemDisplayName(sale.item)} 매물 상세`);
+  const panel = el('div', 'market-sheet-panel');
+  const head = el('header', 'market-sheet-head');
+  const pic = icon(sale.item, ui.world.save); pic.classList.add('market-sheet-icon'); appendPlusBadge(pic, sale.item);
+  const info = el('div', 'market-sheet-info');
+  const titleRow = el('div', 'market-item-title');
+  titleRow.append(renderItemName(el('b', `rarity-${sale.item.rarity}`), sale.item));
+  const owner = itemJob(sale.item);
+  if (owner) titleRow.append(el('span', `job-badge job-${owner}`, jobNames[owner]));
+  info.append(titleRow, el('small', 'market-sheet-sub', `${rarityNames[sale.item.rarity]} · ${isSkillBook(sale.item) ? '스킬북' : isEquipment(sale.item) ? isBow(sale.item) ? '활' : slotNames[sale.item.slot] : '소모품'} · 판매자 ${sale.sellerName}`));
+  const stats = Object.entries(sale.item.stats).map(([key, amount]) => `${statNames[key as Stat]} +${amount}`).join(' · ');
+  info.append(el('small', 'market-options', stats || '사용 시 습득 또는 스킬 +1레벨'));
+  const extras = isEquipment(sale.item) ? extraOptionLines(sale.item) : [];
+  if (extras.length) info.append(el('small', 'market-options item-extra', extras.join(' · ')));
+  const priceLine = el('p', 'market-sheet-price');
+  if (quantity > 1) priceLine.append(el('small', 'market-unit-label', '개당 '));
+  priceLine.append(goldNode(sale.price));
+  if (quantity > 1) priceLine.append(el('small', 'market-bundle-count', ` · 총 ${quantity}개 · 합계 `), goldNode(sale.price * quantity));
+  info.append(priceLine);
+  const close = button('닫기', () => { market.selected = undefined; market.onChange(true); });
+  close.className = 'market-sheet-close';
+  head.append(pic, info, close);
+  const body = el('div', 'market-sheet-body');
+  body.append(listingDetail(ui, sale, blocked));
+  panel.append(head, body); sheet.append(panel);
+  sheet.onclick = event => { if (event?.target === sheet) { market.selected = undefined; market.onChange(true); } };
+  return sheet;
 }
 /**
  * 판매 등록 화면(작업 249 개편).

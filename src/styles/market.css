@@ -16,21 +16,70 @@
 .market-view-button img { width: 20px; height: 20px; object-fit: contain; image-rendering: auto; }
 .market-view-button.is-on { border-color: #e2b66d !important; background: #4a3526 !important; box-shadow: inset 0 0 6px #d9a95a55; }
 .market-view-button.is-on img { filter: drop-shadow(0 0 3px #e8c178aa); }
-/* 간편 보기 한 줄 — 아이콘·이름·가격·구매 버튼만. */
-.market-row.market-row-compact { grid-template-columns: 36px minmax(0, 1fr) auto auto; gap: 6px; padding: 5px 6px; margin: 4px 0; align-items: center; }
-.market-row-compact .market-icon{width:34px;height:34px;flex:0 0 34px;border-width:1px}
-.market-row-compact .market-icon.rarity-common { border-color: #9ca3af; }
-.market-row-compact .market-icon.rarity-magic { border-color: #60a5fa; }
-.market-row-compact .market-icon.rarity-rare { border-color: #facc15; }
-.market-row-compact .market-icon.rarity-epic { border-color: #c084fc; }
-.market-row-compact .market-icon.rarity-unique { border-color: #fb923c; }
-.market-row-compact .market-icon.rarity-legendary { border-color: #f87171; }
-.market-compact-name { display: flex; min-width: 0; flex-direction: column; gap: 1px; }
-.market-compact-name b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
-.market-compact-meta { color: #a49384; font-size: 8.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.market-compact-price { display: flex; align-items: center; gap: 2px; color: #e6bb6c; font-size: 10.5px; font-weight: 700; white-space: nowrap; }
-.market-row-compact .market-buy { padding: 5px 8px !important; font-size: 10px !important; white-space: nowrap; }
-.market-row-compact .market-detail { grid-column: 1 / -1; }
+/* ── 작업 257: 판매 중 서브 필터 탭(`전체`·`장비`·`스킬북`) ──────────────────────────────
+   사용자 지시: 목록 상단에서 종류별로 걸러 본다. 피드백(`#9078`·`#9155`)으로 **`간편보기`/`자세히보기` 아이콘과
+   같은 가로 줄**에 두되, 탭은 **왼쪽 정렬·제 크기**(`flex: 0 0 auto`)로 오밑도밑하게 두고 아이콘은 오른쪽 끝에 둔다.
+   탭 모양은 인덱스 탭과 같은 톤(어두운 바탕·금빛 선택)이다. */
+.market-list-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin: 2px 0 6px; }
+.market-list-toolbar .market-kind-tabs { display: flex; flex: 0 1 auto; min-width: 0; gap: 3px; margin: 0; overflow-x: auto; scrollbar-width: none; }
+.market-list-toolbar .market-kind-tabs::-webkit-scrollbar { display: none; }
+.market-kind-tabs { display: flex; gap: 3px; margin: 2px 0 6px; }
+.market-kind-tab { display: inline-flex; flex: 0 0 auto; min-width: 0; align-items: center; justify-content: center; gap: 3px; padding: 5px 8px !important; border: 1px solid #67503f !important; border-radius: 5px !important; background: #21191b !important; color: #a99581; font-size: 9.5px !important; white-space: nowrap; }
+.market-kind-tab .market-kind-label { overflow: hidden; text-overflow: ellipsis; }
+.market-kind-tab .market-kind-count { flex: none; padding: 0 3px; border-radius: 7px; background: #17121699; color: #c9b193; font-size: 8px; line-height: 1.45; }
+.market-kind-tab.active, .market-kind-tab[aria-selected="true"] { border-color: #b18c59 !important; background: #302326 !important; color: #f2d5a9; }
+.market-kind-tab.active .market-kind-count, .market-kind-tab[aria-selected="true"] .market-kind-count { background: #b18c5933; color: #f2d5a9; }
+.market-kind-tab:focus-visible { outline: 2px solid #e2bd78; outline-offset: -3px; }
+.market-list-toolbar .market-view-toggle { flex: none; gap: 4px; margin: 0; }
+.market-list-toolbar .market-view-button { width: 30px; height: 28px; }
+.market-list-toolbar .market-view-button img { width: 18px; height: 18px; }
+
+/* ── 작업 257: 간편 보기 = 한 줄 4~5열 정사각형 아이콘 카드 그리드 ──────────────────────
+   사용자 지시 "한 줄에 4~5개 표시돼도 되고 이미지가 크게 한 화면에 여러 개 볼 수 있게".
+   `auto-fill`+`minmax(76px, 1fr)`이라 폭 390px 폰은 4열, 500px 모달(데스크톱)은 5열이 된다. */
+.market-compact-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); gap: 6px; margin: 6px 0; }
+@media (max-width: 359px) { .market-compact-grid { gap: 4px; } }
+/* `.market-modal button`(padding 8px)보다 특이도가 높아야 카드가 칸에 맞게 유지된다. */
+.market-modal .market-card { position: relative; display: flex; flex-direction: column; min-width: 0; padding: 0; overflow: hidden; border: 1px solid #60534e; border-radius: 6px; background: radial-gradient(circle at 50% 26%, #3a3130, #221e22); color: inherit; text-align: center; }
+.market-card.rarity-common { border-color: #9ca3af; }.market-card.rarity-magic { border-color: #60a5fa; }.market-card.rarity-rare { border-color: #facc15; }
+.market-card.rarity-epic { border-color: #c084fc; }.market-card.rarity-unique { border-color: #fb923c; }.market-card.rarity-legendary { border-color: #f87171; }
+.market-card.is-mine { box-shadow: inset 0 0 0 1px #7fa9d688; }
+.market-card-art { position: relative; display: block; aspect-ratio: 1; }
+/* 아이콘은 칸을 꽉 채우게 크게 — 장비 그림은 스프라이트 한 프레임이라 요소 크기에 맞춰 커진다. */
+/* (기본 `.market-icon`의 `position: relative` 계약은 그대로 두고 카드 안에서만 절대 배치한다) */
+.market-card .market-icon{position: absolute; inset: 6px; width: auto; height: auto; flex: none; border: 0; border-radius: 0;}
+/* 카드가 4~5열 큰 정사각형이므로 스킬북 그림과 그 위 동그라미 스킬 아이콘도 그 비율에 맞춰 키운다(피드백 `#9105`). */
+.market-card .market-icon.skill-book-art { inset: 3px; width: auto; height: auto; flex: none; --book-badge-size: clamp(24px, 6.6vw, 32px); }
+/* `+N`(작업 257) — 사용자 지적 "간편보기일 때 +1 표시가 이미지를 다 가려".
+   폰트·패딩을 줄여 왼쪽 아래 모서리에만 얹는다(아이콘 중앙을 절대 가리지 않는다). */
+.market-card .item-plus-badge { position: absolute; left: 2px; bottom: 2px; z-index: 2; margin: 0; padding: 0 4px; border-radius: 3px; background: #120f14dd; color: #43f6c5; font-size: 11.5px; line-height: 1.2; font-weight: 800; letter-spacing: .01em; text-shadow: 0 0 4px #43f6c5aa; pointer-events: none; white-space: nowrap; }
+.market-card .job-badge { position: absolute; top: 2px; left: 2px; z-index: 2; padding: 1px 4px; min-height: 16px; border-radius: 3px; font-size: 10.5px; line-height: 13px; pointer-events: none; }
+.market-card .upgrade-arrow { top: 2px; right: 2px; width: 16px; height: 16px; }
+.market-card-count { position: absolute; right: 2px; bottom: 2px; z-index: 2; padding: 0 3px; border-radius: 3px; background: #171216e6; color: #f2deb9; font-size: 10px; line-height: 1.3; pointer-events: none; }
+/* 스킬북 카드는 오른쪽 아래에 동그라미 스킬 아이콘이 있어 `×N`이 겹친다 — 스킬북만 오른쪽 위로 올린다
+   (스킬북에는 추천 화살표가 붙지 않으므로 그 자리가 비어 있다). */
+.market-card-art:has(.skill-book-art) .market-card-count { top: 2px; right: 2px; bottom: auto; }
+.market-card-price { display: flex; align-items: center; justify-content: center; gap: 2px; min-width: 0; padding: 3px 2px 4px; border-top: 1px solid #4a3d38; background: #1b151a; color: #e6bb6c; font-size: 10px; font-weight: 700; line-height: 1.2; white-space: nowrap; }
+.market-card-price .currency-icon { width: 11px; height: 11px; }
+.market-card-mine { flex: none; color: #9ecbff; font-size: 7.5px; font-weight: 700; }
+.market-card:disabled { opacity: .5; }
+
+/* ── 작업 257: 카드를 눌렀을 때 뜨는 상세 팝업(바텀시트) ─────────────────────────────────
+   `.modal-backdrop`(z-index 5) 위에 고정으로 얹고, 능력치·판매자·가격 요약 + `listingDetail`
+   (장비 비교·전체/선택 수량 구매·등록 취소)을 한 화면에 보여 준다. */
+.market-sheet { position: fixed; z-index: 60; inset: 0; display: flex; align-items: flex-end; justify-content: center; padding: 10px; background: #07050bd0; }
+.market-sheet-panel { display: flex; flex-direction: column; gap: 8px; width: min(100%, 500px); max-height: min(86dvh, 760px); overflow-y: auto; padding: 12px; border: 2px solid #9a7655; border-radius: 10px 10px 6px 6px; background: linear-gradient(#2b2224, #181318); box-shadow: 0 -10px 40px #000; scrollbar-color: #735548 #171219; }
+.market-sheet-head { display: flex; align-items: flex-start; gap: 8px; margin: 0; padding: 0 0 8px; border-bottom: 1px solid #73574b; }
+.market-sheet-head .market-icon { position: relative; width: 56px; height: 56px; flex: 0 0 56px; }
+.market-sheet-head .market-icon.skill-book-art { width: 56px; height: 56px; flex-basis: 56px; --book-badge-size: 26px; }
+.market-sheet-info { display: flex; flex: 1 1 auto; min-width: 0; flex-direction: column; gap: 3px; }
+.market-sheet-info b { font-size: 13px; overflow-wrap: anywhere; }
+.market-sheet-sub, .market-sheet-info .market-options { color: #bba58d; font-size: 9.5px; line-height: 1.5; overflow-wrap: anywhere; }
+.market-sheet-price { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; margin: 2px 0 0; color: #e6bb6c; font-size: 11px; font-weight: 700; }
+.market-sheet-price .currency-amount { font-size: 11px; font-weight: 700; }
+.market-sheet-close { flex: none; align-self: flex-start; padding: 4px 8px !important; font-size: 10px !important; }
+.market-sheet-body { display: flex; flex-direction: column; gap: 8px; }
+.market-sheet-body .market-detail { grid-column: auto; padding: 0; background: none; }
 .market-modal button { border: 1px solid #80613e; background: linear-gradient(#49352b, #2b2021); color: #ecd6ad; padding: 8px; font-size: 11px; border-radius: 4px; }
 .market-tabs button { position: relative; padding: 9px 0; white-space: nowrap; font-size: 9.5px; }
 .market-tab-label { display: block; }
@@ -179,7 +228,6 @@
 /* 묶음 매물의 개당/총 수량 표기(목록·간편 보기·최근 거래) */
 .market-unit-label { color: #a49384; font-size: 9px; }
 .market-bundle-count { color: #e2b66d; font-size: 9px; }
-.market-compact-qty { color: #e2b66d; font-size: 8.5px; }
 /* 상세의 전체/개당 구매 상자 */
 .market-buy-quantity { display: flex; flex-direction: column; gap: 6px; width: 100%; }
 .market-buy-quantity .market-field { max-width: 170px; }
