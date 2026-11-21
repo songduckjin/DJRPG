@@ -8,6 +8,7 @@ const { freshSave } = await import('../src/game/store.ts');
 
 const node = () => ({
   handlers: {},
+  dataset: {},
   style: { setProperty() {} },
   classList: { toggle() {}, add() {}, remove() {} },
   textContent: '', hidden: false,
