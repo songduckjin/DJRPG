@@ -72,6 +72,24 @@ export type ArrowVariant = 'normal' | 'ice' | 'pierce' | 'snipe' | 'volley' | 'a
 export type Action = 'attack' | SkillId;
 /** 적 공격 모션 길이(작업 245) — 이 시간 동안 적이 플레이어 쪽으로 내딛고, 끝나면 제자리로 돌아온다. */
 export const ENEMY_STRIKE_SECONDS = .42;
+/** 전사 평타의 사거리(월드 단위) — 전사는 이 거리 안의 적을 벤다. */
+export const WARRIOR_ATTACK_RANGE = 90;
+/** 몬스터의 공격 사거리(작업 254) — **전사 평타와 같은 90**으로 통일했다.
+ *
+ *  종전에는 적이 히어로 몸에 닿아야(35) 때렸다. 그래서 전사는 90에서 일방적으로 벨 수 있었고
+ *  적은 몸이 닿아야 반격했다. 이제 적도 **90 안이면 때린다** — 히어로가 벨 수 있는 자리에서
+ *  곧바로 반격을 받는다(맞사거리가 양쪽 모두 90). 던전도 같은 상수를 쓴다
+ *  (`ui/dungeonBattle.ts`의 0.9초 피격). */
+export const ENEMY_ATTACK_RANGE = WARRIOR_ATTACK_RANGE;
+/** 몬스터가 서는(걷기를 멈추는) 거리 — 공격 사거리(90)보다 **안쪽인 60**이다(작업 254).
+ *
+ *  서는 자리를 사거리와 똑같이 90으로 두면, 히어로의 평타가 적을 16유닛 밀어내는 넉백 때문에
+ *  적이 매 타격마다 사거리 밖으로 튕겨 나가고 히어로가 다시 걸어 들어가야 한다 — 때리고 걷고를
+ *  반복하는 딸꾹질이 된다. 60은 ① 그 16유닛을 밀려도 76이라 사거리(90) 안에 남고 ② 서기는
+ *  화면에서 약 57px(적·히어로 몹 높이 66px 안팎)라 몸이 겹치지 않으면서 공격 모션의 16px
+ *  내딛기(보스 26px)가 닿는 자리다. 예전 정지 거리는 27이었다 — 적이 히어로 몸 위에 올라서
+ *  여러 마리가 한 점에 겹쳤다. */
+export const ENEMY_STOP_RANGE = 60;
 /** 치명타(작업 245) — 장비 추가옵션 `치명타 확률`·패시브를 합산한 스탯 `crit`이 곧 발동 확률(%)이다.
  *  배수는 1.8배, 확률 상한은 80%(넘는 값은 80%로 자른다). */
 export const CRIT_CHANCE_CAP = 80;
@@ -339,7 +357,7 @@ export class World {
     if (kind !== 'attack' && (!this.save.learned.includes(kind) || !this.save.quickSlots.includes(kind))) { this.onMessage('습득하고 퀵슬롯에 장착한 스킬만 사용할 수 있습니다.'); return; }
     const p = this.player;
     const level = kind === 'attack' ? 1 : skillLevel(this.save, kind);
-    const range = kind === 'attack' ? 90 : skillRange(kind, level);
+    const range = kind === 'attack' ? WARRIOR_ATTACK_RANGE : skillRange(kind, level);
     const damageScale = skillDamageScale(level);
     const stats = totalStats(this.save);
     // [작업 216] 광폭 버프(블러드 레이지·호크아이·아케인 실드)의 공속은 +20%에서 시작해 스킬 레벨당 +1%,
@@ -372,7 +390,7 @@ export class World {
       this.effects.push({ x: p.x, y: p.y, kind: 'slash', age: 0, duration: .25, angle, swing: this.swing });
       this.swing *= -1;
       // 평타는 한 마리만: 사거리·부채꼴 안에서 가장 가까운 적 한 마리를 공격력 ×1.6으로 때린다(스킬은 종전대로 광역).
-      this.damage(90, attack * basicAttackPower, angle, 1.15, 12, 0, p, 1);
+      this.damage(WARRIOR_ATTACK_RANGE, attack * basicAttackPower, angle, 1.15, 12, 0, p, 1);
     } else if (kind === 'slash2') {
       // 이단참(작업 213): 발동 즉시 정방향 횡베기, 0.18초 뒤 되받아 베기가 각각 따로 들어간다.
       // `power`에는 두 타에 공통으로 곱할 기본 위력(공격력 × 스킬레벨 배율)을 실어 두고,
@@ -700,8 +718,8 @@ export class World {
       if (destination !== this.chaseTarget) { this.chaseTarget = destination; this.pursuing = false; }
       // Keep the production boundary fix while loot now flies to the hero.
       // 궁수·마법사는 사거리 밖에서만 다가가고, 사거리 안에서는 서서 쏜다(작업 157·159).
-      const stopRange = this.job === 'archer' ? archerStopRange : this.job === 'mage' ? mageStopRange : 90;
-      const attackRange = this.job === 'archer' ? archerAttackRange : this.job === 'mage' ? mageAttackRange : 90;
+      const stopRange = this.job === 'archer' ? archerStopRange : this.job === 'mage' ? mageStopRange : WARRIOR_ATTACK_RANGE;
+      const attackRange = this.job === 'archer' ? archerAttackRange : this.job === 'mage' ? mageAttackRange : WARRIOR_ATTACK_RANGE;
       const engageRange = this.job === 'archer' ? archerAttackRange + 24 : this.job === 'mage' ? mageAttackRange + 24 : 190;
       this.pursuing = distance >= stopRange;
       this.activeMove = this.pursuing && distance > 0 ? { x: dx / distance, y: dy / distance } : { x: 0, y: 0 };
@@ -770,7 +788,9 @@ export class World {
     for (const enemy of this.enemies) {
       const dx = p.x - enemy.x, dy = p.y - enemy.y, d = Math.hypot(dx, dy);
       enemy.attack = Math.max(0, (enemy.attack ?? 0) - dt);
-      enemy.moving = d > 27;
+      // 적은 공격 사거리(90) 안으로 들어오면 때리고, 서는 자리는 60까지다(작업 254) —
+      // 종전에는 히어로 몸(27)까지 파고들어 여러 마리가 한 점에 겹쳐 섰다.
+      enemy.moving = d > ENEMY_STOP_RANGE;
       if (enemy.moving && d > 0) { const step = enemyMoveSpeed(this.save.floor, enemy.boss) * (enemy.slow > 0 ? .55 : 1) * dt; enemy.x += dx / d * step; enemy.y += dy / d * step; enemy.step += dt * Math.PI * (enemy.boss ? 3.25 : 4.25); }
       enemy.x += enemy.knockX * dt; enemy.y += enemy.knockY * dt;
       // 적은 아레나가 아니라 **필드 경계**로 자른다(작업 230) — 아레나로 자르면 멀리 스폰된 적이 첫
@@ -778,7 +798,7 @@ export class World {
       const bounded = clampFieldPoint(enemy.x, enemy.y); enemy.x = bounded.x; enemy.y = bounded.y;
       enemy.knockX *= Math.exp(-dt * 12); enemy.knockY *= Math.exp(-dt * 12);
       enemy.slow = Math.max(0, enemy.slow - dt);
-      if (d < 35 && p.hit <= 0) {
+      if (d <= ENEMY_ATTACK_RANGE && p.hit <= 0) {
         // 적의 공격 모션(작업 245): 때리는 적이 플레이어 쪽으로 내딛는다(`enemy.attack`).
         enemy.attack = ENEMY_STRIKE_SECONDS;
         // 추가옵션 회피율(작업 238, 합산 상한 30%): 맞을 순간 한 번 굴려 성공하면 피해를 통째로 무시하고

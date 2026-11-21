@@ -1,6 +1,6 @@
 import { DUNGEON_MAX_FLOOR } from './dungeonLobby';
 import { random, seededRandom, useRandom, type Random } from '../game/rng';
-import {World, type Enemy, ENEMY_STRIKE_SECONDS, enemyHitDamage, enemyMoveSpeed} from '../game/world';
+import {World, type Enemy, ENEMY_STOP_RANGE, ENEMY_ATTACK_RANGE, ENEMY_STRIKE_SECONDS, enemyHitDamage, enemyMoveSpeed} from '../game/world';
 import {clampArenaPoint} from '../game/arena';
 import {jobOrDefault} from '../game/skills';
 import {totalStats, type Save} from '../game/store';
@@ -174,9 +174,11 @@ class DungeonWorld extends World {
     // while cooldowns, skills, hit timing and the 90s limit keep running on the real dt.
     const extra=(DUNGEON_ENEMY_SPEED_SCALE-1)*dt;
     for(const enemy of this.enemies){
+      // 적의 정지 거리는 필드와 같은 `ENEMY_STOP_RANGE`(60)다(작업 254) — 종전 27은 몸에 닿는 접촉 거리였다.
+      // 이 게이트를 27로 남기면 적은 새 정지 거리에서 서는데도 추가 걸음만 몸까지 파고들어 히어로와 겹친다.
       const dx=this.player.x-enemy.x,dy=this.player.y-enemy.y,d=Math.hypot(dx,dy);
-      if(!enemy.moving||d<=27||extra<=0)continue;
-      const step=Math.min(enemyMoveSpeed(this.save.floor,enemy.boss)*(enemy.slow>0?.55:1)*extra,d-27);
+      if(!enemy.moving||d<=ENEMY_STOP_RANGE||extra<=0)continue;
+      const step=Math.min(enemyMoveSpeed(this.save.floor,enemy.boss)*(enemy.slow>0?.55:1)*extra,d-ENEMY_STOP_RANGE);
       if(step<=0)continue;
       const bounded=clampArenaPoint(enemy.x+dx/d*step,enemy.y+dy/d*step);
       enemy.step+=extra*Math.PI*(enemy.boss?3.25:4.25);
@@ -275,7 +277,7 @@ export class DungeonBattle {
     const hit=this.world.player.hit;this.world.player.hit=Infinity;
     try{this.world.update(dt);}finally{this.world.player.hit=Math.max(0,hit-dt);}
     this.hitCooldown=Math.max(0,this.hitCooldown-dt);
-    if(this.hitCooldown===0){const enemy=this.world.enemies.find(e=>Math.hypot(e.x-this.world.player.x,e.y-this.world.player.y)<36);
+    if(this.hitCooldown===0){const enemy=this.world.enemies.find(e=>Math.hypot(e.x-this.world.player.x,e.y-this.world.player.y)<=ENEMY_ATTACK_RANGE);
       if(enemy){const max=totalStats(this.world.save).health;
         const taken=Math.min(enemyHitDamage(this.floor,enemy.boss,totalStats(this.world.save).defense)*(enemy===this.elite?2:1),max*(enemy===this.elite?.008:.005));
         this.world.player.hp=Math.max(0,this.world.player.hp-taken);this.world.player.hit=.25;this.hitCooldown=.9;

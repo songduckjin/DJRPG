@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import './ts-loader.mjs';
 const {DungeonBattle,dungeonDropChance,DUNGEON_DROP_CHANCE_BASE,DUNGEON_DROP_CHANCE_MAX,DUNGEON_DROP_CHANCE_STEP,DUNGEON_MOB_HP,DUNGEON_BOSS_HP_SCALE,DUNGEON_ELITE_HP_SCALE,dungeonMobHp,DUNGEON_ENEMY_SPEED_SCALE,DUNGEON_SPAWN_STEPS,DUNGEON_LOOT_FAN,DUNGEON_ABSORB_DELAY,dungeonSpawnPull,dungeonLootSpots,dungeonLootTimeline,dungeonAbsorbProgress,dungeonAbsorbPoint}=await import('../src/ui/dungeonBattle.ts');
-const {World,enemyMoveSpeed}=await import('../src/game/world.ts');
+const {World,enemyMoveSpeed,ENEMY_STOP_RANGE,ENEMY_ATTACK_RANGE}=await import('../src/game/world.ts');
 const bossLoot=await import('../src/game/bossLoot.ts');
 const goldPile=await import('../src/game/render/goldPile.ts');
 const {freshSave}=await import('../src/game/store.ts');
@@ -54,7 +54,12 @@ test('floor 1 is a beginner floor and the 10th boss needs a deep-farming kit ins
 test('enemies spawn away, visibly approach, and hero does not chase into the next spawn',()=>{
  const battle=new DungeonBattle(freshSave()),enemy=battle.world.enemies[0],p=battle.world.player;
  const start=Math.hypot(enemy.x-p.x,enemy.y-p.y);assert(start>150);
- run(battle,2);assert.deepEqual([p.x,p.y],[50,50]);assert(enemy.moving);assert(Math.hypot(enemy.x-p.x,enemy.y-p.y)<start);assert.equal(battle.finished,false);assert.equal(battle.world.slain,0);
+ run(battle,2);assert.deepEqual([p.x,p.y],[50,50]);assert(Math.hypot(enemy.x-p.x,enemy.y-p.y)<start);assert.equal(battle.finished,false);assert.equal(battle.world.slain,0);
+ // 걸어 들어온 적은 히어로 몸(예전 27)이 아니라 **정지 거리(60)**에 선다(작업 254) — 여러 마리가 한 점에 겹치지 않는다.
+ const arrived=Math.hypot(enemy.x-p.x,enemy.y-p.y);
+ assert(arrived<=ENEMY_STOP_RANGE+1e-6,`적이 정지 거리 밖에 서 있다: ${arrived.toFixed(1)}`);
+ assert(arrived>ENEMY_STOP_RANGE-14,`적이 정지 거리를 지나 몸까지 파고들었다: ${arrived.toFixed(1)}`);
+ assert.equal(enemy.moving,false,'정지 거리에 서면 걷지 않는다');
  for(const target of battle.world.enemies)battle.world.kill(target);battle.world.enemies=[];battle.advance(.05);
  assert.equal(battle.wave,2);assert(battle.world.enemies.every(e=>Math.hypot(e.x-p.x,e.y-p.y)>150));
 });
@@ -140,11 +145,13 @@ test('preview loot never enters the ground renderer or the account save',()=>{
 
 test('dungeon mobs close ground 1.5x the shared field pace',()=>{
  // Same enemy, same dt: only travel distance may differ, so attacks/skills are stubbed out.
- const travel=(world)=>{const p=world.player,enemy={x:p.x+50,y:p.y,hp:1e9,maxHp:1e9,boss:false,hit:0,step:0,moving:false,knockX:0,knockY:0,slow:0};
+ // 적은 정지 거리(60)보다 멀리서 시작해야 걷기를 재을 수 있고, 던전 아레나(120/180) 안에 있어야 한다(작업 254).
+ const travel=(world)=>{const p=world.player,enemy={x:p.x+70,y:p.y-40,hp:1e9,maxHp:1e9,boss:false,hit:0,step:0,moving:false,knockX:0,knockY:0,slow:0};
   world.enemies=[enemy];world.action=()=>{};world.spawnTimer=Infinity;
-  const before=Math.hypot(enemy.x-p.x,enemy.y-p.y);
+  const x0=enemy.x,y0=enemy.y;
   for(let i=0;i<6;i++)world.update(.05);
-  return before-Math.hypot(enemy.x-p.x,enemy.y-p.y);};
+  // 히어로도 걸어오므로 거리 감소가 아니라 **적이 실제로 옮긴 자리**로 잰다.
+  return Math.hypot(enemy.x-x0,enemy.y-y0);};
  assert.equal(DUNGEON_ENEMY_SPEED_SCALE,1.5);
  const fieldTravel=travel(new World(freshSave())),dungeonTravel=travel(new DungeonBattle(freshSave()).world);
  assert(Math.abs(fieldTravel-enemyMoveSpeed(1,false)*.3)<1e-9);
