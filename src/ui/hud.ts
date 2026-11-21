@@ -1,4 +1,5 @@
 import { isSkillBook, starterWeaponName } from '../game/items';
+import { EQUIPMENT_BAG_LIMIT, equipmentCount } from '../game/bagCapacity';
 import { hasSkillUpgrade } from '../game/skillProgress';
 import { applySkillArtwork } from './skillArtwork';
 import { SkillFeedback } from './skillFeedback';
@@ -85,4 +86,18 @@ export function tick(this: Interface): void {
 export function renderBagBadge(this: Interface): void {
     const count = this.world.save.bag.filter(item => !isSkillBook(item) && this.newItems.has(item.id)).length;
     const badge = this.get('.new-badge'); badge.textContent = `${count}`; badge.hidden = count === 0;
+    // 가방 가득 참 표시(작업 246, 사용자 요청 `#20938` "가방 꽉차면 가방 풀 표시 해주고").
+    // 40칸(장비 + 다른 직업 전용 스킬북)이 차면 하단 내 정보 버튼에 `FULL` 배지를 붙인다 —
+    // 이 상태에서는 새 장비를 줍지 못하므로, 가방을 열지 않아도 화면에서 바로 알 수 있어야 한다.
+    const used = equipmentCount(this.world.save.bag, this.world.save.job);
+    const full = used >= EQUIPMENT_BAG_LIMIT;
+    const root = this.root as HTMLElement | undefined;
+    const fullBadge = root?.querySelector<HTMLElement>('.bag-full-badge');
+    if (fullBadge) { fullBadge.hidden = !full; fullBadge.textContent = full ? 'FULL' : ''; }
+    const nav = root?.querySelector<HTMLElement>('.bottom-nav [data-modal="equipment"]');
+    if (nav) {
+      nav.classList.toggle('is-bag-full', full);
+      nav.setAttribute('aria-label', full ? `내 정보 · 가방 가득 참 (${used}/${EQUIPMENT_BAG_LIMIT})` : '내 정보');
+      nav.title = full ? `가방이 가득 찼습니다 (${used}/${EQUIPMENT_BAG_LIMIT}) · 분해·판매로 자리를 비워 주세요` : '내 정보';
+    }
   }

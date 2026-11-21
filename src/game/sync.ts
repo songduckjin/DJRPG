@@ -6,6 +6,12 @@ const sessionErrorCodes = ['SESSION_REPLACED', 'INVALID_TOKEN', 'UNAUTHORIZED'];
 const conflictErrorCodes = ['ITEM_CONFLICT', 'CHARACTER_CONFLICT'];
 /** 서버가 거래 트랜잭션에 들어가기 전에 거절한 코드 — `pendingMarket`을 남기지 않는다(작업 226). */
 const transactionSkippedCodes = ['DB_UNAVAILABLE', 'DB_NOT_CONFIGURED'];
+/**
+ * 서버가 **세이브 자체**를 거절한 코드(400). 같은 세이브를 다시 보내도 결과가 같으므로 재시도로는 풀리지 않고,
+ * 그대로 두면 `sync.flush()`가 계속 실패해 거래소·우편 수령이 영구히 잠긴다. 서버가 들고 있는 최신 세이브로
+ * 화면을 맞춰 교착에서 벗어난다(작업 246 — 가방 40칸 초과로 저장이 막혀 우편함을 못 받던 제보 `#20869`).
+ */
+const saveRejectedCodes = ['INVALID_SAVE', 'INVALID_ITEM', 'INVALID_GOLD'];
 const conflictReloadWindow = 10_000;
 const conflictReloadMessage = '데이터 동기화가 어긋났습니다. 새로고침해 주세요.';
 const errorCode = (error: unknown): string => error instanceof Error && 'code' in error ? String((error as Error & { code?: unknown }).code ?? '') : '';
@@ -24,6 +30,8 @@ export class SaveSync {
   revision: number;
   active?: Promise<boolean>;
   private pendingSave?: { save: Save; revision: number; requestId: string };
+  /** 마지막 저장 실패 이유 — 저장 때문에 거래가 막힐 때 진짜 원인을 함께 보여 주기 위해서다(작업 246). */
+  private lastSaveError = '';
   /** 세이브에 아직 서버로 못 보낸 변경이 있는지. 변경이 없으면 flush가 네트워크를 쓰지 않는다(작업 209). */
   private dirty = false;
   /** 변경 일련번호 — 저장을 시작한 시점과 비교해 "저장 중에 또 바뀌었는지"를 안다. */
@@ -124,12 +132,13 @@ export class SaveSync {
           const result = await accountRequest<SyncResult>('save', { ...request, characterSlot: this.session.characterSlot }, this.session.token);
           if (!result.ok || !Number.isSafeInteger(result.revision)) throw new Error('서버가 저장 완료를 확인하지 않았습니다.');
           this.revision = result.revision; this.pendingSave = undefined;
+          this.lastSaveError = '';
           this.lastSaveAt = Date.now();
           // 저장을 보낸 뒤에 또 바뀌었으면 dirty를 남겨 다음 차례에 다시 보낸다.
           if (this.changeSeq === seq) this.dirty = false;
           this.pending ||= recovering || this.dirty;
           this.onStatus('저장됨'); this.onSaved();
-        } catch (error) { this.pending = true; this.handleError(error); return false; }
+        } catch (error) { this.pending = true; this.lastSaveError = error instanceof Error && error.message ? error.message : String(error); this.handleError(error); return false; }
       }
       return true;
     })().finally(() => { this.active = undefined; });
@@ -151,6 +160,13 @@ export class SaveSync {
     } else if (conflictErrorCodes.includes(code)) {
       // 방금 최신 세이브를 다시 불러왔는데 또 충돌했다면 world가 옛 상태를 들고 있다는 뜻이므로,
       // 같은 재로드를 반복하지 않고 저장을 멈춘 뒤 새로고침만 안내한다(토스트 무한 반복 차단).
+      if (this.conflictReloadAt && Date.now() - this.conflictReloadAt < conflictReloadWindow) { this.stopConflictLoop(); return; }
+      void this.reloadLatest();
+      return;
+    } else if (errorStatus(error) === 400 && saveRejectedCodes.includes(code)) {
+      // 서버가 세이브 자체를 거절했다(가방 40칸 초과 등) — 같은 세이브를 다시 보내도 계속 400이므로, 서버가
+      // 들고 있는 최신 세이브로 화면을 맞춰 교착에서 벗어난다. 한 번 재동기화한 뒤 또 거절되면 반복하지 않고
+      // 새로고침만 안내한다(작업 246).
       if (this.conflictReloadAt && Date.now() - this.conflictReloadAt < conflictReloadWindow) { this.stopConflictLoop(); return; }
       void this.reloadLatest();
       return;
@@ -205,11 +221,16 @@ export class SaveSync {
       this.revision = latest.revision;
       if (Number.isInteger(latest.characterSlot)) this.session.characterSlot = latest.characterSlot;
       this.pendingMarket = undefined; this.pendingWarehouse = undefined;
+      this.lastSaveError = '';
       this.onSaved(); this.onStatus('저장됨');
       this.onMessage('서버의 최신 진행 상황과 달라 자동으로 다시 불러왔습니다.');
       if (!this.conflicted && !this.pendingMarket && !this.pendingWarehouse) this.onPause(false);
     } catch (error) { this.handleError(error); }
     finally { this.reloadingConflict = false; }
+  }
+  /** 저장이 막혀 거래를 시작하지 못할 때의 안내 — 서버가 알려 준 실제 이유를 함께 보여 준다(작업 246). */
+  private saveBlockedMessage(base: string): string {
+    return this.lastSaveError ? `${base} (${this.lastSaveError})` : base;
   }
   async mutate(action: string, data: Record<string, unknown>, requestId: string): Promise<SyncResult> {
     if (this.locked || this.conflicted || this.preparingMarket || this.pendingWarehouse) throw new Error('다른 요청을 처리 중입니다.');
@@ -226,7 +247,7 @@ export class SaveSync {
         if (this.active) await this.active;
         if (this.conflicted) throw new Error('최신 진행 상황을 다시 불러와야 거래할 수 있습니다.');
         if (this.pendingSave) {
-          if (!await this.flush()) throw new Error('이전 저장 결과를 확인해야 거래할 수 있습니다.');
+          if (!await this.flush()) throw new Error(this.saveBlockedMessage('이전 저장 결과를 확인해야 거래할 수 있습니다.'));
         }
         if (this.conflicted) throw new Error('최신 진행 상황을 다시 불러와야 거래할 수 있습니다.');
         this.locked = true;
@@ -306,8 +327,9 @@ export class SaveSync {
     if (!this.pendingWarehouse) {
       // 서버는 이 `revision`의 세이브 위에 이동을 적용하므로, 아직 못 보낸 변경(dirty)이나 진행 중인 저장이
       // 있을 때만 먼저 저장한다. 변경이 없으면 저장 왕복을 건너뛰어 이동 한 번 = 요청 한 번으로 끝난다(작업 250).
+      // 저장이 거절되면(작업 246) 그 사유를 함께 보여 준다.
       if (this.dirty || this.pendingSave || this.pending || this.active) {
-        if (!await this.flush()) throw new Error('저장 결과를 확인한 뒤 다시 시도하세요.');
+        if (!await this.flush()) throw new Error(this.saveBlockedMessage('저장 결과를 확인한 뒤 다시 시도하세요.'));
       }
       this.pendingWarehouse = { action, itemIds: ids, requestId: crypto.randomUUID(), revision: this.revision };
     }

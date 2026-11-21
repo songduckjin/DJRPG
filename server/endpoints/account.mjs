@@ -296,8 +296,17 @@ async function accountHandler(request, { env = runtimeEnv(), createDbClient, leg
           const inbox = (await tx.execute({ sql: 'SELECT COUNT(*) AS n FROM djrpg_market_inbox WHERE account_id=? AND claimed_at IS NULL', args: [id] })).rows[0];
           if (Number(open.n) || Number(inbox.n)) fail(409, 'MARKET_PENDING', '등록 매물과 미수령 거래가 있어 초기화할 수 없습니다. 먼저 거래소를 정리하세요.');
         }
-        await reconcileItems(tx, id, latest.save, save, { slot: latest.slot, elapsedSeconds: elapsedSince(latest.character_updated_at) });
-        const saved = await writeSave(tx, latest, save, [], action !== 'reset');
+        // 캐릭터 전환 직후 저장(작업 252 핫픽스, 사용자 제보: "방치 보상 팝업엔 템이 있었는데 가방은 0개"):
+        // `selectCharacter`가 그 캐릭터의 방치 시간을 `idle_claim_${slot}`으로 옮기고 `updated_at`을 **전환
+        // 시각**으로 덮는다. 그래서 이 저장의 `elapsedSince(updated_at)`은 0초가 되어, 클라이언트가 방치
+        // 보상(4~12시간)을 `save.bag`에 넣어 보낸 세이브가 서버 상한(골드·경험치·처치·아이템)에서 잘리거나
+        // `TOO_MANY_ITEMS`로 거절됐다. 남아 있는 방치 초를 상한에 더해 정당한 보상이 그대로 저장되게 한다.
+        const idleClaim = action === 'save'
+          ? (await tx.execute({ sql: 'SELECT quantity FROM djrpg_shop_entitlements WHERE account_id=? AND entitlement_key=?', args: [id, `idle_claim_${latest.slot}`] })).rows[0]
+          : undefined;
+        const idleSeconds = Math.max(0, Math.min(43_200, Math.floor(Number(idleClaim?.quantity ?? 0) || 0)));
+        await reconcileItems(tx, id, latest.save, save, { slot: latest.slot, elapsedSeconds: elapsedSince(latest.character_updated_at) + idleSeconds });
+        const saved = await writeSave(tx, latest, save, [], action !== 'reset', { idleSeconds });
         await tx.execute({ sql: 'DELETE FROM djrpg_shop_entitlements WHERE account_id=? AND entitlement_key=?', args: [id, `idle_claim_${latest.slot}`] });
         if (action === 'save' && typeof body.requestId === 'string' && body.requestId.length <= 80) await tx.execute({ sql: 'INSERT INTO djrpg_save_requests VALUES (?,?,?) ON CONFLICT(account_id) DO UPDATE SET request_id=excluded.request_id, revision=excluded.revision', args: [id, body.requestId, saved.revision] });
         if (saved.clamped?.length) context.clamped = saved.clamped.length;

@@ -284,3 +284,35 @@ test('창고 이동은 6초 타임아웃으로 한 번만 재확인하고 결과
     assert(messages.length>=1,'실패는 화면에 바로 알린다');
   }finally{sync.resetForCharacterSwitch();}
 });
+
+test('저장이 서버 검사(가방 40칸 초과)에서 거절되면 최신 서버 세이브로 다시 맞춰 저장 교착을 푼다', async () => {
+  const sync = setup(), requests = [];
+  globalThis.fetch = async (url, options) => {
+    const payload = JSON.parse(options.body);
+    requests.push({ url, payload });
+    if (url === '/api/account' && payload.action === 'save') {
+      return response({ code: 'INVALID_SAVE', error: '가방이 40칸까지입니다. 장비·다른 직업 스킬북을 분해하거나 거래소에 올려 자리를 비워 주세요.' }, 400);
+    }
+    if (url === '/api/account') return response({ ok: true, accountId: 'test', token: 'test-token', revision: 7, save: { ...sync.save, gold: 5 }, characterSlot: 1 });
+    return response({ ok: true, save: payload.progress, revision: 8, message: '수령 완료' });
+  };
+  sync.save.gold = 99; sync.markDirty();
+  assert.equal(await sync.flush(), false, '거절된 저장은 실패로 돌아온다');
+  await new Promise(resolve => setTimeout(resolve, 0));
+  assert.equal(sync.pendingSave, undefined, '거절된 스냅샷을 계속 들고 있지 않는다');
+  assert.equal(sync.conflicted, false, '새로고침을 요구하는 잠금으로 남기지 않는다');
+  assert.equal(sync.revision, 7, '서버의 최신 revision을 받아들인다');
+  assert.equal(sync.save.gold, 5);
+  // 거래·우편 수령은 다시 진행된다(작업 246 — 우편함이 잠기던 경로).
+  const result = await sync.mutate('journey-claim', { kind: 'mail', id: 'all' }, 'after-invalid-save');
+  assert.equal(result.message, '수령 완료');
+  assert.deepEqual(requests.map(request => `${request.url}:${request.payload.action ?? ''}`), ['/api/account:save', '/api/account:load', '/api/market:journey-claim']);
+});
+
+test('저장이 막혀 거래를 시작하지 못하면 서버가 알려 준 실제 이유를 함께 보여 준다', async () => {
+  const sync = setup();
+  globalThis.fetch = async () => { throw new Error('offline'); };
+  assert.equal(await sync.flush(), false);
+  await assert.rejects(sync.mutate('journey-claim', { kind: 'mail', id: 'all' }, 'blocked-by-save'), /이전 저장 결과를 확인해야 거래할 수 있습니다\. \(서버에 연결할 수 없습니다/);
+
+});

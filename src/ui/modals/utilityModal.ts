@@ -5,8 +5,8 @@ import type { JourneyTask } from '../../game/journey';
 import { preferences, savePreferences } from '../../game/preferences';
 import { goldNode } from '../currency';
 import { POUCH_ICON_URL } from '../pouchArt';
-import { loadShop } from './shopModal';
 import { EQUIPMENT_BAG_LIMIT, equipmentCount } from '../../game/bagCapacity';
+import { loadShop } from './shopModal';
 
 function element<K extends keyof HTMLElementTagNameMap>(tag:K,className='',text=''){const node=document.createElement(tag);node.className=className;node.textContent=text;return node;}
 function button(text:string,run:()=>void,disabled=false){const node=element('button','utility-button',text);node.type='button';node.disabled=disabled;node.onclick=run;return node;}
@@ -78,6 +78,10 @@ export function renderUtility(ui:Interface,dialog:HTMLElement,kind:'mail'|'rewar
   const data=journey.data;
   if(!data){section.append(element('p','utility-note',journey.loading?'목록을 불러오고 있습니다.':'불러오지 못했습니다. 창을 닫았다 다시 열어주세요.'));dialog.append(section);return;}
   if(kind==='mail'){
+    // 가방 가득 참 안내(작업 246, 사용자 요청 `#20938` "우편도 받을따 가방이 꽉차짔다거 알림주기").
+    // 보상 수령 자체는 막지 않는다(받을 것을 잃지 않게) — 대신 가방을 비우는 방법을 화면에 남긴다.
+    const bagUsed=equipmentCount(ui.world.save.bag,ui.world.save.job);
+    if(bagUsed>=EQUIPMENT_BAG_LIMIT)section.append(element('p','mail-bag-full',`가방이 가득 찼습니다 (${bagUsed}/${EQUIPMENT_BAG_LIMIT}칸). 우편 보상은 그대로 받을 수 있지만, 새 장비를 주우려면 분해·판매로 자리를 비워 주세요.`));
     const available=data.mail.filter(mail=>!mail.claimedAt&&!mail.expired),unread=data.mail.filter(mail=>!mail.read).length;
     const toolbar=element('div','utility-toolbar');toolbar.append(element('span','mail-summary',`새 우편 ${unread} · 미수령 ${available.length}`),claimButton('모두 받기',()=>{void journey.act('journey-claim',{kind:'mail',id:'all'}).then(()=>loadShop(ui));},!available.length||journey.busy||ui.session.guest),button('수령 완료 삭제',()=>{void journey.act('journey-delete');},!data.mail.some(mail=>mail.claimedAt)||journey.busy||ui.session.guest));section.append(toolbar);
     if(!data.mail.length)section.append(element('p','utility-note','받은 우편이 없습니다.'));
