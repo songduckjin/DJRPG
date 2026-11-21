@@ -7,7 +7,7 @@ const {pauseMainForBoss}=await import('../src/ui/worldBossField.ts');
 const {renderBossRanking,renderBossRewards}=await import('../src/ui/modals/worldBossModal.ts');
 const {topTen,myRewardTier}=await import('../src/ui/worldBossPresentation.ts');
 for(const gender of ['male','female'])test(`${gender}: dedicated battle uses real attacks and equipped skill effects on a deep copy only`,()=>{
- const save=freshSave(gender);save.learned=['spin','warcry','hell'];save.quickSlots=['spin','warcry','hell'];const before=JSON.stringify(save);
+ const save=freshSave(gender);save.equipment={weapon:{id:'wb-weapon-'+gender,name:'낡은 두손검',slot:'weapon',rarity:'common',stats:{attack:4}}};save.learned=['spin','warcry','hell'];save.quickSlots=['spin','warcry','hell'];const before=JSON.stringify(save);
  const battle=new WorldBossRehearsal(save);battle.advance(.05);
  assert.equal(battle.boss.x,0);assert.equal(battle.boss.y,0);
  assert(battle.damage>0);assert(battle.world.attackPose>0);assert.deepEqual(battle.world.save.quickSlots,save.quickSlots);
@@ -58,7 +58,8 @@ test('detached blade fragment is removed while the connected body and sword stay
 });
 
 test('short standing roar pauses combat, starts and ends in the regular idle pose',async()=>{
- const {WorldBossIntro}=await import('../src/ui/worldBossIntro.ts');const intro=new WorldBossIntro(),battle=new WorldBossRehearsal(freshSave('male'));
+ const {WorldBossIntro}=await import('../src/ui/worldBossIntro.ts');const startSave=freshSave('male');startSave.equipment={weapon:{id:'wb-intro-weapon',name:'낡은 두손검',slot:'weapon',rarity:'common',stats:{attack:4}}};
+ const intro=new WorldBossIntro(),battle=new WorldBossRehearsal(startSave);
  assert.equal(intro.roarDuration,2.7);assert.equal(intro.duration,3.8);assert.equal(intro.frame,0);let sawRoar=false;
  for(let i=0;i<75;i++){const dt=intro.advance(.05);if(dt>0)battle.advance(dt);assert(intro.frame<8||(intro.frame>=43&&intro.frame<=49));if(intro.frame>=43)sawRoar=true;}
  assert(sawRoar);assert(intro.active);assert.equal(battle.elapsed,0);assert.equal(battle.damage,0);assert(intro.frame<8);assert(intro.startCue);
@@ -108,7 +109,8 @@ test('result keeps retry and exit at bottom and exposes rank animation only as a
 });
 
 test('combat stays completely idle while the start text appears and fades, then starts as it vanishes',async()=>{
- const {WorldBossIntro}=await import('../src/ui/worldBossIntro.ts');const intro=new WorldBossIntro(),battle=new WorldBossRehearsal(freshSave('male'));
+ const {WorldBossIntro}=await import('../src/ui/worldBossIntro.ts');const startSave=freshSave('male');startSave.equipment={weapon:{id:'wb-intro-weapon',name:'낡은 두손검',slot:'weapon',rarity:'common',stats:{attack:4}}};
+ const intro=new WorldBossIntro(),battle=new WorldBossRehearsal(startSave);
  while(intro.elapsed<3.75-1e-9){const combat=intro.advance(.05);if(combat>0)battle.advance(combat);}
  assert(intro.startCue);assert(intro.cueOpacity>0&&intro.cueOpacity<.2);assert.equal(battle.elapsed,0);assert.equal(battle.damage,0);assert.equal(battle.world.effects.length,0);
  const remaining=intro.duration-intro.elapsed;const combat=intro.advance(remaining);if(combat>1e-9)battle.advance(combat);

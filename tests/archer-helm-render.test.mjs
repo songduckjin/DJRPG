@@ -12,7 +12,7 @@ const {
 const { GameView, renderAssetPaths } = await import('../src/game/render.ts');
 const { drawHero } = await import('../src/game/render/entities.ts');
 const { freshSave } = await import('../src/game/store.ts');
-const { baseItems } = await import('../src/game/items.ts');
+const { baseItems, bowBases } = await import('../src/game/items.ts');
 const { equipmentPortraitPlan } = await import('../src/ui/equipmentPortrait.ts');
 
 const helmetItem = name => ({ id: name, slot: 'helmet', name, rarity: 'rare', stats: { defense: 8 } });
@@ -244,7 +244,8 @@ test('투구 자세 표는 서기 1 + 걷기·사격 4프레임이고 사격은 
 });
 
 test('궁수가 투구를 쓰면 필드가 머리 없는 시트 + 투구 파츠로 그린다', () => {
-  const save = archerSave('male', baseItems.helmet[5]);
+  // [작업 216] 빈손이면 nobow 판을 쓰므로, 투구만 보는 이 테스트는 0번 활을 찬다.
+  const save = archerSave('male', baseItems.helmet[5], bowBases[0]);
   const game = view();
   const running = world(save);
   drawHero.call(game, running, 100, 100, 0);
@@ -330,7 +331,7 @@ test('마법사·전사는 궁수 투구 파츠를 쓰지 않는다', () => {
 });
 
 test('장비창 초상화도 머리 없는 시트 + 같은 좌표의 궁수 투구 파츠를 쓴다', () => {
-  const save = archerSave('female', baseItems.helmet[7]);
+  const save = archerSave('female', baseItems.helmet[7], bowBases[0]);
   const plan = equipmentPortraitPlan(save);
   assert.equal(plan.base, archerHeadlessBodyPath('female', 'idle', false));
   assert.equal(plan.archerHelm?.path, archerHelmPartPath('female', 7));
@@ -347,5 +348,5 @@ test('장비창 초상화도 머리 없는 시트 + 같은 좌표의 궁수 투�
 
   const plain = archerSave('female');
   assert.equal(equipmentPortraitPlan(plain).archerHelm, undefined, '투구를 안 쓰면 파츠 없음');
-  assert.equal(equipmentPortraitPlan(plain).base, '/assets/pilot-25d/archer_female_idle_v1.png?v=2');
+  assert.equal(equipmentPortraitPlan(plain).base, '/assets/pilot-25d/nobow/archer_female_idle_v1.png', '활을 안 차면 빈손(nobow) 시트');
 });

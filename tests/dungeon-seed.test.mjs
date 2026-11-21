@@ -1,3 +1,4 @@
+import { withWeapon } from './helpers/armed.mjs';
 import './ts-loader.mjs';
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -32,7 +33,7 @@ const play = (save, floor, seed) => {
   return { summary: dungeonBattleSummary(battle), battle };
 };
 async function seedAccount(id, over = {}) {
-  const save = parseSave({ ...freshSave('male'), name: id, level: 30, ...over }, id);
+  const save = parseSave(withWeapon({ ...freshSave('male'), name: id, level: 30, ...over }), id);
   await db.execute({ sql: 'INSERT INTO djrpg_accounts(id,password_hash,save_json,updated_at,session_id) VALUES(?,?,?,?,?)', args: [id, 'hash', JSON.stringify(save), new Date().toISOString(), sid(id)] });
   await account(db, id);
   return save;
@@ -125,7 +126,7 @@ test('그 시드로 실제로 플레이한 클리어는 통과하고 서버 리�
 });
 
 test('같은 시드는 같은 전투를, 시드가 다르면 다른 전투를 만든다', async () => {
-  const save = parseSave({ ...freshSave('male'), name: '결정', level: 12 }, 'det');
+  const save = parseSave(withWeapon({ ...freshSave('male'), name: '결정', level: 12 }, 'det-weapon'), 'det');
   const a = play(save, 4, 12345).summary, b = play(save, 4, 12345).summary;
   assert.deepEqual(a, b, '같은 시드·같은 스텝이면 결과가 같다');
   // 시드는 웨이브 등장 자리를 흔들어 전투 요약을 바꾼다 — 시간만 기다린 요청이 요약을 미리 알 수 없게 한다.
@@ -134,7 +135,7 @@ test('같은 시드는 같은 전투를, 시드가 다르면 다른 전투를 �
 });
 
 test('던전 전투는 고정 스텝으로만 전진해 서버 리플레이와 같은 결과를 낸다', async () => {
-  const save = parseSave({ ...freshSave('male'), name: '스텝', level: 8 }, 'step');
+  const save = parseSave(withWeapon({ ...freshSave('male'), name: '스텝', level: 8 }, 'step-weapon'), 'step');
   const played = play(save, 3, 424242);
   const replay = replayDungeonFloor(save, 3, 424242);
   assert.equal(played.summary.steps, replay.steps);

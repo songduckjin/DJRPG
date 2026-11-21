@@ -15,12 +15,11 @@
 .equipment-modal .modal-bag > h3, .equipment-modal .bag-filters, .equipment-modal .bag-job-only { flex: none; }
 .bag-item { position: relative; width: 100%; min-width: 0; aspect-ratio: 1; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; border: 1px solid #60534e; background: radial-gradient(circle at 50% 30%, #3a3130, #221e22); color: #ddcfc1; padding: 2px; }
 .bag-item.common, .equipment-slot.common { border-color: #9ca3af; box-shadow: inset 0 0 7px #9ca3af44; }
-/* 희귀 등급의 빛은 `styles/rarity.css`(등급별 펄스 글로우)가 등급색 토큰으로 그린다. 여기서는 테두리만 정한다. */
-.bag-item.magic, .equipment-slot.magic { border-color: #60a5fa; }
-.bag-item.rare, .equipment-slot.rare { border-color: #facc15; }
-.bag-item.epic, .equipment-slot.epic { border-color: #c084fc; }
-.bag-item.unique, .equipment-slot.unique { border-color: #fb923c; }
-.bag-item.legendary, .equipment-slot.legendary { border-color: #f87171; }
+.bag-item.magic, .equipment-slot.magic { border-color: #60a5fa; box-shadow: inset 0 0 8px #60a5fa55, 0 0 5px #60a5fa55; }
+.bag-item.rare, .equipment-slot.rare { border-color: #facc15; box-shadow: inset 0 0 8px #facc1555, 0 0 5px #facc1555; }
+.bag-item.epic, .equipment-slot.epic { border-color: #c084fc; box-shadow: inset 0 0 8px #c084fc55, 0 0 5px #c084fc55; }
+.bag-item.unique, .equipment-slot.unique { border-color: #fb923c; box-shadow: inset 0 0 8px #fb923c55, 0 0 5px #fb923c55; }
+.bag-item.legendary, .equipment-slot.legendary { border-color: #f87171; box-shadow: inset 0 0 9px #f8717166, 0 0 6px #f8717177; }
 .bag-item.selected { background: #68513a; outline: 2px solid #ffe3a3; outline-offset: -3px; filter: brightness(1.2); }
 .item-icon { display: block; flex: none; width: 44px; height: 44px; object-fit: contain; }
 .atlas-icon { background-size: 500% 100%; background-repeat: no-repeat; }
@@ -50,22 +49,36 @@
 .character-idle:disabled { opacity: .45; cursor: default; }
 .character-delete { min-height: 28px; border: 1px solid #86544e; border-radius: 5px; background: #322024; color: #e6b4ac; font-size: 11px; touch-action: manipulation; }
 .character-delete:disabled { opacity: .45; }
-/* 캐릭터 삭제 확인(작업 206): 목록 모달 위에 한 겹만 얹는다 — 사냥 중 목록이 다시 그려져도 입력·안내가 유지된다. */
-.character-delete-overlay { position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center; padding: 18px; background: #07050bdc; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
-.character-delete-card { width: min(340px, 100%); max-height: 88dvh; overflow-y: auto; display: grid; gap: 10px; padding: 16px 15px; border: 2px solid #9a7655; background: linear-gradient(#2b2224, #181318); box-shadow: 0 16px 44px #000c; }
-.character-delete-title { margin: 0; font: 700 18px Cinzel, 'Noto Sans KR', serif; color: #ffcf9a; }
-.character-delete-warning { margin: 0; padding: 9px 10px; border: 1px solid #7d3f36; background: #33191a; color: #f0c3bb; font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; }
-.character-delete-form { display: grid; gap: 8px; }
-.character-delete-field { display: grid; gap: 6px; font-size: 12px; color: #c9b49c; }
-.character-delete-field input { min-height: 46px; padding: 10px; border: 1px solid #967657; background: #151116; color: #f6e5cc; font-size: 16px; line-height: 1.2; touch-action: manipulation; }
-.character-delete-field input:focus { outline: none; border-color: #e0b16e; box-shadow: 0 0 0 2px #e0b16e44; }
-.character-delete-error { min-height: 1em; margin: 0; color: #f2a49d; font-size: 12px; line-height: 1.5; }
-.character-delete-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 2px; }
-.character-delete-cancel, .character-delete-confirm { min-height: 46px; padding: 10px 8px; border-radius: 4px; font-size: 14px; font-weight: 700; touch-action: manipulation; }
-.character-delete-cancel { border: 1px solid #6d5540; background: #251e1f; color: #c7b39c; }
-.character-delete-confirm { border: 1px solid #b4453c; background: #4a1d1c; color: #ffbdb6; }
-.character-delete-confirm.ready { border-color: #ff6a5e; background: linear-gradient(#a02b24, #6d1a16); color: #fff0ee; box-shadow: 0 0 12px #ff4b3e55; }
-.character-delete-cancel:disabled, .character-delete-confirm:disabled { opacity: .55; }
+
+/* [작업 216] 카드에는 평소 외형·정보만 보인다. 카드를 누르면 그 카드에만 `선택`·`방치`·`삭제`가 나타나고,
+   다른 카드를 누르면 그쪽만 펼쳐진다(한 번 더 누르면 접힌다). */
+.character-slot .character-connect, .character-slot .character-idle, .character-slot .character-delete { display: none; }
+.character-slot.focused { border-color: #d8ab66; box-shadow: 0 0 10px #d8ab6644; }
+.character-slot.focused .character-connect { display: block; min-height: 34px; border: 1px solid #d8ab66; border-radius: 5px; background: linear-gradient(180deg,#8a6132,#4a3221); color: #ffe9bd; font-size: 12px; font-weight: 700; touch-action: manipulation; }
+.character-slot.focused .character-connect,
+.character-slot.focused .character-idle,
+.character-slot.focused .character-delete { display: block; }
+.character-slot.focused .character-select { flex: 0 0 auto; }
+/* 확인창(작업 206 캐릭터 삭제 · 작업 223 계정 탈퇴): 모달 위에 한 겹만 얹는다 — 사냥 중 모달이 다시 그려져도 입력·안내가 유지된다.
+   두 확인창은 같은 다크 판타지 톤을 쓰므로 규칙을 함께 적는다(클래스만 다르다). */
+.character-delete-overlay, .account-delete-overlay { position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center; padding: 18px; background: #07050bdc; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+.character-delete-card, .account-delete-card { width: min(340px, 100%); max-height: 88dvh; overflow-y: auto; display: grid; gap: 10px; padding: 16px 15px; border: 2px solid #9a7655; background: linear-gradient(#2b2224, #181318); box-shadow: 0 16px 44px #000c; }
+.character-delete-title, .account-delete-title { margin: 0; font: 700 18px Cinzel, 'Noto Sans KR', serif; color: #ffcf9a; }
+.character-delete-warning, .account-delete-warning { margin: 0; padding: 9px 10px; border: 1px solid #7d3f36; background: #33191a; color: #f0c3bb; font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; }
+.character-delete-form, .account-delete-form { display: grid; gap: 8px; }
+.character-delete-field, .account-delete-field { display: grid; gap: 6px; font-size: 12px; color: #c9b49c; }
+.character-delete-field input, .account-delete-field input { min-height: 46px; padding: 10px; border: 1px solid #967657; background: #151116; color: #f6e5cc; font-size: 16px; line-height: 1.2; touch-action: manipulation; }
+.character-delete-field input:focus, .account-delete-field input:focus { outline: none; border-color: #e0b16e; box-shadow: 0 0 0 2px #e0b16e44; }
+.character-delete-error, .account-delete-error { min-height: 1em; margin: 0; color: #f2a49d; font-size: 12px; line-height: 1.5; }
+.character-delete-actions, .account-delete-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 2px; }
+.character-delete-cancel, .account-delete-cancel, .character-delete-confirm, .account-delete-confirm { min-height: 46px; padding: 10px 8px; border-radius: 4px; font-size: 14px; font-weight: 700; touch-action: manipulation; }
+.character-delete-cancel, .account-delete-cancel { border: 1px solid #6d5540; background: #251e1f; color: #c7b39c; }
+.character-delete-confirm, .account-delete-confirm { border: 1px solid #b4453c; background: #4a1d1c; color: #ffbdb6; }
+.character-delete-confirm.ready, .account-delete-confirm.ready { border-color: #ff6a5e; background: linear-gradient(#a02b24, #6d1a16); color: #fff0ee; box-shadow: 0 0 12px #ff4b3e55; }
+.character-delete-cancel:disabled, .account-delete-cancel:disabled, .character-delete-confirm:disabled, .account-delete-confirm:disabled { opacity: .55; }
+.account-withdraw { margin-top: 16px; padding-top: 12px; border-top: 1px solid #3b2b30; display: grid; gap: 6px; }
+.account-withdraw button { min-height: 42px; border: 1px solid #6d4a44; border-radius: 4px; background: #241b1d; color: #cba79f; font-size: 13px; touch-action: manipulation; }
+.account-withdraw p { margin: 0; color: #8f7a70; font-size: 11px; line-height: 1.5; }
 .character-add-slot { width: 100%; min-height: 38px; margin: 10px 0; border: 1px dashed #7ca6c2; background: #182632; color: #bde6ff; }
 .character-create { position: relative; }
 .character-create-loading { position: fixed; inset: 0; z-index: 100; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 16px; background: #120e18f5; color: #f4dcb0; text-align: center; font-size: 16px; }
@@ -101,6 +114,11 @@
 .showcase-hero { position: relative; display: flex; justify-content: center; align-items: center; min-width: 0; min-height: 0; overflow: hidden; border: 1px solid #655044; background: radial-gradient(ellipse at 50% 28%, #695544 0%, #302727 37%, #19161b 75%); box-shadow: inset 0 0 23px #000a; }
 .showcase-hero:after { content: ''; position: absolute; bottom: 7px; width: 75%; height: 14px; border-radius: 50%; background: #0008; filter: blur(5px); }
 .showcase-figure { position: relative; display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; }
+/* 장비 등급색 발광(작업 218) — 유니크·전설을 착용한 부위만 초상화 위에서 숨쉬다 원래 색으로 돌아온다. */
+.showcase-glow { position: absolute; inset: 0; display: block; pointer-events: none; }
+.showcase-glow-layer { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; mix-blend-mode: screen; animation: gear-rarity-pulse var(--gear-cycle, 2.6s) ease-in-out infinite; }
+@keyframes gear-rarity-pulse { 0%, 100% { opacity: 0; } 50% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .showcase-glow-layer { animation: none; opacity: .5; } }
 .showcase-body { position: relative; z-index: 1; display: block; width: 100%; height: 100%; object-fit: contain; image-rendering: auto; }
 .showcase-figure { position: relative; display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; }
 .showcase-body { position: relative; z-index: 1; display: block; width: 100%; height: 100%; object-fit: contain; image-rendering: auto; }

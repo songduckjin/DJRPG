@@ -32,7 +32,7 @@ import type { Gender } from './store';
 
 const paths = {
   floor: '/assets/wasteland-ground.png', terrainProps: '/assets/wasteland-props.png', male: '/assets/warrior_male_base.png',
-  pilotMale: '/assets/pilot-25d/warrior_male_idle_v1.png', pilotFemale: '/assets/pilot-25d/warrior_female_idle_v1.png',
+  pilotMale: '/assets/pilot-25d/warrior_male_idle_v1.png?v=2', pilotFemale: '/assets/pilot-25d/warrior_female_idle_v1.png?v=2',
   // 궁수 기본 시트(작업 157 → 159 스타터 가죽 튜닉) — 같은 362px 셀 좌표계다. 갑옷·투구·활 오버레이는 이번 단계에 없다.
   // `/assets/*`는 immutable 캐시라 시트를 갈면 URL을 바꿔야 브라우저가 즉시 새 그림을 받는다(작업 159).
   archerMale: '/assets/pilot-25d/archer_male_idle_v1.png?v=2', archerFemale: '/assets/pilot-25d/archer_female_idle_v1.png?v=2',
@@ -41,6 +41,7 @@ const paths = {
   // (작업 159 궁수 시트와 같은 규칙 — 여성도 같은 줄에서 함께 올린다).
   mageMale: '/assets/pilot-25d/mage_male_idle_v1.png?v=2', mageFemale: '/assets/pilot-25d/mage_female_idle_v1.png?v=2',
   // 투구 착용 시에만 쓰는 머리 없는 본체(작업 152) — 같은 셀 좌표계라 배율·앵커를 공유한다.
+  // 작업 222: 서기 시트를 낮은 양손 그립으로 다시 구워 `?v=2`(helmets.ts `headlessBodyPaths`가 들고 있다).
   pilotMaleHeadless: headlessBodyPaths.male.idle, pilotFemaleHeadless: headlessBodyPaths.female.idle,
   female: '/assets/warrior_female_base.png', armored: '/assets/warrior_armored_swordless.png',
   armoredNoHelm: '/assets/warrior_armored_nohelm_swordless.png', femaleArmoredNoHelm: '/assets/warrior_female_armored_nohelm_swordless.png',
@@ -258,6 +259,10 @@ export class GameView {
   /** 지금 그려진 마법사 투구 파츠 스프라이트(로딩 전이면 숨김). */
   heroMageHelm?: Sprite;
   heroGear = new Map<Slot, { path: string; sprite: Sprite }>();
+  /** 등급색 발광 복제본(작업 218) — 부위 키(armor·helmet·weapon)별 가산 블렌드 스프라이트. */
+  heroGlow = new Map<string, Sprite>();
+  /** 갑옷 발광을 목 아래로 자르는 마스크(작업 218) — 얼굴은 원래 색으로 남긴다. */
+  heroGlowMask?: Sprite;
   /** 독립형 코스튬 렌더러 상태(작업 140). 매니페스트·아틀라스가 없으면 폴백으로 굳는다. */
   costume: CostumeHeroState = createCostumeHeroState();
   enemies = new Map<Enemy, Sprite>();

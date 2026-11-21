@@ -11,7 +11,7 @@ const save = (over = {}) => ({ version: 1, name: '전사', gender: 'male', gold:
 const view = (over = {}) => journeyView(advanceJourney(undefined, save(over), save(over), Date.parse('2026-11-20T03:00:00Z'), false), save(over));
 /** 한 분류의 (이름, 목표) 목록 — 화면에 깔리는 업적 단계 그대로. */
 const steps = (achievements, name) => achievements.filter(task => task.name.startsWith(name)).map(task => [Number(task.target), task.gold, task.books]);
-/** 화면에 실제로 뜨는 7개 분류의 순서 — journeyView가 만드는 순서 그대로. */
+/** 화면에 실제로 뜨는 8개 분류의 순서 — journeyView가 만드는 순서 그대로. */
 const groups = achievements => {
   const result = [];
   for (const task of achievements) {
@@ -23,25 +23,28 @@ const groups = achievements => {
 
 test('업적 단계는 사용자 확정 7개 분류·목표로 바뀌었다 (작업 208)', () => {
   const achievements = view().achievements;
-  assert.deepEqual(groups(achievements), ['캐릭터 레벨', '몬스터 처치', '보스 처치', '최고 도달 층', '장비 도감 수집', '스킬 강화 횟수', '최고 스킬 레벨']);
+  assert.deepEqual(groups(achievements), ['캐릭터 레벨', '몬스터 처치', '보스 처치', '최고 도달 층', '장비 도감 수집', '스킬 강화 횟수', '최고 스킬 레벨', '거래소 거래 완료']);
   assert.deepEqual(steps(achievements, '캐릭터 레벨').map(step => step[0]), [5, 10, 15, 20, 25, 30]);
-  assert.deepEqual(steps(achievements, '몬스터 처치').map(step => step[0]), [500, 1000, 2000, 4000, 8000, 16000, 32000]);
+  assert.deepEqual(steps(achievements, '몬스터 처치').map(step => step[0]), [1000, 5000, 15000, 30000, 60000, 120000, 250000]);
   assert.deepEqual(steps(achievements, '보스 처치').map(step => step[0]), [10, 50, 100, 150, 200]);
   assert.deepEqual(steps(achievements, '최고 도달 층').map(step => step[0]), [5, 10, 15, 20]);
   assert.deepEqual(steps(achievements, '장비 도감 수집').map(step => step[0]), [10, 50, 100, 200, 300, 450, 570]);
   assert.deepEqual(steps(achievements, '스킬 강화 횟수').map(step => step[0]), [5, 15, 30, 50, 100]);
   assert.deepEqual(steps(achievements, '최고 스킬 레벨').map(step => step[0]), [5, 10, 15, 20, 25, 30]);
+  // 거래소 거래 완료(작업 224, 사용자 확정 `#6289`·`#6294`) — 6단계 1·5·15·30·50·100회.
+  assert.deepEqual(steps(achievements, '거래소 거래 완료').map(step => step[0]), [1, 5, 15, 30, 50, 100]);
   // 보상은 단계 인덱스에 따른 금화 사다리 + 뒤쪽 단계 보물 주머니, 스킬북은 주지 않는다(작업 208).
   assert.deepEqual(steps(achievements, '보스 처치').map(step => [step[1], step[2]]), [[1000, 0], [2000, 0], [3000, 0], [5000, 0], [8000, 0]]);
   const pouches = achievements.filter(task => task.pouches).map(task => [task.id, task.pouches]);
   assert.deepEqual(pouches, [
     ['level-15', 1], ['level-20', 1], ['level-25', 1], ['level-30', 2],
-    ['kills-2000', 1], ['kills-4000', 1], ['kills-8000', 1], ['kills-16000', 1], ['kills-32000', 2],
+    ['kills-15000', 1], ['kills-30000', 1], ['kills-60000', 1], ['kills-120000', 1], ['kills-250000', 2],
     ['boss-100', 1], ['boss-150', 1], ['boss-200', 2],
     ['floor-15', 1], ['floor-20', 2],
     ['collection-100', 1], ['collection-200', 1], ['collection-300', 1], ['collection-450', 1], ['collection-570', 2],
     ['skills-30', 1], ['skills-50', 1], ['skills-100', 2],
-    ['rank-15', 1], ['rank-20', 1], ['rank-25', 1], ['rank-30', 2]
+    ['rank-15', 1], ['rank-20', 1], ['rank-25', 1], ['rank-30', 2],
+    ['market-15', 1], ['market-30', 1], ['market-50', 1], ['market-100', 2]
   ]);
   assert.equal(achievements.every(task => task.books === 0), true, '스킬북 직접 지급 없음');
 });
@@ -110,6 +113,17 @@ test('업적 보상 금화 사다리와 보물 주머니 규칙은 마지막 단
   assert.deepEqual(achievementReward(1, 3), { gold: 2000, books: 0, pouches: 0 }, '짧은 사슬은 앞 단계 주머니 없음');
   assert.deepEqual(achievementReward(2, 3), { gold: 3000, books: 0, pouches: 2 }, '짧은 사슬의 마지막은 2개');
   assert.deepEqual(achievementReward(9, 12), { gold: 20000, books: 0, pouches: 1 }, '금화는 마지막 값을 넘지 않는다');
+});
+
+test('거래소 거래 완료 업적은 성사된 거래 횟수(구매+판매)를 6단계로 센다', () => {
+  const base = save({});
+  const state = advanceJourney(undefined, base, base, Date.parse('2026-11-20T03:00:00Z'), false);
+  state.marketTrades = 7;
+  const market = journeyView(state, base).achievements.filter(task => task.name.startsWith('거래소 거래 완료'));
+  assert.deepEqual(market.map(task => task.current), [1, 5, 7, 7, 7, 7]);
+  assert.deepEqual(market.filter(task => task.current >= task.target).map(task => task.id), ['market-1', 'market-5']);
+  assert.equal(market.every(task => task.books === 0), true, '스킬북 직접 지급 없음');
+  assert.equal(view().achievements.filter(task => task.name.startsWith('거래소 거래 완료')).every(task => task.current === 0), true, '장부가 없으면 0부터');
 });
 
 test('최고 스킬 레벨 업적은 스킬 레벨 최고값을 30단계까지 센다', () => {

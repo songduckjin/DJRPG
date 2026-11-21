@@ -63,7 +63,7 @@ export function renderMarket(this: Interface, dialog: HTMLElement): void {
   dialog.classList.add('market-modal');
   const hero = el('div', 'market-hero'); hero.append(el('small', '', 'THE WASTELAND EXCHANGE'), el('p', '', '황야의 거래소'), goldNode(this.world.save.gold)); dialog.append(hero);
   const tabs = el('div', 'market-tabs');
-  const views: [MarketView,string][] = [['active','판매 중'],['sold','거래 완료'],['mine','내 거래'],['register','판매 등록'],['inbox',`수령함 ${data?.inbox.length ?? 0}`]];
+  const views: [MarketView,string][] = [['active','판매 중'],['recent','최근 거래'],['sold','거래 완료'],['mine','내 거래'],['register','판매 등록'],['inbox',`수령함 ${data?.inbox.length ?? 0}`]];
   for (const [view, name] of views) { const tab = button(name, () => market.switch(view), market.busy || !!market.sync.pendingMarket); tab.dataset.marketView = view; tab.classList.toggle('active', market.view === view); tab.setAttribute('aria-pressed', String(market.view === view)); tabs.append(tab); }
   dialog.append(tabs);
   const live = el('div', 'market-live'); live.append(el('span', 'market-connection'), button('목록 새로고침', () => market.refresh(), market.busy)); live.lastElementChild!.classList.add('market-refresh'); dialog.append(live);
@@ -73,6 +73,7 @@ export function renderMarket(this: Interface, dialog: HTMLElement): void {
   if (market.busy) dialog.append(el('p', 'market-notice', '거래를 안전하게 처리하고 있습니다…'));
   const blocked = guest || market.busy || market.sync.conflicted || !!market.sync.pendingMarket;
   if (market.view === 'register') renderRegister(this, dialog, blocked);
+  else if (market.view === 'recent') renderRecent(this, dialog);
   else if (market.view === 'inbox') {
     dialog.append(button('모두 수령',()=>{void market.act('claim',{deliveryId:'all'});},blocked||!data?.inbox.length));
     dialog.append(el('p', 'market-notice', '구매품·취소품·만료품·판매대금을 보관합니다. 가방이 가득 차도 수령함의 물품은 사라지지 않습니다.'));
@@ -104,8 +105,31 @@ export function renderMarket(this: Interface, dialog: HTMLElement): void {
     const pages = Math.max(1, Math.ceil((data?.total ?? 0) / 20)), page = Number(market.filters.page);
     const nav = el('div', 'market-pagination'); nav.append(button('이전', () => { market.filters.page = page - 1; market.refresh(); }, page <= 0 || market.busy), el('span', '', `${page + 1} / ${pages}`), button('다음', () => { market.filters.page = page + 1; market.refresh(); }, page + 1 >= pages || market.busy)); dialog.append(nav);
   }
-  dialog.append(el('p', 'market-rules', `고정가 금화 거래 · 등록비 없음 · 판매 수수료 5%(올림) · 최대 ${data?.rules?.maxListings ?? 30}건 · 72시간 후 반환`));
+  dialog.append(el('p', 'market-rules', `고정가 금화 거래 · 등록비 없음 · 판매 수수료 5%(올림) · 최소 등록 금액 ${money(data?.rules?.minPrice ?? 1)} 금화 · 최대 ${data?.rules?.maxListings ?? 30}건 · 72시간 후 반환`));
   updateMarketLive(this);
+}
+/**
+ * `최근 거래` 탭 (작업 224, 사용자 요청 `#6313`) — 성사된 거래를 **최근 순서로 한 화면에** 보여준다.
+ *  서버의 `view:'sold'`(판매 완료)를 `sold_at` 내림차순으로 받아, 검색·필터·페이지 이동 없이
+ *  아이템명·등급·가격·거래 시각을 바로 읽는다. 전체 목록이 필요하면 옆의 `거래 완료` 탭을 쓴다.
+ */
+function renderRecent(ui: Interface, dialog: HTMLElement): void {
+  const market = ui.market, data = market.data;
+  const trades = (data?.listings ?? []).slice().sort((a, b) => (b.soldAt ?? 0) - (a.soldAt ?? 0));
+  dialog.append(el('p', 'market-recent-summary', `최근 성사된 거래 ${money(trades.length)}건 · 최근 거래부터 보여줍니다.`));
+  if (!data && market.loading) { dialog.append(el('p', 'empty', '최근 거래를 불러오고 있습니다…')); return; }
+  if (!trades.length) { dialog.append(el('p', 'empty', '아직 거래 완료 기록이 없습니다. 첫 거래가 성사되면 여기에 남습니다.')); return; }
+  const list = el('div', 'market-recent-list');
+  for (const sale of trades) {
+    const row = el('article', 'market-recent-row'); row.dataset.listing = sale.id;
+    row.append(icon(sale.item), itemInfo(sale.item));
+    const meta = el('div', 'market-recent-meta');
+    meta.append(goldNode(sale.price), el('small', 'market-recent-time', sale.soldAt ? `${when(sale.soldAt)} 거래` : '거래 시각 없음'));
+    const mine = [sale.mine ? '내 판매' : '', sale.purchased ? '내 구매' : ''].filter(Boolean).join(' · ');
+    if (mine) meta.append(el('small', 'market-recent-owner', mine));
+    row.append(meta); list.append(row);
+  }
+  dialog.append(list);
 }
 function renderFilters(market: Market, dialog: HTMLElement): void {
   const form = el('form', 'market-search');
@@ -221,7 +245,9 @@ function renderRegister(ui: Interface, dialog: HTMLElement, blocked: boolean): v
       else {prices.append('최근 거래 ',goldNode(quote.lastPrice!),` (${when(quote.soldAt!)}) · 최근 ${quote.count}건 평균 `,goldNode(quote.average!));}
     }else prices.textContent='아이템을 선택하면 최근 거래가를 확인합니다.';
     form.append(prices);
-    const field = el('label', 'market-field', '판매 가격 (금화)'), input = el('input'); input.type = 'number'; input.required = true; input.min = '1'; input.max = '1000000000'; input.step = '1'; input.inputMode = 'numeric'; input.placeholder = '1 ~ 1,000,000,000'; input.value = market.price; input.disabled = blocked;
+    const minPrice = market.data?.rules?.minPrice ?? 1;
+    form.append(el('p', 'market-min-price', `현재 최소 등록 금액 ${money(minPrice)} 금화 · 이보다 낮게는 등록되지 않습니다.`));
+    const field = el('label', 'market-field', '판매 가격 (금화)'), input = el('input'); input.type = 'number'; input.required = true; input.min = String(minPrice); input.max = '1000000000'; input.step = '1'; input.inputMode = 'numeric'; input.placeholder = `${money(minPrice)} ~ 1,000,000,000`; input.value = market.price; input.disabled = blocked;
     const proceeds = el('p', 'market-proceeds');
     const update = () => { market.price = input.value; const price = Number(input.value); proceeds.replaceChildren(); if (Number.isSafeInteger(price) && price > 0) proceeds.append('수수료 ', goldNode(Math.ceil(price * 5 / 100)), ' · 예상 수령 ', goldNode(price - Math.ceil(price * 5 / 100))); else proceeds.textContent = '가격을 입력하면 예상 수령액을 확인할 수 있습니다.'; }; input.oninput = update; update(); field.append(input); form.append(field, proceeds);
     const submit = el('button', 'market-primary', '72시간 판매 등록'); submit.type = 'submit'; submit.disabled = blocked;

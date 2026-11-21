@@ -1,3 +1,4 @@
+import { withWeapon } from './helpers/armed.mjs';
 import './ts-loader.mjs';
 import {test,before,beforeEach,after} from 'node:test';
 import assert from 'node:assert/strict';
@@ -9,14 +10,14 @@ const {parseSave,freshSave}=await import('../src/game/store.ts');
 import {periods} from '../server/journey-state.mjs';
 const {worldBossEndpoint}=await import('../server/endpoints/world-boss.mjs');
 let db;let now=Date.parse('2026-11-18T10:00:00Z');
-async function seed(id,guest=false,connection=db){const save=parseSave({...freshSave('male'),name:id,auto:true,level:7,floor:1,learned:[],quickSlots:[null,null,null]},id);await connection.execute({sql:'INSERT INTO djrpg_accounts(id,password_hash,save_json,updated_at) VALUES (?,?,?,?)',args:[id,guest?'guest':'hash',JSON.stringify(save),new Date(now).toISOString()]});}
+async function seed(id,guest=false,connection=db){const save=parseSave(withWeapon({...freshSave('male'),name:id,auto:true,level:7,floor:1,learned:[],quickSlots:[null,null,null]}),id);await connection.execute({sql:'INSERT INTO djrpg_accounts(id,password_hash,save_json,updated_at) VALUES (?,?,?,?)',args:[id,guest?'guest':'hash',JSON.stringify(save),new Date(now).toISOString()]});}
 const act=(id,input={},time=now,sid)=>operation(db,id,{action:'list',...input},sid,time);
 const start=(id,time=now,requestId=randomUUID())=>act(id,{action:'start',requestId,characterSlot:1},time);
 before(async()=>{db=createClient({url:'file::memory:?cache=shared'});await schema(db);});
 beforeEach(()=>{now+=2*86400000;});
 after(async()=>{await db.close();});
 test('shared HP is ten million; server replay is deterministic and leaves save untouched',()=>{
- assert.equal(WORLD_BOSS_HP,10000000);const save=parseSave({...freshSave('male'),level:7},'replay'),before=structuredClone(save);
+ assert.equal(WORLD_BOSS_HP,10000000);const save=parseSave(withWeapon({...freshSave('male'),level:7},'replay-weapon'),'replay'),before=structuredClone(save);
  const first=replayBoss(save,15),again=replayBoss(save,15);assert.equal(first.damage,again.damage);assert(first.damage>0);assert.deepEqual(save,before);
  const evade=replayBoss(save,15,[3]);assert(evade.world.player.hp>=first.world.player.hp);
 });
@@ -67,7 +68,10 @@ test('shared kill has one last hitter, ranking, shared rewards and idempotent ma
  await act('killer',{action:'finish',attemptId:two.battle.id},now+4000);await act('contributor',{},now+4000);
  for(const id of ['contributor','killer']){
   const row=(await db.execute({sql:'SELECT state_json FROM djrpg_journey WHERE account_id=?',args:[id]})).rows[0];const mail=JSON.parse(row.state_json).mail.filter(m=>m.id.startsWith('boss:'));
-  assert.equal(mail.filter(m=>m.title.includes('공동 처치')).length,1);assert.equal(mail.filter(m=>m.title.includes('위 보상')).length,1);assert.equal(mail.filter(m=>m.title.includes('도전 참여')).length,0);
+  assert.equal(mail.filter(m=>m.title.includes('공동 처치')).length,1);assert.equal(mail.filter(m=>m.title.includes('위 보상')).length,1);
+  // 1회 도전 참여 보상은 **금화 1,000만** — 도전마다 한 장, 주머니·스킬북 없음(작업 223, 사용자 요청 `#6127`·`#6139`).
+  assert.equal(mail.filter(m=>m.title.includes('도전 참여')).length,1,'1회 도전 참여 보상 우편');
+  const participation=mail.find(m=>m.title.includes('도전 참여'));assert.equal(participation.gold,1000);assert.equal(participation.pouches,0);assert.equal(participation.books,0);
   const shared=mail.find(m=>m.title.includes('공동 처치'));assert.equal(shared.gold,1500);assert.equal(shared.pouches,1);assert.equal(shared.books,0);
   assert.equal(mail.filter(m=>m.title.includes('마지막 타격')).length,id==='killer'?1:0);assert.equal((await account(db,id)).save.gold,0);
  }
@@ -149,12 +153,54 @@ test('three attempts reduce shared HP by their sum but rank by best; legacy sums
  const repeat=await act('best-record',{action:'finish',attemptId:three.battle.id},now+11000);assert.equal(repeat.hp,lower.hp);assert.equal(repeat.battle.record.status,'unchanged');
  await act('best-record',{},periods(now).dailyEnd+1);
  const state=JSON.parse((await db.execute({sql:'SELECT state_json FROM djrpg_journey WHERE account_id=?',args:['best-record']})).rows[0].state_json);
- const rewards=state.mail.filter(m=>m.id.startsWith(`boss:${first.day}:`));assert.equal(rewards.length,1);assert.equal(rewards[0].gold,10000);assert.equal(rewards[0].books,0);assert.equal(rewards[0].pouches,4);
+ const rewards=state.mail.filter(m=>m.id.startsWith(`boss:${first.day}:`));
+ // 도전 3회 → 참여 보상 우편 3장(재정산해도 늘지 않는다). 금화 1,000만, 주머니·스킬북 없음(작업 223).
+ const participation=rewards.filter(m=>m.title.includes('도전 참여'));assert.equal(participation.length,3);
+ for(const mail of participation){assert.equal(mail.gold,1000);assert.equal(mail.books,0);assert.equal(mail.pouches,0);}
+ const rank=rewards.filter(m=>m.title.includes('위 보상'));assert.equal(rank.length,1);assert.equal(rank[0].gold,10000);assert.equal(rank[0].books,0);assert.equal(rank[0].pouches,4);
  const owner=await account(db,'best-record'),{mutate}=await import('../server/journey.mjs');
- const input={action:'journey-claim',kind:'mail',id:rewards[0].id,revision:owner.revision,requestId:randomUUID()};
+ const input={action:'journey-claim',kind:'mail',id:rank[0].id,revision:owner.revision,requestId:randomUUID()};
  const claimed=await mutate(db,'best-record',input),retried=await mutate(db,'best-record',input);
  assert.equal(claimed.save.gold,10000);assert.equal(claimed.save.bag.filter(i=>i.slot==='pouch').length,4);assert.deepEqual(retried.save.bag,claimed.save.bag);
 });
 test('rank reward boundaries match the approved gold and pouch table',()=>{
  for(const [rank,gold,pouches] of [[1,10000,4],[2,8000,3],[3,8000,3],[4,6000,2],[10,6000,2],[11,4000,1],[50,4000,1],[51,3000,1],[100,3000,1],[101,2000,1]])assert.deepEqual(tier(rank),[gold,pouches]);
+});
+
+// 작업 222(`#5666`·`#5729`) — 한국 ICN 경로에서 `action:'list'`가 30ms 만에 503(`DB_UNAVAILABLE`)으로 떨어지던 문제.
+// 조회 전용 읽기 배치(지역 레플리카)가 실패하면 503을 내지 말고 주 DB 쓰기 트랜잭션 경로로 폴백한다.
+test('읽기 전용 조회가 실패해도 목록은 503이 아니라 쓰기 경로로 답한다(작업 222, `#5666`·`#5729`)',async()=>{
+ await seed('read-fallback');
+ const normal=await act('read-fallback');assert.equal(normal.remaining,3);
+ let readFails=0;
+ const broken={execute:(...a)=>db.execute(...a),transaction:async mode=>db.transaction(mode),
+  batch:(statements,mode)=>mode==='read'?(readFails++,Promise.reject(Object.assign(new Error('fetch failed'),{code:'ETIMEDOUT'}))):db.batch(statements,mode)};
+ const data=await operation(broken,'read-fallback',{action:'list'},undefined,now);
+ assert.equal(readFails,1,'읽기 경로는 한 번 시도하고 실패한다');
+ assert.equal(data.day,normal.day);assert.equal(data.hp,normal.hp);assert.equal(data.remaining,3);
+ assert.equal(data.guest,false);assert(data.standing);
+});
+test('조회 경로의 인증 오류는 쓰기 폴백 없이 그대로 올린다(작업 222)',async()=>{
+ await seed('read-auth');
+ await act('read-auth');
+ await db.execute({sql:'UPDATE djrpg_accounts SET session_id=? WHERE id=?',args:['new-session','read-auth']});
+ let writes=0;
+ const watched={execute:(...a)=>db.execute(...a),batch:(s,m)=>db.batch(s,m),transaction:async mode=>{writes++;return db.transaction(mode);}};
+ await assert.rejects(operation(watched,'read-auth',{action:'list'},'old-session',now),e=>e.code==='SESSION_REPLACED');
+ assert.equal(writes,0,'인증 오류는 쓰기 트랜잭션을 열지 않는다');
+});
+test('스키마 초기화가 일시 오류로 실패해도 테이블이 이미 있으면 요청을 503으로 떨어뜨리지 않는다(작업 222)',async()=>{
+ await seed('schema-tolerate');
+ const normal=await act('schema-tolerate');
+ let writeFails=0;
+ const flaky={execute:(...a)=>db.execute(...a),transaction:async mode=>db.transaction(mode),
+  batch:(statements,mode)=>mode==='write'&&!writeFails?(writeFails++,Promise.reject(Object.assign(new Error('temporarily unavailable'),{code:'SERVER_ERROR'}))):db.batch(statements,mode)};
+ const data=await operation(flaky,'schema-tolerate',{action:'list'},undefined,now);
+ assert.equal(writeFails,1,'DDL 한 번은 실패한다');
+ assert.equal(data.day,normal.day);assert.equal(data.remaining,3);
+});
+test('DB 연결 자체가 죽었으면(테이블 확인도 실패) 원래 오류를 그대로 올려 503 경로로 보낸다(작업 222)',async()=>{
+ const dead=new Error('fetch failed');
+ const gone={execute:()=>Promise.reject(dead),transaction:()=>Promise.reject(dead),batch:()=>Promise.reject(dead)};
+ await assert.rejects(operation(gone,'dead-db',{action:'list'},undefined,now),error=>error.message==='fetch failed');
 });

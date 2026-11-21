@@ -1,10 +1,10 @@
 import type { Item } from './items';
 import type { SyncResult, SaveSync } from './sync';
 import { apiHeaders, isOutdatedResponse, reloadForNewVersion } from './appVersion';
-export type MarketView = 'active' | 'sold' | 'mine' | 'register' | 'inbox';
+export type MarketView = 'active' | 'recent' | 'sold' | 'mine' | 'register' | 'inbox';
 export type Listing = { id: string; sellerName: string; item: Item; price: number; state: string; createdAt: number; expiresAt: number; soldAt: number | null; mine: boolean; purchased: boolean };
 export type Delivery = { id: string; item: Item | null; gold: number; reason: string; createdAt: number };
-export type MarketData = { watched: { id: string; state: string }[]; listings: Listing[]; inbox: Delivery[]; seq: number; total: number; page: number; myActive: number; revision: number; rules: { fee: number; maxListings: number; durationHours: number; maxPrice: number; pageSize: number } };
+export type MarketData = { watched: { id: string; state: string }[]; listings: Listing[]; inbox: Delivery[]; seq: number; total: number; page: number; myActive: number; revision: number; rules: { fee: number; maxListings: number; durationHours: number; maxPrice: number; minPrice: number; pageSize: number } };
 export class Market {
   view: MarketView = 'active';
   filters: Record<string, string | number> = { query: '', category: '', slot: '', rarity: '', sort: 'newest', page: 0 };
@@ -66,7 +66,7 @@ export class Market {
     this.loading = true;
     if (full) this.onChange(false);
     try {
-      const response = await fetch('/api/market', { method: 'POST', headers: apiHeaders({ Authorization: `Bearer ${this.sync.session.token}` }), body: JSON.stringify({ action: 'list', ...this.filters, mineActiveOnly:this.view==='mine'&&this.mineActiveOnly, watchIds: this.data?.listings.map(entry => entry.id), view: !this.opened ? 'mine' : this.view }), signal: controller.signal });
+      const response = await fetch('/api/market', { method: 'POST', headers: apiHeaders({ Authorization: `Bearer ${this.sync.session.token}` }), body: JSON.stringify({ action: 'list', ...this.filters, mineActiveOnly:this.view==='mine'&&this.mineActiveOnly, watchIds: this.data?.listings.map(entry => entry.id), view: !this.opened ? 'mine' : this.view === 'recent' ? 'sold' : this.view }), signal: controller.signal });
       const result = await response.json();
       if (isOutdatedResponse(response.status, result.code, result.expected)) { reloadForNewVersion(); return; }
       if (!response.ok) throw new Error(result.error || '거래소를 불러오지 못했습니다.');
@@ -90,7 +90,7 @@ export class Market {
     finally { if (generation === this.generation) { this.loading = false; this.onChange(false); } }
   }
   refresh(): void { this.selected = undefined; void this.load(true); }
-  switch(view: MarketView): void { if (this.busy) return; this.view = view; this.unlockItem = undefined; this.filters.page = 0; this.selected = undefined; this.onChange(true); void this.load(true); }
+  switch(view: MarketView): void { if (this.busy) return; this.view = view; this.unlockItem = undefined; this.filters.page = 0; if (view === 'recent') { this.filters.stat = ''; this.filters.sort = 'newest'; } this.selected = undefined; this.onChange(true); void this.load(true); }
   private applyEffect(result: SyncResult): void {
     if (!this.data || !result.effect) return;
     const { listing, deliveries, claimedId, claimedIds } = result.effect;

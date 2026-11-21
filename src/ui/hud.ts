@@ -24,10 +24,14 @@ export function renderStatus(this: Interface): void {
     // 최고 도달 층에서 패배해 자동 등반이 꺼지면 `⚔ 보스 도전`이 살아난다(작업 210).
     // 작업 212(`#4995`): 버튼을 **현재 층 배지 바로 옆**에 붙인다(`.status-floor`).
     const bossRetry = this.world.bossRetryReady ? '<button class="boss-retry" type="button" aria-label="현재 층 보스에게 다시 도전">⚔ 보스 도전</button>' : '';
-    this.top.innerHTML = `<button class="level-badge" type="button" aria-label="캐릭터 선택 열기"><span>LV</span><b>${save.level >= MAX_LEVEL ? 'MAX' : save.level}</b></button><div class="health-bar hp" role="progressbar" aria-label="체력"><i></i><b></b></div><div class="status-main"><span class="status-floor"><button class="floor-button" type="button" aria-label="층 선택, 현재 ${save.floor}층"><span>층 <b>${save.floor}</b> · ${Math.min(save.floorKills, floorKillTarget(save.floor))}/${floorKillTarget(save.floor)}</span><span aria-hidden="true">▾</span></button>${bossRetry}</span><span class="gold">${goldMarkup(save.gold)}</span><span class="diamonds" aria-label="다이아 ${this.shopCatalog?.wallet.diamonds ?? 0}개">◆ ${(this.shopCatalog?.wallet.diamonds ?? 0).toLocaleString('ko-KR')}</span></div><div class="exp"><i style="width:${progress}%"></i></div>`;
+    // 작업 224(`#6215`): 최고 도달 층에서 **2층 이상 내려왔을 때만** `▲ 최고층`을 붙인다.
+    // 한 층 아래는 층 선택 창으로 충분하고, 배지 옆이 좁아지는 것을 막는다.
+    const floorReturn = save.maxFloor - save.floor >= 2 ? `<button class="floor-return" type="button" aria-label="최고층 ${save.maxFloor}층으로 이동" title="최고층 ${save.maxFloor}층으로 바로 이동">▲ 최고층</button>` : '';
+    this.top.innerHTML = `<button class="level-badge" type="button" aria-label="캐릭터 선택 열기"><span>LV</span><b>${save.level >= MAX_LEVEL ? 'MAX' : save.level}</b></button><div class="health-bar hp" role="progressbar" aria-label="체력"><i></i><b></b></div><div class="status-main"><span class="status-floor"><button class="floor-button" type="button" aria-label="층 선택, 현재 ${save.floor}층"><span>층 <b>${save.floor}</b> · ${Math.min(save.floorKills, floorKillTarget(save.floor))}/${floorKillTarget(save.floor)}</span><span aria-hidden="true">▾</span></button>${bossRetry}${floorReturn}</span><span class="gold">${goldMarkup(save.gold)}</span><span class="diamonds" aria-label="다이아 ${this.shopCatalog?.wallet.diamonds ?? 0}개">◆ ${(this.shopCatalog?.wallet.diamonds ?? 0).toLocaleString('ko-KR')}</span></div><div class="exp"><i style="width:${progress}%"></i></div>`;
     const levelBadge = this.get('.level-badge'); levelBadge.style.setProperty('--progress', `${progress}%`); levelBadge.addEventListener('click', () => this.open('characters'));
     this.get('.floor-button').addEventListener('click', () => this.open('floor'));
     this.top.querySelector<HTMLButtonElement>('.boss-retry')?.addEventListener('click', () => this.world.challengeBoss());
+    this.top.querySelector<HTMLButtonElement>('.floor-return')?.addEventListener('click', () => { const result = this.world.travelToFloor(this.world.save.maxFloor); if (result.message) this.message(result.message); });
     this.get('.hp').style.setProperty('--fill', `${Math.max(0, player.hp / totalStats(save).health * 100)}%`);
     this.get('.hp b').textContent = `HP ${Math.ceil(player.hp)}/${totalStats(save).health}`;
     this.get('.hp').setAttribute('aria-valuenow', String(Math.ceil(player.hp)));
@@ -48,9 +52,10 @@ export function tick(this: Interface): void {
       const name = empty ? canAdd ? '스킬 장착하기' : '미습득' : kind === 'attack' ? basicAttackName(jobOrDefault(this.world.save.job)) : skills[kind].name;
       const key = `${kind}:${canAdd}:${selecting}`;
       if (button.dataset.state !== key) {
-        feedback.clear(button); applySkillArtwork(button, kind);
+        feedback.clear(button); applySkillArtwork(button, kind, jobOrDefault(this.world.save.job));
         button.dataset.state = key; button.dataset.skill = kind ?? '';
-        button.querySelector('strong')!.textContent = empty ? canAdd || selecting ? '+' : '—' : kind === 'attack' ? '⚔' : skills[kind].icon;
+        // 기본 공격은 직업별 원형 아이콘(대검·활·마법탄)이 `.skill-art`로 덮으므로 글자 그림판은 비워 둔다(작업 216).
+        button.querySelector('strong')!.textContent = empty ? canAdd || selecting ? '+' : '—' : kind === 'attack' ? '' : skills[kind].icon;
         button.querySelector('small')!.textContent = selecting ? '선택' : empty ? canAdd ? '장착' : '미습득' : kind === 'attack' ? basicAttackName(jobOrDefault(this.world.save.job)) : shortNames[kind];
         button.setAttribute('aria-label', selecting ? `${index}번 원에 스킬 장착` : name);
         button.classList.toggle('skill-empty', empty); button.classList.toggle('skill-can-add', canAdd);

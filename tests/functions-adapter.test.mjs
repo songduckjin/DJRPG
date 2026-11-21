@@ -94,6 +94,16 @@ test('Fetch endpoints register, save, load and query shared data using the exist
     assert.equal(registration.status, 200);
     const registered = await registration.json();
     assert.equal(registered.characterSlot, 1);
+    // [작업 216] 가입은 아이디·비밀번호만 받고 캐릭터는 0개다 — 캐릭터를 먼저 만들어야 저장할 수 있다.
+    assert.equal(registered.needsCharacter, true);
+    const blockedSave = await accountEndpoint(post('account', { action: 'save', revision: 0, characterSlot: 1, save: registered.save }, registered.token), options);
+    assert.equal(blockedSave.status, 409);
+    assert.equal((await blockedSave.json()).code, 'CHARACTER_REQUIRED');
+    const creation = await accountEndpoint(post('account', { action: 'createCharacter', slot: 1, name: '테스터', gender: 'female', job: 'warrior', revision: registered.revision }, registered.token), options);
+    assert.equal(creation.status, 200);
+    const created = await creation.json();
+    assert.equal(created.save.name, '테스터');
+    registered.save = created.save; registered.revision = created.revision;
     const db = createClient({ url: env.TURSO_DATABASE_URL });
     try {
       const fresh = (await db.execute({ sql: 'SELECT password_hash FROM djrpg_accounts WHERE id=?', args: ['tester119'] })).rows[0].password_hash;
@@ -102,7 +112,7 @@ test('Fetch endpoints register, save, load and query shared data using the exist
     const token = registered.token;
     const item = { id: randomUUID(), name: '기존 검', slot: 'weapon', rarity: 'rare', stats: { attack: 10 } };
     const save = { ...registered.save, gold: 17, bag: [item] };
-    const savedResponse = await accountEndpoint(post('account', { action: 'save', revision: 0, characterSlot: 1, save }, token), options);
+    const savedResponse = await accountEndpoint(post('account', { action: 'save', revision: registered.revision, characterSlot: 1, save }, token), options);
     assert.equal(savedResponse.status, 200);
     const saved = await savedResponse.json();
     assert.equal(saved.save.gold, 17);
@@ -204,7 +214,8 @@ test('legacy password upgrades only after a successful login without changing sa
     assert.match(upgraded, /^scrypt\$2048\$8\$1\$[a-f\d]{32}\$[a-f\d]{128}$/);
     assert.equal((await accountEndpoint(post('account', { action: 'load' }, loginBody.token), options)).status, 200);
     assert.equal((await accountEndpoint(post('account', { action: 'login', loginId: 'legacy119', password: 'legacy-password' }), options)).status, 200);
-    assert.equal(legacyCalls, 2);
+    // 작업 224(`#6466`): 구형 해시도 서버 scrypt로 직접 판정하므로 외부 Vercel 검증은 호출되지 않는다.
+    assert.equal(legacyCalls, 0, '서버가 직접 검증한다 — 외부 Vercel이 죽어도 로그인된다');
     await assert.rejects(verifyLegacyViaVercel('legacy119', 'legacy-password', env, async () => Response.json({ accountId: 'legacy119', token: 'forged' })), error => error.code === 'DB_UNAVAILABLE');
   } finally {
     await rm(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });

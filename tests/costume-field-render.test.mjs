@@ -103,13 +103,17 @@ test('대기·걷기 8프레임·기본 공격·스킬 4종이 모션 표 하나
 test('공격 속도 배율은 시각 재생 배율로만 쓰이고 월드 쿨다운과 역수 관계다', () => {
   assert.equal(costumePlaybackRate({ speed: 0 }), 1);
   assert.equal(costumePlaybackRate({ speed: 50 }), 1.5);
-  assert.equal(costumePlaybackRate({ speed: 100, berserk: 1, berserkLevel: 1 }), 3);
-  assert.equal(costumePlaybackRate({ speed: 0, berserk: 1, berserkLevel: 1 }), 1.5);
+  // [작업 216] 광폭 공속은 min(1.5, 1.2 + (레벨-1)*.01) — Lv.1 +20%, 상한 1.5배(예전 Lv.1 1.5배와 다르다).
+  assert.equal(costumePlaybackRate({ speed: 100, berserk: 1, berserkLevel: 1 }), 2.4);
+  assert.equal(costumePlaybackRate({ speed: 0, berserk: 1, berserkLevel: 1 }), 1.2);
+  assert.equal(costumePlaybackRate({ speed: 0, berserk: 1, berserkLevel: 30 }), 1.49);
+  assert.equal(costumePlaybackRate({ speed: 100, berserk: 1, berserkLevel: 30 }), 2.98, '2 × 1.49 — 재생 배율 상한(3배) 아래');
   assert.equal(costumePlaybackRate({ speed: Number.NaN }), 1);
-  // world.ts: cooldown = 0.48 / (1 + speed/100) * (berserk ? 1/(1.5+(level-1)*.08) : 1)
-  for (const speed of [0, 20, 45]) for (const berserkLevel of [1, 3]) {
+  // world.ts: cooldown = 0.48 / (1 + speed/100) * (berserk ? 1/berserkSpeedScale(level) : 1)
+  const berserkSpeedScale = level => Math.min(1.5, 1.2 + (Math.max(1, level) - 1) * .01);
+  for (const speed of [0, 20, 45]) for (const berserkLevel of [1, 3, 30]) {
     const rate = costumePlaybackRate({ speed, berserk: 1, berserkLevel });
-    const cooldown = .48 / (1 + speed / 100) / (1.5 + (berserkLevel - 1) * .08);
+    const cooldown = .48 / (1 + speed / 100) / berserkSpeedScale(berserkLevel);
     assert(Math.abs(cooldown * rate - .48) < 1e-9, `쿨다운 × 시각 배율 = 기본 쿨다운 (speed ${speed}, 광폭 ${berserkLevel})`);
   }
   // 빠른 공격일수록 같은 진행도에서 더 뒤 프레임에 도달하고, 마지막 프레임을 넘지 않는다.

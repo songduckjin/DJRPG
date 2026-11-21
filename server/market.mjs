@@ -1,13 +1,26 @@
 import { randomUUID } from 'node:crypto';
 import { decodeAccount, assertRevision, fail, reconcileItems, inventoryOwnerQuery, transaction, validateSave, writeSave, marketStatExpression } from './database.mjs';
+import { journeyState, journeyOperation } from './journey-state.mjs';
 import { countedInBag } from './skill-ids.mjs';
 import { elapsedSince } from './save-guard.mjs';
-export const rules = { fee: .05, maxListings: 30, durationHours: 72, maxPrice: 1_000_000_000, pageSize: 20 };
+export const rules = { fee: .05, maxListings: 30, durationHours: 72, maxPrice: 1_000_000_000, minPrice: 1, pageSize: 20 };
 const deliveryOperation = (listing, owner, kind, item, gold, reason) => {
   const delivery = { id: randomUUID(), item, gold, reason, createdAt: Date.now() };
   return { owner, delivery, operation: { sql: 'INSERT OR IGNORE INTO djrpg_market_inbox VALUES (?,?,?,?,?,?,?,?,NULL)', args: [delivery.id, owner, listing.id, kind, item ? JSON.stringify(item) : null, gold, reason, delivery.createdAt] } };
 };
 const eventOperation = (kind, id) => ({ sql: 'INSERT INTO djrpg_market_events(kind,listing_id,created_at) VALUES (?,?,?)', args: [kind, id, Date.now()] });
+/**
+ * 거래 완료 업적 카운터 (작업 224, 사용자 확정 `#6289`·`#6294`).
+ *
+ * 성사된 거래만 세도록 구매자·판매자 양쪽 장부(`djrpg_journey.state_json.marketTrades`)를 1씩 올린다.
+ * 세이브(`save_json`)가 아니라 계정 장부에 두는 이유: 판매자의 세이브는 다른 기기·다른 세션의 클라이언트가
+ * 들고 있어 서버가 값을 고쳐도 다음 저장에 덮어써진다. `json_set`이라 일일·주간·우편 등 다른 장부 항목은
+ * 그대로 두고, 장부 행이 없으면(오래된 계정) 새로 만들어 1부터 센다. `advanceJourney`가 빈 항목을 채운다.
+ */
+const tradeCountOperation = owner => ({
+  sql: "INSERT INTO djrpg_journey(account_id,state_json) VALUES (?, json_set('{}','$.marketTrades',1)) ON CONFLICT(account_id) DO UPDATE SET state_json=json_set(state_json,'$.marketTrades',COALESCE(json_extract(state_json,'$.marketTrades'),0)+1)",
+  args: [owner]
+});
 export async function expire(tx, owner) {
   const rows = (await tx.execute({ sql: "SELECT * FROM djrpg_market WHERE state='active' AND expires_at<=?" + (owner ? " AND seller=?" : ""), args: owner ? [Date.now(), owner] : [Date.now()] })).rows;
   const operations = [];
@@ -108,10 +121,23 @@ export async function mutate(db, id, input) {
     if (input.progress !== undefined) validateSave(input.progress);
     const save = structuredClone(input.progress ?? row.save);
     const operations = [], effect = { deliveries: [] };
+    // 거래가 실제로 성사되면 구매자·판매자 양쪽 거래 완료 카운터를 같은 배치에서 올린다(작업 224).
+    let tradeParties = null, saveRow = row;
     // 판매대금 수령처럼 서버가 같은 트랜잭션에서 금화를 더해 주는 몫은 세이브 검증 상한에 함께 더한다.
     let goldCredit = 0;
     // Validate ownership from the initial read batch, then persist it with the trade.
-    if (input.action === 'register' || JSON.stringify([row.save.bag, row.save.equipment]) !== JSON.stringify([save.bag, save.equipment])) await reconcileItems(tx, id, row.save, save, { owned: reads[3].rows, operations, slot: row.slot, elapsedSeconds: elapsedSince(row.character_updated_at) });
+    // 작업 222(`#5921`): 수령함에서 받는 아이템은 이 트랜잭션에서 주인 기록을 `location='inbox'`→`'inventory'`로
+    // 바꾸는 중인데, 그 UPDATE는 `operations`에 쌓여 있어 아래 reconcile보다 **나중에** 실행된다. 그래서 클라이언트
+    // 세이브가 그 아이템을 이미 들고 있으면(받기 직후 저장·재시도) 옛 `inbox` 행을 읽혀
+    // `409 ITEM_CONFLICT`로 수령이 막혔다. 이 요청에서 실제로 받을 배달의 아이템만 '가방에 들어간 상태'로
+    // 미리 보고 통과시킨다(다른 배달·다른 계정 아이템은 종전대로 막힌다).
+    const claimable = input.action === 'claim'
+      ? new Set(reads[2].rows.filter(delivery => delivery.item_json).map(delivery => JSON.parse(delivery.item_json).id))
+      : new Set();
+    const ownedRows = claimable.size
+      ? reads[3].rows.map(owner => claimable.has(owner.item_id) ? { ...owner, location: 'inventory', character_slot: row.slot } : owner)
+      : reads[3].rows;
+    if (input.action === 'register' || JSON.stringify([row.save.bag, row.save.equipment]) !== JSON.stringify([save.bag, save.equipment])) await reconcileItems(tx, id, row.save, save, { owned: ownedRows, operations, slot: row.slot, elapsedSeconds: elapsedSince(row.character_updated_at) });
     let message = '';
     const inbox = (sale, owner, kind, item, gold, reason) => {
       const entry = deliveryOperation(sale, owner, kind, item, gold, reason);
@@ -162,6 +188,7 @@ export async function mutate(db, id, input) {
         write({ sql: 'UPDATE djrpg_character_item_owners SET account_id=?,slot=0 WHERE item_id=?', args: [id, item.id] });
         event('sold', sale.id);
         effect.listing = { id: sale.id, state: 'sold', soldAt: Date.now() };
+        tradeParties = { buyer: id, seller: sale.seller };
         message = '구매 완료! 수령함에서 아이템을 받아주세요.';
       }
     } else if (input.action === 'claim') {
@@ -177,7 +204,8 @@ export async function mutate(db, id, input) {
           skipped++;continue;
         }
         if (item) {
-          save.bag.push(item);if(countedInBag(item, save.job))equipmentCount++;
+          // 클라이언트 세이브가 이미 같은 아이템을 들고 있으면(수령 직후 저장·재시도) 두 번 넣지 않는다(작업 222).
+          if (!save.bag.some(entry => entry.id === item.id)) { save.bag.push(item); if (countedInBag(item, save.job)) equipmentCount++; }
           write({sql:"UPDATE djrpg_item_owners SET location='inventory' WHERE item_id=? AND account_id=?",args:[item.id,id]});
           write({sql:'INSERT INTO djrpg_character_item_owners(item_id,account_id,slot) VALUES (?,?,?) ON CONFLICT(item_id) DO UPDATE SET account_id=excluded.account_id,slot=excluded.slot',args:[item.id,id,row.slot]});
         }
@@ -190,8 +218,15 @@ export async function mutate(db, id, input) {
       message=all?`${claimed.length}건 수령 완료${skipped?` · 공간 부족 장비 ${skipped}건은 수령함에 보관`:''}`:deliveries[0].item_json?'아이템을 가방으로 받았습니다.':`${gold.toLocaleString('ko-KR')} 금화를 받았습니다.`;
     } else fail(400, 'INVALID_ACTION', '지원하지 않는 거래 요청입니다.');
     write({ sql: 'INSERT INTO djrpg_market_requests VALUES (?,?,?)', args: [id, input.requestId, JSON.stringify({ ok: true, message, effect, revision: row.revision + 1 })] });
-    const result = { ok: true, message, effect, ...await writeSave(tx, row, save, operations, true, { goldCredit }) };
-    return result;
+    if (tradeParties) {
+      // 구매자 장부는 이 트랜잭션의 장부 쓰기(`journeyOperation`)에 실어 보내고, `writeSave`의 장부 쓰기는
+      // 한 번만 남도록 `skipJourney`로 맡긴다 — 추가 DB 배치·실행 없이 같은 배치에 들어간다.
+      const state = await journeyState(tx, row, save);
+      state.marketTrades = (state.marketTrades ?? 0) + 1;
+      operations.push(journeyOperation(id, state), tradeCountOperation(tradeParties.seller));
+      saveRow = { ...row, skipJourney: true };
+    }
+    return { ok: true, message, effect, ...await writeSave(tx, saveRow, save, operations, true, { goldCredit }) };
   });
 }
 

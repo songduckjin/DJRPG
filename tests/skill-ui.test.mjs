@@ -92,7 +92,8 @@ test('all eight active skill cards use the exact field artwork and basic attack 
     for(const id of skillOrder){const card=created.find(n=>n.dataset.skill===id),icon=card.querySelector('.skill-icon'),field=node();applySkillArtwork(field,id);const art=field.querySelector('.skill-art');
       assert.equal(icon.className,'skill-icon skill-image-icon');assert.equal(icon.textContent,'');assert.equal(icon.style.backgroundImage,art.style.backgroundImage);assert.equal(icon.style.backgroundPosition,art.style.backgroundPosition);
     }
-    assert(created.some(card=>card.querySelector('.skill-icon').style.backgroundImage?.includes('nav_skills_v2.png')));
+    // [작업 216] 기본 공격 카드 아이콘은 직업별 원형 아이콘(전사 기본 = 대검)이다.
+    assert(created.some(card=>card.querySelector('.skill-icon').style.backgroundImage?.includes('attack_warrior.png')));
   }finally{globalThis.document=previous;}
 });
 

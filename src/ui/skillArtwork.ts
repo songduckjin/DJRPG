@@ -1,5 +1,5 @@
 import type { Action } from '../game/world';
-import type { ArcherPassiveId, ArcherSkillId, MagePassiveId, MageSkillId, PassiveId, WarriorPassiveId, WarriorSkillId } from '../game/skills';
+import { jobOrDefault, type ArcherPassiveId, type ArcherSkillId, type Job, type MagePassiveId, type MageSkillId, type PassiveId, type WarriorPassiveId, type WarriorSkillId } from '../game/skills';
 
 const warriorFrames: Record<WarriorSkillId, number> = { slash2: 0, spin: 1, crushing: 2, slam: 3, warcry: 4, power: 5, destroy: 6, hell: 7 };
 /** 궁수 스킬 아이콘 시트(`archer-skills.png`, 4×2)의 칸 번호 — `archerSkillOrder` 순서. */
@@ -12,16 +12,22 @@ export function skillIconSheet(kind: Action): 'field-skills' | 'archer-skills' |
   if (kind in mageFrames) return 'mage-skills';
   return 'field-skills';
 }
-export function applySkillArtwork(button: HTMLButtonElement, kind: Action | null): void {
+/**
+ * 직업별 기본 평타 원형 아이콘(작업 216) — 불꽃 없는 대검 / 활 / 마법탄 메달리온 3장.
+ * 스킬 시트의 'attack' 칸(⚔ 글자 그림) 대신 액션 패드와 스킬 창의 기본 공격 버튼에 그대로 쓴다.
+ * 파일은 `scripts/build-attack-icons.py`가 승인 원본에서 원 밖을 투명으로 굽는다.
+ */
+export function attackIconPath(job: Job = 'warrior'): string { return `/assets/icons/attack_${jobOrDefault(job)}.png`; }
+export function applySkillArtwork(button: HTMLButtonElement, kind: Action | null, job: Job = 'warrior'): void {
   const art = button.querySelector<HTMLElement>('.skill-art');
   if (!art) return;
   art.hidden = kind === null;
   button.classList.toggle('has-skill-art', kind !== null);
   if (!kind) return;
-  setSkillIcon(art, kind);
+  setSkillIcon(art, kind, job);
 }
-export function setSkillIcon(art: HTMLElement, kind: Action): void {
-  art.style.backgroundImage = `url('/assets/icons/${kind === 'attack' ? 'nav_skills_v2.png' : `${skillIconSheet(kind)}.png`}')`;
+export function setSkillIcon(art: HTMLElement, kind: Action, job: Job = 'warrior'): void {
+  art.style.backgroundImage = `url('${kind === 'attack' ? attackIconPath(job) : `/assets/icons/${skillIconSheet(kind)}.png`}')`;
   art.style.backgroundRepeat = 'no-repeat';
   art.style.backgroundSize = kind === 'attack' ? 'contain' : '400% 200%';
   const frame = kind === 'attack' ? 0

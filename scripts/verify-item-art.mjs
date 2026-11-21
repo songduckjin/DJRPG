@@ -349,6 +349,20 @@ for (const [name, columns, rows] of [['mage-skills.png', 4, 2], ['mage-passive-s
 }
 console.log('마법사 스킬·패시브 아이콘 시트 2종 확인 완료.');
 
+// ── 작업 216: 직업별 기본 평타 원형 아이콘 3장(대검·활·마법탄) ─────────────────────
+// 승인 원본에서 원 밖만 투명하게 잘라 256×256 RGBA로 굽는다(`scripts/build-attack-icons.py`).
+for (const job of ['warrior', 'archer', 'mage']) {
+  const name = `attack_${job}.png`;
+  const path = join(iconRoot, name);
+  if (!existsSync(path)) throw new Error(`평타 아이콘이 없습니다: ${name}`);
+  const data = readFileSync(path), header = data.subarray(0, 26);
+  const width = header.readUInt32BE(16), height = header.readUInt32BE(20);
+  if (header.toString('ascii', 1, 4) !== 'PNG') throw new Error(`평타 아이콘이 PNG가 아닙니다: ${name}`);
+  if (width !== 256 || height !== 256) throw new Error(`평타 아이콘은 256×256이어야 합니다(${width}×${height}): ${name}`);
+  if (header[25] !== 6) throw new Error(`평타 아이콘은 알파가 있는 RGBA PNG여야 합니다: ${name}`);
+}
+console.log('직업별 평타 원형 아이콘 3장 확인 완료.');
+
 // ── 작업 156: 기본 검을 지운 본체 시트(noweapon) + 대검 파츠 9장 ────────────────────
 // 0번(기본 두손검)은 본체 시트에 그려져 있고, 1~9번은 `weapons/weapon_{n}_v1.png` 파츠로
 // 362px 셀 위에 얹는다. 그래서 기본 검을 지운 같은 시트가 본체 6종(갑옷 없음)과

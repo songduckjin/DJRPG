@@ -295,3 +295,82 @@ test('browsing does not process another sellers expired listings or contend for 
  const page=await snapshot(reader,'lazy-viewer',{view:'active'});assert(!page.listings.some(row=>row.id===entry.id));assert.equal(writes,0);
  const own=await snapshot(db,'lazy-expired',{view:'mine'});assert.equal(own.listings.find(row=>row.id===entry.id).state,'expired');assert(own.inbox.some(delivery=>delivery.item?.id===entry.item.id));
 });
+
+// 작업 222(`#5921`) — 경매장 수령함에서 아이템 받기가 `409 ITEM_CONFLICT`(데이터 동기화가 어긋났습니다)로 막히던 문제.
+// 원인: `claim`이 주인 기록을 `operations`에 쌓아 두는데 `reconcileItems`는 그보다 먼저 옛 `location='inbox'` 행을 읽는다.
+test('경매장 등록 → 다른 계정 구매 → 수령함 아이템 받기 → 저장까지 409 없이 이어진다(작업 222, `#5921`)', async () => {
+  await seed('flow-seller', [item()]); await seed('flow-buyer', []);
+  const offer = await sale('flow-seller', 100);
+  const bought = await action('flow-buyer', 'buy', { listingId: offer.id });
+  const delivery = (await snapshot(db, 'flow-buyer', { view: 'mine' })).inbox.find(entry => entry.item);
+  assert.equal(delivery.item.id, offer.item.id, '구매한 아이템이 수령함에 있다');
+  // ① 가방이 비어 있는 정상 수령 — 종전에도 통과하던 경로
+  const first = await action('flow-buyer', 'claim', { deliveryId: delivery.id });
+  assert.equal(first.save.bag.filter(entry => entry.id === offer.item.id).length, 1, '가방에 한 개');
+  assert.equal((await db.execute({ sql: 'SELECT location FROM djrpg_item_owners WHERE item_id=?', args: [offer.item.id] })).rows[0].location, 'inventory');
+  // ② 클라이언트 세이브가 이미 그 아이템을 들고 있는 상태(받기 직후 저장·재시도) — 예전에는 여기서 409였다
+  await seed('retry-seller', [item()]); await seed('retry-buyer', []);
+  const second = await sale('retry-seller', 100);
+  await action('retry-buyer', 'buy', { listingId: second.id });
+  const row = await account(db, 'retry-buyer');
+  const retryDelivery = (await snapshot(db, 'retry-buyer', { view: 'mine' })).inbox.find(entry => entry.item);
+  const progress = structuredClone(row.save);
+  progress.bag.push(retryDelivery.item);
+  const claimed = await mutate(db, 'retry-buyer', { action: 'claim', deliveryId: retryDelivery.id, revision: row.revision, requestId: randomUUID(), progress });
+  assert.equal(claimed.save.bag.filter(entry => entry.id === retryDelivery.item.id).length, 1, '같은 아이템이 두 번 들어가지 않는다');
+  const owner = (await db.execute({ sql: 'SELECT location FROM djrpg_item_owners WHERE item_id=?', args: [retryDelivery.item.id] })).rows[0];
+  assert.equal(owner.location, 'inventory', '주인 기록이 가방으로 바뀐다');
+  // ③ 받은 뒤 다음 저장(계정 저장과 같은 경로)도 409 없이 통과해 아이템이 남는다
+  await transaction(db, async tx => {
+    const latest = await account(tx, 'retry-buyer');
+    await reconcileItems(tx, 'retry-buyer', latest.save, claimed.save, { slot: latest.slot });
+    await writeSave(tx, latest, claimed.save);
+  });
+  const after = await account(db, 'retry-buyer');
+  assert(after.save.bag.some(entry => entry.id === retryDelivery.item.id), '저장 뒤에도 가방에 남아 있다');
+  assert.equal((await db.execute({ sql: 'SELECT location FROM djrpg_item_owners WHERE item_id=?', args: [retryDelivery.item.id] })).rows[0].location, 'inventory');
+  // ④ 다른 계정이 남의 수령함 아이템을 가방에 끼워 넣는 것은 종전처럼 막힌다
+  await seed('thief-buyer', []);
+  const stolenRow = await account(db, 'thief-buyer');
+  const stolen = structuredClone(stolenRow.save);
+  stolen.bag.push(delivery.item);
+  await assert.rejects(mutate(db, 'thief-buyer', { action: 'claim', deliveryId: 'all', revision: stolenRow.revision, requestId: randomUUID(), progress: stolen }), error('ITEM_CONFLICT'));
+});
+
+test('성사된 거래만 구매자·판매자 거래 완료 카운터를 1씩 올린다 (작업 224)', async () => {
+  const trades = async id => {
+    const row = (await db.execute({ sql: 'SELECT state_json FROM djrpg_journey WHERE account_id=?', args: [id] })).rows[0];
+    return Number(JSON.parse(row?.state_json ?? '{}').marketTrades ?? 0);
+  };
+  await seed('trade-seller', [item(), item()], 10000);
+  await seed('trade-buyer', [], 10000);
+  const before = { seller: await trades('trade-seller'), buyer: await trades('trade-buyer') };
+  const registerOne = async () => {
+    const row = await account(db, 'trade-seller'), selected = row.save.bag[0];
+    await action('trade-seller', 'register', { itemId: selected.id, price: 150 });
+    return (await snapshot(db, 'trade-seller', { view: 'mine' })).listings.find(entry => entry.state === 'active');
+  };
+  const listed = await registerOne();
+  assert.equal(await trades('trade-seller'), before.seller, '판매 등록은 세지 않는다');
+  await action('trade-buyer', 'buy', { listingId: listed.id });
+  assert.equal(await trades('trade-seller'), before.seller + 1, '판매자 +1');
+  assert.equal(await trades('trade-buyer'), before.buyer + 1, '구매자 +1');
+  const cancelled = await registerOne();
+  await action('trade-seller', 'cancel', { listingId: cancelled.id });
+  assert.equal(await trades('trade-seller'), before.seller + 1, '등록 취소는 세지 않는다');
+  // 업적 화면의 현재 값도 같은 장부를 읽는다 — 판매 1회·구매 1회면 2회다.
+  const { journeyState, journeyView } = await import('../server/journey-state.mjs');
+  const sellerRow = await account(db, 'trade-seller');
+  const sellerView = journeyView(await journeyState(db, sellerRow, sellerRow.save), sellerRow.save);
+  const market = sellerView.achievements.filter(task => task.name.startsWith('거래소 거래 완료'));
+  assert.deepEqual(market.map(task => task.current), [1, 1, 1, 1, 1, 1]);
+  assert.deepEqual(market.filter(task => task.current >= task.target).map(task => task.id), ['market-1']);
+});
+
+test('거래소 규칙이 현재 최소 등록 금액 1 금화를 함께 준다 (작업 224 `#6313`)', async () => {
+  const { rules } = await import('../server/market.mjs');
+  assert.equal(rules.minPrice, 1);
+  const result = await snapshot(db, 'guest', { view: 'active' });
+  assert.equal(result.rules.minPrice, 1, '화면이 서버 값으로 최소 금액을 표시한다');
+  assert.equal(result.rules.maxPrice, 1_000_000_000);
+});

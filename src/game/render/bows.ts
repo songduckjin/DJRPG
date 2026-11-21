@@ -1,5 +1,5 @@
 import type { Gender, Save } from '../store';
-import { bowIndex, isBow } from '../items';
+import { bowIndex, isBow, hasNoWeapon } from '../items';
 
 /**
  * 착용 활 10종 외형 파츠 (작업 160).
@@ -108,7 +108,8 @@ export function bowIndexFor(save: Save): number {
 
 /** 기본 활을 지운 본체 시트를 써야 하는가(= 0번이 아닌 활을 찼는가). */
 export function usesBowlessBody(save: Save): boolean {
-  return bowIndexFor(save) >= 1;
+  // [작업 216] 활을 안 찼어도 기본 활대를 지운 판(`nobow/`)을 쓴다.
+  return bowIndexFor(save) >= 1 || hasNoWeapon(save);
 }
 
 /** 기본 활대를 지운 궁수 본체 시트 경로. */

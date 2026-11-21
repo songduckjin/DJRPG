@@ -1,4 +1,5 @@
 import './ts-loader.mjs';
+import { withWeapon } from './helpers/armed.mjs';
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, rm } from 'node:fs/promises';
@@ -196,7 +197,8 @@ test('월드보스 공유 HP는 동시 피해의 합과 정확히 같고 보상�
   const now = Date.parse('2026-12-01T10:00:00Z');
   const day = periods(now).daily;
   for (const id of ['boss-a', 'boss-b']) {
-    const save = parseSave({ ...freshSave('male'), name: id, level: 7 }, id);
+    // [작업 216] 무기가 없으면 공격이 막혀 월드보스 피해가 0이 된다 — 실제 플레이어처럼 무기를 찬다.
+    const save = parseSave(withWeapon({ ...freshSave('male'), name: id, level: 7 }, `boss-weapon-${id}`), id);
     await db.execute({ sql: 'INSERT INTO djrpg_accounts(id,password_hash,save_json,updated_at,session_id) VALUES(?,?,?,?,?)', args: [id, 'hash', JSON.stringify(save), new Date(now).toISOString(), `sid-${id}`] });
     await account(db, id);
   }

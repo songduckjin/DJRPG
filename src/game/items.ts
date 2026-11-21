@@ -51,12 +51,17 @@ export function rollSkillBook(floor: number, _job: Job = 'warrior'): SkillBook {
  *
  * 예전에는 장비·스킬북 확률을 따로 두 번 굴려 한 마리에서 두 개가 같이 떨어질 수 있었다. 이제는
  * **한 번만 굴리고**, 당첨되면 `SKILLBOOK_DROP_SHARE`(30%)로 종류를 갈라 **한 개만** 떨어진다.
- * - 일반 몹(정예 포함): 1층 0.20% → 20층 0.80%에서 멈춘다.
- * - 보스: 1층 3.0% → 20층 12.0%에서 멈춘다.
+ * - 일반 몹(정예 포함): 1층 0.40% → 20층 1.60%에서 멈춘다.
+ * - 보스: 1층 6.0% → 20층 24.0%에서 멈춘다.
+ *
+ * 작업 223(2026-11-20, 사용자 확정 `#6034`·`#6061`·`#6066`): 초반이 너무 짜다는 제보("부캐 1시간
+ * 방치해서 반지 한 개")에 **전 구간을 그대로 2배**로 올렸다. 위층 몹을 늦게 잡도록 난이도를 올릴
+ * 예정이라 마리당 확률을 받쳐 파밍 템포를 지키는 쪽을 사용자가 골랐다. 장비 70% : 스킬북 30%
+ * 비율(`SKILLBOOK_DROP_SHARE`)·오프라인 정산(`offline.ts`)·던전 몫은 그대로다.
  */
 export function itemDropChance(floor: number, boss = false): number {
   const depth = Math.max(0, floor - 1);
-  return boss ? Math.min(.12, .03 + depth * (.09 / 19)) : Math.min(.008, .002 + depth * (.006 / 19));
+  return boss ? Math.min(.24, .06 + depth * (.18 / 19)) : Math.min(.016, .004 + depth * (.012 / 19));
 }
 /** 당첨된 아이템 1개의 종류 — 스킬북 30%, 장비 70%. */
 export const SKILLBOOK_DROP_SHARE = .3;
@@ -257,6 +262,15 @@ export function isArcher(save: Pick<Save, 'job'>): boolean { return jobOrDefault
 export function isMage(save: Pick<Save, 'job'>): boolean { return jobOrDefault(save.job) === 'mage'; }
 /** 전사가 아닌 직업 — 장비 오버레이(갑옷·투구·대검 파츠)를 그리지 않고 기본 시트만 쓴다. */
 export function usesBaseSheetOnly(save: Pick<Save, 'job'>): boolean { return jobOrDefault(save.job) !== 'warrior'; }
+
+/**
+ * 무기 칸이 비어 있는가(작업 216).
+ *
+ * 기본 본체 시트에는 0번 무기(기본 두손검·활·지팡이)가 **그림으로 들어 있다**. 그래서 무기를 하나도
+ * 차지 않은 캐릭터도 손에 칼·활·지팡이를 들고 서 있었다. 빈손이면 기본 무기를 지운 판
+ * (`noweapon/`·`nobow/`·`mage_nostaff/`)으로 갈아 끼워 빈손으로 그린다.
+ */
+export function hasNoWeapon(save: Pick<Save, 'equipment'>): boolean { return !save.equipment?.weapon; }
 
 export function isZweihander(item: Item): boolean { return item.slot === 'weapon' && /쯔바이핸드|츠바이핸더/.test(item.name); }
 

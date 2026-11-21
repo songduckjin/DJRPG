@@ -3,7 +3,13 @@ const HOUR = 3600000, DAY = 24 * HOUR;
 export const UPDATE_NOTICE_ID = 'update-2026-11-20';
 /** 우편 만료 = 2026-11-28 00:00 KST. 이 시각을 넘겨 처음 접속한 계정에는 보상을 붙이지 않는다. */
 export const UPDATE_NOTICE_UNTIL = Date.UTC(2026, 10, 27, 15, 0, 0);
-export const DIAMOND_MAIL_ID = 'all-idle-launch-diamonds-2026-11-20';
+/** 시즌1에 지급한 옛 다이아 우편 ID — 시즌2 우편은 **다른 ID**를 쓴다.
+ *  다이아 지급은 `djrpg_shop_ledger`의 `UNIQUE(account_id,source_type,source_id)`로 한 번만 기록되는데,
+ *  시즌 초기화는 `djrpg_journey`만 비우고 원장은 남긴다(`server/season.mjs`). 그래서 시즌1에 이 우편을
+ *  받은 계정이 시즌2에 같은 ID로 다시 받으면 `INSERT`가 UNIQUE 충돌(500)로 터졌다(핫픽스 220, 사용자 제보 `#5539`). */
+export const LEGACY_DIAMOND_MAIL_ID = 'all-idle-launch-diamonds-2026-11-20';
+/** 시즌2 전 슬롯 방치 기능 기념 다이아 4,000개 우편 — 시즌마다 새 ID를 쓴다. */
+export const DIAMOND_MAIL_ID = 'all-idle-launch-diamonds-2026-11-20-s2';
 /** 새 시즌 안내 우편 — 시즌 초기화 뒤 처음 들어온 모험가가 당황하지 않도록 한 번만 넣는다(작업 208).
  *  보상은 `1,000G + 무작위 보물 주머니 1개`다(작업 208 사용자 요청 `#4069`). */
 export const SEASON_NOTICE_ID = 'season-2-open';
@@ -119,6 +125,7 @@ export function advanceJourney(state, before, save, now = Date.now(), diamondMai
     }
   }
   state.achievements ??= []; state.mail ??= [];
+  migrateLegacyDiamondMail(state);
   grantUpdateNotice(state, now);
   grantSeasonNotice(state, now);
   // 미리보기 테스트 우편(작업 210·211): 지급은 미리보기 호스트에서만, 삭제는 **운영 호스트에서만** 한다.
@@ -126,12 +133,36 @@ export function advanceJourney(state, before, save, now = Date.now(), diamondMai
   if (previewMode === true || previewMode === 'preview') grantPreviewPouchMail(state, now, true);
   else if (previewMode === 'production') stripPreviewPouchMail(state);
   if (diamondMailEligible) {
+    // 옛 ID 우편을 이미 받아 둔 계정은 위 `migrateLegacyDiamondMail`이 새 ID로 바꿔 두었다 — 새로 붙이지 않는다.
     state.notices ??= [];
-    if (!state.notices.includes(DIAMOND_MAIL_ID) && !state.mail.some(entry => entry.id === DIAMOND_MAIL_ID)) {
+    // 핫픽스 직전 20여 분 사이에 옛 ID로 4,000 다이아를 이미 받은 계정(수령 후 우편 삭제)에게 같은 보상을
+    // 한 번 더 주지 않는다 — 시즌1에 1,000을 받은 계정은 옛 ID 우편이 우편함에 남아 있어 마이그레이션으로 받는다.
+    const alreadyGranted = state.notices.includes(LEGACY_DIAMOND_MAIL_ID) || state.mail.some(entry => entry.id === LEGACY_DIAMOND_MAIL_ID || entry.id === DIAMOND_MAIL_ID);
+    if (!alreadyGranted && !state.notices.includes(DIAMOND_MAIL_ID)) {
       state.notices.push(DIAMOND_MAIL_ID);
       state.mail.push({ id: DIAMOND_MAIL_ID, title: '다이아 4,000개 지급', sender: '운영팀', body: '전 슬롯 방치 기능 출시를 기념해 계정마다 다이아 4,000개를 드립니다.', createdAt: now, expiresAt: null, gold: 0, books: 0, diamonds: 4000, claimedAt: null, read: false });
     }
   }
+  return state;
+}
+/**
+ * 시즌1 다이아 우편(`LEGACY_DIAMOND_MAIL_ID`)이 우편함에 **미수령**으로 남아 있으면 시즌2 ID로 바꾼다(핫픽스 220).
+ *
+ * 시즌 초기화 전에 들어온 우편은 세이브로 남아 있어 시즌2에도 `받기`가 눌리는데, 옛 ID는 시즌1 원장 행과
+ * 부딪혀 500이 났다. ID만 새 시즌 것으로 바꾸면 같은 보상을 그대로 한 번 받을 수 있고,
+ * 이미 받은(`claimedAt`) 우편은 건드리지 않는다. `state.notices`의 지급 이력도 새 ID로 맞춰 다시 붙지 않게 한다.
+ */
+export function migrateLegacyDiamondMail(state) {
+  if (!state || !Array.isArray(state.mail)) return state;
+  const legacy = state.mail.find(entry => entry?.id === LEGACY_DIAMOND_MAIL_ID && !entry.claimedAt);
+  if (!legacy) return state;
+  if (state.mail.some(entry => entry?.id === DIAMOND_MAIL_ID)) {
+    // 새 시즌 우편이 이미 따로 있으면 옛 우편은 지운다 — 같은 4,000 다이아를 두 통 받지 않게.
+    state.mail = state.mail.filter(entry => entry !== legacy);
+  } else legacy.id = DIAMOND_MAIL_ID;
+  state.notices ??= [];
+  state.notices = state.notices.map(id => (id === LEGACY_DIAMOND_MAIL_ID ? DIAMOND_MAIL_ID : id));
+  if (!state.notices.includes(DIAMOND_MAIL_ID)) state.notices.push(DIAMOND_MAIL_ID);
   return state;
 }
 /** `previewMode`: `'preview'`·`'production'`·`false`(모름) — `advanceJourney`의 6번째 인자와 같은 뜻이다(작업 211). */
@@ -163,7 +194,7 @@ export const dailyTasks = [
   {id:'hunt',name:'몬스터 300마리 처치',metric:'kills',target:300,gold:1000,books:0},
   {id:'time',name:'30분 플레이',metric:'seconds',target:1800,gold:1000,books:0},
   {id:'worldBoss',name:'월드보스 1회 도전',metric:'worldBoss',target:1,gold:1500,books:0},
-  {id:'salvage',name:'장비 분해 3회',metric:'salvage',target:3,gold:800,books:0}
+  {id:'salvage',name:'장비 1개 분해',metric:'salvage',target:1,gold:800,books:0}
 ];
 export const weeklyTasks = [
   {id:'days',name:'일일 목표 5일 완료',metric:'days',target:5,gold:5000,books:0},
@@ -201,20 +232,25 @@ export function achievementReward(index, count) {
 }
 const milestones = [
   ['level','성장','캐릭터 레벨',[5,10,15,20,25,30],save=>save.level],
-  ['kills','사냥','몬스터 처치',[500,1000,2000,4000,8000,16000,32000],save=>save.kills],
+  // 몬스터 처치 단계는 2026-11-20 사용자 지시(`#6180`·`#6194`)로 7단계를 [1000,5000,15000,30000,60000,120000,250000]으로 올렸다.
+  ['kills','사냥','몬스터 처치',[1000,5000,15000,30000,60000,120000,250000],save=>save.kills],
   // 보스는 **보스만 합산**한다(작업 210, 사용자 지시 `#4475`·`#4486`): 사냥터 층 보스 + 던전 5·10층 보스
   // + 월드보스 도전(하루 3회, 도전마다 1회)이 세이브의 `bossKills` 하나로 모인다. 필드 정예 몹은 제외.
   ['boss','보스','보스 처치',[10,50,100,150,200],save=>save.bossKills??0],
   ['floor','탐험','최고 도달 층',[5,10,15,20],save=>save.maxFloor??save.floor],
   ['collection','수집','장비 도감 수집',[10,50,100,200,300,450,570],save=>collectionCount(save)],
   ['skills','스킬','스킬 강화 횟수',[5,15,30,50,100],save=>skillUpgradeCount(save)],
-  ['rank','스킬','최고 스킬 레벨',[5,10,15,20,25,30],save=>Math.max(0,...Object.values(save.skillLevels??{}))]
+  ['rank','스킬','최고 스킬 레벨',[5,10,15,20,25,30],save=>Math.max(0,...Object.values(save.skillLevels??{}))],
+  // 거래소 거래 완료(작업 224, 사용자 확정 `#6289`·`#6294`) — 등록·취소는 세지 않고 **실제로 성사된 거래**만
+  // 구매·판매 양쪽에서 1씩 센다. 횟수는 계정 단위 거래 장부(`djrpg_journey.state_json.marketTrades`)에
+  // `server/market.mjs` buy가 직접 올리므로 세션 상태를 받아 읽는다.
+  ['market','거래','거래소 거래 완료',[1,5,15,30,50,100],(_save,state)=>state?.marketTrades??0]
 ];
 export function journeyView(state, save, now = Date.now()) {
   const timed = (kind, tasks) => {
     const rows=tasks.map(task=>({...task,current:Math.min(task.target,Math.floor(task.metric==='login'?1:(state[kind][task.metric]??0))),claimed:state[kind].claims.includes(task.id)}));
     return [...rows,{...completionRewards[kind],target:rows.length,current:rows.filter(task=>task.current>=task.target).length,claimed:state[kind].claims.includes('completion')}];
   };
-  const achievements = milestones.flatMap(([key,category,name,targets,get])=>targets.map((target,index)=>({id:`${key}-${target}`,category,name:`${name} ${target.toLocaleString('ko-KR')}`,target,current:Math.min(target,Math.floor(get(save)??0)),...achievementReward(index,targets.length),claimed:state.achievements.includes(`${key}-${target}`)})));
+  const achievements = milestones.flatMap(([key,category,name,targets,get])=>targets.map((target,index)=>({id:`${key}-${target}`,category,name:`${name} ${target.toLocaleString('ko-KR')}`,target,current:Math.min(target,Math.floor(get(save,state)??0)),...achievementReward(index,targets.length),claimed:state.achievements.includes(`${key}-${target}`)})));
   return {daily:timed('daily',dailyTasks),weekly:timed('weekly',weeklyTasks),achievements,mail:state.mail.map(mail=>({...mail,expired:mail.expiresAt!==null&&mail.expiresAt<=now})),periods:periods(now),now};
 }

@@ -1,5 +1,5 @@
-import {account,assertSession,transaction,fail} from './database.mjs';
-import {periods,advanceJourney,journeyOperation,recordJourneyMetric} from './journey-state.mjs';
+import {account,assertSession,transaction,fail,ApiError} from './database.mjs';
+import {periods,advanceJourney,journeyOperation,journeyState,recordJourneyMetric} from './journey-state.mjs';
 import {parseSave} from '../src/game/store.ts';
 import {WorldBossRehearsal} from '../src/game/worldBossRehearsal.ts';
 import {worldBossSchema} from './world-boss-schema.mjs';
@@ -51,6 +51,17 @@ async function settleRows(tx,day,now){
   await tx.execute({sql:'UPDATE djrpg_boss_days SET settled_at=? WHERE day=? AND settled_at IS NULL',args:[now,day.day]});
 }
 async function dayRow(tx,key){return (await tx.execute({sql:'SELECT * FROM djrpg_boss_days WHERE day=?',args:[key]})).rows[0];}
+/** 도전 1회 참여 보상(작업 223, 사용자 요청 `#6127`·`#6139` "1회도전당 금화만줘야지") — 끝난 도전마다
+ *  1,000 금화를 **우편으로 한 번만** 준다. 보물 주머니·스킬북은 주지 않는다(금화만).
+ *  `djrpg_boss_rewards`의 `participation:<도전 id>`가 중복 지급을 막으므로 같은 도전을 다시 정산해도
+ *  우편이 두 장 생기지 않는다. 216/218에서 이 보상이 통째로 빠져 "1회 도전 보상이 없어졌다"는 제보가 왔다. */
+async function participationMail(tx,day,id,kind,title,gold,now){
+  const inserted=await tx.execute({sql:'INSERT OR IGNORE INTO djrpg_boss_rewards VALUES (?,?,?)',args:[day,id,kind]});
+  if(!inserted.rowsAffected)return;
+  const row=await account(tx,id),state=await journeyState(tx,row,row.save,now);
+  state.mail.push({id:`boss:${day}:${kind}`,title,sender:'월드보스 토벌대',body:`잿불의 군주 발카론 · ${title}. 우편에서 보상을 받아 주세요.`,gold,books:0,pouches:0,createdAt:now,expiresAt:now+30*86400000,claimedAt:null,read:false});
+  await tx.execute(journeyOperation(id,state));
+}
 async function credit(tx,attempt,now,finish=false,trace){
   let day=await dayRow(tx,attempt.day);
   const elapsed=Math.min(60,Math.max(0,(Math.min(now,Number(day.ends_at),day.killed_at??Infinity,attempt.ended_at??Infinity)-Number(attempt.started_at))/1000));
@@ -70,6 +81,8 @@ async function credit(tx,attempt,now,finish=false,trace){
     const ended=finish||battle.finished||elapsed>=59.999||now>=Number(day.ends_at)||Number(day.hp)<=delta||!!day.killed_at;
     await tx.execute({sql:'UPDATE djrpg_boss_attempts SET credited=credited+?,ended_at=? WHERE id=?',args:[delta,ended?now:null,attempt.id]});
     attempt={...attempt,credited:Number(attempt.credited)+delta,ended_at:ended?now:null};
+    // 1회 도전 참여 보상 — 피해를 한 번이라도 넣고 도전이 끝났으면 1,000 금화(작업 223).
+    if(ended&&Number(attempt.credited)>0)await participationMail(tx,day.day,attempt.account_id,`participation:${attempt.id}`,'월드보스 도전 참여 보상',1000,now);
     day=await dayRow(tx,day.day);
   }
   return {attempt,battle,day};
@@ -113,7 +126,16 @@ export async function worldBossOperation(db,id,input={},sid,now=Date.now(),schem
   await worldBossSchema(db,schemaKey);
   if(!['list','start','tick','dodge','finish'].includes(input.action))fail(400,'INVALID_ACTION','지원하지 않는 월드보스 요청입니다.');
   if(input.action==='list'){
-    const quick=await (trace?trace.step('db',()=>quickList(db,id,sid,now)):quickList(db,id,sid,now));
+    let quick;
+    try{
+      quick=await (trace?trace.step('db',()=>quickList(db,id,sid,now)):quickList(db,id,sid,now));
+    }catch(error){
+      // 조회 전용 경로(읽기 배치·지역 레플리카)가 실패해도 503을 내지 않고 주 DB 쓰기 트랜잭션 경로로 내려간다
+      // (작업 222, `#5666`·`#5729`: 미국 PDX는 200, 한국 ICN 브라우저는 30ms 만에 `DB_UNAVAILABLE` 503).
+      // 인증·세션 오류는 그 자체가 답이다 — 쓰기 경로에서도 같은 오류가 나므로 그대로 올린다.
+      if(error instanceof ApiError)throw error;
+      quick=undefined;
+    }
     if(quick)return quick;
   }
   return (trace?trace.step('tx',()=>writeOperation(db,id,input,sid,now,trace)):writeOperation(db,id,input,sid,now));

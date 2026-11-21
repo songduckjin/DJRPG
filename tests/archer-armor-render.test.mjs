@@ -299,7 +299,7 @@ test('궁수는 갑옷을 입으면 그 시트로 그리고, 로딩 전에는 �
   const scene = world(save);
   drawHero.call(game, scene, 100, 100, 0);
   assert.equal(game.hero.texture, game.textures.archerMale, '로딩 전에는 기준(스타터) 시트로 폴백');
-  assert.deepEqual(game.archerPrefetchCalls.at(-1), ['male', 5, false, false], '티어가 바뀌면 궁수 시트 3장을 미리 받는다');
+  assert.deepEqual(game.archerPrefetchCalls.at(-1), ['male', 5, true, false], '티어가 바뀌면 궁수 시트 3장을 미리 받는다(활을 안 챘으므로 nobow 판)');
   assert.equal(game.archerPrefetchCalls.length, 1, '같은 티어에서는 다시 받지 않는다');
   assert.equal(game.bodyPrefetchCalls.length, 1, '전사 갑옷 시트는 받지 않는다(-1)');
   assert.equal(game.bodyPrefetchCalls[0][1], -1, '궁수는 전사 갑옷 인덱스를 쓰지 않는다');
@@ -383,20 +383,27 @@ test('궁수 시트 캐시는 전사 갑옷과 따로 최근 3티어만 유지�
 
 test('장비창 초상화도 착용한 궁수 갑옷 시트를 쓴다', () => {
   const save = archerSave('female');
-  assert.equal(equipmentFallbackPortrait(save), '/assets/pilot-25d/archer_female_idle_v1.png?v=2');
+  // [작업 216] 활을 안 챈 캐릭터는 기본 활대를 지운 시트(빈손)로 그린다.
+  assert.equal(equipmentFallbackPortrait(save), '/assets/pilot-25d/nobow/archer_female_idle_v1.png');
   save.equipment.armor = armorItem('가죽 조끼');
-  assert.equal(equipmentFallbackPortrait(save), '/assets/pilot-25d/archer_female_idle_v1.png?v=2', '0번은 스타터 시트');
+  assert.equal(equipmentFallbackPortrait(save), '/assets/pilot-25d/nobow/archer_female_idle_v1.png', '0번은 스타터 시트(빈손이면 nobow 판)');
   save.equipment.armor = armorItem('사슬 갑옷');
+  // [작업 216] 활을 안 챈 빈손이므로 기본 활대를 지운 판(`archer_armors/nobow/`)을 쓴다.
   assert.equal(equipmentFallbackPortrait(save),
-    '/assets/pilot-25d/archer_armors/archer_female_armor_2_idle_v1.png');
+    '/assets/pilot-25d/archer_armors/nobow/archer_female_armor_2_idle_v1.png');
   const plan = equipmentPortraitPlan(save);
   assert(plan.key.includes('a2'), `캐시 키에 갑옷 티어: ${plan.key}`);
   assert.equal(plan.base, equipmentFallbackPortrait(save));
   assert.equal(plan.helmet, undefined, '궁수는 투구 파츠를 합성하지 않는다');
   const warrior = freshSave('female');
   warrior.equipment.armor = armorItem('사슬 갑옷');
-  assert.equal(equipmentFallbackPortrait(warrior), '/assets/pilot-25d/armors/warrior_female_armor_2_idle_v1.png',
-    '전사 장비창은 예전 경로 그대로');
+  // [작업 216] 빈손 전사는 기본 검을 지운 `noweapon/armors/` 판을 쓴다(무기를 차면 예전 경로 그대로).
+  // 작업 222: 서기 시트를 다시 구워 `?v=2`.
+  assert.equal(equipmentFallbackPortrait(warrior), '/assets/pilot-25d/noweapon/armors/warrior_female_armor_2_idle_v1.png?v=2',
+    '전사 장비창도 빈손이면 기본 검을 지운 판');
+  warrior.equipment.weapon = { id: 'w', name: baseItems.weapon[0], slot: 'weapon', rarity: 'common', stats: {} };
+  assert.equal(equipmentFallbackPortrait(warrior), '/assets/pilot-25d/armors/warrior_female_armor_2_idle_v1.png?v=2',
+    '무기를 차면 예전 경로 그대로');
 });
 
 test('궁수 갑옷 시트는 부팅 프리로드에 넣지 않고 티어별로만 받는다', () => {

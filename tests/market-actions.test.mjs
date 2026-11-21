@@ -50,3 +50,18 @@ test('confirmed registration stays in the register tab and does not wait for ano
   await market.act('register',{itemId:'gear',price:100});assert.equal(market.error,'');assert.equal(market.view,'register');assert.equal(market.data.myActive,1);assert.equal(market.selectedItem,'');assert.equal(market.busy,false);assert.equal(market.loading,false);
  }finally{globalThis.fetch=previous;}
 });
+
+test('최근 거래 탭은 판매 완료 목록을 최근 거래 순서로 다시 요청한다 (작업 224 `#6313`)',async()=>{
+  const original=globalThis.fetch;let body;
+  globalThis.fetch=async(_url,options)=>{body=JSON.parse(options.body);return {ok:true,json:async()=>snapshot()};};
+  try{
+    const market=new Market({session:{token:'t'}});
+    market.open();await new Promise(r=>setImmediate(r));
+    market.filters.sort='priceAsc';market.filters.stat='attack';market.filters.page=3;
+    market.switch('recent');await new Promise(r=>setImmediate(r));
+    assert.equal(body.view,'sold','서버는 판매 완료(view=sold) 목록을 준다');
+    assert.equal(body.sort,'newest','최근 거래는 판매 시각 순서');
+    assert.equal(body.stat,'','스탯 정렬이 남아 있으면 판매 시각 순서가 아니다');
+    assert.equal(body.page,0);
+  }finally{globalThis.fetch=original;}
+});

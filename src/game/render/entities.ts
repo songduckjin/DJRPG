@@ -8,9 +8,10 @@ import { heroScale, heroBodyHeight, heroBodyFraction } from './heroScale';
 import { drawBloodRageAura } from './bloodRage';
 import { heroClass, socketMotion, weaponSocket } from './heroSockets';
 import { tintedGearTexture } from './gearTint';
+import { gearGlowAmount, gearGlowTone } from './gearGlow';
 import { costumeGhostSources, hideCostumeHero } from './costumeHero';
 import { resolveSkillMotion, type CostumeMotionTemplate } from '../costume/skillMotion';
-import { wearableEquipmentImage, baseItemIndex, usesBaseSheetOnly } from '../items';
+import { wearableEquipmentImage, baseItemIndex, usesBaseSheetOnly, hasNoWeapon, type Rarity } from '../items';
 import { jobOrDefault } from '../skills';
 import { helmetArtFor, helmetArtPath, helmetPlacement } from './helmets';
 import { archerHelmIndexFor, archerHelmPartPath, archerHelmPlacement } from './archerHelmets';
@@ -162,7 +163,9 @@ function syncHelmet(view: GameView, save: Save, motion: 'idle' | 'walk' | 'attac
  * 떨어지거나 길이가 줄지 않는다. 0번(기본 두손검)은 본체 시트에 그려져 있어 숨긴다.
  * 피격 틴트는 본체·투구와 같은 값을 쓴다.
  */
-function syncWeaponPart(view: GameView, save: Save, motion: 'idle' | 'walk' | 'attack', frame: number, tint: number): void {
+function syncWeaponPart(
+  view: GameView, save: Save, motion: 'idle' | 'walk' | 'attack', frame: number, tint: number, armor = -1
+): void {
   const index = weaponIndexFor(save);
   const shown = view.heroWeapon;
   if (index < 1) {
@@ -175,7 +178,7 @@ function syncWeaponPart(view: GameView, save: Save, motion: 'idle' | 'walk' | 'a
     if (shown) shown.visible = false;
     return;
   }
-  const pose = weaponPose(save.gender, motion, frame);
+  const pose = weaponPose(save.gender, motion, frame, armor);
   const layerX = pose.x - view.hero.texture.width * view.hero.anchor.x;
   const layerY = pose.y - view.hero.texture.height * view.hero.anchor.y;
   let sprite = shown;
@@ -362,6 +365,69 @@ function syncStaffPart(view: GameView, save: Save, motion: 'idle' | 'walk' | 'at
  * 기본 공격(`slash`)은 스킬이 아니므로 `template: null`이고, 호출부가 기본 공격 모션을 쓴다.
  * 전투 판정·월드 위치는 읽기만 한다.
  */
+/**
+ * 착용 파츠 위에 등급색 발광 복제본을 얹는다(작업 218).
+ *
+ * 유니크·전설만 빛난다. 원본 스프라이트는 그대로 두고 같은 텍스처·같은 변형의 복제본을
+ * `add`(가산) 블렌드로 읽어 alpha 만 `0 → 최대 → 0` 으로 흔든다 — 그래서 파동의 끝에서는
+ * 원래 장비 색으로 완전히 돌아오고, 가운데에서만 등급색 빛이 스며든다.
+ * 빛이 없는 등급이거나 그 부위가 보이지 않으면 복제본을 숨긴다.
+ */
+/** 직업별로 실제 착용 무기 파츠 스프라이트 — 전사 대검 · 궁수 활 · 마법사 지팡이. */
+function weaponGlowSource(view: GameView, job: string): Sprite | undefined {
+  if (job === 'archer') return view.heroBow;
+  if (job === 'mage') return view.heroStaff;
+  return view.heroWeapon;
+}
+
+function syncGearGlow(
+  view: GameView, key: 'armor' | 'helmet' | 'weapon', source: Sprite | undefined, rarity: Rarity | undefined,
+  time: number, neckY?: number
+): void {
+  const tone = gearGlowTone(rarity);
+  // 테스트용 스텁 뷰는 이 지도를 만들지 않는다 — 없으면 그 자리에서 만든다.
+  const registry = view.heroGlow instanceof Map ? view.heroGlow : (view.heroGlow = new Map<string, Sprite>());
+  const shown = registry.get(key);
+  const amount = tone && source && source.visible ? gearGlowAmount(time, tone) : 0;
+  if (!tone || !source || amount <= .004) {
+    if (shown) shown.visible = false;
+    return;
+  }
+  let glow = shown;
+  if (!glow) {
+    glow = new Sprite(source.texture);
+    glow.blendMode = 'add';
+    view.heroLayer.addChild(glow);
+    registry.set(key, glow);
+  }
+  glow.texture = source.texture;
+  glow.anchor.set(source.anchor.x, source.anchor.y);
+  glow.position.set(source.position.x, source.position.y);
+  glow.scale.set(source.scale.x, source.scale.y);
+  glow.rotation = source.rotation;
+  glow.zIndex = source.zIndex + .005;
+  glow.tint = tone.color;
+  glow.alpha = amount;
+  glow.visible = true;
+  // 갑옷은 몸체 시트라 얼굴까지 함께 그려진다 — 목 아래로만 빛나게 잘라 맨 얼굴은 원래 색으로 둔다.
+  if (key === 'armor' && neckY !== undefined) {
+    const mask = view.heroGlowMask ?? (() => {
+      const span = new Sprite(Texture.WHITE);
+      span.anchor.set(0, 0);
+      view.heroLayer.addChild(span);
+      view.heroGlowMask = span;
+      return span;
+    })();
+    const width = source.texture.width, height = source.texture.height;
+    const top = neckY - height * source.anchor.y;
+    const bottom = height * (1 - source.anchor.y);
+    mask.position.set(-width * source.anchor.x, top);
+    mask.width = width;
+    mask.height = Math.max(1, bottom - top);
+    glow.mask = mask;
+  }
+}
+
 export function activeSkillMotion(world: World): HeroSkillMotion {
   const player = world.player;
   for (const effect of world.effects) {
@@ -438,7 +504,8 @@ export function drawHero(this: GameView, world: World, x: number, y: number, tim
     }
     const weapon = plain ? 0 : weaponIndexFor(save);
     // 0번이 아닌 검을 차면 본체 시트도 기본 검을 지운 판(`noweapon/`)으로 갈아 끼운다(작업 156).
-    const swordless = weapon >= 1;
+    // [작업 216] 무기를 **아예 안 찼을 때도** 같은 판을 쓴다 — 기본 시트에 그려진 검을 지워 빈손으로.
+    const swordless = !plain && (weapon >= 1 || hasNoWeapon(save));
     const bodyTier = `${save.gender}:${armor}:${swordless ? 1 : 0}`;
     if (this.lastBodyTier !== bodyTier) {
       this.lastBodyTier = bodyTier;
@@ -452,6 +519,8 @@ export function drawHero(this: GameView, world: World, x: number, y: number, tim
     // 궁수: 1번 이상 활을 차면 기본 활대를 지운 본체 시트로 갈아 끼우고 그 위에 활 파츠를 얹는다(작업 160).
     // 투구를 쓰면 같은 자리에서 머리를 지운 시트(`archer_headless/`)로 한 단계 더 갈아 끼운다(작업 200).
     const bow = archer ? bowIndexFor(save) : 0;
+    // [작업 216] 활을 안 찼어도 기본 시트에 그려진 활대를 지운 판(`nobow/`)을 쓴다.
+    const bowlessBody = archer && (bow >= 1 || hasNoWeapon(save));
     const archerHelm = archer ? archerHelmIndexFor(save) : -1;
     if (archer && this.lastBowTier !== bow) {
       this.lastBowTier = bow;
@@ -460,11 +529,11 @@ export function drawHero(this: GameView, world: World, x: number, y: number, tim
     if (archer && this.lastArcherHelm !== archerHelm) {
       this.lastArcherHelm = archerHelm;
     }
-    if (archer && this.lastArcherHelmBow !== `${archerHelm}:${bow >= 1 ? 1 : 0}`) {
-      this.lastArcherHelmBow = `${archerHelm}:${bow >= 1 ? 1 : 0}`;
-      if (archerHelm >= 0) this.prefetchArcherHeadless(save.gender, bow >= 1);
+    if (archer && this.lastArcherHelmBow !== `${archerHelm}:${bowlessBody ? 1 : 0}`) {
+      this.lastArcherHelmBow = `${archerHelm}:${bowlessBody ? 1 : 0}`;
+      if (archerHelm >= 0) this.prefetchArcherHeadless(save.gender, bowlessBody);
     }
-    if (archer && bow >= 1) {
+    if (bowlessBody) {
       const bowless = this.bowBodyFrame(save.gender, animation, poseFrame);
       if (bowless) {
         texture = bowless;
@@ -474,11 +543,13 @@ export function drawHero(this: GameView, world: World, x: number, y: number, tim
     // 마법사: 지팡이를 찼으면 기본 지팡이를 지운 본체 시트로 갈아 끼우고 그 위에 지팡이 파츠를 얹는다(작업 201).
     const mage = job === 'mage';
     const staff = mage ? staffIndexFor(save) : -1;
+    // [작업 216] 지팡이를 안 찼어도 기본 시트에 그려진 지팡이를 지운 판(`mage_nostaff/`)을 쓴다.
+    const stafflessBody = mage && (staff >= 0 || hasNoWeapon(save));
     if (mage && this.lastStaffTier !== staff) {
       this.lastStaffTier = staff;
       if (staff >= 0) this.prefetchStaff(staff, save.gender);
     }
-    if (mage && staff >= 0) {
+    if (stafflessBody) {
       const nostaff = this.staffBodyFrame(save.gender, animation, poseFrame);
       if (nostaff) {
         texture = nostaff;
@@ -489,17 +560,17 @@ export function drawHero(this: GameView, world: World, x: number, y: number, tim
     // (파츠 없이 지우면 머리가 빈 채로 보인다). 지팡이를 찼으면 `nostaff` 판을 쓴다.
     const mageHelm = mage ? mageHelmIndexFor(save) : -1;
     if (mage && this.lastMageHelm !== mageHelm) this.lastMageHelm = mageHelm;
-    if (mage && this.lastMageHelmStaff !== `${mageHelm}:${staff >= 0 ? 1 : 0}`) {
-      this.lastMageHelmStaff = `${mageHelm}:${staff >= 0 ? 1 : 0}`;
-      if (mageHelm >= 0) this.prefetchMageHeadless(save.gender, staff >= 0);
+    if (mage && this.lastMageHelmStaff !== `${mageHelm}:${stafflessBody ? 1 : 0}`) {
+      this.lastMageHelmStaff = `${mageHelm}:${stafflessBody ? 1 : 0}`;
+      if (mageHelm >= 0) this.prefetchMageHeadless(save.gender, stafflessBody);
     }
     if (mageHelm >= 0) {
       const partPath = mageHelmPartPath(save.gender, mageHelm);
       const partReady = !!partPath && !!this.helmetTextures?.get(partPath);
-      const headlessSheet = partReady ? this.mageHeadlessFrame(save.gender, animation, poseFrame, staff >= 0) : undefined;
+      const headlessSheet = partReady ? this.mageHeadlessFrame(save.gender, animation, poseFrame, stafflessBody) : undefined;
       if (headlessSheet) {
         texture = headlessSheet;
-        textureKey = `mage-headless:${save.gender}:${animation}:${poseFrame}:${staff >= 0 ? 'nostaff' : 'body'}`;
+        textureKey = `mage-headless:${save.gender}:${animation}:${poseFrame}:${stafflessBody ? 'nostaff' : 'body'}`;
       }
     }
     // 궁수 투구: 파츠와 머리 없는 시트가 **둘 다** 준비됐을 때만 머리를 지운 시트로 그린다
@@ -507,10 +578,10 @@ export function drawHero(this: GameView, world: World, x: number, y: number, tim
     if (archerHelm >= 0) {
       const partPath = archerHelmPartPath(save.gender, archerHelm);
       const partReady = !!partPath && !!this.helmetTextures?.get(partPath);
-      const headlessSheet = partReady ? this.archerHeadlessFrame(save.gender, animation, poseFrame, bow >= 1) : undefined;
+      const headlessSheet = partReady ? this.archerHeadlessFrame(save.gender, animation, poseFrame, bowlessBody) : undefined;
       if (headlessSheet) {
         texture = headlessSheet;
-        textureKey = `archer-headless:${save.gender}:${animation}:${poseFrame}:${bow >= 1 ? 'nobow' : 'bow'}`;
+        textureKey = `archer-headless:${save.gender}:${animation}:${poseFrame}:${bowlessBody ? 'nobow' : 'bow'}`;
       }
     }
     if (armor >= 0) {
@@ -545,15 +616,16 @@ export function drawHero(this: GameView, world: World, x: number, y: number, tim
       // 투구 파츠가 아직 로딩 전이면 머리 지운 판을 쓰지 않는다(머리만 빈 채로 보인다).
       const helmPartPath = archerHelm >= 0 ? archerHelmPartPath(save.gender, archerHelm) : undefined;
       const helmWorn = !!helmPartPath && !!this.helmetTextures?.get(helmPartPath);
-      const variant = `${bow >= 1 ? 'nobow' : 'bow'}:${helmWorn ? 'headless' : 'head'}`;
+      // [작업 216] 활을 안 찼어도 기본 활대를 지운 판(`archer_armors/nobow/`)을 쓴다.
+      const variant = `${bowlessBody ? 'nobow' : 'bow'}:${helmWorn ? 'headless' : 'head'}`;
       const tierKey = `${save.gender}:${tier}:${variant}`;
       if (this.lastArcherArmorTier !== tierKey) {
         this.lastArcherArmorTier = tierKey;
-        if (tier >= 1) this.prefetchArcherArmor(save.gender, tier, bow >= 1, helmWorn);
+        if (tier >= 1) this.prefetchArcherArmor(save.gender, tier, bowlessBody, helmWorn);
       }
       if (tier >= 1) {
         // 활을 바꿨으면 기본 활대를 지운 판, 투구를 썼으면 머리 지운 판을 쓴다(둘 다일 수 있다).
-        const archerTexture = this.archerArmorFrame(save.gender, tier, animation, poseFrame, bow >= 1, helmWorn);
+        const archerTexture = this.archerArmorFrame(save.gender, tier, animation, poseFrame, bowlessBody, helmWorn);
         if (archerTexture) {
           texture = archerTexture;
           textureKey = `archerArmor:${save.gender}:${tier}:${animation}:${poseFrame}:${variant}`;
@@ -588,10 +660,22 @@ export function drawHero(this: GameView, world: World, x: number, y: number, tim
       if (shownGear) { this.heroLayer.removeChild(shownGear.sprite); shownGear.sprite.destroy(); this.heroGear.delete('weapon'); }
     } else {
       syncHelmet(this, save, animation, animation === 'walk' ? walkingFrame : animatedAttack ? Math.max(0, attackFrame) : 0, heroTint);
-      syncWeaponPart(this, save, animation, poseFrame, heroTint);
+      syncWeaponPart(this, save, animation, poseFrame, heroTint, armor);
       const withoutEquippedWeapon = { ...save, equipment: { ...save.equipment, weapon: undefined } };
       syncWeapon(this, withoutEquippedWeapon, texture, art, true, socketMotion(animation), walkingFrame);
     }
+    // 등급색 발광(작업 218) — 착용 투구·갑옷·무기 파츠를 같은 변형의 복제본으로 덧칠한다.
+    // 갑옷은 몸체 시트에 함께 그려지므로 몸통 스프라이트가 곧 갑옷이다(투구를 쓰면 머리는 시트에 없다).
+    const wornHelmet = mage ? this.heroMageHelm : this.heroHelmet;
+    const wornWeapon = weaponGlowSource(this, job);
+    // 갑옷 발광은 목 밑동 아래로만 — 자세 표(투구 앵커)가 그 자리를 알려 준다.
+    // 궁수·마법사 파츠는 셀 전체 PNG라 앵커가 좌상단이므로, 목 밑동은 셀 좌표 상수로 잡는다.
+    const neckY = archer || mage
+      ? 104
+      : helmetPlacement(save.gender, animation, animation === 'walk' ? walkingFrame : animatedAttack ? Math.max(0, attackFrame) : 0, Math.max(0, helmetIndex(save))).y;
+    syncGearGlow(this, 'armor', this.hero, save.equipment.armor?.rarity, time, neckY);
+    syncGearGlow(this, 'helmet', wornHelmet, save.equipment.helmet?.rarity, time);
+    syncGearGlow(this, 'weapon', wornWeapon, save.equipment.weapon?.rarity, time);
     let bob = 0;
     const local = world.effects.filter(effect => effect.kind !== 'hit' && effect.kind !== 'death' && Math.hypot(effect.x - player.x, effect.y - player.y) < 2);
     const slam = local.find(effect => effect.kind === 'slam' || effect.kind === 'hell');
@@ -633,8 +717,9 @@ export function drawHero(this: GameView, world: World, x: number, y: number, tim
 const ghostTint = 0xbfd4ff;
 function cloneHeroLayers(view: GameView): Container {
   const container = new Container();
+  // 등급색 발광 복제본(작업 218)은 잔상에 넣지 않는다 — 넣으면 같은 파츠가 두 번 그려진다.
   const layers = view.heroLayer.children
-    .filter((child): child is Sprite => child instanceof Sprite && child.visible)
+    .filter((child): child is Sprite => child instanceof Sprite && child.visible && child.blendMode !== 'add')
     .sort((a, b) => a.zIndex - b.zIndex);
   for (const layer of layers) {
     const ghost = new Sprite(layer.texture);

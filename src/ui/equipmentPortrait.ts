@@ -9,11 +9,12 @@ import { helmetArtFor, helmetArtPath, helmetIdlePlacement } from '../game/render
 import { armorIndexFor, armorSheetPath } from '../game/render/armors';
 import { archerArmorIndexFor, archerArmorSheetPath } from '../game/render/archerArmors';
 import { mageRobeIndexFor, robeHeadlessSheetPath, robeSheetPath } from '../game/render/robes';
-import { WEAPON_GUARD, weaponIndexFor, weaponPartPath, weaponPose, swordlessBodyPath } from '../game/render/weapons';
+import { WEAPON_GUARD, weaponIndexFor, weaponPartPath, weaponPose, swordlessBodyPath, usesSwordlessBody } from '../game/render/weapons';
 import { BOW_GRIP, bowIndexFor, bowPartPath, bowPose, bowlessBodyPath, usesBowlessBody } from '../game/render/bows';
-import { STAFF_GRIP, staffIndexFor, staffPartPath, staffPlacement, stafflessBodyPath } from '../game/render/staffs';
+import { STAFF_GRIP, staffIndexFor, staffPartPath, staffPlacement, stafflessBodyPath, usesStafflessBody } from '../game/render/staffs';
 import { archerHeadlessBodyPath, archerHelmIdlePlacement, archerHelmIndexFor, archerHelmPartPath } from '../game/render/archerHelmets';
 import { mageHeadlessBodyPath, mageHelmIdlePlacement, mageHelmIndexFor, mageHelmPartPath } from '../game/render/mageHelmets';
+import { gearGlowCss, gearGlowTone } from '../game/render/gearGlow';
 
 /**
  * 내 정보(장비창) 초상화 — Task 149 full-body pilot image. Gear remains functional but its
@@ -32,6 +33,7 @@ export function equipmentFallbackPortrait(save: Save): string {
     // 작업 200: 궁수 투구를 쓰면 필드와 같이 머리를 지운 시트를 쓴다(투구 파츠가 그 자리를 덮는다).
     if (isArcher(save)) {
       const helmeted = archerHelmIndexFor(save) >= 0;
+      // [작업 216] 활을 안 찼어도 기본 활대를 지운 시트를 쓴다(빈손).
       const bowless = usesBowlessBody(save);
       const tier = archerArmorIndexFor(save);
       if (tier >= 1) {
@@ -49,7 +51,8 @@ export function equipmentFallbackPortrait(save: Save): string {
     // 작업 204: 투구를 쓰면 필드와 같은 자리에서 머리를 지운 시트를 쓴다(지팡이 착용 여부로 판이 갈린다).
     // 작업 208: 갑옷 1~9번이면 그 티어 로브 시트를 쓰고, 투구를 함께 쓰면 로브의 머리 없는 판을 쓴다.
     if (isMage(save)) {
-      const staffless = staffIndexFor(save) >= 0;
+      // [작업 216] 지팡이를 안 찼어도 기본 지팡이를 지운 시트를 쓴다(빈손).
+      const staffless = usesStafflessBody(save);
       const helm = mageHelmIndexFor(save) >= 0;
       const robe = mageRobeIndexFor(save);
       if (robe >= 1) {
@@ -67,14 +70,16 @@ export function equipmentFallbackPortrait(save: Save): string {
   const headless = !!save.equipment.helmet;
   const armor = armorIndexFor(save);
   // 0번이 아닌 검을 차면 필드와 같이 기본 검을 지운 시트를 쓴다(작업 156).
-  const swordless = weaponIndexFor(save) >= 1;
+  // [작업 216] 무기를 안 찼으면 빈손(기본 검을 지운 `noweapon/` 시트)으로 그린다.
+  const swordless = usesSwordlessBody(save);
   if (armor >= 0) {
     const path = armorSheetPath(save.gender, armor, 'idle', headless, swordless);
     if (path) return path;
   }
   if (swordless) return swordlessBodyPath(save.gender, 'idle', headless);
-  if (headless) return `/assets/pilot-25d/headless/warrior_${save.gender}_idle_v1.png`;
-  return `/assets/pilot-25d/warrior_${save.gender}_idle_v1.png`;
+  if (headless) return `/assets/pilot-25d/headless/warrior_${save.gender}_idle_v1.png?v=2`;
+  // 작업 222: 서기 시트를 낮은 양손 그립으로 다시 구워 `?v=2`(render.ts·helmets.ts 와 같은 규칙).
+  return `/assets/pilot-25d/warrior_${save.gender}_idle_v1.png?v=2`;
 }
 
 /** 장비창에 합성하는 대검 파츠(작업 156). 파츠는 idle 자세 그대로다. */
@@ -92,7 +97,8 @@ export function equipmentPortraitWeapon(save: Save): EquipmentPortraitWeapon | u
   if (usesBaseSheetOnly(save)) return undefined;
   const path = weaponPartPath(weaponIndexFor(save));
   if (!path) return undefined;
-  const pose = weaponPose(save.gender, 'idle', 0);
+  // 갑옷을 입었으면 갑옷 서기 시트의 앵커를 쓴다(작업 222).
+  const pose = weaponPose(save.gender, 'idle', 0, armorIndexFor(save));
   return { path, x: pose.x, y: pose.y, rotation: pose.rot };
 }
 
@@ -422,11 +428,71 @@ async function composeCostume(layers: CostumeLayerPlan[]): Promise<string> {
   }
 }
 
+/** 장착 화면 발광의 부위 — 갑옷(몸체 시트) · 투구 · 무기. */
+export type GlowSlot = 'armor' | 'helmet' | 'weapon';
+
+/** 발광 레이어 한 장을 그릴 때의 지시. */
+type PortraitGlow = { slot: GlowSlot; color: string };
+
+/**
+ * 얼굴 자리(362px 셀 좌표). 갑옷은 몸체 시트에 함께 그려져 있어, 시트 전체를 물들이면 맨 얼굴까지
+ * 등급색이 된다. 그래서 갑옷 발광 레이어에서는 이 자리만 도려내 원래 얼굴을 남긴다.
+ * 투구를 쓰면 머리는 시트에 없으므로(머리 없는 시트) 도려낼 것이 없다.
+ */
+const headCell = { x: 228, y: 74, rx: 38, ry: 44 } as const;
+
+/**
+ * 파츠 한 장을 그린다 — 원본 그대로, 또는 등급색 빛으로 물들여서(작업 218).
+ *
+ * 발광일 때는 같은 그림을 등급색으로 채운 사본을 `shadowBlur` 후광과 함께 얹는다. 장착 화면은
+ * 정지 사진이라 필드처럼 매 프레임 계산하지 않고, 이 레이어를 DOM에서 opacity 로 숨쉬게 한다.
+ */
+function paintPatch(
+  context: CanvasRenderingContext2D, image: HTMLImageElement,
+  x: number, y: number, width: number, height: number, glow?: string
+): void {
+  if (!glow) { context.drawImage(image, x, y, width, height); return; }
+  const tinted = document.createElement('canvas');
+  tinted.width = Math.max(1, Math.round(image.naturalWidth));
+  tinted.height = Math.max(1, Math.round(image.naturalHeight));
+  const paint = tinted.getContext('2d');
+  if (!paint) { context.drawImage(image, x, y, width, height); return; }
+  paint.imageSmoothingEnabled = true;
+  paint.imageSmoothingQuality = 'high';
+  paint.drawImage(image, 0, 0);
+  // 원본 픽셀의 **밝기(루미넌스)** 를 광량으로 써서 등급색 빛으로 바꾼다 — 어두운 틈새·무늬는 어둡게
+  // 남아 질감이 살고, 밝은 금속면이 세게 빛난다(불투명하게 덮는 '물감칠'이 아니다).
+  const rgb = parseGlowColor(glow);
+  const frame = paint.getImageData(0, 0, tinted.width, tinted.height);
+  const pixels = frame.data;
+  for (let index = 0; index < pixels.length; index += 4) {
+    const alpha = pixels[index + 3];
+    if (alpha === 0) continue;
+    const lum = (0.299 * pixels[index] + 0.587 * pixels[index + 1] + 0.114 * pixels[index + 2]) / 255;
+    const light = Math.min(1.6, .3 + 1.2 * lum);
+    pixels[index] = Math.min(255, rgb[0] * light);
+    pixels[index + 1] = Math.min(255, rgb[1] * light);
+    pixels[index + 2] = Math.min(255, rgb[2] * light);
+  }
+  paint.putImageData(frame, 0, 0);
+  context.save();
+  context.shadowColor = glow;
+  context.shadowBlur = Math.max(6, Math.round(width * .022));
+  context.drawImage(tinted, x, y, width, height);
+  context.restore();
+}
+
+/** CSS·캔버스용 `#rrggbb` → [r, g, b]. */
+function parseGlowColor(color: string): [number, number, number] {
+  const value = Number.parseInt(color.replace('#', ''), 16);
+  return [(value >> 16) & 0xff, (value >> 8) & 0xff, value & 0xff];
+}
+
 /** 폴백: 전신 초상화 한 장(+착용 투구·대검)을 캔버스에 맞춰 그린다(빈 화면 방지). */
 async function composeFallback(
   base: string, helmet?: EquipmentPortraitHelmet, weapon?: EquipmentPortraitWeapon, bow?: EquipmentPortraitBow,
   archerHelm?: EquipmentPortraitArcherHelm, staff?: EquipmentPortraitStaff, mageHelm?: EquipmentPortraitMageHelm,
-  outputHeight = portraitOutputHeight
+  outputHeight = portraitOutputHeight, glow?: PortraitGlow
 ): Promise<string> {
   const image = await loadImage(base, fallbackImages, new Set());
   // 마법사 투구 파츠는 셀 위로 솟는다(고깔모·후광). 그만큼 초상화 위쪽에 여백을 두고 전체를 맞춘다
@@ -440,88 +506,98 @@ async function composeFallback(
   context.imageSmoothingQuality = 'high';
   const scale = Math.min(canvas.width / image.naturalWidth, canvas.height / artHeight);
   const width = image.naturalWidth * scale, height = image.naturalHeight * scale;
-  context.drawImage(image, (canvas.width - width) / 2, canvas.height - height, width, height);
-  if (helmet) {
+  const left = (canvas.width - width) / 2;
+  const top = canvas.height - height;
+  // 발광 레이어(`glow`)는 그 부위만 그린 투명 PNG다. 나머지 부위는 건너뛴다.
+  const wants = (slot: GlowSlot): boolean => !glow || glow.slot === slot;
+  if (wants('armor')) {
+    paintPatch(context, image, left, top, width, height, glow?.color);
+    // 갑옷은 몸체 시트 전체라 얼굴까지 물들면 안 된다 — 머리 자리를 도려내 맨 얼굴은 원래 색으로 남긴다.
+    if (glow) {
+      context.save();
+      context.globalCompositeOperation = 'destination-out';
+      context.beginPath();
+      context.ellipse(left + headCell.x * scale, top + headCell.y * scale, headCell.rx * scale, headCell.ry * scale, 0, 0, Math.PI * 2);
+      context.fill();
+      context.restore();
+    }
+  }
+  if (helmet && wants('helmet')) {
     try {
       const patch = await loadImage(helmet.path, fallbackImages, new Set());
       // 필드와 같은 362px 셀 좌표 → 초상화 캔버스 좌표(전신 그림이 그려진 배율 그대로).
       const patchScale = helmet.scale * scale;
       const patchWidth = patch.naturalWidth * patchScale, patchHeight = patch.naturalHeight * patchScale;
-      const left = (canvas.width - width) / 2 + helmet.x * scale - patchWidth / 2;
-      const top = canvas.height - height + helmet.y * scale - patchHeight;
-      context.drawImage(patch, left, top, patchWidth, patchHeight);
+      const patchLeft = left + helmet.x * scale - patchWidth / 2;
+      const patchTop = top + helmet.y * scale - patchHeight;
+      paintPatch(context, patch, patchLeft, patchTop, patchWidth, patchHeight, glow?.color);
     } catch (error) {
       console.info('[장비창] 투구 머리 파츠 로딩 실패 → 전신 그림만 표시:', error);
     }
   }
-  if (bow) {
+  if (bow && wants('weapon')) {
     try {
       const patch = await loadImage(bow.path, fallbackImages, new Set());
       // 활 파츠도 362px 셀 좌표계라 전신 그림의 배율·위치에 그대로 얹고 그립 점을 축으로 돌린다.
-      const gripX = (canvas.width - width) / 2 + bow.x * scale;
-      const gripY = canvas.height - height + bow.y * scale;
+      const gripX = left + bow.x * scale;
+      const gripY = top + bow.y * scale;
       context.save();
       context.translate(gripX, gripY);
       context.rotate(bow.rotation * Math.PI / 180);
-      context.drawImage(patch, -BOW_GRIP.x * scale, -BOW_GRIP.y * scale, patch.naturalWidth * scale, patch.naturalHeight * scale);
+      paintPatch(context, patch, -BOW_GRIP.x * scale, -BOW_GRIP.y * scale, patch.naturalWidth * scale, patch.naturalHeight * scale, glow?.color);
       context.restore();
     } catch (error) {
       console.info('[장비창] 활 파츠 로딩 실패 → 전신 그림만 표시:', error);
     }
   }
-  if (archerHelm) {
+  if (archerHelm && wants('helmet')) {
     try {
       const patch = await loadImage(archerHelm.path, fallbackImages, new Set());
       // 궁수 투구 파츠는 본체와 같은 362px 셀 전체 크기라, 본체 그림의 배율·좌상단에 그대로 얹는다.
       const layerScale = archerHelm.scale * scale;
-      const left = (canvas.width - width) / 2 + archerHelm.x * scale;
-      const top = canvas.height - height + archerHelm.y * scale;
-      context.drawImage(patch, left, top, patch.naturalWidth * layerScale, patch.naturalHeight * layerScale);
+      paintPatch(context, patch, left + archerHelm.x * scale, top + archerHelm.y * scale, patch.naturalWidth * layerScale, patch.naturalHeight * layerScale, glow?.color);
     } catch (error) {
       console.info('[장비창] 궁수 투구 파츠 로딩 실패 → 전신 그림만 표시:', error);
     }
   }
-  if (mageHelm) {
+  if (mageHelm && wants('helmet')) {
     try {
       const patch = await loadImage(mageHelm.path, fallbackImages, new Set());
       // 마법사 투구 파츠도 362px 셀 전체 크기라, 본체 그림의 배율·좌상단에 그대로 얹는다.
       // 파츠 PNG 가 셀 위로 44행 더 크므로 y 가 음수이고, 그만큼 위 여백에 그려진다.
       const layerScale = mageHelm.scale * scale;
-      const left = (canvas.width - width) / 2 + mageHelm.x * scale;
-      const top = canvas.height - height + mageHelm.y * scale;
-      context.drawImage(patch, left, top, patch.naturalWidth * layerScale, patch.naturalHeight * layerScale);
+      paintPatch(context, patch, left + mageHelm.x * scale, top + mageHelm.y * scale, patch.naturalWidth * layerScale, patch.naturalHeight * layerScale, glow?.color);
     } catch (error) {
       console.info('[장비창] 마법사 투구 파츠 로딩 실패 → 전신 그림만 표시:', error);
     }
   }
-  if (staff) {
+  if (staff && wants('weapon')) {
     try {
       const patch = await loadImage(staff.path, fallbackImages, new Set());
       // 지팡이 파츠도 362px 셀 좌표계라 전신 그림의 배율·위치에 그대로 얹고 그립 점을 축으로 돌린다.
-      const gripX = (canvas.width - width) / 2 + staff.x * scale;
-      const gripY = canvas.height - height + staff.y * scale;
+      const gripX = left + staff.x * scale;
+      const gripY = top + staff.y * scale;
       context.save();
       context.translate(gripX, gripY);
       context.rotate(staff.rotation * Math.PI / 180);
       const partScale = scale * staff.scale;
-      context.drawImage(patch, -STAFF_GRIP.x * partScale, -STAFF_GRIP.y * partScale, patch.naturalWidth * partScale, patch.naturalHeight * partScale);
+      paintPatch(context, patch, -STAFF_GRIP.x * partScale, -STAFF_GRIP.y * partScale, patch.naturalWidth * partScale, patch.naturalHeight * partScale, glow?.color);
       context.restore();
     } catch (error) {
       console.info('[장비창] 지팡이 파츠 로딩 실패 → 전신 그림만 표시:', error);
     }
   }
-  if (weapon) {
+  if (weapon && wants('weapon')) {
     try {
       const patch = await loadImage(weapon.path, fallbackImages, new Set());
       // 파츠는 본체와 같은 362px 셀 좌표계라, 전신 그림이 그려진 배율·위치에 그대로 얹고
       // 손잡이(가드) 점을 축으로 회전시킨다(필드 `syncWeaponPart` 와 같은 규칙).
-      const guardX = (canvas.width - width) / 2 + weapon.x * scale;
-      const guardY = canvas.height - height + weapon.y * scale;
-      const dexed = { x: WEAPON_GUARD.x, y: WEAPON_GUARD.y };
+      const guardX = left + weapon.x * scale;
+      const guardY = top + weapon.y * scale;
       context.save();
       context.translate(guardX, guardY);
       context.rotate(weapon.rotation * Math.PI / 180);
-      context.drawImage(patch, -dexed.x * scale, -dexed.y * scale, patch.naturalWidth * scale, patch.naturalHeight * scale);
+      paintPatch(context, patch, -WEAPON_GUARD.x * scale, -WEAPON_GUARD.y * scale, patch.naturalWidth * scale, patch.naturalHeight * scale, glow?.color);
       context.restore();
     } catch (error) {
       console.info('[장비창] 대검 파츠 로딩 실패 → 전신 그림만 표시:', error);
@@ -530,10 +606,6 @@ async function composeFallback(
   return canvas.toDataURL('image/png');
 }
 
-/**
- * 초상화 dataURL. 결과는 계획 키로 캐시하고(LRU 24) 합성 중 같은 요청은 한 번만 만든다.
- * 픽셀 단위 스캔은 하지 않는다 — 팔레트·피부톤 보정은 142 아틀라스가 색으로 담당한다.
- */
 export async function renderEquipmentPortrait(save: Save, options: EquipmentPortraitOptions = {}): Promise<string> {
   const plan = equipmentPortraitPlan(save);
   const height = Number(options.height) > 0 ? Math.round(Number(options.height)) : portraitOutputHeight;
@@ -560,8 +632,63 @@ export async function renderEquipmentPortrait(save: Save, options: EquipmentPort
 }
 
 /** 테스트·디버그용 캐시 초기화. */
+/**
+ * 장착 화면 발광 레이어(작업 218).
+ *
+ * 초상화 본체는 지금처럼 dataURL 한 장으로 캐시하고, 그 위에 **부위별 투명 발광 PNG**를 얹어
+ * DOM에서 opacity 로 숨쉬게 한다. 그래서 캐시·성능을 그대로 두고 부위별 등급색(유니크 주황·전설
+ * 진한 빨강)만 따로 반짝일 수 있다. 빛이 없는 등급은 레이어가 없다.
+ */
+export type EquipmentGlowLayer = {
+  /** 어느 부위가 빛나는지 — 갑옷 · 투구 · 무기. */
+  slot: GlowSlot;
+  /** 그 부위만 등급색으로 물든 투명 PNG(dataURL). 본체와 같은 크기·구도다. */
+  src: string;
+  /** CSS에서 쓰는 등급색(`#rrggbb`). */
+  color: string;
+  /** 한 번 숨쉬는 시간(초) — 유니크 2.6 · 전설 2.3. */
+  cycle: number;
+};
+
+const glowCache = new Map<string, Promise<EquipmentGlowLayer[]>>();
+
+export async function renderEquipmentGlowLayers(save: Save, options: EquipmentPortraitOptions = {}): Promise<EquipmentGlowLayer[]> {
+  const plan = equipmentPortraitPlan(save);
+  const height = Number(options.height) > 0 ? Math.round(Number(options.height)) : portraitOutputHeight;
+  const key = `glow:${height === portraitOutputHeight ? plan.key : `${plan.key}@${height}`}`;
+  const cached = glowCache.get(key);
+  if (cached) return cached;
+
+  const pending = (async () => {
+    // 그 부위의 파츠가 실제로 그려질 때만 레이어를 만든다(기본 검은 몸체 시트에 구워져 있어 파츠가 없다).
+    const helmetPart = !!(plan.helmet || plan.archerHelm || plan.mageHelm);
+    const weaponPart = !!(plan.weapon || plan.bow || plan.staff);
+    const slots: { slot: GlowSlot; tone: ReturnType<typeof gearGlowTone>; draw: boolean }[] = [
+      { slot: 'armor', tone: gearGlowTone(save.equipment.armor?.rarity), draw: !!save.equipment.armor },
+      { slot: 'helmet', tone: gearGlowTone(save.equipment.helmet?.rarity), draw: helmetPart },
+      { slot: 'weapon', tone: gearGlowTone(save.equipment.weapon?.rarity), draw: weaponPart }
+    ];
+    const layers: EquipmentGlowLayer[] = [];
+    for (const entry of slots) {
+      if (!entry.tone || !entry.draw) continue;
+      const color = gearGlowCss(entry.tone.color);
+      const src = await composeFallback(
+        plan.base, plan.helmet, plan.weapon, plan.bow, plan.archerHelm, plan.staff, plan.mageHelm, height,
+        { slot: entry.slot, color }
+      );
+      layers.push({ slot: entry.slot, src, color, cycle: entry.tone.cycle });
+    }
+    return layers;
+  })();
+  glowCache.set(key, pending);
+  while (glowCache.size > 12) glowCache.delete(glowCache.keys().next().value!);
+  void pending.catch(() => { if (glowCache.get(key) === pending) glowCache.delete(key); });
+  return pending;
+}
+
 export function resetEquipmentPortraitCache(): void {
   portraitCache.clear();
+  glowCache.clear();
   atlasImages.clear();
   pendingAtlasImages.clear();
   fallbackImages.clear();

@@ -8,7 +8,7 @@ import { AUTO_SALVAGE_HINT } from '../autoSalvage';
 import { salvagePlusLabel, salvagePlusUnlocked, salvagePlusValues } from '../salvagePlus';
 import { canAutoEquip } from '../../game/inventory';
 import { requestSalvage } from './salvageModal';
-import { equipmentPortraitPlan, renderEquipmentPortrait } from '../equipmentPortrait';
+import { equipmentPortraitPlan, renderEquipmentGlowLayers, renderEquipmentPortrait } from '../equipmentPortrait';
 import { goldMarkup } from '../currency';
 import { isSkillBook } from '../../game/items';
 import { pouchCount } from '../../game/pouch';
@@ -316,6 +316,21 @@ export function renderEquipment(this: Interface, dialog: HTMLElement): void {
     void renderEquipmentPortrait(save).then(image => { if (portrait.isConnected) portrait.src = image; })
       .catch(error => console.error('착용 이미지 생성 실패:', error));
     figure.appendChild(portrait);
+    // 등급색 발광(작업 218) — 유니크·전설 장비를 착용한 부위만 초상화 위에서 숨쉰다.
+    const glowLayer = document.createElement('span'); glowLayer.className = 'showcase-glow';
+    glowLayer.setAttribute('aria-hidden', 'true');
+    figure.appendChild(glowLayer);
+    void renderEquipmentGlowLayers(save).then(layers => {
+      if (!glowLayer.isConnected) return;
+      for (const layer of layers) {
+        const image = document.createElement('img');
+        image.className = 'showcase-glow-layer'; image.alt = ''; image.decoding = 'async';
+        image.src = layer.src;
+        image.style.setProperty('--gear-cycle', `${layer.cycle}s`);
+        image.dataset.glowSlot = layer.slot;
+        glowLayer.appendChild(image);
+      }
+    }).catch(error => console.error('장비 발광 합성 실패:', error));
     center.appendChild(figure);
     const info = document.createElement('div'); info.className = 'equipment-info';
     const summary = document.createElement('div'); summary.className = 'equipment-summary';

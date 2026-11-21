@@ -29,6 +29,11 @@ export type Effect = { x: number; y: number; kind: 'slash' | 'slash2' | 'spin' |
   tx?: number; ty?: number; radius?: number; targets?: number; slow?: number; variant?: ArrowVariant; fired?: boolean;
   /** 화살이 쫓아가는 적(살아 있는 동안 도착지를 갱신한다). 없으면 발사 시점의 지점으로 날아간다. */
   aim?: Enemy;
+  /** 발사까지 머무는 시간(초, 작업 216) — 파이어 볼트 화염구가 머리 위에 떠 있다가 날아간다.
+   *  `delay`와 달리 이 시간 동안은 제자리에 있다가 남은 시간(duration−launch) 동안만 날아간다. */
+  launch?: number;
+  /** 탄 크기 배율(작업 216) — 파이어 볼트 화염구는 스킬 레벨이 오를수록 커진다. */
+  size?: number;
   /** 이 이펙트를 만든 스킬(스킬 버튼 피드백용). 평타면 없다. */
   source?: SkillId;
   /** 딜레이 크러싱(작업 212) 타격 간격 — 연출이 그 간격마다 한 번씩 내리친다. */
@@ -64,9 +69,9 @@ export const basicAttackPower = 1.6;
 export const archerAttackRange = 280;
 export const archerStopRange = 150;
 /** 마법사도 원거리다 — 궁수보다 짧은 사거리에서 마법 구슬을 날린다(작업 198, 간격 조정 작업 207).
- *  직업별 간격은 궁수 > 마법사 > 전사(90) 순서를 지킨다. */
-export const mageAttackRange = 210;
-export const mageStopRange = 110;
+ *  직업별 간격은 궁수 280/150 > 마법사 240/130 > 전사 90 순서를 지긴다(작업 216 상향). */
+export const mageAttackRange = 240;
+export const mageStopRange = 130;
 export function enemyMoveSpeed(floor: number, boss: boolean): number {
   return boss ? 28 : Math.min(64, 38 + Math.max(0, floor - 1) * 1.2);
 }
@@ -102,9 +107,41 @@ export const ELITE_HP_SCALE = 2;
 export const ELITE_REWARD_SCALE = 2;
 /** 정예 몹의 몸 크기 — 일반 몹보다 살짝 큰 1.22배(작업 206). */
 export const ELITE_MOB_SCALE = 1.22;
+/** 필드에 동시에 설 수 있는 몹 상한(작업 222, 사용자 요청 `#5827` "몹이 30마리 이상 생성되면 층 하락").
+ *  상한에 닿아 30마리가 되면 더 싸우지 않고 한 층 내려간다(1층에는 내려갈 곳이 없어 상한만 지킨다). */
+export const MOB_CAP = 30;
 export function enemyHitDamage(floor: number, boss: boolean, defense: number): number { return Math.max(1, Math.round(boss ? 20 + floor * 5.5 + Math.pow(floor, 1.3) * 1.2 : 7 + floor * 2.4 + Math.pow(floor, 1.25) * .5) - defense * .2); }
+/** 광폭 버프(블러드 레이지·호크아이·아케인 실드)의 공격속도 배율(작업 216).
+ *  +20%에서 시작해 스킬 레벨당 +1%, 상한 1.5배 — `heroMotion.costumePlaybackRate`가 같은 식을 쓴다. */
+export function berserkSpeedScale(level: number): number { return Math.min(1.5, 1.2 + (Math.max(1, level) - 1) * .01); }
+/** 같은 버프의 공격력 배율 — +20%에서 시작해 스킬 레벨당 +1.5%(상한 없음, Lv.30 1.635배). */
+export function berserkAttackScale(level: number): number { return 1.2 + (Math.max(1, level) - 1) * .015; }
+
 /** 10연타 팝업을 흩뿌리는 자리(±12px) — 타마다 다른 조합이라 열 개 숫자가 한 곳에 모이지 않는다. */
 export function crushLabelOffset(index: number): { x: number; y: number } { return { x: (index % 5 - 2) * 6, y: index < 5 ? -8 : 4 }; }
+
+/** 무기 미장착 안내(작업 216). 자동 사냥이 매 프레임 공격을 시도해도 이 글자가 도배되지 않도록
+ *  한 번 띄우면 4.5초는 조용히 막는다. */
+export const WEAPON_REQUIRED_NOTICE = '무기를 장착해야 공격할 수 있습니다.';
+export const WEAPON_NOTICE_COOLDOWN = 4.5;
+/** 파이어 볼트가 띄우는 화염구 수(작업 216) — Lv.1~4는 1발, 이후 5레벨마다 +1발, 최대 6발. */
+export function fireBoltCount(level: number): number { return Math.min(6, 1 + Math.floor(Math.max(1, Math.floor(level)) / 5)); }
+/** 화염구 크기 배율(작업 216) — 레벨이 오를수록 점진적으로 커진다(Lv.1 1배 → Lv.30 2.45배). */
+export function fireBoltScale(level: number): number { return 1 + Math.max(0, Math.floor(level) - 1) * .05; }
+/** 머리 위 화염구 자리(월드 좌표, 작업 216).
+ *  아이소 투영이 화면 변위를 `(dx−dy)·.86`, `(dx+dy)·.43`으로 그리므로, 화면 기준 반원(가운데가
+ *  높고 양옆으로 퍼짐)을 그 역변환으로 옭려 머리 위에 띄운다. 1발이면 정수리 바로 위다. */
+export function fireBoltSpots(x: number, y: number, count: number): { x: number; y: number }[] {
+  const spots: { x: number; y: number }[] = [];
+  const n = Math.max(1, Math.floor(count));
+  for (let index = 0; index < n; index++) {
+    const spread = n === 1 ? 0 : index / (n - 1) - .5;            // -0.5 ~ +0.5
+    const screenX = spread * 64;
+    const screenY = -68 - (1 - Math.abs(spread) * 2) * 8;          // 가운데가 8px 더 높다
+    spots.push({ x: x + (screenX / .86 + screenY / .43) / 2, y: y + (screenY / .43 - screenX / .86) / 2 });
+  }
+  return spots;
+}
 
 export class World {
   player = { x: 0, y: 0, facing: 0, facingSide: 1, hp: 100, berserk: 0, berserkLevel: 1, hit: 0 };
@@ -125,6 +162,9 @@ export class World {
   crush?: { level: number; elapsed: number; next: number; hits: number; power: number };
   /** 지금 살아 있는 잔상들 — 렌더러가 이 목록으로 본체 복제본을 그리고 지운다(작업 212). */
   afterimages: HeroAfterimage[] = [];
+  /** 무기 미장착 안내를 다시 띄우기까지 남은 시간(작업 216). 자동 사냥이 매 프레임
+   *  `action()`을 불러도 토스트가 도배되지 않게 한다. */
+  weaponNotice = 0;
   activeMove = { x: 0, y: 0 };
   bossPending = false;
   /** `⚔ 보스 도전`을 띄울 상태인가(작업 212 `#5017`) — 보스에게 쓰러진 뒤 `true`,
@@ -167,8 +207,13 @@ export class World {
     // 보스는 **최고 도달 층에서만** 나오고, 자동 등반이 꺼진 상태(패배 뒤)에는 `⚔ 보스 도전`을 눌러야
     // 다시 나온다(작업 210). 세이브를 다시 읽어도 보스가 저절로 소환되지 않는다.
     this.bossPending = save.autoClimb && this.bossFloor() && save.floorKills >= floorKillTarget(save.floor);
-    // 자동 등반이 꺼진 세이브로 들어오면 이미 한 번 쓰러진 상태로 본다(작업 210).
-    this.bossRetryAvailable = !save.autoClimb;
+    // 버튼은 **보스에게 패배한 순간**에만 살아난다(작업 222, `#5781`·`#5792`).
+    // 예전에는 `!save.autoClimb`로 시작해, 자동 등반을 끄거나 그런 세이브로 접속하면 보스에게 한 번도
+    // 지지 않았는데 `⚔ 보스 도전`이 즉시 떴다. 세이브를 다시 읽어도 보스가 저절로 소환되지 않는다.
+    // 작업 223(`#6086`): 이 상태를 세션 메모리에만 두면 새로고침·재접속·버전 업데이트 리로드로
+    // 보스에게 진 기록이 사라져 버튼이 없어졌다(사용자: "4층 넘어갈때까지 계속 있어야되는데").
+    // 이제 `save.bossRetryFloor`(= 진 층, 최고 도달 층과 같을 때만 의미)에서 되살린다.
+    this.bossRetryAvailable = save.bossRetryFloor === save.maxFloor && save.maxFloor < MAX_FLOOR;
     const hp = enemyMaxHp(save.floor, false);
     const start = clampArenaPoint(145, -45);
     this.enemies.push({ x: start.x, y: start.y, hp, maxHp: hp, boss: false, hit: 0, step: 0, moving: false, knockX: 0, knockY: 0, slow: 0 });
@@ -202,6 +247,13 @@ export class World {
     return true;
   }
 
+  /** 무기 미장착 안내 — 쿨다운 안이면 조용히 지나간다. */
+  private warnWeapon(): void {
+    if (this.weaponNotice > 0) return;
+    this.weaponNotice = WEAPON_NOTICE_COOLDOWN;
+    this.onMessage(WEAPON_REQUIRED_NOTICE);
+  }
+
   /** 캐릭터 직업 — 값이 없는 예전 세이브는 전사로 본다. */
   get job(): Job { return jobOrDefault(this.save.job); }
 
@@ -227,6 +279,11 @@ export class World {
 
   action(kind: Action | null): void {
     if (this.paused || !kind) return;
+    // 무기가 없으면 평타·공격 스킬이 모두 나가지 않는다(작업 216). 자동 사냥도 같은 경로로 들어오므로
+    // 수동·자동이 함께 막히고, 안내는 `WEAPON_NOTICE_COOLDOWN`(4.5초)에 한 번만 뜬다.
+    // 단 첫 튜토리얼(첫 처치 전)만 예외다 — 시작 무기는 그 첫 처치의 100% 드랍이라 여기서까지 막으면
+    // 새 캐릭터가 무기를 영영 얻지 못한다.
+    if (!this.save.equipment.weapon && this.save.tutorial > 0) { this.warnWeapon(); return; }
     if (kind !== 'warcry' && Math.hypot(this.activeMove.x, this.activeMove.y) > .05) return;
     if (this.cooldown[kind] > 0) return;
     if (kind !== 'attack' && (!this.save.learned.includes(kind) || !this.save.quickSlots.includes(kind))) { this.onMessage('습득하고 퀵슬롯에 장착한 스킬만 사용할 수 있습니다.'); return; }
@@ -235,14 +292,17 @@ export class World {
     const range = kind === 'attack' ? 90 : skillRange(kind, level);
     const damageScale = skillDamageScale(level);
     const stats = totalStats(this.save);
-    this.cooldown[kind] = kind === 'attack' ? cooldowns.attack / (1 + stats.speed / 100) * (p.berserk > 0 ? 1 / (1.5 + (p.berserkLevel - 1) * .08) : 1) : cooldowns[kind];
+    // [작업 216] 광폭 버프(블러드 레이지·호크아이·아케인 실드)의 공속은 +20%에서 시작해 스킬 레벨당 +1%,
+    // 상한 1.5배다(예전 `1.5 + (레벨-1)*.08`은 Lv.1부터 +50%, Lv.30 3.8배로 비정상이었다).
+    this.cooldown[kind] = kind === 'attack' ? cooldowns.attack / (1 + stats.speed / 100) * (p.berserk > 0 ? 1 / berserkSpeedScale(p.berserkLevel) : 1) : cooldowns[kind];
     if (kind !== 'warcry') {
       // 이단참(작업 213)만 두 스윙(0.44초) 창을 쓰고, 나머지 스킬·평타는 0.32초 한 스윙이다.
       this.attackCombo = kind === 'slash2' ? 'double' : 'single';
       this.attackPose = kind === 'slash2' ? slash2SwingSeconds : .32;
       this.attackPoseSpan = this.attackPose;
     }
-    const attack = stats.attack * (p.berserk > 0 ? 1.5 + (p.berserkLevel - 1) * .05 : 1);
+    // 공격력은 +20%에서 시작해 스킬 레벨당 +1.5%(Lv.30 1.635배) — 예전 식은 Lv.1 +50%에 상한이 없었다.
+    const attack = stats.attack * (p.berserk > 0 ? berserkAttackScale(p.berserkLevel) : 1);
     const target = this.nearest();
     if (target) this.faceTarget(target);
     if (kind === 'attack') {
@@ -335,8 +395,17 @@ export class World {
       const aim = this.aimPoint(target, range);
       this.effects.push({ x: aim.x, y: aim.y, kind: 'rain', age: 0, duration: skillDuration(kind, level), angle: 0, nextHit: .12, power: attack * .85 * damageScale, level, source: kind });
     } else if (kind === 'fireBolt') {
+      // [작업 216] 머리 위에 화염구 N발을 띄운 뒤, 각 자리에서 목표 한 마리를 향해 곡선 없이
+      // 곧장 일직선으로 날아가 타격한다. 합계 위력은 예전 한 발(×2.0)과 같게 N으로 나눈다.
       const aim = this.aimPoint(target, range);
-      this.shoot(aim.x, aim.y, attack * 2 * damageScale, { speed: 780, radius: 46, arrow: 'fire', aim: target, source: kind });
+      const count = fireBoltCount(level), size = fireBoltScale(level);
+      const power = attack * 2 * damageScale / count;
+      fireBoltSpots(p.x, p.y, count).forEach((spot, index) => {
+        this.shoot(aim.x, aim.y, power, {
+          speed: 900, radius: 36, arrow: 'fire', aim: target, source: kind,
+          from: spot, launch: .18 + index * .05, size
+        });
+      });
     } else if (kind === 'iceBolt') {
       const aim = this.aimPoint(target, range);
       this.shoot(aim.x, aim.y, attack * 1.7 * damageScale, { speed: 720, radius: 52, slow: 2.4 + (level - 1) * .06, arrow: 'frost', aim: target, source: kind });
@@ -391,15 +460,20 @@ export class World {
   }
 
   /** 화살 하나를 쏜다. 도착하는 순간(`update`)에 그 지점 반경의 적에게 피해를 준다. */
-  private shoot(tx: number, ty: number, power: number, options: { speed?: number; radius?: number; targets?: number; slow?: number; knockback?: number; delay?: number; arrow?: ArrowVariant; aim?: Enemy; source?: SkillId } = {}): void {
+  private shoot(tx: number, ty: number, power: number, options: { speed?: number; radius?: number; targets?: number; slow?: number; knockback?: number; delay?: number; arrow?: ArrowVariant; aim?: Enemy; source?: SkillId; from?: { x: number; y: number }; launch?: number; size?: number } = {}): void {
     const p = this.player;
-    const dx = tx - p.x, dy = ty - p.y;
+    // `from`은 발사 자리다(파이어 볼트 화염구는 머리 위에서 출발한다). 없으면 캐릭터 자리.
+    const origin = options.from ?? p;
+    const dx = tx - origin.x, dy = ty - origin.y;
     const distance = Math.hypot(dx, dy);
-    const delay = options.delay ?? 0;
+    // `launch`는 제자리에 떠 있는 시간이다 — 발사 뒤 남은 비행 시간만큼만 도착이 늦어진다.
+    const launch = options.launch ?? 0;
+    const delay = Math.max(0, launch - (options.delay ?? 0)) + (options.delay ?? 0);
     this.effects.push({
-      x: p.x, y: p.y, kind: 'shot', age: 0, duration: Math.max(.05, distance / (options.speed ?? 820)) + delay,
+      x: origin.x, y: origin.y, kind: 'shot', age: 0, duration: Math.max(.05, distance / (options.speed ?? 820)) + delay,
       angle: Math.atan2(dy, dx), tx, ty, power, radius: options.radius ?? 40, targets: options.targets ?? 1,
-      slow: options.slow ?? 0, variant: options.arrow ?? 'normal', level: this.save.level, aim: options.aim, source: options.source
+      slow: options.slow ?? 0, variant: options.arrow ?? 'normal', level: this.save.level, aim: options.aim, source: options.source,
+      launch: launch || undefined, size: options.size
     });
   }
 
@@ -488,12 +562,15 @@ export class World {
         this.spawnTimer = .2;
         this.save.floorKills = 0;
         this.bossPending = false;
+        // 다음 층으로 올라갔으니 재도전 기록도 지운다(작업 223) — 새로고침해도 버튼이 돌아오지 않는다.
         this.bossRetryAvailable = false;
+        this.save.bossRetryFloor = 0;
         this.onMessage(capped ? `최고 ${MAX_FLOOR}층 달성! ${MAX_FLOOR}층에서 계속 사냥합니다.` : `${this.save.floor}층 진입`);
       } else {
         this.save.floorKills = 0;
         this.bossPending = false;
         this.bossRetryAvailable = this.save.floor < MAX_FLOOR;
+        this.save.bossRetryFloor = this.bossRetryAvailable ? this.save.floor : 0;
         this.onMessage(this.save.floor >= MAX_FLOOR ? `${this.save.floor}층 반복 사냥 · 최고 ${MAX_FLOOR}층` : `${this.save.floor}층 반복 사냥`);
       }
     } else {
@@ -522,6 +599,7 @@ export class World {
     const p = this.player;
     for (const kind of Object.keys(this.cooldown) as Action[]) this.cooldown[kind] = Math.max(0, this.cooldown[kind] - dt);
     this.attackPose = Math.max(0, this.attackPose - dt);
+    this.weaponNotice = Math.max(0, this.weaponNotice - dt);
     p.berserk = Math.max(0, p.berserk - dt);
     p.hit = Math.max(0, p.hit - dt);
     // 딜레이 크러싱 10연타 — 타격 간격이 지난 만큼 한 타씩 판정하고, 10타가 끝나면 시퀀스를 닫는다(작업 212).
@@ -575,7 +653,7 @@ export class World {
     // 보스전(보스 예약·보스 생존) 중에는 **일반 몹을 부르지 않는다**(작업 212 `#5017`) —
     // `⚔ 보스 도전`으로 시작한 승부는 보스와 단독으로 붙는다.
     const bossFight = this.bossPending || this.enemies.some(enemy => enemy.boss);
-    if (this.spawnTimer <= 0 && (bossFight || this.enemies.length < 18)) {
+    if (this.spawnTimer <= 0 && (bossFight || this.enemies.length < MOB_CAP)) {
       this.spawnTimer = Math.max(.55, 1.8 - this.save.floor * .08);
       const angle = random() * Math.PI * 2;
       const boss = this.bossFloor() && this.bossPending && !this.enemies.some(enemy => enemy.boss);
@@ -588,6 +666,11 @@ export class World {
         const spawn = spawnArenaEnemy(p, angle);
         const hp = enemyMaxHp(this.save.floor, boss) * (elite ? ELITE_HP_SCALE : 1);
         if (boss) {
+          // 층 보스는 **체력이 꽉 찬 상태로** 맞이한다(작업 222, 사용자 요청 `#5811` "층보스 떴을때 체력 꽉찬
+          // 상태로 싸우게 해줘"). 자동 등반 중 소환과 `⚔ 보스 도전` 재도전 소환 모두 이 블록으로 합류한다.
+          this.player.hp = totalStats(this.save).health; this.save.health = this.player.hp;
+          // 스킬 쿨타임도 함께 0으로 돌린다(작업 223, 사용자 요청 `#6108` "보스 도전 때 스킬 쿨도 돌려줘").
+          for (const kind of Object.keys(this.cooldown) as Action[]) this.cooldown[kind] = 0;
           // 보스가 나오는 순간 남은 일반 몹은 정리한다 — 보스만 단독으로 상대하게(작업 212).
           this.enemies = this.enemies.filter(enemy => enemy.boss);
           this.chaseTarget = undefined; this.pursuing = false;
@@ -596,6 +679,18 @@ export class World {
         if (boss) this.bossPending = false;
         if (elite) { this.elitePending = false; this.onMessage('정예 해골이 나타났습니다!'); }
       }
+    }
+    // 몹이 상한(30마리)까지 쌓이면 한 층 내려간다(작업 222, 사용자 요청 `#5827`). 보스전 중에는
+    // 보스 한 마리만 서므로 해당되지 않고, 1층에는 더 내려갈 층이 없어 30마리 상한만 지킨다.
+    // 바닥에 떨어진 드랍·금화(`this.drops`)는 그대로 두어 잃지 않는다.
+    if (this.enemies.length >= MOB_CAP && this.save.floor > 1) {
+      this.save.floor--;
+      this.save.floorKills = 0;
+      this.enemies = [];
+      this.chaseTarget = undefined; this.pursuing = false;
+      this.bossPending = false; this.elitePending = false; this.spawnTimer = .2;
+      this.onMessage(`적이 너무 많아 ${this.save.floor}층으로 내려갑니다.`);
+      this.onChange();
     }
     for (const enemy of this.enemies) {
       const dx = p.x - enemy.x, dy = p.y - enemy.y, d = Math.hypot(dx, dy);
@@ -618,11 +713,19 @@ export class World {
             this.save.floorKills = 0;
             this.bossPending = false;
             this.bossRetryAvailable = true;
+            // 진 층을 세이브에 남긴다(작업 223) — 새로고침·재접속에도 `⚔ 보스 도전`이 살아 있다.
+            this.save.bossRetryFloor = this.save.floor;
             this.enemies = this.enemies.filter(other => !other.boss);
           } else {
             this.save.autoClimb = false;
-            // 자동 등반이 꺼졌으면 최고층에서는 다시 도전 버튼을 띄운다(작업 210 규칙 유지).
-            this.bossRetryAvailable = this.bossFloor();
+            // 보스에게 진 경우에만 도전 버튼을 살린다(작업 222, 사용자 확인 `#5792` "각 층 끝까지 등반해서
+            // 실패해야 떠야되는데"). 일반·정예 몹에게 진 것으로는 켜지 않고, 이미 보스에게 져서 켜져 있던
+            // 상태도 건드리지 않는다.
+            if (this.bossFloor() && enemy.boss) {
+              this.bossRetryAvailable = true;
+              // 진 층을 세이브에 남긴다(작업 223) — 4층으로 올라갈 때까지 버튼이 유지된다.
+              this.save.bossRetryFloor = this.save.floor;
+            }
           }
           p.hp = totalStats(this.save).health; this.save.health = p.hp; p.x = 0; p.y = 0; this.chaseTarget = undefined; this.pursuing = false;
           this.save.gold = Math.max(0, this.save.gold - 10);

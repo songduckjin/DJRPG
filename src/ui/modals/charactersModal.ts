@@ -97,8 +97,11 @@ export function renderCharacters(ui: Interface, dialog: HTMLElement): void {
   const grid = document.createElement('div'); grid.className = 'character-slots';
   for (let slot = ui.characterPage * 3 + 1; slot <= Math.min(list.maxSlots, (ui.characterPage + 1) * 3); slot++) {
     const character = list.characters.find(entry => Number(entry.slot) === slot);
+    // [작업 216] 카드에는 평소 외형·정보만 보이고, 카드를 누른 그 카드에서만 `선택`·`방치`·`삭제`가
+    // 나타난다. 사냥 중 모달이 다시 그려져도 펼친 카드가 유지되도록 펼침 상태는 `ui`에 둔다.
+    const focused = ui.characterFocus === slot;
     const card = document.createElement('div');
-    card.className = `character-slot${slot === ui.session.characterSlot ? ' selected' : ''}`;
+    card.className = `character-slot${slot === ui.session.characterSlot ? ' selected' : ''}${focused ? ' focused' : ''}`;
     if (character) {
       const timer = document.createElement('span'); timer.className = 'character-idle-time';
       const elapsed = allIdleActive ? Math.max(0, Math.floor((Date.now() - Number(list.loadedAt ?? Date.now())) / 1000)) : 0;
@@ -106,9 +109,10 @@ export function renderCharacters(ui: Interface, dialog: HTMLElement): void {
       card.append(timer);
     }
     const select = button('', () => {
+      // 빈 슬롯은 누르면 바로 생성 화면이다. 캐릭터가 있는 카드는 접속하지 않고 펼치기만 한다.
       if (!character) { ui.characterCreateSlot = slot; ui.open('createCharacter'); return; }
-      if (slot === ui.session.characterSlot) { ui.message('현재 선택된 캐릭터입니다.'); return; }
-      void changeCharacter(ui, 'selectCharacter', slot).catch(error => ui.message(error instanceof Error ? error.message : String(error)));
+      ui.characterFocus = focused ? undefined : slot;
+      ui.renderModal();
     });
     select.className = 'character-select';
     const details = document.createElement('span'); details.textContent = character ? `${character.name} · ${jobNames[jobOrDefault(character.job)]} · Lv.${character.level} · ${character.floor}층` : `슬롯 ${slot} · 새 캐릭터 만들기`;
@@ -121,6 +125,14 @@ export function renderCharacters(ui: Interface, dialog: HTMLElement): void {
     } else { const plus = document.createElement('strong'); plus.textContent = '+'; select.append(plus); }
     select.append(details); card.append(select);
     if (character) {
+      const connect = button('선택', () => {
+        if (slot === ui.session.characterSlot) { ui.message('현재 선택된 캐릭터입니다.'); return; }
+        void changeCharacter(ui, 'selectCharacter', slot).catch(error => ui.message(error instanceof Error ? error.message : String(error)));
+      });
+      connect.className = 'character-connect';
+      connect.setAttribute('aria-label', `${character.name} 선택해서 접속`);
+      connect.title = slot === ui.session.characterSlot ? '지금 접속 중인 캐릭터입니다.' : `${character.name}으로 접속`;
+      card.append(connect);
       const idle = button('방치', () => {
         if (slot === ui.session.characterSlot) {
           if (!ui.world.save.autoClimb) { ui.world.save.autoClimb = true; ui.world.onChange(); }
@@ -159,7 +171,7 @@ export function renderCharacters(ui: Interface, dialog: HTMLElement): void {
     addSlot.className = 'character-add-slot';
     dialog.append(addSlot);
   }
-  dialog.append(button('공용창고', () => ui.open('warehouse')));
+  // [작업 223/#18745] 공용창고는 하단 메뉴 아이콘으로 옮겼다 — 캐릭터 선택 화면에는 두지 않는다.
 }
 
 export function renderCreateCharacter(ui: Interface, dialog: HTMLElement): void {
@@ -171,12 +183,13 @@ export function renderCreateCharacter(ui: Interface, dialog: HTMLElement): void 
   let selected: 'male' | 'female' = 'male';
   const jobRow = document.createElement('div'); jobRow.className = 'character-gender character-job';
   const gender = document.createElement('div'); gender.className = 'character-gender';
-  const labelGenders = () => gender.querySelectorAll('button').forEach((node, index) => { node.textContent = `${index === 0 ? '남성' : '여성'} ${jobNames[job]}`; });
+  // [작업 216] 성별 버튼은 직업 이름을 붙이지 않고 `남` / `여`만 표시한다(직업은 위 줄에서 고른다).
+  const labelGenders = () => gender.querySelectorAll('button').forEach((node, index) => { node.textContent = index === 0 ? '남' : '여'; });
   for (const [value, title] of [['warrior', '전사'], ['archer', '궁수'], ['mage', '마법사']] as const) {
     const choice = button(title, () => { job = value; jobRow.querySelectorAll('button').forEach(node => node.classList.toggle('selected', node === choice)); labelGenders(); });
     choice.classList.toggle('selected', value === job); jobRow.append(choice);
   }
-  for (const [value, title] of [['male', '남성 전사'], ['female', '여성 전사']] as const) {
+  for (const [value, title] of [['male', '남'], ['female', '여']] as const) {
     const choice = button(title, () => { selected = value; gender.querySelectorAll('button').forEach(node => node.classList.toggle('selected', node === choice)); });
     choice.classList.toggle('selected', value === selected); gender.append(choice);
   }

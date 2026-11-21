@@ -194,6 +194,15 @@ function view() {
   game.prefetchBody = function prefetch() { this.bodyPrefetchCalls = (this.bodyPrefetchCalls ?? []).concat([1]); };
   game.prefetchRobe = function prefetch(gender, index) { this.robePrefetchCalls.push(robeSheetPaths(gender, index)); };
   game.prefetchWeapon = () => {};
+  // [작업 216] 무기를 안 차면 빈손 시트(nostaff·noweapon)를 먼저 찾는다 — 이 하네스에는 그 캐시가 없으므로
+  // 항상 undefined(폴백)로 두어 로브 시트 선택만 본다.
+  game.staffBodyFrame = () => undefined;
+  game.swordlessBodyFrame = () => undefined;
+  game.bowBodyFrame = () => undefined;
+  game.prefetchStaff = () => {};
+  game.prefetchBow = () => {};
+  game.prefetchArcherHeadless = () => {};
+  game.prefetchMageHeadless = () => {};
   return game;
 }
 
@@ -269,16 +278,17 @@ test('전사 세이브에는 로브를 적용하지 않는다', () => {
 
 test('장비창 초상화도 착용 로브 시트를 쓴다', () => {
   const save = mageSave('female');
-  assert.equal(equipmentFallbackPortrait(save), '/assets/pilot-25d/mage_female_idle_v1.png?v=2');
+  // [작업 216] 지팡이를 안 찬 빈손이므로 기본 지팡이를 지운 판(nostaff)을 쓴다.
+  assert.equal(equipmentFallbackPortrait(save), '/assets/pilot-25d/mage_nostaff/mage_female_idle_v1.png?v=2');
   save.equipment.armor = armorItem('가죽 조끼');
-  assert.equal(equipmentFallbackPortrait(save), '/assets/pilot-25d/mage_female_idle_v1.png?v=2', '0번은 기준 시트');
+  assert.equal(equipmentFallbackPortrait(save), '/assets/pilot-25d/mage_nostaff/mage_female_idle_v1.png?v=2', '0번은 기준 시트(nostaff)');
   save.equipment.armor = armorItem('사슬 갑옷');
   assert.equal(equipmentFallbackPortrait(save), '/assets/pilot-25d/robes/mage_female_robe_2_idle_v1.png');
   const plan = equipmentPortraitPlan(save);
   assert.equal(plan.key, 'mage:female:r2:-:-', `캐시 키에 로브 티어·지팡이·투구: ${plan.key}`);
   assert.equal(plan.base, equipmentFallbackPortrait(save));
   assert(equipmentPortraitPlan(mageSave('male')).key.includes('r-1'), '갑옷이 없으면 r-1');
-  assert.equal(equipmentFallbackPortrait(mageSave('male')), '/assets/pilot-25d/mage_male_idle_v1.png?v=2');
+  assert.equal(equipmentFallbackPortrait(mageSave('male')), '/assets/pilot-25d/mage_nostaff/mage_male_idle_v1.png?v=2');
 });
 
 test('로브 시트는 부팅 프리로드에 넣지 않고 티어별로만 받는다', () => {

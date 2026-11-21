@@ -15,6 +15,12 @@
   50% { box-shadow: 0 0 15px #ffb06699, inset 0 0 0 1px #ffd97744; }
 }
 @media (prefers-reduced-motion: reduce) { .boss-retry { animation: none; } }
+/* ▲ 최고층 (작업 224 `#6215`) — 최고 도달 층에서 2층 이상 내려왔을 때만 층 배지 옆에 나타난다.
+   누르면 그 자리에서 최고층으로 돌아가고, 다시 최고층에 서면 스스로 사라진다. */
+.floor-return { display: inline-flex; align-items: center; gap: 2px; min-height: 30px; padding: 2px 7px; border: 1px solid #c9a46a; border-radius: 4px; background: linear-gradient(#3a2f22, #221a15); color: #ffdfa6; font: inherit; font-size: 11px; font-weight: 700; letter-spacing: .01em; white-space: nowrap; pointer-events: auto; box-shadow: 0 0 7px #d5aa4933; }
+.floor-return:active { background: linear-gradient(#2a211a, #171210); }
+.floor-return:focus-visible { outline: 2px solid #f0d8a5; outline-offset: 2px; }
+@media (max-width: 399px) { .status-floor { gap: 2px; } .floor-return { padding: 2px 5px; font-size: 10px; } }
 .gold { color: #e6bb6c; font-weight: 700; }
 .diamonds { color: #a6dcff; font-weight: 700; white-space: nowrap; }
 .level-badge { position: absolute; left: 12px; top: 5px; width: 49px; height: 49px; display: flex; flex-direction: column; align-items: center; justify-content: center; border: 0; border-radius: 50%; color: #f1d7ae; background: conic-gradient(#d6a162 var(--progress), #4a3938 0); pointer-events: auto; box-shadow: 0 2px 10px #000b; }
@@ -121,6 +127,7 @@
 .bottom-nav [data-modal="equipment"] { --menu-icon-scale: .9931; --menu-icon-x: 0%; --menu-icon-y: 0%; }
 .bottom-nav [data-modal="skills"] { --menu-icon-scale: .9931; --menu-icon-x: .3906%; --menu-icon-y: 0%; }
 .bottom-nav [data-modal="market"] { --menu-icon-scale: .9931; --menu-icon-x: 0%; --menu-icon-y: .3906%; }
+.bottom-nav [data-modal="warehouse"] { --menu-icon-scale: .9931; --menu-icon-x: 0%; --menu-icon-y: .3906%; }
 .utility-nav [data-modal="settings"] { --menu-icon-scale: 1.28; --menu-icon-x: -3.125%; --menu-icon-y: 5.8594%; }
 .utility-nav [data-modal="mail"] { --menu-icon-scale: 1.44; --menu-icon-x: -1.5625%; --menu-icon-y: .7812%; }
 .utility-nav [data-modal="rewards"] { --menu-icon-scale: 1.4222; --menu-icon-x: .7812%; --menu-icon-y: 1.1719%; }
