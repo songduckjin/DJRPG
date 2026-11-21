@@ -1,3 +1,12 @@
+## 2026-11-21 · songduckjin 작업 253 — 상점 다이아 패키지 확정 1안 그림 적용(PR 준비, 중단·인수인계)
+
+- **요청**: 사용자가 `ask_user`로 확정한 1안(`downloads/djrpg_diamond_pack_v1.png`, 청동 보물상자의 파란 다이아)을 상점 다이아 상품에 적용.
+- **에셋**: 1254×1254 PNG 2.2MB → 512×512 WebP `public/assets/shop/diamond_pack_v1.webp` **50,280B**(시험값: PNG 512 411KB·WebP 720 81KB — 88px 표시라 512 WebP 하나로 충분).
+- **UI**: `src/ui/modals/shopModal.ts`에 `DIAMOND_PACK_ART`·`diamondHero()` — 다이아 탭에서 잔액·탭 아래, 상품 그리드 위에 대표 카드 한 번만(`figure.shop-hero` = 88px 아트 + `다이아 패키지` + `충전한 다이아로 캐릭터 슬롯과 전 슬롯 방치를 열 수 있습니다.`). 8칸 카드에 같은 그림을 반복하지 않고, 패키지 탭에는 붙이지 않는다. `alt`=`다이아가 가득 담긴 청동 보물상자`, `width/height=512`, `decoding=async`.
+- **CSS**: `src/styles/modals.css` `.shop-hero`(남색 radial 후광·1px 테두리)·`.shop-hero-art`(88×88·`object-fit: cover`·둥근 모서리·파란 글로우)·`.shop-hero-caption`.
+- **검증**: `npx tsc --noEmit`·`npm run build` 통과, 신규 `tests/shop-diamond-pack.test.mjs` **3/3**. 전체 테스트는 300초 시간 초과로 **884건까지** 실행(실패 2건 = 기존 `costume-field-render`).
+- **중단·인수인계**(사용자 지시: 토큰 절약 위해 직접 이어서 작업): 남은 것은 ① 전체 테스트 완주(기대 실패 4건: costume-field-render 2·skillbook-server 1·hero-art 1) ② 검수 이미지 `downloads/djrpg_shop_diamond_pack_v1.png`(권장: `node scripts/preview-server.mjs` + 브라우저에서 `window.fetch`를 `/api/shop` catalog로 바꾸고 하단 `◆` 버튼으로 390×844 캡처) ③ PR 프리뷰 CI·`/assets/shop/diamond_pack_v1.webp` 200·md5 확인.
+
 ## 2026-11-21 · songduckjin 작업 246 — 가방 40칸 초과 저장 거절로 우편함·거래소가 잠기던 문제(+ FULL 표시·가득 참 안내)
 
 - **제보**: `#20869` "우편함 안받아져"·`#20887` "이전저장결과를 확인하래"·`#20915` "가방또는 징비데이터도 올바르지 않대"·`#20938` "가방 꽉차면 가방 풀 표시 해주고 우편도 받을따 가방이 꽉차짔다거 알림주기"(10:37~10:44 KST).
