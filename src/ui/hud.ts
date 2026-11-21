@@ -57,9 +57,12 @@ export function tick(this: Interface): void {
       const empty = kind === null, canAdd = empty && available.length > 0;
       const selecting = index > 0 && !!this.pendingSkill;
       const name = empty ? canAdd ? '스킬 장착하기' : '미습득' : kind === 'attack' ? basicAttackName(jobOrDefault(this.world.save.job)) : skills[kind].name;
-      const key = `${kind}:${canAdd}:${selecting}`;
+      // [작업 250] 직업을 키에 넣는다 — 빼두면 궁수·마법사에서 전사로 캐릭터를 바꿔도 상태가 같아
+      // 아이콘·이름을 다시 그리지 않아 이전 직업의 활 아이콘과 평타 이름이 그대로 남는다(`#21260`).
+      const job = jobOrDefault(this.world.save.job);
+      const key = `${job}:${kind}:${canAdd}:${selecting}`;
       if (button.dataset.state !== key) {
-        feedback.clear(button); applySkillArtwork(button, kind, jobOrDefault(this.world.save.job));
+        feedback.clear(button); applySkillArtwork(button, kind, job);
         button.dataset.state = key; button.dataset.skill = kind ?? '';
         // 기본 공격은 직업별 원형 아이콘(대검·활·마법탄)이 `.skill-art`로 덮으므로 글자 그림판은 비워 둔다(작업 216).
         button.querySelector('strong')!.textContent = empty ? canAdd || selecting ? '+' : '—' : kind === 'attack' ? '' : skills[kind].icon;

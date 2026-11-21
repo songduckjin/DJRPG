@@ -98,6 +98,13 @@
 .shop-buy { min-height: 34px; border: 1px solid #6ba5cd; border-radius: 4px; background: #263f55; color: #e4f6ff; }
 .shop-buy:disabled { opacity: .55; }
 .shop-note { color: #e5d6c7; font-size: 12px; }
+/* 다이아 탭 대표 카드(작업 253) — 확정 1안 그림은 검은 배경이 있는 사각 그림이라 모서리를 둥글게 깎고
+   어두운 남색 후광 위에 얹어 다크 판타지 모달과 이어지게 한다. 그림을 8칸 카드에 반복하지 않는다. */
+.shop-hero { display: flex; align-items: center; gap: 11px; margin: 0 0 12px; padding: 9px 11px; border: 1px solid #4f6d8b; border-radius: 6px; background: radial-gradient(120% 130% at 10% 18%, #1d3a5a 0%, #1a1522 58%, #131019 100%); box-shadow: inset 0 0 18px #09091299; }
+.shop-hero-art { flex: none; width: 88px; height: 88px; border-radius: 6px; object-fit: cover; background: #08070d; box-shadow: 0 0 12px #2f74b855; }
+.shop-hero-caption { display: grid; gap: 4px; min-width: 0; }
+.shop-hero-caption strong { color: #bfe9ff; font: 700 15px Cinzel, 'Noto Sans KR', serif; }
+.shop-hero-caption span { color: #a9bac9; font-size: 11.5px; line-height: 1.5; word-break: keep-all; }
 .character-pages, .character-gender { display: flex; gap: 8px; align-items: center; justify-content: center; margin: 12px 0; }
 .character-create { display: grid; gap: 12px; }
 .character-create label { display: grid; gap: 6px; }

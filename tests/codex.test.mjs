@@ -7,13 +7,19 @@ const { salvageItems } = await import('../src/game/inventory.ts');
 const { rollItem, slots, baseItems, bowBases, staffBases, rarityOrder, rarityTiers, rarityNames, migrateItem, salvageByRarity, equipmentImage, wearableEquipmentImage } = await import('../src/game/items.ts');
 const item = (name, slot = 'weapon', rarity = 'rare') => ({ id: name + slot + rarity, name, slot, rarity, stats: { attack: 5 } });
 
-test('codex holds 95 illustrated base items (swords, bows and staves included) and 570 grade cells', () => {
-  assert.equal(codexEntries.length, 95); assert.equal(new Set(codexEntries.map(entry => entry.key)).size, 95);
+test('codex holds 135 illustrated base items (job-split weapons, helmets and armour included) and 810 grade cells', () => {
+  assert.equal(codexEntries.length, 135); assert.equal(new Set(codexEntries.map(entry => entry.key)).size, 135);
+  // 투구·갑옷도 세 직업 10종씩(작업 249) — 전사 0~9 · 궁수 10~19 · 마법사 20~29.
+  assert.equal(codexEntries.filter(entry => entry.group === '판금').length, 10);
+  assert.equal(codexEntries.filter(entry => entry.group === '경갑').length, 10);
+  assert.equal(codexEntries.filter(entry => entry.group === '로브').length, 10);
+  assert.equal(codexEntries.filter(entry => entry.group === '후드').length, 10);
+  assert.equal(codexEntries.filter(entry => entry.group === '모자').length, 10);
   assert.equal(codexEntries.filter(entry => entry.slot === 'ring').length, 5);
   assert.equal(codexEntries.filter(entry => entry.group === '대검').length, 10);
   assert.equal(codexEntries.filter(entry => entry.group === '활').length, 10);
   assert.equal(codexEntries.filter(entry => entry.group === '지팡이').length, 10);
-  assert.equal(codexVariantCount, 570, '95종 × 6등급 = 570칸');
+  assert.equal(codexVariantCount, 810, '135종 × 6등급 = 810칸');
   for (const entry of codexEntries) {
     assert.equal(entry.art.columns, 5); assert(entry.art.frame >= 0 && entry.art.frame < 5); assert(entry.art.path.startsWith('/assets/item-art/'));
     for (const rarity of rarityOrder) assert(normalizeCollection([codexVariantKey(entry, rarity)]).length === 1, `${entry.key}:${rarity} 키가 유효하다`);
@@ -32,7 +38,7 @@ test('bows and staves resolve to their own weapon codex number, art and job labe
   assert.deepEqual(equipmentImage(item('각궁')), { path: '/assets/item-art/bow_0.png', frame: 1, columns: 5 });
   assert.deepEqual(equipmentImage(item('대현자의 성지팡이')), { path: '/assets/item-art/staff_5.png', frame: 4, columns: 5 });
   assert.equal(wearableEquipmentImage(item('각궁')), undefined, '활·지팡이는 착용 외형 시트가 없다');
-  assert.equal(codexEntryKeys.size, 95);
+  assert.equal(codexEntryKeys.size, 135);
 });
 
 test('legacy prefixes, tutorial sword and old Zweihander spelling map to the base entry', () => {
@@ -57,12 +63,12 @@ test('all fifty equipment base models have an individual wearable art frame', ()
 });
 
 test('먹은 등급만 발견된다 — 일반 한 벌로 레전드까지 채워지지 않는다 (작업 208 버그 수정)', () => {
-  const save = freshSave(); save.bag = [item('황혼의 가죽 조끼', 'armor', 'common')];
+  const save = freshSave(); save.bag = [item('황혼의 강철 브레스트플레이트', 'armor', 'common')];
   discoverEquipment(save);
-  assert.deepEqual(save.equipmentCollection, ['armor:0:common'], '일반 한 칸만 발견');
-  const entry = codexEntries.find(entry => entry.key === 'armor:0');
+  assert.deepEqual(save.equipmentCollection, ['armor:3:common'], '일반 한 칸만 발견');
+  const entry = codexEntries.find(entry => entry.key === 'armor:3');
   assert.equal(codexOwnership(save, entry).discovered, true);
-  const variants = codexVariants(save, '가죽 조끼');
+  const variants = codexVariants(save, '강철 브레스트플레이트');
   assert.equal(variants.length, 6);
   assert.deepEqual(variants.map(variant => variant.discovered), [true, false, false, false, false, false]);
   assert.deepEqual(variants.filter(variant => variant.rarity === 'legendary').map(variant => variant.discovered), [false], '레전드는 미발견');
@@ -79,7 +85,7 @@ test('현재 보유한 장비는 착용·가방 모두 발견으로 잡히고 �
   const sword = codexVariants(save, '쯔바이핸드');
   assert.deepEqual(sword.map(variant => variant.discovered), [false, false, true, false, false, true]);
   assert.equal(codexVariants(save, '', '', 'found').length, 3, '발견한 등급 칸만 3개');
-  assert.equal(codexVariants(save, '', '', 'missing').length, 567);
+  assert.equal(codexVariants(save, '', '', 'missing').length, 807);
 });
 
 test('migration keeps only real grades and drops the old slot:index keys, rediscovering from the save', () => {
@@ -137,8 +143,11 @@ test('every illustrated tier previews options consistent with generated loot at 
       const depth = floor - 1, legendary = Math.min(.006, .002 + depth * .00005), rare = Math.min(.035, .017 + depth * .0004);
       const unique = legendary + (rare - legendary) * .18, epic = legendary + (rare - legendary) * .48;
       const rarityRoll = { common: .5, magic: .05, rare: (epic + rare) / 2, epic: (unique + epic) / 2, unique: (legendary + unique) / 2, legendary: legendary / 2 }[rarity];
-      // 무기 드롭은 세 직업 1/3 확률이라(작업 204) 이 기본형의 직업 난수를 사이에 둔다.
-      const jobRoll = entry.slot === 'weapon' ? [entry.group === '활' ? 1.1 / 3 : entry.group === '지팡이' ? 2.1 / 3 : .1 / 3] : [];
+      // 무기·투구·갑옷 드롭은 세 직업 1/3 확률이라(작업 204·249) 이 기본형의 직업 난수를 사이에 둔다.
+      const mageGroup = entry.group === '지팡이' || entry.group === '로브' || entry.group === '모자';
+      const archerGroup = entry.group === '활' || entry.group === '경갑' || entry.group === '후드';
+      const jobSplit = entry.slot === 'weapon' || entry.slot === 'helmet' || entry.slot === 'armor';
+      const jobRoll = jobSplit ? [archerGroup ? 1.1 / 3 : mageGroup ? 2.1 / 3 : .1 / 3] : [];
       const sequence = [rarityRoll, (slots.indexOf(entry.item.slot) + .1) / slots.length, ...jobRoll, (entry.tier + .1) / (maxTier + 1), .5];
       Math.random = () => sequence.shift() ?? 0;
       const actual = rollItem(floor), preview = codexOptions(entry, rarity, floor); assert.equal(actual.name, codexVariantName(entry, rarity));
@@ -150,7 +159,7 @@ test('every illustrated tier previews options consistent with generated loot at 
 
 test('grade filtering yields six variants per base with distinct identities and exact ownership', () => {
   const save = freshSave();
-  assert.equal(codexVariants(save).length, 570); assert.equal(codexVariants(save, '', '', 'all', 'rare').length, 95);
+  assert.equal(codexVariants(save).length, 810); assert.equal(codexVariants(save, '', '', 'all', 'rare').length, 135);
   const swords = codexVariants(save, '쯔바이핸드', 'weapon'); assert.equal(swords.length, 6); assert.equal(new Set(swords.map(variant => variant.key)).size, 6);
   assert.equal(codexVariants(save, '쯔바이핸드', 'weapon', 'all', 'legendary')[0].name, '영원의 쯔바이핸드');
   save.bag = [item('황혼의 쯔바이핸드')]; save.equipment.weapon = { ...item('서리의 쯔바이핸드'), rarity: 'magic' };

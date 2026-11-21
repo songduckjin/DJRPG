@@ -1,6 +1,7 @@
 import type { Gender, Save } from '../store';
 import { isStaff, staffIndex, hasNoWeapon } from '../items';
 import { PILOT_ASSET_VERSION, pilotSheet } from './pilotAssets';
+import { mageHelmPlacement } from './mageHelmets';
 
 /**
  * 착용 지팡이 10종 외형 파츠 (작업 201).
@@ -100,9 +101,16 @@ export function staffPose(gender: Gender, motion: StaffMotion, frame: number): S
  * 작업 204에서 남성 서기 본체 시트의 정수리 잘림을 고치며(337px) 본체가 0.83525배 작아졌다.
  * 지팡이 파츠 PNG는 그 전 셀(337/943)에서 떠 있어 서기에서만 같은 배율로 줄여 그린다. 걷기·공격
  * 파츠는 각 자세에서 1배이며, 파츠를 새 셀 기준으로 다시 굽기 전까지 이 값이 그 차이를 메운다.
+ *
+ * [작업 250] 걷기·공격도 같은 원리로 **본체 아트 배율**을 곱한다 — 마법사 공격 시트는 본체를
+ * 서기의 0.89~0.98배로 그린 판이라(작업 204의 투구 정합이 프레임마다 잰 값), 배율 없이 얹으면
+ * 공격할 때 지팡이만 커져 손에서 뜬 것처럼 보인다(사용자 제보 `#21151` "파츠별로 분리되는현상").
+ * 배율의 기준은 `mageHelmPlacement` 하나이며, 서기 참조값만 이 표가 따로 갖는다(본체 재굽기 보정).
  */
+const IDLE_REFERENCE_SCALE: Record<Gender, number> = { male: 0.83525, female: 1 };
+
 const POSE_SCALE: Record<Gender, Record<string, number>> = {
-  male: { idle0: 0.83525 },
+  male: { idle0: IDLE_REFERENCE_SCALE.male },
   female: {}
 };
 
@@ -110,7 +118,11 @@ const POSE_SCALE: Record<Gender, Record<string, number>> = {
 export type StaffPlacement = StaffPose & { scale: number };
 
 export function staffPlacement(gender: Gender, motion: StaffMotion, frame: number): StaffPlacement {
-  return { ...staffPose(gender, motion, frame), scale: POSE_SCALE[gender]?.[staffPoseKey(motion, frame)] ?? 1 };
+  const pose = staffPose(gender, motion, frame);
+  // 서기 참조값(파츠 PNG를 굽은 셀 보정) × 그 프레임의 본체 아트 배율.
+  const reference = POSE_SCALE[gender]?.['idle0'] ?? 1;
+  const frameScale = motion === 'idle' ? 1 : mageHelmPlacement(gender, motion, frame).scale;
+  return { ...pose, scale: reference * frameScale };
 }
 
 /** 파츠 PNG 경로. 0~9 밖이면 undefined. */

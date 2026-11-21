@@ -200,6 +200,13 @@ export class World {
   private swing = 1;
   private chaseTarget?: Enemy;
   private pursuing = false;
+  /**
+   * 캐릭터 전환 세대(작업 250) — `adoptSave`가 한 번 올린다.
+   *
+   * 새로고침 없이 캐릭터를 같아타면 세이브 객체는 그대로고 내용만 바뀌어, 그리기 쪽은 "같은
+   * 세이브"와 "다른 캐릭터"를 구별할 수 없다. 이 값을 비교해 파츠 스프라이트·발광·잔상을 버린다.
+   */
+  switchEpoch = 0;
   onChange: () => void = () => {};
   onMessage: (text: string) => void = () => {};
   /** Live auto-salvage (작업 196): the grade the player chose, or `undefined` while the switch is off.
@@ -251,6 +258,9 @@ export class World {
    * 필드에 남아 있던 몹·드랍·연출·쿨타임·보스 상태는 생성자와 같은 초기값으로 되돌린다.
    */
   adoptSave(save: Save): void {
+    // 그리기 쪽이 "캐릭터가 갈아탔다"를 알아야 이전 직업의 파츠·잔상을 지울 수 있다(작업 250).
+    // 세이브 객체 정체성은 그대로라 값만으로는 전환을 알 수 없으므로 세대를 하나 올린다.
+    this.switchEpoch += 1;
     const target = this.save as unknown as Record<string, unknown>;
     for (const key of Object.keys(target)) delete target[key];
     Object.assign(this.save, save);

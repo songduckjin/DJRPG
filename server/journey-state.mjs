@@ -235,7 +235,7 @@ export const completionRewards = {
   daily:{id:'completion',name:'일일 전체 완료 보상',gold:2000,books:0,pouches:1,completion:true},
   weekly:{id:'completion',name:'주간 전체 완료 보상',gold:10000,books:0,pouches:3,completion:true}
 };
-/** 장비 도감 발견 수 — **등급별 칸**(`부위:번호:등급`)만 센다(작업 208). 95종 × 6등급 = 570칸. */
+/** 장비 도감 발견 수 — **등급별 칸**(`부위:번호:등급`)만 센다(작업 208·249). 135종 × 6등급 = 810칸. */
 export function collectionCount(save) {
   const keys = Array.isArray(save?.equipmentCollection) ? save.equipmentCollection : [];
   return new Set(keys.filter(key => typeof key === 'string' && /^(weapon|offhand|helmet|armor|necklace|gloves|belt|boots|ring):\d{1,2}:(?:common|magic|rare|epic|unique|legendary)$/.test(key))).size;
@@ -266,7 +266,9 @@ const milestones = [
   // + 월드보스 도전(하루 3회, 도전마다 1회)이 세이브의 `bossKills` 하나로 모인다. 필드 정예 몹은 제외.
   ['boss','보스','보스 처치',[10,50,100,150,200],save=>save.bossKills??0],
   ['floor','탐험','최고 도달 층',[5,10,15,20],save=>save.maxFloor??save.floor],
-  ['collection','수집','장비 도감 수집',[10,50,100,200,300,450,570],save=>collectionCount(save)],
+  // 투구·갑옷이 직업별 3갈래로 늘어 도감 칸이 570 → 810이 됐다(작업 249). 마지막 단계만 810으로 올려
+  // "전부 모으면 마지막 단계"라는 뜻은 그대로 두고, 이미 오른 단계는 건드리지 않는다.
+  ['collection','수집','장비 도감 수집',[10,50,100,200,300,450,810],save=>collectionCount(save)],
   ['skills','스킬','스킬 강화 횟수',[5,15,30,50,100],save=>skillUpgradeCount(save)],
   ['rank','스킬','최고 스킬 레벨',[5,10,15,20,25,30],save=>Math.max(0,...Object.values(save.skillLevels??{}))],
   // 거래소 거래 완료(작업 224, 사용자 확정 `#6289`·`#6294`) — 등록·취소는 세지 않고 **실제로 성사된 거래**만
