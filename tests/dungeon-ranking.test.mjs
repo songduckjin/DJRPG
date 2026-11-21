@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-// 던전 검증(작업 209)이 `src/ui/dungeonBattle.ts`의 순수 로직을 서버에서 리플레이한다 — ts 로더가 필요하다.
+// 던전 검증(작업 209)이 `src/game/dungeon/battle.ts`의 순수 로직을 서버에서 리플레이한다 — ts 로더가 필요하다.
 import './ts-loader.mjs';
 import {mkdtemp,rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
@@ -8,13 +8,13 @@ import {join} from 'node:path';
 import {createClient} from '@libsql/client';
 import {accountEndpoint} from '../server/endpoints/account.mjs';
 import {withWeapon} from './helpers/armed.mjs';
-// 던전 검증은 클라이언트와 같은 전투 로직(`src/ui/dungeonBattle.ts`)을 서버에서 리플레이한다 —
+// 던전 검증은 클라이언트와 같은 전투 로직(`src/game/dungeon/battle.ts`)을 서버에서 리플레이한다 —
 // 확장자 없는 TS import를 풀어 주는 ts 로더를 먼저 등록한 뒤 동적으로 불러온다.
 const {dungeonEndpoint} = await import('../server/endpoints/dungeon.mjs');
 const {onRequest: dungeonFunction} = await import('../functions/api/dungeon.js');
 const {dungeonOperation} = await import('../server/dungeon.mjs');
 const {tokenPayload} = await import('../server/auth.mjs');
-const {DungeonBattle, DUNGEON_STEP, dungeonBattleSummary} = await import('../src/ui/dungeonBattle.ts');
+const {DungeonBattle, DUNGEON_STEP, dungeonBattleSummary} = await import('../src/game/dungeon/battle.ts');
 /** 그 세이브로 그 층을 서버가 준 시드로 실제 플레이한 요약(작업 210) — 클라이언트가 submit에 싣는 값과 같다. */
 const play=(save,floor,seed)=>{const battle=new DungeonBattle(save,floor,seed);while(!battle.finished&&battle.steps<6000)battle.advance(DUNGEON_STEP);return dungeonBattleSummary(battle);};
 

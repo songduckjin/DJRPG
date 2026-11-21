@@ -84,7 +84,12 @@ const counts = async (url, tables = TABLES) => {
   const db = createClient({ url });
   try {
     const result = {};
-    for (const table of tables) result[table] = Number((await db.execute(`SELECT COUNT(*) AS n FROM "${table}"`)).rows[0].n);
+    for (const table of tables) {
+      // 이관 목록은 표 등록부(server/tables.mjs)에서 온다 — 예전 소스에는 상점 5표처럼 아직 없는 표가 있다.
+      // 없는 표는 이관도 0행으로 건너뛰므로 여기서도 0으로 본다(이 검사는 "복사한 결과"만 본다).
+      try { result[table] = Number((await db.execute(`SELECT COUNT(*) AS n FROM "${table}"`)).rows[0].n); }
+      catch { result[table] = 0; }
+    }
     return result;
   } finally {
     await db.close();
@@ -107,7 +112,7 @@ test('dry-run은 소스 djrpg_* 행 수만 출력하고 타겟을 만들지 않�
   }
 });
 
-test('djrpg_* 22개 테이블만 복사하고 users는 넘기지 않으며 건수가 일치한다', async () => {
+test(`djrpg_* ${TABLES.length}개 테이블만 복사하고 users는 넘기지 않으며 건수가 일치한다`, async () => {
   const paths = await prepared();
   try {
     const result = migrate(paths, ['--chunk-size=2']);

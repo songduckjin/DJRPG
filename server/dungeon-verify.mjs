@@ -1,7 +1,7 @@
 /**
  * 던전 클리어 서버 검증 (작업 209 → 210).
  *
- * 던전 전투(`src/ui/dungeonBattle.ts` `DungeonBattle`)는 DOM을 쓰지 않는 순수 로직이라 서버가 그대로
+ * 던전 전투(`src/game/dungeon/battle.ts` `DungeonBattle`)는 DOM을 쓰지 않는 순수 로직이라 서버가 그대로
  * 리플레이할 수 있다(월드보스 `replayBoss`와 같은 방식). 서버는 **그 계정 세이브로 그 층을 깰 수 있는지**
  * 와 **가장 빠른 클리어 시간**을 계산해, 들어온 클리어 주장이 그 시간만큼 실제로 흘렀는지 확인한다.
  * 리플레이 결과를 그대로 요구하지 않고 절반만 요구하는 이유: 실제 화면은 프레임 단위로 흔들리고,
@@ -19,7 +19,7 @@
  * 거부되는 일**을 만들지 않기 위해서다. 이 경로는 예전과 같은 관대함이라 새 구멍이 아니다.
  */
 import { parseSave } from '../src/game/store.ts';
-import { DUNGEON_STEP, DUNGEON_MAX_STEPS, dungeonBattleSummary, runDungeonBattle } from '../src/ui/dungeonBattle.ts';
+import { DUNGEON_STEP, DUNGEON_MAX_STEPS, dungeonBattleSummary, runDungeonBattle } from '../src/game/dungeon/battle.ts';
 
 /** 어떤 층이든 이 시간보다 빨리 클리어할 수는 없다고 본다(방 입장·연출 포함).
  *  층별 고정 체력(작업 205)에서는 30레벨 캐릭터가 1층을 6초 남짓에 끝낼 수 있으므로 10초는 정상 클리어를

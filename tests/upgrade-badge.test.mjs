@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import './ts-loader.mjs';
+import { modalStyles } from './helpers/modal-styles.mjs';
 
 const { freshSave } = await import('../src/game/store.ts');
 const { isUpgradeForHero, itemPower, pouchItem } = await import('../src/game/items.ts');
@@ -80,7 +81,7 @@ test('강화(+)·등급도 itemPower로 함께 견준다', () => {
 const equipSource = readFileSync(new URL('../src/ui/modals/equipModal.ts', import.meta.url), 'utf8');
 const warehouseSource = readFileSync(new URL('../src/ui/modals/warehouseModal.ts', import.meta.url), 'utf8');
 const marketSource = readFileSync(new URL('../src/ui/modals/marketModal.ts', import.meta.url), 'utf8');
-const modalsCss = readFileSync(new URL('../src/styles/modals.css', import.meta.url), 'utf8');
+const modalsCss = modalStyles();
 const marketCss = readFileSync(new URL('../src/styles/market.css', import.meta.url), 'utf8');
 
 function rule(source, selector) {

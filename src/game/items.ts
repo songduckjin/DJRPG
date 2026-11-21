@@ -1,4 +1,5 @@
 import type { Save } from './store';
+import { emitDomainEvent } from '../core/domainEvents';
 import { allPassiveIds, allSkillIds, jobs, passiveOrderFor, passives, skillOrderFor, skills, type Job, type SkillLevelId } from './skills';
 import { jobOrDefault } from './skills';
 import { random } from './rng';
@@ -825,6 +826,9 @@ export function isUpgradeForHero(save: Save, item: Item): boolean {
 
 export function autoEquipBest(save: Save): number {
   let changed = 0;
+  // 도메인 신호(작업 256) — 어느 칸이 어떻게 바뀌었는지 모아 두었다가 마지막에 한 번씩 알린다.
+  // 루프 안에서 알리면 구독자가 반쯤 바뀐 장비 상태를 읽게 된다.
+  const changes: { slot: Slot; item?: EquipmentItem; previous?: EquipmentItem }[] = [];
   const job = jobOrDefault(save.job);
   for (const slot of slots.filter(slot => slot !== 'ring1' && slot !== 'ring2')) {
     const current = save.equipment[slot];
@@ -834,6 +838,7 @@ export function autoEquipBest(save: Save): number {
     save.bag.splice(save.bag.findIndex(item => item.id === best.id), 1);
     if (current) save.bag.push(current);
     save.equipment[slot] = best;
+    changes.push({ slot, item: best, previous: current });
     changed++;
   }
   const ringSlots: Slot[] = ['ring1', 'ring2'];
@@ -845,11 +850,13 @@ export function autoEquipBest(save: Save): number {
   for (const item of equippedRings) if (!used.has(item.id)) save.bag.push(item);
   for (const [index, slot] of ringSlots.entries()) {
     const next = bestRings[index];
-    if (save.equipment[slot]?.id !== next?.id) changed++;
+    const previous = save.equipment[slot];
+    if (previous?.id !== next?.id) { changed++; changes.push({ slot, item: next, previous }); }
     if (next) save.equipment[slot] = next;
     else delete save.equipment[slot];
   }
   if (save.tutorial === 2 && save.equipment.weapon) save.tutorial = 3;
+  for (const change of changes) emitDomainEvent('equipmentChanged', { save, ...change, source: 'auto' });
   return changed;
 }
 

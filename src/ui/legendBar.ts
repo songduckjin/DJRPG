@@ -3,9 +3,9 @@ import { LEGEND_BANNER_MS, LegendBoard, legendAnnouncementText, readLegendAnnoun
 import type { Interface } from './interface';
 
 /** 전광판을 새로 확인하는 간격 — 접속 중인 모두에게 30초 안에 닿는다.
- *  (작업 245: 5초에서 30초로 늘렸다. 무료 Functions 한도(10만 건/일)를 넘긴 주된 호출 중 하나였고,
- *  전광판은 30초 늦어도 게임에 지장이 없다. 숨김 탭에서는 확인하지 않는다.) */
-export const LEGEND_POLL_MS = 30000;
+ *  (작업 245: 5초→30초, 이번 정리: 30초→60초. 무료 Functions 한도(10만 건/일)를 넘긴 주된 호출 중
+ *  하나였고, 전광판은 1분 늦어도 게임에 지장이 없다. 숨김 탭에서는 확인하지 않고 돌아오면 즉시 한 번 본다.) */
+export const LEGEND_POLL_MS = 60000;
 /** 배너가 바뀌는지 확인하는 화면 갱신 간격. */
 const LEGEND_PAINT_MS = 200;
 
@@ -48,7 +48,10 @@ export function mountLegendBar(ui: Interface, options: { poll?: boolean } = {}):
   };
   void check();
   const poller = window.setInterval(() => { void check(); }, LEGEND_POLL_MS);
-  window.addEventListener('pagehide', () => clearInterval(poller), { once: true });
+  // 숨은 탭에서는 확인하지 않고(위 check), 탭이 돌아오면 60초를 기다리지 않고 한 번 본다.
+  const wake = (): void => { void check(); };
+  document.addEventListener('visibilitychange', wake);
+  window.addEventListener('pagehide', () => { clearInterval(poller); document.removeEventListener('visibilitychange', wake); }, { once: true });
 }
 
 /**

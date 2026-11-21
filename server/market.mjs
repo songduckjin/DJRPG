@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { decodeAccount, assertRevision, fail, reconcileItems, inventoryOwnerQuery, transaction, validateSave, writeSave, marketStatExpression } from './database.mjs';
 import { journeyState, journeyOperation } from './journey-state.mjs';
-import { countedInBag } from './skill-ids.mjs';
+import { BAG_SLOT_LIMIT, bagSlotCount, grantRewardsToSave, itemTakesSlot } from './core/rewardGrant.mjs';
 import { elapsedSince } from './save-guard.mjs';
 /**
  * 거래소 규칙. `price`는 **개당** 가격이고 `maxBundle`은 한 매물에 묶을 수 있는 최대 수량이다(작업 249,
@@ -291,24 +291,29 @@ export async function mutate(db, id, input) {
       if (!deliveries.length) fail(409, 'ALREADY_CLAIMED', '이미 수령했거나 존재하지 않는 항목입니다.');
       const claimed = []; let gold = 0, skipped = 0;
       // 가방 40칸은 장비 + 타직업 전용 스킬북 + 보물 주머니를 센다(내 직업 스킬북 제외, 작업 253).
-      let equipmentCount = save.bag.filter(item => countedInBag(item, save.job)).length;
+      // 칸 계산과 실제 지급은 `server/core/rewardGrant.mjs` 한 곳을 지난다.
+      let slots = bagSlotCount(save);
       for (const delivery of deliveries) {
         const item = delivery.item_json ? JSON.parse(delivery.item_json) : null;
-        if (item && countedInBag(item, save.job) && equipmentCount >= 40) {
+        if (item && itemTakesSlot(item, save.job) && slots >= BAG_SLOT_LIMIT) {
           if (!all) fail(409,'BAG_FULL','가방이 가득 찼습니다. 수령함에 안전하게 보관되므로 공간을 비운 뒤 받아주세요.');
           skipped++;continue;
         }
         if (item) {
-          // 클라이언트 세이브가 이미 같은 아이템을 들고 있으면(수령 직후 저장·재시도) 두 번 넣지 않는다(작업 222).
-          if (!save.bag.some(entry => entry.id === item.id)) { save.bag.push(item); if (countedInBag(item, save.job)) equipmentCount++; }
+          // 클라이언트 세이브가 이미 같은 아이템을 들고 있으면(수령 직후 저장·재시도) 두 번 넣지 않는다(작업 222) —
+          // 같은 id 방어는 공통 창구가 한다.
+          grantRewardsToSave(save, [{ item }], { bagLimit: BAG_SLOT_LIMIT, onOverflow: 'keep' });
+          if (itemTakesSlot(item, save.job)) slots++;
           write({sql:"UPDATE djrpg_item_owners SET location='inventory' WHERE item_id=? AND account_id=?",args:[item.id,id]});
           write({sql:'INSERT INTO djrpg_character_item_owners(item_id,account_id,slot) VALUES (?,?,?) ON CONFLICT(item_id) DO UPDATE SET account_id=excluded.account_id,slot=excluded.slot',args:[item.id,id,row.slot]});
         }
-        gold += Number(delivery.gold);claimed.push(delivery.id);
+        // 판매대금·보관 금화도 같은 창구로 넣는다(0이면 아무 일도 없다).
+        const credited = grantRewardsToSave(save, [{ gold: delivery.gold }], { bagLimit: BAG_SLOT_LIMIT, onOverflow: 'keep' }).gold;
+        gold += credited;claimed.push(delivery.id);
         write({sql:'UPDATE djrpg_market_inbox SET claimed_at=? WHERE id=? AND claimed_at IS NULL',args:[Date.now(),delivery.id]});
       }
       if(!claimed.length)fail(409,'BAG_FULL','장비 가방이 가득 찼습니다. 미수령 물품은 수령함에 보관됩니다.');
-      save.gold += gold; goldCredit = gold;
+      goldCredit = gold;
       if(all)effect.claimedIds=claimed;else effect.claimedId=claimed[0];
       message=all?`${claimed.length}건 수령 완료${skipped?` · 공간 부족 장비 ${skipped}건은 수령함에 보관`:''}`:deliveries[0].item_json?`아이템을 ${String(save.name || '캐릭터').slice(0, 16)}의 가방으로 받았습니다.`:`${gold.toLocaleString('ko-KR')} 금화를 받았습니다.`;
     } else fail(400, 'INVALID_ACTION', '지원하지 않는 거래 요청입니다.');

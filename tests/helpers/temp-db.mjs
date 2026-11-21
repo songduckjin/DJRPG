@@ -4,7 +4,8 @@ import { tmpdir } from 'node:os';
 import { basename, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const prefixes = ['djrpg-migrate-', 'djrpg-characters-', 'djrpg-heal-load-', 'djrpg-item-name-', 'djrpg-season-'];
+const prefixes = ['djrpg-migrate-', 'djrpg-characters-', 'djrpg-heal-load-', 'djrpg-item-name-', 'djrpg-season-',
+  'djrpg-table-registry-', 'djrpg-common-codes-', 'djrpg-db-split-'];
 
 export function checkedTempDbDirectory(directory) {
   const target = resolve(directory);
