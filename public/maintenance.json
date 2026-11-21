@@ -1,6 +1,6 @@
 {
-  "active": true,
+  "active": false,
   "title": "점검 진행 중입니다",
-  "eta": "2026-11-21T15:15:00+09:00",
+  "eta": "",
   "message": ""
 }
