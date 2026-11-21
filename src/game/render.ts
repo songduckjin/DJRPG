@@ -284,6 +284,8 @@ export class GameView {
   dust: Dust[] = [];
   lastTime = 0;
   lastHeroDust = 0;
+  /** 마지막으로 그린 캐릭터 전환 세대(작업 250) — `world.switchEpoch`가 바뀌면 파츠·발광·잔상을 비운다. */
+  heroSwitchEpoch = -1;
   heroWalkDistance = 0;
   lastHeroWorld = { x: 0, y: 0 };
   enemyWalkDistance = new Map<Enemy, { x: number; y: number; distance: number }>();
