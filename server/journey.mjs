@@ -9,7 +9,7 @@ function rewardItemCount(entries) {
 }
 /** 가방 40칸에 지금 차 있는 칸 수 — 가방 안의 모든 아이템(작업 248). */
 function bagSlots(save) {
-  return save.bag.filter(item => countedInBag(item, save.job)).length;
+  return (save.bag ?? []).filter(item => countedInBag(item, save.job)).length;
 }
 function rewards(save, entries) {
   const books = entries.reduce((sum,entry)=>sum+Number(entry.books??0),0);
