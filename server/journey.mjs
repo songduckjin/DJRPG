@@ -2,7 +2,15 @@ import { randomUUID } from 'node:crypto';
 import { account, transaction, assertRevision, validateSave, reconcileItems, writeSave, fail, inventoryOwnerQuery } from './database.mjs';
 import { elapsedSince } from './save-guard.mjs';
 import { journeyState, journeyOperation, journeyView, dailyTasks, pouchItem } from './journey-state.mjs';
-import { rollRewardSkillBook } from './skill-ids.mjs';
+import { countedInBag, rollRewardSkillBook } from './skill-ids.mjs';
+/** 우편·보상이 가방에 넣는 아이템 수 — 스킬북 `books` + 보물 주머니 `pouches`(작업 248). */
+function rewardItemCount(entries) {
+  return entries.reduce((sum, entry) => sum + Math.max(0, Math.floor(Number(entry.books ?? 0) || 0)) + Math.max(0, Math.floor(Number(entry.pouches ?? 0) || 0)), 0);
+}
+/** 가방 40칸에 지금 차 있는 칸 수 — 가방 안의 모든 아이템(작업 248). */
+function bagSlots(save) {
+  return save.bag.filter(item => countedInBag(item, save.job)).length;
+}
 function rewards(save, entries) {
   const books = entries.reduce((sum,entry)=>sum+Number(entry.books??0),0);
   // 보물 주머니(작업 207): 전체 완료 보상에 붙은 수량만큼 가방에 넣는다. 주머니는 장비 40칸을 쓰지 않는다.
@@ -47,17 +55,30 @@ export async function mutate(db,id,input,options={}) {
     const save=structuredClone(input.progress??row.save);await reconcileItems(tx,id,row.save,save,{slot:row.slot,owned:reads[2].rows,operations,elapsedSeconds:elapsedSince(row.character_updated_at)});
     const now=Date.now(),state=await journeyState(tx,row,save,now,options.preview ?? false),view=journeyView(state,save,now);
     const beforeRewardIds=new Set(save.bag.map(item=>item.id));
-    let selected=[], goldCredit=0;
+    let selected=[], goldCredit=0, mailSkipped=0;
     if(input.action==='journey-claim'){
       if(!['daily','weekly','achievements','mail'].includes(input.kind))fail(400,'INVALID_KIND','보상 분류를 확인하세요.');
       if(input.kind==='mail'){
-        selected=state.mail.filter(entry=>(input.id==='all'||entry.id===input.id)&&!entry.claimedAt&&(entry.expiresAt===null||entry.expiresAt>now));
-        if(!selected.length)fail(409,'NOT_AVAILABLE','수령할 우편 보상이 없습니다.');
+        const wanted=state.mail.filter(entry=>(input.id==='all'||entry.id===input.id)&&!entry.claimedAt&&(entry.expiresAt===null||entry.expiresAt>now));
+        if(!wanted.length)fail(409,'NOT_AVAILABLE','수령할 우편 보상이 없습니다.');
+        // 가방 40칸이 꽉 차거나 이번 우편의 아이템 때문에 넘어가면 받지 않는다(작업 248, 사용자 확정).
+        // `모두 받기`는 자리가 없는 아이템 우편만 건너뛰어 미수령으로 남기고, 금화만 있는 우편은 그대로 받는다.
+        const bagLimit=40, all=input.id==='all';
+        let slots=bagSlots(save);
+        selected=wanted.filter(entry=>{
+          const need=rewardItemCount([entry]);
+          if(!need||slots+need<=bagLimit){slots+=need;return true;}
+          if(!all)fail(409,'BAG_FULL','가방이 가득 찼습니다. 공간을 비운 뒤 우편을 받아주세요.');
+          mailSkipped++;return false;
+        });
+        if(!selected.length)fail(409,'BAG_FULL','가방이 가득 찼습니다. 공간을 비운 뒤 우편을 받아주세요.');
         goldCredit=rewards(save,selected);for(const entry of selected){entry.claimedAt=now;entry.read=true;}
       }else{
         const available=view[input.kind].filter(entry=>!entry.claimed&&entry.current>=entry.target);
         selected=available.filter(entry=>input.id==='all'||entry.id===input.id);
         if(!selected.length)fail(409,'NOT_READY','아직 달성하지 않았거나 이미 수령한 보상입니다.');
+        // 일일·주간 전체 완료·업적 보상도 보물 주머니를 줄 수 있다 — 가방 자리가 없으면 받지 않는다(작업 248).
+        if(bagSlots(save)+rewardItemCount(selected)>40)fail(409,'BAG_FULL','가방이 가득 찼습니다. 공간을 비운 뒤 보상을 받아주세요.');
         goldCredit=rewards(save,selected);const claims=input.kind==='achievements'?state.achievements:state[input.kind].claims;
         claims.push(...selected.map(entry=>entry.id));
         if(input.kind==='daily'&&!state.daily.completed&&dailyTasks.every(task=>state.daily.claims.includes(task.id))){state.daily.completed=true;state.weekly.days=(state.weekly.days??0)+1;}
@@ -84,7 +105,7 @@ export async function mutate(db,id,input,options={}) {
       ops.push({sql:'INSERT INTO djrpg_item_owners VALUES (?,?,?,?)',args:[item.id,id,'inventory',JSON.stringify(item)]});
       ops.push({sql:'INSERT INTO djrpg_character_item_owners(item_id,account_id,slot) VALUES (?,?,?)',args:[item.id,id,row.slot]});
     }
-    const message=input.action==='journey-claim'?`${selected.length}개 보상을 수령했습니다.`:input.action==='journey-delete'?'수령 완료 우편을 삭제했습니다.':'우편을 확인했습니다.';
+    const message=input.action==='journey-claim'?`${selected.length}개 보상을 수령했습니다.${mailSkipped?` 가방이 가득 차 ${mailSkipped}개 우편은 받지 못했습니다.`:''}`:input.action==='journey-delete'?'수령 완료 우편을 삭제했습니다.':'우편을 확인했습니다.';
     ops.push({sql:'INSERT INTO djrpg_market_requests VALUES (?,?,?)',args:[id,input.requestId,JSON.stringify({ok:true,message})]});
     const saved=await writeSave(tx,{...row,skipJourney:true},save,ops,true,{goldCredit});
     const result={ok:true,...saved,message,journey:journeyView(state,save,now)};

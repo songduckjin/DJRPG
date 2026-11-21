@@ -74,7 +74,29 @@ test('mail always shows sender body date and rewards without opening a second vi
     assert(find(dialog,n=>n.className.includes('mail-pending')));assert(find(dialog,n=>n.textContent==='스킬북 1권'));assert(!find(dialog,n=>n.textContent==='새로고침'));
   }finally{globalThis.document=previous;}
 });
-test('achievements show unclaimed ready rewards first with no filter or refresh controls',()=>{
+test('가방이 가득 차면 아이템이 든 우편은 가방 가득으로 잠기고 금화만 있는 우편은 받을 수 있다(작업 248)',()=>{
+  const previous=globalThis.document;globalThis.document={createElement:node};
+  try{
+    const {ui,calls}=fixture();
+    const gear=i=>({id:`g${i}`,name:'검',slot:'weapon',rarity:'common',stats:{attack:1}});
+    const goldMail={id:'gold-only',title:'금화 우편',sender:'운영팀',body:'금화만',createdAt:2,expiresAt:Date.now()+86400000,expired:false,claimedAt:null,read:false,gold:1000,books:0,pouches:0};
+    ui.world.save.bag=Array.from({length:40},(_,i)=>gear(i));
+    ui.journey.data.mail=[...ui.journey.data.mail,goldMail];
+    const dialog=node();renderUtility(ui,dialog,'mail');
+    const item=find(dialog,n=>n.textContent==='가방 가득');
+    assert(item,'아이템이 든 우편은 "가방 가득"으로 잠긴다');
+    assert.equal(item.disabled,true);
+    assert(item.title.includes('공간을 비운 뒤'));
+    assert(find(dialog,n=>n.className==='utility-note'&&n.textContent.includes('가방이 가득 차 아이템이 든 우편은 받을 수 없습니다')));
+    const gold=find(dialog,n=>n.textContent==='받기');
+    assert.equal(gold.disabled,false,'금화만 있는 우편은 그대로 받을 수 있다');
+    // 한 칸 비우면 스킬북 우편도 버튼이 열린다.
+    ui.world.save.bag.pop();const room=node();renderUtility(ui,room,'mail');
+    assert(!find(room,n=>n.textContent==='가방 가득'));
+  }finally{globalThis.document=previous;}
+});
+
+ test('achievements show unclaimed ready rewards first with no filter or refresh controls',()=>{
   const previous=globalThis.document;globalThis.document={createElement:node};
   try{
     const {ui}=fixture(),dialog=node();ui.journey.data.achievements=[task('incomplete',1,5),task('claimed',5,5,true),task('ready',5,5)];

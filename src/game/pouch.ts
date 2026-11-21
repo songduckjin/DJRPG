@@ -101,13 +101,14 @@ export type PouchOpenResult =
 /**
  * 주머니 1개를 소모하고 결과를 세이브에 넣는다.
  *
- * 가방 40칸은 **장비**만 세므로 주머니를 여는 것 자체는 칸을 쓰지 않지만, 결과가 장비일 수 있으므로
- * 가득 찬 가방에서는 열지 않고 그대로 둔다(주머니를 잃지 않게). 스킬북은 40칸에 세지 않는다.
+ * 가방 40칸은 **모든 아이템**(장비·스킬북·보물 주머니)을 1개씩 센다(작업 248). 주머니를 여는 것은
+ * 주머니 1개를 빼고 결과 1개(또는 금화)를 넣는 **자리 바꿈**이라 칸 수가 늘지 않는다 — 가방이 꽉 찬
+ * 상태에서도 그대로 열 수 있고, 40개를 넘긴 세이브도 주머니를 열어 줄여 나갈 수 있다.
  */
 export function openPouch(save: Save, id?: string, random: () => number = Math.random): PouchOpenResult {
   const pouch = (id ? save.bag.find(item => item.id === id) : undefined) ?? firstPouch(save);
   if (!pouch || !isPouch(pouch)) return { ok: false, message: `가방에 ${POUCH_NAME}이(가) 없습니다.` };
-  if (equipmentCount(save.bag, jobOrDefault(save.job)) >= EQUIPMENT_BAG_LIMIT) return { ok: false, message: '가방이 가득 찼습니다. 장비를 분해한 뒤 열어 주세요.' };
+  if (equipmentCount(save.bag, jobOrDefault(save.job)) > EQUIPMENT_BAG_LIMIT) return { ok: false, message: '가방이 40칸을 넘었습니다. 장비를 분해하거나 공용창고에 보관해 정리한 뒤 열어 주세요.' };
   const result = rollPouch(save.maxFloor || save.floor || 1, random);
   save.bag = save.bag.filter(item => item.id !== pouch.id);
   if (result.kind === 'gold') save.gold += result.gold;

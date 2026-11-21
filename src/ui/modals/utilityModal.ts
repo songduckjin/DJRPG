@@ -6,6 +6,7 @@ import { preferences, savePreferences } from '../../game/preferences';
 import { goldNode } from '../currency';
 import { POUCH_ICON_URL } from '../pouchArt';
 import { loadShop } from './shopModal';
+import { EQUIPMENT_BAG_LIMIT, equipmentCount } from '../../game/bagCapacity';
 
 function element<K extends keyof HTMLElementTagNameMap>(tag:K,className='',text=''){const node=document.createElement(tag);node.className=className;node.textContent=text;return node;}
 function button(text:string,run:()=>void,disabled=false){const node=element('button','utility-button',text);node.type='button';node.disabled=disabled;node.onclick=run;return node;}
@@ -82,6 +83,12 @@ export function renderUtility(ui:Interface,dialog:HTMLElement,kind:'mail'|'rewar
     if(!data.mail.length)section.append(element('p','utility-note','받은 우편이 없습니다.'));
     const ready=(mail:typeof data.mail[number])=>!mail.claimedAt&&!mail.expired;
     const mails=[...data.mail].sort((a,b)=>Number(ready(b))-Number(ready(a))||Number(a.read)-Number(b.read)||b.createdAt-a.createdAt);
+    // 가방 40칸에는 스킬북·보물 주머니도 함께 센다(작업 248) — 자리가 없으면 아이템이 든 우편은 받을 수 없다.
+    // 금화만 있는 우편은 칸을 쓰지 않으므로 늘 받을 수 있다(서버 규칙과 같다).
+    const bagFree=Math.max(0,EQUIPMENT_BAG_LIMIT-equipmentCount(ui.world.save.bag,ui.world.save.job));
+    const mailItems=(mail:{books?:number;pouches?:number})=>Math.max(0,mail.books??0)+Math.max(0,mail.pouches??0);
+    const bagBlocked=(mail:{books?:number;pouches?:number,claimedAt?:number|null,expired?:boolean})=>!mail.claimedAt&&!mail.expired&&mailItems(mail)>bagFree;
+    if(mails.some(bagBlocked))section.append(element('p','utility-note','가방이 가득 차 아이템이 든 우편은 받을 수 없습니다. 가방을 비우면 받을 수 있고, 금화만 있는 우편은 지금도 받을 수 있습니다.'));
     for(const mail of mails){
       const row=element('article',`utility-card mail-card${ready(mail)?' mail-pending':''}`),top=element('div','mail-heading');
       const title=button(mail.title,()=>{if(!mail.read&&!ui.session.guest)void journey.act('journey-read',{id:mail.id});},mail.read||journey.busy||ui.session.guest);title.classList.add('mail-title');title.title=mail.read?'읽은 우편':'클릭하여 읽음 표시';
@@ -90,7 +97,9 @@ export function renderUtility(ui:Interface,dialog:HTMLElement,kind:'mail'|'rewar
       const received=new Date(mail.createdAt).toLocaleString('ko-KR',{timeZone:'Asia/Seoul',month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'});
       row.append(element('small','mail-date',`받은 날짜 ${received} · ${mail.expiresAt===null?'수령 기한 없음':mail.expired?'수령 기한 만료':`남은 시간 ${Math.max(0,Math.ceil((mail.expiresAt-data.now)/3600000))}시간`}`));
       const bottom=element('div','utility-toolbar'),reward=element('div','utility-reward');if(mail.gold)reward.append(goldNode(mail.gold));if(mail.books)reward.append(element('span','',`스킬북 ${mail.books}권`));if(mail.pouches)reward.append(pouchReward(mail.pouches));if(mail.diamonds)reward.append(element('span','',`◆ 다이아 ${mail.diamonds.toLocaleString('ko-KR')}개`));
-      bottom.append(reward,claimButton(mail.claimedAt?'수령 완료':mail.expired?'기한 만료':'받기',()=>{void journey.act('journey-claim',{kind:'mail',id:mail.id}).then(()=>loadShop(ui));},!!mail.claimedAt||mail.expired||journey.busy||ui.session.guest));row.append(bottom);section.append(row);
+      const blocked=bagBlocked(mail),claim=claimButton(mail.claimedAt?'수령 완료':mail.expired?'기한 만료':blocked?'가방 가득':'받기',()=>{void journey.act('journey-claim',{kind:'mail',id:mail.id}).then(()=>loadShop(ui));},!!mail.claimedAt||mail.expired||blocked||journey.busy||ui.session.guest);
+      if(blocked)claim.title='가방이 가득 찼습니다. 공간을 비운 뒤 우편을 받아주세요. (금화만 있는 우편은 받을 수 있습니다)';
+      bottom.append(reward,claim);row.append(bottom);section.append(row);
     }
   }else{
     if(kind==='rewards'){

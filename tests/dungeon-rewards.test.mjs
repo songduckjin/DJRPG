@@ -53,14 +53,20 @@ test('only the first clear adds the bonus, and the save floor is the evidence', 
   assert.equal(again.stones, 3 * DUNGEON_STONES_PER_FLOOR);
 });
 
-test('a full bag keeps the skill books and reports the equipment it could not hold', () => {
+test('a full bag keeps nothing — skill books take a slot too and everything is reported as missed (작업 248)', () => {
   const save = freshSave();
   fillBag(save, 40);
   const receipt = claimDungeonRewards(save, 2, { gold: 0, items: [equipment('extra', 'boots'), book('extra-book', 'spin'), equipment('extra-2', 'ring1')] });
-  assert.equal(receipt.missed, 2);
-  assert.equal(receipt.items.length, 1);
-  assert.equal(save.bag.length, 41);
-  assert.equal(save.bag.at(-1).id, 'extra-book');
+  assert.equal(receipt.missed, 3);
+  assert.equal(receipt.items.length, 0);
+  assert.equal(save.bag.length, 40, '가방은 40칸을 넘지 않는다');
+  // 39칸이면 스킬북이 40번째 칸으로 들어간다.
+  const room = freshSave();
+  fillBag(room, 39);
+  const kept = claimDungeonRewards(room, 2, { gold: 0, items: [book('room-book', 'spin')] });
+  assert.equal(kept.missed, 0);
+  assert.equal(room.bag.length, 40);
+  assert.equal(room.bag.at(-1).id, 'room-book');
 });
 
 test('live auto-salvage takes a weak drop the way the field does, and it never reaches the bag', () => {
@@ -94,7 +100,7 @@ test('the result screen reports the gold, stones, items and what was missed', ()
   assert.match(html, /시험 장비 a/);
   assert.match(html, /arrowRain/);
   assert.match(html, /자동 분해 2개 → 금화 6 · 강화석 2/);
-  assert.match(html, /가방이 가득 차 장비 1개를 놓쳤습니다/);
+  assert.match(html, /가방이 가득 차 아이템 1개를 놓쳤습니다/);
   // 아이템이 없으면 그 사실을 적고, 놓침·분해가 없으면 그 줄은 없다.
   const empty = dungeonRewardMarkup({ floor: 1, firstClear: false, gold: 28, stones: 2, items: [], missed: 0, salvaged: { count: 0, gold: 0, stones: 0 } });
   assert.doesNotMatch(empty, /최초 클리어 보너스 포함/);

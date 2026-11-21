@@ -873,8 +873,9 @@ export class World {
         // A piece auto-salvage will take needs no bag room, so it flies in even when the bag is full.
         if (!canStoreItem(this.save.bag, drop.item, this.job) && !this.sweeps(drop.item)) {
           // 가방 40칸 만석(작업 209): 새 장비를 두기 전에 가방 안의 설정 이하 장비를 먼저 분해해 칸을 만든다.
+          // 40칸에는 스킬북·보물 주머니도 포함한다(작업 248).
           if (!this.sweepFullBag()) {
-            if (!drop.warned) { drop.warned = true; this.onMessage('가방이 가득 찼습니다. 장비를 분해하세요.'); }
+            if (!drop.warned) { drop.warned = true; this.onMessage('가방이 가득 찼습니다. 아이템을 분해하거나 공용창고에 보관하세요.'); }
             continue;
           }
         }
@@ -888,6 +889,15 @@ export class World {
         drop.age = -1;
         this.onChange();
         continue;
+      }
+      // 날아온 사이에 다른 드롭이 먼저 칸을 채웠을 수 있다 — 넣기 **직전에** 다시 확인한다(작업 248).
+      // (같은 프레임에 여러 개가 흡수를 시작해도 가방이 40칸을 넘지 않는다.)
+      if (!canStoreItem(this.save.bag, drop.item, this.job)) {
+        if (!this.sweepFullBag() || !canStoreItem(this.save.bag, drop.item, this.job)) {
+          drop.absorb = undefined;
+          if (!drop.warned) { drop.warned = true; this.onMessage('가방이 가득 찼습니다. 아이템을 분해하거나 공용창고에 보관하세요.'); }
+          continue;
+        }
       }
       this.save.bag.push(drop.item);
       drop.age = -1;

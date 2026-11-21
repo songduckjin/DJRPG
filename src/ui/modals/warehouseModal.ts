@@ -191,7 +191,7 @@ export function renderWarehouse(ui: Interface, dialog: HTMLElement): void {
     const bagCount = equipmentCount(save.bag, save.job);
     gold.textContent = `계정 공용 금화 ${save.gold.toLocaleString('ko-KR')}`;
     counts.textContent = `공용창고 ${warehouseCount}/40 · 가방 ${bagCount}/40`;
-    counts.title = '가방 40칸은 장비와 다른 직업 전용 스킬북을 함께 세고, 내 직업 스킬북·보물 주머니는 세지 않습니다.';
+    counts.title = '가방 40칸은 장비·스킬북·보물 주머니를 모두 1개씩 셈합니다.';
     storageHeading.textContent = `공용창고 ${warehouseCount}/40`;
     bagHeading.textContent = `내 가방 ${bagCount}/40`;
 
@@ -206,7 +206,10 @@ export function renderWarehouse(ui: Interface, dialog: HTMLElement): void {
     const depositFull = warehouseCount + bagIds.length > 40;
     depositPicked.disabled = depositFull;
     depositPicked.title = depositFull ? '공용창고가 가득 차 선택한 만큼 보관할 수 없습니다.' : `${bagIds.length}개를 공용창고에 보관합니다.`;
-    withdrawPicked.disabled = false;
+    // 꺼내기도 가방 40칸을 넘길 수 없다(작업 248) — 스킬북·보물 주머니도 칸을 쓴다.
+    const withdrawFull = bagCount + storageIds.length > 40;
+    withdrawPicked.disabled = withdrawFull;
+    withdrawPicked.title = withdrawFull ? '가방이 가득 차 선택한 만큼 꺼낼 수 없습니다. 가방을 비운 뒤 다시 시도하세요.' : `${storageIds.length}개를 가방으로 꺼냅니다.`;
 
     paintGrid(ui, storageGrid, 'storage', storageStacks, state);
     paintGrid(ui, bagGrid, 'bag', bagStacks, state);

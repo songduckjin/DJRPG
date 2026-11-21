@@ -47,15 +47,17 @@ test('persisted progress advances daily and weekly counters and book rewards byp
   assert.equal(data.weekly.find(t=>t.id==='time').current,10800,'주간 3시간');
   assert.equal(data.weekly.find(t=>t.id==='salvage').current,15,'주간 장비 분해 15회');
   assert.equal(data.weekly.find(t=>t.id==='worldBoss').current,5,'주간 월드보스 5일');
-  await transaction(db,async tx=>{const row=await account(tx,'progress');await writeSave(tx,row,{...row.save,bag:Array.from({length:40},()=>({id:randomUUID(),name:'검',slot:'weapon',rarity:'common',stats:{attack:1}}))});});
+  // 가방 39칸 — 일일 전체 완료 보상(보물 주머니 1개)이 40번째 칸으로 들어간다(작업 248: 주머니도 칸을 쓴다).
+  await transaction(db,async tx=>{const row=await account(tx,'progress');await writeSave(tx,row,{...row.save,bag:Array.from({length:39},()=>({id:randomUUID(),name:'검',slot:'weapon',rarity:'common',stats:{attack:1}}))});});
   const before=await account(db,'progress');await act('progress','daily');
   const after=await account(db,'progress');
   // 일일·주간 개별 미션은 금화만, 전체 완료 보상만 무작위 보물 주머니 1개(작업 207).
   assert.equal(after.save.gold,before.save.gold+6600,'일일 4,600 + 완료 2,000');
-  assert.equal(after.save.bag.filter(item=>!['skillbook','pouch'].includes(item.slot)).length,40,'장비 40칸은 그대로');
+  assert.equal(after.save.bag.filter(item=>!['skillbook','pouch'].includes(item.slot)).length,39,'장비 39칸은 그대로');
   assert.equal(after.save.bag.filter(item=>item.slot==='skillbook').length,0,'개별 미션은 스킬북을 주지 않는다');
   const pouches=after.save.bag.filter(item=>item.slot==='pouch');
   assert.equal(pouches.length,1,'전체 완료 보상으로 보물 주머니 1개');
+  assert.equal(after.save.bag.length,40,'40칸을 넘지 않는다');
   assert.equal(pouches[0].name,'무작위 보물 주머니');assert.equal(pouches[0].kind,'pouch');
   assert((await snapshot(db,'progress')).daily.every(t=>t.claimed));
 });

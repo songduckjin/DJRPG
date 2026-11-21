@@ -252,15 +252,41 @@ test('selected option sorts all matches by stat descending before pagination, ov
   const second=await snapshot(db,'buyer',{query:'옵션정렬검',stat:'attack',page:1});assert.deepEqual(second.listings.map(s=>s.item.stats.attack),[3,2,1]);
 });
 
-test('skillbook delivery succeeds with forty equipment while equipment delivery stays blocked',async()=>{
-  const book={id:randomUUID(),name:'[스킬북] 드래곤 트위스터',slot:'skillbook',kind:'skillbook',skillId:'spin',rarity:'rare',stats:{}};
-  await seed('book-seller',[book]);await seed('book-buyer',Array.from({length:40},()=>item()));
-  const offer=await sale('book-seller',100);await action('book-buyer','buy',{listingId:offer.id});
-  const delivery=(await snapshot(db,'book-buyer',{})).inbox.find(entry=>entry.item?.id===book.id);
-  await action('book-buyer','claim',{deliveryId:delivery.id});const row=await account(db,'book-buyer');
-  assert.equal(row.save.bag.filter(entry=>entry.slot!=='skillbook').length,40);assert.equal(row.save.bag.at(-1).id,book.id);
-  await assert.rejects(transaction(db,async tx=>{const next=structuredClone(row.save);next.bag.push(item());await reconcileItems(tx,'book-buyer',row.save,next);}),error('INVALID_SAVE'));
+test('가방 40칸이 차면 스킬북 배달도 막히고, 39칸이면 들어간다(작업 248)',async()=>{
+  const bookA={id:randomUUID(),name:'[스킬북] 드래곤 트위스터',slot:'skillbook',kind:'skillbook',skillId:'spin',rarity:'rare',stats:{}};
+  const bookB={id:randomUUID(),name:'[스킬북] 파이어 볼트',slot:'skillbook',kind:'skillbook',skillId:'fireBolt',rarity:'rare',stats:{}};
+  await seed('book-seller',[bookA,bookB]);
+  await seed('book-buyer',Array.from({length:40},()=>item()));
+  await seed('book-room',Array.from({length:39},()=>item()));
+  // 가득 찬 가방(40칸) — 스킬북도 이제 한 칸을 쓰므로 수령이 막히고 수령함에 그대로 남는다.
+  const fullOffer=await sale('book-seller',100);await action('book-buyer','buy',{listingId:fullOffer.id});
+  const blocked=(await snapshot(db,'book-buyer',{})).inbox.find(entry=>entry.item?.id===fullOffer.item.id);
+  await assert.rejects(action('book-buyer','claim',{deliveryId:blocked.id}),error('BAG_FULL'));
+  const fullRow=await account(db,'book-buyer');assert.equal(fullRow.save.bag.length,40);assert(!fullRow.save.bag.some(entry=>entry.id===fullOffer.item.id));
+  assert((await snapshot(db,'book-buyer',{})).inbox.some(entry=>entry.id===blocked.id),'수령함에 남아 있다');
+  // 40개를 넘기는 저장은 서버가 막는다(이미 40개인 세이브에 1개 더).
+  await assert.rejects(transaction(db,async tx=>{const next=structuredClone(fullRow.save);next.bag.push(item());await reconcileItems(tx,'book-buyer',fullRow.save,next);}),error('INVALID_SAVE'));
   await transaction(db,async tx=>{const latest=await account(tx,'book-buyer');await reconcileItems(tx,'book-buyer',latest.save,latest.save);});
+  // 39칸이면 스킬북이 40번째 칸으로 들어간다.
+  const roomOffer=await sale('book-seller',100);await action('book-room','buy',{listingId:roomOffer.id});
+  const delivery=(await snapshot(db,'book-room',{})).inbox.find(entry=>entry.item?.id===roomOffer.item.id);
+  await action('book-room','claim',{deliveryId:delivery.id});
+  const room=await account(db,'book-room');assert.equal(room.save.bag.length,40);assert(room.save.bag.some(entry=>entry.id===roomOffer.item.id));
+});
+
+test('이미 40개를 넘긴 세이브는 지금 개수 이하를 유지하는 저장만 허용한다(작업 248)',async()=>{
+  // 예전 규칙(내 직업 책·주머니는 칸을 쓰지 않았다)으로 42개가 된 세이브 — 저장이 거부되면 게임이 잠긴다.
+  const pouch=id=>({id,name:'무작위 보물 주머니',slot:'pouch',kind:'pouch',rarity:'unique',stats:{}});
+  await seed('legacy-over',[...Array.from({length:40},()=>item()),pouch('lp1'),pouch('lp2')]);
+  // 계정 저장 경로와 같게: reconcileItems(before 검사) → writeSave.
+  const saveThrough=(change)=>transaction(db,async tx=>{const latest=await account(tx,'legacy-over');const next=change(structuredClone(latest.save));await reconcileItems(tx,'legacy-over',latest.save,next,{slot:latest.slot});return writeSave(tx,latest,next);});
+  await saveThrough(next=>next);
+  assert.equal((await account(db,'legacy-over')).save.bag.length,42,'같은 개수면 그대로 저장된다');
+  await assert.rejects(saveThrough(next=>{next.bag.push(item());return next;}),error('INVALID_SAVE'));
+  assert.equal((await account(db,'legacy-over')).save.bag.length,42,'거부된 저장은 반영되지 않는다');
+  // 하나 줄이는 저장은 언제나 된다(정리 경로).
+  await saveThrough(next=>{next.bag.pop();return next;});
+  assert.equal((await account(db,'legacy-over')).save.bag.length,41);
 });
 
 test('bulk delivery claim is one two-batch transaction, fills equipment space and keeps overflow safe',async()=>{
@@ -272,10 +298,10 @@ test('bulk delivery claim is one two-batch transaction, fills equipment space an
   const row=await account(db,'bulk'),requestId=randomUUID();let batches=0,executes=0;
   const measured={async transaction(mode){const tx=await db.transaction(mode);return {get closed(){return tx.closed;},execute(...args){executes++;return tx.execute(...args);},batch(...args){batches++;return tx.batch(...args);},commit:()=>tx.commit(),rollback:()=>tx.rollback(),close:()=>tx.close()};}};
   const input={action:'claim',deliveryId:'all',revision:row.revision,requestId};const result=await mutate(measured,'bulk',input);
-  assert.equal(batches,2);assert.equal(executes,0);assert.deepEqual(result.effect.claimedIds,['bulk-0','bulk-2','bulk-3']);
-  assert.equal(result.save.bag.filter(entry=>entry.slot!=='skillbook').length,40);assert(result.save.bag.some(entry=>entry.id===book.id));assert.equal(result.save.gold,row.save.gold+250);
+  assert.equal(batches,2);assert.equal(executes,0);assert.deepEqual(result.effect.claimedIds,['bulk-0','bulk-3'],'장비 1개로 40칸이 차면 장비·스킬북은 건너뛰고 금화만 받는다');
+  assert.equal(result.save.bag.length,40);assert(!result.save.bag.some(entry=>entry.id===book.id),'스킬북도 자리가 없어 수령함에 남는다');assert.equal(result.save.gold,row.save.gold+250);
   const retry=await mutate(db,'bulk',input);assert.equal(retry.save.gold,result.save.gold);assert.equal(retry.save.bag.length,result.save.bag.length);
-  const inbox=(await snapshot(db,'bulk',{})).inbox;assert.deepEqual(inbox.map(entry=>entry.id),['bulk-1']);
+  const inbox=(await snapshot(db,'bulk',{})).inbox;assert.deepEqual(inbox.map(entry=>entry.id).sort(),['bulk-1','bulk-2'],'못 받은 장비·스킬북은 수령함에 남는다');
   await transaction(db,async tx=>{const latest=await account(tx,'bulk');await reconcileItems(tx,'bulk',latest.save,latest.save);});
 });
 test('my active-only filter excludes purchases sold expired and other sellers, and recent prices match item grade and ring family',async()=>{

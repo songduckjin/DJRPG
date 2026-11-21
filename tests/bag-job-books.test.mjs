@@ -17,25 +17,22 @@ const MINE = skillbook('mine', 'spin', '드래곤 트위스터');            // 
 const FOREIGN = skillbook('foreign', 'doubleShot', '더블 샷');        // 궁수 액티브
 const PASSIVE = skillbook('passive', 'magePassive', '지팡이 숙련');   // 존재하지 않는 id
 
-test('가방 40칸은 장비 + 다른 직업 전용 스킬북을 함께 세고, 내 직업 책·보물 주머니는 세지 않는다(작업 210)', () => {
+test('가방 40칸은 내 직업 책·다른 직업 책·보물 주머니·장비를 모두 1개씩 센다(작업 248)', () => {
   assert.equal(countedInBag(gear('g'), 'warrior'), true, '장비는 센다');
-  assert.equal(countedInBag(MINE, 'warrior'), false, '내 직업 책은 세지 않는다');
-  assert.equal(countedInBag(FOREIGN, 'warrior'), true, '다른 직업 책은 센다');
-  assert.equal(countedInBag(FOREIGN, 'archer'), false, '궁수에게는 내 직업 책');
-  assert.equal(countedInBag(MINE, 'mage'), true, '전사 책은 마법사에게 남의 책');
-  assert.equal(countedInBag(pouch('p'), 'warrior'), false, '보물 주머니는 세지 않는다');
-  assert.equal(countedInBag(PASSIVE, 'warrior'), false, '직업을 모르는 책은 세지 않는다(안전한 쪽)');
+  assert.equal(countedInBag(MINE, 'warrior'), true, '내 직업 책도 센다');
+  assert.equal(countedInBag(FOREIGN, 'warrior'), true, '다른 직업 책도 센다');
+  assert.equal(countedInBag(pouch('p'), 'warrior'), true, '보물 주머니도 센다');
+  assert.equal(countedInBag(PASSIVE, 'warrior'), true, '직업을 모르는 책도 칸은 쓴다');
 
   const save = freshSave(); save.job = 'warrior';
-  save.bag = [...Array.from({ length: 39 }, (_, index) => gear(`g${index}`)), FOREIGN];
-  assert.equal(equipmentCount(save.bag, save.job), 40, '장비 39 + 다른 직업 책 1 = 40');
+  save.bag = [...Array.from({ length: 37 }, (_, index) => gear(`g${index}`)), FOREIGN, MINE, pouch('p1')];
+  assert.equal(equipmentCount(save.bag, save.job), 40, '장비 37 + 다른 직업 책 1 + 내 책 1 + 주머니 1 = 40');
   assert.equal(canStoreItem(save.bag, gear('new'), save.job), false, '가득 찼으니 새 장비는 못 들어간다');
-  assert.equal(canStoreItem(save.bag, MINE, save.job), true, '내 직업 책은 자리를 쓰지 않는다');
-  assert.equal(canStoreItem(save.bag, pouch('new'), save.job), true, '보물 주머니도 자리를 쓰지 않는다');
-  assert.equal(equipmentCount([...save.bag, MINE, pouch('p')], save.job), 40, '내 책·주머니를 더해도 40 그대로');
+  assert.equal(canStoreItem(save.bag, MINE, save.job), false, '내 직업 책도 자리가 없다');
+  assert.equal(canStoreItem(save.bag, pouch('new'), save.job), false, '보물 주머니도 자리가 없다');
+  assert.equal(equipmentCount(save.bag.slice(0, -1), save.job), 39, '주머니를 빼면 39칸');
 });
-
-test('가득 찬 가방에는 다른 직업 책이 떨어져도 들어가지 않고, 내 직업 책은 들어간다', () => {
+test('가득 찬 가방에는 어떤 스킬북도 들어가지 않고 바닥에 남는다', () => {
   const save = freshSave(); save.tutorial = 3; save.job = 'warrior';
   save.bag = Array.from({ length: 39 }, (_, index) => gear(`g${index}`));
   save.bag.push(FOREIGN);
@@ -43,11 +40,12 @@ test('가득 찬 가방에는 다른 직업 책이 떨어져도 들어가지 않
   const point = { x: world.player.x, y: world.player.y, age: 0, warned: false };
   world.drops = [{ ...point, item: skillbook('new-foreign', 'fireBolt', '파이어 볼트') }, { ...point, item: skillbook('new-mine', 'slam', '와일드 스탬프') }];
   for (let index = 0; index < 25; index++) world.update(.1);
-  assert(save.bag.some(item => item.id === 'new-mine'), '내 직업 책은 들어간다');
-  assert(!save.bag.some(item => item.id === 'new-foreign'), '다른 직업 책은 자리가 없다');
+  assert(!save.bag.some(item => item.id === 'new-mine'), '내 직업 책도 자리가 없으면 못 들어간다');
+  assert(!save.bag.some(item => item.id === 'new-foreign'), '다른 직업 책도 못 들어간다');
   assert(world.drops.some(drop => drop.item.id === 'new-foreign'), '못 들어간 책은 바닥에 남는다');
+  assert(world.drops.some(drop => drop.item.id === 'new-mine'), '내 직업 책도 바닥에 남는다');
+  assert.equal(save.bag.length, 40, '가방은 40칸 그대로');
 });
-
 test('서버 40칸 규칙(countedInBag)이 클라이언트와 같다', () => {
   for (const job of ['warrior', 'archer', 'mage']) {
     for (const item of [gear('g'), MINE, FOREIGN, pouch('p'), skillbook('unknown', 'noSuchSkill', '알 수 없음')]) {
@@ -103,7 +101,7 @@ test('가방은 내 직업 책을 숨기고 다른 직업 책을 직업 배지�
     const mineDetail = itemDetail.call(ui, save, MINE);
     assert(find(mineDetail, node => node.className === 'skillbook-use'), '내 직업 책은 사용 버튼');
     // 가방 카운팅 문구는 장비와 같은 칸으로 센다
-    assert(toString(dialog).includes('가방 2/40'), '장비 1 + 다른 직업 책 1');
+    assert(toString(dialog).includes('가방 4/40'), '장비 1 + 다른 직업 책 1 + 내 책 1 + 주머니 1 — 가방에 든 모든 아이템');
     // `내 직업만 보기`가 켜지면 다른 직업 책도 가려진다
     ui.bagJobOnly = true; ui.selected = undefined;
     const filteredDialog = element();

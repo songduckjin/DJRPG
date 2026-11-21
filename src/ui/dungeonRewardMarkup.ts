@@ -33,7 +33,7 @@ export function dungeonRewardMarkup(receipt: DungeonRewardReceipt): string {
     parts.push('<p class="dungeon-result-note">이번 층에서 떨어진 아이템은 없습니다.</p>');
   }
   if (receipt.salvaged.count) parts.push(`<p class="dungeon-result-note">자동 분해 ${receipt.salvaged.count}개 → 금화 ${receipt.salvaged.gold.toLocaleString('ko-KR')} · 강화석 ${receipt.salvaged.stones.toLocaleString('ko-KR')}</p>`);
-  if (receipt.missed) parts.push(`<p class="dungeon-result-note">가방이 가득 차 장비 ${receipt.missed}개를 놓쳤습니다.</p>`);
+  if (receipt.missed) parts.push(`<p class="dungeon-result-note">가방이 가득 차 아이템 ${receipt.missed}개를 놓쳤습니다.</p>`);
   return parts.join('');
 }
 
