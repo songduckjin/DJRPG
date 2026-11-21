@@ -41,7 +41,8 @@ export class SaveSync {
   locked = false;
   conflicted = false;
   pendingMarket?: { action: string; data: Record<string, unknown>; requestId: string; revision: number; progress: Save };
-  pendingWarehouse?: { action: 'deposit' | 'withdraw'; itemIds: string[]; requestId: string; revision: number };
+  /** 창고 이동 대기 — `progress`는 이 요청과 함께 보내는 화면 세이브다(작업 249, 재시도도 같은 본문). */
+  pendingWarehouse?: { action: 'deposit' | 'withdraw'; itemIds: string[]; requestId: string; revision: number; progress: Save };
   private warehouseRecoveryTimer?: ReturnType<typeof setTimeout>;
   private warehouseRecoveryDelay = 2000;
   private preparingMarket = false;
@@ -308,6 +309,22 @@ export class SaveSync {
       await accountRequest('reset', { revision: this.revision, characterSlot: this.session.characterSlot }, this.session.token); location.reload();
     } finally { this.locked = false; if (!this.conflicted && !this.pendingMarket) this.onPause(false); }
   }
+  /**
+   * 창고 이동 직전의 저장 정리(작업 249).
+   *
+   * 예전에는 `flush()`를 **무조건** 불렀는데, `flush()`는 보낼 변경이 없어도 저장 요청을 1회 왕복한다.
+   * 그래서 보관·회수 한 번에 "저장 → 창고" 두 번을 순서대로 기다렸다(작업 249 실측: 저장 9왕복 +
+   * 아이템 40개 이동 49왕복). 이제 창고 요청이 화면 세이브를 함께 실어 서버가 **같은 트랜잭션에서**
+   * 저장까지 끝내므로, 여기서는 ① 진행 중인 저장이 있으면 그 결과만 기다리고 ② 이전 저장이 실패해
+   * 결과를 확인하지 못한 요청이 남아 있으면 그 요청을 다시 보내 확인한다(revision을 서버 기준과 맞춘다).
+   * 보낼 것이 없으면 네트워크를 쓰지 않는다.
+   */
+  private async settleBeforeTrade(): Promise<boolean> {
+    if (this.active) await this.active;
+    if (this.conflicted) return false;
+    if (this.pendingSave) return this.flush();
+    return true;
+  }
   /** 창고 이동(작업 225). 문자열 하나면 단건, 배열이면 한 요청으로 여러 개를 옮긴다(서버 `itemIds`). */
   async transferWarehouse(action: 'deposit' | 'withdraw', itemIds: string | string[]): Promise<SyncResult> {
     const ids = [...new Set(Array.isArray(itemIds) ? itemIds : [itemIds])];
@@ -317,8 +334,10 @@ export class SaveSync {
     if (this.locked || this.conflicted || this.pendingMarket || this.preparingMarket) throw new Error('다른 요청을 처리 중입니다.');
     if (this.pendingWarehouse && (this.pendingWarehouse.action !== action || !sameIds(this.pendingWarehouse.itemIds))) throw new Error('이전 창고 이동 결과를 확인 중입니다.');
     if (!this.pendingWarehouse) {
-      if (!await this.flush()) throw new Error(this.saveBlockedMessage('저장 결과를 확인한 뒤 다시 시도하세요.'));
-      this.pendingWarehouse = { action, itemIds: ids, requestId: crypto.randomUUID(), revision: this.revision };
+      if (!await this.settleBeforeTrade()) throw new Error(this.saveBlockedMessage('저장 결과를 확인한 뒤 다시 시도하세요.'));
+      // 이 요청이 화면 세이브를 함께 보내므로 예약 저장은 취소한다 — 겹쳐 나가면 revision이 엇갈린다.
+      this.cancelQueuedSave();
+      this.pendingWarehouse = { action, itemIds: ids, requestId: crypto.randomUUID(), revision: this.revision, progress: structuredClone(this.save) };
     }
     this.locked = true; this.onPause(true);
     try {
@@ -328,8 +347,12 @@ export class SaveSync {
         const timeout = setTimeout(() => controller.abort(), 10_000);
         try {
           // 한 개는 예전 그대로 `itemId`로 보낸다(구서버 호환) — 여러 개일 때만 `itemIds` 배열(작업 225).
+          // `progress`(작업 249)로 화면 세이브를 함께 보내면 서버가 이동과 저장을 한 트랜잭션에서 끝낸다 —
+          // 예전처럼 저장 1회를 먼저 왕복하지 않는다. 클라이언트 번들과 Functions는 같은 배포에서 나가고
+          // 버전이 어긋난 클라이언트는 `versionGuard`가 426으로 돌려보내므로, 보낸 세이브는 그 서버가 읽는다.
           const pending = this.pendingWarehouse;
-          const payload = pending.itemIds.length === 1 ? { action: pending.action, itemId: pending.itemIds[0], requestId: pending.requestId, revision: pending.revision } : { action: pending.action, itemIds: pending.itemIds, requestId: pending.requestId, revision: pending.revision };
+          const base = { action: pending.action, requestId: pending.requestId, revision: pending.revision, progress: pending.progress };
+          const payload = pending.itemIds.length === 1 ? { ...base, itemId: pending.itemIds[0] } : { ...base, itemIds: pending.itemIds };
           const response = await fetch('/api/warehouse', { method: 'POST', headers: apiHeaders({ Authorization: `Bearer ${this.session.token}` }), body: JSON.stringify({ ...payload, characterSlot: this.session.characterSlot }), signal: controller.signal });
           const body = await response.json();
           if (!response.ok) {

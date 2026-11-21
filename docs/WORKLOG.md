@@ -1,3 +1,19 @@
+## 2026-11-21 · songduckjin 작업 249 — 공용창고 보관·회수 속도 최적화(진행 세이브 병합)
+
+- **제보**: "창고 템 보관하고 꺼낼때 시간이 너무 오래걸려". 사용자 지시는 **PR까지만**(모아서 배포) — 머지·운영 배포하지 않았다.
+- **원인(실측)**: `scripts/measure-warehouse-speed.mjs`(임시 로컬 DB + `warehouseEndpoint` 직접 호출, 왕복마다 25ms 주입, 5회 중앙값). 개선 전 코드는 `git show HEAD:server/endpoints/warehouse.mjs`를 `server/endpoints/_legacy_warehouse.mjs`로 두고 같은 스크립트(`--legacy=true`)로 측정했다:
+  - 보관 40개 **47왕복 / 모델 1,216ms**, 회수 40개 **46 / 1,190ms** — 아이템마다 `SELECT … WHERE o.item_id=?`를 따로 보냈다(Turso는 한 번의 `execute`가 곧 HTTP 1회).
+  - 클라이언트 `sync.transferWarehouse`가 요청 전에 **무조건 `flush()`**(보낼 변경이 없어도 저장 1회 = **9왕복/240ms**)를 먼저 기다렸다 → 보관 한 번에 **56왕복 / 모델 1,456ms**.
+- **서버**(`server/endpoints/warehouse.mjs`):
+  1. 재요청 확인(`djrpg_warehouse_requests`)·창고 목록(보관 40칸 검사용 개수 겸 회수용 아이템 본문)·옮길 아이템 소유 기록(`IN (?,?,…)`)·여정 상태를 **`tx.batch` 하나**로 읽는다(문장이 몇 개든 Turso 왕복 1회).
+  2. 쓰기는 아이템 수와 무관하게 **3문장** — 다중행 `INSERT INTO djrpg_warehouse … VALUES (…),(…)`, `UPDATE djrpg_item_owners … WHERE item_id IN (…)`, `UPDATE djrpg_character_item_owners …`.
+  3. `writeSave`의 여정 상태 SELECT를 없애도록 `row.journeyRecord`를 미리 실어 준다.
+  4. **진행 세이브 병합**: 본문에 `progress`(화면 세이브)가 오면 `reconcileItems`(소유권·능력치 상한·가방 40칸)와 `writeSave`(금화·경험치·층 상한·`journeyOperation`)로 **거래소와 같은 규칙**으로 검증한 뒤 같은 트랜잭션에서 이동까지 끝낸다. 그래서 방금 주운(아직 저장 전) 아이템도 첫 보관이 `ITEM_CONFLICT`로 막히지 않는다 — 소유 기록이 **없는** 아이템은 `reconcileItems`의 검증을 믿고, 기록이 있는데 위치·캐릭터가 어긋나는 경우만 거절. `progress`가 없으면 종전 그대로 서버 세이브를 옮긴다(구클라이언트·기존 테스트 호환).
+- **클라이언트**(`src/game/sync.ts`): `transferWarehouse`가 `flush()` 대신 `settleBeforeTrade()`를 부른다 — ① 진행 중인 저장이 있으면 그 결과만 기다리고 ② 이전 저장이 실패해 결과를 모르는 요청(`pendingSave`)이 남아 있으면 그 요청을 다시 보내 확인하고 ③ 보낼 것이 없으면 네트워크를 쓰지 않는다. `pendingWarehouse`에 `progress`를 함께 담아 재시도(멱등 재확인·복구 타이머)도 **같은 requestId·같은 본문**으로 나간다.
+- **실측(개선 후, 같은 스크립트)**: 보관 40개 **5왕복 / 131ms**, 회수 40개 **5 / 131ms**, 보관 1개 **5 / 136ms**, 회수 1개 **5 / 129ms** — 아이템 개수와 무관하게 일정하다. 사용자 체감 기준(저장 + 이동) **1,456ms → 131ms**(왕복 56 → 5).
+- **검증**: `npx tsc --noEmit`·`npx vite build` 통과(번들 `index-iYhnjTfd.js` 764.73kB). 신규 `tests/warehouse-speed.test.mjs` **7/7** — ① 진행 세이브와 함께 보관하면 저장(revision +1)·이동·소유 위치 변경이 한 요청에서 끝난다(서버가 처음 보는 아이템도 통과) ② 남의 아이템·능력치 변조·가방 41칸은 그대로 거절(409/400/400) ③ 같은 `requestId` 재전송은 진행 세이브를 다시 쓰지 않는다 ④ **아이템 1개와 40개의 DB 왕복 수가 같다** ⑤ 클라이언트: 저장 요청 없이 창고 요청 1개(본문에 `progress`) ⑥ 진행 중 저장은 결과만 기다린다 ⑦ 응답 유실 시 같은 requestId·같은 본문 재전송. 회귀 `warehouse-grid`·`sync`·`market`·`market-actions`·`multi-character-market`·`bag-limit-recovery`·`concurrency`·`functions-adapter`·`account-delete` 포함 **108/108**.
+- **중단·인수인계**: 사용자가 토큰 절약을 위해 직접 이어서 작업하겠다고 요청해 **전체 `node --test tests/*.test.mjs` 완주는 확인하지 못했다**(관련 10개 파일 108건은 통과, 변경 전 기준선은 1,058건 중 1,055 — 실패 3건은 기존 건). Cloudflare Pages 프리뷰 CI 확인·프리뷰 URL·모바일 실기 체감 확인이 남았고, **머지·운영 배포는 하지 않았다**.
+
 ## 2026-11-21 · songduckjin 작업 246 — 가방 40칸 초과 저장 거절로 우편함·거래소가 잠기던 문제(+ FULL 표시·가득 참 안내)
 
 - **제보**: `#20869` "우편함 안받아져"·`#20887` "이전저장결과를 확인하래"·`#20915` "가방또는 징비데이터도 올바르지 않대"·`#20938` "가방 꽉차면 가방 풀 표시 해주고 우편도 받을따 가방이 꽉차짔다거 알림주기"(10:37~10:44 KST).
