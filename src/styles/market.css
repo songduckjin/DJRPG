@@ -17,15 +17,20 @@
 .market-view-button.is-on { border-color: #e2b66d !important; background: #4a3526 !important; box-shadow: inset 0 0 6px #d9a95a55; }
 .market-view-button.is-on img { filter: drop-shadow(0 0 3px #e8c178aa); }
 /* ── 작업 257: 판매 중 서브 필터 탭(`전체`·`장비`·`스킬북`) ──────────────────────────────
-   사용자 지시: 목록 상단에서 종류별로 걸러 본다. 본문 패널과 맞닿는 인덱스 탭보다 한 단계 안쪽이라
-   둥근 칩으로 두고, 이 페이지의 건수를 작게 함께 보여 준다. */
-.market-kind-tabs { display: flex; gap: 4px; margin: 8px 0 6px; }
-.market-kind-tab { display: inline-flex; flex: 1 1 0; min-width: 0; align-items: center; justify-content: center; gap: 4px; padding: 6px 4px !important; border: 1px solid #67503f !important; border-radius: 999px !important; background: #21191b !important; color: #a99581; font-size: 10.5px !important; white-space: nowrap; }
+   사용자 지시: 목록 상단에서 종류별로 걸러 본다. 피드백(`#9078`)으로 **`간편보기`/`자세히보기` 아이콘과
+   같은 가로 줄**에 두어 세로 공간을 한 줄 아끼고, 탭 모양은 인덱스 탭과 같은 톤(어두운 바탕·금빛 선택)이다. */
+.market-list-toolbar { display: flex; align-items: center; gap: 6px; margin: 8px 0 6px; }
+.market-list-toolbar .market-kind-tabs { display: flex; flex: 1 1 auto; min-width: 0; gap: 3px; margin: 0; }
+.market-kind-tabs { display: flex; gap: 3px; margin: 8px 0 6px; }
+.market-kind-tab { display: inline-flex; flex: 1 1 0; min-width: 0; align-items: center; justify-content: center; gap: 3px; padding: 6px 2px !important; border: 1px solid #67503f !important; border-radius: 5px !important; background: #21191b !important; color: #a99581; font-size: 9.5px !important; white-space: nowrap; }
 .market-kind-tab .market-kind-label { overflow: hidden; text-overflow: ellipsis; }
-.market-kind-tab .market-kind-count { flex: none; padding: 0 4px; border-radius: 8px; background: #17121699; color: #c9b193; font-size: 8.5px; line-height: 1.5; }
-.market-kind-tab.active, .market-kind-tab[aria-selected="true"] { border-color: #e2b66d !important; background: #4a3526 !important; color: #ffe6bd; }
-.market-kind-tab.active .market-kind-count, .market-kind-tab[aria-selected="true"] .market-kind-count { background: #e2b66d33; color: #ffe6bd; }
+.market-kind-tab .market-kind-count { flex: none; padding: 0 3px; border-radius: 7px; background: #17121699; color: #c9b193; font-size: 8px; line-height: 1.45; }
+.market-kind-tab.active, .market-kind-tab[aria-selected="true"] { border-color: #b18c59 !important; background: #302326 !important; color: #f2d5a9; }
+.market-kind-tab.active .market-kind-count, .market-kind-tab[aria-selected="true"] .market-kind-count { background: #b18c5933; color: #f2d5a9; }
 .market-kind-tab:focus-visible { outline: 2px solid #e2bd78; outline-offset: -3px; }
+.market-list-toolbar .market-view-toggle { flex: none; gap: 4px; margin: 0; }
+.market-list-toolbar .market-view-button { width: 30px; height: 28px; }
+.market-list-toolbar .market-view-button img { width: 18px; height: 18px; }
 
 /* ── 작업 257: 간편 보기 = 한 줄 4~5열 정사각형 아이콘 카드 그리드 ──────────────────────
    사용자 지시 "한 줄에 4~5개 표시돼도 되고 이미지가 크게 한 화면에 여러 개 볼 수 있게".

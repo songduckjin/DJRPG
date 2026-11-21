@@ -166,8 +166,10 @@ export function renderMarket(this: Interface, dialog: HTMLElement): void {
     }
     const listings = data?.listings ?? [];
     // 판매 중 목록의 서브 필터 탭(작업 257) — `전체`·`장비`·`스킬북`. 목록 맨 위에서 한 페이지의 매물을 거른다.
+    // 사용자 피드백(`#9078`): `간편보기`/`자세히보기` 아이콘과 **같은 한 줄**에 두어 세로 공간을 아낸다.
     const kindTabbed = market.view === 'active';
-    if (kindTabbed) dialog.append(kindTabs(market, listings));
+    const listToolbar = kindTabbed ? el('div', 'market-list-toolbar') : undefined;
+    if (listToolbar) dialog.append(listToolbar);
     renderFilters(market, dialog);
     // `내 직업만 보기` (작업 205): 판매 중·거래 완료 목록에서 다른 직업 전용 무기·스킬북을 걷어 낸다.
     // 내 거래(mine)는 내가 올리고 산 기록이므로 같은 필터를 적용하지 않는다.
@@ -181,12 +183,13 @@ export function renderMarket(this: Interface, dialog: HTMLElement): void {
     dialog.append(el('p', 'market-result', `${money(data?.total ?? 0)}건${hiddenListings ? ` · 이 페이지에서 다른 직업 ${hiddenListings}개 숨김` : ''}${hiddenByKind ? ` · ${MARKET_KIND_LABELS[market.kind]} 필터로 ${hiddenByKind}개 숨김` : ''}${market.view === 'mine' ? ` · 판매 중 ${data?.myActive ?? 0}/${data?.rules?.maxListings ?? 30} · 내 판매 및 구매 기록` : ''}`));
     // 판매 중 탭의 `간편 보기`/`상세 보기`(작업 248) — 간편 보기는 한 화면에 훨씬 많은 매물을 보여 준다.
     const compact = market.view === 'active' && listingView === 'compact';
-    if (market.view === 'active') dialog.append(listingViewToggle(this));
+    // 툴바의 왼쪽은 종류 탭, 오른쪽은 보기 방식 아이콘(사용자 피드백 `#9078`).
+    if (listToolbar) listToolbar.append(kindTabs(market, listings), listingViewToggle(this));
     if (!data && market.loading) dialog.append(el('p', 'empty', '거래소를 불러오고 있습니다…'));
     if (compact) {
       // 작업 257: 한 줄 4~5열 카드 그리드. 카드에는 아이콘과 가격만 있고, 누르면 상세 팝업이 뜬다.
       const grid = el('div', 'market-compact-grid');
-      for (const sale of kindListings) grid.append(compactCard(this, sale, blocked));
+      for (const sale of kindListings) grid.append(compactCard(this, sale));
       dialog.append(grid);
     } else for (const sale of kindListings) renderListing(this, dialog, sale, blocked);
     // 카드를 눌러 고른 매물의 상세 팝업(작업 257) — 상세·구매 버튼 없이 카드 하나로 연다.
@@ -253,7 +256,8 @@ function listingViewToggle(ui: Interface): HTMLElement {
   const market = ui.market, bar = el('div', 'market-view-toggle');
   bar.setAttribute('role', 'group'); bar.setAttribute('aria-label', '매물 보기 방식');
   for (const [view, label, art] of [['compact', '간편 보기', '/assets/icons/market-view-compact.png'], ['detail', '상세 보기', '/assets/icons/market-view-detail.png']] as const) {
-    const pick = button('', () => { setListingView(view); ui.renderModal(); }, market.busy);
+    // 보기 방식을 바꾸면 카드/줄이 통째로 달라지므로 선택·상세 바를 초기화한다(작업 257 피드백 `#9089`).
+    const pick = button('', () => { setListingView(view); market.clearSelection(); ui.renderModal(); }, market.busy);
     pick.className = `market-view-button${listingView === view ? ' is-on' : ''}`;
     pick.dataset.view = view;
     pick.setAttribute('aria-label', label); pick.setAttribute('aria-pressed', String(listingView === view)); pick.title = label;
@@ -377,7 +381,8 @@ function kindTabs(market: Market, listings: Listing[]): HTMLElement {
   for (const kind of ['all', 'equipment', 'skillbook'] as MarketKind[]) {
     const tab = button('', () => {
       if (market.kind === kind) return;
-      market.kind = kind; market.selected = undefined; market.onChange(true);
+      // 종류를 바꾸면 이전 목록에서 연 상세·선택을 모두 버린다(작업 257 피드백 `#9089`).
+      market.kind = kind; market.clearSelection(); market.onChange(true);
     }, market.busy || !!market.sync.pendingMarket);
     tab.className = `market-kind-tab${market.kind === kind ? ' active' : ''}`;
     tab.dataset.kind = kind;
@@ -396,12 +401,14 @@ function kindTabs(market: Market, listings: Listing[]): HTMLElement {
  * 카드를 누르면 그 매물의 상세 팝업(`listingSheet`)이 즉시 뜬다. 묶음 `×N`·내 매물·등급 테두리·
  * 추천 화살표는 그대로 두고, `+N`은 왼쪽 아래 모서리에 작게 얹어 아이콘을 가리지 않는다.
  */
-function compactCard(ui: Interface, sale: Listing, blocked: boolean): HTMLButtonElement {
+function compactCard(ui: Interface, sale: Listing): HTMLButtonElement {
   const market = ui.market, quantity = Math.max(1, Number(sale.quantity ?? 1));
   const card = button('', () => {
-    if (blocked || sale.state !== 'active') return;
+    if (sale.state !== 'active' || market.busy || market.sync.pendingMarket) return;
     market.selected = market.selected?.id === sale.id ? undefined : sale; market.onChange(true);
-  }, blocked || sale.state !== 'active');
+  });
+  // 게스트도 카드를 눌러 상세를 **읽을** 수 있다(구매 버튼만 `blocked`로 잠긴다) — 카드 자체는 상태가 끝난 매물만 잠근다.
+  card.disabled = sale.state !== 'active' || market.busy || !!market.sync.pendingMarket;
   card.className = `market-card rarity-${sale.item.rarity}${sale.mine ? ' is-mine' : ''}`;
   card.dataset.listing = sale.id;
   card.setAttribute('aria-label', `${itemDisplayName(sale.item)} · ${rarityNames[sale.item.rarity]} · ${money(sale.price)} 금화${quantity > 1 ? ` · 총 ${quantity}개` : ''} 상세 보기`);

@@ -63,6 +63,7 @@ export class Market {
     this.view = 'active'; this.filters = { query: '', category: '', slot: '', rarity: '', sort: 'newest', page: 0 };
     this.selected = undefined; this.selectedItem = ''; this.price = ''; this.quantity = '1'; this.buyQuantity = new Map(); this.error = '';
     this.mineActiveOnly = false; this.kind = 'all'; this.quote = undefined; this.quoteGeneration++;
+    this.unlockItem = undefined;
     this.registerCategory = ''; this.registerRarity = ''; this.unlockItem = undefined;
     this.data = undefined; this.candidate = undefined; this.newCount = 0;
   }
@@ -131,7 +132,26 @@ export class Market {
     finally { if (generation === this.generation) { this.loading = false; this.onChange(false); } }
   }
   refresh(): void { this.selected = undefined; void this.load(true); }
-  switch(view: MarketView): void { if (this.busy) return; this.view = MARKET_VIEWS.includes(view) ? view : 'active'; this.unlockItem = undefined; this.filters.page = 0; if (view === 'recent') { this.filters.stat = ''; this.filters.sort = 'newest'; } this.selected = undefined; this.onChange(true); void this.load(true); }
+  /**
+   * 화면 선택을 모두 버린다(작업 257, 사용자 피드백 `#9089`).
+   *
+   * 탭·보기 방식·종류 필터를 바꿀 때 이전 화면의 **선택된 매물·상세 바·판매 등록 하이라이트·
+   * 구매 수량·시세 상자**가 남아 있으면 지금 보이는 목록과 어긋난다(예: `전체`에서 연 상세가
+   * `장비`로 바꿔도 남아 있거나, 다른 탭에서 고른 물품이 포커스된 채 돌아온다).
+   * 서버 데이터(`data`)와 필터 값은 건드리지 않는다.
+   */
+  clearSelection(): void {
+    this.selected = undefined;
+    this.selectedItem = ''; this.unlockItem = undefined; this.price = ''; this.quantity = '1';
+    this.buyQuantity.clear(); this.quote = undefined; this.quoteGeneration++;
+  }
+  switch(view: MarketView): void {
+    if (this.busy) return;
+    this.view = MARKET_VIEWS.includes(view) ? view : 'active'; this.filters.page = 0;
+    if (view === 'recent') { this.filters.stat = ''; this.filters.sort = 'newest'; }
+    this.clearSelection();
+    this.onChange(true); void this.load(true);
+  }
   private applyEffect(result: SyncResult): void {
     if (!this.data || !result.effect) return;
     const { listing, deliveries, claimedId, claimedIds } = result.effect;
