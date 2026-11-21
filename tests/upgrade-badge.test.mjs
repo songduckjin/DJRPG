@@ -101,7 +101,9 @@ test('세 화면(가방·장착 칸·공용창고·거래소)이 같은 판정 �
   // 거래소에서 화살표가 붙는 곳 — 판매 중·거래 완료·내 거래 목록, 수령함, 판매 등록 칸.
   assert.match(marketSource, /row\.append\(icon\(sale\.item, ui\.world\.save\), itemInfo\(sale\.item\)\);/);
   assert.match(marketSource, /row\.append\(icon\(delivery\.item, this\.world\.save\), itemInfo\(delivery\.item\)\)/);
-  assert.match(marketSource, /pick\.append\(icon\(item, ui\.world\.save\)/);
+  // 판매 등록 칸은 **칸**에 화살표를 붙여 칸의 오른쪽 위에 고정한다(작업 248).
+  assert.match(marketSource, /pick\.append\(icon\(item\)\);/);
+  assert.match(marketSource, /appendUpgradeArrow\(pick, ui\.world\.save, item\);/);
 });
 
 test('화살표는 3번 슬림 셰브론 PNG를 쓴다(글자 `▲` 제거, 작업 246)', () => {

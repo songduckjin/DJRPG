@@ -116,8 +116,11 @@ test('판매 등록 칸은 작은 그리드로 그려지고 같은 스킬북은 
   const bookCell = grid.children.find(cell => cell.dataset.itemId === 'b1');
   bookCell.onclick();
   assert.deepEqual(picked, ['b1']);
-  // 직업·강화 배지 자리는 비어 있지 않고, 이름은 한 줄로 잘린다.
-  assert(find(bookCell, node => hasClass(node, 'market-pick-name')));
+  // [작업 248] 칸에는 이름 글자가 없다 — 이름·등급은 툴팁으로만 알린다(가방처럼 정사각형 아이콘 칸).
+  assert(!find(bookCell, node => hasClass(node, 'market-pick-name')));
+  assert.match(bookCell.title ?? '', /2개/);
+  assert.equal(bookCell.attrs['aria-label'], '[스킬북] spin · 레어 · 2개 판매 선택');
+  assert(find(bookCell, node => hasClass(node, 'market-pick-count')), '×2는 절대 위치 배지');
 });
 
 test('거래소 아이콘 빨간 점은 더 최근에 확인한 수령함 값을 쓴다(작업 247)', () => {

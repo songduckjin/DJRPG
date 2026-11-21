@@ -18,9 +18,11 @@ test('offline hunts award one item per kill (장비 70% · 스킬북 30%) and go
     assert.equal(save.gold, reward.gold);
     assert.equal(save.floorKills, reward.kills);
     // 한 마리당 **한 번만** 굴려 1개만 나온다(작업 210) — 난수 0이면 30% 쪽인 스킬북, 두 개가 같이 나오지 않는다.
-    assert.equal(reward.items.length, reward.kills, '한 마리당 정확히 1개');
+    // 120마리 모두 스킬북이지만 가방 40칸이 스킬북도 세므로(작업 248) 40권만 들어가고 나머지는 놓친다.
+    assert.equal(reward.items.length, 40, '가방 40칸을 채울 만큼만');
     assert(reward.items.every(item => item.slot === 'skillbook'), '난수 0은 스킬북 30% 쪽');
-    assert.equal(reward.missedDrops, 0, '내 직업 책은 40칸을 쓰지 않는다');
+    assert.equal(reward.missedDrops, reward.kills - 40, '나머지는 자리가 없어 놓친다');
+    assert.equal(save.bag.length, 40);
   } finally { Math.random = originalRandom; }
 });
 
@@ -30,8 +32,13 @@ test('full bag counts missed drops and tutorial suppresses all loot', () => {
     const save = freshSave(); save.tutorial = 1;
     save.bag = Array.from({ length: 40 }, (_, index) => ({ id: `item-${index}`, name: '낡은 두손검', slot: 'weapon', rarity: 'common', stats: { attack: 4 } }));
     const reward = applyOfflineRewards(save, 60);
-    // 가방 40칸이 가득이어도 내 직업 스킬북은 자리를 쓰지 않는다(작업 210) — 장비였다면 놓쳤을 몫이다.
-    assert.equal(reward.items.length, reward.kills); assert(reward.items.every(item=>item.slot==='skillbook')); assert.equal(reward.missedDrops, 0);
+    // 가방 40칸이 가득이면 스킬북도 자리가 없다(작업 248) — 받은 아이템 0, 놓친 몫은 사냥한 만큼.
+    assert.equal(reward.items.length, 0, '가득 찬 가방에는 아무것도 들어가지 않는다');
+    assert.equal(reward.missedDrops, reward.kills, '놓친 몫을 센다');
+    save.bag.pop();
+    const room = applyOfflineRewards(save, 60);
+    assert.equal(room.items.length, 1, '한 칸이 비면 스킬북 1권이 들어간다');
+    assert(room.items.every(item=>item.slot==='skillbook'));
     const tutorial = freshSave(), early = applyOfflineRewards(tutorial, 600);
     assert.equal(early.items.length, 0); assert.equal(early.missedDrops, 0);
     // 튜토리얼 전 600초는 120마리 — 새 1층 목표(150)에 못 미쳐 보스 금화가 붙지 않는다.

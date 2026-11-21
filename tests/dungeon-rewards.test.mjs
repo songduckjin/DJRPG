@@ -113,11 +113,11 @@ test('the lobby shows the real prize instead of "보상 수량은 전투 연결 
   assert.doesNotMatch(normal, /확정됩니다/);
   assert.match(normal, new RegExp(`<span>${dungeonKillGold(1)}</span>`));
   assert.match(normal, new RegExp(`<span>${dungeonClearStones(1, true)}</span>`));
-  assert.match(normal, /처치마다 15% 확률로 장비·스킬북/);
-  // 보스 층은 5개 랜덤템·10무더기와 층 비례 금화·강화석을 보여 준다.
+  assert.match(normal, /처치마다 5% 확률로 장비·스킬북/, '모든 층 5% 고정(작업 248)');
+  // 보스 층은 2개 확정 랜덤템(작업 248)·10무더기와 층 비례 금화·강화석을 보여 준다.
   assert.match(boss, new RegExp(`<span>${70 * 10}</span>`));
   assert.match(boss, new RegExp(`<span>${dungeonClearStones(10, true)}</span>`));
-  assert.match(boss, /랜덤 장비·스킬북 5개와 금화 10무더기/);
+  assert.match(boss, /랜덤 장비·스킬북 2개와 금화 10무더기/);
   assert.match(boss, /실패·시간 초과에는 지급되지 않습니다/);
 });
 

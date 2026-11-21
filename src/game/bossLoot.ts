@@ -5,7 +5,7 @@
 // shown, never a second payment. Both the hunting field and the dungeon use that.
 //
 // The item half is the dungeon's alone. The dungeon is a ten-floor preview with a boss on floors 5
-// and 10, so its boss leaves five random items plus the heaps (`bossItems`); the main field hands out
+// and 10, so its boss leaves two random items plus the heaps (`bossItems`); the main field hands out
 // no items of its own for a boss and keeps the one chance roll every kill makes (작업 195 — the user's
 // "메인층은 금화만 10무 더기" correction).
 //
@@ -16,11 +16,11 @@
 // (`HEAP_ISO_X`/`HEAP_ISO_Y`, the projection in `game/arena`), which is why a circle of world points
 // would look squashed and lopsided on screen but these do not.
 
-import { equipmentDropChance, rollItem, rollSkillBook, skillBookDropChance, type Item } from './items';
+import { equipmentDropChance, rollDungeonItem, rollSkillBook, skillBookDropChance, type Item } from './items';
 import { random } from './rng';
 
-/** Random items a dungeon boss leaves on the ground. The main field drops none of these for a boss. */
-export const BOSS_ITEM_DROPS = 5;
+/** Random items a dungeon boss leaves on the ground (작업 248: 5 → **2개 확정**). The main field drops none of these for a boss. */
+export const BOSS_ITEM_DROPS = 2;
 /** Heaps a boss's gold hits the floor in. */
 export const BOSS_GOLD_PILES = 10;
 /** The floor's isometric projection, as `projectArenaPoint` applies it. */
@@ -42,10 +42,10 @@ const HEAP_SWIRL = [5, -8, 6, -5, 4] as const;
 const HEAP_BASE = [90, 54] as const;
 
 /** One random item of a boss haul: the field's equipment/skill-book odds decide which, exactly as a
- *  normal kill's item does, so a boss never invents a drop table of its own. */
+ *  normal kill's item does, and the grade comes from the dungeon's 10-floor tier table (작업 248). */
 export function rollBossItem(floor: number): Item {
   const equipment = equipmentDropChance(floor, true), book = skillBookDropChance(floor, true);
-  return random() * (equipment + book) < equipment ? rollItem(floor, false, true) : rollSkillBook(floor);
+  return random() * (equipment + book) < equipment ? rollDungeonItem(floor, true) : rollSkillBook(floor);
 }
 
 /** The `BOSS_ITEM_DROPS` random items a dungeon boss leaves behind. */
