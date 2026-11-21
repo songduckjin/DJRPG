@@ -24,7 +24,8 @@ import { renderSkills } from './modals/skillModal';
 import type { OfflineReward } from '../game/offline';
 import type { SaveSync } from '../game/sync';
 import { Market } from '../game/market';
-import { completeShopReturn, loadShop, type ShopCatalog, type ShopCheckout } from './modals/shopModal';
+import { completeShopReturn, DIAMOND_PACK_ART, loadShop, type ShopCatalog, type ShopCheckout } from './modals/shopModal';
+import { bindDomainEvents } from './domainBindings';
 import type { CharacterSummary } from './modals/charactersModal';
 // PR-4 분리 — 이 파일은 클래스(상태·창 열기)만 들고, 나머지는 도메인 모듈이 맡는다:
 //   interfaceTypes  : 팝업 이름(Modal)·보기 상태 타입(BagFilter·SkillFilter)
@@ -131,11 +132,15 @@ export class Interface {
     this.journey = new Journey(sync, world);
     discoverEquipment(world.save);
     root.innerHTML = `<main class="game-shell"><section class="battle"><div class="battle-canvas"></div><div class="top-hud"></div><button class="world-boss-entry" data-modal="worldBoss" type="button" aria-label="월드보스 미리보기" title="체력과 남은 도전 횟수는 시안입니다"><span class="wb-entry-art" aria-hidden="true"></span><span class="wb-entry-health" aria-hidden="true"><i></i></span><span class="wb-entry-count" aria-hidden="true">3/3</span></button><nav class="utility-nav" aria-label="편의 메뉴">${(['settings','mail','rewards','achievements','dungeon'] as const).map((kind,index)=>`<button type="button" data-modal="${kind}" aria-label="${['설정','우편함','보상','업적','던전'][index]}" title="${['설정','우편함','보상','업적','던전'][index]}"><img src="/assets/icons/utility_${kind}.png" alt="">${(kind==='settings'||kind==='dungeon')?'':`<i data-utility-dot="${kind}" hidden></i>`}</button>`).join('')}</nav><div class="tutorial"></div><div class="controls"><div class="action-pad"></div></div></section><nav class="bottom-nav" aria-label="게임 메뉴"><button data-modal="equipment" type="button" aria-label="내 정보" title="내 정보">${navIcons.equipment}<i class="new-badge" hidden></i><i class="bag-full-badge" hidden></i></button><button data-modal="skills" type="button" aria-label="스킬" title="스킬">${navIcons.skills}<i class="skill-nav-dot" hidden aria-label="장착 또는 강화 가능한 스킬 있음"></i></button><button data-modal="market" type="button" aria-label="거래소" title="거래소">${navIcons.market}<i class="market-nav-dot" hidden aria-label="거래소 수령함에 받을 물건 있음"></i></button><button data-modal="warehouse" type="button" aria-label="공용창고" title="공용창고">${navIcons.warehouse}</button></nav><div class="modal-backdrop" hidden><div class="modal-dialog" role="dialog" aria-modal="true"></div></div><div class="toast" role="status"></div></main>`;
-    const shopEntry = document.createElement('button'); shopEntry.type = 'button'; shopEntry.dataset.modal = 'shop'; shopEntry.className = 'shop-entry'; shopEntry.setAttribute('aria-label', '상점'); shopEntry.title = '상점'; shopEntry.textContent = '◆';
+    const shopEntry = document.createElement('button'); shopEntry.type = 'button'; shopEntry.dataset.modal = 'shop'; shopEntry.className = 'shop-entry'; shopEntry.setAttribute('aria-label', '상점'); shopEntry.title = '상점';
+    // 작업 261: 글자 `◆` 대신 다이아가 가득 든 보물상자 그림(상점 대표 그림과 같은 에셋)을 버튼에 꽉 채운다.
+    const shopEntryArt = document.createElement('img'); shopEntryArt.src = DIAMOND_PACK_ART; shopEntryArt.alt = ''; shopEntryArt.decoding = 'async'; shopEntry.append(shopEntryArt);
     this.root.querySelector('.utility-nav')?.append(shopEntry);
     this.top = this.get('.top-hud'); this.banner = this.get('.tutorial');
     this.modal = this.get('.modal-backdrop'); this.toast = this.get('.toast');
     mountLegendBar(this);
+    // 도메인 신호 구독(작업 256) — 화면은 사건을 듣기만 한다.
+    bindDomainEvents(this);
     this.modalRenderGate = bindModalInteraction(this.modal, window, () => this.renderModal());
     // 도메인 콜백·입력은 각자의 모듈이 붙인다(PR-4): 거래소·여정·창고·월드 → interfaceWiring,
     // 메뉴 버튼·Esc·바깥 누르기·공격 패드 → interfaceControls.

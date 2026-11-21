@@ -1,0 +1,26 @@
+/* DJRPG 모달 — 내 정보·계정
+   이름 변경, 로그아웃, 진행도 게이지, 진행도 초기화와 탈퇴.
+
+   원래 한 파일이던 `styles/modals.css`를 도메인별로 나눈 것이다. 규칙 본문과 순서는 원본 그대로이고,
+   `styles/modals.css`가 정해진 순서로 @import 한다. 선택자·우선순위·렌더 결과가 원본과 같아야 하므로
+   규칙을 다른 파일로 옮길 때는 앞뒤 순서(캐스케이드)를 반드시 확인한다. */
+
+.account-withdraw { margin-top: 16px; padding-top: 12px; border-top: 1px solid #3b2b30; display: grid; gap: 6px; }
+.account-withdraw button { min-height: 42px; border: 1px solid #6d4a44; border-radius: 4px; background: #241b1d; color: #cba79f; font-size: 13px; touch-action: manipulation; }
+.account-withdraw p { margin: 0; color: #8f7a70; font-size: 11px; line-height: 1.5; }
+.account-content { display: flex; flex-direction: column; gap: 9px; font-size: 12px; }
+.account-content label { color: #ad998a; }
+.account-name { display: flex; gap: 6px; }
+.account-name input { flex: 1; min-width: 0; padding: 9px; border: 1px solid #826b59; outline: none; background: #151116; color: #efdec6; font: inherit; }
+.account-name input:focus { border-color: #d9a36a; }
+.account-name button, .account-reset button { border: 1px solid #89694f; background: #3d2b28; color: #f1d9b9; padding: 8px; }
+.account-line { display: flex; align-items: center; justify-content: space-between; gap: 7px; border-bottom: 1px solid #4e3e3d; padding: 7px 0; }
+.account-line span { color: #aa988c; }
+.account-line b { color: #efdbbd; font-weight: 500; }
+.account-logout { width: 100%; border: 1px solid #b08a5e; background: #443124; color: #ffe0b5; padding: 10px; }
+.account-progress { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 5px; padding: 7px 0; color: #dfba86; }
+.account-progress div { width: 100%; height: 6px; background: #43353c; }
+.account-progress i { display: block; height: 100%; background: #c79555; }
+.account-reset { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 10px; }
+.account-reset p { width: 100%; margin: 0; color: #e5a49b; line-height: 1.5; }
+.account-reset button:first-of-type { border-color: #a45c55; color: #ffd1c6; }

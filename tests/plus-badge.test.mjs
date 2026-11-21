@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import './ts-loader.mjs';
+import { modalStyles } from './helpers/modal-styles.mjs';
 
 const { freshSave } = await import('../src/game/store.ts');
 const { plusBadgeMarkup, plusBadgeNode, appendPlusBadge, PLUS_BADGE_CLASS, PLUS_BADGE_POSITION } = await import('../src/ui/plusBadge.ts');
@@ -83,7 +84,7 @@ test('가방 칸에도 `+N` 배지가 붙는다(장비만, 스킬북·주머니�
 test('장착 칸·공용창고도 같은 `plusBadge` 헬퍼를 쓰고 CSS 자리는 왼쪽 아래다', () => {
   const equipSource = readFileSync(new URL('../src/ui/modals/equipModal.ts', import.meta.url), 'utf8');
   const warehouseSource = readFileSync(new URL('../src/ui/modals/warehouseModal.ts', import.meta.url), 'utf8');
-  const css = readFileSync(new URL('../src/styles/modals.css', import.meta.url), 'utf8');
+  const css = modalStyles();
   // 장착 10칸 — 아이콘·부위 이름 뒤에 `+N`을 붙인다.
   assert.match(equipSource, /<small class="slot-part">\$\{slotLabel\}<\/small>\$\{item \? plusBadgeMarkup\(item\) : ''\}/);
   // 가방 칸 — 아이콘 + 추천 화살표 + `+N`.

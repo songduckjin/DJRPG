@@ -13,7 +13,7 @@ import './ts-loader.mjs';
 
 const { freshSave } = await import('../src/game/store.ts');
 const { applyOfflineRewards } = await import('../src/game/offline.ts');
-const { salvageGold, salvageStones } = await import('../src/game/items.ts');
+const { salvageGold, salvageStones, isEquipment, canWield } = await import('../src/game/items.ts');
 const { rewardBudget, MAX_OFFLINE_SECONDS } = await import('../server/save-guard.mjs');
 
 /** 같은 수열을 다시 만들어 두 정산을 나란히 비교하기 위한 시드 난수. */
@@ -75,12 +75,19 @@ test('방치 정산도 자동 분해를 적용한다 — 분해된 장비는 가
 test('자동 분해를 켜도 보호 규칙은 방치에서도 그대로 — 빈 슬롯·스킬북은 분해되지 않는다(작업 254)', () => {
   const original = Math.random;
   try {
-    // 장비를 하나도 안 입은 세이브: 떨어진 장비는 전부 '빈 슬롯' 보호 대상이라 가방에 남는다.
+    // 장비를 하나도 안 입은 세이브: **입을 수 있는** 장비는 '빈 슬롯' 보호 대상이라 가방에 남는다.
+    // 다른 직업 무기(작업 204 교차 드롭)는 원래 보호 대상이 아니라 분해된다 — 같은 시드로 자동 분해를
+    // 끈 정산과 비교해 정확히 그 몫만 분해됐는지 본다(작업 255 장비 목록 확대 뒤에도 흔들리지 않게).
+    Math.random = seeded(777);
+    const baseline = freshSave(); baseline.tutorial = 1; baseline.autoClimb = false;
+    const all = applyOfflineRewards(baseline, 43_200, {});
+    const unwearable = all.items.filter(item => isEquipment(item) && !canWield(item, 'warrior'));
     Math.random = seeded(777);
     const bare = freshSave(); bare.tutorial = 1; bare.autoClimb = false;
     const reward = applyOfflineRewards(bare, 43_200, { autoSalvage: 'unique', autoSalvagePlus: 7 });
     assert(reward.items.length > 0, '드롭은 있었다');
-    assert.equal(reward.salvaged.count, 0, '빈 슬롯에 입을 장비는 분해하지 않는다');
+    assert.equal(reward.salvaged.count, unwearable.length, '분해되는 것은 입을 수 없는(다른 직업) 장비뿐이다');
+    assert(reward.items.every(item => !isEquipment(item) || canWield(item, 'warrior')), '빈 슬롯에 입을 장비는 분해하지 않는다');
 
     // 난수 0이면 매 처치가 스킬북(30% 쪽) — 스킬북은 절대 분해되지 않는다.
     Math.random = () => 0;

@@ -15,7 +15,7 @@
  * 테스트가 픽셀 없이 좌표만 검증한다.
  */
 import type { Graphics } from 'pixi.js';
-import type { World } from '../world';
+import type { CombatEngine } from '../combat/engine';
 import { totalStats } from '../items';
 import type { GameView } from '../render';
 
@@ -117,7 +117,7 @@ export function paintHeroHpBar(graphics: Graphics, box: HeroHpBarBox): void {
  * `drawHero` 가 매 프레임 부른다. 캐릭터가 그려진 자리(레이어 위치·세로 배율)에서 머리 꼭대기를
  * 계산해 바를 새로 그린다. 죽었거나 캐릭터가 숨겨진 프레임은 이전 바를 지우기만 한다.
  */
-export function drawHeroHpBar(view: GameView, world: World, bodyPx: number, headroomArtPx = 0): void {
+export function drawHeroHpBar(view: GameView, world: CombatEngine, bodyPx: number, headroomArtPx = 0): void {
   const layer = view.heroLayer;
   const graphics = view.heroHpBar;
   // 테스트·초기화 도구는 GameView 의 일부 멤버만 흉내 낸 대역을 쓴다 — 레이어가 없으면 넘어간다.

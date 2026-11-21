@@ -10,11 +10,13 @@
  *     많은 킬을 할 수 없고, 오프라인 정산도 이 시간 안에서만 일어난다(최대 12시간).
  *  ② **층·직업 규칙**(킬당 금화·경험치, 층 클리어에 필요한 킬 수, 드롭 공식).
  *
- * 이 파일은 `server/database.mjs`가 import하므로 **순수 JS**로 둔다 — `scripts/migrate-turso-db.mjs`처럼
- * ts 로더 없이 `node`로 도는 스크립트가 DB 모듈을 그대로 쓰기 때문이다. 아래 상수는 `src/game/`의 값을
- * 옮겨 적은 것이고, `tests/save-guard.test.mjs`가 원본과 같은지 대조한다(값이 갈라지면 테스트가 먼저 깨진다).
+ * 이 파일은 `server/database.mjs`가 import하므로 **순수 JS**다. 진행 규칙(최고 층·경험치 곡선·층 목표·킬 금화)은
+ * `src/game/progress.ts` 하나를 그대로 쓴다(PR-3, 작업 262) — 예전에는 같은 식을 여기에 옮겨 적고
+ * `tests/save-guard.test.mjs`가 원본과 대조했지만, 이제 값이 갈라질 자리가 없다. `progress.ts`는 아무것도
+ * import하지 않는 순수 모듈이라 서버 번들에 다른 게임 코드를 끌어들이지 않는다.
  */
 import { extraOptionsWithin } from './extra-options.mjs';
+import { BOSS_GOLD_PER_FLOOR, KILL_GOLD_BASE, MAX_FLOOR, MAX_LEVEL, expToNext, killsToBoss } from '../src/game/progress.ts';
 
 export const MAX_OFFLINE_SECONDS = 43_200;
 /** 초당 처치 상한. 실제 사냥은 스폰 간격(≥0.55초)과 18마리 상한 때문에 초당 2마리 안팎이고,
@@ -30,12 +32,10 @@ export const ITEMS_FLOOR = 40;
 /** 금화·경험치 상한에 곱하는 안전 계수 — 자동 분해·보스 무더기 같은 정상 경로가 상한에 닿지 않게 한다. */
 export const GOLD_HEADROOM = 2;
 export const EXP_HEADROOM = 2;
-/** `src/game/store.ts`의 `MAX_FLOOR`(작업 204: 1~20층). */
-export const MAX_FLOOR = 20;
 /** `src/game/items.ts`의 `rarityScales`. */
 export const RARITY_SCALES = { common: 1, magic: 2, rare: 3, epic: 4, unique: 5, legendary: 6 };
-/** `src/game/store.ts`의 `MAX_LEVEL`. */
-export const MAX_LEVEL = 30;
+/** 최고 층·최고 레벨·경험치 곡선은 `src/game/progress.ts`가 원본이다 — 기존 import 경로를 위해 여기서 재export한다. */
+export { MAX_FLOOR, MAX_LEVEL, expToNext } from '../src/game/progress.ts';
 /** `src/game/items.ts`의 `MAX_PLUS`·`PLUS_STAT_BONUS`. */
 export const MAX_PLUS = 7;
 export const PLUS_STAT_BONUS = .08;
@@ -72,10 +72,8 @@ const STAT_SLACK = 4;
 /** 예전 공식으로 만들어진 장비(작업 194 이전 세이브)도 통과하도록 남기는 배율 여유. */
 export const STAT_TOLERANCE = 2.5;
 
-/** `src/game/store.ts`의 `expToNext`(작업 207 사용자 확정 곡선 `1400 × level²`). */
-export function expToNext(level) { return Math.round(1400 * Math.pow(level, 2)); }
-/** `src/game/store.ts`의 `floorKillTarget`(작업 204: 1층 150마리, 20층 3,505마리). */
-export function floorKillTarget(floor) { const depth = Math.max(0, floor - 1); return 150 + 55 * depth + Math.round(Math.pow(depth, 2) * 6.4); }
+/** `src/game/progress.ts`의 `killsToBoss`(작업 204: 1층 150마리, 20층 3,505마리) — 예전 이름은 `floorKillTarget`. */
+export function floorKillTarget(floor) { return killsToBoss(floor); }
 
 /** 마지막 저장 이후 서버 시계로 흐른 초. 값이 없거나 깨졌으면 0. */
 export function elapsedSince(updatedAt, now = Date.now()) {
@@ -103,7 +101,7 @@ export function rewardBudget(previous, elapsedSeconds, depthOption) {
   // 보스는 한 층에 floorKillTarget마리(1층 120마리)를 잡아야 나오므로, 처치 수 대비 아주 넉넉히 잡는다.
   const bosses = Math.ceil(kills / 30) + 1;
   const depth = Math.max(1, Math.min(MAX_FLOOR, int(depthOption ?? previous?.maxFloor ?? previous?.floor ?? 1, 1)));
-  const killGold = (kills * (3 + depth) + bosses * 70 * depth) * GOLD_HEADROOM + 1000;
+  const killGold = (kills * (KILL_GOLD_BASE + depth) + bosses * BOSS_GOLD_PER_FLOOR * depth) * GOLD_HEADROOM + 1000;
   return {
     elapsed, kills, bosses, depth,
     // 오프라인 정산은 킬당 8(보스 45) 경험치다 — 보스 쪽으로 넉넉히 잡는다.

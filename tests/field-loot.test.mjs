@@ -354,7 +354,7 @@ test('a boss keeps the ordinary chance roll for items, never five at once', () =
   const world = hunt();
   assert.equal(world.drops.length, 1, 'a boss leaves exactly one chance item — never two at once');
   for (const drop of world.drops) assert(drop.item.name.length > 0 && drop.item.id, 'each item is a real roll');
-  const source = readFileSync(new URL('../src/game/world.ts', import.meta.url), 'utf8');
+  const source = readFileSync(new URL('../src/game/fieldProgress.ts', import.meta.url), 'utf8');  // PR-2B: 필드의 킬 보상·드롭·자동 분해 규칙은 `fieldProgress.ts`로 옮겼다(월드는 이름만 남은 껍데기).
   assert.doesNotMatch(source, /bossItems\(/, 'the field no longer hands a boss five random items');
   assert.doesNotMatch(source, /BOSS_ITEM_DROPS/, 'and never counts them');
   // 한 마리당 한 번의 드롭 롤(작업 210) — 보스도 같은 함수에 보스 확률을 넘긴다.

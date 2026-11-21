@@ -2,6 +2,7 @@ import { client, schema, transaction, account, assertRevision, assertSession, as
 import { initialSave, jobOf, jobs } from '../save-seed.mjs';
 import { runSeasonReset } from '../season.mjs';
 import { deleteAccountData } from '../account-delete.mjs';
+import { cleanupExpiredGuests, GUEST_CLEANUP_LIMIT, touchGuestActivity } from '../guest-cleanup.mjs';
 import { sharedConnection } from '../connection.mjs';
 import { createTrace, logRequest } from '../metrics.mjs';
 import { elapsedSince } from '../save-guard.mjs';
@@ -95,6 +96,9 @@ async function accountHandler(request, { env = runtimeEnv(), createDbClient, leg
         ? { ...initialSave(id, gender, id, body.job), uncreated: true }
         : initialSave(id, gender, '모험가', body.job);
       const sid = randomUUID();
+      // 게스트 계정 24시간 자동 삭제(작업 259) — 새 게스트를 만들기 전에 놀다 나간 게스트를 지운다.
+      // 정리 함수는 던지지 않으므로(실패는 로그 한 줄) 게스트 입장이 막히지 않는다.
+      if (action === 'guest') await cleanupExpiredGuests(db, { limit: GUEST_CLEANUP_LIMIT });
       try {
         const statements = [
           { sql: 'INSERT INTO djrpg_accounts (id,password_hash,save_json,updated_at,session_id) VALUES (?,?,?,?,?)', args: [id, action === 'guest' ? 'guest' : await hashPassword(password), JSON.stringify(save), new Date().toISOString(), sid] },
@@ -143,6 +147,8 @@ async function accountHandler(request, { env = runtimeEnv(), createDbClient, leg
     const row = await account(db, id);
     assertSession(row, signed.sid);
     if (action === 'load') {
+      // 토큰을 24시간 넘게 들고 노는 게스트가 24시간 정리에 휘말리지 않게 활동 시각을 다시 찍는다(작업 259).
+      await touchGuestActivity(db, row);
       // 소유권 테이블과 어긋난 유령 아이템을 내려보내지 않는다. 그대로 내려보내면 클라이언트의 다음 save가 영구 409가 된다.
       const save = await healStaleLoadItems(db, row);
       return res.status(200).json({ revision: row.revision, accountId: row.id, loginId: row.password_hash === 'guest' ? '게스트' : row.id, gender: save.gender, job: jobOf(save.job), guest: row.password_hash === 'guest', token: req.headers.authorization.slice(7), save, characterSlot: row.slot, needsSetup: save.needsSetup === true, offlineSeconds: await pendingOfflineSeconds(db, row.id, row.slot, row.character_updated_at), ...(isUncreated(save) ? { needsCharacter: true } : {}) });

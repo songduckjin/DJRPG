@@ -1,11 +1,13 @@
 import { Assets, Container, Rectangle, Sprite, Text, Texture } from 'pixi.js';
-import type { HeroAfterimage, World } from '../world';
+import type { HeroAfterimage } from '../world';
+import type { CombatEngine } from '../combat/engine';
 import { ELITE_MOB_SCALE, ENEMY_STRIKE_SECONDS } from '../world';
 import type { Save } from '../store';
 import { enemyFacing } from '../facing';
 import { heroAnimationMode, heroMotion, slash2SwingMotion } from './heroMotion';
 import { heroScale, heroBodyHeight, heroBodyFraction } from './heroScale';
 import { drawBloodRageAura } from './bloodRage';
+import { drawHawkEyeWindAura } from './hawkEyeWind';
 import { heroClass, socketMotion, weaponSocket } from './heroSockets';
 import { tintedGearTexture } from './gearTint';
 import { gearGlowAmount, gearGlowLayersFor, gearGlowTone, glowGearTexture } from './gearGlow';
@@ -493,7 +495,7 @@ function syncGearGlow(
   for (const layer of layers.slice(specs.length)) layer.visible = false;
 }
 
-export function activeSkillMotion(world: World): HeroSkillMotion {
+export function activeSkillMotion(world: CombatEngine): HeroSkillMotion {
   const player = world.player;
   for (const effect of world.effects) {
     if (effect.kind === 'hit' || effect.kind === 'death') continue;
@@ -535,7 +537,7 @@ function hideOtherJobParts(view: GameView, job: string): void {
 /**
  * 캐릭터를 바꿨을 때 히어로 레이어에 남은 것들을 비운다(작업 250).
  *
- * `World.adoptSave`는 월드(적·드롭·이펙트·잔상 기록)를 비우지만, 그리기 쪽 스프라이트(파츠·발광
+ * `CombatEngine.adoptSave`는 월드(적·드롭·이펙트·잔상 기록)를 비우지만, 그리기 쪽 스프라이트(파츠·발광
  * 복제본·잔상·크러싱 Trail)는 뷰가 들고 있어 그대로 남았다. 남은 스프라이트는 이전 캐릭터의
  * 장비·직업 그림이라 새 캐릭터 위에 겹쳐 그려지고, 잔상에도 복제된다(`#21206`).
  * 지연 로딩 캐시(시트 텍스처)는 그대로 두고 **화면에 그린 것과 미리 받기 기억(`last*`)** 만 비운다.
@@ -574,10 +576,10 @@ export function resetHeroLayers(view: GameView): void {
   view.lastHeroWorld = { x: 0, y: 0 }; view.heroWalkDistance = 0;
 }
 
-export function drawHero(this: GameView, world: World, x: number, y: number, time: number): void {
+export function drawHero(this: GameView, world: CombatEngine, x: number, y: number, time: number): void {
     const { player, save } = world;
     // 캐릭터를 바꿨으면 이전 캐릭터의 파츠·발광·잔상을 먼저 비운다(작업 250).
-    const epoch = (world as World & { switchEpoch?: number }).switchEpoch;
+    const epoch = (world as CombatEngine & { switchEpoch?: number }).switchEpoch;
     if (epoch !== undefined && this.heroSwitchEpoch !== epoch) {
       this.heroSwitchEpoch = epoch;
       resetHeroLayers(this);
@@ -894,7 +896,7 @@ function cloneHeroLayers(view: GameView): Container {
   return container;
 }
 
-export function updateAfterimages(this: GameView, world: World, project: (x: number, y: number) => [number, number], dt: number): void {
+export function updateAfterimages(this: GameView, world: CombatEngine, project: (x: number, y: number) => [number, number], dt: number): void {
     // 코스튬 모드에서는 캐릭터가 여러 레이어이므로 보이는 레이어를 모두 복제해 잔상을 만든다.
     // 폴백 모드는 기존처럼 통합 바디 한 장을 쓴다(작업 140 요구 4).
     const costumeSources = costumeGhostSources(this.costume);
@@ -983,7 +985,7 @@ export function updateCorpses(this: GameView, project: (x: number, y: number) =>
   }
 
 
-export function drawEntities(this: GameView, world: World, project: (x: number, y: number) => [number, number], time: number, dt: number, hx: number, hy: number, h: number): void {
+export function drawEntities(this: GameView, world: CombatEngine, project: (x: number, y: number) => [number, number], time: number, dt: number, hx: number, hy: number, h: number): void {
     const live = new Set(world.enemies);
     for (const [enemy, sprite] of this.enemies) if (!live.has(enemy)) {
       this.actors.removeChild(sprite); this.fallen.addChild(sprite); this.enemies.delete(enemy);
@@ -1048,8 +1050,11 @@ export function drawEntities(this: GameView, world: World, project: (x: number, 
     this.drawHero(world, hx, hy, time);
     // [작업 214] 전사 블러드 레이지는 발밑 타원 링 대신 몸 윤곽을 따라 타오르는 붉은 투기 오라로 그린다.
     drawBloodRageAura(this, world, hx, hy, time, dt, h * heroBodyFraction, this.textures.fxFlame, this.textures.fxRageGlow);
-    // 궁수 호크아이·마법사 아케인 실드는 종전의 발밑 마법진을 그대로 쓴다(전사만 새 오라).
-    if (world.player.berserk > 0 && jobOrDefault(world.save.job) !== 'warrior') {
+    // [작업 261] 궁수 호크아이는 발밑 마법진 대신 몸을 감아 올라가는 옅은 바람 오라로 그린다.
+    // 히어로 뒤/앞 가산 레이어(`rageBack`·`rageFront`)를 직업별 오라가 나눠 쓴다.
+    drawHawkEyeWindAura({ windBack: this.rageBack, windFront: this.rageFront }, world, hx, hy, time, dt, h * heroBodyFraction, this.textures.fxRageGlow);
+    // 마법사 아케인 실드는 종전의 발밑 마법진을 그대로 쓴다.
+    if (world.player.berserk > 0 && jobOrDefault(world.save.job) === 'mage') {
       const rage = world.effects.find(effect => effect.kind === 'warcry');
       const burst = rage ? 1 - rage.age / rage.duration : 0;
       const auraScale = 165 / this.aura.texture.width * (1 + burst * .8);

@@ -14,12 +14,12 @@
 // 접속 중 자동 분해가 켜져 있으면 떨어진 장비도 필드와 같은 규칙(`autoSalvageRecovered`)으로 금화·강화석이
 // 되고 가방에는 들어가지 않는다. 스킬북·잠금·등급 초과·빈 슬롯·더 좋은 장비 보호는 그대로다.
 
-import { canStoreItem } from './bagCapacity';
-import { jobOrDefault } from './skills';
+import { addItemToBag } from './rewardGrant';
 import { autoSalvageRecovered } from './inventory';
 import { DUNGEON_MAX_FLOOR, type Save } from './store';
 import type { Item, Rarity } from './items';
 import { dungeonClearedFloor } from './dungeonProgress';
+import { DUNGEON_KILLS_PER_FLOOR, killGold } from './progress';
 
 /** 층 번호를 1~`DUNGEON_MAX_FLOOR`로 다듬는다. */
 function depthOf(floor: number): number {
@@ -27,10 +27,11 @@ function depthOf(floor: number): number {
   return Math.max(1, Math.min(DUNGEON_MAX_FLOOR, Number.isFinite(value) ? Math.floor(value) : 1));
 }
 
-/** 그 층에서 처치가 남기는 금화 — 일반 층은 7마리 × (3 + 층), 보스 층은 70 × 층. */
+/** 그 층에서 처치가 남기는 금화 — 일반 층은 7마리 × (3 + 층), 보스 층은 70 × 층.
+ *  금화 규칙(`3 + 층`·`70 × 층`)은 `progress.ts` 한 곳에 있다(PR-3) — 여기서는 그 층 몹 7마리 몫만 곱한다. */
 export function dungeonKillGold(floor: number, boss = depthOf(floor) % 5 === 0): number {
   const depth = depthOf(floor);
-  return boss ? 70 * depth : 7 * (3 + depth);
+  return boss ? killGold(depth, { boss: true }) : DUNGEON_KILLS_PER_FLOOR * killGold(depth);
 }
 
 /** 클리어할 때마다 주는 강화석 — 층수 비례. */
@@ -93,8 +94,7 @@ export function claimDungeonRewards(
       const sweep = autoSalvageRecovered(save, item, options.autoSalvage, options.autoSalvagePlus);
       if (sweep) { salvaged.count++; salvaged.gold += sweep.gold; salvaged.stones += sweep.stones; continue; }
     }
-    if (!canStoreItem(save.bag, item, jobOrDefault(save.job))) { missed++; continue; }
-    save.bag.push(item);
+    if (!addItemToBag(save, item, 'dungeon')) { missed++; continue; }
     items.push(item);
   }
   return { floor: depth, firstClear, gold, stones, items, missed, salvaged };
