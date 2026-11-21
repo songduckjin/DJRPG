@@ -1,6 +1,7 @@
 import type { Gender, Save } from '../store';
 import { bowIndex, isBow, hasNoWeapon } from '../items';
 import { pilotSheet } from './pilotAssets';
+import { archerHelmPlacement } from './archerHelmets';
 
 /**
  * 착용 활 10종 외형 파츠 (작업 160).
@@ -82,6 +83,26 @@ export function bowPoseKey(motion: BowMotion, frame: number): string {
 export function bowPose(gender: Gender, motion: BowMotion, frame: number): BowPose {
   const table = BOW_POSES[gender] ?? BOW_POSES.male;
   return table[bowPoseKey(motion, frame)] ?? table.idle0;
+}
+
+/**
+ * 자세별 파츠 배치 + **본체 아트 배율**(작업 250).
+ *
+ * 사격·걷기 시트는 같은 궁수를 서기보다 작게 그린 판이다(사격 본체가 서기의 0.66~0.72배).
+ * 활 파츠 PNG 는 서기 셀에서 떠 있어(빌더 `align_head`가 서기 셀에 정합) 배율 1로 얹으면
+ * 사격할 때 **활만 40% 커져** 손에서 떨어진 것처럼 보인다 — 사용자 제보 `#21151`
+ * "공격할때 … 파츠별로 분리되는현상". 그래서 그립 점은 그대로 두고 파츠만 본체와 같은 배율로
+ * 줄인다(그립이 앵커라 손에서 미끄러지지 않는다).
+ *
+ * 배율의 단일 기준은 `archerHelmPlacement`(궁수 투구가 프레임마다 얼굴을 템플릿 정합해 잰
+ * 본체 배율)다. 두 표를 따로 적으면 어긋나므로 여기서 그대로 가져다 쓴다.
+ */
+export type BowPlacement = BowPose & { scale: number };
+
+export function bowPlacement(gender: Gender, motion: BowMotion, frame = 0): BowPlacement {
+  const pose = bowPose(gender, motion, frame);
+  const scale = motion === 'idle' ? 1 : archerHelmPlacement(gender, motion, frame).scale;
+  return { ...pose, scale };
 }
 
 /** 파츠 PNG 경로. 인덱스가 1~9 밖이면 undefined(0번은 본체 시트에 그려져 있다). */

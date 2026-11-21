@@ -42,6 +42,22 @@ export function marketSortIndexStatements() {
   statements.push('CREATE INDEX IF NOT EXISTS djrpg_market_sort_price ON djrpg_market(state, price ASC, created_at DESC, id)');
   return statements;
 }
+/**
+ * 묶음 등록 열 보정(작업 249).
+ *
+ * `CREATE TABLE IF NOT EXISTS`는 이미 있는 표를 바꾸지 않으므로, 2026-11-21 이전에 만들어진 DB에는
+ * `quantity`·`items_json`이 없다. 여기서 한 번만 더한다 — 실패해도 게임(로그인·저장)이 멈추지 않도록
+ * 예외를 밖으로 던지지 않고, 열이 없는 동안에는 `server/market.mjs`가 단건처럼 동작한다(묶음 등록 거부).
+ */
+async function addMarketBundleColumns(db) {
+  try {
+    const columns = new Set((await db.execute("SELECT name FROM pragma_table_info('djrpg_market')")).rows.map(row => String(row.name)));
+    if (!columns.has('quantity')) await db.execute('ALTER TABLE djrpg_market ADD COLUMN quantity INTEGER NOT NULL DEFAULT 1');
+    if (!columns.has('items_json')) await db.execute('ALTER TABLE djrpg_market ADD COLUMN items_json TEXT');
+  } catch (error) {
+    console.error(JSON.stringify({ event: 'market_bundle_columns_skipped', message: String(error?.message ?? error).slice(0, 160) }));
+  }
+}
 const transientDatabaseError = error => /SQLITE_BUSY|SQLITE_LOCKED|SERVER_ERROR|ETIMEDOUT|ECONNRESET|ECONNREFUSED|fetch failed|network|timeout|temporarily unavailable|service unavailable/i.test(String(error?.code ?? '') + ' ' + String(error?.message ?? ''));
 export async function schema(db, env = runtimeEnv()) {
   const key = db.url ?? env?.TURSO_DATABASE_URL ?? db;
@@ -51,7 +67,10 @@ export async function schema(db, env = runtimeEnv()) {
     'CREATE TABLE IF NOT EXISTS djrpg_journey (account_id TEXT PRIMARY KEY COLLATE NOCASE, state_json TEXT NOT NULL)',
     'CREATE TABLE IF NOT EXISTS djrpg_save_requests (account_id TEXT PRIMARY KEY COLLATE NOCASE, request_id TEXT NOT NULL, revision INTEGER NOT NULL)',
     'CREATE TABLE IF NOT EXISTS djrpg_save_versions (account_id TEXT PRIMARY KEY COLLATE NOCASE, revision INTEGER NOT NULL DEFAULT 0)',
-    `CREATE TABLE IF NOT EXISTS djrpg_market (id TEXT PRIMARY KEY, seller TEXT NOT NULL COLLATE NOCASE, seller_name TEXT NOT NULL, buyer TEXT COLLATE NOCASE, item_json TEXT NOT NULL, name TEXT NOT NULL, slot TEXT NOT NULL, rarity TEXT NOT NULL, price INTEGER NOT NULL, state TEXT NOT NULL, created_at INTEGER NOT NULL, expires_at INTEGER NOT NULL, sold_at INTEGER)`,
+    // 묶음 등록(작업 249): `price`는 **개당** 가격이고, `quantity`는 남은 수량, `items_json`은 아직 팔리지 않은
+    // 아이템들의 실제 JSON 배열이다(대표 `item_json`은 검색·정렬 인덱스용). 기존 행은 `quantity=1`·`items_json`
+    // 없음(NULL)이며 `item_json` 한 개짜리 매물로 읽힌다.
+    `CREATE TABLE IF NOT EXISTS djrpg_market (id TEXT PRIMARY KEY, seller TEXT NOT NULL COLLATE NOCASE, seller_name TEXT NOT NULL, buyer TEXT COLLATE NOCASE, item_json TEXT NOT NULL, name TEXT NOT NULL, slot TEXT NOT NULL, rarity TEXT NOT NULL, price INTEGER NOT NULL, state TEXT NOT NULL, created_at INTEGER NOT NULL, expires_at INTEGER NOT NULL, sold_at INTEGER, quantity INTEGER NOT NULL DEFAULT 1, items_json TEXT)`,
     'CREATE INDEX IF NOT EXISTS djrpg_market_state_time ON djrpg_market(state, created_at)',
     'CREATE INDEX IF NOT EXISTS djrpg_market_seller ON djrpg_market(seller, state)',
     'CREATE INDEX IF NOT EXISTS djrpg_market_recent_price ON djrpg_market(state,name,rarity,sold_at)',
@@ -99,14 +118,19 @@ export async function schema(db, env = runtimeEnv()) {
       catch (error) { if (!/duplicate column name/i.test(String(error?.message ?? error))) throw error; }
     }
     // 정렬 인덱스(작업 211)는 같은 배치에 넣는다 — 스키마는 프로세스마다 한 번이면 충분하다.
-    try { return await db.batch([...statements.slice(1), ...marketSortIndexStatements()], 'write'); }
+    let created;
+    try { created = await db.batch([...statements.slice(1), ...marketSortIndexStatements()], 'write'); }
     catch (error) {
       // 전송 오류는 바깥 재시도가 맡는다. 그 밖의 실패(인덱스 표현식을 지원하지 않는 DB 등)에서는 인덱스를
       // 빼고 스키마만 다시 만든다 — 인덱스는 속도만 담당하므로 게임이 멈추면 안 된다.
       if (transientDatabaseError(error)) throw error;
       console.error(JSON.stringify({ event: 'market_index_skipped', name: error?.name ?? 'Error', message: String(error?.message ?? error).slice(0, 120) }));
-      return db.batch(statements.slice(1), 'write');
+      created = await db.batch(statements.slice(1), 'write');
     }
+    // 기존 DB에는 없는 묶음 등록 열을 더한다(작업 249) — `ADD COLUMN`은 기존 행을 건드리지 않으므로
+    // 이미 올라간 매물은 `quantity=1`·`items_json` NULL인 단건 매물로 그대로 남는다.
+    await addMarketBundleColumns(db);
+    return created;
   };
   const initialized = (async () => {
     try { return await initialize(); }
@@ -195,9 +219,10 @@ export function inventoryOwnerQuery(id, incoming) {
   const bag = Array.isArray(incoming?.bag) ? incoming.bag : [];
   const equipment = incoming?.equipment && typeof incoming.equipment === 'object' ? Object.values(incoming.equipment) : [];
   if (incoming !== undefined) validateSave(incoming);
-  // 가방 40칸은 `reconcileItems`가 서버 세이브와 비교해 판정한다(작업 246). 여기서는 장비 칸 수만 본다 —
-  // 이 함수는 트랜잭션의 첫 배치에서 서버 세이브를 읽기 전에 불리므로, 넘친 가방을 400으로 막으면
-  // 서버가 스스로 만든 초과분 때문에 거래·우편이 영구히 잠긴다.
+  // 가방 40칸은 **장비·타직업 스킬북·보물 주머니**를 세고 내 직업 스킬북은 세지 않는다(작업 253·248).
+  // 최종 판정은 `before`를 아는 `reconcileItems` 한 곳에서 한다(작업 246) — 이 함수는 트랜잭션의 첫 배치에서
+  // 서버 세이브를 읽기 전에 불리므로, 여기서는 장비 칸 수만 본다. 넘친 가방을 400으로 막으면 서버가 스스로
+  // 만든 초과분 때문에 거래·우편이 영구히 잠긴다.
   if (equipment.length > 10) fail(400, 'INVALID_SAVE', '가방 또는 장비 데이터가 올바르지 않습니다.');
   const ids = [...bag, ...equipment].map(item => item?.id).filter(value => typeof value === 'string');
   return { sql: `SELECT o.*, m.slot AS character_slot FROM djrpg_item_owners o LEFT JOIN djrpg_character_item_owners m ON m.item_id=o.item_id WHERE o.item_id IN (
@@ -236,15 +261,18 @@ const sameItemBody = (a, b) => Boolean(a && b) && a.id === b.id && ringSlot(a) =
 const ownerItem = owner => { try { const value = JSON.parse(owner.item_json); return value && typeof value === 'object' ? value : undefined; } catch { return undefined; } };
 export async function reconcileItems(tx, id, before, after, options = {}) {
   const next = itemsOf(after), previous = itemsOf(before), ids = new Set();
-  // 40칸 검사는 장비 + **다른 직업 전용 스킬북**을 함께 센다(작업 210) — 내 직업 책과 보물 주머니는 빼다.
+  // 가방 40칸은 **장비·타직업 스킬북·보물 주머니** 1개 = 1칸으로 센다(작업 253 — 내 직업 스킬북은 세지 않는다).
+  // 이미 40개를 넘긴 세이브(예전 규칙에서 받아 둔 스킬북·주머니)는 저장을 거부하면 게임이
+  // 통째로 잠기므로 **지금 개수 이하를 유지하는 저장은 허용**하고, 늘리는 저장만 막는다.
   // 새로 만들어지는 아이템(소유 기록 없는 id)의 상한 — 마지막 저장 이후 서버가 아는 시간과 층으로 정한다.
   const guard = rewardBudget(before, options.elapsedSeconds);
   const mintFloor = Math.max(1, Number(before?.maxFloor ?? before?.floor ?? 1) || 1) + guard.bosses;
   let minted = 0;
-  // 상한은 "이미 서버가 들고 있는 수"까지 — 서버가 보상으로 넣어 준 초과분을 저장에서 막지 않는다(작업 246).
+  // 상한은 **이미 서버가 들고 있는 수**(`max(40, 현재 칸)`)까지 — 서버가 보상으로 넣어 준 초과분을 저장에서
+  // 막지 않고, 클라이언트가 그 위로 더 넣는 것만 거절한다(작업 246·248, 가방은 모든 아이템을 센다).
   const bagLimit = bagCapacityLimit(before);
   if (!Array.isArray(after.bag) || !after.equipment || typeof after.equipment !== 'object' || Object.values(after.equipment).length > 10) fail(400, 'INVALID_SAVE', '가방 또는 장비 데이터가 올바르지 않습니다.');
-  if (countedBagItems(after.bag, after.job) > bagLimit) fail(400, 'INVALID_SAVE', `가방이 ${bagLimit}칸까지입니다. 장비·다른 직업 스킬북을 분해하거나 거래소에 올려 자리를 비워 주세요.`);
+  if (countedBagItems(after.bag, after.job) > bagLimit) fail(400, 'INVALID_SAVE', `가방이 ${bagLimit}칸까지입니다. 장비·스킬북·보물 주머니를 분해하거나 거래소에 올려 자리를 비워 주세요.`);
   const previousValid = previous.filter(itemValid);
   const previousById = new Map(previousValid.map(item => [item.id, item]));
   const allIds = [...new Set([...previousValid, ...next].map(item => item?.id).filter(id => typeof id === 'string'))];
@@ -351,8 +379,10 @@ export async function writeSave(tx, row, save, operations = [], preserveCollecti
   // 서버 검증 경계(작업 209): 마지막 저장 이후 **서버 시계로 흐른 시간**과 층·직업 규칙으로 계산한 상한만
   // 인정한다. 정상 플레이 값은 상한 아래라 그대로 통과하고, 넘치는 값만 잘라 낸다(거부하지 않는다).
   // 거래소 판매대금·우편 보상처럼 서버가 같은 트랜잭션에서 더해 준 몫은 `credits`로 넘겨 상한에 더한다.
+  // 캐릭터 전환 직후에는 방치 시간이 `idle_claim_${slot}`에 옮겨지고 `updated_at`이 전환 시각으로 덮이므로,
+  // 그 초를 함께 인정한다(`credits.idleSeconds`, 작업 252) — 방치 보상의 금화·경험치가 잘리지 않게 한다.
   const { clamped } = clampSaveProgress(row.save, save, {
-    elapsedSeconds: elapsedSince(row.character_updated_at),
+    elapsedSeconds: elapsedSince(row.character_updated_at) + Math.max(0, Math.min(43_200, Number(credits.idleSeconds) || 0)),
     goldCredit: credits.goldCredit,
     stoneCredit: credits.stoneCredit,
     dungeonFloorCap: row.dungeon_record_floor
@@ -388,8 +418,8 @@ export async function writeSave(tx, row, save, operations = [], preserveCollecti
   const previousCollection = preserveCollection && Array.isArray(row.save.equipmentCollection) ? row.save.equipmentCollection : [];
   const incomingCollection = Array.isArray(save.equipmentCollection) ? save.equipmentCollection : [];
   // 발견 기록은 **등급별 한 칸**(`부위:번호:등급`)이다(작업 208) — 옛 `부위:번호` 키는 버린다.
-  // 무기는 대검 0~9 · 활 10~19 · 지팡이 20~29라 번호가 두 자리까지 온다. 95종 × 6등급 = 570칸.
-  save.equipmentCollection = [...new Set([...previousCollection, ...incomingCollection].filter(key => typeof key === 'string' && /^(weapon|offhand|helmet|armor|necklace|gloves|belt|boots|ring):\d{1,2}:(common|magic|rare|epic|unique|legendary)$/.test(key)))].slice(0, 570);
+  // 무기·투구·갑옷은 전사 0~9 · 궁수 10~19 · 마법사 20~29라 번호가 두 자리까지 온다(작업 249). 135종 × 6등급 = 810칸.
+  save.equipmentCollection = [...new Set([...previousCollection, ...incomingCollection].filter(key => typeof key === 'string' && /^(weapon|offhand|helmet|armor|necklace|gloves|belt|boots|ring):\d{1,2}:(common|magic|rare|epic|unique|legendary)$/.test(key)))].slice(0, 810);
   if (!Number.isSafeInteger(save.gold) || save.gold < 0 || save.gold > 9_000_000_000_000) fail(400, 'INVALID_GOLD', '금화 값이 올바르지 않습니다.');
   if (Number(row.slot) < 1 || Number(row.slot) > Number(row.max_slots ?? 3)) fail(409, 'CHARACTER_CONFLICT', '현재 캐릭터를 다시 불러오세요.');
   if (!row.skipJourney) operations = [...operations, journeyOperation(row.id, await journeyState(tx, row, save))];

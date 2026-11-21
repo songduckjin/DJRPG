@@ -14,7 +14,7 @@ import './ts-loader.mjs';
 const items = await import('../src/game/items.ts');
 const {
   MAX_PLUS, PLUS_STAT_BONUS, applyPlus, baseItems, estimatePlus, itemDisplayName, maxPlusFor, maxTierBonus,
-  migrateItem, plusOf, plusWeights, rarityScales, rollItem, rollPlus,
+  migrateItem, plusOf, plusWeights, rarityScales, rollItem, rollPlus, slotProfiles,
 } = items;
 const { freshSave, parseSave } = await import('../src/game/store.ts');
 const { renderItemName } = await import('../src/ui/itemName.ts');
@@ -82,9 +82,12 @@ test('each 강화 단계 adds 8% to every stat, so +7 is 1.56× the roll', () =>
     assert.equal(Number.isInteger(item.plus), true);
     if (item.plus === 0) continue;
     const factor = 1 + item.plus * PLUS_STAT_BONUS;
-    const primary = ['weapon', 'ring1', 'ring2', 'gloves'].includes(item.slot) ? 'attack' : 'defense';
+    // 주 스탯(작업 255): 슬롯 배분에서 공격이 방어보다 큰 쪽이다 — 무기·목걸이·장갑·반지는 공격,
+    // 투구·갑옷·문장·벨트·신발은 방어. 부위마다 배율이 달라(반지 0.35 ~ 무기 1.18) 하한도 낮춘다.
+    const profile = slotProfiles[item.slot];
+    const primary = profile.attack >= profile.defense ? 'attack' : 'defense';
     const unscaled = (item.stats[primary] ?? 0) / factor;
-    assert(unscaled > 30 && unscaled < 400, `${primary} ${item.stats[primary]}가 +${item.plus}만큼 부풀어 있다`);
+    assert(unscaled > 8 && unscaled < 400, `${primary} ${item.stats[primary]}가 +${item.plus}만큼 부풀어 있다`);
   }
   // 깊은 층일수록 강화가 붙은 장비가 흔하고, 얕은 층(10층 이하)에는 아예 없다.
   let deep = 0, shallow = 0;

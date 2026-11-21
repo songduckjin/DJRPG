@@ -14,9 +14,9 @@ const { freshSave, totalStats } = await import('../src/game/store.ts');
  *    평타 넉백(16)에 밀려도 76이라 사거리 안에 남아 때리고 걷기를 반복하지 않는다.
  * ③ 던전도 같은 상수를 쓴다(추가 걸음·0.9초 피격).
  */
-const hero = (level = 20) => {
+const hero = (level = 20, attack = 120) => {
   const save = freshSave(); save.level = level;
-  save.equipment = { weapon: { id: 'probe', name: '두손검', slot: 'weapon', rarity: 'legendary', stats: { attack: 120 } } };
+  save.equipment = { weapon: { id: 'probe', name: '두손검', slot: 'weapon', rarity: 'legendary', stats: { attack } } };
   return save;
 };
 
@@ -123,10 +123,13 @@ test('던전: 정지 거리 밖의 적은 추가 걸음으로도 몸까지 파�
 });
 
 test('던전은 새 거리에서도 같은 장비로 같은 층을 깬다(리플레이 계약 유지)', () => {
-  const deep = hero(30);
+  // 사거리 90(작업 254) + 던전 피해 `층×1`(사용자 확정) 기준 — 5층은 Lv50·공격 441 장비에서 깬다.
+  const deep = hero(50, 320);
   const battle = runDungeonBattle(deep, 5, 97531);
-  assert.equal(battle.outcome, 'clear', 'Lv30·공격 320 장비는 5층 보스를 90초 안에 잡는다');
+  assert.equal(battle.outcome, 'clear', 'Lv50·공격 441 장비는 5층 보스를 90초 안에 잡는다');
   assert(battle.elapsed < 90);
+  // 거리 통일 뒤 던전이 무피해가 되지 않았는지 — 클리어해도 체력이 줄어 있어야 한다.
+  assert(battle.world.player.hp < totalStats(deep).health, '몬스터가 실제로 때린다');
   const beginner = hero(10);
   const first = runDungeonBattle(beginner, 1, 97531);
   assert.equal(first.outcome, 'clear', '1층은 초보 장비로도 깬다');

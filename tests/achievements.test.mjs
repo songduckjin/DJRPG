@@ -28,7 +28,8 @@ test('업적 단계는 사용자 확정 7개 분류·목표로 바뀌었다 (작
   assert.deepEqual(steps(achievements, '몬스터 처치').map(step => step[0]), [1000, 5000, 15000, 30000, 60000, 120000, 250000]);
   assert.deepEqual(steps(achievements, '보스 처치').map(step => step[0]), [10, 50, 100, 150, 200]);
   assert.deepEqual(steps(achievements, '최고 도달 층').map(step => step[0]), [5, 10, 15, 20]);
-  assert.deepEqual(steps(achievements, '장비 도감 수집').map(step => step[0]), [10, 50, 100, 200, 300, 450, 570]);
+  // 투구·갑옷이 직업별 3갈래가 되며 도감 칸이 570 → 810(작업 249). 마지막 단계만 810.
+  assert.deepEqual(steps(achievements, '장비 도감 수집').map(step => step[0]), [10, 50, 100, 200, 300, 450, 810]);
   assert.deepEqual(steps(achievements, '스킬 강화 횟수').map(step => step[0]), [5, 15, 30, 50, 100]);
   assert.deepEqual(steps(achievements, '최고 스킬 레벨').map(step => step[0]), [5, 10, 15, 20, 25, 30]);
   // 거래소 거래 완료(작업 224, 사용자 확정 `#6289`·`#6294`) — 6단계 1·5·15·30·50·100회.
@@ -41,7 +42,7 @@ test('업적 단계는 사용자 확정 7개 분류·목표로 바뀌었다 (작
     ['kills-15000', 1], ['kills-30000', 1], ['kills-60000', 1], ['kills-120000', 1], ['kills-250000', 2],
     ['boss-100', 1], ['boss-150', 1], ['boss-200', 2],
     ['floor-15', 1], ['floor-20', 2],
-    ['collection-100', 1], ['collection-200', 1], ['collection-300', 1], ['collection-450', 1], ['collection-570', 2],
+    ['collection-100', 1], ['collection-200', 1], ['collection-300', 1], ['collection-450', 1], ['collection-810', 2],
     ['skills-30', 1], ['skills-50', 1], ['skills-100', 2],
     ['rank-15', 1], ['rank-20', 1], ['rank-25', 1], ['rank-30', 2],
     ['market-15', 1], ['market-30', 1], ['market-50', 1], ['market-100', 2]
@@ -93,7 +94,7 @@ test('스킬 강화 횟수는 배운 스킬의 1레벨을 뺀 합계다', () => 
   assert.deepEqual(skills.filter(task => task.current >= task.target).map(task => task.id), ['skills-5']);
 });
 
-test('장비 도감 수집은 등급별 발견 칸만 센다 — 570칸이 마지막 단계', () => {
+test('장비 도감 수집은 등급별 발견 칸만 센다 — 810칸이 마지막 단계', () => {
   const keys = ['weapon:0:common', 'weapon:0:magic', 'armor:3:legendary', 'weapon:3', 'unknown:1:rare', 42];
   assert.equal(collectionCount({ equipmentCollection: keys }), 3, '구키·알 수 없는 키는 세지 않는다');
   // 투구 10종 × 6등급 = 60칸을 모두 발견한 세이브.
