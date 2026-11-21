@@ -15,14 +15,15 @@ const css = readFileSync(new URL('../src/styles/dungeon.css', import.meta.url), 
 const gear = id => ({ id, name: '강철 쯔바이핸드', slot: 'weapon', rarity: 'rare', stats: { attack: 9 } });
 const book = (id, skillId = 'spin') => ({ id, name: '[스킬북] 회전', slot: 'skillbook', kind: 'skillbook', skillId, rarity: 'rare', stats: {} });
 
-test('던전 적 피해는 최대 체력 상한 없이 필드 2×층 공격력을 쓴다(작업 248)', () => {
-  // 상한(0.5%/0.8%)이 없어졌다: 필드 20층(던전 10층) 공격력은 Lv.1 캐릭터 최대 체력의 몇 배다.
+test('던전 적 피해는 최대 체력 상한 없이 필드 같은 층 공격력을 쓴다(작업 248 → 254)', () => {
+  // 상한(0.5%/0.8%)이 없어졌다: 던전 10층 공격력은 Lv.1 캐릭터 최대 체력의 몇 배다.
+  // [작업 254] 사거리가 90이 되며 층×2 매핑이 5층을 Lv60 구간으로 밀어 올려 **층×1**로 낮췄다(사용자 확정).
   const hit = battle.dungeonHitDamage(10, false, 0);
-  assert.equal(hit, world.enemyHitDamage(20, false, 0), '던전 10층 = 필드 20층 공격력');
-  assert.equal(battle.dungeonHitDamage(3, false, 0), world.enemyHitDamage(6, false, 0), '던전 3층 = 필드 6층 공격력');
+  assert.equal(hit, world.enemyHitDamage(10, false, 0), '던전 10층 = 필드 10층 공격력');
+  assert.equal(battle.dungeonHitDamage(3, false, 0), world.enemyHitDamage(3, false, 0), '던전 3층 = 필드 3층 공격력');
   assert(hit > 100 * .008 * 4, `한 대가 최대 체력의 0.8%를 훌쩍 넘는다 (${hit})`);
-  assert.equal(battle.dungeonHitDamage(5, true, 0), world.enemyHitDamage(10, true, 0), '보스도 같은 층 기준');
-  assert.equal(battle.dungeonHitDamage(1, false, 0, true), world.enemyHitDamage(2, false, 0) * 2, '정예는 2배');
+  assert.equal(battle.dungeonHitDamage(5, true, 0), world.enemyHitDamage(5, true, 0), '보스도 같은 층 기준');
+  assert.equal(battle.dungeonHitDamage(1, false, 0, true), world.enemyHitDamage(1, false, 0) * 2, '정예는 2배');
   // 서버 리플레이는 클라이언트 전투를 그대로 다시 돌린다 — 피해 식이 두 곳에 따로 있으면 안 된다.
   const verify = readFileSync(new URL('../server/dungeon-verify.mjs', import.meta.url), 'utf8');
   assert.match(verify, /from '\.\.\/src\/ui\/dungeonBattle\.ts'/);

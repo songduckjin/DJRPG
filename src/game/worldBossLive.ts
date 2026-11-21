@@ -4,6 +4,8 @@ import type {Save} from './store';
 import type {BossStanding} from '../ui/worldBossPresentation';
 import type {Interface} from '../ui/interface';
 export type BossData={day:string;hp:number;maxHp:number;remaining:number;/** 하루 도전 횟수 상한(서버 WORLD_BOSS_DAILY_ATTEMPTS, 작업 210 - 3회). */maxAttempts?:number;endsAt:number;killed:boolean;guest:boolean;standing:BossStanding;now:number;battle?:{id:string;startedAt:number;elapsed:number;damage:number;hp:number;finished:boolean;defeated:boolean;record?:{status:'first'|'improved'|'unchanged';previousBestDamage:number;bestDamage:number};save?:Save}};
+/** 월드보스 공유 체력·남은 도전을 다시 읽는 간격(작업 245 폴링 절감). */
+export const WORLD_BOSS_REFRESH_MS=40000;
 export type BossPreparation=Promise<{ok:true}|{ok:false;message:string}>;
 export class WorldBossLive {
   data?:BossData;error='';loading=false;private loadPromise?:Promise<BossData>;
@@ -45,6 +47,11 @@ export function mountWorldBossLive(ui:Interface):void {
     if(health){const bar=health.querySelector<HTMLElement>('i'),label=health.querySelector('span');if(bar)bar.style.width=`${data?data.hp/data.maxHp*100:0}%`;if(label)label.textContent=live.error||(!data?'공유 체력 확인 중…':data.killed?'오늘의 월드보스 처치 완료':`${data.hp.toLocaleString('ko-KR')} / ${data.maxHp.toLocaleString('ko-KR')}`);}
     const start=ui.root.querySelector<HTMLButtonElement>('.world-boss-content .wb-challenge');if(start&&!live.practice){start.disabled=!data||data.killed||data.remaining===0;start.textContent=!data?'연결 중…':data.killed?'토벌 완료':data.remaining===0?'오늘 도전 완료':`도전하기 · ${data.remaining}/${data.maxAttempts??3}`;}
   };
+  // 무료 Functions 한도(10만 건/일) 절감: 공유 체력·남은 횟수는 40초에 한 번이면 충분하다(작업 245에서
+  // 5초→30초, 이번에 20초→40초). 숨은 탭·전투 중·저장 잠금 중에는 보내지 않고, 탭이 돌아오면 곧바로 한 번 확인한다.
   live.onChange();const refresh=()=>{if(!document.hidden&&!ui.worldBossField&&!live.sync.locked&&!live.sync.conflicted)void live.load().catch(()=>{});};
-  refresh();const timer=setInterval(refresh,20000);window.addEventListener('pagehide',()=>clearInterval(timer),{once:true});
+  refresh();const timer=setInterval(refresh,WORLD_BOSS_REFRESH_MS);
+  const wake=()=>{if(!document.hidden)refresh();};
+  document.addEventListener('visibilitychange',wake);window.addEventListener('online',wake);
+  window.addEventListener('pagehide',()=>{clearInterval(timer);document.removeEventListener('visibilitychange',wake);window.removeEventListener('online',wake);},{once:true});
 }

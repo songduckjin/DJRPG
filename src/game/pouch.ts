@@ -3,6 +3,7 @@ import {
   type EquipmentItem, type Item, type Rarity, type SkillBook, type TreasurePouch
 } from './items';
 import type { Save } from './store';
+import { addItemToBag } from './rewardGrant';
 
 /**
  * 무작위 보물 주머니의 확률표 (작업 207, 사용자 최종 확정).
@@ -112,7 +113,7 @@ export function openPouch(save: Save, id?: string, random: () => number = Math.r
   const result = rollPouch(save.maxFloor || save.floor || 1, random);
   save.bag = save.bag.filter(item => item.id !== pouch.id);
   if (result.kind === 'gold') save.gold += result.gold;
-  else save.bag.push(result.item);
+  else addItemToBag(save, result.item, 'pouch', { enforceCapacity: false });
   return { ok: true, pouch, result, remaining: pouchCount(save) };
 }
 

@@ -3,9 +3,10 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import './ts-loader.mjs';
+import { modalStyles } from './helpers/modal-styles.mjs';
 
 const { renderCharacters, renderCreateCharacter } = await import('../src/ui/modals/charactersModal.ts');
-const css = readFileSync(fileURLToPath(new URL('../src/styles/modals.css', import.meta.url)), 'utf8');
+const css = modalStyles();
 
 class Node {
   children = []; attributes = {}; className = ''; textContent = ''; type = ''; onclick = null; disabled = false;

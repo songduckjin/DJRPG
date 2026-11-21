@@ -323,7 +323,10 @@ export class CombatEngine {
     // 추가옵션(작업 238): `추가 데미지`는 최종 피해에 곱하고, `피흡`은 실제로 가한 피해에서 회복한다.
     // 두 값 모두 상한이 걸려 있다(`effectiveExtraOptions`) — 피흡은 한 번의 타격에 최대 체력의 4%까지다.
     const extras = effectiveExtraOptions(this.save.equipment);
-    const power = extras.bonusDmgPct > 0 ? amount * (1 + extras.bonusDmgPct / 100) : amount;
+    // 추가 데미지(작업 260): 예전에는 기본 피해에 곱해 한 숫자로 띄웠다(`amount * (1 + bonus%)`).
+    // 이제 기본 피해와 추가 피해를 **계산은 그대로** 나눠 두 장으로 띄운다 — 기본은 흰색(치명타면 빨강),
+    // 추가 몫은 노란색으로 한 줄 위에 뜬다. 두 값의 합이 예전 한 방과 같아 체력·피흡·처치 속도는 불변이다.
+    const bonusPct = extras.bonusDmgPct > 0 ? extras.bonusDmgPct : 0;
     // 치명타(작업 245): 장비 추가옵션 `치명타 확률`은 이제 표시가 아니라 실제 발동이다. 스탯 `crit`(%)을
     // 그대로 확률로 쓰고, 타마다 한 번씩 굴려 들어가면 1.8배로 터뜨린다(상한 80%). 굴림은 `critRoll`을
     // 거치므로 월드보스 서버 재계산도 같은 순서로 나온다.
@@ -333,13 +336,19 @@ export class CombatEngine {
     let dealt = 0;
     for (const { enemy, dx, dy, dist } of targets) {
       const crit = critChance > 0 && this.critRoll() * 100 < critChance;
-      const hit = crit ? power * CRIT_DAMAGE_SCALE : power;
+      const baseHit = crit ? amount * CRIT_DAMAGE_SCALE : amount;
+      const bonusHit = bonusPct > 0 ? baseHit * bonusPct / 100 : 0;
+      const hit = baseHit + bonusHit;
       enemy.hp -= hit;
       dealt += hit;
       enemy.hit = .24;
       enemy.slow = Math.max(enemy.slow, slow);
       if (knockback && dist) { enemy.knockX += dx / dist * knockback * 16; enemy.knockY += dy / dist * knockback * 16; }
-      this.effects.push({ x: enemy.x, y: enemy.y, kind: 'hit', age: 0, duration: .45, angle: random() * Math.PI * 2, amount: Math.round(hit), labelOffsetX: labelOffset?.x, labelOffsetY: labelOffset?.y, crit });
+      // 숫자 두 장이 같은 난수를 한 번만 쓴다(타격당 `random()` 1회 유지 — 월드보스 서버 재계산·던전
+      // 시드 리플레이가 같은 순서로 굴러간다). 추가 몫은 같은 방향에서 반대로 흩어져 겹치지 않는다.
+      const spray = random() * Math.PI * 2;
+      this.effects.push({ x: enemy.x, y: enemy.y, kind: 'hit', age: 0, duration: .45, angle: spray, amount: Math.round(baseHit), labelOffsetX: labelOffset?.x, labelOffsetY: labelOffset?.y, crit });
+      if (bonusHit > 0) this.effects.push({ x: enemy.x, y: enemy.y, kind: 'hit', age: 0, duration: .45, angle: spray + Math.PI, amount: Math.max(1, Math.round(bonusHit)), labelOffsetX: labelOffset?.x, labelOffsetY: (labelOffset?.y ?? 0) - 18, bonus: true });
     }
     if (extras.lifestealPct > 0 && dealt > 0) this.lifesteal(dealt, extras.lifestealPct);
     const dead = this.enemies.filter(e => e.hp <= 0);
@@ -466,7 +475,8 @@ export class CombatEngine {
         const taken = enemyHitDamage(this.save.floor, enemy.boss, totalStats(this.save).defense);
         p.hp = Math.max(0, p.hp - taken);
         // 맞은 표시 — 적이 할퀴고 지나간 자국과 잃은 체력 숫자(작업 245).
-        this.effects.push({ x: p.x, y: p.y, kind: 'enemyStrike', age: 0, duration: .5, angle: Math.atan2(dy, dx), amount: taken });
+        // 맞은 피해는 **정수**로 띄운다(작업 260) — 방어력 0.2배가 소수라 `-7.2`처럼 보이던 숫자를 7로.
+        this.effects.push({ x: p.x, y: p.y, kind: 'enemyStrike', age: 0, duration: .5, angle: Math.atan2(dy, dx), amount: Math.round(taken) });
         if (p.hp <= 0) this.heroDown(enemy);
       }
       enemy.hit = Math.max(0, enemy.hit - dt);

@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import './ts-loader.mjs';
+import { modalStyles } from './helpers/modal-styles.mjs';
 
 const { freshSave } = await import('../src/game/store.ts');
 const { countedInBag, canStoreItem, equipmentCount } = await import('../src/game/bagCapacity.ts');
@@ -130,7 +131,7 @@ test('스킬 창은 내 직업 스킬북만 카드로 보여 준다', () => {
     assert(toString(cards[0]).includes('드래곤 트위스터'));
     assert(!toString(parent).includes('더블 샷'), '다른 직업 책은 카드가 없다');
     assert(toString(parent).includes('다른 직업 전용 스킬북은 가방에서'), '가방 안내 한 줄');
-    const css = readFileSync(new URL('../src/styles/modals.css', import.meta.url), 'utf8');
+    const css = modalStyles();
     assert(css.includes('.skill-book-hint'), '안내 스타일');
   } finally { globalThis.document = previous; }
 });

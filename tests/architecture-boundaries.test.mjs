@@ -137,15 +137,16 @@ test('서버 클로저(server·api·functions)는 src/ui 파일을 하나도 포
     '서버가 화면 코드를 import하면 UI 리팩터가 서버 배포를 유발하고, 타입 import가 값 import로 바뀌는 순간 pixi.js가 Functions 번들로 들어온다.');
 });
 
-test('서버 클로저는 pixi.js·헬퍼 스타일시트를 포함하지 않고, src 쪽 의존은 src/game뿐이다', () => {
+test('서버 클로저는 pixi.js·헬퍼 스타일시트를 포함하지 않고, src 쪽 의존은 src/game·src/core뿐이다', () => {
   const external = new Set();
   for (const file of closure.keys()) for (const edge of edgesOf(file)) if (!edge.typeOnly) external.add(edge.spec);
   const forbidden = [...external].filter(spec => spec === 'pixi.js' || spec.startsWith('pixi.js/') || spec.startsWith('@pixi/'));
   assert.deepEqual(forbidden, [], '서버 번들에 렌더러가 들어오면 콜드 스타트가 무거워지고 DOM 없는 런타임에서 깨진다.');
   const sourceFiles = [...closure.keys()].filter(file => file.startsWith('src/'));
-  const outsideGame = sourceFiles.filter(file => !file.startsWith('src/game/'));
+  // `src/core/**`는 UI(#285 도메인 이벤트 버스)에 붙지 않은 공용 코어로, DOM-free다.
+  const outsideGame = sourceFiles.filter(file => !file.startsWith('src/game/') && !file.startsWith('src/core/'));
   assert.deepEqual(outsideGame.map(file => chainTo(closure, file)), [],
-    '서버가 쓸 수 있는 클라이언트 코드는 DOM-free인 src/game/**뿐이다.');
+    '서버가 쓸 수 있는 클라이언트 코드는 DOM-free인 src/game/**·src/core/**뿐이다.');
 });
 
 test('서버 클로저 안에서 DOM API를 쓰는 파일은 문서화된 예외뿐이다', () => {
@@ -218,7 +219,8 @@ const SEASON_KEPT = new Set(['djrpg_accounts', 'djrpg_characters', 'djrpg_accoun
   'djrpg_shop_wallet', 'djrpg_shop_orders', 'djrpg_shop_ledger', 'djrpg_shop_entitlements', 'djrpg_shop_requests',
   'djrpg_dungeon_attempts']);
 
-const SCHEMA = schemaTables('server/database.mjs', 'server/dungeon-schema.mjs', 'server/world-boss-schema.mjs');
+// 작업 260에서 DDL이 `server/db/schema.mjs`로 옮겨졌다(파사드 `server/database.mjs`에는 DDL이 없다).
+const SCHEMA = schemaTables('server/db/schema.mjs', 'server/journey-requests.mjs', 'server/dungeon-schema.mjs', 'server/world-boss-schema.mjs');
 
 test('스키마가 만드는 모든 표가 탈퇴(ACCOUNT_TABLES) 등록부에 있다', () => {
   const missing = [...SCHEMA].filter(table => !NOT_ACCOUNT_SCOPED.has(table) && !ACCOUNT_TABLES.includes(table));
@@ -247,7 +249,7 @@ test('이관 스크립트 목록이 스키마 표를 모두 덮는다(상점 5�
   assert.deepEqual(stray, [], '이관 목록에만 있는 표 이름이 있다.');
   const optionalOutside = MIGRATE_OPTIONAL.filter(table => !MIGRATE_TABLES.includes(table));
   assert.deepEqual(optionalOutside, [], 'OPTIONAL_TABLES는 복사 목록의 부분집합이어야 한다(빠지면 조용히 건너뛴다).');
-  assert.deepEqual([...MIGRATE_OPTIONAL].sort(), ['djrpg_announcements', 'djrpg_meta',
+  assert.deepEqual([...MIGRATE_OPTIONAL].sort(), ['djrpg_announcements', 'djrpg_journey_requests', 'djrpg_meta',
     'djrpg_shop_entitlements', 'djrpg_shop_ledger', 'djrpg_shop_orders', 'djrpg_shop_requests', 'djrpg_shop_wallet'].sort(),
   '예전 공용 DB에 없을 수 있어 건너뛰는 표 목록이 바뀌었다 — 바꿀 이유를 주석에 적어라.');
 });

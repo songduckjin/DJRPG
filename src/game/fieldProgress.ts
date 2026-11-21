@@ -15,6 +15,7 @@
  */
 
 import { canStoreItem } from './bagCapacity';
+import { emitDomainEvent } from '../core/domainEvents';
 import { bossGoldPiles, bossGoldSpot } from './bossLoot';
 import { rollItem, totalStats, type Item, type Rarity, type Save } from './store';
 import { afterBossLose, afterBossWin, afterFloorClear, applyKillReward, defeatPenalty, killsToBoss, MAX_FLOOR, recordBossLoss } from './progress';
@@ -160,6 +161,9 @@ export class FieldProgress extends CombatEngine {
     // 월드보스 도전. 필드 정예 몹은 보스가 아니므로 세지 않는다. 정예는 금화·경험치 2배(작업 206).
     const reward = applyKillReward(this.save, { boss: enemy.boss, elite: enemy.elite });
     const gold = reward.gold;
+    // 도메인 신호(작업 256): 처치는 사냥 도메인의 사건이다 — 금화·경험치가 세이브에 반영된 **뒤**에 낸다.
+    // 화면·미션·전광판 같은 다른 도메인은 이 신호만 듣고 자기 일을 한다(이벤트는 상태 사본이 아니라 신호).
+    emitDomainEvent('monsterKilled', { save: this.save, floor: this.save.floor, boss: !!enemy.boss, elite: !!enemy.elite, gold, x: enemy.x, y: enemy.y });
     // 레벨업: 최대 체력을 아는 이쪽이 체력을 채우고, 플레이어 체력도 함께 올린다(작업 207).
     if (reward.levels) { this.save.health = totalStats(this.save).health; this.player.hp = this.save.health; this.onMessage(`레벨 ${this.save.level} 달성!`); }
     // The coin shows the gold that was just paid: nothing is credited when it flies in. A boss's gold
@@ -192,7 +196,9 @@ export class FieldProgress extends CombatEngine {
       if (this.save.autoClimb) {
         // 20층이 마지막 층이다(작업 204): 20층 보스를 처치해도 21층으로 넘어가지 않고 20층에 머문다.
         // 층 진행 규칙은 `progress.ts`가 갖는다(PR-3) — 이 화면은 몹·연출만 정리한다.
+        const from = this.save.floor;
         const won = afterBossWin(this.save);
+        if (won.climbed) emitDomainEvent('floorAdvanced', { save: this.save, from, to: this.save.floor, reason: 'boss' });
         this.enemies = [];
         this.chaseTarget = undefined; this.pursuing = false;
         this.activeMove = { x: 0, y: 0 };
@@ -220,8 +226,10 @@ export class FieldProgress extends CombatEngine {
         // 작업 245: 자동 등반이 **켜져** 있으면 아래층에서도 목표를 채울 때마다 한 층씩 올라간다.
         // 자동 등반이 꺼진 상태(강등 직후 등)에는 예전처럼 목표를 0으로 돌리고 그 층에서 계속 사냥한다.
         if (this.save.floorKills >= killsToBoss(this.save.floor)) {
+          const from = this.save.floor;
           const cleared = afterFloorClear(this.save, { climb: this.save.autoClimb });
           if (cleared.climbed) {
+            emitDomainEvent('floorAdvanced', { save: this.save, from, to: this.save.floor, reason: 'climb' });
             this.enemies = []; this.chaseTarget = undefined; this.pursuing = false;
             this.spawnTimer = .2; this.elitePending = false;
             this.onMessage(`${this.save.floor}층 진입`);

@@ -60,6 +60,7 @@ async function seedAccountRows(db, id) {
     { sql: 'INSERT INTO djrpg_save_requests(account_id,request_id,revision) VALUES (?,?,?)', args: [id, 's1', 4] },
     { sql: 'INSERT INTO djrpg_market_inbox(id,account_id,listing_id,kind,item_json,gold,reason,created_at,claimed_at) VALUES (?,?,?,?,?,?,?,?,NULL)', args: [`${id}-inbox`, id, `${id}-listing`, 'return', null, 120, '등록 기간 만료', now] },
     { sql: 'INSERT INTO djrpg_market_requests(account_id,request_id,response_json) VALUES (?,?,?)', args: [id, 'm1', '{}'] },
+    { sql: 'INSERT INTO djrpg_journey_requests(account_id,request_id,response_json) VALUES (?,?,?)', args: [id, 'j1', '{}'] },
     { sql: 'INSERT INTO djrpg_dungeon_records(account_id,name,cleared_floor,cleared_at,updated_at) VALUES (?,?,?,?,?)', args: [id, id, 3, now, now] },
     { sql: 'INSERT INTO djrpg_dungeon_attempts(account_id,floor,started_at,updated_at,seed) VALUES (?,?,?,?,?)', args: [id, 4, now, now, 7] },
     { sql: 'INSERT INTO djrpg_boss_attempts(id,account_id,day,request_id,save_json,started_at,dodges_json,credited,ended_at) VALUES (?,?,?,?,?,?,?,?,NULL)', args: [`${id}-attempt`, id, '2026-11-20', 'r1', '{}', now, '[]', 1] },

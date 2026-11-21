@@ -5,9 +5,10 @@ import type { GameView } from '../render';
 
 export function drawRunes(this: GameView, world: CombatEngine, x: number, y: number, time: number): void {
     // [작업 214] 블러드 레이지(`warcry`)는 발밑 타원 링을 그리지 않는다 — 몸 주변 붉은 투기 오라
-    // (`render/bloodRage.ts`)가 그 역할을 맡는다. 다른 직업의 버프(호크아이·아케인 실드)는 종전대로 링을 쓴다.
+    // (`render/bloodRage.ts`)가 그 역할을 맡는다. [작업 261] 궁수 호크아이도 같은 이유로 링을 쓰지 않고
+    // 몸을 감는 바람 오라(`render/hawkEyeWind.ts`)로 그린다. 마법사 아케인 실드는 종전대로 링을 쓴다.
     const active = world.effects.find(effect => ['spin', 'slam', 'power', 'destroy', 'hell'].includes(effect.kind) && Math.hypot(effect.x - world.player.x, effect.y - world.player.y) < 2);
-    const raging = world.player.berserk > 0 && jobOrDefault(world.save.job) !== 'warrior';
+    const raging = world.player.berserk > 0 && jobOrDefault(world.save.job) === 'mage';
     if (!active && !raging) return;
     const t = active ? active.age / active.duration : 0;
     const burst = active?.kind === 'spin' || active?.kind === 'slam' || active?.kind === 'hell';

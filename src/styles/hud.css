@@ -22,7 +22,7 @@
 .floor-return:focus-visible { outline: 2px solid #f0d8a5; outline-offset: 2px; }
 @media (max-width: 399px) { .status-floor { gap: 2px; } .floor-return { padding: 2px 5px; font-size: 10px; } }
 .gold { color: #e6bb6c; font-weight: 700; }
-.diamonds { color: #a6dcff; font-weight: 700; white-space: nowrap; }
+.diamonds { display: inline-flex; align-items: center; gap: 4px; color: #a6dcff; font-weight: 700; white-space: nowrap; }
 .level-badge { position: absolute; left: 12px; top: 5px; width: 49px; height: 49px; display: flex; flex-direction: column; align-items: center; justify-content: center; border: 0; border-radius: 50%; color: #f1d7ae; background: conic-gradient(#d6a162 var(--progress), #4a3938 0); pointer-events: auto; box-shadow: 0 2px 10px #000b; }
 .level-badge:before { content: ''; position: absolute; inset: 4px; border-radius: 50%; background: #241c20; }
 .level-badge span, .level-badge b { z-index: 1; line-height: 1; }
@@ -121,7 +121,9 @@
 .utility-nav i { position: absolute; right: 1px; top: 1px; width: 10px; height: 10px; border-radius: 50%; background: #de352e; box-shadow: 0 1px 3px #0009; }
 .utility-nav i[hidden] { display: none; }
 .utility-nav button:focus-visible { outline: 2px solid #e9c585; }
-.utility-nav .shop-entry { color: #a6d8ff; font-size: 30px; text-shadow: 0 0 10px #5ebaff; border: 1px solid #6aa9ce; }
+/* 작업 261 — 글자 `◆` 대신 다이아 상자 그림(`/assets/shop/diamond_pack_v1.webp`)을 버튼 가득 채운다. 파란 테두리·발광은 그대로 둔다. */
+.utility-nav .shop-entry { padding: 0; overflow: hidden; border: 1px solid #6aa9ce; background: #0d1a22; box-shadow: 0 0 10px #5ebaff66, 0 2px 5px #0005; }
+.utility-nav .shop-entry img { width: 100%; height: 100%; object-fit: cover; border-radius: inherit; }
 .bottom-nav button { background: #17100dcc; border-radius: 9px; }
 .bottom-nav button[data-modal] img.nav-icon { opacity: 1; filter: drop-shadow(0 1px 2px #000); }
 @media (max-height: 620px) { .utility-nav { gap: 3px; } .utility-nav button { width: 42px; height: 42px; } .utility-nav img { width: 38px; height: 38px; } }

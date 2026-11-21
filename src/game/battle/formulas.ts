@@ -79,7 +79,8 @@ export function enemyMaxHp(floor: number, boss: boolean): number {
 export const ELITE_KILL_INTERVAL = 30;
 /** 정예 몹의 체력·보상 배율 — 체력 2배, 금화·경험치 2배. 장비·스킬북 드롭률은 일반 몹과 **같다(1배)**. */
 export const ELITE_HP_SCALE = 2;
-// 정예 보상 배율(`ELITE_REWARD_SCALE`)은 진행 규칙이라 `src/game/progress.ts`에만 있다(PR-3).
+/** 보상 배율의 정의는 `src/game/progress.ts` 한 곳에 있다(PR-3) — 기존 import 경로를 위해 여기서 재export한다. */
+export { ELITE_REWARD_SCALE } from '../progress';
 /** 정예 몹의 몸 크기 — 일반 몹보다 살짝 큰 1.22배(작업 206). */
 export const ELITE_MOB_SCALE = 1.22;
 /** 필드에 동시에 설 수 있는 몹 상한(작업 222, 사용자 요청 `#5827` "몹이 30마리 이상 생성되면 층 하락").

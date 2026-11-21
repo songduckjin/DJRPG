@@ -1,5 +1,7 @@
 # DJRPG 3D → 2.5D Blender 자동 렌더 파이프라인
 
+> **책임 경계**: 3D 모델 → 2.5D 셀·아틀라스 생성 절차만. 결과물 규격·매니페스트·필드 연결은 `docs/COSTUME_SYSTEM.md` §7.
+
 > 대상: PC 코덱스(Windows) 실행 환경 · 담당 `songduckjin` · [작업 147]
 > 실행 스크립트: `scripts/blender/render_25d_costume.py`
 > 셀 규약의 단일 기준: `docs/COSTUME_SYSTEM.md` §7.2 — 이 문서와 어긋나면 그쪽이 기준이다.
