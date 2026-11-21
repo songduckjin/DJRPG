@@ -57,9 +57,17 @@
 .showcase-figure { position: relative; display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; }
 .showcase-body { position: relative; z-index: 1; display: block; width: 100%; height: 100%; object-fit: contain; image-rendering: auto; }
 .equipment-info { display: grid; grid-template-rows: auto 1fr; gap: 5px; min-width: 0; min-height: 0; }
-.equipment-summary { display: grid; grid-template-columns: 1fr 1fr; align-content: center; gap: 3px 6px; min-width: 0; padding: 4px 6px; border: 1px solid #655044; background: #211b1d; color: #c4b0a1; font-size: 10px; }
-.equipment-summary span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.equipment-summary b { color: #f1d8ab; }
+/* [정렬] 장비창 중간 요약(레벨·층·경험치·금화) — 라벨은 왼쪽·값은 오른쪽, 바로 아래
+   `.equipment-info-stats`와 **같은 두 열·같은 3px 간격·같은 6px 안쪽 여백**이라 세로줄이 한 줄로 선다.
+   바깥 테두리는 `outline`으로 그려(레이아웃 폭을 먹지 않는다) 두 표의 열 너비가 정확히 같다. */
+.equipment-summary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-content: center; gap: 3px; min-width: 0; padding: 4px 0; background: #211b1d; outline: 1px solid #655044; outline-offset: -1px; color: #c4b0a1; font-size: 10px; }
+.equipment-summary > span { display: flex; align-items: baseline; justify-content: space-between; gap: 4px; min-width: 0; padding: 0 6px; overflow: hidden; }
+.equipment-summary small { flex: none; color: #a5927d; font-size: 10px; letter-spacing: .2px; }
+.equipment-summary b { min-width: 0; overflow: hidden; color: #f1d8ab; text-overflow: ellipsis; white-space: nowrap; }
+/* 라벨이 없는 칸(`1층`)과 금화 줄은 값을 오른쪽 끝에 맞춘다 — 두 열의 값이 같은 세로줄에 선다. */
+.equipment-summary .is-value { justify-content: flex-end; }
+.equipment-summary .summary-gold { align-items: center; justify-content: flex-end; gap: 3px; }
+.equipment-summary .summary-gold em { min-width: 0; overflow: hidden; font-style: normal; text-overflow: ellipsis; white-space: nowrap; }
 .equipment-info-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: repeat(3, minmax(0, 1fr)); gap: 3px; min-height: 0; }
 .equipment-info-stats > div { display: flex; justify-content: space-between; align-items: center; gap: 3px; min-width: 0; border: 1px solid #54443f; padding: 3px 5px; color: #b19d86; font-size: 9px; }
 .equipment-info-stats b { overflow: hidden; color: #efd3a8; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
@@ -77,9 +85,11 @@
 .equipment-slot { --slot-art-ratio: 174 / 290; position: relative; display: grid; grid-template-rows: minmax(0, 1fr) auto; justify-items: center; align-items: center; min-width: 0; aspect-ratio: 1; gap: 1px; border: 1px solid #655348; background: #252126; color: #b9ada6; padding: 2px; }
 .equipment-slot .slot-icon { display: block; grid-row: 1; justify-self: center; align-self: center; width: auto; height: auto; max-width: 100%; max-height: 100%; min-width: 0; min-height: 0; object-fit: contain; }
 .equipment-slot .slot-icon.atlas-icon { width: auto; height: 100%; max-width: 100%; aspect-ratio: var(--slot-art-ratio); background-size: 500% 100%; }
-/* 부위 이름은 가운데 정렬 그대로 두되, 왼쪽 아래 `+N` 배지(작업 246)가 글자와 겹치지 않게
-   왼쪽 여백만큼 비워 둔다(배지 폭 ≈ 13px). */
-.equipment-slot .slot-part { grid-row: 2; max-width: 100%; padding-left: 13px; overflow: hidden; color: #ccb49b; font-size: 8px; line-height: 1.05; text-overflow: ellipsis; white-space: nowrap; }
+/* 부위 이름은 아이콘과 **같은 중심**에 둔다. 예전에는 왼쪽 아래 `+N` 배지를 비키려고 `padding-left: 13px`을
+   주었는데, 한쪽만 비우면 이름 글자가 아이콘 중심에서 6.5px 오른쪽으로 밀려 아이콘과 이름이 대칭이 되지
+   않았다(사용자 요청 "장비창 중간에 있는 게 이름이랑 템이랑 글씨가 대칭이 안 되어 있어 정렬해줘"). 그래서
+   배지는 아래 `.equipment-slot .item-plus-badge`가 이름 줄 **위**로 올리고, 이름은 늘 가운데에 선다. */
+.equipment-slot .slot-part { grid-row: 2; max-width: 100%; overflow: hidden; color: #ccb49b; font-size: 8px; line-height: 1.05; text-overflow: ellipsis; white-space: nowrap; }
 .equipment-slot[aria-expanded="true"] { background: #3c3231; outline: 1px solid #e0c699; outline-offset: 1px; }
 .equipment-slot:disabled { opacity: .65; }
 .equipped-detail { margin: 0; display: flex; flex-direction: column; align-items: flex-start; position: fixed; z-index: 30; width: max-content; overflow-y: auto; box-shadow: 0 8px 24px #000b; }
@@ -178,6 +188,12 @@
    잠금 배지가 함께 있는 칸만 CSS가 잠금을 **우측 아래**로 내린다(화살표가 위에 남는다). */
 .upgrade-arrow { position: absolute; top: 2px; right: 2px; z-index: 3; display: block; width: clamp(7px, 1.9vw, 9px); height: auto; filter: drop-shadow(0 0 3px rgba(52, 211, 153, .8)) drop-shadow(0 0 6px rgba(16, 185, 129, .5)); pointer-events: none; user-select: none; }
 .bag-item.has-upgrade .bag-lock-badge { top: auto; bottom: 1px; }
+/* 다운그레이드 화살표 — 업그레이드와 **같은 슬림 더블 셰브론**을 180° 뒤집어 빨갛게 구운 PNG
+   (`/assets/icons/downgrade-arrow-slim.png`)를 같은 자리(우측 상단)에 같은 크기로 얹는다. 두 판정은 서로
+   배타적이라 한 칸에 두 화살표가 함께 붙지 않고, 좌상단 등급 배지(`L`·`U`·`E`, PR #305)·왼쪽 아래 `+N`과도
+   겹치지 않는 유일한 모서리다. 빨간 발광은 `#f87171`. */
+.downgrade-arrow { position: absolute; top: 2px; right: 2px; z-index: 3; display: block; width: clamp(7px, 1.9vw, 9px); height: auto; filter: drop-shadow(0 0 3px rgba(248, 113, 113, .85)) drop-shadow(0 0 6px rgba(220, 38, 38, .5)); pointer-events: none; user-select: none; }
+.bag-item.has-downgrade .bag-lock-badge { top: auto; bottom: 1px; }
 /* `+N` 강화 배지는 **모든 아이템 칸의 왼쪽 아래** 한 곳에만 붙는다(작업 246) — 가방·장비창 장착 칸·
    공용창고가 같은 자리를 쓴다. 좌상단 직업 배지, 우상단 추천 화살표, 우하단 수량 `×N`·잠금과
    겹치지 않는 유일한 모서리다. 이름 옆 배지(`.item-plus`, 작업 201)와 같은 색을 쓴다. */
@@ -193,6 +209,9 @@
    **한 글자(`전`·`궁`·`법`)** 로 오른쪽 아래로 비키고, 넓은 거래소 카드에서는 등급 배지 아래로 쌓인다. */
 .rarity-badge { position: absolute; left: 2px; top: 2px; z-index: 3; padding: 0 2px; border-radius: 3px; background: #120f14cc; border: 1px solid currentColor; font-size: 9px; line-height: 1; font-weight: 800; letter-spacing: .02em; text-shadow: 0 0 4px #000a; pointer-events: none; }
 .bag-item .item-plus-badge, .equipment-slot .item-plus-badge, .market-pick .item-plus-badge { position: absolute; left: 3px; bottom: 2px; z-index: 2; margin: 0; padding: 0 2px; border-radius: 3px; background: #120f14cc; color: #43f6c5; font-size: 9px; line-height: 1.25; font-weight: 800; letter-spacing: .01em; text-shadow: 0 0 5px #43f6c599; pointer-events: none; white-space: nowrap; }
+/* 장착 10칸의 `+N`만 이름 줄(아래 8px)을 비켜 **아이콘 왼쪽 아래**로 올린다 — 그래야 부위 이름이 아이콘
+   중심에 그대로 선다(가방·공용창고는 이름 줄이 없어 예전 자리 그대로). */
+.equipment-slot .item-plus-badge { bottom: 13px; }
 .bag-capacity { color: #aa9b8f; font-size: 9px; margin-left: 2px; }
 /* 가방이 40칸을 넘은 세이브(작업 248) — 정리가 필요하다는 것을 바로 보이게 한다. */
 .modal-bag-footer .is-over { color: #f0846c; }

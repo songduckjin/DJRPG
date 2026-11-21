@@ -89,7 +89,7 @@ test('a list response started before a claim cannot overwrite post-claim reward 
     return Promise.resolve({ok:true,status:200,json:async()=>({ok:true,message:'수령 완료',revision:1,save,journey:{daily:[{id:'login',claimed:true}]}})});
   };
   try{
-    const sync={save,session:{token:'t',characterSlot:1},revision:0,pendingJourney:undefined,beginJourney(){},finishJourney(){},journeySnapshot:()=>({revision:0,progress:save}),applyJourneyResult(){this.pendingJourney=undefined;},handleError(){}};
+    const sync={save,session:{token:'t',characterSlot:1},revision:0,pendingJourney:undefined,beginJourney(){},finishJourney(){},journeySnapshot:()=>({revision:0,progress:save}),applyJourneyResult(){this.pendingJourney=undefined;},handleError(){},flushIfDirty:async()=>true};
     const journey=new Journey(sync,{save,player:{hp:100},onChange(){}});
     const request=journey.load();await journey.act('journey-claim',{kind:'daily',id:'login'});
     const current=journey.data;assert(current.daily[0].claimed,'수령 응답이 반영됐다');

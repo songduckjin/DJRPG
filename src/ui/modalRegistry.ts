@@ -57,7 +57,18 @@ export function isJourneyModal(kind: Modal | null): boolean {
   return !!kind && JOURNEY_MODALS.includes(kind);
 }
 
-const journeyLoad = (ui: Interface): void => { void ui.journey.load(); };
+/**
+ * 여정 창(우편함·보상·업적)을 열 때 — **먼저 이 기기의 진행을 저장하고** 그 다음 목록을 읽는다
+ * (작업 미정, 사용자 제보 "주간보상·일일보상 들어오는 게 늦네 확인 필요").
+ *
+ * 일일·주간 미션 진행도(처치·분해·플레이 시간)는 **서버가 들고 있는 세이브**로 계산된다. 사냥 중에는
+ * 저장이 몇 초씩 미뤄지므로, 저장을 기다리지 않고 목록을 읽으면 방금 채운 미션도 아직 "진행 중"으로 보이고
+ * 받을 보상이 늦게 뜨다. `flushIfDirty()`는 보낼 변경이 없으면 네트워크를 쓰지 않고, 저장이 막혀 있으면
+ * `false`로 끝나므로 목록 조회는 그대로 진행한다(`journey.load()`도 같은 이유로 한 번 더 확인한다).
+ */
+const journeyLoad = (ui: Interface): void => {
+  void (async () => { await ui.journey.sync.flushIfDirty(); await ui.journey.load(); })();
+};
 
 export const MODALS: Record<Modal, ModalSpec> = {
   dungeon: {
