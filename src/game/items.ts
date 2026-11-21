@@ -1,5 +1,5 @@
 import type { Save } from './store';
-import { allSkillIds, jobs, passiveOrderFor, passives, skillOrderFor, skills, type Job, type SkillLevelId } from './skills';
+import { allPassiveIds, allSkillIds, jobs, passiveOrderFor, passives, skillOrderFor, skills, type Job, type SkillLevelId } from './skills';
 import { jobOrDefault } from './skills';
 import { random } from './rng';
 import { effectiveExtraOptions, extraOptionPower, normalizeExtraOptions, type ExtraOptionKey } from './extraOptions';
@@ -381,10 +381,160 @@ export function hasNoWeapon(save: Pick<Save, 'equipment'>): boolean { return !sa
 
 export function isZweihander(item: Item): boolean { return item.slot === 'weapon' && /쯔바이핸드|츠바이핸더/.test(item.name); }
 
-/** 그 슬롯의 티어 보정이 더할 수 있는 최대치 — `rollItem`의 `Math.ceil(tier * .6/.4)` 중 제일 큰 값. */
+/**
+ * **옛 장비 역산 전용** 티어 보정의 최대치 — 작업 255 이전 공식(`Math.ceil(tier * .6/.4)`)의 최댓값이다.
+ *
+ * 새 드롭은 `tierFactor`(티어당 +3.5%)를 쓰므로 이 값은 `estimatePlus`가 옛 세이브의 장비를 되짚을 때만
+ * 쓰인다. 새 드롭은 항상 `plus`를 함께 적으므로 역산 대상이 아니다(작업 201). 이름은 서버
+ * `server/save-guard.mjs`의 `TIER_BONUS_MAX`와 짝을 이룬다.
+ */
 export function maxTierBonus(slot: Slot): number {
   const tiers = slot === 'weapon' ? 10 : baseItems[slot].length;
   return Math.ceil(Math.max(0, tiers - 1) * (slot === 'weapon' ? .6 : .4));
+}
+
+/**
+ * 부위별 능력치 배분 (작업 255) — 값은 그 장비의 `scale`(= (1 + floor/2) × 등급배율)에 대한 배율이다.
+ *
+ * 예전에는 무기·장갑·반지만 공격, 나머지는 전부 방어를 같은 1.0배로 주고, 체력 3·치명 1·공속 1을
+ * **모든 부위가 똑같이** 얹었다. 그래서 반지 하나가 무기와 같은 공격을 주고, 판금 갑옷과 천 로브가
+ * 같은 방어·체력을 줬다. 이제 부위마다 맡은 역할을 나눈다.
+ *  - 무기: 공격의 주인. 방어구보다 훨씬 큰 공격을 준다.
+ *  - 투구·갑옷: 방어와 체력의 주인(갑옷 > 투구).
+ *  - 문장·허리띠: 방어+체력 위주의 보조 방어구.
+ *  - 장갑·신발: 공격속도가 중심이고 공격·치명이 조금 붙는다.
+ *  - 목걸이·반지: 치명이 중심이고 공격은 무기의 1/3 이하로 낮다.
+ *
+ * 주 스탯(`attack`/`defense` 중 큰 쪽)은 항상 붙고, 반대쪽 능력치는 매직 이상에서 조금 붙는다.
+ * 체력은 매직 이상, 치명·공속은 레어 이상(공속은 유니크 전까지 35%)이다.
+ */
+export type SlotProfile = { attack: number; defense: number; health: number; crit: number; speed: number };
+
+/** 공용 장비(장갑·문장·허리띠·신발·목걸이·반지)와, 직업을 알 수 없을 때의 투구·갑옷·무기 기준값. */
+export const slotProfiles: Record<Slot, SlotProfile> = {
+  weapon: { attack: 1.00, defense: .10, health: .60, crit: 1.00, speed: .60 },
+  offhand: { attack: .15, defense: 1.00, health: 2.40, crit: .80, speed: .70 },
+  helmet: { attack: .00, defense: 1.30, health: 4.60, crit: .60, speed: .40 },
+  armor: { attack: .00, defense: 1.60, health: 5.20, crit: .55, speed: .35 },
+  necklace: { attack: .35, defense: .20, health: 1.30, crit: 1.25, speed: .90 },
+  gloves: { attack: .60, defense: .25, health: 1.10, crit: .95, speed: 1.50 },
+  belt: { attack: .10, defense: .60, health: 2.80, crit: .60, speed: .50 },
+  boots: { attack: .05, defense: .40, health: 1.40, crit: .75, speed: 1.85 },
+  ring1: { attack: .35, defense: .15, health: 1.20, crit: 1.15, speed: .95 },
+  ring2: { attack: .35, defense: .15, health: 1.20, crit: 1.15, speed: .95 }
+};
+
+/**
+ * 직업별 무기 배분 (작업 255) — 대검은 묵직해서 방어·체력이 조금 붙고, 활은 치명·공속이 높고
+ * 공격이 조금 낮으며, 지팡이는 공격이 가장 높다(마법사 숙련이 여기에 한 번 더 붙는다).
+ */
+export const jobWeaponProfiles: Record<Job, SlotProfile> = {
+  warrior: { attack: 1.05, defense: .25, health: 1.30, crit: .90, speed: .50 },
+  archer: { attack: .95, defense: .05, health: .45, crit: 1.35, speed: .85 },
+  mage: { attack: 1.18, defense: .05, health: .45, crit: 1.00, speed: .55 }
+};
+
+/**
+ * 직업별 투구·갑옷 배분 (작업 255) — 작업 249(PR #254)로 투구·갑옷이 직업별로 나뉘면 이 표를 쓴다.
+ * 전사 판금은 방어·체력이 가장 높고, 궁수 가죽은 방어·체력이 조금 낮은 대신 치명·공속이 붙으며,
+ * 마법사 로브는 가장 가볍지만 공격이 붙는다. **작업 249가 아직 없는 `main`에서는 투구·갑옷의 주인
+ * 직업을 알 수 없어**(옛 공용 장비와 새 전사 전용 장비를 이름으로 가릴 수 없다) `slotProfiles`를 쓴다.
+ */
+export const jobArmorProfiles: Record<Job, { helmet: SlotProfile; armor: SlotProfile }> = {
+  warrior: {
+    helmet: { attack: .00, defense: 1.32, health: 4.80, crit: .55, speed: .35 },
+    armor: { attack: .00, defense: 1.60, health: 5.30, crit: .50, speed: .30 }
+  },
+  archer: {
+    helmet: { attack: .00, defense: 1.28, health: 4.70, crit: .60, speed: .45 },
+    armor: { attack: .00, defense: 1.55, health: 5.15, crit: .55, speed: .40 }
+  },
+  mage: {
+    helmet: { attack: .04, defense: 1.22, health: 4.55, crit: .60, speed: .40 },
+    armor: { attack: .06, defense: 1.48, health: 4.95, crit: .55, speed: .35 }
+  }
+};
+
+/** 슬롯별로 **가능한 가장 큰** 능력치 배율 — 서버 저장 검증(`server/save-guard.mjs`)의 상한이 쓴다.
+ *  직업별 표를 모두 훑어 능력치마다 최댓값을 고르므로, 어떤 직업의 드롭이든 이 상한 안에 들어온다. */
+export function maxSlotProfiles(): Record<Slot, SlotProfile> {
+  const result = {} as Record<Slot, SlotProfile>;
+  for (const slot of slots) {
+    const candidates: SlotProfile[] = [slotProfiles[slot]];
+    if (slot === 'weapon') candidates.push(...jobs.map(job => jobWeaponProfiles[job]));
+    if (slot === 'helmet' || slot === 'armor') candidates.push(...jobs.map(job => jobArmorProfiles[job][slot]));
+    result[slot] = {
+      attack: Math.max(...candidates.map(profile => profile.attack)),
+      defense: Math.max(...candidates.map(profile => profile.defense)),
+      health: Math.max(...candidates.map(profile => profile.health)),
+      crit: Math.max(...candidates.map(profile => profile.crit)),
+      speed: Math.max(...candidates.map(profile => profile.speed))
+    };
+  }
+  return result;
+}
+/** 위 표를 한 번만 계산해 둔다 — 서버 테스트가 `server/save-guard.mjs`의 사본과 대조한다. */
+export const maxSlotProfileTable: Record<Slot, SlotProfile> = maxSlotProfiles();
+
+/** 직업 숙련 (작업 255) — 같은 장비라도 그 직업의 특기 능력치에서 더 뽑아 쓴다.
+ *  전사는 방어·체력, 궁수는 치명·공속, 마법사는 공격. 장비로 오른 능력치에만 곱하고(레벨 기본값 제외),
+ *  퍼센트 추가옵션·패시브보다 먼저 적용된다. */
+export const jobMastery: Record<Job, Partial<Record<Stat, number>>> = {
+  warrior: { defense: 1.12, health: 1.10 },
+  archer: { crit: 1.15, speed: 1.38 },
+  mage: { attack: 1.38 }
+};
+
+/** 티어 계수 — 티어가 한 단계 오를 때마다 그 장비의 모든 스탯이 3.5%씩 강해진다(작업 255).
+ *  예전에는 `tier * 0.6`(무기)·`0.4`(그 외)의 **고정 소수**라, 후반(`scale` 수백)에는 9티어와 0티어의
+ *  차이가 1~2%에 불과했다. 10티어 슬롯은 0~9의 9단계로 +31.5%, 5티어 슬롯(문장·목걸이·반지)은 4단계를
+ *  9단계로 환산(`× 9/4`)해 최고 티어에서 역시 +31.5%가 되게 한다 — 부위마다 "맨 이름"과 "최고 이름"의
+ *  격차가 같아진다. */
+export const TIER_STAT_GROWTH = .035;
+export function tierFactor(slot: Slot, tier: number): number {
+  const top = Math.max(1, (slot === 'weapon' ? 10 : baseItems[slot].length) - 1);
+  return 1 + TIER_STAT_GROWTH * Math.min(top, Math.max(0, tier)) * (9 / top);
+}
+
+/** 그 슬롯·직업의 능력치 배분 — 직업을 모르는 투구·갑옷은 공용 기준값을 쓴다. */
+export function slotProfileFor(slot: Slot, job?: Job): SlotProfile {
+  if (slot === 'weapon') return jobWeaponProfiles[jobOrDefault(job ?? 'warrior')];
+  if (job && (slot === 'helmet' || slot === 'armor')) return jobArmorProfiles[jobOrDefault(job)][slot];
+  return slotProfiles[slot];
+}
+
+/**
+ * 장비 하나의 스탯 (작업 255의 새 공식) — `rollEquipment`와 시뮬레이션·테스트가 함께 쓴다.
+ *
+ * `scale = (1 + floor(층/2)) × 등급배율`, `scaled = scale × tierFactor(슬롯, 티어)`.
+ * 주 스탯은 `round(배율 × scaled) + 1~3`, 반대쪽 능력치는 매직 이상에서 `round(배율 × scaled)`,
+ * 체력은 매직 이상, 치명은 레어 이상, 공속은 레어 이상(유니크 전 35%)에서 `round(배율 × scaled)`만큼 붙는다.
+ * 쯔바이핸드는 공격 +2와, 레어 이상에서 `round(scaled × 0.15)`의 치명을 더한 **치명 특화** 대검이다
+ * (예전 +25% 공격·+50% 치명은 3티어가 7~9티어를 이기는 역전을 만들었다 — 지금은 같은 티어 대검보다
+ * 치명만 조금 높은 5~6티어급이다).
+ */
+export function gearStats(slot: Slot, rarity: Rarity, tier: number, floor: number, job?: Job, zweihander = false, draw: () => number = random): Partial<Record<Stat, number>> {
+  const scale = (1 + Math.floor(Math.max(0, floor) / 2)) * rarityScales[rarity];
+  const scaled = scale * tierFactor(slot, tier);
+  const profile = slotProfileFor(slot, job);
+  const rank = rarityRanks[rarity];
+  const stats: Partial<Record<Stat, number>> = {};
+  const primary: Stat = profile.attack >= profile.defense ? 'attack' : 'defense';
+  stats[primary] = Math.round(profile[primary] * scaled) + Math.ceil(draw() * 3);
+  // 반대쪽 능력치(무기의 방어, 방어구의 공격 등)는 매직 이상에서만 조금 붙는다.
+  const secondary: Stat = primary === 'attack' ? 'defense' : 'attack';
+  if (rank >= rarityRanks.magic && profile[secondary] > 0) stats[secondary] = Math.max(1, Math.round(profile[secondary] * scaled));
+  if (rank >= rarityRanks.magic && profile.health > 0) stats.health = Math.max(1, Math.round(profile.health * scaled));
+  if (rank >= rarityRanks.rare && profile.crit > 0) stats.crit = Math.max(1, Math.round(profile.crit * scaled));
+  // 공속은 레어부터 붙되, 유니크 전까지는 배율의 35%만 준다(작업 255). 유니크부터 주면 레어 구간에서
+  // 궁수의 공속 우위가 통째로 사라져(치명은 80% 상한에 먼저 닿는다) 세 직업 중 궁수만 15~19% 뒤처졌고,
+  // 레어부터 100%를 주면 레어 장비가 예전보다 2배 강해져 난이도가 통째로 내려갔다. 그 사이를 잡는다.
+  if (rank >= rarityRanks.rare && profile.speed > 0) stats.speed = Math.max(1, Math.round(profile.speed * scaled * (rank >= rarityRanks.unique ? 1 : .35)));
+  if (zweihander) {
+    stats.attack = (stats.attack ?? 0) + 2;
+    if (rank >= rarityRanks.rare) stats.crit = (stats.crit ?? 0) + Math.max(1, Math.round(scaled * .15));
+  }
+  return stats;
 }
 
 /**
@@ -447,13 +597,24 @@ export function wearableEquipmentImage(item: EquipmentItem): { path: string; fra
   return path && frame >= 0 ? { path, frame, columns: 5, rows: 2 } : undefined;
 }
 
+/**
+ * 세이브에서 **읽어 들이는** 스킬북 33종 — 액티브 24(`allSkillIds`) + 패시브 9(`allPassiveIds`).
+ *
+ * (작업 255, 사용자 제보 `#8898`) 예전에는 액티브 목록만 대조해서, **패시브 스킬북이 서버 응답을 읽을 때마다
+ * 조용히 사라졌다** — 방치 보상으로 받은 책은 `applyOfflineRewards`가 파싱 **뒤에** 넣으므로 가방에 보이다가,
+ * 다음 `parseSave`(창고 꺼내기·거래·캐릭터 전환 응답)에서 빠지고, 그 세이브가 서버로 가면 `reconcileItems`가
+ * 소유 기록을 `consumed`로 바꿔 새로고침해도 돌아오지 않았다. 서버 쪽 검사(`server/skill-ids.mjs`
+ * `skillBookIdSet`)는 처음부터 33종을 허용하므로, 클라이언트만 33종을 받아야 한다.
+ */
+const skillBookReadIds = new Set<SkillLevelId>([...allSkillIds, ...allPassiveIds]);
+
 export function migrateItem(value: unknown): Item | undefined {
   if (!isRecord(value)) return undefined;
   // 보물 주머니(작업 207): 서버가 이름 포함 identity로 대조하므로 저장된 이름이 있으면 그대로 둔다.
   if (value.kind === 'pouch' || value.slot === 'pouch') {
     return pouchItem(typeof value.id === 'string' && value.id ? value.id : crypto.randomUUID(), typeof value.name === 'string' && value.name.trim() ? value.name : POUCH_NAME);
   }
-  if (value.kind === 'skillbook' && value.slot === 'skillbook' && typeof value.skillId === 'string' && (allSkillIds as SkillLevelId[]).includes(value.skillId as SkillLevelId)) {
+  if (value.kind === 'skillbook' && value.slot === 'skillbook' && typeof value.skillId === 'string' && skillBookReadIds.has(value.skillId as SkillLevelId)) {
     const skillId = value.skillId as SkillLevelId;
     const fallback = `[스킬북] ${skillId in skills ? skills[skillId as keyof typeof skills].name : passives[skillId as keyof typeof passives].name}`;
     // 서버가 소유권 identity(이름 포함)로 아이템을 대조하므로, 저장된 이름이 있으면 그대로 유지한다.
@@ -494,11 +655,17 @@ function passiveLevel(save: Save, ids: SkillLevelId[]): number | undefined {
 
 export function totalStats(save: Save): Record<Stat, number> {
   const total = { attack: 8 + save.level * 2, defense: 2 + save.level, health: 100 + (save.level - 1) * 12, crit: 2, speed: 0 };
+  // 장비 몫은 따로 모아 **직업 숙련**(작업 255)을 먼저 곱한 뒤 더한다 — 전사는 방어·체력, 궁수는
+  // 치명·공속, 마법사는 공격. 같은 장비라도 직업의 특기 능력치에서 더 뽑아 쓰는 셈이다(레벨 기본값은 제외).
+  const gear = { attack: 0, defense: 0, health: 0, crit: 0, speed: 0 };
+  for (const item of Object.values(save.equipment)) if (item && !isSkillBook(item)) {
+    for (const stat of Object.keys(item.stats) as Stat[]) gear[stat] += item.stats[stat] ?? 0;
+  }
+  const mastery = jobMastery[jobOrDefault(save.job)];
+  for (const stat of Object.keys(mastery) as Stat[]) gear[stat] *= mastery[stat] ?? 1;
+  for (const stat of Object.keys(gear) as Stat[]) total[stat] += Math.round(gear[stat]);
   // 추가옵션(작업 238)의 % 스탯은 **모든 보정이 끝난 최종값**에 곱한다 — `공격력 +2%`가 레벨·패시브·
   // 장비를 모두 반영한 공격력을 올린다. 치명타·공격속도는 기존처럼 % 수치를 그대로 더한다.
-  for (const item of Object.values(save.equipment)) if (item && !isSkillBook(item)) {
-    for (const stat of Object.keys(item.stats) as Stat[]) total[stat] += item.stats[stat] ?? 0;
-  }
   const attackBoost = passiveLevel(save, ['mastery', 'bowMastery', 'staffMastery']);
   if (attackBoost) total.attack = Math.ceil(total.attack * (1.15 + (attackBoost - 1) * .02));
   const body = passiveLevel(save, ['body']);
@@ -603,22 +770,20 @@ export function rollEquipment(floor: number, rarity: Rarity, boss = false): Equi
   const tier = Math.floor(random() * (maxTier + 1));
   const base = bases[tier];
   const zweihander = slot === 'weapon' && base === '쯔바이핸드';  const prefix = rarityPrefixes[rarity];
-  const scale = (1 + Math.floor(floor / 2)) * rarityScales[rarity];
-  const primary: Stat = ['weapon', 'ring1', 'ring2', 'gloves'].includes(slot) ? 'attack' : 'defense';
-  const stats: Partial<Record<Stat, number>> = { [primary]: scale + Math.ceil(random() * 3) + Math.ceil(tier * (slot === 'weapon' ? .6 : .4)) };
-  if (rarity !== 'common') stats.health = 3 * scale;
-  if (rarityRanks[rarity] >= rarityRanks.rare) stats.crit = scale;
-  if (rarityRanks[rarity] >= rarityRanks.unique) stats.speed = scale;
-  if (zweihander) {
-    stats.attack = (stats.attack ?? 0) + 2 + Math.ceil(scale * .25);
-    if (rarity !== 'common') stats.crit = (stats.crit ?? 0) + Math.max(1, Math.ceil(scale * .5));
-  }
+  const name = base.startsWith(`${prefix} `) ? base : `${prefix} ${base}`;
+  // 능력치는 **부위·직업·티어** 세 가지를 함께 본다(작업 255). 직업은 이름으로 판별한다 — 무기는
+  // 대검·활·지팡이, 투구·갑옷은 작업 249(PR #254)가 붙인 `job` 표식이나 이름 목록에서 찾는다.
+  // 그 표식이 없는 `main`의 투구·갑옷은 공용(`undefined`)이라 `slotProfiles` 기준값을 쓴다.
+  const placeholder: EquipmentItem = { id: crypto.randomUUID(), name, slot, rarity, stats: {} };
+  // 작업 249(PR #254) 뒤 투구·갑옷은 직업별 목록에서 뽑히므로, 능력치도 **뽑힌 직업의 프로필**로 만든다.
+  // 이름 추론(`itemJob`)은 전사 목록 이름을 공용으로 보아 전사 장비만 공용 프로필이 되던 차이를 없앤다(작업 255).
+  const stats = gearStats(slot, rarity, tier, floor, itemJob(placeholder) ?? dropFor, zweihander);
   // 강화 단계(작업 201): 10층마다 한 단계씩 열리고, 단계마다 스탯이 8%씩 오른다. `plus`는 이름과 별도로
   // 저장되는 표시 값이라 `name`은 그대로 둔다(서버 아이템 동일성이 이름을 포함한다). 0단계도 적어 두어
   // 다음 로드에서 옛 장비 역산(`estimatePlus`)이 0층 아이템을 높게 잡는 일이 없다.
   const plus = rollPlus(floor, boss);
   applyPlus(stats, plus);
-  const item: EquipmentItem = { id: crypto.randomUUID(), name: base.startsWith(`${prefix} `) ? base : `${prefix} ${base}`, slot, rarity, stats, plus };
+  const item: EquipmentItem = { id: placeholder.id, name, slot, rarity, stats, plus };
   // 투구·갑옷은 **주인 직업을 함께 적는다**(작업 249). 이름만으로는 새로 떨어진 전사 전용 장비와 옛 세이브의
   // 공용 장비를 가릴 수 없어, 새 드롭에만 표식을 붙여 다른 직업의 장착을 막는다. 무기는 이름으로 판별한다.
   if ((slot === 'helmet' || slot === 'armor') && dropFor) item.job = dropFor;
