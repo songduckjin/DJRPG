@@ -13,7 +13,7 @@ const { railMarkup } = await import('../src/ui/interface.ts');
 const { MODALS } = await import('../src/ui/modalRegistry.ts');
 const { freshSave, totalStats } = await import('../src/game/store.ts');
 const { cooldowns } = await import('../src/game/world.ts');
-const { CRIT_CHANCE_CAP, CRIT_DAMAGE_SCALE } = await import('../src/game/battle/formulas.ts');
+const { CRIT_CHANCE_CAP, CRIT_DAMAGE_SCALE, damageReduction } = await import('../src/game/battle/formulas.ts');
 // HUD 숫자도 **기념 버프 밖** 값으로 본다 — 버프가 켜진 동안은 공·방·체가 1.3배다(`patchBuff.ts`).
 const patchBuff = await import('../src/game/patchBuff.ts');
 patchBuff.setPatchBuffClock(() => patchBuff.PATCH_BUFF_START - 1);
@@ -150,12 +150,22 @@ test('상세 스탯은 전투가 쓰는 값 그대로 계산한다(방어 감소
   assert.equal(sheet.power, combatPower(stats));
   assert.equal(rows.attack.value, stats.attack.toLocaleString('ko-KR'));
   assert.equal(rows.defense.value, stats.defense.toLocaleString('ko-KR'));
-  assert.equal(rows.defense.note, `1타당 피해 -${Math.round(stats.defense * .2)}`, '방어력은 1타당 피해 감소로 설명');
+  // 방어는 밸런스 v2의 **% 피해 감소**로 설명한다(예전 `방어 × 0.2` 고정 감소는 폐기).
+  const reduction = damageReduction(stats.defense, save.floor);
+  assert.equal(rows.defense.note, `피해 감소 ${Math.round(reduction * 1000) / 10}% · ${save.floor}층 기준`, '방어력은 % 피해 감소로 설명');
   assert.equal(rows.health.value, stats.health.toLocaleString('ko-KR'));
   assert.equal(rows.critChance.value, `${stats.crit}%`);
   assert.equal(rows.critDamage.value, `${CRIT_DAMAGE_SCALE * 100}%`, '치명타 피해 180%');
   assert.equal(rows.attackSpeed.value, `${stats.speed}%`);
   assert.equal(rows.attackSpeed.note, `초당 ${attacksPerSecond(stats.speed, cooldowns.attack).toFixed(2)}회`);
+  // 스킬 쿨타임 감소(밸런스 v2) — 전투가 쓰는 `stats.cdr` 그대로, 상한 35%.
+  assert.equal(rows.cdr.value, `${Math.round(stats.cdr)}%`, '쿨감 줄이 있다');
+  const cdrRich = freshSave('male', 'mage');
+  cdrRich.equipment.weapon = { id: 'w', name: '룬 지팡이', slot: 'weapon', rarity: 'legendary', stats: { cdr: 60 } };
+  const cdrSheet = statSheet(cdrRich, { currentHp: 100, attackInterval: cooldowns.attack });
+  const cdrRow = cdrSheet.groups.flatMap(group => group.rows).find(row => row.key === 'cdr');
+  assert.equal(cdrRow.value, '35%', '쿨감은 35%에서 자른다');
+  assert.equal(cdrRow.note, '상한 35%');
   assert.equal(rows.lifesteal.value, '0%'); assert.equal(rows.evasion.value, '0%');
   assert.equal(rows.regen.value, '0%/5초'); assert.equal(rows.bonusDamage.value, '0%');
   assert.equal(sheet.currentHp, 120); assert.equal(sheet.maxHp, Math.round(stats.health));
@@ -178,7 +188,7 @@ test('상세 스탯은 전투가 쓰는 값 그대로 계산한다(방어 감소
   assert.equal(statSheet(save, { currentHp: -5, attackInterval: .48 }).currentHp, 0);
 });
 
-test('상세 스탯 창은 머리·큰 전투력·3그룹 10칸을 그린다', () => {
+test('상세 스탯 창은 머리·큰 전투력·3그룹 11칸을 그린다', () => {
   const original = globalThis.document;
   globalThis.document = { createElement: tag => element(tag) };
   try {
@@ -202,7 +212,7 @@ test('상세 스탯 창은 머리·큰 전투력·3그룹 10칸을 그린다', (
     const groups = content.children.filter(child => child.className === 'stats-group');
     assert.deepEqual(groups.map(group => group.dataset.group), ['battle', 'chance', 'survival']);
     const cells = groups.flatMap(group => group.children[1].children);
-    assert.deepEqual(cells.map(cell => cell.dataset.stat), ['attack', 'defense', 'health', 'critChance', 'critDamage', 'attackSpeed', 'lifesteal', 'evasion', 'regen', 'bonusDamage']);
+    assert.deepEqual(cells.map(cell => cell.dataset.stat), ['attack', 'defense', 'health', 'critChance', 'critDamage', 'attackSpeed', 'cdr', 'lifesteal', 'evasion', 'regen', 'bonusDamage']);
     for (const cell of cells) {
       assert.ok(cell.attrs['aria-label'], `${cell.dataset.stat} 읽기 이름`);
       assert.equal(cell.children[0].textContent.length > 0, true, `${cell.dataset.stat} 이름`);
