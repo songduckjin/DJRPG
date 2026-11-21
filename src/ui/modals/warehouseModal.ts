@@ -11,8 +11,17 @@
  * 한꺼번에 옮긴다(작업 246 — `선택` 모드 버튼과 `빠른 이동`은 없애고 **다중 선택이 기본**이며, 고른
  * 쪽에만 `선택 보관`/`선택 꺼내기`가 나타난다). `equipModal.ts`는 건드리지 않고 그리드 모양
  * (`.bag-grid`·`.bag-item`)과 헬퍼(`iconPath`)만 빌려 쓴다.
+ *
+ * 작업 258 — 사용자 제보 "창고시스템 오류가 너무 많은데 점검해볼래?"에 따른 정리:
+ * ① **칸이 모자라도 옮길 수 있는 만큼 옮긴다** — 예전에는 창고(또는 가방) 잔여 칸보다 고른 개수가
+ *    많으면 버튼을 통째로 잠갔다. 주머니·스킬북 묶음 5개 중 2칸만 남았을 때 아무것도 못 옮겼다.
+ *    지금은 남은 칸만큼만 골라 보내고 버튼에 `보관하기 (2/5)`처럼 **몇 개가 나가는지** 밝힌다.
+ * ② **이동 중인 칸을 다시 열어도 잠금이 풀리지 않는다** — 예전 `renderWarehouse`는 그릴 때마다
+ *    `state.busy`를 비워, 응답을 기다리는 아이템을 다시 탭해 같은 요청을 또 보낼 수 있었다.
+ * ③ **409·오류에서 목록을 지우지 않는다** — 예전에는 `ui.warehouseItems = undefined`로 비우고 다시 읽어
+ *    `공용창고를 불러오는 중…`이 화면을 덮었다. 지금은 그리드를 그대로 두고 조용히 다시 읽는다.
  */
-import { equipmentCount } from '../../game/bagCapacity';
+import { countedInBag, equipmentCount } from '../../game/bagCapacity';
 import { apiHeaders, isOutdatedResponse, reloadForNewVersion } from '../../game/appVersion';
 import {
   equipmentImage, isEquipment, isPouch, isSkillBook, itemDisplayName, itemJob, itemPower, plusOf,
@@ -39,6 +48,8 @@ type WarehouseState = {
   focus?: { side: WarehouseSide; key: string };
   /** 지금 서버 응답을 기다리는 아이템 id — 그 칸만 잠깐 흐리게 한다. */
   busy: Set<string>;
+  /** 진행 중인 이동 요청 수 — 그릴 때·다시 열 때 잠금을 함부로 풀지 않기 위해 센다(작업 258). */
+  moving: number;
   error?: string;
 };
 
@@ -47,17 +58,35 @@ const states = new WeakMap<Interface, WarehouseState>();
 const painters = new WeakMap<Interface, () => void>();
 /** 이동은 한 번에 하나씩 — 서버가 `pendingWarehouse`로 재확인하므로 줄을 세워 보낸다. */
 const queues = new WeakMap<Interface, Promise<void>>();
+/** 캐릭터 전환 등으로 큐를 버릴 때 이미 걸려 있던 이동이 실행되지 않게 하는 세대 번호(작업 258). */
+const generations = new WeakMap<Interface, number>();
+const generationOf = (ui: Interface): number => generations.get(ui) ?? 0;
 
 export function warehouseState(ui: Interface): WarehouseState {
   let state = states.get(ui);
-  if (!state) { state = { picked: new Map(), busy: new Set() }; states.set(ui, state); }
+  if (!state) { state = { picked: new Map(), busy: new Set(), moving: 0 }; states.set(ui, state); }
   return state;
 }
 
-/** 창고를 새로 열 때 — 선택·상세·잠금 표시는 남기지 않는다. */
+/** 창고를 새로 열 때 — 선택·상세·오류는 지우되, **보내는 중인 칸의 잠금은 남긴다**(작업 258). */
 export function resetWarehouse(ui: Interface): void {
   const state = warehouseState(ui);
-  state.picked.clear(); state.focus = undefined; state.busy.clear(); state.error = undefined;
+  state.picked.clear(); state.focus = undefined; state.error = undefined;
+  if (!state.moving) state.busy.clear();
+}
+
+/**
+ * 캐릭터가 바뀌었을 때 — 이전 캐릭터의 이동 큐·선택·잠금·목록을 전부 버린다(작업 258).
+ *
+ * 큐에 남은 이동이 새 캐릭터의 화면에서 실행되면 옛 캐릭터의 아이템 id로 요청이 나가 409만 받는다.
+ */
+export function resetWarehouseForCharacterSwitch(ui: Interface): void {
+  const state = warehouseState(ui);
+  state.picked.clear(); state.focus = undefined; state.error = undefined;
+  state.busy.clear(); state.moving = 0;
+  queues.delete(ui); painters.delete(ui);
+  generations.set(ui, generationOf(ui) + 1);
+  ui.warehouseItems = undefined;
 }
 
 const keyOf = (side: WarehouseSide, stackKey: string): string => `${side}:${stackKey}`;
@@ -132,9 +161,9 @@ export async function loadWarehouse(ui: Interface): Promise<void> {
 
 export function renderWarehouse(ui: Interface, dialog: HTMLElement): void {
   const state = warehouseState(ui);
-  // 새로 그리는 창고에는 이전 이동의 잠금 표시를 남기지 않는다 — 응답이 유실돼 `is-busy`가 남았더라도
-  // 창고를 다시 열면 모든 칸을 다시 누를 수 있다(작업 250).
-  state.busy.clear();
+  // 새로 그리는 창고에는 이전 이동의 잠금 표시를 남기지 않는다 — 단, **지금 보내고 있는 칸**은 잠근 채로 둔다.
+  // 예전에는 무조건 비워서 응답을 기다리는 아이템을 다시 탭해 같은 요청을 또 보낼 수 있었다(작업 258).
+  if (!state.moving) state.busy.clear();
   if (!ui.warehouseItems) {
     const note = document.createElement('p'); note.className = 'warehouse-note';
     note.textContent = state.error ? state.error : '공용창고를 불러오는 중…';
@@ -207,17 +236,28 @@ export function renderWarehouse(ui: Interface, dialog: HTMLElement): void {
     depositPicked.hidden = !showDeposit; withdrawPicked.hidden = !showWithdraw;
     const depositBusy = busyOn(bagIds);
     const withdrawBusy = busyOn(storageIds);
+    // 잔여 칸이 고른 개수보다 적으면 **남은 칸만큼만** 옮긴다(작업 258) — 버튼을 통째로 잠그지 않고
+    // `선택 보관 (2/5)`처럼 몇 개가 나가는지 밝힌다. 옮길 칸이 0일 때만 잠근다.
+    const depositPlan = movePlan(ui, 'bag', bagIds);
+    const withdrawPlan = movePlan(ui, 'storage', storageIds);
+    const caption = (plan: MovePlan, verb: string, busyText: string, busy: boolean): string => {
+      if (busy) return busyText;
+      const total = plan.requested;
+      return plan.overflow > 0 || plan.free <= 0 ? `${verb} (${plan.ids.length}/${total})` : `${verb} (${total})`;
+    };
     // 옮기는 중이면 문구부터 바뀐다(작업 253, 사용자 제보 "로딩인지 모르겠음") — 눌렀는지 아닌지 바로 보이게.
-    depositPicked.textContent = depositBusy ? '보관 중…' : `선택 보관 (${bagIds.length})`;
-    withdrawPicked.textContent = withdrawBusy ? '꺼내는 중…' : `선택 꺼내기 (${storageIds.length})`;
-    const depositFull = warehouseCount + bagIds.length > 40;
-    // 옮기는 중에는 다시 누를 수 없다 — 같은 아이템을 두 번 보내 409를 받지 않게 한다(작업 250).
-    depositPicked.disabled = depositFull || depositBusy;
-    depositPicked.title = depositFull ? '공용창고가 가득 차 선택한 만큼 보관할 수 없습니다.' : `${bagIds.length}개를 공용창고에 보관합니다.`;
+    depositPicked.textContent = caption(depositPlan, '선택 보관', '보관 중…', depositBusy);
+    withdrawPicked.textContent = caption(withdrawPlan, '선택 꺼내기', '꺼내는 중…', withdrawBusy);
+    // 옮기는 중이거나 옮길 칸이 없으면 다시 누를 수 없다 — 같은 아이템을 두 번 보내 409를 받지 않게 한다(작업 250·258).
+    depositPicked.disabled = depositPlan.ids.length === 0 || depositBusy;
+    depositPicked.title = depositPlan.overflow > 0
+      ? `공용창고에 ${depositPlan.free}칸 남아 선택한 ${bagIds.length}개 중 ${depositPlan.ids.length}개만 보관합니다.`
+      : depositPlan.ids.length ? `${depositPlan.ids.length}개를 공용창고에 보관합니다.` : '공용창고가 가득 차 보관할 수 없습니다.';
     // 꺼내기도 가방 40칸을 넘길 수 없다(작업 248) — 스킬북·보물 주머니도 칸을 쓴다.
-    const withdrawFull = bagCount + storageIds.length > 40;
-    withdrawPicked.disabled = withdrawFull || withdrawBusy;
-    withdrawPicked.title = withdrawFull ? '가방이 가득 차 선택한 만큼 꺼낼 수 없습니다. 가방을 비운 뒤 다시 시도하세요.' : `${storageIds.length}개를 가방으로 꺼냅니다.`;
+    withdrawPicked.disabled = withdrawPlan.ids.length === 0 || withdrawBusy;
+    withdrawPicked.title = withdrawPlan.overflow > 0
+      ? `가방이 ${withdrawPlan.free}칸 남아 선택한 ${storageIds.length}개 중 ${withdrawPlan.ids.length}개만 꺼냅니다.`
+      : withdrawPlan.ids.length ? `${withdrawPlan.ids.length}개를 가방으로 꺼냅니다.` : '가방이 가득 차 꺼낼 수 없습니다. 가방을 비운 뒤 다시 시도하세요.';
 
     paintGrid(ui, storageGrid, 'storage', storageStacks, state);
     paintGrid(ui, bagGrid, 'bag', bagStacks, state);
@@ -249,6 +289,49 @@ function pickIds(state: WarehouseState, side: WarehouseSide, stacks: Stack[]): s
     if (stack) ids.push(...stack.items.map(item => item.id));
   }
   return ids;
+}
+
+type MovePlan = {
+  /** 이번 요청에 실제로 실릴 아이템 id — 대상 쪽 남은 칸에 맞춰 자른 결과다. */
+  ids: string[];
+  /** 고른 아이템 전체 수. */
+  requested: number;
+  /** 칸이 모자라 이번에 빠진 수(0이면 전부 옮긴다). */
+  overflow: number;
+  /** 대상 쪽(창고 또는 가방) 남은 칸. */
+  free: number;
+};
+
+/**
+ * 옮길 수 있는 만큼만 고른다(작업 258).
+ *
+ * 예전에는 잔여 칸보다 고른 개수가 많으면 버튼을 통째로 잠갔다 — 주머니·스킬북 묶음이 5개인데 창고에
+ * 2칸만 남았을 때 **하나도 못 옮겼다**. 지금은 남은 칸만큼(`targetIds` 순서대로)만 보내고, 나머지는
+ * 선택을 그대로 두어 버튼을 다시 누르면 된다.
+ *
+ * 보관(창고)은 장비·스킬북·주머니 모두 1칸을 쓰지만, 꺼내기는 가방 40칸 규칙대로 **내 직업 스킬북은 칸을 쓰지 않는다**
+ * (`countedInBag`, 작업 253).
+ */
+function movePlan(ui: Interface, side: WarehouseSide, ids: string[]): MovePlan {
+  const save = ui.world.save;
+  const items = side === 'bag' ? save.bag : ui.warehouseItems ?? [];
+  // 서버의 검사 순서를 그대로 따른다(작업 258): 아이템마다 **지금 칸이 꽉 찼는지** 먼저 보고,
+  // 그 다음 `countedInBag`인 아이템만 칸을 하나 쓴다. 보관(창고)은 모든 아이템이 1칸을 쓴다.
+  const counts = side === 'bag' ? () => true : (item: Item) => countedInBag(item, save.job);
+  const start = side === 'bag' ? (ui.warehouseItems ?? []).length : equipmentCount(save.bag, save.job);
+  const free = Math.max(0, 40 - start);
+  const byId = new Map(items.map(item => [item.id, item]));
+  const picked: string[] = [];
+  let used = start, overflow = 0;
+  for (const id of ids) {
+    const item = byId.get(id);
+    if (item) {
+      if (used >= 40) { overflow++; continue; }
+      if (counts(item)) used++;
+    }
+    picked.push(id);
+  }
+  return { ids: picked, requested: ids.length, overflow, free };
 }
 
 function paintGrid(ui: Interface, grid: HTMLElement, side: WarehouseSide, stacks: Stack[], state: WarehouseState): void {
@@ -325,29 +408,52 @@ function move(ui: Interface, side: WarehouseSide, ids: string[]): void {
   const state = warehouseState(ui);
   if (!ids.length) return;
   const action = side === 'bag' ? 'deposit' : 'withdraw';
+  const generation = generationOf(ui);
+  const queued = movePlan(ui, side, ids);
+  // 옮길 수 있는 게 하나도 없으면 요청을 보내지 않고 이유를 알려 준다(작업 258).
+  if (!queued.ids.length) {
+    ui.message(side === 'bag' ? '공용창고가 가득 차 보관할 수 없습니다.' : '가방이 가득 차 꺼낼 수 없습니다.');
+    return;
+  }
   for (const id of ids) state.busy.add(id);
+  state.moving++;
   repaint(ui);
   const run = async (): Promise<void> => {
+    // 캐릭터가 바뀌어 큐를 버렸으면 이 요청은 실행하지 않는다(작업 258) — 잠금 표시는 버릴 때 이미 지웠다.
+    if (generationOf(ui) !== generation) return;
+    // 큐에서 기다리는 사이 앞선 이동이 끝나 창고·가방이 바뀌었다 — 보내기 직전에 칸을 다시 본다.
+    const plan = movePlan(ui, side, ids);
+    if (!plan.ids.length) {
+      ui.message(side === 'bag' ? '공용창고가 가득 차 보관할 수 없습니다.' : '가방이 가득 차 꺼낼 수 없습니다.');
+      return;
+    }
     try {
-      const result = await ui.market.sync.transferWarehouse(action, ids);
+      const result = await ui.market.sync.transferWarehouse(action, plan.ids);
+      if (generationOf(ui) !== generation) return;
       if (result.items) ui.warehouseItems = result.items;
       // 응답이 오면 창고 목록·가방이 이미 새 상태다 — 옮긴 칸의 선택을 바로 비우고(작업 250) 그리드를 즉시 다시 그린다.
-      for (const [key, pickedSide] of [...state.picked]) if (pickedSide === side) state.picked.delete(key);
+      // 칸이 모자라 일부만 옮겼으면 남은 칸은 그대로 골라 둔 채 다시 누를 수 있게 둔다(작업 258).
+      if (plan.overflow === 0) for (const [key, pickedSide] of [...state.picked]) if (pickedSide === side) state.picked.delete(key);
       ui.renderStatus(); ui.renderBagBadge();
       if (state.focus && state.focus.side === side) {
         const stacks = stacksOf(side === 'bag' ? ui.world.save.bag : ui.warehouseItems ?? [], jobOrDefault(ui.world.save.job));
         if (!stacks.some(stack => stack.key === state.focus!.key)) state.focus = undefined;
       }
       repaint(ui);
-      ui.message(result.message || (action === 'deposit' ? '공용창고에 보관했습니다.' : '가방으로 가져왔습니다.'));
+      ui.message(plan.overflow > 0
+        ? `공간이 모자라 ${plan.ids.length}개만 옮겼습니다. 나머지 ${plan.overflow}개는 다시 옮겨 주세요.`
+        : result.message || (action === 'deposit' ? '공용창고에 보관했습니다.' : '가방으로 가져왔습니다.'));
     } catch (error) {
       ui.message(error instanceof Error ? error.message : String(error));
-      // 409(소유 상태·가득 참)는 화면과 서버가 어긋났다는 뜻이다 — 서버 기준으로 다시 읽는다.
-      const code = error instanceof Error && 'code' in error ? String((error as Error & { code?: unknown }).code ?? '') : '';
-      if (code) { ui.warehouseItems = undefined; void loadWarehouse(ui); }
+      // 응답을 받은 실패(409 등)는 화면과 서버가 어긋났다는 뜻이다 — 목록을 **비우지 않고** 서버 기준으로 조용히
+      // 다시 읽는다(예전에는 `warehouseItems = undefined`로 지워 `불러오는 중…`이 화면을 덮었다 — 작업 258).
+      if (error instanceof Error && 'status' in error) void loadWarehouse(ui);
     } finally {
-      for (const id of ids) state.busy.delete(id);
-      repaint(ui);
+      if (generationOf(ui) === generation) {
+        for (const id of ids) state.busy.delete(id);
+        state.moving = Math.max(0, state.moving - 1);
+        repaint(ui);
+      }
     }
   };
   const previous = queues.get(ui) ?? Promise.resolve();
@@ -421,19 +527,23 @@ function paintDetail(ui: Interface, save: Save, detail: HTMLElement, state: Ware
   const multi = pickedIds.length > 1;
   const targetIds = multi ? pickedIds : stack.items.map(entry => entry.id);
   const moving = targetIds.some(id => state.busy.has(id));
-  // 대상을 가방 40칸·창고 40칸 상한에 넣고 넘기는지 — 넘기면 눌러도 서버가 409로 거절하므로 미리 잠근다.
-  const full = focus.side === 'bag'
-    ? (ui.warehouseItems?.length ?? 0) + targetIds.length > 40
-    : equipmentCount(save.bag, save.job) + targetIds.length > 40;
+  // 대상 칸의 남은 자리를 넘기면 **남은 만큼만** 보낸다(작업 258) — 예전에는 넘기는 순간 버튼을 잠가 버렸다.
+  const plan = movePlan(ui, focus.side, targetIds);
+  const verb = focus.side === 'storage' ? '꺼내기' : '보관하기';
+  const selectVerb = focus.side === 'storage' ? '꺼내기' : '보관';
   const moveButton = document.createElement('button'); moveButton.type = 'button'; moveButton.className = 'warehouse-move';
   // 옮기는 중에는 버튼 문구도 "지금 하고 있다"로 바뀐다(작업 253, 사용자 제보 "로딩인지 모르겠음").
   moveButton.textContent = moving
     ? (focus.side === 'storage' ? '꺼내는 중…' : '보관 중…')
     : multi
-      ? `선택 ${focus.side === 'storage' ? '꺼내기' : '보관'} (${pickedIds.length})`
-      : `${focus.side === 'storage' ? '꺼내기' : '보관하기'}${stack.items.length > 1 ? ` (${stack.items.length})` : ''}`;
-  moveButton.disabled = moving || full;
-  if (full) moveButton.title = focus.side === 'bag' ? '공용창고가 가득 찼습니다.' : '가방이 가득 차 꺼낼 수 없습니다.';
+      ? (plan.overflow > 0 || plan.ids.length === 0 ? `선택 ${selectVerb} (${plan.ids.length}/${plan.requested})` : `선택 ${selectVerb} (${pickedIds.length})`)
+      : (plan.overflow > 0 || plan.ids.length === 0
+        ? `${verb} (${plan.ids.length}/${plan.requested})`
+        : `${verb}${stack.items.length > 1 ? ` (${stack.items.length})` : ''}`);
+  moveButton.disabled = moving || plan.ids.length === 0;
+  if (moving) moveButton.title = '이동 결과를 기다리는 중입니다.';
+  else if (plan.ids.length === 0) moveButton.title = focus.side === 'bag' ? '공용창고가 가득 찼습니다.' : '가방이 가득 차 꺼낼 수 없습니다.';
+  else if (plan.overflow > 0) moveButton.title = `남은 칸(${plan.free})만큼 ${plan.ids.length}개를 먼저 옮기고, 나머지 ${plan.overflow}개는 다시 옮겨 주세요.`;
   else if (multi) moveButton.title = `선택한 ${pickedIds.length}개를 한꺼번에 ${focus.side === 'storage' ? '가방으로 꺼냅니다' : '공용창고에 보관합니다'}.`;
   moveButton.onclick = () => move(ui, focus.side, targetIds);
   const close = document.createElement('button'); close.type = 'button'; close.className = 'warehouse-detail-close';

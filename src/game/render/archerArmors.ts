@@ -71,6 +71,19 @@ export function archerArmorTierSheets(gender: Gender, index: number): string[] {
 }
 
 /**
+ * 궁수 갑옷 발광 마스크 시트 경로 (작업 257) — 갑옷 시트와 같은 셀 좌표계의 알파 마스크.
+ *
+ * `headless/`·`nobow/` 판과 머리·활을 뺀 같은 모양이라 마스크는 티어·성별·동작마다 한 장이다.
+ *
+ * @see `scripts/build-armor-glow-masks.py`
+ */
+export function archerArmorGlowSheetPath(gender: Gender, index: number, motion: ArcherArmorMotion): string | undefined {
+  if (!Number.isInteger(index) || index < 1 || index >= ARCHER_ARMOR_COUNT) return undefined;
+  if (!archerArmorMotionList.includes(motion)) return undefined;
+  return pilotSheet(`/assets/pilot-25d/archer_armors_glow/archer_${gender}_armor_${index}_${motion}_v1.png`);
+}
+
+/**
  * 필드·장비창이 쓰는 궁수 갑옷 인덱스.
  * 궁수가 아니거나 갑옷이 없으면 -1(스타터 시트), 0번은 0(역시 스타터 시트)이며 1~9만 시트가 있다.
  */

@@ -1,7 +1,30 @@
 # WORKLOG 아카이브 — 2026-11 (최근 20건 이전)
 
-> `docs/WORKLOG.md`에서 분리한 과거 작업·PR·배포 기록 216건. 최신 기록은 `docs/WORKLOG.md`.
+> `docs/WORKLOG.md`에서 분리한 과거 작업·PR·배포 기록 218건. 최신 기록은 `docs/WORKLOG.md`.
 > 검색은 이 파일에서 한다: `rg -n "<키워드>" docs/archive/2026-11/`.
+
+## 2026-11-21 · songduckjin 작업 242 — 09시까지 서버 점검 중 안내(로그인 배너 + 405 안내)
+
+- **요청**: 사용자 "9시까지 점검중이라고 표시해줘"(07:51 KST). Cloudflare Pages 무료 플랜 **일일 요청 한도 소진**으로 `/api/*`가 빈 본문 **405**(정적 폴백)를 돌려주고, UTC 자정 = **09:00 KST**에 한도가 다시 열린다.
+- **증상**: 로그인 화면이 `response.json()` 실패로 **"서버 응답 형식이 올바르지 않습니다. API 배포를 확인하세요."** 를 빨갛게 띄웠다(이용자에게는 고장으로만 보임). 08:00 KST 실측 `POST /api/account` → 405·본문 0바이트, `version.json`은 200(`c3195acc2081`).
+- **점검 배너**(`src/ui/login.ts`·`src/styles/login.css`): `MAINTENANCE_UNTIL = Date.parse('2026-11-21T09:00:00+09:00')`, `inMaintenance(now?)`, `maintenanceBannerMarkup(now?)`. 로그인 패널의 제목·부제 아래·탭 위에 `.maintenance-banner`(`🛠️ 서버 점검 안내` / `오늘 오전 9시까지 서버 점검 중입니다. 9시 이후 정상 이용 가능합니다.`) — 어두운 갈색 그라데이션 + 왼쪽 주황 띠 3px, 700px 이하 화면에서는 여백·글자 크기를 줄인다. **시각으로만 판단**하므로 09:00이 지나면 **배너를 내리는 코드·타이머 없이** 화면에서 사라진다(추가 배포 불필요).
+- **API 폴백 안내**(`accountRequest`): `response.status === 405` 또는 본문이 JSON이 아니면 빨간 개발자용 문구 대신 **"현재 서버 점검 중입니다. 오전 9시 이후 다시 이용해 주세요."** 를 `login-error.is-notice`(주황 `#f3cd93`) 톤으로. 점검 시각이 지난 뒤 같은 상황이면 "현재 서버 점검 중입니다. 잠시 후 다시 이용해 주세요."(9시를 더 이상 말하지 않음). `NoticeError` 표시는 `fail()`이 그대로 읽어 색만 바꾼다 — 정상 응답·진짜 서버 오류(`400` JSON) 문구는 덮지 않는다.
+- **검증**: `npx tsc --noEmit` 통과, 신규 `tests/login-maintenance.test.mjs` **7/7**(09:00 경계·배너 문자열/자동 소멸·안내 문구·빈 405·HTML 본문·정상/진짜 오류 비간섭·CSS 규칙), `npm run build` 통과(`NODE_OPTIONS=--max-old-space-size=1400`).
+- **실브라우저 검수**: 브랜치 프리뷰(`feat-242-maintenance-notice.djrpg.pages.dev`, `4c14b0c91ad9`)와 **운영**(390×844, 실제 빌드 번들·CSS)에서 배너 표시 확인. 운영에서는 브라우저에 남은 토큰의 자동 복원이 405를 받아 아래 alert에 주황 점검 문구가 함께 떴다. 검수 이미지 `downloads/djrpg_maintenance_notice_v1.png`(운영)·`downloads/djrpg_maintenance_notice_preview_v1.png`(프리뷰).
+- **머지·배포**: [PR #244](https://github.com/songduckjin/DJRPG/pull/244) 스쿼시 `c37ad1628245`, 운영 `version.json` `c37ad1628245`(`builtAt` 2026-11-20T23:02:18Z = 08:03 KST)·루트 200. 배포 번들 `assets/index-BwqtjNXz.js`에 배너 클래스·세 안내 문구, CSS `assets/index-Be2jMXp2.css`에 `.maintenance-banner{…border-left:3px solid #e8a94e…}`·`.login-error.is-notice{color:#f3cd93}` 확인.
+- **남은 것**: 사용자 폰에서 로그인 화면 실기 확인. **09:00 KST 이후 배너·9시 안내는 자동으로 사라지고**, API 한도가 초기화되면 평소처럼 로그인된다. 한도가 계속 막히면 "잠시 후 다시" 안내만 남는다(원인은 Cloudflare 무료 플랜 하루 10만 요청 소진 — 유료 전환이나 Functions 요청 절감이 근본 대책).
+
+## 2026-11-21 · songduckjin 작업 241 — 가방·공용창고·거래소 업그레이드 초록 화살표(`▲`)
+
+- **요청**: "내가 장착한템보다 좋은템들은 초록색 화살표 위로 표시 시안보여줘" → A안(`downloads/upgrade_arrow/opt_a.jpg`) 확정. 가방·공용창고·거래소 **전부**에서, 내 직업이 낄 수 있는 장비 중 지금 낀 것보다 좋은 것의 **아이콘 상자 우측 상단**에 초록 화살표.
+- **판정은 한 곳**(`src/game/items.ts` `isUpgradeForHero(save,item)`): ① `isEquipment`(스킬북·보물 주머니 제외) ② `canWield(item, jobOrDefault(save.job))` — 타 직업 전용 무기(활·지팡이·대검)는 절대 표시하지 않는다(방어구·장신구는 세 직업 공용) ③ `itemPower` 비교 — **반지는 두 칸 중 약한 쪽(또는 빈 칸)**과 견주고, 나머지 부위는 빈 칸이면 `true`, 같은 부위를 끼고 있으면 더 강해야 `true`(같으면 바꿔도 이득이 없어 표시 안 함). `itemPower`가 [작업 238]의 추가옵션 몫(`extraOptionPower`)까지 더하므로 옵션이 좋은 템도 제대로 올라온다.
+- **그림도 한 곳**(`src/ui/upgradeBadge.ts` — `upgradeArrowMarkup`·`upgradeArrowNode`·`appendUpgradeArrow`): 색 `#34eb6e`, 어두운 `text-shadow` 외곽선, `position:absolute; top:2px; right:2px`, `pointer-events:none`. 좌상단 타직업 배지·우하단 `+N`과 겹치지 않게 우측 상단만 쓰고, 잠금 배지가 같이 있는 칸은 `.bag-item.has-upgrade .bag-lock-badge`가 잠금만 아래로 내린다.
+- **적용 3곳**: ① 내 정보 가방(`equipModal.ts` `renderInventory`) ② 공용창고(`warehouseModal.ts` `paintGrid` — **창고·내 가방 양쪽**, 접속 캐릭터 기준) ③ 거래소(`marketModal.ts` `icon(item, save?)` — 판매 중·거래 완료·내 거래 목록, 수령함, 판매 등록 칸. `최근 거래` 탭과 구매 비교 패널은 이미 성사된 기록/비교표라 제외).
+- **검증**: `npx tsc --noEmit` 통과, 신규 `tests/upgrade-badge.test.mjs` **8/8**(빈 슬롯·같은/약한/강한 장비·타직업 무기 3종 제외·스킬북/주머니 제외·반지 두 칸 약한 쪽 비교·빈 반지 칸·등급 가중·세 화면 배선·CSS 좌표), 전체 `node --test tests/*.test.mjs` **992건 중 989 통과**(실패 3건은 `06bbf92`에서도 동일한 기존 건 — `costume-field-render` 2·`skillbook-server` 1), `npm run build` 통과(이 컨테이너는 RAM 3.5GB·데이터 상한 2GB라 `NODE_OPTIONS=--max-old-space-size=1400`이 필요했다).
+- **실브라우저 검수**: 브랜치 프리뷰에 검수용 페이지를 잠시 올려 **실제 빌드 번들·실제 CSS**로 390×844에서 네 화면을 캡처했다(`/api/*`만 가짜 응답 — 계정·가방 8종·창고 4종·거래소 5건·수령함 2건). 업그레이드 3종(심연의 뿔투구·불멸의 각반·군주의 반지)에만 화살표가 떴고 **같은 방어력 투구·더 약한 장비·궁수/마법사 전용 무기·스킬북에는 뜨지 않았다**. 창고(패왕의 성검·미스릴 아머)·거래소(용살자의 대검·성기사 풀플레이트·낡은 부츠=빈 신발 칸)·수령함(불멸의 왕관·천 장갑=빈 장갑 칸)도 같았다. 검수 페이지는 확인 뒤 삭제(레포에 남기지 않음). 검수 이미지 `downloads/djrpg_upgrade_arrow_v1.png`.
+- **번호 조정**: 등록 시점 최신은 236이었으나 그 사이 237(사과 보상 우편)·238(추가옵션)·239(다캐릭터 거래소)·240(스킬 추천 장착)이 먼저 올라와 **241**로 정리했다(이 때문에 PR #239는 닫고 #241로 다시 올렸고, 브랜치 이름만 `feat/240-upgrade-arrow`로 남아 있다).
+- **머지·배포**: [PR #241](https://github.com/songduckjin/DJRPG/pull/241) 스쿼시 `caccb0daa02c`. 운영 `djrpg.pages.dev` `version.json` `caccb0daa02c`(`builtAt 2026-11-20T18:24:23.070Z`)·루트 200, 배포 번들 `assets/index-DpKhMUkD.js`에 `.upgrade-arrow`, `assets/index-B8qoA91C.css`에 `.upgrade-arrow{…top:2px;right:2px…color:#34eb6e…}`·`.market-icon{…position:relative…}` 포함 실측.
+- **남은 것**: 사용자 실기 확인(가방·공용창고·거래소에서 실제 사냥 템에 화살표가 뜨는지, 크기·가독성).
 
 ## 2026-11-21 · songduckjin 작업 240 — 스킬창 `추천 자동 장착` + 패시브 스킬 노출 개선
 

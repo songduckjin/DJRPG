@@ -3,6 +3,21 @@
 > 최근 작업·PR·배포 기록만 둔다(최근 20건). 더 이전 기록은 `docs/archive/2026-11/WORKLOG-history.md`.
 > 새 기록은 맨 위에 `## YYYY-MM-DD · <담당> 작업 <번호> — <제목>` 형식으로 추가하고, 오래된 항목은 아카이브로 옮긴다.
 
+## 2026-11-21 · songduckjin 작업 257 — 전 직업 갑옷·로브 **파츠만** 발광(오라 없음)
+
+- **사용자 확정(12:46 KST)**: `✨ 1안 — 분리한 갑옷/로브 파츠만 깔끔하게 발광(오라 없음)`.
+- **원인**: [작업 218]의 갑옷 발광은 몸 시트를 **목 밑동 y에서 가로로** 잘라(`neckY`) 발광을 얹었다. 몸 시트에는 얼굴·머리카락·맨팔·맨손·바지·부츠·기본 대검/활이 함께 그려져 있어 ① 견갑 윗부분이 잘리고 ② 맨팔·손·부츠·기본 무기까지 등급색으로 빛났다.
+- **마스크 생성**(`scripts/build-armor-glow-masks.py`, 신규): 갑옷·로브 시트에서 **갑옷 픽셀만** 남긴 알파 마스크를 굽는다 — 전사 `armors/`(10티어)·궁수 `archer_armors/`(1~9)·마법사 `robes/`(1~9) + 0번 갑옷이 쓰는 스타터 시트(`archer_*`·`mage_*`). 성별·동작(서기 1·걷기 4·공격 4프레임)마다 한 장 = **180장**.
+  - **머리**: 같은 시트의 `headless/` 판(투구용 머리 지운 판)과의 차집합을 **후보 영역**으로만 쓰고, 그 안에서 살색·머리카락색 픽셀만 골라 실루엣을 만든다 — 차집합을 그대로 쓰면 궁수 스케일 셔츠의 어깨까지 지워져 갑옷 상반신이 통째로 발광에서 빠진다. 작은 구멍(눈·수염)만 메운다.
+  - **무기**: `noweapon/`(전사)·`nobow/`(궁수)·`mage_nostaff/`(마법사 스타터)와의 차집합. 무기 지운 판이 그림 전체를 다시 칠한 경우(궁수 `nobow/` 17~38% 색 변화)에는 색 차이를 쓰지 않는다 — 쓰면 갑옷 무늬가 점박이로 빠진다. 패왕의 전갑처럼 칼날이 흐릿한 얼룩으로 남는 판은 색 차이(28 이상)까지 함께 지운다.
+  - **맨살**: 따뜻한 살구빛 덩어리만(1px 침식으로 가죽·금속의 점박이 반사 제거). 궁수·마법사는 기준 시트에서 맨살인 자리로 색 범위를 넓혀 그늘 진 손까지 잡는다.
+  - **다리·부츠**: 갑옷 실루엣 폭이 급히 줄어드는 줄(스커트 → 다리)을 그림에서 찾아 그 아래로 20~24px 페이드. 티어마다 밑단이 달라(가죽 조끼는 엉덩이, 판금은 허벅지) 값은 그림이 정한다.
+  - **마법 불꽃**: 로브 시트 손 안의 붉은 불꽃은 옷이 아니라 채도로 뺀다.
+- **필드**: `src/game/render/armorGlowMasks.ts`(신규)가 지금 차림의 마스크 시트를 고르고, `render.ts`의 `armorGlowFrame`이 갑옷과 **같은** `sliceArmorSheet`·`armorFrameIndex`로 프레임을 자른다(최근 6장만 캐시). `entities.syncGearGlow`는 파츠와 같은 앵커·위치·배율의 마스크 스프라이트를 `mask` 로 걸고, 마스크 로딩 전에는 이번 프레임 발광을 **숨긴다**(마스크 없이 그리면 예전 문제로 돌아간다). `gearGlowLayersFor('armor')`는 실루엣 밖으로 1.12배 키워 번지는 후광 겹을 빼고 파츠 위 두 겹(진한 색 + 가산 빛)만 쓴다 — 사용자 확정 1안.
+- **장착 화면**: `equipmentPortrait.paintPatch`가 등급색으로 칠한 캔버스에 마스크를 `destination-in` 으로 도려내고, 후광(`shadowBlur`)은 `ARMOR_GLOW_AURA` 0.3배로 줄인다. 마스크를 못 받았을 때만 예전 머리 타원을 도려낸다.
+- **검증**: `npx tsc --noEmit` 통과, `npx vite build` 통과, 신규 `tests/armor-glow-mask.test.mjs` **8/8**(마스크 180장 존재·원본과 같은 크기·머리/무기/부츠 자리가 비어 있음·겹 구성·차림별 경로 선택), 관련 `tests/{gear-rarity-glow,armor-render,archer-armor-render,mage-robe-render,weapon-render,weaponless-body,character-portrait}` **72/72**. 검수 이미지로 전사·궁수·마법사 남녀 × 티어 0·3·6·9 × 서기/걷기/공격을 눈으로 확인(견갑 포함·얼굴/머리카락/맨팔/무기/부츠 제외).
+- **머지·배포**: 보류(사용자 지시). [작업 256] 투구 발광(PR #264)과 같은 마스크 구조(`gearGlowLayersFor`·`GearGlowOptions.mask`·`heroGlowPartMasks`)를 쓰므로 **#264 를 먼저 머지한 뒤 이 PR을 리베이스**하면 된다(갑옷 호출부 한 줄과 `tests/gear-rarity-glow.test.mjs` 의 같은 줄만 충돌).
+
 ## 2026-11-21 · songduckjin 작업 256 — 전 직업 투구 발광 범위 조정(파츠만 빛나고 얼굴·머리카락·목·어깨는 원래 색)
 
 - **요청**: 사용자 "딱 투구만 빛나면 좋겠는데 얼굴 머리카락까지 영향이 가더라고" · "파츠만 따로 분리해서 칠하자". 12:41 KST 확정 **1안**(분리한 투구 파츠만 깔끔하게 발광, 오라 번짐 없음) — 검토 시안 `downloads/helmet_glow_preview/v3_opt1.png`.
@@ -107,6 +122,19 @@
 - **프리뷰 배포 실측**: [PR #252](https://github.com/songduckjin/DJRPG/pull/252) Cloudflare Pages 체크 SUCCESS, 프리뷰 `44da4568.djrpg.pages.dev` 에서 `assets/pilot-25d/mage_helms/female_0_v1.png?v=5` = 로컬 파일(md5 `04c5be3a…`, 7,881B) **일치** · 배포 번들에 `heroHelmGlowMask`·성별 마스크 표(`fadeEnd:106/108`) 포함 · 게스트로 마법사(여) 캐릭터를 만들어 필드·내 정보 초상화가 정상 렌더되는 것까지 확인(투구는 드롭 전이라 파츠·발광은 합성 이미지로만 검수).
 - **상태**: PR 준비 완료 — 사용자 지시 "오늘부터는 모아서 배포하자"에 따라 **머지·배포하지 않았다**.
 - **남은 것**: 어깨까지 파츠를 더 줄이려면 머리 구멍(현재 셀 y 104)을 목선까지 올려야 하고, 그러면 `mage_headless` 12장 + `robes/headless` 54장을 같은 규칙으로 다시 구워야 한다(그대로 줄이면 어깨에 투명 구멍이 난다). 이번 작업은 파츠·발광만 손봤다.
+
+## 2026-11-21 · songduckjin 작업 258 — 공용창고 속도·오류 일괄 수정 (PR #258 계승 · ⚠️ 머지·배포 보류)
+
+- **요청**(사용자 11-21): "현재 창고시스템 오류가 너무 많은데 점검해볼래?", "속도가 느리면안돼", "전부 배포 진행하고 피알작업도 병행하고 맨마지막 배포로 넣자". `main`과 PR #258(`perf/249-warehouse-speed`)을 함께 감사한 결과, **#258은 빨랐지만 `main`의 40칸 규칙을 되돌렸고 두 갈래 모두 화면 쪽 오류가 남아 있었다**. 이 PR은 #258을 대체하고(`supersedes #258`), PR #273(패시브 스킬북 유실 수정)과 같은 배포 묶음에서 마지막에 넣을 수 있게 만들었다.
+- **① 서버 — 읽기 1왕복·쓰기 1묶음**(`server/endpoints/warehouse.mjs`, `server/database.mjs`의 `accountQuery`): 계정 행 · 재요청 기록(`djrpg_warehouse_requests`) · 창고 목록 · 소유 기록(`djrpg_item_owners`+`djrpg_character_item_owners`) · (함께 보낸 진행 세이브의) 소유 기록 · 여정 상태를 **`tx.batch` 한 번**으로 읽고, 이동 쓰기(다중 `INSERT` / `UPDATE … WHERE item_id IN` / `DELETE … IN`) + 멱등 기록 + `writeSave`를 **한 쓰기 묶음**으로 보낸다. 응답의 창고 목록도 다시 `SELECT`하지 않고 읽어 둔 행에 이번 이동을 반영해 만든다(`ORDER BY item_id`와 같은 순서). 40개 보관·회수가 **DB 왕복 2회**(아이템 1개도 2회) — 작업 253의 5회, PR #258의 5회보다 줄었다. `list`만 창고 목록을 따로 읽는다.
+- **② PR #258 회귀 복구**(꺼내기 40칸): #258은 `countedInBag(entry, save.job)`를 `entry.slot !== 'skillbook' && entry.slot !== 'pouch'`로 되돌려 **타직업 스킬북·보물 주머니를 40칸 검사 없이 꽂았다**(40칸이 찬 가방에 몇 개든 들어갔다). 지금은 `main`·`equipmentCount`와 같은 `countedInBag` 규칙이다 — 장비·타직업 스킬북·보물 주머니 1개 = 1칸, 내 직업 스킬북은 세지 않는다. 가방이 40칸이면 어떤 아이템도 꺼내지 않는다(`bag-mail-cap`의 규칙 그대로 — 내 직업 책도 `main`은 막는다).
+- **③ 클라이언트 — 이동 1회에 저장까지**(`src/game/sync.ts`): `transferWarehouse`가 화면 세이브(`progress`)를 함께 실어 보내 **사냥 중(dirty)에도 `/api/account` 저장 왕복 없이 요청 1회**로 끝난다(서버가 `reconcileItems`+`writeSave`로 같은 트랜잭션에서 검증·저장). 실측(왕복 25ms 모델, 40개): 보관 **54ms**(예전 저장+이동 311ms)·회수 53ms, DB 왕복 2회(예전 12회).
+- **④ 멈춘 잠금 제거 + 응답 유실 재확인**: 예전에는 응답을 잃으면 `pendingWarehouse`가 남아 `onPause(true)`가 풀리지 않았고(사냥이 통째로 멈춤) 다음 이동이 `"이전 창고 이동 결과를 확인 중입니다."`로 막혔으며 복구 타이머가 끝없이 같은 요청을 다시 보냈다. 지금은 ① 보내는 동안만 잠그고 `finally`에서 **반드시** 풀며 ② 결과를 모르는 실패(타임아웃·5xx)는 화면 밖(`scheduleWarehouseSettle`, 0.8·1.6·3.2·6초)에서 **같은 `requestId`로** 다시 확인하고(서버 멱등 기록), ③ 성공하면 **옮긴 아이템만** 화면 세이브에 반영하고 revision만 맞춰 그 사이 사냥한 진행을 서버 세이브로 덮지 않는다. 확인이 끝날 때까지 새 이동·저장만 잠깐 미룬다(`창고 상태를 다시 확인하는 중입니다.`). 4xx는 확정 결과이므로 재시도하지 않고, 화면·서버가 어긋난 코드(`SAVE_CONFLICT`·`ITEM_CONFLICT` 등)만 조용히 최신 세이브로 맞춘다. 캐릭터 전환(`resetForCharacterSwitch`)은 이 대기까지 버린다.
+- **⑤ 화면**(`src/ui/modals/warehouseModal.ts`): ① **칸이 모자라면 남은 칸만큼 부분 이동** — 주머니·스킬북 묶음 5개에 창고 2칸이면 `선택 보관 (2/5)`/`보관하기 (2/5)`로 2개만 보내고, 못 옮긴 3개는 골라 둔 채 남겨 다시 누를 수 있다(0칸일 때만 잠금). 판정은 서버와 같은 순서(`movePlan`: 아이템마다 40칸인지 보고, `countedInBag`인 것만 칸을 쓴다)라 보내기 직전에 다시 계산한다. ② **이동 중인 칸은 다시 그려도 잠긴다** — 예전에는 `renderWarehouse`가 `state.busy`를 비워 응답을 기다리는 아이템을 다시 탭해 같은 요청을 또 보낼 수 있었다(`state.moving`이 0일 때만 비운다). ③ **409에서 목록을 지우지 않는다** — 예전에는 `ui.warehouseItems = undefined`로 비워 `공용창고를 불러오는 중…`이 화면을 덮었다. 지금은 그리드를 둔 채 조용히 `loadWarehouse`만 한다. ④ 캐릭터 전환 시 `resetWarehouseForCharacterSwitch`가 큐·선택·잠금·목록을 버리고, 세대 번호로 큐에 이미 걸린 이동도 실행되지 않게 한다.
+- **⑥ PR #273 호환**: 패시브 스킬북이 `parseSave`에서 사라져 409가 나던 문제(#273)를 고친 코드 위에 이 PR의 변경을 얹어 `npx tsc --noEmit`과 `skillbook-passive-roundtrip`·`warehouse-*`·`sync`·`characters`·`bag-*` 테스트를 다시 돌려 통과를 확인했다. 이 PR의 `progress` 병합은 #273이 `main.ts`에 넣은 `sync.markDirty()`(오프라인 보상이 응답 세이브에 덮이던 위험)를 **구조적으로** 없앤다 — 이동이 언제나 화면 세이브를 함께 보내기 때문이다.
+- **검증**: `npx tsc --noEmit` 통과, `NODE_OPTIONS=--max-old-space-size=2400 npx vite build` 통과(`dist/assets/index-C6VCvBst.js` 796.06kB에 `공간이 모자라`·`보관 중…`·`창고 상태를 다시 확인하는 중입니다`·`창고 이동을 처리 중입니다` 포함). 테스트: 신규 `tests/warehouse-speed.test.mjs` **8/8**, `warehouse-grid` **16/16**, `sync` 27/27, `characters` 5/5, `bag-mail-cap` 6/6, `bag-capacity`·`bag-job-books`·`bag-limit-recovery`·`concurrency`·`modal-ui`·`functions-adapter` 통과. 전체 **1,171건 중 1,072 통과** — 실패 99건은 같은 체크아웃의 `main`(`w-base`) **1,159건 중 1,060·같은 99건**(sparse 체크아웃에 `public/assets/**`가 없어 생기는 ENOENT 98 + 기존 `skillbook-server` `hell` 이름 1)으로 **차이 0건**.
+- **PR**: [#276](https://github.com/songduckjin/DJRPG/pull/276) — **PR #258을 대체한다**(#258은 타직업 스킬북·보물 주머니의 40칸 검사를 되돌린 회귀가 있다).
+- **머지·배포**: **보류**(`⚠️ 머지·배포 보류 — 대기 PR 배포 완료 후 마지막 배포`). 대기 PR(#273 패시브 스킬북 핫픽스 등)이 `main`에 들어간 뒤 배포 목록의 마지막에 넣는다. 실기 확인(폰에서 보관·꺼내기 체감, 부분 이동 `(2/5)`, 이동 중 잠금)은 사용자 몫.
 
 ## 2026-11-21 · fks3997 작업 253 — 판매 등록 그리드 줄 간격 · 내 직업 스킬북 가방 40칸 제외 · 공용창고 N+1 제거·이동 중 표시 (운영 `main`)
 
@@ -220,26 +248,3 @@
 - **검증**: `npx tsc --noEmit` 통과, 신규 `tests/range.test.mjs` **7/7**(확정 수치·정지 거리 비율·궁수 170/마법사 150 서서 쏘기·사거리 끝 320/275 탄환 도착과 수명·이동 중 무공격 규칙·평타보다 짧은 스킬의 동작·스킬 사거리 표), `tests/archer.test.mjs` 확정 수치 갱신(궁수 330/180·마법사 285/160), `node --test tests/{archer,mage,world-movement,field-spawn}.test.mjs` 59/59, 전체 `tests/*.test.mjs` **1,050건 중 1,046 통과**(실패 4건은 작업 243 시점과 동일한 기존 건 — `costume-field-render` 2·`hero-art` 1·`skillbook-server` 1), `npm run build` 통과. 배포 번들에 `330·180·285·160`과 스킬 사거리 값 포함 확인.
 - **머지·배포**: [PR #248](https://github.com/songduckjin/DJRPG/pull/248) 스쿼시 `bb43102c389f`(Cloudflare Pages SUCCESS), 운영 `djrpg.pages.dev` `version.json` `bb43102c389f`(`builtAt` 2026-11-20T23:49:53Z = 08:49 KST)·루트 200. 배포 번들 `assets/index-DmAoBMxa.js`(761,456B)에서 `Ai=330,p2=180,Ci=285,m2=160`과 스킬 사거리(`snipe` 340·`pierceShot` 305·`arrowRain` 295·`stormVolley`/`meteorStrike` 285·`doubleShot`/`fireBolt` 260·`iceArrow`/`iceBolt` 270·`manaBurst` 250) 실측 확인.
 - **남은 것**: 폰 실기에서 궁수·마법사가 서서 쏘는 거리와 화살·구슬 도착 연출 확인(운영 `/api/*`가 08:51 KST에도 405 — 무료 한도 초기화 뒤 로그인 가능).
-
-## 2026-11-21 · songduckjin 작업 242 — 09시까지 서버 점검 중 안내(로그인 배너 + 405 안내)
-
-- **요청**: 사용자 "9시까지 점검중이라고 표시해줘"(07:51 KST). Cloudflare Pages 무료 플랜 **일일 요청 한도 소진**으로 `/api/*`가 빈 본문 **405**(정적 폴백)를 돌려주고, UTC 자정 = **09:00 KST**에 한도가 다시 열린다.
-- **증상**: 로그인 화면이 `response.json()` 실패로 **"서버 응답 형식이 올바르지 않습니다. API 배포를 확인하세요."** 를 빨갛게 띄웠다(이용자에게는 고장으로만 보임). 08:00 KST 실측 `POST /api/account` → 405·본문 0바이트, `version.json`은 200(`c3195acc2081`).
-- **점검 배너**(`src/ui/login.ts`·`src/styles/login.css`): `MAINTENANCE_UNTIL = Date.parse('2026-11-21T09:00:00+09:00')`, `inMaintenance(now?)`, `maintenanceBannerMarkup(now?)`. 로그인 패널의 제목·부제 아래·탭 위에 `.maintenance-banner`(`🛠️ 서버 점검 안내` / `오늘 오전 9시까지 서버 점검 중입니다. 9시 이후 정상 이용 가능합니다.`) — 어두운 갈색 그라데이션 + 왼쪽 주황 띠 3px, 700px 이하 화면에서는 여백·글자 크기를 줄인다. **시각으로만 판단**하므로 09:00이 지나면 **배너를 내리는 코드·타이머 없이** 화면에서 사라진다(추가 배포 불필요).
-- **API 폴백 안내**(`accountRequest`): `response.status === 405` 또는 본문이 JSON이 아니면 빨간 개발자용 문구 대신 **"현재 서버 점검 중입니다. 오전 9시 이후 다시 이용해 주세요."** 를 `login-error.is-notice`(주황 `#f3cd93`) 톤으로. 점검 시각이 지난 뒤 같은 상황이면 "현재 서버 점검 중입니다. 잠시 후 다시 이용해 주세요."(9시를 더 이상 말하지 않음). `NoticeError` 표시는 `fail()`이 그대로 읽어 색만 바꾼다 — 정상 응답·진짜 서버 오류(`400` JSON) 문구는 덮지 않는다.
-- **검증**: `npx tsc --noEmit` 통과, 신규 `tests/login-maintenance.test.mjs` **7/7**(09:00 경계·배너 문자열/자동 소멸·안내 문구·빈 405·HTML 본문·정상/진짜 오류 비간섭·CSS 규칙), `npm run build` 통과(`NODE_OPTIONS=--max-old-space-size=1400`).
-- **실브라우저 검수**: 브랜치 프리뷰(`feat-242-maintenance-notice.djrpg.pages.dev`, `4c14b0c91ad9`)와 **운영**(390×844, 실제 빌드 번들·CSS)에서 배너 표시 확인. 운영에서는 브라우저에 남은 토큰의 자동 복원이 405를 받아 아래 alert에 주황 점검 문구가 함께 떴다. 검수 이미지 `downloads/djrpg_maintenance_notice_v1.png`(운영)·`downloads/djrpg_maintenance_notice_preview_v1.png`(프리뷰).
-- **머지·배포**: [PR #244](https://github.com/songduckjin/DJRPG/pull/244) 스쿼시 `c37ad1628245`, 운영 `version.json` `c37ad1628245`(`builtAt` 2026-11-20T23:02:18Z = 08:03 KST)·루트 200. 배포 번들 `assets/index-BwqtjNXz.js`에 배너 클래스·세 안내 문구, CSS `assets/index-Be2jMXp2.css`에 `.maintenance-banner{…border-left:3px solid #e8a94e…}`·`.login-error.is-notice{color:#f3cd93}` 확인.
-- **남은 것**: 사용자 폰에서 로그인 화면 실기 확인. **09:00 KST 이후 배너·9시 안내는 자동으로 사라지고**, API 한도가 초기화되면 평소처럼 로그인된다. 한도가 계속 막히면 "잠시 후 다시" 안내만 남는다(원인은 Cloudflare 무료 플랜 하루 10만 요청 소진 — 유료 전환이나 Functions 요청 절감이 근본 대책).
-
-## 2026-11-21 · songduckjin 작업 241 — 가방·공용창고·거래소 업그레이드 초록 화살표(`▲`)
-
-- **요청**: "내가 장착한템보다 좋은템들은 초록색 화살표 위로 표시 시안보여줘" → A안(`downloads/upgrade_arrow/opt_a.jpg`) 확정. 가방·공용창고·거래소 **전부**에서, 내 직업이 낄 수 있는 장비 중 지금 낀 것보다 좋은 것의 **아이콘 상자 우측 상단**에 초록 화살표.
-- **판정은 한 곳**(`src/game/items.ts` `isUpgradeForHero(save,item)`): ① `isEquipment`(스킬북·보물 주머니 제외) ② `canWield(item, jobOrDefault(save.job))` — 타 직업 전용 무기(활·지팡이·대검)는 절대 표시하지 않는다(방어구·장신구는 세 직업 공용) ③ `itemPower` 비교 — **반지는 두 칸 중 약한 쪽(또는 빈 칸)**과 견주고, 나머지 부위는 빈 칸이면 `true`, 같은 부위를 끼고 있으면 더 강해야 `true`(같으면 바꿔도 이득이 없어 표시 안 함). `itemPower`가 [작업 238]의 추가옵션 몫(`extraOptionPower`)까지 더하므로 옵션이 좋은 템도 제대로 올라온다.
-- **그림도 한 곳**(`src/ui/upgradeBadge.ts` — `upgradeArrowMarkup`·`upgradeArrowNode`·`appendUpgradeArrow`): 색 `#34eb6e`, 어두운 `text-shadow` 외곽선, `position:absolute; top:2px; right:2px`, `pointer-events:none`. 좌상단 타직업 배지·우하단 `+N`과 겹치지 않게 우측 상단만 쓰고, 잠금 배지가 같이 있는 칸은 `.bag-item.has-upgrade .bag-lock-badge`가 잠금만 아래로 내린다.
-- **적용 3곳**: ① 내 정보 가방(`equipModal.ts` `renderInventory`) ② 공용창고(`warehouseModal.ts` `paintGrid` — **창고·내 가방 양쪽**, 접속 캐릭터 기준) ③ 거래소(`marketModal.ts` `icon(item, save?)` — 판매 중·거래 완료·내 거래 목록, 수령함, 판매 등록 칸. `최근 거래` 탭과 구매 비교 패널은 이미 성사된 기록/비교표라 제외).
-- **검증**: `npx tsc --noEmit` 통과, 신규 `tests/upgrade-badge.test.mjs` **8/8**(빈 슬롯·같은/약한/강한 장비·타직업 무기 3종 제외·스킬북/주머니 제외·반지 두 칸 약한 쪽 비교·빈 반지 칸·등급 가중·세 화면 배선·CSS 좌표), 전체 `node --test tests/*.test.mjs` **992건 중 989 통과**(실패 3건은 `06bbf92`에서도 동일한 기존 건 — `costume-field-render` 2·`skillbook-server` 1), `npm run build` 통과(이 컨테이너는 RAM 3.5GB·데이터 상한 2GB라 `NODE_OPTIONS=--max-old-space-size=1400`이 필요했다).
-- **실브라우저 검수**: 브랜치 프리뷰에 검수용 페이지를 잠시 올려 **실제 빌드 번들·실제 CSS**로 390×844에서 네 화면을 캡처했다(`/api/*`만 가짜 응답 — 계정·가방 8종·창고 4종·거래소 5건·수령함 2건). 업그레이드 3종(심연의 뿔투구·불멸의 각반·군주의 반지)에만 화살표가 떴고 **같은 방어력 투구·더 약한 장비·궁수/마법사 전용 무기·스킬북에는 뜨지 않았다**. 창고(패왕의 성검·미스릴 아머)·거래소(용살자의 대검·성기사 풀플레이트·낡은 부츠=빈 신발 칸)·수령함(불멸의 왕관·천 장갑=빈 장갑 칸)도 같았다. 검수 페이지는 확인 뒤 삭제(레포에 남기지 않음). 검수 이미지 `downloads/djrpg_upgrade_arrow_v1.png`.
-- **번호 조정**: 등록 시점 최신은 236이었으나 그 사이 237(사과 보상 우편)·238(추가옵션)·239(다캐릭터 거래소)·240(스킬 추천 장착)이 먼저 올라와 **241**로 정리했다(이 때문에 PR #239는 닫고 #241로 다시 올렸고, 브랜치 이름만 `feat/240-upgrade-arrow`로 남아 있다).
-- **머지·배포**: [PR #241](https://github.com/songduckjin/DJRPG/pull/241) 스쿼시 `caccb0daa02c`. 운영 `djrpg.pages.dev` `version.json` `caccb0daa02c`(`builtAt 2026-11-20T18:24:23.070Z`)·루트 200, 배포 번들 `assets/index-DpKhMUkD.js`에 `.upgrade-arrow`, `assets/index-B8qoA91C.css`에 `.upgrade-arrow{…top:2px;right:2px…color:#34eb6e…}`·`.market-icon{…position:relative…}` 포함 실측.
-- **남은 것**: 사용자 실기 확인(가방·공용창고·거래소에서 실제 사냥 템에 화살표가 뜨는지, 크기·가독성).

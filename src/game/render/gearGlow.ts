@@ -70,7 +70,7 @@ export type GearGlowPart = 'armor' | 'helmet' | 'weapon';
  * 갑옷·무기는 종전 3겹 그대로다(갑옷은 다음 작업에서 같은 방식으로 좁힌다).
  */
 export function gearGlowLayersFor(part: GearGlowPart): readonly GearGlowLayerSpec[] {
-  return part === 'helmet' ? gearGlowLayers.filter(layer => layer.scale <= 1) : gearGlowLayers;
+  return part === 'helmet' || part === 'armor' ? gearGlowLayers.filter(layer => layer.scale <= 1) : gearGlowLayers;
 }
 
 /**

@@ -344,5 +344,6 @@ v2는 갑옷을 입어도 `body`의 `arms`·`legs` 파츠를 그대로 그렸다
 
 - **필드**: `src/game/render/gearGlow.ts`가 등급색·파동·겹 표를 갖고, `entities.ts` `syncGearGlow(view, key, source, rarity, time, options)`가 그린다.
 - **투구는 파츠만 발광**(작업 256): 파츠와 같은 파일명·같은 크기의 알파 마스크 PNG를 `public/assets/pilot-25d/helmets_glow/**`·`archer_helms_glow/**`에 두고(생성기 `scripts/build-helm-glow-masks.py`, 113장), `options.mask`로 넘긴다. 마스크가 아직 로딩 전이면 그 프레임 발광을 숨긴다 — 마스크 없이 그리면 얼굴·목까지 등급색이 된다.
-- **갑옷**은 `options.neckY`로 목 밑동 아래만 칠한다(파츠가 아니라 몸통 시트라 목선 좌표를 자세 표에서 받는다).
+- **갑옷·로브도 파츠만**(작업 257): `armors_glow/**`·`archer_armors_glow/**`·`robes_glow/**`의 알파 마스크(`armorGlowMasks.ts` `armorGlowSheetFor`·`GameView.armorGlowFrame`)를 `options.mask`로 넘겨 맨팔·부츠·무기·후광은 빛나지 않는다. 마스크가 로딩 전이면 그 프레임 발광을 숨긴다.
+- 남은 `options.neckY`(목 밑동) 경로는 **마스크가 없는 예전 자산**을 위한 폴백이다 — 새 자산은 마스크를 쓴다.
 - **장착 화면(내 정보)**은 필드와 별개로 `mageHelmGlowMaskCanvas`(캔버스, 성별당 1장)를 `destination-in`으로 쓴다. 런타임 캔버스 마스크를 필드에 다시 넣지 않는다.
