@@ -5,7 +5,7 @@ import './ts-loader.mjs';
 
 const { freshSave } = await import('../src/game/store.ts');
 const { isUpgradeForHero, itemPower, pouchItem } = await import('../src/game/items.ts');
-const { upgradeArrowMarkup, upgradeArrowNode, appendUpgradeArrow, UPGRADE_ARROW_CLASS, UPGRADE_ARROW_TEXT, UPGRADE_ARROW_COLOR } = await import('../src/ui/upgradeBadge.ts');
+const { upgradeArrowMarkup, upgradeArrowNode, appendUpgradeArrow, UPGRADE_ARROW_CLASS, UPGRADE_ARROW_ART, UPGRADE_ARROW_COLOR, UPGRADE_ARROW_LABEL } = await import('../src/ui/upgradeBadge.ts');
 
 // [작업 241] 업그레이드 초록 화살표 — 가방·공용창고·거래소에서 **내 직업이 낄 수 있는 장비 중
 // 현재 착용보다 좋은 장비**에만 붙는다. 판정은 `isUpgradeForHero` 한 곳.
@@ -89,10 +89,10 @@ function rule(source, selector) {
   return source.slice(index, source.indexOf('}', index) + 1);
 }
 
-test('세 화면(가방·공용창고·거래소)이 같은 판정 헬퍼로 화살표를 붙인다', () => {
+test('세 화면(가방·장착 칸·공용창고·거래소)이 같은 판정 헬퍼로 화살표를 붙인다', () => {
   assert.match(equipSource, /import \{ upgradeArrowMarkup \} from '\.\.\/upgradeBadge'/, '가방은 innerHTML 헬퍼를 쓴다');
   assert.match(equipSource, /const upgrade = upgradeArrowMarkup\(save, item\);/);
-  assert.match(equipSource, /cell\.innerHTML = itemIcon\.call\(this, item\.slot, item, 'item-icon'\) \+ upgrade;/);
+  assert.match(equipSource, /cell\.innerHTML = itemIcon\.call\(this, item\.slot, item, 'item-icon'\) \+ upgrade \+ plus;/);
   assert.match(warehouseSource, /const upgrade = upgradeArrowMarkup\(ui\.world\.save, item\);/);
   assert.match(warehouseSource, /cell\.innerHTML = cellIcon\(ui, item\) \+ upgrade;/);
   assert.match(marketSource, /import \{ appendUpgradeArrow \} from '\.\.\/upgradeBadge'/);
@@ -101,25 +101,31 @@ test('세 화면(가방·공용창고·거래소)이 같은 판정 헬퍼로 화
   // 거래소에서 화살표가 붙는 곳 — 판매 중·거래 완료·내 거래 목록, 수령함, 판매 등록 칸.
   assert.match(marketSource, /row\.append\(icon\(sale\.item, ui\.world\.save\), itemInfo\(sale\.item\)\);/);
   assert.match(marketSource, /row\.append\(icon\(delivery\.item, this\.world\.save\), itemInfo\(delivery\.item\)\)/);
-  assert.match(marketSource, /pick\.append\(icon\(item, ui\.world\.save\)/);
+  // 판매 등록 칸은 **칸**에 화살표를 붙여 칸의 오른쪽 위에 고정한다(작업 248).
+  assert.match(marketSource, /pick\.append\(icon\(item\)\);/);
+  assert.match(marketSource, /appendUpgradeArrow\(pick, ui\.world\.save, item\);/);
 });
 
-test('화살표 문자열·요소는 확정 색과 위쪽 화살표 글자를 쓴다', () => {
+test('화살표는 3번 슬림 셰브론 PNG를 쓴다(글자 `▲` 제거, 작업 246)', () => {
   const save = freshSave('male', 'warrior');
   save.equipment = { helmet: equipment('helmet', { defense: 50 }) };
   const markup = upgradeArrowMarkup(save, equipment('helmet', { defense: 500 }));
   assert.match(markup, new RegExp(`class="${UPGRADE_ARROW_CLASS}"`));
-  assert.match(markup, new RegExp(UPGRADE_ARROW_TEXT));
+  assert.match(markup, new RegExp(`src="${UPGRADE_ARROW_ART.replace(/[/.]/g, '\\$&')}"`), 'PNG 경로');
   assert.match(markup, /aria-hidden="true"/, '낭독기에는 카드 라벨로 알린다');
+  assert.match(markup, /title="지금 장착한 장비보다 좋은 장비"/);
+  assert.doesNotMatch(markup, /▲/, '큰 글자 화살표는 더 이상 쓰지 않는다');
   assert.equal(upgradeArrowMarkup(save, book()), '', '스킬북은 빈 문자열');
-  assert.equal(UPGRADE_ARROW_COLOR, '#34eb6e');
+  assert.equal(UPGRADE_ARROW_COLOR, '#34d399', '주변 발광은 초록');
+  assert.equal(UPGRADE_ARROW_LABEL, '지금 장착한 장비보다 좋은 장비');
   // DOM 없이도 요소를 만들 수 있는지 — 최소 스텁으로 확인한다.
   const previous = globalThis.document;
   try {
-    globalThis.document = { createElement: () => ({ className: '', textContent: '', title: '', attrs: {}, children: [], setAttribute(name, value) { this.attrs[name] = value; }, append(child) { this.children.push(child); } }) };
+    globalThis.document = { createElement: () => ({ className: '', src: '', alt: '', title: '', draggable: true, attrs: {}, children: [], setAttribute(name, value) { this.attrs[name] = value; }, append(child) { this.children.push(child); } }) };
     const node = upgradeArrowNode();
     assert.equal(node.className, UPGRADE_ARROW_CLASS);
-    assert.equal(node.textContent, UPGRADE_ARROW_TEXT);
+    assert.equal(node.src, UPGRADE_ARROW_ART);
+    assert.equal(node.alt, '', '장식용 이미지');
     assert.equal(node.attrs['aria-hidden'], 'true');
     const host = { children: [], append(child) { this.children.push(child); } };
     assert.equal(appendUpgradeArrow(host, save, equipment('helmet', { defense: 51 })), true);
@@ -128,16 +134,23 @@ test('화살표 문자열·요소는 확정 색과 위쪽 화살표 글자를 �
   } finally { globalThis.document = previous; }
 });
 
-test('화살표는 아이콘 상자 우측 상단(2px)에 초록색 + 어두운 외곽선으로 그린다', () => {
+test('화살표는 우측 상단에 작게(12px 이하) + 초록 발광, `+N`은 왼쪽 아래에 그린다(작업 246)', () => {
   const arrow = rule(modalsCss, '.upgrade-arrow');
   assert.match(arrow, /position: absolute/);
   assert.match(arrow, /top: 2px/);
   assert.match(arrow, /right: 2px/);
-  assert.match(arrow, /color: #34eb6e/);
-  assert.match(arrow, /text-shadow: -1px -1px 0 #[0-9a-f]{6}/, '어두운 외곽선');
+  assert.match(arrow, /width: clamp\(7px, 1\.9vw, 9px\)/, '기존 글자(11~14px)와 아이콘 상자에서 확실히 작다');
+  assert.doesNotMatch(arrow, /font-size/, '글자가 아니라 그림이다');
+  assert.match(arrow, /drop-shadow\(0 0 3px rgba\(52, 211, 153, \.8\)\)/);
+  assert.match(arrow, /drop-shadow\(0 0 6px rgba\(16, 185, 129, \.5\)\)/);
   assert.match(arrow, /pointer-events: none/);
-  // 좌상단 타직업 배지·우하단 +N과 겹치지 않게 잠금 배지만 아래로 내린다.
+  // 좌상단 타직업 배지·우하단 `+N`/잠금과 겹치지 않게 잠금 배지만 아래로 내린다.
   assert.match(rule(modalsCss, '.bag-item.has-upgrade .bag-lock-badge'), /bottom: 1px/);
+  // `+N` 강화 배지는 모든 칸에서 왼쪽 아래 한 자리(작업 246).
+  const plus = rule(modalsCss, '.bag-item .item-plus-badge, .equipment-slot .item-plus-badge, .market-pick .item-plus-badge');
+  assert.match(plus, /position: absolute/);
+  assert.match(plus, /left: 3px/);
+  assert.match(plus, /bottom: 2px/);
   // 거래소는 아이콘 상자 자체가 기준 상자가 되어야 화살표가 아이콘 모서리에 붙는다.
   assert.match(rule(marketCss, '.market-icon'), /position: relative/);
 });

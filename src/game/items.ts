@@ -38,16 +38,32 @@ export function isEquipment(item: Item): item is EquipmentItem { return item.kin
 export function pouchItem(id: string = crypto.randomUUID(), name: string = POUCH_NAME): TreasurePouch {
   return { id, name, slot: POUCH_SLOT, rarity: POUCH_RARITY, kind: 'pouch', stats: {} };
 }
-export function rollSkillBook(floor: number, _job: Job = 'warrior'): SkillBook {
-  // 스킬북도 세 직업이 같은 확률로 떨어진다(작업 204, 사용자 확정). 직업을 먼저 1/3로 고른 뒤,
-  // 그 직업의 `floor * 2` 해금 조건을 만족하는 스킬·패시브 중 하나를 뽑는다. 세 직업 모두 액티브 8 +
-  // 패시브 3으로 수가 같아, 직업을 먼저 고르면 전 스킬이 같은 확률이 된다.
+/** `[스킬북] {스킬 이름}` — 한 곳에서만 만든다(작업 251). */
+export function skillBookItem(skillId: SkillLevelId): SkillBook {
+  return { id: crypto.randomUUID(), name: `[스킬북] ${skillId in skills ? skills[skillId as keyof typeof skills].name : passives[skillId as keyof typeof passives].name}`, slot: 'skillbook', rarity: 'rare', kind: 'skillbook', skillId, stats: {} };
+}
+/**
+ * **그 직업의** 스킬북 1권 — 액티브 8 + 패시브 3 중 같은 확률(1/11). 작업 251 `스킬북 합성`의 결과가
+ * 이 함수를 쓴다(사용자 확정 "타직업스킬북 5개당 내직업 랜덤1개"). 드롭용 `rollSkillBook`은 직업을
+ * 1/3로 먼저 뽑으므로(33종 1/33) 여기서는 직업을 고정한다 — 드롭 확률은 건드리지 않는다.
+ */
+export function rollSkillBookFor(job: Job = 'warrior', draw: () => number = random): SkillBook {
+  const order = [...skillOrderFor(job), ...passiveOrderFor(job)];
+  const index = Math.min(order.length - 1, Math.max(0, Math.floor(draw() * order.length)));
+  return skillBookItem(order[index]);
+}
+export function rollSkillBook(_floor: number, _job: Job = 'warrior'): SkillBook {
+  // 스킬북도 세 직업이 같은 확률로 떨어진다(작업 204, 사용자 확정). 직업을 먼저 1/3로 고른 뒤
+  // 그 직업의 스킬·패시브 중 하나를 뽑는다. 세 직업 모두 액티브 8 + 패시브 3으로 수가 같아,
+  // 직업을 먼저 고르면 전 스킬이 같은 확률이 된다.
+  // [작업 246] 사용자 확정: **층 제한을 없앤다** — 예전에는 `스킬.level <= floor * 2`인 책만
+  // 떨어져 1층에서는 초반 스킬만 나왔다. 이제 1층을 포함한 모든 층에서 그 직업의 11종
+  // (액티브 8 + 패시브 3)이 **똑같이 1/11**로 나온다. 습득 자체에 레벨 제한은 없으므로
+  // (`useSkillBook`) 낮은 층에서 높은 스킬북을 먼저 모아 둘 수 있다.
   const job = dropJob();
   const order = [...skillOrderFor(job), ...passiveOrderFor(job)];
-  const available = order.filter(id => (id in skills ? skills[id as keyof typeof skills].level : passives[id as keyof typeof passives].level) <= floor * 2);
-  const ids = available.length ? available : [order[0]];
-  const skillId = ids[Math.floor(random() * ids.length)];
-  return { id: crypto.randomUUID(), name: `[스킬북] ${skillId in skills ? skills[skillId as keyof typeof skills].name : passives[skillId as keyof typeof passives].name}`, slot: 'skillbook', rarity: 'rare', kind: 'skillbook', skillId, stats: {} };
+  const skillId = order[Math.floor(random() * order.length)];
+  return skillBookItem(skillId);
 }
 /**
  * 한 마리당 **아이템 드롭률** (작업 210, 사용자 지시 `#4628`·`#4639`·`#4649`).
@@ -427,8 +443,53 @@ export function rollRarity(floor: number, boss = false, draw: () => number = ran
   return roll < legendary ? 'legendary' : roll < unique ? 'unique' : roll < epic ? 'epic' : roll < rare ? 'rare' : roll < magic ? 'magic' : 'common';
 }
 
-/** 그 층·등급의 장비 1개 — 슬롯·티어·스탯·`+단계` 규칙은 `rollItem`이 늘 쓰던 그대로다.
- *  `rollItem`은 이 함수에 스스로 뽑은 등급을 넘기고, 보물 주머니는 확률표가 정한 등급을 넘긴다(작업 207).
+/**
+ * 던전 등급 확률 — **10층 구간**마다 상위 등급 비중을 한 단계씩 올린다(작업 248, 사용자 확정 11-21).
+ *
+ * 구간은 `Math.floor((층 - 1) / 10)`이다: 1~10층 0구간, 11~20층 1구간, 21~30층 2구간…
+ * 0구간 값은 **지금 던전(10층)의 확률**을 그대로 옮긴 것이다(전설 0.25%·레어 2.4%·매직 15%,
+ * 보스 전설 2.2%·레어 14.9%·매직 54%) — 1~10층은 지금과 같은 손맛을 유지하고, 깊은 구간은
+ * 드롭률은 그대로 둔 채 **상위 등급의 몫만** 키운다(전설/유니크가 한꺼번에 쏟아지지 않게 상한을 둔다).
+ */
+export const DUNGEON_RARITY_TIERS: readonly { legendary: number; rare: number; magic: number }[] = [
+  { legendary: .0025, rare: .0240, magic: .1500 },
+  { legendary: .0060, rare: .0450, magic: .2100 },
+  { legendary: .0110, rare: .0700, magic: .2700 },
+  { legendary: .0170, rare: .1000, magic: .3300 },
+  { legendary: .0240, rare: .1350, magic: .3900 },
+  { legendary: .0320, rare: .1750, magic: .4500 },
+  { legendary: .0410, rare: .2200, magic: .5100 }
+];
+/** 던전 보스 등급 확률 — 같은 구간 표를 보스의 더 두터운 상위 등급으로 옮길 값. */
+export const DUNGEON_BOSS_RARITY_TIERS: readonly { legendary: number; rare: number; magic: number }[] = [
+  { legendary: .0220, rare: .1490, magic: .5400 },
+  { legendary: .0300, rare: .1850, magic: .5800 },
+  { legendary: .0400, rare: .2250, magic: .6200 },
+  { legendary: .0520, rare: .2700, magic: .6600 },
+  { legendary: .0660, rare: .3200, magic: .7000 },
+  { legendary: .0820, rare: .3750, magic: .7400 },
+  { legendary: .1000, rare: .4350, magic: .7800 }
+];
+/** 이 층의 던전 등급 구간(10층 단위, 0부터). 표 범위를 넘으면 마지막 구간을 쓴다. */
+export function dungeonRarityTier(floor: number): number {
+  const depth = Math.max(1, Math.floor(Number.isFinite(floor) ? floor : 1));
+  return Math.floor((depth - 1) / 10);
+}
+/** 던전 장비 하나의 등급 — 구간 표에서 뽑는다. `rollRarity`(필드)와 같은 방식으로 unique·epic을 사이에 둔다. */
+export function dungeonRarityFor(floor: number, boss = false, draw: () => number = random): Rarity {
+  const table = boss ? DUNGEON_BOSS_RARITY_TIERS : DUNGEON_RARITY_TIERS;
+  const row = table[Math.min(table.length - 1, dungeonRarityTier(floor))];
+  const unique = row.legendary + (row.rare - row.legendary) * .18;
+  const epic = row.legendary + (row.rare - row.legendary) * .48;
+  const roll = draw();
+  return roll < row.legendary ? 'legendary' : roll < unique ? 'unique' : roll < epic ? 'epic' : roll < row.rare ? 'rare' : roll < row.magic ? 'magic' : 'common';
+}
+/** 던전 장비 1개 — `rollItem`과 같은 조립에 등급만 던전 구간 표에서 뽑는다(작업 248). */
+export function rollDungeonItem(floor: number, boss = false): EquipmentItem {
+  return rollEquipment(floor, dungeonRarityFor(floor, boss), boss);
+}
+
+/** 그 층·등급의 장비 1개 — 슬롯·티어·스탯·`+단계` 규칙은 `rollItem`이 늘 쓰던 그대로다. *  `rollItem`은 이 함수에 스스로 뽑은 등급을 넘기고, 보물 주머니는 확률표가 정한 등급을 넘긴다(작업 207).
  *  난수는 `rng`의 `random()`을 쓴다 — 던전은 시드로 전투를 다시 돌려 검증하므로 드롭 뽑기도 같은 난수를
  *  따라야 한다(작업 211). 시드가 없으면 `Math.random`이다. */
 export function rollEquipment(floor: number, rarity: Rarity, boss = false): EquipmentItem {

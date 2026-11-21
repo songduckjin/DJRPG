@@ -104,7 +104,7 @@ export function autoSalvageRecovered(save: Save, item: Item, maxRarity: Exclude<
   return { gold, stones };
 }
 
-/** 가방 40칸에 세는 수 — `bagCapacity.equipmentCount`와 같은 셈(장비 + **다른 직업 전용 스킬북**, 내 직업 책·주머니는 제외 — 작업 210). */
+/** 가방 40칸에 세는 수 — `bagCapacity.equipmentCount`와 같은 셈(가방 안의 모든 아이템 1개=1칸, 작업 248). */
 export function bagEquipmentCount(save: Save): number { return equipmentCount(save.bag, jobOrDefault(save.job)); }
 
 /** 가방 40칸이 **꽉 찬** 상태에서 이미 들고 있던 장비를 즉시 분해해 빈 칸을 만든다(작업 209, 사용자 확정

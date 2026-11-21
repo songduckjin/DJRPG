@@ -18,9 +18,11 @@ test('offline hunts award one item per kill (장비 70% · 스킬북 30%) and go
     assert.equal(save.gold, reward.gold);
     assert.equal(save.floorKills, reward.kills);
     // 한 마리당 **한 번만** 굴려 1개만 나온다(작업 210) — 난수 0이면 30% 쪽인 스킬북, 두 개가 같이 나오지 않는다.
-    assert.equal(reward.items.length, reward.kills, '한 마리당 정확히 1개');
+    // 120마리 모두 스킬북이지만 가방 40칸이 스킬북도 세므로(작업 248) 40권만 들어가고 나머지는 놓친다.
+    assert.equal(reward.items.length, 40, '가방 40칸을 채울 만큼만');
     assert(reward.items.every(item => item.slot === 'skillbook'), '난수 0은 스킬북 30% 쪽');
-    assert.equal(reward.missedDrops, 0, '내 직업 책은 40칸을 쓰지 않는다');
+    assert.equal(reward.missedDrops, reward.kills - 40, '나머지는 자리가 없어 놓친다');
+    assert.equal(save.bag.length, 40);
   } finally { Math.random = originalRandom; }
 });
 
@@ -30,8 +32,13 @@ test('full bag counts missed drops and tutorial suppresses all loot', () => {
     const save = freshSave(); save.tutorial = 1;
     save.bag = Array.from({ length: 40 }, (_, index) => ({ id: `item-${index}`, name: '낡은 두손검', slot: 'weapon', rarity: 'common', stats: { attack: 4 } }));
     const reward = applyOfflineRewards(save, 60);
-    // 가방 40칸이 가득이어도 내 직업 스킬북은 자리를 쓰지 않는다(작업 210) — 장비였다면 놓쳤을 몫이다.
-    assert.equal(reward.items.length, reward.kills); assert(reward.items.every(item=>item.slot==='skillbook')); assert.equal(reward.missedDrops, 0);
+    // 가방 40칸이 가득이면 스킬북도 자리가 없다(작업 248) — 받은 아이템 0, 놓친 몫은 사냥한 만큼.
+    assert.equal(reward.items.length, 0, '가득 찬 가방에는 아무것도 들어가지 않는다');
+    assert.equal(reward.missedDrops, reward.kills, '놓친 몫을 센다');
+    save.bag.pop();
+    const room = applyOfflineRewards(save, 60);
+    assert.equal(room.items.length, 1, '한 칸이 비면 스킬북 1권이 들어간다');
+    assert(room.items.every(item=>item.slot==='skillbook'));
     const tutorial = freshSave(), early = applyOfflineRewards(tutorial, 600);
     assert.equal(early.items.length, 0); assert.equal(early.missedDrops, 0);
     // 튜토리얼 전 600초는 120마리 — 새 1층 목표(150)에 못 미쳐 보스 금화가 붙지 않는다.
@@ -71,10 +78,36 @@ test('아이템 드롭률은 한 마리당 한 번 — 1층 0.40%→20층 1.60%,
 test('아래층 오프라인 정산에는 보스 몫(보스 처치·보스 금화)이 들어가지 않는다(작업 210)', () => {
   const originalRandom = Math.random; Math.random = () => .99;
   try {
-    const save = freshSave(); save.tutorial = 1; save.floor = 2; save.maxFloor = 7;
+    // 자동 등반이 꺼져 있으면 아래층에서 계속 사냥한다(작업 245 — 켜져 있으면 한 층씩 올라간다).
+    const save = freshSave(); save.tutorial = 1; save.floor = 2; save.maxFloor = 7; save.autoClimb = false;
     const reward = applyOfflineRewards(save, 3600);
     assert(save.bossKills === 0, '아래층에는 보스가 없으니 보스 처치 0');
     assert.equal(reward.gold, reward.kills * 5, '보스 금화(70×층) 없이 일반 몹 금화만');
+    assert.equal(save.floor, 2, '자동 등반이 꺼져 있으면 층은 그대로');
     assert(save.floorKills < floorKillTarget(2), '진행도는 목표 안에서만 돈다');
+  } finally { Math.random = originalRandom; }
+});
+
+test('자동 등반 중이면 방치 정산도 층 목표를 채울 때마다 한 층씩 올라가고, 최고층에서는 보스를 상대한다(작업 245)', () => {
+  const originalRandom = Math.random; Math.random = () => .99;
+  try {
+    const save = freshSave(); save.tutorial = 1; save.floor = 1; save.maxFloor = 2; save.floorKills = 0;
+    const reward = applyOfflineRewards(save, 3600);
+    assert(reward.kills > floorKillTarget(1), '1층 목표를 넘길 만큼 잡았다');
+    assert.equal(save.floor, 2, '목표를 채운 만큼 한 층 올라간다');
+    assert.equal(reward.endFloor, 2, '정산이 끝난 층도 올라간 층이다');
+    assert.equal(save.maxFloor, 2, '올라가도 최고 도달 층은 그대로');
+    assert(save.floorKills <= floorKillTarget(2), '최고층 진행도는 목표 안에');
+    assert(reward.gold >= floorKillTarget(1) * (3 + 1), '올라간 1층 사냥은 1층 금화로 정산');
+    // 목표를 다 못 채우면 그 층에 머문다.
+    const short = freshSave(); short.tutorial = 1; short.floor = 1; short.maxFloor = 3;
+    const shortReward = applyOfflineRewards(short, 60);
+    assert(shortReward.kills < floorKillTarget(1), '10분으로는 1층 목표에 못 미친다');
+    assert.equal(short.floor, 1, '1층 목표에 못 미치면 1층에 머문다');
+    assert.equal(short.floorKills, shortReward.kills, '잡은 만큼 진행도에 쌓인다');
+    // 자동 등반이 꺼져 있으면 목표를 채워도 층은 그대로(작업 210 규칙 유지).
+    const still = freshSave(); still.tutorial = 1; still.floor = 1; still.maxFloor = 3; still.autoClimb = false;
+    applyOfflineRewards(still, 3600);
+    assert.equal(still.floor, 1, '자동 등반이 꺼져 있으면 올라가지 않는다');
   } finally { Math.random = originalRandom; }
 });

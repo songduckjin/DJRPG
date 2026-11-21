@@ -165,11 +165,12 @@ test('a full bag sweeps only the pieces auto-salvage may take, and pays like a m
     book(),
     ...Array.from({ length: 34 }, (_, index) => gear(`keep-${index}`, 'weapon', 5, 'unique')),
   ];
-  assert.equal(bagEquipmentCount(save), 40, '장비 40칸(스킬북은 세지 않는다)');
+  // 작업 248: 스킬북도 한 칸을 쓴다 — 장비 39 + 스킬북 1 = 40칸.
+  assert.equal(bagEquipmentCount(save), 41, '가방 41개(장비 40 + 스킬북 1) — 40칸을 넘은 상태');
   const gold = save.gold, stones = save.stones, salvaged = save.salvageCount ?? 0;
   const swept = sweepBagOnFull(save, 'rare', 3);
   assert.deepEqual(swept, { count: 2, gold: salvageGold.common * 2, stones: salvageStones.common * 2 }, '설정 등급 이하 두 벌만');
-  assert.equal(bagEquipmentCount(save), 38, '두 칸이 비었다');
+  assert.equal(bagEquipmentCount(save), 39, '두 칸이 비었다');
   assert.deepEqual(save.bag.map(item => item.id).filter(id => id.startsWith('junk')), [], '분해한 장비는 가방에서 사라진다');
   for (const id of ['locked', 'plus', 'high', 'better', 'book']) assert(save.bag.some(item => item.id === id), `${id}는 보호된다`);
   assert.equal(save.gold, gold + swept.gold); assert.equal(save.stones, stones + swept.stones);

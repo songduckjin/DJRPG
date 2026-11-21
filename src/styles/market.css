@@ -1,11 +1,42 @@
 .market-modal { width: min(100%, 500px); height: min(92dvh, 900px); max-height: 92dvh; padding: 12px; }
-.market-hero { padding: 5px 0 14px; text-align: center; background: radial-gradient(ellipse at top, #67472b55, transparent 75%); }
-.market-hero small { color: #b69768; font: 8px Cinzel, serif; letter-spacing: 3px; }
-.market-hero p { margin: 7px 0; color: #efdfbd; font: 700 23px Cinzel, 'Noto Sans KR', serif; }
-.market-hero span { color: #e6bb6c; font-size: 12px; }
-.market-tabs { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 3px; position: sticky; top: -12px; z-index: 1; background: #261e21; padding: 6px 0; }
+/* 상단 한 줄(작업 248): `황야의 거래소`는 왼쪽, 보유 금화는 닫기(×) 바로 왼쪽. */
+.market-head { gap: 6px; margin-bottom: 4px; }
+.market-head .market-title { flex: 1 1 auto; min-width: 0; margin: 0; font: 700 19px Cinzel, 'Noto Sans KR', serif; color: #efdfbd; letter-spacing: .5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.market-head-gold { display: inline-flex; align-items: center; gap: 3px; flex: none; color: #e6bb6c; font-size: 12px; font-weight: 700; }
+.market-head-gold img, .market-head-gold .gold-coin { width: 15px; height: 15px; }
+/* 인덱스 탭(작업 248) — 보상 창의 `.reward-index-tab`과 같은 형태로 본문 패널과 맞닿는다. */
+.market-tabs.market-index-tabs { display: flex; gap: 3px; position: sticky; top: -12px; z-index: 3; padding: 0 0 0 4px; margin: 0 0 6px; background: #261e21; border-bottom: 1px solid #8b6a49; }
+.market-index-tab { position: relative; top: 1px; flex: 1 1 0; min-width: 0; padding: 6px 2px !important; border: 1px solid #67503f !important; border-bottom: 0 !important; border-radius: 5px 5px 0 0 !important; background: #21191b !important; color: #a99581; font-size: 9.5px !important; white-space: nowrap; }
+.market-index-tab .market-tab-label { display: block; overflow: hidden; text-overflow: ellipsis; }
+.market-index-tab.active, .market-index-tab[aria-selected="true"] { background: #302326 !important; color: #f2d5a9 !important; border-color: #b18c59 !important; padding-bottom: 7px !important; }
+.market-index-tab:focus-visible { outline: 2px solid #e2bd78; outline-offset: -3px; }
+/* 판매 중 탭의 간편/상세 보기 토글(작업 248) — 사용자가 준 아이콘 두 장. */
+.market-view-toggle { display: flex; justify-content: flex-end; gap: 4px; margin: 2px 0 6px; }
+.market-view-button { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 30px; padding: 0 !important; border-radius: 5px !important; background: #241c1e !important; border: 1px solid #67503f !important; }
+.market-view-button img { width: 20px; height: 20px; object-fit: contain; image-rendering: auto; }
+.market-view-button.is-on { border-color: #e2b66d !important; background: #4a3526 !important; box-shadow: inset 0 0 6px #d9a95a55; }
+.market-view-button.is-on img { filter: drop-shadow(0 0 3px #e8c178aa); }
+/* 간편 보기 한 줄 — 아이콘·이름·가격·구매 버튼만. */
+.market-row.market-row-compact { grid-template-columns: 36px minmax(0, 1fr) auto auto; gap: 6px; padding: 5px 6px; margin: 4px 0; align-items: center; }
+.market-row-compact .market-icon{width:34px;height:34px;flex:0 0 34px;border-width:1px}
+.market-row-compact .market-icon.rarity-common { border-color: #9ca3af; }
+.market-row-compact .market-icon.rarity-magic { border-color: #60a5fa; }
+.market-row-compact .market-icon.rarity-rare { border-color: #facc15; }
+.market-row-compact .market-icon.rarity-epic { border-color: #c084fc; }
+.market-row-compact .market-icon.rarity-unique { border-color: #fb923c; }
+.market-row-compact .market-icon.rarity-legendary { border-color: #f87171; }
+.market-compact-name { display: flex; min-width: 0; flex-direction: column; gap: 1px; }
+.market-compact-name b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
+.market-compact-meta { color: #a49384; font-size: 8.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.market-compact-price { display: flex; align-items: center; gap: 2px; color: #e6bb6c; font-size: 10.5px; font-weight: 700; white-space: nowrap; }
+.market-row-compact .market-buy { padding: 5px 8px !important; font-size: 10px !important; white-space: nowrap; }
+.market-row-compact .market-detail { grid-column: 1 / -1; }
 .market-modal button { border: 1px solid #80613e; background: linear-gradient(#49352b, #2b2021); color: #ecd6ad; padding: 8px; font-size: 11px; border-radius: 4px; }
-.market-tabs button { padding: 9px 0; white-space: nowrap; font-size: 9.5px; }
+.market-tabs button { position: relative; padding: 9px 0; white-space: nowrap; font-size: 9.5px; }
+.market-tab-label { display: block; }
+/* 수령함 탭 빨간 점(작업 247) — 메인 하단 거래소 아이콘의 `.market-nav-dot`과 같은 표시. */
+.market-inbox-dot { position: absolute; z-index: 3; top: 2px; right: 3px; width: 8px; height: 8px; border: 1px solid #efb6a4; border-radius: 50%; background: #de352e; box-shadow: 0 0 5px #a81718b0; pointer-events: none; }
+.market-inbox-dot[hidden] { display: none; }
 .market-tabs .active { border-color: #e2b66d; background: #715032; color: #fff0ce; }
 .market-modal button:disabled { opacity: .45; cursor: default; }
 .market-modal button:focus-visible, .market-modal input:focus-visible, .market-modal select:focus-visible { outline: 2px solid #e5ba76; outline-offset: 2px; }
@@ -24,10 +55,10 @@
 .market-result { font-size: 11px; color: #cdb895; }
 .market-row { display: grid; grid-template-columns: 48px minmax(0,1fr) auto; align-items: center; gap: 8px; padding: 10px 8px; margin: 8px 0; border: 1px solid #65503e; background: linear-gradient(110deg,#302723,#211b20); border-radius: 5px; }
 .market-icon { display: block; position: relative; width: 46px; height: 46px; flex: 0 0 46px; background-repeat: no-repeat; border: 1px solid #856841; border-radius: 5px; }
-/* 업그레이드 화살표(작업 241) — 아이콘 상자 안에서 우측 상단에 붙는다(등록 칸의 잠금 배지는
-   카드 모서리라 서로 겹치지 않는다). */
-.market-icon .upgrade-arrow { font-size: 14px; }
-.market-pick .market-icon .upgrade-arrow, .market-recent-row .market-icon .upgrade-arrow { font-size: 12px; }
+/* 업그레이드 화살표(작업 241 → 246) — 아이콘 상자 안 우측 상단에 작은 슬림 셰브론 PNG로 붙는다
+   (등록 칸의 잠금 배지는 카드 모서리라 서로 겹치지 않는다). 46px 상자에서도 9px 이하. */
+.market-icon .upgrade-arrow { width: 9px; height: auto; }
+.market-pick .market-icon .upgrade-arrow, .market-recent-row .market-icon .upgrade-arrow { width: 7px; height: auto; }
 .market-item-info { display: flex; min-width: 0; flex-direction: column; gap: 4px; }
 .market-item-info b { overflow-wrap: anywhere; font-size: 12px; }
 .market-item-info small { color: #bba58d; font-size: 9px; line-height: 1.5; }
@@ -41,8 +72,20 @@
 .market-detail p, .market-detail small, .market-detail button { width: 100%; }
 .market-up { color: #98d7ac; }.market-down { color: #e78e85; }
 .market-pagination { display: flex; justify-content: center; align-items: center; gap: 18px; font-size: 11px; margin: 16px 0; }
-.market-register-grid { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 7px; max-height: 260px; overflow-y: auto; margin-bottom: 12px; }
-.market-pick { display: flex; flex-direction: column; align-items: center; gap: 5px; min-width: 0; }
+/* 판매 등록 물품 칸(작업 247 → 249) — 가방 그리드처럼 작게 여러 열로 줄여 스크롤을 없앤다.
+   사용자 확정(11-21): **한 줄에 8칸** — 좁은 폭에서도 8칸이 유지되도록 간격·배지·아이콘을 함께 줄였다. */
+.market-register-grid { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 4px; max-height: 300px; overflow-y: auto; margin-bottom: 12px; padding: 2px; }
+@media (max-width: 359px) { .market-register-grid { gap: 3px; } }
+/* `.market-modal button`(padding 8px)보다 특이도가 높아야 칸이 작게 유지된다. */
+/* 판매 등록 칸(작업 248) — 가방(`.bag-item`)과 같은 정사각형 아이콘 칸. 이름 글자는 없다(툴팁만). */
+.market-modal .market-pick { position: relative; display: flex; align-items: center; justify-content: center; min-width: 0; aspect-ratio: 1; padding: 2px; border: 1px solid #60534e; border-radius: 4px; background: radial-gradient(circle at 50% 30%, #3a3130, #221e22); }
+.market-pick .market-icon{width:34px;height:34px;flex:0 0 34px;border:0;border-radius:0}
+/* 배지는 모두 절대 위치 — 갯수(`×N`)·이름 때문에 칸이 늘어나지 않는다. */
+.market-pick .job-badge { position: absolute; top: 1px; left: 2px; z-index: 2; padding: 0 1px; min-height: 10px; font-size: 7px; line-height: 8px; pointer-events: none; }
+.market-pick .upgrade-arrow { top: 1px; right: 2px; width: 8px; height: 8px; object-fit: contain; }
+/* 이름은 한 줄 말줄임(가방 칸과 같다) — 전체 이름은 `aria-label`·선택 뒤 상세가 보여 준다. */
+/* 같은 아이템 `×N`(작업 247) — 우하단. `+N`은 왼쪽 아래, 직업 배지는 좌상단, 화살표는 아이콘 우상단. */
+.market-pick-count { position: absolute; right: 2px; bottom: 1px; z-index: 2; padding: 0 1px; border-radius: 3px; background: #171216e6; color: #f2deb9; font-size: 8px; line-height: 1.3; pointer-events: none; }
 .market-pick small { font-size: 9px; overflow-wrap: anywhere; }
 .market-pick.selected { outline: 2px solid #e8bf76; background: #745134; }
 .market-register > .market-item-info { margin: 12px 0; }
@@ -53,7 +96,7 @@
 .sync-busy .battle, .sync-busy .bottom-nav { pointer-events: none; }
 .sync-conflict { position: fixed; z-index: 100; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; padding: 30px; background: #130e13f5; color: #efd8b4; text-align: center; font-size: 14px; }
 .sync-conflict button { border: 1px solid #c29a65; padding: 12px; background: #493124; color: #fff0cc; }
-.market-modal .market-tabs { top: 32px; z-index: 3; }
+.market-modal .market-index-tabs { top: -12px; z-index: 3; }
 
 .market-search .market-reset { grid-column: 1 / -1; width: 100%; min-height: 40px; white-space: nowrap; }
 .market-comparison { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 10px; }
@@ -71,7 +114,11 @@
 .market-register-filters { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 8px; margin-bottom: 12px; }
 .market-pick { position: relative; }
 .market-pick.rarity-common { border-color: #9ca3af; }.market-pick.rarity-magic { border-color: #60a5fa; }.market-pick.rarity-rare { border-color: #facc15; }.market-pick.rarity-epic { border-color: #c084fc; }.market-pick.rarity-unique { border-color: #fb923c; }.market-pick.rarity-legendary { border-color: #f87171; }
-.market-pick .lock-icon { position: absolute; right: 2px; top: 2px; width: 20px; height: 20px; }
+.market-pick .lock-icon { position: absolute; right: 2px; bottom: 1px; width: 12px; height: 12px; z-index: 2; }
+/* `내 거래`의 `판매 중인 물건만 보기`(작업 247) — 목록 위 **오른쪽**에 붙인다. */
+.market-mine-bar { display: flex; justify-content: flex-end; margin: 8px 0 2px; }
+.market-mine-filter { display: flex; align-items: center; gap: 6px; margin-left: auto; padding: 5px 8px; border: 1px solid #80613e; border-radius: 4px; background: #2a2124; color: #e3cba4; font-size: 11px; }
+.market-mine-filter input { width: 15px; height: 15px; accent-color: #d8a860; }
 .market-pick small.rarity-common { color: #9ca3af; }.market-pick small.rarity-magic { color: #60a5fa; }.market-pick small.rarity-rare { color: #facc15; }.market-pick small.rarity-epic { color: #c084fc; }.market-pick small.rarity-unique { color: #fb923c; }.market-pick small.rarity-legendary { color: #f87171; }
 .market-unlock-confirm { border: 1px solid #b28c54; padding: 12px; margin-top: 12px; background: #332721; color: #efd9b6; font-size: 12px; }
 .market-unlock-confirm button { margin: 4px 5px 0 0; }
@@ -81,7 +128,7 @@
 .market-option-hint { grid-column: 1 / -1; color: #b7a38b; font-size: 10px; line-height: 1.6; }
 
 .market-icon.skill-book-art { width: 46px; height: 46px; flex-basis: 46px; border: 0; overflow: visible; --book-badge-size: 22px; }
-.market-pick .market-icon.skill-book-art { width: 34px; height: 34px; flex-basis: 34px; --book-badge-size: 17px; }
+.market-pick .market-icon.skill-book-art { width: 34px; height: 34px; flex-basis: 34px; --book-badge-size: 14px; }
 
 /* 직업 표기·내 직업만 보기 (작업 205) */
 .market-item-title { display: flex; align-items: center; gap: 5px; min-width: 0; flex-wrap: wrap; }
@@ -100,3 +147,41 @@
 .market-recent-owner { color: #98d7ac; font-size: 9px; white-space: nowrap; }
 /* 판매 등록 화면의 현재 최소 등록 금액 안내(작업 224) */
 .market-min-price { margin: 6px 0 0; color: #e4c28d; font-size: 10px; line-height: 1.6; }
+
+/* ── 작업 249: 판매 등록 스크롤 제거 · 묶음 등록(최대 10개) · 전체/개당 구매 ───────────────────
+   판매 등록 화면에서만 모달을 **고정 높이 flex**로 바꾼다. 물품을 골라도 모달 전체에 스크롤이 새로
+   생기지 않고, 물품 그리드만 내부 스크롤 + 선택 카드(`.market-register-detail`)는 아래에 고정된다. */
+.modal-dialog.market-modal.market-registering { display: flex; flex-direction: column; overflow: hidden; }
+.market-registering > header, .market-registering > .market-tabs, .market-registering > .market-live,
+.market-registering > .market-notice, .market-registering > .market-error, .market-registering > .market-rules { flex: 0 0 auto; }
+.market-registering > .market-rules { margin: 4px 0 0; font-size: 9px; line-height: 1.45; }
+.modal-dialog.market-modal.market-registering > .market-register { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
+.market-register .market-register-grid { flex: 1 1 auto; min-height: 76px; max-height: none; overflow-y: auto; margin-bottom: 8px; }
+.market-register .market-register-filters { margin-bottom: 8px; }
+.market-register .market-notice { padding: 6px 8px; font-size: 9.5px; line-height: 1.5; }
+/* 선택 카드 — 그리드와 겹치지 않게 아래 고정. 길어지면 카드 안에서만 스크롤된다. */
+.market-register-detail { flex: 0 0 auto; max-height: 60%; overflow-y: auto; padding: 8px; border: 1px solid #80613e; border-radius: 5px; background: linear-gradient(#2c2225, #201a1e); }
+.market-register-picked { display: flex; align-items: center; gap: 8px; margin-bottom: 2px; }
+.market-register-picked .market-icon { width: 34px; height: 34px; flex: 0 0 34px; }
+.market-register-picked-info { display: flex; min-width: 0; flex-direction: column; gap: 2px; }
+.market-register-picked-info b { font-size: 12px; overflow-wrap: anywhere; }
+.market-register-picked-info small { color: #bba58d; font-size: 9px; }
+.market-pick-count-inline { flex: none; padding: 0 4px; border-radius: 3px; background: #171216e6; color: #f2deb9; font-size: 9px; }
+.market-register-detail .market-item-title { gap: 4px; }
+.market-register-detail .market-recent-price, .market-register-detail .market-min-price { margin: 2px 0; font-size: 10px; line-height: 1.5; }
+.market-register-detail .market-proceeds { margin: 6px 0; font-size: 10.5px; }
+.market-register-detail .market-primary { min-height: 40px; }
+.market-register-inputs { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr); gap: 6px; align-items: end; margin-top: 6px; }
+.market-register-quantity { display: flex; align-items: end; gap: 4px; min-width: 0; }
+.market-register-quantity .market-field { flex: 1 1 auto; min-width: 0; }
+.market-register-quantity .market-field input { padding: 8px 6px; text-align: center; }
+.market-max-button { flex: none; height: 34px; padding: 0 8px !important; font-size: 10px !important; }
+/* 묶음 매물의 개당/총 수량 표기(목록·간편 보기·최근 거래) */
+.market-unit-label { color: #a49384; font-size: 9px; }
+.market-bundle-count { color: #e2b66d; font-size: 9px; }
+.market-compact-qty { color: #e2b66d; font-size: 8.5px; }
+/* 상세의 전체/개당 구매 상자 */
+.market-buy-quantity { display: flex; flex-direction: column; gap: 6px; width: 100%; }
+.market-buy-quantity .market-field { max-width: 170px; }
+.market-buy-quantity .market-field input { text-align: center; }
+.market-buy-quantity .market-proceeds { margin: 0; color: #e4c28d; }

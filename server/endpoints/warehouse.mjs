@@ -5,6 +5,7 @@ import { createTrace, logRequest } from '../metrics.mjs';
 import { runtimeEnv } from '../env.mjs';
 import { json, readBody, errorResponse, versionGuard } from '../http.mjs';
 import { normalizeExtraOptions } from '../extra-options.mjs';
+import { countedInBag } from '../skill-ids.mjs';
 
 /** 창고 40칸 · 한 번에 옮길 수 있는 최대 개수(가방 40칸과 같은 상한). */
 const WAREHOUSE_LIMIT = 40;
@@ -92,8 +93,10 @@ async function handle(request, { env = runtimeEnv(), createDbClient } = {}, cont
           operations.push({ sql: 'UPDATE djrpg_character_item_owners SET slot=0 WHERE item_id=? AND account_id=?', args: [item.id, id] });
         }
       } else {
-        const equipment = () => save.bag.filter(entry => entry.slot !== 'skillbook' && entry.slot !== 'pouch').length;
-        let bagCount = batch ? equipment() : 0;
+        // 가방 40칸은 **모든 아이템**(장비·스킬북·보물 주머니) 1개 = 1칸이다(작업 248).
+        // 예전에는 스킬북·주머니를 검사 없이 꽂아 40개를 넘길 수 있었다.
+        const bagSlots = () => save.bag.filter(entry => countedInBag(entry, save.job)).length;
+        let bagCount = batch ? bagSlots() : 0;
         for (const itemId of ids) {
           const stored = (await tx.execute({ sql: `SELECT w.item_json,o.location,m.slot FROM djrpg_warehouse w
             JOIN djrpg_item_owners o ON o.item_id=w.item_id AND o.account_id=w.account_id
@@ -102,11 +105,9 @@ async function handle(request, { env = runtimeEnv(), createDbClient } = {}, cont
           if (!stored || stored.location !== 'warehouse' || Number(stored.slot) !== 0) reject('ITEM_NOT_AVAILABLE', '창고 아이템 상태가 달라졌습니다. 다시 불러오세요.', '창고에 없는 아이템이 있어 아무것도 꺼내지 않았습니다. 새로고침 후 다시 시도하세요.');
           const item = JSON.parse(stored.item_json);
           normalizeExtraOptions(item);
-          if (!batch) bagCount = equipment();
-          if (item.slot !== 'skillbook' && item.slot !== 'pouch') {
-            if (bagCount >= WAREHOUSE_LIMIT) reject('BAG_FULL', '가방이 가득 찼습니다.', `가방이 가득 차 ${ids.length}개를 꺼내지 못했습니다.`);
-            bagCount++;
-          }
+          if (!batch) bagCount = bagSlots();
+          if (bagCount >= WAREHOUSE_LIMIT) reject('BAG_FULL', '가방이 가득 찼습니다.', `가방이 가득 차 ${ids.length}개를 꺼내지 못했습니다.`);
+          if (countedInBag(item, save.job)) bagCount++;
           save.bag.push(item);
           operations.push({ sql: 'DELETE FROM djrpg_warehouse WHERE account_id=? AND item_id=?', args: [id, item.id] });
           operations.push({ sql: "UPDATE djrpg_item_owners SET location='inventory' WHERE item_id=? AND account_id=?", args: [item.id, id] });
