@@ -138,6 +138,25 @@ export function helmetArtPath(art: HelmetPartArt): string {
   return art in helmetArtPaths ? helmetArtPaths[art as HelmetArt] : helmetAttackArtPaths[art as HelmetAtkArt];
 }
 
+/**
+ * 투구 발광 마스크 경로 (작업 256).
+ *
+ * 파츠와 **같은 파일명·같은 크기**의 알파 마스크를 `helmets_glow/` 아래 같은 구조로 둔다
+ * (`scripts/build-helm-glow-masks.py` 가 만든다). 파츠 경로에서 디렉터리 이름만 바꾸므로
+ * 정면·공격 파츠 어느 쪽이든 한 함수로 마스크를 찾고, `?v=` 캐시 버전도 그대로 따라간다.
+ */
+export const HELMET_GLOW_DIR = 'helmets_glow';
+
+export function helmetGlowMaskPath(art: HelmetPartArt): string {
+  return helmetArtPath(art).replace('/helmets/', `/${HELMET_GLOW_DIR}/`);
+}
+
+/** 지금 그린 파츠의 발광 마스크 목록(검수·테스트용). */
+export const helmetGlowMaskPaths: readonly string[] = [
+  ...helmetArtList.map(art => helmetGlowMaskPath(art)),
+  ...helmetAttackArtList.map(art => helmetGlowMaskPath(art))
+];
+
 export type HelmetMotion = 'idle' | 'walk' | 'attack';
 
 /**

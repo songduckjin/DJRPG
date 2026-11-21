@@ -255,6 +255,35 @@ test('저장이 실패하면 같은 요청 번호로 다시 보내고, 성공한
   assert.equal(await sync.flushIfDirty(), true);
   assert.equal(requests.length, 3, '성공 뒤에는 더 보내지 않는다');
 });
+test('창고 이동은 보낼 변경이 없으면 저장 왕복 없이 요청 한 번으로 끝난다(작업 250)',async()=>{
+  const sync=setup(),urls=[],payloads=[];
+  globalThis.fetch=async(url,options)=>{urls.push(url);const payload=JSON.parse(options.body);payloads.push(payload);return response({ok:true,revision:1,save:sync.save,items:[],message:'보관했습니다.'});};
+  const result=await sync.transferWarehouse('deposit',['a','b']);
+  assert.deepEqual(urls,['/api/warehouse'],'저장(dirty=false)이면 /api/account를 부르지 않는다');
+  assert.equal(payloads[0].requestId.length>=16,true,'재확인용 requestId를 함께 보낸다');
+  assert.deepEqual(payloads[0].itemIds,['a','b']);
+  assert.equal(result.message,'보관했습니다.');assert.equal(sync.revision,1);assert.equal(sync.locked,false);
+});
+test('보낼 변경이 있으면 창고 이동 전에 한 번 저장하고 그 revision으로 옮긴다(작업 250)',async()=>{
+  const sync=setup(),urls=[];
+  sync.save.gold=77;sync.markDirty();
+  globalThis.fetch=async(url,options)=>{urls.push(url);const payload=JSON.parse(options.body);if(url==='/api/account')return response({ok:true,revision:1});return response({ok:true,revision:2,save:sync.save,items:[]});};
+  await sync.transferWarehouse('withdraw','a');
+  assert.deepEqual(urls,['/api/account','/api/warehouse'],'진행 중 변경을 먼저 저장한다');
+  assert.equal(sync.revision,2);
+});
+test('창고 이동은 6초 타임아웃으로 한 번만 재확인하고 결과 미확인 상태는 자동 복구에 맡긴다(작업 250)',async()=>{
+  const sync=setup(),messages=[];let tries=0;
+  sync.onMessage=message=>messages.push(message);
+  globalThis.fetch=async(url)=>{if(url==='/api/warehouse'){tries++;throw new Error('offline');}return response({ok:true,revision:1});};
+  try{
+    await assert.rejects(sync.transferWarehouse('withdraw',['a']),/확인하지 못했습니다/);
+    assert.equal(tries,2,'무응답·5xx는 3회(최대 30초)가 아니라 2회(6초×2)만 기다린다');
+    assert.equal(sync.locked,false,'실패해도 화면 잠금은 풀린다');
+    assert(sync.pendingWarehouse,'결과를 모르는 이동은 같은 requestId로 다시 확인할 수 있게 남긴다');
+    assert(messages.length>=1,'실패는 화면에 바로 알린다');
+  }finally{sync.resetForCharacterSwitch();}
+});
 
 test('저장이 서버 검사(가방 40칸 초과)에서 거절되면 최신 서버 세이브로 다시 맞춰 저장 교착을 푼다', async () => {
   const sync = setup(), requests = [];
@@ -284,5 +313,5 @@ test('저장이 막혀 거래를 시작하지 못하면 서버가 알려 준 실
   const sync = setup();
   globalThis.fetch = async () => { throw new Error('offline'); };
   assert.equal(await sync.flush(), false);
-  await assert.rejects(sync.mutate('journey-claim', { kind: 'mail', id: 'all' }, 'blocked-by-save'), /이전 저장 결과를 확인해야 거래할 수 있습니다\. \(서버에 연결할 수 없습니다/);
+  await assert.rejects(sync.mutate('journey-claim', { kind: 'mail', id: 'all' }, 'blocked-by-save'), /이전 저장 결과를 확인해야 거래할 수 있습니다\. \(게임에 접속 중입니다/);
 });

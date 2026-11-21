@@ -71,23 +71,20 @@ test('필드는 부위마다 세 겹을 얹고, 곱하기는 원본·가산은 �
   assert.match(entities, /glow\.blendMode = layer\.mode;/, '겹마다 블렌드');
   assert.match(entities, /glow\.alpha = Math\.min\(1, amount \* layer\.weight\);/, '겹마다 파동 세기 × 비율');
   assert.match(entities, /glow\.tint = emissive \? 0xffffff : tone\.color;/, '곱하기 겹은 등급색 tint');
-  // [작업 257] 갑옷은 갑옷 픽셀만 담은 알파 마스크를 함께 넘긴다(마스크 로딩 전에는 발광 숨김).
+  // [작업 256·257] 투구·갑옷 모두 파츠 모양 알파 마스크를 함께 넘긴다 — 갑옷은 마스크 시트(작업 257),
+  // 투구는 파츠 마스크(작업 256).
   assert.match(entities, /syncGearGlow\(this, 'armor', armorGlowReady \? this\.hero : undefined, save\.equipment\.armor\?\.rarity, time, \{ mask: armorGlowMask \}\)/, '갑옷');
-  assert.match(entities, /syncGearGlow\(this, 'helmet', wornHelmet, save\.equipment\.helmet\?\.rarity, time\)/, '투구');
+  assert.match(entities, /syncGearGlow\(this, 'helmet', helmetGlowReady \? wornHelmet : undefined, save\.equipment\.helmet\?\.rarity, time, \{ mask: helmetGlowMask \}\)/, '투구');
   assert.match(entities, /syncGearGlow\(this, 'weapon', wornWeapon, save\.equipment\.weapon\?\.rarity, time\)/, '무기');
   assert.match(entities, /job === 'archer'\) return view\.heroBow/, '궁수는 활 파츠');
   assert.match(entities, /job === 'mage'\) return view\.heroStaff/, '마법사는 지팡이 파츠');
 });
 
-test('갑옷 발광은 알파 마스크로 갑옷 픽셀만 남긴다(작업 257)', () => {
-  assert.match(entities, /if \(options\.mask\) \{/, '마스크를 주면 마스크 스프라이트를 건다');
-  assert.match(entities, /mask\.texture = options\.mask;/, '마스크 텍스처를 갈아 끼운다');
-  assert.match(entities, /mask\.anchor\.set\(source\.anchor\.x, source\.anchor\.y\);/, '파츠와 같은 앵커·위치·배율');
+test('갑옷 발광은 목 아래로만 번져 맨 얼굴은 원래 색으로 남는다', () => {
+  assert.match(entities, /if \(key === 'armor' && options\.neckY !== undefined\)/, '갑옷에만 목선 마스크');
   assert.match(entities, /glow\.mask = mask \?\? null;/, '마스크를 발광 복제본에 건다');
-  // 마스크가 없는 차림(마스크 로딩 전)을 위한 목선 폴백은 남겨 둔다.
-  assert.match(entities, /if \(key === 'armor' && options\.neckY !== undefined\)/, '목선 자르기 폴백');
-  assert.match(render, /heroGlowPartMasks = new Map<string, Sprite>\(\);/, 'GameView.heroGlowPartMasks');
-  assert.match(render, /armorGlowFrame\(path: string, motion: ArmorMotion, frame: number\)/, '마스크 시트를 갑옷과 같은 규칙으로 자른다');
+  assert.match(entities, /const top = options\.neckY - height \* source\.anchor\.y;/, '목 밑동 좌표를 셀 좌표로 옮긴다');
+  assert.match(render, /heroGlowMask\?: Sprite;/, 'GameView.heroGlowMask');
 });
 
 test('빛 복제본은 잔상 복제에서 빠진다', () => {
@@ -107,10 +104,8 @@ test('장착 화면은 부위별 투명 발광 레이어를 따로 만든다', (
   assert.match(portrait, /const weaponPart = !!\(plan\.weapon \|\| plan\.bow \|\| plan\.staff\)/, '파츠가 있을 때만 무기 발광');
   assert.match(portrait, /const light = Math\.min\(1\.25, \.45 \+ 1\.55 \* lum\);/, '광량 상한을 1.25로 두어 진한 등급색 유지(작업 231)');
   assert.match(portrait, /pixels\[index\] = Math\.min\(255, rgb\[0\] \* light\);/, '픽셀별 등급색 빛');
-  // [작업 257] 갑옷은 aura 배율을 낮춰 번짐을 줄인다(파츠만 깔끔하게 — 사용자 확정 1안).
-  assert.match(portrait, /context\.shadowBlur = Math\.max\(4, Math\.round\(width \* \.045 \* aura\)\);/, '후광(shadowBlur) 확대(작업 231) · 갑옷은 aura 로 줄인다(작업 257)');
-  assert.match(portrait, /context\.globalCompositeOperation = 'destination-out'/, '마스크가 없을 때만 머리 타원을 도려낸다');
-  assert.match(portrait, /paint\.globalCompositeOperation = 'destination-in'/, '갑옷 발광은 마스크로 도려낸다');
+  assert.match(portrait, /context\.shadowBlur = Math\.max\(4, Math\.round\(width \* \.045 \* aura\)\);/, '후광(shadowBlur) 확대(작업 231) · 투구는 aura 로 줄인다(작업 256)');
+  assert.match(portrait, /context\.globalCompositeOperation = 'destination-out'/, '갑옷 발광에서 맨 얼굴은 도려낸다');
 });
 
 test('장착 화면은 발광 레이어를 몸 위에 얹고 CSS로 숨쉬게 한다', () => {
@@ -122,4 +117,21 @@ test('장착 화면은 발광 레이어를 몸 위에 얹고 CSS로 숨쉬게 �
   assert.match(modalStyles, /\.showcase-glow-layer \{[^}]*mix-blend-mode: screen;[^}]*filter: saturate\(1\.3\) brightness\(1\.08\) drop-shadow\(0 0 7px var\(--gear-color, #ff7a00\)\);[^}]*animation: gear-rarity-pulse var\(--gear-cycle, 2\.6s\) ease-in-out infinite; \}/);
   assert.match(modalStyles, /@keyframes gear-rarity-pulse \{ 0%, 100% \{ opacity: 0; \} 50% \{ opacity: 1; \} \}/);
   assert.match(modalStyles, /prefers-reduced-motion: reduce\) \{ \.showcase-glow-layer \{ animation: none; opacity: \.7; \} \}/, '움직임을 줄인 기기에서는 은은하게 고정');
+});
+
+test('마법사 투구 발광은 얼굴·목선 아래로 번지지 않는다(작업 247 → 256)', () => {
+  // 파츠에 얼굴이 함께 들어 있어 그대로 두면 유니크·전설 투구에서 얼굴이 등급색 덩어리가 되고,
+  // 파츠가 목선에서 끊긴 자리에 직선으로 잘린 발광 띠가 남는다 → 알파 마스크를 건다.
+  // 작업 256에서 마법사 전용 코드 대신 **전 직업 공통 파츠 마스크**(`options.mask`)로 일반화됐다.
+  assert.match(entities, /if \(options\.mask\) \{/, '투구 발광에도 마스크를 건다');
+  assert.match(entities, /mask\.texture = options\.mask;[\s\S]*mask\.anchor\.set\(source\.anchor\.x, source\.anchor\.y\);[\s\S]*mask\.scale\.set\(source\.scale\.x, source\.scale\.y\);/, '마스크를 파츠와 같은 앵커·위치·배율로 얹는다');
+  assert.match(entities, /helmetGlowMask\(helmetGlowMaskPath\)/, '투구 마스크를 경로로 받는다');
+  assert.match(render, /helmetGlowMasks = new Map<string, Texture>\(\);/, 'GameView.helmetGlowMasks');
+  assert.match(portrait, /globalCompositeOperation = 'destination-in'[\s\S]{0,200}drawImage\(mask/, '장착 화면도 마스크로 도려낸다');
+  assert.match(portrait, /glow \? mageHelmGlowMaskCanvas\(mageHelm\.gender\) : undefined/, '투구 발광일 때만 마스크');
+  // 마스크는 새 파일을 받지 않고 캔버스로 굽는다(캐시는 성별당 1장).
+  const mageHelmets = readFileSync(new URL('../src/game/render/mageHelmets.ts', import.meta.url), 'utf8');
+  assert.match(mageHelmets, /const glowMaskTextures = new Map/, '성별당 1장 캐시');
+  assert.match(mageHelmets, /export function mageHelmGlowMaskTexture/, '필드용 텍스처');
+  assert.doesNotMatch(mageHelmets, /mage_helm_glow_mask_\w*\.png/, '마스크 PNG 파일을 따로 받지 않는다');
 });

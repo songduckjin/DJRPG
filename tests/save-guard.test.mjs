@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   rewardBudget, clampSaveProgress, itemWithinBounds, elapsedSince, expToNext, floorKillTarget,
-  MAX_LEVEL, MAX_PLUS, MAX_OFFLINE_SECONDS, RARITY_SCALES, TIER_BONUS_MAX
+  MAX_LEVEL, MAX_PLUS, MAX_OFFLINE_SECONDS, RARITY_SCALES, TIER_BONUS_MAX, MAX_SLOT_PROFILES, TIER_STAT_GROWTH
 } from '../server/save-guard.mjs';
 const items = await import('../src/game/items.ts');
 const store = await import('../src/game/store.ts');
@@ -17,6 +17,10 @@ test('세이브 검증 상수는 게임 원본과 같은 값이다', () => {
   for (const floor of [1, 7, 30, 78, 120]) assert.equal(expToNext(floor), store.expToNext(floor));
   for (const floor of [1, 2, 10, 78]) assert.equal(floorKillTarget(floor), store.floorKillTarget(floor));
   for (const slot of items.slots) assert.equal(TIER_BONUS_MAX[slot], items.maxTierBonus(slot), `${slot} 티어 보정 상한`);
+  // 작업 255 — 새 드롭의 능력치 상한은 슬롯 배분표(직업별 최댓값)와 티어 계수에서 나온다. 사본이 갈라지면
+  // 서버가 정상 드롭을 거부하거나(너무 좁음) 위조를 통과시킨다(너무 넓음).
+  assert.equal(TIER_STAT_GROWTH, items.TIER_STAT_GROWTH);
+  for (const slot of items.slots) assert.deepEqual({ ...MAX_SLOT_PROFILES[slot] }, { ...items.maxSlotProfileTable[slot] }, `${slot} 능력치 배분 상한`);
 });
 
 test('정상 드롭은 어느 층·등급·강화에서도 능력치 상한 안에 있다', () => {
@@ -41,9 +45,9 @@ test('정상 드롭은 어느 층·등급·강화에서도 능력치 상한 안�
 test('만들어낸 능력치·층에 맞지 않는 등급은 상한 밖으로 걸러진다', () => {
   assert.equal(itemWithinBounds({ id: 'a', name: '영원의 패왕의 성검', slot: 'weapon', rarity: 'legendary', stats: { attack: 99999 } }, 78), false);
   assert.equal(itemWithinBounds({ id: 'b', name: '낡은 두손검', slot: 'weapon', rarity: 'common', stats: { attack: 4, health: 5000 } }, 1), false);
-  // 1층에서 영원 등급(1~120층 기준 능력치)은 나올 수 없다.
-  const deep = items.rollItem(120, false, true, 'warrior');
-  assert.equal(itemWithinBounds({ ...deep, rarity: 'legendary' }, 1), false);
+  // 1층에서 120층 기준 능력치는 나올 수 없다(부위·등급에 따라 운이 나쁘면 작게 나오므로 고정 표본을 쓴다).
+  const deepStats = items.gearStats('weapon', 'legendary', 9, 120, 'warrior');
+  assert.equal(itemWithinBounds({ id: 'deep', name: '영원의 패왕의 성검', slot: 'weapon', rarity: 'legendary', stats: deepStats }, 1), false);
   assert.equal(itemWithinBounds({ id: 'c', name: '수상한 것', slot: 'weapon', rarity: 'common', stats: { luck: 5 } }, 1), false);
 });
 

@@ -38,7 +38,7 @@ test('무기·스킬북은 세 직업이 1/3씩 같은 확률로 떨어지고, �
       counts[owner]++;
     }
     for (const [job, count] of Object.entries(counts)) assert(Math.abs(count / samples - 1 / 3) < .04, `${job} 스킬북 비중 ${(count / samples * 100).toFixed(1)}%`);
-    // 얕은 층에서는 그 층의 해금 조건(레벨 ≤ 층 × 2)을 지킨다.
+    // 작업 246: 층 제한이 없어졌다 — 1층에서도 그 직업의 11종이 모두 나올 수 있다.
     for (let index = 0; index < 200; index++) {
       const book = rollSkillBook(1);
       const owner = Object.keys(pools).find(job => pools[job].includes(book.skillId));
@@ -52,7 +52,7 @@ test('무기·스킬북은 세 직업이 1/3씩 같은 확률로 떨어지고, �
   } finally { Math.random = original; }
 });
 
-test('무기 직업 판별 — 활은 궁수, 지팡이는 마법사, 대검은 전사이고 방어구는 공용이다', () => {
+test('무기 직업 판별 — 활은 궁수, 지팡이는 마법사, 대검은 전사이고 옛 방어구 이름은 공용이다', () => {
   assert.equal(weaponJob(sword()), 'warrior');
   assert.equal(weaponJob(bow()), 'archer');
   assert.equal(weaponJob(staff()), 'mage');
@@ -65,7 +65,7 @@ test('무기 직업 판별 — 활은 궁수, 지팡이는 마법사, 대검은 
   assert.equal(canWield(staff(), 'mage'), true);
   assert.equal(canWield(staff(), 'warrior'), false);
   assert.equal(canWield(staff(), 'archer'), false);
-  assert.equal(canWield(helmet(), 'mage'), true, '방어구·장신구는 세 직업이 같이 쓴다');
+  assert.equal(canWield(helmet(), 'mage'), true, '옛 전사용 투구 이름은 공용으로 남는다(작업 249 호환 규칙)');
   // 목록 자체는 그대로다 — 세 직업 무기 10종씩.
   assert.equal(baseItems.weapon.length, 10);
   assert.equal(bowBases.length, 10);
@@ -114,4 +114,39 @@ test('다른 직업 무기는 더 강해도 분해 보호·자동 분해 대상�
   mage.equipment.weapon = staff(50);
   mage.bag = [sword(4000), bow(4000)];
   assert.deepEqual(salvageUpgrades(mage, [...mage.bag]), []);
+});
+
+test('스킬북은 1층을 포함한 모든 층에서 그 직업의 11종이 똑같은 확률로 떨어진다(작업 246)', () => {
+  // 사용자 확정: 층 제한(`스킬.level <= floor * 2`)을 없앤다 — 낮은 층에서도 전체 스킬북이 나온다.
+  const pools = {
+    warrior: [...skillOrder, ...passiveOrder],
+    archer: [...archerSkillOrder, ...archerPassiveOrder],
+    mage: [...mageSkillOrder, ...magePassiveOrder]
+  };
+  for (const [job, pool] of Object.entries(pools)) assert.equal(pool.length, 11, `${job}: 액티브 8 + 패시브 3`);
+  const original = Math.random;
+  try {
+    for (const floor of [1, 3, 20]) {
+      let state = 24600 + floor;
+      Math.random = () => { state = (state * 1664525 + 1013904223) >>> 0; return state / 4294967296; };
+      const samples = 6600, counts = new Map();
+      for (let index = 0; index < samples; index++) {
+        const book = rollSkillBook(floor);
+        counts.set(book.skillId, (counts.get(book.skillId) ?? 0) + 1);
+      }
+      // 세 직업 × 11종 = 33종이 전부 나오고, 각 1/33 ≈ 200회에 가깝다(표본 오차 허용).
+      const all = Object.values(pools).flat();
+      for (const id of all) assert(counts.has(id), `${floor}층에서 ${id} 스킬북이 한 번도 안 나왔다`);
+      for (const pool of Object.values(pools)) {
+        const total = pool.reduce((sum, id) => sum + (counts.get(id) ?? 0), 0);
+        assert(Math.abs(total / samples - 1 / 3) < .03, `${floor}층 직업 비중 ${(total / samples * 100).toFixed(1)}%`);
+        for (const id of pool) {
+          const count = counts.get(id) ?? 0;
+          const share = count / total;
+          assert(Math.abs(share - 1 / 11) < .03, `${floor}층 ${id} 비중 ${(share * 100).toFixed(1)}% (기대 9.1%)`);
+        }
+      }
+      assert.equal([...counts.keys()].length, all.length, `${floor}층: 33종 밖의 스킬북은 없다`);
+    }
+  } finally { Math.random = original; }
 });

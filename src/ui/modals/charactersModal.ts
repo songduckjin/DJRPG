@@ -273,7 +273,11 @@ export function applyCharacterSwitch(ui: Interface, result: CharacterSwitchResul
   ui.characterFocus = undefined; ui.characterList = undefined;
   ui.open(null);
   // 아직 사냥하지 않은 캐릭터는 그동안의 오프라인 보상을 여기서 한 번에 정산한다(서버가 초를 내려준다).
-  const reward = result.offlineSeconds ? applyOfflineRewards(live, result.offlineSeconds) : undefined;
+  // 자동 분해 설정은 지금 화면에 저장된 값(ui)을 그대로 넘긴다 — 접속 중 사냥과 같은 기준으로 분해된다(작업 254).
+  const reward = result.offlineSeconds ? applyOfflineRewards(live, result.offlineSeconds, {
+    autoSalvage: ui.autoSalvage ? ui.salvageRarity : undefined,
+    autoSalvagePlus: ui.salvagePlus,
+  }) : undefined;
   ui.renderStatus(); ui.renderBagBadge();
   if (reward) { sync.markDirty(); ui.showOfflineReward(reward); void sync.flush(); }
   void ui.journey.load();

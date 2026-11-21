@@ -1,10 +1,10 @@
 import { DUNGEON_MAX_FLOOR } from './dungeonLobby';
 import { random, seededRandom, useRandom, type Random } from '../game/rng';
-import {World, type Enemy, ENEMY_STRIKE_SECONDS, enemyHitDamage, enemyMoveSpeed} from '../game/world';
+import {World, type Enemy, ENEMY_STOP_RANGE, ENEMY_ATTACK_RANGE, ENEMY_STRIKE_SECONDS, enemyHitDamage, enemyMoveSpeed} from '../game/world';
 import {clampArenaPoint} from '../game/arena';
 import {jobOrDefault} from '../game/skills';
 import {totalStats, type Save} from '../game/store';
-import {equipmentDropChance,rollItem,rollSkillBook,skillBookDropChance,type Item} from '../game/items';
+import {equipmentDropChance,rollDungeonItem,rollSkillBook,skillBookDropChance,type Item} from '../game/items';
 import {bossGoldPiles,bossGoldSpot,bossItems} from '../game/bossLoot';
 /** Ground loot held by the preview only. Kept off `World.drops` so the shared field renderer stays untouched.
  *  `from` is the body a boss heap was thrown from (작업 196): the dungeon flies the heap out of the boss
@@ -27,14 +27,13 @@ export const DUNGEON_TRACE_EVERY = 30;
 export type DungeonBattleSummary = {
   won: boolean; steps: number; seconds: number; heroHp: number; heroHpMax: number; enemyHp: number; slain: number; digest: string;
 };
-/** 던전 일반 몹의 아이템 드롭률 (작업 205). */
+/** 던전 일반 몹의 아이템 드롭률 (작업 205 → 248: 모든 층 5% 고정). */
 //
-// 미리보기 때는 확인용 50%였는데, 이제 클리어 보상이 계정에 들어가므로 실제 확률로 되돌린다. 필드 일반
-// 몹은 0.25~2.2%라 던전이 그대로면 "들어갈 값어치"가 없다. 그래서 1층 15%에서 층마다 .5%p씩 올려
-// 10층 19.5%(상한 20%)로 두고, 무엇이 떨어지는지는 필드와 같은 장비:스킬북 비율을 그대로 쓴다.
-export const DUNGEON_DROP_CHANCE_BASE = .15;
-export const DUNGEON_DROP_CHANCE_STEP = .005;
-export const DUNGEON_DROP_CHANCE_MAX = .2;
+// 사용자 확정(11-21) — 층이 깊어져도 드롭률은 5%로 같다. 등급은 드롭률 대신 `dungeonRarityFor`의
+// 10층 구간 표가 올린다(`src/game/items.ts`) — 드롭 개수는 그대로 두고 상위 등급의 몫만 커진다.
+export const DUNGEON_DROP_CHANCE_BASE = .05;
+export const DUNGEON_DROP_CHANCE_STEP = 0;
+export const DUNGEON_DROP_CHANCE_MAX = .05;
 export function dungeonDropChance(floor:number):number {
   const depth=Math.max(1,Math.min(DUNGEON_MAX_FLOOR,Math.floor(floor)||1));
   return Math.min(DUNGEON_DROP_CHANCE_MAX,DUNGEON_DROP_CHANCE_BASE+(depth-1)*DUNGEON_DROP_CHANCE_STEP);
@@ -60,6 +59,18 @@ export const DUNGEON_BOSS_HP_SCALE = 30;
 export const DUNGEON_ELITE_HP_SCALE = 2;
 /** Dungeon mobs close ground 1.5x the shared field pace; only travel distance scales, never timers. */
 export const DUNGEON_ENEMY_SPEED_SCALE = 1.5;
+/**
+ * 던전 적 1회 타격 피해 (작업 248, 사용자 확정).
+ *
+ * 예전에는 `Math.min(피해, 최대 체력의 0.5%/0.8%)` 상한이 있어 한 대에 체력 0.5%만 잃었다 — 던전이
+ * 사실상 무피해였다. 상한을 없애고, 공격력의 층수 기준을 몹 체력 곡선(`DUNGEON_MOB_HP` = 필드 `2 × 층`)과
+ * 맞춘 `enemyHitDamage(층 × 1, …)`로 바꾼다(작업 254: 사거리가 90이 되며 층×2는 5층이 Lv60 구간이 될 만큼
+ *  무거워져 한 단계 낮췄다 — 사용자 확정). 정예는 2배(작업 205 그대로). 서버 리플레이
+ * (`server/dungeon-verify.mjs`)도 이 파일의 `DungeonBattle`을 그대로 돌리므로 피해 식은 여기 한 곳뿐이다.
+ */
+export function dungeonHitDamage(floor:number,boss:boolean,defense:number,elite=false):number {
+  return enemyHitDamage(Math.max(1,Math.floor(floor)||1),boss,defense)*(elite?2:1);
+}
 /** Every enemy walks 4.25 half turns a second, so one visible stride (a full turn) lasts 2/4.25 s. */
 const ENEMY_STRIDE_SECONDS = 2 / 4.25;
 /** Each wave starts this many strides closer to the hero than the old arena corner. */
@@ -164,28 +175,31 @@ class DungeonWorld extends World {
   private lootId=0;
   /** Gold this floor's kills left on the ground, which the clear screen reports. */
   get lootGold():number { return this.loot.reduce((sum,entry)=>sum+(entry.kind==='gold'?entry.gold:0),0); }
-  // Defend the central position instead of chasing the previous wave's spawn point.
+  // The hero fights from where he stands (작업 248). Until now this override pinned him to (50,50) before
+  // and after `super.update`, so every step he took toward a mob was undone in the same frame and the room
+  // looked like it was waiting for the monsters. He now walks exactly as the field does — `World.update`
+  // moves him along `activeMove` toward the nearest enemy until `stopRange`, inside `clampArenaPoint` — and
+  // `nearest()` is no longer cut off at 110. Because he stops a `stopRange` short of the mob, he never
+  // reaches the wave's spawn line at the top of the room or the exit door: on a 390×700 phone his feet stay
+  // 78px (360×640: 71px) below the door sill, and the whole floor is walked inside the arena. Only the
+  // enemies keep the extra step below.
   override update(dt:number):void {
-    this.player.x=50;this.player.y=50;
     super.update(dt);
-    this.player.x=50;this.player.y=50;this.activeMove={x:0,y:0};
     // `super.update` already walked every mob one shared field step. Adding the remaining half
     // along the same heading makes the travelled distance exactly DUNGEON_ENEMY_SPEED_SCALE,
     // while cooldowns, skills, hit timing and the 90s limit keep running on the real dt.
     const extra=(DUNGEON_ENEMY_SPEED_SCALE-1)*dt;
     for(const enemy of this.enemies){
       const dx=this.player.x-enemy.x,dy=this.player.y-enemy.y,d=Math.hypot(dx,dy);
-      if(!enemy.moving||d<=27||extra<=0)continue;
-      const step=Math.min(enemyMoveSpeed(this.save.floor,enemy.boss)*(enemy.slow>0?.55:1)*extra,d-27);
+      // 정지 거리는 필드와 같은 `ENEMY_STOP_RANGE`(60)다(작업 254) — 27은 몸에 닿는 접촉 거리라
+      // 새 정지 거리에서 서는 적을 추가 걸음만 몸까지 파고들게 만들었다.
+      if(!enemy.moving||d<=ENEMY_STOP_RANGE||extra<=0)continue;
+      const step=Math.min(enemyMoveSpeed(this.save.floor,enemy.boss)*(enemy.slow>0?.55:1)*extra,d-ENEMY_STOP_RANGE);
       if(step<=0)continue;
       const bounded=clampArenaPoint(enemy.x+dx/d*step,enemy.y+dy/d*step);
       enemy.step+=extra*Math.PI*(enemy.boss?3.25:4.25);
       enemy.x=bounded.x;enemy.y=bounded.y;
     }
-  }
-  override nearest():Enemy|undefined {
-    const enemy=super.nearest();
-    return enemy&&Math.hypot(enemy.x-this.player.x,enemy.y-this.player.y)<=110?enemy:undefined;
   }
   override kill(enemy:Enemy):void { this.slain++;this.effects.push({x:enemy.x,y:enemy.y,kind:'death',age:0,duration:.7,angle:0});this.dropLoot(enemy); }
   // Same rewards the field grants, kept as ground loot until the floor is cleared: a coin on every
@@ -208,7 +222,8 @@ class DungeonWorld extends World {
     this.loot.push({id:++this.lootId,kind:'gold',x:enemy.x,y:enemy.y,gold:3+floor});
     if(random()>=dungeonDropChance(floor))return;
     const equipment=equipmentDropChance(floor,enemy.boss),book=skillBookDropChance(floor,enemy.boss);
-    const item=random()*(equipment+book)<equipment?rollItem(floor,false,enemy.boss,this.save.job):rollSkillBook(floor,jobOrDefault(this.save.job));
+    // 등급은 던전 전용 10층 구간 표에서 뽑는다(작업 248) — 깊은 층일수록 상위 등급이 늘고 드롭률은 5% 그대로다.
+    const item=random()*(equipment+book)<equipment?rollDungeonItem(floor,enemy.boss):rollSkillBook(floor,jobOrDefault(this.save.job));
     this.loot.push({id:++this.lootId,kind:'item',x:enemy.x,y:enemy.y,item});
   }
 }
@@ -275,9 +290,15 @@ export class DungeonBattle {
     const hit=this.world.player.hit;this.world.player.hit=Infinity;
     try{this.world.update(dt);}finally{this.world.player.hit=Math.max(0,hit-dt);}
     this.hitCooldown=Math.max(0,this.hitCooldown-dt);
-    if(this.hitCooldown===0){const enemy=this.world.enemies.find(e=>Math.hypot(e.x-this.world.player.x,e.y-this.world.player.y)<36);
-      if(enemy){const max=totalStats(this.world.save).health;
-        const taken=Math.min(enemyHitDamage(this.floor,enemy.boss,totalStats(this.world.save).defense)*(enemy===this.elite?2:1),max*(enemy===this.elite?.008:.005));
+    // 사거리는 전사 평타와 같은 `ENEMY_ATTACK_RANGE`(90)다(작업 254) — 종전 36은 몸에 닿아야 때리는 접촉 거리였다.
+    if(this.hitCooldown===0){const enemy=this.world.enemies.find(e=>Math.hypot(e.x-this.world.player.x,e.y-this.world.player.y)<=ENEMY_ATTACK_RANGE);
+      if(enemy){
+        // 던전 몹·보스 공격력 정상화(작업 248, 사용자 확정): 최대 체력 0.5%/0.8% 상한을 없애고,
+        // 공격력의 층수 기준을 몹 체력 곡선(`DUNGEON_MOB_HP` = 필드 `2 × 층`)과 맞춘다.
+        // → `enemyHitDamage(층 × 2, …)`라 3층은 필드 6층, 10층은 필드 20층과 같은 공격력이 된다.
+        // 서버 리플레이(`server/dungeon-verify.mjs` → `runDungeonBattle`)도 이 파일을 그대로 돌리므로
+        // 피해 식은 한 곳뿐이다.
+        const taken=dungeonHitDamage(this.floor,enemy.boss,totalStats(this.world.save).defense,enemy===this.elite);
         this.world.player.hp=Math.max(0,this.world.player.hp-taken);this.world.player.hit=.25;this.hitCooldown=.9;
         // 적 공격 모션·반격 표시(작업 245) — 때린 적이 내딛고, 내 몸에 할퀴는 자국과 잃은 체력이 뜬다.
         // 연출만 더하므로 시드 난수 소비·전투 결과(체력·처치 수)는 그대로다.

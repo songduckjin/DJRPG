@@ -2,6 +2,10 @@ import type { Interface } from '../interface';
 import { apiHeaders, isOutdatedResponse, reloadForNewVersion } from '../../game/appVersion';
 import { loadCharacters } from './charactersModal';
 
+/** 다이아 패키지 상품 그림(작업 253 사용자 확정 1안) — `downloads/djrpg_diamond_pack_v1.png`(청동 보물상자 다이아 묶음)을
+ * 512×512 WebP(50KB)로 줄여 넣었다. 상점 다이아 탭 맨 위 대표 카드에만 쓴다. */
+export const DIAMOND_PACK_ART = '/assets/shop/diamond_pack_v1.webp';
+
 export type ShopCatalog = {
   wallet: { diamonds: number; maxSlots: number };
   diamondPacks: { id: string; diamonds: number; price: number }[];
@@ -30,6 +34,18 @@ function button(label: string, action: () => void): HTMLButtonElement {
   const node = document.createElement('button'); node.type = 'button'; node.textContent = label; node.onclick = action; return node;
 }
 
+/** 다이아 탭 대표 카드 — 확정 1안 그림 + 한 줄 설명. 카드 목록보다 위에 한 번만 둔다(같은 그림을 8칸에 반복하지 않는다). */
+function diamondHero(): HTMLElement {
+  const hero = element('figure', 'shop-hero');
+  const art = document.createElement('img');
+  art.className = 'shop-hero-art'; art.src = DIAMOND_PACK_ART; art.alt = '다이아가 가득 담긴 청동 보물상자';
+  art.width = 512; art.height = 512; art.decoding = 'async';
+  const caption = element('figcaption', 'shop-hero-caption');
+  caption.append(element('strong', '', '다이아 패키지'), element('span', '', '충전한 다이아로 캐릭터 슬롯과 전 슬롯 방치를 열 수 있습니다.'));
+  hero.append(art, caption);
+  return hero;
+}
+
 export function renderShop(ui: Interface, dialog: HTMLElement): void {
   const catalog = ui.shopCatalog;
   if (!catalog) { dialog.append(element('p', 'shop-note', '상점을 불러오는 중…')); return; }
@@ -52,6 +68,7 @@ export function renderShop(ui: Interface, dialog: HTMLElement): void {
   }
   const grid = element('div', 'shop-grid');
   if (ui.shopTab === 'diamonds') {
+    dialog.append(diamondHero());
     for (const pack of catalog.diamondPacks) {
       const card = element('article', 'shop-card');
       card.append(element('strong', '', `◆ ${pack.diamonds.toLocaleString('ko-KR')}개`), element('span', '', `${pack.price.toLocaleString('ko-KR')}원`));

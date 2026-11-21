@@ -4,6 +4,10 @@
 export const itemArtColumns = 5;
 export const itemArtCell = { width: 174, height: 290 } as const;
 export const itemArtTrim: Record<string, readonly [number, number, number, number]> = {
+  archer_armor_0: [5, 4, 164, 282],
+  archer_armor_5: [7, 4, 159, 282],
+  archer_helmet_0: [5, 22, 164, 245],
+  archer_helmet_5: [5, 23, 164, 244],
   armor_0: [2, 48, 166, 201],
   armor_5: [2, 30, 170, 236],
   belt_0: [3, 93, 165, 144],
@@ -16,6 +20,10 @@ export const itemArtTrim: Record<string, readonly [number, number, number, numbe
   gloves_5: [2, 61, 170, 169],
   helmet_0: [7, 44, 165, 197],
   helmet_5: [2, 42, 170, 192],
+  mage_armor_0: [5, 4, 164, 282],
+  mage_armor_5: [17, 4, 139, 282],
+  mage_helmet_0: [5, 37, 164, 215],
+  mage_helmet_5: [5, 33, 164, 223],
   necklace_0: [12, 35, 149, 226],
   offhand_0: [3, 34, 167, 217],
   ring_0: [7, 64, 151, 152],

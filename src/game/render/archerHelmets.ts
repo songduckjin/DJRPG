@@ -5,7 +5,7 @@ import { pilotSheet } from './pilotAssets';
 /**
  * 궁수 전용 투구 10종 외형 (작업 200).
  *
- * `baseItems.helmet` 0~9번(가죽 두건 ~ 불멸의 왕관)을 궁수가 착용하면 전사용 판금 투구 대신
+ * 궁수 투구 10종(`items.ts` `archerHelmetBases` — 사냥꾼의 가죽 두건 ~ 신궁의 왕관)을 착용하면 전사용 판금 투구 대신
  * **궁수용 모자·투구**가 나온다. 파츠 20장(남녀 × 10종)은 서기 셀 362×362 좌표계의 **전체 셀
  * PNG**이고, 그 위에 `archerHelmPlacement` 의 자세 값(좌상단 이동·배율)만 주면 서기·걷기 4프레임·
  * 사격 4프레임 어디든 같은 자리에 앉는다.
@@ -38,6 +38,23 @@ export function archerHelmPartPath(gender: Gender, index: number): string | unde
 /** 부팅 프리로드용 20장 목록. */
 export const archerHelmPartPaths: readonly string[] = ['male', 'female'].flatMap(gender =>
   Array.from({ length: ARCHER_HELM_COUNT }, (_, index) => pilotSheet(`${ARCHER_HELM_ROOT}/${gender}_${index}_v1.png`)));
+
+/**
+ * 궁수 투구 발광 마스크 경로 (작업 256).
+ *
+ * 파츠와 같은 파일명·같은 362×362 크기의 알파 마스크를 `archer_helms_glow/` 아래 둔다
+ * (`scripts/build-helm-glow-masks.py`). 파츠 경로의 디렉터리 이름만 바꾸므로 `?v=` 버전도 따라간다.
+ */
+export const ARCHER_HELM_GLOW_DIR = 'archer_helms_glow';
+
+export function archerHelmGlowMaskPath(gender: Gender, index: number): string | undefined {
+  const part = archerHelmPartPath(gender, index);
+  return part ? part.replace('/archer_helms/', `/${ARCHER_HELM_GLOW_DIR}/`) : undefined;
+}
+
+/** 발광 마스크 20장 목록(검수·테스트용). */
+export const archerHelmGlowMaskPaths: readonly string[] = (['male', 'female'] as const).flatMap(gender =>
+  Array.from({ length: ARCHER_HELM_COUNT }, (_, index) => archerHelmGlowMaskPath(gender, index) ?? ''));
 
 /**
  * 머리 없는 궁수 본체 시트 (작업 200).

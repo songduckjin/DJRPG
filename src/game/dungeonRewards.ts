@@ -61,7 +61,7 @@ export type DungeonRewardReceipt = {
   stones: number;
   /** 가방에 들어간 아이템. */
   items: Item[];
-  /** 가방이 가득 차서 놓친 장비 개수(스킬북은 자리가 필요 없어 해당 없음). */
+  /** 가방이 가득 차서 놓친 아이템 개수 — 40칸에는 타직업 스킬북·보물 주머니도 포함한다(내 직업 스킬북 제외, 작업 253). */
   missed: number;
   /** 접속 중 자동 분해가 가져간 장비의 환산량. */
   salvaged: { count: number; gold: number; stones: number };

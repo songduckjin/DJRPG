@@ -62,23 +62,23 @@ export const gearGlowLayers: readonly GearGlowLayerSpec[] = [
 export type GearGlowPart = 'armor' | 'helmet' | 'weapon';
 
 /**
- * 부위별 겹 구성(작업 256 투구 · 작업 257 갑옷).
+ * 부위별 겹 구성(작업 256).
  *
- * 투구·갑옷은 사용자 확정 1안 — **파츠만 깔끔하게 발광하고 오라가 번지지 않는다**. 그래서
- * 실루엣 밖으로 1.12배 키워 번지는 후광 겹(③)을 빼고, 파츠 위의 두 겹(진한 색 + 가산 빛)만
- * 남긴다. 그 두 겹도 알파 마스크로 잘라 얼굴·머리카락·맨살·무기·부츠가 물들지 않는다.
- * 무기는 종전 3겹 그대로다.
+ * 투구는 사용자 확정 1안 — **파츠만 깔끔하게 발광하고 오라가 번지지 않는다**. 그래서 실루엣 밖으로
+ * 1.12배 키워 번지는 후광 겹(③)을 빼고, 파츠 위의 두 겹(진한 색 + 가산 빛)만 남긴다.
+ * 그 두 겹도 `GearGlowMask`(투구 PNG 알파 마스크)로 잘라 얼굴·목·어깨·머리카락이 물들지 않는다.
+ * 갑옷·무기는 종전 3겹 그대로다(갑옷은 다음 작업에서 같은 방식으로 좁힌다).
  */
 export function gearGlowLayersFor(part: GearGlowPart): readonly GearGlowLayerSpec[] {
   return part === 'helmet' || part === 'armor' ? gearGlowLayers.filter(layer => layer.scale <= 1) : gearGlowLayers;
 }
 
 /**
- * 발광 마스크(작업 256·257) — 파츠와 **같은 크기**의 흰 PNG(알파=발광 세기).
+ * 발광 마스크(작업 256) — 파츠와 **같은 크기**의 흰 PNG(알파=발광 세기).
  *
  * 필드는 파츠와 같은 앵커·위치·배율로 이 텍스처를 스프라이트로 얹어 `mask` 로 걸고,
  * 장착 화면은 파츠를 등급색으로 칠한 캔버스에 `destination-in` 으로 도려낸다. 부위마다
- * 다른 마스크(투구 PNG·갑옷 시트 마스크)를 같은 방식으로 넘길 수 있게 텍스처 하나로 표현한다.
+ * 다른 마스크(투구 PNG·갑옷 절차 마스크)를 같은 방식으로 넘길 수 있게 텍스처 하나로 표현한다.
  */
 export type GearGlowMask = Texture;
 

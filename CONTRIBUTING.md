@@ -194,3 +194,29 @@ Codex는 모든 코드 작업의 **수정 전에** 다음을 수행한다.
 5. `docs/TASK_<GitHub ID>.md`: 현재 작업의 직접 수정 파일, 단계, 완료 기준
 
 문서 역할을 중복하지 않는다. 정책은 `AGENTS.md`, 협업 절차는 이 문서, 파일 위치는 `CODE_MAP.md`, 빠른 수정 경로는 `QUICK_PATCH.md`, 코스튬 설계 정의는 `docs/COSTUME_SYSTEM.md`, 실행 범위는 개인 작업지시서가 각각 담당한다. 내용이 충돌하면 시스템 정의서의 목표 정책을 따르되, 실제 파일 변경은 TASK 등록 및 충돌 확인 후 수행한다.
+
+## 16. 배포·오픈 절차 (점검 모드)
+
+배포는 **점검 모드 ON → 배포 → 전수 정상화 확인 → 점검 모드 OFF** 순서로만 한다. 점검 스위치는
+`public/maintenance.json` 하나이고(정적 파일 — Worker·DB 호출 없음), 화면은 이 파일을 시작할 때·플레이 중
+20초마다·탭이 돌아올 때 다시 읽는다(`src/game/maintenance.ts`, `src/ui/login.ts`, `src/main.ts`).
+
+1. **점검 켜기** — `public/maintenance.json`을 `{ "active": true, "eta": "2026-11-21T16:30:00+09:00", "message": "" }`로
+   바꾼 PR(`ops/maintenance-on-<날짜>`, 이 파일 하나만)을 `main`에 병합한다. 배포되면 접속 중인 플레이어는
+   20초 안에 로그인 화면으로 돌아가 **"점검 진행 중입니다" + 예상 완료 시간** 모달을 보고, 그동안 로그인·게스트
+   입장이 막힌다. `eta`는 필수다 — ISO 시각(`2026-11-21T16:30:00+09:00`)이면 `11월 21일 16:30`으로,
+   "오후 4시 30분쯤" 같은 문구는 그대로 보인다.
+2. **배포** — 점검이 켜진 것을 확인한 뒤 기능 브랜치를 `main`에 병합·배포한다. 점검 중에는 다른 병합을 하지 않는다.
+3. **전수 정상화 확인** — 아래를 모두 확인한다.
+   - 운영 `https://djrpg.pages.dev/version.json`의 `commit`이 병합 커밋과 같은가
+   - 루트 `/` HTTP 200, `/maintenance.json`이 방금 올린 내용인가(`Cache-Control: no-store`)
+   - `/api/account`가 정상 JSON(401 또는 성공)인가 — 405·HTML(정적 폴백)이 아닌가
+   - 로그인/사냥 스모크: 게스트 입장 → `save` 200
+   - Cloudflare Pages·`deploy` 체크가 SUCCESS인가(`Workers Builds`의 상시 실패는 제외)
+4. **점검 끄기** — 3번을 모두 통과한 뒤에만 PR(`ops/maintenance-off-<날짜>`)로 `active:false`를 병합해 연다.
+   하나라도 실패하면 **점검을 켜 둔 채** 실패 항목과 함께 보고한다.
+
+저장소 기본값은 `active:false`다. 점검 파일을 읽지 못하거나 형식이 깨져도 **열린 상태**로 두며(파일 하나가
+잘못됐다고 게임이 잠기면 안 된다), 코드나 환경변수를 바꿔 점검을 끄는 일은 없다. 서버에서도 함께 막아야 하면
+Cloudflare Pages 환경변수 `DJRPG_MAINTENANCE=1`을 둔다 — 계정 API가 DB에 닿기 전에 `503 MAINTENANCE`를
+돌려주고, 화면은 이를 점검 안내로 보여 준다.
