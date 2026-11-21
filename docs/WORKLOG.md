@@ -1,3 +1,11 @@
+## 2026-11-21 · songduckjin 작업 261 **핫픽스** — 궁수 호크아이 빛/바람 오브젝트 잔존 (PR #300)
+
+- **증상(운영)**: #299 일괄 배포 뒤 사용자 신고 "궁수한테 빛이 계속 따라다여" → "호쿠아이도 빛나게 하는건 아니야". 궁수에게 호크아이 바람·빛 오브젝트가 화면에 쌓여 영원히 남았다.
+- **원인**: `render/hawkEyeWind.ts`의 `windStates`(`WeakMap<object, WindState>`) 키가 **호출부가 매 프레임 새로 만드는 래퍼** `{ windBack, windFront }`였다 — `entities.ts`가 그렇게 호출하므로 캐시가 항상 miss. 그때마다 `Graphics` 2개와 글로우 `Sprite` 2개를 `rageBack`/`rageFront`에 `addChild`하고 옛 상태는 지우지 않았다. **실측(수정 전 코드, 같은 컨테이너에 600프레임): `windBack` 자식 1,800개(Graphics 600 + Sprite 1,200)·`windFront` 600개.**
+- **수정 ①**: 키를 `view.windBack`(`render.ts`가 계속 들고 있는 레이어)으로 바꾸어 `WeakMap<Container, WindState>` — 래퍼가 매 프레임 새로 생겨도 상태 한 벌만 재사용한다(수정 후 600프레임에도 자식 1/1). 호크아이가 꺼지면 같은 `Graphics`를 `clear()`해 잔존이 없다.
+- **수정 ②(사용자 지시)**: 몸 빛무리(`windGlows`·`fx_rage_glow_v1.png` 스프라이트·`glowTexture` 인자)를 **완전히 삭제**했다. 호크아이는 **바람 리본 2줄 + 바람 알갱이 7개**만 그린다 — 궁수 몸은 발동 중에도 빛나지 않는다. `entities.ts` 호출부에서 `this.textures.fxRageGlow` 인자를 뺐다(전사 블러드 레이지는 그대로).
+- **검증**: `npx tsc --noEmit` 통과. `npx vite build` 통과 — 이 컨테이너는 RAM 2GB(가용 800MB)라 `--max-old-space-size=2400`은 OOM, `1400`으로 빌드(`assets/index-*.js` 825.83kB). `tests/hawk-eye-wind.test.mjs` **10/10**(신규: 같은 컨테이너 600프레임 누적 회귀 — 수정 전 코드에서 실패 확인 / 글라우 스프라이트·`windGlows`·`fxRageGlow` 부재), 관련 렌더 16파일 **248/248**. `public/assets/**`가 없는 sparse 체크아웃 때문에 실패하던 7건은 에셋 폴더(archer_armors·archer_headless·bows·nobow·headless·world-boss)를 sparse에 더해 전부 통과시켰다(코드 문제 아님).
+
 ## 2026-11-21 · songduckjin 작업 261 — 다이아 표기를 `◆` 글자에서 보석 그림으로 전면 교체 · 우측 상점 버튼을 다이아 상자 그림으로 (PR #288)
 
 - **사용자 지시(18:16 KST)**: "그리고 다이아 아이콘 안바꼇더라" → "그상자로 오른쪽에 떠있는 아이컨더 변경하다" → "다이아 생긴모양이 그냥 도형같아 다이아로 전부 변경".
