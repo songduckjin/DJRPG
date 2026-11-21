@@ -1,3 +1,14 @@
+## 2026-11-21 · songduckjin 작업 251 — 창을 내렸다가 돌아올 때 "게임에 접속 중입니다…" 안내(재접속 팝업)
+
+- **제보**: "창내렸다가 들어오면 네크워크 연결할수없습니다 상태확인하라고 뜨는데 게임접속중입니다 팝업문구 띄우는걸로"(11:34 KST).
+- **원인**: iOS는 창을 내린 사이 떠 있던 요청을 끊는다. 그 순간의 실패가 **오류처럼** 보였다 — ① 세션 복구(`openLogin`의 `begin('load')`)가 실패하면 로그인 화면이 `서버에 연결할 수 없습니다. 네트워크 상태를 확인하세요.`를 빨갛게 표시하고 ② 게임 중에는 `SaveSync.flush` 실패가 `handleError` → `onMessage`(빨간 토스트 3.2초) + `저장 실패`로 떴다. 둘 다 다시 보내면 풀리는 끊김이다.
+- **문구·판정·재시도 한 곳**(`src/ui/reconnect.ts` 신규): `RECONNECT_MESSAGE='게임에 접속 중입니다…'`, `RECONNECT_SLOW_MESSAGE='연결이 계속 끊겨 있습니다. 네트워크 상태를 확인한 뒤 다시 시도해 주세요.'`, `RECONNECT_RECOVERED_MESSAGE='다시 연결되었습니다.'`, `RECONNECT_SLOW_AFTER_MS=20_000`·`RECONNECT_RETRY_MS=3_000`·`RECONNECT_SLOW_RETRY_MS=10_000`. `offlineError()`는 `code='NETWORK_OFFLINE'`·`notice=true`, `isNetworkOffline()`은 **브라우저가 던지는 끊김 문구**(`Failed to fetch`·`Load failed`·`NetworkError`·`network connection was lost`·`Internet connection appears to be offline`)만 참으로 본다 — HTTP 4xx/5xx·JSON 파싱 실패·서버가 답한 오류는 재시도하지 않는다. `reconnectStage(elapsed)`가 20초 경계에서 '재연결 중'과 '상태 확인 + 다시 시도'를 가른다.
+- **로그인**(`src/ui/login.ts`): `accountRequest`의 `fetch` 실패는 `offlineError()`, 본문을 받다 끊긴 `response.json()` 실패도 끊김으로 구분해 던진다(정적 폴백 405는 종전대로 점검 안내 — 작업 242). `openLogin`은 `retryNetwork`로 세션 자동 복구 **7회(약 21초)**·직접 로그인/게스트 **4회**를 스스로 다시 보내고, 그동안 `.login-error.is-connecting`(주황 `#f3cd93` + 도는 표시)에 `게임에 접속 중입니다…`, 20초 뒤에는 상태 확인 안내로 바꾼다. 버튼은 다시 활성화되어 이용자가 바로 로그인할 수 있다.
+- **게임**(`src/game/sync.ts`): `onNetwork(state)` 추가. `flush`의 네트워크 오류는 `reportOffline()`(안내 + `연결 중` 상태)만 하고 **빨간 토스트를 띄우지 않는다**. 저장·거래·창고 응답이 성공하면 `reportOnline()`(`recovered`). 거래 `mutate`·창고 `transferWarehouse`의 시도별 끊김도 같은 안내로 넘어가고, `pendingMarket`(결과 미확인 거래)·`INVALID_SAVE` 재동기화·세션 교체·426 버전 가드·409 충돌 경로는 종전 그대로다.
+- **화면**(`src/main.ts`·`src/styles/base.css`): `ReconnectNotice`가 `.reconnect-notice`(화면을 막지 않는 상단 알약, `role=status`·`aria-live=polite`, 도는 표시, `prefers-reduced-motion` 대응)를 띄우고 **3초마다 `sync.flushIfDirty()`**로 다시 보낸다. 20초가 지나면 같은 자리가 `다시 시도` 버튼이 있는 안내로 바뀌고, 붙으면 `다시 연결되었습니다.`를 1.6초 보여 준 뒤 저절로 사라진다. `visibilitychange`가 **보일 때**·`online` 이벤트에서도 곧바로 재전송한다(기존에는 숨길 때만 저장했다).
+- **검증**: `npx tsc --noEmit`·`vite build` 통과. 신규 `tests/reconnect.test.mjs` **9/9**(문구·20초 단계·끊김 판정(브라우저 문구 5종/HTTP·JSON 오류 제외)·`accountRequest` 끊김 문구·재시도 후 복구·횟수 소진 시 상태 확인 문구·서버 오류는 재시도 안 함·저장 끊김에서 빨간 토스트 없이 `connecting`→`recovered`·거래 끊김·안내 부품의 표시→20초→다시 시도→복구 소멸). `tests/sync.test.mjs` **23/23**(끊김 저장의 거래 차단 문구 기대값을 새 문구로 갱신). 전체 `node --test tests/*.test.mjs` **1,066건 중 1,063 통과**(실패 3건은 변경 전 `origin/main`과 동일 — `costume-field-render` 2·`skillbook-server` 1).
+- **남은 것**: 사용자 폰(iOS)에서 창 내렸다가 복귀했을 때 실제 문구·자동 소멸 확인. 이 PR은 **모아서 배포** 지시에 따라 머지하지 않는다.
+
 ## 2026-11-21 · songduckjin 작업 250 — 전 직업 공격 파츠 안정화(활·지팡이 프레임 배율, 직업 전환 잔여물, 평타 아이콘)
 
 - **제보**: `#21151` "전직업 공격할때 서있을때랑 색상이 약간 바뀌는거 같고 파츠별로 분리되는현상이 있는거같은데 안정화 필요해"·`#21206` "전사인데 다른캐릭도 보이고 활도 떠다니고"·`#21260` "전사인대 평타 아이콘이미지가 활로되어있어"(11:32~11:41 KST). 세 건 모두 **캐릭터를 바꿔 가며 본 화면**에서 나왔다.
