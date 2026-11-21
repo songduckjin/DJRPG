@@ -70,17 +70,27 @@ export function rollSkillBook(_floor: number, _job: Job = 'warrior'): SkillBook 
  *
  * 예전에는 장비·스킬북 확률을 따로 두 번 굴려 한 마리에서 두 개가 같이 떨어질 수 있었다. 이제는
  * **한 번만 굴리고**, 당첨되면 `SKILLBOOK_DROP_SHARE`(30%)로 종류를 갈라 **한 개만** 떨어진다.
- * - 일반 몹(정예 포함): 1층 0.40% → 20층 1.60%에서 멈춘다.
- * - 보스: 1층 6.0% → 20층 24.0%에서 멈춘다.
  *
- * 작업 223(2026-11-20, 사용자 확정 `#6034`·`#6061`·`#6066`): 초반이 너무 짜다는 제보("부캐 1시간
- * 방치해서 반지 한 개")에 **전 구간을 그대로 2배**로 올렸다. 위층 몹을 늦게 잡도록 난이도를 올릴
- * 예정이라 마리당 확률을 받쳐 파밍 템포를 지키는 쪽을 사용자가 골랐다. 장비 70% : 스킬북 30%
- * 비율(`SKILLBOOK_DROP_SHARE`)·오프라인 정산(`offline.ts`)·던전 몫은 그대로다.
+ * 작업 254(2026-11-21, 사용자 확정 — 선택 카드 "전 층 고정"): **층이 올라가도 마리당 확률은 그대로**다.
+ * 작업 223의 층별 상승(1층 0.40% → 20층 1.60%, 보스 6% → 24%)을 없애고 전 층 고정으로 바꿨다.
+ * - 접속 사냥(일반·정예) **0.39%**, 보스 **4%** — 이 함수.
+ * - 방치 사냥(오프라인 정산) 일반 **0.30%**, 보스 **4%** — `offlineDropChance`.
+ * 등급(`rollItem`의 `rollRarity`)은 지금처럼 층이 올라갈수록 좋아지므로, 깊은 층의 값은 개수가 아니라
+ * 색으로 오른다. 장비 70% : 스킬북 30% 비율(`SKILLBOOK_DROP_SHARE`)은 그대로다.
  */
-export function itemDropChance(floor: number, boss = false): number {
-  const depth = Math.max(0, floor - 1);
-  return boss ? Math.min(.24, .06 + depth * (.18 / 19)) : Math.min(.016, .004 + depth * (.012 / 19));
+export const ONLINE_DROP_CHANCE = .0039;
+/** 방치 사냥의 일반 몹 드롭률 (작업 254) — 접속보다 낮은 0.30%. */
+export const OFFLINE_DROP_CHANCE = .003;
+/** 보스 드롭률 (작업 254) — 접속·방치 모두 4%. */
+export const BOSS_DROP_CHANCE = .04;
+
+/** 접속 사냥의 한 마리당 드롭률 — 전 층 0.39%, 보스 4%(작업 254). */
+export function itemDropChance(_floor: number, boss = false): number {
+  return boss ? BOSS_DROP_CHANCE : ONLINE_DROP_CHANCE;
+}
+/** 방치(오프라인) 정산의 한 마리당 드롭률 — 전 층 0.30%, 보스 4%(작업 254). */
+export function offlineDropChance(_floor: number, boss = false): number {
+  return boss ? BOSS_DROP_CHANCE : OFFLINE_DROP_CHANCE;
 }
 /** 당첨된 아이템 1개의 종류 — 스킬북 30%, 장비 70%. */
 export const SKILLBOOK_DROP_SHARE = .3;

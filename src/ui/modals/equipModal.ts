@@ -186,14 +186,14 @@ export function renderInventory(this: Interface, dialog: HTMLElement): void {
       showRarity();
     };
     const salvage = document.createElement('button'); salvage.className = 'salvage'; salvage.textContent = '일괄 분해'; salvage.onclick = () => this.salvage();
-    // 접속 중 자동 분해 (작업 196): the switch sits beside the threshold it uses, and says right under it
-    // that it only works while hunting — offline rewards keep every piece.
+    // 자동 분해 (작업 196, 작업 254에서 방치에도 적용): the switch sits beside the threshold it uses, and the
+    // hint under it says it now works while hunting and while away.
     const auto = document.createElement('button'); auto.className = 'salvage auto-salvage'; auto.type = 'button';
     const showAuto = () => {
       auto.textContent = `자동 분해 ${this.autoSalvage ? '켬' : '끔'}`;
       auto.classList.toggle('is-on', this.autoSalvage);
       auto.setAttribute('aria-pressed', String(this.autoSalvage));
-      auto.setAttribute('aria-label', `접속 중 자동 분해 ${this.autoSalvage ? '켜짐' : '꺼짐'}. 누르면 ${this.autoSalvage ? '끕니다' : '켭니다'}`);
+      auto.setAttribute('aria-label', `자동 분해 ${this.autoSalvage ? '켜짐' : '꺼짐'}. 접속·방치 사냥 모두 적용. 누르면 ${this.autoSalvage ? '끕니다' : '켭니다'}`);
     };
     showAuto();
     auto.onclick = () => { this.setAutoSalvage(!this.autoSalvage); showAuto(); };

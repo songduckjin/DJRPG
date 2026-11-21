@@ -37,8 +37,8 @@ export function renderSettings(ui:Interface,dialog:HTMLElement):void{
   select.onchange=()=>{preferences.effects=select.value==='low'?'low':'full';persist(ui);};effects.append(select);section.append(effects);
   heading(section,'사냥');const climb=element('label','setting-row','보스 처치 후 자동 등반'),toggle=element('input');toggle.type='checkbox';toggle.checked=ui.world.save.autoClimb;
   toggle.onchange=()=>{if(ui.world.paused){toggle.checked=ui.world.save.autoClimb;ui.message('동기화 후 변경해 주세요.');return;}ui.world.save.autoClimb=toggle.checked;ui.world.onChange();};climb.append(toggle);section.append(climb);
-  // 접속 중 자동 분해 (작업 196): the same switch as the equipment popup, with the same limit spelled out.
-  const auto=element('label','setting-row','자동 분해 (접속 중)'),autoToggle=element('input');autoToggle.type='checkbox';autoToggle.checked=ui.autoSalvage;
+  // 자동 분해 (작업 196, 작업 254에서 방치에도 적용): the same switch as the equipment popup, with the same limit spelled out.
+  const auto=element('label','setting-row','자동 분해'),autoToggle=element('input');autoToggle.type='checkbox';autoToggle.checked=ui.autoSalvage;
   autoToggle.onchange=()=>{ui.setAutoSalvage(autoToggle.checked);};
   auto.append(autoToggle);section.append(auto,element('p','utility-note',AUTO_SALVAGE_HINT));
   // 41층부터 (작업 203): 자동 분해가 갈 `+단계` 상한 — 장비창과 같은 기기 저장값을 쓰고, 40층 이하에서는 줄 자체가 없다.

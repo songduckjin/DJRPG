@@ -6,6 +6,9 @@ import { mountWasteland } from './game/wasteland';
 import { GameView } from './game/render';
 import { clearLegacySave, parseSave, readLegacySave } from './game/store';
 import { applyOfflineRewards } from './game/offline';
+import { readAutoSalvage } from './ui/autoSalvage';
+import { readSalvagePlus } from './ui/salvagePlus';
+import { readSalvageRarity } from './ui/salvageRarity';
 import { World } from './game/world';
 import { Interface } from './ui/interface';
 import { clearToken, openLogin } from './ui/login';
@@ -41,7 +44,12 @@ async function start(): Promise<void> {
         if (legacy) { Object.assign(save, parseSave(legacy.save, session.accountId)); legacyKey = legacy.key; }
       } catch (error) { pendingMessage = `기존 진행 상황을 읽지 못했습니다: ${String(error)}`; }
     }
-    const offlineReward = applyOfflineRewards(save, session.offlineSeconds ?? 0);
+    // 방치 정산도 자동 분해를 따른다(작업 254). 화면(Interface)이 아직 없으므로, 기기에 저장된
+    // 스위치·등급 기준·`+N까지` 상한을 그대로 읽어 넘긴다.
+    const offlineReward = applyOfflineRewards(save, session.offlineSeconds ?? 0, {
+      autoSalvage: readAutoSalvage() ? readSalvageRarity() : undefined,
+      autoSalvagePlus: readSalvagePlus(),
+    });
     const world = new World(save);
     const sync = new SaveSync(save, session);
     function flush(): Promise<boolean> { return sync.flush(); }

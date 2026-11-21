@@ -4,7 +4,7 @@ import './ts-loader.mjs';
 
 const { freshSave, floorKillTarget } = await import('../src/game/store.ts');
 const { applyOfflineRewards } = await import('../src/game/offline.ts');
-const { equipmentDropChance, skillBookDropChance, itemDropChance, rollItemKind, SKILLBOOK_DROP_SHARE } = await import('../src/game/items.ts');
+const { equipmentDropChance, skillBookDropChance, itemDropChance, offlineDropChance, rollItemKind, SKILLBOOK_DROP_SHARE } = await import('../src/game/items.ts');
 
 test('offline hunts award one item per kill (장비 70% · 스킬북 30%) and gold, and a boss only past the floor target', () => {
   const originalRandom = Math.random; Math.random = () => 0;
@@ -52,20 +52,26 @@ test('offline kill rate stays between eight and sixteen per minute', () => {
   assert.equal(applyOfflineRewards(freshSave(), 59), undefined);
 });
 
-test('아이템 드롭률은 한 마리당 한 번 — 1층 0.40%→20층 1.60%, 보스 6%→24%에서 멈춘다(작업 223)', () => {
-  assert.equal(itemDropChance(1, false), .004);
-  assert.equal(itemDropChance(20, false), .016);
-  assert.equal(itemDropChance(200, false), .016, '20층 위로는 1.60%에서 멈춘다');
-  assert.equal(itemDropChance(1, true), .06);
-  assert.equal(itemDropChance(20, true), .24);
-  assert.equal(itemDropChance(200, true), .24, '20층 위로는 24%에서 멈춘다');
+test('아이템 드롭률은 전 층 고정 — 접속 일반 0.39%·보스 4%, 방치 일반 0.30%·보스 4%(작업 254)', () => {
+  assert.equal(itemDropChance(1, false), .0039);
+  assert.equal(itemDropChance(20, false), .0039, '층이 올라가도 그대로');
+  assert.equal(itemDropChance(200, false), .0039);
+  assert.equal(itemDropChance(1, true), .04);
+  assert.equal(itemDropChance(20, true), .04);
+  assert.equal(itemDropChance(200, true), .04);
+  // 방치 사냥은 같은 자리의 `offlineDropChance` — 일반만 낮은 0.30%, 보스는 같다.
+  assert.equal(offlineDropChance(1, false), .003);
+  assert.equal(offlineDropChance(20, false), .003);
+  assert.equal(offlineDropChance(200, false), .003);
+  assert.equal(offlineDropChance(1, true), .04);
+  assert.equal(offlineDropChance(20, true), .04);
   // 종류는 70:30 — 예전 이름(장비·스킬북 확률)은 같은 값의 70%·30%다.
   assert.equal(SKILLBOOK_DROP_SHARE, .3);
   const round = value => Math.round(value * 1e6) / 1e6;
-  assert.equal(round(equipmentDropChance(1, false)), .0028);
-  assert.equal(round(skillBookDropChance(1, false)), .0012);
-  assert.equal(round(equipmentDropChance(20, true)), .168);
-  assert.equal(round(skillBookDropChance(20, true)), .072);
+  assert.equal(round(equipmentDropChance(1, false)), .00273);
+  assert.equal(round(skillBookDropChance(1, false)), .00117);
+  assert.equal(round(equipmentDropChance(20, true)), .028);
+  assert.equal(round(skillBookDropChance(20, true)), .012);
   // 분포: 10,000회에서 스킬북이 30% 언저리.
   let state = 12345, books = 0;
   const seeded = () => { state = (state * 1664525 + 1013904223) >>> 0; return state / 4294967296; };
