@@ -4,7 +4,7 @@ import type { Interface } from '../interface';
 import { accountRequest } from '../login';
 import { type EquipmentItem, type Slot } from '../../game/items';
 import { equipmentFallbackPortrait, equipmentPortraitPlan, renderEquipmentPortrait } from '../equipmentPortrait';
-import { loadWarehouse as loadWarehouseModal, renderWarehouse as renderWarehouseModal } from './warehouseModal';
+import { loadWarehouse as loadWarehouseModal, renderWarehouse as renderWarehouseModal, resetWarehouseForCharacterSwitch } from './warehouseModal';
 import { discoverEquipment } from '../../game/codex';
 import { applyOfflineRewards } from '../../game/offline';
 
@@ -265,6 +265,9 @@ export function applyCharacterSwitch(ui: Interface, result: CharacterSwitchResul
   // 남겨 두면 `Interface.open`이 `pendingMarket` 때문에 모달도 닫지 못하고, 거래소는 계속 잠긴다.
   sync.resetForCharacterSwitch?.();
   ui.market.resetForCharacterSwitch?.();
+  // 공용창고의 큐·선택·잠금도 버린다 — 남아 있던 이동이 새 캐릭터 화면에서 실행되면 옛 캐릭터의 아이템 id로
+  // 요청이 나가 409만 받고, 그리드에는 이전 캐릭터의 목록이 남는다(작업 258).
+  resetWarehouseForCharacterSwitch(ui);
   discoverEquipment(live);
   // 모달·선택 상태는 새 캐릭터의 것으로 다시 시작한다(이전 캐릭터의 아이디·슬롯이 남지 않게).
   ui.knownItems = new Set([...live.bag, ...Object.values(live.equipment)].filter(Boolean).map(item => (item as Item).id));
