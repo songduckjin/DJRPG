@@ -2,6 +2,8 @@
 // DJRPG 전용 Turso DB 이관 스크립트.
 // 공용 DB(puzzle-mates)에서 djrpg_* 테이블만 새 DB로 복사한다.
 // 소스 DB에는 SELECT만 실행한다(어떤 쓰기도 하지 않는다). 사용법: node scripts/migrate-turso-db.mjs --dry-run
+// (PR-3부터 `server/database.mjs` → `server/save-guard.mjs`가 `src/game/progress.ts`를 import하므로
+//  **Node 22.18 이상**(타입 스트리핑 기본)이 필요하다. 그보다 오래된 Node라면 `node --experimental-strip-types`로 실행한다.)
 import { createClient } from '@libsql/client';
 import { pathToFileURL } from 'node:url';
 import { schema } from '../server/database.mjs';

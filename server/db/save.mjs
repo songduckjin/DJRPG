@@ -16,8 +16,10 @@ import { fail } from './errors.mjs';
 import { clampSaveProgress, elapsedSince } from '../save-guard.mjs';
 import { journeyState, journeyOperation } from '../journey-state.mjs';
 
-/** 메인 사냥의 마지막 층 — `src/game/store.ts`의 `MAX_FLOOR`와 같은 값이다(작업 204). */
-export const MAX_FLOOR = 20;
+/** 메인 사냥의 마지막 층 — 정의는 `src/game/progress.ts` 한 곳이고 `save-guard.mjs`를 거쳐 여기서 재export한다.
+ *  (예전에는 이 파일에도 `20`을 적어 두었지만, PR-3에서 한 곳만 남겼다.) */
+import { MAX_FLOOR } from '../save-guard.mjs';
+export { MAX_FLOOR };
 
 export function validateSave(save) {
   if (!save || typeof save !== 'object' || Array.isArray(save) || save.version !== 1 || JSON.stringify(save).length > 1_000_000) fail(400, 'INVALID_SAVE', '저장 데이터 형식이 올바르지 않습니다.');

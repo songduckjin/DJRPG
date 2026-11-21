@@ -5,18 +5,18 @@ import { isEquipment, isSkillBook, migrateItem, skillBookJob, slots, totalStats,
 export { slots, slotNames, rarityNames, statNames, isZweihander, equipmentImage, totalStats, rollItem, itemPower, autoEquipBest, salvageByRarity } from './items';
 export type { Rarity, Slot, Stat, Item } from './items';
 import { allPassiveIds, allSkillIds, jobNames, jobOrDefault, MAX_SKILL_LEVEL, type Job, type PassiveId, type SkillId, type SkillLevelId } from './skills';
+// 진행 규칙(층 목표·경험치 곡선·최고 층)의 정의는 `progress.ts` 한 곳에 있다 — 여기서는 예전 import 경로를
+// 그대로 쓰는 파일들을 위해 재export만 한다(PR-3, 작업 262).
+import { MAX_FLOOR, MAX_LEVEL, gainExperience, killsToBoss } from './progress';
+export { MAX_FLOOR, MAX_LEVEL, expToNext } from './progress';
+export const floorKillTarget = killsToBoss;
 
 export type Gender = 'male' | 'female';
 /** 직업은 캐릭터 생성 시 1회 선택해 고정한다. 값이 없는 예전 세이브는 모두 전사다. */
 export type { Job };
 export { jobOrDefault, jobNames, jobs } from './skills';
-export const MAX_LEVEL = 30;
 /** 끝없는 던전에 지금 있는 마지막 층. 이보다 깊은 층은 아직 준비 중이다(순위 근거이기도 하다). */
 export const DUNGEON_MAX_FLOOR = 10;
-/** 메인 사냥의 마지막 층(작업 204). 20층 위로는 열리지 않으며, 상한이 풀릴 때 이 값만 올린다.
- *  몹 체력·장비 스탯·스폰 곡선은 20층 상한과 무관하게 지금 수치 그대로 두어, 나중에 30·50·80층으로
- *  상한이 풀리면 고층 곡선이 그대로 이어진다. */
-export const MAX_FLOOR = 20;
 
 export type Save = { version: 1; name: string; accountId: string; gender: Gender; job?: Job; auto: boolean; autoClimb: boolean; level: number; exp: number; gold: number; floor: number; maxFloor: number; floorKills: number; kills: number; bossKills: number; playSeconds: number; /** 장비 분해 누적 횟수(작업 207) — 일일·주간 `장비 분해` 미션이 이 값의 증가분을 센다. */ salvageCount: number; health: number; equipment: Partial<Record<Slot, EquipmentItem>>; equipmentCollection: string[]; bag: Item[]; tutorial: number; stones: number; skillPoints: number; lastActiveAt: number; learned: SkillId[]; passives: PassiveId[]; quickSlots: QuickSlots; skillLevels: Partial<Record<SkillLevelId, number>>; dungeonFloor: number; dungeonClearAt: number;
   /** 보스에게 진 층(작업 223, 사용자 제보 `#6086`) — 0/없음이면 재도전 없음, `maxFloor`와 같으면
@@ -64,15 +64,6 @@ export function clearLegacySave(key: string): void {
 
 function isRecord(value: unknown): value is Record<string, unknown> { return typeof value === 'object' && value !== null && !Array.isArray(value); }
 function safeNumber(value: unknown, fallback: number, min = 0): number { return typeof value === 'number' && Number.isFinite(value) && value >= min ? value : fallback; }
-
-/** 다음 레벨까지 필요한 경험치(작업 207, 사용자 확정 곡선 `1400 × level²`) — 1~5층 Lv.3~4 · 10층 Lv.6 · 20층 Lv.11~12 페이스. */
-export function expToNext(level: number): number { return Math.round(1400 * Math.pow(level, 2)); }
-/** 그 층에서 보스가 나오기까지 잡아야 하는 몬스터 수(작업 204). 1층 150마리에서 완만히 가팔라져
- *  20층 3,505마리 — 5층 472 · 10층 1,163 · 15층 2,174. 층이 오를수록 사냥 한 층이 길어진다. */
-export function floorKillTarget(floor: number): number {
-  const depth = Math.max(0, floor - 1);
-  return 150 + 55 * depth + Math.round(Math.pow(depth, 2) * 6.4);
-}
 
 export function freshSave(gender: Gender = 'male', job: Job = 'warrior'): Save {
   return { version: 1, name: '모험가', accountId: crypto.randomUUID().slice(0, 8).toUpperCase(), gender, job, auto: true, autoClimb: true, level: 1, exp: 0, gold: 0, floor: 1, maxFloor: 1, floorKills: 0, kills: 0, bossKills: 0, playSeconds: 0, salvageCount: 0, health: 100, equipment: {}, equipmentCollection: [], bag: [], tutorial: 0, stones: 0, skillPoints: 0, lastActiveAt: Date.now(), learned: [], passives: [], quickSlots: [null, null, null], skillLevels: {}, dungeonFloor: 0, dungeonClearAt: 0, bossRetryFloor: 0 };
@@ -130,17 +121,11 @@ export function parseSave(data: unknown, accountId?: string): Save {
 }
 
 export function skillLevel(save: Save, id: SkillLevelId): number { return save.skillLevels[id] ?? 1; }
+/** 경험치·레벨업 규칙 자체는 `progress.ts`의 `gainExperience`가 갖는다 — 최대 체력을 아는 이 파일이
+ *  레벨업 뒤 체력을 채운다. */
 export function addExperience(save: Save, amount: number): number {
-  if (!Number.isFinite(amount) || amount <= 0 || save.level >= MAX_LEVEL) return 0;
-  save.exp += amount;
-  let gained = 0;
-  while (save.level < MAX_LEVEL && save.exp >= expToNext(save.level)) {
-    save.exp -= expToNext(save.level);
-    save.level++;
-    save.health = totalStats(save).health;
-    gained++;
-  }
-  if (save.level >= MAX_LEVEL) save.exp = 0;
+  const gained = gainExperience(save, amount);
+  if (gained) save.health = totalStats(save).health;
   return gained;
 }
 export function useSkillBook(save: Save, itemId: string): { ok: boolean; message: string } {
