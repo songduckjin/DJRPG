@@ -287,7 +287,15 @@ export class SaveSync {
       await accountRequest('reset', { revision: this.revision, characterSlot: this.session.characterSlot }, this.session.token); location.reload();
     } finally { this.locked = false; if (!this.conflicted && !this.pendingMarket) this.onPause(false); }
   }
-  /** 창고 이동(작업 225). 문자열 하나면 단건, 배열이면 한 요청으로 여러 개를 옮긴다(서버 `itemIds`). */
+  /**
+   * 창고 이동(작업 225). 문자열 하나면 단건, 배열이면 한 요청으로 여러 개를 옮긴다(서버 `itemIds`).
+   *
+   * 작업 250 — 사용자가 "물품 옮길 때 로딩이 너무 길고 템이 비활성화된 채로 변화 없음"이라고 보고했다. 원인은
+   * ① 보낼 변경이 없어도 매번 `flush()` 저장 왕복을 기다린 점 ② 실패 시 10초 타임아웃 × 3회(최대 30초) 동안
+   * 화면이 잠긴 채 기다린 점이다. 지금은 **저장할 변경이 없으면 `flush()`를 건너뛰어 요청 한 번으로** 옮기고,
+   * 받은 응답의 `items`·`save`로 화면을 바로 맞춘다. 결과를 모르는 실패는 6초 타임아웃 + 재확인 1회로 줄이고
+   * 확인은 `scheduleWarehouseRecovery`가 화면 밖에서 이어 간다.
+   */
   async transferWarehouse(action: 'deposit' | 'withdraw', itemIds: string | string[]): Promise<SyncResult> {
     const ids = [...new Set(Array.isArray(itemIds) ? itemIds : [itemIds])];
     const slotAtStart = this.session.characterSlot;
@@ -296,15 +304,21 @@ export class SaveSync {
     if (this.locked || this.conflicted || this.pendingMarket || this.preparingMarket) throw new Error('다른 요청을 처리 중입니다.');
     if (this.pendingWarehouse && (this.pendingWarehouse.action !== action || !sameIds(this.pendingWarehouse.itemIds))) throw new Error('이전 창고 이동 결과를 확인 중입니다.');
     if (!this.pendingWarehouse) {
-      if (!await this.flush()) throw new Error('저장 결과를 확인한 뒤 다시 시도하세요.');
+      // 서버는 이 `revision`의 세이브 위에 이동을 적용하므로, 아직 못 보낸 변경(dirty)이나 진행 중인 저장이
+      // 있을 때만 먼저 저장한다. 변경이 없으면 저장 왕복을 건너뛰어 이동 한 번 = 요청 한 번으로 끝난다(작업 250).
+      if (this.dirty || this.pendingSave || this.pending || this.active) {
+        if (!await this.flush()) throw new Error('저장 결과를 확인한 뒤 다시 시도하세요.');
+      }
       this.pendingWarehouse = { action, itemIds: ids, requestId: crypto.randomUUID(), revision: this.revision };
     }
     this.locked = true; this.onPause(true);
     try {
       let result: SyncResult | undefined;
-      for (let attempt = 0; attempt < 3; attempt++) {
+      // 최초 1회 + 재확인 1회 — 무응답이면 6초 안에 빠르게 알리고, 남은 확인은 복구 타이머가 맡는다(작업 250).
+      const attempts = 2;
+      for (let attempt = 0; attempt < attempts; attempt++) {
         const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 10_000);
+        const timeout = setTimeout(() => controller.abort(), 6_000);
         try {
           // 한 개는 예전 그대로 `itemId`로 보낸다(구서버 호환) — 여러 개일 때만 `itemIds` 배열(작업 225).
           const pending = this.pendingWarehouse;
@@ -318,7 +332,7 @@ export class SaveSync {
           result = body as SyncResult; break;
         } catch (error) {
           if (error instanceof Error && 'status' in error) throw error;
-          if (attempt === 2) throw new Error('창고 이동 결과를 자동으로 다시 확인하고 있습니다. 확인 후 전투를 재개합니다.');
+          if (attempt === attempts - 1) throw new Error('창고 이동 결과를 확인하지 못했습니다. 연결이 회복되면 자동으로 다시 확인합니다.');
         } finally { clearTimeout(timeout); }
       }
       if (!result || !Number.isSafeInteger(result.revision)) throw new Error('창고 응답이 올바르지 않습니다.');

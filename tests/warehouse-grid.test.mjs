@@ -349,3 +349,110 @@ test('공용창고·가방 목록은 부위별로 모으고 같은 부위 안에
     assert.equal(firstCell.dataset.itemId, 'p1');
   } finally { globalThis.document = previous; }
 });
+
+test('여러 칸을 고르면 하단 상세 바 버튼도 선택한 칸 전부를 한 요청으로 옮긴다(작업 250)', async () => {
+  const previous = globalThis.document;
+  globalThis.document = { createElement: tag => element(tag) };
+  try {
+    const save = freshSave(); save.job = 'warrior';
+    save.bag = [sword('w1'), sword('w2'), helmet('h1')];
+    const stored = [sword('s1'), helmet('s2')];
+    const { ui, calls } = uiFixture(save, stored.slice());
+    const dialog = element();
+    renderWarehouse(ui, dialog);
+    const [storageGrid, bagGrid] = all(dialog, node => node.classList.contains('warehouse-grid'));
+    const detail = all(dialog, node => node.classList.contains('warehouse-detail'))[0];
+    const moveOf = () => all(detail, node => node.classList.contains('warehouse-move'))[0];
+
+    // 1개만 고르면 예전 문구 그대로 — 상세 바는 그 칸의 이름을 보여 주고 `보관하기`를 쓴다.
+    cellsIn(bagGrid).find(cell => cell.dataset.itemId === 'w1').onclick();
+    assert.equal(moveOf().textContent, '보관하기');
+    assert.equal(warehouseState(ui).picked.size, 1);
+
+    // 2개째를 고르면 버튼이 `선택 보관 (2)`로 바뀐다(마지막 1개가 아니라 고른 칸 전부).
+    cellsIn(bagGrid).find(cell => cell.dataset.itemId === 'h1').onclick();
+    assert.equal(moveOf().textContent, '선택 보관 (2)');
+    assert(text(detail).includes('선택 2개'), '상세 바가 함께 옮길 개수를 밝힌다');
+    const before = calls.length;
+    moveOf().onclick();
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(calls.length, before + 1, '두 번이 아니라 한 요청');
+    assert.deepEqual(calls.at(-1), { action: 'deposit', ids: ['w1', 'h1'] });
+    assert.equal(warehouseState(ui).picked.size, 0, '옮기고 나면 선택을 비운다');
+
+    // 창고 쪽도 같다 — 두 칸을 고르면 `선택 꺼내기 (2)`로 전부 꺼낸다.
+    const storageCells = cellsIn(all(dialog, node => node.classList.contains('warehouse-grid'))[0]);
+    storageCells.find(cell => cell.dataset.itemId === 's1').onclick();
+    assert.equal(moveOf().textContent, '꺼내기');
+    storageCells.find(cell => cell.dataset.itemId === 's2').onclick();
+    assert.equal(moveOf().textContent, '선택 꺼내기 (2)');
+    moveOf().onclick();
+    await new Promise(resolve => setImmediate(resolve));
+    assert.deepEqual(calls.at(-1), { action: 'withdraw', ids: ['s1', 's2'] });
+    assert.equal(warehouseState(ui).picked.size, 0);
+  } finally { globalThis.document = previous; }
+});
+
+test('다중 선택 이동이 실패하면 골라 둔 칸이 그대로 남아 다시 누를 수 있다(작업 250)', async () => {
+  const previous = globalThis.document;
+  globalThis.document = { createElement: tag => element(tag) };
+  try {
+    const save = freshSave(); save.bag = [sword('w1'), helmet('h1')];
+    const { ui } = uiFixture(save, []);
+    ui.market.sync.transferWarehouse = async () => { throw new Error('서버 연결이 불안정합니다.'); };
+    const dialog = element();
+    renderWarehouse(ui, dialog);
+    const bagCells = cellsIn(all(dialog, node => node.classList.contains('warehouse-grid'))[1]);
+    bagCells.find(cell => cell.dataset.itemId === 'w1').onclick();
+    bagCells.find(cell => cell.dataset.itemId === 'h1').onclick();
+    all(dialog, node => node.classList.contains('warehouse-move'))[0].onclick();
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(ui.messages.at(-1), '서버 연결이 불안정합니다.');
+    assert.equal(warehouseState(ui).picked.size, 2, '실패하면 선택은 유지된다');
+    const after = cellsIn(all(dialog, node => node.classList.contains('warehouse-grid'))[1]);
+    assert.equal(after.filter(cell => cell.disabled).length, 0, '잠긴 칸이 남지 않는다');
+    assert.equal(all(dialog, node => node.classList.contains('warehouse-move'))[0].textContent, '선택 보관 (2)');
+  } finally { globalThis.document = previous; }
+});
+
+test('이동하는 동안 그 칸만 잠기고 응답의 세이브·창고 목록으로 화면이 바로 갱신된다(작업 250)', async () => {
+  const previous = globalThis.document;
+  globalThis.document = { createElement: tag => element(tag) };
+  try {
+    const save = freshSave(); save.job = 'warrior'; save.bag = [sword('w1'), helmet('h1')];
+    const { ui } = uiFixture(save, [{ id: 's9', name: '창고 검', slot: 'weapon', rarity: 'epic', stats: { attack: 30 } }]);
+    let release = () => {};
+    const gate = new Promise(resolve => { release = resolve; });
+    ui.market.sync.transferWarehouse = async (action, ids) => {
+      await gate;
+      const moved = save.bag.filter(item => ids.includes(item.id));
+      save.bag = save.bag.filter(item => !ids.includes(item.id));
+      ui.warehouseItems = [...(ui.warehouseItems ?? []), ...moved];
+      return { ok: true, message: '보관했습니다.', items: ui.warehouseItems, save };
+    };
+    const dialog = element();
+    renderWarehouse(ui, dialog);
+    const bagGrid = () => all(dialog, node => node.classList.contains('warehouse-grid'))[1];
+    const bagCell = id => cellsIn(bagGrid()).find(cell => cell.dataset.itemId === id);
+    bagCell('w1').onclick();
+    all(dialog, node => node.classList.contains('warehouse-move'))[0].onclick();
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(bagCell('w1').disabled, true, '옮기는 칸만 잠긴다');
+    assert.equal(bagCell('w1').classList.contains('is-busy'), true);
+    assert.equal(bagCell('h1').disabled, false, '다른 칸은 그대로 누를 수 있다');
+    assert(!text(dialog).includes('불러오는 중'), '로딩 문구로 돌아가지 않는다');
+    assert(text(dialog).includes('가방 2/40'));
+    release();
+    await new Promise(resolve => setImmediate(resolve));
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(bagCell('w1'), undefined, '응답이 실어 온 세이브로 가방이 바로 갱신된다');
+    assert.equal(cellsIn(bagGrid()).filter(cell => cell.disabled).length, 0, '잠금이 모두 풀린다');
+    assert(text(dialog).includes('가방 1/40') && text(dialog).includes('공용창고 2/40'));
+
+    // 이동 응답을 잃어 잠금 표시가 남아도, 창고를 다시 열면 모든 칸이 다시 눌린다.
+    warehouseState(ui).busy.add('h1');
+    const reopened = element();
+    renderWarehouse(ui, reopened);
+    assert.equal(cellsIn(all(reopened, node => node.classList.contains('warehouse-grid'))[1]).filter(cell => cell.disabled).length, 0);
+  } finally { globalThis.document = previous; }
+});

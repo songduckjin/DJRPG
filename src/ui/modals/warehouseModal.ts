@@ -132,6 +132,9 @@ export async function loadWarehouse(ui: Interface): Promise<void> {
 
 export function renderWarehouse(ui: Interface, dialog: HTMLElement): void {
   const state = warehouseState(ui);
+  // 새로 그리는 창고에는 이전 이동의 잠금 표시를 남기지 않는다 — 응답이 유실돼 `is-busy`가 남았더라도
+  // 창고를 다시 열면 모든 칸을 다시 누를 수 있다(작업 250).
+  state.busy.clear();
   if (!ui.warehouseItems) {
     const note = document.createElement('p'); note.className = 'warehouse-note';
     note.textContent = state.error ? state.error : '공용창고를 불러오는 중…';
@@ -197,6 +200,7 @@ export function renderWarehouse(ui: Interface, dialog: HTMLElement): void {
 
     const idsOn = (side: WarehouseSide): string[] => pickIds(state, side, side === 'bag' ? bagStacks : storageStacks);
     const bagIds = idsOn('bag'), storageIds = idsOn('storage');
+    const busyOn = (ids: string[]): boolean => ids.some(id => state.busy.has(id));
     // 고른 칸이 있는 쪽에만 액션 버튼이 나타난다(작업 246) — 모드 전환 없이 바로 다중 선택.
     const showDeposit = bagIds.length > 0;
     const showWithdraw = storageIds.length > 0;
@@ -204,11 +208,12 @@ export function renderWarehouse(ui: Interface, dialog: HTMLElement): void {
     depositPicked.textContent = `선택 보관 (${bagIds.length})`;
     withdrawPicked.textContent = `선택 꺼내기 (${storageIds.length})`;
     const depositFull = warehouseCount + bagIds.length > 40;
-    depositPicked.disabled = depositFull;
+    // 옮기는 중에는 다시 누를 수 없다 — 같은 아이템을 두 번 보내 409를 받지 않게 한다(작업 250).
+    depositPicked.disabled = depositFull || busyOn(bagIds);
     depositPicked.title = depositFull ? '공용창고가 가득 차 선택한 만큼 보관할 수 없습니다.' : `${bagIds.length}개를 공용창고에 보관합니다.`;
     // 꺼내기도 가방 40칸을 넘길 수 없다(작업 248) — 스킬북·보물 주머니도 칸을 쓴다.
     const withdrawFull = bagCount + storageIds.length > 40;
-    withdrawPicked.disabled = withdrawFull;
+    withdrawPicked.disabled = withdrawFull || busyOn(storageIds);
     withdrawPicked.title = withdrawFull ? '가방이 가득 차 선택한 만큼 꺼낼 수 없습니다. 가방을 비운 뒤 다시 시도하세요.' : `${storageIds.length}개를 가방으로 꺼냅니다.`;
 
     paintGrid(ui, storageGrid, 'storage', storageStacks, state);
@@ -219,13 +224,12 @@ export function renderWarehouse(ui: Interface, dialog: HTMLElement): void {
   depositPicked.onclick = () => {
     const ids = pickIds(state, 'bag', bagStacks);
     if (!ids.length) return;
-    for (const [key, side] of [...state.picked]) if (side === 'bag') state.picked.delete(key);
+    // 선택은 이동이 **성공한 뒤** `move`가 비운다 — 실패하면 골라 둔 칸이 그대로 남아 다시 누를 수 있다(작업 250).
     move(ui, 'bag', ids);
   };
   withdrawPicked.onclick = () => {
     const ids = pickIds(state, 'storage', storageStacks);
     if (!ids.length) return;
-    for (const [key, side] of [...state.picked]) if (side === 'storage') state.picked.delete(key);
     move(ui, 'storage', ids);
   };
 
@@ -324,11 +328,14 @@ function move(ui: Interface, side: WarehouseSide, ids: string[]): void {
     try {
       const result = await ui.market.sync.transferWarehouse(action, ids);
       if (result.items) ui.warehouseItems = result.items;
+      // 응답이 오면 창고 목록·가방이 이미 새 상태다 — 옮긴 칸의 선택을 바로 비우고(작업 250) 그리드를 즉시 다시 그린다.
+      for (const [key, pickedSide] of [...state.picked]) if (pickedSide === side) state.picked.delete(key);
       ui.renderStatus(); ui.renderBagBadge();
       if (state.focus && state.focus.side === side) {
         const stacks = stacksOf(side === 'bag' ? ui.world.save.bag : ui.warehouseItems ?? [], jobOrDefault(ui.world.save.job));
         if (!stacks.some(stack => stack.key === state.focus!.key)) state.focus = undefined;
       }
+      repaint(ui);
       ui.message(result.message || (action === 'deposit' ? '공용창고에 보관했습니다.' : '가방으로 가져왔습니다.'));
     } catch (error) {
       ui.message(error instanceof Error ? error.message : String(error));
@@ -358,6 +365,9 @@ function paintDetail(ui: Interface, save: Save, detail: HTMLElement, state: Ware
   const stacks = focus ? stacksOf(focus.side === 'storage' ? ui.warehouseItems ?? [] : save.bag, jobOrDefault(save.job)) : [];
   const stack = focus ? stacks.find(entry => entry.key === focus.key) : undefined;
   if (!focus || !stack) { detail.hidden = true; detail.replaceChildren(); return; }
+  // 선택한 칸이 2개 이상이면 상세 바 버튼도 **선택한 칸 전부**를 대상으로 한다(작업 250) — 마지막으로 탭한
+  // 1개만 옮겨서 사용자가 헷갈렸다. 1개(또는 스택 한 칸)만 골랐을 때는 예전 `꺼내기`/`보관하기` 그대로다.
+  const pickedIds = pickIds(state, focus.side, stacks);
   const item = stack.items[0];
   detail.hidden = false; detail.replaceChildren();
   const head = document.createElement('div'); head.className = 'warehouse-detail-head';
@@ -380,6 +390,8 @@ function paintDetail(ui: Interface, save: Save, detail: HTMLElement, state: Ware
     if (item.locked) parts.push('잠긴 장비');
   }
   if (stack.items.length > 1) parts.push(`${stack.items.length}개`);
+  // 여러 칸을 골랐으면 상세 바가 몇 개를 함께 옮기는지 미리 밝혀 둔다(작업 250).
+  if (pickedIds.length > 1) parts.push(`선택 ${pickedIds.length}개`);
   meta.textContent = parts.join(' · ');
   detail.append(head, meta);
   if (isEquipment(item)) {
@@ -403,13 +415,21 @@ function paintDetail(ui: Interface, save: Save, detail: HTMLElement, state: Ware
     detail.append(note);
   }
   const actions = document.createElement('div'); actions.className = 'warehouse-detail-actions';
-  const moving = stack.items.some(entry => state.busy.has(entry.id));
-  const full = focus.side === 'bag' && (ui.warehouseItems?.length ?? 0) + stack.items.length > 40;
+  const multi = pickedIds.length > 1;
+  const targetIds = multi ? pickedIds : stack.items.map(entry => entry.id);
+  const moving = targetIds.some(id => state.busy.has(id));
+  // 대상을 가방 40칸·창고 40칸 상한에 넣고 넘기는지 — 넘기면 눌러도 서버가 409로 거절하므로 미리 잠근다.
+  const full = focus.side === 'bag'
+    ? (ui.warehouseItems?.length ?? 0) + targetIds.length > 40
+    : equipmentCount(save.bag, save.job) + targetIds.length > 40;
   const moveButton = document.createElement('button'); moveButton.type = 'button'; moveButton.className = 'warehouse-move';
-  moveButton.textContent = `${focus.side === 'storage' ? '꺼내기' : '보관하기'}${stack.items.length > 1 ? ` (${stack.items.length})` : ''}`;
+  moveButton.textContent = multi
+    ? `선택 ${focus.side === 'storage' ? '꺼내기' : '보관'} (${pickedIds.length})`
+    : `${focus.side === 'storage' ? '꺼내기' : '보관하기'}${stack.items.length > 1 ? ` (${stack.items.length})` : ''}`;
   moveButton.disabled = moving || full;
-  if (full) moveButton.title = '공용창고가 가득 찼습니다.';
-  moveButton.onclick = () => move(ui, focus.side, stack.items.map(entry => entry.id));
+  if (full) moveButton.title = focus.side === 'bag' ? '공용창고가 가득 찼습니다.' : '가방이 가득 차 꺼낼 수 없습니다.';
+  else if (multi) moveButton.title = `선택한 ${pickedIds.length}개를 한꺼번에 ${focus.side === 'storage' ? '가방으로 꺼냅니다' : '공용창고에 보관합니다'}.`;
+  moveButton.onclick = () => move(ui, focus.side, targetIds);
   const close = document.createElement('button'); close.type = 'button'; close.className = 'warehouse-detail-close';
   close.textContent = '닫기';
   close.onclick = () => { state.focus = undefined; paint(); };
