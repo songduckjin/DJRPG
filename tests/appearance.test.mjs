@@ -18,10 +18,12 @@ for (const gender of ['male', 'female']) for (const helmet of [false, true]) for
 }
 for (const gender of ['male','female']) test(`${gender}: removing armor preserves helmet ownership, stats and appearance through saving`,()=>{
   const save=freshSave(gender);save.equipment={helmet:equipment('helmet'),armor:equipment('armor')};
+  // 직업 숙련(작업 255)이 장비 방어에 곱해진다 — 갑옷만 뺀 기대값을 같은 `totalStats`로 구해 비교한다.
+  const helmetOnly=totalStats({...save,equipment:{helmet:save.equipment.helmet}}).defense;
   const before=totalStats(save).defense;
   assert.equal(unequipItem(save,'armor').ok,true);
   assert.equal(save.equipment.helmet.id,'helmet');assert.equal(save.equipment.armor,undefined);assert.deepEqual(save.bag.map(i=>i.id),['armor']);
-  assert.equal(totalStats(save).defense,before-10);
+  assert.equal(totalStats(save).defense,helmetOnly);assert(before>helmetOnly);
   const loaded=parseSave(JSON.parse(JSON.stringify(save))), art=heroAppearance(loaded);
   assert.equal(art.helmet.id,'helmet');assert(!art.portrait.includes('armored'));
   assert.equal(art.idle,gender === 'female' ? 'femaleBaseHelm' : 'maleBaseHelm');
