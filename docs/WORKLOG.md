@@ -9,6 +9,7 @@
 - **캐시**: `PILOT_ASSET_VERSION` 4 → 5(같은 파일명으로 다시 구웠으므로 `?v=5`). 테스트 13개 파일의 `?v=4` 기대값을 함께 올렸다.
 - **검증**: `npx tsc --noEmit`·`npm run build` 통과(배포 번들 `index-8tRnUFGl.js` 에 `heroHelmGlowMask` 포함). 신규 테스트 2건(`mage-helm-render` — 20장 전수 목선 위에서 끝남·상반신 자리 0픽셀, 발광 마스크 식: 정수리 1·목선 0·얼굴 0·단조 감소) + `gear-rarity-glow` 1건(마스크 배선·캔버스 캐시·PNG 없음). 전체 1,060건 중 1,056 통과 — 실패 4건은 변경 전 `origin/main` 과 같은 기존 건(`costume-field-render` 2·`skillbook-server` 1·`hero-art` 1).
 - **검수 이미지**(`downloads/`): `djrpg_mage_helm_torso_before_after_v1.png`(수정 전/후 · 유니크 투구 · 장비창), `djrpg_mage_helm_glow_portrait_v1.png`(일반/유니크/전설 · 남녀), `djrpg_mage_helm_glow_field_v1.png`(필드 42% · 일반/유니크), `djrpg_mage_helm_glow_all_{female,male}_v1.png`(10종 전수 · 유니크).
+- **프리뷰 배포 실측**: [PR #252](https://github.com/songduckjin/DJRPG/pull/252) Cloudflare Pages 체크 SUCCESS, 프리뷰 `44da4568.djrpg.pages.dev` 에서 `assets/pilot-25d/mage_helms/female_0_v1.png?v=5` = 로컬 파일(md5 `04c5be3a…`, 7,881B) **일치** · 배포 번들에 `heroHelmGlowMask`·성별 마스크 표(`fadeEnd:106/108`) 포함 · 게스트로 마법사(여) 캐릭터를 만들어 필드·내 정보 초상화가 정상 렌더되는 것까지 확인(투구는 드롭 전이라 파츠·발광은 합성 이미지로만 검수).
 - **상태**: PR 준비 완료 — 사용자 지시 "오늘부터는 모아서 배포하자"에 따라 **머지·배포하지 않았다**.
 - **남은 것**: 어깨까지 파츠를 더 줄이려면 머리 구멍(현재 셀 y 104)을 목선까지 올려야 하고, 그러면 `mage_headless` 12장 + `robes/headless` 54장을 같은 규칙으로 다시 구워야 한다(그대로 줄이면 어깨에 투명 구멍이 난다). 이번 작업은 파츠·발광만 손봤다.
 
