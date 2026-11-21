@@ -1,3 +1,15 @@
+## 2026-11-21 · songduckjin 작업 261 — 다이아 표기를 `◆` 글자에서 보석 그림으로 전면 교체 · 우측 상점 버튼을 다이아 상자 그림으로 (PR #288)
+
+- **사용자 지시(18:16 KST)**: "그리고 다이아 아이콘 안바꼇더라" → "그상자로 오른쪽에 떠있는 아이컨더 변경하다" → "다이아 생긴모양이 그냥 도형같아 다이아로 전부 변경".
+- **시안 확정**: 보석 아이콘 6종(A 라운드 브릴리언트·B 카이트 컷·C 에메랄드 컷·D 페어 컷·E 헥사곤 브릴리언트·F 브라이트 크리스탈)을 14·18·24·48·96px 및 실제 자리(HUD·상점 카드·상점 버튼·슬롯 버튼·우편 보상)로 그린 비교 이미지 두 장(`downloads/djrpg_diamond_icon_options_{1,2}.png`)으로 보여 드렸고, 사용자가 **💠 2안 — 래디언트 크리스탈 다이아(은빛 테두리 + 푸른 크리스탈)** 를 골랐다(`downloads/diamond_icon_preview/icon_v2_opt2.png`).
+- **에셋**: 고른 128×128 투명 PNG(25KB)를 가공 없이 `public/assets/icons/diamond.png`로 넣었다 — 금화(`gold-coin.png`, 18KB)와 같은 18px 크기로 쓴다.
+- **아이콘 헬퍼**(`src/ui/currency.ts`): `diamondIconMarkup` = `<img class="currency-icon currency-diamond" src="/assets/icons/diamond.png" alt="다이아">`, `diamondMarkup(amount, { prefix, suffix })`·`diamondNode(amount, prefix, suffix)` — `goldMarkup`/`goldNode`와 같은 `currency-amount` span·천 단위(`ko-KR`)·음수/NaN은 0.
+- **교체 6곳**(코드에 `◆` 0, 번들에도 0): 상단 HUD `.diamonds`(`hud.ts`), 상점 잔액 `.shop-balance`·다이아 카드 8칸·패키지 카드(`shopModal.ts`), `＋ 슬롯 추가` 버튼(`charactersModal.ts` — 읽기 이름 `캐릭터 슬롯 추가 · 다이아 500개`), 우편 보상 `diamondNode(mail.diamonds,'다이아 ','개')`(`utilityModal.ts`).
+- **우측 상점 버튼**: `interface.ts`가 `textContent='◆'` 대신 `<img src=DIAMOND_PACK_ART>`(상점 대표 그림 `/assets/shop/diamond_pack_v1.webp`)를 넣고, `hud.css` `.utility-nav .shop-entry`는 `padding:0·overflow:hidden·border:1px solid #6aa9ce·box-shadow:0 0 10px #5ebaff66`, `img`는 `width/height:100%·object-fit:cover·border-radius:inherit`. 글자 시절 `font-size:30px`·`text-shadow` 삭제, `.diamonds`는 `.gold`와 같은 `inline-flex`+`gap:4px`, `.currency-diamond`는 `vertical-align: middle`.
+- **검증**: `npx tsc --noEmit`·`npx vite build` 통과, 신규 `tests/diamond-icon.test.mjs` **9/9**(아이콘 마크업·PNG 128×128 RGBA·헬퍼·5개 UI 파일에 `◆` 0·HUD·`.shop-entry`·잔액/카드 렌더·CSS), `shop-diamond-pack` 3/3, 관련 묶음(`shop*`·`modal-ui`·`characters`·`floor-return`·`character-switch`·`warehouse-grid`) 55/55.
+- **미리보기**: [PR #288](https://github.com/songduckjin/DJRPG/pull/288) — Cloudflare Pages **SUCCESS**, 프리뷰 `96d092ce.djrpg.pages.dev`(브랜치 `feat-261-diamond-icon.djrpg.pages.dev`), `version.json` `aa83a48482bc`, 배포 번들 `assets/index-bBqpXMVL.js`에 `◆` **0건**·`/assets/icons/diamond.png` 1건, 두 에셋 HTTP 200(25,450B PNG·50,280B WebP). 게스트 실화면에서 상단 HUD·상점 잔액/카드·슬롯 추가 버튼·우측 상점 상자 버튼 확인(스크린샷 `downloads/djrpg_261/`). 게스트 우편에는 다이아 보상이 없어 우편 줄은 테스트로만 확인했다.
+- **머지·배포 보류**: 사용자 지시 "변경사항 모아서 한 번에 배포" — 다른 기능 PR과 함께 배포한다.
+
 ## 2026-11-21 · songduckjin 작업 218 — 관리자 운영 포털(읽기 전용) 추가·밝은 화면 재설계 · 운영 배포(`78ed95b4bd41`)
 
 - PR #180을 최신 `main`(`efc6431`)과 병합해 배포했다. 점검 ON `8670808a42bc`(17:19~17:26) → 스쿼시 머지 `78ed95b4bd41` → 점검 OFF `2aaa5cdef13e`.
