@@ -3,6 +3,14 @@
 > 최근 작업·PR·배포 기록만 둔다(최근 20건). 더 이전 기록은 `docs/archive/2026-11/WORKLOG-history.md`.
 > 새 기록은 맨 위에 `## YYYY-MM-DD · <담당> 작업 <번호> — <제목>` 형식으로 추가하고, 오래된 항목은 아카이브로 옮긴다.
 
+## 2026-11-21 · songduckjin 작업 218 — 관리자 운영 포털(읽기 전용) 추가·밝은 화면 재설계 · 운영 배포(`78ed95b4bd41`)
+
+- PR #180을 최신 `main`(`efc6431`)과 병합해 배포했다. 점검 ON `8670808a42bc`(17:19~17:26) → 스쿼시 머지 `78ed95b4bd41` → 점검 OFF `2aaa5cdef13e`.
+- 화면: `https://djrpg.pages.dev/admin` (`/admin.html`은 Cloudflare Pages가 `.html`을 떼어 308로 `/admin`으로 보낸다). 로그인은 HTTP Basic(`ADMIN_DASHBOARD_USER`, 기본 `djsong`) + `ADMIN_DASHBOARD_PASSWORD`(Cloudflare Pages Production Secret, 코드·저장소에 없음).
+- API: `GET /api/admin?view=status|accounts[&q=&page=]` — 서버 상태(DB 왕복 ms·계정·캐릭터·24시간 접속)·계정 목록(25건/페이지, 비밀번호 해시·세이브 미노출). GET 외 405, 미설정 503, 인증 실패 401, 잘못된 view 400.
+- 배포 확인: `version.json`=`78ed95b4bd41`, `/` 200, `/admin` 200, `/api/admin` 인증 200(`database:ok`·계정 89·캐릭터 119), `/api/account` 401 JSON, 게스트 로그인→저장 200, Cloudflare Pages SUCCESS.
+- 검증: `npx tsc --noEmit`·`npx vite build` 통과, `tests/admin.test.mjs` 4/4.
+
 ## 2026-11-21 · songduckjin 작업 257 — 전 직업 갑옷·로브 **파츠만** 발광(오라 없음)
 
 - **사용자 확정(12:46 KST)**: `✨ 1안 — 분리한 갑옷/로브 파츠만 깔끔하게 발광(오라 없음)`.
