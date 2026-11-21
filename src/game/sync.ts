@@ -1,5 +1,6 @@
 import { parseSave, type Save } from './store';
 import { accountRequest, clearToken, type Session } from '../ui/login';
+import { isNetworkOffline } from '../ui/reconnect';
 import { apiHeaders, isOutdatedResponse, OUTDATED_MESSAGE, reloadForNewVersion } from './appVersion';
 
 const sessionErrorCodes = ['SESSION_REPLACED', 'INVALID_TOKEN', 'UNAUTHORIZED'];
@@ -51,12 +52,22 @@ export class SaveSync {
   onSaved: () => void = () => {};
   onWarehouseRecovered: () => void = () => {};
   onSessionEnded: (message: string) => void = () => {};
+  /**
+   * 연결이 끊겼다/다시 붙었다(작업 251).
+   *
+   * 창을 내렸다가 돌아온 직후처럼 요청이 끊긴 것뿐인데 "서버에 연결할 수 없습니다"를 빨갛게 띄우면
+   * 고장으로 읽힌다. 끊김은 오류 문구 대신 `게임에 접속 중입니다…` 안내로 알리고(`connecting`),
+   * 다음 저장이 성공하면 안내를 내린다(`recovered`).
+   */
+  onNetwork: (state: 'connecting' | 'recovered') => void = () => {};
   private reloadingConflict = false;
   private conflictReloadAt = 0;
   private conflictStopped = false;
   private sessionEnded = false;
   /** 캐릭터 전환 중인가 — 전환하는 동안에는 예약 저장을 걸지 않고 사냥을 멈춘다(작업 239). */
   private switching = false;
+  /** 지금 연결이 끊겨 재접속 안내를 띄운 상태인가(작업 251). */
+  private offline = false;
   constructor(public save: Save, public session: Session) { this.revision = session.revision; }
   private autosaveTimer?: ReturnType<typeof setTimeout>;
   queueSave(): void {
@@ -134,17 +145,20 @@ export class SaveSync {
           this.revision = result.revision; this.pendingSave = undefined;
           this.lastSaveError = '';
           this.lastSaveAt = Date.now();
+          this.reportOnline();
           // 저장을 보낸 뒤에 또 바뀌었으면 dirty를 남겨 다음 차례에 다시 보낸다.
           if (this.changeSeq === seq) this.dirty = false;
           this.pending ||= recovering || this.dirty;
           this.onStatus('저장됨'); this.onSaved();
-        } catch (error) { this.pending = true; this.lastSaveError = error instanceof Error && error.message ? error.message : String(error); this.handleError(error); return false; }
+        } catch (error) { this.pending = true; this.lastSaveError = error instanceof Error && error.message ? error.message : String(error); if (isNetworkOffline(error)) { this.reportOffline(); return false; } this.handleError(error); return false; }
       }
       return true;
     })().finally(() => { this.active = undefined; });
     return this.active;
   }
   handleError(error: unknown): void {
+    // 끊김은 오류가 아니다 — 안내만 띄우고 다음 저장 때 다시 보낸다(작업 251).
+    if (isNetworkOffline(error)) { this.reportOffline(); return; }
     const code = errorCode(error);
     if (isOutdatedResponse(errorStatus(error), code, errorExpectedVersion(error))) { this.stopForOutdatedVersion(); return; }
     if (code === 'SAVE_CONFLICT') {
@@ -172,6 +186,18 @@ export class SaveSync {
       return;
     }
     this.onStatus('저장 실패'); this.onMessage(error instanceof Error ? error.message : String(error));
+  }
+  /** 연결이 끊겼다 — 재접속 안내를 띄우게 하고, 거래 버튼은 잠그지 않는다(다시 보내면 풀린다). */
+  private reportOffline(): void {
+    this.offline = true;
+    this.onNetwork('connecting');
+    this.onStatus('연결 중');
+  }
+  /** 저장·거래가 서버에 닿았다 — 재접속 안내를 내리게 한다. */
+  private reportOnline(): void {
+    if (!this.offline) return;
+    this.offline = false;
+    this.onNetwork('recovered');
   }
   private endSession(message: string): void {
     if (this.sessionEnded) return;
@@ -275,6 +301,7 @@ export class SaveSync {
           }
           result = body as SyncResult; break;
         } catch (error) {
+          if (isNetworkOffline(error)) this.reportOffline();
           if (error instanceof Error && 'status' in error) throw error;
           if (attempt === 2) throw new Error('연결이 끊겨 거래 결과를 확인 중입니다. 거래 결과 다시 확인을 눌러주세요.');
         }
@@ -291,6 +318,7 @@ export class SaveSync {
       this.revision = result.revision;
       Object.assign(this.save, verifiedSave);
       this.pending = false; this.pendingSave = undefined; this.dirty = false; this.lastSaveAt = Date.now(); this.onSaved();
+      this.reportOnline();
       this.onStatus('저장됨'); return result as SyncResult;
     } catch (error) {
       const code = errorCode(error);
@@ -338,6 +366,7 @@ export class SaveSync {
           }
           result = body as SyncResult; break;
         } catch (error) {
+          if (isNetworkOffline(error)) this.reportOffline();
           if (error instanceof Error && 'status' in error) throw error;
           if (attempt === 2) throw new Error('창고 이동 결과를 자동으로 다시 확인하고 있습니다. 확인 후 전투를 재개합니다.');
         } finally { clearTimeout(timeout); }
@@ -357,6 +386,7 @@ export class SaveSync {
       this.revision = result.revision;
       Object.assign(this.save, verifiedSave);
       this.dirty = false; this.lastSaveAt = Date.now();
+      this.reportOnline();
       this.onSaved(); this.onStatus('저장됨');
       return result;
     } catch (error) {

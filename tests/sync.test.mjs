@@ -284,5 +284,5 @@ test('저장이 막혀 거래를 시작하지 못하면 서버가 알려 준 실
   const sync = setup();
   globalThis.fetch = async () => { throw new Error('offline'); };
   assert.equal(await sync.flush(), false);
-  await assert.rejects(sync.mutate('journey-claim', { kind: 'mail', id: 'all' }, 'blocked-by-save'), /이전 저장 결과를 확인해야 거래할 수 있습니다\. \(서버에 연결할 수 없습니다/);
+  await assert.rejects(sync.mutate('journey-claim', { kind: 'mail', id: 'all' }, 'blocked-by-save'), /이전 저장 결과를 확인해야 거래할 수 있습니다\. \(게임에 접속 중입니다/);
 });

@@ -12,6 +12,7 @@ import { clearToken, openLogin } from './ui/login';
 import './styles/main.css';
 import { SaveSync } from './game/sync';
 import { createBootOverlay } from './ui/boot';
+import { ReconnectNotice } from './ui/reconnect';
 
 const root = document.getElementById('app');
 if (!root) throw new Error('앱 루트 요소가 없습니다.');
@@ -51,6 +52,13 @@ async function start(): Promise<void> {
     boot.attach();
     sync.onStatus = state => ui.setSaveStatus(state);
     sync.onMessage = message => ui.message(message);
+    /**
+     * 재접속 안내(작업 251) — 창을 내렸다가 돌아올 때 요청이 끊기면 "서버에 연결할 수 없습니다" 대신
+     * `게임에 접속 중입니다…`를 띄운다. 3초마다 저장을 다시 보내고, 다시 붙으면 안내가 저절로 사라진다.
+     * 20초가 지나도 안 붙을 때만 '다시 시도' 버튼이 있는 상태 확인 안내로 바뀐다.
+     */
+    const reconnect = new ReconnectNotice({ onRetry: () => { void sync.flushIfDirty(); } });
+    sync.onNetwork = state => { if (state === 'recovered') reconnect.recovered(); else reconnect.show(); };
     sync.onPause = paused => { world.paused = paused; appRoot.classList.toggle('sync-busy', paused); };
     sync.onSaved = () => { if (legacyKey) { clearLegacySave(legacyKey); legacyKey = undefined; ui.message('기존 진행 상황을 서버로 이전했습니다.'); } };
     // 다른 기기 로그인으로 이 기기 세션이 끝나면 토큰이 이미 지워졌으므로, 알린 뒤 로그인 화면으로 돌아간다.
@@ -95,7 +103,10 @@ async function start(): Promise<void> {
       if (key === '3') ui.pressSkillSlot(2);
     });
     window.addEventListener('blur', () => { world.attackHeld = false; void flush(); });
-    document.addEventListener('visibilitychange', () => { if (document.hidden) void flush(); });
+    // 창을 내릴 때 한 번 저장하고, **다시 올리면 곧바로 다시 보낸다**(작업 251) — 숨김 상태에서 끊긴 저장이
+    // 10초 자동 저장 간격을 기다리지 않고 돌아오자마자 재연결된다.
+    document.addEventListener('visibilitychange', () => { if (document.hidden) void flush(); else void sync.flushIfDirty(); });
+    window.addEventListener('online', () => { void sync.flushIfDirty(); });
     // 변경이 있을 때만 보낸다 — 예전에는 진행이 없어도 5초(작업 245 이전)마다 저장 요청이 나갔다.
     // 작업 245: 무료 Functions 한도 때문에 확인 간격을 10초로 늘렸다(실제 전송 간격은 `SaveSync.queueSave`).
     setInterval(() => { void sync.flushIfDirty(); }, 10000);

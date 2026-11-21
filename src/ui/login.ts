@@ -1,6 +1,7 @@
 import type { Gender, Job, Save } from '../game/store';
 import { jobNames, jobOrDefault } from '../game/skills';
 import { apiHeaders, clearVersionReloadMark, isOutdatedResponse, reloadForNewVersion } from '../game/appVersion';
+import { RECONNECT_LOGIN_ATTEMPTS, RECONNECT_MANUAL_ATTEMPTS, RECONNECT_RETRY_MS, isNetworkOffline, offlineError, reconnectStage, retryNetwork } from './reconnect';
 
 export type Session = { accountId: string; loginId: string; gender: Gender; job?: Job; guest: boolean; token: string; save: Save; revision: number; characterSlot: number; offlineSeconds?: number; newAccount?: boolean; needsSetup?: boolean;
   /** 아직 캐릭터를 만들지 않은 계정(작업 216) — 가입 직후에는 사냥터 대신 캐릭터 생성 화면으로 간다. */
@@ -62,12 +63,15 @@ function serverUnavailableError(): NoticeError {
 }
 export async function accountRequest<T>(action: string, data: Record<string, unknown> = {}, token?: string): Promise<T> {
   let response: Response;
+  // [작업 251] 창을 내렸다가 돌아온 직후에는 요청이 끊긴다 — 이때의 문구는 "서버에 연결할 수 없습니다"가 아니라
+  // 재연결 안내(`게임에 접속 중입니다…`)다. 화면·저장 쪽이 `NETWORK_OFFLINE` 코드를 보고 스스로 다시 보낸다.
   try { response = await fetch('/api/account', { method: 'POST', headers: apiHeaders(token ? { Authorization: `Bearer ${token}` } : {}), body: JSON.stringify({ action, ...data }), keepalive: action === 'save' }); }
-  catch { throw new Error('서버에 연결할 수 없습니다. 네트워크 상태를 확인하세요.'); }
+  catch { throw offlineError(); }
   // [작업 242] API 일일 한도를 다 쓰면 `/api/account`가 빈 본문 405(정적 폴백)를 돌려준다 —
   // 이때 `response.json()`이 실패해 개발자용 문구가 빨갛게 떴다. 점검 안내로 바꾼다.
   if (response.status === 405) throw serverUnavailableError();
-  const result = await response.json().catch(() => { throw serverUnavailableError(); });
+  // 본문을 받다가 끊긴 경우(창 전환·지하철)도 서버 점검이 아니라 재연결이다(작업 251).
+  const result = await response.json().catch((cause: unknown) => { throw isNetworkOffline(cause) ? offlineError() : serverUnavailableError(); });
   if (!response.ok) {
     const error = new Error(typeof result.error === 'string' ? result.error : `서버 요청 실패 (${response.status})`) as Error & { status: number; code: string; expected?: string };
     error.status = response.status; error.code = result.code; error.expected = result.expected;
@@ -196,10 +200,25 @@ export function openLogin(root: HTMLElement): Promise<Session> {
       overlay.remove(); resolve(ready);
     };
     // 점검 안내는 빨간 오류가 아니라 안내 톤(주황)으로 띄운다 — 이용자가 고장으로 읽지 않게 한다.
-    const say = (text: string, notice = false) => { error.textContent = text; error.classList.toggle('is-notice', notice); };
+    // `busy`면 문구 앞에 도는 표시를 붙여 "멈춘 화면"이 아니라 "붙는 중"으로 보이게 한다(작업 251).
+    const say = (text: string, notice = false, busy = false) => { error.textContent = text; error.classList.toggle('is-notice', notice); error.classList.toggle('is-connecting', busy); };
     const fail = (cause: unknown) => say(cause instanceof Error ? cause.message : `로그인할 수 없습니다: ${String(cause)}`, cause instanceof Error && (cause as NoticeError).notice === true);
+    /**
+     * 연결 요청(작업 251) — 창을 내렸다가 돌아오면 iOS가 그 사이 요청을 끊는다.
+     *
+     * 끊김은 빨간 오류가 아니라 `게임에 접속 중입니다…` 안내로 보여 주고 몇 초마다 스스로 다시 보낸다.
+     * 20초가 지나도 붙지 않으면 '네트워크 상태를 확인한 뒤 다시 시도' 안내로 바뀌고, 그때는 이용자가
+     * 로그인 버튼을 다시 누르면 된다. 이용자가 직접 누른 경우(MANUAL_ATTEMPTS)에는 오래 기다리게 하지 않는다.
+     */
+    const connect = (action: string, data: Record<string, unknown> = {}, token?: string, attempts = RECONNECT_MANUAL_ATTEMPTS): Promise<Session> => (
+      retryNetwork(() => begin(action, data, token), {
+        attempts,
+        delayMs: RECONNECT_RETRY_MS,
+        onWait: (_attempt, elapsedMs) => { const stage = reconnectStage(elapsedMs); say(stage.message, true, stage.kind === 'connecting'); },
+      })
+    );
     const stored = localStorage.getItem(tokenKey);
-    if (stored) { submit.disabled = guest.disabled = true; say('지난 계정 확인 중…'); begin('load', {}, stored).then(finish).catch(cause => { if (cause instanceof Error && 'status' in cause && cause.status === 401) clearToken(); fail(cause); }).finally(() => { submit.disabled = guest.disabled = false; }); }
+    if (stored) { submit.disabled = guest.disabled = true; say('지난 계정 확인 중…'); connect('load', {}, stored, RECONNECT_LOGIN_ATTEMPTS).then(finish).catch(cause => { if (cause instanceof Error && 'status' in cause && cause.status === 401) clearToken(); fail(cause); }).finally(() => { submit.disabled = guest.disabled = false; error.classList.remove('is-connecting'); }); }
     overlay.querySelectorAll<HTMLButtonElement>('[data-mode]').forEach(button => button.onclick = () => {
       mode = button.dataset.mode === 'register' ? 'register' : 'login';
       overlay.querySelectorAll('[data-mode]').forEach(tab => tab.classList.toggle('active', tab === button));
@@ -210,10 +229,10 @@ export function openLogin(root: HTMLElement): Promise<Session> {
     });
     form.onsubmit = async event => {
       event.preventDefault(); say(''); submit.disabled = true;
-      try { await finish(await begin(mode, { loginId: idInput.value, password: passwordInput.value })); }
+      try { await finish(await connect(mode, { loginId: idInput.value, password: passwordInput.value })); }
       catch (cause) { fail(cause); }
-      finally { submit.disabled = false; }
+      finally { submit.disabled = false; error.classList.remove('is-connecting'); }
     };
-    guest.onclick = async () => { say(''); guest.disabled = true; try { await finish(await begin('guest')); } catch (cause) { fail(cause); } finally { guest.disabled = false; } };
+    guest.onclick = async () => { say(''); guest.disabled = true; try { await finish(await connect('guest')); } catch (cause) { fail(cause); } finally { guest.disabled = false; error.classList.remove('is-connecting'); } };
   });
 }

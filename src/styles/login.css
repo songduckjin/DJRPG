@@ -33,6 +33,11 @@
 .maintenance-banner strong { display: block; color: #ffcf87; font: 700 12px 'Noto Sans KR', sans-serif; letter-spacing: .3px; }
 .maintenance-banner span { display: block; margin-top: 4px; color: #e9c9a1; font-size: 11px; line-height: 1.55; }
 .login-error.is-notice { color: #f3cd93; }
+/* [작업 251] 세션 복구·로그인이 연결을 기다리는 동안 — 고장 문구가 아니라 '붙는 중'으로 보이게 도는 표시를 둔다. */
+.login-error.is-connecting { display: flex; align-items: center; gap: 6px; }
+.login-error.is-connecting:before { content: ''; flex: none; width: 10px; height: 10px; border: 2px solid #f3cd9359; border-top-color: #ffe0ab; border-radius: 50%; animation: login-reconnect-spin .9s linear infinite; }
+@keyframes login-reconnect-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .login-error.is-connecting:before { animation: none; } }
 @media (max-height: 700px) { .maintenance-banner { margin-bottom: 12px; padding: 8px 10px; } .maintenance-banner span { font-size: 10px; } }
 .season-setup .login-panel { display: flex; flex-direction: column; gap: 10px; }
 .season-setup .login-subtitle { margin-bottom: 4px; }
