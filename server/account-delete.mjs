@@ -7,36 +7,17 @@
  *
  * 던전 · 월드보스 · 전광판 표는 처음 쓰일 때 만들어지므로(`server/dungeon-schema.mjs`·
  * `world-boss-schema.mjs`), 실제 삭제는 `sqlite_master`에 있는 표만 골라 한다(시즌 초기화와 같은 방식).
+ *
+ * 목록은 이제 **`server/tables.mjs` 등록부에서 파생**한다(작업 260). 표를 새로 만들면 등록부에만 더하면
+ * 탈퇴·시즌·이관이 함께 따라오고, 빠뜨리면 `tests/table-registry.test.mjs`가 CI에서 막는다.
  */
+import { ACCOUNT_TABLES as REGISTERED_ACCOUNT_TABLES, MARKET_EVENT_TABLE, MARKET_TABLE as REGISTERED_MARKET_TABLE } from './tables.mjs';
 
-/** `account_id` 열로 계정에 매달린 표 — 새 계정 종속 표를 만들면 여기에 반드시 함께 적는다. */
-export const ACCOUNT_TABLES = [
-  'djrpg_account_profiles',
-  'djrpg_characters',
-  'djrpg_character_item_owners',
-  'djrpg_item_owners',
-  'djrpg_warehouse',
-  'djrpg_warehouse_requests',
-  'djrpg_journey',
-  'djrpg_save_versions',
-  'djrpg_save_requests',
-  'djrpg_market_inbox',
-  'djrpg_market_requests',
-  'djrpg_dungeon_records',
-  'djrpg_dungeon_attempts',
-  'djrpg_boss_attempts',
-  'djrpg_boss_scores',
-  'djrpg_boss_rewards',
-  'djrpg_announcements',
-  'djrpg_shop_wallet',
-  'djrpg_shop_orders',
-  'djrpg_shop_ledger',
-  'djrpg_shop_entitlements',
-  'djrpg_shop_requests'
-];
+/** `account_id` 열로 계정에 매달린 표 — 등록부(`server/tables.mjs`)에서 파생한다. */
+export const ACCOUNT_TABLES = [...REGISTERED_ACCOUNT_TABLES];
 
 /** `account_id`가 아니라 `seller`/`buyer`로 계정을 가리키는 표는 따로 지운다. */
-export const MARKET_TABLE = 'djrpg_market';
+export const MARKET_TABLE = REGISTERED_MARKET_TABLE;
 
 const existingTables = async (tx, tables) => new Set((await tx.execute({
   sql: `SELECT name FROM sqlite_master WHERE type='table' AND name IN (${tables.map(() => '?').join(',')})`,
@@ -52,7 +33,7 @@ const existingTables = async (tx, tables) => new Set((await tx.execute({
  */
 export async function deleteAccountData(tx, id) {
   // 매물 알림(`djrpg_market_events`)은 계정이 아니라 매물 id로 붙는다 — 확인만 하고 아래에서 매물별로 지운다.
-  const existing = await existingTables(tx, [...ACCOUNT_TABLES, MARKET_TABLE, 'djrpg_market_events']);
+  const existing = await existingTables(tx, [...ACCOUNT_TABLES, MARKET_TABLE, MARKET_EVENT_TABLE]);
   const countOf = async (table, where, args) => existing.has(table)
     ? Number((await tx.execute({ sql: `SELECT COUNT(*) AS n FROM ${table} WHERE ${where}`, args })).rows[0].n)
     : 0;
@@ -72,8 +53,8 @@ export async function deleteAccountData(tx, id) {
     // 이미 각자의 `djrpg_market_inbox`로 배달되므로 여기서 지우는 것은 이 계정의 몫뿐이다.
     const owned = (await tx.execute({ sql: 'SELECT id FROM djrpg_market WHERE seller=? OR buyer=?', args: [id, id] })).rows;
     statements.push({ sql: 'DELETE FROM djrpg_market WHERE seller=? OR buyer=?', args: [id, id] });
-    if (existing.has('djrpg_market_events')) {
-      for (const row of owned) statements.push({ sql: 'DELETE FROM djrpg_market_events WHERE listing_id=?', args: [String(row.id)] });
+    if (existing.has(MARKET_EVENT_TABLE)) {
+      for (const row of owned) statements.push({ sql: `DELETE FROM ${MARKET_EVENT_TABLE} WHERE listing_id=?`, args: [String(row.id)] });
     }
   }
 
