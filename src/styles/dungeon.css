@@ -121,10 +121,15 @@
 .dungeon-result-stones strong{font-size:17px;color:#9fe6ff}
 .dungeon-result-stones small{display:inline;font-size:9px;color:#a89273}
 .dungeon-battle-result .dungeon-result-items{display:grid;gap:3px;max-height:150px;overflow-y:auto;margin:6px 0 8px;padding:0;list-style:none;text-align:left}
-.dungeon-result-items li{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:3px 7px;border:1px solid #5a4636;background:#2a2220;font-size:11px;color:#e6d2ae}
-.dungeon-result-items li.rarity-rare{border-color:#facc1588;color:#f7e39a}
-.dungeon-result-items li.rarity-epic{border-color:#c084fc88;color:#e2ccff}
-.dungeon-result-items li.rarity-unique{border-color:#fb923c88;color:#ffd0a8}
-.dungeon-result-items li.rarity-legendary{border-color:#f8717188;color:#ffc4c4}
-.dungeon-result-items li small{font-size:9px;color:#a89273}
+.dungeon-result-items li{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:3px 7px;border:1px solid #5a4636;background:#2a2220;font-size:11px;color:#c9c2b6}
+/* 획득 목록은 등급색으로 보여 준다(작업 248) — 색은 다른 화면(`market.css`의 `.rarity-*`)과 같은 값. */
+.dungeon-result-items li>span{display:flex;align-items:center;gap:5px;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.dungeon-result-grade{flex:none;font-size:9px;font-weight:700;letter-spacing:.2px;opacity:.95}
+.dungeon-result-items li.rarity-common{color:#9ca3af;border-color:#9ca3af55}
+.dungeon-result-items li.rarity-magic{color:#60a5fa;border-color:#60a5fa88}
+.dungeon-result-items li.rarity-rare{color:#facc15;border-color:#facc1588}
+.dungeon-result-items li.rarity-epic{color:#c084fc;border-color:#c084fc88}
+.dungeon-result-items li.rarity-unique{color:#fb923c;border-color:#fb923c88}
+.dungeon-result-items li.rarity-legendary{color:#f87171;border-color:#f8717188}
+.dungeon-result-items li small{flex:none;font-size:9px;color:#a89273}
 .dungeon-battle-result .dungeon-result-note{margin:4px 0;font-size:10px;color:#b6a184}

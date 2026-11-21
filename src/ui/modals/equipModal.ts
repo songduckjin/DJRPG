@@ -14,10 +14,15 @@ import { goldMarkup } from '../currency';
 import { isSkillBook } from '../../game/items';
 import { pouchCount } from '../../game/pouch';
 import { openPouchWindow } from './pouchModal';
+// [작업 251] 가방 `합성` — 타직업 스킬북 5권을 내 직업 책 1권으로. 팝업은 작은 창(`synthModal`).
+import { openSynthWindow } from './synthModal';
+import { SYNTH_BOOK_COST, synthCapacity } from '../../game/skillSynth';
 import { pouchIconMarkup } from '../pouchArt';
 import { showEquippedDetail, dismissEquippedDetail, deferEquippedDismiss } from '../equippedDetail';
 import { bagDetailPinned, createBagDetail, deferBagDismiss, dismissBagDetail, showBagDetail } from '../bagDetail';
 import { skillbookName } from '../skillbookBag';
+import { bagStacks, orderedBagItems } from '../bagStacks';
+import { plusBadgeMarkup } from '../plusBadge';
 import { itemNameText, renderItemName } from '../itemName';
 import { slotAtlasStyle } from '../slotArtStyle';
 import { upgradeArrowMarkup } from '../upgradeBadge';
@@ -47,7 +52,20 @@ export function renderInventory(this: Interface, dialog: HTMLElement): void {
       this.bagJobOnly = !this.bagJobOnly; saveJobOnly(BAG_JOB_ONLY_KEY, this.bagJobOnly);
       dismissBagDetail(this); this.renderModal();
     };
-    heading.append(title, jobToggle, sort); section.appendChild(heading);
+    // 합성(작업 251 → 252 위치): 사용자 확정 "스킬북합성버튼을 내직업만보기 왼쪽에두고" — 가방 머리줄의
+    // `내 직업만 보기` **바로 왼쪽**에 둔다. 타직업 스킬북이 5권 미만이면 누를 수 없고(안내는 title),
+    // 5권이면 작은 합성 팝업이 열린다. 재료는 **타직업 책**만이다.
+    const synth = document.createElement('button'); synth.className = 'salvage synth-open'; synth.type = 'button';
+    const synthRuns = synthCapacity(save);
+    synth.textContent = '합성';
+    synth.disabled = synthRuns < 1;
+    synth.classList.toggle('is-ready', synthRuns > 0);
+    synth.title = synthRuns > 0
+      ? `타직업 스킬북 ${SYNTH_BOOK_COST}권으로 내 직업 스킬북 1권을 만듭니다 (${synthRuns}회 가능)`
+      : `타직업 스킬북이 ${SYNTH_BOOK_COST}권 이상 있어야 합성할 수 있습니다`;
+    synth.setAttribute('aria-label', synthRuns > 0 ? `스킬북 합성 · ${synthRuns}회 가능` : '스킬북 합성 · 재료 부족');
+    synth.onclick = () => { dismissBagDetail(this); openSynthWindow(this); };
+    heading.append(title, synth, jobToggle, sort); section.appendChild(heading);
     const filters = document.createElement('div'); filters.className = 'bag-filters';
     const filterNames: Record<BagFilter, string> = { all: '장비 전체', weapon: '무기', armor: '방어구', accessory: '장신구' };
     for (const filter of Object.keys(filterNames) as BagFilter[]) {
@@ -71,22 +89,25 @@ export function renderInventory(this: Interface, dialog: HTMLElement): void {
       || (this.bagFilter === 'accessory' && ['necklace', 'ring1', 'ring2'].includes(item.slot)))));
     const shown = jobOnlyVisible(candidates, item => item, save.job, this.bagJobOnly);
     const hiddenJob = candidates.length - shown.length;
-    const ordered = shown.sort((a, b) => this.bagRaritySort ? rarityRanks[b.rarity] - rarityRanks[a.rarity] : 0);
-    // 같은 주머니는 한 칸에 `×N`으로 모아 보여 준다(개별 id는 그대로 남아 하나씩 열린다).
-    const pouchItems = ordered.filter(isPouch);
-    const stacks = [
-      ...(pouchItems.length ? [{ item: pouchItems[0] as Item, count: pouchItems.length }] : []),
-      ...ordered.filter(item => !isPouch(item)).map(item => ({ item, count: 1 }))
-    ];
+    // 칸 순서(작업 247, 사용자 확정): **보물 주머니(첫 칸) → 장비 → 스킬북**. 등급순을 켜고 꺼도 이 3단은
+    // 그대로고, 등급순은 같은 단 안에서만 적용된다(`bagStacks.compareBagItems` 한 곳).
+    const ordered = orderedBagItems(shown, this.bagRaritySort, myJob);
+    // 같은 주머니는 한 칸에 `×N`, **같은 스킬북도 한 칸에 `×N`**으로 모아 보여 준다(작업 246 — 예전에는
+    // 스킬북을 `count: 1`로 하나씩 그려 세 권이 있어도 `×1` 세 칸이었다). 칸의 `data-item-id`는 그 묶음의
+    // 첫 아이템 id이고, 사용·판매·창고 이동은 지금처럼 개별 id로 처리된다.
+    const stacks = bagStacks(ordered);
     const visible = stacks.map(stack => stack.item);
     for (const { item, count: quantity } of stacks) {
       const book = isSkillBook(item), pouch = isPouch(item), name = book ? skillbookName(item) : itemNameText(item);
       // 업그레이드 화살표(작업 241): 내 직업이 낄 수 있는 장비 중 지금 낀 것보다 좋은 것만.
       // 스킬북·보물 주머니는 `upgradeArrowMarkup`이 판정에서 걸러 빈 문자열을 돌려준다.
       const upgrade = upgradeArrowMarkup(save, item);
+      // `+N` 강화 배지(작업 246): 업그레이드 화살표가 우상단, 타직업 배지가 좌상단, 수량이 우하단이라
+      // 비어 있는 **왼쪽 아래**에 붙인다 — 장비창 장착 칸·공용창고와 같은 자리(plusBadge.ts).
+      const plus = plusBadgeMarkup(item);
       const cell = document.createElement('button'); cell.className = `bag-item ${book ? 'skillbook-item' : pouch ? 'pouch-item' : item.rarity} ${this.selected === item.id ? 'selected' : ''}`;
       if (upgrade) cell.classList.add('has-upgrade');
-      cell.innerHTML = itemIcon.call(this, item.slot, item, 'item-icon') + upgrade;
+      cell.innerHTML = itemIcon.call(this, item.slot, item, 'item-icon') + upgrade + plus;
       cell.type = 'button'; cell.dataset.itemId = item.id;
       // 직업 전용 장비에는 `전사`/`궁수`/`마법사` 배지를 단다(작업 205) — 공용 방어구·장신구에는 붙지 않는다.
       const owner = itemJob(item);
@@ -124,15 +145,17 @@ export function renderInventory(this: Interface, dialog: HTMLElement): void {
     if (!visible.length) grid.innerHTML = `<p class="empty">${hiddenJob ? '다른 직업 전용 장비만 있습니다. <b>내 직업만 보기</b>를 끄면 보입니다.' : '이 분류에 획득한 아이템이 없습니다.'}</p>`;
     const footer = document.createElement('div'); footer.className = 'modal-bag-footer';
     const pouches = pouchCount(save);
-    // 가방 40칸은 **장비 + 다른 직업 전용 스킬북**을 함께 센다(작업 210). 내 직업 스킬북·보물 주머니는 별도다.
+    // 가방 40칸은 **장비·다른 직업 스킬북·보물 주머니**를 1개씩 세고, **내 직업 스킬북은 세지 않는다**(작업 253).
     const bagUsed = equipmentCount(save.bag, save.job);
     const count = document.createElement('span'); count.textContent = `가방 ${bagUsed}/40`;
-    count.title = `가방 ${bagUsed}/40 · 장비와 다른 직업 전용 스킬북을 함께 세고, 내 직업 스킬북·보물 주머니는 별도입니다`;
+    count.title = bagUsed > 40
+      ? `가방 ${bagUsed}/40 · 40칸을 넘었습니다. 장비를 분해하거나 공용창고에 보관해 정리해 주세요. 새 아이템·우편은 받아지지 않습니다`
+      : `가방 ${bagUsed}/40 · 장비·타직업 스킬북·보물 주머니를 1개씩 셉니다(내 직업 스킬북 제외)`;
+    if (bagUsed > 40) count.classList.add('is-over');
     // 가방 가득 참(작업 246, 사용자 요청 `#20938`) — 40칸이 차면 칸수 옆에 빨간 `가득 참`을 붙인다.
     if (bagUsed >= EQUIPMENT_BAG_LIMIT) {
       const flag = document.createElement('b'); flag.className = 'bag-full-flag'; flag.textContent = ' 가득 참';
       count.append(flag);
-      count.title = `가방이 가득 찼습니다 (${bagUsed}/40) · 새 장비를 주우려면 분해·판매로 자리를 비워 주세요`;
     }
     // [작업 228] `가방 16칸` · `가방 16/40` 두 줄로 적던 것을 한 줄로 합쳤다 — 세로가 짧은 폰에서
     // 가방 칸을 밀어내던 한 줄을 바닥줄에서 돌려준다.
@@ -163,14 +186,14 @@ export function renderInventory(this: Interface, dialog: HTMLElement): void {
       showRarity();
     };
     const salvage = document.createElement('button'); salvage.className = 'salvage'; salvage.textContent = '일괄 분해'; salvage.onclick = () => this.salvage();
-    // 접속 중 자동 분해 (작업 196): the switch sits beside the threshold it uses, and says right under it
-    // that it only works while hunting — offline rewards keep every piece.
+    // 자동 분해 (작업 196, 작업 254에서 방치에도 적용): the switch sits beside the threshold it uses, and the
+    // hint under it says it now works while hunting and while away.
     const auto = document.createElement('button'); auto.className = 'salvage auto-salvage'; auto.type = 'button';
     const showAuto = () => {
       auto.textContent = `자동 분해 ${this.autoSalvage ? '켬' : '끔'}`;
       auto.classList.toggle('is-on', this.autoSalvage);
       auto.setAttribute('aria-pressed', String(this.autoSalvage));
-      auto.setAttribute('aria-label', `접속 중 자동 분해 ${this.autoSalvage ? '켜짐' : '꺼짐'}. 누르면 ${this.autoSalvage ? '끕니다' : '켭니다'}`);
+      auto.setAttribute('aria-label', `자동 분해 ${this.autoSalvage ? '켜짐' : '꺼짐'}. 접속·방치 사냥 모두 적용. 누르면 ${this.autoSalvage ? '끕니다' : '켭니다'}`);
     };
     showAuto();
     auto.onclick = () => { this.setAutoSalvage(!this.autoSalvage); showAuto(); };
@@ -316,7 +339,9 @@ export function renderEquipment(this: Interface, dialog: HTMLElement): void {
       const item = save.equipment[slot]; const cell = document.createElement('button'); cell.className = `equipment-slot ${item?.rarity ?? 'empty-slot'}`;
       cell.type = 'button'; cell.dataset.equippedSlot = slot; cell.disabled = !item;
       const slotLabel = slotNameFor(slot, jobOrDefault(save.job));
-      cell.innerHTML = `${itemIcon.call(this, slot, item, 'slot-icon')}<small class="slot-part">${slotLabel}</small>`;
+      // 착용 중 장비에도 강화 단계를 **왼쪽 아래**에 붙인다(작업 246) — 예전에는 장착 칸에만 `+N`이 빠져
+      // 가방·공용창고와 보이는 자리가 달랐다.
+      cell.innerHTML = `${itemIcon.call(this, slot, item, 'slot-icon')}<small class="slot-part">${slotLabel}</small>${item ? plusBadgeMarkup(item) : ''}`;
       cell.setAttribute('aria-label', `${slotLabel} · ${item ? itemNameText(item) : '빈 슬롯'}`);
       cell.title = item ? itemNameText(item) : '빈 슬롯';
       cell.setAttribute('aria-expanded', String(this.equippedSlot === slot));

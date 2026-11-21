@@ -44,6 +44,27 @@ test('던전 순위는 검증된 클리어만 기록하고 상위 10위·내 기
     const created=await (await accountEndpoint(post('account',{action:'createCharacter',slot:1,name,gender:'male',job:'warrior',revision:body.revision},body.token),options)).json();
     return {...body,revision:created.revision,characterSlot:created.characterSlot,save:withWeapon({...created.save},`weapon-${loginId}`)};
   };
+  // 던전 몹·보스 공격력 정상화(작업 248) 뒤로는 맨몸 1레벨 캐릭터가 2층부터 버티지 못한다 — 실제 플레이어처럼
+  // 장비를 갖춘 20레벨 세이브로 순위 규칙을 본다(세이브를 DB에 직접 심고 소유 기록도 함께 넣어 검증을 건너뛰지 않는다).
+  const gearFor=(id,slot,defense,health)=>({id:`rank-${id}-${slot}`,name:'순위 시험 장비',slot,rarity:'rare',stats:{defense,health},plus:0});
+  const strengthen=async(session)=>{
+    const gear=[gearFor(session.accountId,'armor',60,200),gearFor(session.accountId,'helmet',30,100),gearFor(session.accountId,'boots',30,100),gearFor(session.accountId,'gloves',30,100)];
+    const row=(await db.execute({sql:'SELECT save_json FROM djrpg_characters WHERE account_id=? AND slot=1',args:[session.accountId]})).rows[0];
+    const save=JSON.parse(row.save_json);
+    save.level=20;save.health=828;
+    save.equipment={...(save.equipment??{})};
+    // 무기는 반드시 남긴다 — 무기 미장착이면 던전에서 공격이 막혀 클리어가 불가능하다.
+    if(session.save.equipment?.weapon)save.equipment.weapon=session.save.equipment.weapon;
+    for(const item of gear)save.equipment[item.slot]=item;
+    await db.execute({sql:'UPDATE djrpg_characters SET save_json=? WHERE account_id=? AND slot=1',args:[JSON.stringify(save),session.accountId]});
+    for(const item of gear){
+      await db.execute({sql:'INSERT OR REPLACE INTO djrpg_item_owners VALUES (?,?,?,?)',args:[item.id,session.accountId,'inventory',JSON.stringify(item)]});
+      await db.execute({sql:'INSERT OR REPLACE INTO djrpg_character_item_owners VALUES (?,?,?)',args:[item.id,session.accountId,1]});
+    }
+    const loaded=await (await accountEndpoint(post('account',{action:'load'},session.token),options)).json();
+    session.save=loaded.save;session.revision=loaded.revision;
+    return session;
+  };
   const saveFloor=async(session,floor)=>{
     const response=await accountEndpoint(post('account',{action:'save',revision:session.revision,characterSlot:1,save:{...session.save,dungeonFloor:floor}},session.token),options);
     const body=await response.json();session.revision=body.revision;
@@ -63,7 +84,7 @@ test('던전 순위는 검증된 클리어만 기록하고 상위 10위·내 기
   };
   try{
     db=createClient({url:env.TURSO_DATABASE_URL});
-    const first=await register('dungeon197a','가람'),second=await register('dungeon197b','누리');
+    const first=await strengthen(await register('dungeon197a','가람')),second=await strengthen(await register('dungeon197b','누리'));
     // 5·10층은 보스층(일반의 30배 체력, 작업 205)이라 장비 없는 새 계정으로는 깰 수 없다 — 이 테스트는
     // 순위 규칙만 보므로 보스가 아닌 층(1~4)으로 진행한다.
     for(let floor=1;floor<=3;floor++)await clear(first,floor,1_000_000+floor*60_000);

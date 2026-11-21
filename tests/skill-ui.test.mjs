@@ -11,12 +11,19 @@ function uiFixture(){
   const ui={world:{save,player:{hp:100},cooldown:{attack:0,slash2:0,spin:0,slam:0,power:0},paused:false,action:kind=>actions.push(kind),onChange(){}},market:{busy:false,sync:{locked:false}},root,slotButtons:[node(),node(),node()],attackButton:node(),get:key=>root.querySelector(key),tick(){tick.call(this);},open(kind){this.opened=kind;},message:text=>messages.push(text),messages,actions};return ui;
 }
 test('field circles are disabled until a learned unassigned skill enables plus and red dots',()=>{
+  const created=[];globalThis.document={createElement:tag=>{const element=node(tag);created.push(element);return element;}};
+  try{
   const ui=uiFixture();ui.tick();assert(ui.slotButtons.every(button=>button.disabled));assert(ui.slotButtons.every(button=>button.querySelector('.skill-alert-dot').hidden));
   ui.world.save.learned=['slash2'];ui.tick();assert(ui.slotButtons.every(button=>!button.disabled));assert(ui.slotButtons.every(button=>button.querySelector('strong').textContent==='+'));assert(ui.slotButtons.every(button=>!button.querySelector('.skill-alert-dot').hidden));
   assert.equal(ui.root.querySelector('.skill-nav-dot').hidden,false);
-  pressSkillSlot.call(ui,1);assert.equal(ui.opened,'skills');assert.equal(ui.skillTarget,1);
-  chooseSkill.call(ui,'slash2');ui.tick();assert.deepEqual(ui.world.save.quickSlots,[null,'slash2',null]);assert.equal(ui.opened,null);
+  // 작업 245: 빈 원(`+`)은 전체 스킬 창이 아니라 **장착할 수 있는 스킬만** 고르는 팝업을 연다.
+  pressSkillSlot.call(ui,1);assert.equal(ui.opened,undefined,'전체 스킬 창을 열지 않는다');assert.equal(ui.skillTarget,undefined);
+  const rows=created.filter(element=>typeof element.className==='string'&&element.className.includes('skill-picker-row'));
+  assert.equal(rows.length,1,'장착 가능한 스킬만 보여 준다');assert.equal(rows[0].dataset.skill,'slash2');assert(rows[0].className.includes('is-recommended'),'1순위에 추천 배지');
+  rows[0].onclick();
+  ui.tick();assert.deepEqual(ui.world.save.quickSlots,[null,'slash2',null]);
   assert(ui.slotButtons.every(button=>button.querySelector('.skill-alert-dot').hidden));assert.equal(ui.root.querySelector('.skill-nav-dot').hidden,true);assert(ui.slotButtons[0].disabled);assert(!ui.slotButtons[1].disabled);
+  }finally{delete globalThis.document;}
 });
 test('choosing an extra skill highlights all field circles and replaces exactly the clicked one',()=>{
   globalThis.document={createElement:()=>node()};const ui=uiFixture();ui.world.save.learned=['slash2','spin','slam','power'];ui.world.save.quickSlots=['slash2','spin','slam'];
