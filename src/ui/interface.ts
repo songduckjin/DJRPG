@@ -137,7 +137,8 @@ export class Interface {
     this.journey.onMessage = text => this.message(text);
     this.journey.onChange = () => { this.renderStatus(); this.renderBagBadge(); updateUtilityBadges(this); updateMarketNavDot(this); if (['mail','rewards','achievements'].includes(this.openModal ?? '')) this.renderModal(); };
     void this.journey.load();
-    window.setInterval(() => { if (!document.hidden) void this.journey.load(); }, 120000);
+    // 우편·일일 진행은 5분에 한 번이면 충분하다(작업 245 폴링 절감 — 예전 120초). 수령·거래 응답이 최신 journey를 싣는다.
+    window.setInterval(() => { if (!document.hidden) void this.journey.load(); }, 300000);
     for (const item of [...world.save.bag, ...Object.values(world.save.equipment)]) if (item) this.knownItems.add(item.id);
     this.root.querySelectorAll<HTMLButtonElement>('[data-modal]').forEach(button => button.onclick = () => { cancelSkillSelection.call(this); this.open(button.dataset.modal as Modal); });
     this.root.addEventListener('pointerdown', event => {

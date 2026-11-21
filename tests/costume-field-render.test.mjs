@@ -551,27 +551,34 @@ test('drawHero는 코스튬 상태가 없으면 기존 통합 바디로 그린�
   assert.equal(view.heroLayer.children.length, 1);
 });
 
-for (const gender of ['male', 'female']) test(`${gender}: drawHero가 코스튬 레이어로 그리고 스킬 모션은 world 이펙트에서 온다`, () => {
+// 작업 149 합의: 승인된 pilot 시트가 갑옷·대검까지 완전한 그림이라 필드는 통합 바디 시트로 그린다.
+// `costumeHero.ts`의 레이어 구현은 보존하지만(아틀라스·계획·미리보기), `drawHero`는 코스튬 레이어를
+// 그리지 않고 숨긴다 — 같은 몸을 두 번 그리지 않기 위해서다. 이 계약을 여기서 고정한다.
+for (const gender of ['male', 'female']) test(`${gender}: 필드는 승인 pilot 시트로 그리고 코스튬 레이어는 숨긴다(작업 149 계약)`, () => {
   const save = fullEquipment(freshSave(gender));
   const view = fakeView({ costume: createCostumeHeroState() });
   applyCostumeHeroRuntime(view.costume, loadOk, atlasFor(save));
+  // 레이어가 살아 있는 상태를 만든 뒤 drawHero가 그것을 숨기는지 본다.
+  assert.equal(renderCostumeHero(view, view.costume, save, { motion: 'idle', frame: 0, direction: 1 }), true);
+  const costumeSprites = [...view.costume.sprites.values()];
+  assert(costumeSprites.length > 0, '코스튬 레이어가 만들어진다');
   const player = { x: 0, y: 0, facingSide: 1, facing: 0, hit: 0, berserk: 0, berserkLevel: 1 };
   const world = { save, player, activeMove: { x: 0, y: 0 }, attackPose: 0, effects: [] };
   drawHero.call(view, world, 100, 100, 0);
-  assert.equal(view.hero.visible, false, '코스튬 모드에서 통합 바디가 남아 있다');
-  // 갑옷을 입으면 본체 파츠(torso·arms·legs)가 없으므로 갑옷 스프라이트로 프레임을 본다.
-  const idleCell = view.costume.sprites.get('armor').texture;
+  assert.equal(view.hero.visible, true, '필드 통합 바디가 그려진다');
+  for (const sprite of costumeSprites) assert.equal(sprite.visible, false, '코스튬 레이어는 필드에서 숨는다');
 
-  // world.ts 드래곤 트위스터 이펙트 → spin 템플릿 프레임
+  // 스킬 모션은 코스튬 프레임이 아니라 world 이펙트·attackPose에서 온다.
   world.effects.push({ x: 0, y: 0, kind: 'spin', age: .3, duration: 1.2, angle: 0 });
+  world.attackPose = .2;
   drawHero.call(view, world, 100, 100, .1);
-  assert.notEqual(view.costume.sprites.get('armor').texture, idleCell);
-  assert.equal(view.heroLayer.rotation, 0, 'spin advances the costume pose without turning the whole body');
+  assert.equal(view.heroLayer.rotation, 0, 'spin은 몸 전체를 돌리지 않는다');
+  assert.equal(view.hero.visible, true);
 
-  // 피격 연출(tint) 호환
+  // 피격 연출(tint)은 통합 바디에 그대로 걸린다.
   world.effects.length = 0;
   player.hit = .3;
   drawHero.call(view, world, 100, 100, .2);
-  for (const sprite of view.costume.sprites.values()) assert.equal(sprite.tint, 0xffd4cf);
-  assert.equal(view.hero.visible, false);
+  assert.equal(view.hero.tint, 0xffd4cf);
+  assert.equal(view.hero.visible, true);
 });
