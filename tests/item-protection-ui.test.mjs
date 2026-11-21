@@ -75,7 +75,7 @@ test('selling a locked item asks first, cancel keeps lock and approval submits e
     assert.equal(market.unlockItem,undefined);assert(save.bag[0].locked);assert.equal(calls.length,0);
     form=find(render(),n=>hasClass(n,'market-register'));form.onsubmit({preventDefault(){}});
     confirmation=find(render(),n=>hasClass(n,'market-unlock-confirm'));find(confirmation,n=>n.textContent==='잠금 해제 후 판매 등록').onclick();
-    assert.deepEqual(calls,[{action:'register',data:{itemId:'protected',price:100,unlockItem:true}}]);assert(save.bag[0].locked);
+    assert.deepEqual(calls,[{action:'register',data:{itemIds:['protected'],price:100,unlockItem:true}}]);assert(save.bag[0].locked);
     market.registerCategory='armor';assert(!find(render(),n=>hasClass(n,'market-pick')));
   }finally{globalThis.document=previous;}
 });
@@ -130,7 +130,7 @@ test('registration at the limit remains clickable and explains rejection before 
       assert(find(form,n=>n.attrs?.role==='alert').textContent.includes('취소'));
       form.onsubmit({preventDefault(){}});assert.equal(calls.length,0);
       market.data.myActive=limit-1;market.price='100';form.onsubmit({preventDefault(){}});
-      assert.deepEqual(calls.pop(),['register',{itemId:'sale',price:100}]);
+      assert.deepEqual(calls.pop(),['register',{itemIds:['sale'],price:100}]);
     }
   }finally{globalThis.document=previous;}
 });
@@ -171,6 +171,23 @@ test('bag rarity button sorts descending within the selected category without ch
   assert.deepEqual(ids(root),['top','middle','low']);assert.equal(ui.bagFilter,'accessory');assert.equal(JSON.stringify(save.bag),before);
   find(root,n=>hasClass(n,'bag-rarity-sort')).onclick();assert.deepEqual(ids(render()),['low','top','middle']);
  }finally{globalThis.document=previous;}
+});
+
+test('가방 칸은 등급순을 켜도 보물 주머니 → 장비 → 스킬북(직업 묶음) 순서다(작업 247)',async()=>{
+  const {renderInventory}=await import('../src/ui/modals/equipModal.ts');
+  const previous=globalThis.document;globalThis.document={createElement:tag=>element(tag)};
+  try{
+    const save=freshSave();save.job='warrior';
+    const book=(id,skillId,rarity)=>({id,name:`[스킬북] ${skillId}`,slot:'skillbook',kind:'skillbook',skillId,rarity,stats:{}});
+    const pouch={id:'p1',name:'무작위 보물 주머니',slot:'pouch',kind:'pouch',rarity:'common',stats:{}};
+    // 가방은 **다른 직업** 스킬북만 보여 준다(내 직업 책은 스킬 창에서 쓴다) — 직업 묶음은 그 책들 사이에서도 유지된다.
+    save.bag=[book('book-mage','fireBolt','common'),item('sword','weapon','common'),pouch,book('book-arch','doubleShot','legendary')];
+    const ui={modal:{querySelector:()=>null,querySelectorAll:()=>[]},world:{save},bagFilter:'all',salvageRarity:'common',bagRaritySort:true,bagJobOnly:false,renderModal(){},iconPath:()=>''};
+    const root=element();renderInventory.call(ui,root);
+    const ids=find(root,n=>hasClass(n,'bag-grid')).children.map(n=>n.dataset.itemId);
+    // 보물 주머니가 첫 칸, 그다음 장비, 스킬북은 장비 뒤에서 **궁수 → 마법사** 고정 순서(등급순보다 직업 묶음이 먼저).
+    assert.deepEqual(ids,['p1','sword','book-arch','book-mage']);
+  }finally{globalThis.document=previous;}
 });
 
 test('거래 결과를 확인하지 못해 잠긴 거래소는 이유 안내와 다시 확인 버튼을 함께 보여 준다(작업 226)',()=>{

@@ -64,14 +64,23 @@ test('자동 등반이 꺼져 있으면 층이 오르지 않는다', () => {
   assert.equal(save.floorKills, reward.kills % floorKillTarget(1));
 });
 
-test('아래층 반복 사냥은 자동 등반이 켜져 있어도 보스 없이 그 층에 머문다', () => {
+test('아래층에서도 자동 등반이 켜져 있으면 목표를 채울 때마다 한 층씩 올라간다(작업 245)', () => {
   const save = geared(freshSave(), { attack: 400, defense: 100, health: 2_000 });
   save.tutorial = 1; save.floor = 2; save.maxFloor = 9;
   const reward = applyOfflineRewards(save, 3600);
-  assert.equal(save.floor, 2);
-  assert.equal(save.maxFloor, 9);
-  assert.equal(reward.bossKills, 0);
-  assert.equal(reward.deaths, 0);
+  // 작업 245: 자동 등반 중이면 방치 정산도 접속 사냥과 같이 아래층을 한 층씩 올라간다(보스는 최고층에서만).
+  assert(save.floor > 2, '아래층에 머물지 않고 올라간다');
+  assert(save.floor <= 9, '최고 도달 층을 넘지 않는다');
+  assert.equal(save.maxFloor, 9, '최고 도달 층은 그대로');
+  assert.equal(reward.endFloor, save.floor);
+  assert(save.floorKills <= floorKillTarget(save.floor), '진행도는 그 층 목표 안에');
+  // 한 층에 머무는 경우는 자동 등반이 꺼져 있을 때뿐이다.
+  const parked = geared(freshSave(), { attack: 400, defense: 100, health: 2_000 });
+  parked.tutorial = 1; parked.floor = 2; parked.maxFloor = 9; parked.autoClimb = false;
+  const parkedReward = applyOfflineRewards(parked, 3600);
+  assert.equal(parked.floor, 2);
+  assert.equal(parkedReward.bossKills, 0);
+  assert.equal(parkedReward.deaths, 0);
 });
 
 test('마지막 층에서는 보스를 이겨도 층이 오르지 않고 보스만 계속 잡는다', () => {

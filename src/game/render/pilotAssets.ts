@@ -10,10 +10,11 @@
  * 서기(`idle`)에만 `?v=2`를 붙이던 규칙 대신 **pilot-25d 경로 전체**에 이 버전을 붙인다.
  *
  * [작업 229]는 전사 서기 시트를 222 이전 그립으로 되돌렸다 — 파일명이 같으므로 3 → 4로 올린다.
+ * [작업 247]은 마법사 모자·투구 파츠 20장에서 상반신을 걷어냈다 — 같은 파일명이므로 4 → 5.
  *
- * 새 시트를 같은 파일명으로 다시 구울 때는 이 값만 올린다(4 → 5).
+ * 새 시트를 같은 파일명으로 다시 구울 때는 이 값만 올린다(5 → 6).
  */
-export const PILOT_ASSET_VERSION = 4;
+export const PILOT_ASSET_VERSION = 5;
 
 /** pilot-25d 시트 URL 하나에 배포본 버전을 붙인다(기존 `?v=N`은 교체). */
 export function pilotSheet(path: string): string {

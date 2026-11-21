@@ -15,7 +15,7 @@ import { wearableEquipmentImage, baseItemIndex, usesBaseSheetOnly, hasNoWeapon, 
 import { jobOrDefault } from '../skills';
 import { helmetArtFor, helmetArtPath, helmetPlacement } from './helmets';
 import { archerHelmIndexFor, archerHelmPartPath, archerHelmPlacement } from './archerHelmets';
-import { mageHelmIndexFor, mageHelmPartPath, mageHelmPlacement } from './mageHelmets';
+import { mageHelmIndexFor, mageHelmGlowMaskTexture, mageHelmPartPath, mageHelmPlacement } from './mageHelmets';
 import { armorIndexFor } from './armors';
 import { archerArmorIndexFor } from './archerArmors';
 import { hasRobeSheet, mageRobeIndexFor } from './robes';
@@ -394,7 +394,7 @@ export const GEAR_GLOW_LABEL = 'gear-glow';
 
 function syncGearGlow(
   view: GameView, key: 'armor' | 'helmet' | 'weapon', source: Sprite | undefined, rarity: Rarity | undefined,
-  time: number, neckY?: number
+  time: number, neckY?: number, maskTexture?: Texture
 ): void {
   const tone = gearGlowTone(rarity);
   // 테스트용 스텁 뷰는 이 지도를 만들지 않는다 — 없으면 그 자리에서 만든다.
@@ -427,6 +427,23 @@ function syncGearGlow(
     mask.position.set(-width * source.anchor.x, top);
     mask.width = width;
     mask.height = Math.max(1, bottom - top);
+  } else if (maskTexture) {
+    // [작업 247] 마법사 모자·투구 — 얼굴과 목선 아래로는 빛이 번지지 않게 마스크를 건다.
+    // 마스크 텍스처가 파츠와 같은 362×406 이라 앵커·위치·배율을 그대로 복사하면 된다.
+    mask = view.heroHelmGlowMask ?? (() => {
+      const span = new Sprite(maskTexture);
+      span.anchor.set(0, 0);
+      // 릴상 복제(`cloneHeroLayers`)가 마스크를 몸으로 찍지 않도록 발광 레이어 표식을 단다.
+      span.label = GEAR_GLOW_LABEL;
+      view.heroLayer.addChild(span);
+      view.heroHelmGlowMask = span;
+      return span;
+    })();
+    mask.texture = maskTexture;
+    mask.anchor.set(source.anchor.x, source.anchor.y);
+    mask.position.set(source.position.x, source.position.y);
+    mask.scale.set(source.scale.x, source.scale.y);
+    mask.rotation = source.rotation;
   }
   // 발광 층은 밝기 비례 등급색으로 구운 1/3 크기 텍스처를 쓴다(원본 `tint`만으로는 어두운 갑옷이
   // 거의 빛나지 않는다). 원본과 같은 앵커·위치에서 축소한 만큼 키워 얹는다.
@@ -774,7 +791,10 @@ export function drawHero(this: GameView, world: World, x: number, y: number, tim
       ? 104
       : helmetPlacement(save.gender, animation, animation === 'walk' ? walkingFrame : animatedAttack ? Math.max(0, attackFrame) : 0, Math.max(0, helmetIndex(save))).y;
     syncGearGlow(this, 'armor', this.hero, save.equipment.armor?.rarity, time, neckY);
-    syncGearGlow(this, 'helmet', wornHelmet, save.equipment.helmet?.rarity, time);
+    // [작업 247] 마법사 투구는 파츠에 얼굴이 함께 있어 그대로 두면 얼굴까지 등급색이 된다 —
+    // 성별 발광 마스크(얼굴·목선 아래 제외)를 투구 발광에만 건다(전사·궁수 투구는 예전 그대로).
+    const mageHelmGlowMask = mage && mageHelm >= 0 ? mageHelmGlowMaskTexture(save.gender) : undefined;
+    syncGearGlow(this, 'helmet', wornHelmet, save.equipment.helmet?.rarity, time, undefined, mageHelmGlowMask);
     syncGearGlow(this, 'weapon', wornWeapon, save.equipment.weapon?.rarity, time);
     let bob = 0;
     const local = world.effects.filter(effect => effect.kind !== 'hit' && effect.kind !== 'death' && Math.hypot(effect.x - player.x, effect.y - player.y) < 2);

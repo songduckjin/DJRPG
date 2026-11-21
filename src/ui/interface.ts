@@ -19,7 +19,7 @@ import type { Item, Save, Slot } from '../game/store';
 import { discoverEquipment } from '../game/codex';
 import { renderCodex } from './modals/codexModal';
 import type { SkillId } from '../game/skills';
-import { cancelSkillSelection, chooseSkill, pressSkillSlot } from './skillLoadout';
+import { cancelSkillSelection, chooseSkill, closeSkillPicker, openSkillPicker, pressSkillSlot } from './skillLoadout';
 import { LegendBoard } from '../game/legendBoard';
 import { mountLegendBar, sharePouchLegend } from './legendBar';
 import { renderSalvage } from './modals/salvageModal';
@@ -35,7 +35,7 @@ import { renderOffline } from './modals/offlineModal';
 import type { OfflineReward } from '../game/offline';
 import type { SaveSync } from '../game/sync';
 import { Market } from '../game/market';
-import { renderMarket, updateMarketLive } from './modals/marketModal';
+import { renderMarket, updateMarketLive, updateMarketNavDot } from './modals/marketModal';
 import { loadCharacters, loadWarehouse, renderCharacters, renderCreateCharacter, renderWarehouse, type CharacterSummary } from './modals/charactersModal';
 import { resetWarehouse } from './modals/warehouseModal';
 import { completeShopReturn, loadShop, renderShop, type ShopCatalog, type ShopCheckout } from './modals/shopModal';
@@ -71,7 +71,8 @@ export class Interface {
   /** The user's own bulk-salvage threshold, read back from the device so closing the popup or
    *  reloading never resets it (작업 196). */
   salvageRarity: SalvageRarity = readSalvageRarity();
-  /** 접속 중 자동 분해 (작업 196): kept on the device with the threshold, and off until turned on. */
+  /** 자동 분해 (작업 196): kept on the device with the threshold, and off until turned on. 작업 254부터
+   *  접속·방치 사냥 모두에 적용된다. */
   autoSalvage = readAutoSalvage();
   /** 자동 분해가 갈 `+단계` 상한 (작업 203): 41층부터만 쓰이고, 기기에 저장된 값을 시작 시 읽는다. */
   salvagePlus = readSalvagePlus();
@@ -120,7 +121,7 @@ export class Interface {
     this.market = new Market(sync);
     this.journey = new Journey(sync, world);
     discoverEquipment(world.save);
-    root.innerHTML = `<main class="game-shell"><section class="battle"><div class="battle-canvas"></div><div class="top-hud"></div><button class="world-boss-entry" data-modal="worldBoss" type="button" aria-label="월드보스 미리보기" title="체력과 남은 도전 횟수는 시안입니다"><span class="wb-entry-art" aria-hidden="true"></span><span class="wb-entry-health" aria-hidden="true"><i></i></span><span class="wb-entry-count" aria-hidden="true">3/3</span></button><nav class="utility-nav" aria-label="편의 메뉴">${(['settings','mail','rewards','achievements','dungeon'] as const).map((kind,index)=>`<button type="button" data-modal="${kind}" aria-label="${['설정','우편함','보상','업적','던전'][index]}" title="${['설정','우편함','보상','업적','던전'][index]}"><img src="/assets/icons/utility_${kind}.png" alt="">${(kind==='settings'||kind==='dungeon')?'':`<i data-utility-dot="${kind}" hidden></i>`}</button>`).join('')}</nav><div class="tutorial"></div><div class="controls"><div class="action-pad"></div></div></section><nav class="bottom-nav" aria-label="게임 메뉴"><button data-modal="equipment" type="button" aria-label="내 정보" title="내 정보">${navIcons.equipment}<i class="new-badge" hidden></i><i class="bag-full-badge" hidden></i></button><button data-modal="skills" type="button" aria-label="스킬" title="스킬">${navIcons.skills}<i class="skill-nav-dot" hidden aria-label="장착 또는 강화 가능한 스킬 있음"></i></button><button data-modal="market" type="button" aria-label="거래소" title="거래소">${navIcons.market}<i class="new-badge market-badge" hidden></i></button><button data-modal="warehouse" type="button" aria-label="공용창고" title="공용창고">${navIcons.warehouse}</button></nav><div class="modal-backdrop" hidden><div class="modal-dialog" role="dialog" aria-modal="true"></div></div><div class="toast" role="status"></div></main>`;
+    root.innerHTML = `<main class="game-shell"><section class="battle"><div class="battle-canvas"></div><div class="top-hud"></div><button class="world-boss-entry" data-modal="worldBoss" type="button" aria-label="월드보스 미리보기" title="체력과 남은 도전 횟수는 시안입니다"><span class="wb-entry-art" aria-hidden="true"></span><span class="wb-entry-health" aria-hidden="true"><i></i></span><span class="wb-entry-count" aria-hidden="true">3/3</span></button><nav class="utility-nav" aria-label="편의 메뉴">${(['settings','mail','rewards','achievements','dungeon'] as const).map((kind,index)=>`<button type="button" data-modal="${kind}" aria-label="${['설정','우편함','보상','업적','던전'][index]}" title="${['설정','우편함','보상','업적','던전'][index]}"><img src="/assets/icons/utility_${kind}.png" alt="">${(kind==='settings'||kind==='dungeon')?'':`<i data-utility-dot="${kind}" hidden></i>`}</button>`).join('')}</nav><div class="tutorial"></div><div class="controls"><div class="action-pad"></div></div></section><nav class="bottom-nav" aria-label="게임 메뉴"><button data-modal="equipment" type="button" aria-label="내 정보" title="내 정보">${navIcons.equipment}<i class="new-badge" hidden></i><i class="bag-full-badge" hidden></i></button><button data-modal="skills" type="button" aria-label="스킬" title="스킬">${navIcons.skills}<i class="skill-nav-dot" hidden aria-label="장착 또는 강화 가능한 스킬 있음"></i></button><button data-modal="market" type="button" aria-label="거래소" title="거래소">${navIcons.market}<i class="market-nav-dot" hidden aria-label="거래소 수령함에 받을 물건 있음"></i></button><button data-modal="warehouse" type="button" aria-label="공용창고" title="공용창고">${navIcons.warehouse}</button></nav><div class="modal-backdrop" hidden><div class="modal-dialog" role="dialog" aria-modal="true"></div></div><div class="toast" role="status"></div></main>`;
     const shopEntry = document.createElement('button'); shopEntry.type = 'button'; shopEntry.dataset.modal = 'shop'; shopEntry.className = 'shop-entry'; shopEntry.setAttribute('aria-label', '상점'); shopEntry.title = '상점'; shopEntry.textContent = '◆';
     this.root.querySelector('.utility-nav')?.append(shopEntry);
     this.top = this.get('.top-hud'); this.banner = this.get('.tutorial');
@@ -131,10 +132,10 @@ export class Interface {
     sync.onWarehouseRecovered = () => { this.renderStatus(); this.renderBagBadge(); if (this.openModal === 'warehouse') void loadWarehouse(this); this.message('공용창고 이동 결과를 확인했습니다.'); };
     this.market.onChange = full => {
       if (this.openModal === 'market' && full) this.renderModal();
-      updateMarketLive(this); this.renderStatus();
+      updateMarketLive(this); updateMarketNavDot(this); this.renderStatus();
     };
     this.journey.onMessage = text => this.message(text);
-    this.journey.onChange = () => { this.renderStatus(); this.renderBagBadge(); updateUtilityBadges(this); if (['mail','rewards','achievements'].includes(this.openModal ?? '')) this.renderModal(); };
+    this.journey.onChange = () => { this.renderStatus(); this.renderBagBadge(); updateUtilityBadges(this); updateMarketNavDot(this); if (['mail','rewards','achievements'].includes(this.openModal ?? '')) this.renderModal(); };
     void this.journey.load();
     window.setInterval(() => { if (!document.hidden) void this.journey.load(); }, 120000);
     for (const item of [...world.save.bag, ...Object.values(world.save.equipment)]) if (item) this.knownItems.add(item.id);
@@ -204,10 +205,14 @@ export class Interface {
 
   pressSkillSlot(index: number): void { pressSkillSlot.call(this, index); }
 
+  openSkillPicker(index: number): void { openSkillPicker.call(this, index); }
+
+  closeSkillPicker(): void { closeSkillPicker.call(this); }
+
   chooseSkill(id: SkillId): void { chooseSkill.call(this, id); }
 
-  /** Turns live auto-salvage on or off, stores the choice, and says out loud that it only works while
-   *  the player is in the field (작업 196). */
+  /** Turns live auto-salvage on or off, stores the choice, and says out loud that it now applies both
+   *  while hunting and while away (작업 196·254). */
   setAutoSalvage(on: boolean): void {
     this.autoSalvage = on; saveAutoSalvage(on);
     this.message(on ? AUTO_SALVAGE_ON_NOTICE : AUTO_SALVAGE_OFF_NOTICE);

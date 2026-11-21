@@ -16,10 +16,11 @@ function warrior(learned = [...skillOrder]) { const save = freshSave('male', 'wa
 
 // ── ① 추천 자동 장착 ────────────────────────────────────────────────────────
 test('직업별로 핵심 버프 1개와 주력 공격 2개를 3칸에 채운다', () => {
+  // 작업 245: 2·3번 원은 **초당 딜량**(시전 계수 × 레벨 위력 ÷ 쿨) 내림차순이다.
   const cases = [
-    { job: 'warrior', learned: [...skillOrder], slots: ['warcry', 'hell', 'power'] },
-    { job: 'archer', learned: [...archerSkillOrder], slots: ['hawkEye', 'stormVolley', 'arrowRain'] },
-    { job: 'mage', learned: [...mageSkillOrder], slots: ['arcaneShield', 'arcaneOverlord', 'meteorStrike'] }
+    { job: 'warrior', learned: [...skillOrder], slots: ['warcry', 'power', 'slash2'] },
+    { job: 'archer', learned: [...archerSkillOrder], slots: ['hawkEye', 'multiShot', 'doubleShot'] },
+    { job: 'mage', learned: [...mageSkillOrder], slots: ['arcaneShield', 'fireBolt', 'meteorStrike'] }
   ];
   for (const { job, learned, slots } of cases) {
     const save = freshSave('female', job); save.learned = learned;
@@ -35,7 +36,8 @@ test('미습득 스킬과 다른 직업 스킬은 절대 넣지 않는다', () =
   const save = warrior(['slam', 'slash2', 'hawkEye', 'stormVolley', 'warcry']);
   autoEquipRecommendedSkills(save);
   // 궁수 스킬(hawkEye·stormVolley)은 전사 퀵슬롯 대상이 아니고, 습득하지 않은 hell·power도 빠진다.
-  assert.deepEqual(save.quickSlots, ['warcry', 'slam', 'slash2']);
+  // 남은 둘은 초당 딜량 순서 — slash2(2.2/4 = .55) > slam(2.75/8 = .34).
+  assert.deepEqual(save.quickSlots, ['warcry', 'slash2', 'slam']);
   const onlyForeign = warrior(['hawkEye', 'stormVolley']);
   const result = autoEquipRecommendedSkills(onlyForeign);
   assert.equal(result.changed, false);
@@ -62,25 +64,29 @@ test('보유 스킬이 0개면 세이브를 건드리지 않고 안내만 돌려
   assert.match(result.message, /스킬북으로 스킬을 습득하면 추천 장착을 쓸 수 있습니다/);
 });
 
-test('스킬 레벨이 높은 스킬은 추천 순위에서 가산점을 받는다', () => {
-  const low = warrior(['slash2', 'destroy']);
-  assert.deepEqual(recommendedSkillOrder(low).slice(0, 2), ['destroy', 'slash2']);
-  const leveled = warrior(['slash2', 'destroy']);
-  leveled.skillLevels = { slash2: 21, destroy: 1 };
-  // 레벨 21이면 피해 배율 3.0배 — 6순위slash2(4 × 3.0 = 12)가 3순위 destroy(8 × 1 = 8)를 앞선다.
-  assert.deepEqual(recommendedSkillOrder(leveled).slice(0, 2), ['slash2', 'destroy']);
+test('스킬을 강화하면 레벨 위력 배율이 붙어 DPS 순위가 바뀐다', () => {
+  // 작업 245 예시: 위력 +70%(Lv.8) iceBolt 1.7×1.7/7 = .413 > 위력 +30%(Lv.4) manaBurst 2.5×1.3/10 = .325
+  const base = freshSave('female', 'mage'); base.learned = ['iceBolt', 'manaBurst'];
+  assert.deepEqual(recommendedSkillOrder(base).slice(0, 2), ['manaBurst', 'iceBolt'], '1레벨에서는 마력 폭발이 위');
+  const leveled = freshSave('female', 'mage'); leveled.learned = ['iceBolt', 'manaBurst'];
+  leveled.skillLevels = { iceBolt: 8, manaBurst: 4 };
+  assert.deepEqual(recommendedSkillOrder(leveled).slice(0, 2), ['iceBolt', 'manaBurst'], '강화된 아이스 볼트가 앞선다');
+  /// 전사: 레벨 6 파워 스트라이크(4×1.5/6 = 1.0)는 1레벨 회전참격(.2375)을 크게 앞선다.
+  const warriorSave = warrior(['power', 'hell']);
+  warriorSave.skillLevels = { power: 6 };
+  assert.deepEqual(recommendedSkillOrder(warriorSave).slice(0, 2), ['power', 'hell']);
 });
 
 test('이미 같은 조합이면 changed=false, 순서만 다르면 다시 채운다', () => {
-  const save = warrior(['warcry', 'hell', 'power']);
-  save.quickSlots = ['warcry', 'hell', 'power'];
+  const save = warrior(['warcry', 'hell', 'power', 'slash2']);
+  save.quickSlots = ['warcry', 'power', 'slash2'];
   const same = autoEquipRecommendedSkills(save);
   assert.equal(same.changed, false);
   assert.match(same.message, /이미 추천 조합이 장착되어 있습니다/);
   save.quickSlots = ['power', 'hell', 'warcry'];
   const reordered = autoEquipRecommendedSkills(save);
   assert.equal(reordered.changed, true);
-  assert.deepEqual(save.quickSlots, ['warcry', 'hell', 'power']);
+  assert.deepEqual(save.quickSlots, ['warcry', 'power', 'slash2']);
 });
 
 // ── ② 스킬 창 UI ───────────────────────────────────────────────────────────
@@ -170,7 +176,7 @@ test('추천 자동 장착 버튼 한 번으로 3칸을 채우고 저장·HUD·�
     assert(auto, '추천 자동 장착 버튼이 상단 바에 없다');
     assert(hasClass(auto, 'skill-auto-equip'));
     auto.onclick();
-    assert.deepEqual(ui.world.save.quickSlots, ['warcry', 'power', 'slam']);
+    assert.deepEqual(ui.world.save.quickSlots, ['warcry', 'power', 'slash2']);
     assert.equal(ui.changes(), 1, 'world.onChange가 저장·HUD를 갱신한다');
     assert.match(ui.messages.at(-1), /추천 조합으로 장착했습니다/);
 
