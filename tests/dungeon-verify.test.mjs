@@ -11,7 +11,7 @@ import { removeTempDbDirectory } from './helpers/temp-db.mjs';
 const { dungeonOperation } = await import('../server/dungeon.mjs');
 const { requiredClearSeconds, replayDungeonFloor, DUNGEON_MIN_SECONDS, DUNGEON_UNVERIFIED_SECONDS } = await import('../server/dungeon-verify.mjs');
 const { parseSave, freshSave } = await import('../src/game/store.ts');
-const { DungeonBattle, DUNGEON_STEP, dungeonBattleSummary } = await import('../src/ui/dungeonBattle.ts');
+const { DungeonBattle, DUNGEON_STEP, dungeonBattleSummary } = await import('../src/game/dungeon/battle.ts');
 /** 그 세이브로 그 층을 그 시드로 실제로 플레이한 결과 요약 — 클라이언트가 보내는 값과 같다. */
 const play = (save, floor, seed) => {
   const battle = new DungeonBattle(save, floor, seed);

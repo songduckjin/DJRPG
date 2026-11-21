@@ -3,7 +3,7 @@
  *
  * 던전은 `start`에서 서버가 준 시드를 받아 전투를 돌리고, 서버는 같은 시드로 그 전투를 다시 돌려
  * 클리어를 확인한다. 그러려면 전투에 쓰이는 난수가 **시드 + 스텝 수**만으로 정해져야 한다.
- * 그래서 전투 경로(`world.ts`·`items.ts`·`bossLoot.ts`·`dungeonBattle.ts`)는 `Math.random()` 대신
+ * 그래서 전투 경로(`world.ts`·`items.ts`·`bossLoot.ts`·`dungeon/battle.ts`)는 `Math.random()` 대신
  * 이 파일의 `random()`을 쓰고, 던전은 자기 시드 난수를 `withRandom`으로 감싸서 돌린다.
  *
  * 기본값은 `Math.random`이라 시드를 쓰지 않는 화면(메인 사냥·연출)은 지금과 똑같이 움직인다.

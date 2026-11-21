@@ -7,7 +7,7 @@ import './ts-loader.mjs';
 const items = await import('../src/game/items.ts');
 const world = await import('../src/game/world.ts');
 const bossLoot = await import('../src/game/bossLoot.ts');
-const battle = await import('../src/ui/dungeonBattle.ts');
+const battle = await import('../src/game/dungeon/battle.ts');
 const markup = await import('../src/ui/dungeonRewardMarkup.ts');
 const { freshSave } = await import('../src/game/store.ts');
 const css = readFileSync(new URL('../src/styles/dungeon.css', import.meta.url), 'utf8');
