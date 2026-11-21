@@ -1,34 +1,90 @@
+/* 장비 도감 — 1종 1칸(135) 5열 격자 + 하단 등급 상세 띠 (2026-11-21 사용자 확정 시안 opt2).
+   저장 기록은 그대로 810칸(`부위:번호:등급`)이고, 화면만 135종으로 접었다. */
 .modal-title-group { display: flex; gap: 10px; align-items: center; min-width: 0; }
 .codex-open { flex: none; border: 1px solid #a78856; background: #423123; color: #f3d69d; border-radius: 4px; padding: 5px 10px; font-size: 12px; }
 .codex-modal { height: min(88dvh, 820px); max-height: 88dvh; }
 .modal-dialog.codex-modal > header { position: sticky; top: -14px; z-index: 4; height: 44px; min-height: 44px; background: #2b2224; box-shadow: 0 4px 8px #130f1480; }
 .modal-dialog.codex-modal > header h2 { margin: 0; }
 .modal-dialog.codex-modal > header .modal-close { width: 44px; height: 44px; flex: none; }
-.codex-summary { display: flex; flex-wrap: wrap; gap: 8px; justify-content: space-between; align-items: center; padding: 12px 0; color: #e5c98f; }
-.codex-summary b { font-size: 16px; }.codex-summary span { font-size: 10px; color: #b09b85; }
-.codex-summary progress { width: 100%; height: 7px; accent-color: #bb9654; }
-.codex-toolbar { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
-.codex-toolbar input, .codex-toolbar select, .codex-detail select { width: 100%; min-width: 0; padding: 9px 7px; border: 1px solid #796047; border-radius: 4px; background: #19151b; color: #e9d7bb; font-size: 12px; }
-.codex-toolbar input { grid-column: 1 / -1; }
-.codex-hint, .codex-result { color: #b3a08b; font-size: 10px; line-height: 1.7; }
-.codex-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; align-items: start; }
-.codex-card { display: flex; min-width: 0; flex-direction: column; align-items: center; gap: 5px; padding: 8px 3px; border: 1px solid #51463d; border-radius: 5px; background: radial-gradient(ellipse at top, #39302b, #1d191d); color: #bbab97; }
-.codex-card.discovered { border-color: #ac8852; }.codex-card.selected { outline: 2px solid #efc978; }
-.codex-art { display: block; width: 64px; height: 64px; background-repeat: no-repeat; flex: none; }
+
+/* 등급 색 한 벌 — 칸 테두리·배지·범례 점·상세 칩·옵션 제목이 모두 이 변수를 쓴다.
+   (전역 `.rarity-*`의 글자색을 카드에 물리지 않으려고 이름을 따로 뒀다.) */
+.codex-g-common { --codex-grade: #9ca3af; --codex-glow: #9ca3af30; }
+.codex-g-magic { --codex-grade: #60a5fa; --codex-glow: #60a5fa30; }
+.codex-g-rare { --codex-grade: #facc15; --codex-glow: #facc1530; }
+.codex-g-epic { --codex-grade: #c084fc; --codex-glow: #c084fc30; }
+.codex-g-unique { --codex-grade: #fb923c; --codex-glow: #fb923c30; }
+.codex-g-legendary { --codex-grade: #f87171; --codex-glow: #f8717140; }
+
+/* 요약 — 왼쪽 `수집률 N / 810 (％)`, 오른쪽 `종별 M / 135` */
+.codex-summary { display: grid; grid-template-columns: 1fr auto; align-items: end; gap: 1px 10px; padding: 10px 0 8px; color: #e5c98f; }
+.codex-rate { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.codex-rate-label { font-size: 10px; color: #b09b85; letter-spacing: .04em; }
+.codex-rate-value { font-size: 22px; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.codex-rate-value em { font-style: normal; font-size: 13px; color: #b9a68c; }
+.codex-rate-value small { font-size: 11px; color: #bb9654; }
+.codex-kinds { display: flex; align-items: baseline; gap: 5px; padding-bottom: 2px; font-size: 10px; color: #b09b85; }
+.codex-kinds b { font-size: 13px; color: #e5c98f; font-variant-numeric: tabular-nums; }
+.codex-summary progress { grid-column: 1 / -1; width: 100%; height: 6px; margin-top: 4px; accent-color: #bb9654; }
+
+/* 탭 — 전체 / 무기 / 방어구 / 장신구 */
+.codex-tabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 5px; margin: 2px 0 7px; }
+.codex-tab { display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 6px 2px; border: 1px solid #6a5844; border-radius: 4px; background: #221c1b; color: #c9b49a; font-size: 11px; line-height: 1.2; }
+.codex-tab small { font-size: 9px; color: #9d8a74; font-variant-numeric: tabular-nums; }
+.codex-tab.is-on { border-color: #d9b26a; background: #3a2c22; color: #ffe4b5; box-shadow: inset 0 0 10px #c89b4c33; }
+.codex-tab.is-on small { color: #d9b26a; }
+
+/* 검색 + 상태 */
+.codex-search { display: flex; gap: 6px; margin-bottom: 7px; }
+.codex-search input, .codex-search select { min-width: 0; padding: 8px 7px; border: 1px solid #796047; border-radius: 4px; background: #19151b; color: #e9d7bb; font-size: 12px; }
+.codex-search input { flex: 1; }
+.codex-search select { flex: 0 0 30%; padding: 8px 3px; font-size: 11px; }
+
+/* 6등급 범례 */
+.codex-legend { display: flex; flex-wrap: wrap; justify-content: center; gap: 3px 10px; margin: 0 0 7px; font-size: 9.5px; color: #b7a58d; }
+.codex-legend-item { display: inline-flex; align-items: center; gap: 3px; }
+.codex-legend-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--codex-grade); box-shadow: 0 0 4px var(--codex-grade); }
+
+/* 5열 격자 — 1종 1칸, 135칸 */
+.codex-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 5px; align-items: stretch; }
+.codex-card { position: relative; display: flex; min-width: 0; flex-direction: column; align-items: center; justify-content: space-between; gap: 3px; padding: 6px 3px 5px; border: 1px solid #51463d; border-radius: 5px; background: radial-gradient(ellipse at top, #39302b, #1d191d); color: #bbab97; }
+.codex-card.discovered { border-color: #ac8852; }
+/* 칸 테두리 = 지금까지 모은 가장 높은 등급 색(모은 등급이 일반·매직뿐이면 기본 테두리) */
+.codex-card.codex-g-common, .codex-card.codex-g-magic, .codex-card.codex-g-rare, .codex-card.codex-g-epic, .codex-card.codex-g-unique, .codex-card.codex-g-legendary { border-color: var(--codex-grade); box-shadow: inset 0 0 8px var(--codex-glow); }
+.codex-card.selected { outline: 2px solid #efc978; outline-offset: 1px; }
+.codex-art { display: block; width: 45px; height: 45px; background-repeat: no-repeat; flex: none; }
 .codex-card:not(.discovered) .codex-art { filter: grayscale(1) brightness(.5); }
-.codex-card b { font-size: 10px; overflow-wrap: anywhere; min-height: 28px; display: grid; place-items: center; }.codex-card small { font-size: 9px; color: #9e8c79; }
-.codex-owned { font-size: 9px; color: #c7ad78; }
-.codex-detail { grid-column: 1 / -1; padding: 12px; border: 1px solid #b08b54; background: #29201f; color: #d9c7ac; scroll-margin: 60px; }
-.codex-detail-heading { display: flex; align-items: center; gap: 14px; }.codex-art-large { width: 100px; height: 100px; }.codex-detail h3 { font-size: 16px; }
-.codex-detail p { font-size: 11px; line-height: 1.7; }.codex-option-list { display: flex; flex-wrap: wrap; gap: 8px 14px; margin-top: 12px; font-size: 12px; }.codex-option-list b, .codex-option-list p { width: 100%; margin: 0; }
-.codex-card[hidden], .codex-detail[hidden] { display: none; }
-.codex-card:focus-visible, .codex-open:focus-visible { outline: 2px solid #f5d58e; outline-offset: 2px; }
-@media (max-width: 359px) { .codex-art { width: 54px; height: 54px; }.codex-card b { font-size: 9px; } }
-.codex-toolbar { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-.codex-toolbar select { font-size: 11px; padding: 9px 4px; }
-.codex-card.rarity-common, .codex-detail.rarity-common { border-color: #9ca3af; box-shadow: inset 0 0 8px #9ca3af30; }
-.codex-card.rarity-magic, .codex-detail.rarity-magic { border-color: #60a5fa; box-shadow: inset 0 0 8px #60a5fa30; }
-.codex-card.rarity-rare, .codex-detail.rarity-rare { border-color: #facc15; box-shadow: inset 0 0 8px #facc1530; }
-.codex-card.rarity-epic, .codex-detail.rarity-epic { border-color: #c084fc; box-shadow: inset 0 0 8px #c084fc30; }
-.codex-card.rarity-unique, .codex-detail.rarity-unique { border-color: #fb923c; box-shadow: inset 0 0 8px #fb923c30; }
-.codex-card.rarity-legendary, .codex-detail.rarity-legendary { border-color: #f87171; box-shadow: inset 0 0 8px #f8717140; }
+.codex-card b { display: grid; place-items: center; min-height: 22px; font-size: 8.6px; line-height: 1.25; font-weight: 600; overflow-wrap: anywhere; text-align: center; }
+.codex-card[hidden], .codex-sheet[hidden] { display: none; }
+
+/* 왼쪽 위 등급 배지 `L`·`U`·`E`·`R` — 가방·거래소 칸과 같은 알약 규격(PR #305 `.rarity-badge`)에서
+   색만 그 칸의 최고 등급 변수에서 받는다. */
+.codex-card .rarity-badge { position: absolute; left: 2px; top: 2px; z-index: 3; padding: 0 2px; border-radius: 3px; background: #120f14cc; border: 1px solid currentColor; color: var(--codex-grade); font-size: 9px; line-height: 1.15; font-weight: 800; letter-spacing: .02em; text-shadow: 0 0 4px #000a; pointer-events: none; }
+
+/* 하단 상세 띠 — 칸을 누르면 화면 아래에 붙는다(모달 스크롤 안에서 sticky). */
+.codex-sheet { position: sticky; bottom: -14px; z-index: 6; margin: 10px -14px -14px; padding: 10px 14px 12px; border-top: 2px solid #e8bf76; background: linear-gradient(#2f2523, #1a1519 70%); box-shadow: 0 -10px 24px #000000a6; }
+.codex-sheet-head { display: flex; align-items: center; gap: 10px; }
+.codex-sheet .codex-art { width: 48px; height: 48px; }
+.codex-sheet-text { flex: 1; min-width: 0; }
+.codex-sheet h3 { margin: 0; font: 700 16px 'Noto Sans KR', sans-serif; color: #f4e3c4; overflow-wrap: anywhere; }
+.codex-sheet-text p { margin: 2px 0 0; font-size: 10px; line-height: 1.4; color: #b8a58d; }
+.codex-sheet-count { flex: none; font-size: 16px; font-weight: 800; color: #f2d9a4; font-variant-numeric: tabular-nums; }
+.codex-sheet-close { flex: none; border: 0; background: none; padding: 0 2px; color: #cbb79e; font-size: 20px; line-height: 1; }
+.codex-chips { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 4px; margin: 8px 0 6px; }
+.codex-chip { padding: 6px 1px; border: 1px solid #5c5044; border-radius: 4px; background: #1d181c; color: #8f8272; font-size: 10px; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.codex-chip.is-collected { border-color: var(--codex-grade); color: #f1e5cf; }
+.codex-chip.is-on { background: #3d3323; box-shadow: inset 0 0 0 2px var(--codex-grade); color: #fff3d6; }
+.codex-sheet-body p { margin: 0; }
+.codex-sheet-line { font-size: 10.5px; line-height: 1.5; color: #c8b59b; }
+.codex-sheet-line b { color: var(--codex-grade); }
+.codex-sheet-stats { display: flex; flex-wrap: wrap; gap: 4px 8px; margin-top: 4px; font-size: 11px; color: #ecd9b8; }
+.codex-sheet-stats span { padding: 1px 5px; border: 1px solid #5f5142; border-radius: 3px; background: #211b1c; }
+.codex-hint { color: #b3a08b; font-size: 9.5px; line-height: 1.55; margin-top: 5px !important; }
+.codex-result { color: #b3a08b; font-size: 10px; line-height: 1.7; }
+.codex-card:focus-visible, .codex-open:focus-visible, .codex-tab:focus-visible, .codex-chip:focus-visible { outline: 2px solid #f5d58e; outline-offset: 2px; }
+
+@media (max-width: 359px) {
+  .codex-art { width: 40px; height: 40px; }
+  .codex-card b { font-size: 8px; }
+  .codex-chip { font-size: 9.5px; }
+}
