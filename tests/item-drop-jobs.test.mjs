@@ -52,7 +52,7 @@ test('무기·스킬북은 세 직업이 1/3씩 같은 확률로 떨어지고, �
   } finally { Math.random = original; }
 });
 
-test('무기 직업 판별 — 활은 궁수, 지팡이는 마법사, 대검은 전사이고 방어구는 공용이다', () => {
+test('무기 직업 판별 — 활은 궁수, 지팡이는 마법사, 대검은 전사이고 옛 방어구 이름은 공용이다', () => {
   assert.equal(weaponJob(sword()), 'warrior');
   assert.equal(weaponJob(bow()), 'archer');
   assert.equal(weaponJob(staff()), 'mage');
@@ -65,7 +65,7 @@ test('무기 직업 판별 — 활은 궁수, 지팡이는 마법사, 대검은 
   assert.equal(canWield(staff(), 'mage'), true);
   assert.equal(canWield(staff(), 'warrior'), false);
   assert.equal(canWield(staff(), 'archer'), false);
-  assert.equal(canWield(helmet(), 'mage'), true, '방어구·장신구는 세 직업이 같이 쓴다');
+  assert.equal(canWield(helmet(), 'mage'), true, '옛 전사용 투구 이름은 공용으로 남는다(작업 249 호환 규칙)');
   // 목록 자체는 그대로다 — 세 직업 무기 10종씩.
   assert.equal(baseItems.weapon.length, 10);
   assert.equal(bowBases.length, 10);

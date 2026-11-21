@@ -47,7 +47,7 @@ export function renderInventory(this: Interface, dialog: HTMLElement): void {
     jobToggle.classList.toggle('is-on', this.bagJobOnly);
     jobToggle.setAttribute('aria-pressed', String(this.bagJobOnly));
     jobToggle.setAttribute('aria-label', `내 직업만 보기 ${this.bagJobOnly ? '켜짐' : '꺼짐'}. 누르면 다른 직업 전용 무기·스킬북을 ${this.bagJobOnly ? '다시 보여 줍니다' : '숨깁니다'}`);
-    jobToggle.title = `${jobNames[jobOrDefault(save.job)]}가 쓸 수 없는 무기·스킬북을 숨깁니다. 공용 방어구·장신구는 그대로 보입니다.`;
+    jobToggle.title = `${jobNames[jobOrDefault(save.job)]}가 쓸 수 없는 무기·투구·갑옷·스킬북을 숨깁니다. 공용 장갑·신발·문장·장신구는 그대로 보입니다.`;
     jobToggle.onclick = () => {
       this.bagJobOnly = !this.bagJobOnly; saveJobOnly(BAG_JOB_ONLY_KEY, this.bagJobOnly);
       dismissBagDetail(this); this.renderModal();
@@ -274,12 +274,14 @@ export function itemDetail(this: Interface, save: Save, item: Item): HTMLElement
     lock.onclick = () => { if (this.world.paused) return; item.locked = !item.locked; this.world.onChange(); };
     heading.append(title, lock); panel.append(heading);
     const grade = document.createElement('small'); grade.className = `item-detail-grade rarity-${item.rarity}`; grade.textContent = rarityNames[item.rarity]; panel.append(grade);
-    // 직업 전용 무기에는 어느 직업의 것인지 배지를 달고, 내 직업이 아니면 장착할 수 없다고 한 줄로 적는다(작업 205).
+    // 직업 전용 장비(무기·투구·갑옷)에는 어느 직업의 것인지 배지를 달고, 내 직업이 아니면 장착할 수 없다고 한 줄로 적는다
+    // (작업 205 → 249: 투구·갑옷도 직업별로 나뉘었다).
     const ownerJob = itemJob(item);
     if (ownerJob) {
       const jobLine = document.createElement('span'); jobLine.className = `item-detail-job job-${ownerJob}`;
       const mine = ownerJob === jobOrDefault(save.job);
-      jobLine.textContent = mine ? `${jobNames[ownerJob]} 전용 무기 · 내 직업` : `장착 불가 (${jobNames[ownerJob]} 전용)`;
+      const gearWord = item.slot === 'weapon' ? '무기' : '장비';
+      jobLine.textContent = mine ? `${jobNames[ownerJob]} 전용 ${gearWord} · 내 직업` : `장착 불가 (${jobNames[ownerJob]} 전용 ${gearWord})`;
       panel.append(jobLine);
     }
     const compared = new Set<Stat>([...Object.keys(item.stats), ...Object.keys(equipped?.stats ?? {})] as Stat[]);
@@ -293,13 +295,16 @@ export function itemDetail(this: Interface, save: Save, item: Item): HTMLElement
       const line = document.createElement('span'); line.className = 'item-extra'; line.textContent = extra; panel.appendChild(line);
     }
     const buttons = document.createElement('div'); buttons.className = 'detail-actions';
-    // 다른 직업의 무기는 입을 수 없다(작업 204): 버튼을 잠그고 어느 직업의 무기인지 알린다.
+    // 다른 직업의 장비는 입을 수 없다(작업 204·249): 버튼을 잠그고 어느 직업의 장비인지 알린다.
+    // 투구·갑옷은 `weaponJob`이 늘 'warrior'를 돌려주므로 반드시 `itemJob`으로 주인을 읽는다.
     const wieldable = canWield(item, jobOrDefault(save.job));
-    const equip = document.createElement('button'); equip.textContent = wieldable ? '장착' : `${jobNames[weaponJob(item)]} 전용`;
+    const ownerName = jobNames[itemJob(item) ?? weaponJob(item)];
+    const gearWord = item.slot === 'weapon' ? '무기' : '장비';
+    const equip = document.createElement('button'); equip.textContent = wieldable ? '장착' : `${ownerName} 전용`;
     equip.disabled = !wieldable;
-    if (!wieldable) { equip.title = `${jobNames[weaponJob(item)]}만 쓸 수 있는 무기입니다. 경매장에 팔거나 분해하세요.`; equip.setAttribute('aria-label', `${itemNameText(item)} · ${jobNames[weaponJob(item)]} 전용 무기, 장착할 수 없음`); }
+    if (!wieldable) { equip.title = `${ownerName}만 쓸 수 있는 ${gearWord}입니다. 경매장에 팔거나 분해하세요.`; equip.setAttribute('aria-label', `${itemNameText(item)} · ${ownerName} 전용 ${gearWord}, 장착할 수 없음`); }
     equip.onclick = () => {
-      if (!wieldable) { this.message(`${jobNames[weaponJob(item)]}만 쓸 수 있는 무기입니다.`); return; }
+      if (!wieldable) { this.message(`${ownerName}만 쓸 수 있는 ${gearWord}입니다.`); return; }
       const index = save.bag.findIndex(i => i.id === item.id); if (index < 0) return;
       save.bag.splice(index, 1); if (equipped) save.bag.push(equipped); save.equipment[item.slot] = item;
       if (item.name === '낡은 두손검' && save.tutorial === 2) { save.tutorial = 3; this.message('튜토리얼 완료! 두손검을 장착했습니다.'); }
