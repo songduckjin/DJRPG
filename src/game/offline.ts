@@ -123,7 +123,7 @@ export function applyOfflineRewards(save: Save, elapsedSeconds: number): Offline
     const target = floorKillTarget(floor);
     const perKill = 60 / offlineKillsPerMinute(save);
     // 보스는 **최고 도달 층에서만** 나온다(작업 210) — 자동 등반이 꺼졌거나 아래층을 도는 중이면 없다.
-    // 작업 225: 자동 등반이 켜져 있고 아직 최고층이 아니면 층 목표를 채울 때마다 한 층씩 올라간다
+    // 작업 245: 자동 등반이 켜져 있고 아직 최고층이 아니면 층 목표를 채울 때마다 한 층씩 올라간다
     // (접속 사냥의 `kill()`과 같은 규칙). 그 층에는 보스가 없으므로 보스전 없이 다음 층으로 넘어간다.
     if (save.autoClimb && floor < save.maxFloor) {
       const need = Math.max(0, target - save.floorKills);

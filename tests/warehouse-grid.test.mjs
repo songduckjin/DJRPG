@@ -303,3 +303,25 @@ test('창고 목록을 못 읽으면 안내와 다시 불러오기 버튼을 둔
     assert.equal(ui.messages.at(-1), '일시적인 오류입니다.');
   } finally { globalThis.document = previous; globalThis.fetch = fetchBefore; }
 });
+
+test('공용창고·가방 목록은 부위별로 모으고 같은 부위 안에서 전투력 높은 순이다(작업 245)', () => {
+  const previous = globalThis.document;
+  globalThis.document = { createElement: tag => element(tag) };
+  try {
+    const save = freshSave(); save.job = 'warrior';
+    // 서버가 준 순서는 뒤죽박죽(스킬북·주머니가 먼저)이지만 화면은 부위 → 전투력 순이어야 한다.
+    save.bag = [book('b1'), pouch('p1'), sword('weak', 0, 'rare'), helmet('h1'), sword('strong', 7, 'unique'), helmet('h2')];
+    const stored = [pouch('s-p'), helmet('s-h'), sword('s-weak', 0, 'common'), sword('s-strong', 5, 'legendary')];
+    const { ui } = uiFixture(save, stored.slice());
+    const dialog = element();
+    renderWarehouse(ui, dialog);
+    const [storageGrid, bagGrid] = all(dialog, node => node.classList.contains('warehouse-grid'));
+    const order = grid => cellsIn(grid).map(cell => cell.dataset.itemId);
+    // 무기 → 투구 → 보물 주머니 → 스킬북, 같은 부위는 전투력(공격/방어) 높은 순.
+    assert.deepEqual(order(bagGrid), ['strong', 'weak', 'h1', 'h2', 'p1', 'b1']);
+    assert.deepEqual(order(storageGrid), ['s-strong', 's-weak', 's-h', 's-p']);
+    // 나가는 목록도 같은 칸 순서를 그대로 쓴다(포커스 상세는 첫 칸).
+    const firstCell = cellsIn(bagGrid)[0];
+    assert.equal(firstCell.dataset.itemId, 'strong');
+  } finally { globalThis.document = previous; }
+});

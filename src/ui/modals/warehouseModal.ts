@@ -14,8 +14,8 @@
 import { equipmentCount } from '../../game/bagCapacity';
 import { apiHeaders, isOutdatedResponse, reloadForNewVersion } from '../../game/appVersion';
 import {
-  equipmentImage, isEquipment, isPouch, isSkillBook, itemDisplayName, itemJob, plusOf,
-  rarityNames, skillBookJob, slotNameFor, statNames, type Item, type Stat
+  equipmentImage, isEquipment, isPouch, isSkillBook, itemDisplayName, itemJob, itemPower, plusOf,
+  rarityNames, rarityOrder, skillBookJob, slotNameFor, slots as equipmentSlots, statNames, type Item, type Stat
 } from '../../game/items';
 import { extraOptionLines } from '../../game/extraOptions';
 import { jobNames, jobOrDefault } from '../../game/skills';
@@ -79,7 +79,28 @@ function stacksOf(items: Item[]): Stack[] {
     if (stack) stack.items.push(item);
     else { map.set(key, { key, items: [item] }); order.push(key); }
   }
-  return order.map(key => map.get(key)!);
+  // 서버가 준 순서(`item_id`)는 뜻이 없어 칸마다 뒤죽박죽이었다(작업 245) — 부위별로 모으고
+  // 같은 부위 안에서는 전투력이 높은 순으로 놓는다. 가방 쪽 목록도 같은 순서를 쓴다.
+  return order.map(key => map.get(key)!).sort((a, b) => compareWarehouseItems(a.items[0], b.items[0]));
+}
+
+/** 부위 순서 — 장비 슬롯 표(`slots`)를 그대로 따르고 보물 주머니·스킬북은 그 뒤에 모은다(작업 245). */
+const SLOT_ORDER = new Map<string, number>(equipmentSlots.map((slot, index) => [slot, index]));
+const KIND_POUCH = equipmentSlots.length, KIND_BOOK = equipmentSlots.length + 1, KIND_OTHER = equipmentSlots.length + 2;
+function slotRank(item: Item): number {
+  if (isPouch(item)) return KIND_POUCH;
+  if (isSkillBook(item)) return KIND_BOOK;
+  return SLOT_ORDER.get(String(item.slot)) ?? KIND_OTHER;
+}
+const rarityRank = (item: Item): number => Math.max(0, rarityOrder.indexOf(item.rarity));
+/** 공용창고·가방 칸 정렬 — 부위 → 전투력(내림차순) → 등급 → 강화(+N) → 이름 → id(작업 245). */
+export function compareWarehouseItems(a: Item, b: Item): number {
+  return slotRank(a) - slotRank(b)
+    || itemPower(b) - itemPower(a)
+    || rarityRank(b) - rarityRank(a)
+    || plusOf(b) - plusOf(a)
+    || String(a.name).localeCompare(String(b.name), 'ko')
+    || String(a.id).localeCompare(String(b.id));
 }
 
 export async function loadWarehouse(ui: Interface): Promise<void> {

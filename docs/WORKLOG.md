@@ -1,3 +1,16 @@
+## 2026-11-21 · fks3997 작업 245 — 등반·강등·보스 도전 규칙, 스킬 추천/자동 강화/`+` 선택 팝업, 공용창고 정렬, 아이템 생성 허용치 40 (미리보기)
+
+- **요청**: ① 자동 등반은 강등당했을 때만 꺼지게 ② 강등돼도 `⚔ 보스 도전` 유지·누르면 최고층 보스 ③ 자동 등반 중이면 아래층에서도 목표를 채울 때마다 한 층 등반 ④ 스킬 추천 2·3번 원은 실제 초당 딜량 순 ⑤ 스킬북 `자동 강화` 버튼 ⑥ 빈 스킬 원(`+`)은 장착 가능한 스킬만 고르는 팝업 ⑦ 공용창고 부위별·전투력순 정렬 ⑧ `ITEMS_FLOOR` 40. 사용자 지시는 **미리보기 반영만**(`main` 병합 금지).
+- **선행 동기화**: 미리보기 브랜치가 `origin/main`보다 22커밋 뒤져 있었다(작업 222~244 미반영). 얕은 클론이라 `git fetch --deepen`으로 이력을 채운 뒤 `origin/main`(`a4bf0de`)을 미리보기 위로 병합했고, 충돌 27파일은 모두 main 쪽이 상위집합임을 파일 단위 diff로 확인해 main을 기준으로 풀었다(미리보기는 대공사 내용을 이미 main으로 올린 뒤였다). `tests/world-movement.test.mjs`의 자동 병합 중복 5건은 main 판으로 정리.
+- **등반·강등**(`src/game/world.ts`): `MOB_CAP` 강등 블록에만 `save.autoClimb = false` + `적이 너무 많아 N층으로 내려갑니다. 자동 등반이 중단됩니다.`. 일반·정예 몹 사망 분기에서 자동 등반을 끄던 줄을 없애 10골드·부활·자동 등반 유지를 보스전과 같게 맞췄다. `kill()`의 `!bossFloor()` 분기에서 `autoClimb && floorKills >= floorKillTarget`이면 `floor++`·진행도 0·필드 정리·`${floor}층 진입`(꺼져 있으면 기존처럼 0으로만). `offline.ts` 정산 루프에도 같은 규칙(`autoClimb && floor < maxFloor` → 목표마다 한 층, 최고층에서 보스전).
+- **보스 도전**: `bossRetryReady`에서 `bossFloor()` 제한을 빼 `bossRetryAvailable && maxFloor < MAX_FLOOR`. `challengeBoss()`가 아래층이면 `travelToFloor(maxFloor)`로 올라간 뒤 소환. HUD 버튼 aria-label도 "최고층 N층 보스"로.
+- **스킬 추천**(`src/game/loadout.ts`): `skillCastScale(id, level)`(시전 총 계수 — slash2 2.2·slam 2.75·power 4·spin/hell/arrowRain은 지속 중 되풀이 타격까지)·`skillDps(save, id)`를 더하고, `recommendedSkillOrder`의 점수(`10 - rank`)를 **DPS × `skillDamageScale`** 내림차순으로 바꿨다(동점은 직업 표 순서). 예: Lv.8 iceBolt 1.7×1.7/7=0.413 > Lv.4 manaBurst 2.5×1.3/10=0.325.
+- **자동 강화**(`src/ui/skillBooks.ts` `useAllReadySkillBooks` + `skillModal.skillTopBar` 버튼): 내 직업(`(skillBookJob(item) ?? mine) === mine`) 스킬북만, `skillBookStatus(...).ready`인 동안 반복 사용(권수 충분하면 연속 레벨업). 타직업 책·권수 부족·최대 레벨 제외, `body` 패시브로 최대 체력이 오르면 현재 체력도 함께 올림. 동기화 중에는 안내 후 종료.
+- **`+` 선택 팝업**(`src/ui/skillLoadout.ts` `openSkillPicker`·`closeSkillPicker` + `styles/modals.css`): 전체 스킬 창 대신 장착 가능한 스킬만. 1번 원은 버프 1순위, 2·3번 원은 공격 스킬 DPS 순 + 맨 위 `추천` 배지, 줄 클릭 = 즉시 장착·닫힘, 닫기/바깥 누름 지원.
+- **공용창고 정렬**(`src/ui/modals/warehouseModal.ts` `compareWarehouseItems`): 칸을 부위(`slots`) → 전투력 내림차순 → 등급 → 강화(+N) → 이름 순으로. 보물 주머니·스킬북은 부위 뒤, 가방 쪽 그리드도 같은 함수를 쓴다.
+- **서버 허용치**(`server/save-guard.mjs`): `ITEMS_FLOOR` 8→40(가방 40칸과 동일, 초당 0.5개는 그대로).
+- **검증**: `npx tsc --noEmit` 통과, `npm run build` 통과(번들 `index-C9T7QLoR.js`). 전체 `npm test` 1,074건 중 **1,071 통과** — 실패 3건은 `origin/main` `a4bf0de`에서도 그대로 실패하는 기존 `costume-field-render` 2·`skillbook-server` 1(로컬 기준선 실측). 신규 `tests/climb-rules` 5/5·`skill-picker` 7/7·`skill-auto-upgrade` 6/6·`item-mint-budget` 3/3, 갱신 `world-movement` 27/27·`offline` 6/6·`offline-climb`·`skill-auto-loadout` 10/10·`skill-ui` 12/12·`warehouse-grid` 8/8.
+
 ## 2026-11-21 · songduckjin 작업 244 — 궁수·마법사 사거리 소폭 상향(330/180 · 285/160)
 
 - **요청**: 사용자 "그리고 궁수 법사 사거리 조금씩늘려줘"(08:28 KST). 09:00 API 복구 전까지 구현·검증·운영 배포.

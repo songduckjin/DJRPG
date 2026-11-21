@@ -195,9 +195,16 @@
 /* [작업 240] 스킬 창 상단 바 — 보유 스킬로 3칸을 다시 채우는 `추천 자동 장착`과 `전체/액티브/패시브` 탭.
    390px 폰에서 버튼과 탭 세 칸이 한 줄에 들어가고, 그보다 좁으면 버튼이 위 줄로 접힌다. */
 .skill-top-bar { display: flex; flex-wrap: wrap; gap: 5px; align-items: stretch; }
+/* 작업 245: 추천 자동 장착·자동 강화 두 버튼을 한 줄에 묶고, 좁은 화면에서는 탭이 다음 줄로 내려간다. */
+.skill-top-actions { display: flex; flex: 1 1 200px; gap: 5px; min-width: 0; }
+.skill-top-actions > button { flex: 1 1 0; min-width: 0; white-space: nowrap; }
 .skill-auto-equip { flex: 1 1 132px; min-height: 34px; padding: 7px 10px; border: 1px solid #d0a05c; border-radius: 4px; background: linear-gradient(#6b4a30, #442d20); color: #ffe6bd; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
 .skill-auto-equip:hover { border-color: #f0c47e; background: linear-gradient(#7c5638, #4d3325); }
 .skill-auto-equip:active { background: #3a2820; }
+/* 자동 강화(작업 245) — 추천 버튼과 나란한 짙은 책빛 버튼. */
+.skill-auto-upgrade { flex: 1 1 96px; min-height: 34px; padding: 7px 10px; border: 1px solid #8f7ad0; border-radius: 4px; background: linear-gradient(#4a3d72, #2f2750); color: #e8e0ff; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
+.skill-auto-upgrade:hover { border-color: #b7a6f2; background: linear-gradient(#584a86, #382f5e); }
+.skill-auto-upgrade:active { background: #251f40; }
 .skill-filter { display: flex; flex: 0 0 auto; border: 1px solid #6b5545; border-radius: 4px; overflow: hidden; background: #1d1719; }
 .skill-filter-tab { min-width: 52px; padding: 7px 9px; border: 0; border-left: 1px solid #4a3a33; background: transparent; color: #a99581; font: inherit; font-size: 11px; cursor: pointer; }
 .skill-filter-tab:first-child { border-left: 0; }
@@ -208,7 +215,7 @@
 /* 한글은 단어 중간에서 끊기지 않게(예: `미습득 (스킬북 파밍 필요)`가 `필/요`로 갈라졌다) — 긴 영문·숫자는 상자 안에서 줄인다. */
 .passive-skill-card, .skill-passive-hint { word-break: keep-all; overflow-wrap: break-word; }
 @media (max-width: 380px) {
-  .skill-auto-equip { font-size: 11px; }
+  .skill-auto-equip, .skill-auto-upgrade { font-size: 11px; padding: 7px 6px; }
   .skill-filter-tab { min-width: 44px; padding: 7px; font-size: 10px; }
 }
 .skill-group-title { margin: 10px 0 0; color: #e8d4ae; font-size: 15px; border-bottom: 1px solid #6b5545; padding-bottom: 6px; }
@@ -668,4 +675,27 @@ img.pouch-icon { display: block; object-fit: contain; border-radius: 4px; }
   .modal-dialog.warehouse-modal { max-height: 94dvh; }
   .warehouse-pane { min-height: 96px; }
   .warehouse-detail-actions button { min-height: 28px; }
+}
+
+/* ── 빈 스킬 원(`+`) 장착 선택 팝업 (작업 245) ─────────────────────────────────
+   전체 스킬 창 대신 이 원에 넣을 수 있는 스킬만 추천 순서(초당 딜량)로 보여 준다.
+   390px 폭에서 카드가 화면 밖으로 넘치지 않고, 목록만 스크롤된다. */
+.skill-picker { position: fixed; inset: 0; z-index: 40; display: flex; align-items: center; justify-content: center; padding: 16px; background: #08060ae0; }
+.skill-picker-card { width: min(340px, 100%); max-height: min(70dvh, 460px); display: flex; flex-direction: column; gap: 8px; padding: 12px; border: 1px solid #cc9c59; border-radius: 6px; background: linear-gradient(#241c1c, #171012); box-shadow: 0 12px 32px #000000b0; }
+.skill-picker-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: #ffe3ae; font-size: 13px; }
+.skill-picker-close { flex: none; padding: 6px 10px; border: 1px solid #8f7457; border-radius: 4px; background: #3c2924; color: #e9d6b1; font: inherit; font-size: 11px; cursor: pointer; }
+.skill-picker-close:hover { border-color: #d8b47a; }
+.skill-picker-list { display: flex; flex-direction: column; gap: 6px; overflow-y: auto; overscroll-behavior: contain; }
+.skill-picker-row { display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 10px; border: 1px solid #4a3a33; border-radius: 4px; background: #201a1b; color: #efe2cf; font: inherit; text-align: left; cursor: pointer; }
+.skill-picker-row:hover, .skill-picker-row:focus-visible { border-color: #d0a05c; background: #2b2223; outline: none; }
+.skill-picker-row.is-recommended { border-color: #e0b36e; box-shadow: inset 0 0 0 1px #e0b36e55; }
+.skill-picker-icon { flex: none; width: 32px; height: 32px; border-radius: 50%; background-color: #100e12; }
+.skill-picker-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.skill-picker-info b { display: flex; align-items: center; gap: 6px; font-size: 13px; word-break: keep-all; }
+.skill-picker-info small { color: #b5a79e; font-size: 11px; }
+.skill-recommend-badge { flex: none; padding: 1px 6px; border-radius: 999px; background: linear-gradient(#f0c47e, #c8933f); color: #2a1c10; font-size: 10px; font-weight: 800; letter-spacing: .02em; }
+@media (max-width: 380px) {
+  .skill-picker { padding: 10px; }
+  .skill-picker-card { padding: 10px; max-height: 74dvh; }
+  .skill-picker-info b { font-size: 12px; }
 }

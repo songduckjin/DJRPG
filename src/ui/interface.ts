@@ -19,7 +19,7 @@ import type { Item, Save, Slot } from '../game/store';
 import { discoverEquipment } from '../game/codex';
 import { renderCodex } from './modals/codexModal';
 import type { SkillId } from '../game/skills';
-import { cancelSkillSelection, chooseSkill, pressSkillSlot } from './skillLoadout';
+import { cancelSkillSelection, chooseSkill, closeSkillPicker, openSkillPicker, pressSkillSlot } from './skillLoadout';
 import { LegendBoard } from '../game/legendBoard';
 import { mountLegendBar, sharePouchLegend } from './legendBar';
 import { renderSalvage } from './modals/salvageModal';
@@ -203,6 +203,10 @@ export class Interface {
   salvage(): void { return salvage.call(this); }
 
   pressSkillSlot(index: number): void { pressSkillSlot.call(this, index); }
+
+  openSkillPicker(index: number): void { openSkillPicker.call(this, index); }
+
+  closeSkillPicker(): void { closeSkillPicker.call(this); }
 
   chooseSkill(id: SkillId): void { chooseSkill.call(this, id); }
 

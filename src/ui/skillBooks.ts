@@ -2,9 +2,33 @@ import {createSkillBookArt} from './skillBookArt';
 import type { Interface } from './interface';
 import { skillbookName, skillbookStacks } from './skillbookBag';
 import { skillBookStatus } from '../game/skillProgress';
-import { totalStats, useSkillBook } from '../game/store';
-import { jobNames, jobOrDefault, type SkillLevelId } from '../game/skills';
-import { skillBookJob } from '../game/items';
+import { totalStats, useSkillBook, type Save } from '../game/store';
+import { jobNames, jobOrDefault, passives, skills, type SkillLevelId } from '../game/skills';
+import { isSkillBook, skillBookJob } from '../game/items';
+
+/** 자동 강화로 오른 스킬 한 건 — 화면 안내와 테스트가 읽는다. */
+export type SkillBookUpgrade = { id: SkillLevelId; name: string; level: number };
+/**
+ * `자동 강화`(작업 245) — 가방의 **내 직업 스킬북**으로 가능한 만큼 연속 습득·강화한다.
+ *
+ * 같은 스킬이라도 권수가 충분하면 한 번에 2~3레벨이 오르므로(필요 권수 = ceil(다음 레벨/5)권),
+ * 더 쓸 수 있는 책이 없을 때까지 반복한다. 다른 직업 스킬북(거래소용)·권수 부족한 책·최대 레벨
+ * 스킬은 `skillBookStatus(...).ready`가 거짓이라 건드리지 않는다. 최대 500회로 끊는다.
+ */
+export function useAllReadySkillBooks(save: Save): { used: number; upgrades: SkillBookUpgrade[] } {
+  const mine = jobOrDefault(save.job);
+  const upgrades: SkillBookUpgrade[] = [];
+  for (let guard = 0; guard < 500; guard++) {
+    const book = save.bag.find(item => isSkillBook(item) && (skillBookJob(item) ?? mine) === mine && skillBookStatus(save, item.skillId).ready);
+    if (!book || !isSkillBook(book)) break;
+    const id = book.skillId;
+    const result = useSkillBook(save, book.id);
+    if (!result.ok) break;
+    const name = (skills as Record<string, { name: string }>)[id]?.name ?? (passives as Record<string, { name: string }>)[id]?.name ?? id;
+    upgrades.push({ id, name, level: skillBookStatus(save, id).level });
+  }
+  return { used: upgrades.length, upgrades };
+}
 
 export function renderSkillUpgrade(ui: Interface, parent: HTMLElement, id: SkillLevelId, statusParent: HTMLElement = parent): void {
   const status = skillBookStatus(ui.world.save, id);

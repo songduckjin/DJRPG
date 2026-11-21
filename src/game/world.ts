@@ -276,7 +276,7 @@ export class World {
   /** `⚔ 보스 도전` 버튼이 살아나는 상태 — 보스에게 한 번 쓰러진 뒤다.
    *  작업 212(`#5017`): 자동 등반이 **켜져 있어도** 버튼을 띄운다 — 일반 몹을 다시 잡아
    *  목표를 채우기 전이라도 바로 보스에게 다시 도전할 수 있다.
-   *  작업 225: 몹이 쌓여 아래층으로 강등돼도 버튼은 그대로 남는다(`this.bossFloor()` 제한 없음).
+   *  작업 245: 몹이 쌓여 아래층으로 강등돼도 버튼은 그대로 남는다(`this.bossFloor()` 제한 없음).
    *  누르면 최고층으로 올라가 보스와 붙는다(`challengeBoss`).
    *  마지막 층(`MAX_FLOOR`)은 다음 층이 없으므로 버튼을 띄우지 않는다. */
   get bossRetryReady(): boolean { return this.bossRetryAvailable && this.save.maxFloor < MAX_FLOOR; }
@@ -290,7 +290,7 @@ export class World {
    * 보스를 이겨 다음 층으로 올라가면 버튼은 사라진다. */
   challengeBoss(): boolean {
     if (!this.bossRetryReady) return false;
-    // 강등돼 아래층에 있어도 도전은 **최고층 보스**에게 한다(작업 225) — 먼저 최고층으로 올라간다.
+    // 강등돼 아래층에 있어도 도전은 **최고층 보스**에게 한다(작업 245) — 먼저 최고층으로 올라간다.
     // `travelToFloor`는 바닥 드랍·진행도·몹을 정리하고, 아래에서 보스 예약을 다시 세운다.
     if (this.save.floor < this.save.maxFloor) this.travelToFloor(this.save.maxFloor);
     this.save.autoClimb = true;
@@ -660,7 +660,7 @@ export class World {
       }
       if (!this.bossFloor()) {
         // 아래층 반복 사냥에는 보스가 없다(작업 210).
-        // 작업 225: 자동 등반이 **켜져** 있으면 아래층에서도 목표를 채울 때마다 한 층씩 올라간다.
+        // 작업 245: 자동 등반이 **켜져** 있으면 아래층에서도 목표를 채울 때마다 한 층씩 올라간다.
         // 자동 등반이 꺼진 상태(강등 직후 등)에는 예전처럼 목표를 0으로 돌리고 그 층에서 계속 사냥한다.
         if (this.save.floorKills >= floorKillTarget(this.save.floor)) {
           if (this.save.autoClimb) {
@@ -781,7 +781,7 @@ export class World {
       this.enemies = [];
       this.chaseTarget = undefined; this.pursuing = false;
       this.bossPending = false; this.elitePending = false; this.spawnTimer = .2;
-      // 자동 등반은 **강등당했을 때만** 꺼진다(작업 225). 다시 켜면 이 층부터 목표를 채워 한 층씩 올라가고,
+      // 자동 등반은 **강등당했을 때만** 꺼진다(작업 245). 다시 켜면 이 층부터 목표를 채워 한 층씩 올라가고,
       // `⚔ 보스 도전`은 그대로 남아 최고층 보스에게 다시 도전할 수 있다.
       this.save.autoClimb = false;
       this.onMessage(`적이 너무 많아 ${this.save.floor}층으로 내려갑니다. 자동 등반이 중단됩니다.`);
@@ -835,7 +835,7 @@ export class World {
             // 진 층을 세이브에 남긴다(작업 223) — 4층으로 올라갈 때까지 버튼이 유지된다.
             this.save.bossRetryFloor = this.save.floor;
           }
-          // 작업 225: 일반·정예 몹에게 쓰러져도 자동 등반은 **끄지 않는다** — 10골드를 잃고 부활해 계속
+          // 작업 245: 일반·정예 몹에게 쓰러져도 자동 등반은 **끄지 않는다** — 10골드를 잃고 부활해 계속
           // 사냥한다. 자동 등반이 꺼지는 곳은 몹이 쌓여 한 층 강등될 때(위 `MOB_CAP` 블록)뿐이다.
           p.hp = totalStats(this.save).health; this.save.health = p.hp; p.x = 0; p.y = 0; this.chaseTarget = undefined; this.pursuing = false;
           this.regenClock = 0;

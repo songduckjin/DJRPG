@@ -24,7 +24,7 @@ const hunt = (options = {}) => {
   return { save, world, messages };
 };
 
-test('자동 등반이 켜져 있으면 아래층에서도 목표를 채울 때마다 한 층 올라간다(작업 225)', () => {
+test('자동 등반이 켜져 있으면 아래층에서도 목표를 채울 때마다 한 층 올라간다(작업 245)', () => {
   const { save, world, messages } = hunt();
   world.kill({ x: 40, y: 0, hp: 0, maxHp: 1000, boss: false, hit: 0, step: 0, moving: false, knockX: 0, knockY: 0, slow: 0 });
   assert.equal(save.floor, 4, '한 층만 올라간다');
@@ -39,14 +39,14 @@ test('자동 등반이 켜져 있으면 아래층에서도 목표를 채울 때�
   assert.equal(save.autoClimb, true, '자동 등반 유지');
 });
 
-test('자동 등반이 꺼져 있으면(강등 직후 등) 아래층에서 목표를 채워도 그 층에서 계속 사냥한다(작업 225)', () => {
+test('자동 등반이 꺼져 있으면(강등 직후 등) 아래층에서 목표를 채워도 그 층에서 계속 사냥한다(작업 245)', () => {
   const { save, world } = hunt({ autoClimb: false });
   world.kill({ x: 40, y: 0, hp: 0, maxHp: 1000, boss: false, hit: 0, step: 0, moving: false, knockX: 0, knockY: 0, slow: 0 });
   assert.equal(save.floor, 3, '층은 그대로');
   assert.equal(save.floorKills, 0, '목표를 채운 진행도만 0으로');
 });
 
-test('최고층 바로 아래에서 목표를 채우면 최고층으로 올라가 보스를 부를 수 있게 된다(작업 225)', () => {
+test('최고층 바로 아래에서 목표를 채우면 최고층으로 올라가 보스를 부를 수 있게 된다(작업 245)', () => {
   const { save, world, messages } = hunt({ floor: 5, maxFloor: 6, floorKills: floorKillTarget(5) - 1 });
   world.enemies = [{ x: 40, y: 0, hp: 1000, maxHp: 1000, boss: true, hit: 0, step: 0, moving: false, knockX: 0, knockY: 0, slow: 0 }];
   world.kill({ x: 40, y: 0, hp: 0, maxHp: 1000, boss: false, hit: 0, step: 0, moving: false, knockX: 0, knockY: 0, slow: 0 });
@@ -56,7 +56,7 @@ test('최고층 바로 아래에서 목표를 채우면 최고층으로 올라�
   assert.deepEqual(messages.filter(text => text.includes('층 진입')), ['6층 진입']);
 });
 
-test('강등(30마리)될 때만 자동 등반이 꺼지고, 안내 문구에 중단이 적힌다(작업 225)', () => {
+test('강등(30마리)될 때만 자동 등반이 꺼지고, 안내 문구에 중단이 적힌다(작업 245)', () => {
   const save = freshSave(); save.tutorial = 1; save.floor = 4; save.maxFloor = 6; save.autoClimb = true;
   const world = new World(save);
   const mob = i => ({ x: 300 - i, y: 0, hp: 999, maxHp: 999, boss: false, hit: 0, step: 0, moving: false, knockX: 0, knockY: 0, slow: 0 });
@@ -69,7 +69,7 @@ test('강등(30마리)될 때만 자동 등반이 꺼지고, 안내 문구에 �
   assert.deepEqual(messages, ['적이 너무 많아 3층으로 내려갑니다. 자동 등반이 중단됩니다.']);
 });
 
-test('보스에게 진 뒤 강등돼도 ⚔ 보스 도전은 남고, 누르면 최고층으로 올라가 보스를 소환한다(작업 225)', () => {
+test('보스에게 진 뒤 강등돼도 ⚔ 보스 도전은 남고, 누르면 최고층으로 올라가 보스를 소환한다(작업 245)', () => {
   const save = freshSave(); save.tutorial = 1; save.floor = 4; save.maxFloor = 4; save.autoClimb = true;
   const world = new World(save);
   world.enemies = [{ x: 10, y: 0, hp: 999, maxHp: 999, boss: true, hit: 0, step: 0, moving: false, knockX: 0, knockY: 0, slow: 0 }];

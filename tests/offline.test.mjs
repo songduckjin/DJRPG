@@ -71,7 +71,7 @@ test('아이템 드롭률은 한 마리당 한 번 — 1층 0.40%→20층 1.60%,
 test('아래층 오프라인 정산에는 보스 몫(보스 처치·보스 금화)이 들어가지 않는다(작업 210)', () => {
   const originalRandom = Math.random; Math.random = () => .99;
   try {
-    // 자동 등반이 꺼져 있으면 아래층에서 계속 사냥한다(작업 225 — 켜져 있으면 한 층씩 올라간다).
+    // 자동 등반이 꺼져 있으면 아래층에서 계속 사냥한다(작업 245 — 켜져 있으면 한 층씩 올라간다).
     const save = freshSave(); save.tutorial = 1; save.floor = 2; save.maxFloor = 7; save.autoClimb = false;
     const reward = applyOfflineRewards(save, 3600);
     assert(save.bossKills === 0, '아래층에는 보스가 없으니 보스 처치 0');
@@ -81,7 +81,7 @@ test('아래층 오프라인 정산에는 보스 몫(보스 처치·보스 금�
   } finally { Math.random = originalRandom; }
 });
 
-test('자동 등반 중이면 방치 정산도 층 목표를 채울 때마다 한 층씩 올라가고, 최고층에서는 보스를 상대한다(작업 225)', () => {
+test('자동 등반 중이면 방치 정산도 층 목표를 채울 때마다 한 층씩 올라가고, 최고층에서는 보스를 상대한다(작업 245)', () => {
   const originalRandom = Math.random; Math.random = () => .99;
   try {
     const save = freshSave(); save.tutorial = 1; save.floor = 1; save.maxFloor = 2; save.floorKills = 0;
