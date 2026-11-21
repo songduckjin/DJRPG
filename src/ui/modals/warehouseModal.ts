@@ -32,7 +32,7 @@ import { jobNames, jobShortNames, jobOrDefault, type Job } from '../../game/skil
 import type { Save } from '../../game/store';
 import { pouchIconMarkup } from '../pouchArt';
 import { skillBookJobRank } from '../bagStacks';
-import { upgradeArrowMarkup } from '../upgradeBadge';
+import { downgradeArrowMarkup, upgradeArrowMarkup } from '../upgradeBadge';
 import { appendPlusBadge } from '../plusBadge';
 import { appendRarityBadge } from '../rarityBadge';
 import type { Interface } from '../interface';
@@ -352,8 +352,11 @@ function paintGrid(ui: Interface, grid: HTMLElement, side: WarehouseSide, stacks
     cell.dataset.side = side;
     // 업그레이드 화살표(작업 241): 공용창고·가방 **양쪽** 모두, 접속 중인 캐릭터 기준으로 판정한다.
     const upgrade = upgradeArrowMarkup(ui.world.save, item);
+    // 다운그레이드 화살표(빨간 아래) — 같은 기준으로 지금 난 것보다 약한 장비에만 붙는다(가방·장비창과 같은 판정).
+    const downgrade = downgradeArrowMarkup(ui.world.save, item);
     if (upgrade) cell.classList.add('has-upgrade');
-    cell.innerHTML = cellIcon(ui, item) + upgrade;
+    if (downgrade) cell.classList.add('has-downgrade');
+    cell.innerHTML = cellIcon(ui, item) + upgrade + downgrade;
     // 등급 배지(`L`·`U`·`E`)는 칸의 **왼쪽 위** — 가방(`equipModal`)과 같은 자리·같은 헬퍼다.
     appendRarityBadge(cell, item);
     if (stack.items.length > 1) {
@@ -375,7 +378,7 @@ function paintGrid(ui: Interface, grid: HTMLElement, side: WarehouseSide, stacks
     }
     const name = itemDisplayName(item);
     const where = side === 'storage' ? '공용창고' : '가방';
-    cell.setAttribute('aria-label', `${where} · ${name}${stack.items.length > 1 ? ` · ${stack.items.length}개` : ''} · ${rarityNames[item.rarity]}${owner ? ` · ${jobNames[owner]} 전용` : ''}${isEquipment(item) && item.locked ? ' · 잠긴 장비' : ''}`);
+    cell.setAttribute('aria-label', `${where} · ${name}${stack.items.length > 1 ? ` · ${stack.items.length}개` : ''} · ${rarityNames[item.rarity]}${owner ? ` · ${jobNames[owner]} 전용` : ''}${isEquipment(item) && item.locked ? ' · 잠긴 장비' : ''}${upgrade ? ' · 지금 장착한 장비보다 좋음' : ''}${downgrade ? ' · 지금 장착한 장비보다 약함' : ''}`);
     cell.setAttribute('aria-pressed', String(state.picked.has(key)));
     cell.title = name;
     cell.onclick = () => tap(ui, side, stack);

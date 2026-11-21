@@ -31,8 +31,10 @@ export function wireDomains(ui: Interface): void {
     if (isJourneyModal(ui.openModal)) ui.renderModal();
   };
   void ui.journey.load();
-  // 우편·일일 진행은 5분에 한 번이면 충분하다(작업 245 폴링 절감 — 예전 120초). 수령·거래 응답이 최신 journey를 싣는다.
-  window.setInterval(() => { if (!document.hidden) void ui.journey.load(); }, 300000);
+  // 우편·일일 진행은 2분에 한 번이면 충분하다(작업 미정 — 예전 5분은 사용자 제보 "주간보상·일일보상
+  // 들어오는 게 늦네"의 원인이었다). 목록을 읽기 전에 `Journey.load()`가 저장을 한 번 흘려보내므로,
+  // 사냥 중에도 진행도가 2분 안에 따라온다. 창을 띄운 동안에는 `document.hidden`으로 가른다.
+  window.setInterval(() => { if (!document.hidden) void ui.journey.load(); }, 120000);
 }
 
 /** 사냥 한 마리마다 — 도감 발견·저장·새 장비 표시·열린 창 갱신. */

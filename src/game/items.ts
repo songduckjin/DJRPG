@@ -922,6 +922,31 @@ export function isUpgradeForHero(save: Save, item: Item): boolean {
   return !current || itemPower(item) > itemPower(current);
 }
 
+/**
+ * 이 장비가 **내 캐릭터에게 다운그레이드인가**(사용자 요청 "장비창에 내꺼보다 수치 낮은 거는 빨간색으로
+ * 화살표 아래 표시").
+ *
+ * 가방·공용창고 카드의 우측 상단 빨간 아래 화살표(`▼▼`) 판정을 이 한 곳에서만 한다. 업그레이드
+ * (`isUpgradeForHero`)와 **같은 세 조건의 반대편**이라, 한 아이템이 두 화살표를 함께 받는 일은 없다.
+ *  ① 장비일 것 — 스킬북·보물 주머니는 늘 `false`.
+ *  ② 내 직업이 입을 수 있는 것(`canWield`) — 낄 수 없는 장비는 비교할 뜻이 없어 화살표도 달지 않는다.
+ *  ③ 지금 낀 것보다 **엄격히 약할 것**(`itemPower`). 같은 부위를 끼고 있을 때만 견주며, 빈 칸이면
+ *     무엇이든 이득이라 다운그레이드가 아니다(그때는 업그레이드 쪽이다). 수치가 같으면 바꿔도 손해가
+ *     아니므로 어느 화살표도 달지 않는다. 반지는 두 칸을 함께 보므로 **약한 쪽(또는 빈 칸)**보다 약할 때만
+ *     다운그레이드다 — 약한 반지와 바꿔도 이득이 없을 때다.
+ */
+export function isDowngradeForHero(save: Save, item: Item): boolean {
+  if (!isEquipment(item)) return false;
+  if (!canWield(item, jobOrDefault(save.job))) return false;
+  if (item.slot === 'ring1' || item.slot === 'ring2') {
+    const worn = [save.equipment.ring1, save.equipment.ring2].filter((ring): ring is EquipmentItem => !!ring && isEquipment(ring));
+    if (worn.length < 2) return false;
+    return itemPower(item) < Math.min(...worn.map(ring => itemPower(ring)));
+  }
+  const current = save.equipment[item.slot];
+  return !!current && itemPower(item) < itemPower(current);
+}
+
 export function autoEquipBest(save: Save): number {
   let changed = 0;
   // 도메인 신호(작업 256) — 어느 칸이 어떻게 바뀌었는지 모아 두었다가 마지막에 한 번씩 알린다.

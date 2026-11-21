@@ -38,6 +38,12 @@ export class Journey {
     const generation=++this.generation;
     this.loading=true;this.onChange();
     try{
+      // [작업 미정] 목록을 읽기 전에 **이 기기의 진행을 먼저 서버에 올린다**. 여정 진행도(처치·분해·플레이
+      // 시간)는 서버가 들고 있는 세이브로 계산하므로, 아직 저장되지 않은 진행이 있으면 일일·주간 진행도와
+      // 받을 보상이 한 박자 늦게 보인다(사용자 제보 "주간보상·일일보상 들어오는 게 늦네"). 저장이 막혀
+      // 있으면(가방 40칸 초과·거래 중 등) `flushIfDirty`가 `false`로 끝나고 목록은 그대로 읽는다 — 조회는
+      // 저장 성공에 기대지 않는다.
+      await this.sync.flushIfDirty();
       const response=await fetch('/api/journey',{method:'POST',headers:apiHeaders({Authorization:`Bearer ${this.sync.session.token}`}),body:JSON.stringify({action:'journey-list'})});
       const data=await response.json();
       if(isOutdatedResponse(response.status,data.code,data.expected)){reloadForNewVersion();return;}

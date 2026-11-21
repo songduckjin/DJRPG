@@ -29,7 +29,7 @@ import { plusBadgeMarkup } from '../plusBadge';
 import { rarityBadgeMarkup } from '../rarityBadge';
 import { itemNameText, renderItemName } from '../itemName';
 import { slotAtlasStyle } from '../slotArtStyle';
-import { upgradeArrowMarkup } from '../upgradeBadge';
+import { downgradeArrowMarkup, upgradeArrowMarkup } from '../upgradeBadge';
 import type { BagFilter, Interface } from '../interface';
 
 export const equipmentInfoSlots = ['weapon', 'helmet', 'armor', 'gloves', 'boots', 'offhand', 'necklace', 'belt', 'ring1', 'ring2'] as const;
@@ -115,6 +115,9 @@ export function renderInventory(this: Interface, dialog: HTMLElement): void {
       // 업그레이드 화살표(작업 241): 내 직업이 낄 수 있는 장비 중 지금 낀 것보다 좋은 것만.
       // 스킬북·보물 주머니는 `upgradeArrowMarkup`이 판정에서 걸러 빈 문자열을 돌려준다.
       const upgrade = upgradeArrowMarkup(save, item);
+      // 다운그레이드 화살표(빨간 아래) — 같은 직업 장비가 지금 낀 것보다 **약할 때**만. 업그레이드와 같은
+      // 우측 상단을 쓰지만 두 판정이 서로 배타적이라 한 칸에 함께 붙지 않는다(사용자 요청).
+      const downgrade = downgradeArrowMarkup(save, item);
       // `+N` 강화 배지(작업 246): 업그레이드 화살표가 우상단, 타직업 배지가 좌상단, 수량이 우하단이라
       // 비어 있는 **왼쪽 아래**에 붙인다 — 장비창 장착 칸·공용창고와 같은 자리(plusBadge.ts).
       const plus = plusBadgeMarkup(item);
@@ -124,7 +127,8 @@ export function renderInventory(this: Interface, dialog: HTMLElement): void {
       const cell = document.createElement('button'); cell.className = `bag-item ${book ? 'skillbook-item' : pouch ? 'pouch-item' : item.rarity} ${this.selected === item.id ? 'selected' : ''}`;
       if (upgrade) cell.classList.add('has-upgrade');
       if (!book && !pouch && pending.some(slot => slot === item.slot)) cell.classList.add('tutorial-target');
-      cell.innerHTML = itemIcon.call(this, item.slot, item, 'item-icon') + upgrade + plus + rarity;
+      if (downgrade) cell.classList.add('has-downgrade');
+      cell.innerHTML = itemIcon.call(this, item.slot, item, 'item-icon') + upgrade + downgrade + plus + rarity;
       cell.type = 'button'; cell.dataset.itemId = item.id;
       // 직업 전용 장비에는 `전사`/`궁수`/`마법사` 배지를 단다(작업 205) — 공용 방어구·장신구에는 붙지 않는다.
       // 좁은 가방 칸(30~40px)에서는 등급 배지가 왼쪽 위를 쓰므로 **한 글자**(`전`·`궁`·`법`)로 오른쪽 아래에 붙는다.
@@ -138,7 +142,7 @@ export function renderInventory(this: Interface, dialog: HTMLElement): void {
         cell.append(badge);
       }
       const locked = isEquipment(item) && !!item.locked;
-      cell.setAttribute('aria-label', `${name}${book ? ` · ${quantity}권` : pouch ? ` · ${quantity}개` : ` · ${rarityNames[item.rarity]}`}${owner ? ` · ${jobNames[owner]} 전용` : ''}${locked ? ' · 잠긴 장비' : ''}${upgrade ? ' · 지금 장착한 장비보다 좋음' : ''}`);
+      cell.setAttribute('aria-label', `${name}${book ? ` · ${quantity}권` : pouch ? ` · ${quantity}개` : ` · ${rarityNames[item.rarity]}`}${owner ? ` · ${jobNames[owner]} 전용` : ''}${locked ? ' · 잠긴 장비' : ''}${upgrade ? ' · 지금 장착한 장비보다 좋음' : ''}${downgrade ? ' · 지금 장착한 장비보다 약함' : ''}`);
       if (locked) {
         const badge = document.createElement('span'); badge.className = 'lock-icon is-locked bag-lock-badge';
         badge.setAttribute('aria-hidden', 'true'); cell.appendChild(badge);
@@ -366,7 +370,9 @@ export function renderEquipment(this: Interface, dialog: HTMLElement): void {
       cell.type = 'button'; cell.dataset.equippedSlot = slot; cell.disabled = !item;
       const slotLabel = slotNameFor(slot, jobOrDefault(save.job));
       // 착용 중 장비에도 강화 단계를 **왼쪽 아래**에 붙인다(작업 246) — 예전에는 장착 칸에만 `+N`이 빠져
-      // 가방·공용창고와 보이는 자리가 달랐다. 등급 배지(`L`·`U`·`E`)는 칸의 **왼쪽 위**에 얹는다.
+      // 가방·공용창고와 보이는 자리가 달랐다. 배지는 CSS가 `이름 줄 위`로 살짝 올려(13px) 아이콘 왼쪽 아래에
+      // 두고, 부위 이름은 아이콘과 같은 중심에 선다(예전에는 이름만 6.5px 오른쪽으로 밀려 있었다).
+      // 등급 배지(`L`·`U`·`E`)는 칸의 **왼쪽 위**에 얹는다.
       cell.innerHTML = `${itemIcon.call(this, slot, item, 'slot-icon')}<small class="slot-part">${slotLabel}</small>${item ? plusBadgeMarkup(item) : ''}${rarityBadgeMarkup(item)}`;
       cell.setAttribute('aria-label', `${slotLabel} · ${item ? itemNameText(item) : '빈 슬롯'}`);
       cell.title = item ? itemNameText(item) : '빈 슬롯';
@@ -409,7 +415,13 @@ export function renderEquipment(this: Interface, dialog: HTMLElement): void {
     const info = document.createElement('div'); info.className = 'equipment-info';
     const summary = document.createElement('div'); summary.className = 'equipment-summary';
     const expPercent = save.level >= MAX_LEVEL ? 'MAX' : `${Math.floor(save.exp / expToNext(save.level) * 100)}%`;
-    summary.innerHTML = `<span>LV <b>${save.level >= MAX_LEVEL ? `${MAX_LEVEL} MAX` : save.level}</b></span><span>${save.floor}층</span><span>EXP <b>${expPercent}</b></span><span>${goldMarkup(save.gold)} · 강화석 ${save.stones}</span>`;
+    // [정렬] 라벨은 왼쪽, 값은 오른쪽 — 바로 아래 6칸 스탯 표와 **같은 2열·같은 여백**이라 세로줄이 맞는다.
+    // 예전에는 값이 라벨 바로 옆에 붙어 있어 위 두 줄과 아래 표의 열이 어긋나 보였다(사용자 요청 "장비창 중간에
+    // 있는 게 이름이랑 템이랑 글씨가 대칭이 안 되어 있어 정렬해줘").
+    summary.innerHTML = `<span><small>LV</small><b>${save.level >= MAX_LEVEL ? `${MAX_LEVEL} MAX` : save.level}</b></span>`
+      + `<span class="is-value"><b>${save.floor}층</b></span>`
+      + `<span><small>EXP</small><b>${expPercent}</b></span>`
+      + `<span class="summary-gold">${goldMarkup(save.gold)}<em>· 강화석 ${save.stones}</em></span>`;
     info.appendChild(summary);
     // 전투력 식은 `game/floorPower.ts` 한 곳에 둔다 — 층 선택 창의 권장 전투력과 같은 척도다.
     const power = combatPower(stats);
