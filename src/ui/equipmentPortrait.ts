@@ -14,7 +14,7 @@ import { WEAPON_GUARD, weaponIndexFor, weaponPartPath, weaponPose, swordlessBody
 import { BOW_GRIP, bowIndexFor, bowPartPath, bowPose, bowlessBodyPath, usesBowlessBody } from '../game/render/bows';
 import { STAFF_GRIP, staffIndexFor, staffPartPath, staffPlacement, stafflessBodyPath, usesStafflessBody } from '../game/render/staffs';
 import { archerHeadlessBodyPath, archerHelmIdlePlacement, archerHelmIndexFor, archerHelmPartPath } from '../game/render/archerHelmets';
-import { mageHeadlessBodyPath, mageHelmIdlePlacement, mageHelmIndexFor, mageHelmPartPath } from '../game/render/mageHelmets';
+import { mageHeadlessBodyPath, mageHelmGlowMaskCanvas, mageHelmIdlePlacement, mageHelmIndexFor, mageHelmPartPath } from '../game/render/mageHelmets';
 import { gearGlowCss, gearGlowTone } from '../game/render/gearGlow';
 
 /**
@@ -179,6 +179,8 @@ export type EquipmentPortraitMageHelm = {
   x: number;
   y: number;
   scale: number;
+  /** 발광 마스크(얼굴·목선 아래 제외)를 고를 때 쓰는 성별(작업 247). */
+  gender: Save['gender'];
 };
 
 /** 착용 마법사 투구 파츠. 마법사가 아니거나 투구가 없으면 undefined. */
@@ -187,7 +189,7 @@ export function equipmentPortraitMageHelm(save: Save): EquipmentPortraitMageHelm
   const path = mageHelmPartPath(save.gender, mageHelmIndexFor(save));
   if (!path) return undefined;
   const place = mageHelmIdlePlacement;
-  return { path, x: place.x, y: place.y, scale: place.scale };
+  return { path, x: place.x, y: place.y, scale: place.scale, gender: save.gender };
 }
 
 export type EquipmentPortraitHelmet = {
@@ -449,7 +451,7 @@ const headCell = { x: 228, y: 74, rx: 38, ry: 44 } as const;
  */
 function paintPatch(
   context: CanvasRenderingContext2D, image: HTMLImageElement,
-  x: number, y: number, width: number, height: number, glow?: string
+  x: number, y: number, width: number, height: number, glow?: string, mask?: HTMLCanvasElement
 ): void {
   if (!glow) { context.drawImage(image, x, y, width, height); return; }
   const tinted = document.createElement('canvas');
@@ -478,6 +480,14 @@ function paintPatch(
     pixels[index + 2] = Math.min(255, rgb[2] * light);
   }
   paint.putImageData(frame, 0, 0);
+  // [작업 247] 마법사 모자·투구 — 얼굴과 목선 아래는 빛에 물들지 않게 마스크로 도려낸다.
+  // (`destination-in`: 마스크 알파가 0인 곳을 지운다. 마스크는 파츠와 같은 크기다.)
+  if (mask) {
+    paint.save();
+    paint.globalCompositeOperation = 'destination-in';
+    paint.drawImage(mask, 0, 0, tinted.width, tinted.height);
+    paint.restore();
+  }
   context.save();
   // [작업 231] 장비 윤곽 밖으로 번지는 후광도 두 배 가까이 넓혔다.
   context.shadowColor = glow;
@@ -570,7 +580,8 @@ async function composeFallback(
       // 마법사 투구 파츠도 362px 셀 전체 크기라, 본체 그림의 배율·좌상단에 그대로 얹는다.
       // 파츠 PNG 가 셀 위로 44행 더 크므로 y 가 음수이고, 그만큼 위 여백에 그려진다.
       const layerScale = mageHelm.scale * scale;
-      paintPatch(context, patch, left + mageHelm.x * scale, top + mageHelm.y * scale, patch.naturalWidth * layerScale, patch.naturalHeight * layerScale, glow?.color);
+      paintPatch(context, patch, left + mageHelm.x * scale, top + mageHelm.y * scale, patch.naturalWidth * layerScale, patch.naturalHeight * layerScale,
+        glow?.color, glow ? mageHelmGlowMaskCanvas(mageHelm.gender) : undefined);
     } catch (error) {
       console.info('[장비창] 마법사 투구 파츠 로딩 실패 → 전신 그림만 표시:', error);
     }

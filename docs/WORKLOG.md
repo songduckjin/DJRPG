@@ -1,3 +1,18 @@
+## 2026-11-21 · songduckjin 작업 247 — 마법사 모자·투구 파츠에서 상반신 걷어내기(투구만 빛나게)
+
+- **제보**: "투규만 유니크인대 갑옷도 반짝거리네"(02:23 KST, `IMG_1147`) — 마법사 여성 캐릭터에 **투구만 유니크**인데 로브 상체까지 주황색으로 반짝였다.
+- **원인(확인)**: `mage_helms/{male,female}_{0..9}_v1.png`(362×406)가 머리·모자만이 아니라 **상반신 전체**(어깨·가슴·허리·양팔·왼손의 불꽃, 셀 y 195)를 담고 있었다. 파츠가 로브 위를 덮어 상체 옷이 바뀌어 보였고, 등급색 발광이 파츠 전체에 걸려 로브까지 물들었다. 파츠 아래 경계(`EXTRA_BOX` y=196/176)가 머리 구멍(`ERASE_BOX` y=104)보다 훨씬 아래였던 것이 원인.
+- **파츠 수정**(`scripts/build-mage-helm-parts.py`): `NECK_Y = 104` 를 두고 **머리 구멍과 파츠가 같은 목선에서 끝나게** 했다(파츠 y1 196/176 → 104). 같은 시안에서 20장 재생성(9~19KB → 5~12KB) 후 `restore-pilot-alpha.py` 로 작업 227의 내부 알파 기준을 다시 맞췄다. 머리 구멍·머리 없는 시트 12장은 손대지 않아 로브·지팡이·바꿔 입기 조합이 그대로다(재생성하면 알파·팔레트가 달라져 66장이 흔들린다).
+- **발광 마스크**(`mageHelmets.ts`): ① 파츠에 얼굴이 함께 들어 있어 유니크·전설에서 얼굴이 등급색 덩어리가 되고 ② 목선에서 끊긴 파츠에 발광을 그대로 걸면 가슴께에 **직선으로 잘린 발광 띠**가 남는다. 그래서 성별 마스크를 캔버스로 굽는다 — 목선(셀 y 84→106/108)으로 갈수록 빛이 사라지고, 얼굴(중심 194/48·205/52, 안쪽 20~22px)은 부드럽게 도려낸다. 새 PNG 파일 없이 성별당 1장만 캐시한다.
+- **필드**(`entities.ts`·`render.ts`): `syncGearGlow` 에 7번째 인자 `maskTexture` 를 두고, 마법사 투구일 때만 `mageHelmGlowMaskTexture(gender)` 를 넘겨 `GameView.heroHelmGlowMask` 스프라이트(파츠와 같은 앵커·위치·배율)를 발광 3겹의 마스크로 건다. 전사·궁수 투구는 예전처럼 마스크 없음.
+- **장비창**(`equipmentPortrait.ts`): `paintPatch` 가 발광 사본을 만든 뒤 마스크를 `destination-in` 으로 합성해 도려낸다(마법사 투구 레이어일 때만). `EquipmentPortraitMageHelm` 에 `gender` 를 더했다.
+- **캐시**: `PILOT_ASSET_VERSION` 4 → 5(같은 파일명으로 다시 구웠으므로 `?v=5`). 테스트 13개 파일의 `?v=4` 기대값을 함께 올렸다.
+- **검증**: `npx tsc --noEmit`·`npm run build` 통과(배포 번들 `index-8tRnUFGl.js` 에 `heroHelmGlowMask` 포함). 신규 테스트 2건(`mage-helm-render` — 20장 전수 목선 위에서 끝남·상반신 자리 0픽셀, 발광 마스크 식: 정수리 1·목선 0·얼굴 0·단조 감소) + `gear-rarity-glow` 1건(마스크 배선·캔버스 캐시·PNG 없음). 전체 1,060건 중 1,056 통과 — 실패 4건은 변경 전 `origin/main` 과 같은 기존 건(`costume-field-render` 2·`skillbook-server` 1·`hero-art` 1).
+- **검수 이미지**(`downloads/`): `djrpg_mage_helm_torso_before_after_v1.png`(수정 전/후 · 유니크 투구 · 장비창), `djrpg_mage_helm_glow_portrait_v1.png`(일반/유니크/전설 · 남녀), `djrpg_mage_helm_glow_field_v1.png`(필드 42% · 일반/유니크), `djrpg_mage_helm_glow_all_{female,male}_v1.png`(10종 전수 · 유니크).
+- **프리뷰 배포 실측**: [PR #252](https://github.com/songduckjin/DJRPG/pull/252) Cloudflare Pages 체크 SUCCESS, 프리뷰 `44da4568.djrpg.pages.dev` 에서 `assets/pilot-25d/mage_helms/female_0_v1.png?v=5` = 로컬 파일(md5 `04c5be3a…`, 7,881B) **일치** · 배포 번들에 `heroHelmGlowMask`·성별 마스크 표(`fadeEnd:106/108`) 포함 · 게스트로 마법사(여) 캐릭터를 만들어 필드·내 정보 초상화가 정상 렌더되는 것까지 확인(투구는 드롭 전이라 파츠·발광은 합성 이미지로만 검수).
+- **상태**: PR 준비 완료 — 사용자 지시 "오늘부터는 모아서 배포하자"에 따라 **머지·배포하지 않았다**.
+- **남은 것**: 어깨까지 파츠를 더 줄이려면 머리 구멍(현재 셀 y 104)을 목선까지 올려야 하고, 그러면 `mage_headless` 12장 + `robes/headless` 54장을 같은 규칙으로 다시 구워야 한다(그대로 줄이면 어깨에 투명 구멍이 난다). 이번 작업은 파츠·발광만 손봤다.
+
 ## 2026-11-21 · fks3997 작업 253 — 판매 등록 그리드 줄 간격 · 내 직업 스킬북 가방 40칸 제외 · 공용창고 N+1 제거·이동 중 표시 (운영 `main`)
 
 - **요청**(사용자 제보·지시 11-21): "판매등록창왜이러냐"(제보 사진 — 판매 등록 물품 줄 사이가 세로로 크게 벌어짐) → "가방에 내 직업 스킬북 수량도 더하지 말라(별개로 빼라)" → "공용창고 선택 꺼내기 너무 느리다.." → "로딩인지 모르겠음". 미리보기(`preview/gravel-background-fks3997`)에 4커밋으로 나눠 검수한 뒤, **미리보기 전용 기능(보물 주머니 버리기·테스트 우편)은 빼고 이 4커밋만** `main` 최신 위로 체리픽해 운영에 배포했다.
