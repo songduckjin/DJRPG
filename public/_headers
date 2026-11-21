@@ -9,3 +9,7 @@
 
 /version.json
   Cache-Control: no-store, max-age=0
+
+# 배포 점검 스위치(작업 256) — 점검을 켜고 끄는 파일이라 브라우저·CDN 캐시에 남으면 안 된다.
+/maintenance.json
+  Cache-Control: no-store, max-age=0

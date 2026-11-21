@@ -212,12 +212,12 @@ test('궁수는 전사용 갑옷·대검을 그리지 않고, 궁수 갑옷·투
   save.equipment.weapon = { id: 'w', name: '황혼의 혈염 장궁', slot: 'weapon', rarity: 'rare', stats: { attack: 30 } };
   const plan = equipmentPortraitPlan(save);
   // 작업 205: 궁수 갑옷 1~9번은 그 티어의 **머리 지운** 갑옷 시트(활도 지운 판) 위에 궁수 투구·활 파츠를 얹는다.
-  assert.equal(plan.base, '/assets/pilot-25d/archer_armors/nobow/headless/archer_female_armor_7_idle_v1.png?v=4');
+  assert.equal(plan.base, '/assets/pilot-25d/archer_armors/nobow/headless/archer_female_armor_7_idle_v1.png?v=5');
   assert.equal(plan.helmet, undefined, '전사 투구 파츠는 궁수에게 쓰지 않는다');
   assert.equal(plan.weapon, undefined, '전사 대검 파츠는 궁수에게 쓰지 않는다');
-  assert.equal(plan.archerHelm?.path, '/assets/pilot-25d/archer_helms/female_3_v1.png?v=4');
-  assert.equal(plan.bow?.path, '/assets/pilot-25d/bows/bow_6_v1.png?v=4');
-  assert.equal(plan.key, 'archer:female:a7:/assets/pilot-25d/bows/bow_6_v1.png?v=4:/assets/pilot-25d/archer_helms/female_3_v1.png?v=4');
+  assert.equal(plan.archerHelm?.path, '/assets/pilot-25d/archer_helms/female_3_v1.png?v=5');
+  assert.equal(plan.bow?.path, '/assets/pilot-25d/bows/bow_6_v1.png?v=5');
+  assert.equal(plan.key, 'archer:female:a7:/assets/pilot-25d/bows/bow_6_v1.png?v=5:/assets/pilot-25d/archer_helms/female_3_v1.png?v=5');
   // 능력치는 그대로 오른다.
   const bare = archerSave('female');
   assert(totalStats(save).attack > totalStats(bare).attack);
@@ -227,7 +227,7 @@ test('궁수 0번(사냥꾼의 활)은 기본 시트를 그대로 쓰고 활 파
   const save = archerSave('male');
   save.equipment.weapon = { id: 'w0', name: '사냥꾼의 활', slot: 'weapon', rarity: 'common', stats: { attack: 4 } };
   const plan = equipmentPortraitPlan(save);
-  assert.equal(plan.base, '/assets/pilot-25d/archer_male_idle_v1.png?v=4');
+  assert.equal(plan.base, '/assets/pilot-25d/archer_male_idle_v1.png?v=5');
   assert.equal(plan.bow, undefined);
 });
 

@@ -23,6 +23,21 @@ for (const [slot, names] of groups) for (let index = 0; index < names.length; in
 }
 console.log(`장비 그림 ${count}종 확인 완료.`);
 
+// ── 직업 전용 투구·갑옷 아이콘 (작업 249) ─────────────────────────────────────
+// 궁수 경갑·후드, 마법사 로브·모자 각 10종 — 5칸씩 두 장(`_0`, `_5`)이고 규격은 위와 같다.
+// 이름 목록은 `src/game/items.ts`의 `archerArmorBases`·`archerHelmetBases`·`mageArmorBases`·
+// `mageHelmetBases`(각 10종)이고, `equipmentImage`가 `frame`으로 칸을 고른다.
+const jobGearSheets = ['archer_armor_0', 'archer_armor_5', 'archer_helmet_0', 'archer_helmet_5', 'mage_armor_0', 'mage_armor_5', 'mage_helmet_0', 'mage_helmet_5'];
+for (const name of jobGearSheets) {
+  const path = join(directory, `${name}.png`);
+  if (!existsSync(path)) throw new Error(`직업 전용 장비 아이콘이 없습니다: ${path}`);
+  const header = readFileSync(path).subarray(0, 24);
+  if (header.toString('ascii', 1, 4) !== 'PNG' || header.readUInt32BE(16) !== 870 || header.readUInt32BE(20) !== 290) {
+    throw new Error(`직업 전용 장비 아이콘 크기 또는 형식이 잘못됐습니다: ${path}`);
+  }
+}
+console.log('직업 전용 투구·갑옷 아이콘 40종(4갈래 × 10) 확인 완료.');
+
 const wearableDirectory = fileURLToPath(new URL('../public/assets/wearable/', import.meta.url));
 const wearable = { weapon: 'weapons', helmet: 'helmets', armor: 'armor', gloves: 'gloves', boots: 'boots' };
 for (const [slot, file] of Object.entries(wearable)) {

@@ -1,6 +1,6 @@
-// Live auto-salvage (작업 196): a switch that turns recovered pieces at or below the chosen grade into
-// gold and stones while the player is hunting — and never touches offline rewards, locked gear, an
-// empty slot, or a piece better than what is worn.
+// Auto-salvage (작업 196, 작업 254에서 방치에도 적용): a switch that turns recovered pieces at or below the
+// chosen grade into gold and stones while the player is hunting, and now also on offline rewards — with the
+// same protection (never a locked piece, an empty slot, or a piece better than what is worn).
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -13,7 +13,7 @@ const { autoSalvageBlock, autoSalvageRecovered, sweepBagOnFull, bagEquipmentCoun
 const { readAutoSalvage, saveAutoSalvage, AUTO_SALVAGE_KEY, AUTO_SALVAGE_ON_NOTICE, AUTO_SALVAGE_HINT } = await import('../src/ui/autoSalvage.ts');
 
 const gear = (id, slot, attack, rarity = 'common', locked = false) => ({ id, name: id, slot, rarity, stats: { attack }, locked });
-const book = () => ({ id: 'book', kind: 'skillbook', slot: 'skillbook', rarity: 'epic', stats: {}, skillId: 'slash2' });
+const book = () => ({ id: 'book', kind: 'skillbook', slot: 'skillbook', rarity: 'epic', stats: {}, skillId: 'fireBolt' });
 
 function withStorage(entries = {}) {
   const store = new Map(Object.entries(entries));
@@ -54,10 +54,11 @@ test('the switch is off until the player turns it on, and stays where they left 
   } finally { if (blocked) Object.defineProperty(globalThis, 'localStorage', blocked); else delete globalThis.localStorage; }
 });
 
-test('turning it on says it only works while connected, and the popup says so under the switch', () => {
-  assert.equal(AUTO_SALVAGE_ON_NOTICE, '자동 분해가 켜졌습니다. 접속 중에만 적용됩니다.');
-  assert.match(AUTO_SALVAGE_HINT, /접속 중/);
-  assert.match(AUTO_SALVAGE_HINT, /오프라인/);
+test('turning it on says it applies to connected and idle hunting alike, and the popup says so under the switch', () => {
+  assert.equal(AUTO_SALVAGE_ON_NOTICE, '자동 분해가 켜졌습니다. 접속·방치 사냥 모두 적용됩니다.');
+  assert.match(AUTO_SALVAGE_HINT, /접속·방치/);
+  assert.match(AUTO_SALVAGE_HINT, /방치 보상/);
+  assert.doesNotMatch(AUTO_SALVAGE_HINT, /그대로 보관/, '방치 보상이 예외라는 옛 안내가 남지 않는다');
   const equip = readFileSync(new URL('../src/ui/modals/equipModal.ts', import.meta.url), 'utf8');
   const utility = readFileSync(new URL('../src/ui/modals/utilityModal.ts', import.meta.url), 'utf8');
   const iface = readFileSync(new URL('../src/ui/interface.ts', import.meta.url), 'utf8');
@@ -142,9 +143,11 @@ test('a full bag still takes a piece the switch will sweep', () => {
   assert.equal(save.gold, gold + salvageGold.epic, 'and the swept piece still paid out');
 });
 
-test('offline rewards never pass through live auto-salvage', () => {
+test('offline rewards pass through the same switch with the same protection (작업 254)', () => {
   const offline = readFileSync(new URL('../src/game/offline.ts', import.meta.url), 'utf8');
-  assert.doesNotMatch(offline, /autoSalvage/, 'offline settlement knows nothing about the switch');
+  assert.match(offline, /autoSalvageRecovered\b/, 'offline settlement uses the same rule as the field');
+  assert.match(offline, /options:\s*OfflineRewardOptions = \{\}/, 'the settings come in as an argument');
+  assert.match(offline, /salvaged\.count\+\+/, 'and the count lands in the reward receipt');
   // The sweep only exists on the live field pickup path.
   const world = readFileSync(new URL('../src/game/world.ts', import.meta.url), 'utf8');
   assert.match(world, /const sweep = this\.sweeps\(drop\.item\)/, 'the field picks up through the switch');
@@ -165,11 +168,12 @@ test('a full bag sweeps only the pieces auto-salvage may take, and pays like a m
     book(),
     ...Array.from({ length: 34 }, (_, index) => gear(`keep-${index}`, 'weapon', 5, 'unique')),
   ];
-  assert.equal(bagEquipmentCount(save), 40, '장비 40칸(스킬북은 세지 않는다)');
+  // 작업 253: 타직업 스킬북은 한 칸을 쓴다(내 직업 스킬북만 제외) — 장비 40 + 타직업 책 1 = 41칸.
+  assert.equal(bagEquipmentCount(save), 41, '가방 41개(장비 40 + 스킬북 1) — 40칸을 넘은 상태');
   const gold = save.gold, stones = save.stones, salvaged = save.salvageCount ?? 0;
   const swept = sweepBagOnFull(save, 'rare', 3);
   assert.deepEqual(swept, { count: 2, gold: salvageGold.common * 2, stones: salvageStones.common * 2 }, '설정 등급 이하 두 벌만');
-  assert.equal(bagEquipmentCount(save), 38, '두 칸이 비었다');
+  assert.equal(bagEquipmentCount(save), 39, '두 칸이 비었다');
   assert.deepEqual(save.bag.map(item => item.id).filter(id => id.startsWith('junk')), [], '분해한 장비는 가방에서 사라진다');
   for (const id of ['locked', 'plus', 'high', 'better', 'book']) assert(save.bag.some(item => item.id === id), `${id}는 보호된다`);
   assert.equal(save.gold, gold + swept.gold); assert.equal(save.stones, stones + swept.stones);

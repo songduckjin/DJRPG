@@ -7,21 +7,24 @@
  *
  * 지금은 이동 뒤에도 목록을 비우지 않는다 — 서버가 응답에 실어 준 `items`(창고 목록)와
  * `save`(가방)로 인메모리 상태를 바로 맞추고 그리드만 다시 그린다. 옮기는 동안에는 그 칸만
- * 잠깐 흐려지고(`is-busy`) 나머지는 그대로다. 여러 개는 `선택` 모드로 골라 한 요청(`itemIds`)으로
- * 한꺼번에 옮긴다. `equipModal.ts`는 건드리지 않고 그리드 모양(`.bag-grid`·`.bag-item`)과
- * 헬퍼(`iconPath`)만 빌려 쓴다.
+ * 잠깐 흐려지고(`is-busy`) 나머지는 그대로다. 여러 개는 칸을 그냥 탭해 고르면 한 요청(`itemIds`)으로
+ * 한꺼번에 옮긴다(작업 246 — `선택` 모드 버튼과 `빠른 이동`은 없애고 **다중 선택이 기본**이며, 고른
+ * 쪽에만 `선택 보관`/`선택 꺼내기`가 나타난다). `equipModal.ts`는 건드리지 않고 그리드 모양
+ * (`.bag-grid`·`.bag-item`)과 헬퍼(`iconPath`)만 빌려 쓴다.
  */
 import { equipmentCount } from '../../game/bagCapacity';
 import { apiHeaders, isOutdatedResponse, reloadForNewVersion } from '../../game/appVersion';
 import {
-  equipmentImage, isEquipment, isPouch, isSkillBook, itemDisplayName, itemJob, plusOf,
-  rarityNames, skillBookJob, slotNameFor, statNames, type Item, type Stat
+  equipmentImage, isEquipment, isPouch, isSkillBook, itemDisplayName, itemJob, itemPower, plusOf,
+  rarityNames, rarityOrder, skillBookJob, slotNameFor, slots as equipmentSlots, statNames, type Item, type Stat
 } from '../../game/items';
 import { extraOptionLines } from '../../game/extraOptions';
-import { jobNames, jobOrDefault } from '../../game/skills';
+import { jobNames, jobOrDefault, type Job } from '../../game/skills';
 import type { Save } from '../../game/store';
 import { pouchIconMarkup } from '../pouchArt';
+import { skillBookJobRank } from '../bagStacks';
 import { upgradeArrowMarkup } from '../upgradeBadge';
+import { appendPlusBadge } from '../plusBadge';
 import type { Interface } from '../interface';
 
 export type WarehouseSide = 'storage' | 'bag';
@@ -30,10 +33,6 @@ export type WarehouseSide = 'storage' | 'bag';
 type Stack = { key: string; items: Item[] };
 
 type WarehouseState = {
-  /** `빠른 이동` — 상세 없이 탭 한 번에 반대편으로 옮긴다. */
-  quick: boolean;
-  /** `선택` — 여러 칸을 골라 한 번에 옮긴다. `quick`과는 함께 켜지지 않는다. */
-  select: boolean;
   /** 고른 칸 — 키는 `bag:`/`storage:` 접두사가 붙은 스택 키, 값은 그 쪽(side). */
   picked: Map<string, WarehouseSide>;
   /** 상세 바에 띄운 칸. */
@@ -51,14 +50,14 @@ const queues = new WeakMap<Interface, Promise<void>>();
 
 export function warehouseState(ui: Interface): WarehouseState {
   let state = states.get(ui);
-  if (!state) { state = { quick: false, select: false, picked: new Map(), busy: new Set() }; states.set(ui, state); }
+  if (!state) { state = { picked: new Map(), busy: new Set() }; states.set(ui, state); }
   return state;
 }
 
-/** 창고를 새로 열 때 — 선택·상세·잠금 표시는 남기지 않는다(빠른 이동 설정만 기억). */
+/** 창고를 새로 열 때 — 선택·상세·잠금 표시는 남기지 않는다. */
 export function resetWarehouse(ui: Interface): void {
   const state = warehouseState(ui);
-  state.select = false; state.picked.clear(); state.focus = undefined; state.busy.clear(); state.error = undefined;
+  state.picked.clear(); state.focus = undefined; state.busy.clear(); state.error = undefined;
 }
 
 const keyOf = (side: WarehouseSide, stackKey: string): string => `${side}:${stackKey}`;
@@ -71,7 +70,7 @@ function stackKey(item: Item): string {
   return `item:${item.id}`;
 }
 
-function stacksOf(items: Item[]): Stack[] {
+function stacksOf(items: Item[], myJob: Job = 'warrior'): Stack[] {
   const order: string[] = []; const map = new Map<string, Stack>();
   for (const item of items) {
     const key = stackKey(item);
@@ -79,7 +78,38 @@ function stacksOf(items: Item[]): Stack[] {
     if (stack) stack.items.push(item);
     else { map.set(key, { key, items: [item] }); order.push(key); }
   }
-  return order.map(key => map.get(key)!);
+  // 서버가 준 순서(`item_id`)는 뜻이 없어 칸마다 뒤죽박죽이었다(작업 245) — 부위별로 모으고
+  // 같은 부위 안에서는 전투력이 높은 순으로 놓는다. 가방 쪽 목록도 같은 순서를 쓴다.
+  return order.map(key => map.get(key)!).sort((a, b) => compareWarehouseItems(a.items[0], b.items[0], myJob));
+}
+
+/** 부위 순서 — 보물 주머니(작업 247, 늘 첫 칸) → 장비 슬롯 표(`slots`) → 스킬북(맨 뒤). */
+const SLOT_ORDER = new Map<string, number>(equipmentSlots.map((slot, index) => [slot, index]));
+const KIND_POUCH = -1, KIND_BOOK = equipmentSlots.length + 1, KIND_OTHER = equipmentSlots.length + 2;
+function slotRank(item: Item): number {
+  // 보물 주머니는 창고·가방 어느 목록에서도 맨 앞이다(작업 247) — 받은 주머니를 찾아 헤매지 않게 한다.
+  if (isPouch(item)) return KIND_POUCH;
+  if (isSkillBook(item)) return KIND_BOOK;
+  return SLOT_ORDER.get(String(item.slot)) ?? KIND_OTHER;
+}
+const rarityRank = (item: Item): number => Math.max(0, rarityOrder.indexOf(item.rarity));
+/**
+ * 공용창고·가방 칸 정렬 — 부위 → (스킬북은 직업 묶음) → 전투력(내림차순) → 등급 → 강화(+N) → 이름 → id
+ * (작업 245, 247). 보물 주머니는 `slotRank` -1로 늘 첫 칸이고, 스킬북 구간은 내 직업 → 전사 → 궁수 →
+ * 마법사 순으로 모은다(`bagStacks.skillBookJobRank` — 장비창 가방과 같은 규칙).
+ */
+export function compareWarehouseItems(a: Item, b: Item, myJob: Job = 'warrior'): number {
+  const kind = slotRank(a) - slotRank(b);
+  if (kind) return kind;
+  if (isSkillBook(a) && isSkillBook(b)) {
+    const job = skillBookJobRank(a, myJob) - skillBookJobRank(b, myJob);
+    if (job) return job;
+  }
+  return itemPower(b) - itemPower(a)
+    || rarityRank(b) - rarityRank(a)
+    || plusOf(b) - plusOf(a)
+    || String(a.name).localeCompare(String(b.name), 'ko')
+    || String(a.id).localeCompare(String(b.id));
 }
 
 export async function loadWarehouse(ui: Interface): Promise<void> {
@@ -102,6 +132,9 @@ export async function loadWarehouse(ui: Interface): Promise<void> {
 
 export function renderWarehouse(ui: Interface, dialog: HTMLElement): void {
   const state = warehouseState(ui);
+  // 새로 그리는 창고에는 이전 이동의 잠금 표시를 남기지 않는다 — 응답이 유실돼 `is-busy`가 남았더라도
+  // 창고를 다시 열면 모든 칸을 다시 누를 수 있다(작업 250).
+  state.busy.clear();
   if (!ui.warehouseItems) {
     const note = document.createElement('p'); note.className = 'warehouse-note';
     note.textContent = state.error ? state.error : '공용창고를 불러오는 중…';
@@ -120,8 +153,8 @@ export function renderWarehouse(ui: Interface, dialog: HTMLElement): void {
   summary.append(gold, counts);
 
   const tools = document.createElement('div'); tools.className = 'warehouse-tools';
-  const quick = document.createElement('button'); quick.type = 'button'; quick.className = 'warehouse-mode warehouse-quick';
-  const select = document.createElement('button'); select.type = 'button'; select.className = 'warehouse-mode warehouse-select';
+  // [작업 246] `선택 끔/켬` 모드 버튼과 `빠른 이동`은 없앴다 — 창고를 열면 **바로 탭해서 여러 칸을
+  // 고르는** 것이 기본이고, 고른 쪽에만 `선택 보관`/`선택 꺼내기`가 나타난다(사용자 요청).
   const depositPicked = document.createElement('button'); depositPicked.type = 'button'; depositPicked.className = 'warehouse-batch warehouse-deposit-picked';
   const withdrawPicked = document.createElement('button'); withdrawPicked.type = 'button'; withdrawPicked.className = 'warehouse-batch warehouse-withdraw-picked';
   // 새로고침은 도구 줄 오른쪽 끝에 둔다 — 아래에 따로 두면 그만큼 그리드가 좁아진다.
@@ -129,7 +162,7 @@ export function renderWarehouse(ui: Interface, dialog: HTMLElement): void {
   reset.textContent = '새로고침';
   reset.title = '공용창고 목록을 서버에서 다시 읽습니다.';
   reset.onclick = () => { ui.warehouseItems = undefined; painters.delete(ui); ui.renderModal(); void loadWarehouse(ui); };
-  tools.append(quick, select, depositPicked, withdrawPicked, reset);
+  tools.append(depositPicked, withdrawPicked, reset);
 
   const storageHeading = document.createElement('h3'); storageHeading.className = 'warehouse-pane-title';
   const bagHeading = document.createElement('h3'); bagHeading.className = 'warehouse-pane-title';
@@ -149,8 +182,9 @@ export function renderWarehouse(ui: Interface, dialog: HTMLElement): void {
   let bagStacks: Stack[] = [];
 
   const paint = (): void => {
-    storageStacks = stacksOf(ui.warehouseItems ?? []);
-    bagStacks = stacksOf(save.bag);
+    const myJob = jobOrDefault(save.job);
+    storageStacks = stacksOf(ui.warehouseItems ?? [], myJob);
+    bagStacks = stacksOf(save.bag, myJob);
     const known = { storage: new Set(storageStacks.map(stack => stack.key)), bag: new Set(bagStacks.map(stack => stack.key)) };
     // 서버 목록이 바뀌었으면 사라진 칸의 선택·상세는 버린다.
     for (const [key, side] of [...state.picked]) if (!known[side].has(stackKeyOf(key))) state.picked.delete(key);
@@ -160,56 +194,45 @@ export function renderWarehouse(ui: Interface, dialog: HTMLElement): void {
     const bagCount = equipmentCount(save.bag, save.job);
     gold.textContent = `계정 공용 금화 ${save.gold.toLocaleString('ko-KR')}`;
     counts.textContent = `공용창고 ${warehouseCount}/40 · 가방 ${bagCount}/40`;
-    counts.title = '가방 40칸은 장비와 다른 직업 전용 스킬북을 함께 세고, 내 직업 스킬북·보물 주머니는 세지 않습니다.';
+    counts.title = '가방 40칸은 장비·타직업 스킬북·보물 주머니를 1개씩 셈합니다(내 직업 스킬북 제외).';
     storageHeading.textContent = `공용창고 ${warehouseCount}/40`;
     bagHeading.textContent = `내 가방 ${bagCount}/40`;
 
-    quick.textContent = `빠른 이동 ${state.quick ? '켬' : '끔'}`;
-    quick.classList.toggle('is-on', state.quick);
-    quick.setAttribute('aria-pressed', String(state.quick));
-    quick.setAttribute('aria-label', `빠른 이동 ${state.quick ? '켜짐' : '꺼짐'}. 켜면 상세창 없이 탭 한 번에 반대편으로 옮깁니다`);
-    select.textContent = `선택 ${state.select ? '켬' : '끔'}`;
-    select.classList.toggle('is-on', state.select);
-    select.setAttribute('aria-pressed', String(state.select));
-    select.setAttribute('aria-label', `선택 모드 ${state.select ? '켜짐' : '꺼짐'}. 켜면 여러 칸을 골라 한 번에 옮깁니다`);
-
     const idsOn = (side: WarehouseSide): string[] => pickIds(state, side, side === 'bag' ? bagStacks : storageStacks);
     const bagIds = idsOn('bag'), storageIds = idsOn('storage');
-    const showDeposit = state.select && bagIds.length > 0;
-    const showWithdraw = state.select && storageIds.length > 0;
+    const busyOn = (ids: string[]): boolean => ids.some(id => state.busy.has(id));
+    // 고른 칸이 있는 쪽에만 액션 버튼이 나타난다(작업 246) — 모드 전환 없이 바로 다중 선택.
+    const showDeposit = bagIds.length > 0;
+    const showWithdraw = storageIds.length > 0;
     depositPicked.hidden = !showDeposit; withdrawPicked.hidden = !showWithdraw;
-    depositPicked.textContent = `선택 보관 (${bagIds.length})`;
-    withdrawPicked.textContent = `선택 꺼내기 (${storageIds.length})`;
+    const depositBusy = busyOn(bagIds);
+    const withdrawBusy = busyOn(storageIds);
+    // 옮기는 중이면 문구부터 바뀐다(작업 253, 사용자 제보 "로딩인지 모르겠음") — 눌렀는지 아닌지 바로 보이게.
+    depositPicked.textContent = depositBusy ? '보관 중…' : `선택 보관 (${bagIds.length})`;
+    withdrawPicked.textContent = withdrawBusy ? '꺼내는 중…' : `선택 꺼내기 (${storageIds.length})`;
     const depositFull = warehouseCount + bagIds.length > 40;
-    depositPicked.disabled = depositFull;
+    // 옮기는 중에는 다시 누를 수 없다 — 같은 아이템을 두 번 보내 409를 받지 않게 한다(작업 250).
+    depositPicked.disabled = depositFull || depositBusy;
     depositPicked.title = depositFull ? '공용창고가 가득 차 선택한 만큼 보관할 수 없습니다.' : `${bagIds.length}개를 공용창고에 보관합니다.`;
-    withdrawPicked.disabled = false;
+    // 꺼내기도 가방 40칸을 넘길 수 없다(작업 248) — 스킬북·보물 주머니도 칸을 쓴다.
+    const withdrawFull = bagCount + storageIds.length > 40;
+    withdrawPicked.disabled = withdrawFull || withdrawBusy;
+    withdrawPicked.title = withdrawFull ? '가방이 가득 차 선택한 만큼 꺼낼 수 없습니다. 가방을 비운 뒤 다시 시도하세요.' : `${storageIds.length}개를 가방으로 꺼냅니다.`;
 
     paintGrid(ui, storageGrid, 'storage', storageStacks, state);
     paintGrid(ui, bagGrid, 'bag', bagStacks, state);
     paintDetail(ui, save, detail, state, paint);
   };
 
-  quick.onclick = () => {
-    state.quick = !state.quick;
-    if (state.quick) { state.select = false; state.picked.clear(); state.focus = undefined; }
-    paint();
-  };
-  select.onclick = () => {
-    state.select = !state.select;
-    if (state.select) { state.quick = false; state.focus = undefined; }
-    state.picked.clear(); paint();
-  };
   depositPicked.onclick = () => {
     const ids = pickIds(state, 'bag', bagStacks);
     if (!ids.length) return;
-    for (const [key, side] of [...state.picked]) if (side === 'bag') state.picked.delete(key);
+    // 선택은 이동이 **성공한 뒤** `move`가 비운다 — 실패하면 골라 둔 칸이 그대로 남아 다시 누를 수 있다(작업 250).
     move(ui, 'bag', ids);
   };
   withdrawPicked.onclick = () => {
     const ids = pickIds(state, 'storage', storageStacks);
     if (!ids.length) return;
-    for (const [key, side] of [...state.picked]) if (side === 'storage') state.picked.delete(key);
     move(ui, 'storage', ids);
   };
 
@@ -251,11 +274,8 @@ function paintGrid(ui: Interface, grid: HTMLElement, side: WarehouseSide, stacks
       const badge = document.createElement('span'); badge.className = 'skillbook-count';
       badge.textContent = `×${stack.items.length}`; cell.append(badge);
     }
-    const plus = plusOf(item);
-    if (plus > 0) {
-      const badge = document.createElement('span'); badge.className = 'item-plus warehouse-plus';
-      badge.textContent = `+${plus}`; cell.append(badge);
-    }
+    // `+N`은 가방·장착 칸과 **같은 자리(왼쪽 아래)**에 붙인다(작업 246, `plusBadge.ts`).
+    appendPlusBadge(cell, item);
     const owner = itemJob(item);
     if (owner) {
       const badge = document.createElement('span'); badge.className = `job-badge job-${owner}`;
@@ -283,18 +303,15 @@ function paintGrid(ui: Interface, grid: HTMLElement, side: WarehouseSide, stacks
 function tap(ui: Interface, side: WarehouseSide, stack: Stack): void {
   const state = warehouseState(ui);
   const key = keyOf(side, stack.key);
-  if (state.select) {
-    if (state.picked.has(key)) state.picked.delete(key);
-    else {
-      // 한 번에 한 쪽만 고른다 — 가방에서 고른 것을 창고에서 고르면 섞이지 않게 지운다.
-      for (const [pickedKey, pickedSide] of [...state.picked]) if (pickedSide !== side) state.picked.delete(pickedKey);
-      state.picked.set(key, side);
-    }
-    repaint(ui);
-    return;
+  // [작업 246] 탭 = **바로 선택**이다. 모드 버튼이 없어졌고, 고른 칸은 상세 바에도 띄운다(정보는
+  // 그대로 볼 수 있고, 같은 칸을 다시 탭하면 선택이 풀린다).
+  if (state.picked.has(key)) state.picked.delete(key);
+  else {
+    // 한 번에 한 쪽만 고른다 — 가방에서 고른 것을 창고에서 고르면 섞이지 않게 지운다.
+    for (const [pickedKey, pickedSide] of [...state.picked]) if (pickedSide !== side) state.picked.delete(pickedKey);
+    state.picked.set(key, side);
   }
-  if (state.quick) { move(ui, side, stack.items.map(item => item.id)); return; }
-  state.focus = state.focus && state.focus.side === side && state.focus.key === stack.key ? undefined : { side, key: stack.key };
+  state.focus = { side, key: stack.key };
   repaint(ui);
 }
 
@@ -314,11 +331,14 @@ function move(ui: Interface, side: WarehouseSide, ids: string[]): void {
     try {
       const result = await ui.market.sync.transferWarehouse(action, ids);
       if (result.items) ui.warehouseItems = result.items;
+      // 응답이 오면 창고 목록·가방이 이미 새 상태다 — 옮긴 칸의 선택을 바로 비우고(작업 250) 그리드를 즉시 다시 그린다.
+      for (const [key, pickedSide] of [...state.picked]) if (pickedSide === side) state.picked.delete(key);
       ui.renderStatus(); ui.renderBagBadge();
       if (state.focus && state.focus.side === side) {
-        const stacks = stacksOf(side === 'bag' ? ui.world.save.bag : ui.warehouseItems ?? []);
+        const stacks = stacksOf(side === 'bag' ? ui.world.save.bag : ui.warehouseItems ?? [], jobOrDefault(ui.world.save.job));
         if (!stacks.some(stack => stack.key === state.focus!.key)) state.focus = undefined;
       }
+      repaint(ui);
       ui.message(result.message || (action === 'deposit' ? '공용창고에 보관했습니다.' : '가방으로 가져왔습니다.'));
     } catch (error) {
       ui.message(error instanceof Error ? error.message : String(error));
@@ -345,9 +365,12 @@ function cellIcon(ui: Interface, item: Item): string {
 
 function paintDetail(ui: Interface, save: Save, detail: HTMLElement, state: WarehouseState, paint: () => void): void {
   const focus = state.focus;
-  const stacks = focus ? stacksOf(focus.side === 'storage' ? ui.warehouseItems ?? [] : save.bag) : [];
+  const stacks = focus ? stacksOf(focus.side === 'storage' ? ui.warehouseItems ?? [] : save.bag, jobOrDefault(save.job)) : [];
   const stack = focus ? stacks.find(entry => entry.key === focus.key) : undefined;
   if (!focus || !stack) { detail.hidden = true; detail.replaceChildren(); return; }
+  // 선택한 칸이 2개 이상이면 상세 바 버튼도 **선택한 칸 전부**를 대상으로 한다(작업 250) — 마지막으로 탭한
+  // 1개만 옮겨서 사용자가 헷갈렸다. 1개(또는 스택 한 칸)만 골랐을 때는 예전 `꺼내기`/`보관하기` 그대로다.
+  const pickedIds = pickIds(state, focus.side, stacks);
   const item = stack.items[0];
   detail.hidden = false; detail.replaceChildren();
   const head = document.createElement('div'); head.className = 'warehouse-detail-head';
@@ -370,6 +393,8 @@ function paintDetail(ui: Interface, save: Save, detail: HTMLElement, state: Ware
     if (item.locked) parts.push('잠긴 장비');
   }
   if (stack.items.length > 1) parts.push(`${stack.items.length}개`);
+  // 여러 칸을 골랐으면 상세 바가 몇 개를 함께 옮기는지 미리 밝혀 둔다(작업 250).
+  if (pickedIds.length > 1) parts.push(`선택 ${pickedIds.length}개`);
   meta.textContent = parts.join(' · ');
   detail.append(head, meta);
   if (isEquipment(item)) {
@@ -393,13 +418,24 @@ function paintDetail(ui: Interface, save: Save, detail: HTMLElement, state: Ware
     detail.append(note);
   }
   const actions = document.createElement('div'); actions.className = 'warehouse-detail-actions';
-  const moving = stack.items.some(entry => state.busy.has(entry.id));
-  const full = focus.side === 'bag' && (ui.warehouseItems?.length ?? 0) + stack.items.length > 40;
+  const multi = pickedIds.length > 1;
+  const targetIds = multi ? pickedIds : stack.items.map(entry => entry.id);
+  const moving = targetIds.some(id => state.busy.has(id));
+  // 대상을 가방 40칸·창고 40칸 상한에 넣고 넘기는지 — 넘기면 눌러도 서버가 409로 거절하므로 미리 잠근다.
+  const full = focus.side === 'bag'
+    ? (ui.warehouseItems?.length ?? 0) + targetIds.length > 40
+    : equipmentCount(save.bag, save.job) + targetIds.length > 40;
   const moveButton = document.createElement('button'); moveButton.type = 'button'; moveButton.className = 'warehouse-move';
-  moveButton.textContent = `${focus.side === 'storage' ? '꺼내기' : '보관하기'}${stack.items.length > 1 ? ` (${stack.items.length})` : ''}`;
+  // 옮기는 중에는 버튼 문구도 "지금 하고 있다"로 바뀐다(작업 253, 사용자 제보 "로딩인지 모르겠음").
+  moveButton.textContent = moving
+    ? (focus.side === 'storage' ? '꺼내는 중…' : '보관 중…')
+    : multi
+      ? `선택 ${focus.side === 'storage' ? '꺼내기' : '보관'} (${pickedIds.length})`
+      : `${focus.side === 'storage' ? '꺼내기' : '보관하기'}${stack.items.length > 1 ? ` (${stack.items.length})` : ''}`;
   moveButton.disabled = moving || full;
-  if (full) moveButton.title = '공용창고가 가득 찼습니다.';
-  moveButton.onclick = () => move(ui, focus.side, stack.items.map(entry => entry.id));
+  if (full) moveButton.title = focus.side === 'bag' ? '공용창고가 가득 찼습니다.' : '가방이 가득 차 꺼낼 수 없습니다.';
+  else if (multi) moveButton.title = `선택한 ${pickedIds.length}개를 한꺼번에 ${focus.side === 'storage' ? '가방으로 꺼냅니다' : '공용창고에 보관합니다'}.`;
+  moveButton.onclick = () => move(ui, focus.side, targetIds);
   const close = document.createElement('button'); close.type = 'button'; close.className = 'warehouse-detail-close';
   close.textContent = '닫기';
   close.onclick = () => { state.focus = undefined; paint(); };

@@ -149,10 +149,12 @@
    들어 있는 부분, `itemArtTrim.generated.ts`)의 `background-size`·`background-position`과 그 상자의
    `aspect-ratio`를 인라인으로 준다 — 칸 가장자리의 빈 여백 때문에 물건이 작아 보이지도, 그림이 늘어나지도 않는다.
    아래는 인라인 값이 없는(표에 없는) 아틀라스의 마지막 기본값이다(한 칸 174:290 = 870×290 ÷ 5열). */
-.equipment-slot { --slot-art-ratio: 174 / 290; display: grid; grid-template-rows: minmax(0, 1fr) auto; justify-items: center; align-items: center; min-width: 0; aspect-ratio: 1; gap: 1px; border: 1px solid #655348; background: #252126; color: #b9ada6; padding: 2px; }
+.equipment-slot { --slot-art-ratio: 174 / 290; position: relative; display: grid; grid-template-rows: minmax(0, 1fr) auto; justify-items: center; align-items: center; min-width: 0; aspect-ratio: 1; gap: 1px; border: 1px solid #655348; background: #252126; color: #b9ada6; padding: 2px; }
 .equipment-slot .slot-icon { display: block; grid-row: 1; justify-self: center; align-self: center; width: auto; height: auto; max-width: 100%; max-height: 100%; min-width: 0; min-height: 0; object-fit: contain; }
 .equipment-slot .slot-icon.atlas-icon { width: auto; height: 100%; max-width: 100%; aspect-ratio: var(--slot-art-ratio); background-size: 500% 100%; }
-.equipment-slot .slot-part { grid-row: 2; max-width: 100%; overflow: hidden; color: #ccb49b; font-size: 8px; line-height: 1.05; text-overflow: ellipsis; white-space: nowrap; }
+/* 부위 이름은 가운데 정렬 그대로 두되, 왼쪽 아래 `+N` 배지(작업 246)가 글자와 겹치지 않게
+   왼쪽 여백만큼 비워 둔다(배지 폭 ≈ 13px). */
+.equipment-slot .slot-part { grid-row: 2; max-width: 100%; padding-left: 13px; overflow: hidden; color: #ccb49b; font-size: 8px; line-height: 1.05; text-overflow: ellipsis; white-space: nowrap; }
 .equipment-slot[aria-expanded="true"] { background: #3c3231; outline: 1px solid #e0c699; outline-offset: 1px; }
 .equipment-slot:disabled { opacity: .65; }
 .equipped-detail { margin: 0; display: flex; flex-direction: column; align-items: flex-start; position: fixed; z-index: 30; width: max-content; overflow-y: auto; box-shadow: 0 8px 24px #000b; }
@@ -187,6 +189,7 @@
 .floor-summary { margin: 0 0 10px; color: #c1ae9a; font-size: 11px; line-height: 1.5; }
 .offline-summary { padding: 12px; border: 1px solid #ad7e49; background: #39271f; color: #f6d8aa; line-height: 1.7; font-size: 12px; }
 .offline-floors { margin: 8px 0 0; padding: 8px 10px; border: 1px solid #8d6a3f; background: #2f2019; color: #ffd79a; font-size: 12px; line-height: 1.6; }
+.offline-salvaged { margin: 8px 0 0; padding: 8px 10px; border: 1px solid #6f7f4a; background: #232a1c; color: #cfe3a4; font-size: 12px; line-height: 1.6; }
 .offline-items { max-height: 240px; overflow-y: auto; padding-left: 20px; color: #dfc8aa; font-size: 12px; }
 .floor-mode { width: 100%; margin-bottom: 12px; padding: 9px; border: 1px solid #a27d52; background: #4b3327; color: #ffe0b4; font-size: 12px; }
 .floor-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
@@ -202,9 +205,21 @@
 /* [작업 240] 스킬 창 상단 바 — 보유 스킬로 3칸을 다시 채우는 `추천 자동 장착`과 `전체/액티브/패시브` 탭.
    390px 폰에서 버튼과 탭 세 칸이 한 줄에 들어가고, 그보다 좁으면 버튼이 위 줄로 접힌다. */
 .skill-top-bar { display: flex; flex-wrap: wrap; gap: 5px; align-items: stretch; }
+/* 작업 245: 추천 자동 장착·자동 강화 두 버튼을 한 줄에 묶고, 좁은 화면에서는 탭이 다음 줄로 내려간다. */
+.skill-top-actions { display: flex; flex: 1 1 200px; gap: 5px; min-width: 0; }
+.skill-top-actions > button { flex: 1 1 0; min-width: 0; white-space: nowrap; }
 .skill-auto-equip { flex: 1 1 132px; min-height: 34px; padding: 7px 10px; border: 1px solid #d0a05c; border-radius: 4px; background: linear-gradient(#6b4a30, #442d20); color: #ffe6bd; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
 .skill-auto-equip:hover { border-color: #f0c47e; background: linear-gradient(#7c5638, #4d3325); }
 .skill-auto-equip:active { background: #3a2820; }
+/* 자동 강화(작업 245) — 추천 버튼과 나란한 짙은 책빛 버튼. */
+/* 자동 강화(작업 245 → 246): 지금 습득·강화할 수 있는 내 직업 스킬북이 있으면 금빛 테루·발광으로
+   "누를 수 있다"를 보이고(`.is-ready`), 없으면 `disabled` + 어둡게 흐린 상태로 잠근다. */
+.skill-auto-upgrade { flex: 1 1 96px; min-height: 34px; padding: 7px 10px; border: 1px solid #8f7ad0; border-radius: 4px; background: linear-gradient(#4a3d72, #2f2750); color: #e8e0ff; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; transition: filter .15s, opacity .15s; }
+.skill-auto-upgrade:hover:not(:disabled) { border-color: #b7a6f2; background: linear-gradient(#584a86, #382f5e); }
+.skill-auto-upgrade:active:not(:disabled) { background: #251f40; }
+.skill-auto-upgrade.is-ready { border-color: #f0c47e; background: linear-gradient(#7a5a2c, #4a3220); color: #fff0cf; box-shadow: 0 0 9px #e8b64a66, inset 0 0 0 1px #ffe1a733; }
+.skill-auto-upgrade.is-ready:hover { border-color: #ffe0a0; background: linear-gradient(#8b6733, #563a25); }
+.skill-auto-upgrade:disabled { border-color: #60606e; background: #2a2733; color: #7e7a8c; opacity: .5; filter: grayscale(.75); cursor: default; box-shadow: none; }
 .skill-filter { display: flex; flex: 0 0 auto; border: 1px solid #6b5545; border-radius: 4px; overflow: hidden; background: #1d1719; }
 .skill-filter-tab { min-width: 52px; padding: 7px 9px; border: 0; border-left: 1px solid #4a3a33; background: transparent; color: #a99581; font: inherit; font-size: 11px; cursor: pointer; }
 .skill-filter-tab:first-child { border-left: 0; }
@@ -215,7 +230,7 @@
 /* 한글은 단어 중간에서 끊기지 않게(예: `미습득 (스킬북 파밍 필요)`가 `필/요`로 갈라졌다) — 긴 영문·숫자는 상자 안에서 줄인다. */
 .passive-skill-card, .skill-passive-hint { word-break: keep-all; overflow-wrap: break-word; }
 @media (max-width: 380px) {
-  .skill-auto-equip { font-size: 11px; }
+  .skill-auto-equip, .skill-auto-upgrade { font-size: 11px; padding: 7px 6px; }
   .skill-filter-tab { min-width: 44px; padding: 7px; font-size: 10px; }
 }
 .skill-group-title { margin: 10px 0 0; color: #e8d4ae; font-size: 15px; border-bottom: 1px solid #6b5545; padding-bottom: 6px; }
@@ -241,7 +256,7 @@
   .equipment-grid { grid-template-rows: repeat(2, 48px); }
   .equipment-modal .bag-grid { min-height: 135px; }
   .bag-heading h3 { font-size: 13px; }
-  .bag-heading .bag-rarity-sort, .bag-heading .bag-job-only { padding: 4px 7px; font-size: 10px; }
+  .bag-heading .bag-rarity-sort, .bag-heading .bag-job-only, .bag-heading .synth-open { padding: 4px 7px; font-size: 10px; }
   .modal-bag-footer { flex-wrap: wrap; gap: 4px; margin-top: 5px; padding-top: 5px; }
   .modal-bag-footer .salvage, .modal-bag-footer .salvage-rarity, .modal-bag-footer .salvage-plus { padding: 4px 7px; font-size: 10px; }
   .auto-salvage-hint { font-size: 9px; }
@@ -323,12 +338,17 @@
 
 .bag-item .bag-lock-badge { position: absolute; top: 1px; right: 1px; width: 18px; height: 18px; z-index: 1; pointer-events: none; }
 
-/* 업그레이드 화살표(작업 241, 확정 A안 `downloads/upgrade_arrow/opt_a.jpg`) — 내 직업이 낄 수 있는
-   장비 중 지금 낀 것보다 좋은 것의 **아이콘 상자 우측 상단**에 선명한 초록 화살표를 띄운다.
-   좌상단 타직업 배지·우하단 `+N`/잠금과 자리가 겹치지 않는다. 잠금 배지가 함께 있는 칸만
-   CSS가 잠금을 **우측 아래**로 내린다(화살표가 위에 남는다). */
-.upgrade-arrow { position: absolute; top: 2px; right: 2px; z-index: 3; display: block; color: #34eb6e; font-size: clamp(11px, 2.9vw, 14px); line-height: 1; font-weight: 900; text-shadow: -1px -1px 0 #0a1a0d, 1px -1px 0 #0a1a0d, -1px 1px 0 #0a1a0d, 1px 1px 0 #0a1a0d, 0 0 5px #34eb6ecc; pointer-events: none; }
+/* 업그레이드 화살표(작업 241 → 246) — 사용자가 고른 **3번 슬림 더블 셰브론 PNG**를 아이콘 상자
+   우측 상단에 9px 이하로 작게 얹고, 주변에만 은은한 녹색 발광을 준다(글자 `▲`는 크고 투박해
+   아이템을 가렸다). 좌상단 타직업 배지·왼쪽 아래 `+N`·우하단 수량/잠금과 겹치지 않는다.
+   잠금 배지가 함께 있는 칸만 CSS가 잠금을 **우측 아래**로 내린다(화살표가 위에 남는다). */
+.upgrade-arrow { position: absolute; top: 2px; right: 2px; z-index: 3; display: block; width: clamp(7px, 1.9vw, 9px); height: auto; filter: drop-shadow(0 0 3px rgba(52, 211, 153, .8)) drop-shadow(0 0 6px rgba(16, 185, 129, .5)); pointer-events: none; user-select: none; }
 .bag-item.has-upgrade .bag-lock-badge { top: auto; bottom: 1px; }
+
+/* `+N` 강화 배지는 **모든 아이템 칸의 왼쪽 아래** 한 곳에만 붙는다(작업 246) — 가방·장비창 장착 칸·
+   공용창고가 같은 자리를 쓴다. 좌상단 직업 배지, 우상단 추천 화살표, 우하단 수량 `×N`·잠금과
+   겹치지 않는 유일한 모서리다. 이름 옆 배지(`.item-plus`, 작업 201)와 같은 색을 쓴다. */
+.bag-item .item-plus-badge, .equipment-slot .item-plus-badge, .market-pick .item-plus-badge { position: absolute; left: 3px; bottom: 2px; z-index: 2; margin: 0; padding: 0 2px; border-radius: 3px; background: #120f14cc; color: #43f6c5; font-size: 9px; line-height: 1.25; font-weight: 800; letter-spacing: .01em; text-shadow: 0 0 5px #43f6c599; pointer-events: none; white-space: nowrap; }
 
 /* 가방 10열 칸은 모두 **1:1 정사각형**이다(작업 212 `#4936` — 스킬북 칸만 세로로 길쭉해
    다른 장비·주머니 칸과 줄이 어긋나 보이던 것을 없앴다). 이름은 다른 칸처럼 한 줄 말줄임이다. */
@@ -339,6 +359,8 @@
 .bag-item.skillbook-item .skillbook-count { top: auto; bottom: 1px; right: 2px; }
 
 .bag-capacity { color: #aa9b8f; font-size: 9px; margin-left: 2px; }
+/* 가방이 40칸을 넘은 세이브(작업 248) — 정리가 필요하다는 것을 바로 보이게 한다. */
+.modal-bag-footer .is-over { color: #f0846c; }
 
 .skill-icon { position: relative; }
 .skill-upgrade-dot { position: absolute; right: -3px; top: -3px; width: 10px; height: 10px; background: #de352e; border: 1px solid #f2b2a0; border-radius: 50%; }
@@ -426,6 +448,13 @@
 .reward-panel-toolbar { justify-content: space-between; }
 .utility-completion { border-color: #b38c52; background: #3b2d24; }
 .utility-completion > b { color: #f1d294; }
+/* `일일 보상`·`주간 보상` 탭의 빨간 점(작업 247) — 받을 보상이 있을 때만 켠다. */
+.reward-tab-dot { position: absolute; z-index: 2; top: 2px; right: 4px; width: 8px; height: 8px; border: 1px solid #efb6a4; border-radius: 50%; background: #de352e; box-shadow: 0 0 5px #a81718b0; pointer-events: none; }
+.reward-tab-dot[hidden] { display: none; }
+/* 전체 완료 보상은 **맨 위**, 개별 미션은 그 아래 별도 묶음(작업 247). */
+.reward-completion { display: flex; flex-direction: column; gap: 5px; margin: 5px 0 2px; }
+.reward-missions-heading { margin: 4px 0 0; padding-top: 10px; border-top: 1px solid #5c4838; color: #d8bd93; }
+.reward-mission-group { display: flex; flex-direction: column; gap: 6px; padding: 1px 0 0; }
 
 .skill-list .skill-image-icon { border: 0; border-radius: 0; width: 44px; height: 44px; flex: 0 0 44px; background-color: transparent; }
 
@@ -462,6 +491,8 @@
 .bag-heading { display:flex; align-items:center; gap:4px; margin-bottom:5px; flex:none; }
 .bag-heading h3 { flex:1 1 auto; min-width:0; margin:0; }
 .bag-heading .bag-job-only { flex:0 1 auto; margin:0; }
+/* [작업 252] 가방 `합성`은 머리줄 `내 직업만 보기` 바로 왼쪽 — 머리줄 버튼과 같은 납작한 크기로 둔다. */
+.bag-heading .synth-open { flex:0 1 auto; margin:0; padding:4px 7px; font-size:11px; }
 .bag-rarity-sort { flex:0 0 auto; border:1px solid #6d5948; background:#292124; color:#bba998; padding:4px 8px; font-size:11px; }
 .bag-rarity-sort.active { border-color:#c8a26a; background:#4a342a; color:#ffe1b5; }
 
@@ -638,20 +669,24 @@ img.pouch-icon { display: block; object-fit: contain; border-radius: 4px; }
 .warehouse-gold { color: #ffd977; font-weight: 700; }
 .warehouse-counts { color: #d9c4a6; font-variant-numeric: tabular-nums; }
 .warehouse-tools { display: flex; flex: none; flex-wrap: wrap; align-items: center; gap: 4px; }
-.warehouse-mode { border: 1px solid #6d5948; border-radius: 4px; background: #282023; color: #bba998; padding: 5px 8px; font-size: 11px; touch-action: manipulation; }
-.warehouse-mode.is-on { border-color: #c8a26a; background: #4a342a; color: #ffe1b5; font-weight: 700; }
-.warehouse-batch { border: 1px solid #c8a26a; border-radius: 4px; background: linear-gradient(#6d492b, #3a281f); color: #ffe0a6; padding: 5px 9px; font-size: 11px; font-weight: 700; touch-action: manipulation; }
+/* [작업 246] `선택 끔/켬` 모드 버튼(`.warehouse-mode`)은 없어졌다 — 도구 줄에는 고른 칸이 있을
+   때만 나타나는 `선택 보관`·`선택 꺼내기`와 `새로고침`만 남는다. */
+.warehouse-batch { border: 1px solid #c8a26a; border-radius: 4px; background: linear-gradient(#6d492b, #3a281f); color: #ffe0a6; padding: 5px 9px; font-size: 11px; font-weight: 700; touch-action: manipulation; box-shadow: 0 0 7px #d5aa4933; }
 .warehouse-batch[hidden], .warehouse-detail[hidden] { display: none; }
 .warehouse-batch:disabled { opacity: .45; }
+/* 옮기는 중(작업 253) — 버튼이 잠기고 문구가 `보관 중…`/`꺼내는 중…`으로 바뀐다. 커서로도 대기임을 알린다. */
+.warehouse-batch:disabled, .warehouse-detail-actions .warehouse-move:disabled { cursor: progress; }
 .warehouse-panes { display: flex; flex: 0 1 auto; flex-direction: column; gap: 5px; min-height: 0; overflow: hidden; }
 .warehouse-pane { display: flex; flex: 1 1 auto; flex-direction: column; min-height: 126px; max-height: 44dvh; padding: 3px 5px 4px; border: 1px solid #4c3f39; background: #1c171a; }
 .warehouse-pane-title { flex: none; margin: 0 0 3px; color: #e0c79f; font-size: 11.5px; font-variant-numeric: tabular-nums; }
 .warehouse-pane .warehouse-grid { flex: 1 1 auto; min-height: 0; max-height: 34dvh; overflow-y: auto; overflow-x: hidden; scrollbar-gutter: stable; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 3px; padding: 1px; }
 .warehouse-modal .bag-item .item-icon { width: 100%; height: 100%; max-width: 34px; max-height: 34px; min-height: 0; }
-.warehouse-modal .bag-item .warehouse-plus { position: absolute; left: 1px; bottom: 1px; margin: 0; font-size: 9px; line-height: 1; }
 .warehouse-slot.is-busy { opacity: .4; filter: grayscale(.5); }
+/* 선택 표시(작업 246) — 네 모서리는 이미 직업·화살표·`+N`·수량이 쓰므로 체크는 **가운데**에
+   반투명 초록으로 얹는다. 테두리·내부 발광만으로도 고른 칸이 보이지만, 체크가 있으면
+   아이콘이 어두운 칸에서도 한눈에 들어온다. */
 .warehouse-slot.is-picked { outline: 2px solid #7ce1b0; outline-offset: -3px; box-shadow: inset 0 0 10px #7ce1b055; }
-.warehouse-slot.is-picked::after { content: '✓'; position: absolute; top: 0; left: 1px; color: #7ce1b0; font-size: 10px; font-weight: 900; line-height: 1.1; pointer-events: none; }
+.warehouse-slot.is-picked::after { content: '✓'; position: absolute; inset: 0; display: grid; place-items: center; background: #1d6b4a2e; color: #b9ffdb; font-size: 15px; font-weight: 900; line-height: 1; text-shadow: 0 1px 3px #0008; pointer-events: none; }
 .warehouse-detail { display: flex; flex: none; flex-direction: column; gap: 3px; margin-top: 1px; padding: 6px 8px; border: 1px solid #6d5948; background: #241d20; }
 .warehouse-detail-head { display: flex; align-items: baseline; justify-content: space-between; gap: 6px; }
 .warehouse-detail-head b { color: #f3e2c6; font-size: 12.5px; overflow-wrap: anywhere; }
@@ -676,3 +711,120 @@ img.pouch-icon { display: block; object-fit: contain; border-radius: 4px; }
   .warehouse-pane { min-height: 96px; }
   .warehouse-detail-actions button { min-height: 28px; }
 }
+
+/* ── 빈 스킬 원(`+`) 장착 선택 팝업 (작업 245) ─────────────────────────────────
+   전체 스킬 창 대신 이 원에 넣을 수 있는 스킬만 추천 순서(초당 딜량)로 보여 준다.
+   390px 폭에서 카드가 화면 밖으로 넘치지 않고, 목록만 스크롤된다. */
+.skill-picker { position: fixed; inset: 0; z-index: 40; display: flex; align-items: center; justify-content: center; padding: 16px; background: #08060ae0; }
+.skill-picker-card { width: min(340px, 100%); max-height: min(70dvh, 460px); display: flex; flex-direction: column; gap: 8px; padding: 12px; border: 1px solid #cc9c59; border-radius: 6px; background: linear-gradient(#241c1c, #171012); box-shadow: 0 12px 32px #000000b0; }
+.skill-picker-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: #ffe3ae; font-size: 13px; }
+.skill-picker-close { flex: none; padding: 6px 10px; border: 1px solid #8f7457; border-radius: 4px; background: #3c2924; color: #e9d6b1; font: inherit; font-size: 11px; cursor: pointer; }
+.skill-picker-close:hover { border-color: #d8b47a; }
+.skill-picker-list { display: flex; flex-direction: column; gap: 6px; overflow-y: auto; overscroll-behavior: contain; }
+.skill-picker-row { display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 10px; border: 1px solid #4a3a33; border-radius: 4px; background: #201a1b; color: #efe2cf; font: inherit; text-align: left; cursor: pointer; }
+.skill-picker-row:hover, .skill-picker-row:focus-visible { border-color: #d0a05c; background: #2b2223; outline: none; }
+.skill-picker-row.is-recommended { border-color: #e0b36e; box-shadow: inset 0 0 0 1px #e0b36e55; }
+.skill-picker-icon { flex: none; width: 32px; height: 32px; border-radius: 50%; background-color: #100e12; }
+.skill-picker-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.skill-picker-info b { display: flex; align-items: center; gap: 6px; font-size: 13px; word-break: keep-all; }
+.skill-picker-info small { color: #b5a79e; font-size: 11px; }
+.skill-recommend-badge { flex: none; padding: 1px 6px; border-radius: 999px; background: linear-gradient(#f0c47e, #c8933f); color: #2a1c10; font-size: 10px; font-weight: 800; letter-spacing: .02em; }
+@media (max-width: 380px) {
+  .skill-picker { padding: 10px; }
+  .skill-picker-card { padding: 10px; max-height: 74dvh; }
+  .skill-picker-info b { font-size: 12px; }
+}
+
+/* ── 스킬북 합성 팝업 (작업 251, 사용자 확정) ──────────────────────────────────
+   가방 `합성` 버튼으로 열리는 작은 창이다. 위에 **빈칸 5개**를 늘 보여 주고, 가운데 목록에서 고른
+   타직업 스킬북이 한 칸씩 들어간다. 연출은 `src/ui/modals/synthModal.ts`의 시각(280/560/620/900ms)과
+   **같은 박자**로 움직인다 — ① 5권이 가운데로 모임 ② 빛이 차오르며 팡 터짐 ③ 허물이 흩어지고 새 책 등장.
+   무대는 `overflow: visible`이라 빛·허물이 카드 밖으로도 퍼진다(주머니 개봉 창과 같은 방식). */
+.synth-window { position: fixed; inset: 0; z-index: 46; display: flex; align-items: center; justify-content: center; padding: 10px; background: #05030899; }
+.synth-window-card { position: relative; display: flex; flex-direction: column; align-items: center; gap: 4px; width: min(100%, 330px); max-height: 94dvh; padding: 7px 10px 10px; border: 1px solid #b58a52; border-radius: 6px; background: radial-gradient(circle at 50% 16%, #3b2a20, #17111a 72%); box-shadow: 0 18px 40px #000c, inset 0 0 0 1px #f0c88a22; color: #e8d7c0; overflow: visible; }
+.synth-window-top { display: grid; grid-template-columns: 30px minmax(0, 1fr) 30px; align-items: center; width: 100%; }
+.synth-window-title { margin: 0; font-size: 13px; color: #f6dcb0; letter-spacing: .01em; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.synth-window-close { justify-self: end; width: 30px; height: 30px; border: 0; background: transparent; color: #c9b49a; font-size: 20px; line-height: 1; }
+.synth-window-hint { margin: 0; color: #ad9a86; font-size: 9px; text-align: center; white-space: nowrap; }
+.synth-window-error { margin: 0; color: #ffb4a4; font-size: 10px; text-align: center; }
+
+/* 무대 — 5칸이 앉고, 빛·섬광·허물이 그 위/아래에 겹친다. */
+.synth-stage { position: relative; display: flex; align-items: center; justify-content: center; width: 100%; min-height: 92px; overflow: visible; }
+.synth-slots { position: relative; z-index: 3; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 5px; width: 100%; padding: 4px 0; }
+.synth-slot { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; aspect-ratio: 1; min-width: 0; padding: 2px; border: 1px dashed #6d5948; border-radius: 4px; background: #1b1618; color: #8d7b6c; transition: border-color 180ms linear, background 180ms linear; }
+.synth-slot.is-filled { border-style: solid; border-color: #c8a26a; background: radial-gradient(circle at 50% 30%, #3a3130, #221e22); }
+.synth-slot-plus { font-size: 15px; line-height: 1; color: #6c5b4e; }
+.synth-slot .skill-book-art { width: 100%; max-width: 34px; height: auto; aspect-ratio: 1; --book-badge-size: 14px; }
+.synth-slot-name { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 8px; line-height: 1.1; color: #cdbba4; }
+/* ① 가운데로 모임 — 각 책의 실제 거리(`--synth-dx`)만큼 가운데 칸으로 이동하며 작아진다. */
+.synth-stage.is-gathering .synth-slot { border-color: transparent; background: transparent; }
+.synth-stage.is-gathering .synth-slot.is-gathered .skill-book-art { transform: translateX(var(--synth-dx, 0)) scale(.42); opacity: .92; transition: transform 280ms cubic-bezier(.5, 0, .76, 1), opacity 240ms linear; }
+.synth-stage.is-gathering .synth-slot.is-gathered .synth-slot-name { opacity: 0; transition: opacity 120ms linear; }
+.synth-stage.is-burst .synth-slot .skill-book-art { opacity: 0; transition: opacity 120ms linear; }
+
+/* ② 빛이 차오르고 팡! — Canvas(`createPouchLight`)가 부드러운 빛·입자를 그리고, CSS는 중심 글로우와 섬광만 맡는다. */
+.synth-glow { position: absolute; left: 50%; top: 50%; z-index: 2; width: 8px; height: 8px; border-radius: 50%; background: radial-gradient(circle, #ffffff, #ffffff00 70%); opacity: 0; pointer-events: none; transform: translate(-50%, -50%); }
+.synth-stage.is-charging .synth-glow { width: 118px; height: 118px; opacity: .8; transition: width 260ms ease-out, height 260ms ease-out, opacity 260ms ease-out; }
+.synth-stage.is-burst .synth-glow { opacity: 0; transition: opacity 240ms ease-out; }
+.synth-flash { position: absolute; inset: -40% -12%; z-index: 4; background: radial-gradient(circle at 50% 50%, #ffffff, #ffffff00 60%); opacity: 0; pointer-events: none; mix-blend-mode: screen; }
+.synth-stage.is-burst .synth-flash { animation: synth-flash 240ms ease-out forwards; }
+
+/* ③ 허물 — 책 껍질(종이) 조각이 사방으로 벗겨져 흩어진다. 방향·거리는 조각마다 JS가 준 값이다. */
+.synth-husks { position: absolute; left: 50%; top: 50%; z-index: 5; pointer-events: none; }
+.synth-husk { position: absolute; width: 5px; height: 3px; background: linear-gradient(#f4e3c2, #a9885c); border-radius: 1px; opacity: 0; }
+.synth-stage.is-burst .synth-husk { animation: synth-husk 620ms ease-out forwards; }
+
+/* 결과 — 내 직업 책 1권(자동 합성은 N권 전부). 같은 책은 `×N`으로 묶는다. */
+.synth-result { width: 100%; margin-top: 1px; text-align: center; }
+.synth-result:empty { display: none; }
+.synth-result-title { margin: 0 0 4px; color: #f6dcb0; font-size: 12px; }
+.synth-result-list { display: flex; flex-wrap: wrap; gap: 5px; justify-content: center; max-height: 30dvh; overflow-y: auto; overscroll-behavior: contain; padding: 2px; }
+.synth-result-item { display: flex; flex-direction: column; align-items: center; gap: 1px; width: 62px; padding: 4px 2px; border: 1px solid #c8a26a55; border-radius: 4px; background: #241c1e; animation: synth-pop 260ms ease-out both; animation-delay: calc(var(--synth-index, 0) * 40ms); }
+.synth-result-item .skill-book-art { width: 32px; height: 32px; --book-badge-size: 15px; }
+.synth-result-name { font-size: 9px; line-height: 1.15; color: #ffe0ab; word-break: keep-all; }
+.synth-result-count { color: #43f6c5; font-size: 10px; font-style: normal; font-weight: 800; }
+
+/* 재료 목록 — 가방의 타직업 스킬북. 누르면 위 빈칸에 들어가고 다시 누르면 빠진다. */
+.synth-materials-wrap { width: 100%; min-height: 0; margin-top: 2px; }
+.synth-materials-heading { margin: 0 0 3px; color: #ad9a86; font-size: 9px; text-align: center; }
+.synth-materials { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 4px; max-height: 25dvh; overflow-y: auto; overscroll-behavior: contain; padding: 2px; }
+/* 스크롤바는 다크/골드 톤으로 맞춘다(작업 252 ④ — 기본 회색 막대가 팝업 톤과 어긋났다). */
+.synth-materials, .synth-result-list { scrollbar-width: thin; scrollbar-color: #6b5239 #1c1518; }
+.synth-materials::-webkit-scrollbar, .synth-result-list::-webkit-scrollbar { width: 6px; height: 6px; }
+.synth-materials::-webkit-scrollbar-track, .synth-result-list::-webkit-scrollbar-track { background: #1c1518; border-radius: 3px; }
+.synth-materials::-webkit-scrollbar-thumb, .synth-result-list::-webkit-scrollbar-thumb { background: #6b5239; border-radius: 3px; }
+.synth-material { position: relative; display: flex; flex-direction: column; align-items: center; gap: 1px; min-width: 0; padding: 2px; border: 1px solid #60534e; border-radius: 4px; background: #221e22; color: #ddcfc1; }
+.synth-material .skill-book-art { width: 100%; max-width: 30px; height: auto; aspect-ratio: 1; --book-badge-size: 12px; }
+.synth-material .job-badge { position: absolute; left: 1px; top: 1px; padding: 0 2px; min-height: 11px; font-size: 8px; line-height: 9px; z-index: 1; pointer-events: none; }
+.synth-material.is-picked { border-color: #ffe3a3; box-shadow: inset 0 0 0 1px #ffe3a355; opacity: .5; }
+
+.synth-window-actions { display: flex; flex-wrap: wrap; gap: 4px; width: 100%; margin-top: 3px; }
+.synth-window-actions button { min-height: 34px; padding: 7px 6px; border-radius: 4px; font: inherit; font-size: 11px; touch-action: manipulation; }
+.synth-fill { flex: 1 1 40%; border: 1px solid #7d6242; background: #2b2223; color: #e3cba6; }
+.synth-craft { flex: 2 1 96px; border: 1px solid #d3a45f; background: linear-gradient(#6b4c2a, #43301c); color: #ffe6bc; font-weight: 700; }
+.synth-auto { flex: 1 1 44%; border: 1px solid #8f7457; background: #3c2924; color: #e9d6b1; }
+.synth-auto.is-ready { border-color: #e0b36e; box-shadow: inset 0 0 0 1px #e0b36e44; color: #ffe6bc; }
+.synth-close { flex: 0 0 auto; border: 1px solid #6d5540; background: #251e1f; color: #c3ae96; }
+.synth-fill:disabled, .synth-craft:disabled, .synth-auto:disabled { opacity: .42; }
+
+@keyframes synth-flash { 0% { opacity: 0; } 22% { opacity: .95; } 100% { opacity: 0; } }
+@keyframes synth-husk {
+  0% { opacity: 0; transform: rotate(var(--synth-angle, 0deg)) translateY(0) scale(.6); }
+  18% { opacity: 1; }
+  100% { opacity: 0; transform: rotate(var(--synth-angle, 0deg)) translateY(calc(var(--synth-dist, 26px) * -1)) rotate(170deg) scale(1); }
+}
+@keyframes synth-pop { 0% { opacity: 0; transform: translateY(5px) scale(.86); } 100% { opacity: 1; transform: none; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .synth-stage.is-gathering .synth-slot.is-gathered .skill-book-art { transition: none; }
+  .synth-stage.is-burst .synth-husk, .synth-stage.is-burst .synth-flash { animation: none; display: none; }
+  .synth-result-item { animation: none; }
+}
+@media (max-height: 700px) {
+  .synth-stage { min-height: 78px; }
+  .synth-materials { max-height: 22dvh; }
+}
+
+/* 가방 바닥줄 `합성` — 재료가 있으면 금빛, 없으면 다른 분해 버튼과 같은 톤으로 둔다. */
+.synth-open.is-ready { border-color: #d3a45f; background: linear-gradient(#5b3f26, #3a2926); color: #ffe0ab; }
+.synth-open:disabled { opacity: .45; }

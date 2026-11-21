@@ -1,10 +1,18 @@
 import type { Item } from './items';
 import type { SyncResult, SaveSync } from './sync';
 import { apiHeaders, isOutdatedResponse, reloadForNewVersion } from './appVersion';
-export type MarketView = 'active' | 'recent' | 'sold' | 'mine' | 'register' | 'inbox';
-export type Listing = { id: string; sellerName: string; item: Item; price: number; state: string; createdAt: number; expiresAt: number; soldAt: number | null; mine: boolean; purchased: boolean };
+// 작업 247: `거래 완료`(`sold`) 탭은 없앴다 — 판매 완료 목록은 `최근 거래` 탭이 최근 순서로 보여 준다.
+// 서버 계약(`view:'sold'`)은 `최근 거래` 요청에 그대로 쓴다(`load`).
+export type MarketView = 'active' | 'recent' | 'mine' | 'register' | 'inbox';
+/** 화면 탭으로 열 수 있는 뷰 — 옛 상태(예: `sold`)가 남아 있으면 `active`로 안전 폴백한다. */
+export const MARKET_VIEWS: MarketView[] = ['active', 'recent', 'mine', 'register', 'inbox'];
+/**
+ * 매물 한 건. `price`는 **개당 가격**(서버 `unitPrice`와 같은 값, 기존 계약 호환), `quantity`는 남은 수량
+ * (판매 완료 행은 팔린 수량)이다 — 묶음 매물은 `개당 N 골드 (총 N개)`로 보여 준다(작업 249).
+ */
+export type Listing = { id: string; sellerName: string; item: Item; price: number; quantity: number; unitPrice?: number; totalPrice?: number; state: string; createdAt: number; expiresAt: number; soldAt: number | null; mine: boolean; purchased: boolean };
 export type Delivery = { id: string; item: Item | null; gold: number; reason: string; createdAt: number };
-export type MarketData = { watched: { id: string; state: string }[]; listings: Listing[]; inbox: Delivery[]; seq: number; total: number; page: number; myActive: number; revision: number; rules: { fee: number; maxListings: number; durationHours: number; maxPrice: number; minPrice: number; pageSize: number } };
+export type MarketData = { watched: { id: string; state: string }[]; listings: Listing[]; inbox: Delivery[]; seq: number; total: number; page: number; myActive: number; revision: number; rules: { fee: number; maxListings: number; durationHours: number; maxPrice: number; minPrice: number; pageSize: number; maxInbox?: number; maxBundle?: number } };
 export class Market {
   view: MarketView = 'active';
   filters: Record<string, string | number> = { query: '', category: '', slot: '', rarity: '', sort: 'newest', page: 0 };
@@ -19,12 +27,19 @@ export class Market {
   registerRarity = '';
   unlockItem?: string;
   price = '';
+  /** 판매 등록 수량(묶음, 작업 249) — 문자열로 들고 있다가 등록 요청에서 숫자로 바꾼다. */
+  quantity = '1';
+  /** 구매할 수량(부분 구매, 작업 249) — 상세를 펼친 매물마다 따로 기억한다. */
+  buyQuantity = new Map<string, number>();
   busy = false;
   loading = false;
   error = '';
   connected = false;
   newCount = 0;
   opened = false;
+  /** 수령함 건수와 그것을 확인한 시각(작업 247) — 거래소 아이콘 빨간 점이 여정 폴링 값과 비교해 고른다. */
+  inboxCount?: number;
+  inboxAt = 0;
   private generation = 0;
   private listRequest?: AbortController;
   private notified = new Set<string>();
@@ -36,7 +51,7 @@ export class Market {
   resetView(): void {
     this.listRequest?.abort(); this.generation++; this.loading = false;
     this.view = 'active'; this.filters = { query: '', category: '', slot: '', rarity: '', sort: 'newest', page: 0 };
-    this.selected = undefined; this.selectedItem = ''; this.price = ''; this.error = '';
+    this.selected = undefined; this.selectedItem = ''; this.price = ''; this.quantity = '1'; this.buyQuantity = new Map(); this.error = '';
     this.mineActiveOnly = false; this.quote = undefined; this.quoteGeneration++;
     this.registerCategory = ''; this.registerRarity = ''; this.unlockItem = undefined;
     this.data = undefined; this.candidate = undefined; this.newCount = 0;
@@ -50,7 +65,7 @@ export class Market {
    */
   resetForCharacterSwitch(): void {
     this.listRequest?.abort(); this.generation++; this.loading = false;
-    this.selected = undefined; this.selectedItem = ''; this.price = ''; this.unlockItem = undefined;
+    this.selected = undefined; this.selectedItem = ''; this.price = ''; this.quantity = '1'; this.buyQuantity = new Map(); this.unlockItem = undefined;
     this.quote = undefined; this.quoteGeneration++;
     this.candidate = undefined; this.newCount = 0; this.error = '';
   }
@@ -59,6 +74,7 @@ export class Market {
   }
   close(): void { this.opened = false; }
   async selectItem(item:Item):Promise<void> {
+    if (this.selectedItem !== item.id) this.quantity = '1';
     this.selectedItem=item.id;this.unlockItem=undefined;
     const generation=++this.quoteGeneration;
     this.quote={itemId:item.id,loading:true};this.onChange(true);
@@ -99,24 +115,34 @@ export class Market {
         this.candidate = next;
       }
       this.error = ''; this.onChange(full || (this.opened && ['mine','inbox'].includes(this.view) && (inboxChanged || previousSeq !== next.seq)));
+      // 메인 화면 거래소 빨간 점(작업 247)이 쓰는 수령함 건수·갱신 시각.
+      this.inboxCount = next.inbox.length; this.inboxAt = Date.now();
     } catch (error) { if (generation === this.generation) { this.error = error instanceof Error ? error.message : String(error); this.connected = false; this.onChange(full); } }
     finally { if (generation === this.generation) { this.loading = false; this.onChange(false); } }
   }
   refresh(): void { this.selected = undefined; void this.load(true); }
-  switch(view: MarketView): void { if (this.busy) return; this.view = view; this.unlockItem = undefined; this.filters.page = 0; if (view === 'recent') { this.filters.stat = ''; this.filters.sort = 'newest'; } this.selected = undefined; this.onChange(true); void this.load(true); }
+  switch(view: MarketView): void { if (this.busy) return; this.view = MARKET_VIEWS.includes(view) ? view : 'active'; this.unlockItem = undefined; this.filters.page = 0; if (view === 'recent') { this.filters.stat = ''; this.filters.sort = 'newest'; } this.selected = undefined; this.onChange(true); void this.load(true); }
   private applyEffect(result: SyncResult): void {
     if (!this.data || !result.effect) return;
     const { listing, deliveries, claimedId, claimedIds } = result.effect;
     if (listing) {
       const sale = this.data.listings.find(entry => entry.id === listing.id);
-      if (sale) { sale.state = listing.state; sale.soldAt = listing.soldAt ?? sale.soldAt; }
+      if (sale) {
+        sale.state = listing.state; sale.soldAt = listing.soldAt ?? sale.soldAt;
+        // 부분 구매 뒤에는 남은 수량이 바뀐다(작업 249) — 목록·상세의 `총 N개`와 구매 가능 수량을 즉시 맞춘다.
+        if (typeof listing.quantity === 'number') { sale.quantity = listing.quantity; sale.totalPrice = sale.price * listing.quantity; }
+      }
       if (listing.state === 'cancelled') this.data.myActive = Math.max(0, this.data.myActive - 1);
-      else if (listing.state === 'active') this.data.myActive++;
+      // 새로 등록한 매물만 판매 중 수를 올린다. 부분 구매(작업 249)도 상태가 `active`로 오지만 그것은
+      // **남의 매물**이므로 세지 않는다 — 서버는 등록에만 `mine: true`를 싣고, 옛 응답에는 이 값이 없어
+      // 목록에 없던 매물(=새 등록)로 대신 판별한다.
+      else if (listing.state === 'active' && (listing.mine === true || (listing.mine === undefined && !sale))) this.data.myActive++;
     }
     const removed = new Set(claimedIds ?? (claimedId ? [claimedId] : []));
     if (removed.size) { this.data.inbox = this.data.inbox.filter(entry => !removed.has(entry.id)); removed.forEach(id=>this.notified.delete(id)); }
     for (const delivery of deliveries) if (!this.data.inbox.some(entry => entry.id === delivery.id)) { this.data.inbox.unshift(delivery); this.notified.add(delivery.id); }
     this.data.revision = result.revision;
+    this.inboxCount = this.data.inbox.length; this.inboxAt = Date.now();
   }
   async retry(): Promise<void> {
     const pending = this.sync.pendingMarket;
@@ -131,7 +157,7 @@ export class Market {
     try {
       const result = await this.sync.mutate(action, data, requestId);
       this.requests.delete(key); this.applyEffect(result); this.onMessage(result.message || '처리했습니다.');
-      this.selected = undefined; if (action === 'register') { this.unlockItem = undefined; this.selectedItem = ''; this.price = ''; }
+      this.selected = undefined; if (action === 'register') { this.unlockItem = undefined; this.selectedItem = ''; this.price = ''; this.quantity = '1'; }
       this.busy = false; this.onChange(true);
       if (!result.effect) void this.load(true);
     } catch (error) { this.error = error instanceof Error ? error.message : String(error); }
