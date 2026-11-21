@@ -13,3 +13,17 @@
 # 배포 점검 스위치(작업 256) — 점검을 켜고 끄는 파일이라 브라우저·CDN 캐시에 남으면 안 된다.
 /maintenance.json
   Cache-Control: no-store, max-age=0
+
+# 관리자 포털(작업 218) — 비밀 화면이라 캐시·검색 노출을 막는다.
+/admin.html
+  Cache-Control: no-store, max-age=0
+  X-Robots-Tag: noindex, nofollow
+
+/admin.js
+  Cache-Control: no-store, max-age=0
+
+/admin.css
+  Cache-Control: no-store, max-age=0
+
+/admin-updates.json
+  Cache-Control: no-store, max-age=0

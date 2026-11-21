@@ -1,6 +1,6 @@
 # WORKLOG 아카이브 — 2026-11 (최근 20건 이전)
 
-> `docs/WORKLOG.md`에서 분리한 과거 작업·PR·배포 기록 218건. 최신 기록은 `docs/WORKLOG.md`.
+> `docs/WORKLOG.md`에서 분리한 과거 작업·PR·배포 기록 219건. 최신 기록은 `docs/WORKLOG.md`.
 > 검색은 이 파일에서 한다: `rg -n "<키워드>" docs/archive/2026-11/`.
 
 ## 2026-11-21 · songduckjin 작업 242 — 09시까지 서버 점검 중 안내(로그인 배너 + 405 안내)
@@ -1644,3 +1644,10 @@
 - **검증**: `npx tsc --noEmit`·`npx vite build` 통과. 신규 `tests/offline-auto-salvage.test.mjs` 4/4(같은 난수 수열로 켬/끔 비교 — 분해된 만큼만 가방이 줄고 금화·강화석이 같은 값으로 정산, 빈 슬롯·스킬북 보호, 12시간 정산이 `rewardBudget` 안, 팝업 문구). 관련 79/79(`offline`·`offline-auto-salvage`·`auto-salvage`·`elite-mob`·`balance-196`·`salvage-plus`·`field-loot`·`offline-climb`·`bag-capacity`·`bag-job-books`). 기존 기대값을 새 수치로 갱신: `offline`(전 층 고정·`offlineDropChance`)·`elite-mob`(.0039)·`balance-196`(.00273 고정)·`auto-salvage`/`salvage-plus`(방치도 자동 분해를 지나간다는 계약으로 반전).
 - **운영 배포**: [PR #269](https://github.com/songduckjin/DJRPG/pull/269) 스쿼시 **`52b086fdc898`** (Cloudflare Pages SUCCESS, `Workers Builds: djrpg`는 `main`에서도 실패하는 상시 체크). `https://djrpg.pages.dev/version.json` = `52b086fdc898`(`builtAt` 2026-11-21T06:24:11Z) HTTP 200·루트 200, 배포 번들 `assets/index-EYAGT7-d.js`(793,214B)에 `.0039`·`offlineDropChance`·`자동 분해 ${s.salvaged.count}개`·`접속·방치 사냥 모두 적용`, CSS `assets/index-DWQfFuAC.css`에 `.offline-salvaged` 실측. `/api/account` 실측(임시 `t254chk152449`): 가입 200 → 캐릭터 생성 200 → 저장 200 → 탈퇴 200(`characters:1`), 게스트 가입 200 → 탈퇴 200.
 - **점검 해제**: [PR #270](https://github.com/songduckjin/DJRPG/pull/270) 스쿼시 **`5ece4cda79f1`** — `public/maintenance.json` `active:false`·`eta:""`. 운영 `maintenance.json` `active:false`·`version.json` `5ece4cda79f1`(`builtAt` 2026-11-21T06:27:28Z)·루트 200 확인. **폰 실기 확인은 사용자 몫**(방치 보상 팝업의 자동 분해 줄·드롭률 체감).
+
+## 작업 258 — 공용창고 속도·오류 일괄 수정 (운영 배포, 2026-11-21)
+- **배포**: [PR #276](https://github.com/songduckjin/DJRPG/pull/276)(`feat/258-warehouse-fast-fix`) 스쿼시 **`990798fa15ef`** (2026-11-21T08:05:54Z). 앞선 대기 PR(#272·#273·#264·#260·#256 등)이 모두 `main`에 들어간 뒤 **마지막 배포**로 넣었다 — 점검 모드 ON(`active:true`, eta 17:00) 상태에서 병합했다.
+- **대체 PR 정리**: #276이 대체하는 **PR #258**(`perf/249-warehouse-speed` — 타직업 스킬북·보물 주머니의 40칸 검사를 되돌린 회귀)은 대체 이유를 댓글로 남기고 닫았다. 드래프트 #277(`feat/257-market-compact-to-main`)과 오래된 PR은 손대지 않았다.
+- **전수 정상화 확인**(`AGENTS.md` 배포·점검 정책 3번, 운영 `https://djrpg.pages.dev`): `version.json` `990798fa15ef`(`builtAt` 2026-11-21T08:06:16Z) = 병합 커밋, `/` 200, `/maintenance.json` 방금 올린 점검 파일, `/api/account` POST 401 JSON(토큰 없음)·GET 405 JSON(POST 전용 설계 — HTML 아님), **게스트 가입 200 → 저장 200(revision 0→1) → 창고 보관 200(moved 1·창고 1개·rev 1→2·`tx` 343ms) → 목록 200 → 회수 200(가방 1개·`tx` 323ms) → 계정 탈퇴 200**, 탈퇴 뒤 같은 토큰 `load` 401. Cloudflare Pages 체크 **SUCCESS**(`Workers Builds: djrpg` 실패는 이전 `main` `a165616`에서도 같은 상시 체크).
+- **점검 해제**: [PR #278](https://github.com/songduckjin/DJRPG/pull/278) 스쿼시 **`92313ad502ab`** (08:08:48Z) — `public/maintenance.json` 하나만 `active:false`·`eta:""`·`message:""`(이전 OFF 커밋 #270과 같은 형식으로 `title` 유지). 배포 뒤 `version.json` `92313ad502ab`(`builtAt` 2026-11-21T08:09:34Z)·`/maintenance.json` `active:false`(`cache-control: no-store`)·루트 200, 로그인 화면에 점검 모달 없이 `게스트로 시작하기` 노출(브라우저 실측), 열린 상태에서 게스트 가입 → 저장 → 보관 → 회수 → 탈퇴 스모크 재통과.
+- **남은 확인**: 폰 실기에서 보관·꺼내기 체감 속도, 부분 이동 `(2/5)`, 이동 중 잠금 유지는 사용자 몫이다.
