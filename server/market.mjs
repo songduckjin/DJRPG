@@ -221,7 +221,11 @@ export async function mutate(db, id, input) {
       const removed = new Set(picked.map(item => item.id)), now = Date.now(), listingId = randomUUID(), quantity = picked.length;
       save.bag = save.bag.filter(item => !removed.has(item.id));
       // 대표 `item_json`은 검색·정렬 인덱스용이고, 실제 아이템 배열은 `items_json`에 보관한다.
-      write({ sql: 'INSERT INTO djrpg_market (id,seller,seller_name,buyer,item_json,name,slot,rarity,price,state,created_at,expires_at,sold_at,quantity,items_json) VALUES (?,?,?,NULL,?,?,?,?,?,?,?,?,NULL,?,?)', args: [listingId, id, String(save.name || '모험가').slice(0, 20), JSON.stringify(picked[0]), picked[0].name, picked[0].slot, picked[0].rarity, price, 'active', now, now + rules.durationHours * 3600_000, quantity, JSON.stringify(picked)] });
+      // INSERT는 **예전 열 목록 그대로** 쓴다 — `quantity`(기본 1)·`items_json`(NULL=단건 매물)은 기본값으로 두고,
+      // 묶음일 때만 아래 UPDATE로 채운다. 이렇게 하면 (혹시) 열 보정이 안 된 DB에서도 **단건 등록·구매는 종전대로**
+      // 동작하고, 묶음 등록만 실패한다(전체 거래가 막히는 것보다 낫다).
+      write({ sql: 'INSERT INTO djrpg_market (id,seller,seller_name,buyer,item_json,name,slot,rarity,price,state,created_at,expires_at,sold_at) VALUES (?,?,?,NULL,?,?,?,?,?,?,?,?,NULL)', args: [listingId, id, String(save.name || '모험가').slice(0, 20), JSON.stringify(picked[0]), picked[0].name, picked[0].slot, picked[0].rarity, price, 'active', now, now + rules.durationHours * 3600_000] });
+      if (quantity > 1) write({ sql: 'UPDATE djrpg_market SET quantity=?, items_json=? WHERE id=?', args: [quantity, JSON.stringify(picked), listingId] });
       for (const item of picked) {
         write({ sql: "UPDATE djrpg_item_owners SET location='escrow' WHERE item_id=?", args: [item.id] });
         write({ sql: 'UPDATE djrpg_character_item_owners SET slot=0 WHERE item_id=? AND account_id=?', args: [item.id, id] });
@@ -270,7 +274,10 @@ export async function mutate(db, id, input) {
         const proceeds = total - Math.ceil(total * 5 / 100);
         inbox(sale, sale.seller, full ? 'proceeds' : `proceeds:${randomUUID().slice(0, 8)}`, null, proceeds, `${bought[0].name} 판매대금 (수수료 5% 차감)`);
         // 판매 완료 행의 `quantity`는 **팔린 수량**이다(화면이 `총 N개`로 보여 준다).
-        if (full) write({ sql: "UPDATE djrpg_market SET state='sold', buyer=?, sold_at=?, quantity=?, items_json=? WHERE id=? AND state='active'", args: [id, soldAt, wanted, JSON.stringify(bought), sale.id] });
+        // 마지막 한 개를 사면 예전 UPDATE(열 추가 이전과 같은 문장)로 닫는다 — 팔린 수량은 이미 1이고
+        // `items_json`은 다시 쓰지 않는다. 묶음에서 일부만 남아 있던 경우까지 안전하다(열 보정 실패 DB 포함).
+        if (full && items.length > 1) write({ sql: "UPDATE djrpg_market SET state='sold', buyer=?, sold_at=?, quantity=?, items_json=? WHERE id=? AND state='active'", args: [id, soldAt, wanted, JSON.stringify(bought), sale.id] });
+        else if (full) write({ sql: "UPDATE djrpg_market SET state='sold', buyer=?, sold_at=? WHERE id=? AND state='active'", args: [id, soldAt, sale.id] });
         else write({ sql: "UPDATE djrpg_market SET quantity=?, items_json=? WHERE id=? AND state='active'", args: [rest.length, JSON.stringify(rest), sale.id] });
         event('sold', sale.id);
         effect.listing = { id: sale.id, state: full ? 'sold' : 'active', quantity: full ? wanted : rest.length, soldAt: full ? soldAt : undefined };
