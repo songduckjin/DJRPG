@@ -3,7 +3,7 @@ import { AUTO_SALVAGE_HINT } from '../autoSalvage';
 import { salvagePlusLabel, salvagePlusUnlocked, salvagePlusValues } from '../salvagePlus';
 import type { JourneyTask } from '../../game/journey';
 import { preferences, savePreferences } from '../../game/preferences';
-import { goldNode } from '../currency';
+import { diamondNode, goldNode } from '../currency';
 import { POUCH_ICON_URL } from '../pouchArt';
 import { EQUIPMENT_BAG_LIMIT, equipmentCount } from '../../game/bagCapacity';
 import { loadShop } from './shopModal';
@@ -100,7 +100,7 @@ export function renderUtility(ui:Interface,dialog:HTMLElement,kind:'mail'|'rewar
       row.append(element('small','mail-sender',`보낸 사람: ${mail.sender}`),element('p','mail-body',mail.body));
       const received=new Date(mail.createdAt).toLocaleString('ko-KR',{timeZone:'Asia/Seoul',month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'});
       row.append(element('small','mail-date',`받은 날짜 ${received} · ${mail.expiresAt===null?'수령 기한 없음':mail.expired?'수령 기한 만료':`남은 시간 ${Math.max(0,Math.ceil((mail.expiresAt-data.now)/3600000))}시간`}`));
-      const bottom=element('div','utility-toolbar'),reward=element('div','utility-reward');if(mail.gold)reward.append(goldNode(mail.gold));if(mail.books)reward.append(element('span','',`스킬북 ${mail.books}권`));if(mail.pouches)reward.append(pouchReward(mail.pouches));if(mail.diamonds)reward.append(element('span','',`◆ 다이아 ${mail.diamonds.toLocaleString('ko-KR')}개`));
+      const bottom=element('div','utility-toolbar'),reward=element('div','utility-reward');if(mail.gold)reward.append(goldNode(mail.gold));if(mail.books)reward.append(element('span','',`스킬북 ${mail.books}권`));if(mail.pouches)reward.append(pouchReward(mail.pouches));if(mail.diamonds)reward.append(diamondNode(mail.diamonds,'다이아 ','개'));
       const blocked=bagBlocked(mail),claim=claimButton(mail.claimedAt?'수령 완료':mail.expired?'기한 만료':blocked?'가방 가득':'받기',()=>{void journey.act('journey-claim',{kind:'mail',id:mail.id}).then(()=>loadShop(ui));},!!mail.claimedAt||mail.expired||blocked||journey.busy||ui.session.guest);
       if(blocked)claim.title='가방이 가득 찼습니다. 공간을 비운 뒤 우편을 받아주세요. (금화만 있는 우편은 받을 수 있습니다)';
       bottom.append(reward,claim);row.append(bottom);section.append(row);

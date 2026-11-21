@@ -7,6 +7,7 @@ import { equipmentFallbackPortrait, equipmentPortraitPlan, renderEquipmentPortra
 import { loadWarehouse as loadWarehouseModal, renderWarehouse as renderWarehouseModal, resetWarehouseForCharacterSwitch } from './warehouseModal';
 import { discoverEquipment } from '../../game/codex';
 import { applyOfflineRewards } from '../../game/offline';
+import { diamondMarkup } from '../currency';
 
 /** `characters` 응답이 슬롯마다 내려 주는 장비 외형 정보(작업 210) — 이름만 있고 능력치·가방은 없다. */
 export type CharacterEquipment = { helmet?: { name?: string } | null; armor?: { name?: string } | null; weapon?: { name?: string } | null } | null;
@@ -169,7 +170,10 @@ export function renderCharacters(ui: Interface, dialog: HTMLElement): void {
     dialog.append(pages);
   }
   if (list.maxSlots < 9) {
-    const addSlot = button('＋ 슬롯 추가 · ◆ 500', () => { ui.shopTab = 'packages'; ui.open('shop'); });
+    const addSlot = button('＋ 슬롯 추가 · 500', () => { ui.shopTab = 'packages'; ui.open('shop'); });
+    // 작업 261: `◆ 500` → 다이아 그림 + 500. 버튼 이름은 그림의 alt에 기대지 않고 한 문장으로 붙인다.
+    addSlot.innerHTML = `＋ 슬롯 추가 · ${diamondMarkup(500)}`;
+    addSlot.setAttribute('aria-label', '캐릭터 슬롯 추가 · 다이아 500개');
     addSlot.className = 'character-add-slot';
     dialog.append(addSlot);
   }
