@@ -29,6 +29,8 @@ test('진입점은 규칙을 갖지 않고 도메인 파일만 순서대로 묶�
     './modals/warehouse.css',
     './modals/pouch.css',
     './modals/synth.css',
+    // 상세 스탯(HUD 번들) — 공통 껍데기보다 앞이어야 칸 여백 규칙이 살아남는다.
+    './modals/stats.css',
     // 공통 껍데기는 **마지막** — 닫기 버튼 44px 정규화가 모달별 크기 규칙을 이겨야 한다.
     './modals/base.css',
   ]);

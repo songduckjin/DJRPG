@@ -14,7 +14,7 @@ import { showEquippedDetail } from './equippedDetail';
 /** 팝업 창틀이 갈아 끼우는 클래스 전부 — 표에 없는 클래스는 이 창을 열 때 떨어진다. */
 const DIALOG_CLASSES = [
   'dungeon-modal', 'world-boss-modal', 'codex-modal', 'skills-modal', 'market-modal',
-  'utility-modal', 'settings-modal', 'equipment-modal', 'warehouse-modal'
+  'utility-modal', 'settings-modal', 'equipment-modal', 'warehouse-modal', 'stats-modal'
 ] as const;
 
 /** 창틀을 그 창에 맞추고 내용을 그린다 — 스크롤은 그리기 전 위치로 되돌린다. */

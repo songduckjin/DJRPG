@@ -24,6 +24,7 @@ import { renderOffline } from './modals/offlineModal';
 import { renderFloor } from './modals/floorModal';
 import { renderAccount } from './modals/accountModal';
 import { renderSkills } from './modals/skillModal';
+import { renderStats } from './modals/statsModal';
 
 /** 팝업 하나의 규칙 — 그리기와, 열 때·사냥 중에 무엇을 할지. */
 export interface ModalSpec {
@@ -129,6 +130,15 @@ export const MODALS: Record<Modal, ModalSpec> = {
     titleLink: { to: 'equipment', label: '장비' },
     render: (ui, dialog) => renderCodex.call(ui, dialog),
     keepsTyping: ['INPUT', 'SELECT']
+  },
+  stats: {
+    // LV 배지를 누르면 열린다 — 내 정보 창의 `전투력`·HP·공격·방어·치명·공속을 넘어, 피해 감소·
+    // 치명타 피해·초당 공격·피흡·회피·회복·추가 피해까지 한 화면에 모은 표다. 사냥 중 매 처치마다
+    // 다시 그리면 창이 깜빡이고 스크롤이 튀므로 조용히 둔다.
+    title: '상세 스탯',
+    dialogClasses: ['stats-modal'],
+    render: (ui, dialog) => renderStats.call(ui, dialog),
+    quietWhileHunting: true
   },
   characters: {
     title: '캐릭터 선택',

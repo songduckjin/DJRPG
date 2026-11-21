@@ -21,6 +21,7 @@ export type Modal =
   | 'salvage'
   | 'codex'
   | 'characters'
+  | 'stats'
   | 'createCharacter'
   | 'warehouse'
   | 'settings'
