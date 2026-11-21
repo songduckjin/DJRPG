@@ -217,7 +217,7 @@ test('the settings popup has the same picker, and the switch, threshold and cap 
   assert.match(world, /autoSalvageBlock\(this\.save, item, grade, this\.autoSalvagePlus\?\.\(\)\)/, 'the field pickup passes the cap');
   assert.match(world, /autoSalvageRecovered\(this\.save, drop\.item, sweep, this\.autoSalvagePlus\?\.\(\)\)/, 'and so does the sweep');
   const offline = readFileSync(new URL('../src/game/offline.ts', import.meta.url), 'utf8');
-  assert.doesNotMatch(offline, /autoSalvage/, 'offline rewards are still untouched');
+  assert.match(offline, /autoSalvageRecovered\(save, item, options\.autoSalvage, options\.autoSalvagePlus\)/, 'offline rewards use the same cap (작업 254)');
 });
 
 // ---- a small DOM stub, enough for the bag footer ------------------------------------------------

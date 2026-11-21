@@ -71,7 +71,8 @@ export class Interface {
   /** The user's own bulk-salvage threshold, read back from the device so closing the popup or
    *  reloading never resets it (작업 196). */
   salvageRarity: SalvageRarity = readSalvageRarity();
-  /** 접속 중 자동 분해 (작업 196): kept on the device with the threshold, and off until turned on. */
+  /** 자동 분해 (작업 196): kept on the device with the threshold, and off until turned on. 작업 254부터
+   *  접속·방치 사냥 모두에 적용된다. */
   autoSalvage = readAutoSalvage();
   /** 자동 분해가 갈 `+단계` 상한 (작업 203): 41층부터만 쓰이고, 기기에 저장된 값을 시작 시 읽는다. */
   salvagePlus = readSalvagePlus();
@@ -210,8 +211,8 @@ export class Interface {
 
   chooseSkill(id: SkillId): void { chooseSkill.call(this, id); }
 
-  /** Turns live auto-salvage on or off, stores the choice, and says out loud that it only works while
-   *  the player is in the field (작업 196). */
+  /** Turns live auto-salvage on or off, stores the choice, and says out loud that it now applies both
+   *  while hunting and while away (작업 196·254). */
   setAutoSalvage(on: boolean): void {
     this.autoSalvage = on; saveAutoSalvage(on);
     this.message(on ? AUTO_SALVAGE_ON_NOTICE : AUTO_SALVAGE_OFF_NOTICE);

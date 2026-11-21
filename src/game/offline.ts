@@ -1,5 +1,6 @@
 import { canStoreItem } from './bagCapacity';
-import { itemDropChance, rollItem, rollItemKind, rollSkillBook, totalStats, type Item } from './items';
+import { autoSalvageRecovered } from './inventory';
+import { offlineDropChance, rollItem, rollItemKind, rollSkillBook, totalStats, type Item, type Rarity } from './items';
 import { jobOrDefault as jobOf, skillDamageScale, skillDuration, skills, type SkillId } from './skills';
 import { addExperience, floorKillTarget, MAX_FLOOR, skillLevel, type Save } from './store';
 import { basicAttackPower, berserkAttackScale, berserkSpeedScale, cooldowns, enemyHitDamage, enemyMaxHp, offlineMobHp } from './world';
@@ -24,6 +25,16 @@ export type OfflineReward = {
   bossKills: number;
   /** 보스에게 진 횟수(작업 235) — 층이 멈춘 이유를 보여 준다. */
   deaths: number;
+  /** 방치 중 자동 분해가 가져간 장비의 환산량 (작업 254) — 가방에 들어가지 않고 금화·강화석이 됐다. */
+  salvaged: { count: number; gold: number; stones: number };
+};
+
+/** 방치 정산에 넘기는 자동 분해 설정 (작업 254). 없으면 예전처럼 떨어진 것을 모두 가방으로 넣는다. */
+export type OfflineRewardOptions = {
+  /** 자동 분해할 최고 등급 — 켜져 있지 않으면 `undefined`. */
+  autoSalvage?: Exclude<Rarity, 'legendary'>;
+  /** 41층부터 쓰는 `+N까지` 상한(작업 203) — 방치도 접속과 같은 값을 쓴다. */
+  autoSalvagePlus?: number;
 };
 
 /** 적이 한 번 때린 뒤 다음 타격까지의 시간 — `world.ts`는 맞은 뒤 `player.hit = .85`로 막는다. */
@@ -82,15 +93,23 @@ export function offlineBossBattle(save: Save, floor: number): OfflineBossBattle 
   return { win, seconds: BOSS_APPROACH_SECONDS + (win ? timeToKill : survive), heroDps, bossHp, heroHp: stats.health, bossDps };
 }
 
-export function applyOfflineRewards(save: Save, elapsedSeconds: number): OfflineReward | undefined {
+export function applyOfflineRewards(save: Save, elapsedSeconds: number, options: OfflineRewardOptions = {}): OfflineReward | undefined {
   if (!Number.isFinite(elapsedSeconds) || elapsedSeconds < 60) return undefined;
   const seconds = Math.min(43_200, Math.floor(elapsedSeconds));
   const startFloor = save.floor;
   const items: Item[] = [];
   let missedDrops = 0;
-  const reward: OfflineReward = { seconds, kills: 0, exp: 0, gold: 0, items, missedDrops: 0, levels: 0, startFloor, endFloor: startFloor, bossKills: 0, deaths: 0 };
+  const salvaged = { count: 0, gold: 0, stones: 0 };
+  const reward: OfflineReward = { seconds, kills: 0, exp: 0, gold: 0, items, missedDrops: 0, levels: 0, startFloor, endFloor: startFloor, bossKills: 0, deaths: 0, salvaged };
+  /** 떨어진 하나를 가방에 넣는다 — 자동 분해가 켜져 있으면 **필드·던전과 같은 규칙**(`autoSalvageRecovered`)으로
+   *  먼저 분해해 보고, 분해되면 가방에 넣지 않고 금화·강화석으로 정산한다(작업 254). 스킬북·보물
+   *  주머니·잠금·등급 초과·`+N` 초과·빈 슬롯·더 좋은 장비 보호는 그 함수가 그대로 맡는다. */
   const receive = (createItem: () => Item): void => {
     const item = createItem();
+    if (options.autoSalvage) {
+      const sweep = autoSalvageRecovered(save, item, options.autoSalvage, options.autoSalvagePlus);
+      if (sweep) { salvaged.count++; salvaged.gold += sweep.gold; salvaged.stones += sweep.stones; return; }
+    }
     if (!canStoreItem(save.bag, item, jobOf(save))) { missedDrops++; return; }
     save.bag.push(item);
     items.push(item);
@@ -104,7 +123,8 @@ export function applyOfflineRewards(save: Save, elapsedSeconds: number): Offline
     const exp = count * (9 + floor); reward.exp += exp; reward.levels += addExperience(save, exp);
     if (save.tutorial >= 1) for (let index = 0; index < count; index++) {
       // 한 마리당 한 번만 굴려 1개 — 장비 70% · 스킬북 30%(작업 210, 접속 사냥과 같은 규칙).
-      if (Math.random() < itemDropChance(floor, false)) receive(() => rollItemKind() === 'skillbook' ? rollSkillBook(floor, jobOf(save)) : rollItem(floor, false, false, jobOf(save)));
+      // 확률만 방치 몫(전 층 0.30%)을 쓴다(작업 254).
+      if (Math.random() < offlineDropChance(floor, false)) receive(() => rollItemKind() === 'skillbook' ? rollSkillBook(floor, jobOf(save)) : rollItem(floor, false, false, jobOf(save)));
     }
   };
   /** 층 보스 처치 보상 — 금화 `70 × 층`, 경험치 `(9 + 층) × 6`, 드롭 한 번(작업 195·207). */
@@ -112,7 +132,7 @@ export function applyOfflineRewards(save: Save, elapsedSeconds: number): Offline
     reward.bossKills++; save.bossKills++;
     const gold = 70 * floor; reward.gold += gold; save.gold += gold;
     const exp = (9 + floor) * 6; reward.exp += exp; reward.levels += addExperience(save, exp);
-    if (save.tutorial >= 1 && Math.random() < itemDropChance(floor, true)) {
+    if (save.tutorial >= 1 && Math.random() < offlineDropChance(floor, true)) {
       receive(() => rollItemKind() === 'skillbook' ? rollSkillBook(floor, jobOf(save)) : rollItem(floor, false, true, jobOf(save)));
     }
   };

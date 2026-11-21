@@ -1,6 +1,6 @@
-// Live auto-salvage (작업 196): a switch that turns recovered pieces at or below the chosen grade into
-// gold and stones while the player is hunting — and never touches offline rewards, locked gear, an
-// empty slot, or a piece better than what is worn.
+// Auto-salvage (작업 196, 작업 254에서 방치에도 적용): a switch that turns recovered pieces at or below the
+// chosen grade into gold and stones while the player is hunting, and now also on offline rewards — with the
+// same protection (never a locked piece, an empty slot, or a piece better than what is worn).
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -54,10 +54,11 @@ test('the switch is off until the player turns it on, and stays where they left 
   } finally { if (blocked) Object.defineProperty(globalThis, 'localStorage', blocked); else delete globalThis.localStorage; }
 });
 
-test('turning it on says it only works while connected, and the popup says so under the switch', () => {
-  assert.equal(AUTO_SALVAGE_ON_NOTICE, '자동 분해가 켜졌습니다. 접속 중에만 적용됩니다.');
-  assert.match(AUTO_SALVAGE_HINT, /접속 중/);
-  assert.match(AUTO_SALVAGE_HINT, /오프라인/);
+test('turning it on says it applies to connected and idle hunting alike, and the popup says so under the switch', () => {
+  assert.equal(AUTO_SALVAGE_ON_NOTICE, '자동 분해가 켜졌습니다. 접속·방치 사냥 모두 적용됩니다.');
+  assert.match(AUTO_SALVAGE_HINT, /접속·방치/);
+  assert.match(AUTO_SALVAGE_HINT, /방치 보상/);
+  assert.doesNotMatch(AUTO_SALVAGE_HINT, /그대로 보관/, '방치 보상이 예외라는 옛 안내가 남지 않는다');
   const equip = readFileSync(new URL('../src/ui/modals/equipModal.ts', import.meta.url), 'utf8');
   const utility = readFileSync(new URL('../src/ui/modals/utilityModal.ts', import.meta.url), 'utf8');
   const iface = readFileSync(new URL('../src/ui/interface.ts', import.meta.url), 'utf8');
@@ -142,9 +143,11 @@ test('a full bag still takes a piece the switch will sweep', () => {
   assert.equal(save.gold, gold + salvageGold.epic, 'and the swept piece still paid out');
 });
 
-test('offline rewards never pass through live auto-salvage', () => {
+test('offline rewards pass through the same switch with the same protection (작업 254)', () => {
   const offline = readFileSync(new URL('../src/game/offline.ts', import.meta.url), 'utf8');
-  assert.doesNotMatch(offline, /autoSalvage/, 'offline settlement knows nothing about the switch');
+  assert.match(offline, /autoSalvageRecovered\b/, 'offline settlement uses the same rule as the field');
+  assert.match(offline, /options:\s*OfflineRewardOptions = \{\}/, 'the settings come in as an argument');
+  assert.match(offline, /salvaged\.count\+\+/, 'and the count lands in the reward receipt');
   // The sweep only exists on the live field pickup path.
   const world = readFileSync(new URL('../src/game/world.ts', import.meta.url), 'utf8');
   assert.match(world, /const sweep = this\.sweeps\(drop\.item\)/, 'the field picks up through the switch');
