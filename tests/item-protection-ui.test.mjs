@@ -75,7 +75,7 @@ test('selling a locked item asks first, cancel keeps lock and approval submits e
     assert.equal(market.unlockItem,undefined);assert(save.bag[0].locked);assert.equal(calls.length,0);
     form=find(render(),n=>hasClass(n,'market-register'));form.onsubmit({preventDefault(){}});
     confirmation=find(render(),n=>hasClass(n,'market-unlock-confirm'));find(confirmation,n=>n.textContent==='잠금 해제 후 판매 등록').onclick();
-    assert.deepEqual(calls,[{action:'register',data:{itemId:'protected',price:100,unlockItem:true}}]);assert(save.bag[0].locked);
+    assert.deepEqual(calls,[{action:'register',data:{itemIds:['protected'],price:100,unlockItem:true}}]);assert(save.bag[0].locked);
     market.registerCategory='armor';assert(!find(render(),n=>hasClass(n,'market-pick')));
   }finally{globalThis.document=previous;}
 });
@@ -130,7 +130,7 @@ test('registration at the limit remains clickable and explains rejection before 
       assert(find(form,n=>n.attrs?.role==='alert').textContent.includes('취소'));
       form.onsubmit({preventDefault(){}});assert.equal(calls.length,0);
       market.data.myActive=limit-1;market.price='100';form.onsubmit({preventDefault(){}});
-      assert.deepEqual(calls.pop(),['register',{itemId:'sale',price:100}]);
+      assert.deepEqual(calls.pop(),['register',{itemIds:['sale'],price:100}]);
     }
   }finally{globalThis.document=previous;}
 });

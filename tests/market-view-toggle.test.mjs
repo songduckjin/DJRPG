@@ -174,15 +174,16 @@ test('판매 등록 칸은 가방처럼 정사각형 아이콘 칸이고 배지�
   assert.match(rule('.market-modal .market-pick'), /position: relative/);
   assert.equal(css.includes('.market-pick-name'), false, '이름 글자 규칙 자체가 없다');
   assert.match(rule('.market-pick .job-badge'), /position: absolute/);
-  assert.match(rule('.market-pick .job-badge'), /top: 2px/);
-  assert.match(rule('.market-pick .job-badge'), /left: 3px/);
-  assert.match(rule('.market-pick .upgrade-arrow'), /top: 2px/);
-  assert.match(rule('.market-pick .upgrade-arrow'), /right: 3px/);
-  assert.match(rule('.market-pick .upgrade-arrow'), /width: 9px/);
-  assert.match(rule('.market-pick .upgrade-arrow'), /height: 9px/, '원본 크기에 끌려 커지지 않는다');
+  // 작업 249: 한 줄 8칸으로 늘리면서 배지·화살표를 칸 모서리에 더 바짝 붙이고 조금 줄였다.
+  assert.match(rule('.market-pick .job-badge'), /top: 1px/);
+  assert.match(rule('.market-pick .job-badge'), /left: 2px/);
+  assert.match(rule('.market-pick .upgrade-arrow'), /top: 1px/);
+  assert.match(rule('.market-pick .upgrade-arrow'), /right: 2px/);
+  assert.match(rule('.market-pick .upgrade-arrow'), /width: 8px/);
+  assert.match(rule('.market-pick .upgrade-arrow'), /height: 8px/, '원본 크기에 끌려 커지지 않는다');
   assert.match(rule('.market-pick-count'), /position: absolute/);
-  assert.match(rule('.market-pick-count'), /bottom: 2px/);
-  assert.match(rule('.market-pick-count'), /right: 3px/);
+  assert.match(rule('.market-pick-count'), /bottom: 1px/);
+  assert.match(rule('.market-pick-count'), /right: 2px/);
   assert.match(rule('.market-pick .lock-icon'), /position: absolute/);
 
   // 실제 칸: 이름 노드 없이 아이콘·배지만, 이름은 툴팁에.

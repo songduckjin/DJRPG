@@ -133,8 +133,10 @@ export class Market {
         if (typeof listing.quantity === 'number') { sale.quantity = listing.quantity; sale.totalPrice = sale.price * listing.quantity; }
       }
       if (listing.state === 'cancelled') this.data.myActive = Math.max(0, this.data.myActive - 1);
-      // 새로 등록한 매물만 판매 중 목록에 더한다(부분 구매로 `active`가 된 매물은 이미 목록에 있다).
-      else if (listing.state === 'active' && listing.mine === true) this.data.myActive++;
+      // 새로 등록한 매물만 판매 중 수를 올린다. 부분 구매(작업 249)도 상태가 `active`로 오지만 그것은
+      // **남의 매물**이므로 세지 않는다 — 서버는 등록에만 `mine: true`를 싣고, 옛 응답에는 이 값이 없어
+      // 목록에 없던 매물(=새 등록)로 대신 판별한다.
+      else if (listing.state === 'active' && (listing.mine === true || (listing.mine === undefined && !sale))) this.data.myActive++;
     }
     const removed = new Set(claimedIds ?? (claimedId ? [claimedId] : []));
     if (removed.size) { this.data.inbox = this.data.inbox.filter(entry => !removed.has(entry.id)); removed.forEach(id=>this.notified.delete(id)); }

@@ -426,7 +426,8 @@ function renderRegister(ui: Interface, dialog: HTMLElement, blocked: boolean): v
     const members = stackMembers(visible, stack);
     // 한 번에 묶을 수 있는 최대 수량 = min(보유 수량, 서버 규칙 10개).
     const limit = Math.min(stack.count, maxBundle);
-    const clamp = () => Math.min(limit, Math.max(1, Math.floor(Number(market.quantity) || 1)));
+    // 입력칸 값을 우선 읽는다 — 타이핑은 `input` 이벤트로만 들어오고 `market.quantity`는 그때 같이 맞춘다.
+    const clamp = () => Math.min(limit, Math.max(1, Math.floor(Number(quantityInput.value) || Number(market.quantity) || 1)));
     const detail = el('section', 'market-register-detail');
     const picked = el('div', 'market-register-picked');
     picked.append(icon(item, ui.world.save));
@@ -451,7 +452,7 @@ function renderRegister(ui: Interface, dialog: HTMLElement, blocked: boolean): v
     // ① 수량 — 보유가 1개(장비)면 1로 고정해 보여만 준다.
     const quantityField = el('label', 'market-field', '수량');
     const quantityInput = el('input'); quantityInput.type = 'number'; quantityInput.min = '1'; quantityInput.max = String(limit); quantityInput.step = '1'; quantityInput.inputMode = 'numeric';
-    quantityInput.value = String(clamp()); quantityInput.disabled = blocked || limit === 1;
+    quantityInput.value = String(Math.min(limit, Math.max(1, Math.floor(Number(market.quantity) || 1)))); quantityInput.disabled = blocked || limit === 1;
     quantityField.append(quantityInput);
     const maxButton = button('최대', () => { quantityInput.value = String(limit); market.quantity = String(limit); update(); }, blocked || limit === 1);
     maxButton.className = 'market-max-button';
