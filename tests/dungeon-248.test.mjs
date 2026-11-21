@@ -26,7 +26,8 @@ test('던전 적 피해는 최대 체력 상한 없이 필드 같은 층 공격�
   assert.equal(battle.dungeonHitDamage(1, false, 0, true), world.enemyHitDamage(1, false, 0) * 2, '정예는 2배');
   // 서버 리플레이는 클라이언트 전투를 그대로 다시 돌린다 — 피해 식이 두 곳에 따로 있으면 안 된다.
   const verify = readFileSync(new URL('../server/dungeon-verify.mjs', import.meta.url), 'utf8');
-  assert.match(verify, /from '\.\.\/src\/ui\/dungeonBattle\.ts'/);
+  // 작업 259(PR-2A)에서 던전 전투 모듈이 `src/ui/dungeonBattle.ts` → `src/game/dungeon/battle.ts`로 옮겼다.
+  assert.match(verify, /from '\.\.\/src\/game\/dungeon\/battle\.ts'/);
   assert.doesNotMatch(verify, /enemyHitDamage/, '서버가 피해 식을 따로 갖고 있지 않다');
 });
 
