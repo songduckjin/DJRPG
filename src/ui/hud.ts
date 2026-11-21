@@ -3,7 +3,7 @@ import { EQUIPMENT_BAG_LIMIT, equipmentCount } from '../game/bagCapacity';
 import { hasSkillUpgrade } from '../game/skillProgress';
 import { applySkillArtwork } from './skillArtwork';
 import { SkillFeedback } from './skillFeedback';
-import { goldMarkup } from './currency';
+import { diamondMarkup, goldMarkup } from './currency';
 import { expToNext, floorKillTarget, MAX_LEVEL, totalStats } from '../game/store';
 import { availableSkills } from '../game/loadout';
 import { cooldowns, type Action } from '../game/world';
@@ -29,7 +29,7 @@ export function renderStatus(this: Interface): void {
     // 작업 224(`#6215`): 최고 도달 층에서 **2층 이상 내려왔을 때만** `▲ 최고층`을 붙인다.
     // 한 층 아래는 층 선택 창으로 충분하고, 배지 옆이 좁아지는 것을 막는다.
     const floorReturn = save.maxFloor - save.floor >= 2 ? `<button class="floor-return" type="button" aria-label="최고층 ${save.maxFloor}층으로 이동" title="최고층 ${save.maxFloor}층으로 바로 이동">▲ 최고층</button>` : '';
-    this.top.innerHTML = `<button class="level-badge" type="button" aria-label="캐릭터 선택 열기"><span>LV</span><b>${save.level >= MAX_LEVEL ? 'MAX' : save.level}</b></button><span class="hero-name" aria-label="캐릭터 닉네임"></span><div class="health-bar hp" role="progressbar" aria-label="체력"><i></i><b></b></div><div class="status-main"><span class="status-floor"><button class="floor-button" type="button" aria-label="층 선택, 현재 ${save.floor}층"><span>층 <b>${save.floor}</b> · ${Math.min(save.floorKills, floorKillTarget(save.floor))}/${floorKillTarget(save.floor)}</span><span aria-hidden="true">▾</span></button>${bossRetry}${floorReturn}</span><span class="gold">${goldMarkup(save.gold)}</span><span class="diamonds" aria-label="다이아 ${this.shopCatalog?.wallet.diamonds ?? 0}개">◆ ${(this.shopCatalog?.wallet.diamonds ?? 0).toLocaleString('ko-KR')}</span></div><div class="exp"><i style="width:${progress}%"></i></div>`;
+    this.top.innerHTML = `<button class="level-badge" type="button" aria-label="캐릭터 선택 열기"><span>LV</span><b>${save.level >= MAX_LEVEL ? 'MAX' : save.level}</b></button><span class="hero-name" aria-label="캐릭터 닉네임"></span><div class="health-bar hp" role="progressbar" aria-label="체력"><i></i><b></b></div><div class="status-main"><span class="status-floor"><button class="floor-button" type="button" aria-label="층 선택, 현재 ${save.floor}층"><span>층 <b>${save.floor}</b> · ${Math.min(save.floorKills, floorKillTarget(save.floor))}/${floorKillTarget(save.floor)}</span><span aria-hidden="true">▾</span></button>${bossRetry}${floorReturn}</span><span class="gold">${goldMarkup(save.gold)}</span><span class="diamonds" aria-label="다이아 ${this.shopCatalog?.wallet.diamonds ?? 0}개">${diamondMarkup(this.shopCatalog?.wallet.diamonds ?? 0)}</span></div><div class="exp"><i style="width:${progress}%"></i></div>`;
     const levelBadge = this.get('.level-badge'); levelBadge.style.setProperty('--progress', `${progress}%`); levelBadge.addEventListener('click', () => this.open('characters'));
     // 레벨 배지 아래 캐릭터 닉네임(작업 228, 사용자 요청 `#19089` "레벨믿에 닉네임은 떠야할거같아").
     // 이름은 HTML로 넣지 않고 textContent로만 써서, 예전 세이브의 특수문자가 태그로 해석되지 않게 한다.
