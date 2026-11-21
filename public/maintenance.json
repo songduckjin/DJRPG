@@ -1,6 +1,6 @@
 {
-  "active": false,
+  "active": true,
   "title": "점검 진행 중입니다",
-  "eta": "",
-  "message": ""
+  "eta": "2026-11-21T17:22:00+09:00",
+  "message": "관리자 포털 반영 중입니다 (약 2분 소요)"
 }
