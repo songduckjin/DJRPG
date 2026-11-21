@@ -23,7 +23,7 @@ export class World extends FieldProgress {}
 
 // ── 전투 타입·공식·타겟팅 (PR-2A에서 `game/battle/`로 이동, 경로 호환용 re-export) ──
 export type { Action, ArrowVariant, Coin, Drop, Effect, Enemy, HeroAfterimage } from './battle/types';
-export { CRIT_CHANCE_CAP, CRIT_DAMAGE_SCALE, ELITE_HP_SCALE, ELITE_KILL_INTERVAL, ELITE_MOB_SCALE, ENEMY_ATTACK_RANGE, ENEMY_STOP_RANGE, ENEMY_STRIKE_SECONDS, MOB_CAP, WARRIOR_ATTACK_RANGE, archerAttackRange, archerStopRange, basicAttackPower, berserkAttackScale, berserkSpeedScale, enemyHitDamage, enemyMaxHp, enemyMoveSpeed, mageAttackRange, mageStopRange, offlineMobHp } from './battle/formulas';
+export { BASE_ATTACK_INTERVAL, BOSS_HP_RATIO, CRIT_CHANCE_CAP, CRIT_DAMAGE_SCALE, DAMAGE_REDUCTION_CAP, ELITE_HP_SCALE, ELITE_KILL_INTERVAL, ELITE_MOB_SCALE, ENEMY_ATTACK_RANGE, ENEMY_STOP_RANGE, ENEMY_STRIKE_SECONDS, MOB_CAP, MOB_CAP_GRACE_SECONDS, WARRIOR_ATTACK_RANGE, attackInterval, damageReduction, enemyRawHit, fieldSpawnRate, spawnRefillSeconds, spawnsPerRefill, swarmCount, targetAliveCount, archerAttackRange, archerStopRange, basicAttackPower, berserkAttackScale, berserkSpeedScale, enemyHitDamage, enemyMaxHp, enemyMoveSpeed, mageAttackRange, mageStopRange, offlineMobHp } from './battle/formulas';
 export { fireBoltSpots } from './battle/targeting';
 
 // ── 전투 연출·쿨다운 상수 (`game/combat/engine.ts`) ──

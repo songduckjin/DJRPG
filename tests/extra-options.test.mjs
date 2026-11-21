@@ -41,8 +41,8 @@ test('추가옵션 개수는 에픽 1 · 유니크 2 · 전설 3이고 일반·�
   assert.equal(extraOptionCount('nope'), 0);
 });
 
-test('추가옵션 9종은 한 아이템 안에서 중복 없이 1~3% 정수로 뽑힌다', () => {
-  assert.deepEqual([...extraOptionKeys], ['regenPct', 'bonusDmgPct', 'lifestealPct', 'attackPct', 'critPct', 'defensePct', 'healthPct', 'evasionPct', 'speedPct']);
+test('추가옵션 10종은 한 아이템 안에서 중복 없이 1~3%(쿨감은 1~2%) 정수로 뽑힌다', () => {
+  assert.deepEqual([...extraOptionKeys], ['regenPct', 'bonusDmgPct', 'lifestealPct', 'attackPct', 'critPct', 'defensePct', 'healthPct', 'evasionPct', 'speedPct', 'cdrPct']);
   for (const rarity of ['epic', 'unique', 'legendary']) {
     const wanted = extraOptionCount(rarity);
     for (let index = 0; index < 400; index++) {
@@ -52,7 +52,9 @@ test('추가옵션 9종은 한 아이템 안에서 중복 없이 1~3% 정수로 
       assert.equal(new Set(keys).size, keys.length, '중복 없음');
       for (const key of keys) {
         assert(extraOptionKeys.includes(key), `${key}는 풀의 키`);
-        assert(Number.isInteger(options[key]) && options[key] >= 1 && options[key] <= 3, `${key}=${options[key]}는 1~3 정수`);
+        // 밸런스 v2: 쿨감(`cdrPct`)만 1~2%, 나머지는 1~3% 정수다.
+        const max = key === 'cdrPct' ? 2 : 3;
+        assert(Number.isInteger(options[key]) && options[key] >= 1 && options[key] <= max, `${key}=${options[key]}는 1~${max} 정수`);
       }
     }
   }
@@ -144,7 +146,7 @@ test('% 스탯은 보정이 끝난 최종 공격·방어·체력에 곱해지고
   assert.equal(totals.evasionPct, 3);
 });
 
-test('회피 30% · 체력회복 12%/5초 · 피흡 15% 합산 상한이 걸린다', () => {
+test('회피 30% · 체력회복 12%/5초 · 피흡 5% · 치명·공속 10% · 쿨감 6% 합산 상한이 걸린다', () => {
   const save = freshSave();
   const slots = ['weapon', 'helmet', 'armor', 'gloves', 'boots', 'offhand', 'necklace', 'belt', 'ring1', 'ring2'];
   // 10부위에 3%씩 = 30% 회피·회복·피흡을 만들 수는 없다(키 중복 금지) — 부위마다 다른 조합으로 쌓는다.
@@ -176,6 +178,9 @@ test('전투력이 추가옵션 몫을 더해, 같은 스탯이면 옵션 좋은
 const heroSave = (extraOptions, rarity = 'epic') => {
   const save = freshSave('male', 'warrior');
   save.tutorial = 3;
+  save.level = 10;
+  // 입문 구간(1~4층)의 자연 회복과 섮이지 않게 6층으로 둔다(밸런스 v2 온보딩).
+  save.floor = 6;
   save.health = 100000;
   save.equipment = { weapon: equipment(`w-${JSON.stringify(extraOptions)}`, 'weapon', rarity, { attack: 40 }, extraOptions) };
   return save;
@@ -189,18 +194,20 @@ const target = (world, distance = 60) => {
 test('추가 데미지는 최종 피해를, 피흡은 가한 피해의 N%를 회복한다', () => {
   const save = heroSave({ bonusDmgPct: 3, lifestealPct: 3 }, 'unique');
   const world = new World(save);
+  world.critRoll = () => 1; // 치명타가 끼어들지 않게 — 이 테스트는 추가 데미지·피흡만 본다
   const maxHp = totalStats(save).health;
   world.player.hp = Math.floor(maxHp / 2);
   const enemy = target(world);
   world.damage(90, 100, 0, Math.PI, 0, 0, world.player, 1);
   assert.equal(Math.round(enemy.hp), 1e9 - 103, '+3% 추가 데미지');
-  const heal = Math.round(103 * 3 / 100);
+  // 밸런스 v2: 피흡은 한 타에 최대 체력의 0.4%까지만 찬다(최대 체력 22만·Lv.10 → 1).
+  const heal = Math.min(Math.round(103 * 3 / 100), Math.max(1, Math.ceil(maxHp * .004)));
   assert.equal(Math.round(world.player.hp), Math.floor(maxHp / 2) + heal, '피흡 3%');
   assert(world.effects.some(effect => effect.kind === 'heal'), '회복 숫자를 띄운다');
-  // 한 번의 타격 회복은 최대 체력의 4%를 넘지 않는다.
+  // 한 번의 타격 회복은 최대 체력의 0.4%를 넘지 않는다.
   world.player.hp = 1;
   world.damage(90, maxHp * 10, 0, Math.PI, 0, 0, world.player, 1);
-  assert.equal(Math.round(world.player.hp - 1), Math.ceil(maxHp * .04), '4% 상한');
+  assert.equal(Math.round(world.player.hp - 1), Math.ceil(maxHp * .004), '0.4% 상한');
 });
 
 test('추가옵션이 없으면 피해·회복이 예전 그대로다', () => {
@@ -219,19 +226,19 @@ test('회피율은 맞을 순간 굴려 피해를 무시하고 `회피`를 띄�
   const world = new World(save);
   world.spawnTimer = Infinity;
   world.player.hit = 0;
-  world.player.hp = 10;
+  world.player.hp = 1000;
   const enemy = target(world, 30);
   enemy.hp = 1e9;
   const previous = Math.random;
   Math.random = () => 0; // 3% 굴림에서 언제나 회피
   try { world.update(1 / 60); } finally { Math.random = previous; }
-  assert.equal(world.player.hp, 10, '회피하면 체력 그대로');
+  assert.equal(world.player.hp, 1000, '회피하면 체력 그대로');
   assert(world.effects.some(effect => effect.kind === 'evade'));
   world.effects = [];
   world.player.hit = 0;
   Math.random = () => .99; // 굴림 실패 → 그대로 맞는다
   try { world.update(1 / 60); } finally { Math.random = previous; }
-  assert(world.player.hp < 10, '굴림에 실패하면 맞는다');
+  assert(world.player.hp < 1000, '굴림에 실패하면 맞는다');
   assert(!world.effects.some(effect => effect.kind === 'evade'));
 });
 
@@ -239,6 +246,7 @@ test('체력회복력은 5초마다 최대 체력의 N%를 회복한다', () => 
   const save = heroSave({ regenPct: 2 });
   const world = new World(save);
   world.spawnTimer = Infinity;
+  world.enemies = []; // 맞지 않게 — 이 테스트는 회복만 본다
   const maxHp = totalStats(save).health, start = Math.floor(maxHp * .5);
   world.player.hp = start;
   for (let index = 0; index < 299; index++) world.update(.016); // 4.78초
@@ -255,8 +263,9 @@ test('던전 전투도 같은 World 규칙이라 추가 데미지가 보스 클�
     save.level = 20; save.tutorial = 3;
     // 던전 몹·보스 공격력 정상화(작업 248) — 5층 보스를 버티려면 실제 플레이어처럼 방어구가 있어야 한다.
     // (이 테스트는 생존이 아니라 추가 데미지가 클리어를 앞당기는지만 본다.)
+    // 밸런스 v2로 던전 5층 보스 HP가 6,720(몹 224 × 30)이 되어, 장비를 낮춰 여러 대를 때리게 한다.
     save.equipment = {
-      weapon: { id: `dungeon-${JSON.stringify(extraOptions)}`, name: '비전의 룬 블레이드', slot: 'weapon', rarity: 'epic', stats: { attack: 120 }, plus: 0, extraOptions },
+      weapon: { id: `dungeon-${JSON.stringify(extraOptions)}`, name: '비전의 룬 블레이드', slot: 'weapon', rarity: 'epic', stats: { attack: 60 }, plus: 0, extraOptions },
       armor: { id: `dungeon-armor-${JSON.stringify(extraOptions)}`, name: '시험 갑옷', slot: 'armor', rarity: 'rare', stats: { defense: 400, health: 2000 }, plus: 0 },
       helmet: { id: `dungeon-helmet-${JSON.stringify(extraOptions)}`, name: '시험 투구', slot: 'helmet', rarity: 'rare', stats: { defense: 100, health: 500 }, plus: 0 }
     };
@@ -269,8 +278,7 @@ test('던전 전투도 같은 World 규칙이라 추가 데미지가 보스 클�
     assert.equal(plain.outcome, 'clear');
     assert.equal(buffed.outcome, 'clear');
     assert(buffed.elapsed < plain.elapsed, `5층 보스 ${seed}: ${buffed.elapsed} < ${plain.elapsed}`);
-  }
-});
+  }});
 
 test('월드보스 연습도 같은 세이브·같은 순서면 같은 피해를 낸다(회피 굴림 고정)', async () => {
   const { WorldBossRehearsal } = await import('../src/game/worldBossRehearsal.ts');

@@ -10,7 +10,7 @@
 import { random, seededRandom, useRandom, type Random } from '../rng';
 import { CombatEngine } from '../combat/engine';
 import type { Enemy } from '../battle/types';
-import { ENEMY_ATTACK_RANGE, ENEMY_STOP_RANGE, ENEMY_STRIKE_SECONDS, enemyHitDamage, enemyMoveSpeed } from '../battle/formulas';
+import { ENEMY_ATTACK_RANGE, ENEMY_STOP_RANGE, ENEMY_STRIKE_SECONDS, enemyHitDamage, enemyMaxHp, enemyMoveSpeed } from '../battle/formulas';
 import { clampArenaPoint } from '../combat/bounds';
 import { jobOrDefault } from '../skills';
 import { DUNGEON_MAX_FLOOR, totalStats, type Save } from '../store';
@@ -50,14 +50,10 @@ export function dungeonDropChance(floor:number):number {
   const depth=Math.max(1,Math.min(DUNGEON_MAX_FLOOR,Math.floor(floor)||1));
   return Math.min(DUNGEON_DROP_CHANCE_MAX,DUNGEON_DROP_CHANCE_BASE+(depth-1)*DUNGEON_DROP_CHANCE_STEP);
 }
-/** 층별 고정 몬스터 체력 (작업 205) — 내 장비·스킬과 무관한 고정 곡선이다. */
-//
-// 전에는 `dungeonPreviewHp`가 내 DPS에 4배를 곱해 "아무리 세도 4초"로 맞추는 고무줄이었다. 실제 보상을
-// 지급하는 지금은 그럴 수 없어 층마다 값을 고정했다. 기준은 필드 자체의 곡선 `enemyMaxHp(2 × 층)`이고,
-// 그래서 던전 3층은 필드 6층, 10층은 필드 20층과 같은 손맛이 된다. 첫 층 60은 Lv.5~10·저층 장비
-// (평타 DPS 80~130)로 3~6초, 9층 1,055는 20층 언저리 장비로 10여 초, 10층 보스는 보스 배율(30배)로
-// 43,320이라 15~20층을 파밍한 장비(대략 DPS 500~1,000)라야 90초 안에 끝난다.
-export const DUNGEON_MOB_HP: readonly number[] = [60,106,160,220,299,406,557,767,1055,1444];
+/** 층별 고정 몬스터 체력 (작업 205 → 밸런스 v2) — 필드 `enemyMaxHp(2 × 층)`을 그대로 쓴다(단일 출처).
+ *  기준은 필드 자체의 곡선이고, 그래서 던전 3층은 필드 6층, 10층은 필드 20층과 같은 손맛이 된다.
+ *  밸런스 v2에서 필드 9~20층 몹 HP가 ×0.75 내려가 5~10층이 함께 내려갔다(10층 1,444 → 1,083). */
+export const DUNGEON_MOB_HP: readonly number[] = Array.from({ length: 10 }, (_, index) => enemyMaxHp((index + 1) * 2, false));
 /** 이 층의 일반 몹 체력. 1~10층 밖의 값은 가장 가까운 층으로 잘라 쓴다. */
 export function dungeonMobHp(floor:number):number {
   const depth=Math.max(1,Math.min(DUNGEON_MOB_HP.length,Math.floor(floor)||1));
@@ -72,16 +68,16 @@ export const DUNGEON_ELITE_HP_SCALE = 2;
 /** Dungeon mobs close ground 1.5x the shared field pace; only travel distance scales, never timers. */
 export const DUNGEON_ENEMY_SPEED_SCALE = 1.5;
 /**
- * 던전 적 1회 타격 피해 (작업 248, 사용자 확정).
+ * 던전 적 1회 타격 피해 (작업 248 → 밸런스 v2).
  *
- * 예전에는 `Math.min(피해, 최대 체력의 0.5%/0.8%)` 상한이 있어 한 대에 체력 0.5%만 잃었다 — 던전이
- * 사실상 무피해였다. 상한을 없애고, 공격력의 층수 기준을 몹 체력 곡선(`DUNGEON_MOB_HP` = 필드 `2 × 층`)과
- * 맞춘 `enemyHitDamage(층 × 1, …)`로 바꾼다(작업 254: 사거리가 90이 되며 층×2는 5층이 Lv60 구간이 될 만큼
- *  무거워져 한 단계 낮췄다 — 사용자 확정). 정예는 2배(작업 205 그대로). 서버 리플레이
- * (`server/dungeon-verify.mjs`)도 이 파일의 `DungeonBattle`을 그대로 돌리므로 피해 식은 여기 한 곳뿐이다.
+ * 상한(0.5%/0.8%) 없이, 공격력의 층수 기준을 몹 체력 곡선(`DUNGEON_MOB_HP` = 필드 `2 × 층`)과 맞춘
+ * `enemyHitDamage(2 × 층)`로 돌려놓는다. 던전은 **한 번에 한 마리만 0.9초마다** 때리므로 군집 배율(×0.55)을
+ * 쓰지 않는다(`swarmed=false`) — 10층 1타 44(방어 400)로, 현재의 1에서 "한 번의 실수가 곰 실패"로 바뀌다.
+ * 정예는 2배(작업 205 그대로). 서버 리플레이(`server/dungeon-verify.mjs`)도 이 파일을 그대로 돌리므로 피해
+ * 식은 여기 한 곳뿐이다.
  */
 export function dungeonHitDamage(floor:number,boss:boolean,defense:number,elite=false):number {
-  return enemyHitDamage(Math.max(1,Math.floor(floor)||1),boss,defense)*(elite?2:1);
+  return enemyHitDamage(Math.max(1,Math.floor(floor)||1)*2,boss,defense,false)*(elite?2:1);
 }
 /** Every enemy walks 4.25 half turns a second, so one visible stride (a full turn) lasts 2/4.25 s. */
 const ENEMY_STRIDE_SECONDS = 2 / 4.25;

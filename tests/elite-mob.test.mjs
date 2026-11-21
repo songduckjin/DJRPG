@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import './ts-loader.mjs';
 const { freshSave, floorKillTarget } = await import('../src/game/store.ts');
+const { killReward } = await import('../src/game/progress.ts');
 const { World, enemyMaxHp, ELITE_KILL_INTERVAL, ELITE_HP_SCALE, ELITE_REWARD_SCALE, ELITE_MOB_SCALE } = await import('../src/game/world.ts');
 const { equipmentDropChance, skillBookDropChance, itemDropChance } = await import('../src/game/items.ts');
 
@@ -56,23 +57,25 @@ test('보스 타이밍과 겹치면 보스가 먼저 나오고 정예는 다음 
 });
 
 test('정예 처치는 금화·경험치가 2배이고 장비·스킬북 드롭률은 일반 몹과 같다', () => {
-  const floor = 1, gold = 3 + floor;
+  const floor = 1;
+  const unit = killReward({ floor });
+  const gold = unit.gold;
   const originalRandom = Math.random;
   try {
     // 한 마리당 아이템 드롭 롤은 **한 번**이고 일반·정예가 같은 0.39%(전 층 고정)다(작업 210·254).
     Math.random = () => .005;
-    const blocked = freshSave(); blocked.tutorial = 3; blocked.floor = floor;
+    const blocked = freshSave(); blocked.tutorial = 3; blocked.floor = floor; blocked.kills = 10; // 입문 지원 확정 드랍(1~2층 2·3번째 처치)과 섮이지 않게
     const blockedWorld = new World(blocked); blockedWorld.enemies = [];
     blockedWorld.kill(enemyOf());
     const normalDrops = blockedWorld.drops.length;
     blockedWorld.kill(enemyOf({ elite: true, maxHp: enemyMaxHp(floor, false) * ELITE_HP_SCALE }));
     assert.equal(normalDrops, 0, `일반 몹은 ${Math.round(itemDropChance(floor) * 10000) / 100}%에서 떨어지지 않는다`);
     assert.equal(blockedWorld.drops.length, 0, '정예도 같은 1배 확률이라 떨어지지 않는다');
-    assert.equal(itemDropChance(floor, false), .0039, '전 층 일반 몹 0.39%');
+    assert.equal(Math.round(itemDropChance(floor, false) * 1e6) / 1e6, .002418, '1층 일반 몹 0.242%(밸런스 v2)');
 
     // 확률 안쪽 값에서는 일반·정예 모두 **한 개씩** 떨어진다(두 개가 같이 나오지 않는다).
     Math.random = () => .002;
-    const both = freshSave(); both.tutorial = 3; both.floor = floor;
+    const both = freshSave(); both.tutorial = 3; both.floor = floor; both.kills = 10;
     const bothWorld = new World(both); bothWorld.enemies = [];
     bothWorld.kill(enemyOf());
     assert.equal(bothWorld.drops.length, 1, '일반 몹 아이템 1개');
@@ -88,8 +91,8 @@ test('정예 처치는 금화·경험치가 2배이고 장비·스킬북 드롭�
     richWorld.kill(enemyOf({ elite: true }));
     assert.equal(normalGold, gold);
     assert.equal(rich.gold - normalGold, gold * ELITE_REWARD_SCALE, '정예 금화는 일반의 2배');
-    assert.equal(normalExp, 9 + floor, '일반 경험치 = 9 + 층(작업 207)');
-    assert.equal(rich.exp - normalExp, (9 + floor) * ELITE_REWARD_SCALE, '정예 경험치는 일반의 2배');
+    assert.equal(normalExp, unit.exp, '일반 경험치 = 필드 계수(9 + 층) × 보상 계수');
+    assert.equal(rich.exp - normalExp, unit.exp * ELITE_REWARD_SCALE, '정예 경험치는 일반의 2배');
   } finally { Math.random = originalRandom; }
 });
 

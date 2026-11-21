@@ -51,27 +51,42 @@ export type KillOptions = {
   elite?: boolean;
 };
 
-/** 그 층에서 보스가 나오기까지 잡아야 하는 몬스터 수(작업 204). 1층 150마리 → 20층 3,505마리. */
+/** 그 층에서 보스가 나오기까지 잡아야 하는 몬스터 수(작업 204 → 밸런스 v2) — 1층 150 → 20층 1,081 → 78층 8,389.
+ *  v2는 `150 + 30d + d²`다. 예전 `150 + 55d + 6.4d²`은 몹 수를 처치력으로 눌러 층당 시간이 30분을 넘겼다. */
 export function killsToBoss(floor: number): number {
   const depth = Math.max(0, floor - 1);
-  return 150 + 55 * depth + Math.round(Math.pow(depth, 2) * 6.4);
+  return 150 + 30 * depth + Math.round(depth * depth);
+}
+
+/**
+ * 필드 킬 보상 계수(밸런스 v2) — 1층 0.70 → 20층 0.45 → 28층+ 0.35.
+ *
+ * v2는 목표 생존 수 젠(3/5/7)으로 젠이 1.7~2.4배 빨라진 만큼 마리당 금화·경험치를 같은 비율로 낮춘다.
+ * 그래서 어느 층에서도 시간당 수입·가방이 넘치지 않는다. **던전 정산·보스 금화는 대상이 아니다** —
+ * 보스는 층당 1회 고정이라 젠과 무관하고, 던전은 필드와 다른 보상표를 쓴다.
+ */
+export function fieldRewardScale(floor: number): number {
+  const depth = Math.max(1, Math.floor(Number.isFinite(floor) ? floor : 1));
+  return Math.max(.35, .70 - .013 * (depth - 1));
 }
 
 /** 다음 레벨까지 필요한 경험치(작업 207, `1400 × level²`). */
 export function expToNext(level: number): number { return Math.round(1400 * Math.pow(level, 2)); }
 
 /** 한 마리 처치가 주는 금화·경험치 — 아직 세이브에 넣지 않는 순수 계산. */
-export function killReward(save: Pick<ProgressSave, 'floor'>, options: KillOptions = {}): { gold: number; exp: number } {
+export function killReward(save: Pick<ProgressSave, 'floor'>, options: KillOptions & { unscaled?: boolean } = {}): { gold: number; exp: number } {
   const floor = options.floor ?? save.floor;
   // 정예는 금화·경험치 2배, 장비·스킬북 드롭률은 일반 몹과 같은 1배다(작업 206).
   if (options.boss) return { gold: BOSS_GOLD_PER_FLOOR * floor, exp: (KILL_EXP_BASE + floor) * BOSS_EXP_SCALE };
-  const scale = options.elite ? ELITE_REWARD_SCALE : 1;
-  return { gold: (KILL_GOLD_BASE + floor) * scale, exp: (KILL_EXP_BASE + floor) * scale };
+  const siege = options.elite ? ELITE_REWARD_SCALE : 1;
+  // 필드 보상 계수(밸런스 v2) — 던전 정산(`killGold`)만 `unscaled`로 옛 값을 쓴다.
+  const scale = options.unscaled ? 1 : fieldRewardScale(floor);
+  return { gold: Math.max(1, Math.round((KILL_GOLD_BASE + floor) * scale)) * siege, exp: Math.max(1, Math.round((KILL_EXP_BASE + floor) * scale)) * siege };
 }
 
-/** 한 마리 처치의 금화만 — 드霤·경험치 없이 금화 금액만 필요한 곳(던전 정산)이 쓴다. */
+/** 한 마리 처치의 금화만 — 던전 정산이 쓴다. 던전 보상에는 필드 계수(밸런스 v2)를 곱하지 않는다. */
 export function killGold(floor: number, options: { boss?: boolean; elite?: boolean } = {}): number {
-  return killReward({ floor }, options).gold;
+  return killReward({ floor }, { ...options, unscaled: true }).gold;
 }
 
 /**

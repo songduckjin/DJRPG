@@ -102,13 +102,18 @@ export function passiveOrderFor(job: Job): PassiveId[] { return job === 'archer'
 export const passives: Record<PassiveId, Passive> = {
   mastery: { id: 'mastery', name: '대검 숙련', level: 3, icon: '✥', description: '공격력 영구 +15%' },
   body: { id: 'body', name: '강인한 육체', level: 6, icon: '⬟', description: '최대 HP·방어력 영구 +15%' },
-  instinct: { id: 'instinct', name: '전투 본능', level: 12, icon: '◈', description: '치명타 확률 +8% · 공격속도 +12%' },
+  // 밸런스 v2: 치명 4% + 레벨당 0.9%p, 공속 6% + 레벨당 0.35%p(Lv.30 치명 30.1% · 공속 16.2%).
+  instinct: { id: 'instinct', name: '전투 본능', level: 12, icon: '◈', description: '치명타 확률 +4%(레벨당 +0.9%) · 공격속도 +6%(레벨당 +0.35%)' },
   bowMastery: { id: 'bowMastery', name: '궁술 숙련', level: 3, icon: '✥', description: '공격력 영구 +15%' },
-  swiftStep: { id: 'swiftStep', name: '신속의 발걸음', level: 6, icon: '➤', description: '이동속도·공격속도 영구 +12%' },
-  hawkSight: { id: 'hawkSight', name: '매의 눈', level: 12, icon: '◈', description: '치명타 확률 +8% · 사거리 +8%' },
+  // 밸런스 v2: 공속 6% + 레벨당 0.35%p.
+  swiftStep: { id: 'swiftStep', name: '신속의 발걸음', level: 6, icon: '➤', description: '공격속도 +6%(레벨당 +0.35%)' },
+  // 밸런스 v2: 치명 4% + 레벨당 0.9%p.
+  hawkSight: { id: 'hawkSight', name: '매의 눈', level: 12, icon: '◈', description: '치명타 확률 +4%(레벨당 +0.9%)' },
   staffMastery: { id: 'staffMastery', name: '지팡이 숙련', level: 3, icon: '✥', description: '공격력 영구 +15%' },
-  manaCircuit: { id: 'manaCircuit', name: '마나 회로', level: 6, icon: '➤', description: '이동속도·공격속도 영구 +12%' },
-  arcaneSense: { id: 'arcaneSense', name: '비전 감응', level: 12, icon: '◈', description: '치명타 확률 +8% · 사거리 +8%' }
+  // 밸런스 v2: 공속 6% + 레벨당 0.35%p.
+  manaCircuit: { id: 'manaCircuit', name: '마나 회로', level: 6, icon: '➤', description: '공격속도 +6%(레벨당 +0.35%)' },
+  // 밸런스 v2: 치명 4% + 레벨당 0.9%p.
+  arcaneSense: { id: 'arcaneSense', name: '비전 감응', level: 12, icon: '◈', description: '치명타 확률 +4%(레벨당 +0.9%)' }
 };
 
 /** 스킬 습득·사용에 캐릭터 레벨 제한은 없다(작업 216).

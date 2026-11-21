@@ -29,10 +29,28 @@ export const ENEMY_ATTACK_RANGE = WARRIOR_ATTACK_RANGE;
  *  내딛기(보스 26px)가 닿는 자리다. 예전 정지 거리는 27이었다 — 적이 히어로 몸 위에 올라서
  *  여러 마리가 한 점에 겹쳤다. */
 export const ENEMY_STOP_RANGE = 60;
-/** 치명타(작업 245) — 장비 추가옵션 `치명타 확률`·패시브를 합산한 스탯 `crit`이 곧 발동 확률(%)이다.
- *  배수는 1.8배, 확률 상한은 80%(넘는 값은 80%로 자른다). */
-export const CRIT_CHANCE_CAP = 80;
+/** 치명타(작업 245, 밸런스 v2) — 장비 추가옵션 `치명타 확률`·패시브를 합산한 스탯 `crit`이 곧 발동 확률(%)이다.
+ *  배수는 1.8배, 확률 상한은 100%다. v2는 기본(레벨) 20% + 패시브 30% + 장비 60% = 110% 예산을 잡고
+ *  실전에서 100%에서 자른다 — 세 직업 모두 풀 세팅에서 97~100%에 닿는다. */
+export const CRIT_CHANCE_CAP = 100;
 export const CRIT_DAMAGE_SCALE = 1.8;
+/**
+ * 평타의 **직업별 기본 간격**(초) — 밸런스 v2.
+ *
+ * 마법사만 0.63초다. 종전에는 세 직업 모두 0.48초에 장비 공속 배율로만 격차를 냈는데, 그러면 마법사의
+ * "공속 +N%" 표시가 실제 체감과 어긋났다(배율을 0.45로 눌러 표시 숫자를 거의 지워야 했다). 이제 간격
+ * 자체가 느려 "느리게 캐스팅하는 대신 한 방"이 애니메이션에도 드러나고, 장비 공속은 정직하게 먹는다.
+ */
+export const BASE_ATTACK_INTERVAL: Record<'warrior' | 'archer' | 'mage', number> = { warrior: .48, archer: .48, mage: .63 };
+/** 최대 공속(초당 타격 수) — 6.00타/초, 곧 최소 간격 0.1667초(밸런스 v2).
+ *  위계는 궁수 6.00 > 전사 ~4.54 > 마법사 ~3.36이며, 6.00에 닿는 것은 궁수뿐이다(호크아이 중). */
+export const HITS_PER_SECOND_CAP = 6;
+/** 한 직업의 평타 간격(초). 공속 %와 광폭 버프 배율을 반영하고 6.00타/초 상한에서 자른다. */
+export function attackInterval(job: string, speed: number, berserkSpeed = 1): number {
+  const base = BASE_ATTACK_INTERVAL[job as 'warrior'] ?? BASE_ATTACK_INTERVAL.warrior;
+  const interval = base / (1 + Math.max(0, speed) / 100) * (berserkSpeed > 0 ? 1 / berserkSpeed : 1);
+  return Math.max(1 / HITS_PER_SECOND_CAP, interval);
+}
 /** 평타 한 방의 공격력 배율. 한 마리만 맞히는 대신 한 방이 무겁다(작업 150). */
 export const basicAttackPower = 1.6;
 /** 궁수 평타 사거리와, 이보다 멀 때만 다가가는 거리(작업 157, 간격 조정 작업 207, 상향 작업 244).
@@ -62,18 +80,45 @@ export function offlineMobHp(floor: number): number { return 24 + floor * 12 + M
 export function deepMobHp(floor: number): number { return 24 + floor * 14 + Math.pow(floor, 2.65) * 0.52; }
 /** Floors below this keep the old curve; the deep one has fully taken over by `HP_RAMP_BY`. The ramp is
  *  what lets both halves of the request hold: 1~8층은 그대로, 25층부터는 깊은 층 곡선, 그 사이는 완만히. */
+/** 9~20층 일반 몹 HP 배율(밸런스 v2) — 종전 블렌드 곡선의 75%. 20층 1,083. */
+export const MOB_HP_DEEP_SCALE = .75;
+/** 21층+ 일반 몹 HP의 층당 기울기 — `98.5 × (1 + 층/2)`. 20 → 21층이 +4.6%로 이어진다. */
+export const DEEP_HP_PER_UNIT = 98.5;
 const HP_RAMP_FROM = 8, HP_RAMP_BY = 25;
 /** The boss weight the game had before 작업 198 (floor 78: ~41,700, 2.7x a normal mob): a geared
  *  player deleted a boss in one combo, which made its 2.2% drop feel handed out. */
 export function earlyBossHp(floor: number): number { return 220 + floor * 95 + Math.pow(floor, 1.6) * 32; }
-/** A boss stands at six normal mobs of its floor, so 78층 lands at ~329,000. (작업 198) */
-const BOSS_HP_RATIO = 6;
+/** 보스 HP = 일반 몹의 13배(밸런스 v2). v1의 8배는 스킬을 0으로 두고 계산한 값이라, 실제 Lv17 캐릭터
+ *  (스킬 Lv10)로는 보스가 3초에 녹았다 — 13배로 올려 표준 장비 4~5초를 지킨다. 20층 보스 14,079. */
+export const BOSS_HP_RATIO = 13;
 /** Health of a mob on a floor: the early curve and the deep one blended over `HP_RAMP_FROM`~`BY`, and
  *  a boss blended the same way from its old weight into six times its mob — 1~8층 보스는 그대로다. */
+/**
+ * 입문 구간(1~4층) 완화 배율 — 밸런스 v2 온보딩.
+ *
+ * 적 사거리가 90이 된 뒤로 1층의 Lv.1 캐릭터가 적 두어 마리에 둘러싸여 순식간에 쓰러졌다. 1층 몹 HP를
+ * 40 → 26, 몹 공격을 9.9 → 6.4로 낮추고 5층까지 계단식으로 원래 곡선에 붙인다(6층부터 1.0).
+ * 보스는 대상이 아니다 — 1층 보스(347)는 그대로 "벽"으로 남는다.
+ */
+export const EARLY_EASE: readonly number[] = [1, .65, .72, .79, .86, .93];
+/** 그 층의 입문 완화 배율(1~5층). 6층부터는 1이다. */
+export function earlyEaseScale(floor: number): number {
+  const depth = Math.max(1, Math.floor(Number.isFinite(floor) ? floor : 1));
+  return depth < EARLY_EASE.length ? EARLY_EASE[depth] : 1;
+}
+/** 일반 몹 HP — 1~8층은 종전 곡선(입문 완화 포함), 9~20층은 ×0.75, 21층+는 `98.5 × (1 + 층/2)` 선형.
+ *  보스는 1~8층 종전 그대로, 9층부터 일반 몹의 **13배**다(밸런스 v2 — 표준 장비 보스 4~5초 유지). */
 export function enemyMaxHp(floor: number, boss: boolean): number {
-  const ramp = Math.min(1, Math.max(0, (floor - HP_RAMP_FROM) / (HP_RAMP_BY - HP_RAMP_FROM)));
-  if (boss) return Math.round(earlyBossHp(floor) + (deepMobHp(floor) * BOSS_HP_RATIO - earlyBossHp(floor)) * ramp);
-  return Math.round(offlineMobHp(floor) + (deepMobHp(floor) - offlineMobHp(floor)) * ramp);
+  if (boss) {
+    if (floor <= 8) return Math.round(earlyBossHp(floor));
+    return Math.round(enemyMaxHp(floor, false) * BOSS_HP_RATIO);
+  }
+  if (floor <= 8) return Math.round(earlyEaseScale(floor) * Math.round(offlineMobHp(floor) + (deepMobHp(floor) - offlineMobHp(floor)) * Math.min(1, Math.max(0, (floor - HP_RAMP_FROM) / (HP_RAMP_BY - HP_RAMP_FROM)))));
+  if (floor <= 20) {
+    const ramp = Math.min(1, Math.max(0, (floor - HP_RAMP_FROM) / (HP_RAMP_BY - HP_RAMP_FROM)));
+    return Math.max(220, Math.round(Math.round(offlineMobHp(floor) + (deepMobHp(floor) - offlineMobHp(floor)) * ramp) * MOB_HP_DEEP_SCALE));
+  }
+  return Math.round(DEEP_HP_PER_UNIT * (1 + floor / 2));
 }
 /** 정예 몹은 일반 몹 **30마리 처치마다 한 마리** 나온다(작업 206). 보스가 대기 중이면 그 스폰은 보스가 가져간다. */
 export const ELITE_KILL_INTERVAL = 30;
@@ -84,9 +129,53 @@ export { ELITE_REWARD_SCALE } from '../progress';
 /** 정예 몹의 몸 크기 — 일반 몹보다 살짝 큰 1.22배(작업 206). */
 export const ELITE_MOB_SCALE = 1.22;
 /** 필드에 동시에 설 수 있는 몹 상한(작업 222, 사용자 요청 `#5827` "몹이 30마리 이상 생성되면 층 하락").
- *  상한에 닿아 30마리가 되면 더 싸우지 않고 한 층 내려간다(1층에는 내려갈 곳이 없어 상한만 지킨다). */
+ *  상한에 닿아 30마리가 되면 **10초 유예** 뒤 한 층 내려간다(1층에는 내려갈 곳이 없어 상한만 지킨다).
+ *  밸런스 v2의 목표 생존 수 젠(3/5/7) 아래에서는 좀처럼 닿지 않는 안전망이다. */
 export const MOB_CAP = 30;
-export function enemyHitDamage(floor: number, boss: boolean, defense: number): number { return Math.max(1, Math.round(boss ? 20 + floor * 5.5 + Math.pow(floor, 1.3) * 1.2 : 7 + floor * 2.4 + Math.pow(floor, 1.25) * .5) - defense * .2); }
+/** 30마리가 된 뒤 층을 내리기까지 버티는 시간(초) — 한 번의 몰림으로 층이 깎이지 않게. */
+export const MOB_CAP_GRACE_SECONDS = 10;
+/** 필드에 목표로 세워 두는 몹 수(밸런스 v2) — 1~5층 3, 6~15층 5, 16층+ 7. */
+export function targetAliveCount(floor: number): number {
+  return floor >= 16 ? 7 : floor >= 6 ? 5 : 3;
+}
+/** 한 번의 리필에 부르는 몹 수 — 9층부터 2마리(그 전 1마리). */
+export function spawnsPerRefill(floor: number): number { return floor >= 9 ? 2 : 1; }
+/** 리필 간격(초) — 1층 1.02초에서 층마다 0.03초씩 짧아져 20층 0.45초. 9~10층만 0.90초로 두어
+ *  9층의 수입 급증(리필 1→2마리 전환)을 완만하게 만든다(밸런스 v2 권장안). 40층+ 0.30초. */
+export function spawnRefillSeconds(floor: number): number {
+  const depth = Math.max(1, Math.floor(Number.isFinite(floor) ? floor : 1));
+  if (depth === 9 || depth === 10) return .90;
+  return Math.max(.30, 1.05 - depth * .03);
+}
+/** 그 층의 초당 젠 수 — 목표 생존 수를 채우는 속도(경제 시뮬레이션과 방치 정산이 함께 쓴다). */
+export function fieldSpawnRate(floor: number): number { return spawnsPerRefill(floor) / spawnRefillSeconds(floor); }
+/** 몹 한 마리의 **방어 전** 공격력 — 1~5층은 입문 완화(EARLY_EASE), 보스는 별도 곡선. */
+export function enemyRawHit(floor: number, boss: boolean): number {
+  const raw = boss ? 20 + floor * 5.5 + Math.pow(floor, 1.3) * 1.2 : 7 + floor * 2.4 + Math.pow(floor, 1.25) * .5;
+  return boss ? raw : raw * earlyEaseScale(floor);
+}
+/** 방어력이 막아 주는 비율(밸런스 v2) — `def / (def + 50 × (1 + 층/2))`, 상한 62%.
+ *  예전 `방어 × 0.2`를 빼던 식은 20층 표준 장비(방어 531)에서 피해를 1로 만들어 사실상 무적이었다. */
+export const DAMAGE_REDUCTION_CAP = .62;
+export function damageReduction(defense: number, floor: number): number {
+  const value = Math.max(0, defense);
+  return Math.min(DAMAGE_REDUCTION_CAP, value / (value + 50 * (1 + Math.max(0, floor) / 2)));
+}
+/** 군집 타격(밸런스 v2) — 2~3마리가 동시에 때리는 대신 한 대의 위력을 0.55로 낮춘다.
+ *  11~15층 2마리, 16층+ 3마리(`swarmCount`). */
+export const MOB_DAMAGE_SWARM_SCALE = .55;
+/** 그 층에서 한 번의 피격 창(0.85초)에 동시에 때리는 몹 수 — 1 / 2 / 3. */
+export function swarmCount(floor: number): number { return floor >= 16 ? 3 : floor >= 11 ? 2 : 1; }
+/**
+ * 적 한 대의 피해 — 방어 % 감소를 적용하고, 일반 몹은 군집 배율(×0.55)을 곱한다.
+ *
+ * `swarmed=false`는 군집 없이 한 마리만 때리는 자리(던전 — 한 번에 한 마리만 0.9초마다 때린다)가 쓴다.
+ * 1~8층은 입문 완화가 `enemyRawHit`에 이미 들어 있어 종전보다 가볍다.
+ */
+export function enemyHitDamage(floor: number, boss: boolean, defense: number, swarmed = true): number {
+  const raw = enemyRawHit(floor, boss) * (!boss && swarmed ? MOB_DAMAGE_SWARM_SCALE : 1);
+  return Math.max(1, Math.round(raw * (1 - damageReduction(defense, floor))));
+}
 /** 광폭 버프(블러드 레이지·호크아이·아케인 실드)의 공격속도 배율(작업 216).
  *  +20%에서 시작해 스킬 레벨당 +1%, 상한 1.5배 — `heroMotion.costumePlaybackRate`가 같은 식을 쓴다. */
 export function berserkSpeedScale(level: number): number { return Math.min(1.5, 1.2 + (Math.max(1, level) - 1) * .01); }

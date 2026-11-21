@@ -19,7 +19,7 @@ import { journeyRequestTableDDL } from '../journey-requests.mjs';
  */
 export const marketStatExpression = stat => `COALESCE(json_extract(item_json,'$.stats.${stat}'),0)`;
 /** 스탯 정렬을 쓰는 컬럼(거래소 UI가 고를 수 있는 값과 같다). */
-export const MARKET_SORT_STATS = ['attack', 'defense', 'health', 'crit', 'speed'];
+export const MARKET_SORT_STATS = ['attack', 'defense', 'health', 'crit', 'speed', 'cdr'];
 /**
  * 판매 중 매물의 정렬 인덱스 DDL. 스탯 5종과 가격 각각 하나씩이다.
  *

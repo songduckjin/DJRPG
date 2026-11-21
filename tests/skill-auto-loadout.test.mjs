@@ -57,7 +57,7 @@ test('보유가 3개 미만이면 채운 만큼만 앞 칸에 넣고 남은 칸�
 });
 
 test('보유 스킬이 0개면 세이브를 건드리지 않고 안내만 돌려준다', () => {
-  const save = freshSave('male', 'warrior'); save.quickSlots = [null, null, null];
+  const save = freshSave('male', 'warrior'); save.learned = []; save.skillLevels = {}; save.quickSlots = [null, null, null];
   const result = autoEquipRecommendedSkills(save);
   assert.equal(result.changed, false);
   assert.deepEqual(result.equipped, []);

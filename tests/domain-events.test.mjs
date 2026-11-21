@@ -4,6 +4,7 @@ import './ts-loader.mjs';
 
 const { clearDomainEvents, domainListenerCount, emitDomainEvent, onDomainEvent } = await import('../src/core/domainEvents.ts');
 const { wireDomainEvents } = await import('../src/game/domainWiring.ts');
+const { killReward } = await import('../src/game/progress.ts');
 const { World } = await import('../src/game/world.ts');
 const { freshSave, rollItem } = await import('../src/game/store.ts');
 const { autoEquipBest } = await import('../src/game/items.ts');
@@ -59,7 +60,7 @@ test('몬스터 처치는 금화·경험치가 반영된 뒤 monsterKilled로 �
   assert.equal(event.floor, world.save.floor);
   assert.equal(event.boss, false);
   assert.equal(event.x, 12);
-  assert.equal(event.gold, 3 + world.save.floor, '일반 몹 금화 = 3 + 층');
+  assert.equal(event.gold, killReward({ floor: world.save.floor }).gold, '일반 몹 금화 = 필드 계수(밸런스 v2)');
   assert.equal(event.goldAtEvent, event.gold, '이벤트 시점에 이미 금화가 들어가 있다');
   assert.equal(world.save.kills, 1);
 });

@@ -20,8 +20,8 @@ import { addItemToBag } from './rewardGrant';
 import { bossGoldPiles, bossGoldSpot } from './bossLoot';
 import { rollItem, totalStats, type Item, type Rarity, type Save } from './store';
 import { afterBossLose, afterBossWin, afterFloorClear, applyKillReward, defeatPenalty, killsToBoss, MAX_FLOOR, recordBossLoss } from './progress';
-import { itemDisplayName, itemDropChance, rollItemKind, rollSkillBook, starterWeaponName } from './items';
-import { ELITE_HP_SCALE, ELITE_KILL_INTERVAL, MOB_CAP, enemyMaxHp } from './battle/formulas';
+import { itemDisplayName, itemDropChance, isEquipment, rollItemKind, rollSkillBook, starterArmorItem, starterWeaponName, type Slot } from './items';
+import { ELITE_HP_SCALE, ELITE_KILL_INTERVAL, MOB_CAP, MOB_CAP_GRACE_SECONDS, enemyMaxHp, spawnRefillSeconds, spawnsPerRefill, targetAliveCount } from './battle/formulas';
 import { fieldSpawnBand, spawnArenaEnemy } from './arena';
 import { clampArenaPoint } from './combat/bounds';
 import { LOOT_ABSORB_SECONDS, LOOT_REST_SECONDS } from './loot';
@@ -30,9 +30,18 @@ import { random } from './rng';
 import type { Action, Enemy } from './battle/types';
 import { CombatEngine, cooldowns } from './combat/engine';
 
+/**
+ * 입문 지원으로 지금 줄 방어구 칸(밸런스 v2 온보딩) — 1~2층에서 두 번째·세 번째 처치마다
+ * 내 직업 무구·갑옷을 하나씩 확정으로 준다. 이미 입었거나 가방에 있으면 건넌다.
+ */
+function starterGearSlot(save: Save): 'helmet' | 'armor' | undefined {
+  if (save.floor > 2 || save.kills < 2 || save.kills > 3) return undefined;
+  const has = (slot: Slot) => !!save.equipment[slot] || save.bag.some(item => isEquipment(item) && item.slot === slot);
+  if (save.kills === 2) return has('helmet') ? undefined : 'helmet';
+  return has('armor') ? undefined : 'armor';
+}
 
 export class FieldProgress extends CombatEngine {
-
   /** 다음 몹이 뜨기까지 남은 시간. */
   spawnTimer = 0;
   bossPending = false;
@@ -42,6 +51,8 @@ export class FieldProgress extends CombatEngine {
   /** 정예 몹 처치 카운터(작업 206) — 30마리가 되면 다음 스폰을 정예로 예약한다. */
   eliteKills = 0;
   elitePending = false;
+  /** 30마리 상한에 닿아 있는 시간(초) — 10초를 넘기면 한 층 내린다(밸런스 v2 유예). */
+  crowdClock = 0;
 
   /** Live auto-salvage (작업 196): the grade the player chose, or `undefined` while the switch is off.
    *  The UI owns the switch and the stored value, so the world asks on every pickup instead of keeping
@@ -101,6 +112,7 @@ export class FieldProgress extends CombatEngine {
     this.crush = undefined; this.weaponNotice = 0; this.activeMove = { x: 0, y: 0 };
     this.bossPending = this.save.autoClimb && this.bossFloor() && this.save.floorKills >= killsToBoss(this.save.floor);
     this.bossRetryAvailable = false; this.eliteKills = 0; this.elitePending = false;
+    this.crowdClock = 0; this.strikeQuota = 0;
     this.swing = 1; this.chaseTarget = undefined; this.pursuing = false;
     const hp = enemyMaxHp(this.save.floor, false);
     const start = clampArenaPoint(145, -45);
@@ -191,9 +203,16 @@ export class FieldProgress extends CombatEngine {
     if (guaranteed) {
       this.drops.push({ x: enemy.x, y: enemy.y, item: rollItem(this.save.floor, true, boss, this.job), age: 0, warned: false });
       this.save.tutorial = 1; this.onMessage(`${starterWeaponName(this.job)}이(가) 떨어졌습니다. 잠시 뒤 자동으로 획득됩니다!`);
-    } else if (random() < itemDropChance(this.save.floor, boss)) {
-      const item = rollItemKind() === 'skillbook' ? rollSkillBook(this.save.floor, this.job) : rollItem(this.save.floor, false, boss, this.job);
-      this.drops.push({ x: enemy.x, y: enemy.y, item, age: 0, warned: false });
+    } else {
+      // 입문 지원(밸런스 v2 온보딩): 첫 무기를 받은 뒤 두 번째·세 번째 처치에서 내 직업 투구·갑옷을
+      // 확정으로 준다(1~2층, 빈 칸일 때만). Lv.1이 맨몸으로 사거¤90 적을 상대하지 않게 하는 최소한의 방어구다.
+      const starter = boss ? undefined : starterGearSlot(this.save);
+      if (starter) {
+        this.drops.push({ x: enemy.x, y: enemy.y, item: starterArmorItem(starter, this.job, this.save.floor), age: 0, warned: false });
+      } else if (random() < itemDropChance(this.save.floor, boss)) {
+        const item = rollItemKind() === 'skillbook' ? rollSkillBook(this.save.floor, this.job) : rollItem(this.save.floor, false, boss, this.job);
+        this.drops.push({ x: enemy.x, y: enemy.y, item, age: 0, warned: false });
+      }
     }
     if (enemy.boss) {
       if (this.save.autoClimb) {
@@ -287,57 +306,63 @@ export class FieldProgress extends CombatEngine {
   }
 
 
-  /** 필드 단계 — 몹 스폰과 30마리 상한 강등(원래 `update`의 `spawnTimer` 블록). */
+  /** 필드 단계 — 목표 생존 수 젠·30마리 유예 강등(밸런스 v2). */
   protected tickSpawn(dt: number): void {
-    const p = this.player;
     this.spawnTimer -= dt;
-    // 보스전(보스 예약·보스 생존) 중에는 **일반 몹을 부르지 않는다**(작업 212 `#5017`) —
-    // `⚔ 보스 도전`으로 시작한 승부는 보스와 단독으로 붙는다.
+    // 보스전(보스 예약·보스 생존) 중에는 **일반 몹을 부르지 않는다**(작업 212 `#5017`).
     const bossFight = this.bossPending || this.enemies.some(enemy => enemy.boss);
-    if (this.spawnTimer <= 0 && (bossFight || this.enemies.length < MOB_CAP)) {
-      this.spawnTimer = Math.max(.55, 1.8 - this.save.floor * .08);
-      const angle = random() * Math.PI * 2;
+    if (this.spawnTimer <= 0) {
       const boss = this.bossFloor() && this.bossPending && !this.enemies.some(enemy => enemy.boss);
-      // 보스 타이밍과 겹치면 보스가 우선한다 — 정예 예약은 다음 스폰으로 미룬다(작업 206).
-      const elite = !boss && this.elitePending;
-      if (bossFight && !boss) {
+      if (boss) {
+        this.spawnTimer = .4;
+        this.spawnMob(true, false);
+      } else if (bossFight) {
         // 보스전 중에는 빈 타이머만 돌리고 아무도 부르지 않는다(정예 예약도 미룬다).
         this.spawnTimer = .4;
       } else {
-        // 필드 외곽 밴드에서 **랜덤한 거리**로 뜬다(작업 230) — 각도만 흔들면 매번 같은 경계선 한 줄에서
-        // 나타나 코앞에 튀어나오는 것처럼 보인다. 거리 비율도 함께 굴려 멀리서 제각각 걸어 들어오게 한다.
-        const spawn = spawnArenaEnemy(p, angle, fieldSpawnBand.near + random() * (fieldSpawnBand.far - fieldSpawnBand.near));
-        const hp = enemyMaxHp(this.save.floor, boss) * (elite ? ELITE_HP_SCALE : 1);
-        if (boss) {
-          // 층 보스는 **체력이 꽉 찬 상태로** 맞이한다(작업 222, 사용자 요청 `#5811` "층보스 떴을때 체력 꽉찬
-          // 상태로 싸우게 해줘"). 자동 등반 중 소환과 `⚔ 보스 도전` 재도전 소환 모두 이 블록으로 합류한다.
-          this.player.hp = totalStats(this.save).health; this.save.health = this.player.hp;
-          // 스킬 쿨타임도 함께 0으로 돌린다(작업 223, 사용자 요청 `#6108` "보스 도전 때 스킬 쿨도 돌려줘").
-          for (const kind of Object.keys(this.cooldown) as Action[]) this.cooldown[kind] = 0;
-          // 보스가 나오는 순간 남은 일반 몹은 정리한다 — 보스만 단독으로 상대하게(작업 212).
-          this.enemies = this.enemies.filter(enemy => enemy.boss);
-          this.chaseTarget = undefined; this.pursuing = false;
+        // 목표 생존 수(1~5층 3 · 6~15층 5 · 16층+ 7)를 리필 간격마다 1~2마리로 채운다.
+        this.spawnTimer = spawnRefillSeconds(this.save.floor);
+        const room = Math.min(targetAliveCount(this.save.floor) - this.enemies.length, MOB_CAP - this.enemies.length);
+        const count = Math.max(0, Math.min(room, spawnsPerRefill(this.save.floor)));
+        for (let index = 0; index < count; index++) {
+          const elite = this.elitePending && index === 0;
+          this.spawnMob(false, elite);
+          if (elite) { this.elitePending = false; this.onMessage('정예 해골이 나타났습니다!'); }
         }
-        this.enemies.push({ x: spawn.x, y: spawn.y, hp, maxHp: hp, boss, elite, hit: 0, step: random() * Math.PI * 2, moving: false, knockX: 0, knockY: 0, slow: 0 });
-        if (boss) this.bossPending = false;
-        if (elite) { this.elitePending = false; this.onMessage('정예 해골이 나타났습니다!'); }
       }
     }
-    // 몹이 상한(30마리)까지 쌓이면 한 층 내려간다(작업 222, 사용자 요청 `#5827`). 보스전 중에는
-    // 보스 한 마리만 서므로 해당되지 않고, 1층에는 더 내려갈 층이 없어 30마리 상한만 지킨다.
-    // 바닥에 떨어진 드랍·금화(`this.drops`)는 그대로 두어 잃지 않는다.
-    if (this.enemies.length >= MOB_CAP && this.save.floor > 1) {
-      this.save.floor--;
-      this.save.floorKills = 0;
-      this.enemies = [];
+    // 몹이 상한(30마리)에 닿은 채로 **10초**를 넘기면 한 층 내려간다(밸런스 v2 — 한 번의 몰림으로 층이 깎이지 않게).
+    // 목표 생존 수 아래에서는 좀처럼 닿지 않는 안전망이고, 1층에는 더 내려갈 층이 없어 상한만 지킨다.
+    if (this.enemies.length >= MOB_CAP) {
+      this.crowdClock += dt;
+      if (this.crowdClock >= MOB_CAP_GRACE_SECONDS && this.save.floor > 1) {
+        this.save.floor--;
+        this.save.floorKills = 0;
+        this.enemies = [];
+        this.chaseTarget = undefined; this.pursuing = false;
+        this.bossPending = false; this.elitePending = false; this.spawnTimer = .2; this.crowdClock = 0;
+        // 자동 등반은 **강등당했을 때만** 꺼진다(작업 245).
+        this.save.autoClimb = false;
+        this.onMessage(`적이 너무 많아 ${this.save.floor}층으로 내려갑니다. 자동 등반이 중단됩니다.`);
+        this.onChange();
+      }
+    } else this.crowdClock = 0;
+  }
+
+  /** 몹 한 마리를 필드 외곽에 세운다 — 보스는 체력·쿨다운을 채우고 남은 몹을 정리한다(작업 212·223). */
+  private spawnMob(boss: boolean, elite: boolean): void {
+    const p = this.player;
+    const spawn = spawnArenaEnemy(p, random() * Math.PI * 2, fieldSpawnBand.near + random() * (fieldSpawnBand.far - fieldSpawnBand.near));
+    const hp = enemyMaxHp(this.save.floor, boss) * (elite ? ELITE_HP_SCALE : 1);
+    if (boss) {
+      // 층 보스는 **체력이 꽉 찬 상태로** 맞이한다(작업 222). 스킬 쿨타임도 함께 돌린다(작업 223).
+      this.player.hp = totalStats(this.save).health; this.save.health = this.player.hp;
+      for (const kind of Object.keys(this.cooldown) as Action[]) this.cooldown[kind] = 0;
+      this.enemies = this.enemies.filter(enemy => enemy.boss);
       this.chaseTarget = undefined; this.pursuing = false;
-      this.bossPending = false; this.elitePending = false; this.spawnTimer = .2;
-      // 자동 등반은 **강등당했을 때만** 꺼진다(작업 245). 다시 켜면 이 층부터 목표를 채워 한 층씩 올라가고,
-      // `⚔ 보스 도전`은 그대로 남아 최고층 보스에게 다시 도전할 수 있다.
-      this.save.autoClimb = false;
-      this.onMessage(`적이 너무 많아 ${this.save.floor}층으로 내려갑니다. 자동 등반이 중단됩니다.`);
-      this.onChange();
     }
+    this.enemies.push({ x: spawn.x, y: spawn.y, hp, maxHp: hp, boss, elite, hit: 0, step: random() * Math.PI * 2, moving: false, knockX: 0, knockY: 0, slow: 0 });
+    if (boss) this.bossPending = false;
   }
 
 

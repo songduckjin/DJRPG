@@ -3,7 +3,7 @@ import { emitDomainEvent } from '../core/domainEvents';
 import { allPassiveIds, allSkillIds, jobs, passiveOrderFor, passives, skillOrderFor, skills, type Job, type SkillLevelId } from './skills';
 import { jobOrDefault } from './skills';
 import { random } from './rng';
-import { effectiveExtraOptions, extraOptionPower, normalizeExtraOptions, type ExtraOptionKey } from './extraOptions';
+import { effectiveExtraOptions, extraOptionPower, normalizeExtraOptions, EXTRA_CDR_CAP, EXTRA_CRIT_CAP, EXTRA_SPEED_CAP, type ExtraOptionKey } from './extraOptions';
 
 function isRecord(value: unknown): value is Record<string, unknown> { return typeof value === 'object' && value !== null && !Array.isArray(value); }
 
@@ -18,7 +18,7 @@ export const salvageStones: Record<Rarity, number> = { common: 1, magic: 2, rare
 
 export type Slot = 'weapon' | 'offhand' | 'helmet' | 'armor' | 'necklace' | 'gloves' | 'belt' | 'boots' | 'ring1' | 'ring2';
 
-export type Stat = 'attack' | 'defense' | 'health' | 'crit' | 'speed';
+export type Stat = 'attack' | 'defense' | 'health' | 'crit' | 'speed' | 'cdr';
 
 export type EquipmentItem = { id: string; name: string; slot: Slot; rarity: Rarity; stats: Partial<Record<Stat, number>>; kind?: 'equipment'; locked?: boolean; plus?: number;
   /** 직업 전용 투구·갑옷의 주인 직업(작업 249). 무기는 이름(대검·활·지팡이)으로 판별하므로 붙지 않는다.
@@ -27,7 +27,10 @@ export type EquipmentItem = { id: string; name: string; slot: Slot; rarity: Rari
    *  이름은 공용(제한 없음)으로 본다(기존 보유 장비가 갑자기 장착 불가가 되지 않게). */
   job?: Job;
   /** 추가옵션(작업 238) — 에픽 1·유니크 2·전설 3개, 각 1~3%. `id`로 정해지며 `src/game/extraOptions.ts`가 채운다. */
-  extraOptions?: Partial<Record<ExtraOptionKey, number>> };
+  extraOptions?: Partial<Record<ExtraOptionKey, number>>;
+  /** 2차 스탯 척도 버전(밸런스 v2) — 2면 치명·공속·쿨감이 새 척도로 다시 박힌 장비다.
+   *  서버(`server/db/items.mjs`)가 **옛 장비(1) → 새 장비(2) 1회 마이그레이션**만 허용하는 표식이다. */
+  sec?: number };
 export type SkillBook = { id: string; name: string; slot: 'skillbook'; rarity: 'rare'; kind: 'skillbook'; skillId: SkillLevelId; stats: {} };
 /** 가방에서 까는 무작위 보물 주머니(작업 207) — 장비도 스킬북도 아닌 소모품이다.
  *  장비 40칸에 세지 않고, 자동 장착·분해·경매장 판매·도감 어디에도 끼지 않는다. */
@@ -89,10 +92,20 @@ export const ONLINE_DROP_CHANCE = .0039;
 export const OFFLINE_DROP_CHANCE = .003;
 /** 보스 드롭률 (작업 254) — 접속·방치 모두 4%. */
 export const BOSS_DROP_CHANCE = .04;
+/**
+ * 층별 드롭 계수(밸런스 v2) — 1층 0.62 → 20층 0.392 → 34층+ 0.37.
+ *
+ * 목표 생존 수 젠(3/5/7)으로 젠이 1.7~2.4배 빨라진 만큼 마리당 드롭률을 같은 비율로 낮춰 **시간당
+ * 아이템 수입을 지금과 같게** 둔다(40칸 가방이 한 세션에 넘치지 않는다). 예전에는 전 층 0.39% 고정이었다.
+ */
+export function dropScale(floor: number): number {
+  const depth = Math.max(1, Math.floor(Number.isFinite(floor) ? floor : 1));
+  return Math.max(.37, .62 - .012 * (depth - 1));
+}
 
-/** 접속 사냥의 한 마리당 드롭률 — 전 층 0.39%, 보스 4%(작업 254). */
-export function itemDropChance(_floor: number, boss = false): number {
-  return boss ? BOSS_DROP_CHANCE : ONLINE_DROP_CHANCE;
+/** 접속 사냥의 한 마리당 드롭률 — 1층 0.242% → 20층 0.153% → 34층+ 0.144%, 보스 4%(밸런스 v2). */
+export function itemDropChance(floor: number, boss = false): number {
+  return boss ? BOSS_DROP_CHANCE : ONLINE_DROP_CHANCE * dropScale(floor);
 }
 /** 방치(오프라인) 정산의 한 마리당 드롭률 — 전 층 0.30%, 보스 4%(작업 254). */
 export function offlineDropChance(_floor: number, boss = false): number {
@@ -132,11 +145,19 @@ export function plusWeights(maxPlus: number, boss = false): number[] {
   return weights;
 }
 
-/** 장비 스탯에 강화 단계 보너스(단계당 8%)를 적용한다 — `+7`이면 기본의 1.56배. */
+/** 2차 스탯 척도 버전 — 밸런스 v2에서 치명·공속·쿨감 생성식이 바뀌었다(장비 `sec` 표식). */
+export const SECONDARY_SCALE_VERSION = 2;
+/** 2차 스탯(치명·공속·쿨감)은 강화(+)로 커지지 않는다 — 새 생성식이 층·강화와 무관하기 때문이다(밸런스 v2). */
+const SECONDARY_STATS: readonly Stat[] = ['crit', 'speed', 'cdr'];
+/** 장비 스탯에 강화 단계 보너스(단계당 8%)를 적용한다 — `+7`이면 기본의 1.56배.
+ *  주 스탯(공격·방어·체력)만 대상이고 치명·공속·쿨감은 그대로 둔다(밸런스 v2). */
 export function applyPlus(stats: Partial<Record<Stat, number>>, plus: number): Partial<Record<Stat, number>> {
   if (!(plus > 0)) return stats;
   const factor = 1 + plus * PLUS_STAT_BONUS;
-  for (const stat of Object.keys(stats) as Stat[]) stats[stat] = Math.round((stats[stat] ?? 0) * factor);
+  for (const stat of Object.keys(stats) as Stat[]) {
+    if (SECONDARY_STATS.includes(stat)) continue;
+    stats[stat] = Math.round((stats[stat] ?? 0) * factor);
+  }
   return stats;
 }
 
@@ -169,7 +190,7 @@ export const slotNames: Record<Slot, string> = { weapon: '두손검', offhand: '
 
 export const rarityNames: Record<Rarity, string> = { common: '일반', magic: '매직', rare: '레어', epic: '에픽', unique: '유니크', legendary: '레전드' };
 
-export const statNames: Record<Stat, string> = { attack: '공격', defense: '방어', health: '체력', crit: '치명', speed: '공속' };
+export const statNames: Record<Stat, string> = { attack: '공격', defense: '방어', health: '체력', crit: '치명', speed: '공속', cdr: '쿨감' };
 
 const ringBases = ['구리 반지', '은 반지', '혈옥 반지', '수호의 인장', '군주의 반지'] as const;
 
@@ -477,14 +498,34 @@ export function maxSlotProfiles(): Record<Slot, SlotProfile> {
 /** 위 표를 한 번만 계산해 둔다 — 서버 테스트가 `server/save-guard.mjs`의 사본과 대조한다. */
 export const maxSlotProfileTable: Record<Slot, SlotProfile> = maxSlotProfiles();
 
-/** 직업 숙련 (작업 255) — 같은 장비라도 그 직업의 특기 능력치에서 더 뽑아 쓴다.
- *  전사는 방어·체력, 궁수는 치명·공속, 마법사는 공격. 장비로 오른 능력치에만 곱하고(레벨 기본값 제외),
- *  퍼센트 추가옵션·패시브보다 먼저 적용된다. */
+/** 직업 숙련 (작업 255 → 밸런스 v2) — 같은 장비라도 그 직업의 특기 능력치에서 더 뽑아 쓴다.
+ *  전사는 방어·체력, 마법사는 공격(1.52 — 느린 평타를 한 방으로 보상). 궁수의 치명·공속은
+ *  아래 `GEAR_CRIT_SCALE`·`GEAR_SPEED_SCALE`로 옮겼다(장비 공속·치명이 층과 분리된 새 척도를 쓰기 때문). */
 export const jobMastery: Record<Job, Partial<Record<Stat, number>>> = {
   warrior: { defense: 1.12, health: 1.10 },
-  archer: { crit: 1.15, speed: 1.38 },
-  mage: { attack: 1.38 }
+  archer: { crit: 1.15 },
+  mage: { attack: 1.52 }
 };
+
+/**
+ * 장비 **치명·공속 생성 척도**(밸런스 v2) — 예전에는 `round(배율 × (1+층/2) × 등급 × 티어)`라
+ * 20층만 가도 치명 800%·공속 1,200%가 나와 상한(80%·6타)에 눌렸다. 이제 층·강화를 빼고 등급·티어로만
+ * 만든 뒤 0.70·0.72를 곱한다. 장비 10칸 합계가 치명 ~60%·공속 ~90% 선에 머문다.
+ */
+export const GEAR_CRIT_UNIT = .70;
+export const GEAR_SPEED_UNIT = .72;
+/** 직업별 장비 공속 배율 — 궁수 1.48(6.00타 상한에 닿는 유일한 직업) > 전사 0.55 > 마법사 0.45. */
+export const GEAR_SPEED_SCALE: Record<Job, number> = { warrior: .55, archer: 1.48, mage: .45 };
+/** 직업별 장비 치명 배율 — 궁수만 1.15(치명 특화). */
+export const GEAR_CRIT_SCALE: Record<Job, number> = { warrior: 1, archer: 1.15, mage: 1 };
+/**
+ * 마법사 전용 부위의 스킬 쿨타임 감소(CDR) 기본 계수 — 지팡이 1.8 · 모자 0.9 · 로브 0.8(밸런스 v2).
+ * `round(계수 × 등급배율 × 티어계수)`로 만들어 전설 최고 티어 지팡이 14 · 모자 7 · 로브 6, 합 27%다.
+ * 추가옵션(최대 6%)까지 더해 상한 35%, 풀 세팅 마법사 31%.
+ */
+export const CDR_GEAR_PROFILE: Partial<Record<Slot, number>> = { weapon: 1.8, helmet: .9, armor: .8 };
+/** 스킬 쿨타임 감소 합산 상한(%). 평타 간격에는 적용하지 않는다 — 스킬 쿨타임만 줄인다. */
+export const CDR_CAP = 35;
 
 /** 티어 계수 — 티어가 한 단계 오를 때마다 그 장비의 모든 스탯이 3.5%씩 강해진다(작업 255).
  *  예전에는 `tier * 0.6`(무기)·`0.4`(그 외)의 **고정 소수**라, 후반(`scale` 수백)에는 9티어와 0티어의
@@ -526,14 +567,18 @@ export function gearStats(slot: Slot, rarity: Rarity, tier: number, floor: numbe
   const secondary: Stat = primary === 'attack' ? 'defense' : 'attack';
   if (rank >= rarityRanks.magic && profile[secondary] > 0) stats[secondary] = Math.max(1, Math.round(profile[secondary] * scaled));
   if (rank >= rarityRanks.magic && profile.health > 0) stats.health = Math.max(1, Math.round(profile.health * scaled));
-  if (rank >= rarityRanks.rare && profile.crit > 0) stats.crit = Math.max(1, Math.round(profile.crit * scaled));
-  // 공속은 레어부터 붙되, 유니크 전까지는 배율의 35%만 준다(작업 255). 유니크부터 주면 레어 구간에서
-  // 궁수의 공속 우위가 통째로 사라져(치명은 80% 상한에 먼저 닿는다) 세 직업 중 궁수만 15~19% 뒤처졌고,
-  // 레어부터 100%를 주면 레어 장비가 예전보다 2배 강해져 난이도가 통째로 내려갔다. 그 사이를 잡는다.
-  if (rank >= rarityRanks.rare && profile.speed > 0) stats.speed = Math.max(1, Math.round(profile.speed * scaled * (rank >= rarityRanks.unique ? 1 : .35)));
+  // 치명·공속(밸런스 v2): **층·강화를 빼고** 등급·티어만으로 만든다 — 20층에서도 두 자리 수에 머문다.
+  // 레어 이상에서 붙던 종전 규칙은 그대로다. 공속의 "유니크 전까지 35%만" 규칙은 새 척도에서 필요 없어졌다
+  // (값이 작아져도 궁수 우위는 직업 배율 1.48이 만든다).
+  const grade = rarityScales[rarity] * tierFactor(slot, tier);
+  if (rank >= rarityRanks.rare && profile.crit > 0) stats.crit = Math.max(1, Math.round(profile.crit * grade * GEAR_CRIT_UNIT));
+  if (rank >= rarityRanks.rare && profile.speed > 0) stats.speed = Math.max(1, Math.round(profile.speed * grade * GEAR_SPEED_UNIT));
+  // 스킬 쿨타임 감소(밸런스 v2): **마법사 전용 부위**(지팡이·모자·로브)에만 붙는다.
+  const cdr = CDR_GEAR_PROFILE[slot];
+  if (job === 'mage' && cdr !== undefined) stats.cdr = Math.max(0, Math.round(cdr * grade));
   if (zweihander) {
     stats.attack = (stats.attack ?? 0) + 2;
-    if (rank >= rarityRanks.rare) stats.crit = (stats.crit ?? 0) + Math.max(1, Math.round(scaled * .15));
+    if (rank >= rarityRanks.rare) stats.crit = (stats.crit ?? 0) + Math.max(1, Math.round(profile.crit * grade * GEAR_CRIT_UNIT * .5));
   }
   return stats;
 }
@@ -609,6 +654,36 @@ export function wearableEquipmentImage(item: EquipmentItem): { path: string; fra
  */
 const skillBookReadIds = new Set<SkillLevelId>([...allSkillIds, ...allPassiveIds]);
 
+/**
+ * 옛 장비의 2차 스탯(치명·공속·쿨감)을 **새 척도로 다시 박는다**(밸런스 v2 마이그레이션).
+ *
+ * 새 생성식은 이미 저장된 장비를 다시 뽑지 않는다. 지금 세이브의 치명 883%·공속 1,255%가 그대로 남으면
+ * 상한(100%·6타)에 즉시 붙어 계산이 무의미해진다. 그래서 등급·티어·부위(·직업)로 새 식을 다시 계산해
+ * `crit`·`speed`만 덮어쓴다 — **공결·방여·체력·강화 단계·등급·티어·부위는 그대로 둔다**(사용자 확정).
+ * 쿨감은 마법사 전용 부위(지팡이·모자·로브)에만 새로 붙고, 다른 부위의 옛 쿨감 값은 지운다.
+ */
+export function sanitizeSecondary(item: EquipmentItem): EquipmentItem {
+  const tier = Math.max(0, baseItemIndex(item));
+  const grade = rarityScales[item.rarity] * tierFactor(item.slot, tier);
+  const profile = slotProfileFor(item.slot, itemJob(item));
+  if (item.stats.crit !== undefined) item.stats.crit = Math.max(1, Math.round(profile.crit * grade * GEAR_CRIT_UNIT));
+  if (item.stats.speed !== undefined) item.stats.speed = Math.max(1, Math.round(profile.speed * grade * GEAR_SPEED_UNIT));
+  const cdr = CDR_GEAR_PROFILE[item.slot];
+  if (cdr !== undefined && itemJob(item) === 'mage') item.stats.cdr = Math.max(0, Math.round(cdr * grade));
+  else if (item.stats.cdr !== undefined) delete item.stats.cdr;
+  item.sec = SECONDARY_SCALE_VERSION;
+  return item;
+}
+
+/** 신규 캐릭터 입문용 투구·갑옷 1개(밸런스 v2 온보딩) — 매직 등급·0티어, 그 직업의 이름이다(1~2층 확정 드랍). */
+export function starterArmorItem(slot: 'helmet' | 'armor', job: Job = 'warrior', floor = 1): EquipmentItem {
+  const bases = slot === 'armor' ? armorBasesFor(job) : helmetBasesFor(job);
+  const rarity: Rarity = 'magic';
+  const stats = gearStats(slot, rarity, 0, floor, job);
+  const item: EquipmentItem = { id: crypto.randomUUID(), name: `${rarityPrefixes[rarity]} ${bases[0]}`, slot, rarity, stats, plus: 0, job, sec: SECONDARY_SCALE_VERSION };
+  return normalizeExtraOptions(item);
+}
+
 export function migrateItem(value: unknown): Item | undefined {
   if (!isRecord(value)) return undefined;
   // 보물 주머니(작업 207): 서버가 이름 포함 identity로 대조하므로 저장된 이름이 있으면 그대로 둔다.
@@ -639,6 +714,9 @@ export function migrateItem(value: unknown): Item | undefined {
   if ((slot === 'helmet' || slot === 'armor') && (value.job === 'warrior' || value.job === 'archer' || value.job === 'mage')) item.job = value.job;
   // 강화 단계는 표시 전용이다 — 이름·스탯·등급은 그대로 두고 `plus`만 정규화(또는 옛 장비면 역산)한다.
   item.plus = normalizePlus(value.plus, item);
+  // 치명·공속·쿨감은 새 척도로 다시 박는다(밸런스 v2) — 예전 장비의 800% 치명·1,200% 공속이 상한에
+  // 눌러앉아 계산이 무의미해지지 않게. 공결·방여·체력·강화·등급·티어·부위는 그대로다.
+  sanitizeSecondary(item);
   // 추가옵션(작업 238): 저장된 값이 규칙에 맞으면 그대로 두고, 없거나 어긋난 옛 장비는 `id` 시드로
   // 1/2/3개를 붙인다 — 이미 지급된 장비도 DB를 전수 수정하지 않고 옵션을 얻는다.
   if (isRecord(value.extraOptions)) item.extraOptions = value.extraOptions as EquipmentItem['extraOptions'];
@@ -655,34 +733,43 @@ function passiveLevel(save: Save, ids: SkillLevelId[]): number | undefined {
 }
 
 export function totalStats(save: Save): Record<Stat, number> {
-  const total = { attack: 8 + save.level * 2, defense: 2 + save.level, health: 100 + (save.level - 1) * 12, crit: 2, speed: 0 };
-  // 장비 몫은 따로 모아 **직업 숙련**(작업 255)을 먼저 곱한 뒤 더한다 — 전사는 방어·체력, 궁수는
-  // 치명·공속, 마법사는 공격. 같은 장비라도 직업의 특기 능력치에서 더 뽑아 쓰는 셈이다(레벨 기본값은 제외).
-  const gear = { attack: 0, defense: 0, health: 0, crit: 0, speed: 0 };
+  // 기본 치명(밸런스 v2) — 레벨 1에 2%, 레벨당 +0.6%로 최고 레벨 20%. 예전에는 레벨과 무관한 2%뿐이라
+  // 장비 치명이 전부였고, 장비가 800%까지 오르면서 상한(80%)에 눌려 있었다.
+  const total: Record<Stat, number> = { attack: 8 + save.level * 2, defense: 2 + save.level, health: 140 + (save.level - 1) * 12, crit: 2 + (save.level - 1) * .6, speed: 0, cdr: 0 };
+  // 장비 몫은 따로 모아 **직업 숙련**(작업 255)을 먼저 곱한 뒤 더한다 — 전사는 방어·체력, 마법사는 공격.
+  // 같은 장비라도 직업의 특기 능력치에서 더 뽑아 쓰는 셈이다(레벨 기본값은 제외).
+  const gear: Record<Stat, number> = { attack: 0, defense: 0, health: 0, crit: 0, speed: 0, cdr: 0 };
   for (const item of Object.values(save.equipment)) if (item && !isSkillBook(item)) {
     for (const stat of Object.keys(item.stats) as Stat[]) gear[stat] += item.stats[stat] ?? 0;
   }
   const mastery = jobMastery[jobOrDefault(save.job)];
   for (const stat of Object.keys(mastery) as Stat[]) gear[stat] *= mastery[stat] ?? 1;
-  for (const stat of Object.keys(gear) as Stat[]) total[stat] += Math.round(gear[stat]);
+  // 궁수는 장비 치명 1.15배, 공속은 직업 배율(전사 .55 · 궁수 1.48 · 마법사 .45)을 곱한다(밸런스 v2).
+  const job = jobOrDefault(save.job);
+  gear.crit *= GEAR_CRIT_SCALE[job];
+  gear.speed *= GEAR_SPEED_SCALE[job];
+  for (const stat of Object.keys(gear) as Stat[]) if (stat !== 'cdr') total[stat] += Math.round(gear[stat]);
   // 추가옵션(작업 238)의 % 스탯은 **모든 보정이 끝난 최종값**에 곱한다 — `공격력 +2%`가 레벨·패시브·
   // 장비를 모두 반영한 공격력을 올린다. 치명타·공격속도는 기존처럼 % 수치를 그대로 더한다.
   const attackBoost = passiveLevel(save, ['mastery', 'bowMastery', 'staffMastery']);
   if (attackBoost) total.attack = Math.ceil(total.attack * (1.15 + (attackBoost - 1) * .02));
   const body = passiveLevel(save, ['body']);
   if (body) { const bonus = 1.15 + (body - 1) * .02; total.defense = Math.ceil(total.defense * bonus); total.health = Math.ceil(total.health * bonus); }
+  // 패시브(밸런스 v2): 치명 패시브 4% + 레벨당 0.9%(Lv30 30%), 공속 패시브 6% + 레벨당 0.35%(Lv30 16.2%).
   const instinct = passiveLevel(save, ['instinct']);
-  if (instinct) { total.crit += 8 + (instinct - 1) * 2; total.speed += 12 + (instinct - 1) * 2; }
+  if (instinct) { total.crit += 4 + (instinct - 1) * .9; total.speed += 6 + (instinct - 1) * .35; }
   const swift = passiveLevel(save, ['swiftStep', 'manaCircuit']);
-  if (swift) total.speed += 12 + (swift - 1) * 2;
+  if (swift) total.speed += 6 + (swift - 1) * .35;
   const sight = passiveLevel(save, ['hawkSight', 'arcaneSense']);
-  if (sight) total.crit += 8 + (sight - 1) * 2;
+  if (sight) total.crit += 4 + (sight - 1) * .9;
   const extras = effectiveExtraOptions(save.equipment);
   total.attack = Math.ceil(total.attack * (1 + extras.attackPct / 100));
   total.defense = Math.ceil(total.defense * (1 + extras.defensePct / 100));
   total.health = Math.ceil(total.health * (1 + extras.healthPct / 100));
-  total.crit += extras.critPct;
-  total.speed += extras.speedPct;
+  total.crit += Math.min(EXTRA_CRIT_CAP, extras.critPct);
+  total.speed += Math.min(EXTRA_SPEED_CAP, extras.speedPct);
+  // 스킬 쿨타임 감소(밸런스 v2): 장비 기본 + 추가옵션을 합쳐 35%에서 자른다.
+  total.cdr = Math.min(CDR_CAP, Math.round(gear.cdr) + Math.min(EXTRA_CDR_CAP, extras.cdrPct));
   return total;
 }
 
@@ -784,7 +871,7 @@ export function rollEquipment(floor: number, rarity: Rarity, boss = false): Equi
   // 다음 로드에서 옛 장비 역산(`estimatePlus`)이 0층 아이템을 높게 잡는 일이 없다.
   const plus = rollPlus(floor, boss);
   applyPlus(stats, plus);
-  const item: EquipmentItem = { id: placeholder.id, name, slot, rarity, stats, plus };
+  const item: EquipmentItem = { id: placeholder.id, name, slot, rarity, stats, plus, sec: SECONDARY_SCALE_VERSION };
   // 투구·갑옷은 **주인 직업을 함께 적는다**(작업 249). 이름만으로는 새로 떨어진 전사 전용 장비와 옛 세이브의
   // 공용 장비를 가릴 수 없어, 새 드롭에만 표식을 붙여 다른 직업의 장착을 막는다. 무기는 이름으로 판별한다.
   if ((slot === 'helmet' || slot === 'armor') && dropFor) item.job = dropFor;
@@ -797,7 +884,8 @@ export function rollEquipment(floor: number, rarity: Rarity, boss = false): Equi
 export function itemPower(item: Item): number {
   if (!isEquipment(item)) return 0;
   // 추가옵션(작업 238)의 몫까지 더한다 — 자동 장착·`▲ 업그레이드`·분해 보호가 옵션 가치를 함께 본다.
-  return (item.stats.attack ?? 0) * 3 + (item.stats.defense ?? 0) * 2 + (item.stats.health ?? 0) * .2 + (item.stats.crit ?? 0) * 2 + (item.stats.speed ?? 0) * 2 + rarityRanks[item.rarity] * 2 + extraOptionPower(item);
+  // 쿨감(밸런스 v2)은 1%를 공격 2점어치로 본다(스킬 비중 40~50%인 마법사 기준).
+  return (item.stats.attack ?? 0) * 3 + (item.stats.defense ?? 0) * 2 + (item.stats.health ?? 0) * .2 + (item.stats.crit ?? 0) * 2 + (item.stats.speed ?? 0) * 2 + (item.stats.cdr ?? 0) * 6 + rarityRanks[item.rarity] * 2 + extraOptionPower(item);
 }
 
 /**
