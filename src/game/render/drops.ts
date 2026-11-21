@@ -3,7 +3,8 @@ import {GOLD_COIN_CHIP_DROP,GOLD_PILE,GOLD_PILE_RX,GOLD_PILE_RY,goldCoinChipHeig
 import {goldCoinChipTexture} from './goldCoinArt';
 import {captureLootGround,projectLootGround} from '../lootGround';
 import { Assets, Container, Graphics, Rectangle, Sprite, Texture } from 'pixi.js';
-import type { Coin, Drop, World } from '../world';
+import type { Coin, Drop } from '../world';
+import type { CombatEngine } from '../combat/engine';
 import { equipmentImage, isEquipment, isSkillBook, type Item, type Rarity } from '../items';
 import { passives } from '../skills';
 import { LOOT_DEPTH, LOOT_GAP, LOOT_REST_SECONDS, lootAbsorbPoint, lootAbsorbProgress, lootRestSpots, type LootDrop } from '../loot';
@@ -150,7 +151,7 @@ function attachArt(view: GameView, body: Container, gold: boolean, item: Item | 
  *  the character as he stands at that moment — the dungeon's beat, per drop instead of per stage.
  *  Painting only: `world.ts` decides when a drop is stored, so a drop held back by a full bag stays
  *  visible on the ground instead of looking swallowed. */
-export function drawLoot(this: GameView, world: World, project: (x: number, y: number) => [number, number], time: number, dt: number): void {
+export function drawLoot(this: GameView, world: CombatEngine, project: (x: number, y: number) => [number, number], time: number, dt: number): void {
   const h = this.app.screen.height, viewport={width:this.app.screen.width,height:h};
   const [heroX, heroY] = project(world.player.x, world.player.y);
   const heroH = Math.max(48, h * heroBodyFraction);

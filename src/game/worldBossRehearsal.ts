@@ -1,5 +1,7 @@
 import {bossHitsBetween} from './worldBossPattern';
-import {World, type Enemy, ENEMY_STRIKE_SECONDS, enemyHitDamage} from './world';
+import {CombatEngine} from './combat/engine';
+import type {Enemy} from './battle/types';
+import {ENEMY_STRIKE_SECONDS, enemyHitDamage} from './battle/formulas';
 import {totalStats,type Save} from './store';
 import {effectiveExtraOptions} from './extraOptions';
 import {seededRandom, type Random} from './rng';
@@ -12,7 +14,7 @@ export const REHEARSAL_CRIT_SEED = 0xc217;
 
 // This world owns a deep copy. No callbacks, loot, ranking or real-account writes.
 export class WorldBossRehearsal {
-  readonly world:World;
+  readonly world:CombatEngine;
   readonly boss:Enemy;
   elapsed=0;damage=0;finished=false;defeated=false;
   dodgeCooldown=0;
@@ -28,7 +30,7 @@ export class WorldBossRehearsal {
   }
   constructor(save:Save){
     const copy=structuredClone(save);copy.tutorial=3;copy.floorKills=0;
-    this.world=new World(copy);this.world.spawnTimer=Infinity;this.world.bossPending=false;
+    this.world=new CombatEngine(copy);
     // 치명타도 서버 재계산과 같은 순서로 — 이 전투의 굴림만 시드 난수를 쓴다(작업 245).
     this.world.critRoll=()=>this.critChance();
     this.world.player.hp=totalStats(copy).health;

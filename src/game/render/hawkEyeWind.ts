@@ -1,5 +1,5 @@
 import { Graphics, Sprite, type Container, type Texture } from 'pixi.js';
-import type { World } from '../world';
+import type { CombatEngine } from '../combat/engine';
 import { jobOrDefault } from '../skills';
 
 /**
@@ -192,7 +192,7 @@ function windStateFor(view: HawkEyeWindView, glowTexture: Texture): WindState {
  * 궁수가 아니면 아무것도 그리지 않는다(전사 블러드 레이지·마법사 아케인 실드는 그대로).
  */
 export function drawHawkEyeWindAura(
-  view: HawkEyeWindView, world: World, x: number, y: number, time: number, _dt: number, body: number,
+  view: HawkEyeWindView, world: CombatEngine, x: number, y: number, time: number, _dt: number, body: number,
   glowTexture: Texture
 ): void {
   const state = windStateFor(view, glowTexture);

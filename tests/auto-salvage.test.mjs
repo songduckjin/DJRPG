@@ -149,7 +149,7 @@ test('offline rewards pass through the same switch with the same protection (작
   assert.match(offline, /options:\s*OfflineRewardOptions = \{\}/, 'the settings come in as an argument');
   assert.match(offline, /salvaged\.count\+\+/, 'and the count lands in the reward receipt');
   // The sweep only exists on the live field pickup path.
-  const world = readFileSync(new URL('../src/game/world.ts', import.meta.url), 'utf8');
+  const world = readFileSync(new URL('../src/game/fieldProgress.ts', import.meta.url), 'utf8');  // PR-2B: 필드의 킬 보상·드롭·자동 분해 규칙은 `fieldProgress.ts`로 옮겼다(월드는 이름만 남은 껍데기).
   assert.match(world, /const sweep = this\.sweeps\(drop\.item\)/, 'the field picks up through the switch');
   assert.equal(world.includes('autoSalvageRecovered'), true);
 });

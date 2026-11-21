@@ -8,14 +8,14 @@
  * `tests/architecture-boundaries.test.mjs`가 이 방향(서버 → ui)을 상시 검사한다.
  */
 import { random, seededRandom, useRandom, type Random } from '../rng';
-import { World } from '../world';
+import { CombatEngine } from '../combat/engine';
 import type { Enemy } from '../battle/types';
 import { ENEMY_ATTACK_RANGE, ENEMY_STOP_RANGE, ENEMY_STRIKE_SECONDS, enemyHitDamage, enemyMoveSpeed } from '../battle/formulas';
-import { clampArenaPoint } from '../arena';
+import { clampArenaPoint } from '../combat/bounds';
 import { jobOrDefault } from '../skills';
 import { DUNGEON_MAX_FLOOR, totalStats, type Save } from '../store';
 import { equipmentDropChance, rollDungeonItem, rollSkillBook, skillBookDropChance, type Item } from '../items';
-import { bossGoldPiles, bossGoldSpot, bossItems } from '../bossLoot';
+import { bossGoldPiles, bossGoldSpot, bossItems } from '../combat/bossLoot';
 /** Ground loot held by the preview only. Kept off `World.drops` so the shared field renderer stays untouched.
  *  `from` is the body a boss heap was thrown from (작업 196): the dungeon flies the heap out of the boss
  *  to the spot it lands on, exactly as the field does. */
@@ -181,7 +181,7 @@ export function dungeonAbsorbPoint(from:LootSpot,to:LootSpot,progress:number,ind
   const k=progress*progress,swing=progress>=1?0:Math.sin(Math.PI*progress)*10*(index%2?1:-1);
   return {x:from.x+(to.x-from.x)*k+swing,y:from.y+(to.y-from.y)*k};
 }
-class DungeonWorld extends World {
+class DungeonWorld extends CombatEngine {
   slain=0;
   loot:DungeonLoot[]=[];
   private lootId=0;
@@ -262,7 +262,7 @@ export class DungeonBattle {
   }
   constructor(save:Save,floor=1,seed?:number){this.floor=Math.min(DUNGEON_MAX_FLOOR,Math.max(1,Math.floor(floor)));const copy=structuredClone(save);copy.floor=this.floor;copy.floorKills=0;copy.tutorial=3;copy.autoClimb=false;
     if(Number.isFinite(seed)){this.seed=Math.floor(Number(seed))>>>0;this.rng=seededRandom(this.seed);}
-    this.world=new DungeonWorld(copy);this.world.enemies=[];this.world.spawnTimer=Infinity;this.world.bossPending=false;
+    this.world=new DungeonWorld(copy);this.world.enemies=[];
     this.world.player.hp=totalStats(copy).health;this.world.player.x=50;this.world.player.y=50;
     // 첫 웨이브도 시드 난수로 세운다 — 서버 리플레이가 같은 자리에서 시작해야 한다.
     if(this.rng){const previous=useRandom(this.rng);try{this.spawnWave();}finally{useRandom(previous);}}else this.spawnWave();

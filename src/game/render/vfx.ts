@@ -1,6 +1,6 @@
 import { Container, Sprite, Text } from 'pixi.js';
 import type { Rarity } from '../store';
-import type { World } from '../world';
+import type { CombatEngine } from '../combat/engine';
 
 const rarityColors: Record<Rarity, number> = { common: 0x9ca3af, magic: 0x60a5fa, rare: 0xfacc15, epic: 0xc084fc, unique: 0xfb923c, legendary: 0xf87171 };
 const slashStrength: Record<Rarity, number> = { common: 0, magic: 1, rare: 2, epic: 3, unique: 4, legendary: 5 };
@@ -8,7 +8,7 @@ import { dragonOrbitFactor, dragonRise, slash2SecondHit } from '../skills';
 import type { Effect } from '../world';
 import type { Art, GameView } from '../render';
 
-export function weaponSlashColor(world: Pick<World, 'save'>): number {
+export function weaponSlashColor(world: Pick<CombatEngine, 'save'>): number {
   return world.save.equipment.weapon ? rarityColors[world.save.equipment.weapon.rarity] : 0xffffff;
 }
 
@@ -18,14 +18,14 @@ export function weaponSlashColor(world: Pick<World, 'save'>): number {
  * 확정 시안의 은빛 검기 + 황금빛 지면 충격파 색감이 기준이라 등급색으로 통째로 물들이지
  * 않고, 등급이 높을수록 아주 조금만 그 색으로 기울게 한다(맨손은 흰색 그대로).
  */
-export function slashTint(world: Pick<World, 'save'>): number {
+export function slashTint(world: Pick<CombatEngine, 'save'>): number {
   if (!world.save.equipment.weapon) return 0xffffff;
   const color = weaponSlashColor(world);
   const mix = (channel: number): number => Math.round(255 * .88 + channel * .12);
   return mix(color >> 16 & 255) << 16 | mix(color >> 8 & 255) << 8 | mix(color & 255);
 }
 
-export function drawSkillVfx(this: GameView, world: World, effect: Effect, x: number, y: number, t: number, screenAngle: number, time: number): boolean {
+export function drawSkillVfx(this: GameView, world: CombatEngine, effect: Effect, x: number, y: number, t: number, screenAngle: number, time: number): boolean {
     if (effect.kind === 'slash') return true;
     if (effect.kind === 'hell') { drawWhirlSlash.call(this, effect, x, y, t, time); return true; }
     if (effect.kind === 'shot') { drawArrow.call(this, effect, x, y, screenAngle); return true; }
@@ -537,7 +537,7 @@ export function drawEnemyStrike(this: GameView, x: number, y: number, t: number,
     this.effects.circle(x, y - 22, 8 + t * 14).fill({ color: 0xffb0a0, alpha: .22 * alpha });
   }
 
-export function drawEffects(this: GameView, world: World, project: (x: number, y: number) => [number, number], time: number): void {
+export function drawEffects(this: GameView, world: CombatEngine, project: (x: number, y: number) => [number, number], time: number): void {
     const liveEffects = new Set(world.effects);
     for (const [effect, sprites] of this.vfxSprites) if (!liveEffects.has(effect)) { for (const sprite of sprites) sprite.destroy(); this.vfxSprites.delete(effect); }
     for (const [effect, layers] of this.vfxLayers) if (!liveEffects.has(effect)) { for (const layer of layers) layer.destroy({ children: true }); this.vfxLayers.delete(effect); }

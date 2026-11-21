@@ -1,6 +1,7 @@
 import { preferences } from './preferences';
 import { Application, Assets, Container, Graphics, Rectangle, Sprite, Text, Texture, TilingSprite } from 'pixi.js';
-import type { Effect, Enemy, World, Coin, Drop, HeroAfterimage } from './world';
+import type { Effect, Enemy, Coin, Drop, HeroAfterimage } from './world';
+import type { CombatEngine } from './combat/engine';
 import type { LootView } from './render/drops';
 import { wearableAssetPaths, type Slot } from './items';
 import { drawRunes, drawTerrain, drawDust, drawLighting, drawVignette } from './render/field';
@@ -772,7 +773,7 @@ export class GameView {
     });
   }
 
-  draw(world: World, time: number): void {
+  draw(world: CombatEngine, time: number): void {
     const dt = Math.min(.05, Math.max(0, time - this.lastTime)); this.lastTime = time;
     const w = this.app.screen.width, h = this.app.screen.height;
     const project = (x: number, y: number): [number, number] => projectArenaPoint(x, y, w, h);
@@ -799,13 +800,13 @@ export class GameView {
     drawVignette.call(this, w, h, hx, hy, time);
   }
 
-  drawSkillVfx(world: World, effect: Effect, x: number, y: number, t: number, screenAngle: number, time: number): boolean { return drawSkillVfx.call(this, world, effect, x, y, t, screenAngle, time); }
+  drawSkillVfx(world: CombatEngine, effect: Effect, x: number, y: number, t: number, screenAngle: number, time: number): boolean { return drawSkillVfx.call(this, world, effect, x, y, t, screenAngle, time); }
 
   drawDragon(effect: Effect, x: number, y: number, progress: number, time: number): void { return drawDragon.call(this, effect, x, y, progress, time); }
 
-  drawHero(world: World, x: number, y: number, time: number): void { return drawHero.call(this, world, x, y, time); }
+  drawHero(world: CombatEngine, x: number, y: number, time: number): void { return drawHero.call(this, world, x, y, time); }
 
-  updateAfterimages(world: World, project: (x: number, y: number) => [number, number], dt: number): void { return updateAfterimages.call(this, world, project, dt); }
+  updateAfterimages(world: CombatEngine, project: (x: number, y: number) => [number, number], dt: number): void { return updateAfterimages.call(this, world, project, dt); }
 
   updateCorpses(project: (x: number, y: number) => [number, number], dt: number): void { return updateCorpses.call(this, project, dt); }
 
@@ -815,13 +816,13 @@ export class GameView {
 
   updateDamageLabels(effects: Effect[], project: (x: number, y: number) => [number, number]): void { return updateDamageLabels.call(this, effects, project); }
 
-  drawRunes(world: World, x: number, y: number, time: number): void { return drawRunes.call(this, world, x, y, time); }
+  drawRunes(world: CombatEngine, x: number, y: number, time: number): void { return drawRunes.call(this, world, x, y, time); }
 
-  drawTerrain(world: World, project: (x: number, y: number) => [number, number], time: number): void { return drawTerrain.call(this, world, project, time); }
+  drawTerrain(world: CombatEngine, project: (x: number, y: number) => [number, number], time: number): void { return drawTerrain.call(this, world, project, time); }
 
-  drawDust(world: World, project: (x: number, y: number) => [number, number], time: number, dt: number): void { return drawDust.call(this, world, project, time, dt); }
+  drawDust(world: CombatEngine, project: (x: number, y: number) => [number, number], time: number, dt: number): void { return drawDust.call(this, world, project, time, dt); }
 
   drawDeath(x: number, y: number, t: number, seed: number): void { return drawDeath.call(this, x, y, t, seed); }
 
-  drawLighting(world: World, w: number, h: number, time: number): void { return drawLighting.call(this, world, w, h, time); }
+  drawLighting(world: CombatEngine, w: number, h: number, time: number): void { return drawLighting.call(this, world, w, h, time); }
 }

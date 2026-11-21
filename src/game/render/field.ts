@@ -1,9 +1,9 @@
 import { placeWasteland, wastelandLayout } from '../wasteland';
 import { jobOrDefault } from '../skills';
-import type { World } from '../world';
+import type { CombatEngine } from '../combat/engine';
 import type { GameView } from '../render';
 
-export function drawRunes(this: GameView, world: World, x: number, y: number, time: number): void {
+export function drawRunes(this: GameView, world: CombatEngine, x: number, y: number, time: number): void {
     // [작업 214] 블러드 레이지(`warcry`)는 발밑 타원 링을 그리지 않는다 — 몸 주변 붉은 투기 오라
     // (`render/bloodRage.ts`)가 그 역할을 맡는다. [작업 261] 궁수 호크아이도 같은 이유로 링을 쓰지 않고
     // 몸을 감는 바람 오라(`render/hawkEyeWind.ts`)로 그린다. 마법사 아케인 실드는 종전대로 링을 쓴다.
@@ -25,12 +25,12 @@ export function drawRunes(this: GameView, world: World, x: number, y: number, ti
     }
   }
 
-export function drawTerrain(this: GameView, world: World, _project: (x: number, y: number) => [number, number], _time: number): void {
+export function drawTerrain(this: GameView, world: CombatEngine, _project: (x: number, y: number) => [number, number], _time: number): void {
     // The approved scene already contains rocks, grass and fires. Do not double them.
     placeWasteland(this, world.player);
   }
 
-export function drawDust(this: GameView, world: World, project: (x: number, y: number) => [number, number], time: number, dt: number): void {
+export function drawDust(this: GameView, world: CombatEngine, project: (x: number, y: number) => [number, number], time: number, dt: number): void {
     const add = (x: number, y: number) => this.dust.push({ x, y, vx: (Math.random() - .5) * 18, vy: (Math.random() - .5) * 18, age: 0, duration: .45 + Math.random() * .2, size: 1.5 + Math.random() * 2 });
     if (Math.hypot(world.activeMove.x, world.activeMove.y) > .05 && time - this.lastHeroDust > .11) { add(world.player.x, world.player.y); this.lastHeroDust = time; }
     for (const enemy of world.enemies) if (enemy.moving && this.dust.length < 90 && Math.hypot(enemy.x - world.player.x, enemy.y - world.player.y) < 380 && Math.random() < dt * 2.5) add(enemy.x, enemy.y);
@@ -42,7 +42,7 @@ export function drawDust(this: GameView, world: World, project: (x: number, y: n
     this.dust = this.dust.filter(particle => particle.age < particle.duration);
   }
 
-export function drawLighting(this: GameView, world: World, w: number, h: number, time: number): void {
+export function drawLighting(this: GameView, world: CombatEngine, w: number, h: number, time: number): void {
     wastelandLayout(w, h, world.player).fires.forEach((fire, index) => {
       const flicker = 1 + Math.sin(time * 8 + index * 5) * .04;
       this.glow.circle(fire.x, fire.y, fire.radius * flicker).fill({ color: 0xf0742e, alpha: .055 });
