@@ -5,8 +5,36 @@ import type { CombatEngine } from '../combat/engine';
 const rarityColors: Record<Rarity, number> = { common: 0x9ca3af, magic: 0x60a5fa, rare: 0xfacc15, epic: 0xc084fc, unique: 0xfb923c, legendary: 0xf87171 };
 const slashStrength: Record<Rarity, number> = { common: 0, magic: 1, rare: 2, epic: 3, unique: 4, legendary: 5 };
 import { dragonOrbitFactor, dragonRise, slash2SecondHit } from '../skills';
+import { projectedAreaRadii, skillArea } from '../battle/skillAreas';
 import type { Effect } from '../world';
 import type { Art, GameView } from '../render';
+
+function reducedMotion(): boolean {
+  return typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
+}
+
+/** 판정 원·부채꼴을 월드 좌표에서 화면으로 투영해 정확한 바닥 경계를 그린다. */
+function drawMeleeArea(this: GameView, effect: Effect, x: number, y: number): void {
+  const id = effect.kind;
+  if (id !== 'slash2' && id !== 'slam' && id !== 'power' && id !== 'destroy' && id !== 'hell' && id !== 'spin') return;
+  const area = skillArea(id, effect.level ?? 1);
+  const radius = id === 'spin' ? area.radius! * dragonOrbitFactor(effect.age / effect.duration) : area.radius!;
+  const alpha = .28 * Math.max(0, 1 - effect.age / effect.duration);
+  if (id === 'hell' || id === 'spin') {
+    const ellipse = projectedAreaRadii(radius);
+    this.ground.ellipse(x, y, ellipse.x, ellipse.y).stroke({ color: id === 'spin' ? 0x6fb0ff : 0xd8392f, width: 2, alpha });
+    return;
+  }
+  const arc = area.arc!;
+  this.ground.moveTo(x, y);
+  for (let index = 0; index <= 16; index++) {
+    const angle = effect.angle - arc + 2 * arc * index / 16;
+    const px = x + (Math.cos(angle) - Math.sin(angle)) * .86 * radius;
+    const py = y + (Math.cos(angle) + Math.sin(angle)) * .43 * radius;
+    this.ground.lineTo(px, py);
+  }
+  this.ground.lineTo(x, y).stroke({ color: 0xffcf8a, width: 2, alpha });
+}
 
 export function weaponSlashColor(world: Pick<CombatEngine, 'save'>): number {
   return world.save.equipment.weapon ? rarityColors[world.save.equipment.weapon.rarity] : 0xffffff;
@@ -29,6 +57,12 @@ export function drawSkillVfx(this: GameView, world: CombatEngine, effect: Effect
     if (effect.kind === 'slash') return true;
     if (effect.kind === 'hell') { drawWhirlSlash.call(this, effect, x, y, t, time); return true; }
     if (effect.kind === 'shot') { drawArrow.call(this, effect, x, y, screenAngle); return true; }
+    if (effect.kind === 'impactArea') {
+      const { x: rx, y: ry } = projectedAreaRadii(effect.radius ?? 0);
+      const color = effect.variant === 'fire' ? 0xff8a3c : effect.variant === 'frost' ? 0xbfe6ff : effect.variant === 'chain' ? 0xd0b4ff : 0xffcf8a;
+      this.ground.ellipse(x, y, rx, ry).stroke({ color, width: 2, alpha: .48 * (1 - t) });
+      return true;
+    }
     if (effect.kind === 'rain') { drawArrowRain.call(this, effect, x, y, t, time); return true; }
     if (effect.kind === 'hawk') { drawHawkEye.call(this, effect, x, y, t, time); return true; }
     if (effect.kind === 'burst') { drawBurst.call(this, effect, x, y, t, time); return true; }
@@ -145,7 +179,7 @@ export function drawSkillVfx(this: GameView, world: CombatEngine, effect: Effect
  */
 export function drawWhirlSlash(this: GameView, effect: Effect, x: number, y: number, t: number, time: number): void {
     const level = Math.max(1, Math.min(10, effect.level ?? 1));
-    const radius = Math.min(this.app.screen.width * .46, 168) + (level - 1) * 5;
+    const radius = projectedAreaRadii(skillArea('hell', level).radius!).x;
     const fade = Math.min(1, t * 7, (1 - t) * 6);
     let floor = this.vfxLayers.get(effect)?.[0];
     let sprites = this.vfxSprites.get(effect);
@@ -234,7 +268,7 @@ export function drawWhirlSlash(this: GameView, effect: Effect, x: number, y: num
       }
     }
     // 밖으로 튀는 혈점·불티 — 회오리에 휩쓸려 조금씩 위로 솟는다.
-    for (let index = 0; index < 12; index++) {
+    for (let index = 0; index < (reducedMotion() ? 3 : 12); index++) {
       const angle = index * 2.4 + effect.age * 2.6;
       const reach = radius * (.55 + ((index * 37) % 100) / 100 * .75);
       const px = x + Math.cos(angle) * reach;
@@ -310,7 +344,8 @@ export function drawMagicBolt(this: GameView, effect: Effect, x: number, y: numb
 /** 마법 폭발·메테오 — 대상 지점이 예고 뒤에 터진다(작업 198). */
 export function drawBurst(this: GameView, effect: Effect, x: number, y: number, t: number, time: number): void {
     const color = effect.variant === 'meteor' ? 0xffa04a : 0x9ab8ff;
-    const radius = (effect.radius ?? 96) * .86;
+    const { x: radius } = projectedAreaRadii(effect.radius ?? skillArea(effect.variant === 'meteor' ? 'meteorStrike' : 'manaBurst', effect.level ?? 1).radius!);
+    this.ground.ellipse(x, y, radius, radius * .5).stroke({ color, width: 2, alpha: .2 * (1 - t) });
     if (t < .5) {
       // 예고 — 바닥에 조여드는 원.
       const squeeze = .35 + t * 1.3;
@@ -320,7 +355,7 @@ export function drawBurst(this: GameView, effect: Effect, x: number, y: number, 
     const burst = (t - .5) / .5;
     this.glow.ellipse(x, y - 8, radius * (1 + burst * .5), radius * (1 + burst * .5) * .55).fill({ color, alpha: .3 * (1 - burst) });
     this.ground.ellipse(x, y, radius * (1 + burst * .4), radius * (1 + burst * .4) * .5).stroke({ color, width: 3 - burst * 2, alpha: .7 * (1 - burst) });
-    for (let index = 0; index < 7; index++) {
+    for (let index = 0; index < (reducedMotion() ? 0 : 7); index++) {
       const angle = index * 2.1 + time * .4;
       const reach = radius * burst * 1.1;
       const px = x + Math.cos(angle) * reach, py = y + Math.sin(angle) * reach * .5 - burst * 46;
@@ -331,7 +366,8 @@ export function drawBurst(this: GameView, effect: Effect, x: number, y: number, 
 /** 프로스트 노바·아르카나 오버로드 — 발밑에서 파동이 퍼진다(작업 198). */
 export function drawNova(this: GameView, effect: Effect, x: number, y: number, t: number, time: number): void {
     const color = effect.variant === 'frost' ? 0xbfe6ff : 0xb79bff;
-    const radius = (effect.radius ?? 150) * .86;
+    const { x: radius } = projectedAreaRadii(effect.radius ?? skillArea(effect.variant === 'frost' ? 'frostNova' : 'arcaneOverlord', effect.level ?? 1).radius!);
+    this.ground.ellipse(x, y, radius, radius * .5).stroke({ color, width: 2, alpha: .22 * (1 - t) });
     const spread = Math.min(1, t * 1.4);
     this.glow.ellipse(x, y - 6, radius * spread, radius * spread * .5).fill({ color, alpha: .16 * (1 - t) });
     for (const [lag, width] of [[0, 3], [.18, 2], [.36, 1.4]] as const) {
@@ -339,7 +375,7 @@ export function drawNova(this: GameView, effect: Effect, x: number, y: number, t
       if (ring <= 0) continue;
       this.ground.ellipse(x, y + 2, radius * ring, radius * ring * .5).stroke({ color, width, alpha: .6 * (1 - ring) });
     }
-    for (let index = 0; index < 10; index++) {
+    for (let index = 0; index < (reducedMotion() ? 0 : 10); index++) {
       const angle = index * .63 + time * .5;
       const reach = radius * spread;
       const px = x + Math.cos(angle) * reach, py = y + Math.sin(angle) * reach * .5;
@@ -361,10 +397,10 @@ export function drawWard(this: GameView, _effect: Effect, x: number, y: number, 
   }
 
 /** 애로우 레인 — 적 지점에 화살이 비처럼 떨어진다(작업 157). */
-export function drawArrowRain(this: GameView, _effect: Effect, x: number, y: number, t: number, time: number): void {
-    const radius = 92 * .86;
+export function drawArrowRain(this: GameView, effect: Effect, x: number, y: number, t: number, time: number): void {
+    const { x: radius } = projectedAreaRadii(effect.radius ?? skillArea('arrowRain', effect.level ?? 1).radius!);
     this.ground.ellipse(x, y, radius, radius * .5).stroke({ color: 0xffcf8a, width: 2, alpha: .18 + .22 * Math.sin(t * Math.PI) });
-    const arrows = 16;
+    const arrows = reducedMotion() ? 4 : 16;
     for (let index = 0; index < arrows; index++) {
       const spread = ((index * 37) % 100) / 100 - .5;
       const depth = ((index * 53) % 100) / 100 - .5;
@@ -420,7 +456,7 @@ export function drawDragon(this: GameView, effect: Effect, x: number, y: number,
       });
       this.vfxSprites.set(effect, sprites);
     }
-    const radius = Math.min(this.app.screen.width * .43, 170);
+    const radius = projectedAreaRadii(skillArea('spin', level).radius!).x;
     // [작업 157] 묵직하게 선회하도록 회전을 절반 이하로 늦췄다(한 바퀴 1.1초 → 2.4초).
     // 후반에는 궤도를 좁히며 144°만 더 돌아 하늘로 솟는다.
     const theta = effect.age * Math.PI * 2 / 2.4 + progress * progress * Math.PI * .8;
@@ -543,6 +579,7 @@ export function drawEffects(this: GameView, world: CombatEngine, project: (x: nu
     for (const [effect, layers] of this.vfxLayers) if (!liveEffects.has(effect)) { for (const layer of layers) layer.destroy({ children: true }); this.vfxLayers.delete(effect); }
     for (const effect of world.effects) {
       const [x, y] = project(effect.x, effect.y), t = effect.age / effect.duration;
+      drawMeleeArea.call(this, effect, x, y);
       const screenAngle = Math.atan2(Math.sin(effect.angle) * .43 + Math.cos(effect.angle) * .43, Math.cos(effect.angle) * .86 - Math.sin(effect.angle) * .86);
       if (this.drawSkillVfx(world, effect, x, y, t, screenAngle, time)) continue;
       if (effect.kind === 'evade' || effect.kind === 'heal') continue;
