@@ -86,6 +86,62 @@ export function stripPreviewPouchMail(state) {
   state.mail = state.mail.filter(entry => !String(entry?.id ?? '').startsWith(PREVIEW_POUCH_MAIL_PREFIX));
   return state;
 }
+
+/**
+ * **[미리보기 전용 · main 운영 배포 금지] 타직업 스킬북 합성 테스트 우편 (작업 251, 사용자 요청).**
+ *
+ * 사용자 지시: "미리보기에만 추가하고, 합성 모션 확인할 수 있도록 스킬북도 30개 우편으로 보내줘".
+ * 작업 210·212의 `PREVIEW_POUCH_MAIL_*`와 **같은 패턴**으로 미리보기 호스트에서만 계정당 1회 지급하고,
+ * 운영 호스트에서는 지급도 표시도 되지 않는다(`grantPreviewSkillBookMails`·`stripPreviewSkillBookMails`).
+ *
+ * **10권씩 3통**으로 나누는 이유(사용자 확정): 가방이 40칸이라 한 번에 30권을 받으면 장비 자리가 없다.
+ * 1통(10권)을 받아 2회 합성하고 비운 뒤 다음 통을 받으면 30권을 전부 시험할 수 있다.
+ * 보내는 책은 **내 직업이 아닌 두 직업**의 스킬북이다(합성 재료로 바로 쓰도록) — 지급 시점의
+ * `save.job`을 기준으로 `bookJobCycle`(`['archer','mage']` 등)을 우편에 실어 보내고, 수령할 때
+ * `journey.mjs` `rewards()`가 그 직업 순서대로 10권을 만든다(필드가 없는 기존 우편은 33종 균등 그대로).
+ */
+export const PREVIEW_SKILLBOOK_MAIL_PREFIX = 'preview-skillbook-test-';
+/** 테스트 우편 한 통의 스킬북 수 — 10권이면 합성 2회다. */
+export const PREVIEW_SKILLBOOK_MAIL_PER_MAIL = 10;
+/** 테스트 우편 통수 — 10 × 3 = 30권(사용자 요청). */
+export const PREVIEW_SKILLBOOK_MAIL_COUNT = 3;
+export const PREVIEW_SKILLBOOK_MAIL_IDS = Array.from({ length: PREVIEW_SKILLBOOK_MAIL_COUNT }, (_, index) => `${PREVIEW_SKILLBOOK_MAIL_PREFIX}${index + 1}`);
+/** 세 직업 — 지급 시점의 내 직업을 뺀 나머지 둘을 번갈아 넣는다. */
+const PREVIEW_JOBS = ['warrior', 'archer', 'mage'];
+const jobNameOf = job => (job === 'archer' ? '궁수' : job === 'mage' ? '마법사' : '전사');
+/** 미리보기 호스트용 합성 테스트 우편 3통을 계정마다 한 번만 준다. `preview`가 false면 아무것도 하지 않는다. */
+export function grantPreviewSkillBookMails(state, save, now = Date.now(), preview = false) {
+  if (!preview) return false;
+  state.notices ??= []; state.mail ??= [];
+  const mine = PREVIEW_JOBS.includes(save?.job) ? save.job : 'warrior';
+  const foreign = PREVIEW_JOBS.filter(job => job !== mine);
+  let granted = false;
+  for (const id of PREVIEW_SKILLBOOK_MAIL_IDS) {
+    if (state.notices.includes(id) || state.mail.some(entry => entry?.id === id)) continue;
+    state.notices.push(id);
+    state.mail.push({
+      id,
+      title: `[미리보기 테스트] 타직업 스킬북 ${PREVIEW_SKILLBOOK_MAIL_PER_MAIL}권`,
+      sender: '운영팀',
+      body: `미리보기에서 스킬북 합성 연출을 확인하실 수 있도록 ${jobNameOf(foreign[0])}·${jobNameOf(foreign[1])} 전용 스킬북 ${PREVIEW_SKILLBOOK_MAIL_PER_MAIL}권을 드립니다.\n`
+        + `가방의 [합성] 버튼을 누르면 타직업 스킬북 ${PREVIEW_SKILLBOOK_MAIL_PER_MAIL}권으로 합성 2회(1회에 5권 → 내 직업 책 1권)를 돌릴 수 있습니다.\n`
+        + `가방이 40칸이라 한 번에 30권을 받을 수 없으니, 한 통(10권)을 받아 합성하고 비운 뒤 다음 통을 받아 주세요.\n`
+        + `이 우편은 미리보기 서버에서만 지급되며 운영 서버에는 나오지 않습니다.`,
+      createdAt: now, expiresAt: null, gold: 0, books: PREVIEW_SKILLBOOK_MAIL_PER_MAIL, pouches: 0,
+      // 수령할 때 이 직업 순서로 책을 만든다 — 내 직업 책이 섞이지 않아 바로 합성 재료가 된다.
+      bookJobCycle: foreign,
+      claimedAt: null, read: false,
+    });
+    granted = true;
+  }
+  return granted;
+}
+/** 운영 호스트에서 남아 있는 합성 테스트 우편을 지운다(지급 이력은 남겨 다시 붙지 않게 한다). */
+export function stripPreviewSkillBookMails(state) {
+  state.notices ??= []; state.mail ??= [];
+  state.mail = state.mail.filter(entry => !String(entry?.id ?? '').startsWith(PREVIEW_SKILLBOOK_MAIL_PREFIX));
+  return state;
+}
 const UPDATE_NOTICE_TITLE = '[업데이트 안내] 전투·가방 편의성 및 끝없는 던전 개선';
 const UPDATE_NOTICE_BODY = `안녕하세요, 모험가님!
 더 쾌적한 사냥과 파밍을 위해 아래 내용이 업데이트되었습니다.
@@ -154,8 +210,8 @@ export function advanceJourney(state, before, save, now = Date.now(), diamondMai
   grantApologyMail(state, now);
   // 미리보기 테스트 우편(작업 210·211): 지급은 미리보기 호스트에서만, 삭제는 **운영 호스트에서만** 한다.
   // 호스트를 모르는 호출(`writeSave` 자동 저장 등, false)은 손대지 않는다.
-  if (previewMode === true || previewMode === 'preview') grantPreviewPouchMail(state, now, true);
-  else if (previewMode === 'production') stripPreviewPouchMail(state);
+  if (previewMode === true || previewMode === 'preview') { grantPreviewPouchMail(state, now, true); grantPreviewSkillBookMails(state, save, now, true); }
+  else if (previewMode === 'production') { stripPreviewPouchMail(state); stripPreviewSkillBookMails(state); }
   if (diamondMailEligible) {
     // 옛 ID 우편을 이미 받아 둔 계정은 위 `migrateLegacyDiamondMail`이 새 ID로 바꿔 두었다 — 새로 붙이지 않는다.
     state.notices ??= [];

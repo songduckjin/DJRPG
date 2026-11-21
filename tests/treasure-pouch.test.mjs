@@ -146,13 +146,28 @@ test('가방이 딱 40칸이면 주머니를 열어도 칸이 늘지 않는다(�
   assert.equal(save.bag.length, 40);
 });
 
-test('가방이 40칸을 넘은 세이브는 주머니도 열지 않고 정리를 안내한다(작업 248)', () => {
+test('가방이 40칸을 넘은 세이브에서도 주머니를 열 수 있다 — 칸이 늘지 않으므로 정리를 막지 않는다(작업 251)', () => {
   const save = freshSave();
-  save.bag = [...Array.from({ length: 40 }, (_, index) => ({ id: `g${index}`, name: '두손검', slot: 'weapon', rarity: 'common', stats: { attack: 1 }, plus: 0 })), items.pouchItem('p1')];
-  const result = pouch.openPouch(save);
-  assert.equal(result.ok, false); assert(result.message.includes('40칸을 넘었습니다'));
-  assert.equal(pouch.pouchCount(save), 1,'주머니는 사라지지 않는다');
-  assert.equal(save.bag.length, 41);
+  save.bag = [...Array.from({ length: 40 }, (_, index) => ({ id: `g${index}`, name: '두손검', slot: 'weapon', rarity: 'common', stats: { attack: 1 }, plus: 0 })), items.pouchItem('p1'), items.pouchItem('p2')];
+  // 장비 결과(1개) — 주머니 1개가 빠지고 결과 1개가 들어와 42칸 그대로(늘지 않는다).
+  const item = pouch.openPouch(save, 'p1', constant([.6, .01, .5]));
+  assert.equal(item.ok, true, '40칸을 넘어도 열린다(사용자 제보: 테스트 주머니 100개 때문에 가방이 잠겼다)');
+  assert.equal(save.bag.length, 42, '주머니 -1, 결과 +1');
+  // 금화 결과 — 1칸 줄어든다.
+  const gold = pouch.openPouch(save, 'p2', constant([0, .1]));
+  assert.equal(gold.ok, true);
+  assert.equal(save.bag.length, 41, '금화면 1칸 줄어든다');
+});
+
+test('[미리보기 전용] 주머니 버리기·모두 버리기는 가방에서 주머니만 지운다(작업 251)', () => {
+  const save = withPouches(3);
+  save.bag.push({ id: 'keep', name: '황혼의 두손검', slot: 'weapon', rarity: 'rare', stats: { attack: 9 }, plus: 0 });
+  const one = pouch.discardPouch(save);
+  assert.equal(one.ok, true); assert.equal(one.removed, 1); assert.equal(pouch.pouchCount(save), 2);
+  const all = pouch.discardAllPouches(save);
+  assert.equal(all.ok, true); assert.equal(all.removed, 2); assert.equal(pouch.pouchCount(save), 0);
+  assert.equal(save.bag.filter(item => item.id === 'keep').length, 1, '장비는 그대로');
+  assert.equal(pouch.discardAllPouches(save).ok, false, '없으면 실패');
 });
 
 test('주머니는 자동 장착·자동/일괄 분해·경매장 판매·도감 어디에도 끼지 않는다', () => {

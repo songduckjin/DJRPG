@@ -7,7 +7,8 @@ import {randomUUID} from 'node:crypto';
 import {createClient} from '@libsql/client';
 import {schema,account,transaction,writeSave,reconcileItems} from '../server/database.mjs';
 import {snapshot,mutate} from '../server/journey.mjs';
-import {periods,advanceJourney,PREVIEW_POUCH_MAIL_ID,DIAMOND_MAIL_ID,LEGACY_DIAMOND_MAIL_ID,APOLOGY_MAIL_ID,APOLOGY_MAIL_UNTIL} from '../server/journey-state.mjs';
+import {periods,advanceJourney,PREVIEW_POUCH_MAIL_ID,PREVIEW_SKILLBOOK_MAIL_IDS,PREVIEW_SKILLBOOK_MAIL_PER_MAIL,DIAMOND_MAIL_ID,LEGACY_DIAMOND_MAIL_ID,APOLOGY_MAIL_ID,APOLOGY_MAIL_UNTIL} from '../server/journey-state.mjs';
+import {skillBookJobOf} from '../server/skill-ids.mjs';
 import {isPreviewHost,isProductionHost} from '../server/season.mjs';
 let db,directory;
 const save=()=>({version:1,name:'전사',gender:'male',gold:0,bag:[],equipment:{},kills:0,bossKills:0,playSeconds:0,level:1,floor:1,maxFloor:1,equipmentCollection:[],learned:[],passives:[],skillLevels:{}});
@@ -380,6 +381,39 @@ test('자동 저장(writeSave, preview 생략)이 돌아도 미리보기 테스�
   assert.equal(production.mail.some(entry => entry.id === PREVIEW_POUCH_MAIL_ID), false, '운영 호스트에서만 지운다');
   const stale = advanceJourney({ achievements: [], mail: [{ id: 'preview-pouch-test-1', title: '옛 테스트', pouches: 1, claimedAt: null, read: false }] }, save(), save(), Date.now(), true, 'production');
   assert.equal(stale.mail.some(entry => String(entry.id).startsWith('preview-pouch-test-')), false, 'ID를 올린 뒤 남은 예전 테스트 우편도 운영에서 지운다');
+});
+
+test('[미리보기 전용] 타직업 스킬북 테스트 우편 3통(10권씩)은 미리보기에서만 지급되고 내 직업 책은 들어 있지 않다(작업 251)', async () => {
+  assert.deepEqual(PREVIEW_SKILLBOOK_MAIL_IDS, ['preview-skillbook-test-1', 'preview-skillbook-test-2', 'preview-skillbook-test-3'], '10권씩 3통 = 30권');
+  assert.equal(PREVIEW_SKILLBOOK_MAIL_PER_MAIL, 10);
+  const empty = () => ({ achievements: [], mail: [] });
+  const preview = advanceJourney(empty(), save(), save(), Date.now(), true, true);
+  for (const id of PREVIEW_SKILLBOOK_MAIL_IDS) {
+    const mail = preview.mail.find(entry => entry.id === id);
+    assert(mail, `${id} 지급`);
+    assert.equal(mail.books, 10, '한 통에 10권');
+    assert.equal(mail.pouches, 0, '주머니는 붙지 않는다');
+    assert.equal(mail.expiresAt, null);
+    // `save()`에는 job이 없어 서버가 전사로 본다 — 보내는 책은 궁수·마법사뿐이다.
+    assert.deepEqual(mail.bookJobCycle, ['archer', 'mage'], '내 직업이 아닌 두 직업만');
+  }
+  const again = advanceJourney(structuredClone(preview), save(), save(), Date.now(), true, true);
+  assert.equal(again.mail.filter(entry => entry.id === PREVIEW_SKILLBOOK_MAIL_IDS[0]).length, 1, '계정당 1회');
+  const production = advanceJourney(structuredClone(again), save(), save(), Date.now(), true, 'production');
+  assert.equal(production.mail.some(entry => String(entry.id).startsWith('preview-skillbook-test-')), false, '운영 호스트는 남아 있으면 지운다');
+  const offPreview = advanceJourney(empty(), save(), save(), Date.now(), true, 'production');
+  assert.equal(offPreview.mail.some(entry => String(entry.id).startsWith('preview-skillbook-test-')), false, '운영 호스트에는 지급하지 않는다');
+
+  // 실제 수령 — 10권이 모두 내 직업(전사)이 아닌 스킬북이어야 바로 합성 재료가 된다.
+  await seed('synth-mail');
+  const listed = await snapshot(db, 'synth-mail', { preview: 'preview' });
+  assert(listed.mail.some(entry => entry.id === PREVIEW_SKILLBOOK_MAIL_IDS[0]), '미리보기 목록에 내려온다');
+  const row = await account(db, 'synth-mail');
+  const claimed = await mutate(db, 'synth-mail', { action: 'journey-claim', kind: 'mail', id: PREVIEW_SKILLBOOK_MAIL_IDS[0], revision: row.revision, requestId: randomUUID() }, { preview: 'preview' });
+  assert.equal(claimed.save.bag.length, 10, '10권이 가방으로');
+  for (const item of claimed.save.bag) assert.notEqual(skillBookJobOf(item.skillId), 'warrior', `${item.skillId}는 타직업 책이다`);
+  assert(claimed.save.bag.some(item => skillBookJobOf(item.skillId) === 'archer'));
+  assert(claimed.save.bag.some(item => skillBookJobOf(item.skillId) === 'mage'));
 });
 
 test('여정 응답이 거래소 수령함 건수(marketInbox)를 함께 준다 — 거래소 아이콘 빨간 점의 근거(작업 247)', async () => {

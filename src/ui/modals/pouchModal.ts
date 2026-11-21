@@ -1,5 +1,7 @@
 import { equipmentImage, isSkillBook, itemDisplayName, type Rarity } from '../../game/items';
-import { openPouch, POUCH_OVERALL_RATES, pouchCount, POUCH_HINT, pouchResultText, firstPouch, type PouchResult } from '../../game/pouch';
+import { openPouch, POUCH_OVERALL_RATES, pouchCount, POUCH_HINT, pouchResultText, firstPouch, discardPouch, discardAllPouches, type PouchResult } from '../../game/pouch';
+// [미리보기 전용 · main 운영 배포 금지] 보물 주머니 버리기 버튼은 미리보기 호스트에서만 보인다(작업 251).
+import { isPreviewClient } from '../../game/previewOnly';
 import { isLegendaryPouchResult } from '../../game/legendBoard';
 import { createSkillBookArt } from '../skillBookArt';
 import { createPouchArt, preloadPouchFrames, resetPouchArt, setPouchFrame, POUCH_FRAME_URLS, POUCH_GOLD_PILE_URL } from '../pouchArt';
@@ -185,10 +187,18 @@ export function openPouchWindow(ui: Interface, itemId?: string, options: PouchWi
   const closeAction = button('닫기', 'pouch-close');
   actions.append(openButton, closeAction);
 
+  // [미리보기 전용 · main 운영 배포 금지] 주머니 버리기 (작업 251, 사용자 요청: 미리보기 테스트 주머니
+  // 100개 때문에 가방이 40칸을 넘었다). 운영 호스트에서는 이 줄 자체가 만들어지지 않는다.
+  const discardRow = element('div', 'pouch-window-discard');
+  discardRow.hidden = !isPreviewClient();
+  const discardOne = button('버리기', 'pouch-discard');
+  const discardAll = button('모두 버리기', 'pouch-discard-all');
+  discardRow.append(discardOne, discardAll);
+
   const rates = pouchRatesPanel();
   rates.hidden = true;
 
-  card.append(top, stage, hint, error, countLabel, actions, rates);
+  card.append(top, stage, hint, error, countLabel, discardRow, actions, rates);
   overlay.append(card);
 
   const showCount = (): void => {
@@ -309,6 +319,29 @@ export function openPouchWindow(ui: Interface, itemId?: string, options: PouchWi
   closeButton.onclick = close;
   closeAction.onclick = close;
   openButton.onclick = open;
+  // [미리보기 전용] 버리기 — 1개는 즉시, `모두 버리기`는 한 번 더 눌러 확인한다(되돌릴 수 없어서).
+  let discardArmed = false;
+  const resetDiscardAll = (): void => {
+    discardArmed = false; discardAll.classList.remove('is-armed');
+    discardAll.textContent = `모두 버리기 (${pouchCount(save)}개)`;
+  };
+  discardOne.onclick = () => {
+    if (animating) return;
+    const result = discardPouch(save);
+    if (!result.ok) { error.textContent = result.message; error.hidden = false; return; }
+    error.hidden = true; resetDiscardAll(); showCount(); ui.world.onChange(); ui.message(result.message);
+  };
+  discardAll.onclick = () => {
+    if (animating) return;
+    const total = pouchCount(save);
+    if (!discardArmed) {
+      if (!total) { error.textContent = '버릴 보물 주머니가 없습니다.'; error.hidden = false; return; }
+      discardArmed = true; discardAll.classList.add('is-armed'); discardAll.textContent = `정말 모두 버리기 (${total}개)`; return;
+    }
+    const result = discardAllPouches(save);
+    if (!result.ok) { error.textContent = result.message; error.hidden = false; return; }
+    error.hidden = true; resetDiscardAll(); showCount(); ui.world.onChange(); ui.message(result.message);
+  };
   overlay.onclick = event => { if (event.target === overlay) close(); };
   showCount();
 

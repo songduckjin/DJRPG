@@ -38,6 +38,20 @@ export function isEquipment(item: Item): item is EquipmentItem { return item.kin
 export function pouchItem(id: string = crypto.randomUUID(), name: string = POUCH_NAME): TreasurePouch {
   return { id, name, slot: POUCH_SLOT, rarity: POUCH_RARITY, kind: 'pouch', stats: {} };
 }
+/** `[스킬북] {스킬 이름}` — 한 곳에서만 만든다(작업 251). */
+export function skillBookItem(skillId: SkillLevelId): SkillBook {
+  return { id: crypto.randomUUID(), name: `[스킬북] ${skillId in skills ? skills[skillId as keyof typeof skills].name : passives[skillId as keyof typeof passives].name}`, slot: 'skillbook', rarity: 'rare', kind: 'skillbook', skillId, stats: {} };
+}
+/**
+ * **그 직업의** 스킬북 1권 — 액티브 8 + 패시브 3 중 같은 확률(1/11). 작업 251 `스킬북 합성`의 결과가
+ * 이 함수를 쓴다(사용자 확정 "타직업스킬북 5개당 내직업 랜덤1개"). 드롭용 `rollSkillBook`은 직업을
+ * 1/3로 먼저 뽑으므로(33종 1/33) 여기서는 직업을 고정한다 — 드롭 확률은 건드리지 않는다.
+ */
+export function rollSkillBookFor(job: Job = 'warrior', draw: () => number = random): SkillBook {
+  const order = [...skillOrderFor(job), ...passiveOrderFor(job)];
+  const index = Math.min(order.length - 1, Math.max(0, Math.floor(draw() * order.length)));
+  return skillBookItem(order[index]);
+}
 export function rollSkillBook(_floor: number, _job: Job = 'warrior'): SkillBook {
   // 스킬북도 세 직업이 같은 확률로 떨어진다(작업 204, 사용자 확정). 직업을 먼저 1/3로 고른 뒤
   // 그 직업의 스킬·패시브 중 하나를 뽑는다. 세 직업 모두 액티브 8 + 패시브 3으로 수가 같아,
@@ -49,7 +63,7 @@ export function rollSkillBook(_floor: number, _job: Job = 'warrior'): SkillBook 
   const job = dropJob();
   const order = [...skillOrderFor(job), ...passiveOrderFor(job)];
   const skillId = order[Math.floor(random() * order.length)];
-  return { id: crypto.randomUUID(), name: `[스킬북] ${skillId in skills ? skills[skillId as keyof typeof skills].name : passives[skillId as keyof typeof passives].name}`, slot: 'skillbook', rarity: 'rare', kind: 'skillbook', skillId, stats: {} };
+  return skillBookItem(skillId);
 }
 /**
  * 한 마리당 **아이템 드롭률** (작업 210, 사용자 지시 `#4628`·`#4639`·`#4649`).

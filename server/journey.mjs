@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { account, transaction, assertRevision, validateSave, reconcileItems, writeSave, fail, inventoryOwnerQuery } from './database.mjs';
 import { elapsedSince } from './save-guard.mjs';
 import { journeyState, journeyOperation, journeyView, dailyTasks, pouchItem } from './journey-state.mjs';
-import { countedInBag, rollRewardSkillBook } from './skill-ids.mjs';
+import { countedInBag, rollRewardSkillBook, rollRewardSkillBookOfJob } from './skill-ids.mjs';
 /** 우편·보상이 가방에 넣는 아이템 수 — 스킬북 `books` + 보물 주머니 `pouches`(작업 248). */
 function rewardItemCount(entries) {
   return entries.reduce((sum, entry) => sum + Math.max(0, Math.floor(Number(entry.books ?? 0) || 0)) + Math.max(0, Math.floor(Number(entry.pouches ?? 0) || 0)), 0);
@@ -12,16 +12,23 @@ function bagSlots(save) {
   return (save.bag ?? []).filter(item => countedInBag(item, save.job)).length;
 }
 function rewards(save, entries) {
-  const books = entries.reduce((sum,entry)=>sum+Number(entry.books??0),0);
   // 보물 주머니(작업 207): 전체 완료 보상에 붙은 수량만큼 가방에 넣는다. 주머니는 장비 40칸을 쓰지 않는다.
   const pouches = entries.reduce((sum,entry)=>sum+Number(entry.pouches??0),0);
   const gold = entries.reduce((sum,entry)=>sum+Number(entry.gold??0),0);
   save.gold += gold;
   save.bag ??= [];
-  // 우편·보상 스킬북도 세 직업 33종에서 고른다(작업 209) — 예전에는 전사 11종만 나왔다.
-  for(let i=0;i<books;i++) {
-    const {skillId,name}=rollRewardSkillBook();
-    save.bag.push({id:randomUUID(),kind:'skillbook',slot:'skillbook',skillId,rarity:'rare',name,stats:{}});
+  for (const entry of entries) {
+    const books = Math.max(0, Math.floor(Number(entry.books??0) || 0));
+    // [미리보기 전용 · main 운영 배포 금지] 합성 테스트 우편(`bookJobCycle`)은 지정한 직업 순서대로
+    // 책을 만든다(작업 251). 필드가 없는 기존 우편은 그대로 33종 균등이다(기존 계약 불변).
+    const cycle = Array.isArray(entry.bookJobCycle)
+      ? entry.bookJobCycle.filter(job => job === 'warrior' || job === 'archer' || job === 'mage')
+      : [];
+    // 우편·보상 스킬북은 세 직업 33종에서 고른다(작업 209) — 예전에는 전사 11종만 나왔다.
+    for (let i = 0; i < books; i++) {
+      const {skillId,name} = cycle.length ? rollRewardSkillBookOfJob(cycle[i % cycle.length]) : rollRewardSkillBook();
+      save.bag.push({id:randomUUID(),kind:'skillbook',slot:'skillbook',skillId,rarity:'rare',name,stats:{}});
+    }
   }
   for(let i=0;i<pouches;i++) save.bag.push(pouchItem(randomUUID()));
   return gold;
