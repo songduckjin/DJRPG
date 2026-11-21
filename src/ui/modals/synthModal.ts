@@ -199,6 +199,29 @@ export function openSynthWindow(ui: Interface, options: SynthWindowOptions = {})
     result.classList.add('is-shown');
   };
 
+  /**
+   * 재료 칸 5개를 그린다. `source`를 주면 그 책들로 그린다 — **연출 중에는 이미 차감돼 가방에서
+   * 사라진 책**을 칸에 세워 두어야 하므로, 목록(`materials()`)이 아니라 소모한 5권을 넘긴다.
+   */
+  const renderSlots = (source?: readonly SkillBook[]): void => {
+    const books = source ?? materials();
+    for (const [index, slot] of slotNodes.entries()) {
+      const id = picked[index];
+      const book = id ? books.find(entry => entry.id === id) : undefined;
+      slot.classList.toggle('is-filled', !!book);
+      slot.replaceChildren();
+      if (book) {
+        slot.append(createSkillBookArt(book), element('small', 'synth-slot-name', skillbookName(book)));
+        slot.setAttribute('aria-label', `${skillbookName(book)} · 재료 ${index + 1}번째. 누르면 뺍니다`);
+      } else {
+        slot.append(element('span', 'synth-slot-plus', '+'));
+        slot.setAttribute('aria-label', `재료 ${index + 1}번째 빈칸`);
+      }
+      slot.classList.remove('is-gathered');
+      (slot.firstElementChild as HTMLElement | null)?.style.removeProperty('--synth-dx');
+    }
+  };
+
   /** 칸과 목록을 지금 세이브에 맞춰 다시 그린다(연출이 끝난 뒤 부른다). */
   const refresh = (): void => {
     const books = materials();
@@ -216,21 +239,7 @@ export function openSynthWindow(ui: Interface, options: SynthWindowOptions = {})
       cell.onclick = () => { toggle(book.id); };
       return cell;
     }));
-    for (const [index, slot] of slotNodes.entries()) {
-      const id = picked[index];
-      const book = id ? books.find(entry => entry.id === id) : undefined;
-      slot.classList.toggle('is-filled', !!book);
-      slot.replaceChildren();
-      if (book) {
-        slot.append(createSkillBookArt(book), element('small', 'synth-slot-name', skillbookName(book)));
-        slot.setAttribute('aria-label', `${skillbookName(book)} · 재료 ${index + 1}번째. 누르면 뺍니다`);
-      } else {
-        slot.append(element('span', 'synth-slot-plus', '+'));
-        slot.setAttribute('aria-label', `재료 ${index + 1}번째 빈칸`);
-      }
-      slot.classList.remove('is-gathered');
-      (slot.firstElementChild as HTMLElement | null)?.style.removeProperty('--synth-dx');
-    }
+    renderSlots();
     const charges = pickedIds().length;
     craftButton.disabled = animating || charges !== SYNTH_BOOK_COST;
     craftButton.textContent = charges === SYNTH_BOOK_COST ? '합성하기' : `합성하기 (${charges}/${SYNTH_BOOK_COST})`;
@@ -270,8 +279,12 @@ export function openSynthWindow(ui: Interface, options: SynthWindowOptions = {})
    */
   const play = (chosen: SkillBook[], outcome: Extract<SynthOutcome, { ok: true }>): void => {
     animating = true; error.hidden = true;
-    picked = Array.from({ length: SYNTH_BOOK_COST }, (_, index) => chosen[index]?.id);
+    // 목록·횟수는 이미 차감된 세이브로 갱신한다(이때 칸은 빈칸이 된다).
+    picked = Array.from({ length: SYNTH_BOOK_COST }, () => undefined);
     refresh();
+    // 칸에는 **방금 소모된 5권 그림**을 다시 세워 가운데로 모여들게 한다.
+    picked = Array.from({ length: SYNTH_BOOK_COST }, (_, index) => chosen[index]?.id);
+    renderSlots(chosen);
     craftButton.disabled = true; fillButton.disabled = true; autoButton.disabled = true;
     result.replaceChildren(); result.classList.remove('is-shown'); delete result.dataset.count;
 

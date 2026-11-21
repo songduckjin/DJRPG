@@ -265,6 +265,25 @@ test('자동 채우기는 빈칸을 5권으로 채우고, 합성하기는 1권 �
   } finally { restore(); }
 });
 
+test('연출 중에는 이미 소모된 5권이 칸에 남아 모여들고, 연출이 끝나면 결과가 뜬다', async () => {
+  const restore = installDom();
+  try {
+    const { ui, save } = synthFixture([foreign('a'), foreign('b'), foreign('c'), foreign('d'), foreign('e')]);
+    const windowApi = openSynthWindow(ui, { delay: 40 });
+    const nodes = walk(windowApi.overlay);
+    nodes.find(node => node.textContent === '자동 채우기').onclick();
+    nodes.find(node => String(node.textContent).startsWith('합성하기')).onclick();
+    assert.equal(save.bag.filter(items.isSkillBook).length, 1, '누르는 순간 5권이 차감된다');
+    const during = walk(windowApi.slots).filter(node => node.className === 'synth-slot');
+    assert(during.every(slot => slot.classList.contains('is-filled')), '차감된 5권이 칸에 남아 연출된다');
+    assert(windowApi.overlay.children.some(child => child.className === 'synth-window-card'));
+    await new Promise(resolve => setTimeout(resolve, 80));
+    assert.equal(windowApi.result.dataset.count, '1', '연출이 끝나면 결과 1권');
+    const after = walk(windowApi.slots).filter(node => node.className === 'synth-slot');
+    assert(after.every(slot => !slot.classList.contains('is-filled')), '칸은 다시 빈다');
+  } finally { restore(); }
+});
+
 test('자동 합성은 남은 만큼(12권 → 2회) 한 번에 소모하고 결과 2권을 한 화면에 나열한다', () => {
   const restore = installDom();
   try {
