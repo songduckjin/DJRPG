@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import './ts-loader.mjs';
-const { codexEntries, codexEntryKeys, equipmentCodexKey, equipmentCodexVariantKey, discoverEquipment, codexOwnership, filterCodex, firstDropFloor, codexOptions, codexVariantName, codexVariantKey, codexVariants, codexVariantCount, normalizeCollection } = await import('../src/game/codex.ts');
+const { codexEntries, codexEntryKeys, equipmentCodexKey, equipmentCodexVariantKey, discoverEquipment, codexOwnership, filterCodex, firstDropFloor, codexOptions, codexVariantName, codexVariantKey, codexVariants, codexVariantCount, normalizeCollection, codexEntryStates, filterCodexEntryStates, codexGroupTotals, codexEntryGroup, codexRarityMarks } = await import('../src/game/codex.ts');
 const { freshSave, parseSave } = await import('../src/game/store.ts');
 const { salvageItems } = await import('../src/game/inventory.ts');
 const { rollItem, slots, baseItems, bowBases, staffBases, rarityOrder, rarityTiers, rarityNames, migrateItem, salvageByRarity, equipmentImage, wearableEquipmentImage } = await import('../src/game/items.ts');
@@ -173,4 +173,51 @@ test('all six rarity keys survive save migration and salvage thresholds protect 
   assert.deepEqual(loaded.bag.map(entry => entry.rarity), rarityOrder);
   for (const rarity of rarityOrder) assert.equal(migrateItem({ id: rarity, name: rarity, slot: 'weapon', rarity, stats: { attack: 1 } }).rarity, rarity);
   const result = salvageByRarity(loaded, 'unique'); assert.equal(result.count, 5); assert.deepEqual(loaded.bag.map(entry => entry.rarity), ['legendary']);
+});
+
+test('1종 1칸 — 135상태가 모은 등급·최고 등급 배지 L·U·E·R을 들고 있다 (2026-11-21)', () => {
+  const save = freshSave();
+  const empty = codexEntryStates(save);
+  assert.equal(empty.length, 135);
+  assert(empty.every(view => !view.discovered && view.highest === undefined && view.badge === undefined && view.count === 0));
+  save.equipmentCollection = ['weapon:3:rare', 'weapon:3:legendary', 'armor:3:common', 'armor:3:magic', 'ring:1:unique', 'gloves:0:epic'];
+  const states = codexEntryStates(save);
+  const sword = states.find(view => view.entry.key === 'weapon:3');
+  assert.deepEqual(sword.collected, ['rare', 'legendary'], '모은 등급만 오름차순');
+  assert.equal(sword.highest, 'legendary'); assert.equal(sword.badge, 'L'); assert.equal(sword.count, 2); assert.equal(sword.discovered, true);
+  assert.equal(states.find(view => view.entry.key === 'armor:3').badge, undefined, '매직만 모은 종은 배지 없음');
+  assert.equal(states.find(view => view.entry.key === 'armor:3').highest, 'magic');
+  assert.equal(states.find(view => view.entry.key === 'ring:1').badge, 'U');
+  assert.equal(states.find(view => view.entry.key === 'gloves:0').badge, 'E');
+  assert.equal(states.filter(view => view.discovered).length, 4);
+  assert.deepEqual(codexRarityMarks, { rare: 'R', epic: 'E', unique: 'U', legendary: 'L' }, '레어 R까지 — 일반·매직은 배지 없음');
+});
+
+test('탭 합계 — 전체 135 · 무기 35 · 방어구 90 · 장신구 10, 부위가 겹치지 않는다', () => {
+  assert.deepEqual(codexGroupTotals, { '': 135, weapon: 35, armor: 90, accessory: 10 });
+  const states = codexEntryStates(freshSave());
+  for (const group of ['weapon', 'armor', 'accessory']) assert.equal(filterCodexEntryStates(states, '', group).length, codexGroupTotals[group]);
+  assert.deepEqual([...new Set(filterCodexEntryStates(states, '', 'weapon').map(view => view.entry.slot))].sort(), ['offhand', 'weapon']);
+  assert.deepEqual([...new Set(filterCodexEntryStates(states, '', 'accessory').map(view => view.entry.slot))].sort(), ['necklace', 'ring']);
+  assert.equal(codexEntryGroup('ring'), 'accessory'); assert.equal(codexEntryGroup('gloves'), 'armor'); assert.equal(codexEntryGroup('offhand'), 'weapon');
+});
+
+test('가방·착용 중인 장비의 등급도 모은 등급으로 잡히고 135칸에서 검색·상태 필터가 동작한다', () => {
+  const save = freshSave();
+  save.bag = [item('황혼의 쯔바이핸드', 'weapon', 'rare'), item('영원의 쯔바이핸드', 'weapon', 'legendary'), { id: 'book', name: '스킬북', slot: 'skillbook', kind: 'skillbook', skillId: 'spin', rarity: 'unique', stats: {} }];
+  save.equipment.helmet = item('서리의 철제 바시넷', 'helmet', 'magic');
+  const states = codexEntryStates(save);
+  const sword = states.find(view => view.entry.key === 'weapon:3');
+  assert.deepEqual(sword.collected, ['rare', 'legendary']); assert.equal(sword.badge, 'L');
+  assert.deepEqual([sword.bag, sword.equipped], [2, 0]);
+  const helmet = states.find(view => view.entry.key === 'helmet:1');
+  assert.equal(helmet.badge, undefined, '착용 중인 매직 투구만으로는 배지 없음'); assert.deepEqual([helmet.bag, helmet.equipped], [0, 1]);
+  save.equipmentCollection = ['weapon:3:legendary', 'weapon:3:rare'];
+  assert.equal(codexEntryStates(save).find(view => view.entry.key === 'weapon:3').count, 2, '기록과 보유가 겹쳐도 등급 수는 2');
+  assert.equal(filterCodexEntryStates(states, '쯔바이핸드').length, 1, '135칸이라 한 종은 한 칸');
+  assert.equal(filterCodexEntryStates(states, '영원의 쯔바이핸드').length, 1, '등급 이름으로도 찾는다');
+  assert.equal(filterCodexEntryStates(states, '', '', 'found').length, 2);
+  assert.equal(filterCodexEntryStates(states, '', '', 'missing').length, 133);
+  assert.equal(filterCodexEntryStates(states, '', 'weapon', 'owned').length, 1);
+  assert.equal(filterCodexEntryStates(states, '', 'armor', 'owned').length, 1);
 });
