@@ -87,43 +87,46 @@ test('판매 중 탭은 간편/상세 보기 아이콘 토글을 보여 주고 �
   setListingView('detail');
 });
 
-test('간편 보기는 아이콘·이름·가격·구매 버튼만 남기고 상세 보기는 능력치·비교를 보여 준다(작업 248)', () => {
+test('간편 보기는 아이콘·가격만 있는 카드 그리드이고 카드를 누르면 상세 팝업이 뜬다(작업 248→257)', () => {
   setListingView('detail');
   const detailDialog = render(activeMarket());
   const detailRows = all(detailDialog, node => hasClass(node, 'market-row'));
   assert.equal(detailRows.length, 2);
-  assert(detailRows.every(row => !hasClass(row, 'market-row-compact')));
+  assert(detailRows.every(row => !hasClass(row, 'market-card')));
   assert(find(detailRows[0], node => hasClass(node, 'market-item-info')), '상세 보기는 능력치 줄을 보여 준다');
 
   setListingView('compact');
   const market = activeMarket();
   const compactDialog = render(market);
-  const compactRows = all(compactDialog, node => hasClass(node, 'market-row-compact'));
-  assert.equal(compactRows.length, 2, '한 줄씩 두 매물');
-  const first = compactRows[0];
+  const grid = find(compactDialog, node => hasClass(node, 'market-compact-grid'));
+  assert(grid, '간편 보기는 카드 그리드');
+  assert.equal(grid.children.length, 2, '매물마다 카드 한 장');
+  const first = grid.children[0];
   assert.equal(first.dataset.listing, 'l1');
+  assert(hasClass(first, 'market-card'));
+  assert(hasClass(first, 'rarity-rare'), '등급 테두리');
+  assert(find(first, node => hasClass(node, 'market-card-art')), '정사각형 아이콘 칸');
   assert(find(first, node => hasClass(node, 'market-icon')), '아이콘');
-  assert(find(first, node => hasClass(first, 'rarity-rare') || hasClass(node, 'rarity-rare')), '등급 표시');
-  assert(find(first, node => hasClass(node, 'market-compact-name')), '이름');
-  assert(find(first, node => hasClass(node, 'market-compact-price')), '가격');
-  const action = find(first, node => hasClass(node, 'market-buy'));
-  assert.equal(action.textContent, '구매');
-  assert(!find(first, node => hasClass(node, 'market-item-info')), '간편 보기에는 능력치·추가옵션이 없다');
-  assert(!find(first, node => hasClass(node, 'market-row-bottom')), '판매자·만료 줄도 접었다');
+  assert(find(first, node => hasClass(node, 'market-card-price')), '가격만');
+  assert(!find(first, node => hasClass(node, 'market-buy')), '카드에 상세/구매 버튼이 없다');
+  assert(!find(first, node => hasClass(node, 'market-compact-name')), '이름 글자도 카드에 없다(툴팁·팝업)');
+  assert(!find(first, node => hasClass(node, 'market-item-info')), '간편 보기 카드에는 능력치·추가옵션이 없다');
 
-  // 카드를 누르면 그 매물의 상세가 아래에 펼쳐진다(구매 확정은 여기서).
-  const refresh = { ...uiFor(market) };
-  action.onclick();
-  const expanded = element();
-  const before = globalThis.document, beforeCss = globalThis.CSS;
-  globalThis.document = { createElement: tag => element(tag) }; globalThis.CSS = { escape: value => String(value) };
-  try { renderMarket.call(uiFor(market), expanded); } finally { globalThis.document = before; globalThis.CSS = beforeCss; }
-  const expandedRow = all(expanded, node => hasClass(node, 'market-row-compact')).find(row => row.dataset.listing === 'l1');
-  const detail = find(expandedRow, node => hasClass(node, 'market-detail'));
-  assert(detail, '누른 카드만 상세가 펼쳐진다');
+  // 카드를 누르면 그 매물의 상세 팝업이 즉시 뜬다(구매 확정은 여기서).
+  first.onclick();
+  assert.equal(market.selected?.id, 'l1');
+  const expanded = render(market);
+  const sheet = find(expanded, node => hasClass(node, 'market-sheet'));
+  assert(sheet, '카드를 누르면 상세 팝업');
+  assert(find(sheet, node => hasClass(node, 'market-sheet-head')), '팝업 머리(아이콘·이름·판매자·가격)');
+  assert.match(find(sheet, node => hasClass(node, 'market-sheet-sub')).textContent, /판매자 상인/);
+  const detail = find(sheet, node => hasClass(node, 'market-detail'));
+  assert(detail, '상세 본문');
   assert(find(detail, node => String(node.textContent).includes('구매 확정')));
-  assert.equal(all(expanded, node => hasClass(node, 'market-detail')).length, 1, '다른 카드는 접힌 채');
-  void refresh;
+  assert.equal(all(expanded, node => hasClass(node, 'market-detail')).length, 1, '고른 매물 하나만');
+  // 닫기를 누르면 팝업이 사라진다.
+  find(sheet, node => hasClass(node, 'market-sheet-close')).onclick();
+  assert.equal(market.selected, undefined);
   setListingView('detail');
 });
 
@@ -162,7 +165,7 @@ test('간편 보기는 판매 중 탭에만 적용된다 — 내 거래·수령�
   mine.view = 'mine';
   mine.data = snapshot({ listings: [{ ...listing('m1', sword('내 검')), mine: true }], total: 1, myActive: 1 });
   const dialog = render(mine);
-  assert.equal(all(dialog, node => hasClass(node, 'market-row-compact')).length, 0, '내 거래는 상세 카드');
+  assert.equal(all(dialog, node => hasClass(node, 'market-card')).length, 0, '내 거래는 상세 카드');
   assert(!find(dialog, node => hasClass(node, 'market-view-toggle')), '토글도 판매 중 탭에만');
   setListingView('detail');
 });
