@@ -10,6 +10,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import './ts-loader.mjs';
+import { modalStyles } from './helpers/modal-styles.mjs';
 
 const items = await import('../src/game/items.ts');
 const {
@@ -180,7 +181,7 @@ const findByClass = (root, name) => {
   return undefined;
 };
 const allText = root => [root.textContent, ...(root.children ?? []).map(allText)].filter(Boolean).join(' ');
-const css = readFileSync(new URL('../src/styles/modals.css', import.meta.url), 'utf8');
+const css = modalStyles();
 
 test('a piece with a 강화 단계 shows +N in its own colour beside the name, and +0 shows nothing', () => {
   const plusItem = { id: 'p7', name: '영원의 룬 블레이드', slot: 'weapon', rarity: 'rare', stats: { attack: 120 }, plus: 7 };

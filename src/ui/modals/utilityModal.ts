@@ -3,7 +3,7 @@ import { AUTO_SALVAGE_HINT } from '../autoSalvage';
 import { salvagePlusLabel, salvagePlusUnlocked, salvagePlusValues } from '../salvagePlus';
 import type { JourneyTask } from '../../game/journey';
 import { preferences, savePreferences } from '../../game/preferences';
-import { goldNode } from '../currency';
+import { diamondNode, goldNode } from '../currency';
 import { POUCH_ICON_URL } from '../pouchArt';
 import { EQUIPMENT_BAG_LIMIT, equipmentCount } from '../../game/bagCapacity';
 import { loadShop } from './shopModal';
@@ -68,11 +68,12 @@ export function orderedAchievements(tasks:JourneyTask[]):JourneyTask[] {
 export function renderUtility(ui:Interface,dialog:HTMLElement,kind:'mail'|'rewards'|'achievements'):void{
   const journey=ui.journey,section=element('section',`utility-content utility-${kind}`);
   if(journey.error)section.append(element('p','market-error',journey.error));
-  if(journey.sync.pendingMarket?.action.startsWith('journey-'))section.append(button('수령 결과 다시 확인',()=>{void journey.act('journey-claim');},journey.busy));
-  // 거래소 거래가 걸려 있어도 우편함에서 바로 풀 수 있게 같은 안내와 재확인 버튼을 둔다(작업 226).
-  if(journey.sync.pendingMarket&&!journey.sync.pendingMarket.action.startsWith('journey-')){
+  // 거래소 거래가 걸려 있어도 **우편·보상 수령은 막히지 않는다**(작업 260 — 여정은 자기 대기·자기 경로를 쓴다).
+  // 결과를 확인하지 못한 **여정** 요청만 자기 자리에서 다시 확인하게 한다.
+  if(journey.pending)section.append(button('수령 결과 다시 확인',()=>{void journey.retry();},journey.busy));
+  if(journey.sync.pendingMarket){
     if(ui.market)section.append(button('거래 결과 다시 확인',()=>{void ui.market.retry();},journey.busy));
-    section.append(element('p','utility-note','거래소 거래 결과를 확인하지 못해 받기 버튼이 잠겨 있습니다. 위 버튼으로 거래를 먼저 마무리하세요.'));
+    section.append(element('p','utility-note','거래소 거래 결과를 확인하지 못한 요청이 있습니다. 위 버튼으로 거래를 마무리해 주세요. 우편·보상 수령은 그대로 이용할 수 있습니다.'));
   }
   if(ui.session.guest)section.append(element('p','utility-note','정식 계정으로 로그인하면 보상을 수령할 수 있습니다.'));
   const data=journey.data;
@@ -100,7 +101,7 @@ export function renderUtility(ui:Interface,dialog:HTMLElement,kind:'mail'|'rewar
       row.append(element('small','mail-sender',`보낸 사람: ${mail.sender}`),element('p','mail-body',mail.body));
       const received=new Date(mail.createdAt).toLocaleString('ko-KR',{timeZone:'Asia/Seoul',month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'});
       row.append(element('small','mail-date',`받은 날짜 ${received} · ${mail.expiresAt===null?'수령 기한 없음':mail.expired?'수령 기한 만료':`남은 시간 ${Math.max(0,Math.ceil((mail.expiresAt-data.now)/3600000))}시간`}`));
-      const bottom=element('div','utility-toolbar'),reward=element('div','utility-reward');if(mail.gold)reward.append(goldNode(mail.gold));if(mail.books)reward.append(element('span','',`스킬북 ${mail.books}권`));if(mail.pouches)reward.append(pouchReward(mail.pouches));if(mail.diamonds)reward.append(element('span','',`◆ 다이아 ${mail.diamonds.toLocaleString('ko-KR')}개`));
+      const bottom=element('div','utility-toolbar'),reward=element('div','utility-reward');if(mail.gold)reward.append(goldNode(mail.gold));if(mail.books)reward.append(element('span','',`스킬북 ${mail.books}권`));if(mail.pouches)reward.append(pouchReward(mail.pouches));if(mail.diamonds)reward.append(diamondNode(mail.diamonds,'다이아 ','개'));
       const blocked=bagBlocked(mail),claim=claimButton(mail.claimedAt?'수령 완료':mail.expired?'기한 만료':blocked?'가방 가득':'받기',()=>{void journey.act('journey-claim',{kind:'mail',id:mail.id}).then(()=>loadShop(ui));},!!mail.claimedAt||mail.expired||blocked||journey.busy||ui.session.guest);
       if(blocked)claim.title='가방이 가득 찼습니다. 공간을 비운 뒤 우편을 받아주세요. (금화만 있는 우편은 받을 수 있습니다)';
       bottom.append(reward,claim);row.append(bottom);section.append(row);

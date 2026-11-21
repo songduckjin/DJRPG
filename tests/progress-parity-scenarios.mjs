@@ -13,7 +13,7 @@ import { seededRandom, withRandom } from '../src/game/rng.ts';
 import { World } from '../src/game/world.ts';
 import { applyOfflineRewards } from '../src/game/offline.ts';
 import { claimDungeonRewards } from '../src/game/dungeonRewards.ts';
-import { dungeonBattleSummary, runDungeonBattle } from '../src/ui/dungeonBattle.ts';
+import { dungeonBattleSummary, runDungeonBattle } from '../src/game/dungeon/battle.ts';
 
 /** 모든 시나리오가 같은 시드를 쓴다 — 실패했을 때 어느 굴림이 달라졌는지 다시 짚을 수 있게. */
 export const PARITY_SEED = 20261121;

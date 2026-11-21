@@ -2,10 +2,11 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import './ts-loader.mjs';
+import { modalStyles } from './helpers/modal-styles.mjs';
 const { freshSave } = await import('../src/game/store.ts');
 const { openSkillPicker, pressSkillSlot } = await import('../src/ui/skillLoadout.ts');
 
-const styles = readFileSync(new URL('../src/styles/modals.css', import.meta.url), 'utf8');
+const styles = modalStyles();
 
 /** 자식이 이어지는 작은 DOM 스텁 — 팝업 목록·배지·클릭을 그대로 확인한다. */
 function element(tag = 'div') {

@@ -61,7 +61,7 @@ export const isSkillBookId = value => skillBookIdSet.has(value);
 /** 스킬 이름 — 클라이언트 `skills`·`passives`의 `name`과 같다(스킬북 이름이 화면과 어긋나지 않게). */
 export const skillNames = {
   slash2: '이단참', spin: '드래곤 트위스터', crushing: '딜레이 크러싱', slam: '와일드 스탬프',
-  warcry: '블러드 레이지', power: '파워 스트라이크', destroy: '디스트로이 스윙', hell: '헬 파이어 소드',
+  warcry: '블러드 레이지', power: '파워 스트라이크', destroy: '디스트로이 스윙', hell: '회전참격',
   doubleShot: '더블 샷', multiShot: '멀티 샷', pierceShot: '관통 사격', iceArrow: '빙결 화살',
   hawkEye: '호크아이', snipe: '저격 일격', stormVolley: '폭풍 연사', arrowRain: '애로우 레인',
   fireBolt: '파이어 볼트', iceBolt: '아이스 볼트', chainLightning: '체인 라이트닝', manaBurst: '마력 폭발',

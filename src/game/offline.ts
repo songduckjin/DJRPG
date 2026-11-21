@@ -1,4 +1,4 @@
-import { canStoreItem } from './bagCapacity';
+import { addItemToBag } from './rewardGrant';
 import { autoSalvageRecovered } from './inventory';
 import { offlineDropChance, rollItem, rollItemKind, rollSkillBook, totalStats, type Item, type Rarity } from './items';
 import { jobOrDefault as jobOf, skillDamageScale, skillDuration, skills, type SkillId } from './skills';
@@ -111,8 +111,8 @@ export function applyOfflineRewards(save: Save, elapsedSeconds: number, options:
       const sweep = autoSalvageRecovered(save, item, options.autoSalvage, options.autoSalvagePlus);
       if (sweep) { salvaged.count++; salvaged.gold += sweep.gold; salvaged.stones += sweep.stones; return; }
     }
-    if (!canStoreItem(save.bag, item, jobOf(save))) { missedDrops++; return; }
-    save.bag.push(item);
+    // 자리 검사·가방 반영·`itemGranted` 신호는 `addItemToBag` 한 곳이 맡는다.
+    if (!addItemToBag(save, item, 'offline')) { missedDrops++; return; }
     items.push(item);
   };
   /** 그 층에서 `count`마리 사냥 — 금화·경험치·처치 수는 `progress.ts`가 정한다(PR-3). 드롭만 방치 몫을 쓴다. */

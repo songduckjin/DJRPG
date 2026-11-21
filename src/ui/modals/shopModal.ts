@@ -1,5 +1,6 @@
 import type { Interface } from '../interface';
 import { apiHeaders, isOutdatedResponse, reloadForNewVersion } from '../../game/appVersion';
+import { diamondIconMarkup, diamondMarkup } from '../currency';
 import { loadCharacters } from './charactersModal';
 
 /** 다이아 패키지 상품 그림(작업 253 사용자 확정 1안) — `downloads/djrpg_diamond_pack_v1.png`(청동 보물상자 다이아 묶음)을
@@ -33,6 +34,10 @@ function element(tag: string, className = '', label = ''): HTMLElement {
 function button(label: string, action: () => void): HTMLButtonElement {
   const node = document.createElement('button'); node.type = 'button'; node.textContent = label; node.onclick = action; return node;
 }
+/** `◆ 500개` 대신 다이아 그림 + `500개`(작업 261). 그림의 `alt`가 "다이아"라 화면 읽기에서도 "다이아 500개"로 읽힌다. */
+function diamondAmount(tag: string, amount: number): HTMLElement {
+  const node = element(tag); node.innerHTML = diamondMarkup(amount, { suffix: '개' }); return node;
+}
 
 /** 다이아 탭 대표 카드 — 확정 1안 그림 + 한 줄 설명. 카드 목록보다 위에 한 번만 둔다(같은 그림을 8칸에 반복하지 않는다). */
 function diamondHero(): HTMLElement {
@@ -49,7 +54,9 @@ function diamondHero(): HTMLElement {
 export function renderShop(ui: Interface, dialog: HTMLElement): void {
   const catalog = ui.shopCatalog;
   if (!catalog) { dialog.append(element('p', 'shop-note', '상점을 불러오는 중…')); return; }
-  dialog.append(element('p', 'shop-balance', `◆ 보유 다이아 ${catalog.wallet.diamonds.toLocaleString('ko-KR')}개`));
+  const balance = element('p', 'shop-balance');
+  balance.innerHTML = `${diamondIconMarkup} 보유 다이아 ${catalog.wallet.diamonds.toLocaleString('ko-KR')}개`;
+  dialog.append(balance);
   const tabs = element('div', 'shop-tabs');
   for (const [key, label] of [['diamonds', '다이아'], ['packages', '패키지']] as const) {
     const tab = button(label, () => { ui.shopTab = key; ui.shopCheckout = undefined; ui.renderModal(); });
@@ -71,14 +78,14 @@ export function renderShop(ui: Interface, dialog: HTMLElement): void {
     dialog.append(diamondHero());
     for (const pack of catalog.diamondPacks) {
       const card = element('article', 'shop-card');
-      card.append(element('strong', '', `◆ ${pack.diamonds.toLocaleString('ko-KR')}개`), element('span', '', `${pack.price.toLocaleString('ko-KR')}원`));
+      card.append(diamondAmount('strong', pack.diamonds), element('span', '', `${pack.price.toLocaleString('ko-KR')}원`));
       const buy = button(catalog.paymentReady ? '구매' : '결제 준비 중', () => { void startCheckout(ui, pack.id).catch(error => ui.message(error instanceof Error ? error.message : String(error))); });
       buy.disabled = !catalog.paymentReady; buy.className = 'shop-buy'; card.append(buy); grid.append(card);
     }
   } else {
     for (const pack of catalog.packages) {
       const card = element('article', 'shop-card');
-      card.append(element('strong', '', pack.name), element('span', '', `◆ ${pack.diamonds.toLocaleString('ko-KR')}개`));
+      card.append(element('strong', '', pack.name), diamondAmount('span', pack.diamonds));
       if (pack.id === 'all_idle_30d' && Number(pack.expiresAt ?? 0) > Date.now()) card.append(element('span', '', `이용 중 · ${new Date(pack.expiresAt!).toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul' })}까지`));
       const buy = button(pack.available ? pack.id === 'all_idle_30d' && Number(pack.expiresAt ?? 0) > Date.now() ? '30일 연장' : '구매' : pack.id === 'slot' ? '최대 슬롯' : '준비 중', () => { void buyPackage(ui, pack.id).catch(error => ui.message(error instanceof Error ? error.message : String(error))); });
       buy.disabled = !pack.available; buy.className = 'shop-buy'; card.append(buy); grid.append(card);
