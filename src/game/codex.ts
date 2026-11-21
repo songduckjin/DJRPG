@@ -1,4 +1,5 @@
-import { archerArmorBases, archerHelmetBases, baseItemIndex, baseItems, bowBases, bowIndex, equipmentImage, isEquipment, isZweihander, itemJob, mageArmorBases, mageHelmetBases, rarityOrder, rarityPrefixes, rarityRanks, rarityScales, rarityTiers, staffBases, staffIndex, type EquipmentItem, type Item, type Rarity, type Slot, type Stat } from './items';
+import { archerArmorBases, archerHelmetBases, baseItemIndex, baseItems, bowBases, bowIndex, equipmentImage, gearStats, isEquipment, isZweihander, itemJob, mageArmorBases, mageHelmetBases, rarityOrder, rarityPrefixes, rarityRanks, rarityTiers, staffBases, staffIndex, type EquipmentItem, type Item, type Rarity, type Slot, type Stat } from './items';
+import type { Job } from './skills';
 import type { Save } from './store';
 export type CodexSlot = Exclude<Slot, 'ring1' | 'ring2'> | 'ring';
 /** 한 부위 안의 세 갈래 — 무기는 대검·활·지팡이, 투구는 투구·후드·모자, 갑옷은 판금·경갑·로브(작업 208·249). */
@@ -116,16 +117,17 @@ export function firstDropFloor(entry: CodexEntry, rarity: Rarity): number {
 }
 export function codexOptions(entry: CodexEntry, rarity: Rarity, floor: number): { floor: number; stats: { stat: Stat; min: number; max: number }[] } {
   floor = Math.max(firstDropFloor(entry, rarity), Math.floor(floor));
-  const scale = (1 + Math.floor(floor / 2)) * rarityScales[rarity];
-  const primary: Stat = ['weapon','ring1','ring2','gloves'].includes(entry.item.slot) ? 'attack' : 'defense';
-  const tierBonus = Math.ceil(entry.tier * (entry.slot === 'weapon' ? .6 : .4));
+  // 능력치 구간은 **드롭 공식(`gearStats`) 한 곳**에서 만든다(작업 255). 같은 슬롯·등급·티어로
+  // 무작위 0과 1을 넣어 최소·최대를 얻으므로, 공식을 손봐도 도감이 따로 놀지 않는다.
+  // 투구·갑옷도 직업별 목록으로 갈렸으므로(작업 249·PR #254) 갈래 이름에서 직업을 정해 `slotProfileFor`에 넘긴다.
+  // 넘기지 않으면 공용 프로필로 미리보기가 만들어져, 실제 드롭 범위와 어긋난다(작업 255).
+  const job: Job | undefined = entry.group === '활' || entry.group === '경갑' || entry.group === '후드' ? 'archer'
+    : entry.group === '지팡이' || entry.group === '로브' || entry.group === '모자' ? 'mage'
+    : entry.group ? 'warrior' : undefined;
   const zweihander = entry.slot === 'weapon' && entry.name === '쯔바이핸드';
-  const bonus = zweihander ? 2 + Math.ceil(scale * .25) : 0;
-  const stats: { stat: Stat; min: number; max: number }[] = [{ stat: primary, min: scale + 1 + tierBonus + bonus, max: scale + 3 + tierBonus + bonus }];
-  if (rarity !== 'common') stats.push({ stat: 'health', min: 3 * scale, max: 3 * scale });
-  const crit = (rarityRanks[rarity] >= rarityRanks.rare ? scale : 0) + (zweihander && rarity !== 'common' ? Math.max(1, Math.ceil(scale * .5)) : 0);
-  if (crit) stats.push({ stat: 'crit', min: crit, max: crit });
-  if (rarityRanks[rarity] >= rarityRanks.unique) stats.push({ stat: 'speed', min: scale, max: scale });
+  const min = gearStats(entry.item.slot, rarity, entry.tier, floor, job, zweihander, () => 0);
+  const max = gearStats(entry.item.slot, rarity, entry.tier, floor, job, zweihander, () => .999);
+  const stats = (Object.keys(min) as Stat[]).map(stat => ({ stat, min: min[stat] ?? 0, max: max[stat] ?? 0 }));
   return { floor, stats };
 }
 /** 기본형 단위 필터 — 검색·부위·발견 여부(등급 하나라도). `codexVariants`가 등급 단위로 다시 고른다. */

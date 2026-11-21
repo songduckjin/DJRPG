@@ -40,12 +40,32 @@ export const MAX_LEVEL = 30;
 export const MAX_PLUS = 7;
 export const PLUS_STAT_BONUS = .08;
 /**
- * 슬롯별 티어 보정의 최대치 — `rollItem`의 `Math.ceil(tier * (무기 .6 / 그 외 .4))`에 그 슬롯의
- * 최고 티어를 넣은 값(`src/game/items.ts` `maxTierBonus`와 같다). 10티어 슬롯은 6/4, 5티어 슬롯은 2.
+ * 슬롯별 티어 보정의 최대치 — **작업 255 이전** 공식(`Math.ceil(tier * (무기 .6 / 그 외 .4))`)의
+ * 최고 티어 값(`src/game/items.ts` `maxTierBonus`와 같다). 새 드롭은 티어당 +3.5%(`TIER_STAT_GROWTH`)를
+ * 쓰므로, 이 표는 `itemWithinBounds`에서 **옛 장비 여유분**과 테스트 대조에만 쓴다.
  */
 export const TIER_BONUS_MAX = {
   weapon: 6, offhand: 2, helmet: 4, armor: 4, necklace: 2,
   gloves: 4, belt: 4, boots: 4, ring1: 2, ring2: 2
+};
+/** `src/game/items.ts`의 `TIER_STAT_GROWTH` — 티어 한 단계당 +3.5%. */
+export const TIER_STAT_GROWTH = .035;
+/**
+ * 슬롯별 능력치 배율의 **최댓값**(작업 255) — `src/game/items.ts`의 `maxSlotProfileTable` 사본이다.
+ * 직업별 무기·투구·갑옷 표를 모두 훑어 능력치마다 가장 큰 값을 골랐다. 어떤 직업의 드롭이든 이 상한
+ * 안에 들어오므로, 서버는 아이템의 직업을 몰라도 능력치 위조를 걸러낼 수 있다.
+ */
+export const MAX_SLOT_PROFILES = {
+  weapon: { attack: 1.18, defense: .25, health: 1.30, crit: 1.35, speed: .85 },
+  offhand: { attack: .15, defense: 1.00, health: 2.40, crit: .80, speed: .70 },
+  helmet: { attack: .04, defense: 1.32, health: 4.80, crit: .60, speed: .45 },
+  armor: { attack: .06, defense: 1.60, health: 5.30, crit: .55, speed: .40 },
+  necklace: { attack: .35, defense: .20, health: 1.30, crit: 1.25, speed: .90 },
+  gloves: { attack: .60, defense: .25, health: 1.10, crit: .95, speed: 1.50 },
+  belt: { attack: .10, defense: .60, health: 2.80, crit: .60, speed: .50 },
+  boots: { attack: .05, defense: .40, health: 1.40, crit: .75, speed: 1.85 },
+  ring1: { attack: .35, defense: .15, health: 1.20, crit: 1.15, speed: .95 },
+  ring2: { attack: .35, defense: .15, health: 1.20, crit: 1.15, speed: .95 }
 };
 /** 강화가 붙기 전 스탯의 여유분 — 드롭마다 붙는 무작위 1~3(`Math.ceil(Math.random()*3)`)과 반올림. */
 const STAT_SLACK = 4;
@@ -174,21 +194,26 @@ export function itemWithinBounds(item, maxFloor = 1, tolerance = STAT_TOLERANCE)
   if (item.kind === 'skillbook' || item.slot === 'skillbook') return true;
   if (item.kind === 'pouch' || item.slot === 'pouch') return true;
   const scale = RARITY_SCALES[item.rarity];
-  const tierBonus = TIER_BONUS_MAX[item.slot];
-  if (!scale || tierBonus === undefined) return false;
+  const profile = MAX_SLOT_PROFILES[item.slot];
+  if (!scale || !profile) return false;
   const depth = Math.max(1, Math.min(500, int(maxFloor, 1)));
   const baseScale = (1 + Math.floor(depth / 2)) * scale;
+  // 새 드롭(작업 255)은 티어 계수(최고 티어 +31.5%)를 모든 스탯에 곱한다 — 가장 큰 티어를 가정한다.
+  const topTier = 1 + TIER_STAT_GROWTH * 9;
+  const scaled = baseScale * Math.max(1, topTier);
   const factor = 1 + Math.max(0, Math.min(MAX_PLUS, int(item.plus))) * PLUS_STAT_BONUS;
-  const primary = ['weapon', 'ring1', 'ring2', 'gloves'].includes(item.slot) ? 'attack' : 'defense';
   const zwei = /쯔바이핸드|츠바이핸더/.test(String(item.name ?? ''));
-  const limits = {
-    [primary]: baseScale + 3 + tierBonus,
-    health: 3 * baseScale,
-    crit: baseScale + (zwei ? Math.ceil(baseScale * .5) : 0),
-    speed: baseScale,
-    // 쯔바이핸드는 공격에도 보정이 붙는다.
-    attack: primary === 'attack' ? baseScale + 3 + tierBonus + (zwei ? 2 + Math.ceil(baseScale * .25) : 0) : 0
+  // 주 스탯에는 무작위 1~3이 붙는다 — 어느 쪽이 주 스탯인지 서버는 모르므로 양쪽에 3을 얹어 둔다.
+  const next = {
+    attack: Math.round(profile.attack * scaled) + 3 + (zwei ? 2 : 0),
+    defense: Math.round(profile.defense * scaled) + 3,
+    health: Math.round(profile.health * scaled),
+    crit: Math.round((profile.crit + (zwei ? .15 : 0)) * scaled),
+    speed: Math.round(profile.speed * scaled)
   };
+  // 옛 공식(작업 255 이전)으로 만들어진 장비도 통과해야 하므로, 능력치마다 두 공식 중 **큰 쪽**을 쓴다.
+  const legacy = legacyStatLimits(item, baseScale, zwei);
+  const limits = Object.fromEntries(Object.keys(next).map(stat => [stat, Math.max(next[stat], legacy[stat] ?? 0)]));
   for (const [stat, value] of Object.entries(item.stats ?? {})) {
     const allowed = limits[stat];
     if (allowed === undefined) return false;
@@ -199,4 +224,18 @@ export function itemWithinBounds(item, maxFloor = 1, tolerance = STAT_TOLERANCE)
   // 필요 없다 — 값 자체가 1~3%로 고정이고, 서버는 저장 전에 id로 다시 계산해 덮어쓴다.
   if (!extraOptionsWithin(item)) return false;
   return true;
+}
+
+/** 작업 255 이전 공식의 능력치 상한 — 옛 세이브의 장비(스탯이 예전 표대로 큼)를 지우지 않기 위해 남긴다. */
+function legacyStatLimits(item, baseScale, zwei) {
+  const tierBonus = TIER_BONUS_MAX[item.slot] ?? 0;
+  const primary = ['weapon', 'ring1', 'ring2', 'gloves'].includes(item.slot) ? 'attack' : 'defense';
+  const limits = {
+    [primary]: baseScale + 3 + tierBonus,
+    health: 3 * baseScale,
+    crit: baseScale + (zwei ? Math.ceil(baseScale * .5) : 0),
+    speed: baseScale,
+    attack: primary === 'attack' ? baseScale + 3 + tierBonus + (zwei ? 2 + Math.ceil(baseScale * .25) : 0) : (zwei ? 2 : 0)
+  };
+  return limits;
 }
