@@ -251,8 +251,15 @@ test('던전 전투도 같은 World 규칙이라 추가 데미지가 보스 클�
   const { runDungeonBattle } = await import('../src/ui/dungeonBattle.ts');
   const dungeonSave = extraOptions => {
     const save = freshSave('male', 'warrior');
-    save.level = 20; save.tutorial = 3; save.health = 100000;
-    save.equipment = { weapon: { id: `dungeon-${JSON.stringify(extraOptions)}`, name: '비전의 룬 블레이드', slot: 'weapon', rarity: 'epic', stats: { attack: 120 }, plus: 0, extraOptions } };
+    save.level = 20; save.tutorial = 3;
+    // 던전 몹·보스 공격력 정상화(작업 248) — 5층 보스를 버티려면 실제 플레이어처럼 방어구가 있어야 한다.
+    // (이 테스트는 생존이 아니라 추가 데미지가 클리어를 앞당기는지만 본다.)
+    save.equipment = {
+      weapon: { id: `dungeon-${JSON.stringify(extraOptions)}`, name: '비전의 룬 블레이드', slot: 'weapon', rarity: 'epic', stats: { attack: 120 }, plus: 0, extraOptions },
+      armor: { id: `dungeon-armor-${JSON.stringify(extraOptions)}`, name: '시험 갑옷', slot: 'armor', rarity: 'rare', stats: { defense: 400, health: 2000 }, plus: 0 },
+      helmet: { id: `dungeon-helmet-${JSON.stringify(extraOptions)}`, name: '시험 투구', slot: 'helmet', rarity: 'rare', stats: { defense: 100, health: 500 }, plus: 0 }
+    };
+    save.health = totalStats(save).health;
     return save;
   };
   for (const seed of [11, 22]) {

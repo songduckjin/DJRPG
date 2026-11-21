@@ -58,13 +58,22 @@ test('a drop held back by a full bag stays on the ground and flies in once there
   assert(world.save.bag.some(item => item.id === 'drop'));
 });
 
-test('a skill book is still stored while an equipment bag is full', () => {
+test('내 직업 스킬북은 가방 40칸을 쓰지 않아 가득 차도 줍고, 타직업 책은 바닥에 남는다(작업 253)', () => {
   const world = quiet();
   world.save.bag = Array.from({ length: 40 }, (_, index) => gear(`full-${index}`));
-  world.drops = [dropAt(90, 0, { id: 'book', name: '[스킬북] 회전', slot: 'skillbook', kind: 'skillbook', skillId: 'spin', rarity: 'rare', stats: {} })];
+  world.drops = [
+    dropAt(90, 0, { id: 'book', name: '[스킬북] 회전', slot: 'skillbook', kind: 'skillbook', skillId: 'spin', rarity: 'rare', stats: {} }),
+    dropAt(95, 0, { id: 'foreign', name: '[스킬북] 파이어 볼트', slot: 'skillbook', kind: 'skillbook', skillId: 'fireBolt', rarity: 'rare', stats: {} }),
+  ];
+  advance(world, 2.5);
+  assert.equal(world.drops.length, 1, '타직업 책만 바닥에 남는다');
+  assert.equal(world.drops[0].item.id, 'foreign');
+  assert(world.save.bag.some(item => item.id === 'book'), '내 직업 책은 40칸이어도 줍는다');
+  // 한 칸 비우면 타직업 책도 들어간다.
+  world.save.bag = world.save.bag.filter(item => item.id !== 'book').slice(0, 39);
   advance(world, 2.5);
   assert.equal(world.drops.length, 0);
-  assert.equal(world.save.bag.at(-1).id, 'book');
+  assert(world.save.bag.some(item => item.id === 'foreign'));
 });
 
 test('a kill pays its gold at once and only leaves a coin behind for the field to draw', () => {
@@ -270,7 +279,7 @@ test('a field coin always lies behind the hero, the monsters and every item', ()
 test('a boss kill bursts its gold out in ten heaps and leaves only the chance item', () => {
   assert.equal(BOSS_GOLD_PILES, 10);
   // The main field's boss drops gold only: the dungeon's five-item haul stays in the dungeon (작업 195).
-  assert.equal(BOSS_ITEM_DROPS, 5);
+  assert.equal(BOSS_ITEM_DROPS, 2, '작업 248: 던전 보스 확정 드롭 2개');
   const world = quiet();
   const floor = world.save.floor, gold = 70 * floor, paid = world.save.gold;
   const boss = { x: 60, y: 20, hp: 0, maxHp: 10, boss: true, hit: 0, step: 0, moving: false, knockX: 0, knockY: 0, slow: 0 };
