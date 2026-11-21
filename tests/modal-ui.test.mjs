@@ -14,11 +14,12 @@ const equipment = (slot, stats) => ({ id: slot, name: slot, slot, rarity: 'rare'
 
 test('codex groups all six grades in ascending order, retaining filters', () => {
   const save = freshSave(), variants = codexVariants(save);
-  assert.equal(variants.length, 570);
+  assert.equal(variants.length, 810);
   assert.deepEqual([...new Set(variants.map(v => v.rarity))], rarityOrder);
   for (let i = 1; i < variants.length; i++) assert(rarityRanks[variants[i-1].rarity] <= rarityRanks[variants[i].rarity]);
   const filtered = codexVariants(save, '', 'helmet', 'all', 'epic');
-  assert.equal(filtered.length, 10);
+  // 투구는 전사·궁수·마법사 10종씩 30종(작업 249).
+  assert.equal(filtered.length, 30);
   assert(filtered.every(v => v.rarity === 'epic' && v.entry.slot === 'helmet'));
 });
 test('purchase comparison includes current values, gains, unchanged stats and lost options for the same slot', () => {

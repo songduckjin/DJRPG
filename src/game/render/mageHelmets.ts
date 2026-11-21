@@ -1,11 +1,12 @@
 import type { Gender, Save } from '../store';
+import { Texture } from 'pixi.js';
 import { baseItemIndex } from '../items';
 import { pilotSheet } from './pilotAssets';
 
 /**
  * 마법사 전용 모자·투구 10종 외형 (작업 204).
  *
- * `baseItems.helmet` 0~9번(가죽 두건 ~ 불멸의 왕관)을 마법사가 착용하면 전사용 판금 투구 대신
+ * 마법사 모자·투구 10종(`items.ts` `mageHelmetBases` — 수련생 천 두건 ~ 대현자의 황금 왕관)을 착용하면 전사용 판금 투구 대신
  * **마법사용 모자·투구**가 나온다. 파츠 20장(남녀 × 10종)은 서기 셀 좌표계의 PNG이고, 그 위에
  * `mageHelmPlacement` 의 자세 값(좌상단 이동·배율)만 주면 서기·걷기 4프레임·공격 4프레임 어디든
  * 같은 자리에 앉는다.
@@ -127,3 +128,83 @@ export function mageHelmPlacement(gender: Gender, motion: MageHelmMotion, frame 
 
 /** 장비창(내 정보) 초상화는 서기 한 장만 쓴다. */
 export const mageHelmIdlePlacement = idlePlacement;
+
+/* ── 투구 발광 마스크 (작업 247) ─────────────────────────────────────────── */
+
+/** 파츠 PNG의 셀 크기·높이(셀 362 + 위 여유 44). */
+export const MAGE_HELM_CELL = 362;
+export const MAGE_HELM_PART_HEIGHT = MAGE_HELM_CELL + MAGE_HELM_EXTRA_TOP;
+
+/**
+ * 발광 범위 — “모자·투구만 빛나고 얼굴과 로브는 원래 색” 을 만드는 경계(셀 좌표).
+ *
+ * · `fadeStart`~`fadeEnd`: 목선으로 갈수록 빛이 사라진다. 파츠가 목선(셀 y 104)에서 끊기므로,
+ *   그대로 두면 가슴께에 **직선으로 잘린 발광 띠**가 남는다(실측 검수에서 확인).
+ * · `face`: 얼굴·목의 피부는 빛을 받지 않게 부드럽게 도려낸다. 파츠에 얼굴이 함께 들어 있어
+ *   그냥 두면 유니크·전설 투구에서 얼굴이 통째로 등급색 덩어리가 된다.
+ *
+ * 남녀 모두 서기 셀의 같은 자리(머리 중심 x≈194/205)에 얼굴이 있어 성별로만 나눈다.
+ */
+export type MageHelmGlowZone = {
+  fadeStart: number;
+  fadeEnd: number;
+  face: { x: number; y: number; inner: number; outer: number };
+};
+
+export const MAGE_HELM_GLOW_ZONE: Record<Gender, MageHelmGlowZone> = {
+  female: { fadeStart: 84, fadeEnd: 106, face: { x: 194, y: 48, inner: 20, outer: 34 } },
+  male: { fadeStart: 84, fadeEnd: 108, face: { x: 205, y: 52, inner: 22, outer: 36 } }
+};
+
+/**
+ * 셀 좌표 한 점의 발광 세기(0~1). 캔버스 생성과 테스트가 **같은 식**을 쓴다.
+ *
+ * 목선 쪽은 선형으로 줄고, 얼굴은 `inner`까지 완전히 0, `outer`까지 smoothstep으로 올라온다.
+ */
+export function mageHelmGlowAlpha(gender: Gender, x: number, y: number): number {
+  const zone = MAGE_HELM_GLOW_ZONE[gender];
+  const span = Math.max(1, zone.fadeEnd - zone.fadeStart);
+  const fade = Math.min(1, Math.max(0, (zone.fadeEnd - y) / span));
+  const reach = Math.hypot(x - zone.face.x, y - zone.face.y);
+  const skin = Math.min(1, Math.max(0, (reach - zone.face.inner) / Math.max(1, zone.face.outer - zone.face.inner)));
+  return fade * (skin * skin * (3 - 2 * skin));
+}
+
+const glowMaskTextures = new Map<Gender, Texture>();
+
+/**
+ * 발광 마스크 캔버스 — 파츠와 같은 362×406 이라 파츠와 **같은 앵커·위치·배율**로 얹으면 된다.
+ * 픽셀마다 `mageHelmGlowAlpha` 를 알파로 굽는다(RGB는 흰색, 마스크는 알파만 쓴다).
+ */
+export function mageHelmGlowMaskCanvas(gender: Gender): HTMLCanvasElement | undefined {
+  if (typeof document === 'undefined') return undefined;
+  const canvas = document.createElement('canvas');
+  canvas.width = MAGE_HELM_CELL;
+  canvas.height = MAGE_HELM_PART_HEIGHT;
+  const context = canvas.getContext('2d');
+  if (!context) return undefined;
+  const frame = context.createImageData(MAGE_HELM_CELL, MAGE_HELM_PART_HEIGHT);
+  const pixels = frame.data;
+  for (let row = 0; row < MAGE_HELM_PART_HEIGHT; row += 1) {
+    const cellY = row - MAGE_HELM_EXTRA_TOP;
+    for (let column = 0; column < MAGE_HELM_CELL; column += 1) {
+      const index = (row * MAGE_HELM_CELL + column) * 4;
+      const alpha = mageHelmGlowAlpha(gender, column, cellY);
+      pixels[index] = 255; pixels[index + 1] = 255; pixels[index + 2] = 255;
+      pixels[index + 3] = Math.round(alpha * 255);
+    }
+  }
+  context.putImageData(frame, 0, 0);
+  return canvas;
+}
+
+/** 필드 발광 스프라이트의 마스크 텍스처(성별당 1장, 캐시). */
+export function mageHelmGlowMaskTexture(gender: Gender): Texture | undefined {
+  const cached = glowMaskTextures.get(gender);
+  if (cached) return cached;
+  const canvas = mageHelmGlowMaskCanvas(gender);
+  if (!canvas) return undefined;
+  const texture = Texture.from(canvas);
+  glowMaskTextures.set(gender, texture);
+  return texture;
+}

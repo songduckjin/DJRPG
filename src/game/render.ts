@@ -270,6 +270,8 @@ export class GameView {
   heroGlow = new Map<string, Sprite[]>();
   /** 갑옷 발광을 목 아래로 자르는 마스크(작업 218) — 얼굴은 원래 색으로 남긴다. */
   heroGlowMask?: Sprite;
+  /** 마법사 투구 발광 마스크(작업 247) — 얼굴·목선 아래로는 빛이 번지지 않는다. */
+  heroHelmGlowMask?: Sprite;
   /** 독립형 코스튬 렌더러 상태(작업 140). 매니페스트·아틀라스가 없으면 폴백으로 굳는다. */
   costume: CostumeHeroState = createCostumeHeroState();
   enemies = new Map<Enemy, Sprite>();
@@ -284,6 +286,8 @@ export class GameView {
   dust: Dust[] = [];
   lastTime = 0;
   lastHeroDust = 0;
+  /** 마지막으로 그린 캐릭터 전환 세대(작업 250) — `world.switchEpoch`가 바뀌면 파츠·발광·잔상을 비운다. */
+  heroSwitchEpoch = -1;
   heroWalkDistance = 0;
   lastHeroWorld = { x: 0, y: 0 };
   enemyWalkDistance = new Map<Enemy, { x: number; y: number; distance: number }>();
