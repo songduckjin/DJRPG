@@ -40,7 +40,7 @@ export async function adminEndpoint(request, { env = runtimeEnv(), createDbClien
     const start = Date.now();
     db = createDbClient ? createDbClient(env) : await sharedConnection(env);
     // 게스트 24시간 자동 삭제(작업 259) — 집계·목록보다 먼저 돌려 화면이 정리된 실제 상태를 보여 준다.
-    // `force`라 열 때마다 돈다(게스트 입장 경로의 5분 챨다운과 별개).
+    // `force`라 열 때마다 돈다(게스트 입장 경로의 5분 쿨다운과 별개).
     const guests = await cleanupExpiredGuests(db, { force: true, limit: GUEST_ADMIN_CLEANUP_LIMIT });
     const guestsCleaned = Number(guests?.deletedCount ?? 0);
     if (view === 'status') {
