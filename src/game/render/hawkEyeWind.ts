@@ -1,4 +1,4 @@
-import { Graphics, Sprite, type Container, type Texture } from 'pixi.js';
+import { Graphics, type Container } from 'pixi.js';
 import type { CombatEngine } from '../combat/engine';
 import { jobOrDefault } from '../skills';
 
@@ -10,7 +10,8 @@ import { jobOrDefault } from '../skills';
  *  - 줄은 방위각의 `sin` 부호로 몸 앞/몸 뒤를 갈라 그린다. 몸 뒤쪽 줄은 몸에 가려 실루엣 밖으로만
  *    비치고, 몸 앞쪽 줄은 몸통 가운데를 지날 때 옅어져 "가로지르는 사선"이 아니라 "옆구리를 타는
  *    바람"으로 읽힌다. 얼굴 높이에서는 앞쪽 줄을 그리지 않는다(표정을 덮지 않는다).
- *  - 작은 바람 알갱이가 함께 떠오르고, 몸에는 아주 옅은 청록 빛무리만 깔린다.
+ *  - 작은 바람 알갱이가 함께 떠오른다.
+ *  - **몸에 빛무리(글로우)는 깔지 않는다** — 발동 중에도 궁수 몸은 빛나지 않고, 리본과 알갱이만 돈다.
  *  - 발밑에 눕는 마법진 링은 없다(전사 블러드 레이지와 같은 처리 — `field.ts`·`entities.ts`).
  *
  * 좌표는 화면 픽셀이고 `body`는 캐릭터 머리~발 높이다(`heroBodyFraction`). 발끝이 `(x, y)`이며
@@ -59,16 +60,6 @@ export const windRibbons: readonly WindRibbon[] = [
   { phase: .35, twist: 7.0, speed: .55, reach: .62, foot: .20, bulge: .190, alpha: .80, tint: WIND_COLORS.bright },
   { phase: 3.15, twist: -5.6, speed: -.38, reach: .52, foot: .12, bulge: .160, alpha: .70, tint: WIND_COLORS.cool }
 ];
-
-/**
- * 몸을 은은하게 감도는 빛무리(가산). 발밑 링을 없앤 자리를 대신해
- * "바람이 감돈다"를 한눈에 읽히게 하되, 갑옷 색을 바꾸지 않을 만큼 옅게 둔다.
- * `rx`·`ry`는 `body` 배율, `y`는 발끝 기준(위가 음수).
- */
-export const windGlows = [
-  { y: -.46, rx: .48, ry: .54, alpha: .30 },
-  { y: -.28, rx: .34, ry: .38, alpha: .20 }
-] as const;
 
 /** 그려야 할 선분 하나 — 순수 계산이라 테스트와 시안 렌더가 그대로 쓴다. */
 export type WindSegment = {
@@ -159,12 +150,18 @@ export function windMotes(time: number, intensity: number, body: number): WindMo
 /** 오라를 그리는 데 필요한 뷰의 두 레이어 — 둘 다 가산(`add`)이다(히어로 뒤/앞). */
 export type HawkEyeWindView = { windBack: Container; windFront: Container };
 
-type WindState = { back: Graphics; front: Graphics; glows: Sprite[] };
+type WindState = { back: Graphics; front: Graphics };
 
-const windStates = new WeakMap<object, WindState>();
+/**
+ * 상태 캐시 키는 `view`(호출부가 프레임마다 새로 만드는 래퍼)가 아니라 `view.windBack`
+ * (`render.ts`가 계속 들고 있는 레이어)이다. 래퍼로 캐시하면 매 프레임 `Graphics`를 새로 붙여
+ * 그 오브젝트가 화면에 영원히 쌓였다 — 사용자 신고 "궁수한테 빛이 계속 따라다녀"([핫픽스]).
+ */
+const windStates = new WeakMap<Container, WindState>();
 
-function windStateFor(view: HawkEyeWindView, glowTexture: Texture): WindState {
-  const existing = windStates.get(view);
+function windStateFor(view: HawkEyeWindView): WindState {
+  const key = view.windBack;
+  const existing = windStates.get(key);
   if (existing) return existing;
   const back = new Graphics();
   const front = new Graphics();
@@ -172,18 +169,8 @@ function windStateFor(view: HawkEyeWindView, glowTexture: Texture): WindState {
   front.blendMode = 'add';
   view.windBack.addChild(back);
   view.windFront.addChild(front);
-  const glows = windGlows.map(() => {
-    const glow = new Sprite(glowTexture);
-    glow.anchor.set(.5);
-    glow.blendMode = 'add';
-    glow.tint = WIND_COLORS.cool;
-    glow.alpha = 0;
-    glow.visible = false;
-    view.windBack.addChild(glow);
-    return glow;
-  });
-  const state: WindState = { back, front, glows };
-  windStates.set(view, state);
+  const state: WindState = { back, front };
+  windStates.set(key, state);
   return state;
 }
 
@@ -192,24 +179,14 @@ function windStateFor(view: HawkEyeWindView, glowTexture: Texture): WindState {
  * 궁수가 아니면 아무것도 그리지 않는다(전사 블러드 레이지·마법사 아케인 실드는 그대로).
  */
 export function drawHawkEyeWindAura(
-  view: HawkEyeWindView, world: CombatEngine, x: number, y: number, time: number, _dt: number, body: number,
-  glowTexture: Texture
+  view: HawkEyeWindView, world: CombatEngine, x: number, y: number, time: number, _dt: number, body: number
 ): void {
-  const state = windStateFor(view, glowTexture);
+  const state = windStateFor(view);
   state.back.clear();
   state.front.clear();
   const cast = world.effects.find(effect => effect.kind === 'hawk');
   const intensity = jobOrDefault(world.save.job) === 'archer' ? hawkEyeWindIntensity(world.player.berserk, cast?.age) : 0;
-  // ① 몸을 감도는 은은한 빛무리 — 가산이라 갑옷 색을 덮지 않는다.
-  for (const [index, glow] of windGlows.entries()) {
-    const sprite = state.glows[index];
-    const pulse = .9 + .1 * Math.sin(time * 2.1 + index * 1.7);
-    sprite.visible = intensity > 0;
-    sprite.position.set(x, y + glow.y * body);
-    sprite.scale.set(glow.rx * 2 * body / glowTexture.width, glow.ry * 2 * body / glowTexture.height);
-    sprite.alpha = glow.alpha * intensity * pulse;
-  }
-  // ② 옅은 바람 리본 두 줄.
+  // ① 옅은 바람 리본 두 줄 — 몸에 빛무리는 깔지 않는다(리본·알갱이만).
   for (const ribbon of windRibbons) {
     for (const segment of windRibbonSegments(ribbon, time, intensity, body)) {
       if (!(segment.alpha > 0)) continue;
@@ -218,7 +195,7 @@ export function drawHawkEyeWindAura(
         .stroke({ color: segment.tint, width: segment.width, alpha: Math.min(1, segment.alpha) });
     }
   }
-  // ③ 바람 알갱이.
+  // ② 바람 알갱이.
   for (const mote of windMotes(time, intensity, body)) {
     if (!(mote.alpha > 0)) continue;
     state.front.circle(x + mote.x, y + mote.y, mote.size).fill({ color: mote.tint, alpha: mote.alpha });

@@ -1052,7 +1052,8 @@ export function drawEntities(this: GameView, world: CombatEngine, project: (x: n
     drawBloodRageAura(this, world, hx, hy, time, dt, h * heroBodyFraction, this.textures.fxFlame, this.textures.fxRageGlow);
     // [작업 261] 궁수 호크아이는 발밑 마법진 대신 몸을 감아 올라가는 옅은 바람 오라로 그린다.
     // 히어로 뒤/앞 가산 레이어(`rageBack`·`rageFront`)를 직업별 오라가 나눠 쓴다.
-    drawHawkEyeWindAura({ windBack: this.rageBack, windFront: this.rageFront }, world, hx, hy, time, dt, h * heroBodyFraction, this.textures.fxRageGlow);
+    // 레이어를 그대로 넘기므로 래퍼 객체가 매 프레임 새로 만들어져도 상태는 레이어 기준으로 캐시된다.
+    drawHawkEyeWindAura({ windBack: this.rageBack, windFront: this.rageFront }, world, hx, hy, time, dt, h * heroBodyFraction);
     // 마법사 아케인 실드는 종전의 발밑 마법진을 그대로 쓴다.
     if (world.player.berserk > 0 && jobOrDefault(world.save.job) === 'mage') {
       const rage = world.effects.find(effect => effect.kind === 'warcry');
