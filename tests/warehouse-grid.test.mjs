@@ -476,3 +476,62 @@ test('일괄 보관·꺼내기는 아이템 수만큼 DB를 왕복하지 않는�
   assert.match(block, /DELETE FROM djrpg_warehouse WHERE account_id=\? AND item_id IN \(\$\{marks\}\)/);
   assert.equal((block.match(/INSERT INTO djrpg_warehouse/g) ?? []).length, 1, '보관 INSERT도 1문장(다중 VALUES)');
 });
+
+// 작업 253 — 사용자 제보(11-21) "로딩인지 모르겠음": 옮기는 동안 버튼이 잠기고 문구가 `보관 중…`/`꺼내는 중…`으로 바뀐다.
+test('옮기는 동안 선택 버튼·상세 버튼은 잠기고 `보관 중…`/`꺼내는 중…`으로 바뀐다(작업 253)', async () => {
+  const previous = globalThis.document;
+  globalThis.document = { createElement: tag => element(tag) };
+  try {
+    const save = freshSave(); save.job = 'warrior';
+    save.bag = [sword('w1'), helmet('h1')];
+    const stored = { id: 's9', name: '창고 검', slot: 'weapon', rarity: 'epic', stats: { attack: 30 } };
+    const { ui } = uiFixture(save, [stored]);
+    const gates = { deposit: [], withdraw: [] };
+    ui.market.sync.transferWarehouse = async (action, ids) => {
+      await new Promise(resolve => gates[action].push(resolve));
+      if (action === 'deposit') {
+        const moving = save.bag.filter(item => ids.includes(item.id));
+        save.bag = save.bag.filter(item => !ids.includes(item.id));
+        ui.warehouseItems = [...(ui.warehouseItems ?? []), ...moving];
+      } else {
+        const back = (ui.warehouseItems ?? []).filter(item => ids.includes(item.id));
+        ui.warehouseItems = (ui.warehouseItems ?? []).filter(item => !ids.includes(item.id));
+        save.bag.push(...back);
+      }
+      return { ok: true, message: '옮겼습니다.', items: ui.warehouseItems, save };
+    };
+    const dialog = element();
+    renderWarehouse(ui, dialog);
+    const grids = () => all(dialog, node => node.classList.contains('warehouse-grid'));
+    const bagCell = id => cellsIn(grids()[1]).find(cell => cell.dataset.itemId === id);
+    const storageCell = id => cellsIn(grids()[0]).find(cell => cell.dataset.itemId === id);
+    const headerButton = name => all(dialog, node => node.classList.contains(name))[0];
+    const moveButton = () => all(dialog, node => node.classList.contains('warehouse-move'))[0];
+
+    // ① 보관 — 상세 버튼·선택 보관 버튼이 함께 잠기고 `보관 중…`.
+    bagCell('w1').onclick();
+    assert.equal(moveButton().textContent, '보관하기', '누르기 전에는 보관하기');
+    moveButton().onclick();
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(moveButton().disabled, true, '상세 버튼이 잠긴다');
+    assert.equal(moveButton().textContent, '보관 중…', '상세 버튼 문구가 바뀐다');
+    assert.equal(headerButton('warehouse-deposit-picked').disabled, true, '선택 보관 버튼도 잠긴다');
+    assert.equal(headerButton('warehouse-deposit-picked').textContent, '보관 중…');
+    gates.deposit.shift()();
+    await new Promise(resolve => setImmediate(resolve));
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(bagCell('w1'), undefined, '응답 뒤 가방에서 빠진다');
+
+    // ② 꺼내기 — 창고 칸을 고르고 선택 꺼내기 버튼을 누르면 `꺼내는 중…`.
+    storageCell('s9').onclick();
+    assert.equal(headerButton('warehouse-withdraw-picked').textContent, '선택 꺼내기 (1)', '누르기 전 문구');
+    headerButton('warehouse-withdraw-picked').onclick();
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(headerButton('warehouse-withdraw-picked').disabled, true, '선택 꺼내기 버튼이 잠긴다');
+    assert.equal(headerButton('warehouse-withdraw-picked').textContent, '꺼내는 중…');
+    gates.withdraw.shift()();
+    await new Promise(resolve => setImmediate(resolve));
+    await new Promise(resolve => setImmediate(resolve));
+    assert(bagCell('s9'), '응답 뒤 가방에 들어온다');
+  } finally { globalThis.document = previous; }
+});

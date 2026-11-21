@@ -205,15 +205,18 @@ export function renderWarehouse(ui: Interface, dialog: HTMLElement): void {
     const showDeposit = bagIds.length > 0;
     const showWithdraw = storageIds.length > 0;
     depositPicked.hidden = !showDeposit; withdrawPicked.hidden = !showWithdraw;
-    depositPicked.textContent = `선택 보관 (${bagIds.length})`;
-    withdrawPicked.textContent = `선택 꺼내기 (${storageIds.length})`;
+    const depositBusy = busyOn(bagIds);
+    const withdrawBusy = busyOn(storageIds);
+    // 옮기는 중이면 문구부터 바뀡다(작업 253, 사용자 제보 "로딩인지 모르겠음") — 눌렀는지 아닌지 바로 보이게.
+    depositPicked.textContent = depositBusy ? '보관 중…' : `선택 보관 (${bagIds.length})`;
+    withdrawPicked.textContent = withdrawBusy ? '꺼내는 중…' : `선택 꺼내기 (${storageIds.length})`;
     const depositFull = warehouseCount + bagIds.length > 40;
     // 옮기는 중에는 다시 누를 수 없다 — 같은 아이템을 두 번 보내 409를 받지 않게 한다(작업 250).
-    depositPicked.disabled = depositFull || busyOn(bagIds);
+    depositPicked.disabled = depositFull || depositBusy;
     depositPicked.title = depositFull ? '공용창고가 가득 차 선택한 만큼 보관할 수 없습니다.' : `${bagIds.length}개를 공용창고에 보관합니다.`;
     // 꺼내기도 가방 40칸을 넘길 수 없다(작업 248) — 스킬북·보물 주머니도 칸을 쓴다.
     const withdrawFull = bagCount + storageIds.length > 40;
-    withdrawPicked.disabled = withdrawFull || busyOn(storageIds);
+    withdrawPicked.disabled = withdrawFull || withdrawBusy;
     withdrawPicked.title = withdrawFull ? '가방이 가득 차 선택한 만큼 꺼낼 수 없습니다. 가방을 비운 뒤 다시 시도하세요.' : `${storageIds.length}개를 가방으로 꺼냅니다.`;
 
     paintGrid(ui, storageGrid, 'storage', storageStacks, state);
@@ -423,9 +426,12 @@ function paintDetail(ui: Interface, save: Save, detail: HTMLElement, state: Ware
     ? (ui.warehouseItems?.length ?? 0) + targetIds.length > 40
     : equipmentCount(save.bag, save.job) + targetIds.length > 40;
   const moveButton = document.createElement('button'); moveButton.type = 'button'; moveButton.className = 'warehouse-move';
-  moveButton.textContent = multi
-    ? `선택 ${focus.side === 'storage' ? '꺼내기' : '보관'} (${pickedIds.length})`
-    : `${focus.side === 'storage' ? '꺼내기' : '보관하기'}${stack.items.length > 1 ? ` (${stack.items.length})` : ''}`;
+  // 옮기는 중에는 버튼 문구도 "지금 하고 있다"로 바뀡다(작업 253, 사용자 제보 "로딩인지 모르겠음").
+  moveButton.textContent = moving
+    ? (focus.side === 'storage' ? '꺼내는 중…' : '보관 중…')
+    : multi
+      ? `선택 ${focus.side === 'storage' ? '꺼내기' : '보관'} (${pickedIds.length})`
+      : `${focus.side === 'storage' ? '꺼내기' : '보관하기'}${stack.items.length > 1 ? ` (${stack.items.length})` : ''}`;
   moveButton.disabled = moving || full;
   if (full) moveButton.title = focus.side === 'bag' ? '공용창고가 가득 찼습니다.' : '가방이 가득 차 꺼낼 수 없습니다.';
   else if (multi) moveButton.title = `선택한 ${pickedIds.length}개를 한꺼번에 ${focus.side === 'storage' ? '가방으로 꺼냅니다' : '공용창고에 보관합니다'}.`;

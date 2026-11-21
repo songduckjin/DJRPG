@@ -664,6 +664,8 @@ img.pouch-icon { display: block; object-fit: contain; border-radius: 4px; }
 .warehouse-batch { border: 1px solid #c8a26a; border-radius: 4px; background: linear-gradient(#6d492b, #3a281f); color: #ffe0a6; padding: 5px 9px; font-size: 11px; font-weight: 700; touch-action: manipulation; box-shadow: 0 0 7px #d5aa4933; }
 .warehouse-batch[hidden], .warehouse-detail[hidden] { display: none; }
 .warehouse-batch:disabled { opacity: .45; }
+/* 옮기는 중(작업 253) — 버튼이 잠기고 문구가 `보관 중…`/`꺼내는 중…`으로 바뀐다. 커서로도 대기임을 알린다. */
+.warehouse-batch:disabled, .warehouse-detail-actions .warehouse-move:disabled { cursor: progress; }
 .warehouse-panes { display: flex; flex: 0 1 auto; flex-direction: column; gap: 5px; min-height: 0; overflow: hidden; }
 .warehouse-pane { display: flex; flex: 1 1 auto; flex-direction: column; min-height: 126px; max-height: 44dvh; padding: 3px 5px 4px; border: 1px solid #4c3f39; background: #1c171a; }
 .warehouse-pane-title { flex: none; margin: 0 0 3px; color: #e0c79f; font-size: 11.5px; font-variant-numeric: tabular-nums; }
