@@ -72,6 +72,24 @@ export type ArrowVariant = 'normal' | 'ice' | 'pierce' | 'snipe' | 'volley' | 'a
 export type Action = 'attack' | SkillId;
 /** 적 공격 모션 길이(작업 245) — 이 시간 동안 적이 플레이어 쪽으로 내딛고, 끝나면 제자리로 돌아온다. */
 export const ENEMY_STRIKE_SECONDS = .42;
+/** 전사 평타의 사거리(월드 단위) — 전사는 이 거리 안의 적을 벤다. */
+export const WARRIOR_ATTACK_RANGE = 90;
+/** 몬스터의 공격 사거리(작업 254) — **전사 평타와 같은 90**으로 통일했다.
+ *
+ *  종전에는 적이 히어로 몸에 닿아야(35) 때렸다. 그래서 전사는 90에서 일방적으로 벨 수 있었고
+ *  적은 몸이 닿아야 반격했다. 이제 적도 **90 안이면 때린다** — 히어로가 벨 수 있는 자리에서
+ *  곧바로 반격을 받는다(맞사거리가 양쪽 모두 90). 던전도 같은 상수를 쓴다
+ *  (`ui/dungeonBattle.ts`의 0.9초 피격). */
+export const ENEMY_ATTACK_RANGE = WARRIOR_ATTACK_RANGE;
+/** 몬스터가 서는(걷기를 멈추는) 거리 — 공격 사거리(90)보다 **안쪽인 60**이다(작업 254).
+ *
+ *  서는 자리를 사거리와 똑같이 90으로 두면, 히어로의 평타가 적을 16유닛 밀어내는 넉백 때문에
+ *  적이 매 타격마다 사거리 밖으로 튕겨 나가고 히어로가 다시 걸어 들어가야 한다 — 때리고 걷고를
+ *  반복하는 딸꾹질이 된다. 60은 ① 그 16유닛을 밀려도 76이라 사거리(90) 안에 남고 ② 서기는
+ *  화면에서 약 57px(적·히어로 몹 높이 66px 안팎)라 몸이 겹치지 않으면서 공격 모션의 16px
+ *  내딛기(보스 26px)가 닿는 자리다. 예전 정지 거리는 27이었다 — 적이 히어로 몸 위에 올라서
+ *  여러 마리가 한 점에 겹쳤다. */
+export const ENEMY_STOP_RANGE = 60;
 /** 치명타(작업 245) — 장비 추가옵션 `치명타 확률`·패시브를 합산한 스탯 `crit`이 곧 발동 확률(%)이다.
  *  배수는 1.8배, 확률 상한은 80%(넘는 값은 80%로 자른다). */
 export const CRIT_CHANCE_CAP = 80;
@@ -200,6 +218,13 @@ export class World {
   private swing = 1;
   private chaseTarget?: Enemy;
   private pursuing = false;
+  /**
+   * 캐릭터 전환 세대(작업 250) — `adoptSave`가 한 번 올린다.
+   *
+   * 새로고침 없이 캐릭터를 같아타면 세이브 객체는 그대로고 내용만 바뀌어, 그리기 쪽은 "같은
+   * 세이브"와 "다른 캐릭터"를 구별할 수 없다. 이 값을 비교해 파츠 스프라이트·발광·잔상을 버린다.
+   */
+  switchEpoch = 0;
   onChange: () => void = () => {};
   onMessage: (text: string) => void = () => {};
   /** Live auto-salvage (작업 196): the grade the player chose, or `undefined` while the switch is off.
@@ -251,6 +276,9 @@ export class World {
    * 필드에 남아 있던 몹·드랍·연출·쿨타임·보스 상태는 생성자와 같은 초기값으로 되돌린다.
    */
   adoptSave(save: Save): void {
+    // 그리기 쪽이 "캐릭터가 갈아탔다"를 알아야 이전 직업의 파츠·잔상을 지울 수 있다(작업 250).
+    // 세이브 객체 정체성은 그대로라 값만으로는 전환을 알 수 없으므로 세대를 하나 올린다.
+    this.switchEpoch += 1;
     const target = this.save as unknown as Record<string, unknown>;
     for (const key of Object.keys(target)) delete target[key];
     Object.assign(this.save, save);
@@ -273,11 +301,13 @@ export class World {
    *  아래층을 반복 사냥할 때는 보스가 뜨지 않고 일반·정예만 계속 나온다. */
   bossFloor(): boolean { return this.save.floor >= this.save.maxFloor; }
 
-  /** `⚔ 보스 도전` 버튼이 살아나는 상태 — 최고 도달 층에서 보스에게 한 번 쓰러진 뒤다.
+  /** `⚔ 보스 도전` 버튼이 살아나는 상태 — 보스에게 한 번 쓰러진 뒤다.
    *  작업 212(`#5017`): 자동 등반이 **켜져 있어도** 버튼을 띄운다 — 일반 몹을 다시 잡아
    *  목표를 채우기 전이라도 바로 보스에게 다시 도전할 수 있다.
+   *  작업 245: 몹이 쌓여 아래층으로 강등돼도 버튼은 그대로 남는다(`this.bossFloor()` 제한 없음).
+   *  누르면 최고층으로 올라가 보스와 붙는다(`challengeBoss`).
    *  마지막 층(`MAX_FLOOR`)은 다음 층이 없으므로 버튼을 띄우지 않는다. */
-  get bossRetryReady(): boolean { return this.bossFloor() && this.bossRetryAvailable && this.save.floor < MAX_FLOOR; }
+  get bossRetryReady(): boolean { return this.bossRetryAvailable && this.save.maxFloor < MAX_FLOOR; }
 
   /**
    * `⚔ 보스 도전`(작업 210 → 212, 사용자 지시 `#4566` "패배시에만 활성화 … 계속 다시 도전해도 돼",
@@ -288,6 +318,9 @@ export class World {
    * 보스를 이겨 다음 층으로 올라가면 버튼은 사라진다. */
   challengeBoss(): boolean {
     if (!this.bossRetryReady) return false;
+    // 강등돼 아래층에 있어도 도전은 **최고층 보스**에게 한다(작업 245) — 먼저 최고층으로 올라간다.
+    // `travelToFloor`는 바닥 드랍·진행도·몹을 정리하고, 아래에서 보스 예약을 다시 세운다.
+    if (this.save.floor < this.save.maxFloor) this.travelToFloor(this.save.maxFloor);
     this.save.autoClimb = true;
     this.save.floorKills = Math.max(this.save.floorKills, floorKillTarget(this.save.floor));
     this.enemies = []; this.chaseTarget = undefined; this.pursuing = false; this.activeMove = { x: 0, y: 0 };
@@ -339,7 +372,7 @@ export class World {
     if (kind !== 'attack' && (!this.save.learned.includes(kind) || !this.save.quickSlots.includes(kind))) { this.onMessage('습득하고 퀵슬롯에 장착한 스킬만 사용할 수 있습니다.'); return; }
     const p = this.player;
     const level = kind === 'attack' ? 1 : skillLevel(this.save, kind);
-    const range = kind === 'attack' ? 90 : skillRange(kind, level);
+    const range = kind === 'attack' ? WARRIOR_ATTACK_RANGE : skillRange(kind, level);
     const damageScale = skillDamageScale(level);
     const stats = totalStats(this.save);
     // [작업 216] 광폭 버프(블러드 레이지·호크아이·아케인 실드)의 공속은 +20%에서 시작해 스킬 레벨당 +1%,
@@ -372,7 +405,7 @@ export class World {
       this.effects.push({ x: p.x, y: p.y, kind: 'slash', age: 0, duration: .25, angle, swing: this.swing });
       this.swing *= -1;
       // 평타는 한 마리만: 사거리·부채꼴 안에서 가장 가까운 적 한 마리를 공격력 ×1.6으로 때린다(스킬은 종전대로 광역).
-      this.damage(90, attack * basicAttackPower, angle, 1.15, 12, 0, p, 1);
+      this.damage(WARRIOR_ATTACK_RANGE, attack * basicAttackPower, angle, 1.15, 12, 0, p, 1);
     } else if (kind === 'slash2') {
       // 이단참(작업 213): 발동 즉시 정방향 횡베기, 0.18초 뒤 되받아 베기가 각각 따로 들어간다.
       // `power`에는 두 타에 공통으로 곱할 기본 위력(공격력 × 스킬레벨 배율)을 실어 두고,
@@ -654,8 +687,20 @@ export class World {
         if (this.eliteKills >= ELITE_KILL_INTERVAL) { this.eliteKills = 0; this.elitePending = true; }
       }
       if (!this.bossFloor()) {
-        // 아래층 반복 사냥에는 보스가 없다(작업 210) — 목표를 채우면 0으로 돌리고 일반·정예만 계속 나온다.
-        if (this.save.floorKills >= floorKillTarget(this.save.floor)) this.save.floorKills = 0;
+        // 아래층 반복 사냥에는 보스가 없다(작업 210).
+        // 작업 245: 자동 등반이 **켜져** 있으면 아래층에서도 목표를 채울 때마다 한 층씩 올라간다.
+        // 자동 등반이 꺼진 상태(강등 직후 등)에는 예전처럼 목표를 0으로 돌리고 그 층에서 계속 사냥한다.
+        if (this.save.floorKills >= floorKillTarget(this.save.floor)) {
+          if (this.save.autoClimb) {
+            this.save.floor++;
+            this.save.floorKills = 0;
+            this.enemies = []; this.chaseTarget = undefined; this.pursuing = false;
+            this.spawnTimer = .2; this.elitePending = false;
+            this.onMessage(`${this.save.floor}층 진입`);
+          } else {
+            this.save.floorKills = 0;
+          }
+        }
       } else if (this.save.autoClimb && this.save.floorKills >= floorKillTarget(this.save.floor) && !this.bossPending && !this.enemies.some(e => e.boss)) {
         // 자동 등반 중이면 목표를 채울 때마다 보스가 저절로 온다(작업 212 `#5017`).
         // 보스에게 지고 1마리부터 다시 잡는 중에도 여기로 다시 보스가 나타난다.
@@ -700,8 +745,8 @@ export class World {
       if (destination !== this.chaseTarget) { this.chaseTarget = destination; this.pursuing = false; }
       // Keep the production boundary fix while loot now flies to the hero.
       // 궁수·마법사는 사거리 밖에서만 다가가고, 사거리 안에서는 서서 쏜다(작업 157·159).
-      const stopRange = this.job === 'archer' ? archerStopRange : this.job === 'mage' ? mageStopRange : 90;
-      const attackRange = this.job === 'archer' ? archerAttackRange : this.job === 'mage' ? mageAttackRange : 90;
+      const stopRange = this.job === 'archer' ? archerStopRange : this.job === 'mage' ? mageStopRange : WARRIOR_ATTACK_RANGE;
+      const attackRange = this.job === 'archer' ? archerAttackRange : this.job === 'mage' ? mageAttackRange : WARRIOR_ATTACK_RANGE;
       const engageRange = this.job === 'archer' ? archerAttackRange + 24 : this.job === 'mage' ? mageAttackRange + 24 : 190;
       this.pursuing = distance >= stopRange;
       this.activeMove = this.pursuing && distance > 0 ? { x: dx / distance, y: dy / distance } : { x: 0, y: 0 };
@@ -764,13 +809,18 @@ export class World {
       this.enemies = [];
       this.chaseTarget = undefined; this.pursuing = false;
       this.bossPending = false; this.elitePending = false; this.spawnTimer = .2;
-      this.onMessage(`적이 너무 많아 ${this.save.floor}층으로 내려갑니다.`);
+      // 자동 등반은 **강등당했을 때만** 꺼진다(작업 245). 다시 켜면 이 층부터 목표를 채워 한 층씩 올라가고,
+      // `⚔ 보스 도전`은 그대로 남아 최고층 보스에게 다시 도전할 수 있다.
+      this.save.autoClimb = false;
+      this.onMessage(`적이 너무 많아 ${this.save.floor}층으로 내려갑니다. 자동 등반이 중단됩니다.`);
       this.onChange();
     }
     for (const enemy of this.enemies) {
       const dx = p.x - enemy.x, dy = p.y - enemy.y, d = Math.hypot(dx, dy);
       enemy.attack = Math.max(0, (enemy.attack ?? 0) - dt);
-      enemy.moving = d > 27;
+      // 적은 공격 사거리(90) 안으로 들어오면 때리고, 서는 자리는 60까지다(작업 254) —
+      // 종전에는 히어로 몸(27)까지 파고들어 여러 마리가 한 점에 겹쳐 섰다.
+      enemy.moving = d > ENEMY_STOP_RANGE;
       if (enemy.moving && d > 0) { const step = enemyMoveSpeed(this.save.floor, enemy.boss) * (enemy.slow > 0 ? .55 : 1) * dt; enemy.x += dx / d * step; enemy.y += dy / d * step; enemy.step += dt * Math.PI * (enemy.boss ? 3.25 : 4.25); }
       enemy.x += enemy.knockX * dt; enemy.y += enemy.knockY * dt;
       // 적은 아레나가 아니라 **필드 경계**로 자른다(작업 230) — 아레나로 자르면 멀리 스폰된 적이 첫
@@ -778,7 +828,7 @@ export class World {
       const bounded = clampFieldPoint(enemy.x, enemy.y); enemy.x = bounded.x; enemy.y = bounded.y;
       enemy.knockX *= Math.exp(-dt * 12); enemy.knockY *= Math.exp(-dt * 12);
       enemy.slow = Math.max(0, enemy.slow - dt);
-      if (d < 35 && p.hit <= 0) {
+      if (d <= ENEMY_ATTACK_RANGE && p.hit <= 0) {
         // 적의 공격 모션(작업 245): 때리는 적이 플레이어 쪽으로 내딛는다(`enemy.attack`).
         enemy.attack = ENEMY_STRIKE_SECONDS;
         // 추가옵션 회피율(작업 238, 합산 상한 30%): 맞을 순간 한 번 굴려 성공하면 피해를 통째로 무시하고
@@ -808,23 +858,23 @@ export class World {
             // 진 층을 세이브에 남긴다(작업 223) — 새로고침·재접속에도 `⚔ 보스 도전`이 살아 있다.
             this.save.bossRetryFloor = this.save.floor;
             this.enemies = this.enemies.filter(other => !other.boss);
-          } else {
-            this.save.autoClimb = false;
-            // 보스에게 진 경우에만 도전 버튼을 살린다(작업 222, 사용자 확인 `#5792` "각 층 끝까지 등반해서
-            // 실패해야 떠야되는데"). 일반·정예 몹에게 진 것으로는 켜지 않고, 이미 보스에게 져서 켜져 있던
-            // 상태도 건드리지 않는다.
-            if (this.bossFloor() && enemy.boss) {
-              this.bossRetryAvailable = true;
-              // 진 층을 세이브에 남긴다(작업 223) — 4층으로 올라갈 때까지 버튼이 유지된다.
-              this.save.bossRetryFloor = this.save.floor;
-            }
+          } else if (this.bossFloor() && enemy.boss) {
+            // 자동 등반이 꺼진 채 보스에게 진 경우에만 도전 버튼을 살린다(작업 222, 사용자 확인 `#5792`).
+            // 일반·정예 몹에게 진 것으로는 켜지 않고, 이미 보스에게 져서 켜져 있던 상태도 건드리지 않는다.
+            this.bossRetryAvailable = true;
+            // 진 층을 세이브에 남긴다(작업 223) — 4층으로 올라갈 때까지 버튼이 유지된다.
+            this.save.bossRetryFloor = this.save.floor;
           }
+          // 작업 245: 일반·정예 몹에게 쓰러져도 자동 등반은 **끄지 않는다** — 10골드를 잃고 부활해 계속
+          // 사냥한다. 자동 등반이 꺼지는 곳은 몹이 쌓여 한 층 강등될 때(위 `MOB_CAP` 블록)뿐이다.
           p.hp = totalStats(this.save).health; this.save.health = p.hp; p.x = 0; p.y = 0; this.chaseTarget = undefined; this.pursuing = false;
           this.regenClock = 0;
           this.save.gold = Math.max(0, this.save.gold - 10);
           this.onMessage(climbOn
             ? '쓰러졌습니다. 10골드를 잃고 부활했습니다. 1마리부터 다시 잡으면 보스가 다시 나타납니다.'
-            : '쓰러졌습니다. 10골드를 잃고 부활했습니다. 자동 등반이 중단됩니다.');
+            : this.save.autoClimb
+              ? '쓰러졌습니다. 10골드를 잃고 부활했습니다. 자동 등반은 계속됩니다.'
+              : '쓰러졌습니다. 10골드를 잃고 부활했습니다.');
           this.onChange();
         }
       }
@@ -853,8 +903,9 @@ export class World {
         // A piece auto-salvage will take needs no bag room, so it flies in even when the bag is full.
         if (!canStoreItem(this.save.bag, drop.item, this.job) && !this.sweeps(drop.item)) {
           // 가방 40칸 만석(작업 209): 새 장비를 두기 전에 가방 안의 설정 이하 장비를 먼저 분해해 칸을 만든다.
+          // 40칸에는 타직업 스킬북·보물 주머니도 포함한다(내 직업 스킬북 제외, 작업 253).
           if (!this.sweepFullBag()) {
-            if (!drop.warned) { drop.warned = true; this.onMessage('가방이 가득 찼습니다. 장비를 분해하세요.'); }
+            if (!drop.warned) { drop.warned = true; this.onMessage('가방이 가득 찼습니다. 아이템을 분해하거나 공용창고에 보관하세요.'); }
             continue;
           }
         }
@@ -868,6 +919,15 @@ export class World {
         drop.age = -1;
         this.onChange();
         continue;
+      }
+      // 날아온 사이에 다른 드롭이 먼저 칸을 채웠을 수 있다 — 넣기 **직전에** 다시 확인한다(작업 248).
+      // (같은 프레임에 여러 개가 흡수를 시작해도 가방이 40칸을 넘지 않는다.)
+      if (!canStoreItem(this.save.bag, drop.item, this.job)) {
+        if (!this.sweepFullBag() || !canStoreItem(this.save.bag, drop.item, this.job)) {
+          drop.absorb = undefined;
+          if (!drop.warned) { drop.warned = true; this.onMessage('가방이 가득 찼습니다. 아이템을 분해하거나 공용창고에 보관하세요.'); }
+          continue;
+        }
       }
       this.save.bag.push(drop.item);
       drop.age = -1;

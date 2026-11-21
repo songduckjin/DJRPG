@@ -2,8 +2,9 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import './ts-loader.mjs';
-const {DungeonBattle,dungeonDropChance,DUNGEON_DROP_CHANCE_BASE,DUNGEON_DROP_CHANCE_MAX,DUNGEON_DROP_CHANCE_STEP,DUNGEON_MOB_HP,DUNGEON_BOSS_HP_SCALE,DUNGEON_ELITE_HP_SCALE,dungeonMobHp,DUNGEON_ENEMY_SPEED_SCALE,DUNGEON_SPAWN_STEPS,DUNGEON_LOOT_FAN,DUNGEON_ABSORB_DELAY,dungeonSpawnPull,dungeonLootSpots,dungeonLootTimeline,dungeonAbsorbProgress,dungeonAbsorbPoint}=await import('../src/ui/dungeonBattle.ts');
-const {World,enemyMoveSpeed}=await import('../src/game/world.ts');
+const {DungeonBattle,DUNGEON_STEP,dungeonDropChance,DUNGEON_DROP_CHANCE_BASE,DUNGEON_DROP_CHANCE_MAX,DUNGEON_DROP_CHANCE_STEP,DUNGEON_MOB_HP,DUNGEON_BOSS_HP_SCALE,DUNGEON_ELITE_HP_SCALE,dungeonMobHp,DUNGEON_ENEMY_SPEED_SCALE,DUNGEON_SPAWN_STEPS,DUNGEON_LOOT_FAN,DUNGEON_ABSORB_DELAY,dungeonSpawnPull,dungeonLootSpots,dungeonLootTimeline,dungeonAbsorbProgress,dungeonAbsorbPoint}=await import('../src/ui/dungeonBattle.ts');
+const {clampArenaPoint,projectArenaPoint}=await import('../src/game/arena.ts');
+const {World,enemyMoveSpeed,ENEMY_STOP_RANGE,ENEMY_ATTACK_RANGE}=await import('../src/game/world.ts');
 const bossLoot=await import('../src/game/bossLoot.ts');
 const goldPile=await import('../src/game/render/goldPile.ts');
 const {freshSave}=await import('../src/game/store.ts');
@@ -51,12 +52,59 @@ test('floor 1 is a beginner floor and the 10th boss needs a deep-farming kit ins
  for(const floor of [5,10])assert(dungeonMobHp(floor)*DUNGEON_BOSS_HP_SCALE>dungeonMobHp(floor)*6);
 });
 
-test('enemies spawn away, visibly approach, and hero does not chase into the next spawn',()=>{
+test('enemies spawn away, visibly approach, and the hero walks out to meet them',()=>{
+ // 작업 248 — 던전은 `DungeonWorld.update`가 매 프레임 히어로를 (50,50)으로 되돌리고 `activeMove`를 0으로
+ // 지워, 적이 다가오길 서서 기다리는 것처럼 보였다. 이제 필드처럼 가까운 적을 향해 `stopRange`까지 걷는다.
  const battle=new DungeonBattle(freshSave()),enemy=battle.world.enemies[0],p=battle.world.player;
  const start=Math.hypot(enemy.x-p.x,enemy.y-p.y);assert(start>150);
- run(battle,2);assert.deepEqual([p.x,p.y],[50,50]);assert(enemy.moving);assert(Math.hypot(enemy.x-p.x,enemy.y-p.y)<start);assert.equal(battle.finished,false);assert.equal(battle.world.slain,0);
- for(const target of battle.world.enemies)battle.world.kill(target);battle.world.enemies=[];battle.advance(.05);
- assert.equal(battle.wave,2);assert(battle.world.enemies.every(e=>Math.hypot(e.x-p.x,e.y-p.y)>150));
+ const origin={x:p.x,y:p.y};
+ run(battle,.5);
+ assert(enemy.moving);assert.equal(battle.finished,false);assert.equal(battle.world.slain,0);
+ // ① 자리를 지키지 않고 걸어 나간다(예전에는 0이었다 — 고정 위치로 되돌리느라 걸음이 지워졌다).
+ const walked=Math.hypot(p.x-origin.x,p.y-origin.y);
+ assert(walked>20,`the hero stood still at ${p.x},${p.y}`);
+ // ② 적의 걸음만으로 줄어들 거리보다 더 좁힌다 — 히어로가 실제로 다가간 몫이 있다.
+ const gap=Math.hypot(enemy.x-p.x,enemy.y-p.y),enemyWalk=enemyMoveSpeed(1,false)*DUNGEON_ENEMY_SPEED_SCALE*.5;
+ assert(gap<start-enemyWalk-5,`the hero added no ground: ${start.toFixed(1)} -> ${gap.toFixed(1)}`);
+ // ③ 방향도 가까운 적 쪽이다(화면 X는 `dx-dy`, 걸음은 등각 방향).
+ const first=battle.world.nearest();
+ assert(first&&(p.x-origin.x)*(first.x-origin.x)+(p.y-origin.y)*(first.y-origin.y)>0,'the hero walked away from the wave');
+ // ④ 다음 웨이브는 히어로가 서 있는 자리에서 떨어진 곳에 뜬다(코앞에 튀어나오지 않는다).
+ for(const target of [...battle.world.enemies])battle.world.kill(target);battle.world.enemies=[];battle.advance(.05);
+ assert.equal(battle.wave,2);
+ const closest=Math.min(...battle.world.enemies.map(e=>Math.hypot(e.x-p.x,e.y-p.y)));
+ assert(closest>60,`the next wave appeared ${closest.toFixed(1)} from the hero`);
+});
+
+test('the dungeon no longer leashes the hero: a wave that appears far away is still pursued',()=>{
+ // 예전 `nearest()`는 110 밖의 적을 없는 것으로 봐서, 150 넘게 뜨는 웨이브를 향해 걷지 않았다.
+ const battle=new DungeonBattle(freshSave()),p=battle.world.player,enemy=battle.world.nearest();
+ assert(enemy,'the dungeon cannot see its own wave');
+ const distance=Math.hypot(enemy.x-p.x,enemy.y-p.y);
+ assert(distance>110,`the wave already starts inside the old 110 leash (${distance.toFixed(1)})`);
+ const origin={x:p.x,y:p.y};
+ run(battle,.3);
+ assert(Math.hypot(p.x-origin.x,p.y-origin.y)>15,'the far wave is not worth a single step');
+});
+
+test('the hero fights from the room floor: inside the arena and never up at the exit door',()=>{
+ // 390×700·360×640 휴대폰에서 철문 문턱은 화면의 38%(dungeon.css `top:10%` + `height:28%`)다.
+ // 히어로가 그 위로 걸어 올라가 문을 뚫고 나가면 안 된다 — 아레나 경계와 문 아래 바닥을 함께 본다.
+ for(const floor of [1,4,5,10]){
+  // 10~20층을 파밍한 장비로 그 층을 실제로 끝까지 싸운다 — 문 쪽으로 가장 멀리 걸어간 순간까지 본다.
+  const save=freshSave();save.level=30;
+  save.equipment.weapon={id:'probe',name:'두손검',slot:'weapon',rarity:'legendary',stats:{attack:400}};
+  const battle=new DungeonBattle(save,floor,97531),p=battle.world.player;
+  for(let step=0;step<1800&&!battle.finished;step++){
+   battle.advance(DUNGEON_STEP);
+   const bounded=clampArenaPoint(p.x,p.y);
+   assert(Math.abs(bounded.x-p.x)<1e-9&&Math.abs(bounded.y-p.y)<1e-9,`floor ${floor}: the hero left the arena at ${p.x},${p.y}`);
+   for(const [width,height] of [[390,700],[360,640]]){
+    const [,screenY]=projectArenaPoint(p.x,p.y,width,height),sill=height*.38;
+    assert(screenY>sill+40,`floor ${floor}: the hero stands ${(sill-screenY).toFixed(0)}px above the ${width}×${height} door sill`);
+   }
+  }
+ }
 });
 test('second floor is a fresh encounter with full health and a harder, fixed mob',()=>{
  const save=freshSave(),before=structuredClone(save),first=new DungeonBattle(save),second=new DungeonBattle(save,2);
@@ -74,16 +122,14 @@ test('ten-floor preview uses solo bosses at 5/10 and stops its floor index at te
  assert.equal(new DungeonBattle(freshSave(),11).floor,10);
 });
 
-test('a dungeon mob drops an item on its own 15~20 percent rate, well above the field',()=>{
- // 실제 드롭률 (작업 205): 1층 15%에서 층마다 .5%p씩 올라 10층 19.5%(상한 20%).
- assert.equal(DUNGEON_DROP_CHANCE_BASE,.15);
- assert.equal(DUNGEON_DROP_CHANCE_STEP,.005);
- assert.equal(dungeonDropChance(1),.15);
- assert.equal(dungeonDropChance(10),.195);
+test('a dungeon mob drops an item on a flat five percent rate on every floor (작업 248)',()=>{
+ // 사용자 확정(11-21): 모든 층 5% 고정 — 깊어져도 드롭률은 그대로, 등급만 10층 구간 표가 올린다.
+ assert.equal(DUNGEON_DROP_CHANCE_BASE,.05);
+ assert.equal(DUNGEON_DROP_CHANCE_STEP,0);
+ assert.equal(DUNGEON_DROP_CHANCE_MAX,.05);
+ for(let floor=1;floor<=10;floor++)assert.equal(dungeonDropChance(floor),.05);
  // 10층 밖의 층은 10층으로 잘라 쓴다(던전 상한).
- assert.equal(dungeonDropChance(20),.195);
- assert(dungeonDropChance(10)<=DUNGEON_DROP_CHANCE_MAX);
- for(let floor=1;floor<10;floor++)assert(dungeonDropChance(floor)<dungeonDropChance(floor+1));
+ assert.equal(dungeonDropChance(20),.05);
  const battle=new DungeonBattle(freshSave());
  withRandom([.9],()=>battle.world.kill(battle.world.enemies[0]));
  assert.deepEqual(battle.world.loot.map(entry=>entry.kind),['gold']);
@@ -91,12 +137,12 @@ test('a dungeon mob drops an item on its own 15~20 percent rate, well above the 
  assert.equal(battle.world.drops.length,0);
  // 게이트를 넘으면 필드의 장비:스킬북 비율로 하나가 떨어진다.
  const lucky=new DungeonBattle(freshSave());
- withRandom([.1,.99],()=>lucky.world.kill(lucky.world.enemies[0]));
+ withRandom([.01,.99],()=>lucky.world.kill(lucky.world.enemies[0]));
  assert.deepEqual(lucky.world.loot.map(entry=>entry.kind),['gold','item']);
- // 보스 층은 5개 랜덤템 + 금화 10무더기 그대로다.
+ // 보스 층은 2개 확정 랜덤템 + 금화 10무더기다(작업 248).
  const boss=new DungeonBattle(freshSave(),5);
  withRandom([.9],()=>boss.world.kill(boss.world.enemies[0]));
- assert.equal(boss.world.loot.filter(entry=>entry.kind==='item').length,5);
+ assert.equal(boss.world.loot.filter(entry=>entry.kind==='item').length,2);
  assert.equal(boss.world.loot.filter(entry=>entry.kind==='gold').length,10);
 });
 
@@ -131,7 +177,7 @@ test('which item falls follows the field equipment and skillbook odds',()=>{
 
 test('preview loot never enters the ground renderer or the account save',()=>{
  const save=freshSave(),before=structuredClone(save),battle=new DungeonBattle(save,3);
- withRandom([.1,.2],()=>{for(const enemy of [...battle.world.enemies])battle.world.kill(enemy);});
+ withRandom([.001,.2],()=>{for(const enemy of [...battle.world.enemies])battle.world.kill(enemy);});
  assert.equal(battle.world.loot.filter(entry=>entry.kind==='gold').length,3);
  assert(battle.world.loot.some(entry=>entry.kind==='item'));
  assert.equal(battle.world.drops.length,0);
@@ -140,11 +186,13 @@ test('preview loot never enters the ground renderer or the account save',()=>{
 
 test('dungeon mobs close ground 1.5x the shared field pace',()=>{
  // Same enemy, same dt: only travel distance may differ, so attacks/skills are stubbed out.
- const travel=(world)=>{const p=world.player,enemy={x:p.x+50,y:p.y,hp:1e9,maxHp:1e9,boss:false,hit:0,step:0,moving:false,knockX:0,knockY:0,slow:0};
+ // 적은 정지 거리(60)보다 멀리서 시작해야 걷기를 재을 수 있고, 던전 아레나(120/180) 안에 있어야 한다(작업 254).
+ const travel=(world)=>{const p=world.player,enemy={x:p.x+70,y:p.y-40,hp:1e9,maxHp:1e9,boss:false,hit:0,step:0,moving:false,knockX:0,knockY:0,slow:0};
   world.enemies=[enemy];world.action=()=>{};world.spawnTimer=Infinity;
-  const before=Math.hypot(enemy.x-p.x,enemy.y-p.y);
+  const x0=enemy.x,y0=enemy.y;
   for(let i=0;i<6;i++)world.update(.05);
-  return before-Math.hypot(enemy.x-p.x,enemy.y-p.y);};
+  // 히어로도 걸어오므로 거리 감소가 아니라 **적이 실제로 옮긴 자리**로 잰다.
+  return Math.hypot(enemy.x-x0,enemy.y-y0);};
  assert.equal(DUNGEON_ENEMY_SPEED_SCALE,1.5);
  const fieldTravel=travel(new World(freshSave())),dungeonTravel=travel(new DungeonBattle(freshSave()).world);
  assert(Math.abs(fieldTravel-enemyMoveSpeed(1,false)*.3)<1e-9);
@@ -384,7 +432,7 @@ test('a dungeon drop makes the same one small hop as the field',()=>{
  }
 });
 
-test('a boss floor leaves five random items and ten scattered gold heaps', () => {
+test('a boss floor leaves two random items and ten scattered gold heaps', () => {
   const { BOSS_GOLD_PILES, BOSS_ITEM_DROPS } = bossLoot;
   const battle = new DungeonBattle(freshSave(), 5);
   assert(battle.bossFloor, 'the 5th floor is a boss floor');
@@ -393,7 +441,7 @@ test('a boss floor leaves five random items and ten scattered gold heaps', () =>
   withRandom([.5, .5, .5, .5, .5, .5], () => battle.world.kill(boss));
   const gold = battle.world.loot.filter(entry => entry.kind === 'gold'), items = battle.world.loot.filter(entry => entry.kind === 'item');
   assert.equal(gold.length, BOSS_GOLD_PILES, 'the boss gold falls in ten heaps');
-  assert.equal(items.length, BOSS_ITEM_DROPS, 'and five random items fall with it');
+  assert.equal(items.length, BOSS_ITEM_DROPS, 'and its two random items fall with it');
   assert.equal(gold.reduce((sum, entry) => sum + entry.gold, 0), 70 * 5, 'the heaps add up to the boss gold');
   assert.equal(battle.world.lootGold, 70 * 5, 'the clear screen still reports the same gold');
   assert.equal(new Set(gold.map(entry => `${Math.round(entry.x)},${Math.round(entry.y)}`)).size, BOSS_GOLD_PILES, 'every heap has its own point');

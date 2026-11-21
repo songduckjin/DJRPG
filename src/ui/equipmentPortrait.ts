@@ -14,7 +14,7 @@ import { WEAPON_GUARD, weaponIndexFor, weaponPartPath, weaponPose, swordlessBody
 import { BOW_GRIP, bowIndexFor, bowPartPath, bowPose, bowlessBodyPath, usesBowlessBody } from '../game/render/bows';
 import { STAFF_GRIP, staffIndexFor, staffPartPath, staffPlacement, stafflessBodyPath, usesStafflessBody } from '../game/render/staffs';
 import { archerHeadlessBodyPath, archerHelmGlowMaskPath, archerHelmIdlePlacement, archerHelmIndexFor, archerHelmPartPath } from '../game/render/archerHelmets';
-import { mageHeadlessBodyPath, mageHelmIdlePlacement, mageHelmIndexFor, mageHelmPartPath } from '../game/render/mageHelmets';
+import { mageHeadlessBodyPath, mageHelmGlowMaskCanvas, mageHelmIdlePlacement, mageHelmIndexFor, mageHelmPartPath } from '../game/render/mageHelmets';
 import { gearGlowCss, gearGlowTone } from '../game/render/gearGlow';
 
 /**
@@ -183,6 +183,8 @@ export type EquipmentPortraitMageHelm = {
   x: number;
   y: number;
   scale: number;
+  /** 발광 마스크(얼굴·목선 아래 제외)를 고를 때 쓰는 성별(작업 247). */
+  gender: Save['gender'];
 };
 
 /** 착용 마법사 투구 파츠. 마법사가 아니거나 투구가 없으면 undefined. */
@@ -191,7 +193,7 @@ export function equipmentPortraitMageHelm(save: Save): EquipmentPortraitMageHelm
   const path = mageHelmPartPath(save.gender, mageHelmIndexFor(save));
   if (!path) return undefined;
   const place = mageHelmIdlePlacement;
-  return { path, x: place.x, y: place.y, scale: place.scale };
+  return { path, x: place.x, y: place.y, scale: place.scale, gender: save.gender };
 }
 
 export type EquipmentPortraitHelmet = {
@@ -600,7 +602,8 @@ async function composeFallback(
       // 마법사 투구 파츠도 362px 셀 전체 크기라, 본체 그림의 배율·좌상단에 그대로 얹는다.
       // 파츠 PNG 가 셀 위로 44행 더 크므로 y 가 음수이고, 그만큼 위 여백에 그려진다.
       const layerScale = mageHelm.scale * scale;
-      paintPatch(context, patch, left + mageHelm.x * scale, top + mageHelm.y * scale, patch.naturalWidth * layerScale, patch.naturalHeight * layerScale, glow?.color);
+      paintPatch(context, patch, left + mageHelm.x * scale, top + mageHelm.y * scale, patch.naturalWidth * layerScale, patch.naturalHeight * layerScale,
+        glow?.color, glow ? mageHelmGlowMaskCanvas(mageHelm.gender) : undefined);
     } catch (error) {
       console.info('[장비창] 마법사 투구 파츠 로딩 실패 → 전신 그림만 표시:', error);
     }

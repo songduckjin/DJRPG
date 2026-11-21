@@ -5,7 +5,6 @@ import { account, assertSessionId, fail, schema } from '../database.mjs';
 import { snapshot, mutate, recentPrice } from '../market.mjs';
 import { announcePouchLegend, announcedItemName, recentAnnouncements } from '../announcements.mjs';
 import { runtimeEnv } from '../env.mjs';
-import { isPreviewHost, isProductionHost } from '../season.mjs';
 import { json, readBody, errorResponse, versionGuard } from '../http.mjs';
 import { createTrace, logRequest } from '../metrics.mjs';
 
@@ -33,9 +32,6 @@ async function handle(request, { env = runtimeEnv(), createDbClient } = {}, cont
     const id = signed.id;
     const body = req.body ?? {};
     context.action = typeof body.action === 'string' ? body.action : '';
-    // 미리보기 전용 기능(작업 210 테스트 우편): 지급은 `preview-…` 호스트에서만, 삭제는 운영 호스트에서만(작업 211).
-    // 호스트를 모르는 저장 경로(`writeSave`)에서는 어느 쪽도 하지 않는다.
-    const preview = isPreviewHost(request, env) ? 'preview' : isProductionHost(request, env) ? 'production' : false;
     if (body.action === 'recent-price') return res.status(200).json(await recentPrice(db,body));
     // 보물 주머니 레전드 전광판(작업 208): 접속 중인 모두가 받아 가는 최근 공지와, 내가 뽑은 레전드 기록.
     if (body.action === 'announcements') return res.status(200).json(await recentAnnouncements(db, Date.now()));
@@ -46,8 +42,8 @@ async function handle(request, { env = runtimeEnv(), createDbClient } = {}, cont
       if (!item) fail(400, 'INVALID_ITEM', '알릴 아이템 이름을 확인하세요.');
       return res.status(200).json(await announcePouchLegend(db, { accountId: id, character: row.save?.name, item }, Date.now()));
     }
-    if (body.action === 'journey-list') return res.status(200).json(await journeySnapshot(db, id, { preview }));
-    if (typeof body.action === 'string' && body.action.startsWith('journey-')) return res.status(200).json(await journeyMutate(db,id,body,{ preview }));
+    if (body.action === 'journey-list') return res.status(200).json(await journeySnapshot(db, id));
+    if (typeof body.action === 'string' && body.action.startsWith('journey-')) return res.status(200).json(await journeyMutate(db,id,body));
     if (body.action === 'list') return res.status(200).json(await context.trace.step('db', () => snapshot(db, id, body)));
     const result = await context.trace.step('tx', () => mutate(db, id, body));
     if (result.clamped?.length) context.clamped = result.clamped.length;

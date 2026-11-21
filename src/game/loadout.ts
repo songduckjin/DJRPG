@@ -1,5 +1,5 @@
 import type { Save } from './store';
-import { jobOrDefault, skillDamageScale, skillOrderFor, skills, type Job, type SkillId } from './skills';
+import { jobOrDefault, skillDamageScale, skillDuration, skillOrderFor, skills, type Job, type SkillId } from './skills';
 export type QuickSlots = [SkillId | null, SkillId | null, SkillId | null];
 export function normalizeQuickSlots(raw: unknown, learned: SkillId[], job: Job = 'warrior'): QuickSlots {
   const slots: QuickSlots = [null, null, null], used = new Set<SkillId>(), order = skillOrderFor(job);
@@ -48,9 +48,11 @@ function savedSkillLevel(save: Save, id: SkillId): number {
 /**
  * 보유한 액티브 스킬만 추천 순서로 늘어놓는다(최대 3칸) — 습득하지 않은 스킬과 다른 직업 스킬은 절대 들어가지 않는다.
  *
- * 순위 점수는 그 직업 표의 앞자리부터 10·9·8…이고, 여기에 **실제 전투와 같은 스킬 레벨 피해 배율**
- * (`skillDamageScale` = 1 + (레벨-1)×10%)을 곱한다. 그래서 오래 강화한 아래 순위 스킬이 1레벨 상위 스킬을
- * 앞지를 수 있다(레벨 21이면 3.0배). 같은 점수면 표 순서를 지킨다.
+ * 순위는 **실제 초당 딜량**이다(작업 245) — 한 번 시전의 총 계수(`skillCastScale`)에 전투와 같은 스킬 레벨
+ * 위력 배율(`skillDamageScale` = 1 + (레벨-1)×10%)을 곱하고 쿨타임으로 나눈다. 그래서 같은 스킬이라도
+ * 오래 강화한 쪽이 위로 올라온다(예: 위력 +70% Lv.8 `iceBolt` 1.7×1.7/7 = 0.413 > 위력 +30% Lv.4
+ * `manaBurst` 2.5×1.3/10 = 0.325). 동점일 때만 직업별 표(`recommendedLoadouts`)의 순서를 쓴다.
+ * 1번 원은 직업 버프를 고정하고, 2·3번 원이 이 DPS 순서를 받는다.
  */
 export function recommendedSkillOrder(save: Save): SkillId[] {
   const job = jobOrDefault(save.job);
@@ -60,10 +62,55 @@ export function recommendedSkillOrder(save: Save): SkillId[] {
   const ranked = table.attacks
     .map((id, rank) => ({ id, rank }))
     .filter(entry => learned.has(entry.id))
-    .map(entry => ({ id: entry.id, rank: entry.rank, score: (10 - entry.rank) * skillDamageScale(savedSkillLevel(save, entry.id)) }))
-    .sort((a, b) => b.score - a.score || a.rank - b.rank)
+    .map(entry => ({ id: entry.id, rank: entry.rank, dps: skillDps(save, entry.id) }))
+    .sort((a, b) => b.dps - a.dps || a.rank - b.rank)
     .map(entry => entry.id);
   return learned.has(table.buff) ? [table.buff, ...ranked] : ranked;
+}
+/**
+ * 한 번 시전의 총 계수(기본 배율 × 타수) — `world.ts`의 판정 계수 그대로다(작업 245).
+ *
+ * 지속 시간 동안 되풀이되는 타격(`hell`·`spin`·`arrowRain`)과 두 번 들어가는 일격(`slash2`·`slam`)은
+ * `skillDuration`·타격 간격으로 타수를 세어 더한다. 여러 적을 맞히는 스킬이라도 계수는 **한 대상** 기준이다.
+ * `fireBolt`는 여러 발로 나뉘어도 합계가 ×2.0 그대로라 나누지 않는다(작업 216).
+ */
+export function skillCastScale(id: SkillId, level = 1): number {
+  const lv = Math.max(1, Math.floor(level));
+  const duration = skillDuration(id, lv);
+  // 다음 타격 시각부터 일정 간격으로 지속 시간 전까지 때리는 스킬의 타수.
+  const repeats = (first: number, step: number) => (duration > first ? Math.floor((duration - first) / step) + 1 : 0);
+  switch (id) {
+    case 'slash2': return 1.1 * 2;                          // 정방향·되받아 2연격
+    case 'slam': return 2.2 + (duration > .45 ? .55 : 0);   // 발동 + 0.45초 뒤 추가 타
+    case 'power': return 4;
+    case 'destroy': return 2.7;
+    case 'hell': return 3.2 + .6 * repeats(.4, .4);         // 360° 회전 베기 + 되풀이 타격
+    case 'crushing': return 3.4;                            // 10연타 합계
+    case 'spin': return 1.65 + .65 * repeats(.45, .45);
+    case 'warcry': return 0;                                // 버프 — 공격 계수 없음
+    case 'doubleShot': return 1.35 * 2;
+    case 'multiShot': return .95 * 5;
+    case 'pierceShot': return 2.6;
+    case 'iceArrow': return 1.9;
+    case 'hawkEye': return 0;
+    case 'snipe': return 4.3;
+    case 'stormVolley': return .8 * 6;
+    case 'arrowRain': return .85 * repeats(.12, .4);
+    case 'fireBolt': return 2;                              // 여러 발 합계 ×2.0
+    case 'iceBolt': return 1.7;
+    case 'chainLightning': return 1.25;
+    case 'manaBurst': return 2.5;
+    case 'frostNova': return 1.5;
+    case 'arcaneShield': return 0;
+    case 'meteorStrike': return 3.6;
+    case 'arcaneOverlord': return 3;
+    default: return 0;
+  }
+}
+/** 초당 딜량 — 시전 계수 × 스킬 레벨 위력 배율 ÷ 쿨타임(버프는 0). */
+export function skillDps(save: Save, id: SkillId): number {
+  const level = savedSkillLevel(save, id);
+  return skillCastScale(id, level) * skillDamageScale(level) / Math.max(1, skills[id].cooldown);
 }
 
 export type AutoLoadoutResult = { changed: boolean; equipped: SkillId[]; message: string };
