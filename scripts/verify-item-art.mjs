@@ -160,6 +160,36 @@ for (const name of attackHelmetParts) {
 }
 console.log(`작업 154 공격 투구 파츠 ${attackHelmetParts.length}종 확인 완료.`);
 
+// ── 작업 256: 투구 발광 마스크(파츠마다 같은 이름·같은 크기) ───────────────────────
+// 전사 정면 13 + 공격 80 + 궁수 20 = 113장. 파츠와 **같은 크기**의 알파 PNG라야 필드·장비창이
+// 파츠와 같은 앵커·배율로 얹어 발광을 잘라 낼 수 있다. 발광하지 않는 자리(얼굴·목)가 있어
+// 알파가 전부 255면 안 된다 — 평균 알파가 1~90% 사이인지 함께 본다.
+const glowRoot = fileURLToPath(new URL('../public/assets/pilot-25d/', import.meta.url));
+const glowPairs = [
+  ...helmetParts.map(name => [join(helmetRoot, name), join(glowRoot, 'helmets_glow', name)]),
+  ...attackHelmetParts.map(name => [join(attackHelmetRoot, name), join(glowRoot, 'helmets_glow', 'atk', name)]),
+  ...['male', 'female'].flatMap(gender => Array.from({ length: 10 }, (_, index) => {
+    const name = `${gender}_${index}_v1.png`;
+    return [join(glowRoot, 'archer_helms', name), join(glowRoot, 'archer_helms_glow', name)];
+  }))
+];
+let glowChecked = 0;
+for (const [partPath, maskPath] of glowPairs) {
+  if (!existsSync(maskPath)) throw new Error(`작업 256 투구 발광 마스크가 없습니다: ${maskPath}`);
+  const partHeader = readFileSync(partPath).subarray(0, 26);
+  const data = readFileSync(maskPath), header = data.subarray(0, 26);
+  const width = header.readUInt32BE(16), height = header.readUInt32BE(20);
+  if (header.toString('ascii', 1, 4) !== 'PNG' || header[25] !== 6) {
+    throw new Error(`투구 발광 마스크는 투명도가 있는 RGBA PNG여야 합니다: ${maskPath}`);
+  }
+  if (width !== partHeader.readUInt32BE(16) || height !== partHeader.readUInt32BE(20)) {
+    throw new Error(`투구 발광 마스크 크기가 파츠와 다릅니다(${width}×${height}): ${maskPath}`);
+  }
+  if (data.length > 12 * 1024) throw new Error(`투구 발광 마스크가 12KB를 넘습니다: ${maskPath}`);
+  glowChecked += 1;
+}
+console.log(`작업 256 투구 발광 마스크 ${glowChecked}장 확인 완료.`);
+
 // ── 작업 155: 착용 갑옷 10종 전신 시트 (서기·걷기·공격 × 전신/머리 없음) ───────────
 // 남녀 10종 × 3동작 × 2(전신·투구용 headless) = 120장. 기준 시트와 같은 362px 셀 좌표계라
 // idle 은 362×362, walk·attack 은 362px 셀 4개(1448×362)여야 한다. 용량은 256색 팔레트 PNG.

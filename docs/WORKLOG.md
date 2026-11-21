@@ -1,3 +1,15 @@
+## 2026-11-21 · songduckjin 작업 256 — 전 직업 투구 발광 범위 조정(파츠만 빛나고 얼굴·머리카락·목·어깨는 원래 색)
+
+- **요청**: 사용자 "딱 투구만 빛나면 좋겠는데 얼굴 머리카락까지 영향이 가더라고" · "파츠만 따로 분리해서 칠하자". 12:41 KST 확정 **1안**(분리한 투구 파츠만 깔끔하게 발광, 오라 번짐 없음) — 검토 시안 `downloads/helmet_glow_preview/v3_opt1.png`.
+- **원인**: [작업 218·231]의 등급색 발광은 착용 파츠 스프라이트 **전체**에 겹을 얹었다. 전사·궁수 투구 파츠는 (a) 오픈페이스·두건이 **얼굴·수염·머리카락**까지 담고 (b) 궁수 파츠는 362 셀 전체라 목·어깨·가슴 옷까지 들어 있어, 유니크·전설 투구를 쓰면 머리 전체가 등급색으로 타올랐다.
+- **마스크 113장**(`scripts/build-helm-glow-masks.py`): 파츠 PNG와 같은 이름·같은 크기의 RGBA PNG(흰색 + 알파=발광 세기)를 `public/assets/pilot-25d/helmets_glow/**`(정면 13·공격 80)·`archer_helms_glow/*`(20)에 굽는다. 빼는 것 = ① 살색 얼굴·목·어깨(눈·입은 `fill_holes`) ② 얼굴 타원 안의 어두운 픽셀(눈·눈썹·입·그늘) ③ 턱 아래 목·어깨 띠(묶음마다 14~22px 페이드) ④ 머리카락(묶음별 캡슐 구역 ∩ 갈색). 재질이 살색인 청동·금속 투구가 통째로 '피부'로 잡히지 않게 **b/g 비율 0.55~0.92** 로 금색을 걸러 내고, 얼굴 타원(앵커 기준 오프셋)으로 피부 제외 범위를 좁혔다 — 안 그러면 `atk/male_3_*`(청동 기사 투구)의 발광이 0에 가까워졌다.
+- **필드**(`src/game/render/entities.ts`): `syncGearGlow(view, key, source, rarity, time, options?: { neckY?, mask? })` 로 인자를 정리(갑옷은 `{ neckY }`·투구는 `{ mask }`). 투구는 `gearGlowLayersFor('helmet')` — **1.12배 후광 겹을 뺀 2겹**(1안). 마스크 스프라이트는 파츠와 같은 앵커·위치·배율·회전으로 놓고(`GameView.heroGlowPartMasks`), 파츠를 고른 `syncHelmet`·`syncArcherHelmet` 이 남긴 `heroHelmetGlowMaskPath` 로 **그 프레임의 파츠와 짝이 맞는 마스크**를 쓴다. `GameView.helmetGlowMask(path)` 가 유니크·전설 투구를 쓴 순간에만 지연 로딩하고, **로딩 전 프레임은 발광을 숨긴다**(마스크 없이 그리면 얼굴이 다시 물든다).
+- **장비창**(`src/ui/equipmentPortrait.ts`): 투구 계획에 `glowMask` 를 더하고 `paintPatch(…, mask, aura)` 가 등급색 파츠를 `destination-in` 으로 도려낸다. 투구 후광 배율 `HELMET_GLOW_AURA = 0.35`(갑옷·무기는 종전 1).
+- **궁수**: `heroArcherHelm` 이라는 필드는 없고 궁수 투구는 `heroHelmet` 을 그대로 쓴다 — 연결 누락은 없었고, 문제는 파츠 전체가 빛나던 것이었다(이번 마스크로 해결). **마법사는 건드리지 않았다**: `mage_helms` 재베이크·발광 마스크를 다루는 [작업 247 PR #252](https://github.com/songduckjin/DJRPG/pull/252)과 같은 자리라서다. 마스크 인자를 텍스처 하나로 둔 덕에 마법사·**갑옷**도 같은 방식으로 이어 붙일 수 있다.
+- **검증**: `npx tsc --noEmit`·`npx vite build` 통과(번들 `index-*.js` 에 `helmets_glow`·`archer_helms_glow`·`helmetGlowMask` 포함), 신규 `tests/gear-glow-mask.test.mjs` **10/10**(113장 존재·파츠와 같은 크기·실루엣 안쪽·투구 면적 5% 이상·얼굴 좌표 불발광·살색 70% 이상 소등·마스크 목록 1:1·투구 2겹(후광 없음)·필드/장비창 배선·세이브별 마스크 경로), `tests/gear-rarity-glow.test.mjs` **11/11**(새 인자에 맞춰 단언 갱신), 전체 `tests/*.test.mjs` **1,068건 중 1,064 통과**(실패 4건은 변경 전과 동일 — `costume-field-render` 2·`skillbook-server` 1 + 이 체크아웃에 `public/assets/world-boss` 가 없어 생기는 `world-boss-field` 1), `node scripts/verify-item-art.mjs` 통과(마스크 113장 규격 검사 추가). 검수 이미지 `downloads/djrpg_helm_glow_only_before_after_v1.png`(투구 12쌍 전/후)·`downloads/djrpg_helm_glow_only_field_v1.png`(필드 42% 배율).
+- **작업 번호**: 처음 254로 등록했으나, 같은 시각 다른 세션이 **몬스터 공격 사거리 90 작업**(PR #259·#260)을 254로 올려 **256으로 정정**했다(브랜치 `feat/256-helmet-glow-mask`).
+- **머지·배포**: **하지 않았다**(사용자 지시 "모아서 배포" · 이 작업 지시 "머지·배포 보류"). 브라우저 실기 화면은 미확인 — 로컬 루프백 차단으로 합성 검수만 했다.
+
 ## 2026-11-21 · songduckjin 작업 246 — 가방 40칸 초과 저장 거절로 우편함·거래소가 잠기던 문제(+ FULL 표시·가득 참 안내)
 
 - **제보**: `#20869` "우편함 안받아져"·`#20887` "이전저장결과를 확인하래"·`#20915` "가방또는 징비데이터도 올바르지 않대"·`#20938` "가방 꽉차면 가방 풀 표시 해주고 우편도 받을따 가방이 꽉차짔다거 알림주기"(10:37~10:44 KST).
