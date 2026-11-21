@@ -7,7 +7,8 @@ import './ts-loader.mjs';
 
 const {
   MAGE_HELM_COUNT, MAGE_HELM_EXTRA_TOP, mageHelmPartPath, mageHelmPartPaths, mageHelmPlacement,
-  mageHelmIdlePlacement, mageHelmIndexFor, mageHeadlessBodyPath, mageHeadlessBodyPaths
+  mageHelmIdlePlacement, mageHelmIndexFor, mageHeadlessBodyPath, mageHeadlessBodyPaths,
+  MAGE_HELM_CELL, MAGE_HELM_PART_HEIGHT, MAGE_HELM_GLOW_ZONE, mageHelmGlowAlpha
 } = await import('../src/game/render/mageHelmets.ts');
 const { staffPartPath, stafflessBodyPath } = await import('../src/game/render/staffs.ts');
 const { GameView, renderAssetPaths } = await import('../src/game/render.ts');
@@ -211,8 +212,8 @@ test('머리 없는 마법사 본체 12장이 셀 규격대로 있고 머리만 
         if (motion !== 'idle') continue;
         // 서기 한 장은 머리·가슴을 직접 비교한다(걷기·공격은 프레임 좌표가 달라 규격만 본다).
         const source = staffless
-          ? `/assets/pilot-25d/mage_nostaff/mage_${gender}_idle_v1.png?v=4`
-          : `/assets/pilot-25d/mage_${gender}_idle_v1.png?v=4`;
+          ? `/assets/pilot-25d/mage_nostaff/mage_${gender}_idle_v1.png?v=5`
+          : `/assets/pilot-25d/mage_${gender}_idle_v1.png?v=5`;
         const before = decodeAlpha(readFileSync(fileOf(source)));
         assert(opaqueIn(before, head) > 300, `${source} 머리 영역 기준값`);
         assert(opaqueIn(art, face) <= opaqueIn(before, face) * .05, `${path} 에 얼굴이 남아 있습니다`);
@@ -365,4 +366,55 @@ test('남성 지팡이는 서기에서만 0.83525배로 줄어 그려진다(작�
   assert.equal(male?.scale, 0.83525);
   assert.equal(female?.scale, 1);
   assert.equal(male?.path, staffPartPath(5));
+});
+
+/* ── 작업 247: 파츠에서 상반신을 걷어내고 발광 범위를 목선 위로 좁힌다 ─────────── */
+
+test('투구 파츠는 목선(셀 y 104)에서 끝나 상반신 로브·팔·불꽃을 덮지 않는다(작업 247)', () => {
+  const NECK_Y = 104;
+  for (const gender of ['male', 'female']) {
+    for (let index = 0; index < MAGE_HELM_COUNT; index++) {
+      const art = decodeAlpha(readFileSync(fileOf(mageHelmPartPath(gender, index))));
+      let lowest = -1;
+      for (let row = 0; row < art.height; row++) {
+        for (let column = 0; column < art.width; column++) {
+          if (art.alpha[row * art.width + column] > 128) { lowest = row - MAGE_HELM_EXTRA_TOP; break; }
+        }
+      }
+      assert(lowest <= NECK_Y, `${gender} ${index} 파츠가 목선 아래(${lowest})까지 내려옵니다`);
+      // 가슴·허리·왼손 불꽃이 있던 자리(셀 y 120~200)는 완전히 비어 있어야 한다.
+      assert.equal(opaqueIn(art, { x0: 70, x1: 300, y0: 126, y1: 300 }, MAGE_HELM_EXTRA_TOP), 0,
+        `${gender} ${index} 파츠에 상반신이 남아 있습니다`);
+      // 머리·모자 자리와 셀 위 장식은 그대로 남아 있다.
+      assert(opaqueIn(art, { x0: 165, x1: 215, y0: 25, y1: 80 }, MAGE_HELM_EXTRA_TOP) > 400,
+        `${gender} ${index} 머리 자리가 비었습니다`);
+    }
+  }
+});
+
+test('투구 발광은 목선으로 갈수록 사라지고 얼굴·피부는 물들지 않는다(작업 247)', () => {
+  assert.equal(MAGE_HELM_CELL, 362);
+  assert.equal(MAGE_HELM_PART_HEIGHT, 362 + MAGE_HELM_EXTRA_TOP, '파츠와 같은 362×406 마스크');
+  for (const gender of ['male', 'female']) {
+    const zone = MAGE_HELM_GLOW_ZONE[gender];
+    // 모자·고깔(정수리 위)은 가득 빛난다.
+    assert.equal(mageHelmGlowAlpha(gender, 181, 0), 1, `${gender} 고깔`);
+    assert.equal(mageHelmGlowAlpha(gender, 181, -30), 1, `${gender} 셀 위 장식`);
+    // 목선 아래 로브는 빛나지 않는다 — 파츠가 끝나는 목선(셀 y 104)에서는 조금만 남고,
+    // 그 아래(`fadeEnd`)부터는 완전히 0이다.
+    assert(mageHelmGlowAlpha(gender, 181, 104) <= .2, `${gender} 목선`);
+    assert.equal(mageHelmGlowAlpha(gender, 181, zone.fadeEnd), 0, `${gender} 목선 아래`);
+    assert.equal(mageHelmGlowAlpha(gender, 181, 150), 0, `${gender} 가슴·허리`);
+    // 얼굴 한가운데는 0 — 얼굴이 등급색 덩어리가 되지 않는다.
+    assert.equal(mageHelmGlowAlpha(gender, zone.face.x, zone.face.y), 0, `${gender} 얼굴 중심`);
+    // 경계는 부드럽게 이어진다(단차 없음).
+    let previous = mageHelmGlowAlpha(gender, 181, zone.fadeStart);
+    for (let y = zone.fadeStart + 1; y <= zone.fadeEnd; y++) {
+      const value = mageHelmGlowAlpha(gender, 181, y);
+      assert(value <= previous + 1e-9, `${gender} y=${y} 에서 다시 밝아집니다`);
+      previous = value;
+    }
+    assert(mageHelmGlowAlpha(gender, 181, zone.fadeStart + 4) > 0 && mageHelmGlowAlpha(gender, 181, zone.fadeStart + 4) < 1,
+      `${gender} 목선 쪽은 중간 세기로 줄어든다`);
+  }
 });

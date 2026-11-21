@@ -22,9 +22,10 @@ export function basicAttackName(job: Job): string { return job === 'archer' ? '�
 export function renderStatus(this: Interface): void {
     const { save, player } = this.world;
     const progress = save.level >= MAX_LEVEL ? 100 : Math.min(100, Math.max(0, save.exp / expToNext(save.level) * 100));
-    // 최고 도달 층에서 패배해 자동 등반이 꺼지면 `⚔ 보스 도전`이 살아난다(작업 210).
+    // 최고 도달 층에서 패배한 뒤 `⚔ 보스 도전`이 살아난다(작업 210).
     // 작업 212(`#4995`): 버튼을 **현재 층 배지 바로 옆**에 붙인다(`.status-floor`).
-    const bossRetry = this.world.bossRetryReady ? '<button class="boss-retry" type="button" aria-label="현재 층 보스에게 다시 도전">⚔ 보스 도전</button>' : '';
+    // 작업 245: 몹이 쌓여 아래층으로 강등돼도 버튼은 남고, 누르면 최고층으로 올라가 보스와 붙는다.
+    const bossRetry = this.world.bossRetryReady ? `<button class="boss-retry" type="button" aria-label="최고층 ${save.maxFloor}층 보스에게 다시 도전">⚔ 보스 도전</button>` : '';
     // 작업 224(`#6215`): 최고 도달 층에서 **2층 이상 내려왔을 때만** `▲ 최고층`을 붙인다.
     // 한 층 아래는 층 선택 창으로 충분하고, 배지 옆이 좁아지는 것을 막는다.
     const floorReturn = save.maxFloor - save.floor >= 2 ? `<button class="floor-return" type="button" aria-label="최고층 ${save.maxFloor}층으로 이동" title="최고층 ${save.maxFloor}층으로 바로 이동">▲ 최고층</button>` : '';
@@ -56,9 +57,12 @@ export function tick(this: Interface): void {
       const empty = kind === null, canAdd = empty && available.length > 0;
       const selecting = index > 0 && !!this.pendingSkill;
       const name = empty ? canAdd ? '스킬 장착하기' : '미습득' : kind === 'attack' ? basicAttackName(jobOrDefault(this.world.save.job)) : skills[kind].name;
-      const key = `${kind}:${canAdd}:${selecting}`;
+      // [작업 250] 직업을 키에 넣는다 — 빼두면 궁수·마법사에서 전사로 캐릭터를 바꿔도 상태가 같아
+      // 아이콘·이름을 다시 그리지 않아 이전 직업의 활 아이콘과 평타 이름이 그대로 남는다(`#21260`).
+      const job = jobOrDefault(this.world.save.job);
+      const key = `${job}:${kind}:${canAdd}:${selecting}`;
       if (button.dataset.state !== key) {
-        feedback.clear(button); applySkillArtwork(button, kind, jobOrDefault(this.world.save.job));
+        feedback.clear(button); applySkillArtwork(button, kind, job);
         button.dataset.state = key; button.dataset.skill = kind ?? '';
         // 기본 공격은 직업별 원형 아이콘(대검·활·마법탄)이 `.skill-art`로 덮으므로 글자 그림판은 비워 둔다(작업 216).
         button.querySelector('strong')!.textContent = empty ? canAdd || selecting ? '+' : '—' : kind === 'attack' ? '' : skills[kind].icon;

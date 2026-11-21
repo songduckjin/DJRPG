@@ -22,9 +22,11 @@ export const MAX_OFFLINE_SECONDS = 43_200;
 export const KILLS_PER_SECOND = 6;
 /** 한 창(window)에 기본으로 얹어 주는 처치 수 — 아레나에 이미 서 있는 적(최대 18마리)과 첫 저장·짧은 창의 여유분. */
 export const KILLS_FLOOR = 60;
-/** 아이템 생성 상한: 초당 0.5개 + 기본 8개. 정상 드롭률(78층 기준 초당 0.07개 안팎)의 7배 남짓이다. */
+/** 아이템 생성 상한: 초당 0.5개 + 기본 40개. 보물 주머니를 연달아 열거나 공용창고 앞뒤로 저장이 몰려도
+ *  정상 경로가 한 번에 40개까지 낳을 수 있어, 예전 기본값 8개로는 흔한 장면에서 오탐(`아이템 생성이 서버
+ *  허용 범위를 넘었습니다`)이 났다(작업 245 — 가방 40칸이 상한이다). */
 export const ITEMS_PER_SECOND = .5;
-export const ITEMS_FLOOR = 8;
+export const ITEMS_FLOOR = 40;
 /** 금화·경험치 상한에 곱하는 안전 계수 — 자동 분해·보스 무더기 같은 정상 경로가 상한에 닿지 않게 한다. */
 export const GOLD_HEADROOM = 2;
 export const EXP_HEADROOM = 2;

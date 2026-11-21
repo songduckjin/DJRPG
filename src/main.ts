@@ -6,12 +6,18 @@ import { mountWasteland } from './game/wasteland';
 import { GameView } from './game/render';
 import { clearLegacySave, parseSave, readLegacySave } from './game/store';
 import { applyOfflineRewards } from './game/offline';
+import { readAutoSalvage } from './ui/autoSalvage';
+import { readSalvagePlus } from './ui/salvagePlus';
+import { readSalvageRarity } from './ui/salvageRarity';
 import { World } from './game/world';
 import { Interface } from './ui/interface';
 import { clearToken, openLogin } from './ui/login';
+import { MAINTENANCE_EVENT, MaintenanceWatch, type MaintenanceState } from './game/maintenance';
+import { showMaintenancePopup, type MaintenancePopup } from './ui/maintenance';
 import './styles/main.css';
 import { SaveSync } from './game/sync';
 import { createBootOverlay } from './ui/boot';
+import { ReconnectNotice } from './ui/reconnect';
 
 const root = document.getElementById('app');
 if (!root) throw new Error('앱 루트 요소가 없습니다.');
@@ -39,7 +45,12 @@ async function start(): Promise<void> {
         if (legacy) { Object.assign(save, parseSave(legacy.save, session.accountId)); legacyKey = legacy.key; }
       } catch (error) { pendingMessage = `기존 진행 상황을 읽지 못했습니다: ${String(error)}`; }
     }
-    const offlineReward = applyOfflineRewards(save, session.offlineSeconds ?? 0);
+    // 방치 정산도 자동 분해를 따른다(작업 254). 화면(Interface)이 아직 없으므로, 기기에 저장된
+    // 스위치·등급 기준·`+N까지` 상한을 그대로 읽어 넘긴다.
+    const offlineReward = applyOfflineRewards(save, session.offlineSeconds ?? 0, {
+      autoSalvage: readAutoSalvage() ? readSalvageRarity() : undefined,
+      autoSalvagePlus: readSalvagePlus(),
+    });
     const world = new World(save);
     const sync = new SaveSync(save, session);
     function flush(): Promise<boolean> { return sync.flush(); }
@@ -51,6 +62,13 @@ async function start(): Promise<void> {
     boot.attach();
     sync.onStatus = state => ui.setSaveStatus(state);
     sync.onMessage = message => ui.message(message);
+    /**
+     * 재접속 안내(작업 251) — 창을 내렸다가 돌아올 때 요청이 끊기면 "서버에 연결할 수 없습니다" 대신
+     * `게임에 접속 중입니다…`를 띄운다. 3초마다 저장을 다시 보내고, 다시 붙으면 안내가 저절로 사라진다.
+     * 20초가 지나도 안 붙을 때만 '다시 시도' 버튼이 있는 상태 확인 안내로 바뀐다.
+     */
+    const reconnect = new ReconnectNotice({ onRetry: () => { void sync.flushIfDirty(); } });
+    sync.onNetwork = state => { if (state === 'recovered') reconnect.recovered(); else reconnect.show(); };
     sync.onPause = paused => { world.paused = paused; appRoot.classList.toggle('sync-busy', paused); };
     sync.onSaved = () => { if (legacyKey) { clearLegacySave(legacyKey); legacyKey = undefined; ui.message('기존 진행 상황을 서버로 이전했습니다.'); } };
     // 다른 기기 로그인으로 이 기기 세션이 끝나면 토큰이 이미 지워졌으므로, 알린 뒤 로그인 화면으로 돌아간다.
@@ -84,6 +102,33 @@ async function start(): Promise<void> {
       return () => {if(running)view.app.ticker.start();};
     };
 
+    // 배포 점검(작업 256): 20초마다·탭이 돌아올 때 `maintenance.json`을 다시 읽는다. 점검이 켜지면
+    // ① 전투를 멈추고 ② 저장을 시도한 뒤(최대 3초) ③ 로그인 화면으로 돌아간다. 로그인 화면이 같은
+    // "점검 진행 중입니다 + 예상 시간" 모달로 다시 막으므로, 접속 중인 플레이어는 화면이 바뀌어도
+    // 이유를 바로 알 수 있다(예전에는 사냥 화면에서 그대로 플레이됐다).
+    let leavingForMaintenance = false;
+    let maintenancePopup: MaintenancePopup | null = null;
+    const applyMaintenance = (state: MaintenanceState) => {
+      if (!state.active) return;
+      maintenancePopup?.remove(); maintenancePopup = null;
+      maintenancePopup = showMaintenancePopup(document.body, state, () => { void recheckMaintenance(); });
+      if (leavingForMaintenance) return;
+      leavingForMaintenance = true;
+      world.paused = true;
+      try { view.app.ticker.stop(); } catch { /* 이미 멈춤 */ }
+      const flushed = Promise.race([sync.flush().catch(() => false), new Promise<boolean>(resolve => setTimeout(() => resolve(false), 3000))]);
+      void flushed.then(() => { maintenancePopup?.note('로그인 화면으로 이동합니다…'); setTimeout(() => location.reload(), 1200); });
+    };
+    const recheckMaintenance = async () => {
+      const state = await watch.check();
+      if (!state) { maintenancePopup?.busy(false); maintenancePopup?.note('점검 상태를 확인하지 못했습니다. 잠시 후 다시 시도해 주세요.'); return; }
+      if (state.active) applyMaintenance(state); else maintenancePopup?.busy(false);
+    };
+    const watch = new MaintenanceWatch({ onMaintenance: applyMaintenance });
+    watch.start();
+    // API가 503 점검을 돌려주면 곧바로 점검 파일을 다시 확인한다 — 정적 파일이 먼저 열려 있어도 20초를 기다리지 않는다.
+    window.addEventListener(MAINTENANCE_EVENT, () => { void recheckMaintenance(); });
+
     window.addEventListener('keydown', e => {
       if (['INPUT','SELECT','TEXTAREA','BUTTON'].includes((e.target as HTMLElement)?.tagName) || world.paused) return;
       const key = e.key.toLowerCase();
@@ -95,7 +140,10 @@ async function start(): Promise<void> {
       if (key === '3') ui.pressSkillSlot(2);
     });
     window.addEventListener('blur', () => { world.attackHeld = false; void flush(); });
-    document.addEventListener('visibilitychange', () => { if (document.hidden) void flush(); });
+    // 창을 내릴 때 한 번 저장하고, **다시 올리면 곧바로 다시 보낸다**(작업 251) — 숨김 상태에서 끊긴 저장이
+    // 10초 자동 저장 간격을 기다리지 않고 돌아오자마자 재연결된다.
+    document.addEventListener('visibilitychange', () => { if (document.hidden) void flush(); else void sync.flushIfDirty(); });
+    window.addEventListener('online', () => { void sync.flushIfDirty(); });
     // 변경이 있을 때만 보낸다 — 예전에는 진행이 없어도 5초(작업 245 이전)마다 저장 요청이 나갔다.
     // 작업 245: 무료 Functions 한도 때문에 확인 간격을 10초로 늘렸다(실제 전송 간격은 `SaveSync.queueSave`).
     setInterval(() => { void sync.flushIfDirty(); }, 10000);
