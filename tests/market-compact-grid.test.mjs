@@ -58,10 +58,10 @@ function withDoc(run) {
   const previous = globalThis.document; globalThis.document = { createElement: tag => element(tag) };
   try { return run(); } finally { globalThis.document = previous; }
 }
-function render(market, save = freshSave()) {
+function render(market, save = freshSave(), session = { guest: false }) {
   return withDoc(() => {
     const dialog = element();
-    renderMarket.call({ market, session: { guest: false }, world: { save }, root: { querySelector: () => null }, renderModal() {} }, dialog);
+    renderMarket.call({ market, session, world: { save }, root: { querySelector: () => null }, renderModal() {} }, dialog);
     return dialog;
   });
 }
@@ -91,7 +91,11 @@ test('판매 중 목록 위에 전체·장비·스킬북 서브 필터 탭이 �
   assert(hasClass(tabs[0], 'active'));
   // 탭은 목록 본문(검색 폼·결과)보다 먼저 온다.
   const search = find(dialog, node => hasClass(node, 'market-search'));
-  assert(dialog.children.indexOf(bar) < dialog.children.indexOf(search));
+  const toolbar = find(dialog, node => hasClass(node, 'market-list-toolbar'));
+  assert(toolbar, '종류 탭과 보기 아이콘이 같은 한 줄');
+  assert.equal(toolbar.children[0], bar, '줄의 왼쪽이 종류 탭');
+  assert(hasClass(toolbar.children[1], 'market-view-toggle'), '줄의 오른쪽이 간편/자세히 보기 아이콘');
+  assert(dialog.children.indexOf(toolbar) < dialog.children.indexOf(search));
 
   // 장비만: 스킬북 매물이 목록에서 빠지고, 숨긴 수를 결과 줄에 알린다.
   tabs[1].onclick();
@@ -203,6 +207,75 @@ test('간편 보기 카드를 누르면 능력치·판매자·개당/총 수량�
   resetListingView();
 });
 
+test('게스트도 간편보기 카드를 눌러 상세를 읽을 수 있고 구매 버튼만 잠긴다(작업 257)', () => {
+  resetListingView(); setListingView('compact');
+  const market = activeMarket([listing('gear-1', gear('강철 쯔바이핸드'))]);
+  const card = find(render(market, freshSave(), { guest: true }), node => hasClass(node, 'market-card'));
+  assert.equal(card.disabled, false, '게스트도 카드는 열려 있다(상세 읽기)');
+  card.onclick();
+  assert.equal(market.selected?.id, 'gear-1');
+  const sheet = find(render(market, freshSave(), { guest: true }), node => hasClass(node, 'market-sheet'));
+  assert(sheet, '게스트도 상세 팝업을 연다');
+  const confirm = find(sheet, node => node.tag === 'button' && /구매 확정/.test(node.textContent));
+  assert(confirm, '구매 버튼은 보인다');
+  assert.equal(confirm.disabled, true, '게스트는 구매할 수 없다');
+  resetListingView();
+});
+
+test('종류 탭·보기 전환·메인 탭을 바꾸면 선택 상태가 초기화된다(작업 257 피드백 `#9089`)', () => {
+  resetListingView(); setListingView('detail');
+  const seed = market => {
+    market.selected = market.data.listings[0];
+    market.selectedItem = 'gear-1'; market.price = '1500'; market.quantity = '3';
+    market.buyQuantity.set('gear-1', 2); market.quote = { itemId: 'gear-1', loading: false, count: 1 };
+    market.unlockItem = 'gear-1';
+  };
+  const cleared = market => {
+    assert.equal(market.selected, undefined, '선택된 매물·상세 바 없음');
+    assert.equal(market.selectedItem, '', '판매 등록 아이템 포커스 없음');
+    assert.equal(market.price, '');
+    assert.equal(market.quantity, '1');
+    assert.equal(market.buyQuantity.size, 0, '매물별 구매 수량 없음');
+    assert.equal(market.quote, undefined, '시세 상자 없음');
+    assert.equal(market.unlockItem, undefined);
+  };
+
+  // ① 종류 탭(`전체`·`장비`·`스킬북`)
+  const byKind = activeMarket();
+  seed(byKind);
+  const kindDialog = render(byKind);
+  const kindBar = find(kindDialog, node => hasClass(node, 'market-kind-tabs'));
+  assert(kindBar.children[1].onclick, '장비 탭');
+  kindBar.children[1].onclick();
+  assert.equal(byKind.kind, 'equipment');
+  cleared(byKind);
+
+  // ② 보기 방식(`간편 보기`/`자세히 보기`)
+  const byView = activeMarket();
+  let rerenders = 0; byView.onChange = () => { rerenders += 1; };
+  seed(byView);
+  const viewDialog = withDoc(() => {
+    const dialog = element();
+    renderMarket.call({ market: byView, session: { guest: false }, world: { save: freshSave() }, root: { querySelector: () => null }, renderModal() { rerenders += 1; } }, dialog);
+    return dialog;
+  });
+  const toggle = find(viewDialog, node => hasClass(node, 'market-view-toggle'));
+  toggle.children[0].onclick();
+  assert.equal(byView.kind, 'all');
+  cleared(byView);
+  assert.equal(rerenders > 0, true, '전환 뒤 화면을 다시 그린다');
+
+  // ③ 거래소 상단 메인 탭(`판매 중` → `판매 등록` 등)
+  const byTab = activeMarket();
+  byTab.load = async () => {};
+  seed(byTab);
+  byTab.switch('register');
+  assert.equal(byTab.view, 'register');
+  cleared(byTab);
+  assert.equal(byTab.filters.page, 0, '페이지도 첫 장으로');
+  resetListingView();
+});
+
 test('카드 그리드·서브 필터·`+N` 배지 CSS 계약(작업 257)', () => {
   const css = readFileSync(new URL('../src/styles/market.css', import.meta.url), 'utf8');
   const rule = selector => { const spaced = css.indexOf(`${selector} {`), tight = css.indexOf(`${selector}{`); const index = spaced >= 0 ? spaced : tight; return index < 0 ? '' : css.slice(index, css.indexOf('}', index)); };
@@ -210,11 +283,17 @@ test('카드 그리드·서브 필터·`+N` 배지 CSS 계약(작업 257)', () =
   assert.match(rule('.market-card-art'), /aspect-ratio: 1/, '정사각형 아이콘 칸');
   assert.match(rule('.market-card .market-icon'), /inset: 6px/, '아이콘을 칸에 꽉 차게 크게');
   assert.match(rule('.market-card .item-plus-badge'), /font-size: 7\.5px/, '+N은 작게');
+  assert.match(rule('.market-card .market-icon.skill-book-art'), /inset: 4px/, '스킬북 아이콘도 크게');
   assert.match(rule('.market-card .item-plus-badge'), /padding: 0 1px/);
   assert.match(rule('.market-card .item-plus-badge'), /left: 1px/);
   assert.match(rule('.market-card .item-plus-badge'), /bottom: 1px/, '왼쪽 아래 모서리');
   assert.match(rule('.market-card-price'), /font-size: 10px/, '카드에는 가격만');
   assert.match(rule('.market-kind-tabs'), /display: flex/);
+  // 사용자 피드백(`#9078`): 종류 탭과 보기 아이콘은 한 flex 줄에 나란히 둔다(세로 1줄 절약).
+  assert.match(rule('.market-list-toolbar'), /display: flex/);
+  assert.match(rule('.market-list-toolbar .market-kind-tabs'), /flex: 1 1 auto/);
+  assert.match(rule('.market-list-toolbar .market-view-toggle'), /flex: none/);
+  assert.match(rule('.market-kind-tab'), /border-radius: 5px/, '인덱스 탭과 같은 각진 탭');
   assert.match(rule('.market-sheet'), /position: fixed/, '상세 팝업은 모달 위에 고정');
   assert.match(rule('.market-sheet'), /z-index: 60/);
   assert.equal(css.includes('.market-row-compact'), false, '옛 한 줄 간편 보기 규칙은 남기지 않는다');
