@@ -10,6 +10,8 @@ import { compareEquipment } from '../../game/itemComparison';
 import type { Interface } from '../interface';
 import type { Save } from '../../game/store';
 import { appendUpgradeArrow } from '../upgradeBadge';
+import { appendPlusBadge } from '../plusBadge';
+import { bagStacks } from '../bagStacks';
 import { renderItemName } from '../itemName';
 
 const money = (n: number) => n.toLocaleString('ko-KR');
@@ -51,14 +53,34 @@ function select(label: string, values: [string,string][], market: Market, key: s
   node.onchange = () => { market.filters[key] = node.value; if (key === 'stat') { market.filters.sort = 'newest'; market.filters.page = 0; market.refresh(); } };
   field.append(node); return field;
 }
+/**
+ * 메인 화면 하단 거래소 아이콘의 빨간 점(작업 247) — `.skill-nav-dot`과 같은 모양·자리.
+ *
+ * 거래소 창을 열기 전에는 120초 폴링(`journey-list`)이 실어 오는 `journey.data.marketInbox`로,
+ * 한 번이라도 열었거나 거래를 처리했으면 거래소가 들고 있는 수령함 건수로 판단한다(둘 중 **더 최근에
+ * 확인한 값**을 쓴다 — 수령 직후 바로 꺼지고, 새 배달도 다음 폴링에서 켜진다).
+ */
+export function updateMarketNavDot(ui: Interface): void {
+  const dot = ui.root?.querySelector<HTMLElement>('.market-nav-dot');
+  if (!dot) return;
+  const marketCount = ui.market?.inboxCount, marketAt = ui.market?.inboxAt ?? 0;
+  const journeyCount = ui.journey?.data?.marketInbox ?? 0, journeyAt = ui.journey?.inboxAt ?? 0;
+  const count = marketCount !== undefined && marketAt >= journeyAt ? marketCount : journeyCount;
+  dot.hidden = !(count > 0);
+}
 export function updateMarketLive(ui: Interface): void {
   const market = ui.market, data = market.data;
   const status = ui.root.querySelector<HTMLElement>('.market-connection');
   if (status) status.textContent = market.loading ? '목록 불러오는 중…' : market.error ? market.error : '자동 갱신 꺼짐 · 버튼 또는 탭 이동으로 갱신';
   const refresh = ui.root.querySelector<HTMLButtonElement>('.market-refresh');
   if (refresh) { refresh.textContent = market.newCount ? `새 매물 ${market.newCount}개 · 갱신` : '목록 새로고침'; refresh.disabled = market.busy || market.loading; }
-  const count = ui.root.querySelector<HTMLElement>('[data-market-view="inbox"]'); if (count) count.textContent = `수령함 ${data?.inbox.length ?? 0}`;
-  const badge = ui.root.querySelector<HTMLElement>('.market-badge'); if (badge) { badge.hidden = !data?.inbox.length; badge.textContent = String(data?.inbox.length ?? 0); }
+  // 수령함 탭 표시(작업 247) — `수령함 N/30` 라벨과 빨간 점을 실제 수령함 건수로 다시 맞춘다.
+  const inboxTab = ui.root.querySelector<HTMLElement>('[data-market-view="inbox"]');
+  const inboxLabel = inboxTab?.querySelector<HTMLElement>('.market-tab-label');
+  if (inboxLabel) inboxLabel.textContent = `수령함 ${data?.inbox.length ?? 0}/${data?.rules?.maxInbox ?? 30}`;
+  const inboxDot = inboxTab?.querySelector<HTMLElement>('.market-inbox-dot');
+  if (inboxDot) inboxDot.hidden = !data?.inbox.length;
+  updateMarketNavDot(ui);
   if (data) for (const sale of data.listings) {
     const row = ui.root.querySelector<HTMLElement>(`[data-listing="${CSS.escape(sale.id)}"]`);
     if (!row) continue;
@@ -71,8 +93,17 @@ export function renderMarket(this: Interface, dialog: HTMLElement): void {
   dialog.classList.add('market-modal');
   const hero = el('div', 'market-hero'); hero.append(el('small', '', 'THE WASTELAND EXCHANGE'), el('p', '', '황야의 거래소'), goldNode(this.world.save.gold)); dialog.append(hero);
   const tabs = el('div', 'market-tabs');
-  const views: [MarketView,string][] = [['active','판매 중'],['recent','최근 거래'],['sold','거래 완료'],['mine','내 거래'],['register','판매 등록'],['inbox',`수령함 ${data?.inbox.length ?? 0}`]];
-  for (const [view, name] of views) { const tab = button(name, () => market.switch(view), market.busy || !!market.sync.pendingMarket); tab.dataset.marketView = view; tab.classList.toggle('active', market.view === view); tab.setAttribute('aria-pressed', String(market.view === view)); tabs.append(tab); }
+  // 작업 247: `거래 완료`(`sold`) 탭은 없앴다(5탭) — 판매 완료 기록은 `최근 거래`가 최근 순서로 보여 준다.
+  // 수령함 탭은 `수령함 N/30`으로 **보관 상한**을 함께 보여 주고, 받을 것이 남아 있으면 빨간 점을 붙인다.
+  const inboxMax = data?.rules?.maxInbox ?? 30, inboxCount = data?.inbox.length ?? 0;
+  const views: [MarketView,string][] = [['active','판매 중'],['recent','최근 거래'],['mine','내 거래'],['register','판매 등록'],['inbox',`수령함 ${inboxCount}/${inboxMax}`]];
+  for (const [view, name] of views) {
+    const tab = button('', () => market.switch(view), market.busy || !!market.sync.pendingMarket);
+    tab.dataset.marketView = view; tab.classList.toggle('active', market.view === view); tab.setAttribute('aria-pressed', String(market.view === view));
+    tab.append(el('span', 'market-tab-label', name));
+    if (view === 'inbox') { const dot = el('i', 'market-inbox-dot'); dot.hidden = inboxCount === 0; dot.setAttribute('aria-hidden', 'true'); tab.append(dot); }
+    tabs.append(tab);
+  }
   dialog.append(tabs);
   const live = el('div', 'market-live'); live.append(el('span', 'market-connection'), button('목록 새로고침', () => market.refresh(), market.busy)); live.lastElementChild!.classList.add('market-refresh'); dialog.append(live);
   if (guest) dialog.append(el('p', 'market-notice', '게스트는 모든 매물과 시세를 볼 수 있습니다. 등록·구매는 정식 계정으로 로그인하세요.'));
@@ -89,7 +120,7 @@ export function renderMarket(this: Interface, dialog: HTMLElement): void {
   else if (market.view === 'recent') renderRecent(this, dialog);
   else if (market.view === 'inbox') {
     dialog.append(button('모두 수령',()=>{void market.act('claim',{deliveryId:'all'});},blocked||!data?.inbox.length));
-    dialog.append(el('p', 'market-notice', '구매품·취소품·만료품·판매대금을 보관합니다. 가방이 가득 차도 수령함의 물품은 사라지지 않습니다.'));
+    dialog.append(el('p', 'market-notice', `구매품·취소품·만료품·판매대금을 보관합니다. 최대 ${inboxMax}건까지 보관하며 가득 차면 구매·판매 등록이 잠깁니다. 가방이 가득 차도 수령함의 물품은 사라지지 않습니다.`));
     for (const delivery of data?.inbox ?? []) {
       const row = el('article', 'market-row');
       if (delivery.item) row.append(icon(delivery.item, this.world.save), itemInfo(delivery.item));
@@ -99,8 +130,10 @@ export function renderMarket(this: Interface, dialog: HTMLElement): void {
     if (!data?.inbox.length) dialog.append(el('p', 'empty', '아직 수령할 물품이나 판매대금이 없습니다.'));
   } else {
     if(market.view==='mine'){
+      // `판매 중인 물건만 보기`(작업 247) — **오른쪽 붙임**. 켜면 판매 중인 매물만, 끄면 판매 중·완료·취소·만료 내역 전체.
+      const bar=el('div','market-mine-bar');
       const label=el('label','market-mine-filter','판매 중인 물건만 보기'),check=el('input');check.type='checkbox';check.checked=market.mineActiveOnly;check.disabled=market.busy;
-      check.onchange=()=>{market.mineActiveOnly=check.checked;market.filters.page=0;market.refresh();};label.append(check);dialog.append(label);
+      check.onchange=()=>{market.mineActiveOnly=check.checked;market.filters.page=0;market.refresh();};label.append(check);bar.append(label);dialog.append(bar);
     }
     renderFilters(market, dialog);
     // `내 직업만 보기` (작업 205): 판매 중·거래 완료 목록에서 다른 직업 전용 무기·스킬북을 걷어 낸다.
@@ -113,12 +146,12 @@ export function renderMarket(this: Interface, dialog: HTMLElement): void {
     dialog.append(el('p', 'market-result', `${money(data?.total ?? 0)}건${hiddenListings ? ` · 이 페이지에서 다른 직업 ${hiddenListings}개 숨김` : ''}${market.view === 'mine' ? ` · 판매 중 ${data?.myActive ?? 0}/${data?.rules?.maxListings ?? 30} · 내 판매 및 구매 기록` : ''}`));
     if (!data && market.loading) dialog.append(el('p', 'empty', '거래소를 불러오고 있습니다…'));
     for (const sale of visibleListings) renderListing(this, dialog, sale, blocked);
-    if (data && !listings.length) dialog.append(el('p', 'empty', market.view === 'sold' ? '아직 거래 완료 기록이 없습니다.' : '조건에 맞는 매물이 없습니다. 판매 등록에서 첫 물품을 올려보세요.'));
+    if (data && !listings.length) dialog.append(el('p', 'empty', '조건에 맞는 매물이 없습니다. 판매 등록에서 첫 물품을 올려보세요.'));
     else if (listings.length && !visibleListings.length) dialog.append(el('p', 'empty', '이 페이지의 매물은 모두 다른 직업 전용입니다. 내 직업만 보기를 끄면 보입니다.'));
     const pages = Math.max(1, Math.ceil((data?.total ?? 0) / 20)), page = Number(market.filters.page);
     const nav = el('div', 'market-pagination'); nav.append(button('이전', () => { market.filters.page = page - 1; market.refresh(); }, page <= 0 || market.busy), el('span', '', `${page + 1} / ${pages}`), button('다음', () => { market.filters.page = page + 1; market.refresh(); }, page + 1 >= pages || market.busy)); dialog.append(nav);
   }
-  dialog.append(el('p', 'market-rules', `고정가 금화 거래 · 등록비 없음 · 판매 수수료 5%(올림) · 최소 등록 금액 ${money(data?.rules?.minPrice ?? 1)} 금화 · 최대 ${data?.rules?.maxListings ?? 30}건 · 72시간 후 반환`));
+  dialog.append(el('p', 'market-rules', `고정가 금화 거래 · 등록비 없음 · 판매 수수료 5%(올림) · 최소 등록 금액 ${money(data?.rules?.minPrice ?? 1)} 금화 · 최대 ${data?.rules?.maxListings ?? 30}건 · 72시간 후 반환 · 수령함 최대 ${inboxMax}건`));
   updateMarketLive(this);
 }
 /**
@@ -236,14 +269,21 @@ function renderRegister(ui: Interface, dialog: HTMLElement, blocked: boolean): v
   form.append(filters);
   const grid = el('div', 'market-register-grid');
   const visible = filterSaleItems(ui.world.save.bag, market.registerCategory, market.registerRarity);
-  for (const item of visible) {
+  // 칸을 가방 그리드처럼 **작게 여러 열**로 줄이고(모바일 4~5열), 같은 아이템(같은 `skillId` 스킬북 등)은
+  // 한 칸에 `×N`으로 모아 보여 준다(작업 247). 등록은 지금처럼 **1개씩**(칸을 누르면 아래 가격 입력 폼).
+  const stacks = bagStacks(visible);
+  for (const { item, count } of stacks) {
     const pick = button('', () => { void market.selectItem(item); }, blocked);
     pick.className = `market-pick rarity-${item.rarity}${market.selectedItem === item.id ? ' selected' : ''}`;
-    pick.append(icon(item, ui.world.save), el('small', `rarity-${item.rarity}`, rarityNames[item.rarity]), renderItemName(el('small'), item));
+    pick.dataset.itemId = item.id;
+    pick.append(icon(item, ui.world.save));
+    appendPlusBadge(pick, item);
     const pickOwner = itemJob(item);
     if (pickOwner) pick.append(el('span', `job-badge job-${pickOwner}`, jobNames[pickOwner]));
-    if (isEquipment(item) && item.locked) { const locked = el('span', 'lock-icon is-locked'); locked.setAttribute('aria-label', '잠긴 장비'); pick.append(locked); }
-    pick.setAttribute('aria-label', `${itemDisplayName(item)} · ${rarityNames[item.rarity]} 판매 선택`); grid.append(pick);
+    if (count > 1) { const badge = el('span', 'market-pick-count', `×${count}`); badge.setAttribute('aria-hidden', 'true'); pick.append(badge); }
+    if (isEquipment(item) && item.locked) { const locked = el('span', 'lock-icon is-locked market-pick-lock'); locked.setAttribute('aria-label', '잠긴 장비'); pick.append(locked); }
+    pick.append(el('small', 'market-pick-name', item.name));
+    pick.setAttribute('aria-label', `${itemDisplayName(item)} · ${rarityNames[item.rarity]}${count > 1 ? ` · ${count}개` : ''} 판매 선택`); grid.append(pick);
   }
   form.append(grid);
   if (!visible.length) form.append(el('p', 'empty', '조건에 맞는 판매 가능 아이템이 없습니다.'));

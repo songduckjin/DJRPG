@@ -92,7 +92,8 @@ test('장착 칸·공용창고도 같은 `plusBadge` 헬퍼를 쓰고 CSS 자리
   assert.match(warehouseSource, /import \{ appendPlusBadge \} from '\.\.\/plusBadge'/);
   assert.match(warehouseSource, /appendPlusBadge\(cell, item\);/);
   // CSS: 한 규칙으로 세 화면 모두 왼쪽 아래 2px/3px.
-  const index = css.indexOf('.bag-item .item-plus-badge, .equipment-slot .item-plus-badge {');
+  // 작업 247: 거래소 판매 등록 칸도 같은 자리를 쓰도록 같은 규칙에 들어간다.
+  const index = css.indexOf('.bag-item .item-plus-badge, .equipment-slot .item-plus-badge, .market-pick .item-plus-badge {');
   assert.notEqual(index, -1, '공통 배지 규칙이 없다');
   const badge = css.slice(index, css.indexOf('}', index) + 1);
   assert.match(badge, /position: absolute/);

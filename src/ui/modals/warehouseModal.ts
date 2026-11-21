@@ -19,9 +19,10 @@ import {
   rarityNames, rarityOrder, skillBookJob, slotNameFor, slots as equipmentSlots, statNames, type Item, type Stat
 } from '../../game/items';
 import { extraOptionLines } from '../../game/extraOptions';
-import { jobNames, jobOrDefault } from '../../game/skills';
+import { jobNames, jobOrDefault, type Job } from '../../game/skills';
 import type { Save } from '../../game/store';
 import { pouchIconMarkup } from '../pouchArt';
+import { skillBookJobRank } from '../bagStacks';
 import { upgradeArrowMarkup } from '../upgradeBadge';
 import { appendPlusBadge } from '../plusBadge';
 import type { Interface } from '../interface';
@@ -69,7 +70,7 @@ function stackKey(item: Item): string {
   return `item:${item.id}`;
 }
 
-function stacksOf(items: Item[]): Stack[] {
+function stacksOf(items: Item[], myJob: Job = 'warrior'): Stack[] {
   const order: string[] = []; const map = new Map<string, Stack>();
   for (const item of items) {
     const key = stackKey(item);
@@ -79,22 +80,32 @@ function stacksOf(items: Item[]): Stack[] {
   }
   // 서버가 준 순서(`item_id`)는 뜻이 없어 칸마다 뒤죽박죽이었다(작업 245) — 부위별로 모으고
   // 같은 부위 안에서는 전투력이 높은 순으로 놓는다. 가방 쪽 목록도 같은 순서를 쓴다.
-  return order.map(key => map.get(key)!).sort((a, b) => compareWarehouseItems(a.items[0], b.items[0]));
+  return order.map(key => map.get(key)!).sort((a, b) => compareWarehouseItems(a.items[0], b.items[0], myJob));
 }
 
-/** 부위 순서 — 장비 슬롯 표(`slots`)를 그대로 따르고 보물 주머니·스킬북은 그 뒤에 모은다(작업 245). */
+/** 부위 순서 — 보물 주머니(작업 247, 늘 첫 칸) → 장비 슬롯 표(`slots`) → 스킬북(맨 뒤). */
 const SLOT_ORDER = new Map<string, number>(equipmentSlots.map((slot, index) => [slot, index]));
-const KIND_POUCH = equipmentSlots.length, KIND_BOOK = equipmentSlots.length + 1, KIND_OTHER = equipmentSlots.length + 2;
+const KIND_POUCH = -1, KIND_BOOK = equipmentSlots.length + 1, KIND_OTHER = equipmentSlots.length + 2;
 function slotRank(item: Item): number {
+  // 보물 주머니는 창고·가방 어느 목록에서도 맨 앞이다(작업 247) — 받은 주머니를 찾아 헤매지 않게 한다.
   if (isPouch(item)) return KIND_POUCH;
   if (isSkillBook(item)) return KIND_BOOK;
   return SLOT_ORDER.get(String(item.slot)) ?? KIND_OTHER;
 }
 const rarityRank = (item: Item): number => Math.max(0, rarityOrder.indexOf(item.rarity));
-/** 공용창고·가방 칸 정렬 — 부위 → 전투력(내림차순) → 등급 → 강화(+N) → 이름 → id(작업 245). */
-export function compareWarehouseItems(a: Item, b: Item): number {
-  return slotRank(a) - slotRank(b)
-    || itemPower(b) - itemPower(a)
+/**
+ * 공용창고·가방 칸 정렬 — 부위 → (스킬북은 직업 묶음) → 전투력(내림차순) → 등급 → 강화(+N) → 이름 → id
+ * (작업 245, 247). 보물 주머니는 `slotRank` -1로 늘 첫 칸이고, 스킬북 구간은 내 직업 → 전사 → 궁수 →
+ * 마법사 순으로 모은다(`bagStacks.skillBookJobRank` — 장비창 가방과 같은 규칙).
+ */
+export function compareWarehouseItems(a: Item, b: Item, myJob: Job = 'warrior'): number {
+  const kind = slotRank(a) - slotRank(b);
+  if (kind) return kind;
+  if (isSkillBook(a) && isSkillBook(b)) {
+    const job = skillBookJobRank(a, myJob) - skillBookJobRank(b, myJob);
+    if (job) return job;
+  }
+  return itemPower(b) - itemPower(a)
     || rarityRank(b) - rarityRank(a)
     || plusOf(b) - plusOf(a)
     || String(a.name).localeCompare(String(b.name), 'ko')
@@ -168,8 +179,9 @@ export function renderWarehouse(ui: Interface, dialog: HTMLElement): void {
   let bagStacks: Stack[] = [];
 
   const paint = (): void => {
-    storageStacks = stacksOf(ui.warehouseItems ?? []);
-    bagStacks = stacksOf(save.bag);
+    const myJob = jobOrDefault(save.job);
+    storageStacks = stacksOf(ui.warehouseItems ?? [], myJob);
+    bagStacks = stacksOf(save.bag, myJob);
     const known = { storage: new Set(storageStacks.map(stack => stack.key)), bag: new Set(bagStacks.map(stack => stack.key)) };
     // 서버 목록이 바뀌었으면 사라진 칸의 선택·상세는 버린다.
     for (const [key, side] of [...state.picked]) if (!known[side].has(stackKeyOf(key))) state.picked.delete(key);
@@ -311,7 +323,7 @@ function move(ui: Interface, side: WarehouseSide, ids: string[]): void {
       if (result.items) ui.warehouseItems = result.items;
       ui.renderStatus(); ui.renderBagBadge();
       if (state.focus && state.focus.side === side) {
-        const stacks = stacksOf(side === 'bag' ? ui.world.save.bag : ui.warehouseItems ?? []);
+        const stacks = stacksOf(side === 'bag' ? ui.world.save.bag : ui.warehouseItems ?? [], jobOrDefault(ui.world.save.job));
         if (!stacks.some(stack => stack.key === state.focus!.key)) state.focus = undefined;
       }
       ui.message(result.message || (action === 'deposit' ? '공용창고에 보관했습니다.' : '가방으로 가져왔습니다.'));
@@ -340,7 +352,7 @@ function cellIcon(ui: Interface, item: Item): string {
 
 function paintDetail(ui: Interface, save: Save, detail: HTMLElement, state: WarehouseState, paint: () => void): void {
   const focus = state.focus;
-  const stacks = focus ? stacksOf(focus.side === 'storage' ? ui.warehouseItems ?? [] : save.bag) : [];
+  const stacks = focus ? stacksOf(focus.side === 'storage' ? ui.warehouseItems ?? [] : save.bag, jobOrDefault(save.job)) : [];
   const stack = focus ? stacks.find(entry => entry.key === focus.key) : undefined;
   if (!focus || !stack) { detail.hidden = true; detail.replaceChildren(); return; }
   const item = stack.items[0];

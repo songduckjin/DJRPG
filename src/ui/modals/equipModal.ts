@@ -18,7 +18,7 @@ import { pouchIconMarkup } from '../pouchArt';
 import { showEquippedDetail, dismissEquippedDetail, deferEquippedDismiss } from '../equippedDetail';
 import { bagDetailPinned, createBagDetail, deferBagDismiss, dismissBagDetail, showBagDetail } from '../bagDetail';
 import { skillbookName } from '../skillbookBag';
-import { bagStacks } from '../bagStacks';
+import { bagStacks, orderedBagItems } from '../bagStacks';
 import { plusBadgeMarkup } from '../plusBadge';
 import { itemNameText, renderItemName } from '../itemName';
 import { slotAtlasStyle } from '../slotArtStyle';
@@ -73,7 +73,9 @@ export function renderInventory(this: Interface, dialog: HTMLElement): void {
       || (this.bagFilter === 'accessory' && ['necklace', 'ring1', 'ring2'].includes(item.slot)))));
     const shown = jobOnlyVisible(candidates, item => item, save.job, this.bagJobOnly);
     const hiddenJob = candidates.length - shown.length;
-    const ordered = shown.sort((a, b) => this.bagRaritySort ? rarityRanks[b.rarity] - rarityRanks[a.rarity] : 0);
+    // 칸 순서(작업 247, 사용자 확정): **보물 주머니(첫 칸) → 장비 → 스킬북**. 등급순을 켜고 꺼도 이 3단은
+    // 그대로고, 등급순은 같은 단 안에서만 적용된다(`bagStacks.compareBagItems` 한 곳).
+    const ordered = orderedBagItems(shown, this.bagRaritySort, myJob);
     // 같은 주머니는 한 칸에 `×N`, **같은 스킬북도 한 칸에 `×N`**으로 모아 보여 준다(작업 246 — 예전에는
     // 스킬북을 `count: 1`로 하나씩 그려 세 권이 있어도 `×1` 세 칸이었다). 칸의 `data-item-id`는 그 묶음의
     // 첫 아이템 id이고, 사용·판매·창고 이동은 지금처럼 개별 id로 처리된다.

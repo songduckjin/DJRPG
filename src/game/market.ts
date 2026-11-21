@@ -1,10 +1,14 @@
 import type { Item } from './items';
 import type { SyncResult, SaveSync } from './sync';
 import { apiHeaders, isOutdatedResponse, reloadForNewVersion } from './appVersion';
-export type MarketView = 'active' | 'recent' | 'sold' | 'mine' | 'register' | 'inbox';
+// 작업 247: `거래 완료`(`sold`) 탭은 없앴다 — 판매 완료 목록은 `최근 거래` 탭이 최근 순서로 보여 준다.
+// 서버 계약(`view:'sold'`)은 `최근 거래` 요청에 그대로 쓴다(`load`).
+export type MarketView = 'active' | 'recent' | 'mine' | 'register' | 'inbox';
+/** 화면 탭으로 열 수 있는 뷰 — 옛 상태(예: `sold`)가 남아 있으면 `active`로 안전 폴백한다. */
+export const MARKET_VIEWS: MarketView[] = ['active', 'recent', 'mine', 'register', 'inbox'];
 export type Listing = { id: string; sellerName: string; item: Item; price: number; state: string; createdAt: number; expiresAt: number; soldAt: number | null; mine: boolean; purchased: boolean };
 export type Delivery = { id: string; item: Item | null; gold: number; reason: string; createdAt: number };
-export type MarketData = { watched: { id: string; state: string }[]; listings: Listing[]; inbox: Delivery[]; seq: number; total: number; page: number; myActive: number; revision: number; rules: { fee: number; maxListings: number; durationHours: number; maxPrice: number; minPrice: number; pageSize: number } };
+export type MarketData = { watched: { id: string; state: string }[]; listings: Listing[]; inbox: Delivery[]; seq: number; total: number; page: number; myActive: number; revision: number; rules: { fee: number; maxListings: number; durationHours: number; maxPrice: number; minPrice: number; pageSize: number; maxInbox?: number } };
 export class Market {
   view: MarketView = 'active';
   filters: Record<string, string | number> = { query: '', category: '', slot: '', rarity: '', sort: 'newest', page: 0 };
@@ -25,6 +29,9 @@ export class Market {
   connected = false;
   newCount = 0;
   opened = false;
+  /** 수령함 건수와 그것을 확인한 시각(작업 247) — 거래소 아이콘 빨간 점이 여정 폴링 값과 비교해 고른다. */
+  inboxCount?: number;
+  inboxAt = 0;
   private generation = 0;
   private listRequest?: AbortController;
   private notified = new Set<string>();
@@ -99,11 +106,13 @@ export class Market {
         this.candidate = next;
       }
       this.error = ''; this.onChange(full || (this.opened && ['mine','inbox'].includes(this.view) && (inboxChanged || previousSeq !== next.seq)));
+      // 메인 화면 거래소 빨간 점(작업 247)이 쓰는 수령함 건수·갱신 시각.
+      this.inboxCount = next.inbox.length; this.inboxAt = Date.now();
     } catch (error) { if (generation === this.generation) { this.error = error instanceof Error ? error.message : String(error); this.connected = false; this.onChange(full); } }
     finally { if (generation === this.generation) { this.loading = false; this.onChange(false); } }
   }
   refresh(): void { this.selected = undefined; void this.load(true); }
-  switch(view: MarketView): void { if (this.busy) return; this.view = view; this.unlockItem = undefined; this.filters.page = 0; if (view === 'recent') { this.filters.stat = ''; this.filters.sort = 'newest'; } this.selected = undefined; this.onChange(true); void this.load(true); }
+  switch(view: MarketView): void { if (this.busy) return; this.view = MARKET_VIEWS.includes(view) ? view : 'active'; this.unlockItem = undefined; this.filters.page = 0; if (view === 'recent') { this.filters.stat = ''; this.filters.sort = 'newest'; } this.selected = undefined; this.onChange(true); void this.load(true); }
   private applyEffect(result: SyncResult): void {
     if (!this.data || !result.effect) return;
     const { listing, deliveries, claimedId, claimedIds } = result.effect;
@@ -117,6 +126,7 @@ export class Market {
     if (removed.size) { this.data.inbox = this.data.inbox.filter(entry => !removed.has(entry.id)); removed.forEach(id=>this.notified.delete(id)); }
     for (const delivery of deliveries) if (!this.data.inbox.some(entry => entry.id === delivery.id)) { this.data.inbox.unshift(delivery); this.notified.add(delivery.id); }
     this.data.revision = result.revision;
+    this.inboxCount = this.data.inbox.length; this.inboxAt = Date.now();
   }
   async retry(): Promise<void> {
     const pending = this.sync.pendingMarket;

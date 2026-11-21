@@ -374,3 +374,42 @@ test('거래소 규칙이 현재 최소 등록 금액 1 금화를 함께 준다 
   assert.equal(result.rules.minPrice, 1, '화면이 서버 값으로 최소 금액을 표시한다');
   assert.equal(result.rules.maxPrice, 1_000_000_000);
 });
+
+// 작업 247 — 수령함 30건 상한. 새 구매·판매 등록 시점에 막고, 이미 성사된 거래 대금·기존 매물의
+// 만료/취소 반환은 잃지 않는다(거래가 이미 걸려 있다).
+async function fillInbox(owner, count, reason = '판매대금') {
+  for (let index = 0; index < count; index++) {
+    const id = `${owner}-cap-${index}-${Date.now()}`;
+    await db.execute({ sql: 'INSERT INTO djrpg_market_inbox VALUES (?,?,?,?,?,?,?,?,NULL)', args: [id, owner, id, 'proceeds', null, 10, reason, index] });
+  }
+}
+test('수령함 30건 상한은 새 구매·판매 등록을 막고 이미 성사된 판매대금은 보관한다 (작업 247)', async () => {
+  const { rules } = await import('../server/market.mjs');
+  assert.equal(rules.maxInbox, 30, '규칙에 최대 30건이 있다');
+  await seed('cap-offer', [item(), item(), item()]);
+  // 등록은 수령함이 빈 상태에서 먼저 해 둔다(등록 뒤에 채운다).
+  const offer = await sale('cap-offer', 100), other = await sale('cap-offer', 200);
+  await fillInbox('cap-offer', rules.maxInbox);
+  // 판매자의 수령함이 가득 차도 **이미 성사된** 판매대금은 31번째로 보관된다(유실 없음).
+  await seed('cap-rich', [], 10000);
+  await action('cap-rich', 'buy', { listingId: offer.id });
+  const sellerInbox = (await snapshot(db, 'cap-offer', { view: 'inbox' })).inbox;
+  assert.equal(sellerInbox.length, rules.maxInbox + 1);
+  assert(sellerInbox.some(entry => entry.reason.includes('판매대금')), '성사된 거래 대금은 보관된다');
+
+  // 구매자의 수령함을 30건으로 채우면 다음 구매는 막힌다.
+  const buyerInbox = (await snapshot(db, 'cap-rich', { view: 'inbox' })).inbox;
+  await fillInbox('cap-rich', rules.maxInbox - buyerInbox.length);
+  await assert.rejects(action('cap-rich', 'buy', { listingId: other.id }),
+    e => e.code === 'INBOX_FULL' && e.message.includes('수령함이 가득 찼습니다(최대 30건)'));
+  // 판매자의 수령함이 가득 찬 상태에서는 새 판매 등록도 막는다.
+  const sellerItem = (await account(db, 'cap-offer')).save.bag[0];
+  await assert.rejects(action('cap-offer', 'register', { itemId: sellerItem.id, price: 300 }), e => e.code === 'INBOX_FULL');
+  // 두 건을 받아 29건이 되면 다시 등록할 수 있다(상한은 **미수령** 건수이고 30건부터 막는다).
+  for (const entry of sellerInbox.slice(0, 2)) await action('cap-offer', 'claim', { deliveryId: entry.id });
+  const remaining = (await snapshot(db, 'cap-offer', { view: 'inbox' })).inbox.length;
+  assert.equal(remaining, rules.maxInbox - 1, '두 건 받아 29건(31→29)');
+  const latest = (await account(db, 'cap-offer')).save.bag[0];
+  await action('cap-offer', 'register', { itemId: latest.id, price: 300 });
+  assert(sellerInbox.every(entry => entry.id !== undefined));
+});

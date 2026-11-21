@@ -145,7 +145,7 @@ test('화살표는 우측 상단에 작게(12px 이하) + 초록 발광, `+N`은
   // 좌상단 타직업 배지·우하단 `+N`/잠금과 겹치지 않게 잠금 배지만 아래로 내린다.
   assert.match(rule(modalsCss, '.bag-item.has-upgrade .bag-lock-badge'), /bottom: 1px/);
   // `+N` 강화 배지는 모든 칸에서 왼쪽 아래 한 자리(작업 246).
-  const plus = rule(modalsCss, '.bag-item .item-plus-badge, .equipment-slot .item-plus-badge');
+  const plus = rule(modalsCss, '.bag-item .item-plus-badge, .equipment-slot .item-plus-badge, .market-pick .item-plus-badge');
   assert.match(plus, /position: absolute/);
   assert.match(plus, /left: 3px/);
   assert.match(plus, /bottom: 2px/);

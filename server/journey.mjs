@@ -21,7 +21,11 @@ function rewards(save, entries) {
 export async function snapshot(db,id,options={}) {
   return transaction(db,async tx=>{
     const row=await account(tx,id),state=await journeyState(tx,row,row.save,Date.now(),options.preview ?? false);
-    await tx.execute(journeyOperation(row.id,state)); return journeyView(state,row.save);
+    await tx.execute(journeyOperation(row.id,state));
+    // 거래소 수령함에 남은 건수(작업 247) — 메인 화면 거래소 아이콘의 빨간 점은 이 값을 120초 폴링에
+    // 얹어 알린다(거래소 창을 열지 않아도 보이게 하려고 거래소 API를 따로 부르지 않는다).
+    const inbox=(await tx.execute({sql:'SELECT COUNT(*) AS n FROM djrpg_market_inbox WHERE account_id=? AND claimed_at IS NULL',args:[id]})).rows[0];
+    return {...journeyView(state,row.save),marketInbox:Number(inbox?.n??0)};
   });
 }
 export async function mutate(db,id,input,options={}) {

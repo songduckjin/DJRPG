@@ -173,6 +173,23 @@ test('bag rarity button sorts descending within the selected category without ch
  }finally{globalThis.document=previous;}
 });
 
+test('가방 칸은 등급순을 켜도 보물 주머니 → 장비 → 스킬북(직업 묶음) 순서다(작업 247)',async()=>{
+  const {renderInventory}=await import('../src/ui/modals/equipModal.ts');
+  const previous=globalThis.document;globalThis.document={createElement:tag=>element(tag)};
+  try{
+    const save=freshSave();save.job='warrior';
+    const book=(id,skillId,rarity)=>({id,name:`[스킬북] ${skillId}`,slot:'skillbook',kind:'skillbook',skillId,rarity,stats:{}});
+    const pouch={id:'p1',name:'무작위 보물 주머니',slot:'pouch',kind:'pouch',rarity:'common',stats:{}};
+    // 가방은 **다른 직업** 스킬북만 보여 준다(내 직업 책은 스킬 창에서 쓴다) — 직업 묶음은 그 책들 사이에서도 유지된다.
+    save.bag=[book('book-mage','fireBolt','common'),item('sword','weapon','common'),pouch,book('book-arch','doubleShot','legendary')];
+    const ui={modal:{querySelector:()=>null,querySelectorAll:()=>[]},world:{save},bagFilter:'all',salvageRarity:'common',bagRaritySort:true,bagJobOnly:false,renderModal(){},iconPath:()=>''};
+    const root=element();renderInventory.call(ui,root);
+    const ids=find(root,n=>hasClass(n,'bag-grid')).children.map(n=>n.dataset.itemId);
+    // 보물 주머니가 첫 칸, 그다음 장비, 스킬북은 장비 뒤에서 **궁수 → 마법사** 고정 순서(등급순보다 직업 묶음이 먼저).
+    assert.deepEqual(ids,['p1','sword','book-arch','book-mage']);
+  }finally{globalThis.document=previous;}
+});
+
 test('거래 결과를 확인하지 못해 잠긴 거래소는 이유 안내와 다시 확인 버튼을 함께 보여 준다(작업 226)',()=>{
   const previous=globalThis.document;globalThis.document={createElement:tag=>element(tag)};
   try{

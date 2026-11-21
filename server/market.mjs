@@ -3,7 +3,9 @@ import { decodeAccount, assertRevision, fail, reconcileItems, inventoryOwnerQuer
 import { journeyState, journeyOperation } from './journey-state.mjs';
 import { countedInBag } from './skill-ids.mjs';
 import { elapsedSince } from './save-guard.mjs';
-export const rules = { fee: .05, maxListings: 30, durationHours: 72, maxPrice: 1_000_000_000, minPrice: 1, pageSize: 20 };
+export const rules = { fee: .05, maxListings: 30, durationHours: 72, maxPrice: 1_000_000_000, minPrice: 1, pageSize: 20, maxInbox: 30 };
+/** 수령함 상한 안내 문구(작업 247) — 구매·판매 등록 화면과 서버가 같은 말을 쓴다. */
+export const inboxFullMessage = `수령함이 가득 찼습니다(최대 ${rules.maxInbox}건). 수령함에서 먼저 받아 주세요.`;
 const deliveryOperation = (listing, owner, kind, item, gold, reason) => {
   const delivery = { id: randomUUID(), item, gold, reason, createdAt: Date.now() };
   return { owner, delivery, operation: { sql: 'INSERT OR IGNORE INTO djrpg_market_inbox VALUES (?,?,?,?,?,?,?,?,NULL)', args: [delivery.id, owner, listing.id, kind, item ? JSON.stringify(item) : null, gold, reason, delivery.createdAt] } };
@@ -106,11 +108,14 @@ export async function mutate(db, id, input) {
             : { sql: 'SELECT * FROM djrpg_market_inbox WHERE id=? AND account_id=? AND claimed_at IS NULL', args: [typeof input.deliveryId === 'string' ? input.deliveryId : '', id] }
           : { sql: "SELECT COUNT(*) AS n FROM djrpg_market WHERE seller=? AND state='active' AND expires_at>?", args: [id, Date.now()] },
       inventoryOwnerQuery(id, input.progress),
-      { sql: 'SELECT state_json FROM djrpg_journey WHERE account_id=?', args: [id] }
+      { sql: 'SELECT state_json FROM djrpg_journey WHERE account_id=?', args: [id] },
+      // 수령함에 남은 건수(작업 247) — 구매·판매 등록이 30건 상한을 넘기지 않게 같은 읽기 배치에서 센다.
+      { sql: 'SELECT COUNT(*) AS n FROM djrpg_market_inbox WHERE account_id=? AND claimed_at IS NULL', args: [id] }
     ]);
     const row = decodeAccount(reads[0].rows[0]), replay = reads[1].rows[0];
     if (Number(input.characterSlot ?? 1) !== row.slot) fail(409, 'CHARACTER_CONFLICT', '다른 캐릭터가 선택되었습니다. 새로고침해 주세요.');
     row.journeyRecord = reads[4].rows[0] ?? null;
+    const inboxCount = Number(reads[5]?.rows?.[0]?.n ?? 0);
     if (replay) {
       const result = JSON.parse(replay.response_json);
       if (result.revision !== undefined && result.revision !== row.revision) delete result.effect;
@@ -149,6 +154,9 @@ export async function mutate(db, id, input) {
     if (input.action === 'register') {
       const price = input.price;
       if (!Number.isSafeInteger(price) || price < 1 || price > rules.maxPrice) fail(400, 'INVALID_PRICE', '가격은 1~1,000,000,000 금화의 정수로 입력하세요.');
+      // 수령함 상한(작업 247): 등록을 취소·만료되면 물건이 돌아갈 자리가 없으므로, 가득 찬 상태에서는
+      // **새 판매 등록 자체를 막고** 먼저 받으라고 안내한다.
+      if (inboxCount >= rules.maxInbox) fail(409, 'INBOX_FULL', inboxFullMessage);
       const count = Number(reads[2].rows[0].n);
       if (count >= rules.maxListings) fail(409, 'LISTING_LIMIT', `동시에 ${rules.maxListings}개까지 등록할 수 있습니다. 판매 중인 물품을 취소하거나 판매 완료 후 다시 등록하세요.`);
       const index = save.bag.findIndex(item => item.id === input.itemId);
@@ -181,6 +189,8 @@ export async function mutate(db, id, input) {
         // 구매할 수 없습니다")는 캐릭터를 바꿔 쓰는 계정에는 "내 매물이 아닌데 막힌다"로 읽혔다(작업 239) —
         // 왜 막히는지와 대신 무엇을 하면 되는지(취소 → 수령함 → 그 캐릭터로 받기)를 함께 알린다.
         if (mine) fail(400, 'OWN_LISTING', '내 계정이 등록한 매물입니다(다른 캐릭터로 올린 매물 포함). 등록을 취소하면 수령함에서 받을 수 있습니다.');
+        // 수령함 상한(작업 247): 구매한 물건도 수령함으로 들어가므로, 가득 찬 상태에서는 사지 못하게 막는다.
+        if (inboxCount >= rules.maxInbox) fail(409, 'INBOX_FULL', inboxFullMessage);
         if (save.gold < Number(sale.price)) fail(400, 'INSUFFICIENT_GOLD', '금화가 부족합니다.');
         save.gold -= Number(sale.price);
         write({ sql: "UPDATE djrpg_market SET state='sold', buyer=?, sold_at=? WHERE id=? AND state='active'", args: [id, Date.now(), sale.id] });

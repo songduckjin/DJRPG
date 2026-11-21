@@ -340,7 +340,7 @@
 /* `+N` 강화 배지는 **모든 아이템 칸의 왼쪽 아래** 한 곳에만 붙는다(작업 246) — 가방·장비창 장착 칸·
    공용창고가 같은 자리를 쓴다. 좌상단 직업 배지, 우상단 추천 화살표, 우하단 수량 `×N`·잠금과
    겹치지 않는 유일한 모서리다. 이름 옆 배지(`.item-plus`, 작업 201)와 같은 색을 쓴다. */
-.bag-item .item-plus-badge, .equipment-slot .item-plus-badge { position: absolute; left: 3px; bottom: 2px; z-index: 2; margin: 0; padding: 0 2px; border-radius: 3px; background: #120f14cc; color: #43f6c5; font-size: 9px; line-height: 1.25; font-weight: 800; letter-spacing: .01em; text-shadow: 0 0 5px #43f6c599; pointer-events: none; white-space: nowrap; }
+.bag-item .item-plus-badge, .equipment-slot .item-plus-badge, .market-pick .item-plus-badge { position: absolute; left: 3px; bottom: 2px; z-index: 2; margin: 0; padding: 0 2px; border-radius: 3px; background: #120f14cc; color: #43f6c5; font-size: 9px; line-height: 1.25; font-weight: 800; letter-spacing: .01em; text-shadow: 0 0 5px #43f6c599; pointer-events: none; white-space: nowrap; }
 
 /* 가방 10열 칸은 모두 **1:1 정사각형**이다(작업 212 `#4936` — 스킬북 칸만 세로로 길쭉해
    다른 장비·주머니 칸과 줄이 어긋나 보이던 것을 없앴다). 이름은 다른 칸처럼 한 줄 말줄임이다. */
@@ -438,6 +438,13 @@
 .reward-panel-toolbar { justify-content: space-between; }
 .utility-completion { border-color: #b38c52; background: #3b2d24; }
 .utility-completion > b { color: #f1d294; }
+/* `일일 보상`·`주간 보상` 탭의 빨간 점(작업 247) — 받을 보상이 있을 때만 켠다. */
+.reward-tab-dot { position: absolute; z-index: 2; top: 2px; right: 4px; width: 8px; height: 8px; border: 1px solid #efb6a4; border-radius: 50%; background: #de352e; box-shadow: 0 0 5px #a81718b0; pointer-events: none; }
+.reward-tab-dot[hidden] { display: none; }
+/* 전체 완료 보상은 **맨 위**, 개별 미션은 그 아래 별도 묶음(작업 247). */
+.reward-completion { display: flex; flex-direction: column; gap: 5px; margin: 5px 0 2px; }
+.reward-missions-heading { margin: 4px 0 0; padding-top: 10px; border-top: 1px solid #5c4838; color: #d8bd93; }
+.reward-mission-group { display: flex; flex-direction: column; gap: 6px; padding: 1px 0 0; }
 
 .skill-list .skill-image-icon { border: 0; border-radius: 0; width: 44px; height: 44px; flex: 0 0 44px; background-color: transparent; }
 

@@ -207,20 +207,24 @@ test('공용창고는 아이콘 슬롯 그리드로 그려지고, 모드 전환 
     assert.equal(withdraw.hidden, true);
 
     // 탭 = 바로 선택. 모드 버튼이 없고, 고른 칸에 맞는 액션 버튼만 보인다.
+    // 첫 칸은 **보물 주머니 묶음**(작업 247 순서) — 한 칸을 고르면 그 묶음의 2개가 함께 선택된다.
     const bagCells = cellsIn(bagGrid);
+    const cellOf = id => bagCells.find(cell => cell.dataset.itemId === id);
+    assert.equal(bagCells[0].dataset.itemId, 'p1', '보물 주머니가 첫 칸');
     bagCells[0].onclick();
-    assert.equal(warehouseState(ui).picked.size, 1);
+    assert.equal(warehouseState(ui).picked.size, 1, '주머니는 한 칸(묶음)으로 고른다');
+    assert.equal(batch.textContent, '선택 보관 (2)', '고른 칸의 물건 수는 2개');
     assert.equal(batch.hidden, false);
-    assert.equal(batch.textContent, '선택 보관 (1)');
+    assert.equal(batch.textContent, '선택 보관 (2)');
     assert.equal(withdraw.hidden, true, '가방을 고르면 꺼내기는 숨김');
     assert.equal(detail.hidden, false, '고른 칸은 상세 바에도 띄운다');
     assert.equal(calls.length, 0, '탭만으로는 옮기지 않는다');
 
-    bagCells[1].onclick();
-    assert.equal(batch.textContent, '선택 보관 (2)');
-    bagCells[0].onclick();
-    assert.equal(batch.textContent, '선택 보관 (1)', '다시 탭하면 선택이 풀린다');
-    bagCells[0].onclick();
+    cellOf('w1').onclick();
+    assert.equal(batch.textContent, '선택 보관 (3)');
+    cellOf('w1').onclick();
+    assert.equal(batch.textContent, '선택 보관 (2)', '다시 탭하면 선택이 풀린다');
+    cellOf('h1').onclick();
     assert.equal(warehouseState(ui).picked.size, 2);
 
     // 선택은 한 쪽만 — 창고 칸을 고르면 가방 선택은 지워지고 꺼내기 버튼으로 바뀐다.
@@ -234,8 +238,8 @@ test('공용창고는 아이콘 슬롯 그리드로 그려지고, 모드 전환 
     assert.deepEqual(calls.at(-1), { action: 'withdraw', ids: ['s1'] });
     assert.equal(warehouseState(ui).picked.size, 0, '옮긴 뒤 선택은 비운다');
 
-    // 가방 쪽 두 칸을 다시 골라 한 요청으로 보관한다.
-    bagCells[0].onclick(); bagCells[1].onclick();
+    // 가방 쪽 장비 칸 두 개를 다시 골라 한 요청으로 보관한다.
+    cellOf('w1').onclick(); cellOf('h1').onclick();
     const before = calls.length;
     batch.onclick();
     await new Promise(resolve => setImmediate(resolve));
@@ -337,11 +341,11 @@ test('공용창고·가방 목록은 부위별로 모으고 같은 부위 안에
     renderWarehouse(ui, dialog);
     const [storageGrid, bagGrid] = all(dialog, node => node.classList.contains('warehouse-grid'));
     const order = grid => cellsIn(grid).map(cell => cell.dataset.itemId);
-    // 무기 → 투구 → 보물 주머니 → 스킬북, 같은 부위는 전투력(공격/방어) 높은 순.
-    assert.deepEqual(order(bagGrid), ['strong', 'weak', 'h1', 'h2', 'p1', 'b1']);
-    assert.deepEqual(order(storageGrid), ['s-strong', 's-weak', 's-h', 's-p']);
+    // 보물 주머니(첫 칸, 작업 247) → 무기 → 투구 → 스킬북, 같은 부위는 전투력(공격/방어) 높은 순.
+    assert.deepEqual(order(bagGrid), ['p1', 'strong', 'weak', 'h1', 'h2', 'b1']);
+    assert.deepEqual(order(storageGrid), ['s-p', 's-strong', 's-weak', 's-h']);
     // 나가는 목록도 같은 칸 순서를 그대로 쓴다(포커스 상세는 첫 칸).
     const firstCell = cellsIn(bagGrid)[0];
-    assert.equal(firstCell.dataset.itemId, 'strong');
+    assert.equal(firstCell.dataset.itemId, 'p1');
   } finally { globalThis.document = previous; }
 });

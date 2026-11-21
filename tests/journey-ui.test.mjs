@@ -189,3 +189,34 @@ test('거래소 거래가 막혀 있어도 우편함에서 거래 결과 다시 
     assert(!find(claim,n=>n.tag==='button'&&n.textContent==='거래 결과 다시 확인'));
   }finally{globalThis.document=previous;}
 });
+
+test('일일·주간 보상 탭은 받을 보상이 있는 기간에만 빨간 점을 띄우고 전체 완료 보상을 맨 위로 올린다(작업 247)', () => {
+  const previous = globalThis.document; globalThis.document = { createElement: node };
+  try {
+    const { ui } = fixture();
+    ui.journey.data.daily = [task('login', 1, 1), task('hunt', 0, 300), { ...task('completion', 1, 2), completion: true, name: '일일 전체 완료 보상' }];
+    ui.journey.data.weekly = [task('weekly', 0, 5000), { ...task('completion', 0, 5), completion: true, name: '주간 전체 완료 보상' }];
+    const dialog = node(); renderUtility(ui, dialog, 'rewards');
+    const tab = id => find(dialog, n => n.id === id);
+    const dot = id => find(tab(id), n => String(n.className).includes('reward-tab-dot'));
+    assert.equal(dot('reward-tab-daily').hidden, false, '일일은 받을 보상이 있다');
+    assert.equal(dot('reward-tab-weekly').hidden, true, '주간은 달성한 보상이 없다');
+
+    const panel = find(dialog, n => n.id === 'reward-panel-daily');
+    const completionAt = panel.children.findIndex(child => child.className === 'reward-completion');
+    const groupAt = panel.children.findIndex(child => child.className === 'reward-mission-group');
+    assert(completionAt >= 0 && groupAt > completionAt, '전체 완료 보상이 개별 미션 묶음보다 위');
+    const completion = panel.children[completionAt];
+    assert(find(completion, n => n.textContent === '일일 전체 완료 보상'), '전체 완료 카드는 위쪽 묶음에 있다');
+    const group = panel.children[groupAt];
+    assert(!find(group, n => n.textContent === '일일 전체 완료 보상'), '개별 미션 묶음에는 전체 완료가 없다');
+    assert.deepEqual(group.children.map(card => card.children[0].textContent), ['login', 'hunt']);
+    assert(find(panel, n => n.textContent === '일일 미션'), '개별 미션 묶음 제목');
+
+    // 주간 탭에서 달성하면 주간 점만 켜진다.
+    ui.journey.data.weekly[0].current = 5000;
+    const weekly = node(); renderUtility(ui, weekly, 'rewards');
+    assert.equal(find(find(weekly, n => n.id === 'reward-tab-weekly'), n => String(n.className).includes('reward-tab-dot')).hidden, false);
+    assert.equal(find(find(weekly, n => n.id === 'reward-tab-daily'), n => String(n.className).includes('reward-tab-dot')).hidden, false);
+  } finally { globalThis.document = previous; }
+});
