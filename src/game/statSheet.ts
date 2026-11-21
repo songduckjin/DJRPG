@@ -8,27 +8,23 @@
  *   · 치명타 확률 상한·치명타 피해 배수 → `src/game/battle/formulas.ts`
  *   · 전투력 → `combatPower`(`src/game/power.ts`, 내 정보 창과 같은 식)
  *
- * **없는 값은 넣지 않는다.** 스킬 쿨타임 감소(CDR)·스탯 포인트처럼 이 베이스(main + #304)에 아직
- * 없는 규칙은 줄을 만들지 않는다 — 0이라고 적으면 "그런 시스템이 있는데 0"으로 읽히기 때문이다.
- * (`save.skillPoints`는 세이브에 남아 있지만 스킬 레벨은 **같은 스킬북 중복**으로만 올라가고 이 값을
- * 쓰는 곳이 없다 — 화면에 띄우면 올릴 방법이 없는 숫자가 된다.) CDR·% 방어는 밸런스 v2(#307)에서
- * 생기면 여기에 한 줄씩 더한다.
+ * **없는 값은 넣지 않는다.** 스탯 포인트처럼 쓰는 곳이 없는 값은 줄을 만들지 않는다 — 0이라고 적으면
+ * "그런 시스템이 있는데 0"으로 읽히기 때문이다(`save.skillPoints`는 스킬 레벨이 **같은 스킬북 중복**으로만
+ * 올라가 이 값을 쓰지 않는다). 밸런스 v2(#307)가 만든 **스킬 쿨타임 감소**와 **% 피해 감소**는 여기서
+ * 전투와 같은 식으로 계산해 한 줄씩 보여 준다(`SKILL_CDR_CAP`·`damageReduction`).
  */
-import { totalStats } from './items';
+import { CDR_CAP, totalStats } from './items';
 import type { Save } from './store';
 import { effectiveExtraOptions } from './extraOptions';
-import { CRIT_CHANCE_CAP, CRIT_DAMAGE_SCALE } from './battle/formulas';
+import { CRIT_CHANCE_CAP, CRIT_DAMAGE_SCALE, damageReduction } from './battle/formulas';
 import { combatPower } from './power';
-
-/** 방어력 1점이 한 타에서 깎는 피해 — `enemyHitDamage`가 `방어력 × 0.2`를 뺀다. */
-export const DEFENSE_DAMAGE_SCALE = .2;
 
 /** 추가옵션 %가 붙는 상한 — `effectiveExtraOptions`와 같은 값을 안내 문구에 쓴다. */
 const EXTRA_CAPS = { lifesteal: 15, evasion: 30, regen: 12 } as const;
 
 export type StatSheetRowKey =
   | 'attack' | 'defense' | 'health'
-  | 'critChance' | 'critDamage' | 'attackSpeed' | 'attacksPerSecond'
+  | 'critChance' | 'critDamage' | 'attackSpeed' | 'attacksPerSecond' | 'cdr'
   | 'lifesteal' | 'evasion' | 'regen' | 'bonusDamage';
 
 export type StatSheetRow = { key: StatSheetRowKey; label: string; value: string; note?: string };
@@ -67,7 +63,10 @@ export function statSheet(save: Save, options: { currentHp: number; attackInterv
   const extras = effectiveExtraOptions(save.equipment);
   const critChance = Math.min(CRIT_CHANCE_CAP, Math.max(0, stats.crit));
   const aps = attacksPerSecond(stats.speed, options.attackInterval);
-  const flatDefense = Math.round(stats.defense * DEFENSE_DAMAGE_SCALE);
+  // 방어는 **% 피해 감소**로 보여 준다(밸런스 v2) — 예전 `방어 × 0.2`는 20층에서 피해를 1로 만드는 식이었다.
+  const reduction = damageReduction(stats.defense, save.floor);
+  const reductionText = `피해 감소 ${percent(reduction * 100)}`;
+  const cdr = Math.min(CDR_CAP, Math.max(0, Math.round(stats.cdr)));
   const maxHp = Math.round(stats.health);
   const currentHp = Math.max(0, Math.min(maxHp, Math.round(options.currentHp)));
 
@@ -81,7 +80,7 @@ export function statSheet(save: Save, options: { currentHp: number; attackInterv
         key: 'battle', title: '전투',
         rows: [
           { key: 'attack', label: '공격력', value: count(stats.attack) },
-          { key: 'defense', label: '방어력', value: count(stats.defense), note: `1타당 피해 -${count(flatDefense)}` },
+          { key: 'defense', label: '방어력', value: count(stats.defense), note: `${reductionText} · ${save.floor}층 기준` },
           { key: 'health', label: '최대 체력', value: count(maxHp) }
         ]
       },
@@ -90,7 +89,8 @@ export function statSheet(save: Save, options: { currentHp: number; attackInterv
         rows: [
           { key: 'critChance', label: '치명타 확률', value: percent(critChance), note: stats.crit > CRIT_CHANCE_CAP ? `상한 ${CRIT_CHANCE_CAP}%` : undefined },
           { key: 'critDamage', label: '치명타 피해', value: percent(CRIT_DAMAGE_SCALE * 100) },
-          { key: 'attackSpeed', label: '공격속도', value: percent(stats.speed), note: `초당 ${aps.toFixed(2)}회` }
+          { key: 'attackSpeed', label: '공격속도', value: percent(stats.speed), note: `초당 ${aps.toFixed(2)}회` },
+          { key: 'cdr', label: '스킬 쿨타임 감소', value: percent(cdr), note: cdr >= CDR_CAP ? `상한 ${CDR_CAP}%` : undefined }
         ]
       },
       {
