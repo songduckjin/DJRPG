@@ -93,7 +93,7 @@ function rule(source, selector) {
 test('세 화면(가방·장착 칸·공용창고·거래소)이 같은 판정 헬퍼로 화살표를 붙인다', () => {
   assert.match(equipSource, /import \{ upgradeArrowMarkup \} from '\.\.\/upgradeBadge'/, '가방은 innerHTML 헬퍼를 쓴다');
   assert.match(equipSource, /const upgrade = upgradeArrowMarkup\(save, item\);/);
-  assert.match(equipSource, /cell\.innerHTML = itemIcon\.call\(this, item\.slot, item, 'item-icon'\) \+ upgrade \+ plus;/);
+  assert.match(equipSource, /cell\.innerHTML = itemIcon\.call\(this, item\.slot, item, 'item-icon'\) \+ upgrade \+ plus \+ rarity;/);
   assert.match(warehouseSource, /const upgrade = upgradeArrowMarkup\(ui\.world\.save, item\);/);
   assert.match(warehouseSource, /cell\.innerHTML = cellIcon\(ui, item\) \+ upgrade;/);
   assert.match(marketSource, /import \{ appendUpgradeArrow \} from '\.\.\/upgradeBadge'/);

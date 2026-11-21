@@ -10,7 +10,7 @@
 | 추가옵션 | `src/game/extraOptions.ts` · 서버 사본 `server/extra-options.mjs` |
 | 가방 40칸 규칙 | `src/game/bagCapacity.ts` · 서버 사본 `server/skill-ids.mjs`(`countedInBag`) |
 | 자동 장착·분해·보호 | `src/game/inventory.ts`(`salvagePlan`·`salvageUpgrades`·`autoSalvageBlock`·`autoSalvageRecovered`·`sweepBagOnFull`) |
-| 장비 비교·표시 | `src/game/itemComparison.ts`·`src/ui/itemName.ts`·`src/ui/upgradeBadge.ts`·`src/ui/plusBadge.ts` |
+| 장비 비교·표시 | `src/game/itemComparison.ts`·`src/ui/itemName.ts`·`src/ui/upgradeBadge.ts`·`src/ui/plusBadge.ts`·`src/ui/rarityBadge.ts` |
 | 장비창·가방·분해 UI | `src/ui/modals/equipModal.ts`·`src/ui/modals/salvageModal.ts`·`src/ui/equippedDetail.ts`·`src/ui/salvagePlus.ts` |
 | 칸 정렬·묶음 | `src/ui/bagStacks.ts`(`bagStacks`·`compareBagItems`) |
 | 서버 검증 | `server/database.mjs`(`reconcileItems`·`itemValid`)·`server/save-guard.mjs`(`itemWithinBounds`) |
@@ -28,6 +28,7 @@
 - **업그레이드 판정은 한 곳**: `isUpgradeForHero(save,item)` — ①장비 ②`canWield` ③`itemPower` 비교(반지는 약한 칸 또는 빈 칸). 가방·창고·거래소·상세가 모두 이 판정을 쓴다.
 - **자동 분해**: 설정 등급·`+N` 상한(41층부터)·잠금·스킬북·주머니·더 좋은 장비는 보호. 접속·방치·던전 모두 `autoSalvageRecovered`를 지난다. 분해 보상은 `salvageGold`·`salvageStones`.
 - **칸 순서**: 부위 순 → 주머니 → 스킬북 → 기타, 같은 부위는 `itemPower` 내림차순 → 등급 → `plus` → 이름. 가방과 공용창고가 같은 비교자를 쓴다.
+- **아이템 칸 배지 자리(네 모서리, 하나도 겹치지 않는다)**: 왼쪽 위 = **등급 배지** `L`·`U`·`E`(`src/ui/rarityBadge.ts` — 전설·유니크·에픽 **장비만**, 일반·매직·레어·스킬북·주머니는 없음), 오른쪽 위 = 추천 화살표(없으면 잠금), 왼쪽 아래 = `+N`(강화), 오른쪽 아래 = `×N`(스킬북·주머니) 또는 잠금. 그래서 **직업 배지**(`job-badge`)는 좁은 칸(가방·공용창고·거래소 판매 등록 칸, 30~40px)에서 오른쪽 아래로 비키고 한 글자(`전`·`궁`·`법`, `jobShortNames`)가 된다 — 전체 이름은 `title`·`aria-label`·상세 패널이 밝힌다. 등급 배지가 없는 넓은 거래소 카드에서는 직업 배지가 그대로 `전사`이고, 등급 배지가 붙는 카드에서만 등급 배지 **아래로 쌓인다**(`top: 15px`). 잠금 배지와 자리가 겹치는 칸(추천 대상 + 잠김)에서는 상태인 **잠금을 남기고 직업 배지를 감춘다**(가방 `.bag-item.has-upgrade:has(.bag-lock-badge)`, 거래소 `.market-pick:has(.lock-icon)`). 장착 10칸(92px)에는 직업 배지가 없고 등급 배지만 왼쪽 위에 붙는다.
 
 ## 금지
 
@@ -38,7 +39,7 @@
 
 ## 테스트
 
-`node --test tests/inventory.test.mjs tests/bag-capacity.test.mjs tests/bag-job-books.test.mjs tests/bag-stack-order.test.mjs tests/bag-limit-recovery.test.mjs tests/item-plus.test.mjs tests/plus-badge.test.mjs tests/upgrade-badge.test.mjs tests/extra-options.test.mjs tests/auto-salvage.test.mjs tests/salvage-plus.test.mjs tests/salvage-rarity.test.mjs tests/salvage-protection.test.mjs tests/item-drop-jobs.test.mjs tests/equipment-info.test.mjs tests/job-gear.test.mjs`
+`node --test tests/inventory.test.mjs tests/bag-capacity.test.mjs tests/bag-job-books.test.mjs tests/bag-stack-order.test.mjs tests/bag-limit-recovery.test.mjs tests/item-plus.test.mjs tests/plus-badge.test.mjs tests/upgrade-badge.test.mjs tests/rarity-badge.test.mjs tests/extra-options.test.mjs tests/auto-salvage.test.mjs tests/salvage-plus.test.mjs tests/salvage-rarity.test.mjs tests/salvage-protection.test.mjs tests/item-drop-jobs.test.mjs tests/equipment-info.test.mjs tests/job-gear.test.mjs`
 
 ## 관련 매뉴얼
 
