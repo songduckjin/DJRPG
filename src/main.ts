@@ -9,6 +9,8 @@ import { applyOfflineRewards } from './game/offline';
 import { World } from './game/world';
 import { Interface } from './ui/interface';
 import { clearToken, openLogin } from './ui/login';
+import { MAINTENANCE_EVENT, MaintenanceWatch, type MaintenanceState } from './game/maintenance';
+import { showMaintenancePopup, type MaintenancePopup } from './ui/maintenance';
 import './styles/main.css';
 import { SaveSync } from './game/sync';
 import { createBootOverlay } from './ui/boot';
@@ -83,6 +85,33 @@ async function start(): Promise<void> {
       const running=view.app.ticker.started;view.app.ticker.stop();
       return () => {if(running)view.app.ticker.start();};
     };
+
+    // 배포 점검(작업 256): 20초마다·탭이 돌아올 때 `maintenance.json`을 다시 읽는다. 점검이 켜지면
+    // ① 전투를 멈추고 ② 저장을 시도한 뒤(최대 3초) ③ 로그인 화면으로 돌아간다. 로그인 화면이 같은
+    // "점검 진행 중입니다 + 예상 시간" 모달로 다시 막으므로, 접속 중인 플레이어는 화면이 바뀌어도
+    // 이유를 바로 알 수 있다(예전에는 사냥 화면에서 그대로 플레이됐다).
+    let leavingForMaintenance = false;
+    let maintenancePopup: MaintenancePopup | null = null;
+    const applyMaintenance = (state: MaintenanceState) => {
+      if (!state.active) return;
+      maintenancePopup?.remove(); maintenancePopup = null;
+      maintenancePopup = showMaintenancePopup(document.body, state, () => { void recheckMaintenance(); });
+      if (leavingForMaintenance) return;
+      leavingForMaintenance = true;
+      world.paused = true;
+      try { view.app.ticker.stop(); } catch { /* 이미 멈춤 */ }
+      const flushed = Promise.race([sync.flush().catch(() => false), new Promise<boolean>(resolve => setTimeout(() => resolve(false), 3000))]);
+      void flushed.then(() => { maintenancePopup?.note('로그인 화면으로 이동합니다…'); setTimeout(() => location.reload(), 1200); });
+    };
+    const recheckMaintenance = async () => {
+      const state = await watch.check();
+      if (!state) { maintenancePopup?.busy(false); maintenancePopup?.note('점검 상태를 확인하지 못했습니다. 잠시 후 다시 시도해 주세요.'); return; }
+      if (state.active) applyMaintenance(state); else maintenancePopup?.busy(false);
+    };
+    const watch = new MaintenanceWatch({ onMaintenance: applyMaintenance });
+    watch.start();
+    // API가 503 점검을 돌려주면 곧바로 점검 파일을 다시 확인한다 — 정적 파일이 먼저 열려 있어도 20초를 기다리지 않는다.
+    window.addEventListener(MAINTENANCE_EVENT, () => { void recheckMaintenance(); });
 
     window.addEventListener('keydown', e => {
       if (['INPUT','SELECT','TEXTAREA','BUTTON'].includes((e.target as HTMLElement)?.tagName) || world.paused) return;
