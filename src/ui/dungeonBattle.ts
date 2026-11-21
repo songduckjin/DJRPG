@@ -174,11 +174,16 @@ class DungeonWorld extends World {
   private lootId=0;
   /** Gold this floor's kills left on the ground, which the clear screen reports. */
   get lootGold():number { return this.loot.reduce((sum,entry)=>sum+(entry.kind==='gold'?entry.gold:0),0); }
-  // Defend the central position instead of chasing the previous wave's spawn point.
+  // The hero fights from where he stands (작업 248). Until now this override pinned him to (50,50) before
+  // and after `super.update`, so every step he took toward a mob was undone in the same frame and the room
+  // looked like it was waiting for the monsters. He now walks exactly as the field does — `World.update`
+  // moves him along `activeMove` toward the nearest enemy until `stopRange`, inside `clampArenaPoint` — and
+  // `nearest()` is no longer cut off at 110. Because he stops a `stopRange` short of the mob, he never
+  // reaches the wave's spawn line at the top of the room or the exit door: on a 390×700 phone his feet stay
+  // 78px (360×640: 71px) below the door sill, and the whole floor is walked inside the arena. Only the
+  // enemies keep the extra step below.
   override update(dt:number):void {
-    this.player.x=50;this.player.y=50;
     super.update(dt);
-    this.player.x=50;this.player.y=50;this.activeMove={x:0,y:0};
     // `super.update` already walked every mob one shared field step. Adding the remaining half
     // along the same heading makes the travelled distance exactly DUNGEON_ENEMY_SPEED_SCALE,
     // while cooldowns, skills, hit timing and the 90s limit keep running on the real dt.
@@ -192,10 +197,6 @@ class DungeonWorld extends World {
       enemy.step+=extra*Math.PI*(enemy.boss?3.25:4.25);
       enemy.x=bounded.x;enemy.y=bounded.y;
     }
-  }
-  override nearest():Enemy|undefined {
-    const enemy=super.nearest();
-    return enemy&&Math.hypot(enemy.x-this.player.x,enemy.y-this.player.y)<=110?enemy:undefined;
   }
   override kill(enemy:Enemy):void { this.slain++;this.effects.push({x:enemy.x,y:enemy.y,kind:'death',age:0,duration:.7,angle:0});this.dropLoot(enemy); }
   // Same rewards the field grants, kept as ground loot until the floor is cleared: a coin on every

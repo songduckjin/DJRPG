@@ -1,3 +1,13 @@
+## 2026-11-21 · songduckjin 작업 248 — 끝없는 던전에서 캐릭터가 몬스터를 기다리던 문제(히어로 이동·추격 복구)
+
+- **제보**: `#21078` "그리고 끝없는던전에서 캐릭터가 몬스터가 다가오길 기다리더라"(11-21 오전 KST).
+- **원인**: `src/ui/dungeonBattle.ts` `DungeonWorld.update`가 시작·끝 두 번 `this.player.x=50; this.player.y=50; this.activeMove={x:0,y:0}`으로 히어로를 고정했다(11-19 `d61a685` "spawn dungeon enemies farther away and defend central position"). `super.update(dt)`가 적을 향해 옮긴 한 걸음을 같은 프레임 끝에서 되돌리므로 히어로의 이동 거리는 **항상 0**이었고, 적만 1.5배 속도로 27까지 다가와 때렸다. 그 위에 `nearest()`가 110 밖의 적을 `undefined`로 돌려줘, 150~200 밖에서 뜨는 웨이브는 추격 대상도 아니었다.
+- **수정**: 고정 줄 두 개와 `nearest()` 오버라이드를 삭제해 일반 필드와 같은 규칙을 쓴다 — `World.update`가 가장 가까운 적을 향해 `activeMove`로 `stopRange`(전사 90·궁수 180·마법사 160)까지 걷고, 히어로는 `clampArenaPoint` 안에 머문다. 적의 1.5배 추가 걸음·`DUNGEON_STEP=1/60` 고정 스텝·시드 리플레이(서버 `server/dungeon-verify.mjs`가 같은 모듈로 다시 돈다)·90초 제한·드롭/보상은 손대지 않았다.
+- **실측**(같은 세이브·같은 시드, 수정 전 → 후): Lv10·공격 120 전사 1층 클리어 **5.6초 → 3.3초**, 4층 **5.6 → 3.7초**, 5층(보스) **22.2 → 20.8초**, Lv30 10층 보스 **68.1 → 66.7초**. 히어로 경로 길이 0 → 65~69유닛(390×700에서 화면 392 → 351px, 1초에 28px·2초에 추가 12px 걸어 올라간 뒤 교전). 궁수·마법사는 정지 거리(180·160)가 웨이브 등장 거리(≈167)보다 멀어 종전처럼 제자리에서 쏘고 **이제 사거리(330·285) 안의 적을 실제로 쏜다**(110 상한 삭제).
+- **경계**: 히어로의 발끝이 화면에서 가장 높이 올라간 지점은 390×700 **344px**·360×640 **314px**로, 철문 문턱(화면 38% = 266px·243px)보다 78px·71px 아래다 — 문을 뚫고 나가지 않는다(`clampArenaPoint` 이탈 0회, 5시드×1~10층 50판). 히어로가 서 있는 자리에서 다음 웨이브가 뜨는 최소 거리는 **81.6유닛**이라 코앞에 튀어나오지 않는다. 드롭 착지·흡수·결과창·히어로 체력바는 매 프레임 `battle.world.player` 좌표를 다시 읽으므로 이동을 그대로 따라간다.
+- **검증**: `npx tsc --noEmit`·`npx vite build` 통과, `tests/dungeon-battle.test.mjs` **34/34**(기존 "히어로가 50,50에 머문다" 계약을 "걸어 나가 적과 교전한다"로 교체 + ① 110 밖 웨이브도 추격 ② 아레나·문 경계 2건 신규), 던전·이동 관련 `dungeon-{battle,seed,verify,ranking,record,rewards,lobby}`·`world-movement`·`arena`·`field-loot` 112건 통과, 전체 `node --test tests/*.test.mjs` **1,049건 중 953 통과**(실패 96건은 이 sparse 체크아웃에 `public/assets/**`·`public/assets/pilot-25d/**`가 없어 나는 시트 규격/아트 검사 ENOENT — 변경 파일과 무관, CI의 전체 체크아웃에서 수행). 서버 리플레이는 같은 함수를 돌리므로 시드·스텝·digest 계약(`dungeon-seed`)이 그대로 통과한다.
+- **머지·배포**: 사용자 지시 "오늘부터는 변경사항 모아서 한 번에 배포하자"에 따라 **PR만 만들고 `main` 머지·배포는 하지 않았다.** [PR #253](https://github.com/songduckjin/DJRPG/pull/253) — Cloudflare Pages **SUCCESS**(프리뷰 `0d568cf9.djrpg.pages.dev` `version.json` `e2a48a2bb9d1`·`builtAt` 2026-11-21T03:02:21Z, 배포 번들 `assets/index-D14AeeER.js`에서 매 프레임 고정 `this.player.x=50` 0건), `Workers Builds: djrpg` 실패는 `main`·PR #250에서도 같은 상시 체크. 폰 실기 확인(던전에서 히어로가 걸어가 교전하는지)은 사용자 몫.
+
 ## 2026-11-21 · songduckjin 작업 247 — 마법사 모자·투구 파츠에서 상반신 걷어내기(투구만 빛나게)
 
 - **제보**: "투규만 유니크인대 갑옷도 반짝거리네"(02:23 KST, `IMG_1147`) — 마법사 여성 캐릭터에 **투구만 유니크**인데 로브 상체까지 주황색으로 반짝였다.
