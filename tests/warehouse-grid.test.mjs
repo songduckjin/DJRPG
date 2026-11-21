@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -193,7 +194,7 @@ test('공용창고는 아이콘 슬롯 그리드로 그려지고, 모드 전환 
     assert(all(dialog, node => node.className.includes('item-plus-badge')).length >= 1, '+N 배지');
     assert(text(dialog).includes('계정 공용 금화 1,234'));
     assert(text(dialog).includes('공용창고 1/40'));
-    assert(text(dialog).includes('가방 6/40'), '가방은 든 아이템 6개(장비 2·스킬북 2·주머니 2)를 모두 센다(작업 248)');
+    assert(text(dialog).includes('가방 4/40'), '가방은 장비 2·보물 주머니 2를 세고, 내 직업 스킬북 2권은 세지 않는다(작업 253)');
     assert(!text(dialog).includes('불러오는 중'), '목록이 있으면 로딩 문구가 없다');
     // `선택 끔/켬`·`빠른 이동` 모드 버튼은 없어졌다(작업 246).
     assert.equal(all(dialog, node => node.classList.contains('warehouse-quick')).length, 0, '빠른 이동 없음');
@@ -455,4 +456,23 @@ test('이동하는 동안 그 칸만 잠기고 응답의 세이브·창고 목�
     renderWarehouse(ui, reopened);
     assert.equal(cellsIn(all(reopened, node => node.classList.contains('warehouse-grid'))[1]).filter(cell => cell.disabled).length, 0);
   } finally { globalThis.document = previous; }
+});
+
+// 작업 253 — 사용자 제보(11-21) "공용창고 선택 꺼내기 너무 느리다". 예전에는 아이템마다 `await tx.execute`로
+// 소유 기록을 읽어 10개면 10번, 30개면 30번 원격 DB를 왕복했다(수 초~타임아웃). 지금은 `IN (...)` 한 번으로
+// 읽어 `Map`으로 검증하고, 쓰기도 `INSERT`(다중 VALUES) 1 + `UPDATE ... IN (...)` 2 / `DELETE` 1 + `UPDATE ... IN (...)` 2로 묶는다.
+test('일괄 보관·꺼내기는 아이템 수만큼 DB를 왕복하지 않는다(작업 253)', () => {
+  const source = readFileSync(new URL('../server/endpoints/warehouse.mjs', import.meta.url), 'utf8');
+  const start = source.indexOf("if (input.action === 'deposit')");
+  const end = source.indexOf('const saved = await writeSave');
+  assert(start > 0 && end > start, '보관·꺼내기 블록을 찾는다');
+  const block = source.slice(start, end);
+  const loops = [...block.matchAll(/for \(const itemId of ids\) \{([\s\S]*?)\n        \}/g)].map(match => match[1]);
+  assert.equal(loops.length, 2, '보관·꺼내기 각각 하나의 루프');
+  for (const body of loops) assert.doesNotMatch(body, /await tx\.execute/, '아이템 루프 안에서 DB를 왕복하지 않는다');
+  assert.match(block, /o\.item_id IN \(\$\{placeholders\(ids\)\}\)/, '보관: 소유 기록을 1회 조회');
+  assert.match(block, /w\.item_id IN \(\$\{placeholders\(ids\)\}\)/, '꺼내기: 창고+소유 기록을 1회 조회');
+  assert.match(block, /UPDATE djrpg_item_owners SET location='warehouse' WHERE account_id=\? AND item_id IN \(\$\{marks\}\)/);
+  assert.match(block, /DELETE FROM djrpg_warehouse WHERE account_id=\? AND item_id IN \(\$\{marks\}\)/);
+  assert.equal((block.match(/INSERT INTO djrpg_warehouse/g) ?? []).length, 1, '보관 INSERT도 1문장(다중 VALUES)');
 });

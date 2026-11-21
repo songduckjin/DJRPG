@@ -72,36 +72,57 @@ async function handle(request, { env = runtimeEnv(), createDbClient } = {}, cont
       // 일괄 요청에서 한 개라도 조건이 어긋나면 **아무것도 옮기지 않는다** — 트랜잭션이 통째로 되돌아간다.
       // 단건 요청의 에러 코드·문구는 예전 그대로 두고, 일괄일 때만 무엇이 문제였는지 개수와 함께 알린다.
       const reject = (code, single, batched) => fail(409, code, batch ? batched : single);
+      // 일괄 이동(작업 253 성능) — 예전에는 아이템마다 `tx.execute`로 소유 기록을 읽어 **개수만큼 DB를 왕복**했다
+      // (10개면 10번, 원격 Turso에서 수 초~타임아웃). 지금은 `IN (...)` **한 번**으로 읽어 `Map`으로 검증하고,
+      // 쓰기(`operations`)도 `INSERT`(다중 VALUES) 1개 + `UPDATE ... IN (...)` 2개로 묶는다(꺼내기는 `DELETE` 1 + `UPDATE` 2).
+      const placeholders = list => list.map(() => '?').join(',');
       if (input.action === 'deposit') {
-        let stored = batch
-          ? Number((await tx.execute({ sql: 'SELECT COUNT(*) AS n FROM djrpg_warehouse WHERE account_id=?', args: [id] })).rows[0].n)
-          : 0;
+        // 창고 잔여 칸은 단건·일괄 모두 **루프 전에 한 번**만 읽는다(단건도 아이템이 1개라 결과가 같다).
+        let stored = Number((await tx.execute({ sql: 'SELECT COUNT(*) AS n FROM djrpg_warehouse WHERE account_id=?', args: [id] })).rows[0].n);
+        const ownerRows = (await tx.execute({
+          sql: `SELECT o.item_id,o.location,m.slot FROM djrpg_item_owners o
+            LEFT JOIN djrpg_character_item_owners m ON m.item_id=o.item_id
+            WHERE o.account_id=? AND o.item_id IN (${placeholders(ids)})`,
+          args: [id, ...ids]
+        })).rows;
+        const owners = new Map(ownerRows.map(entry => [entry.item_id, entry]));
+        const moved = [];
         for (const itemId of ids) {
           const index = save.bag.findIndex(item => item.id === itemId);
           if (index < 0) reject('ITEM_NOT_AVAILABLE', '가방에 있는 아이템만 창고에 넣을 수 있습니다.', '가방에 없는 아이템이 있어 아무것도 보관하지 않았습니다. 새로고침 후 다시 시도하세요.');
           const item = save.bag[index];
           // 추가옵션(작업 238)은 `id`에서 다시 계산해 저장한다 — 창고로 들어가는 사본도 서버가 정한다.
           normalizeExtraOptions(item);
-          const owner = (await tx.execute({ sql: 'SELECT o.location,m.slot FROM djrpg_item_owners o LEFT JOIN djrpg_character_item_owners m ON m.item_id=o.item_id WHERE o.item_id=? AND o.account_id=?', args: [item.id, id] })).rows[0];
+          const owner = owners.get(item.id);
           if (!owner || owner.location !== 'inventory' || Number(owner.slot) !== row.slot) reject('ITEM_CONFLICT', '아이템 소유 상태가 달라졌습니다. 다시 불러오세요.', '소유 상태가 달라진 아이템이 있어 아무것도 보관하지 않았습니다. 새로고침 후 다시 시도하세요.');
-          if (!batch) stored = Number((await tx.execute({ sql: 'SELECT COUNT(*) AS n FROM djrpg_warehouse WHERE account_id=?', args: [id] })).rows[0].n);
           if (stored >= WAREHOUSE_LIMIT) reject('WAREHOUSE_FULL', '공용창고가 가득 찼습니다.', `공용창고가 가득 차 ${ids.length}개를 보관하지 못했습니다.`);
           stored++;
           save.bag.splice(index, 1);
-          operations.push({ sql: 'INSERT INTO djrpg_warehouse(account_id,item_id,item_json) VALUES (?,?,?)', args: [id, item.id, JSON.stringify(item)] });
-          operations.push({ sql: "UPDATE djrpg_item_owners SET location='warehouse' WHERE item_id=? AND account_id=?", args: [item.id, id] });
-          operations.push({ sql: 'UPDATE djrpg_character_item_owners SET slot=0 WHERE item_id=? AND account_id=?', args: [item.id, id] });
+          moved.push(item);
+        }
+        if (moved.length) {
+          const movedIds = moved.map(item => item.id);
+          const marks = placeholders(movedIds);
+          operations.push({
+            sql: `INSERT INTO djrpg_warehouse(account_id,item_id,item_json) VALUES ${moved.map(() => '(?,?,?)').join(',')}`,
+            args: moved.flatMap(item => [id, item.id, JSON.stringify(item)])
+          });
+          operations.push({ sql: `UPDATE djrpg_item_owners SET location='warehouse' WHERE account_id=? AND item_id IN (${marks})`, args: [id, ...movedIds] });
+          operations.push({ sql: `UPDATE djrpg_character_item_owners SET slot=0 WHERE account_id=? AND item_id IN (${marks})`, args: [id, ...movedIds] });
         }
       } else {
-        // 가방 40칸은 **모든 아이템**(장비·스킬북·보물 주머니) 1개 = 1칸이다(작업 248).
+        // 가방 40칸은 **장비·타직업 스킬북·보물 주머니** 1개 = 1칸이다(작업 253 — 내 직업 스킬북 제외).
         // 예전에는 스킬북·주머니를 검사 없이 꽂아 40개를 넘길 수 있었다.
         const bagSlots = () => save.bag.filter(entry => countedInBag(entry, save.job)).length;
         let bagCount = batch ? bagSlots() : 0;
-        for (const itemId of ids) {
-          const stored = (await tx.execute({ sql: `SELECT w.item_json,o.location,m.slot FROM djrpg_warehouse w
+        const storedRows = (await tx.execute({ sql: `SELECT w.item_id,w.item_json,o.location,m.slot FROM djrpg_warehouse w
             JOIN djrpg_item_owners o ON o.item_id=w.item_id AND o.account_id=w.account_id
             JOIN djrpg_character_item_owners m ON m.item_id=w.item_id AND m.account_id=w.account_id
-            WHERE w.account_id=? AND w.item_id=?`, args: [id, itemId] })).rows[0];
+            WHERE w.account_id=? AND w.item_id IN (${placeholders(ids)})`, args: [id, ...ids] })).rows;
+        const storedById = new Map(storedRows.map(entry => [entry.item_id, entry]));
+        const moved = [];
+        for (const itemId of ids) {
+          const stored = storedById.get(itemId);
           if (!stored || stored.location !== 'warehouse' || Number(stored.slot) !== 0) reject('ITEM_NOT_AVAILABLE', '창고 아이템 상태가 달라졌습니다. 다시 불러오세요.', '창고에 없는 아이템이 있어 아무것도 꺼내지 않았습니다. 새로고침 후 다시 시도하세요.');
           const item = JSON.parse(stored.item_json);
           normalizeExtraOptions(item);
@@ -109,9 +130,14 @@ async function handle(request, { env = runtimeEnv(), createDbClient } = {}, cont
           if (bagCount >= WAREHOUSE_LIMIT) reject('BAG_FULL', '가방이 가득 찼습니다.', `가방이 가득 차 ${ids.length}개를 꺼내지 못했습니다.`);
           if (countedInBag(item, save.job)) bagCount++;
           save.bag.push(item);
-          operations.push({ sql: 'DELETE FROM djrpg_warehouse WHERE account_id=? AND item_id=?', args: [id, item.id] });
-          operations.push({ sql: "UPDATE djrpg_item_owners SET location='inventory' WHERE item_id=? AND account_id=?", args: [item.id, id] });
-          operations.push({ sql: 'UPDATE djrpg_character_item_owners SET slot=? WHERE item_id=? AND account_id=?', args: [row.slot, item.id, id] });
+          moved.push(item);
+        }
+        if (moved.length) {
+          const movedIds = moved.map(item => item.id);
+          const marks = placeholders(movedIds);
+          operations.push({ sql: `DELETE FROM djrpg_warehouse WHERE account_id=? AND item_id IN (${marks})`, args: [id, ...movedIds] });
+          operations.push({ sql: `UPDATE djrpg_item_owners SET location='inventory' WHERE account_id=? AND item_id IN (${marks})`, args: [id, ...movedIds] });
+          operations.push({ sql: `UPDATE djrpg_character_item_owners SET slot=? WHERE account_id=? AND item_id IN (${marks})`, args: [row.slot, id, ...movedIds] });
         }
       }
       const saved = await writeSave(tx, row, save, operations);
