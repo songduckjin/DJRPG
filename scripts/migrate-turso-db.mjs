@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // DJRPG 전용 Turso DB 이관 스크립트.
-// 공용 DB(puzzle-mates)에서 djrpg_* 20개 테이블만 새 DB로 복사한다.
+// 공용 DB(puzzle-mates)에서 djrpg_* 27개 테이블만 새 DB로 복사한다.
 // 소스 DB에는 SELECT만 실행한다(어떤 쓰기도 하지 않는다). 사용법: node scripts/migrate-turso-db.mjs --dry-run
 import { createClient } from '@libsql/client';
 import { pathToFileURL } from 'node:url';
@@ -34,10 +34,20 @@ export const TABLES = [
   'djrpg_announcements',
   // 던전 순위·도전 시작 기록(작업 197·209). 세이브의 던전 최고층 검증 근거라 함께 옮긴다.
   'djrpg_dungeon_records',
-  'djrpg_dungeon_attempts'
+  'djrpg_dungeon_attempts',
+  // 상점(다이아) 5표. 상점 도입 뒤로 이 목록에 빠져 있었다 — 그대로 이관하면 지갑·결제 원장·구매 슬롯이
+  // 빈 표로 시작하고, 소스에 상점 표가 있는 경우에는 "이관 목록에 없는 테이블" 검사에 걸려 아예 중단됐다.
+  // 지갑·원장은 계정이 이어져야 하므로 함께 옮긴다(이 표들은 시즌 초기화에서도 보존된다).
+  'djrpg_shop_wallet',
+  'djrpg_shop_orders',
+  'djrpg_shop_ledger',
+  'djrpg_shop_entitlements',
+  'djrpg_shop_requests'
 ];
-// 최신 스키마에만 있는 표 — 소스에 없으면 0행으로 보고 건너뛴다.
-const OPTIONAL_TABLES = ['djrpg_meta', 'djrpg_announcements'];
+// 최신 스키마에만 있는 표 — 소스에 없으면 0행으로 보고 건너뛴다. 상점 5표는 상점 도입 전에 만들어진
+// 공용 DB에는 없으므로 옵션으로 둔다(있으면 함께 옮긴다).
+export const OPTIONAL_TABLES = ['djrpg_meta', 'djrpg_announcements',
+  'djrpg_shop_wallet', 'djrpg_shop_orders', 'djrpg_shop_ledger', 'djrpg_shop_entitlements', 'djrpg_shop_requests'];
 // AUTOINCREMENT 시퀀스를 이어받아야 하는 테이블(현재 djrpg_market_events 하나).
 const SEQUENCE_TABLES = ['djrpg_market_events'];
 const DEFAULT_CHUNK = 500;
@@ -55,8 +65,8 @@ const HELP = `DJRPG Turso DB 이관 (djrpg_* 테이블만 새 DB로 복사)
   TARGET_TURSO_AUTH_TOKEN     새 DB 토큰 (file: URL이면 생략 가능)
 
 옵션:
-  --dry-run                   소스 djrpg_* 테이블 20개의 행 수만 출력하고 종료
-  --force                     타겟 DB의 djrpg_* 20개 테이블 행을 모두 지우고 다시 복사
+  --dry-run                   소스 djrpg_* 테이블 27개의 행 수만 출력하고 종료
+  --force                     타겟 DB의 djrpg_* 27개 테이블 행을 모두 지우고 다시 복사
   --chunk-size=N              한 번에 복사할 행 수 (기본 ${DEFAULT_CHUNK}, 1~5000)
   -h, --help                  이 도움말
 
@@ -64,8 +74,8 @@ const HELP = `DJRPG Turso DB 이관 (djrpg_* 테이블만 새 DB로 복사)
   - 소스 DB는 읽기 전용 트랜잭션으로만 조회한다(puzzle-mates 테이블은 건드리지 않는다).
   - 타겟에 이미 행이 있으면 --force 없이는 중단한다.
   - 예상하지 못한 djrpg_* 테이블이 소스에 있으면 중단한다.
-  - 복사 후 22개 테이블 COUNT(*)가 소스·타겟에서 일치하는지 검사하고, 하나라도 다르면 실패한다.
-  - djrpg_meta·djrpg_announcements는 예전 소스에 없으면 0행으로 보고 건너뛴다(있으면 함께 옮긴다).
+  - 복사 후 27개 테이블 COUNT(*)가 소스·타겟에서 일치하는지 검사하고, 하나라도 다르면 실패한다.
+  - djrpg_meta·djrpg_announcements는 예전 소스에 없으면 0행으로 보고 건너뛴다(있으면 함께 옮긴다). 상점 5표도 같은 방식이다.
 `;
 
 const isLocalUrl = url => /^file:/i.test(url);
@@ -204,10 +214,10 @@ async function run(options, env = process.env) {
       if (rows > 0) occupied.push(`${table}(${number(rows)})`);
     }
     if (occupied.length && !options.force) {
-      throw new Error(`타겟 DB에 이미 행이 있습니다: ${occupied.join(', ')}\n빈 DB를 쓰거나, 정말 덮어쓰려면 --force를 붙여 다시 실행하세요. (--force는 타겟의 djrpg_* 20개 테이블 행을 지우고 다시 복사합니다)`);
+      throw new Error(`타겟 DB에 이미 행이 있습니다: ${occupied.join(', ')}\n빈 DB를 쓰거나, 정말 덮어쓰려면 --force를 붙여 다시 실행하세요. (--force는 타겟의 djrpg_* 27개 테이블 행을 지우고 다시 복사합니다)`);
     }
     if (occupied.length) {
-      console.log(`\n--force: 타겟의 djrpg_* 20개 테이블 행을 지우고 다시 복사합니다 (${occupied.join(', ')})`);
+      console.log(`\n--force: 타겟의 djrpg_* 27개 테이블 행을 지우고 다시 복사합니다 (${occupied.join(', ')})`);
       await target.batch(TABLES.map(table => ({ sql: `DELETE FROM ${quote(table)}` })), 'write');
     }
 
