@@ -40,6 +40,23 @@ export const archerHelmPartPaths: readonly string[] = ['male', 'female'].flatMap
   Array.from({ length: ARCHER_HELM_COUNT }, (_, index) => pilotSheet(`${ARCHER_HELM_ROOT}/${gender}_${index}_v1.png`)));
 
 /**
+ * 궁수 투구 발광 마스크 경로 (작업 248).
+ *
+ * 파츠와 같은 파일명·같은 362×362 크기의 알파 마스크를 `archer_helms_glow/` 아래 둔다
+ * (`scripts/build-helm-glow-masks.py`). 파츠 경로의 디렉터리 이름만 바꾸므로 `?v=` 버전도 따라간다.
+ */
+export const ARCHER_HELM_GLOW_DIR = 'archer_helms_glow';
+
+export function archerHelmGlowMaskPath(gender: Gender, index: number): string | undefined {
+  const part = archerHelmPartPath(gender, index);
+  return part ? part.replace('/archer_helms/', `/${ARCHER_HELM_GLOW_DIR}/`) : undefined;
+}
+
+/** 발광 마스크 20장 목록(검수·테스트용). */
+export const archerHelmGlowMaskPaths: readonly string[] = (['male', 'female'] as const).flatMap(gender =>
+  Array.from({ length: ARCHER_HELM_COUNT }, (_, index) => archerHelmGlowMaskPath(gender, index) ?? ''));
+
+/**
  * 머리 없는 궁수 본체 시트 (작업 200).
  *
  * 기본 시트(`archer_*`)와 1번 이상 활을 찬 궁수의 기본 활 지운 시트(`nobow/archer_*`) 각각에

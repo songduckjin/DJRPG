@@ -5,7 +5,7 @@ import {
 import type { Save } from '../game/store';
 import { baseItemIndex, isArcher, isMage, usesBaseSheetOnly } from '../game/items';
 import { jobOrDefault } from '../game/skills';
-import { helmetArtFor, helmetArtPath, helmetIdlePlacement } from '../game/render/helmets';
+import { helmetArtFor, helmetArtPath, helmetGlowMaskPath, helmetIdlePlacement } from '../game/render/helmets';
 import { armorIndexFor, armorSheetPath } from '../game/render/armors';
 import { pilotSheet } from '../game/render/pilotAssets';
 import { archerArmorIndexFor, archerArmorSheetPath } from '../game/render/archerArmors';
@@ -13,7 +13,7 @@ import { mageRobeIndexFor, robeHeadlessSheetPath, robeSheetPath } from '../game/
 import { WEAPON_GUARD, weaponIndexFor, weaponPartPath, weaponPose, swordlessBodyPath, usesSwordlessBody } from '../game/render/weapons';
 import { BOW_GRIP, bowIndexFor, bowPartPath, bowPose, bowlessBodyPath, usesBowlessBody } from '../game/render/bows';
 import { STAFF_GRIP, staffIndexFor, staffPartPath, staffPlacement, stafflessBodyPath, usesStafflessBody } from '../game/render/staffs';
-import { archerHeadlessBodyPath, archerHelmIdlePlacement, archerHelmIndexFor, archerHelmPartPath } from '../game/render/archerHelmets';
+import { archerHeadlessBodyPath, archerHelmGlowMaskPath, archerHelmIdlePlacement, archerHelmIndexFor, archerHelmPartPath } from '../game/render/archerHelmets';
 import { mageHeadlessBodyPath, mageHelmIdlePlacement, mageHelmIndexFor, mageHelmPartPath } from '../game/render/mageHelmets';
 import { gearGlowCss, gearGlowTone } from '../game/render/gearGlow';
 
@@ -155,15 +155,19 @@ export type EquipmentPortraitArcherHelm = {
   x: number;
   y: number;
   scale: number;
+  /** 발광 마스크(투구만) 경로 — 파츠와 같은 크기의 알파 PNG (작업 248). */
+  glowMask: string;
 };
 
 /** 착용 궁수 투구 파츠. 궁수가 아니거나 투구가 없으면 undefined. */
 export function equipmentPortraitArcherHelm(save: Save): EquipmentPortraitArcherHelm | undefined {
   if (!isArcher(save)) return undefined;
-  const path = archerHelmPartPath(save.gender, archerHelmIndexFor(save));
-  if (!path) return undefined;
+  const index = archerHelmIndexFor(save);
+  const path = archerHelmPartPath(save.gender, index);
+  const glowMask = archerHelmGlowMaskPath(save.gender, index);
+  if (!path || !glowMask) return undefined;
   const place = archerHelmIdlePlacement;
-  return { path, x: place.x, y: place.y, scale: place.scale };
+  return { path, x: place.x, y: place.y, scale: place.scale, glowMask };
 }
 
 /**
@@ -197,6 +201,8 @@ export type EquipmentPortraitHelmet = {
   x: number;
   y: number;
   scale: number;
+  /** 발광 마스크(투구만) 경로 — 파츠와 같은 크기의 알파 PNG (작업 248). */
+  glowMask: string;
 };
 
 /** 착용 투구의 머리 파츠. 투구가 없거나 궁수·마법사면 undefined(전신 그림만 그린다). */
@@ -207,7 +213,7 @@ export function equipmentPortraitHelmet(save: Save): EquipmentPortraitHelmet | u
   const art = helmetArtFor(save.gender, baseItemIndex(item), 'idle', 0);
   if (!art) return undefined;
   const place = helmetIdlePlacement(save.gender);
-  return { path: helmetArtPath(art), x: place.x, y: place.y, scale: place.scale };
+  return { path: helmetArtPath(art), x: place.x, y: place.y, scale: place.scale, glowMask: helmetGlowMaskPath(art) };
 }
 
 export type EquipmentPortraitPlan = {
@@ -428,8 +434,16 @@ async function composeCostume(layers: CostumeLayerPlan[]): Promise<string> {
   }
 }
 
-/** 장착 화면 발광의 부위 — 갑옷(몸체 시트) · 투구 · 무기. */
+/**
+ * 장착 화면 발광의 부위 — 갑옷(몸체 시트) · 투구 · 무기.
+ */
 export type GlowSlot = 'armor' | 'helmet' | 'weapon';
+
+/**
+ * 투구 발광의 후광 배율(작업 248) — 파츠만 깔끔하게 빛나고 번지지 않게 크게 줄인다.
+ * (갑옷·무기는 종전 1 그대로다.)
+ */
+const HELMET_GLOW_AURA = .35;
 
 /** 발광 레이어 한 장을 그릴 때의 지시. */
 type PortraitGlow = { slot: GlowSlot; color: string };
@@ -449,7 +463,8 @@ const headCell = { x: 228, y: 74, rx: 38, ry: 44 } as const;
  */
 function paintPatch(
   context: CanvasRenderingContext2D, image: HTMLImageElement,
-  x: number, y: number, width: number, height: number, glow?: string
+  x: number, y: number, width: number, height: number, glow?: string,
+  mask?: CanvasImageSource, aura = 1
 ): void {
   if (!glow) { context.drawImage(image, x, y, width, height); return; }
   const tinted = document.createElement('canvas');
@@ -478,10 +493,21 @@ function paintPatch(
     pixels[index + 2] = Math.min(255, rgb[2] * light);
   }
   paint.putImageData(frame, 0, 0);
+  // [작업 248] 투구 발광 마스크 — 파츠와 같은 크기의 알파 PNG라, 알파가 0인 곳(얼굴·목·머리카락)을
+  // `destination-in` 으로 도려낸다. 다음 작업의 갑옷 발광도 같은 인자로 제한할 수 있다.
+  if (mask) {
+    paint.save();
+    paint.globalCompositeOperation = 'destination-in';
+    paint.drawImage(mask, 0, 0, tinted.width, tinted.height);
+    paint.restore();
+  }
   context.save();
   // [작업 231] 장비 윤곽 밖으로 번지는 후광도 두 배 가까이 넓혔다.
-  context.shadowColor = glow;
-  context.shadowBlur = Math.max(10, Math.round(width * .045));
+  // [작업 248] 투구는 파츠만 빛나야 하므로 `aura` 를 낮춰 번짐을 줄인다(0이면 번짐 없음).
+  if (aura > 0) {
+    context.shadowColor = glow;
+    context.shadowBlur = Math.max(4, Math.round(width * .045 * aura));
+  }
   context.drawImage(tinted, x, y, width, height);
   context.restore();
 }
@@ -529,12 +555,14 @@ async function composeFallback(
   if (helmet && wants('helmet')) {
     try {
       const patch = await loadImage(helmet.path, fallbackImages, new Set());
+      // [작업 248] 발광 마스크(투구만) — 초상화에서도 얼굴·목·어깨·머리카락은 원래 색으로 남긴다.
+      const mask = glow ? await loadImage(helmet.glowMask, fallbackImages, new Set()).catch(() => undefined) : undefined;
       // 필드와 같은 362px 셀 좌표 → 초상화 캔버스 좌표(전신 그림이 그려진 배율 그대로).
       const patchScale = helmet.scale * scale;
       const patchWidth = patch.naturalWidth * patchScale, patchHeight = patch.naturalHeight * patchScale;
       const patchLeft = left + helmet.x * scale - patchWidth / 2;
       const patchTop = top + helmet.y * scale - patchHeight;
-      paintPatch(context, patch, patchLeft, patchTop, patchWidth, patchHeight, glow?.color);
+      paintPatch(context, patch, patchLeft, patchTop, patchWidth, patchHeight, glow?.color, mask, HELMET_GLOW_AURA);
     } catch (error) {
       console.info('[장비창] 투구 머리 파츠 로딩 실패 → 전신 그림만 표시:', error);
     }
@@ -557,9 +585,11 @@ async function composeFallback(
   if (archerHelm && wants('helmet')) {
     try {
       const patch = await loadImage(archerHelm.path, fallbackImages, new Set());
+      const mask = glow ? await loadImage(archerHelm.glowMask, fallbackImages, new Set()).catch(() => undefined) : undefined;
       // 궁수 투구 파츠는 본체와 같은 362px 셀 전체 크기라, 본체 그림의 배율·좌상단에 그대로 얹는다.
       const layerScale = archerHelm.scale * scale;
-      paintPatch(context, patch, left + archerHelm.x * scale, top + archerHelm.y * scale, patch.naturalWidth * layerScale, patch.naturalHeight * layerScale, glow?.color);
+      paintPatch(context, patch, left + archerHelm.x * scale, top + archerHelm.y * scale,
+        patch.naturalWidth * layerScale, patch.naturalHeight * layerScale, glow?.color, mask, HELMET_GLOW_AURA);
     } catch (error) {
       console.info('[장비창] 궁수 투구 파츠 로딩 실패 → 전신 그림만 표시:', error);
     }

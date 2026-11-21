@@ -270,6 +270,19 @@ export class GameView {
   heroGlow = new Map<string, Sprite[]>();
   /** 갑옷 발광을 목 아래로 자르는 마스크(작업 218) — 얼굴은 원래 색으로 남긴다. */
   heroGlowMask?: Sprite;
+  /**
+   * 부위별 발광 마스크 스프라이트(작업 248) — 파츠와 같은 앵커·위치·배율로 놓고 `mask` 로 건다.
+   * 투구는 알파 마스크 PNG(얼굴·목·머리카락 제외), 갑옷은 다음 작업에서 같은 방식으로 쓸 자리다.
+   */
+  heroGlowPartMasks = new Map<string, Sprite>();
+  /**
+   * 투구 발광 마스크 텍스처(경로 → 텍스처, 작업 248). 유니크·전설 투구를 쓴 순간에만 받는다 —
+   * 마스크는 362² 알파 PNG 1~4KB라 부팅 프리로드(113장)에 넣지 않는다.
+   */
+  helmetGlowMasks = new Map<string, Texture>();
+  helmetGlowMaskLoading = new Set<string>();
+  /** 이번 프레임에 그린 투구 파츠의 발광 마스크 경로(없으면 마스크 없이 그린다 = 마법사 등). */
+  heroHelmetGlowMaskPath?: string;
   /** 독립형 코스튬 렌더러 상태(작업 140). 매니페스트·아틀라스가 없으면 폴백으로 굳는다. */
   costume: CostumeHeroState = createCostumeHeroState();
   enemies = new Map<Enemy, Sprite>();
@@ -514,9 +527,37 @@ export class GameView {
     return texture;
   }
 
+  /**
+   * 투구 발광 마스크 텍스처 (작업 248). 아직 로딩 전이면 `undefined` — 그 프레임은 투구 발광을
+   * 숨기고 다음 프레임에 그린다(마스크 없이 그리면 얼굴까지 빛나 예전 문제로 돌아간다).
+   */
+  helmetGlowMask(path: string): Texture | undefined {
+    const texture = this.helmetGlowMasks.get(path);
+    if (texture) return texture;
+    this.loadHelmetGlowMask(path);
+    return undefined;
+  }
+
+  /** 투구 발광 마스크 1장을 받아 둔다(유니크·전설 투구를 쓴 순간에만 부른다). */
+  prefetchHelmetGlowMask(path: string | undefined): void {
+    if (path) this.loadHelmetGlowMask(path);
+  }
+
+  private loadHelmetGlowMask(path: string): void {
+    if (this.helmetGlowMasks.has(path) || this.helmetGlowMaskLoading.has(path)) return;
+    this.helmetGlowMaskLoading.add(path);
+    void Assets.load<Texture>(path).then(texture => {
+      texture.source.scaleMode = 'linear';
+      this.helmetGlowMasks.set(path, texture);
+      this.helmetGlowMaskLoading.delete(path);
+    }).catch(error => {
+      this.helmetGlowMaskLoading.delete(path);
+      console.error(`투구 발광 마스크 로딩 실패: ${path}`, error);
+    });
+  }
+
   /** 무기 티어가 바뀌면 그 파츠 1장을 받고, 최근 3티어 밖은 내린다. */
-  prefetchWeapon(index: number): void {
-    if (!this.weaponTierOrder.includes(index)) this.weaponTierOrder.push(index);
+  prefetchWeapon(index: number): void {    if (!this.weaponTierOrder.includes(index)) this.weaponTierOrder.push(index);
     for (const path of weaponPartPaths(index)) this.loadWeaponPart(path);
     while (this.weaponTierOrder.length > weaponTierCacheLimit) {
       const oldest = this.weaponTierOrder.shift() as number;

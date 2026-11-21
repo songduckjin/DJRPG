@@ -71,17 +71,18 @@ test('필드는 부위마다 세 겹을 얹고, 곱하기는 원본·가산은 �
   assert.match(entities, /glow\.blendMode = layer\.mode;/, '겹마다 블렌드');
   assert.match(entities, /glow\.alpha = Math\.min\(1, amount \* layer\.weight\);/, '겹마다 파동 세기 × 비율');
   assert.match(entities, /glow\.tint = emissive \? 0xffffff : tone\.color;/, '곱하기 겹은 등급색 tint');
-  assert.match(entities, /syncGearGlow\(this, 'armor', this\.hero, save\.equipment\.armor\?\.rarity, time, neckY\)/, '갑옷');
-  assert.match(entities, /syncGearGlow\(this, 'helmet', wornHelmet, save\.equipment\.helmet\?\.rarity, time\)/, '투구');
+  // [작업 248] 투구는 파츠 모양 마스크를 함께 넘긴다 — 갑옷은 목선, 투구는 알파 마스크.
+  assert.match(entities, /syncGearGlow\(this, 'armor', this\.hero, save\.equipment\.armor\?\.rarity, time, \{ neckY \}\)/, '갑옷');
+  assert.match(entities, /syncGearGlow\(this, 'helmet', helmetGlowReady \? wornHelmet : undefined, save\.equipment\.helmet\?\.rarity, time, \{ mask: helmetGlowMask \}\)/, '투구');
   assert.match(entities, /syncGearGlow\(this, 'weapon', wornWeapon, save\.equipment\.weapon\?\.rarity, time\)/, '무기');
   assert.match(entities, /job === 'archer'\) return view\.heroBow/, '궁수는 활 파츠');
   assert.match(entities, /job === 'mage'\) return view\.heroStaff/, '마법사는 지팡이 파츠');
 });
 
 test('갑옷 발광은 목 아래로만 번져 맨 얼굴은 원래 색으로 남는다', () => {
-  assert.match(entities, /if \(key === 'armor' && neckY !== undefined\)/, '갑옷에만 목선 마스크');
+  assert.match(entities, /if \(key === 'armor' && options\.neckY !== undefined\)/, '갑옷에만 목선 마스크');
   assert.match(entities, /glow\.mask = mask \?\? null;/, '마스크를 발광 복제본에 건다');
-  assert.match(entities, /const top = neckY - height \* source\.anchor\.y;/, '목 밑동 좌표를 셀 좌표로 옮긴다');
+  assert.match(entities, /const top = options\.neckY - height \* source\.anchor\.y;/, '목 밑동 좌표를 셀 좌표로 옮긴다');
   assert.match(render, /heroGlowMask\?: Sprite;/, 'GameView.heroGlowMask');
 });
 
@@ -102,7 +103,7 @@ test('장착 화면은 부위별 투명 발광 레이어를 따로 만든다', (
   assert.match(portrait, /const weaponPart = !!\(plan\.weapon \|\| plan\.bow \|\| plan\.staff\)/, '파츠가 있을 때만 무기 발광');
   assert.match(portrait, /const light = Math\.min\(1\.25, \.45 \+ 1\.55 \* lum\);/, '광량 상한을 1.25로 두어 진한 등급색 유지(작업 231)');
   assert.match(portrait, /pixels\[index\] = Math\.min\(255, rgb\[0\] \* light\);/, '픽셀별 등급색 빛');
-  assert.match(portrait, /context\.shadowBlur = Math\.max\(10, Math\.round\(width \* \.045\)\);/, '후광(shadowBlur) 확대(작업 231)');
+  assert.match(portrait, /context\.shadowBlur = Math\.max\(4, Math\.round\(width \* \.045 \* aura\)\);/, '후광(shadowBlur) 확대(작업 231) · 투구는 aura 로 줄인다(작업 248)');
   assert.match(portrait, /context\.globalCompositeOperation = 'destination-out'/, '갑옷 발광에서 맨 얼굴은 도려낸다');
 });
 
