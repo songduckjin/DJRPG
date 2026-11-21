@@ -101,9 +101,10 @@ export type PouchOpenResult =
  *
  * 가방 40칸은 **모든 아이템**(장비·스킬북·보물 주머니)을 1개씩 센다(작업 248). 주머니를 여는 것은
  * 주머니 1개를 빼고 결과 1개(또는 금화)를 넣는 **자리 바꿈**이라 칸 수가 **늘지 않는다**(금화면 -1, 아이템이면 0).
- * 그래서 40칸이 찬 상태는 물론 **이미 40칸을 넘긴 세이브에서도** 주머니를 열어 줄여 나갈 수 있다
- * (작업 251에서 `40칸 초과면 개봉 금지` 검사를 뺐다 — 사용자 제보: 미리보기 테스트 주머니 100개 때문에
- * 가방이 40칸을 넘어 아무것도 못 한다). 서버 `reconcileItems`도 "지금 개수 이하 유지" 저장은 통과시킨다.
+ * 그래서 40칸이 찬 상태는 물론 **이미 40칸을 넘긴 세이브에서도** 주머니를 열 수 있다(작업 251).
+ * 40칸 상한이 스킬북·주머니까지 세게 된 작업 248 뒤에는 예전 세이브가 40칸을 넘긴 채 남을 수 있는데,
+ * 개봉이 칸을 늘리지 않으므로 막지 않는 편이 그 계정을 가두지 않는다. 서버 `reconcileItems`도
+ * "지금 개수 이하 유지" 저장은 통과시킨다.
  */
 export function openPouch(save: Save, id?: string, random: () => number = Math.random): PouchOpenResult {
   const pouch = (id ? save.bag.find(item => item.id === id) : undefined) ?? firstPouch(save);
@@ -113,31 +114,6 @@ export function openPouch(save: Save, id?: string, random: () => number = Math.r
   if (result.kind === 'gold') save.gold += result.gold;
   else save.bag.push(result.item);
   return { ok: true, pouch, result, remaining: pouchCount(save) };
-}
-
-export type PouchDiscardResult = { ok: boolean; message: string; removed: number };
-
-/**
- * **[미리보기 전용 · main 운영 배포 금지]** 보물 주머니 1개 버리기 (작업 251, 사용자 요청).
- * 화면(`ui/modals/pouchModal.ts`·`ui/modals/equipModal.ts`)이 `isPreviewClient()`로 감싸 부른다.
- * 아이디를 안 주면 가방의 첫 주머니를 버린다(주머니는 모두 같은 종류다).
- */
-export function discardPouch(save: Save, id?: string): PouchDiscardResult {
-  const pouch = (id ? save.bag.find(item => item.id === id) : undefined) ?? firstPouch(save);
-  if (!pouch || !isPouch(pouch)) return { ok: false, message: `가방에 ${POUCH_NAME}이(가) 없습니다.`, removed: 0 };
-  save.bag = save.bag.filter(item => item.id !== pouch.id);
-  return { ok: true, message: `${POUCH_NAME} 1개를 버렸습니다.`, removed: 1 };
-}
-
-/**
- * **[미리보기 전용 · main 운영 배포 금지]** 보유한 보물 주머니를 **전부** 버린다 (작업 251, 사용자 요청).
- * 가방에서 주머니가 한 칸 `×N`으로 묶여 보이므로 `모두 버리기`는 그 묶음 전체를 지운다.
- */
-export function discardAllPouches(save: Save): PouchDiscardResult {
-  const removed = pouchCount(save);
-  if (!removed) return { ok: false, message: `가방에 ${POUCH_NAME}이(가) 없습니다.`, removed: 0 };
-  save.bag = save.bag.filter(item => !isPouch(item));
-  return { ok: true, message: `${POUCH_NAME} ${removed}개를 버렸습니다.`, removed };
 }
 
 /** 결과를 한 줄로 — 토스트·결과 카드가 같은 문구를 쓴다. */

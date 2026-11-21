@@ -159,17 +159,6 @@ test('가방이 40칸을 넘은 세이브에서도 주머니를 열 수 있다 �
   assert.equal(save.bag.length, 41, '금화면 1칸 줄어든다');
 });
 
-test('[미리보기 전용] 주머니 버리기·모두 버리기는 가방에서 주머니만 지운다(작업 251)', () => {
-  const save = withPouches(3);
-  save.bag.push({ id: 'keep', name: '황혼의 두손검', slot: 'weapon', rarity: 'rare', stats: { attack: 9 }, plus: 0 });
-  const one = pouch.discardPouch(save);
-  assert.equal(one.ok, true); assert.equal(one.removed, 1); assert.equal(pouch.pouchCount(save), 2);
-  const all = pouch.discardAllPouches(save);
-  assert.equal(all.ok, true); assert.equal(all.removed, 2); assert.equal(pouch.pouchCount(save), 0);
-  assert.equal(save.bag.filter(item => item.id === 'keep').length, 1, '장비는 그대로');
-  assert.equal(pouch.discardAllPouches(save).ok, false, '없으면 실패');
-});
-
 test('주머니는 자동 장착·자동/일괄 분해·경매장 판매·도감 어디에도 끼지 않는다', () => {
   const save = withPouches(2);
   save.bag.push({ id: 'blade', name: '황혼의 두손검', slot: 'weapon', rarity: 'rare', stats: { attack: 9 }, plus: 0 });

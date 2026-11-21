@@ -70,17 +70,3 @@ export function rollRewardSkillBook(random = Math.random) {
   const skillId = skillBookIds[Math.min(skillBookIds.length - 1, Math.floor(random() * skillBookIds.length))] ?? skillBookIds[0];
   return { skillId, name: skillBookName(skillId) };
 }
-
-/**
- * **한 직업 안에서만** 뽑는 스킬북 (작업 251) — 액티브 8 + 패시브 3, 각 1/11.
- * 쓰는 곳: [미리보기 전용] 타직업 스킬북 테스트 우편(`journey.mjs` `rewards()`의 `bookJobCycle`).
- * 클라이언트 합성 결과는 `src/game/items.ts` `rollSkillBookFor`가 같은 규칙으로 만든다.
- */
-export function rollRewardSkillBookOfJob(job, random = Math.random) {
-  const pool = job === 'archer' ? [...archerSkillIds, ...archerPassiveIds]
-    : job === 'mage' ? [...mageSkillIds, ...magePassiveIds]
-    : [...warriorSkillIds, ...warriorPassiveIds];
-  const index = Math.min(pool.length - 1, Math.max(0, Math.floor(random() * pool.length)));
-  const skillId = pool[index];
-  return { skillId, name: skillBookName(skillId), job };
-}

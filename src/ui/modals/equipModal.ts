@@ -12,9 +12,7 @@ import { requestSalvage } from './salvageModal';
 import { equipmentPortraitPlan, renderEquipmentGlowLayers, renderEquipmentPortrait } from '../equipmentPortrait';
 import { goldMarkup } from '../currency';
 import { isSkillBook } from '../../game/items';
-import { pouchCount, discardPouch, discardAllPouches } from '../../game/pouch';
-// [미리보기 전용 · main 운영 배포 금지] 보물 주머니 버리기 버튼은 미리보기 호스트에서만 보인다(작업 251).
-import { isPreviewClient } from '../../game/previewOnly';
+import { pouchCount } from '../../game/pouch';
 import { openPouchWindow } from './pouchModal';
 // [작업 251] 가방 `합성` — 타직업 스킬북 5권을 내 직업 책 1권으로. 팝업은 작은 창(`synthModal`).
 import { openSynthWindow } from './synthModal';
@@ -54,7 +52,20 @@ export function renderInventory(this: Interface, dialog: HTMLElement): void {
       this.bagJobOnly = !this.bagJobOnly; saveJobOnly(BAG_JOB_ONLY_KEY, this.bagJobOnly);
       dismissBagDetail(this); this.renderModal();
     };
-    heading.append(title, jobToggle, sort); section.appendChild(heading);
+    // 합성(작업 251 → 252 위치): 사용자 확정 "스킬북합성버튼을 내직업만보기 왼쪽에두고" — 가방 머리줄의
+    // `내 직업만 보기` **바로 왼쪽**에 둔다. 타직업 스킬북이 5권 미만이면 누를 수 없고(안내는 title),
+    // 5권이면 작은 합성 팝업이 열린다. 재료는 **타직업 책**만이다.
+    const synth = document.createElement('button'); synth.className = 'salvage synth-open'; synth.type = 'button';
+    const synthRuns = synthCapacity(save);
+    synth.textContent = '합성';
+    synth.disabled = synthRuns < 1;
+    synth.classList.toggle('is-ready', synthRuns > 0);
+    synth.title = synthRuns > 0
+      ? `타직업 스킬북 ${SYNTH_BOOK_COST}권으로 내 직업 스킬북 1권을 만듭니다 (${synthRuns}회 가능)`
+      : `타직업 스킬북이 ${SYNTH_BOOK_COST}권 이상 있어야 합성할 수 있습니다`;
+    synth.setAttribute('aria-label', synthRuns > 0 ? `스킬북 합성 · ${synthRuns}회 가능` : '스킬북 합성 · 재료 부족');
+    synth.onclick = () => { dismissBagDetail(this); openSynthWindow(this); };
+    heading.append(title, synth, jobToggle, sort); section.appendChild(heading);
     const filters = document.createElement('div'); filters.className = 'bag-filters';
     const filterNames: Record<BagFilter, string> = { all: '장비 전체', weapon: '무기', armor: '방어구', accessory: '장신구' };
     for (const filter of Object.keys(filterNames) as BagFilter[]) {
@@ -170,18 +181,6 @@ export function renderInventory(this: Interface, dialog: HTMLElement): void {
       showRarity();
     };
     const salvage = document.createElement('button'); salvage.className = 'salvage'; salvage.textContent = '일괄 분해'; salvage.onclick = () => this.salvage();
-    // 합성(작업 251, 사용자 지시 "가방에 합성버튼추가"): `분해` 옆 바닥줄에 둔다. 타직업 스킬북이 5권
-    // 미만이면 누를 수 없고(안내는 title), 5권이면 작은 합성 팝업이 열린다. 재료는 **타직업 책**만이다.
-    const synth = document.createElement('button'); synth.className = 'salvage synth-open'; synth.type = 'button';
-    const synthRuns = synthCapacity(save);
-    synth.textContent = '합성';
-    synth.disabled = synthRuns < 1;
-    synth.classList.toggle('is-ready', synthRuns > 0);
-    synth.title = synthRuns > 0
-      ? `타직업 스킬북 ${SYNTH_BOOK_COST}권으로 내 직업 스킬북 1권을 만듭니다 (${synthRuns}회 가능)`
-      : `타직업 스킬북이 ${SYNTH_BOOK_COST}권 이상 있어야 합성할 수 있습니다`;
-    synth.setAttribute('aria-label', synthRuns > 0 ? `스킬북 합성 · ${synthRuns}회 가능` : '스킬북 합성 · 재료 부족');
-    synth.onclick = () => { dismissBagDetail(this); openSynthWindow(this); };
     // 접속 중 자동 분해 (작업 196): the switch sits beside the threshold it uses, and says right under it
     // that it only works while hunting — offline rewards keep every piece.
     const auto = document.createElement('button'); auto.className = 'salvage auto-salvage'; auto.type = 'button';
@@ -202,7 +201,7 @@ export function renderInventory(this: Interface, dialog: HTMLElement): void {
     const jobHint = document.createElement('small'); jobHint.className = 'auto-salvage-hint bag-job-only-hint';
     jobHint.textContent = `다른 직업 전용 장비 ${hiddenJob}개는 숨겨져 있습니다.`;
     jobHint.hidden = !this.bagJobOnly || hiddenJob === 0;
-    controls.append(equip, rarityButton, auto, ...(plusSelect ? [plusSelect] : []), synth, salvage, autoHint, ...(plusSelect ? [plusHint] : []), jobHint); footer.append(count, controls); section.appendChild(footer);
+    controls.append(equip, rarityButton, auto, ...(plusSelect ? [plusSelect] : []), salvage, autoHint, ...(plusSelect ? [plusHint] : []), jobHint); footer.append(count, controls); section.appendChild(footer);
     dialog.appendChild(section);
     const selectedItem = visible.find(item => item.id === this.selected);
     if (selectedItem) {
@@ -319,29 +318,6 @@ export function pouchDetail(this: Interface, save: Save, pouch: TreasurePouch): 
   open.textContent = '열기'; open.setAttribute('aria-label', `${pouch.name} 열기`);
   open.onclick = () => { openPouchWindow(this, pouch.id); };
   buttons.append(open); panel.append(buttons);
-  // [미리보기 전용 · main 운영 배포 금지] 보물 주머니 버리기 (작업 251, 사용자 요청).
-  // 미리보기 테스트 주머니가 많아 가방이 40칸을 넘었을 때 바로 정리할 수 있게 한다. 미리보기가 아니면 안 붙는다.
-  if (isPreviewClient()) {
-    const discard = document.createElement('button'); discard.type = 'button'; discard.className = 'pouch-discard';
-    discard.textContent = '버리기';
-    discard.onclick = () => {
-      const result = discardPouch(save, pouch.id);
-      if (!result.ok) { this.message(result.message); return; }
-      this.selected = undefined; this.world.onChange(); this.message(result.message);
-    };
-    const discardAll = document.createElement('button'); discardAll.type = 'button';
-    discardAll.className = 'pouch-discard-all'; discardAll.textContent = `모두 버리기 (${pouchCount(save)}개)`;
-    discardAll.onclick = () => {
-      // 되돌릴 수 없는 동작이라 한 번 더 확인한다(첫 누름 → 빨간 확인 버튼).
-      if (!discardAll.classList.contains('is-armed')) {
-        discardAll.classList.add('is-armed'); discardAll.textContent = `정말 모두 버리기 (${pouchCount(save)}개)`; return;
-      }
-      const result = discardAllPouches(save);
-      if (!result.ok) { this.message(result.message); return; }
-      this.selected = undefined; this.world.onChange(); this.message(result.message);
-    };
-    buttons.append(discard, discardAll);
-  }
   return panel;
 }
 

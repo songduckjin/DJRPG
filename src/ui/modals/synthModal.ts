@@ -2,7 +2,7 @@ import { createSkillBookArt } from '../skillBookArt';
 import { skillbookName } from '../skillbookBag';
 import { createPouchLight } from '../pouchLight';
 import { skillBookJob, type SkillBook } from '../../game/items';
-import { jobNames, jobOrDefault } from '../../game/skills';
+import { jobNames } from '../../game/skills';
 import {
   stackSynthBooks, synthCapacity, synthMaterials, synthesizeAllAvailable, synthesizeSkillBooks,
   SYNTH_BOOK_COST, type SynthOutcome
@@ -56,18 +56,23 @@ function button(text: string, className: string): HTMLButtonElement {
   return node;
 }
 
-/** 재료 칸 하나 — 책 그림 + 이름 + 직업 배지. */
+/**
+ * 재료 칸 하나 — **아이콘 칸만**(작업 252 ③, 사용자 확정 "밑에목록에는 글자없애주고").
+ * 책 그림·직업 배지·선택 상태(`is-picked`)만 두고 이름 글자는 넣지 않는다. 이름은 툴팁(`title`)과
+ * `aria-label`로 남겨 무엇인지 확인할 수 있게 한다(가방 칸과 같은 방식).
+ */
 function materialCell(book: SkillBook, picked: boolean): HTMLButtonElement {
   const cell = button('', `synth-material${picked ? ' is-picked' : ''}`);
   const owner = skillBookJob(book);
+  const label = `${skillbookName(book)}${owner ? ` · ${jobNames[owner]} 전용` : ''}${picked ? ' · 선택됨' : ''}`;
   cell.append(createSkillBookArt(book));
   if (owner) {
     const badge = element('span', `job-badge job-${owner}`, jobNames[owner]);
     badge.setAttribute('aria-hidden', 'true'); cell.append(badge);
   }
-  cell.append(element('small', 'synth-material-name', skillbookName(book)));
+  cell.title = label;
   cell.setAttribute('aria-pressed', String(picked));
-  cell.setAttribute('aria-label', `${skillbookName(book)}${owner ? ` · ${jobNames[owner]} 전용` : ''}${picked ? ' · 선택됨' : ''}`);
+  cell.setAttribute('aria-label', label);
   return cell;
 }
 
@@ -129,8 +134,9 @@ export function openSynthWindow(ui: Interface, options: SynthWindowOptions = {})
   if (light) stage.append(light.canvas);
   stage.append(husks, flash);
 
-  const hint = element('p', 'synth-window-hint', `타직업 전용 스킬북 ${SYNTH_BOOK_COST}권 → 내 직업 스킬북 1권 (비용 없음)`);
-  const countLabel = element('p', 'synth-window-count');
+  // 빈칸 아래 설명은 **한 줄만**(작업 252 ②, 사용자 확정 "빈칸아래선명은 간단하게첫줄만두고 없애줘").
+  // 330px 카드에서 줄바꿈되지 않도록 짧게 쓰고, 예전의 `보유 N권 · 내 직업 …` 줄(`synth-window-count`)은 없앴다.
+  const hint = element('p', 'synth-window-hint', `타직업 스킬북 ${SYNTH_BOOK_COST}권 → 내 직업 스킬북 1권`);
   const error = element('p', 'synth-window-error'); error.hidden = true;
   const result = element('div', 'synth-result');
   result.setAttribute('aria-live', 'polite');
@@ -149,7 +155,7 @@ export function openSynthWindow(ui: Interface, options: SynthWindowOptions = {})
   const closeAction = button('닫기', 'synth-close');
   actions.append(fillButton, craftButton, autoButton, closeAction);
 
-  card.append(top, stage, hint, error, result, countLabel, listWrap, actions);
+  card.append(top, stage, hint, error, result, listWrap, actions);
   overlay.append(card);
 
   // 고른 재료 5칸(빈 칸은 undefined) — `id`는 가방 아이템 그대로다(사용·저장은 개별 id로).
@@ -229,10 +235,9 @@ export function openSynthWindow(ui: Interface, options: SynthWindowOptions = {})
     const alive = new Set(books.map(book => book.id));
     picked = picked.map(id => id && alive.has(id) ? id : undefined);
     const capacity = synthCapacity(save);
-    countLabel.textContent = `타직업 스킬북 ${books.length}권 · 내 직업 ${jobNames[jobOrDefault(save.job)]}`;
-    listHeading.textContent = books.length
-      ? `가방의 타직업 스킬북 ${books.length}권 · 누르면 위 칸에 들어갑니다`
-      : '가방에 타직업 스킬북이 없습니다';
+    // 목록 위 글자는 비어 있을 때의 안내만 남긴다 — 아이콘 칸만 보이게(작업 252 ③).
+    listHeading.textContent = books.length ? '' : '가방에 타직업 스킬북이 없습니다';
+    listHeading.hidden = books.length > 0;
     list.replaceChildren(...books.map(book => {
       const cell = materialCell(book, picked.includes(book.id));
       cell.dataset.itemId = book.id;

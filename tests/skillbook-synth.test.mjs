@@ -12,7 +12,6 @@ const { freshSave } = await import('../src/game/store.ts');
 const items = await import('../src/game/items.ts');
 const pouch = await import('../src/game/pouch.ts');
 const synth = await import('../src/game/skillSynth.ts');
-const { isPreviewHostname } = await import('../src/game/previewOnly.ts');
 const skills = await import('../src/game/skills.ts');
 const { openSynthWindow } = await import('../src/ui/modals/synthModal.ts');
 const { schema, account, transaction, reconcileItems } = await import('../server/database.mjs');
@@ -147,7 +146,7 @@ test('40칸을 넘긴 세이브도 5권 제거+1권 생성(순감 -4)이면 서�
   assert.equal(skillBookJobOf(made.skillId), 'warrior');
 });
 
-// ── [미리보기 전용] 보물 주머니 버리지·40칸 초과 개봉 ─────────────────────────────
+// ── 보물 주머니 개봉은 칸을 늘리지 않는다 — 40칸을 넘긴 세이브도 열 수 있다(작업 251) ─────────
 test('보물 주머니는 40칸을 넘은 가방에서도 열린다(칸이 늘지 않는다)', () => {
   const bag = [...Array.from({ length: 45 }, (_, index) => pouchItem(`p${index}`))];
   const save = warriorSave(bag);
@@ -157,26 +156,6 @@ test('보물 주머니는 40칸을 넘은 가방에서도 열린다(칸이 늘�
   const gold = pouch.openPouch(save, 'p1', () => 0); // 금화 1,500
   assert.equal(gold.ok, true);
   assert.equal(save.bag.length, 44, '금화면 1칸 줄어든다');
-});
-
-test('[미리보기 전용] 주머니 버리기 1개·모두 버리기가 가방에서 지운다', () => {
-  const save = warriorSave([pouchItem('a'), pouchItem('b'), pouchItem('c'), gear('g')]);
-  const one = pouch.discardPouch(save, 'b');
-  assert.equal(one.ok, true);
-  assert.equal(one.removed, 1);
-  assert.deepEqual(save.bag.map(item => item.id), ['a', 'c', 'g']);
-  const all = pouch.discardAllPouches(save);
-  assert.equal(all.ok, true);
-  assert.equal(all.removed, 2);
-  assert.deepEqual(save.bag.map(item => item.id), ['g'], '장비는 남는다');
-  assert.equal(pouch.discardAllPouches(save).ok, false, '없으면 실패');
-});
-
-test('미리보기 호스트 판정 — preview가 들어간 호스트만, 운영 djrpg.pages.dev는 아니다', () => {
-  assert.equal(isPreviewHostname('preview-gravel-background-fk.djrpg.pages.dev'), true);
-  assert.equal(isPreviewHostname('djrpg.pages.dev'), false);
-  assert.equal(isPreviewHostname('example.com'), false);
-  assert.equal(isPreviewHostname(''), false);
 });
 
 // ── 팝업: 빈칸 5개·자동 채우기·합성하기·자동 합성 ────────────────────────────────
@@ -306,4 +285,57 @@ test('합성 CSS는 모임·섬광·허물·결과 등장과 모션 감소 규�
     assert(rules.includes(rule), `${rule} 규칙이 있다`);
   }
   assert(rules.includes('--synth-dx'), '가운데로 모이는 거리는 변수로 넘긴다');
+});
+
+// ── 작업 252: 합성 UI 다듬기 4건(사용자 확정 2026-11-21 13:14) ─────────────────
+test('가방 `합성` 버튼은 머리줄에서 `내 직업만 보기` 바로 왼쪽에 있다(작업 252 ①)', () => {
+  const source = readFileSync(new URL('../src/ui/modals/equipModal.ts', import.meta.url), 'utf8');
+  assert.match(source, /heading\.append\(title, synth, jobToggle, sort\);/, '머리줄 순서: 가방 → 합성 → 내 직업만 보기 → 등급순');
+  assert.doesNotMatch(source, /controls\.append\([^)]*synth/, '바닥줄에서는 뺐다');
+  const css = readFileSync(new URL('../src/styles/modals.css', import.meta.url), 'utf8');
+  assert.match(css, /\.bag-heading \.synth-open \{[^}]*padding:4px 7px/, '머리줄 버튼과 같은 납작한 크기');
+});
+
+test('합성 팝업은 빈칸 아래 설명을 한 줄만 두고, 목록은 글자 없는 아이콘 칸이다(작업 252 ②③)', () => {
+  const restore = installDom();
+  try {
+    const { ui } = synthFixture([foreign('a'), foreign('b'), foreignMage('c'), foreign('d'), foreignMage('e'), gear('g')]);
+    const windowApi = openSynthWindow(ui, { delay: 0 });
+    const nodes = walk(windowApi.overlay);
+    // ② 빈칸 아래 설명 한 줄 — 예전의 `보유 N권 · 내 직업 …` 줄은 없다.
+    assert.equal(nodes.filter(node => node.className === 'synth-window-hint').length, 1);
+    assert.equal(nodes.filter(node => node.className === 'synth-window-count').length, 0, '보유 수 줄은 없앴다');
+    const hint = nodes.find(node => node.className === 'synth-window-hint');
+    assert.match(hint.textContent, /타직업 스킬북 5권 → 내 직업 스킬북 1권/);
+    assert(!/\n/.test(hint.textContent) && hint.textContent.length <= 30, '짧은 한 줄');
+    // ③ 목록 칸은 책 그림·직업 배지·툴팁만 — 이름 글자는 넣지 않는다.
+    const cells = nodes.filter(node => node.className === 'synth-material');
+    assert.equal(cells.length, 5);
+    for (const cell of cells) {
+      assert.equal(cell.children.filter(child => child.className === 'synth-material-name').length, 0, '이름 글자 없음');
+      assert.equal(cell.children.some(child => String(child.textContent).includes('[스킬북]')), false, '글자 없음');
+      assert.equal(cell.children.some(child => String(child.className).includes('job-badge')), true, '직업 배지는 남는다');
+      assert.match(cell.title, /· (전사|궁수|마법사) 전용/, '무엇인지는 툴팁으로 알린다');
+      assert.match(cell.attributes['aria-label'], /전용/);
+    }
+    assert.equal(nodes.filter(node => node.className === 'synth-materials-heading' && node.textContent).length, 0, '목록 위 글자도 비었을 때만');
+    windowApi.close();
+  } finally { restore(); }
+});
+
+test('합성 팝업 목록 스크롤바는 다크/골드 톤이다(작업 252 ④)', () => {
+  const css = readFileSync(new URL('../src/styles/modals.css', import.meta.url), 'utf8');
+  assert.match(css, /\.synth-materials, \.synth-result-list \{ scrollbar-width: thin; scrollbar-color: #6b5239 #1c1518; \}/);
+  assert.match(css, /\.synth-materials::-webkit-scrollbar-track[^{]*\{ background: #1c1518/);
+  assert.match(css, /\.synth-materials::-webkit-scrollbar-thumb[^{]*\{ background: #6b5239/);
+  assert.equal(css.includes('synth-material-name'), false, '이름 글자 규칙도 지웠다');
+});
+
+test('미리보기 전용 주머니 버리기·테스트 우편 코드는 운영 배포에서 사라졌다(작업 252)', () => {
+  const files = ['../src/ui/modals/pouchModal.ts', '../src/ui/modals/equipModal.ts', '../src/game/pouch.ts', '../server/journey-state.mjs', '../server/journey.mjs', '../server/skill-ids.mjs'];
+  for (const file of files) {
+    const text = readFileSync(new URL(file, import.meta.url), 'utf8');
+    assert.equal(/previewOnly|isPreviewClient|PREVIEW_POUCH_MAIL|PREVIEW_SKILLBOOK_MAIL|bookJobCycle|rollRewardSkillBookOfJob|discardPouch|discardAllPouches/.test(text), false, `${file}에 미리보기 전용 코드가 없다`);
+  }
+  assert.equal(rules.includes('pouch-discard'), false, '버리기 버튼 CSS도 없다');
 });

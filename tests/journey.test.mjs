@@ -7,7 +7,7 @@ import {randomUUID} from 'node:crypto';
 import {createClient} from '@libsql/client';
 import {schema,account,transaction,writeSave,reconcileItems} from '../server/database.mjs';
 import {snapshot,mutate} from '../server/journey.mjs';
-import {periods,advanceJourney,PREVIEW_POUCH_MAIL_ID,PREVIEW_SKILLBOOK_MAIL_IDS,PREVIEW_SKILLBOOK_MAIL_PER_MAIL,DIAMOND_MAIL_ID,LEGACY_DIAMOND_MAIL_ID,APOLOGY_MAIL_ID,APOLOGY_MAIL_UNTIL} from '../server/journey-state.mjs';
+import {periods,advanceJourney,DIAMOND_MAIL_ID,LEGACY_DIAMOND_MAIL_ID,APOLOGY_MAIL_ID,APOLOGY_MAIL_UNTIL,UPDATE_NOTICE_2_ID,UPDATE_NOTICE_2_UNTIL,UPDATE_NOTICE_2_POUCHES} from '../server/journey-state.mjs';
 import {skillBookJobOf} from '../server/skill-ids.mjs';
 import {isPreviewHost,isProductionHost} from '../server/season.mjs';
 let db,directory;
@@ -63,13 +63,15 @@ test('persisted progress advances daily and weekly counters and book rewards byp
   assert((await snapshot(db,'progress')).daily.every(t=>t.claimed));
 });
 test('mail read, claim, deletion, item ownership and concurrent reward requests stay isolated and idempotent',async()=>{
-  // 환영·업데이트 안내·새 시즌 안내·사과 보상(작업 237)·다이아 지급 우편이 각각 한 통씩 도착한다.
-  await seed('mail');const data=await snapshot(db,'mail');assert.equal(data.mail.length,5);
+  // 환영·업데이트 안내·새 시즌 안내·사과 보상(작업 237)·2026-11-21 업데이트 안내(작업 252)·다이아 지급 우편이
+  // 각각 한 통씩 도착한다.
+  await seed('mail');const data=await snapshot(db,'mail');assert.equal(data.mail.length,6);
   assert.equal(data.mail[0].id,'welcome-v1');
   await act('mail',undefined,data.mail[0].id,'journey-read');assert((await snapshot(db,'mail')).mail[0].read);
-  // 환영 1,000 + 업데이트 3,000 + 새 시즌 오픈 1,000 = 5,000G, 스킬북 3권 + 보물 주머니 1개 + 사과 보상 주머니 5개.
-  await act('mail','mail');const row=await account(db,'mail');assert.equal(row.save.gold,5000);assert.equal(row.save.bag.length,9);
-  assert.equal(row.save.bag.filter(item=>item.slot==='pouch').length,6,'새 시즌 오픈 1개 + 사과 보상 5개');
+  // 환영 1,000 + 업데이트 3,000 + 새 시즌 오픈 1,000 = 5,000G, 스킬북 3권 + 보물 주머니 1개
+  // + 사과 보상 주머니 5개 + 2026-11-21 업데이트 주머니 5개 = 보물 주머니 11개.
+  await act('mail','mail');const row=await account(db,'mail');assert.equal(row.save.gold,5000);assert.equal(row.save.bag.length,14);
+  assert.equal(row.save.bag.filter(item=>item.slot==='pouch').length,11,'새 시즌 오픈 1개 + 사과 보상 5개 + 업데이트 안내 5개');
   const wallet=(await db.execute({sql:'SELECT diamonds FROM djrpg_shop_wallet WHERE account_id=?',args:['mail']})).rows[0];assert.equal(Number(wallet.diamonds),4000);
   await transaction(db,async tx=>{const latest=await account(tx,'mail');await reconcileItems(tx,'mail',latest.save,latest.save);});
   await assert.rejects(act('mail','mail'),e=>e.code==='NOT_AVAILABLE');
@@ -95,7 +97,7 @@ test('업데이트 안내 우편은 계정마다 한 번만, 수령·삭제·만
   assert.equal(notice.sender,'운영팀');assert.equal(notice.gold,3000);assert.equal(notice.books,2);
   assert(notice.expiresAt>now,'만료 전에 수령할 수 있다');assert.equal(notice.claimedAt,null);assert.equal(notice.read,false);
   assert.match(notice.body,/끝없는 던전 진행 저장/);
-  assert.deepEqual(fresh.notices,['update-2026-11-20','season-2-open',APOLOGY_MAIL_ID],'지급 이력을 남긴다');
+  assert.deepEqual(fresh.notices,['update-2026-11-20','season-2-open',APOLOGY_MAIL_ID,UPDATE_NOTICE_2_ID],'지급 이력을 남긴다');
   const again=advanceJourney(fresh,saveNow(),saveNow(),now+1000);
   assert.equal(again.mail.filter(entry=>entry.id==='update-2026-11-20').length,1,'두 번 붙지 않는다');
   // 수령해서 지운 계정: 우편함이 비어 있어도 지급 이력이 있어 다시 붙지 않는다.
@@ -104,7 +106,7 @@ test('업데이트 안내 우편은 계정마다 한 번만, 수령·삭제·만
   // 만료 시각(2026-11-28 00:00 KST)을 넘겨 처음 접속한 계정에는 늦은 보상을 주지 않는다.
   const late=advanceJourney(undefined,saveNow(),saveNow(),Date.UTC(2026,10,27,15,0,0));
   assert.equal(late.mail.filter(entry=>entry.id==='update-2026-11-20').length,0);
-  assert.deepEqual(late.notices,['season-2-open',APOLOGY_MAIL_ID],'만료된 업데이트 보상은 붙지 않고, 새 시즌 안내·사과 보상만 남는다');
+  assert.deepEqual(late.notices,['season-2-open',APOLOGY_MAIL_ID,UPDATE_NOTICE_2_ID],'만료된 업데이트 보상은 붙지 않고, 새 시즌 안내·사과 보상·새 업데이트 안내만 남는다');
   assert.equal(late.mail.filter(entry=>entry.id==='season-2-open').length,1,'새 시즌 안내는 만료가 없다');
 });
 
@@ -120,7 +122,7 @@ test('업데이트 우편 보상은 정확히 한 번만 지급되고 삭제 뒤
   await assert.rejects(act('notice','mail',notice.id),error=>error.code==='NOT_AVAILABLE','같은 우편을 두 번 받을 수 없다');
   await act('notice',undefined,'all','journey-delete');
   const after=await snapshot(db,'notice');
-  assert.deepEqual(after.mail.map(entry=>entry.id),['welcome-v1','season-2-open',APOLOGY_MAIL_ID,DIAMOND_MAIL_ID],'수령한 업데이트 우편만 지운다');
+  assert.deepEqual(after.mail.map(entry=>entry.id),['welcome-v1','season-2-open',APOLOGY_MAIL_ID,UPDATE_NOTICE_2_ID,DIAMOND_MAIL_ID],'수령한 업데이트 우편만 지운다');
   assert.equal(after.mail.filter(entry=>entry.id==='update-2026-11-20').length,0,'삭제 뒤 다시 붙지 않는다');
   assert.equal((await account(db,'notice')).save.gold,3000,'보상도 한 번뿐이다');
 });
@@ -334,86 +336,65 @@ test('claim returns an authoritative updated list and batches ownership and rece
  const retry=await mutate(db,'fast-claim',input);assert.equal(retry.save.gold,result.save.gold);assert(retry.journey.daily.find(t=>t.id==='login').claimed);
 });
 
-test('미리보기 테스트 보물 주머니 우편은 preview 호스트에서만 1회 지급되고 운영에서는 지워진다(작업 210)', async () => {
-  const request = url => new Request(url);
-  assert.equal(isPreviewHost(request('https://preview-gravel-background-fk.djrpg.pages.dev/api/market')), true, '미리보기 호스트');
-  assert.equal(isPreviewHost(request('https://djrpg.pages.dev/api/market')), false, '운영 호스트는 미리보기가 아니다');
-  assert.equal(isProductionHost(request('https://djrpg.pages.dev/api/market')), true);
-  assert.equal(isPreviewHost(request('https://example.com/preview/api/market')), false, '경로에 preview만 있으면 아니다');
-  const empty = () => ({ achievements: [], mail: [] });
-  const preview = advanceJourney(empty(), save(), save(), Date.now(), true, true);
-  const mail = preview.mail.find(entry => entry.id === PREVIEW_POUCH_MAIL_ID);
-  // 작업 212(`#4951`): 6단계 연출·`1개 더 열기`를 마음껏 확인하도록 100개를 준다.
-  assert(mail && mail.pouches === 100 && (mail.gold ?? 0) === 0 && (mail.books ?? 0) === 0 && mail.expiresAt === null, '주머니 100개·만료 없음');
-  assert.equal(mail.title, '[미리보기 테스트] 보물 주머니 100개');
-  assert.equal(PREVIEW_POUCH_MAIL_ID, 'preview-pouch-test-3', 'test-2를 받은 계정도 새로고침하면 다시 받는다');
-  const again = advanceJourney(preview, save(), save(), Date.now(), true, true);
-  assert.equal(again.mail.filter(entry => entry.id === PREVIEW_POUCH_MAIL_ID).length, 1, '계정당 1회');
-  const production = advanceJourney(structuredClone(again), save(), save(), Date.now(), true, 'production');
-  assert.equal(production.mail.some(entry => entry.id === PREVIEW_POUCH_MAIL_ID), false, '운영 호스트는 남아 있으면 지운다');
-  const unknownHost = advanceJourney(structuredClone(again), save(), save(), Date.now(), true, false);
-  assert.equal(unknownHost.mail.some(entry => entry.id === PREVIEW_POUCH_MAIL_ID), true, '호스트를 모르는 호출은 건드리지 않는다');
-  const offPreview = advanceJourney(empty(), save(), save(), Date.now(), true, 'production');
-  assert.equal(offPreview.mail.some(entry => entry.id === PREVIEW_POUCH_MAIL_ID), false, '운영 호스트에는 지급하지 않는다');
+// 작업 252 — 2026-11-21 업데이트 안내 우편(무작위 보물 주머니 5개). 미리보기 전용 테스트 우편은
+// 운영 배포에서 지급 함수까지 지웠으므로, 어느 호스트에서도 테스트 우편이 붙지 않는지 함께 확인한다.
+test('업데이트 안내 우편(2026-11-21)은 계정마다 한 번만, 보상은 보물 주머니 5개다',()=>{
+  const now=Date.parse('2026-11-21T04:30:00Z');
+  const fresh=advanceJourney(undefined,save(),save(),now);
+  const notice=fresh.mail.find(entry=>entry.id===UPDATE_NOTICE_2_ID);
+  assert(notice,'새 계정에도 한 통 지급된다');
+  assert.equal(notice.title,'[업데이트] 거래소 · 스킬북 합성 · 던전 개편 안내');
+  assert.equal(notice.sender,'운영팀');
+  assert.equal(notice.gold,0,'금화는 주지 않는다');
+  assert.equal(notice.books,0,'스킬북은 주지 않는다');
+  assert.equal(notice.pouches,UPDATE_NOTICE_2_POUCHES);assert.equal(UPDATE_NOTICE_2_POUCHES,5,'보물 주머니 5개');
+  assert.equal(notice.expiresAt,UPDATE_NOTICE_2_UNTIL,'만료는 지급일부터 2주(2026-12-05 00:00 KST)');
+  assert(notice.expiresAt>now,'만료 전에 수령할 수 있다');
+  assert.match(notice.body,/거래소 개편/);assert.match(notice.body,/스킬북 합성/);assert.match(notice.body,/보물 주머니 5개를 보내드립니다/);
+  assert(!/미리보기|버리기/.test(notice.body),'미리보기 전용 항목은 본문에 넣지 않는다');
+  const again=advanceJourney(fresh,save(),save(),now+1000);
+  assert.equal(again.mail.filter(entry=>entry.id===UPDATE_NOTICE_2_ID).length,1,'두 번 붙지 않는다');
+  // 수령해서 지운 계정: 우편함에 없어도 지급 이력이 있어 다시 붙지 않는다.
+  const cleaned=advanceJourney({...fresh,mail:fresh.mail.filter(entry=>entry.id!==UPDATE_NOTICE_2_ID)},save(),save(),now+2000);
+  assert.equal(cleaned.mail.filter(entry=>entry.id===UPDATE_NOTICE_2_ID).length,0);
+  // 만료 시각(2026-12-05 00:00 KST)을 넘겨 처음 접속한 계정에는 늦은 보상을 주지 않는다.
+  const late=advanceJourney(undefined,save(),save(),UPDATE_NOTICE_2_UNTIL);
+  assert.equal(late.mail.filter(entry=>entry.id===UPDATE_NOTICE_2_ID).length,0);
 });
 
-test('미리보기 journey 목록에만 테스트 우편이 내려오고 기본(운영) 목록에는 없다', async () => {
-  await seed('preview-mail');
-  const preview = await snapshot(db, 'preview-mail', { preview: true });
-  const mail = preview.mail.find(entry => entry.id === PREVIEW_POUCH_MAIL_ID);
-  assert(mail, '미리보기 목록에 테스트 우편');
-  assert.equal(mail.pouches, 100);
-  const normal = await snapshot(db, 'preview-mail', { preview: 'production' });
-  assert.equal(normal.mail.some(entry => entry.id === PREVIEW_POUCH_MAIL_ID), false, '운영 목록에서는 지운다');
-  assert.equal(normal.mail.length, 5, '환영·업데이트 안내·새 시즌 안내·사과 보상·다이아 우편 5통은 그대로');
+test('업데이트 안내 우편 수령으로 보물 주머니 5개가 한 번만 들어가고 재조회에 중복 지급되지 않는다',async()=>{
+  await seed('notice-2');
+  const first=await snapshot(db,'notice-2');
+  const notice=first.mail.find(entry=>entry.id===UPDATE_NOTICE_2_ID);
+  assert(notice,'업데이트 안내 우편이 우편함에 있다');
+  await act('notice-2','mail',notice.id);
+  const row=await account(db,'notice-2');
+  const pouches=row.save.bag.filter(item=>item.slot==='pouch');
+  assert.equal(pouches.length,5,'보물 주머니 정확히 5개');
+  assert(pouches.every(item=>item.name==='무작위 보물 주머니'&&item.kind==='pouch'));
+  assert.equal(row.save.gold,0,'금화는 주지 않는다');
+  assert.equal(row.save.bag.filter(item=>item.slot==='skillbook').length,0,'스킬북은 주지 않는다');
+  const owners=await db.execute({sql:"SELECT COUNT(*) AS n FROM djrpg_item_owners WHERE account_id='notice-2' AND location='inventory'",args:[]});
+  assert.equal(Number(owners.rows[0].n),5,'주머니 5개가 소유 기록에 들어간다');
+  await assert.rejects(act('notice-2','mail',notice.id),error=>error.code==='NOT_AVAILABLE','같은 우편을 두 번 받을 수 없다');
+  const again=await snapshot(db,'notice-2');
+  assert.equal(again.mail.filter(entry=>entry.id===UPDATE_NOTICE_2_ID).length,1,'재조회에도 우편은 한 통뿐');
+  assert.equal((await account(db,'notice-2')).save.bag.filter(item=>item.slot==='pouch').length,5,'재조회로 주머니가 늘지 않는다');
 });
 
-test('자동 저장(writeSave, preview 생략)이 돌아도 미리보기 테스트 우편은 남고, 운영 호스트에서만 지워진다(작업 211)', async () => {
-  await seed('preview-keep');
-  const granted = await snapshot(db, 'preview-keep', { preview: 'preview' });
-  assert(granted.mail.some(entry => entry.id === PREVIEW_POUCH_MAIL_ID), '미리보기 호스트에서 지급');
-  // 1초 뒤 클라이언트 자동 저장(account.mjs → database.writeSave) — preview 인자를 넘기지 않는다.
-  const row = await account(db, 'preview-keep');
-  await transaction(db, tx => writeSave(tx, row, { ...save(), kills: 3 }));
-  const afterSave = await snapshot(db, 'preview-keep', { preview: 'preview' });
-  assert.equal(afterSave.mail.filter(entry => entry.id === PREVIEW_POUCH_MAIL_ID).length, 1, '자동 저장이 우편을 지우지 않는다');
-  const production = await snapshot(db, 'preview-keep', { preview: 'production' });
-  assert.equal(production.mail.some(entry => entry.id === PREVIEW_POUCH_MAIL_ID), false, '운영 호스트에서만 지운다');
-  const stale = advanceJourney({ achievements: [], mail: [{ id: 'preview-pouch-test-1', title: '옛 테스트', pouches: 1, claimedAt: null, read: false }] }, save(), save(), Date.now(), true, 'production');
-  assert.equal(stale.mail.some(entry => String(entry.id).startsWith('preview-pouch-test-')), false, 'ID를 올린 뒤 남은 예전 테스트 우편도 운영에서 지운다');
-});
-
-test('[미리보기 전용] 타직업 스킬북 테스트 우편 3통(10권씩)은 미리보기에서만 지급되고 내 직업 책은 들어 있지 않다(작업 251)', async () => {
-  assert.deepEqual(PREVIEW_SKILLBOOK_MAIL_IDS, ['preview-skillbook-test-1', 'preview-skillbook-test-2', 'preview-skillbook-test-3'], '10권씩 3통 = 30권');
-  assert.equal(PREVIEW_SKILLBOOK_MAIL_PER_MAIL, 10);
-  const empty = () => ({ achievements: [], mail: [] });
-  const preview = advanceJourney(empty(), save(), save(), Date.now(), true, true);
-  for (const id of PREVIEW_SKILLBOOK_MAIL_IDS) {
-    const mail = preview.mail.find(entry => entry.id === id);
-    assert(mail, `${id} 지급`);
-    assert.equal(mail.books, 10, '한 통에 10권');
-    assert.equal(mail.pouches, 0, '주머니는 붙지 않는다');
-    assert.equal(mail.expiresAt, null);
-    // `save()`에는 job이 없어 서버가 전사로 본다 — 보내는 책은 궁수·마법사뿐이다.
-    assert.deepEqual(mail.bookJobCycle, ['archer', 'mage'], '내 직업이 아닌 두 직업만');
-  }
-  const again = advanceJourney(structuredClone(preview), save(), save(), Date.now(), true, true);
-  assert.equal(again.mail.filter(entry => entry.id === PREVIEW_SKILLBOOK_MAIL_IDS[0]).length, 1, '계정당 1회');
-  const production = advanceJourney(structuredClone(again), save(), save(), Date.now(), true, 'production');
-  assert.equal(production.mail.some(entry => String(entry.id).startsWith('preview-skillbook-test-')), false, '운영 호스트는 남아 있으면 지운다');
-  const offPreview = advanceJourney(empty(), save(), save(), Date.now(), true, 'production');
-  assert.equal(offPreview.mail.some(entry => String(entry.id).startsWith('preview-skillbook-test-')), false, '운영 호스트에는 지급하지 않는다');
-
-  // 실제 수령 — 10권이 모두 내 직업(전사)이 아닌 스킬북이어야 바로 합성 재료가 된다.
-  await seed('synth-mail');
-  const listed = await snapshot(db, 'synth-mail', { preview: 'preview' });
-  assert(listed.mail.some(entry => entry.id === PREVIEW_SKILLBOOK_MAIL_IDS[0]), '미리보기 목록에 내려온다');
-  const row = await account(db, 'synth-mail');
-  const claimed = await mutate(db, 'synth-mail', { action: 'journey-claim', kind: 'mail', id: PREVIEW_SKILLBOOK_MAIL_IDS[0], revision: row.revision, requestId: randomUUID() }, { preview: 'preview' });
-  assert.equal(claimed.save.bag.length, 10, '10권이 가방으로');
-  for (const item of claimed.save.bag) assert.notEqual(skillBookJobOf(item.skillId), 'warrior', `${item.skillId}는 타직업 책이다`);
-  assert(claimed.save.bag.some(item => skillBookJobOf(item.skillId) === 'archer'));
-  assert(claimed.save.bag.some(item => skillBookJobOf(item.skillId) === 'mage'));
+test('미리보기 전용 테스트 우편은 운영 빌드 상태(어떤 호스트에서도) 지급되지 않는다(작업 252)',async()=>{
+  // 호스트 판정 자체는 남아 있다 — 서버의 시즌 초기화 보호(`server/season.mjs`)가 이 판정을 쓴다.
+  const request=url=>new Request(url);
+  assert.equal(isPreviewHost(request('https://preview-gravel-background-fk.djrpg.pages.dev/api/market')),true,'미리보기 호스트');
+  assert.equal(isPreviewHost(request('https://djrpg.pages.dev/api/market')),false,'운영 호스트는 미리보기가 아니다');
+  assert.equal(isProductionHost(request('https://djrpg.pages.dev/api/market')),true);
+  assert.equal(isPreviewHost(request('https://example.com/preview/api/market')),false,'경로에 preview만 있으면 아니다');
+  // 예전 미리보기 테스트 우편 ID는 지급되지 않고, 미리보기 호스트에서도 붙지 않는다.
+  const fresh=advanceJourney({achievements:[],mail:[]},save(),save(),Date.now());
+  assert.equal(fresh.mail.some(entry=>String(entry.id).startsWith('preview-')),false,'테스트 우편이 없다');
+  await seed('no-preview-mail');
+  const listed=await snapshot(db,'no-preview-mail');
+  assert.equal(listed.mail.some(entry=>String(entry.id).startsWith('preview-')),false,'운영 목록에도 테스트 우편이 없다');
 });
 
 test('여정 응답이 거래소 수령함 건수(marketInbox)를 함께 준다 — 거래소 아이콘 빨간 점의 근거(작업 247)', async () => {

@@ -53,95 +53,6 @@ export function grantApologyMail(state, now = Date.now()) {
   state.mail.push({ id: APOLOGY_MAIL_ID, title: APOLOGY_MAIL_TITLE, sender: '운영팀', body: APOLOGY_MAIL_BODY, createdAt: now, expiresAt: APOLOGY_MAIL_UNTIL, gold: 0, books: 0, pouches: APOLOGY_MAIL_POUCHES, claimedAt: null, read: false });
   return true;
 }
-/**
- * 미리보기 전용 테스트 우편(작업 210 → 212, 사용자 요청 `#4580`·`#4589` "모션 확인할 주머니가 없다").
- * **미리보기 호스트에서만** 계정당 1회 지급하고, 운영 호스트에서는 지급도 표시도 되지 않는다
- * (`grantPreviewPouchMail(state, now, preview)`·`stripPreviewPouchMail`).
- * 작업 212: 6단계 개봉·`1개 더 열기`를 마음껏 확인하도록 **주머니 100개**를 주고,
- * 방금 `test-2`를 받은 계정도 새로고침하면 다시 받도록 ID를 `preview-pouch-test-3`으로 올렸다.
- */
-export const PREVIEW_POUCH_MAIL_ID = 'preview-pouch-test-3';
-/** 테스트 우편 한 통에 담는 주머니 수(작업 212 `#4951` 사용자 요청 100개). */
-export const PREVIEW_POUCH_MAIL_POUCHES = 100;
-/** 테스트 우편 접두사 — ID를 올려도 예전 테스트 우편이 운영에 남지 않도록 함께 지운다(작업 211). */
-const PREVIEW_POUCH_MAIL_PREFIX = 'preview-pouch-test-';
-const PREVIEW_POUCH_MAIL_TITLE = `[미리보기 테스트] 보물 주머니 ${PREVIEW_POUCH_MAIL_POUCHES}개`;
-const PREVIEW_POUCH_MAIL_BODY = `미리보기에서 새 개봉 모션(6단계)을 마음껏 확인하실 수 있도록 보물 주머니 ${PREVIEW_POUCH_MAIL_POUCHES}개를 드립니다.
-가방에서 주머니 그림을 누르면 바로 개봉 창이 열립니다. 닫힌 주머니가 흔들리다 끈이 풀리고 활짝 열려 빛이 터진 뒤,
-주머니가 바닥에 납작하게 흘러내리며 그 위에 보상이 나타나는 연출을 확인해 주세요.
-남은 주머니는 [1개 더 열기]로 이어서 까고, [닫기]·×로 언제든 나갈 수 있습니다.
-이 우편은 미리보기 서버에서만 지급되며 운영 서버에는 나오지 않습니다.`;
-/** 미리보기 호스트용 테스트 우편을 계정마다 한 번만 준다. `preview`가 false면 아무것도 하지 않는다. */
-export function grantPreviewPouchMail(state, now = Date.now(), preview = false) {
-  if (!preview) return false;
-  state.notices ??= []; state.mail ??= [];
-  if (state.notices.includes(PREVIEW_POUCH_MAIL_ID) || state.mail.some(entry => entry.id === PREVIEW_POUCH_MAIL_ID)) return false;
-  state.notices.push(PREVIEW_POUCH_MAIL_ID);
-  state.mail.push({ id: PREVIEW_POUCH_MAIL_ID, title: PREVIEW_POUCH_MAIL_TITLE, sender: '운영팀', body: PREVIEW_POUCH_MAIL_BODY, createdAt: now, expiresAt: null, gold: 0, books: 0, pouches: PREVIEW_POUCH_MAIL_POUCHES, claimedAt: null, read: false });
-  return true;
-}
-/** 운영 호스트에서 남아 있는 미리보기 테스트 우편을 지운다(지급 이력은 남겨 다시 붙지 않게 한다). */
-export function stripPreviewPouchMail(state) {
-  state.notices ??= []; state.mail ??= [];
-  state.mail = state.mail.filter(entry => !String(entry?.id ?? '').startsWith(PREVIEW_POUCH_MAIL_PREFIX));
-  return state;
-}
-
-/**
- * **[미리보기 전용 · main 운영 배포 금지] 타직업 스킬북 합성 테스트 우편 (작업 251, 사용자 요청).**
- *
- * 사용자 지시: "미리보기에만 추가하고, 합성 모션 확인할 수 있도록 스킬북도 30개 우편으로 보내줘".
- * 작업 210·212의 `PREVIEW_POUCH_MAIL_*`와 **같은 패턴**으로 미리보기 호스트에서만 계정당 1회 지급하고,
- * 운영 호스트에서는 지급도 표시도 되지 않는다(`grantPreviewSkillBookMails`·`stripPreviewSkillBookMails`).
- *
- * **10권씩 3통**으로 나누는 이유(사용자 확정): 가방이 40칸이라 한 번에 30권을 받으면 장비 자리가 없다.
- * 1통(10권)을 받아 2회 합성하고 비운 뒤 다음 통을 받으면 30권을 전부 시험할 수 있다.
- * 보내는 책은 **내 직업이 아닌 두 직업**의 스킬북이다(합성 재료로 바로 쓰도록) — 지급 시점의
- * `save.job`을 기준으로 `bookJobCycle`(`['archer','mage']` 등)을 우편에 실어 보내고, 수령할 때
- * `journey.mjs` `rewards()`가 그 직업 순서대로 10권을 만든다(필드가 없는 기존 우편은 33종 균등 그대로).
- */
-export const PREVIEW_SKILLBOOK_MAIL_PREFIX = 'preview-skillbook-test-';
-/** 테스트 우편 한 통의 스킬북 수 — 10권이면 합성 2회다. */
-export const PREVIEW_SKILLBOOK_MAIL_PER_MAIL = 10;
-/** 테스트 우편 통수 — 10 × 3 = 30권(사용자 요청). */
-export const PREVIEW_SKILLBOOK_MAIL_COUNT = 3;
-export const PREVIEW_SKILLBOOK_MAIL_IDS = Array.from({ length: PREVIEW_SKILLBOOK_MAIL_COUNT }, (_, index) => `${PREVIEW_SKILLBOOK_MAIL_PREFIX}${index + 1}`);
-/** 세 직업 — 지급 시점의 내 직업을 뺀 나머지 둘을 번갈아 넣는다. */
-const PREVIEW_JOBS = ['warrior', 'archer', 'mage'];
-const jobNameOf = job => (job === 'archer' ? '궁수' : job === 'mage' ? '마법사' : '전사');
-/** 미리보기 호스트용 합성 테스트 우편 3통을 계정마다 한 번만 준다. `preview`가 false면 아무것도 하지 않는다. */
-export function grantPreviewSkillBookMails(state, save, now = Date.now(), preview = false) {
-  if (!preview) return false;
-  state.notices ??= []; state.mail ??= [];
-  const mine = PREVIEW_JOBS.includes(save?.job) ? save.job : 'warrior';
-  const foreign = PREVIEW_JOBS.filter(job => job !== mine);
-  let granted = false;
-  for (const id of PREVIEW_SKILLBOOK_MAIL_IDS) {
-    if (state.notices.includes(id) || state.mail.some(entry => entry?.id === id)) continue;
-    state.notices.push(id);
-    state.mail.push({
-      id,
-      title: `[미리보기 테스트] 타직업 스킬북 ${PREVIEW_SKILLBOOK_MAIL_PER_MAIL}권`,
-      sender: '운영팀',
-      body: `미리보기에서 스킬북 합성 연출을 확인하실 수 있도록 ${jobNameOf(foreign[0])}·${jobNameOf(foreign[1])} 전용 스킬북 ${PREVIEW_SKILLBOOK_MAIL_PER_MAIL}권을 드립니다.\n`
-        + `가방의 [합성] 버튼을 누르면 타직업 스킬북 ${PREVIEW_SKILLBOOK_MAIL_PER_MAIL}권으로 합성 2회(1회에 5권 → 내 직업 책 1권)를 돌릴 수 있습니다.\n`
-        + `가방이 40칸이라 한 번에 30권을 받을 수 없으니, 한 통(10권)을 받아 합성하고 비운 뒤 다음 통을 받아 주세요.\n`
-        + `이 우편은 미리보기 서버에서만 지급되며 운영 서버에는 나오지 않습니다.`,
-      createdAt: now, expiresAt: null, gold: 0, books: PREVIEW_SKILLBOOK_MAIL_PER_MAIL, pouches: 0,
-      // 수령할 때 이 직업 순서로 책을 만든다 — 내 직업 책이 섞이지 않아 바로 합성 재료가 된다.
-      bookJobCycle: foreign,
-      claimedAt: null, read: false,
-    });
-    granted = true;
-  }
-  return granted;
-}
-/** 운영 호스트에서 남아 있는 합성 테스트 우편을 지운다(지급 이력은 남겨 다시 붙지 않게 한다). */
-export function stripPreviewSkillBookMails(state) {
-  state.notices ??= []; state.mail ??= [];
-  state.mail = state.mail.filter(entry => !String(entry?.id ?? '').startsWith(PREVIEW_SKILLBOOK_MAIL_PREFIX));
-  return state;
-}
 const UPDATE_NOTICE_TITLE = '[업데이트 안내] 전투·가방 편의성 및 끝없는 던전 개선';
 const UPDATE_NOTICE_BODY = `안녕하세요, 모험가님!
 더 쾌적한 사냥과 파밍을 위해 아래 내용이 업데이트되었습니다.
@@ -176,6 +87,46 @@ export function grantUpdateNotice(state, now = Date.now()) {
   state.mail.push({ id: UPDATE_NOTICE_ID, title: UPDATE_NOTICE_TITLE, sender: '운영팀', body: UPDATE_NOTICE_BODY, createdAt: now, expiresAt: UPDATE_NOTICE_UNTIL, gold: 3000, books: 2, claimedAt: null, read: false });
   return true;
 }
+/**
+ * 2026-11-21 업데이트 안내 우편(작업 245~252 운영 배포) — 사용자 확정: **무작위 보물 주머니 5개**
+ * (`gold: 0`, `books: 0`). 사과 보상 우편(작업 237)과 같은 방식으로 계정마다 한 번만 주고,
+ * 지급 이력을 `state.notices`에 남겨 수령·삭제·만료 뒤에도 다시 붙지 않게 한다.
+ *
+ * 본문은 사용자가 정한 문구 그대로다 — 운영 서버에서 실제로 체감하는 것만 짧게 적었고,
+ * 미리보기에서만 확인한 항목(테스트 우편·보물 주머니 버리기 등)은 넣지 않았다.
+ */
+export const UPDATE_NOTICE_2_ID = 'update-notice-2026-11-21';
+/** 우편 만료 = 2026-12-05 00:00 KST(2주). 이 시각을 넘겨 처음 접속한 계정에는 보상을 붙이지 않는다. */
+export const UPDATE_NOTICE_2_UNTIL = Date.UTC(2026, 11, 4, 15, 0, 0);
+/** 업데이트 기념으로 드리는 무작위 보물 주머니 수(사용자 확정 5개). */
+export const UPDATE_NOTICE_2_POUCHES = 5;
+const UPDATE_NOTICE_2_TITLE = '[업데이트] 거래소 · 스킬북 합성 · 던전 개편 안내';
+const UPDATE_NOTICE_2_BODY = `모험가님, 더 쾌적한 모험을 위해 주요 시스템을 개편했습니다.
+
+1. 거래소 개편
+- 묶음 거래: 스킬북을 최대 10개까지 한 번에 등록하고, 구매 시 전체 또는 원하는 수량만큼 나눠 살 수 있습니다.
+- 편의 개선: 간편/상세 보기 전환과 8칸 등록 화면을 추가했고, 수령함에 받을 물품이 있으면 빨간 점이 뜹니다. (수령함 최대 30건)
+
+2. 스킬북 합성 & 가방 · 창고
+- 스킬북 합성: 안 쓰는 다른 직업 스킬북 5권을 모아 내 직업 랜덤 스킬북 1권으로 합성할 수 있습니다. (자동 합성 지원)
+- 가방 40칸 통합: 장비·스킬북·보물 주머니를 합쳐 40칸으로 통일되며, 가방이 차면 아이템 우편은 비운 뒤 받을 수 있습니다.
+- 드롭 & 창고: 1층부터 모든 스킬북이 고르게 나오며, 공용창고에서 여러 개를 바로 골라 빠르게 옮길 수 있습니다.
+
+3. 스킬 · 사냥 · 던전
+- 스킬 편의: 자동 강화 버튼과 + 슬롯 추천 장착이 개선되었습니다.
+- 사냥 & 던전: 30마리 강등 시에만 자동 등반이 꺼지고 ⚔ 보스 도전이 유지되며, 끝없는 던전 난이도와 보상(보스 2개 확정 · 등급 표기)이 조정되었습니다.
+- 보상 알림: 일일·주간 보상 탭에 빨간 점 알림이 추가되었습니다.
+
+감사의 마음을 담아 보물 주머니 5개를 보내드립니다. 즐거운 모험 되세요!`;
+/** 2026-11-21 업데이트 안내 우편을 계정마다 **한 번만** 준다. 기간이 지나면 새로 붙이지 않는다. */
+export function grantUpdateNotice2(state, now = Date.now()) {
+  state.notices ??= []; state.mail ??= [];
+  if (now >= UPDATE_NOTICE_2_UNTIL) return false;
+  if (state.notices.includes(UPDATE_NOTICE_2_ID) || state.mail.some(entry => entry.id === UPDATE_NOTICE_2_ID)) return false;
+  state.notices.push(UPDATE_NOTICE_2_ID);
+  state.mail.push({ id: UPDATE_NOTICE_2_ID, title: UPDATE_NOTICE_2_TITLE, sender: '운영팀', body: UPDATE_NOTICE_2_BODY, createdAt: now, expiresAt: UPDATE_NOTICE_2_UNTIL, gold: 0, books: 0, pouches: UPDATE_NOTICE_2_POUCHES, claimedAt: null, read: false });
+  return true;
+}
 export function periods(now = Date.now()) {
   // Shift 05:00 KST to midnight UTC. The resulting UTC weekday gives Monday resets.
   const shifted = now + 4 * HOUR, day = new Date(shifted);
@@ -184,11 +135,12 @@ export function periods(now = Date.now()) {
   return { daily: String(midnight / DAY), weekly: String(monday / DAY), dailyEnd: midnight + DAY - 4 * HOUR, weeklyEnd: monday + 7 * DAY - 4 * HOUR };
 }
 /**
- * `previewMode`는 테스트 우편을 다루는 범위다 — `'preview'`(미리보기 호스트: 지급)·`'production'`(운영 호스트: 삭제)·
- * `false`(호스트를 모르는 일반 저장: **그대로 둔다**). 작업 211 이전에는 false가 곧 운영이라
- * `writeSave` 한 번에 방금 받은 미리보기 우편이 사라졌다.
+ * 여정 상태를 지금 시각으로 앞으로 넘긴다 — 기간 초기화, 지급 우편(업데이트 안내·새 시즌·사과 보상·다이아).
+ *
+ * 미리보기 전용 테스트 우편(작업 210·212·251)은 운영 배포에서 지웠다(작업 252) — 지급 함수·삭제 함수·
+ * `previewMode` 인자까지 없앴으므로, 어느 호스트에서도 테스트 우편이 붙지 않는다.
  */
-export function advanceJourney(state, before, save, now = Date.now(), diamondMailEligible = false, previewMode = false) {
+export function advanceJourney(state, before, save, now = Date.now(), diamondMailEligible = false) {
   const keys = periods(now);
   state ??= { achievements: [], mail: [{ id: 'welcome-v1', title: '황야에 오신 것을 환영합니다', sender: '운영팀', body: '모험을 시작하는 데 도움이 되길 바랍니다.', createdAt: now, expiresAt: now + 7 * DAY, gold: 1000, books: 1, claimedAt: null, read: false }] };
   for (const kind of ['daily', 'weekly']) {
@@ -208,11 +160,8 @@ export function advanceJourney(state, before, save, now = Date.now(), diamondMai
   grantSeasonNotice(state, now);
   // 서버 연결 불안정 사과 보상(작업 237) — 계정당 1회, 무작위 보물 주머니 5개.
   grantApologyMail(state, now);
-  // 미리보기 테스트 우편(작업 210·211): 지급은 미리보기 호스트에서만, 삭제는 **운영 호스트에서만** 한다.
-  // 호스트를 모르는 호출(`writeSave` 자동 저장 등, false)은 손대지 않는다.
-  if (previewMode === true || previewMode === 'preview') { grantPreviewPouchMail(state, now, true); grantPreviewSkillBookMails(state, save, now, true); }
-  else if (previewMode === 'production') { stripPreviewPouchMail(state); stripPreviewSkillBookMails(state); }
-  if (diamondMailEligible) {
+  // 2026-11-21 업데이트 안내(작업 252) — 계정당 1회, 무작위 보물 주머니 5개.
+  grantUpdateNotice2(state, now);  if (diamondMailEligible) {
     // 옛 ID 우편을 이미 받아 둔 계정은 위 `migrateLegacyDiamondMail`이 새 ID로 바꿔 두었다 — 새로 붙이지 않는다.
     state.notices ??= [];
     // 핫픽스 직전 20여 분 사이에 옛 ID로 4,000 다이아를 이미 받은 계정(수령 후 우편 삭제)에게 같은 보상을
@@ -245,10 +194,9 @@ export function migrateLegacyDiamondMail(state) {
   if (!state.notices.includes(DIAMOND_MAIL_ID)) state.notices.push(DIAMOND_MAIL_ID);
   return state;
 }
-/** `previewMode`: `'preview'`·`'production'`·`false`(모름) — `advanceJourney`의 6번째 인자와 같은 뜻이다(작업 211). */
-export async function journeyState(tx, row, save = row.save, now = Date.now(), previewMode = false) {
+export async function journeyState(tx, row, save = row.save, now = Date.now()) {
   const entry = 'journeyRecord' in row ? row.journeyRecord : (await tx.execute({sql:'SELECT state_json FROM djrpg_journey WHERE account_id=?',args:[row.id]})).rows[0];
-  return advanceJourney(entry ? JSON.parse(entry.state_json) : undefined, row.save, save, now, row.password_hash !== 'guest', previewMode);
+  return advanceJourney(entry ? JSON.parse(entry.state_json) : undefined, row.save, save, now, row.password_hash !== 'guest');
 }
 /**
  * 서버가 직접 아는 사건(월드보스 도전 시작 등)을 그 기간 카운터에 **1회** 더한다(작업 207).

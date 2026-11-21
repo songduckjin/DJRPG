@@ -8,7 +8,7 @@ import { createHmac } from 'node:crypto';
 import { createClient } from '@libsql/client';
 import { schema, account, transaction, reconcileItems } from '../server/database.mjs';
 import { snapshot, mutate } from '../server/journey.mjs';
-import { APOLOGY_MAIL_ID, PREVIEW_POUCH_MAIL_ID, DIAMOND_MAIL_ID } from '../server/journey-state.mjs';
+import { APOLOGY_MAIL_ID, DIAMOND_MAIL_ID } from '../server/journey-state.mjs';
 import accountHandler from '../api/account.mjs';
 import warehouseHandler from '../api/warehouse.mjs';
 

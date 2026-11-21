@@ -248,7 +248,7 @@
   .equipment-grid { grid-template-rows: repeat(2, 48px); }
   .equipment-modal .bag-grid { min-height: 135px; }
   .bag-heading h3 { font-size: 13px; }
-  .bag-heading .bag-rarity-sort, .bag-heading .bag-job-only { padding: 4px 7px; font-size: 10px; }
+  .bag-heading .bag-rarity-sort, .bag-heading .bag-job-only, .bag-heading .synth-open { padding: 4px 7px; font-size: 10px; }
   .modal-bag-footer { flex-wrap: wrap; gap: 4px; margin-top: 5px; padding-top: 5px; }
   .modal-bag-footer .salvage, .modal-bag-footer .salvage-rarity, .modal-bag-footer .salvage-plus { padding: 4px 7px; font-size: 10px; }
   .auto-salvage-hint { font-size: 9px; }
@@ -483,6 +483,8 @@
 .bag-heading { display:flex; align-items:center; gap:4px; margin-bottom:5px; flex:none; }
 .bag-heading h3 { flex:1 1 auto; min-width:0; margin:0; }
 .bag-heading .bag-job-only { flex:0 1 auto; margin:0; }
+/* [작업 252] 가방 `합성`은 머리줄 `내 직업만 보기` 바로 왼쪽 — 머리줄 버튼과 같은 납작한 크기로 둔다. */
+.bag-heading .synth-open { flex:0 1 auto; margin:0; padding:4px 7px; font-size:11px; }
 .bag-rarity-sort { flex:0 0 auto; border:1px solid #6d5948; background:#292124; color:#bba998; padding:4px 8px; font-size:11px; }
 .bag-rarity-sort.active { border-color:#c8a26a; background:#4a342a; color:#ffe1b5; }
 
@@ -733,8 +735,7 @@ img.pouch-icon { display: block; object-fit: contain; border-radius: 4px; }
 .synth-window-top { display: grid; grid-template-columns: 30px minmax(0, 1fr) 30px; align-items: center; width: 100%; }
 .synth-window-title { margin: 0; font-size: 13px; color: #f6dcb0; letter-spacing: .01em; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .synth-window-close { justify-self: end; width: 30px; height: 30px; border: 0; background: transparent; color: #c9b49a; font-size: 20px; line-height: 1; }
-.synth-window-hint { margin: 0; color: #ad9a86; font-size: 9px; text-align: center; }
-.synth-window-count { margin: 0; color: #e2c193; font-size: 10px; }
+.synth-window-hint { margin: 0; color: #ad9a86; font-size: 9px; text-align: center; white-space: nowrap; }
 .synth-window-error { margin: 0; color: #ffb4a4; font-size: 10px; text-align: center; }
 
 /* 무대 — 5칸이 앉고, 빛·섬광·허물이 그 위/아래에 겹친다. */
@@ -777,9 +778,13 @@ img.pouch-icon { display: block; object-fit: contain; border-radius: 4px; }
 .synth-materials-wrap { width: 100%; min-height: 0; margin-top: 2px; }
 .synth-materials-heading { margin: 0 0 3px; color: #ad9a86; font-size: 9px; text-align: center; }
 .synth-materials { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 4px; max-height: 25dvh; overflow-y: auto; overscroll-behavior: contain; padding: 2px; }
+/* 스크롤바는 다크/골드 톤으로 맞춘다(작업 252 ④ — 기본 회색 막대가 팝업 톤과 어긋났다). */
+.synth-materials, .synth-result-list { scrollbar-width: thin; scrollbar-color: #6b5239 #1c1518; }
+.synth-materials::-webkit-scrollbar, .synth-result-list::-webkit-scrollbar { width: 6px; height: 6px; }
+.synth-materials::-webkit-scrollbar-track, .synth-result-list::-webkit-scrollbar-track { background: #1c1518; border-radius: 3px; }
+.synth-materials::-webkit-scrollbar-thumb, .synth-result-list::-webkit-scrollbar-thumb { background: #6b5239; border-radius: 3px; }
 .synth-material { position: relative; display: flex; flex-direction: column; align-items: center; gap: 1px; min-width: 0; padding: 2px; border: 1px solid #60534e; border-radius: 4px; background: #221e22; color: #ddcfc1; }
 .synth-material .skill-book-art { width: 100%; max-width: 30px; height: auto; aspect-ratio: 1; --book-badge-size: 12px; }
-.synth-material-name { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 8px; color: #cdbba4; }
 .synth-material .job-badge { position: absolute; left: 1px; top: 1px; padding: 0 2px; min-height: 11px; font-size: 8px; line-height: 9px; z-index: 1; pointer-events: none; }
 .synth-material.is-picked { border-color: #ffe3a3; box-shadow: inset 0 0 0 1px #ffe3a355; opacity: .5; }
 
@@ -810,15 +815,6 @@ img.pouch-icon { display: block; object-fit: contain; border-radius: 4px; }
   .synth-materials { max-height: 22dvh; }
 }
 
-/* ── [미리보기 전용 · main 운영 배포 금지] 보물 주머니 버리기 (작업 251) ─────────
-   운영 빌드에서는 `isPreviewClient()`가 false라 요소 자체가 만들어지지 않는다. 나중에 `main`으로
-   올릴 때 `src/game/previewOnly.ts`와 이 규칙·호출부를 함께 지우면 합성 기능은 그대로 남는다. */
-.pouch-window-discard { display: flex; gap: 5px; width: 100%; margin-top: 1px; }
-.pouch-window-discard[hidden] { display: none; }
-.pouch-discard, .pouch-discard-all { flex: 1; padding: 6px; border: 1px solid #6d5540; border-radius: 4px; background: #251e1f; color: #c3ae96; font: inherit; font-size: 11px; touch-action: manipulation; }
-.pouch-discard-all.is-armed { border-color: #d1685c; background: #4a2320; color: #ffd7cf; font-weight: 700; }
-.pouch-detail .pouch-discard, .pouch-detail .pouch-discard-all { border: 1px solid #6d5540; border-radius: 4px; background: #251e1f; color: #c3ae96; padding: 8px 10px; font: inherit; font-size: 12px; }
-.pouch-detail .pouch-discard-all.is-armed { border-color: #d1685c; background: #4a2320; color: #ffd7cf; }
 /* 가방 바닥줄 `합성` — 재료가 있으면 금빛, 없으면 다른 분해 버튼과 같은 톤으로 둔다. */
 .synth-open.is-ready { border-color: #d3a45f; background: linear-gradient(#5b3f26, #3a2926); color: #ffe0ab; }
 .synth-open:disabled { opacity: .45; }

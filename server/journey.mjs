@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { account, transaction, assertRevision, validateSave, reconcileItems, writeSave, fail, inventoryOwnerQuery } from './database.mjs';
 import { elapsedSince } from './save-guard.mjs';
 import { journeyState, journeyOperation, journeyView, dailyTasks, pouchItem } from './journey-state.mjs';
-import { countedInBag, rollRewardSkillBook, rollRewardSkillBookOfJob } from './skill-ids.mjs';
+import { countedInBag, rollRewardSkillBook } from './skill-ids.mjs';
 /** 우편·보상이 가방에 넣는 아이템 수 — 스킬북 `books` + 보물 주머니 `pouches`(작업 248). */
 function rewardItemCount(entries) {
   return entries.reduce((sum, entry) => sum + Math.max(0, Math.floor(Number(entry.books ?? 0) || 0)) + Math.max(0, Math.floor(Number(entry.pouches ?? 0) || 0)), 0);
@@ -19,14 +19,10 @@ function rewards(save, entries) {
   save.bag ??= [];
   for (const entry of entries) {
     const books = Math.max(0, Math.floor(Number(entry.books??0) || 0));
-    // [미리보기 전용 · main 운영 배포 금지] 합성 테스트 우편(`bookJobCycle`)은 지정한 직업 순서대로
-    // 책을 만든다(작업 251). 필드가 없는 기존 우편은 그대로 33종 균등이다(기존 계약 불변).
-    const cycle = Array.isArray(entry.bookJobCycle)
-      ? entry.bookJobCycle.filter(job => job === 'warrior' || job === 'archer' || job === 'mage')
-      : [];
     // 우편·보상 스킬북은 세 직업 33종에서 고른다(작업 209) — 예전에는 전사 11종만 나왔다.
+    // 직업을 지정해 주던 미리보기용 우편 경로는 운영 배포에서 정리했다(작업 252).
     for (let i = 0; i < books; i++) {
-      const {skillId,name} = cycle.length ? rollRewardSkillBookOfJob(cycle[i % cycle.length]) : rollRewardSkillBook();
+      const {skillId,name} = rollRewardSkillBook();
       save.bag.push({id:randomUUID(),kind:'skillbook',slot:'skillbook',skillId,rarity:'rare',name,stats:{}});
     }
   }
@@ -35,7 +31,7 @@ function rewards(save, entries) {
 }
 export async function snapshot(db,id,options={}) {
   return transaction(db,async tx=>{
-    const row=await account(tx,id),state=await journeyState(tx,row,row.save,Date.now(),options.preview ?? false);
+    const row=await account(tx,id),state=await journeyState(tx,row,row.save);
     await tx.execute(journeyOperation(row.id,state));
     // 거래소 수령함에 남은 건수(작업 247) — 메인 화면 거래소 아이콘의 빨간 점은 이 값을 120초 폴링에
     // 얹어 알린다(거래소 창을 열지 않아도 보이게 하려고 거래소 API를 따로 부르지 않는다).
@@ -56,11 +52,11 @@ export async function mutate(db,id,input,options={}) {
     ]);
     row.journeyRecord=reads[1].rows[0]??null;
     const replay=reads[0].rows[0];
-    if(replay)return {...JSON.parse(replay.response_json),save:row.save,revision:row.revision,journey:journeyView(await journeyState(tx,row,row.save,Date.now(),options.preview ?? false),row.save)};
+    if(replay)return {...JSON.parse(replay.response_json),save:row.save,revision:row.revision,journey:journeyView(await journeyState(tx,row,row.save),row.save)};
     assertRevision(row,input.revision); if(input.progress!==undefined)validateSave(input.progress);
     const operations=[];
     const save=structuredClone(input.progress??row.save);await reconcileItems(tx,id,row.save,save,{slot:row.slot,owned:reads[2].rows,operations,elapsedSeconds:elapsedSince(row.character_updated_at)});
-    const now=Date.now(),state=await journeyState(tx,row,save,now,options.preview ?? false),view=journeyView(state,save,now);
+    const now=Date.now(),state=await journeyState(tx,row,save,now),view=journeyView(state,save,now);
     const beforeRewardIds=new Set(save.bag.map(item=>item.id));
     let selected=[], goldCredit=0, mailSkipped=0;
     if(input.action==='journey-claim'){
