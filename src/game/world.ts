@@ -873,7 +873,7 @@ export class World {
         // A piece auto-salvage will take needs no bag room, so it flies in even when the bag is full.
         if (!canStoreItem(this.save.bag, drop.item, this.job) && !this.sweeps(drop.item)) {
           // 가방 40칸 만석(작업 209): 새 장비를 두기 전에 가방 안의 설정 이하 장비를 먼저 분해해 칸을 만든다.
-          // 40칸에는 스킬북·보물 주머니도 포함한다(작업 248).
+          // 40칸에는 타직업 스킬북·보물 주머니도 포함한다(내 직업 스킬북 제외, 작업 253).
           if (!this.sweepFullBag()) {
             if (!drop.warned) { drop.warned = true; this.onMessage('가방이 가득 찼습니다. 아이템을 분해하거나 공용창고에 보관하세요.'); }
             continue;

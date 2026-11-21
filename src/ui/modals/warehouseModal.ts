@@ -194,7 +194,7 @@ export function renderWarehouse(ui: Interface, dialog: HTMLElement): void {
     const bagCount = equipmentCount(save.bag, save.job);
     gold.textContent = `계정 공용 금화 ${save.gold.toLocaleString('ko-KR')}`;
     counts.textContent = `공용창고 ${warehouseCount}/40 · 가방 ${bagCount}/40`;
-    counts.title = '가방 40칸은 장비·스킬북·보물 주머니를 모두 1개씩 셈합니다.';
+    counts.title = '가방 40칸은 장비·타직업 스킬북·보물 주머니를 1개씩 셈합니다(내 직업 스킬북 제외).';
     storageHeading.textContent = `공용창고 ${warehouseCount}/40`;
     bagHeading.textContent = `내 가방 ${bagCount}/40`;
 
