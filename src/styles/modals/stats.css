@@ -1,0 +1,31 @@
+/* DJRPG 모달 — 상세 스탯 (LV 배지를 누르면 열린다)
+   머리(직업·닉네임·LV·층·HP) → 큰 전투력 → 그룹별 2열 칸. 숫자는 `src/game/statSheet.ts`가 계산한다.
+   폭 360px 이하에서는 칸 여백·글자를 한 단계 줄여 2열이 그대로 유지되게 한다. */
+
+.stats-modal .stats-content { display: flex; flex-direction: column; gap: 10px; font-size: 12px; }
+.stats-head { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.stats-who { display: flex; align-items: baseline; gap: 6px; min-width: 0; }
+.stats-who span { flex: none; color: #e2b06a; font-size: 10.5px; font-weight: 700; }
+.stats-who b { min-width: 0; overflow: hidden; color: #fff0d2; font-size: 15px; text-overflow: ellipsis; white-space: nowrap; }
+.stats-meta { color: #a08d7e; font-size: 10.5px; font-variant-numeric: tabular-nums; }
+
+/* 전투력 — 이름판과 같은 금빛 테두리·위쪽 하이라이트를 쓴다(HUD와 한 가족으로 읽히게). */
+.stats-power { display: flex; align-items: center; gap: 5px; padding: 8px 10px; border: 1px solid #d6af7288; border-radius: 6px; background: linear-gradient(#2a1d1a, #1a1215); box-shadow: 0 2px 8px #0007, inset 0 1.5px 0 #f6d28e44; }
+.stats-power > span:first-child { flex: none; color: #e9c07a; font-size: 14px; line-height: 1; }
+.stats-power > span:nth-child(2) { color: #c9b295; font-size: 11px; font-weight: 700; }
+.stats-power b { margin-left: auto; color: #ffe1a8; font: 700 20px/1 Cinzel, 'Noto Sans KR', serif; font-variant-numeric: tabular-nums; }
+
+.stats-group { display: flex; flex-direction: column; gap: 4px; }
+.stats-group h3 { margin: 0; color: #d9bd92; font-size: 11px; font-weight: 700; letter-spacing: .3px; }
+.stats-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; }
+.stats-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 2px 6px; min-width: 0; padding: 5px 7px; border: 1px solid #54443f; background: #1d171b; color: #b19d86; font-size: 10.5px; }
+.stats-row span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.stats-row b { color: #efd3a8; font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.stats-row small { grid-column: 1 / -1; color: #8e7c6b; font-size: 9px; line-height: 1.3; }
+.stats-hint { margin: 0; color: #8e7c6b; font-size: 10px; line-height: 1.5; }
+
+@media (max-width: 359px) {
+  .stats-row { padding: 4px 5px; font-size: 10px; }
+  .stats-row b { font-size: 11px; }
+  .stats-power b { font-size: 18px; }
+}

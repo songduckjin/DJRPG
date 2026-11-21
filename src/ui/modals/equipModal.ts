@@ -10,11 +10,11 @@ import { nextSalvageRarity, saveSalvageRarity, type SalvageRarity } from '../sal
 import { AUTO_SALVAGE_HINT } from '../autoSalvage';
 import { salvagePlusLabel, salvagePlusUnlocked, salvagePlusValues } from '../salvagePlus';
 import { canAutoEquip } from '../../game/inventory';
+import { combatPower } from '../../game/power';
 import { requestSalvage } from './salvageModal';
 import { equipmentPortraitPlan, renderEquipmentGlowLayers, renderEquipmentPortrait } from '../equipmentPortrait';
 import { goldMarkup } from '../currency';
 import { isSkillBook } from '../../game/items';
-import { combatPower } from '../../game/floorPower';
 import { pouchCount } from '../../game/pouch';
 import { openPouchWindow } from './pouchModal';
 // [작업 251] 가방 `합성` — 타직업 스킬북 5권을 내 직업 책 1권으로. 팝업은 작은 창(`synthModal`).
@@ -423,7 +423,7 @@ export function renderEquipment(this: Interface, dialog: HTMLElement): void {
       + `<span><small>EXP</small><b>${expPercent}</b></span>`
       + `<span class="summary-gold">${goldMarkup(save.gold)}<em>· 강화석 ${save.stones}</em></span>`;
     info.appendChild(summary);
-    // 전투력 식은 `game/floorPower.ts` 한 곳에 둔다 — 층 선택 창의 권장 전투력과 같은 척도다.
+    // 전투력 식은 `src/game/power.ts` 한 곳에 있다 — HUD·상세 스탯·층 선택의 권장 전투력과 같은 숫자를 말한다.
     const power = combatPower(stats);
     const values = [power, `${Math.ceil(this.world.player.hp)}/${stats.health}`, stats.attack, stats.defense, `${stats.crit}%`, `${stats.speed}%`];
     const statGrid = document.createElement('div'); statGrid.className = 'equipment-info-stats';

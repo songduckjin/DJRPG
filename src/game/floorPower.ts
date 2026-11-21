@@ -23,8 +23,13 @@
 import { CRIT_DAMAGE_SCALE, basicAttackPower, enemyHitDamage, enemyMaxHp, swarmCount } from './battle/formulas';
 import { MAX_FLOOR, MAX_LEVEL } from './progress';
 
-/** 전투력 가중치 — `내 정보`(`ui/modals/equipModal.ts`)와 **같은 식**이어야 한다(한 곳에만 둔다). */
-export const POWER_WEIGHTS = { attack: 3, defense: 2, health: .2, crit: 2, speed: 2 } as const;
+/**
+ * 전투력 식·가중치는 `game/power.ts` 한 곳에만 둔다 — HUD·내 정보·상세 스탯·층 권장값이 같은 숫자를 말한다.
+ * 여기서는 그대로 다시 내보내기만 한다(`floorModal.ts`가 이 모듈 하나로 층 판정·표기를 끝낸다).
+ */
+export { POWER_WEIGHTS } from './power';
+import { combatPower } from './power';
+export { combatPower };
 
 export type CombatStats = { attack: number; defense: number; health: number; crit: number; speed: number };
 /** `easy`=여유(충분) · `okay`=적정(권장 근처) · `danger`=위험(모자람). */
@@ -53,12 +58,6 @@ export function referenceLevel(floor: number): number {
   return Math.max(1, Math.min(MAX_LEVEL, Math.ceil(clampFloor(floor) * .8)));
 }
 
-/** 전투력 = 공격×3 + 방어×2 + 체력×0.2 + 치명×2 + 공속×2 (반올림). */
-export function combatPower(stats: Partial<CombatStats>): number {
-  return Math.round((stats.attack ?? 0) * POWER_WEIGHTS.attack + (stats.defense ?? 0) * POWER_WEIGHTS.defense
-    + (stats.health ?? 0) * POWER_WEIGHTS.health + (stats.crit ?? 0) * POWER_WEIGHTS.crit
-    + (stats.speed ?? 0) * POWER_WEIGHTS.speed);
-}
 
 /** 장비 없는 캐릭터의 그 레벨 기본 스탯 — `items.ts` `totalStats`의 기본값과 같은 식이다. */
 export function baseStats(level: number): CombatStats {

@@ -48,6 +48,27 @@ const navIcons = {
 };
 
 /**
+ * 오른쪽 아이콘 레일(`.utility-nav`)의 버튼 — 위에서부터 `캐릭터`·`설정`·`우편함`·`보상`·`업적`·`던전`.
+ * 상점(`.shop-entry`)은 그림이 달라서 생성자에서 따로 덧붙인다.
+ *
+ * `캐릭터`는 사용자 요청("캐릭터 전환버튼은 오른쪽 아이콘 추가")으로 생긴 자리다 — 예전에는 LV 배지를
+ * 눌러 `캐릭터 선택`을 열었는데, LV 배지는 이제 `상세 스탯`을 열므로 전환 입구를 여기로 옮겼다.
+ */
+const railEntries = [
+  { modal: 'characters', label: '캐릭터' },
+  { modal: 'settings', label: '설정' },
+  { modal: 'mail', label: '우편함' },
+  { modal: 'rewards', label: '보상' },
+  { modal: 'achievements', label: '업적' },
+  { modal: 'dungeon', label: '던전' }
+] as const;
+/** 새 소식 점(`data-utility-dot`)을 다는 레일 버튼 — `utilityModal`이 이 이름으로 찾아 켜고 끈다. */
+const railDotModals = new Set<string>(['mail', 'rewards', 'achievements']);
+const railMarkup = (): string => railEntries.map(({ modal, label }) => `<button type="button" data-modal="${modal}" aria-label="${label}" title="${label}"><img src="/assets/icons/utility_${modal}.png" alt="">${railDotModals.has(modal) ? `<i data-utility-dot="${modal}" hidden></i>` : ''}</button>`).join('');
+/** 테스트가 레일 구성을 직접 확인할 수 있게 내보낸다(문자열만 만드는 순수 함수). */
+export { railMarkup, railEntries };
+
+/**
  * 지금 창을 열 수 없는가 — **결과를 확인하지 못한 요청은 자기 창만** 막는다(작업 260 · 설계서 PR-5).
  *
  * 거래소 거래가 걸려 있으면 거래소 창만 막히고(그 창의 `거래 결과 다시 확인`으로 풀어야 하므로 거래소 자체는 연다),
@@ -135,7 +156,7 @@ export class Interface {
     this.market = new Market(sync);
     this.journey = new Journey(sync, world);
     discoverEquipment(world.save);
-    root.innerHTML = `<main class="game-shell"><section class="battle"><div class="battle-canvas"></div><div class="top-hud"></div><button class="world-boss-entry" data-modal="worldBoss" type="button" aria-label="월드보스 미리보기" title="체력과 남은 도전 횟수는 시안입니다"><span class="wb-entry-art" aria-hidden="true"></span><span class="wb-entry-health" aria-hidden="true"><i></i></span><span class="wb-entry-count" aria-hidden="true">3/3</span></button><nav class="utility-nav" aria-label="편의 메뉴">${(['settings','mail','rewards','achievements','dungeon'] as const).map((kind,index)=>`<button type="button" data-modal="${kind}" aria-label="${['설정','우편함','보상','업적','던전'][index]}" title="${['설정','우편함','보상','업적','던전'][index]}"><img src="/assets/icons/utility_${kind}.png" alt="">${(kind==='settings'||kind==='dungeon')?'':`<i data-utility-dot="${kind}" hidden></i>`}</button>`).join('')}</nav><div class="tutorial"></div><div class="controls"><div class="action-pad"></div></div></section><nav class="bottom-nav" aria-label="게임 메뉴"><button data-modal="equipment" type="button" aria-label="내 정보" title="내 정보">${navIcons.equipment}<i class="new-badge" hidden></i><i class="bag-full-badge" hidden></i></button><button data-modal="skills" type="button" aria-label="스킬" title="스킬">${navIcons.skills}<i class="skill-nav-dot" hidden aria-label="장착 또는 강화 가능한 스킬 있음"></i></button><button data-modal="market" type="button" aria-label="거래소" title="거래소">${navIcons.market}<i class="market-nav-dot" hidden aria-label="거래소 수령함에 받을 물건 있음"></i></button><button data-modal="warehouse" type="button" aria-label="공용창고" title="공용창고">${navIcons.warehouse}</button></nav><div class="modal-backdrop" hidden><div class="modal-dialog" role="dialog" aria-modal="true"></div></div><div class="toast" role="status"></div></main>`;
+    root.innerHTML = `<main class="game-shell"><section class="battle"><div class="battle-canvas"></div><div class="top-hud"></div><button class="world-boss-entry" data-modal="worldBoss" type="button" aria-label="월드보스 미리보기" title="체력과 남은 도전 횟수는 시안입니다"><span class="wb-entry-art" aria-hidden="true"></span><span class="wb-entry-health" aria-hidden="true"><i></i></span><span class="wb-entry-count" aria-hidden="true">3/3</span><span class="wb-entry-label" aria-hidden="true">월드보스</span></button><nav class="utility-nav" aria-label="편의 메뉴">${railMarkup()}</nav><div class="tutorial"></div><div class="controls"><div class="action-pad"></div></div></section><nav class="bottom-nav" aria-label="게임 메뉴"><button data-modal="equipment" type="button" aria-label="내 정보" title="내 정보">${navIcons.equipment}<i class="new-badge" hidden></i><i class="bag-full-badge" hidden></i></button><button data-modal="skills" type="button" aria-label="스킬" title="스킬">${navIcons.skills}<i class="skill-nav-dot" hidden aria-label="장착 또는 강화 가능한 스킬 있음"></i></button><button data-modal="market" type="button" aria-label="거래소" title="거래소">${navIcons.market}<i class="market-nav-dot" hidden aria-label="거래소 수령함에 받을 물건 있음"></i></button><button data-modal="warehouse" type="button" aria-label="공용창고" title="공용창고">${navIcons.warehouse}</button></nav><div class="modal-backdrop" hidden><div class="modal-dialog" role="dialog" aria-modal="true"></div></div><div class="toast" role="status"></div></main>`;
     const shopEntry = document.createElement('button'); shopEntry.type = 'button'; shopEntry.dataset.modal = 'shop'; shopEntry.className = 'shop-entry'; shopEntry.setAttribute('aria-label', '상점'); shopEntry.title = '상점';
     // 작업 261: 글자 `◆` 대신 다이아가 가득 든 보물상자 그림(상점 대표 그림과 같은 에셋)을 버튼에 꽉 채운다.
     const shopEntryArt = document.createElement('img'); shopEntryArt.src = DIAMOND_PACK_ART; shopEntryArt.alt = ''; shopEntryArt.decoding = 'async'; shopEntry.append(shopEntryArt);
