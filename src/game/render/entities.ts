@@ -6,6 +6,7 @@ import { enemyFacing } from '../facing';
 import { heroAnimationMode, heroMotion, slash2SwingMotion } from './heroMotion';
 import { heroScale, heroBodyHeight, heroBodyFraction } from './heroScale';
 import { drawBloodRageAura } from './bloodRage';
+import { drawHawkEyeWindAura } from './hawkEyeWind';
 import { heroClass, socketMotion, weaponSocket } from './heroSockets';
 import { tintedGearTexture } from './gearTint';
 import { gearGlowAmount, gearGlowLayersFor, gearGlowTone, glowGearTexture } from './gearGlow';
@@ -1048,8 +1049,11 @@ export function drawEntities(this: GameView, world: World, project: (x: number, 
     this.drawHero(world, hx, hy, time);
     // [작업 214] 전사 블러드 레이지는 발밑 타원 링 대신 몸 윤곽을 따라 타오르는 붉은 투기 오라로 그린다.
     drawBloodRageAura(this, world, hx, hy, time, dt, h * heroBodyFraction, this.textures.fxFlame, this.textures.fxRageGlow);
-    // 궁수 호크아이·마법사 아케인 실드는 종전의 발밑 마법진을 그대로 쓴다(전사만 새 오라).
-    if (world.player.berserk > 0 && jobOrDefault(world.save.job) !== 'warrior') {
+    // [작업 261] 궁수 호크아이는 발밑 마법진 대신 몸을 감아 올라가는 옅은 바람 오라로 그린다.
+    // 히어로 뒤/앞 가산 레이어(`rageBack`·`rageFront`)를 직업별 오라가 나눠 쓴다.
+    drawHawkEyeWindAura({ windBack: this.rageBack, windFront: this.rageFront }, world, hx, hy, time, dt, h * heroBodyFraction, this.textures.fxRageGlow);
+    // 마법사 아케인 실드는 종전의 발밑 마법진을 그대로 쓴다.
+    if (world.player.berserk > 0 && jobOrDefault(world.save.job) === 'mage') {
       const rage = world.effects.find(effect => effect.kind === 'warcry');
       const burst = rage ? 1 - rage.age / rage.duration : 0;
       const auraScale = 165 / this.aura.texture.width * (1 + burst * .8);

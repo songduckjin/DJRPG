@@ -388,6 +388,22 @@ export function drawHawkEye(this: GameView, effect: Effect, x: number, y: number
       const px = x + Math.cos(angle) * radius * .9, py = y - 34 + Math.sin(angle) * radius * .55;
       this.effects.moveTo(px, py).lineTo(px + Math.cos(angle) * 9, py + Math.sin(angle) * 6).stroke({ color: 0xffe1a0, width: 2, alpha: .55 * (1 - t) });
     }
+    // [작업 261] 표식이 퍼지는 동안 발밑에서 옅은 바람 나선이 감기며 솟는다 — 버프 중 오라의 시작.
+    const fade = 1 - t;
+    this.glow.circle(x, y - 10, 26 + t * 34).fill({ color: 0x9ee8ff, alpha: .07 * fade });
+    for (let index = 0; index < 2; index++) {
+      const phase = time * (2.6 + index * .9) + index * Math.PI;
+      let previous: [number, number] | null = null;
+      for (let step = 0; step <= 11; step++) {
+        const u = step / 11;
+        const angle = phase + u * Math.PI * 2.1;
+        const spiral = (5 + u * 17) * (.75 + t * .55);
+        const px = x + Math.cos(angle) * spiral;
+        const py = y - 3 - u * 48 - t * 12 + Math.sin(angle) * spiral * .22;
+        if (previous) this.effects.moveTo(previous[0], previous[1]).lineTo(px, py).stroke({ color: index ? 0xdcf7ff : 0x9ee8ff, width: 1.6, alpha: .5 * fade * (1 - u * .45) });
+        previous = [px, py];
+      }
+    }
   }
 
 export function drawDragon(this: GameView, effect: Effect, x: number, y: number, progress: number, time: number): void {
