@@ -11,6 +11,7 @@ import { AUTO_SALVAGE_HINT } from '../autoSalvage';
 import { salvagePlusLabel, salvagePlusUnlocked, salvagePlusValues } from '../salvagePlus';
 import { canAutoEquip } from '../../game/inventory';
 import { combatPower } from '../../game/power';
+import { patchBuffSummaryMarkup } from '../../game/patchBuff';
 import { requestSalvage } from './salvageModal';
 import { equipmentPortraitPlan, renderEquipmentGlowLayers, renderEquipmentPortrait } from '../equipmentPortrait';
 import { goldMarkup } from '../currency';
@@ -431,6 +432,9 @@ export function renderEquipment(this: Interface, dialog: HTMLElement): void {
       const cell = document.createElement('div'); cell.innerHTML = `<span>${label}</span><b>${values[index]}</b>`; statGrid.appendChild(cell);
     });
     info.appendChild(statGrid);
+    // 기념 종일 버프(2026-11-22) — 공·방·체 +30%가 이미 위 숫자에 들어 있음을 한 줄로 알린다(켜진 동안만).
+    const buffLine = patchBuffSummaryMarkup();
+    if (buffLine) info.insertAdjacentHTML('beforeend', buffLine);
     // 추가옵션(작업 238) 합계 — 상한이 걸린 실제 전투 값(회피 30%·회복 12%/5초·피흡 15%).
     const extraSummary = extraOptionSummary(save.equipment);
     if (extraSummary) {

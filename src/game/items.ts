@@ -4,6 +4,7 @@ import { allPassiveIds, allSkillIds, jobs, passiveOrderFor, passives, skillOrder
 import { jobOrDefault } from './skills';
 import { random } from './rng';
 import { effectiveExtraOptions, extraOptionPower, normalizeExtraOptions, EXTRA_CDR_CAP, EXTRA_CRIT_CAP, EXTRA_SPEED_CAP, type ExtraOptionKey } from './extraOptions';
+import { applyPatchBuff, patchBuffNow } from './patchBuff';
 
 function isRecord(value: unknown): value is Record<string, unknown> { return typeof value === 'object' && value !== null && !Array.isArray(value); }
 
@@ -742,7 +743,14 @@ function passiveLevel(save: Save, ids: SkillLevelId[]): number | undefined {
   return found ? itemSkillLevel(save, found) : undefined;
 }
 
-export function totalStats(save: Save): Record<Stat, number> {
+/**
+ * 세이브의 최종 능력치 — 레벨·장비·직업 숙련·패시브·추가옵션을 모두 반영한 **단일 창구**다.
+ *
+ * `now`는 기념 버프(2026-11-22 종일 공·방·체 +30%, `patchBuff.ts`)의 기준 시각이다. 화면·전투·던전·
+ * 방치·월드보스가 모두 이 함수를 지나므로, 버프가 켜진 동안 네 곳의 숫자가 저절로 같아진다.
+ * 기간이 지나면 배율이 1로 돌아와 예전 값 그대로다.
+ */
+export function totalStats(save: Save, now: number = patchBuffNow()): Record<Stat, number> {
   // 기본 치명(밸런스 v2) — 레벨 1에 2%, 레벨당 +0.6%로 최고 레벨 20%. 예전에는 레벨과 무관한 2%뿐이라
   // 장비 치명이 전부였고, 장비가 800%까지 오르면서 상한(80%)에 눌려 있었다.
   const total: Record<Stat, number> = { attack: 8 + save.level * 2, defense: 2 + save.level, health: 140 + (save.level - 1) * 12, crit: 2 + (save.level - 1) * .6, speed: 0, cdr: 0 };
@@ -780,7 +788,8 @@ export function totalStats(save: Save): Record<Stat, number> {
   total.speed += Math.min(EXTRA_SPEED_CAP, extras.speedPct);
   // 스킬 쿨타임 감소(밸런스 v2): 장비 기본 + 추가옵션을 합쳐 35%에서 자른다.
   total.cdr = Math.min(CDR_CAP, Math.round(gear.cdr) + Math.min(EXTRA_CDR_CAP, extras.cdrPct));
-  return total;
+  // 밸런스·UI 개편 기념 종일 버프(2026-11-22) — 공·방·체만 +30%. 치명타·공속·쿨감은 건드리지 않는다.
+  return applyPatchBuff(total, now);
 }
 
 export function rollItem(floor: number, guaranteed = false, boss = false, job: Job = 'warrior'): Item {

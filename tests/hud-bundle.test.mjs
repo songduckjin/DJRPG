@@ -14,6 +14,9 @@ const { MODALS } = await import('../src/ui/modalRegistry.ts');
 const { freshSave, totalStats } = await import('../src/game/store.ts');
 const { cooldowns } = await import('../src/game/world.ts');
 const { CRIT_CHANCE_CAP, CRIT_DAMAGE_SCALE } = await import('../src/game/battle/formulas.ts');
+// HUD 숫자도 **기념 버프 밖** 값으로 본다 — 버프가 켜진 동안은 공·방·체가 1.3배다(`patchBuff.ts`).
+const patchBuff = await import('../src/game/patchBuff.ts');
+patchBuff.setPatchBuffClock(() => patchBuff.PATCH_BUFF_START - 1);
 
 const read = path => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
 const hudSource = read('src/ui/hud.ts');
@@ -108,9 +111,10 @@ test('HUD는 이름판 바로 아래에 `⚔ 전투력 N` 한 줄을 그린다',
   renderStatus.call(next.ui);
   assert.match(next.ui.top.innerHTML, new RegExp(`<b>${expected.toLocaleString('ko-KR')}</b>`), '장비를 더한 전투력');
   assert.ok(expected >= 1000, '천 단위 예시');
-  // 초기 세이브(Lv1 전사)는 60 — 레벨 기본값만으로도 0이 아니어야 한다.
+  // 초기 세이브(Lv1 전사)는 68 — 레벨 기본값만으로도 0이 아니어야 한다.
+  // (밸런스 v2에서 Lv.1 기본 체력이 100 → 140이 되어 60 → 68로 올랐다.)
   const fresh = hud(); renderStatus.call(fresh.ui);
-  assert.match(fresh.ui.top.innerHTML, /<b>60<\/b>/);
+  assert.match(fresh.ui.top.innerHTML, /<b>68<\/b>/);
 });
 
 test('LV 배지는 상세 스탯을 열고, 캐릭터 전환은 오른쪽 레일 버튼이 맡는다', () => {

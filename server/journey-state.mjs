@@ -127,6 +127,34 @@ export function grantUpdateNotice2(state, now = Date.now()) {
   state.mail.push({ id: UPDATE_NOTICE_2_ID, title: UPDATE_NOTICE_2_TITLE, sender: '운영팀', body: UPDATE_NOTICE_2_BODY, createdAt: now, expiresAt: UPDATE_NOTICE_2_UNTIL, gold: 0, books: 0, pouches: UPDATE_NOTICE_2_POUCHES, claimedAt: null, read: false });
   return true;
 }
+/**
+ * 2026-11-22 새벽 밸런스·UI 개편 배포 기념 보상 우편 — 계정당 **한 번만** 무작위 보물 주머니 5개.
+ * 사용자 요청(2026-11-21 23:38 KST): "밸런스패치보상 주자 꾸러미5개랑 일일 버프 공 방 체 30퍼 종일 버프".
+ * 종일 버프(+30%, 공·방·체)는 세이브가 아니라 시계로 도는 이벤트라 `src/game/patchBuff.ts`가 맡는다.
+ *
+ * 지급은 **배포 직후(02:00 KST)부터 종일 버프가 끝나는 다음 날 05:00 KST까지** 처음 접속한 계정에만 한다 —
+ * 그 뒤에 새로 만든 계정이 한 달 뒤에 "패치 감사 보상"을 받는 일이 없다. 수령 만료는 지급일부터 7일이다.
+ */
+export const PATCH_REWARD_ID = 'patch-balance-v2-20261122';
+/** 지급 시작 = 2026-11-22 02:00 KST(새벽 배포 직후). */
+export const PATCH_REWARD_FROM = Date.UTC(2026, 10, 21, 17, 0, 0);
+/** 지급 마감 = 2026-11-23 05:00 KST(종일 버프 종료 = 일일 초기화). */
+export const PATCH_REWARD_UNTIL = Date.UTC(2026, 10, 22, 20, 0, 0);
+/** 기념으로 드리는 무작위 보물 주머니 수(사용자 확정 5개). */
+export const PATCH_REWARD_POUCHES = 5;
+/** 수령 만료까지의 기간 — 지급일부터 7일. */
+export const PATCH_REWARD_DAYS = 7;
+const PATCH_REWARD_TITLE = '밸런스·UI 개편 감사 보상';
+const PATCH_REWARD_BODY = '대규모 밸런스·UI 개편을 기념해 보물 주머니 5개와 오늘 종일 공·방·체 +30% 버프를 드립니다!';
+/** 기념 보상 우편을 계정마다 **한 번만** 준다. 지급 이력은 `state.notices`에 남겨 수령·삭제·만료 뒤에도 다시 붙지 않는다. */
+export function grantPatchReward(state, now = Date.now()) {
+  state.notices ??= []; state.mail ??= [];
+  if (now < PATCH_REWARD_FROM || now >= PATCH_REWARD_UNTIL) return false;
+  if (state.notices.includes(PATCH_REWARD_ID) || state.mail.some(entry => entry.id === PATCH_REWARD_ID)) return false;
+  state.notices.push(PATCH_REWARD_ID);
+  state.mail.push({ id: PATCH_REWARD_ID, title: PATCH_REWARD_TITLE, sender: '운영팀', body: PATCH_REWARD_BODY, createdAt: now, expiresAt: now + PATCH_REWARD_DAYS * DAY, gold: 0, books: 0, pouches: PATCH_REWARD_POUCHES, claimedAt: null, read: false });
+  return true;
+}
 export function periods(now = Date.now()) {
   // Shift 05:00 KST to midnight UTC. The resulting UTC weekday gives Monday resets.
   const shifted = now + 4 * HOUR, day = new Date(shifted);
@@ -161,7 +189,10 @@ export function advanceJourney(state, before, save, now = Date.now(), diamondMai
   // 서버 연결 불안정 사과 보상(작업 237) — 계정당 1회, 무작위 보물 주머니 5개.
   grantApologyMail(state, now);
   // 2026-11-21 업데이트 안내(작업 252) — 계정당 1회, 무작위 보물 주머니 5개.
-  grantUpdateNotice2(state, now);  if (diamondMailEligible) {
+  grantUpdateNotice2(state, now);
+  // 2026-11-22 밸런스·UI 개편 배포 기념 보상 — 계정당 1회, 무작위 보물 주머니 5개(+종일 공·방·체 30% 버프 안내).
+  grantPatchReward(state, now);
+  if (diamondMailEligible) {
     // 옛 ID 우편을 이미 받아 둔 계정은 위 `migrateLegacyDiamondMail`이 새 ID로 바꿔 두었다 — 새로 붙이지 않는다.
     state.notices ??= [];
     // 핫픽스 직전 20여 분 사이에 옛 ID로 4,000 다이아를 이미 받은 계정(수령 후 우편 삭제)에게 같은 보상을

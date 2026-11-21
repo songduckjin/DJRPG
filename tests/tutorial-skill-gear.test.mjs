@@ -115,7 +115,7 @@ test('입문 구간을 지난 캐릭터에게는 다시 안내하지 않는다(�
 const node = () => ({
   style: { setProperty() {} },
   classList: { classes: new Set(), toggle(key, on) { if (on) this.classes.add(key); else this.classes.delete(key); }, contains(key) { return this.classes.has(key); }, add(key) { this.classes.add(key); } },
-  textContent: '', hidden: false, addEventListener() {}, setAttribute() {}, querySelector() { return node(); }
+  textContent: '', hidden: false, title: '', dataset: {}, addEventListener() {}, setAttribute() {}, querySelector() { return node(); }
 });
 function hud(save) {
   const world = new World(save), children = new Map();
