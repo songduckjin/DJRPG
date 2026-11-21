@@ -15,18 +15,23 @@ const css = readFileSync(new URL('../src/styles/dungeon.css', import.meta.url), 
 const gear = id => ({ id, name: '강철 쯔바이핸드', slot: 'weapon', rarity: 'rare', stats: { attack: 9 } });
 const book = (id, skillId = 'spin') => ({ id, name: '[스킬북] 회전', slot: 'skillbook', kind: 'skillbook', skillId, rarity: 'rare', stats: {} });
 
-test('던전 적 피해는 최대 체력 상한 없이 필드 같은 층 공격력을 쓴다(작업 248 → 254)', () => {
-  // 상한(0.5%/0.8%)이 없어졌다: 던전 10층 공격력은 Lv.1 캐릭터 최대 체력의 몇 배다.
-  // [작업 254] 사거리가 90이 되며 층×2 매핑이 5층을 Lv60 구간으로 밀어 올려 **층×1**로 낮췄다(사용자 확정).
-  const hit = battle.dungeonHitDamage(10, false, 0);
-  assert.equal(hit, world.enemyHitDamage(10, false, 0), '던전 10층 = 필드 10층 공격력');
-  assert.equal(battle.dungeonHitDamage(3, false, 0), world.enemyHitDamage(3, false, 0), '던전 3층 = 필드 3층 공격력');
-  assert(hit > 100 * .008 * 4, `한 대가 최대 체력의 0.8%를 훌쩍 넘는다 (${hit})`);
-  assert.equal(battle.dungeonHitDamage(5, true, 0), world.enemyHitDamage(5, true, 0), '보스도 같은 층 기준');
-  assert.equal(battle.dungeonHitDamage(1, false, 0, true), world.enemyHitDamage(1, false, 0) * 2, '정예는 2배');
+test('던전 적 피해는 필드 2×층 공격력을 쓴다 — 군집 배율 없이 한 마리씩(밸런스 v2)', () => {
+  // 밸런스 v2: 던전 몹 HP가 필드 `2 × 층` 곡선이므로 적 피해도 `enemyHitDamage(2 × 층)`이다.
+  // 던전은 0.9초에 한 마리만 때리므로 군집 배율(×0.55)을 쓰지 않는다(`swarmed=false`).
+  // 10층 1타가 44(방어 400)·56(방어 200)이라 현재의 1에서 "한 번의 실수가 곰 실패"로 바뀐다.
+  assert.equal(battle.dungeonHitDamage(10, false, 400), 44);
+  assert.equal(battle.dungeonHitDamage(10, false, 200), 56);
+  assert.equal(battle.dungeonHitDamage(3, false, 400), 10);
+  for (let floor = 1; floor <= 10; floor++) {
+    assert.equal(battle.dungeonHitDamage(floor, false, 0), world.enemyHitDamage(floor * 2, false, 0, false), `${floor}층은 필드 ${floor * 2}층`);
+  }
+  assert.equal(battle.dungeonHitDamage(5, true, 400), world.enemyHitDamage(10, true, 400, false), '보스도 같은 층 기준');
+  assert.equal(battle.dungeonHitDamage(1, false, 0, true), world.enemyHitDamage(2, false, 0, false) * 2, '정예는 2배');
+  // 10층 밑은 초반 보호가 유지된다(1층 5).
+  assert(battle.dungeonHitDamage(1, false, 400) <= 5);
+  assert(battle.dungeonHitDamage(10, false, 400) > 100 * .008 * 4, '한 대가 최대 체력의 0.8%를 훌쩍 넘는다');
   // 서버 리플레이는 클라이언트 전투를 그대로 다시 돌린다 — 피해 식이 두 곳에 따로 있으면 안 된다.
   const verify = readFileSync(new URL('../server/dungeon-verify.mjs', import.meta.url), 'utf8');
-  // 작업 259(PR-2A)에서 던전 전투 모듈이 `src/ui/dungeonBattle.ts` → `src/game/dungeon/battle.ts`로 옮겼다.
   assert.match(verify, /from '\.\.\/src\/game\/dungeon\/battle\.ts'/);
   assert.doesNotMatch(verify, /enemyHitDamage/, '서버가 피해 식을 따로 갖고 있지 않다');
 });
@@ -36,6 +41,12 @@ test('던전 일반 몹 드롭률은 모든 층 5% 고정이다(작업 248)', ()
   assert.equal(battle.DUNGEON_DROP_CHANCE_STEP, 0);
   assert.equal(battle.DUNGEON_DROP_CHANCE_MAX, .05);
   for (let floor = 1; floor <= 10; floor++) assert.equal(battle.dungeonDropChance(floor), .05, `${floor}층`);
+});
+
+test('던전 몹 HP는 필드 2×층 곡선이다 — 5~10층은 밸런스 v2에서 함께 내려갔다', () => {
+  // 1·2층은 입문 완화가 적용된 필드 2·4층 곡선(43·91)이다 — 3층부터 종전 그대로다.
+  assert.deepEqual([...battle.DUNGEON_MOB_HP], [43, 91, 160, 220, 224, 305, 418, 575, 791, 1083]);
+  for (let floor = 1; floor <= 10; floor++) assert.equal(battle.DUNGEON_MOB_HP[floor - 1], world.enemyMaxHp(floor * 2, false), `${floor}층`);
 });
 
 test('던전 보스는 아이템 2개를 확정으로 떨어뜨린다(작업 248)', () => {

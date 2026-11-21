@@ -31,12 +31,13 @@ function strikingWorld({ crit = false, bonusDmgPct } = {}) {
 
 const hitEffects = world => world.effects.filter(effect => effect.kind === 'hit');
 
-test('맞은 피해는 소수가 나오는 방어력에서도 정수로 뜬다', () => {
+test('맞은 피해는 방어력이 어떤 값이어도 정수로 뜬다', () => {
   const save = freshSave();
-  save.equipment = {}; save.level = 12;                        // 방어 14 → 14×0.2 = 2.8이 소수
+  save.equipment = {}; save.level = 12;
   const defense = totalStats(save).defense;
   const taken = enemyHitDamage(save.floor, false, defense);
-  assert.ok(!Number.isInteger(taken), `시험 조건: 실제 피해가 소수여야 한다 (${taken})`);
+  // 밸런스 v2: `enemyHitDamage`가 방어 % 감소 뒤 반올림해 **정수**를 돌려준다.
+  assert.ok(Number.isInteger(taken), `계산 단계에서 이미 정수다 (${taken})`);
   const world = new World(save);
   world.spawnTimer = 999; world.cooldown.attack = 999;         // 내 평타가 먼저 적을 죽이지 않게
   const enemy = world.enemies[0];
@@ -48,10 +49,9 @@ test('맞은 피해는 소수가 나오는 방어력에서도 정수로 뜬다',
   const strike = world.effects.find(effect => effect.kind === 'enemyStrike');
   assert.ok(strike, '맞은 자리에 enemyStrike 효과');
   assert.ok(Number.isInteger(strike.amount), `숫자는 정수여야 한다 (${strike.amount})`);
-  assert.equal(strike.amount, Math.round(taken), '반올림한 값이 실린다');
+  assert.equal(strike.amount, Math.round(taken), '계산한 정수가 실린다');
   assert.equal(damageLabelText(strike), `-${Math.round(taken)}`, `화면 글자도 정수 (${damageLabelText(strike)})`);
-  // 체력은 종전처럼 실제 소수 피해만큼 줄어든다 — 표시만 정수다.
-  assert.ok(Math.abs((before - world.player.hp) - taken) < 1e-9, '실제 피해량은 그대로다');
+  assert.ok(Math.abs((before - world.player.hp) - taken) < 1e-9, '실제로 잃은 체력과 같은 값이다');
 });
 
 test('일반 피해는 흰색, 치명타는 빨강으로 뜬다', () => {

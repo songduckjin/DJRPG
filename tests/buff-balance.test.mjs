@@ -55,7 +55,7 @@ test('버프 지속은 어떤 레벨에서도 쿨타임보다 짧다(무한 유�
 test('블러드 레이지를 걸면 공격 쿨다운이 1/1.2로 줄고 피해는 1.2배가 된다', () => {
   const save = freshSave('male', 'warrior');
   save.learned = ['warcry']; save.quickSlots = ['warcry', null, null]; save.skillLevels = { warcry: 1 };
-  const world = new World(save); world.spawnTimer = 999;
+  const world = new World(save); world.spawnTimer = 999; world.critRoll = () => 1;
   const target = enemyAt(world, 40);
   const attack = totalStats(save).attack;
   world.action('warcry');

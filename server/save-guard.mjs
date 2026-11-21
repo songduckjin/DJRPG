@@ -182,6 +182,14 @@ export function clampSaveProgress(previous, save, options = {}) {
   return { clamped, budget: payout };
 }
 
+/** `src/game/items.ts`의 `GEAR_CRIT_UNIT`·`GEAR_SPEED_UNIT`·`CDR_GEAR_PROFILE`(밸런스 v2). */
+export const GEAR_SECONDARY_UNIT = { crit: .70, speed: .72 };
+export const CDR_GEAR_MAX = 1.8;
+/** `src/game/extraOptions.ts`의 상한(밸런스 v2) — 저장된 장비의 추가옵션 합산이 넘을 수 없는 값. */
+export const EXTRA_CDR_CAP = 6;
+export const EXTRA_CRIT_CAP = 10;
+export const EXTRA_SPEED_CAP = 10;
+export const EXTRA_LIFESTEAL_CAP = 5;
 /**
  * 새로 만들어지는 아이템(소유 기록이 없는 id)의 능력치가 `rollItem` 공식의 상한 안에 있는지.
  * 기존 보유 아이템은 `identity` 대조가 이미 맡으므로 여기서 보지 않는다.
@@ -206,8 +214,12 @@ export function itemWithinBounds(item, maxFloor = 1, tolerance = STAT_TOLERANCE)
     attack: Math.round(profile.attack * scaled) + 3 + (zwei ? 2 : 0),
     defense: Math.round(profile.defense * scaled) + 3,
     health: Math.round(profile.health * scaled),
-    crit: Math.round((profile.crit + (zwei ? .15 : 0)) * scaled),
-    speed: Math.round(profile.speed * scaled)
+    // 치명·공속은 층·강화와 무관한 새 척도(밸런스 v2) — 등급·티어로만 만든다.
+    crit: Math.round(profile.crit * scale * Math.max(1, topTier) * GEAR_SECONDARY_UNIT.crit) + (zwei ? 1 : 0),
+    speed: Math.round(profile.speed * scale * Math.max(1, topTier) * GEAR_SECONDARY_UNIT.speed),
+    // 스킬 쿨타임 감소(밸런스 v2): 마법사 전용 부위(지팡이·모자·로브)에만 붙는다. 서버는 직업을 모르므로
+    // 가장 큰 계수(지팡이 1.8)로 연다.
+    cdr: Math.round(CDR_GEAR_MAX * scale * Math.max(1, topTier))
   };
   // 옛 공식(작업 255 이전)으로 만들어진 장비도 통과해야 하므로, 능력치마다 두 공식 중 **큰 쪽**을 쓴다.
   const legacy = legacyStatLimits(item, baseScale, zwei);
@@ -222,6 +234,25 @@ export function itemWithinBounds(item, maxFloor = 1, tolerance = STAT_TOLERANCE)
   // 필요 없다 — 값 자체가 1~3%로 고정이고, 서버는 저장 전에 id로 다시 계산해 덮어쓴다.
   if (!extraOptionsWithin(item)) return false;
   return true;
+}
+
+/**
+ * 장비의 2차 스탯(치명·공속·쿨감)이 가질 수 있는 **가장 큰 정상값**(밸런스 v2).
+ *
+ * 서버는 장비의 티어를 이름으로 풀어내지 않는다. 대신 서버가 아는 것(부위·등급)으로 **최고 티어를 가정한**
+ * 상한만 계산한다. 옛 장비(치명 800%)를 새 척도로 1회 바꿔 넣는 마이그레이션(`server/db/items.mjs`)이
+ * 이 상한 안의 값만 받아 주고, 그 뒤로는 서버 사본과 정확히 같아야 한다(변조 차단).
+ */
+export function secondaryStatCeiling(item) {
+  const scale = RARITY_SCALES[item?.rarity];
+  const profile = MAX_SLOT_PROFILES[item?.slot];
+  if (!scale || !profile) return undefined;
+  const topTier = 1 + TIER_STAT_GROWTH * 9;
+  return {
+    crit: Math.ceil(profile.crit * scale * topTier * GEAR_SECONDARY_UNIT.crit) + 1,
+    speed: Math.ceil(profile.speed * scale * topTier * GEAR_SECONDARY_UNIT.speed) + 1,
+    cdr: Math.ceil(CDR_GEAR_MAX * scale * topTier) + 1
+  };
 }
 
 /** 작업 255 이전 공식의 능력치 상한 — 옛 세이브의 장비(스탯이 예전 표대로 큼)를 지우지 않기 위해 남긴다. */

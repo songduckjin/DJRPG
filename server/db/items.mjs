@@ -10,7 +10,7 @@
  */
 import { ApiError, fail } from './errors.mjs';
 import { validateSave } from './save.mjs';
-import { itemWithinBounds, rewardBudget } from '../save-guard.mjs';
+import { itemWithinBounds, rewardBudget, secondaryStatCeiling } from '../save-guard.mjs';
 import { extraOptionsWithin, normalizeExtraOptions } from '../extra-options.mjs';
 import { countedInBag, skillBookIdSet } from '../skill-ids.mjs';
 import { bagSlotCount } from '../core/rewardGrant.mjs';
@@ -59,12 +59,14 @@ function itemValid(item) {
   // 스킬북 `skillId`는 **전사·궁수·마법사 33종**(액티브 24·패시브 9)을 모두 허용한다(작업 209).
   // 예전에는 전사 11종만 하드코딩되어 궁수·마법사 스킬북이 저장 때 400 INVALID_ITEM으로 막혔다.
   // 목록은 `server/skill-ids.mjs` 한 곳에 있고 `tests/skillbook-server.test.mjs`가 클라이언트와 같은지 검사한다.
-  return item && (item.locked === undefined || typeof item.locked === 'boolean') && typeof item.id === 'string' && item.id.length > 0 && item.id.length <= 100 && typeof item.name === 'string' && item.name.length <= 100 && slots.includes(item.slot) && ['common','magic','rare','epic','unique','legendary'].includes(item.rarity) && item.stats && typeof item.stats === 'object' && !Array.isArray(item.stats) && Object.entries(item.stats).every(([key, value]) => ['attack','defense','health','crit','speed'].includes(key) && Number.isFinite(value) && value >= 0 && value <= 100000) && (item.slot !== 'skillbook' || (item.kind === 'skillbook' && skillBookIdSet.has(item.skillId))) && (item.slot !== 'pouch' || item.kind === 'pouch')
-    // 추가옵션(작업 238): 에픽 1·유니크 2·전설 3개, 허용 키 9종·1~3% 정수만.
-    && extraOptionsWithin(item);
+  return item && (item.locked === undefined || typeof item.locked === 'boolean') && typeof item.id === 'string' && item.id.length > 0 && item.id.length <= 100 && typeof item.name === 'string' && item.name.length <= 100 && slots.includes(item.slot) && ['common','magic','rare','epic','unique','legendary'].includes(item.rarity) && item.stats && typeof item.stats === 'object' && !Array.isArray(item.stats) && Object.entries(item.stats).every(([key, value]) => ['attack','defense','health','crit','speed','cdr'].includes(key) && Number.isFinite(value) && value >= 0 && value <= 100000) && (item.slot !== 'skillbook' || (item.kind === 'skillbook' && skillBookIdSet.has(item.skillId))) && (item.slot !== 'pouch' || item.kind === 'pouch')
+    // 추가옵션(작업 238): 에픽 1·유니크 2·전설 3개, 허용 키 10종·키별 1~3% 정수만.
+    && extraOptionsWithin(item)
+    // 2차 스탯 척도 버전(밸런스 v2) — 2만 허용한다(옛 값은 클라이언트가 2로 바꿔 보낸다).
+    && (item.sec === undefined || item.sec === 2);
 }
 const ringSlot = item => typeof item?.slot === 'string' && item.slot.startsWith('ring') ? 'ring' : item?.slot;
-const itemStats = ['attack','defense','health','crit','speed'];
+const itemStats = ['attack','defense','health','crit','speed','cdr'];
 // 강화 단계(`plus`, 작업 201)는 **표시 전용**이다. 능력치는 이미 각 스탯에 8%씩 반영되어 stats에 들어 있으므로
 // identity·sameItemBody는 plus를 보지 않는다 — 옛 장비가 로드 때 보수적으로 역산한 plus를 얻어도, 값이 없는
 // 클라이언트가 plus: 0을 보내도 409 ITEM_CONFLICT가 나지 않는다(이름·스탯·등급 검사는 그대로).
@@ -79,6 +81,22 @@ const identity = item => JSON.stringify([item.name, ringSlot(item), item.rarity,
 // 이름만 다른 같은 아이템인지(구버전 클라이언트가 저장 이름을 마이그레이션하며 바꾼 경우) 판정한다.
 // stats·rarity·slot·kind·skillId가 달라지면 거짓이므로 능력치·등급 변조 차단은 그대로 유지된다.
 const sameItemBody = (a, b) => Boolean(a && b) && a.id === b.id && ringSlot(a) === ringSlot(b) && a.rarity === b.rarity && (a.kind ?? 'equipment') === (b.kind ?? 'equipment') && (a.skillId ?? '') === (b.skillId ?? '') && itemStats.every(key => (a.stats?.[key] ?? 0) === (b.stats?.[key] ?? 0));
+// 2차 스탯(치명·공속·쿨감)은 밸런스 v2에서 생성식이 바뀌었다. 저장된 옛 장비(sec<2)는 클라이언트가 새 척도로
+// 한 번만 바꿔 보낼 수 있고, 그 값이 서버가 아는 상한 안이면 받아들여 서버 사본을 새 값으로 바꾼다.
+// 이후로는 `sec:2` 사본과 정확히 같아야 하므로 변조는 계속 409로 막힌다.
+const legacySecondaryMatch = (stored, item) => {
+  if (!stored || item?.sec !== 2 || (stored.sec ?? 1) >= 2) return false;
+  if (ringSlot(stored) !== ringSlot(item) || stored.rarity !== item.rarity) return false;
+  if ((stored.kind ?? 'equipment') !== (item.kind ?? 'equipment') || (stored.skillId ?? '') !== (item.skillId ?? '')) return false;
+  if (stored.name !== item.name) return false;
+  for (const key of ['attack', 'defense', 'health']) if ((stored.stats?.[key] ?? 0) !== (item.stats?.[key] ?? 0)) return false;
+  const ceiling = secondaryStatCeiling(item);
+  if (!ceiling) return false;
+  return ['crit', 'speed', 'cdr'].every(key => {
+    const value = item.stats?.[key] ?? 0;
+    return value >= 0 && value <= ceiling[key];
+  });
+};
 // 소유권 테이블의 사본이 깨졌을 수 있으므로 해석 실패는 예외가 아니라 '불일치'로 다룬다.
 const ownerItem = owner => { try { const value = JSON.parse(owner.item_json); return value && typeof value === 'object' ? value : undefined; } catch { return undefined; } };
 
@@ -118,12 +136,17 @@ export async function reconcileItems(tx, id, before, after, options = {}) {
       if (String(owner.account_id).toLowerCase() !== id.toLowerCase()) fail(409, 'ITEM_CONFLICT', '다른 계정 소유의 아이템입니다. 최신 데이터를 다시 불러오세요.');
       if (owner.location !== 'inventory') fail(409, 'ITEM_CONFLICT', '창고·거래 중이거나 이미 소모된 아이템입니다. 최신 데이터를 다시 불러오세요.');
       if (!stored || identity(stored) !== identity(item)) {
-        // latest.save(before)에 같은 id가 같은 능력치로 이미 있고 이름만 달라졌다면,
-        // 구버전 클라이언트의 아이템 이름 마이그레이션으로 보고 서버 세이브 이름으로 되돌려 통과시킨다.
-        const known = previousById.get(item.id);
-        if (!known || !sameItemBody(known, item)) fail(409, 'ITEM_CONFLICT', '아이템 정보가 서버 기록과 다릅니다. 최신 데이터를 다시 불러오세요.');
-        if (item.name !== known.name) item.name = known.name;
-        if (!stored || stored.name !== item.name) writes.push({ sql: 'UPDATE djrpg_item_owners SET item_json=? WHERE item_id=?', args: [JSON.stringify(item), item.id] });
+        // 2차 스탯 척도 마이그레이션(밸런스 v2) — 옛 장비의 치명·공속을 새 척도로 바꾼 한 번의 저장을 받는다.
+        if (legacySecondaryMatch(stored, item)) {
+          writes.push({ sql: 'UPDATE djrpg_item_owners SET item_json=? WHERE item_id=?', args: [JSON.stringify(item), item.id] });
+        } else {
+          // latest.save(before)에 같은 id가 같은 능력치로 이미 있고 이름만 달라졌다면,
+          // 구버전 클라이언트의 아이템 이름 마이그레이션으로 보고 서버 세이브 이름으로 되돌려 통과시킨다.
+          const known = previousById.get(item.id);
+          if (!known || !sameItemBody(known, item)) fail(409, 'ITEM_CONFLICT', '아이템 정보가 서버 기록과 다릅니다. 최신 데이터를 다시 불러오세요.');
+          if (item.name !== known.name) item.name = known.name;
+          if (!stored || stored.name !== item.name || (item.sec ?? 0) !== (stored.sec ?? 0)) writes.push({ sql: 'UPDATE djrpg_item_owners SET item_json=? WHERE item_id=?', args: [JSON.stringify(item), item.id] });
+        }
       }
     }
     if (!owner && !previousById.has(item.id)) {

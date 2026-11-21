@@ -89,7 +89,7 @@ export async function snapshot(db, id, input, expirationChecked = false) {
   if (['weapon','offhand','armor','helmet','gloves','belt','boots','necklace','ring1','ring2','skillbook'].includes(input.slot)) { where.push('slot=?'); args.push(input.slot); }
   if (['common','magic','rare','epic','unique','legendary'].includes(input.rarity)) { where.push('rarity=?'); args.push(input.rarity); }
   for (const [key, comparison] of [['minPrice','>='],['maxPrice','<=']]) if (Number.isSafeInteger(input[key]) && input[key] >= 0) { where.push(`price${comparison}?`); args.push(input[key]); }
-  const selectedStat = ['attack','defense','health','crit','speed'].includes(input.stat) ? input.stat : undefined;
+  const selectedStat = ['attack','defense','health','crit','speed','cdr'].includes(input.stat) ? input.stat : undefined;
   // 스탯 식은 `server/database.mjs` `marketStatExpression` 한 곳에서 만든다 — 거래소 정렬 인덱스가 같은
   // 문자열로 만들어져야 SQLite가 인덱스를 쓴다(작업 211).
   const statExpression = selectedStat ? marketStatExpression(selectedStat) : undefined;

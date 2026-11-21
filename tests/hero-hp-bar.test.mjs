@@ -38,7 +38,7 @@ function view({ x = 195, y = 500, scaleY = .2, alpha = 1, visible = true } = {})
 }
 
 const save = { level: 12, equipment: {}, passives: [], skillLevels: {} };
-const health = 100 + (12 - 1) * 12; // totalStats(save).health
+const health = 140 + (12 - 1) * 12; // totalStats(save).health (밸런스 v2: Lv.1 기본 140)
 
 test('체력 비율은 0~100%로 잘린다', () => {
   assert.equal(heroHpRatio(50, 100), .5);

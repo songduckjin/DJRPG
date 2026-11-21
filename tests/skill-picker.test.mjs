@@ -36,7 +36,8 @@ const rows = root => walk(root).filter(node => node.className.split(/\s+/).inclu
 const badges = root => walk(root).filter(node => node.className.split(/\s+/).includes('skill-recommend-badge'));
 
 function uiFixture(job = 'warrior') {
-  const save = freshSave('male', job);
+  // 밸런스 v2: 새 캐릭터는 첫 스킬을 습득한 상태로 시작한다 — 이 파일은 '습득 0' 상태부터 본다.
+  const save = freshSave('male', job); save.learned = []; save.skillLevels = {};
   const root = element(); const shell = element(); shell.className = 'game-shell'; root.append(shell);
   const messages = []; let changes = 0;
   const ui = {

@@ -17,9 +17,9 @@
 import { random } from '../rng';
 import { dragonOrbitFactor, jobOrDefault, skillDamageScale, skillDuration, skillRange, skills, slash2Hits, slash2SwingSeconds, type Job, type SkillId } from '../skills';
 import { skillLevel, totalStats, type Save } from '../store';
-import { EXTRA_LIFESTEAL_HIT_CAP, EXTRA_REGEN_SECONDS, effectiveExtraOptions } from '../extraOptions';
+import { EXTRA_LIFESTEAL_HIT_CAP, EXTRA_LIFESTEAL_SECOND_CAP, EXTRA_REGEN_SECONDS, effectiveExtraOptions } from '../extraOptions';
 import type { Action, ArrowVariant, Coin, Drop, Effect, Enemy, HeroAfterimage } from '../battle/types';
-import { CRIT_CHANCE_CAP, CRIT_DAMAGE_SCALE, ENEMY_ATTACK_RANGE, ENEMY_STOP_RANGE, ENEMY_STRIKE_SECONDS, WARRIOR_ATTACK_RANGE, archerAttackRange, archerStopRange, basicAttackPower, berserkAttackScale, berserkSpeedScale, enemyHitDamage, enemyMoveSpeed, mageAttackRange, mageStopRange } from '../battle/formulas';
+import { CRIT_CHANCE_CAP, CRIT_DAMAGE_SCALE, ENEMY_ATTACK_RANGE, ENEMY_STOP_RANGE, ENEMY_STRIKE_SECONDS, WARRIOR_ATTACK_RANGE, archerAttackRange, archerStopRange, attackInterval, basicAttackPower, berserkAttackScale, berserkSpeedScale, enemyHitDamage, enemyMoveSpeed, mageAttackRange, mageStopRange, swarmCount } from '../battle/formulas';
 import { aimPoint as aimPointTo, fireBoltSpots, nearestEnemy, targetsInArc } from '../battle/targeting';
 import { recordPlaySeconds } from '../progress';
 import { clampArenaPoint, clampFieldPoint } from './bounds';
@@ -32,8 +32,15 @@ export const crushInterval = .062;
 export const crushPoseSpan = .062;
 /** 잔상이 남아 있는 시간 — 마지막 타가 끝나고 약 0.3초 뒤 모두 사라진다. */
 export const crushTrailLife = .3;
-/** 스킬·평타의 재사용 대기(초). 평타는 0.48초이고, 스킬은 `skills` 표의 값을 그대로 쓴다. */
+/** 스킬·평타의 재사용 대기(초). 평타는 직업별 기본 간격(전사·궁수 0.48, 마법사 0.63)이고, 스킬은
+ *  `skills` 표의 값에 쿨타임 감소(CDR)를 곱해 쓴다(밸런스 v2). */
 export const cooldowns = { attack: .48, ...Object.fromEntries(Object.keys(skills).map(id => [id, skills[id as SkillId].cooldown])) } as Record<Action, number>;
+/** 스킬 쿨타임 감소의 상한(%). 장비 기본 + 추가옵션을 합친 값이 이 값을 넘지 않는다. */
+export const SKILL_CDR_CAP = 35;
+/** 입문 구간(1~4층)의 자연 회복 — 1초마다 최대 체력의 1%(최소 1). 적 사거리가 90이 된 뒤 Lv.1 캐릭터가
+ *  두어 마리에 둘러싸여 바로 쓰러지지 않게 하는 최소한의 숨통이다(밸런스 v2 온보딩). */
+export const EARLY_REGEN_FLOOR = 4;
+export const EARLY_REGEN_PER_SECOND = .01;
 
 /** 10연타 팝업을 흩뿌리는 자리(±12px) — 타마다 다른 조합이라 열 개 숫자가 한 곳에 모이지 않는다. */
 export function crushLabelOffset(index: number): { x: number; y: number } { return { x: (index % 5 - 2) * 6, y: index < 5 ? -8 : 4 }; }
@@ -49,6 +56,13 @@ export function fireBoltScale(level: number): number { return 1 + Math.max(0, Ma
 
 export class CombatEngine {
   player = { x: 0, y: 0, facing: 0, facingSide: 1, hp: 100, berserk: 0, berserkLevel: 1, hit: 0 };
+  /** 지금 피격 창(0.85초)에서 아직 때릴 수 있는 몹 수 — 2~3마리 동시 타격(밸런스 v2 군집). */
+  protected strikeQuota = 0;
+  /** 피흡 1초 창의 누적 회복량 — 초당 상한(최대 체력의 2.5%)을 지키는 데 쓴다. */
+  lifestealClock = 0;
+  lifestealHealed = 0;
+  /** 입문 구간 자연 회복 타이머(1초). */
+  earlyRegenClock = 0;
   /** 추가옵션 체력회복력(작업 238)의 5초 타이머. */
   regenClock = 0;
   enemies: Enemy[] = [];
@@ -126,7 +140,13 @@ export class CombatEngine {
     const stats = totalStats(this.save);
     // [작업 216] 광폭 버프(블러드 레이지·호크아이·아케인 실드)의 공속은 +20%에서 시작해 스킬 레벨당 +1%,
     // 상한 1.5배다(예전 `1.5 + (레벨-1)*.08`은 Lv.1부터 +50%, Lv.30 3.8배로 비정상이었다).
-    this.cooldown[kind] = kind === 'attack' ? cooldowns.attack / (1 + stats.speed / 100) * (p.berserk > 0 ? 1 / berserkSpeedScale(p.berserkLevel) : 1) : cooldowns[kind];
+    // [밸런스 v2] 평타 간격은 **직업 기본 간격**(전사·궁수 0.48, 마법사 0.63)에서 시작해 공속 %와 버프를
+    // 반영하고 6.00타/초(간격 0.1667초)에서 자른다. 스킬 쿨타임에만 CDR(상한 35%)을 곱한다 — 평타에는 안 쓴다.
+    if (kind === 'attack') {
+      this.cooldown.attack = attackInterval(this.job, stats.speed, p.berserk > 0 ? berserkSpeedScale(p.berserkLevel) : 1);
+    } else {
+      this.cooldown[kind] = cooldowns[kind] * (1 - Math.min(SKILL_CDR_CAP, Math.max(0, stats.cdr)) / 100);
+    }
     if (kind !== 'warcry') {
       // 이단참(작업 213)만 두 스윙(0.44초) 창을 쓰고, 나머지 스킬·평타는 0.32초 한 스윙이다.
       this.attackCombo = kind === 'slash2' ? 'double' : 'single';
@@ -356,13 +376,15 @@ export class CombatEngine {
     for (const enemy of dead) this.kill(enemy);
   }
 
-  /** 피흡(작업 238) — 가한 피해의 N%를 회복한다. 한 번의 타격은 최대 체력의 4%까지만 찬다. */
+  /** 피흡(작업 238 → 밸런스 v2) — 가한 피해의 N%를 회복한다. 한 타는 최대 체력의 0.4%, 1초에는 2.5%까지만 찬다. */
   private lifesteal(dealt: number, percent: number): void {
     const p = this.player, maxHp = totalStats(this.save).health;
     if (p.hp <= 0 || p.hp >= maxHp) return;
-    const heal = Math.min(Math.round(dealt * percent / 100), Math.max(1, Math.ceil(maxHp * EXTRA_LIFESTEAL_HIT_CAP)));
+    const secondLeft = Math.max(1, Math.ceil(maxHp * EXTRA_LIFESTEAL_SECOND_CAP)) - this.lifestealHealed;
+    const heal = Math.min(Math.round(dealt * percent / 100), Math.max(1, Math.ceil(maxHp * EXTRA_LIFESTEAL_HIT_CAP)), Math.max(0, secondLeft));
     if (!(heal > 0)) return;
     p.hp = Math.min(maxHp, p.hp + heal);
+    this.lifestealHealed += heal;
     this.effects.push({ x: p.x, y: p.y, kind: 'heal', age: 0, duration: .6, angle: Math.PI / 2, amount: heal });
   }
 
@@ -393,6 +415,9 @@ export class CombatEngine {
     this.weaponNotice = Math.max(0, this.weaponNotice - dt);
     p.berserk = Math.max(0, p.berserk - dt);
     p.hit = Math.max(0, p.hit - dt);
+    // 피흡 초당 상한(밸런스 v2) — 1초 창이 돌면 누적 회복량을 비운다.
+    this.lifestealClock += dt;
+    if (this.lifestealClock >= 1) { this.lifestealClock = 0; this.lifestealHealed = 0; }
     // 딜레이 크러싱 10연타 — 타격 간격이 지난 만큼 한 타씩 판정하고, 10타가 끝나면 시퀀스를 닫는다(작업 212).
     if (this.crush) {
       const crush = this.crush;
@@ -459,14 +484,20 @@ export class CombatEngine {
       const bounded = clampFieldPoint(enemy.x, enemy.y); enemy.x = bounded.x; enemy.y = bounded.y;
       enemy.knockX *= Math.exp(-dt * 12); enemy.knockY *= Math.exp(-dt * 12);
       enemy.slow = Math.max(0, enemy.slow - dt);
-      if (d <= ENEMY_ATTACK_RANGE && p.hit <= 0) {
+      // 군집 동시 타격(밸런스 v2) — 예전에는 `p.hit` 하나로 0.85초에 **한 마리만** 때렸다.
+      // 이제 11~15층 2마리, 16층+ 3마리가 같은 창에서 함께 때린다(보스전은 보스 혼자). 한 대의 위력은
+      // `enemyHitDamage`가 이미 0.55로 눌러 두었으므로 받는 피해/초는 설계표(`적 DPS × 군집 / 0.85`)와 같다.
+      if (d <= ENEMY_ATTACK_RANGE) {
+        if (p.hit <= 0) this.strikeQuota = this.enemies.some(other => other.boss) ? 1 : swarmCount(this.save.floor);
+        if (this.strikeQuota <= 0) { enemy.hit = Math.max(0, enemy.hit - dt); continue; }
+        this.strikeQuota--;
         // 적의 공격 모션(작업 245): 때리는 적이 플레이어 쪽으로 내딛는다(`enemy.attack`).
         enemy.attack = ENEMY_STRIKE_SECONDS;
+        if (p.hit <= 0) p.hit = .85;
         // 추가옵션 회피율(작업 238, 합산 상한 30%): 맞을 순간 한 번 굴려 성공하면 피해를 통째로 무시하고
-        // `회피`를 띄운다. `p.hit`을 그대로 세워 두어 프레임마다 다시 굴리지 않는다(연속 회피로 무적이 되지 않게).
+        // `회피`를 띄운다.
         const evasion = effectiveExtraOptions(this.save.equipment).evasionPct;
         const evaded = evasion > 0 && random() < evasion / 100;
-        p.hit = .85;
         if (evaded) {
           this.effects.push({ x: p.x, y: p.y, kind: 'evade', age: 0, duration: .7, angle: Math.PI / 2 });
           enemy.hit = Math.max(0, enemy.hit - dt);
@@ -484,9 +515,19 @@ export class CombatEngine {
   }
 
 
-  /** 추가옵션 체력회복력(작업 238) — 5초마다 최대 체력의 N%. */
+  /** 추가옵션 체력회복력(작업 238) — 5초마다 최대 체력의 N%. 입문 구간(1~4층)엔 1%/초 자연 회복도 붙는다(밸런스 v2). */
   protected tickRegen(dt: number): void {
     const p = this.player;
+    // 입문 구간 자연 회복 — 최대 체력의 1%/초(최소 1). 체력이 빠졌을 때만 돈다.
+    if (this.save.floor <= EARLY_REGEN_FLOOR && p.hp > 0 && p.hp < totalStats(this.save).health) {
+      this.earlyRegenClock += dt;
+      while (this.earlyRegenClock >= 1) {
+        this.earlyRegenClock -= 1;
+        const maxHp = totalStats(this.save).health;
+        if (p.hp >= maxHp) break;
+        p.hp = Math.min(maxHp, p.hp + Math.max(1, Math.ceil(maxHp * EARLY_REGEN_PER_SECOND)));
+      }
+    } else this.earlyRegenClock = 0;
     // 추가옵션 체력회복력(작업 238): 5초마다 최대 체력의 N%를 회복한다(합산 상한 12%). 체력이 가득이면
     // 타이머를 비워, 피가 빠진 순간부터 다시 5초를 센다.
     const regenPct = effectiveExtraOptions(this.save.equipment).regenPct;

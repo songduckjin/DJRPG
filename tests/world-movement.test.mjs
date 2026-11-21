@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import './ts-loader.mjs';
 const { freshSave, floorKillTarget, parseSave, totalStats } = await import('../src/game/store.ts');
-const { World, enemyMoveSpeed, enemyMaxHp, enemyHitDamage, basicAttackPower } = await import('../src/game/world.ts');
+const { World, enemyMoveSpeed, enemyMaxHp, enemyHitDamage, damageReduction, basicAttackPower } = await import('../src/game/world.ts');
 
 test('ordinary monsters approach more slowly and never outpace the player at deep floors', () => {
   assert.equal(enemyMoveSpeed(1, false), 38);
@@ -407,17 +407,20 @@ test('아래층 반복 사냥에는 보스가 나오지 않고 목표를 채우�
 
 test('normal difficulty health and damage match the floor curves', () => {
   for (const [floor, normalHp, bossHp, normalDamage, bossDamage] of [
-    // 작업 196: floors 1~8 keep the old curve, the deep one takes over by 25; 작업 198 lifted the deep
-    // curve to 78층 ≈ 54,800 and a boss to six mobs (78층 ≈ 329,000).
-    [1, 40, 347, 10, 27], [10, 299, 2436, 40, 99],
-    [30, 4713, 28281, 114, 285], [50, 17254, 103524, 193, 489]
+    // 밸런스 v2: 1~5층 입문 완화(1층 몹 HP 26·방어 전 공격 6.4), 9~20층 ×0.75, 21층+ 선형,
+    // 보스는 일반 몹의 13배. 적 피해는 % 감소(상한 62%)와 일반 몹 군집 배율 ×0.55 뒤 반올림된다.
+    [1, 26, 347, 4, 27], [10, 224, 2912, 22, 99],
+    [30, 1576, 20488, 63, 285], [50, 2561, 33293, 106, 489]
   ]) {
     assert.equal(enemyMaxHp(floor, false), normalHp);
     assert.equal(enemyMaxHp(floor, true), bossHp);
     assert.equal(enemyHitDamage(floor, false, 0), normalDamage);
     assert.equal(enemyHitDamage(floor, true, 0), bossDamage);
-    assert.equal(enemyHitDamage(floor, false, 10), normalDamage - 2);
   }
+  // 방어 10은 % 감소가 1%도 안 된다 — 피해가 거의 그대로 들어간다(예전 `방어×0.2` 차감과 다르다).
+  assert.equal(enemyHitDamage(1, false, 10), 3);
+  assert(enemyHitDamage(50, false, 10), enemyHitDamage(50, false, 0));
+  assert(damageReduction(531, 20) > .4 && damageReduction(531, 20) <= .62, '20층 표준 방어 531은 40~62%를 막는다');
   assert.equal(enemyHitDamage(1, false, 1000), 1);
 });
 
@@ -486,7 +489,7 @@ test('평타 두 방이면 이전 광역 평타 두 방보다 한 대상에게 �
 });
 
 test('몹이 30마리까지 쌓이면 한 층 내려가고, 1층에서는 내려가지 않고 상한만 지킨다(작업 222, 사용자 요청 `#5827`)', async () => {
-  const { MOB_CAP } = await import('../src/game/world.ts');
+  const { MOB_CAP, MOB_CAP_GRACE_SECONDS, targetAliveCount } = await import('../src/game/world.ts');
   const { rollItem } = await import('../src/game/items.ts');
   assert.equal(MOB_CAP, 30, '필드 몹 상한 30');
   const mob = i => ({ x: 300 - i, y: 0, hp: 999, maxHp: 999, boss: false, hit: 0, step: 0, moving: false, knockX: 0, knockY: 0, slow: 0 });
@@ -502,7 +505,10 @@ test('몹이 30마리까지 쌓이면 한 층 내려가고, 1층에서는 내려
   world.chaseTarget = npc; world.pursuing = true;
   const messages = []; world.onMessage = text => messages.push(text);
   let changes = 0; world.onChange = () => changes++;
-  world.update(.01);
+  // 밸런스 v2: 30마리가 된 뒤 **10초 유예** 뒤에 내려간다(한 번의 몰림으로 층이 깎이지 않게).
+  world.tickSpawn(1);
+  assert.equal(save.floor, 5, '1초로는 내려가지 않는다');
+  world.tickSpawn(MOB_CAP_GRACE_SECONDS + .1);
   assert.equal(save.floor, 4, '한 층 내려간다');
   assert.equal(save.floorKills, 0, '킬 카운트 초기화');
   assert.equal(world.enemies.length, 0, '필드 정리');
@@ -518,15 +524,21 @@ test('몹이 30마리까지 쌓이면 한 층 내려가고, 1층에서는 내려
   const low = new World(bottom);
   low.enemies = Array.from({ length: MOB_CAP }, (_, i) => mob(i));
   low.spawnTimer = 0;
-  low.update(.01);
+  low.tickSpawn(MOB_CAP_GRACE_SECONDS + 1);
   assert.equal(bottom.floor, 1, '1층 유지');
   assert.equal(low.enemies.length, MOB_CAP, '31마리로 늘지 않는다');
-  // ③ 상한 아래(29마리)에서는 그대로 사냥이 이어진다 — 30마리가 된 순간 내려간다.
+  // ③ 목표 생존 수(1~5층 3)를 넘게 서 있으면 리필하지 않는다 — 상한(30)은 안전망일 뿐이다.
   const field = freshSave(); field.tutorial = 1; field.floor = 3; field.maxFloor = 3;
   const hunt = new World(field);
   hunt.enemies = Array.from({ length: MOB_CAP - 2 }, (_, i) => mob(i));
   hunt.spawnTimer = .01;
-  hunt.update(.05);
-  assert.equal(hunt.enemies.length, MOB_CAP - 1, '29마리까지는 채운다');
-  assert.equal(field.floor, 3, '29마리로는 내려가지 않는다');
+  hunt.tickSpawn(.05);
+  assert.equal(hunt.enemies.length, MOB_CAP - 2, '목표 생존 수를 넘으면 더 부르지 않는다');
+  assert.equal(field.floor, 3, '상한 아래에서는 내려가지 않는다');
+  assert.equal(targetAliveCount(3), 3);
+  const refill = new World(freshSave());
+  refill.enemies = [];
+  refill.spawnTimer = .01;
+  refill.tickSpawn(.05);
+  assert.equal(refill.enemies.length, 1, '목표(3)까지 리필 간격마다 1마리씩 채운다');
 });

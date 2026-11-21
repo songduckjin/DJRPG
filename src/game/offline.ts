@@ -4,7 +4,8 @@ import { offlineDropChance, rollItem, rollItemKind, rollSkillBook, totalStats, t
 import { jobOrDefault as jobOf, skillDamageScale, skillDuration, skills, type SkillId } from './skills';
 import { skillLevel, type Save } from './store';
 import { afterBossLose, afterBossWin, applyBossReward, applyKillBatch, defeatPenalty, killsToBoss } from './progress';
-import { basicAttackPower, berserkAttackScale, berserkSpeedScale, cooldowns, enemyHitDamage, enemyMaxHp, offlineMobHp } from './world';
+import { basicAttackPower, berserkAttackScale, berserkSpeedScale, CRIT_CHANCE_CAP, CRIT_DAMAGE_SCALE, attackInterval, enemyHitDamage, enemyMaxHp, fieldSpawnRate } from './battle/formulas';
+import { SKILL_CDR_CAP } from './combat/engine';
 
 /**
  * 오프라인 방치 정산(작업 235).
@@ -58,23 +59,33 @@ const skillBurst: Record<SkillId, number> = {
 /** 공격력·공격속도를 올리는 버프 3종 — 지속/쿨타임 비율만큼 DPS를 끌어올린다. */
 const buffSkills: SkillId[] = ['warcry', 'hawkEye', 'arcaneShield'];
 
-/** 지금 스펙으로 보스에게 넣는 초당 피해 — 평타(공격력 ×1.6 / 공격 간격) + 퀵슬롯 스킬 + 버프 가동률. */
+/** 지금 스펙으로 보스에게 넣는 초당 피해 — 평타(직업 기본 간격·공속·6.0타 상한·치명) + 퀵슬롯 스킬(CDR 반영) + 버프 가동률.
+ *  밸런스 v2부터 필드와 **같은 식**이다(종전에는 치명·공속 상한·CDR을 무시해 필드의 66~80%였다). */
 export function offlineHeroDps(save: Save): number {
   const stats = totalStats(save);
-  const interval = cooldowns.attack / (1 + Math.max(0, stats.speed) / 100);
-  let skill = 0, buff = 1;
+  const critFactor = 1 + Math.min(CRIT_CHANCE_CAP, Math.max(0, stats.crit)) / 100 * (CRIT_DAMAGE_SCALE - 1);
+  const cdrScale = 1 - Math.min(SKILL_CDR_CAP, Math.max(0, stats.cdr)) / 100;
+  let skill = 0;
   for (const id of save.quickSlots) {
     if (!id || !save.learned.includes(id)) continue;
     const level = skillLevel(save, id);
-    if (skillBurst[id]) skill += stats.attack * skillBurst[id] * skillDamageScale(level) / skills[id].cooldown;
-    if (buffSkills.includes(id)) buff += Math.min(1, skillDuration(id, level) / skills[id].cooldown) * (berserkAttackScale(level) * berserkSpeedScale(level) - 1);
+    if (skillBurst[id]) skill += stats.attack * skillBurst[id] * skillDamageScale(level) / (skills[id].cooldown * cdrScale);
   }
-  return (stats.attack * basicAttackPower / interval + skill) * buff;
+  const buffId = buffSkills.find(id => save.learned.includes(id) && save.quickSlots.includes(id));
+  if (!buffId) return stats.attack * basicAttackPower * critFactor / attackInterval(jobOf(save), stats.speed) + skill;
+  const level = skillLevel(save, buffId);
+  const speedUp = berserkSpeedScale(level), attackUp = berserkAttackScale(level);
+  const uptime = Math.min(1, skillDuration(buffId, level) / (skills[buffId].cooldown * cdrScale));
+  const base = stats.attack * basicAttackPower * critFactor / attackInterval(jobOf(save), stats.speed) + skill;
+  const peak = stats.attack * attackUp * basicAttackPower * critFactor / attackInterval(jobOf(save), stats.speed, speedUp) + skill * attackUp;
+  return base * (1 - uptime) + peak * uptime;
 }
-/** 분당 처치 수 — 접속 사냥과 같은 기준(`offlineMobHp`)을 쓴다(작업 196). 8~16마리/분. */
+/** 방치 효율 — 접속 사냥의 70%(밸런스 v2 시뮬레이션 값). */
+export const OFFLINE_EFFICIENCY = .7;
+/** 분당 처치 수 — `60 × min(처치 능력, 젠 속도) × 0.7`. 접속과 같은 몹 HP·젠을 쓴다(밸런스 v2). */
 export function offlineKillsPerMinute(save: Save): number {
-  const attack = totalStats(save).attack;
-  return Math.max(8, Math.min(16, 8 + Math.floor(attack / offlineMobHp(save.floor) * 16)));
+  const capacity = offlineHeroDps(save) / Math.max(1, enemyMaxHp(save.floor, false));
+  return Math.max(1, 60 * Math.min(capacity, fieldSpawnRate(save.floor)) * OFFLINE_EFFICIENCY);
 }
 
 export type OfflineBossBattle = { win: boolean; seconds: number; heroDps: number; bossHp: number; heroHp: number; bossDps: number };

@@ -45,9 +45,9 @@ before(async () => {
 });
 after(async () => { await db.close(); await removeTempDbDirectory(directory).catch(() => {}); });
 
-test('스키마가 스탯 5종·가격 정렬 인덱스를 만든다', async () => {
+test('스키마가 스탯 6종·가격 정렬 인덱스를 만든다', async () => {
   const names = (await db.execute("SELECT name FROM sqlite_master WHERE type='index' AND name LIKE 'djrpg_market_sort_%' ORDER BY name")).rows.map(row => row.name);
-  assert.deepEqual(names, ['djrpg_market_sort_attack', 'djrpg_market_sort_crit', 'djrpg_market_sort_defense', 'djrpg_market_sort_health', 'djrpg_market_sort_price', 'djrpg_market_sort_speed']);
+  assert.deepEqual(names, ['djrpg_market_sort_attack', 'djrpg_market_sort_cdr', 'djrpg_market_sort_crit', 'djrpg_market_sort_defense', 'djrpg_market_sort_health', 'djrpg_market_sort_price', 'djrpg_market_sort_speed']);
   assert.equal(marketSortIndexStatements().length, MARKET_SORT_STATS.length + 1);
 });
 

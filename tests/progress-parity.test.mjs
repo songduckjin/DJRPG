@@ -3,7 +3,9 @@
  *
  * `src/game/progress.ts`로 진행 규칙(킬 보상·보스 승패·층 진행·플레이 시간)을 뽑아내기 전에
  * **origin/main(9829aea)의 코드로** 아래 시나리오를 돌려 값을 그대로 적어 두었다.
- * 리팩터링은 이 값을 한 자리도 바꾸지 않아야 한다 — 밸런스 수치 불변이 이 작업의 조건이다.
+ * 리팩터링은 이 값을 한 자리도 바꾸지 않아야 한다 — 밸런스 수치 불변이 그 작업의 조건이었다.
+ * 밸런스 v2는 **의도적으로** 진행 수치를 바꾸므로, 이 표를 v2 값으로 갱신했다(사유: 층 목표 150+30d+d²,
+ * 필드 보상 계수 0.70→0.35, 몹/보스 HP 곡선, 방치 70% 효율). 이후의 변경은 다시 이 표를 기준으로 대조한다.
  *
  * 시나리오 정의: `tests/progress-parity-scenarios.mjs`
  *  · 필드 60초(보스 승리·보스 패배)
@@ -22,48 +24,48 @@ const { PARITY_SCENARIOS, recordScenarios } = await import('./progress-parity-sc
 
 const EXPECTED = {
   'field-boss-win': {
-    gold: 1750, exp: 1216, level: 10, floor: 7, maxFloor: 7, floorKills: 35, kills: 46, bossKills: 1,
-    playSeconds: 59.999999999997875, stones: 3, salvageCount: 0, tutorial: 3, health: 21.800000000000026,
-    dungeonFloor: 0, bossRetryFloor: 0, bag: 0
+    gold: 1708, exp: 1170, level: 10, floor: 7, maxFloor: 7, floorKills: 66, kills: 67, bossKills: 1,
+    playSeconds: 59.999999999997875, stones: 3, salvageCount: 0, tutorial: 3, health: 83,
+    dungeonFloor: 0, bossRetryFloor: 0, bag: 1
   },
   'field-boss-loss': {
-    gold: 1238, exp: 1030, level: 7, floor: 6, maxFloor: 6, floorKills: 31, kills: 41, bossKills: 0,
-    playSeconds: 59.999999999997875, stones: 3, salvageCount: 0, tutorial: 3, health: 172,
-    dungeonFloor: 0, bossRetryFloor: 6, bag: 0
+    gold: 1240, exp: 1000, level: 7, floor: 6, maxFloor: 6, floorKills: 59, kills: 59, bossKills: 0,
+    playSeconds: 59.999999999997875, stones: 3, salvageCount: 0, tutorial: 3, health: 44,
+    dungeonFloor: 0, bossRetryFloor: 6, bag: 1
   },
   'offline-12h': {
     progress: {
-      gold: 186547, exp: 246149, level: 15, floor: 16, maxFloor: 16, floorKills: 79, kills: 11513, bossKills: 6,
-      playSeconds: 0, stones: 12, salvageCount: 0, tutorial: 3, health: 600, dungeonFloor: 0, bossRetryFloor: 0, bag: 26
+      gold: 875260, exp: 80971, level: 18, floor: 15, maxFloor: 15, floorKills: 408, kills: 96672, bossKills: 5,
+      playSeconds: 0, stones: 12, salvageCount: 0, tutorial: 3, health: 344, dungeonFloor: 0, bossRetryFloor: 15, bag: 61
     },
     reward: {
-      seconds: 43200, kills: 11513, exp: 246149, gold: 181547, levels: 0, startFloor: 8, endFloor: 16,
-      bossKills: 6, deaths: 0, items: 26, missedDrops: 0, salvaged: { count: 0, gold: 0, stones: 0 }
+      seconds: 43200, kills: 96672, exp: 1158971, gold: 871470, levels: 3, startFloor: 8, endFloor: 15,
+      bossKills: 5, deaths: 121, items: 61, missedDrops: 209, salvaged: { count: 0, gold: 0, stones: 0 }
     }
   },
   'dungeon-1-clear': {
-    summary: { won: true, steps: 198, seconds: 3.3, heroHp: 171, heroHpMax: 208, enemyHp: 0, slain: 7, digest: '657cb117' },
+    summary: { won: true, steps: 198, seconds: 3.3, heroHp: 214, heroHpMax: 248, enemyHp: 0, slain: 7, digest: 'e8530315' },
     progress: {
       gold: 900, exp: 400, level: 10, floor: 1, maxFloor: 6, floorKills: 0, kills: 0, bossKills: 0,
-      playSeconds: 3.299999999999993, stones: 3, salvageCount: 0, tutorial: 3, health: 170.00000000000003,
+      playSeconds: 3.299999999999993, stones: 3, salvageCount: 0, tutorial: 3, health: 214,
       dungeonFloor: 0, bossRetryFloor: 0, bag: 0
     },
     slain: 7, lootGold: 28, lootItems: 0
   },
   'dungeon-5-boss-clear': {
-    summary: { won: true, steps: 116, seconds: 1.9, heroHp: 182, heroHpMax: 388, enemyHp: 0, slain: 1, digest: 'b876b8f3' },
+    summary: { won: true, steps: 87, seconds: 1.4, heroHp: 64, heroHpMax: 428, enemyHp: 0, slain: 1, digest: '8735cda8' },
     progress: {
       gold: 900, exp: 400, level: 25, floor: 5, maxFloor: 6, floorKills: 0, kills: 0, bossKills: 0,
-      playSeconds: 1.9333333333333313, stones: 3, salvageCount: 0, tutorial: 3, health: 181.60000000000002,
+      playSeconds: 1.4499999999999997, stones: 3, salvageCount: 0, tutorial: 3, health: 64,
       dungeonFloor: 0, bossRetryFloor: 0, bag: 0
     },
     slain: 1, lootGold: 350, lootItems: 2
   },
   'dungeon-5-boss-death': {
-    summary: { won: false, steps: 82, seconds: 1.4, heroHp: 0, heroHpMax: 208, enemyHp: 8497, slain: 0, digest: '82f40fe2' },
+    summary: { won: false, steps: 82, seconds: 1.4, heroHp: 0, heroHpMax: 248, enemyHp: 6247, slain: 0, digest: '3ad8091c' },
     progress: {
       gold: 900, exp: 400, level: 10, floor: 5, maxFloor: 6, floorKills: 0, kills: 0, bossKills: 0,
-      playSeconds: 1.3666666666666667, stones: 3, salvageCount: 0, tutorial: 3, health: 98.8,
+      playSeconds: 1.3666666666666667, stones: 3, salvageCount: 0, tutorial: 3, health: 58,
       dungeonFloor: 0, bossRetryFloor: 0, bag: 0
     },
     slain: 0, lootGold: 0, lootItems: 0

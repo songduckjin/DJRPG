@@ -50,10 +50,11 @@ test('방치 정산도 자동 분해를 적용한다 — 분해된 장비는 가
 
     assert(off.reward.kills > 10_000, `12시간이면 만 마리 넘게 잡는다 (${off.reward.kills})`);
     assert(on.reward.salvaged.count > 0, '설정 등급 이하 장비가 자동 분해됐다');
-    // 같은 난수 수열이므로 떨어진 개수는 같다 — 켠 쪽에서 분해된 만큼만 덜 들어온다.
-    assert.equal(off.reward.items.length, on.reward.items.length + on.reward.salvaged.count,
+    // 같은 난수 수열이므로 **떨어진 개수는 같다** — 켠 쪽은 분해된 만큼이 가방 대신 금화·강화석이 된다.
+    // (12시간이면 가방 40칸을 넘겨 못 줍는 드롭도 생기므로 `items + salvaged + missed`로 견준다.)
+    const offTotal = off.reward.items.length + off.reward.missedDrops;
+    assert.equal(offTotal, on.reward.items.length + on.reward.salvaged.count + on.reward.missedDrops,
       '분해된 장비는 가방에 들어가지 않고, 나머지는 그대로 들어온다');
-    assert.equal(on.reward.missedDrops, 0, '가방이 넉넉해 놓친 드롭은 없다');
     // 분해한 장비가 가방에 남아 있지 않다(개수 = 분해 몫만큼 정확히 줄었다).
     assert.equal(on.save.bag.length, on.reward.items.length);
     // 금화·강화석 정산이 `reward.salvaged`와 세이브에 같은 값으로 반영된다(보스전이 없어 deaths 0).
@@ -86,7 +87,11 @@ test('자동 분해를 켜도 보호 규칙은 방치에서도 그대로 — 빈
     const bare = freshSave(); bare.tutorial = 1; bare.autoClimb = false;
     const reward = applyOfflineRewards(bare, 43_200, { autoSalvage: 'unique', autoSalvagePlus: 7 });
     assert(reward.items.length > 0, '드롭은 있었다');
-    assert.equal(reward.salvaged.count, unwearable.length, '분해되는 것은 입을 수 없는(다른 직업) 장비뿐이다');
+    // 가방이 차면 못 줍는 드롭이 생기므로, 분해된 수는 **떨어진 전체 − 가방에 든 몫 − 놓친 몫**으로 센다.
+    const totalDrops = all.items.length + all.missedDrops;
+    assert.equal(reward.salvaged.count, totalDrops - reward.items.length - reward.missedDrops,
+      '(가방에 든 몫 + 분해 몫 + 놓친 몫) = 떨어진 전체');
+    assert(reward.salvaged.count >= unwearable.length, '입을 수 없는(다른 직업) 장비는 모두 분해된다');
     assert(reward.items.every(item => !isEquipment(item) || canWield(item, 'warrior')), '빈 슬롯에 입을 장비는 분해하지 않는다');
 
     // 난수 0이면 매 처치가 스킬북(30% 쪽) — 스킬북은 절대 분해되지 않는다.

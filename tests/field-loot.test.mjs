@@ -6,6 +6,7 @@ const { LOOT_REST_SECONDS, LOOT_ABSORB_SECONDS, LOOT_FAN, LOOT_GAP, LOOT_DEPTH, 
 const { BOSS_GOLD_PILES, BOSS_ITEM_DROPS, bossGoldPiles } = await import('../src/game/bossLoot.ts');
 const { GOLD_PILE, GOLD_PILE_RX, GOLD_PILE_RY, GOLD_COIN_EDGE, GOLD_COIN_EDGE_ALPHA, GOLD_COIN_RIM, GOLD_PILE_EDGE, GOLD_PILE_RIM, GOLD_PILE_BRIGHTNESS, GOLD_PILE_CONTRAST, GOLD_COIN_CHIP_DROP, goldCoinChipWidth, goldCoinChipHeight, goldCoinHeight } = await import('../src/game/render/goldPile.ts');
 const { bossGoldSpot } = await import('../src/game/bossLoot.ts');
+const { killReward } = await import('../src/game/progress.ts');
 const { World } = await import('../src/game/world.ts');
 const { freshSave } = await import('../src/game/store.ts');
 
@@ -81,14 +82,15 @@ test('a kill pays its gold at once and only leaves a coin behind for the field t
   const before = world.save.gold;
   const enemy = { x: 60, y: 20, hp: 0, maxHp: 10, boss: false, hit: 0, step: 0, moving: false, knockX: 0, knockY: 0, slow: 0 };
   world.kill(enemy);
-  assert.equal(world.save.gold, before + 3 + world.save.floor, 'the gold is granted at the kill, as before');
+  const unit = killReward({ floor: world.save.floor }).gold;
+  assert.equal(world.save.gold, before + unit, 'the gold is granted at the kill, as before');
   assert.equal(world.coins.length, 1);
   assert.deepEqual([world.coins[0].x, world.coins[0].y], [60, 20]);
-  assert.equal(world.coins[0].gold, 3 + world.save.floor);
+  assert.equal(world.coins[0].gold, unit);
   assert.equal(world.save.gold, before + world.coins[0].gold, 'the coin only shows gold that was already paid');
   advance(world, LOOT_REST_SECONDS + LOOT_ABSORB_SECONDS + .2);
   assert.equal(world.coins.length, 0, 'the coin is gone once it has been pulled in');
-  assert.equal(world.save.gold, before + 3 + world.save.floor, 'the pull never pays twice');
+  assert.equal(world.save.gold, before + unit, 'the pull never pays twice');
 });
 
 test('a floor change clears the coins on the ground with the drops', () => {
@@ -369,6 +371,6 @@ test('a normal kill still leaves one coin and only the chance item', () => {
   const enemy = { x: 30, y: 10, hp: 0, maxHp: 10, boss: false, hit: 0, step: 0, moving: false, knockX: 0, knockY: 0, slow: 0 };
   world.kill(enemy);
   assert.equal(world.coins.length, 1, 'a normal kill keeps its single coin');
-  assert.equal(world.save.gold, paid + 3 + world.save.floor);
+  assert.equal(world.save.gold, paid + killReward({ floor: world.save.floor }).gold);
   assert(world.drops.length <= 2, 'and at most the two chance rolls');
 });

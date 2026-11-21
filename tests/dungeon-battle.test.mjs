@@ -46,8 +46,8 @@ test('floor 1 is a beginner floor and the 10th boss needs a deep-farming kit ins
  // 15~20층을 파밍한 장비(공격 320·치명 24%·공속 20%)는 10층 보스를 90초 안에 끝낸다.
  const deep=dps(320)*(1+20/100)*(1+24/100);
  assert(floorHp(10)/deep<90,`floor 10 boss takes ${(floorHp(10)/deep).toFixed(1)}s with deep gear`);
- // 그 절반짜리 장비로는 90초를 넘긴다 — 10층은 '고스펙'의 층이다.
- assert(floorHp(10)/dps(120)>90,`floor 10 boss falls to a 120 attack kit in ${(floorHp(10)/dps(120)).toFixed(1)}s`);
+ // 그 절반짜리 장비로도 60초 넘게 걸린다 — 10층은 '고스펙'의 층이다(밸런스 v2: 보스 HP 32,490).
+ assert(floorHp(10)/dps(120)>60,`floor 10 boss falls to a 120 attack kit in ${(floorHp(10)/dps(120)).toFixed(1)}s`);
  // 5·10층 보스는 같은 층 일반 몹보다 훨씬 묵직하다(필드 보스의 6배보다도 무겁다).
  for(const floor of [5,10])assert(dungeonMobHp(floor)*DUNGEON_BOSS_HP_SCALE>dungeonMobHp(floor)*6);
 });

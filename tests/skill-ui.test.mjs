@@ -7,7 +7,9 @@ const { chooseSkill, pressSkillSlot, cancelSkillSelection }=await import('../src
 const { renderSkills }=await import('../src/ui/modals/skillModal.ts');
 function node(){const classes=new Set(),children=new Map();return {dataset:{},hidden:false,disabled:false,textContent:'',style:{setProperty(){}},classList:{toggle(key,on){if(on)classes.add(key);else classes.delete(key);},contains:key=>classes.has(key)},setAttribute(key,value){this[key]=value;},querySelector(key){if(!children.has(key))children.set(key,node());return children.get(key);},append(){},appendChild(){},remove(){},focus(){}};}
 function uiFixture(){
-  const save=freshSave(),root=node(),messages=[],actions=[];
+  // 밸런스 v2: 새 캐릭터는 첫 액티브 스킬을 '습득한 상태'로 시작한다 — 이 파일은 슬롯 규칙만 보므로 비운다.
+  const save=freshSave();save.learned=[];save.skillLevels={};
+  const root=node(),messages=[],actions=[];
   const ui={world:{save,player:{hp:100},cooldown:{attack:0,slash2:0,spin:0,slam:0,power:0},paused:false,action:kind=>actions.push(kind),onChange(){}},market:{busy:false,sync:{locked:false}},root,slotButtons:[node(),node(),node()],attackButton:node(),get:key=>root.querySelector(key),tick(){tick.call(this);},open(kind){this.opened=kind;},message:text=>messages.push(text),messages,actions};return ui;
 }
 test('field circles are disabled until a learned unassigned skill enables plus and red dots',()=>{

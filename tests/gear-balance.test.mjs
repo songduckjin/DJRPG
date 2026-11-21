@@ -90,7 +90,7 @@ test('부위 역할: 무기가 공격을 이끌고, 투구·갑옷이 방어·�
   assert(stat('boots', 'speed') > stat('armor', 'speed') * 3, '신발이 공속의 주인');
   assert(stat('gloves', 'speed') > stat('weapon', 'speed') * 2, '장갑도 공속이 크다');
   assert(stat('necklace', 'crit') > stat('weapon', 'crit'), '목걸이가 치명의 주인');
-  assert(stat('ring1', 'crit') > stat('armor', 'crit') * 2, '반지도 치명이 크다');
+  assert(stat('ring1', 'crit') >= stat('armor', 'crit') * 2, '반지도 치명이 크다');
   // 주 스탯 판정 — 슬롯 배분표에서 공격이 방어보다 큰 부위만 공격이 주 스탯이다.
   assert.deepEqual(
     slots.filter(slot => slotProfiles[slot].attack >= slotProfiles[slot].defense),
@@ -106,10 +106,13 @@ test('직업 정체성: 전사는 방어·체력, 궁수는 치명·공속, 마�
   assert(totals.warrior.health > totals.archer.health && totals.warrior.health > totals.mage.health, '전사 체력 우위');
   assert(totals.archer.crit > totals.warrior.crit && totals.archer.speed > totals.mage.speed, '궁수 치명·공속 우위');
   assert(totals.mage.attack > totals.warrior.attack && totals.mage.attack > totals.archer.attack, '마법사 공격 우위');
-  // 공격 우위는 장비 배분 + 숙련에서 나온다(마법사 지팡이 1.18 × 숙련 1.45).
+  // 공격 우위는 장비 배분 + 숙련에서 나온다(마법사 지팡이 1.18 × 숙련 1.52).
+  // 밸런스 v2: 궁수의 공속·치명은 직업 숙련이 아니라 장비 배율(`GEAR_SPEED_SCALE`/`GEAR_CRIT_SCALE`)로 옮겼다.
   assert.equal(jobMastery.warrior.defense, 1.12);
-  assert.equal(jobMastery.archer.speed, 1.38);
-  assert.equal(jobMastery.mage.attack, 1.38);
+  assert.equal(jobMastery.archer.crit, 1.15);
+  assert.equal(jobMastery.mage.attack, 1.52);
+  assert.deepEqual({ ...items.GEAR_SPEED_SCALE }, { warrior: .55, archer: 1.48, mage: .45 });
+  assert.equal(items.GEAR_CRIT_SCALE.archer, 1.15);
   assert(slotProfileFor('armor', 'warrior').health > slotProfileFor('armor', 'archer').health, '판금 > 가죽');
   assert(slotProfileFor('armor', 'mage').attack > slotProfileFor('armor', 'warrior').attack, '로브는 공격이 붙는다');
   // 직업을 모르는 투구·갑옷(PR #254 이전 `main`)은 공용 기준값으로 떨어진다.
