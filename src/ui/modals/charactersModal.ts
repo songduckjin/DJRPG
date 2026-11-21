@@ -1,10 +1,12 @@
-import { freshSave, type Item, type Save } from '../../game/store';
+import { freshSave, parseSave, type Item, type Save } from '../../game/store';
 import { jobNames, jobOrDefault, type Job } from '../../game/skills';
 import type { Interface } from '../interface';
 import { accountRequest } from '../login';
-import { apiHeaders, isOutdatedResponse, reloadForNewVersion } from '../../game/appVersion';
-import { itemDisplayName, type EquipmentItem, type Slot } from '../../game/items';
+import { type EquipmentItem, type Slot } from '../../game/items';
 import { equipmentFallbackPortrait, equipmentPortraitPlan, renderEquipmentPortrait } from '../equipmentPortrait';
+import { loadWarehouse as loadWarehouseModal, renderWarehouse as renderWarehouseModal } from './warehouseModal';
+import { discoverEquipment } from '../../game/codex';
+import { applyOfflineRewards } from '../../game/offline';
 
 /** `characters` 응답이 슬롯마다 내려 주는 장비 외형 정보(작업 210) — 이름만 있고 능력치·가방은 없다. */
 export type CharacterEquipment = { helmet?: { name?: string } | null; armor?: { name?: string } | null; weapon?: { name?: string } | null } | null;
@@ -214,12 +216,67 @@ async function changeCharacter(ui: Interface, action: 'selectCharacter' | 'creat
   }
   try {
     const sync = ui.market.sync;
-    if (!await sync.flush()) throw new Error('현재 캐릭터 저장 결과를 확인한 뒤 다시 시도하세요.');
-    await accountRequest(action, { slot, name, gender, job, revision: sync.revision }, ui.session.token);
+    // 거래(구매·등록·취소·수령·창고)가 진행 중이거나 결과를 확인하지 못한 요청이 남아 있으면 전환하지 않는다.
+    // 그 응답은 **이전 캐릭터의 세이브·revision**을 들고 오므로 새 캐릭터의 화면을 덮어쓰고, 남은 대기 요청은
+    // 옛 revision으로 다시 나가 409(동기화 잠금)로 끝난다(작업 239).
+    if (sync.trading) throw new Error(sync.pendingMarket || sync.pendingWarehouse
+      ? '거래 결과를 확인하지 못한 요청이 있습니다. 거래소에서 `거래 결과 다시 확인`을 눌러 마무리한 뒤 캐릭터를 바꿔 주세요.'
+      : '거래를 처리하는 중입니다. 잠시 후 다시 시도해 주세요.');
+    // 전환하는 동안 사냥을 멈추고 예약 저장을 취소한다 — 전환 응답의 revision과 전환 직전에 나간 저장이
+    // 엇갈리면 다음 저장이 409 SAVE_CONFLICT로 화면 전체를 잠근다(작업 239).
+    sync.beginSwitch();
+    // 바뀐 것이 없으면(`flushIfDirty`) 저장 요청을 보내지 않고 바로 넘어간다 — 예전에는 캐릭터를
+    // 고를 때마다 `flush()`가 빈 저장을 한 번 더 왕복했다(작업 228).
+    if (!await sync.flushIfDirty()) throw new Error('현재 캐릭터 저장 결과를 확인한 뒤 다시 시도하세요.');
+    const result = await accountRequest<CharacterSwitchResult>(action, { slot, name, gender, job, revision: sync.revision }, ui.session.token);
+    if (!result || !result.save || !Number.isInteger(result.characterSlot) || !Number.isSafeInteger(result.revision)) throw new Error('캐릭터 전환 응답이 올바르지 않습니다. 다시 시도해 주세요.');
     if (label) label.textContent = '사냥터에 입장하는 중입니다…';
     onReady?.();
-    location.reload();
+    // **`location.reload()` 없이** 받은 세이브로 그 자리에서 갈아탄다(작업 228). 새로고침은 번들·에셋·
+    // `/api/account`을 처음부터 다시 받아 iOS에서 "접속하는 중입니다"가 오래 걸리는 원인이었다.
+    applyCharacterSwitch(ui, result);
+    loading?.remove();
   } catch (error) { loading?.remove(); throw error; }
+  finally { ui.market.sync.endSwitch(); }
+}
+
+/** `selectCharacter`·`createCharacter` 응답 — 서버가 새 세이브와 활성 슬롯을 함께 내려준다(작업 228). */
+export type CharacterSwitchResult = { characterSlot: number; revision: number; save: Save; characterName?: string; offlineSeconds?: number };
+
+/**
+ * 캐릭터 전환 결과를 화면 전체에 반영한다(작업 228). 새로고침 대신 인메모리로 갈아타므로,
+ * 월드·저장 동기화·세션·HUD·가방·임무 배지를 한 번에 새 캐릭터로 맞춘다.
+ */
+export function applyCharacterSwitch(ui: Interface, result: CharacterSwitchResult): void {
+  const save = parseSave(result.save, ui.session.accountId);
+  const sync = ui.market.sync;
+  // 월드는 같은 인스턴스를 쓰고(렌더러·저장 큐가 이 객체를 가리킨다) 세이브 내용만 갈아탄다.
+  ui.world.adoptSave(save);
+  // 보상 정산은 **월드가 들고 있는 세이브**(= 저장 동기화가 보는 객체)에 직접 적용한다.
+  const live = ui.world.save;
+  ui.session.save = live;
+  ui.session.characterSlot = result.characterSlot;
+  ui.session.revision = result.revision;
+  ui.session.gender = live.gender;
+  ui.session.job = live.job;
+  sync.revision = result.revision;
+  sync.session.characterSlot = result.characterSlot;
+  // 이전 캐릭터의 거래 대기·저장 스냅샷과 거래소 등록 선택은 새 캐릭터에 의미가 없다(작업 239).
+  // 남겨 두면 `Interface.open`이 `pendingMarket` 때문에 모달도 닫지 못하고, 거래소는 계속 잠긴다.
+  sync.resetForCharacterSwitch?.();
+  ui.market.resetForCharacterSwitch?.();
+  discoverEquipment(live);
+  // 모달·선택 상태는 새 캐릭터의 것으로 다시 시작한다(이전 캐릭터의 아이디·슬롯이 남지 않게).
+  ui.knownItems = new Set([...live.bag, ...Object.values(live.equipment)].filter(Boolean).map(item => (item as Item).id));
+  ui.newItems.clear();
+  ui.selected = undefined; ui.equippedSlot = undefined; ui.equippedPinned = false;
+  ui.characterFocus = undefined; ui.characterList = undefined;
+  ui.open(null);
+  // 아직 사냥하지 않은 캐릭터는 그동안의 오프라인 보상을 여기서 한 번에 정산한다(서버가 초를 내려준다).
+  const reward = result.offlineSeconds ? applyOfflineRewards(live, result.offlineSeconds) : undefined;
+  ui.renderStatus(); ui.renderBagBadge();
+  if (reward) { sync.markDirty(); ui.showOfflineReward(reward); void sync.flush(); }
+  void ui.journey.load();
 }
 
 const deleteNameMismatch = '캐릭터 이름을 정확히 입력해 주세요.';
@@ -334,43 +391,6 @@ export function openDeleteCharacter(ui: Interface, character: CharacterSummary):
   return overlay;
 }
 
-export async function loadWarehouse(ui: Interface): Promise<void> {
-  try {
-    const response = await fetch('/api/warehouse', { method: 'POST', headers: apiHeaders({ Authorization: `Bearer ${ui.session.token}` }), body: JSON.stringify({ action: 'list' }) });
-    const data = await response.json();
-    if (isOutdatedResponse(response.status, data.code, data.expected)) { reloadForNewVersion(); return; }
-    if (!response.ok) throw new Error(data.error || '공용창고를 읽지 못했습니다.');
-    ui.warehouseItems = data.items as Item[];
-    if (ui.openModal === 'warehouse') ui.renderModal();
-  } catch (error) { ui.message(error instanceof Error ? error.message : String(error)); }
-}
-
-export function renderWarehouse(ui: Interface, dialog: HTMLElement): void {
-  if (!ui.warehouseItems) { const note = document.createElement('p'); note.textContent = '공용창고를 불러오는 중…'; dialog.append(note); return; }
-  const note = document.createElement('p'); note.textContent = `계정 공용 금화 ${ui.world.save.gold.toLocaleString('ko-KR')} · 보관 ${ui.warehouseItems.length}/40`;
-  dialog.append(note);
-  const section = (title: string, items: Item[], action: 'deposit' | 'withdraw') => {
-    const heading = document.createElement('h3'); heading.textContent = title; dialog.append(heading);
-    if (!items.length) { const empty = document.createElement('p'); empty.textContent = '아이템이 없습니다.'; dialog.append(empty); }
-    for (const item of items) {
-      const row = document.createElement('div'); row.className = 'warehouse-item';
-      const label = document.createElement('span'); label.textContent = itemDisplayName(item);
-      const move = button(action === 'deposit' ? '보관' : '꺼내기', () => { void moveItem(ui, action, item.id, move); });
-      row.append(label, move); dialog.append(row);
-    }
-  };
-  section('캐릭터 가방', ui.world.save.bag, 'deposit');
-  section('공용창고', ui.warehouseItems, 'withdraw');
-  dialog.append(button('캐릭터 목록으로', () => ui.open('characters')));
-}
-
-async function moveItem(ui: Interface, action: 'deposit' | 'withdraw', itemId: string, buttonNode: HTMLButtonElement): Promise<void> {
-  buttonNode.disabled = true;
-  try {
-    const result = await ui.market.sync.transferWarehouse(action, itemId);
-    ui.message(result.message || '창고 이동을 완료했습니다.');
-    ui.warehouseItems = undefined;
-    ui.renderStatus(); ui.renderBagBadge();
-    await loadWarehouse(ui);
-  } catch (error) { ui.message(error instanceof Error ? error.message : String(error)); buttonNode.disabled = false; }
-}
+// 공용창고 화면은 `warehouseModal.ts`로 옮겼다(작업 225). 예전 import 경로(`interface.ts`)를 위해 이름만 유지한다.
+export const loadWarehouse = loadWarehouseModal;
+export const renderWarehouse = renderWarehouseModal;

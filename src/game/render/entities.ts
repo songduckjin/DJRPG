@@ -1,6 +1,6 @@
 import { Assets, Container, Rectangle, Sprite, Text, Texture } from 'pixi.js';
 import type { HeroAfterimage, World } from '../world';
-import { ELITE_MOB_SCALE } from '../world';
+import { ELITE_MOB_SCALE, ENEMY_STRIKE_SECONDS } from '../world';
 import type { Save } from '../store';
 import { enemyFacing } from '../facing';
 import { heroAnimationMode, heroMotion, slash2SwingMotion } from './heroMotion';
@@ -8,7 +8,7 @@ import { heroScale, heroBodyHeight, heroBodyFraction } from './heroScale';
 import { drawBloodRageAura } from './bloodRage';
 import { heroClass, socketMotion, weaponSocket } from './heroSockets';
 import { tintedGearTexture } from './gearTint';
-import { gearGlowAmount, gearGlowTone } from './gearGlow';
+import { gearGlowAmount, gearGlowLayers, gearGlowTone, glowGearTexture } from './gearGlow';
 import { costumeGhostSources, hideCostumeHero } from './costumeHero';
 import { resolveSkillMotion, type CostumeMotionTemplate } from '../costume/skillMotion';
 import { wearableEquipmentImage, baseItemIndex, usesBaseSheetOnly, hasNoWeapon, type Rarity } from '../items';
@@ -23,6 +23,7 @@ import { WEAPON_GUARD, weaponIndexFor, weaponPose } from './weapons';
 import { BOW_GRIP, bowIndexFor, bowPose } from './bows';
 import { STAFF_GRIP, staffIndexFor, staffPlacement } from './staffs';
 import type { GameView } from '../render';
+import { drawHeroHpBar, HERO_HP_BAR } from './heroHpBar';
 
 function syncWeapon(view: GameView, save: Save, texture: Texture, art: string, attacking: boolean, motion: 'idle' | 'walk', walkingFrame: number): void {
     const item = save.equipment.weapon;
@@ -164,7 +165,7 @@ function syncHelmet(view: GameView, save: Save, motion: 'idle' | 'walk' | 'attac
  * 피격 틴트는 본체·투구와 같은 값을 쓴다.
  */
 function syncWeaponPart(
-  view: GameView, save: Save, motion: 'idle' | 'walk' | 'attack', frame: number, tint: number, armor = -1
+  view: GameView, save: Save, motion: 'idle' | 'walk' | 'attack', frame: number, tint: number
 ): void {
   const index = weaponIndexFor(save);
   const shown = view.heroWeapon;
@@ -178,7 +179,7 @@ function syncWeaponPart(
     if (shown) shown.visible = false;
     return;
   }
-  const pose = weaponPose(save.gender, motion, frame, armor);
+  const pose = weaponPose(save.gender, motion, frame);
   const layerX = pose.x - view.hero.texture.width * view.hero.anchor.x;
   const layerY = pose.y - view.hero.texture.height * view.hero.anchor.y;
   let sprite = shown;
@@ -366,11 +367,17 @@ function syncStaffPart(view: GameView, save: Save, motion: 'idle' | 'walk' | 'at
  * 전투 판정·월드 위치는 읽기만 한다.
  */
 /**
- * 착용 파츠 위에 등급색 발광 복제본을 얹는다(작업 218).
+ * 착용 파츠 위에 등급색 발광 복제본을 얹는다(작업 218, 세기 강화 231).
  *
  * 유니크·전설만 빛난다. 원본 스프라이트는 그대로 두고 같은 텍스처·같은 변형의 복제본을
- * `add`(가산) 블렌드로 읽어 alpha 만 `0 → 최대 → 0` 으로 흔든다 — 그래서 파동의 끝에서는
- * 원래 장비 색으로 완전히 돌아오고, 가운데에서만 등급색 빛이 스며든다.
+ * `0 → 최대 → 0` 파동에 맞춰 얹는다 — 파동의 끝에서는 복제본이 사라져 원래 장비 색으로
+ * 완전히 돌아온다.
+ *
+ * 한 겹으로는 "진한 색"과 "빛"을 같이 낼 수 없어서(가산만 쓰면 밝은 금속이 노랗게 날아가고,
+ * 곱하기만 쓰면 장비가 어두워진다) 겹을 셋으로 나눈다(`gearGlowLayers`):
+ * ① `multiply` — 장비를 등급색으로 진하게 물들인다(원래 명암·무늬 유지) ② `add` — 장비 면에서
+ * 뿜어 나오는 빛 ③ 조금 크게 키운 `add` — 실루엣 밖으로 번지는 후광. 셋 다 같은 파동 세기를
+ * 쓰므로 숨쉬는 리듬은 하나다.
  * 빛이 없는 등급이거나 그 부위가 보이지 않으면 복제본을 숨긴다.
  */
 /** 직업별로 실제 착용 무기 파츠 스프라이트 — 전사 대검 · 궁수 활 · 마법사 지팡이. */
@@ -380,38 +387,32 @@ function weaponGlowSource(view: GameView, job: string): Sprite | undefined {
   return view.heroWeapon;
 }
 
+/** 등급색 발광 복제본의 표식 — 잔상 복제(`cloneHeroLayers`)에서 이 스프라이트를 뺀다. */
+export const GEAR_GLOW_LABEL = 'gear-glow';
+
 function syncGearGlow(
   view: GameView, key: 'armor' | 'helmet' | 'weapon', source: Sprite | undefined, rarity: Rarity | undefined,
   time: number, neckY?: number
 ): void {
   const tone = gearGlowTone(rarity);
   // 테스트용 스텁 뷰는 이 지도를 만들지 않는다 — 없으면 그 자리에서 만든다.
-  const registry = view.heroGlow instanceof Map ? view.heroGlow : (view.heroGlow = new Map<string, Sprite>());
+  const registry = view.heroGlow instanceof Map ? view.heroGlow : (view.heroGlow = new Map<string, Sprite[]>());
   const shown = registry.get(key);
   const amount = tone && source && source.visible ? gearGlowAmount(time, tone) : 0;
   if (!tone || !source || amount <= .004) {
-    if (shown) shown.visible = false;
+    for (const layer of shown ?? []) layer.visible = false;
     return;
   }
-  let glow = shown;
-  if (!glow) {
-    glow = new Sprite(source.texture);
-    glow.blendMode = 'add';
-    view.heroLayer.addChild(glow);
-    registry.set(key, glow);
-  }
-  glow.texture = source.texture;
-  glow.anchor.set(source.anchor.x, source.anchor.y);
-  glow.position.set(source.position.x, source.position.y);
-  glow.scale.set(source.scale.x, source.scale.y);
-  glow.rotation = source.rotation;
-  glow.zIndex = source.zIndex + .005;
-  glow.tint = tone.color;
-  glow.alpha = amount;
-  glow.visible = true;
+  const layers = shown ?? (() => {
+    const created = gearGlowLayers.map(() => new Sprite(source.texture));
+    for (const sprite of created) { sprite.label = GEAR_GLOW_LABEL; view.heroLayer.addChild(sprite); }
+    registry.set(key, created);
+    return created;
+  })();
   // 갑옷은 몸체 시트라 얼굴까지 함께 그려진다 — 목 아래로만 빛나게 잘라 맨 얼굴은 원래 색으로 둔다.
+  let mask: Sprite | undefined;
   if (key === 'armor' && neckY !== undefined) {
-    const mask = view.heroGlowMask ?? (() => {
+    mask = view.heroGlowMask ?? (() => {
       const span = new Sprite(Texture.WHITE);
       span.anchor.set(0, 0);
       view.heroLayer.addChild(span);
@@ -424,8 +425,28 @@ function syncGearGlow(
     mask.position.set(-width * source.anchor.x, top);
     mask.width = width;
     mask.height = Math.max(1, bottom - top);
-    glow.mask = mask;
   }
+  // 발광 층은 밝기 비례 등급색으로 구운 1/3 크기 텍스처를 쓴다(원본 `tint`만으로는 어두운 갑옷이
+  // 거의 빛나지 않는다). 원본과 같은 앵커·위치에서 축소한 만큼 키워 얹는다.
+  const glowTexture = glowGearTexture(source.texture, tone.color, String(source.texture.uid));
+  gearGlowLayers.forEach((layer, index) => {
+    const glow = layers[index];
+    const emissive = layer.source === 'emissive' && glowTexture;
+    const texture = emissive ? glowTexture : source.texture;
+    // 발광 텍스처는 1/3 크기로 구웠으므로 그만큼 키워 원본과 같은 크기로 얹는다.
+    const ratio = emissive ? source.texture.width / glowTexture.width : 1;
+    glow.texture = texture;
+    glow.anchor.set(source.anchor.x, source.anchor.y);
+    glow.position.set(source.position.x, source.position.y);
+    glow.scale.set(source.scale.x * layer.scale * ratio, source.scale.y * layer.scale * ratio);
+    glow.rotation = source.rotation;
+    glow.zIndex = source.zIndex + .004 + index * .001;
+    glow.blendMode = layer.mode;
+    glow.tint = emissive ? 0xffffff : tone.color;
+    glow.alpha = Math.min(1, amount * layer.weight);
+    glow.mask = mask ?? null;
+    glow.visible = true;
+  });
 }
 
 export function activeSkillMotion(world: World): HeroSkillMotion {
@@ -660,7 +681,7 @@ export function drawHero(this: GameView, world: World, x: number, y: number, tim
       if (shownGear) { this.heroLayer.removeChild(shownGear.sprite); shownGear.sprite.destroy(); this.heroGear.delete('weapon'); }
     } else {
       syncHelmet(this, save, animation, animation === 'walk' ? walkingFrame : animatedAttack ? Math.max(0, attackFrame) : 0, heroTint);
-      syncWeaponPart(this, save, animation, poseFrame, heroTint, armor);
+      syncWeaponPart(this, save, animation, poseFrame, heroTint);
       const withoutEquippedWeapon = { ...save, equipment: { ...save.equipment, weapon: undefined } };
       syncWeapon(this, withoutEquippedWeapon, texture, art, true, socketMotion(animation), walkingFrame);
     }
@@ -704,6 +725,11 @@ export function drawHero(this: GameView, world: World, x: number, y: number, tim
     // shadow grew 25 % whenever the hero swung. 코스튬 모드도 같은 식(본체 높이 × 배율 × .37)을 쓴다.
     const shadowRadius = Math.max(20, bodyPx * scale * .37);
     this.ground.ellipse(x - visualFace * 4, y - 3, shadowRadius, 8).fill({ color: 0x000000, alpha: .5 });
+    // 머리 위 초록 체력바(작업 233) — 이번 프레임에 그린 레이어의 위치·세로 배율에서 머리 꼭대기를
+    // 재므로 걷기·공격·투구·갑옷으로 시트가 바뀌어도 같은 간격으로 따라간다(몹 빨간 바는 `effects`).
+    // 마법사 고깔모자는 정수리 위로 솟으므로 그 높이만큼 더 띄워 바가 모자를 가리지 않게 한다.
+    const hatLift = mage && mageHelmIndexFor(save) >= 0 ? HERO_HP_BAR.hatLiftArtPx : 0;
+    drawHeroHpBar(this, world, bodyPx, hatLift);
     // 버프 중의 붉은 기운은 `drawBloodRageAura`가 몸 뒤 광휘로 그린다(작업 214 — 예전 단색 원 제거).
   }
 
@@ -717,9 +743,9 @@ export function drawHero(this: GameView, world: World, x: number, y: number, tim
 const ghostTint = 0xbfd4ff;
 function cloneHeroLayers(view: GameView): Container {
   const container = new Container();
-  // 등급색 발광 복제본(작업 218)은 잔상에 넣지 않는다 — 넣으면 같은 파츠가 두 번 그려진다.
+  // 등급색 발광 복제본(작업 218·231)은 잔상에 넣지 않는다 — 넣으면 같은 파츠가 여러 번 그려진다.
   const layers = view.heroLayer.children
-    .filter((child): child is Sprite => child instanceof Sprite && child.visible && child.blendMode !== 'add')
+    .filter((child): child is Sprite => child instanceof Sprite && child.visible && child.label !== GEAR_GLOW_LABEL)
     .sort((a, b) => a.zIndex - b.zIndex);
   for (const layer of layers) {
     const ghost = new Sprite(layer.texture);
@@ -863,12 +889,19 @@ export function drawEntities(this: GameView, world: World, project: (x: number, 
         this.ground.ellipse(x, y - 3, 27 + pulse * 2, 9 + pulse).fill({ color: 0xffb347, alpha: .16 + pulse * .1 });
         this.ground.ellipse(x, y - 3, 27 + pulse * 2, 9 + pulse).stroke({ width: 1, color: 0xffd166, alpha: .32 + pulse * .18 });
       }
+      // 적 공격 모션(작업 245): 때리는 순간 플레이어 쪽으로 몸을 실어 내딛고(빠르게 나갔다 천천히 돌아온다)
+      // 몸을 살짝 앞으로 늘인다. 이동·피격과 무관하게 시각만 움직인다.
+      const strikeLeft = enemy.attack ?? 0;
+      const strike = strikeLeft > 0 ? 1 - strikeLeft / ENEMY_STRIKE_SECONDS : 0;
+      const jab = strike <= 0 ? 0 : strike < .34 ? strike / .34 : Math.max(0, 1 - (strike - .34) / .66);
+      const reach = (enemy.boss ? 26 : 16) * jab;
+      const towardX = hx - x, towardY = hy - y, toward = Math.hypot(towardX, towardY) || 1;
       this.ground.ellipse(x, y - 3, Math.max(enemy.boss ? 32 : 19, texture.width * scale * .42), enemy.boss ? 10 : 7).fill({ color: 0x000000, alpha: .48 });
-      sprite.position.set(x + (enemy.hit > 0 ? Math.sin(time * 58) * 3 : 0), y + (enemy.hit > 0 ? 2 : 0));
+      sprite.position.set(x + (enemy.hit > 0 ? Math.sin(time * 58) * 3 : 0) + towardX / toward * reach, y + (enemy.hit > 0 ? 2 : 0) + towardY / toward * reach * .55);
       const face = enemyFacing(enemy, world.player, sprite.scale.x);
-      sprite.scale.set(scale * face * (enemy.hit > 0 ? 1.08 : 1), scale * (enemy.hit > 0 ? .84 : 1));
+      sprite.scale.set(scale * face * (enemy.hit > 0 ? 1.08 : 1) * (1 + jab * .08), scale * (enemy.hit > 0 ? .84 : 1) * (1 - jab * .07));
       sprite.rotation = 0;
-      sprite.tint = enemy.hit > 0 ? 0xffffff : elite ? 0xffe4bb : 0xcfcac5;
+      sprite.tint = enemy.hit > 0 ? 0xffffff : jab > .18 ? 0xffb9a4 : elite ? 0xffe4bb : 0xcfcac5;
       sprite.alpha = 1;
       const barWidth = enemy.boss ? 40 : elite ? 30 : 26;
       const barY = y - h * bodyScale - 7;

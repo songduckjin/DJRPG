@@ -206,11 +206,12 @@ test('새 시즌 초기화 뒤 첫 우편 조회에 전 슬롯 기념 다이아 
     assert.match(seasonMail.title, /보물 주머니 1개/);
     assert.match(seasonMail.body, /대공사 새 시즌 오픈! 기념 보물 주머니 1개를 드립니다/);
     // 두 우편을 받으면 다이아 4,000개·금화 1,000·보물 주머니 1개가 실제로 들어간다(환영 1,000G·업데이트 3,000G 포함).
+    // 사과 보상 우편(작업 237)도 함께 받히므로 주머니는 1개 + 5개다.
     const row = await account(db, 'hero');
     await journeyMutate(db, 'hero', { action: 'journey-claim', kind: 'mail', id: 'all', revision: row.revision, requestId: randomUUID(), characterSlot: 1 });
     const claimed = await account(db, 'hero');
     assert.equal(claimed.save.gold, 5000, '환영 1,000 + 업데이트 3,000 + 새 시즌 1,000');
-    assert.equal(claimed.save.bag.filter(item => item.slot === 'pouch').length, 1, '새 시즌 환영 보물 주머니 1개');
+    assert.equal(claimed.save.bag.filter(item => item.slot === 'pouch').length, 6, '새 시즌 환영 1개 + 사과 보상 5개');
     const wallet = (await db.execute({ sql: "SELECT diamonds FROM djrpg_shop_wallet WHERE account_id='hero'", args: [] })).rows[0];
     assert.equal(Number(wallet.diamonds), 4000, '전 슬롯 방치 기념 다이아');
     const again = await journeySnapshot(db, 'hero');

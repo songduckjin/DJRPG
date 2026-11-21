@@ -37,6 +37,7 @@ import type { SaveSync } from '../game/sync';
 import { Market } from '../game/market';
 import { renderMarket, updateMarketLive } from './modals/marketModal';
 import { loadCharacters, loadWarehouse, renderCharacters, renderCreateCharacter, renderWarehouse, type CharacterSummary } from './modals/charactersModal';
+import { resetWarehouse } from './modals/warehouseModal';
 import { completeShopReturn, loadShop, renderShop, type ShopCatalog, type ShopCheckout } from './modals/shopModal';
 
 const navIcons = {
@@ -47,6 +48,8 @@ const navIcons = {
 };
 type Modal = 'dungeon' | 'worldBoss' | 'equipment' | 'skills' | 'account' | 'floor' | 'offline' | 'market' | 'salvage' | 'codex' | 'characters' | 'createCharacter' | 'warehouse' | 'settings' | 'mail' | 'rewards' | 'achievements' | 'shop';
 export type BagFilter = 'all' | 'weapon' | 'armor' | 'accessory';
+/** 스킬 창 탭(작업 240) — `전체`는 패시브 3종을 스킬북·기본기보다 위에 두고 모두 보여 준다. */
+export type SkillFilter = 'all' | 'active' | 'passive';
 
 export class Interface {
   dungeon = new DungeonLobby();
@@ -75,6 +78,8 @@ export class Interface {
   salvageIds?: string[];
   skillTarget?: number;
   pendingSkill?: SkillId;
+  /** 스킬 창의 `전체/액티브/패시브` 탭(작업 240) — 창을 닫으면 `modalDefaults`가 `전체`로 되돌린다. */
+  skillFilter: SkillFilter = 'all';
   codexQuery = '';
   codexSlot = '';
   codexState = 'all';
@@ -131,7 +136,7 @@ export class Interface {
     this.journey.onMessage = text => this.message(text);
     this.journey.onChange = () => { this.renderStatus(); this.renderBagBadge(); updateUtilityBadges(this); if (['mail','rewards','achievements'].includes(this.openModal ?? '')) this.renderModal(); };
     void this.journey.load();
-    window.setInterval(() => { if (!document.hidden) void this.journey.load(); }, 30000);
+    window.setInterval(() => { if (!document.hidden) void this.journey.load(); }, 120000);
     for (const item of [...world.save.bag, ...Object.values(world.save.equipment)]) if (item) this.knownItems.add(item.id);
     this.root.querySelectorAll<HTMLButtonElement>('[data-modal]').forEach(button => button.onclick = () => { cancelSkillSelection.call(this); this.open(button.dataset.modal as Modal); });
     this.root.addEventListener('pointerdown', event => {
@@ -167,7 +172,9 @@ export class Interface {
       discoverEquipment(world.save); this.onSave();
       for (const item of world.save.bag) if (!this.knownItems.has(item.id)) { this.knownItems.add(item.id); if (this.openModal !== 'equipment' && !isSkillBook(item)) this.newItems.add(item.id); }
       this.renderBagBadge(); this.renderStatus();
-      if (!(this.openModal === 'codex' && ['INPUT','SELECT'].includes(document.activeElement?.tagName ?? '')) && !['dungeon','market','worldBoss','createCharacter','settings','mail','rewards','achievements','shop'].includes(this.openModal ?? '') && (this.openModal !== 'account' || document.activeElement?.tagName !== 'INPUT')) this.renderModal();
+      // 캐릭터 선택·새 캐릭터 창은 사냥 중 매 처치(`world.onChange`)마다 다시 그리지 않는다(작업 228) —
+      // 목록은 열 때 한 번 읽고, 카드 초상화 합성이 무거워 재렌더가 잦으면 선택·생성이 느려진다.
+      if (!(this.openModal === 'codex' && ['INPUT','SELECT'].includes(document.activeElement?.tagName ?? '')) && !['dungeon','market','worldBoss','characters','createCharacter','settings','mail','rewards','achievements','shop'].includes(this.openModal ?? '') && (this.openModal !== 'account' || document.activeElement?.tagName !== 'INPUT')) this.renderModal();
     };
     world.onMessage = text => this.message(text);
     this.renderBagBadge(); this.renderStatus();
@@ -213,7 +220,9 @@ export class Interface {
   }
 
   open(kind: Modal | null): void {
-    if (this.market.busy || this.market.sync.locked || this.market.sync.pendingMarket || this.market.sync.pendingWarehouse) return;
+    // 거래 결과를 확인하지 못해 `pendingMarket`이 남아 있어도 거래소 창은 연다 — 그 창의 '거래 결과 다시 확인'이
+    // 아니면 풀 방법이 없어서, 막으면 네트워크가 끊긴 동안 모든 창이 잠긴다(작업 226).
+    if (this.market.busy || this.market.sync.locked || this.market.sync.pendingWarehouse || (this.market.sync.pendingMarket && kind !== 'market')) return;
     if (kind !== null && this.pendingSkill) cancelSkillSelection.call(this);
     if (kind !== 'skills') this.skillTarget = undefined;
     if (kind !== 'salvage') this.salvageIds = undefined;
@@ -234,7 +243,7 @@ export class Interface {
     if (startMarket) this.market.open();
     if (kind === 'characters') void loadCharacters(this);
     if (kind === 'shop' && !this.shopCatalog) void loadShop(this);
-    if (kind === 'warehouse') { this.warehouseItems = undefined; void loadWarehouse(this); }
+    if (kind === 'warehouse') { this.warehouseItems = undefined; resetWarehouse(this); void loadWarehouse(this); }
     if (kind && ['mail','rewards','achievements'].includes(kind)) void this.journey.load();
   }
   renderModal(): void {
@@ -251,6 +260,7 @@ export class Interface {
     dialog.classList.toggle('utility-modal', ['settings','mail','rewards','achievements'].includes(this.openModal));
     dialog.classList.toggle('settings-modal', this.openModal === 'settings');
     dialog.classList.toggle('equipment-modal', this.openModal === 'equipment');
+    dialog.classList.toggle('warehouse-modal', this.openModal === 'warehouse');
     const scroll = dialog.scrollTop, bagScroll = dialog.querySelector<HTMLElement>('.bag-grid')?.scrollTop ?? 0;
     dialog.replaceChildren();
     const heading = document.createElement('header');

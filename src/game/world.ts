@@ -4,14 +4,17 @@ import { addExperience, floorKillTarget, MAX_FLOOR, rollItem, skillLevel, totalS
 import { itemDisplayName, itemDropChance, rollItemKind, rollSkillBook, starterWeaponName } from './items';
 import { dragonOrbitFactor, skillDamageScale, skillDuration, skillRange, skills, slash2Hits, slash2SwingSeconds, type Job, type SkillId } from './skills';
 import { jobOrDefault } from './skills';
-import { clampArenaPoint, spawnArenaEnemy } from './arena';
+import { clampArenaPoint, clampFieldPoint, fieldSpawnBand, spawnArenaEnemy } from './arena';
 import { LOOT_ABSORB_SECONDS, LOOT_REST_SECONDS } from './loot';
 import { autoSalvageBlock, autoSalvageRecovered, sweepBagOnFull } from './inventory';
 import { random } from './rng';
+import { EXTRA_LIFESTEAL_HIT_CAP, EXTRA_REGEN_SECONDS, effectiveExtraOptions } from './extraOptions';
 
 export type Enemy = { x: number; y: number; hp: number; maxHp: number; boss: boolean; hit: number; step: number; moving: boolean; knockX: number; knockY: number; slow: number;
   /** 정예 몹(작업 206) — 일반 몹 30마리마다 한 마리. 보스 타이밍이 오면 보스가 우선이라 둘은 같이 서지 않는다. */
-  elite?: boolean };
+  elite?: boolean;
+  /** 적 공격 모션(작업 245) — 남은 재생 시간. 0보다 크면 플레이어 쪽으로 내딛으며 때린다. */
+  attack?: number };
 /** `absorb` is the age the pull into the character began at; while it is unset the drop still rests
  *  where it fell (`LOOT_REST_SECONDS`). Without that mark the renderer cannot tell a drop held back
  *  by a full bag from one already on its way in. */
@@ -22,7 +25,14 @@ export type Drop = { x: number; y: number; item: Item; age: number; warned: bool
  *  arc instead of dropping it where it appears. */
 export type Coin = { x: number; y: number; age: number; gold: number; from?: { x: number; y: number } };
 export type Effect = { x: number; y: number; kind: 'slash' | 'slash2' | 'spin' | 'crushing' | 'slam' | 'warcry' | 'power' | 'destroy' | 'hell' | 'hit' | 'death'
+  /** 추가옵션(작업 238)의 피드백 — `evade`는 회피(피해 없음), `heal`은 피흡·5초 회복으로 찬 체력이다.
+   *  둘 다 그림 없이 숫자·글자만 띄운다(`render/vfx.ts` `updateDamageLabels`). */
+  | 'heal' | 'evade'
+  /** 적의 공격이 플레이어에게 닿은 순간(작업 245) — 할퀴는 궤적과 잃은 체력 숫자를 띄운다. */
+  | 'enemyStrike'
   | 'shot' | 'rain' | 'hawk' | 'burst' | 'nova' | 'ward'; age: number; duration: number; angle: number; swing?: number; amount?: number; nextHit?: number; power?: number; level?: number;
+  /** 치명타로 들어간 타격(작업 245) — 피해 숫자를 크게·금빛으로 띄운다. */
+  crit?: boolean;
   /** 이단참(작업 213)처럼 한 번 발동에 여러 번 때리는 스킬의 지금까지 들어간 타격 수. */
   hits?: number;
   /** 궁수 화살·화살비처럼 날아가서 맞는 이펙트의 도착지점과 위력(작업 157). */
@@ -60,18 +70,26 @@ export const crushPoseSpan = .062;
 export const crushTrailLife = .3;
 export type ArrowVariant = 'normal' | 'ice' | 'pierce' | 'snipe' | 'volley' | 'arcane' | 'fire' | 'frost' | 'chain' | 'meteor';
 export type Action = 'attack' | SkillId;
+/** 적 공격 모션 길이(작업 245) — 이 시간 동안 적이 플레이어 쪽으로 내딛고, 끝나면 제자리로 돌아온다. */
+export const ENEMY_STRIKE_SECONDS = .42;
+/** 치명타(작업 245) — 장비 추가옵션 `치명타 확률`·패시브를 합산한 스탯 `crit`이 곧 발동 확률(%)이다.
+ *  배수는 1.8배, 확률 상한은 80%(넘는 값은 80%로 자른다). */
+export const CRIT_CHANCE_CAP = 80;
+export const CRIT_DAMAGE_SCALE = 1.8;
 export const cooldowns = { attack: .48, ...Object.fromEntries(Object.keys(skills).map(id => [id, skills[id as SkillId].cooldown])) } as Record<Action, number>;
 /** 평타 한 방의 공격력 배율. 한 마리만 맞히는 대신 한 방이 무겁다(작업 150). */
 export const basicAttackPower = 1.6;
-/** 궁수 평타 사거리와, 이보다 멀 때만 다가가는 거리(작업 157, 간격 조정 작업 207).
- *  아레나는 중심에서 153px 남짓이라, 사거리 280이면 화면 밖 끝의 적까지 닿고
- *  추격은 적이 아레나 가장자리에 몰렸을 때만 한다. */
-export const archerAttackRange = 280;
-export const archerStopRange = 150;
-/** 마법사도 원거리다 — 궁수보다 짧은 사거리에서 마법 구슬을 날린다(작업 198, 간격 조정 작업 207).
- *  직업별 간격은 궁수 280/150 > 마법사 240/130 > 전사 90 순서를 지긴다(작업 216 상향). */
-export const mageAttackRange = 240;
-export const mageStopRange = 130;
+/** 궁수 평타 사거리와, 이보다 멀 때만 다가가는 거리(작업 157, 간격 조정 작업 207, 상향 작업 244).
+ *  사용자 요청 "궁수 법사 사거리 조금씩늘려줘"(2026-11-21)로 280/150 → 330/180.
+ *  필드 스폰 밴드가 170~333 남짓이라(작업 230) 이제 거의 모든 적을 뜨자마자 쏘고,
+ *  추격은 적이 정지 거리(180) 안으로 들어올 때만 한다. 정지 거리는 평타의 약 55%로 종전 비율 그대로다. */
+export const archerAttackRange = 330;
+export const archerStopRange = 180;
+/** 마법사도 원거리다 — 궁수보다 짧은 사거리에서 마법 구슬을 날린다(작업 198, 간격 조정 작업 207·216·244).
+ *  직업별 간격은 궁수 330/180 > 마법사 285/160 > 전사 90 순서를 지긴다.
+ *  궁수의 약 86%를 유지해 두 원거리 직업의 체감 차등은 그대로 두고 함께 올렸다(240/130 → 285/160). */
+export const mageAttackRange = 285;
+export const mageStopRange = 160;
 export function enemyMoveSpeed(floor: number, boss: boolean): number {
   return boss ? 28 : Math.min(64, 38 + Math.max(0, floor - 1) * 1.2);
 }
@@ -145,11 +163,17 @@ export function fireBoltSpots(x: number, y: number, count: number): { x: number;
 
 export class World {
   player = { x: 0, y: 0, facing: 0, facingSide: 1, hp: 100, berserk: 0, berserkLevel: 1, hit: 0 };
+  /** 추가옵션 체력회복력(작업 238)의 5초 타이머. */
+  regenClock = 0;
   enemies: Enemy[] = [];
   drops: Drop[] = [];
   coins: Coin[] = [];
   effects: Effect[] = [];
   cooldown: Record<Action, number> = Object.fromEntries(Object.keys(cooldowns).map(id => [id, 0])) as Record<Action, number>;
+  /** 치명타 굴림(작업 245). 기본은 흐르는 난수 그대로이고, 서버가 같은 전투를 다시 돌리는
+   *  월드보스 연습(`WorldBossRehearsal`)만 시드 난수로 바꿔 끼운다 — 그래야 클라이언트와 서버의
+   *  치명타가 같은 순서로 나온다. */
+  critRoll: () => number = random;
   spawnTimer = 0;
   paused = false;
   attackHeld = false;
@@ -215,6 +239,32 @@ export class World {
     // 이제 `save.bossRetryFloor`(= 진 층, 최고 도달 층과 같을 때만 의미)에서 되살린다.
     this.bossRetryAvailable = save.bossRetryFloor === save.maxFloor && save.maxFloor < MAX_FLOOR;
     const hp = enemyMaxHp(save.floor, false);
+    const start = clampArenaPoint(145, -45);
+    this.enemies.push({ x: start.x, y: start.y, hp, maxHp: hp, boss: false, hit: 0, step: 0, moving: false, knockX: 0, knockY: 0, slow: 0 });
+  }
+
+  /**
+   * 캐릭터를 바꾸거나 새로 만들었을 때 — **새로고침 없이** 같은 World가 새 세이브로 갈아탄다(작업 228).
+   *
+   * 화면(필드·HUD·모달)과 저장 동기화는 이 인스턴스와 `save` 객체를 계속 들고 있으므로, 객체 정체성은
+   * 그대로 두고 내용만 새 세이브로 바꿔야 한다(새 World를 만들면 렌더러·저장 큐가 옛 객체를 가리킨다).
+   * 필드에 남아 있던 몹·드랍·연출·쿨타임·보스 상태는 생성자와 같은 초기값으로 되돌린다.
+   */
+  adoptSave(save: Save): void {
+    const target = this.save as unknown as Record<string, unknown>;
+    for (const key of Object.keys(target)) delete target[key];
+    Object.assign(this.save, save);
+    this.save.auto = true;
+    this.player = { x: 0, y: 0, facing: 0, facingSide: 1, hp: Math.min(this.save.health, totalStats(this.save).health), berserk: 0, berserkLevel: 1, hit: 0 };
+    this.enemies = []; this.drops = []; this.coins = []; this.effects = []; this.afterimages = [];
+    this.cooldown = Object.fromEntries(Object.keys(cooldowns).map(id => [id, 0])) as Record<Action, number>;
+    this.spawnTimer = 0; this.paused = false; this.attackHeld = false; this.attackPose = 0;
+    this.attackPoseSpan = .32; this.attackCombo = 'single';
+    this.crush = undefined; this.weaponNotice = 0; this.activeMove = { x: 0, y: 0 };
+    this.bossPending = this.save.autoClimb && this.bossFloor() && this.save.floorKills >= floorKillTarget(this.save.floor);
+    this.bossRetryAvailable = false; this.eliteKills = 0; this.elitePending = false;
+    this.swing = 1; this.chaseTarget = undefined; this.pursuing = false;
+    const hp = enemyMaxHp(this.save.floor, false);
     const start = clampArenaPoint(145, -45);
     this.enemies.push({ x: start.x, y: start.y, hp, maxHp: hp, boss: false, hit: 0, step: 0, moving: false, knockX: 0, knockY: 0, slow: 0 });
   }
@@ -355,7 +405,7 @@ export class World {
       this.effects.push({ x: p.x, y: p.y, kind: 'warcry', age: 0, duration: .7, angle: 0 });
       for (const enemy of this.enemies) {
         const dx = enemy.x - p.x, dy = enemy.y - p.y, d = Math.hypot(dx, dy);
-        if (d < 115 && d > 0) { const bounded = clampArenaPoint(enemy.x + dx / d * 40, enemy.y + dy / d * 40); enemy.x = bounded.x; enemy.y = bounded.y; }
+        if (d < 115 && d > 0) { const bounded = clampFieldPoint(enemy.x + dx / d * 40, enemy.y + dy / d * 40); enemy.x = bounded.x; enemy.y = bounded.y; }
       }
     } else if (kind === 'power') {
       this.effects.push({ x: p.x, y: p.y, kind: 'power', age: 0, duration: skillDuration(kind, level), angle: p.facing });
@@ -494,6 +544,14 @@ export class World {
   }
 
   damage(radius: number, amount: number, angle: number, arc: number, knockback = 12, slow = 0, origin: { x: number; y: number } = this.player, maxTargets = Infinity, labelOffset?: { x: number; y: number }): void {
+    // 추가옵션(작업 238): `추가 데미지`는 최종 피해에 곱하고, `피흡`은 실제로 가한 피해에서 회복한다.
+    // 두 값 모두 상한이 걸려 있다(`effectiveExtraOptions`) — 피흡은 한 번의 타격에 최대 체력의 4%까지다.
+    const extras = effectiveExtraOptions(this.save.equipment);
+    const power = extras.bonusDmgPct > 0 ? amount * (1 + extras.bonusDmgPct / 100) : amount;
+    // 치명타(작업 245): 장비 추가옵션 `치명타 확률`은 이제 표시가 아니라 실제 발동이다. 스탯 `crit`(%)을
+    // 그대로 확률로 쓰고, 타마다 한 번씩 굴려 들어가면 1.8배로 터뜨린다(상한 80%). 굴림은 `critRoll`을
+    // 거치므로 월드보스 서버 재계산도 같은 순서로 나온다.
+    const critChance = Math.min(CRIT_CHANCE_CAP, Math.max(0, totalStats(this.save).crit));
     // 판정 대상은 사거리·부채꼴 안의 적. `maxTargets`를 주면 가까운 순으로 그 수만 맞는다(평타 1마리).
     const inRange: { enemy: Enemy; dx: number; dy: number; dist: number }[] = [];
     for (const enemy of this.enemies) {
@@ -503,16 +561,31 @@ export class World {
       inRange.push({ enemy, dx, dy, dist });
     }
     const targets = inRange.length > maxTargets ? inRange.sort((a, b) => a.dist - b.dist).slice(0, maxTargets) : inRange;
+    let dealt = 0;
     for (const { enemy, dx, dy, dist } of targets) {
-      enemy.hp -= amount;
+      const crit = critChance > 0 && this.critRoll() * 100 < critChance;
+      const hit = crit ? power * CRIT_DAMAGE_SCALE : power;
+      enemy.hp -= hit;
+      dealt += hit;
       enemy.hit = .24;
       enemy.slow = Math.max(enemy.slow, slow);
       if (knockback && dist) { enemy.knockX += dx / dist * knockback * 16; enemy.knockY += dy / dist * knockback * 16; }
-      this.effects.push({ x: enemy.x, y: enemy.y, kind: 'hit', age: 0, duration: .45, angle: random() * Math.PI * 2, amount: Math.round(amount), labelOffsetX: labelOffset?.x, labelOffsetY: labelOffset?.y });
+      this.effects.push({ x: enemy.x, y: enemy.y, kind: 'hit', age: 0, duration: .45, angle: random() * Math.PI * 2, amount: Math.round(hit), labelOffsetX: labelOffset?.x, labelOffsetY: labelOffset?.y, crit });
     }
+    if (extras.lifestealPct > 0 && dealt > 0) this.lifesteal(dealt, extras.lifestealPct);
     const dead = this.enemies.filter(e => e.hp <= 0);
     this.enemies = this.enemies.filter(e => e.hp > 0);
     for (const enemy of dead) this.kill(enemy);
+  }
+
+  /** 피흡(작업 238) — 가한 피해의 N%를 회복한다. 한 번의 타격은 최대 체력의 4%까지만 찬다. */
+  private lifesteal(dealt: number, percent: number): void {
+    const p = this.player, maxHp = totalStats(this.save).health;
+    if (p.hp <= 0 || p.hp >= maxHp) return;
+    const heal = Math.min(Math.round(dealt * percent / 100), Math.max(1, Math.ceil(maxHp * EXTRA_LIFESTEAL_HIT_CAP)));
+    if (!(heal > 0)) return;
+    p.hp = Math.min(maxHp, p.hp + heal);
+    this.effects.push({ x: p.x, y: p.y, kind: 'heal', age: 0, duration: .6, angle: Math.PI / 2, amount: heal });
   }
 
   kill(enemy: Enemy): void {
@@ -680,7 +753,9 @@ export class World {
         // 보스전 중에는 빈 타이머만 돌리고 아무도 부르지 않는다(정예 예약도 미룬다).
         this.spawnTimer = .4;
       } else {
-        const spawn = spawnArenaEnemy(p, angle);
+        // 필드 외곽 밴드에서 **랜덤한 거리**로 뜬다(작업 230) — 각도만 흔들면 매번 같은 경계선 한 줄에서
+        // 나타나 코앞에 튀어나오는 것처럼 보인다. 거리 비율도 함께 굴려 멀리서 제각각 걸어 들어오게 한다.
+        const spawn = spawnArenaEnemy(p, angle, fieldSpawnBand.near + random() * (fieldSpawnBand.far - fieldSpawnBand.near));
         const hp = enemyMaxHp(this.save.floor, boss) * (elite ? ELITE_HP_SCALE : 1);
         if (boss) {
           // 층 보스는 **체력이 꽉 찬 상태로** 맞이한다(작업 222, 사용자 요청 `#5811` "층보스 떴을때 체력 꽉찬
@@ -714,15 +789,32 @@ export class World {
     }
     for (const enemy of this.enemies) {
       const dx = p.x - enemy.x, dy = p.y - enemy.y, d = Math.hypot(dx, dy);
+      enemy.attack = Math.max(0, (enemy.attack ?? 0) - dt);
       enemy.moving = d > 27;
       if (enemy.moving && d > 0) { const step = enemyMoveSpeed(this.save.floor, enemy.boss) * (enemy.slow > 0 ? .55 : 1) * dt; enemy.x += dx / d * step; enemy.y += dy / d * step; enemy.step += dt * Math.PI * (enemy.boss ? 3.25 : 4.25); }
       enemy.x += enemy.knockX * dt; enemy.y += enemy.knockY * dt;
-      const bounded = clampArenaPoint(enemy.x, enemy.y); enemy.x = bounded.x; enemy.y = bounded.y;
+      // 적은 아레나가 아니라 **필드 경계**로 자른다(작업 230) — 아레나로 자르면 멀리 스폰된 적이 첫
+      // 프레임에 플레이어 코앞으로 순간이동해 버린다. 플레이어는 계속 아레나 안에 머문다.
+      const bounded = clampFieldPoint(enemy.x, enemy.y); enemy.x = bounded.x; enemy.y = bounded.y;
       enemy.knockX *= Math.exp(-dt * 12); enemy.knockY *= Math.exp(-dt * 12);
       enemy.slow = Math.max(0, enemy.slow - dt);
       if (d < 35 && p.hit <= 0) {
-        p.hp = Math.max(0, p.hp - enemyHitDamage(this.save.floor, enemy.boss, totalStats(this.save).defense));
+        // 적의 공격 모션(작업 245): 때리는 적이 플레이어 쪽으로 내딛는다(`enemy.attack`).
+        enemy.attack = ENEMY_STRIKE_SECONDS;
+        // 추가옵션 회피율(작업 238, 합산 상한 30%): 맞을 순간 한 번 굴려 성공하면 피해를 통째로 무시하고
+        // `회피`를 띄운다. `p.hit`을 그대로 세워 두어 프레임마다 다시 굴리지 않는다(연속 회피로 무적이 되지 않게).
+        const evasion = effectiveExtraOptions(this.save.equipment).evasionPct;
+        const evaded = evasion > 0 && random() < evasion / 100;
         p.hit = .85;
+        if (evaded) {
+          this.effects.push({ x: p.x, y: p.y, kind: 'evade', age: 0, duration: .7, angle: Math.PI / 2 });
+          enemy.hit = Math.max(0, enemy.hit - dt);
+          continue;
+        }
+        const taken = enemyHitDamage(this.save.floor, enemy.boss, totalStats(this.save).defense);
+        p.hp = Math.max(0, p.hp - taken);
+        // 맞은 표시 — 적이 할퀴고 지나간 자국과 잃은 체력 숫자(작업 245).
+        this.effects.push({ x: p.x, y: p.y, kind: 'enemyStrike', age: 0, duration: .5, angle: Math.atan2(dy, dx), amount: taken });
         if (p.hp <= 0) {
           // 보스에게 쓰러졌고 최고층에서 자동 등반 중이면(작업 212 `#5017`·`#5028`) 자동 등반을
           // 끄지 않는다 — 1마리부터 다시 잡게 킬 카운트를 0으로 돌리고, 보스는 물러나게 한다.
@@ -746,6 +838,7 @@ export class World {
           // 작업 225: 일반·정예 몹에게 쓰러져도 자동 등반은 **끄지 않는다** — 10골드를 잃고 부활해 계속
           // 사냥한다. 자동 등반이 꺼지는 곳은 몹이 쌓여 한 층 강등될 때(위 `MOB_CAP` 블록)뿐이다.
           p.hp = totalStats(this.save).health; this.save.health = p.hp; p.x = 0; p.y = 0; this.chaseTarget = undefined; this.pursuing = false;
+          this.regenClock = 0;
           this.save.gold = Math.max(0, this.save.gold - 10);
           this.onMessage(climbOn
             ? '쓰러졌습니다. 10골드를 잃고 부활했습니다. 1마리부터 다시 잡으면 보스가 다시 나타납니다.'
@@ -757,6 +850,20 @@ export class World {
       }
       enemy.hit = Math.max(0, enemy.hit - dt);
     }
+    // 추가옵션 체력회복력(작업 238): 5초마다 최대 체력의 N%를 회복한다(합산 상한 12%). 체력이 가득이면
+    // 타이머를 비워, 피가 빠진 순간부터 다시 5초를 센다.
+    const regenPct = effectiveExtraOptions(this.save.equipment).regenPct;
+    if (regenPct > 0 && p.hp > 0 && p.hp < totalStats(this.save).health) {
+      this.regenClock += dt;
+      while (this.regenClock >= EXTRA_REGEN_SECONDS) {
+        this.regenClock -= EXTRA_REGEN_SECONDS;
+        const maxHp = totalStats(this.save).health;
+        if (p.hp >= maxHp) break;
+        const heal = Math.max(1, Math.ceil(maxHp * regenPct / 100)), before = p.hp;
+        p.hp = Math.min(maxHp, p.hp + heal);
+        this.effects.push({ x: p.x, y: p.y, kind: 'heal', age: 0, duration: .8, angle: Math.PI / 2, amount: Math.round(p.hp - before) });
+      }
+    } else this.regenClock = 0;
     // A drop rests on the ground for a beat, then is pulled to wherever the hero stands now. A full
     // bag keeps it on the ground (it still expires as before) and it flies in once there is room.
     for (const drop of this.drops) {

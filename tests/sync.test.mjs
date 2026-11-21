@@ -28,6 +28,35 @@ test('unknown market result pauses gameplay and prevents saves until idempotent 
   assert(sync.pendingMarket);const count=requests.length;assert.equal(await sync.flush(),false);assert.equal(requests.length,count);assert.deepEqual(pauses,[true]);
   offline=false;await sync.mutate('buy',{listingId:'x'},'persistent-request-123');assert.equal(sync.pendingMarket,undefined);assert.equal(sync.revision,2);assert.equal(pauses.at(-1),false);
 });
+test('503 DB_UNAVAILABLE releases the pending trade so market and mail buttons unlock',async()=>{
+  const sync=setup(),messages=[],pauses=[],requests=[];sync.onMessage=message=>messages.push(message);sync.onPause=value=>pauses.push(value);
+  globalThis.fetch=async(url,options)=>{requests.push(JSON.parse(options.body));return response({code:'DB_UNAVAILABLE',error:'서버 연결이 불안정합니다. 잠시 후 다시 시도하세요.'},503);};
+  await assert.rejects(sync.mutate('claim',{deliveryId:'all'},'db-unavailable-request'),/서버 연결이 불안정합니다/);
+  assert.equal(requests.length,1,'DB 연결 거절은 재시도 3회 없이 바로 알린다');
+  assert.equal(sync.pendingMarket,undefined,'수령·우편 버튼을 잠그는 pendingMarket을 남기지 않는다');
+  assert.equal(sync.locked,false);assert.equal(pauses.at(-1),false);
+  assert.deepEqual(messages,['서버 연결이 불안정합니다. 잠시 후 다시 시도하세요.']);
+  // 같은 화면에서 바로 다시 시도할 수 있고, 저장도 다시 진행된다.
+  globalThis.fetch=async(_url,_options)=>response({ok:true,revision:1,save:sync.save,message:'수령 완료'});
+  const result=await sync.mutate('claim',{deliveryId:'all'},'db-unavailable-retry');
+  assert.equal(result.message,'수령 완료');assert.equal(sync.pendingMarket,undefined);assert.equal(sync.revision,1);
+});
+test('503 DB_NOT_CONFIGURED also releases the pending trade',async()=>{
+  const sync=setup();
+  globalThis.fetch=async()=>response({code:'DB_NOT_CONFIGURED',error:'서버 DB가 설정되지 않았습니다.'},503);
+  await assert.rejects(sync.mutate('claim',{deliveryId:'money'},'db-not-configured-request'),/서버 DB가 설정되지 않았습니다/);
+  assert.equal(sync.pendingMarket,undefined);assert.equal(sync.locked,false);
+});
+test('server 500 with an unknown result keeps the pending trade for idempotent re-check',async()=>{
+  const sync=setup(),requests=[];let failures=3;
+  globalThis.fetch=async(url,options)=>{requests.push({url,payload:JSON.parse(options.body)});if(failures-->0)return response({error:'서버 응답을 확인 중입니다.'},500);return response({ok:true,revision:2,save:sync.save});};
+  await assert.rejects(sync.mutate('buy',{listingId:'x'},'unknown-result-request'),/거래 결과 다시 확인/);
+  assert.equal(requests.length,3,'결과를 모르는 5xx는 같은 requestId로 다시 확인한다');
+  assert.equal(sync.pendingMarket.requestId,'unknown-result-request');
+  assert.equal(await sync.flush(),false,'결과를 확인하기 전에는 저장을 보내지 않는다');
+  await sync.mutate('buy',{listingId:'x'},'unknown-result-request');
+  assert.equal(sync.pendingMarket,undefined);assert.equal(sync.revision,2);
+});
 test('failed validation resumes gameplay without leaving a pending transaction',async()=>{
   const sync=setup();const pauses=[];sync.onPause=v=>pauses.push(v);
   globalThis.fetch=async(url)=>url==='/api/account'?response({ok:true,revision:1}):response({code:'INSUFFICIENT_GOLD',error:'골드 부족'},400);

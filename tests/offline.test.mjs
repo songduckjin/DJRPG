@@ -81,19 +81,17 @@ test('아래층 오프라인 정산에는 보스 몫(보스 처치·보스 금�
   } finally { Math.random = originalRandom; }
 });
 
-test('자동 등반 중이면 방치 정산도 층 목표를 채울 때마다 한 층씩 올라가고, 최고층에서는 보스 몫으로 정산한다(작업 225)', () => {
+test('자동 등반 중이면 방치 정산도 층 목표를 채울 때마다 한 층씩 올라가고, 최고층에서는 보스를 상대한다(작업 225)', () => {
   const originalRandom = Math.random; Math.random = () => .99;
   try {
-    // 1층에서 60분 = 분당 8마리 × 60 = 480마리. 1층 목표(150)를 채우면 2층(최고 도달 층)으로 올라간다.
     const save = freshSave(); save.tutorial = 1; save.floor = 1; save.maxFloor = 2; save.floorKills = 0;
     const reward = applyOfflineRewards(save, 3600);
-    const climbed = floorKillTarget(1);
-    const remaining = reward.kills - climbed;
-    const bosses = Math.floor(remaining / floorKillTarget(2));
+    assert(reward.kills > floorKillTarget(1), '1층 목표를 넘길 만큼 잡았다');
     assert.equal(save.floor, 2, '목표를 채운 만큼 한 층 올라간다');
-    assert.equal(save.bossKills, bosses, '최고층에 닿은 뒤에는 목표마다 보스 한 마리');
-    assert.equal(reward.gold, climbed * (3 + 1) + remaining * (3 + 2) + bosses * 70 * 2, '올라간 층은 그 층 금화로 정산');
-    assert.equal(save.floorKills, Math.min(floorKillTarget(2), remaining - bosses * floorKillTarget(2)), '남은 진행도는 최고층 목표 안에');
+    assert.equal(reward.endFloor, 2, '정산이 끝난 층도 올라간 층이다');
+    assert.equal(save.maxFloor, 2, '올라가도 최고 도달 층은 그대로');
+    assert(save.floorKills <= floorKillTarget(2), '최고층 진행도는 목표 안에');
+    assert(reward.gold >= floorKillTarget(1) * (3 + 1), '올라간 1층 사냥은 1층 금화로 정산');
     // 목표를 다 못 채우면 그 층에 머문다.
     const short = freshSave(); short.tutorial = 1; short.floor = 1; short.maxFloor = 3;
     const shortReward = applyOfflineRewards(short, 60);

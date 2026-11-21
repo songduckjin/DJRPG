@@ -1,5 +1,6 @@
 import type { Gender, Save } from '../store';
 import { bowIndex, isBow, hasNoWeapon } from '../items';
+import { pilotSheet } from './pilotAssets';
 
 /**
  * 착용 활 10종 외형 파츠 (작업 160).
@@ -86,7 +87,7 @@ export function bowPose(gender: Gender, motion: BowMotion, frame: number): BowPo
 /** 파츠 PNG 경로. 인덱스가 1~9 밖이면 undefined(0번은 본체 시트에 그려져 있다). */
 export function bowPartPath(index: number): string | undefined {
   if (!Number.isInteger(index) || index < 1 || index >= BOW_COUNT) return undefined;
-  return `${BOW_ROOT}/bow_${index}_v1.png`;
+  return pilotSheet(`${BOW_ROOT}/bow_${index}_v1.png`);
 }
 
 /** 장비를 바꿀 때 미리 받을 파츠. 티어당 1장이다. */
@@ -114,7 +115,7 @@ export function usesBowlessBody(save: Save): boolean {
 
 /** 기본 활대를 지운 궁수 본체 시트 경로. */
 export function bowlessBodyPath(gender: Gender, motion: BowMotion): string {
-  return `${NOBOW_ROOT}/archer_${gender}_${motion}_v1.png`;
+  return pilotSheet(`${NOBOW_ROOT}/archer_${gender}_${motion}_v1.png`);
 }
 
 /** 본체 시트 6장(서기·걷기·사격). */

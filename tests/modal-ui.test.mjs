@@ -143,7 +143,7 @@ test('character creation shows a full-screen loading state and restores retry on
   globalThis.document = { createElement: () => new Element() };
   try {
     let resolveFlush;
-    const ui = { characterCreateSlot: 2, market: { sync: { flush: () => new Promise(resolve => { resolveFlush = resolve; }) } }, open() {} };
+    const ui = { characterCreateSlot: 2, market: { sync: { trading: false, beginSwitch() {}, endSwitch() {}, flushIfDirty: () => new Promise(resolve => { resolveFlush = resolve; }) } }, open() {} };
     const dialog = new Element();
     renderCreateCharacter(ui, dialog);
     const form = dialog.children[0], loading = form.children.at(-1), submit = form.children.at(-2), error = form.children.at(-3);
@@ -169,7 +169,7 @@ test('selecting another character immediately shows loading while save confirmat
   try {
     let resolveFlush;
     const ui = { characterList: { characters: [{slot:1,name:'첫째',gender:'male',level:1,floor:1},{slot:2,name:'둘째',gender:'female',level:1,floor:1}], activeSlot:1,maxSlots:3 }, characterPage:0,
-      session:{characterSlot:1}, market:{sync:{flush:()=>new Promise(resolve=>{resolveFlush=resolve;})}}, message(){}, renderModal(){} };
+      session:{characterSlot:1}, market:{sync:{trading:false,beginSwitch(){},endSwitch(){},flushIfDirty:()=>new Promise(resolve=>{resolveFlush=resolve;})}}, message(){}, renderModal(){} };
     const dialog = new Element(); renderCharacters(ui, dialog);
     const visit = node => [node, ...(node.children||[]).filter(child=>child&&typeof child==='object').flatMap(visit)];
     const selects = visit(dialog).filter(node=>node.className==='character-select');
@@ -346,4 +346,15 @@ test('삭제 실패는 확인창 안에 서버 메시지를 남기고 다시 시
     assert.equal(confirm.disabled, false); assert.equal(confirm.textContent, '영구 삭제');
     assert.deepEqual(ui.messages, []);
   } finally { globalThis.fetch = originalFetch; restore(); }
+});
+test('거래 결과 대기 중에도 거래소 창은 열려 다시 확인을 누를 수 있다(작업 226)', () => {
+  const ui = uiFixture(), market = ui.market;
+  market.sync.pendingMarket = { action: 'claim', data: { deliveryId: 'all' }, requestId: 'pending-1' };
+  Interface.prototype.open.call(ui, 'market');
+  assert.equal(ui.openModal, 'market', '잠긴 이유와 다시 확인 버튼이 있는 창은 열린다');
+  Interface.prototype.open.call(ui, 'equipment');
+  assert.equal(ui.openModal, 'market', '그 밖의 창은 확인 전까지 잠긴다');
+  market.sync.pendingMarket = undefined;
+  Interface.prototype.open.call(ui, 'equipment');
+  assert.equal(ui.openModal, 'equipment');
 });

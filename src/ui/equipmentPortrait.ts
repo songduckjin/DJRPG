@@ -7,6 +7,7 @@ import { baseItemIndex, isArcher, isMage, usesBaseSheetOnly } from '../game/item
 import { jobOrDefault } from '../game/skills';
 import { helmetArtFor, helmetArtPath, helmetIdlePlacement } from '../game/render/helmets';
 import { armorIndexFor, armorSheetPath } from '../game/render/armors';
+import { pilotSheet } from '../game/render/pilotAssets';
 import { archerArmorIndexFor, archerArmorSheetPath } from '../game/render/archerArmors';
 import { mageRobeIndexFor, robeHeadlessSheetPath, robeSheetPath } from '../game/render/robes';
 import { WEAPON_GUARD, weaponIndexFor, weaponPartPath, weaponPose, swordlessBodyPath, usesSwordlessBody } from '../game/render/weapons';
@@ -45,7 +46,7 @@ export function equipmentFallbackPortrait(save: Save): string {
       if (helmeted) return archerHeadlessBodyPath(save.gender, 'idle', bowless);
       return bowless
         ? bowlessBodyPath(save.gender, 'idle')
-        : `/assets/pilot-25d/archer_${save.gender}_idle_v1.png?v=2`;
+        : pilotSheet(`/assets/pilot-25d/archer_${save.gender}_idle_v1.png`);
     }
     // 작업 201: 마법사는 지팡이를 찼으면 기본 지팡이를 지운 서기 시트 위에 지팡이 파츠를 얹는다.
     // 작업 204: 투구를 쓰면 필드와 같은 자리에서 머리를 지운 시트를 쓴다(지팡이 착용 여부로 판이 갈린다).
@@ -62,9 +63,9 @@ export function equipmentFallbackPortrait(save: Save): string {
       if (helm) return mageHeadlessBodyPath(save.gender, 'idle', staffless);
       return staffless
         ? stafflessBodyPath(save.gender, 'idle')
-        : `/assets/pilot-25d/mage_${save.gender}_idle_v1.png?v=2`;
+        : pilotSheet(`/assets/pilot-25d/mage_${save.gender}_idle_v1.png`);
     }
-    return `/assets/pilot-25d/${jobOrDefault(save.job)}_${save.gender}_idle_v1.png`;
+    return pilotSheet(`/assets/pilot-25d/${jobOrDefault(save.job)}_${save.gender}_idle_v1.png`);
   }
   // 투구를 쓰면 필드와 같은 머리 없는 본체 위에 투구 파츠를 얹는다(작업 152).
   const headless = !!save.equipment.helmet;
@@ -77,9 +78,8 @@ export function equipmentFallbackPortrait(save: Save): string {
     if (path) return path;
   }
   if (swordless) return swordlessBodyPath(save.gender, 'idle', headless);
-  if (headless) return `/assets/pilot-25d/headless/warrior_${save.gender}_idle_v1.png?v=2`;
-  // 작업 222: 서기 시트를 낮은 양손 그립으로 다시 구워 `?v=2`(render.ts·helmets.ts 와 같은 규칙).
-  return `/assets/pilot-25d/warrior_${save.gender}_idle_v1.png?v=2`;
+  if (headless) return pilotSheet(`/assets/pilot-25d/headless/warrior_${save.gender}_idle_v1.png`);
+  return pilotSheet(`/assets/pilot-25d/warrior_${save.gender}_idle_v1.png`);
 }
 
 /** 장비창에 합성하는 대검 파츠(작업 156). 파츠는 idle 자세 그대로다. */
@@ -97,8 +97,8 @@ export function equipmentPortraitWeapon(save: Save): EquipmentPortraitWeapon | u
   if (usesBaseSheetOnly(save)) return undefined;
   const path = weaponPartPath(weaponIndexFor(save));
   if (!path) return undefined;
-  // 갑옷을 입었으면 갑옷 서기 시트의 앵커를 쓴다(작업 222).
-  const pose = weaponPose(save.gender, 'idle', 0, armorIndexFor(save));
+  // [작업 229] 이전 그립에서는 맨몸·갑옷 서기 시트의 손 위치가 같아 앵커가 하나다.
+  const pose = weaponPose(save.gender, 'idle', 0);
   return { path, x: pose.x, y: pose.y, rotation: pose.rot };
 }
 
@@ -465,19 +465,23 @@ function paintPatch(
   const rgb = parseGlowColor(glow);
   const frame = paint.getImageData(0, 0, tinted.width, tinted.height);
   const pixels = frame.data;
+  // [작업 231] 광량 곡선을 올렸다 — 어두운 무늬는 그대로 두고 밝은 금속면이 더 세게 타오르도록
+  // 하한(.3 → .45)과 기울기(1.2 → 1.55)를 키웠다. 다만 상한은 1.6 → 1.25로 좁혔다 — 2배까지
+  // 곱하면 주황이 노랗게, 빨강이 분홍으로 날아가 진한 등급색이 아니라 흰빛이 된다.
   for (let index = 0; index < pixels.length; index += 4) {
     const alpha = pixels[index + 3];
     if (alpha === 0) continue;
     const lum = (0.299 * pixels[index] + 0.587 * pixels[index + 1] + 0.114 * pixels[index + 2]) / 255;
-    const light = Math.min(1.6, .3 + 1.2 * lum);
+    const light = Math.min(1.25, .45 + 1.55 * lum);
     pixels[index] = Math.min(255, rgb[0] * light);
     pixels[index + 1] = Math.min(255, rgb[1] * light);
     pixels[index + 2] = Math.min(255, rgb[2] * light);
   }
   paint.putImageData(frame, 0, 0);
   context.save();
+  // [작업 231] 장비 윤곽 밖으로 번지는 후광도 두 배 가까이 넓혔다.
   context.shadowColor = glow;
-  context.shadowBlur = Math.max(6, Math.round(width * .022));
+  context.shadowBlur = Math.max(10, Math.round(width * .045));
   context.drawImage(tinted, x, y, width, height);
   context.restore();
 }

@@ -6,6 +6,30 @@ export type Session = { accountId: string; loginId: string; gender: Gender; job?
   /** 아직 캐릭터를 만들지 않은 계정(작업 216) — 가입 직후에는 사냥터 대신 캐릭터 생성 화면으로 간다. */
   needsCharacter?: boolean };
 const tokenKey = 'djrpg.auth.token';
+/**
+ * 서버 점검 안내(작업 242).
+ *
+ * 2026-11-21 아침 Cloudflare Pages 무료 플랜의 일일 요청 한도를 다 써서 `/api/*`가 405(정적 폴백)를
+ * 돌려주고, UTC 자정인 한국시간 **09:00**에 한도가 다시 열린다. 그동안에는 새로 배포하지 않아도
+ * 로그인 화면이 **점검 중**임을 바로 알 수 있어야 하고, 09:00이 지나면 아무것도 하지 않아도
+ * 배너가 스스로 내려가야 한다. 그래서 안내는 서버 응답이 아니라 **시각**으로 판단한다.
+ */
+export const MAINTENANCE_UNTIL = Date.parse('2026-11-21T09:00:00+09:00');
+export const MAINTENANCE_BANNER = '오늘 오전 9시까지 서버 점검 중입니다. 9시 이후 정상 이용 가능합니다.';
+/** 점검 시간 안에서 API가 응답하지 않을 때 보여 줄 문구. */
+export const MAINTENANCE_MESSAGE = '현재 서버 점검 중입니다. 오전 9시 이후 다시 이용해 주세요.';
+/** 점검이 끝난 뒤에도 API가 정적 폴백(405·비 JSON)을 돌려줄 때 쓰는 문구 — 시각 언급 없이 기다리게 한다. */
+export const SERVER_UNAVAILABLE_MESSAGE = '현재 서버 점검 중입니다. 잠시 후 다시 이용해 주세요.';
+/** 지금이 점검 시간인지. 배너 표시와 안내 문구가 같은 시계를 본다. */
+export function inMaintenance(now: number = Date.now()): boolean { return now < MAINTENANCE_UNTIL; }
+/** API가 정적 폴백을 돌려줬을 때의 안내 문구(점검 시간 안/밖). */
+export function serverUnavailableMessage(now: number = Date.now()): string { return inMaintenance(now) ? MAINTENANCE_MESSAGE : SERVER_UNAVAILABLE_MESSAGE; }
+/** 로그인 패널 상단 점검 배너. 점검 시간이 지나면 빈 문자열이라 화면에 아무것도 넣지 않는다. */
+export function maintenanceBannerMarkup(now: number = Date.now()): string {
+  if (!inMaintenance(now)) return '';
+  return `<div class="maintenance-banner" role="status"><strong>🛠️ 서버 점검 안내</strong><span>${MAINTENANCE_BANNER}</span></div>`;
+}
+
 // 저장소를 쓸 수 없는 환경(테스트·프라이빗 모드)에서도 토큰 정리가 예외로 번지지 않게 한다.
 export function clearToken(): void {
   if (typeof localStorage === 'undefined') return;
@@ -29,11 +53,21 @@ export function clearLocalAccount(): void {
     for (const key of keys) localStorage.removeItem(key);
   } catch { /* 저장소 접근 불가 */ }
 }
+/** 점검·정적 폴백 안내를 빨간 오류가 아닌 안내 톤으로 띄우기 위한 표시. */
+type NoticeError = Error & { notice?: true };
+function serverUnavailableError(): NoticeError {
+  const error = new Error(serverUnavailableMessage()) as NoticeError;
+  error.notice = true;
+  return error;
+}
 export async function accountRequest<T>(action: string, data: Record<string, unknown> = {}, token?: string): Promise<T> {
   let response: Response;
   try { response = await fetch('/api/account', { method: 'POST', headers: apiHeaders(token ? { Authorization: `Bearer ${token}` } : {}), body: JSON.stringify({ action, ...data }), keepalive: action === 'save' }); }
   catch { throw new Error('서버에 연결할 수 없습니다. 네트워크 상태를 확인하세요.'); }
-  const result = await response.json().catch(() => { throw new Error('서버 응답 형식이 올바르지 않습니다. API 배포를 확인하세요.'); });
+  // [작업 242] API 일일 한도를 다 쓰면 `/api/account`가 빈 본문 405(정적 폴백)를 돌려준다 —
+  // 이때 `response.json()`이 실패해 개발자용 문구가 빨갛게 떴다. 점검 안내로 바꾼다.
+  if (response.status === 405) throw serverUnavailableError();
+  const result = await response.json().catch(() => { throw serverUnavailableError(); });
   if (!response.ok) {
     const error = new Error(typeof result.error === 'string' ? result.error : `서버 요청 실패 (${response.status})`) as Error & { status: number; code: string; expected?: string };
     error.status = response.status; error.code = result.code; error.expected = result.expected;
@@ -139,7 +173,7 @@ function characterStep(overlay: HTMLElement, session: Session): Promise<Session>
 export function openLogin(root: HTMLElement): Promise<Session> {
   return new Promise(resolve => {
     const overlay = document.createElement('div'); overlay.className = 'login-screen';
-    overlay.innerHTML = `<div class="login-panel"><small class="login-kicker">THE WASTELAND AWAITS</small><h1>DJRPG</h1><p class="login-subtitle">황야의 층계</p><div class="login-tabs"><button type="button" data-mode="login" class="active">로그인</button><button type="button" data-mode="register">신규 가입</button></div><form class="login-form"><label>아이디<input name="loginId" autocomplete="username" maxlength="16" required></label><label>비밀번호<input name="password" type="password" autocomplete="current-password" minlength="8" maxlength="72" required></label><p class="login-error" role="alert" aria-live="polite"></p><button class="login-submit" type="submit">로그인</button></form><button class="login-guest" type="button">게스트로 시작하기</button><p class="login-note">계정과 진행 상황은 서버에 저장됩니다.</p></div>`;
+    overlay.innerHTML = `<div class="login-panel"><small class="login-kicker">THE WASTELAND AWAITS</small><h1>DJRPG</h1><p class="login-subtitle">황야의 층계</p>${maintenanceBannerMarkup()}<div class="login-tabs"><button type="button" data-mode="login" class="active">로그인</button><button type="button" data-mode="register">신규 가입</button></div><form class="login-form"><label>아이디<input name="loginId" autocomplete="username" maxlength="16" required></label><label>비밀번호<input name="password" type="password" autocomplete="current-password" minlength="8" maxlength="72" required></label><p class="login-error" role="alert" aria-live="polite"></p><button class="login-submit" type="submit">로그인</button></form><button class="login-guest" type="button">게스트로 시작하기</button><p class="login-note">계정과 진행 상황은 서버에 저장됩니다.</p></div>`;
     root.appendChild(overlay);
     const form = overlay.querySelector<HTMLFormElement>('.login-form')!;
     const idInput = form.elements.namedItem('loginId') as HTMLInputElement;
@@ -161,23 +195,25 @@ export function openLogin(root: HTMLElement): Promise<Session> {
       }
       overlay.remove(); resolve(ready);
     };
-    const fail = (cause: unknown) => { error.textContent = cause instanceof Error ? cause.message : `로그인할 수 없습니다: ${String(cause)}`; };
+    // 점검 안내는 빨간 오류가 아니라 안내 톤(주황)으로 띄운다 — 이용자가 고장으로 읽지 않게 한다.
+    const say = (text: string, notice = false) => { error.textContent = text; error.classList.toggle('is-notice', notice); };
+    const fail = (cause: unknown) => say(cause instanceof Error ? cause.message : `로그인할 수 없습니다: ${String(cause)}`, cause instanceof Error && (cause as NoticeError).notice === true);
     const stored = localStorage.getItem(tokenKey);
-    if (stored) { submit.disabled = guest.disabled = true; error.textContent = '지난 계정 확인 중…'; begin('load', {}, stored).then(finish).catch(cause => { if (cause instanceof Error && 'status' in cause && cause.status === 401) clearToken(); fail(cause); }).finally(() => { submit.disabled = guest.disabled = false; }); }
+    if (stored) { submit.disabled = guest.disabled = true; say('지난 계정 확인 중…'); begin('load', {}, stored).then(finish).catch(cause => { if (cause instanceof Error && 'status' in cause && cause.status === 401) clearToken(); fail(cause); }).finally(() => { submit.disabled = guest.disabled = false; }); }
     overlay.querySelectorAll<HTMLButtonElement>('[data-mode]').forEach(button => button.onclick = () => {
       mode = button.dataset.mode === 'register' ? 'register' : 'login';
       overlay.querySelectorAll('[data-mode]').forEach(tab => tab.classList.toggle('active', tab === button));
       // [작업 216] 가입 탭은 아이디·비밀번호만 받는다 — 직업·성별은 캐릭터 생성 화면에서 고른다.
       passwordInput.autocomplete = mode === 'register' ? 'new-password' : 'current-password';
       submit.textContent = mode === 'register' ? '계정 만들기' : '로그인';
-      error.textContent = '';
+      say('');
     });
     form.onsubmit = async event => {
-      event.preventDefault(); error.textContent = ''; submit.disabled = true;
+      event.preventDefault(); say(''); submit.disabled = true;
       try { await finish(await begin(mode, { loginId: idInput.value, password: passwordInput.value })); }
       catch (cause) { fail(cause); }
       finally { submit.disabled = false; }
     };
-    guest.onclick = async () => { error.textContent = ''; guest.disabled = true; try { await finish(await begin('guest')); } catch (cause) { fail(cause); } finally { guest.disabled = false; } };
+    guest.onclick = async () => { say(''); guest.disabled = true; try { await finish(await begin('guest')); } catch (cause) { fail(cause); } finally { guest.disabled = false; } };
   });
 }

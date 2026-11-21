@@ -95,11 +95,11 @@ test('a bare character summary falls back to its job sheet and legacy base portr
   const card = characterPortraitSave({ slot: 2, name: '빈손', gender: 'female', job: 'archer', level: 3, floor: 2, equipment: { helmet: null, armor: null, weapon: null } });
   assert.equal(equipmentPortraitPlan(card).key, equipmentPortraitPlan(bare).key);
   // [작업 216] 무기를 안 챈 캐릭터는 기본 활대를 지운 시트(빈손)로 그린다.
-  assert.equal(equipmentFallbackPortrait(card), '/assets/pilot-25d/nobow/archer_female_idle_v1.png');
+  assert.equal(equipmentFallbackPortrait(card), '/assets/pilot-25d/nobow/archer_female_idle_v1.png?v=4');
   // 서버가 장비 정보를 아직 안 보낸 응답(구버전 서버·guest)에서도 카드가 깨지지 않는다.
   const legacy = characterPortraitSave({ slot: 3, name: '옛캐릭', gender: 'male', level: 1, floor: 1 });
-  // [작업 216] 장비 정보가 없으면 빈손 → 기본 검을 지운 판. 작업 222: 서기 시트를 다시 구워 `?v=2`.
-  assert.equal(equipmentFallbackPortrait(legacy), '/assets/pilot-25d/noweapon/warrior_male_idle_v1.png?v=2', '장비 정보가 없으면 빈손 시트');
+  // [작업 216] 장비 정보가 없으면 빈손 → 기본 검을 지운 판. 작업 222: 서기 시트를 다시 구워 `?v=4`.
+  assert.equal(equipmentFallbackPortrait(legacy), '/assets/pilot-25d/noweapon/warrior_male_idle_v1.png?v=4', '장비 정보가 없으면 빈손 시트');
   const source = readFileSync(new URL('../src/ui/modals/charactersModal.ts', import.meta.url), 'utf8');
   assert.equal(source.includes('warrior_${gender}_base.png'), false, '구형 warrior_*_base 초상화를 쓰지 않는다');
 });

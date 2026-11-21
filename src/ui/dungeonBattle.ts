@@ -1,6 +1,6 @@
 import { DUNGEON_MAX_FLOOR } from './dungeonLobby';
 import { random, seededRandom, useRandom, type Random } from '../game/rng';
-import {World, type Enemy, enemyHitDamage, enemyMoveSpeed} from '../game/world';
+import {World, type Enemy, ENEMY_STRIKE_SECONDS, enemyHitDamage, enemyMoveSpeed} from '../game/world';
 import {clampArenaPoint} from '../game/arena';
 import {jobOrDefault} from '../game/skills';
 import {totalStats, type Save} from '../game/store';
@@ -276,7 +276,13 @@ export class DungeonBattle {
     try{this.world.update(dt);}finally{this.world.player.hit=Math.max(0,hit-dt);}
     this.hitCooldown=Math.max(0,this.hitCooldown-dt);
     if(this.hitCooldown===0){const enemy=this.world.enemies.find(e=>Math.hypot(e.x-this.world.player.x,e.y-this.world.player.y)<36);
-      if(enemy){this.world.player.hp=Math.max(0,this.world.player.hp-Math.min(enemyHitDamage(this.floor,enemy.boss,totalStats(this.world.save).defense)*(enemy===this.elite?2:1),totalStats(this.world.save).health*(enemy===this.elite?.008:.005)));this.world.player.hit=.25;this.hitCooldown=.9;}}
+      if(enemy){const max=totalStats(this.world.save).health;
+        const taken=Math.min(enemyHitDamage(this.floor,enemy.boss,totalStats(this.world.save).defense)*(enemy===this.elite?2:1),max*(enemy===this.elite?.008:.005));
+        this.world.player.hp=Math.max(0,this.world.player.hp-taken);this.world.player.hit=.25;this.hitCooldown=.9;
+        // 적 공격 모션·반격 표시(작업 245) — 때린 적이 내딛고, 내 몸에 할퀴는 자국과 잃은 체력이 뜬다.
+        // 연출만 더하므로 시드 난수 소비·전투 결과(체력·처치 수)는 그대로다.
+        enemy.attack=ENEMY_STRIKE_SECONDS;
+        this.world.effects.push({x:this.world.player.x,y:this.world.player.y,kind:'enemyStrike',age:0,duration:.5,angle:Math.atan2(this.world.player.y-enemy.y,this.world.player.x-enemy.x),amount:Math.round(taken)});}}
     if(this.world.player.hp<=0)this.outcome='dead';
     else if((this.bossFloor||this.wave===3)&&!this.world.enemies.length)this.outcome='clear';
     else if(this.elapsed>=90)this.outcome='timeout';

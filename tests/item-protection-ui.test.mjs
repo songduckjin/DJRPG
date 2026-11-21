@@ -172,3 +172,22 @@ test('bag rarity button sorts descending within the selected category without ch
   find(root,n=>hasClass(n,'bag-rarity-sort')).onclick();assert.deepEqual(ids(render()),['low','top','middle']);
  }finally{globalThis.document=previous;}
 });
+
+test('거래 결과를 확인하지 못해 잠긴 거래소는 이유 안내와 다시 확인 버튼을 함께 보여 준다(작업 226)',()=>{
+  const previous=globalThis.document;globalThis.document={createElement:tag=>element(tag)};
+  try{
+    const sync={conflicted:false,pendingMarket:{action:'claim',data:{deliveryId:'all'},requestId:'pending-1'}};
+    let retried=0;const market=new Market(sync);market.retry=()=>{retried++;};
+    market.view='inbox';market.data={inbox:[],listings:[],myActive:0,total:0};
+    const ui={market,session:{guest:false},world:{save:freshSave()},root:{querySelector:()=>null}};
+    const render=()=>{const dialog=element();renderMarket.call(ui,dialog);return dialog;};
+    let dialog=render();
+    assert(find(dialog,n=>typeof n.textContent==='string'&&n.textContent.includes('이전 거래의 결과를 확인하지 못해')),'잠긴 이유를 적는다');
+    const retry=find(dialog,n=>n.tag==='button'&&n.textContent==='거래 결과 다시 확인');
+    assert(retry,'다시 확인 버튼이 있다');retry.onclick();assert.equal(retried,1);
+    assert(find(dialog,n=>n.tag==='button'&&n.textContent==='모두 수령').disabled,'잠긴 동안 수령은 비활성');
+    sync.pendingMarket=undefined;dialog=render();
+    assert(!find(dialog,n=>n.tag==='button'&&n.textContent==='거래 결과 다시 확인'),'풀리면 안내와 버튼이 사라진다');
+    assert(!find(dialog,n=>typeof n.textContent==='string'&&n.textContent.includes('이전 거래의 결과를 확인하지 못해')));
+  }finally{globalThis.document=previous;}
+});

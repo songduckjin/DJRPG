@@ -11,6 +11,8 @@ export function resetModalDefaults(ui: Interface): void {
   // 일괄 분해 destroys, so it is kept as they left it (작업 196) and never reset here.
   ui.codexQuery = ''; ui.codexSlot = ''; ui.codexRarity = ''; ui.codexState = 'all';
   ui.codexSelected = undefined;
+  // 스킬 창 탭은 보기 상태다 — 창을 닫으면 `전체`로 돌아간다(작업 240).
+  ui.skillFilter = 'all';
   ui.confirmReset = false;
   // 캐릭터 카드 펼침은 팝업을 닫으면 접힌다(작업 216).
   ui.characterFocus = undefined;

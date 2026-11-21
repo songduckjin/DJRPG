@@ -1,6 +1,7 @@
 import {equipmentCount} from '../../game/bagCapacity';
 import { autoEquipBest, equipmentImage, expToNext, MAX_LEVEL, rarityNames, statNames, totalStats, useSkillBook, type Item, type Save, type Slot, type Stat } from '../../game/store';
 import { isEquipment, isPouch, rarityRanks, salvageGold, slotNameFor, canWield, weaponJob, itemJob, skillBookJob, type TreasurePouch } from '../../game/items';
+import { extraOptionLines, extraOptionSummary } from '../../game/extraOptions';
 import { jobNames, jobOrDefault } from '../../game/skills';
 import { BAG_JOB_ONLY_KEY, jobOnlyLabel, jobOnlyVisible, saveJobOnly } from '../jobFilter';
 import { nextSalvageRarity, saveSalvageRarity, type SalvageRarity } from '../salvageRarity';
@@ -18,6 +19,8 @@ import { showEquippedDetail, dismissEquippedDetail, deferEquippedDismiss } from 
 import { bagDetailPinned, createBagDetail, deferBagDismiss, dismissBagDetail, showBagDetail } from '../bagDetail';
 import { skillbookName } from '../skillbookBag';
 import { itemNameText, renderItemName } from '../itemName';
+import { slotAtlasStyle } from '../slotArtStyle';
+import { upgradeArrowMarkup } from '../upgradeBadge';
 import type { BagFilter, Interface } from '../interface';
 
 export const equipmentInfoSlots = ['weapon', 'helmet', 'armor', 'gloves', 'boots', 'offhand', 'necklace', 'belt', 'ring1', 'ring2'] as const;
@@ -31,18 +34,9 @@ export function renderInventory(this: Interface, dialog: HTMLElement): void {
     const sort = document.createElement('button'); sort.type = 'button'; sort.className = 'bag-rarity-sort'; sort.textContent = '등급순';
     sort.classList.toggle('active', this.bagRaritySort); sort.setAttribute('aria-pressed', String(this.bagRaritySort));
     sort.onclick = () => { this.bagRaritySort = !this.bagRaritySort; dismissBagDetail(this); this.renderModal(); };
-    heading.append(title, sort); section.appendChild(heading);
-    const filters = document.createElement('div'); filters.className = 'bag-filters';
-    const filterNames: Record<BagFilter, string> = { all: '장비 전체', weapon: '무기', armor: '방어구', accessory: '장신구' };
-    for (const filter of Object.keys(filterNames) as BagFilter[]) {
-      const button = document.createElement('button'); button.textContent = filterNames[filter];
-      button.classList.toggle('active', this.bagFilter === filter);
-      button.onclick = () => { this.bagFilter = filter; dismissBagDetail(this); this.renderModal(); };
-      filters.appendChild(button);
-    }
-    section.appendChild(filters);
     // `내 직업만 보기` (작업 205): 다른 직업 전용 무기(와 스킬북)만 감춘다. 공용 방어구·장신구는 그대로
-    // 보이고, 켠 상태는 기기에 남긴다. 필터 버튼과 같은 줄에 두면 분류와 보기 범위를 한눈에 고를 수 있다.
+    // 보이고, 켠 상태는 기기에 남긴다. [작업 228] 세로가 짧은 폰에서 가방 칸을 밀어내지 않도록
+    // 제목·`등급순`과 **한 줄**에 둔다(예전에는 필터 아래 따로 한 줄을 썼다).
     const jobToggle = document.createElement('button'); jobToggle.type = 'button'; jobToggle.className = 'bag-job-only';
     jobToggle.textContent = jobOnlyLabel(this.bagJobOnly);
     jobToggle.classList.toggle('is-on', this.bagJobOnly);
@@ -53,7 +47,16 @@ export function renderInventory(this: Interface, dialog: HTMLElement): void {
       this.bagJobOnly = !this.bagJobOnly; saveJobOnly(BAG_JOB_ONLY_KEY, this.bagJobOnly);
       dismissBagDetail(this); this.renderModal();
     };
-    section.appendChild(jobToggle);
+    heading.append(title, jobToggle, sort); section.appendChild(heading);
+    const filters = document.createElement('div'); filters.className = 'bag-filters';
+    const filterNames: Record<BagFilter, string> = { all: '장비 전체', weapon: '무기', armor: '방어구', accessory: '장신구' };
+    for (const filter of Object.keys(filterNames) as BagFilter[]) {
+      const button = document.createElement('button'); button.textContent = filterNames[filter];
+      button.classList.toggle('active', this.bagFilter === filter);
+      button.onclick = () => { this.bagFilter = filter; dismissBagDetail(this); this.renderModal(); };
+      filters.appendChild(button);
+    }
+    section.appendChild(filters);
     const grid = document.createElement('div'); grid.className = 'bag-grid'; section.appendChild(grid);
     // 분류 필터로 한 번 고른 뒤 `내 직업만 보기`로 직업 전용 장비를 걷어 낸다(작업 205).
     // 보물 주머니(작업 207)는 장비가 아니라 분류 필터와 상관없이 늘 보인다 — 보상으로 받은 주머니를
@@ -78,8 +81,12 @@ export function renderInventory(this: Interface, dialog: HTMLElement): void {
     const visible = stacks.map(stack => stack.item);
     for (const { item, count: quantity } of stacks) {
       const book = isSkillBook(item), pouch = isPouch(item), name = book ? skillbookName(item) : itemNameText(item);
+      // 업그레이드 화살표(작업 241): 내 직업이 낄 수 있는 장비 중 지금 낀 것보다 좋은 것만.
+      // 스킬북·보물 주머니는 `upgradeArrowMarkup`이 판정에서 걸러 빈 문자열을 돌려준다.
+      const upgrade = upgradeArrowMarkup(save, item);
       const cell = document.createElement('button'); cell.className = `bag-item ${book ? 'skillbook-item' : pouch ? 'pouch-item' : item.rarity} ${this.selected === item.id ? 'selected' : ''}`;
-      cell.innerHTML = itemIcon.call(this, item.slot, item, 'item-icon');
+      if (upgrade) cell.classList.add('has-upgrade');
+      cell.innerHTML = itemIcon.call(this, item.slot, item, 'item-icon') + upgrade;
       cell.type = 'button'; cell.dataset.itemId = item.id;
       // 직업 전용 장비에는 `전사`/`궁수`/`마법사` 배지를 단다(작업 205) — 공용 방어구·장신구에는 붙지 않는다.
       const owner = itemJob(item);
@@ -92,7 +99,7 @@ export function renderInventory(this: Interface, dialog: HTMLElement): void {
         cell.append(badge);
       }
       const locked = isEquipment(item) && !!item.locked;
-      cell.setAttribute('aria-label', `${name}${book ? ` · ${quantity}권` : pouch ? ` · ${quantity}개` : ` · ${rarityNames[item.rarity]}`}${owner ? ` · ${jobNames[owner]} 전용` : ''}${locked ? ' · 잠긴 장비' : ''}`);
+      cell.setAttribute('aria-label', `${name}${book ? ` · ${quantity}권` : pouch ? ` · ${quantity}개` : ` · ${rarityNames[item.rarity]}`}${owner ? ` · ${jobNames[owner]} 전용` : ''}${locked ? ' · 잠긴 장비' : ''}${upgrade ? ' · 지금 장착한 장비보다 좋음' : ''}`);
       if (locked) {
         const badge = document.createElement('span'); badge.className = 'lock-icon is-locked bag-lock-badge';
         badge.setAttribute('aria-hidden', 'true'); cell.appendChild(badge);
@@ -119,9 +126,13 @@ export function renderInventory(this: Interface, dialog: HTMLElement): void {
     const pouches = pouchCount(save);
     // 가방 40칸은 **장비 + 다른 직업 전용 스킬북**을 함께 센다(작업 210). 내 직업 스킬북·보물 주머니는 별도다.
     const bagUsed = equipmentCount(save.bag, save.job);
-    const count = document.createElement('span'); count.textContent = `가방 ${bagUsed}칸${pouches ? ` · 보물 주머니 ${pouches}개` : ''}`;
+    const count = document.createElement('span'); count.textContent = `가방 ${bagUsed}/40`;
     count.title = `가방 ${bagUsed}/40 · 장비와 다른 직업 전용 스킬북을 함께 세고, 내 직업 스킬북·보물 주머니는 별도입니다`;
-    const capacity = document.createElement('small'); capacity.className = 'bag-capacity'; capacity.textContent = `가방 ${bagUsed}/40`; count.append(capacity);
+    // [작업 228] `가방 16칸` · `가방 16/40` 두 줄로 적던 것을 한 줄로 합쳤다 — 세로가 짧은 폰에서
+    // 가방 칸을 밀어내던 한 줄을 바닥줄에서 돌려준다.
+    if (pouches) {
+      const capacity = document.createElement('small'); capacity.className = 'bag-capacity'; capacity.textContent = ` · 보물 주머니 ${pouches}개`; count.append(capacity);
+    }
     const controls = document.createElement('div'); controls.className = 'bag-footer-actions';
     const equip = document.createElement('button'); equip.className = 'salvage'; equip.textContent = '자동 장착';
     const canEquip = canAutoEquip(save); equip.disabled = !canEquip; equip.classList.toggle('auto-equip-ready', canEquip);
@@ -248,6 +259,10 @@ export function itemDetail(this: Interface, save: Save, item: Item): HTMLElement
       const line = document.createElement('span'); line.className = diff >= 0 ? 'up' : 'down';
       line.textContent = `${statNames[stat]} +${item.stats[stat] ?? 0} (현재 +${equipped?.stats[stat] ?? 0}) ${diff >= 0 ? '▲' : '▼'}${Math.abs(diff)}`; panel.appendChild(line);
     }
+    // 추가옵션(작업 238): 애픽 1 · 유니크 2 · 전설 3줄을 스탯 아래에 붙인다.
+    for (const extra of extraOptionLines(item)) {
+      const line = document.createElement('span'); line.className = 'item-extra'; line.textContent = extra; panel.appendChild(line);
+    }
     const buttons = document.createElement('div'); buttons.className = 'detail-actions';
     // 다른 직업의 무기는 입을 수 없다(작업 204): 버튼을 잠그고 어느 직업의 무기인지 알린다.
     const wieldable = canWield(item, jobOrDefault(save.job));
@@ -327,6 +342,7 @@ export function renderEquipment(this: Interface, dialog: HTMLElement): void {
         image.className = 'showcase-glow-layer'; image.alt = ''; image.decoding = 'async';
         image.src = layer.src;
         image.style.setProperty('--gear-cycle', `${layer.cycle}s`);
+        image.style.setProperty('--gear-color', layer.color);
         image.dataset.glowSlot = layer.slot;
         glowLayer.appendChild(image);
       }
@@ -344,6 +360,13 @@ export function renderEquipment(this: Interface, dialog: HTMLElement): void {
       const cell = document.createElement('div'); cell.innerHTML = `<span>${label}</span><b>${values[index]}</b>`; statGrid.appendChild(cell);
     });
     info.appendChild(statGrid);
+    // 추가옵션(작업 238) 합계 — 상한이 걸린 실제 전투 값(회피 30%·회복 12%/5초·피흡 15%).
+    const extraSummary = extraOptionSummary(save.equipment);
+    if (extraSummary) {
+      const extraLine = document.createElement('div'); extraLine.className = 'equipment-info-extras';
+      extraLine.textContent = `✨ ${extraSummary}`;
+      info.appendChild(extraLine);
+    }
     showcase.append(center, info); dialog.appendChild(showcase);
     const grid = document.createElement('div'); grid.className = 'equipment-grid'; grid.setAttribute('aria-label', '장착 장비 10칸');
     for (const slot of equipmentInfoSlots) addSlot(slot, grid);
@@ -357,6 +380,8 @@ function itemIcon(this: Interface, slot: Slot | 'skillbook' | 'pouch', item: Ite
   if (isPouch(item)) return pouchIconMarkup(className);
   if (item && isEquipment(item)) {
     const art = equipmentImage(item);
+    // 장착 칸(작업 231): 내용 상자만 칸에 꽉 차게 그려 물건이 작아 보이지 않게 한다(비율은 그대로).
+    if (art.columns === 5 && className === 'slot-icon') return `<span class="${className} atlas-icon" style="${slotAtlasStyle(art.path, art.frame)}" aria-hidden="true"></span>`;
     if (art.columns === 5) return `<span class="${className} atlas-icon" style="background-image:url('${art.path}');background-position:${art.frame * 25}% center" aria-hidden="true"></span>`;
   }
   return `<img class="${className}" src="${this.iconPath(slot, item)}" alt="">`;

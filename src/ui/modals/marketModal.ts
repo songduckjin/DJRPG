@@ -2,11 +2,14 @@ import {createSkillBookArt} from '../skillBookArt';
 import { goldNode, coinMarkup } from '../currency';
 import { filterSaleItems } from '../itemOrder';
 import { equipmentImage, isBow, isEquipment, isSkillBook, itemDisplayName, itemJob, rarityNames, slotNames, statNames, usableByJob, type Item, type Stat } from '../../game/items';
+import { extraOptionLines } from '../../game/extraOptions';
 import { jobNames } from '../../game/skills';
 import { MARKET_JOB_ONLY_KEY, jobOnlyLabel, jobOnlyVisible, saveJobOnly } from '../jobFilter';
 import { type MarketView, type Listing, type Market } from '../../game/market';
 import { compareEquipment } from '../../game/itemComparison';
 import type { Interface } from '../interface';
+import type { Save } from '../../game/store';
+import { appendUpgradeArrow } from '../upgradeBadge';
 import { renderItemName } from '../itemName';
 
 const money = (n: number) => n.toLocaleString('ko-KR');
@@ -14,13 +17,15 @@ const when = (n: number) => new Intl.DateTimeFormat('ko-KR', { month: 'numeric',
 const stateNames: Record<string,string> = { active: '판매 중', sold: '판매 완료', cancelled: '취소', expired: '기간 만료', unavailable: '판매 종료 · 새로고침' };
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, className = '', text = ''): HTMLElementTagNameMap[K] { const node = document.createElement(tag); node.className = className; node.textContent = text; return node; }
 function button(label: string, run: () => void, disabled = false): HTMLButtonElement { const node = el('button', '', label); node.type = 'button'; node.disabled = disabled; node.onclick = run; return node; }
-function icon(item: Item): HTMLElement {
+function icon(item: Item, save?: Save): HTMLElement {
   if(isSkillBook(item)){const node=createSkillBookArt(item);node.classList.add('market-icon');return node;}
   const node = el('span', 'market-icon');
   // 보물 주머니(작업 207)는 팔 수 없다 — 장비 그림이 없는 아이템은 빈 칸으로 둔다.
   if(!isEquipment(item)) return node;
   const art = equipmentImage(item);
   node.style.backgroundImage = `url("${art.path}")`; node.style.backgroundSize = `${art.columns * 100}% 100%`; node.style.backgroundPosition = `${art.columns > 1 ? art.frame / (art.columns - 1) * 100 : 0}% center`;
+  // 업그레이드 화살표(작업 241): 아이콘 상자의 우측 상단. `save`를 안 넘기는 곳(최근 거래·비교 패널)은 달지 않는다.
+  if (save) appendUpgradeArrow(node, save, item);
   return node;
 }
 function itemInfo(item: Item): HTMLElement {
@@ -33,6 +38,9 @@ function itemInfo(item: Item): HTMLElement {
   info.append(titleRow, el('small', '', `${rarityNames[item.rarity]} · ${isSkillBook(item) ? '스킬북' : isEquipment(item) ? isBow(item) ? '활' : slotNames[item.slot] : '소모품'}`));
   const stats = Object.entries(item.stats).map(([key, amount]) => `${statNames[key as Stat]} +${amount}`).join(' · ');
   info.append(el('small', 'market-options', stats || '사용 시 습득 또는 스킬 +1레벨'));
+  // 추가옵션(작업 238) — 목록에서도 매물의 옵션을 한 줄로 보여 준다.
+  const extras = isEquipment(item) ? extraOptionLines(item) : [];
+  if (extras.length) info.append(el('small', 'market-options item-extra', extras.join(' · ')));
   return info;
 }
 function select(label: string, values: [string,string][], market: Market, key: string): HTMLElement {
@@ -69,7 +77,12 @@ export function renderMarket(this: Interface, dialog: HTMLElement): void {
   const live = el('div', 'market-live'); live.append(el('span', 'market-connection'), button('목록 새로고침', () => market.refresh(), market.busy)); live.lastElementChild!.classList.add('market-refresh'); dialog.append(live);
   if (guest) dialog.append(el('p', 'market-notice', '게스트는 모든 매물과 시세를 볼 수 있습니다. 등록·구매는 정식 계정으로 로그인하세요.'));
   if (market.error) dialog.append(el('p', 'market-error', market.error));
-  if (market.sync.pendingMarket && !market.busy) dialog.append(button('거래 결과 다시 확인', () => { void market.retry(); }));
+  // 거래 결과를 확인하지 못해 `pendingMarket`이 남아 있으면 구매·수령·탭이 모두 잠긴다 — 왜 잠겼는지와
+  // 어떻게 풀지(같은 requestId로 다시 확인)를 버튼 옆에 같이 보여 준다(작업 226).
+  if (market.sync.pendingMarket && !market.busy) {
+    dialog.append(el('p', 'market-notice', '이전 거래의 결과를 확인하지 못해 구매·수령 버튼이 잠겨 있습니다. 서버 연결이 돌아오면 `거래 결과 다시 확인`을 눌러 마무리하세요.'));
+    dialog.append(button('거래 결과 다시 확인', () => { void market.retry(); }));
+  }
   if (market.busy) dialog.append(el('p', 'market-notice', '거래를 안전하게 처리하고 있습니다…'));
   const blocked = guest || market.busy || market.sync.conflicted || !!market.sync.pendingMarket;
   if (market.view === 'register') renderRegister(this, dialog, blocked);
@@ -79,7 +92,7 @@ export function renderMarket(this: Interface, dialog: HTMLElement): void {
     dialog.append(el('p', 'market-notice', '구매품·취소품·만료품·판매대금을 보관합니다. 가방이 가득 차도 수령함의 물품은 사라지지 않습니다.'));
     for (const delivery of data?.inbox ?? []) {
       const row = el('article', 'market-row');
-      if (delivery.item) row.append(icon(delivery.item), itemInfo(delivery.item));
+      if (delivery.item) row.append(icon(delivery.item, this.world.save), itemInfo(delivery.item));
       else { const coin = el('span', 'market-gold-icon'); coin.innerHTML = coinMarkup; row.append(coin, el('b', '', `${money(delivery.gold)} 금화`)); }
       const detail = el('div', 'market-row-bottom'); detail.append(el('small', '', `${delivery.reason} · ${when(delivery.createdAt)}`), button('수령', () => { void market.act('claim', { deliveryId: delivery.id }); }, blocked)); row.append(detail); dialog.append(row);
     }
@@ -154,7 +167,7 @@ function jobOnlyToggle(ui: Interface, market: Market, hidden: number): HTMLEleme
 }
 function renderListing(ui: Interface, dialog: HTMLElement, sale: Listing, blocked: boolean): void {
   const market = ui.market, row = el('article', 'market-row'); row.dataset.listing = sale.id;
-  row.append(icon(sale.item), itemInfo(sale.item));
+  row.append(icon(sale.item, ui.world.save), itemInfo(sale.item));
   const meta = el('div', 'market-meta'); meta.append(goldNode(sale.price), el('small', 'market-state', stateNames[sale.state] || sale.state)); row.append(meta);
   const bottom = el('div', 'market-row-bottom');
   bottom.append(el('small', '', `판매자 ${sale.sellerName} · ${sale.state === 'sold' ? `판매 ${when(sale.soldAt!)}` : `만료 ${when(sale.expiresAt)}`}${sale.purchased ? ' · 내가 구매' : ''}`));
@@ -226,7 +239,7 @@ function renderRegister(ui: Interface, dialog: HTMLElement, blocked: boolean): v
   for (const item of visible) {
     const pick = button('', () => { void market.selectItem(item); }, blocked);
     pick.className = `market-pick rarity-${item.rarity}${market.selectedItem === item.id ? ' selected' : ''}`;
-    pick.append(icon(item), el('small', `rarity-${item.rarity}`, rarityNames[item.rarity]), renderItemName(el('small'), item));
+    pick.append(icon(item, ui.world.save), el('small', `rarity-${item.rarity}`, rarityNames[item.rarity]), renderItemName(el('small'), item));
     const pickOwner = itemJob(item);
     if (pickOwner) pick.append(el('span', `job-badge job-${pickOwner}`, jobNames[pickOwner]));
     if (isEquipment(item) && item.locked) { const locked = el('span', 'lock-icon is-locked'); locked.setAttribute('aria-label', '잠긴 장비'); pick.append(locked); }

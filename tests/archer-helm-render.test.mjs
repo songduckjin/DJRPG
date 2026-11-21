@@ -205,7 +205,7 @@ test('머리 없는 본체 12장이 셀 규격대로 있고 머리만 지워졌�
         if (motion === 'idle') {
           const source = bowless
             ? '/assets/pilot-25d/nobow/archer_' + gender + '_idle_v1.png'
-            : `/assets/pilot-25d/archer_${gender}_idle_v1.png`;
+            : `/assets/pilot-25d/archer_${gender}_idle_v1.png?v=4`;
           const before = decodeAlpha(readFileSync(fileOf(source)));
           assert(opaqueIn(before, head) > 300, `${source} 머리 영역 기준값`);
           assert.equal(opaqueIn(art, head), 0, `${path} 에 머리가 남아 있습니다`);
@@ -294,10 +294,10 @@ test('활 1번 이상 + 투구를 함께 쓰면 머리 없는 nobow 시트 위�
   const game = view();
   const running = world(save);
   game.helmetTextures.set(archerHelmPartPath('male', 0), texture());
-  game.bowSheets.set('/assets/pilot-25d/bows/bow_5_v1.png', texture());
+  game.bowSheets.set('/assets/pilot-25d/bows/bow_5_v1.png?v=4', texture());
   const headlessBow = texture();
   game.armorSheets.set(archerHeadlessBodyPath('male', 'idle', true), headlessBow);
-  game.armorSheets.set('/assets/pilot-25d/nobow/archer_male_idle_v1.png', texture());
+  game.armorSheets.set('/assets/pilot-25d/nobow/archer_male_idle_v1.png?v=4', texture());
   drawHero.call(game, running, 100, 100, .2);
   assert.equal(game.hero.texture, headlessBow, '머리 없는 nobow 시트');
   assert(game.heroBow, '활 파츠');
@@ -348,5 +348,5 @@ test('장비창 초상화도 머리 없는 시트 + 같은 좌표의 궁수 투�
 
   const plain = archerSave('female');
   assert.equal(equipmentPortraitPlan(plain).archerHelm, undefined, '투구를 안 쓰면 파츠 없음');
-  assert.equal(equipmentPortraitPlan(plain).base, '/assets/pilot-25d/nobow/archer_female_idle_v1.png', '활을 안 차면 빈손(nobow) 시트');
+  assert.equal(equipmentPortraitPlan(plain).base, '/assets/pilot-25d/nobow/archer_female_idle_v1.png?v=4', '활을 안 차면 빈손(nobow) 시트');
 });

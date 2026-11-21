@@ -2,6 +2,7 @@ import type { Save } from './store';
 import { allSkillIds, jobs, passiveOrderFor, passives, skillOrderFor, skills, type Job, type SkillLevelId } from './skills';
 import { jobOrDefault } from './skills';
 import { random } from './rng';
+import { effectiveExtraOptions, extraOptionPower, normalizeExtraOptions, type ExtraOptionKey } from './extraOptions';
 
 function isRecord(value: unknown): value is Record<string, unknown> { return typeof value === 'object' && value !== null && !Array.isArray(value); }
 
@@ -18,7 +19,9 @@ export type Slot = 'weapon' | 'offhand' | 'helmet' | 'armor' | 'necklace' | 'glo
 
 export type Stat = 'attack' | 'defense' | 'health' | 'crit' | 'speed';
 
-export type EquipmentItem = { id: string; name: string; slot: Slot; rarity: Rarity; stats: Partial<Record<Stat, number>>; kind?: 'equipment'; locked?: boolean; plus?: number };
+export type EquipmentItem = { id: string; name: string; slot: Slot; rarity: Rarity; stats: Partial<Record<Stat, number>>; kind?: 'equipment'; locked?: boolean; plus?: number;
+  /** 추가옵션(작업 238) — 에픽 1·유니크 2·전설 3개, 각 1~3%. `id`로 정해지며 `src/game/extraOptions.ts`가 채운다. */
+  extraOptions?: Partial<Record<ExtraOptionKey, number>> };
 export type SkillBook = { id: string; name: string; slot: 'skillbook'; rarity: 'rare'; kind: 'skillbook'; skillId: SkillLevelId; stats: {} };
 /** 가방에서 까는 무작위 보물 주머니(작업 207) — 장비도 스킬북도 아닌 소모품이다.
  *  장비 40칸에 세지 않고, 자동 장착·분해·경매장 판매·도감 어디에도 끼지 않는다. */
@@ -361,6 +364,10 @@ export function migrateItem(value: unknown): Item | undefined {
   const item: EquipmentItem = { id: typeof value.id === 'string' && value.id ? value.id : crypto.randomUUID(), name, slot, rarity, stats, locked: value.locked === true };
   // 강화 단계는 표시 전용이다 — 이름·스탯·등급은 그대로 두고 `plus`만 정규화(또는 옛 장비면 역산)한다.
   item.plus = normalizePlus(value.plus, item);
+  // 추가옵션(작업 238): 저장된 값이 규칙에 맞으면 그대로 두고, 없거나 어긋난 옛 장비는 `id` 시드로
+  // 1/2/3개를 붙인다 — 이미 지급된 장비도 DB를 전수 수정하지 않고 옵션을 얻는다.
+  if (isRecord(value.extraOptions)) item.extraOptions = value.extraOptions as EquipmentItem['extraOptions'];
+  normalizeExtraOptions(item);
   return item;
 }
 
@@ -374,6 +381,8 @@ function passiveLevel(save: Save, ids: SkillLevelId[]): number | undefined {
 
 export function totalStats(save: Save): Record<Stat, number> {
   const total = { attack: 8 + save.level * 2, defense: 2 + save.level, health: 100 + (save.level - 1) * 12, crit: 2, speed: 0 };
+  // 추가옵션(작업 238)의 % 스탯은 **모든 보정이 끝난 최종값**에 곱한다 — `공격력 +2%`가 레벨·패시브·
+  // 장비를 모두 반영한 공격력을 올린다. 치명타·공격속도는 기존처럼 % 수치를 그대로 더한다.
   for (const item of Object.values(save.equipment)) if (item && !isSkillBook(item)) {
     for (const stat of Object.keys(item.stats) as Stat[]) total[stat] += item.stats[stat] ?? 0;
   }
@@ -387,6 +396,12 @@ export function totalStats(save: Save): Record<Stat, number> {
   if (swift) total.speed += 12 + (swift - 1) * 2;
   const sight = passiveLevel(save, ['hawkSight', 'arcaneSense']);
   if (sight) total.crit += 8 + (sight - 1) * 2;
+  const extras = effectiveExtraOptions(save.equipment);
+  total.attack = Math.ceil(total.attack * (1 + extras.attackPct / 100));
+  total.defense = Math.ceil(total.defense * (1 + extras.defensePct / 100));
+  total.health = Math.ceil(total.health * (1 + extras.healthPct / 100));
+  total.crit += extras.critPct;
+  total.speed += extras.speedPct;
   return total;
 }
 
@@ -443,12 +458,41 @@ export function rollEquipment(floor: number, rarity: Rarity, boss = false): Equi
   // 다음 로드에서 옛 장비 역산(`estimatePlus`)이 0층 아이템을 높게 잡는 일이 없다.
   const plus = rollPlus(floor, boss);
   applyPlus(stats, plus);
-  return { id: crypto.randomUUID(), name: base.startsWith(`${prefix} `) ? base : `${prefix} ${base}`, slot, rarity, stats, plus };
+  const item: EquipmentItem = { id: crypto.randomUUID(), name: base.startsWith(`${prefix} `) ? base : `${prefix} ${base}`, slot, rarity, stats, plus };
+  // 추가옵션(작업 238): 에픽 1·유니크 2·전설 3개를 `id` 시드로 붙여 만든다 — 옛 장비가 나중에
+  // 정규화될 때와 똑같은 값이 나오므로, 저장 전후로 옵션이 바뀌지 않는다.
+  normalizeExtraOptions(item);
+  return item;
 }
 
 export function itemPower(item: Item): number {
   if (!isEquipment(item)) return 0;
-  return (item.stats.attack ?? 0) * 3 + (item.stats.defense ?? 0) * 2 + (item.stats.health ?? 0) * .2 + (item.stats.crit ?? 0) * 2 + (item.stats.speed ?? 0) * 2 + rarityRanks[item.rarity] * 2;
+  // 추가옵션(작업 238)의 몫까지 더한다 — 자동 장착·`▲ 업그레이드`·분해 보호가 옵션 가치를 함께 본다.
+  return (item.stats.attack ?? 0) * 3 + (item.stats.defense ?? 0) * 2 + (item.stats.health ?? 0) * .2 + (item.stats.crit ?? 0) * 2 + (item.stats.speed ?? 0) * 2 + rarityRanks[item.rarity] * 2 + extraOptionPower(item);
+}
+
+/**
+ * 이 장비가 **내 캐릭터에게 업그레이드인가**(작업 241, 사용자 확정 A안 `downloads/upgrade_arrow/opt_a.jpg`).
+ *
+ * 가방·공용창고·거래소 카드의 우측 상단 초록 화살표(`▲`) 판정을 이 한 곳에서만 한다. 세 조건을 모두
+ * 만족해야 `true`다.
+ *  ① 장비일 것 — 스킬북·보물 주머니는 장비가 아니므로 늘 `false`.
+ *  ② 내 직업이 입을 수 있는 것 — 타 직업 전용 무기(활·지팡이·대검)는 절대 업그레이드로 치지 않는다
+ *     (`canWield`, [작업 204]). 방어구·장신구는 세 직업 공용이라 늘 통과한다.
+ *  ③ 지금 낀 것보다 셀 것(`itemPower`) — 반지는 두 칸을 함께 보므로 **약한 쪽(또는 빈 칸)**과 견준다.
+ *     빈 반지 칸이 하나라도 있으면 무엇을 껴도 그 칸에 들어가 이득이다. 나머지 부위는 빈 칸이면 `true`,
+ *     같은 부위를 끼고 있으면 그 장비보다 강해야 `true`(같으면 `false` — 바꿔도 나아지지 않는다).
+ */
+export function isUpgradeForHero(save: Save, item: Item): boolean {
+  if (!isEquipment(item)) return false;
+  if (!canWield(item, jobOrDefault(save.job))) return false;
+  if (item.slot === 'ring1' || item.slot === 'ring2') {
+    const worn = [save.equipment.ring1, save.equipment.ring2].filter((ring): ring is EquipmentItem => !!ring && isEquipment(ring));
+    if (worn.length < 2) return true;
+    return itemPower(item) > Math.min(...worn.map(ring => itemPower(ring)));
+  }
+  const current = save.equipment[item.slot];
+  return !current || itemPower(item) > itemPower(current);
 }
 
 export function autoEquipBest(save: Save): number {

@@ -101,14 +101,14 @@ test('마법사 갑옷 10종이 로브 인덱스 0~9로 매핑되고 전사·미
 });
 
 test('로브 시트 경로는 1~9번에만 있고 0번은 기준 시트를 쓴다', () => {
-  assert.equal(robeSheetPath('male', 1, 'idle'), '/assets/pilot-25d/robes/mage_male_robe_1_idle_v1.png');
-  assert.equal(robeSheetPath('female', 9, 'attack'), '/assets/pilot-25d/robes/mage_female_robe_9_attack_v1.png');
+  assert.equal(robeSheetPath('male', 1, 'idle'), '/assets/pilot-25d/robes/mage_male_robe_1_idle_v1.png?v=4');
+  assert.equal(robeSheetPath('female', 9, 'attack'), '/assets/pilot-25d/robes/mage_female_robe_9_attack_v1.png?v=4');
   assert.equal(robeSheetPath('male', 0, 'idle'), undefined, '0번은 스타터 로브 기준 시트');
   assert.equal(robeSheetPath('male', 10, 'idle'), undefined);
   assert.equal(robeSheetPath('male', -1, 'idle'), undefined);
   assert.equal(robeSheetPath('male', 1.5, 'walk'), undefined);
   assert.equal(robeSheetPaths('female', 7).length, 6, '티어당 6장(서기·걷기·공격 × 전신·머리 없음)');
-  assert.equal(robeHeadlessSheetPath('male', 1, 'idle'), '/assets/pilot-25d/robes/headless/mage_male_robe_1_idle_v1.png');
+  assert.equal(robeHeadlessSheetPath('male', 1, 'idle'), '/assets/pilot-25d/robes/headless/mage_male_robe_1_idle_v1.png?v=4');
   assert.equal(robeHeadlessSheetPath('male', 0, 'idle'), undefined, '0번은 기준 시트');
   assert.equal(robeSheetPaths('female', 0).length, 0);
   assert.equal(hasRobeSheet(0), false);
@@ -279,16 +279,16 @@ test('전사 세이브에는 로브를 적용하지 않는다', () => {
 test('장비창 초상화도 착용 로브 시트를 쓴다', () => {
   const save = mageSave('female');
   // [작업 216] 지팡이를 안 찬 빈손이므로 기본 지팡이를 지운 판(nostaff)을 쓴다.
-  assert.equal(equipmentFallbackPortrait(save), '/assets/pilot-25d/mage_nostaff/mage_female_idle_v1.png?v=2');
+  assert.equal(equipmentFallbackPortrait(save), '/assets/pilot-25d/mage_nostaff/mage_female_idle_v1.png?v=4');
   save.equipment.armor = armorItem('가죽 조끼');
-  assert.equal(equipmentFallbackPortrait(save), '/assets/pilot-25d/mage_nostaff/mage_female_idle_v1.png?v=2', '0번은 기준 시트(nostaff)');
+  assert.equal(equipmentFallbackPortrait(save), '/assets/pilot-25d/mage_nostaff/mage_female_idle_v1.png?v=4', '0번은 기준 시트(nostaff)');
   save.equipment.armor = armorItem('사슬 갑옷');
-  assert.equal(equipmentFallbackPortrait(save), '/assets/pilot-25d/robes/mage_female_robe_2_idle_v1.png');
+  assert.equal(equipmentFallbackPortrait(save), '/assets/pilot-25d/robes/mage_female_robe_2_idle_v1.png?v=4');
   const plan = equipmentPortraitPlan(save);
   assert.equal(plan.key, 'mage:female:r2:-:-', `캐시 키에 로브 티어·지팡이·투구: ${plan.key}`);
   assert.equal(plan.base, equipmentFallbackPortrait(save));
   assert(equipmentPortraitPlan(mageSave('male')).key.includes('r-1'), '갑옷이 없으면 r-1');
-  assert.equal(equipmentFallbackPortrait(mageSave('male')), '/assets/pilot-25d/mage_nostaff/mage_male_idle_v1.png?v=2');
+  assert.equal(equipmentFallbackPortrait(mageSave('male')), '/assets/pilot-25d/mage_nostaff/mage_male_idle_v1.png?v=4');
 });
 
 test('로브 시트는 부팅 프리로드에 넣지 않고 티어별로만 받는다', () => {
