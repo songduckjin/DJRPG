@@ -11,6 +11,7 @@
 | 끝없는 던전·서버 리플레이·던전 순위 | `docs/DUNGEON.md` | `src/ui/dungeonBattle.ts`·`dungeonField.ts`·`dungeonLobby.ts`·`src/game/dungeonLive.ts`·`server/dungeon*.mjs` | `dungeon-battle`·`dungeon-verify`·`dungeon-record`·`dungeon-ranking` |
 | 월드 보스·랭킹·전광판·폴링 예산 | `docs/WORLDBOSS_RANKING.md` | `src/game/worldBoss*.ts`·`src/ui/worldBoss*.ts`·`server/world-boss.mjs`·`legendBoard.ts`·`legendBar.ts` | `world-boss-*`·`legend-board` |
 | 여정·데일리 퀘스트·업적·(향후) 출석 | `docs/QUEST_ATTENDANCE.md` | `server/journey-state.mjs`·`journey.mjs`·`src/game/journey.ts`·`ui/modals/utilityModal.ts` | `journey*`·`achievements` |
+| 입문 안내(첫 무기→방어구→첫 스킬) | `docs/TUTORIAL.md` | `src/game/tutorial.ts`·`ui/hud.ts`(안내 띠)·`ui/modals/equipModal.ts`(안내 줄) | `tutorial-skill-gear` |
 | 장비·가방 40칸·추가옵션·분해·강화 | `docs/INVENTORY_GEAR.md` | `src/game/items.ts`·`extraOptions.ts`·`bagCapacity.ts`·`inventory.ts`·`ui/modals/equipModal.ts` | `inventory`·`bag-*`·`item-plus`·`extra-options`·`auto-salvage` |
 | 스킬·스킬북 합성·도감 | `docs/SKILLS_CODEX.md` | `src/game/skills.ts`·`loadout.ts`·`skillSynth.ts`·`codex.ts`·`server/skill-ids.mjs` | `skill-*`·`skillbook-*`·`codex` |
 | 여정(우편·보상) 전용 입구 `/api/journey` — 거래소 잠금과 분리(작업 260) | `docs/MAIL_WAREHOUSE.md` › 전용 입구 | `server/endpoints/journey.mjs`·`server/journey-requests.mjs`(표 `djrpg_journey_requests`)·`server/journey.mjs`·`api/journey.mjs`·`functions/api/journey.js`·`src/game/journey.ts`·`src/game/sync.ts`(`pendingJourney`) | `journey`·`journey-ui`·`journey-endpoint`·`journey-split`·`sync` |

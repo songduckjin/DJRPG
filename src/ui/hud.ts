@@ -1,4 +1,5 @@
-import { isSkillBook, starterWeaponName } from '../game/items';
+import { isSkillBook } from '../game/items';
+import { tutorialGuide } from '../game/tutorial';
 import { EQUIPMENT_BAG_LIMIT, equipmentCount } from '../game/bagCapacity';
 import { hasSkillUpgrade } from '../game/skillProgress';
 import { applySkillArtwork } from './skillArtwork';
@@ -48,8 +49,14 @@ export function renderStatus(this: Interface): void {
     this.get('.hp b').textContent = `HP ${Math.ceil(player.hp)}/${totalStats(save).health}`;
     this.get('.hp').setAttribute('aria-valuenow', String(Math.ceil(player.hp)));
     this.get('.hp').setAttribute('aria-valuemax', String(totalStats(save).health));
-    const tutorial = ['자동 사냥이 시작되었습니다. 첫 해골전사를 처치하세요.', `${starterWeaponName(jobOrDefault(save.job))}을 자동으로 줍고 있습니다.`, `하단 갑옷 아이콘을 눌러 가방의 ${starterWeaponName(jobOrDefault(save.job))}을 장착하세요.`][save.tutorial];
-    this.banner.textContent = tutorial ?? ''; this.banner.hidden = save.tutorial >= 3;
+    // 입문 안내(문구·강조)는 `tutorial.ts` 한 곳이 정한다 — 무기까지는 세이브 단계, 그 뒤로는 지금 상태.
+    const guide = tutorialGuide(save);
+    this.banner.textContent = guide?.message ?? ''; this.banner.hidden = !guide;
+    for (const target of ['equipment', 'skills'] as const) {
+      (this.root as HTMLElement | undefined)?.querySelector<HTMLElement>(`.bottom-nav [data-modal="${target}"]`)?.classList.toggle('tutorial-target', guide?.nav === target);
+    }
+    // 첫 스킬은 필드의 빈 원(`+`)을 눌러 장착한다 — 그 원만 은은하게 숨쉬게 한다.
+    (this.slotButtons ?? []).forEach((button, index) => button.classList.toggle('tutorial-target', guide?.stage === 'skill' && guide.skillSlot === index));
   }
 
 export function tick(this: Interface): void {

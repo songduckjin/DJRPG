@@ -40,6 +40,10 @@
 .exp i { display: block; height: 100%; background: #b5824c; }
 .tutorial { position: absolute; top: calc(env(safe-area-inset-top) + 173px); left: 50%; transform: translateX(-50%); max-width: 83%; min-width: 60%; padding: 8px 12px; text-align: center; font-size: 11px; line-height: 1.5; color: #f4dcb0; background: #20191ae8; border: 1px solid #805b3b; border-radius: 5px; box-shadow: 0 3px 15px #0009; }
 .tutorial[hidden] { display: none; }
+/* 입문 안내가 가리키는 곳(하단 메뉴·빈 스킬 원·장비 칸·가방 칸)만 잠깐 숨쉰다 — 누를 수 있는지는 그대로다. */
+.tutorial-target { animation: tutorial-target 1.6s ease-in-out infinite; }
+@keyframes tutorial-target { 0%, 100% { box-shadow: 0 0 0 1px #f0d8a566, 0 0 6px #f0d8a533; } 50% { box-shadow: 0 0 0 2px #f0d8a5, 0 0 12px #f0d8a599; } }
+@media (prefers-reduced-motion: reduce) { .tutorial-target { animation: none; box-shadow: 0 0 0 2px #f0d8a5; } }
 .controls { position: absolute; left: 0; right: 0; bottom: 12px; height: 135px; pointer-events: none; }
 .action-pad { position: absolute; right: 10px; bottom: 12px; width: 150px; height: 150px; pointer-events: none; }
 .action { pointer-events: auto; position: absolute; width: 50px; height: 50px; border-radius: 50%; border: 2px solid #9a7964; color: #f6e6cf; background: radial-gradient(circle at 35% 25%, #584241, #1d171d 75%); box-shadow: 0 3px 9px #000b, inset 0 0 8px #000; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 0; touch-action: none; }
