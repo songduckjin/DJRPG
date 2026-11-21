@@ -37,9 +37,12 @@ test('서버 클로저는 전투 엔진과 그 의존(경계·보스 드랍)만 
     assert(src.includes(file), `${file}이 서버 클로저에 있어야 한다(던전 리플레이가 이 파일들을 실제로 쓴다)`);
   }
   // 클로저 크기 회귀 가드 — PR-2B 직후 실측 17파일/3,196줄. 크게 늘면 필드 모듈이 다시 새어 들어온 것이다.
+  // 2026-11-22 일괄 배포 뒤 실측 19파일/3,801줄: 밸런스 v2(`battle/formulas.ts`·`combat/engine.ts`)와
+  // 기념 버프(`patchBuff.ts`)가 엔진·던전이 실제로 쓰는 의존이라 늘었다. 파일 수 상한이 누출을 잡는
+  // 진짜 가드이고, 줄 수 상한은 그 위의 완만한 회귀선이다(파일 20개는 그대로).
   const total = src.reduce((sum, file) => sum + lineCount(file), 0);
   assert(src.length <= 20, `서버가 닿는 src 파일이 ${src.length}개다 — 필드 모듈이 다시 들어왔는지 확인하라`);
-  assert(total <= 3600, `서버가 닿는 src 코드가 ${total}줄이다 — 필드 모듈이 다시 들어왔는지 확인하라`);
+  assert(total <= 4000, `서버가 닿는 src 코드가 ${total}줄이다 — 필드 모듈이 다시 들어왔는지 확인하라`);
 });
 
 const { CombatEngine } = await import('../src/game/combat/engine.ts');

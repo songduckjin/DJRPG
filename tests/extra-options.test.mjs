@@ -8,7 +8,8 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import './ts-loader.mjs';
+// 기념 종일 버프(2026-11-22 공·방·체 +30%)를 끈 시각으로 시계를 고정한다 — 밸런스 스냅샷이 흔들리지 않게.
+import './patch-buff-off.mjs';
 import { modalStyles } from './helpers/modal-styles.mjs';
 
 const extra = await import('../src/game/extraOptions.ts');

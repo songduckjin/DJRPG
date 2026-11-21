@@ -18,7 +18,8 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import './ts-loader.mjs';
+// 기념 종일 버프(2026-11-22 공·방·체 +30%)를 끈 시각으로 시계를 고정한다 — 밸런스 스냅샷이 흔들리지 않게.
+import './patch-buff-off.mjs';
 
 const { PARITY_SCENARIOS, recordScenarios } = await import('./progress-parity-scenarios.mjs');
 

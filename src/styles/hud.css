@@ -167,3 +167,23 @@
 .legend-bar-text { display: block; overflow-wrap: anywhere; }
 @keyframes legend-bar-in { from { opacity: 0; transform: translate(-50%, -8px); } to { opacity: 1; transform: translate(-50%, 0); } }
 @media (prefers-reduced-motion: reduce) { .legend-bar { animation: none; } }
+
+/* ── 밸런스·UI 개편 기념 종일 버프 알약(2026-11-22) ───────────────────────────────
+   새벽 2시 배포 직후부터 다음 날 05:00(KST 일일 초기화)까지 공·방·체 +30%가 켜져 있는 동안만 뜬다.
+   왼쪽 위 레벨 배지·닉네임·HP바(12px, 56~92px)·월드보스 아이콘(97px)과 우측 편의 메뉴 열
+   (48px + 여백, `top: safe-area + 64px`)을 모두 피해 `right: 62px`·`top: safe-area + 52px`에 앉힌다 —
+   실화면에서 오른쪽 끝이 톱니 아이콘 위를 덮어 10px → 62px로 밀었다.
+   누르는 일이 없으므로 `pointer-events: none`이고, 기간이 지나면 hud.ts가 요소를 지운다. */
+.patch-buff-pill { position: absolute; z-index: 4; right: 62px; top: calc(env(safe-area-inset-top, 0px) + 52px); display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border: 1px solid #c99a58; border-radius: 999px; background: linear-gradient(#3b2418f0, #1d1317f0); color: #ffe2b0; font: 700 10px/1.35 'Noto Sans KR', sans-serif; letter-spacing: -.2px; white-space: nowrap; pointer-events: none; box-shadow: 0 2px 8px #000a, 0 0 10px #ff9a3c26; animation: patch-buff-breathe 2.6s ease-in-out infinite; }
+.patch-buff-pill .patch-buff-icon { font-size: 11px; line-height: 1; filter: drop-shadow(0 0 3px #ffb35c99); }
+.patch-buff-pill .patch-buff-time { padding-left: 3px; border-left: 1px solid #8a6a4455; color: #f0c88c; font-weight: 600; font-size: 9px; }
+.patch-buff-pill[hidden] { display: none; }
+@keyframes patch-buff-breathe {
+  0%, 100% { box-shadow: 0 2px 8px #000a, 0 0 9px #ff9a3c22; }
+  50% { box-shadow: 0 2px 8px #000a, 0 0 15px #ffb35c66; }
+}
+@media (prefers-reduced-motion: reduce) { .patch-buff-pill { animation: none; } }
+@media (max-width: 360px) { .patch-buff-pill { top: calc(env(safe-area-inset-top, 0px) + 50px); font-size: 9px; padding: 2px 6px; } .patch-buff-pill .patch-buff-time { display: none; } }
+/* 내 정보(장비창) — 스탯 아래 한 줄. 숫자가 30% 높은 이유를 알려 준다. */
+.equipment-info-buff { margin-top: 4px; padding: 3px 8px; border: 1px solid #8d6a4288; border-radius: 6px; background: #2a1d1666; color: #ffdca6; font-size: 10px; font-weight: 700; text-align: center; }
+.equipment-info-buff span { color: #c9a97e; font-weight: 600; }

@@ -31,6 +31,7 @@
 - **드롭률은 전 층 고정**(작업 254): 접속 일반 0.39% · 보스 4%, 방치 일반 0.30% · 보스 4%. 등급 컷만 층에 따라 오른다(`rollItem`).
 - **방치 정산**: 최대 12시간(`elapsedSince`), 아래층에서는 보스 몫 없이 진행도만 돈다. 자동 등반이 켜져 있고 최고 층이면 목표 처치마다 보스전을 정산해 이기면 층을 올린다(작업 235). 방치도 `autoSalvageRecovered`를 지나 분해분은 가방 대신 금화·강화석이 된다(작업 254).
 - **저장**: `world`의 휘발 상태(`enemies`·`effects`·`drops`)는 저장되지 않는다. `save`를 바꾸면 `world.onChange` → `Interface.onSave` → `sync.queueSave()` 한 경로만 쓴다.
+- **기념 종일 버프(2026-11-22)**: 공격력·방어력·최대 체력 **+30%**가 `2026-11-22 02:00 ~ 2026-11-23 05:00 KST`에 켜진다. 기간·배율의 단일 기준은 `src/game/patchBuff.ts`(`isPatchBuffActive`·`applyPatchBuff`)이고, 곱하는 자리는 `src/game/items.ts`의 `totalStats` 한 곳이다 — 필드·던전·방치·월드보스 리플레이·HUD·장비창 숫자가 모두 이 함수를 지나므로 `save`에 버프 값을 저장하지 않는다. 기간이 지나면 배율이 1로 돌아오고 HUD 알약(`.patch-buff-pill`, `src/ui/hud.ts` `renderPatchBuff`)은 스스로 사라진다. 종료 순간 `CombatEngine.tickStart`가 지금 체력을 새 최대치로 한 번만 자른다. 남은 시간 문구·알약·장비창 한 줄은 `patchBuffPillMarkup`·`patchBuffSummaryMarkup`이 만든다.
 
 ## 층별 권장 전투력 — 「층 선택」 창
 
@@ -48,7 +49,7 @@
 
 ## 테스트
 
-`node --test tests/world-movement.test.mjs tests/arena.test.mjs tests/field-spawn.test.mjs tests/field-loot.test.mjs tests/elite-mob.test.mjs tests/offline.test.mjs tests/offline-climb.test.mjs tests/offline-auto-salvage.test.mjs tests/floor-cap.test.mjs tests/boss-loot.test.mjs tests/floor-power-modal.test.mjs`
+`node --test tests/world-movement.test.mjs tests/arena.test.mjs tests/field-spawn.test.mjs tests/field-loot.test.mjs tests/elite-mob.test.mjs tests/offline.test.mjs tests/offline-climb.test.mjs tests/offline-auto-salvage.test.mjs tests/floor-cap.test.mjs tests/boss-loot.test.mjs tests/floor-power-modal.test.mjs tests/patch-rewards-and-buff.test.mjs`
 
 ## 관련 매뉴얼
 

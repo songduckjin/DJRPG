@@ -1,3 +1,5 @@
+// 2026-11-22 기념 우편(꾸러미 5개)이 지급되지 않는 시각으로 고정한다 — 우편함 개수 단정이 흔들리지 않게.
+import './frozen-clock.mjs';
 import {test,before,after} from 'node:test';
 import assert from 'node:assert/strict';
 import {mkdtemp,rm} from 'node:fs/promises';

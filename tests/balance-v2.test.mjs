@@ -25,6 +25,10 @@ const dungeon = await import('../src/game/dungeon/battle.ts');
 const serverSeed = await import('../server/save-seed.mjs');
 const { itemWithinBounds } = await import('../server/save-guard.mjs');
 const { World } = await import('../src/game/world.ts');
+// 밸런스 수치는 **기념 버프(2026-11-22 종일 공·방·체 +30%) 밖**의 값이다 — `patchBuff.ts`가 안내하는
+// 대로 스냅샷 테스트는 시계를 버프 기간 밖에 묶는다. 버프 자체는 `tests/patch-rewards-and-buff.test.mjs`가 본다.
+const patchBuff = await import('../src/game/patchBuff.ts');
+patchBuff.setPatchBuffClock(() => patchBuff.PATCH_BUFF_START - 1);
 const { skills, skillOrderFor, passiveOrderFor, skillDamageScale } = await import('../src/game/skills.ts');
 
 const { slots, baseItems, gearStats, applyPlus, maxPlusFor, totalStats, statNames, rarityScales, tierFactor, slotProfileFor } = items;

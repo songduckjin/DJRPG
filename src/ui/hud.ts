@@ -11,6 +11,7 @@ import { availableSkills } from '../game/loadout';
 import { cooldowns, type Action } from '../game/world';
 import { skills, type Job, type SkillId } from '../game/skills';
 import { jobNames, jobOrDefault } from '../game/skills';
+import { PATCH_BUFF_PILL_TEXT, isPatchBuffActive, patchBuffRemainingText, patchBuffTitle, patchBuffPillMarkup } from '../game/patchBuff';
 import type { Interface } from './interface';
 
 const shortNames: Record<SkillId, string> = {
@@ -23,6 +24,7 @@ export function basicAttackName(job: Job): string { return job === 'archer' ? '�
 
 export function renderStatus(this: Interface): void {
     const { save, player } = this.world;
+    renderPatchBuff.call(this);
     const progress = save.level >= MAX_LEVEL ? 100 : Math.min(100, Math.max(0, save.exp / expToNext(save.level) * 100));
     // 최고 도달 층에서 패배한 뒤 `⚔ 보스 도전`이 살아난다(작업 210).
     // 작업 212(`#4995`): 버튼을 **현재 층 배지 바로 옆**에 붙인다(`.status-floor`).
@@ -100,11 +102,34 @@ export function tick(this: Interface): void {
     const alert = this.root.querySelector<HTMLElement>('.skill-nav-dot');
     if (alert) alert.hidden = !((available.length && this.world.save.quickSlots.some(slot => slot === null)) || hasSkillUpgrade(this.world.save));
     const { player, save } = this.world;
+    renderPatchBuff.call(this);
     this.get('.hp').style.setProperty('--fill', `${Math.max(0, player.hp / totalStats(save).health * 100)}%`);
     this.get('.hp b').textContent = `HP ${Math.ceil(player.hp)}/${totalStats(save).health}`;
     this.get('.hp').setAttribute('aria-valuenow', String(Math.ceil(player.hp)));
     this.get('.hp').setAttribute('aria-valuemax', String(totalStats(save).health));
   }
+
+/**
+ * 밸런스·UI 개편 기념 종일 버프 알약(2026-11-22) — 켜져 있는 동안만 오른쪽 위에 작게 뜬다.
+ *
+ * 누르는 일이 없어 `pointer-events: none`이고, 왼쪽 위 레벨 배지·닉네임·HP바(왼쪽 12px, 56~92px)와
+ * 왼쪽 97px부터 서는 월드보스 아이콘을 비켜 **오른쪽**에 앉힌다. 남은 시간은 `title`과 알약 안
+ * 글자에 함께 있고, 30초에 한 번만 다시 쓴다(매 프레임 DOM을 건드리지 않게). 기간이 지나면 요소를 지우므로
+ * `renderStatus`가 다시 돌지 않아도 스스로 사라진다.
+ */
+export function renderPatchBuff(this: Interface, now = Date.now()): void {
+    const battle = this.root?.querySelector?.<HTMLElement>('.battle');
+    // 테스트는 `renderStatus`만 돌리려고 최소 스텁 DOM을 넘긴다 — 그럴 때는 조용히 지나간다.
+    if (!battle || typeof battle.insertAdjacentHTML !== 'function' || typeof battle.querySelector !== 'function') return;
+    const pill = battle.querySelector<HTMLElement>('.patch-buff-pill');
+    if (!isPatchBuffActive(now)) { pill?.remove(); return; }
+    if (!pill) { battle.insertAdjacentHTML('beforeend', patchBuffPillMarkup(now)); return; }
+    // 알약을 그린 직후에는 아직 남은 시간이 맞다 — 시각이 바뀐 뒤에만 다시 쓴다.
+    if (now - Number(pill.dataset.at ?? 0) < 30_000) return;
+    const title = patchBuffTitle(now), remaining = patchBuffRemainingText(now);
+    pill.dataset.at = String(now); pill.title = title; pill.setAttribute('aria-label', `${PATCH_BUFF_PILL_TEXT} · ${remaining} 남음`);
+    const time = pill.querySelector<HTMLElement>('.patch-buff-time'); if (time) time.textContent = remaining;
+}
 
 export function renderBagBadge(this: Interface): void {
     const count = this.world.save.bag.filter(item => !isSkillBook(item) && this.newItems.has(item.id)).length;

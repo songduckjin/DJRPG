@@ -22,6 +22,7 @@ import type { Action, ArrowVariant, Coin, Drop, Effect, Enemy, HeroAfterimage } 
 import { CRIT_CHANCE_CAP, CRIT_DAMAGE_SCALE, ENEMY_ATTACK_RANGE, ENEMY_STOP_RANGE, ENEMY_STRIKE_SECONDS, WARRIOR_ATTACK_RANGE, archerAttackRange, archerStopRange, attackInterval, basicAttackPower, berserkAttackScale, berserkSpeedScale, enemyHitDamage, enemyMoveSpeed, mageAttackRange, mageStopRange, swarmCount } from '../battle/formulas';
 import { aimPoint as aimPointTo, fireBoltSpots, nearestEnemy, targetsInArc } from '../battle/targeting';
 import { recordPlaySeconds } from '../progress';
+import { isPatchBuffActive } from '../patchBuff';
 import { clampArenaPoint, clampFieldPoint } from './bounds';
 
 /** 딜레이 크러싱 10연타(작업 212) — 붉은보석1식으로, 한 번에 한 타가 아니라 짧은 간격으로 10번 따로 판정한다. */
@@ -88,6 +89,8 @@ export class CombatEngine {
   /** 무기 미장착 안내를 다시 띄우기까지 남은 시간(작업 216). 자동 사냥이 매 프레임
    *  `action()`을 불러도 토스트가 도배되지 않게 한다. */
   weaponNotice = 0;
+  /** 지난 프레임에 기념 버프가 켜져 있었는가 — 꺼지는 순간에만 지금 체력을 새 상한에 맞춘다. */
+  private patchBuffActive = isPatchBuffActive();
   activeMove = { x: 0, y: 0 };
   protected swing = 1;
   protected chaseTarget?: Enemy;
@@ -410,6 +413,15 @@ export class CombatEngine {
     // 플레이 시간 누적 규칙은 `progress.ts`가 갖는다(PR-3).
     recordPlaySeconds(this.save, dt);
     const p = this.player;
+    // 기념 버프(2026-11-22 종일 공·방·체 +30%)가 **끝나는 순간에만** 최대 체력이 30% 줄어든다 —
+    // 사냥 도중에 기간이 지나도 지금 체력이 새 상한을 넘지 않게 여기서 한 번 맞춘다.
+    // (매 프레임 `min`으로 자르면 체력이 상한을 넘은 예전 세이브·테스트 값을 건드린다.)
+    const patchBuff = isPatchBuffActive();
+    if (this.patchBuffActive && !patchBuff) {
+      const maxHp = totalStats(this.save).health;
+      if (p.hp > maxHp) p.hp = maxHp;
+    }
+    this.patchBuffActive = patchBuff;
     for (const kind of Object.keys(this.cooldown) as Action[]) this.cooldown[kind] = Math.max(0, this.cooldown[kind] - dt);
     this.attackPose = Math.max(0, this.attackPose - dt);
     this.weaponNotice = Math.max(0, this.weaponNotice - dt);

@@ -1,7 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import './ts-loader.mjs';
+// 기념 종일 버프(2026-11-22 공·방·체 +30%)를 끈 시각으로 시계를 고정한다 — 밸런스 스냅샷이 흔들리지 않게.
+import './patch-buff-off.mjs';
 
 // 작업 233 — 내 캐릭터 머리 위 초록 체력바. 값·좌표는 `src/game/render/heroHpBar.ts` 한 곳이 기준이고,
 // 몹 머리 위 빨간 바(`drawEntities` 의 `effects`)와 달리 해상도·효과 설정에 흔들리지 않는 전용 레이어에 그린다.

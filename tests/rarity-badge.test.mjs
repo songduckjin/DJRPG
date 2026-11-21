@@ -180,7 +180,8 @@ test('장착 칸·공용창고·거래소 카드가 같은 헬퍼로 등급 배�
   assert.match(equipSource, /<small class="slot-part">\$\{slotLabel\}<\/small>\$\{item \? plusBadgeMarkup\(item\) : ''\}\$\{rarityBadgeMarkup\(item\)\}/);
   // 가방 칸 — 아이콘 + 화살표 + `+N` + 등급 배지.
   assert.match(equipSource, /const rarity = rarityBadgeMarkup\(item\);/);
-  assert.match(equipSource, /cell\.innerHTML = itemIcon\.call\(this, item\.slot, item, 'item-icon'\) \+ upgrade \+ plus \+ rarity;/);
+  // (다운그레이드 화살표는 #312가 같은 줄에 더했다 — 순서는 초록·빨강·`+N`·등급.)
+  assert.match(equipSource, /cell\.innerHTML = itemIcon\.call\(this, item\.slot, item, 'item-icon'\) \+ upgrade \+ downgrade \+ plus \+ rarity;/);
   assert.match(equipSource, /jobBadge\.textContent = jobShortNames\[owner\];/);
   // 공용창고 칸.
   assert.match(warehouseSource, /import \{ appendRarityBadge \} from '\.\.\/rarityBadge'/);

@@ -19,7 +19,8 @@
 - **만료**: `expiresAt`이 지나면 목록에 `expired:true`로만 보이고 수령할 수 없다. `null`은 무기한.
 - **수령은 원자적**: `journey-claim`(kind `mail`)이 지급 + 수령 기록을 한 번에 저장하고, 두 번째 요청은 `409 NOT_AVAILABLE`. 가방 40칸 초과면 `BAG_FULL`로 막고 수령 기록을 남기지 않는다.
 - **지급 이력은 `state.notices`**: 우편함만 보고 판단하면 수령·삭제 뒤 같은 우편이 다시 붙는다. 계정당 1회 우편은 반드시 `notices`와 함께 본다.
-- **운영 우편 문구·보상은 서버 상수**: `UPDATE_NOTICE_*`·`APOLOGY_MAIL_*`·다이아 4,000 지급 등은 `journey-state.mjs`의 상수 한 곳에서 고친다. 운영 호스트에만 지급하고 미리보기·테스트 지급은 넣지 않는다.
+- **운영 우편 문구·보상은 서버 상수**: `UPDATE_NOTICE_*`·`APOLOGY_MAIL_*`·`PATCH_REWARD_*`·다이아 4,000 지급 등은 `journey-state.mjs`의 상수 한 곳에서 고친다. 운영 호스트에만 지급하고 미리보기·테스트 지급은 넣지 않는다.
+- **기간이 있는 지급**: `PATCH_REWARD_ID`(`patch-balance-v2-20261122`, 밸런스·UI 개편 감사 보상 — 보물 주머니 5개)는 `PATCH_REWARD_FROM`(2026-11-22 02:00 KST)~`PATCH_REWARD_UNTIL`(2026-11-23 05:00 KST) 사이에 처음 들어온 계정에만 붙고, 수령 만료는 지급일부터 7일(`PATCH_REWARD_DAYS`)이다. 그 구간이 지난 뒤에 만든 계정은 받지 않는다 — 테스트가 우편함 개수를 셀 때는 `tests/frozen-clock.mjs`로 시각을 지급 전에 묶는다.
 
 ## 공용창고 규칙
 
