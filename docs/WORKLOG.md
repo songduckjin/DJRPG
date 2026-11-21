@@ -1,3 +1,13 @@
+## 2026-11-21 · songduckjin 작업 265 — 레벨 배지 아래 닉네임을 `🏷️ 다크 이름판`(`전사 │ 모험가` 한 줄)으로 (PR #304)
+
+- **사용자 선택**: 닉네임 시안 2종 중 **옵션 2 `다크 이름판`**(반투명 다크 필 + 금빛 액센트 라인, `downloads/nickname_preview/opt2_nameplate_pill.png`).
+- **직업 태그**(`src/ui/hud.ts`): `renderStatus`가 `heroName.dataset.job = jobNames[jobOrDefault(save.job)]`로 `전사`·`궁수`·`마법사`를 넘기고 `aria-label="캐릭터 닉네임 · 전사 모험가"`도 채운다. 태그 문구는 HTML이 아니라 CSS `::before`가 `attr(data-job)`으로 그리므로 닉네임은 계속 `textContent`만 쓴다 — 직업을 바꾸면 다음 렌더에서 태그가 바로 바뀐다.
+- **이름판**(`src/styles/hud.css` `.hero-name`): 반투명 다크 필 `#120c12ad`(68%) + `1px solid #d6af7288` + 위쪽 `inset 0 1.5px 0 #f6d28e55`, 닉네임 `700 13px/15.6px` `#fff0d2`, `height: 17.6px`·`max-width: 140px`·`text-overflow: ellipsis` 유지. `::before`는 `7.6px` `#eec57a` 태그 + `height: 10px` 인라인 블록의 `border-right: 1px #d6af7280` 구분선(필 높이에 닿지 않게).
+- **자리**: `left: 12px`·`top: 56px` 그대로 — 레벨 배지 원(5~54px) 바깥 아래에서 오른쪽으로만 늘어나고, HP 바(77px)와 **3.4px** 여유, `pointer-events: none`이라 배지 클릭을 막지 않는다.
+- **검증**: `npx tsc --noEmit`·`NODE_OPTIONS=--max-old-space-size=1400 npx vite build`(825.93kB) 통과. 신규 `tests/hud-nameplate.test.mjs` **4/4**(직업 태그가 전사→궁수→마법사로 바뀜·알 수 없는 직업은 전사, `data-job`만 사용·특수문자 닉네임 유지, CSS 계약, 배지·HP 바 사이 3px 이상 여유), `tests/floor-return.test.mjs` 가짜 DOM 헬퍼에 `dataset` 추가(실제 span에 늘 있는 속성). 전체 **1,359건 중 1,307 통과** — `origin/main`(636208e) 기준선 1,355건/1,302 통과/실패 53과 비교해 **신규 실패 0**.
+- **미리보기**: [PR #304](https://github.com/songduckjin/DJRPG/pull/304) Cloudflare Pages **SUCCESS**, `https://6e10334e.djrpg.pages.dev`(`version.json` `b93900a642bb`), 배포 CSS `assets/index-Cf956m1E.css`에 새 규칙 실측. 게스트 실화면: 전사 `모험가` 이름판 **73.3×17.6px**(시안과 같은 폭), 새 캐릭터 `궁수`·`어둡의기사단장`으로 갈아타 태그가 `궁수`로 바뀌고 **120.3×17.6px**·잘림 없음. `140px` 상한 때문에 **8자까지 온전, 9자부터 줄임표**(시안 주석의 "10자까지"보다 짧다 — 늘리려면 `max-width`를 165px쯤으로). 스크린샷 `downloads/djrpg_265/hero_nameplate_preview.png`·`hero_nameplate_long_preview.png`.
+- **머지·배포 보류**: 사용자 지시(변경사항 모아서 배포).
+
 ## 2026-11-21 · songduckjin 작업 261 **핫픽스** — 궁수 호크아이 빛/바람 오브젝트 잔존 (PR #300)
 
 - **증상(운영)**: #299 일괄 배포 뒤 사용자 신고 "궁수한테 빛이 계속 따라다여" → "호쿠아이도 빛나게 하는건 아니야". 궁수에게 호크아이 바람·빛 오브젝트가 화면에 쌓여 영원히 남았다.
