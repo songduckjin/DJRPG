@@ -169,7 +169,9 @@ export function renderCharacters(ui: Interface, dialog: HTMLElement): void {
     grid.addEventListener('touchend', event => { const dx = event.changedTouches[0].clientX - startX; if (Math.abs(dx) > 50) { ui.characterPage = Math.max(0, Math.min(totalPages - 1, ui.characterPage + (dx < 0 ? 1 : -1))); ui.renderModal(); } }, { passive: true });
     dialog.append(pages);
   }
-  if (list.maxSlots < 9) {
+  // 캐릭터 슬롯은 최대 8칸(`server/endpoints/shop.mjs` `maxSlots`). 8칸이면 추가 버튼을 숨긴다.
+  // 이미 9칸을 산 계정은 슬롯 9까지 그대로 보여 준다(총 3쪽).
+  if (list.maxSlots < 8) {
     const addSlot = button('＋ 슬롯 추가 · 500', () => { ui.shopTab = 'packages'; ui.open('shop'); });
     // 작업 261: `◆ 500` → 다이아 그림 + 500. 버튼 이름은 그림의 alt에 기대지 않고 한 문장으로 붙인다.
     addSlot.innerHTML = `＋ 슬롯 추가 · ${diamondMarkup(500)}`;

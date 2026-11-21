@@ -20,7 +20,7 @@
 - **단일 세션**: 로그인·가입·게스트 성공마다 `assignSession`이 `session_id`를 새 `sid`로 덮는다. 다른 기기 토큰은 모든 엔드포인트에서 `401 SESSION_REPLACED`. `session_id`는 클라이언트에 내려보내지 않는다.
 - **토큰**: HMAC(`TURSO_AUTH_TOKEN` 서명 키) `{id,sid,exp}`. 클라 저장은 `localStorage djrpg.auth.token` 하나뿐. 모든 요청에 `Authorization` + `X-App-Version`.
 - **가입 흐름**: 가입은 아이디·비밀번호만 → `needsCharacter:true` → 로그인 화면 안 `characterStep`(닉네임·직업·성별) → `createCharacter` → 세션 갱신. 자리표시자 세이브에 `save`를 보내면 `409 CHARACTER_REQUIRED`. 게스트는 1번 캐릭터를 바로 만든다.
-- **슬롯**: 기본 3, 구매로 최대 9(`SLOT_LOCKED`). 캐릭터 삭제는 현재 캐릭터 제외·이름 확인 뒤 소유권을 `consumed`로 전환한다. 삭제 확인은 **게임 모달**(iOS 시스템 `prompt`/`confirm` 금지).
+- **슬롯**: 기본 3, 구매로 최대 8(`SLOT_LOCKED`). 판매 상한은 `server/endpoints/shop.mjs` `maxSlots=8`이고, 이미 9칸을 산 계정의 기존 캐릭터는 그대로 둔다(`account.mjs`의 절대 상한 9는 유지 — 슬롯 9 선택·삭제가 계속 된다). 캐릭터 삭제는 현재 캐릭터 제외·이름 확인 뒤 소유권을 `consumed`로 전환한다. 삭제 확인은 **게임 모달**(iOS 시스템 `prompt`/`confirm` 금지).
 - **성별·직업 변경 없음**: 캐릭터 생성 뒤 성별·직업은 바꾸지 않는다(계정 화면은 읽기 전용).
 - **탈퇴**: 세션 + 비밀번호 재확인 + 아이디 확인. `djrpg_accounts` 행을 맨 마지막에 지워 같은 아이디로 즉시 재가입할 수 있게 한다. 판매 중 매물이 있으면 `MARKET_PENDING`으로 막는다.
 - **시즌 초기화는 운영 호스트에서만**: `seasonArmed`가 `djrpg.pages.dev`(또는 `DJRPG_PRODUCTION_HOSTS`)일 때만 돈다. **미리보기 호스트에서 돌리면 같은 Turso DB의 운영 진행이 지워진다.**
