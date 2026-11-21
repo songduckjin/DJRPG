@@ -1,7 +1,9 @@
 # DJRPG 캐릭터 외형·코스튬 시스템 정의
 
+> **책임 경계**: 렌더·파츠·코스튬·발광·아틀라스의 단일 기준(이 문서). 3D 생성은 `docs/BLENDER_25D_PIPELINE.md`, 아이템·장비 규칙은 `docs/INVENTORY_GEAR.md`, 필드 전투는 `docs/FIELD_OFFLINE.md`.
+
 > 단일 기준 문서(Source of Truth). 프로토타입 전 설계 기준이며, 구현 상세는 실물 검증 후 추가한다.
-> 빠른 작업 경로: AGENTS.md → docs/QUICK_PATCH.md → docs/CODE_MAP.md → 이 문서 → docs/TASK_songduckjin.md 작업 139~149.
+> 빠른 작업 경로: AGENTS.md → docs/QUICK_PATCH.md → docs/CODE_MAP.md → 이 문서 → `docs/archive/2026-11/TASK_songduckjin-history.md`(작업 139~149).
 
 **문서 버전: v2.3 (2026-11-19, 작업 149).** 코스튬 레이어 기본 규약은 갑옷·투구·무기 **3부위**이며(§7.9·§7.10), 현재 전사 필드·장비창은 사용자가 승인한 작업 149 전신 시안을 우선 표시한다. 장착 슬롯·능력치·Save는 그대로지만 외형은 남녀 고정 갑옷·대검 그림이며, 코스튬 매니페스트/무기 소켓 레이어를 그리지 않는다. 작업 145의 추가 실기 검수는 대체되었고 기존 v3/v4/v5 구현·에셋은 보존한다.
 
@@ -81,7 +83,7 @@
 | `crushing` | 딜레이 크러싱 | `smash` | 내려찍기 | 적 하나를 빠르게 10번 내려치는 연타(작업 212) |
 | `slam` | 와일드 스탬프 | `smash` | 내려찍기 | 지면 강타·균열 |
 | `warcry` | 블러드 레이지 | `cast` | 발동 자세 | 6초 버프 발동 |
-| `hell` | 헬 파이어 소드 | `cast` | 발동 자세 | 대검 폭발 발동 |
+| `hell` | 회전참격 | `spin` | 발동 자세 | 혈풍 회오리 360° 회전 |
 
 스킬을 추가할 때는 `skills.ts`에 ID를 넣는 것과 동시에 `skillMotionTemplates`에 템플릿을 지정하고 이 표를 갱신한다. 4종으로 표현되지 않는 동작이 실측으로 확인될 때만 템플릿을 늘린다.
 
@@ -337,3 +339,11 @@ v2는 갑옷을 입어도 `body`의 `arms`·`legs` 파츠를 그대로 그렸다
 - **1차 보정(이력)**: 같은 날 `{ x: -3, y: 68, scaleX: 1.35, scaleY: 1.35 }`로 먼저 넣었다. 손잡이는 `-94px`까지 내려왔지만 검 끝이 `-208px`로 머리 상단 `-193px`보다 15px 위에 남아 제보가 반복됐다. 위 값이 이를 대체한다.
 - **적용 범위**: `definition.slot === 'weapon'`에만 적용하며 매니페스트가 `fit`을 지정하면 그 값이 우선한다(갑옷·투구는 종전대로 `fit` 또는 보정 없음). 공격 계열 셀은 투명이고 검은 공격 시트에 내장돼 있으므로 이 보정은 idle·walk에만 보인다. v3 아틀라스 PNG·매니페스트·`COSTUME_ASSET_VERSION`·Save/API는 바꾸지 않는다.
 - **검증**: 아틀라스 셀 실측(정지 프레임 무기 bbox 남 `y -206..-101`·여 `-191..-86`, 본체 상단 `-193`)으로 손잡이·검끝 좌표를 계산해 확인했고, `tests/costume-field-render.test.mjs`에 1.45배·`{-8, 110}`·성별별 손잡이 높이(남 `-64px`·여 `-43px`)와 검 끝이 머리 상단 아래에 남는지 계산 단언, 매니페스트 `fit` 우선 검사를 넣었다. 화면 검수는 사용자 몫이다(이미지 열람 제한).
+
+## 7.11 등급 발광 마스크 (작업 218 → 231 → 247 → 256)
+
+- **필드**: `src/game/render/gearGlow.ts`가 등급색·파동·겹 표를 갖고, `entities.ts` `syncGearGlow(view, key, source, rarity, time, options)`가 그린다.
+- **투구는 파츠만 발광**(작업 256): 파츠와 같은 파일명·같은 크기의 알파 마스크 PNG를 `public/assets/pilot-25d/helmets_glow/**`·`archer_helms_glow/**`에 두고(생성기 `scripts/build-helm-glow-masks.py`, 113장), `options.mask`로 넘긴다. 마스크가 아직 로딩 전이면 그 프레임 발광을 숨긴다 — 마스크 없이 그리면 얼굴·목까지 등급색이 된다.
+- **갑옷·로브도 파츠만**(작업 257): `armors_glow/**`·`archer_armors_glow/**`·`robes_glow/**`의 알파 마스크(`armorGlowMasks.ts` `armorGlowSheetFor`·`GameView.armorGlowFrame`)를 `options.mask`로 넘겨 맨팔·부츠·무기·후광은 빛나지 않는다. 마스크가 로딩 전이면 그 프레임 발광을 숨긴다.
+- 남은 `options.neckY`(목 밑동) 경로는 **마스크가 없는 예전 자산**을 위한 폴백이다 — 새 자산은 마스크를 쓴다.
+- **장착 화면(내 정보)**은 필드와 별개로 `mageHelmGlowMaskCanvas`(캔버스, 성별당 1장)를 `destination-in`으로 쓴다. 런타임 캔버스 마스크를 필드에 다시 넣지 않는다.

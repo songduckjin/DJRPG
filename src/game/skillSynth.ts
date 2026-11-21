@@ -2,6 +2,7 @@ import { isSkillBook, rollSkillBookFor, skillBookJob, type SkillBook } from './i
 import { jobNames, jobOrDefault } from './skills';
 import { random } from './rng';
 import type { Save } from './store';
+import { addItemToBag } from './rewardGrant';
 
 /**
  * 타직업 스킬북 5권 → 내 직업 랜덤 스킬북 1권 (작업 251, 사용자 확정).
@@ -54,7 +55,7 @@ function applySynth(save: Save, chosen: SkillBook[], crafts: number, draw: () =>
   const books: SkillBook[] = [];
   for (let round = 0; round < crafts; round++) {
     const book = rollSkillBookFor(jobOrDefault(save.job), draw);
-    books.push(book); save.bag.push(book);
+    books.push(book); addItemToBag(save, book, 'craft');
   }
   return { ok: true, consumed: chosen, books };
 }
