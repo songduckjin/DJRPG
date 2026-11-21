@@ -1,3 +1,14 @@
+## 2026-11-22 · songduckjin **새벽 일괄 배포(작업 265~275)** — #304·#305·#306·#307·#308·#309·#310·#311·#312·#313·#314 + 후속 #317
+
+- **절차**: `public/maintenance.json` 점검 ON(PR #315, `02:03` 예상 완료 `02:40`) → 기능 PR 11건 순차 squash 병합 → 전수 검증·운영 스모크 → 점검 OFF(PR #316). 배포 `version.json` **`b64c45430724`**(02:30), 최종 **`16c586d4af59`**(02:43, 후속 #317).
+- **병합 순서**: #304 이름판 → #306 슬롯 8칸 → #305 등급 배지 → #307 밸런스 v2 → #308 층 선택 → #309 튜토리얼(base `feat/balance-v2-impl` → `main` 전환 후 병합) → #310 도감 135 → #311 스킬 창 B → #312 빨간 화살표·정렬·여정 → #313 HUD 묶음 → #314 기념 보상.
+- **충돌 정리(코드)**: `src/ui/modals/equipModal.ts`(가방 칸 innerHTML = 아이콘+초록+**빨강**+`+N`+등급 배지, 장착 칸 등급 배지 유지, 튜토리얼 대상 강조 유지) · `src/ui/modals/warehouseModal.ts`(다운그레이드 화살표 + 등급 배지) · `src/styles/modals/skill.css`(스킬북 `×N`은 직업 배지가 오른쪽 아래로 비킨 뒤라 **오른쪽 위** 유지) · `src/game/items.ts`(`totalStats` = 밸런스 v2 스탯·쿨감·% 방어 + 기념 버프 한 곳) · `src/ui/hud.ts`(닉네임판 + 버프 알약) · `src/game/power.ts`·`src/game/floorPower.ts`(전투력 식 한 곳 — `floorPower`는 `power.ts`를 재수출).
+- **문서 충돌**: `docs/TASK.md`·`docs/WORKLOG.md`는 양쪽 유지(union), 재구성된 `docs/CODE_MAP.md`·`docs/QUICK_PATCH.md`는 main 구조 유지. `[작업 미정]` 행 9개에 **266~274** 번호를 붙였다(265는 #304·#307).
+- **검증**: `npx tsc --noEmit` 통과, `vite build` 통과, 전체 `node --test tests/*.test.mjs` **1,464/1,464 통과**(자산 포함 체크아웃 기준 — sparse 체크아웃에서는 `public/assets/**` ENOENT 54건이 기존 실패). 병합 중 고친 테스트 기대값: 기념 버프 밖 시계(Lv1 체력 140·전투력 68), 다운그레이드 화살표·닉네임판 `dataset` 스텁, 서버 클로저 줄 상한 3,600 → **4,000**(파일 20개 상한은 그대로 — 밸런스 v2 `battle/formulas.ts`·`patchBuff.ts`가 엔진의 실제 의존).
+- **운영 스모크**: 게스트 로그인 200 → 여정 목록에 기념 우편 `밸런스·UI 개편 감사 보상`(꾸러미 **5개**, 만료 7일) → 진행 저장 200 → 창고 보관/회수 200 → 계정 삭제 200·재접속 401. 게스트는 `journey-read`가 `403 GUEST_READ_ONLY`라 수령 자체는 정식 계정 전용(설계대로) — 가방 반영은 `tests/patch-rewards-and-buff.test.mjs`가 고정.
+- **실브라우저**: HUD `🔥 패치 버프 공·방·체 +30% · 26시간 xx분`, 이름판 `전사 │ 모험가`, `⚔ 전투력 150`, 층 선택 아코디언(1~10층·권장 68~308·여유/적정/위험), 우편함 기념 우편, 상세 스탯 11칸(`피해 감소 7.4% · 3층 기준`·`스킬 쿨타임 감소`). 스크린샷 `downloads/djrpg-20261122-open-*.png`·`-mail-patch-reward-*.png`·`-equipment-*.png`·`-floor-accordion-*.png`·`-stats-cdr-dr-*.png`.
+- **후속(275)**: #313 `statSheet.ts`가 예고한 밸런스 v2 정합 — 방어력 설명을 `damageReduction`(층별 %)으로, `스킬 쿨타임 감소` 줄 추가(PR #317, 점검 없이 배포).
+
 ## 2026-11-21 · songduckjin 작업 265 — 레벨 배지 아래 닉네임을 `🏷️ 다크 이름판`(`전사 │ 모험가` 한 줄)으로 (PR #304)
 
 - **사용자 선택**: 닉네임 시안 2종 중 **옵션 2 `다크 이름판`**(반투명 다크 필 + 금빛 액센트 라인, `downloads/nickname_preview/opt2_nameplate_pill.png`).
