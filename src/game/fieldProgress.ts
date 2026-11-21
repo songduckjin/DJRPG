@@ -16,6 +16,7 @@
 
 import { canStoreItem } from './bagCapacity';
 import { emitDomainEvent } from '../core/domainEvents';
+import { addItemToBag } from './rewardGrant';
 import { bossGoldPiles, bossGoldSpot } from './bossLoot';
 import { rollItem, totalStats, type Item, type Rarity, type Save } from './store';
 import { afterBossLose, afterBossWin, afterFloorClear, applyKillReward, defeatPenalty, killsToBoss, MAX_FLOOR, recordBossLoss } from './progress';
@@ -143,8 +144,10 @@ export class FieldProgress extends CombatEngine {
     if (!Number.isInteger(floor) || floor < 1 || floor > highest) return { ok: false, message: `이동할 수 없는 층입니다. 현재 최고 도달 층은 ${highest}층입니다.` };
     if (floor === this.save.floor) return { ok: true, message: `이미 ${floor}층에서 사냥 중입니다.` };
     const lostDrops = this.drops.length;
+    const previousFloor = this.save.floor;
     this.save.floor = floor;
     this.save.floorKills = 0;
+    emitDomainEvent('floorAdvanced', { save: this.save, from: previousFloor, to: floor, reason: 'travel' });
     this.enemies = []; this.drops = []; this.coins = []; this.effects = [];
     this.crush = undefined; this.afterimages = []; this.attackPoseSpan = .32;
     this.bossPending = false; this.eliteKills = 0; this.elitePending = false; this.spawnTimer = 0;
@@ -375,7 +378,8 @@ export class FieldProgress extends CombatEngine {
           continue;
         }
       }
-      this.save.bag.push(drop.item);
+      // 지급은 `addItemToBag` 한 곳을 지난다(작업 256) — `itemGranted` 신호가 여기서 나간다.
+      addItemToBag(this.save, drop.item, 'field');
       drop.age = -1;
       if (drop.item.name === starterWeaponName(this.job) && this.save.tutorial === 1) this.save.tutorial = 2;
       this.onMessage(`${itemDisplayName(drop.item)} 획득!`);
