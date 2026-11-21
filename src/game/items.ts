@@ -20,6 +20,11 @@ export type Slot = 'weapon' | 'offhand' | 'helmet' | 'armor' | 'necklace' | 'glo
 export type Stat = 'attack' | 'defense' | 'health' | 'crit' | 'speed';
 
 export type EquipmentItem = { id: string; name: string; slot: Slot; rarity: Rarity; stats: Partial<Record<Stat, number>>; kind?: 'equipment'; locked?: boolean; plus?: number;
+  /** 직업 전용 투구·갑옷의 주인 직업(작업 249). 무기는 이름(대검·활·지팡이)으로 판별하므로 붙지 않는다.
+   *  **옛 세이브의 전사용 투구·갑옷에는 이 값이 없다** — 이름만으로는 "옛 공용 장비"와 "새로 떨어진
+   *  전사 전용 장비"를 가릴 수 없기 때문이다. 값이 없으면 `itemJob`이 이름으로만 판별하고, 전사용
+   *  이름은 공용(제한 없음)으로 본다(기존 보유 장비가 갑자기 장착 불가가 되지 않게). */
+  job?: Job;
   /** 추가옵션(작업 238) — 에픽 1·유니크 2·전설 3개, 각 1~3%. `id`로 정해지며 `src/game/extraOptions.ts`가 채운다. */
   extraOptions?: Partial<Record<ExtraOptionKey, number>> };
 export type SkillBook = { id: string; name: string; slot: 'skillbook'; rarity: 'rare'; kind: 'skillbook'; skillId: SkillLevelId; stats: {} };
@@ -150,6 +155,35 @@ export const staffBases = ['견습생의 지팡이', '참나무 지팡이', '강
 /** 직업별 무기 기본형 목록. 무기 외 슬롯은 세 직업이 같은 목록을 쓴다(기존 세이브·드랍 호환). */
 export function weaponBasesFor(job: Job): readonly string[] { return job === 'archer' ? bowBases : job === 'mage' ? staffBases : baseItems.weapon; }
 
+/**
+ * 직업별 투구·갑옷 기본형 (작업 249).
+ *
+ * 예전에는 투구·갑옷이 전사용 판금 이름 10종뿐이라, 궁수·마법사도 `서리의 흑요석 갑주` 같은 전사용
+ * 이름을 그대로 입었다(사용자 제보 `#21117` "법사 궁수 다 만들어놨는데 전사꺼 다 입고 있더라").
+ * 이제 투구·갑옷도 무기처럼 세 갈래로 나뉘고, 이름이 곧 그 직업의 장비임을 말한다.
+ *
+ * 이름은 이미 승인된 착용 외형 시안(궁수 갑옷 `djrpg_archer_armor_*`, 궁수 투구·마법사 모자
+ * `djrpg_*_helm_*`, 마법사 로브 `djrpg_mage_robe_*`)의 티어 1~10 표기를 그대로 쓴다. 다만
+ * 전사 목록과 이름이 겹치는 티어만 살짝 구분했다 — `가죽 조끼`→`사냥꾼 가죽 조끼`,
+ * `가죽 두건`→`사냥꾼의 가죽 두건`, `사슬 코이프`→`사슬 사냥 코이프`. 이름이 겹치면 어느 목록의
+ * 몇 번째 티어인지 가릴 수 없어(도감·아이콘·외형 인덱스가 모두 이름으로 찾는다) 반드시 달라야 한다.
+ *
+ * 장갑·신발·문장·장신구는 세 직업이 함께 쓰는 공용 그대로다(사용자 확정: 무기·투구·갑옷만 분리).
+ */
+export const archerArmorBases = ['사냥꾼 가죽 조끼', '징박힌 가죽 갑옷', '사냥꾼 가죽 코트', '강화 브리간딘', '그림자 추적자', '미스릴 레인저 아머', '진홍 추적자 갑주', '용린 레인저 갑주', '바람수호자 갑주', '패왕의 신궁 갑주'] as const;
+export const archerHelmetBases = ['사냥꾼의 가죽 두건', '깃털 레인저 캡', '사슬 사냥 코이프', '추적자 하프헬름', '바이저 두건', '미스릴 서클릿', '용린 후드 헬름', '심연의 뿔 두건', '발키리 서클릿', '신궁의 왕관'] as const;
+export const mageArmorBases = ['견습 천 로브', '가죽 장식 견습 로브', '학자의 마력 코트', '룬 전투 법의', '그림자 지도 로브', '비대칭 반망토 코트', '더블 버튼 에메랄드 코트', '베스트 레이어드 진홍 법의', '스톨·견장 자수정 로브', '대현자 롱 케이프 성의'] as const;
+export const mageHelmetBases = ['수련생 천 두건', '학자 마법 베레모', '은실 비전 코이프', '마법사 고깔모', '고위 마법사 모자', '미스릴 사파이어 서클릿', '용린 마법사 뿔관', '심연의 자수정 두건', '천공의 날개 티아라', '대현자의 황금 왕관'] as const;
+
+/** 그 직업의 갑옷 10종(전사는 기존 판금 목록 그대로). */
+export function armorBasesFor(job: Job): readonly string[] { return job === 'archer' ? archerArmorBases : job === 'mage' ? mageArmorBases : baseItems.armor; }
+/** 그 직업의 투구 10종(전사는 기존 헬름 목록 그대로). */
+export function helmetBasesFor(job: Job): readonly string[] { return job === 'archer' ? archerHelmetBases : job === 'mage' ? mageHelmetBases : baseItems.helmet; }
+/** 투구·갑옷만 직업별 세 갈래다 — `undefined`면 공용 슬롯. */
+export function gearBasesFor(slot: Slot, job: Job): readonly string[] | undefined {
+  return slot === 'armor' ? armorBasesFor(job) : slot === 'helmet' ? helmetBasesFor(job) : undefined;
+}
+
 /** 드롭이 쓸 수 있는 세 직업 — 무기·스킬북은 이 셋이 같은 확률로 떨어진다(작업 204, 사용자 확정). */
 export const dropJobs: readonly Job[] = ['warrior', 'archer', 'mage'];
 
@@ -167,12 +201,54 @@ export function skillBookJob(item: Item): Job | undefined {
   return undefined;
 }
 
-/** 이 아이템을 쓸 수 있는 직업 — 무기는 직업별(대검·활·지팡이), 스킬북도 직업별이다.
- *  방어구·장신구는 세 직업이 함께 쓰므로 `undefined`(공용)다. */
+/** 이 아이템을 쓸 수 있는 직업 — 무기(대검·활·지팡이)·투구·갑옷·스킬북이 직업별이다(작업 249).
+ *  장갑·신발·문장·장신구는 세 직업이 함께 쓰므로 `undefined`(공용)다.
+ *
+ *  투구·갑옷은 ① 아이템에 적힌 `job`(새로 떨어진 장비) ② 이름이 궁수·마법사 목록에 있으면 그 직업,
+ *  ③ 둘 다 아니면 전사용 이름이므로 **공용**으로 본다 — 옛 세이브의 전사용 투구·갑옷이 갑자기
+ *  "장착 불가"가 되지 않게 하는 호환 규칙이다(사용자 확정: 기존 보유 장비는 그대로 유효). */
 export function itemJob(item: Item): Job | undefined {
   if (isSkillBook(item)) return skillBookJob(item);
   if (item.slot === 'weapon') return weaponJob(item);
+  if (item.slot === 'helmet' || item.slot === 'armor') {
+    const tagged = (item as EquipmentItem).job;
+    if (tagged === 'warrior' || tagged === 'archer' || tagged === 'mage') return tagged;
+    return gearJobFromName(item);
+  }
   return undefined;
+}
+
+/** 이름이 궁수·마법사 전용 투구·갑옷 목록에 있으면 그 직업, 전사 목록(옛 공용 이름)이면 `undefined`. */
+export function gearJobFromName(item: Item): Job | undefined {
+  if (item.slot !== 'helmet' && item.slot !== 'armor') return undefined;
+  const name = compact(item.name);
+  if (baseIndexIn(item.slot === 'armor' ? archerArmorBases : archerHelmetBases, name) >= 0) return 'archer';
+  if (baseIndexIn(item.slot === 'armor' ? mageArmorBases : mageHelmetBases, name) >= 0) return 'mage';
+  return undefined;
+}
+
+/** 목록에서 이름이 가리키는 티어 — 가장 긴 기본형이 이긴다(활 `각궁` ⊂ `룬 각궁`과 같은 규칙). */
+function baseIndexIn(bases: readonly string[], name: string): number {
+  let found = -1, best = -1;
+  bases.forEach((base, index) => {
+    const key = compact(base);
+    if ((name === key || name.endsWith(key)) && key.length > best) { found = index; best = key.length; }
+  });
+  return found;
+}
+
+/** 투구·갑옷 이름이 가리키는 티어(0~9) — 세 직업 목록을 모두 보고 가장 긴 기본형을 고른다.
+ *  `사냥꾼 가죽 조끼`가 전사 `가죽 조끼`(0번)에 먼저 걸리지 않게 하는 것이 이 함수의 일이다. */
+export function gearTier(item: Item): number {
+  if (item.slot !== 'armor' && item.slot !== 'helmet') return -1;
+  const name = compact(item.name);
+  const lists = item.slot === 'armor' ? [baseItems.armor, archerArmorBases, mageArmorBases] : [baseItems.helmet, archerHelmetBases, mageHelmetBases];
+  let found = -1, best = -1;
+  for (const list of lists) for (const [index, base] of list.entries()) {
+    const key = compact(base);
+    if ((name === key || name.endsWith(key)) && key.length > best) { found = index; best = key.length; }
+  }
+  return found;
 }
 
 /** `내 직업만 보기` 판정 — 직업 전용 아이템이 다른 직업의 것이면 false, 공용 아이템이면 늘 true. */
@@ -189,10 +265,11 @@ export function weaponJob(item: Item): Job {
   return 'warrior';
 }
 
-/** 그 직업이 이 장비를 입을 수 있는가 — 직업이 갈리는 것은 무기뿐이다(방어구·장신구는 공용).
- *  다른 직업의 무기는 장착 대상이 아니므로 자동 장착·'더 좋은 장비' 보호에서도 빠진다. */
+/** 그 직업이 이 장비를 입을 수 있는가 — 직업이 갈리는 것은 무기·투구·갑옷이다(작업 249).
+ *  다른 직업의 장비는 장착 대상이 아니므로 자동 장착·'더 좋은 장비' 보호·업그레이드 화살표에서도 빠진다. */
 export function canWield(item: Item, job: Job = 'warrior'): boolean {
-  return item.slot !== 'weapon' || weaponJob(item) === jobOrDefault(job);
+  const owner = itemJob(item);
+  return owner === undefined || owner === jobOrDefault(job);
 }
 
 /** 직업별 기본 무기 이름(첫 튜토리얼 드랍에 쓴다). */
@@ -216,6 +293,7 @@ export const baseItems: Record<Slot, readonly string[]> = {
 export function baseItemIndex(item: EquipmentItem): number {
   const name = compact(item.name);
   if (item.slot === 'helmet' && name === compact('낡은 투구')) return baseItems.helmet.indexOf('심연의 뿔투구');
+  if (item.slot === 'armor' || item.slot === 'helmet') return gearTier(item);
   if (item.slot === 'weapon') {
     // 활은 이름이 서로를 포함한다('각궁' ⊂ '룬 각궁', '장궁' ⊂ '혈염 장궁') — 가장 긴 기본형이
     // 그 활의 티어다(작업 160: 접미사 우선 매칭만 쓰면 '룬 각궁'이 1번 각궁으로 읽혔다).
@@ -314,6 +392,12 @@ export function normalizePlus(raw: unknown, item: EquipmentItem): number {
 
 export function equipmentImage(item: EquipmentItem): { path: string; frame: number; columns: number } {
   const index = baseItemIndex(item);
+  // 직업 전용 투구·갑옷 아이콘(작업 249) — 궁수는 경갑·후드, 마법사는 로브·모자 아틀라스를 쓴다.
+  // 전사용 이름(옛 공용 장비 포함)과 직업 판정이 `undefined`인 장비는 기존 판금 아틀라스 그대로다.
+  const gearJob = item.slot === 'helmet' || item.slot === 'armor' ? itemJob(item) : undefined;
+  if (gearJob === 'archer' || gearJob === 'mage') {
+    if (index >= 0) return { path: `/assets/item-art/${gearJob}_${item.slot}_${Math.floor(index / 5) * 5}.png`, frame: index % 5, columns: 5 };
+  }
   if (item.slot === 'weapon' && bowIndex(item) >= 0) {
     return { path: `/assets/item-art/bow_${Math.floor(index / 5) * 5}.png`, frame: index % 5, columns: 5 };
   }
@@ -362,6 +446,9 @@ export function migrateItem(value: unknown): Item | undefined {
   const savedName = typeof value.name === 'string' && value.name.trim() ? value.name : '';
   const name = savedName || slotNames[slot];
   const item: EquipmentItem = { id: typeof value.id === 'string' && value.id ? value.id : crypto.randomUUID(), name, slot, rarity, stats, locked: value.locked === true };
+  // 투구·갑옷의 주인 직업(작업 249) — 서버 저장본에 적힌 값을 그대로 살린다. 이 값이 없으면 옛 장비이고,
+  // `itemJob`이 이름으로만 판별한다(전사용 이름 = 공용). 다른 슬롯·알 수 없는 값은 무시한다.
+  if ((slot === 'helmet' || slot === 'armor') && (value.job === 'warrior' || value.job === 'archer' || value.job === 'mage')) item.job = value.job;
   // 강화 단계는 표시 전용이다 — 이름·스탯·등급은 그대로 두고 `plus`만 정규화(또는 옛 장비면 역산)한다.
   item.plus = normalizePlus(value.plus, item);
   // 추가옵션(작업 238): 저장된 값이 규칙에 맞으면 그대로 두고, 없거나 어긋난 옛 장비는 `id` 시드로
@@ -434,10 +521,12 @@ export function rollRarity(floor: number, boss = false, draw: () => number = ran
 export function rollEquipment(floor: number, rarity: Rarity, boss = false): EquipmentItem {
   const depth = Math.max(0, floor - 1);
   const slot = slots[Math.floor(random() * slots.length)];
-  // 무기는 세 직업이 같은 확률로 떨어진다(작업 204, 사용자 확정 "다른직업 장비나 스킬북도 동일확률로
-  // 뜰수있어"): 확률 드롭은 직업을 1/3로 먼저 고르고 그 직업의 무기 목록에서 뽑는다. 튜토리얼 첫 확정
-  // 드롭(`guaranteed`)만 내 직업 무기다.
-  const bases = slot === 'weapon' ? weaponBasesFor(dropJob()) : baseItems[slot];
+  // 무기·투구·갑옷은 세 직업이 같은 확률로 떨어진다(작업 204·249, 사용자 확정 "다른직업 장비나 스킬북도
+  // 동일확률로 뜰수있어"): 확률 드롭은 직업을 1/3로 먼저 고르고 그 직업의 목록에서 뽑는다. 튜토리얼 첫
+  // 확정 드롭(`guaranteed`)만 내 직업 무기다. 장갑·신발·문장·장신구는 세 직업 공용 목록 그대로다.
+  const gearSlot = slot === 'weapon' || slot === 'helmet' || slot === 'armor';
+  const dropFor = gearSlot ? dropJob() : undefined;
+  const bases = gearSlot ? gearBasesFor(slot, dropFor!) ?? weaponBasesFor(dropFor!) : baseItems[slot];
   const rarityTier = rarityTiers[rarity];
   const maxTier = Math.min(bases.length - 1, Math.floor(depth / (bases.length === 10 ? 3 : 8)) + Math.floor(rarityTier * (bases.length - 1) / 9));
   const tier = Math.floor(random() * (maxTier + 1));
@@ -459,6 +548,9 @@ export function rollEquipment(floor: number, rarity: Rarity, boss = false): Equi
   const plus = rollPlus(floor, boss);
   applyPlus(stats, plus);
   const item: EquipmentItem = { id: crypto.randomUUID(), name: base.startsWith(`${prefix} `) ? base : `${prefix} ${base}`, slot, rarity, stats, plus };
+  // 투구·갑옷은 **주인 직업을 함께 적는다**(작업 249). 이름만으로는 새로 떨어진 전사 전용 장비와 옛 세이브의
+  // 공용 장비를 가릴 수 없어, 새 드롭에만 표식을 붙여 다른 직업의 장착을 막는다. 무기는 이름으로 판별한다.
+  if ((slot === 'helmet' || slot === 'armor') && dropFor) item.job = dropFor;
   // 추가옵션(작업 238): 에픽 1·유니크 2·전설 3개를 `id` 시드로 붙여 만든다 — 옛 장비가 나중에
   // 정규화될 때와 똑같은 값이 나오므로, 저장 전후로 옵션이 바뀌지 않는다.
   normalizeExtraOptions(item);

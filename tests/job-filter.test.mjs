@@ -13,11 +13,17 @@ test('a weapon belongs to the job that can swing it, and armour belongs to no on
   assert.equal(weaponJob(equipment('weapon', '대현자의 성지팡이')), 'mage');
   assert.equal(itemJob(equipment('weapon', '룬 각궁')), 'archer');
   assert.equal(itemJob(equipment('weapon', '대현자의 성지팡이')), 'mage');
-  // 공용 방어구·장신구는 어느 직업에도 묶이지 않는다 — 내 직업만 보기에서도 사라지지 않는다.
+  // 장갑·신발·문장·장신구는 공용이고, 투구·갑옷도 **옛 전사용 이름**은 공용으로 남는다(작업 249 호환).
   for (const slot of ['helmet', 'armor', 'gloves', 'belt', 'boots', 'necklace', 'ring1', 'ring2', 'offhand']) {
     assert.equal(itemJob(equipment(slot, '미스릴 아머')), undefined, `${slot} is not a job item`);
     assert.equal(usableByJob(equipment(slot, '미스릴 아머'), 'mage'), true);
   }
+  // 새로 나뉜 궁수·마법사 투구·갑옷은 그 직업의 것이다.
+  assert.equal(itemJob(equipment('helmet', '황혼의 미스릴 서클릿')), 'archer');
+  assert.equal(itemJob(equipment('armor', '황혼의 룬 전투 법의')), 'mage');
+  assert.equal(usableByJob(equipment('armor', '황혼의 룬 전투 법의'), 'mage'), true);
+  assert.equal(usableByJob(equipment('armor', '황혼의 룬 전투 법의'), 'archer'), false);
+  assert.equal(usableByJob(equipment('helmet', '황혼의 미스릴 서클릿'), 'warrior'), false);
 });
 
 test('a skill book names the job whose skill it teaches', () => {

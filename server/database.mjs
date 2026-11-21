@@ -388,8 +388,8 @@ export async function writeSave(tx, row, save, operations = [], preserveCollecti
   const previousCollection = preserveCollection && Array.isArray(row.save.equipmentCollection) ? row.save.equipmentCollection : [];
   const incomingCollection = Array.isArray(save.equipmentCollection) ? save.equipmentCollection : [];
   // 발견 기록은 **등급별 한 칸**(`부위:번호:등급`)이다(작업 208) — 옛 `부위:번호` 키는 버린다.
-  // 무기는 대검 0~9 · 활 10~19 · 지팡이 20~29라 번호가 두 자리까지 온다. 95종 × 6등급 = 570칸.
-  save.equipmentCollection = [...new Set([...previousCollection, ...incomingCollection].filter(key => typeof key === 'string' && /^(weapon|offhand|helmet|armor|necklace|gloves|belt|boots|ring):\d{1,2}:(common|magic|rare|epic|unique|legendary)$/.test(key)))].slice(0, 570);
+  // 무기·투구·갑옷은 전사 0~9 · 궁수 10~19 · 마법사 20~29라 번호가 두 자리까지 온다(작업 249). 135종 × 6등급 = 810칸.
+  save.equipmentCollection = [...new Set([...previousCollection, ...incomingCollection].filter(key => typeof key === 'string' && /^(weapon|offhand|helmet|armor|necklace|gloves|belt|boots|ring):\d{1,2}:(common|magic|rare|epic|unique|legendary)$/.test(key)))].slice(0, 810);
   if (!Number.isSafeInteger(save.gold) || save.gold < 0 || save.gold > 9_000_000_000_000) fail(400, 'INVALID_GOLD', '금화 값이 올바르지 않습니다.');
   if (Number(row.slot) < 1 || Number(row.slot) > Number(row.max_slots ?? 3)) fail(409, 'CHARACTER_CONFLICT', '현재 캐릭터를 다시 불러오세요.');
   if (!row.skipJourney) operations = [...operations, journeyOperation(row.id, await journeyState(tx, row, save))];
