@@ -2,7 +2,8 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import './ts-loader.mjs';
-const {DungeonBattle,dungeonDropChance,DUNGEON_DROP_CHANCE_BASE,DUNGEON_DROP_CHANCE_MAX,DUNGEON_DROP_CHANCE_STEP,DUNGEON_MOB_HP,DUNGEON_BOSS_HP_SCALE,DUNGEON_ELITE_HP_SCALE,dungeonMobHp,DUNGEON_ENEMY_SPEED_SCALE,DUNGEON_SPAWN_STEPS,DUNGEON_LOOT_FAN,DUNGEON_ABSORB_DELAY,dungeonSpawnPull,dungeonLootSpots,dungeonLootTimeline,dungeonAbsorbProgress,dungeonAbsorbPoint}=await import('../src/ui/dungeonBattle.ts');
+const {DungeonBattle,DUNGEON_STEP,dungeonDropChance,DUNGEON_DROP_CHANCE_BASE,DUNGEON_DROP_CHANCE_MAX,DUNGEON_DROP_CHANCE_STEP,DUNGEON_MOB_HP,DUNGEON_BOSS_HP_SCALE,DUNGEON_ELITE_HP_SCALE,dungeonMobHp,DUNGEON_ENEMY_SPEED_SCALE,DUNGEON_SPAWN_STEPS,DUNGEON_LOOT_FAN,DUNGEON_ABSORB_DELAY,dungeonSpawnPull,dungeonLootSpots,dungeonLootTimeline,dungeonAbsorbProgress,dungeonAbsorbPoint}=await import('../src/ui/dungeonBattle.ts');
+const {clampArenaPoint,projectArenaPoint}=await import('../src/game/arena.ts');
 const {World,enemyMoveSpeed}=await import('../src/game/world.ts');
 const bossLoot=await import('../src/game/bossLoot.ts');
 const goldPile=await import('../src/game/render/goldPile.ts');
@@ -51,12 +52,59 @@ test('floor 1 is a beginner floor and the 10th boss needs a deep-farming kit ins
  for(const floor of [5,10])assert(dungeonMobHp(floor)*DUNGEON_BOSS_HP_SCALE>dungeonMobHp(floor)*6);
 });
 
-test('enemies spawn away, visibly approach, and hero does not chase into the next spawn',()=>{
+test('enemies spawn away, visibly approach, and the hero walks out to meet them',()=>{
+ // 작업 248 — 던전은 `DungeonWorld.update`가 매 프레임 히어로를 (50,50)으로 되돌리고 `activeMove`를 0으로
+ // 지워, 적이 다가오길 서서 기다리는 것처럼 보였다. 이제 필드처럼 가까운 적을 향해 `stopRange`까지 걷는다.
  const battle=new DungeonBattle(freshSave()),enemy=battle.world.enemies[0],p=battle.world.player;
  const start=Math.hypot(enemy.x-p.x,enemy.y-p.y);assert(start>150);
- run(battle,2);assert.deepEqual([p.x,p.y],[50,50]);assert(enemy.moving);assert(Math.hypot(enemy.x-p.x,enemy.y-p.y)<start);assert.equal(battle.finished,false);assert.equal(battle.world.slain,0);
- for(const target of battle.world.enemies)battle.world.kill(target);battle.world.enemies=[];battle.advance(.05);
- assert.equal(battle.wave,2);assert(battle.world.enemies.every(e=>Math.hypot(e.x-p.x,e.y-p.y)>150));
+ const origin={x:p.x,y:p.y};
+ run(battle,.5);
+ assert(enemy.moving);assert.equal(battle.finished,false);assert.equal(battle.world.slain,0);
+ // ① 자리를 지키지 않고 걸어 나간다(예전에는 0이었다 — 고정 위치로 되돌리느라 걸음이 지워졌다).
+ const walked=Math.hypot(p.x-origin.x,p.y-origin.y);
+ assert(walked>20,`the hero stood still at ${p.x},${p.y}`);
+ // ② 적의 걸음만으로 줄어들 거리보다 더 좁힌다 — 히어로가 실제로 다가간 몫이 있다.
+ const gap=Math.hypot(enemy.x-p.x,enemy.y-p.y),enemyWalk=enemyMoveSpeed(1,false)*DUNGEON_ENEMY_SPEED_SCALE*.5;
+ assert(gap<start-enemyWalk-5,`the hero added no ground: ${start.toFixed(1)} -> ${gap.toFixed(1)}`);
+ // ③ 방향도 가까운 적 쪽이다(화면 X는 `dx-dy`, 걸음은 등각 방향).
+ const first=battle.world.nearest();
+ assert(first&&(p.x-origin.x)*(first.x-origin.x)+(p.y-origin.y)*(first.y-origin.y)>0,'the hero walked away from the wave');
+ // ④ 다음 웨이브는 히어로가 서 있는 자리에서 떨어진 곳에 뜬다(코앞에 튀어나오지 않는다).
+ for(const target of [...battle.world.enemies])battle.world.kill(target);battle.world.enemies=[];battle.advance(.05);
+ assert.equal(battle.wave,2);
+ const closest=Math.min(...battle.world.enemies.map(e=>Math.hypot(e.x-p.x,e.y-p.y)));
+ assert(closest>60,`the next wave appeared ${closest.toFixed(1)} from the hero`);
+});
+
+test('the dungeon no longer leashes the hero: a wave that appears far away is still pursued',()=>{
+ // 예전 `nearest()`는 110 밖의 적을 없는 것으로 봐서, 150 넘게 뜨는 웨이브를 향해 걷지 않았다.
+ const battle=new DungeonBattle(freshSave()),p=battle.world.player,enemy=battle.world.nearest();
+ assert(enemy,'the dungeon cannot see its own wave');
+ const distance=Math.hypot(enemy.x-p.x,enemy.y-p.y);
+ assert(distance>110,`the wave already starts inside the old 110 leash (${distance.toFixed(1)})`);
+ const origin={x:p.x,y:p.y};
+ run(battle,.3);
+ assert(Math.hypot(p.x-origin.x,p.y-origin.y)>15,'the far wave is not worth a single step');
+});
+
+test('the hero fights from the room floor: inside the arena and never up at the exit door',()=>{
+ // 390×700·360×640 휴대폰에서 철문 문턱은 화면의 38%(dungeon.css `top:10%` + `height:28%`)다.
+ // 히어로가 그 위로 걸어 올라가 문을 뚫고 나가면 안 된다 — 아레나 경계와 문 아래 바닥을 함께 본다.
+ for(const floor of [1,4,5,10]){
+  // 10~20층을 파밍한 장비로 그 층을 실제로 끝까지 싸운다 — 문 쪽으로 가장 멀리 걸어간 순간까지 본다.
+  const save=freshSave();save.level=30;
+  save.equipment.weapon={id:'probe',name:'두손검',slot:'weapon',rarity:'legendary',stats:{attack:400}};
+  const battle=new DungeonBattle(save,floor,97531),p=battle.world.player;
+  for(let step=0;step<1800&&!battle.finished;step++){
+   battle.advance(DUNGEON_STEP);
+   const bounded=clampArenaPoint(p.x,p.y);
+   assert(Math.abs(bounded.x-p.x)<1e-9&&Math.abs(bounded.y-p.y)<1e-9,`floor ${floor}: the hero left the arena at ${p.x},${p.y}`);
+   for(const [width,height] of [[390,700],[360,640]]){
+    const [,screenY]=projectArenaPoint(p.x,p.y,width,height),sill=height*.38;
+    assert(screenY>sill+40,`floor ${floor}: the hero stands ${(sill-screenY).toFixed(0)}px above the ${width}×${height} door sill`);
+   }
+  }
+ }
 });
 test('second floor is a fresh encounter with full health and a harder, fixed mob',()=>{
  const save=freshSave(),before=structuredClone(save),first=new DungeonBattle(save),second=new DungeonBattle(save,2);
