@@ -27,6 +27,19 @@ const ROBE_ROOT = '/assets/pilot-25d/robes';
 const ROBE_HEADLESS_ROOT = '/assets/pilot-25d/robes/headless';
 
 /**
+ * 로브 발광 마스크 시트 경로 (작업 257) — 로브 시트와 같은 셀 좌표계의 알파 마스크.
+ *
+ * 마스크에는 로브 천만 남고 얼굴·머리카락·맨손·지팡이·마법 불꽃·부츠가 빠져 있다.
+ *
+ * @see `scripts/build-armor-glow-masks.py`
+ */
+export function robeGlowSheetPath(gender: Gender, index: number, motion: RobeMotion): string | undefined {
+  if (!Number.isInteger(index) || index < 1 || index >= ROBE_COUNT) return undefined;
+  if (!robeMotionList.includes(motion)) return undefined;
+  return pilotSheet(`/assets/pilot-25d/robes_glow/mage_${gender}_robe_${index}_${motion}_v1.png`);
+}
+
+/**
  * 로브 시트 경로. 0번(스타터 천 로브)은 기준 시트를 쓰므로 `undefined`.
  * 범위를 벗어난 인덱스도 `undefined`(호출부는 기준 시트로 폴백).
  */

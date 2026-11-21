@@ -16,6 +16,7 @@ import { STAFF_GRIP, staffIndexFor, staffPartPath, staffPlacement, stafflessBody
 import { archerHeadlessBodyPath, archerHelmIdlePlacement, archerHelmIndexFor, archerHelmPartPath } from '../game/render/archerHelmets';
 import { mageHeadlessBodyPath, mageHelmIdlePlacement, mageHelmIndexFor, mageHelmPartPath } from '../game/render/mageHelmets';
 import { gearGlowCss, gearGlowTone } from '../game/render/gearGlow';
+import { armorGlowSheetFor } from '../game/render/armorGlowMasks';
 
 /**
  * 내 정보(장비창) 초상화 — Task 149 full-body pilot image. Gear remains functional but its
@@ -432,7 +433,23 @@ async function composeCostume(layers: CostumeLayerPlan[]): Promise<string> {
 export type GlowSlot = 'armor' | 'helmet' | 'weapon';
 
 /** 발광 레이어 한 장을 그릴 때의 지시. */
-type PortraitGlow = { slot: GlowSlot; color: string };
+type PortraitGlow = {
+  slot: GlowSlot;
+  color: string;
+  /**
+   * 갑옷 발광을 갑옷 픽셀만 남기는 알파 마스크(작업 257) — 몸 시트와 같은 크기의 서기 프레임.
+   * 없으면(마스크 로딩 실패) 예전처럼 머리 타원만 도려낸다.
+   */
+  mask?: string;
+};
+
+/**
+ * 장착 화면 갑옷 발광의 후광 배율(작업 257).
+ *
+ * 필드와 같은 1안(파츠만 깔끔하게, 오라 번짐 없음)이라 `shadowBlur` 를 크게 줄인다 —
+ * 0으로 두면 픽셀 아트가 납작해 보여, 윤곽을 살짝 두르는 정도만 남긴다.
+ */
+const ARMOR_GLOW_AURA = .3;
 
 /**
  * 얼굴 자리(362px 셀 좌표). 갑옷은 몸체 시트에 함께 그려져 있어, 시트 전체를 물들이면 맨 얼굴까지
@@ -449,7 +466,8 @@ const headCell = { x: 228, y: 74, rx: 38, ry: 44 } as const;
  */
 function paintPatch(
   context: CanvasRenderingContext2D, image: HTMLImageElement,
-  x: number, y: number, width: number, height: number, glow?: string
+  x: number, y: number, width: number, height: number, glow?: string,
+  mask?: CanvasImageSource, aura = 1
 ): void {
   if (!glow) { context.drawImage(image, x, y, width, height); return; }
   const tinted = document.createElement('canvas');
@@ -478,10 +496,21 @@ function paintPatch(
     pixels[index + 2] = Math.min(255, rgb[2] * light);
   }
   paint.putImageData(frame, 0, 0);
+  // [작업 257] 갑옷 마스크 — 몸 시트와 같은 크기의 알파 PNG라, 알파가 0인 곳(얼굴·머리카락·
+  // 맨살·무기·부츠)을 `destination-in` 으로 도려낸다.
+  if (mask) {
+    paint.save();
+    paint.globalCompositeOperation = 'destination-in';
+    paint.drawImage(mask, 0, 0, tinted.width, tinted.height);
+    paint.restore();
+  }
   context.save();
   // [작업 231] 장비 윤곽 밖으로 번지는 후광도 두 배 가까이 넓혔다.
-  context.shadowColor = glow;
-  context.shadowBlur = Math.max(10, Math.round(width * .045));
+  // [작업 257] 갑옷은 `aura` 를 낮춰 번짐을 줄인다(파츠만 깔끔하게 — 사용자 확정 1안).
+  if (aura > 0) {
+    context.shadowColor = glow;
+    context.shadowBlur = Math.max(4, Math.round(width * .045 * aura));
+  }
   context.drawImage(tinted, x, y, width, height);
   context.restore();
 }
@@ -515,9 +544,11 @@ async function composeFallback(
   // 발광 레이어(`glow`)는 그 부위만 그린 투명 PNG다. 나머지 부위는 건너뛴다.
   const wants = (slot: GlowSlot): boolean => !glow || glow.slot === slot;
   if (wants('armor')) {
-    paintPatch(context, image, left, top, width, height, glow?.color);
-    // 갑옷은 몸체 시트 전체라 얼굴까지 물들면 안 된다 — 머리 자리를 도려내 맨 얼굴은 원래 색으로 남긴다.
-    if (glow) {
+    // [작업 257] 갑옷 픽셀만 발광 — 몸 시트와 같은 크기의 알파 마스크를 `destination-in` 으로 건다.
+    const armorMask = glow?.mask ? await loadImage(glow.mask, fallbackImages, new Set()).catch(() => undefined) : undefined;
+    paintPatch(context, image, left, top, width, height, glow?.color, armorMask, ARMOR_GLOW_AURA);
+    // 마스크를 못 받았을 때만 예전처럼 머리 타원을 도려낸다(맨 얼굴이 물들지 않게).
+    if (glow && !armorMask) {
       context.save();
       context.globalCompositeOperation = 'destination-out';
       context.beginPath();
@@ -676,9 +707,11 @@ export async function renderEquipmentGlowLayers(save: Save, options: EquipmentPo
     for (const entry of slots) {
       if (!entry.tone || !entry.draw) continue;
       const color = gearGlowCss(entry.tone.color);
+      // 갑옷은 그 차림의 서기 프레임 마스크를 함께 넘긴다(필드와 같은 마스크·같은 규칙).
+      const mask = entry.slot === 'armor' ? armorGlowSheetFor(save, 'idle') : undefined;
       const src = await composeFallback(
         plan.base, plan.helmet, plan.weapon, plan.bow, plan.archerHelm, plan.staff, plan.mageHelm, height,
-        { slot: entry.slot, color }
+        { slot: entry.slot, color, mask }
       );
       layers.push({ slot: entry.slot, src, color, cycle: entry.tone.cycle });
     }

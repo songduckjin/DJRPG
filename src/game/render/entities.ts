@@ -8,7 +8,7 @@ import { heroScale, heroBodyHeight, heroBodyFraction } from './heroScale';
 import { drawBloodRageAura } from './bloodRage';
 import { heroClass, socketMotion, weaponSocket } from './heroSockets';
 import { tintedGearTexture } from './gearTint';
-import { gearGlowAmount, gearGlowLayers, gearGlowTone, glowGearTexture } from './gearGlow';
+import { gearGlowAmount, gearGlowLayersFor, gearGlowTone, glowGearTexture } from './gearGlow';
 import { costumeGhostSources, hideCostumeHero } from './costumeHero';
 import { resolveSkillMotion, type CostumeMotionTemplate } from '../costume/skillMotion';
 import { wearableEquipmentImage, baseItemIndex, usesBaseSheetOnly, hasNoWeapon, type Rarity } from '../items';
@@ -17,6 +17,7 @@ import { helmetArtFor, helmetArtPath, helmetPlacement } from './helmets';
 import { archerHelmIndexFor, archerHelmPartPath, archerHelmPlacement } from './archerHelmets';
 import { mageHelmIndexFor, mageHelmPartPath, mageHelmPlacement } from './mageHelmets';
 import { armorIndexFor } from './armors';
+import { armorGlowSheetFor } from './armorGlowMasks';
 import { archerArmorIndexFor } from './archerArmors';
 import { hasRobeSheet, mageRobeIndexFor } from './robes';
 import { WEAPON_GUARD, weaponIndexFor, weaponPose } from './weapons';
@@ -390,9 +391,20 @@ function weaponGlowSource(view: GameView, job: string): Sprite | undefined {
 /** 등급색 발광 복제본의 표식 — 잔상 복제(`cloneHeroLayers`)에서 이 스프라이트를 뺀다. */
 export const GEAR_GLOW_LABEL = 'gear-glow';
 
+/**
+ * 발광을 그릴 때의 추가 조건 (작업 256 투구 · 257 갑옷).
+ *
+ * · `neckY`: 갑옷 발광을 목 밑동 아래로 자르는 선(작업 218 — 마스크가 없을 때의 폴백).
+ * · `mask`: 파츠와 같은 크기의 **발광 마스크 텍스처**(알파=발광 세기). 주면 파츠 일부만 빛난다.
+ */
+export type GearGlowOptions = {
+  neckY?: number;
+  mask?: Texture;
+};
+
 function syncGearGlow(
   view: GameView, key: 'armor' | 'helmet' | 'weapon', source: Sprite | undefined, rarity: Rarity | undefined,
-  time: number, neckY?: number
+  time: number, options: GearGlowOptions = {}
 ): void {
   const tone = gearGlowTone(rarity);
   // 테스트용 스텁 뷰는 이 지도를 만들지 않는다 — 없으면 그 자리에서 만든다.
@@ -403,15 +415,34 @@ function syncGearGlow(
     for (const layer of shown ?? []) layer.visible = false;
     return;
   }
+  const specs = gearGlowLayersFor(key);
   const layers = shown ?? (() => {
-    const created = gearGlowLayers.map(() => new Sprite(source.texture));
+    const created = specs.map(() => new Sprite(source.texture));
     for (const sprite of created) { sprite.label = GEAR_GLOW_LABEL; view.heroLayer.addChild(sprite); }
     registry.set(key, created);
     return created;
   })();
-  // 갑옷은 몸체 시트라 얼굴까지 함께 그려진다 — 목 아래로만 빛나게 잘라 맨 얼굴은 원래 색으로 둔다.
+  // 부위별 마스크 — 갑옷은 갑옷 픽셀만 담은 알파 마스크(작업 257), 없으면 목선으로 자른다(작업 218).
   let mask: Sprite | undefined;
-  if (key === 'armor' && neckY !== undefined) {
+  if (options.mask) {
+    // 마스크 PNG/시트 프레임은 파츠와 **같은 크기**라, 앵커·위치·배율·회전을 그대로 복사하면
+    // 픽셀 단위로 맞는다.
+    const spriteFor = view.heroGlowPartMasks ?? (view.heroGlowPartMasks = new Map<string, Sprite>());
+    mask = spriteFor.get(key) ?? (() => {
+      const span = new Sprite(options.mask as Texture);
+      // 잔상 복제(`cloneHeroLayers`)가 마스크를 몸으로 찍지 않도록 발광 레이어 표식을 단다.
+      span.label = GEAR_GLOW_LABEL;
+      view.heroLayer.addChild(span);
+      spriteFor.set(key, span);
+      return span;
+    })();
+    mask.texture = options.mask;
+    mask.anchor.set(source.anchor.x, source.anchor.y);
+    mask.position.set(source.position.x, source.position.y);
+    mask.scale.set(source.scale.x, source.scale.y);
+    mask.rotation = source.rotation;
+    mask.visible = true;
+  } else if (key === 'armor' && options.neckY !== undefined) {
     mask = view.heroGlowMask ?? (() => {
       const span = new Sprite(Texture.WHITE);
       span.anchor.set(0, 0);
@@ -420,7 +451,7 @@ function syncGearGlow(
       return span;
     })();
     const width = source.texture.width, height = source.texture.height;
-    const top = neckY - height * source.anchor.y;
+    const top = options.neckY - height * source.anchor.y;
     const bottom = height * (1 - source.anchor.y);
     mask.position.set(-width * source.anchor.x, top);
     mask.width = width;
@@ -429,8 +460,9 @@ function syncGearGlow(
   // 발광 층은 밝기 비례 등급색으로 구운 1/3 크기 텍스처를 쓴다(원본 `tint`만으로는 어두운 갑옷이
   // 거의 빛나지 않는다). 원본과 같은 앵커·위치에서 축소한 만큼 키워 얹는다.
   const glowTexture = glowGearTexture(source.texture, tone.color, String(source.texture.uid));
-  gearGlowLayers.forEach((layer, index) => {
+  specs.forEach((layer, index) => {
     const glow = layers[index];
+    if (!glow) return;
     const emissive = layer.source === 'emissive' && glowTexture;
     const texture = emissive ? glowTexture : source.texture;
     // 발광 텍스처는 1/3 크기로 구웠으므로 그만큼 키워 원본과 같은 크기로 얹는다.
@@ -447,6 +479,8 @@ function syncGearGlow(
     glow.mask = mask ?? null;
     glow.visible = true;
   });
+  // 부위별 겹 수가 바뀌었을 때(갑옷·투구는 번지는 후광 1겹이 없다) 남는 스프라이트를 숨긴다.
+  for (const layer of layers.slice(specs.length)) layer.visible = false;
 }
 
 export function activeSkillMotion(world: World): HeroSkillMotion {
@@ -689,12 +723,17 @@ export function drawHero(this: GameView, world: World, x: number, y: number, tim
     // 갑옷은 몸체 시트에 함께 그려지므로 몸통 스프라이트가 곧 갑옷이다(투구를 쓰면 머리는 시트에 없다).
     const wornHelmet = mage ? this.heroMageHelm : this.heroHelmet;
     const wornWeapon = weaponGlowSource(this, job);
-    // 갑옷 발광은 목 밑동 아래로만 — 자세 표(투구 앵커)가 그 자리를 알려 준다.
-    // 궁수·마법사 파츠는 셀 전체 PNG라 앵커가 좌상단이므로, 목 밑동은 셀 좌표 상수로 잡는다.
-    const neckY = archer || mage
-      ? 104
-      : helmetPlacement(save.gender, animation, animation === 'walk' ? walkingFrame : animatedAttack ? Math.max(0, attackFrame) : 0, Math.max(0, helmetIndex(save))).y;
-    syncGearGlow(this, 'armor', this.hero, save.equipment.armor?.rarity, time, neckY);
+    // [작업 257] 갑옷은 **갑옷 픽셀만** 발광한다(사용자 확정 1안) — 갑옷 시트와 같은 셀 좌표계의
+    // 알파 마스크로 얼굴·머리카락·맨팔·무기·부츠를 잘라 내고, 실루엣 밖으로 번지는 후광 겹도 쓰지
+    // 않는다. 마스크는 유니크·전설 갑옷을 입은 순간에만 받으므로, 아직 로딩 전이면 이 프레임은
+    // 발광을 숨긴다(마스크 없이 그리면 얼굴까지 물들어 예전 문제로 돌아간다).
+    const armorGlowPath = armorGlowSheetFor(save, animation);
+    // 테스트용 스텁 뷰는 이 로더를 만들지 않는다 — 없으면 마스크 없이(발광 숨김) 그린다.
+    const armorGlowMask = armorGlowPath && typeof this.armorGlowFrame === 'function'
+      ? this.armorGlowFrame(armorGlowPath, animation, poseFrame)
+      : undefined;
+    const armorGlowReady = !armorGlowPath || !!armorGlowMask;
+    syncGearGlow(this, 'armor', armorGlowReady ? this.hero : undefined, save.equipment.armor?.rarity, time, { mask: armorGlowMask });
     syncGearGlow(this, 'helmet', wornHelmet, save.equipment.helmet?.rarity, time);
     syncGearGlow(this, 'weapon', wornWeapon, save.equipment.weapon?.rarity, time);
     let bob = 0;
