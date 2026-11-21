@@ -10,11 +10,48 @@
 .offline-floors { margin: 8px 0 0; padding: 8px 10px; border: 1px solid #8d6a3f; background: #2f2019; color: #ffd79a; font-size: 12px; line-height: 1.6; }
 .offline-salvaged { margin: 8px 0 0; padding: 8px 10px; border: 1px solid #6f7f4a; background: #232a1c; color: #cfe3a4; font-size: 12px; line-height: 1.6; }
 .offline-items { max-height: 240px; overflow-y: auto; padding-left: 20px; color: #dfc8aa; font-size: 12px; }
+.floor-summary-note { margin: -6px 0 10px; color: #9c8b7b; font-size: 10.5px; line-height: 1.5; }
 .floor-mode { width: 100%; margin-bottom: 12px; padding: 9px; border: 1px solid #a27d52; background: #4b3327; color: #ffe0b4; font-size: 12px; }
-.floor-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
-.floor-choice { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-width: 0; min-height: 72px; padding: 5px 2px; border: 1px solid #76604a; background: #292126; color: #e2caaa; }
-.floor-choice b { font-size: 12px; white-space: nowrap; }
-.floor-choice small { color: #baa78f; font-size: 9px; white-space: nowrap; }
-.floor-choice.current { border-color: #e1aa64; background: #60412c; box-shadow: inset 0 0 12px #d68e3b3d; }
-.floor-choice.locked { opacity: .52; cursor: not-allowed; }
+/* 상단 배너 — 내 전투력 + ★ 추천 층 */
+.floor-power { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 12px; padding: 11px 13px; border: 1px solid #8a6a46; border-left: 3px solid #e0a759; background: linear-gradient(100deg, #3a2a20, #241b1a); }
+.floor-power-mine { color: #cdb69c; font-size: 12px; }
+.floor-power-mine b { margin-left: 6px; color: #ffe6bd; font: 700 19px 'Noto Sans KR', serif; }
+.floor-power-rec { flex: none; padding: 5px 11px; border: 1px solid #e2ab5f; border-radius: 999px; background: #2b211b; color: #ffd89a; font-size: 11.5px; font-weight: 700; white-space: nowrap; }
+/* 10층 단위 구간 — 내 권장 층이 든 구간만 펼치고 나머지는 접는다 */
+.floor-groups { display: flex; flex-direction: column; gap: 9px; }
+.floor-group { border: 1px solid #8e6c50; border-radius: 4px; background: #191215; }
+.floor-group-head { display: flex; align-items: center; gap: 7px; width: 100%; min-height: 44px; padding: 0 11px; border: 0; border-bottom: 1px solid transparent; background: linear-gradient(#4e3525, #2e211e); color: #ffe8c0; font: inherit; font-size: 13.5px; font-weight: 700; text-align: left; cursor: pointer; }
+.floor-group-head b { flex: none; }
+.floor-group.open .floor-group-head { border-bottom-color: #7e5f47; }
+.floor-group:not(.open) .floor-group-head { background: #241c1d; color: #e8d6bd; }
+.floor-group-caret { flex: none; width: 0; height: 0; border-top: 5px solid transparent; border-bottom: 5px solid transparent; border-left: 7px solid #cfa678; transition: transform .15s; }
+.floor-group.open .floor-group-caret { transform: rotate(90deg); }
+.floor-group-rec { flex: none; color: #ffd092; font-size: 9.5px; font-weight: 600; }
+.floor-group-range { margin-left: auto; color: #c8ae8c; font-size: 9.5px; font-weight: 500; white-space: nowrap; }
+.floor-group:not(.open) .floor-group-range { color: #a8937b; }
+.floor-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; padding: 8px; }
+.floor-grid[hidden] { display: none; }
+/* 층 카드 — 상태별 색은 아래 규칙이 정한다(높이·구조는 모두 같다) */
+.floor-card { display: flex; flex-direction: column; justify-content: space-between; gap: 6px; min-width: 0; min-height: 62px; padding: 8px 9px; border: 1px solid #6c5a48; border-radius: 3px; background: #221c20; color: #e2caaa; font: inherit; text-align: left; cursor: pointer; }
+.floor-card-head { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.floor-card-head b { flex: none; font-size: 13.5px; }
+.floor-card-crown { flex: none; font-size: 11px; line-height: 1; }
+.floor-card-badge { flex: none; padding: 1px 6px; border: 1px solid #6f9aa4; border-radius: 999px; color: #9fd7e0; font-size: 8.5px; }
+.floor-card-state { margin-left: auto; overflow: hidden; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.floor-card-power { display: flex; align-items: baseline; justify-content: space-between; gap: 6px; }
+.floor-card-power small { color: #96826f; font-size: 8.5px; white-space: nowrap; }
+.floor-card-power strong { color: #e9d6bb; font: 700 16px 'Noto Sans KR', serif; }
+.floor-card.easy { border-color: #4a6b46; background: #1d2620; }
+.floor-card.easy .floor-card-state, .floor-card.easy .floor-card-power strong { color: #a6dba0; }
+.floor-card.okay { border-color: #8f6a3c; background: #26211a; }
+.floor-card.okay .floor-card-state, .floor-card.okay .floor-card-power strong { color: #dfc59c; }
+.floor-card.danger { border-color: #6c3a33; background: #261c1b; }
+.floor-card.danger .floor-card-state, .floor-card.danger .floor-card-power strong { color: #e0958c; }
+.floor-card.recommended { border-color: #f0c072; background: linear-gradient(#4c301c, #2b1c16); box-shadow: 0 0 0 1px #e6a95a, 0 0 12px #d08a2c66; }
+.floor-card.recommended .floor-card-head b, .floor-card.recommended .floor-card-state, .floor-card.recommended .floor-card-power strong { color: #ffd894; }
+.floor-card.current { box-shadow: inset 0 0 0 1px #e1aa64; }
+.floor-card.locked { opacity: .5; }
+.floor-card.locked:disabled { cursor: not-allowed; }
+.floor-note { margin: 9px 0 0; color: #9c8b7b; font-size: 9.5px; line-height: 1.5; text-align: center; }
+.floor-note-dim { margin-top: 3px; color: #7f7166; }
 .salvage-confirm-list .item-plus, .offline-items .item-plus { margin-left: 3px; }

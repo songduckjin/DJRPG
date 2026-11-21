@@ -1,5 +1,6 @@
 import { dismissBagDetail } from './bagDetail';
 import { dismissEquippedDetail } from './equippedDetail';
+import { resetFloorGroups } from './modals/floorModal';
 import type { Interface } from './interface';
 
 // Only view state is reset. Equipped items, skills and account settings are saved game data.
@@ -16,6 +17,8 @@ export function resetModalDefaults(ui: Interface): void {
   ui.confirmReset = false;
   // 캐릭터 카드 펼침은 팝업을 닫으면 접힌다(작업 216).
   ui.characterFocus = undefined;
+  // 층 선택 창은 열 때마다 `내 권장 층 구간만 펼친` 상태로 시작한다.
+  resetFloorGroups();
   if(ui.dungeon)ui.dungeon.tab='challenge';
   if(ui.worldBoss)ui.worldBoss.tab='challenge';
 }
