@@ -219,7 +219,8 @@ const SEASON_KEPT = new Set(['djrpg_accounts', 'djrpg_characters', 'djrpg_accoun
   'djrpg_shop_wallet', 'djrpg_shop_orders', 'djrpg_shop_ledger', 'djrpg_shop_entitlements', 'djrpg_shop_requests',
   'djrpg_dungeon_attempts']);
 
-const SCHEMA = schemaTables('server/database.mjs', 'server/dungeon-schema.mjs', 'server/world-boss-schema.mjs');
+// 작업 260에서 DDL이 `server/db/schema.mjs`로 옮겨졌다(파사드 `server/database.mjs`에는 DDL이 없다).
+const SCHEMA = schemaTables('server/db/schema.mjs', 'server/dungeon-schema.mjs', 'server/world-boss-schema.mjs');
 
 test('스키마가 만드는 모든 표가 탈퇴(ACCOUNT_TABLES) 등록부에 있다', () => {
   const missing = [...SCHEMA].filter(table => !NOT_ACCOUNT_SCOPED.has(table) && !ACCOUNT_TABLES.includes(table));

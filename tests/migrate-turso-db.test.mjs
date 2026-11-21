@@ -16,7 +16,6 @@ const script = fileURLToPath(new URL('../scripts/migrate-turso-db.mjs', import.m
 const save = name => JSON.stringify({ version: 1, name, gold: 120, floor: 3, bag: [], equipment: {} });
 
 // 공용 DB를 흉내 낸 소스: djrpg_* 22개 테이블(작업 206의 djrpg_meta·208 전광판·209 던전 기록 포함) + puzzle-mates용 users 테이블.
-// 상점 5표는 이 소스에서 지운다 — 실제 이관 대상(상점 도입 전 공용 DB)에 없을 수 있는 표이기 때문이다.
 async function prepared() {
   const directory = await mkdtemp(join(tmpdir(), 'djrpg-migrate-'));
   const source = `file:${join(directory, 'shared.db')}`;
@@ -86,8 +85,8 @@ const counts = async (url, tables = TABLES) => {
   try {
     const result = {};
     for (const table of tables) {
-      // 소스에 없는 표(상점 도입 전 공용 DB·최신 스키마 전용 표)는 0행으로 본다 —
-      // 이관 스크립트도 `OPTIONAL_TABLES`를 같은 규칙으로 건너뛴다.
+      // 이관 목록은 표 등록부(server/tables.mjs)에서 온다 — 예전 소스에는 상점 5표처럼 아직 없는 표가 있다.
+      // 없는 표는 이관도 0행으로 건너뛰므로 여기서도 0으로 본다(이 검사는 "복사한 결과"만 본다).
       try { result[table] = Number((await db.execute(`SELECT COUNT(*) AS n FROM "${table}"`)).rows[0].n); }
       catch { result[table] = 0; }
     }
@@ -113,7 +112,7 @@ test('dry-run은 소스 djrpg_* 행 수만 출력하고 타겟을 만들지 않�
   }
 });
 
-test('djrpg_* 27개 테이블만 복사하고 users는 넘기지 않으며 건수가 일치한다', async () => {
+test(`djrpg_* ${TABLES.length}개 테이블만 복사하고 users는 넘기지 않으며 건수가 일치한다`, async () => {
   const paths = await prepared();
   try {
     const result = migrate(paths, ['--chunk-size=2']);
