@@ -16,6 +16,7 @@ Vite+TS+PixiJS 모바일 2.5D 다크 판타지 RPG. 수정 전 이 규칙 적용
 | 여정·데일리 퀘스트·업적·(향후) 출석/이벤트 보상 | `docs/QUEST_ATTENDANCE.md` |
 | 장비·가방·추가옵션·분해·강화 | `docs/INVENTORY_GEAR.md` |
 | 스킬·스킬북 합성·도감 | `docs/SKILLS_CODEX.md` |
+| 입문 안내(첫 무기·방어구·첫 스킬) | `docs/TUTORIAL.md` |
 | 우편함·공용창고 | `docs/MAIL_WAREHOUSE.md` |
 | 거래소 | `docs/MARKET.md` |
 | 상점·다이아·재화 | `docs/SHOP_ECONOMY.md` |

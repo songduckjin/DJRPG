@@ -207,6 +207,8 @@
 .bag-heading .bag-job-only { flex:0 1 auto; margin:0; }
 /* [작업 252] 가방 `합성`은 머리줄 `내 직업만 보기` 바로 왼쪽 — 머리줄 버튼과 같은 납작한 크기로 둔다. */
 .bag-heading .synth-open { flex:0 1 auto; margin:0; padding:4px 7px; font-size:11px; }
+/* 입문 안내(작업 미정) — 모달이 열리면 안내 띠는 가려지므로, 해야 할 일을 가방 머리글 밑에 한 줄 남긴다. */
+.tutorial-note { display:block; flex:none; margin:0 0 5px; padding:4px 6px; border:1px solid #805b3b; border-radius:4px; background:#20191a; color:#f4dcb0; font-size:10.5px; line-height:1.45; }
 .bag-rarity-sort { flex:0 0 auto; border:1px solid #6d5948; background:#292124; color:#bba998; padding:4px 8px; font-size:11px; }
 .bag-rarity-sort.active { border-color:#c8a26a; background:#4a342a; color:#ffe1b5; }
 /* 직업 표기·내 직업만 보기 (작업 205) — 세 직업의 무기·스킬북이 같은 확률로 떨어지므로, 어느 직업의

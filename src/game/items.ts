@@ -320,6 +320,16 @@ export function canWield(item: Item, job: Job = 'warrior'): boolean {
   return owner === undefined || owner === jobOrDefault(job);
 }
 
+/**
+ * 첫 무기를 장착하면 입문 튜토리얼이 다음 단계(방어구·스킬 안내)로 넘어간다 — 세이브 값은 3에서 끝난다.
+ * 장비를 끼는 모든 경로(`autoEquipBest`·장비창 [장착])가 이 한 함수를 부른다(직업 공통).
+ */
+export function advanceTutorialOnEquip(save: Save): boolean {
+  if (save.tutorial !== 2 || !save.equipment.weapon) return false;
+  save.tutorial = 3;
+  return true;
+}
+
 /** 직업별 기본 무기 이름(첫 튜토리얼 드랍에 쓴다). */
 export function starterWeaponName(job: Job): string {
   return job === 'archer' ? '낡은 사냥꾼의 활' : job === 'mage' ? '낡은 견습생의 지팡이' : '낡은 두손검';
@@ -943,7 +953,7 @@ export function autoEquipBest(save: Save): number {
     if (next) save.equipment[slot] = next;
     else delete save.equipment[slot];
   }
-  if (save.tutorial === 2 && save.equipment.weapon) save.tutorial = 3;
+  advanceTutorialOnEquip(save);
   for (const change of changes) emitDomainEvent('equipmentChanged', { save, ...change, source: 'auto' });
   return changed;
 }

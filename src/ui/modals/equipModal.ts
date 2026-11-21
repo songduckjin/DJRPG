@@ -1,7 +1,8 @@
 import { emitDomainEvent } from '../../core/domainEvents';
 import {EQUIPMENT_BAG_LIMIT,equipmentCount} from '../../game/bagCapacity';
 import { autoEquipBest, equipmentImage, expToNext, MAX_LEVEL, rarityNames, statNames, totalStats, useSkillBook, type Item, type Save, type Slot, type Stat } from '../../game/store';
-import { isEquipment, isPouch, rarityRanks, salvageGold, slotNameFor, canWield, weaponJob, itemJob, skillBookJob, type TreasurePouch } from '../../game/items';
+import { isEquipment, isPouch, rarityRanks, salvageGold, slotNameFor, canWield, weaponJob, itemJob, skillBookJob, advanceTutorialOnEquip, type TreasurePouch } from '../../game/items';
+import { objectParticle, tutorialGuide } from '../../game/tutorial';
 import { extraOptionLines, extraOptionSummary } from '../../game/extraOptions';
 import { jobNames, jobShortNames, jobOrDefault } from '../../game/skills';
 import { BAG_JOB_ONLY_KEY, jobOnlyLabel, jobOnlyVisible, saveJobOnly } from '../jobFilter';
@@ -69,6 +70,15 @@ export function renderInventory(this: Interface, dialog: HTMLElement): void {
     synth.setAttribute('aria-label', synthRuns > 0 ? `스킬북 합성 · ${synthRuns}회 가능` : '스킬북 합성 · 재료 부족');
     synth.onclick = () => { dismissBagDetail(this); openSynthWindow(this); };
     heading.append(title, synth, jobToggle, sort); section.appendChild(heading);
+    // 입문 안내(작업 미정): 안내 띠는 창 뒤로 가린다 — 방어구를 챙길 순서면 가방 머리글 밑에 같은 문장을 한 줄 둔다.
+    // 판정은 안내 띠와 **같은** `tutorialGuide`를 쓴다(입문 구간을 지난 세이브에는 줄도 칸 강조도 없다).
+    const guide = tutorialGuide(save);
+    const pending = guide?.stage === 'gear' ? guide.slots ?? [] : [];
+    if (pending.length) {
+      const note = document.createElement('small'); note.className = 'tutorial-note';
+      note.textContent = `가방에서 ${objectParticle(pending.map(slot => slotNameFor(slot, jobOrDefault(save.job))).join('·'))} 골라 [장착]을 누르세요.`;
+      section.appendChild(note);
+    }
     const filters = document.createElement('div'); filters.className = 'bag-filters';
     const filterNames: Record<BagFilter, string> = { all: '장비 전체', weapon: '무기', armor: '방어구', accessory: '장신구' };
     for (const filter of Object.keys(filterNames) as BagFilter[]) {
@@ -113,6 +123,7 @@ export function renderInventory(this: Interface, dialog: HTMLElement): void {
       const rarity = rarityBadgeMarkup(item);
       const cell = document.createElement('button'); cell.className = `bag-item ${book ? 'skillbook-item' : pouch ? 'pouch-item' : item.rarity} ${this.selected === item.id ? 'selected' : ''}`;
       if (upgrade) cell.classList.add('has-upgrade');
+      if (!book && !pouch && pending.some(slot => slot === item.slot)) cell.classList.add('tutorial-target');
       cell.innerHTML = itemIcon.call(this, item.slot, item, 'item-icon') + upgrade + plus + rarity;
       cell.type = 'button'; cell.dataset.itemId = item.id;
       // 직업 전용 장비에는 `전사`/`궁수`/`마법사` 배지를 단다(작업 205) — 공용 방어구·장신구에는 붙지 않는다.
@@ -315,7 +326,7 @@ export function itemDetail(this: Interface, save: Save, item: Item): HTMLElement
       const index = save.bag.findIndex(i => i.id === item.id); if (index < 0) return;
       save.bag.splice(index, 1); if (equipped) save.bag.push(equipped); save.equipment[item.slot] = item;
       emitDomainEvent('equipmentChanged', { save, slot: item.slot, item, previous: equipped, source: 'equip' });
-      if (item.name === '낡은 두손검' && save.tutorial === 2) { save.tutorial = 3; this.message('튜토리얼 완료! 두손검을 장착했습니다.'); }
+      if (advanceTutorialOnEquip(save)) this.message(`${itemNameText(item)} 장착! 이제 방어구와 첫 스킬을 챙겨 보세요.`);
       this.selected = undefined; this.world.onChange();
     };
     const dismantle = document.createElement('button'); dismantle.textContent = item.locked ? '잠금 중' : '분해'; dismantle.disabled = !!item.locked; dismantle.onclick = () => requestSalvage.call(this, [item.id]);
@@ -347,6 +358,8 @@ export function salvage(this: Interface): void {
 
 export function renderEquipment(this: Interface, dialog: HTMLElement): void {
     const save = this.world.save, stats = totalStats(save);
+    // 입문 안내가 가리키는 빈 칸(투구·갑옷) — 칸 자체를 은은하게 강조한다.
+    const pending = tutorialGuide(save)?.slots ?? [];
     const showcase = document.createElement('div'); showcase.className = 'equipment-showcase';
     const addSlot = (slot: Slot, grid: HTMLElement) => {
       const item = save.equipment[slot]; const cell = document.createElement('button'); cell.className = `equipment-slot ${item?.rarity ?? 'empty-slot'}`;
@@ -358,6 +371,7 @@ export function renderEquipment(this: Interface, dialog: HTMLElement): void {
       cell.setAttribute('aria-label', `${slotLabel} · ${item ? itemNameText(item) : '빈 슬롯'}`);
       cell.title = item ? itemNameText(item) : '빈 슬롯';
       cell.setAttribute('aria-expanded', String(this.equippedSlot === slot));
+      if (pending.some(pendingSlot => pendingSlot === slot)) cell.classList.add('tutorial-target');
       cell.onpointerenter = event => { if (event.pointerType !== 'touch') showEquippedDetail(this, slot); };
       cell.onpointerleave = () => { if (cell.isConnected) deferEquippedDismiss(this); };
       cell.onfocus = () => showEquippedDetail(this, slot);
