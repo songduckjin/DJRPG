@@ -8,7 +8,7 @@ import { expToNext, floorKillTarget, MAX_LEVEL, totalStats } from '../game/store
 import { availableSkills } from '../game/loadout';
 import { cooldowns, type Action } from '../game/world';
 import { skills, type Job, type SkillId } from '../game/skills';
-import { jobOrDefault } from '../game/skills';
+import { jobNames, jobOrDefault } from '../game/skills';
 import type { Interface } from './interface';
 
 const shortNames: Record<SkillId, string> = {
@@ -36,6 +36,11 @@ export function renderStatus(this: Interface): void {
     const heroName = this.get('.hero-name');
     const nameText = typeof save.name === 'string' && save.name.trim() ? save.name.trim() : '모험가';
     heroName.textContent = nameText; heroName.title = nameText;
+    // 이름판(작업 265, 옵션 2 `다크 이름판`) — `전사 │ 모험가` 한 줄. 직업 태그는 CSS `::before`가
+    // `data-job`을 그대로 그리므로 문구를 HTML로 넣지 않는다(직업을 바꾸면 다음 렌더에서 바로 바뀐다).
+    const jobLabel = jobNames[jobOrDefault(save.job)];
+    heroName.dataset.job = jobLabel;
+    heroName.setAttribute('aria-label', `캐릭터 닉네임 · ${jobLabel} ${nameText}`);
     this.get('.floor-button').addEventListener('click', () => this.open('floor'));
     this.top.querySelector<HTMLButtonElement>('.boss-retry')?.addEventListener('click', () => this.world.challengeBoss());
     this.top.querySelector<HTMLButtonElement>('.floor-return')?.addEventListener('click', () => { const result = this.world.travelToFloor(this.world.save.maxFloor); if (result.message) this.message(result.message); });
