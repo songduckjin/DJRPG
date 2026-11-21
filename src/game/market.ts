@@ -4,6 +4,14 @@ import { apiHeaders, isOutdatedResponse, reloadForNewVersion } from './appVersio
 // 작업 247: `거래 완료`(`sold`) 탭은 없앴다 — 판매 완료 목록은 `최근 거래` 탭이 최근 순서로 보여 준다.
 // 서버 계약(`view:'sold'`)은 `최근 거래` 요청에 그대로 쓴다(`load`).
 export type MarketView = 'active' | 'recent' | 'mine' | 'register' | 'inbox';
+/**
+ * 판매 중 목록의 서브 필터(작업 257) — `전체`·`장비`·`스킬북`.
+ *
+ * 서버 `filters` 계약(`category`는 한 값만 받는다)을 건드리지 않고, 이미 받은 한 페이지의 매물을
+ * 화면에서 거른다(`내 직업만 보기`와 같은 방식). 장비는 `weapon`·`armor`·`accessory` 셋을 모두 뜻한다.
+ */
+export type MarketKind = 'all' | 'equipment' | 'skillbook';
+export const MARKET_KIND_LABELS: Record<MarketKind,string> = { all: '전체', equipment: '장비', skillbook: '스킬북' };
 /** 화면 탭으로 열 수 있는 뷰 — 옛 상태(예: `sold`)가 남아 있으면 `active`로 안전 폴백한다. */
 export const MARKET_VIEWS: MarketView[] = ['active', 'recent', 'mine', 'register', 'inbox'];
 /**
@@ -20,6 +28,8 @@ export class Market {
   candidate?: MarketData;
   selected?: Listing;
   selectedItem = '';
+  /** 판매 중 서브 필터(작업 257) — 기기·서버에 저장하지 않는 이번 화면의 선택. */
+  kind: MarketKind = 'all';
   mineActiveOnly = false;
   quote?: { itemId:string; loading:boolean; error?:string; lastPrice?:number; soldAt?:number; average?:number; count?:number };
   private quoteGeneration = 0;
@@ -52,7 +62,7 @@ export class Market {
     this.listRequest?.abort(); this.generation++; this.loading = false;
     this.view = 'active'; this.filters = { query: '', category: '', slot: '', rarity: '', sort: 'newest', page: 0 };
     this.selected = undefined; this.selectedItem = ''; this.price = ''; this.quantity = '1'; this.buyQuantity = new Map(); this.error = '';
-    this.mineActiveOnly = false; this.quote = undefined; this.quoteGeneration++;
+    this.mineActiveOnly = false; this.kind = 'all'; this.quote = undefined; this.quoteGeneration++;
     this.registerCategory = ''; this.registerRarity = ''; this.unlockItem = undefined;
     this.data = undefined; this.candidate = undefined; this.newCount = 0;
   }
