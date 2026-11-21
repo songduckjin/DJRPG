@@ -15,6 +15,7 @@
 | 층 상한·층당 처치 목표·경험치 | `src/game/store.ts` (`MAX_FLOOR`=20·`floorKillTarget`·`addExperience`) |
 | 드롭 확률·등급·강화 | `src/game/items.ts` — 규칙은 `docs/INVENTORY_GEAR.md` |
 | HUD·층 선택·보스 도전 버튼 | `src/ui/hud.ts`·`src/ui/modals/floorModal.ts`·`src/styles/hud.css` |
+| 층별 권장 전투력·여유/적정/위험·추천 층 | `src/game/floorPower.ts` (`recommendedFloorPower`·`floorPowerState`·`recommendedFloorFor`) |
 
 ## 불변 규칙
 
@@ -31,6 +32,14 @@
 - **방치 정산**: 최대 12시간(`elapsedSince`), 아래층에서는 보스 몫 없이 진행도만 돈다. 자동 등반이 켜져 있고 최고 층이면 목표 처치마다 보스전을 정산해 이기면 층을 올린다(작업 235). 방치도 `autoSalvageRecovered`를 지나 분해분은 가방 대신 금화·강화석이 된다(작업 254).
 - **저장**: `world`의 휘발 상태(`enemies`·`effects`·`drops`)는 저장되지 않는다. `save`를 바꾸면 `world.onChange` → `Interface.onSave` → `sync.queueSave()` 한 경로만 쓴다.
 
+## 층별 권장 전투력 — 「층 선택」 창
+
+- **권장 전투력은 수치 표가 아니라 층 곡선에서 계산한다** (`src/game/floorPower.ts`). `enemyMaxHp`·`enemyHitDamage`·`swarmCount`·`basicAttackPower`·`CRIT_DAMAGE_SCALE`만 읽으므로 밸런스를 바꾸면 값도 같이 움직인다. 별도 표를 새로 만들지 않는다.
+- **기준 빌드** = 그 층을 편하게 사냥하는 최소선. 레벨 `ceil(층 × 0.8)`(옛 `권장 Lv.` 규칙), 방어·치명·공속은 그 레벨 기본값(장비 기대치 없음), 공격은 몹을 2대에 잡는 값, 체력은 적이 0.85초마다 한 번(그 한 번에 `swarmCount(층)`마리 함께) 때릴 때 20초를 버티는 값이다. 그래서 1층 권장값 = 장비 없는 1레벨의 전투력(68)이고, 11층·16층에서 군집이 2·3마리로 늘어 권장값이 한 단계 뛴다.
+- **판정**: 내 전투력(=`totalStats` → `combatPower`)이 권장값의 1.5배 이상이면 `여유`, 0.75배 미만이면 `위험`, 사이가 `적정`. `★ 추천 M층`은 `적정` 이상인 가장 깊은 층이고 **최고 층(`maxFloor`)을 넘지 않는다**.
+- **전투력 식은 한 곳**: `combatPower`(공격×3 + 방어×2 + 체력×0.2 + 치명×2 + 공속×2)를 `내 정보`와 층 선택 창이 함께 쓴다.
+- **화면**: 10층 단위 구간(`floorGroups`, `MAX_FLOOR`까지 자동 확장)으로 묶고, 내 권장 층이 든 구간 하나만 자동으로 펼친다. 구간 머리를 누르면 접히고 펼쳐지며, 최고 층 위 카드는 잠긴다(이동 불가). 카드 높이는 상태와 무관하게 같다.
+
 ## 금지
 
 - 몹 체력·피해·스폰 곡선·등급 확률을 "정리" 명목으로 압축하기(밸런스 작업은 사용자 확정 필요).
@@ -39,7 +48,7 @@
 
 ## 테스트
 
-`node --test tests/world-movement.test.mjs tests/arena.test.mjs tests/field-spawn.test.mjs tests/field-loot.test.mjs tests/elite-mob.test.mjs tests/offline.test.mjs tests/offline-climb.test.mjs tests/offline-auto-salvage.test.mjs tests/floor-cap.test.mjs tests/boss-loot.test.mjs`
+`node --test tests/world-movement.test.mjs tests/arena.test.mjs tests/field-spawn.test.mjs tests/field-loot.test.mjs tests/elite-mob.test.mjs tests/offline.test.mjs tests/offline-climb.test.mjs tests/offline-auto-salvage.test.mjs tests/floor-cap.test.mjs tests/boss-loot.test.mjs tests/floor-power-modal.test.mjs`
 
 ## 관련 매뉴얼
 

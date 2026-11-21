@@ -13,6 +13,7 @@ import { requestSalvage } from './salvageModal';
 import { equipmentPortraitPlan, renderEquipmentGlowLayers, renderEquipmentPortrait } from '../equipmentPortrait';
 import { goldMarkup } from '../currency';
 import { isSkillBook } from '../../game/items';
+import { combatPower } from '../../game/floorPower';
 import { pouchCount } from '../../game/pouch';
 import { openPouchWindow } from './pouchModal';
 // [작업 251] 가방 `합성` — 타직업 스킬북 5권을 내 직업 책 1권으로. 팝업은 작은 창(`synthModal`).
@@ -396,7 +397,8 @@ export function renderEquipment(this: Interface, dialog: HTMLElement): void {
     const expPercent = save.level >= MAX_LEVEL ? 'MAX' : `${Math.floor(save.exp / expToNext(save.level) * 100)}%`;
     summary.innerHTML = `<span>LV <b>${save.level >= MAX_LEVEL ? `${MAX_LEVEL} MAX` : save.level}</b></span><span>${save.floor}층</span><span>EXP <b>${expPercent}</b></span><span>${goldMarkup(save.gold)} · 강화석 ${save.stones}</span>`;
     info.appendChild(summary);
-    const power = Math.round(stats.attack * 3 + stats.defense * 2 + stats.health * .2 + stats.crit * 2 + stats.speed * 2);
+    // 전투력 식은 `game/floorPower.ts` 한 곳에 둔다 — 층 선택 창의 권장 전투력과 같은 척도다.
+    const power = combatPower(stats);
     const values = [power, `${Math.ceil(this.world.player.hp)}/${stats.health}`, stats.attack, stats.defense, `${stats.crit}%`, `${stats.speed}%`];
     const statGrid = document.createElement('div'); statGrid.className = 'equipment-info-stats';
     equipmentInfoStats.forEach((label, index) => {
