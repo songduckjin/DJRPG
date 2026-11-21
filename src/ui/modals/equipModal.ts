@@ -1,4 +1,4 @@
-import {equipmentCount} from '../../game/bagCapacity';
+import {EQUIPMENT_BAG_LIMIT,equipmentCount} from '../../game/bagCapacity';
 import { autoEquipBest, equipmentImage, expToNext, MAX_LEVEL, rarityNames, statNames, totalStats, useSkillBook, type Item, type Save, type Slot, type Stat } from '../../game/store';
 import { isEquipment, isPouch, rarityRanks, salvageGold, slotNameFor, canWield, weaponJob, itemJob, skillBookJob, type TreasurePouch } from '../../game/items';
 import { extraOptionLines, extraOptionSummary } from '../../game/extraOptions';
@@ -128,6 +128,12 @@ export function renderInventory(this: Interface, dialog: HTMLElement): void {
     const bagUsed = equipmentCount(save.bag, save.job);
     const count = document.createElement('span'); count.textContent = `가방 ${bagUsed}/40`;
     count.title = `가방 ${bagUsed}/40 · 장비와 다른 직업 전용 스킬북을 함께 세고, 내 직업 스킬북·보물 주머니는 별도입니다`;
+    // 가방 가득 참(작업 246, 사용자 요청 `#20938`) — 40칸이 차면 칸수 옆에 빨간 `가득 참`을 붙인다.
+    if (bagUsed >= EQUIPMENT_BAG_LIMIT) {
+      const flag = document.createElement('b'); flag.className = 'bag-full-flag'; flag.textContent = ' 가득 참';
+      count.append(flag);
+      count.title = `가방이 가득 찼습니다 (${bagUsed}/40) · 새 장비를 주우려면 분해·판매로 자리를 비워 주세요`;
+    }
     // [작업 228] `가방 16칸` · `가방 16/40` 두 줄로 적던 것을 한 줄로 합쳤다 — 세로가 짧은 폰에서
     // 가방 칸을 밀어내던 한 줄을 바닥줄에서 돌려준다.
     if (pouches) {

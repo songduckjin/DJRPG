@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { account, transaction, assertRevision, validateSave, reconcileItems, writeSave, fail, inventoryOwnerQuery } from './database.mjs';
+import { account, transaction, assertRevision, validateSave, reconcileItems, writeSave, fail, inventoryOwnerQuery, countedBagItems, EQUIPMENT_BAG_LIMIT } from './database.mjs';
 import { elapsedSince } from './save-guard.mjs';
 import { journeyState, journeyOperation, journeyView, dailyTasks, pouchItem } from './journey-state.mjs';
 import { rollRewardSkillBook } from './skill-ids.mjs';
@@ -11,6 +11,8 @@ function rewards(save, entries) {
   save.gold += gold;
   save.bag ??= [];
   // 우편·보상 스킬북도 세 직업 33종에서 고른다(작업 209) — 예전에는 전사 11종만 나왔다.
+  // 보상은 칸 검사를 하지 않고 넣는다(받을 것을 잃지 않게). 다른 직업 책이면 40칸을 넘길 수 있고,
+  // 그 초과분은 `reconcileItems`가 "서버가 들고 있는 수"까지 인정해 저장을 막지 않는다(작업 246).
   for(let i=0;i<books;i++) {
     const {skillId,name}=rollRewardSkillBook();
     save.bag.push({id:randomUUID(),kind:'skillbook',slot:'skillbook',skillId,rarity:'rare',name,stats:{}});
@@ -80,7 +82,10 @@ export async function mutate(db,id,input,options={}) {
       ops.push({sql:'INSERT INTO djrpg_item_owners VALUES (?,?,?,?)',args:[item.id,id,'inventory',JSON.stringify(item)]});
       ops.push({sql:'INSERT INTO djrpg_character_item_owners(item_id,account_id,slot) VALUES (?,?,?)',args:[item.id,id,row.slot]});
     }
-    const message=input.action==='journey-claim'?`${selected.length}개 보상을 수령했습니다.`:input.action==='journey-delete'?'수령 완료 우편을 삭제했습니다.':'우편을 확인했습니다.';
+    // 가방이 40칸을 넘면 화면이 왜 장비를 못 줍는지 알 수 있게 함께 알린다(작업 246).
+    const overBag = input.action === 'journey-claim' && countedBagItems(save.bag, save.job) > EQUIPMENT_BAG_LIMIT
+      ? ` 가방이 ${countedBagItems(save.bag, save.job)}칸이 되어 새 장비를 주울 수 없습니다. 분해·판매로 자리를 비워 주세요.` : '';
+    const message=input.action==='journey-claim'?`${selected.length}개 보상을 수령했습니다.${overBag}`:input.action==='journey-delete'?'수령 완료 우편을 삭제했습니다.':'우편을 확인했습니다.';
     ops.push({sql:'INSERT INTO djrpg_market_requests VALUES (?,?,?)',args:[id,input.requestId,JSON.stringify({ok:true,message})]});
     const saved=await writeSave(tx,{...row,skipJourney:true},save,ops,true,{goldCredit});
     const result={ok:true,...saved,message,journey:journeyView(state,save,now)};

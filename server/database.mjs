@@ -174,12 +174,31 @@ export function assertRevision(row, revision) {
   if (!Number.isSafeInteger(revision) || revision !== row.revision) fail(409, 'SAVE_CONFLICT', '다른 탭이나 기기에서 진행 상황이 변경되었습니다. 새로고침하여 최신 데이터를 불러오세요.');
 }
 const itemsOf = save => [...(save.bag ?? []), ...Object.values(save.equipment ?? {}).filter(Boolean)];
+/** 가방 40칸 — `src/game/bagCapacity.ts`·`server/skill-ids.mjs`와 같은 규칙(장비 + 다른 직업 전용 스킬북). */
+export const EQUIPMENT_BAG_LIMIT = 40;
+/** 가방 40칸에 세는 수. 배열이 아니면 0. */
+export const countedBagItems = (bag, job) => (Array.isArray(bag) ? bag : []).filter(item => countedInBag(item, job)).length;
+/**
+ * 이 세이브에 허용하는 가방 상한(작업 246).
+ *
+ * 서버는 보상(우편·일일·주간·업적 스킬북)과 거래 수령에서 **칸 검사 없이** 아이템을 넣는다. 그래서 서버
+ * 세이브 자체가 40칸을 넘는 경우가 생기는데, 저장까지 40칸으로 막으면 그 뒤로 클라이언트의 모든 `save`가
+ * `400 INVALID_SAVE`("가방 또는 장비 데이터가 올바르지 않습니다.")로 거절되고, `sync.flush()`가 실패해
+ * **거래소·우편 수령 전체가 영구히 잠긴다**(사용자 제보 `#20869`·`#20887`·`#20915`).
+ *
+ * 그래서 상한은 **이미 서버 세이브가 들고 있는 수**까지 인정하고, 클라이언트가 그 위로 더 넣는 것만 거절한다.
+ * 넘친 계정은 아이템을 잃지 않고 저장이 풀리며, 분해·판매로 40칸 아래로 내려오면 종전 규칙으로 돌아간다.
+ */
+export const bagCapacityLimit = save => Math.max(EQUIPMENT_BAG_LIMIT, countedBagItems(save?.bag, save?.job));
 // Fetch both persisted and incoming inventory owners alongside the trade's other reads.
 export function inventoryOwnerQuery(id, incoming) {
   const bag = Array.isArray(incoming?.bag) ? incoming.bag : [];
   const equipment = incoming?.equipment && typeof incoming.equipment === 'object' ? Object.values(incoming.equipment) : [];
   if (incoming !== undefined) validateSave(incoming);
-  if (bag.filter(item=>item?.slot!=='skillbook' && item?.slot!=='pouch').length > 40 || equipment.length > 10) fail(400, 'INVALID_SAVE', '가방 또는 장비 데이터가 올바르지 않습니다.');
+  // 가방 40칸은 `reconcileItems`가 서버 세이브와 비교해 판정한다(작업 246). 여기서는 장비 칸 수만 본다 —
+  // 이 함수는 트랜잭션의 첫 배치에서 서버 세이브를 읽기 전에 불리므로, 넘친 가방을 400으로 막으면
+  // 서버가 스스로 만든 초과분 때문에 거래·우편이 영구히 잠긴다.
+  if (equipment.length > 10) fail(400, 'INVALID_SAVE', '가방 또는 장비 데이터가 올바르지 않습니다.');
   const ids = [...bag, ...equipment].map(item => item?.id).filter(value => typeof value === 'string');
   return { sql: `SELECT o.*, m.slot AS character_slot FROM djrpg_item_owners o LEFT JOIN djrpg_character_item_owners m ON m.item_id=o.item_id WHERE o.item_id IN (
     SELECT json_extract(j.value,'$.id') FROM djrpg_characters c, json_each(c.save_json,'$.bag') j WHERE c.account_id=?
@@ -222,7 +241,10 @@ export async function reconcileItems(tx, id, before, after, options = {}) {
   const guard = rewardBudget(before, options.elapsedSeconds);
   const mintFloor = Math.max(1, Number(before?.maxFloor ?? before?.floor ?? 1) || 1) + guard.bosses;
   let minted = 0;
-  if (!Array.isArray(after.bag) || after.bag.filter(item => countedInBag(item, after.job)).length > 40 || Object.values(after.equipment??{}).length > 10 || !after.equipment || typeof after.equipment !== 'object') fail(400, 'INVALID_SAVE', '가방 또는 장비 데이터가 올바르지 않습니다.');
+  // 상한은 "이미 서버가 들고 있는 수"까지 — 서버가 보상으로 넣어 준 초과분을 저장에서 막지 않는다(작업 246).
+  const bagLimit = bagCapacityLimit(before);
+  if (!Array.isArray(after.bag) || !after.equipment || typeof after.equipment !== 'object' || Object.values(after.equipment).length > 10) fail(400, 'INVALID_SAVE', '가방 또는 장비 데이터가 올바르지 않습니다.');
+  if (countedBagItems(after.bag, after.job) > bagLimit) fail(400, 'INVALID_SAVE', `가방이 ${bagLimit}칸까지입니다. 장비·다른 직업 스킬북을 분해하거나 거래소에 올려 자리를 비워 주세요.`);
   const previousValid = previous.filter(itemValid);
   const previousById = new Map(previousValid.map(item => [item.id, item]));
   const allIds = [...new Set([...previousValid, ...next].map(item => item?.id).filter(id => typeof id === 'string'))];
