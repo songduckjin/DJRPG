@@ -33,7 +33,7 @@ import type { CharacterSummary } from './modals/charactersModal';
 //   modalChrome     : 모든 팝업이 같이 쓰는 창틀(클래스·머리글·aria·스크롤)
 //   interfaceControls: 메뉴 버튼·Esc·바깥 누르기·공격 패드
 //   interfaceWiring : 거래소·여정·창고·월드의 화면 갱신 콜백
-import type { BagFilter, Modal, SkillFilter } from './interfaceTypes';
+import type { BagFilter, Modal, SkillFilter, SkillSelection } from './interfaceTypes';
 import { MODALS } from './modalRegistry';
 import { renderModalPanel } from './modalChrome';
 import { bindPanelInput, mountActionPad } from './interfaceControls';
@@ -91,6 +91,10 @@ export class Interface {
   pendingSkill?: SkillId;
   /** 스킬 창의 `전체/액티브/패시브` 탭(작업 240) — 창을 닫으면 `modalDefaults`가 `전체`로 되돌린다. */
   skillFilter: SkillFilter = 'all';
+  /** 스킬 창 B안(작업 266) — 하단 액션 바가 다루는 타일과 `정보` 펼침, 스크롤 자리. 모두 보기 상태다. */
+  skillSelected?: SkillSelection;
+  skillInfoOpen = false;
+  skillScroll = 0;
   codexQuery = '';
   codexSlot = '';
   codexState = 'all';

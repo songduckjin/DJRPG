@@ -11,7 +11,7 @@
 | 스킬 레벨·스킬북 비용 | `src/game/skillProgress.ts`·`src/game/store.ts`(`useSkillBook`·`skillLevel`) |
 | 스킬북 합성 | `src/game/skillSynth.ts`(`SYNTH_BOOK_COST`=5·`synthMaterials`·`synthCapacity`·`synthesizeSkillBooks`) |
 | 합성 UI·연출 | `src/ui/modals/synthModal.ts`·`src/styles/modals.css`(`.synth-*`) |
-| 스킬 화면·퀵슬롯 UI | `src/ui/modals/skillModal.ts`·`src/ui/skillLoadout.ts`·`src/ui/skillFeedback.ts`·`src/ui/skillArtwork.ts` |
+| 스킬 화면·퀵슬롯 UI | `src/ui/modals/skillModal.ts`(2열 타일·하단 액션 바)·`src/ui/skillLoadout.ts`·`src/ui/skillFeedback.ts`·`src/ui/skillArtwork.ts`·`src/ui/skillBooks.ts`(`skillUpgradeInfo`·`upgradeSkill`) |
 | 서버 스킬북 ID 단일 목록 | `server/skill-ids.mjs`(33종) — `tests/skillbook-server.test.mjs`가 `skills.ts`와 대조 |
 | 도감 | `src/game/codex.ts`(`codexEntryStates`·`filterCodexEntryStates`·`codexGroupTotals`)·`src/ui/modals/codexModal.ts`·`src/styles/codex.css` |
 
@@ -34,6 +34,23 @@
 - **탭 합계는 `codexGroupTotals`**: 전체 135 · 무기 35(무기+문장) · 방어구 90(투구·갑옷 30 + 장갑·허리띠·신발 10) · 장신구 10(목걸이·반지).
 - **810 저장은 그대로**: `codexVariantCount` 810·발견 수(`수집률 N / 810`)·업적·서버 상한은 바꾸지 않고, 요약에 `종별 M / 135`만 더한다.
 
+## 스킬 창 구조 (작업 266 B안)
+
+창은 위에서 아래로 네 칸이고 **스크롤은 목록만** 갖는다.
+
+| 칸 | 요소 | 내용 |
+|---|---|---|
+| ① | `header` | `스킬` · 닫기 |
+| ② | `.skill-top-bar` | `추천 자동 장착` · `자동 강화` · `전체/액티브/패시브` 탭 |
+| ③ | `.skill-list` | 패시브 그리드 → 액티브 그리드(기본 공격 + 8종) → 스킬북 (여기만 `overflow-y: auto`) |
+| ④ | `.skill-action-bar` | 고른 타일 하나: 아이콘·이름·`Lv.N` + `[장착·강화·정보]` / 패시브 `[강화·정보]` / 기본 공격 `[고정·강화·정보]` |
+
+- **타일에는 아이콘·이름·`Lv.N`·상태 칩만** 둔다(`.skill-tile-grid` 2열). 긴 설명·능력치·카드별 강화 버튼은 타일에서 뺐고, 설명은 액션 바의 `정보`가 펼친다(`쿨 N초 · 지속 N초 · 범위 N · 위력 +N%`, 패시브는 `영구 적용 · …`).
+- 상태 칩은 `skillChips(save, id)` 한 곳이 정한다: `장착중`(퀵슬롯) · `강화!`(`skillBookStatus().ready`) · `고정`(기본 공격) · `미습득`. 미습득은 `Lv.N` 자리가 이미 `미습득`이라 칩을 겹치지 않는다.
+- **강화 판정은 한 벌**: `skillBooks.ts`의 `skillUpgradeInfo(ui, id)`(문구·잠금·권수)와 `upgradeSkill(ui, id)`(가드·체력 보정·저장 호출)를 스킬북 칸과 액션 바가 함께 쓴다. 새 화면에서 강화 버튼을 만들 때 `skillBookStatus`를 다시 해석하지 않는다.
+- 보기 상태는 `Interface.skillSelected`(스킬 ID 또는 기본 공격 `'attack'`)·`skillInfoOpen`·`skillScroll`이고 `modalDefaults`가 창을 닫을 때 되돌린다. 기본 선택은 **장착 중 → 습득 → 기본 공격**, 탭을 바꿔 고른 타일이 사라지면 그 탭의 같은 규칙으로 옮긴다.
+- 다시 그려도(타일 선택·정보 토글·강화) 목록 스크롤 자리를 지키려고 `ui.skillScroll`에 남긴다. 새로 그릴 때 이 값을 되돌려 놓는다.
+
 ## 금지
 
 - 스킬 ID·이름을 한쪽(`skills.ts` 또는 `skill-ids.mjs`)만 고치기.
@@ -43,7 +60,7 @@
 
 ## 테스트
 
-`node --test tests/skill-progression.test.mjs tests/skillbook-server.test.mjs tests/skillbook-synth.test.mjs tests/loadout.test.mjs tests/skill-auto-loadout.test.mjs tests/skill-ui.test.mjs tests/skill-feedback.test.mjs tests/skillbook-art.test.mjs tests/codex.test.mjs tests/codex-ui.test.mjs tests/achievements.test.mjs`
+`node --test tests/skill-progression.test.mjs tests/skillbook-server.test.mjs tests/skillbook-synth.test.mjs tests/loadout.test.mjs tests/skill-auto-loadout.test.mjs tests/skill-ui.test.mjs tests/skill-modal-ui.test.mjs tests/skill-auto-upgrade.test.mjs tests/skill-feedback.test.mjs tests/skillbook-art.test.mjs tests/codex.test.mjs tests/codex-ui.test.mjs tests/achievements.test.mjs`
 
 ## 관련 매뉴얼
 

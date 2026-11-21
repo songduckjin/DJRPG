@@ -14,6 +14,8 @@ export function resetModalDefaults(ui: Interface): void {
   ui.codexSelected = undefined;
   // 스킬 창 탭은 보기 상태다 — 창을 닫으면 `전체`로 돌아간다(작업 240).
   ui.skillFilter = 'all';
+  // 고른 타일·정보 펼침·스크롤 자리도 보기 상태다(작업 266) — 다시 열면 장착 중인 스킬부터 보여 준다.
+  ui.skillSelected = undefined; ui.skillInfoOpen = false; ui.skillScroll = 0;
   ui.confirmReset = false;
   // 캐릭터 카드 펼침은 팝업을 닫으면 접힌다(작업 216).
   ui.characterFocus = undefined;
