@@ -244,7 +244,7 @@ test('selected option sorts all matches by stat descending before pagination, ov
   const now=Date.now(),operations=[];
   for(let value=1;value<=23;value++){
     const gear={...item(),name:'옵션정렬검',stats:{attack:value}};
-    operations.push({sql:'INSERT INTO djrpg_market VALUES (?,?,?,NULL,?,?,?,?,?,?,?,?,NULL)',args:[randomUUID(),'seller','전사',JSON.stringify(gear),gear.name,gear.slot,gear.rarity,value,'active',now+value,now+3600000]});
+    operations.push({sql:'INSERT INTO djrpg_market (id,seller,seller_name,buyer,item_json,name,slot,rarity,price,state,created_at,expires_at,sold_at) VALUES (?,?,?,NULL,?,?,?,?,?,?,?,?,NULL)',args:[randomUUID(),'seller','전사',JSON.stringify(gear),gear.name,gear.slot,gear.rarity,value,'active',now+value,now+3600000]});
   }
   await db.batch(operations);
   const first=await snapshot(db,'buyer',{query:'옵션정렬검',stat:'attack',sort:'priceAsc'});
@@ -438,4 +438,118 @@ test('수령함 30건 상한은 새 구매·판매 등록을 막고 이미 성�
   const latest = (await account(db, 'cap-offer')).save.bag[0];
   await action('cap-offer', 'register', { itemId: latest.id, price: 300 });
   assert(sellerInbox.every(entry => entry.id !== undefined));
+});
+
+// ── 작업 249: 묶음 등록(최대 10개)·개당 가격·부분/전체 구매 ──────────────────────────────
+// 사용자 확정: "묶음템은 한번에 개당 갯수 적어서 등록할수있어야하고 구매할때는 묶음전체구매할지
+// 개당구매할지 선택할수있어야함" + "묶음판매는 한번에 10개까지".
+const skillbook = (skillId = 'slash2', rarity = 'rare') => ({ id: randomUUID(), name: '[스킬북] 소드 슬래시', slot: 'skillbook', kind: 'skillbook', skillId, rarity, stats: {} });
+const ownerLocations = async ids => (await db.execute({ sql: `SELECT item_id,location FROM djrpg_item_owners WHERE item_id IN (${ids.map(() => '?').join(',')})`, args: ids })).rows
+  .reduce((map, row) => ({ ...map, [row.item_id]: row.location }), {});
+
+test('같은 스킬북 묶음 등록 · 개당 가격 · 부분 구매 · 전체 구매 (작업 249)', async () => {
+  const books = [skillbook('slash2'), skillbook('slash2'), skillbook('slash2')];
+  const ids = books.map(entry => entry.id);
+  await seed('bundle-seller', books, 10000);
+  await seed('bundle-buyer', [], 1000);
+  const registered = await action('bundle-seller', 'register', { itemIds: ids, price: 100 });
+  assert.equal(registered.effect.listing.quantity, 3, '한 매물로 3개가 등록된다');
+  assert.equal((await account(db, 'bundle-seller')).save.bag.length, 0, '가방에서 3권이 모두 빠진다');
+  assert.equal(registered.effect.listing.mine, true, '내 매물로 표시되어 내 목록 갱신에 쓰인다');
+  assert.deepEqual(await ownerLocations(ids), Object.fromEntries(ids.map(id => [id, 'escrow'])), '세 아이템 모두 거래소 보관 상태다');
+
+  const listed = (await snapshot(db, 'bundle-buyer', { view: 'active' })).listings.find(entry => entry.id === registered.effect.listing.id);
+  assert.equal(listed.price, 100, '`price`는 개당 가격이다');
+  assert.equal(listed.unitPrice, 100);
+  assert.equal(listed.quantity, 3);
+  assert.equal(listed.totalPrice, 300);
+
+  // 2개만 산다 — 매물은 남은 1개로 계속 판매 중이고, 대금은 팔린 2개만 적립된다.
+  const partial = await action('bundle-buyer', 'buy', { listingId: listed.id, quantity: 2 });
+  assert.equal(partial.save.gold, 800, '개당 100 × 2');
+  assert.equal(partial.effect.listing.state, 'active');
+  assert.equal(partial.effect.listing.quantity, 1);
+  const bought = (await snapshot(db, 'bundle-buyer', { view: 'inbox' })).inbox.filter(entry => entry.item);
+  assert.equal(bought.length, 2, '부분 구매는 아이템마다 수령함 한 줄');
+  assert.deepEqual(bought.map(entry => entry.item.id).sort(), [ids[0], ids[1]].sort());
+  const left = (await snapshot(db, 'bundle-buyer', { view: 'active' })).listings.find(entry => entry.id === listed.id);
+  assert.equal(left.quantity, 1);
+  assert.equal(left.totalPrice, 100);
+  const proceeds = (await snapshot(db, 'bundle-seller', { view: 'inbox' })).inbox.filter(entry => !entry.item);
+  assert.equal(proceeds.reduce((sum, entry) => sum + entry.gold, 0), 190, '200 금화에서 수수료 5%(올림 10)를 뺀 190');
+
+  // 남은 1개를 전체 구매 — 매물은 판매 완료가 된다.
+  await seed('bundle-buyer2', [], 1000);
+  const whole = await action('bundle-buyer2', 'buy', { listingId: listed.id });
+  assert.equal(whole.effect.listing.state, 'sold');
+  assert.equal(whole.save.gold, 900);
+  assert.equal((await snapshot(db, 'bundle-buyer2', { view: 'active' })).listings.some(entry => entry.id === listed.id), false);
+  assert.equal((await snapshot(db, 'bundle-buyer2', { view: 'sold' })).listings.find(entry => entry.id === listed.id).quantity, 1, '판매 완료 행은 팔린 수량을 보여 준다');
+  // 받은 아이템은 가방으로 들어가고 다음 저장(reconcile)도 통과한다.
+  const last = (await snapshot(db, 'bundle-buyer2', { view: 'inbox' })).inbox.find(entry => entry.item);
+  const claimed = await action('bundle-buyer2', 'claim', { deliveryId: last.id });
+  assert(claimed.save.bag.some(entry => entry.id === ids[2]));
+  await transaction(db, async tx => { const latest = await account(tx, 'bundle-buyer2'); await reconcileItems(tx, 'bundle-buyer2', latest.save, claimed.save, { slot: latest.slot }); });
+});
+
+test('묶음은 같은 스킬북만 · 한 번에 최대 10개까지 (작업 249)', async () => {
+  const many = Array.from({ length: 12 }, () => skillbook('slash2'));
+  await seed('bundle-limit', many, 10000);
+  const ids = (await account(db, 'bundle-limit')).save.bag.map(entry => entry.id);
+  const { rules, maxBundleMessage } = await import('../server/market.mjs');
+  assert.equal(rules.maxBundle, 10);
+  await assert.rejects(action('bundle-limit', 'register', { itemIds: ids.slice(0, 11), price: 10 }),
+    error => error.code === 'INVALID_QUANTITY' && error.message === maxBundleMessage);
+  // 다른 스킬북을 한 묶음으로 등록할 수 없다.
+  await seed('bundle-mix', [skillbook('slash2'), skillbook('spin')], 10000);
+  const mixed = (await account(db, 'bundle-mix')).save.bag.map(entry => entry.id);
+  await assert.rejects(action('bundle-mix', 'register', { itemIds: mixed, price: 10 }), error('INVALID_QUANTITY'));
+  // 보유한 수량보다 많이 등록할 수 없다.
+  await assert.rejects(action('bundle-limit', 'register', { itemId: ids[0], quantity: 13, price: 10 }), error('INVALID_QUANTITY'));
+  // `itemId` + `quantity`만 줘도 서버가 같은 스킬북을 가방 순서대로 모아 등록한다.
+  const registered = await action('bundle-limit', 'register', { itemId: ids[0], quantity: 10, price: 10 });
+  assert.equal(registered.effect.listing.quantity, 10);
+  assert.equal((await account(db, 'bundle-limit')).save.bag.length, 2, '12권 중 10권이 나간다');
+  // 보물 주머니 같은 소모품은 종전처럼 팔 수 없다.
+  const pouch = { id: randomUUID(), name: '무작위 보물 주머니', slot: 'pouch', kind: 'pouch', rarity: 'rare', stats: {} };
+  await seed('bundle-pouch', [pouch], 10000);
+  await assert.rejects(action('bundle-pouch', 'register', { itemId: pouch.id, price: 10 }), error('ITEM_NOT_AVAILABLE'));
+});
+
+test('묶음 매물 취소·만료는 남은 수량을 모두 돌려주고 동시 구매는 한 번만 성사된다 (작업 249)', async () => {
+  const books = [skillbook('slash2'), skillbook('slash2'), skillbook('slash2')];
+  const ids = books.map(entry => entry.id);
+  await seed('bundle-return', books, 10000);
+  await seed('bundle-quick1', [], 10000);
+  await seed('bundle-quick2', [], 10000);
+  const registered = await action('bundle-return', 'register', { itemIds: ids, price: 50 });
+  const listingId = registered.effect.listing.id;
+  // 두 구매자가 **같은 순간의 화면**(같은 매물 상태·수량)을 보고 거의 동시에 2개씩 요청한 상황을 만든다.
+  // 서버는 쓰기 트랜잭션 안에서 남은 수량을 다시 읽으므로 두 번째는 수량 부족으로 거절된다(판매량 초과 금지).
+  const seenA = await account(db, 'bundle-quick1'), seenB = await account(db, 'bundle-quick2');
+  const buy = (id, row) => mutate(db, id, { action: 'buy', listingId, quantity: 2, revision: row.revision, requestId: randomUUID() });
+  await buy('bundle-quick1', seenA);
+  await assert.rejects(buy('bundle-quick2', seenB), error => ['INVALID_QUANTITY', 'NOT_AVAILABLE', 'SAVE_CONFLICT'].includes(error.code));
+  assert.equal((await account(db, 'bundle-quick1')).save.gold, 10000 - 100, '한 명만 2개(100 금화)를 냈다');
+  assert.equal((await account(db, 'bundle-quick2')).save.gold, 10000, '거절된 구매는 금화를 건드리지 않는다');
+  const afterBuy = (await snapshot(db, 'bundle-return', { view: 'active' })).listings.find(entry => entry.id === listingId);
+  assert.equal(afterBuy.quantity, 1);
+  const cancel = await action('bundle-return', 'cancel', { listingId });
+  assert.equal(cancel.effect.listing.state, 'cancelled');
+  const returned = (await snapshot(db, 'bundle-return', { view: 'inbox' })).inbox.filter(entry => entry.item);
+  assert.equal(returned.length, 1, '남은 1개가 판매자 수령함으로 돌아온다');
+  assert(ids.includes(returned[0].item.id));
+  assert.equal((await ownerLocations([returned[0].item.id]))[returned[0].item.id], 'inbox');
+
+  // 등록 기간이 끝나면 남은 아이템 전부(3개)가 한 번씩만 반환된다.
+  const others = [skillbook('spin'), skillbook('spin'), skillbook('spin')];
+  const otherIds = others.map(entry => entry.id);
+  await seed('bundle-expire', others, 10000);
+  const second = await action('bundle-expire', 'register', { itemIds: otherIds, price: 10 });
+  await db.execute({ sql: 'UPDATE djrpg_market SET expires_at=? WHERE id=?', args: [Date.now() - 1000, second.effect.listing.id] });
+  await snapshot(db, 'bundle-expire', { view: 'mine' });
+  await snapshot(db, 'bundle-expire', { view: 'mine' });
+  const expired = (await snapshot(db, 'bundle-expire', { view: 'inbox' })).inbox.filter(entry => entry.item);
+  assert.deepEqual(expired.map(entry => entry.item.id).sort(), otherIds.slice().sort(), '만료 반환은 3개 모두');
+  assert.deepEqual(await ownerLocations(otherIds), Object.fromEntries(otherIds.map(id => [id, 'inbox'])));
 });

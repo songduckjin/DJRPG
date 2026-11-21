@@ -42,6 +42,22 @@ export function marketSortIndexStatements() {
   statements.push('CREATE INDEX IF NOT EXISTS djrpg_market_sort_price ON djrpg_market(state, price ASC, created_at DESC, id)');
   return statements;
 }
+/**
+ * 묶음 등록 열 보정(작업 249).
+ *
+ * `CREATE TABLE IF NOT EXISTS`는 이미 있는 표를 바꾸지 않으므로, 2026-11-21 이전에 만들어진 DB에는
+ * `quantity`·`items_json`이 없다. 여기서 한 번만 더한다 — 실패해도 게임(로그인·저장)이 멈추지 않도록
+ * 예외를 밖으로 던지지 않고, 열이 없는 동안에는 `server/market.mjs`가 단건처럼 동작한다(묶음 등록 거부).
+ */
+async function addMarketBundleColumns(db) {
+  try {
+    const columns = new Set((await db.execute("SELECT name FROM pragma_table_info('djrpg_market')")).rows.map(row => String(row.name)));
+    if (!columns.has('quantity')) await db.execute('ALTER TABLE djrpg_market ADD COLUMN quantity INTEGER NOT NULL DEFAULT 1');
+    if (!columns.has('items_json')) await db.execute('ALTER TABLE djrpg_market ADD COLUMN items_json TEXT');
+  } catch (error) {
+    console.error(JSON.stringify({ event: 'market_bundle_columns_skipped', message: String(error?.message ?? error).slice(0, 160) }));
+  }
+}
 const transientDatabaseError = error => /SQLITE_BUSY|SQLITE_LOCKED|SERVER_ERROR|ETIMEDOUT|ECONNRESET|ECONNREFUSED|fetch failed|network|timeout|temporarily unavailable|service unavailable/i.test(String(error?.code ?? '') + ' ' + String(error?.message ?? ''));
 export async function schema(db, env = runtimeEnv()) {
   const key = db.url ?? env?.TURSO_DATABASE_URL ?? db;
@@ -51,7 +67,10 @@ export async function schema(db, env = runtimeEnv()) {
     'CREATE TABLE IF NOT EXISTS djrpg_journey (account_id TEXT PRIMARY KEY COLLATE NOCASE, state_json TEXT NOT NULL)',
     'CREATE TABLE IF NOT EXISTS djrpg_save_requests (account_id TEXT PRIMARY KEY COLLATE NOCASE, request_id TEXT NOT NULL, revision INTEGER NOT NULL)',
     'CREATE TABLE IF NOT EXISTS djrpg_save_versions (account_id TEXT PRIMARY KEY COLLATE NOCASE, revision INTEGER NOT NULL DEFAULT 0)',
-    `CREATE TABLE IF NOT EXISTS djrpg_market (id TEXT PRIMARY KEY, seller TEXT NOT NULL COLLATE NOCASE, seller_name TEXT NOT NULL, buyer TEXT COLLATE NOCASE, item_json TEXT NOT NULL, name TEXT NOT NULL, slot TEXT NOT NULL, rarity TEXT NOT NULL, price INTEGER NOT NULL, state TEXT NOT NULL, created_at INTEGER NOT NULL, expires_at INTEGER NOT NULL, sold_at INTEGER)`,
+    // 묶음 등록(작업 249): `price`는 **개당** 가격이고, `quantity`는 남은 수량, `items_json`은 아직 팔리지 않은
+    // 아이템들의 실제 JSON 배열이다(대표 `item_json`은 검색·정렬 인덱스용). 기존 행은 `quantity=1`·`items_json`
+    // 없음(NULL)이며 `item_json` 한 개짜리 매물로 읽힌다.
+    `CREATE TABLE IF NOT EXISTS djrpg_market (id TEXT PRIMARY KEY, seller TEXT NOT NULL COLLATE NOCASE, seller_name TEXT NOT NULL, buyer TEXT COLLATE NOCASE, item_json TEXT NOT NULL, name TEXT NOT NULL, slot TEXT NOT NULL, rarity TEXT NOT NULL, price INTEGER NOT NULL, state TEXT NOT NULL, created_at INTEGER NOT NULL, expires_at INTEGER NOT NULL, sold_at INTEGER, quantity INTEGER NOT NULL DEFAULT 1, items_json TEXT)`,
     'CREATE INDEX IF NOT EXISTS djrpg_market_state_time ON djrpg_market(state, created_at)',
     'CREATE INDEX IF NOT EXISTS djrpg_market_seller ON djrpg_market(seller, state)',
     'CREATE INDEX IF NOT EXISTS djrpg_market_recent_price ON djrpg_market(state,name,rarity,sold_at)',
@@ -99,14 +118,19 @@ export async function schema(db, env = runtimeEnv()) {
       catch (error) { if (!/duplicate column name/i.test(String(error?.message ?? error))) throw error; }
     }
     // 정렬 인덱스(작업 211)는 같은 배치에 넣는다 — 스키마는 프로세스마다 한 번이면 충분하다.
-    try { return await db.batch([...statements.slice(1), ...marketSortIndexStatements()], 'write'); }
+    let created;
+    try { created = await db.batch([...statements.slice(1), ...marketSortIndexStatements()], 'write'); }
     catch (error) {
       // 전송 오류는 바깥 재시도가 맡는다. 그 밖의 실패(인덱스 표현식을 지원하지 않는 DB 등)에서는 인덱스를
       // 빼고 스키마만 다시 만든다 — 인덱스는 속도만 담당하므로 게임이 멈추면 안 된다.
       if (transientDatabaseError(error)) throw error;
       console.error(JSON.stringify({ event: 'market_index_skipped', name: error?.name ?? 'Error', message: String(error?.message ?? error).slice(0, 120) }));
-      return db.batch(statements.slice(1), 'write');
+      created = await db.batch(statements.slice(1), 'write');
     }
+    // 기존 DB에는 없는 묶음 등록 열을 더한다(작업 249) — `ADD COLUMN`은 기존 행을 건드리지 않으므로
+    // 이미 올라간 매물은 `quantity=1`·`items_json` NULL인 단건 매물로 그대로 남는다.
+    await addMarketBundleColumns(db);
+    return created;
   };
   const initialized = (async () => {
     try { return await initialize(); }

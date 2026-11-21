@@ -42,6 +42,16 @@ export function bagStacks(items: Item[]): BagStack[] {
 }
 
 /**
+ * 한 묶음 칸에 모인 실제 아이템들(가방 순서, 작업 249).
+ *
+ * 묶음 판매 등록은 칸의 대표 id 하나가 아니라 **이 아이템들의 id 전부**를 서버로 보낸다
+ * (`market.act('register', { itemIds })`) — 서버도 같은 기준(`skillId`)으로 묶음을 확인한다.
+ */
+export function stackMembers(items: Item[], stack: BagStack): Item[] {
+  return items.filter(item => stackKey(item) === stack.key);
+}
+
+/**
  * 가방 3단 순서(작업 247) — 보물 주머니 0 · 장비 1 · 스킬북 2.
  * 받은 주머니는 어디서든 첫 칸에 있어야 열어 볼 수 있고, 스킬북은 스킬 창에서 다루는 물건이라
  * 장비 뒤로 모은다(사용자 확정).

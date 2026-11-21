@@ -12,7 +12,7 @@ const errorCode = (error: unknown): string => error instanceof Error && 'code' i
 const errorStatus = (error: unknown): number => error instanceof Error && 'status' in error ? Number((error as Error & { status?: unknown }).status) : 0;
 const errorExpectedVersion = (error: unknown): unknown => error instanceof Error && 'expected' in error ? (error as Error & { expected?: unknown }).expected : undefined;
 
-export type SyncResult = { journey?: import('./journey').JourneyData; ok: boolean; save: Save; revision: number; message?: string; effect?: { listing?: { id: string; state: string; soldAt?: number }; deliveries: import('./market').Delivery[]; claimedId?: string; claimedIds?: string[] }; /** 창고 이동 뒤 창고 목록(작업 225) — 있으면 `list`를 다시 부르지 않고 이 값으로 그리드를 다시 그린다. */ items?: import('./items').Item[]; moved?: string[] };
+export type SyncResult = { journey?: import('./journey').JourneyData; ok: boolean; save: Save; revision: number; message?: string; effect?: { listing?: { id: string; state: string; soldAt?: number; quantity?: number; mine?: boolean }; deliveries: import('./market').Delivery[]; claimedId?: string; claimedIds?: string[] }; /** 창고 이동 뒤 창고 목록(작업 225) — 있으면 `list`를 다시 부르지 않고 이 값으로 그리드를 다시 그린다. */ items?: import('./items').Item[]; moved?: string[] };
 /** 자동 저장 간격 — 변경이 있을 때만, 마지막 저장에서 이만큼 지난 뒤에 보낸다(작업 209).
  *  무료 Cloudflare Functions 한도(10만 건/일)를 넘기지 않도록 작업 245에서 간격을 늘렸다: 화면을 보고 있을 때
  *  10초, 앱을 내려 두었을 때(탭 숨김) 45초. 숨김으로 바뀌는 순간 `main.ts`가 한 번 저장하므로

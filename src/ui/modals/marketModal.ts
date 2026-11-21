@@ -11,7 +11,7 @@ import type { Interface } from '../interface';
 import type { Save } from '../../game/store';
 import { appendUpgradeArrow } from '../upgradeBadge';
 import { appendPlusBadge } from '../plusBadge';
-import { bagStacks } from '../bagStacks';
+import { bagStacks, stackMembers } from '../bagStacks';
 import { renderItemName } from '../itemName';
 
 /** 판매 중 목록의 `간편 보기`/`상세 보기`(작업 248) — 고른 방식은 이 기기에 남긴다. */
@@ -105,6 +105,9 @@ export function updateMarketLive(ui: Interface): void {
 export function renderMarket(this: Interface, dialog: HTMLElement): void {
   const market = this.market, data = market.data, guest = this.session.guest;
   dialog.classList.add('market-modal');
+  // 판매 등록 화면만 모달을 **고정 높이 flex**로 바꿔, 물품을 골라도 모달 전체가 스크롤되지 않고
+  // 그리드만 내부 스크롤 + 선택 카드는 아래 고정 바가 되게 한다(작업 249, "선택하면 스크롤생기지않게").
+  dialog.classList.toggle('market-registering', market.view === 'register');
   // 헤더 한 줄(작업 248): `황야의 거래소`는 왼쪽, 보유 금화는 닫기(×) 바로 왼쪽. 탭은 제목 바로 아래 인덱스 탭으로.
   const head = dialog.querySelector?.<HTMLElement>(':scope > header');
   if (head) {
@@ -180,7 +183,7 @@ export function renderMarket(this: Interface, dialog: HTMLElement): void {
     const pages = Math.max(1, Math.ceil((data?.total ?? 0) / 20)), page = Number(market.filters.page);
     const nav = el('div', 'market-pagination'); nav.append(button('이전', () => { market.filters.page = page - 1; market.refresh(); }, page <= 0 || market.busy), el('span', '', `${page + 1} / ${pages}`), button('다음', () => { market.filters.page = page + 1; market.refresh(); }, page + 1 >= pages || market.busy)); dialog.append(nav);
   }
-  dialog.append(el('p', 'market-rules', `고정가 금화 거래 · 등록비 없음 · 판매 수수료 5%(올림) · 최소 등록 금액 ${money(data?.rules?.minPrice ?? 1)} 금화 · 최대 ${data?.rules?.maxListings ?? 30}건 · 72시간 후 반환 · 수령함 최대 ${inboxMax}건`));
+  dialog.append(el('p', 'market-rules', `개당 고정가 금화 거래 · 등록비 없음 · 판매 수수료 5%(올림) · 최소 등록 금액 ${money(data?.rules?.minPrice ?? 1)} 금화 · 최대 ${data?.rules?.maxListings ?? 30}건 · 묶음 최대 ${data?.rules?.maxBundle ?? 10}개 · 72시간 후 반환 · 수령함 최대 ${inboxMax}건`));
   updateMarketLive(this);
 }
 /**
@@ -274,15 +277,58 @@ function listingDetail(ui: Interface, sale: Listing, blocked: boolean): HTMLElem
     }
     table.append(body); detail.append(table);
   }
-  const confirm = button(sale.mine ? '취소하고 수령함으로 반환' : ' 구매 확정', () => { void market.act(sale.mine ? 'cancel' : 'buy', { listingId: sale.id }); }, blocked || (!sale.mine && ui.world.save.gold < sale.price));
-  if (!sale.mine) confirm.prepend(goldNode(sale.price)); detail.append(confirm);
-  if (!sale.mine && ui.world.save.gold < sale.price) detail.append(el('small', 'market-error', '금화가 부족합니다.'));
+  // 묶음 매물(수량 2개 이상)은 **전체 구매**와 **개당(수량) 구매**를 골라서 산다(작업 249).
+  const quantity = Math.max(1, Number(sale.quantity ?? 1));
+  if (!sale.mine && quantity > 1) detail.append(buyQuantityBox(ui, market, sale, quantity, blocked));
+  else {
+    const confirm = button(sale.mine ? '취소하고 수령함으로 반환' : ' 구매 확정', () => { void market.act(sale.mine ? 'cancel' : 'buy', { listingId: sale.id }); }, blocked || (!sale.mine && ui.world.save.gold < sale.price));
+    if (!sale.mine) confirm.prepend(goldNode(sale.price)); detail.append(confirm);
+    if (!sale.mine && ui.world.save.gold < sale.price) detail.append(el('small', 'market-error', '금화가 부족합니다.'));
+  }
   return detail;
+}
+/**
+ * 묶음 매물의 구매 수량 선택(작업 249) — 사용자 확정 "구매할때는 묶음전체구매할지 개당구매할지 선택할수있어야함".
+ * 수량 입력(1~남은 수량)으로 **선택 수량 구매**를 하고, **전체 구매**는 한 번에 남은 전부를 산다.
+ * 상세·간편 두 보기가 같은 상세(`listingDetail`)를 쓰므로 이 상자 하나로 양쪽에 적용된다.
+ */
+function buyQuantityBox(ui: Interface, market: Market, sale: Listing, quantity: number, blocked: boolean): HTMLElement {
+  const box = el('div', 'market-buy-quantity'), gold = ui.world.save.gold;
+  const chosen = Math.min(Math.max(1, Math.floor(market.buyQuantity.get(sale.id) ?? 1)), quantity);
+  const field = el('label', 'market-field', `구매 수량 (1~${quantity}개)`);
+  const input = el('input'); input.type = 'number'; input.min = '1'; input.max = String(quantity); input.step = '1'; input.inputMode = 'numeric'; input.value = String(chosen); input.disabled = blocked;
+  field.append(input);
+  const read = () => Math.min(quantity, Math.max(1, Math.floor(Number(input.value) || 1)));
+  const selected = button('', () => { void market.act('buy', { listingId: sale.id, quantity: read() }); }, blocked);
+  selected.className = 'market-primary'; selected.dataset.marketBuy = 'selected';
+  const whole = button('', () => { void market.act('buy', { listingId: sale.id, quantity }); }, blocked || gold < sale.price * quantity);
+  whole.className = 'market-primary'; whole.dataset.marketBuy = 'whole';
+  const line = el('p', 'market-proceeds');
+  const update = () => {
+    const count = read();
+    market.buyQuantity.set(sale.id, count);
+    const total = sale.price * count;
+    selected.replaceChildren(`선택 수량 구매 (${count}개) · `, goldNode(total));
+    selected.disabled = blocked || gold < total;
+    line.replaceChildren(`총 ${count}개 · `, goldNode(total), ` · 판매자 수령 `, goldNode(total - Math.ceil(total * 5 / 100)));
+  };
+  input.oninput = update;
+  whole.append(`전체 구매 (${quantity}개) · `, goldNode(sale.price * quantity));
+  update();
+  box.append(field, selected, whole, line);
+  if (gold < sale.price) box.append(el('small', 'market-error', '금화가 부족합니다.'));
+  return box;
 }
 function renderListing(ui: Interface, dialog: HTMLElement, sale: Listing, blocked: boolean): void {
   const market = ui.market, row = el('article', 'market-row'); row.dataset.listing = sale.id;
+  const quantity = Math.max(1, Number(sale.quantity ?? 1));
   row.append(icon(sale.item, ui.world.save), itemInfo(sale.item));
-  const meta = el('div', 'market-meta'); meta.append(goldNode(sale.price), el('small', 'market-state', stateNames[sale.state] || sale.state)); row.append(meta);
+  // 묶음 매물은 **개당 가격**과 **총 수량**을 함께 보여 준다(작업 249).
+  const meta = el('div', 'market-meta');
+  if (quantity > 1) meta.append(el('small', 'market-unit-label', '개당'));
+  meta.append(goldNode(sale.price));
+  if (quantity > 1) meta.append(el('small', 'market-bundle-count', `총 ${quantity}개`));
+  meta.append(el('small', 'market-state', stateNames[sale.state] || sale.state)); row.append(meta);
   const bottom = el('div', 'market-row-bottom');
   bottom.append(el('small', '', `판매자 ${sale.sellerName} · ${sale.state === 'sold' ? `판매 ${when(sale.soldAt!)}` : `만료 ${when(sale.expiresAt)}`}${sale.purchased ? ' · 내가 구매' : ''}`));
   if (sale.state === 'active') {
@@ -302,7 +348,11 @@ function renderListingCompact(ui: Interface, dialog: HTMLElement, sale: Listing,
   const name = el('div', 'market-compact-name');
   name.append(renderItemName(el('b', `rarity-${sale.item.rarity}`), sale.item));
   name.append(el('small', 'market-compact-meta', `${rarityNames[sale.item.rarity]} · ${isSkillBook(sale.item) ? '스킬북' : isEquipment(sale.item) ? (isBow(sale.item) ? '활' : slotNames[sale.item.slot]) : '소모품'}${sale.purchased ? ' · 내가 구매' : ''}`));
-  const price = el('div', 'market-compact-price'); price.append(goldNode(sale.price));
+  const quantity = Math.max(1, Number(sale.quantity ?? 1));
+  const price = el('div', 'market-compact-price');
+  if (quantity > 1) price.append(el('small', 'market-unit-label', '개당'));
+  price.append(goldNode(sale.price));
+  if (quantity > 1) price.append(el('small', 'market-compact-qty', `총 ${quantity}개`));
   const action = button(sale.mine ? '취소' : '구매', () => { market.selected = market.selected?.id === sale.id ? undefined : sale; market.onChange(true); }, market.busy || !!market.sync.pendingMarket);
   action.className = 'market-buy';
   action.setAttribute('aria-label', `${itemDisplayName(sale.item)} ${sale.mine ? '등록 취소' : '구매'} 상세`);
@@ -311,8 +361,19 @@ function renderListingCompact(ui: Interface, dialog: HTMLElement, sale: Listing,
   if (market.selected?.id === sale.id && sale.state === 'active') row.append(listingDetail(ui, sale, blocked));
   dialog.append(row);
 }
+/**
+ * 판매 등록 화면(작업 249 개편).
+ *
+ * 사용자 요청: "판매할템 선택하면 스크롤생기지않게해야함 묶음템은 한번에 개당갯수 적어서 등록할수있어야하고".
+ * ① 모달(`.market-registering`)을 고정 높이 flex로 두어 **물품 그리드만 내부 스크롤**하고, 물품을 골라도
+ *    모달 전체 스크롤이 새로 생기지 않는다. 선택한 물품의 등록 카드(`.market-register-detail`)는 그리드 아래
+ *    고정 바이고, 카드가 길어지면 카드 안에서만 스크롤된다.
+ * ② 같은 스킬북처럼 한 칸에 `×N`으로 묶인 물품은 **수량(1~min(보유,10))과 개당 가격**을 적어 한 매물로 등록한다.
+ *    보내는 값은 `itemIds`(묶음의 실제 아이템 id 전부) + `price`(개당)다.
+ */
 function renderRegister(ui: Interface, dialog: HTMLElement, blocked: boolean): void {
   const market = ui.market, form = el('form', 'market-register');
+  const maxBundle = market.data?.rules?.maxBundle ?? 10;
   const limitNotice = el('p', 'market-error'); limitNotice.setAttribute('role', 'alert');
   const checkLimit = (): boolean => {
     const limit = market.data?.rules?.maxListings ?? 30;
@@ -320,8 +381,8 @@ function renderRegister(ui: Interface, dialog: HTMLElement, blocked: boolean): v
     const message = `동시에 ${limit}개까지 등록할 수 있습니다. 판매 중인 물품을 취소하거나 판매 완료 후 다시 등록하세요.`;
     limitNotice.textContent = message; ui.message(message); return true;
   };
-  form.append(el('p', 'market-notice', `판매 중 ${market.data?.myActive ?? 0}/${market.data?.rules?.maxListings ?? 30}`));
-  form.append(el('p', 'market-notice', '미장착 장비와 미사용 스킬북만 등록할 수 있습니다. 등록 즉시 거래소에 보관되며, 장착·분해·사용할 수 없습니다.'));
+  // 안내는 **한 줄**로 줄인다 — 세로 공간을 물품 그리드에 남겨야 선택해도 스크롤이 생기지 않는다.
+  form.append(el('p', 'market-notice', `판매 중 ${market.data?.myActive ?? 0}/${market.data?.rules?.maxListings ?? 30} · 묶음은 한 번에 최대 ${maxBundle}개 · 미장착 장비와 미사용 스킬북만 등록됩니다.`));
   const filters = el('div', 'market-register-filters');
   for (const [key, label, values] of [
     ['registerCategory', '분류', [['', '전체'], ['weapon', '무기·문장'], ['armor', '방어구'], ['accessory', '장신구'], ['skillbook', '스킬북']]],
@@ -330,16 +391,16 @@ function renderRegister(ui: Interface, dialog: HTMLElement, blocked: boolean): v
     const field = el('label', 'market-field', label), select = el('select'); select.setAttribute('aria-label', `판매 등록 ${label}`);
     for (const [value, name] of values) { const option = el('option', '', name); option.value = value; select.append(option); }
     select.value = market[key]; select.disabled = blocked;
-    select.onchange = () => { market[key] = select.value; market.selectedItem = ''; market.unlockItem = undefined; market.onChange(true); };
+    select.onchange = () => { market[key] = select.value; market.selectedItem = ''; market.unlockItem = undefined; market.quantity = '1'; market.onChange(true); };
     field.append(select); filters.append(field);
   }
   form.append(filters);
+  // 물품 칸 — 이 그리드만 내부 스크롤한다(작업 249). 칸 모양·배지 배치는 작업 248 그대로다.
   const grid = el('div', 'market-register-grid');
   const visible = filterSaleItems(ui.world.save.bag, market.registerCategory, market.registerRarity);
-  // 칸을 가방 그리드처럼 **작게 여러 열**로 줄이고(모바일 4~5열), 같은 아이템(같은 `skillId` 스킬북 등)은
-  // 한 칸에 `×N`으로 모아 보여 준다(작업 247). 등록은 지금처럼 **1개씩**(칸을 누르면 아래 가격 입력 폼).
   const stacks = bagStacks(visible);
-  for (const { item, count } of stacks) {
+  for (const stack of stacks) {
+    const { item, count } = stack;
     // [작업 248] 가방 칸과 같은 **정사각형 아이콘 칸**만 남긴다 — 이름 글자(스킬북 `[스킬북]` 포함)는 빼고
     // 툴팁(`title`)으로만 알린다. 배지는 모두 절대 위치라 칸 크기를 밀지 않는다.
     const pick = button('', () => { void market.selectItem(item); }, blocked);
@@ -358,34 +419,90 @@ function renderRegister(ui: Interface, dialog: HTMLElement, blocked: boolean): v
   }
   form.append(grid);
   if (!visible.length) form.append(el('p', 'empty', '조건에 맞는 판매 가능 아이템이 없습니다.'));
-  const item = visible.find(entry => entry.id === market.selectedItem);
-  if (item) {
-    form.append(itemInfo(item));
-    const quote=market.quote,prices=el('p','market-recent-price');
-    if(quote?.itemId===item.id){
-      if(quote.loading)prices.textContent='최근 거래가 확인 중…';
-      else if(quote.error)prices.textContent=quote.error;
-      else if(!quote.count)prices.textContent='최근거래기록이 없습니다.';
-      else {prices.append('최근 거래 ',goldNode(quote.lastPrice!),` (${when(quote.soldAt!)}) · 최근 ${quote.count}건 평균 `,goldNode(quote.average!));}
-    }else prices.textContent='아이템을 선택하면 최근 거래가를 확인합니다.';
-    form.append(prices);
+
+  const stack = stacks.find(entry => entry.item.id === market.selectedItem);
+  const item = stack?.item;
+  if (stack && item) {
+    const members = stackMembers(visible, stack);
+    // 한 번에 묶을 수 있는 최대 수량 = min(보유 수량, 서버 규칙 10개).
+    const limit = Math.min(stack.count, maxBundle);
+    const clamp = () => Math.min(limit, Math.max(1, Math.floor(Number(market.quantity) || 1)));
+    const detail = el('section', 'market-register-detail');
+    const picked = el('div', 'market-register-picked');
+    picked.append(icon(item, ui.world.save));
+    const info = el('div', 'market-register-picked-info');
+    const titleRow = el('div', 'market-item-title');
+    titleRow.append(renderItemName(el('b', `rarity-${item.rarity}`), item));
+    if (stack.count > 1) titleRow.append(el('span', 'market-pick-count-inline', `보유 ×${stack.count}`));
+    info.append(titleRow, el('small', '', `${rarityNames[item.rarity]} · ${isSkillBook(item) ? '스킬북' : isEquipment(item) ? (isBow(item) ? '활' : slotNames[item.slot]) : '소모품'}`));
+    picked.append(info); detail.append(picked);
+
+    const quote = market.quote, prices = el('p', 'market-recent-price');
+    if (quote?.itemId === item.id) {
+      if (quote.loading) prices.textContent = '최근 거래가 확인 중…';
+      else if (quote.error) prices.textContent = quote.error;
+      else if (!quote.count) prices.textContent = '최근거래기록이 없습니다.';
+      else { prices.append('최근 거래 ', goldNode(quote.lastPrice!), ` (${when(quote.soldAt!)}) · 최근 ${quote.count}건 평균 `, goldNode(quote.average!)); }
+    } else prices.textContent = '아이템을 선택하면 최근 거래가를 확인합니다.';
+    detail.append(prices);
+
     const minPrice = market.data?.rules?.minPrice ?? 1;
-    form.append(el('p', 'market-min-price', `현재 최소 등록 금액 ${money(minPrice)} 금화 · 이보다 낮게는 등록되지 않습니다.`));
-    const field = el('label', 'market-field', '판매 가격 (금화)'), input = el('input'); input.type = 'number'; input.required = true; input.min = String(minPrice); input.max = '1000000000'; input.step = '1'; input.inputMode = 'numeric'; input.placeholder = `${money(minPrice)} ~ 1,000,000,000`; input.value = market.price; input.disabled = blocked;
+    const inputs = el('div', 'market-register-inputs');
+    // ① 수량 — 보유가 1개(장비)면 1로 고정해 보여만 준다.
+    const quantityField = el('label', 'market-field', '수량');
+    const quantityInput = el('input'); quantityInput.type = 'number'; quantityInput.min = '1'; quantityInput.max = String(limit); quantityInput.step = '1'; quantityInput.inputMode = 'numeric';
+    quantityInput.value = String(clamp()); quantityInput.disabled = blocked || limit === 1;
+    quantityField.append(quantityInput);
+    const maxButton = button('최대', () => { quantityInput.value = String(limit); market.quantity = String(limit); update(); }, blocked || limit === 1);
+    maxButton.className = 'market-max-button';
+    const quantityRow = el('div', 'market-register-quantity'); quantityRow.append(quantityField, maxButton);
+    // ② 개당 가격 — 묶음이면 총액이 개당 × 수량이라는 것을 아래 `proceeds`가 같이 보여 준다.
+    const priceField = el('label', 'market-field', limit > 1 ? '개당 가격 (금화)' : '판매 가격 (금화)');
+    const priceInput = el('input'); priceInput.type = 'number'; priceInput.required = true; priceInput.min = String(minPrice); priceInput.max = '1000000000'; priceInput.step = '1'; priceInput.inputMode = 'numeric';
+    priceInput.placeholder = `${money(minPrice)} ~ 1,000,000,000`; priceInput.value = market.price; priceInput.disabled = blocked;
+    priceField.append(priceInput);
+    inputs.append(quantityRow, priceField);
+    detail.append(inputs, el('p', 'market-min-price', `최소 등록 금액 ${money(minPrice)} 금화 · 한 번에 최대 ${maxBundle}개`));
     const proceeds = el('p', 'market-proceeds');
-    const update = () => { market.price = input.value; const price = Number(input.value); proceeds.replaceChildren(); if (Number.isSafeInteger(price) && price > 0) proceeds.append('수수료 ', goldNode(Math.ceil(price * 5 / 100)), ' · 예상 수령 ', goldNode(price - Math.ceil(price * 5 / 100))); else proceeds.textContent = '가격을 입력하면 예상 수령액을 확인할 수 있습니다.'; }; input.oninput = update; update(); field.append(input); form.append(field, proceeds);
     const submit = el('button', 'market-primary', '72시간 판매 등록'); submit.type = 'submit'; submit.disabled = blocked;
-    submit.onclick = event => { if (checkLimit()) event.preventDefault(); }; form.append(submit, limitNotice);
-  }
-  if (item && market.unlockItem === item.id) {
-    const confirmation = el('section', 'market-unlock-confirm'); confirmation.setAttribute('role', 'alertdialog'); confirmation.setAttribute('aria-label', '판매할 장비 잠금 해제 확인');
-    confirmation.append(el('p', '', '잠긴 장비입니다. 잠금을 해제하고 판매 등록할까요?'));
-    confirmation.append(button('취소 · 잠금 유지', () => { market.unlockItem = undefined; market.onChange(true); }, blocked), button('잠금 해제 후 판매 등록', () => { if (!checkLimit()) void market.act('register', { itemId: item.id, price: Number(market.price), unlockItem: true }); }, blocked));
-    form.append(confirmation);
+    submit.onclick = event => { if (checkLimit()) event.preventDefault(); };
+    function update(): void {
+      const count = clamp();
+      market.quantity = String(count);
+      market.price = priceInput.value;
+      const price = Number(priceInput.value);
+      proceeds.replaceChildren();
+      if (Number.isSafeInteger(price) && price > 0) {
+        const total = price * count;
+        proceeds.append(`총 ${count}개 · `, goldNode(total), ` · 수수료 `, goldNode(Math.ceil(total * 5 / 100)), ' · 예상 수령 ', goldNode(total - Math.ceil(total * 5 / 100)));
+      } else proceeds.textContent = priceInput.value === '' ? '가격을 입력하면 예상 수령액을 확인할 수 있습니다.' : '가격은 1 금화 이상 정수로 입력하세요.';
+      submit.textContent = count > 1 ? `${count}개 묶음 등록` : '72시간 판매 등록';
+    }
+    quantityInput.oninput = update;
+    priceInput.oninput = update;
+    detail.append(proceeds, submit, limitNotice);
+    update();
+
+    if (market.unlockItem === item.id) {
+      const chosen = members.slice(0, clamp());
+      const confirmation = el('section', 'market-unlock-confirm'); confirmation.setAttribute('role', 'alertdialog'); confirmation.setAttribute('aria-label', '판매할 장비 잠금 해제 확인');
+      confirmation.append(el('p', '', `잠긴 장비입니다. 잠금을 해제하고${chosen.length > 1 ? ` ${chosen.length}개를 묶어` : ''} 판매 등록할까요?`));
+      confirmation.append(
+        button('취소 · 잠금 유지', () => { market.unlockItem = undefined; market.onChange(true); }, blocked),
+        button('잠금 해제 후 판매 등록', () => { if (!checkLimit()) void market.act('register', { itemIds: chosen.map(entry => entry.id), price: Number(market.price), unlockItem: true }); }, blocked)
+      );
+      detail.append(confirmation);
+    }
+    form.append(detail);
   }
   form.onsubmit = e => {
-    e.preventDefault(); if (blocked || !item || checkLimit()) return;
-    if (isEquipment(item) && item.locked) { market.unlockItem = item.id; market.onChange(true); ui.root.querySelector<HTMLElement>('.market-unlock-confirm')?.scrollIntoView({ block: 'nearest' }); return; }
-    void market.act('register', { itemId: item.id, price: Number(market.price) });
-  }; dialog.append(form);
+    e.preventDefault(); if (blocked || !item || !stack || checkLimit()) return;
+    const chosen = stackMembers(visible, stack).slice(0, Math.min(stack.count, maxBundle, Math.max(1, Math.floor(Number(market.quantity) || 1))));
+    if (chosen.some(entry => isEquipment(entry) && entry.locked)) {
+      market.unlockItem = item.id; market.onChange(true);
+      ui.root.querySelector<HTMLElement>('.market-unlock-confirm')?.scrollIntoView({ block: 'nearest' }); return;
+    }
+    void market.act('register', { itemIds: chosen.map(entry => entry.id), price: Number(market.price) });
+  };
+  dialog.append(form);
 }

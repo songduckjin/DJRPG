@@ -6,9 +6,13 @@ import { apiHeaders, isOutdatedResponse, reloadForNewVersion } from './appVersio
 export type MarketView = 'active' | 'recent' | 'mine' | 'register' | 'inbox';
 /** 화면 탭으로 열 수 있는 뷰 — 옛 상태(예: `sold`)가 남아 있으면 `active`로 안전 폴백한다. */
 export const MARKET_VIEWS: MarketView[] = ['active', 'recent', 'mine', 'register', 'inbox'];
-export type Listing = { id: string; sellerName: string; item: Item; price: number; state: string; createdAt: number; expiresAt: number; soldAt: number | null; mine: boolean; purchased: boolean };
+/**
+ * 매물 한 건. `price`는 **개당 가격**(서버 `unitPrice`와 같은 값, 기존 계약 호환), `quantity`는 남은 수량
+ * (판매 완료 행은 팔린 수량)이다 — 묶음 매물은 `개당 N 골드 (총 N개)`로 보여 준다(작업 249).
+ */
+export type Listing = { id: string; sellerName: string; item: Item; price: number; quantity: number; unitPrice?: number; totalPrice?: number; state: string; createdAt: number; expiresAt: number; soldAt: number | null; mine: boolean; purchased: boolean };
 export type Delivery = { id: string; item: Item | null; gold: number; reason: string; createdAt: number };
-export type MarketData = { watched: { id: string; state: string }[]; listings: Listing[]; inbox: Delivery[]; seq: number; total: number; page: number; myActive: number; revision: number; rules: { fee: number; maxListings: number; durationHours: number; maxPrice: number; minPrice: number; pageSize: number; maxInbox?: number } };
+export type MarketData = { watched: { id: string; state: string }[]; listings: Listing[]; inbox: Delivery[]; seq: number; total: number; page: number; myActive: number; revision: number; rules: { fee: number; maxListings: number; durationHours: number; maxPrice: number; minPrice: number; pageSize: number; maxInbox?: number; maxBundle?: number } };
 export class Market {
   view: MarketView = 'active';
   filters: Record<string, string | number> = { query: '', category: '', slot: '', rarity: '', sort: 'newest', page: 0 };
@@ -23,6 +27,10 @@ export class Market {
   registerRarity = '';
   unlockItem?: string;
   price = '';
+  /** 판매 등록 수량(묶음, 작업 249) — 문자열로 들고 있다가 등록 요청에서 숫자로 바꾼다. */
+  quantity = '1';
+  /** 구매할 수량(부분 구매, 작업 249) — 상세를 펼친 매물마다 따로 기억한다. */
+  buyQuantity = new Map<string, number>();
   busy = false;
   loading = false;
   error = '';
@@ -43,7 +51,7 @@ export class Market {
   resetView(): void {
     this.listRequest?.abort(); this.generation++; this.loading = false;
     this.view = 'active'; this.filters = { query: '', category: '', slot: '', rarity: '', sort: 'newest', page: 0 };
-    this.selected = undefined; this.selectedItem = ''; this.price = ''; this.error = '';
+    this.selected = undefined; this.selectedItem = ''; this.price = ''; this.quantity = '1'; this.buyQuantity = new Map(); this.error = '';
     this.mineActiveOnly = false; this.quote = undefined; this.quoteGeneration++;
     this.registerCategory = ''; this.registerRarity = ''; this.unlockItem = undefined;
     this.data = undefined; this.candidate = undefined; this.newCount = 0;
@@ -57,7 +65,7 @@ export class Market {
    */
   resetForCharacterSwitch(): void {
     this.listRequest?.abort(); this.generation++; this.loading = false;
-    this.selected = undefined; this.selectedItem = ''; this.price = ''; this.unlockItem = undefined;
+    this.selected = undefined; this.selectedItem = ''; this.price = ''; this.quantity = '1'; this.buyQuantity = new Map(); this.unlockItem = undefined;
     this.quote = undefined; this.quoteGeneration++;
     this.candidate = undefined; this.newCount = 0; this.error = '';
   }
@@ -66,6 +74,7 @@ export class Market {
   }
   close(): void { this.opened = false; }
   async selectItem(item:Item):Promise<void> {
+    if (this.selectedItem !== item.id) this.quantity = '1';
     this.selectedItem=item.id;this.unlockItem=undefined;
     const generation=++this.quoteGeneration;
     this.quote={itemId:item.id,loading:true};this.onChange(true);
@@ -118,9 +127,14 @@ export class Market {
     const { listing, deliveries, claimedId, claimedIds } = result.effect;
     if (listing) {
       const sale = this.data.listings.find(entry => entry.id === listing.id);
-      if (sale) { sale.state = listing.state; sale.soldAt = listing.soldAt ?? sale.soldAt; }
+      if (sale) {
+        sale.state = listing.state; sale.soldAt = listing.soldAt ?? sale.soldAt;
+        // 부분 구매 뒤에는 남은 수량이 바뀐다(작업 249) — 목록·상세의 `총 N개`와 구매 가능 수량을 즉시 맞춘다.
+        if (typeof listing.quantity === 'number') { sale.quantity = listing.quantity; sale.totalPrice = sale.price * listing.quantity; }
+      }
       if (listing.state === 'cancelled') this.data.myActive = Math.max(0, this.data.myActive - 1);
-      else if (listing.state === 'active') this.data.myActive++;
+      // 새로 등록한 매물만 판매 중 목록에 더한다(부분 구매로 `active`가 된 매물은 이미 목록에 있다).
+      else if (listing.state === 'active' && listing.mine === true) this.data.myActive++;
     }
     const removed = new Set(claimedIds ?? (claimedId ? [claimedId] : []));
     if (removed.size) { this.data.inbox = this.data.inbox.filter(entry => !removed.has(entry.id)); removed.forEach(id=>this.notified.delete(id)); }
@@ -141,7 +155,7 @@ export class Market {
     try {
       const result = await this.sync.mutate(action, data, requestId);
       this.requests.delete(key); this.applyEffect(result); this.onMessage(result.message || '처리했습니다.');
-      this.selected = undefined; if (action === 'register') { this.unlockItem = undefined; this.selectedItem = ''; this.price = ''; }
+      this.selected = undefined; if (action === 'register') { this.unlockItem = undefined; this.selectedItem = ''; this.price = ''; this.quantity = '1'; }
       this.busy = false; this.onChange(true);
       if (!result.effect) void this.load(true);
     } catch (error) { this.error = error instanceof Error ? error.message : String(error); }
