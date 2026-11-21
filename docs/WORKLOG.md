@@ -1,3 +1,30 @@
+## 2026-11-21 · songduckjin 작업 261 — 다이아 표기를 `◆` 글자에서 보석 그림으로 전면 교체 · 우측 상점 버튼을 다이아 상자 그림으로 (PR #288)
+
+- **사용자 지시(18:16 KST)**: "그리고 다이아 아이콘 안바꼇더라" → "그상자로 오른쪽에 떠있는 아이컨더 변경하다" → "다이아 생긴모양이 그냥 도형같아 다이아로 전부 변경".
+- **시안 확정**: 보석 아이콘 6종(A 라운드 브릴리언트·B 카이트 컷·C 에메랄드 컷·D 페어 컷·E 헥사곤 브릴리언트·F 브라이트 크리스탈)을 14·18·24·48·96px 및 실제 자리(HUD·상점 카드·상점 버튼·슬롯 버튼·우편 보상)로 그린 비교 이미지 두 장(`downloads/djrpg_diamond_icon_options_{1,2}.png`)으로 보여 드렸고, 사용자가 **💠 2안 — 래디언트 크리스탈 다이아(은빛 테두리 + 푸른 크리스탈)** 를 골랐다(`downloads/diamond_icon_preview/icon_v2_opt2.png`).
+- **에셋**: 고른 128×128 투명 PNG(25KB)를 가공 없이 `public/assets/icons/diamond.png`로 넣었다 — 금화(`gold-coin.png`, 18KB)와 같은 18px 크기로 쓴다.
+- **아이콘 헬퍼**(`src/ui/currency.ts`): `diamondIconMarkup` = `<img class="currency-icon currency-diamond" src="/assets/icons/diamond.png" alt="다이아">`, `diamondMarkup(amount, { prefix, suffix })`·`diamondNode(amount, prefix, suffix)` — `goldMarkup`/`goldNode`와 같은 `currency-amount` span·천 단위(`ko-KR`)·음수/NaN은 0.
+- **교체 6곳**(코드에 `◆` 0, 번들에도 0): 상단 HUD `.diamonds`(`hud.ts`), 상점 잔액 `.shop-balance`·다이아 카드 8칸·패키지 카드(`shopModal.ts`), `＋ 슬롯 추가` 버튼(`charactersModal.ts` — 읽기 이름 `캐릭터 슬롯 추가 · 다이아 500개`), 우편 보상 `diamondNode(mail.diamonds,'다이아 ','개')`(`utilityModal.ts`).
+- **우측 상점 버튼**: `interface.ts`가 `textContent='◆'` 대신 `<img src=DIAMOND_PACK_ART>`(상점 대표 그림 `/assets/shop/diamond_pack_v1.webp`)를 넣고, `hud.css` `.utility-nav .shop-entry`는 `padding:0·overflow:hidden·border:1px solid #6aa9ce·box-shadow:0 0 10px #5ebaff66`, `img`는 `width/height:100%·object-fit:cover·border-radius:inherit`. 글자 시절 `font-size:30px`·`text-shadow` 삭제, `.diamonds`는 `.gold`와 같은 `inline-flex`+`gap:4px`, `.currency-diamond`는 `vertical-align: middle`.
+- **검증**: `npx tsc --noEmit`·`npx vite build` 통과, 신규 `tests/diamond-icon.test.mjs` **9/9**(아이콘 마크업·PNG 128×128 RGBA·헬퍼·5개 UI 파일에 `◆` 0·HUD·`.shop-entry`·잔액/카드 렌더·CSS), `shop-diamond-pack` 3/3, 관련 묶음(`shop*`·`modal-ui`·`characters`·`floor-return`·`character-switch`·`warehouse-grid`) 55/55.
+- **미리보기**: [PR #288](https://github.com/songduckjin/DJRPG/pull/288) — Cloudflare Pages **SUCCESS**, 프리뷰 `96d092ce.djrpg.pages.dev`(브랜치 `feat-261-diamond-icon.djrpg.pages.dev`), `version.json` `aa83a48482bc`, 배포 번들 `assets/index-bBqpXMVL.js`에 `◆` **0건**·`/assets/icons/diamond.png` 1건, 두 에셋 HTTP 200(25,450B PNG·50,280B WebP). 게스트 실화면에서 상단 HUD·상점 잔액/카드·슬롯 추가 버튼·우측 상점 상자 버튼 확인(스크린샷 `downloads/djrpg_261/`). 게스트 우편에는 다이아 보상이 없어 우편 줄은 테스트로만 확인했다.
+- **머지·배포 보류**: 사용자 지시 "변경사항 모아서 한 번에 배포" — 다른 기능 PR과 함께 배포한다.
+## 2026-11-21 · songduckjin 작업 259 — 게스트 계정 24시간 자동 삭제 · PR #287(머지·배포 보류)
+
+- **요청**: 사용자 "게스트 계정 접속 하루지나면 삭제해줘"(2026-11-21).
+- **대상 판정**: `djrpg_accounts.password_hash='guest'` 이고 `updated_at`이 24시간보다 오래된 행. `updated_at`은 `writeSave`·캐릭터 생성/선택 때 서버 시각(`new Date().toISOString()`)으로 갱신되고 클라이언트가 10초마다 바뀐 진행을 저장한다(`src/main.ts` `sync.flushIfDirty`) — 24시간 갱신이 없었다 = 그동안 접속하지 않았다. 게스트는 비밀번호가 없어 다시 로그인할 수 없으므로 버려진 계정은 그대로 쌓이기만 했다.
+- **삭제**: 계정 탈퇴와 **같은 한 벌**(`server/account-delete.mjs` `deleteAccountData`)을 계정마다 트랜잭션에서 돌린다 — 계정 종속 표 22종(`djrpg_characters`·`djrpg_warehouse`·`djrpg_journey`·`djrpg_shop_*`…) + `djrpg_market`(`seller`/`buyer`) + `djrpg_market_events` + `djrpg_accounts` 행. 판매 중 매물은 자동 취소되므로 사는 사람이 실패하는 유령 매물이 남지 않는다.
+- **새 파일** `server/guest-cleanup.mjs`: `GUEST_TTL_MS`(24시간)·`GUEST_CLEANUP_COOLDOWN_MS`(5분)·`GUEST_TOUCH_INTERVAL_MS`(1시간)·`GUEST_CLEANUP_LIMIT`(5)·`GUEST_ADMIN_CLEANUP_LIMIT`(25). `cleanupExpiredGuests(db, { now, limit, cooldownMs, force })`는 ① 아이솔레이트별 5분 쿨다운(조회 전에 시각을 적어 동시 요청이 같은 정리를 겹쳐 돌지 않게) ② `SELECT id FROM djrpg_accounts WHERE password_hash='guest' AND updated_at < ? ORDER BY updated_at ASC LIMIT ?` ③ 계정마다 `transaction` + `deleteAccountData`, 하나가 실패해도 나머지는 계속(`{"event":"guest_cleanup_error","id":…}` 한 줄, 세이브·토큰 없음) ④ **던지지 않는다** — 정리 실패가 게스트 입장·관리자 조회를 막지 않는다. `touchGuestActivity(db, row)`는 게스트 `load`에서 `updated_at`이 1시간 넘게 낡았을 때만 다시 찍는다(토큰을 24시간 넘게 들고 노는 게스트가 놀던 도중 지워지지 않게, 읽기 경로에 쓰기를 더하지 않게).
+- **관리자 화면**: `public/admin.js` `renderStatus`에 `게스트 자동 정리 N건` 카드를 더했다 — 포털을 열 때마다 밀린 게스트가 25건씩 정리되는 것이 화면에 보인다.
+- **배선**: `server/endpoints/account.mjs` — `action:'guest'`가 새 게스트를 만들기 **전에** `cleanupExpiredGuests(db, { limit: GUEST_CLEANUP_LIMIT })`(5건 — 입장 지연을 묶는다); 게스트 `load`는 `touchGuestActivity`. `server/endpoints/admin.mjs` — `view=status|accounts` 모두 집계·목록 **전에** `cleanupExpiredGuests(db, { force: true, limit: 25 })`, 응답에 `guestsCleaned`를 더한다(관리자 화면은 모르는 필드를 무시한다). 관리자 포털을 열면 밀린 게스트가 한 번에 25건씩 정리된다.
+- **검증**: `npx tsc --noEmit` 통과, `NODE_OPTIONS=--max-old-space-size=2048 npx vite build` 통과(`assets/index-D3elP9-C.js` 815.52kB — 서버 전용 변경이라 번들 동작 변화 없음). 신규 `tests/guest-cleanup.test.mjs` **8/8**(25시간 지난 게스트가 계정 종속 표·매물·전광판·계정 행까지 사라지고 토큰 401 / 23시간·정식 계정 30일은 유지 / `limit` 상한과 다음 정리 / 5분 쿨다운·`force` / 게스트 입장이 밀린 게스트를 정리하고 새 게스트는 정상 / `load`가 1시간 넘게 낡은 활동 시각만 갱신 / 관리자 `status`·`accounts`가 집계 전에 정리 / 정리 조회 실패에도 입장·조회 성공). `tests/admin.test.mjs` **4/4**(집계 전 정리 조회 1건 추가에 맞춰 단언 갱신). 프리뷰 `d5148585.djrpg.pages.dev`(`version.json` `e5a4a29ac894`) 루트·`/admin` 200, 배포된 `admin.js`에 `게스트 자동 정리` 포함 확인. 관련 `account-delete` 8/8·`characters`·`character-switch`·`character-card-actions`·`season-reset`·`warehouse-*`·`market-*`·`journey`·`sync`·`login-maintenance`·`maintenance-policy`·`shop`·`dungeon-*`·`world-boss-*` 포함 **253건 중 250 통과** — 실패 3건은 변경 전 `main`(`origin/main` 워크트리에서 같은 실패 확인)과 같은 기존 건(`dungeon-248` 피해식 40≠76 1건, `public/assets/**` 가 없는 sparse 체크아웃의 ENOENT 2건 — `shop-diamond-pack`·`world-boss-field`)이고 `skillbook-server`의 기존 `hell` 이름 불일치도 그대로다.
+- **PR**: [PR #287](https://github.com/songduckjin/DJRPG/pull/287) (`feat/259-guest-cleanup`, Cloudflare Pages SUCCESS·`mergeStateStatus` CLEAN).
+- **머지·배포**: **하지 않았다** — 사용자 지시 "이제부터 시키는건 배포하지말고 모으자"(11-21 18:2x KST). `server/endpoints/account.mjs`(게임 API)를 건드리므로 나중에 배포할 때는 `AGENTS.md`대로 **점검 ON → 병합 → 정수 확인 → 점검 OFF** 순서다. 배포 직후에는 관리자 포털(`/api/admin?view=status`)을 몇 번 열어 밀린 게스트(회당 25건)를 비우고 `accounts`·`active24h`가 줄어드는지, 게스트 입장 → 저장 200 스모크로 확인하면 된다.
+# DJRPG WORKLOG
+
+> 최근 작업·PR·배포 기록만 둔다(최근 20건). 더 이전 기록은 `docs/archive/2026-11/WORKLOG-history.md`.
+> 새 기록은 맨 위에 `## YYYY-MM-DD · <담당> 작업 <번호> — <제목>` 형식으로 추가하고, 오래된 항목은 아카이브로 옮긴다.
+
 ## 2026-11-21 · songduckjin 작업 218 — 관리자 운영 포털(읽기 전용) 추가·밝은 화면 재설계 · 운영 배포(`78ed95b4bd41`)
 
 - PR #180을 최신 `main`(`efc6431`)과 병합해 배포했다. 점검 ON `8670808a42bc`(17:19~17:26) → 스쿼시 머지 `78ed95b4bd41` → 점검 OFF `2aaa5cdef13e`.
@@ -125,6 +152,7 @@
 - **프리뷰 배포 실측**: [PR #252](https://github.com/songduckjin/DJRPG/pull/252) Cloudflare Pages 체크 SUCCESS, 프리뷰 `44da4568.djrpg.pages.dev` 에서 `assets/pilot-25d/mage_helms/female_0_v1.png?v=5` = 로컬 파일(md5 `04c5be3a…`, 7,881B) **일치** · 배포 번들에 `heroHelmGlowMask`·성별 마스크 표(`fadeEnd:106/108`) 포함 · 게스트로 마법사(여) 캐릭터를 만들어 필드·내 정보 초상화가 정상 렌더되는 것까지 확인(투구는 드롭 전이라 파츠·발광은 합성 이미지로만 검수).
 - **상태**: PR 준비 완료 — 사용자 지시 "오늘부터는 모아서 배포하자"에 따라 **머지·배포하지 않았다**.
 - **남은 것**: 어깨까지 파츠를 더 줄이려면 머리 구멍(현재 셀 y 104)을 목선까지 올려야 하고, 그러면 `mage_headless` 12장 + `robes/headless` 54장을 같은 규칙으로 다시 구워야 한다(그대로 줄이면 어깨에 투명 구멍이 난다). 이번 작업은 파츠·발광만 손봤다.
+
 ## 2026-11-21 · songduckjin 작업 258 — 공용창고 속도·오류 일괄 수정 (PR #258 계승 · ⚠️ 머지·배포 보류)
 
 - **요청**(사용자 11-21): "현재 창고시스템 오류가 너무 많은데 점검해볼래?", "속도가 느리면안돼", "전부 배포 진행하고 피알작업도 병행하고 맨마지막 배포로 넣자". `main`과 PR #258(`perf/249-warehouse-speed`)을 함께 감사한 결과, **#258은 빨랐지만 `main`의 40칸 규칙을 되돌렸고 두 갈래 모두 화면 쪽 오류가 남아 있었다**. 이 PR은 #258을 대체하고(`supersedes #258`), PR #273(패시브 스킬북 유실 수정)과 같은 배포 묶음에서 마지막에 넣을 수 있게 만들었다.
@@ -226,6 +254,7 @@
 - **검증**: `npx tsc --noEmit` 통과, `npm run build` 통과(번들 `index-C9T7QLoR.js`). 전체 `npm test` 1,074건 중 **1,071 통과** — 실패 3건은 `origin/main` `a4bf0de`에서도 그대로 실패하는 기존 `costume-field-render` 2·`skillbook-server` 1(로컬 기준선 실측). 신규 `tests/climb-rules` 5/5·`skill-picker` 7/7·`skill-auto-upgrade` 6/6·`item-mint-budget` 3/3, 갱신 `world-movement` 27/27·`offline` 6/6·`offline-climb`·`skill-auto-loadout` 10/10·`skill-ui` 12/12·`warehouse-grid` 8/8.
 
 - **미리보기 배포**: `preview/gravel-background-fks3997` 푸시 `262f072d350e`(2026-11-21 10:31 KST 빌드). `https://preview-gravel-background-fk.djrpg.pages.dev/version.json` HTTP 200 · `version` `262f072d350e` · 루트 200, 배포 번들(`assets/index-DqyO72YC.js`)에 `자동 강화`·`skill-auto-upgrade`·`skill-picker`·`is-recommended`·`자동 등반이 중단됩니다`·`자동 등반은 계속됩니다`·`⚔ 보스 도전` 확인. **`main` 병합·운영 배포는 하지 않았다**(사용자 지시). 모바일 실기 확인은 사용자 몫.
+
 ## 2026-11-21 · songduckjin 작업 246 — 가방 40칸 초과 저장 거절로 우편함·거래소가 잠기던 문제(+ FULL 표시·가득 참 안내)
 
 - **제보**: `#20869` "우편함 안받아져"·`#20887` "이전저장결과를 확인하래"·`#20915` "가방또는 징비데이터도 올바르지 않대"·`#20938` "가방 꽉차면 가방 풀 표시 해주고 우편도 받을따 가방이 꽉차짔다거 알림주기"(10:37~10:44 KST).
@@ -238,7 +267,6 @@
 - **머지·배포**: [PR #250](https://github.com/songduckjin/DJRPG/pull/250) 스쿼시 `91fbd93339ba`(Cloudflare Pages SUCCESS), 운영 `djrpg.pages.dev` `version.json` `91fbd93339ba`(`builtAt` 2026-11-21T02:16:30Z = 11:16 KST)·루트 200. 배포 번들 `assets/index-C-Egseuw.js`에 `saveBlockedMessage("이전 저장 결과를 확인해야 거래할 수 있습니다.")`·`INVALID_SAVE`·`bag-full-badge`·우편함 가득 참 안내, CSS `assets/index-QurHbkjf.css`에 `.bag-full-badge{…background:#b8402e…}`·`.mail-bag-full{…}`·`.bag-full-flag{color:#ff9a86…}` 확인.
 - **운영 API 실측**(11:17~11:20 KST): 게스트 `guest`→`save` 200(revision 1) → 신규 정식 계정 `register`→`createCharacter`→`save` 200 → `journey-list` 우편 5통(`welcome-v1`·`update-2026-11-20`·`season-2-open`·`apology-db-20261120`·`all-idle-launch-diamonds-2026-11-20-s2`) → `journey-claim`(mail all) `5개 보상을 수령했습니다`·bag 9 → **그 세이브로 `save` 200**(제보의 잠김 경로가 풀린 것 확인) → 41칸 `save`는 `400 INVALID_SAVE "가방이 40칸까지입니다. 장비·다른 직업 스킬북을 분해하거나 거래소에 올려 자리를 비워 주세요."`(새 한도 판정·안내 문구가 운영에 있음).
 - **남은 것**: 40칸을 실제로 넘긴 운영 계정은 만들 수 없어(신규 계정은 아이템 생성 상한이 걸린다) **초과 세이브의 저장 허용**은 실제 서버 모듈 + libSQL 테스트(`bag-limit-recovery`)로만 확인했다. 사용자 계정(`djsong`)은 서버 세이브가 이미 초과 상태라 **다음 저장부터 그대로 통과**하며, 클라이언트는 새로고침하면 FULL 배지·우편함 안내가 보인다(기존 번들이어도 서버 수정만으로 우편함이 풀린다). 폰 실기 확인은 사용자 몫.
-
 
 ## 2026-11-21 · songduckjin 작업 244 — 궁수·마법사 사거리 소폭 상향(330/180 · 285/160)
 
@@ -1898,3 +1926,11 @@
 - **피드백 `#9105`**: 카드가 커진 만큼 직업 배지 10.5px·업그레이드 화살표 16px·`+N` 11.5px·스킬북 동그라미 스킬 아이콘 `clamp(24px, 6.6vw, 32px)`. 스킬북 카드는 동그라미와 겹치지 않게 `×N`을 오른쪽 위로 올린다(`:has`).
 - **검증**: `npx tsc --noEmit`·`npx vite build`(792.17kB) 통과, 신규 `tests/market-compact-grid.test.mjs` **12/12**, `market-view-toggle` 5/5, 거래소 관련(`market`·`market-bundle-ui`·`market-actions`·`market-inbox-ui`·`market-index`·`multi-character-market`·`item-protection-ui`·`upgrade-badge`·`plus-badge`) 전부 통과. 전체 1,141건 중 1,048 통과 — 실패 93건은 `public/assets/**`가 없는 이 체크아웃의 기존 건.
 - **미리보기 배포 확인**: `preview/gravel-background-fks3997` `76540cb` → `7132f93` → `ce1dc4d` → `9fba6d3` → **`04b146e`**, `version.json` = `04b146e5aa19`(`builtAt` 2026-11-21T07:27:59Z). 실브라우저(게스트·390~500px 모달)에서 5열 카드·가격만·`궁수`/`마법사` 배지·초록 화살표·`+1`·스킬북 동그라미 확인, 카드 탭 → 상세 팝업(`공격 +18 · 체력 +39`·비교표·`구매 확정` 잠김) 확인. 스크린샷 `browser/market257-final-2026-11-21-162916.png`·`browser/market257-sheet-2026-11-21-162931.png`. **`main` 병합·운영 배포는 하지 않았다**(미리보기 전용, 사용자 지시 대기).
+
+## 작업 260 — 피해 숫자 색 분리(흰/빨/노)·맞은 피해 정수 표시 (PR 대기, 2026-11-21)
+- **사용자 지시**: "피격받는 데미지는 정수표시 그리고 내가 공격하는 일반데미지는 흰색 크리티컬은 빨간색 추가데미지는 노랑색으로 뜨게 만들자".
+- **맞은 피해 정수**: 필드 `World.update`의 적 반격이 `enemyStrike.amount`에 `taken`을 그대로 실어, 방어력 0.2배가 소수인 층에서 `-7.2`처럼 떴다 → `Math.round(taken)`. 던전(`ui/dungeonBattle.ts`)은 이미 반올림이었고, `render/vfx.ts` `damageLabelText`가 한 번 더 `Math.round`로 방어선을 둔다(따라서 어떤 경로로도 소수 숫자는 나가지 않는다).
+- **내 피해 세 색**: `render/vfx.ts`의 한 줄 색 분기를 `DAMAGE_LABEL_COLORS`·`damageLabelColor`·`damageLabelText`로 정리했다 — 일반 `0xffffff`, 치명타 `0xff4d4d`, 추가 데미지 `0xffdf40`. 맞은 피해는 치명타 빨강과 헷갈리지 않게 주황 `0xff8a4c`로 옮겼고(종전 `0xff7a6a`는 빨강에 가까웠다), 회피 하늘·회복 초록은 그대로다. 글씨체는 손대지 않고 기본 `Cinzel` 굵은 글씨 그대로 둔다 — 사용자 확정 1안(깔끔한 기본 폰트, 외곽선 없음)이며, 황야 바닥(평균 밝기 87/255)에서 흰·빨강·노랑이 모두 읽히는 것을 실배경 합성으로 확인했다(`downloads/djrpg_damage_labels_260.png`).
+- **추가 데미지 분리**: `World.damage`가 `bonusDmgPct`를 기본 피해에 곱해(`amount * (1 + bonus%)`) 한 숫자로 띄우던 것을 `baseHit`(치명타면 ×1.8)·`bonusHit`(baseHit의 N%)로 갈라 `kind:'hit'` 두 장으로 띄운다. 기본은 흰색(치명타면 빨강), 추가 몫은 `Effect.bonus = true`로 노란색이며 `labelOffsetY - 18`로 기본 숫자 위에 선다. `enemy.hp`·`dealt`(피흡 기준)는 두 값의 합 그대로라 전투 수치·처치 속도는 불변이고, 두 숫자가 같은 `random()` 한 번을 나눠 쓰므로 타격당 난수 소비도 1회 그대로다(월드보스 서버 재계산·던전 시드 리플레이 보존).
+- **검증**: `npx tsc --noEmit` 통과, `npx vite build` 통과(배포 번들 `assets/index-DOfdWWIs.js` 815.95kB에 `16731469`(`0xff4d4d`)·`16768832`(`0xffdf40`)·`16747084`(`0xff8a4c`)·`stroke:{color:1314828,width:3}` 포함, 옛 색 `0xffd75e`·`0xffd6a0` 0건). 신규 `tests/damage-labels.test.mjs` **5/5**(소수 피해 방어력에서 정수·일반 흰색/치명 빨강·추가 데미지 분리와 합계 불변·치명타+추가 조합·여섯 색 중복 없음), 관련 `enemy-strike-crit`·`enemy-range-90`·`world-movement`·`crushing`·`skill-double-slash`·`extra-options` **72/72**, `dungeon-battle`·`skill-feedback`·`offline`·`world-boss-*` **89/90**(실패 1건은 이 체크아웃에 `public/assets/world-boss/valkaron-defeat-hd-v1.png`가 없는 기존 ENOENT).
+- **머지·배포 보류**: 사용자 지시 "변경사항 모아서 한 번에 배포" — PR만 열어 둔다.

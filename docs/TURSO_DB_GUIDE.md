@@ -1,5 +1,7 @@
 # Turso DB 분리 이관 가이드 (DJRPG 전용 DB)
 
+> **책임 경계**: DB 스키마·이관·운영(전용 `djrpg` DB, 표 목록, 백업/롤백). 저장 계약은 `docs/SYNC_SAVE.md`, 기능별 표 사용은 각 도메인 매뉴얼.
+
 > 대상: `songduckjin/DJRPG` 운영자(PC Windows PowerShell 기준)
 > 스크립트: `scripts/migrate-turso-db.mjs` · 테스트: `tests/migrate-turso-db.test.mjs`
 > 원칙: 게임의 저장·API 계약은 바꾸지 않는다. DB만 새로 만들고, `djrpg_*` 18개 테이블을 복사한 뒤 Cloudflare Pages의 DB URL을 바꾸고 새 DB 토큰을 추가한다. 기존 세션 서명 키는 유지한다.

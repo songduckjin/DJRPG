@@ -9,6 +9,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import './ts-loader.mjs';
+import { modalStyles } from './helpers/modal-styles.mjs';
 
 const extra = await import('../src/game/extraOptions.ts');
 const items = await import('../src/game/items.ts');
@@ -248,7 +249,7 @@ test('체력회복력은 5초마다 최대 체력의 N%를 회복한다', () => 
 });
 
 test('던전 전투도 같은 World 규칙이라 추가 데미지가 보스 클리어를 앞당긴다', async () => {
-  const { runDungeonBattle } = await import('../src/ui/dungeonBattle.ts');
+  const { runDungeonBattle } = await import('../src/game/dungeon/battle.ts');
   const dungeonSave = extraOptions => {
     const save = freshSave('male', 'warrior');
     save.level = 20; save.tutorial = 3;
@@ -347,7 +348,7 @@ function withDocument(work) {
   try { return work(); } finally { globalThis.document = previous; }
 }
 const allText = root => [root.textContent, ...(root.children ?? []).map(allText)].filter(Boolean).join(' ');
-const css = readFileSync(new URL('../src/styles/modals.css', import.meta.url), 'utf8');
+const css = modalStyles();
 
 test('장비 상세는 추가옵션을 `✨ 이름 +N%` 한 줄씩 보여 준다', async () => {
   const { itemDetail } = await import('../src/ui/modals/equipModal.ts');

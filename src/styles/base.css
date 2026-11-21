@@ -24,5 +24,8 @@ button:active { transform: scale(.97); }
 @media (prefers-reduced-motion: reduce) { .reconnect-spinner { animation: none; } .reconnect-notice { transition: none; } }
 
 .currency-icon { display: inline-block; width: 18px; height: 18px; object-fit: contain; vertical-align: middle; flex: none; }
+/* 작업 261 — `◆` 글자를 대신하는 다이아 그림. 금화(`.currency-icon`)와 같은 18px·세로 가운데 정렬이라
+   숫자·버튼 글자 옆에서 높이가 맞는다(그림 자체에 은빛 테두리·푸른 발광이 박혀 있어 필터를 더하지 않는다). */
+.currency-diamond { vertical-align: middle; }
 .currency-amount, .gold { display: inline-flex; align-items: center; gap: 4px; color: #e6bb6c; vertical-align: middle; }
 .market-gold-icon .currency-icon { width: 36px; height: 36px; }

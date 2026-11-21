@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, statSync } from 'node:fs';
 import './ts-loader.mjs';
+import { modalStyles } from './helpers/modal-styles.mjs';
 const { renderShop, DIAMOND_PACK_ART } = await import('../src/ui/modals/shopModal.ts');
 
 const ROOT = new URL('../', import.meta.url);
@@ -71,7 +72,7 @@ test('상점 그림 에셋은 512 정사각 WebP 이고 모바일에 무겁지 �
   const head = readFileSync(path).subarray(0, 12);
   assert.equal(head.subarray(0, 4).toString('ascii'), 'RIFF');
   assert.equal(head.subarray(8, 12).toString('ascii'), 'WEBP');
-  const css = readFileSync(new URL('src/styles/modals.css', ROOT), 'utf8');
+  const css = modalStyles();
   assert.match(css, /\.shop-hero\s*\{[^}]*display:\s*flex/);
   assert.match(css, /\.shop-hero-art\s*\{[^}]*object-fit:\s*cover/);
 });

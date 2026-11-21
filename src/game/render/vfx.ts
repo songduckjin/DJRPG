@@ -459,6 +459,33 @@ export function drawHit(this: GameView, x: number, y: number, t: number, seed: n
     }
   }
 
+/**
+ * 피해 숫자 색(작업 260, 사용자 지시 "일반데미지는 흰색 크리티컬은 빨간색 추가데미지는 노랑색").
+ *
+ * 내가 넣은 피해는 흰색(일반)·빨강(치명타)·노랑(추가 데미지) 세 가지로 읽히고, 맞는 피해는 주황,
+ * 회피는 하늘, 회복은 초록으로 서로 겹치지 않는다. 맞는 피해를 빨강에 두면 내 치명타와 헷갈리므로
+ * 한 단계 따뜻한 주황(`0xff7a6a`보다 노랑·빨강 사이가 분명하다)을 쓴다.
+ */
+export const DAMAGE_LABEL_COLORS = {
+  hit: 0xffffff, crit: 0xff4d4d, bonus: 0xffdf40,
+  enemyStrike: 0xff8a4c, evade: 0xbfe4ff, heal: 0x86f0a2
+} as const;
+
+/** 숫자 한 장의 글자색 — 추가 데미지가 치명타보다 먼저다(추가 몫은 치명타와 별개로 항상 노랑). */
+export function damageLabelColor(effect: Pick<Effect, 'kind' | 'crit' | 'bonus'>): number {
+  if (effect.kind === 'evade') return DAMAGE_LABEL_COLORS.evade;
+  if (effect.kind === 'heal') return DAMAGE_LABEL_COLORS.heal;
+  if (effect.kind === 'enemyStrike') return DAMAGE_LABEL_COLORS.enemyStrike;
+  if (effect.bonus) return DAMAGE_LABEL_COLORS.bonus;
+  return effect.crit ? DAMAGE_LABEL_COLORS.crit : DAMAGE_LABEL_COLORS.hit;
+}
+
+/** 숫자 한 장의 글자 — 피해·회복은 **정수**만 적는다(맞은 피해 `-7.2` 방지, 작업 260). */
+export function damageLabelText(effect: Pick<Effect, 'kind' | 'amount'>): string {
+  if (effect.kind === 'evade') return '회피';
+  return `${effect.kind === 'heal' ? '+' : '-'}${Math.round(effect.amount ?? 0)}`;
+}
+
 export function updateDamageLabels(this: GameView, effects: Effect[], project: (x: number, y: number) => [number, number]): void {
     // 추가옵션(작업 238): 피해 숫자에 회피(`회피`)와 회복(`+N`, 피흡·5초 회복)을 더한다.
     // 적의 반격(작업 245)도 같은 숫자판을 써서 잃은 체력을 보여 준다.
@@ -468,9 +495,10 @@ export function updateDamageLabels(this: GameView, effects: Effect[], project: (
     for (const effect of labeled) {
       let label = this.damageLabels.get(effect);
       if (!label) {
-        const text = effect.kind === 'evade' ? '회피' : `${effect.kind === 'heal' ? '+' : '-'}${effect.amount ?? 0}`;
-        // 치명타는 크고 금빛으로(작업 245), 내가 맞은 피해는 붉게 — 적 타격과 내 피해가 한눈에 갈린다.
-        const fill = effect.kind === 'evade' ? 0xbfe4ff : effect.kind === 'heal' ? 0x86f0a2 : effect.kind === 'enemyStrike' ? 0xff7a6a : effect.crit ? 0xffd75e : 0xffd6a0;
+        const text = damageLabelText(effect);
+        // 일반 피해 흰색·치명타 빨강·추가 데미지 노랑(작업 260). 사용자 확정 1안 — 외곽선 없이 기본
+        // `Cinzel` 굵은 글씨 그대로 두고 색만으로 구분한다(맞은 피해 주황은 내 치명타 빨강과 갈린다).
+        const fill = damageLabelColor(effect);
         const size = effect.kind === 'evade' ? 14 : effect.crit ? 21 : 16;
         label = new Text({ text, style: { fontFamily: 'Cinzel', fontSize: size, fontWeight: 'bold', fill } });
         label.anchor.set(.5, 1); this.labels.addChild(label); this.damageLabels.set(effect, label);

@@ -56,6 +56,8 @@ function renderStatus(data) {
     stat('등록 계정', count(data.accounts)),
     stat('캐릭터', count(data.characters)),
     stat('최근 24시간 활동 계정', count(data.active24h)),
+    // 작업 259: 이번 조회 전에 24시간 지난 게스트를 지운 수(포털을 열 때마다 최대 25건).
+    stat('게스트 자동 정리', data.guestsCleaned == null ? '—' : `${count(data.guestsCleaned)}건`),
     stat('DB 응답', data.databaseMs == null ? '—' : `${data.databaseMs} ms`),
     stat('배포 버전', data.version),
     stat('확인 시각', localTime(data.checkedAt))

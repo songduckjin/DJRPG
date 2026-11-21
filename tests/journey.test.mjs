@@ -330,10 +330,25 @@ test('업적 보상은 금화와 보물 주머니로 지급되고 스킬북은 �
 
 test('claim returns an authoritative updated list and batches ownership and receipt writes with save',async()=>{
  await seed('fast-claim');await snapshot(db,'fast-claim');const row=await account(db,'fast-claim'),requestId=randomUUID();let batchedReceipt=false,separateReceipt=false;
- const wrapped={async transaction(mode){const tx=await db.transaction(mode);return {get closed(){return tx.closed;},execute(query){if(query.sql?.startsWith('INSERT INTO djrpg_market_requests'))separateReceipt=true;return tx.execute(query);},batch(queries,...args){if(queries.some(q=>q.sql?.startsWith('INSERT INTO djrpg_market_requests')))batchedReceipt=true;return tx.batch(queries,...args);},commit:()=>tx.commit(),rollback:()=>tx.rollback(),close:()=>tx.close()};}};
+ const wrapped={async transaction(mode){const tx=await db.transaction(mode);return {get closed(){return tx.closed;},execute(query){if(query.sql?.startsWith('INSERT INTO djrpg_journey_requests'))separateReceipt=true;return tx.execute(query);},batch(queries,...args){if(queries.some(q=>q.sql?.startsWith('INSERT INTO djrpg_journey_requests')))batchedReceipt=true;return tx.batch(queries,...args);},commit:()=>tx.commit(),rollback:()=>tx.rollback(),close:()=>tx.close()};}};
  const input={action:'journey-claim',kind:'daily',id:'login',revision:row.revision,requestId};const result=await mutate(wrapped,'fast-claim',input);
  assert(result.journey.daily.find(t=>t.id==='login').claimed);assert(batchedReceipt);assert.equal(separateReceipt,false);
  const retry=await mutate(db,'fast-claim',input);assert.equal(retry.save.gold,result.save.gold);assert(retry.journey.daily.find(t=>t.id==='login').claimed);
+ // 멱등 응답은 거래소 요청 표가 아니라 **여정 요청 표**에 남는다(작업 260 · 설계지 PR-5).
+ const own=(await db.execute({sql:'SELECT COUNT(*) AS n FROM djrpg_journey_requests WHERE account_id=? AND request_id=?',args:['fast-claim',requestId]})).rows[0];
+ assert.equal(Number(own.n),1,'여정 요청 표에 응답을 남긴다');
+ const shared=(await db.execute({sql:'SELECT COUNT(*) AS n FROM djrpg_market_requests WHERE account_id=? AND request_id=?',args:['fast-claim',requestId]})).rows[0];
+ assert.equal(Number(shared.n),0,'거래소 요청 표와 섞이지 않는다');
+});
+
+test('구번들이 거래소 요청 표에 남긴 여정 응답도 다시 보면 중복 지급하지 않는다(작업 260)',async()=>{
+ await seed('legacy-receipt');await snapshot(db,'legacy-receipt');
+ const row=await account(db,'legacy-receipt'),requestId='legacy-journey-request';
+ // 이 배포 직전 번들은 여정 응답을 `djrpg_market_requests`에 적었다 — 그 행이 남아 있는 상태를 만든다.
+ await db.execute({sql:'INSERT INTO djrpg_market_requests (account_id,request_id,response_json) VALUES (?,?,?)',args:['legacy-receipt',requestId,JSON.stringify({ok:true,message:'이미 처리한 보상입니다.'})]});
+ const result=await mutate(db,'legacy-receipt',{action:'journey-claim',kind:'daily',id:'login',revision:row.revision,requestId});
+ assert.equal(result.message,'이미 처리한 보상입니다.','구 표의 응답을 그대로 돌려준다');
+ assert.equal((await account(db,'legacy-receipt')).save.gold,0,'보상이 두 번 들어가지 않는다');
 });
 
 // 작업 252 — 2026-11-21 업데이트 안내 우편(무작위 보물 주머니 5개). 미리보기 전용 테스트 우편은
