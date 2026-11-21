@@ -1,7 +1,9 @@
 # DJRPG 캐릭터 외형·코스튬 시스템 정의
 
+> **책임 경계**: 렌더·파츠·코스튬·발광·아틀라스의 단일 기준(이 문서). 3D 생성은 `docs/BLENDER_25D_PIPELINE.md`, 아이템·장비 규칙은 `docs/INVENTORY_GEAR.md`, 필드 전투는 `docs/FIELD_OFFLINE.md`.
+
 > 단일 기준 문서(Source of Truth). 프로토타입 전 설계 기준이며, 구현 상세는 실물 검증 후 추가한다.
-> 빠른 작업 경로: AGENTS.md → docs/QUICK_PATCH.md → docs/CODE_MAP.md → 이 문서 → docs/TASK_songduckjin.md 작업 139~149.
+> 빠른 작업 경로: AGENTS.md → docs/QUICK_PATCH.md → docs/CODE_MAP.md → 이 문서 → `docs/archive/2026-11/TASK_songduckjin-history.md`(작업 139~149).
 
 **문서 버전: v2.3 (2026-11-19, 작업 149).** 코스튬 레이어 기본 규약은 갑옷·투구·무기 **3부위**이며(§7.9·§7.10), 현재 전사 필드·장비창은 사용자가 승인한 작업 149 전신 시안을 우선 표시한다. 장착 슬롯·능력치·Save는 그대로지만 외형은 남녀 고정 갑옷·대검 그림이며, 코스튬 매니페스트/무기 소켓 레이어를 그리지 않는다. 작업 145의 추가 실기 검수는 대체되었고 기존 v3/v4/v5 구현·에셋은 보존한다.
 
@@ -81,7 +83,7 @@
 | `crushing` | 딜레이 크러싱 | `smash` | 내려찍기 | 적 하나를 빠르게 10번 내려치는 연타(작업 212) |
 | `slam` | 와일드 스탬프 | `smash` | 내려찍기 | 지면 강타·균열 |
 | `warcry` | 블러드 레이지 | `cast` | 발동 자세 | 6초 버프 발동 |
-| `hell` | 헬 파이어 소드 | `cast` | 발동 자세 | 대검 폭발 발동 |
+| `hell` | 회전참격 | `spin` | 발동 자세 | 혈풍 회오리 360° 회전 |
 
 스킬을 추가할 때는 `skills.ts`에 ID를 넣는 것과 동시에 `skillMotionTemplates`에 템플릿을 지정하고 이 표를 갱신한다. 4종으로 표현되지 않는 동작이 실측으로 확인될 때만 템플릿을 늘린다.
 
