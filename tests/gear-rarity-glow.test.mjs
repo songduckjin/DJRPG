@@ -71,8 +71,9 @@ test('필드는 부위마다 세 겹을 얹고, 곱하기는 원본·가산은 �
   assert.match(entities, /glow\.blendMode = layer\.mode;/, '겹마다 블렌드');
   assert.match(entities, /glow\.alpha = Math\.min\(1, amount \* layer\.weight\);/, '겹마다 파동 세기 × 비율');
   assert.match(entities, /glow\.tint = emissive \? 0xffffff : tone\.color;/, '곱하기 겹은 등급색 tint');
-  // [작업 256] 투구는 파츠 모양 마스크를 함께 넘긴다 — 갑옷은 목선, 투구는 알파 마스크.
-  assert.match(entities, /syncGearGlow\(this, 'armor', this\.hero, save\.equipment\.armor\?\.rarity, time, \{ neckY \}\)/, '갑옷');
+  // [작업 256·257] 투구·갑옷 모두 파츠 모양 알파 마스크를 함께 넘긴다 — 갑옷은 마스크 시트(작업 257),
+  // 투구는 파츠 마스크(작업 256).
+  assert.match(entities, /syncGearGlow\(this, 'armor', armorGlowReady \? this\.hero : undefined, save\.equipment\.armor\?\.rarity, time, \{ mask: armorGlowMask \}\)/, '갑옷');
   assert.match(entities, /syncGearGlow\(this, 'helmet', helmetGlowReady \? wornHelmet : undefined, save\.equipment\.helmet\?\.rarity, time, \{ mask: helmetGlowMask \}\)/, '투구');
   assert.match(entities, /syncGearGlow\(this, 'weapon', wornWeapon, save\.equipment\.weapon\?\.rarity, time\)/, '무기');
   assert.match(entities, /job === 'archer'\) return view\.heroBow/, '궁수는 활 파츠');
@@ -118,13 +119,14 @@ test('장착 화면은 발광 레이어를 몸 위에 얹고 CSS로 숨쉬게 �
   assert.match(modalStyles, /prefers-reduced-motion: reduce\) \{ \.showcase-glow-layer \{ animation: none; opacity: \.7; \} \}/, '움직임을 줄인 기기에서는 은은하게 고정');
 });
 
-test('마법사 투구 발광은 얼굴·목선 아래로 번지지 않는다(작업 247)', () => {
+test('마법사 투구 발광은 얼굴·목선 아래로 번지지 않는다(작업 247 → 256)', () => {
   // 파츠에 얼굴이 함께 들어 있어 그대로 두면 유니크·전설 투구에서 얼굴이 등급색 덩어리가 되고,
-  // 파츠가 목선에서 끊긴 자리에 직선으로 잘린 발광 띠가 남는다 → 성별 발광 마스크를 건다.
-  assert.match(entities, /else if \(maskTexture\)/, '투구 발광에도 마스크를 건다');
-  assert.match(entities, /mask\.texture = maskTexture;[\s\S]*mask\.anchor\.set\(source\.anchor\.x, source\.anchor\.y\);[\s\S]*mask\.scale\.set\(source\.scale\.x, source\.scale\.y\);/, '마스크를 파츠와 같은 앵커·위치·배율로 얹는다');
-  assert.match(entities, /mageHelmGlowMaskTexture\(save\.gender\)/, '성별 마스크를 고른다');
-  assert.match(render, /heroHelmGlowMask\?: Sprite;/, 'GameView.heroHelmGlowMask');
+  // 파츠가 목선에서 끊긴 자리에 직선으로 잘린 발광 띠가 남는다 → 알파 마스크를 건다.
+  // 작업 256에서 마법사 전용 코드 대신 **전 직업 공통 파츠 마스크**(`options.mask`)로 일반화됐다.
+  assert.match(entities, /if \(options\.mask\) \{/, '투구 발광에도 마스크를 건다');
+  assert.match(entities, /mask\.texture = options\.mask;[\s\S]*mask\.anchor\.set\(source\.anchor\.x, source\.anchor\.y\);[\s\S]*mask\.scale\.set\(source\.scale\.x, source\.scale\.y\);/, '마스크를 파츠와 같은 앵커·위치·배율로 얹는다');
+  assert.match(entities, /helmetGlowMask\(helmetGlowMaskPath\)/, '투구 마스크를 경로로 받는다');
+  assert.match(render, /helmetGlowMasks = new Map<string, Texture>\(\);/, 'GameView.helmetGlowMasks');
   assert.match(portrait, /globalCompositeOperation = 'destination-in'[\s\S]{0,200}drawImage\(mask/, '장착 화면도 마스크로 도려낸다');
   assert.match(portrait, /glow \? mageHelmGlowMaskCanvas\(mageHelm\.gender\) : undefined/, '투구 발광일 때만 마스크');
   // 마스크는 새 파일을 받지 않고 캔버스로 굽는다(캐시는 성별당 1장).

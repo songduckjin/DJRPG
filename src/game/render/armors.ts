@@ -37,6 +37,33 @@ export const WARRIOR_IDLE_ASSET_VERSION = PILOT_ASSET_VERSION;
 
 
 /**
+ * 갑옷 발광 마스크 시트 경로 (작업 257).
+ *
+ * 갑옷 시트와 **같은 파일명·같은 셀 좌표계**의 알파 마스크를 `armors_glow/` 아래에 둔다
+ * (`scripts/build-armor-glow-masks.py`). 마스크는 머리·머리카락·맨살·무기·부츠를 뺀
+ * **갑옷 픽셀만** 담고 있어, 필드는 이 텍스처를 갑옷과 같은 앵커·배율로 `mask` 로 걸어
+ * 갑옷만 빛나게 한다. 발광 마스크는 티어·성별·동작마다 한 장(마스크는 머리 없는 판·무기 지운
+ * 판과 같다)이라 12장이면 모든 변형을 덮는다.
+ */
+export const ARMOR_GLOW_DIR = 'armors_glow';
+
+export function armorGlowSheetPath(gender: Gender, index: number, motion: ArmorMotion): string | undefined {
+  if (!Number.isInteger(index) || index < 0 || index >= ARMOR_COUNT) return undefined;
+  if (!armorMotionList.includes(motion)) return undefined;
+  return pilotSheet(`/assets/pilot-25d/${ARMOR_GLOW_DIR}/warrior_${gender}_armor_${index}_${motion}_v1.png`);
+}
+
+/** 한 티어의 발광 마스크 3장(서기·걷기·공격) — 검사·미리 받기에 쓴다. */
+export function armorGlowSheetPaths(gender: Gender, index: number): string[] {
+  const paths: string[] = [];
+  for (const motion of armorMotionList) {
+    const path = armorGlowSheetPath(gender, index, motion);
+    if (path) paths.push(path);
+  }
+  return paths;
+}
+
+/**
  * 갑옷 시트 경로. 인덱스가 범위를 벗어나면 `undefined`(호출부는 기준 시트로 폴백).
  *
  * 파일명은 `warrior_{성별}_armor_{인덱스}_{동작}_v1.png` 이고, 투구용 머리 없는 시트만

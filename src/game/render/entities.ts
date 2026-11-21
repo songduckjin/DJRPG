@@ -17,6 +17,7 @@ import { helmetArtFor, helmetArtPath, helmetGlowMaskPath, helmetPlacement } from
 import { archerHelmGlowMaskPath, archerHelmIndexFor, archerHelmPartPath, archerHelmPlacement } from './archerHelmets';
 import { mageHelmIndexFor, mageHelmPartPath, mageHelmPlacement } from './mageHelmets';
 import { armorIndexFor } from './armors';
+import { armorGlowSheetFor } from './armorGlowMasks';
 import { archerArmorIndexFor } from './archerArmors';
 import { hasRobeSheet, mageRobeIndexFor } from './robes';
 import { WEAPON_GUARD, weaponIndexFor, weaponPose } from './weapons';
@@ -809,12 +810,17 @@ export function drawHero(this: GameView, world: World, x: number, y: number, tim
     // 갑옷은 몸체 시트에 함께 그려지므로 몸통 스프라이트가 곧 갑옷이다(투구를 쓰면 머리는 시트에 없다).
     const wornHelmet = mage ? this.heroMageHelm : this.heroHelmet;
     const wornWeapon = weaponGlowSource(this, job);
-    // 갑옷 발광은 목 밑동 아래로만 — 자세 표(투구 앵커)가 그 자리를 알려 준다.
-    // 궁수·마법사 파츠는 셀 전체 PNG라 앵커가 좌상단이므로, 목 밑동은 셀 좌표 상수로 잡는다.
-    const neckY = archer || mage
-      ? 104
-      : helmetPlacement(save.gender, animation, animation === 'walk' ? walkingFrame : animatedAttack ? Math.max(0, attackFrame) : 0, Math.max(0, helmetIndex(save))).y;
-    syncGearGlow(this, 'armor', this.hero, save.equipment.armor?.rarity, time, { neckY });
+    // [작업 257] 갑옷은 **갑옷 픽셀만** 발광한다(사용자 확정 1안) — 갑옷 시트와 같은 셀 좌표계의
+    // 알파 마스크로 얼굴·머리카락·맨팔·무기·부츠를 잘라 내고, 실루엣 밖으로 번지는 후광 겹도 쓰지
+    // 않는다. 마스크는 유니크·전설 갑옷을 입은 순간에만 받으므로, 아직 로딩 전이면 이 프레임은
+    // 발광을 숨긴다(마스크 없이 그리면 얼굴까지 물들어 예전 문제로 돌아간다).
+    const armorGlowPath = armorGlowSheetFor(save, animation);
+    // 테스트용 스텁 뷰는 이 로더를 만들지 않는다 — 없으면 마스크 없이(발광 숨김) 그린다.
+    const armorGlowMask = armorGlowPath && typeof this.armorGlowFrame === 'function'
+      ? this.armorGlowFrame(armorGlowPath, animation, poseFrame)
+      : undefined;
+    const armorGlowReady = !armorGlowPath || !!armorGlowMask;
+    syncGearGlow(this, 'armor', armorGlowReady ? this.hero : undefined, save.equipment.armor?.rarity, time, { mask: armorGlowMask });
     // [작업 256] 투구는 **파츠만** 발광한다(사용자 확정 1안) — 파츠와 같은 크기의 알파 마스크로
     // 얼굴·목·어깨·머리카락을 잘라 내고, 실루엣 밖으로 번지는 후광 겹도 쓰지 않는다.
     // 마스크는 유니크·전설 투구를 쓴 순간에만 받으므로, 아직 로딩 전이면 이 프레임은 발광을 숨긴다

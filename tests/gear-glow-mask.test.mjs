@@ -207,10 +207,12 @@ test('투구는 후광 겹 없이 두 겹만 쓴다(1안 — 오라 번짐 없�
   assert.equal(helmet.length, 2, '투구는 2겹');
   assert.ok(helmet.every(layer => layer.scale <= 1), '실루엣 밖으로 키우는 겹이 없다');
   assert.deepEqual(helmet.map(layer => layer.mode), ['multiply', 'add']);
-  // 갑옷·무기는 종전 세 겹 그대로 — 이번 작업은 투구만 바꾼다.
-  assert.equal(gearGlowLayersFor('armor').length, gearGlowLayers.length);
+  // 갑옷도 마스크 발광과 함께 두 겹이 된다(작업 257 — 투구와 같은 1안). 무기는 종전 세 겹 그대로다.
+  const armor = gearGlowLayersFor('armor');
+  assert.equal(armor.length, 2, '갑옷도 2겹(작업 257)');
+  assert.ok(armor.every(layer => layer.scale <= 1), '갑옷도 실루엣 밖으로 번지지 않는다');
   assert.equal(gearGlowLayersFor('weapon').length, gearGlowLayers.length);
-  assert.ok(gearGlowLayers.some(layer => layer.scale > 1), '갑옷·무기의 번지는 후광은 유지');
+  assert.ok(gearGlowLayers.some(layer => layer.scale > 1), '무기의 번지는 후광은 유지');
 });
 
 test('필드는 투구 발광을 마스크로 자르고, 마스크가 없으면 발광을 숨긴다', () => {

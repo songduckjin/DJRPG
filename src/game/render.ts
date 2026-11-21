@@ -152,6 +152,9 @@ export const archerArmorTierCacheLimit = 3;
 export { weaponTierCacheLimit };
 /** 마법사 로브 시트 캐시에 남기는 티어 수(작업 208). 티어당 6장(전신·머리 없음)이다. */
 export const robeTierCacheLimit = 3;
+/** 갑옷 발광 마스크 시트 캐시 상한(작업 257) — 마스크는 362² 알파 PNG라 가볍지만, 티어를
+ *  오갈 때 쌓이지 않게 최근 몇 장만 남긴다. */
+export const armorGlowCacheLimit = 6;
 export const renderAssetPaths = [
   ...Object.values(paths), ...Object.values(animationPaths).flat(),
   ...Object.values(attackSheets), ...Object.values(walkSheets), ...Object.values(wearableAssetPaths),
@@ -220,6 +223,16 @@ export class GameView {
   /** 착용 갑옷 시트(경로 → 텍스처)와 프레임 캐시, 로딩 중인 경로 (작업 155). 기본 검을 지운 시트(작업 156)도 같은 지도에 담는다. */
   armorSheets = new Map<string, Texture>();
   armorFrames = new Map<string, Texture[]>();
+  /**
+   * 갑옷 발광 마스크 시트(작업 257) — 경로 → 시트, 경로 → 자른 프레임.
+   *
+   * 마스크는 갑옷 시트와 같은 크기·같은 셀 좌표계의 알파 PNG라 같은 방식으로 자른다.
+   * 부팅 때 모두 받지 않고 **유니크·전설 갑옷을 입은 순간**에만 그 차림의 3장을 받는다.
+   */
+  armorGlowSheets = new Map<string, Texture>();
+  armorGlowFrames = new Map<string, Texture[]>();
+  armorGlowLoading = new Set<string>();
+  armorGlowOrder: string[] = [];
   armorLoading = new Set<string>();
   /** 최근에 받은 본체 시트 묶음 키(오래된 것부터 버린다). */
   armorTierOrder: string[] = [];
@@ -479,6 +492,49 @@ export class GameView {
         this.armorFrames.delete(path);
         if (this.armorSheets.delete(path)) void Assets.unload(path).catch(() => undefined);
       }
+    }
+  }
+
+  /**
+   * 갑옷 발광 마스크의 프레임 텍스처 (작업 257).
+   *
+   * 마스크 시트는 갑옷 시트와 같은 셀 좌표계라 `sliceArmorSheet`·`armorFrameIndex` 를 그대로 쓴다.
+   * 아직 로딩 전이면 `undefined` — 그 프레임은 갑옷 발광을 숨긴다(마스크 없이 그리면 얼굴·맨팔까지
+   * 물들어 예전 문제로 돌아간다).
+   */
+  armorGlowFrame(path: string, motion: ArmorMotion, frame: number): Texture | undefined {
+    let frames = this.armorGlowFrames.get(path);
+    if (!frames) {
+      const sheet = this.armorGlowSheets.get(path);
+      if (!sheet) { this.loadArmorGlowSheet(path); return undefined; }
+      frames = sliceArmorSheet(sheet, motion);
+      this.armorGlowFrames.set(path, frames);
+    }
+    return frames[armorFrameIndex(motion, frame) % frames.length];
+  }
+
+  /** 갑옷 발광 마스크 시트 1장을 받아 둔다. 최근 `armorGlowCacheLimit` 장 밖은 내린다. */
+  prefetchArmorGlow(path: string | undefined): void {
+    if (path) this.loadArmorGlowSheet(path);
+  }
+
+  private loadArmorGlowSheet(path: string): void {
+    if (!this.armorGlowOrder.includes(path)) this.armorGlowOrder.push(path);
+    if (this.armorGlowSheets.has(path) || this.armorGlowLoading.has(path)) return;
+    this.armorGlowLoading.add(path);
+    void Assets.load<Texture>(path).then(sheet => {
+      sheet.source.scaleMode = 'linear';
+      this.armorGlowSheets.set(path, sheet);
+      this.armorGlowLoading.delete(path);
+    }).catch(error => {
+      this.armorGlowLoading.delete(path);
+      console.error(`갑옷 발광 마스크 로딩 실패: ${path}`, error);
+    });
+    while (this.armorGlowOrder.length > armorGlowCacheLimit) {
+      const oldest = this.armorGlowOrder.shift() as string;
+      if (oldest === path) continue;
+      this.armorGlowFrames.delete(oldest);
+      if (this.armorGlowSheets.delete(oldest)) void Assets.unload(oldest).catch(() => undefined);
     }
   }
 
