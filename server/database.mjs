@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { journeyState, journeyOperation } from './journey-state.mjs';
 import { skillBookIdSet, countedInBag } from './skill-ids.mjs';
+import { bagSlotCount } from './core/rewardGrant.mjs';
 import { clampSaveProgress, itemWithinBounds, rewardBudget, elapsedSince } from './save-guard.mjs';
 import { extraOptionsWithin, normalizeExtraOptions } from './extra-options.mjs';
 import { databaseFactory } from './database-config.mjs';
@@ -206,8 +207,8 @@ export function assertRevision(row, revision) {
 const itemsOf = save => [...(save.bag ?? []), ...Object.values(save.equipment ?? {}).filter(Boolean)];
 /** 가방 40칸 — `src/game/bagCapacity.ts`·`server/skill-ids.mjs`와 같은 규칙(장비 + 다른 직업 전용 스킬북). */
 export const EQUIPMENT_BAG_LIMIT = 40;
-/** 가방 40칸에 세는 수. 배열이 아니면 0. */
-export const countedBagItems = (bag, job) => (Array.isArray(bag) ? bag : []).filter(item => countedInBag(item, job)).length;
+/** 가방 40칸에 세는 수. 배열이 아니면 0. 규칙은 `server/core/rewardGrant.mjs` 한 곳에 있다. */
+export const countedBagItems = (bag, job) => bagSlotCount({ bag: Array.isArray(bag) ? bag : [], job });
 /**
  * 이 세이브에 허용하는 가방 상한(작업 246).
  *
@@ -354,6 +355,8 @@ const repairedSave = async (tx, row) => {
     return identity(known) === identity(item) ? 'keep' : { item: known };
   };
   let changed = false;
+  // 여기는 보상 지급이 아니라 **서버가 들고 있는 아이템으로 되돌리는** 복원이다(작업 246) — 공통 지급
+  // 창구(`server/core/rewardGrant.mjs`)를 지나지 않는다. 새 아이템을 만드는 곳이 아니다.
   const bag = [];
   for (const item of save.bag) {
     const decision = decide(item);

@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import './ts-loader.mjs';
+import { modalStyles } from './helpers/modal-styles.mjs';
 
 const items = await import('../src/game/items.ts');
 const pouch = await import('../src/game/pouch.ts');
@@ -14,7 +15,7 @@ const { equipmentCodexKey } = await import('../src/game/codex.ts');
 const { pouchRatesPanel, pouchResultCard, openPouchWindow, pouchGlowInk, POUCH_OPEN_MS, POUCH_FRAME_AT, POUCH_BURST_MS, POUCH_RESULT_MS } = await import('../src/ui/modals/pouchModal.ts');
 const pouchArt = await import('../src/ui/pouchArt.ts');
 const { itemDetail, renderInventory } = await import('../src/ui/modals/equipModal.ts');
-const css = readFileSync(new URL('../src/styles/modals.css', import.meta.url), 'utf8');
+const css = modalStyles();
 // 주석에 적힌 말("`pouch-shake` 삭제")에 걸리지 않도록, 규칙만 남긴 사본으로 금지 규칙을 검사한다.
 const rules = css.replace(/\/\*[\s\S]*?\*\//g, '');
 
