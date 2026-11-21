@@ -28,8 +28,6 @@
 .level-badge span, .level-badge b { z-index: 1; line-height: 1; }
 .level-badge span { font: 9px Cinzel, serif; }
 .level-badge b { margin-top: 3px; font: 700 16px Cinzel, serif; }
-/* 레벨 배지 아래 닉네임(작업 228) — 배지 아래 테두리에 얹는 작은 이름판이다. 세로 공간을 더 쓰지 않아
-   체력바·튜토리얼 배너와 겹치지 않고, 누르는 일은 배지가 그대로 받는다(pointer-events: none). */
 /* 닉네임 이름판(작업 228 → 265) — **레벨 배지 원(5~54px) 바깥 아래**에서 시작한다(작업 234).
    예전 `top: 40px`은 배지 안쪽이라 `LV` 아래 레벨 숫자의 아래쪽을 가렸다(실기 IMG_1143).
    왼쪽 끝을 배지 왼쪽(12px)에 맞춰 오른쪽으로만 늘리므로 16자 닉네임도 화면 밖으로 잘리지 않는다.
