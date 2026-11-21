@@ -3,6 +3,7 @@ import { APP_VERSION } from '../app-version.mjs';
 import { sharedConnection } from '../connection.mjs';
 import { runtimeEnv } from '../env.mjs';
 import { json } from '../http.mjs';
+import { cleanupExpiredGuests, GUEST_ADMIN_CLEANUP_LIMIT } from '../guest-cleanup.mjs';
 
 const headers = { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' };
 const reply = (body, status = 200) => json(body, status, headers);
@@ -38,6 +39,10 @@ export async function adminEndpoint(request, { env = runtimeEnv(), createDbClien
   try {
     const start = Date.now();
     db = createDbClient ? createDbClient(env) : await sharedConnection(env);
+    // 게스트 24시간 자동 삭제(작업 259) — 집계·목록보다 먼저 돌려 화면이 정리된 실제 상태를 보여 준다.
+    // `force`라 열 때마다 돈다(게스트 입장 경로의 5분 챨다운과 별개).
+    const guests = await cleanupExpiredGuests(db, { force: true, limit: GUEST_ADMIN_CLEANUP_LIMIT });
+    const guestsCleaned = Number(guests?.deletedCount ?? 0);
     if (view === 'status') {
       const [ping, accounts, characters, active] = await Promise.all([
         db.execute('SELECT 1'),
@@ -46,7 +51,7 @@ export async function adminEndpoint(request, { env = runtimeEnv(), createDbClien
         db.execute({ sql: 'SELECT COUNT(*) AS count FROM djrpg_accounts WHERE updated_at >= ?', args: [new Date(Date.now() - 86400_000).toISOString()] })
       ]);
       void ping;
-      return reply({ version: APP_VERSION, checkedAt: new Date().toISOString(), database: 'ok', databaseMs: Date.now() - start, accounts: Number(accounts.rows[0].count), characters: Number(characters.rows[0].count), active24h: Number(active.rows[0].count) });
+      return reply({ version: APP_VERSION, checkedAt: new Date().toISOString(), database: 'ok', databaseMs: Date.now() - start, accounts: Number(accounts.rows[0].count), characters: Number(characters.rows[0].count), active24h: Number(active.rows[0].count), guestsCleaned });
     }
 
     const search = (url.searchParams.get('q') ?? '').trim().slice(0, 50);
@@ -62,7 +67,7 @@ export async function adminEndpoint(request, { env = runtimeEnv(), createDbClien
         WHERE ${filter} GROUP BY a.id, a.password_hash, a.updated_at
         ORDER BY a.updated_at DESC, a.id LIMIT ? OFFSET ?`, args: [search, size, (page - 1) * size] })
     ]);
-    return reply({ page, size, total: Number(total.rows[0].count), accounts: result.rows.map(row => ({ id: String(row.id), guest: Boolean(row.guest), updatedAt: String(row.updated_at), characters: Number(row.characters), maxFloor: Number(row.max_floor) })) });
+    return reply({ page, size, total: Number(total.rows[0].count), guestsCleaned, accounts: result.rows.map(row => ({ id: String(row.id), guest: Boolean(row.guest), updatedAt: String(row.updated_at), characters: Number(row.characters), maxFloor: Number(row.max_floor) })) });
   } catch (error) {
     console.error(JSON.stringify({ event: 'admin_error', name: error?.name ?? 'Error' }));
     if (view === 'status') return reply(unavailable('error'));
