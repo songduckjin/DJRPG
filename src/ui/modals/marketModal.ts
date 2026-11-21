@@ -168,8 +168,6 @@ export function renderMarket(this: Interface, dialog: HTMLElement): void {
     // 판매 중 목록의 서브 필터 탭(작업 257) — `전체`·`장비`·`스킬북`. 목록 맨 위에서 한 페이지의 매물을 거른다.
     // 사용자 피드백(`#9078`): `간편보기`/`자세히보기` 아이콘과 **같은 한 줄**에 두어 세로 공간을 아낸다.
     const kindTabbed = market.view === 'active';
-    const listToolbar = kindTabbed ? el('div', 'market-list-toolbar') : undefined;
-    if (listToolbar) dialog.append(listToolbar);
     renderFilters(market, dialog);
     // `내 직업만 보기` (작업 205): 판매 중·거래 완료 목록에서 다른 직업 전용 무기·스킬북을 걷어 낸다.
     // 내 거래(mine)는 내가 올리고 산 기록이므로 같은 필터를 적용하지 않는다.
@@ -183,8 +181,13 @@ export function renderMarket(this: Interface, dialog: HTMLElement): void {
     dialog.append(el('p', 'market-result', `${money(data?.total ?? 0)}건${hiddenListings ? ` · 이 페이지에서 다른 직업 ${hiddenListings}개 숨김` : ''}${hiddenByKind ? ` · ${MARKET_KIND_LABELS[market.kind]} 필터로 ${hiddenByKind}개 숨김` : ''}${market.view === 'mine' ? ` · 판매 중 ${data?.myActive ?? 0}/${data?.rules?.maxListings ?? 30} · 내 판매 및 구매 기록` : ''}`));
     // 판매 중 탭의 `간편 보기`/`상세 보기`(작업 248) — 간편 보기는 한 화면에 훨씬 많은 매물을 보여 준다.
     const compact = market.view === 'active' && listingView === 'compact';
-    // 툴바의 왼쪽은 종류 탭, 오른쪽은 보기 방식 아이콘(사용자 피드백 `#9078`).
-    if (listToolbar) listToolbar.append(kindTabs(market, listings), listingViewToggle(this));
+    // 판매 중 탭에서만 결과 줄 바로 아래에 **한 줄 툴바**를 둔다(사용자 피드백 `#9155`):
+    // 왼쪽은 오밀조밀한 종류 탭(`전체`·`장비`·`스킬북`), 오른쪽은 예전 자리 그대로 `간편/자세히` 아이콘.
+    if (kindTabbed) {
+      const listToolbar = el('div', 'market-list-toolbar');
+      listToolbar.append(kindTabs(market, listings), listingViewToggle(this));
+      dialog.append(listToolbar);
+    }
     if (!data && market.loading) dialog.append(el('p', 'empty', '거래소를 불러오고 있습니다…'));
     if (compact) {
       // 작업 257: 한 줄 4~5열 카드 그리드. 카드에는 아이콘과 가격만 있고, 누르면 상세 팝업이 뜬다.

@@ -91,11 +91,14 @@ test('판매 중 목록 위에 전체·장비·스킬북 서브 필터 탭이 �
   assert(hasClass(tabs[0], 'active'));
   // 탭은 목록 본문(검색 폼·결과)보다 먼저 온다.
   const search = find(dialog, node => hasClass(node, 'market-search'));
+  const result = find(dialog, node => hasClass(node, 'market-result'));
   const toolbar = find(dialog, node => hasClass(node, 'market-list-toolbar'));
   assert(toolbar, '종류 탭과 보기 아이콘이 같은 한 줄');
   assert.equal(toolbar.children[0], bar, '줄의 왼쪽이 종류 탭');
   assert(hasClass(toolbar.children[1], 'market-view-toggle'), '줄의 오른쪽이 간편/자세히 보기 아이콘');
-  assert(dialog.children.indexOf(toolbar) < dialog.children.indexOf(search));
+  assert(dialog.children.indexOf(toolbar) > dialog.children.indexOf(result), '사용자 피드백(`#9155`): 결과 줄 바로 아래 · 예전 간편/자세히 아이콘 자리');
+  const firstRow = find(dialog, node => hasClass(node, 'market-row'));
+  assert(dialog.children.indexOf(toolbar) < dialog.children.indexOf(firstRow), '목록보다 위');
 
   // 장비만: 스킬북 매물이 목록에서 빠지고, 숨긴 수를 결과 줄에 알린다.
   tabs[1].onclick();
@@ -294,10 +297,13 @@ test('카드 그리드·서브 필터·`+N` 배지 CSS 계약(작업 257)', () =
   assert.match(rule('.market-card .market-icon.skill-book-art'), /--book-badge-size: clamp\(24px, 6.6vw, 32px\)/, '스킬북 동그라미를 크게');
   assert.match(rule('.market-card-price'), /font-size: 10px/, '카드에는 가격만');
   assert.match(rule('.market-kind-tabs'), /display: flex/);
-  // 사용자 피드백(`#9078`): 종류 탭과 보기 아이콘은 한 flex 줄에 나란히 둔다(세로 1줄 절약).
+  // 사용자 피드백(`#9078`·`#9155`): 종류 탭과 보기 아이콘은 한 flex 줄에 나란히 두되,
+  // 탭은 가로를 꽉 채우지 않고 왼쪽에 제 크기로 모으고 아이콘은 오른쪽 끝에 붙인다.
   assert.match(rule('.market-list-toolbar'), /display: flex/);
-  assert.match(rule('.market-list-toolbar .market-kind-tabs'), /flex: 1 1 auto/);
+  assert.match(rule('.market-list-toolbar'), /justify-content: space-between/);
+  assert.match(rule('.market-list-toolbar .market-kind-tabs'), /flex: 0 1 auto/);
   assert.match(rule('.market-list-toolbar .market-view-toggle'), /flex: none/);
+  assert.match(rule('.market-kind-tab'), /flex: 0 0 auto/, '탭이 가로 전체로 늘어나지 않는다');
   assert.match(rule('.market-kind-tab'), /border-radius: 5px/, '인덱스 탭과 같은 각진 탭');
   assert.match(rule('.market-sheet'), /position: fixed/, '상세 팝업은 모달 위에 고정');
   assert.match(rule('.market-sheet'), /z-index: 60/);
