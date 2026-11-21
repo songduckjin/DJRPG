@@ -1,6 +1,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import './ts-loader.mjs';
+import { modalStyles } from './helpers/modal-styles.mjs';
 const {renderSettings,renderUtility,updateUtilityBadges}=await import('../src/ui/modals/utilityModal.ts');
 const {Journey}=await import('../src/game/journey.ts');
 const {freshSave}=await import('../src/game/store.ts');
@@ -198,7 +199,7 @@ test('업적 카드는 금화와 보물 주머니(그림 포함)를 함께 보�
     assert(icon&&String(icon.className).includes('pouch-reward-icon'),'주머니 그림 아이콘');
     assert.equal(icon.src,'/assets/icons/treasure_pouch_v2.png','투명 배경 가죽 주머니');
     const {readFileSync}=await import('node:fs');
-    const css=readFileSync(new URL('../src/styles/modals.css',import.meta.url),'utf8');
+    const css=modalStyles();
     assert(/\.pouch-reward-icon\s*\{[^}]*width:\s*19px/.test(css),'금화 아이콘과 같은 인라인 크기');
     assert(!find(dialog,n=>String(n.textContent).startsWith('스킬북')),'스킬북 표시 없음');
   }finally{globalThis.document=previous;}
@@ -226,7 +227,7 @@ test('우편·보상의 받기/모두 받기 버튼은 누를 수 있을 때만 
     assert(ready(find(daily,n=>n.tag==='button'&&n.textContent==='모두 받기')),'일일 모두 받기 강조');
     assert(!ready(find(daily,n=>n.tag==='button'&&n.textContent==='진행 중')),'진행 중은 강조 없음');
     // 강조/흐림은 스타일에서도 실제로 갈린다.
-    const css=readFileSync(new URL('../src/styles/modals.css',import.meta.url),'utf8');
+    const css=modalStyles();
     assert(/\.utility-button\.utility-claim\.is-ready\s*\{[^}]*border-color:\s*#e6b866/.test(css),'활성 금빛 테두리');
     assert(/\.utility-button\.utility-claim:not\(\.is-ready\)[^{]*\{[^}]*opacity:\s*\.38/.test(css),'비활성은 더 흐리게');
     assert(/\.utility-button\.utility-claim:disabled[^{]*\{[^}]*filter:\s*grayscale/.test(css),'비활성은 채도도 낮춘다');

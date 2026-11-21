@@ -12,8 +12,12 @@
 
 export const JOURNEY_REQUEST_TABLE = 'djrpg_journey_requests';
 
-/** 스키마 초기화(`server/database.mjs`의 `schema()`)가 다른 표와 함께 실행하는 DDL. */
-export const journeyRequestTableDDL = `CREATE TABLE IF NOT EXISTS ${JOURNEY_REQUEST_TABLE} (account_id TEXT NOT NULL COLLATE NOCASE, request_id TEXT NOT NULL, response_json TEXT NOT NULL, PRIMARY KEY(account_id, request_id))`;
+/**
+ * 스키마 초기화(`server/db/schema.mjs`의 `schema()`)가 다른 표와 함께 실행하는 DDL.
+ * 표 이름은 스키마 검사(`tests/table-registry.test.mjs`가 DDL 파일에서 이름을 읽는다)를 위해 **글자로** 적는다 —
+ * `JOURNEY_REQUEST_TABLE`과 같아야 하고, 등록부(`server/tables.mjs`)에도 같은 이름이 있어야 한다.
+ */
+export const journeyRequestTableDDL = 'CREATE TABLE IF NOT EXISTS djrpg_journey_requests (account_id TEXT NOT NULL COLLATE NOCASE, request_id TEXT NOT NULL, response_json TEXT NOT NULL, PRIMARY KEY(account_id, request_id))';
 
 /** 이 요청 ID로 이미 처리한 응답을 찾는 읽기 문장 — 새 표가 먼저, 구 표(거래소)가 다음이다. */
 export const journeyRequestReads = (id, requestId) => [

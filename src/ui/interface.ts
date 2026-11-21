@@ -22,6 +22,7 @@ import type { SkillId } from '../game/skills';
 import { cancelSkillSelection, chooseSkill, closeSkillPicker, openSkillPicker, pressSkillSlot } from './skillLoadout';
 import { LegendBoard } from '../game/legendBoard';
 import { mountLegendBar, sharePouchLegend } from './legendBar';
+import { bindDomainEvents } from './domainBindings';
 import { renderSalvage } from './modals/salvageModal';
 import type { World } from '../game/world';
 
@@ -141,6 +142,8 @@ export class Interface {
     this.top = this.get('.top-hud'); this.banner = this.get('.tutorial');
     this.modal = this.get('.modal-backdrop'); this.toast = this.get('.toast');
     mountLegendBar(this);
+    // 도메인 신호 구독(작업 256) — 화면은 사건을 듣기만 한다.
+    bindDomainEvents(this);
     this.modalRenderGate = bindModalInteraction(this.modal, window, () => this.renderModal());
     this.market.onMessage = text => this.message(text);
     sync.onWarehouseRecovered = () => { this.renderStatus(); this.renderBagBadge(); if (this.openModal === 'warehouse') void loadWarehouse(this); this.message('공용창고 이동 결과를 확인했습니다.'); };
@@ -151,7 +154,8 @@ export class Interface {
     this.journey.onMessage = text => this.message(text);
     this.journey.onChange = () => { this.renderStatus(); this.renderBagBadge(); updateUtilityBadges(this); updateMarketNavDot(this); if (['mail','rewards','achievements'].includes(this.openModal ?? '')) this.renderModal(); };
     void this.journey.load();
-    window.setInterval(() => { if (!document.hidden) void this.journey.load(); }, 120000);
+    // 우편·일일 진행은 5분에 한 번이면 충분하다(작업 245 폴링 절감 — 예전 120초). 수령·거래 응답이 최신 journey를 싣는다.
+    window.setInterval(() => { if (!document.hidden) void this.journey.load(); }, 300000);
     for (const item of [...world.save.bag, ...Object.values(world.save.equipment)]) if (item) this.knownItems.add(item.id);
     this.root.querySelectorAll<HTMLButtonElement>('[data-modal]').forEach(button => button.onclick = () => { cancelSkillSelection.call(this); this.open(button.dataset.modal as Modal); });
     this.root.addEventListener('pointerdown', event => {

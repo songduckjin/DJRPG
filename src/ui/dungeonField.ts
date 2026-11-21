@@ -7,7 +7,7 @@ import {totalStats} from '../game/store';
 import {skills} from '../game/skills';
 import {cooldowns} from '../game/world';
 import {equipmentImage,isEquipment,isSkillBook,type Rarity} from '../game/items';
-import {DungeonBattle,DUNGEON_STEP,dungeonBattleSummary,dungeonLootSpots,dungeonLootTimeline,dungeonAbsorbProgress,dungeonAbsorbPoint,type DungeonLoot,type LootDrop,type LootField} from './dungeonBattle';
+import {DungeonBattle,DUNGEON_STEP,dungeonBattleSummary,dungeonLootSpots,dungeonLootTimeline,dungeonAbsorbProgress,dungeonAbsorbPoint,type DungeonLoot,type LootDrop,type LootField} from '../game/dungeon/battle';
 import {claimDungeonRewards,type DungeonRewardReceipt} from '../game/dungeonRewards';
 import {dungeonClearedFloor} from '../game/dungeonProgress';
 import {dungeonRewardMarkup} from './dungeonRewardMarkup';
