@@ -84,6 +84,10 @@ export const TABLES = Object.freeze([
     domain: 'market', owner: 'account', accountColumn: 'account_id', onDelete: 'delete', onSeason: 'purge', migrate: 'required', ddl: 'schema',
     note: '거래·여정 요청 멱등 기록.'
   }),
+  entry('djrpg_journey_requests', {
+    domain: 'journey', owner: 'account', accountColumn: 'account_id', onDelete: 'delete', onSeason: 'purge', migrate: 'optional', ddl: 'schema',
+    note: '여정(우편·보상) 멱등 기록 — 거래소 요청 표와 분리했다(작업 260 · PR-5). 이관 뒤에 생긴 표라 예전 공용 DB에는 없을 수 있다.'
+  }),
   entry('djrpg_shop_wallet', {
     domain: 'shop', owner: 'account', accountColumn: 'account_id', onDelete: 'delete', onSeason: 'reset', migrate: 'optional', ddl: 'schema',
     note: '다이아 잔액·최대 슬롯. 시즌에는 행을 남기고 다이아 0·슬롯 3으로 되돌린다(결제 이력은 `djrpg_shop_orders`·`_ledger`).'

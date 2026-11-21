@@ -52,6 +52,15 @@ export class SaveSync {
   locked = false;
   conflicted = false;
   pendingMarket?: { action: string; data: Record<string, unknown>; requestId: string; revision: number; progress: Save };
+  /**
+   * 결과를 확인하지 못한 **여정**(우편함·일일/주간 보상·업적) 요청 — 거래소 `pendingMarket`과 분리한다(작업 260 · 설계서 PR-5).
+   *
+   * 남아 있어도 거래소·창고를 잠그지 않고, 거래소 대기가 남아 있어도 우편 수령을 잠그지 않는다. 재확인은
+   * 같은 `requestId`로 다시 보내 서버가 이미 처리한 보상을 두 번 주지 않게 한다(`src/game/journey.ts`가 쓴다).
+   */
+  pendingJourney?: { action: string; data: Record<string, unknown>; requestId: string; revision: number; progress: Save };
+  /** 여정 요청이 실제로 떠 있는 동안인가 — 그 사이 예약 저장·다른 도메인 요청과 revision이 엇갈리지 않게 한다. */
+  private journeyActive = false;
   /** 지금 보내고 있는 창고 이동 — 보내는 동안만 채워 두고 `finally`에서 반드시 비운다(작업 258). */
   pendingWarehouse?: WarehouseRequest;
   /** 결과를 확인하지 못한 이동을 같은 `requestId`로 다시 확인하는 중인가 — 화면은 잠그지 않는다. */
@@ -101,7 +110,7 @@ export class SaveSync {
    * 재확인이 409로 끝난다. 그래서 전환 전에 이 값으로 막고, 전환 응답을 받은 뒤에는 `resetForCharacterSwitch`로
    * 쓸모없어진 대기 상태를 버린다.
    */
-  get trading(): boolean { return this.locked || this.preparingMarket || !!this.pendingMarket || !!this.pendingWarehouse || this.warehouseSettling; }
+  get trading(): boolean { return this.locked || this.preparingMarket || !!this.pendingMarket || !!this.pendingWarehouse || this.warehouseSettling || !!this.pendingJourney; }
   /** 캐릭터 전환 시작 — 사냥을 멈추고 예약 저장을 취소해 저장·revision이 전환 경계를 넘지 않게 한다. */
   beginSwitch(): void {
     this.switching = true;
@@ -124,7 +133,7 @@ export class SaveSync {
     // 결과를 확인하던 창고 이동도 버린다 — 옛 캐릭터의 revision·진행 세이브로 재확인하면 409가 난다(작업 258).
     if (this.warehouseSettleTimer !== undefined) clearTimeout(this.warehouseSettleTimer);
     this.warehouseSettleTimer = undefined; this.warehouseSettling = false;
-    this.pendingMarket = undefined; this.pendingWarehouse = undefined;
+    this.pendingMarket = undefined; this.pendingWarehouse = undefined; this.pendingJourney = undefined;
     this.pendingSave = undefined; this.pending = false; this.preparingMarket = false;
     this.dirty = false;
   }
@@ -139,11 +148,20 @@ export class SaveSync {
     if (this.autosaveTimer !== undefined) clearTimeout(this.autosaveTimer);
     this.autosaveTimer = undefined;
   }
-  flush(): Promise<boolean> {
+  flush(): Promise<boolean> { return this.saveNow(false); }
+  /**
+   * 여정(우편·보상) 요청이 저장을 먼저 정리할 때 쓰는 변형(작업 260).
+   *
+   * 거래소·창고의 **대기**(결과를 확인하지 못한 요청)는 막지 않는다 — 그 대기들이 우편 수령을 잠그지
+   * 않는 것이 이 분리의 목적이다. 보내는 중인 요청(`locked`)·충돌·여정 자체는 `saveNow`가 그대로 막는다.
+   */
+  private settleSave(): Promise<boolean> { return this.saveNow(true); }
+  private saveNow(ignoreTradePending: boolean): Promise<boolean> {
     this.cancelQueuedSave();
     // 결과를 확인하지 못한 창고 이동이 있으면 그 확인이 끝날 때까지 저장을 미룬다 — 그 사이 저장이 revision을
     // 올리면 재확인이 409로 끝나기 때문이다. 화면(사냥)은 멈추지 않으므로 진행은 그대로 쌓인다(작업 258).
-    if (this.locked || this.conflicted || this.pendingMarket || this.pendingWarehouse || this.warehouseSettling) return Promise.resolve(false);
+    if (this.locked || this.conflicted || this.journeyActive) return Promise.resolve(false);
+    if (!ignoreTradePending && (this.pendingMarket || this.pendingWarehouse || this.warehouseSettling)) return Promise.resolve(false);
     this.pending = true;
     if (this.active) return this.active;
     this.active = (async () => {
@@ -170,6 +188,47 @@ export class SaveSync {
       return true;
     })().finally(() => { this.active = undefined; });
     return this.active;
+  }
+  /**
+   * 여정(우편·보상) 요청을 보내기 전 준비 — 진행 중인 저장 결과만 기다리고, 결과를 확인하지 못한 저장이 있으면
+   * 같은 `requestId`로 다시 보내 확인한다(작업 260). 보낼 것이 없으면 네트워크를 쓰지 않는다(작업 249·258 규칙).
+   *
+   * 거래소·창고의 **대기**(`pendingMarket`·`pendingWarehouse`)는 막지 않는다 — 결과를 확인하지 못한 거래가
+   * 남아 있어도 우편·보상 수령은 그대로 된다. 보내는 중인 요청만 `locked`로 막힌다.
+   */
+  async beginJourney(): Promise<void> {
+    if (this.locked || this.conflicted || this.preparingMarket) throw new Error('다른 요청을 처리 중입니다. 잠시 후 다시 시도해 주세요.');
+    this.cancelQueuedSave();
+    if (this.active) await this.active;
+    if (this.conflicted) throw new Error('최신 진행 상황을 다시 불러와야 보상을 받을 수 있습니다.');
+    if (this.pendingSave) { if (!await this.settleSave()) throw new Error(this.saveBlockedMessage('이전 저장 결과를 확인해야 보상을 받을 수 있습니다.')); }
+    if (this.conflicted) throw new Error('최신 진행 상황을 다시 불러와야 보상을 받을 수 있습니다.');
+    this.journeyActive = true;
+    // 요청이 떠 있는 동안 사냥을 멈춘다 — 응답의 세이브는 요청 시작 시점의 진행이라, 그 사이 처치분이
+    // 화면에서 사라지지 않게 하려면 거래 응답과 같은 규칙이 필요하다(작업 260). 요청은 짧고(10초 상한)
+    // 끝나면 `finishJourney`가 반드시 다시 돌린다.
+    this.onPause(true);
+  }
+  /** 여정 요청이 끝났다(성공·실패 무관) — 결과를 확인하지 못한 대기(`pendingJourney`)는 화면을 멈추지 않는다. */
+  finishJourney(): void {
+    this.journeyActive = false;
+    if (!this.conflicted && !this.locked && !this.pendingMarket && !this.pendingWarehouse && !this.warehouseSettling) this.onPause(false);
+  }
+  /** 여정 요청 본문에 실을 revision과 화면 세이브 — `beginJourney()` 뒤에 읽어 요청 한 벌을 고정한다. */
+  journeySnapshot(): { revision: number; progress: Save } { return { revision: this.revision, progress: structuredClone(this.save) }; }
+  /**
+   * 여정 응답의 세이브·revision을 화면에 반영한다(거래 응답과 같은 규칙 — 서버 값이 기준).
+   * 수령 뒤 보상 아이템·금화가 이 세이브에 들어 있고, 대기(`pendingJourney`)는 여기서 풀린다.
+   */
+  applyJourneyResult(result: { save?: Save; revision: number }): void {
+    this.pendingJourney = undefined;
+    if (!result.save) return;
+    const verified = parseSave(result.save, this.session.accountId);
+    this.revision = result.revision;
+    Object.assign(this.save, verified);
+    this.pending = false; this.pendingSave = undefined; this.dirty = false; this.lastSaveAt = Date.now();
+    this.reportOnline();
+    this.onSaved(); this.onStatus('저장됨');
   }
   handleError(error: unknown): void {
     // 끊김은 오류가 아니다 — 안내만 띄우고 다음 저장 때 다시 보낸다(작업 251).
@@ -248,7 +307,11 @@ export class SaveSync {
   }
   // ITEM_CONFLICT・CHARACTER_CONFLICT는 같은 저장을 다시 보내면 계속 실패하므로, 서버 최신 세이브를 받아 화면을 맞춘다.
   // `quiet`면 안내 문구를 띄우지 않는다 — 창고 이동 결과를 확인하지 못해 조용히 다시 맞추는 자리(작업 258).
-  private async reloadLatest(quiet = false): Promise<void> {
+  /**
+   * 서버가 들고 있는 최신 세이브로 화면을 조용히 다시 맞춘다(작업 258→260). 거래소·창고·여정이 revision이
+   * 엇갈렸을 때 공통으로 쓴다. `quiet`면 안내 문구를 띄우지 않는다.
+   */
+  async reloadLatest(quiet = false): Promise<void> {
     if (this.reloadingConflict) return;
     this.reloadingConflict = true;
     this.conflictReloadAt = Date.now();
@@ -262,7 +325,7 @@ export class SaveSync {
       this.dirty = false;
       this.revision = latest.revision;
       if (Number.isInteger(latest.characterSlot)) this.session.characterSlot = latest.characterSlot;
-      this.pendingMarket = undefined; this.pendingWarehouse = undefined;
+      this.pendingMarket = undefined; this.pendingWarehouse = undefined; this.pendingJourney = undefined;
       this.lastSaveError = '';
       this.onSaved(); this.onStatus('저장됨');
       if (!quiet) this.onMessage('서버의 최신 진행 상황과 달라 자동으로 다시 불러왔습니다.');
@@ -275,7 +338,7 @@ export class SaveSync {
     return this.lastSaveError ? `${base} (${this.lastSaveError})` : base;
   }
   async mutate(action: string, data: Record<string, unknown>, requestId: string): Promise<SyncResult> {
-    if (this.locked || this.conflicted || this.preparingMarket || this.pendingWarehouse) throw new Error('다른 요청을 처리 중입니다.');
+    if (this.locked || this.conflicted || this.preparingMarket || this.pendingWarehouse || this.journeyActive) throw new Error('다른 요청을 처리 중입니다.');
     if (this.warehouseSettling) throw new Error('창고 상태를 다시 확인하는 중입니다. 잠시 후 다시 시도하세요.');
     this.preparingMarket = true;
     this.cancelQueuedSave();
@@ -371,7 +434,7 @@ export class SaveSync {
     const ids = [...new Set(Array.isArray(itemIds) ? itemIds : [itemIds])];
     const slotAtStart = this.session.characterSlot;
     if (!ids.length) throw new Error('옮길 아이템이 없습니다.');
-    if (this.locked || this.conflicted || this.preparingMarket || this.pendingMarket) throw new Error('다른 요청을 처리 중입니다.');
+    if (this.locked || this.conflicted || this.preparingMarket || this.pendingMarket || this.journeyActive) throw new Error('다른 요청을 처리 중입니다.');
     // 같은 아이템을 두 번 보내지 않도록 보내는 동안만 막는다(작업 258 — 결과를 확인하는 동안은 화면을 열어 둔다).
     if (this.pendingWarehouse) throw new Error('창고 이동을 처리 중입니다. 잠시 후 다시 시도하세요.');
     if (this.warehouseSettling) throw new Error('창고 상태를 다시 확인하는 중입니다. 잠시 후 다시 시도하세요.');

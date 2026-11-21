@@ -13,6 +13,7 @@
 | 여정·데일리 퀘스트·업적·(향후) 출석 | `docs/QUEST_ATTENDANCE.md` | `server/journey-state.mjs`·`journey.mjs`·`src/game/journey.ts`·`ui/modals/utilityModal.ts` | `journey*`·`achievements` |
 | 장비·가방 40칸·추가옵션·분해·강화 | `docs/INVENTORY_GEAR.md` | `src/game/items.ts`·`extraOptions.ts`·`bagCapacity.ts`·`inventory.ts`·`ui/modals/equipModal.ts` | `inventory`·`bag-*`·`item-plus`·`extra-options`·`auto-salvage` |
 | 스킬·스킬북 합성·도감 | `docs/SKILLS_CODEX.md` | `src/game/skills.ts`·`loadout.ts`·`skillSynth.ts`·`codex.ts`·`server/skill-ids.mjs` | `skill-*`·`skillbook-*`·`codex` |
+| 여정(우편·보상) 전용 입구 `/api/journey` — 거래소 잠금과 분리(작업 260) | `docs/MAIL_WAREHOUSE.md` › 전용 입구 | `server/endpoints/journey.mjs`·`server/journey-requests.mjs`(표 `djrpg_journey_requests`)·`server/journey.mjs`·`api/journey.mjs`·`functions/api/journey.js`·`src/game/journey.ts`·`src/game/sync.ts`(`pendingJourney`) | `journey`·`journey-ui`·`journey-endpoint`·`journey-split`·`sync` |
 | 우편함·공용창고 | `docs/MAIL_WAREHOUSE.md` | `server/journey*.mjs`·`server/endpoints/warehouse.mjs`·`ui/modals/warehouseModal.ts`·`utilityModal.ts` | `warehouse-grid`·`journey*`·`bag-limit-recovery` |
 | 거래소 | `docs/MARKET.md` | `src/game/market.ts`·`ui/modals/marketModal.ts`·`server/market.mjs`·`server/endpoints/market.mjs` | `market*`·`multi-character-market` |
 | 상점·다이아·재화 | `docs/SHOP_ECONOMY.md` | `server/endpoints/shop.mjs`·`ui/modals/shopModal.ts`·`server/database.mjs`(shop 표) | `shop`·`characters` |

@@ -220,7 +220,7 @@ const SEASON_KEPT = new Set(['djrpg_accounts', 'djrpg_characters', 'djrpg_accoun
   'djrpg_dungeon_attempts']);
 
 // 작업 260에서 DDL이 `server/db/schema.mjs`로 옮겨졌다(파사드 `server/database.mjs`에는 DDL이 없다).
-const SCHEMA = schemaTables('server/db/schema.mjs', 'server/dungeon-schema.mjs', 'server/world-boss-schema.mjs');
+const SCHEMA = schemaTables('server/db/schema.mjs', 'server/journey-requests.mjs', 'server/dungeon-schema.mjs', 'server/world-boss-schema.mjs');
 
 test('스키마가 만드는 모든 표가 탈퇴(ACCOUNT_TABLES) 등록부에 있다', () => {
   const missing = [...SCHEMA].filter(table => !NOT_ACCOUNT_SCOPED.has(table) && !ACCOUNT_TABLES.includes(table));
@@ -249,7 +249,7 @@ test('이관 스크립트 목록이 스키마 표를 모두 덮는다(상점 5�
   assert.deepEqual(stray, [], '이관 목록에만 있는 표 이름이 있다.');
   const optionalOutside = MIGRATE_OPTIONAL.filter(table => !MIGRATE_TABLES.includes(table));
   assert.deepEqual(optionalOutside, [], 'OPTIONAL_TABLES는 복사 목록의 부분집합이어야 한다(빠지면 조용히 건너뛴다).');
-  assert.deepEqual([...MIGRATE_OPTIONAL].sort(), ['djrpg_announcements', 'djrpg_meta',
+  assert.deepEqual([...MIGRATE_OPTIONAL].sort(), ['djrpg_announcements', 'djrpg_journey_requests', 'djrpg_meta',
     'djrpg_shop_entitlements', 'djrpg_shop_ledger', 'djrpg_shop_orders', 'djrpg_shop_requests', 'djrpg_shop_wallet'].sort(),
   '예전 공용 DB에 없을 수 있어 건너뛰는 표 목록이 바뀌었다 — 바꿀 이유를 주석에 적어라.');
 });

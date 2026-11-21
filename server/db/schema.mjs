@@ -8,6 +8,7 @@
  * (`tests/table-registry.test.mjs`가 DDL과 등록부를 대조한다).
  */
 import { commonCodeStatements } from '../core/commonCodes.mjs';
+import { journeyRequestTableDDL } from '../journey-requests.mjs';
 
 /**
  * 거래소 스탯 정렬식 (작업 211).
@@ -52,6 +53,8 @@ export function tableStatements() {
     'CREATE TABLE IF NOT EXISTS djrpg_item_owners (item_id TEXT PRIMARY KEY, account_id TEXT NOT NULL COLLATE NOCASE, location TEXT NOT NULL, item_json TEXT NOT NULL)',
     'CREATE TABLE IF NOT EXISTS djrpg_market_events (seq INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT NOT NULL, listing_id TEXT NOT NULL, created_at INTEGER NOT NULL)',
     'CREATE TABLE IF NOT EXISTS djrpg_market_requests (account_id TEXT NOT NULL COLLATE NOCASE, request_id TEXT NOT NULL, response_json TEXT NOT NULL, PRIMARY KEY(account_id, request_id))'
+    // 여정 요청은 거래소 요청 표와 분리한다(작업 260 · PR-5). 구번들이 거래소 표에 남긴 응답은 읽기에서 함께 본다.
+    , journeyRequestTableDDL
     , 'CREATE TABLE IF NOT EXISTS djrpg_account_profiles (account_id TEXT PRIMARY KEY COLLATE NOCASE, shared_gold INTEGER NOT NULL, active_slot INTEGER NOT NULL DEFAULT 1)'
     // 서버 전역 표시값(작업 206) — `season_epoch`처럼 한 번만 도는 마이그레이션의 완료 표시를 적는다.
     , 'CREATE TABLE IF NOT EXISTS djrpg_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)'

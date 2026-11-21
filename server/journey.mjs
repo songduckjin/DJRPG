@@ -1,6 +1,7 @@
 import { account, transaction, assertRevision, validateSave, reconcileItems, writeSave, fail, inventoryOwnerQuery, countedBagItems, EQUIPMENT_BAG_LIMIT } from './database.mjs';
 import { elapsedSince } from './save-guard.mjs';
 import { journeyState, journeyOperation, journeyView, dailyTasks } from './journey-state.mjs';
+import { journeyRequestReads, journeyRequestReceipt } from './journey-requests.mjs';
 import { BAG_SLOT_LIMIT, RewardGrantError, bagSlotCount, diamondGrantOperations, grantRewardsToSave, planRewards, rewardSlotNeed } from './core/rewardGrant.mjs';
 export async function snapshot(db,id,options={}) {
   return transaction(db,async tx=>{
@@ -18,17 +19,19 @@ export async function mutate(db,id,input,options={}) {
     if(Number(input.characterSlot??1)!==row.slot)fail(409,'CHARACTER_CONFLICT','다른 캐릭터가 선택되었습니다. 새로고침해 주세요.');
     if (row.password_hash==='guest') fail(403,'GUEST_READ_ONLY','보상 수령은 정식 계정에서 이용할 수 있습니다.');
     if(typeof input.requestId!=='string'||input.requestId.length<8||input.requestId.length>80)fail(400,'INVALID_REQUEST','요청 ID를 확인하세요.');
+    // 멱등 응답은 여정 요청 표(`djrpg_journey_requests`)에서 찾는다 — 거래소 요청 표와 분리했다(작업 260).
+    // 구번들·구경로가 거래소 표에 남긴 같은 요청도 함께 본다(한 릴리스, `journey-requests.mjs`).
     const reads=await tx.batch([
-      {sql:'SELECT response_json FROM djrpg_market_requests WHERE account_id=? AND request_id=?',args:[id,input.requestId]},
       {sql:'SELECT state_json FROM djrpg_journey WHERE account_id=?',args:[id]},
+      ...journeyRequestReads(id,input.requestId),
       inventoryOwnerQuery(id,input.progress)
     ]);
-    row.journeyRecord=reads[1].rows[0]??null;
-    const replay=reads[0].rows[0];
+    row.journeyRecord=reads[0].rows[0]??null;
+    const replay=reads[1].rows[0]??reads[2].rows[0];
     if(replay)return {...JSON.parse(replay.response_json),save:row.save,revision:row.revision,journey:journeyView(await journeyState(tx,row,row.save),row.save)};
     assertRevision(row,input.revision); if(input.progress!==undefined)validateSave(input.progress);
     const operations=[];
-    const save=structuredClone(input.progress??row.save);await reconcileItems(tx,id,row.save,save,{slot:row.slot,owned:reads[2].rows,operations,elapsedSeconds:elapsedSince(row.character_updated_at)});
+    const save=structuredClone(input.progress??row.save);await reconcileItems(tx,id,row.save,save,{slot:row.slot,owned:reads[3].rows,operations,elapsedSeconds:elapsedSince(row.character_updated_at)});
     const now=Date.now(),state=await journeyState(tx,row,save,now),view=journeyView(state,save,now);
     const beforeRewardIds=new Set(save.bag.map(item=>item.id));
     let selected=[], goldCredit=0, mailSkipped=0;
@@ -84,7 +87,7 @@ export async function mutate(db,id,input,options={}) {
       ? ` 가방이 ${countedBagItems(save.bag, save.job)}칸이 되어 새 장비를 주울 수 없습니다. 분해·판매로 자리를 비워 주세요.` : '';
     const skippedNote = mailSkipped ? ` 가방이 가득 차 ${mailSkipped}개 우편은 받지 못했습니다.` : '';
     const message=input.action==='journey-claim'?`${selected.length}개 보상을 수령했습니다.${skippedNote}${overBag}`:input.action==='journey-delete'?'수령 완료 우편을 삭제했습니다.':'우편을 확인했습니다.';
-    ops.push({sql:'INSERT INTO djrpg_market_requests VALUES (?,?,?)',args:[id,input.requestId,JSON.stringify({ok:true,message})]});
+    ops.push(journeyRequestReceipt(id,input.requestId,JSON.stringify({ok:true,message})));
     const saved=await writeSave(tx,{...row,skipJourney:true},save,ops,true,{goldCredit});
     const result={ok:true,...saved,message,journey:journeyView(state,save,now)};
     return result;

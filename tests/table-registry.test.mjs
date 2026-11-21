@@ -44,12 +44,12 @@ function ddlTables(...files) {
 const LEGACY_ACCOUNT_TABLES = [
   'djrpg_account_profiles', 'djrpg_characters', 'djrpg_character_item_owners', 'djrpg_item_owners',
   'djrpg_warehouse', 'djrpg_warehouse_requests', 'djrpg_journey', 'djrpg_save_versions', 'djrpg_save_requests',
-  'djrpg_market_inbox', 'djrpg_market_requests', 'djrpg_dungeon_records', 'djrpg_dungeon_attempts',
+  'djrpg_market_inbox', 'djrpg_market_requests', 'djrpg_journey_requests', 'djrpg_dungeon_records', 'djrpg_dungeon_attempts',
   'djrpg_boss_attempts', 'djrpg_boss_scores', 'djrpg_boss_rewards', 'djrpg_announcements',
   'djrpg_shop_wallet', 'djrpg_shop_orders', 'djrpg_shop_ledger', 'djrpg_shop_entitlements', 'djrpg_shop_requests'
 ];
 const LEGACY_RESET_TABLES = [
-  'djrpg_market', 'djrpg_market_events', 'djrpg_market_inbox', 'djrpg_market_requests',
+  'djrpg_market', 'djrpg_market_events', 'djrpg_market_inbox', 'djrpg_market_requests', 'djrpg_journey_requests',
   'djrpg_warehouse', 'djrpg_warehouse_requests', 'djrpg_item_owners', 'djrpg_character_item_owners',
   'djrpg_dungeon_records', 'djrpg_boss_days', 'djrpg_boss_attempts', 'djrpg_boss_scores', 'djrpg_boss_rewards',
   'djrpg_journey', 'djrpg_save_requests', 'djrpg_save_versions', 'djrpg_announcements'
@@ -57,15 +57,21 @@ const LEGACY_RESET_TABLES = [
 /** 이관 목록은 **6개월 전 목록(22표)** 에 빠져 있던 상점 5표를 더한 27표다(작업 260에서 바로잡음). */
 const LEGACY_MIGRATE_TABLES = [
   'djrpg_accounts', 'djrpg_journey', 'djrpg_save_requests', 'djrpg_save_versions', 'djrpg_market',
-  'djrpg_market_inbox', 'djrpg_item_owners', 'djrpg_market_events', 'djrpg_market_requests',
+  'djrpg_market_inbox', 'djrpg_item_owners', 'djrpg_market_events', 'djrpg_market_requests', 'djrpg_journey_requests',
   'djrpg_account_profiles', 'djrpg_characters', 'djrpg_character_item_owners', 'djrpg_warehouse',
   'djrpg_warehouse_requests', 'djrpg_boss_days', 'djrpg_boss_attempts', 'djrpg_boss_scores', 'djrpg_boss_rewards',
   'djrpg_meta', 'djrpg_announcements', 'djrpg_dungeon_records', 'djrpg_dungeon_attempts',
   'djrpg_shop_wallet', 'djrpg_shop_orders', 'djrpg_shop_ledger', 'djrpg_shop_entitlements', 'djrpg_shop_requests'
 ];
 
+/**
+ * 기본 스키마 DDL을 들고 있는 파일들 — `server/db/schema.mjs`(대부분)와
+ * `server/journey-requests.mjs`(여정 요청 표는 도메인 모듈이 DDL을 소유한다, 작업 260 · PR-5).
+ */
+const SCHEMA_DDL_FILES = ['server/db/schema.mjs', 'server/journey-requests.mjs'];
+
 test('DDL이 만드는 djrpg_* 표와 등록부가 정확히 같다', () => {
-  const ddl = ddlTables('server/db/schema.mjs', 'server/dungeon-schema.mjs', 'server/world-boss-schema.mjs');
+  const ddl = ddlTables(...SCHEMA_DDL_FILES, 'server/dungeon-schema.mjs', 'server/world-boss-schema.mjs');
   assert.deepEqual([...ddl].sort(), [...registry.TABLE_NAMES].sort(),
     '표를 새로 만들었는데 등록부(server/tables.mjs)에 없거나, 등록부에만 있는 이름이 있다.');
   assert.equal(new Set(registry.TABLE_NAMES).size, registry.TABLE_NAMES.length, '등록부에 같은 표가 두 번 있다.');
@@ -74,7 +80,7 @@ test('DDL이 만드는 djrpg_* 표와 등록부가 정확히 같다', () => {
 test('DDL 모듈별 목록이 실제 DDL과 맞는다', () => {
   // 기본 스키마 파일은 자기 표 + 던전 2표(같은 DDL을 두 곳에서 다시 쓴다 — 등록부 `DDL_TABLES.duplicated`)를 만든다.
   const schemaTables = [...registry.DDL_TABLES.schema, ...registry.DDL_TABLES.duplicated].sort();
-  assert.deepEqual([...ddlTables('server/db/schema.mjs')].sort(), schemaTables);
+  assert.deepEqual([...ddlTables(...SCHEMA_DDL_FILES)].sort(), schemaTables);
   assert.deepEqual([...ddlTables('server/dungeon-schema.mjs')].sort(), [...registry.DDL_TABLES.duplicated].sort());
   assert.deepEqual([...ddlTables('server/world-boss-schema.mjs')].sort(), [...registry.DDL_TABLES['world-boss']].sort());
   for (const table of registry.DDL_TABLES.duplicated) assert.equal(registry.tableSpec(table).ddl, 'dungeon');

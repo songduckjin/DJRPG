@@ -54,6 +54,10 @@ world/save 변경 → world.onChange → Interface.onSave → sync.queueSave() (
 - 전환 직후 방치 정산: `selectCharacter`가 남긴 `idle_claim_<slot>` 초를 `save`의 `elapsedSeconds`에 합산한다(합산하지 않으면 보상이 0초가 된다).
 - **`pendingMarket`을 전환 응답에서 지우지 않는다** — `Interface.open`이 모달을 닫지 못한다.
 
+## 여정(우편·보상) 전용 입구 `/api/journey`(작업 260 · 설계서 PR-5)
+
+`Journey.act` → `sync.beginJourney()`(진행 중 저장만 기다리고, 결과 미확인 저장은 같은 `requestId`로 확정 — 거래소·창고의 **대기**는 막지 않는다) → `sync.pendingJourney`에 `requestId`·`revision`·`progress` 고정 → `/api/journey`(10초 타임아웃·응답 유실은 같은 본문 3회) → `server/endpoints/journey.mjs` → `journey.mutate`가 `assertRevision` → `reconcileItems` → `writeSave` + 영수증(`djrpg_journey_requests`, 읽을 때는 한 릴리스 동안 `djrpg_market_requests`도 확인) → `sync.applyJourneyResult`가 세이브·revision을 반영하고 대기를 푼다. 4xx는 확정 거절이라 대기를 지우고, `DB_UNAVAILABLE`·`DB_NOT_CONFIGURED` 5xx도 지운다. 코드 없는 5xx·타임아웃은 결과 미확인이라 `수령 결과 다시 확인`이 같은 `requestId`로 재확인한다. `pendingJourney`는 거래소·창고·모달 열기를 막지 않고, 모달 잠금(`modalBlocked`)은 거래소 대기일 때 **거래소 창만** 막는다. `/api/market`의 `journey-*` 라우팅은 구번들 호환으로 한 릴리스 유지 후 삭제한다. 표 `djrpg_journey_requests`는 등록부(`server/tables.mjs`)에 `onDelete: delete`·`onSeason: purge`·`migrate: optional`로 등록되어 탈퇴·시즌·이관이 함께 따른다.
+
 ## 금지
 
 - `localStorage`에 세이브 저장(허용: `djrpg.auth.token`·`djrpg_preferences`만).
