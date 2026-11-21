@@ -9,6 +9,7 @@
 - **UI**: 장비 상세의 `전사/궁수/마법사 전용 장비` 문구를 바로잡았다 — 투구·갑옷에 `weaponJob`을 쓰면 늘 '전사 전용 무기'로 보이던 버그. 가방·거래소·창고 배지와 `내 직업만 보기`는 `itemJob`을 그대로 쓰므로 자동으로 붙는다.
 - **검증**: `npx tsc --noEmit` 통과, `npm run build` 통과(배포 번들 `assets/index-bCS2djHr.js` 766.22kB — 새 목록 3.3kB 증가, 번들에 `사냥꾼 가죽 코트` 포함·`dist/assets/item-art/`에 8장 포함 확인). 신규 `tests/job-gear.test.mjs` **8/8**(이름 중복 없음·직업 판정·장착 제한·1/3 드롭·아이콘 경로·도감 번호·자동 장착/업그레이드·옛 세이브 호환), `tests/{codex,job-filter,item-drop-jobs,achievements,modal-ui,equipment-slot-aspect}` 통과. 전체 **1,074건 중 1,071 통과** — 실패 3건은 `origin/main`과 동일한 기존 건(`costume-field-render` 2 · `skillbook-server` 1).
 - **검수 이미지**: `downloads/job_gear_249/bag_by_job.png`(전사·궁수·마법사 갑옷 10 + 투구 10, 실제 아틀라스 아이콘과 이름), `downloads/job_gear_249/equip_detail.png`(다른 직업 전용 장비의 `장착 불가 (궁수 전용 장비)`와 옛 공용 장비의 `장착` 비교).
+- **PR**: [PR #254](https://github.com/songduckjin/DJRPG/pull/254) — CI `Cloudflare Pages` **SUCCESS**, `Workers Builds: djrpg` 실패는 `main`·PR #251에서도 같은 기존 잔재(실제 배포 경로 아님). 파일 27개 변경.
 - **머지 보류**: 사용자 "오늘부터는 변경사항 모아서 한 번에 배포하자"(11-21) — **PR만 올리고 머지·배포하지 않는다.**
 
 ## 2026-11-21 · songduckjin 작업 246 — 가방 40칸 초과 저장 거절로 우편함·거래소가 잠기던 문제(+ FULL 표시·가득 참 안내)
