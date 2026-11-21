@@ -58,6 +58,29 @@ test('창은 상단 바 → 트리 → 상세 패널 세 칸이고, 스크롤은
   } finally { delete globalThis.document; }
 });
 
+test('트리를 끝까지 내린 뒤 노드를 골라도 스크롤 위치가 위로 튀지 않는다', () => {
+  // 실제 브라우저는 연결되지 않은 스크롤 상자의 scrollTop을 0으로 제한한다.
+  globalThis.document = { createElement: tag => {
+    const node = element(tag);
+    let top = 0;
+    Object.defineProperty(node, 'scrollTop', {
+      get() { return top; },
+      set(value) { top = node.className === 'skill-tree' && !node.parentNode ? 0 : value; }
+    });
+    return node;
+  } };
+  try {
+    const ui = uiFixture();
+    ui.skillScroll = 220;
+    const tree = ui.render().children[1];
+    assert.equal(tree.scrollTop, 220, '붙인 뒤 이전 스크롤 위치를 복원한다');
+    tree.scrollTop = 280; tree.onscroll();
+    const last = byClass(tree, 'skill-node').at(-1);
+    last.onclick();
+    assert.equal(ui.dialog.children[1].scrollTop, 280, '노드 선택 후에도 보던 위치를 유지한다');
+  } finally { delete globalThis.document; }
+});
+
 test('트리는 티어 4줄(3-3-3-2)과 노드 11개를 그리고, 연결선은 뒤에 깔린다', () => {
   globalThis.document = { createElement: tag => element(tag) };
   try {
@@ -77,6 +100,23 @@ test('트리는 티어 4줄(3-3-3-2)과 노드 11개를 그리고, 연결선은 
       assert.equal((edgeBox.innerHTML.match(/class="skill-edge/g) ?? []).length, 8, '2·3티어 각 3 + 궁극 2');
       // 노드 순서는 티어·자리 순서(스킬 트리의 배치 그대로).
       assert.deepEqual(byClass(tree, 'skill-node').map(node => node.dataset.skill), skillTreeFor(job).map(node => node.id));
+    }
+  } finally { delete globalThis.document; }
+});
+
+test('각 티어가 바로 위 스킬 레벨과 누적 투자 SP 조건을 보여 준다', () => {
+  globalThis.document = { createElement: tag => element(tag) };
+  try {
+    for (const job of ['warrior', 'archer', 'mage']) {
+      const ui = uiFixture(job);
+      const tiers = byClass(ui.render().children[1], 'skill-tier');
+      assert.equal(one(tiers[0], 'skill-tier-gate'), undefined);
+      for (let tier = 2; tier <= 4; tier++) {
+        const row = tiers[tier - 1];
+        assert.equal(one(row, 'skill-tier-gate').textContent, `윗줄 스킬 Lv.${TIER_GATE[tier].prerequisiteLevel}`);
+        assert.equal(one(row, 'skill-tier-sp').textContent, `투자 0/${TIER_GATE[tier].minInvestedSp} SP`);
+        assert.match(one(row, 'skill-tier-label').title, /각 스킬을 누르면 정확한 선행 스킬/);
+      }
     }
   } finally { delete globalThis.document; }
 });

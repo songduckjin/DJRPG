@@ -34,10 +34,13 @@
 .skill-edge { fill: none; stroke: #7a6152; stroke-width: 1.5; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
 .skill-edge.is-open { stroke: #c99b4a; stroke-width: 2; filter: drop-shadow(0 0 2px #e0b36e55); }
 .skill-edge.is-ultimate { stroke-dasharray: 4 3; }
-.skill-tier { position: relative; z-index: 1; display: grid; grid-template-columns: 46px minmax(0, 1fr); align-items: center; min-height: 88px; }
+.skill-tier { position: relative; z-index: 1; display: grid; grid-template-columns: 76px minmax(0, 1fr); align-items: center; min-height: 88px; }
 .skill-tier-label { display: flex; flex-direction: column; gap: 2px; padding-right: 4px; }
 .skill-tier-name { color: #c9a063; font-size: 10px; font-weight: 800; letter-spacing: .06em; }
 .skill-tier-count { color: #9c8b7b; font-size: 10px; font-variant-numeric: tabular-nums; }
+.skill-tier-gate, .skill-tier-sp { color: #bfae9a; font-size: 9px; line-height: 1.2; white-space: nowrap; }
+.skill-tier-sp { color: #e2a983; font-variant-numeric: tabular-nums; }
+.skill-tier-sp.is-met { color: #7fd39a; }
 .skill-tier-nodes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
 .skill-tier[data-tier="4"] .skill-tier-nodes { grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 0 16.66%; }
 

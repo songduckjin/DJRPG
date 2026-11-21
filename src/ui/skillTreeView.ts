@@ -20,7 +20,7 @@ import { totalStats, type Save } from '../game/store';
 import { jobOrDefault, passives, skills, type Job, type PassiveId, type SkillId } from '../game/skills';
 import {
   investSkillPoint, resetSkillTree, skillNameOf, skillNodeStatus, skillTreeEdges, skillTreeFor, skillValueRows,
-  skillsResetIsFree, type SkillNodeStatus, type SkillTreeNode
+  skillsResetIsFree, TIER_GATE, type SkillNodeStatus, type SkillTreeNode
 } from '../game/skillTree';
 import { spLedger, spBookBonus, SP_FIRST_RANK } from '../game/skillPoints';
 import { unequipSkill } from '../game/loadout';
@@ -118,16 +118,23 @@ export function skillTreePanel(ui: Interface, save: Save, job: Job, selection: S
     const learned = inTier.filter(node => statuses.get(node.id)?.learned).length;
     const label = el('div', 'skill-tier-label');
     label.append(el('b', 'skill-tier-name', `TIER ${tier}`), el('span', 'skill-tier-count', `${learned}/${inTier.length}`));
+    if (tier > 1) {
+      const gate = TIER_GATE[tier];
+      const spent = spLedger(save).spent;
+      label.append(
+        el('span', 'skill-tier-gate', `윗줄 스킬 Lv.${gate.prerequisiteLevel}`),
+        el('span', `skill-tier-sp${spent >= gate.minInvestedSp ? ' is-met' : ''}`, `투자 ${Math.min(spent, gate.minInvestedSp)}/${gate.minInvestedSp} SP`)
+      );
+      label.title = `바로 위 스킬을 Lv.${gate.prerequisiteLevel}까지 올리고 누적 ${gate.minInvestedSp} SP를 투자하면 이 티어가 열립니다. 각 스킬을 누르면 정확한 선행 스킬을 확인할 수 있습니다.`;
+    }
     const holders = el('div', 'skill-tier-nodes');
     for (const node of inTier) holders.append(skillNodeButton(ui, node, statuses.get(node.id)!, selection === node.id));
     row.append(label, holders);
     canvas.append(row);
   }
   panel.append(canvas);
-  // 다시 그려도 보던 자리를 잃지 않게 기억한다(스킬 선택·투자마다 창을 다시 그린다).
-  const scroll = ui.skillScroll ?? 0;
-  panel.onscroll = () => { ui.skillScroll = panel.scrollTop; };
-  panel.scrollTop = scroll;
+  // 화면에서 빠진 옛 패널의 늦은 scroll 이벤트가 새 위치를 덮어쓰지 않게 한다.
+  panel.onscroll = () => { if (panel.isConnected !== false) ui.skillScroll = panel.scrollTop; };
   return panel;
 }
 
