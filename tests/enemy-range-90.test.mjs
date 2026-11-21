@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import './ts-loader.mjs';
 const { World, WARRIOR_ATTACK_RANGE, ENEMY_ATTACK_RANGE, ENEMY_STOP_RANGE, ENEMY_STRIKE_SECONDS, enemyMoveSpeed } = await import('../src/game/world.ts');
-const { DungeonBattle, DUNGEON_STEP, runDungeonBattle } = await import('../src/ui/dungeonBattle.ts');
+const { DungeonBattle, DUNGEON_STEP, runDungeonBattle } = await import('../src/game/dungeon/battle.ts');
 const { freshSave, totalStats } = await import('../src/game/store.ts');
 
 /**

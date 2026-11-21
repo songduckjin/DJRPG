@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import './ts-loader.mjs';
+import { modalStyles } from './helpers/modal-styles.mjs';
 const { freshSave, totalStats } = await import('../src/game/store.ts');
 const { useAllReadySkillBooks } = await import('../src/ui/skillBooks.ts');
 const { renderSkills } = await import('../src/ui/modals/skillModal.ts');
@@ -151,7 +152,7 @@ test('자동 강화 버튼은 쓸 수 있는 책이 있을 때만 활성화되�
 
 test('자동 강화 버튼의 활성·비활성 스타일이 CSS에 있다(작업 246)', async () => {
   const { readFileSync } = await import('node:fs');
-  const css = readFileSync(new URL('../src/styles/modals.css', import.meta.url), 'utf8');
+  const css = modalStyles();
   const rule = selector => { const index = css.indexOf(`${selector} {`); assert.notEqual(index, -1, `${selector} 규칙이 없다`); return css.slice(index, css.indexOf('}', index) + 1); };
   const ready = rule('.skill-auto-upgrade.is-ready');
   assert.match(ready, /border-color: #f0c47e/, '활성은 금빛 테두리');

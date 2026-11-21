@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { modalStyles as readModalStyles } from './helpers/modal-styles.mjs';
 
 // 작업 218 — 장비 등급색 발광. 유니크·전설만 필드 캐릭터와 장착 화면의 착용 부위(투구·갑옷·무기)에서
 // 숨쉬고, 일반·매직·래어·에픽은 아무 효과도 없다. 값(색·주기·세기)은 `src/game/render/gearGlow.ts` 한 곳이 기준이다.
@@ -11,7 +12,7 @@ const entities = readFileSync(new URL('../src/game/render/entities.ts', import.m
 const render = readFileSync(new URL('../src/game/render.ts', import.meta.url), 'utf8');
 const portrait = readFileSync(new URL('../src/ui/equipmentPortrait.ts', import.meta.url), 'utf8');
 const equipModal = readFileSync(new URL('../src/ui/modals/equipModal.ts', import.meta.url), 'utf8');
-const modalStyles = readFileSync(new URL('../src/styles/modals.css', import.meta.url), 'utf8');
+const modalStyles = readModalStyles();
 
 test('빛이 나는 등급은 유니크·전설 둘뿐이다', () => {
   const table = glow.match(/gearGlowTones[^{]*\{([\s\S]*?)\n\};/)?.[1];
@@ -123,7 +124,7 @@ test('마법사 투구 발광은 얼굴·목선 아래로 번지지 않는다(�
   // 파츠에 얼굴이 함께 들어 있어 그대로 두면 유니크·전설 투구에서 얼굴이 등급색 덩어리가 되고,
   // 파츠가 목선에서 끊긴 자리에 직선으로 잘린 발광 띠가 남는다 → 알파 마스크를 건다.
   // 작업 256에서 마법사 전용 코드 대신 **전 직업 공통 파츠 마스크**(`options.mask`)로 일반화됐다.
-  assert.match(entities, /if \(options\.mask\) \{/, '투구 발광에도 마스크를 건다');
+  assert.match(entities, /else if \(options\.mask\) \{/, '투구 발광에도 마스크를 건다(갑옷 목선 분기 다음)');
   assert.match(entities, /mask\.texture = options\.mask;[\s\S]*mask\.anchor\.set\(source\.anchor\.x, source\.anchor\.y\);[\s\S]*mask\.scale\.set\(source\.scale\.x, source\.scale\.y\);/, '마스크를 파츠와 같은 앵커·위치·배율로 얹는다');
   assert.match(entities, /helmetGlowMask\(helmetGlowMaskPath\)/, '투구 마스크를 경로로 받는다');
   assert.match(render, /helmetGlowMasks = new Map<string, Texture>\(\);/, 'GameView.helmetGlowMasks');

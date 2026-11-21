@@ -1,0 +1,25 @@
+/* DJRPG 모달 — 상점
+   유료 패키지 탭과 대표 카드.
+
+   원래 한 파일이던 `styles/modals.css`를 도메인별로 나눈 것이다. 규칙 본문과 순서는 원본 그대로이고,
+   `styles/modals.css`가 정해진 순서로 @import 한다. 선택자·우선순위·렌더 결과가 원본과 같아야 하므로
+   규칙을 다른 파일로 옮길 때는 앞뒤 순서(캐스케이드)를 반드시 확인한다. */
+
+.shop-balance { margin: 8px 0 12px; color: #a6dcff; font-weight: 700; }
+.shop-tabs { display: flex; gap: 8px; margin-bottom: 12px; }
+.shop-tabs button { flex: 1; min-height: 36px; border: 1px solid #80674e; background: #251b23; color: #e9d5b7; }
+.shop-tabs button.selected { border-color: #8bc9f1; color: #bce8ff; }
+.shop-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 9px; }
+.shop-card { display: grid; gap: 8px; padding: 12px; border: 1px solid #695267; background: #1e1823; color: #eee1ef; }
+.shop-card strong { color: #acdfff; }
+.shop-card span { font-size: 12px; }
+.shop-buy { min-height: 34px; border: 1px solid #6ba5cd; border-radius: 4px; background: #263f55; color: #e4f6ff; }
+.shop-buy:disabled { opacity: .55; }
+.shop-note { color: #e5d6c7; font-size: 12px; }
+/* 다이아 탭 대표 카드(작업 253) — 확정 1안 그림은 검은 배경이 있는 사각 그림이라 모서리를 둥글게 깎고
+   어두운 남색 후광 위에 얹어 다크 판타지 모달과 이어지게 한다. 그림을 8칸 카드에 반복하지 않는다. */
+.shop-hero { display: flex; align-items: center; gap: 11px; margin: 0 0 12px; padding: 9px 11px; border: 1px solid #4f6d8b; border-radius: 6px; background: radial-gradient(120% 130% at 10% 18%, #1d3a5a 0%, #1a1522 58%, #131019 100%); box-shadow: inset 0 0 18px #09091299; }
+.shop-hero-art { flex: none; width: 88px; height: 88px; border-radius: 6px; object-fit: cover; background: #08070d; box-shadow: 0 0 12px #2f74b855; }
+.shop-hero-caption { display: grid; gap: 4px; min-width: 0; }
+.shop-hero-caption strong { color: #bfe9ff; font: 700 15px Cinzel, 'Noto Sans KR', serif; }
+.shop-hero-caption span { color: #a9bac9; font-size: 11.5px; line-height: 1.5; word-break: keep-all; }

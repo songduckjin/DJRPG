@@ -11,7 +11,7 @@ import { removeTempDbDirectory } from './helpers/temp-db.mjs';
 const { dungeonOperation } = await import('../server/dungeon.mjs');
 const { replayDungeonFloor, verifyDungeonClear, DUNGEON_UNVERIFIED_SECONDS } = await import('../server/dungeon-verify.mjs');
 const { parseSave, freshSave } = await import('../src/game/store.ts');
-const { DungeonBattle, DUNGEON_STEP, dungeonBattleSummary } = await import('../src/ui/dungeonBattle.ts');
+const { DungeonBattle, DUNGEON_STEP, dungeonBattleSummary } = await import('../src/game/dungeon/battle.ts');
 
 /**
  * 던전 시드·리플레이 검증 (작업 211).

@@ -1,0 +1,17 @@
+/* DJRPG 모달 — 모달 공통 껍데기
+   백드롭·다이얼로그·머리글·닫기 버튼·안내 문구. **맨 마지막에 import 한다** — 공통 정규화(닫기 버튼 44px 터치 크기)가 모달별 규칙을 이겨야 원본과 같은 결과가 난다.
+
+   원래 한 파일이던 `styles/modals.css`를 도메인별로 나눈 것이다. 규칙 본문과 순서는 원본 그대로이고,
+   `styles/modals.css`가 정해진 순서로 @import 한다. 선택자·우선순위·렌더 결과가 원본과 같아야 하므로
+   규칙을 다른 파일로 옮길 때는 앞뒤 순서(캐스케이드)를 반드시 확인한다. */
+
+.modal-backdrop { position: absolute; inset: 0; z-index: 5; display: flex; align-items: center; justify-content: center; background: #07050bdc; padding: 16px; }
+.modal-backdrop[hidden] { display: none; }
+.modal-dialog { width: min(100%, 480px); max-height: min(82dvh, 740px); overflow-y: auto; border: 2px solid #9a7655; background: linear-gradient(#2b2224, #181318); padding: 14px; box-shadow: 0 12px 40px #000; scrollbar-color: #735548 #171219; }
+.modal-dialog > button { margin-top: 12px; }
+.modal-dialog header { display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #73574b; margin-bottom: 8px; }
+.modal-dialog h2 { font: 700 22px Cinzel, 'Noto Sans KR', serif; margin: 0 0 8px; color: #efdfbd; }
+.modal-close { border: 0; background: none; color: #d6bfa6; font-size: 28px; line-height: 1; }
+.modal-hint { color: #9f9189; font-size: 11px; margin: 11px 0 0; }
+.modal-dialog.market-modal > header { top: -12px; }
+.modal-dialog .modal-close { flex:none; width:44px; height:44px; min-width:44px; min-height:44px; touch-action:manipulation; }

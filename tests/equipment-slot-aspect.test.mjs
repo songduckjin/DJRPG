@@ -2,11 +2,12 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import './ts-loader.mjs';
+import { modalStyles } from './helpers/modal-styles.mjs';
 
 // [작업 231] 장착 칸 아이콘 정비율 — 칸 높이(48/46px)는 그대로 두고, 아이콘만 원본 비율로 그린다.
 // CSS만으로 정해지는 규칙이라(칸 grid 두 줄 · 아이콘 max-width/height · 아틀라스 aspect-ratio) 규칙 문자열과
 // 그 규칙이 기대는 **원본 그림 비율**(item-art 아틀라스 한 칸)을 함께 고정한다.
-const styles = readFileSync(new URL('../src/styles/modals.css', import.meta.url), 'utf8');
+const styles = modalStyles();
 const equipSource = readFileSync(new URL('../src/ui/modals/equipModal.ts', import.meta.url), 'utf8');
 const { slotAtlasStyle } = await import('../src/ui/slotArtStyle.ts');
 const { itemArtCell, itemArtTrim } = await import('../src/ui/itemArtTrim.generated.ts');

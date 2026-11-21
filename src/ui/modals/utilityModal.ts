@@ -68,11 +68,12 @@ export function orderedAchievements(tasks:JourneyTask[]):JourneyTask[] {
 export function renderUtility(ui:Interface,dialog:HTMLElement,kind:'mail'|'rewards'|'achievements'):void{
   const journey=ui.journey,section=element('section',`utility-content utility-${kind}`);
   if(journey.error)section.append(element('p','market-error',journey.error));
-  if(journey.sync.pendingMarket?.action.startsWith('journey-'))section.append(button('수령 결과 다시 확인',()=>{void journey.act('journey-claim');},journey.busy));
-  // 거래소 거래가 걸려 있어도 우편함에서 바로 풀 수 있게 같은 안내와 재확인 버튼을 둔다(작업 226).
-  if(journey.sync.pendingMarket&&!journey.sync.pendingMarket.action.startsWith('journey-')){
+  // 거래소 거래가 걸려 있어도 **우편·보상 수령은 막히지 않는다**(작업 260 — 여정은 자기 대기·자기 경로를 쓴다).
+  // 결과를 확인하지 못한 **여정** 요청만 자기 자리에서 다시 확인하게 한다.
+  if(journey.pending)section.append(button('수령 결과 다시 확인',()=>{void journey.retry();},journey.busy));
+  if(journey.sync.pendingMarket){
     if(ui.market)section.append(button('거래 결과 다시 확인',()=>{void ui.market.retry();},journey.busy));
-    section.append(element('p','utility-note','거래소 거래 결과를 확인하지 못해 받기 버튼이 잠겨 있습니다. 위 버튼으로 거래를 먼저 마무리하세요.'));
+    section.append(element('p','utility-note','거래소 거래 결과를 확인하지 못한 요청이 있습니다. 위 버튼으로 거래를 마무리해 주세요. 우편·보상 수령은 그대로 이용할 수 있습니다.'));
   }
   if(ui.session.guest)section.append(element('p','utility-note','정식 계정으로 로그인하면 보상을 수령할 수 있습니다.'));
   const data=journey.data;

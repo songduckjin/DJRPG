@@ -5,7 +5,7 @@ export const arenaLimits = { horizontal: 120, vertical: 180 } as const;
 // 일반 필드 몹이 걸어 들어오는 **바깥 테두리**(작업 230, 사용자 요청 "몹들이 필드 멀리서 뜨도록
 // 랜덤하게 뜨게좀 해줘"). 아레나는 플레이어와 전투가 머무는 가운데 상자이고, 이 상자는 화면
 // 가장자리까지 잇는 필드다 — 세로 값이 큰 이유는 아이소메트릭 `.43` 압축 때문이다(v 400 ≈ 화면
-// 위아래 172px, h 250 ≈ 좌우 215px). 던전(`ui/dungeonBattle.ts`)은 `arenaLimits`·`clampArenaPoint`만
+// 위아래 172px, h 250 ≈ 좌우 215px). 던전(`game/dungeon/battle.ts`)은 `arenaLimits`·`clampArenaPoint`만
 // 쓰므로 이 상자를 넓혀도 던전 경계는 그대로다.
 export const fieldSpawnLimits = { horizontal: 250, vertical: 400 } as const;
 

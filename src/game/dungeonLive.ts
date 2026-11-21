@@ -1,7 +1,7 @@
 import {apiHeaders,isOutdatedResponse,reloadForNewVersion} from './appVersion';
 import type {SaveSync} from './sync';
 import type {Interface} from '../ui/interface';
-import type {DungeonBattleSummary} from '../ui/dungeonBattle';
+import type {DungeonBattleSummary} from './dungeon/battle';
 export type DungeonRecord={rank?:number;name:string;clearedFloor:number;clearedAt:number;mine?:boolean};
 export type DungeonStanding={top:DungeonRecord[];mine?:DungeonRecord;total:number};
 export type DungeonData={standing:DungeonStanding;guest:boolean;recorded:number;now:number};

@@ -1,3 +1,4 @@
+import { emitDomainEvent } from '../core/domainEvents';
 import { equipmentCount } from './bagCapacity';
 import { jobOrDefault } from './skills';
 import type { Save, Slot } from './store';
@@ -91,5 +92,6 @@ export function unequipItem(save: Save, slot: Slot): { ok: boolean; message: str
   if (!item) return { ok: false, message: '빈 장비 슬롯입니다.' };
   if (equipmentCount(save.bag, jobOrDefault(save.job)) >= 40) return { ok: false, message: '가방이 가득 차 장비를 해제할 수 없습니다.' };
   save.bag.push(item); delete save.equipment[slot];
+  emitDomainEvent('equipmentChanged', { save, slot, previous: item, source: 'unequip' });
   return { ok: true, message: `${item.name} 장착을 해제했습니다.` };
 }

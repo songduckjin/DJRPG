@@ -1,0 +1,30 @@
+/* DJRPG 모달 — 우편함·보상
+   우편 항목과 일일/주간 보상 항목(받기·모두 받기 포함).
+
+   원래 한 파일이던 `styles/modals.css`를 도메인별로 나눈 것이다. 규칙 본문과 순서는 원본 그대로이고,
+   `styles/modals.css`가 정해진 순서로 @import 한다. 선택자·우선순위·렌더 결과가 원본과 같아야 하므로
+   규칙을 다른 파일로 옮길 때는 앞뒤 순서(캐스케이드)를 반드시 확인한다. */
+
+.utility-toolbar .utility-reward, .utility-toolbar .mail-summary { margin-right: auto; }
+.mail-pending { border-color: #b68b51; box-shadow: inset 3px 0 #b68b51; }
+.mail-heading { display: flex; align-items: center; gap: 5px; }
+.utility-button.mail-title { flex: 1; padding: 0; min-height: 22px; background: transparent; border: 0; color: #f0dcb8; font-weight: 700; text-align: left; }
+.utility-button.mail-title:disabled { opacity: 1; }
+.mail-state { flex: none; font-size: 9px; color: #e5b669; }
+.mail-sender { font-size: 10px; color: #d4b28d; }
+.mail-body { margin: 0; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; color: #e2d3c0; }
+.mail-date { font-size: 9px; color: #a79787; }
+.reward-index-tabs { display: flex; gap: 3px; border-bottom: 1px solid #8b6a49; margin-bottom: -6px; padding-left: 4px; }
+.reward-index-tab { position: relative; top: 1px; min-width: 68px; padding: 6px 14px; border: 1px solid #67503f; border-bottom: 0; border-radius: 5px 5px 0 0; background: #21191b; color: #a99581; font: inherit; cursor: pointer; }
+.reward-index-tab[aria-selected="true"] { background: #302326; color: #f2d5a9; border-color: #b18c59; padding-bottom: 7px; }
+.reward-index-tab:focus-visible { outline: 2px solid #e2bd78; outline-offset: -3px; }
+.reward-panel { display: flex; flex-direction: column; gap: 6px; border: 1px solid #67503f; border-top: 0; padding: 7px 5px 5px; }
+.reward-panel[hidden] { display: none; }
+.reward-panel-toolbar { justify-content: space-between; }
+/* `일일 보상`·`주간 보상` 탭의 빨간 점(작업 247) — 받을 보상이 있을 때만 켠다. */
+.reward-tab-dot { position: absolute; z-index: 2; top: 2px; right: 4px; width: 8px; height: 8px; border: 1px solid #efb6a4; border-radius: 50%; background: #de352e; box-shadow: 0 0 5px #a81718b0; pointer-events: none; }
+.reward-tab-dot[hidden] { display: none; }
+/* 전체 완료 보상은 **맨 위**, 개별 미션은 그 아래 별도 묶음(작업 247). */
+.reward-completion { display: flex; flex-direction: column; gap: 5px; margin: 5px 0 2px; }
+.reward-missions-heading { margin: 4px 0 0; padding-top: 10px; border-top: 1px solid #5c4838; color: #d8bd93; }
+.reward-mission-group { display: flex; flex-direction: column; gap: 6px; padding: 1px 0 0; }
