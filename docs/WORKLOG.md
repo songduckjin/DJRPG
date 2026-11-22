@@ -10,6 +10,7 @@
   - **거래소**: `sellable`에 `statbook`, 묶음 기준은 같은 `book` 종류(최대 10개), 시세·필터·종류 탭도 스탯북으로.
 - **③ 테스트 서버 초기화 & 보상**(`scripts/reset-server-test.mjs` 신규): 기본이 **dry-run**이고 `--apply`로 실행한다. 계정(아이디·비밀번호)만 남기고 캐릭터·아이템(가방·장비·공용창고·거래소 매물·수령함·소유 기록)·스테이지(일반 층·던전·던전 순위·월드보스)·계정 공용 금화/다이아 지갑·여정(일일·주간·업적·우편함)을 한 트랜잭션으로 비우고, 게스트를 뺀 **모든 계정에 다이아 5,000 + 무작위 보물 주머니 30개 우편 1통**을 넣는다. 지난 안내·보상 우편 id는 `notices`에 미리 채워 재지급되지 않게 하고, 이 우편의 다이아 원장 행만 지워 재실행해도 두 번 들어가지 않는다. **운영 DB 실행은 덕진 님 측**(우리 쪽 `TURSO_*` 권한 없음).
 - **검증**: `npx tsc --noEmit` 통과, `NODE_OPTIONS=--max-old-space-size=2400 npx vite build` 통과(`assets/index-DOjD0k5K.js` 801.96kB — 번들에 `공격의 서`·`영구 스탯북` 포함 확인), `node scripts/verify-item-art.mjs` 통과, 전체 `node --test tests/*.test.mjs` **1,229건 중 1,226 통과**. 실패 3건은 `origin/main`(`djrpg-257main`)에서도 같은 기존 건(`costume-field-render` 2·`dungeon-248`의 "던전 적 피해" 1). 신규 4파일 **19/19**(`statbook` 7·`statbook-server` 4·`skillbook-removal` 4·`reset-server` 4). 스킬북 전용 테스트 9파일은 삭제하고, 스킬북을 소품으로 쓰던 20여 파일의 픽스처를 스탯북으로 바꿨다.
+- **PR**: [#319](https://github.com/songduckjin/DJRPG/pull/319) (Draft, base `main`, `work/259-skillbook-removal-statbooks`, 기준 `2f4ce32`) — Cloudflare Pages 체크 통과, 머지는 덕진 님 다음 배포 때.
 - **맞출 것**: ① 파트 A와 세이브 필드 분리(`statBooks` ↔ `skillPoints`/`skillLevels`) ② 스탯북 아이콘은 시안 전까지 기존 책 그림 재사용 ③ 초기화 실행 명령은 PR 본문 ④ 덕진 님 미머지 PR과 `equipModal`·`warehouseModal`·`marketModal`·`server/market.mjs`가 겹칠 수 있음(스킬북 제거라 그 PR이 스킬북을 만지면 충돌).
 
 ## 2026-11-21 · songduckjin 작업 257 — 전 직업 갑옷·로브 **파츠만** 발광(오라 없음)
