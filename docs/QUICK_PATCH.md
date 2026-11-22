@@ -16,6 +16,7 @@
 | 가방 40칸·스킬북 칸 계산·강화 `+N`·추가옵션·분해 보호 | `docs/INVENTORY_GEAR.md` |
 | 업그레이드 화살표(▲)·장비 비교 | `docs/INVENTORY_GEAR.md` |
 | 스킬 쿨타임·버프·퀵슬롯·추천 장착·스킬북 합성·도감 칸 | `docs/SKILLS_CODEX.md` |
+| 스킬 트리·SP 투자/초기화·선행 조건·스킬 최대 Lv.10 | `docs/SKILLS_CODEX.md` |
 | 우편이 안 받아져·보상을 못 받아감·가방이 꽉 차 거래소가 잠김 | `docs/MAIL_WAREHOUSE.md` · `docs/SYNC_SAVE.md`(여정 전용 입구) |
 | 우편 수령·만료·공지 우편 중복 | `docs/MAIL_WAREHOUSE.md` |
 | 창고 이동이 느림·이동 중 잠김·`CHARACTER_CONFLICT` | `docs/MAIL_WAREHOUSE.md` |

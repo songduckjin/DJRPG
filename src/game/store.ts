@@ -5,6 +5,7 @@ import { isEquipment, isSkillBook, migrateItem, skillBookJob, slots, totalStats,
 export { slots, slotNames, rarityNames, statNames, isZweihander, equipmentImage, totalStats, rollItem, itemPower, autoEquipBest, salvageByRarity } from './items';
 export type { Rarity, Slot, Stat, Item } from './items';
 import { allPassiveIds, allSkillIds, jobNames, jobOrDefault, skillOrderFor, MAX_SKILL_LEVEL, type Job, type PassiveId, type SkillId, type SkillLevelId } from './skills';
+import { spLedger } from './skillPoints';
 // 진행 규칙(층 목표·경험치 곡선·최고 층)의 정의는 `progress.ts` 한 곳에 있다 — 여기서는 예전 import 경로를
 // 그대로 쓰는 파일들을 위해 재export만 한다(PR-3, 작업 262).
 import { MAX_FLOOR, MAX_LEVEL, gainExperience, killsToBoss } from './progress';
@@ -117,8 +118,10 @@ export function parseSave(data: unknown, accountId?: string): Save {
     // 보스에게 진 층(작업 223): 0~MAX_FLOOR의 정수만 남기고, 없는 세이브(구버전)는 0으로 둔다.
     const bossRetryFloor = Math.min(MAX_FLOOR, Math.max(0, Math.floor(safeNumber(value.bossRetryFloor, 0))));
     const level = Math.min(MAX_LEVEL, Math.floor(safeNumber(value.level, defaults.level, 1)));
-    const invested = Object.values(skillLevels).reduce<number>((sum, rank) => sum + Math.max(0, (rank ?? 1) - 1), 0);
-    const skillPoints = Math.floor(safeNumber(value.skillPoints, Math.max(0, level - 1 - invested)));
+    // SP는 레벨·랭크에서 다시 계산한다(`skillPoints.ts` 한 곳의 식) — 저장된 값은 그 상한을 넘지 못한다.
+    // 예전 세이브(스킬북으로 랭크를 올리던 시절)는 쓴 랭크가 가용 SP보다 많을 수 있으므로 0에서 멈춘다.
+    const earnedSp = spLedger({ level, learned: active, passives, skillLevels }).available;
+    const skillPoints = Math.max(0, Math.min(earnedSp, Math.floor(safeNumber(value.skillPoints, earnedSp))));
     // 던전 최고층은 0~10의 정수, 최초 클리어 시각은 0 이상. 없는 세이브(구버전)는 0층부터 시작한다.
     const dungeonFloor = Math.min(DUNGEON_MAX_FLOOR, Math.floor(safeNumber(value.dungeonFloor, defaults.dungeonFloor)));
     return { ...defaults, name: typeof value.name === 'string' && value.name.trim() ? value.name : defaults.name, accountId: accountId ?? (typeof value.accountId === 'string' && value.accountId ? value.accountId : defaults.accountId), gender: value.gender === 'female' ? 'female' : 'male', job: jobOrDefault(value.job), auto: true, autoClimb: typeof value.autoClimb === 'boolean' ? value.autoClimb : true, level, exp: level >= MAX_LEVEL ? 0 : safeNumber(value.exp, defaults.exp), gold: Math.floor(safeNumber(value.gold, defaults.gold)), floor, maxFloor, floorKills: Math.min(floorKillTarget(floor), Math.floor(safeNumber(value.floorKills, 0))), kills: Math.floor(safeNumber(value.kills, defaults.kills)), bossKills: Math.floor(safeNumber(value.bossKills, 0)), playSeconds: safeNumber(value.playSeconds, 0), salvageCount: Math.floor(safeNumber(value.salvageCount, 0)), health: safeNumber(value.health, defaults.health), equipment, equipmentCollection: collection.equipmentCollection, bag, tutorial: Math.min(3, Math.floor(safeNumber(value.tutorial, defaults.tutorial))), stones: Math.floor(safeNumber(value.stones, defaults.stones)), skillPoints, lastActiveAt: safeNumber(value.lastActiveAt, Date.now()), learned: active, passives, quickSlots, skillLevels, bossRetryFloor, dungeonFloor, dungeonClearAt: dungeonFloor > 0 ? Math.floor(safeNumber(value.dungeonClearAt, 0)) : 0 };
@@ -132,7 +135,7 @@ export function skillLevel(save: Save, id: SkillLevelId): number { return save.s
  *  레벨업 뒤 체력을 채운다. */
 export function addExperience(save: Save, amount: number): number {
   const gained = gainExperience(save, amount);
-  if (gained) save.health = totalStats(save).health;
+  if (gained) { save.health = totalStats(save).health; save.skillPoints = spLedger(save).available; }
   return gained;
 }
 export function useSkillBook(save: Save, itemId: string): { ok: boolean; message: string } {
@@ -153,6 +156,8 @@ export function useSkillBook(save: Save, itemId: string): { ok: boolean; message
     else save.passives.push(id as PassiveId);
   }
   save.skillLevels[id] = level + 1;
+  // 랭크가 하나 늘면 SP 한 칸을 쓴 것과 같다 — 저장 필드도 같은 장부로 맞춘다(화면은 `spLedger`를 쓴다).
+  save.skillPoints = spLedger(save).available;
   const consumed = new Set([item.id]);
   for (const other of save.bag) if (consumed.size < status.cost && isSkillBook(other) && other.skillId === id) consumed.add(other.id);
   save.bag = save.bag.filter(other => !consumed.has(other.id));

@@ -25,7 +25,7 @@ const enemyAt = (world, distance) => {
 test('광폭 버프 공격속도·공격력 배율은 Lv.1 +20%에서 시작하고 공속은 1.5배에서 멈춘다', () => {
   assert.equal(berserkSpeedScale(1), 1.2);
   assert(Math.abs(berserkSpeedScale(5) - 1.24) < 1e-9);
-  assert(Math.abs(berserkSpeedScale(30) - 1.49) < 1e-9);
+  assert(Math.abs(berserkSpeedScale(30) - 1.49) < 1e-9, '식 자체는 레벨을 그대로 받는다');
   assert.equal(berserkSpeedScale(60), 1.5, '상한 1.5배');
   assert.equal(berserkAttackScale(1), 1.2);
   assert(Math.abs(berserkAttackScale(30) - 1.635) < 1e-9);
@@ -35,12 +35,14 @@ test('광폭 버프 공격속도·공격력 배율은 Lv.1 +20%에서 시작하�
 
 test('버프 지속은 어떤 레벨에서도 쿨타임보다 짧다(무한 유지 없음)', () => {
   assert.equal(skillDuration('warcry', 1), 6);
-  assert(Math.abs(skillDuration('warcry', MAX_SKILL_LEVEL) - 11.8) < 1e-9);
+  // 스킬 최대 레벨이 Lv.10으로 내려갔다(4단계 스킬 트리, 2026-11-22) — 지속도 그 위로는 늘지 않는다.
+  assert.equal(MAX_SKILL_LEVEL, 10);
+  assert(Math.abs(skillDuration('warcry', MAX_SKILL_LEVEL) - 7.8) < 1e-9);
   assert(skillDuration('warcry', MAX_SKILL_LEVEL) < skills.warcry.cooldown, '14초 쿨보다 짧다');
   for (const id of ['hawkEye', 'arcaneShield']) {
     assert.equal(skillDuration(id, 1), 7);
     const max = skillDuration(id, MAX_SKILL_LEVEL);
-    assert(Math.abs(max - 11.93) < 1e-9, `${id} Lv.30 ${max}`);
+    assert(Math.abs(max - 8.53) < 1e-9, `${id} Lv.10 ${max}`);
     assert(max < skills[id].cooldown, `16초 쿨보다 짧다: ${id}`);
   }
   // 표기 문구도 새 수치와 맞는다.
@@ -69,15 +71,15 @@ test('블러드 레이지를 걸면 공격 쿨다운이 1/1.2로 줄고 피해�
 
 test('고레벨 버프도 공속은 1.49배까지만 올라간다(쿨다운 역수)', () => {
   const save = freshSave('male', 'warrior');
-  save.learned = ['warcry']; save.quickSlots = ['warcry', null, null]; save.skillLevels = { warcry: 30 };
+  save.learned = ['warcry']; save.quickSlots = ['warcry', null, null]; save.skillLevels = { warcry: MAX_SKILL_LEVEL };
   const world = new World(save); world.spawnTimer = 999;
   enemyAt(world, 40);
   world.action('warcry');
-  assert(Math.abs(world.player.berserk - 11.8) < 1e-9, 'Lv.30 지속 11.8초');
+  assert(Math.abs(world.player.berserk - 7.8) < 1e-9, 'Lv.10 지속 7.8초');
   world.action('attack');
-  assert(Math.abs(world.cooldown.attack - cooldowns.attack / 1.49) < 1e-9);
+  assert(Math.abs(world.cooldown.attack - cooldowns.attack / 1.29) < 1e-9, 'Lv.10 공속 1.29배');
   // 시각 재생 배율도 같은 식을 쓴다(쿨다운 × 배율 = 기본 쿨다운).
-  const rate = costumePlaybackRate({ speed: 0, berserk: 1, berserkLevel: 30 });
-  assert(Math.abs(rate - 1.49) < 1e-9);
+  const rate = costumePlaybackRate({ speed: 0, berserk: 1, berserkLevel: MAX_SKILL_LEVEL });
+  assert(Math.abs(rate - 1.29) < 1e-9);
   assert(Math.abs(world.cooldown.attack * rate - cooldowns.attack) < 1e-9);
 });

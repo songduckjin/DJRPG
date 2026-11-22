@@ -28,17 +28,17 @@ import { completeShopReturn, DIAMOND_PACK_ART, loadShop, type ShopCatalog, type 
 import { bindDomainEvents } from './domainBindings';
 import type { CharacterSummary } from './modals/charactersModal';
 // PR-4 분리 — 이 파일은 클래스(상태·창 열기)만 들고, 나머지는 도메인 모듈이 맡는다:
-//   interfaceTypes  : 팝업 이름(Modal)·보기 상태 타입(BagFilter·SkillFilter)
+//   interfaceTypes  : 팝업 이름(Modal)·보기 상태 타입(BagFilter·SkillSelection)
 //   modalRegistry   : 팝업 등록부 MODALS (예전 renderModal의 18갈래 if 대신 표 한 벌)
 //   modalChrome     : 모든 팝업이 같이 쓰는 창틀(클래스·머리글·aria·스크롤)
 //   interfaceControls: 메뉴 버튼·Esc·바깥 누르기·공격 패드
 //   interfaceWiring : 거래소·여정·창고·월드의 화면 갱신 콜백
-import type { BagFilter, Modal, SkillFilter, SkillSelection } from './interfaceTypes';
+import type { BagFilter, Modal, SkillSelection } from './interfaceTypes';
 import { MODALS } from './modalRegistry';
 import { renderModalPanel } from './modalChrome';
 import { bindPanelInput, mountActionPad } from './interfaceControls';
 import { wireDomains, wireWorld } from './interfaceWiring';
-export type { BagFilter, SkillFilter } from './interfaceTypes';
+export type { BagFilter, SkillSelection } from './interfaceTypes';
 
 const navIcons = {
   market: '<img class="nav-icon" src="/assets/icons/nav_market_v2.png" alt="" aria-hidden="true" />',
@@ -110,11 +110,8 @@ export class Interface {
   salvageIds?: string[];
   skillTarget?: number;
   pendingSkill?: SkillId;
-  /** 스킬 창의 `전체/액티브/패시브` 탭(작업 240) — 창을 닫으면 `modalDefaults`가 `전체`로 되돌린다. */
-  skillFilter: SkillFilter = 'all';
-  /** 스킬 창 B안(작업 266) — 하단 액션 바가 다루는 타일과 `정보` 펼침, 스크롤 자리. 모두 보기 상태다. */
+  /** 스킬 트리(2026-11-22) — 지금 고른 노드와 트리 스크롤 자리. 둘 다 보기 상태이고 창을 닫으면 되돌린다. */
   skillSelected?: SkillSelection;
-  skillInfoOpen = false;
   skillScroll = 0;
   codexQuery = '';
   codexSlot = '';

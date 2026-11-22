@@ -33,11 +33,8 @@ export type Modal =
 /** 가방 필터(작업 136) — `내 정보` 창의 `장비 전체/무기/방어구/장신구` 탭. */
 export type BagFilter = 'all' | 'weapon' | 'armor' | 'accessory';
 
-/** 스킬 창 탭(작업 240) — `전체`는 패시브 3종을 스킬북·기본기보다 위에 두고 모두 보여 준다. */
-export type SkillFilter = 'all' | 'active' | 'passive';
-
 /**
- * 스킬 창에서 고른 타일(작업 266) — 스킬 ID이거나, 스킬 ID가 없는 **기본 공격**(`attack`)이다.
- * 기본 공격은 고정 슬롯이라 장착·강화가 없지만 설명·능력치는 다른 타일과 같은 자리에서 보여 준다.
+ * 스킬 창에서 고른 스킬(4단계 스킬 트리, 2026-11-22) — 그 직업 트리의 노드 ID 하나다.
+ * 기본 공격은 트리에 없고 필드의 고정 슬롯이므로 여기 들어오지 않는다.
  */
-export type SkillSelection = SkillLevelId | 'attack';
+export type SkillSelection = SkillLevelId;

@@ -21,7 +21,12 @@ export type ArcherPassiveId = 'bowMastery' | 'swiftStep' | 'hawkSight';
 export type MagePassiveId = 'staffMastery' | 'manaCircuit' | 'arcaneSense';
 export type PassiveId = WarriorPassiveId | ArcherPassiveId | MagePassiveId;
 export type SkillLevelId = SkillId | PassiveId;
-export const MAX_SKILL_LEVEL = 30;
+/**
+ * 스킬 최대 레벨 — 4단계 스킬 트리(2026-11-22 스펙)부터 **10**이다. 예전에는 30이었고 랭크가 스킬북
+ * 중복으로만 올라 갔지만, 이제 SP를 넣어 Lv.10까지 올린다(`src/game/skillPoints.ts`).
+ * 랭크 하나에 SP 1이고 11종을 모두 10으로 올리면 110pt, 만렙(30)의 가용 SP는 88pt다.
+ */
+export const MAX_SKILL_LEVEL = 10;
 export function skillUpgradeCost(level: number): number { return 40 * level * level; }
 export type Skill = { id: SkillId; name: string; level: number; icon: string; cooldown: number; power: string; description: string; range: number };
 export type Passive = { id: PassiveId; name: string; level: number; icon: string; description: string };

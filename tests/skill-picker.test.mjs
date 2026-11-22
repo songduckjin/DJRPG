@@ -121,7 +121,7 @@ test('장착 가능한 스킬이 없으면 팝업 대신 안내만 띄운다(작
   const ui = uiFixture();
   pressSkillSlot.call(ui, 0);
   assert.equal(ui.root.querySelector('.skill-picker'), undefined);
-  assert.deepEqual(ui.messages, ['스킬북으로 스킬을 습득하면 장착할 수 있습니다.']);
+  assert.deepEqual(ui.messages, ['스킬 트리에서 SP를 투자해 스킬을 습득하면 장착할 수 있습니다.']);
 }));
 
 test('동기화 중에는 팝업을 열지 않는다(작업 245)', () => withDocument(() => {
@@ -138,7 +138,7 @@ test('동기화 중에는 팝업을 열지 않는다(작업 245)', () => withDoc
 }));
 
 test('팝업 스타일이 좁은 화면까지 정의되어 있다(작업 245)', () => {
-  for (const selector of ['.skill-picker {', '.skill-picker-card {', '.skill-picker-close {', '.skill-picker-row {', '.skill-picker-row.is-recommended {', '.skill-recommend-badge {', '.skill-auto-upgrade {']) {
+  for (const selector of ['.skill-picker {', '.skill-picker-card {', '.skill-picker-close {', '.skill-picker-row {', '.skill-picker-row.is-recommended {', '.skill-recommend-badge {']) {
     assert(styles.includes(selector), `${selector} 규칙이 없다`);
   }
   assert(styles.includes('@media (max-width: 380px)'), '좁은 화면 대응');

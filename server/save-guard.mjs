@@ -17,6 +17,7 @@
  */
 import { extraOptionsWithin } from './extra-options.mjs';
 import { BOSS_GOLD_PER_FLOOR, KILL_GOLD_BASE, MAX_FLOOR, MAX_LEVEL, expToNext, killsToBoss } from '../src/game/progress.ts';
+import { spLedger } from '../src/game/skillPoints.ts';
 
 export const MAX_OFFLINE_SECONDS = 43_200;
 /** 초당 처치 상한. 실제 사냥은 스폰 간격(≥0.55초)과 18마리 상한 때문에 초당 2마리 안팎이고,
@@ -165,9 +166,9 @@ export function clampSaveProgress(previous, save, options = {}) {
   if (cap(save.stones) > stoneCap) { save.stones = stoneCap; clamped.push('stones'); }
   // (`payout.stones`는 `budget.stones`와 같은 값이다 — 강화석은 층과 무관하다.)
 
-  // 스킬 포인트는 레벨업으로만 쌓인다 — 찍은 만큼을 뺀 나머지가 상한이다.
-  const invested = Object.values(save.skillLevels ?? {}).reduce((sum, rank) => sum + Math.max(0, cap(rank) - 1), 0);
-  const pointCap = Math.max(0, int(save.level, 1) - 1 - invested);
+  // 스킬 포인트는 레벨업으로만 쌓인다 — 레벨당 3pt(첫 1랭크는 무료 지급분), 쓴 랭크만큼 빼고 남은 것이 상한이다.
+  // 식은 `src/game/skillPoints.ts` 한 곳에 있고 화면도 같은 것을 쓴다(4단계 스킬 트리, 파트 A).
+  const pointCap = spLedger({ level: int(save.level, 1), learned: save.learned, passives: save.passives, skillLevels: save.skillLevels }).available;
   if (cap(save.skillPoints) > pointCap) { save.skillPoints = pointCap; clamped.push('skillPoints'); }
 
   // 던전 최고층은 서버가 검증한 기록(+1)까지만 저장된다 — 순위의 근거라 클라이언트가 올릴 수 없다.
