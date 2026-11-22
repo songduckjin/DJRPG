@@ -13,19 +13,20 @@ import type { EquipmentItem, Rarity, Stat } from './items';
  */
 export type ExtraOptionKey =
   | 'regenPct' | 'bonusDmgPct' | 'lifestealPct' | 'attackPct' | 'critPct'
-  | 'defensePct' | 'healthPct' | 'evasionPct' | 'speedPct';
+  | 'defensePct' | 'healthPct' | 'evasionPct' | 'speedPct' | 'cdrPct';
 export type ExtraOptions = Partial<Record<ExtraOptionKey, number>>;
 
-/** 추가옵션 9종 — 이 순서가 뽑기 풀의 순서다(`id` 시드가 같으면 이 순서로 뽑히므로 바꾸지 않는다). */
+/** 추가옵션 10종 — 이 순서가 뽑기 풀의 순서다(`id` 시드가 같으면 이 순서로 뽑히므로 바꾸지 않는다).
+ *  `cdrPct`(스킬 쿨타임 감소)는 밸런스 v2에서 맨 뒤에 더해, 이미 저장된 장비의 기존 옵션이 바뀌지 않게 했다. */
 export const extraOptionKeys: readonly ExtraOptionKey[] = [
   'regenPct', 'bonusDmgPct', 'lifestealPct', 'attackPct', 'critPct',
-  'defensePct', 'healthPct', 'evasionPct', 'speedPct'
+  'defensePct', 'healthPct', 'evasionPct', 'speedPct', 'cdrPct'
 ];
 
 export const extraOptionNames: Record<ExtraOptionKey, string> = {
   regenPct: '체력회복력', bonusDmgPct: '추가 데미지', lifestealPct: '피흡',
   attackPct: '공격력', critPct: '치명타', defensePct: '방어력',
-  healthPct: '체력', evasionPct: '회피율', speedPct: '공격속도'
+  healthPct: '체력', evasionPct: '회피율', speedPct: '공격속도', cdrPct: '쿨타임 감소'
 };
 
 /** 등급별 추가옵션 개수 — 일반·매직·레어 0, 에픽 1, 유니크 2, 전설 3. */
@@ -33,6 +34,13 @@ export const extraOptionCounts: Record<Rarity, number> = { common: 0, magic: 0, 
 
 export const EXTRA_OPTION_MIN = 1;
 export const EXTRA_OPTION_MAX = 3;
+/** `cdrPct`(스킬 쿨타임 감소)만 1~2%다 — 1~3%면 부위 하나에 3%가 붙어 상한(35%)을 너무 쉽게 넘긴다(밸런스 v2). */
+export const EXTRA_CDR_MIN = 1;
+export const EXTRA_CDR_MAX = 2;
+/** 그 옵션이 가질 수 있는 값의 범위. */
+export function extraOptionRange(key: ExtraOptionKey): { min: number; max: number } {
+  return key === 'cdrPct' ? { min: EXTRA_CDR_MIN, max: EXTRA_CDR_MAX } : { min: EXTRA_OPTION_MIN, max: EXTRA_OPTION_MAX };
+}
 
 /** 회피율 합산 상한 — 10부위에서 30%까지(사용자 확정 밸런스 보충). */
 export const EXTRA_EVASION_CAP = 30;
@@ -40,10 +48,17 @@ export const EXTRA_EVASION_CAP = 30;
 export const EXTRA_REGEN_CAP = 12;
 /** 체력회복력이 도는 간격(초). */
 export const EXTRA_REGEN_SECONDS = 5;
-/** 피흡 합산 상한(%) — 넘는 값은 잘라 쓴다(과도한 무적 방지). */
-export const EXTRA_LIFESTEAL_CAP = 15;
+/** 치명타·공격속도 추가옵션의 합산 상한(%) — 치명 예산(기본 20 + 패시브 30 + 장비 60 = 110)을 넘지 않게. */
+export const EXTRA_CRIT_CAP = 10;
+export const EXTRA_SPEED_CAP = 10;
+/** 쿨타임 감소 추가옵션의 합산 상한(%) — 부위 3개(전설) × 2%. */
+export const EXTRA_CDR_CAP = 6;
+/** 피흡 합산 상한(%) — 장비로만 얻으며 넘는 값은 잘라 쓴다(밸런스 v2: 15 → 5). */
+export const EXTRA_LIFESTEAL_CAP = 5;
 /** 한 번의 타격에서 피흡으로 회복할 수 있는 최대치(최대 체력 대비 비율) — 큰 광역 한 방이 체력을 다 채우지 않게. */
-export const EXTRA_LIFESTEAL_HIT_CAP = .04;
+export const EXTRA_LIFESTEAL_HIT_CAP = .004;
+/** 1초 동안 피흡으로 회복할 수 있는 최대치(최대 체력 대비 비율) — 연타·광역으로 피가 솟지 않게(밸런스 v2). */
+export const EXTRA_LIFESTEAL_SECOND_CAP = .025;
 
 /** 그 등급이 가질 추가옵션 개수(0~3). */
 export function extraOptionCount(rarity: Rarity): number { return extraOptionCounts[rarity] ?? 0; }
@@ -83,12 +98,13 @@ export function deriveExtraOptions(rarity: Rarity, id: string): ExtraOptions {
   for (let index = 0; index < count && pool.length; index++) {
     const pick = Math.min(pool.length - 1, Math.floor(next() * pool.length));
     const key = pool.splice(pick, 1)[0];
-    options[key] = EXTRA_OPTION_MIN + Math.min(EXTRA_OPTION_MAX - EXTRA_OPTION_MIN, Math.floor(next() * (EXTRA_OPTION_MAX - EXTRA_OPTION_MIN + 1)));
+    const { min, max } = extraOptionRange(key);
+    options[key] = min + Math.min(max - min, Math.floor(next() * (max - min + 1)));
   }
   return options;
 }
 
-/** 저장된 추가옵션이 이 등급의 규칙(허용 키 9종·1~3% 정수·중복 없음·개수 일치)에 맞는지. */
+/** 저장된 추가옵션이 이 등급의 규칙(허용 키 10종·키별 1~3%(cdrPct 1~2%) 정수·중복 없음·개수 일치)에 맞는지. */
 export function validExtraOptions(raw: unknown, rarity: Rarity): ExtraOptions | undefined {
   const count = extraOptionCount(rarity);
   if (!count || typeof raw !== 'object' || raw === null || Array.isArray(raw)) return undefined;
@@ -99,7 +115,8 @@ export function validExtraOptions(raw: unknown, rarity: Rarity): ExtraOptions | 
   for (const key of keys) {
     if (!(extraOptionKeys as readonly string[]).includes(key)) return undefined;
     const value = record[key];
-    if (!Number.isInteger(value) || (value as number) < EXTRA_OPTION_MIN || (value as number) > EXTRA_OPTION_MAX) return undefined;
+    const { min, max } = extraOptionRange(key as ExtraOptionKey);
+    if (!Number.isInteger(value) || (value as number) < min || (value as number) > max) return undefined;
     options[key as ExtraOptionKey] = value as number;
   }
   return options;
@@ -133,12 +150,15 @@ export function extraOptionTotals(equipment: Partial<Record<string, EquipmentIte
   return total;
 }
 
-/** 실제 전투에 쓰는 값 — 회피 30%·체력회복 12%/5초·피흡 15% 상한을 적용한다. */
+/** 실제 전투에 쓰는 값 — 회피 30%·체력회복 12%/5초·피흡 5%·치명·공속 10%·쿨감 6% 상한을 적용한다. */
 export function effectiveExtraOptions(equipment: Partial<Record<string, EquipmentItem | undefined>> | undefined): Record<ExtraOptionKey, number> {
   const total = extraOptionTotals(equipment);
   total.evasionPct = Math.min(EXTRA_EVASION_CAP, total.evasionPct);
   total.regenPct = Math.min(EXTRA_REGEN_CAP, total.regenPct);
   total.lifestealPct = Math.min(EXTRA_LIFESTEAL_CAP, total.lifestealPct);
+  total.critPct = Math.min(EXTRA_CRIT_CAP, total.critPct);
+  total.speedPct = Math.min(EXTRA_SPEED_CAP, total.speedPct);
+  total.cdrPct = Math.min(EXTRA_CDR_CAP, total.cdrPct);
   return total;
 }
 
@@ -149,7 +169,7 @@ export function effectiveExtraOptions(equipment: Partial<Record<string, Equipmen
  */
 const extraOptionPowerWeights: Record<ExtraOptionKey, number> = {
   attackPct: 3, bonusDmgPct: 3, critPct: 2.5, speedPct: 2.5, evasionPct: 2,
-  defensePct: 2, lifestealPct: 2, healthPct: 1, regenPct: 1
+  defensePct: 2, lifestealPct: 2, healthPct: 1, regenPct: 1, cdrPct: 4
 };
 
 /** 추가옵션만의 전투력 몫. */
@@ -180,5 +200,5 @@ export function extraOptionSummary(equipment: Partial<Record<string, EquipmentIt
 
 /** 스탯 이름과 겹치지 않게, 추가옵션 키가 어떤 기본 스탯을 키우는지(내 정보 표시용). */
 export const extraOptionStat: Partial<Record<ExtraOptionKey, Stat>> = {
-  attackPct: 'attack', defensePct: 'defense', healthPct: 'health', critPct: 'crit', speedPct: 'speed'
+  attackPct: 'attack', defensePct: 'defense', healthPct: 'health', critPct: 'crit', speedPct: 'speed', cdrPct: 'cdr'
 };

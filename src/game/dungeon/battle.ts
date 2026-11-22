@@ -1,11 +1,21 @@
-import { DUNGEON_MAX_FLOOR } from './dungeonLobby';
-import { random, seededRandom, useRandom, type Random } from '../game/rng';
-import {World, type Enemy, ENEMY_STOP_RANGE, ENEMY_ATTACK_RANGE, ENEMY_STRIKE_SECONDS, enemyHitDamage, enemyMoveSpeed} from '../game/world';
-import {clampArenaPoint} from '../game/arena';
-import {totalStats, type Save} from '../game/store';
-import {rollDungeonItem,type Item} from '../game/items';
-import {rollStatBookDrop} from '../game/statBooks';
-import {bossGoldPiles,bossGoldSpot,bossItems} from '../game/bossLoot';
+/**
+ * 끝없는 던전 1~10층 전투 시뮬레이션 (DOM-free).
+ *
+ * 원래 `src/ui/dungeonBattle.ts`였고, 화면을 모르는 순수 로직이라 `src/game/dungeon/`으로 옮겼다.
+ * 이렇게 옮긴 이유는 서버가 이 파일을 그대로 리플레이하기 때문이다(`server/dungeon-verify.mjs`) —
+ * `src/ui/**`에 있으면 UI 한 줄만 바뀌어도 서버 배포 계약이 흔들리고, 타입 import가 값 import로
+ * 바뀌는 순간 `interface → 모달 → render.ts → pixi.js`가 Functions 번들로 끌려 들어간다.
+ * `tests/architecture-boundaries.test.mjs`가 이 방향(서버 → ui)을 상시 검사한다.
+ */
+import { random, seededRandom, useRandom, type Random } from '../rng';
+import { CombatEngine } from '../combat/engine';
+import type { Enemy } from '../battle/types';
+import { ENEMY_ATTACK_RANGE, ENEMY_STOP_RANGE, ENEMY_STRIKE_SECONDS, enemyHitDamage, enemyMaxHp, enemyMoveSpeed } from '../battle/formulas';
+import { clampArenaPoint } from '../combat/bounds';
+import { DUNGEON_MAX_FLOOR, totalStats, type Save } from '../store';
+import { rollDungeonItem, type Item } from '../items';
+import { rollStatBookDrop } from '../statBooks';
+import { bossGoldPiles, bossGoldSpot, bossItems } from '../combat/bossLoot';
 /** Ground loot held by the preview only. Kept off `World.drops` so the shared field renderer stays untouched.
  *  `from` is the body a boss heap was thrown from (작업 196): the dungeon flies the heap out of the boss
  *  to the spot it lands on, exactly as the field does. */
@@ -18,8 +28,10 @@ export type DungeonLoot = { id:number; kind:'gold'; x:number; y:number; gold:num
  * 이 상수는 `server/dungeon-verify.mjs`의 `DUNGEON_STEP`과 같은 값이어야 한다(테스트가 대조한다).
  */
 export const DUNGEON_STEP = 1 / 60;
+/** 한 판의 제한 시간(초) — 로비 안내(`ui/dungeonLobby`)도 이 값을 쓴다. */
+export const DUNGEON_SECONDS = 90;
 /** 90초 한 판의 최대 스텝 수 — 이보다 긴 요약은 서버가 받지 않는다. */
-export const DUNGEON_MAX_STEPS = Math.ceil(90 / DUNGEON_STEP) + 2;
+export const DUNGEON_MAX_STEPS = Math.ceil(DUNGEON_SECONDS / DUNGEON_STEP) + 2;
 /** digest 표본 간격(스텝). 0.5초마다 남은 체력과 처치 수를 남겨 서버 리플레이와 대조한다. */
 export const DUNGEON_TRACE_EVERY = 30;
 /** 전투가 끝난 뒤 클라이언트가 `submit`에 실어 보내는 결과 요약. 서버는 같은 시드로 다시 돌린 결과와
@@ -38,14 +50,10 @@ export function dungeonDropChance(floor:number):number {
   const depth=Math.max(1,Math.min(DUNGEON_MAX_FLOOR,Math.floor(floor)||1));
   return Math.min(DUNGEON_DROP_CHANCE_MAX,DUNGEON_DROP_CHANCE_BASE+(depth-1)*DUNGEON_DROP_CHANCE_STEP);
 }
-/** 층별 고정 몬스터 체력 (작업 205) — 내 장비·스킬과 무관한 고정 곡선이다. */
-//
-// 전에는 `dungeonPreviewHp`가 내 DPS에 4배를 곱해 "아무리 세도 4초"로 맞추는 고무줄이었다. 실제 보상을
-// 지급하는 지금은 그럴 수 없어 층마다 값을 고정했다. 기준은 필드 자체의 곡선 `enemyMaxHp(2 × 층)`이고,
-// 그래서 던전 3층은 필드 6층, 10층은 필드 20층과 같은 손맛이 된다. 첫 층 60은 Lv.5~10·저층 장비
-// (평타 DPS 80~130)로 3~6초, 9층 1,055는 20층 언저리 장비로 10여 초, 10층 보스는 보스 배율(30배)로
-// 43,320이라 15~20층을 파밍한 장비(대략 DPS 500~1,000)라야 90초 안에 끝난다.
-export const DUNGEON_MOB_HP: readonly number[] = [60,106,160,220,299,406,557,767,1055,1444];
+/** 층별 고정 몬스터 체력 (작업 205 → 밸런스 v2) — 필드 `enemyMaxHp(2 × 층)`을 그대로 쓴다(단일 출처).
+ *  기준은 필드 자체의 곡선이고, 그래서 던전 3층은 필드 6층, 10층은 필드 20층과 같은 손맛이 된다.
+ *  밸런스 v2에서 필드 9~20층 몹 HP가 ×0.75 내려가 5~10층이 함께 내려갔다(10층 1,444 → 1,083). */
+export const DUNGEON_MOB_HP: readonly number[] = Array.from({ length: 10 }, (_, index) => enemyMaxHp((index + 1) * 2, false));
 /** 이 층의 일반 몹 체력. 1~10층 밖의 값은 가장 가까운 층으로 잘라 쓴다. */
 export function dungeonMobHp(floor:number):number {
   const depth=Math.max(1,Math.min(DUNGEON_MOB_HP.length,Math.floor(floor)||1));
@@ -60,16 +68,16 @@ export const DUNGEON_ELITE_HP_SCALE = 2;
 /** Dungeon mobs close ground 1.5x the shared field pace; only travel distance scales, never timers. */
 export const DUNGEON_ENEMY_SPEED_SCALE = 1.5;
 /**
- * 던전 적 1회 타격 피해 (작업 248, 사용자 확정).
+ * 던전 적 1회 타격 피해 (작업 248 → 밸런스 v2).
  *
- * 예전에는 `Math.min(피해, 최대 체력의 0.5%/0.8%)` 상한이 있어 한 대에 체력 0.5%만 잃었다 — 던전이
- * 사실상 무피해였다. 상한을 없애고, 공격력의 층수 기준을 몹 체력 곡선(`DUNGEON_MOB_HP` = 필드 `2 × 층`)과
- * 맞춘 `enemyHitDamage(층 × 1, …)`로 바꾼다(작업 254: 사거리가 90이 되며 층×2는 5층이 Lv60 구간이 될 만큼
- *  무거워져 한 단계 낮췄다 — 사용자 확정). 정예는 2배(작업 205 그대로). 서버 리플레이
- * (`server/dungeon-verify.mjs`)도 이 파일의 `DungeonBattle`을 그대로 돌리므로 피해 식은 여기 한 곳뿐이다.
+ * 상한(0.5%/0.8%) 없이, 공격력의 층수 기준을 몹 체력 곡선(`DUNGEON_MOB_HP` = 필드 `2 × 층`)과 맞춘
+ * `enemyHitDamage(2 × 층)`로 돌려놓는다. 던전은 **한 번에 한 마리만 0.9초마다** 때리므로 군집 배율(×0.55)을
+ * 쓰지 않는다(`swarmed=false`) — 10층 1타 44(방어 400)로, 현재의 1에서 "한 번의 실수가 곰 실패"로 바뀌다.
+ * 정예는 2배(작업 205 그대로). 서버 리플레이(`server/dungeon-verify.mjs`)도 이 파일을 그대로 돌리므로 피해
+ * 식은 여기 한 곳뿐이다.
  */
 export function dungeonHitDamage(floor:number,boss:boolean,defense:number,elite=false):number {
-  return enemyHitDamage(Math.max(1,Math.floor(floor)||1),boss,defense)*(elite?2:1);
+  return enemyHitDamage(Math.max(1,Math.floor(floor)||1)*2,boss,defense,false)*(elite?2:1);
 }
 /** Every enemy walks 4.25 half turns a second, so one visible stride (a full turn) lasts 2/4.25 s. */
 const ENEMY_STRIDE_SECONDS = 2 / 4.25;
@@ -169,7 +177,7 @@ export function dungeonAbsorbPoint(from:LootSpot,to:LootSpot,progress:number,ind
   const k=progress*progress,swing=progress>=1?0:Math.sin(Math.PI*progress)*10*(index%2?1:-1);
   return {x:from.x+(to.x-from.x)*k+swing,y:from.y+(to.y-from.y)*k};
 }
-class DungeonWorld extends World {
+class DungeonWorld extends CombatEngine {
   slain=0;
   loot:DungeonLoot[]=[];
   private lootId=0;
@@ -203,8 +211,8 @@ class DungeonWorld extends World {
   }
   override kill(enemy:Enemy):void { this.slain++;this.effects.push({x:enemy.x,y:enemy.y,kind:'death',age:0,duration:.7,angle:0});this.dropLoot(enemy); }
   // Same rewards the field grants, kept as ground loot until the floor is cleared: a coin on every
-  // kill and one equipment on the floor's own dungeon rate (`dungeonDropChance`), plus the rare
-  // 영구 스탯북 roll (파트 B). A boss (5층·10층, 작업 194) leaves two random items and its gold in ten
+  // kill and one item on the floor's own dungeon rate (`dungeonDropChance`) chosen by the field's
+  // equipment/skillbook odds. A boss (5층·10층, 작업 194) leaves five random items and its gold in ten
   // heaps bursting out of the body (작업 196), the heaps still adding up to the 70×floor the kill paid.
   // The main field's boss drops only the heaps and keeps the ordinary chance roll (작업 195) — this
   // five-item haul is the dungeon's. Nothing here is paid yet: `clearRewards` hands it to the account
@@ -220,8 +228,11 @@ class DungeonWorld extends World {
       return;
     }
     this.loot.push({id:++this.lootId,kind:'gold',x:enemy.x,y:enemy.y,gold:3+floor});
+    if(random()>=dungeonDropChance(floor))return;
     // 등급은 던전 전용 10층 구간 표에서 뽑는다(작업 248) — 깊은 층일수록 상위 등급이 늘고 드롭률은 5% 그대로다.
-    if(random()<dungeonDropChance(floor))this.loot.push({id:++this.lootId,kind:'item',x:enemy.x,y:enemy.y,item:rollDungeonItem(floor,false)});
+    // 파트 B(2026-11-22): 스킬북은 폐지 — 한 번 굴려 장비 하나가 떨어진다(던전 보스 확정 2개는 `bossItems`).
+    const item=rollDungeonItem(floor,enemy.boss);
+    this.loot.push({id:++this.lootId,kind:'item',x:enemy.x,y:enemy.y,item});
     // 영구 스탯북(파트 B) — 던전 일반 몹도 필드와 같은 개극악 확률(`hunt`)로 한 번 더 굴린다.
     const book=rollStatBookDrop('hunt');
     if(book)this.loot.push({id:++this.lootId,kind:'item',x:enemy.x,y:enemy.y,item:book});
@@ -250,7 +261,7 @@ export class DungeonBattle {
   }
   constructor(save:Save,floor=1,seed?:number){this.floor=Math.min(DUNGEON_MAX_FLOOR,Math.max(1,Math.floor(floor)));const copy=structuredClone(save);copy.floor=this.floor;copy.floorKills=0;copy.tutorial=3;copy.autoClimb=false;
     if(Number.isFinite(seed)){this.seed=Math.floor(Number(seed))>>>0;this.rng=seededRandom(this.seed);}
-    this.world=new DungeonWorld(copy);this.world.enemies=[];this.world.spawnTimer=Infinity;this.world.bossPending=false;
+    this.world=new DungeonWorld(copy);this.world.enemies=[];
     this.world.player.hp=totalStats(copy).health;this.world.player.x=50;this.world.player.y=50;
     // 첫 웨이브도 시드 난수로 세운다 — 서버 리플레이가 같은 자리에서 시작해야 한다.
     if(this.rng){const previous=useRandom(this.rng);try{this.spawnWave();}finally{useRandom(previous);}}else this.spawnWave();
@@ -285,7 +296,7 @@ export class DungeonBattle {
   }
   private enemyHpLeft():number { let total=0;for(const enemy of this.world.enemies)total+=Math.max(0,enemy.hp);return total; }
   private step(seconds:number):void {
-    const dt=Math.min(.05,Math.max(0,seconds),90-this.elapsed);this.elapsed+=dt;
+    const dt=Math.min(.05,Math.max(0,seconds),DUNGEON_SECONDS-this.elapsed);this.elapsed+=dt;
     // Suppress the main field's immediate revive; this session owns defeat and retry.
     const hit=this.world.player.hit;this.world.player.hit=Infinity;
     try{this.world.update(dt);}finally{this.world.player.hit=Math.max(0,hit-dt);}
@@ -306,7 +317,7 @@ export class DungeonBattle {
         this.world.effects.push({x:this.world.player.x,y:this.world.player.y,kind:'enemyStrike',age:0,duration:.5,angle:Math.atan2(this.world.player.y-enemy.y,this.world.player.x-enemy.x),amount:Math.round(taken)});}}
     if(this.world.player.hp<=0)this.outcome='dead';
     else if((this.bossFloor||this.wave===3)&&!this.world.enemies.length)this.outcome='clear';
-    else if(this.elapsed>=90)this.outcome='timeout';
+    else if(this.elapsed>=DUNGEON_SECONDS)this.outcome='timeout';
     if(this.outcome){this.finished=true;return;}
     if(!this.bossFloor&&this.wave<3&&(this.elapsed-this.waveStarted>=10||!this.world.enemies.length))this.spawnWave();
   }

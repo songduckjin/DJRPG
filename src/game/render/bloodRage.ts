@@ -1,5 +1,5 @@
 import { Graphics, Sprite, type Container, type Texture } from 'pixi.js';
-import type { World } from '../world';
+import type { CombatEngine } from '../combat/engine';
 import { jobOrDefault } from '../skills';
 
 /**
@@ -245,7 +245,7 @@ function emberOrigin(x: number, y: number, body: number, random: () => number): 
  * `flameTexture`·`glowTexture`는 불꽃 혀·방사형 광휘 텍스처다.
  */
 export function drawBloodRageAura(
-  view: RageAuraView, world: World, x: number, y: number, time: number, dt: number, body: number,
+  view: RageAuraView, world: CombatEngine, x: number, y: number, time: number, dt: number, body: number,
   flameTexture: Texture, glowTexture: Texture
 ): void {
   const state = rageStateFor(view, flameTexture, glowTexture);

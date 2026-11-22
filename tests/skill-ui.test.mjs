@@ -1,13 +1,17 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import './ts-loader.mjs';
+import { element, query, byClass, textOf, withClasses, installDocument } from './helpers/dom.mjs';
 const { freshSave }=await import('../src/game/store.ts');
 const { tick }=await import('../src/ui/hud.ts');
 const { chooseSkill, pressSkillSlot, cancelSkillSelection }=await import('../src/ui/skillLoadout.ts');
 const { renderSkills }=await import('../src/ui/modals/skillModal.ts');
+const { passives }=await import('../src/game/skills.ts');
 function node(){const classes=new Set(),children=new Map();return {dataset:{},hidden:false,disabled:false,textContent:'',style:{setProperty(){}},classList:{toggle(key,on){if(on)classes.add(key);else classes.delete(key);},contains:key=>classes.has(key)},setAttribute(key,value){this[key]=value;},querySelector(key){if(!children.has(key))children.set(key,node());return children.get(key);},append(){},appendChild(){},remove(){},focus(){}};}
 function uiFixture(){
-  const save=freshSave(),root=node(),messages=[],actions=[];
+  // 밸런스 v2: 새 캐릭터는 첫 액티브 스킬을 '습득한 상태'로 시작한다 — 이 파일은 슬롯 규칙만 보므로 비운다.
+  const save=freshSave();save.learned=[];save.skillLevels={};
+  const root=node(),messages=[],actions=[];
   const ui={world:{save,player:{hp:100},cooldown:{attack:0,slash2:0,spin:0,slam:0,power:0},paused:false,action:kind=>actions.push(kind),onChange(){}},market:{busy:false,sync:{locked:false}},root,slotButtons:[node(),node(),node()],attackButton:node(),get:key=>root.querySelector(key),tick(){tick.call(this);},open(kind){this.opened=kind;},message:text=>messages.push(text),messages,actions};return ui;
 }
 test('field circles are disabled until a learned unassigned skill enables plus and red dots',()=>{
@@ -34,15 +38,18 @@ test('canceling field selection keeps the loadout intact and equipped clicks sti
   const ui=uiFixture();ui.world.save.learned=['slash2','spin','slam','power'];ui.world.save.quickSlots=['slash2','spin','slam'];ui.pendingSkill='power';
   cancelSkillSelection.call(ui);assert.equal(ui.pendingSkill,undefined);assert.deepEqual(ui.world.save.quickSlots,['slash2','spin','slam']);pressSkillSlot.call(ui,0);assert.deepEqual(ui.actions,['slash2']);
 });
-test('skill window unequip button clears the assigned circle and saves the change',()=>{
-  const created=[];globalThis.document={createElement:()=>{const element=node();created.push(element);return element;}};
+test('스킬 트리 상세 패널의 장착 해제가 스킬 원을 비우고 저장한다',()=>{
+  const restoreDocument = installDocument();
   try {
-    const ui=uiFixture();let changes=0;ui.world.onChange=()=>{changes++;};ui.world.save.learned=['spin'];ui.world.save.quickSlots=[null,'spin',null];
-    renderSkills.call(ui,node());
-    const remove=created.find(element=>element.textContent==='해제');assert(remove);remove.onclick();
+    const ui=uiFixture();let changes=0;ui.world.onChange=()=>{changes++;};ui.world.save.learned=['spin'];ui.world.save.skillLevels={spin:1};ui.world.save.quickSlots=[null,'spin',null];
+    ui.skillSelected='spin';ui.renderModal=()=>{};ui.message=text=>ui.messages.push(text);
+    const dialog=element('div');renderSkills.call(ui,dialog);
+    const remove=withClasses(dialog,'skill-detail-equip');
+    assert.equal(remove.textContent,'장착 해제');
+    remove.onclick();
     assert.deepEqual(ui.world.save.quickSlots,[null,null,null]);assert.deepEqual(ui.world.save.learned,['spin']);assert.equal(changes,1);
     assert(ui.messages.at(-1).includes('2번 스킬 원에서 해제'));
-  } finally {delete globalThis.document;}
+  } finally {restoreDocument();}
 });
 
 test('HUD pulses actual casts only, not cooldowns restored by equipping or repeated frame updates',()=>{
@@ -53,52 +60,54 @@ test('HUD pulses actual casts only, not cooldowns restored by equipping or repea
   ui.world.save.quickSlots[0]=null;ui.tick();assert(ui.slotButtons[0].querySelector('.skill-art').hidden);assert.equal(ui.slotButtons[0].querySelector('strong').textContent,'+');
 });
 
-test('스킬 알림 점은 빈 장착 칸이 있을 때만 뜬다 — 파트 B에서 스킬북 강화 알림은 사라졌다',()=>{
+test('스킬 메뉴 점은 남은 SP와 빈 스킬 원을 본다(파트 B — 스킬북 폐지)',()=>{
   const ui=uiFixture(),save=ui.world.save;
-  save.learned=['spin','slam','power'];save.quickSlots=['spin','slam','power'];
-  ui.tick();assert(ui.root.querySelector('.skill-nav-dot').hidden,'칸이 다 차면 점이 없다');
-  save.quickSlots=[null,'slam','power'];ui.tick();assert(!ui.root.querySelector('.skill-nav-dot').hidden,'빈 칸이 있으면 뜬다');
-});
-test('three passive cards share a single grid and keep their learned status without redundant labels',()=>{
-  const previous=globalThis.document,created=[];globalThis.document={createElement(){const element=node();element.children=[];element.appendChild=function(child){this.children.push(child);};created.push(element);return element;}};
-  try{
-    const ui=uiFixture();ui.world.save.passives=['mastery','body','instinct'];renderSkills.call(ui,node());
-    const grid=created.find(n=>n.className==='passive-skill-grid');assert(grid);assert.equal(grid.children.length,3);
-    assert.deepEqual(grid.children.map(card=>card.dataset.skill),['mastery','body','instinct']);
-    for(const [index,card] of grid.children.entries()){const icon=card.querySelector('.skill-icon');assert.equal(icon.textContent,'');assert(icon.style.backgroundImage.includes('passive-skills.png'));assert.equal(icon.style.backgroundSize,'300% 100%');assert.equal(icon.style.backgroundPosition,`${index*50}% center`);}
-    // 파트 B: 카드의 `강화` 버튼(스킬북)은 사라지고, 습득 여부만 레벨 줄로 보여 준다.
-    assert(!created.some(n=>n.textContent==='습득 완료 · 상시 적용'));
-    assert.equal(created.filter(n=>n.textContent==='강화').length,0,'스킬북 강화 버튼 없음');
-  }finally{globalThis.document=previous;}
+  save.learned=['spin','slam','power'];save.quickSlots=['spin','slam','power'];save.skillLevels={spin:1,slam:1,power:1};
+  ui.tick();assert(ui.root.querySelector('.skill-nav-dot').hidden,'SP도 빈 원도 없다');
+  // 파트 B: 스킬북은 더 이상 점을 켜지 않는다.
+  save.bag=[{id:'b0',kind:'statbook',slot:'statbook',book:'attack',rarity:'unique',name:'공격의 서',stats:{}}];
+  ui.tick();assert(ui.root.querySelector('.skill-nav-dot').hidden,'스탯북은 스킬 점 대상이 아니다');
+  save.bag=[];save.skillLevels.spin=10;save.skillLevels.slam=10;save.skillLevels.power=10;
+  ui.tick();assert(ui.root.querySelector('.skill-nav-dot').hidden,'최대 레벨·SP 없음');
+  // 남은 SP가 생기면(4단계 스킬 트리) 점이 켜진다 — 레벨이 오르면 그만큼 투자할 수 있다.
+  save.level=5;save.skillLevels={spin:1,slam:1,power:1};ui.tick();assert(!ui.root.querySelector('.skill-nav-dot').hidden,'투자할 SP가 남았다');
 });
 
-test('all eight active skill cards use the exact field artwork and basic attack keeps its sword image',async()=>{
+test('트리의 11개 노드가 필드와 같은 스킬 그림을 쓰고, 패시브는 패시브 시트를 쓴다',async()=>{
   const {applySkillArtwork}=await import('../src/ui/skillArtwork.ts');const {skillOrder}=await import('../src/game/skills.ts');
-  const previous=globalThis.document,created=[];globalThis.document={createElement(){const element=node();created.push(element);return element;}};
-  try{
-    renderSkills.call(uiFixture(),node());
-    for(const id of skillOrder){const card=created.find(n=>n.dataset.skill===id),icon=card.querySelector('.skill-icon'),field=node();applySkillArtwork(field,id);const art=field.querySelector('.skill-art');
-      assert.equal(icon.className,'skill-icon skill-image-icon');assert.equal(icon.textContent,'');assert.equal(icon.style.backgroundImage,art.style.backgroundImage);assert.equal(icon.style.backgroundPosition,art.style.backgroundPosition);
+  const restoreDocument = installDocument();
+  try {
+    const ui=uiFixture();ui.renderModal=()=>{};
+    const dialog=element('div');renderSkills.call(ui,dialog);
+    const nodes=byClass(dialog,'skill-node');
+    assert.equal(nodes.length,11,'티어 3-3-3-2');
+    for(const node of nodes){
+      const icon=query(node,'.skill-icon');
+      assert.equal(icon.textContent,'');
+      assert.equal(icon.className.includes('skill-image-icon'),true);
+      const passive=node.className.includes('is-passive');
+      if(passive) assert(icon.style.backgroundImage.includes('passive-skills.png'),'패시브 시트');
+      else assert.match(icon.style.backgroundImage,/field-skills|archer-skills|mage-skills/,'직업 스킬 시트');
     }
-    // [작업 216] 기본 공격 카드 아이콘은 직업별 원형 아이콘(전사 기본 = 대검)이다.
-    assert(created.some(card=>card.querySelector('.skill-icon').style.backgroundImage?.includes('attack_warrior.png')));
-  }finally{globalThis.document=previous;}
+    // 전사 액티브는 필드 시트의 같은 칸을 쓴다(액션 패드와 한 벌).
+    for(const id of skillOrder){const node=nodes.find(item=>item.dataset.skill===id),icon=query(node,'.skill-icon'),field=element(),art=element();art.className='skill-art';field.appendChild(art);applySkillArtwork(field,id);
+      assert.equal(icon.style.backgroundImage,art.style.backgroundImage,`${id} 그림`);assert.equal(icon.style.backgroundPosition,art.style.backgroundPosition,`${id} 칸`);}
+  } finally {restoreDocument();}
 });
 
-
-test('equipped skills share one group and upgrade counts live in the right status column',()=>{
-  const previous=globalThis.document,created=[];
-  globalThis.document={createElement(){const el=node();el.children=[];el.append=function(...children){this.children.push(...children);};el.appendChild=function(child){this.children.push(child);};created.push(el);return el;}};
+test('상세 패널은 고른 스킬 하나만 다루고, 티어 요약은 습득 수를 센다',()=>{
+  const restoreDocument = installDocument();
   try {
-    const ui=uiFixture();ui.world.save.learned=['spin','slam','power','warcry'];ui.world.save.quickSlots=['spin','slam','power'];
-    renderSkills.call(ui,node());
-    const group=created.find(el=>el.className==='equipped-skill-group');assert(group);
-    assert.deepEqual(group.children.filter(el=>el.dataset?.skill).map(el=>el.dataset.skill),['spin','slam','power']);
-    assert(!group.children.some(el=>el.dataset?.skill==='warcry'));
-    const card=created.find(el=>el.dataset?.skill==='spin');
-    const status=card.querySelector('.skill-status-stack');assert(status);
-    // 파트 B: 스킬북 보유 권수 줄은 없앴고, 장착 해제 버튼은 그대로다.
-    assert.equal(created.filter(el=>el.className==='skill-book-cost').length,0,'스킬북 권수 줄 없음');
-    assert(created.some(el=>el.textContent==='해제'));
-  } finally {globalThis.document=previous;}
+    const ui=uiFixture();ui.renderModal=()=>{};const save=ui.world.save;
+    save.learned=['spin','slam'];save.skillLevels={spin:2,slam:1};
+    ui.skillSelected='spin';
+    const dialog=element('div');renderSkills.call(ui,dialog);
+    const nodes=byClass(dialog,'skill-node');
+    assert.equal(withClasses(dialog,'skill-detail').dataset.skill,'spin','고른 스킬의 상세');
+    assert.deepEqual(textOf(dialog,'skill-tier-count'),['1/3','0/3','0/3','1/2'],'1티어 slam·궁극 spin');
+    // 같은 노드를 다시 눌러도 다시 그리지 않는다.
+    let renders=0;ui.renderModal=()=>{renders++;};
+    nodes.find(item=>item.dataset.skill==='spin').onclick();
+    assert.equal(renders,0,'이미 고른 노드는 그대로');
+  } finally {restoreDocument();}
 });

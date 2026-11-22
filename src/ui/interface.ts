@@ -1,43 +1,44 @@
 import { DungeonLobby } from './dungeonLobby';
-import { renderDungeonLobby } from './modals/dungeonModal';
-import {WorldBossPreview} from './worldBossPreview';
-import {renderWorldBoss} from './modals/worldBossModal';
-import {bindModalInteraction, type ModalRenderGate} from './modalInteraction';
+import { WorldBossPreview } from './worldBossPreview';
+import { bindModalInteraction, type ModalRenderGate } from './modalInteraction';
 import { Journey } from '../game/journey';
-import { renderSettings, renderUtility, updateUtilityBadges } from './modals/utilityModal';
-import { dismissEquippedDetail, positionEquippedDetail, showEquippedDetail } from './equippedDetail';
 import { SkillFeedback } from './skillFeedback';
-import { bindModalClose } from './modalClose';
 import { resetModalDefaults } from './modalDefaults';
 import { readSalvageRarity, type SalvageRarity } from './salvageRarity';
 import { AUTO_SALVAGE_OFF_NOTICE, AUTO_SALVAGE_ON_NOTICE, readAutoSalvage, saveAutoSalvage } from './autoSalvage';
 import { isSalvagePlus, readSalvagePlus, SALVAGE_PLUS_DEFAULT, saveSalvagePlus } from './salvagePlus';
 import { BAG_JOB_ONLY_KEY, MARKET_JOB_ONLY_KEY, readJobOnly } from './jobFilter';
-import { dismissBagDetail, positionBagDetail } from './bagDetail';
 import type { Item, Save, Slot } from '../game/store';
 import { discoverEquipment } from '../game/codex';
-import { renderCodex } from './modals/codexModal';
 import type { SkillId } from '../game/skills';
 import { cancelSkillSelection, chooseSkill, closeSkillPicker, openSkillPicker, pressSkillSlot } from './skillLoadout';
 import { LegendBoard } from '../game/legendBoard';
 import { mountLegendBar, sharePouchLegend } from './legendBar';
-import { renderSalvage } from './modals/salvageModal';
 import type { World } from '../game/world';
-
 import type { Session } from './login';
 import { renderStatus, tick, renderBagBadge } from './hud';
 import { renderInventory, itemDetail, salvage, renderEquipment, salvageValue, iconPath } from './modals/equipModal';
 import { renderFloor } from './modals/floorModal';
 import { renderAccount } from './modals/accountModal';
 import { renderSkills } from './modals/skillModal';
-import { renderOffline } from './modals/offlineModal';
 import type { OfflineReward } from '../game/offline';
 import type { SaveSync } from '../game/sync';
 import { Market } from '../game/market';
-import { renderMarket, updateMarketLive, updateMarketNavDot } from './modals/marketModal';
-import { loadCharacters, loadWarehouse, renderCharacters, renderCreateCharacter, renderWarehouse, type CharacterSummary } from './modals/charactersModal';
-import { resetWarehouse } from './modals/warehouseModal';
-import { completeShopReturn, loadShop, renderShop, type ShopCatalog, type ShopCheckout } from './modals/shopModal';
+import { completeShopReturn, DIAMOND_PACK_ART, loadShop, type ShopCatalog, type ShopCheckout } from './modals/shopModal';
+import { bindDomainEvents } from './domainBindings';
+import type { CharacterSummary } from './modals/charactersModal';
+// PR-4 분리 — 이 파일은 클래스(상태·창 열기)만 들고, 나머지는 도메인 모듈이 맡는다:
+//   interfaceTypes  : 팝업 이름(Modal)·보기 상태 타입(BagFilter·SkillSelection)
+//   modalRegistry   : 팝업 등록부 MODALS (예전 renderModal의 18갈래 if 대신 표 한 벌)
+//   modalChrome     : 모든 팝업이 같이 쓰는 창틀(클래스·머리글·aria·스크롤)
+//   interfaceControls: 메뉴 버튼·Esc·바깥 누르기·공격 패드
+//   interfaceWiring : 거래소·여정·창고·월드의 화면 갱신 콜백
+import type { BagFilter, Modal, SkillSelection } from './interfaceTypes';
+import { MODALS } from './modalRegistry';
+import { renderModalPanel } from './modalChrome';
+import { bindPanelInput, mountActionPad } from './interfaceControls';
+import { wireDomains, wireWorld } from './interfaceWiring';
+export type { BagFilter, SkillSelection } from './interfaceTypes';
 
 const navIcons = {
   market: '<img class="nav-icon" src="/assets/icons/nav_market_v2.png" alt="" aria-hidden="true" />',
@@ -45,10 +46,41 @@ const navIcons = {
   skills: '<img class="nav-icon" src="/assets/icons/nav_skills_v2.png" alt="" aria-hidden="true" />',
   warehouse: '<img class="nav-icon" src="/assets/icons/nav_warehouse_v1.png" alt="" aria-hidden="true" />'
 };
-type Modal = 'dungeon' | 'worldBoss' | 'equipment' | 'skills' | 'account' | 'floor' | 'offline' | 'market' | 'salvage' | 'codex' | 'characters' | 'createCharacter' | 'warehouse' | 'settings' | 'mail' | 'rewards' | 'achievements' | 'shop';
-export type BagFilter = 'all' | 'weapon' | 'armor' | 'accessory';
-/** 스킬 창 탭(작업 240) — `전체`는 패시브 3종을 스킬북·기본기보다 위에 두고 모두 보여 준다. */
-export type SkillFilter = 'all' | 'active' | 'passive';
+
+/**
+ * 오른쪽 아이콘 레일(`.utility-nav`)의 버튼 — 위에서부터 `캐릭터`·`설정`·`우편함`·`보상`·`업적`·`던전`.
+ * 상점(`.shop-entry`)은 그림이 달라서 생성자에서 따로 덧붙인다.
+ *
+ * `캐릭터`는 사용자 요청("캐릭터 전환버튼은 오른쪽 아이콘 추가")으로 생긴 자리다 — 예전에는 LV 배지를
+ * 눌러 `캐릭터 선택`을 열었는데, LV 배지는 이제 `상세 스탯`을 열므로 전환 입구를 여기로 옮겼다.
+ */
+const railEntries = [
+  { modal: 'characters', label: '캐릭터' },
+  { modal: 'settings', label: '설정' },
+  { modal: 'mail', label: '우편함' },
+  { modal: 'rewards', label: '보상' },
+  { modal: 'achievements', label: '업적' },
+  { modal: 'dungeon', label: '던전' }
+] as const;
+/** 새 소식 점(`data-utility-dot`)을 다는 레일 버튼 — `utilityModal`이 이 이름으로 찾아 켜고 끈다. */
+const railDotModals = new Set<string>(['mail', 'rewards', 'achievements']);
+const railMarkup = (): string => railEntries.map(({ modal, label }) => `<button type="button" data-modal="${modal}" aria-label="${label}" title="${label}"><img src="/assets/icons/utility_${modal}.png" alt="">${railDotModals.has(modal) ? `<i data-utility-dot="${modal}" hidden></i>` : ''}</button>`).join('');
+/** 테스트가 레일 구성을 직접 확인할 수 있게 내보낸다(문자열만 만드는 순수 함수). */
+export { railMarkup, railEntries };
+
+/**
+ * 지금 창을 열 수 없는가 — **결과를 확인하지 못한 요청은 자기 창만** 막는다(작업 260 · 설계서 PR-5).
+ *
+ * 거래소 거래가 걸려 있으면 거래소 창만 막히고(그 창의 `거래 결과 다시 확인`으로 풀어야 하므로 거래소 자체는 연다),
+ * 우편·여정 대기(`pendingJourney`)는 어느 창도 막지 않는다. 예전에는 `pendingMarket` 하나가 거래소 외 모든 창을
+ * 막아, 네트워크가 끊긴 동안 우편함·설정·내 정보까지 잠겼다(작업 226). 반면 보내는 중인 요청(`locked`·창고)은
+ * 그 응답의 세이브·revision이 화면 기준과 엇갈리므로 창을 열지 않는다.
+ */
+export function modalBlocked(market: Pick<Market, 'busy' | 'sync'>, kind: Modal | null): boolean {
+  const sync = market.sync;
+  if (market.busy || sync.locked || sync.pendingWarehouse) return true;
+  return !!sync.pendingMarket && kind !== 'market';
+}
 
 export class Interface {
   dungeon = new DungeonLobby();
@@ -78,8 +110,9 @@ export class Interface {
   salvageIds?: string[];
   skillTarget?: number;
   pendingSkill?: SkillId;
-  /** 스킬 창의 `전체/액티브/패시브` 탭(작업 240) — 창을 닫으면 `modalDefaults`가 `전체`로 되돌린다. */
-  skillFilter: SkillFilter = 'all';
+  /** 스킬 트리(2026-11-22) — 지금 고른 노드와 트리 스크롤 자리. 둘 다 보기 상태이고 창을 닫으면 되돌린다. */
+  skillSelected?: SkillSelection;
+  skillScroll = 0;
   codexQuery = '';
   codexSlot = '';
   codexState = 'all';
@@ -120,63 +153,24 @@ export class Interface {
     this.market = new Market(sync);
     this.journey = new Journey(sync, world);
     discoverEquipment(world.save);
-    root.innerHTML = `<main class="game-shell"><section class="battle"><div class="battle-canvas"></div><div class="top-hud"></div><button class="world-boss-entry" data-modal="worldBoss" type="button" aria-label="월드보스 미리보기" title="체력과 남은 도전 횟수는 시안입니다"><span class="wb-entry-art" aria-hidden="true"></span><span class="wb-entry-health" aria-hidden="true"><i></i></span><span class="wb-entry-count" aria-hidden="true">3/3</span></button><nav class="utility-nav" aria-label="편의 메뉴">${(['settings','mail','rewards','achievements','dungeon'] as const).map((kind,index)=>`<button type="button" data-modal="${kind}" aria-label="${['설정','우편함','보상','업적','던전'][index]}" title="${['설정','우편함','보상','업적','던전'][index]}"><img src="/assets/icons/utility_${kind}.png" alt="">${(kind==='settings'||kind==='dungeon')?'':`<i data-utility-dot="${kind}" hidden></i>`}</button>`).join('')}</nav><div class="tutorial"></div><div class="controls"><div class="action-pad"></div></div></section><nav class="bottom-nav" aria-label="게임 메뉴"><button data-modal="equipment" type="button" aria-label="내 정보" title="내 정보">${navIcons.equipment}<i class="new-badge" hidden></i><i class="bag-full-badge" hidden></i></button><button data-modal="skills" type="button" aria-label="스킬" title="스킬">${navIcons.skills}<i class="skill-nav-dot" hidden aria-label="장착 또는 강화 가능한 스킬 있음"></i></button><button data-modal="market" type="button" aria-label="거래소" title="거래소">${navIcons.market}<i class="market-nav-dot" hidden aria-label="거래소 수령함에 받을 물건 있음"></i></button><button data-modal="warehouse" type="button" aria-label="공용창고" title="공용창고">${navIcons.warehouse}</button></nav><div class="modal-backdrop" hidden><div class="modal-dialog" role="dialog" aria-modal="true"></div></div><div class="toast" role="status"></div></main>`;
-    const shopEntry = document.createElement('button'); shopEntry.type = 'button'; shopEntry.dataset.modal = 'shop'; shopEntry.className = 'shop-entry'; shopEntry.setAttribute('aria-label', '상점'); shopEntry.title = '상점'; shopEntry.textContent = '◆';
+    root.innerHTML = `<main class="game-shell"><section class="battle"><div class="battle-canvas"></div><div class="top-hud"></div><button class="world-boss-entry" data-modal="worldBoss" type="button" aria-label="월드보스 미리보기" title="체력과 남은 도전 횟수는 시안입니다"><span class="wb-entry-art" aria-hidden="true"></span><span class="wb-entry-health" aria-hidden="true"><i></i></span><span class="wb-entry-count" aria-hidden="true">3/3</span><span class="wb-entry-label" aria-hidden="true">월드보스</span></button><nav class="utility-nav" aria-label="편의 메뉴">${railMarkup()}</nav><div class="tutorial"></div><div class="controls"><div class="action-pad"></div></div></section><nav class="bottom-nav" aria-label="게임 메뉴"><button data-modal="equipment" type="button" aria-label="내 정보" title="내 정보">${navIcons.equipment}<i class="new-badge" hidden></i><i class="bag-full-badge" hidden></i></button><button data-modal="skills" type="button" aria-label="스킬" title="스킬">${navIcons.skills}<i class="skill-nav-dot" hidden aria-label="장착 또는 강화 가능한 스킬 있음"></i></button><button data-modal="market" type="button" aria-label="거래소" title="거래소">${navIcons.market}<i class="market-nav-dot" hidden aria-label="거래소 수령함에 받을 물건 있음"></i></button><button data-modal="warehouse" type="button" aria-label="공용창고" title="공용창고">${navIcons.warehouse}</button></nav><div class="modal-backdrop" hidden><div class="modal-dialog" role="dialog" aria-modal="true"></div></div><div class="toast" role="status"></div></main>`;
+    const shopEntry = document.createElement('button'); shopEntry.type = 'button'; shopEntry.dataset.modal = 'shop'; shopEntry.className = 'shop-entry'; shopEntry.setAttribute('aria-label', '상점'); shopEntry.title = '상점';
+    // 작업 261: 글자 `◆` 대신 다이아가 가득 든 보물상자 그림(상점 대표 그림과 같은 에셋)을 버튼에 꽉 채운다.
+    const shopEntryArt = document.createElement('img'); shopEntryArt.src = DIAMOND_PACK_ART; shopEntryArt.alt = ''; shopEntryArt.decoding = 'async'; shopEntry.append(shopEntryArt);
     this.root.querySelector('.utility-nav')?.append(shopEntry);
     this.top = this.get('.top-hud'); this.banner = this.get('.tutorial');
     this.modal = this.get('.modal-backdrop'); this.toast = this.get('.toast');
     mountLegendBar(this);
+    // 도메인 신호 구독(작업 256) — 화면은 사건을 듣기만 한다.
+    bindDomainEvents(this);
     this.modalRenderGate = bindModalInteraction(this.modal, window, () => this.renderModal());
-    this.market.onMessage = text => this.message(text);
-    sync.onWarehouseRecovered = () => { this.renderStatus(); this.renderBagBadge(); if (this.openModal === 'warehouse') void loadWarehouse(this); this.message('공용창고 이동 결과를 확인했습니다.'); };
-    this.market.onChange = full => {
-      if (this.openModal === 'market' && full) this.renderModal();
-      updateMarketLive(this); updateMarketNavDot(this); this.renderStatus();
-    };
-    this.journey.onMessage = text => this.message(text);
-    this.journey.onChange = () => { this.renderStatus(); this.renderBagBadge(); updateUtilityBadges(this); updateMarketNavDot(this); if (['mail','rewards','achievements'].includes(this.openModal ?? '')) this.renderModal(); };
-    void this.journey.load();
-    window.setInterval(() => { if (!document.hidden) void this.journey.load(); }, 120000);
+    // 도메인 콜백·입력은 각자의 모듈이 붙인다(PR-4): 거래소·여정·창고·월드 → interfaceWiring,
+    // 메뉴 버튼·Esc·바깥 누르기·공격 패드 → interfaceControls.
+    wireDomains(this);
     for (const item of [...world.save.bag, ...Object.values(world.save.equipment)]) if (item) this.knownItems.add(item.id);
-    this.root.querySelectorAll<HTMLButtonElement>('[data-modal]').forEach(button => button.onclick = () => { cancelSkillSelection.call(this); this.open(button.dataset.modal as Modal); });
-    this.root.addEventListener('pointerdown', event => {
-      const target = event.target as HTMLElement;
-      if (this.equippedSlot && !target.closest('.equipped-detail, .equipment-slot')) dismissEquippedDetail(this);
-      if (this.selected && !target.closest('.bag-detail-overlay, .bag-item')) dismissBagDetail(this);
-    }, true);
-    window.addEventListener('resize', () => { positionBagDetail(this); positionEquippedDetail(this); });
-    this.modal.addEventListener('scroll', event => {
-      if (event.target !== this.modal.querySelector('.equipped-detail')) positionEquippedDetail(this);
-      if (event.target !== this.modal.querySelector('.bag-detail-overlay')) positionBagDetail(this);
-    }, true);
-    this.root.addEventListener('keydown',event=>{if(this.openModal==='worldBoss'&&event.key==='Escape'){event.preventDefault();event.stopPropagation();this.open(null);}});
-    this.modal.addEventListener('click', event => { if (event.target === this.modal) this.open(null); });
-    window.addEventListener('keydown', event => { if (event.key === 'Escape') { cancelSkillSelection.call(this); this.open(null); } });
-    const pad = this.get('.action-pad');
-    for (let index = 0; index < 4; index++) {
-      const button = document.createElement('button'); button.className = `action ${index === 0 ? 'action-attack' : `action-slot${index}`}`; button.type = 'button';
-      button.innerHTML = '<span class="skill-art" aria-hidden="true"></span><strong></strong><small></small><em></em><i class="skill-alert-dot" hidden></i>';
-      pad.appendChild(button);
-      if (index === 0) {
-        this.attackButton = button;
-        button.addEventListener('pointerdown', e => { e.preventDefault(); button.setPointerCapture(e.pointerId); world.attackHeld = true; world.action('attack'); });
-        button.addEventListener('pointerup', () => world.attackHeld = false);
-        button.addEventListener('pointercancel', () => world.attackHeld = false);
-        button.addEventListener('lostpointercapture', () => world.attackHeld = false);
-      } else {
-        this.slotButtons.push(button);
-        button.addEventListener('click', () => pressSkillSlot.call(this, index - 1));
-      }
-    }
-    world.onChange = () => {
-      discoverEquipment(world.save); this.onSave();
-      for (const item of world.save.bag) if (!this.knownItems.has(item.id)) { this.knownItems.add(item.id); if (this.openModal !== 'equipment') this.newItems.add(item.id); }
-      this.renderBagBadge(); this.renderStatus();
-      // 캐릭터 선택·새 캐릭터 창은 사냥 중 매 처치(`world.onChange`)마다 다시 그리지 않는다(작업 228) —
-      // 목록은 열 때 한 번 읽고, 카드 초상화 합성이 무거워 재렌더가 잦으면 선택·생성이 느려진다.
-      if (!(this.openModal === 'codex' && ['INPUT','SELECT'].includes(document.activeElement?.tagName ?? '')) && !['dungeon','market','worldBoss','characters','createCharacter','settings','mail','rewards','achievements','shop'].includes(this.openModal ?? '') && (this.openModal !== 'account' || document.activeElement?.tagName !== 'INPUT')) this.renderModal();
-    };
-    world.onMessage = text => this.message(text);
+    bindPanelInput(this);
+    mountActionPad(this, world);
+    wireWorld(this, world);
     this.renderBagBadge(); this.renderStatus();
     void loadShop(this);
     void completeShopReturn(this);
@@ -223,10 +217,9 @@ export class Interface {
     saveSalvagePlus(this.salvagePlus);
   }
 
+
   open(kind: Modal | null): void {
-    // 거래 결과를 확인하지 못해 `pendingMarket`이 남아 있어도 거래소 창은 연다 — 그 창의 '거래 결과 다시 확인'이
-    // 아니면 풀 방법이 없어서, 막으면 네트워크가 끊긴 동안 모든 창이 잠긴다(작업 226).
-    if (this.market.busy || this.market.sync.locked || this.market.sync.pendingWarehouse || (this.market.sync.pendingMarket && kind !== 'market')) return;
+    if (modalBlocked(this.market, kind)) return;
     if (kind !== null && this.pendingSkill) cancelSkillSelection.call(this);
     if (kind !== 'skills') this.skillTarget = undefined;
     if (kind !== 'salvage') this.salvageIds = undefined;
@@ -242,65 +235,23 @@ export class Interface {
     }
     if (this.openModal !== kind && this.journey) { this.journey.tab = 'daily'; }
     this.openModal = kind; this.confirmReset = false;
-    if (kind === 'equipment') { this.newItems.clear(); this.renderBagBadge(); }
+    // 창을 여는 순간 할 일(새 장비 표시 지우기 등)은 그 창의 등록부 항목이 안다.
+    if (kind) MODALS[kind].prepare?.(this);
     this.renderModal();
     if (startMarket) this.market.open();
-    if (kind === 'characters') void loadCharacters(this);
-    if (kind === 'shop' && !this.shopCatalog) void loadShop(this);
-    if (kind === 'warehouse') { this.warehouseItems = undefined; resetWarehouse(this); void loadWarehouse(this); }
-    if (kind && ['mail','rewards','achievements'].includes(kind)) void this.journey.load();
+    // 첫 그리기 뒤에 할 일도 등록부가 안다 — 캐릭터 목록·상점 목록·창고 초기화·여정 읽기(예전 open()의 꼬리).
+    if (kind) MODALS[kind].load?.(this);
   }
+
   renderModal(): void {
     if(this.openModal!=='worldBoss')this.worldBoss?.dispose();
     if (this.openModal && this.modalRenderGate?.defer()) return;
     this.modal.hidden = this.openModal === null;
     if (!this.openModal) return;
     const dialog = this.modal.querySelector<HTMLElement>('.modal-dialog')!;
-    dialog.classList.toggle('dungeon-modal', this.openModal === 'dungeon');
-    dialog.classList.toggle('world-boss-modal', this.openModal === 'worldBoss');
-    dialog.classList.toggle('codex-modal', this.openModal === 'codex');
-    dialog.classList.toggle('skills-modal', this.openModal === 'skills');
-    dialog.classList.toggle('market-modal', this.openModal === 'market');
-    dialog.classList.toggle('utility-modal', ['settings','mail','rewards','achievements'].includes(this.openModal));
-    dialog.classList.toggle('settings-modal', this.openModal === 'settings');
-    dialog.classList.toggle('equipment-modal', this.openModal === 'equipment');
-    dialog.classList.toggle('warehouse-modal', this.openModal === 'warehouse');
-    const scroll = dialog.scrollTop, bagScroll = dialog.querySelector<HTMLElement>('.bag-grid')?.scrollTop ?? 0;
-    dialog.replaceChildren();
-    const heading = document.createElement('header');
-    heading.innerHTML = `<h2>${{ dungeon: '끝없는 던전', worldBoss: '월드보스', equipment: '내 정보', skills: '스킬', account: '계정 정보', floor: '층 선택', offline: '오프라인 사냥 정산', market: '거래소', salvage: '분해 확인', codex: '장비 도감', characters: '캐릭터 선택', createCharacter: '새 캐릭터', warehouse: '공용창고', settings: '설정', mail: '우편함', rewards: '보상', achievements: '업적', shop: '상점' }[this.openModal]}</h2><button class="modal-close" aria-label="닫기">×</button>`;
-    bindModalClose(heading.querySelector('button')!, () => this.open(null));
-    if (this.openModal === 'equipment' || this.openModal === 'codex') {
-      const title = heading.querySelector('h2')!, group = document.createElement('div'); group.className = 'modal-title-group';
-      title.replaceWith(group); group.append(title);
-      const button = document.createElement('button'); button.type = 'button'; button.className = 'codex-open';
-      button.textContent = this.openModal === 'equipment' ? '도감' : '장비';
-      button.onclick = () => this.open(this.openModal === 'equipment' ? 'codex' : 'equipment'); group.append(button);
-    }
-    if(this.openModal!=='worldBoss'&&this.openModal!=='dungeon')dialog.appendChild(heading);
-    if(this.openModal==='dungeon')dialog.setAttribute('aria-label','끝없는 던전');else if(this.openModal==='worldBoss')dialog.setAttribute('aria-label','월드보스');else dialog.removeAttribute('aria-label');
-    if (this.openModal === 'equipment') { this.renderEquipment(dialog); this.renderInventory(dialog); }
-    if (this.openModal === 'dungeon') renderDungeonLobby(this,dialog);
-    if (this.openModal === 'worldBoss') renderWorldBoss(this,dialog);
-    if (this.openModal === 'settings') renderSettings(this, dialog);
-    if (this.openModal === 'mail' || this.openModal === 'rewards' || this.openModal === 'achievements') renderUtility(this, dialog, this.openModal);
-    if (this.openModal === 'codex') renderCodex.call(this, dialog);
-    if (this.openModal === 'salvage') renderSalvage.call(this, dialog);
-    if (this.openModal === 'market') renderMarket.call(this, dialog);
-    if (this.openModal === 'characters') renderCharacters(this, dialog);
-    if (this.openModal === 'shop') renderShop(this, dialog);
-    if (this.openModal === 'createCharacter') renderCreateCharacter(this, dialog);
-    if (this.openModal === 'warehouse') renderWarehouse(this, dialog);
-    if (this.openModal === 'skills') this.renderSkills(dialog);
-    if (this.openModal === 'account') this.renderAccount(dialog);
-    if (this.openModal === 'floor') this.renderFloor(dialog);
-    if (this.openModal === 'offline' && this.offlineReward) renderOffline(dialog, this.offlineReward);
-    dialog.scrollTop = scroll;
-    const bagGrid = dialog.querySelector<HTMLElement>('.bag-grid');
-    if (bagGrid) bagGrid.scrollTop = bagScroll;
-    positionBagDetail(this);
-    if (this.openModal === 'equipment' && this.equippedSlot) showEquippedDetail(this, this.equippedSlot, this.equippedPinned);
+    renderModalPanel(this, dialog, MODALS[this.openModal]);
   }
+
 
   renderEquipment(dialog: HTMLElement): void { return renderEquipment.call(this, dialog); }
 
@@ -314,3 +265,4 @@ export class Interface {
   salvageValue(item: Item): number { return salvageValue.call(this, item); }
   iconPath(slot: Slot | 'statbook' | 'pouch', item?: Item): string { return iconPath.call(this, slot, item); }
 }
+

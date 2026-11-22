@@ -45,7 +45,7 @@ DJRPG는 Cloudflare Pages Functions + Turso(libSQL) 위에서 돈다. 이 문서
 | `level`/`exp` | 경험치 상한(`킬상한×45×2`)을 성장식에 넣어 계산한 결과 | `expToNext` |
 | `gold` | `이전 + (킬상한×(3+층) + 보스×70×층)×2 + 1000 + 서버지급분` | 킬 보상 공식 |
 | `stones` | `이전 + ceil(킬상한×0.2)+5 + 서버지급분` | 분해 최대 5개/장비 |
-| `skillPoints` | `레벨-1-투자한 스킬 랭크` | 레벨업 지급 |
+| `skillPoints` | `(레벨-1)×3 + 1 − 투자한 스킬 랭크 합` | 레벨업 지급(`src/game/skillPoints.ts`) |
 | 새 아이템 개수 | `8 + ceil(경과초×0.5)` | 정상 드롭 78층 초당 0.07개 |
 | 새 아이템 능력치 | `rollItem` 공식 상한 ×2.5(옛 공식 여유) | `baseItems` 티어 × 등급배율 × plus |
 | `dungeonFloor` | 검증된 기록+1 | 아래 §4 |

@@ -178,14 +178,17 @@ test('판매 등록 칸은 가방처럼 정사각형 아이콘 칸이고 배지�
   assert.equal(css.includes('.market-pick-name'), false, '이름 글자 규칙 자체가 없다');
   assert.match(rule('.market-pick .job-badge'), /position: absolute/);
   // 작업 249: 한 줄 8칸으로 늘리면서 배지·화살표를 칸 모서리에 더 바짝 붙이고 조금 줄였다.
-  assert.match(rule('.market-pick .job-badge'), /top: 1px/);
-  assert.match(rule('.market-pick .job-badge'), /left: 2px/);
+  // 등급 배지 `L`·`U`·`E`가 왼쪽 위를 차지하므로(2026-11-21) 직업 배지는 **오른쪽 아래 한 글자**로 비켰다.
+  assert.match(rule('.market-pick .job-badge'), /right: 1px/);
+  assert.match(rule('.market-pick .job-badge'), /bottom: 1px/);
   assert.match(rule('.market-pick .upgrade-arrow'), /top: 1px/);
   assert.match(rule('.market-pick .upgrade-arrow'), /right: 2px/);
   assert.match(rule('.market-pick .upgrade-arrow'), /width: 8px/);
   assert.match(rule('.market-pick .upgrade-arrow'), /height: 8px/, '원본 크기에 끌려 커지지 않는다');
   assert.match(rule('.market-pick-count'), /position: absolute/);
-  assert.match(rule('.market-pick-count'), /bottom: 1px/);
+  // 묶음 수량도 오른쪽 위로 — 오른쪽 아래는 직업 배지 자리다.
+  assert.match(rule('.market-pick-count'), /top: 1px/);
+  assert.match(rule('.market-pick-count'), /bottom: auto/);
   assert.match(rule('.market-pick-count'), /right: 2px/);
   assert.match(rule('.market-pick .lock-icon'), /position: absolute/);
 

@@ -1,10 +1,12 @@
-import { canStoreItem } from './bagCapacity';
+import { addItemToBag } from './rewardGrant';
 import { autoSalvageRecovered } from './inventory';
 import { offlineDropChance, rollItem, totalStats, type Item, type Rarity } from './items';
-import { rollStatBook, statBookDropChance } from './statBooks';
+import { rollStatBookDrop } from './statBooks';
 import { jobOrDefault as jobOf, skillDamageScale, skillDuration, skills, type SkillId } from './skills';
-import { addExperience, floorKillTarget, MAX_FLOOR, skillLevel, type Save } from './store';
-import { basicAttackPower, berserkAttackScale, berserkSpeedScale, cooldowns, enemyHitDamage, enemyMaxHp, offlineMobHp } from './world';
+import { skillLevel, type Save } from './store';
+import { afterBossLose, afterBossWin, applyBossReward, applyKillBatch, defeatPenalty, killsToBoss } from './progress';
+import { basicAttackPower, berserkAttackScale, berserkSpeedScale, CRIT_CHANCE_CAP, CRIT_DAMAGE_SCALE, attackInterval, enemyHitDamage, enemyMaxHp, fieldSpawnRate } from './battle/formulas';
+import { SKILL_CDR_CAP } from './combat/engine';
 
 /**
  * 오프라인 방치 정산(작업 235).
@@ -58,23 +60,33 @@ const skillBurst: Record<SkillId, number> = {
 /** 공격력·공격속도를 올리는 버프 3종 — 지속/쿨타임 비율만큼 DPS를 끌어올린다. */
 const buffSkills: SkillId[] = ['warcry', 'hawkEye', 'arcaneShield'];
 
-/** 지금 스펙으로 보스에게 넣는 초당 피해 — 평타(공격력 ×1.6 / 공격 간격) + 퀵슬롯 스킬 + 버프 가동률. */
+/** 지금 스펙으로 보스에게 넣는 초당 피해 — 평타(직업 기본 간격·공속·6.0타 상한·치명) + 퀵슬롯 스킬(CDR 반영) + 버프 가동률.
+ *  밸런스 v2부터 필드와 **같은 식**이다(종전에는 치명·공속 상한·CDR을 무시해 필드의 66~80%였다). */
 export function offlineHeroDps(save: Save): number {
   const stats = totalStats(save);
-  const interval = cooldowns.attack / (1 + Math.max(0, stats.speed) / 100);
-  let skill = 0, buff = 1;
+  const critFactor = 1 + Math.min(CRIT_CHANCE_CAP, Math.max(0, stats.crit)) / 100 * (CRIT_DAMAGE_SCALE - 1);
+  const cdrScale = 1 - Math.min(SKILL_CDR_CAP, Math.max(0, stats.cdr)) / 100;
+  let skill = 0;
   for (const id of save.quickSlots) {
     if (!id || !save.learned.includes(id)) continue;
     const level = skillLevel(save, id);
-    if (skillBurst[id]) skill += stats.attack * skillBurst[id] * skillDamageScale(level) / skills[id].cooldown;
-    if (buffSkills.includes(id)) buff += Math.min(1, skillDuration(id, level) / skills[id].cooldown) * (berserkAttackScale(level) * berserkSpeedScale(level) - 1);
+    if (skillBurst[id]) skill += stats.attack * skillBurst[id] * skillDamageScale(level) / (skills[id].cooldown * cdrScale);
   }
-  return (stats.attack * basicAttackPower / interval + skill) * buff;
+  const buffId = buffSkills.find(id => save.learned.includes(id) && save.quickSlots.includes(id));
+  if (!buffId) return stats.attack * basicAttackPower * critFactor / attackInterval(jobOf(save), stats.speed) + skill;
+  const level = skillLevel(save, buffId);
+  const speedUp = berserkSpeedScale(level), attackUp = berserkAttackScale(level);
+  const uptime = Math.min(1, skillDuration(buffId, level) / (skills[buffId].cooldown * cdrScale));
+  const base = stats.attack * basicAttackPower * critFactor / attackInterval(jobOf(save), stats.speed) + skill;
+  const peak = stats.attack * attackUp * basicAttackPower * critFactor / attackInterval(jobOf(save), stats.speed, speedUp) + skill * attackUp;
+  return base * (1 - uptime) + peak * uptime;
 }
-/** 분당 처치 수 — 접속 사냥과 같은 기준(`offlineMobHp`)을 쓴다(작업 196). 8~16마리/분. */
+/** 방치 효율 — 접속 사냥의 70%(밸런스 v2 시뮬레이션 값). */
+export const OFFLINE_EFFICIENCY = .7;
+/** 분당 처치 수 — `60 × min(처치 능력, 젠 속도) × 0.7`. 접속과 같은 몹 HP·젠을 쓴다(밸런스 v2). */
 export function offlineKillsPerMinute(save: Save): number {
-  const attack = totalStats(save).attack;
-  return Math.max(8, Math.min(16, 8 + Math.floor(attack / offlineMobHp(save.floor) * 16)));
+  const capacity = offlineHeroDps(save) / Math.max(1, enemyMaxHp(save.floor, false));
+  return Math.max(1, 60 * Math.min(capacity, fieldSpawnRate(save.floor)) * OFFLINE_EFFICIENCY);
 }
 
 export type OfflineBossBattle = { win: boolean; seconds: number; heroDps: number; bossHp: number; heroHp: number; bossDps: number };
@@ -103,7 +115,7 @@ export function applyOfflineRewards(save: Save, elapsedSeconds: number, options:
   const salvaged = { count: 0, gold: 0, stones: 0 };
   const reward: OfflineReward = { seconds, kills: 0, exp: 0, gold: 0, items, missedDrops: 0, levels: 0, startFloor, endFloor: startFloor, bossKills: 0, deaths: 0, salvaged };
   /** 떨어진 하나를 가방에 넣는다 — 자동 분해가 켜져 있으면 **필드·던전과 같은 규칙**(`autoSalvageRecovered`)으로
-   *  먼저 분해해 보고, 분해되면 가방에 넣지 않고 금화·강화석으로 정산한다(작업 254). 스탯북·보물
+   *  먼저 분해해 보고, 분해되면 가방에 넣지 않고 금화·강화석으로 정산한다(작업 254). 스킬북·보물
    *  주머니·잠금·등급 초과·`+N` 초과·빈 슬롯·더 좋은 장비 보호는 그 함수가 그대로 맡는다. */
   const receive = (createItem: () => Item): void => {
     const item = createItem();
@@ -111,40 +123,43 @@ export function applyOfflineRewards(save: Save, elapsedSeconds: number, options:
       const sweep = autoSalvageRecovered(save, item, options.autoSalvage, options.autoSalvagePlus);
       if (sweep) { salvaged.count++; salvaged.gold += sweep.gold; salvaged.stones += sweep.stones; return; }
     }
-    if (!canStoreItem(save.bag, item, jobOf(save))) { missedDrops++; return; }
-    save.bag.push(item);
+    // 자리 검사·가방 반영·`itemGranted` 신호는 `addItemToBag` 한 곳이 맡는다.
+    if (!addItemToBag(save, item, 'offline')) { missedDrops++; return; }
     items.push(item);
   };
-  /** 그 층에서 `count`마리 사냥 — 금화·경험치·드롭은 `world.ts` `kill()`과 같은 식이다. */
+  /** 그 층에서 `count`마리 사냥 — 금화·경험치·처치 수는 `progress.ts`가 정한다(PR-3). 드롭만 방치 몫을 쓴다. */
   const hunt = (count: number, floor: number): void => {
     if (count <= 0) return;
-    reward.kills += count; save.kills += count;
-    const gold = count * (3 + floor); reward.gold += gold; save.gold += gold;
-    // 경험치는 필드와 같은 `9 + 층`(작업 207).
-    const exp = count * (9 + floor); reward.exp += exp; reward.levels += addExperience(save, exp);
-    if (save.tutorial >= 1) for (let index = 0; index < count; index++) {
-      // 한 마리당 한 번만 굴려 장비 1개(작업 210, 접속 사냥과 같은 규칙). 파트 B(2026-11-22)에서 스킬북이
-      // 폐지되어 종류를 가르지 않고, 영구 스탯북은 **별개로** 개극악 확률(`statBooks.ts`)을 한 번 더 굴린다.
+    const batch = applyKillBatch(save, floor, count);
+    reward.kills += batch.kills; reward.gold += batch.gold; reward.exp += batch.exp; reward.levels += batch.levels;
+    // 레벨업 뒤 최대 체력 — 경험치 규칙은 progress가, 체력은 최대 체력을 아는 이쪽이 맞춘다.
+    if (batch.levels) save.health = totalStats(save).health;
+    if (save.tutorial >= 1) for (let index = 0; index < batch.kills; index++) {
+      // 한 마리당 한 번만 굴려 장비 1개(파트 B — 스킬북 폐지). 확률은 방치 몫(전 층 0.30%, 작업 254)이다.
+      // 영구 스탯북은 **별개로** 개극악 확률(`statBooks.ts`)을 한 번 더 굴린다.
       if (Math.random() < offlineDropChance(floor, false)) receive(() => rollItem(floor, false, false, jobOf(save)));
-      if (Math.random() < statBookDropChance('offline')) receive(() => rollStatBook());
+      const book = rollStatBookDrop('offline');
+      if (book) receive(() => book);
     }
   };
-  /** 층 보스 처치 보상 — 금화 `70 × 층`, 경험치 `(9 + 층) × 6`, 드롭 한 번(작업 195·207). */
+  /** 층 보스 처치 보상 — 금화 `70 × 층`, 경험치 `(9 + 층) × 6`, 드롭 한 번(작업 195·207). 금액은 `progress.ts`.
+   *  방치는 보스 처치를 `kills`에 세지 않는다 — 기존 동작 그대로(일일 미션 카운터 불변). */
   const beatBoss = (floor: number): void => {
-    reward.bossKills++; save.bossKills++;
-    const gold = 70 * floor; reward.gold += gold; save.gold += gold;
-    const exp = (9 + floor) * 6; reward.exp += exp; reward.levels += addExperience(save, exp);
+    const boss = applyBossReward(save, floor);
+    reward.bossKills++; reward.gold += boss.gold; reward.exp += boss.exp; reward.levels += boss.levels;
+    if (boss.levels) save.health = totalStats(save).health;
     if (save.tutorial >= 1 && Math.random() < offlineDropChance(floor, true)) {
       receive(() => rollItem(floor, false, true, jobOf(save)));
     }
-    // 보스의 영구 스탯북은 보스 확률(`STAT_BOOK_DROP_RATES.boss`)로 따로 한 번 굴린다.
-    if (save.tutorial >= 1 && Math.random() < statBookDropChance('boss')) receive(() => rollStatBook());
+    // 보스의 영구 스탯북은 확정 드롭과 별개로 한 번 더 굴린다(파트 B).
+    const bossBook = save.tutorial >= 1 ? rollStatBookDrop('boss') : undefined;
+    if (bossBook) receive(() => bossBook);
   };
 
   let remaining = seconds;
   for (let guard = 0; remaining > 0 && guard < 50_000; guard++) {
     const floor = save.floor;
-    const target = floorKillTarget(floor);
+    const target = killsToBoss(floor);
     const perKill = 60 / offlineKillsPerMinute(save);
     // 보스는 **최고 도달 층에서만** 나온다(작업 210) — 자동 등반이 꺼졌거나 아래층을 도는 중이면 없다.
     // 작업 245: 자동 등반이 켜져 있고 아직 최고층이 아니면 층 목표를 채울 때마다 한 층씩 올라간다
@@ -188,17 +203,13 @@ export function applyOfflineRewards(save: Save, elapsedSeconds: number, options:
     save.floorKills = 0;
     if (battle.win) {
       beatBoss(floor);
-      save.bossRetryFloor = 0;
-      // 마지막 층에서는 이겨도 더 올라갈 곳이 없다(작업 204) — 그 층에서 보스를 계속 잡는다.
-      if (floor < MAX_FLOOR) {
-        save.floor = floor + 1;
-        save.maxFloor = Math.min(MAX_FLOOR, Math.max(save.maxFloor, save.floor));
-      }
+      // 이기면 재도전 기록을 지우고 한 층 올라간다. 마지막 층(`MAX_FLOOR`)에서는 그 층에서 계속 잡는다(작업 204).
+      afterBossWin(save);
     } else {
       // 켜 놓고 보던 사람과 같다: 10골드를 잃고 1마리부터 다시 잡아, 목표를 채우면 또 도전한다.
       reward.deaths++;
-      save.gold = Math.max(0, save.gold - 10);
-      save.bossRetryFloor = floor < MAX_FLOOR ? floor : 0;
+      defeatPenalty(save);
+      afterBossLose(save);
     }
   }
   save.lastActiveAt = Date.now();

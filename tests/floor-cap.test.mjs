@@ -7,6 +7,7 @@ import './ts-loader.mjs';
 
 const { freshSave, parseSave, floorKillTarget, MAX_FLOOR } = await import('../src/game/store.ts');
 const { World } = await import('../src/game/world.ts');
+const { killsToBoss } = await import('../src/game/progress.ts');
 
 test('20층이 마지막 층 — 21층 이상 세이브는 층·최고 층만 20으로 당긴다', () => {
   assert.equal(MAX_FLOOR, 20);
@@ -32,8 +33,8 @@ test('20층이 마지막 층 — 21층 이상 세이브는 층·최고 층만 20
   assert.equal(parseSave({ ...save, floor: 15, maxFloor: 3 }).maxFloor, 15);
 });
 
-test('층당 보스 목표 — 1층 150마리에서 20층 3,505마리까지 완만히 가팔라진다', () => {
-  assert.deepEqual([1, 5, 10, 15, 20].map(floorKillTarget), [150, 472, 1163, 2174, 3505]);
+test('층당 보스 목표 — 1층 150마리에서 20층 1,081마리까지 완만히 가팔라진다', () => {
+  assert.deepEqual([1, 5, 10, 15, 20].map(killsToBoss), [150, 286, 501, 766, 1081]); // 밸런스 v2: 150 + 30d + d²
   for (let floor = 2; floor <= 20; floor++) assert(floorKillTarget(floor) > floorKillTarget(floor - 1), `${floor}층 목표가 늘어난다`);
   assert.equal(floorKillTarget(0), 150, '없는 층은 1층과 같다');
   // 상한이 풀리면 곡선은 그대로 이어진다(함수는 20층에서 멈추지 않는다).

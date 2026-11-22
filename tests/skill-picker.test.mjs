@@ -2,10 +2,11 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import './ts-loader.mjs';
+import { modalStyles } from './helpers/modal-styles.mjs';
 const { freshSave } = await import('../src/game/store.ts');
 const { openSkillPicker, pressSkillSlot } = await import('../src/ui/skillLoadout.ts');
 
-const styles = readFileSync(new URL('../src/styles/modals.css', import.meta.url), 'utf8');
+const styles = modalStyles();
 
 /** 자식이 이어지는 작은 DOM 스텁 — 팝업 목록·배지·클릭을 그대로 확인한다. */
 function element(tag = 'div') {
@@ -35,7 +36,8 @@ const rows = root => walk(root).filter(node => node.className.split(/\s+/).inclu
 const badges = root => walk(root).filter(node => node.className.split(/\s+/).includes('skill-recommend-badge'));
 
 function uiFixture(job = 'warrior') {
-  const save = freshSave('male', job);
+  // 밸런스 v2: 새 캐릭터는 첫 스킬을 습득한 상태로 시작한다 — 이 파일은 '습득 0' 상태부터 본다.
+  const save = freshSave('male', job); save.learned = []; save.skillLevels = {};
   const root = element(); const shell = element(); shell.className = 'game-shell'; root.append(shell);
   const messages = []; let changes = 0;
   const ui = {
@@ -119,7 +121,7 @@ test('장착 가능한 스킬이 없으면 팝업 대신 안내만 띄운다(작
   const ui = uiFixture();
   pressSkillSlot.call(ui, 0);
   assert.equal(ui.root.querySelector('.skill-picker'), undefined);
-  assert.deepEqual(ui.messages, ['스킬북으로 스킬을 습득하면 장착할 수 있습니다.']);
+  assert.deepEqual(ui.messages, ['스킬 트리에서 SP를 투자해 스킬을 습득하면 장착할 수 있습니다.']);
 }));
 
 test('동기화 중에는 팝업을 열지 않는다(작업 245)', () => withDocument(() => {
@@ -136,7 +138,7 @@ test('동기화 중에는 팝업을 열지 않는다(작업 245)', () => withDoc
 }));
 
 test('팝업 스타일이 좁은 화면까지 정의되어 있다(작업 245)', () => {
-  for (const selector of ['.skill-picker {', '.skill-picker-card {', '.skill-picker-close {', '.skill-picker-row {', '.skill-picker-row.is-recommended {', '.skill-recommend-badge {', '.skill-auto-upgrade {']) {
+  for (const selector of ['.skill-picker {', '.skill-picker-card {', '.skill-picker-close {', '.skill-picker-row {', '.skill-picker-row.is-recommended {', '.skill-recommend-badge {']) {
     assert(styles.includes(selector), `${selector} 규칙이 없다`);
   }
   assert(styles.includes('@media (max-width: 380px)'), '좁은 화면 대응');

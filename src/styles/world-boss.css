@@ -1,5 +1,6 @@
-/* 좌상단 세로 배치(작업 234): 레벨 배지 5~54px → 닉네임 56~73px → HP 77~92px → 월드보스 진입 97~167px → 튜토리얼 배너 173px~. */
-.world-boss-entry {position:absolute;z-index:3;left:12px;top:calc(env(safe-area-inset-top, 0px) + 97px);width:58px;height:80px;padding:0;border:0;border-radius:0;background:transparent;box-shadow:none;touch-action:manipulation;overflow:visible;}
+/* 좌상단 세로 배치(작업 234 → HUD 번들): 레벨 배지 5~54px → 닉네임 56~73.6px → 전투력 76~89px →
+   HP 92~107px → 월드보스 진입 111~181px → `월드보스` 라벨 182~196px → 튜토리얼 배너 200px~. */
+.world-boss-entry {position:absolute;z-index:3;left:12px;top:calc(env(safe-area-inset-top, 0px) + 111px);width:58px;height:80px;padding:0;border:0;border-radius:0;background:transparent;box-shadow:none;touch-action:manipulation;overflow:visible;}
 .world-boss-entry .wb-entry-art {position:absolute;width:58px;height:58px;left:0;top:0;background-image:url('/assets/world-boss/valkaron-face-hd-v1.png');background-size:contain;background-position:center;background-repeat:no-repeat;pointer-events:none;filter:drop-shadow(0 1px 1px #000d);}
 .wb-entry-health {position:absolute;top:60px;left:4px;right:4px;height:4px;border-radius:2px;background:#271014;overflow:hidden;pointer-events:none;}
 .wb-entry-health i {display:block;width:100%;height:100%;background:linear-gradient(#e16b55,#8c242c);box-shadow:0 0 3px #f04c3b;}
@@ -173,3 +174,8 @@
 @keyframes wb-rank-label-out {to{transform:translateY(100%);opacity:0;}}
 @keyframes wb-rank-mine-in {from{transform:translateY(-100%);opacity:0;}to{transform:translateY(0);opacity:1;}}
 @media (prefers-reduced-motion:reduce) {.wb-result-window.is-descending .wb-result-track {animation:none;transform:translateY(-100%);}.wb-result-displaced {display:none;}.wb-result-arrival .wb-result-rank-row.is-mine {animation:none;}}
+
+/* `월드보스` 라벨(사용자 요청 "월드보스는 현재에서 그냥 월드보스라고만 밑에 표기") — 동그라미(70px) 바로
+   아래 71~85px에 작은 다크 필 한 줄. 원 안의 `3/3`(50~67px)과 4px 여유를 두고, 붉은 체력 호나 얼굴을
+   가리지 않는다. 버튼 밖으로 넘치지만 `pointer-events:none`이라 원을 누르는 탭을 막지 않는다. */
+.world-boss-entry .wb-entry-label {position:absolute;left:50%;top:71px;transform:translateX(-50%);height:14px;padding:0 6px;border:1px solid #6f5348;border-radius:4px;background:#171118f2;color:#efdbb8;font:700 9.5px/12px 'Noto Sans KR',sans-serif;letter-spacing:.2px;white-space:nowrap;text-shadow:0 1px 2px #000;pointer-events:none;}

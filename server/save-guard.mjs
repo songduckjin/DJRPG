@@ -10,11 +10,14 @@
  *     많은 킬을 할 수 없고, 오프라인 정산도 이 시간 안에서만 일어난다(최대 12시간).
  *  ② **층·직업 규칙**(킬당 금화·경험치, 층 클리어에 필요한 킬 수, 드롭 공식).
  *
- * 이 파일은 `server/database.mjs`가 import하므로 **순수 JS**로 둔다 — `scripts/migrate-turso-db.mjs`처럼
- * ts 로더 없이 `node`로 도는 스크립트가 DB 모듈을 그대로 쓰기 때문이다. 아래 상수는 `src/game/`의 값을
- * 옮겨 적은 것이고, `tests/save-guard.test.mjs`가 원본과 같은지 대조한다(값이 갈라지면 테스트가 먼저 깨진다).
+ * 이 파일은 `server/database.mjs`가 import하므로 **순수 JS**다. 진행 규칙(최고 층·경험치 곡선·층 목표·킬 금화)은
+ * `src/game/progress.ts` 하나를 그대로 쓴다(PR-3, 작업 262) — 예전에는 같은 식을 여기에 옮겨 적고
+ * `tests/save-guard.test.mjs`가 원본과 대조했지만, 이제 값이 갈라질 자리가 없다. `progress.ts`는 아무것도
+ * import하지 않는 순수 모듈이라 서버 번들에 다른 게임 코드를 끌어들이지 않는다.
  */
 import { extraOptionsWithin } from './extra-options.mjs';
+import { BOSS_GOLD_PER_FLOOR, KILL_GOLD_BASE, MAX_FLOOR, MAX_LEVEL, expToNext, killsToBoss } from '../src/game/progress.ts';
+import { spLedger } from '../src/game/skillPoints.ts';
 
 export const MAX_OFFLINE_SECONDS = 43_200;
 /** 초당 처치 상한. 실제 사냥은 스폰 간격(≥0.55초)과 18마리 상한 때문에 초당 2마리 안팎이고,
@@ -30,14 +33,12 @@ export const ITEMS_FLOOR = 40;
 /** 금화·경험치 상한에 곱하는 안전 계수 — 자동 분해·보스 무더기 같은 정상 경로가 상한에 닿지 않게 한다. */
 export const GOLD_HEADROOM = 2;
 export const EXP_HEADROOM = 2;
-/** `src/game/store.ts`의 `MAX_FLOOR`(작업 204: 1~20층). */
-export const MAX_FLOOR = 20;
-/** `src/game/items.ts`의 `rarityScales`. */
-export const RARITY_SCALES = { common: 1, magic: 2, rare: 3, epic: 4, unique: 5, legendary: 6 };
 /** `src/game/statBooks.ts`의 `STAT_BOOK_LIMIT`(파트 B: 종류별 캐릭터당 30권). */
 export const STAT_BOOK_LIMIT = 30;
-/** `src/game/store.ts`의 `MAX_LEVEL`. */
-export const MAX_LEVEL = 30;
+/** `src/game/items.ts`의 `rarityScales`. */
+export const RARITY_SCALES = { common: 1, magic: 2, rare: 3, epic: 4, unique: 5, legendary: 6 };
+/** 최고 층·최고 레벨·경험치 곡선은 `src/game/progress.ts`가 원본이다 — 기존 import 경로를 위해 여기서 재export한다. */
+export { MAX_FLOOR, MAX_LEVEL, expToNext } from '../src/game/progress.ts';
 /** `src/game/items.ts`의 `MAX_PLUS`·`PLUS_STAT_BONUS`. */
 export const MAX_PLUS = 7;
 export const PLUS_STAT_BONUS = .08;
@@ -74,10 +75,8 @@ const STAT_SLACK = 4;
 /** 예전 공식으로 만들어진 장비(작업 194 이전 세이브)도 통과하도록 남기는 배율 여유. */
 export const STAT_TOLERANCE = 2.5;
 
-/** `src/game/store.ts`의 `expToNext`(작업 207 사용자 확정 곡선 `1400 × level²`). */
-export function expToNext(level) { return Math.round(1400 * Math.pow(level, 2)); }
-/** `src/game/store.ts`의 `floorKillTarget`(작업 204: 1층 150마리, 20층 3,505마리). */
-export function floorKillTarget(floor) { const depth = Math.max(0, floor - 1); return 150 + 55 * depth + Math.round(Math.pow(depth, 2) * 6.4); }
+/** `src/game/progress.ts`의 `killsToBoss`(작업 204: 1층 150마리, 20층 3,505마리) — 예전 이름은 `floorKillTarget`. */
+export function floorKillTarget(floor) { return killsToBoss(floor); }
 
 /** 마지막 저장 이후 서버 시계로 흐른 초. 값이 없거나 깨졌으면 0. */
 export function elapsedSince(updatedAt, now = Date.now()) {
@@ -105,7 +104,7 @@ export function rewardBudget(previous, elapsedSeconds, depthOption) {
   // 보스는 한 층에 floorKillTarget마리(1층 120마리)를 잡아야 나오므로, 처치 수 대비 아주 넉넉히 잡는다.
   const bosses = Math.ceil(kills / 30) + 1;
   const depth = Math.max(1, Math.min(MAX_FLOOR, int(depthOption ?? previous?.maxFloor ?? previous?.floor ?? 1, 1)));
-  const killGold = (kills * (3 + depth) + bosses * 70 * depth) * GOLD_HEADROOM + 1000;
+  const killGold = (kills * (KILL_GOLD_BASE + depth) + bosses * BOSS_GOLD_PER_FLOOR * depth) * GOLD_HEADROOM + 1000;
   return {
     elapsed, kills, bosses, depth,
     // 오프라인 정산은 킬당 8(보스 45) 경험치다 — 보스 쪽으로 넉넉히 잡는다.
@@ -188,9 +187,9 @@ export function clampSaveProgress(previous, save, options = {}) {
   }
   save.statBooks = nextBooks;
 
-  // 스킬 포인트는 레벨업으로만 쌓인다 — 찍은 만큼을 뺀 나머지가 상한이다.
-  const invested = Object.values(save.skillLevels ?? {}).reduce((sum, rank) => sum + Math.max(0, cap(rank) - 1), 0);
-  const pointCap = Math.max(0, int(save.level, 1) - 1 - invested);
+  // 스킬 포인트는 레벨업으로만 쌓인다 — 레벨당 3pt(첫 1랭크는 무료 지급분), 쓴 랭크만큼 빼고 남은 것이 상한이다.
+  // 식은 `src/game/skillPoints.ts` 한 곳에 있고 화면도 같은 것을 쓴다(4단계 스킬 트리, 파트 A).
+  const pointCap = spLedger({ level: int(save.level, 1), learned: save.learned, passives: save.passives, skillLevels: save.skillLevels }).available;
   if (cap(save.skillPoints) > pointCap) { save.skillPoints = pointCap; clamped.push('skillPoints'); }
 
   // 던전 최고층은 서버가 검증한 기록(+1)까지만 저장된다 — 순위의 근거라 클라이언트가 올릴 수 없다.
@@ -205,6 +204,14 @@ export function clampSaveProgress(previous, save, options = {}) {
   return { clamped, budget: payout };
 }
 
+/** `src/game/items.ts`의 `GEAR_CRIT_UNIT`·`GEAR_SPEED_UNIT`·`CDR_GEAR_PROFILE`(밸런스 v2). */
+export const GEAR_SECONDARY_UNIT = { crit: .70, speed: .72 };
+export const CDR_GEAR_MAX = 1.8;
+/** `src/game/extraOptions.ts`의 상한(밸런스 v2) — 저장된 장비의 추가옵션 합산이 넘을 수 없는 값. */
+export const EXTRA_CDR_CAP = 6;
+export const EXTRA_CRIT_CAP = 10;
+export const EXTRA_SPEED_CAP = 10;
+export const EXTRA_LIFESTEAL_CAP = 5;
 /**
  * 새로 만들어지는 아이템(소유 기록이 없는 id)의 능력치가 `rollItem` 공식의 상한 안에 있는지.
  * 기존 보유 아이템은 `identity` 대조가 이미 맡으므로 여기서 보지 않는다.
@@ -229,8 +236,12 @@ export function itemWithinBounds(item, maxFloor = 1, tolerance = STAT_TOLERANCE)
     attack: Math.round(profile.attack * scaled) + 3 + (zwei ? 2 : 0),
     defense: Math.round(profile.defense * scaled) + 3,
     health: Math.round(profile.health * scaled),
-    crit: Math.round((profile.crit + (zwei ? .15 : 0)) * scaled),
-    speed: Math.round(profile.speed * scaled)
+    // 치명·공속은 층·강화와 무관한 새 척도(밸런스 v2) — 등급·티어로만 만든다.
+    crit: Math.round(profile.crit * scale * Math.max(1, topTier) * GEAR_SECONDARY_UNIT.crit) + (zwei ? 1 : 0),
+    speed: Math.round(profile.speed * scale * Math.max(1, topTier) * GEAR_SECONDARY_UNIT.speed),
+    // 스킬 쿨타임 감소(밸런스 v2): 마법사 전용 부위(지팡이·모자·로브)에만 붙는다. 서버는 직업을 모르므로
+    // 가장 큰 계수(지팡이 1.8)로 연다.
+    cdr: Math.round(CDR_GEAR_MAX * scale * Math.max(1, topTier))
   };
   // 옛 공식(작업 255 이전)으로 만들어진 장비도 통과해야 하므로, 능력치마다 두 공식 중 **큰 쪽**을 쓴다.
   const legacy = legacyStatLimits(item, baseScale, zwei);
@@ -245,6 +256,25 @@ export function itemWithinBounds(item, maxFloor = 1, tolerance = STAT_TOLERANCE)
   // 필요 없다 — 값 자체가 1~3%로 고정이고, 서버는 저장 전에 id로 다시 계산해 덮어쓴다.
   if (!extraOptionsWithin(item)) return false;
   return true;
+}
+
+/**
+ * 장비의 2차 스탯(치명·공속·쿨감)이 가질 수 있는 **가장 큰 정상값**(밸런스 v2).
+ *
+ * 서버는 장비의 티어를 이름으로 풀어내지 않는다. 대신 서버가 아는 것(부위·등급)으로 **최고 티어를 가정한**
+ * 상한만 계산한다. 옛 장비(치명 800%)를 새 척도로 1회 바꿔 넣는 마이그레이션(`server/db/items.mjs`)이
+ * 이 상한 안의 값만 받아 주고, 그 뒤로는 서버 사본과 정확히 같아야 한다(변조 차단).
+ */
+export function secondaryStatCeiling(item) {
+  const scale = RARITY_SCALES[item?.rarity];
+  const profile = MAX_SLOT_PROFILES[item?.slot];
+  if (!scale || !profile) return undefined;
+  const topTier = 1 + TIER_STAT_GROWTH * 9;
+  return {
+    crit: Math.ceil(profile.crit * scale * topTier * GEAR_SECONDARY_UNIT.crit) + 1,
+    speed: Math.ceil(profile.speed * scale * topTier * GEAR_SECONDARY_UNIT.speed) + 1,
+    cdr: Math.ceil(CDR_GEAR_MAX * scale * topTier) + 1
+  };
 }
 
 /** 작업 255 이전 공식의 능력치 상한 — 옛 세이브의 장비(스탯이 예전 표대로 큼)를 지우지 않기 위해 남긴다. */

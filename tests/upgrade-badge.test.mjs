@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import './ts-loader.mjs';
+import { modalStyles } from './helpers/modal-styles.mjs';
 
 const { freshSave } = await import('../src/game/store.ts');
 const { isUpgradeForHero, itemPower, pouchItem } = await import('../src/game/items.ts');
@@ -80,7 +81,7 @@ test('강화(+)·등급도 itemPower로 함께 견준다', () => {
 const equipSource = readFileSync(new URL('../src/ui/modals/equipModal.ts', import.meta.url), 'utf8');
 const warehouseSource = readFileSync(new URL('../src/ui/modals/warehouseModal.ts', import.meta.url), 'utf8');
 const marketSource = readFileSync(new URL('../src/ui/modals/marketModal.ts', import.meta.url), 'utf8');
-const modalsCss = readFileSync(new URL('../src/styles/modals.css', import.meta.url), 'utf8');
+const modalsCss = modalStyles();
 const marketCss = readFileSync(new URL('../src/styles/market.css', import.meta.url), 'utf8');
 
 function rule(source, selector) {
@@ -90,11 +91,13 @@ function rule(source, selector) {
 }
 
 test('세 화면(가방·장착 칸·공용창고·거래소)이 같은 판정 헬퍼로 화살표를 붙인다', () => {
-  assert.match(equipSource, /import \{ upgradeArrowMarkup \} from '\.\.\/upgradeBadge'/, '가방은 innerHTML 헬퍼를 쓴다');
+  assert.match(equipSource, /import \{ downgradeArrowMarkup, upgradeArrowMarkup \} from '\.\.\/upgradeBadge'/, '가방은 innerHTML 헬퍼를 쓴다');
   assert.match(equipSource, /const upgrade = upgradeArrowMarkup\(save, item\);/);
-  assert.match(equipSource, /cell\.innerHTML = itemIcon\.call\(this, item\.slot, item, 'item-icon'\) \+ upgrade \+ plus;/);
+  assert.match(equipSource, /cell\.innerHTML = itemIcon\.call\(this, item\.slot, item, 'item-icon'\) \+ upgrade \+ downgrade \+ plus \+ rarity;/);
+  // [정렬/약한 장비] 다운그레이드 화살표가 같은 자리에 함께 붙는다 — 문자열 순서는 초록·빨강·`+N`·등급 배지.
+  assert.match(equipSource, /const downgrade = downgradeArrowMarkup\(save, item\);/);
   assert.match(warehouseSource, /const upgrade = upgradeArrowMarkup\(ui\.world\.save, item\);/);
-  assert.match(warehouseSource, /cell\.innerHTML = cellIcon\(ui, item\) \+ upgrade;/);
+  assert.match(warehouseSource, /cell\.innerHTML = cellIcon\(ui, item\) \+ upgrade \+ downgrade;/);
   assert.match(marketSource, /import \{ appendUpgradeArrow \} from '\.\.\/upgradeBadge'/);
   assert.match(marketSource, /function icon\(item: Item, save\?: Save\)/);
   assert.match(marketSource, /if \(save\) appendUpgradeArrow\(node, save, item\);/);

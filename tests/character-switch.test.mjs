@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import './ts-loader.mjs';
+import { modalStyles as readModalStyles } from './helpers/modal-styles.mjs';
 
 const { applyCharacterSwitch } = await import('../src/ui/modals/charactersModal.ts');
 const { renderStatus } = await import('../src/ui/hud.ts');
@@ -13,7 +14,7 @@ const equipSource = readFileSync(new URL('../src/ui/modals/equipModal.ts', impor
 const hudSource = readFileSync(new URL('../src/ui/hud.ts', import.meta.url), 'utf8');
 const hudStyles = readFileSync(new URL('../src/styles/hud.css', import.meta.url), 'utf8');
 const worldBossStyles = readFileSync(new URL('../src/styles/world-boss.css', import.meta.url), 'utf8');
-const modalStyles = readFileSync(new URL('../src/styles/modals.css', import.meta.url), 'utf8');
+const modalStyles = readModalStyles();
 
 function element(tag = 'div') {
   const node = {

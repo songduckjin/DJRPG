@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import './ts-loader.mjs';
+import { modalStyles } from './helpers/modal-styles.mjs';
 
 const { freshSave } = await import('../src/game/store.ts');
 const { plusBadgeMarkup, plusBadgeNode, appendPlusBadge, PLUS_BADGE_CLASS, PLUS_BADGE_POSITION } = await import('../src/ui/plusBadge.ts');
@@ -83,11 +84,11 @@ test('가방 칸에도 `+N` 배지가 붙는다(장비만, 스킬북·주머니�
 test('장착 칸·공용창고도 같은 `plusBadge` 헬퍼를 쓰고 CSS 자리는 왼쪽 아래다', () => {
   const equipSource = readFileSync(new URL('../src/ui/modals/equipModal.ts', import.meta.url), 'utf8');
   const warehouseSource = readFileSync(new URL('../src/ui/modals/warehouseModal.ts', import.meta.url), 'utf8');
-  const css = readFileSync(new URL('../src/styles/modals.css', import.meta.url), 'utf8');
+  const css = modalStyles();
   // 장착 10칸 — 아이콘·부위 이름 뒤에 `+N`을 붙인다.
   assert.match(equipSource, /<small class="slot-part">\$\{slotLabel\}<\/small>\$\{item \? plusBadgeMarkup\(item\) : ''\}/);
-  // 가방 칸 — 아이콘 + 추천 화살표 + `+N`.
-  assert.match(equipSource, /cell\.innerHTML = itemIcon\.call\(this, item\.slot, item, 'item-icon'\) \+ upgrade \+ plus;/);
+  // 가방 칸 — 아이콘 + 추천 화살표 + 다운그레이드 화살표 + `+N` + 등급 배지(`L`·`U`·`E`).
+  assert.match(equipSource, /cell\.innerHTML = itemIcon\.call\(this, item\.slot, item, 'item-icon'\) \+ upgrade \+ downgrade \+ plus \+ rarity;/);
   // 공용창고 칸.
   assert.match(warehouseSource, /import \{ appendPlusBadge \} from '\.\.\/plusBadge'/);
   assert.match(warehouseSource, /appendPlusBadge\(cell, item\);/);
@@ -100,9 +101,12 @@ test('장착 칸·공용창고도 같은 `plusBadge` 헬퍼를 쓰고 CSS 자리
   assert.match(badge, /left: 3px/);
   assert.match(badge, /bottom: 2px/);
   assert.match(badge, /pointer-events: none/);
-  // 장착 칸은 기준 상자가 있어야 절대 위치가 칸 안에 잡힌다 + 부위 이름이 배지와 겹치지 않게 왼쪽을 비운다.
+  // 장착 칸은 기준 상자가 있어야 절대 위치가 칸 안에 잡힌다. 부위 이름은 아이콘과 **같은 중심**에 서야 하므로
+  // 왼쪽만 비우던 `padding-left: 13px`을 뺐고(작업 미정: 이름이 6.5px 오른쪽으로 밀려 있었다), 대신 장착 칸의
+  // `+N`만 이름 줄 위로 13px 올려 아이콘 왼쪽 아래에 둔다.
   assert.match(css, /\.equipment-slot \{[^}]*position: relative/);
-  assert.match(css, /\.equipment-slot \.slot-part \{[^}]*padding-left: 13px/);
+  assert.match(css, /\.equipment-slot \.item-plus-badge \{ bottom: 13px; \}/);
+  assert.doesNotMatch(css, /\.equipment-slot \.slot-part \{[^}]*padding/);
   // 공용창고 전용 규칙(`left: 1px`)은 없어졌다 — 자리가 하나로 통일됐다.
   assert.doesNotMatch(css, /\.warehouse-plus\s*\{/);
 });

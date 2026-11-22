@@ -12,7 +12,7 @@ export function normalizeQuickSlots(raw: unknown, learned: SkillId[], job: Job =
 export function availableSkills(save: Save): SkillId[] { return skillOrderFor(jobOrDefault(save.job)).filter(id => save.learned.includes(id) && !save.quickSlots.includes(id)); }
 export function equipSkill(save: Save, id: SkillId, slot: number): { ok: boolean; message: string } {
   if (!Number.isInteger(slot) || slot < 0 || slot > 2) return { ok: false, message: '장착할 스킬 원을 선택하세요.' };
-  if (!save.learned.includes(id)) return { ok: false, message: '먼저 스킬 트리에서 습득해야 합니다.' };
+  if (!save.learned.includes(id)) return { ok: false, message: '먼저 스킬 트리에서 SP를 투자해 습득해야 합니다.' };
   if (save.quickSlots.includes(id)) return { ok: false, message: '이미 장착된 스킬입니다.' };
   save.quickSlots[slot] = id;
   return { ok: true, message: '스킬을 장착했습니다.' };
@@ -123,7 +123,7 @@ export type AutoLoadoutResult = { changed: boolean; equipped: SkillId[]; message
  */
 export function autoEquipRecommendedSkills(save: Save): AutoLoadoutResult {
   const order = recommendedSkillOrder(save).slice(0, 3);
-  if (!order.length) return { changed: false, equipped: [], message: '보유한 액티브 스킬이 없습니다. 스킬 트리에서 스킬을 습득하면 추천 장착을 쓸 수 있습니다.' };
+  if (!order.length) return { changed: false, equipped: [], message: '보유한 액티브 스킬이 없습니다. 스킬 트리에서 SP를 투자해 습득하면 추천 장착을 쓸 수 있습니다.' };
   const before = save.quickSlots.join(',');
   save.quickSlots = [order[0] ?? null, order[1] ?? null, order[2] ?? null];
   const changed = save.quickSlots.join(',') !== before;

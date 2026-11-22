@@ -3,6 +3,12 @@ export const UNLOCK_ALL_SKILLS_FOR_TEST = false;
 export type Job = 'warrior' | 'archer' | 'mage';
 export const jobs: readonly Job[] = ['warrior', 'archer', 'mage'];
 export const jobNames: Record<Job, string> = { warrior: '전사', archer: '궁수', mage: '마법사' };
+/**
+ * 좁은 칸(가방·공용창고·거래소 판매 칸)용 한 글자 직업 표기 — 사용자가 부르던 `전·궁·법` 그대로.
+ * 30~40px 칸에서는 두 글자 `전사`가 칸을 다 덮어 `+N`·등급 배지와 겹치므로, 칸 안 배지만 한 글자를 쓴다.
+ * 전체 이름은 `jobNames`(상세·툴팁·`aria-label`)가 계속 맡는다.
+ */
+export const jobShortNames: Record<Job, string> = { warrior: '전', archer: '궁', mage: '법' };
 /** 저장·서버 응답의 직업 값 정규화 — 모르는 값과 없는 값은 전사다(기존 세이브 호환). */
 export function jobOrDefault(value: unknown): Job { return value === 'archer' || value === 'mage' ? value : 'warrior'; }
 
@@ -15,7 +21,12 @@ export type ArcherPassiveId = 'bowMastery' | 'swiftStep' | 'hawkSight';
 export type MagePassiveId = 'staffMastery' | 'manaCircuit' | 'arcaneSense';
 export type PassiveId = WarriorPassiveId | ArcherPassiveId | MagePassiveId;
 export type SkillLevelId = SkillId | PassiveId;
-export const MAX_SKILL_LEVEL = 30;
+/**
+ * 스킬 최대 레벨 — 4단계 스킬 트리(2026-11-22 스펙)부터 **10**이다. 예전에는 30이었고 랭크가 스킬북
+ * 중복으로만 올라 갔지만, 이제 SP를 넣어 Lv.10까지 올린다(`src/game/skillPoints.ts`).
+ * 랭크 하나에 SP 1이고 11종을 모두 10으로 올리면 110pt, 만렙(30)의 가용 SP는 88pt다.
+ */
+export const MAX_SKILL_LEVEL = 10;
 export function skillUpgradeCost(level: number): number { return 40 * level * level; }
 export type Skill = { id: SkillId; name: string; level: number; icon: string; cooldown: number; power: string; description: string; range: number };
 export type Passive = { id: PassiveId; name: string; level: number; icon: string; description: string };
@@ -96,13 +107,18 @@ export function passiveOrderFor(job: Job): PassiveId[] { return job === 'archer'
 export const passives: Record<PassiveId, Passive> = {
   mastery: { id: 'mastery', name: '대검 숙련', level: 3, icon: '✥', description: '공격력 영구 +15%' },
   body: { id: 'body', name: '강인한 육체', level: 6, icon: '⬟', description: '최대 HP·방어력 영구 +15%' },
-  instinct: { id: 'instinct', name: '전투 본능', level: 12, icon: '◈', description: '치명타 확률 +8% · 공격속도 +12%' },
+  // 밸런스 v2: 치명 4% + 레벨당 0.9%p, 공속 6% + 레벨당 0.35%p(Lv.30 치명 30.1% · 공속 16.2%).
+  instinct: { id: 'instinct', name: '전투 본능', level: 12, icon: '◈', description: '치명타 확률 +4%(레벨당 +0.9%) · 공격속도 +6%(레벨당 +0.35%)' },
   bowMastery: { id: 'bowMastery', name: '궁술 숙련', level: 3, icon: '✥', description: '공격력 영구 +15%' },
-  swiftStep: { id: 'swiftStep', name: '신속의 발걸음', level: 6, icon: '➤', description: '이동속도·공격속도 영구 +12%' },
-  hawkSight: { id: 'hawkSight', name: '매의 눈', level: 12, icon: '◈', description: '치명타 확률 +8% · 사거리 +8%' },
+  // 밸런스 v2: 공속 6% + 레벨당 0.35%p.
+  swiftStep: { id: 'swiftStep', name: '신속의 발걸음', level: 6, icon: '➤', description: '공격속도 +6%(레벨당 +0.35%)' },
+  // 밸런스 v2: 치명 4% + 레벨당 0.9%p.
+  hawkSight: { id: 'hawkSight', name: '매의 눈', level: 12, icon: '◈', description: '치명타 확률 +4%(레벨당 +0.9%)' },
   staffMastery: { id: 'staffMastery', name: '지팡이 숙련', level: 3, icon: '✥', description: '공격력 영구 +15%' },
-  manaCircuit: { id: 'manaCircuit', name: '마나 회로', level: 6, icon: '➤', description: '이동속도·공격속도 영구 +12%' },
-  arcaneSense: { id: 'arcaneSense', name: '비전 감응', level: 12, icon: '◈', description: '치명타 확률 +8% · 사거리 +8%' }
+  // 밸런스 v2: 공속 6% + 레벨당 0.35%p.
+  manaCircuit: { id: 'manaCircuit', name: '마나 회로', level: 6, icon: '➤', description: '공격속도 +6%(레벨당 +0.35%)' },
+  // 밸런스 v2: 치명 4% + 레벨당 0.9%p.
+  arcaneSense: { id: 'arcaneSense', name: '비전 감응', level: 12, icon: '◈', description: '치명타 확률 +4%(레벨당 +0.9%)' }
 };
 
 /** 스킬 습득·사용에 캐릭터 레벨 제한은 없다(작업 216).

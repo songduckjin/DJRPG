@@ -1,0 +1,248 @@
+/* DJRPG 모달 — 장비창·가방
+   아이템 칸, 아이템/장착 상세, 분해·자동 분해, 강화 배지·업그레이드 화살표, 장착 10칸.
+
+   원래 한 파일이던 `styles/modals.css`를 도메인별로 나눈 것이다. 규칙 본문과 순서는 원본 그대로이고,
+   `styles/modals.css`가 정해진 순서로 @import 한다. 선택자·우선순위·렌더 결과가 원본과 같아야 하므로
+   규칙을 다른 파일로 옮길 때는 앞뒤 순서(캐스케이드)를 반드시 확인한다. */
+
+.salvage { border: 1px solid #836546; background: #3a2926; color: #ecd8bb; padding: 6px 10px; font-size: 11px; }
+.modal-bag { border-top: 1px solid #73574b; margin-top: 9px; padding-top: 6px; }
+.equipment-modal .modal-bag { display: flex; flex: 1; flex-direction: column; min-height: 0; overflow: hidden; }
+.modal-bag h3 { margin: 0 0 8px; color: #e7d4b4; font-size: 14px; }
+.bag-filters { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 3px; margin-bottom: 5px; }
+.bag-filters button { border: 1px solid #6d5948; padding: 5px 1px; min-width: 0; white-space: nowrap; background: #292124; color: #bba998; font-size: 11px; }
+.bag-filters button.active { border-color: #c8a26a; background: #4a342a; color: #ffe1b5; }
+.modal-bag-footer { display: flex; flex: none; align-items: center; justify-content: space-between; gap: 5px; border-top: 1px solid #655044; margin-top: 7px; padding: 7px 0 2px; color: #c4ac91; background: #211b1d; font-size: 11px; }
+.bag-footer-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; }
+.salvage-rarity { border: 1px solid #b28a55; background: #443425; color: #ffe0ab; padding: 5px 7px; font-size: 11px; }
+/* 41층부터 (작업 203): 자동 분해 `+N까지` 상한 선택. 등급 기준 버튼 옆에 같은 톤으로 놓는다. */
+.salvage-plus { border: 1px solid #b28a55; background: #443425; color: #ffe0ab; padding: 5px 4px; font: inherit; font-size: 11px; max-width: 46vw; }
+.bag-grid { display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); grid-auto-rows: max-content; align-content: start; align-items: start; gap: 3px; padding: 2px; }
+.equipment-modal .bag-grid { flex: 1 1 0%; min-height: 110px; overflow-y: auto; overflow-x: hidden; scrollbar-gutter: stable; }
+.equipment-modal .modal-bag > h3, .equipment-modal .bag-filters, .equipment-modal .bag-job-only { flex: none; }
+.bag-item { position: relative; width: 100%; min-width: 0; aspect-ratio: 1; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; border: 1px solid #60534e; background: radial-gradient(circle at 50% 30%, #3a3130, #221e22); color: #ddcfc1; padding: 2px; }
+.bag-item.common, .equipment-slot.common { border-color: #9ca3af; box-shadow: inset 0 0 7px #9ca3af44; }
+.bag-item.magic, .equipment-slot.magic { border-color: #60a5fa; box-shadow: inset 0 0 8px #60a5fa55, 0 0 5px #60a5fa55; }
+.bag-item.rare, .equipment-slot.rare { border-color: #facc15; box-shadow: inset 0 0 8px #facc1555, 0 0 5px #facc1555; }
+.bag-item.epic, .equipment-slot.epic { border-color: #c084fc; box-shadow: inset 0 0 8px #c084fc55, 0 0 5px #c084fc55; }
+.bag-item.unique, .equipment-slot.unique { border-color: #fb923c; box-shadow: inset 0 0 8px #fb923c55, 0 0 5px #fb923c55; }
+.bag-item.legendary, .equipment-slot.legendary { border-color: #f87171; box-shadow: inset 0 0 9px #f8717166, 0 0 6px #f8717177; }
+.bag-item.selected { background: #68513a; outline: 2px solid #ffe3a3; outline-offset: -3px; filter: brightness(1.2); }
+.item-icon { display: block; flex: none; width: 44px; height: 44px; object-fit: contain; }
+.atlas-icon { background-size: 500% 100%; background-repeat: no-repeat; }
+.bag-item small { font-size: 8px; color: #ac9e94; }
+.bag-item b { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 9px; font-weight: 500; }
+.empty { grid-column: 1 / -1; text-align: center; color: #938780; font-size: 12px; padding: 10px; }
+.item-detail { margin-top: 7px; padding: 7px; border: 1px solid #69564c; background: #211a1d; display: flex; flex-wrap: wrap; gap: 6px 12px; font-size: 11px; }
+.item-detail h2 { font-size: 13px; width: 100%; margin: 0; }
+.item-detail .up { color: #77c696; }
+.item-detail .down { color: #d77b75; }
+/* 추가옵션(작업 238) — 스탯 줄과 구분되는 보랏빛 한 줄, `✨`는 글자에 들어 있다. */
+.item-detail .item-extra { display: block; width: 100%; color: #d9c2ff; font-size: 10.5px; letter-spacing: .1px; }
+.detail-actions { display: flex; width: 100%; gap: 7px; }
+.detail-actions button { border: 1px solid #836546; background: #3a2926; color: #ecd8bb; padding: 5px 12px; font-size: 11px; }
+.modal-dialog.equipment-modal { display: flex; flex-direction: column; height: min(92dvh, 850px); max-height: 92dvh; overflow: hidden; padding: 9px; }
+.equipment-showcase { display: grid; grid-template-columns: minmax(92px, 34%) minmax(0, 1fr); gap: 7px; height: 190px; flex: 0 0 190px; min-height: 0; }
+.showcase-hero { position: relative; display: flex; justify-content: center; align-items: center; min-width: 0; min-height: 0; overflow: hidden; border: 1px solid #655044; background: radial-gradient(ellipse at 50% 28%, #695544 0%, #302727 37%, #19161b 75%); box-shadow: inset 0 0 23px #000a; }
+.showcase-hero:after { content: ''; position: absolute; bottom: 7px; width: 75%; height: 14px; border-radius: 50%; background: #0008; filter: blur(5px); }
+.showcase-figure { position: relative; display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; }
+/* 장비 등급색 발광(작업 218, 세기 강화 231) — 유니크·전설을 착용한 부위만 초상화 위에서 숨쉬다 원래 색으로 돌아온다.
+   발광 레이어는 몸 그림 **위**(z-index 2)에 얹어 장비 전체가 빛나게 하고, 등급색 후광(drop-shadow)과
+   채도·밝기를 함께 올려 예전보다 훨씬 진하게 보이게 한다. */
+.showcase-glow { position: absolute; inset: 0; z-index: 2; display: block; pointer-events: none; }
+.showcase-glow-layer { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; mix-blend-mode: screen; filter: saturate(1.3) brightness(1.08) drop-shadow(0 0 7px var(--gear-color, #ff7a00)); animation: gear-rarity-pulse var(--gear-cycle, 2.6s) ease-in-out infinite; }
+@keyframes gear-rarity-pulse { 0%, 100% { opacity: 0; } 50% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .showcase-glow-layer { animation: none; opacity: .7; } }
+.showcase-body { position: relative; z-index: 1; display: block; width: 100%; height: 100%; object-fit: contain; image-rendering: auto; }
+.showcase-figure { position: relative; display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; }
+.showcase-body { position: relative; z-index: 1; display: block; width: 100%; height: 100%; object-fit: contain; image-rendering: auto; }
+.equipment-info { display: grid; grid-template-rows: auto 1fr; gap: 5px; min-width: 0; min-height: 0; }
+/* [정렬] 장비창 중간 요약(레벨·층·경험치·금화) — 라벨은 왼쪽·값은 오른쪽, 바로 아래
+   `.equipment-info-stats`와 **같은 두 열·같은 3px 간격·같은 6px 안쪽 여백**이라 세로줄이 한 줄로 선다.
+   바깥 테두리는 `outline`으로 그려(레이아웃 폭을 먹지 않는다) 두 표의 열 너비가 정확히 같다. */
+.equipment-summary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-content: center; gap: 3px; min-width: 0; padding: 4px 0; background: #211b1d; outline: 1px solid #655044; outline-offset: -1px; color: #c4b0a1; font-size: 10px; }
+.equipment-summary > span { display: flex; align-items: baseline; justify-content: space-between; gap: 4px; min-width: 0; padding: 0 6px; overflow: hidden; }
+.equipment-summary small { flex: none; color: #a5927d; font-size: 10px; letter-spacing: .2px; }
+.equipment-summary b { min-width: 0; overflow: hidden; color: #f1d8ab; text-overflow: ellipsis; white-space: nowrap; }
+/* 라벨이 없는 칸(`1층`)과 금화 줄은 값을 오른쪽 끝에 맞춘다 — 두 열의 값이 같은 세로줄에 선다. */
+.equipment-summary .is-value { justify-content: flex-end; }
+.equipment-summary .summary-gold { align-items: center; justify-content: flex-end; gap: 3px; }
+.equipment-summary .summary-gold em { min-width: 0; overflow: hidden; font-style: normal; text-overflow: ellipsis; white-space: nowrap; }
+.equipment-info-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: repeat(3, minmax(0, 1fr)); gap: 3px; min-height: 0; }
+.equipment-info-stats > div { display: flex; justify-content: space-between; align-items: center; gap: 3px; min-width: 0; border: 1px solid #54443f; padding: 3px 5px; color: #b19d86; font-size: 9px; }
+.equipment-info-stats b { overflow: hidden; color: #efd3a8; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+/* 장착 장비 추가옵션 합계(작업 238) — 스탯 표 아래 한 줄. */
+.equipment-info-extras { overflow: hidden; color: #d9c2ff; font-size: 9px; line-height: 1.3; text-overflow: ellipsis; white-space: nowrap; }
+.equipment-grid { display: grid; flex: none; grid-template-columns: repeat(5, minmax(0, 1fr)); grid-template-rows: repeat(2, minmax(0, 1fr)); gap: 4px; margin-top: 5px; }
+/* [작업 231] 장착 칸 아이콘 정비율(`#19923` "중간쯤 장착한 템들 너무 늘려트려져 보여") — 칸 높이(48/46px)와
+   가방 영역은 그대로 두고, 안의 아이콘만 가로로 늘어나지 않게 원본 비율(1:1 정비율)로 가운데 정렬한다.
+   칸은 grid 두 줄(아이콘 `1fr` · 라벨 `auto`)로 두어 아이콘 영역 높이가 확정되게 하고(퍼센트 높이가 흔들리지
+   않게), 아이콘은 그 안에서 `max-width/height: 100%` + `object-fit: contain`으로만 줄인다. 아틀라스 아이콘은
+   `<img>`가 아니라 배경 그림 `span`이라 `object-fit`이 듣지 않으므로 `src/ui/slotArtStyle.ts`가 **내용 상자**(물건이
+   들어 있는 부분, `itemArtTrim.generated.ts`)의 `background-size`·`background-position`과 그 상자의
+   `aspect-ratio`를 인라인으로 준다 — 칸 가장자리의 빈 여백 때문에 물건이 작아 보이지도, 그림이 늘어나지도 않는다.
+   아래는 인라인 값이 없는(표에 없는) 아틀라스의 마지막 기본값이다(한 칸 174:290 = 870×290 ÷ 5열). */
+.equipment-slot { --slot-art-ratio: 174 / 290; position: relative; display: grid; grid-template-rows: minmax(0, 1fr) auto; justify-items: center; align-items: center; min-width: 0; aspect-ratio: 1; gap: 1px; border: 1px solid #655348; background: #252126; color: #b9ada6; padding: 2px; }
+.equipment-slot .slot-icon { display: block; grid-row: 1; justify-self: center; align-self: center; width: auto; height: auto; max-width: 100%; max-height: 100%; min-width: 0; min-height: 0; object-fit: contain; }
+.equipment-slot .slot-icon.atlas-icon { width: auto; height: 100%; max-width: 100%; aspect-ratio: var(--slot-art-ratio); background-size: 500% 100%; }
+/* 부위 이름은 아이콘과 **같은 중심**에 둔다. 예전에는 왼쪽 아래 `+N` 배지를 비키려고 `padding-left: 13px`을
+   주었는데, 한쪽만 비우면 이름 글자가 아이콘 중심에서 6.5px 오른쪽으로 밀려 아이콘과 이름이 대칭이 되지
+   않았다(사용자 요청 "장비창 중간에 있는 게 이름이랑 템이랑 글씨가 대칭이 안 되어 있어 정렬해줘"). 그래서
+   배지는 아래 `.equipment-slot .item-plus-badge`가 이름 줄 **위**로 올리고, 이름은 늘 가운데에 선다. */
+.equipment-slot .slot-part { grid-row: 2; max-width: 100%; overflow: hidden; color: #ccb49b; font-size: 8px; line-height: 1.05; text-overflow: ellipsis; white-space: nowrap; }
+.equipment-slot[aria-expanded="true"] { background: #3c3231; outline: 1px solid #e0c699; outline-offset: 1px; }
+.equipment-slot:disabled { opacity: .65; }
+.equipped-detail { margin: 0; display: flex; flex-direction: column; align-items: flex-start; position: fixed; z-index: 30; width: max-content; overflow-y: auto; box-shadow: 0 8px 24px #000b; }
+.equipped-detail p { margin: 5px 0 9px; color: #cbb89b; }
+.equipped-detail button { margin-top: 8px; border: 1px solid #836546; background: #3a2926; color: #ecd8bb; padding: 7px 12px; font: inherit; }
+.modal-dialog .equipped-detail h2 { margin: 0; font-size: 14px; line-height: 1.5; }
+.equipped-detail > span { line-height: 1.6; }
+.equipment-slot.empty-slot .slot-icon { opacity: .25; filter: grayscale(1); }
+.equipment-slot small { display: block; white-space: nowrap; }
+/* [작업 228] 모바일 장비창(`#19086` "인벤토리창아 안보여") — 세로가 짧은 폰에서도 가방 칸이 늘
+   2~3줄 보이도록 위쪽(전신 일러스트·장착 10칸)과 가방 머리·바닥 줄을 함께 줄인다. 전신 그림과 6개
+   스탯은 그대로 다 보이고(`object-fit: contain`), 장착 10칸은 정사각 대신 46~48px 높이의 납작한
+   칸이 된다. 가방 칸은 어느 화면에서도 최소 135px을 지켜 0px로 찌그러지지 않는다. */
+@media (max-width: 480px) {
+  .equipment-showcase { height: 146px; flex-basis: 146px; }
+  .equipment-slot { aspect-ratio: auto; height: 48px; }
+  .equipment-grid { grid-template-rows: repeat(2, 48px); }
+  .equipment-modal .bag-grid { min-height: 135px; }
+  .bag-heading h3 { font-size: 13px; }
+  .bag-heading .bag-rarity-sort, .bag-heading .bag-job-only { padding: 4px 7px; font-size: 10px; }
+  .modal-bag-footer { flex-wrap: wrap; gap: 4px; margin-top: 5px; padding-top: 5px; }
+  .modal-bag-footer .salvage, .modal-bag-footer .salvage-rarity, .modal-bag-footer .salvage-plus { padding: 4px 7px; font-size: 10px; }
+  .auto-salvage-hint { font-size: 9px; }
+}
+@media (max-width: 380px) { .equipment-showcase { grid-template-columns: minmax(82px, 32%) minmax(0, 1fr); height: 140px; flex-basis: 140px; } .equipment-grid { gap: 3px; } .equipment-slot { height: 46px; } .equipment-grid { grid-template-rows: repeat(2, 46px); } .equipment-slot .slot-part { font-size: 7px; } .equipment-info-stats > div { padding: 2px 3px; font-size: 8px; } }
+@media (max-height: 720px) { .equipment-showcase { height: 132px; flex-basis: 132px; } .equipment-grid { gap: 3px; margin-top: 4px; } .equipment-modal .modal-bag { margin-top: 5px; padding-top: 5px; } }
+/* 아주 낮은 화면(가로 화면·초소형): 창 자체가 스크롤되게 두고, 가방 칸은 최소 높이를 지킨다. */
+@media (max-height: 620px) {
+  .modal-dialog.equipment-modal { height: auto; max-height: 92dvh; overflow-y: auto; }
+  .equipment-modal .modal-bag { flex: none; overflow: visible; }
+  .equipment-modal .bag-grid { flex: none; min-height: 135px; }
+  .equipment-modal .modal-bag-footer { position: static; }
+}
+.salvage:disabled { opacity: .4; cursor: default; }
+.auto-salvage.is-on { border-color: #e4c075; background: #5b4529; color: #ffe8b8; box-shadow: 0 0 8px #d1ab4850; }
+.auto-salvage-hint { flex-basis: 100%; text-align: right; color: #b7a189; font-size: 10px; line-height: 1.5; }
+.salvage.auto-equip-ready { border-color: #e4c075; background: #5b4529; color: #ffe8b8; box-shadow: 0 0 8px #d1ab4850; }
+.salvage-warning { color: #f0c18b; font-size: 13px; line-height: 1.8; }
+/* 분해 보호 (작업 197): 장비창을 덮는 긴 확인창 대신 장비창 위에 얹는 작은 팝업 하나. 보호할 장비만
+   카드로(그림·이름·부위, 현재 투력 → 이 장비 투력) 보여 주고, '이 아이템 분해 제외'가 가장 큰 버튼,
+   '그대로 분해'·'취소'는 그 아래 작은 보조 버튼이다. */
+.salvage-protect { position: fixed; inset: 0; z-index: 40; display: flex; align-items: center; justify-content: center; padding: 18px; background: #07050ba6; }
+.salvage-protect-card { width: min(330px, 100%); display: grid; gap: 8px; padding: 15px 14px; border: 1px solid #b98a55; background: #2a1f20; box-shadow: 0 14px 40px #000c; }
+.salvage-protect-title { margin: 0; font-size: 15px; color: #ffcf9a; }
+.salvage-protect-note { margin: 0; font-size: 11px; line-height: 1.55; color: #c0ab93; }
+.salvage-protect-list { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; max-height: 38dvh; overflow-y: auto; }
+.salvage-protect-item { display: flex; align-items: center; gap: 9px; padding: 7px 8px; border: 1px solid #8c5a33; border-radius: 6px; background: #3a2320; }
+.salvage-protect-art { flex: 0 0 auto; width: 40px; height: 40px; display: grid; place-items: center; border-radius: 5px; background: #1d1414; box-shadow: inset 0 0 0 1px var(--salvage-ink, #cdd6e0); }
+.salvage-protect-art img { display: block; width: 34px; height: 34px; object-fit: contain; }
+.salvage-protect-sheet { display: block; width: 34px; height: 34px; background-size: 500% 100%; background-repeat: no-repeat; }
+.salvage-protect-info { display: grid; gap: 1px; min-width: 0; }
+.salvage-protect-info strong { font-size: 12.5px; color: #f3e3cf; }
+.salvage-protect-info small { font-size: 10px; color: #b7a189; }
+.salvage-protect-power { font-size: 11px; color: #d9c3a5; }
+.salvage-protect-power b { font-size: 13px; color: #ffd977; }
+.salvage-protect-power em { margin-left: 3px; font-style: normal; color: #8ce08c; }
+.salvage-protect-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 4px; }
+.salvage-protect-keep { grid-column: 1 / -1; width: 100%; padding: 12px; border: 1px solid #e0b46a; background: linear-gradient(#8a5a1e, #5d3a12); color: #fff3d6; font-size: 14px; font-weight: bold; box-shadow: 0 3px 10px #0008; }
+.salvage-protect-all, .salvage-protect-cancel { width: 100%; padding: 7px; border: 1px solid #6d5540; background: #251e1f; color: #b7a189; font-size: 11px; }
+.salvage-confirm-list { max-height: 35dvh; overflow-y: auto; padding-left: 20px; color: #cdb99e; font-size: 12px; line-height: 1.8; }
+.salvage-confirm-actions { display: flex; gap: 8px; margin-top: 14px; }
+.salvage-confirm-actions button { flex: 1; border: 1px solid #a57c52; background: #4c3028; color: #f5d8b3; padding: 11px 6px; }
+.salvage-confirm-actions button:first-child { background: #272126; }
+.bag-detail-overlay { position: fixed; z-index: 10; margin: 0; padding: 7px; overflow-y: auto; overscroll-behavior: contain; background: #211a1dfa; border-color: #bda071; box-shadow: 0 8px 22px #000b; }
+.modal-dialog .bag-detail-overlay h2 { font-size: 12px; line-height: 1.35; margin: 0; overflow-wrap: anywhere; }
+.bag-detail-overlay { font-size: 10px; gap: 4px 7px; }
+.bag-detail-overlay > span { width: 100%; line-height: 1.35; }
+.bag-detail-overlay .item-detail-heading { gap: 5px; }
+.bag-detail-overlay .item-lock { width: 28px; height: 28px; }
+.bag-detail-overlay .lock-icon { width: 26px; height: 26px; }
+.item-detail-grade { display: block; width: 100%; color: #d7bc95; font-size: 10px; }
+.item-detail-grade.rarity-common { color: #9ca3af; }
+.item-detail-grade.rarity-magic { color: #60a5fa; }
+.item-detail-grade.rarity-rare { color: #facc15; }
+.item-detail-grade.rarity-epic { color: #c084fc; }
+.item-detail-grade.rarity-unique { color: #fb923c; }
+.item-detail-grade.rarity-legendary { color: #f87171; }
+/* 강화 단계 배지(작업 201): 장비 이름 바로 옆에 붙는 `+N`. 등급 색(회색·파랑·노랑·보라·주황·빨강)과
+   섞이지 않도록 밝은 에메랄드/시안 한 색만 쓴다. 이름 글자는 그대로 두고 이 배지만 색을 준다. */
+.item-plus { display: inline-block; margin-left: 4px; font-weight: 800; font-size: .92em; letter-spacing: .01em; color: #43f6c5; text-shadow: 0 0 6px #43f6c566; white-space: nowrap; vertical-align: baseline; }
+.item-detail-slot { color: #c9b291; font-weight: 400; }
+.item-detail-heading { display: flex; align-items: center; gap: 10px; width: 100%; }
+.modal-dialog .item-detail-heading h2 { width: auto; flex: 0 1 auto; min-width: 0; }
+.item-lock { display: inline-flex; flex: none; align-items: center; justify-content: center; width: 36px; height: 36px; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+.item-lock[aria-pressed="true"] { background: transparent; box-shadow: none; }
+.item-lock:focus-visible { outline: 2px solid #e9c585; outline-offset: 2px; }
+.lock-icon { display: inline-block; width: 34px; height: 34px; flex: none; background-image: url('/assets/icons/item-locks-v3.png'); background-size: 200% 100%; background-repeat: no-repeat; }
+.lock-icon.is-locked { background-position: left center; }
+.lock-icon.is-open { background-position: right center; }
+.detail-actions button:disabled { opacity: .45; cursor: default; }
+.equipment-modal .modal-close { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 44px; height: 44px; touch-action: manipulation; }
+.bag-item .bag-lock-badge { position: absolute; top: 1px; right: 1px; width: 18px; height: 18px; z-index: 1; pointer-events: none; }
+/* 업그레이드 화살표(작업 241 → 246) — 사용자가 고른 **3번 슬림 더블 셰브론 PNG**를 아이콘 상자
+   우측 상단에 9px 이하로 작게 얹고, 주변에만 은은한 녹색 발광을 준다(글자 `▲`는 크고 투박해
+   아이템을 가렸다). 좌상단 타직업 배지·왼쪽 아래 `+N`·우하단 수량/잠금과 겹치지 않는다.
+   잠금 배지가 함께 있는 칸만 CSS가 잠금을 **우측 아래**로 내린다(화살표가 위에 남는다). */
+.upgrade-arrow { position: absolute; top: 2px; right: 2px; z-index: 3; display: block; width: clamp(7px, 1.9vw, 9px); height: auto; filter: drop-shadow(0 0 3px rgba(52, 211, 153, .8)) drop-shadow(0 0 6px rgba(16, 185, 129, .5)); pointer-events: none; user-select: none; }
+.bag-item.has-upgrade .bag-lock-badge { top: auto; bottom: 1px; }
+/* 다운그레이드 화살표 — 업그레이드와 **같은 슬림 더블 셰브론**을 180° 뒤집어 빨갛게 구운 PNG
+   (`/assets/icons/downgrade-arrow-slim.png`)를 같은 자리(우측 상단)에 같은 크기로 얹는다. 두 판정은 서로
+   배타적이라 한 칸에 두 화살표가 함께 붙지 않고, 좌상단 등급 배지(`L`·`U`·`E`, PR #305)·왼쪽 아래 `+N`과도
+   겹치지 않는 유일한 모서리다. 빨간 발광은 `#f87171`. */
+.downgrade-arrow { position: absolute; top: 2px; right: 2px; z-index: 3; display: block; width: clamp(7px, 1.9vw, 9px); height: auto; filter: drop-shadow(0 0 3px rgba(248, 113, 113, .85)) drop-shadow(0 0 6px rgba(220, 38, 38, .5)); pointer-events: none; user-select: none; }
+.bag-item.has-downgrade .bag-lock-badge { top: auto; bottom: 1px; }
+/* `+N` 강화 배지는 **모든 아이템 칸의 왼쪽 아래** 한 곳에만 붙는다(작업 246) — 가방·장비창 장착 칸·
+   공용창고가 같은 자리를 쓴다. 좌상단 직업 배지, 우상단 추천 화살표, 우하단 수량 `×N`·잠금과
+   겹치지 않는 유일한 모서리다. 이름 옆 배지(`.item-plus`, 작업 201)와 같은 색을 쓴다. */
+/* ── 등급 배지 `L`·`U`·`E` (2026-11-21 사용자 확정 B안 '필 배지') ─────────────────────────────
+   전설(`legendary`)·유니크(`unique`)·에픽(`epic`) 장비만 아이템 칸의 **왼쪽 위**에 등급 첫 글자를 얹는다.
+   왼쪽 아래 `+N`(plusBadge.ts)과 같은 어두운 알약 바탕(`#120f14cc`)·같은 radius(3px)이고, 1px 테두리와
+   글자는 그 장비의 등급색(`currentColor` ← `.rarity-legendary`·`.rarity-unique`·`.rarity-epic`)이다.
+
+   **칸 안 네 모서리 규칙(하나도 겹치지 않는다)**
+     왼쪽 위 = 등급 `L`·`U`·`E` · 오른쪽 위 = 추천 화살표(없으면 잠금) · 왼쪽 아래 = `+N` ·
+     오른쪽 아래 = `×N`(스킬북·주머니)·잠금(추천 화살표가 위를 쓸 때).
+   예전에 왼쪽 위를 쓰던 타직업 배지(`.job-badge`)는 좁은 칸(가방·공용창고·거래소 판매 칸)에서
+   **한 글자(`전`·`궁`·`법`)** 로 오른쪽 아래로 비키고, 넓은 거래소 카드에서는 등급 배지 아래로 쌓인다. */
+.rarity-badge { position: absolute; left: 2px; top: 2px; z-index: 3; padding: 0 2px; border-radius: 3px; background: #120f14cc; border: 1px solid currentColor; font-size: 9px; line-height: 1; font-weight: 800; letter-spacing: .02em; text-shadow: 0 0 4px #000a; pointer-events: none; }
+.bag-item .item-plus-badge, .equipment-slot .item-plus-badge, .market-pick .item-plus-badge { position: absolute; left: 3px; bottom: 2px; z-index: 2; margin: 0; padding: 0 2px; border-radius: 3px; background: #120f14cc; color: #43f6c5; font-size: 9px; line-height: 1.25; font-weight: 800; letter-spacing: .01em; text-shadow: 0 0 5px #43f6c599; pointer-events: none; white-space: nowrap; }
+/* 장착 10칸의 `+N`만 이름 줄(아래 8px)을 비켜 **아이콘 왼쪽 아래**로 올린다 — 그래야 부위 이름이 아이콘
+   중심에 그대로 선다(가방·공용창고는 이름 줄이 없어 예전 자리 그대로). */
+.equipment-slot .item-plus-badge { bottom: 13px; }
+.bag-capacity { color: #aa9b8f; font-size: 9px; margin-left: 2px; }
+/* 가방이 40칸을 넘은 세이브(작업 248) — 정리가 필요하다는 것을 바로 보이게 한다. */
+.modal-bag-footer .is-over { color: #f0846c; }
+.equipped-detail .item-lock { margin-top: 0; padding: 0; border: 0; background: transparent; }
+.equipped-detail .item-detail-heading { gap: 6px; }
+.bag-item .item-icon { width: 100%; height: 100%; max-width: 36px; max-height: 36px; min-height: 0; }
+.bag-item .bag-lock-badge { width: clamp(10px, 2.6vw, 14px); height: clamp(10px, 2.6vw, 14px); }
+/* 가방 머리(작업 228): `가방` 제목과 `내 직업만 보기`, `등급순`을 **한 줄**에 나란히 둔다 — 예전에는
+   제목 줄·필터 줄·직업 줄로 세 줄을 써서 세로가 짧은 폰의 가방 칸을 밀어냈다. */
+.bag-heading { display:flex; align-items:center; gap:4px; margin-bottom:5px; flex:none; }
+.bag-heading h3 { flex:1 1 auto; min-width:0; margin:0; }
+.bag-heading .bag-job-only { flex:0 1 auto; margin:0; }
+/* [작업 252] 가방 `합성`은 머리줄 `내 직업만 보기` 바로 왼쪽 — 머리줄 버튼과 같은 납작한 크기로 둔다. */
+/* 입문 안내(작업 미정) — 모달이 열리면 안내 띠는 가려지므로, 해야 할 일을 가방 머리글 밑에 한 줄 남긴다. */
+.tutorial-note { display:block; flex:none; margin:0 0 5px; padding:4px 6px; border:1px solid #805b3b; border-radius:4px; background:#20191a; color:#f4dcb0; font-size:10.5px; line-height:1.45; }
+.bag-rarity-sort { flex:0 0 auto; border:1px solid #6d5948; background:#292124; color:#bba998; padding:4px 8px; font-size:11px; }
+.bag-rarity-sort.active { border-color:#c8a26a; background:#4a342a; color:#ffe1b5; }
+/* 직업 표기·내 직업만 보기 (작업 205) — 세 직업의 무기·스킬북이 같은 확률로 떨어지므로, 어느 직업의
+   물건인지와 내가 쓸 수 있는지를 목록에서 바로 읽히게 한다. */
+.job-badge { display: inline-flex; align-items: center; justify-content: center; padding: 0 4px; min-height: 13px; border-radius: 3px; border: 1px solid currentColor; font-size: 9px; line-height: 11px; font-weight: 700; letter-spacing: -.2px; background: #171216cc; }
+.job-warrior { color: #f0b27a; }
+.job-archer { color: #7fd6a1; }
+.job-mage { color: #a7b4ff; }
+/* 좁은 칸(가방·공용창고)의 직업 배지 — 왼쪽 위는 등급 배지가 쓰므로 **오른쪽 아래**로 가고,
+   30~40px 칸에서 두 글자가 칸을 덮지 않도록 한 글자(`전`·`궁`·`법`, `jobShortNames`)로 줄인다.
+   전체 이름(`전사`·`마법사`)은 `title`·`aria-label`·상세 패널이 계속 밝힌다. */
+.bag-item .job-badge { position: absolute; right: 1px; bottom: 1px; left: auto; top: auto; padding: 0 1px; min-height: 0; font-size: 8px; line-height: 9px; z-index: 2; pointer-events: none; }
+/* 잠긴 장비가 추천 대상이면 잠금 배지가 오른쪽 아래로 내려온다(작업 241) — 그 칸에서만 직업 배지를 감춘다.
+   잠금(상태)이 직업(정보)보다 먼저이고, 직업 이름은 위 설명대로 `aria-label`·상세에 남는다. */
+.bag-item.has-upgrade:has(.bag-lock-badge) .job-badge { display: none; }
+.bag-job-only { border: 1px solid #6d5948; background: #292124; color: #bba998; padding: 4px 7px; font-size: 11px; }
+.bag-job-only.is-on { border-color: #c8a26a; background: #4a342a; color: #ffe1b5; }
+.bag-job-only-hint { color: #b9a486; }
+.item-detail-job { display: block; width: 100%; margin: 2px 0 4px; font-size: 10px; font-weight: 700; }

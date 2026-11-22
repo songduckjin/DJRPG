@@ -8,8 +8,9 @@ import {
 const items = await import('../src/game/items.ts');
 const store = await import('../src/game/store.ts');
 
-// save-guard는 순수 JS다(ts 로더 없이 도는 스크립트가 DB 모듈을 그대로 쓰기 때문). 그래서 상수를 옮겨 적었고,
-// 원본과 갈라지면 여기서 먼저 깨진다.
+// save-guard는 순수 JS(.mjs)이고, 진행 규칙의 값은 `src/game/progress.ts` 한 곳에서 직접 가져온다(PR-3, 작업 262).
+// 아래 대조는 그 값이 게임 쪽 공개 경로(store 재export)와도 같은 값인지 지키는 계약이다 — 서버가 클라를
+// 신뢰하지 않으면서도 같은 규칙을 보는 근거다.
 test('세이브 검증 상수는 게임 원본과 같은 값이다', () => {
   assert.deepEqual(RARITY_SCALES, items.rarityScales);
   assert.equal(MAX_LEVEL, store.MAX_LEVEL);

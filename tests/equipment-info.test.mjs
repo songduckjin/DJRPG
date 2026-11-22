@@ -2,11 +2,12 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
 import './ts-loader.mjs';
+import { modalStyles as readModalStyles } from './helpers/modal-styles.mjs';
 
 const { equipmentInfoSlots, equipmentInfoStats } = await import('../src/ui/modals/equipModal.ts');
 const interfaceSource = readFileSync(new URL('../src/ui/interface.ts', import.meta.url), 'utf8');
 const accountSource = readFileSync(new URL('../src/ui/modals/accountModal.ts', import.meta.url), 'utf8');
-const modalStyles = readFileSync(new URL('../src/styles/modals.css', import.meta.url), 'utf8');
+const modalStyles = readModalStyles();
 
 test('bottom navigation contains only the unified info, skills, market, and warehouse tabs', () => {
   const nav = interfaceSource.match(/<nav class="bottom-nav"[^>]*>(.*?)<\/nav>/)?.[1];

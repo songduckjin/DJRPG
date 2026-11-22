@@ -1,4 +1,9 @@
-# 공용 거래소
+# MARKET — 공용 거래소
+
+> **책임**: 계정 공용 거래소(판매 등록·묶음·구매·취소·수령함·시세). 저장·멱등은 `docs/SYNC_SAVE.md`, 아이템·가방 40칸은 `docs/INVENTORY_GEAR.md`, 캐릭터 전환 가드는 `docs/SYNC_SAVE.md`.
+> **핵심 파일**: `src/ui/modals/marketModal.ts`·`src/game/market.ts`·`server/market.mjs`·`server/endpoints/market.mjs`·`src/styles/market.css`·`functions/api/market*.js`·`api/market*.mjs`
+> **불변**: 거래소는 **계정 공용**이다(매물·수령함·판매 한도·골드에 `characterSlot` 조건을 달지 않는다). 수수료 5%, 등록 30건, 72시간 만료, 최소가 1골드, 수령함 30건(`INBOX_FULL`). 묶음 최대 10개. 우리 서버가 `save_json`을 직접 고치지 않고 `writeSave` 배치로만 반영한다.
+> **테스트**: `node --test tests/market.test.mjs tests/market-actions.test.mjs tests/market-bundle-ui.test.mjs tests/market-view-toggle.test.mjs tests/market-inbox-ui.test.mjs tests/market-index.test.mjs tests/multi-character-market.test.mjs tests/concurrency.test.mjs`
 
 ## 이용 방법
 - 필드 왼쪽 아래 `상태 → 장비 → 스킬 → 거래소`의 상점 아이콘을 누릅니다. 기존 금빛 선 아이콘 테마를 사용합니다.
@@ -9,6 +14,7 @@
 - **내 거래**: 본인의 판매/구매 기록과 진행 상태를 확인하고 판매 중인 매물을 취소합니다.
 - **판매 등록**: 가방의 미장착 장비 또는 미사용 스킬북을 선택하고 정수 골드 가격을 입력합니다. 예상 수령액을 확인한 뒤 등록합니다.
   - 물품 칸은 한 줄에 8칸이고, 같은 스킬북(같은 `skillId`)은 한 칸에 `×N`으로 묶여 보입니다.
+  - 칸의 배지는 모서리마다 하나씩입니다 — 왼쪽 위 등급 `L`·`U`·`E`(전설·유니크·에픽 장비), 오른쪽 위 추천 화살표, 왼쪽 아래 `+N`, 오른쪽 아래 직업 한 글자(`전`·`궁`·`법`). **묶음 수량 `×N`은 오른쪽 위**로 올라갔습니다(오른쪽 아래는 직업 배지 자리 — `docs/INVENTORY_GEAR.md`의 칸 배지 자리 규칙과 같습니다).
   - 칸을 고르면 **모달이 스크롤되지 않고** 아래 고정 카드에서 수량과 **개당 가격**을 정합니다(물품 그리드만 내부 스크롤).
   - 묶음은 **한 번에 최대 10개**까지 등록할 수 있고(보유가 그보다 적으면 보유 수량까지), `최대` 버튼으로 한 번에 채웁니다.
     총액은 개당 가격 × 수량이고, 수수료 5%(골드 단위 올림)와 예상 수령액을 등록 전에 보여 줍니다.

@@ -10,6 +10,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import './ts-loader.mjs';
+import { modalStyles } from './helpers/modal-styles.mjs';
 
 const items = await import('../src/game/items.ts');
 const {
@@ -71,11 +72,12 @@ test('low 강화 단계 is common and the top step stays rare, and a boss leans 
 });
 
 // ── +8% 스탯 ────────────────────────────────────────────────────────────────
-test('each 강화 단계 adds 8% to every stat, so +7 is 1.56× the roll', () => {
+test('each 강화 단계 adds 8% to the rolled main stats, so +7 is 1.56× the roll', () => {
   assert.equal(PLUS_STAT_BONUS, .08);
   assert.deepEqual(applyPlus({ attack: 100, health: 50 }, 0), { attack: 100, health: 50 }, '0단계는 그대로');
   assert.deepEqual(applyPlus({ attack: 100, health: 50 }, 1), { attack: 108, health: 54 });
-  assert.deepEqual(applyPlus({ attack: 100, health: 50, crit: 25 }, 7), { attack: 156, health: 78, crit: 39 }, '+7은 1.56배');
+  // 밸런스 v2: 치명·공속·쿨감은 층·강화와 무관한 척도라 강화 배율을 곱하지 않는다.
+  assert.deepEqual(applyPlus({ attack: 100, health: 50, crit: 25 }, 7), { attack: 156, health: 78, crit: 25 }, '+7은 주 스탯만 1.56배');
   // 굴린 장비에도 실제로 반영된다: 71층 흰 장비의 기본 스탯(scale 36 + 1~3 + 티어 보정)에 1.56배가 곱해진다.
   for (let i = 0; i < 400; i++) {
     const item = rollItem(71, false, false);
@@ -180,7 +182,7 @@ const findByClass = (root, name) => {
   return undefined;
 };
 const allText = root => [root.textContent, ...(root.children ?? []).map(allText)].filter(Boolean).join(' ');
-const css = readFileSync(new URL('../src/styles/modals.css', import.meta.url), 'utf8');
+const css = modalStyles();
 
 test('a piece with a 강화 단계 shows +N in its own colour beside the name, and +0 shows nothing', () => {
   const plusItem = { id: 'p7', name: '영원의 룬 블레이드', slot: 'weapon', rarity: 'rare', stats: { attack: 120 }, plus: 7 };

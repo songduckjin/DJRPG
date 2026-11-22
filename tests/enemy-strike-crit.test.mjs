@@ -62,10 +62,18 @@ test('치명타: 확률 100%면 1.8배로 들어가고, 0%면 그대로다', () 
   assert.ok(Math.abs(critHit.dealt - plainHit.base * CRIT_DAMAGE_SCALE) < 1e-3, `치명타는 ${CRIT_DAMAGE_SCALE}배`);
 });
 
-test('치명타 확률은 80%로 잘린다', () => {
-  assert.equal(CRIT_CHANCE_CAP, 80);
+test('치명타 확률은 100%로 잘린다', () => {
+  // 밸런스 v2: 기본 20 + 패시브 30 + 장비 60 = 110% 예산을 100%에서 자른다.
+  assert.equal(CRIT_CHANCE_CAP, 100);
   const save = freshSave();
   save.equipment = {}; save.level = 30;
   const world = new World(save);
   assert.ok(Math.min(CRIT_CHANCE_CAP, Math.max(0, totalStats(save).crit)) <= CRIT_CHANCE_CAP);
+});
+
+test('기본 치명은 레벨을 따라 오르고, 장비 없이도 Lv.30에 20%에 닿는다(밸런스 v2)', () => {
+  const bare = (level) => { const save = freshSave(); save.equipment = {}; save.level = level; return totalStats(save).crit; };
+  assert.equal(bare(1), 2);
+  assert.equal(Math.round(bare(30) * 10) / 10, 19.4);
+  assert(bare(30) > bare(15) && bare(15) > bare(1), '레벨과 함께 오른다');
 });

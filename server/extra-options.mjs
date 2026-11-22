@@ -11,11 +11,15 @@
  */
 export const EXTRA_OPTION_KEYS = [
   'regenPct', 'bonusDmgPct', 'lifestealPct', 'attackPct', 'critPct',
-  'defensePct', 'healthPct', 'evasionPct', 'speedPct'
+  'defensePct', 'healthPct', 'evasionPct', 'speedPct', 'cdrPct'
 ];
 export const EXTRA_OPTION_COUNTS = { common: 0, magic: 0, rare: 0, epic: 1, unique: 2, legendary: 3 };
 export const EXTRA_OPTION_MIN = 1;
 export const EXTRA_OPTION_MAX = 3;
+/** `cdrPct`만 1~2%다(밸런스 v2) — 상한 `EXTRA_CDR_CAP` 6%. */
+export const EXTRA_CDR_MIN = 1;
+export const EXTRA_CDR_MAX = 2;
+export const extraOptionRange = key => key === 'cdrPct' ? { min: EXTRA_CDR_MIN, max: EXTRA_CDR_MAX } : { min: EXTRA_OPTION_MIN, max: EXTRA_OPTION_MAX };
 
 export function extraOptionCount(rarity) { return EXTRA_OPTION_COUNTS[rarity] ?? 0; }
 
@@ -49,12 +53,13 @@ export function deriveExtraOptions(rarity, id) {
   for (let index = 0; index < count && pool.length; index++) {
     const pick = Math.min(pool.length - 1, Math.floor(next() * pool.length));
     const key = pool.splice(pick, 1)[0];
-    options[key] = EXTRA_OPTION_MIN + Math.min(EXTRA_OPTION_MAX - EXTRA_OPTION_MIN, Math.floor(next() * (EXTRA_OPTION_MAX - EXTRA_OPTION_MIN + 1)));
+    const { min, max } = extraOptionRange(key);
+    options[key] = min + Math.min(max - min, Math.floor(next() * (max - min + 1)));
   }
   return options;
 }
 
-/** 저장된 값이 규칙(허용 키 9종·1~3 정수·중복 없음·등급별 개수)에 맞는지. */
+/** 저장된 값이 규칙(허용 키 10종·키별 1~3%(`cdrPct` 1~2%) 정수·중복 없음·등급별 개수)에 맞는지. */
 export function extraOptionsWithin(item) {
   if (!item || typeof item !== 'object') return false;
   const count = extraOptionCount(item.rarity);
@@ -62,10 +67,11 @@ export function extraOptionsWithin(item) {
   if (!count || typeof item.extraOptions !== 'object' || Array.isArray(item.extraOptions)) return false;
   const keys = Object.keys(item.extraOptions);
   if (keys.length !== count) return false;
-  return keys.every(key => EXTRA_OPTION_KEYS.includes(key)
-    && Number.isInteger(item.extraOptions[key])
-    && item.extraOptions[key] >= EXTRA_OPTION_MIN
-    && item.extraOptions[key] <= EXTRA_OPTION_MAX);
+  return keys.every(key => {
+    if (!EXTRA_OPTION_KEYS.includes(key)) return false;
+    const { min, max } = extraOptionRange(key);
+    return Number.isInteger(item.extraOptions[key]) && item.extraOptions[key] >= min && item.extraOptions[key] <= max;
+  });
 }
 
 /** 장비의 추가옵션을 `id` 기준으로 다시 채운다(일반·매직·레어는 필드를 지운다). */

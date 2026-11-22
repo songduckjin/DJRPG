@@ -3,7 +3,7 @@ import { filterSaleItems } from '../itemOrder';
 import { equipmentImage, isBow, isEquipment, isStatBook, itemDisplayName, itemJob, rarityNames, slotNames, statNames, usableByJob, type Item, type Stat } from '../../game/items';
 import { STAT_BOOKS, isStatBookKind } from '../../game/statBooks';
 import { extraOptionLines } from '../../game/extraOptions';
-import { jobNames } from '../../game/skills';
+import { jobNames, jobShortNames } from '../../game/skills';
 import { MARKET_JOB_ONLY_KEY, jobOnlyLabel, jobOnlyVisible, saveJobOnly } from '../jobFilter';
 import { MARKET_KIND_LABELS, type MarketKind, type MarketView, type Listing, type Market } from '../../game/market';
 import { compareEquipment } from '../../game/itemComparison';
@@ -11,6 +11,7 @@ import type { Interface } from '../interface';
 import type { Save } from '../../game/store';
 import { appendUpgradeArrow } from '../upgradeBadge';
 import { appendPlusBadge } from '../plusBadge';
+import { appendRarityBadge } from '../rarityBadge';
 import { bagStacks, stackMembers } from '../bagStacks';
 import { renderItemName } from '../itemName';
 
@@ -428,6 +429,8 @@ function compactCard(ui: Interface, sale: Listing): HTMLButtonElement {
   art.append(icon(sale.item, ui.world.save));
   // `+N`(작업 257) — 카드 모서리(왼쪽 아래)에만 작게. 아이콘 중앙을 가리지 않는다.
   appendPlusBadge(art, sale.item);
+  // 등급 배지(`L`·`U`·`E`) — 카드 그림의 왼쪽 위. 직업 배지는 그 아래로 쌓인다(`styles/market.css`).
+  appendRarityBadge(art, sale.item);
   const owner = itemJob(sale.item);
   if (owner) art.append(el('span', `job-badge job-${owner}`, jobNames[owner]));
   if (quantity > 1) { const badge = el('span', 'market-card-count', `×${quantity}`); badge.setAttribute('aria-hidden', 'true'); art.append(badge); }
@@ -524,10 +527,13 @@ function renderRegister(ui: Interface, dialog: HTMLElement, blocked: boolean): v
     pick.dataset.itemId = item.id;
     pick.append(icon(item));
     appendPlusBadge(pick, item);
+    // 등급 배지(`L`·`U`·`E`) — 판매 등록 칸의 왼쪽 위(가방과 같은 규칙).
+    appendRarityBadge(pick, item);
     // 초록 추천 화살표(작업 241)는 **칸**의 오른쪽 위에 고정 크기로 붙인다(아이콘 상자 기준이면 칸 밖으로 밀린다).
     appendUpgradeArrow(pick, ui.world.save, item);
+    // 좁은 칸이라 직업 배지는 한 글자(`전`·`궁`·`법`)로 오른쪽 아래.
     const pickOwner = itemJob(item);
-    if (pickOwner) pick.append(el('span', `job-badge job-${pickOwner}`, jobNames[pickOwner]));
+    if (pickOwner) pick.append(el('span', `job-badge job-${pickOwner}`, jobShortNames[pickOwner]));
     if (count > 1) { const badge = el('span', 'market-pick-count', `×${count}`); badge.setAttribute('aria-hidden', 'true'); pick.append(badge); }
     if (isEquipment(item) && item.locked) { const locked = el('span', 'lock-icon is-locked market-pick-lock'); locked.setAttribute('aria-label', '잠긴 장비'); pick.append(locked); }
     pick.title = `${itemDisplayName(item)} · ${rarityNames[item.rarity]}${pickOwner ? ` · ${jobNames[pickOwner]} 전용` : ''}${count > 1 ? ` · ${count}개` : ''}`;

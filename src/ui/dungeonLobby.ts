@@ -1,5 +1,6 @@
 import type { DungeonLive, DungeonRecord } from '../game/dungeonLive';
 import { dungeonClearedFloor, dungeonClearTime, recordDungeonClear } from '../game/dungeonProgress';
+import { DUNGEON_SECONDS } from '../game/dungeon/battle';
 import { DUNGEON_MAX_FLOOR, type Save } from '../game/store';
 export { DUNGEON_MAX_FLOOR } from '../game/store';
 export type DungeonRanking = DungeonRecord;
@@ -7,7 +8,7 @@ export type DungeonRanking = DungeonRecord;
 export type DungeonLobbyStatus = { completed: boolean; headline: string; detail: string; button: string; badge: string };
 export function dungeonFloorInfo(floor: number) {
   const current = Math.min(DUNGEON_MAX_FLOOR,Math.max(1, Math.floor(floor)));
-  return { floor: current, seconds: 90, boss: current % 5 === 0, waves: current % 5 === 0 ? [1] : [3, 3, 1] };
+  return { floor: current, seconds: DUNGEON_SECONDS, boss: current % 5 === 0, waves: current % 5 === 0 ? [1] : [3, 3, 1] };
 }
 export function dungeonRankings(records: DungeonRanking[]) {
   return records.filter(row => row.clearedFloor > 0).slice().sort((a,b) => b.clearedFloor - a.clearedFloor || a.clearedAt - b.clearedAt);

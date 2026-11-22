@@ -48,11 +48,15 @@ test('보물 주머니·보스·사냥·던전 어느 경로도 스킬북을 뽑
   assert.doesNotMatch(read('src/game/bossLoot.ts'), /rollSkillBook|skillBookDropChance/);
   assert.doesNotMatch(read('src/game/world.ts'), /rollSkillBook|rollItemKind/);
   assert.doesNotMatch(read('src/game/offline.ts'), /rollSkillBook|rollItemKind/);
-  assert.doesNotMatch(read('src/ui/dungeonBattle.ts'), /rollSkillBook|skillBookDropChance/);
-  // 우편 보상은 `pouches`만 아이템으로 넣는다(옛 `books` 값은 무시).
+  assert.doesNotMatch(read('src/game/dungeon/battle.ts'), /rollSkillBook|skillBookDropChance/);
+  // 우편 보상은 `pouches`만 아이템으로 넣는다(옛 `books` 값은 무시). 지급은 `core/rewardGrant.mjs`가 맡고,
+  // 그 창구도 더 이상 스킬북을 만들지 않는다.
   const journey = read('server/journey.mjs');
-  assert.match(journey, /entry\.pouches/);
+  assert.match(journey, /grantRewardsToSave|planRewards/);
   assert.doesNotMatch(journey, /rollRewardSkillBook|kind:\s*'skillbook'/);
+  const grant = read('server/core/rewardGrant.mjs');
+  assert.doesNotMatch(grant, /rollRewardSkillBook|kind:\s*'skillbook'/);
+  assert.match(grant, /totals\.pouches/, '보물 주머니만 지급한다');
   // 상점 카탈로그에도 스킬북 상품이 없다.
   const shop = existsSync(join(root, 'server/endpoints/shop.mjs')) ? read('server/endpoints/shop.mjs') : '';
   assert.doesNotMatch(shop, /skillbook/, '상점에 스킬북 상품 없음');

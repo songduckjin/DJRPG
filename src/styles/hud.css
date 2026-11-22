@@ -22,22 +22,35 @@
 .floor-return:focus-visible { outline: 2px solid #f0d8a5; outline-offset: 2px; }
 @media (max-width: 399px) { .status-floor { gap: 2px; } .floor-return { padding: 2px 5px; font-size: 10px; } }
 .gold { color: #e6bb6c; font-weight: 700; }
-.diamonds { color: #a6dcff; font-weight: 700; white-space: nowrap; }
+.diamonds { display: inline-flex; align-items: center; gap: 4px; color: #a6dcff; font-weight: 700; white-space: nowrap; }
 .level-badge { position: absolute; left: 12px; top: 5px; width: 49px; height: 49px; display: flex; flex-direction: column; align-items: center; justify-content: center; border: 0; border-radius: 50%; color: #f1d7ae; background: conic-gradient(#d6a162 var(--progress), #4a3938 0); pointer-events: auto; box-shadow: 0 2px 10px #000b; }
 .level-badge:before { content: ''; position: absolute; inset: 4px; border-radius: 50%; background: #241c20; }
 .level-badge span, .level-badge b { z-index: 1; line-height: 1; }
 .level-badge span { font: 9px Cinzel, serif; }
 .level-badge b { margin-top: 3px; font: 700 16px Cinzel, serif; }
-/* 레벨 배지 아래 닉네임(작업 228) — 배지 아래 테두리에 얹는 작은 이름판이다. 세로 공간을 더 쓰지 않아
-   체력바·튜토리얼 배너와 겹치지 않고, 누르는 일은 배지가 그대로 받는다(pointer-events: none). */
-/* 닉네임 이름판(작업 228) — **레벨 배지 원(5~54px) 바깥 아래**에서 시작한다(작업 234).
+/* 닉네임 이름판(작업 228 → 265) — **레벨 배지 원(5~54px) 바깥 아래**에서 시작한다(작업 234).
    예전 `top: 40px`은 배지 안쪽이라 `LV` 아래 레벨 숫자의 아래쪽을 가렸다(실기 IMG_1143).
-   왼쪽 끝을 배지 왼쪽(12px)에 맞춰 오른쪽으로만 늘리므로 16자 닉네임도 화면 밖으로 잘리지 않는다. */
-.hero-name { position: absolute; left: 12px; top: 56px; z-index: 2; max-width: 76px; padding: 1px 5px; border: 1px solid #6f5842; border-radius: 7px; background: #1b1419e6; color: #f1d7ae; font: 700 10px/1.3 'Noto Sans KR', sans-serif; letter-spacing: -.2px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-shadow: 0 1px 2px #000; pointer-events: none; box-shadow: 0 2px 6px #0009; }
+   왼쪽 끝을 배지 왼쪽(12px)에 맞춰 오른쪽으로만 늘리므로 16자 닉네임도 화면 밖으로 잘리지 않는다.
+   옵션 2 `다크 이름판`: 반투명 다크 필(68%) + 1px 금빛 테두리 + 위쪽 1.5px 금빛 하이라이트에
+   `전사 │ 모험가`를 한 줄로 얹는다. 직업 태그는 `data-job`(renderStatus)을 `::before`가 그린다.
+   높이 17.6px이라 배지 아래(54px)와 HP 바 위(77px) 사이에 3.4px씩 여유를 두고 들어간다. */
+.hero-name { position: absolute; left: 12px; top: 56px; z-index: 2; display: block; box-sizing: border-box; height: 17.6px; max-width: 140px; padding: 0 6px 0 5px; border: 1px solid #d6af7288; border-radius: 5px; background: #120c12ad; color: #fff0d2; font: 700 13px/15.6px 'Noto Sans KR', sans-serif; letter-spacing: -.2px; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-shadow: 0 1px 2px #000; pointer-events: none; box-shadow: 0 2px 6px #0009, inset 0 1.5px 0 #f6d28e55; }
+.hero-name::before { content: attr(data-job); display: inline-block; height: 10px; margin-right: 5px; padding-right: 5px; border-right: 1px solid #d6af7280; color: #eec57a; font-size: 7.6px; font-weight: 700; line-height: 10px; letter-spacing: 0; vertical-align: middle; }
+/* 전투력 표기(사용자 요청 "전사 | 닉네임 밑에 전투력 표기") — 이름판(56~73.6px) 바로 아래 76~89px에
+   `⚔ 전투력 68` 한 줄. 이름판보다 한 단계 작고 어두운 필을 써서 닉네임이 먼저 읽히고, 숫자만
+   밝은 금색(`b`)으로 세운다. HP 바(92px)와 3px, 이름판과 2.4px 여유다. `.exp`(46px)는 오른쪽
+   상태줄 아래라 이 세로줄과 겹치지 않는다. */
+.hero-power { position: absolute; left: 12px; top: 76px; z-index: 2; display: inline-flex; align-items: center; gap: 3px; height: 13px; max-width: 140px; padding: 0 6px 0 5px; border: 1px solid #6e5a4166; border-radius: 4px; background: #0f0a0fcc; color: #c9b295; font: 700 9.5px/11px 'Noto Sans KR', sans-serif; letter-spacing: -.1px; white-space: nowrap; overflow: hidden; pointer-events: none; box-shadow: 0 1px 3px #0009; }
+.hero-power i { flex: none; font-style: normal; font-size: 9px; line-height: 1; color: #e2b06a; }
+.hero-power b { margin-left: 2px; color: #ffe1a8; font: 700 11px/11px 'Noto Sans KR', sans-serif; font-variant-numeric: tabular-nums; }
 .exp { height: 3px; width: calc(100% - 61px); margin-left: 61px; background: #413341; margin-top: 7px; }
 .exp i { display: block; height: 100%; background: #b5824c; }
-.tutorial { position: absolute; top: calc(env(safe-area-inset-top) + 173px); left: 50%; transform: translateX(-50%); max-width: 83%; min-width: 60%; padding: 8px 12px; text-align: center; font-size: 11px; line-height: 1.5; color: #f4dcb0; background: #20191ae8; border: 1px solid #805b3b; border-radius: 5px; box-shadow: 0 3px 15px #0009; }
+.tutorial { position: absolute; top: calc(env(safe-area-inset-top) + 200px); left: 50%; transform: translateX(-50%); max-width: 83%; min-width: 60%; padding: 8px 12px; text-align: center; font-size: 11px; line-height: 1.5; color: #f4dcb0; background: #20191ae8; border: 1px solid #805b3b; border-radius: 5px; box-shadow: 0 3px 15px #0009; }
 .tutorial[hidden] { display: none; }
+/* 입문 안내가 가리키는 곳(하단 메뉴·빈 스킬 원·장비 칸·가방 칸)만 잠깐 숨쉰다 — 누를 수 있는지는 그대로다. */
+.tutorial-target { animation: tutorial-target 1.6s ease-in-out infinite; }
+@keyframes tutorial-target { 0%, 100% { box-shadow: 0 0 0 1px #f0d8a566, 0 0 6px #f0d8a533; } 50% { box-shadow: 0 0 0 2px #f0d8a5, 0 0 12px #f0d8a599; } }
+@media (prefers-reduced-motion: reduce) { .tutorial-target { animation: none; box-shadow: 0 0 0 2px #f0d8a5; } }
 .controls { position: absolute; left: 0; right: 0; bottom: 12px; height: 135px; pointer-events: none; }
 .action-pad { position: absolute; right: 10px; bottom: 12px; width: 150px; height: 150px; pointer-events: none; }
 .action { pointer-events: auto; position: absolute; width: 50px; height: 50px; border-radius: 50%; border: 2px solid #9a7964; color: #f6e6cf; background: radial-gradient(circle at 35% 25%, #584241, #1d171d 75%); box-shadow: 0 3px 9px #000b, inset 0 0 8px #000; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 0; touch-action: none; }
@@ -71,20 +84,19 @@
 .action[data-skill] { border-color: var(--skill-color); }
 .skill-card[data-skill] { border-left: 3px solid var(--skill-color); }
 .skill-card[data-skill] .skill-icon { border-color: var(--skill-color); color: var(--skill-color); }
-/* Field overlays: the menu no longer consumes canvas height. */
-.health-bar { position: absolute; top: 77px; left: 12px; width: 100px; height: 15px; overflow: hidden; border: 1px solid #c39a60; border-radius: 4px; background: #171014dd; box-shadow: 0 2px 7px #0009; }
+/* Field overlays: the menu no longer consumes canvas height. HP 바는 전투력 표기 아래(92px)로 내려왔다 —
+   이름판 56~73.6 → 전투력 76~89 → HP 92~107 → 월드보스 진입 111~181(+`월드보스` 라벨 ~196). */
+.health-bar { position: absolute; top: 92px; left: 12px; width: 100px; height: 15px; overflow: hidden; border: 1px solid #c39a60; border-radius: 4px; background: #171014dd; box-shadow: 0 2px 7px #0009; }
 .health-bar i { display: block; width: var(--fill); height: 100%; background: linear-gradient(#d95654, #8d1b29); }
 .health-bar b { position: absolute; inset: 0; display: grid; place-items: center; font-size: 9px; text-shadow: 0 1px 2px #000; }
-.bottom-nav { position: absolute; z-index: 2; left: 10px; bottom: calc(16px + env(safe-area-inset-bottom)); padding: 0; gap: 6px; background: none; align-items: center; }
-.bottom-nav button { flex: 0 0 48px; width: 48px; height: 48px; border: 0; border-radius: 12px; color: #f0d8a5; background: #201a1933; box-shadow: none; }
+.bottom-nav { position: absolute; z-index: 2; left: 10px; bottom: calc(16px + env(safe-area-inset-bottom)); padding: 0; gap: clamp(3px, 1vw, 6px); background: none; align-items: center; --nav-btn: clamp(40px, 12.5vw, 48px); }
+.bottom-nav button { flex: 0 0 var(--nav-btn); width: var(--nav-btn); height: var(--nav-btn); border: 0; border-radius: 12px; color: #f0d8a5; background: #201a1933; box-shadow: none; }
 .bottom-nav svg, .bottom-nav img.nav-icon { width: 42px; height: 42px; opacity: .82; object-fit: contain; filter: drop-shadow(0 2px 4px #000a); transition: opacity .15s, transform .15s; }
 .bottom-nav button:active img.nav-icon { opacity: 1; transform: scale(.94); }
 .controls { bottom: env(safe-area-inset-bottom); }
 .action-pad { right: 10px; }
 @media (max-width: 359px) {
   .bottom-nav { gap: 3px; left: 6px; }
-  .bottom-nav button { flex-basis: 42px; width: 42px; height: 42px; }
-  .bottom-nav svg { width: 33px; height: 33px; }
   .action-pad { right: 6px; }
 }
 .action.skill-empty { border-color: #625b59; background: radial-gradient(circle at 35% 25%, #302b2c, #17151b 75%); color: #827a74; box-shadow: 0 2px 5px #0007; }
@@ -115,16 +127,18 @@
 .action:focus-visible { outline: 2px solid #f0d8a5; outline-offset: 3px; }
 @media (max-width: 399px) { .action-pad { bottom: 68px; } }
 
-.utility-nav { position: absolute; top: calc(env(safe-area-inset-top) + 64px); right: 8px; z-index: 3; display: flex; flex-direction: column; gap: 6px; }
-.utility-nav button { position: relative; width: 48px; height: 48px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0; padding: 2px; border: 0; border-radius: 9px; background: #17100d99; color: #e5d5ba; font: 9px 'Noto Sans KR', sans-serif; box-shadow: 0 2px 5px #0005; }
-.utility-nav img { width: 44px; height: 44px; object-fit: contain; filter: drop-shadow(0 1px 2px #000); }
+.utility-nav { position: absolute; top: calc(env(safe-area-inset-top) + 64px); right: 8px; z-index: 3; display: flex; flex-direction: column; gap: clamp(2px, .9dvh, 6px); --rail-btn: clamp(34px, min(11.5vw, 7.2dvh), 48px); }
+.utility-nav button { position: relative; width: var(--rail-btn); height: var(--rail-btn); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0; padding: 2px; border: 0; border-radius: 9px; background: #17100d99; color: #e5d5ba; font: 9px 'Noto Sans KR', sans-serif; box-shadow: 0 2px 5px #0005; }
+.utility-nav img { width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 1px 2px #000); }
 .utility-nav i { position: absolute; right: 1px; top: 1px; width: 10px; height: 10px; border-radius: 50%; background: #de352e; box-shadow: 0 1px 3px #0009; }
 .utility-nav i[hidden] { display: none; }
 .utility-nav button:focus-visible { outline: 2px solid #e9c585; }
-.utility-nav .shop-entry { color: #a6d8ff; font-size: 30px; text-shadow: 0 0 10px #5ebaff; border: 1px solid #6aa9ce; }
+/* 작업 261 — 글자 `◆` 대신 다이아 상자 그림(`/assets/shop/diamond_pack_v1.webp`)을 버튼 가득 채운다. 파란 테두리·발광은 그대로 둔다. */
+.utility-nav .shop-entry { padding: 0; overflow: hidden; border: 1px solid #6aa9ce; background: #0d1a22; box-shadow: 0 0 10px #5ebaff66, 0 2px 5px #0005; }
+.utility-nav .shop-entry img { width: 100%; height: 100%; object-fit: cover; border-radius: inherit; }
 .bottom-nav button { background: #17100dcc; border-radius: 9px; }
 .bottom-nav button[data-modal] img.nav-icon { opacity: 1; filter: drop-shadow(0 1px 2px #000); }
-@media (max-height: 620px) { .utility-nav { gap: 3px; } .utility-nav button { width: 42px; height: 42px; } .utility-nav img { width: 38px; height: 38px; } }
+@media (max-height: 620px) { .utility-nav { gap: 2px; } }
 
 /* Match visible alpha bounds, rather than inconsistent transparent source margins. */
 .bottom-nav button, .utility-nav button { display: grid; place-items: center; padding: 0; background: #17100d99; border-radius: 9px; }
@@ -153,3 +167,23 @@
 .legend-bar-text { display: block; overflow-wrap: anywhere; }
 @keyframes legend-bar-in { from { opacity: 0; transform: translate(-50%, -8px); } to { opacity: 1; transform: translate(-50%, 0); } }
 @media (prefers-reduced-motion: reduce) { .legend-bar { animation: none; } }
+
+/* ── 밸런스·UI 개편 기념 종일 버프 알약(2026-11-22) ───────────────────────────────
+   새벽 2시 배포 직후부터 다음 날 05:00(KST 일일 초기화)까지 공·방·체 +30%가 켜져 있는 동안만 뜬다.
+   왼쪽 위 레벨 배지·닉네임·HP바(12px, 56~92px)·월드보스 아이콘(97px)과 우측 편의 메뉴 열
+   (48px + 여백, `top: safe-area + 64px`)을 모두 피해 `right: 62px`·`top: safe-area + 52px`에 앉힌다 —
+   실화면에서 오른쪽 끝이 톱니 아이콘 위를 덮어 10px → 62px로 밀었다.
+   누르는 일이 없으므로 `pointer-events: none`이고, 기간이 지나면 hud.ts가 요소를 지운다. */
+.patch-buff-pill { position: absolute; z-index: 4; right: 62px; top: calc(env(safe-area-inset-top, 0px) + 52px); display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border: 1px solid #c99a58; border-radius: 999px; background: linear-gradient(#3b2418f0, #1d1317f0); color: #ffe2b0; font: 700 10px/1.35 'Noto Sans KR', sans-serif; letter-spacing: -.2px; white-space: nowrap; pointer-events: none; box-shadow: 0 2px 8px #000a, 0 0 10px #ff9a3c26; animation: patch-buff-breathe 2.6s ease-in-out infinite; }
+.patch-buff-pill .patch-buff-icon { font-size: 11px; line-height: 1; filter: drop-shadow(0 0 3px #ffb35c99); }
+.patch-buff-pill .patch-buff-time { padding-left: 3px; border-left: 1px solid #8a6a4455; color: #f0c88c; font-weight: 600; font-size: 9px; }
+.patch-buff-pill[hidden] { display: none; }
+@keyframes patch-buff-breathe {
+  0%, 100% { box-shadow: 0 2px 8px #000a, 0 0 9px #ff9a3c22; }
+  50% { box-shadow: 0 2px 8px #000a, 0 0 15px #ffb35c66; }
+}
+@media (prefers-reduced-motion: reduce) { .patch-buff-pill { animation: none; } }
+@media (max-width: 360px) { .patch-buff-pill { top: calc(env(safe-area-inset-top, 0px) + 50px); font-size: 9px; padding: 2px 6px; } .patch-buff-pill .patch-buff-time { display: none; } }
+/* 내 정보(장비창) — 스탯 아래 한 줄. 숫자가 30% 높은 이유를 알려 준다. */
+.equipment-info-buff { margin-top: 4px; padding: 3px 8px; border: 1px solid #8d6a4288; border-radius: 6px; background: #2a1d1666; color: #ffdca6; font-size: 10px; font-weight: 700; text-align: center; }
+.equipment-info-buff span { color: #c9a97e; font-weight: 600; }

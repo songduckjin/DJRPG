@@ -158,3 +158,90 @@ export function codexVariants(save: Save, query = '', slot = '', state = 'all', 
     return [{ entry, rarity: grade, key, name, bag, equipped, discovered }];
   })).sort((a, b) => rarityRanks[a.rarity] - rarityRanks[b.rarity]);
 }
+
+/**
+ * 도감 탭 — 부위 9종을 세 묶음으로 접는다(2026-11-21 사용자 확정 시안).
+ * 무기 35(무기 30 + 문장 5) · 방어구 90(투구·갑옷 각 30 + 장갑·허리띠·신발 각 10) · 장신구 10(목걸이·반지 각 5).
+ */
+export type CodexGroup = '' | 'weapon' | 'armor' | 'accessory';
+export const codexGroupNames: Record<CodexGroup, string> = { '': '전체', weapon: '무기', armor: '방어구', accessory: '장신구' };
+export const codexGroupSlots: Record<Exclude<CodexGroup, ''>, readonly CodexSlot[]> = {
+  weapon: ['weapon', 'offhand'],
+  armor: ['helmet', 'armor', 'gloves', 'belt', 'boots'],
+  accessory: ['necklace', 'ring']
+};
+const slotGroup = new Map<CodexSlot, Exclude<CodexGroup, ''>>();
+for (const [group, slots] of Object.entries(codexGroupSlots) as [Exclude<CodexGroup, ''>, readonly CodexSlot[]][]) for (const slot of slots) slotGroup.set(slot, group);
+/** 이 부위가 속한 탭. */
+export function codexEntryGroup(slot: CodexSlot): Exclude<CodexGroup, ''> { return slotGroup.get(slot)!; }
+/** 탭별 기본형 수 — 전체 135 · 무기 35 · 방어구 90 · 장신구 10(탭 버튼 숫자). */
+export const codexGroupTotals: Record<CodexGroup, number> = (() => {
+  const totals: Record<CodexGroup, number> = { '': codexEntries.length, weapon: 0, armor: 0, accessory: 0 };
+  for (const entry of codexEntries) totals[codexEntryGroup(entry.slot)] += 1;
+  return totals;
+})();
+
+/**
+ * 칸 왼쪽 위 등급 배지 글자 — **모은 것 중 가장 높은 등급** 하나만 붙는다.
+ * 레전드 `L` · 유니크 `U` · 에픽 `E` · 레어 `R`(사용자 확정 2026-11-21). 매직·일반만 모았거나
+ * 아직 아무 등급도 못 모은 종은 배지가 없다(테두리도 기본색 그대로).
+ * 모양은 가방·거래소 칸의 `.rarity-badge` 알약(PR #305)과 같은 규격이다.
+ */
+export const codexRarityMarks: Partial<Record<Rarity, string>> = { rare: 'R', epic: 'E', unique: 'U', legendary: 'L' };
+
+/** 1종 1칸 격자의 한 칸 — 기본형 하나와 그동안 모은 등급들. */
+export type CodexEntryState = {
+  entry: CodexEntry;
+  /** 모은 등급(일반→레전드 오름차순). 칸 아래 상세 띠의 6칩 상태가 이 목록을 따른다. */
+  collected: Rarity[];
+  /** 모은 것 중 가장 높은 등급 — 칸 테두리와 배지(L·U·E·R)의 근거. */
+  highest?: Rarity;
+  /** 배지 글자(`L`·`U`·`E`·`R`) — 배지가 없으면 undefined. */
+  badge?: string;
+  discovered: boolean;
+  /** 모은 등급 수(`3/6`). */
+  count: number;
+  bag: number;
+  equipped: number;
+};
+
+/**
+ * 135종의 1칸 상태를 한 번에 만든다 — 저장된 `부위:번호:등급` 기록과 지금 가방·착용 장비를
+ * 모두 합쳐 등급 Set으로 접는다(착용 중이면 아직 기록 전이어도 모은 것으로 본다).
+ * 저장 키 형식·개수(810)·`discoverEquipment`는 그대로다 — 이 함수는 읽기만 한다.
+ */
+export function codexEntryStates(save: Pick<Save, 'equipmentCollection' | 'bag' | 'equipment'>): CodexEntryState[] {
+  const grades = new Map<string, Set<Rarity>>();
+  const add = (key: string, rarity: Rarity) => { let set = grades.get(key); if (!set) grades.set(key, set = new Set()); set.add(rarity); };
+  for (const key of normalizeCollection(save.equipmentCollection)) {
+    const cut = key.lastIndexOf(':');
+    add(key.slice(0, cut), key.slice(cut + 1) as Rarity);
+  }
+  const owned = new Map<string, { bag: number; equipped: number }>();
+  const count = (item: Item | null | undefined, side: 'bag' | 'equipped') => {
+    if (!item) return;
+    const key = equipmentCodexKey(item);
+    if (!key || !Object.hasOwn(rarityRanks, item.rarity)) return;
+    const row = owned.get(key) ?? { bag: 0, equipped: 0 };
+    row[side] += 1; owned.set(key, row); add(key, item.rarity);
+  };
+  for (const item of save.bag) count(item, 'bag');
+  for (const item of Object.values(save.equipment)) count(item, 'equipped');
+  return codexEntries.map(entry => {
+    const collected = rarityOrder.filter(rarity => grades.get(entry.key)?.has(rarity));
+    const highest = collected[collected.length - 1];
+    const row = owned.get(entry.key) ?? { bag: 0, equipped: 0 };
+    return { entry, collected, highest, badge: highest ? codexRarityMarks[highest] : undefined, discovered: collected.length > 0, count: collected.length, bag: row.bag, equipped: row.equipped };
+  });
+}
+
+/** 1종 1칸 격자의 필터 — 탭(부위 묶음)·검색·상태. 검색은 기본형 이름과 등급 이름(`영원의 쯔바이핸드`)을 모두 맞춘다. */
+export function filterCodexEntryStates(states: readonly CodexEntryState[], query = '', group: CodexGroup = '', state = 'all'): CodexEntryState[] {
+  const search = query.trim().toLocaleLowerCase('ko-KR');
+  return states.filter(view => {
+    if (group && codexEntryGroup(view.entry.slot) !== group) return false;
+    if (state === 'found' && !view.discovered || state === 'missing' && view.discovered) return false;
+    if (state === 'owned' && view.bag + view.equipped === 0) return false;
+    return !search || [view.entry.name, ...rarityOrder.map(rarity => codexVariantName(view.entry, rarity))].some(name => name.toLocaleLowerCase('ko-KR').includes(search));
+  });
+}

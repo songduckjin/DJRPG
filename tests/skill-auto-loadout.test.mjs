@@ -1,17 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 import './ts-loader.mjs';
 const { freshSave } = await import('../src/game/store.ts');
 const { autoEquipRecommendedSkills, recommendedSkillOrder } = await import('../src/game/loadout.ts');
-const { passiveOrderFor, archerSkillOrder, mageSkillOrder, skillOrder } = await import('../src/game/skills.ts');
-const { renderSkills } = await import('../src/ui/modals/skillModal.ts');
-const { resetModalDefaults } = await import('../src/ui/modalDefaults.ts');
+const { archerSkillOrder, mageSkillOrder, skillOrder } = await import('../src/game/skills.ts');
 
-const styles = readFileSync(new URL('../src/styles/modals.css', import.meta.url), 'utf8');
-const modalDefaults = readFileSync(new URL('../src/ui/modalDefaults.ts', import.meta.url), 'utf8');
-
-/** 작업 240 — 스킬 창 추천 자동 장착·패시브 노출. */
+/** 작업 240 — 스킬 추천 자동 장착(장착 규칙만 본다. 화면은 4단계 스킬 트리로 바뀌었다). */
 function warrior(learned = [...skillOrder]) { const save = freshSave('male', 'warrior'); save.learned = learned; return save; }
 
 // ── ① 추천 자동 장착 ────────────────────────────────────────────────────────
@@ -56,12 +50,12 @@ test('보유가 3개 미만이면 채운 만큼만 앞 칸에 넣고 남은 칸�
 });
 
 test('보유 스킬이 0개면 세이브를 건드리지 않고 안내만 돌려준다', () => {
-  const save = freshSave('male', 'warrior'); save.quickSlots = [null, null, null];
+  const save = freshSave('male', 'warrior'); save.learned = []; save.skillLevels = {}; save.quickSlots = [null, null, null];
   const result = autoEquipRecommendedSkills(save);
   assert.equal(result.changed, false);
   assert.deepEqual(result.equipped, []);
   assert.deepEqual(save.quickSlots, [null, null, null]);
-  assert.match(result.message, /스킬 트리에서 스킬을 습득하면 추천 장착을 쓸 수 있습니다/);
+  assert.match(result.message, /스킬 트리에서 SP를 투자해 습득하면 추천 장착을 쓸 수 있습니다/);
 });
 
 test('스킬을 강화하면 레벨 위력 배율이 붙어 DPS 순위가 바뀐다', () => {
@@ -87,117 +81,4 @@ test('이미 같은 조합이면 changed=false, 순서만 다르면 다시 채�
   const reordered = autoEquipRecommendedSkills(save);
   assert.equal(reordered.changed, true);
   assert.deepEqual(save.quickSlots, ['warcry', 'power', 'slash2']);
-});
-
-// ── ② 스킬 창 UI ───────────────────────────────────────────────────────────
-function element(tag = 'div') {
-  const node = { tag, children: [], dataset: {}, style: {}, className: '', textContent: '', attrs: {}, disabled: false,
-    append(...children) { this.children.push(...children); }, appendChild(child) { this.append(child); return child; },
-    setAttribute(key, value) { this.attrs[key] = value; }, remove() {}, focus() {},
-    classList: { add(name) { node.className = `${node.className} ${name}`.trim(); }, toggle(name, on) { if (on) this.add(name); }, contains: name => node.className.includes(name) },
-    querySelector(selector) {
-      // `innerHTML`로 만든 카드 내부는 이 스텁에서 자식이 없다 — 실제 DOM처럼 새 노드를 돌려준다.
-      return element(selector.startsWith('.') ? selector.slice(1) : selector);
-    }
-  };
-  Object.defineProperty(node, 'innerHTML', { set() {}, get() { return ''; } });
-  return node;
-}
-function walk(node, out = []) { for (const child of node.children) { out.push(child); walk(child, out); } return out; }
-function uiFixture(job = 'warrior') {
-  const save = freshSave('male', job), messages = [], renders = [];
-  let changes = 0;
-  const ui = {
-    world: { save, paused: false, onChange: () => { changes++; } },
-    market: { busy: false, sync: { locked: false } },
-    messages, changes: () => changes,
-    message(text) { messages.push(text); }, chooseSkill() {},
-    renderModal() { renders.push(ui.skillFilter); }, renders, skillFilter: 'all'
-  };
-  return ui;
-}
-function render(ui) {
-  const dialog = element('div');
-  renderSkills.call(ui, dialog);
-  return { dialog, nodes: walk(dialog) };
-}
-const hasClass = (node, token) => node.className.split(/\s+/).includes(token);
-
-test('전체 탭에서도 패시브 3종이 액티브보다 위에 그려진다(파트 B: 스킬북 목록 없음)', () => {
-  globalThis.document = { createElement: tag => element(tag) };
-  try {
-    for (const job of ['warrior', 'archer', 'mage']) {
-      const ui = uiFixture(job);
-      const { nodes } = render(ui);
-      const passiveCards = nodes.filter(node => hasClass(node, 'passive-skill-card'));
-      assert.deepEqual(passiveCards.map(card => card.dataset.skill), passiveOrderFor(job), job);
-      const passiveSection = nodes.findIndex(node => hasClass(node, 'skill-passive-section'));
-      const firstActive = nodes.findIndex(node => hasClass(node, 'active-skill-card'));
-      assert(passiveSection >= 0 && passiveSection < firstActive, `${job}: 패시브가 액티브보다 아래에 있다`);
-      // 파트 B: 스킬북 목록 자체가 사라졌다.
-      assert.equal(nodes.filter(node => hasClass(node, 'skill-books')).length, 0, '스킬북 목록 없음');
-      assert.equal(nodes.filter(node => hasClass(node, 'skill-book-card')).length, 0, '스킬북 카드 없음');
-    }
-  } finally { delete globalThis.document; }
-});
-
-test('패시브·액티브 탭은 그 종류만 보여 주고 탭을 누르면 다시 그린다', () => {
-  globalThis.document = { createElement: tag => element(tag) };
-  try {
-    const ui = uiFixture('mage');
-    const all = render(ui);
-    const tabs = all.nodes.filter(node => node.dataset.filter);
-    assert.deepEqual(tabs.map(tab => tab.dataset.filter), ['all', 'active', 'passive']);
-    assert.equal(tabs[0].attrs['aria-selected'], 'true');
-    tabs[2].onclick();
-    assert.equal(ui.skillFilter, 'passive');
-    assert.deepEqual(ui.renders, ['passive']);
-
-    const passiveOnly = render(ui);
-    assert.equal(passiveOnly.nodes.filter(node => hasClass(node, 'passive-skill-card')).length, 3);
-    assert.equal(passiveOnly.nodes.filter(node => hasClass(node, 'active-skill-card')).length, 0);
-    assert(!passiveOnly.nodes.some(node => node.className === 'skill-card'), '기본 공격 카드도 숨긴다');
-
-    ui.skillFilter = 'active';
-    const activeOnly = render(ui);
-    assert.equal(activeOnly.nodes.filter(node => hasClass(node, 'passive-skill-card')).length, 0);
-    assert.equal(activeOnly.nodes.filter(node => hasClass(node, 'active-skill-card')).length, 8);
-    assert.equal(activeOnly.nodes.filter(node => hasClass(node, 'skill-books')).length, 0, '파트 B: 스킬북 목록 없음');
-  } finally { delete globalThis.document; }
-});
-
-test('추천 자동 장착 버튼 한 번으로 3칸을 채우고 저장·HUD·안내를 부른다', () => {
-  globalThis.document = { createElement: tag => element(tag) };
-  try {
-    const ui = uiFixture('warrior');
-    ui.world.save.learned = ['slash2', 'slam', 'warcry', 'power'];
-    const { nodes } = render(ui);
-    const auto = nodes.find(node => node.textContent === '추천 자동 장착');
-    assert(auto, '추천 자동 장착 버튼이 상단 바에 없다');
-    assert(hasClass(auto, 'skill-auto-equip'));
-    auto.onclick();
-    assert.deepEqual(ui.world.save.quickSlots, ['warcry', 'power', 'slash2']);
-    assert.equal(ui.changes(), 1, 'world.onChange가 저장·HUD를 갱신한다');
-    assert.match(ui.messages.at(-1), /추천 조합으로 장착했습니다/);
-
-    const blocked = uiFixture('warrior');
-    blocked.world.paused = true;
-    blocked.world.save.learned = ['warcry'];
-    const bar = render(blocked).nodes.find(node => node.textContent === '추천 자동 장착');
-    bar.onclick();
-    assert.deepEqual(blocked.world.save.quickSlots, [null, null, null], '동기화 중에는 바꾸지 않는다');
-    assert.equal(blocked.changes(), 0);
-    assert.match(blocked.messages.at(-1), /동기화 중에는 스킬을 장착할 수 없습니다/);
-  } finally { delete globalThis.document; }
-});
-
-test('창을 닫으면 스킬 탭이 전체로 돌아가고 CSS 규칙이 있다', () => {
-  const ui = uiFixture(); ui.skillFilter = 'passive'; ui.selected = 'x'; ui.equippedSlot = 'weapon';
-  ui.modal = { querySelector: () => undefined, querySelectorAll: () => [] };
-  resetModalDefaults(ui);
-  assert.equal(ui.skillFilter, 'all');
-  assert.match(modalDefaults, /ui\.skillFilter = 'all'/);
-  for (const selector of ['.skill-top-bar {', '.skill-auto-equip {', '.skill-filter {', '.skill-filter-tab {', '.skill-filter-tab[aria-selected="true"] {', '.skill-passive-section {']) {
-    assert(styles.includes(selector), `${selector} 규칙이 없다`);
-  }
 });

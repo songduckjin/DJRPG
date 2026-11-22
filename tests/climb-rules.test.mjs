@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import './ts-loader.mjs';
 
 const { freshSave, floorKillTarget } = await import('../src/game/store.ts');
-const { World, MOB_CAP } = await import('../src/game/world.ts');
+const { World, MOB_CAP, MOB_CAP_GRACE_SECONDS } = await import('../src/game/world.ts');
 
 /** 아래층(floor < maxFloor)에서 목표를 하나 남겨 두고 한 마리 잡는 장면. */
 const hunt = (options = {}) => {
@@ -63,7 +63,8 @@ test('강등(30마리)될 때만 자동 등반이 꺼지고, 안내 문구에 �
   world.enemies = Array.from({ length: MOB_CAP }, (_, i) => mob(i));
   world.spawnTimer = 999;
   const messages = []; world.onMessage = text => messages.push(text);
-  world.update(.01);
+  // 밸런스 v2: 30마리 유예 10초.
+  world.tickSpawn(MOB_CAP_GRACE_SECONDS + .1);
   assert.equal(save.floor, 3, '한 층 내려간다');
   assert.equal(save.autoClimb, false, '강등당했을 때만 자동 등반이 꺼진다');
   assert.deepEqual(messages, ['적이 너무 많아 3층으로 내려갑니다. 자동 등반이 중단됩니다.']);
@@ -79,7 +80,7 @@ test('보스에게 진 뒤 강등돼도 ⚔ 보스 도전은 남고, 누르면 �
   const mob = i => ({ x: 300 - i, y: 0, hp: 999, maxHp: 999, boss: false, hit: 0, step: 0, moving: false, knockX: 0, knockY: 0, slow: 0 });
   world.enemies = Array.from({ length: MOB_CAP }, (_, i) => mob(i));
   world.spawnTimer = 999; world.player.hit = 1;
-  world.update(.01);
+  world.tickSpawn(MOB_CAP_GRACE_SECONDS + .1);
   assert.equal(save.floor, 3, '강등');
   assert.equal(world.bossRetryReady, true, '아래층에서도 버튼 유지');
   assert.equal(world.challengeBoss(), true, '버튼을 누르면');

@@ -3,6 +3,7 @@ import {periods,advanceJourney,journeyOperation,journeyState,recordJourneyMetric
 import {parseSave} from '../src/game/store.ts';
 import {WorldBossRehearsal} from '../src/game/worldBossRehearsal.ts';
 import {worldBossSchema} from './world-boss-schema.mjs';
+import {normalizeRewardEntry} from './core/rewardGrant.mjs';
 export {worldBossSchema} from './world-boss-schema.mjs';
 
 export const WORLD_BOSS_HP=10000000;
@@ -42,7 +43,9 @@ async function settleRows(tx,day,now){
     for(const [kind,title,gold,pouches] of rewards){
       if(existing.has(JSON.stringify([id.toLowerCase(),kind])))continue;
       operations.push({sql:'INSERT OR IGNORE INTO djrpg_boss_rewards VALUES (?,?,?)',args:[day.day,id,kind]});
-      state.mail.push({id:`boss:${day.day}:${kind}`,title,sender:'월드보스 토벌대',body:`잿불의 군주 발카론 · ${title}. 우편에서 보상을 받아 주세요.`,gold,books:0,pouches,createdAt:now,expiresAt:now+30*86400000,claimedAt:null,read:false});changed=true;
+      // 보상 금액은 공통 창구가 정규화한다(음수·소수·문자열 방어). 우편은 받을 때 `server/journey.mjs`가 지급한다.
+      const reward=normalizeRewardEntry({gold,pouches});
+      state.mail.push({id:`boss:${day.day}:${kind}`,title,sender:'월드보스 토벌대',body:`잿불의 군주 발카론 · ${title}. 우편에서 보상을 받아 주세요.`,gold:reward.gold,books:0,pouches:reward.pouches,createdAt:now,expiresAt:now+30*86400000,claimedAt:null,read:false});changed=true;
     }
     if(changed)operations.push(journeyOperation(id,state));
   }
@@ -59,7 +62,8 @@ async function participationMail(tx,day,id,kind,title,gold,now){
   const inserted=await tx.execute({sql:'INSERT OR IGNORE INTO djrpg_boss_rewards VALUES (?,?,?)',args:[day,id,kind]});
   if(!inserted.rowsAffected)return;
   const row=await account(tx,id),state=await journeyState(tx,row,row.save,now);
-  state.mail.push({id:`boss:${day}:${kind}`,title,sender:'월드보스 토벌대',body:`잿불의 군주 발카론 · ${title}. 우편에서 보상을 받아 주세요.`,gold,books:0,pouches:0,createdAt:now,expiresAt:now+30*86400000,claimedAt:null,read:false});
+  const reward=normalizeRewardEntry({gold});
+  state.mail.push({id:`boss:${day}:${kind}`,title,sender:'월드보스 토벌대',body:`잿불의 군주 발카론 · ${title}. 우편에서 보상을 받아 주세요.`,gold:reward.gold,books:0,pouches:0,createdAt:now,expiresAt:now+30*86400000,claimedAt:null,read:false});
   await tx.execute(journeyOperation(id,state));
 }
 async function credit(tx,attempt,now,finish=false,trace){

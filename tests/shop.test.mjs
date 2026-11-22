@@ -105,3 +105,47 @@ test('shop grants paid diamonds once, unlocks only purchased slots, and deletion
     assert.equal((await callAccount({ action: 'characters' })).body.characters.length, 1);
   } finally { await db.close(); await rm(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); }
 });
+
+// 작업 — 캐릭터 슬롯 최대 8칸: 3 → 8까지는 500 다이아씩 사고, 9번째는 팔지 않는다.
+test('character slots stop at eight — the ninth slot cannot be bought', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'djrpg-slot-cap-'));
+  const url = `file:${join(directory, 'slot-cap.db')}`;
+  const env = { TURSO_DATABASE_URL: url, TURSO_AUTH_TOKEN: 'slot-cap-secret' };
+  const db = createClient({ url });
+  const save = { version: 1, name: '첫째', accountId: 'hero', gender: 'male', auto: true, autoClimb: true, level: 1, exp: 0, gold: 0, floor: 1, maxFloor: 1, floorKills: 0, kills: 0, health: 100, equipment: {}, bag: [], learned: [], passives: [], quickSlots: [null, null, null] };
+  const signed = Buffer.from(JSON.stringify({ id: 'hero', exp: Date.now() + 60_000 })).toString('base64url');
+  const token = `${signed}.${createHmac('sha256', env.TURSO_AUTH_TOKEN).update(signed).digest('base64url')}`;
+  const request = body => new Request('http://localhost/api/test', { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const callShop = async body => {
+    const response = await shopEndpoint(request(body), { env, createDbClient: () => createClient({ url }) });
+    return { status: response.status, body: await response.json() };
+  };
+  try {
+    await schema(db, env);
+    await db.execute({ sql: 'INSERT INTO djrpg_accounts(id,password_hash,save_json,updated_at) VALUES (?,?,?,?)', args: ['hero', 'registered', JSON.stringify(save), new Date().toISOString()] });
+    await db.execute({ sql: 'INSERT INTO djrpg_shop_wallet(account_id,diamonds,max_slots,customer_key) VALUES (?,?,?,?)', args: ['hero', 100_000, 3, randomUUID()] });
+    const bought = [];
+    for (let index = 0; index < 5; index++) {
+      const response = await callShop({ action: 'buySlot', requestId: randomUUID() });
+      assert.equal(response.status, 200);
+      assert.equal(response.body.type, 'slot');
+      bought.push(response.body.wallet.maxSlots);
+    }
+    assert.deepEqual(bought, [4, 5, 6, 7, 8], '3칸에서 8칸까지 다섯 번 열린다');
+    const catalog = await callShop({ action: 'catalog' });
+    assert.equal(catalog.status, 200);
+    assert.equal(catalog.body.wallet.maxSlots, 8);
+    assert.equal(catalog.body.packages.find(pack => pack.id === 'slot').available, false, '슬롯 8칸이면 상점이 슬롯 상품을 잠근다(화면: 최대 슬롯)');
+    const ninth = await callShop({ action: 'buySlot', requestId: randomUUID() });
+    assert.equal(ninth.status, 409);
+    assert.equal(ninth.body.code, 'MAX_SLOTS');
+    const wallet = (await db.execute({ sql: 'SELECT diamonds,max_slots FROM djrpg_shop_wallet WHERE account_id=?', args: ['hero'] })).rows[0];
+    assert.equal(Number(wallet.max_slots), 8, '9번째 구매는 슬롯 수를 바꾸지 않는다');
+    assert.equal(Number(wallet.diamonds), 100_000 - 5 * 500, '9번째 구매는 다이아를 받지 않는다');
+    const ledger = (await db.execute({ sql: "SELECT diamonds_delta FROM djrpg_shop_ledger WHERE account_id=? AND source_type='slot'", args: ['hero'] })).rows;
+    assert.equal(ledger.length, 5, '구매 5건만 장부에 남는다');
+    // 다시 요청해도(같은 결과) 슬롯·다이아가 움직이지 않는다.
+    const retry = await callShop({ action: 'buySlot', requestId: randomUUID() });
+    assert.equal(retry.status, 409); assert.equal(retry.body.code, 'MAX_SLOTS');
+  } finally { await db.close(); await rm(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); }
+});

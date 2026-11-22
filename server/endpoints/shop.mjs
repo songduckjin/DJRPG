@@ -8,7 +8,9 @@ export const diamondPacks = [100, 300, 500, 1000, 2000, 5000, 10000, 20000].map(
 const slotPrice = 500;
 const allIdlePrice = 1500;
 const allIdleDuration = 30 * 24 * 60 * 60 * 1000;
-const maxSlots = 9;
+// 캐릭터 슬롯은 기본 3칸에서 구매로 **최대 8칸**까지. 이 상한은 판매 상한이고,
+// 이미 9칸을 산 계정의 기존 캐릭터는 그대로 둔다(`server/endpoints/account.mjs`의 절대 상한 9).
+const maxSlots = 8;
 const walletFor = async (db, id) => {
   await db.execute({ sql: 'INSERT OR IGNORE INTO djrpg_shop_wallet(account_id,customer_key) VALUES (?,?)', args: [id, randomUUID()] });
   return (await db.execute({ sql: 'SELECT diamonds,max_slots,customer_key FROM djrpg_shop_wallet WHERE account_id=?', args: [id] })).rows[0];

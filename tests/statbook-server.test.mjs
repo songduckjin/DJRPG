@@ -1,10 +1,10 @@
+import './ts-loader.mjs';
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
-import './ts-loader.mjs';
 import { createClient } from '@libsql/client';
 import { schema, transaction, reconcileItems } from '../server/database.mjs';
 import { clampSaveProgress, itemWithinBounds, STAT_BOOK_LIMIT } from '../server/save-guard.mjs';

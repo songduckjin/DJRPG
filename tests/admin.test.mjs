@@ -21,6 +21,7 @@ test('admin status exposes health and aggregate counts only', async () => {
   const executed = [];
   const db = { execute: async query => {
     executed.push(query);
+    if (typeof query === 'object' && String(query.sql).includes('SELECT id FROM djrpg_accounts')) return { rows: [] };
     if (query === 'SELECT 1') return { rows: [{ 1: 1 }] };
     if (typeof query === 'string' && query.includes('djrpg_characters')) return { rows: [{ count: 8 }] };
     return { rows: [{ count: 5 }] };
@@ -33,7 +34,11 @@ test('admin status exposes health and aggregate counts only', async () => {
   assert.equal(body.accounts, 5);
   assert.equal(body.characters, 8);
   assert.equal(body.active24h, 5);
-  assert.equal(executed.length, 4);
+  // 작업 259: 집계 전에 게스트 정리 조회가 먼저 돈다(쿨다운 무시) + 집계 4건.
+  assert.equal(executed.length, 5);
+  assert.match(String(executed[0].sql), /SELECT id FROM djrpg_accounts WHERE password_hash='guest'/);
+  assert.match(String(executed[0].sql), /updated_at </);
+  assert.equal(body.guestsCleaned, 0);
   assert.equal(JSON.stringify(body).includes(env.ADMIN_DASHBOARD_PASSWORD), false);
 });
 
@@ -50,15 +55,19 @@ test('admin account search is parameterized and returns a limited public project
   const executed = [];
   const db = { execute: async query => {
     executed.push(query);
-    return executed.length === 1 ? { rows: [{ count: 1 }] } : { rows: [{ id: 'player', guest: 0, updated_at: '2026-11-20T00:00:00Z', characters: 2, max_floor: 17, password_hash: 'must-not-leak', save_json: '{}' }] };
+    if (typeof query === 'object' && String(query.sql).includes('SELECT id FROM djrpg_accounts')) return { rows: [] };
+    if (typeof query === 'object' && String(query.sql).includes('COUNT(*)')) return { rows: [{ count: 1 }] };
+    return { rows: [{ id: 'player', guest: 0, updated_at: '2026-11-20T00:00:00Z', characters: 2, max_floor: 17, password_hash: 'must-not-leak', save_json: '{}' }] };
   }, close() {} };
   const response = await adminEndpoint(authorized('?view=accounts&q=%25%27%20OR%201%3D1&page=999999'), { env, createDbClient: () => db });
   const body = await response.json();
   assert.equal(response.status, 200);
   assert.equal(body.page, 1000);
-  assert.equal(executed[0].args[0], "%' OR 1=1");
-  assert.equal(executed[1].args[1], 25);
-  assert.equal(executed[1].args[2], 24975);
+  assert.equal(executed.length, 3);
+  assert.match(String(executed[0].sql), /SELECT id FROM djrpg_accounts WHERE password_hash='guest'/);
+  assert.equal(executed[1].args[0], "%' OR 1=1");
+  assert.equal(executed[2].args[1], 25);
+  assert.equal(executed[2].args[2], 24975);
   assert.deepEqual(Object.keys(body.accounts[0]), ['id', 'guest', 'updatedAt', 'characters', 'maxFloor']);
   assert.equal(JSON.stringify(body).includes('must-not-leak'), false);
 });

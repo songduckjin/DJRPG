@@ -206,7 +206,7 @@ test('the settings popup has the same picker, and the switch, threshold and cap 
   const iface = readFileSync(new URL('../src/ui/interface.ts', import.meta.url), 'utf8');
   const equip = readFileSync(new URL('../src/ui/modals/equipModal.ts', import.meta.url), 'utf8');
   const store = readFileSync(new URL('../src/game/store.ts', import.meta.url), 'utf8');
-  const world = readFileSync(new URL('../src/game/world.ts', import.meta.url), 'utf8');
+  const world = readFileSync(new URL('../src/game/fieldProgress.ts', import.meta.url), 'utf8');  // PR-2B: 필드의 킬 보상·드롭·자동 분해 규칙은 `fieldProgress.ts`로 옮겼다(월드는 이름만 남은 껍데기).
   assert.match(utility, /salvagePlusUnlocked\(ui\.world\.save\.maxFloor\)/, 'settings only shows the row from 41층');
   assert.match(utility, /ui\.setSalvagePlus\(Number\(plusSelect\.value\)\)/, 'and stores the choice');
   assert.match(iface, /world\.autoSalvagePlus = \(\) => this\.salvagePlus/, 'the world asks for the latest cap on every pickup');
