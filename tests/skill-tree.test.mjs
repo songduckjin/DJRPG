@@ -112,6 +112,20 @@ test('스킬의 서(영구 스킬포인트 북)는 레벨과 무관하게 영구
   assert.equal(spLedger(other).available, 3, '공격·방어·체력의 서는 SP와 무관');
 });
 
+test('서버가 만드는 새 세이브도 Lv.1 3pt로 시작한다 — 가입·캐릭터 추가·시즌 초기화 공용', async () => {
+  const seed = await import('../server/save-seed.mjs');
+  for (const job of jobs) {
+    const made = seed.initialSave('ACC', 'female', '모험가', job);
+    assert.equal(made.skillPoints, SP_PER_LEVEL, `${job}: Lv.1 = 3pt`);
+    assert.deepEqual(made.statBooks, { attack: 0, defense: 0, health: 0, skill: 0 });
+    const parsed = parseSave(made, 'ACC');
+    assert.equal(parsed.skillPoints, 3, `${job}: 서버 세이브를 읽어도 3pt(0으로 덮이지 않는다)`);
+    assert.equal(spLedger(parsed).available, 3);
+  }
+  // 시즌 초기화 세이브(needsSetup)도 같은 값을 든다 — 로그인 뒤 직업·성별을 고르면 그대로 이어진다.
+  assert.equal(seed.seasonResetSave('ACC').skillPoints, SP_PER_LEVEL);
+});
+
 test('쓴 SP는 습득한 스킬의 랭크 합이고, 랭크는 Lv.10에서 멈춘다', () => {
   const save = freshSave('male', 'warrior');
   save.level = 30;
