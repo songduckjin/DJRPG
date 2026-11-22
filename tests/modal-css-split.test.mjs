@@ -49,7 +49,7 @@ test('모든 도메인 파일이 있고, 파일마다 무엇을 담는지 머리
 test('이어 붙인 CSS는 원본의 규칙을 하나도 잃지 않는다', () => {
   const all = modalStyles();
   // 도메인마다 대표 규칙이 실제로 이어 붙은 결과에 들어 있는지 확인한다.
-  for (const selector of ['.bag-item', '.character-slot', '.shop-card', '.account-line', '.floor-grid', '.skill-list',
+  for (const selector of ['.bag-item', '.character-slot', '.shop-card', '.account-line', '.floor-grid', '.skill-tree',
     '.utility-content', '.mail-body', '.warehouse-grid', '.pouch-window', '.synth-window', '.modal-dialog']) {
     assert.ok(all.includes(selector), `${selector} 규칙이 사라졌다`);
   }

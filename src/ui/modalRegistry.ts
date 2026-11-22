@@ -97,7 +97,7 @@ export const MODALS: Record<Modal, ModalSpec> = {
     render: (ui, dialog) => { renderEquipment.call(ui, dialog); renderInventory.call(ui, dialog); }
   },
   skills: {
-    title: '스킬',
+    title: '스킬 트리',
     dialogClasses: ['skills-modal'],
     render: (ui, dialog) => renderSkills.call(ui, dialog)
   },

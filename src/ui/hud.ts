@@ -2,6 +2,7 @@ import { isSkillBook } from '../game/items';
 import { tutorialGuide } from '../game/tutorial';
 import { EQUIPMENT_BAG_LIMIT, equipmentCount } from '../game/bagCapacity';
 import { hasSkillUpgrade } from '../game/skillProgress';
+import { spLedger } from '../game/skillPoints';
 import { applySkillArtwork } from './skillArtwork';
 import { SkillFeedback } from './skillFeedback';
 import { diamondMarkup, goldMarkup } from './currency';
@@ -100,7 +101,9 @@ export function tick(this: Interface): void {
       button.title = selecting ? '이 원에 장착' : kind ? `${name} · 쿨타임 ${cooldowns[kind]}초` : name;
     }
     const alert = this.root.querySelector<HTMLElement>('.skill-nav-dot');
-    if (alert) alert.hidden = !((available.length && this.world.save.quickSlots.some(slot => slot === null)) || hasSkillUpgrade(this.world.save));
+    // 스킬 점: 넣을 스킬이 있는 빈 원 · 쓸 수 있는 스킬북 · **아직 쓰지 않은 SP**(4단계 스킬 트리).
+    if (alert) alert.hidden = !((available.length && this.world.save.quickSlots.some(slot => slot === null))
+      || hasSkillUpgrade(this.world.save) || spLedger(this.world.save).available > 0);
     const { player, save } = this.world;
     renderPatchBuff.call(this);
     this.get('.hp').style.setProperty('--fill', `${Math.max(0, player.hp / totalStats(save).health * 100)}%`);

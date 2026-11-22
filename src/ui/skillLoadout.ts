@@ -102,7 +102,7 @@ export function pressSkillSlot(this: Interface, index: number): void {
   }
   const skill = this.world.save.quickSlots[index];
   if (skill) { this.world.action(skill); return; }
-  if (!availableSkills(this.world.save).length) { this.message('스킬북으로 스킬을 습득하면 장착할 수 있습니다.'); return; }
+  if (!availableSkills(this.world.save).length) { this.message('스킬 트리에서 SP를 투자해 스킬을 습득하면 장착할 수 있습니다.'); return; }
   // 작업 245: 전체 스킬 창이 아니라 이 원에 넣을 수 있는 스킬만 고르는 팝업을 띄운다.
   openSkillPicker.call(this, index);
 }
