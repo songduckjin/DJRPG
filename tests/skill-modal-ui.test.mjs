@@ -308,6 +308,6 @@ test('CSS는 3단 창틀·트리 스크롤·잠금/선택/궁극 노드·고정 
     '.skill-detail-compare {', '.skill-detail-actions {', '.skill-detail-invest {', '.skill-req-row {', '.skill-edge {', '.skill-edge.is-open {']) {
     assert(css.includes(token), `${token} 규칙이 없다`);
   }
-  assert.match(css, /@media \(max-width: 380px\)/, '좁은 화면 대응');
-  assert.match(css, /\.skill-node-frame \{ width: 50px; height: 50px; \}/, '380px 이하에서 노드를 줄인다');
+  assert.match(css, /@media \(max-width: 430px\)/, '폰 폭 대응');
+  assert.match(css, /\.skill-node-frame \{ width: 48px; height: 48px; \}/, '폰 폭에서 노드를 줄여 네 티어가 들어오게 한다');
 });

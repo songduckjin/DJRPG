@@ -27,7 +27,7 @@
 /* ── ② 트리 — 티어 4줄과 연결선 ───────────────────────────────────────────────
    노드는 티어마다 3·3·3·2로 앉고(`skillTree.ts`의 계획), 4티어만 2열을 가운데로 모은다.
    연결선은 트리 뒤에 깔린 SVG(`preserveAspectRatio=none`)이고 노드가 그 위에 선다. */
-.skill-tree { position: relative; flex: 1 1 auto; min-height: 190px; overflow-y: auto; overscroll-behavior: contain; padding: 2px 3px 4px; scrollbar-color: #735548 #171219; }
+.skill-tree { position: relative; flex: 1 1 auto; min-height: 190px; overflow-y: auto; overscroll-behavior: contain; padding: 2px 3px 10px; scrollbar-color: #735548 #171219; }
 .skill-tree-canvas { position: relative; display: flex; flex-direction: column; min-height: 100%; }
 .skill-tree-edges { position: absolute; inset: 0; z-index: 0; pointer-events: none; }
 .skill-tree-edges svg { display: block; width: 100%; height: 100%; }
@@ -96,10 +96,14 @@
 .skill-detail-invest:hover:not(:disabled) { border-color: #ffb08a; }
 .skill-detail-equip:focus-visible, .skill-detail-invest:focus-visible { outline: 2px solid #e2bd78; outline-offset: 2px; }
 .skill-detail-equip:disabled, .skill-detail-invest:disabled { opacity: .45; filter: grayscale(.6); box-shadow: none; cursor: default; }
-@media (max-width: 380px) {
-  .skill-tier { min-height: 80px; }
+/* 폰 세로(390px 남짓)에서는 네 티어가 한 화면에 들어오도록 노드·줄 간격을 줄인다. */
+@media (max-width: 430px) {
+  .skill-tier { min-height: 74px; }
   .skill-tier-label { font-size: 9px; }
-  .skill-node-frame { width: 50px; height: 50px; }
+  .skill-tier-nodes { gap: 4px; }
+  .skill-node-frame { width: 48px; height: 48px; }
+  .skill-node-level { min-width: 36px; font-size: 9.5px; line-height: 14px; }
+  .skill-detail { max-height: 46vh; }
   .skill-detail-name { font-size: 13px; }
   .skill-detail-equip, .skill-detail-invest { font-size: 11.5px; }
 }
