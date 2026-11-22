@@ -1,7 +1,6 @@
-import { equipmentImage, isSkillBook, itemDisplayName, type Rarity } from '../../game/items';
+import { equipmentImage, isStatBook, itemDisplayName, type Rarity } from '../../game/items';
 import { openPouch, POUCH_OVERALL_RATES, pouchCount, POUCH_HINT, pouchResultText, firstPouch, type PouchResult } from '../../game/pouch';
 import { isLegendaryPouchResult } from '../../game/legendBoard';
-import { createSkillBookArt } from '../skillBookArt';
 import { createPouchArt, preloadPouchFrames, resetPouchArt, setPouchFrame, POUCH_FRAME_URLS, POUCH_GOLD_PILE_URL } from '../pouchArt';
 import { createPouchLight } from '../pouchLight';
 import { goldMarkup } from '../currency';
@@ -48,7 +47,7 @@ function button(text: string, className: string): HTMLButtonElement {
 /**
  * 확률표 (작업 207, 사용자 최종 확정) — **전체 확률 한 줄(10항목)**을 높은 확률 순으로 깔아
  * 표로 보여 준다. 각 줄: 결과 이름(장비는 인게임 등급 색) + 확률(`30.25%` 소수 둘째 자리).
- * 아래 한 줄 요약: `합계 100% · 장비·스킬북은 3직업 균등`.
+ * 아래 한 줄 요약: `합계 100% · 장비는 3직업 균등 · 영구 스탯북은 3종 균등`.
  */
 export function pouchRatesPanel(): HTMLElement {
   const panel = element('div', 'pouch-rates');
@@ -60,12 +59,12 @@ export function pouchRatesPanel(): HTMLElement {
     row.append(element('span', 'pouch-rate-name', line.label), element('em', 'pouch-rate-value', `${(line.rate * 100).toFixed(2)}%`));
     table.append(row);
   }
-  panel.append(table, element('p', 'pouch-rate-summary', '합계 100% · 장비·스킬북은 3직업 균등'));
+  panel.append(table, element('p', 'pouch-rate-summary', '합계 100% · 장비는 3직업 균등 · 영구 스탯북은 3종 균등'));
   return panel;
 }
 
 /**
- * 획득 결과 카드 — 장비·스킬북은 그림+등급 색 이름, 금화는 **금화 뭉치 그림**과 금화 표기.
+ * 획득 결과 카드 — 장비·영구 스탯북은 그림+등급 색 이름, 금화는 **금화 뭉치 그림**과 금화 표기.
  * 작업 213(`#5057`): `장비 획득`·`금화 획득` 같은 분류 문구와 `일반`·`레어` 같은 등급 글자를 없애고
  * **그림을 주인공으로** 둔다(등급 구분은 이름 색만 남긴다). `#5069` — 이름·수치 글자는 그림보다 작게.
  */
@@ -83,8 +82,9 @@ export function pouchResultCard(result: PouchResult): HTMLElement {
   }
   const item = result.item;
   const art = element('span', 'pouch-result-art');
-  if (isSkillBook(item)) {
-    const book = createSkillBookArt(item); book.classList.add('pouch-result-book'); art.append(book);
+  if (isStatBook(item)) {
+    // 영구 스탯북(파트 B) — 전용 아이콘 시안 전까지 기존 책 그림을 쓴다(가방·필드와 같은 그림).
+    const img = document.createElement('img'); img.src = '/assets/icons/icon_skillbook.png'; img.alt = ''; art.append(img);
   } else {
     const image = equipmentImage(item);
     if (image.columns > 1) {

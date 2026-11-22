@@ -116,7 +116,7 @@ test('the player’s own cap moves the line, and the other protections still com
   // The existing protections are unchanged and still reported first.
   assert.equal(autoSalvageBlock(save, gear('up', 'weapon', 2, 'unique', 2), 'epic', 4), 'grade');
   assert.equal(autoSalvageBlock(save, gear('lock', 'weapon', 2, 'epic', 6, true), 'epic', 4), 'locked');
-  assert.equal(autoSalvageBlock(save, { id: 'book', kind: 'skillbook', slot: 'skillbook', rarity: 'epic', stats: {}, skillId: 'slash2' }, 'unique', 4), 'skillbook');
+  assert.equal(autoSalvageBlock(save, { id: 'book', kind: 'statbook', slot: 'statbook', book: 'attack', rarity: 'epic', stats: {} }, 'unique', 4), 'statbook');
   // A +5 piece weaker than the worn one is kept by the cap, not by the upgrade rule.
   assert.equal(autoSalvageBlock(save, gear('weak5', 'weapon', 4, 'epic', 5), 'epic', 4), 'plus');
   // Still: a +5 piece that beats the worn one is kept too (both rules agree).

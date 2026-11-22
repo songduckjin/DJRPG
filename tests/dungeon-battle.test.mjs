@@ -163,16 +163,21 @@ test('only a clear hands over the floor loot — a defeat or a timeout pays noth
  assert.equal(timeout.outcome,'timeout');assert.equal(timeout.clearRewards(),undefined);
 });
 
-test('which item falls follows the field equipment and skillbook odds',()=>{
- // 작업 210: 아이템은 70% 장비 · 30% 스킬북 — 경계는 .30(스킬북 몫)이다.
- const drop=(ratio)=>{const battle=new DungeonBattle(freshSave());withRandom([0,ratio],()=>battle.world.kill(battle.world.enemies[0]));return battle.world.loot.find(entry=>entry.kind==='item').item;};
- const equipment=drop(.10),book=drop(.70);
- assert.equal(equipment.kind,undefined);
- assert.equal(equipment.slot==='skillbook',false);
- assert.equal(book.kind,'skillbook');
- assert.equal(book.rarity,'rare');
- assert(book.name.startsWith('[스킬북]'));
- assert.equal(book.skillId.length>0,true);
+test('which item falls follows the dungeon drop gate and the rare stat book roll (파트 B)',()=>{
+ // 파트 B: 스킬북이 폐지되어 던전 일반 몹은 장비 1개(던전 5% 게이트)와, 개극악 확률의 영구 스탯북을 따로 굴린다.
+ const drop=(ratio)=>{const battle=new DungeonBattle(freshSave());withRandom([0,ratio],()=>battle.world.kill(battle.world.enemies[0]));return battle.world.loot.filter(entry=>entry.kind==='item');};
+ // 난수 0이면 게이트를 넘고 스탯북 확률도 당첨된다 — 장비 1개 + 스탯북 1개.
+ const both=drop(0);
+ assert.equal(both.length,2);
+ const equipment=both.find(entry=>entry.item.kind!=='statbook'),book=both.find(entry=>entry.item.kind==='statbook');
+ assert(equipment,'장비가 떨어진다');
+ assert.equal(book.item.kind,'statbook');
+ assert(['attack','defense','health'].includes(book.item.book));
+ assert.equal(book.item.name,{attack:'공격의 서',defense:'방어의 서',health:'체력의 서'}[book.item.book]);
+ // 스탯북 확률을 비껴가는 난수(.5)면 장비 한 개만 떨어진다.
+ const gearOnly=drop(.5);
+ assert.equal(gearOnly.length,1);
+ assert.equal(gearOnly[0].item.kind,undefined);
 });
 
 test('preview loot never enters the ground renderer or the account save',()=>{

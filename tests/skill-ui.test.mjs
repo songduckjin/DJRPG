@@ -60,35 +60,17 @@ test('HUD pulses actual casts only, not cooldowns restored by equipping or repea
   ui.world.save.quickSlots[0]=null;ui.tick();assert(ui.slotButtons[0].querySelector('.skill-art').hidden);assert.equal(ui.slotButtons[0].querySelector('strong').textContent,'+');
 });
 
-test('스킬 메뉴 점은 스킬북·남은 SP·빈 스킬 원을 모두 본다',()=>{
+test('스킬 메뉴 점은 남은 SP와 빈 스킬 원을 본다(파트 B — 스킬북 폐지)',()=>{
   const ui=uiFixture(),save=ui.world.save;
   save.learned=['spin','slam','power'];save.quickSlots=['spin','slam','power'];save.skillLevels={spin:1,slam:1,power:1};
-  ui.tick();assert(ui.root.querySelector('.skill-nav-dot').hidden,'쓸 책도 SP도 빈 원도 없다');
-  save.bag=[{id:'b0',kind:'skillbook',slot:'skillbook',skillId:'spin',rarity:'rare',name:'book',stats:{}}];
-  ui.tick();assert(!ui.root.querySelector('.skill-nav-dot').hidden,'바로 쓸 수 있는 스킬북이 있다');
+  ui.tick();assert(ui.root.querySelector('.skill-nav-dot').hidden,'SP도 빈 원도 없다');
+  // 파트 B: 스킬북은 더 이상 점을 켜지 않는다.
+  save.bag=[{id:'b0',kind:'statbook',slot:'statbook',book:'attack',rarity:'unique',name:'공격의 서',stats:{}}];
+  ui.tick();assert(ui.root.querySelector('.skill-nav-dot').hidden,'스탯북은 스킬 점 대상이 아니다');
   save.bag=[];save.skillLevels.spin=10;save.skillLevels.slam=10;save.skillLevels.power=10;
-  ui.tick();assert(ui.root.querySelector('.skill-nav-dot').hidden,'최대 레벨·책 없음·SP 없음');
+  ui.tick();assert(ui.root.querySelector('.skill-nav-dot').hidden,'최대 레벨·SP 없음');
   // 남은 SP가 생기면(4단계 스킬 트리) 점이 켜진다 — 레벨이 오르면 그만큼 투자할 수 있다.
   save.level=5;save.skillLevels={spin:1,slam:1,power:1};ui.tick();assert(!ui.root.querySelector('.skill-nav-dot').hidden,'투자할 SP가 남았다');
-});
-
-test('skillbook section groups copies and actual upgrade button consumes cost and refreshes the game',async()=>{
-  const {renderSkillBooks}=await import('../src/ui/skillBooks.ts');
-  const previous=globalThis.document;
-  function element(){return {children:[],style:{},className:'',append(...items){this.children.push(...items);},setAttribute(){},get childElementCount(){return this.children.length;}};}
-  globalThis.document={createElement:()=>element()};
-  try{
-    const ui=uiFixture(),save=ui.world.save;let changes=0;ui.world.onChange=()=>changes++;
-    save.learned=['spin'];save.skillLevels.spin=5;
-    save.bag=Array.from({length:2},(_,i)=>({id:`book${i}`,kind:'skillbook',slot:'skillbook',skillId:'spin',rarity:'rare',name:'[스킬북] 드래곤 트위스터',stats:{}}));
-    const parent=element();renderSkillBooks(ui,parent);const grid=parent.children[0].children[1];
-    assert.equal(grid.children.length,1);const card=grid.children[0];
-    // 카드 맨 앞에 어느 직업의 책인지 배지가 붙는다(작업 205).
-    assert.equal(card.children[0].textContent,'전사');assert.equal(card.children[0].className,'job-badge job-warrior');
-    assert.equal(card.children[2].textContent,'드래곤 트위스터');assert.equal(card.children[3].textContent,'×2');
-    assert.equal(card.children[4].textContent,'보유 2 / 필요 2권');const button=card.children[5];assert.equal(button.disabled,false);button.onclick();
-    assert.equal(save.skillLevels.spin,6);assert.equal(save.bag.length,0);assert.equal(changes,1);
-  }finally{globalThis.document=previous;}
 });
 
 test('트리의 11개 노드가 필드와 같은 스킬 그림을 쓰고, 패시브는 패시브 시트를 쓴다',async()=>{

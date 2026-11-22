@@ -1,7 +1,5 @@
-import { isSkillBook } from '../game/items';
 import { tutorialGuide } from '../game/tutorial';
 import { EQUIPMENT_BAG_LIMIT, equipmentCount } from '../game/bagCapacity';
-import { hasSkillUpgrade } from '../game/skillProgress';
 import { spLedger } from '../game/skillPoints';
 import { applySkillArtwork } from './skillArtwork';
 import { SkillFeedback } from './skillFeedback';
@@ -103,7 +101,7 @@ export function tick(this: Interface): void {
     const alert = this.root.querySelector<HTMLElement>('.skill-nav-dot');
     // 스킬 점: 넣을 스킬이 있는 빈 원 · 쓸 수 있는 스킬북 · **아직 쓰지 않은 SP**(4단계 스킬 트리).
     if (alert) alert.hidden = !((available.length && this.world.save.quickSlots.some(slot => slot === null))
-      || hasSkillUpgrade(this.world.save) || spLedger(this.world.save).available > 0);
+      || spLedger(this.world.save).available > 0);
     const { player, save } = this.world;
     renderPatchBuff.call(this);
     this.get('.hp').style.setProperty('--fill', `${Math.max(0, player.hp / totalStats(save).health * 100)}%`);
@@ -135,7 +133,7 @@ export function renderPatchBuff(this: Interface, now = Date.now()): void {
 }
 
 export function renderBagBadge(this: Interface): void {
-    const count = this.world.save.bag.filter(item => !isSkillBook(item) && this.newItems.has(item.id)).length;
+    const count = this.world.save.bag.filter(item => this.newItems.has(item.id)).length;
     const badge = this.get('.new-badge'); badge.textContent = `${count}`; badge.hidden = count === 0;
     // 가방 가득 참 표시(작업 246, 사용자 요청 `#20938` "가방 꽉차면 가방 풀 표시 해주고").
     // 40칸(장비 + 다른 직업 전용 스킬북)이 차면 하단 내 정보 버튼에 `FULL` 배지를 붙인다 —

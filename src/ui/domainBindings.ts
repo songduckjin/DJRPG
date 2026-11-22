@@ -1,5 +1,4 @@
 import { onDomainEvent } from '../core/domainEvents';
-import { isSkillBook } from '../game/items';
 import type { Interface } from './interface';
 
 /**
@@ -16,7 +15,7 @@ export function bindDomainEvents(ui: Interface): () => void {
     onDomainEvent('itemGranted', ({ item }) => {
       if (ui.knownItems.has(item.id)) return;
       ui.knownItems.add(item.id);
-      if (ui.openModal !== 'equipment' && !isSkillBook(item)) ui.newItems.add(item.id);
+      if (ui.openModal !== 'equipment') ui.newItems.add(item.id);
       ui.renderBagBadge();
     }),
     // 장착이 바뀌면 투력·장착 칸이 달라진다.

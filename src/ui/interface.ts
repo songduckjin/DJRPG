@@ -263,6 +263,6 @@ export class Interface {
 
 
   salvageValue(item: Item): number { return salvageValue.call(this, item); }
-  iconPath(slot: Slot | 'skillbook' | 'pouch', item?: Item): string { return iconPath.call(this, slot, item); }
+  iconPath(slot: Slot | 'statbook' | 'pouch', item?: Item): string { return iconPath.call(this, slot, item); }
 }
 

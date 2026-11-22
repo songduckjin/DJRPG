@@ -24,24 +24,27 @@ import './patch-buff-off.mjs';
 const { PARITY_SCENARIOS, recordScenarios } = await import('./progress-parity-scenarios.mjs');
 
 const EXPECTED = {
+  // 파트 B(2026-11-22): 스킬북 폐지로 드롭 구성이 바뀌고, 영구 스탯북 확률 굴림이 난수 스트림에 한 번 더
+  // 들어간다 — 같은 시드의 진행 결과가 그만큼 달라진다(그 차이가 아래 값이다).
   'field-boss-win': {
-    gold: 1708, exp: 1170, level: 10, floor: 7, maxFloor: 7, floorKills: 66, kills: 67, bossKills: 1,
-    playSeconds: 59.999999999997875, stones: 3, salvageCount: 0, tutorial: 3, health: 83,
+    gold: 1702, exp: 1160, level: 10, floor: 7, maxFloor: 7, floorKills: 65, kills: 66, bossKills: 1,
+    playSeconds: 59.999999999997875, stones: 3, salvageCount: 0, tutorial: 3, health: 113,
     dungeonFloor: 0, bossRetryFloor: 0, bag: 1
   },
   'field-boss-loss': {
-    gold: 1240, exp: 1000, level: 7, floor: 6, maxFloor: 6, floorKills: 59, kills: 59, bossKills: 0,
-    playSeconds: 59.999999999997875, stones: 3, salvageCount: 0, tutorial: 3, health: 44,
+    gold: 1258, exp: 1030, level: 7, floor: 6, maxFloor: 6, floorKills: 62, kills: 62, bossKills: 0,
+    playSeconds: 59.999999999997875, stones: 3, salvageCount: 0, tutorial: 3, health: 2,
     dungeonFloor: 0, bossRetryFloor: 6, bag: 1
   },
   'offline-12h': {
     progress: {
       gold: 875260, exp: 80971, level: 18, floor: 15, maxFloor: 15, floorKills: 408, kills: 96672, bossKills: 5,
-      playSeconds: 0, stones: 12, salvageCount: 0, tutorial: 3, health: 344, dungeonFloor: 0, bossRetryFloor: 15, bag: 61
+      // 파트 B: 모든 아이템이 1칸이라 12시간 방치는 40칸에서 멈춘다(예전에는 내 직업 책이 칸을 안 써서 61).
+      playSeconds: 0, stones: 12, salvageCount: 0, tutorial: 3, health: 344, dungeonFloor: 0, bossRetryFloor: 15, bag: 40
     },
     reward: {
       seconds: 43200, kills: 96672, exp: 1158971, gold: 871470, levels: 3, startFloor: 8, endFloor: 15,
-      bossKills: 5, deaths: 121, items: 61, missedDrops: 209, salvaged: { count: 0, gold: 0, stones: 0 }
+      bossKills: 5, deaths: 121, items: 40, missedDrops: 265, salvaged: { count: 0, gold: 0, stones: 0 }
     }
   },
   'dungeon-1-clear': {

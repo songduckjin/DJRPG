@@ -59,22 +59,20 @@ test('a drop held back by a full bag stays on the ground and flies in once there
   assert(world.save.bag.some(item => item.id === 'drop'));
 });
 
-test('내 직업 스킬북은 가방 40칸을 쓰지 않아 가득 차도 줍고, 타직업 책은 바닥에 남는다(작업 253)', () => {
+test('영구 스탯북도 1칸이라 가방이 가득 차면 바닥에 남는다(파트 B — 직업 예외 폐지)', () => {
   const world = quiet();
   world.save.bag = Array.from({ length: 40 }, (_, index) => gear(`full-${index}`));
   world.drops = [
-    dropAt(90, 0, { id: 'book', name: '[스킬북] 회전', slot: 'skillbook', kind: 'skillbook', skillId: 'spin', rarity: 'rare', stats: {} }),
-    dropAt(95, 0, { id: 'foreign', name: '[스킬북] 파이어 볼트', slot: 'skillbook', kind: 'skillbook', skillId: 'fireBolt', rarity: 'rare', stats: {} }),
+    dropAt(90, 0, { id: 'book', name: '공격의 서', slot: 'statbook', kind: 'statbook', book: 'attack', rarity: 'unique', stats: {} }),
+    dropAt(95, 0, { id: 'foreign', name: '체력의 서', slot: 'statbook', kind: 'statbook', book: 'health', rarity: 'unique', stats: {} }),
   ];
   advance(world, 2.5);
-  assert.equal(world.drops.length, 1, '타직업 책만 바닥에 남는다');
-  assert.equal(world.drops[0].item.id, 'foreign');
-  assert(world.save.bag.some(item => item.id === 'book'), '내 직업 책은 40칸이어도 줍는다');
-  // 한 칸 비우면 타직업 책도 들어간다.
-  world.save.bag = world.save.bag.filter(item => item.id !== 'book').slice(0, 39);
+  assert.equal(world.drops.length, 2, '둘 다 바닥에 남는다(가방 40칸)');
+  // 한 칸 비우면 하나가 들어간다.
+  world.save.bag = world.save.bag.slice(0, 39);
   advance(world, 2.5);
-  assert.equal(world.drops.length, 0);
-  assert(world.save.bag.some(item => item.id === 'foreign'));
+  assert.equal(world.drops.length, 1, '빈 칸 하나에 하나만 들어간다');
+  assert(world.save.bag.some(item => item.kind === 'statbook'));
 });
 
 test('a kill pays its gold at once and only leaves a coin behind for the field to draw', () => {
@@ -343,8 +341,8 @@ test('a boss heap flies out of the body on a parabola, while an ordinary drop ke
 });
 
 test('a boss keeps the ordinary chance roll for items, never five at once', () => {
-  // A lucky boss kill still drops what the field drop table says it drops: **one** item, the boss rate,
-  // from the same single roll a normal kill makes (장비 70% · 스킬북 30%, 작업 210).
+  // A lucky boss kill still drops what the field drop table says it drops: **one** equipment item from the
+  // boss rate, plus the rare 영구 스탯북 roll (파트 B).
   const hunt = () => {
     const world = quiet();
     const boss = { x: 60, y: 20, hp: 0, maxHp: 10, boss: true, hit: 0, step: 0, moving: false, knockX: 0, knockY: 0, slow: 0 };
@@ -354,14 +352,17 @@ test('a boss keeps the ordinary chance roll for items, never five at once', () =
     return world;
   };
   const world = hunt();
-  assert.equal(world.drops.length, 1, 'a boss leaves exactly one chance item — never two at once');
+  // 파트 B: 난수 0이면 장비 확률과 스탯북 확률이 모두 당첨되어 **2개**(장비 1 + 스탯북 1)가 떨어진다.
+  assert.equal(world.drops.length, 2, '한 번의 처치가 남기는 것은 장비 1개와 개극악 스탯북 1개까지');
+  assert(world.drops.some(drop => drop.item.kind === 'statbook'), '영구 스탯북도 떨어진다');
   for (const drop of world.drops) assert(drop.item.name.length > 0 && drop.item.id, 'each item is a real roll');
   const source = readFileSync(new URL('../src/game/fieldProgress.ts', import.meta.url), 'utf8');  // PR-2B: 필드의 킬 보상·드롭·자동 분해 규칙은 `fieldProgress.ts`로 옮겼다(월드는 이름만 남은 껍데기).
   assert.doesNotMatch(source, /bossItems\(/, 'the field no longer hands a boss five random items');
   assert.doesNotMatch(source, /BOSS_ITEM_DROPS/, 'and never counts them');
   // 한 마리당 한 번의 드롭 롤(작업 210) — 보스도 같은 함수에 보스 확률을 넘긴다.
   assert.match(source, /itemDropChance\(this\.save\.floor, boss\)/, 'one drop roll with the kill’s own rate');
-  assert.match(source, /rollItemKind\(\) === 'skillbook'/, 'the kind is split 70:30');
+  assert.doesNotMatch(source, /rollItemKind/, '장비·스킬북 70:30 분류는 없어졌다');
+  assert.match(source, /rollStatBookDrop\(boss \? 'boss' : 'hunt'\)/, '영구 스탯북은 확률표 한 곳에서 굴린다');
   assert.match(source, /rollItem\(this\.save\.floor, false, boss, this\.job\)/, 'equipment roll for a boss too');
 });
 

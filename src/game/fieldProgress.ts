@@ -18,9 +18,10 @@ import { canStoreItem } from './bagCapacity';
 import { emitDomainEvent } from '../core/domainEvents';
 import { addItemToBag } from './rewardGrant';
 import { bossGoldPiles, bossGoldSpot } from './bossLoot';
-import { rollItem, totalStats, type Item, type Rarity, type Save } from './store';
+import { totalStats, type Item, type Rarity, type Save } from './store';
 import { afterBossLose, afterBossWin, afterFloorClear, applyKillReward, defeatPenalty, killsToBoss, MAX_FLOOR, recordBossLoss } from './progress';
-import { itemDisplayName, itemDropChance, isEquipment, rollItemKind, rollSkillBook, starterArmorItem, starterWeaponName, type Slot } from './items';
+import { itemDisplayName, itemDropChance, isEquipment, rollItem, starterArmorItem, starterWeaponName, type Slot } from './items';
+import { rollStatBookDrop } from './statBooks';
 import { ELITE_HP_SCALE, ELITE_KILL_INTERVAL, MOB_CAP, MOB_CAP_GRACE_SECONDS, enemyMaxHp, spawnRefillSeconds, spawnsPerRefill, targetAliveCount } from './battle/formulas';
 import { fieldSpawnBand, spawnArenaEnemy } from './arena';
 import { clampArenaPoint } from './combat/bounds';
@@ -210,8 +211,11 @@ export class FieldProgress extends CombatEngine {
       if (starter) {
         this.drops.push({ x: enemy.x, y: enemy.y, item: starterArmorItem(starter, this.job, this.save.floor), age: 0, warned: false });
       } else if (random() < itemDropChance(this.save.floor, boss)) {
-        const item = rollItemKind() === 'skillbook' ? rollSkillBook(this.save.floor, this.job) : rollItem(this.save.floor, false, boss, this.job);
+        const item = rollItem(this.save.floor, false, boss, this.job);
         this.drops.push({ x: enemy.x, y: enemy.y, item, age: 0, warned: false });
+        // 파트 B: 영구 스탯북은 장비 드롭과 **별개로** 개극악 확률을 한 번 더 굴린다.
+        const book = rollStatBookDrop(boss ? 'boss' : 'hunt');
+        if (book) this.drops.push({ x: enemy.x, y: enemy.y, item: book, age: 0, warned: false });
       }
     }
     if (enemy.boss) {

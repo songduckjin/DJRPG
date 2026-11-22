@@ -68,7 +68,7 @@ export function codexBaseIndex(item: EquipmentItem): number {
 }
 /** 이 장비가 도감의 어느 기본형인가 — `부위:번호`. 대상이 아니면 undefined. */
 export function equipmentCodexKey(item: Item): string | undefined {
-  // 스킬북·보물 주머니(작업 207)는 도감 대상이 아니다.
+  // 스탯북·보물 주머니(작업 207)는 도감 대상이 아니다.
   if (!isEquipment(item)) return undefined;
   const slot = item.slot === 'ring1' || item.slot === 'ring2' ? 'ring' : item.slot;
   const index = codexBaseIndex(item);

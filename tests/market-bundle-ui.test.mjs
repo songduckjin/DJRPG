@@ -7,7 +7,8 @@ const { Market } = await import('../src/game/market.ts');
 const { freshSave } = await import('../src/game/store.ts');
 
 // 작업 249 — 판매 등록 스크롤 제거 · 묶음 등록(수량·개당 가격, 최대 10개) · 전체/개당 구매.
-const book = (id, skillId = 'spin', rarity = 'rare') => ({ id, name: `[스킬북] ${skillId}`, slot: 'skillbook', kind: 'skillbook', skillId, rarity, stats: {} });
+/** 영구 스탯북(파트 B) — 스킬북 대신 묶음 판매 대상이 된 소모품. 같은 `book`이 한 묶음이다. */
+const book = (id, kind = 'attack', rarity = 'unique') => ({ id, name: { attack: '공격의 서', defense: '방어의 서', health: '체력의 서' }[kind], slot: 'statbook', kind: 'statbook', book: kind, rarity, stats: {} });
 const snapshot = overrides => ({
   inbox: [], listings: [], watched: [], seq: 0, total: 0, page: 0, myActive: 0, revision: 0,
   rules: { fee: .05, maxListings: 30, durationHours: 72, maxPrice: 1_000_000_000, minPrice: 1, pageSize: 20, maxInbox: 30, maxBundle: 10 },

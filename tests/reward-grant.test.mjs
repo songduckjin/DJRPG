@@ -4,20 +4,15 @@ import {
   BAG_SLOT_LIMIT, RewardGrantError, bagSlotCount, diamondGrantOperations, grantRewardsToSave,
   itemTakesSlot, normalizeRewardEntry, planRewards, rewardSlotNeed, rewardTotals,
 } from '../server/core/rewardGrant.mjs';
-import { skillBookJobOf, skillBookIds } from '../server/skill-ids.mjs';
 
 // 작업 256 — 재화·아이템 지급의 단일 창구. 우편·여정·거래소·공용창고가 각자 적던
 // 가방 40칸 규칙과 수량 방어를 이 파일 하나로 모았다. 여기서 그 규칙을 고정한다.
 
 const gear = (id) => ({ id, name: '강철 쯔바이핸드', slot: 'weapon', rarity: 'rare', stats: { attack: 25 } });
-const book = (id, skillId = 'spin') => ({ id, name: '[스킬북] 드래곤 트위스터', slot: 'skillbook', kind: 'skillbook', skillId, rarity: 'rare', stats: {} });
+const statBook = (id, kind = 'attack') => ({ id, name: { attack: '공격의 서', defense: '방어의 서', health: '체력의 서' }[kind] ?? '공격의 서', slot: 'statbook', kind: 'statbook', book: kind, rarity: 'unique', stats: {} });
 const pouch = (id) => ({ id, name: '무작위 보물 주머니', slot: 'pouch', kind: 'pouch', rarity: 'unique', stats: {} });
 const blank = (bag = [], job = 'warrior', gold = 0) => ({ job, gold, bag });
-const myBook = () => {
-  // 내 직업(전사) 책 — 40칸을 쓰지 않는다.
-  const skillId = skillBookIds.find((id) => skillBookJobOf(id) === 'warrior');
-  return book('my-book', skillId);
-};
+
 
 test('수량은 0 이상의 정수만 인정한다 — 음수·소수·문자열·NaN은 0', () => {
   assert.deepEqual(normalizeRewardEntry({ gold: -50, books: -1, pouches: -3, diamonds: -100 }), { gold: 0, books: 0, pouches: 0, diamonds: 0, item: undefined });
@@ -26,19 +21,19 @@ test('수량은 0 이상의 정수만 인정한다 — 음수·소수·문자열
   assert.deepEqual(rewardTotals([{ gold: 100, books: 1 }, { gold: -30, pouches: 2 }, { gold: 5.7 }]), { gold: 105, books: 1, pouches: 2, diamonds: 0 });
 });
 
-test('가방 40칸은 장비·타직업 스킬북·보물 주머니를 세고 내 직업 스킬북은 세지 않는다', () => {
-  const save = blank([gear('a'), pouch('p'), myBook()]);
-  assert.equal(itemTakesSlot(myBook(), 'warrior'), false, '내 직업 책은 칸을 쓰지 않는다');
-  assert.equal(itemTakesSlot(book('other', 'fireBolt'), 'warrior'), true, '타직업 책은 한 칸');
-  assert.equal(bagSlotCount(save), 2, '장비 1 + 주머니 1');
-  // 직업을 알 수 없는 책은 칸을 쓴다.
-  assert.equal(itemTakesSlot(book('unknown', 'none-such'), 'warrior'), true);
+test('가방 40칸은 모든 아이템 1개 = 1칸이다(파트 B — 스킬북 폐지로 직업 예외가 사라졌다)', () => {
+  const save = blank([gear('a'), pouch('p'), statBook('b')]);
+  assert.equal(itemTakesSlot(statBook('b'), 'warrior'), true, '영구 스탯북도 한 칸');
+  assert.equal(itemTakesSlot(pouch('p'), 'warrior'), true, '보물 주머니도 한 칸');
+  assert.equal(bagSlotCount(save), 3, '장비 1 + 주머니 1 + 스탯북 1');
 });
 
 test('지급 계획은 40칸 경계에서 정확히 갈린다', () => {
   const almost = blank(Array.from({ length: BAG_SLOT_LIMIT - 1 }, (_, index) => gear(`g${index}`)));
-  assert.equal(planRewards(almost, [{ books: 1 }]).fits, true, '마지막 한 칸은 들어간다');
-  assert.equal(planRewards(almost, [{ books: 2 }]).fits, false, '두 칸은 넘친다');
+  assert.equal(planRewards(almost, [{ pouches: 1 }]).fits, true, '마지막 한 칸은 들어간다');
+  assert.equal(planRewards(almost, [{ pouches: 2 }]).fits, false, '두 칸은 넘친다');
+  // 파트 B: `books`는 지급하지 않으므로 칸도 세지 않는다(옛 우편 값은 무시).
+  assert.equal(planRewards(almost, [{ books: 5 }]).fits, true, '스킬북 수량은 자리를 쓰지 않는다');
   assert.equal(planRewards(almost, [{ gold: 5000 }]).fits, true, '금화만 주는 보상은 자리를 쓰지 않는다');
   // 이미 40칸을 넘긴 예전 세이브라도 금화 보상은 받을 수 있다.
   const over = blank(Array.from({ length: BAG_SLOT_LIMIT + 3 }, (_, index) => gear(`o${index}`)));
@@ -49,28 +44,21 @@ test('지급 계획은 40칸 경계에서 정확히 갈린다', () => {
 test('자리가 없으면 아무것도 넣지 않고 BAG_FULL로 거절한다(원자적)', () => {
   const save = blank(Array.from({ length: BAG_SLOT_LIMIT }, (_, index) => gear(`g${index}`)), 'warrior', 100);
   assert.throws(
-    () => grantRewardsToSave(save, [{ gold: 3000, books: 2 }]),
+    () => grantRewardsToSave(save, [{ gold: 3000, pouches: 2 }]),
     (error) => error instanceof RewardGrantError && error.code === 'BAG_FULL',
   );
   assert.equal(save.gold, 100, '금화도 들어가지 않는다');
   assert.equal(save.bag.length, BAG_SLOT_LIMIT, '가방도 그대로다');
 });
 
-test('금화·스킬북·보물 주머니를 한 번에 반영하고, 스킬북은 세 직업 33종에서 뽑는다', () => {
+test('금화·보물 주머니를 한 번에 반영하고, 스킬북 수량(books)은 지급하지 않는다(파트 B)', () => {
   const save = blank([], 'warrior', 10);
   const granted = grantRewardsToSave(save, [{ gold: 1000, books: 2, pouches: 1 }]);
   assert.equal(save.gold, 1010);
-  assert.equal(granted.books, 2);
+  assert.equal(granted.books, 2, '합계는 그대로 보고한다');
   assert.equal(granted.pouches, 1);
-  assert.equal(save.bag.length, 3);
-  const books = save.bag.filter((item) => item.kind === 'skillbook');
-  assert.equal(books.length, 2);
-  for (const item of books) {
-    assert.equal(item.slot, 'skillbook');
-    assert(skillBookIds.includes(item.skillId), '33종 안의 스킬만 나온다');
-    assert.equal(item.name, `[스킬북] ${item.name.replace('[스킬북] ', '')}`);
-    assert.equal(item.rarity, 'rare');
-  }
+  assert.equal(save.bag.length, 1, '아이템은 보물 주머니 하나뿐');
+  assert.equal(save.bag.filter((item) => item.kind === 'skillbook').length, 0, '스킬북은 만들지 않는다');
   const pouches = save.bag.filter((item) => item.kind === 'pouch');
   assert.equal(pouches.length, 1);
   assert.equal(pouches[0].slot, 'pouch');
@@ -93,8 +81,8 @@ test('onOverflow:"keep"은 자리와 상관없이 넣는다 — 우편이 이미
   const granted = grantRewardsToSave(save, [{ pouches: 1 }], { onOverflow: 'keep' });
   assert.equal(granted.pouches, 1);
   assert.equal(save.bag.length, BAG_SLOT_LIMIT + 1);
-  // `planRewards`의 `need`는 스킬북·주머니를 1칸으로 보수적으로 센다(내 직업 책은 지급할 때 정확히 센다).
-  assert.equal(rewardSlotNeed([{ books: 1, pouches: 2 }], 'warrior'), 3);
+  // `planRewards`의 `need`는 주머니만 센다 — 스킬북 수량(`books`)은 지급이 없어 자리도 쓰지 않는다.
+  assert.equal(rewardSlotNeed([{ books: 1, pouches: 2 }], 'warrior'), 2);
 });
 
 test('다이아 지급은 지갑 행 보장 → 원장 기록 → 지갑 증가 순서의 SQL로 나온다', () => {

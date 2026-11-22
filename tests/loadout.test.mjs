@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import './ts-loader.mjs';
-const { freshSave, parseSave, useSkillBook }=await import('../src/game/store.ts');
+const { freshSave, parseSave }=await import('../src/game/store.ts');
 const { normalizeQuickSlots, availableSkills, equipSkill, unequipSkill }=await import('../src/game/loadout.ts');
 const { World }=await import('../src/game/world.ts');
 test('new save has three genuinely empty skill slots',()=>assert.deepEqual(freshSave().quickSlots,[null,null,null]));
@@ -15,8 +15,8 @@ test('duplicate or damaged loadouts normalize without losing valid learned place
   assert.deepEqual(normalizeQuickSlots(null,['spin']),[null,null,null]);
 });
 test('a newly learned active skill is available but is not silently auto equipped',()=>{
-  const save=freshSave();save.bag=[{id:'book',name:'book',slot:'skillbook',kind:'skillbook',skillId:'slash2',rarity:'rare',stats:{}}];
-  assert(useSkillBook(save,'book').ok);assert.deepEqual(availableSkills(save),['slash2']);assert.deepEqual(save.quickSlots,[null,null,null]);
+  // 파트 B: 스킬북이 폐지되어 습득 경로는 파트 A의 스킬 트리(SP 투자)다 — 여기서는 `learned`로 습득 상태를 만든다.
+  const save=freshSave();save.learned=['slash2'];assert.deepEqual(availableSkills(save),['slash2']);assert.deepEqual(save.quickSlots,[null,null,null]);
   assert(equipSkill(save,'slash2',1).ok);assert.deepEqual(availableSkills(save),[]);assert.deepEqual(save.quickSlots,[null,'slash2',null]);
   assert.deepEqual(parseSave(JSON.parse(JSON.stringify(save))).quickSlots,[null,'slash2',null]);
 });

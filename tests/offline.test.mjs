@@ -5,11 +5,11 @@ import './patch-buff-off.mjs';
 
 const { freshSave, floorKillTarget } = await import('../src/game/store.ts');
 const { applyOfflineRewards, offlineKillsPerMinute, offlineHeroDps, OFFLINE_EFFICIENCY } = await import('../src/game/offline.ts');
-const { equipmentDropChance, skillBookDropChance, itemDropChance, offlineDropChance, rollItemKind, SKILLBOOK_DROP_SHARE } = await import('../src/game/items.ts');
+const { equipmentDropChance, itemDropChance, offlineDropChance } = await import('../src/game/items.ts');
 const { killReward } = await import('../src/game/progress.ts');
 const { fieldSpawnRate, enemyMaxHp } = await import('../src/game/battle/formulas.ts');
 
-test('offline hunts award one item per kill (장비 70% · 스킬북 30%) and gold, and a boss only past the floor target', () => {
+test('offline hunts award one equipment per kill (파트 B — 스킬북 폐지) and gold, and a boss only past the floor target', () => {
   const originalRandom = Math.random; Math.random = () => 0;
   try {
     const save = freshSave(); save.tutorial = 1;
@@ -19,10 +19,13 @@ test('offline hunts award one item per kill (장비 70% · 스킬북 30%) and go
     assert(reward.kills > floorKillTarget(1), '1층 목표(150)를 넘겨 보스를 만난다');
     assert.equal(reward.bossKills, 0, '맨몸 Lv.1은 1층 보스를 잡지 못한다');
     assert(reward.deaths >= 1, '보스에게 진 기록이 남는다');
-    // 드롭·금화는 한 마리당 한 번이다 — 난수 0이면 30% 쪽인 스킬북이 100% 떨어진다.
-    assert.equal(reward.items.length, reward.kills, '내 직업 스킬북은 칸을 쓰지 않아 모두 들어간다');
-    assert(reward.items.every(item => item.slot === 'skillbook'), '난수 0은 스킬북 30% 쪽');
-    assert.equal(reward.missedDrops, 0, '자리가 없어 놓친 드롭은 없다');
+    // 드롭·금화는 한 마리당 한 번이다 — 파트 B: 스킬북이 폐지되어 난수 0이면 장비 하나가 떨어진다.
+    // 영구 스탯북은 **별개로** 개극악 확률(0.01%)을 한 번 더 굴린다(`statBooks.ts`).
+    // 파트 B에서는 모든 아이템이 1칸이라 가방 40칸이 차면 남은 드롭은 '놓친 몫'으로 센다.
+    // 난수 0에서는 스탯북 확률(0.01%)도 통과하므로 드롭은 "한 마리당 장비 1개 + 가끔 스탯북"이다.
+    assert(reward.items.length + reward.missedDrops >= reward.kills, '한 마리당 최소 장비 1개');
+    assert(reward.items.length <= 40, '가방 40칸을 넘지 않는다');
+    assert(reward.items.every(item => item.slot === 'statbook' || item.kind === undefined || item.kind === 'equipment'), '드롭은 장비 아니면 영구 스탯북');
     // 금화는 처치한 일반 몹의 필드 계수 몫만 — 보스를 이기지 못해 보스 금화는 없다.
     const unit = killReward({ floor: 1 });
     assert.equal(reward.gold, reward.kills * unit.gold, '1층 금화 3 × 처치 수');
@@ -31,17 +34,16 @@ test('offline hunts award one item per kill (장비 70% · 스킬북 30%) and go
   } finally { Math.random = originalRandom; }
 });
 
-test('full bag still takes my-job skill books and tutorial suppresses all loot', () => {
+test('full bag takes nothing now that every item counts and the tutorial suppresses all loot', () => {
   const originalRandom = Math.random; Math.random = () => 0;
   try {
     const save = freshSave(); save.tutorial = 1;
     save.bag = Array.from({ length: 40 }, (_, index) => ({ id: `item-${index}`, name: '낡은 두손검', slot: 'weapon', rarity: 'common', stats: { attack: 4 } }));
     const reward = applyOfflineRewards(save, 60);
-    // 난수 0은 스킬북(내 직업) — 내 직업 책은 40칸에 세지 않아(작업 253) 가득 찬 가방에도 모두 들어간다.
-    assert.equal(reward.items.length, reward.kills, '내 직업 스킬북은 모두 들어간다');
-    assert.equal(reward.missedDrops, 0, '놓친 몫이 없다');
-    assert(reward.items.every(item => item.slot === 'skillbook'));
-    assert.equal(save.bag.filter(item => item.slot !== 'skillbook').length, 40, '장비 40칸은 그대로');
+    // 파트 B: 모든 아이템이 1칸이라 가득 찬 가방(40칸)에는 아무것도 들어가지 않고, 놓친 몫으로 센다.
+    assert.equal(reward.items.length, 0, '가득 찬 가방에는 드롭이 들어가지 않는다');
+    assert(reward.missedDrops >= 1, '놓친 드롭을 센다');
+    assert.equal(save.bag.length, 40, '장비 40칸은 그대로');
     const tutorial = freshSave(), early = applyOfflineRewards(tutorial, 600);
     assert.equal(early.items.length, 0); assert.equal(early.missedDrops, 0);
     assert.equal(early.gold, early.kills * killReward({ floor: 1 }).gold);
@@ -72,17 +74,10 @@ test('아이템 드롭률 — 접속은 층별 계수(1층 0.242% → 20층 0.15
   assert.equal(offlineDropChance(1, false), .003);
   assert.equal(offlineDropChance(20, false), .003);
   assert.equal(offlineDropChance(1, true), .04);
-  // 종류는 70:30 — 예전 이름(장비·스킬북 확률)은 같은 값의 70%·30%다.
-  assert.equal(SKILLBOOK_DROP_SHARE, .3);
-  assert.equal(round(equipmentDropChance(1, false)), round(.002418 * .7));
-  assert.equal(round(skillBookDropChance(1, false)), round(.002418 * .3));
-  assert.equal(round(equipmentDropChance(20, true)), .028);
-  assert.equal(round(skillBookDropChance(20, true)), .012);
-  // 분포: 10,000회에서 스킬북이 30% 언저리.
-  let state = 12345, books = 0;
-  const seeded = () => { state = (state * 1664525 + 1013904223) >>> 0; return state / 4294967296; };
-  for (let index = 0; index < 10_000; index++) if (rollItemKind(seeded) === 'skillbook') books++;
-  assert(Math.abs(books / 10_000 - .3) < .02, `스킬북 비율 ${books / 10_000}`);
+  // 파트 B: 스킬북이 폐지되어 70:30 분기가 없다 — 한 번 굴린 드롭은 곧 장비 하나다.
+  // 영구 스탯북은 `src/game/statBooks.ts`의 개극악 확률을 **따로** 한 번 더 굴린다.
+  assert.equal(round(equipmentDropChance(1, false)), round(.002418));
+  assert.equal(round(equipmentDropChance(20, true)), .04);
 });
 
 test('아래층 오프라인 정산에는 보스 몫(보스 처치·보스 금화)이 들어가지 않는다(작업 210)', () => {

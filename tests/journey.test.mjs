@@ -10,7 +10,6 @@ import {createClient} from '@libsql/client';
 import {schema,account,transaction,writeSave,reconcileItems} from '../server/database.mjs';
 import {snapshot,mutate} from '../server/journey.mjs';
 import {periods,advanceJourney,DIAMOND_MAIL_ID,LEGACY_DIAMOND_MAIL_ID,APOLOGY_MAIL_ID,APOLOGY_MAIL_UNTIL,UPDATE_NOTICE_2_ID,UPDATE_NOTICE_2_UNTIL,UPDATE_NOTICE_2_POUCHES} from '../server/journey-state.mjs';
-import {skillBookJobOf} from '../server/skill-ids.mjs';
 import {isPreviewHost,isProductionHost} from '../server/season.mjs';
 let db,directory;
 const save=()=>({version:1,name:'전사',gender:'male',gold:0,bag:[],equipment:{},kills:0,bossKills:0,playSeconds:0,level:1,floor:1,maxFloor:1,equipmentCollection:[],learned:[],passives:[],skillLevels:{}});
@@ -70,9 +69,9 @@ test('mail read, claim, deletion, item ownership and concurrent reward requests 
   await seed('mail');const data=await snapshot(db,'mail');assert.equal(data.mail.length,6);
   assert.equal(data.mail[0].id,'welcome-v1');
   await act('mail',undefined,data.mail[0].id,'journey-read');assert((await snapshot(db,'mail')).mail[0].read);
-  // 환영 1,000 + 업데이트 3,000 + 새 시즌 오픈 1,000 = 5,000G, 스킬북 3권 + 보물 주머니 1개
-  // + 사과 보상 주머니 5개 + 2026-11-21 업데이트 주머니 5개 = 보물 주머니 11개.
-  await act('mail','mail');const row=await account(db,'mail');assert.equal(row.save.gold,5000);assert.equal(row.save.bag.length,14);
+  // 환영 1,000 + 업데이트 3,000 + 새 시즌 오픈 1,000 = 5,000G. 스킬북은 파트 B에서 폐지되어 주지 않으므로
+  // 가방에는 보물 주머니만 들어간다 — 새 시즌 1개 + 사과 5개 + 2026-11-21 업데이트 5개 = 11개.
+  await act('mail','mail');const row=await account(db,'mail');assert.equal(row.save.gold,5000);assert.equal(row.save.bag.length,11);
   assert.equal(row.save.bag.filter(item=>item.slot==='pouch').length,11,'새 시즌 오픈 1개 + 사과 보상 5개 + 업데이트 안내 5개');
   const wallet=(await db.execute({sql:'SELECT diamonds FROM djrpg_shop_wallet WHERE account_id=?',args:['mail']})).rows[0];assert.equal(Number(wallet.diamonds),4000);
   await transaction(db,async tx=>{const latest=await account(tx,'mail');await reconcileItems(tx,'mail',latest.save,latest.save);});
@@ -120,7 +119,7 @@ test('업데이트 우편 보상은 정확히 한 번만 지급되고 삭제 뒤
   await act('notice','mail',notice.id);
   const row=await account(db,'notice');
   assert.equal(row.save.gold,3000,'금화 3,000');
-  assert.equal(row.save.bag.length,2,'스킬북 2권');
+  assert.equal(row.save.bag.length,0,'파트 B: 옛 우편의 스킬북 2권은 지급하지 않는다');
   await assert.rejects(act('notice','mail',notice.id),error=>error.code==='NOT_AVAILABLE','같은 우편을 두 번 받을 수 없다');
   await act('notice',undefined,'all','journey-delete');
   const after=await snapshot(db,'notice');

@@ -55,7 +55,7 @@ async function settleRows(tx,day,now){
 }
 async function dayRow(tx,key){return (await tx.execute({sql:'SELECT * FROM djrpg_boss_days WHERE day=?',args:[key]})).rows[0];}
 /** 도전 1회 참여 보상(작업 223, 사용자 요청 `#6127`·`#6139` "1회도전당 금화만줘야지") — 끝난 도전마다
- *  1,000 금화를 **우편으로 한 번만** 준다. 보물 주머니·스킬북은 주지 않는다(금화만).
+ *  1,000 금화를 **우편으로 한 번만** 준다. 보물 주머니·영구 스탯북은 주지 않는다(금화만).
  *  `djrpg_boss_rewards`의 `participation:<도전 id>`가 중복 지급을 막으므로 같은 도전을 다시 정산해도
  *  우편이 두 장 생기지 않는다. 216/218에서 이 보상이 통째로 빠져 "1회 도전 보상이 없어졌다"는 제보가 왔다. */
 async function participationMail(tx,day,id,kind,title,gold,now){

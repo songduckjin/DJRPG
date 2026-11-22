@@ -1,7 +1,8 @@
 import type { Save } from './store';
 import { emitDomainEvent } from '../core/domainEvents';
-import { allPassiveIds, allSkillIds, jobs, passiveOrderFor, passives, skillOrderFor, skills, type Job, type SkillLevelId } from './skills';
+import { jobs, type Job, type SkillLevelId } from './skills';
 import { jobOrDefault } from './skills';
+import { isStatBookKind, statBookBonus, statBookItem, type StatBook, type StatBookKind } from './statBooks';
 import { random } from './rng';
 import { effectiveExtraOptions, extraOptionPower, normalizeExtraOptions, EXTRA_CDR_CAP, EXTRA_CRIT_CAP, EXTRA_SPEED_CAP, type ExtraOptionKey } from './extraOptions';
 import { applyPatchBuff, patchBuffNow } from './patchBuff';
@@ -32,61 +33,36 @@ export type EquipmentItem = { id: string; name: string; slot: Slot; rarity: Rari
   /** 2차 스탯 척도 버전(밸런스 v2) — 2면 치명·공속·쿨감이 새 척도로 다시 박힌 장비다.
    *  서버(`server/db/items.mjs`)가 **옛 장비(1) → 새 장비(2) 1회 마이그레이션**만 허용하는 표식이다. */
   sec?: number };
-export type SkillBook = { id: string; name: string; slot: 'skillbook'; rarity: 'rare'; kind: 'skillbook'; skillId: SkillLevelId; stats: {} };
-/** 가방에서 까는 무작위 보물 주머니(작업 207) — 장비도 스킬북도 아닌 소모품이다.
+/** 가방에서 까는 무작위 보물 주머니(작업 207) — 장비도 스탯북도 아닌 소모품이다.
  *  장비 40칸에 세지 않고, 자동 장착·분해·경매장 판매·도감 어디에도 끼지 않는다. */
 export type TreasurePouch = { id: string; name: string; slot: 'pouch'; rarity: Rarity; kind: 'pouch'; stats: {} };
-export type Item = EquipmentItem | SkillBook | TreasurePouch;
+/** 영구 스탯북(파트 B, 2026-11-22) — 정의·확률·사용 규칙은 `src/game/statBooks.ts` 한 곳에 있다. */
+export type { StatBook, StatBookKind };
+export type Item = EquipmentItem | StatBook | TreasurePouch;
 export const POUCH_SLOT = 'pouch' as const;
 export const POUCH_NAME = '무작위 보물 주머니';
 /** 주머니의 등급 표기 — 아이템 등급표(6단계)를 그대로 쓰되, 보물 상자답게 주황(유니크)으로 둔다. */
 export const POUCH_RARITY: Rarity = 'unique';
-export function isSkillBook(item: Item): item is SkillBook { return item.kind === 'skillbook'; }
+export function isStatBook(item: Item | undefined): item is StatBook { return !!item && item.kind === 'statbook'; }
 export function isPouch(item: Item | undefined): item is TreasurePouch { return !!item && item.kind === 'pouch'; }
-/** 장비(착용·분해·거래 대상)인가 — 스킬북과 보물 주머니는 장비가 아니다. */
-export function isEquipment(item: Item): item is EquipmentItem { return item.kind !== 'skillbook' && item.kind !== 'pouch'; }
+/** 장비(착용·분해·거래 대상)인가 — 스탯북과 보물 주머니는 장비가 아니다. */
+export function isEquipment(item: Item): item is EquipmentItem { const kind = (item as { kind?: string }).kind; return kind === undefined || kind === 'equipment'; }
 export function pouchItem(id: string = crypto.randomUUID(), name: string = POUCH_NAME): TreasurePouch {
   return { id, name, slot: POUCH_SLOT, rarity: POUCH_RARITY, kind: 'pouch', stats: {} };
-}
-/** `[스킬북] {스킬 이름}` — 한 곳에서만 만든다(작업 251). */
-export function skillBookItem(skillId: SkillLevelId): SkillBook {
-  return { id: crypto.randomUUID(), name: `[스킬북] ${skillId in skills ? skills[skillId as keyof typeof skills].name : passives[skillId as keyof typeof passives].name}`, slot: 'skillbook', rarity: 'rare', kind: 'skillbook', skillId, stats: {} };
-}
-/**
- * **그 직업의** 스킬북 1권 — 액티브 8 + 패시브 3 중 같은 확률(1/11). 작업 251 `스킬북 합성`의 결과가
- * 이 함수를 쓴다(사용자 확정 "타직업스킬북 5개당 내직업 랜덤1개"). 드롭용 `rollSkillBook`은 직업을
- * 1/3로 먼저 뽑으므로(33종 1/33) 여기서는 직업을 고정한다 — 드롭 확률은 건드리지 않는다.
- */
-export function rollSkillBookFor(job: Job = 'warrior', draw: () => number = random): SkillBook {
-  const order = [...skillOrderFor(job), ...passiveOrderFor(job)];
-  const index = Math.min(order.length - 1, Math.max(0, Math.floor(draw() * order.length)));
-  return skillBookItem(order[index]);
-}
-export function rollSkillBook(_floor: number, _job: Job = 'warrior'): SkillBook {
-  // 스킬북도 세 직업이 같은 확률로 떨어진다(작업 204, 사용자 확정). 직업을 먼저 1/3로 고른 뒤
-  // 그 직업의 스킬·패시브 중 하나를 뽑는다. 세 직업 모두 액티브 8 + 패시브 3으로 수가 같아,
-  // 직업을 먼저 고르면 전 스킬이 같은 확률이 된다.
-  // [작업 246] 사용자 확정: **층 제한을 없앤다** — 예전에는 `스킬.level <= floor * 2`인 책만
-  // 떨어져 1층에서는 초반 스킬만 나왔다. 이제 1층을 포함한 모든 층에서 그 직업의 11종
-  // (액티브 8 + 패시브 3)이 **똑같이 1/11**로 나온다. 습득 자체에 레벨 제한은 없으므로
-  // (`useSkillBook`) 낮은 층에서 높은 스킬북을 먼저 모아 둘 수 있다.
-  const job = dropJob();
-  const order = [...skillOrderFor(job), ...passiveOrderFor(job)];
-  const skillId = order[Math.floor(random() * order.length)];
-  return skillBookItem(skillId);
 }
 /**
  * 한 마리당 **아이템 드롭률** (작업 210, 사용자 지시 `#4628`·`#4639`·`#4649`).
  *
  * 예전에는 장비·스킬북 확률을 따로 두 번 굴려 한 마리에서 두 개가 같이 떨어질 수 있었다. 이제는
- * **한 번만 굴리고**, 당첨되면 `SKILLBOOK_DROP_SHARE`(30%)로 종류를 갈라 **한 개만** 떨어진다.
+ * **한 번만 굴려 장비 하나**가 떨어진다 — 파트 B(2026-11-22)에서 스킬북을 폐지해 종류를 가르지 않고,
+ * 영구 스탯북은 `statBooks.ts`가 **별도로** 개극악 확률을 한 번 더 굴린다.
  *
  * 작업 254(2026-11-21, 사용자 확정 — 선택 카드 "전 층 고정"): **층이 올라가도 마리당 확률은 그대로**다.
  * 작업 223의 층별 상승(1층 0.40% → 20층 1.60%, 보스 6% → 24%)을 없애고 전 층 고정으로 바꿨다.
  * - 접속 사냥(일반·정예) **0.39%**, 보스 **4%** — 이 함수.
  * - 방치 사냥(오프라인 정산) 일반 **0.30%**, 보스 **4%** — `offlineDropChance`.
  * 등급(`rollItem`의 `rollRarity`)은 지금처럼 층이 올라갈수록 좋아지므로, 깊은 층의 값은 개수가 아니라
- * 색으로 오른다. 장비 70% : 스킬북 30% 비율(`SKILLBOOK_DROP_SHARE`)은 그대로다.
+ * 색으로 오른다. 스킬북 폐지(파트 B)로 70:30 분기는 없다.
  */
 export const ONLINE_DROP_CHANCE = .0039;
 /** 방치 사냥의 일반 몹 드롭률 (작업 254) — 접속보다 낮은 0.30%. */
@@ -113,16 +89,8 @@ export function offlineDropChance(_floor: number, boss = false): number {
   return boss ? BOSS_DROP_CHANCE : OFFLINE_DROP_CHANCE;
 }
 /** 당첨된 아이템 1개의 종류 — 스킬북 30%, 장비 70%. */
-export const SKILLBOOK_DROP_SHARE = .3;
-export const EQUIPMENT_DROP_SHARE = 1 - SKILLBOOK_DROP_SHARE;
-/** 당첨된 1개의 종류를 70:30으로 가른다. */
-export function rollItemKind(draw: () => number = random): 'skillbook' | 'equipment' {
-  return draw() < SKILLBOOK_DROP_SHARE ? 'skillbook' : 'equipment';
-}
-/** 예전 이름 호환 — 단일 드롭률의 70%(던전·보스战利品이 이 비율만 쓴다). */
-export function equipmentDropChance(floor: number, boss = false): number { return itemDropChance(floor, boss) * EQUIPMENT_DROP_SHARE; }
-/** 예전 이름 호환 — 단일 드롭률의 30%. */
-export function skillBookDropChance(floor: number, boss: boolean): number { return itemDropChance(floor, boss) * SKILLBOOK_DROP_SHARE; }
+/** 예전 이름 호환 — 스킬북 폐지(파트 B)로 단일 드롭률이 곧 장비 드롭률이다. */
+export function equipmentDropChance(floor: number, boss = false): number { return itemDropChance(floor, boss); }
 
 /** 강화 단계의 최고치 — 71~80층에서 +7이 나온다(작업 201). */
 export const MAX_PLUS = 7;
@@ -242,22 +210,14 @@ export function dropJob(draw: () => number = random): Job {
   return dropJobs[index];
 }
 
-/** 이 스킬북이 전용인 직업 — 스킬·패시브 목록(`skillOrderFor`/`passiveOrderFor`)으로 판별한다.
- *  스킬북이 아니면 undefined. 같은 스킬 id는 한 직업에만 있으므로 첫 일치가 곧 그 직업이다. */
-export function skillBookJob(item: Item): Job | undefined {
-  if (!isSkillBook(item)) return undefined;
-  for (const job of jobs) if (skillOrderFor(job).includes(item.skillId as never) || passiveOrderFor(job).includes(item.skillId as never)) return job;
-  return undefined;
-}
-
-/** 이 아이템을 쓸 수 있는 직업 — 무기(대검·활·지팡이)·투구·갑옷·스킬북이 직업별이다(작업 249).
+/** 이 아이템을 쓸 수 있는 직업 — 무기(대검·활·지팡이)·투구·갑옷이 직업별이다(작업 249).
  *  장갑·신발·문장·장신구는 세 직업이 함께 쓰므로 `undefined`(공용)다.
  *
  *  투구·갑옷은 ① 아이템에 적힌 `job`(새로 떨어진 장비) ② 이름이 궁수·마법사 목록에 있으면 그 직업,
  *  ③ 둘 다 아니면 전사용 이름이므로 **공용**으로 본다 — 옛 세이브의 전사용 투구·갑옷이 갑자기
  *  "장착 불가"가 되지 않게 하는 호환 규칙이다(사용자 확정: 기존 보유 장비는 그대로 유효). */
 export function itemJob(item: Item): Job | undefined {
-  if (isSkillBook(item)) return skillBookJob(item);
+  if (!isEquipment(item)) return undefined;
   if (item.slot === 'weapon') return weaponJob(item);
   if (item.slot === 'helmet' || item.slot === 'armor') {
     const tagged = (item as EquipmentItem).job;
@@ -663,8 +623,6 @@ export function wearableEquipmentImage(item: EquipmentItem): { path: string; fra
  * 소유 기록을 `consumed`로 바꿔 새로고침해도 돌아오지 않았다. 서버 쪽 검사(`server/skill-ids.mjs`
  * `skillBookIdSet`)는 처음부터 33종을 허용하므로, 클라이언트만 33종을 받아야 한다.
  */
-const skillBookReadIds = new Set<SkillLevelId>([...allSkillIds, ...allPassiveIds]);
-
 /**
  * 옛 장비의 2차 스탯(치명·공속·쿨감)을 **새 척도로 다시 박는다**(밸런스 v2 마이그레이션).
  *
@@ -701,13 +659,13 @@ export function migrateItem(value: unknown): Item | undefined {
   if (value.kind === 'pouch' || value.slot === 'pouch') {
     return pouchItem(typeof value.id === 'string' && value.id ? value.id : crypto.randomUUID(), typeof value.name === 'string' && value.name.trim() ? value.name : POUCH_NAME);
   }
-  if (value.kind === 'skillbook' && value.slot === 'skillbook' && typeof value.skillId === 'string' && skillBookReadIds.has(value.skillId as SkillLevelId)) {
-    const skillId = value.skillId as SkillLevelId;
-    const fallback = `[스킬북] ${skillId in skills ? skills[skillId as keyof typeof skills].name : passives[skillId as keyof typeof passives].name}`;
-    // 서버가 소유권 identity(이름 포함)로 아이템을 대조하므로, 저장된 이름이 있으면 그대로 유지한다.
-    // 여기서 이름을 덮어쓰면 load로 받은 정상 아이템이 다음 save에서 409 ITEM_CONFLICT로 막힌다.
-    const name = typeof value.name === 'string' && value.name.trim() ? value.name : fallback;
-    return { id: typeof value.id === 'string' && value.id ? value.id : crypto.randomUUID(), name, slot: 'skillbook', rarity: 'rare', kind: 'skillbook', skillId, stats: {} };
+  // 옛 스킬북(액티브·패시브) — 폐지됐으므로 읽기에서 버린다(파트 B).
+  if (value.kind === 'skillbook' || value.slot === 'skillbook') return undefined;
+  // 영구 스탯북(파트 B) — 이름은 정의 표의 이름을 그대로 쓴다(서버 소유권 identity가 이름을 본다).
+  if (value.kind === 'statbook' || value.slot === 'statbook') {
+    const kind = isStatBookKind(value.book) ? value.book : isStatBookKind(value.stat) ? value.stat : undefined;
+    if (!kind) return undefined;
+    return statBookItem(kind, typeof value.id === 'string' && value.id ? value.id : crypto.randomUUID());
   }
   if (typeof value.slot !== 'string' || !slots.includes(value.slot as Slot) || typeof value.rarity !== 'string' || !Object.hasOwn(rarityNames, value.rarity)) return undefined;
   const slot = value.slot as Slot, rarity = value.rarity as Rarity;
@@ -757,7 +715,7 @@ export function totalStats(save: Save, now: number = patchBuffNow()): Record<Sta
   // 장비 몫은 따로 모아 **직업 숙련**(작업 255)을 먼저 곱한 뒤 더한다 — 전사는 방어·체력, 마법사는 공격.
   // 같은 장비라도 직업의 특기 능력치에서 더 뽑아 쓰는 셈이다(레벨 기본값은 제외).
   const gear: Record<Stat, number> = { attack: 0, defense: 0, health: 0, crit: 0, speed: 0, cdr: 0 };
-  for (const item of Object.values(save.equipment)) if (item && !isSkillBook(item)) {
+  for (const item of Object.values(save.equipment)) if (item && isEquipment(item)) {
     for (const stat of Object.keys(item.stats) as Stat[]) gear[stat] += item.stats[stat] ?? 0;
   }
   const mastery = jobMastery[jobOrDefault(save.job)];
@@ -789,7 +747,14 @@ export function totalStats(save: Save, now: number = patchBuffNow()): Record<Sta
   // 스킬 쿨타임 감소(밸런스 v2): 장비 기본 + 추가옵션을 합쳐 35%에서 자른다.
   total.cdr = Math.min(CDR_CAP, Math.round(gear.cdr) + Math.min(EXTRA_CDR_CAP, extras.cdrPct));
   // 밸런스·UI 개편 기념 종일 버프(2026-11-22) — 공·방·체만 +30%. 치명타·공속·쿨감은 건드리지 않는다.
-  return applyPatchBuff(total, now);
+  const buffed = applyPatchBuff(total, now);
+  // 영구 스탯북(파트 B) — **모든 배율(추가옵션·패시브·기념 버프)이 끝난 뒤** 더한다. 책 한 권이 화면에
+  // 적힌 값(+5/+3/+30) 그대로 늘어나고, 배율이 책의 몫을 부풀리지도 깎지도 않는다.
+  const books = statBookBonus(save);
+  buffed.attack += books.attack;
+  buffed.defense += books.defense;
+  buffed.health += books.health;
+  return buffed;
 }
 
 export function rollItem(floor: number, guaranteed = false, boss = false, job: Job = 'warrior'): Item {

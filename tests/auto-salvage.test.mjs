@@ -13,7 +13,7 @@ const { autoSalvageBlock, autoSalvageRecovered, sweepBagOnFull, bagEquipmentCoun
 const { readAutoSalvage, saveAutoSalvage, AUTO_SALVAGE_KEY, AUTO_SALVAGE_ON_NOTICE, AUTO_SALVAGE_HINT } = await import('../src/ui/autoSalvage.ts');
 
 const gear = (id, slot, attack, rarity = 'common', locked = false) => ({ id, name: id, slot, rarity, stats: { attack }, locked });
-const book = () => ({ id: 'book', kind: 'skillbook', slot: 'skillbook', rarity: 'epic', stats: {}, skillId: 'fireBolt' });
+const book = () => ({ id: 'book', kind: 'statbook', slot: 'statbook', book: 'health', rarity: 'epic', stats: {} });
 
 function withStorage(entries = {}) {
   const store = new Map(Object.entries(entries));
@@ -74,7 +74,7 @@ test('what it will never take: skill books, locks, higher grades, empty slots an
   save.equipment.weapon = gear('worn', 'weapon', 10);
   const epic = gear('epic', 'weapon', 2, 'epic');
   assert.equal(autoSalvageBlock(save, epic, 'epic'), undefined, 'a worse epic weapon is swept');
-  assert.equal(autoSalvageBlock(save, book(), 'unique'), 'skillbook', 'a skill book is never swept');
+  assert.equal(autoSalvageBlock(save, book(), 'unique'), 'statbook', 'a stat book is never swept');
   assert.equal(autoSalvageBlock(save, gear('lock', 'weapon', 2, 'epic', true), 'epic'), 'locked', 'a locked piece is the player’s mark');
   assert.equal(autoSalvageBlock(save, gear('up', 'weapon', 2, 'unique'), 'epic'), 'grade', 'above the chosen grade stays');
   assert.equal(autoSalvageBlock(save, gear('helm', 'helmet', 2, 'epic'), 'epic'), 'empty-slot', 'an empty slot needs something to wear');
@@ -168,8 +168,8 @@ test('a full bag sweeps only the pieces auto-salvage may take, and pays like a m
     book(),
     ...Array.from({ length: 34 }, (_, index) => gear(`keep-${index}`, 'weapon', 5, 'unique')),
   ];
-  // 작업 253: 타직업 스킬북은 한 칸을 쓴다(내 직업 스킬북만 제외) — 장비 40 + 타직업 책 1 = 41칸.
-  assert.equal(bagEquipmentCount(save), 41, '가방 41개(장비 40 + 스킬북 1) — 40칸을 넘은 상태');
+  // 파트 B: 모든 아이템이 1칸 — 장비 40 + 영구 스탯북 1 = 41칸.
+  assert.equal(bagEquipmentCount(save), 41, '가방 41개(장비 40 + 스탯북 1) — 40칸을 넘은 상태');
   const gold = save.gold, stones = save.stones, salvaged = save.salvageCount ?? 0;
   const swept = sweepBagOnFull(save, 'rare', 3);
   assert.deepEqual(swept, { count: 2, gold: salvageGold.common * 2, stones: salvageStones.common * 2 }, '설정 등급 이하 두 벌만');

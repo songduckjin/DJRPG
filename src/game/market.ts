@@ -5,13 +5,13 @@ import { apiHeaders, isOutdatedResponse, reloadForNewVersion } from './appVersio
 // 서버 계약(`view:'sold'`)은 `최근 거래` 요청에 그대로 쓴다(`load`).
 export type MarketView = 'active' | 'recent' | 'mine' | 'register' | 'inbox';
 /**
- * 판매 중 목록의 서브 필터(작업 257) — `전체`·`장비`·`스킬북`.
+ * 판매 중 목록의 서브 필터(작업 257 → 파트 B) — `전체`·`장비`·`영구 스탯북`.
  *
  * 서버 `filters` 계약(`category`는 한 값만 받는다)을 건드리지 않고, 이미 받은 한 페이지의 매물을
  * 화면에서 거른다(`내 직업만 보기`와 같은 방식). 장비는 `weapon`·`armor`·`accessory` 셋을 모두 뜻한다.
  */
-export type MarketKind = 'all' | 'equipment' | 'skillbook';
-export const MARKET_KIND_LABELS: Record<MarketKind,string> = { all: '전체', equipment: '장비', skillbook: '스킬북' };
+export type MarketKind = 'all' | 'equipment' | 'statbook';
+export const MARKET_KIND_LABELS: Record<MarketKind,string> = { all: '전체', equipment: '장비', statbook: '영구 스탯북' };
 /** 화면 탭으로 열 수 있는 뷰 — 옛 상태(예: `sold`)가 남아 있으면 `active`로 안전 폴백한다. */
 export const MARKET_VIEWS: MarketView[] = ['active', 'recent', 'mine', 'register', 'inbox'];
 /**

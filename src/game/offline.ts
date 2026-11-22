@@ -1,6 +1,7 @@
 import { addItemToBag } from './rewardGrant';
 import { autoSalvageRecovered } from './inventory';
-import { offlineDropChance, rollItem, rollItemKind, rollSkillBook, totalStats, type Item, type Rarity } from './items';
+import { offlineDropChance, rollItem, totalStats, type Item, type Rarity } from './items';
+import { rollStatBookDrop } from './statBooks';
 import { jobOrDefault as jobOf, skillDamageScale, skillDuration, skills, type SkillId } from './skills';
 import { skillLevel, type Save } from './store';
 import { afterBossLose, afterBossWin, applyBossReward, applyKillBatch, defeatPenalty, killsToBoss } from './progress';
@@ -134,9 +135,11 @@ export function applyOfflineRewards(save: Save, elapsedSeconds: number, options:
     // 레벨업 뒤 최대 체력 — 경험치 규칙은 progress가, 체력은 최대 체력을 아는 이쪽이 맞춘다.
     if (batch.levels) save.health = totalStats(save).health;
     if (save.tutorial >= 1) for (let index = 0; index < batch.kills; index++) {
-      // 한 마리당 한 번만 굴려 1개 — 장비 70% · 스킬북 30%(작업 210, 접속 사냥과 같은 규칙).
-      // 확률만 방치 몫(전 층 0.30%)을 쓴다(작업 254).
-      if (Math.random() < offlineDropChance(floor, false)) receive(() => rollItemKind() === 'skillbook' ? rollSkillBook(floor, jobOf(save)) : rollItem(floor, false, false, jobOf(save)));
+      // 한 마리당 한 번만 굴려 장비 1개(파트 B — 스킬북 폐지). 확률은 방치 몫(전 층 0.30%, 작업 254)이다.
+      // 영구 스탯북은 **별개로** 개극악 확률(`statBooks.ts`)을 한 번 더 굴린다.
+      if (Math.random() < offlineDropChance(floor, false)) receive(() => rollItem(floor, false, false, jobOf(save)));
+      const book = rollStatBookDrop('offline');
+      if (book) receive(() => book);
     }
   };
   /** 층 보스 처치 보상 — 금화 `70 × 층`, 경험치 `(9 + 층) × 6`, 드롭 한 번(작업 195·207). 금액은 `progress.ts`.
@@ -146,8 +149,11 @@ export function applyOfflineRewards(save: Save, elapsedSeconds: number, options:
     reward.bossKills++; reward.gold += boss.gold; reward.exp += boss.exp; reward.levels += boss.levels;
     if (boss.levels) save.health = totalStats(save).health;
     if (save.tutorial >= 1 && Math.random() < offlineDropChance(floor, true)) {
-      receive(() => rollItemKind() === 'skillbook' ? rollSkillBook(floor, jobOf(save)) : rollItem(floor, false, true, jobOf(save)));
+      receive(() => rollItem(floor, false, true, jobOf(save)));
     }
+    // 보스의 영구 스탯북은 확정 드롭과 별개로 한 번 더 굴린다(파트 B).
+    const bossBook = save.tutorial >= 1 ? rollStatBookDrop('boss') : undefined;
+    if (bossBook) receive(() => bossBook);
   };
 
   let remaining = seconds;

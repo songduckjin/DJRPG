@@ -30,8 +30,8 @@ test('canceling salvage popup retains all equipment and currency',()=>{
   renderSalvage.call(ui,{append(){}});nodes.find(node=>node.textContent==='취소하고 보관').onclick();
   assert.equal(ui.opened,'equipment');assert.equal(ui.salvageIds,undefined);assert.equal(JSON.stringify(save),before);delete globalThis.document;
 });
-test('confirm removes only captured bag items once, never skillbooks or equipped gear',()=>{
-  const save=freshSave();save.equipment.helmet=item('equipped','helmet');save.bag=[item('old'),item('new'),{id:'book',slot:'skillbook',kind:'skillbook',skillId:'spin',rarity:'rare',stats:{}}];
+test('confirm removes only captured bag items once, never stat books or equipped gear',()=>{
+  const save=freshSave();save.equipment.helmet=item('equipped','helmet');save.bag=[item('old'),item('new'),{id:'book',slot:'statbook',kind:'statbook',book:'attack',rarity:'unique',stats:{}}];
   const result=salvageItems(save,['old','book','equipped']);assert.deepEqual(result,{count:1,gold:3,stones:1});assert.deepEqual(save.bag.map(i=>i.id),['new','book']);assert.equal(save.equipment.helmet.id,'equipped');
   assert.equal(salvageItems(save,['old']).count,0);assert.equal(save.gold,3);
 });
@@ -39,8 +39,10 @@ test('stored item names are kept by migration so the server ownership identity s
   const { migrateItem }=await import('../src/game/items.ts');
   const blade=migrateItem({id:'blade',name:'영원의 츠바이핸더',slot:'weapon',rarity:'legendary',stats:{attack:40}});
   assert.equal(blade.name,'영원의 츠바이핸더');
-  const book=migrateItem({id:'book',kind:'skillbook',slot:'skillbook',skillId:'spin',rarity:'rare',stats:{},name:'[스킬북] 회오리 베기'});
-  assert.equal(book.name,'[스킬북] 회오리 베기');
+  // 파트 B: 옛 스킬북은 읽기에서 버려지고(undefined), 영구 스탯북은 정의 표의 이름으로 읽힌다.
+  assert.equal(migrateItem({id:'book',kind:'skillbook',slot:'skillbook',skillId:'spin',rarity:'rare',stats:{},name:'[스킬북] 회오리 베기'}),undefined);
+  const stat=migrateItem({id:'stat',kind:'statbook',slot:'statbook',book:'attack',rarity:'unique',stats:{},name:'공격의 서'});
+  assert.equal(stat.name,'공격의 서');
   assert.equal(migrateItem({id:'nameless',slot:'weapon',rarity:'rare',stats:{}}).name,'두손검');
-  assert.equal(migrateItem({id:'newbook',kind:'skillbook',slot:'skillbook',skillId:'spin',rarity:'rare',stats:{}}).name,'[스킬북] 드래곤 트위스터');
+  assert.equal(migrateItem({id:'newstat',kind:'statbook',slot:'statbook',book:'health',rarity:'unique',stats:{}}).name,'체력의 서');
 });

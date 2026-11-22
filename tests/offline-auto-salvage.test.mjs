@@ -15,6 +15,7 @@ const { freshSave } = await import('../src/game/store.ts');
 const { applyOfflineRewards } = await import('../src/game/offline.ts');
 const { salvageGold, salvageStones, isEquipment, canWield } = await import('../src/game/items.ts');
 const { rewardBudget, MAX_OFFLINE_SECONDS } = await import('../server/save-guard.mjs');
+const { autoSalvageBlock } = await import('../src/game/inventory.ts');
 
 /** 같은 수열을 다시 만들어 두 정산을 나란히 비교하기 위한 시드 난수. */
 function seeded(seed) {
@@ -73,7 +74,7 @@ test('방치 정산도 자동 분해를 적용한다 — 분해된 장비는 가
   } finally { Math.random = original; }
 });
 
-test('자동 분해를 켜도 보호 규칙은 방치에서도 그대로 — 빈 슬롯·스킬북은 분해되지 않는다(작업 254)', () => {
+test('자동 분해를 켜도 보호 규칙은 방치에서도 그대로 — 빈 슬롯 장비·소모품은 분해되지 않는다(작업 254 · 파트 B)', () => {
   const original = Math.random;
   try {
     // 장비를 하나도 안 입은 세이브: **입을 수 있는** 장비는 '빈 슬롯' 보호 대상이라 가방에 남는다.
@@ -94,13 +95,12 @@ test('자동 분해를 켜도 보호 규칙은 방치에서도 그대로 — 빈
     assert(reward.salvaged.count >= unwearable.length, '입을 수 없는(다른 직업) 장비는 모두 분해된다');
     assert(reward.items.every(item => !isEquipment(item) || canWield(item, 'warrior')), '빈 슬롯에 입을 장비는 분해하지 않는다');
 
-    // 난수 0이면 매 처치가 스킬북(30% 쪽) — 스킬북은 절대 분해되지 않는다.
-    Math.random = () => 0;
-    const books = freshSave(); books.tutorial = 1; books.autoClimb = false;
-    const bookReward = applyOfflineRewards(books, 600, { autoSalvage: 'unique', autoSalvagePlus: 7 });
-    assert(bookReward.items.length > 0, '스킬북이 떨어졌다');
-    assert.equal(bookReward.salvaged.count, 0, '스킬북은 자동 분해 대상이 아니다');
-    assert(bookReward.items.every(item => item.slot === 'skillbook'));
+    // 파트 B: 스킬북이 폐지되어 드롭은 장비 하나 — 영구 스탯북·보물 주머니 같은 소모품은
+    // 어떤 경우에도 자동 분해 대상이 아니다(`inventory.ts`의 `autoSalvageBlock`).
+    for (const consumable of [
+      { id: 'b1', name: '공격의 서', slot: 'statbook', rarity: 'unique', kind: 'statbook', book: 'attack', stats: {} },
+      { id: 'p1', name: '무작위 보물 주머니', slot: 'pouch', rarity: 'unique', kind: 'pouch', stats: {} }
+    ]) assert.equal(autoSalvageBlock(freshSave(), consumable, 'legendary'), consumable.slot === 'statbook' ? 'statbook' : 'pouch', `${consumable.slot}는 분해 보호`);
   } finally { Math.random = original; }
 });
 

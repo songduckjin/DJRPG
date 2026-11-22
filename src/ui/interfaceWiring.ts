@@ -7,7 +7,6 @@
 import type { Interface } from './interface';
 import type { World } from '../game/world';
 import { discoverEquipment } from '../game/codex';
-import { isSkillBook } from '../game/items';
 import { updateMarketLive, updateMarketNavDot } from './modals/marketModal';
 import { loadWarehouse } from './modals/charactersModal';
 import { updateUtilityBadges } from './modals/utilityModal';
@@ -44,7 +43,7 @@ export function wireWorld(ui: Interface, world: World): void {
     for (const item of world.save.bag) {
       if (!ui.knownItems.has(item.id)) {
         ui.knownItems.add(item.id);
-        if (ui.openModal !== 'equipment' && !isSkillBook(item)) ui.newItems.add(item.id);
+        if (ui.openModal !== 'equipment') ui.newItems.add(item.id);
       }
     }
     ui.renderBagBadge(); ui.renderStatus();

@@ -109,7 +109,7 @@
   .equipment-grid { grid-template-rows: repeat(2, 48px); }
   .equipment-modal .bag-grid { min-height: 135px; }
   .bag-heading h3 { font-size: 13px; }
-  .bag-heading .bag-rarity-sort, .bag-heading .bag-job-only, .bag-heading .synth-open { padding: 4px 7px; font-size: 10px; }
+  .bag-heading .bag-rarity-sort, .bag-heading .bag-job-only { padding: 4px 7px; font-size: 10px; }
   .modal-bag-footer { flex-wrap: wrap; gap: 4px; margin-top: 5px; padding-top: 5px; }
   .modal-bag-footer .salvage, .modal-bag-footer .salvage-rarity, .modal-bag-footer .salvage-plus { padding: 4px 7px; font-size: 10px; }
   .auto-salvage-hint { font-size: 9px; }
@@ -225,7 +225,6 @@
 .bag-heading h3 { flex:1 1 auto; min-width:0; margin:0; }
 .bag-heading .bag-job-only { flex:0 1 auto; margin:0; }
 /* [작업 252] 가방 `합성`은 머리줄 `내 직업만 보기` 바로 왼쪽 — 머리줄 버튼과 같은 납작한 크기로 둔다. */
-.bag-heading .synth-open { flex:0 1 auto; margin:0; padding:4px 7px; font-size:11px; }
 /* 입문 안내(작업 미정) — 모달이 열리면 안내 띠는 가려지므로, 해야 할 일을 가방 머리글 밑에 한 줄 남긴다. */
 .tutorial-note { display:block; flex:none; margin:0 0 5px; padding:4px 6px; border:1px solid #805b3b; border-radius:4px; background:#20191a; color:#f4dcb0; font-size:10.5px; line-height:1.45; }
 .bag-rarity-sort { flex:0 0 auto; border:1px solid #6d5948; background:#292124; color:#bba998; padding:4px 8px; font-size:11px; }

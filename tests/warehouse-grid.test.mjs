@@ -15,7 +15,8 @@ const { renderWarehouse, warehouseState, resetWarehouse, loadWarehouse } = await
 
 const sword = (id, plus = 0, rarity = 'rare') => ({ id, name: `강철 쯔바이핸드${id}`, slot: 'weapon', rarity, stats: { attack: 20 + plus }, plus });
 const helmet = id => ({ id, name: `강철 투구${id}`, slot: 'helmet', rarity: 'magic', stats: { defense: 8 } });
-const book = (id, skillId = 'spin') => ({ id, name: '[스킬북] 회오리 베기', slot: 'skillbook', kind: 'skillbook', skillId, rarity: 'rare', stats: {} });
+/** 영구 스탯북(파트 B) — 스킬북 자리를 이어받은 1칸짜리 소모품. */
+const book = (id, kind = 'attack') => ({ id, name: kind === 'attack' ? '공격의 서' : '체력의 서', slot: 'statbook', kind: 'statbook', book: kind, rarity: 'unique', stats: {} });
 const pouch = id => ({ id, name: '무작위 보물 주머니', slot: 'pouch', kind: 'pouch', rarity: 'unique', stats: {} });
 const save0 = items => ({ version: 1, accountId: 'hero', name: '전사', gender: 'male', auto: true, autoClimb: true, level: 9, exp: 25, gold: 500, floor: 4, maxFloor: 4, floorKills: 3, kills: 50, health: 80, equipment: {}, equipmentCollection: [], bag: items, tutorial: 3, stones: 0, skillPoints: 7, lastActiveAt: Date.now(), learned: [], passives: [], quickSlots: [null, null, null], skillLevels: {} });
 
@@ -48,7 +49,7 @@ async function harness(items) {
 }
 
 test('한 요청으로 여러 개를 보관·꺼내고, 같은 requestId는 한 번만 처리한다(작업 225)', async () => {
-  const blade = sword('w1', 3), head = helmet('h1'), book1 = book('b1'), book2 = book('b2');
+  const blade = sword('w1', 3), head = helmet('h1'), book1 = book('b1', 'attack'), book2 = book('b2', 'health');
   const h = await harness([blade, head, book1, book2]);
   try {
     const { call, owned, loaded } = h;
@@ -178,7 +179,7 @@ test('공용창고는 아이콘 슬롯 그리드로 그려지고, 모드 전환 
   try {
     const blade = sword('w1', 5), head = helmet('h1');
     const save = freshSave(); save.job = 'warrior'; save.gold = 1234;
-    save.bag = [blade, head, book('b1'), book('b2'), pouch('p1'), pouch('p2')];
+    save.bag = [blade, head, book('b1', 'attack'), book('b2', 'attack'), pouch('p1'), pouch('p2')];
     const stored = [{ id: 's1', name: '창고 검', slot: 'weapon', rarity: 'epic', stats: { attack: 30 } }];
     const { ui, calls } = uiFixture(save, stored.slice());
     const dialog = element();
@@ -188,13 +189,13 @@ test('공용창고는 아이콘 슬롯 그리드로 그려지고, 모드 전환 
     assert.equal(grids.length, 2, '공용창고·내 가방 두 그리드');
     const [storageGrid, bagGrid] = grids;
     assert.equal(cellsIn(storageGrid).length, 1);
-    // 가방: 장비 2 + 스킬북 한 칸(×2) + 주머니 한 칸(×2) = 4칸
+    // 가방: 장비 2 + 스탯북 한 칸(×2) + 주머니 한 칸(×2) = 4칸
     assert.equal(cellsIn(bagGrid).length, 4);
     assert.equal(cellsIn(bagGrid).filter(cell => all(cell, node => node.className === 'skillbook-count').some(node => node.textContent === '×2')).length, 2, '같은 책·같은 주머니는 ×2로 모은다');
     assert(all(dialog, node => node.className.includes('item-plus-badge')).length >= 1, '+N 배지');
     assert(text(dialog).includes('계정 공용 금화 1,234'));
     assert(text(dialog).includes('공용창고 1/40'));
-    assert(text(dialog).includes('가방 4/40'), '가방은 장비 2·보물 주머니 2를 세고, 내 직업 스킬북 2권은 세지 않는다(작업 253)');
+    assert(text(dialog).includes('가방 6/40'), '가방 6/40 — 장비 2 + 스탯북 2 + 주머니 2(파트 B: 모두 1칸, 칸은 4개로 묶여 보인다)');
     assert(!text(dialog).includes('불러오는 중'), '목록이 있으면 로딩 문구가 없다');
     // `선택 끔/켬`·`빠른 이동` 모드 버튼은 없어졌다(작업 246).
     assert.equal(all(dialog, node => node.classList.contains('warehouse-quick')).length, 0, '빠른 이동 없음');

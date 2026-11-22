@@ -15,7 +15,33 @@
  *  - 표시 이름은 여기(`name`)에만 둔다. 데이터 표에는 코드만 저장한다.
  *  - `meta`는 색·아이콘·가격·본문 템플릿 같은 부가속성 자리다(지금은 필요한 것만).
  */
-import { skillBookIds, skillNames, skillBookJobOf, activeSkillIds } from '../skill-ids.mjs';
+// 스킬 코드 사전 — 예전 `server/skill-ids.mjs`가 갖고 있던 목록을 이 파일로 옮겼다(파트 B, 2026-11-22:
+// 스킬북 폐지로 그 모듈은 삭제). 클라이언트 `src/game/skills.ts`의 id·이름과 같아야 하며
+// `tests/common-codes.test.mjs`가 33종을 센다.
+const warriorSkillIds = ['slash2', 'slam', 'warcry', 'power', 'destroy', 'hell', 'crushing', 'spin'];
+const archerSkillIds = ['doubleShot', 'multiShot', 'pierceShot', 'iceArrow', 'hawkEye', 'snipe', 'stormVolley', 'arrowRain'];
+const mageSkillIds = ['fireBolt', 'iceBolt', 'chainLightning', 'manaBurst', 'frostNova', 'arcaneShield', 'meteorStrike', 'arcaneOverlord'];
+const warriorPassiveIds = ['mastery', 'body', 'instinct'];
+const archerPassiveIds = ['bowMastery', 'swiftStep', 'hawkSight'];
+const magePassiveIds = ['staffMastery', 'manaCircuit', 'arcaneSense'];
+const activeSkillIds = [...warriorSkillIds, ...archerSkillIds, ...mageSkillIds];
+const skillBookIds = [...activeSkillIds, ...warriorPassiveIds, ...archerPassiveIds, ...magePassiveIds];
+/** 스킬 id → 직업(코드 사전의 `parentCode`). */
+const skillBookJobOf = code => warriorSkillIds.includes(code) || warriorPassiveIds.includes(code) ? 'warrior'
+  : archerSkillIds.includes(code) || archerPassiveIds.includes(code) ? 'archer'
+  : mageSkillIds.includes(code) || magePassiveIds.includes(code) ? 'mage' : undefined;
+/** 스킬 이름 — 클라이언트 `skills`·`passives`의 `name`과 같다. */
+const skillNames = {
+  slash2: '이단참', spin: '드래곤 트위스터', crushing: '딜레이 크러싱', slam: '와일드 스탬프',
+  warcry: '블러드 레이지', power: '파워 스트라이크', destroy: '디스트로이 스윙', hell: '회전참격',
+  doubleShot: '더블 샷', multiShot: '멀티 샷', pierceShot: '관통 사격', iceArrow: '빙결 화살',
+  hawkEye: '호크아이', snipe: '저격 일격', stormVolley: '폭풍 연사', arrowRain: '애로우 레인',
+  fireBolt: '파이어 볼트', iceBolt: '아이스 볼트', chainLightning: '체인 라이트닝', manaBurst: '마력 폭발',
+  frostNova: '프로스트 노바', arcaneShield: '아케인 실드', meteorStrike: '메테오 스트라이크', arcaneOverlord: '아르카나 오버로드',
+  mastery: '대검 숙련', body: '강인한 육체', instinct: '전투 본능',
+  bowMastery: '궁술 숙련', swiftStep: '신속의 발걸음', hawkSight: '매의 눈',
+  staffMastery: '지팡이 숙련', manaCircuit: '마나 회로', arcaneSense: '비전 감응'
+};
 
 /** 사전 구조 버전 — 구조(필드)가 바뀌면 올린다. 코드 내용 변경은 `code_version`이 센다. */
 export const SEED_VERSION = 1;
@@ -98,7 +124,7 @@ export const COMMON_CODES = {
   ],
   ITEM_KIND: [
     { code: 'equipment', name: '장비' },
-    { code: 'skillbook', name: '스킬북' },
+    { code: 'statbook', name: '영구 스탯북' },
     { code: 'pouch', name: '보물 주머니' }
   ],
   ITEM_STATE: [

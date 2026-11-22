@@ -113,8 +113,8 @@ test('old save revision and escrow resurrection are rejected',async()=>{
   await assert.rejects(transaction(db,async tx=>{const row=await account(tx,'stale'); await reconcileItems(tx,'stale',row.save,old.save);}),error('ITEM_CONFLICT'));
 });
 test('skillbooks are tradable, item stats immutable and duplicate inventory forbidden',async()=>{
-  const book={id:randomUUID(),name:'[스킬북] 소드 슬래시',slot:'skillbook',kind:'skillbook',skillId:'slash2',rarity:'rare',stats:{}};
-  await seed('books',[book]); const listing=await sale('books'); assert.equal(listing.item.skillId,'slash2');
+  const book={id:randomUUID(),name:'공격의 서',slot:'statbook',kind:'statbook',book:'attack',rarity:'unique',stats:{}};
+  await seed('books',[book]); const listing=await sale('books'); assert.equal(listing.item.book,'attack');
   await seed('immutable',[item()]);
   await transaction(db,async tx=>{const row=await account(tx,'immutable'); await reconcileItems(tx,'immutable',row.save,row.save);});
   await assert.rejects(transaction(db,async tx=>{const row=await account(tx,'immutable'),next=structuredClone(row.save);next.bag[0].stats.attack=999;await reconcileItems(tx,'immutable',row.save,next);}),error('ITEM_CONFLICT'));
@@ -253,8 +253,8 @@ test('selected option sorts all matches by stat descending before pagination, ov
 });
 
 test('가방 40칸이 차면 타직업 스킬북 배달도 막히고, 39칸이면 들어간다(작업 253)',async()=>{
-  const bookA={id:randomUUID(),name:'[스킬북] 파이어 볼트',slot:'skillbook',kind:'skillbook',skillId:'fireBolt',rarity:'rare',stats:{}};
-  const bookB={id:randomUUID(),name:'[스킬북] 드래곤 트위스터',slot:'skillbook',kind:'skillbook',skillId:'spin',rarity:'rare',stats:{}};
+  const bookA={id:randomUUID(),name:'공격의 서',slot:'statbook',kind:'statbook',book:'attack',rarity:'unique',stats:{}};
+  const bookB={id:randomUUID(),name:'체력의 서',slot:'statbook',kind:'statbook',book:'health',rarity:'unique',stats:{}};
   await seed('book-seller',[bookA,bookB]);
   await seed('book-buyer',Array.from({length:40},()=>item()));
   await seed('book-room',Array.from({length:39},()=>item()));
@@ -290,7 +290,7 @@ test('이미 40개를 넘긴 세이브는 지금 개수 이하를 유지하는 �
 });
 
 test('bulk delivery claim is one two-batch transaction, fills equipment space and keeps overflow safe',async()=>{
-  await seed('bulk',Array.from({length:39},()=>item()));const first=item(),second=item(),book={id:randomUUID(),name:'[스킬북] 드래곤 트위스터',slot:'skillbook',kind:'skillbook',skillId:'spin',rarity:'rare',stats:{}};
+  await seed('bulk',Array.from({length:39},()=>item()));const first=item(),second=item(),book={id:randomUUID(),name:'체력의 서',slot:'statbook',kind:'statbook',book:'health',rarity:'unique',stats:{}};
   for(const [index,reward]of [first,second,book,null].entries()){
     const deliveryId=`bulk-${index}`;await db.execute({sql:'INSERT INTO djrpg_market_inbox VALUES (?,?,?,?,?,?,?,?,NULL)',args:[deliveryId,'bulk',deliveryId,reward?'item':'gold',reward?JSON.stringify(reward):null,reward?0:250,'보상',index]});
     if(reward)await db.execute({sql:'INSERT INTO djrpg_item_owners VALUES (?,?,?,?)',args:[reward.id,'bulk','inbox',JSON.stringify(reward)]});
@@ -298,10 +298,11 @@ test('bulk delivery claim is one two-batch transaction, fills equipment space an
   const row=await account(db,'bulk'),requestId=randomUUID();let batches=0,executes=0;
   const measured={async transaction(mode){const tx=await db.transaction(mode);return {get closed(){return tx.closed;},execute(...args){executes++;return tx.execute(...args);},batch(...args){batches++;return tx.batch(...args);},commit:()=>tx.commit(),rollback:()=>tx.rollback(),close:()=>tx.close()};}};
   const input={action:'claim',deliveryId:'all',revision:row.revision,requestId};const result=await mutate(measured,'bulk',input);
-  assert.equal(batches,2);assert.equal(executes,0);assert.deepEqual(result.effect.claimedIds,['bulk-0','bulk-2','bulk-3'],'장비는 40칸에서 건너뛰지만 내 직업 스킬북은 받는다(작업 253)');
-  assert.equal(result.save.bag.length,41);assert(result.save.bag.some(entry=>entry.id===book.id),'내 직업 스킬북은 40칸이어도 받는다');assert.equal(result.save.gold,row.save.gold+250);
+  // 파트 B: 모든 아이템이 1칸이라 39칸 가방에는 **장비 1개만** 더 들어가고 나머지 아이템은 수령함에 남는다.
+  assert.equal(batches,2);assert.equal(executes,0);assert.deepEqual(result.effect.claimedIds,['bulk-0','bulk-3'],'40칸을 채우는 장비 1개와 금화만 받는다');
+  assert.equal(result.save.bag.length,40);assert(!result.save.bag.some(entry=>entry.id===book.id),'스탯북도 40칸에 걸린다');assert.equal(result.save.gold,row.save.gold+250);
   const retry=await mutate(db,'bulk',input);assert.equal(retry.save.gold,result.save.gold);assert.equal(retry.save.bag.length,result.save.bag.length);
-  const inbox=(await snapshot(db,'bulk',{})).inbox;assert.deepEqual(inbox.map(entry=>entry.id).sort(),['bulk-1'],'못 받은 장비는 수령함에 남는다');
+  const inbox=(await snapshot(db,'bulk',{})).inbox;assert.deepEqual(inbox.map(entry=>entry.id).sort(),['bulk-1','bulk-2'],'못 받은 아이템은 수령함에 남는다');
   await transaction(db,async tx=>{const latest=await account(tx,'bulk');await reconcileItems(tx,'bulk',latest.save,latest.save);});
 });
 test('my active-only filter excludes purchases sold expired and other sellers, and recent prices match item grade and ring family',async()=>{
@@ -443,12 +444,14 @@ test('수령함 30건 상한은 새 구매·판매 등록을 막고 이미 성�
 // ── 작업 249: 묶음 등록(최대 10개)·개당 가격·부분/전체 구매 ──────────────────────────────
 // 사용자 확정: "묶음템은 한번에 개당 갯수 적어서 등록할수있어야하고 구매할때는 묶음전체구매할지
 // 개당구매할지 선택할수있어야함" + "묶음판매는 한번에 10개까지".
-const skillbook = (skillId = 'slash2', rarity = 'rare') => ({ id: randomUUID(), name: '[스킬북] 소드 슬래시', slot: 'skillbook', kind: 'skillbook', skillId, rarity, stats: {} });
+/** 영구 스탯북(파트 B) — 스킬북 자리를 이어받은 묶음 판매 대상. `book` 종류가 묶음 기준이다. */
+const SKILLBOOK_NAMES = { attack: '공격의 서', defense: '방어의 서', health: '체력의 서' };
+const skillbook = (kind = 'attack', rarity = 'unique') => ({ id: randomUUID(), name: SKILLBOOK_NAMES[kind], slot: 'statbook', kind: 'statbook', book: kind, rarity, stats: {} });
 const ownerLocations = async ids => (await db.execute({ sql: `SELECT item_id,location FROM djrpg_item_owners WHERE item_id IN (${ids.map(() => '?').join(',')})`, args: ids })).rows
   .reduce((map, row) => ({ ...map, [row.item_id]: row.location }), {});
 
 test('같은 스킬북 묶음 등록 · 개당 가격 · 부분 구매 · 전체 구매 (작업 249)', async () => {
-  const books = [skillbook('slash2'), skillbook('slash2'), skillbook('slash2')];
+  const books = [skillbook('attack'), skillbook('attack'), skillbook('attack')];
   const ids = books.map(entry => entry.id);
   await seed('bundle-seller', books, 10000);
   await seed('bundle-buyer', [], 1000);
@@ -493,7 +496,7 @@ test('같은 스킬북 묶음 등록 · 개당 가격 · 부분 구매 · 전체
 });
 
 test('묶음은 같은 스킬북만 · 한 번에 최대 10개까지 (작업 249)', async () => {
-  const many = Array.from({ length: 12 }, () => skillbook('slash2'));
+  const many = Array.from({ length: 12 }, () => skillbook('attack'));
   await seed('bundle-limit', many, 10000);
   const ids = (await account(db, 'bundle-limit')).save.bag.map(entry => entry.id);
   const { rules, maxBundleMessage } = await import('../server/market.mjs');
@@ -501,7 +504,7 @@ test('묶음은 같은 스킬북만 · 한 번에 최대 10개까지 (작업 249
   await assert.rejects(action('bundle-limit', 'register', { itemIds: ids.slice(0, 11), price: 10 }),
     error => error.code === 'INVALID_QUANTITY' && error.message === maxBundleMessage);
   // 다른 스킬북을 한 묶음으로 등록할 수 없다.
-  await seed('bundle-mix', [skillbook('slash2'), skillbook('spin')], 10000);
+  await seed('bundle-mix', [skillbook('attack'), skillbook('defense')], 10000);
   const mixed = (await account(db, 'bundle-mix')).save.bag.map(entry => entry.id);
   await assert.rejects(action('bundle-mix', 'register', { itemIds: mixed, price: 10 }), error('INVALID_QUANTITY'));
   // 보유한 수량보다 많이 등록할 수 없다.
@@ -517,7 +520,7 @@ test('묶음은 같은 스킬북만 · 한 번에 최대 10개까지 (작업 249
 });
 
 test('묶음 매물 취소·만료는 남은 수량을 모두 돌려주고 동시 구매는 한 번만 성사된다 (작업 249)', async () => {
-  const books = [skillbook('slash2'), skillbook('slash2'), skillbook('slash2')];
+  const books = [skillbook('attack'), skillbook('attack'), skillbook('attack')];
   const ids = books.map(entry => entry.id);
   await seed('bundle-return', books, 10000);
   await seed('bundle-quick1', [], 10000);
@@ -542,7 +545,7 @@ test('묶음 매물 취소·만료는 남은 수량을 모두 돌려주고 동�
   assert.equal((await ownerLocations([returned[0].item.id]))[returned[0].item.id], 'inbox');
 
   // 등록 기간이 끝나면 남은 아이템 전부(3개)가 한 번씩만 반환된다.
-  const others = [skillbook('spin'), skillbook('spin'), skillbook('spin')];
+  const others = [skillbook('defense'), skillbook('defense'), skillbook('defense')];
   const otherIds = others.map(entry => entry.id);
   await seed('bundle-expire', others, 10000);
   const second = await action('bundle-expire', 'register', { itemIds: otherIds, price: 10 });

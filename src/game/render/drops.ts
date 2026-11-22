@@ -5,8 +5,7 @@ import {captureLootGround,projectLootGround} from '../lootGround';
 import { Assets, Container, Graphics, Rectangle, Sprite, Texture } from 'pixi.js';
 import type { Coin, Drop } from '../world';
 import type { CombatEngine } from '../combat/engine';
-import { equipmentImage, isEquipment, isSkillBook, type Item, type Rarity } from '../items';
-import { passives } from '../skills';
+import { equipmentImage, isEquipment, type Item, type Rarity } from '../items';
 import { LOOT_DEPTH, LOOT_GAP, LOOT_REST_SECONDS, lootAbsorbPoint, lootAbsorbProgress, lootRestSpots, type LootDrop } from '../loot';
 import { heroBodyFraction } from './heroScale';
 import type { GameView } from '../render';
@@ -89,7 +88,6 @@ function sheetTexture(view: GameView, path: string, mipmaps = false): Texture | 
 
 /** One icon of a drop as a texture: an item sheet holds `columns` frames in a single row. */
 function lootArtTexture(view: GameView, item: Item): Texture | undefined {
-  if (isSkillBook(item)) return sheetTexture(view, Object.hasOwn(passives, item.skillId) ? '/assets/icons/icon_skillbook_passive.png' : '/assets/icons/icon_skillbook.png');
   // 보물 주머니(작업 207)는 필드에 떨어지지 않는다 — 장비 그림이 없는 아이템은 아이콘 없이 그린다.
   if (!isEquipment(item)) return undefined;
   const image = equipmentImage(item);

@@ -153,7 +153,7 @@ test('모바일 장비창은 가방 칸 최소 높이를 지키고, 낮은 화�
   assert.match(modalStyles, /@media \(max-height: 620px\) \{[\s\S]*\.modal-dialog\.equipment-modal \{ height: auto; max-height: 92dvh; overflow-y: auto; \}/, '아주 낮은 화면은 창 전체 스크롤');
   assert.match(modalStyles, /\.equipment-slot \{ aspect-ratio: auto; height: 48px; \}/, '장착 10칸은 모바일에서 납작하게');
   // 작업 252: `합성`이 `내 직업만 보기` 바로 왼쪽에 붙어 네 버튼이 여전히 한 줄에 선다.
-  assert.match(equipSource, /heading\.append\(title, synth, jobToggle, sort\)/, '가방 제목·합성·내 직업만 보기·등급순은 한 줄');
+  assert.match(equipSource, /heading\.append\(title, jobToggle, sort\)/, '가방 제목·내 직업만 보기·등급순은 한 줄(파트 B: 합성 버튼 제거)');
 });
 
 test('전환 응답을 반영하면 이전 캐릭터의 거래 대기·저장 스냅샷을 버린다(작업 239)', async () => {

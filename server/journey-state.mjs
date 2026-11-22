@@ -21,7 +21,7 @@ const SEASON_NOTICE_BODY = `안녕하세요, 모험가님!
 지난 시즌의 레벨·장비·가방·다이아·층수·거래소·창고·던전 기록은 모두 정리되었고, 아이디와 비밀번호는 그대로입니다.
 로그인하면 먼저 직업과 성별을 새로 고르는 화면이 나옵니다. 고른 직업의 무기를 받고 1층부터 다시 모험을 시작해 주세요!
 
-함께 드리는 기념 보물 주머니는 가방에서 열면 금화·장비·스킬북 중 하나가 나옵니다.
+함께 드리는 기념 보물 주머니는 가방에서 열면 금화·장비·영구 스탯북 중 하나가 나옵니다.
 새 시즌에서도 즐거운 모험 되시길 바랍니다.`;
 /** 새 시즌 안내 우편을 계정마다 **한 번만** 준다(업데이트 안내와 같은 지급 이력 방식). */
 export function grantSeasonNotice(state, now = Date.now()) {
@@ -170,7 +170,8 @@ export function periods(now = Date.now()) {
  */
 export function advanceJourney(state, before, save, now = Date.now(), diamondMailEligible = false) {
   const keys = periods(now);
-  state ??= { achievements: [], mail: [{ id: 'welcome-v1', title: '황야에 오신 것을 환영합니다', sender: '운영팀', body: '모험을 시작하는 데 도움이 되길 바랍니다.', createdAt: now, expiresAt: now + 7 * DAY, gold: 1000, books: 1, claimedAt: null, read: false }] };
+  // 파트 B: 첫 우편에서 스킬북을 빼고 금화 1,000만 남긴다(스킬북은 폐지 — 주면 저장 검증에서 거절된다).
+  state ??= { achievements: [], mail: [{ id: 'welcome-v1', title: '황야에 오신 것을 환영합니다', sender: '운영팀', body: '모험을 시작하는 데 도움이 되길 바랍니다.', createdAt: now, expiresAt: now + 7 * DAY, gold: 1000, books: 0, claimedAt: null, read: false }] };
   for (const kind of ['daily', 'weekly']) {
     if (state[kind]?.key !== keys[kind]) state[kind] = { key: keys[kind], kills: 0, bosses: 0, seconds: 0, days: 0, worldBoss: 0, salvage: 0, claims: [] };
     state[kind].days ??= 0;
@@ -244,7 +245,7 @@ export const journeyOperation = (id, state) => ({ sql: 'INSERT INTO djrpg_journe
 export const POUCH_NAME = '무작위 보물 주머니';
 export const POUCH_SLOT = 'pouch';
 export const pouchItem = (id) => ({ id, name: POUCH_NAME, slot: POUCH_SLOT, kind: 'pouch', rarity: 'unique', stats: {} });
-// 일일·주간 개별 미션은 **금화만** 준다(스킬북 0). 전체 완료 보상만 주머니를 준다(작업 207, 사용자 확정).
+// 일일·주간 개별 미션은 **금화만** 준다. 전체 완료 보상만 주머니를 준다(작업 207, 사용자 확정).
 // 미션은 다섯 개로 맞췄다(사용자 확정 #3748): 사냥터 보스 미션은 빼고 **월드보스 도전**과 **장비 분해**를 넣는다.
 //  - `worldBoss`는 서버(`server/world-boss.mjs` start)가 `recordJourneyMetric`으로 올린다 — 시도가 성립한 순간 1회.
 //  - `salvage`는 세이브의 누적 `salvageCount` 증가분을 센다(수동·일괄·자동 분해가 분해한 장비 수만큼).

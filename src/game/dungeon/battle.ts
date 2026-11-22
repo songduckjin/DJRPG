@@ -12,9 +12,9 @@ import { CombatEngine } from '../combat/engine';
 import type { Enemy } from '../battle/types';
 import { ENEMY_ATTACK_RANGE, ENEMY_STOP_RANGE, ENEMY_STRIKE_SECONDS, enemyHitDamage, enemyMaxHp, enemyMoveSpeed } from '../battle/formulas';
 import { clampArenaPoint } from '../combat/bounds';
-import { jobOrDefault } from '../skills';
 import { DUNGEON_MAX_FLOOR, totalStats, type Save } from '../store';
-import { equipmentDropChance, rollDungeonItem, rollSkillBook, skillBookDropChance, type Item } from '../items';
+import { rollDungeonItem, type Item } from '../items';
+import { rollStatBookDrop } from '../statBooks';
 import { bossGoldPiles, bossGoldSpot, bossItems } from '../combat/bossLoot';
 /** Ground loot held by the preview only. Kept off `World.drops` so the shared field renderer stays untouched.
  *  `from` is the body a boss heap was thrown from (작업 196): the dungeon flies the heap out of the boss
@@ -229,10 +229,13 @@ class DungeonWorld extends CombatEngine {
     }
     this.loot.push({id:++this.lootId,kind:'gold',x:enemy.x,y:enemy.y,gold:3+floor});
     if(random()>=dungeonDropChance(floor))return;
-    const equipment=equipmentDropChance(floor,enemy.boss),book=skillBookDropChance(floor,enemy.boss);
     // 등급은 던전 전용 10층 구간 표에서 뽑는다(작업 248) — 깊은 층일수록 상위 등급이 늘고 드롭률은 5% 그대로다.
-    const item=random()*(equipment+book)<equipment?rollDungeonItem(floor,enemy.boss):rollSkillBook(floor,jobOrDefault(this.save.job));
+    // 파트 B(2026-11-22): 스킬북은 폐지 — 한 번 굴려 장비 하나가 떨어진다(던전 보스 확정 2개는 `bossItems`).
+    const item=rollDungeonItem(floor,enemy.boss);
     this.loot.push({id:++this.lootId,kind:'item',x:enemy.x,y:enemy.y,item});
+    // 영구 스탯북(파트 B) — 던전 일반 몹도 필드와 같은 개극악 확률(`hunt`)로 한 번 더 굴린다.
+    const book=rollStatBookDrop('hunt');
+    if(book)this.loot.push({id:++this.lootId,kind:'item',x:enemy.x,y:enemy.y,item:book});
   }
 }
 /** 끝없는 던전 1~10층 전투. 클리어하면 금화·강화석·아이템이 계정 세이브로 들어간다(작업 205). */

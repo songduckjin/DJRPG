@@ -18,7 +18,7 @@ export const LEGEND_QUEUE_LIMIT = 5;
 export function legendAnnouncementText(character: string, item: string): string {
   return `🎉 ${character}님이 보물 주머니에서 [${item}]을(를) 획득했습니다!`;
 }
-/** 주머니 결과가 전광판에 올릴 레전드 장비인가 — 금화·스킬북·다른 등급은 조용히 넘어간다. */
+/** 주머니 결과가 전광판에 올릴 레전드 장비인가 — 금화·스탯북·다른 등급은 조용히 넘어간다. */
 export function isLegendaryPouchResult(result: PouchResult | undefined): boolean {
   return !!result && result.kind === 'equipment' && result.item.rarity === 'legendary';
 }

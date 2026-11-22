@@ -2,7 +2,7 @@
  * 아이템 소유권·가방 규칙 (작업 260 — `server/database.mjs` 5분할).
  *
  * 규칙은 종전과 같다. 여기서 지키는 계약:
- *  - 가방 40칸: **장비·다른 직업 스킬북·보물 주머니** 1칸, 내 직업 스킬북 제외(`countedInBag`).
+ *  - 가방 40칸: **모든 아이템 1개 = 1칸**(파트 B — 스킬북 폐지로 직업 예외가 사라졌다).
  *  - 이미 서버 세이브가 들고 있는 수까지는 인정한다(`bagCapacityLimit`, 작업 246) — 넘친 계정이
  *    `400 INVALID_SAVE`로 영구 잠기면 거래소·우편이 통째로 막히던 사고(`#20869`)의 재발 방지다.
  *  - 아이템 소유는 두 표(`djrpg_item_owners` 위치·`djrpg_character_item_owners` 슬롯)의 미러다.
@@ -12,12 +12,12 @@ import { ApiError, fail } from './errors.mjs';
 import { validateSave } from './save.mjs';
 import { itemWithinBounds, rewardBudget, secondaryStatCeiling } from '../save-guard.mjs';
 import { extraOptionsWithin, normalizeExtraOptions } from '../extra-options.mjs';
-import { countedInBag, skillBookIdSet } from '../skill-ids.mjs';
+import { statBookValid } from '../stat-books.mjs';
 import { bagSlotCount } from '../core/rewardGrant.mjs';
 
 export const itemsOf = save => [...(save.bag ?? []), ...Object.values(save.equipment ?? {}).filter(Boolean)];
 
-/** 가방 40칸 — `src/game/bagCapacity.ts`·`server/skill-ids.mjs`와 같은 규칙(장비 + 다른 직업 전용 스킬북). */
+/** 가방 40칸 — `src/game/bagCapacity.ts`와 같은 규칙(모든 아이템 1개 = 1칸, 파트 B). */
 export const EQUIPMENT_BAG_LIMIT = 40;
 /** 가방 40칸에 세는 수. 배열이 아니면 0. 규칙은 `server/core/rewardGrant.mjs` 한 곳에 있다. */
 export const countedBagItems = (bag, job) => bagSlotCount({ bag: Array.isArray(bag) ? bag : [], job });
@@ -54,12 +54,11 @@ export function inventoryOwnerQuery(id, incoming) {
 }
 
 function itemValid(item) {
-  // 'pouch' = 무작위 보물 주머니(작업 207) — 장비·스킬북과 같은 이름·등급·stats 형식의 소모품이다.
-  const slots = ['weapon','offhand','helmet','armor','necklace','gloves','belt','boots','ring1','ring2','skillbook','pouch'];
-  // 스킬북 `skillId`는 **전사·궁수·마법사 33종**(액티브 24·패시브 9)을 모두 허용한다(작업 209).
-  // 예전에는 전사 11종만 하드코딩되어 궁수·마법사 스킬북이 저장 때 400 INVALID_ITEM으로 막혔다.
-  // 목록은 `server/skill-ids.mjs` 한 곳에 있고 `tests/skillbook-server.test.mjs`가 클라이언트와 같은지 검사한다.
-  return item && (item.locked === undefined || typeof item.locked === 'boolean') && typeof item.id === 'string' && item.id.length > 0 && item.id.length <= 100 && typeof item.name === 'string' && item.name.length <= 100 && slots.includes(item.slot) && ['common','magic','rare','epic','unique','legendary'].includes(item.rarity) && item.stats && typeof item.stats === 'object' && !Array.isArray(item.stats) && Object.entries(item.stats).every(([key, value]) => ['attack','defense','health','crit','speed','cdr'].includes(key) && Number.isFinite(value) && value >= 0 && value <= 100000) && (item.slot !== 'skillbook' || (item.kind === 'skillbook' && skillBookIdSet.has(item.skillId))) && (item.slot !== 'pouch' || item.kind === 'pouch')
+  // 'pouch' = 무작위 보물 주머니(작업 207), 'statbook' = 영구 스탯북(파트 B) — 장비와 같은 이름·등급·stats 형식의
+  // 소모품이다. 스킬북(`skillbook`)은 폐지되어 더 이상 저장을 받지 않는다 — 남은 세이브는 클라이언트
+  // `migrateItem`이 버리고, 소유 기록만 `consumed`로 정리된다.
+  const slots = ['weapon','offhand','helmet','armor','necklace','gloves','belt','boots','ring1','ring2','statbook','pouch'];
+  return item && (item.locked === undefined || typeof item.locked === 'boolean') && typeof item.id === 'string' && item.id.length > 0 && item.id.length <= 100 && typeof item.name === 'string' && item.name.length <= 100 && slots.includes(item.slot) && ['common','magic','rare','epic','unique','legendary'].includes(item.rarity) && item.stats && typeof item.stats === 'object' && !Array.isArray(item.stats) && Object.entries(item.stats).every(([key, value]) => ['attack','defense','health','crit','speed','cdr'].includes(key) && Number.isFinite(value) && value >= 0 && value <= 100000) && (item.slot !== 'statbook' || statBookValid(item)) && (item.slot !== 'pouch' || item.kind === 'pouch')
     // 추가옵션(작업 238): 에픽 1·유니크 2·전설 3개, 허용 키 10종·키별 1~3% 정수만.
     && extraOptionsWithin(item)
     // 2차 스탯 척도 버전(밸런스 v2) — 2만 허용한다(옛 값은 클라이언트가 2로 바꿔 보낸다).

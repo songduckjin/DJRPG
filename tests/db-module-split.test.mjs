@@ -93,10 +93,10 @@ test('오류 코드 계약은 그대로다', () => {
   // revision: 정수가 아니거나 다르면 409 SAVE_CONFLICT.
   assert.throws(() => facade.assertRevision({ revision: 3 }, 2), error => error.status === 409 && error.code === 'SAVE_CONFLICT');
   assert.equal(facade.assertRevision({ revision: 3 }, 3), undefined);
-  // 가방 40칸 규칙: 내 직업 스킬북은 세지 않고, 다른 직업 책·장비는 센다.
-  const item = (slot, skillId) => ({ id: `${slot}-${skillId ?? ''}`, slot, kind: slot === 'skillbook' ? 'skillbook' : 'equipment', skillId });
-  assert.equal(facade.countedBagItems([item('skillbook', 'slash2'), item('weapon')], 'warrior'), 1);
-  assert.equal(facade.countedBagItems([item('skillbook', 'fireBolt'), item('weapon')], 'warrior'), 2);
+  // 가방 40칸 규칙(파트 B): 스킬북이 폐지되어 **모든 아이템이 1개 = 1칸**이다.
+  const item = (slot, kind) => ({ id: `${slot}-${kind ?? ''}`, slot, kind: kind ?? 'equipment' });
+  assert.equal(facade.countedBagItems([item('weapon'), item('statbook', 'statbook')], 'warrior'), 2);
+  assert.equal(facade.countedBagItems([item('pouch', 'pouch'), item('weapon')], 'warrior'), 2);
   assert.equal(facade.bagCapacityLimit({ job: 'warrior', bag: [item('weapon')] }), 40);
   assert.equal(facade.bagCapacityLimit({ job: 'warrior', bag: Array.from({ length: 43 }, (_, index) => ({ ...item('weapon'), id: `w-${index}` })) }), 43, '이미 넘친 세이브는 그 수까지 인정한다(작업 246)');
 });

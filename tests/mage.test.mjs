@@ -8,9 +8,8 @@ import './ts-loader.mjs';
 const { freshSave, parseSave, totalStats } = await import('../src/game/store.ts');
 const { World, mageAttackRange, mageStopRange } = await import('../src/game/world.ts');
 const { mageSkillOrder, magePassiveOrder, skillOrder, archerSkillOrder, archerPassiveOrder, passiveOrder, passives, skills, jobNames, jobs, jobOrDefault } = await import('../src/game/skills.ts');
-const { rollItem, rollSkillBook, staffBases, bowBases, baseItems, equipmentImage, baseItemIndex, migrateItem, slotNameFor, staffIndex, isStaff } = await import('../src/game/items.ts');
+const { rollItem, staffBases, bowBases, baseItems, equipmentImage, baseItemIndex, migrateItem, slotNameFor, staffIndex, isStaff } = await import('../src/game/items.ts');
 const { availableSkills, normalizeQuickSlots } = await import('../src/game/loadout.ts');
-const { hasSkillUpgrade } = await import('../src/game/skillProgress.ts');
 const { equipmentPortraitPlan } = await import('../src/ui/equipmentPortrait.ts');
 
 const assetRoot = fileURLToPath(new URL('../public/assets/', import.meta.url));
@@ -85,27 +84,6 @@ test('마법사는 액티브 8종·패시브 3종을 따로 가지며 다른 직
   assert.deepEqual(availableSkills(save), ['meteorStrike']);
 });
 
-test('스킬북은 세 직업이 같은 확률로 떨어진다 (작업 204 사용자 확정)', () => {
-  // 직업을 먼저 1/3로 고른 뒤 그 직업 목록에서 뽑는다 — 마법사 세이브도 전사·궁수 스킬북을 받는다.
-  const pools = {
-    warrior: [...skillOrder, ...passiveOrder],
-    archer: [...archerSkillOrder, ...archerPassiveOrder],
-    mage: [...mageSkillOrder, ...magePassiveOrder]
-  };
-  const random = Math.random;
-  try {
-    let state = 4048;
-    Math.random = () => { state = (state * 1664525 + 1013904223) >>> 0; return state / 4294967296; };
-    const samples = 3000, counts = { warrior: 0, archer: 0, mage: 0 };
-    for (let index = 0; index < samples; index++) {
-      const book = rollSkillBook(30);
-      const owner = Object.keys(pools).find(job => pools[job].includes(book.skillId));
-      assert(owner, `세 직업 스킬 목록에 없는 스킬북: ${book.skillId}`);
-      counts[owner]++;
-    }
-    for (const [job, count] of Object.entries(counts)) assert(Math.abs(count / samples - 1 / 3) < .04, `${job} 스킬북 비중 ${(count / samples * 100).toFixed(1)}%`);
-  } finally { Math.random = random; }
-});
 
 test('무기 드랍은 세 직업 목록이 1/3씩 섞여 나오고, 튜토리얼 첫 무기는 내 직업이다', () => {
   const random = Math.random;
@@ -269,9 +247,3 @@ test('마법사 기본 시트 6장은 전사와 같은 셀 규격의 RGBA PNG다
   }
 });
 
-test('마법사 스킬북도 강화 가능 표시에 잡힌다', () => {
-  const save = mageSave();
-  assert.equal(hasSkillUpgrade(save), false);
-  save.bag = [{ id: 'book', name: '[스킬북] 파이어 볼트', slot: 'skillbook', rarity: 'rare', kind: 'skillbook', skillId: 'fireBolt', stats: {} }];
-  assert.equal(hasSkillUpgrade(save), true);
-});

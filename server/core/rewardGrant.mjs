@@ -6,15 +6,13 @@
 // 이제 지급은 이 파일을 지난다.
 //
 // 규칙(사용자 확정, 작업 248 → 253)
-//  - 가방 40칸 = **장비 1 + 타직업 스킬북 1 + 보물 주머니 1**이 각 1칸. **내 직업 스킬북만 세지 않는다**
-//    (배우는 재료라서). 직업을 알 수 없는 책은 칸을 쓴다. 판정은 `server/skill-ids.mjs`의 `countedInBag`
-//    한 곳에 있고, 이 파일은 그 함수를 부른다.
+//  - 가방 40칸 = **모든 아이템 1개 = 1칸**(파트 B, 2026-11-22: 스킬북 폐지로 '내 직업 책 제외'가 사라졌다).
+//    장비·영구 스탯북·보물 주머니가 모두 한 칸이고, 판정은 이 파일의 `bagSlotCount`·`itemTakesSlot`이다.
 //  - 수량은 **0 이상의 정수**만 인정한다(음수·소수·NaN·문자열은 0으로 본다). 다이아는 금액이라
 //    안전한 정수가 아니면 지급 자체를 거절한다(원장 금액이 깨지면 되돌리기 어렵다).
 //  - 반영은 **원자적**이다 — 자리가 없으면 일부만 넣고 끝내지 않고, 아무것도 넣지 않고 던진다.
 //  - 아이템은 같은 id가 이미 가방에 있으면 다시 넣지 않는다(수령 직후 저장·재시도에서 두 번 들어가지 않게).
 import { randomUUID } from 'node:crypto';
-import { countedInBag, jobOrDefault, rollRewardSkillBook } from '../skill-ids.mjs';
 import { pouchItem } from '../journey-state.mjs';
 
 /** 가방 상한 — 클라이언트 `EQUIPMENT_BAG_LIMIT`과 같은 값이다. */
@@ -29,14 +27,15 @@ export class RewardGrantError extends Error {
   }
 }
 
-/** 가방 40칸에 지금 차 있는 칸 수 — 장비·타직업 스킬북·보물 주머니(내 직업 스킬북 제외). */
+/** 가방 40칸에 지금 차 있는 칸 수 — 모든 아이템 1개 = 1칸(파트 B). */
 export function bagSlotCount(save) {
-  return (save?.bag ?? []).filter((item) => countedInBag(item, save?.job)).length;
+  return (save?.bag ?? []).filter((item) => itemTakesSlot(item)).length;
 }
 
-/** 이 아이템이 칸을 쓰는가 — 내 직업 스킬북만 `false`. */
-export function itemTakesSlot(item, job) {
-  return countedInBag(item, job);
+/** 이 아이템이 칸을 쓰는가 — 스킬북이 폐지되어 모든 아이템이 한 칸을 쓴다.
+ *  `job` 인자는 호출부 계약 유지용이라 받기만 한다. */
+export function itemTakesSlot(item, _job) {
+  return Boolean(item && typeof item === 'object');
 }
 
 /** 수량 방어 — 0 이상의 정수만 남긴다. */
@@ -75,12 +74,12 @@ export function rewardTotals(entries = []) {
 
 /**
  * 이 보상들이 가방에서 쓸 칸 수.
- * 스킬북·보물 주머니는 장비 1개 = 1칸으로 **보수적으로** 센다(내 직업 책은 지급할 때 직업을 알고
- * 정확히 세므로 실제 사용량은 이 값 이하이다). 넘겨받은 아이템은 그 아이템의 규칙을 따른다.
+ * 보물 주머니와 넘겨받은 아이템은 1개 = 1칸이다(파트 B: 모든 아이템 1칸).
  */
 export function rewardSlotNeed(entries = [], job) {
   const totals = rewardTotals(entries);
-  let need = totals.books + totals.pouches;
+  // 파트 B: `books`는 지급하지 않으므로 칸도 세지 않는다.
+  let need = totals.pouches;
   for (const entry of entries) {
     const item = normalizeRewardEntry(entry).item;
     if (item && itemTakesSlot(item, job)) need += 1;
@@ -107,7 +106,7 @@ export function planRewards(save, entries = [], { bagLimit = BAG_SLOT_LIMIT } = 
  * 보상을 세이브에 **한 번에** 반영한다.
  *
  *  - 금화는 합계만큼 더한다.
- *  - 스킬북은 세 직업 33종에서 뽑아 넣고, 보물 주머니는 그 모양 그대로 넣는다.
+ *  - 보물 주머니는 그 모양 그대로 넣는다(스킬북 지급은 폐지 — `books`는 무시).
  *  - `item`이 붙은 항목은 그 아이템을 넣는다(같은 id가 이미 있으면 건너뛴다).
  *  - 다이아는 세이브가 아니라 지갑(`djrpg_shop_wallet`)에 있으므로 `diamondGrantOperations`가 맡는다.
  *
@@ -130,13 +129,7 @@ export function grantRewardsToSave(save, entries = [], { bagLimit = BAG_SLOT_LIM
     save.bag.push(item);
     items.push(item);
   }
-  // 2) 스킬북 — 내 직업 책은 칸을 쓰지 않으므로, 칸 계산은 `countedInBag`이 그대로 맡는다.
-  for (let index = 0; index < totals.books; index++) {
-    const { skillId, name } = rollRewardSkillBook(random);
-    const book = { id: randomUUID(), kind: 'skillbook', slot: 'skillbook', skillId, rarity: 'rare', name, stats: {} };
-    save.bag.push(book);
-    items.push(book);
-  }
+  // 2) 스킬북은 폐지됐다(파트 B) — 옛 우편의 `books` 값은 무시하고 아무것도 지급하지 않는다.
   // 3) 보물 주머니.
   for (let index = 0; index < totals.pouches; index++) {
     const pouch = pouchItem(randomUUID());

@@ -1,3 +1,4 @@
+import './ts-loader.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp } from 'node:fs/promises';
@@ -12,7 +13,6 @@ import {
   resetCommonCodeCache, seedHash, seedView, syncCommonCodes
 } from '../server/core/commonCodes.mjs';
 import { COMMON_CODE_MAJORS, COMMON_CODES, SEED_VERSION, seededCodes } from '../server/core/commonCodes.seed.mjs';
-import { skillBookIds, skillNames } from '../server/skill-ids.mjs';
 
 /**
  * 공통코드 기반(작업 260, 1단계).
@@ -54,7 +54,7 @@ async function freshDb(name) {
   return { db, url, directory };
 }
 
-test('사전은 메이저마다 코드가 있고 중복이 없다', () => {
+test('사전은 메이저마다 코드가 있고 중복이 없다', async () => {
   assert.ok(COMMON_CODE_MAJORS.length >= 30, `메이저 ${COMMON_CODE_MAJORS.length}개`);
   const majorCodes = COMMON_CODE_MAJORS.map(major => major.major);
   assert.equal(new Set(majorCodes).size, majorCodes.length, '메이저 코드 중복');
@@ -70,11 +70,13 @@ test('사전은 메이저마다 코드가 있고 중복이 없다', () => {
       if (code.status && code.status !== 'DEPRECATED' && code.status !== 'REPLACED') assert.fail(`${major.major}.${code.code}: 알 수 없는 상태 ${code.status}`);
     }
   }
-  // 스킬은 코드 상수(`server/skill-ids.mjs`)와 같은 목록이어야 한다 — 스킬을 더하면 두 곳을 함께 고친다.
+  // 스킬은 클라이언트 `src/game/skills.ts`의 목록과 같아야 한다 — 스킬을 더하면 두 곳을 함께 고친다.
+  // (파트 B: 스킬북 폐지로 서버 `skill-ids.mjs`가 사라져 사전이 목록을 직접 갖는다.)
   const skillCodes = CODE(COMMON_CODES, 'SKILL').map(code => code.code);
-  assert.deepEqual(skillCodes, skillBookIds);
+  const catalog = await import('../src/game/skills.ts');
+  assert.deepEqual(skillCodes, [...catalog.allSkillIds, ...catalog.allPassiveIds]);
   assert.equal(skillCodes.length, 33);
-  for (const skillId of skillCodes) assert.equal(CODE(COMMON_CODES, 'SKILL').find(code => code.code === skillId).name, skillNames[skillId]);
+  for (const skillId of skillCodes) assert.equal(CODE(COMMON_CODES, 'SKILL').find(code => code.code === skillId).name, (catalog.skills[skillId] ?? catalog.passives[skillId]).name);
   // 시드 행은 메이저 순서·코드 순서를 보존한다(정렬이 흔들리면 화면 순서가 바뀐다).
   const rows = seededCodes();
   assert.equal(rows.length, COMMON_CODE_MAJORS.reduce((sum, major) => sum + (COMMON_CODES[major.major] ?? []).length, 0));

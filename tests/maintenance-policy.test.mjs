@@ -20,6 +20,15 @@ const flush = () => new Promise(resolve => setTimeout(resolve, 0));
 
 test('저장소 기본 점검 파일은 닫혀 있다 — 배포 전에는 서비스가 열려 있어야 한다', () => {
   const raw = JSON.parse(read('../public/maintenance.json'));
+  // 2026-11-22 스킬 개편·서버 초기화 배포 창처럼 **예고된 점검**은 `active:true` + `eta`로 열린다.
+  // 그때도 `eta`(예상 완료 시각)는 반드시 있어야 한다 — 시각 없는 점검은 사용자를 기다리게만 한다.
+  if (raw.active === true) {
+    assert.match(raw.eta, /^\d{4}-\d{2}-\d{2}T/, '점검 중이면 예상 완료 시각(ISO)이 있어야 한다');
+    assert.ok(raw.message.length > 0, '점검 중이면 안내 문구가 있어야 한다');
+    assert.equal(parseMaintenance(raw).active, true);
+    assert.notEqual(maintenancePopupMarkup(parseMaintenance(raw)), '', '점검 중에는 모달 마크업이 있다');
+    return;
+  }
   assert.equal(raw.active, false);
   assert.equal(raw.title, MAINTENANCE_TITLE);
   assert.equal(raw.eta, '');

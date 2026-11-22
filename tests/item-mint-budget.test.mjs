@@ -22,7 +22,8 @@ let db, directory, url;
 const env = () => ({ TURSO_DATABASE_URL: url, TURSO_AUTH_TOKEN: 'item-mint-key' });
 const saveOf = over => ({ ...parseSave({ ...freshSave('male'), name: '전사' }, undefined), gold: 1000, tutorial: 3, ...over });
 const weapon = id => ({ id, name: '낡은 두손검', slot: 'weapon', rarity: 'common', stats: { attack: 4 } });
-const book = id => ({ id, name: '[스킬북] 이단참', slot: 'skillbook', rarity: 'rare', kind: 'skillbook', skillId: 'slash2', stats: {} });
+// 영구 스탯북(파트 B) — 스킬북 자리를 이어받은 1칸짜리 소모품.
+const book = id => ({ id, name: '공격의 서', slot: 'statbook', rarity: 'unique', kind: 'statbook', book: 'attack', stats: {} });
 
 async function seed(id) {
   const save = saveOf({ bag: [] });
@@ -66,7 +67,7 @@ test('한 번의 저장에서 장비 40개(가방 상한)까지 통과한다', a
 
 test('41개를 한꺼번에 만들면 허용 범위를 넘는다', async () => {
   await seed('mint-41');
-  // 가방 40칸을 차지하지 않는 내 직업 스킬북으로 세어 41개를 한 번에 만든다.
+  // 41개를 한 번에 만들면 서버 상한(초당 0.5 + 기본 40)을 넘어 거절된다 — 파트 B에서는 스탯북도 1칸이다.
   await assert.rejects(mint('mint-41', Array.from({ length: 41 }, (_, index) => book(`mint-41-${index}`))),
     error => error?.code === 'INVALID_ITEM' || error?.status === 400, '41개는 허용 범위를 넘는다');
   // 40개라면 같은 경로로 통과한다.

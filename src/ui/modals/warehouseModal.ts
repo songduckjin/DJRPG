@@ -14,7 +14,7 @@
  *
  * 작업 258 — 사용자 제보 "창고시스템 오류가 너무 많은데 점검해볼래?"에 따른 정리:
  * ① **칸이 모자라도 옮길 수 있는 만큼 옮긴다** — 예전에는 창고(또는 가방) 잔여 칸보다 고른 개수가
- *    많으면 버튼을 통째로 잠갔다. 주머니·스킬북 묶음 5개 중 2칸만 남았을 때 아무것도 못 옮겼다.
+ *    많으면 버튼을 통째로 잠갔다. 주머니·스탯북 묶음 5개 중 2칸만 남았을 때 아무것도 못 옮겼다.
  *    지금은 남은 칸만큼만 골라 보내고 버튼에 `보관하기 (2/5)`처럼 **몇 개가 나가는지** 밝힌다.
  * ② **이동 중인 칸을 다시 열어도 잠금이 풀리지 않는다** — 예전 `renderWarehouse`는 그릴 때마다
  *    `state.busy`를 비워, 응답을 기다리는 아이템을 다시 탭해 같은 요청을 또 보낼 수 있었다.
@@ -24,14 +24,15 @@
 import { countedInBag, equipmentCount } from '../../game/bagCapacity';
 import { apiHeaders, isOutdatedResponse, reloadForNewVersion } from '../../game/appVersion';
 import {
-  equipmentImage, isEquipment, isPouch, isSkillBook, itemDisplayName, itemJob, itemPower, plusOf,
-  rarityNames, rarityOrder, skillBookJob, slotNameFor, slots as equipmentSlots, statNames, type Item, type Stat
+  equipmentImage, isEquipment, isPouch, isStatBook, itemDisplayName, itemJob, itemPower, plusOf,
+  rarityNames, rarityOrder, slotNameFor, slots as equipmentSlots, statNames, type Item, type Stat
 } from '../../game/items';
 import { extraOptionLines } from '../../game/extraOptions';
 import { jobNames, jobShortNames, jobOrDefault, type Job } from '../../game/skills';
 import type { Save } from '../../game/store';
 import { pouchIconMarkup } from '../pouchArt';
-import { skillBookJobRank } from '../bagStacks';
+import { statBookStatusText } from '../../game/statBooks';
+import { statBookRank } from '../bagStacks';
 import { downgradeArrowMarkup, upgradeArrowMarkup } from '../upgradeBadge';
 import { appendPlusBadge } from '../plusBadge';
 import { appendRarityBadge } from '../rarityBadge';
@@ -39,7 +40,7 @@ import type { Interface } from '../interface';
 
 export type WarehouseSide = 'storage' | 'bag';
 
-/** 같은 주머니·같은 스킬북은 한 칸에 `×N`으로 모은다(개별 id는 그대로 남아 일괄 이동 때 함께 나간다). */
+/** 같은 주머니·같은 스탯북은 한 칸에 `×N`으로 모은다(개별 id는 그대로 남아 일괄 이동 때 함께 나간다). */
 type Stack = { key: string; items: Item[] };
 
 type WarehouseState = {
@@ -96,7 +97,7 @@ const stackKeyOf = (key: string): string => key.slice(sideOf(key).length + 1);
 
 function stackKey(item: Item): string {
   if (isPouch(item)) return 'pouch';
-  if (isSkillBook(item)) return `book:${item.skillId ?? item.name}`;
+  if (isStatBook(item)) return `book:${item.book ?? item.name}`;
   return `item:${item.id}`;
 }
 
@@ -113,27 +114,27 @@ function stacksOf(items: Item[], myJob: Job = 'warrior'): Stack[] {
   return order.map(key => map.get(key)!).sort((a, b) => compareWarehouseItems(a.items[0], b.items[0], myJob));
 }
 
-/** 부위 순서 — 보물 주머니(작업 247, 늘 첫 칸) → 장비 슬롯 표(`slots`) → 스킬북(맨 뒤). */
+/** 부위 순서 — 보물 주머니(작업 247, 늘 첫 칸) → 장비 슬롯 표(`slots`) → 영구 스탯북(맨 뒤). */
 const SLOT_ORDER = new Map<string, number>(equipmentSlots.map((slot, index) => [slot, index]));
 const KIND_POUCH = -1, KIND_BOOK = equipmentSlots.length + 1, KIND_OTHER = equipmentSlots.length + 2;
 function slotRank(item: Item): number {
   // 보물 주머니는 창고·가방 어느 목록에서도 맨 앞이다(작업 247) — 받은 주머니를 찾아 헤매지 않게 한다.
   if (isPouch(item)) return KIND_POUCH;
-  if (isSkillBook(item)) return KIND_BOOK;
+  if (isStatBook(item)) return KIND_BOOK;
   return SLOT_ORDER.get(String(item.slot)) ?? KIND_OTHER;
 }
 const rarityRank = (item: Item): number => Math.max(0, rarityOrder.indexOf(item.rarity));
 /**
- * 공용창고·가방 칸 정렬 — 부위 → (스킬북은 직업 묶음) → 전투력(내림차순) → 등급 → 강화(+N) → 이름 → id
- * (작업 245, 247). 보물 주머니는 `slotRank` -1로 늘 첫 칸이고, 스킬북 구간은 내 직업 → 전사 → 궁수 →
- * 마법사 순으로 모은다(`bagStacks.skillBookJobRank` — 장비창 가방과 같은 규칙).
+ * 공용창고·가방 칸 정렬 — 부위 → (스탯북은 종류 묶음) → 전투력(내림차순) → 등급 → 강화(+N) → 이름 → id
+ * (작업 245, 247). 보물 주머니는 `slotRank` -1로 늘 첫 칸이고, 스탯북 구간은 공격 → 방어 → 체력 순으로
+ * 모은다(`bagStacks.statBookRank` — 장비창 가방과 같은 규칙). `myJob`은 호출부 계약 유지용이다.
  */
-export function compareWarehouseItems(a: Item, b: Item, myJob: Job = 'warrior'): number {
+export function compareWarehouseItems(a: Item, b: Item, _myJob: Job = 'warrior'): number {
   const kind = slotRank(a) - slotRank(b);
   if (kind) return kind;
-  if (isSkillBook(a) && isSkillBook(b)) {
-    const job = skillBookJobRank(a, myJob) - skillBookJobRank(b, myJob);
-    if (job) return job;
+  if (isStatBook(a) && isStatBook(b)) {
+    const book = statBookRank(a) - statBookRank(b);
+    if (book) return book;
   }
   return itemPower(b) - itemPower(a)
     || rarityRank(b) - rarityRank(a)
@@ -224,7 +225,7 @@ export function renderWarehouse(ui: Interface, dialog: HTMLElement): void {
     const bagCount = equipmentCount(save.bag, save.job);
     gold.textContent = `계정 공용 금화 ${save.gold.toLocaleString('ko-KR')}`;
     counts.textContent = `공용창고 ${warehouseCount}/40 · 가방 ${bagCount}/40`;
-    counts.title = '가방 40칸은 장비·타직업 스킬북·보물 주머니를 1개씩 셈합니다(내 직업 스킬북 제외).';
+    counts.title = '가방 40칸은 장비·영구 스탯북·보물 주머니를 1개씩 셈합니다.';
     storageHeading.textContent = `공용창고 ${warehouseCount}/40`;
     bagHeading.textContent = `내 가방 ${bagCount}/40`;
 
@@ -254,7 +255,7 @@ export function renderWarehouse(ui: Interface, dialog: HTMLElement): void {
     depositPicked.title = depositPlan.overflow > 0
       ? `공용창고에 ${depositPlan.free}칸 남아 선택한 ${bagIds.length}개 중 ${depositPlan.ids.length}개만 보관합니다.`
       : depositPlan.ids.length ? `${depositPlan.ids.length}개를 공용창고에 보관합니다.` : '공용창고가 가득 차 보관할 수 없습니다.';
-    // 꺼내기도 가방 40칸을 넘길 수 없다(작업 248) — 스킬북·보물 주머니도 칸을 쓴다.
+    // 꺼내기도 가방 40칸을 넘길 수 없다(작업 248) — 스탯북·보물 주머니도 칸을 쓴다.
     withdrawPicked.disabled = withdrawPlan.ids.length === 0 || withdrawBusy;
     withdrawPicked.title = withdrawPlan.overflow > 0
       ? `가방이 ${withdrawPlan.free}칸 남아 선택한 ${storageIds.length}개 중 ${withdrawPlan.ids.length}개만 꺼냅니다.`
@@ -306,11 +307,11 @@ type MovePlan = {
 /**
  * 옮길 수 있는 만큼만 고른다(작업 258).
  *
- * 예전에는 잔여 칸보다 고른 개수가 많으면 버튼을 통째로 잠갔다 — 주머니·스킬북 묶음이 5개인데 창고에
+ * 예전에는 잔여 칸보다 고른 개수가 많으면 버튼을 통째로 잠갔다 — 주머니·스탯북 묶음이 5개인데 창고에
  * 2칸만 남았을 때 **하나도 못 옮겼다**. 지금은 남은 칸만큼(`targetIds` 순서대로)만 보내고, 나머지는
  * 선택을 그대로 두어 버튼을 다시 누르면 된다.
  *
- * 보관(창고)은 장비·스킬북·주머니 모두 1칸을 쓰지만, 꺼내기는 가방 40칸 규칙대로 **내 직업 스킬북은 칸을 쓰지 않는다**
+ * 보관(창고)과 꺼내기는 장비·스탯북·주머니 모두 1칸을 쓴다(파트 B — 스킬북 폐지로 직업 예외가 사라졌다)
  * (`countedInBag`, 작업 253).
  */
 function movePlan(ui: Interface, side: WarehouseSide, ids: string[]): MovePlan {
@@ -340,7 +341,7 @@ function paintGrid(ui: Interface, grid: HTMLElement, side: WarehouseSide, stacks
   for (const stack of stacks) {
     const item = stack.items[0];
     const key = keyOf(side, stack.key);
-    const book = isSkillBook(item), pouch = isPouch(item);
+    const book = isStatBook(item), pouch = isPouch(item);
     const rarity = book ? 'skillbook-item' : pouch ? 'pouch-item' : item.rarity;
     const cell = document.createElement('button'); cell.type = 'button';
     cell.className = `bag-item warehouse-slot ${rarity}`;
@@ -494,10 +495,10 @@ function paintDetail(ui: Interface, save: Save, detail: HTMLElement, state: Ware
   head.append(name, grade);
   const meta = document.createElement('small'); meta.className = 'warehouse-detail-meta';
   const parts: string[] = [focus.side === 'storage' ? '공용창고' : '내 가방'];
-  if (isSkillBook(item)) {
-    parts.push('스킬북');
-    const owner = skillBookJob(item);
-    if (owner) parts.push(`${jobNames[owner]} 전용`);
+  if (isStatBook(item)) {
+    parts.push('영구 스탯북');
+    const status = statBookStatusText(save, item.book);
+    if (status) parts.push(status);
   } else if (isPouch(item)) {
     parts.push('보물 주머니');
   } else {
@@ -527,8 +528,8 @@ function paintDetail(ui: Interface, save: Save, detail: HTMLElement, state: Ware
   } else {
     const note = document.createElement('p'); note.className = 'warehouse-detail-note';
     note.textContent = isPouch(item)
-      ? '열면 금화 · 장비 · 스킬북 중 하나가 나옵니다. 개봉은 가방에서 합니다.'
-      : '스킬북은 가방이나 공용창고에 보관할 수 있습니다. 내 직업 책은 스킬 창에서 사용합니다.';
+      ? '열면 금화 · 장비 · 영구 스탯북 중 하나가 나옵니다. 개봉은 가방에서 합니다.'
+      : '영구 스탯북은 가방이나 공용창고에 보관할 수 있고, 가방에서 사용합니다.';
     detail.append(note);
   }
   const actions = document.createElement('div'); actions.className = 'warehouse-detail-actions';

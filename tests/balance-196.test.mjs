@@ -23,9 +23,9 @@ test('the drop rate now follows depth down while deep floors still pay in colour
   assert.equal(round(itemDropChance(40)), round(.0039 * .37), '34층+ 0.144%');
   assert.equal(itemDropChance(200), itemDropChance(40), '더 깊어도 0.37 계수에서 멈춘다');
   assert.equal(itemDropChance(1, true), .04, '보스 4%는 그대로');
-  // 장비·스킬북 몫은 같은 값의 70%·30%다.
-  assert.equal(round(equipmentDropChance(1)), round(.002418 * .7));
-  assert.equal(round(equipmentDropChance(20)), round(.001529 * .7));
+  // 파트 B: 스킬북이 폐지되어 한 번 굴린 드롭은 그대로 장비 하나다(70:30 분기 없음).
+  assert.equal(round(equipmentDropChance(1)), round(.002418));
+  assert.equal(round(equipmentDropChance(20)), round(.001529));
 });
 
 test('the grade cuts stay ordered and the magic cut climbs with depth', () => {

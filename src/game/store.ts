@@ -1,10 +1,10 @@
-import { skillBookStatus } from './skillProgress';
 import { discoverEquipment, normalizeCollection } from './codex';
 import { normalizeQuickSlots, type QuickSlots } from './loadout';
-import { isEquipment, isSkillBook, migrateItem, skillBookJob, slots, totalStats, type EquipmentItem, type Item, type Slot } from './items';
+import { migrateItem, slots, totalStats, type EquipmentItem, type Item, type Slot } from './items';
+import { statBookCounts, type StatBookCounts } from './statBooks';
 export { slots, slotNames, rarityNames, statNames, isZweihander, equipmentImage, totalStats, rollItem, itemPower, autoEquipBest, salvageByRarity } from './items';
 export type { Rarity, Slot, Stat, Item } from './items';
-import { allPassiveIds, allSkillIds, jobNames, jobOrDefault, skillOrderFor, MAX_SKILL_LEVEL, type Job, type PassiveId, type SkillId, type SkillLevelId } from './skills';
+import { allPassiveIds, allSkillIds, jobOrDefault, skillOrderFor, MAX_SKILL_LEVEL, type Job, type PassiveId, type SkillId, type SkillLevelId } from './skills';
 import { spLedger } from './skillPoints';
 // 진행 규칙(층 목표·경험치 곡선·최고 층)의 정의는 `progress.ts` 한 곳에 있다 — 여기서는 예전 import 경로를
 // 그대로 쓰는 파일들을 위해 재export만 한다(PR-3, 작업 262).
@@ -19,7 +19,11 @@ export { jobOrDefault, jobNames, jobs } from './skills';
 /** 끝없는 던전에 지금 있는 마지막 층. 이보다 깊은 층은 아직 준비 중이다(순위 근거이기도 하다). */
 export const DUNGEON_MAX_FLOOR = 10;
 
-export type Save = { version: 1; name: string; accountId: string; gender: Gender; job?: Job; auto: boolean; autoClimb: boolean; level: number; exp: number; gold: number; floor: number; maxFloor: number; floorKills: number; kills: number; bossKills: number; playSeconds: number; /** 장비 분해 누적 횟수(작업 207) — 일일·주간 `장비 분해` 미션이 이 값의 증가분을 센다. */ salvageCount: number; health: number; equipment: Partial<Record<Slot, EquipmentItem>>; equipmentCollection: string[]; bag: Item[]; tutorial: number; stones: number; skillPoints: number; lastActiveAt: number; learned: SkillId[]; passives: PassiveId[]; quickSlots: QuickSlots; skillLevels: Partial<Record<SkillLevelId, number>>; dungeonFloor: number; dungeonClearAt: number;
+export type Save = { version: 1; name: string; accountId: string; gender: Gender; job?: Job; auto: boolean; autoClimb: boolean; level: number; exp: number; gold: number; floor: number; maxFloor: number; floorKills: number; kills: number; bossKills: number; playSeconds: number; /** 장비 분해 누적 횟수(작업 207) — 일일·주간 `장비 분해` 미션이 이 값의 증가분을 센다. */ salvageCount: number; health: number; equipment: Partial<Record<Slot, EquipmentItem>>; equipmentCollection: string[]; bag: Item[]; tutorial: number; stones: number; skillPoints: number; lastActiveAt: number; learned: SkillId[]; passives: PassiveId[]; quickSlots: QuickSlots; skillLevels: Partial<Record<SkillLevelId, number>>;
+  /** 영구 스탯북 사용 권수(파트 B, 2026-11-22) — 종류별 0~30. 파트 A의 `skillPoints`/`skillLevels`(스킬 트리)와
+   *  **겹치지 않는 별도 필드**다. 없는 옛 세이브는 0부터 센다. */
+  statBooks?: StatBookCounts;
+  dungeonFloor: number; dungeonClearAt: number;
   /** 보스에게 진 층(작업 223, 사용자 제보 `#6086`) — 0/없음이면 재도전 없음, `maxFloor`와 같으면
    *  `⚔ 보스 도전`이 살아 있다. HUD 상태를 세션 메모리에만 두면 새로고침·재접속·버전 업데이트로
    *  보스 앞에서 실패한 기록이 날아가 버튼이 사라졌다(사용자: "4층 넘어갈때까지 계속 있어야되는데"). */
@@ -74,7 +78,8 @@ export function freshSave(gender: Gender = 'male', job: Job = 'warrior'): Save {
   // ② 그 직업의 첫 액티브 스킬을 **습득한 상태로** 시작한다(퀵슬롯에는 넣지 않는다 — 곧 오는 튜토리얼이
   //    직접 장착하게 안내한다).
   const starter = starterSkillFor(job);
-  return { version: 1, name: '모험가', accountId: crypto.randomUUID().slice(0, 8).toUpperCase(), gender, job, auto: true, autoClimb: true, level: 1, exp: 0, gold: 0, floor: 1, maxFloor: 1, floorKills: 0, kills: 0, bossKills: 0, playSeconds: 0, salvageCount: 0, health: 140, equipment: {}, equipmentCollection: [], bag: [], tutorial: 0, stones: 0, skillPoints: 0, lastActiveAt: Date.now(), learned: [starter], passives: [], quickSlots: [null, null, null], skillLevels: { [starter]: 1 }, dungeonFloor: 0, dungeonClearAt: 0, bossRetryFloor: 0 };
+  // 영구 스탯북(파트 B) — 처음엔 0권. `parseSave`가 옛 세이브에도 0을 채운다.
+  return { version: 1, statBooks: { attack: 0, defense: 0, health: 0 }, name: '모험가', accountId: crypto.randomUUID().slice(0, 8).toUpperCase(), gender, job, auto: true, autoClimb: true, level: 1, exp: 0, gold: 0, floor: 1, maxFloor: 1, floorKills: 0, kills: 0, bossKills: 0, playSeconds: 0, salvageCount: 0, health: 140, equipment: {}, equipmentCollection: [], bag: [], tutorial: 0, stones: 0, skillPoints: 0, lastActiveAt: Date.now(), learned: [starter], passives: [], quickSlots: [null, null, null], skillLevels: { [starter]: 1 }, dungeonFloor: 0, dungeonClearAt: 0, bossRetryFloor: 0 };
 }
 
 export function parseSave(data: unknown, accountId?: string): Save {
@@ -99,16 +104,16 @@ export function parseSave(data: unknown, accountId?: string): Save {
     if (isRecord(value.equipment)) for (const slot of slots) {
       const item = migrateItem(value.equipment[slot]);
       const ringSlot = (slot === 'ring1' || slot === 'ring2') && (item?.slot === 'ring1' || item?.slot === 'ring2');
-      if (item && isEquipment(item) && (item.slot === slot || ringSlot)) equipment[slot] = item;
+      if (item && item.kind !== 'statbook' && item.kind !== 'pouch' && (item.slot === slot || ringSlot)) equipment[slot] = item;
     }
     const bag: Item[] = []; let bagEquipment = 0;
     if (Array.isArray(value.bag)) for (const raw of value.bag) {
       const item = migrateItem(raw);
-      // 읽을 때는 아이템을 지우지 않는다. 40칸은 **가방 안의 모든 아이템**(작업 248 — 스킬북·보물 주머니 포함)이고,
+      // 읽을 때는 아이템을 지우지 않는다. 40칸은 **가방 안의 모든 아이템**(작업 248 — 스탯북·보물 주머니 포함)이고,
       // 예전 규칙으로 40개를 넘긴 세이브도 있으므로 저장 쪽(`server/database.mjs` reconcileItems)이
       // "지금 개수 이하 유지"만 허용한다. 여기서 잘라 버리면 플레이어의 책·주머니가 사라진다.
-      const equipment = !!item && isEquipment(item);
-      if (item && (!equipment || bagEquipment < 40)) { bag.push(item); if (equipment) bagEquipment++; }
+      const equipmentItem = !!item && item.kind !== 'statbook' && item.kind !== 'pouch';
+      if (item && (!equipmentItem || bagEquipment < 40)) { bag.push(item); if (equipmentItem) bagEquipment++; }
     }
     const collection = { bag, equipment, equipmentCollection: normalizeCollection(value.equipmentCollection) };
     discoverEquipment(collection);
@@ -124,7 +129,7 @@ export function parseSave(data: unknown, accountId?: string): Save {
     const skillPoints = Math.max(0, Math.min(earnedSp, Math.floor(safeNumber(value.skillPoints, earnedSp))));
     // 던전 최고층은 0~10의 정수, 최초 클리어 시각은 0 이상. 없는 세이브(구버전)는 0층부터 시작한다.
     const dungeonFloor = Math.min(DUNGEON_MAX_FLOOR, Math.floor(safeNumber(value.dungeonFloor, defaults.dungeonFloor)));
-    return { ...defaults, name: typeof value.name === 'string' && value.name.trim() ? value.name : defaults.name, accountId: accountId ?? (typeof value.accountId === 'string' && value.accountId ? value.accountId : defaults.accountId), gender: value.gender === 'female' ? 'female' : 'male', job: jobOrDefault(value.job), auto: true, autoClimb: typeof value.autoClimb === 'boolean' ? value.autoClimb : true, level, exp: level >= MAX_LEVEL ? 0 : safeNumber(value.exp, defaults.exp), gold: Math.floor(safeNumber(value.gold, defaults.gold)), floor, maxFloor, floorKills: Math.min(floorKillTarget(floor), Math.floor(safeNumber(value.floorKills, 0))), kills: Math.floor(safeNumber(value.kills, defaults.kills)), bossKills: Math.floor(safeNumber(value.bossKills, 0)), playSeconds: safeNumber(value.playSeconds, 0), salvageCount: Math.floor(safeNumber(value.salvageCount, 0)), health: safeNumber(value.health, defaults.health), equipment, equipmentCollection: collection.equipmentCollection, bag, tutorial: Math.min(3, Math.floor(safeNumber(value.tutorial, defaults.tutorial))), stones: Math.floor(safeNumber(value.stones, defaults.stones)), skillPoints, lastActiveAt: safeNumber(value.lastActiveAt, Date.now()), learned: active, passives, quickSlots, skillLevels, bossRetryFloor, dungeonFloor, dungeonClearAt: dungeonFloor > 0 ? Math.floor(safeNumber(value.dungeonClearAt, 0)) : 0 };
+    return { ...defaults, statBooks: statBookCounts({ statBooks: value.statBooks }), name: typeof value.name === 'string' && value.name.trim() ? value.name : defaults.name, accountId: accountId ?? (typeof value.accountId === 'string' && value.accountId ? value.accountId : defaults.accountId), gender: value.gender === 'female' ? 'female' : 'male', job: jobOrDefault(value.job), auto: true, autoClimb: typeof value.autoClimb === 'boolean' ? value.autoClimb : true, level, exp: level >= MAX_LEVEL ? 0 : safeNumber(value.exp, defaults.exp), gold: Math.floor(safeNumber(value.gold, defaults.gold)), floor, maxFloor, floorKills: Math.min(floorKillTarget(floor), Math.floor(safeNumber(value.floorKills, 0))), kills: Math.floor(safeNumber(value.kills, defaults.kills)), bossKills: Math.floor(safeNumber(value.bossKills, 0)), playSeconds: safeNumber(value.playSeconds, 0), salvageCount: Math.floor(safeNumber(value.salvageCount, 0)), health: safeNumber(value.health, defaults.health), equipment, equipmentCollection: collection.equipmentCollection, bag, tutorial: Math.min(3, Math.floor(safeNumber(value.tutorial, defaults.tutorial))), stones: Math.floor(safeNumber(value.stones, defaults.stones)), skillPoints, lastActiveAt: safeNumber(value.lastActiveAt, Date.now()), learned: active, passives, quickSlots, skillLevels, bossRetryFloor, dungeonFloor, dungeonClearAt: dungeonFloor > 0 ? Math.floor(safeNumber(value.dungeonClearAt, 0)) : 0 };
   } catch (error) {
     throw new Error(`저장 데이터를 읽지 못했습니다: ${String(error)}`);
   }
@@ -137,29 +142,4 @@ export function addExperience(save: Save, amount: number): number {
   const gained = gainExperience(save, amount);
   if (gained) { save.health = totalStats(save).health; save.skillPoints = spLedger(save).available; }
   return gained;
-}
-export function useSkillBook(save: Save, itemId: string): { ok: boolean; message: string } {
-  const index = save.bag.findIndex(item => item.id === itemId);
-  if (index < 0) return { ok: false, message: '가방에 스킬북이 없습니다.' };
-  const item = save.bag[index];
-  if (!isSkillBook(item)) return { ok: false, message: '스킬북만 사용할 수 있습니다.' };
-  // 다른 직업의 스킬북은 펼쳐도 소모되지 않는다 — 가방·스킬북 탭 어디서 눌러도 같다(작업 206).
-  const owner = skillBookJob(item);
-  if (owner && owner !== jobOrDefault(save.job)) return { ok: false, message: `${jobNames[owner]} 전용 스킬북입니다` };
-  const id = item.skillId;
-  const learned = allSkillIds.includes(id as SkillId) ? save.learned.includes(id as SkillId) : save.passives.includes(id as PassiveId);
-  const status = skillBookStatus(save, id), level = status.level;
-  if (level >= MAX_SKILL_LEVEL) return { ok: false, message: '이미 최고 스킬 레벨입니다.' };
-  if (!status.ready) return { ok: false, message: `스킬북이 부족합니다. 보유 ${status.count} / 필요 ${status.cost}권` };
-  if (!learned) {
-    if (allSkillIds.includes(id as SkillId)) save.learned.push(id as SkillId);
-    else save.passives.push(id as PassiveId);
-  }
-  save.skillLevels[id] = level + 1;
-  // 랭크가 하나 늘면 SP 한 칸을 쓴 것과 같다 — 저장 필드도 같은 장부로 맞춘다(화면은 `spLedger`를 쓴다).
-  save.skillPoints = spLedger(save).available;
-  const consumed = new Set([item.id]);
-  for (const other of save.bag) if (consumed.size < status.cost && isSkillBook(other) && other.skillId === id) consumed.add(other.id);
-  save.bag = save.bag.filter(other => !consumed.has(other.id));
-  return { ok: true, message: `${item.name} ${level ? `Lv.${level + 1} 강화!` : '습득!'}` };
 }

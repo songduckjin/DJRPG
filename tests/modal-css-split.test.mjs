@@ -28,7 +28,6 @@ test('진입점은 규칙을 갖지 않고 도메인 파일만 순서대로 묶�
     './modals/mail.css',
     './modals/warehouse.css',
     './modals/pouch.css',
-    './modals/synth.css',
     // 상세 스탯(HUD 번들) — 공통 껍데기보다 앞이어야 칸 여백 규칙이 살아남는다.
     './modals/stats.css',
     // 공통 껍데기는 **마지막** — 닫기 버튼 44px 정규화가 모달별 크기 규칙을 이겨야 한다.
@@ -49,8 +48,9 @@ test('모든 도메인 파일이 있고, 파일마다 무엇을 담는지 머리
 test('이어 붙인 CSS는 원본의 규칙을 하나도 잃지 않는다', () => {
   const all = modalStyles();
   // 도메인마다 대표 규칙이 실제로 이어 붙은 결과에 들어 있는지 확인한다.
+  // (파트 B: 스킬북 합성을 폐지하며 `.synth-*` 규칙과 `modals/synth.css`를 지웠다.)
   for (const selector of ['.bag-item', '.character-slot', '.shop-card', '.account-line', '.floor-grid', '.skill-tree',
-    '.utility-content', '.mail-body', '.warehouse-grid', '.pouch-window', '.synth-window', '.modal-dialog']) {
+    '.utility-content', '.mail-body', '.warehouse-grid', '.pouch-window', '.modal-dialog']) {
     assert.ok(all.includes(selector), `${selector} 규칙이 사라졌다`);
   }
   // 파일 경계에서 잘린 규칙(중괄호 짝)이 없어야 한다.

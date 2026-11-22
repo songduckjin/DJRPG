@@ -120,7 +120,9 @@ test('boss floor transition clears old enemies and pursuit but retains drops', (
       const boss = { ...oldEnemy, boss: true, hp: 0 };
       world.chaseTarget = oldEnemy; world.pursuing = true; world.activeMove = { x: 1, y: 0 };
       world.kill(boss);
-      assert.equal(world.drops.length, 1, 'the boss leaves its one chance item on the ground (한 마리당 1개, 작업 210)');
+      // 파트 B: 난수 0이면 장비 확률과 영구 스탯북 확률이 모두 당첨 — **장비 1 + 스탯북 1**까지 남는다.
+      assert.equal(world.drops.length, 2, 'a boss leaves one equipment and at most one stat book on the ground');
+      assert(world.drops.some(drop => drop.item.kind === 'statbook'), '영구 스탯북도 떨어진다');
       assert.equal(save.floor, autoClimb ? 2 : 1);
       assert.equal(save.floorKills, 0);
       if (autoClimb) {

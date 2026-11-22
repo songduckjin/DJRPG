@@ -1,4 +1,4 @@
-import { autoEquipBest, canWield, isEquipment, isSkillBook, itemPower, plusOf, rarityRanks, salvageGold, salvageStones, type EquipmentItem, type Item, type Rarity, type Slot } from './items';
+import { autoEquipBest, canWield, isEquipment, itemPower, plusOf, rarityRanks, salvageGold, salvageStones, type EquipmentItem, type Item, type Rarity, type Slot } from './items';
 import { EQUIPMENT_BAG_LIMIT, equipmentCount } from './bagCapacity';
 import { jobOrDefault } from './skills';
 import type { Save } from './store';
@@ -64,10 +64,10 @@ export function salvageItems(save: Save, ids: string[]): { count: number; gold: 
 
 /** Why a freshly recovered piece is NOT taken by live auto-salvage (작업 196) — or `undefined` when it
  *  is. The rules are the ones 일괄 분해 already asks about, applied to one piece at the moment it
- *  reaches the hero: a skill book is never swept, a locked piece is the player's own mark, nothing
+ *  reaches the hero: a stat book is never swept, a locked piece is the player's own mark, nothing
  *  above the chosen grade is taken, an empty slot needs something to wear, and a piece that beats what
  *  is worn is exactly what 자동 장착 would take, so it stays in the bag. */
-export type AutoSalvageBlock = 'skillbook' | 'pouch' | 'locked' | 'grade' | 'plus' | 'empty-slot' | 'upgrade';
+export type AutoSalvageBlock = 'statbook' | 'pouch' | 'locked' | 'grade' | 'plus' | 'empty-slot' | 'upgrade';
 
 /** From this floor a drop can carry a 강화 단계, so live auto-salvage also obeys the player's
  *  `+N까지` cap (작업 203). Below it every piece is `+0` and the grade rules alone decide. */
@@ -77,8 +77,9 @@ export const AUTO_SALVAGE_PLUS_FLOOR = 41;
  *  `AUTO_SALVAGE_PLUS_FLOOR` on. A piece above the cap is a rare drop worth selling at the auction
  *  house, so it is kept even when it is weaker than what the hero wears. */
 export function autoSalvageBlock(save: Save, item: Item, maxRarity: Exclude<Rarity, 'legendary'>, maxPlus?: number): AutoSalvageBlock | undefined {
-  if (isSkillBook(item)) return 'skillbook';
-  // 보물 주머니(작업 207)는 소모품이라 자동 분해가 삼키지 않는다.
+  // 영구 스탯북(파트 B)은 소모품이라 자동 분해가 삼키지 않는다 — 함부로 사라지면 안 되는 드문 물건이다.
+  if (item.kind === 'statbook') return 'statbook';
+  // 보물 주머니(작업 207)도 같은 이유로 보호한다.
   if (!isEquipment(item)) return 'pouch';
   if (item.locked) return 'locked';
   if (rarityRanks[item.rarity] > rarityRanks[maxRarity]) return 'grade';
@@ -104,7 +105,7 @@ export function autoSalvageRecovered(save: Save, item: Item, maxRarity: Exclude<
   return { gold, stones };
 }
 
-/** 가방 40칸에 세는 수 — `bagCapacity.equipmentCount`와 같은 셈(장비·타직업 스킬북·보물 주머니 1개=1칸, 내 직업 스킬북 제외, 작업 253). */
+/** 가방 40칸에 세는 수 — `bagCapacity.equipmentCount`와 같은 셈(모든 아이템 1개=1칸, 파트 B). */
 export function bagEquipmentCount(save: Save): number { return equipmentCount(save.bag, jobOrDefault(save.job)); }
 
 /** 가방 40칸이 **꽉 찬** 상태에서 이미 들고 있던 장비를 즉시 분해해 빈 칸을 만든다(작업 209, 사용자 확정
@@ -113,7 +114,7 @@ export function bagEquipmentCount(save: Save): number { return equipmentCount(sa
  *  접속 중 자동 분해는 지금까지 **새로 주워 오는 장비**만 갈아냈기 때문에, 40칸이 차면 설정 등급 이하의
  *  장비가 가방에 그대로 남아 있어도 새 드롭을 줍지 못했다. 이 함수는 `autoSalvageBlock`이 허용하는
  *  장비만(설정 등급 이하·잠금 아님·`+N까지` 이하·입을 수 있는 직업·이미 채워진 칸·장착보다 나쁨) 골라
- *  `salvageItems`와 **같은 값**(금화·강화석·`salvageCount`)으로 분해한다. 스킬북·보물 주머니·보호 대상은
+ *  `salvageItems`와 **같은 값**(금화·강화석·`salvageCount`)으로 분해한다. 스탯북·보물 주머니·보호 대상은
  *  건드리지 않으며, 가방이 덜 찾거나 남길 장비밖에 없으면 `undefined`(아무 일도 없다). */
 export function sweepBagOnFull(save: Save, maxRarity: Exclude<Rarity, 'legendary'>, maxPlus?: number): { count: number; gold: number; stones: number } | undefined {
   if (bagEquipmentCount(save) < EQUIPMENT_BAG_LIMIT) return undefined;
