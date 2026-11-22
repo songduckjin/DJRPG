@@ -31,7 +31,13 @@ test('가방 40칸은 모든 아이템 1개 = 1칸이다(파트 B — 스킬북 
 test('지급 계획은 40칸 경계에서 정확히 갈린다', () => {
   const almost = blank(Array.from({ length: BAG_SLOT_LIMIT - 1 }, (_, index) => gear(`g${index}`)));
   assert.equal(planRewards(almost, [{ pouches: 1 }]).fits, true, '마지막 한 칸은 들어간다');
-  assert.equal(planRewards(almost, [{ pouches: 2 }]).fits, false, '두 칸은 넘친다');
+  // 주머니 스택형 — 주머니는 수량과 상관없이 한 칸이라 2개를 받아도 한 칸만 든다.
+  assert.equal(planRewards(almost, [{ pouches: 2 }]).fits, true, '주머니 2개도 한 칸');
+  // 이미 주머니를 들고 있으면 40칸이어도 주머니 보상은 0칸이다.
+  const pouchFull = blank([...Array.from({ length: BAG_SLOT_LIMIT - 1 }, (_, index) => gear(`p${index}`)), pouch('held')]);
+  assert.equal(bagSlotCount(pouchFull), BAG_SLOT_LIMIT, '장비 39 + 주머니 한 칸 = 40');
+  assert.equal(planRewards(pouchFull, [{ pouches: 30 }]).fits, true, '주머니 30개는 이미 있는 한 칸에 쌓인다');
+  assert.equal(planRewards(pouchFull, [{ item: gear('extra') }]).fits, false, '장비는 한 칸도 없다');
   // 파트 B: `books`는 지급하지 않으므로 칸도 세지 않는다(옛 우편 값은 무시).
   assert.equal(planRewards(almost, [{ books: 5 }]).fits, true, '스킬북 수량은 자리를 쓰지 않는다');
   assert.equal(planRewards(almost, [{ gold: 5000 }]).fits, true, '금화만 주는 보상은 자리를 쓰지 않는다');
@@ -82,7 +88,8 @@ test('onOverflow:"keep"은 자리와 상관없이 넣는다 — 우편이 이미
   assert.equal(granted.pouches, 1);
   assert.equal(save.bag.length, BAG_SLOT_LIMIT + 1);
   // `planRewards`의 `need`는 주머니만 센다 — 스킬북 수량(`books`)은 지급이 없어 자리도 쓰지 않는다.
-  assert.equal(rewardSlotNeed([{ books: 1, pouches: 2 }], 'warrior'), 2);
+  assert.equal(rewardSlotNeed([{ books: 1, pouches: 2 }], blank([])), 1, '주머니 2개 = 한 칸');
+  assert.equal(rewardSlotNeed([{ books: 1, pouches: 2 }], blank([pouch('held')])), 0, '이미 주머니를 들고 있으면 0칸');
 });
 
 test('다이아 지급은 지갑 행 보장 → 원장 기록 → 지갑 증가 순서의 SQL로 나온다', () => {

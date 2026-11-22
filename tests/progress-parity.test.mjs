@@ -38,13 +38,14 @@ const EXPECTED = {
   },
   'offline-12h': {
     progress: {
+      // 주머니 스택형: 같은 종류의 영구 스탯북은 한 칸에 쌓이므로 12시간 방치가 40칸에서 멈추되 **아이템 수**는
+      // 43개다(칸은 그대로 40). 진행 결과(층·금화·경험치·생존)는 종전과 같다 — 칸 규칙만 바뀌었다.
       gold: 875260, exp: 80971, level: 18, floor: 15, maxFloor: 15, floorKills: 408, kills: 96672, bossKills: 5,
-      // 파트 B: 모든 아이템이 1칸이라 12시간 방치는 40칸에서 멈춘다(예전에는 내 직업 책이 칸을 안 써서 61).
-      playSeconds: 0, stones: 12, salvageCount: 0, tutorial: 3, health: 344, dungeonFloor: 0, bossRetryFloor: 15, bag: 40
+      playSeconds: 0, stones: 12, salvageCount: 0, tutorial: 3, health: 344, dungeonFloor: 0, bossRetryFloor: 15, bag: 43
     },
     reward: {
       seconds: 43200, kills: 96672, exp: 1158971, gold: 871470, levels: 3, startFloor: 8, endFloor: 15,
-      bossKills: 5, deaths: 121, items: 40, missedDrops: 265, salvaged: { count: 0, gold: 0, stones: 0 }
+      bossKills: 5, deaths: 121, items: 43, missedDrops: 262, salvaged: { count: 0, gold: 0, stones: 0 }
     }
   },
   'dungeon-1-clear': {

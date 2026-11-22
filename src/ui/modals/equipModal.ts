@@ -150,12 +150,12 @@ export function renderInventory(this: Interface, dialog: HTMLElement): void {
     if (!visible.length) grid.innerHTML = `<p class="empty">${hiddenJob ? '다른 직업 전용 장비만 있습니다. <b>내 직업만 보기</b>를 끄면 보입니다.' : '이 분류에 획득한 아이템이 없습니다.'}</p>`;
     const footer = document.createElement('div'); footer.className = 'modal-bag-footer';
     const pouches = pouchCount(save);
-    // 가방 40칸은 **장비·영구 스탯북·보물 주머니**를 1개씩 센다(파트 B — 스킬북 폐지로 직업 예외가 사라졌다).
+    // 가방 40칸은 장비 1개=1칸, 보물 주머니는 수량 무관 1칸, 영구 스탯북은 종류당 1칸(주머니 스택형).
     const bagUsed = equipmentCount(save.bag, save.job);
     const count = document.createElement('span'); count.textContent = `가방 ${bagUsed}/40`;
     count.title = bagUsed > 40
       ? `가방 ${bagUsed}/40 · 40칸을 넘었습니다. 장비를 분해하거나 공용창고에 보관해 정리해 주세요. 새 아이템·우편은 받아지지 않습니다`
-      : `가방 ${bagUsed}/40 · 장비·영구 스탯북·보물 주머니를 1개씩 셉니다`;
+      : `가방 ${bagUsed}/40 · 장비는 1개=1칸, 보물 주머니는 수량 무관 1칸, 영구 스탯북은 종류당 1칸`;
     if (bagUsed > 40) count.classList.add('is-over');
     // 가방 가득 참(작업 246, 사용자 요청 `#20938`) — 40칸이 차면 칸수 옆에 빨간 `가득 참`을 붙인다.
     if (bagUsed >= EQUIPMENT_BAG_LIMIT) {

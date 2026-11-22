@@ -5,7 +5,7 @@ import type { JourneyTask } from '../../game/journey';
 import { preferences, savePreferences } from '../../game/preferences';
 import { diamondNode, goldNode } from '../currency';
 import { POUCH_ICON_URL } from '../pouchArt';
-import { EQUIPMENT_BAG_LIMIT, equipmentCount } from '../../game/bagCapacity';
+import { bagSlotState, EQUIPMENT_BAG_LIMIT, equipmentCount } from '../../game/bagCapacity';
 import { loadShop } from './shopModal';
 
 function element<K extends keyof HTMLElementTagNameMap>(tag:K,className='',text=''){const node=document.createElement(tag);node.className=className;node.textContent=text;return node;}
@@ -89,12 +89,13 @@ export function renderUtility(ui:Interface,dialog:HTMLElement,kind:'mail'|'rewar
     if(!data.mail.length)section.append(element('p','utility-note','받은 우편이 없습니다.'));
     const ready=(mail:typeof data.mail[number])=>!mail.claimedAt&&!mail.expired;
     const mails=[...data.mail].sort((a,b)=>Number(ready(b))-Number(ready(a))||Number(a.read)-Number(b.read)||b.createdAt-a.createdAt);
-    // 가방 40칸에는 타직업 스킬북·보물 주머니를 함께 센다(내 직업 스킬북 제외, 작업 253) — 자리가 없으면 아이템이 든 우편은 받을 수 없다.
+    // 가방 40칸은 장비 1개=1칸, 보물 주머니는 **수량 무관 1칸**(이미 들고 있으면 0칸), 영구 스탯북은 종류당 1칸(주머니 스택형).
     // 금화만 있는 우편은 칸을 쓰지 않으므로 늘 받을 수 있다(서버 규칙과 같다).
     const bagFree=Math.max(0,EQUIPMENT_BAG_LIMIT-equipmentCount(ui.world.save.bag,ui.world.save.job));
-    // 칸을 쓰는 보상은 **보물 주머니뿐**이다(파트 B: 스킬북 폐지 — 서버 `rewardSlotNeed`와 같은 규칙).
-    // 예전에는 `books`까지 세어, 금화만 주는 우편이 '가방 가득'으로 잠기는 화면·서버 불일치가 있었다.
-    const mailItems=(mail:{pouches?:number})=>Math.max(0,mail.pouches??0);
+    const bagHasPouch=bagSlotState(ui.world.save.bag).pouch;
+    // 칸을 쓰는 보상은 **보물 주머니(수량 무관 1칸)** 이다(파트 B: 스킬북 폐지 — 서버 `rewardSlotNeed`와 같은 규칙).
+    // 이미 주머니를 들고 있으면 추가 주머니는 0칸이라 가방이 40칸이어도 받을 수 있다(주머니 스택형).
+    const mailItems=(mail:{pouches?:number})=>mail.pouches?(bagHasPouch?0:1):0;
     const bagBlocked=(mail:{pouches?:number,claimedAt?:number|null,expired?:boolean})=>!mail.claimedAt&&!mail.expired&&mailItems(mail)>bagFree;
     if(mails.some(bagBlocked))section.append(element('p','utility-note','가방이 가득 차 아이템이 든 우편은 받을 수 없습니다. 가방을 비우면 받을 수 있고, 금화만 있는 우편은 지금도 받을 수 있습니다.'));
     for(const mail of mails){

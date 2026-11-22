@@ -18,7 +18,11 @@ test('가방 40칸은 장비·영구 스탯북·보물 주머니를 모두 1개�
   for(const job of ['warrior','archer','mage']) for(const item of [gear('g'),book('b'),foreignBook('f'),pouch('p')]) assert.equal(serverCountedInBag(item,job),countedInBag(item,job),`${job} · ${item.slot}`);
   const save=freshSave();save.bag=[...Array.from({length:38},(_,i)=>gear(`g${i}`)),book('book'),pouch('pouch')];
   assert.equal(equipmentCount(save.bag,save.job),40,'장비 38 + 스탯북 1 + 주머니 1 = 40');
-  for(const item of [gear('new'),pouch('newPouch'),book('newBook')]) assert.equal(canStoreItem(save.bag,item,save.job),false,`${item.slot} 는 자리가 없다`);
+  // 주머니 스택형 — 보물 주머니는 수량 무관 한 칸이고, 같은 종류의 책도 이미 있으면 0칸이다.
+  assert.equal(canStoreItem(save.bag,pouch('newPouch'),save.job),true,'주머니는 이미 한 칸에 쌓여 있어 40칸에서도 들어간다');
+  assert.equal(canStoreItem(save.bag,book('newBook'),save.job),true,'같은 종류(공격)의 스탯북도 한 칸에 쌓인다');
+  assert.equal(canStoreItem(save.bag,foreignBook('newForeign'),save.job),false,'다른 종류(체력)의 스탯북은 새 칸이 필요하다');
+  assert.equal(canStoreItem(save.bag,gear('new'),save.job),false,'장비는 자리가 없다');
   save.bag.pop();
   assert.equal(equipmentCount(save.bag,save.job),39);
   for(const item of [gear('new'),pouch('newPouch'),book('newBook')]) assert.equal(canStoreItem(save.bag,item,save.job),true,`${item.slot} 는 39칸에 들어간다`);
@@ -27,7 +31,7 @@ test('가방 40칸은 장비·영구 스탯북·보물 주머니를 모두 1개�
 test('save parsing keeps legacy items and unequip respects the unified forty-slot capacity',()=>{
   // 예전 규칙(내 직업 책·주머니는 칸을 쓰지 않았다)으로 쌓인 세이브는 40개를 넘을 수 있다 — 읽을 때 지우지 않는다.
   const save=freshSave();save.bag=[...Array.from({length:200},(_,i)=>foreignBook(`b${i}`)),...Array.from({length:39},(_,i)=>gear(`g${i}`))];save.equipment.weapon=gear('equipped');
-  const restored=parseSave(JSON.parse(JSON.stringify(save)));assert.equal(restored.bag.length,239,'읽을 때 아이템을 지우지 않는다');assert.equal(equipmentCount(restored.bag),239);
+  const restored=parseSave(JSON.parse(JSON.stringify(save)));assert.equal(restored.bag.length,239,'읽을 때 아이템을 지우지 않는다');assert.equal(equipmentCount(restored.bag),40,'같은 종류의 책 200권 = 한 칸 + 장비 39칸(주머니 스택형)');
   assert.equal(unequipItem(restored,'weapon').ok,false,'가방이 40칸을 넘었으니 장비를 해제할 수 없다');
   restored.bag=Array.from({length:39},(_,i)=>gear(`g${i}`));
   assert(unequipItem(restored,'weapon').ok);assert.equal(equipmentCount(restored.bag),40,'해제한 장비가 40번째 칸으로 들어간다');

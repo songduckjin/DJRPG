@@ -6,7 +6,7 @@ import { runtimeEnv } from '../env.mjs';
 import { json, readBody, errorResponse, versionGuard } from '../http.mjs';
 import { normalizeExtraOptions } from '../extra-options.mjs';
 import { elapsedSince } from '../save-guard.mjs';
-import { bagSlotCount, itemTakesSlot } from '../core/rewardGrant.mjs';
+import { advanceSlotState, bagSlotState, itemSlotNeed } from '../core/rewardGrant.mjs';
 
 /** 창고 40칸 · 한 번에 옮길 수 있는 최대 개수(가방 40칸과 같은 상한). */
 const WAREHOUSE_LIMIT = 40;
@@ -158,19 +158,19 @@ async function handle(request, { env = runtimeEnv(), createDbClient } = {}, cont
           operations.push({ sql: `UPDATE djrpg_character_item_owners SET slot=0 WHERE account_id=? AND item_id IN (${slots})`, args: [id, ...movedIds] });
         }
       } else {
-        // 가방 40칸은 **장비·타직업 스킬북·보물 주머니** 1개 = 1칸이다(작업 253 — 내 직업 스킬북 제외).
-        // 예전(그리고 PR #258)에는 스킬북·주머니를 검사 없이 꽂아 40개를 넘길 수 있었다.
-        // 칸 규칙은 `server/core/rewardGrant.mjs` 한 곳에 있다(장비·타직업 책·주머니 1칸, 내 직업 책 제외).
-        let bagCount = bagSlotCount(save);
+        // 가방 40칸은 장비 1개=1칸, 보물 주머니는 **수량 무관 1칸**, 영구 스탯북은 종류당 1칸(주머니 스택형).
+        // 칸 규칙은 `server/core/rewardGrant.mjs` 한 곳에 있다.
+        const bagState = bagSlotState(save);
         for (const itemId of ids) {
           const raw = storedItems.get(itemId), owner = owners.get(itemId);
           if (raw === undefined || !owner || owner.location !== 'warehouse' || Number(owner.slot) !== 0) reject('ITEM_NOT_AVAILABLE', '창고 아이템 상태가 달라졌습니다. 다시 불러오세요.', '창고에 없는 아이템이 있어 아무것도 꺼내지 않았습니다. 새로고침 후 다시 시도하세요.');
           const item = JSON.parse(raw);
           normalizeExtraOptions(item);
-          // 가방이 40칸이면 내 직업 책도 꺼내지 못한다(`main`·`bag-mail-cap` 그대로) — 칸을 세는 것은
-          // `countedInBag`이지만, 이동 중인 다중 요청에서도 같은 판정이 되도록 아이템마다 먼저 본다.
-          if (bagCount >= WAREHOUSE_LIMIT) reject('BAG_FULL', '가방이 가득 찼습니다.', `가방이 가득 차 ${ids.length}개를 꺼내지 못했습니다.`);
-          if (itemTakesSlot(item, save.job)) bagCount++;
+          // 이동 중인 다중 요청에서도 같은 판정이 되도록 아이템마다 먼저 본다 — 이미 같은 묶음(주머니·같은 종류의 콕)이
+          // 있으면 0칸이므로 가방이 40칸이어도 꺼낼 수 있다.
+          const need = itemSlotNeed(bagState, item);
+          if (bagState.slots + need > WAREHOUSE_LIMIT) reject('BAG_FULL', '가방이 가득 찼습니다.', `가방이 가득 차 ${ids.length}개를 꺼내지 못했습니다.`);
+          advanceSlotState(bagState, item);
           save.bag.push(item);
           moved.push(item);
         }

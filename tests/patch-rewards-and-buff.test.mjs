@@ -20,6 +20,7 @@ const buff = await import('../src/game/patchBuff.ts');
 const { freshSave, totalStats } = await import('../src/game/store.ts');
 const { CombatEngine } = await import('../src/game/combat/engine.ts');
 const { schema, account } = await import('../server/database.mjs');
+const { bagSlotCount } = await import('../server/core/rewardGrant.mjs');
 const { snapshot, mutate } = await import('../server/journey.mjs');
 const { clampSaveProgress } = await import('../server/save-guard.mjs');
 const {
@@ -207,19 +208,26 @@ test('우편을 받으면 보물 주머니 5개가 가방에 들어가고 두 �
   assert.equal((await account(db, 'gift')).save.bag.filter(item => item.slot === 'pouch').length, 5, '재시도로 늘지 않는다');
 });
 
-test('가방 36칸이면 기념 우편은 409 BAG_FULL로 막히고 미수령으로 남는다', async () => {
+test('주머니 5개 우편은 가방에 한 칸만 남아도 받는다 — 40칸(주머니 없음)이면 막혀 미수령으로 남는다(주머니 스택형)', async () => {
+  // 36칸 + 주머니 한 칸 = 37칸 → 받는다(주머니는 수량 무관 한 칸).
   await seedPatchMail('gift-full', Array.from({ length: 36 }, gear));
-  await assert.rejects(claim('gift-full', PATCH_REWARD_ID), error => error.code === 'BAG_FULL');
+  await claim('gift-full', PATCH_REWARD_ID);
   const row = await account(db, 'gift-full');
-  assert.equal(row.save.bag.length, 36, '가방은 그대로');
-  const state = JSON.parse((await db.execute({ sql: 'SELECT state_json FROM djrpg_journey WHERE account_id=?', args: ['gift-full'] })).rows[0].state_json);
+  assert.equal(row.save.bag.filter(item => item.slot === 'pouch').length, 5, '주머니 5개가 들어온다');
+  assert.equal(bagSlotCount(row.save), 37, '장비 36칸 + 주머니 한 칸');
+  // 주머니가 없는 40칸 가방은 주머니 한 칸이 없어 막힌다 — 우편은 미수령으로 남는다.
+  await seedPatchMail('gift-blocked', Array.from({ length: 40 }, gear));
+  await assert.rejects(claim('gift-blocked', PATCH_REWARD_ID), error => error.code === 'BAG_FULL');
+  const blocked = await account(db, 'gift-blocked');
+  assert.equal(blocked.save.bag.length, 40, '가방은 그대로');
+  const state = JSON.parse((await db.execute({ sql: 'SELECT state_json FROM djrpg_journey WHERE account_id=?', args: ['gift-blocked'] })).rows[0].state_json);
   assert.equal(state.mail.find(entry => entry.id === PATCH_REWARD_ID).claimedAt, null, '미수령으로 남는다');
 });
 
-test('가방 35칸(남은 5칸)이면 기념 우편이 정확히 40칸을 채운다', async () => {
+test('가방 35칸이면 주머니 5개가 한 칸에 쌓여 36칸이 된다(주머니 스택형)', async () => {
   await seedPatchMail('gift-edge', Array.from({ length: 35 }, gear));
   await claim('gift-edge', PATCH_REWARD_ID);
   const row = await account(db, 'gift-edge');
-  assert.equal(row.save.bag.length, 40, '35 + 주머니 5 = 40칸');
   assert.equal(row.save.bag.filter(item => item.slot === 'pouch').length, 5);
+  assert.equal(bagSlotCount(row.save), 36, '35 + 주머니 한 칸');
 });

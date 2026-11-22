@@ -6,8 +6,9 @@
 // 이제 지급은 이 파일을 지난다.
 //
 // 규칙(사용자 확정, 작업 248 → 253)
-//  - 가방 40칸 = **모든 아이템 1개 = 1칸**(파트 B, 2026-11-22: 스킬북 폐지로 '내 직업 책 제외'가 사라졌다).
-//    장비·영구 스탯북·보물 주머니가 모두 한 칸이고, 판정은 이 파일의 `bagSlotCount`·`itemTakesSlot`이다.
+//  - 가방 40칸 = **장비 1개 = 1칸, 보물 주머니는 수량 무관 1칸, 영구 스탯북은 종류당 1칸**
+//    (파트 B 2026-11-22 → 주머니 스택형: 주머니 30개가 30칸을 차지해 우편이 `BAG_FULL`로 막히던 것을 고쳤다).
+//    판정은 이 파일의 `bagSlotState`·`itemSlotNeed`·`bagSlotCount` 하나에 있다.
 //  - 수량은 **0 이상의 정수**만 인정한다(음수·소수·NaN·문자열은 0으로 본다). 다이아는 금액이라
 //    안전한 정수가 아니면 지급 자체를 거절한다(원장 금액이 깨지면 되돌리기 어렵다).
 //  - 반영은 **원자적**이다 — 자리가 없으면 일부만 넣고 끝내지 않고, 아무것도 넣지 않고 던진다.
@@ -27,15 +28,73 @@ export class RewardGrantError extends Error {
   }
 }
 
-/** 가방 40칸에 지금 차 있는 칸 수 — 모든 아이템 1개 = 1칸(파트 B). */
-export function bagSlotCount(save) {
-  return (save?.bag ?? []).filter((item) => itemTakesSlot(item)).length;
+/** 보물 주머니인가 — 장비도 스탯북도 아닌 소모품(작업 207·275). */
+const isPouchItem = (item) => Boolean(item && typeof item === 'object' && (item.kind === 'pouch' || item.slot === 'pouch'));
+/** 영구 스탯북의 **종류 키** — 같은 종류의 책은 가방 한 칸에 묶인다(파트 B). */
+const statBookKey = (item) => item && typeof item === 'object' && (item.kind === 'statbook' || item.slot === 'statbook')
+  ? String(item.book ?? item.name ?? 'statbook') : undefined;
+
+/**
+ * 가방이 지금 쓰는 **칸** 상태 (주머니 스택형, 사용자 지시 "1칸에 쌓이게해서 수량상관없이하자").
+ *
+ * 칸 규칙(클라이언트 `src/game/bagCapacity.ts`와 같은 규칙):
+ *  - 장비 1개 = 1칸
+ *  - **보물 주머니는 수량과 상관없이 1칸** — 30개를 들고 있어도 한 칸이고, 더 받아도 칸이 늘지 않는다
+ *  - **영구 스탯북은 종류(공격·방어·체력)당 1칸** — 화면의 `×N` 묶음과 같은 셈이다
+ *
+ * `slots`는 칸 수, `pouch`는 주머니 묶음이 이미 있는지, `books`는 이미 칸을 차지한 책 종류다.
+ * 보상 지급은 이 상태를 넘겨받아 **순서대로** 물어보면 된다(`itemSlotNeed`·`advanceSlotState`).
+ */
+export function bagSlotState(save) {
+  const bag = Array.isArray(save?.bag) ? save.bag : [];
+  let equipment = 0, pouch = false;
+  const books = new Set();
+  for (const item of bag) {
+    if (!item || typeof item !== 'object') continue;
+    if (isPouchItem(item)) { pouch = true; continue; }
+    const book = statBookKey(item);
+    if (book !== undefined) { books.add(book); continue; }
+    equipment++;
+  }
+  return { slots: equipment + (pouch ? 1 : 0) + books.size, pouch, books };
 }
 
-/** 이 아이템이 칸을 쓰는가 — 스킬북이 폐지되어 모든 아이템이 한 칸을 쓴다.
+/** 세이브 또는 이미 계산한 칸 상태를 **독립된 복사본**으로 — 물어보기만 하고 상태를 바꾸지 않는다. */
+export function slotStateOf(saveOrState) {
+  if (saveOrState && typeof saveOrState === 'object' && typeof saveOrState.slots === 'number' && saveOrState.books instanceof Set) {
+    return { slots: saveOrState.slots, pouch: Boolean(saveOrState.pouch), books: new Set(saveOrState.books) };
+  }
+  return bagSlotState(saveOrState);
+}
+
+/** 가방 40칸에 지금 차 있는 칸 수 — 장비 1개=1칸, 주머니 1칸(수량 무관), 책 종류당 1칸. */
+export function bagSlotCount(save) {
+  return bagSlotState(save).slots;
+}
+
+/** 이 아이템이 칸을 쓰는 종류인가 — 모든 아이템이 칸을 쓰지만, 주머니·같은 종류의 책은 **이미 있으면 0칸**이다.
  *  `job` 인자는 호출부 계약 유지용이라 받기만 한다. */
 export function itemTakesSlot(item, _job) {
   return Boolean(item && typeof item === 'object');
+}
+
+/** 이 아이템을 가방에 넣을 때 **새로** 쓰는 칸 수 — 주머니·같은 종류의 책은 이미 있으면 0이다. */
+export function itemSlotNeed(state, item) {
+  if (!item || typeof item !== 'object') return 0;
+  if (isPouchItem(item)) return state.pouch ? 0 : 1;
+  const book = statBookKey(item);
+  if (book !== undefined) return state.books.has(book) ? 0 : 1;
+  return 1;
+}
+
+/** 칸 상태에 아이템 하나를 반영한다(넣은 뒤의 상태로 넘긴다). */
+export function advanceSlotState(state, item) {
+  const need = itemSlotNeed(state, item);
+  if (!need) return state;
+  state.slots += need;
+  if (isPouchItem(item)) state.pouch = true;
+  else { const book = statBookKey(item); if (book !== undefined) state.books.add(book); }
+  return state;
 }
 
 /** 수량 방어 — 0 이상의 정수만 남긴다. */
@@ -73,18 +132,33 @@ export function rewardTotals(entries = []) {
 }
 
 /**
- * 이 보상들이 가방에서 쓸 칸 수.
- * 보물 주머니와 넘겨받은 아이템은 1개 = 1칸이다(파트 B: 모든 아이템 1칸).
+ * 이 보상들이 가방에서 **새로** 쓸 칸 수 (주머니 스택형).
+ *
+ * 기준은 지금 가방 상태(`save`) 또는 지급 도중의 칸 상태(앞선 우편을 이미 반영한 상태)다. 그래서
+ * - 주머니가 하나도 없는 가방에 주머니 우편 30통을 받으면 **1칸**만 든다(30칸이 아니다),
+ * - 이미 주머니를 들고 있으면 **0칸**이라 가방이 40칸이어도 받을 수 있다.
+ * `books`(옛 스킬북 수량)는 지급하지 않으므로 칸도 세지 않는다(파트 B).
  */
-export function rewardSlotNeed(entries = [], job) {
-  const totals = rewardTotals(entries);
-  // 파트 B: `books`는 지급하지 않으므로 칸도 세지 않는다.
-  let need = totals.pouches;
+export function rewardSlotNeed(entries = [], saveOrState) {
+  const state = slotStateOf(saveOrState);
+  let need = 0;
   for (const entry of entries) {
-    const item = normalizeRewardEntry(entry).item;
-    if (item && itemTakesSlot(item, job)) need += 1;
+    const one = normalizeRewardEntry(entry);
+    // 주머니는 수량과 상관없이 한 칸(주머니 스택형) — 이미 주머니가 있으면 0칸이다.
+    if (one.pouches > 0 && !state.pouch) { need += 1; state.pouch = true; }
+    if (one.item) { const add = itemSlotNeed(state, one.item); need += add; if (add) advanceSlotState(state, one.item); }
   }
   return need;
+}
+
+/** 보상을 지급한 뒤의 칸 상태로 넘긴다 — 우편을 여러 통 연달아 받을 때 쓴다. */
+export function advanceRewardSlotState(state, entries = []) {
+  for (const entry of entries) {
+    const one = normalizeRewardEntry(entry);
+    if (one.pouches > 0 && !state.pouch) { state.slots += 1; state.pouch = true; }
+    if (one.item) advanceSlotState(state, one.item);
+  }
+  return state;
 }
 
 /**
@@ -97,7 +171,7 @@ export function rewardSlotNeed(entries = [], job) {
 export function planRewards(save, entries = [], { bagLimit = BAG_SLOT_LIMIT } = {}) {
   const totals = rewardTotals(entries);
   const slots = bagSlotCount(save);
-  const need = rewardSlotNeed(entries, save?.job);
+  const need = rewardSlotNeed(entries, save);
   const fits = need === 0 || slots + need <= bagLimit;
   return { totals, slots, need, remaining: Math.max(0, bagLimit - slots), fits };
 }

@@ -195,7 +195,7 @@ test('공용창고는 아이콘 슬롯 그리드로 그려지고, 모드 전환 
     assert(all(dialog, node => node.className.includes('item-plus-badge')).length >= 1, '+N 배지');
     assert(text(dialog).includes('계정 공용 금화 1,234'));
     assert(text(dialog).includes('공용창고 1/40'));
-    assert(text(dialog).includes('가방 6/40'), '가방 6/40 — 장비 2 + 스탯북 2 + 주머니 2(파트 B: 모두 1칸, 칸은 4개로 묶여 보인다)');
+    assert(text(dialog).includes('가방 4/40'), '가방 4/40 — 장비 2칸 + 스탯북 한 칸(×2) + 주머니 한 칸(×2)(주머니 스택형: 종류당 한 칸)');
     assert(!text(dialog).includes('불러오는 중'), '목록이 있으면 로딩 문구가 없다');
     // `선택 끔/켬`·`빠른 이동` 모드 버튼은 없어졌다(작업 246).
     assert.equal(all(dialog, node => node.classList.contains('warehouse-quick')).length, 0, '빠른 이동 없음');

@@ -89,23 +89,45 @@ test('한 번에 열기 — 장비·스탯북 결과가 가방에 들어가고 �
   }
 });
 
-test('한 번에 열기 — 가방 40칸은 절대 늘지 않는다(딱 40칸·40칸 초과 세이브도 전부 열린다)', () => {
+test('한 번에 열기 — 가방 40칸은 절대 넘지 않는다(자리가 없으면 멈추고 주머니를 남긴다)', () => {
   const gear = index => ({ id: `g${index}`, name: '두손검', slot: 'weapon', rarity: 'common', stats: { attack: 1 }, plus: 0 });
-  // 38칸 + 주머니 2 = 40칸. 장비 결과만 나와도 40칸 그대로(주머니 1칸 → 결과 1칸).
-  const full = freshSave(); full.maxFloor = 20; full.floor = 20;
-  full.bag = [...Array.from({ length: 38 }, (_, index) => gear(index)), items.pouchItem('p1'), items.pouchItem('p2')];
-  assert.equal(equipmentCount(full.bag), 40);
-  const openedFull = batch.openPouches(full, { random: () => .60 });  // 항상 장비(분류 .60 ≥ 59%)
-  assert.equal(openedFull.ok, true);
-  assert.equal(pouch.pouchCount(full), 0, '40칸이어도 전부 열린다');
-  assert.equal(equipmentCount(full.bag), 40, '칸 수는 그대로(늘지 않는다)');
-  // 40칸을 넘긴 세이브(예전 규칙)도 같다 — 금화 결과면 칸이 줄어든다.
+  // 주머니 스택형 — 주머니 2개는 한 칸. 39칸 + 주머니 1칸 = 40칸이면 장비 결과가 들어갈 칸이 없다.
+  const blocked = freshSave(); blocked.maxFloor = 20; blocked.floor = 20;
+  blocked.bag = [...Array.from({ length: 39 }, (_, index) => gear(index)), items.pouchItem('p1'), items.pouchItem('p2')];
+  assert.equal(equipmentCount(blocked.bag), 40);
+  const stopped = batch.openPouches(blocked, { random: () => .60 });  // 항상 장비(분류 .60 ≥ 59%)
+  assert.equal(stopped.ok, false, '하나도 열지 못하면 이유를 보여 준다');
+  assert.match(stopped.message, /가방이 가득/);
+  assert.equal(pouch.pouchCount(blocked), 2, '주머니는 그대로');
+  assert.equal(equipmentCount(blocked.bag), 40, '칸 수는 40 그대로');
+
+  // 38칸 + 주머니 한 칸 = 39칸이면 남은 한 칸에 장비 결과 하나가 들어간다.
+  const roomy = freshSave(); roomy.maxFloor = 20; roomy.floor = 20;
+  roomy.bag = [...Array.from({ length: 38 }, (_, index) => gear(index)), items.pouchItem('r1'), items.pouchItem('r2')];
+  const openedRoomy = batch.openPouches(roomy, { random: () => .60 });
+  assert.equal(openedRoomy.ok, true);
+  assert.equal(openedRoomy.summary.opened, 2, '주머니 두 개를 차례로 열어 장비 두 개');
+  assert.equal(openedRoomy.summary.blocked, false);
+  assert.equal(equipmentCount(roomy.bag), 40, '칸 수는 40을 넘지 않는다');
+
+  // 금화 결과만 나오면 가방이 40칸을 넘은 세이브에서도 계속 열린다(칸을 쓰지 않는다).
   const over = freshSave(); over.maxFloor = 20; over.floor = 20;
   over.bag = [...Array.from({ length: 40 }, (_, index) => gear(index)), items.pouchItem('q1'), items.pouchItem('q2')];
   const beforeOver = equipmentCount(over.bag);
   const openedOver = batch.openPouches(over, { random: () => .10 });  // 항상 금화
   assert.equal(openedOver.ok, true);
-  assert.equal(equipmentCount(over.bag), beforeOver - 2, '금화 2개 = 2칸 감소');
+  assert.equal(openedOver.summary.opened, 2);
+  assert.equal(equipmentCount(over.bag), beforeOver - 1, '주머니 두 개(한 칸)를 다 열어 한 칸 줄어든다');
+});
+
+test('한 번에 열기는 한 번에 40개까지만 연다 — 나머지는 가방에 남는다(수량 제한 없이 쌓이므로)', () => {
+  const save = freshSave(); save.maxFloor = 20; save.floor = 20;
+  save.bag = Array.from({ length: 50 }, (_, index) => items.pouchItem(`b${index}`));
+  const opened = batch.openPouches(save, { random: () => .10 });  // 항상 금화 → 칸 문제 없음
+  assert.equal(opened.ok, true);
+  assert.equal(opened.summary.opened, batch.POUCH_BATCH_LIMIT, '한 번에 40개');
+  assert.equal(opened.summary.remaining, 10, '남은 10개는 그대로');
+  assert.equal(pouch.pouchCount(save), 10);
 });
 
 test('한 번에 열기 — 결과 요약은 장비·스탯북을 `×N`으로 묶고 토스트 한 줄을 만든다', () => {

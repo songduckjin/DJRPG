@@ -148,24 +148,28 @@ test('가방이 딱 40칸이면 주머니를 열어도 칸이 늘지 않는다(�
   assert.equal(save.bag.length, 40);
 });
 
-test('가방이 40칸을 넘은 세이브에서도 주머니를 열 수 있다 — 칸이 늘지 않으므로 정리를 막지 않는다(작업 251)', () => {
+test('가방 칸이 모자라면 주머니를 열지 않고 남긴다 — 금화 결과는 언제나 열린다(주머니 스택형)', () => {
   const save = freshSave();
   save.bag = [...Array.from({ length: 40 }, (_, index) => ({ id: `g${index}`, name: '두손검', slot: 'weapon', rarity: 'common', stats: { attack: 1 }, plus: 0 })), items.pouchItem('p1'), items.pouchItem('p2')];
-  // 장비 결과(1개) — 주머니 1개가 빠지고 결과 1개가 들어와 42칸 그대로(늘지 않는다).
+  assert.equal(equipmentCount(save.bag), 41, '장비 40칸 + 주머니 한 칸');
+  // 장비 결과(1개) — 주머니는 한 칸에 쌓여 있어 1개를 빼도 칸이 비지 않는다. 41칸을 넘기므로 열지 않는다.
   const item = pouch.openPouch(save, 'p1', constant([.6, .01, .5]));
-  assert.equal(item.ok, true, '40칸을 넘어도 열린다(사용자 제보: 테스트 주머니 100개 때문에 가방이 잠겼다)');
-  assert.equal(save.bag.length, 42, '주머니 -1, 결과 +1');
-  // 금화 결과 — 1칸 줄어든다.
+  assert.equal(item.ok, false, '칸을 넘기는 결과는 열지 않는다(넘치는 장비를 잃지 않게)');
+  assert.match(item.message, /가방이 가득/);
+  assert.equal(pouch.pouchCount(save), 2, '주머니는 그대로 남는다');
+  assert.equal(save.bag.length, 42, '아무것도 바뀌지 않는다');
+  // 금화 결과 — 칸을 쓰지 않으므로 열린다.
   const gold = pouch.openPouch(save, 'p2', constant([0, .1]));
   assert.equal(gold.ok, true);
-  assert.equal(save.bag.length, 41, '금화면 1칸 줄어든다');
+  assert.equal(pouch.pouchCount(save), 1);
+  assert.equal(save.bag.length, 41, '주머니 하나를 소모했다');
 });
 
 test('주머니는 자동 장착·자동/일괄 분해·경매장 판매·도감 어디에도 끼지 않는다', () => {
   const save = withPouches(2);
   save.bag.push({ id: 'blade', name: '황혼의 두손검', slot: 'weapon', rarity: 'rare', stats: { attack: 9 }, plus: 0 });
-  assert.equal(equipmentCount(save.bag), 3,'장비 1 + 주머니 2 — 주머니도 40칸에 센다(작업 248)');
-  assert.equal(canStoreItem(save.bag, items.pouchItem('new')), true,'39칸이 남아 있으니 들어간다');
+  assert.equal(equipmentCount(save.bag), 2,'장비 1 + 주머니 2 = 두 칸(주머니는 수량 무관 한 칸, 주머니 스택형)');
+  assert.equal(canStoreItem(save.bag, items.pouchItem('new')), true,'주머니는 이미 한 칸에 쌓여 있어 더 들어간다');
   assert.equal(autoSalvageBlock(save, items.pouchItem('x'), 'unique'), 'pouch','자동 분해 제외');
   assert.equal(autoSalvageRecovered(save, items.pouchItem('x'), 'unique'), undefined);
   const plan = salvagePlan(save, save.bag.map(item => item.id));
@@ -188,7 +192,7 @@ test('세이브 파싱이 주머니를 보존한다 — 40칸을 넘은 옛 세�
   save.bag = [...Array.from({ length: 40 }, (_, index) => ({ id: `g${index}`, name: '두손검', slot: 'weapon', rarity: 'common', stats: { attack: 1 }, plus: 0 })), items.pouchItem('p1'), items.pouchItem('p2')];
   const parsed = parseSave(JSON.parse(JSON.stringify(save)));
   assert.equal(pouch.pouchCount(parsed), 2,'장비가 가득 차도 주머니는 남는다');
-  assert.equal(equipmentCount(parsed.bag), 42,'주머니도 칸으로 센다(작업 248 — 저장은 서버가 "늘리지 않기"로 막는다)');
+  assert.equal(equipmentCount(parsed.bag), 41,'장비 40칸 + 주머니 한 칸(주머니 스택형 — 수량 무관)');
   assert.equal(parsed.bag.find(item => item.id === 'p1').kind, 'pouch');
   assert.equal(parsed.bag.find(item => item.id === 'p1').name, '무작위 보물 주머니');
   // 옛 클라이언트가 보낸 slot 만 있는 항목도 주머니로 읽는다.

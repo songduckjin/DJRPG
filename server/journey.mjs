@@ -2,7 +2,7 @@ import { account, transaction, assertRevision, validateSave, reconcileItems, wri
 import { elapsedSince } from './save-guard.mjs';
 import { journeyState, journeyOperation, journeyView, dailyTasks } from './journey-state.mjs';
 import { journeyRequestReads, journeyRequestReceipt } from './journey-requests.mjs';
-import { BAG_SLOT_LIMIT, RewardGrantError, bagSlotCount, diamondGrantOperations, grantRewardsToSave, planRewards, rewardSlotNeed } from './core/rewardGrant.mjs';
+import { BAG_SLOT_LIMIT, RewardGrantError, advanceRewardSlotState, bagSlotState, diamondGrantOperations, grantRewardsToSave, planRewards, rewardSlotNeed } from './core/rewardGrant.mjs';
 export async function snapshot(db,id,options={}) {
   return transaction(db,async tx=>{
     const row=await account(tx,id),state=await journeyState(tx,row,row.save);
@@ -42,11 +42,12 @@ export async function mutate(db,id,input,options={}) {
         if(!wanted.length)fail(409,'NOT_AVAILABLE','수령할 우편 보상이 없습니다.');
         // 가방 40칸이 꽉 차거나 이번 우편의 아이템 때문에 넘어가면 받지 않는다(작업 248, 사용자 확정).
         // `모두 받기`는 자리가 없는 아이템 우편만 건너뛰어 미수령으로 남기고, 금화만 있는 우편은 그대로 받는다.
-        const bagLimit=BAG_SLOT_LIMIT, all=input.id==='all';
-        let slots=bagSlotCount(save);
+        // 칸은 **우편마다 넘겨 가며** 센다(주머니 스택형) — 보물 주머니는 수량 무관 1칸이라, 이미 주머니를 들고
+        // 있으면 가방이 40칸이어도 주머니 우편은 전부 받을 수 있고, 주머니가 없으면 30통도 1칸만 쓴다.
+        const bagLimit=BAG_SLOT_LIMIT, all=input.id==='all', bagState=bagSlotState(save);
         selected=wanted.filter(entry=>{
-          const need=rewardSlotNeed([entry], save.job);
-          if(!need||slots+need<=bagLimit){slots+=need;return true;}
+          const need=rewardSlotNeed([entry], bagState);
+          if(!need||bagState.slots+need<=bagLimit){advanceRewardSlotState(bagState,[entry]);return true;}
           if(!all)fail(409,'BAG_FULL','가방이 가득 찼습니다. 공간을 비운 뒤 우편을 받아주세요.');
           mailSkipped++;return false;
         });
