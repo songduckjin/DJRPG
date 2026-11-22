@@ -1,6 +1,5 @@
-import { isSkillBook, starterWeaponName } from '../game/items';
+import { starterWeaponName } from '../game/items';
 import { EQUIPMENT_BAG_LIMIT, equipmentCount } from '../game/bagCapacity';
-import { hasSkillUpgrade } from '../game/skillProgress';
 import { applySkillArtwork } from './skillArtwork';
 import { SkillFeedback } from './skillFeedback';
 import { goldMarkup } from './currency';
@@ -78,7 +77,8 @@ export function tick(this: Interface): void {
       button.title = selecting ? '이 원에 장착' : kind ? `${name} · 쿨타임 ${cooldowns[kind]}초` : name;
     }
     const alert = this.root.querySelector<HTMLElement>('.skill-nav-dot');
-    if (alert) alert.hidden = !((available.length && this.world.save.quickSlots.some(slot => slot === null)) || hasSkillUpgrade(this.world.save));
+    // 파트 B: 스킬북이 폐지되어 `자동 강화` 표시는 없앴다 — 빈 퀵슬롯에 장착할 스킬이 있을 때만 점을 띄운다.
+    if (alert) alert.hidden = !(available.length && this.world.save.quickSlots.some(slot => slot === null));
     const { player, save } = this.world;
     this.get('.hp').style.setProperty('--fill', `${Math.max(0, player.hp / totalStats(save).health * 100)}%`);
     this.get('.hp b').textContent = `HP ${Math.ceil(player.hp)}/${totalStats(save).health}`;
@@ -87,7 +87,7 @@ export function tick(this: Interface): void {
   }
 
 export function renderBagBadge(this: Interface): void {
-    const count = this.world.save.bag.filter(item => !isSkillBook(item) && this.newItems.has(item.id)).length;
+    const count = this.world.save.bag.filter(item => this.newItems.has(item.id)).length;
     const badge = this.get('.new-badge'); badge.textContent = `${count}`; badge.hidden = count === 0;
     // 가방 가득 참 표시(작업 246, 사용자 요청 `#20938` "가방 꽉차면 가방 풀 표시 해주고").
     // 40칸(장비 + 다른 직업 전용 스킬북)이 차면 하단 내 정보 버튼에 `FULL` 배지를 붙인다 —

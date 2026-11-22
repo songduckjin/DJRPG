@@ -14,16 +14,16 @@ import { snapshot, mutate } from '../server/journey.mjs';
  *
  * 사용자 제보 `#20869` "우편함 안받아져" · `#20887` "이전저장결과를 확인하래" ·
  * `#20915` "가방또는 징비데이터도 올바르지 않대".
- * 서버는 우편·보상 스킬북을 칸 검사 없이 가방에 넣는데, 저장 검사는 장비 + **다른 직업 스킬북**이 40을
- * 넘으면 400으로 거절했다. 그래서 40칸이 찬 계정이 보상을 받은 순간부터 모든 save가 거절되고,
- * `sync.flush()`가 실패해 우편함·거래소가 영구히 잠겼다.
+ * 서버는 우편·보상 아이템을 칸 검사 없이 가방에 넣는데, 저장 검사는 가방이 40을 넘으면 400으로 거절했다.
+ * 그래서 40칸이 찬 계정이 보상을 받은 순간부터 모든 save가 거절되고, `sync.flush()`가 실패해
+ * 우편함·거래소가 영구히 잠겼다. 파트 B로 스킬북은 사라졌고 **모든 아이템이 1칸**이므로 예외는 없다.
  */
 const post = (body, token) => new Request('https://example.test/api/account', {
   method: 'POST', headers: token ? { Authorization: `Bearer ${token}` } : {}, body: JSON.stringify(body)
 });
 const gear = () => ({ id: randomUUID(), name: '낡은 두손검', slot: 'weapon', rarity: 'common', stats: { attack: 2 }, plus: 0 });
-// 전사 계정 기준 **다른 직업** 스킬북(궁수·마법사) — 가방 40칸에 세는 아이템이다.
-const foreignBook = skillId => ({ id: randomUUID(), kind: 'skillbook', slot: 'skillbook', skillId, rarity: 'rare', name: skillId, stats: {} });
+// 영구 스탯북(파트 B) — 스킬북 자리를 이어받은 1칸짜리 소모품. 40칸을 넘긴 세이브를 만드는 데 쓴다.
+const foreignBook = kind => ({ id: randomUUID(), kind: 'statbook', slot: 'statbook', book: kind, name: kind, rarity: 'unique', stats: {} });
 
 async function setup() {
   const directory = await mkdtemp(join(tmpdir(), 'djrpg-bag-'));
@@ -54,9 +54,9 @@ async function seedBag(db, id, bag) {
 test('가방이 40칸을 넘긴 서버 세이브는 그대로 저장된다 — 우편 보상 뒤 저장 잠금이 풀린다', async () => {
   const { directory, db, call, token, revision } = await setup();
   try {
-    const bag = [...Array.from({ length: 40 }, gear), foreignBook('doubleShot'), foreignBook('fireBolt')];
+    const bag = [...Array.from({ length: 40 }, gear), foreignBook('attack'), foreignBook('health')];
     const row = await seedBag(db, '가방가득', bag);
-    assert.equal(countedBagItems(bag, 'warrior'), 42, '장비 40 + 다른 직업 책 2');
+    assert.equal(countedBagItems(bag, 'warrior'), 42, '장비 40 + 영구 스탯북 2');
     assert.equal(bagCapacityLimit(row.save), 42, '서버가 들고 있는 초과분은 상한으로 인정한다');
 
     const saved = await call({ action: 'save', save: row.save, revision, characterSlot: 1, requestId: randomUUID() }, token);
@@ -64,7 +64,7 @@ test('가방이 40칸을 넘긴 서버 세이브는 그대로 저장된다 — �
     assert.equal(saved.body.save.bag.length, 42, '아이템을 잃지 않는다');
 
     // 하나 분해해 41칸이 되어도, 서버가 들고 있는 수까지는 그대로 저장된다.
-    const trimmed = { ...saved.body.save, bag: saved.body.save.bag.filter(item => item.skillId !== 'fireBolt') };
+    const trimmed = { ...saved.body.save, bag: saved.body.save.bag.filter(item => item.book !== 'health') };
     assert.equal(bagCapacityLimit(trimmed), 41);
     const next = await call({ action: 'save', save: trimmed, revision: saved.body.revision, characterSlot: 1, requestId: randomUUID() }, token);
     assert.equal(next.status, 200, JSON.stringify(next.body));
@@ -78,7 +78,7 @@ test('가방이 40칸을 넘긴 서버 세이브는 그대로 저장된다 — �
 test('클라이언트가 상한 위로 더 넣는 저장은 계속 거절하고 이유를 알려 준다', async () => {
   const { directory, db, call, token, revision } = await setup();
   try {
-    const bag = [...Array.from({ length: 40 }, gear), foreignBook('doubleShot'), foreignBook('fireBolt')];
+    const bag = [...Array.from({ length: 40 }, gear), foreignBook('attack'), foreignBook('health')];
     const row = await seedBag(db, '가방가득', bag);
     const grown = { ...row.save, bag: [...bag, gear()] };
     const rejected = await call({ action: 'save', save: grown, revision, characterSlot: 1, requestId: randomUUID() }, token);
@@ -97,7 +97,7 @@ test('클라이언트가 상한 위로 더 넣는 저장은 계속 거절하고 
 test('가방이 찬 계정도 우편 보상을 받고, 그 세이브로 다시 저장할 수 있다', async () => {
   const { directory, db, call, token, revision } = await setup();
   try {
-    const bag = [...Array.from({ length: 40 }, gear), foreignBook('doubleShot'), foreignBook('fireBolt')];
+    const bag = [...Array.from({ length: 40 }, gear), foreignBook('attack'), foreignBook('health')];
     const row = await seedBag(db, '가방가득', bag);
     const before = await snapshot(db, '가방가득');
     const mail = before.mail.filter(entry => !entry.claimedAt && (entry.expiresAt === null || entry.expiresAt > Date.now()));

@@ -192,8 +192,8 @@ test('판매 등록 칸은 가방처럼 정사각형 아이콘 칸이고 배지�
   // 실제 칸: 이름 노드 없이 아이콘·배지만, 이름은 툴팁에.
   const save = freshSave();
   save.bag = [
-    { id: 'book-1', name: '[스킬북] 드래곤 트위스터', slot: 'skillbook', kind: 'skillbook', skillId: 'spin', rarity: 'rare', stats: {} },
-    { id: 'book-2', name: '[스킬북] 드래곤 트위스터', slot: 'skillbook', kind: 'skillbook', skillId: 'spin', rarity: 'rare', stats: {} },
+    { id: 'book-1', name: '공격의 서', slot: 'statbook', kind: 'statbook', book: 'attack', rarity: 'unique', stats: {} },
+    { id: 'book-2', name: '공격의 서', slot: 'statbook', kind: 'statbook', book: 'attack', rarity: 'unique', stats: {} },
     { id: 'gear-1', name: '강철 쯔바이핸드', slot: 'weapon', rarity: 'epic', stats: { attack: 40 }, plus: 3 }
   ];
   const market = new Market({ conflicted: false });
@@ -205,9 +205,9 @@ test('판매 등록 칸은 가방처럼 정사각형 아이콘 칸이고 배지�
   const cells = grid.children;
   assert.equal(cells.length, 2, '같은 책 2권은 한 칸, 장비 한 칸');
   for (const cell of cells) {
-    assert.equal(String(cell.textContent).includes('[스킬북]'), false, '스킬북 글자 라벨이 없다');
+    assert.equal(String(cell.textContent).includes('공격의 서'), false, '책 이름 글자 라벨이 없다');
     assert.equal(String(cell.textContent).includes('강철 쯔바이핸드'), false, '이름 글자가 없다');
-    assert(cell.title.includes('전용') || cell.title.includes('레어') || cell.title.includes('에픽'), '툴팁으로 알린다');
+    assert(cell.title.includes('전용') || cell.title.includes('유니크') || cell.title.includes('에픽'), '툴팁으로 알린다');
     assert(find(cell, node => hasClass(node, 'market-icon')), '아이콘만');
   }
   const gearCell = cells.find(cell => cell.dataset.itemId === 'gear-1');

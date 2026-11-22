@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { decodeAccount, assertRevision, fail, reconcileItems, inventoryOwnerQuery, transaction, validateSave, writeSave, marketStatExpression } from './database.mjs';
 import { journeyState, journeyOperation } from './journey-state.mjs';
-import { countedInBag } from './skill-ids.mjs';
+import { countedInBag } from './stat-books.mjs';
 import { elapsedSince } from './save-guard.mjs';
 /**
  * 거래소 규칙. `price`는 **개당** 가격이고 `maxBundle`은 한 매물에 묶을 수 있는 최대 수량이다(작업 249,
@@ -16,13 +16,14 @@ const deliveryOperation = (listing, owner, kind, item, gold, reason) => {
   return { owner, delivery, operation: { sql: 'INSERT OR IGNORE INTO djrpg_market_inbox VALUES (?,?,?,?,?,?,?,?,NULL)', args: [delivery.id, owner, listing.id, kind, item ? JSON.stringify(item) : null, gold, reason, delivery.createdAt] } };
 };
 const eventOperation = (kind, id) => ({ sql: 'INSERT INTO djrpg_market_events(kind,listing_id,created_at) VALUES (?,?,?)', args: [kind, id, Date.now()] });
-/** 등록할 수 있는 물건인가 — 미장착 장비와 미사용 스킬북만. 보물 주머니(소모품)는 예전부터 화면에 없었다. */
-const sellable = item => ['weapon','offhand','helmet','armor','necklace','gloves','belt','boots','ring1','ring2','skillbook'].includes(item?.slot);
+/** 등록할 수 있는 물건인가 — 미장착 장비와 미사용 영구 스탯북만(파트 B). 보물 주머니(소모품)는 화면에 없다.
+ *  `tests/statbook-server.test.mjs`가 같은 함수로 계약을 검사한다. */
+export const sellable = item => ['weapon','offhand','helmet','armor','necklace','gloves','belt','boots','ring1','ring2','statbook'].includes(item?.slot);
 /**
- * 묶음 기준 — 스킬북은 같은 `skillId`, 나머지는 아이템 id(장비는 한 개씩).
+ * 묶음 기준 — 영구 스탯북은 같은 `book` 종류, 나머지는 아이템 id(장비는 한 개씩).
  * 화면의 가방 칸(`src/ui/bagStacks.ts` `stackKey`)과 같은 규칙이라 `×N` 칸 하나가 그대로 한 묶음이 된다.
  */
-const bundleKey = item => item?.slot === 'skillbook' ? `book:${item.skillId ?? item.name}` : `item:${item?.id}`;
+export const bundleKey = item => item?.slot === 'statbook' ? `book:${item.book ?? item.name}` : `item:${item?.id}`;
 /**
  * 매물의 남은 아이템들 — `items_json`(작업 249)이 없으면 대표 `item_json` 한 개짜리 단건 매물이다.
  */
@@ -84,9 +85,9 @@ export async function snapshot(db, id, input, expirationChecked = false) {
   if (view === 'active') { where.push('expires_at>?'); args.push(Date.now()); }
   const query = typeof input.query === 'string' ? input.query.trim().slice(0, 80) : '';
   if (query) { where.push('instr(name,?)>0'); args.push(query); }
-  const groups = { weapon: ['weapon','offhand'], armor: ['armor','helmet','gloves','belt','boots'], accessory: ['necklace','ring1','ring2'], skillbook: ['skillbook'] };
+  const groups = { weapon: ['weapon','offhand'], armor: ['armor','helmet','gloves','belt','boots'], accessory: ['necklace','ring1','ring2'], statbook: ['statbook'] };
   if (Object.hasOwn(groups, input.category)) { const slots = groups[input.category]; where.push(`slot IN (${slots.map(() => '?').join(',')})`); args.push(...slots); }
-  if (['weapon','offhand','armor','helmet','gloves','belt','boots','necklace','ring1','ring2','skillbook'].includes(input.slot)) { where.push('slot=?'); args.push(input.slot); }
+  if (['weapon','offhand','armor','helmet','gloves','belt','boots','necklace','ring1','ring2','statbook'].includes(input.slot)) { where.push('slot=?'); args.push(input.slot); }
   if (['common','magic','rare','epic','unique','legendary'].includes(input.rarity)) { where.push('rarity=?'); args.push(input.rarity); }
   for (const [key, comparison] of [['minPrice','>='],['maxPrice','<=']]) if (Number.isSafeInteger(input[key]) && input[key] >= 0) { where.push(`price${comparison}?`); args.push(input[key]); }
   const selectedStat = ['attack','defense','health','crit','speed'].includes(input.stat) ? input.stat : undefined;
@@ -205,16 +206,16 @@ export async function mutate(db, id, input) {
       if (wanted > rules.maxBundle) fail(400, 'INVALID_QUANTITY', maxBundleMessage);
       const selected = save.bag.find(item => item.id === requested[0]);
       if (!selected) fail(409, 'ITEM_NOT_AVAILABLE', '가방에 있는 미장착 아이템만 등록할 수 있습니다.');
-      if (!sellable(selected)) fail(409, 'ITEM_NOT_AVAILABLE', '미장착 장비와 미사용 스킬북만 등록할 수 있습니다.');
-      // ② 실제로 꺼낼 아이템 — 같은 묶음 기준(스킬북은 같은 `skillId`)에서 요청 수량만큼 가방 순서대로.
+      if (!sellable(selected)) fail(409, 'ITEM_NOT_AVAILABLE', '미장착 장비와 미사용 영구 스탯북만 등록할 수 있습니다.');
+      // ② 실제로 꺼낼 아이템 — 같은 묶음 기준(스탯북은 같은 `book`)에서 요청 수량만큼 가방 순서대로.
       const key = bundleKey(selected);
       const picked = Array.isArray(input.itemIds)
         ? requested.map(entry => save.bag.find(item => item.id === entry))
         : save.bag.filter(item => bundleKey(item) === key).slice(0, wanted);
       if (picked.some(item => !item)) fail(409, 'ITEM_NOT_AVAILABLE', '가방에 있는 미장착 아이템만 등록할 수 있습니다.');
       if (!Array.isArray(input.itemIds) && picked.length < wanted) fail(400, 'INVALID_QUANTITY', '보유한 수량보다 많이 등록할 수 없습니다.');
-      if (picked.some(item => !sellable(item))) fail(409, 'ITEM_NOT_AVAILABLE', '미장착 장비와 미사용 스킬북만 등록할 수 있습니다.');
-      if (picked.some(item => bundleKey(item) !== key)) fail(400, 'INVALID_QUANTITY', '같은 아이템(같은 스킬북)만 한 묶음으로 등록할 수 있습니다.');
+      if (picked.some(item => !sellable(item))) fail(409, 'ITEM_NOT_AVAILABLE', '미장착 장비와 미사용 영구 스탯북만 등록할 수 있습니다.');
+      if (picked.some(item => bundleKey(item) !== key)) fail(400, 'INVALID_QUANTITY', '같은 아이템(같은 스탯북)만 한 묶음으로 등록할 수 있습니다.');
       if (picked.some(item => item.locked === true) && input.unlockItem !== true) fail(409, 'ITEM_LOCKED', '잠긴 장비입니다. 잠금을 해제한 뒤 판매 등록하세요.');
       for (const item of picked) if (item.locked === true) item.locked = false;
       if (price * picked.length > rules.maxPrice) fail(400, 'INVALID_PRICE', '총 판매 금액은 1,000,000,000 금화 이하로 입력하세요.');
@@ -290,7 +291,7 @@ export async function mutate(db, id, input) {
       const all = input.deliveryId === 'all', deliveries = reads[2].rows;
       if (!deliveries.length) fail(409, 'ALREADY_CLAIMED', '이미 수령했거나 존재하지 않는 항목입니다.');
       const claimed = []; let gold = 0, skipped = 0;
-      // 가방 40칸은 장비 + 타직업 전용 스킬북 + 보물 주머니를 센다(내 직업 스킬북 제외, 작업 253).
+      // 가방 40칸은 장비 + 영구 스탯북 + 보물 주머니를 모두 센다(파트 B).
       let equipmentCount = save.bag.filter(item => countedInBag(item, save.job)).length;
       for (const delivery of deliveries) {
         const item = delivery.item_json ? JSON.parse(delivery.item_json) : null;
@@ -326,7 +327,7 @@ export async function mutate(db, id, input) {
 }
 
 export async function recentPrice(db,input) {
-  if(typeof input.name!=='string'||input.name.length>100||!['common','magic','rare','epic','unique','legendary'].includes(input.rarity)||!['weapon','offhand','helmet','armor','necklace','gloves','belt','boots','ring1','ring2','skillbook'].includes(input.slot))fail(400,'INVALID_ITEM','시세 조회 아이템을 확인하세요.');
+  if(typeof input.name!=='string'||input.name.length>100||!['common','magic','rare','epic','unique','legendary'].includes(input.rarity)||!['weapon','offhand','helmet','armor','necklace','gloves','belt','boots','ring1','ring2','statbook'].includes(input.slot))fail(400,'INVALID_ITEM','시세 조회 아이템을 확인하세요.');
   const rings=input.slot==='ring1'||input.slot==='ring2';
   const rows=(await db.execute({sql:`SELECT price,sold_at FROM djrpg_market WHERE state='sold' AND name=? AND rarity=? AND ${rings?"slot IN ('ring1','ring2')":'slot=?'} ORDER BY sold_at DESC,id DESC LIMIT 10`,args:rings?[input.name,input.rarity]:[input.name,input.rarity,input.slot]})).rows;
   return {count:rows.length,lastPrice:rows.length?Number(rows[0].price):null,soldAt:rows.length?Number(rows[0].sold_at):null,average:rows.length?Math.round(rows.reduce((sum,row)=>sum+Number(row.price),0)/rows.length):null};

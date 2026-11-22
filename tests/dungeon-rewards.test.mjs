@@ -7,7 +7,8 @@ const { claimDungeonRewards, dungeonKillGold, dungeonClearStones, dungeonFirstCl
 const { dungeonRewardMarkup, dungeonPrizePanel } = await import('../src/ui/dungeonRewardMarkup.ts');
 
 const equipment = (id, slot, rarity = 'common', stats = {}) => ({ id, name: `시험 장비 ${id}`, slot, rarity, stats });
-const book = (id, skillId) => ({ id, name: `[스킬북] ${skillId}`, slot: 'skillbook', rarity: 'rare', kind: 'skillbook', skillId, stats: {} });
+/** 영구 스탯북(파트 B) — 스킬북 자리를 이어받은 1칸짜리 소모품. */
+const book = (id, kind = 'attack') => ({ id, name: kind === 'attack' ? '공격의 서' : '체력의 서', slot: 'statbook', rarity: 'unique', kind: 'statbook', book: kind, stats: {} });
 const fillBag = (save, count) => { for (let index = 0; index < count; index++) save.bag.push(equipment(`bag-${index}`, 'helmet', 'common', { defense: 1 })); };
 
 test('the floor pays what its kills were worth, and the stones climb with the floor', () => {
@@ -53,39 +54,34 @@ test('only the first clear adds the bonus, and the save floor is the evidence', 
   assert.equal(again.stones, 3 * DUNGEON_STONES_PER_FLOOR);
 });
 
-test('a full bag keeps nothing — other-job skill books take a slot too and everything is reported as missed (작업 253)', () => {
+test('a full bag keeps nothing — every item is a slot and everything is reported as missed (작업 253 → 파트 B)', () => {
   const save = freshSave();
   fillBag(save, 40);
-  const receipt = claimDungeonRewards(save, 2, { gold: 0, items: [equipment('extra', 'boots'), book('extra-book', 'fireBolt'), equipment('extra-2', 'ring1')] });
+  const receipt = claimDungeonRewards(save, 2, { gold: 0, items: [equipment('extra', 'boots'), book('extra-book', 'health'), equipment('extra-2', 'ring1')] });
   assert.equal(receipt.missed, 3);
   assert.equal(receipt.items.length, 0);
   assert.equal(save.bag.length, 40, '가방은 40칸을 넘지 않는다');
-  // 39칸이면 스킬북이 40번째 칸으로 들어간다.
+  // 39칸이면 스탯북이 40번째 칸으로 들어간다.
   const room = freshSave();
   fillBag(room, 39);
-  const kept = claimDungeonRewards(room, 2, { gold: 0, items: [book('room-book', 'fireBolt')] });
+  const kept = claimDungeonRewards(room, 2, { gold: 0, items: [book('room-book', 'health')] });
   assert.equal(kept.missed, 0);
   assert.equal(room.bag.length, 40);
   assert.equal(room.bag.at(-1).id, 'room-book');
-  // 내 직업 스킬북은 40칸에 세지 않으므로 가득 차도 받는다(작업 253).
-  const mine = freshSave(); fillBag(mine, 40);
-  const keptMine = claimDungeonRewards(mine, 2, { gold: 0, items: [book('mine-book', 'spin')] });
-  assert.equal(keptMine.missed, 0);
-  assert(keptMine.items.some(item => item.id === 'mine-book'), '내 직업 책은 40칸이어도 받는다');
 });
 
 test('live auto-salvage takes a weak drop the way the field does, and it never reaches the bag', () => {
   const save = freshSave();
   save.equipment.weapon = equipment('worn', 'weapon', 'epic', { attack: 400 });
   const bagBefore = save.bag.length, stonesBefore = save.stones;
-  const receipt = claimDungeonRewards(save, 1, { gold: 0, items: [equipment('weak', 'weapon', 'common', { attack: 3 }), book('keep-book', 'slash2')] },
+  const receipt = claimDungeonRewards(save, 1, { gold: 0, items: [equipment('weak', 'weapon', 'common', { attack: 3 }), book('keep-book')] },
     { autoSalvage: 'legendary', autoSalvagePlus: 4 });
   assert.equal(receipt.salvaged.count, 1);
   assert.equal(receipt.salvaged.gold, 3);
   assert.equal(receipt.salvaged.stones, 1);
   assert.equal(save.gold, 3);
   assert.equal(save.stones, stonesBefore + dungeonClearStones(1) + 1);
-  // 스킬북은 자동 분해 대상이 아니므로 가방에 들어간다.
+  // 영구 스탯북은 자동 분해 대상이 아니므로 가방에 들어간다.
   assert.equal(save.bag.length, bagBefore + 1);
   assert.equal(save.bag[0].id, 'keep-book');
   // 스위치가 꺼져 있으면(옵션 없음) 같은 장비도 가방으로 간다.
@@ -97,13 +93,13 @@ test('live auto-salvage takes a weak drop the way the field does, and it never r
 });
 
 test('the result screen reports the gold, stones, items and what was missed', () => {
-  const receipt = { floor: 3, firstClear: true, gold: 1200, stones: 19, items: [equipment('a', 'helmet', 'rare'), book('b', 'arrowRain')], missed: 1, salvaged: { count: 2, gold: 6, stones: 2 } };
+  const receipt = { floor: 3, firstClear: true, gold: 1200, stones: 19, items: [equipment('a', 'helmet', 'rare'), book('b', 'health')], missed: 1, salvaged: { count: 2, gold: 6, stones: 2 } };
   const html = dungeonRewardMarkup(receipt);
   assert.match(html, /획득 금화 <strong>1,200<\/strong>/);
   assert.match(html, /강화석 <strong>\+19<\/strong>/);
   assert.match(html, /최초 클리어 보너스 포함/);
   assert.match(html, /시험 장비 a/);
-  assert.match(html, /arrowRain/);
+  assert.match(html, /체력의 서/);
   assert.match(html, /자동 분해 2개 → 금화 6 · 강화석 2/);
   assert.match(html, /가방이 가득 차 아이템 1개를 놓쳤습니다/);
   // 아이템이 없으면 그 사실을 적고, 놓침·분해가 없으면 그 줄은 없다.
@@ -118,11 +114,11 @@ test('the lobby shows the real prize instead of "보상 수량은 전투 연결 
   assert.doesNotMatch(normal, /확정됩니다/);
   assert.match(normal, new RegExp(`<span>${dungeonKillGold(1)}</span>`));
   assert.match(normal, new RegExp(`<span>${dungeonClearStones(1, true)}</span>`));
-  assert.match(normal, /처치마다 5% 확률로 장비·스킬북/, '모든 층 5% 고정(작업 248)');
+  assert.match(normal, /처치마다 5% 확률로 장비가 떨어지고, 개극악 확률로 영구 스탯북도 떨어집니다/, '모든 층 5% 고정(작업 248) + 스탯북 안내(파트 B)');
   // 보스 층은 2개 확정 랜덤템(작업 248)·10무더기와 층 비례 금화·강화석을 보여 준다.
   assert.match(boss, new RegExp(`<span>${70 * 10}</span>`));
   assert.match(boss, new RegExp(`<span>${dungeonClearStones(10, true)}</span>`));
-  assert.match(boss, /랜덤 장비·스킬북 2개와 금화 10무더기/);
+  assert.match(boss, /랜덤 장비 2개\(보스 확률로 영구 스탯북\)와 금화 10무더기/);
   assert.match(boss, /실패·시간 초과에는 지급되지 않습니다/);
 });
 

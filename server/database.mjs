@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { journeyState, journeyOperation } from './journey-state.mjs';
-import { skillBookIdSet, countedInBag } from './skill-ids.mjs';
+import { statBookValid, countedInBag } from './stat-books.mjs';
 import { clampSaveProgress, itemWithinBounds, rewardBudget, elapsedSince } from './save-guard.mjs';
 import { extraOptionsWithin, normalizeExtraOptions } from './extra-options.mjs';
 import { databaseFactory } from './database-config.mjs';
@@ -204,14 +204,14 @@ export function assertRevision(row, revision) {
   if (!Number.isSafeInteger(revision) || revision !== row.revision) fail(409, 'SAVE_CONFLICT', '다른 탭이나 기기에서 진행 상황이 변경되었습니다. 새로고침하여 최신 데이터를 불러오세요.');
 }
 const itemsOf = save => [...(save.bag ?? []), ...Object.values(save.equipment ?? {}).filter(Boolean)];
-/** 가방 40칸 — `src/game/bagCapacity.ts`·`server/skill-ids.mjs`와 같은 규칙(장비 + 다른 직업 전용 스킬북). */
+/** 가방 40칸 — `src/game/bagCapacity.ts`·`server/stat-books.mjs`와 같은 규칙(모든 아이템 1개=1칸, 파트 B). */
 export const EQUIPMENT_BAG_LIMIT = 40;
 /** 가방 40칸에 세는 수. 배열이 아니면 0. */
 export const countedBagItems = (bag, job) => (Array.isArray(bag) ? bag : []).filter(item => countedInBag(item, job)).length;
 /**
  * 이 세이브에 허용하는 가방 상한(작업 246).
  *
- * 서버는 보상(우편·일일·주간·업적 스킬북)과 거래 수령에서 **칸 검사 없이** 아이템을 넣는다. 그래서 서버
+ * 서버는 보상(우편·일일·주간·업적)과 거래 수령에서 **칸 검사 없이** 아이템을 넣는다. 그래서 서버
  * 세이브 자체가 40칸을 넘는 경우가 생기는데, 저장까지 40칸으로 막으면 그 뒤로 클라이언트의 모든 `save`가
  * `400 INVALID_SAVE`("가방 또는 장비 데이터가 올바르지 않습니다.")로 거절되고, `sync.flush()`가 실패해
  * **거래소·우편 수령 전체가 영구히 잠긴다**(사용자 제보 `#20869`·`#20887`·`#20915`).
@@ -225,7 +225,7 @@ export function inventoryOwnerQuery(id, incoming) {
   const bag = Array.isArray(incoming?.bag) ? incoming.bag : [];
   const equipment = incoming?.equipment && typeof incoming.equipment === 'object' ? Object.values(incoming.equipment) : [];
   if (incoming !== undefined) validateSave(incoming);
-  // 가방 40칸은 **장비·타직업 스킬북·보물 주머니**를 세고 내 직업 스킬북은 세지 않는다(작업 253·248).
+  // 가방 40칸은 **장비·영구 스탯북·보물 주머니**를 모두 센다(파트 B — 스킬북 폐지로 직업 예외가 사라졌다).
   // 최종 판정은 `before`를 아는 `reconcileItems` 한 곳에서 한다(작업 246) — 이 함수는 트랜잭션의 첫 배치에서
   // 서버 세이브를 읽기 전에 불리므로, 여기서는 장비 칸 수만 본다. 넘친 가방을 400으로 막으면 서버가 스스로
   // 만든 초과분 때문에 거래·우편이 영구히 잠긴다.
@@ -238,12 +238,11 @@ export function inventoryOwnerQuery(id, incoming) {
   )`, args: [id, id, JSON.stringify(ids)] };
 }
 function itemValid(item) {
-  // 'pouch' = 무작위 보물 주머니(작업 207) — 장비·스킬북과 같은 이름·등급·stats 형식의 소모품이다.
-  const slots = ['weapon','offhand','helmet','armor','necklace','gloves','belt','boots','ring1','ring2','skillbook','pouch'];
-  // 스킬북 `skillId`는 **전사·궁수·마법사 33종**(액티브 24·패시브 9)을 모두 허용한다(작업 209).
-  // 예전에는 전사 11종만 하드코딩되어 궁수·마법사 스킬북이 저장 때 400 INVALID_ITEM으로 막혔다.
-  // 목록은 `server/skill-ids.mjs` 한 곳에 있고 `tests/skillbook-server.test.mjs`가 클라이언트와 같은지 검사한다.
-  return item && (item.locked === undefined || typeof item.locked === 'boolean') && typeof item.id === 'string' && item.id.length > 0 && item.id.length <= 100 && typeof item.name === 'string' && item.name.length <= 100 && slots.includes(item.slot) && ['common','magic','rare','epic','unique','legendary'].includes(item.rarity) && item.stats && typeof item.stats === 'object' && !Array.isArray(item.stats) && Object.entries(item.stats).every(([key, value]) => ['attack','defense','health','crit','speed'].includes(key) && Number.isFinite(value) && value >= 0 && value <= 100000) && (item.slot !== 'skillbook' || (item.kind === 'skillbook' && skillBookIdSet.has(item.skillId))) && (item.slot !== 'pouch' || item.kind === 'pouch')
+  // 'pouch' = 무작위 보물 주머니(작업 207), 'statbook' = 영구 스탯북(파트 B) — 장비와 같은 이름·등급·stats 형식의 소모품이다.
+  // 스킬북('skillbook')은 폐지되어 더 이상 저장을 받지 않는다 — 남은 세이브는 클라이언트 `migrateItem`이 버린다.
+  const slots = ['weapon','offhand','helmet','armor','necklace','gloves','belt','boots','ring1','ring2','statbook','pouch'];
+  // 스탯북 종류는 `server/stat-books.mjs` 한 곳에 있고 `tests/statbook-server.test.mjs`가 클라이언트와 같은지 검사한다.
+  return item && (item.locked === undefined || typeof item.locked === 'boolean') && typeof item.id === 'string' && item.id.length > 0 && item.id.length <= 100 && typeof item.name === 'string' && item.name.length <= 100 && slots.includes(item.slot) && ['common','magic','rare','epic','unique','legendary'].includes(item.rarity) && item.stats && typeof item.stats === 'object' && !Array.isArray(item.stats) && Object.entries(item.stats).every(([key, value]) => ['attack','defense','health','crit','speed'].includes(key) && Number.isFinite(value) && value >= 0 && value <= 100000) && (item.slot !== 'statbook' || statBookValid(item)) && (item.slot !== 'pouch' || item.kind === 'pouch')
     // 추가옵션(작업 238): 에픽 1·유니크 2·전설 3개, 허용 키 9종·1~3% 정수만.
     && extraOptionsWithin(item);
 }
@@ -259,16 +258,17 @@ const normalizePlus = item => {
   }
   return item;
 };
-const identity = item => JSON.stringify([item.name, ringSlot(item), item.rarity, item.kind ?? 'equipment', item.skillId ?? '', ...itemStats.map(key => item.stats?.[key] ?? 0)]);
+// `book`은 영구 스탯북의 종류다(파트 B) — 스킬북의 `skillId` 자리를 이어받아 '같은 이름·다른 책'을 가른다.
+const identity = item => JSON.stringify([item.name, ringSlot(item), item.rarity, item.kind ?? 'equipment', item.kind === 'statbook' ? (item.book ?? '') : '', ...itemStats.map(key => item.stats?.[key] ?? 0)]);
 // 이름만 다른 같은 아이템인지(구버전 클라이언트가 저장 이름을 마이그레이션하며 바꾼 경우) 판정한다.
 // stats·rarity·slot·kind·skillId가 달라지면 거짓이므로 능력치·등급 변조 차단은 그대로 유지된다.
-const sameItemBody = (a, b) => Boolean(a && b) && a.id === b.id && ringSlot(a) === ringSlot(b) && a.rarity === b.rarity && (a.kind ?? 'equipment') === (b.kind ?? 'equipment') && (a.skillId ?? '') === (b.skillId ?? '') && itemStats.every(key => (a.stats?.[key] ?? 0) === (b.stats?.[key] ?? 0));
+const sameItemBody = (a, b) => Boolean(a && b) && a.id === b.id && ringSlot(a) === ringSlot(b) && a.rarity === b.rarity && (a.kind ?? 'equipment') === (b.kind ?? 'equipment') && (a.kind === 'statbook' ? (a.book ?? '') : '') === (b.kind === 'statbook' ? (b.book ?? '') : '') && itemStats.every(key => (a.stats?.[key] ?? 0) === (b.stats?.[key] ?? 0));
 // 소유권 테이블의 사본이 깨졌을 수 있으므로 해석 실패는 예외가 아니라 '불일치'로 다룬다.
 const ownerItem = owner => { try { const value = JSON.parse(owner.item_json); return value && typeof value === 'object' ? value : undefined; } catch { return undefined; } };
 export async function reconcileItems(tx, id, before, after, options = {}) {
   const next = itemsOf(after), previous = itemsOf(before), ids = new Set();
-  // 가방 40칸은 **장비·타직업 스킬북·보물 주머니** 1개 = 1칸으로 센다(작업 253 — 내 직업 스킬북은 세지 않는다).
-  // 이미 40개를 넘긴 세이브(예전 규칙에서 받아 둔 스킬북·주머니)는 저장을 거부하면 게임이
+  // 가방 40칸은 **모든 아이템** 1개 = 1칸으로 센다(파트 B).
+  // 이미 40개를 넘긴 세이브(예전 규칙에서 받아 둔 책·주머니)는 저장을 거부하면 게임이
   // 통째로 잠기므로 **지금 개수 이하를 유지하는 저장은 허용**하고, 늘리는 저장만 막는다.
   // 새로 만들어지는 아이템(소유 기록 없는 id)의 상한 — 마지막 저장 이후 서버가 아는 시간과 층으로 정한다.
   const guard = rewardBudget(before, options.elapsedSeconds);
@@ -278,7 +278,7 @@ export async function reconcileItems(tx, id, before, after, options = {}) {
   // 막지 않고, 클라이언트가 그 위로 더 넣는 것만 거절한다(작업 246·248, 가방은 모든 아이템을 센다).
   const bagLimit = bagCapacityLimit(before);
   if (!Array.isArray(after.bag) || !after.equipment || typeof after.equipment !== 'object' || Object.values(after.equipment).length > 10) fail(400, 'INVALID_SAVE', '가방 또는 장비 데이터가 올바르지 않습니다.');
-  if (countedBagItems(after.bag, after.job) > bagLimit) fail(400, 'INVALID_SAVE', `가방이 ${bagLimit}칸까지입니다. 장비·스킬북·보물 주머니를 분해하거나 거래소에 올려 자리를 비워 주세요.`);
+  if (countedBagItems(after.bag, after.job) > bagLimit) fail(400, 'INVALID_SAVE', `가방이 ${bagLimit}칸까지입니다. 장비·영구 스탯북·보물 주머니를 분해하거나 거래소에 올려 자리를 비워 주세요.`);
   const previousValid = previous.filter(itemValid);
   const previousById = new Map(previousValid.map(item => [item.id, item]));
   const allIds = [...new Set([...previousValid, ...next].map(item => item?.id).filter(id => typeof id === 'string'))];

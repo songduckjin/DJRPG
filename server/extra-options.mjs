@@ -71,7 +71,7 @@ export function extraOptionsWithin(item) {
 /** 장비의 추가옵션을 `id` 기준으로 다시 채운다(일반·매직·레어는 필드를 지운다). */
 export function normalizeExtraOptions(item) {
   if (!item || typeof item !== 'object' || typeof item.rarity !== 'string') return item;
-  if (item.slot === 'skillbook' || item.slot === 'pouch' || item.kind === 'skillbook' || item.kind === 'pouch') {
+  if (item.slot === 'statbook' || item.slot === 'pouch' || item.kind === 'statbook' || item.kind === 'pouch') {
     if (item.extraOptions !== undefined) delete item.extraOptions;
     return item;
   }

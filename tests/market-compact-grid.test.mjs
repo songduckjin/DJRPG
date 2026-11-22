@@ -6,12 +6,12 @@ const { renderMarket, setListingView, resetListingView } = await import('../src/
 const { Market } = await import('../src/game/market.ts');
 const { freshSave } = await import('../src/game/store.ts');
 
-// 작업 257 — 판매 중 목록의 `전체`·`장비`·`스킬북` 서브 필터 탭과 4~5열 간편 보기 카드 그리드.
+// 작업 257 — 판매 중 목록의 `전체`·`장비`·`영구 스탯북` 서브 필터 탭과 4~5열 간편 보기 카드 그리드.
 // 사용자 지시(`#8958`): "간편보기는 간편하지가 않아. 한 줄에 4~5개 표시돼도 되고 이미지를 크게 한 화면에
 // 여러 개 볼 수 있게 해야 간편보기지" / "간편보기일 때 +1 표시가 이미지를 다 가려".
 
 const gear = (id, overrides = {}) => ({ id, name: id, slot: 'weapon', rarity: 'rare', kind: 'equipment', stats: { attack: 10 }, ...overrides });
-const book = (id, skillId = 'spin') => ({ id, name: `[스킬북] ${skillId}`, slot: 'skillbook', kind: 'skillbook', skillId, rarity: 'rare', stats: {} });
+const book = (id, kind = 'attack') => ({ id, name: { attack: '공격의 서', defense: '방어의 서', health: '체력의 서' }[kind], slot: 'statbook', kind: 'statbook', book: kind, rarity: 'unique', stats: {} });
 const listing = (id, item, overrides = {}) => ({
   id, item, price: 1000, quantity: 1, sellerName: '상인', state: 'active',
   createdAt: 1, expiresAt: Date.now() + 3_600_000, soldAt: null, mine: false, purchased: false, ...overrides
@@ -76,7 +76,7 @@ const activeMarket = (listings = [
   return market;
 };
 
-test('판매 중 목록 위에 전체·장비·스킬북 서브 필터 탭이 있고 고른 종류만 걸러 보여 준다(작업 257)', () => {
+test('판매 중 목록 위에 전체·장비·영구 스탯북 서브 필터 탭이 있고 고른 종류만 걸러 보여 준다(작업 257)', () => {
   resetListingView(); setListingView('detail');
   const market = activeMarket();
   const dialog = render(market);
@@ -84,8 +84,8 @@ test('판매 중 목록 위에 전체·장비·스킬북 서브 필터 탭이 �
   assert(bar, '서브 필터 탭');
   assert.equal(bar.getAttribute('role'), 'tablist');
   const tabs = bar.children;
-  assert.deepEqual(tabs.map(tab => tab.dataset.kind), ['all', 'equipment', 'skillbook']);
-  assert.deepEqual(tabs.map(tab => find(tab, node => hasClass(node, 'market-kind-label')).textContent), ['전체', '장비', '스킬북']);
+  assert.deepEqual(tabs.map(tab => tab.dataset.kind), ['all', 'equipment', 'statbook']);
+  assert.deepEqual(tabs.map(tab => find(tab, node => hasClass(node, 'market-kind-label')).textContent), ['전체', '장비', '영구 스탯북']);
   assert.deepEqual(tabs.map(tab => find(tab, node => hasClass(node, 'market-kind-count')).textContent), ['3', '2', '1'], '이 페이지 건수');
   assert.deepEqual(tabs.map(tab => tab.getAttribute('aria-selected')), ['true', 'false', 'false']);
   assert(hasClass(tabs[0], 'active'));
@@ -100,7 +100,7 @@ test('판매 중 목록 위에 전체·장비·스킬북 서브 필터 탭이 �
   const firstRow = find(dialog, node => hasClass(node, 'market-row'));
   assert(dialog.children.indexOf(toolbar) < dialog.children.indexOf(firstRow), '목록보다 위');
 
-  // 장비만: 스킬북 매물이 목록에서 빠지고, 숨긴 수를 결과 줄에 알린다.
+  // 장비만: 스탯북 매물이 목록에서 빠지고, 숨긴 수를 결과 줄에 알린다.
   tabs[1].onclick();
   assert.equal(market.kind, 'equipment');
   const gearDialog = render(market);
@@ -109,8 +109,8 @@ test('판매 중 목록 위에 전체·장비·스킬북 서브 필터 탭이 �
   assert.match(text(find(gearDialog, node => hasClass(node, 'market-result'))), /장비 필터로 1개 숨김/);
   assert.equal(find(gearDialog, node => hasClass(node, 'market-kind-tabs')).children[1].getAttribute('aria-selected'), 'true');
 
-  // 스킬북만: 장비가 빠지고 스킬북 한 건만 남는다.
-  market.kind = 'skillbook';
+  // 스탯북만: 장비가 빠지고 스탯북 한 건만 남는다.
+  market.kind = 'statbook';
   const bookDialog = render(market);
   const bookRows = all(bookDialog, node => hasClass(node, 'market-row')).filter(row => row.dataset.listing);
   assert.deepEqual(bookRows.map(row => row.dataset.listing), ['book-1']);
@@ -124,11 +124,11 @@ test('판매 중 목록 위에 전체·장비·스킬북 서브 필터 탭이 �
 test('필터로 걸러 이 페이지에 그 종류가 없으면 안내하고, 거래 완료·내 거래 탭에는 탭이 없다(작업 257)', () => {
   resetListingView(); setListingView('detail');
   const market = activeMarket([listing('gear-1', gear('강철 쯔바이핸드'))]);
-  market.kind = 'skillbook';
+  market.kind = 'statbook';
   const dialog = render(market);
   assert.equal(all(dialog, node => hasClass(node, 'market-row')).filter(row => row.dataset.listing).length, 0);
-  const empty = all(dialog, node => hasClass(node, 'empty')).find(node => /스킬북 매물이 없습니다/.test(text(node)));
-  assert(empty, '스킬북이 없다는 안내와 전체로 돌아가는 방법');
+  const empty = all(dialog, node => hasClass(node, 'empty')).find(node => /영구 스탯북 매물이 없습니다/.test(text(node)));
+  assert(empty, '스탯북이 없다는 안내와 전체로 돌아가는 방법');
   assert.match(text(empty), /전체/);
 
   for (const view of ['mine', 'recent', 'inbox']) {
@@ -243,7 +243,7 @@ test('종류 탭·보기 전환·메인 탭을 바꾸면 선택 상태가 초기
     assert.equal(market.unlockItem, undefined);
   };
 
-  // ① 종류 탭(`전체`·`장비`·`스킬북`)
+  // ① 종류 탭(`전체`·`장비`·`영구 스탯북`)
   const byKind = activeMarket();
   seed(byKind);
   const kindDialog = render(byKind);
@@ -284,17 +284,17 @@ test('카드 그리드·서브 필터·`+N` 배지 CSS 계약(작업 257)', () =
   const rule = selector => { const spaced = css.indexOf(`${selector} {`), tight = css.indexOf(`${selector}{`); const index = spaced >= 0 ? spaced : tight; return index < 0 ? '' : css.slice(index, css.indexOf('}', index)); };
   assert.match(rule('.market-compact-grid'), /grid-template-columns: repeat\(auto-fill, minmax\(76px, 1fr\)\)/, '한 줄에 폭에 따라 4~5칸');
   assert.match(rule('.market-card-art'), /aspect-ratio: 1/, '정사각형 아이콘 칸');
-  assert.match(rule('.market-card .market-icon.skill-book-art'), /inset: 3px/, '스킬북 아이콘도 크게');
+  assert.match(rule('.market-card .market-icon.skill-book-art'), /inset: 3px/, '책 아이콘도 크게');
   assert.match(rule('.market-card .market-icon'), /inset: 6px/, '아이콘을 칸에 꽉 차게 크게');
   // 피드백(`#9105`): 큰 카드에 맞춰 `+N`은 또렷하게, 하지만 여전히 모서리에만(이미지 중앙은 가리지 않는다).
   assert.match(rule('.market-card .item-plus-badge'), /font-size: 11\.5px/);
   assert.match(rule('.market-card .item-plus-badge'), /padding: 0 4px/);
   assert.match(rule('.market-card .item-plus-badge'), /left: 2px/);
   assert.match(rule('.market-card .item-plus-badge'), /bottom: 2px/, '왼쪽 아래 모서리');
-  // 직업 배지·화살표·스킬북 동그라미도 카드 비율에 맞춰 키운다.
+  // 직업 배지·화살표·책 동그라미도 카드 비율에 맞춰 키운다.
   assert.match(rule('.market-card .job-badge'), /font-size: 10\.5px/);
   assert.match(rule('.market-card .upgrade-arrow'), /width: 16px/);
-  assert.match(rule('.market-card .market-icon.skill-book-art'), /--book-badge-size: clamp\(24px, 6.6vw, 32px\)/, '스킬북 동그라미를 크게');
+  assert.match(rule('.market-card .market-icon.skill-book-art'), /--book-badge-size: clamp\(24px, 6.6vw, 32px\)/, '책 동그라미를 크게');
   assert.match(rule('.market-card-price'), /font-size: 10px/, '카드에는 가격만');
   assert.match(rule('.market-kind-tabs'), /display: flex/);
   // 사용자 피드백(`#9078`·`#9155`): 종류 탭과 보기 아이콘은 한 flex 줄에 나란히 두되,

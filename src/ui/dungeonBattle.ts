@@ -2,9 +2,9 @@ import { DUNGEON_MAX_FLOOR } from './dungeonLobby';
 import { random, seededRandom, useRandom, type Random } from '../game/rng';
 import {World, type Enemy, ENEMY_STOP_RANGE, ENEMY_ATTACK_RANGE, ENEMY_STRIKE_SECONDS, enemyHitDamage, enemyMoveSpeed} from '../game/world';
 import {clampArenaPoint} from '../game/arena';
-import {jobOrDefault} from '../game/skills';
 import {totalStats, type Save} from '../game/store';
-import {equipmentDropChance,rollDungeonItem,rollSkillBook,skillBookDropChance,type Item} from '../game/items';
+import {rollDungeonItem,type Item} from '../game/items';
+import {rollStatBookDrop} from '../game/statBooks';
 import {bossGoldPiles,bossGoldSpot,bossItems} from '../game/bossLoot';
 /** Ground loot held by the preview only. Kept off `World.drops` so the shared field renderer stays untouched.
  *  `from` is the body a boss heap was thrown from (작업 196): the dungeon flies the heap out of the boss
@@ -203,8 +203,8 @@ class DungeonWorld extends World {
   }
   override kill(enemy:Enemy):void { this.slain++;this.effects.push({x:enemy.x,y:enemy.y,kind:'death',age:0,duration:.7,angle:0});this.dropLoot(enemy); }
   // Same rewards the field grants, kept as ground loot until the floor is cleared: a coin on every
-  // kill and one item on the floor's own dungeon rate (`dungeonDropChance`) chosen by the field's
-  // equipment/skillbook odds. A boss (5층·10층, 작업 194) leaves five random items and its gold in ten
+  // kill and one equipment on the floor's own dungeon rate (`dungeonDropChance`), plus the rare
+  // 영구 스탯북 roll (파트 B). A boss (5층·10층, 작업 194) leaves two random items and its gold in ten
   // heaps bursting out of the body (작업 196), the heaps still adding up to the 70×floor the kill paid.
   // The main field's boss drops only the heaps and keeps the ordinary chance roll (작업 195) — this
   // five-item haul is the dungeon's. Nothing here is paid yet: `clearRewards` hands it to the account
@@ -220,11 +220,11 @@ class DungeonWorld extends World {
       return;
     }
     this.loot.push({id:++this.lootId,kind:'gold',x:enemy.x,y:enemy.y,gold:3+floor});
-    if(random()>=dungeonDropChance(floor))return;
-    const equipment=equipmentDropChance(floor,enemy.boss),book=skillBookDropChance(floor,enemy.boss);
     // 등급은 던전 전용 10층 구간 표에서 뽑는다(작업 248) — 깊은 층일수록 상위 등급이 늘고 드롭률은 5% 그대로다.
-    const item=random()*(equipment+book)<equipment?rollDungeonItem(floor,enemy.boss):rollSkillBook(floor,jobOrDefault(this.save.job));
-    this.loot.push({id:++this.lootId,kind:'item',x:enemy.x,y:enemy.y,item});
+    if(random()<dungeonDropChance(floor))this.loot.push({id:++this.lootId,kind:'item',x:enemy.x,y:enemy.y,item:rollDungeonItem(floor,false)});
+    // 영구 스탯북(파트 B) — 던전 일반 몹도 필드와 같은 개극악 확률(`hunt`)로 한 번 더 굴린다.
+    const book=rollStatBookDrop('hunt');
+    if(book)this.loot.push({id:++this.lootId,kind:'item',x:enemy.x,y:enemy.y,item:book});
   }
 }
 /** 끝없는 던전 1~10층 전투. 클리어하면 금화·강화석·아이템이 계정 세이브로 들어간다(작업 205). */

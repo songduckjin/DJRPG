@@ -1,6 +1,7 @@
 import { canStoreItem } from './bagCapacity';
 import { autoSalvageRecovered } from './inventory';
-import { offlineDropChance, rollItem, rollItemKind, rollSkillBook, totalStats, type Item, type Rarity } from './items';
+import { offlineDropChance, rollItem, totalStats, type Item, type Rarity } from './items';
+import { rollStatBook, statBookDropChance } from './statBooks';
 import { jobOrDefault as jobOf, skillDamageScale, skillDuration, skills, type SkillId } from './skills';
 import { addExperience, floorKillTarget, MAX_FLOOR, skillLevel, type Save } from './store';
 import { basicAttackPower, berserkAttackScale, berserkSpeedScale, cooldowns, enemyHitDamage, enemyMaxHp, offlineMobHp } from './world';
@@ -102,7 +103,7 @@ export function applyOfflineRewards(save: Save, elapsedSeconds: number, options:
   const salvaged = { count: 0, gold: 0, stones: 0 };
   const reward: OfflineReward = { seconds, kills: 0, exp: 0, gold: 0, items, missedDrops: 0, levels: 0, startFloor, endFloor: startFloor, bossKills: 0, deaths: 0, salvaged };
   /** 떨어진 하나를 가방에 넣는다 — 자동 분해가 켜져 있으면 **필드·던전과 같은 규칙**(`autoSalvageRecovered`)으로
-   *  먼저 분해해 보고, 분해되면 가방에 넣지 않고 금화·강화석으로 정산한다(작업 254). 스킬북·보물
+   *  먼저 분해해 보고, 분해되면 가방에 넣지 않고 금화·강화석으로 정산한다(작업 254). 스탯북·보물
    *  주머니·잠금·등급 초과·`+N` 초과·빈 슬롯·더 좋은 장비 보호는 그 함수가 그대로 맡는다. */
   const receive = (createItem: () => Item): void => {
     const item = createItem();
@@ -122,9 +123,10 @@ export function applyOfflineRewards(save: Save, elapsedSeconds: number, options:
     // 경험치는 필드와 같은 `9 + 층`(작업 207).
     const exp = count * (9 + floor); reward.exp += exp; reward.levels += addExperience(save, exp);
     if (save.tutorial >= 1) for (let index = 0; index < count; index++) {
-      // 한 마리당 한 번만 굴려 1개 — 장비 70% · 스킬북 30%(작업 210, 접속 사냥과 같은 규칙).
-      // 확률만 방치 몫(전 층 0.30%)을 쓴다(작업 254).
-      if (Math.random() < offlineDropChance(floor, false)) receive(() => rollItemKind() === 'skillbook' ? rollSkillBook(floor, jobOf(save)) : rollItem(floor, false, false, jobOf(save)));
+      // 한 마리당 한 번만 굴려 장비 1개(작업 210, 접속 사냥과 같은 규칙). 파트 B(2026-11-22)에서 스킬북이
+      // 폐지되어 종류를 가르지 않고, 영구 스탯북은 **별개로** 개극악 확률(`statBooks.ts`)을 한 번 더 굴린다.
+      if (Math.random() < offlineDropChance(floor, false)) receive(() => rollItem(floor, false, false, jobOf(save)));
+      if (Math.random() < statBookDropChance('offline')) receive(() => rollStatBook());
     }
   };
   /** 층 보스 처치 보상 — 금화 `70 × 층`, 경험치 `(9 + 층) × 6`, 드롭 한 번(작업 195·207). */
@@ -133,8 +135,10 @@ export function applyOfflineRewards(save: Save, elapsedSeconds: number, options:
     const gold = 70 * floor; reward.gold += gold; save.gold += gold;
     const exp = (9 + floor) * 6; reward.exp += exp; reward.levels += addExperience(save, exp);
     if (save.tutorial >= 1 && Math.random() < offlineDropChance(floor, true)) {
-      receive(() => rollItemKind() === 'skillbook' ? rollSkillBook(floor, jobOf(save)) : rollItem(floor, false, true, jobOf(save)));
+      receive(() => rollItem(floor, false, true, jobOf(save)));
     }
+    // 보스의 영구 스탯북은 보스 확률(`STAT_BOOK_DROP_RATES.boss`)로 따로 한 번 굴린다.
+    if (save.tutorial >= 1 && Math.random() < statBookDropChance('boss')) receive(() => rollStatBook());
   };
 
   let remaining = seconds;

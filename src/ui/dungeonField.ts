@@ -6,7 +6,7 @@ import {projectArenaPoint} from '../game/arena';
 import {totalStats} from '../game/store';
 import {skills} from '../game/skills';
 import {cooldowns} from '../game/world';
-import {equipmentImage,isEquipment,isSkillBook,type Rarity} from '../game/items';
+import {equipmentImage,isEquipment,isStatBook,type Rarity} from '../game/items';
 import {DungeonBattle,DUNGEON_STEP,dungeonBattleSummary,dungeonLootSpots,dungeonLootTimeline,dungeonAbsorbProgress,dungeonAbsorbPoint,type DungeonLoot,type LootDrop,type LootField} from './dungeonBattle';
 import {claimDungeonRewards,type DungeonRewardReceipt} from '../game/dungeonRewards';
 import {dungeonClearedFloor} from '../game/dungeonProgress';
@@ -16,7 +16,6 @@ import {heroBodyFraction} from '../game/render/heroScale';
 import {GOLD_COIN_CHIP_DROP,GOLD_PILE,GOLD_PILE_RX,GOLD_PILE_RY,goldCoinChipHeight,goldCoinChipWidth,goldCoinHeight} from '../game/render/goldPile';
 import {goldCoinChipUrl,warmGoldCoinChips} from '../game/render/goldCoinArt';
 import {setSkillIcon} from './skillArtwork';
-import {createSkillBookArt} from './skillBookArt';
 import type {Interface} from './interface';
 
 export function openDungeonField(ui:Interface,lobby:HTMLElement):void {
@@ -91,7 +90,8 @@ export function openDungeonField(ui:Interface,lobby:HTMLElement):void {
       }
     }else{
       const item=loot.item;el.classList.add('is-item');el.style.setProperty('--loot-ink',rarityInk[item.rarity]);
-      if(isSkillBook(item)){const art=createSkillBookArt(item);art.classList.add('dungeon-loot-book');body.append(art);}
+      // 영구 스탯북(파트 B) — 전용 아이콘 시안이 나오기 전까지 기존 책 그림을 쓴다(가방·창고와 같은 그림).
+      if(isStatBook(item)){const img=document.createElement('img');img.className='dungeon-loot-art';img.src='/assets/icons/icon_skillbook.png';img.alt='';body.append(img);}
       else if(isEquipment(item)){const art=equipmentImage(item);
         if(art.columns>1){const atlas=document.createElement('span');atlas.className='dungeon-loot-art atlas-icon';atlas.style.backgroundImage=`url("${art.path}")`;atlas.style.backgroundPosition=`${art.frame/(art.columns-1)*100}% center`;body.append(atlas);}
         else{const img=document.createElement('img');img.className='dungeon-loot-art';img.src=art.path;img.alt='';body.append(img);}
@@ -195,7 +195,7 @@ export function openDungeonField(ui:Interface,lobby:HTMLElement):void {
     });
   };
   const result=()=>{resultShown=true;absorbRing?.remove();absorbRing=undefined;const floor=battle.floor,canNext=battle.outcome==='clear'&&floor<DUNGEON_MAX_FLOOR;
-    // 클리어 보상은 여기서 한 번만 지급한다(작업 205): 바닥에 남은 금화와 떨어진 장비·스킬북이 그대로
+    // 클리어 보상은 여기서 한 번만 지급한다(작업 205): 바닥에 남은 금화와 떨어진 장비·스탯북이 그대로
     // `ui.world.save`로 들어가고, 강화석은 층 비례분 + 최초 클리어 보너스가 더해진다. 실패·시간 초과에는
     // `clearRewards()`가 undefined라 아무것도 들어가지 않는다.
     let receipt:DungeonRewardReceipt|undefined;

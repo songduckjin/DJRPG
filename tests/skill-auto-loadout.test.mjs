@@ -61,7 +61,7 @@ test('보유 스킬이 0개면 세이브를 건드리지 않고 안내만 돌려
   assert.equal(result.changed, false);
   assert.deepEqual(result.equipped, []);
   assert.deepEqual(save.quickSlots, [null, null, null]);
-  assert.match(result.message, /스킬북으로 스킬을 습득하면 추천 장착을 쓸 수 있습니다/);
+  assert.match(result.message, /스킬 트리에서 스킬을 습득하면 추천 장착을 쓸 수 있습니다/);
 });
 
 test('스킬을 강화하면 레벨 위력 배율이 붙어 DPS 순위가 바뀐다', () => {
@@ -123,7 +123,7 @@ function render(ui) {
 }
 const hasClass = (node, token) => node.className.split(/\s+/).includes(token);
 
-test('전체 탭에서도 패시브 3종이 스킬북·액티브보다 위에 그려진다', () => {
+test('전체 탭에서도 패시브 3종이 액티브보다 위에 그려진다(파트 B: 스킬북 목록 없음)', () => {
   globalThis.document = { createElement: tag => element(tag) };
   try {
     for (const job of ['warrior', 'archer', 'mage']) {
@@ -133,10 +133,10 @@ test('전체 탭에서도 패시브 3종이 스킬북·액티브보다 위에 �
       assert.deepEqual(passiveCards.map(card => card.dataset.skill), passiveOrderFor(job), job);
       const passiveSection = nodes.findIndex(node => hasClass(node, 'skill-passive-section'));
       const firstActive = nodes.findIndex(node => hasClass(node, 'active-skill-card'));
-      const books = nodes.findIndex(node => hasClass(node, 'skill-books'));
       assert(passiveSection >= 0 && passiveSection < firstActive, `${job}: 패시브가 액티브보다 아래에 있다`);
-      assert(books > firstActive, `${job}: 스킬북은 맨 아래`);
-      assert.equal(nodes.filter(node => hasClass(node, 'skill-book-card')).length, 0, '스킬북이 없으면 빈 안내만');
+      // 파트 B: 스킬북 목록 자체가 사라졌다.
+      assert.equal(nodes.filter(node => hasClass(node, 'skill-books')).length, 0, '스킬북 목록 없음');
+      assert.equal(nodes.filter(node => hasClass(node, 'skill-book-card')).length, 0, '스킬북 카드 없음');
     }
   } finally { delete globalThis.document; }
 });
@@ -162,7 +162,7 @@ test('패시브·액티브 탭은 그 종류만 보여 주고 탭을 누르면 �
     const activeOnly = render(ui);
     assert.equal(activeOnly.nodes.filter(node => hasClass(node, 'passive-skill-card')).length, 0);
     assert.equal(activeOnly.nodes.filter(node => hasClass(node, 'active-skill-card')).length, 8);
-    assert(activeOnly.nodes.some(node => hasClass(node, 'skill-books')));
+    assert.equal(activeOnly.nodes.filter(node => hasClass(node, 'skill-books')).length, 0, '파트 B: 스킬북 목록 없음');
   } finally { delete globalThis.document; }
 });
 

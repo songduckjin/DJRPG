@@ -1,27 +1,34 @@
 import {
-  isPouch, POUCH_NAME, rollEquipment, rollSkillBook,
-  type EquipmentItem, type Item, type Rarity, type SkillBook, type TreasurePouch
+  isPouch, POUCH_NAME, rollEquipment,
+  type EquipmentItem, type Item, type Rarity, type StatBook, type TreasurePouch
 } from './items';
+import { STAT_BOOK_DROP_RATES, rollStatBook } from './statBooks';
 import type { Save } from './store';
 
 /**
- * 무작위 보물 주머니의 확률표 (작업 207, 사용자 최종 확정).
+ * 무작위 보물 주머니의 확률표 (작업 207 → 파트 B 2026-11-22).
  *
- * 한 주머니를 열면 먼저 **분류**를 뽑고(금화 55% · 장비 40% · 스킬북 5%), 고른 분류 안에서 다시
+ * 한 주머니를 열면 먼저 **분류**를 뽑고(금화 59% · 장비 40% · 영구 스탯북 1%), 고른 분류 안에서 다시
  * 세부 확률을 뽑는다. 아래 `rate`는 모두 **그 분류 안에서의 몫**이며(합 100%), 분류별 합도 100%다.
- *  - 금화 55% → 1,500G 55% · 3,000G 32% · 5,000G 13%
+ *  - 금화 59% → 1,500G 55% · 3,000G 32% · 5,000G 13%
  *  - 장비 40% → 일반 34% · 매직 30% · 레어 20% · 에픽 11% · 유니크 4% · 레전드 1%
  *    (등급이 정해지면 이 층의 슬롯·티어·스탯·`+단계` 규칙 그대로 1개를 만든다)
- *  - 스킬북 5% → 세 직업 모든 스킬북이 같은 확률(100%) — `rollSkillBook`이 직업을 1/3로 고른다
+ *  - 영구 스탯북 1% → 공격의 서·방어의 서·체력의 서가 같은 확률(1/3)
+ *
+ * **스킬북 5%는 파트 B에서 폐지됐다** — 그 5%를 장비·금화로 돌리고, 스탯북은 개극악 확률(1%)만 남겼다.
+ * 분류 확률은 `statBooks.ts`의 `STAT_BOOK_DROP_RATES.pouch` 한 값에서 나머지를 계산하므로, 확률을 바꾸려면
+ * 그 표만 고치면 된다(`POUCH_STAT_BOOK_RATE`).
  *
  * `[확률표]` 화면은 이 전체 표를 **전체 확률 한 줄(10항목, 높은 확률 순)**로 보여 준다:
  * `POUCH_OVERALL_RATES`가 그 10줄의 근거이고, 각 줄 = 분류 확률 × 세부 확률(합 100.00%).
  */
-export type PouchCategory = 'gold' | 'equipment' | 'skillbook';
+export type PouchCategory = 'gold' | 'equipment' | 'statbook';
+/** 주머니 하나가 스탯북일 확률 — `statBooks.ts`의 확률표에서 온다(여기서 숫자를 따로 두지 않는다). */
+export const POUCH_STAT_BOOK_RATE = STAT_BOOK_DROP_RATES.pouch;
 export const POUCH_CATEGORIES: readonly { kind: PouchCategory; label: string; rate: number }[] = [
-  { kind: 'gold', label: '금화', rate: .55 },
+  { kind: 'gold', label: '금화', rate: .59 },
   { kind: 'equipment', label: '장비', rate: .40 },
-  { kind: 'skillbook', label: '스킬북', rate: .05 }
+  { kind: 'statbook', label: '영구 스탯북', rate: POUCH_STAT_BOOK_RATE }
 ];
 export const POUCH_GOLD_TIERS: readonly { gold: number; rate: number }[] = [
   { gold: 1500, rate: .55 },
@@ -40,19 +47,18 @@ export const POUCH_RARITY_TIERS: readonly { rarity: Rarity; rate: number }[] = [
 export const POUCH_RARITY_INK: Record<Rarity, string> = {
   common: '#9ca3af', magic: '#60a5fa', rare: '#facc15', epic: '#c084fc', unique: '#fb923c', legendary: '#f87171'
 };
-/** 전체 확률 한 줄 — 분류 확률 × 세부 확률. 합이 정확히 100%다(사용자 확정 10항목). */
+/**
+ * 전체 확률 한 줄 — 분류 확률 × 세부 확률. 합이 정확히 100%다(사용자 확정 10항목).
+ * 표에서 계산하므로 분류·세부 확률을 바꿔도 이 목록이 어긋나지 않는다.
+ */
+const pouchCategoryRate = (kind: PouchCategory): number => POUCH_CATEGORIES.find(entry => entry.kind === kind)?.rate ?? 0;
+/** 분류 × 세부 확률 — 부동소수 오차를 지워 화면 표기(소수 둘째 자리 %)와 정확히 맞춘다. */
+const overallRate = (rate: number): number => Math.round(rate * 1e6) / 1e6;
 export const POUCH_OVERALL_RATES: readonly { label: string; rate: number; rarity?: Rarity }[] = [
-  { label: '1,500G', rate: .3025 },
-  { label: '3,000G', rate: .1760 },
-  { label: '일반 장비', rate: .1360, rarity: 'common' },
-  { label: '매직 장비', rate: .1200, rarity: 'magic' },
-  { label: '레어 장비', rate: .0800, rarity: 'rare' },
-  { label: '5,000G', rate: .0715 },
-  { label: '무작위 스킬북 1권', rate: .0500 },
-  { label: '에픽 장비', rate: .0440, rarity: 'epic' },
-  { label: '유니크 장비', rate: .0160, rarity: 'unique' },
-  { label: '레전드 장비', rate: .0040, rarity: 'legendary' }
-];
+  ...POUCH_GOLD_TIERS.map(tier => ({ label: `${tier.gold.toLocaleString('ko-KR')}G`, rate: overallRate(pouchCategoryRate('gold') * tier.rate) })),
+  ...POUCH_RARITY_TIERS.map(tier => ({ label: `${({ common: '일반', magic: '매직', rare: '레어', epic: '에픽', unique: '유니크', legendary: '레전드' } as Record<Rarity, string>)[tier.rarity]} 장비`, rate: overallRate(pouchCategoryRate('equipment') * tier.rate), rarity: tier.rarity })),
+  { label: '영구 스탯북 1권', rate: overallRate(pouchCategoryRate('statbook')) }
+].sort((a, b) => b.rate - a.rate);
 
 /** 가중 표에서 하나를 뽑는다. 표의 합이 1이 아니어도(반올림) 마지막 항목으로 떨어져 결과가 빈다. */
 function pick<T extends { rate: number }>(table: readonly T[], random: () => number): T {
@@ -76,13 +82,13 @@ export function rollPouchRarity(random: () => number = Math.random): Rarity {
 export type PouchResult =
   | { kind: 'gold'; gold: number }
   | { kind: 'equipment'; item: EquipmentItem }
-  | { kind: 'skillbook'; item: SkillBook };
+  | { kind: 'statbook'; item: StatBook };
 
 export function rollPouch(floor: number, random: () => number = Math.random): PouchResult {
   const category = rollPouchCategory(random);
   if (category === 'gold') return { kind: 'gold', gold: rollPouchGold(random) };
   if (category === 'equipment') return { kind: 'equipment', item: rollEquipment(floor, rollPouchRarity(random)) };
-  return { kind: 'skillbook', item: rollSkillBook(floor) };
+  return { kind: 'statbook', item: rollStatBook(random) };
 }
 
 export function pouchCount(save: Pick<Save, 'bag'>): number {
@@ -99,12 +105,10 @@ export type PouchOpenResult =
 /**
  * 주머니 1개를 소모하고 결과를 세이브에 넣는다.
  *
- * 가방 40칸은 **장비·타직업 스킬북·보물 주머니**를 1개씩 센다(작업 253 — 내 직업 스킬북은 세지 않는다). 주머니를 여는 것은
+ * 가방 40칸은 **모든 아이템**을 1개씩 센다(파트 B: 스탯북·보물 주머니도 한 칸). 주머니를 여는 것은
  * 주머니 1개를 빼고 결과 1개(또는 금화)를 넣는 **자리 바꿈**이라 칸 수가 **늘지 않는다**(금화면 -1, 아이템이면 0).
  * 그래서 40칸이 찬 상태는 물론 **이미 40칸을 넘긴 세이브에서도** 주머니를 열 수 있다(작업 251).
- * 40칸 상한이 스킬북·주머니까지 세게 된 작업 248 뒤에는 예전 세이브가 40칸을 넘긴 채 남을 수 있는데,
- * 개봉이 칸을 늘리지 않으므로 막지 않는 편이 그 계정을 가두지 않는다. 서버 `reconcileItems`도
- * "지금 개수 이하 유지" 저장은 통과시킨다.
+ * 서버 `reconcileItems`도 "지금 개수 이하 유지" 저장은 통과시킨다.
  */
 export function openPouch(save: Save, id?: string, random: () => number = Math.random): PouchOpenResult {
   const pouch = (id ? save.bag.find(item => item.id === id) : undefined) ?? firstPouch(save);
@@ -123,5 +127,5 @@ export function pouchResultText(result: PouchResult): string {
 }
 
 /** 가방·상세가 쓰는 한 줄 설명. */
-export const POUCH_HINT = '열면 금화·장비·스킬북 중 하나가 나옵니다';
+export const POUCH_HINT = '열면 금화·장비·영구 스탯북 중 하나가 나옵니다';
 export type { Item };

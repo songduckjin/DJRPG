@@ -17,12 +17,13 @@ import './ts-loader.mjs';
  * ① 서버가 아이템마다 쿼리를 따로 보내던 구조 → **읽기는 `tx.batch` 한 번 · 쓰기는 `writeSave` 한 번**.
  * ② 클라이언트가 창고 요청 전에 저장(`flush`)을 한 번 더 왕복하던 구조 → 진행 세이브를 함께 보내
  *    이동과 저장을 한 요청·한 트랜잭션에서 끝낸다. 그래도 **소유권·능력치·40칸 검증은 그대로**다.
- * ③ PR #258이 `main`의 40칸 규칙(`countedInBag(entry, save.job)` — 타직업 스킬북·주머니도 한 칸)을
+ * ③ PR #258이 `main`의 40칸 규칙(`countedInBag(entry, save.job)` — 모든 아이템 1칸)을
  *    되돌렸던 회귀 → 지금은 타직업 책·주머니가 칸을 쓰고, 내 직업 책만 빠진다.
  */
 const weapon = (id, attack = 4, rarity = 'common') => ({ id, name: `강철 쯔바이핸드${id}`, slot: 'weapon', rarity, stats: { attack } });
 const pouch = id => ({ id, name: '무작위 보물 주머니', slot: 'pouch', kind: 'pouch', rarity: 'unique', stats: {} });
-const book = (id, skillId) => ({ id, name: `[스킬북] ${skillId}`, slot: 'skillbook', kind: 'skillbook', skillId, rarity: 'rare', stats: {} });
+/** 영구 스탯북(파트 B) — 스킬북 자리를 이어받은 1칸짜리 소모품. */
+const book = (id, kind = 'attack') => ({ id, name: kind === 'attack' ? '공격의 서' : '체력의 서', slot: 'statbook', kind: 'statbook', book: kind, rarity: 'unique', stats: {} });
 const save0 = items => ({ version: 1, accountId: 'hero', name: '전사', gender: 'male', job: 'warrior', auto: true, autoClimb: true, level: 9, exp: 25, gold: 500, floor: 4, maxFloor: 4, floorKills: 3, kills: 50, health: 80, equipment: {}, equipmentCollection: [], bag: items, tutorial: 3, stones: 0, skillPoints: 7, lastActiveAt: Date.now(), learned: [], passives: [], quickSlots: [null, null, null], skillLevels: {} });
 
 /** 창고 테스트용 임시 DB + 로그인 토큰 + API 호출기. `counting`이면 요청 하나가 쓴 DB 왕복을 센다. */
@@ -156,37 +157,36 @@ test('아이템이 몇 개든 보관·회수 요청의 DB 왕복 수는 그대�
   } finally { await h.close(); }
 });
 
-// PR #258이 되돌렸던 회귀 — 꺼내기의 40칸 검사는 `main`(작업 253) 그대로다:
-// 가방이 40칸이면 **아무것도** 꺼낼 수 없고(내 직업 책 포함), 칸을 세는 것은 `countedInBag`
-// — 타직업 스킬북·보물 주머니는 1칸, 내 직업(전사) 스킬북은 세지 않는다.
-test('꺼내기의 40칸은 타직업 스킬북·보물 주머니를 세고 내 직업 책은 세지 않는다(작업 253·258)', async () => {
+// PR #258이 되돌렸던 회귀 — 꺼내기의 40칸 검사는 `main` 그대로다:
+// 가방이 40칸이면 **아무것도** 꺼낼 수 없고, 칸을 세는 것은 `countedInBag` — 파트 B에서 모든 아이템이 1칸이다.
+test('꺼내기의 40칸은 장비·영구 스탯북·보물 주머니를 모두 센다(작업 253·258 → 파트 B)', async () => {
   const full = Array.from({ length: 40 }, (_, index) => weapon(`bag-${index}`, 4));
-  const mine = book('book-mine', 'spin');           // 전사 — 칸을 쓰지 않는다
-  const other = book('book-other', 'doubleShot');   // 궁수 — 한 칸
-  const bagPouch = pouch('bag-pouch');              // 주머니 — 한 칸
+  const bookA = book('book-a', 'attack');
+  const bookB = book('book-b', 'health');
+  const bagPouch = pouch('bag-pouch');
   const h = await harness(full);
   try {
-    for (const item of [mine, other, bagPouch]) await h.stored(item);
+    for (const item of [bookA, bookB, bagPouch]) await h.stored(item);
     const start = await h.loaded();
     assert.equal(start.save.bag.length, 40, '창고로 옮긴 책·주머니는 가방에서 빠진다(서버 세이브 정리)');
-    // ① 가득(40칸)이면 내 직업 책까지 전부 409 — `main`·`bag-mail-cap`의 규칙 그대로다.
-    for (const item of [mine, other, bagPouch]) {
+    // ① 가득(40칸)이면 스탯북·주머니도 전부 409.
+    for (const item of [bookA, bookB, bagPouch]) {
       const blocked = await h.endpoint(warehouseEndpoint, { action: 'withdraw', itemId: item.id, revision: start.revision, requestId: randomUUID(), characterSlot: 1 });
       assert.equal(blocked.status, 409, `${item.id} 꺼내기가 막힌다`);
       assert.equal(blocked.body.code, 'BAG_FULL');
     }
-    // ② 장비 하나를 보관해 39칸을 비우면 내 직업 책은 나온다 — 그리고 칸은 여전히 39칸이다(책은 세지 않는다).
+    // ② 장비 하나를 보관해 39칸을 비우면 스탯북 하나가 들어가 40칸이 된다.
     const one = await h.endpoint(warehouseEndpoint, { action: 'deposit', itemId: full[0].id, revision: start.revision, requestId: randomUUID(), characterSlot: 1 });
     assert.equal(one.status, 200);
-    const mineOut = await h.endpoint(warehouseEndpoint, { action: 'withdraw', itemId: mine.id, revision: one.body.revision, requestId: randomUUID(), characterSlot: 1 });
-    assert.equal(mineOut.status, 200, JSON.stringify(mineOut.body));
-    assert(mineOut.body.save.bag.some(item => item.id === mine.id));
-    assert.equal(mineOut.body.save.bag.filter(item => !(item.kind === 'skillbook' && item.skillId === 'spin')).length, 39, '내 직업 책은 40칸을 쓰지 않는다');
-    // ③ 타직업 책은 39칸에서 한 칸을 채워 40칸이 되고, 그 뒤로는 다시 막힌다.
-    const otherOut = await h.endpoint(warehouseEndpoint, { action: 'withdraw', itemId: other.id, revision: mineOut.body.revision, requestId: randomUUID(), characterSlot: 1 });
-    assert.equal(otherOut.status, 200, JSON.stringify(otherOut.body));
-    const pouchBlocked = await h.endpoint(warehouseEndpoint, { action: 'withdraw', itemId: bagPouch.id, revision: otherOut.body.revision, requestId: randomUUID(), characterSlot: 1 });
-    assert.equal(pouchBlocked.status, 409); assert.equal(pouchBlocked.body.code, 'BAG_FULL');
+    const bookOut = await h.endpoint(warehouseEndpoint, { action: 'withdraw', itemId: bookA.id, revision: one.body.revision, requestId: randomUUID(), characterSlot: 1 });
+    assert.equal(bookOut.status, 200, JSON.stringify(bookOut.body));
+    assert(bookOut.body.save.bag.some(item => item.id === bookA.id));
+    assert.equal(bookOut.body.save.bag.length, 40, '스탯북도 한 칸을 쓴다');
+    // ③ 40칸이 되었으니 남은 책·주머니는 다시 막힌다.
+    for (const item of [bookB, bagPouch]) {
+      const blocked = await h.endpoint(warehouseEndpoint, { action: 'withdraw', itemId: item.id, revision: bookOut.body.revision, requestId: randomUUID(), characterSlot: 1 });
+      assert.equal(blocked.status, 409); assert.equal(blocked.body.code, 'BAG_FULL');
+    }
   } finally { await h.close(); }
 });
 

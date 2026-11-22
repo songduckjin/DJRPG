@@ -256,7 +256,6 @@
   .equipment-grid { grid-template-rows: repeat(2, 48px); }
   .equipment-modal .bag-grid { min-height: 135px; }
   .bag-heading h3 { font-size: 13px; }
-  .bag-heading .bag-rarity-sort, .bag-heading .bag-job-only, .bag-heading .synth-open { padding: 4px 7px; font-size: 10px; }
   .modal-bag-footer { flex-wrap: wrap; gap: 4px; margin-top: 5px; padding-top: 5px; }
   .modal-bag-footer .salvage, .modal-bag-footer .salvage-rarity, .modal-bag-footer .salvage-plus { padding: 4px 7px; font-size: 10px; }
   .auto-salvage-hint { font-size: 9px; }
@@ -364,17 +363,7 @@
 
 .skill-icon { position: relative; }
 .skill-upgrade-dot { position: absolute; right: -3px; top: -3px; width: 10px; height: 10px; background: #de352e; border: 1px solid #f2b2a0; border-radius: 50%; }
-.skill-books { padding-bottom: 12px; border-bottom: 1px solid #73574b; }
-.skill-book-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; }
-.skill-list .skill-book-card { display: flex; flex-direction: column; align-items: center; position: relative; min-width: 0; gap: 1px; padding: 3px; background: #211b1d; border: 1px solid #655044; font-size: 9px; text-align: center; }
-.skill-book-card img { width: 32px; height: 32px; object-fit: contain; }
-.skill-book-card b { min-height: 0; line-height: 1.2; overflow-wrap: anywhere; }
-.skill-book-quantity { position: absolute; right: 3px; top: 3px; padding: 1px 3px; border-radius: 3px; background: #171216e6; color: #f2deb9; font-size: 10px; line-height: 12px; pointer-events: none; }
 /* 스킬 창은 내 직업 책만 보여 준다 — 다른 직업 책은 가방에서 판매·보관한다(작업 210). */
-.skill-book-hint { display: block; margin-top: 6px; color: #9c8b7b; font-size: 10px; line-height: 1.45; }
-.skill-book-card > .skill-book-cost { display: none; }
-.skill-book-card > .skillbook-use { width: 100%; min-height: 20px; padding: 2px 3px; font-size: 10px; line-height: 14px; }
-.skill-book-cost { color: #cbb89b; font-size: 10px; }
 .skillbook-use:disabled { opacity: .45; }
 
 /* Compact utility dialogs size to content; only long lists scroll. */
@@ -492,7 +481,6 @@
 .bag-heading h3 { flex:1 1 auto; min-width:0; margin:0; }
 .bag-heading .bag-job-only { flex:0 1 auto; margin:0; }
 /* [작업 252] 가방 `합성`은 머리줄 `내 직업만 보기` 바로 왼쪽 — 머리줄 버튼과 같은 납작한 크기로 둔다. */
-.bag-heading .synth-open { flex:0 1 auto; margin:0; padding:4px 7px; font-size:11px; }
 .bag-rarity-sort { flex:0 0 auto; border:1px solid #6d5948; background:#292124; color:#bba998; padding:4px 8px; font-size:11px; }
 .bag-rarity-sort.active { border-color:#c8a26a; background:#4a342a; color:#ffe1b5; }
 
@@ -505,7 +493,6 @@
 .job-archer { color: #7fd6a1; }
 .job-mage { color: #a7b4ff; }
 .bag-item .job-badge { position: absolute; left: 1px; top: 1px; padding: 0 2px; min-height: 11px; font-size: 8px; line-height: 9px; z-index: 1; pointer-events: none; }
-.skill-book-card .job-badge { position: absolute; left: 3px; top: 3px; }
 .bag-job-only { border: 1px solid #6d5948; background: #292124; color: #bba998; padding: 4px 7px; font-size: 11px; }
 .bag-job-only.is-on { border-color: #c8a26a; background: #4a342a; color: #ffe1b5; }
 .bag-job-only-hint { color: #b9a486; }
@@ -735,96 +722,5 @@ img.pouch-icon { display: block; object-fit: contain; border-radius: 4px; }
   .skill-picker-info b { font-size: 12px; }
 }
 
-/* ── 스킬북 합성 팝업 (작업 251, 사용자 확정) ──────────────────────────────────
-   가방 `합성` 버튼으로 열리는 작은 창이다. 위에 **빈칸 5개**를 늘 보여 주고, 가운데 목록에서 고른
-   타직업 스킬북이 한 칸씩 들어간다. 연출은 `src/ui/modals/synthModal.ts`의 시각(280/560/620/900ms)과
-   **같은 박자**로 움직인다 — ① 5권이 가운데로 모임 ② 빛이 차오르며 팡 터짐 ③ 허물이 흩어지고 새 책 등장.
-   무대는 `overflow: visible`이라 빛·허물이 카드 밖으로도 퍼진다(주머니 개봉 창과 같은 방식). */
-.synth-window { position: fixed; inset: 0; z-index: 46; display: flex; align-items: center; justify-content: center; padding: 10px; background: #05030899; }
-.synth-window-card { position: relative; display: flex; flex-direction: column; align-items: center; gap: 4px; width: min(100%, 330px); max-height: 94dvh; padding: 7px 10px 10px; border: 1px solid #b58a52; border-radius: 6px; background: radial-gradient(circle at 50% 16%, #3b2a20, #17111a 72%); box-shadow: 0 18px 40px #000c, inset 0 0 0 1px #f0c88a22; color: #e8d7c0; overflow: visible; }
-.synth-window-top { display: grid; grid-template-columns: 30px minmax(0, 1fr) 30px; align-items: center; width: 100%; }
-.synth-window-title { margin: 0; font-size: 13px; color: #f6dcb0; letter-spacing: .01em; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.synth-window-close { justify-self: end; width: 30px; height: 30px; border: 0; background: transparent; color: #c9b49a; font-size: 20px; line-height: 1; }
-.synth-window-hint { margin: 0; color: #ad9a86; font-size: 9px; text-align: center; white-space: nowrap; }
-.synth-window-error { margin: 0; color: #ffb4a4; font-size: 10px; text-align: center; }
+/* 파트 B(2026-11-22): 스킬북 합성 팝업(`synthModal`)과 그 연출 CSS를 통째로 없앴다. */
 
-/* 무대 — 5칸이 앉고, 빛·섬광·허물이 그 위/아래에 겹친다. */
-.synth-stage { position: relative; display: flex; align-items: center; justify-content: center; width: 100%; min-height: 92px; overflow: visible; }
-.synth-slots { position: relative; z-index: 3; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 5px; width: 100%; padding: 4px 0; }
-.synth-slot { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; aspect-ratio: 1; min-width: 0; padding: 2px; border: 1px dashed #6d5948; border-radius: 4px; background: #1b1618; color: #8d7b6c; transition: border-color 180ms linear, background 180ms linear; }
-.synth-slot.is-filled { border-style: solid; border-color: #c8a26a; background: radial-gradient(circle at 50% 30%, #3a3130, #221e22); }
-.synth-slot-plus { font-size: 15px; line-height: 1; color: #6c5b4e; }
-.synth-slot .skill-book-art { width: 100%; max-width: 34px; height: auto; aspect-ratio: 1; --book-badge-size: 14px; }
-.synth-slot-name { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 8px; line-height: 1.1; color: #cdbba4; }
-/* ① 가운데로 모임 — 각 책의 실제 거리(`--synth-dx`)만큼 가운데 칸으로 이동하며 작아진다. */
-.synth-stage.is-gathering .synth-slot { border-color: transparent; background: transparent; }
-.synth-stage.is-gathering .synth-slot.is-gathered .skill-book-art { transform: translateX(var(--synth-dx, 0)) scale(.42); opacity: .92; transition: transform 280ms cubic-bezier(.5, 0, .76, 1), opacity 240ms linear; }
-.synth-stage.is-gathering .synth-slot.is-gathered .synth-slot-name { opacity: 0; transition: opacity 120ms linear; }
-.synth-stage.is-burst .synth-slot .skill-book-art { opacity: 0; transition: opacity 120ms linear; }
-
-/* ② 빛이 차오르고 팡! — Canvas(`createPouchLight`)가 부드러운 빛·입자를 그리고, CSS는 중심 글로우와 섬광만 맡는다. */
-.synth-glow { position: absolute; left: 50%; top: 50%; z-index: 2; width: 8px; height: 8px; border-radius: 50%; background: radial-gradient(circle, #ffffff, #ffffff00 70%); opacity: 0; pointer-events: none; transform: translate(-50%, -50%); }
-.synth-stage.is-charging .synth-glow { width: 118px; height: 118px; opacity: .8; transition: width 260ms ease-out, height 260ms ease-out, opacity 260ms ease-out; }
-.synth-stage.is-burst .synth-glow { opacity: 0; transition: opacity 240ms ease-out; }
-.synth-flash { position: absolute; inset: -40% -12%; z-index: 4; background: radial-gradient(circle at 50% 50%, #ffffff, #ffffff00 60%); opacity: 0; pointer-events: none; mix-blend-mode: screen; }
-.synth-stage.is-burst .synth-flash { animation: synth-flash 240ms ease-out forwards; }
-
-/* ③ 허물 — 책 껍질(종이) 조각이 사방으로 벗겨져 흩어진다. 방향·거리는 조각마다 JS가 준 값이다. */
-.synth-husks { position: absolute; left: 50%; top: 50%; z-index: 5; pointer-events: none; }
-.synth-husk { position: absolute; width: 5px; height: 3px; background: linear-gradient(#f4e3c2, #a9885c); border-radius: 1px; opacity: 0; }
-.synth-stage.is-burst .synth-husk { animation: synth-husk 620ms ease-out forwards; }
-
-/* 결과 — 내 직업 책 1권(자동 합성은 N권 전부). 같은 책은 `×N`으로 묶는다. */
-.synth-result { width: 100%; margin-top: 1px; text-align: center; }
-.synth-result:empty { display: none; }
-.synth-result-title { margin: 0 0 4px; color: #f6dcb0; font-size: 12px; }
-.synth-result-list { display: flex; flex-wrap: wrap; gap: 5px; justify-content: center; max-height: 30dvh; overflow-y: auto; overscroll-behavior: contain; padding: 2px; }
-.synth-result-item { display: flex; flex-direction: column; align-items: center; gap: 1px; width: 62px; padding: 4px 2px; border: 1px solid #c8a26a55; border-radius: 4px; background: #241c1e; animation: synth-pop 260ms ease-out both; animation-delay: calc(var(--synth-index, 0) * 40ms); }
-.synth-result-item .skill-book-art { width: 32px; height: 32px; --book-badge-size: 15px; }
-.synth-result-name { font-size: 9px; line-height: 1.15; color: #ffe0ab; word-break: keep-all; }
-.synth-result-count { color: #43f6c5; font-size: 10px; font-style: normal; font-weight: 800; }
-
-/* 재료 목록 — 가방의 타직업 스킬북. 누르면 위 빈칸에 들어가고 다시 누르면 빠진다. */
-.synth-materials-wrap { width: 100%; min-height: 0; margin-top: 2px; }
-.synth-materials-heading { margin: 0 0 3px; color: #ad9a86; font-size: 9px; text-align: center; }
-.synth-materials { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 4px; max-height: 25dvh; overflow-y: auto; overscroll-behavior: contain; padding: 2px; }
-/* 스크롤바는 다크/골드 톤으로 맞춘다(작업 252 ④ — 기본 회색 막대가 팝업 톤과 어긋났다). */
-.synth-materials, .synth-result-list { scrollbar-width: thin; scrollbar-color: #6b5239 #1c1518; }
-.synth-materials::-webkit-scrollbar, .synth-result-list::-webkit-scrollbar { width: 6px; height: 6px; }
-.synth-materials::-webkit-scrollbar-track, .synth-result-list::-webkit-scrollbar-track { background: #1c1518; border-radius: 3px; }
-.synth-materials::-webkit-scrollbar-thumb, .synth-result-list::-webkit-scrollbar-thumb { background: #6b5239; border-radius: 3px; }
-.synth-material { position: relative; display: flex; flex-direction: column; align-items: center; gap: 1px; min-width: 0; padding: 2px; border: 1px solid #60534e; border-radius: 4px; background: #221e22; color: #ddcfc1; }
-.synth-material .skill-book-art { width: 100%; max-width: 30px; height: auto; aspect-ratio: 1; --book-badge-size: 12px; }
-.synth-material .job-badge { position: absolute; left: 1px; top: 1px; padding: 0 2px; min-height: 11px; font-size: 8px; line-height: 9px; z-index: 1; pointer-events: none; }
-.synth-material.is-picked { border-color: #ffe3a3; box-shadow: inset 0 0 0 1px #ffe3a355; opacity: .5; }
-
-.synth-window-actions { display: flex; flex-wrap: wrap; gap: 4px; width: 100%; margin-top: 3px; }
-.synth-window-actions button { min-height: 34px; padding: 7px 6px; border-radius: 4px; font: inherit; font-size: 11px; touch-action: manipulation; }
-.synth-fill { flex: 1 1 40%; border: 1px solid #7d6242; background: #2b2223; color: #e3cba6; }
-.synth-craft { flex: 2 1 96px; border: 1px solid #d3a45f; background: linear-gradient(#6b4c2a, #43301c); color: #ffe6bc; font-weight: 700; }
-.synth-auto { flex: 1 1 44%; border: 1px solid #8f7457; background: #3c2924; color: #e9d6b1; }
-.synth-auto.is-ready { border-color: #e0b36e; box-shadow: inset 0 0 0 1px #e0b36e44; color: #ffe6bc; }
-.synth-close { flex: 0 0 auto; border: 1px solid #6d5540; background: #251e1f; color: #c3ae96; }
-.synth-fill:disabled, .synth-craft:disabled, .synth-auto:disabled { opacity: .42; }
-
-@keyframes synth-flash { 0% { opacity: 0; } 22% { opacity: .95; } 100% { opacity: 0; } }
-@keyframes synth-husk {
-  0% { opacity: 0; transform: rotate(var(--synth-angle, 0deg)) translateY(0) scale(.6); }
-  18% { opacity: 1; }
-  100% { opacity: 0; transform: rotate(var(--synth-angle, 0deg)) translateY(calc(var(--synth-dist, 26px) * -1)) rotate(170deg) scale(1); }
-}
-@keyframes synth-pop { 0% { opacity: 0; transform: translateY(5px) scale(.86); } 100% { opacity: 1; transform: none; } }
-
-@media (prefers-reduced-motion: reduce) {
-  .synth-stage.is-gathering .synth-slot.is-gathered .skill-book-art { transition: none; }
-  .synth-stage.is-burst .synth-husk, .synth-stage.is-burst .synth-flash { animation: none; display: none; }
-  .synth-result-item { animation: none; }
-}
-@media (max-height: 700px) {
-  .synth-stage { min-height: 78px; }
-  .synth-materials { max-height: 22dvh; }
-}
-
-/* 가방 바닥줄 `합성` — 재료가 있으면 금빛, 없으면 다른 분해 버튼과 같은 톤으로 둔다. */
-.synth-open.is-ready { border-color: #d3a45f; background: linear-gradient(#5b3f26, #3a2926); color: #ffe0ab; }
-.synth-open:disabled { opacity: .45; }

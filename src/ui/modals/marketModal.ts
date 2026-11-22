@@ -1,7 +1,7 @@
-import {createSkillBookArt} from '../skillBookArt';
 import { goldNode, coinMarkup } from '../currency';
 import { filterSaleItems } from '../itemOrder';
-import { equipmentImage, isBow, isEquipment, isSkillBook, itemDisplayName, itemJob, rarityNames, slotNames, statNames, usableByJob, type Item, type Stat } from '../../game/items';
+import { equipmentImage, isBow, isEquipment, isStatBook, itemDisplayName, itemJob, rarityNames, slotNames, statNames, usableByJob, type Item, type Stat } from '../../game/items';
+import { STAT_BOOKS, isStatBookKind } from '../../game/statBooks';
 import { extraOptionLines } from '../../game/extraOptions';
 import { jobNames } from '../../game/skills';
 import { MARKET_JOB_ONLY_KEY, jobOnlyLabel, jobOnlyVisible, saveJobOnly } from '../jobFilter';
@@ -34,7 +34,8 @@ const stateNames: Record<string,string> = { active: '판매 중', sold: '판매 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, className = '', text = ''): HTMLElementTagNameMap[K] { const node = document.createElement(tag); node.className = className; node.textContent = text; return node; }
 function button(label: string, run: () => void, disabled = false): HTMLButtonElement { const node = el('button', '', label); node.type = 'button'; node.disabled = disabled; node.onclick = run; return node; }
 function icon(item: Item, save?: Save): HTMLElement {
-  if(isSkillBook(item)){const node=createSkillBookArt(item);node.classList.add('market-icon');return node;}
+  // 영구 스탯북(파트 B) — 전용 아이콘 시안 전까지 기존 책 그림을 쓴다(가방·필드와 같은 그림).
+  if(isStatBook(item)){const node=el('span','market-icon skill-book-art');node.style.backgroundImage="url('/assets/icons/icon_skillbook.png')";node.style.backgroundSize='contain';node.style.backgroundPosition='center';node.style.backgroundRepeat='no-repeat';return node;}
   const node = el('span', 'market-icon');
   // 보물 주머니(작업 207)는 팔 수 없다 — 장비 그림이 없는 아이템은 빈 칸으로 둔다.
   if(!isEquipment(item)) return node;
@@ -51,9 +52,9 @@ function itemInfo(item: Item): HTMLElement {
   // 직업 전용 매물에는 `전사`/`궁수`/`마법사` 배지를 달아, 내 캐릭터가 쓸 수 있는 물건인지 목록에서 바로 보이게 한다(작업 205).
   const owner = itemJob(item);
   if (owner) titleRow.append(el('span', `job-badge job-${owner}`, jobNames[owner]));
-  info.append(titleRow, el('small', '', `${rarityNames[item.rarity]} · ${isSkillBook(item) ? '스킬북' : isEquipment(item) ? isBow(item) ? '활' : slotNames[item.slot] : '소모품'}`));
+  info.append(titleRow, el('small', '', `${rarityNames[item.rarity]} · ${isStatBook(item) ? '영구 스탯북' : isEquipment(item) ? isBow(item) ? '활' : slotNames[item.slot] : '소모품'}`));
   const stats = Object.entries(item.stats).map(([key, amount]) => `${statNames[key as Stat]} +${amount}`).join(' · ');
-  info.append(el('small', 'market-options', stats || '사용 시 습득 또는 스킬 +1레벨'));
+  info.append(el('small', 'market-options', stats || statBookBlurb(item)));
   // 추가옵션(작업 238) — 목록에서도 매물의 옵션을 한 줄로 보여 준다.
   const extras = isEquipment(item) ? extraOptionLines(item) : [];
   if (extras.length) info.append(el('small', 'market-options item-extra', extras.join(' · ')));
@@ -276,9 +277,9 @@ function listingDetail(ui: Interface, sale: Listing, blocked: boolean): HTMLElem
   // 어느 직업의 물건인지, 내가 쓸 수 있는지 한 줄로 알린다(작업 205).
   const ownerJob = itemJob(sale.item);
   if (ownerJob && !usableByJob(sale.item, ui.world.save.job)) {
-    detail.append(el('p', 'market-job-warning', isSkillBook(sale.item) ? `${jobNames[ownerJob]} 전용 스킬북 (내 직업 아님)` : `장착 불가 (${jobNames[ownerJob]} 전용)`));
+    detail.append(el('p', 'market-job-warning', `장착 불가 (${jobNames[ownerJob]} 전용)`));
   }
-  if (!sale.mine && !isSkillBook(sale.item)) {
+  if (!sale.mine && isEquipment(sale.item)) {
     const comparison = compareEquipment(ui.world.save, sale.item)!;
     const equipped = el('div', 'market-equipped');
     if (comparison.equipped) {
@@ -360,18 +361,25 @@ function renderListing(ui: Interface, dialog: HTMLElement, sale: Listing, blocke
   if (market.selected?.id === sale.id && sale.state === 'active') row.append(listingDetail(ui, sale, blocked));
   dialog.append(row);
 }
-/** 매물의 종류(작업 257) — 판매 중 서브 필터(`전체`·`장비`·`스킬북`)가 쓰는 구분. */
+/** 매물의 종류(작업 257 → 파트 B) — 판매 중 서브 필터(`전체`·`장비`·`영구 스탯북`)가 쓰는 구분. */
 function listingKind(item: Item): MarketKind | 'other' {
-  if (isSkillBook(item)) return 'skillbook';
+  if (isStatBook(item)) return 'statbook';
   if (isEquipment(item)) return 'equipment';
   return 'other';
+}
+/** 스탯북 한 줄 설명 — 목록·상세의 옵션 줄에 쓴다(능력치가 없어 `stats`가 빈다). */
+function statBookBlurb(item: Item): string {
+  if (!isStatBook(item) || !isStatBookKind(item.book)) return '사용 시 영구 능력치 상승';
+  const spec = STAT_BOOKS[item.book];
+  const statName = spec.stat === 'attack' ? '공격력' : spec.stat === 'defense' ? '방어력' : '체력';
+  return `사용 시 영구 ${statName} +${spec.perBook} (최대 ${spec.max}권)`;
 }
 function kindMatches(item: Item, kind: MarketKind): boolean {
   if (kind === 'all') return true;
   return listingKind(item) === kind;
 }
 /**
- * 판매 중 목록의 서브 필터 탭(작업 257, 사용자 지시 `#8958`) — `전체`·`장비`·`스킬북` 칩.
+ * 판매 중 목록의 서브 필터 탭(작업 257, 사용자 지시 `#8958`) — `전체`·`장비`·`영구 스탯북` 칩.
  *
  * 서버 목록 계약(`filters.category`는 한 값만 받는다)은 그대로 두고 **이미 받은 한 페이지**를
  * 화면에서 거른다(`내 직업만 보기`와 같은 방식). 칩에는 이 페이지의 건수를 함께 보여 준다.
@@ -379,9 +387,9 @@ function kindMatches(item: Item, kind: MarketKind): boolean {
 function kindTabs(market: Market, listings: Listing[]): HTMLElement {
   const bar = el('div', 'market-kind-tabs');
   bar.setAttribute('role', 'tablist'); bar.setAttribute('aria-label', '매물 종류');
-  const counts: Record<MarketKind, number> = { all: listings.length, equipment: 0, skillbook: 0 };
-  for (const sale of listings) { const kind = listingKind(sale.item); if (kind === 'equipment' || kind === 'skillbook') counts[kind] += 1; }
-  for (const kind of ['all', 'equipment', 'skillbook'] as MarketKind[]) {
+  const counts: Record<MarketKind, number> = { all: listings.length, equipment: 0, statbook: 0 };
+  for (const sale of listings) { const kind = listingKind(sale.item); if (kind === 'equipment' || kind === 'statbook') counts[kind] += 1; }
+  for (const kind of ['all', 'equipment', 'statbook'] as MarketKind[]) {
     const tab = button('', () => {
       if (market.kind === kind) return;
       // 종류를 바꾸면 이전 목록에서 연 상세·선택을 모두 버린다(작업 257 피드백 `#9089`).
@@ -450,9 +458,9 @@ function listingSheet(ui: Interface, sale: Listing, blocked: boolean): HTMLEleme
   titleRow.append(renderItemName(el('b', `rarity-${sale.item.rarity}`), sale.item));
   const owner = itemJob(sale.item);
   if (owner) titleRow.append(el('span', `job-badge job-${owner}`, jobNames[owner]));
-  info.append(titleRow, el('small', 'market-sheet-sub', `${rarityNames[sale.item.rarity]} · ${isSkillBook(sale.item) ? '스킬북' : isEquipment(sale.item) ? isBow(sale.item) ? '활' : slotNames[sale.item.slot] : '소모품'} · 판매자 ${sale.sellerName}`));
+  info.append(titleRow, el('small', 'market-sheet-sub', `${rarityNames[sale.item.rarity]} · ${isStatBook(sale.item) ? '영구 스탯북' : isEquipment(sale.item) ? isBow(sale.item) ? '활' : slotNames[sale.item.slot] : '소모품'} · 판매자 ${sale.sellerName}`));
   const stats = Object.entries(sale.item.stats).map(([key, amount]) => `${statNames[key as Stat]} +${amount}`).join(' · ');
-  info.append(el('small', 'market-options', stats || '사용 시 습득 또는 스킬 +1레벨'));
+  info.append(el('small', 'market-options', stats || statBookBlurb(sale.item)));
   const extras = isEquipment(sale.item) ? extraOptionLines(sale.item) : [];
   if (extras.length) info.append(el('small', 'market-options item-extra', extras.join(' · ')));
   const priceLine = el('p', 'market-sheet-price');
@@ -543,7 +551,7 @@ function renderRegister(ui: Interface, dialog: HTMLElement, blocked: boolean): v
     const titleRow = el('div', 'market-item-title');
     titleRow.append(renderItemName(el('b', `rarity-${item.rarity}`), item));
     if (stack.count > 1) titleRow.append(el('span', 'market-pick-count-inline', `보유 ×${stack.count}`));
-    info.append(titleRow, el('small', '', `${rarityNames[item.rarity]} · ${isSkillBook(item) ? '스킬북' : isEquipment(item) ? (isBow(item) ? '활' : slotNames[item.slot]) : '소모품'}`));
+    info.append(titleRow, el('small', '', `${rarityNames[item.rarity]} · ${isStatBook(item) ? '영구 스탯북' : isEquipment(item) ? (isBow(item) ? '활' : slotNames[item.slot]) : '소모품'}`));
     picked.append(info); detail.append(picked);
 
     const quote = market.quote, prices = el('p', 'market-recent-price');

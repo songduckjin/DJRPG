@@ -1,7 +1,8 @@
 import { canStoreItem } from './bagCapacity';
 import { bossGoldPiles, bossGoldSpot } from './bossLoot';
 import { addExperience, floorKillTarget, MAX_FLOOR, rollItem, skillLevel, totalStats, type Item, type Rarity, type Save } from './store';
-import { itemDisplayName, itemDropChance, rollItemKind, rollSkillBook, starterWeaponName } from './items';
+import { itemDisplayName, itemDropChance, starterWeaponName } from './items';
+import { rollStatBookDrop } from './statBooks';
 import { dragonOrbitFactor, skillDamageScale, skillDuration, skillRange, skills, slash2Hits, slash2SwingSeconds, type Job, type SkillId } from './skills';
 import { jobOrDefault } from './skills';
 import { clampArenaPoint, clampFieldPoint, fieldSpawnBand, spawnArenaEnemy } from './arena';
@@ -646,13 +647,18 @@ export class World {
     // still come from the one chance roll every kill makes below, against the same field drop table
     // (the boss rates for a boss), so a boss never leaves five guaranteed pieces behind.
     const guaranteed = this.save.tutorial === 0 && !enemy.boss, boss = enemy.boss;
-    // 한 마리당 **한 번만** 굴려 아이템 1개(작업 210, 사용자 지시 `#4628`): 장비 70% · 스킬북 30%.
+    // 한 마리당 **한 번만** 굴려 장비 1개(작업 210, 사용자 지시 `#4628`). 파트 B(2026-11-22)에서 스킬북이
+    // 폐지되어 종류를 가르지 않고, 영구 스탯북은 **이 확률과 별개로** 개극악 확률로 한 번 더 굴린다.
     if (guaranteed) {
       this.drops.push({ x: enemy.x, y: enemy.y, item: rollItem(this.save.floor, true, boss, this.job), age: 0, warned: false });
       this.save.tutorial = 1; this.onMessage(`${starterWeaponName(this.job)}이(가) 떨어졌습니다. 잠시 뒤 자동으로 획득됩니다!`);
-    } else if (random() < itemDropChance(this.save.floor, boss)) {
-      const item = rollItemKind() === 'skillbook' ? rollSkillBook(this.save.floor, this.job) : rollItem(this.save.floor, false, boss, this.job);
-      this.drops.push({ x: enemy.x, y: enemy.y, item, age: 0, warned: false });
+    } else {
+      if (random() < itemDropChance(this.save.floor, boss)) {
+        this.drops.push({ x: enemy.x, y: enemy.y, item: rollItem(this.save.floor, false, boss, this.job), age: 0, warned: false });
+      }
+      // 영구 스탯북(파트 B) — 일반·정예는 `hunt`, 보스는 `boss` 확률. 세 종류는 같은 확률(1/3)이다.
+      const book = rollStatBookDrop(boss ? 'boss' : 'hunt');
+      if (book) this.drops.push({ x: enemy.x, y: enemy.y, item: book, age: 0, warned: false });
     }
     if (enemy.boss) {
       if (this.save.autoClimb) {

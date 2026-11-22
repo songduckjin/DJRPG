@@ -16,8 +16,8 @@
 // (`HEAP_ISO_X`/`HEAP_ISO_Y`, the projection in `game/arena`), which is why a circle of world points
 // would look squashed and lopsided on screen but these do not.
 
-import { equipmentDropChance, rollDungeonItem, rollSkillBook, skillBookDropChance, type Item } from './items';
-import { random } from './rng';
+import { rollDungeonItem, type Item } from './items';
+import { rollStatBookDrop } from './statBooks';
 
 /** Random items a dungeon boss leaves on the ground (작업 248: 5 → **2개 확정**). The main field drops none of these for a boss. */
 export const BOSS_ITEM_DROPS = 2;
@@ -41,11 +41,11 @@ const HEAP_SWIRL = [5, -8, 6, -5, 4] as const;
 /** Angle of each ring's first place, in degrees: the outer ring fills the gaps of the inner one. */
 const HEAP_BASE = [90, 54] as const;
 
-/** One random item of a boss haul: the field's equipment/skill-book odds decide which, exactly as a
- *  normal kill's item does, and the grade comes from the dungeon's 10-floor tier table (작업 248). */
+/** One random item of a boss haul: an **영구 스탯북** at the boss rate (`STAT_BOOK_DROP_RATES.dungeonBoss`,
+ *  파트 B) or an equipment from the dungeon's 10-floor tier table (작업 248). The old equipment/skill-book
+ *  split is gone — skill books no longer drop anywhere. */
 export function rollBossItem(floor: number): Item {
-  const equipment = equipmentDropChance(floor, true), book = skillBookDropChance(floor, true);
-  return random() * (equipment + book) < equipment ? rollDungeonItem(floor, true) : rollSkillBook(floor);
+  return rollStatBookDrop('dungeonBoss') ?? rollDungeonItem(floor, true);
 }
 
 /** The `BOSS_ITEM_DROPS` random items a dungeon boss leaves behind. */

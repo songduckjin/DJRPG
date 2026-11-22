@@ -2,12 +2,12 @@ import { randomUUID } from 'node:crypto';
 import { account, transaction, assertRevision, validateSave, reconcileItems, writeSave, fail, inventoryOwnerQuery, countedBagItems, EQUIPMENT_BAG_LIMIT } from './database.mjs';
 import { elapsedSince } from './save-guard.mjs';
 import { journeyState, journeyOperation, journeyView, dailyTasks, pouchItem } from './journey-state.mjs';
-import { countedInBag, rollRewardSkillBook } from './skill-ids.mjs';
-/** 우편·보상이 가방에 넣는 아이템 수 — 스킬북 `books` + 보물 주머니 `pouches`(작업 248). */
+import { countedInBag } from './stat-books.mjs';
+/** 우편·보상이 가방에 넣는 아이템 수 — 보물 주머니 `pouches`(파트 B: 스킬북 `books`는 폐지). */
 function rewardItemCount(entries) {
-  return entries.reduce((sum, entry) => sum + Math.max(0, Math.floor(Number(entry.books ?? 0) || 0)) + Math.max(0, Math.floor(Number(entry.pouches ?? 0) || 0)), 0);
+  return entries.reduce((sum, entry) => sum + Math.max(0, Math.floor(Number(entry.pouches ?? 0) || 0)), 0);
 }
-/** 가방 40칸에 지금 차 있는 칸 수 — 장비·타직업 스킬북·보물 주머니(내 직업 스킬북 제외, 작업 253). */
+/** 가방 40칸에 지금 차 있는 칸 수 — 모든 아이템 1개=1칸(파트 B). */
 function bagSlots(save) {
   return (save.bag ?? []).filter(item => countedInBag(item, save.job)).length;
 }
@@ -17,17 +17,9 @@ function rewards(save, entries) {
   const gold = entries.reduce((sum,entry)=>sum+Number(entry.gold??0),0);
   save.gold += gold;
   save.bag ??= [];
-  for (const entry of entries) {
-    const books = Math.max(0, Math.floor(Number(entry.books??0) || 0));
-    // 우편·보상 스킬북은 세 직업 33종에서 고른다(작업 209) — 예전에는 전사 11종만 나왔다.
-    // 직업을 지정해 주던 미리보기용 우편 경로는 운영 배포에서 정리했다(작업 252).
-    // 보상은 칸 검사를 하지 않고 넣는다(받을 것을 잃지 않게). 다른 직업 책이면 40칸을 넘길 수 있고,
-    // 그 초과분은 `reconcileItems`가 "서버가 들고 있는 수"까지 인정해 저장을 막지 않는다(작업 246).
-    for (let i = 0; i < books; i++) {
-      const {skillId,name} = rollRewardSkillBook();
-      save.bag.push({id:randomUUID(),kind:'skillbook',slot:'skillbook',skillId,rarity:'rare',name,stats:{}});
-    }
-  }
+  // 파트 B(2026-11-22): 우편·보상에서 **스킬북을 주지 않는다**(`books` 값은 옛 우편에 남아 있어도 무시한다).
+  // 보상은 칸 검사를 하지 않고 넣는다(받을 것을 잃지 않게) — 그 초과분은 `reconcileItems`가
+  // "서버가 들고 있는 수"까지 인정해 저장을 막지 않는다(작업 246).
   for(let i=0;i<pouches;i++) save.bag.push(pouchItem(randomUUID()));
   return gold;
 }

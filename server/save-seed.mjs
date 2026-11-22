@@ -3,7 +3,8 @@
 export const jobs = ['warrior', 'archer', 'mage'];
 export const jobOf = value => value === 'archer' || value === 'mage' ? value : 'warrior';
 
-export const initialSave = (id, gender, name, job = 'warrior') => ({ version: 1, name, accountId: id, gender, job: jobOf(job), auto: true, autoClimb: true, level: 1, exp: 0, gold: 0, floor: 1, maxFloor: 1, floorKills: 0, kills: 0, health: 100, equipment: {}, equipmentCollection: [], bag: [], tutorial: 0, stones: 0, skillPoints: 0, lastActiveAt: Date.now(), learned: [], passives: [], quickSlots: [null, null, null], skillLevels: {}, dungeonFloor: 0, dungeonClearAt: 0, bossRetryFloor: 0 });
+export const initialSave = (id, gender, name, job = 'warrior') => ({ version: 1, name, accountId: id, gender, job: jobOf(job), auto: true, autoClimb: true, level: 1, exp: 0, gold: 0, floor: 1, maxFloor: 1, floorKills: 0, kills: 0, health: 100, equipment: {}, equipmentCollection: [], bag: [], tutorial: 0, stones: 0, skillPoints: 0, lastActiveAt: Date.now(), learned: [], passives: [], quickSlots: [null, null, null], skillLevels: {}, dungeonFloor: 0, dungeonClearAt: 0, bossRetryFloor: 0, // 영구 스탯북 사용 권수(파트 B) — 새 캐릭터는 0/0/0에서 시작한다.
+  statBooks: { attack: 0, defense: 0, health: 0 } });
 
 /** 시즌 초기화 직후의 세이브(작업 206): 아이디·비밀번호만 남기고 게임 데이터를 100% 비운 상태다.
  *  `needsSetup`이 true인 동안은 인게임에 들어가지 않고, 로그인 뒤 직업·성별을 고른 다음

@@ -6,7 +6,7 @@ const { Market, MARKET_VIEWS } = await import('../src/game/market.ts');
 const { freshSave } = await import('../src/game/store.ts');
 
 const sword = (id, rarity = 'rare') => ({ id, name: id, slot: 'weapon', rarity, stats: { attack: 10 } });
-const book = (id, skillId, rarity = 'rare') => ({ id, name: `[스킬북] ${skillId}`, slot: 'skillbook', kind: 'skillbook', skillId, rarity, stats: {} });
+const book = (id, kind = 'attack', rarity = 'unique') => ({ id, name: { attack: '공격의 서', defense: '방어의 서', health: '체력의 서' }[kind], slot: 'statbook', kind: 'statbook', book: kind, rarity, stats: {} });
 const pouch = id => ({ id, name: '무작위 보물 주머니', slot: 'pouch', kind: 'pouch', rarity: 'unique', stats: {} });
 const snapshot = overrides => ({
   inbox: [], listings: [], watched: [], seq: 0, total: 0, page: 0, myActive: 0, revision: 0,
@@ -100,9 +100,9 @@ test('`내 거래`의 `판매 중인 물건만 보기`는 오른쪽 줄에 붙�
   assert(!find(render(active), node => hasClass(node, 'market-mine-filter')));
 });
 
-test('판매 등록 칸은 작은 그리드로 그려지고 같은 스킬북은 한 칸 `×N`으로 묶인다(작업 247)', () => {
+test('판매 등록 칸은 작은 그리드로 그려지고 같은 영구 스탯북은 한 칸 `×N`으로 묶인다(작업 247 → 파트 B)', () => {
   const save = freshSave();
-  save.bag = [book('b1', 'spin'), book('b2', 'spin'), sword('w1'), pouch('p1')];
+  save.bag = [book('b1', 'attack'), book('b2', 'attack'), sword('w1'), pouch('p1')];
   const market = new Market({ conflicted: false });
   market.view = 'register'; market.data = snapshot();
   const picked = []; market.selectItem = async item => { picked.push(item.id); };
@@ -119,7 +119,7 @@ test('판매 등록 칸은 작은 그리드로 그려지고 같은 스킬북은 
   // [작업 248] 칸에는 이름 글자가 없다 — 이름·등급은 툴팁으로만 알린다(가방처럼 정사각형 아이콘 칸).
   assert(!find(bookCell, node => hasClass(node, 'market-pick-name')));
   assert.match(bookCell.title ?? '', /2개/);
-  assert.equal(bookCell.attrs['aria-label'], '[스킬북] spin · 레어 · 2개 판매 선택');
+  assert.equal(bookCell.attrs['aria-label'], '공격의 서 · 유니크 · 2개 판매 선택');
   assert(find(bookCell, node => hasClass(node, 'market-pick-count')), '×2는 절대 위치 배지');
 });
 

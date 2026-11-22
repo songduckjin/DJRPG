@@ -151,13 +151,13 @@ test('loading an old save fills plus in, and a freshly rolled 0 keeps it 0 on th
   // 세이브 전체를 읽어도 강화 단계가 붙고, 이름·스탯은 변하지 않는다.
   const save = freshSave();
   save.floor = 51;
-  save.bag = [deep, { id: 'book', name: '[스킬북] 회오리 베기', slot: 'skillbook', kind: 'skillbook', skillId: 'spin', rarity: 'rare', stats: {} }];
+  save.bag = [deep, { id: 'book', name: '공격의 서', slot: 'statbook', kind: 'statbook', book: 'attack', rarity: 'unique', stats: {} }];
   const parsed = parseSave(save);
   assert.equal(parsed.bag[0].plus, 4);
   assert.equal(parsed.bag[0].name, deep.name);
-  assert.equal(plusOf(parsed.bag[1]), 0, '스킬북에는 단계가 없다');
+  assert.equal(plusOf(parsed.bag[1]), 0, '스탯북에는 단계가 없다');
   assert.equal(itemDisplayName(parsed.bag[0]), `${deep.name} +4`, '읽는 이름에는 단계가 붙는다');
-  assert.equal(itemDisplayName(parsed.bag[1]), '[스킬북] 회오리 베기');
+  assert.equal(itemDisplayName(parsed.bag[1]), '공격의 서');
 });
 
 // ── UI: 이름 옆 다른 색 `+N` ────────────────────────────────────────────────

@@ -29,10 +29,11 @@ test('equipped skills lead the list in slot order with no duplicates and orderin
   save.quickSlots[0]=null;assert.equal(orderedSkills(save)[0],'spin');
 });
 test('sale category and grade filters compose and include locked items for explicit unlock confirmation',()=>{
-  const items=[item('blade','weapon','rare',true),item('crest','offhand','magic'),item('helm','helmet','rare'),item('ring','ring2','epic'),{id:'book',kind:'skillbook',slot:'skillbook',rarity:'rare',stats:{}}];
+  const items=[item('blade','weapon','rare',true),item('crest','offhand','magic'),item('helm','helmet','rare'),item('ring','ring2','epic'),{id:'book',kind:'statbook',slot:'statbook',book:'attack',name:'공격의 서',rarity:'unique',stats:{}}];
   assert.deepEqual(filterSaleItems(items,'weapon','rare').map(i=>i.id),['blade']);
   assert.deepEqual(filterSaleItems(items,'accessory','').map(i=>i.id),['ring']);
-  assert.deepEqual(filterSaleItems(items,'skillbook','rare').map(i=>i.id),['book']);
+  assert.deepEqual(filterSaleItems(items,'statbook','unique').map(i=>i.id),['book']);
+  assert.deepEqual(filterSaleItems(items,'statbook','rare').map(i=>i.id),[]);
   assert.equal(filterSaleItems(items,'armor','legendary').length,0);
 });
 test('compact description keeps content width and clamps beside the selected item at screen edge',()=>{
@@ -102,15 +103,17 @@ test('bag grid marks only locked equipment at top-right without inserting detail
     if(selector==='b'&&this.innerHTML?.includes('<b>')){const title=element('b');this.append(title);return title;}return null;
   };return node;}};
   try{
-    const save=freshSave();save.bag=[item('protected','weapon','rare',true),item('free'),{id:'book',name:'book',kind:'skillbook',slot:'skillbook',rarity:'rare',skillId:'slash2',stats:{}}];
+    const save=freshSave();save.bag=[item('protected','weapon','rare',true),item('free'),{id:'book',name:'공격의 서',kind:'statbook',slot:'statbook',book:'attack',rarity:'unique',stats:{}}];
     const ui={world:{save},bagFilter:'all',salvageRarity:'common',iconPath:()=>'/empty.png'};
     const render=()=>{const dialog=element();renderInventory.call(ui,dialog);return find(dialog,n=>hasClass(n,'bag-grid'));};
-    const grid=render();assert.equal(grid.children.length,2);
-    const [locked,unlocked]=grid.children;
+    // 파트 B: 영구 스탯북도 가방에 보인다(예전에는 내 직업 스킬북이 목록에서 빠져 2칸이었다).
+    const grid=render();assert.equal(grid.children.length,3);
+    const [locked,unlocked,statBook]=grid.children;
+    assert.equal(statBook.dataset.itemId,'book');
     assert(find(locked,n=>hasClass(n,'bag-lock-badge')));assert(locked.attrs['aria-label'].includes('잠긴 장비'));
     assert(!find(unlocked,n=>hasClass(n,'bag-lock-badge')));
 
-    save.bag[0].locked=false;const refreshed=render();assert.equal(refreshed.children.length,2);assert(!find(refreshed,n=>hasClass(n,'bag-lock-badge')));
+    save.bag[0].locked=false;const refreshed=render();assert.equal(refreshed.children.length,3);assert(!find(refreshed,n=>hasClass(n,'bag-lock-badge')));
   }finally{globalThis.document=previous;}
 });
 
@@ -135,28 +138,34 @@ test('registration at the limit remains clickable and explains rejection before 
   }finally{globalThis.document=previous;}
 });
 
-test('skillbook tab separates, stacks by skill and consumes exactly one without changing other copies',async()=>{
+test('스탯북 탭은 종류별로 묶이고, 사용하면 한 권만 소모되어 남은 권수와 장착 장비가 그대로다(파트 B)',async()=>{
   const {renderInventory}=await import('../src/ui/modals/equipModal.ts');
-  const {skillbookStacks,skillbookName}=await import('../src/ui/skillbookBag.ts');
-  const {useSkillBook}=await import('../src/game/store.ts');
+  const {bagStacks}=await import('../src/ui/bagStacks.ts');
+  const {useStatBook, statBookItem}=await import('../src/game/statBooks.ts');
   const previous=globalThis.document;
   globalThis.document={createElement(tag){const node=element(tag);node.querySelector=function(selector){
     const existing=find(this,n=>n!==this&&n.tag===selector);if(existing)return existing;
     if(selector==='b'&&this.innerHTML?.includes('<b>')){const title=element('b');this.append(title);return title;}return null;
   };return node;}};
   try{
-    const book=(id,skillId,name)=>({id,kind:'skillbook',slot:'skillbook',rarity:'rare',stats:{},skillId,name:`[스킬북] ${name}`});
-    const save=freshSave();save.bag=[item('gear'),book('a','slam','와일드 스탬프'),book('b','slam','와일드 스탬프'),book('c','spin','휠윈드')];
+    const save=freshSave();
+    const first=statBookItem('attack','a'),second=statBookItem('attack','b'),third=statBookItem('health','c');
+    save.bag=[item('gear'),first,second,third];
     const ui={world:{save},bagFilter:'all',salvageRarity:'common',iconPath:()=>'/book.png'};
     const render=()=>{const dialog=element();renderInventory.call(ui,dialog);return find(dialog,n=>hasClass(n,'bag-grid'));};
-    const before=JSON.stringify(save),grid=render();assert.equal(grid.children.length,1);assert.equal(JSON.stringify(save),before);
-    assert.equal(skillbookStacks(save.bag)[0].count,2);
-    assert.equal(skillbookName(save.bag[1]),'와일드 스탬프');
-    assert(useSkillBook(save,'a').ok);const next=skillbookStacks(save.bag);
-    assert.equal(next[0].item.id,'b');assert.equal(next[0].count,1);assert.equal(next[1].count,1);
-    assert.equal(skillbookStacks(save.bag)[0].count,1);
-    assert.equal(save.bag[0].id,'gear');ui.bagFilter='all';assert.equal(render().children.length,1);
-    assert(useSkillBook(save,'b').ok);assert.equal(skillbookStacks(save.bag).length,1);
+    const before=JSON.stringify(save.bag),grid=render();
+    // 장비 1칸 + 스탯북 2칸(공격 묶음·체력)이 함께 보인다 — 스탯북은 분류 필터와 상관없이 늘 보인다.
+    assert.equal(grid.children.length,3);
+    assert.equal(JSON.stringify(save.bag),before,'그리기만으로 세이브를 바꾸지 않는다');
+    const stacks=bagStacks(save.bag.filter(i=>i.kind==='statbook'));
+    assert.deepEqual(stacks.map(stack=>[stack.item.id,stack.count]),[['a',2],['c',1]]);
+    assert(useStatBook(save,'a').ok);
+    assert.equal(save.statBooks.attack,1);
+    const next=bagStacks(save.bag.filter(i=>i.kind==='statbook'));
+    assert.deepEqual(next.map(stack=>[stack.item.id,stack.count]),[['b',1],['c',1]]);
+    assert.equal(save.bag[0].id,'gear','장착 장비는 건드리지 않는다');
+    assert(useStatBook(save,'b').ok);assert.equal(save.statBooks.attack,2);
+    assert.equal(bagStacks(save.bag.filter(i=>i.kind==='statbook')).length,1);
   }finally{globalThis.document=previous;}
 });
 
@@ -173,20 +182,20 @@ test('bag rarity button sorts descending within the selected category without ch
  }finally{globalThis.document=previous;}
 });
 
-test('가방 칸은 등급순을 켜도 보물 주머니 → 장비 → 스킬북(직업 묶음) 순서다(작업 247)',async()=>{
+test('가방 칸은 등급순을 켜도 보물 주머니 → 장비 → 영구 스탯북(종류 묶음) 순서다(작업 247 → 파트 B)',async()=>{
   const {renderInventory}=await import('../src/ui/modals/equipModal.ts');
   const previous=globalThis.document;globalThis.document={createElement:tag=>element(tag)};
   try{
     const save=freshSave();save.job='warrior';
-    const book=(id,skillId,rarity)=>({id,name:`[스킬북] ${skillId}`,slot:'skillbook',kind:'skillbook',skillId,rarity,stats:{}});
+    const book=(id,kind,rarity)=>({id,name:{attack:'공격의 서',defense:'방어의 서',health:'체력의 서'}[kind],slot:'statbook',kind:'statbook',book:kind,rarity,stats:{}});
     const pouch={id:'p1',name:'무작위 보물 주머니',slot:'pouch',kind:'pouch',rarity:'common',stats:{}};
-    // 가방은 **다른 직업** 스킬북만 보여 준다(내 직업 책은 스킬 창에서 쓴다) — 직업 묶음은 그 책들 사이에서도 유지된다.
-    save.bag=[book('book-mage','fireBolt','common'),item('sword','weapon','common'),pouch,book('book-arch','doubleShot','legendary')];
+    // 스탯북은 세 직업 공용 소모품이라 분류 필터와 상관없이 늘 보이고, 종류 순서는 공격 → 방어 → 체력이다.
+    save.bag=[book('book-health','health','common'),item('sword','weapon','common'),pouch,book('book-attack','attack','legendary')];
     const ui={modal:{querySelector:()=>null,querySelectorAll:()=>[]},world:{save},bagFilter:'all',salvageRarity:'common',bagRaritySort:true,bagJobOnly:false,renderModal(){},iconPath:()=>''};
     const root=element();renderInventory.call(ui,root);
     const ids=find(root,n=>hasClass(n,'bag-grid')).children.map(n=>n.dataset.itemId);
-    // 보물 주머니가 첫 칸, 그다음 장비, 스킬북은 장비 뒤에서 **궁수 → 마법사** 고정 순서(등급순보다 직업 묶음이 먼저).
-    assert.deepEqual(ids,['p1','sword','book-arch','book-mage']);
+    // 보물 주머니가 첫 칸, 그다음 장비, 스탯북은 장비 뒤에서 **공격 → 체력** 고정 순서(등급순보다 종류 묶음이 먼저).
+    assert.deepEqual(ids,['p1','sword','book-attack','book-health']);
   }finally{globalThis.document=previous;}
 });
 

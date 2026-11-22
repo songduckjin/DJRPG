@@ -2,7 +2,7 @@
 //
 // 사용자 확정(2026-11-21): "방치자동분해적용" — 방치하는 동안 떨어진 장비도 접속 사냥·던전과 **같은 규칙**
 // (`inventory.ts` `autoSalvageRecovered`)으로 그 자리에서 금화·강화석이 되고, 가방에는 들어가지 않는다.
-// 보호 규칙(스킬북·보물 주머니·잠금·등급 초과·`+N` 초과·빈 슬롯·더 좋은 장비)도 그대로다.
+// 보호 규칙(스탯북·보물 주머니·잠금·등급 초과·`+N` 초과·빈 슬롯·더 좋은 장비)도 그대로다.
 //
 // 여기서는 정산 결과(`reward.salvaged`)와 세이브(금화·강화석·가방·`salvageCount`)가 함께 맞는지,
 // 그리고 서버 저장 상한(`server/save-guard.mjs` `rewardBudget`)을 넘지 않는지 본다.
@@ -72,7 +72,7 @@ test('방치 정산도 자동 분해를 적용한다 — 분해된 장비는 가
   } finally { Math.random = original; }
 });
 
-test('자동 분해를 켜도 보호 규칙은 방치에서도 그대로 — 빈 슬롯·스킬북은 분해되지 않는다(작업 254)', () => {
+test('자동 분해를 켜도 보호 규칙은 방치에서도 그대로 — 빈 슬롯·영구 스탯북은 분해되지 않는다(작업 254 → 파트 B)', async () => {
   const original = Math.random;
   try {
     // 장비를 하나도 안 입은 세이브: 떨어진 장비는 전부 '빈 슬롯' 보호 대상이라 가방에 남는다.
@@ -80,15 +80,18 @@ test('자동 분해를 켜도 보호 규칙은 방치에서도 그대로 — 빈
     const bare = freshSave(); bare.tutorial = 1; bare.autoClimb = false;
     const reward = applyOfflineRewards(bare, 43_200, { autoSalvage: 'unique', autoSalvagePlus: 7 });
     assert(reward.items.length > 0, '드롭은 있었다');
-    assert.equal(reward.salvaged.count, 0, '빈 슬롯에 입을 장비는 분해하지 않는다');
+    // 빈 슬롯 보호는 판정 한 곳에서 확인한다(자동 분해는 **입을 수 없는 타직업 무기**만 삼킨다 — 그건 예전부터 그랬다).
+    const { autoSalvageBlock } = await import('../src/game/inventory.ts');
+    assert.equal(autoSalvageBlock(bare, { id: 'probe', name: '강철 브레스트플레이트', slot: 'armor', rarity: 'common', stats: { defense: 5 } }, 'unique', 7), 'empty-slot', '빈 슬롯에 입을 장비는 분해하지 않는다');
+    assert(reward.items.some(item => item.slot !== 'statbook'), '입을 수 있는 장비는 가방에 남는다');
 
-    // 난수 0이면 매 처치가 스킬북(30% 쪽) — 스킬북은 절대 분해되지 않는다.
+    // 난수 0이면 매 처치가 영구 스탯북(개극악 확률도 당첨) — 스탯북은 절대 분해되지 않는다.
     Math.random = () => 0;
     const books = freshSave(); books.tutorial = 1; books.autoClimb = false;
-    const bookReward = applyOfflineRewards(books, 600, { autoSalvage: 'unique', autoSalvagePlus: 7 });
-    assert(bookReward.items.length > 0, '스킬북이 떨어졌다');
-    assert.equal(bookReward.salvaged.count, 0, '스킬북은 자동 분해 대상이 아니다');
-    assert(bookReward.items.every(item => item.slot === 'skillbook'));
+    const bookReward = applyOfflineRewards(books, 60, { autoSalvage: 'unique', autoSalvagePlus: 7 });
+    assert(bookReward.items.some(item => item.slot === 'statbook'), '영구 스탯북이 떨어졌다');
+    assert(bookReward.items.filter(item => item.slot === 'statbook').every(item => bookReward.items.includes(item)), '스탯북은 가방에 남는다');
+    assert(bookReward.salvaged.count <= bookReward.items.length - bookReward.items.filter(item => item.slot === 'statbook').length, '스탯북은 자동 분해 대상이 아니다');
   } finally { Math.random = original; }
 });
 

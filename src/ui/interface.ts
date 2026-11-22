@@ -2,7 +2,6 @@ import { DungeonLobby } from './dungeonLobby';
 import { renderDungeonLobby } from './modals/dungeonModal';
 import {WorldBossPreview} from './worldBossPreview';
 import {renderWorldBoss} from './modals/worldBossModal';
-import { isSkillBook } from '../game/items';
 import {bindModalInteraction, type ModalRenderGate} from './modalInteraction';
 import { Journey } from '../game/journey';
 import { renderSettings, renderUtility, updateUtilityBadges } from './modals/utilityModal';
@@ -171,7 +170,7 @@ export class Interface {
     }
     world.onChange = () => {
       discoverEquipment(world.save); this.onSave();
-      for (const item of world.save.bag) if (!this.knownItems.has(item.id)) { this.knownItems.add(item.id); if (this.openModal !== 'equipment' && !isSkillBook(item)) this.newItems.add(item.id); }
+      for (const item of world.save.bag) if (!this.knownItems.has(item.id)) { this.knownItems.add(item.id); if (this.openModal !== 'equipment') this.newItems.add(item.id); }
       this.renderBagBadge(); this.renderStatus();
       // 캐릭터 선택·새 캐릭터 창은 사냥 중 매 처치(`world.onChange`)마다 다시 그리지 않는다(작업 228) —
       // 목록은 열 때 한 번 읽고, 카드 초상화 합성이 무거워 재렌더가 잦으면 선택·생성이 느려진다.
@@ -313,5 +312,5 @@ export class Interface {
 
 
   salvageValue(item: Item): number { return salvageValue.call(this, item); }
-  iconPath(slot: Slot | 'skillbook' | 'pouch', item?: Item): string { return iconPath.call(this, slot, item); }
+  iconPath(slot: Slot | 'statbook' | 'pouch', item?: Item): string { return iconPath.call(this, slot, item); }
 }

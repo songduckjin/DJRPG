@@ -1,20 +1,21 @@
 import {setSkillIcon, setPassiveSkillIcon} from '../skillArtwork';
-import { markSkillUpgrade, renderSkillBooks, renderSkillUpgrade, useAllReadySkillBooks } from '../skillBooks';
 import { orderedSkills } from '../itemOrder';
 import { autoEquipRecommendedSkills, availableSkills, unequipSkill } from '../../game/loadout';
-import { skillLevel, totalStats, type Save } from '../../game/store';
+import { skillLevel, type Save } from '../../game/store';
 import { MAX_SKILL_LEVEL, passiveOrderFor, passives, skillDuration, skillRange, skills, type Job } from '../../game/skills';
 import { jobOrDefault } from '../../game/skills';
-import { hasSkillUpgrade } from '../../game/skillProgress';
 import type { Interface, SkillFilter } from '../interface';
 
 /**
  * 스킬 창(작업 240).
  *
- * 화면 순서는 **패시브 스킬 → 액티브 스킬(기본 공격·장착 중·8종) → 스킬북**이다. 예전에는 패시브 3종이
- * 스킬북·기본기·액티브 8종 **맨 아래**에 있어 스크롤을 끝까지 내려야만 보였다(사용자 제보 "패시브 스킬
- * 스킬 창에 안 나오는 현상"). 상단 `전체/액티브/패시브` 탭으로 한 종류만 볼 수도 있고, `전체`에서도
- * 패시브 3종은 스킬북·기본기보다 위에 있으므로 어떤 상태에서도 놓치지 않는다.
+ * 화면 순서는 **패시브 스킬 → 액티브 스킬(기본 공격·장착 중·8종)** 이다. 예전에는 패시브 3종이
+ * 기본기·액티브 8종 맨 아래에 있어 스크롤을 끝까지 내려야만 보였다(사용자 제보 "패시브 스킬 창에
+ * 안 나오는 현상"). 상단 `전체/액티브/패시브` 탭으로 한 종류만 볼 수도 있고, `전체`에서도 패시브 3종은
+ * 기본기보다 위에 있으므로 어떤 상태에서도 놓치지 않는다.
+ *
+ * **파트 B(2026-11-22)**: 스킬북이 폐지되어 이 창에서 책을 쓰거나 `자동 강화`를 누르던 자리(아래쪽 책
+ * 목록·카드의 `습득/강화` 버튼)를 걷어 냈다. 스킬 성장은 파트 A의 스킬 트리(SP 투자)가 맡는다.
  */
 export function renderSkills(this: Interface, dialog: HTMLElement): void {
     const list = document.createElement('div'); list.className = 'skill-list';
@@ -22,16 +23,15 @@ export function renderSkills(this: Interface, dialog: HTMLElement): void {
     const job = jobOrDefault(save.job);
     const filter: SkillFilter = this.skillFilter === 'active' || this.skillFilter === 'passive' ? this.skillFilter : 'all';
     const note = document.createElement('p'); note.className = 'skill-note';
-    note.textContent = this.skillTarget !== undefined ? `${this.skillTarget + 1}번 스킬 원에 장착할 스킬을 선택하세요.` : '스킬북으로 습득·강화합니다. 장착 중인 스킬은 해제할 수 있고, 필드의 + 원에서 다시 장착할 수 있습니다.';
+    note.textContent = this.skillTarget !== undefined ? `${this.skillTarget + 1}번 스킬 원에 장착할 스킬을 선택하세요.` : '장착 중인 스킬은 해제할 수 있고, 필드의 + 원에서 다시 장착할 수 있습니다.';
     list.appendChild(note);
     list.appendChild(skillTopBar(this, filter));
     if (filter !== 'active') list.appendChild(passiveSection(this, save, job));
     if (filter !== 'passive') { activeHeading(list); appendBaseCard(list, job); appendActiveSkills(this, list, save); }
-    renderSkillBooks(this, list);
     dialog.appendChild(list);
   }
 
-/** 상단 버튼 바 — `추천 자동 장착`으로 3칸을 다시 채우고, `자동 강화`로 보유 스킬북을 한 번에 쓴다. */
+/** 상단 버튼 바 — `추천 자동 장착`으로 3칸을 다시 채운다(파트 B: `자동 강화`는 스킬북과 함께 없앴다). */
 function skillTopBar(ui: Interface, filter: SkillFilter): HTMLElement {
   const bar = document.createElement('div'); bar.className = 'skill-top-bar';
   const actions = document.createElement('div'); actions.className = 'skill-top-actions';
@@ -45,30 +45,7 @@ function skillTopBar(ui: Interface, filter: SkillFilter): HTMLElement {
     if (result.changed) ui.world.onChange();
     ui.message(result.message);
   };
-  // 작업 245: 내 직업 스킬북을 가능한 만큼 연속 습득·강화한다(최대 체력이 오르는 패시브도 반영).
-  // 작업 246: **지금 쓸 수 있는 책이 없으면 흐리게 잠근다** — 사용자 요청. `hasSkillUpgrade`가
-  // `skillBookStatus(...).ready`를 직업별로 확인하는 그 판정을 그대로 써서 버튼과 실제 동작이 갈리지 않는다.
-  const ready = hasSkillUpgrade(ui.world.save);
-  const upgrade = document.createElement('button');
-  upgrade.type = 'button'; upgrade.className = 'skill-auto-upgrade'; upgrade.textContent = '자동 강화';
-  upgrade.disabled = !ready;
-  upgrade.classList.toggle('is-ready', ready);
-  upgrade.setAttribute('aria-disabled', String(!ready));
-  upgrade.title = ready ? '가방의 내 직업 스킬북으로 가능한 만큼 한 번에 강화합니다.' : '습득하거나 강화할 수 있는 내 직업 스킬북이 없습니다.';
-  upgrade.setAttribute('aria-label', ready ? '보유한 내 직업 스킬북으로 가능한 만큼 강화' : '자동 강화할 스킬북이 없어 잠김');
-  upgrade.onclick = () => {
-    if (!ready) return;
-    if (ui.world.paused || ui.market.busy || ui.market.sync.locked) { ui.message('동기화 중에는 스킬을 강화할 수 없습니다.'); return; }
-    const before = totalStats(ui.world.save).health;
-    const result = useAllReadySkillBooks(ui.world.save);
-    if (!result.used) { ui.message('습득하거나 강화할 수 있는 내 직업 스킬북이 없습니다.'); return; }
-    // 강인한 육체 같은 패시브로 최대 체력이 올랐으면 지금 체력도 같이 올려 준다(`skillBooks.ts`와 같은 규칙).
-    ui.world.player.hp += totalStats(ui.world.save).health - before; ui.world.save.health = ui.world.player.hp;
-    ui.world.onChange();
-    const kinds = new Set(result.upgrades.map(entry => entry.id)).size;
-    ui.message(`스킬 ${kinds}종 자동 강화 완료 (총 ${result.used}회)`);
-  };
-  actions.append(auto, upgrade);
+  actions.append(auto);
   bar.appendChild(actions);
   const tabs = document.createElement('div'); tabs.className = 'skill-filter';
   tabs.setAttribute('role', 'tablist'); tabs.setAttribute('aria-label', '스킬 종류');
@@ -93,7 +70,7 @@ function groupHeading(text: string, className = 'skill-group-title'): HTMLElemen
 function activeHeading(parent: HTMLElement): void { parent.appendChild(groupHeading('액티브 스킬')); }
 
 /** 패시브 3종 — 습득 여부와 상관없이 항상 세 장을 그린다(누락 방지). */
-function passiveSection(ui: Interface, save: Save, job: Job): HTMLElement {
+function passiveSection(_ui: Interface, save: Save, job: Job): HTMLElement {
   const section = document.createElement('section'); section.className = 'skill-passive-section';
   const order = passiveOrderFor(job);
   const learnedCount = order.filter(id => save.passives.includes(id)).length;
@@ -116,10 +93,8 @@ function passiveSection(ui: Interface, save: Save, job: Job): HTMLElement {
       arcaneSense: `치명 +${8 + (level - 1) * 2}% · 사거리 +8%`
     } as const;
     const bonus = bonusById[id];
-    card.innerHTML = `<div class="skill-icon">${passive.icon}</div><div class="skill-info"><h3>${passive.name}</h3><p>${passive.description}</p><strong class="skill-level">${learned ? `스킬 Lv.${level} / ${MAX_SKILL_LEVEL}` : '미습득 (스킬북 파밍 필요)'}</strong><small>${bonus}</small><div class="skill-actions"></div></div>`;
+    card.innerHTML = `<div class="skill-icon">${passive.icon}</div><div class="skill-info"><h3>${passive.name}</h3><p>${passive.description}</p><strong class="skill-level">${learned ? `스킬 Lv.${level} / ${MAX_SKILL_LEVEL}` : '미습득'}</strong><small>${bonus}</small><div class="skill-actions"></div></div>`;
     const icon=card.querySelector<HTMLElement>('.skill-icon')!;icon.textContent='';icon.className='skill-icon skill-image-icon passive-image-icon';setPassiveSkillIcon(icon,id);
-    const action = card.querySelector<HTMLElement>('.skill-actions')!;
-    renderSkillUpgrade(ui, action, id); markSkillUpgrade(ui, card, id);
     passivesGrid.appendChild(card);
   }
   section.appendChild(passivesGrid);
@@ -148,7 +123,7 @@ function appendActiveSkills(ui: Interface, list: HTMLElement, save: Save): void 
     const buff = id === 'warcry' || id === 'hawkEye' || id === 'arcaneShield';
     const growth = buff ? `공격 버프 +${(20 + (level - 1) * 1.5).toFixed(1)}%` : `위력 +${(level - 1) * 10}%`;
     const card = document.createElement('article'); card.className = 'skill-card active-skill-card'; card.dataset.skill = id;
-    card.innerHTML = `<div class="skill-icon">${skill.icon}</div><div class="skill-info"><div class="skill-card-top"><div class="skill-name-block"><h3>${skill.name}</h3><strong class="skill-level">${learned ? `스킬 Lv.${level} / ${MAX_SKILL_LEVEL}` : '스킬북으로 습득'}</strong></div><div class="skill-status-stack"><span>${learned ? '습득 완료' : '미습득'}</span></div></div><p>${skill.description}</p><small>쿨타임 ${skill.cooldown}초 · 지속 ${skillDuration(id, level).toFixed(1)}초 · 범위 ${skillRange(id, level)} · ${growth}</small><div class="skill-actions"></div></div>`;
+    card.innerHTML = `<div class="skill-icon">${skill.icon}</div><div class="skill-info"><div class="skill-card-top"><div class="skill-name-block"><h3>${skill.name}</h3><strong class="skill-level">${learned ? `스킬 Lv.${level} / ${MAX_SKILL_LEVEL}` : '미습득'}</strong></div><div class="skill-status-stack"><span>${learned ? '습득 완료' : '미습득'}</span></div></div><p>${skill.description}</p><small>쿨타임 ${skill.cooldown}초 · 지속 ${skillDuration(id, level).toFixed(1)}초 · 범위 ${skillRange(id, level)} · ${growth}</small><div class="skill-actions"></div></div>`;
     const icon=card.querySelector<HTMLElement>('.skill-icon')!;icon.textContent='';icon.className='skill-icon skill-image-icon';setSkillIcon(icon,id);
     const actions = card.querySelector<HTMLElement>('.skill-actions')!;
     if (learned) {
@@ -168,7 +143,6 @@ function appendActiveSkills(ui: Interface, list: HTMLElement, save: Save): void 
         const hint = document.createElement('span'); hint.textContent = '필드의 + 원에서 장착'; actions.appendChild(hint);
       }
     }
-    renderSkillUpgrade(ui, actions, id, card.querySelector<HTMLElement>('.skill-status-stack')!); markSkillUpgrade(ui, card, id);
     if(save.quickSlots.includes(id))equippedGroup.appendChild(card);else list.appendChild(card);
   }
 }

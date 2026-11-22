@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import './ts-loader.mjs';
 const { freshSave, floorKillTarget } = await import('../src/game/store.ts');
 const { World, enemyMaxHp, ELITE_KILL_INTERVAL, ELITE_HP_SCALE, ELITE_REWARD_SCALE, ELITE_MOB_SCALE } = await import('../src/game/world.ts');
-const { equipmentDropChance, skillBookDropChance, itemDropChance } = await import('../src/game/items.ts');
+const { itemDropChance } = await import('../src/game/items.ts');
 
 const enemyOf = (over = {}) => ({ x: 60, y: 20, hp: 0, maxHp: 10, boss: false, hit: 0, step: 0, moving: false, knockX: 0, knockY: 0, slow: 0, ...over });
 /** 다음 스폰을 즉시 돌린다 — 스폰 타이머를 0으로 두고 한 틱만 진행한다. */

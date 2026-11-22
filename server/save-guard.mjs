@@ -34,6 +34,8 @@ export const EXP_HEADROOM = 2;
 export const MAX_FLOOR = 20;
 /** `src/game/items.ts`의 `rarityScales`. */
 export const RARITY_SCALES = { common: 1, magic: 2, rare: 3, epic: 4, unique: 5, legendary: 6 };
+/** `src/game/statBooks.ts`의 `STAT_BOOK_LIMIT`(파트 B: 종류별 캐릭터당 30권). */
+export const STAT_BOOK_LIMIT = 30;
 /** `src/game/store.ts`의 `MAX_LEVEL`. */
 export const MAX_LEVEL = 30;
 /** `src/game/items.ts`의 `MAX_PLUS`·`PLUS_STAT_BONUS`. */
@@ -167,6 +169,25 @@ export function clampSaveProgress(previous, save, options = {}) {
   if (cap(save.stones) > stoneCap) { save.stones = stoneCap; clamped.push('stones'); }
   // (`payout.stones`는 `budget.stones`와 같은 값이다 — 강화석은 층과 무관하다.)
 
+  // 영구 스탯북(파트 B) — 종류별 0~30 정수만 저장하고, 한 저장에서 늘릴 수 있는 양은 **직전 세이브 가방에
+  // 있던 그 종류의 책 수**까지다(사용하면 가방에서 사라지고 그 종류가 1 오른다). 이미 쓴 권수는 줄이지 않는다
+  // — 사라진 보너스는 되돌릴 수 없고, 클라이언트가 값을 빼고 보내도 잃지 않아야 한다.
+  const previousBooks = previous?.statBooks && typeof previous.statBooks === 'object' ? previous.statBooks : {};
+  const bagBooks = new Map();
+  for (const item of Array.isArray(previous?.bag) ? previous.bag : []) {
+    if (item && item.kind === 'statbook' && typeof item.book === 'string') bagBooks.set(item.book, (bagBooks.get(item.book) ?? 0) + 1);
+  }
+  const incomingBooks = save.statBooks && typeof save.statBooks === 'object' ? save.statBooks : {};
+  const nextBooks = {};
+  for (const kind of ['attack', 'defense', 'health']) {
+    const prior = Math.max(0, Math.min(STAT_BOOK_LIMIT, Math.floor(finite(previousBooks[kind], 0))));
+    const budget = Math.min(STAT_BOOK_LIMIT, prior + (bagBooks.get(kind) ?? 0));
+    const wanted = Math.max(0, Math.min(STAT_BOOK_LIMIT, Math.floor(finite(incomingBooks[kind], prior))));
+    nextBooks[kind] = Math.max(prior, Math.min(budget, wanted));
+    if (nextBooks[kind] !== wanted) clamped.push(`statBooks.${kind}`);
+  }
+  save.statBooks = nextBooks;
+
   // 스킬 포인트는 레벨업으로만 쌓인다 — 찍은 만큼을 뺀 나머지가 상한이다.
   const invested = Object.values(save.skillLevels ?? {}).reduce((sum, rank) => sum + Math.max(0, cap(rank) - 1), 0);
   const pointCap = Math.max(0, int(save.level, 1) - 1 - invested);
@@ -190,8 +211,8 @@ export function clampSaveProgress(previous, save, options = {}) {
  */
 export function itemWithinBounds(item, maxFloor = 1, tolerance = STAT_TOLERANCE) {
   if (!item || typeof item !== 'object') return false;
-  // 스킬북·보물 주머니(작업 207)는 능력치가 없다 — 상한 검사는 장비에만 의미가 있다.
-  if (item.kind === 'skillbook' || item.slot === 'skillbook') return true;
+  // 영구 스탯북(파트 B)·보물 주머니(작업 207)는 능력치가 없다 — 상한 검사는 장비에만 의미가 있다.
+  if (item.kind === 'statbook' || item.slot === 'statbook') return true;
   if (item.kind === 'pouch' || item.slot === 'pouch') return true;
   const scale = RARITY_SCALES[item.rarity];
   const profile = MAX_SLOT_PROFILES[item.slot];

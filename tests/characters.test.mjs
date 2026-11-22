@@ -85,7 +85,8 @@ test('legacy slot, shared gold and warehouse transfers preserve independent char
     const reward = await mutateJourney(db, 'hero', { action: 'journey-claim', kind: 'mail', id: 'all', revision: switched.body.revision, requestId: randomUUID(), characterSlot: 2 });
     // 우편함에는 환영 1,000 · 2026-11-20 업데이트 안내 3,000 · 새 시즌 오픈 1,000(작업 208)이 함께 있다.
     assert.equal(reward.save.gold, 5070);
-    const rewardItem = reward.save.bag.find(entry => entry.slot === 'skillbook');
+    // 파트 B: 우편에서 스킬북을 주지 않으므로 아이템은 보물 주머니 하나뿐이다.
+    const rewardItem = reward.save.bag.find(entry => entry.slot === 'pouch');
     assert(rewardItem);
     const rewardOwner = (await db.execute({ sql: 'SELECT slot FROM djrpg_character_item_owners WHERE item_id=?', args: [rewardItem.id] })).rows[0];
     assert.equal(Number(rewardOwner.slot), 2);
@@ -203,7 +204,8 @@ test('legacy item names survive parseSave, so load then save no longer deadlocks
   process.env.TURSO_DATABASE_URL = url; process.env.TURSO_AUTH_TOKEN = 'local-item-name-test';
   const db = createClient({ url });
   const blade = { id: 'legacy-zweihander', name: '영원의 츠바이핸더', slot: 'weapon', rarity: 'legendary', stats: { attack: 40, crit: 6 } };
-  const book = { id: 'legacy-skillbook', name: '[스킬북] 회오리 베기', slot: 'skillbook', kind: 'skillbook', skillId: 'spin', rarity: 'rare', stats: {} };
+  // 파트 B: 옛 스킬북 대신 영구 스탯북으로 이름-마이그레이션 허용 경로를 검사한다(서버가 받는 모양).
+  const book = { id: 'legacy-statbook', name: '공격의 서', slot: 'statbook', kind: 'statbook', book: 'attack', rarity: 'unique', stats: {} };
   try {
     await schema(db);
     await db.execute({ sql: 'INSERT INTO djrpg_accounts (id,password_hash,save_json,updated_at) VALUES (?,?,?,?)', args: ['hero', 'test-hash', JSON.stringify({ ...legacy, bag: [blade, book], equipment: {}, gold: 10 }), new Date().toISOString()] });
@@ -220,16 +222,16 @@ test('legacy item names survive parseSave, so load then save no longer deadlocks
     const loaded = await call({ action: 'load' });
     assert.equal(loaded.status, 200);
     const client = parseSave(loaded.body.save, 'hero');
-    assert.deepEqual(names(client), ['영원의 츠바이핸더', '[스킬북] 회오리 베기']);
+    assert.deepEqual(names(client), ['영원의 츠바이핸더', '공격의 서']);
     const saved = await call({ action: 'save', save: client, revision: loaded.body.revision, requestId: randomUUID(), characterSlot: 1 });
     assert.equal(saved.status, 200);
     // 아직 이름을 덮어쓰는 구버전 번들이 저장을 보내도 영구 409가 아니라 서버에 저장된 이름으로 정리되어 통과한다.
     const staleClient = structuredClone(saved.body.save);
     staleClient.bag[0].name = '영원의 쯔바이핸드';
-    staleClient.bag[1].name = '[스킬북] 드래곤 트위스터';
+    staleClient.bag[1].name = '체력의 서';
     const tolerated = await call({ action: 'save', save: staleClient, revision: saved.body.revision, requestId: randomUUID(), characterSlot: 1 });
     assert.equal(tolerated.status, 200);
-    assert.deepEqual(names(tolerated.body.save), ['영원의 츠바이핸더', '[스킬북] 회오리 베기']);
+    assert.deepEqual(names(tolerated.body.save), ['영원의 츠바이핸더', '공격의 서']);
     // 이름이 달라도 등급·능력치 변조는 계속 ITEM_CONFLICT로 막는다.
     const forged = structuredClone(staleClient);
     forged.bag[0].stats.attack = 999;

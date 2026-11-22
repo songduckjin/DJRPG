@@ -13,7 +13,8 @@ const { freshSave } = await import('../src/game/store.ts');
 const css = readFileSync(new URL('../src/styles/dungeon.css', import.meta.url), 'utf8');
 
 const gear = id => ({ id, name: '강철 쯔바이핸드', slot: 'weapon', rarity: 'rare', stats: { attack: 9 } });
-const book = (id, skillId = 'spin') => ({ id, name: '[스킬북] 회전', slot: 'skillbook', kind: 'skillbook', skillId, rarity: 'rare', stats: {} });
+/** 영구 스탯북(파트 B) — 스킬북 자리를 이어받은 1칸짜리 소모품. 같은 `book` 종류가 한 줄로 묶인다. */
+const book = (id, kind = 'attack') => ({ id, name: { attack: '공격의 서', defense: '방어의 서', health: '체력의 서' }[kind], slot: 'statbook', kind: 'statbook', book: kind, rarity: 'unique', stats: {} });
 
 test('던전 적 피해는 최대 체력 상한 없이 필드 2×층 공격력을 쓴다(작업 248)', () => {
   // 상한(0.5%/0.8%)이 없어졌다: 필드 20층(던전 10층) 공격력은 Lv.1 캐릭터 최대 체력의 몇 배다.
@@ -80,33 +81,33 @@ test('등급 확률은 10층 구간마다 상위 등급이 두터워진다(작�
   assert(rolled.id.length > 0);
 });
 
-test('결과창은 등급색·등급 이름·장비 먼저/스킬북 묶음을 보여 준다(작업 248)', () => {
+test('결과창은 등급색·등급 이름·장비 먼저/영구 스탯북 묶음을 보여 준다(작업 248 → 파트 B)', () => {
   const receipt = {
     floor: 3, firstClear: false, gold: 100, stones: 10,
-    items: [book('b1', 'spin'), gear('w1'), book('b2', 'spin'), { ...gear('w2'), rarity: 'legendary', name: '황혼의 두손검' }, book('b3', 'fireBolt')],
+    items: [book('b1', 'attack'), gear('w1'), book('b2', 'attack'), { ...gear('w2'), rarity: 'legendary', name: '황혼의 두손검' }, book('b3', 'health')],
     missed: 0, salvaged: { count: 0, gold: 0, stones: 0 }
   };
   const html = markup.dungeonRewardMarkup(receipt);
   // 등급색 클래스(기존 `.rarity-*` CSS) — 장비·스킬북 모두.
   assert.match(html, /class="rarity-legendary"/);
-  assert.match(html, /class="rarity-rare"/);
+  assert.match(html, /class="rarity-unique"/);
   // 이름 앞 등급 표기.
   assert.match(html, /<b class="dungeon-result-grade">\[레전드\]<\/b>황혼의 두손검/);
-  assert.match(html, /<b class="dungeon-result-grade">\[레어\]<\/b>/);
-  // 장비 먼저, 스킬북은 아래 묶음 — 같은 책은 ×2로 묶는다.
+  assert.match(html, /<b class="dungeon-result-grade">\[유니크\]<\/b>/);
+  // 장비 먼저, 영구 스탯북은 아래 묶음 — 같은 책은 ×2로 묶는다.
   const order = [...html.matchAll(/<li class="rarity-[a-z]+">/g)].length;
-  assert.equal(order, 4, '장비 2 + 스킬북 2줄(×2, ×1)');
-  const equipmentIndex = html.indexOf('황혼의 두손검'), bookIndex = html.indexOf('회전');
-  assert(equipmentIndex >= 0 && bookIndex > equipmentIndex, '장비가 스킬북보다 먼저');
-  assert.match(html, /스킬북 ×2/);
-  assert.match(html, /스킬북<\/small>/, '한 권짜리 스킬북은 수량 없이');
-  assert.doesNotMatch(html, /황혼의 두손검.*회전.*강철 쯔바이핸드/s, '스킬북 뒤에 장비가 다시 오지 않는다');
+  assert.equal(order, 4, '장비 2 + 스탯북 2줄(×2, ×1)');
+  const equipmentIndex = html.indexOf('황혼의 두손검'), bookIndex = html.indexOf('공격의 서');
+  assert(equipmentIndex >= 0 && bookIndex > equipmentIndex, '장비가 스탯북보다 먼저');
+  assert.match(html, /스탯북 ×2/);
+  assert.match(html, /스탯북<\/small>/, '한 권짜리 스탯북은 수량 없이');
+  assert.doesNotMatch(html, /황혼의 두손검.*공격의 서.*강철 쯔바이핸드/s, '스탯북 뒤에 장비가 다시 오지 않는다');
   // CSS: 여섯 등급 모두 색이 있고, 목록의 기본 색이 등급색을 덮지 않는다.
   for (const rarity of ['common', 'magic', 'rare', 'epic', 'unique', 'legendary']) {
     assert.match(css, new RegExp(`\\.dungeon-result-items li\\.rarity-${rarity}\\{`), `${rarity} 색`);
   }
   assert.match(css, /\.dungeon-result-grade\{/);
-  assert.match(markup.dungeonPrizePanel(10, true), /랜덤 장비·스킬북 2개/);
+  assert.match(markup.dungeonPrizePanel(10, true), /랜덤 장비 2개\(보스 확률로 영구 스탯북\)/);
 });
 
 test('보스 확정 2개는 던전 5·10층에서 실제로 두 개가 떨어진다(작업 248)', () => {

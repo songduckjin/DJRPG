@@ -6,7 +6,7 @@ import { runtimeEnv } from '../env.mjs';
 import { json, readBody, errorResponse, versionGuard } from '../http.mjs';
 import { normalizeExtraOptions } from '../extra-options.mjs';
 import { elapsedSince } from '../save-guard.mjs';
-import { countedInBag } from '../skill-ids.mjs';
+import { countedInBag } from '../stat-books.mjs';
 
 /** 창고 40칸 · 한 번에 옮길 수 있는 최대 개수(가방 40칸과 같은 상한). */
 const WAREHOUSE_LIMIT = 40;
@@ -158,8 +158,8 @@ async function handle(request, { env = runtimeEnv(), createDbClient } = {}, cont
           operations.push({ sql: `UPDATE djrpg_character_item_owners SET slot=0 WHERE account_id=? AND item_id IN (${slots})`, args: [id, ...movedIds] });
         }
       } else {
-        // 가방 40칸은 **장비·타직업 스킬북·보물 주머니** 1개 = 1칸이다(작업 253 — 내 직업 스킬북 제외).
-        // 예전(그리고 PR #258)에는 스킬북·주머니를 검사 없이 꽂아 40개를 넘길 수 있었다 — `main`의 규칙
+        // 가방 40칸은 **모든 아이템** 1개 = 1칸이다(파트 B — 스킬북 폐지로 직업 예외가 사라졌다).
+        // 예전(그리고 PR #258)에는 책·주머니를 검사 없이 꽂아 40개를 넘길 수 있었다 — `main`의 규칙
         // `countedInBag(entry, save.job)`을 그대로 쓴다(장비 수를 세던 `equipmentCount`와 같은 판정).
         let bagCount = save.bag.filter(entry => countedInBag(entry, save.job)).length;
         for (const itemId of ids) {

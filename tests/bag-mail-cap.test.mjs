@@ -8,14 +8,14 @@ import { createHmac } from 'node:crypto';
 import { createClient } from '@libsql/client';
 import { schema, account, transaction, reconcileItems } from '../server/database.mjs';
 import { snapshot, mutate } from '../server/journey.mjs';
-import { APOLOGY_MAIL_ID, DIAMOND_MAIL_ID } from '../server/journey-state.mjs';
+import { APOLOGY_MAIL_ID, DIAMOND_MAIL_ID, SEASON_NOTICE_ID } from '../server/journey-state.mjs';
 import accountHandler from '../api/account.mjs';
 import warehouseHandler from '../api/warehouse.mjs';
 
-// 작업 248 — 가방 40칸에 스킬북·보물 주머니까지 포함하고, 가방이 차면 우편·창고 수령도 막는다.
+// 작업 248 → 파트 B — 가방 40칸에 모든 아이템(스탯북·보물 주머니 포함)이 1칸이고, 가방이 차면 우편·창고 수령도 막는다.
 let db, directory;
 const gear = (id = randomUUID()) => ({ id, name: '강철 쯔바이핸드', slot: 'weapon', rarity: 'rare', stats: { attack: 25 } });
-const book = id => ({ id, name: '[스킬북] 드래곤 트위스터', slot: 'skillbook', kind: 'skillbook', skillId: 'spin', rarity: 'rare', stats: {} });
+const book = id => ({ id, name: '공격의 서', slot: 'statbook', kind: 'statbook', book: 'attack', rarity: 'unique', stats: {} });
 const pouch = id => ({ id, name: '무작위 보물 주머니', slot: 'pouch', kind: 'pouch', rarity: 'unique', stats: {} });
 const save = (bag = []) => ({ version: 1, name: '전사', gender: 'male', job: 'warrior', gold: 0, bag, equipment: {}, equipmentCollection: [], kills: 0, bossKills: 0, playSeconds: 0, level: 1, floor: 1, maxFloor: 1, learned: [], passives: [], skillLevels: {} });
 async function seed(id, bag = []) {
@@ -37,16 +37,17 @@ test('가방이 40칸이면 아이템이 든 우편은 409 BAG_FULL로 막히고
   await seed('mail-full', Array.from({ length: 40 }, () => gear()));
   const first = await snapshot(db, 'mail-full');
   const apology = first.mail.find(entry => entry.id === APOLOGY_MAIL_ID);   // 보물 주머니 5개
-  const welcome = first.mail.find(entry => entry.id === 'welcome-v1');      // 금화 1,000 + 스킬북 1권
+  const welcome = first.mail.find(entry => entry.id === 'welcome-v1');      // 금화 1,000만(파트 B: 스킬북 제거)
   assert(apology && welcome);
   await assert.rejects(claim('mail-full', 'mail', apology.id), error('BAG_FULL'));
-  await assert.rejects(claim('mail-full', 'mail', welcome.id), error('BAG_FULL'));
+  // 아이템이 없는 우편은 가방과 무관하게 받는다.
+  await claim('mail-full', 'mail', welcome.id);
   const row = await account(db, 'mail-full');
   assert.equal(row.save.bag.length, 40, '가방은 40칸 그대로');
-  assert.equal(row.save.gold, 0, '막힌 우편은 금화도 주지 않는다');
+  assert.equal(row.save.gold, 1000, '아이템이 없는 우편의 금화는 들어온다');
   const after = await snapshot(db, 'mail-full');
   assert.equal(after.mail.find(entry => entry.id === apology.id).claimedAt, null, '미수령으로 남는다');
-  assert.equal(after.mail.find(entry => entry.id === welcome.id).claimedAt, null);
+  assert(after.mail.find(entry => entry.id === welcome.id).claimedAt, '금화만 있는 우편은 받았다');
 });
 
 test('금화만 있는 우편(다이아)은 가방이 가득 차도 정상 수령된다', async () => {
@@ -66,15 +67,18 @@ test('모두 받기는 자리가 없는 아이템 우편만 건너뛰고 금화 
   // 가방 40칸 — 아이템이 든 우편은 모두 건너뛰고(미수령 유지), 아이템이 없는 다이아 우편만 받는다.
   await seed('mail-all', Array.from({ length: 40 }, () => gear()));
   const before = await snapshot(db, 'mail-all');
-  assert(before.mail.filter(entry => (entry.books ?? 0) + (entry.pouches ?? 0) > 0).length >= 2, '아이템이 든 우편이 여러 통 있다');
+  assert(before.mail.filter(entry => (entry.pouches ?? 0) > 0).length >= 2, '아이템이 든 우편이 여러 통 있다');
   const result = await claim('mail-all', 'mail', 'all');
   assert.match(result.message, /받지 못했습니다/, '못 받은 우편을 알린다');
   const row = await account(db, 'mail-all');
   assert.equal(row.save.bag.length, 40, '가방은 40칸을 넘지 않는다');
-  assert.equal(row.save.gold, 0, '아이템이 든 우편의 금화도 함께 주지 않는다(우편을 통째로 남긴다)');
+  // 아이템(보물 주머니)이 든 우편은 통째로 남기고, 아이템이 없는 금화 우편만 받는다.
+  // 파트 B로 옛 업데이트 우편의 스킬북 2권이 사라져 그 우편(금화 3,000)도 아이템 없는 우편이 됐다 → 환영 1,000과 합쳐 4,000.
+  assert.equal(row.save.gold, 4000, '아이템이 든 우편의 금화도 함께 주지 않는다(우편을 통째로 남긴다)');
   const after = await snapshot(db, 'mail-all');
+  // 파트 B: 아이템은 보물 주머니(`pouches`)뿐이다 — 옛 우편의 `books`는 지급하지 않으므로 세지 않는다.
   for (const entry of after.mail) {
-    if ((entry.books ?? 0) + (entry.pouches ?? 0) > 0) assert.equal(entry.claimedAt, null, `${entry.id} 는 미수령으로 남는다`);
+    if ((entry.pouches ?? 0) > 0) assert.equal(entry.claimedAt, null, `${entry.id} 는 미수령으로 남는다`);
   }
   const diamond = after.mail.find(entry => entry.id === DIAMOND_MAIL_ID);
   assert(diamond?.claimedAt, '아이템이 없는 다이아 우편은 받았다');
@@ -82,13 +86,15 @@ test('모두 받기는 자리가 없는 아이템 우편만 건너뛰고 금화 
   assert.equal(Number(wallet.diamonds), 4000);
 });
 
-test('가방이 39칸이면 아이템 우편을 받아 40칸이 된다', async () => {
+test('가방이 39칸이면 보물 주머니 1개짜리 우편을 받아 40칸이 된다', async () => {
   await seed('mail-room', Array.from({ length: 39 }, () => gear()));
   const data = await snapshot(db, 'mail-room');
-  const welcome = data.mail.find(entry => entry.id === 'welcome-v1');
-  await claim('mail-room', 'mail', welcome.id);
+  // 새 시즌 안내 = 금화 1,000 + 무작위 보물 주머니 1개(파트 B에서도 그대로).
+  const season = data.mail.find(entry => entry.id === SEASON_NOTICE_ID);
+  assert(season);
+  await claim('mail-room', 'mail', season.id);
   const row = await account(db, 'mail-room');
-  assert.equal(row.save.bag.length, 40, '스킬북 1권이 40번째 칸');
+  assert.equal(row.save.bag.length, 40, '보물 주머니 1개가 40번째 칸');
   assert.equal(row.save.gold, 1000);
 });
 

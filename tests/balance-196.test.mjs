@@ -4,7 +4,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import './ts-loader.mjs';
-const { rollItem, equipmentDropChance, rarityOrder } = await import('../src/game/items.ts');
+const { rollItem, itemDropChance, rarityOrder } = await import('../src/game/items.ts');
 const { enemyMaxHp, offlineMobHp } = await import('../src/game/world.ts');
 
 /** A seeded random stream, so the sampled grade shares are the same on every run. */
@@ -23,10 +23,10 @@ function shares(floor, samples = 6000) {
 }
 
 test('the drop rate is untouched while deep floors stop paying in white gear', () => {
-  // 작업 210: 아이템 드롭은 한 번 굴려 70:30으로 가른다. 작업 254에서 **전 층 고정** —
-  // 접상 0.39%(장비 0.273%)·보스 4%(장비 2.8%). 등급 확률만 층을 따라 오른다.
-  assert.equal(Math.round(equipmentDropChance(1) * 1e6) / 1e6, .00273, 'the first floor drops rarely');
-  assert.equal(Math.round(equipmentDropChance(78) * 1e6) / 1e6, .00273, 'and the rate no longer changes with depth');
+  // 작업 254에서 **전 층 고정** — 접속 0.39%·보스 4%. 파트 B로 스킬북이 빠져 드롭은 장비 한 종류다.
+  // 등급 확률만 층을 따라 오른다.
+  assert.equal(Math.round(itemDropChance(1) * 1e6) / 1e6, .0039, 'the first floor drops rarely');
+  assert.equal(Math.round(itemDropChance(78) * 1e6) / 1e6, .0039, 'and the rate no longer changes with depth');
   const shallow = shares(1), deep = shares(78);
   // Floor 1 keeps the rare, mostly-white table players start with.
   assert(shallow.common >= .85, `floor 1 is still mostly common (got ${(shallow.common * 100).toFixed(1)}%)`);

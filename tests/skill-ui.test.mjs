@@ -53,41 +53,22 @@ test('HUD pulses actual casts only, not cooldowns restored by equipping or repea
   ui.world.save.quickSlots[0]=null;ui.tick();assert(ui.slotButtons[0].querySelector('.skill-art').hidden);assert.equal(ui.slotButtons[0].querySelector('strong').textContent,'+');
 });
 
-test('skill menu upgrade dot tracks book cost even with all field slots equipped',()=>{
+test('스킬 알림 점은 빈 장착 칸이 있을 때만 뜬다 — 파트 B에서 스킬북 강화 알림은 사라졌다',()=>{
   const ui=uiFixture(),save=ui.world.save;
-  save.learned=['spin','slam','power'];save.quickSlots=['spin','slam','power'];save.skillLevels.spin=25;
-  save.bag=Array.from({length:5},(_,i)=>({id:`b${i}`,kind:'skillbook',slot:'skillbook',skillId:'spin',rarity:'rare',name:'book',stats:{}}));
-  ui.tick();assert(ui.root.querySelector('.skill-nav-dot').hidden);
-  save.bag.push({...save.bag[0],id:'sixth'});ui.tick();assert(!ui.root.querySelector('.skill-nav-dot').hidden);
-  save.skillLevels.spin=30;ui.tick();assert(ui.root.querySelector('.skill-nav-dot').hidden);
+  save.learned=['spin','slam','power'];save.quickSlots=['spin','slam','power'];
+  ui.tick();assert(ui.root.querySelector('.skill-nav-dot').hidden,'칸이 다 차면 점이 없다');
+  save.quickSlots=[null,'slam','power'];ui.tick();assert(!ui.root.querySelector('.skill-nav-dot').hidden,'빈 칸이 있으면 뜬다');
 });
-test('skillbook section groups copies and actual upgrade button consumes cost and refreshes the game',async()=>{
-  const {renderSkillBooks}=await import('../src/ui/skillBooks.ts');
-  const previous=globalThis.document;
-  function element(){return {children:[],style:{},className:'',append(...items){this.children.push(...items);},setAttribute(){},get childElementCount(){return this.children.length;}};}
-  globalThis.document={createElement:()=>element()};
-  try{
-    const ui=uiFixture(),save=ui.world.save;let changes=0;ui.world.onChange=()=>changes++;
-    save.learned=['spin'];save.skillLevels.spin=5;
-    save.bag=Array.from({length:2},(_,i)=>({id:`book${i}`,kind:'skillbook',slot:'skillbook',skillId:'spin',rarity:'rare',name:'[스킬북] 드래곤 트위스터',stats:{}}));
-    const parent=element();renderSkillBooks(ui,parent);const grid=parent.children[0].children[1];
-    assert.equal(grid.children.length,1);const card=grid.children[0];
-    // 카드 맨 앞에 어느 직업의 책인지 배지가 붙는다(작업 205).
-    assert.equal(card.children[0].textContent,'전사');assert.equal(card.children[0].className,'job-badge job-warrior');
-    assert.equal(card.children[2].textContent,'드래곤 트위스터');assert.equal(card.children[3].textContent,'×2');
-    assert.equal(card.children[4].textContent,'보유 2 / 필요 2권');const button=card.children[5];assert.equal(button.disabled,false);button.onclick();
-    assert.equal(save.skillLevels.spin,6);assert.equal(save.bag.length,0);assert.equal(changes,1);
-  }finally{globalThis.document=previous;}
-});
-
-test('three passive cards share a single grid and keep upgrade controls without redundant learned status',()=>{
+test('three passive cards share a single grid and keep their learned status without redundant labels',()=>{
   const previous=globalThis.document,created=[];globalThis.document={createElement(){const element=node();element.children=[];element.appendChild=function(child){this.children.push(child);};created.push(element);return element;}};
   try{
     const ui=uiFixture();ui.world.save.passives=['mastery','body','instinct'];renderSkills.call(ui,node());
     const grid=created.find(n=>n.className==='passive-skill-grid');assert(grid);assert.equal(grid.children.length,3);
     assert.deepEqual(grid.children.map(card=>card.dataset.skill),['mastery','body','instinct']);
     for(const [index,card] of grid.children.entries()){const icon=card.querySelector('.skill-icon');assert.equal(icon.textContent,'');assert(icon.style.backgroundImage.includes('passive-skills.png'));assert.equal(icon.style.backgroundSize,'300% 100%');assert.equal(icon.style.backgroundPosition,`${index*50}% center`);}
-    assert(!created.some(n=>n.textContent==='습득 완료 · 상시 적용'));assert(created.filter(n=>n.textContent==='강화').length>=3);
+    // 파트 B: 카드의 `강화` 버튼(스킬북)은 사라지고, 습득 여부만 레벨 줄로 보여 준다.
+    assert(!created.some(n=>n.textContent==='습득 완료 · 상시 적용'));
+    assert.equal(created.filter(n=>n.textContent==='강화').length,0,'스킬북 강화 버튼 없음');
   }finally{globalThis.document=previous;}
 });
 
@@ -116,7 +97,8 @@ test('equipped skills share one group and upgrade counts live in the right statu
     assert(!group.children.some(el=>el.dataset?.skill==='warcry'));
     const card=created.find(el=>el.dataset?.skill==='spin');
     const status=card.querySelector('.skill-status-stack');assert(status);
-    const cost=created.find(el=>el.className==='skill-book-cost'&&el.textContent.startsWith('보유'));
-    assert(cost);assert(created.some(el=>el.textContent==='해제'));
+    // 파트 B: 스킬북 보유 권수 줄은 없앴고, 장착 해제 버튼은 그대로다.
+    assert.equal(created.filter(el=>el.className==='skill-book-cost').length,0,'스킬북 권수 줄 없음');
+    assert(created.some(el=>el.textContent==='해제'));
   } finally {globalThis.document=previous;}
 });

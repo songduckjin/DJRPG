@@ -1,29 +1,27 @@
 /**
- * 가방 칸 묶음 (작업 246) — 같은 스킬북·같은 보물 주머니는 **한 칸에 `×N`**으로 보여 준다.
+ * 가방 칸 묶음 (작업 246 → 파트 B 2026-11-22).
  *
- * 예전 `equipModal`은 보물 주머니만 묶고 스킬북은 `count: 1`로 하나씩 늘어놓아, 같은 책이 세 권
- * 있어도 `×1` 칸 세 개로 보였다(사용자 제보). 공용창고는 이미 `warehouseModal`의 `stacksOf`가
- * 같은 규칙으로 묶고 있으므로 **두 화면의 묶는 기준을 여기 한 곳에 맞춘다**.
+ * 같은 **영구 스탯북**·같은 **보물 주머니**는 **한 칸에 `×N`**으로 보여 준다. 예전에는 이 자리가
+ * 스킬북 묶음이었고, 스킬북이 폐지되면서 스탯북 3종(공격·방어·체력)이 그 자리를 이어받았다.
  *
  * 묶음은 **보기만** 묶는다 — 칸이 들고 있는 `item.id`는 그 묶음의 첫 아이템이고, 사용·판매·창고
- * 이동·저장 동기화는 지금처럼 개별 `item.id`로 처리된다(`useSkillBook`은 같은 `skillId` 책을
- * 필요한 권수만큼 한 번에 소모한다).
+ * 이동·저장 동기화는 지금처럼 개별 `item.id`로 처리된다.
  *
- * [작업 247] 사용자가 가방 칸 순서를 확정했다 — **보물 주머니(첫 칸) → 장비 → 스킬북(맨 뒤)**.
+ * [작업 247] 사용자가 가방 칸 순서를 확정했다 — **보물 주머니(첫 칸) → 장비 → 책(맨 뒤)**.
  * 등급순 정렬을 켜고 꺼도 이 3단은 그대로이고, 등급순은 **같은 묶음 안에서만** 적용된다.
- * 스킬북 구간은 다시 **직업별로 묶는다** — 내 직업 책이 먼저, 그다음 `전사 → 궁수 → 마법사`
- * 고정 순서이고, 같은 직업 안에서는 그 직업의 스킬 표 순서(`skillOrderFor`) → 이름 순이다.
+ * 책 구간은 **공격 → 방어 → 체력** 고정 순서다(`STAT_BOOK_ORDER`).
  * 장비창 가방(`equipModal`)과 공용창고 목록(`warehouseModal`)이 같은 비교 함수를 쓴다.
  */
-import { isPouch, isSkillBook, rarityRanks, skillBookJob, type Item } from '../game/items';
-import { skillOrderFor, type Job } from '../game/skills';
+import { isPouch, isStatBook, rarityRanks, type Item } from '../game/items';
+import { STAT_BOOK_ORDER } from '../game/statBooks';
+import type { Job } from '../game/skills';
 
 export type BagStack = {
   /** 같은 묶음의 첫 아이템 — 칸(`data-item-id`)·상세 보기가 이 id를 쓴다. */
   item: Item;
   /** 그 칸에 모인 개수(1이면 배지를 달지 않는다). */
   count: number;
-  /** 묶음 키 — 주머니는 하나, 스킬북은 `skillId`, 장비는 아이템 id. */
+  /** 묶음 키 — 주머니는 하나, 스탯북은 `book` 종류, 장비는 아이템 id. */
   key: string;
 };
 
@@ -45,53 +43,40 @@ export function bagStacks(items: Item[]): BagStack[] {
  * 한 묶음 칸에 모인 실제 아이템들(가방 순서, 작업 249).
  *
  * 묶음 판매 등록은 칸의 대표 id 하나가 아니라 **이 아이템들의 id 전부**를 서버로 보낸다
- * (`market.act('register', { itemIds })`) — 서버도 같은 기준(`skillId`)으로 묶음을 확인한다.
+ * (`market.act('register', { itemIds })`) — 서버도 같은 기준(`book`)으로 묶음을 확인한다.
  */
 export function stackMembers(items: Item[], stack: BagStack): Item[] {
   return items.filter(item => stackKey(item) === stack.key);
 }
 
 /**
- * 가방 3단 순서(작업 247) — 보물 주머니 0 · 장비 1 · 스킬북 2.
- * 받은 주머니는 어디서든 첫 칸에 있어야 열어 볼 수 있고, 스킬북은 스킬 창에서 다루는 물건이라
- * 장비 뒤로 모은다(사용자 확정).
+ * 가방 3단 순서(작업 247) — 보물 주머니 0 · 장비 1 · 스탯북 2.
+ * 받은 주머니는 어디서든 첫 칸에 있어야 열어 볼 수 있고, 책은 장비 뒤로 모은다(사용자 확정).
  */
 export function bagKindRank(item: Item): number {
-  return isPouch(item) ? 0 : isSkillBook(item) ? 2 : 1;
+  return isPouch(item) ? 0 : isStatBook(item) ? 2 : 1;
 }
 
-/** 스킬북 직업 묶음 순서 — 내 직업이 0, 나머지는 `전사 → 궁수 → 마법사` 고정(작업 247). */
-const JOB_BOOK_ORDER: Job[] = ['warrior', 'archer', 'mage'];
-export function skillBookJobRank(item: Item, myJob: Job): number {
-  const job = skillBookJob(item) ?? myJob;
-  if (job === myJob) return 0;
-  const index = JOB_BOOK_ORDER.filter(entry => entry !== myJob).indexOf(job);
-  return 1 + (index < 0 ? JOB_BOOK_ORDER.length : index);
-}
-
-/** 같은 직업 스킬북끼리의 순서 — 그 직업 스킬 표 순서, 그다음 이름·id(결정적). */
-function skillBookOrder(item: Item, myJob: Job): number {
-  if (!isSkillBook(item)) return 0;
-  const job = skillBookJob(item) ?? myJob;
-  const index = skillOrderFor(job).indexOf(item.skillId as never);
-  return index < 0 ? Number.MAX_SAFE_INTEGER : index;
+/** 스탯북 종류 순서 — `공격 → 방어 → 체력` 고정(정의 표의 순서). */
+export function statBookRank(item: Item): number {
+  if (!isStatBook(item)) return STAT_BOOK_ORDER.length;
+  const index = STAT_BOOK_ORDER.indexOf(item.book);
+  return index < 0 ? STAT_BOOK_ORDER.length : index;
 }
 
 /**
- * 가방 칸 정렬 비교 함수 — 3단(주머니 → 장비 → 스킬북)이 **항상 먼저**고, 스킬북은 직업별로 묶는다.
+ * 가방 칸 정렬 비교 함수 — 3단(주머니 → 장비 → 스탯북)이 **항상 먼저**고, 스탯북은 종류별로 묶는다.
  * `raritySort`를 켰을 때만 같은 묶음 안에서 등급 높은 순으로 놓는다(안정 정렬이라 나머지는 원래 차례).
+ *
+ * `myJob`은 호출부 계약을 그대로 두기 위한 인자다 — 파트 B에서 책의 직업 구분이 사라져 판정에 쓰이지 않는다.
  */
-export function compareBagItems(raritySort: boolean, myJob: Job = 'warrior'): (a: Item, b: Item) => number {
+export function compareBagItems(raritySort: boolean, _myJob: Job = 'warrior'): (a: Item, b: Item) => number {
   return (a, b) => {
     const kind = bagKindRank(a) - bagKindRank(b);
     if (kind) return kind;
-    if (isSkillBook(a) && isSkillBook(b)) {
-      const job = skillBookJobRank(a, myJob) - skillBookJobRank(b, myJob);
-      if (job) return job;
-      const order = skillBookOrder(a, myJob) - skillBookOrder(b, myJob);
+    if (isStatBook(a) && isStatBook(b)) {
+      const order = statBookRank(a) - statBookRank(b);
       if (order) return order;
-      const name = String(a.name).localeCompare(String(b.name), 'ko');
-      if (name) return name;
       return String(a.id).localeCompare(String(b.id));
     }
     return raritySort ? (rarityRanks[b.rarity] ?? 0) - (rarityRanks[a.rarity] ?? 0) : 0;
@@ -105,6 +90,6 @@ export function orderedBagItems(items: Item[], raritySort: boolean, myJob: Job =
 
 function stackKey(item: Item): string {
   if (isPouch(item)) return 'pouch';
-  if (isSkillBook(item)) return `book:${item.skillId ?? item.name}`;
+  if (isStatBook(item)) return `book:${item.book ?? item.name}`;
   return `item:${item.id}`;
 }

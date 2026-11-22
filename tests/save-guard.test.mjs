@@ -33,7 +33,6 @@ test('정상 드롭은 어느 층·등급·강화에서도 능력치 상한 안�
     }
     assert(itemWithinBounds(items.rollItem(floor, false, false, 'archer'), floor));
     assert(itemWithinBounds(items.rollItem(floor, false, false, 'mage'), floor));
-    assert(itemWithinBounds(items.rollSkillBook(floor, 'warrior'), floor));
   }
   // 튜토리얼 고정 드롭과 옛 세이브에서 역산한 강화 단계도 통과한다.
   assert(itemWithinBounds({ id: 'x', name: '낡은 두손검', slot: 'weapon', rarity: 'common', stats: { attack: 4 } }, 1));
