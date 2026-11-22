@@ -98,6 +98,8 @@ async function existingTables(db) {
 /** 지금 상태를 읽어 계획을 만든다(쓰기 없음). */
 export async function planReset(db) {
   const tables = await existingTables(db);
+  // 빈 파일 DB(로컬 리허설 오타 등)에는 표가 없다 — 스택 대신 이 한 줄로 알린다.
+  if (!tables.has('djrpg_accounts')) return { tables: {}, accounts: 0, guestAccounts: 0, rewardAccounts: 0, missingTables: true };
   const counts = {};
   for (const table of RESET_TABLES) {
     if (!tables.has(table)) continue;
@@ -119,6 +121,7 @@ export async function planReset(db) {
  */
 export async function resetServer(db, { apply = false } = {}) {
   const plan = await planReset(db);
+  if (plan.missingTables) throw new Error('이 DB에는 djrpg_accounts 표가 없습니다 — 운영 DB URL(또는 스키마가 만들어진 파일 DB)을 지정했는지 확인하세요.');
   if (!apply) return { applied: false, plan };
   const createdAt = now();
   const season = JSON.stringify(seasonResetSave(''));
@@ -146,7 +149,7 @@ export async function resetServer(db, { apply = false } = {}) {
   });
   // 시즌 번호를 맞춰 두어 앱의 자동 시즌 초기화가 다시 돌지 않게 한다.
   if (tables.has('djrpg_meta')) statements.push("INSERT INTO djrpg_meta(key,value) VALUES('season_epoch','2') ON CONFLICT(key) DO UPDATE SET value=excluded.value");
-  await db.batch(statements, 'write');
+  if (statements.length) await db.batch(statements, 'write');
   const after = await planReset(db);
   return { applied: true, plan, after };
 }
@@ -173,6 +176,11 @@ async function main() {
   }
   const db = createClient({ url, authToken: process.env.TURSO_AUTH_TOKEN });
   try {
+    if ((await planReset(db)).missingTables) {
+      console.error(`이 DB에 DJRPG 표가 없습니다(${url}). 운영 DB URL(또는 스키마가 만들어진 파일 DB)인지 확인하세요.`);
+      process.exitCode = 1;
+      return;
+    }
     const result = await resetServer(db, { apply: options.apply });
     const { tables, accounts, guestAccounts, rewardAccounts } = result.plan;
     console.log(`\n[테스트 서버 초기화] ${options.apply ? '실행' : '계획(dry-run)'} — 계정 ${accounts}개(게스트 ${guestAccounts} · 보상 대상 ${rewardAccounts})`);
