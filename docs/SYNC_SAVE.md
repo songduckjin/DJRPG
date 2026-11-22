@@ -29,6 +29,7 @@ world/save 변경 → world.onChange → Interface.onSave → sync.queueSave() (
 
 - `assertRevision`: `revision` 불일치 → `409 SAVE_CONFLICT`.
 - `reconcileItems`: 이번에 처음 보이는 아이템만 개수·능력치 상한 검사(기존 보유는 소유 기록만 채움). 소유자·캐릭터 슬롯·`identity`(이름·슬롯·등급·kind·skillId·5스탯) 불일치 → `409 ITEM_CONFLICT`. 삭제 아이템은 `consumed`.
+- **보물 주머니 개봉 금화는 소모 수로 인정한다(2026-11-22)**: 주머니는 클라이언트가 까고 결과를 저장으로 보내므로, `reconcileItems`가 **직전 세이브의 주머니 중 이번 저장에 없고 소유 위치가 `inventory`(또는 기록 없음)인 것 × `POUCH_MAX_GOLD`(5,000G)** 를 `pouchGold`로 돌려주고, `action:'save'`가 그 값을 `writeSave(..., { goldCredit })`로 넘긴다. 한 번에 열기로 금화가 한 저장 창에 몰려도(30개 = 최대 150,000G) 사냥 시간 기준 금화 상한에 잘리지 않는다. 창고·거래소로 옮긴 주머니(위치 `warehouse`·`market`)와 이미 `consumed`인 주머니는 세지 않으므로 꺼내 되풀이 청구할 수 없다.
 - `writeSave`: `revision+1`, 금화는 `shared_gold`로 분리, `bossKills`/`playSeconds`는 최대값, `equipmentCollection`은 `부위:번호:등급` 합집합(810).
 - `save-guard`: `rewardBudget`(경과 시간·층 기준 킬/보스/경험치/금화/강화석/아이템 상한)·`clampSaveProgress`(넘친 값만 자름)·`itemWithinBounds`(`rollItem` 공식 ×2.5)·`elapsedSince`(최대 12시간).
 - **40칸 저장 차단은 `reconcileItems` 한 곳**. 이미 넘긴 세이브는 "현재 개수 이하 유지"만 허용하고, 수령 경로가 각각 `BAG_FULL`로 먼저 막는다.
@@ -67,7 +68,7 @@ world/save 변경 → world.onChange → Interface.onSave → sync.queueSave() (
 
 ## 테스트
 
-`node --test tests/sync.test.mjs tests/reconnect.test.mjs tests/save-guard.test.mjs tests/concurrency.test.mjs tests/idle-save-budget.test.mjs tests/bag-limit-recovery.test.mjs tests/app-version.test.mjs tests/character-switch.test.mjs tests/multi-character-market.test.mjs`
+`node --test tests/sync.test.mjs tests/reconnect.test.mjs tests/save-guard.test.mjs tests/concurrency.test.mjs tests/idle-save-budget.test.mjs tests/bag-limit-recovery.test.mjs tests/app-version.test.mjs tests/character-switch.test.mjs tests/multi-character-market.test.mjs tests/pouch-open-all.test.mjs`
 
 ## 관련 매뉴얼
 

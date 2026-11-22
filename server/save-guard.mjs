@@ -33,6 +33,15 @@ export const ITEMS_FLOOR = 40;
 /** 금화·경험치 상한에 곱하는 안전 계수 — 자동 분해·보스 무더기 같은 정상 경로가 상한에 닿지 않게 한다. */
 export const GOLD_HEADROOM = 2;
 export const EXP_HEADROOM = 2;
+/**
+ * 보물 주머니 하나에서 나올 수 있는 **최대 금화** — `src/game/pouch.ts` `POUCH_GOLD_TIERS`의 최댓값이다
+ * (`tests/pouch-open-all.test.mjs`가 둘을 대조한다).
+ *
+ * 주머니는 클라이언트가 까고 결과를 저장으로 보내므로, 서버는 "이번 저장에서 소모된 주머니 수 × 이 값"을
+ * **정당한 금화**로 인정한다(`server/db/items.mjs` `reconcileItems`의 `pouchGold` → `goldCredit`).
+ * 그래야 한 번에 열기로 금화가 한 저장 창에 몰려도(30개 = 최대 150,000G) 사냥 시간 기준 상한에 잘리지 않는다.
+ */
+export const POUCH_MAX_GOLD = 5_000;
 /** `src/game/statBooks.ts`의 `STAT_BOOK_LIMIT`(파트 B: 종류별 캐릭터당 30권). */
 export const STAT_BOOK_LIMIT = 30;
 /** `src/game/items.ts`의 `rarityScales`. */

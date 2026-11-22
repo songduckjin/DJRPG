@@ -264,7 +264,8 @@ test('상단 한 줄에 `확률표`·`보물 주머니` 제목·`×`가 나란�
   globalThis.document = { createElement: tag => element(tag) };
   try {
     const save = withPouches(1);
-    const ui = { root: element(), modal: element(), openModal: 'equipment', renderModal() {}, message() {}, world: { save, onChange() {} } };
+    const ui = { root: element(), modal: element(), openModal: 'equipment', renderModal() {}, message() {}, // 레전드(0.4%)가 나와도 전광판 호출에서 깨지지 않게 스텁을 채운다.
+      sharePouchLegend() {}, world: { save, onChange() {} } };
     const api = openPouchWindow(ui, undefined, { delay: 0 });
     const top = find(api.overlay, node => node.className === 'pouch-window-top');
     assert(top, '상단 줄');
@@ -450,7 +451,8 @@ test('2D 컨텍스트가 없으면 Canvas 빛 없이 조용히 연출하고, 개
   globalThis.document = { createElement: tag => element(tag) };
   try {
     const save = withPouches(1);
-    const ui = { root: element(), modal: element(), openModal: 'equipment', renderModal() {}, message() {}, world: { save, onChange() {} } };
+    const ui = { root: element(), modal: element(), openModal: 'equipment', renderModal() {}, message() {}, // 레전드(0.4%)가 나와도 전광판 호출에서 깨지지 않게 스텁을 채운다.
+      sharePouchLegend() {}, world: { save, onChange() {} } };
     const api = openPouchWindow(ui, undefined, { delay: 0 });
     const stage = find(api.overlay, node => node.className === 'pouch-window-stage');
     assert(stage, '연출 무대');
@@ -469,7 +471,8 @@ test('큰 개봉 창은 [열기]에서 3컷을 0.92초·1.08초에 차례로 겹
   globalThis.document = { createElement: tag => element(tag) };
   try {
     const save = withPouches(2);
-    const ui = { root: element(), modal: element(), openModal: 'equipment', renderModal() {}, message() {}, world: { save, onChange() {} } };
+    const ui = { root: element(), modal: element(), openModal: 'equipment', renderModal() {}, message() {}, // 레전드(0.4%)가 나와도 전광판 호출에서 깨지지 않게 스텁을 채운다.
+      sharePouchLegend() {}, world: { save, onChange() {} } };
     const api = openPouchWindow(ui, undefined, { delay: 30 });
     const stage = find(api.overlay, node => node.className === 'pouch-window-stage');
     const stack = find(api.overlay, node => node.className === 'pouch-art-stack');
