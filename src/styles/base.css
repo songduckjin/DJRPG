@@ -1,10 +1,13 @@
 @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Noto+Sans+KR:wght@400;500;700&display=swap');
-:root { font-family: 'Noto Sans KR', sans-serif; color: #e9dfd1; background: #08070a; font-synthesis: none; }
+:root { font-family: 'Noto Sans KR', sans-serif; color: #e9dfd1; background: #08070a; font-synthesis: none; --u: 1px; }
 * { box-sizing: border-box; }
 html, body, #app { margin: 0; width: 100%; height: 100%; overflow: hidden; }
 button { font: inherit; cursor: pointer; }
 button:active { transform: scale(.97); }
-.game-shell { width: 100%; height: 100dvh; max-width: 540px; margin: auto; display: flex; flex-direction: column; overflow: hidden; background: #121015; box-shadow: 0 0 45px #000; position: relative; }
+/* HUD 길이 토큰 `--u`(작업 4번 개선안, 2026-11-22) — HUD의 모든 길이를 `calc(N * var(--u))` 하나로 묶는다.
+   390px 화면에서 1.0(= 지금 값 그대로), 360px 0.92, 430px 이상 1.10. 폭이 달라져도 비율이 그대로 유지되고,
+   `:root`의 1px은 셸 밖(모달·레전드 띠)에서 이 토큰을 만져도 값이 깨지지 않게 하는 기본값이다. */
+.game-shell { --u: clamp(0.8px, calc(100vw * 0.00256), 1.1px); width: 100%; height: 100dvh; max-width: 540px; margin: auto; display: flex; flex-direction: column; overflow: hidden; background: #121015; box-shadow: 0 0 45px #000; position: relative; }
 .battle { position: relative; flex: 1; min-height: 0; overflow: hidden; background: #100d13; }
 .battle-canvas, .battle-canvas canvas { width: 100%; height: 100%; display: block; touch-action: none; }
 .toast { position: absolute; z-index: 20; left: 50%; top: calc(env(safe-area-inset-top) + 68px); transform: translateX(-50%); max-width: 80%; padding: 10px 15px; color: #fff0d4; background: #251b1de8; border: 1px solid #b48457; border-radius: 4px; text-align: center; font-size: 12px; opacity: 0; pointer-events: none; transition: opacity .2s; }

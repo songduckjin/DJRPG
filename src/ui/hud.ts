@@ -28,15 +28,17 @@ export function renderStatus(this: Interface): void {
     // 최고 도달 층에서 패배한 뒤 `⚔ 보스 도전`이 살아난다(작업 210).
     // 작업 212(`#4995`): 버튼을 **현재 층 배지 바로 옆**에 붙인다(`.status-floor`).
     // 작업 245: 몹이 쌓여 아래층으로 강등돼도 버튼은 남고, 누르면 최고층으로 올라가 보스와 붙는다.
-    const bossRetry = this.world.bossRetryReady ? `<button class="boss-retry" type="button" aria-label="최고층 ${save.maxFloor}층 보스에게 다시 도전">⚔ 보스 도전</button>` : '';
+    // 휴대폰 배율 맞춤(작업 4번 개선안) — 460px 미만에서는 `⚔` 아이콘만 남기고 글자는 CSS가 감춘다(`.ctx-label`).
+    // 아이콘만 남아도 뜻은 `aria-label`·`title`이 지킨다(누르기 전에 손가락을 올려도 읽힌다).
+    const bossRetry = this.world.bossRetryReady ? `<button class="boss-retry" type="button" aria-label="최고층 ${save.maxFloor}층 보스에게 다시 도전" title="최고층 ${save.maxFloor}층 보스에게 다시 도전"><span aria-hidden="true">⚔</span><span class="ctx-label">보스 도전</span></button>` : '';
     // 작업 224(`#6215`): 최고 도달 층에서 **2층 이상 내려왔을 때만** `▲ 최고층`을 붙인다.
     // 한 층 아래는 층 선택 창으로 충분하고, 배지 옆이 좁아지는 것을 막는다.
-    const floorReturn = save.maxFloor - save.floor >= 2 ? `<button class="floor-return" type="button" aria-label="최고층 ${save.maxFloor}층으로 이동" title="최고층 ${save.maxFloor}층으로 바로 이동">▲ 최고층</button>` : '';
+    const floorReturn = save.maxFloor - save.floor >= 2 ? `<button class="floor-return" type="button" aria-label="최고층 ${save.maxFloor}층으로 이동" title="최고층 ${save.maxFloor}층으로 바로 이동"><span aria-hidden="true">▲</span><span class="ctx-label">최고층</span></button>` : '';
     // 전투력(사용자 요청: `전사 | 닉네임` 밑에 전투력 표기) — 이름판 바로 아래 반투명 필에 `⚔ 전투력 68`.
     // 식은 내 정보 창·상세 스탯과 같은 `combatPower` 하나만 쓴다(`game/power.ts`).
     const power = combatPower(totalStats(save));
     const powerText = power.toLocaleString('ko-KR');
-    this.top.innerHTML = `<button class="level-badge" type="button" aria-label="상세 스탯 열기"><span>LV</span><b>${save.level >= MAX_LEVEL ? 'MAX' : save.level}</b></button><span class="hero-name" aria-label="캐릭터 닉네임"></span><span class="hero-power" aria-label="전투력 ${power}"><i aria-hidden="true">⚔</i><span>전투력</span><b>${powerText}</b></span><div class="health-bar hp" role="progressbar" aria-label="체력"><i></i><b></b></div><div class="status-main"><span class="status-floor"><button class="floor-button" type="button" aria-label="층 선택, 현재 ${save.floor}층"><span>층 <b>${save.floor}</b> · ${Math.min(save.floorKills, floorKillTarget(save.floor))}/${floorKillTarget(save.floor)}</span><span aria-hidden="true">▾</span></button>${bossRetry}${floorReturn}</span><span class="gold">${goldMarkup(save.gold)}</span><span class="diamonds" aria-label="다이아 ${this.shopCatalog?.wallet.diamonds ?? 0}개">${diamondMarkup(this.shopCatalog?.wallet.diamonds ?? 0)}</span></div><div class="exp"><i style="width:${progress}%"></i></div>`;
+    this.top.innerHTML = `<button class="level-badge" type="button" aria-label="상세 스탯 열기"><span>LV</span><b>${save.level >= MAX_LEVEL ? 'MAX' : save.level}</b></button><span class="hero-name" aria-label="캐릭터 닉네임"></span><span class="hero-power" aria-label="전투력 ${power}"><i aria-hidden="true">⚔</i><span>전투력</span><b>${powerText}</b></span><div class="health-bar hp" role="progressbar" aria-label="체력"><i></i><b></b></div><div class="status-main"><span class="status-floor"><button class="floor-button" type="button" aria-label="층 선택, 현재 ${save.floor}층"><span>층 <b>${save.floor}</b><span class="kills"> · ${Math.min(save.floorKills, floorKillTarget(save.floor))}/${floorKillTarget(save.floor)}</span></span><span aria-hidden="true">▾</span></button>${bossRetry}${floorReturn}</span><span class="gold">${goldMarkup(save.gold)}</span><span class="diamonds" aria-label="다이아 ${this.shopCatalog?.wallet.diamonds ?? 0}개">${diamondMarkup(this.shopCatalog?.wallet.diamonds ?? 0)}</span></div><div class="exp"><i style="width:${progress}%"></i></div>`;
     const levelBadge = this.get('.level-badge'); levelBadge.style.setProperty('--progress', `${progress}%`);
     // LV 배지 → `상세 스탯`(사용자 요청 2026-11-21 "LV 누르면 내 전체 상세 스탯 보여주기").
     // 캐릭터 전환은 오른쪽 아이콘 레일의 `캐릭터` 버튼이 맡는다.
