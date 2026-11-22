@@ -8,6 +8,7 @@ import { randomUUID } from 'node:crypto';
 import { createClient } from '@libsql/client';
 import { schema, account } from '../server/database.mjs';
 import { snapshot, mutate } from '../server/journey.mjs';
+import { bagSlotCount } from '../server/core/rewardGrant.mjs';
 import { RESET_DIAMONDS, RESET_MAIL_ID, RESET_POUCHES, seededJourneyState } from '../scripts/reset-server-test.mjs';
 
 /**
@@ -60,7 +61,9 @@ const ledgerRows = async id => Number((await db.execute({ sql: "SELECT COUNT(*) 
 const saveOf = async id => (await account(db, id)).save;
 const journeyOf = async id => JSON.parse((await db.execute({ sql: 'SELECT state_json FROM djrpg_journey WHERE account_id=?', args: [id] })).rows[0].state_json);
 const mailOf = async (id, mailId) => (await journeyOf(id)).mail.find(entry => entry.id === mailId);
-const bagSlots = save => save.bag.length;
+/** 가방이 쓰는 **칸** 수 — 장비 1개=1칸, 보물 주머니는 수량 무관 1칸(주머니 스택형, 서버 규칙 그대로). */
+const bagSlots = save => bagSlotCount(save);
+const heldPouch = id => ({ id, name: '무작위 보물 주머니', slot: 'pouch', kind: 'pouch', rarity: 'unique', stats: {} });
 
 before(async () => {
   directory = await mkdtemp(join(tmpdir(), 'djrpg-mail-flow-'));
@@ -90,13 +93,14 @@ test('초기화 보상 우편이 제목·본문·보상 수량(다이아 5,000 �
 
 // ── ② 다량 꾸러미 수령 ───────────────────────────────────────────────────────
 
-test('보물 주머니 30개는 가방 30칸(1개 = 1칸)을 쓰고, 다이아는 지갑·원장에 한 번만 들어간다', async () => {
+test('보물 주머니 30개는 가방 **1칸**만 쓰고(수량 무관), 다이아는 지갑·원장에 한 번만 들어간다', async () => {
   await seed('claim-1');
   await claim('claim-1', 'mail', RESET_MAIL_ID);
   const save = await saveOf('claim-1');
-  assert.equal(bagSlots(save), RESET_POUCHES, `주머니 ${RESET_POUCHES}개 = ${RESET_POUCHES}칸`);
+  assert.equal(save.bag.length, RESET_POUCHES, '주머니는 30개 그대로 들어온다');
+  assert.equal(bagSlots(save), 1, `주머니 ${RESET_POUCHES}개 = 1칸(한 칸에 쌓인다 — 주머니 스택형)`);
   assert(save.bag.every(item => item.kind === 'pouch' && item.slot === 'pouch'), '가방은 전부 보물 주머니');
-  assert.equal(new Set(save.bag.map(item => item.id)).size, RESET_POUCHES, '주머니는 서로 다른 아이템이다(개별 칸)');
+  assert.equal(new Set(save.bag.map(item => item.id)).size, RESET_POUCHES, '주머니는 서로 다른 아이템이다(한 칸에 묶일 뿐)');
   assert.equal(await wallet('claim-1'), RESET_DIAMONDS, '다이아 5,000이 지갑으로');
   assert.equal(await ledgerRows('claim-1'), 1, '원장 기록은 한 번');
   const mail = await mailOf('claim-1', RESET_MAIL_ID);
@@ -104,7 +108,7 @@ test('보물 주머니 30개는 가방 30칸(1개 = 1칸)을 쓰고, 다이아�
   assert.equal(mail.read, true);
   // 두 번째 수령 시도는 거절되고 아무것도 늘지 않는다.
   await assert.rejects(claim('claim-1', 'mail', RESET_MAIL_ID), error => error.code === 'NOT_AVAILABLE');
-  assert.equal(bagSlots(await saveOf('claim-1')), RESET_POUCHES);
+  assert.equal(bagSlots(await saveOf('claim-1')), 1);
   assert.equal(await wallet('claim-1'), RESET_DIAMONDS);
   assert.equal(await ledgerRows('claim-1'), 1);
 });
@@ -118,45 +122,43 @@ test('가방이 가득 차면 수령이 막히고 다이아도 들어가지 않�
   assert.equal(await ledgerRows('full-1'), 0, '원장도 남지 않는다');
   const mail = await mailOf('full-1', RESET_MAIL_ID);
   assert.equal(mail.claimedAt, null, '미수령으로 남아 나중에 받을 수 있다');
-  // 10칸을 비우면(30칸 필요) 받을 수 있다.
+  // 1칸을 비우면(주머니 1칸 필요) 받을 수 있다.
   const spare = Array.from({ length: 10 }, () => gear());
   const row = await account(db, 'full-1');
   await mutate(db, 'full-1', { action: 'journey-read', id: RESET_MAIL_ID, revision: row.revision, requestId: randomUUID(), progress: { ...row.save, bag: spare } });
   await claim('full-1', 'mail', RESET_MAIL_ID);
-  assert.equal(bagSlots(await saveOf('full-1')), 40, '10칸 + 주머니 30칸 = 40칸');
+  assert.equal(bagSlots(await saveOf('full-1')), 11, '장비 10칸 + 주머니 1칸 = 11칸');
   assert.equal(await wallet('full-1'), RESET_DIAMONDS);
+});
+
+test('가방이 40칸이어도 주머니를 이미 들고 있으면 주머니 우편 30개를 그대로 받는다(주머니 스택형)', async () => {
+  await seed('pouch-full', { bag: [...Array.from({ length: 39 }, () => gear()), heldPouch('held-pouch')] });
+  await claim('pouch-full', 'mail', RESET_MAIL_ID);
+  const save = await saveOf('pouch-full');
+  assert.equal(bagSlots(save), 40, '40칸 그대로 — 주머니는 한 칸에 쌓인다');
+  assert.equal(save.bag.filter(item => item.kind === 'pouch').length, RESET_POUCHES + 1, '들고 있던 1개 + 30개');
+  assert.equal(await wallet('pouch-full'), RESET_DIAMONDS, '다이아도 함께 들어간다');
 });
 
 // ── ③ 여러 통 · 모두 받기 ────────────────────────────────────────────────────
 
-test('모두 받기 — 자리가 모자란 아이템 우편만 건너뛰고, 다이아·금화 우편은 받는다', async () => {
+test('모두 받기 — 주머니 우편은 가방이 40칸이어도 모두 받는다(주머니 한 칸·수량 무관, 주머니 스택형)', async () => {
   const legend = { id: 'legend-reward-1', title: '[레전드] 보상 꾸러미', sender: '운영팀', body: '레전드 보상입니다.', createdAt: Date.now(), expiresAt: null, gold: 2000, books: 0, pouches: 3, diamonds: 0, claimedAt: null, read: false };
   const diamonds = { id: 'diamond-only-1', title: '다이아 777개 지급', sender: '운영팀', body: '다이아만 있는 우편', createdAt: Date.now(), expiresAt: null, gold: 0, books: 0, pouches: 0, diamonds: 777, claimedAt: null, read: false };
-  await seed('multi-1', { bag: Array.from({ length: 20 }, () => gear()), mail: [legend, diamonds] });
-  // 서버와 같은 규칙으로 기대값을 먼저 센다(칸이 모자란 우편만 건너뛴다).
+  // 가방 40칸(장비 39 + 주머니 1) — 예전 규칙(주머니 1개=1칸)에서는 30칸이 필요해 초기화 우편이 건너뛰어졌다.
+  await seed('multi-1', { bag: [...Array.from({ length: 39 }, () => gear()), heldPouch('held-multi')], mail: [legend, diamonds] });
   const before = await snapshot(db, 'multi-1');
-  const open = before.mail.filter(mail => !mail.claimedAt && (mail.expiresAt === null || mail.expiresAt > Date.now()));
-  let slots = 20; const expectClaimed = [], expectSkipped = [];
-  for (const mail of open) {
-    const need = (mail.pouches ?? 0) + (mail.item ? 1 : 0);
-    if (!need || slots + need <= 40) { slots += need; expectClaimed.push(mail.id); } else expectSkipped.push(mail.id);
-  }
-  assert(expectSkipped.includes(RESET_MAIL_ID), '30칸이 필요한 초기화 보상은 자리가 없어 건너뛴다');
+  const opened = before.mail.filter(mail => !mail.claimedAt && !mail.expired);
+  const expectedPouches = 1 + opened.reduce((total, mail) => total + (mail.pouches ?? 0), 0);
   const result = await claim('multi-1', 'mail', 'all');
-  assert.match(result.message, new RegExp(`${expectClaimed.length}개 보상을 수령했습니다`));
-  assert.match(result.message, new RegExp(`가방이 가득 차 ${expectSkipped.length}개 우편은 받지 못했습니다`));
+  assert.match(result.message, new RegExp(`${opened.length}개 보상을 수령했습니다`), '미수령 우편 전부 수령');
+  assert.doesNotMatch(result.message, /받지 못했습니다/, '건너뛴 우편이 없다');
   const save = await saveOf('multi-1');
-  assert.equal(bagSlots(save), slots, '받은 만큼만 칸을 쓴다');
-  for (const id of expectClaimed) assert.notEqual((await mailOf('multi-1', id)).claimedAt, null, `${id} 수령`);
-  for (const id of expectSkipped) assert.equal((await mailOf('multi-1', id)).claimedAt, null, `${id} 미수령`);
+  assert.equal(bagSlots(save), 40, '장비 39칸 + 주머니 1칸 = 40칸 그대로');
+  assert.equal(save.bag.filter(item => item.kind === 'pouch').length, expectedPouches, '들고 있던 1 + 받은 우편의 주머니 전부');
+  for (const id of ['legend-reward-1', 'diamond-only-1', RESET_MAIL_ID]) assert.notEqual((await mailOf('multi-1', id)).claimedAt, null, `${id} 수령`);
   assert.equal(save.gold, 2000, '레전드 꾸러미 금화');
-  assert.equal(await wallet('multi-1'), 777, '다이아만 있는 우편의 다이아');
-  // 남은 우편은 나중에(칸을 비운 뒤) 그대로 받을 수 있다.
-  const row = await account(db, 'multi-1');
-  await mutate(db, 'multi-1', { action: 'journey-read', id: RESET_MAIL_ID, revision: row.revision, requestId: randomUUID(), progress: { ...row.save, bag: [] } });
-  await claim('multi-1', 'mail', RESET_MAIL_ID);
-  assert.equal(bagSlots(await saveOf('multi-1')), RESET_POUCHES);
-  assert.equal(await wallet('multi-1'), 777 + RESET_DIAMONDS, '다이아가 두 번 들어가지 않는다');
+  assert.equal(await wallet('multi-1'), 777 + RESET_DIAMONDS, '다이아 우편 두 통이 모두 들어간다');
   const ledgers = Number((await db.execute({ sql: "SELECT COUNT(*) AS n FROM djrpg_shop_ledger WHERE account_id=? AND source_type='mail' AND diamonds_delta>0", args: ['multi-1'] })).rows[0]?.n ?? 0);
   assert.equal(ledgers, 2, '다이아가 든 우편 두 통 = 원장 두 줄');
 });
@@ -167,11 +169,12 @@ test('개별 수령을 반복해도 각 우편은 한 번만 들어간다(중복
   await claim('each-1', 'mail', 'small-a');
   await claim('each-1', 'mail', 'small-b');
   const save = await saveOf('each-1');
-  assert.equal(bagSlots(save), 3, '주머니 2 + 1');
+  assert.equal(bagSlots(save), 1, '주머니 2 + 1 = 한 칸에 쌓인다(주머니 스택형)');
+  assert.equal(save.bag.length, 3, '주머니는 3개');
   assert.equal(await wallet('each-1'), 350);
   assert.equal(await ledgerRows('each-1'), 2);
   await assert.rejects(claim('each-1', 'mail', 'small-a'), error => error.code === 'NOT_AVAILABLE');
-  assert.equal(bagSlots(await saveOf('each-1')), 3, '재수령 시도로 늘지 않는다');
+  assert.equal(bagSlots(await saveOf('each-1')), 1, '재수령 시도로 늘지 않는다');
 });
 
 // ── ④ 멱등 ───────────────────────────────────────────────────────────────────
@@ -186,7 +189,8 @@ test('같은 requestId로 다시 보내면 같은 응답을 돌려주고 지급�
   const replay = await mutate(db, 'idem-acc', { ...input, revision: (await account(db, 'idem-acc')).revision });
   assert.equal(replay.message, first.message, '저장된 응답을 그대로 돌려준다');
   const save = await saveOf('idem-acc');
-  assert.equal(bagSlots(save), 2, '주머니는 한 번만');
+  assert.equal(bagSlots(save), 1, '주머니 두 개는 한 칸');
+  assert.equal(save.bag.length, 2, '주머니는 한 번만');
   assert.equal(await wallet('idem-acc'), 500, '다이아도 한 번만');
   assert.equal(await ledgerRows('idem-acc'), 1);
   // 요청 기록도 한 줄만 남는다(재시도가 쌓이지 않는다).

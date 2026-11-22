@@ -21,7 +21,7 @@
  * ③ **409·오류에서 목록을 지우지 않는다** — 예전에는 `ui.warehouseItems = undefined`로 비우고 다시 읽어
  *    `공용창고를 불러오는 중…`이 화면을 덮었다. 지금은 그리드를 그대로 두고 조용히 다시 읽는다.
  */
-import { countedInBag, equipmentCount } from '../../game/bagCapacity';
+import { advanceSlotState, bagSlotState, equipmentCount, itemSlotNeed } from '../../game/bagCapacity';
 import { apiHeaders, isOutdatedResponse, reloadForNewVersion } from '../../game/appVersion';
 import {
   equipmentImage, isEquipment, isPouch, isStatBook, itemDisplayName, itemJob, itemPower, plusOf,
@@ -319,8 +319,10 @@ function movePlan(ui: Interface, side: WarehouseSide, ids: string[]): MovePlan {
   const items = side === 'bag' ? save.bag : ui.warehouseItems ?? [];
   // 서버의 검사 순서를 그대로 따른다(작업 258): 아이템마다 **지금 칸이 꽉 찼는지** 먼저 보고,
   // 그 다음 `countedInBag`인 아이템만 칸을 하나 쓴다. 보관(창고)은 모든 아이템이 1칸을 쓴다.
-  const counts = side === 'bag' ? () => true : (item: Item) => countedInBag(item, save.job);
-  const start = side === 'bag' ? (ui.warehouseItems ?? []).length : equipmentCount(save.bag, save.job);
+  // 서버의 검사 순서를 그대로 따른다(작업 258): 아이템마다 **새로 쓸 칸**을 먼저 보고 40을 넘으면 건너뛴다.
+  // 꺼내기(창고 → 가방)는 가방 칸 규칙 — 보물 주머니는 수량 무관 1칸, 같은 종류의 책은 이미 있으면 0칸이다(주머니 스택형).
+  const bagState = bagSlotState(save.bag);
+  const start = side === 'bag' ? (ui.warehouseItems ?? []).length : bagState.slots;
   const free = Math.max(0, 40 - start);
   const byId = new Map(items.map(item => [item.id, item]));
   const picked: string[] = [];
@@ -328,8 +330,9 @@ function movePlan(ui: Interface, side: WarehouseSide, ids: string[]): MovePlan {
   for (const id of ids) {
     const item = byId.get(id);
     if (item) {
-      if (used >= 40) { overflow++; continue; }
-      if (counts(item)) used++;
+      const need = side === 'bag' ? 1 : itemSlotNeed(bagState, item);
+      if (need && used + need > 40) { overflow++; continue; }
+      if (need) { used += need; if (side !== 'bag') advanceSlotState(bagState, item); }
     }
     picked.push(id);
   }

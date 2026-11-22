@@ -2,7 +2,7 @@
  * 아이템 소유권·가방 규칙 (작업 260 — `server/database.mjs` 5분할).
  *
  * 규칙은 종전과 같다. 여기서 지키는 계약:
- *  - 가방 40칸: **모든 아이템 1개 = 1칸**(파트 B — 스킬북 폐지로 직업 예외가 사라졌다).
+ *  - 가방 40칸: 장비 1개 = 1칸, **보물 주머니는 수량 무관 1칸**, 영구 스탯북은 종류당 1칸(주머니 스택형).
  *  - 이미 서버 세이브가 들고 있는 수까지는 인정한다(`bagCapacityLimit`, 작업 246) — 넘친 계정이
  *    `400 INVALID_SAVE`로 영구 잠기면 거래소·우편이 통째로 막히던 사고(`#20869`)의 재발 방지다.
  *  - 아이템 소유는 두 표(`djrpg_item_owners` 위치·`djrpg_character_item_owners` 슬롯)의 미러다.
@@ -17,7 +17,7 @@ import { bagSlotCount } from '../core/rewardGrant.mjs';
 
 export const itemsOf = save => [...(save.bag ?? []), ...Object.values(save.equipment ?? {}).filter(Boolean)];
 
-/** 가방 40칸 — `src/game/bagCapacity.ts`와 같은 규칙(모든 아이템 1개 = 1칸, 파트 B). */
+/** 가방 40칸 — `src/game/bagCapacity.ts`와 같은 규칙(장비 1개=1칸, 주머니 수량 무관 1칸, 책 종류당 1칸). */
 export const EQUIPMENT_BAG_LIMIT = 40;
 /** 가방 40칸에 세는 수. 배열이 아니면 0. 규칙은 `server/core/rewardGrant.mjs` 한 곳에 있다. */
 export const countedBagItems = (bag, job) => bagSlotCount({ bag: Array.isArray(bag) ? bag : [], job });
@@ -101,8 +101,8 @@ const ownerItem = owner => { try { const value = JSON.parse(owner.item_json); re
 
 export async function reconcileItems(tx, id, before, after, options = {}) {
   const next = itemsOf(after), previous = itemsOf(before), ids = new Set();
-  // 가방 40칸은 **장비·타직업 스킬북·보물 주머니** 1개 = 1칸으로 센다(작업 253 — 내 직업 스킬북은 세지 않는다).
-  // 이미 40개를 넘긴 세이브(예전 규칙에서 받아 둔 스킬북·주머니)는 저장을 거부하면 게임이
+  // 가방 40칸은 장비 1개=1칸, 보물 주머니 수량 무관 1칸, 영구 스탯북 종류당 1칸으로 센다(주머니 스택형).
+  // 이미 40칸을 넘긴 세이브(예전 규칙에서 받아 둔 아이템)는 저장을 거부하면 게임이
   // 통째로 잠기므로 **지금 개수 이하를 유지하는 저장은 허용**하고, 늘리는 저장만 막는다.
   // 새로 만들어지는 아이템(소유 기록 없는 id)의 상한 — 마지막 저장 이후 서버가 아는 시간과 층으로 정한다.
   const guard = rewardBudget(before, options.elapsedSeconds);
@@ -112,7 +112,7 @@ export async function reconcileItems(tx, id, before, after, options = {}) {
   // 막지 않고, 클라이언트가 그 위로 더 넣는 것만 거절한다(작업 246·248, 가방은 모든 아이템을 센다).
   const bagLimit = bagCapacityLimit(before);
   if (!Array.isArray(after.bag) || !after.equipment || typeof after.equipment !== 'object' || Object.values(after.equipment).length > 10) fail(400, 'INVALID_SAVE', '가방 또는 장비 데이터가 올바르지 않습니다.');
-  if (countedBagItems(after.bag, after.job) > bagLimit) fail(400, 'INVALID_SAVE', `가방이 ${bagLimit}칸까지입니다. 장비·스킬북·보물 주머니를 분해하거나 거래소에 올려 자리를 비워 주세요.`);
+  if (countedBagItems(after.bag, after.job) > bagLimit) fail(400, 'INVALID_SAVE', `가방이 ${bagLimit}칸까지입니다. 장비를 분해하거나 거래소에 올려 자리를 비워 주세요(보물 주머니는 수량과 상관없이 한 칸입니다).`);
   const previousValid = previous.filter(itemValid);
   const previousById = new Map(previousValid.map(item => [item.id, item]));
   const allIds = [...new Set([...previousValid, ...next].map(item => item?.id).filter(id => typeof id === 'string'))];

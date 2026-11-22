@@ -5,6 +5,7 @@ import {
 import { STAT_BOOK_DROP_RATES, rollStatBook } from './statBooks';
 import type { Save } from './store';
 import { addItemToBag } from './rewardGrant';
+import { EQUIPMENT_BAG_LIMIT, equipmentCount } from './bagCapacity';
 
 /**
  * 무작위 보물 주머니의 확률표 (작업 207 → 파트 B 2026-11-22).
@@ -106,15 +107,23 @@ export type PouchOpenResult =
 /**
  * 주머니 1개를 소모하고 결과를 세이브에 넣는다.
  *
- * 가방 40칸은 **모든 아이템**을 1개씩 센다(파트 B: 스탯북·보물 주머니도 한 칸). 주머니를 여는 것은
- * 주머니 1개를 빼고 결과 1개(또는 금화)를 넣는 **자리 바꿈**이라 칸 수가 **늘지 않는다**(금화면 -1, 아이템이면 0).
- * 그래서 40칸이 찬 상태는 물론 **이미 40칸을 넘긴 세이브에서도** 주머니를 열 수 있다(작업 251).
- * 서버 `reconcileItems`도 "지금 개수 이하 유지" 저장은 통과시킨다.
+ * **가방 40칸** (주머니 스택형): 보물 주머니는 수량과 상관없이 **1칸**이라, 30개 중 하나를 열어도 그 칸이
+ * 비지 않는다. 그래서 결과가 장비·스탯북(새 칸)인데 가방이 이미 40칸이면 **열지 않고 주머니를 남긴다** —
+ * 넘치는 결과를 조용히 잃거나 가방이 40칸을 넘어 저장이 거부(`INVALID_SAVE`)되는 일을 막는다.
+ * 금화는 칸을 쓰지 않으므로 언제나 열린다. 이미 40칸을 넘긴 옛 세이브는 "지금 칸 이하 유지"까지 허용한다
+ * (서버 `reconcileItems`의 `bagCapacityLimit`과 같은 기준).
  */
 export function openPouch(save: Save, id?: string, random: () => number = Math.random): PouchOpenResult {
   const pouch = (id ? save.bag.find(item => item.id === id) : undefined) ?? firstPouch(save);
   if (!pouch || !isPouch(pouch)) return { ok: false, message: `가방에 ${POUCH_NAME}이(가) 없습니다.` };
   const result = rollPouch(save.maxFloor || save.floor || 1, random);
+  if (result.kind !== 'gold') {
+    const before = equipmentCount(save.bag, save.job);
+    const after = equipmentCount([...save.bag.filter(item => item.id !== pouch.id), result.item], save.job);
+    if (after > Math.max(EQUIPMENT_BAG_LIMIT, before)) {
+      return { ok: false, message: '가방이 가득 찼습니다. 분해·판매로 자리를 비운 뒤 다시 열어 주세요.' };
+    }
+  }
   save.bag = save.bag.filter(item => item.id !== pouch.id);
   if (result.kind === 'gold') save.gold += result.gold;
   else addItemToBag(save, result.item, 'pouch', { enforceCapacity: false });

@@ -13,15 +13,18 @@ import type { Save } from './store';
  * 규칙은 1개 열기(`openPouch`)를 그대로 반복해 쓴다 — 확률표·장비 티어·`+N`·가방 자리 규칙이 두 벌이 되면
  * 어긋나기 때문이다. 이 모듈이 더하는 것은 **집계**(`summarizePouchResults`)뿐이다.
  *
- * **가방 40칸**: 주머니 1개를 여는 것은 주머니 1칸을 빼고 결과 1개(또는 금화)를 넣는 **자리 바꿈**이라
- * 칸 수가 늘지 않는다(금화면 -1). 그래서 몇 개를 한 번에 열어도 40칸을 넘지 않고, 이미 40칸을 넘긴
- * 세이브에서도 전부 열 수 있다 — 서버 `reconcileItems`의 "지금 개수 이하 유지" 규칙과 같다.
+ * **가방 40칸**: 보물 주머니는 수량 무관 **1칸**이다(주머니 스택형). 처음 주머니를 열어도 그 칸이 비지 않으므로,
+ * 결과가 장비·스탯북(새 칸)인데 가방이 이미 40칸이면 거기서 멈춘다(넘치는 결과를 잃지 않게).
+ * 금화는 칸을 쓰지 않으므로 계속 열린다. 서버 `reconcileItems`는 "지금 칸 이하 유지" 저장을 통과시킨다.
  *
  * **금화**: 한 번에 열면 금화가 한 저장 창에 몰린다(30개 × 최대 5,000G = 150,000G). 서버 `clampSaveProgress`의
  * 금화 상한은 사냥 시간으로 계산되므로 이만큼은 정당하게 인정되지 않는다 — 그래서 서버는 **소모된 주머니 수 ×
  * `POUCH_MAX_GOLD`** 를 같은 저장의 `goldCredit`으로 더한다(`server/db/items.mjs` `reconcileItems`).
  * 클라이언트는 그 상한을 알 필요가 없다(서버가 계산한다).
  */
+/** 한 번에 열기 한 번이 여는 주머니 수 상한 — 서버 아이템 생성 상한(40 + 초당 0.5개) 안에 넉넉히 든다. */
+export const POUCH_BATCH_LIMIT = 40;
+
 export type PouchBatchRow = {
   /** 같은 이름·등급(장비) 또는 같은 종류(스탯북)의 묶음 키. */
   key: string;
@@ -52,13 +55,15 @@ export type PouchBatchSummary = {
   legendary: EquipmentItem[];
   /** 열고 남은 주머니 수. */
   remaining: number;
+  /** 칸이 모자라 중간에 멈췄는가(주머니 스택형) — 남은 주머니는 그대로 가방에 있다. */
+  blocked: boolean;
 };
 
 const RARITY_ORDER: Rarity[] = ['legendary', 'unique', 'epic', 'rare', 'magic', 'common'];
 const bookKinds: StatBookKind[] = ['attack', 'defense', 'health'];
 
 /** 결과 묶음을 요약한다 — 세이브는 건드리지 않는 순수 함수. */
-export function summarizePouchResults(results: readonly PouchResult[], remaining: number): PouchBatchSummary {
+export function summarizePouchResults(results: readonly PouchResult[], remaining: number, blocked = false): PouchBatchSummary {
   const gold = results.reduce((total, result) => total + (result.kind === 'gold' ? result.gold : 0), 0);
   const rarityCounts = Object.fromEntries(RARITY_ORDER.map(rarity => [rarity, 0])) as Record<Rarity, number>;
   const bookCounts = { attack: 0, defense: 0, health: 0 } as Record<StatBookKind, number>;
@@ -94,7 +99,8 @@ export function summarizePouchResults(results: readonly PouchResult[], remaining
     rows: [...rows.values()].sort((a, b) => rank(b.rarity) - rank(a.rarity) || b.count - a.count
       || a.name.localeCompare(b.name, 'ko-KR')),
     legendary,
-    remaining
+    remaining,
+    blocked
   };
 }
 
@@ -106,18 +112,26 @@ export type PouchOpenAllResult =
  * 가방의 보물 주머니를 **전부** 연다.
  *
  * 한 개 열기(`openPouch`)를 남은 수만큼 반복하므로 확률·지급·가방 자리 규칙이 1개 열기와 완전히 같다.
- * 중간에 열 수 없는 상태가 되면(가방에 주머니가 없음) 그때까지의 결과로 끝낸다.
+ * 가방이 가득 차 장비·스탯북을 넣을 칸이 없으면 **그 자리에서 멈추고** 남은 주머니를 그대로 둔다(주머니 스택형)
+ * — 금화는 칸을 쓰지 않으므로 그 전까지는 계속 열린다.
  */
 export function openPouches(save: Save, options: { random?: () => number } = {}): PouchOpenAllResult {
   const total = pouchCount(save);
   if (!total) return { ok: false, message: `가방에 ${POUCH_NAME}이(가) 없습니다.` };
   const results: PouchResult[] = [];
-  for (let index = 0; index < total; index++) {
+  let blocked = false;
+  // 한 번에 여는 상한 — 주머니는 수량 제한 없이 한 칸에 쌓이므로(주머니 스택형) 999개를 한 저장에 다 열면
+  // 서버의 아이템 생성 상한(`rewardBudget.items` = 40 + 초당 0.5개)을 넘어 저장이 거부된다. 그래서 한 번에
+  // `POUCH_BATCH_LIMIT`개까지만 열고 나머지는 가방에 남긴다(남은 수는 결과 요약에 그대로 보인다).
+  const limit = Math.min(total, POUCH_BATCH_LIMIT);
+  for (let index = 0; index < limit; index++) {
     const opened = openPouch(save, undefined, options.random);
-    if (!opened.ok) break;
+    if (!opened.ok) { blocked = true; break; }
     results.push(opened.result);
   }
-  return { ok: true, summary: summarizePouchResults(results, pouchCount(save)) };
+  // 하나도 열지 못했으면(가방이 가득 차 장비·스탯북 결과만 나온 경우) 개봉 창에 이유를 보여 준다.
+  if (!results.length) return { ok: false, message: '가방이 가득 찼습니다. 분해·판매로 자리를 비운 뒤 다시 열어 주세요.' };
+  return { ok: true, summary: summarizePouchResults(results, pouchCount(save), blocked) };
 }
 
 /** 요약 한 줄 — 토스트·안내가 같은 문구를 쓴다. 0인 항목은 빼고 남긴다. */

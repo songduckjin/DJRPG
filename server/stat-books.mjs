@@ -28,10 +28,11 @@ export function statBookValid(item) {
 }
 
 /**
- * 가방 40칸에 세는 아이템인가 (파트 B).
+ * 가방 40칸에 세는 아이템인가 (파트 B → 주머니 스택형).
  *
- * **장비·영구 스탯북·보물 주머니 모두 1개 = 1칸**이다. 스킬북이 폐지되면서 \"내 직업 책은 칸을 쓰지
- * 않는다\"(작업 253)는 예외도 사라졌다. 클라이언트 `src/game/bagCapacity.ts`의 `countedInBag`과 같은 규칙이다.
+ * 모든 아이템이 칸을 쓰는 **종류**다 — 다만 보물 주머니는 수량 무관 한 칸, 같은 종류의 영구 스탯북은
+ * 한 칸으로 묶인다(`server/core/rewardGrant.mjs`의 `bagSlotState`·`itemSlotNeed`).
+ * 클라이언트 `src/game/bagCapacity.ts`의 `countedInBag`과 같은 규칙이다.
  */
 export function countedInBag(item) {
   return Boolean(item) && typeof item === 'object';

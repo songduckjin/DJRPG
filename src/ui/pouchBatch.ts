@@ -69,6 +69,8 @@ export function pouchBatchPanel(summary: PouchBatchSummary): HTMLElement {
     panel.append(element('p', 'pouch-batch-empty', '나온 장비·스탯북은 없습니다'));
   }
 
-  panel.append(element('p', 'pouch-batch-followup', summary.remaining > 0 ? `남은 주머니 ${summary.remaining}개` : '가방의 주머니를 모두 열었습니다'));
+  panel.append(element('p', 'pouch-batch-followup', summary.remaining === 0 ? '가방의 주머니를 모두 열었습니다'
+    : summary.blocked ? `가방이 가득 차 ${summary.remaining}개는 열지 못했습니다 — 분해·판매로 자리를 비운 뒤 다시 열어 주세요`
+    : `남은 주머니 ${summary.remaining}개`));
   return panel;
 }
