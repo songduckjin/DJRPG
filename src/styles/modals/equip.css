@@ -42,7 +42,11 @@
 .detail-actions { display: flex; width: 100%; gap: 7px; }
 .detail-actions button { border: 1px solid #836546; background: #3a2926; color: #ecd8bb; padding: 5px 12px; font-size: 11px; }
 .modal-dialog.equipment-modal { display: flex; flex-direction: column; height: min(92dvh, 850px); max-height: 92dvh; overflow: hidden; padding: 9px; }
-.equipment-showcase { display: grid; grid-template-columns: minmax(92px, 34%) minmax(0, 1fr); gap: 7px; height: 190px; flex: 0 0 190px; min-height: 0; }
+/* ── 내 정보 B안 (2026-11-22 사용자 확정, `downloads/djrpg_collab_4/04_equip_info_rework.png`) ─────────
+   위쪽 6칸 능력치 표를 없애고 **요약 한 줄**(LV·층·EXP·금화) + 전투력 알약만 남긴다. 그 아래는
+   **가운데 캐릭터 · 좌우 장착 5칸씩**이라, 예전의 `전신 그림 옆 6칸 표` + `아래 2줄×5칸`(합 250px)보다
+   짧다 — 줄어든 세로가 그대로 가방으로 간다. 상세 능력치는 HUD `LV` → `상세 스탯` 창이 전담한다. */
+.equipment-showcase { display: grid; grid-template-columns: 78px minmax(0, 1fr) 78px; gap: 6px; height: 192px; flex: 0 0 192px; min-height: 0; }
 .showcase-hero { position: relative; display: flex; justify-content: center; align-items: center; min-width: 0; min-height: 0; overflow: hidden; border: 1px solid #655044; background: radial-gradient(ellipse at 50% 28%, #695544 0%, #302727 37%, #19161b 75%); box-shadow: inset 0 0 23px #000a; }
 .showcase-hero:after { content: ''; position: absolute; bottom: 7px; width: 75%; height: 14px; border-radius: 50%; background: #0008; filter: blur(5px); }
 .showcase-figure { position: relative; display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; }
@@ -56,24 +60,25 @@
 .showcase-body { position: relative; z-index: 1; display: block; width: 100%; height: 100%; object-fit: contain; image-rendering: auto; }
 .showcase-figure { position: relative; display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; }
 .showcase-body { position: relative; z-index: 1; display: block; width: 100%; height: 100%; object-fit: contain; image-rendering: auto; }
-.equipment-info { display: grid; grid-template-rows: auto 1fr; gap: 5px; min-width: 0; min-height: 0; }
-/* [정렬] 장비창 중간 요약(레벨·층·경험치·금화) — 라벨은 왼쪽·값은 오른쪽, 바로 아래
-   `.equipment-info-stats`와 **같은 두 열·같은 3px 간격·같은 6px 안쪽 여백**이라 세로줄이 한 줄로 선다.
-   바깥 테두리는 `outline`으로 그려(레이아웃 폭을 먹지 않는다) 두 표의 열 너비가 정확히 같다. */
-.equipment-summary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-content: center; gap: 3px; min-width: 0; padding: 4px 0; background: #211b1d; outline: 1px solid #655044; outline-offset: -1px; color: #c4b0a1; font-size: 10px; }
+/* 요약 한 줄 + 전투력 알약 — 창 맨 위에서 한 줄을 다 쓴다. */
+.equip-topline { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; }
+/* [정렬] 라벨은 왼쪽·값은 오른쪽. 한 줄 네 칸이라 눈이 세로줄을 따라 내려가지 않아도 된다. */
+.equipment-summary { display: grid; flex: 1 1 auto; grid-template-columns: repeat(4, minmax(0, 1fr)); align-content: center; gap: 3px; min-width: 0; padding: 4px 0; background: #211b1d; outline: 1px solid #655044; outline-offset: -1px; color: #c4b0a1; font-size: 10px; }
+/* 전투력 알약 — HUD 이름판 아래 `⚔ 전투력`과 같은 숫자·같은 골드 톤의 둥근 필. */
+.equip-powerpill { flex: none; display: inline-flex; align-items: center; gap: 4px; padding: 4px 9px; border: 1px solid #d6af7288; border-radius: 999px; background: linear-gradient(#2a1d1a, #1a1215); color: #ffe1a8; font-size: 11.5px; font-weight: 800; white-space: nowrap; box-shadow: inset 0 1.5px 0 #f6d28e44; }
+.equip-powerpill i { font-style: normal; color: #e9c07a; font-size: 10px; }
 .equipment-summary > span { display: flex; align-items: baseline; justify-content: space-between; gap: 4px; min-width: 0; padding: 0 6px; overflow: hidden; }
 .equipment-summary small { flex: none; color: #a5927d; font-size: 10px; letter-spacing: .2px; }
 .equipment-summary b { min-width: 0; overflow: hidden; color: #f1d8ab; text-overflow: ellipsis; white-space: nowrap; }
 /* 라벨이 없는 칸(`1층`)과 금화 줄은 값을 오른쪽 끝에 맞춘다 — 두 열의 값이 같은 세로줄에 선다. */
 .equipment-summary .is-value { justify-content: flex-end; }
 .equipment-summary .summary-gold { align-items: center; justify-content: flex-end; gap: 3px; }
-.equipment-summary .summary-gold em { min-width: 0; overflow: hidden; font-style: normal; text-overflow: ellipsis; white-space: nowrap; }
-.equipment-info-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: repeat(3, minmax(0, 1fr)); gap: 3px; min-height: 0; }
-.equipment-info-stats > div { display: flex; justify-content: space-between; align-items: center; gap: 3px; min-width: 0; border: 1px solid #54443f; padding: 3px 5px; color: #b19d86; font-size: 9px; }
-.equipment-info-stats b { overflow: hidden; color: #efd3a8; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
-/* 장착 장비 추가옵션 합계(작업 238) — 스탯 표 아래 한 줄. */
+/* 캐릭터 아래 얇은 안내 줄 — 기념 버프(켜진 동안)·추가옵션 합계(있을 때만)를 한곳에 모은다.
+   두 줄 다 없으면 요소 자체를 만들지 않는다(`equipModal`이 `childElementCount`로 판단). */
+.equipment-notes { flex: none; display: grid; gap: 2px; margin-top: 4px; }
+.equipment-notes .equipment-info-buff { margin-top: 0; padding: 0; border: 0; background: none; text-align: left; color: #ffdca6; font-size: 9.5px; font-weight: 700; }
+/* 장착 장비 추가옵션 합계(작업 238) — 상한이 걸린 실제 전투 값. */
 .equipment-info-extras { overflow: hidden; color: #d9c2ff; font-size: 9px; line-height: 1.3; text-overflow: ellipsis; white-space: nowrap; }
-.equipment-grid { display: grid; flex: none; grid-template-columns: repeat(5, minmax(0, 1fr)); grid-template-rows: repeat(2, minmax(0, 1fr)); gap: 4px; margin-top: 5px; }
 /* [작업 231] 장착 칸 아이콘 정비율(`#19923` "중간쯤 장착한 템들 너무 늘려트려져 보여") — 칸 높이(48/46px)와
    가방 영역은 그대로 두고, 안의 아이콘만 가로로 늘어나지 않게 원본 비율(1:1 정비율)로 가운데 정렬한다.
    칸은 grid 두 줄(아이콘 `1fr` · 라벨 `auto`)로 두어 아이콘 영역 높이가 확정되게 하고(퍼센트 높이가 흔들리지
@@ -99,14 +104,17 @@
 .equipped-detail > span { line-height: 1.6; }
 .equipment-slot.empty-slot .slot-icon { opacity: .25; filter: grayscale(1); }
 .equipment-slot small { display: block; white-space: nowrap; }
-/* [작업 228] 모바일 장비창(`#19086` "인벤토리창아 안보여") — 세로가 짧은 폰에서도 가방 칸이 늘
-   2~3줄 보이도록 위쪽(전신 일러스트·장착 10칸)과 가방 머리·바닥 줄을 함께 줄인다. 전신 그림과 6개
-   스탯은 그대로 다 보이고(`object-fit: contain`), 장착 10칸은 정사각 대신 46~48px 높이의 납작한
-   칸이 된다. 가방 칸은 어느 화면에서도 최소 135px을 지켜 0px로 찌그러지지 않는다. */
+/* 장착 10칸의 좌우 기둥(B안) — 5칸이 위에서 아래로 서고, 칸 높이는 기둥 높이를 5로 나눈 값이다(시안 36.4px).
+   기본 `.equipment-slot`(정사각·48px)을 기둥 안에서만 풀어 준다 — 아이콘은 칸의 64%까지만, 부위 이름은 7px. */
+.equipment-slot-col { display: grid; grid-template-rows: repeat(5, minmax(0, 1fr)); gap: 4px; min-width: 0; min-height: 0; }
+.equipment-slot-col .equipment-slot { height: auto; aspect-ratio: auto; }
+.equipment-slot-col .equipment-slot .slot-icon { max-height: 64%; }
+.equipment-slot-col .equipment-slot .slot-part { font-size: 7px; }
+/* [작업 228 → 2026-11-22 B안] 모바일 장비창(`#19086` "인벤토리창안 보여") — 세로가 짧은 폰에서도
+   가방 칸이 늘 2~3줄 보이게 한다. B안에서는 위쪽이 `요약 한 줄 + 가운데 캐릭터 + 좌우 5칸씩`이고
+   스탯 표가 없으므로, 이 미디어 규칙은 가방 머리·바닥 줄만 줄인다. 가방 칸은 어느 화면에서도
+   최소 135px을 지켜 0px로 찌그러지지 않는다. */
 @media (max-width: 480px) {
-  .equipment-showcase { height: 146px; flex-basis: 146px; }
-  .equipment-slot { aspect-ratio: auto; height: 48px; }
-  .equipment-grid { grid-template-rows: repeat(2, 48px); }
   .equipment-modal .bag-grid { min-height: 135px; }
   .bag-heading h3 { font-size: 13px; }
   .bag-heading .bag-rarity-sort, .bag-heading .bag-job-only { padding: 4px 7px; font-size: 10px; }
@@ -114,11 +122,16 @@
   .modal-bag-footer .salvage, .modal-bag-footer .salvage-rarity, .modal-bag-footer .salvage-plus { padding: 4px 7px; font-size: 10px; }
   .auto-salvage-hint { font-size: 9px; }
 }
-@media (max-width: 380px) { .equipment-showcase { grid-template-columns: minmax(82px, 32%) minmax(0, 1fr); height: 140px; flex-basis: 140px; } .equipment-grid { gap: 3px; } .equipment-slot { height: 46px; } .equipment-grid { grid-template-rows: repeat(2, 46px); } .equipment-slot .slot-part { font-size: 7px; } .equipment-info-stats > div { padding: 2px 3px; font-size: 8px; } }
-@media (max-height: 720px) { .equipment-showcase { height: 132px; flex-basis: 132px; } .equipment-grid { gap: 3px; margin-top: 4px; } .equipment-modal .modal-bag { margin-top: 5px; padding-top: 5px; } }
+/* 360px 이하: 좌우 기둥을 64px로 줄여 가운데 캐릭터 폭을 남긴다. 요약 한 줄은 알약이 88px을
+   먹어 네 칸이 41px씩밖에 안 남으므로 글자를 9px·알약을 10px로 줄여 `EXP 62%`까지 다 보이게 한다. */
+@media (max-width: 380px) { .equipment-showcase { grid-template-columns: 64px minmax(0, 1fr) 64px; gap: 4px; height: 186px; flex-basis: 186px; } .equipment-slot-col { gap: 3px; } .equipment-slot-col .equipment-slot .slot-part { font-size: 6.5px; }
+  .equip-topline { gap: 4px; } .equipment-summary { font-size: 9px; gap: 2px; } .equipment-summary > span { padding: 0 3px; gap: 2px; } .equipment-summary small { font-size: 9px; }
+  .equip-powerpill { padding: 3px 6px; font-size: 10px; gap: 3px; } }
+@media (max-height: 720px) { .equipment-showcase { height: 170px; flex-basis: 170px; } .equipment-modal .modal-bag { margin-top: 5px; padding-top: 5px; } }
 /* 아주 낮은 화면(가로 화면·초소형): 창 자체가 스크롤되게 두고, 가방 칸은 최소 높이를 지킨다. */
 @media (max-height: 620px) {
   .modal-dialog.equipment-modal { height: auto; max-height: 92dvh; overflow-y: auto; }
+  .equipment-showcase { height: 160px; flex-basis: 160px; }
   .equipment-modal .modal-bag { flex: none; overflow: visible; }
   .equipment-modal .bag-grid { flex: none; min-height: 135px; }
   .equipment-modal .modal-bag-footer { position: static; }
