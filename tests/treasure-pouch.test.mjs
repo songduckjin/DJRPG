@@ -87,7 +87,7 @@ test('확률표는 전체 확률 10줄을 높은 확률 순으로 렌더하고 �
     assert.deepEqual(rows.slice(2,5).concat([rows[6],rows[7],rows[9]]).map(([, cls]) => cls.match(/rarity-(\w+)/)?.[1]), ['common','magic','rare','epic','unique','legendary'],'등급 색 유지');
     assert(!rows[0][1].includes('rarity-'),'금화 줄은 등급 색이 없다');
     const summary = panel.children.find(node => node.className === 'pouch-rate-summary');
-    assert(summary && summary.textContent === '합계 100% · 장비는 3직업 균등 · 영구 스탯북은 3종 균등','요약 한 줄');
+    assert(summary && summary.textContent === '합계 100% · 장비는 3직업 균등 · 영구 스탯북은 4종 균등','요약 한 줄');
     assert(css.includes('.pouch-rate-table') && css.includes('.pouch-rate-summary'),'표·요약 스타일');
     for (const rarity of ['common', 'magic', 'rare', 'epic', 'unique', 'legendary']) assert(css.includes(`.pouch-rate-row.rarity-${rarity}`),`${rarity} 색 규칙`);
   } finally { globalThis.document = previous; }
@@ -111,7 +111,7 @@ test('주머니 1개를 열면 소모되고 결과가 세이브에 반영된다'
   const bookSave = withPouches(1);
   const book = pouch.openPouch(bookSave, undefined, constant([.995]));
   assert.equal(book.result.kind, 'statbook'); assert.equal(book.result.item.kind, 'statbook');
-  assert(['attack', 'defense', 'health'].includes(book.result.item.book));
+  assert(['attack', 'defense', 'health', 'skill'].includes(book.result.item.book));
   assert.equal(bookSave.bag.filter(item => item.kind === 'statbook').length, 1);
   assert.equal(pouch.pouchCount(bookSave), 0);
   // 여러 개를 이어서: 남은 수가 줄어든다.

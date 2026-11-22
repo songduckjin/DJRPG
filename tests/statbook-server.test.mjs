@@ -26,9 +26,9 @@ const save = (over = {}) => ({
   floorKills: 0, kills: 100, bossKills: 3, playSeconds: 600, health: 300, equipment: {}, equipmentCollection: [],
   bag: [], tutorial: 3, stones: 10, skillPoints: 0, lastActiveAt: Date.now(), learned: [], passives: [],
   quickSlots: [null, null, null], skillLevels: {}, dungeonFloor: 0, dungeonClearAt: 0, bossRetryFloor: 0,
-  statBooks: { attack: 0, defense: 0, health: 0 }, ...over
+  statBooks: { attack: 0, defense: 0, health: 0, skill: 0 }, ...over
 });
-const book = (kind = 'attack', id = randomUUID()) => ({ id, name: { attack: '공격의 서', defense: '방어의 서', health: '체력의 서' }[kind], slot: 'statbook', kind: 'statbook', book: kind, rarity: 'unique', stats: {} });
+const book = (kind = 'attack', id = randomUUID()) => ({ id, name: { attack: '공격의 서', defense: '방어의 서', health: '체력의 서', skill: '스킬의 서' }[kind], slot: 'statbook', kind: 'statbook', book: kind, rarity: 'unique', stats: {} });
 const error = code => e => e.code === code;
 
 before(async () => {
@@ -38,12 +38,14 @@ before(async () => {
 });
 after(async () => { await db.close(); await rm(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); });
 
-test('서버 목록이 클라이언트 정의와 같다 — 셋이 늘어나거나 수치가 갈라지면 여기서 먼저 깨진다', () => {
-  assert.deepEqual(serverBooks.STAT_BOOK_IDS, ['attack', 'defense', 'health']);
+test('서버 목록이 클라이언트 정의와 같다 — 책이 늘어나거나 수치가 갈라지면 여기서 먼저 깨진다', () => {
+  assert.deepEqual(serverBooks.STAT_BOOK_IDS, ['attack', 'defense', 'health', 'skill'], '능력치 3종 + 스킬의 서');
+  assert.deepEqual([...clientBooks.STAT_BOOK_ORDER], serverBooks.STAT_BOOK_IDS, '순서도 같다(가방 정렬 근거)');
   for (const kind of serverBooks.STAT_BOOK_IDS) {
     const mine = clientBooks.STAT_BOOKS[kind], theirs = serverBooks.STAT_BOOKS[kind];
     assert.equal(theirs.name, mine.name, `${kind} 이름`);
     assert.equal(theirs.stat, mine.stat, `${kind} 능력치`);
+    assert.equal(theirs.sp, mine.sp, `${kind} SP 상승량`);
     assert.equal(theirs.perBook, mine.perBook, `${kind} 권당 상승량`);
     assert.equal(theirs.max, mine.max, `${kind} 상한`);
   }
@@ -70,7 +72,7 @@ test('저장 검증 — 사용 권수는 가방에서 쓴 책 수까지만 늘�
   const before = save({ bag: [book('attack', 'a1'), book('attack', 'a2')] });
   const used2 = save({ statBooks: { attack: 2, defense: 0, health: 0 } });
   assert.deepEqual(clampSaveProgress(before, used2).clamped, [], '책 2권을 쓴 것은 그대로 통과');
-  assert.deepEqual(used2.statBooks, { attack: 2, defense: 0, health: 0 });
+  assert.deepEqual(used2.statBooks, { attack: 2, defense: 0, health: 0, skill: 0 });
   // 가방에 책이 없는데 5를 주장하면 0으로 막는다.
   const forged = save({ statBooks: { attack: 5, defense: 0, health: 0 } });
   assert.deepEqual(clampSaveProgress(save(), forged).clamped, ['statBooks.attack']);
@@ -83,12 +85,35 @@ test('저장 검증 — 사용 권수는 가방에서 쓴 책 수까지만 늘�
   const older = save({ statBooks: { attack: 7, defense: 3, health: 0 } });
   const stripped = save({ statBooks: { attack: 0, defense: 0, health: 0 } });
   clampSaveProgress(older, stripped);
-  assert.deepEqual(stripped.statBooks, { attack: 7, defense: 3, health: 0 });
+  assert.deepEqual(stripped.statBooks, { attack: 7, defense: 3, health: 0, skill: 0 });
   // 30권 상한 — 40권을 한 번에 쓰려 해도 30에서 멈춘다.
   const many = save({ bag: Array.from({ length: 40 }, (_, index) => book('health', `h${index}`)) });
   const over = save({ statBooks: { attack: 0, defense: 0, health: 40 } });
   clampSaveProgress(many, over);
   assert.equal(over.statBooks.health, 30);
+});
+
+/** `스킬의 서`(영구 SP +1, 최대 30권) — 서버가 SP 상한에 그 몫을 더하는지(`#23788`). */
+test('스킬의 서 — 서버 SP 상한이 책 권수만큼 늘고, 30권을 넘지 않는다', async () => {
+  const { spLedger } = await import('../src/game/skillPoints.ts');
+  const before = save({ statBooks: { attack: 0, defense: 0, health: 0, skill: 0 } });
+  // Lv.10은 레벨 몫 31pt. 책 없이 999를 주장하면 31로 잘린다.
+  const plain = save({ level: 10, skillPoints: 999 });
+  clampSaveProgress(before, plain, { elapsedSeconds: 1 });
+  assert.equal(plain.skillPoints, 31, 'Lv.10 = 3 × 10 + 무료 1랭크');
+  // 가방에 스킬의 서 5권이 있으면 사용분 5권까지 인정 → 상한 36pt.
+  const shelves = save({ statBooks: { attack: 0, defense: 0, health: 0, skill: 0 }, bag: Array.from({ length: 5 }, (_, index) => book('skill', `s${index}`)) });
+  const used = save({ level: 10, skillPoints: 999, statBooks: { attack: 0, defense: 0, health: 0, skill: 5 } });
+  clampSaveProgress(shelves, used, { elapsedSeconds: 1 });
+  assert.equal(used.statBooks.skill, 5);
+  assert.equal(used.skillPoints, 36, '레벨 31pt + 스킬의 서 5pt');
+  // 클라이언트 장부와 서버 상한이 같은 식이다.
+  assert.equal(spLedger({ level: 10, learned: [], passives: [], skillLevels: {}, statBooks: { skill: 5 } }).available, 36);
+  // 30권 상한 — 40권을 한 번에 쓰려 해도 30에서 멈춘다.
+  const many = save({ bag: Array.from({ length: 40 }, (_, index) => book('skill', `k${index}`)) });
+  const over = save({ statBooks: { attack: 0, defense: 0, health: 0, skill: 40 } });
+  clampSaveProgress(many, over);
+  assert.equal(over.statBooks.skill, 30);
 });
 
 test('거래소 — 영구 스탯북은 등록·묶음 대상이고, 폐지된 스킬북은 아니다', () => {

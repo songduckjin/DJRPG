@@ -14,7 +14,7 @@ function find(n,test){if(!n||typeof n!=='object')return; if(test(n))return n;for
 const task=(id,current=1,target=1,claimed=false)=>({id,name:id,current,target,claimed,gold:300,books:0});
 function fixture(){
   const calls=[],sync={session:{token:'token',guest:false}},world={save:freshSave(),player:{hp:100},onChange(){}};
-  const journey=new Journey(sync,world);journey.data={daily:[task('login'),task('hunt',0,300)],weekly:[task('weekly',0,5000)],achievements:[task('level-5',1,5)],mail:[{id:'welcome',title:'환영',sender:'운영팀',body:'선물',createdAt:1,expiresAt:Date.now()+86400000,expired:false,claimedAt:null,read:false,gold:1000,books:1}],periods:{dailyEnd:Date.now(),weeklyEnd:Date.now()},now:Date.now()};
+  const journey=new Journey(sync,world);journey.data={daily:[task('login'),task('hunt',0,300)],weekly:[task('weekly',0,5000)],achievements:[task('level-5',1,5)],mail:[{id:'welcome',title:'환영',sender:'운영팀',body:'선물',createdAt:1,expiresAt:Date.now()+86400000,expired:false,claimedAt:null,read:false,gold:1000,books:1,pouches:1}],periods:{dailyEnd:Date.now(),weeklyEnd:Date.now()},now:Date.now()};
   journey.act=(...args)=>calls.push(args);journey.load=()=>{};
   const ui={journey,world,session:{loginId:'전사',guest:false},saveStatus:'저장됨',message:m=>calls.push(m),open:k=>calls.push(k),renderModal(){}};
   return {ui,calls};
@@ -103,7 +103,10 @@ test('mail always shows sender body date and rewards without opening a second vi
   try{
     const {ui}=fixture(),dialog=node();renderUtility(ui,dialog,'mail');
     assert(find(dialog,n=>n.textContent==='보낸 사람: 운영팀'));assert(find(dialog,n=>n.textContent==='선물'));assert(find(dialog,n=>n.className==='mail-date'));
-    assert(find(dialog,n=>n.className.includes('mail-pending')));assert(find(dialog,n=>n.textContent==='스킬북 1권'));assert(!find(dialog,n=>n.textContent==='새로고침'));
+    assert(find(dialog,n=>n.className.includes('mail-pending')));
+    // 보상 줄은 실제로 지급되는 것만 보여 준다 — 폐지된 `books`(스킬북)는 표시하지 않는다(파트 B).
+    assert(find(dialog,n=>n.textContent==='보물 주머니 1개'));assert(!find(dialog,n=>String(n.textContent).includes('스킬북')));
+    assert(!find(dialog,n=>n.textContent==='새로고침'));
   }finally{globalThis.document=previous;}
 });
 test('가방이 가득 차면 아이템이 든 우편은 가방 가득으로 잠기고 금화만 있는 우편은 받을 수 있다(작업 248)',()=>{
@@ -122,7 +125,7 @@ test('가방이 가득 차면 아이템이 든 우편은 가방 가득으로 잠
     assert(find(dialog,n=>n.className==='utility-note'&&n.textContent.includes('가방이 가득 차 아이템이 든 우편은 받을 수 없습니다')));
     const gold=find(dialog,n=>n.textContent==='받기');
     assert.equal(gold.disabled,false,'금화만 있는 우편은 그대로 받을 수 있다');
-    // 한 칸 비우면 스킬북 우편도 버튼이 열린다.
+    // 한 칸 비우면 주머니가 든 우편도 버튼이 열린다.
     ui.world.save.bag.pop();const room=node();renderUtility(ui,room,'mail');
     assert(!find(room,n=>n.textContent==='가방 가득'));
   }finally{globalThis.document=previous;}

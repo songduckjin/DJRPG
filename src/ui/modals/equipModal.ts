@@ -2,7 +2,7 @@ import { emitDomainEvent } from '../../core/domainEvents';
 import {EQUIPMENT_BAG_LIMIT,equipmentCount} from '../../game/bagCapacity';
 import { autoEquipBest, equipmentImage, expToNext, MAX_LEVEL, rarityNames, statNames, totalStats, type Item, type Save, type Slot, type Stat } from '../../game/store';
 import { isEquipment, isPouch, isStatBook, rarityRanks, salvageGold, slotNameFor, canWield, weaponJob, itemJob, advanceTutorialOnEquip, type TreasurePouch } from '../../game/items';
-import { STAT_BOOKS, isStatBookKind, statBookCounts, statBookStatusText, useStatBook } from '../../game/statBooks';
+import { STAT_BOOKS, isStatBookKind, statBookCounts, statBookLabel, statBookStatusText, useStatBook } from '../../game/statBooks';
 import { objectParticle, tutorialGuide } from '../../game/tutorial';
 import { extraOptionLines, extraOptionSummary } from '../../game/extraOptions';
 import { jobNames, jobShortNames, jobOrDefault } from '../../game/skills';
@@ -252,7 +252,7 @@ export function itemDetail(this: Interface, save: Save, item: Item): HTMLElement
       const use = document.createElement('button'); use.type = 'button'; use.className = 'skillbook-use';
       use.textContent = remaining > 0 ? '사용하기' : '최대 사용';
       use.disabled = remaining < 1;
-      use.title = remaining > 0 ? `사용하면 영구 ${spec ? (spec.stat === 'attack' ? '공격력' : spec.stat === 'defense' ? '방어력' : '체력') : ''} +${spec?.perBook ?? 0}` : '이미 최대 권수를 사용했습니다';
+      use.title = remaining > 0 ? `사용하면 영구 ${spec ? statBookLabel(item.book) : ''} +${spec?.perBook ?? 0}` : '이미 최대 권수를 사용했습니다';
       use.onclick = () => {
         const before = totalStats(save).health;
         const result = useStatBook(save, item.id);

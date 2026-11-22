@@ -5,7 +5,7 @@ import { statBookCounts, type StatBookCounts } from './statBooks';
 export { slots, slotNames, rarityNames, statNames, isZweihander, equipmentImage, totalStats, rollItem, itemPower, autoEquipBest, salvageByRarity } from './items';
 export type { Rarity, Slot, Stat, Item } from './items';
 import { allPassiveIds, allSkillIds, jobOrDefault, skillOrderFor, MAX_SKILL_LEVEL, type Job, type PassiveId, type SkillId, type SkillLevelId } from './skills';
-import { spLedger } from './skillPoints';
+import { spLedger, SP_PER_LEVEL } from './skillPoints';
 // 진행 규칙(층 목표·경험치 곡선·최고 층)의 정의는 `progress.ts` 한 곳에 있다 — 여기서는 예전 import 경로를
 // 그대로 쓰는 파일들을 위해 재export만 한다(PR-3, 작업 262).
 import { MAX_FLOOR, MAX_LEVEL, gainExperience, killsToBoss } from './progress';
@@ -78,8 +78,8 @@ export function freshSave(gender: Gender = 'male', job: Job = 'warrior'): Save {
   // ② 그 직업의 첫 액티브 스킬을 **습득한 상태로** 시작한다(퀵슬롯에는 넣지 않는다 — 곧 오는 튜토리얼이
   //    직접 장착하게 안내한다).
   const starter = starterSkillFor(job);
-  // 영구 스탯북(파트 B) — 처음엔 0권. `parseSave`가 옛 세이브에도 0을 채운다.
-  return { version: 1, statBooks: { attack: 0, defense: 0, health: 0 }, name: '모험가', accountId: crypto.randomUUID().slice(0, 8).toUpperCase(), gender, job, auto: true, autoClimb: true, level: 1, exp: 0, gold: 0, floor: 1, maxFloor: 1, floorKills: 0, kills: 0, bossKills: 0, playSeconds: 0, salvageCount: 0, health: 140, equipment: {}, equipmentCollection: [], bag: [], tutorial: 0, stones: 0, skillPoints: 0, lastActiveAt: Date.now(), learned: [starter], passives: [], quickSlots: [null, null, null], skillLevels: { [starter]: 1 }, dungeonFloor: 0, dungeonClearAt: 0, bossRetryFloor: 0 };
+  // 영구 스탯북(파트 B, +스킬의 서) — 처음엔 0권. `parseSave`가 옛 세이브에도 0을 채운다.
+  return { version: 1, statBooks: { attack: 0, defense: 0, health: 0, skill: 0 }, name: '모험가', accountId: crypto.randomUUID().slice(0, 8).toUpperCase(), gender, job, auto: true, autoClimb: true, level: 1, exp: 0, gold: 0, floor: 1, maxFloor: 1, floorKills: 0, kills: 0, bossKills: 0, playSeconds: 0, salvageCount: 0, health: 140, equipment: {}, equipmentCollection: [], bag: [], tutorial: 0, stones: 0, skillPoints: SP_PER_LEVEL, lastActiveAt: Date.now(), learned: [starter], passives: [], quickSlots: [null, null, null], skillLevels: { [starter]: 1 }, dungeonFloor: 0, dungeonClearAt: 0, bossRetryFloor: 0 };
 }
 
 export function parseSave(data: unknown, accountId?: string): Save {

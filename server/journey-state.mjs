@@ -84,7 +84,9 @@ export function grantUpdateNotice(state, now = Date.now()) {
   if (now >= UPDATE_NOTICE_UNTIL) return false;
   if (state.notices.includes(UPDATE_NOTICE_ID) || state.mail.some(entry => entry.id === UPDATE_NOTICE_ID)) return false;
   state.notices.push(UPDATE_NOTICE_ID);
-  state.mail.push({ id: UPDATE_NOTICE_ID, title: UPDATE_NOTICE_TITLE, sender: '운영팀', body: UPDATE_NOTICE_BODY, createdAt: now, expiresAt: UPDATE_NOTICE_UNTIL, gold: 3000, books: 2, claimedAt: null, read: false });
+  // `books`는 파트 B에서 스킬북이 폐지되어 **지급하지 않는다**(`core/rewardGrant.mjs`). 예전 세이브의 옛 우편이
+  // '영구 스탯북 2권'을 약속하고 금화만 주던 불일치를 막으려 새 지급분은 0으로 둔다.
+  state.mail.push({ id: UPDATE_NOTICE_ID, title: UPDATE_NOTICE_TITLE, sender: '운영팀', body: UPDATE_NOTICE_BODY, createdAt: now, expiresAt: UPDATE_NOTICE_UNTIL, gold: 3000, books: 0, claimedAt: null, read: false });
   return true;
 }
 /**

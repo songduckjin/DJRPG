@@ -22,7 +22,7 @@ import {
   investSkillPoint, resetSkillTree, skillNameOf, skillNodeStatus, skillTreeEdges, skillTreeFor, skillValueRows,
   skillsResetIsFree, type SkillNodeStatus, type SkillTreeNode
 } from '../game/skillTree';
-import { spLedger } from '../game/skillPoints';
+import { spLedger, spBookBonus, SP_FIRST_RANK } from '../game/skillPoints';
 import { unequipSkill } from '../game/loadout';
 
 /** 지금 그릴 선택 — 고른 것이 이 직업 트리에 있으면 그대로, 없으면 장착 중 → 습득한 스킬 → 첫 노드 순. */
@@ -62,7 +62,10 @@ export function skillTopBar(ui: Interface): HTMLElement {
   const gem = el('i', 'skill-sp-gem');
   gem.setAttribute('aria-hidden', 'true');
   sp.append(gem, el('span', 'skill-sp-label', 'SP'), el('b', 'skill-sp-value', String(ledger.available)));
-  sp.title = `남은 스킬 포인트 ${ledger.available} · 지금까지 ${ledger.total}pt 중 ${ledger.spent}pt 사용`;
+  // 무료 지급된 첫 스킬 1랭크는 받은 몫에서도 뺀다 — Lv.1은 `받은 3 · 사용 0 · 남은 3`으로 보인다.
+  const book = spBookBonus(save);
+  const earned = ledger.total - SP_FIRST_RANK;
+  sp.title = `남은 스킬 포인트 ${ledger.available} · 사용 ${Math.max(0, ledger.spent - SP_FIRST_RANK)} / ${earned}${book ? ` (스킬의 서 +${book})` : ''}`;
   sp.setAttribute('aria-label', `스킬 포인트 ${ledger.available}`);
 
   const reset = el('button', 'skill-reset', skillsResetIsFree() ? '초기화 (무료)' : '초기화');

@@ -55,7 +55,8 @@ export function renderSettings(ui:Interface,dialog:HTMLElement):void{
 function taskRow(ui:Interface,task:JourneyTask,kind:string):HTMLElement{
   const row=element('article',`utility-card utility-task${task.completion?' utility-completion':''}`);row.append(element('b','',`${task.category?task.category+' · ':''}${task.name}`),element('span','',`${task.current.toLocaleString()} / ${task.target.toLocaleString()}`));
   const progress=element('progress');progress.max=task.target;progress.value=task.current;progress.setAttribute('aria-label',`${task.name} 진행도`);row.append(progress);
-  const reward=element('div','utility-reward');reward.append(goldNode(task.gold));if(task.books)reward.append(element('span','',`영구 스탯북 ${task.books}권`));if(task.pouches)reward.append(pouchReward(task.pouches));row.append(reward);
+  // `books`(스킬북 권수)는 파트 B에서 폐지되어 지급도 표시도 하지 않는다 — 서버 `grantRewardsToSave`와 같다.
+  const reward=element('div','utility-reward');reward.append(goldNode(task.gold));if(task.pouches)reward.append(pouchReward(task.pouches));row.append(reward);
   row.append(claimButton(task.claimed?'수령 완료':task.current>=task.target?'받기':'진행 중',()=>{void ui.journey.act('journey-claim',{kind,id:task.id});},task.claimed||task.current<task.target||ui.journey.busy||ui.session.guest));return row;
 }
 export function orderedAchievements(tasks:JourneyTask[]):JourneyTask[] {
@@ -91,8 +92,10 @@ export function renderUtility(ui:Interface,dialog:HTMLElement,kind:'mail'|'rewar
     // 가방 40칸에는 타직업 스킬북·보물 주머니를 함께 센다(내 직업 스킬북 제외, 작업 253) — 자리가 없으면 아이템이 든 우편은 받을 수 없다.
     // 금화만 있는 우편은 칸을 쓰지 않으므로 늘 받을 수 있다(서버 규칙과 같다).
     const bagFree=Math.max(0,EQUIPMENT_BAG_LIMIT-equipmentCount(ui.world.save.bag,ui.world.save.job));
-    const mailItems=(mail:{books?:number;pouches?:number})=>Math.max(0,mail.books??0)+Math.max(0,mail.pouches??0);
-    const bagBlocked=(mail:{books?:number;pouches?:number,claimedAt?:number|null,expired?:boolean})=>!mail.claimedAt&&!mail.expired&&mailItems(mail)>bagFree;
+    // 칸을 쓰는 보상은 **보물 주머니뿐**이다(파트 B: 스킬북 폐지 — 서버 `rewardSlotNeed`와 같은 규칙).
+    // 예전에는 `books`까지 세어, 금화만 주는 우편이 '가방 가득'으로 잠기는 화면·서버 불일치가 있었다.
+    const mailItems=(mail:{pouches?:number})=>Math.max(0,mail.pouches??0);
+    const bagBlocked=(mail:{pouches?:number,claimedAt?:number|null,expired?:boolean})=>!mail.claimedAt&&!mail.expired&&mailItems(mail)>bagFree;
     if(mails.some(bagBlocked))section.append(element('p','utility-note','가방이 가득 차 아이템이 든 우편은 받을 수 없습니다. 가방을 비우면 받을 수 있고, 금화만 있는 우편은 지금도 받을 수 있습니다.'));
     for(const mail of mails){
       const row=element('article',`utility-card mail-card${ready(mail)?' mail-pending':''}`),top=element('div','mail-heading');
@@ -101,7 +104,7 @@ export function renderUtility(ui:Interface,dialog:HTMLElement,kind:'mail'|'rewar
       row.append(element('small','mail-sender',`보낸 사람: ${mail.sender}`),element('p','mail-body',mail.body));
       const received=new Date(mail.createdAt).toLocaleString('ko-KR',{timeZone:'Asia/Seoul',month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'});
       row.append(element('small','mail-date',`받은 날짜 ${received} · ${mail.expiresAt===null?'수령 기한 없음':mail.expired?'수령 기한 만료':`남은 시간 ${Math.max(0,Math.ceil((mail.expiresAt-data.now)/3600000))}시간`}`));
-      const bottom=element('div','utility-toolbar'),reward=element('div','utility-reward');if(mail.gold)reward.append(goldNode(mail.gold));if(mail.books)reward.append(element('span','',`영구 스탯북 ${mail.books}권`));if(mail.pouches)reward.append(pouchReward(mail.pouches));if(mail.diamonds)reward.append(diamondNode(mail.diamonds,'다이아 ','개'));
+      const bottom=element('div','utility-toolbar'),reward=element('div','utility-reward');if(mail.gold)reward.append(goldNode(mail.gold));if(mail.pouches)reward.append(pouchReward(mail.pouches));if(mail.diamonds)reward.append(diamondNode(mail.diamonds,'다이아 ','개'));
       const blocked=bagBlocked(mail),claim=claimButton(mail.claimedAt?'수령 완료':mail.expired?'기한 만료':blocked?'가방 가득':'받기',()=>{void journey.act('journey-claim',{kind:'mail',id:mail.id}).then(()=>loadShop(ui));},!!mail.claimedAt||mail.expired||blocked||journey.busy||ui.session.guest);
       if(blocked)claim.title='가방이 가득 찼습니다. 공간을 비운 뒤 우편을 받아주세요. (금화만 있는 우편은 받을 수 있습니다)';
       bottom.append(reward,claim);row.append(bottom);section.append(row);
