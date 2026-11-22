@@ -98,6 +98,8 @@ test('노드는 잠김·습득·장착·최대를 클래스와 `N/10` 배지로 
     assert(node('mastery').classList.contains('is-maxed'), 'Lv.10은 최대');
     assert.equal(one(node('mastery'), 'skill-node-level').textContent, '10/10');
 
+    assert(node('slam').classList.contains('is-open'), '습득만 안 한 1티어는 열려 있다');
+    assert.equal(one(node('slam'), 'skill-node-lock'), undefined, '열린 노드에는 자물쇠가 없다');
     assert(node('hell').classList.contains('is-locked'), '선행·SP가 모자란 3티어');
     assert.equal(one(node('hell'), 'skill-node-lock').textContent, '🔒');
     assert.equal(one(node('hell'), 'skill-node-level').textContent, '0/10');

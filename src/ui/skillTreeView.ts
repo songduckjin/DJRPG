@@ -57,6 +57,7 @@ export function skillTopBar(ui: Interface): HTMLElement {
   const save = ui.world.save;
   const ledger = spLedger(save);
   const bar = el('div', 'skill-top-bar');
+  bar.append(el('span', 'skill-sp-hint', 'SP 1 = 1랭크 · 최대 Lv.10'));
   const sp = el('span', 'skill-sp');
   const gem = el('i', 'skill-sp-gem');
   gem.setAttribute('aria-hidden', 'true');
@@ -144,12 +145,8 @@ function skillNodeButton(ui: Interface, node: SkillTreeNode, status: SkillNodeSt
   button.setAttribute('aria-label', `${name} · ${state} · ${status.level}/${10}${equipped ? ' · 장착중' : ''}`);
   button.title = status.reason || `${name} — ${state}`;
   const frame = el('span', 'skill-node-frame');
-  if (status.learned) {
-    const lock = el('i', 'skill-node-lock');
-    lock.setAttribute('aria-hidden', 'true');
-    lock.hidden = true;
-    frame.append(lock);
-  } else {
+  // 자물쇠는 **정말 잠긴** 노드(선행·SP 미충족)에만 — 습득만 안 한 열린 노드는 아이콘이 그대로 보인다.
+  if (!status.learned && !status.open) {
     const lock = el('i', 'skill-node-lock', '🔒');
     lock.setAttribute('aria-hidden', 'true');
     frame.append(lock);
