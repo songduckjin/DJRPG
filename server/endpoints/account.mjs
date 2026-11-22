@@ -316,8 +316,10 @@ async function accountHandler(request, { env = runtimeEnv(), createDbClient, leg
           ? (await tx.execute({ sql: 'SELECT quantity FROM djrpg_shop_entitlements WHERE account_id=? AND entitlement_key=?', args: [id, `idle_claim_${latest.slot}`] })).rows[0]
           : undefined;
         const idleSeconds = Math.max(0, Math.min(43_200, Math.floor(Number(idleClaim?.quantity ?? 0) || 0)));
-        await reconcileItems(tx, id, latest.save, save, { slot: latest.slot, elapsedSeconds: elapsedSince(latest.character_updated_at) + idleSeconds });
-        const saved = await writeSave(tx, latest, save, [], action !== 'reset', { idleSeconds });
+        const reconciled = await reconcileItems(tx, id, latest.save, save, { slot: latest.slot, elapsedSeconds: elapsedSince(latest.character_updated_at) + idleSeconds });
+        // 보물 주머니에서 나온 금화(한 번에 열기 포함)는 서버가 "소모된 주머니 수 × POUCH_MAX_GOLD"로 계산해
+        // 이번 저장의 금화 상한에 더한다 — 사냥 시간으로만 계산한 상한에 걸려 보상이 사라지지 않게 한다(2026-11-22).
+        const saved = await writeSave(tx, latest, save, [], action !== 'reset', { idleSeconds, goldCredit: action === 'reset' ? 0 : reconciled.pouchGold });
         await tx.execute({ sql: 'DELETE FROM djrpg_shop_entitlements WHERE account_id=? AND entitlement_key=?', args: [id, `idle_claim_${latest.slot}`] });
         if (action === 'save' && typeof body.requestId === 'string' && body.requestId.length <= 80) await tx.execute({ sql: 'INSERT INTO djrpg_save_requests VALUES (?,?,?) ON CONFLICT(account_id) DO UPDATE SET request_id=excluded.request_id, revision=excluded.revision', args: [id, body.requestId, saved.revision] });
         if (saved.clamped?.length) context.clamped = saved.clamped.length;

@@ -36,6 +36,38 @@
 .pouch-window-hint { margin: 0; color: #ad9a86; font-size: 9px; text-align: center; }
 .pouch-window-count { margin: 0; color: #e2c193; font-size: 10px; }
 .pouch-window-error { margin: 0; color: #ffb4a4; font-size: 10px; text-align: center; }
+/* ── 한 번에 열기 (2026-11-22) ────────────────────────────────────────────────
+   보유 주머니가 2개 이상일 때만 서는 한 줄 버튼. 주 버튼 줄(열기·닫기)에 끼우지 않는다 — 330px 카드에서
+   세 버튼은 글자가 잘린다. 결과 요약은 무대(주머니 그림) 자리에 들어간다. */
+.pouch-window-batch { display: flex; width: 100%; }
+.pouch-window-batch[hidden] { display: none; }
+.pouch-open-all { flex: 1; border: 1px solid #c9903f; background: linear-gradient(#3d2a16, #241a12); color: #ffdca6; padding: 7px 10px; font: inherit; font-size: 11.5px; font-weight: 700; box-shadow: inset 0 0 0 1px #f0c88a14; }
+.pouch-open-all:active { background: #3a2814; }
+.pouch-open-all:disabled { opacity: .55; }
+.pouch-window-batch-result { display: flex; width: 100%; }
+.pouch-window-batch-result[hidden] { display: none; }
+.pouch-window-stage[hidden] { display: none; }
+.pouch-batch { display: flex; flex-direction: column; gap: 4px; width: 100%; padding: 2px 0; max-height: 46dvh; overflow-y: auto; }
+.pouch-batch-title { margin: 0; color: #f6dcb0; font-size: 12px; font-weight: 700; text-align: center; }
+.pouch-batch-totals { display: flex; flex-wrap: wrap; justify-content: center; gap: 3px 8px; margin: 0; padding: 0; list-style: none; color: #e8d7c0; font-size: 11px; }
+.pouch-batch-total { display: inline-flex; align-items: center; gap: 3px; }
+.pouch-batch-gold { color: #ffd977; font-weight: 700; }
+.pouch-batch-grades { display: flex; flex-wrap: wrap; justify-content: center; gap: 2px 6px; margin: 0; color: #cbb79d; font-size: 10px; }
+.pouch-batch-grade { font-weight: 700; }
+.pouch-batch-list { display: flex; flex-direction: column; gap: 1px; margin: 2px 0 0; padding: 0; list-style: none; }
+.pouch-batch-row { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; align-items: center; gap: 5px; padding: 2px 4px; border-bottom: 1px solid #3a2e26; color: #cbb79d; font-size: 10.5px; }
+.pouch-batch-row:last-child { border-bottom: 0; }
+.pouch-batch-row .pouch-reward-art { display: flex; align-items: center; justify-content: center; width: 22px; height: 22px; }
+.pouch-batch-row .pouch-reward-art img, .pouch-batch-row .pouch-reward-sheet { width: 22px; height: 22px; object-fit: contain; }
+.pouch-batch-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: inherit; }
+.pouch-batch-count { color: #e4d3bb; font-weight: 700; font-variant-numeric: tabular-nums; }
+.pouch-batch-row.rarity-common { color: #9ca3af; }
+.pouch-batch-row.rarity-magic { color: #60a5fa; }
+.pouch-batch-row.rarity-rare { color: #facc15; }
+.pouch-batch-row.rarity-epic { color: #c084fc; }
+.pouch-batch-row.rarity-unique { color: #fb923c; }
+.pouch-batch-row.rarity-legendary { color: #f87171; }
+.pouch-batch-empty, .pouch-batch-followup { margin: 2px 0 0; color: #94826f; font-size: 9.5px; text-align: center; }
 .pouch-window-actions { display: flex; gap: 5px; width: 100%; margin-top: 2px; }
 .pouch-window-actions .pouch-open { flex: 1; width: auto; padding: 9px; font-size: 13px; }
 .pouch-window-actions .pouch-close { flex: 0 0 74px; border: 1px solid #6d5540; background: #251e1f; color: #c3ae96; padding: 9px; font: inherit; font-size: 12px; }

@@ -10,7 +10,7 @@
  */
 import { ApiError, fail } from './errors.mjs';
 import { validateSave } from './save.mjs';
-import { itemWithinBounds, rewardBudget, secondaryStatCeiling } from '../save-guard.mjs';
+import { itemWithinBounds, rewardBudget, secondaryStatCeiling, POUCH_MAX_GOLD } from '../save-guard.mjs';
 import { extraOptionsWithin, normalizeExtraOptions } from '../extra-options.mjs';
 import { statBookValid } from '../stat-books.mjs';
 import { bagSlotCount } from '../core/rewardGrant.mjs';
@@ -165,6 +165,22 @@ export async function reconcileItems(tx, id, before, after, options = {}) {
   for (const item of previousValid) if (!ids.has(item.id) && owners.has(item.id)) writes.push({ sql: "UPDATE djrpg_item_owners SET location='consumed' WHERE item_id=? AND account_id=? AND location='inventory'", args: [item.id, id] });
   if (options.operations) options.operations.push(...writes);
   else if (writes.length) await tx.batch(writes);
+  // 보물 주머니 개봉 금화(2026-11-22) — 주머니는 클라이언트가 까고 결과를 이 저장으로 보낸다.
+  // 한 번에 열기로 금화가 한 저장 창에 몰리면(30개 = 최대 150,000G) 사냥 시간 기준 상한(`rewardBudget.gold`)에
+  // 잘리므로, **이번 저장에서 소모된 주머니 수 × `POUCH_MAX_GOLD`** 를 정당한 금화로 인정해 돌려준다
+  // (호출자가 `writeSave(..., { goldCredit })`로 넘긴다).
+  //
+  // 소모로 세는 것: 직전 세이브의 주머니 중 이번 세이브에 없고, 소유 위치가 `inventory`(또는 기록 없음)인 것.
+  // 창고·거래소로 옮긴 주머니는 위치가 `warehouse`·`market`이라 세지 않는다 — 다시 꺼내 반복 청구할 수 없다.
+  // 한 번 소모된 주머니는 소유 기록이 `consumed`가 되어 다음 저장부터는 직전 세이브에도 없다.
+  let pouchGold = 0;
+  for (const item of previousValid) {
+    if (!(item?.kind === 'pouch' || item?.slot === 'pouch') || ids.has(item.id)) continue;
+    const owner = owners.get(item.id);
+    if (owner && owner.location !== 'inventory') continue;
+    pouchGold += POUCH_MAX_GOLD;
+  }
+  return { pouchGold };
 }
 
 // load 한 번으로 409 ITEM_CONFLICT 교착에서 빠져나오도록, 다음 save의 reconcileItems가 거부할 조합만 골라 정리한다.

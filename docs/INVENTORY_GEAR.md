@@ -21,6 +21,7 @@
 - **첫 장비 장착 안내**: 첫 무기를 낀 뒤 가방의 투구·갑옷을 끼도록 이끄는 입문 안내(안내 띠·가방 머리줄 한 줄·칸 강조)는 `docs/TUTORIAL.md`가 단일 기준이다. 문구·강조 판정은 `src/game/tutorial.ts`만 정한다.
 - **가방 40칸**(`EQUIPMENT_BAG_LIMIT`): 장비·**타 직업** 스킬북·보물 주머니가 1칸. **내 직업 스킬북은 세지 않는다**(작업 253 최종 규칙). 클라 `countedInBag`과 서버 `countedInBag`이 같은 규칙이고 `tests/bag-job-books.test.mjs`가 대조한다.
 - **40칸은 수령 경로마다 막는다**: 창고 `withdraw`·거래소 `claim`·여정 `journey-claim`이 `BAG_FULL`. 저장은 이미 넘긴 세이브를 "현재 개수 이하 유지"만 허용.
+- **보물 주머니 개봉(1개·한 번에)**: `src/game/pouch.ts`(`openPouch`·확률표) · 집계 `src/game/pouchBatch.ts`(`openPouches`·`summarizePouchResults`) · 화면 `src/ui/modals/pouchModal.ts`(1개 연출 1.55초) · `src/ui/pouchBatch.ts`(요약 패널). 가방에서 주머니를 누르면 개봉 창이 바로 열리고, 보유 2개 이상이면 **`전부 열기 (N개)`** 가 함께 선다 — 연출 없이 **보유 주머니를 모두** 까고 금화·장비·영구 스탯북 합계, 등급별 수량, `×N` 목록을 한 장으로 보여 준다(`보물 주머니 N개 → 금화 … · 장비 …개` 토스트 1줄, 전설은 전광판). 한 번에 열기 규칙은 ① 1개 열기(`openPouch`)를 반복해 확률·지급·가방 자리 규칙이 1개 열기와 **같다** ② 주머니 1개 = 자리 1칸 **바꿈**이라 몇 개를 열어도 40칸이 **늘지 않는다**(금화면 -1) — 40칸·40칸 초과 세이브에서도 전부 열린다 ③ 금화는 한 저장에 몰리므로 서버가 소모된 주머니 수로 상한을 더한다(`docs/SYNC_SAVE.md`).
 - **강화 `+1~+7`**: `maxPlusFor(floor)`가 10층마다 한 단계 열고 `rollPlus`(가중치 `0.6^k`, 보스 ×`1.2^k`)로 뽑는다. `applyPlus`가 단계당 8%를 스탯에 곱하고 `plus`를 함께 적는다(0도 명시). `item.name`은 **절대 바꾸지 않는다** — 서버 `identity`가 이름을 포함한다.
 - **추가옵션**: 에픽 1·유니크 2·전설 3개, 9종 키, 1~3%. 값은 아이템 `id` 해시 시드로 결정되므로 **이미 지급된 장비도 DB 수정 없이** 같은 값이 붙는다. 상한: 회피 30%·체력회복 12%/5초·피흡 15%. 서버 `normalizeExtraOptions`가 id로 다시 계산해 클라이언트 조작값을 덮어쓴다.
 - **직업 배율(작업 255)**: `jobMastery` — 전사 방어 1.12·체력 1.10, 궁수 치명 1.15·공속 1.38, 마법사 공격 1.38. **장비 몫에만** 곱한다(레벨·기본 스탯에는 곱하지 않는다). 티어 계수는 단계당 3.5%.
@@ -42,7 +43,7 @@
 
 ## 테스트
 
-`node --test tests/inventory.test.mjs tests/bag-capacity.test.mjs tests/bag-job-books.test.mjs tests/bag-stack-order.test.mjs tests/bag-limit-recovery.test.mjs tests/item-plus.test.mjs tests/plus-badge.test.mjs tests/upgrade-badge.test.mjs tests/rarity-badge.test.mjs tests/extra-options.test.mjs tests/auto-salvage.test.mjs tests/salvage-plus.test.mjs tests/salvage-rarity.test.mjs tests/salvage-protection.test.mjs tests/item-drop-jobs.test.mjs tests/equipment-info.test.mjs tests/job-gear.test.mjs`
+`node --test tests/inventory.test.mjs tests/bag-capacity.test.mjs tests/bag-job-books.test.mjs tests/bag-stack-order.test.mjs tests/bag-limit-recovery.test.mjs tests/item-plus.test.mjs tests/plus-badge.test.mjs tests/upgrade-badge.test.mjs tests/rarity-badge.test.mjs tests/extra-options.test.mjs tests/auto-salvage.test.mjs tests/salvage-plus.test.mjs tests/salvage-rarity.test.mjs tests/salvage-protection.test.mjs tests/item-drop-jobs.test.mjs tests/equipment-info.test.mjs tests/job-gear.test.mjs tests/treasure-pouch.test.mjs tests/pouch-open-all.test.mjs`
 
 ## 관련 매뉴얼
 

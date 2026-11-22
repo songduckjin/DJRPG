@@ -22,6 +22,8 @@
  *
  * 가방 칸·상세 아이콘은 1단계(닫힌 주머니)를 쓴다.
  */
+import { equipmentImage, isStatBook, type EquipmentItem, type StatBook } from '../game/items';
+
 export const POUCH_FRAME_URLS = [
   '/assets/icons/treasure_pouch_v2.png',          // 1 닫힘 — 쪼으는 구간(0~900ms) 동안 이 한 장
   '/assets/icons/treasure_pouch_slump0_v3.png',   // 2 끈이 풀리며 무너짐 — 920ms, 흰빛 섬광 속 교체
@@ -120,6 +122,37 @@ export function preloadPouchFrames(): void {
     image.decoding = 'async';
     image.src = url;
   }
+}
+
+/**
+ * 주머니에서 나온 아이템의 그림 — 장비는 아이콘(아틀라스면 그 한 칸만), 영구 스탯북은 책 그림.
+ *
+ * 1개 개봉의 결과 카드(`pouchResultCard`)와 **한 번에 열기**의 결과 요약 줄이 같은 그림을 쓴다.
+ */
+export function pouchRewardArt(item: EquipmentItem | StatBook, options: { box?: string; sheet?: string } = {}): HTMLElement {
+  const box = options.box ?? 'pouch-reward-art', sheetClass = options.sheet ?? 'pouch-reward-sheet';
+  const art = document.createElement('span');
+  art.className = box;
+  if (isStatBook(item)) {
+    // 영구 스탯북(파트 B) — 전용 아이콘 시안 전까지 기존 책 그림을 쓴다(가방·필드와 같은 그림).
+    const img = document.createElement('img');
+    img.src = '/assets/icons/icon_skillbook.png'; img.alt = '';
+    art.append(img);
+    return art;
+  }
+  const image = equipmentImage(item);
+  if (image.columns > 1) {
+    const sheet = document.createElement('span');
+    sheet.className = `${sheetClass} atlas-icon`;
+    sheet.style.backgroundImage = `url("${image.path}")`;
+    sheet.style.backgroundPosition = `${image.frame / (image.columns - 1) * 100}% center`;
+    art.append(sheet);
+  } else {
+    const img = document.createElement('img');
+    img.src = image.path; img.alt = '';
+    art.append(img);
+  }
+  return art;
 }
 
 /** 가방 칸·상세가 쓰는 작은 아이콘 마크업(문자열). */

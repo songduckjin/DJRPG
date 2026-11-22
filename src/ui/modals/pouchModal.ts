@@ -1,7 +1,9 @@
-import { equipmentImage, isStatBook, itemDisplayName, type Rarity } from '../../game/items';
+import { itemDisplayName, type Rarity } from '../../game/items';
 import { openPouch, POUCH_OVERALL_RATES, pouchCount, POUCH_HINT, pouchResultText, firstPouch, type PouchResult } from '../../game/pouch';
+import { openPouches, pouchBatchText } from '../../game/pouchBatch';
+import { pouchBatchPanel } from '../pouchBatch';
 import { isLegendaryPouchResult } from '../../game/legendBoard';
-import { createPouchArt, preloadPouchFrames, resetPouchArt, setPouchFrame, POUCH_FRAME_URLS, POUCH_GOLD_PILE_URL } from '../pouchArt';
+import { createPouchArt, pouchRewardArt, preloadPouchFrames, resetPouchArt, setPouchFrame, POUCH_FRAME_URLS, POUCH_GOLD_PILE_URL } from '../pouchArt';
 import { createPouchLight } from '../pouchLight';
 import { goldMarkup } from '../currency';
 import type { Interface } from '../interface';
@@ -81,21 +83,8 @@ export function pouchResultCard(result: PouchResult): HTMLElement {
     return card;
   }
   const item = result.item;
-  const art = element('span', 'pouch-result-art');
-  if (isStatBook(item)) {
-    // 영구 스탯북(파트 B) — 전용 아이콘 시안 전까지 기존 책 그림을 쓴다(가방·필드와 같은 그림).
-    const img = document.createElement('img'); img.src = '/assets/icons/icon_skillbook.png'; img.alt = ''; art.append(img);
-  } else {
-    const image = equipmentImage(item);
-    if (image.columns > 1) {
-      const sheet = element('span', 'pouch-result-sheet atlas-icon');
-      sheet.style.backgroundImage = `url("${image.path}")`;
-      sheet.style.backgroundPosition = `${image.frame / (image.columns - 1) * 100}% center`;
-      art.append(sheet);
-    } else {
-      const img = document.createElement('img'); img.src = image.path; img.alt = ''; art.append(img);
-    }
-  }
+  // 장비·영구 스탯북 그림은 `pouchRewardArt` 한 곳에서 만든다 — 한 번에 열기의 요약 줄과 같은 그림이다.
+  const art = pouchRewardArt(item, { box: 'pouch-result-art', sheet: 'pouch-result-sheet' });
   const name = element('strong', 'pouch-result-name');
   name.textContent = itemDisplayName(item);
   name.classList.add(`rarity-${item.rarity as Rarity}`);
@@ -114,7 +103,7 @@ export function pouchGlowInk(): string {
 /** 개봉 연출의 흰빛(순백) — Canvas 빛·입자(`pouchLight.createPouchLight`)가 함께 쓴다. */
 export const POUCH_WHITE_LIGHT = '#ffffff';
 
-type PouchWindowApi = { overlay: HTMLElement; open: () => void; close: () => void; rates: HTMLElement; result: HTMLElement };
+type PouchWindowApi = { overlay: HTMLElement; open: () => void; close: () => void; rates: HTMLElement; result: HTMLElement; /** 한 번에 열기 결과 요약(숨김 상태로 시작). */ batch: HTMLElement };
 type PouchWindowOptions = { /** 연출 길이 — 테스트가 0으로 줄인다(기본 2800ms). */ delay?: number };
 
 /**
@@ -125,6 +114,8 @@ type PouchWindowOptions = { /** 연출 길이 — 테스트가 0으로 줄인다
  * 결과 카드가 뜬다.
  * 한 번에 **주머니 1개씩** 열고, 개봉이 끝났을 때 가방에 주머니가 남아 있으면
  * `[1개 더 열기]`로 바로 다음 주머니를 이어서 깐다. 다 열었으면 `[확인]`, 언제든 `[닫기]`·`×`로 나간다.
+ * 보유 주머니가 2개 이상이면 그 아래 줄에 **`[전부 열기 (N개)]`** 가 함께 서고, 누르면 연출 없이 보유한 주머니를
+ * 모두 까고 무대 자리에 **결과 요약**(금화·장비·스탯북 합계, 등급별 수량, `×N` 목록)을 띄운다(2026-11-22).
  *
  * **[열기]의 연출**(작업 215 — `#5297`, 총 1.55초):
  * 0~0.9초 닫힌 주머니 **한 장**이 바닥을 축으로 부풀었다 눌렸다 하며 힘을 모으고(좌우 흔들기 없음),
@@ -180,15 +171,25 @@ export function openPouchWindow(ui: Interface, itemId?: string, options: PouchWi
   const error = element('p', 'pouch-window-error');
   error.hidden = true;
 
+  // 한 번에 열기 (2026-11-22) — 보유 주머니가 2개 이상일 때만 보인다(1개면 [열기]와 같다).
+  //   주 버튼 줄(열기·닫기)에 끼우지 않고 한 줄을 따로 준다 — 폰 폭 330px에서 세 버튼은 글자가 잘린다.
+  const batchRow = element('div', 'pouch-window-batch');
+  const openAllButton = button('전부 열기', 'pouch-open-all');
+  batchRow.append(openAllButton);
+
   const actions = element('div', 'pouch-window-actions');
   const openButton = button('열기', 'pouch-open is-primary');
   const closeAction = button('닫기', 'pouch-close');
   actions.append(openButton, closeAction);
 
+  // 결과 요약 — 주머니 그림(무대) 대신 이 자리에 들어선다. 닫으면 창이 닫힌다.
+  const batchPanel = element('div', 'pouch-window-batch-result');
+  batchPanel.hidden = true;
+
   const rates = pouchRatesPanel();
   rates.hidden = true;
 
-  card.append(top, stage, hint, error, countLabel, actions, rates);
+  card.append(top, stage, batchPanel, hint, error, countLabel, batchRow, actions, rates);
   overlay.append(card);
 
   const showCount = (): void => {
@@ -196,9 +197,17 @@ export function openPouchWindow(ui: Interface, itemId?: string, options: PouchWi
     countLabel.textContent = `보유 ${remaining}개`;
     countLabel.hidden = remaining === 0;
     // 남은 주머니가 있으면 `1개 더 열기` — 다 열었으면 `확인`으로 바뀐다(`닫기`는 늘 옆에 있다).
-    openButton.textContent = result.childElementCount ? (remaining ? '1개 더 열기' : '확인') : '열기';
+    // 한 번에 열기까지 끝났으면 [확인] 하나만 남는다.
+    openButton.textContent = batchDone ? '확인' : result.childElementCount ? (remaining ? '1개 더 열기' : '확인') : '열기';
+    // 한 번에 열기는 2개 이상일 때만 — 요약을 띄운 뒤에는 숨긴다(열 주머니가 없다).
+    openAllButton.textContent = `전부 열기 (${remaining}개)`;
+    openAllButton.disabled = animating;
+    batchRow.hidden = batchDone || remaining < 2;
   };
   let animating = false, closed = false;
+  /** 한 번에 열기까지 끝났는가 — 이 뒤에는 [확인]만 남고 요약이 주인공이다. */
+  let batchDone = false;
+  let batchBusy = false;
   let timer: ReturnType<typeof setTimeout> | undefined;
   const frameTimers: ReturnType<typeof setTimeout>[] = [];
   const clearFrameTimers = (): void => { while (frameTimers.length) clearTimeout(frameTimers.pop() as ReturnType<typeof setTimeout>); };
@@ -239,6 +248,7 @@ export function openPouchWindow(ui: Interface, itemId?: string, options: PouchWi
   if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') window.addEventListener('keydown', onKey, true);
 
   const open = (): void => {
+    if (batchDone) { close(); return; }                      // 요약 뒤의 [확인]은 창을 닫는다.
     if (animating) return;                                   // 연출 중 중복 클릭은 무시한다.
     // [1개 더 열기]가 [확인]으로 바뀐 뒤에는 닫기만 한다.
     if (result.childElementCount && !pouchCount(save)) { close(); return; }
@@ -299,6 +309,48 @@ export function openPouchWindow(ui: Interface, itemId?: string, options: PouchWi
     else announceTimer = setTimeout(announceResult, announceDelay);
   };
 
+  /**
+   * 전부 열기 — 보유한 주머니를 **모두** 까고 개봉 창을 결과 요약으로 바꾼다(2026-11-22).
+   *
+   * 1개 연출은 1.55초라 30개를 이어 까면 46초가 걸린다 — 한 번에 열기는 연출 없이 **요약 한 장**을 보여 준다.
+   * 세이브 변경은 `openPouches` 한 번(주머니 N개 소모 + 결과 지급)이고 저장은 `ui.world.onChange()`가
+   * 한 번 건다 — 서버에는 한 요청으로 나가고, 같은 `requestId`의 재전송은 서버가 중복 처리를 막는다.
+   */
+  const openAll = (): void => {
+    if (animating || batchBusy || batchDone || closed) return;
+    if (pouchCount(save) < 2) return;
+    batchBusy = true;
+    openButton.disabled = true; openAllButton.disabled = true;
+    const opened = openPouches(save);
+    if (!opened.ok) {
+      batchBusy = false;
+      error.textContent = opened.message; error.hidden = false;
+      ui.message(opened.message);
+      showCount();
+      return;
+    }
+    const summary = opened.summary;
+    // 진행 중인 1개 연출의 타이머·빛을 거둔다(남기면 요약 위에서 결과 카드가 뒤늦게 뜬다).
+    if (timer !== undefined) clearTimeout(timer);
+    if (announceTimer !== undefined) clearTimeout(announceTimer);
+    timer = undefined; announceTimer = undefined; pendingAnnounce = undefined;
+    clearFrameTimers();
+    light?.stop();
+    stage.hidden = true;
+    hint.hidden = true;
+    error.hidden = true;
+    batchPanel.replaceChildren(pouchBatchPanel(summary));
+    batchPanel.hidden = false;
+    batchDone = true;
+    openButton.disabled = false;
+    showCount();
+    ui.world.onChange();
+    // 토스트는 한 줄 — 주머니 30개를 개별 토스트 30개로 늘어놓지 않는다.
+    ui.message(`보물 주머니 ${summary.opened}개 → ${pouchBatchText(summary)}`);
+    // 한 번에 열어도 레전드 장비는 접속 중인 모두의 전광판에 올린다.
+    for (const item of summary.legendary) ui.sharePouchLegend(itemDisplayName(item));
+  };
+
   ratesButton.onclick = () => {
     const openNow = rates.hidden;
     rates.hidden = !openNow;
@@ -309,10 +361,11 @@ export function openPouchWindow(ui: Interface, itemId?: string, options: PouchWi
   closeButton.onclick = close;
   closeAction.onclick = close;
   openButton.onclick = open;
+  openAllButton.onclick = openAll;
   overlay.onclick = event => { if (event.target === overlay) close(); };
   showCount();
 
   // 장비창 위에 한 겹만 얹는다(뒤의 장비창은 그대로 보인다).
   (ui.root ?? document.body).append(overlay);
-  return { overlay, open, close, rates, result };
+  return { overlay, open, close, rates, result, batch: batchPanel };
 }
