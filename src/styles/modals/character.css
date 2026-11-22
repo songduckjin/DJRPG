@@ -12,10 +12,10 @@
 /* 카드 하단 요약 배지(백로그 11·B안): `Lv.47 · 32층` + `⚔ 12,480` 한 줄. 정보줄에서 뺀 레벨·층이
    전투력과 함께 여기 내려온다. 좌우·아래 음수 마진으로 카드 테두리까지 폭을 채우고(카드 padding 8px),
    `margin-top: auto`로 접힌 카드에서는 최하단에 붙는다. 펼친 카드에서도 이 띠 아래에 버튼이 온다. */
-.character-power { display: flex; align-items: center; justify-content: center; gap: 4px; margin: auto -8px -8px; padding: 5px 4px; border-top: 1px solid #6b5236; background: linear-gradient(#2a1e19, #1a1316); white-space: nowrap; letter-spacing: -.3px; }
-.character-power-meta { min-width: 0; font-size: 9px; font-weight: 600; line-height: 1; color: #c8ae91; }
-.character-power-value { display: inline-flex; align-items: center; gap: 2px; font-size: 10.5px; font-weight: 800; line-height: 1; color: #ffe6b0; }
-.character-power-value i { font-style: normal; font-size: 9.5px; color: #e9c07a; }
+.character-power { display: flex; align-items: center; justify-content: center; gap: 3px; margin: auto -8px -8px; padding: 5px 4px; border-top: 1px solid #6b5236; background: linear-gradient(#2a1e19, #1a1316); white-space: nowrap; letter-spacing: -.3px; }
+.character-power-meta { font-size: 8px; font-weight: 600; line-height: 1; color: #c8ae91; }
+.character-power-value { display: inline-flex; align-items: center; gap: 2px; font-size: 9.5px; font-weight: 800; line-height: 1; color: #ffe6b0; }
+.character-power-value i { font-style: normal; font-size: 8.5px; color: #e9c07a; }
 .character-select { flex: 1; min-width: 0; padding: 0; border: 0; background: transparent; color: inherit; display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; font-size: inherit; touch-action: manipulation; }
 .character-slot img { width: 100%; height: 108px; object-fit: contain; object-position: center bottom; }
 /* 캐릭터 카드 초상화(작업 210): 필드·장비창과 같은 합성 그림이라 362px 정사각(마법사 투구는 위 44행 여유)이다.
