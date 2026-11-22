@@ -82,16 +82,34 @@ test('스킬을 더하면 코드를 고치지 않고 마지막 티어 뒤에 붙
 
 // ── SP 회계 ──────────────────────────────────────────────────────────────────
 
-test('레벨당 SP 3, Lv.1은 0 — 만렙 30의 총량은 88pt다', () => {
+test('레벨당 SP 3, Lv.1부터 3pt — 만렙 30의 가용 SP는 90pt다', () => {
+  // 2026-11-22 사용자 지시 `#23795`: "렙1이니까 스킬포인트 기본 3개 있어야돼".
   assert.equal(SP_PER_LEVEL, 3);
-  assert.equal(spTotal(1), 1, '첫 스킬 1랭크(무료 지급)를 상쇄하는 몫');
-  assert.equal(spTotal(2), 4);
-  assert.equal(spTotal(30), 88);
+  assert.equal(spTotal(1), 4, 'Lv.1 몫 3 + 첫 스킬 1랭크(무료 지급)를 상쇄하는 몫 1');
+  assert.equal(spTotal(2), 7);
+  assert.equal(spTotal(30), 91);
   const save = freshSave('male', 'warrior');
-  assert.deepEqual(spLedger(save), { total: 1, spent: 1, available: 0 }, 'Lv.1은 쓸 수 있는 SP가 0');
+  assert.deepEqual(spLedger(save), { total: 4, spent: 1, available: 3 }, 'Lv.1은 3pt를 쓸 수 있다');
+  assert.equal(save.skillPoints, 3, '새 캐릭터의 저장 필드도 3이다');
   save.level = 30;
-  assert.equal(spLedger(save).available, 87, '만렙에서 87pt를 쓸 수 있다');
-  assert(87 >= 87 && 87 <= 90, '스펙의 87~90pt 범위');
+  assert.equal(spLedger(save).available, 90, '만렙에서 90pt(레벨당 3pt × 30)를 쓸 수 있다');
+});
+
+test('스킬의 서(영구 스킬포인트 북)는 레벨과 무관하게 영구 SP +1 — 최대 30권', async () => {
+  const { SP_BOOK_LIMIT, spBookBonus, spBookCount } = await import('../src/game/skillPoints.ts');
+  assert.equal(SP_BOOK_LIMIT, 30, '다른 스탯북 3종과 같은 상한');
+  const save = freshSave('male', 'warrior');
+  assert.equal(spBookBonus(save), 0);
+  save.statBooks.skill = 5;
+  assert.equal(spBookCount(save), 5);
+  assert.equal(spBookBonus(save), 5);
+  assert.equal(spLedger(save).available, 3 + 5, 'Lv.1의 3pt에 책 5권이 더해진다');
+  save.statBooks.skill = 99;
+  assert.equal(spBookCount(save), 30, '상한을 넘겨 저장된 값도 30으로 센다');
+  // 능력치 책 세 종류는 SP에 더해지지 않는다.
+  const other = freshSave('male', 'warrior');
+  other.statBooks = { attack: 30, defense: 30, health: 30, skill: 0 };
+  assert.equal(spLedger(other).available, 3, '공격·방어·체력의 서는 SP와 무관');
 });
 
 test('쓴 SP는 습득한 스킬의 랭크 합이고, 랭크는 Lv.10에서 멈춘다', () => {
@@ -101,28 +119,30 @@ test('쓴 SP는 습득한 스킬의 랭크 합이고, 랭크는 Lv.10에서 멈�
   save.passives = ['mastery'];
   save.skillLevels = { slash2: 4, slam: 1, mastery: 30 };
   assert.equal(spSpent(save), 4 + 1 + MAX_SKILL_LEVEL, '랭크 30은 상한 10으로 센다');
-  assert.equal(spLedger(save).available, 88 - 15);
+  assert.equal(spLedger(save).available, 91 - 15);
 });
 
 // ── 투자 ─────────────────────────────────────────────────────────────────────
 
-test('SP가 없으면(Lv.1) 투자할 수 없고, 레벨이 오르면 1티어부터 열린다', () => {
+test('Lv.1도 기본 3pt로 투자할 수 있고, 쓴 만큼 가용 SP가 줄어든다', () => {
   const save = freshSave('male', 'warrior');
-  assert.equal(investSkillPoint(save, 'slam').ok, false, 'Lv.1은 SP 0');
-  assert.equal(learned(save, 'slam'), false);
+  assert.equal(spLedger(save).available, 3, 'Lv.1 기본 3pt');
+  assert.equal(investSkillPoint(save, 'slam').ok, true, 'Lv.1에서 바로 투자된다');
+  assert.equal(learned(save, 'slam'), true);
+  assert.equal(save.skillPoints, 2, '3pt 중 1pt 사용');
 
-  save.level = 5; // 총 13pt · 이미 1pt 사용 → 12pt
+  save.level = 5; // 총 16pt · 이미 2pt 사용 → 14pt
   const result = investSkillPoint(save, 'slam');
   assert.equal(result.ok, true);
-  assert.equal(save.skillLevels.slam, 1);
-  assert.equal(spLedger(save).available, 11);
-  assert.equal(save.skillPoints, 11, '저장 필드도 같은 장부를 가리킨다');
-  assert.equal(rank(save, 'slam'), 1);
+  assert.equal(save.skillLevels.slam, 2);
+  assert.equal(spLedger(save).available, 13);
+  assert.equal(save.skillPoints, 13, '저장 필드도 같은 장부를 가리킨다');
+  assert.equal(rank(save, 'slam'), 2);
 });
 
 test('2티어는 같은 줄기 1티어 Lv.1과 누적 3pt, 3티어는 12pt·Lv.2, 궁극은 36pt·Lv.3을 요구한다', () => {
   const save = freshSave('male', 'warrior');
-  save.level = 30; // 87pt
+  save.level = 30; // 90pt
   const warcry = skillNodeFor('warrior', 'warcry');
   assert.equal(skillNodeStatus(save, warcry).open, false, '누적 1pt로는 2티어가 안 열린다');
   assert.match(skillNodeStatus(save, warcry).reason, /누적 투자 SP 3/);
@@ -181,7 +201,7 @@ test('다른 직업의 스킬과 모르는 ID는 투자할 수 없다', () => {
 test('초기화는 무료이고 투자한 SP를 전액 돌려주며, 첫 스킬 1랭크와 장착 정합성만 남긴다', () => {
   assert.equal(skillsResetIsFree(), true);
   const save = freshSave('male', 'warrior');
-  save.level = 20; // 총 58pt
+  save.level = 20; // 총 61pt
   const before = spLedger(save).available;
   assert.equal(before, spTotal(20) - 1);
   for (const id of ['slash2', 'slam', 'mastery', 'warcry']) investSkillPoint(save, id);
@@ -211,7 +231,7 @@ test('서버는 레벨·랭크로 계산한 SP 상한을 넘는 skillPoints를 �
   const next = { ...previous, level: 30, skillPoints: 999, learned: ['slash2', 'slam'], skillLevels: { slash2: 5, slam: 2 } };
   const { clamped } = clampSaveProgress(previous, next, { elapsedSeconds: 1 });
   assert(clamped.includes('skillPoints'));
-  assert.equal(next.skillPoints, 88 - 7, '만렙 88pt − 쓴 7랭크');
+  assert.equal(next.skillPoints, 91 - 7, '만렙 91pt(=가용 90) − 쓴 7랭크');
 });
 
 test('세이브를 읽을 때 skillPoints는 장부 상한을 넘지 못한다', () => {
@@ -219,7 +239,7 @@ test('세이브를 읽을 때 skillPoints는 장부 상한을 넘지 못한다',
   save.level = 5;
   save.skillPoints = 999;
   const parsed = parseSave(JSON.parse(JSON.stringify(save)));
-  assert.equal(parsed.skillPoints, 12, 'Lv.5 13pt − 첫 스킬 1랭크');
+  assert.equal(parsed.skillPoints, 15, 'Lv.5 16pt − 첫 스킬 1랭크');
   // 예전 세이브(스킬북으로 랭크를 올리던 시절)는 쓴 랭크가 더 많아도 0에서 멈춘다.
   const legacy = freshSave('male', 'warrior');
   legacy.level = 5; legacy.learned = ['slash2', 'slam', 'power', 'hell', 'crushing'];

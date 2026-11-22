@@ -26,7 +26,10 @@ test('field circles are disabled until a learned unassigned skill enables plus a
   assert.equal(rows.length,1,'장착 가능한 스킬만 보여 준다');assert.equal(rows[0].dataset.skill,'slash2');assert(rows[0].className.includes('is-recommended'),'1순위에 추천 배지');
   rows[0].onclick();
   ui.tick();assert.deepEqual(ui.world.save.quickSlots,[null,'slash2',null]);
-  assert(ui.slotButtons.every(button=>button.querySelector('.skill-alert-dot').hidden));assert.equal(ui.root.querySelector('.skill-nav-dot').hidden,true);assert(ui.slotButtons[0].disabled);assert(!ui.slotButtons[1].disabled);
+  assert(ui.slotButtons.every(button=>button.querySelector('.skill-alert-dot').hidden));
+  // Lv.1도 기본 3pt가 있으므로, 투자할 SP가 남아 있는 동안 스킬 점은 켜져 있다(사용자 지시 `#23795`).
+  assert.equal(ui.root.querySelector('.skill-nav-dot').hidden,false,'남은 SP가 있으면 점이 켜진다');
+  assert(ui.slotButtons[0].disabled);assert(!ui.slotButtons[1].disabled);
   }finally{delete globalThis.document;}
 });
 test('choosing an extra skill highlights all field circles and replaces exactly the clicked one',()=>{
@@ -63,11 +66,14 @@ test('HUD pulses actual casts only, not cooldowns restored by equipping or repea
 test('스킬 메뉴 점은 남은 SP와 빈 스킬 원을 본다(파트 B — 스킬북 폐지)',()=>{
   const ui=uiFixture(),save=ui.world.save;
   save.learned=['spin','slam','power'];save.quickSlots=['spin','slam','power'];save.skillLevels={spin:1,slam:1,power:1};
+  ui.tick();assert.equal(ui.root.querySelector('.skill-nav-dot').hidden,false,'Lv.1 기본 3pt 중 1pt가 남아 있다');
+  // SP를 다 쓰고(랭크 4 = Lv.1의 4pt) 빈 원도 없으면 점이 꺼진다.
+  save.skillLevels={spin:2,slam:1,power:1};
   ui.tick();assert(ui.root.querySelector('.skill-nav-dot').hidden,'SP도 빈 원도 없다');
-  // 파트 B: 스킬북은 더 이상 점을 켜지 않는다.
+  // 파트 B: 스탯북(능력치 책)은 더 이상 점을 켜지 않는다.
   save.bag=[{id:'b0',kind:'statbook',slot:'statbook',book:'attack',rarity:'unique',name:'공격의 서',stats:{}}];
   ui.tick();assert(ui.root.querySelector('.skill-nav-dot').hidden,'스탯북은 스킬 점 대상이 아니다');
-  save.bag=[];save.skillLevels.spin=10;save.skillLevels.slam=10;save.skillLevels.power=10;
+  save.bag=[];save.skillLevels={spin:10,slam:10,power:10};
   ui.tick();assert(ui.root.querySelector('.skill-nav-dot').hidden,'최대 레벨·SP 없음');
   // 남은 SP가 생기면(4단계 스킬 트리) 점이 켜진다 — 레벨이 오르면 그만큼 투자할 수 있다.
   save.level=5;save.skillLevels={spin:1,slam:1,power:1};ui.tick();assert(!ui.root.querySelector('.skill-nav-dot').hidden,'투자할 SP가 남았다');

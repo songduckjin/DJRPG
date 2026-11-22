@@ -1,7 +1,7 @@
 import { goldNode, coinMarkup } from '../currency';
 import { filterSaleItems } from '../itemOrder';
 import { equipmentImage, isBow, isEquipment, isStatBook, itemDisplayName, itemJob, rarityNames, slotNames, statNames, usableByJob, type Item, type Stat } from '../../game/items';
-import { STAT_BOOKS, isStatBookKind } from '../../game/statBooks';
+import { STAT_BOOKS, isStatBookKind, statBookLabel } from '../../game/statBooks';
 import { extraOptionLines } from '../../game/extraOptions';
 import { jobNames, jobShortNames } from '../../game/skills';
 import { MARKET_JOB_ONLY_KEY, jobOnlyLabel, jobOnlyVisible, saveJobOnly } from '../jobFilter';
@@ -372,8 +372,7 @@ function listingKind(item: Item): MarketKind | 'other' {
 function statBookBlurb(item: Item): string {
   if (!isStatBook(item) || !isStatBookKind(item.book)) return '사용 시 영구 능력치 상승';
   const spec = STAT_BOOKS[item.book];
-  const statName = spec.stat === 'attack' ? '공격력' : spec.stat === 'defense' ? '방어력' : '체력';
-  return `사용 시 영구 ${statName} +${spec.perBook} (최대 ${spec.max}권)`;
+  return `사용 시 영구 ${statBookLabel(item.book)} +${spec.perBook} (최대 ${spec.max}권)`;
 }
 function kindMatches(item: Item, kind: MarketKind): boolean {
   if (kind === 'all') return true;

@@ -49,7 +49,7 @@ function button(text: string, className: string): HTMLButtonElement {
 /**
  * 확률표 (작업 207, 사용자 최종 확정) — **전체 확률 한 줄(10항목)**을 높은 확률 순으로 깔아
  * 표로 보여 준다. 각 줄: 결과 이름(장비는 인게임 등급 색) + 확률(`30.25%` 소수 둘째 자리).
- * 아래 한 줄 요약: `합계 100% · 장비는 3직업 균등 · 영구 스탯북은 3종 균등`.
+ * 아래 한 줄 요약: `합계 100% · 장비는 3직업 균등 · 영구 스탯북은 4종 균등`.
  */
 export function pouchRatesPanel(): HTMLElement {
   const panel = element('div', 'pouch-rates');
@@ -61,7 +61,7 @@ export function pouchRatesPanel(): HTMLElement {
     row.append(element('span', 'pouch-rate-name', line.label), element('em', 'pouch-rate-value', `${(line.rate * 100).toFixed(2)}%`));
     table.append(row);
   }
-  panel.append(table, element('p', 'pouch-rate-summary', '합계 100% · 장비는 3직업 균등 · 영구 스탯북은 3종 균등'));
+  panel.append(table, element('p', 'pouch-rate-summary', '합계 100% · 장비는 3직업 균등 · 영구 스탯북은 4종 균등'));
   return panel;
 }
 

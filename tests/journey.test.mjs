@@ -95,7 +95,9 @@ test('업데이트 안내 우편은 계정마다 한 번만, 수령·삭제·만
   const notice=fresh.mail.find(entry=>entry.id==='update-2026-11-20');
   assert(notice,'새 계정에도 한 통 지급된다');
   assert.equal(notice.title,'[업데이트 안내] 전투·가방 편의성 및 끝없는 던전 개선');
-  assert.equal(notice.sender,'운영팀');assert.equal(notice.gold,3000);assert.equal(notice.books,2);
+  assert.equal(notice.sender,'운영팀');assert.equal(notice.gold,3000);
+  // 파트 B에서 스킬북이 폐지되어 `books`는 지급하지 않는다 — 우편 카드도 이 값을 보여 주지 않는다.
+  assert.equal(notice.books,0,'지급하지 않는 스킬북 권수는 0');
   assert(notice.expiresAt>now,'만료 전에 수령할 수 있다');assert.equal(notice.claimedAt,null);assert.equal(notice.read,false);
   assert.match(notice.body,/끝없는 던전 진행 저장/);
   assert.deepEqual(fresh.notices,['update-2026-11-20','season-2-open',APOLOGY_MAIL_ID,UPDATE_NOTICE_2_ID],'지급 이력을 남긴다');

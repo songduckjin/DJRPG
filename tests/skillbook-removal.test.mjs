@@ -82,7 +82,7 @@ test('옛 스킬북이 든 세이브를 읽어도 오류 없이 게임에 들어
   const parsed = parseSave(save);
   assert.equal(parsed.level, 12, '진행은 그대로');
   assert.equal(parsed.floor, 6);
-  assert.deepEqual(parsed.statBooks, { attack: 3, defense: 1, health: 0 }, '스탯북 사용 권수도 그대로');
+  assert.deepEqual(parsed.statBooks, { attack: 3, defense: 1, health: 0, skill: 0 }, '스탯북 사용 권수도 그대로');
   assert.deepEqual(parsed.bag.map(item => item.id), ['gear'], '죽은 스킬북만 빠진다');
   // 서버 응답(`save`)에 남아 있어도 같은 결과다.
   assert.deepEqual(parseSave({ ...save, bag: [...save.bag] }).bag.map(item => item.id), ['gear']);

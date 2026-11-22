@@ -1,4 +1,4 @@
-// 영구 스탯북 3종의 **서버 쪽 단일 목록** (파트 B, 2026-11-22).
+// 영구 스탯북 4종의 **서버 쪽 단일 목록** (파트 B, 2026-11-22 + 스킬의 서 `#23788`).
 //
 // Cloudflare Pages Functions는 `server/*.mjs`를 그대로 실행하므로 `src/game/statBooks.ts`(TypeScript)를
 // 실행 시 import할 수 없다. 그래서 같은 값을 여기 한 번만 적고, 클라이언트의 `STAT_BOOKS`와
@@ -8,11 +8,13 @@
 // 스킬북(33종)은 파트 B에서 **전면 폐지**되어 이 파일에서도 사라졌다 — 서버는 더 이상 어떤 스킬북
 // `skillId`도 저장·지급하지 않는다(`server/skill-ids.mjs` 삭제).
 
-/** 종류별 정의 — 클라이언트 `STAT_BOOKS` 사본. `stat`은 클라이언트 `Stat` 이름과 같다. */
+/** 종류별 정의 — 클라이언트 `STAT_BOOKS` 사본. `stat`은 클라이언트 `Stat` 이름과 같고,
+ *  `스킬의 서`는 능력치 대신 영구 SP(`sp`)를 올린다. */
 export const STAT_BOOKS = {
   attack: { name: '공격의 서', stat: 'attack', perBook: 5, max: 30 },
   defense: { name: '방어의 서', stat: 'defense', perBook: 3, max: 30 },
-  health: { name: '체력의 서', stat: 'health', perBook: 30, max: 30 }
+  health: { name: '체력의 서', stat: 'health', perBook: 30, max: 30 },
+  skill: { name: '스킬의 서', sp: 1, perBook: 1, max: 30 }
 };
 export const STAT_BOOK_IDS = Object.keys(STAT_BOOKS);
 export const STAT_BOOK_ID_SET = new Set(STAT_BOOK_IDS);
