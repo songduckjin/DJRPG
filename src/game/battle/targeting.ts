@@ -59,7 +59,7 @@ export function fireBoltSpots(x: number, y: number, count: number): Point[] {
   const n = Math.max(1, Math.floor(count));
   for (let index = 0; index < n; index++) {
     const spread = n === 1 ? 0 : index / (n - 1) - .5;            // -0.5 ~ +0.5
-    const screenX = spread * 64;
+    const screenX = spread * 120;
     const screenY = -68 - (1 - Math.abs(spread) * 2) * 8;          // 가운데가 8px 더 높다
     spots.push({ x: x + (screenX / .86 + screenY / .43) / 2, y: y + (screenY / .43 - screenX / .86) / 2 });
   }

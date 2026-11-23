@@ -271,8 +271,8 @@ export class CombatEngine {
       const power = attack * 2 * damageScale / count;
       fireBoltSpots(p.x, p.y, count).forEach((spot, index) => {
         this.shoot(aim.x, aim.y, power, {
-          speed: 900, radius: area!.projectileRadius, arrow: 'fire', aim: target, source: kind,
-          from: spot, launch: .18 + index * .05, size
+          speed: 720, radius: area!.projectileRadius, arrow: 'fire', aim: target, source: kind,
+          from: spot, launch: .18 + index * .1, size
         });
       });
     } else if (kind === 'iceBolt') {
