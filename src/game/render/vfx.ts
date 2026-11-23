@@ -152,7 +152,7 @@ export function drawSkillVfx(this: GameView, world: CombatEngine, effect: Effect
       sprites = [sprite];
       this.vfxSprites.set(effect, sprites);
     }
-    const size = effect.kind === 'destroy' ? 170 : effect.kind === 'crushing' ? 245 : effect.kind === 'power' ? 165 : 150;
+    const size = effect.kind === 'destroy' ? 190 : effect.kind === 'crushing' ? 245 : effect.kind === 'power' ? 165 : 150;
     for (const sprite of sprites) {
       if (effect.kind === 'slam') {
         const radius = projectedAreaRadii(skillArea('slam', effect.level ?? 1).radius!);
@@ -194,11 +194,17 @@ export function drawSkillVfx(this: GameView, world: CombatEngine, effect: Effect
       const phase = t;
       const scale = size / sprite.texture.width * (.65 + phase * .55);
       const advance = effect.kind === 'destroy' ? skillArea('destroy', effect.level ?? 1).range * destroyTravelProgress(effect.age, effect.duration) : 0;
-      const forwardX = Math.cos(effect.angle) * advance * .55, forwardY = Math.sin(effect.angle) * advance * .55;
-      sprite.position.set(x + (forwardX - forwardY) * .86, y + (forwardX + forwardY) * .43 - 18);
+      const forwardX = Math.cos(effect.angle) * advance, forwardY = Math.sin(effect.angle) * advance;
+      if (effect.kind === 'destroy') {
+        const tipX = x + (forwardX - forwardY) * .86, tipY = y + (forwardX + forwardY) * .43;
+        const fade = Math.min(1, t * 12) * Math.min(1, (1 - t) * 2.5);
+        this.glow.moveTo(x, y - 18).lineTo(tipX, tipY - 18).stroke({ color: 0xc11657, width: 24, alpha: .28 * fade });
+        this.glow.moveTo(x, y - 18).lineTo(tipX, tipY - 18).stroke({ color: 0xff8ca8, width: 5, alpha: .72 * fade });
+      }
+      sprite.position.set(x + (forwardX - forwardY) * .86 * .72, y + (forwardX + forwardY) * .43 * .72 - 18);
       sprite.scale.set(scale);
       sprite.rotation = screenAngle;
-      sprite.alpha = effect.kind === 'destroy' ? Math.min(1, t * 8, (1 - t) * 4) : Math.min(1, (1 - phase) * 1.5);
+      sprite.alpha = effect.kind === 'destroy' ? Math.min(1, t * 12, (1 - t) * 2.5) : Math.min(1, (1 - phase) * 1.5);
       sprite.tint = 0xffffff;
     }
     return true;

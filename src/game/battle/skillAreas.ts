@@ -40,8 +40,8 @@ export function skillArea(id: SkillId, level: number): SkillArea {
   return { ...rule, range: skillRange(id, level), radius: rule.radius ?? skillRange(id, level), duration: skillDuration(id, level) };
 }
 
-/** 검기가 수명 마지막 20% 전에 끝까지 도달해 마지막 판정이 빠지지 않게 한다. */
-export function destroyTravelProgress(age: number, duration: number): number { return Math.min(1, age / duration * 1.25); }
+/** 붉은 검기는 시전 초반에 빠르게 끝까지 뻗고, 남은 시간은 잔상으로 남는다. */
+export function destroyTravelProgress(age: number, duration: number): number { return Math.min(1, age / duration * 2.2); }
 
 /** 월드 원을 전투 화면의 아이소 투영(.86/.43)에 옮긴 정확한 바닥 타원. */
 export function projectedAreaRadii(radius: number): { x: number; y: number } {
