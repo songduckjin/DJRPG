@@ -26,6 +26,7 @@ import {
   MAX_SKILL_LEVEL, passiveOrderFor, passives, skillDamageScale, skillDuration, skillOrderFor, skillRange, skills,
   type Job, type PassiveId, type SkillId, type SkillLevelId
 } from './skills';
+import { multiShotPattern } from './battle/skillAreas';
 import { spLedger } from './skillPoints';
 import { normalizeQuickSlots, skillCastScale } from './loadout';
 
@@ -286,6 +287,14 @@ export function skillValueRows(id: SkillLevelId, level: number): SkillValueRow[]
     return [
       { label: '공격 버프', value: `+${(20 + (lv - 1) * 1.5).toFixed(1)}%` },
       { label: '지속', value: `${skillDuration(id as SkillId, lv).toFixed(1)}초` }
+    ];
+  }
+  if (id === 'multiShot') {
+    const pattern = multiShotPattern(lv);
+    return [
+      { label: '위력', value: `× ${(.95 * skillDamageScale(lv)).toFixed(2)} · 적당 1회` },
+      { label: '사거리', value: `${skillRange(id, lv)}` },
+      { label: '화살·범위', value: `${pattern.count}발 · ${Math.round(pattern.halfArc * 2 * 180 / Math.PI)}°` }
     ];
   }
   return [

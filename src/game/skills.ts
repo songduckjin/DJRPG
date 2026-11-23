@@ -58,11 +58,11 @@ export const skills: Record<SkillId, Skill> = {
   // 평타는 닿는데 스킬은 닿지 않는 자리가 생긴다. 자기 몸을 중심으로 퍼지는 기술(프로스트 노바·아르카나
   // 오버로드)과 버프(호크아이·아케인 실드)는 `range`가 곧 효과 반경이라 그대로 두었다.
   doubleShot: { id: 'doubleShot', name: '더블 샷', level: 2, icon: '🏹', cooldown: 4, power: '공격력 × 1.35 · 2발', description: '시위를 두 번 당겨 두 발의 화살을 빠르게 날린다.', range: 265 },
-  multiShot: { id: 'multiShot', name: '멀티 샷', level: 4, icon: '🎯', cooldown: 7, power: '공격력 × 0.95 · 5발', description: '부채꼴로 다섯 발의 화살을 흩뿌려 여러 적을 동시에 맞힌다.', range: 260 },
+  multiShot: { id: 'multiShot', name: '멀티 샷', level: 4, icon: '🎯', cooldown: 7, power: '공격력 × 0.95 · 5~11발', description: '레벨에 따라 넓어지는 부채꼴로 5~11발의 관통 화살을 날린다. 한 적은 시전당 한 번 맞는다.', range: 260 },
   pierceShot: { id: 'pierceShot', name: '관통 사격', level: 5, icon: '➳', cooldown: 8, power: '공격력 × 2.6 · 관통', description: '강하게 당긴 화살이 여러 적을 꿰뚫고 지나간다.', range: 305 },
   iceArrow: { id: 'iceArrow', name: '빙결 화살', level: 7, icon: '❄', cooldown: 9, power: '공격력 × 1.9 · 둔화', description: '서리 화살이 맞은 적을 얼려 잠시 느리게 만든다.', range: 270 },
   hawkEye: { id: 'hawkEye', name: '호크아이', level: 10, icon: '🦅', cooldown: 16, power: '공격력 × 1.2 · 공격속도 상승', description: '7초 동안(레벨당 +0.17초) 매의 눈으로 공격력과 공격속도가 크게 오른다.', range: 200 },
-  snipe: { id: 'snipe', name: '저격 일격', level: 14, icon: '👁', cooldown: 11, power: '공격력 × 4.3', description: '숨을 멈추고 먼 거리의 적 하나를 정확히 꿰뚫는다.', range: 340 },
+  snipe: { id: 'snipe', name: '저격 일격', level: 14, icon: '👁', cooldown: 11, power: '공격력 × 6.5 · 단일', description: '목표에 붉은 십자 조준표를 띄운 뒤 한 발로 강하게 저격한다.', range: 340 },
   stormVolley: { id: 'stormVolley', name: '폭풍 연사', level: 18, icon: '🌪', cooldown: 12, power: '공격력 × 0.8 · 6발', description: '폭풍 같은 연사로 여섯 발의 화살을 연달아 퍼붓는다.', range: 285 },
   arrowRain: { id: 'arrowRain', name: '애로우 레인', level: 24, icon: '☔', cooldown: 18, power: '공격력 × 0.85 · 화살비', description: '하늘로 쏘아 올린 화살이 적의 진영에 비처럼 쏟아진다.', range: 295 },
   fireBolt: { id: 'fireBolt', name: '파이어 볼트', level: 2, icon: '🔥', cooldown: 4, power: '공격력 × 2.0', description: '지팡이 끝에서 불꽃 구슬을 날려 적 하나를 태운다.', range: 260 },

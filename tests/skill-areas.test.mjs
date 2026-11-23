@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 const { allSkillIds, allPassiveIds, skillDamageScale, skillRange } = await import('../src/game/skills.ts');
-const { SKILL_AREAS, PASSIVE_AREAS, skillArea, projectedAreaRadii } = await import('../src/game/battle/skillAreas.ts');
+const { SKILL_AREAS, PASSIVE_AREAS, skillArea, multiShotPattern, projectedAreaRadii } = await import('../src/game/battle/skillAreas.ts');
 const { CombatEngine } = await import('../src/game/combat/engine.ts');
 const { freshSave, totalStats } = await import('../src/game/store.ts');
 const engine = readFileSync(new URL('../src/game/combat/engine.ts', import.meta.url), 'utf8');
@@ -122,6 +122,44 @@ test('멀티 샷 다섯 화살은 최대 사거리까지 관통하고 적마다 
   world.update(.35);
   for (const enemy of enemies.slice(0, 3)) assert(Math.abs(enemy.maxHp - enemy.hp - totalStats(save).attack * .95) < 1e-6);
   assert(enemies.slice(3).every(enemy => enemy.hp === enemy.maxHp));
+});
+
+test('멀티 샷은 레벨이 오르면 화살 수와 부채꼴 폭이 넓어지고 모두 관통한다', () => {
+  assert.deepEqual([1, 4, 7, 10].map(level => multiShotPattern(level).count), [5, 7, 9, 11]);
+  assert(multiShotPattern(10).halfArc > multiShotPattern(1).halfArc);
+  const save = freshSave('female', 'archer'); save.learned = ['multiShot'];
+  save.quickSlots = ['multiShot', null, null]; save.skillLevels.multiShot = 10;
+  const world = new FixedCombat(save); world.critRoll = () => 1;
+  const center = dummy(160), edge = dummy(180 * Math.cos(.7), 180 * Math.sin(.7));
+  world.enemies = [center, edge];
+  world.action('multiShot'); world.cooldown.attack = 999;
+  const shots = world.effects.filter(effect => effect.kind === 'shot');
+  assert.equal(shots.length, 11);
+  assert(shots.every(effect => effect.piercing && effect.hitEnemies === shots[0].hitEnemies));
+  const angles = shots.map(effect => effect.angle);
+  assert(Math.abs(angles[0] + .7) < 1e-9);
+  assert(Math.abs(angles.at(-1) - .7) < 1e-9);
+  assert(shots.every(effect => Math.abs(Math.hypot(effect.tx - effect.x, effect.ty - effect.y) - skillArea('multiShot', 10).range) < 1e-9));
+  world.update(.4);
+  const expected = totalStats(save).attack * .95 * skillDamageScale(10);
+  assert(Math.abs(center.maxHp - center.hp - expected) < 1e-6);
+  assert(Math.abs(edge.maxHp - edge.hp - expected) < 1e-6);
+});
+
+test('저격 일격은 빨간 조준 표시 뒤 단일 대상에게 강한 한 발을 쏜다', () => {
+  const save = freshSave('female', 'archer'); save.learned = ['snipe']; save.quickSlots = ['snipe', null, null];
+  const world = new FixedCombat(save); world.critRoll = () => 1;
+  const target = dummy(160), other = dummy(160, 70); world.enemies = [target, other];
+  world.action('snipe'); world.cooldown.attack = 999;
+  const mark = world.effects.find(effect => effect.kind === 'snipeMark');
+  const shot = world.effects.find(effect => effect.kind === 'shot');
+  assert(mark && shot && shot.variant === 'snipe' && shot.launch > 0);
+  assert.equal(mark.x, shot.tx); assert.equal(mark.y, shot.ty);
+  world.update(.2);
+  assert.equal(target.hp, target.maxHp);
+  world.update(.3);
+  assert(Math.abs(target.maxHp - target.hp - totalStats(save).attack * 6.5) < 1e-6);
+  assert.equal(other.hp, other.maxHp);
 });
 
 test('관통 사격은 사거리 끝까지 좁게 뻗어 최대 네 적을 차례로 때린다', () => {

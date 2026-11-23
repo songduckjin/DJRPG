@@ -21,7 +21,7 @@ import { EXTRA_LIFESTEAL_HIT_CAP, EXTRA_LIFESTEAL_SECOND_CAP, EXTRA_REGEN_SECOND
 import type { Action, ArrowVariant, Coin, Drop, Effect, Enemy, HeroAfterimage } from '../battle/types';
 import { CRIT_CHANCE_CAP, ENEMY_ATTACK_RANGE, ENEMY_STOP_RANGE, ENEMY_STRIKE_SECONDS, WARRIOR_ATTACK_RANGE, archerAttackRange, archerStopRange, attackInterval, basicAttackPower, berserkAttackScale, berserkSpeedScale, critDamageScale, enemyHitDamage, enemyMoveSpeed, mageAttackRange, mageStopRange, swarmCount } from '../battle/formulas';
 import { aimPoint as aimPointTo, fireBoltSpots, nearestEnemy, targetsInArc, targetsInForwardBox } from '../battle/targeting';
-import { destroyTravelProgress, skillArea } from '../battle/skillAreas';
+import { destroyTravelProgress, multiShotPattern, skillArea } from '../battle/skillAreas';
 import { recordPlaySeconds } from '../progress';
 import { isPatchBuffActive } from '../patchBuff';
 import { clampArenaPoint, clampFieldPoint } from './bounds';
@@ -229,8 +229,9 @@ export class CombatEngine {
       const aim = this.aimPoint(target, range);
       const base = Math.atan2(aim.y - p.y, aim.x - p.x);
       const hitEnemies = new Set<Enemy>();
-      for (let index = -2; index <= 2; index++) {
-        const spread = base + index * .17;
+      const pattern = multiShotPattern(level);
+      for (let index = 0; index < pattern.count; index++) {
+        const spread = base - pattern.halfArc + 2 * pattern.halfArc * index / (pattern.count - 1);
         this.shoot(p.x + Math.cos(spread) * range, p.y + Math.sin(spread) * range, attack * .95 * damageScale,
           { speed: 860, radius: area!.projectileRadius, targets: Infinity, arrow: 'normal', source: kind, piercing: true, hitEnemies });
       }
@@ -249,7 +250,8 @@ export class CombatEngine {
       this.effects.push({ x: p.x, y: p.y, kind: 'hawk', age: 0, duration: .9, angle: 0, level, source: kind });
     } else if (kind === 'snipe') {
       const aim = this.aimPoint(target, range);
-      this.shoot(aim.x, aim.y, attack * 4.3 * damageScale, { speed: 1500, radius: area!.projectileRadius, knockback: 18, arrow: 'snipe', source: kind });
+      this.effects.push({ x: aim.x, y: aim.y, kind: 'snipeMark', age: 0, duration: .42, angle: 0, source: kind });
+      this.shoot(aim.x, aim.y, attack * 6.5 * damageScale, { speed: 1500, radius: area!.projectileRadius, knockback: 18, arrow: 'snipe', source: kind, launch: .32 });
     } else if (kind === 'stormVolley') {
       const aim = this.aimPoint(target, range);
       for (let index = 0; index < 6; index++) {

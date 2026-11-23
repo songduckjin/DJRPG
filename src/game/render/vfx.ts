@@ -75,6 +75,18 @@ export function drawSkillVfx(this: GameView, world: CombatEngine, effect: Effect
     if (effect.kind === 'slash') return true;
     if (effect.kind === 'hell') { drawWhirlSlash.call(this, effect, x, y, t, time); return true; }
     if (effect.kind === 'shot') { drawArrow.call(this, effect, x, y, screenAngle); return true; }
+    if (effect.kind === 'snipeMark') {
+      const cy = y - 46, radius = 24 - t * 5, alpha = Math.min(1, (1 - t) * 3);
+      this.glow.circle(x, cy, radius + 5).stroke({ color: 0xff2929, width: 5, alpha: .2 * alpha });
+      this.effects.circle(x, cy, radius).stroke({ color: 0xe83432, width: 2.5, alpha });
+      this.effects.moveTo(x - radius - 7, cy).lineTo(x - 7, cy)
+        .moveTo(x + 7, cy).lineTo(x + radius + 7, cy)
+        .moveTo(x, cy - radius - 7).lineTo(x, cy - 7)
+        .moveTo(x, cy + 7).lineTo(x, cy + radius + 7)
+        .stroke({ color: 0xff4140, width: 2, alpha });
+      this.effects.circle(x, cy, 2.5).fill({ color: 0xff3939, alpha });
+      return true;
+    }
     if (effect.kind === 'impactArea') {
       const { x: rx, y: ry } = projectedAreaRadii(effect.radius ?? 0);
       const color = effect.variant === 'fire' ? 0xff8a3c : effect.variant === 'frost' ? 0xbfe6ff : effect.variant === 'chain' ? 0xd0b4ff : 0xffcf8a;
@@ -338,7 +350,8 @@ const magicVariants = new Set<NonNullable<Effect['variant']>>(['arcane', 'fire',
 export function drawArrow(this: GameView, effect: Effect, x: number, y: number, _screenAngle: number): void {
     if (magicVariants.has(effect.variant ?? 'normal')) { drawMagicBolt.call(this, effect, x, y); return; }
     const dx = (effect.tx ?? effect.x) - effect.x, dy = (effect.ty ?? effect.y) - effect.y;
-    const progress = Math.max(0, Math.min(1, effect.age / Math.max(.01, effect.duration)));
+    const launch = effect.launch ?? 0;
+    const progress = Math.max(0, Math.min(1, (effect.age - launch) / Math.max(.01, effect.duration - launch)));
     const px = x + (dx - dy) * .86 * progress;
     // 몸통 높이에서 고정된 발사 방향으로 직진한다. 이동 중 회전하거나 위로 휘지 않는다.
     const py = y + (dx + dy) * .43 * progress - 46;
@@ -354,12 +367,14 @@ export function drawArrow(this: GameView, effect: Effect, x: number, y: number, 
       .lineTo(tailX + ux * 12, tailY + uy * 12).closePath().fill({ color: 0x833d2d, alpha: 1 });
     this.effects.moveTo(px + ux * 8, py + uy * 8)
       .lineTo(px - ux * 5 + vx * 3.5, py - uy * 5 + vy * 3.5)
-      .lineTo(px - ux * 5 - vx * 3.5, py - uy * 5 - vy * 3.5).closePath().fill({ color: 0x879190, alpha: 1 });
+      .lineTo(px - ux * 5 - vx * 3.5, py - uy * 5 - vy * 3.5).closePath()
+      .fill({ color: effect.variant === 'snipe' ? 0xc6302d : 0x879190, alpha: 1 });
     this.effects.moveTo(tailX - vx * 2, tailY - vy * 2).lineTo(tailX + vx * 2, tailY + vy * 2)
       .stroke({ color: 0x30251e, width: 1.5, alpha: 1 });
     if (effect.variant === 'pierce') this.glow.moveTo(tailX - ux * 12, tailY - uy * 12).lineTo(px, py).stroke({ color: 0xd6e6ed, width: 3, alpha: .24 });
     if (effect.variant === 'ice') this.glow.circle(px, py, 10).fill({ color: 0x8fd0ff, alpha: .12 });
-    if (effect.variant === 'snipe') this.glow.circle(px, py, 14).fill({ color: 0xfff0c8, alpha: .18 });
+    if (effect.variant === 'snipe' && progress > 0) this.glow.moveTo(tailX - ux * 15, tailY - uy * 15)
+      .lineTo(px, py).stroke({ color: 0xe83230, width: 4, alpha: .35 });
   }
 
 /**

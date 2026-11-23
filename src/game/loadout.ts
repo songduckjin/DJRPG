@@ -1,5 +1,6 @@
 import type { Save } from './store';
 import { jobOrDefault, skillDamageScale, skillDuration, skillOrderFor, skills, type Job, type SkillId } from './skills';
+import { multiShotPattern } from './battle/skillAreas';
 export type QuickSlots = [SkillId | null, SkillId | null, SkillId | null];
 export function normalizeQuickSlots(raw: unknown, learned: SkillId[], job: Job = 'warrior'): QuickSlots {
   const slots: QuickSlots = [null, null, null], used = new Set<SkillId>(), order = skillOrderFor(job);
@@ -89,11 +90,11 @@ export function skillCastScale(id: SkillId, level = 1): number {
     case 'spin': return 1.65 + .65 * repeats(.45, .45);
     case 'warcry': return 0;                                // 버프 — 공격 계수 없음
     case 'doubleShot': return 1.35 * 2;
-    case 'multiShot': return .95 * 5;
+    case 'multiShot': return .95 * multiShotPattern(lv).count;
     case 'pierceShot': return 2.6;
     case 'iceArrow': return 1.9;
     case 'hawkEye': return 0;
-    case 'snipe': return 4.3;
+    case 'snipe': return 6.5;
     case 'stormVolley': return .8 * 6;
     case 'arrowRain': return .85 * repeats(.12, .4);
     case 'fireBolt': return 2;                              // 여러 발 합계 ×2.0
