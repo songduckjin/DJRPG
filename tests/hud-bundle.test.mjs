@@ -100,8 +100,9 @@ test('전투력은 내 정보·HUD·상세 스탯이 같은 `combatPower` 한 �
   assert.equal(combatPower({ attack: 0, defense: 0, health: 0, crit: 0, speed: 0 }), 0);
   assert.equal(combatPower({ attack: 10, defense: 3, health: 100, crit: 2, speed: 0 }), 60, 'Lv1 전사 기본값 60');
 
-  // 식은 한 곳에만 — 내 정보 창은 인라인 식 대신 모듈을 부른다.
-  assert.match(equipSource, /const power = combatPower\(stats\);/, '내 정보 창이 combatPower를 쓴다');
+  // 식은 한 곳에만 — HUD·상세 스탯이 같은 모듈을 부른다.
+  // (2026-11-23 1안으로 내 정보 창의 전투력 알약이 사라져 그 창은 이제 이 식을 부르지 않는다.)
+  assert.equal(equipSource.includes('combatPower'), false, '내 정보 창은 전투력을 그리지 않는다');
   assert.doesNotMatch(equipSource, /stats\.attack \* 3/, '내 정보 창에 인라인 전투력 식이 남지 않았다');
   assert.match(hudSource, /combatPower\(totalStats\(save\)\)/, 'HUD가 같은 식을 쓴다');
   assert.match(statsModalSource, /statSheet\(save,/, '상세 스탯도 같은 계산을 쓴다');

@@ -49,21 +49,17 @@ test('내 정보 — 장착 10칸은 좌 5칸(무기·투구·갑옷·장갑·�
   assert.match(equipSource, /column\.className = `equipment-slot-col \$\{index === 0 \? 'is-left' : 'is-right'\}`/);
 });
 
-test('내 정보 — 위쪽 6칸 능력치 표는 없고 요약 한 줄 + 전투력 알약만 남는다', () => {
+test('내 정보 — 위쪽 6칸 능력치 표도, 요약 한 줄도 없다(2026-11-23 1안)', () => {
   // ① 스탯 표(6칸)는 코드·CSS 양쪽에서 사라졌다.
   assert.doesNotMatch(equipSource, /equipmentInfoStats|equipment-info-stats|<span>\$\{label\}<\/span>/);
   assert.equal(modalStyles.includes('.equipment-info-stats'), false);
-  // ② 요약 한 줄은 LV·층·EXP·금화 그대로이고, 전투력은 알약으로 선다.
-  assert.match(equipSource, /topline\.className = 'equip-topline'/);
-  assert.match(equipSource, /<span><small>LV<\/small><b>/);
-  assert.match(equipSource, /class="is-value"><b>\$\{save\.floor\}층<\/b>/);
-  assert.match(equipSource, /class="summary-gold">\$\{goldMarkup\(save\.gold\)\}<\/span>/);
-  assert.doesNotMatch(equipSource, /강화석 \$\{save\.stones\}/, '금화 칸이 66px라 강화석은 이 줄에 넣지 않는다(확정 시안 04-b)');
-  assert.match(equipSource, /powerPill\.className = 'equip-powerpill'/);
-  assert.match(equipSource, /setAttribute\('aria-label', `전투력 \$\{power\}`\)/);
-  assert.match(equipSource, /topline\.append\(summary, powerPill\)/);
-  // ③ 요약 줄이 캐릭터·가방보다 먼저 온다.
-  assert.match(equipSource, /dialog\.append\(topline, showcase\)/);
+  // ② 요약 한 줄(LV·층·EXP·금화 + 전투력 알약)도 1안에서 없앴다 — 같은 값을 메인 HUD가 보여 준다.
+  assert.equal(modalStyles.includes('.equip-topline'), false);
+  assert.equal(modalStyles.includes('.equipment-summary'), false);
+  assert.equal(modalStyles.includes('.equip-powerpill'), false);
+  assert.doesNotMatch(equipSource, /equip-topline|equipment-summary|equip-powerpill/);
+  // ③ 머리글 아래에 곧바로 캐릭터·장착 칸이 온다.
+  assert.match(equipSource, /dialog\.append\(showcase\)/);
 });
 
 test('상세 능력치는 HUD `LV` 배지가 여는 상세 스탯 창이 그대로 전담한다', () => {
