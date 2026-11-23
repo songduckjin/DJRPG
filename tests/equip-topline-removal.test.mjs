@@ -59,7 +59,7 @@ test('1안 — 장착 쇼케이스 192 → 208px, 가방 칸 10열 → 8열', ()
 
 test('1안 — 반응형 규칙도 topline이 빠진 높이에 맞춰 함께 올라간다(겹침·찌그러짐 없음)', () => {
   // 360~380px: 기본 208에서 6px만 줄인 202px(예전 186px보다 16px 높다).
-  const narrow = equipCss.match(/@media \(max-width: 380px\) \{([\s\S]*?)\}\n/)?.[1] ?? '';
+  const narrow = equipCss.match(/@media \(max-width: 380px\) \{([\s\S]*?)\}\r?\n/)?.[1] ?? '';
   const showcaseNarrow = narrow.match(/\.equipment-showcase \{([^}]*)\}/)?.[1] ?? '';
   assert.match(showcaseNarrow, /height: 202px/);
   assert.match(showcaseNarrow, /flex-basis: 202px/);
