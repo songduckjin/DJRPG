@@ -3,6 +3,69 @@
 > 이 문서에는 **공개 진행 현황과 미완료 작업만** 둔다. 개인 상세는 `docs/TASK_<GitHub ID>.md`, 완료 이력은 `docs/TASK_ARCHIVE.md`, 작업·PR·배포 기록은 `docs/WORKLOG.md`를 본다.
 > 새 작업은 시작 전 `[-]`로 등록해 푸시하고, 다른 `[-]` 작업과 기능·파일이 겹치면 중단 보고한다. 검증 통과 후에만 `[x]`로 마감하고 아카이브로 옮긴다.
 
+## [덕진 님 PC 코덱스 전용 작업지시서] (2026-11-23 · 3건)
+
+> **받는 쪽: 덕진 님 PC의 Codex만.** 대장님(@parkyeongeun7)·송정심(@songjeongsim7) 님 협업 PR [#329](https://github.com/songduckjin/DJRPG/pull/329)~[#334](https://github.com/songduckjin/DJRPG/pull/334)와 **섞지 않는다** — 아래 3건은 그 두 분 쪽 작업자가 집지 않고, 이 3건의 PR도 위 협업 PR과 브랜치·파일을 공유하지 않는다.
+> **브랜치·PR**: 각 작업은 **최신 `origin/main` 기준 별도 브랜치**(`codex/<작업번호>-<짧은이름>` — 기존 `codex/192-shop` 관례)로 올리고, 세 작업이 브랜치·PR을 서로 공유하지 않는다. **`main` 직접 push·머지·배포 금지** — 변경은 모아서 배포한다(사용자 지시). PR 본문에 `머지·배포 보류`를 적는다.
+> **착수·마감**: 시작할 때 `진행 현황` 표에 `[-]` 행(담당자 `Codex`)을 새 작업 번호로 한 줄 등록해 푸시하고, 검증 통과 뒤 `[x]`로 마감하면서 상세(원인·수정·검증 수치)는 `docs/WORKLOG.md`에 남긴다.
+> **공통 완료 조건**: ① `npx tsc --noEmit` 통과 ② `node --test tests/*.test.mjs`(`npm test`) 전건 통과 — 체크아웃에 `public/assets/**` 가 없어 실패하는 건은 `origin/main` 기준선과 **실패 이름 차집합 0**으로 보고 ③ 작업별 신규 테스트를 `tests/` 에 추가하고, 고치기 전 코드에서 그 테스트가 실패함을 확인 ④ 실브라우저(모바일 390×844) 확인 캡처를 PR에 첨부. **머지·배포는 하지 않는다.**
+
+### [코덱스 지시서 1] 추가옵션까지 실제 반영한 '더 좋은 장비' 판정 개선
+
+사용자 지시(2026-11-23 KST): "아이템에 추가옵션도 고려해서 더좋은템인지 아닌지 구분해야돼"
+
+**지금 상태(확인함, `origin/main` `237f2bc` 기준)**
+- `src/game/items.ts` `itemPower()`는 아이템 한 벌의 **고정 가중치**(공격×3·방어×2·체력×0.2·치명×2·공속×2·쿨감×6 + 등급 가중 2)에 `src/game/extraOptions.ts` `extraOptionPower()`의 **고정 가중치**(`extraOptionPowerWeights`: `attackPct` 3·`bonusDmgPct` 3·`critPct` 2.5·`speedPct` 2.5·`evasionPct` 2·`defensePct` 2·`lifestealPct` 2·`healthPct` 1·`regenPct` 1·`cdrPct` 4)를 더하는 **단품 점수**다.
+- 그래서 ① 캐릭터가 성장할수록 커지는 % 추가옵션의 실제 가치(공격력 10인 캐릭터의 `attackPct 3`과 공격력 300인 캐릭터의 `attackPct 3`이 같은 점수) ② 합산 상한에 막혀 **실제로는 오르지 않는** 옵션(`EXTRA_EVASION_CAP` 30·`EXTRA_REGEN_CAP` 12·`EXTRA_CRIT_CAP` 10·`EXTRA_SPEED_CAP` 10·`EXTRA_CDR_CAP` 6·`EXTRA_LIFESTEAL_CAP` 5·전투 `SKILL_CDR_CAP` 35%) 이 판정에 반영되지 않는다.
+- 이 점수를 `isUpgradeForHero`·`isDowngradeForHero`(화살표), `autoEquipBest`(자동 장착), 분해 보호(`src/game/inventory.ts`·`src/ui/salvageProtection.ts`), 업그레이드 배지(`src/ui/upgradeBadge.ts`)가 함께 쓴다.
+
+**요구사항**
+1. **판정 기준을 "내 캐릭터가 기존 부위 장비를 벗고 후보를 입었을 때의 실제 변화"로 바꾼다.** `save` 기준 `totalStats`(현재 상태)와 (기존 장비 제거 + 후보 착용) 상태의 차이를 비교하는 함수 하나(예: `equipDelta(save, item)`)를 `src/game/items.ts`에 두고, `isUpgradeForHero`·`isDowngradeForHero`·`autoEquipBest`·분해 보호가 **모두 그 함수 하나**를 쓰게 한다. 반지는 두 칸 중 약한 쪽을 바꿔 보는 현재 규칙을 유지한다.
+2. **% 옵션의 유효 증감분을 캐릭터 스탯 규모에 비례해 평가한다.** `attackPct`·`defensePct`·`healthPct`는 캐릭터의 실제 공격력·방어력·최대 체력에 곱해 **절대량**으로 환산하고, `bonusDmgPct`·`critPct`·`speedPct`·`cdrPct`·`lifestealPct`·`evasionPct`·`regenPct`는 그 캐릭터의 현재 수치·상한 대비 **얼마나 더 오르는지**로 환산한다(DPS/생존 기대값 기준). 상한에 이미 닿은 옵션은 증분 0으로 계산한다.
+3. **향후 치명타 피해량 추가옵션 확장을 고려한다.** `ExtraOptionKey`에 `critDamagePct`를 더해도 판정 코드가 깨지지 않게 키별 환산표를 한 곳(`extraOptions.ts`)에 두고, 알 수 없는 키는 0이 아니라 **보수적 기본값**으로 처리하되 테스트로 고정한다(옵션을 지금 추가하지는 않는다).
+4. **화면 숫자와 판정을 일치시킨다.** 분해 보호 팝업과 업그레이드/다운그레이드 화살표가 같은 근거(어느 스탯이 얼마나 오르내리는지)를 보여 주고, 표시 숫자와 실제 판정이 뒤집히지 않게 한다(팝업 문구에 상한 때문에 오르지 않는 옵션은 '상한' 표시).
+5. **서버 계약은 바꾸지 않는다.** `server/extra-options.mjs`의 옵션 규칙·`save-guard.mjs`의 상한 검증은 그대로 두고, 클라이언트 평가만 바꾼다(서버 사본과의 대조 테스트는 계속 통과해야 한다).
+6. **테스트**: 신규 `tests/upgrade-real-value.test.mjs` — ㉠ 성장한 캐릭터에서 `attackPct`가 낮은 장비보다 실제 공격력이 더 오르는 장비가 '업그레이드'로 판정 ㉡ 상한에 닿은 `critPct`/`evasionPct` 장비가 '업그레이드'로 오판되지 않음 ㉢ `isUpgradeForHero`·`isDowngradeForHero`가 한 아이템에 동시에 참이 되지 않음 ㉣ `autoEquipBest`가 고른 장비가 `equipDelta` 최대 ㉤ 분해 보호·배지가 같은 판정을 씀(함수 호출 대조) ㉥ 반지 두 칸 규칙 ㉦ 알 수 없는 옵션 키 안전 처리. 기존 `tests/{upgrade-badge,downgrade-badge-and-journey,salvage-protection,equipment-info,extra-options,ring-restore,item-drop-jobs}.test.mjs` 회귀도 통과.
+
+### [코덱스 지시서 2] 백로그 9번 — 전 캐릭(전사·궁수·마법사) 스킬 이펙트 연출·스킬 범위·타격 범위 전수 개선
+
+사용자 지시(2026-11-23 KST): "9번 코덱스한테 시키자" · "스킬관련은 전캐릭 전부 확인해봐야돼"
+
+**대상 범위 — 직업·스킬 빠짐 없이**: 액티브 24종(직업별 8 — `skillOrderFor`: 전사 `slash2`·`slam`·`warcry`·`power`·`destroy`·`hell`·`crushing`·`spin`, 궁수 `doubleShot`·`multiShot`·`pierceShot`·`iceArrow`·`hawkEye`·`snipe`·`stormVolley`·`arrowRain`, 마법사 `fireBolt`·`iceBolt`·`chainLightning`·`manaBurst`·`frostNova`·`arcaneShield`·`meteorStrike`·`arcaneOverlord`) + 패시브 9종(`passiveOrderFor`: 전사 `mastery`·`body`·`instinct`, 궁수 `bowMastery`·`swiftStep`·`hawkSight`, 마법사 `staffMastery`·`manaCircuit`·`arcaneSense`). 한 스킬도 빼지 말고 표로 남긴다.
+
+**지금 상태(확인함, `origin/main` `237f2bc` 기준) — 판정과 그리기가 따로 논다**
+- 사거리: `src/game/skills.ts` `skills[id].range` + `skillRange(id, level)`(레벨당 성장).
+- 판정: `src/game/combat/engine.ts`에 **인라인 매직 넘버**로 흩어져 있다 — `burst` 반경 96·`meteor` 110·`chain` 70·`nova` = `skillRange`, 부채꼴 `slash2` .9rad·`slam` 1.35rad·`hell`/`spin` π, 투사체 `shoot({radius})` 34~70. 타겟 계산은 `src/game/battle/targeting.ts`(`targetsInArc`·`nearestEnemy`·`aimPoint`).
+- 그리기: `src/game/render/vfx.ts`(`drawBurst`·`drawNova`·`drawArrowRain`·`drawDragon`·`drawWhirlSlash`·`drawHit` …)가 자기 크기로 그리고, `src/game/render/field.ts`·`src/game/render/hawkEyeWind.ts`·`src/game/render.ts`가 바닥 범위·바람·레이어를 맡는다.
+
+**요구사항**
+1. **스킬별 판정 스펙을 한 곳으로 모은다** — 예: `src/game/battle/skillAreas.ts`(또는 `skills.ts`의 `SKILL_AREAS`)에 스킬 id별 `{range, radius, arc, projectileRadius, duration}`을 적고, `engine.ts`(판정)와 `render/vfx.ts`·`render/field.ts`(그리기)가 **같은 값**을 읽는다. `engine.ts`·`vfx.ts`에 스킬 반경/각도 리터럴을 남기지 않는다.
+2. **시각 범위 = 실제 타격 범위**(모든 액티브): 이펙트만 크고 안 맞거나, 이펙트 밖 몹이 맞는 경우를 없앤다. 바닥 장판·부채꼴·관통선·화살비 낙점은 **판정 반경 그대로** 그린다(가장자리 1~2px 표시 여유는 허용, 판정과 다른 비율 금지).
+3. **전수 표**: 스킬 id·직업·종류·`skillRange`(Lv.1/Lv.10)·판정 반경/부채꼴·이펙트 크기·일치 여부·수정 내용을 24+9행으로 만들어 PR 본문과 `docs/WORKLOG.md`에 남긴다(빠짐 없음의 증거).
+4. **연출 차별화·타격감**: 전사(근접 베기·충격파·돌진/회전)·궁수(단발·다중·관통·화살비)·마법사(원소 투사체·장판·연쇄·폭발)가 390×844 전투 화면에서 한눈에 구분되게 색·잔상·발사/착탄·피격을 보강한다. 화면을 과도하게 덮지 않게(전체 화면 피복 상한) 하고 `prefers-reduced-motion`을 존중한다.
+5. **성능 안전장치**: 다수 몹·고공속에서 이펙트 배열의 수명·상한(동시 파티클 수)·메모리 누수를 정리하고, 프레임 예산을 넘지 않게 한다(60fps 기준, 다수 몹 시나리오 확인).
+6. **패시브 9종**: 붙이는 수치(공격력·HP·방어·치명·공속)가 `src/game/combat/engine.ts`·`src/game/statSheet.ts`에 실제 반영되는지 확인하고, 반영되지 않는 항목이 있으면 보고한다(이 지시서 범위에서 고칠지 판단).
+7. **테스트**: 신규 `tests/skill-areas.test.mjs` — ㉠ 액티브 24 + 패시브 9 전부 스펙 표에 존재 ㉡ 판정과 그리기가 같은 스펙을 읽음 ㉢ `engine.ts`·`vfx.ts`에 스킬 반경 리터럴이 남아 있지 않음 ㉣ 판정 경계 바로 밖의 적은 맞지 않고 안쪽은 맞음(`targetsInArc` 경계) ㉤ 3직업 대표 스킬 6종 이상의 시각/판정 일치. 기존 `tests/{skill-double-slash,skill-whirl-slash,skill-feedback,range,enemy-range-90,combat-field-split,dungeon-battle}.test.mjs` 회귀 통과.
+
+### [코덱스 지시서 3] 창고·우편·보상 받기 체감 딜레이 개선
+
+사용자 지시(2026-11-23 KST): "창고 우편 보상 받기 시스템이 딜래이가 많이 느껴지더라"
+
+**지금 상태(확인함, `origin/main` `237f2bc` 기준 — 행 번호는 이동할 수 있으니 이름으로 찾는다)**
+- `src/ui/modals/utilityModal.ts` 143행: 업적 `모두 받기`가 `for (const id of ids) await journey.act('journey-claim',{kind:'achievements',id})` — **건마다 직렬 요청**이라 미수령이 많을수록 몇 초씩 늘어진다. 같은 파일에서 우편(88행)·일일/주간(128행) `모두 받기`는 이미 `id:'all'` **한 번**이다.
+- 서버는 `id:'all'`을 이미 받는다 — `server/journey.mjs` `mutate`가 `journey-claim`에서 `input.id==='all'`이면 그 분류의 수령 가능분 전체를 `selected`로 한 번에 지급한다. 따라서 **새 서버 액션 없이 클라이언트를 `id:'all'` 한 번으로 바꾸는 것이 우선**이고, 서버는 `all` 응답의 `selected`·메시지·멱등 영수증(`server/journey-requests.mjs`의 `djrpg_journey_requests`)이 여러 건을 정확히 담는지 테스트로 고정한다.
+- 우편 수령 때마다 `loadShop(ui)` **전체 재조회**(88·109행)를 기다리고, `journey.act` 뒤 `journeySnapshot()` 전체 스냅샷을 다시 읽는다.
+- `server/endpoints/journey.mjs`·`server/endpoints/warehouse.mjs`는 `assertSessionId` 세션 검증을 **본문 트랜잭션 앞의 별도 DB 왕복**으로 두고 있다(창고는 작업 258에서 읽기를 `tx.batch`로 묶었지만 세션 검증·여정 스냅샷 재조회는 남아 있다).
+- `src/ui/modals/warehouseModal.ts`는 이동 중 `state.busy`로 창의 버튼을 통째로 잠근다(작업 250·253이 busy 해제·선택 일괄 이동까지 손댄 상태 — **그 동작을 되돌리지 않는다**).
+
+**요구사항**
+1. **업적 `모두 받기` 직렬 루프 제거** — `kind:'achievements', id:'all'` **1회 요청**으로 바꾸고, 응답 뒤 목록을 다시 그린다. 실패·부분 실패(가방 가득 등)는 지금처럼 `journey.error` 안내로 남긴다.
+2. **불필요한 전체 재조회 제거** — 우편 수령 뒤 `loadShop` 전체 재호출을 없애고, 응답에 담긴 변경분(금화·다이아·가방·포션)만 상태에 반영한다. `journeySnapshot` 전체 재조회는 응답이 이미 담은 값으로 대체할 수 있는지 확인해 줄인다.
+3. **서버 왕복 최소화** — `assertSessionId`를 본문 트랜잭션과 **같은 왕복**(`tx.batch`/`transaction` 첫 문장)으로 합친다. 창고(`warehouse.mjs`)·여정(`journey.mjs`) 양쪽에서 요청 1회당 DB 왕복 수를 세어 before/after를 기록한다.
+4. **부분 잠금·즉시 반영** — 창고 이동과 우편/보상 수령에서 창 전체를 오래 잠그지 말고, 누른 버튼/칸만 `…중` 표시하며 응답 즉시 로컬 상태를 반영한다(낙관적 반영). **단, 중복 수령·복사를 막는 서버 멱등성(`requestId` 영수증)·트랜잭션 가드·`assertRevision` 저장 개정 검사는 반드시 유지**하고, 실패하면 화면을 원래 상태로 되돌린다.
+5. **측정** — 업적 미수령 10건 `모두 받기`, 우편 1통 수령, 창고 10칸 이동 각각의 요청 수·DB 왕복·체감 시간(ms)을 before/after로 PR 본문에 적는다.
+6. **테스트**: 신규 `tests/journey-claim-all.test.mjs` — ㉠ 업적 `모두 받기`가 fetch 1회(`id:'all'`)만 호출 ㉡ 중복 수령 0건·두 번째 요청은 0건 지급 ㉢ 수령 뒤 `loadShop` 호출 0회 ㉣ 가방 가득 시 건너뛴 건이 목록에 남음. 서버 회귀 `tests/journey.test.mjs`(업적 `all` 1회 지급·영수증 멱등), `tests/warehouse-grid.test.mjs`(부분 잠금·즉시 반영·실패 시 원복), `tests/sync.test.mjs`(저장 개정·`requestId` 멱등 유지).
+
 ## 진행 현황
 
 > 정리(2026-11-21): 완료된 과거 행과 날짜별 상세 메모는 `docs/archive/2026-11/TASK-history.md`로 옮겼다. 이 파일에는 **진행 중(`[-]`)·최근 20행**만 둔다.
