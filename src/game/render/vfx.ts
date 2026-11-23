@@ -113,8 +113,9 @@ export function drawSkillVfx(this: GameView, world: CombatEngine, effect: Effect
       const firstPhase = phase(0, .5);
       const backPhase = phase(slash2SecondHit, .35);
       // 두 검기의 중심을 같은 전방 지점에 두고 반대 대각선으로 그려 X자를 만든다.
-      const crossX = x + forwardX * 64, crossY = y + forwardY * 36 - 42;
-      const firstWidth = (218 + strength * 7) * (.84 + firstPhase * .28);
+      const crossX = x + forwardX * 55, crossY = y + forwardY * 31 - 38;
+      const crossWidth = 166 + strength * 5;
+      const firstWidth = crossWidth * (.84 + firstPhase * .28);
       const firstScale = firstWidth / first.texture.width;
       first.position.set(crossX - forwardX * (8 - firstPhase * 8), crossY - forwardY * 4);
       first.rotation = screenAngle - 1.15;
@@ -122,14 +123,14 @@ export function drawSkillVfx(this: GameView, world: CombatEngine, effect: Effect
       first.alpha = firstPhase > 0 && firstPhase < 1 ? Math.sin(Math.PI * firstPhase) : 0;
       first.tint = tint;
       // 2타는 같은 중심을 반대 대각선으로 가른다. 1타가 남아 있는 동안 교차한다.
-      const backWidth = (218 + strength * 8) * (.84 + backPhase * .28);
+      const backWidth = crossWidth * (.84 + backPhase * .28);
       const backScale = backWidth / back.texture.width;
       back.position.set(crossX + forwardX * (backPhase * 8), crossY + forwardY * 4);
       back.rotation = screenAngle + .55;
       back.scale.set(-backScale, backScale * .86);
       back.alpha = backPhase > 0 && backPhase < 1 ? Math.sin(Math.PI * backPhase) : 0;
       back.tint = tint;
-      const shockWidth = (186 + strength * 6) * (.86 + backPhase * .32);
+      const shockWidth = (148 + strength * 4) * (.86 + backPhase * .32);
       shock.position.set(crossX, crossY + 32);
       shock.scale.set(shockWidth / shock.texture.width, shockWidth / shock.texture.width * .62);
       shock.alpha = backPhase > 0 && backPhase < 1 ? Math.sin(Math.PI * backPhase) : 0;
