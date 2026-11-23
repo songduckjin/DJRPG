@@ -8,7 +8,7 @@
 |---|---|
 | **스킬 트리 데이터·판정·투자/초기화** | `src/game/skillTree.ts`(`skillTreeFor`·`buildSkillTree`·`skillNodeStatus`·`investSkillPoint`·`resetSkillTree`·`skillValueRows`·`TIER_SHAPE`·`TIER_GATE`) |
 | **스킬 타격 범위 공용 규격** | `src/game/battle/skillAreas.ts`(`SKILL_AREAS`·`PASSIVE_AREAS`·`skillArea`·`projectedAreaRadii`) — `combat/engine.ts`와 `render/vfx.ts`가 공유 |
-| 전사·궁수 스킬 VFX 개발용 미리보기 | `skill-vfx-studio.html`·`src/dev/skillVfxStudio.ts` — 실제 `CombatEngine`·`GameView`를 쓰는 독립 화면, 계정·저장 없음 |
+| 전사·궁수·마법사 스킬 VFX 개발용 미리보기 | `skill-vfx-studio.html`·`src/dev/skillVfxStudio.ts` — 실제 `CombatEngine`·`GameView`를 쓰는 독립 화면, 계정·저장 없음 |
 | **SP 회계(클라·서버 공용)** | `src/game/skillPoints.ts`(`SP_PER_LEVEL`·`spTotal`·`spSpent`·`spLedger`) |
 | 스킬 트리 화면 | `src/ui/modals/skillModal.ts`(세 칸 조립)·`src/ui/skillTreeView.ts`(상단 바·트리·상세 패널)·`src/styles/modals/skill.css` |
 | 스킬·패시브 정의, 직업별 순서·레벨 | `src/game/skills.ts` (`jobs`·`skillOrderFor`·`passiveOrderFor`·`skillDuration`·`canLearn`·`MAX_SKILL_LEVEL`) |
@@ -38,6 +38,7 @@
 - **빙결 화살**: 별도 고해상도 얼음 화살 한 발이 착탄하면 Lv.1 반경 62px에서 레벨당 +2px(Lv.10 80px)까지 얼음 조각과 눈싸라기가 퍼진다. 중심 한 명은 공격력 ×1.9 피해를 받고, 주변 적도 모두 둔화된다. 둔화는 Lv.1 2.4초·이동속도 55%에서 Lv.10 4.02초·이동속도 28%로 성장한다. 화살 길이는 활의 보이는 크기에 맞춘 52px이다.
 - **화살 그래픽**: 평타·더블·멀티·관통·폭풍·애로우 레인은 투명 고해상도 `fx_archer_arrow_v1.png`, 빙결은 `fx_ice_arrow_v1.png`를 같은 52px 기본 길이로 쓴다. 저격 58px·관통 55px만 구분하고, 애로우 레인의 화살도 같은 그림을 수직 회전해 위에서 꽂히게 한다.
 - **관통 사격**: 목표 방향으로 레벨별 전체 사거리까지 좁은 폭 48px 화살이 날아가며 경로의 적 최대 4명에게 각자 공격력 ×2.6 피해를 준다. 종전 도착점 반경 피해는 쓰지 않는다.
+- **파이어 볼트**: 레벨에 따른 기존 발수·합계 위력·직선 비행은 유지한다. 탄환은 주황 외곽·노란 핵·짧은 화염 꼬리로 표시하고, 착탄은 판정 반경 타원과 짧은 불티·충격 링을 함께 보여 준다. 추가 이펙트 객체 없이 기존 탄환·착탄 렌더에서 그린다.
 - **스킬 ID 2중 정의**: Functions는 TS를 실행할 수 없으므로 `server/skill-ids.mjs`에 같은 목록이 있다. **스킬을 더하면 두 파일을 함께 고친다.** 이름·순서·ID가 어긋나면 `skillbook-server` 테스트가 실패한다(2026-11-21 정리에서 `hell` 서버 이름을 `회전참격`으로 맞췄다).
 - **읽기 목록은 액티브+패시브 전부**: `items.ts` `migrateItem`의 `skillBookReadIds`는 `allSkillIds`(액티브) + `allPassiveIds`(패시브 9종)다. 패시브를 빼면 방치 보상·드롭으로 받은 패시브 스킬북이 세이브를 읽을 때 사라진다(작업 255).
 - **레벨 잠금 없음**: `canLearn`은 항상 참. `skills[].level`은 순서 표기용이며 트리 티어와는 무관하다. **최대 스킬 레벨 10**(4단계 스킬 트리).
@@ -85,7 +86,7 @@
 
 ## 테스트
 
-전사·궁수 이펙트를 다듬을 때 `npm run dev` 뒤 `/skill-vfx-studio.html`에서 390×844 미리보기를 연다. 직업별 액티브 8개, Lv.1/5/10, 대상 1/3/8명, 남녀 캐릭터, 전체/낮음 효과 품질을 바꾸면 같은 구도로 자동 반복 재생한다. 궁수 대상은 화살 비행이 보이도록 떨어뜨려 배치한다. 수치는 실제 엔진과 렌더러에서 나온다. 이 HTML은 Vite 개발 서버 전용이며 운영 `index.html` 흐름·계정·DB·세이브를 건드리지 않는다.
+전사·궁수·마법사 이펙트를 다듬을 때 `npm run dev` 뒤 `/skill-vfx-studio.html`에서 390×844 미리보기를 연다. 직업별 액티브 8개, Lv.1/5/10, 대상 1/3/8명, 남녀 캐릭터, 전체/낮음 효과 품질을 바꾸면 같은 구도로 자동 반복 재생한다. 원거리 대상은 탄환 비행이 보이도록 떨어뜨리고, 마법사 자기 중심 광역기는 가까이 배치한다. 모바일에서는 선택 도구를 화면 위에 둔다. 수치는 실제 엔진과 렌더러에서 나온다. 이 HTML은 Vite 개발 서버 전용이며 운영 `index.html` 흐름·계정·DB·세이브를 건드리지 않는다.
 
 `node --test tests/skill-areas.test.mjs tests/skill-double-slash.test.mjs tests/skill-whirl-slash.test.mjs tests/skill-feedback.test.mjs tests/range.test.mjs tests/enemy-range-90.test.mjs tests/combat-field-split.test.mjs tests/dungeon-battle.test.mjs`
 

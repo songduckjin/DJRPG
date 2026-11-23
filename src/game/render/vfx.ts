@@ -93,6 +93,17 @@ export function drawSkillVfx(this: GameView, world: CombatEngine, effect: Effect
       const { x: rx, y: ry } = projectedAreaRadii(effect.radius ?? 0);
       const color = effect.variant === 'fire' ? 0xff8a3c : effect.variant === 'frost' ? 0xbfe6ff : effect.variant === 'chain' ? 0xd0b4ff : 0xffcf8a;
       this.ground.ellipse(x, y, rx, ry).stroke({ color, width: 2, alpha: .48 * (1 - t) });
+      if (effect.variant === 'fire') {
+        const flash = 1 - t;
+        this.glow.circle(x, y - 38, 22 + t * 18).fill({ color: 0xff6a20, alpha: .17 * flash });
+        this.effects.circle(x, y - 38, 5 + t * 17).stroke({ color: 0xffd36a, width: 3 * flash, alpha: .8 * flash });
+        for (let index = 0; index < 5; index++) {
+          const angle = index * Math.PI * 2 / 5 + .35;
+          const distance = 9 + t * 27;
+          this.effects.circle(x + Math.cos(angle) * distance, y - 38 + Math.sin(angle) * distance * .6, 2.5 * flash)
+            .fill({ color: index % 2 ? 0xff8a3c : 0xffe09a, alpha: .85 * flash });
+        }
+      }
       return true;
     }
     if (effect.kind === 'rain') { drawArrowRain.call(this, effect, x, y, t, time); return true; }
@@ -394,14 +405,21 @@ export function drawMagicBolt(this: GameView, effect: Effect, x: number, y: numb
     const color = arrowColors[effect.variant ?? 'arcane'];
     const tail = 1 - Math.abs(progress - .5) * 2;
     const hover = effect.age < launch ? .82 + Math.sin(effect.age * 34) * .18 : 1;
-    const radius = (effect.variant === 'meteor' ? 11 : effect.variant === 'chain' ? 7 : 6 + tail * 2) * scale * hover;
+    const radius = (effect.variant === 'meteor' ? 11 : effect.variant === 'chain' ? 7 : effect.variant === 'fire' ? 8 + tail * 2 : 6 + tail * 2) * scale * hover;
     // 꼬리 — 진행 반대 방향으로 짧게 번지는 빛.
     const angle = Math.atan2((dx + dy) * .43, (dx - dy) * .86);
     if (progress > 0) this.glow.moveTo(px - Math.cos(angle) * 26 * scale, py - Math.sin(angle) * 26 * scale).lineTo(px, py)
       .stroke({ color, width: 5 + tail * 3, alpha: .1 + tail * .22 });
+    if (effect.variant === 'fire' && progress > 0) {
+      const backX = Math.cos(angle), backY = Math.sin(angle);
+      this.glow.moveTo(px - backX * 38 * scale, py - backY * 38 * scale).lineTo(px, py)
+        .stroke({ color: 0xe84116, width: radius * .9, alpha: .18 + tail * .17 });
+      this.effects.moveTo(px - backX * 22 * scale, py - backY * 22 * scale).lineTo(px, py)
+        .stroke({ color: 0xffb13d, width: radius * .42, alpha: .56 });
+    }
     this.glow.circle(px, py, radius * 2.2).fill({ color, alpha: .12 + tail * .1 });
     this.effects.circle(px, py, radius).fill({ color, alpha: .92 });
-    this.effects.circle(px, py, radius * .45).fill({ color: 0xffffff, alpha: .85 });
+    this.effects.circle(px, py, radius * .45).fill({ color: effect.variant === 'fire' ? 0xfff0b4 : 0xffffff, alpha: .9 });
     if (effect.variant === 'frost') this.effects.circle(px, py, radius * 2.6).stroke({ color: 0xdff2ff, width: 1.4, alpha: .35 * tail });
     if (effect.variant === 'fire' || effect.variant === 'meteor') this.glow.circle(px, py, radius * 3.4).fill({ color: 0xff8a3c, alpha: .1 * tail });
   }
