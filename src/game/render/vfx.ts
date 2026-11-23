@@ -405,23 +405,33 @@ export function drawMagicBolt(this: GameView, effect: Effect, x: number, y: numb
     const color = arrowColors[effect.variant ?? 'arcane'];
     const tail = 1 - Math.abs(progress - .5) * 2;
     const hover = effect.age < launch ? .82 + Math.sin(effect.age * 34) * .18 : 1;
-    const radius = (effect.variant === 'meteor' ? 11 : effect.variant === 'chain' ? 7 : effect.variant === 'fire' ? 8 + tail * 2 : 6 + tail * 2) * scale * hover;
-    // 꼬리 — 진행 반대 방향으로 짧게 번지는 빛.
     const angle = Math.atan2((dx + dy) * .43, (dx - dy) * .86);
+    if (effect.variant === 'fire') {
+      let sprites = this.vfxSprites.get(effect);
+      if (!sprites) {
+        const flame = new Sprite(this.textures.fxMageFireball);
+        flame.anchor.set(.8, .5); // 발사·착탄 좌표는 밝은 화염구 중심에 둔다.
+        this.skillVfx.addChild(flame);
+        sprites = [flame];
+        this.vfxSprites.set(effect, sprites);
+      }
+      const flame = sprites[0];
+      flame.position.set(px, py);
+      flame.rotation = progress > 0 ? angle : 0;
+      flame.scale.set(88 / flame.texture.width * scale * hover);
+      flame.alpha = effect.age < launch ? .78 + .22 * hover : 1;
+      this.glow.circle(px, py, 18 * scale).fill({ color: 0xff7b2d, alpha: .11 + tail * .07 });
+      return;
+    }
+    const radius = (effect.variant === 'meteor' ? 11 : effect.variant === 'chain' ? 7 : 6 + tail * 2) * scale * hover;
+    // 꼬리 — 진행 반대 방향으로 짧게 번지는 빛.
     if (progress > 0) this.glow.moveTo(px - Math.cos(angle) * 26 * scale, py - Math.sin(angle) * 26 * scale).lineTo(px, py)
       .stroke({ color, width: 5 + tail * 3, alpha: .1 + tail * .22 });
-    if (effect.variant === 'fire' && progress > 0) {
-      const backX = Math.cos(angle), backY = Math.sin(angle);
-      this.glow.moveTo(px - backX * 38 * scale, py - backY * 38 * scale).lineTo(px, py)
-        .stroke({ color: 0xe84116, width: radius * .9, alpha: .18 + tail * .17 });
-      this.effects.moveTo(px - backX * 22 * scale, py - backY * 22 * scale).lineTo(px, py)
-        .stroke({ color: 0xffb13d, width: radius * .42, alpha: .56 });
-    }
     this.glow.circle(px, py, radius * 2.2).fill({ color, alpha: .12 + tail * .1 });
     this.effects.circle(px, py, radius).fill({ color, alpha: .92 });
-    this.effects.circle(px, py, radius * .45).fill({ color: effect.variant === 'fire' ? 0xfff0b4 : 0xffffff, alpha: .9 });
+    this.effects.circle(px, py, radius * .45).fill({ color: 0xffffff, alpha: .9 });
     if (effect.variant === 'frost') this.effects.circle(px, py, radius * 2.6).stroke({ color: 0xdff2ff, width: 1.4, alpha: .35 * tail });
-    if (effect.variant === 'fire' || effect.variant === 'meteor') this.glow.circle(px, py, radius * 3.4).fill({ color: 0xff8a3c, alpha: .1 * tail });
+    if (effect.variant === 'meteor') this.glow.circle(px, py, radius * 3.4).fill({ color: 0xff8a3c, alpha: .1 * tail });
   }
 
 /** 마법 폭발·메테오 — 대상 지점이 예고 뒤에 터진다(작업 198). */
