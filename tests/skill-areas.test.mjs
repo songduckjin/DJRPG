@@ -2,7 +2,7 @@ import './ts-loader.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-const { allSkillIds, allPassiveIds, skillRange } = await import('../src/game/skills.ts');
+const { allSkillIds, allPassiveIds, skillDamageScale, skillRange } = await import('../src/game/skills.ts');
 const { SKILL_AREAS, PASSIVE_AREAS, skillArea, projectedAreaRadii } = await import('../src/game/battle/skillAreas.ts');
 const { targetsInArc } = await import('../src/game/battle/targeting.ts');
 const { CombatEngine } = await import('../src/game/combat/engine.ts');
@@ -30,7 +30,7 @@ test('판정 엔진과 VFX가 같은 스킬 범위 규격을 읽는다', () => {
 
 test('부채꼴 경계 안쪽은 맞고 바깥쪽은 맞지 않는다', () => {
   const origin = { x: 0, y: 0 };
-  for (const id of ['power', 'destroy']) {
+  for (const id of ['destroy']) {
     const { radius, arc } = skillArea(id, 1);
     const inside = { x: radius - .01, y: 0 };
     const outside = { x: radius + .01, y: 0 };
@@ -44,18 +44,32 @@ test('부채꼴 경계 안쪽은 맞고 바깥쪽은 맞지 않는다', () => {
 test('와일드 스탬프는 자신 중심 원형이며 레벨마다 반경과 지속시간이 늘어난다', () => {
   const first = skillArea('slam', 1), last = skillArea('slam', 10);
   assert.equal(first.kind, 'circle');
-  assert.equal(first.radius, 126);
-  assert.equal(last.radius, 162);
+  assert.equal(first.radius, 90);
+  assert.equal(last.radius, 126);
   assert.equal(first.duration, .8);
   assert(Math.abs(last.duration - 1.88) < 1e-9);
   const save = freshSave();
   save.learned = ['slam']; save.quickSlots = ['slam', null, null];
   const world = new CombatEngine(save);
-  world.enemies = [[120, 0], [-120, 0], [0, 120], [0, -120], [130, 0]].map(([x, y]) =>
+  world.enemies = [[85, 0], [-85, 0], [0, 85], [0, -85], [95, 0]].map(([x, y]) =>
     ({ x, y, hp: 10000, maxHp: 10000, boss: false, hit: 0, step: 0, moving: false, knockX: 0, knockY: 0, slow: 0 }));
   world.action('slam');
   assert(world.enemies.slice(0, 4).every(enemy => enemy.hp < enemy.maxHp));
   assert.equal(world.enemies[4].hp, world.enemies[4].maxHp);
+});
+
+test('파워 스트라이크는 선택한 적 한 명만 5.5배로 때리고 타격 자리를 표시한다', () => {
+  const save = freshSave();
+  save.learned = ['power']; save.quickSlots = ['power', null, null];
+  const world = new CombatEngine(save);
+  world.critRoll = () => 1;
+  world.enemies = [50, 70].map(x =>
+    ({ x, y: 0, hp: 10000, maxHp: 10000, boss: false, hit: 0, step: 0, moving: false, knockX: 0, knockY: 0, slow: 0 }));
+  world.action('power');
+  assert.equal(skillArea('power', 1).kind, 'single');
+  assert(Math.abs(world.enemies[0].maxHp - world.enemies[0].hp - totalStats(save).attack * 5.5 * skillDamageScale(1)) < 1e-6);
+  assert.equal(world.enemies[1].hp, world.enemies[1].maxHp);
+  assert.equal(world.effects.find(effect => effect.kind === 'power').x, 50);
 });
 
 test('세 직업 대표 6종의 표시 반경이 판정 반경과 같다', () => {

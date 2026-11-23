@@ -210,8 +210,10 @@ export class CombatEngine {
         if (d < area!.radius! && d > 0) { const bounded = clampFieldPoint(enemy.x + dx / d * 40, enemy.y + dy / d * 40); enemy.x = bounded.x; enemy.y = bounded.y; }
       }
     } else if (kind === 'power') {
-      this.effects.push({ x: p.x, y: p.y, kind: 'power', age: 0, duration: skillDuration(kind, level), angle: p.facing });
-      this.damage(area!.radius!, attack * 4 * damageScale, p.facing, area!.arc!, 24);
+      const point = target && Math.hypot(target.x - p.x, target.y - p.y) <= range
+        ? target : { x: p.x + Math.cos(p.facing) * range * .75, y: p.y + Math.sin(p.facing) * range * .75 };
+      this.effects.push({ x: point.x, y: point.y, kind: 'power', age: 0, duration: skillDuration(kind, level), angle: p.facing });
+      this.damage(area!.radius!, attack * 5.5 * damageScale, p.facing, Math.PI, 24, 0, p, 1);
     } else if (kind === 'destroy') {
       this.effects.push({ x: p.x, y: p.y, kind: 'destroy', age: 0, duration: skillDuration(kind, level), angle: p.facing });
       this.damage(area!.radius!, attack * 2.7 * damageScale, p.facing, area!.arc!, 42);

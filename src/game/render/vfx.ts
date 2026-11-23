@@ -16,7 +16,7 @@ function reducedMotion(): boolean {
 /** 판정 원·부채꼴을 월드 좌표에서 화면으로 투영해 정확한 바닥 경계를 그린다. */
 function drawMeleeArea(this: GameView, effect: Effect, x: number, y: number): void {
   const id = effect.kind;
-  if (id !== 'slash2' && id !== 'slam' && id !== 'power' && id !== 'destroy' && id !== 'hell' && id !== 'spin') return;
+  if (id !== 'slash2' && id !== 'slam' && id !== 'destroy' && id !== 'hell' && id !== 'spin') return;
   const area = skillArea(id, effect.level ?? 1);
   const radius = id === 'spin' ? area.radius! * dragonOrbitFactor(effect.age / effect.duration) : area.radius!;
   const alpha = .28 * Math.max(0, 1 - effect.age / effect.duration);
@@ -151,8 +151,17 @@ export function drawSkillVfx(this: GameView, world: CombatEngine, effect: Effect
       sprites = [sprite];
       this.vfxSprites.set(effect, sprites);
     }
-    const size = effect.kind === 'destroy' ? 260 : effect.kind === 'slam' ? 250 * skillArea('slam', effect.level ?? 1).radius! / skillArea('slam', 1).radius! : effect.kind === 'crushing' ? 245 : effect.kind === 'power' ? 165 : 150;
+    const size = effect.kind === 'destroy' ? 260 : effect.kind === 'crushing' ? 245 : effect.kind === 'power' ? 165 : 150;
     for (const sprite of sprites) {
+      if (effect.kind === 'slam') {
+        const radius = projectedAreaRadii(skillArea('slam', effect.level ?? 1).radius!);
+        sprite.position.set(x, y);
+        sprite.scale.set(radius.x * 2 / sprite.texture.width, radius.y * 2 / sprite.texture.height);
+        sprite.rotation = 0;
+        sprite.alpha = Math.min(1, t * 6, (1 - t) * 6);
+        sprite.tint = 0xffffff;
+        continue;
+      }
       if (effect.kind === 'crushing') {
         // [작업 212] 10연타 — 타격 간격(62ms)마다 지면 링과 내려찍기 스프라이트가 한 번씩 깜빡인다.
         // 처음부터 때리므로 예고용 링 단계는 없고, 한 타가 끝날 때마다 다음 타가 시작된다.
@@ -169,14 +178,14 @@ export function drawSkillVfx(this: GameView, world: CombatEngine, effect: Effect
         sprite.tint = 0xb1d8ff;
         continue;
       }
+      if (effect.kind === 'power') this.ground.ellipse(x, y, 34, 17).stroke({ color: 0xffdc8a, width: 2.5, alpha: .8 * (1 - t) });
       const phase = t;
-      const scale = size / sprite.texture.width * (effect.kind === 'slam' ? .92 + phase * .08 : .65 + phase * .55);
-      const distance = effect.kind === 'destroy' ? 40 + t * 125 : effect.kind === 'power' ? 70 : 0;
-      sprite.position.set(x + Math.cos(screenAngle) * distance, y + Math.sin(screenAngle) * distance - (effect.kind === 'power' ? 45 : effect.kind === 'slam' ? 4 : 18));
-      sprite.scale.set(scale, scale * (effect.kind === 'slam' ? .6 : 1));
-      sprite.rotation = effect.kind === 'slam' || effect.kind === 'power' ? 0 : screenAngle;
-      const sustained = effect.kind === 'slam';
-      sprite.alpha = sustained ? Math.min(1, phase * 6, (1 - phase) * 6) : Math.min(1, (1 - phase) * 1.5);
+      const scale = size / sprite.texture.width * (.65 + phase * .55);
+      const distance = effect.kind === 'destroy' ? 40 + t * 125 : 0;
+      sprite.position.set(x + Math.cos(screenAngle) * distance, y + Math.sin(screenAngle) * distance - (effect.kind === 'power' ? 45 : 18));
+      sprite.scale.set(scale);
+      sprite.rotation = effect.kind === 'power' ? 0 : screenAngle;
+      sprite.alpha = Math.min(1, (1 - phase) * 1.5);
       sprite.tint = 0xffffff;
     }
     return true;

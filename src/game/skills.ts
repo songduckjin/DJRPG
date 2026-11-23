@@ -45,9 +45,9 @@ export function skillOrderFor(job: Job): SkillId[] { return job === 'archer' ? a
 export const skills: Record<SkillId, Skill> = {
   slash2: { id: 'slash2', name: '이단참', level: 2, icon: '⚔', cooldown: 4, power: '공격력 × 1.1 · 2연격', description: '전방을 두 번 교차해 X자 검기를 만든다. 정방향 일격 뒤 되받아 베는 일격이 따로 들어간다.', range: 130 },
   // 1번 다음 다섯 자리는 작업 212에서 해금 레벨을 앞당겼다(4·5·7·10·14) — 크러싱·트위스터가 마지막 두 자리다.
-  slam: { id: 'slam', name: '와일드 스탬프', level: 4, icon: '💥', cooldown: 8, power: '공격력 × 2.2', description: '주변 지면을 내리찍어 원형 용암 균열을 만들고 적을 밀쳐 둔화시킨다.', range: 126 },
+  slam: { id: 'slam', name: '와일드 스탬프', level: 4, icon: '💥', cooldown: 8, power: '공격력 × 2.2', description: '주변 지면을 내리찍어 원형 용암 균열을 만들고 적을 밀쳐 둔화시킨다.', range: 90 },
   warcry: { id: 'warcry', name: '블러드 레이지', level: 5, icon: '🩸', cooldown: 14, power: '공격력 × 1.2 · 공격속도 상승', description: '6초 동안(레벨당 +0.2초) 붉은 투기로 공격력·공격속도·이동속도가 상승한다.', range: 120 },
-  power: { id: 'power', name: '파워 스트라이크', level: 7, icon: '⚡', cooldown: 6, power: '공격력 × 4.0', description: '좁은 전방에 강력한 일격을 꽂아 보스를 노린다.', range: 100 },
+  power: { id: 'power', name: '파워 스트라이크', level: 7, icon: '⚡', cooldown: 6, power: '공격력 × 5.5', description: '사거리 안의 적 하나를 정확히 겨눠 강력한 일격을 꽂는다.', range: 100 },
   destroy: { id: 'destroy', name: '디스트로이 스윙', level: 10, icon: '☄', cooldown: 9, power: '공격력 × 2.7', description: '전방으로 거대한 붉은 검기 충격파를 날린다.', range: 175 },
   hell: { id: 'hell', name: '회전참격', level: 14, icon: '🌀', cooldown: 16, power: '공격력 × 3.2 · 360° 회전', description: '대검을 크게 휘둘러 제자리에서 360° 회전하며, 사방의 적을 암흑·진홍 혈풍과 함께 한 번에 베어낸다.', range: 185 },
   // [작업 212] 딜레이 크러싱 — 붉은보석1식 단일 타겟 10연타. 총 위력은 예전 한 방(× 3.4)과 같다.
