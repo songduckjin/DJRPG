@@ -5,7 +5,9 @@ import './ts-loader.mjs';
 
 const { freshSave, totalStats } = await import('../src/game/store.ts');
 const { World } = await import('../src/game/world.ts');
-const { skills, skillDamageScale, slash2Hits, slash2SecondHit, slash2SwingSeconds, slash2TotalPower } = await import('../src/game/skills.ts');
+const { skills, skillDamageScale, skillRange, slash2Hits, slash2SecondHit, slash2SwingSeconds, slash2TotalPower } = await import('../src/game/skills.ts');
+const { targetsInForwardBox } = await import('../src/game/battle/targeting.ts');
+const { skillArea } = await import('../src/game/battle/skillAreas.ts');
 const { slash2SwingMotion } = await import('../src/game/render/heroMotion.ts');
 
 function saveWithSlash2() {
@@ -94,6 +96,18 @@ test('이단참은 사거리 안의 모든 적을 두 번씩 때린다(타마다
   assert.equal(hitKinds.length, 6, '적 3마리 × 2타');
   for (const enemy of world.enemies) assert(enemy.hp < enemy.maxHp);
   assert(world.effects.find(effect => effect.kind === 'slash2').hits === 2);
+});
+
+test('이단참은 전방 130px × 폭 180px 사각형을 두 번 판정한다', () => {
+  const area = skillArea('slash2', 1);
+  assert.equal(skillRange('slash2', 1), 130);
+  assert.equal(skillRange('slash2', 10), 166);
+  assert.equal(area.kind, 'box');
+  assert.equal(area.halfWidth, 90);
+  const points = [[125, 0], [125, 89], [125, -89], [131, 0], [125, 91], [-1, 0]];
+  const enemies = points.map(([x, y]) => ({ x, y }));
+  const targets = targetsInForwardBox({ x: 0, y: 0 }, area.range, area.halfWidth, 0, enemies);
+  assert.deepEqual(targets.map(({ enemy }) => enemy), enemies.slice(0, 3));
 });
 
 test('이단참 모션은 공격 시트를 정방향(1타) → 역방향(2타)으로 두 번 재생한다', () => {

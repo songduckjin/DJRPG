@@ -836,7 +836,7 @@ export function drawHero(this: GameView, world: CombatEngine, x: number, y: numb
     syncGearGlow(this, 'weapon', wornWeapon, save.equipment.weapon?.rarity, time);
     let bob = 0;
     const local = world.effects.filter(effect => effect.kind !== 'hit' && effect.kind !== 'death' && Math.hypot(effect.x - player.x, effect.y - player.y) < 2);
-    const slam = local.find(effect => effect.kind === 'slam' || effect.kind === 'hell');
+    const slam = local.find(effect => effect.kind === 'hell');
     const motion = heroMotion(world.attackPose, world.attackPoseSpan ?? .32);
     // 2연격은 스윙마다 한 번씩 몸을 싣는다(한 스윙 기준 pulse 로는 0.44초 창에서 음수가 된다).
     const attackPulse = swing ? swing.pulse : motion.pulse;

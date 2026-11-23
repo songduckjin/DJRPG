@@ -37,6 +37,20 @@ export function targetsInArc(origin: Point, radius: number, angle: number, arc: 
   return inRange.length > maxTargets ? inRange.sort((a, b) => a.dist - b.dist).slice(0, maxTargets) : inRange;
 }
 
+/** 시전 방향으로 길이 `range`, 좌우 `halfWidth`인 전방 사각형 안의 적. */
+export function targetsInForwardBox(origin: Point, range: number, halfWidth: number, angle: number, enemies: readonly Enemy[]): ArcTarget[] {
+  const forwardX = Math.cos(angle), forwardY = Math.sin(angle);
+  const targets: ArcTarget[] = [];
+  for (const enemy of enemies) {
+    const dx = enemy.x - origin.x, dy = enemy.y - origin.y;
+    const forward = dx * forwardX + dy * forwardY;
+    const side = -dx * forwardY + dy * forwardX;
+    if (forward < 0 || forward > range || Math.abs(side) > halfWidth) continue;
+    targets.push({ enemy, dx, dy, dist: Math.hypot(dx, dy) });
+  }
+  return targets;
+}
+
 /** 머리 위 화염구 자리(월드 좌표, 작업 216).
  *  아이소 투영이 화면 변위를 `(dx−dy)·.86`, `(dx+dy)·.43`으로 그리므로, 화면 기준 반원(가운데가
  *  높고 양옆으로 퍼짐)을 그 역변환으로 옭려 머리 위에 띄운다. 1발이면 정수리 바로 위다. */

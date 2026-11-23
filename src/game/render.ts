@@ -54,10 +54,12 @@ const paths = {
   maleBaseHelm: '/assets/warrior_male_base_helm.png', maleSwordHelm: '/assets/warrior_male_sword_helm.png',
   maleSword: '/assets/warrior_male_sword.png', femaleSword: '/assets/warrior_female_sword.png',
   skeleton: '/assets/skeleton_warrior.png', boss: '/assets/skeleton_boss.png',
-  fxDragonHead: '/assets/fx_dragon_head.png?v=2', fxDragonBody: '/assets/fx_dragon_body.png?v=2', fxSlam: '/assets/fx_wild_stamp.png',
+  fxDragonHead: '/assets/fx_dragon_head.png?v=2', fxDragonBody: '/assets/fx_dragon_body.png?v=2', fxSlam: '/assets/fx_wild_stamp_lava_v2.png', fxCrushing: '/assets/fx_wild_stamp.png',
   fxRage: '/assets/fx_blood_rage.png', fxFlame: '/assets/fx_rage_flame_v1.png', fxRageGlow: '/assets/fx_rage_glow_v1.png',
   fxSlash: '/assets/fx_slash_arc.png',
-  fxPower: '/assets/fx_power_strike.png', fxDestroy: '/assets/fx_destroy_swing.png', fxHell: '/assets/fx_hell_fire.png',
+  fxArcherArrow: '/assets/fx_archer_arrow_v1.png?v=1', fxIceArrow: '/assets/fx_ice_arrow_v1.png?v=1',
+  fxHawkEagle: '/assets/fx_hawkeye_eagle_v1.png?v=1',
+  fxPower: '/assets/fx_power_strike_cleave_v2.png', fxDestroy: '/assets/fx_destroy_swing.png', fxHell: '/assets/fx_hell_fire.png',
   // [작업 215] 회전참격(`hell`) 혈풍 회오리 — 확정 3번 시안(암흑·진홍)을 위에서 내려다본 한 장.
   // 새 파일명이라 `/assets/*` immutable 캐시에 걸리지 않는다. add 블렌딩용 검정 배경.
   fxWhirl: '/assets/fx_whirl_slash_ring.png',
@@ -180,6 +182,7 @@ export class GameView {
   glow = new Graphics();
   ground = new Graphics();
   terrainLayer = new Container();
+  groundVfx = new Container();
   ambientLayer = new Container();
   wastelandPlayer = { x: 0, y: 0 };
   terrainTextures: Texture[] = [];
@@ -388,7 +391,7 @@ export class GameView {
     this.aura.anchor.set(.5);
     this.aura.blendMode = 'add';
     this.aura.alpha = 0;
-    this.app.stage.addChild(this.floor, this.glow, this.ground, this.terrainLayer, this.aura, this.rageBack, this.dragonBack, this.ghosts, this.lootBack, this.actors, this.lootFront, this.fallen, this.rageFront, this.skillVfx, this.effects, this.heroHpBar, this.labels, this.shade);
+    this.app.stage.addChild(this.floor, this.glow, this.ground, this.terrainLayer, this.groundVfx, this.aura, this.rageBack, this.dragonBack, this.ghosts, this.lootBack, this.actors, this.lootFront, this.fallen, this.rageFront, this.skillVfx, this.effects, this.heroHpBar, this.labels, this.shade);
     // Loot keeps its own paint order: a coin of a heap stays under an item that fell on it.
     this.lootBack.sortableChildren = true;
     this.lootFront.sortableChildren = true;
@@ -790,6 +793,7 @@ export class GameView {
     const shake = slam && preferences.shake ? Math.max(0, 1 - slam.age / Math.min(slam.duration, .38)) * (slam.kind === 'hell' ? 8 : 4) : 0;
     this.effects.alpha = preferences.effects === 'low' ? .4 : 1;
     this.skillVfx.alpha = preferences.effects === 'low' ? .35 : 1;
+    this.groundVfx.alpha = preferences.effects === 'low' ? .35 : 1;
     this.rageFront.alpha = preferences.effects === 'low' ? .5 : 1;
     this.rageBack.alpha = preferences.effects === 'low' ? .5 : 1;
     this.dragonBack.alpha = preferences.effects === 'low' ? .35 : 1;

@@ -8,6 +8,7 @@ import { afterBossLose, afterBossWin, applyBossReward, applyKillBatch, defeatPen
 import { basicAttackPower, berserkAttackScale, berserkSpeedScale, CRIT_CHANCE_CAP, attackInterval, critDamageScale, enemyHitDamage, enemyMaxHp, fieldSpawnRate } from './battle/formulas';
 import { effectiveExtraOptions } from './extraOptions';
 import { SKILL_CDR_CAP } from './combat/engine';
+import { skillCastScale } from './loadout';
 
 /**
  * 오프라인 방치 정산(작업 235).
@@ -55,7 +56,7 @@ export const BOSS_SAFETY_MARGIN = .9;
  */
 const skillBurst: Record<SkillId, number> = {
   slash2: 2.2, slam: 2.2, warcry: 0, power: 4, destroy: 2.7, hell: 3.2, crushing: 3.4, spin: 1.65,
-  doubleShot: 2.7, multiShot: .95, pierceShot: 2.6, iceArrow: 1.9, hawkEye: 0, snipe: 4.3, stormVolley: .8, arrowRain: 2.55,
+  doubleShot: 2.7, multiShot: .95, pierceShot: 2.6, iceArrow: 1.9, hawkEye: 0, snipe: 6.5, stormVolley: .8, arrowRain: 2.55,
   fireBolt: 2, iceBolt: 1.7, chainLightning: 1.25, manaBurst: 2.5, frostNova: 1.5, arcaneShield: 0, meteorStrike: 3.6, arcaneOverlord: 3
 };
 /** 공격력·공격속도를 올리는 버프 3종 — 지속/쿨타임 비율만큼 DPS를 끌어올린다. */
@@ -73,7 +74,9 @@ export function offlineHeroDps(save: Save): number {
   for (const id of save.quickSlots) {
     if (!id || !save.learned.includes(id)) continue;
     const level = skillLevel(save, id);
-    if (skillBurst[id]) skill += stats.attack * skillBurst[id] * skillDamageScale(level) / (skills[id].cooldown * cdrScale);
+    const burst = id === 'arrowRain' ? skillCastScale(id, level) : skillBurst[id];
+    if (burst) skill += stats.attack * burst * skillDamageScale(level)
+      * (id === 'snipe' ? critDamage : 1) / (skills[id].cooldown * cdrScale);
   }
   const buffId = buffSkills.find(id => save.learned.includes(id) && save.quickSlots.includes(id));
   if (!buffId) return stats.attack * basicAttackPower * critFactor / attackInterval(jobOf(save), stats.speed) + skill;
