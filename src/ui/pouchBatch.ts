@@ -1,6 +1,7 @@
 import { goldNode } from './currency';
 import { pouchRewardArt } from './pouchArt';
 import { POUCH_RARITY_INK } from '../game/pouch';
+import { isSpotlightRarity, spotlightTag } from '../game/raritySpotlight';
 import type { PouchBatchSummary } from '../game/pouchBatch';
 import type { Rarity } from '../game/items';
 
@@ -60,7 +61,16 @@ export function pouchBatchPanel(summary: PouchBatchSummary): HTMLElement {
       const line = element('li', `pouch-batch-row rarity-${row.rarity}`);
       const name = element('span', 'pouch-batch-name', row.name);
       name.title = row.name;
-      line.append(pouchRewardArt(row.item), name, element('span', 'pouch-batch-count', `×${row.count}`));
+      // 유니크·전설(백로그 3번) — 목록은 원래도 전설 → 일반 순이라 순서는 그대로 두고, 줄에 등급 꼬리표와
+      // 등급 빛만 더한다(같은 화면 안에서 "무엇이 크게 나왔는지"가 바로 읽히게).
+      const spotlight = isSpotlightRarity(row.rarity);
+      line.append(pouchRewardArt(row.item));
+      if (spotlight) {
+        line.classList.add('is-spotlight');
+        line.dataset.rarity = row.rarity;
+        line.append(element('b', `pouch-batch-tag rarity-${row.rarity}`, spotlightTag(row.rarity)));
+      }
+      line.append(name, element('span', 'pouch-batch-count', `×${row.count}`));
       list.append(line);
     }
     panel.append(list);

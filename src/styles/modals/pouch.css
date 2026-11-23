@@ -67,6 +67,12 @@
 .pouch-batch-row.rarity-epic { color: #c084fc; }
 .pouch-batch-row.rarity-unique { color: #fb923c; }
 .pouch-batch-row.rarity-legendary { color: #f87171; }
+/* 유니크·전설 상위 노출(백로그 3번) — 줄 전체에 등급 빛과 꼬리표 한 칸을 더한다. */
+.pouch-batch-row.is-spotlight { border-radius: 4px; background: linear-gradient(90deg, #ffffff0a, #ffffff02); }
+.pouch-batch-row.is-spotlight[data-rarity="legendary"] { background: linear-gradient(90deg, #f8717122, #f8717102); box-shadow: inset 0 0 10px #f8717133; }
+.pouch-batch-row.is-spotlight[data-rarity="unique"] { background: linear-gradient(90deg, #fb923c1f, #fb923c02); box-shadow: inset 0 0 10px #fb923c2e; }
+.pouch-batch-row.is-spotlight { grid-template-columns: 22px auto minmax(0, 1fr) auto; }
+.pouch-batch-tag { font: 700 9px/1 'Noto Sans KR', sans-serif; letter-spacing: -.2px; white-space: nowrap; }
 .pouch-batch-empty, .pouch-batch-followup { margin: 2px 0 0; color: #94826f; font-size: 9.5px; text-align: center; }
 .pouch-window-actions { display: flex; gap: 5px; width: 100%; margin-top: 2px; }
 .pouch-window-actions .pouch-open { flex: 1; width: auto; padding: 9px; font-size: 13px; }
@@ -167,6 +173,13 @@ img.pouch-icon { display: block; object-fit: contain; border-radius: 4px; }
 .pouch-result .rarity-epic { color: #c084fc; }
 .pouch-result .rarity-unique { color: #fb923c; }
 .pouch-result .rarity-legendary { color: #f87171; }
+/* 유니크·전설 획득 카드 상위 노출(백로그 3번 — 승인 시안 ②) — 카드 둘레에 등급 빛을 두르고 위에
+   `[전설] [NEW]` 꼬리표를 단다. 다른 등급은 지금처럼 그림 + 등급 색 이름만이라 손대지 않는다. */
+.pouch-result.is-spotlight { position: relative; padding: 12px 10px 6px; border: 1px solid #fb923c; border-radius: 10px; background: radial-gradient(circle at 50% 36%, #fb923c22, transparent 68%); box-shadow: 0 0 12px #fb923c55, inset 0 0 14px #fb923c22; }
+.pouch-result.is-spotlight[data-rarity="legendary"] { border-color: #f87171; background: radial-gradient(circle at 50% 36%, #f8717130, transparent 68%); box-shadow: 0 0 16px #f8717177, inset 0 0 16px #f8717129; }
+.pouch-result-flag { position: absolute; top: 3px; left: 50%; display: flex; align-items: center; gap: 4px; transform: translateX(-50%); }
+.pouch-result-tag { font: 700 9.5px/1 'Noto Sans KR', sans-serif; letter-spacing: -.2px; }
+.pouch-result-new { padding: 1px 4px; border-radius: 999px; background: #cf3f36; color: #fff; font: 700 8.5px/1.2 'Noto Sans KR', sans-serif; font-style: normal; letter-spacing: .4px; }
 /* 확률표 — 아담한 카드 안에서 넘치지 않게 자체 스크롤을 둔다. */
 .pouch-rates { width: 100%; margin-top: 4px; padding-top: 6px; border-top: 1px solid #5d4a37; max-height: 42dvh; overflow-y: auto; }
 .pouch-rates[hidden] { display: none; }

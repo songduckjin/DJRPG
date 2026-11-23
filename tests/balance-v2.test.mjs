@@ -78,8 +78,11 @@ test('최대 공속 위계 — 궁수 6.00 > 전사 ~4.54 > 마법사 ~3.36, 6.0
 
   const full = Object.fromEntries(['warrior', 'archer', 'mage'].map(job => [job, hitsOf(setFor(job, 20, 'full', 30), true)]));
   assert(Math.abs(full.archer - 6) < .01, `궁수 6.00 (${full.archer.toFixed(2)})`);
-  assert(Math.abs(full.warrior - 4.54) < .03, `전사 ~4.54 (${full.warrior.toFixed(2)})`);
-  assert(Math.abs(full.mage - 3.36) < .03, `마법사 ~3.36 (${full.mage.toFixed(2)})`);
+  // 백로그 2번(2026-11-23)이 추가옵션 풀에 `critDmgPct`를 더해 11종이 되면서, **고정 id**로 뽑던
+  // 이 시험 장비들의 옵션이 한 번 다시 뽑혔다(저장된 옵션이 있는 실제 장비는 그대로다). 그만큼 위계 값이
+  // 조금 움직였다 — 순서(궁수 > 전사 > 마법사)와 상한 6.00은 그대로다.
+  assert(Math.abs(full.warrior - 4.63) < .03, `전사 ~4.63 (${full.warrior.toFixed(2)})`);
+  assert(Math.abs(full.mage - 3.46) < .03, `마법사 ~3.46 (${full.mage.toFixed(2)})`);
   assert(full.archer > full.warrior && full.warrior > full.mage, '궁수 > 전사 > 마법사');
   // 마법사의 느린 평타를 공격 숙련 1.52가 보상한다.
   assert.equal(items.jobMastery.mage.attack, 1.52);
@@ -87,9 +90,9 @@ test('최대 공속 위계 — 궁수 6.00 > 전사 ~4.54 > 마법사 ~3.36, 6.0
 
 test('스킬 쿨타임 감소 — 마법사 전용 부위 기본 + 추가옵션 1~2%, 상한 35%, 평타 간격은 그대로', () => {
   const full = totalStats(setFor('mage', 20, 'full', 30));
-  assert.equal(full.cdr, 31, `풀 세팅 마법사 31% (${full.cdr})`);
+  assert.equal(full.cdr, 30, `풀 세팅 마법사 30% (${full.cdr})`);
   const standard = totalStats(setFor('mage', 20, 'std', 10));
-  assert.equal(standard.cdr, 16, `표준 세팅 16% (${standard.cdr})`);
+  assert.equal(standard.cdr, 17, `표준 세팅 17% (${standard.cdr})`);
   // 전사·궁수는 추가옵션으로만 얻는다(3~6%).
   assert(totalStats(setFor('warrior', 20, 'full', 30)).cdr <= 6);
   assert(totalStats(setFor('archer', 20, 'full', 30)).cdr <= 6);
@@ -103,8 +106,8 @@ test('스킬 쿨타임 감소 — 마법사 전용 부위 기본 + 추가옵션 
   assert.equal(gearStats('weapon', 'legendary', 9, 20, 'warrior', false, () => 0).cdr, undefined, '전사 무기에는 없다');
   assert.equal(gearStats('gloves', 'legendary', 9, 20, 'mage', false, () => 0).cdr, undefined, '마법사도 장갑에는 없다');
   assert.equal(items.CDR_CAP, 35);
-  // 추가옵션 풀 10종 — 쿨감만 1~2%, 합산 상한 6%.
-  assert.equal(extra.extraOptionKeys.length, 10);
+  // 추가옵션 풀 11종(백로그 2번이 `critDmgPct`를 더했다) — 쿨감만 1~2%, 합산 상한 6%.
+  assert.equal(extra.extraOptionKeys.length, 11);
   assert.equal(extra.EXTRA_CDR_CAP, 6);
   for (let index = 0; index < 200; index++) {
     const options = extra.deriveExtraOptions('legendary', crypto.randomUUID());
@@ -144,7 +147,7 @@ test('치명 — 기본 20% · 패시브 30% · 장비 60% 예산, 실전 상한
   // 풀 세팅 20층: 세 직업 모두 97~100%.
   for (const job of ['warrior', 'archer', 'mage']) {
     const crit = Math.min(100, totalStats(setFor(job, 20, 'full', 30)).crit);
-    assert(crit >= 96 && crit <= 100, `${job} ${Math.round(crit)}%`);
+    assert(crit >= 93 && crit <= 100, `${job} ${Math.round(crit)}%`);
   }
   // 추가옵션 치명·공속 합산 상한 10%.
   assert.equal(extra.EXTRA_CRIT_CAP, 10);
@@ -240,7 +243,8 @@ test('던전과 방치 정산이 필드와 같은 식을 쓴다', () => {
   const full = setFor('archer', 20, 'full', 30);
   full.quickSlots = [null, null, null]; full.learned = [];
   const stats = totalStats(full);
-  const crit = 1 + Math.min(100, stats.crit) / 100 * .8;
+  // 치명타 배수는 장비 `치명타 피해량`까지 포함한다(백로그 2번) — `critDamageScale` 한 곳.
+  const crit = 1 + Math.min(100, stats.crit) / 100 * (formulas.critDamageScale(extra.effectiveExtraOptions(full.equipment).critDmgPct) - 1);
   assert(Math.abs(offline.offlineHeroDps(full) - stats.attack * formulas.basicAttackPower * crit / formulas.attackInterval('archer', stats.speed)) < 1e-6,
     '평타 DPS = 공격력 × 1.6 × 치명 / 직업 간격');
   // CDR은 방치의 스킬 몫도 줄여 DPS를 올린다(공격력은 같게 두고 쿨감만 준다).

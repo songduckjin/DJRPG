@@ -30,7 +30,7 @@ import { downgradeArrowMarkup, upgradeArrowMarkup } from '../upgradeBadge';
 import type { BagFilter, Interface } from '../interface';
 
 export const equipmentInfoSlots = ['weapon', 'helmet', 'armor', 'gloves', 'boots', 'offhand', 'necklace', 'belt', 'ring1', 'ring2'] as const;
-export const equipmentInfoStats = ['전투력', 'HP', '공격력', '방어력', '치명타', '공격속도'] as const;
+export const equipmentInfoStats = ['전투력', 'HP', '공격력', '방어력', '치명타 확률', '공격속도'] as const;
 
 export function renderInventory(this: Interface, dialog: HTMLElement): void {
     const save = this.world.save;
@@ -113,6 +113,13 @@ export function renderInventory(this: Interface, dialog: HTMLElement): void {
       if (downgrade) cell.classList.add('has-downgrade');
       cell.innerHTML = itemIcon.call(this, item.slot, item, 'item-icon') + upgrade + downgrade + plus + rarity;
       cell.type = 'button'; cell.dataset.itemId = item.id;
+      // 새로 들어온 아이템 강조(백로그 3번) — 가방을 열 때 `newItems`를 `bagFresh`로 옮겨 두고(modalRegistry),
+      // 이번에 연 가방에서만 `NEW` 핀을 보여 준다. 다음에 열면 그새 들어온 것만 다시 선다.
+      if (this.bagFresh?.has(item.id)) {
+        cell.classList.add('is-new');
+        const fresh = document.createElement('i'); fresh.className = 'bag-new-badge'; fresh.textContent = 'NEW';
+        fresh.setAttribute('aria-hidden', 'true'); cell.append(fresh);
+      }
       // 직업 전용 장비에는 `전사`/`궁수`/`마법사` 배지를 단다(작업 205) — 공용 방어구·장신구에는 붙지 않는다.
       // 좁은 가방 칸(30~40px)에서는 등급 배지가 왼쪽 위를 쓰므로 **한 글자**(`전`·`궁`·`법`)로 오른쪽 아래에 붙는다.
       const owner = itemJob(item);

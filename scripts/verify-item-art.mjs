@@ -527,7 +527,8 @@ for (const gender of ['male', 'female']) {
       if (!(header[25] === 6 || (header[25] === 3 && data.includes('tRNS')))) {
         throw new Error(`머리 없는 궁수 시트는 투명도가 있는 PNG여야 합니다: ${path}`);
       }
-      if (data.length > 160 * 1024) throw new Error(`머리 없는 궁수 시트가 160KB를 넘습니다: ${path}`);
+      // 백로그 7번(2026-11-23)부터 이 시트들은 색을 양자화하지 않으려고 RGBA로 저장한다(최대 168KB).
+      if (data.length > 220 * 1024) throw new Error(`머리 없는 궁수 시트가 220KB를 넘습니다: ${path}`);
     }
   }
 }
@@ -602,7 +603,8 @@ for (const gender of ['male', 'female']) {
       if (!(header[25] === 6 || (header[25] === 3 && data.includes('tRNS')))) {
         throw new Error(`머리 없는 마법사 시트는 투명도가 있는 PNG여야 합니다: ${path}`);
       }
-      if (data.length > 200 * 1024) throw new Error(`머리 없는 마법사 시트가 200KB를 넘습니다: ${path}`);
+      // 백로그 7번(2026-11-23): 알파 재베이크로 RGBA가 된 장이 있어 상한을 240KB로 둔다(최대 204KB).
+      if (data.length > 240 * 1024) throw new Error(`머리 없는 마법사 시트가 240KB를 넘습니다: ${path}`);
     }
   }
 }

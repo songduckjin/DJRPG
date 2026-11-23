@@ -92,8 +92,9 @@ export const MODALS: Record<Modal, ModalSpec> = {
     title: '내 정보',
     dialogClasses: ['equipment-modal'],
     titleLink: { to: 'codex', label: '도감' },
-    // 새로 얻은 장비 표시는 창을 여는 순간 지운다(작업 136).
-    prepare: ui => { ui.newItems.clear(); ui.renderBagBadge(); },
+    // 새로 얻은 장비 표시는 창을 여는 순간 지운다(작업 136). 다만 이번에 연 가방 안에서는 `NEW` 핀으로
+    // 한 번 보여야 하므로(백로그 3번) `bagFresh`로 옮겨 두고 배지 숫자만 지운다.
+    prepare: ui => { ui.bagFresh = new Set(ui.newItems); ui.newItems.clear(); ui.renderBagBadge(); },
     render: (ui, dialog) => { renderEquipment.call(ui, dialog); renderInventory.call(ui, dialog); }
   },
   skills: {

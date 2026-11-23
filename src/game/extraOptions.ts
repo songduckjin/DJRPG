@@ -1,4 +1,5 @@
 import type { EquipmentItem, Rarity, Stat } from './items';
+import { CRIT_DAMAGE_BONUS_CAP, critDamageScale } from './battle/formulas';
 
 /**
  * 장비 추가옵션(보조 옵션) — 작업 238.
@@ -13,20 +14,25 @@ import type { EquipmentItem, Rarity, Stat } from './items';
  */
 export type ExtraOptionKey =
   | 'regenPct' | 'bonusDmgPct' | 'lifestealPct' | 'attackPct' | 'critPct'
-  | 'defensePct' | 'healthPct' | 'evasionPct' | 'speedPct' | 'cdrPct';
+  | 'defensePct' | 'healthPct' | 'evasionPct' | 'speedPct' | 'cdrPct' | 'critDmgPct';
 export type ExtraOptions = Partial<Record<ExtraOptionKey, number>>;
 
-/** 추가옵션 10종 — 이 순서가 뽑기 풀의 순서다(`id` 시드가 같으면 이 순서로 뽑히므로 바꾸지 않는다).
- *  `cdrPct`(스킬 쿨타임 감소)는 밸런스 v2에서 맨 뒤에 더해, 이미 저장된 장비의 기존 옵션이 바뀌지 않게 했다. */
+/** 추가옵션 11종 — 이 순서가 뽑기 풀의 순서다(`id` 시드가 같으면 이 순서로 뽑히므로 바꾸지 않는다).
+ *  `cdrPct`(스킬 쿨타임 감소)는 밸런스 v2에서, `critDmgPct`(치명타 피해량, 백로그 2번)는 그 뒤에
+ *  **맨 뒤로** 덧붙였다 — 풀 길이가 10→11로 늘어나므로 저장된 옵션이 **없던** 옛 장비만 한 번 다시
+ *  뽑히고(여전히 1~3%·등급별 개수 그대로), 저장된 값이 있는 장비는 `validExtraOptions`가 그대로 살린다. */
 export const extraOptionKeys: readonly ExtraOptionKey[] = [
   'regenPct', 'bonusDmgPct', 'lifestealPct', 'attackPct', 'critPct',
-  'defensePct', 'healthPct', 'evasionPct', 'speedPct', 'cdrPct'
+  'defensePct', 'healthPct', 'evasionPct', 'speedPct', 'cdrPct', 'critDmgPct'
 ];
 
+/** 표시 이름 — `critPct`(확률)와 `critDmgPct`(터졌을 때의 배수)는 **다른 것**이라 이름으로 갈라 적는다.
+ *  예전에 둘 다 `치명타`로 적혀 장비 상세에서 어느 쪽인지 알 수 없었다(백로그 2번). */
 export const extraOptionNames: Record<ExtraOptionKey, string> = {
   regenPct: '체력회복력', bonusDmgPct: '추가 데미지', lifestealPct: '피흡',
-  attackPct: '공격력', critPct: '치명타', defensePct: '방어력',
-  healthPct: '체력', evasionPct: '회피율', speedPct: '공격속도', cdrPct: '쿨타임 감소'
+  attackPct: '공격력', critPct: '치명타 확률', defensePct: '방어력',
+  healthPct: '체력', evasionPct: '회피율', speedPct: '공격속도', cdrPct: '쿨타임 감소',
+  critDmgPct: '치명타 피해량'
 };
 
 /** 등급별 추가옵션 개수 — 일반·매직·레어 0, 에픽 1, 유니크 2, 전설 3. */
@@ -53,6 +59,9 @@ export const EXTRA_CRIT_CAP = 10;
 export const EXTRA_SPEED_CAP = 10;
 /** 쿨타임 감소 추가옵션의 합산 상한(%) — 부위 3개(전설) × 2%. */
 export const EXTRA_CDR_CAP = 6;
+/** 치명타 피해량(`critDmgPct`) 합산 상한(%) — 값의 단일 기준은 `battle/formulas.ts` `CRIT_DAMAGE_BONUS_CAP`.
+ *  10부위 × 3%면 30%지만 +15%에서 자른다(치명타 한 방이 1.95배를 넘지 않게, 덕진 님 확정). */
+export const EXTRA_CRIT_DMG_CAP = CRIT_DAMAGE_BONUS_CAP;
 /** 피흡 합산 상한(%) — 장비로만 얻으며 넘는 값은 잘라 쓴다(밸런스 v2: 15 → 5). */
 export const EXTRA_LIFESTEAL_CAP = 5;
 /** 한 번의 타격에서 피흡으로 회복할 수 있는 최대치(최대 체력 대비 비율) — 큰 광역 한 방이 체력을 다 채우지 않게. */
@@ -150,7 +159,7 @@ export function extraOptionTotals(equipment: Partial<Record<string, EquipmentIte
   return total;
 }
 
-/** 실제 전투에 쓰는 값 — 회피 30%·체력회복 12%/5초·피흡 5%·치명·공속 10%·쿨감 6% 상한을 적용한다. */
+/** 실제 전투에 쓰는 값 — 회피 30%·체력회복 12%/5초·피흡 5%·치명·공속 10%·쿨감 6%·치명타 피해 15% 상한을 적용한다. */
 export function effectiveExtraOptions(equipment: Partial<Record<string, EquipmentItem | undefined>> | undefined): Record<ExtraOptionKey, number> {
   const total = extraOptionTotals(equipment);
   total.evasionPct = Math.min(EXTRA_EVASION_CAP, total.evasionPct);
@@ -159,6 +168,7 @@ export function effectiveExtraOptions(equipment: Partial<Record<string, Equipmen
   total.critPct = Math.min(EXTRA_CRIT_CAP, total.critPct);
   total.speedPct = Math.min(EXTRA_SPEED_CAP, total.speedPct);
   total.cdrPct = Math.min(EXTRA_CDR_CAP, total.cdrPct);
+  total.critDmgPct = Math.min(EXTRA_CRIT_DMG_CAP, total.critDmgPct);
   return total;
 }
 
@@ -169,7 +179,9 @@ export function effectiveExtraOptions(equipment: Partial<Record<string, Equipmen
  */
 const extraOptionPowerWeights: Record<ExtraOptionKey, number> = {
   attackPct: 3, bonusDmgPct: 3, critPct: 2.5, speedPct: 2.5, evasionPct: 2,
-  defensePct: 2, lifestealPct: 2, healthPct: 1, regenPct: 1, cdrPct: 4
+  defensePct: 2, lifestealPct: 2, healthPct: 1, regenPct: 1, cdrPct: 4,
+  // 치명타 피해량은 **확률이 100%일 때만** 온전히 값어치가 있어 확률(2.5)보다 낮게 잡는다(덕진 님 확정 1.2).
+  critDmgPct: 1.2
 };
 
 /** 추가옵션만의 전투력 몫. */
@@ -187,6 +199,14 @@ export function extraOptionLine(key: ExtraOptionKey, value: number): string { re
 export function extraOptionLines(item: Pick<EquipmentItem, 'id' | 'rarity'> & { extraOptions?: unknown }): string[] {
   const options = extraOptionsFor(item);
   return extraOptionKeys.filter(key => options[key] !== undefined).map(key => extraOptionLine(key, options[key] as number));
+}
+
+/**
+ * 이 장비로 오른 치명타 **배수** — 기본 1.8 + `치명타 피해량`(상한 15%).
+ * 전투(`combat/engine.ts`)·방치 정산(`offline.ts`)·상세 스탯(`statSheet.ts`)이 같은 값을 본다.
+ */
+export function extraCritDamageScale(equipment: Partial<Record<string, EquipmentItem | undefined>> | undefined): number {
+  return critDamageScale(effectiveExtraOptions(equipment).critDmgPct);
 }
 
 /** 내 정보 스탯 아래에 한 줄로 붙는 요약 — 실제 전투 값(상한 적용)을 쓴다. */

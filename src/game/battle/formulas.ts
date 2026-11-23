@@ -35,6 +35,23 @@ export const ENEMY_STOP_RANGE = 60;
 export const CRIT_CHANCE_CAP = 100;
 export const CRIT_DAMAGE_SCALE = 1.8;
 /**
+ * 치명타 피해 **가산**의 합산 상한(%) — 장비 추가옵션 `치명타 피해량`(백로그 2번, 덕진 님 확정).
+ *
+ * 추가옵션은 부위마다 1~3%가 붙고 10부위를 모두 채우면 30%까지 쌓인다. 1.8배에 30%를 그대로 더하면
+ * 2.1배가 되어 치명타 한 방이 스킬 한 방을 넘어서므로, 가산은 **+15%에서 자른다**(1.95배).
+ */
+export const CRIT_DAMAGE_BONUS_CAP = 15;
+/**
+ * 치명타 한 방의 피해 배율 — 기본 1.8배 + 장비 추가옵션 `치명타 피해량`(%, 상한 `CRIT_DAMAGE_BONUS_CAP`).
+ *
+ * 확률 판정(`CRIT_CHANCE_CAP`)은 그대로이고 **터졌을 때의 배수**만 오른다. 필드(`combat/engine.ts`)와
+ * 방치 정산(`offline.ts`), 상세 스탯(`statSheet.ts`)이 모두 이 함수 하나를 쓴다.
+ */
+export function critDamageScale(bonusPct = 0): number {
+  const bonus = Math.max(0, Math.min(CRIT_DAMAGE_BONUS_CAP, Number.isFinite(bonusPct) ? bonusPct : 0));
+  return CRIT_DAMAGE_SCALE + bonus / 100;
+}
+/**
  * 평타의 **직업별 기본 간격**(초) — 밸런스 v2.
  *
  * 마법사만 0.63초다. 종전에는 세 직업 모두 0.48초에 장비 공속 배율로만 격차를 냈는데, 그러면 마법사의

@@ -36,6 +36,7 @@ test('gender is fixed after character creation and gender switch UI is removed',
 });
 
 test('info modal exposes six required stats and the ten equipment slots in two row order', () => {
-  assert.deepEqual(equipmentInfoStats, ['전투력', 'HP', '공격력', '방어력', '치명타', '공격속도']);
+  // 백로그 2번(2026-11-23): 추가옵션 `치명타`가 확률인지 피해량인지 헷갈리지 않게 칸 이름을 `치명타 확률`로 적는다.
+  assert.deepEqual(equipmentInfoStats, ['전투력', 'HP', '공격력', '방어력', '치명타 확률', '공격속도']);
   assert.deepEqual(equipmentInfoSlots, ['weapon', 'helmet', 'armor', 'gloves', 'boots', 'offhand', 'necklace', 'belt', 'ring1', 'ring2']);
 });

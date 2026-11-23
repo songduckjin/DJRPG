@@ -83,7 +83,8 @@ export const COMMON_CODE_MAJORS = [
 
 const AFFIX_NAMES = {
   regenPct: '체력 재생', bonusDmgPct: '추가 피해', lifestealPct: '생명력 흡수', attackPct: '공격력',
-  critPct: '치명타', defensePct: '방어력', healthPct: '체력', evasionPct: '회피', speedPct: '공격 속도'
+  critPct: '치명타 확률', defensePct: '방어력', healthPct: '체력', evasionPct: '회피', speedPct: '공격 속도',
+  cdrPct: '쿨타임 감소', critDmgPct: '치명타 피해량'
 };
 
 /**

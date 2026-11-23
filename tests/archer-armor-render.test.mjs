@@ -123,9 +123,9 @@ test('궁수 갑옷 10종 이름이 기본형 인덱스 0~9 로 매핑되고, �
 
 test('궁수 갑옷 시트 경로는 1~9번 × 성별 × 동작마다 하나씩 있다', () => {
   assert.equal(archerArmorSheetPath('male', 1, 'idle'),
-    '/assets/pilot-25d/archer_armors/archer_male_armor_1_idle_v1.png?v=5');
+    '/assets/pilot-25d/archer_armors/archer_male_armor_1_idle_v1.png?v=6');
   assert.equal(archerArmorSheetPath('female', 9, 'attack'),
-    '/assets/pilot-25d/archer_armors/archer_female_armor_9_attack_v1.png?v=5');
+    '/assets/pilot-25d/archer_armors/archer_female_armor_9_attack_v1.png?v=6');
   assert.equal(archerArmorSheetPath('male', 0, 'idle'), undefined, '0번은 스타터 시트');
   assert.equal(archerArmorSheetPath('male', 10, 'idle'), undefined);
   assert.equal(archerArmorSheetPath('male', -1, 'idle'), undefined);
@@ -133,14 +133,14 @@ test('궁수 갑옷 시트 경로는 1~9번 × 성별 × 동작마다 하나씩 
   assert.equal(archerArmorSheetPaths('female', 4).length, 3, '티어당 3장(서기·걷기·사격)');
   // 기본 활대를 지운 판(nobow)은 같은 규칙으로 폴더만 다르다(활 10종 작업과 호환).
   assert.equal(archerArmorSheetPath('male', 1, 'idle', true),
-    '/assets/pilot-25d/archer_armors/nobow/archer_male_armor_1_idle_v1.png?v=5');
+    '/assets/pilot-25d/archer_armors/nobow/archer_male_armor_1_idle_v1.png?v=6');
   assert.equal(archerArmorSheetPath('male', 0, 'idle', true), undefined, '0번은 스타터(또는 nobow 본체) 시트');
   assert.equal(archerArmorSheetPaths('female', 4, true).length, 3);
   // 머리 지운 판(궁수 투구 10종 호환) — 활 지운 판 안에도 같은 규칙으로 둔다.
   assert.equal(archerArmorSheetPath('male', 1, 'idle', false, true),
-    '/assets/pilot-25d/archer_armors/headless/archer_male_armor_1_idle_v1.png?v=5');
+    '/assets/pilot-25d/archer_armors/headless/archer_male_armor_1_idle_v1.png?v=6');
   assert.equal(archerArmorSheetPath('male', 1, 'idle', true, true),
-    '/assets/pilot-25d/archer_armors/nobow/headless/archer_male_armor_1_idle_v1.png?v=5');
+    '/assets/pilot-25d/archer_armors/nobow/headless/archer_male_armor_1_idle_v1.png?v=6');
   assert.equal(archerArmorSheetPaths('female', 4, false, true).length, 3);
   assert.equal(archerArmorTierSheets('male', 4).length, 12, '티어당 네 가지 판 × 3동작');
   assert.equal(archerArmorSheetKey('male', 3, 'walk', true, true), 'archer:male:3:walk:nobow:headless');
@@ -360,7 +360,7 @@ test('궁수 투구를 쓰면 갑옷도 머리 지운 판을 쓰고, 투구 파�
   drawHero.call(game, scene, 100, 100, 0);
   assert.deepEqual(game.archerPrefetchCalls.at(-1), ['male', 7, true, false], '투구 파츠 전에는 머리 있는 판');
   // 투구 파츠가 준비되면 머리 지운 판 + 기본 활 지운 판을 함께 받는다.
-  game.helmetTextures.set('/assets/pilot-25d/archer_helms/male_0_v1.png?v=5', texture());
+  game.helmetTextures.set('/assets/pilot-25d/archer_helms/male_0_v1.png?v=6', texture());
   drawHero.call(game, scene, 100, 100, .1);
   assert.deepEqual(game.archerPrefetchCalls.at(-1), ['male', 7, true, true]);
   const headless = sheetTexture('idle');
@@ -384,13 +384,13 @@ test('궁수 시트 캐시는 전사 갑옷과 따로 최근 3티어만 유지�
 test('장비창 초상화도 착용한 궁수 갑옷 시트를 쓴다', () => {
   const save = archerSave('female');
   // [작업 216] 활을 안 챈 캐릭터는 기본 활대를 지운 시트(빈손)로 그린다.
-  assert.equal(equipmentFallbackPortrait(save), '/assets/pilot-25d/nobow/archer_female_idle_v1.png?v=5');
+  assert.equal(equipmentFallbackPortrait(save), '/assets/pilot-25d/nobow/archer_female_idle_v1.png?v=6');
   save.equipment.armor = armorItem('가죽 조끼');
-  assert.equal(equipmentFallbackPortrait(save), '/assets/pilot-25d/nobow/archer_female_idle_v1.png?v=5', '0번은 스타터 시트(빈손이면 nobow 판)');
+  assert.equal(equipmentFallbackPortrait(save), '/assets/pilot-25d/nobow/archer_female_idle_v1.png?v=6', '0번은 스타터 시트(빈손이면 nobow 판)');
   save.equipment.armor = armorItem('사슬 갑옷');
   // [작업 216] 활을 안 챈 빈손이므로 기본 활대를 지운 판(`archer_armors/nobow/`)을 쓴다.
   assert.equal(equipmentFallbackPortrait(save),
-    '/assets/pilot-25d/archer_armors/nobow/archer_female_armor_2_idle_v1.png?v=5');
+    '/assets/pilot-25d/archer_armors/nobow/archer_female_armor_2_idle_v1.png?v=6');
   const plan = equipmentPortraitPlan(save);
   assert(plan.key.includes('a2'), `캐시 키에 갑옷 티어: ${plan.key}`);
   assert.equal(plan.base, equipmentFallbackPortrait(save));
@@ -398,11 +398,11 @@ test('장비창 초상화도 착용한 궁수 갑옷 시트를 쓴다', () => {
   const warrior = freshSave('female');
   warrior.equipment.armor = armorItem('사슬 갑옷');
   // [작업 216] 빈손 전사는 기본 검을 지운 `noweapon/armors/` 판을 쓴다(무기를 차면 예전 경로 그대로).
-  // 작업 222: 서기 시트를 다시 구워 `?v=5`.
-  assert.equal(equipmentFallbackPortrait(warrior), '/assets/pilot-25d/noweapon/armors/warrior_female_armor_2_idle_v1.png?v=5',
+  // 작업 222: 서기 시트를 다시 구워 `?v=6`.
+  assert.equal(equipmentFallbackPortrait(warrior), '/assets/pilot-25d/noweapon/armors/warrior_female_armor_2_idle_v1.png?v=6',
     '전사 장비창도 빈손이면 기본 검을 지운 판');
   warrior.equipment.weapon = { id: 'w', name: baseItems.weapon[0], slot: 'weapon', rarity: 'common', stats: {} };
-  assert.equal(equipmentFallbackPortrait(warrior), '/assets/pilot-25d/armors/warrior_female_armor_2_idle_v1.png?v=5',
+  assert.equal(equipmentFallbackPortrait(warrior), '/assets/pilot-25d/armors/warrior_female_armor_2_idle_v1.png?v=6',
     '무기를 차면 예전 경로 그대로');
 });
 

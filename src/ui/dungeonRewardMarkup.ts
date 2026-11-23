@@ -13,6 +13,7 @@ import { isStatBook, itemDisplayName, rarityNames, type Item } from '../game/ite
 import { BOSS_ITEM_DROPS } from '../game/bossLoot';
 import { dungeonClearStones, dungeonKillGold, type DungeonRewardReceipt } from '../game/dungeonRewards';
 import { dungeonDropChance } from '../game/dungeon/battle';
+import { isSpotlightRarity, spotlightFirst, spotlightTag } from '../game/raritySpotlight';
 
 function escapeHtml(value: string): string {
   return value.replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]!);
@@ -25,9 +26,10 @@ function itemName(item: Item): string {
 /** 획득 목록 한 줄 — 같은 스탯북은 한 줄로 묶는다(장비는 id마다 다르다). */
 export type DungeonResultRow = { item: Item; count: number };
 
-/** 장비 먼저(떨어진 순서 그대로) → 영구 스탯북은 아래에 종류별로 묶어서. */
+/** 장비 먼저(유니크·전설은 더 위로, 나머지는 떨어진 순서 그대로) → 영구 스탯북은 아래에 종류별로 묶어서. */
 export function dungeonResultRows(items: readonly Item[]): DungeonResultRow[] {
-  const rows: DungeonResultRow[] = items.filter(item => !isStatBook(item)).map(item => ({ item, count: 1 }));
+  const gear = items.filter(item => !isStatBook(item)).map(item => ({ item, count: 1 }));
+  const rows = spotlightFirst(gear, row => row.item.rarity);
   const books = new Map<string, DungeonResultRow>();
   for (const item of items.filter(isStatBook)) {
     const key = item.book ?? item.id;
@@ -43,7 +45,11 @@ export function dungeonResultItemsMarkup(items: readonly Item[]): string {
   const rows = dungeonResultRows(items).map(({ item, count }) => {
     const kind = isStatBook(item) ? '스탯북' : '장비';
     const grade = escapeHtml(rarityNames[item.rarity]);
-    return `<li class=\"rarity-${item.rarity}\"><span><b class=\"dungeon-result-grade\">[${grade}]</b>${escapeHtml(itemName(item))}</span><small>${kind}${count > 1 ? ` ×${count}` : ''}</small></li>`;
+    // 유니크·전설(백로그 3번) — 등급 꼬리표는 그대로 두고 줄에 등급 빛(`is-spotlight`)만 더한다.
+    // 영구 스탯북은 등급이 높아도 "장비가 크게 나왔다"는 신호가 아니므로 빛을 주지 않는다.
+    const spotlight = !isStatBook(item) && isSpotlightRarity(item.rarity) ? ' is-spotlight' : '';
+    const tag = !isStatBook(item) && spotlightTag(item.rarity) ? `<b class=\"dungeon-result-spot\">${escapeHtml(spotlightTag(item.rarity))}</b>` : '';
+    return `<li class=\"rarity-${item.rarity}${spotlight}\"><span>${tag}<b class=\"dungeon-result-grade\">[${grade}]</b>${escapeHtml(itemName(item))}</span><small>${kind}${count > 1 ? ` ×${count}` : ''}</small></li>`;
   }).join('');
   return `<ul class=\"dungeon-result-items\" aria-label=\"획득 아이템\">${rows}</ul>`;
 }

@@ -14,6 +14,7 @@ import type { SkillId } from '../game/skills';
 import { cancelSkillSelection, chooseSkill, closeSkillPicker, openSkillPicker, pressSkillSlot } from './skillLoadout';
 import { LegendBoard } from '../game/legendBoard';
 import { mountLegendBar, sharePouchLegend } from './legendBar';
+import { emptySpotlightBoard, mountRaritySpotlight } from './raritySpotlightBar';
 import type { World } from '../game/world';
 import type { Session } from './login';
 import { renderStatus, tick, renderBagBadge } from './hud';
@@ -124,11 +125,15 @@ export class Interface {
   modal: HTMLElement;
   knownItems = new Set<string>();
   newItems = new Set<string>();
+  /** 가방 창을 열 때 옮겨 둔 "새 아이템"(백로그 3번) — 이번에 연 가방에서만 `NEW` 핀을 보여 준다. */
+  bagFresh = new Set<string>();
   attackButton!: HTMLButtonElement;
   slotButtons: HTMLButtonElement[] = [];
   skillFeedback = new SkillFeedback();
   /** 보물 주머니 레전드 전광판 대기열(작업 208) — 접속 중 모두에게 같은 줄이 뜨다. */
   legend = new LegendBoard();
+  /** 유니크·전설 획득 띠(백로그 3번) — 내 화면 위쪽에 3.5초(생성자에서 `mountRaritySpotlight`가 채운다). */
+  spotlight = emptySpotlightBoard;
   toast: HTMLElement;
   toastTimer = 0;
   saveStatus = '저장됨';
@@ -161,6 +166,7 @@ export class Interface {
     this.top = this.get('.top-hud'); this.banner = this.get('.tutorial');
     this.modal = this.get('.modal-backdrop'); this.toast = this.get('.toast');
     mountLegendBar(this);
+    mountRaritySpotlight(this);
     // 도메인 신호 구독(작업 256) — 화면은 사건을 듣기만 한다.
     bindDomainEvents(this);
     this.modalRenderGate = bindModalInteraction(this.modal, window, () => this.renderModal());

@@ -96,11 +96,11 @@ test('갑옷 10종 이름이 모두 기본형 인덱스 0~9 로 매핑된다', (
 });
 
 test('시트 경로는 성별·인덱스·동작·머리 없음마다 하나씩 있다', () => {
-  // 작업 222: 서기 시트를 낮은 양손 그립으로 다시 구워 `?v=5`(걷기·공격은 그대로).
-  assert.equal(armorSheetPath('male', 0, 'idle'), '/assets/pilot-25d/armors/warrior_male_armor_0_idle_v1.png?v=5');
-  assert.equal(armorSheetPath('female', 4, 'walk'), '/assets/pilot-25d/armors/warrior_female_armor_4_walk_v1.png?v=5');
-  assert.equal(armorSheetPath('female', 9, 'attack'), '/assets/pilot-25d/armors/warrior_female_armor_9_attack_v1.png?v=5');
-  assert.equal(armorSheetPath('male', 3, 'walk', true), '/assets/pilot-25d/armors/headless/warrior_male_armor_3_walk_v1.png?v=5');
+  // 작업 222: 서기 시트를 낮은 양손 그립으로 다시 구워 `?v=6`(걷기·공격은 그대로).
+  assert.equal(armorSheetPath('male', 0, 'idle'), '/assets/pilot-25d/armors/warrior_male_armor_0_idle_v1.png?v=6');
+  assert.equal(armorSheetPath('female', 4, 'walk'), '/assets/pilot-25d/armors/warrior_female_armor_4_walk_v1.png?v=6');
+  assert.equal(armorSheetPath('female', 9, 'attack'), '/assets/pilot-25d/armors/warrior_female_armor_9_attack_v1.png?v=6');
+  assert.equal(armorSheetPath('male', 3, 'walk', true), '/assets/pilot-25d/armors/headless/warrior_male_armor_3_walk_v1.png?v=6');
   assert.equal(armorSheetPath('male', 10, 'idle'), undefined);
   assert.equal(armorSheetPath('male', -1, 'idle'), undefined);
   assert.equal(armorSheetPath('male', 1.5, 'walk'), undefined);
@@ -278,18 +278,18 @@ test('장비창 초상화도 착용 갑옷 시트를 쓴다', () => {
   const save = freshSave('female');
   // [작업 216] 무기를 안 차면 기본 검을 지운 판을 쓰므로, 갑옷 시트만 보는 이 테스트는 0번 검을 찬다.
   save.equipment.weapon = { id: 'starter-sword', name: baseItems.weapon[0], slot: 'weapon', rarity: 'common', stats: { attack: 4 } };
-  // 작업 222: 서기 시트를 다시 구워 `?v=5`.
-  assert.equal(equipmentFallbackPortrait(save), '/assets/pilot-25d/warrior_female_idle_v1.png?v=5');
+  // 작업 222: 서기 시트를 다시 구워 `?v=6`.
+  assert.equal(equipmentFallbackPortrait(save), '/assets/pilot-25d/warrior_female_idle_v1.png?v=6');
   save.equipment.armor = armorItem('사슬 갑옷');
-  assert.equal(equipmentFallbackPortrait(save), '/assets/pilot-25d/armors/warrior_female_armor_2_idle_v1.png?v=5');
+  assert.equal(equipmentFallbackPortrait(save), '/assets/pilot-25d/armors/warrior_female_armor_2_idle_v1.png?v=6');
   save.equipment.helmet = helmetItem('철제 바시넷');
-  assert.equal(equipmentFallbackPortrait(save), '/assets/pilot-25d/armors/headless/warrior_female_armor_2_idle_v1.png?v=5');
+  assert.equal(equipmentFallbackPortrait(save), '/assets/pilot-25d/armors/headless/warrior_female_armor_2_idle_v1.png?v=6');
   const plan = equipmentPortraitPlan(save);
   assert(plan.key.includes('a2'), `캐시 키에 갑옷 티어: ${plan.key}`);
   assert.equal(plan.base, equipmentFallbackPortrait(save));
   // 갑옷이 없으면 기준 시트(+머리 없음)다 — 무기를 안 찬 캐릭터는 기본 검을 지운 판(빈손).
   const bare = freshSave('female');
-  assert.equal(equipmentPortraitPlan(bare).base, '/assets/pilot-25d/noweapon/warrior_female_idle_v1.png?v=5');
+  assert.equal(equipmentPortraitPlan(bare).base, '/assets/pilot-25d/noweapon/warrior_female_idle_v1.png?v=6');
 });
 
 test('갑옷 시트는 부팅 프리로드에 넣지 않고 티어별로만 받는다', () => {

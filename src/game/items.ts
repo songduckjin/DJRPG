@@ -159,7 +159,7 @@ export const slotNames: Record<Slot, string> = { weapon: '두손검', offhand: '
 
 export const rarityNames: Record<Rarity, string> = { common: '일반', magic: '매직', rare: '레어', epic: '에픽', unique: '유니크', legendary: '레전드' };
 
-export const statNames: Record<Stat, string> = { attack: '공격', defense: '방어', health: '체력', crit: '치명', speed: '공속', cdr: '쿨감' };
+export const statNames: Record<Stat, string> = { attack: '공격', defense: '방어', health: '체력', crit: '치명타 확률', speed: '공속', cdr: '쿨감' };
 
 const ringBases = ['구리 반지', '은 반지', '혈옥 반지', '수호의 인장', '군주의 반지'] as const;
 

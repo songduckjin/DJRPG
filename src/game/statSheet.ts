@@ -5,7 +5,7 @@
  * 여기 있는 값은 전투가 실제로 쓰는 값과 같은 출처에서 온다:
  *   · 공격·방어·최대 체력·치명·공속 → `totalStats(save)`(레벨 기본값 + 장비 + 패시브 + 추가옵션)
  *   · 피흡·회피·체력 회복·추가 데미지 → `effectiveExtraOptions(save.equipment)`(상한 적용값)
- *   · 치명타 확률 상한·치명타 피해 배수 → `src/game/battle/formulas.ts`
+ *   · 치명타 확률 상한·치명타 피해 배수(기본 180% + 장비 `치명타 피해량`) → `src/game/battle/formulas.ts`
  *   · 전투력 → `combatPower`(`src/game/power.ts`, 내 정보 창과 같은 식)
  *
  * **없는 값은 넣지 않는다.** 스탯 포인트처럼 쓰는 곳이 없는 값은 줄을 만들지 않는다 — 0이라고 적으면
@@ -15,8 +15,8 @@
  */
 import { CDR_CAP, totalStats } from './items';
 import type { Save } from './store';
-import { effectiveExtraOptions } from './extraOptions';
-import { CRIT_CHANCE_CAP, CRIT_DAMAGE_SCALE, damageReduction } from './battle/formulas';
+import { effectiveExtraOptions, EXTRA_CRIT_DMG_CAP } from './extraOptions';
+import { CRIT_CHANCE_CAP, critDamageScale, damageReduction } from './battle/formulas';
 import { combatPower } from './power';
 
 /** 추가옵션 %가 붙는 상한 — `effectiveExtraOptions`와 같은 값을 안내 문구에 쓴다. */
@@ -67,6 +67,9 @@ export function statSheet(save: Save, options: { currentHp: number; attackInterv
   const reduction = damageReduction(stats.defense, save.floor);
   const reductionText = `피해 감소 ${percent(reduction * 100)}`;
   const cdr = Math.min(CDR_CAP, Math.max(0, Math.round(stats.cdr)));
+  // 치명타 피해(백로그 2번): 기본 180%에 장비 `치명타 피해량`을 더한다(가산 상한 +15% → 195%).
+  const critBonus = Math.min(EXTRA_CRIT_DMG_CAP, Math.max(0, extras.critDmgPct));
+  const critDamageText = critBonus > 0 ? `장비 +${critBonus}%${extras.critDmgPct >= EXTRA_CRIT_DMG_CAP ? ` · 상한` : ''}` : undefined;
   const maxHp = Math.round(stats.health);
   const currentHp = Math.max(0, Math.min(maxHp, Math.round(options.currentHp)));
 
@@ -88,7 +91,7 @@ export function statSheet(save: Save, options: { currentHp: number; attackInterv
         key: 'chance', title: '치명·속도',
         rows: [
           { key: 'critChance', label: '치명타 확률', value: percent(critChance), note: stats.crit > CRIT_CHANCE_CAP ? `상한 ${CRIT_CHANCE_CAP}%` : undefined },
-          { key: 'critDamage', label: '치명타 피해', value: percent(CRIT_DAMAGE_SCALE * 100) },
+          { key: 'critDamage', label: '치명타 피해', value: percent(critDamageScale(extras.critDmgPct) * 100), note: critDamageText },
           { key: 'attackSpeed', label: '공격속도', value: percent(stats.speed), note: `초당 ${aps.toFixed(2)}회` },
           { key: 'cdr', label: '스킬 쿨타임 감소', value: percent(cdr), note: cdr >= CDR_CAP ? `상한 ${CDR_CAP}%` : undefined }
         ]

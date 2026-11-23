@@ -168,6 +168,18 @@
 @keyframes legend-bar-in { from { opacity: 0; transform: translate(-50%, -8px); } to { opacity: 1; transform: translate(-50%, 0); } }
 @media (prefers-reduced-motion: reduce) { .legend-bar { animation: none; } }
 
+/* ── 유니크·전설 획득 띠(백로그 3번) ─────────────────────────────────────────
+   전설 전광판(`.legend-bar`)은 모두에게 보이는 서버 공지라 맨 위를 쓰고, 이 띠는 **내 화면에만** 뜨는
+   획득 알림이다 — 전광판이 떠 있으면 그 아래로 34px 내려 앉아 두 줄이 겹치지 않는다.
+   등급 색은 인게임 등급색 그대로(유니크 #fb923c · 전설 #f87171)이고, 전설만 한 번 더 크게 빛난다. */
+.rarity-spotlight { position: fixed; z-index: 69; top: calc(env(safe-area-inset-top, 0px) + 44px); left: 50%; max-width: 92vw; padding: 6px 13px; border: 1px solid #fb923c; border-radius: 10px; background: linear-gradient(#31201af5, #180f10f5); color: #ffd9b8; font: 700 11.5px/1.4 'Noto Sans KR', sans-serif; text-align: center; box-shadow: 0 0 0 1px #0009, 0 4px 16px #000b, 0 0 16px #fb923c66; pointer-events: none; transform: translateX(-50%); animation: rarity-spotlight-in .26s ease-out; }
+.rarity-spotlight[hidden] { display: none; }
+.rarity-spotlight-text { display: block; overflow-wrap: anywhere; }
+.rarity-spotlight[data-rarity="legendary"] { border-color: #f87171; color: #ffdede; box-shadow: 0 0 0 1px #0009, 0 4px 16px #000b, 0 0 22px #f8717199; animation: rarity-spotlight-in .26s ease-out, rarity-spotlight-pulse 1.1s ease-in-out 2; }
+@keyframes rarity-spotlight-in { from { opacity: 0; transform: translate(-50%, -8px); } to { opacity: 1; transform: translate(-50%, 0); } }
+@keyframes rarity-spotlight-pulse { 0%, 100% { box-shadow: 0 0 0 1px #0009, 0 4px 16px #000b, 0 0 18px #f8717166; } 50% { box-shadow: 0 0 0 1px #0009, 0 4px 16px #000b, 0 0 30px #f87171cc; } }
+@media (prefers-reduced-motion: reduce) { .rarity-spotlight, .rarity-spotlight[data-rarity="legendary"] { animation: none; } }
+
 /* ── 밸런스·UI 개편 기념 종일 버프 알약(2026-11-22) ───────────────────────────────
    새벽 2시 배포 직후부터 다음 날 05:00(KST 일일 초기화)까지 공·방·체 +30%가 켜져 있는 동안만 뜬다.
    왼쪽 위 레벨 배지·닉네임·HP바(12px, 56~92px)·월드보스 아이콘(97px)과 우측 편의 메뉴 열

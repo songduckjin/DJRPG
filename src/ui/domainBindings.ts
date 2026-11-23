@@ -1,5 +1,5 @@
 import { onDomainEvent } from '../core/domainEvents';
-import type { Interface } from './interface';
+import type { Interface } from './interface';;
 
 /**
  * 화면 구독 등록 — `Interface`가 만들어진 직후에 한 번 부른다.
@@ -17,6 +17,9 @@ export function bindDomainEvents(ui: Interface): () => void {
       ui.knownItems.add(item.id);
       if (ui.openModal !== 'equipment') ui.newItems.add(item.id);
       ui.renderBagBadge();
+      // 유니크·전설 획득 띠(백로그 3번) — 사냥·던전·방치·보물 주머니 어디서 들어와도 같은 자리·문장.
+      // 상위 등급이 아니면 `show`가 스스로 걸러 낸다(에픽 이하는 지금처럼 토스트만).
+      ui.spotlight.show(item);
     }),
     // 장착이 바뀌면 투력·장착 칸이 달라진다.
     onDomainEvent('equipmentChanged', () => { ui.renderStatus(); }),

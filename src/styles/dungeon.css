@@ -132,4 +132,9 @@
 .dungeon-result-items li.rarity-unique{color:#fb923c;border-color:#fb923c88}
 .dungeon-result-items li.rarity-legendary{color:#f87171;border-color:#f8717188}
 .dungeon-result-items li small{flex:none;font-size:9px;color:#a89273}
+/* 유니크·전설 상위 노출(백로그 3번) — 던전 결과창도 상위 등급을 위로 올리고 줄에 등급 빛·꼬리표를 준다. */
+.dungeon-result-items li.is-spotlight{font-weight:700;box-shadow:inset 0 0 10px #ffffff14}
+.dungeon-result-items li.is-spotlight.rarity-legendary{background:linear-gradient(90deg,#f8717126,#f8717105);border-color:#f87171;box-shadow:inset 0 0 10px #f8717133,0 0 8px #f8717133}
+.dungeon-result-items li.is-spotlight.rarity-unique{background:linear-gradient(90deg,#fb923c20,#fb923c05);border-color:#fb923c;box-shadow:inset 0 0 10px #fb923c2e,0 0 8px #fb923c2e}
+.dungeon-result-spot{flex:none;font-size:9px;letter-spacing:-.2px}
 .dungeon-battle-result .dungeon-result-note{margin:4px 0;font-size:10px;color:#b6a184}
