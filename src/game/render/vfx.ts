@@ -324,7 +324,7 @@ export function drawWhirlSlash(this: GameView, effect: Effect, x: number, y: num
   }
 
 const arrowColors: Record<NonNullable<Effect['variant']>, number> = {
-  normal: 0xffd9a0, ice: 0xa8dcff, pierce: 0xffe6a0, snipe: 0xfff4d0, volley: 0xffc27a,
+  normal: 0xe1e5df, ice: 0xa8dcff, pierce: 0xf0f3ef, snipe: 0xffffff, volley: 0xd8ddd6,
   // 마법사 탄환(작업 198) — 남성은 푸른 마력, 여성은 붉은 화염, 스킬은 속성별 색을 쓴다.
   arcane: 0x8fb4ff, fire: 0xff7a3c, frost: 0xbfe6ff, chain: 0xd0b4ff, meteor: 0xffb266
 };
@@ -340,21 +340,25 @@ export function drawArrow(this: GameView, effect: Effect, x: number, y: number, 
     const dx = (effect.tx ?? effect.x) - effect.x, dy = (effect.ty ?? effect.y) - effect.y;
     const progress = Math.max(0, Math.min(1, effect.age / Math.max(.01, effect.duration)));
     const px = x + (dx - dy) * .86 * progress;
-    const py = y + (dx + dy) * .43 * progress - 20;
-    const angle = Math.atan2((dx + dy) * .43, (dx - dy) * .86);
+    // 발사점과 적중점을 발밑이 아닌 몸통 중앙에 두고, 실제 궤적의 접선으로 화살을 돌린다.
+    const lift = 8 * Math.sin(Math.PI * progress);
+    const py = y + (dx + dy) * .43 * progress - 46 - lift;
+    const angle = Math.atan2((dx + dy) * .43 - 8 * Math.PI * Math.cos(Math.PI * progress), (dx - dy) * .86);
     const color = arrowColors[effect.variant ?? 'normal'];
-    const length = effect.variant === 'snipe' ? 34 : effect.variant === 'pierce' ? 28 : 20;
-    // 잔상 궤적
-    const tail = 1 - Math.abs(progress - .5) * 2;
-    this.effects.moveTo(px - Math.cos(angle) * length * 3.2, py - Math.sin(angle) * length * 3.2)
-      .lineTo(px, py).stroke({ color, width: 2 + tail * 2.4, alpha: .16 + tail * .24 });
-    // 화살대와 촉
-    this.effects.moveTo(px - Math.cos(angle) * length, py - Math.sin(angle) * length)
-      .lineTo(px, py).stroke({ color, width: 2.6, alpha: .95 });
-    this.effects.moveTo(px + Math.cos(angle) * 5, py + Math.sin(angle) * 5)
-      .lineTo(px - Math.sin(angle) * 3.5, py + Math.cos(angle) * 3.5)
-      .lineTo(px + Math.sin(angle) * 3.5, py - Math.cos(angle) * 3.5).closePath().fill({ color, alpha: 1 });
-    if (effect.variant === 'ice') this.glow.circle(px, py, 10 + tail * 8).fill({ color: 0x8fd0ff, alpha: .12 });
+    const length = effect.variant === 'snipe' ? 36 : effect.variant === 'pierce' ? 32 : 26;
+    const ux = Math.cos(angle), uy = Math.sin(angle), vx = -uy, vy = ux;
+    const tailX = px - ux * length, tailY = py - uy * length;
+    // 갈색 화살대·양쪽 깃·은빛 촉을 분리해 작은 화면에서도 화살 형태가 읽히게 한다.
+    this.effects.moveTo(tailX, tailY).lineTo(px - ux * 5, py - uy * 5).stroke({ color: 0x4b3325, width: 4, alpha: 1 });
+    this.effects.moveTo(tailX, tailY).lineTo(px - ux * 5, py - uy * 5).stroke({ color: 0xc29b70, width: 1.3, alpha: 1 });
+    for (const side of [-1, 1]) this.effects.moveTo(tailX + vx * side * 1.5, tailY + vy * side * 1.5)
+      .lineTo(tailX + ux * 8 + vx * side * 6, tailY + uy * 8 + vy * side * 6)
+      .lineTo(tailX + ux * 11, tailY + uy * 11).closePath().fill({ color: 0xe9e3d5, alpha: .95 });
+    this.effects.moveTo(px + ux * 8, py + uy * 8)
+      .lineTo(px - ux * 5 + vx * 4, py - uy * 5 + vy * 4)
+      .lineTo(px - ux * 5 - vx * 4, py - uy * 5 - vy * 4).closePath().fill({ color, alpha: 1 });
+    if (effect.variant === 'pierce') this.glow.moveTo(tailX - ux * 12, tailY - uy * 12).lineTo(px, py).stroke({ color: 0xd6e6ed, width: 3, alpha: .24 });
+    if (effect.variant === 'ice') this.glow.circle(px, py, 10).fill({ color: 0x8fd0ff, alpha: .12 });
     if (effect.variant === 'snipe') this.glow.circle(px, py, 14).fill({ color: 0xfff0c8, alpha: .18 });
   }
 

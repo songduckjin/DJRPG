@@ -221,19 +221,25 @@ export class CombatEngine {
       this.damage(area!.radius!, attack * 3.2 * damageScale, 0, area!.arc ?? Math.PI, 45, 1 + (level - 1) * .2);
     } else if (kind === 'doubleShot') {
       const aim = this.aimPoint(target, range);
-      this.shoot(aim.x, aim.y, attack * 1.35 * damageScale, { speed: 900, radius: area!.projectileRadius, arrow: 'normal', aim: target, source: kind });
-      this.shoot(aim.x + (random() - .5) * 16, aim.y + (random() - .5) * 16, attack * 1.35 * damageScale, { speed: 900, radius: area!.projectileRadius, delay: .08, arrow: 'normal', aim: target, source: kind });
+      const sideX = -Math.sin(p.facing) * 8, sideY = Math.cos(p.facing) * 8;
+      for (const side of [-1, 1]) this.shoot(aim.x, aim.y, attack * 1.35 * damageScale,
+        { speed: 900, radius: area!.projectileRadius, arrow: 'normal', aim: target, source: kind,
+          from: { x: p.x + sideX * side, y: p.y + sideY * side } });
     } else if (kind === 'multiShot') {
       const aim = this.aimPoint(target, range);
       const base = Math.atan2(aim.y - p.y, aim.x - p.x);
+      const hitEnemies = new Set<Enemy>();
       for (let index = -2; index <= 2; index++) {
         const spread = base + index * .17;
-        const distance = Math.hypot(aim.x - p.x, aim.y - p.y);
-        this.shoot(p.x + Math.cos(spread) * distance, p.y + Math.sin(spread) * distance, attack * .95 * damageScale, { speed: 860, radius: area!.projectileRadius, arrow: 'normal', source: kind });
+        this.shoot(p.x + Math.cos(spread) * range, p.y + Math.sin(spread) * range, attack * .95 * damageScale,
+          { speed: 860, radius: area!.projectileRadius, targets: Infinity, arrow: 'normal', source: kind, piercing: true, hitEnemies });
       }
     } else if (kind === 'pierceShot') {
       const aim = this.aimPoint(target, range);
-      this.shoot(aim.x, aim.y, attack * 2.6 * damageScale, { speed: 980, radius: area!.projectileRadius, targets: 4, knockback: 4, arrow: 'pierce', source: kind });
+      const angle = Math.atan2(aim.y - p.y, aim.x - p.x);
+      this.shoot(p.x + Math.cos(angle) * range, p.y + Math.sin(angle) * range,
+        attack * 2.6 * damageScale, { speed: 980, radius: area!.projectileRadius, targets: 4,
+          arrow: 'pierce', source: kind, piercing: true, hitEnemies: new Set() });
     } else if (kind === 'iceArrow') {
       const aim = this.aimPoint(target, range);
       this.shoot(aim.x, aim.y, attack * 1.9 * damageScale, { speed: 760, radius: area!.projectileRadius, slow: 2.4 + (level - 1) * .06, arrow: 'ice', aim: target, source: kind });
@@ -317,7 +323,7 @@ export class CombatEngine {
   }
 
   /** 화살 하나를 쏜다. 도착하는 순간(`update`)에 그 지점 반경의 적에게 피해를 준다. */
-  private shoot(tx: number, ty: number, power: number, options: { speed?: number; radius?: number; targets?: number; slow?: number; knockback?: number; delay?: number; arrow?: ArrowVariant; aim?: Enemy; source?: SkillId; from?: { x: number; y: number }; launch?: number; size?: number } = {}): void {
+  private shoot(tx: number, ty: number, power: number, options: { speed?: number; radius?: number; targets?: number; slow?: number; knockback?: number; delay?: number; arrow?: ArrowVariant; aim?: Enemy; source?: SkillId; from?: { x: number; y: number }; launch?: number; size?: number; piercing?: boolean; hitEnemies?: Set<Enemy> } = {}): void {
     const p = this.player;
     // `from`은 발사 자리다(파이어 볼트 화염구는 머리 위에서 출발한다). 없으면 캐릭터 자리.
     const origin = options.from ?? p;
@@ -330,7 +336,7 @@ export class CombatEngine {
       x: origin.x, y: origin.y, kind: 'shot', age: 0, duration: Math.max(.05, distance / (options.speed ?? 820)) + delay,
       angle: Math.atan2(dy, dx), tx, ty, power, radius: options.radius ?? 40, targets: options.targets ?? 1,
       slow: options.slow ?? 0, variant: options.arrow ?? 'normal', level: this.save.level, aim: options.aim, source: options.source,
-      launch: launch || undefined, size: options.size
+      launch: launch || undefined, size: options.size, piercing: options.piercing, hitEnemies: options.hitEnemies
     });
   }
 
@@ -366,6 +372,7 @@ export class CombatEngine {
       : targetsInForwardBox(origin, radius, boxHalfWidth, angle, this.enemies);
     let dealt = 0;
     for (const { enemy, dx, dy, dist } of targets) {
+      if (hitEnemies && hitEnemies.size >= maxTargets) break;
       if (hitEnemies?.has(enemy)) continue;
       hitEnemies?.add(enemy);
       const crit = critChance > 0 && this.critRoll() * 100 < critChance;
@@ -574,11 +581,18 @@ export class CombatEngine {
       if (effect.kind === 'shot') {
         // 적이 살아 있으면 날아가는 동안에도 도착지를 따라간다(빗나감 방지).
         if (effect.aim && this.enemies.includes(effect.aim)) { effect.tx = effect.aim.x; effect.ty = effect.aim.y; }
+        if (effect.piercing) {
+          const distance = Math.hypot((effect.tx ?? effect.x) - effect.x, (effect.ty ?? effect.y) - effect.y);
+          if ((effect.hitEnemies?.size ?? 0) < (effect.targets ?? Infinity)) this.damage(distance * Math.min(1, effect.age / effect.duration), effect.power ?? 0, effect.angle,
+            Math.PI, 0, 0, effect, effect.targets ?? Infinity, undefined, effect.radius, effect.hitEnemies);
+        }
         if (!effect.fired && effect.age >= effect.duration) {
           effect.fired = true;
           const impact = { x: effect.tx ?? effect.x, y: effect.ty ?? effect.y };
-          this.damage(effect.radius ?? 40, effect.power ?? 0, effect.angle, Math.PI, 10, effect.slow ?? 0, impact, effect.targets ?? 1);
-          if (effect.source) this.effects.push({ ...impact, kind: 'impactArea', age: 0, duration: .18, angle: 0, radius: effect.radius, variant: effect.variant });
+          if (!effect.piercing) {
+            this.damage(effect.radius ?? 40, effect.power ?? 0, effect.angle, Math.PI, 10, effect.slow ?? 0, impact, effect.targets ?? 1);
+            if (effect.source) this.effects.push({ ...impact, kind: 'impactArea', age: 0, duration: .18, angle: 0, radius: effect.radius, variant: effect.variant });
+          }
         }
         continue;
       }

@@ -13,7 +13,7 @@ export const SKILL_AREAS: Record<SkillId, SkillAreaRule> = {
   crushing: { kind: 'single' }, spin: { kind: 'circle' },
   doubleShot: { kind: 'projectile', projectileRadius: 40 },
   multiShot: { kind: 'projectile', projectileRadius: 34 },
-  pierceShot: { kind: 'projectile', projectileRadius: 52 },
+  pierceShot: { kind: 'projectile', projectileRadius: 24 },
   iceArrow: { kind: 'projectile', projectileRadius: 54 },
   hawkEye: { kind: 'buff' },
   snipe: { kind: 'projectile', projectileRadius: 38 },
