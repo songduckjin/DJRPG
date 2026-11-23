@@ -146,7 +146,7 @@ export function drawSkillVfx(this: GameView, world: CombatEngine, effect: Effect
     if (!sprites) {
       const sprite = new Sprite(this.textures[art]);
       sprite.anchor.set(.5);
-      sprite.blendMode = effect.kind === 'slam' ? 'normal' : 'add';
+      sprite.blendMode = effect.kind === 'slam' || effect.kind === 'power' ? 'normal' : 'add';
       (effect.kind === 'slam' ? this.groundVfx : this.skillVfx).addChild(sprite);
       sprites = [sprite];
       this.vfxSprites.set(effect, sprites);
@@ -179,22 +179,15 @@ export function drawSkillVfx(this: GameView, world: CombatEngine, effect: Effect
         continue;
       }
       if (effect.kind === 'power') {
-        const drop = Math.min(1, t * 3.2);
-        const tipY = y - 150 + drop * 120;
-        const fade = Math.max(0, 1 - t * 2.8);
-        this.glow.moveTo(x - 8, tipY - 82).lineTo(x, tipY).stroke({ color: 0xffa72b, width: 23, alpha: .38 * fade });
-        this.glow.moveTo(x - 8, tipY - 82).lineTo(x, tipY).stroke({ color: 0xffffff, width: 9, alpha: fade });
-        this.glow.moveTo(x - 29, tipY - 67).lineTo(x + 13, tipY - 71).stroke({ color: 0xffe19a, width: 7, alpha: fade });
-        if (drop >= 1) {
-          const shock = (t - .3125) / .6875;
-          this.ground.ellipse(x, y, 22 + shock * 55, 11 + shock * 27).stroke({ color: 0xffd06c, width: 4, alpha: .85 * (1 - shock) });
-          this.glow.circle(x, y - 34, 12 + shock * 34).stroke({ color: 0xffffff, width: 4, alpha: .8 * (1 - shock) });
-        }
-        sprite.position.set(x, y - 42);
-        sprite.scale.set(size / sprite.texture.width);
+        const drop = Math.min(1, t * 5);
+        sprite.anchor.set(.5, .86);
+        sprite.position.set(x, y - 35 + drop * 30);
+        const scale = 190 / sprite.texture.width * (.76 + drop * .24);
+        sprite.scale.set(scale);
         sprite.rotation = 0;
-        sprite.alpha = drop >= 1 ? (1 - t) * 1.2 : 0;
+        sprite.alpha = Math.min(1, t * 12) * Math.min(1, (1 - t) * 2.4);
         sprite.tint = 0xffffff;
+        if (drop >= 1) this.ground.ellipse(x, y, 22 + (t - .2) * 65, 11 + (t - .2) * 32).stroke({ color: 0xffd06c, width: 2.5, alpha: .65 * (1 - t) });
         continue;
       }
       const phase = t;
