@@ -8,6 +8,7 @@
 |---|---|
 | **스킬 트리 데이터·판정·투자/초기화** | `src/game/skillTree.ts`(`skillTreeFor`·`buildSkillTree`·`skillNodeStatus`·`investSkillPoint`·`resetSkillTree`·`skillValueRows`·`TIER_SHAPE`·`TIER_GATE`) |
 | **스킬 타격 범위 공용 규격** | `src/game/battle/skillAreas.ts`(`SKILL_AREAS`·`PASSIVE_AREAS`·`skillArea`·`projectedAreaRadii`) — `combat/engine.ts`와 `render/vfx.ts`가 공유 |
+| 전사 스킬 VFX 개발용 미리보기 | `skill-vfx-studio.html`·`src/dev/skillVfxStudio.ts` — 실제 `CombatEngine`·`GameView`를 쓰는 독립 화면, 계정·저장 없음 |
 | **SP 회계(클라·서버 공용)** | `src/game/skillPoints.ts`(`SP_PER_LEVEL`·`spTotal`·`spSpent`·`spLedger`) |
 | 스킬 트리 화면 | `src/ui/modals/skillModal.ts`(세 칸 조립)·`src/ui/skillTreeView.ts`(상단 바·트리·상세 패널)·`src/styles/modals/skill.css` |
 | 스킬·패시브 정의, 직업별 순서·레벨 | `src/game/skills.ts` (`jobs`·`skillOrderFor`·`passiveOrderFor`·`skillDuration`·`canLearn`·`MAX_SKILL_LEVEL`) |
@@ -69,6 +70,8 @@
 - 미리보기 전용 테스트 우편·전용 기능 되살리기(작업 252에서 제거).
 
 ## 테스트
+
+전사 이펙트를 다듬을 때 `npm run dev` 뒤 `/skill-vfx-studio.html`에서 390×844 미리보기를 연다. 전사 8개 스킬, Lv.1/5/10, 대상 1/3/8명, 남녀 캐릭터, 전체/낮음 효과 품질을 바꾸면 같은 구도로 자동 반복 재생한다. 수치는 실제 엔진과 렌더러에서 나온다. 이 HTML은 Vite 개발 서버 전용이며 운영 `index.html` 흐름·계정·DB·세이브를 건드리지 않는다.
 
 `node --test tests/skill-areas.test.mjs tests/skill-double-slash.test.mjs tests/skill-whirl-slash.test.mjs tests/skill-feedback.test.mjs tests/range.test.mjs tests/enemy-range-90.test.mjs tests/combat-field-split.test.mjs tests/dungeon-battle.test.mjs`
 
