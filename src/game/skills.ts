@@ -43,7 +43,7 @@ export const allSkillIds: SkillId[] = [...skillOrder, ...archerSkillOrder, ...ma
 export function skillOrderFor(job: Job): SkillId[] { return job === 'archer' ? archerSkillOrder : job === 'mage' ? mageSkillOrder : skillOrder; }
 
 export const skills: Record<SkillId, Skill> = {
-  slash2: { id: 'slash2', name: '이단참', level: 2, icon: '⚔', cooldown: 4, power: '공격력 × 1.1 · 2연격', description: '좌우로 두 번 크게 베어 넘긴다. 정방향 횡베기에 이어 되받아 베는 역방향 일격이 따로 들어간다.', range: 96 },
+  slash2: { id: 'slash2', name: '이단참', level: 2, icon: '⚔', cooldown: 4, power: '공격력 × 1.1 · 2연격', description: '전방을 두 번 교차해 X자 검기를 만든다. 정방향 일격 뒤 되받아 베는 일격이 따로 들어간다.', range: 130 },
   // 1번 다음 다섯 자리는 작업 212에서 해금 레벨을 앞당겼다(4·5·7·10·14) — 크러싱·트위스터가 마지막 두 자리다.
   slam: { id: 'slam', name: '와일드 스탬프', level: 4, icon: '💥', cooldown: 8, power: '공격력 × 2.2', description: '지면을 내리찍어 붉은 균열을 만들고 적을 밀쳐 둔화시킨다.', range: 126 },
   warcry: { id: 'warcry', name: '블러드 레이지', level: 5, icon: '🩸', cooldown: 14, power: '공격력 × 1.2 · 공격속도 상승', description: '6초 동안(레벨당 +0.2초) 붉은 투기로 공격력·공격속도·이동속도가 상승한다.', range: 120 },

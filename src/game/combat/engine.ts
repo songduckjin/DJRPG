@@ -20,7 +20,7 @@ import { skillLevel, totalStats, type Save } from '../store';
 import { EXTRA_LIFESTEAL_HIT_CAP, EXTRA_LIFESTEAL_SECOND_CAP, EXTRA_REGEN_SECONDS, effectiveExtraOptions } from '../extraOptions';
 import type { Action, ArrowVariant, Coin, Drop, Effect, Enemy, HeroAfterimage } from '../battle/types';
 import { CRIT_CHANCE_CAP, ENEMY_ATTACK_RANGE, ENEMY_STOP_RANGE, ENEMY_STRIKE_SECONDS, WARRIOR_ATTACK_RANGE, archerAttackRange, archerStopRange, attackInterval, basicAttackPower, berserkAttackScale, berserkSpeedScale, critDamageScale, enemyHitDamage, enemyMoveSpeed, mageAttackRange, mageStopRange, swarmCount } from '../battle/formulas';
-import { aimPoint as aimPointTo, fireBoltSpots, nearestEnemy, targetsInArc } from '../battle/targeting';
+import { aimPoint as aimPointTo, fireBoltSpots, nearestEnemy, targetsInArc, targetsInForwardBox } from '../battle/targeting';
 import { skillArea } from '../battle/skillAreas';
 import { recordPlaySeconds } from '../progress';
 import { isPatchBuffActive } from '../patchBuff';
@@ -344,7 +344,7 @@ export class CombatEngine {
     if (Math.abs(screenDx) > 4) this.player.facingSide = screenDx > 0 ? 1 : -1;
   }
 
-  damage(radius: number, amount: number, angle: number, arc: number, knockback = 12, slow = 0, origin: { x: number; y: number } = this.player, maxTargets = Infinity, labelOffset?: { x: number; y: number }): void {
+  damage(radius: number, amount: number, angle: number, arc: number, knockback = 12, slow = 0, origin: { x: number; y: number } = this.player, maxTargets = Infinity, labelOffset?: { x: number; y: number }, boxHalfWidth?: number): void {
     // 추가옵션(작업 238): `추가 데미지`는 최종 피해에 곱하고, `피흡`은 실제로 가한 피해에서 회복한다.
     // 두 값 모두 상한이 걸려 있다(`effectiveExtraOptions`) — 피흡은 한 번의 타격에 최대 체력의 4%까지다.
     const extras = effectiveExtraOptions(this.save.equipment);
@@ -360,7 +360,9 @@ export class CombatEngine {
     // 확률은 위 `critChance` 그대로이고 **배수만** 오른다 — 추가 데미지·피흡도 이 배수 위에서 계산된다.
     const critScale = critDamageScale(extras.critDmgPct);
     // 판정 대상은 사거리·부채꼴 안의 적(`battle/targeting`). `maxTargets`를 주면 가까운 순으로 그 수만 맞는다(평타 1마리).
-    const targets = targetsInArc(origin, radius, angle, arc, this.enemies, maxTargets);
+    const targets = boxHalfWidth === undefined
+      ? targetsInArc(origin, radius, angle, arc, this.enemies, maxTargets)
+      : targetsInForwardBox(origin, radius, boxHalfWidth, angle, this.enemies);
     let dealt = 0;
     for (const { enemy, dx, dy, dist } of targets) {
       const crit = critChance > 0 && this.critRoll() * 100 < critChance;
@@ -586,7 +588,7 @@ export class CombatEngine {
         if (effect.kind === 'slash2') {
           const swing = slash2Hits[effect.hits ?? 0] ?? slash2Hits[0];
           const area = skillArea('slash2', level);
-          this.damage(area.radius!, (effect.power ?? 0) * swing.power, effect.angle, area.arc!, swing.knockback, 0, effect);
+          this.damage(area.range, (effect.power ?? 0) * swing.power, effect.angle, Math.PI, swing.knockback, 0, effect, Infinity, undefined, area.halfWidth);
           effect.hits = (effect.hits ?? 0) + 1;
           effect.nextHit = slash2Hits[effect.hits]?.at;
           continue;

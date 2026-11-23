@@ -20,6 +20,23 @@ function drawMeleeArea(this: GameView, effect: Effect, x: number, y: number): vo
   const area = skillArea(id, effect.level ?? 1);
   const radius = id === 'spin' ? area.radius! * dragonOrbitFactor(effect.age / effect.duration) : area.radius!;
   const alpha = .28 * Math.max(0, 1 - effect.age / effect.duration);
+  if (id === 'slash2') {
+    const forward = { x: Math.cos(effect.angle), y: Math.sin(effect.angle) };
+    const side = { x: -forward.y, y: forward.x };
+    const corners = [
+      { distance: 0, lateral: -area.halfWidth! }, { distance: area.range, lateral: -area.halfWidth! },
+      { distance: area.range, lateral: area.halfWidth! }, { distance: 0, lateral: area.halfWidth! }
+    ];
+    for (let index = 0; index < corners.length; index++) {
+      const { distance, lateral } = corners[index];
+      const dx = forward.x * distance + side.x * lateral;
+      const dy = forward.y * distance + side.y * lateral;
+      const px = x + (dx - dy) * .86, py = y + (dx + dy) * .43;
+      if (index === 0) this.ground.moveTo(px, py); else this.ground.lineTo(px, py);
+    }
+    this.ground.closePath().stroke({ color: 0xffcf8a, width: 2, alpha });
+    return;
+  }
   if (id === 'hell' || id === 'spin') {
     const ellipse = projectedAreaRadii(radius);
     this.ground.ellipse(x, y, ellipse.x, ellipse.y).stroke({ color: id === 'spin' ? 0x6fb0ff : 0xd8392f, width: 2, alpha });
@@ -93,28 +110,27 @@ export function drawSkillVfx(this: GameView, world: CombatEngine, effect: Effect
       const forwardX = Math.cos(screenAngle), forwardY = Math.sin(screenAngle);
       const age = Number.isFinite(effect.age) ? effect.age : t * (effect.duration || .55);
       const phase = (start: number, life: number): number => Math.max(0, Math.min(1, (age - start) / life));
-      const firstPhase = phase(0, .2);
-      const backPhase = phase(slash2SecondHit, .26);
-      // 1타: 정방향 횡베기 — 히어로 앞쪽에서 뻗어 나가며 사라진다.
-      const firstWidth = (176 + strength * 7) * (.84 + firstPhase * .34);
+      const firstPhase = phase(0, .5);
+      const backPhase = phase(slash2SecondHit, .35);
+      // 두 검기의 중심을 같은 전방 지점에 두고 반대 대각선으로 그려 X자를 만든다.
+      const crossX = x + forwardX * 64, crossY = y + forwardY * 36 - 42;
+      const firstWidth = (218 + strength * 7) * (.84 + firstPhase * .28);
       const firstScale = firstWidth / first.texture.width;
-      const reach = 18 + firstPhase * 26;
-      first.position.set(x + forwardX * reach, y + forwardY * reach * .55 - 36);
-      first.rotation = screenAngle - .17;
+      first.position.set(crossX - forwardX * (8 - firstPhase * 8), crossY - forwardY * 4);
+      first.rotation = screenAngle - 1.15;
       first.scale.set(firstScale, firstScale * .82);
       first.alpha = firstPhase > 0 && firstPhase < 1 ? Math.sin(Math.PI * firstPhase) : 0;
       first.tint = tint;
-      // 2타: 되받아 베기 — 좌우를 뒤집고 반대 각도로 그어 두 궤적이 X자로 교차한다.
-      const backWidth = (204 + strength * 8) * (.8 + backPhase * .34);
+      // 2타는 같은 중심을 반대 대각선으로 가른다. 1타가 남아 있는 동안 교차한다.
+      const backWidth = (218 + strength * 8) * (.84 + backPhase * .28);
       const backScale = backWidth / back.texture.width;
-      const backReach = 24 + backPhase * 30;
-      back.position.set(x + forwardX * backReach, y + forwardY * backReach * .55 - 44);
-      back.rotation = screenAngle + .2;
+      back.position.set(crossX + forwardX * (backPhase * 8), crossY + forwardY * 4);
+      back.rotation = screenAngle + .55;
       back.scale.set(-backScale, backScale * .86);
       back.alpha = backPhase > 0 && backPhase < 1 ? Math.sin(Math.PI * backPhase) : 0;
       back.tint = tint;
       const shockWidth = (186 + strength * 6) * (.86 + backPhase * .32);
-      shock.position.set(x + forwardX * shockWidth * .34, y + forwardY * shockWidth * .34 * .55);
+      shock.position.set(crossX, crossY + 32);
       shock.scale.set(shockWidth / shock.texture.width, shockWidth / shock.texture.width * .62);
       shock.alpha = backPhase > 0 && backPhase < 1 ? Math.sin(Math.PI * backPhase) : 0;
       shock.tint = tint;

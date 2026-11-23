@@ -1,13 +1,13 @@
 /** 액티브 24종의 판정·지면 표시 공용 규격. 단위는 월드 좌표(px), arc는 중심선 양쪽 각도(rad). */
 import { skillDuration, skillRange, type PassiveId, type SkillId } from '../skills';
 
-export type SkillAreaKind = 'arc' | 'circle' | 'projectile' | 'buff' | 'single';
-export type SkillAreaRule = { kind: SkillAreaKind; radius?: number; arc?: number; projectileRadius?: number };
+export type SkillAreaKind = 'arc' | 'box' | 'circle' | 'projectile' | 'buff' | 'single';
+export type SkillAreaRule = { kind: SkillAreaKind; radius?: number; arc?: number; halfWidth?: number; projectileRadius?: number };
 export type SkillArea = SkillAreaRule & { range: number; duration: number };
 
 /** 고정 반경만 기록한다. 레벨에 따라 커지는 사거리는 skillRange가 계산한다. */
 export const SKILL_AREAS: Record<SkillId, SkillAreaRule> = {
-  slash2: { kind: 'arc', arc: .9 }, slam: { kind: 'arc', arc: 1.35 },
+  slash2: { kind: 'box', halfWidth: 90 }, slam: { kind: 'arc', arc: 1.35 },
   warcry: { kind: 'buff', radius: 115 }, power: { kind: 'arc', arc: .45 },
   destroy: { kind: 'arc', arc: .7 }, hell: { kind: 'circle' },
   crushing: { kind: 'single' }, spin: { kind: 'circle' },

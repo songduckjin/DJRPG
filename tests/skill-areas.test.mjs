@@ -30,7 +30,7 @@ test('판정 엔진과 VFX가 같은 스킬 범위 규격을 읽는다', () => {
 
 test('부채꼴 경계 안쪽은 맞고 바깥쪽은 맞지 않는다', () => {
   const origin = { x: 0, y: 0 };
-  for (const id of ['slash2', 'slam', 'power', 'destroy']) {
+  for (const id of ['slam', 'power', 'destroy']) {
     const { radius, arc } = skillArea(id, 1);
     const inside = { x: radius - .01, y: 0 };
     const outside = { x: radius + .01, y: 0 };
