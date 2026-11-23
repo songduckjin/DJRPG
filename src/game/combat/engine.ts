@@ -21,7 +21,7 @@ import { EXTRA_LIFESTEAL_HIT_CAP, EXTRA_LIFESTEAL_SECOND_CAP, EXTRA_REGEN_SECOND
 import type { Action, ArrowVariant, Coin, Drop, Effect, Enemy, HeroAfterimage } from '../battle/types';
 import { CRIT_CHANCE_CAP, ENEMY_ATTACK_RANGE, ENEMY_STOP_RANGE, ENEMY_STRIKE_SECONDS, WARRIOR_ATTACK_RANGE, archerAttackRange, archerStopRange, attackInterval, basicAttackPower, berserkAttackScale, berserkSpeedScale, critDamageScale, enemyHitDamage, enemyMoveSpeed, mageAttackRange, mageStopRange, swarmCount } from '../battle/formulas';
 import { aimPoint as aimPointTo, fireBoltSpots, nearestEnemy, targetsInArc, targetsInForwardBox } from '../battle/targeting';
-import { skillArea } from '../battle/skillAreas';
+import { destroyTravelProgress, skillArea } from '../battle/skillAreas';
 import { recordPlaySeconds } from '../progress';
 import { isPatchBuffActive } from '../patchBuff';
 import { clampArenaPoint, clampFieldPoint } from './bounds';
@@ -215,8 +215,7 @@ export class CombatEngine {
       this.effects.push({ x: point.x, y: point.y, kind: 'power', age: 0, duration: skillDuration(kind, level), angle: p.facing });
       this.damage(area!.radius!, attack * 5.5 * damageScale, p.facing, Math.PI, 24, 0, p, 1);
     } else if (kind === 'destroy') {
-      this.effects.push({ x: p.x, y: p.y, kind: 'destroy', age: 0, duration: skillDuration(kind, level), angle: p.facing });
-      this.damage(area!.radius!, attack * 2.7 * damageScale, p.facing, area!.arc!, 42);
+      this.effects.push({ x: p.x, y: p.y, kind: 'destroy', age: 0, duration: skillDuration(kind, level), angle: p.facing, power: attack * 2.7 * damageScale, level, hitEnemies: new Set() });
     } else if (kind === 'hell') {
       this.effects.push({ x: p.x, y: p.y, kind: 'hell', age: 0, duration: skillDuration(kind, level), angle: p.facing, nextHit: .4, power: attack * .6 * damageScale, level });
       this.damage(area!.radius!, attack * 3.2 * damageScale, 0, area!.arc ?? Math.PI, 45, 1 + (level - 1) * .2);
@@ -346,7 +345,7 @@ export class CombatEngine {
     if (Math.abs(screenDx) > 4) this.player.facingSide = screenDx > 0 ? 1 : -1;
   }
 
-  damage(radius: number, amount: number, angle: number, arc: number, knockback = 12, slow = 0, origin: { x: number; y: number } = this.player, maxTargets = Infinity, labelOffset?: { x: number; y: number }, boxHalfWidth?: number): void {
+  damage(radius: number, amount: number, angle: number, arc: number, knockback = 12, slow = 0, origin: { x: number; y: number } = this.player, maxTargets = Infinity, labelOffset?: { x: number; y: number }, boxHalfWidth?: number, hitEnemies?: Set<Enemy>): void {
     // 추가옵션(작업 238): `추가 데미지`는 최종 피해에 곱하고, `피흡`은 실제로 가한 피해에서 회복한다.
     // 두 값 모두 상한이 걸려 있다(`effectiveExtraOptions`) — 피흡은 한 번의 타격에 최대 체력의 4%까지다.
     const extras = effectiveExtraOptions(this.save.equipment);
@@ -367,6 +366,8 @@ export class CombatEngine {
       : targetsInForwardBox(origin, radius, boxHalfWidth, angle, this.enemies);
     let dealt = 0;
     for (const { enemy, dx, dy, dist } of targets) {
+      if (hitEnemies?.has(enemy)) continue;
+      hitEnemies?.add(enemy);
       const crit = critChance > 0 && this.critRoll() * 100 < critChance;
       const baseHit = crit ? amount * critScale : amount;
       const bonusHit = bonusPct > 0 ? baseHit * bonusPct / 100 : 0;
@@ -583,6 +584,10 @@ export class CombatEngine {
       }
       // 딜레이 크러싱 연출은 지금 때리는 적의 자리를 따라간다(작업 212).
       if (effect.kind === 'crushing' && effect.aim && this.enemies.includes(effect.aim)) { effect.x = effect.aim.x; effect.y = effect.aim.y; }
+      if (effect.kind === 'destroy') {
+        const area = skillArea('destroy', effect.level ?? 1);
+        this.damage(area.range * destroyTravelProgress(effect.age, effect.duration), effect.power ?? 0, effect.angle, Math.PI, 42, 0, effect, Infinity, undefined, area.halfWidth, effect.hitEnemies);
+      }
       while (effect.nextHit !== undefined && effect.nextHit < effect.duration && effect.nextHit <= effect.age) {
         const level = effect.level ?? 1;
         // 이단참(작업 213): 한 번 발동에 두 번 때린다. 타마다 사거리·부채꼴을 그 순간의 적 배치로

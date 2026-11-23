@@ -9,7 +9,7 @@ export type SkillArea = SkillAreaRule & { range: number; duration: number };
 export const SKILL_AREAS: Record<SkillId, SkillAreaRule> = {
   slash2: { kind: 'box', halfWidth: 90 }, slam: { kind: 'circle' },
   warcry: { kind: 'buff', radius: 115 }, power: { kind: 'single' },
-  destroy: { kind: 'arc', arc: .7 }, hell: { kind: 'circle' },
+  destroy: { kind: 'box', halfWidth: 80 }, hell: { kind: 'circle' },
   crushing: { kind: 'single' }, spin: { kind: 'circle' },
   doubleShot: { kind: 'projectile', projectileRadius: 40 },
   multiShot: { kind: 'projectile', projectileRadius: 34 },
@@ -39,6 +39,9 @@ export function skillArea(id: SkillId, level: number): SkillArea {
   const rule = SKILL_AREAS[id];
   return { ...rule, range: skillRange(id, level), radius: rule.radius ?? skillRange(id, level), duration: skillDuration(id, level) };
 }
+
+/** 검기가 수명 마지막 20% 전에 끝까지 도달해 마지막 판정이 빠지지 않게 한다. */
+export function destroyTravelProgress(age: number, duration: number): number { return Math.min(1, age / duration * 1.25); }
 
 /** 월드 원을 전투 화면의 아이소 투영(.86/.43)에 옮긴 정확한 바닥 타원. */
 export function projectedAreaRadii(radius: number): { x: number; y: number } {

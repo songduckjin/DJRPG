@@ -5,7 +5,7 @@ import type { CombatEngine } from '../combat/engine';
 const rarityColors: Record<Rarity, number> = { common: 0x9ca3af, magic: 0x60a5fa, rare: 0xfacc15, epic: 0xc084fc, unique: 0xfb923c, legendary: 0xf87171 };
 const slashStrength: Record<Rarity, number> = { common: 0, magic: 1, rare: 2, epic: 3, unique: 4, legendary: 5 };
 import { dragonOrbitFactor, dragonRise, slash2SecondHit } from '../skills';
-import { projectedAreaRadii, skillArea } from '../battle/skillAreas';
+import { destroyTravelProgress, projectedAreaRadii, skillArea } from '../battle/skillAreas';
 import type { Effect } from '../world';
 import type { Art, GameView } from '../render';
 
@@ -20,12 +20,13 @@ function drawMeleeArea(this: GameView, effect: Effect, x: number, y: number): vo
   const area = skillArea(id, effect.level ?? 1);
   const radius = id === 'spin' ? area.radius! * dragonOrbitFactor(effect.age / effect.duration) : area.radius!;
   const alpha = .28 * Math.max(0, 1 - effect.age / effect.duration);
-  if (id === 'slash2') {
+  if (id === 'slash2' || id === 'destroy') {
+    const distance = id === 'destroy' ? area.range * destroyTravelProgress(effect.age, effect.duration) : area.range;
     const forward = { x: Math.cos(effect.angle), y: Math.sin(effect.angle) };
     const side = { x: -forward.y, y: forward.x };
     const corners = [
-      { distance: 0, lateral: -area.halfWidth! }, { distance: area.range, lateral: -area.halfWidth! },
-      { distance: area.range, lateral: area.halfWidth! }, { distance: 0, lateral: area.halfWidth! }
+      { distance: 0, lateral: -area.halfWidth! }, { distance, lateral: -area.halfWidth! },
+      { distance, lateral: area.halfWidth! }, { distance: 0, lateral: area.halfWidth! }
     ];
     for (let index = 0; index < corners.length; index++) {
       const { distance, lateral } = corners[index];
@@ -151,7 +152,7 @@ export function drawSkillVfx(this: GameView, world: CombatEngine, effect: Effect
       sprites = [sprite];
       this.vfxSprites.set(effect, sprites);
     }
-    const size = effect.kind === 'destroy' ? 260 : effect.kind === 'crushing' ? 245 : effect.kind === 'power' ? 165 : 150;
+    const size = effect.kind === 'destroy' ? 170 : effect.kind === 'crushing' ? 245 : effect.kind === 'power' ? 165 : 150;
     for (const sprite of sprites) {
       if (effect.kind === 'slam') {
         const radius = projectedAreaRadii(skillArea('slam', effect.level ?? 1).radius!);
@@ -192,11 +193,12 @@ export function drawSkillVfx(this: GameView, world: CombatEngine, effect: Effect
       }
       const phase = t;
       const scale = size / sprite.texture.width * (.65 + phase * .55);
-      const distance = effect.kind === 'destroy' ? 40 + t * 125 : 0;
-      sprite.position.set(x + Math.cos(screenAngle) * distance, y + Math.sin(screenAngle) * distance - 18);
+      const advance = effect.kind === 'destroy' ? skillArea('destroy', effect.level ?? 1).range * destroyTravelProgress(effect.age, effect.duration) : 0;
+      const forwardX = Math.cos(effect.angle) * advance * .55, forwardY = Math.sin(effect.angle) * advance * .55;
+      sprite.position.set(x + (forwardX - forwardY) * .86, y + (forwardX + forwardY) * .43 - 18);
       sprite.scale.set(scale);
       sprite.rotation = screenAngle;
-      sprite.alpha = Math.min(1, (1 - phase) * 1.5);
+      sprite.alpha = effect.kind === 'destroy' ? Math.min(1, t * 8, (1 - t) * 4) : Math.min(1, (1 - phase) * 1.5);
       sprite.tint = 0xffffff;
     }
     return true;

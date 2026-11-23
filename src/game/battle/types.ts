@@ -41,6 +41,8 @@ export type Effect = { x: number; y: number; kind: 'slash' | 'slash2' | 'spin' |
   bonus?: boolean;
   /** 이단참(작업 213)처럼 한 번 발동에 여러 번 때리는 스킬의 지금까지 들어간 타격 수. */
   hits?: number;
+  /** 전진하는 검기에 이미 맞은 적. */
+  hitEnemies?: Set<Enemy>;
   /** 궁수 화살·화살비처럼 날아가서 맞는 이펙트의 도착지점과 위력(작업 157). */
   tx?: number; ty?: number; radius?: number; targets?: number; slow?: number; variant?: ArrowVariant; fired?: boolean;
   /** 화살이 쫓아가는 적(살아 있는 동안 도착지를 갱신한다). 없으면 발사 시점의 지점으로 날아간다. */

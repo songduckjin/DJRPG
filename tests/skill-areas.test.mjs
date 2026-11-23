@@ -4,7 +4,6 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 const { allSkillIds, allPassiveIds, skillDamageScale, skillRange } = await import('../src/game/skills.ts');
 const { SKILL_AREAS, PASSIVE_AREAS, skillArea, projectedAreaRadii } = await import('../src/game/battle/skillAreas.ts');
-const { targetsInArc } = await import('../src/game/battle/targeting.ts');
 const { CombatEngine } = await import('../src/game/combat/engine.ts');
 const { freshSave, totalStats } = await import('../src/game/store.ts');
 const engine = readFileSync(new URL('../src/game/combat/engine.ts', import.meta.url), 'utf8');
@@ -28,17 +27,27 @@ test('판정 엔진과 VFX가 같은 스킬 범위 규격을 읽는다', () => {
   assert.doesNotMatch(vfx, /\(effect\.radius \?\? (96|150)\) \* \.86|92 \* \.86/);
 });
 
-test('부채꼴 경계 안쪽은 맞고 바깥쪽은 맞지 않는다', () => {
-  const origin = { x: 0, y: 0 };
-  for (const id of ['destroy']) {
-    const { radius, arc } = skillArea(id, 1);
-    const inside = { x: radius - .01, y: 0 };
-    const outside = { x: radius + .01, y: 0 };
-    assert.equal(targetsInArc(origin, radius, 0, arc, [inside]).length, 1, id);
-    assert.equal(targetsInArc(origin, radius, 0, arc, [outside]).length, 0, id);
-    const beyondAngle = { x: Math.cos(arc + .001) * (radius - 1), y: Math.sin(arc + .001) * (radius - 1) };
-    assert.equal(targetsInArc(origin, radius, 0, arc, [beyondAngle]).length, 0, id);
-  }
+test('디스트로이 스윙 검기가 전진하는 거리의 적만 차례로 한 번씩 때린다', () => {
+  const save = freshSave();
+  save.learned = ['destroy']; save.quickSlots = ['destroy', null, null];
+  const world = new CombatEngine(save);
+  world.critRoll = () => 1;
+  world.enemies = [[40, 0], [160, 0], [100, 70], [100, 180], [260, 0]].map(([x, y]) =>
+    ({ x, y, hp: 10000, maxHp: 10000, boss: false, hit: 0, step: 0, moving: false, knockX: 0, knockY: 0, slow: 0 }));
+  const enemies = [...world.enemies];
+  assert.equal(skillArea('destroy', 1).kind, 'box');
+  world.action('destroy');
+  world.cooldown.attack = 999;
+  assert(enemies.every(enemy => enemy.hp === enemy.maxHp));
+  world.update(.16);
+  assert(enemies[0].hp < enemies[0].maxHp);
+  assert.equal(enemies[1].hp, enemies[1].maxHp);
+  world.update(.39);
+  assert(enemies.slice(0, 3).every(enemy => enemy.hp < enemy.maxHp));
+  assert(enemies.slice(3).every(enemy => enemy.hp === enemy.maxHp));
+  const firstDamage = enemies[0].maxHp - enemies[0].hp;
+  world.update(.1);
+  assert.equal(enemies[0].maxHp - enemies[0].hp, firstDamage);
 });
 
 test('와일드 스탬프는 자신 중심 원형이며 레벨마다 반경과 지속시간이 늘어난다', () => {
