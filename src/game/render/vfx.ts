@@ -178,7 +178,18 @@ export function drawSkillVfx(this: GameView, world: CombatEngine, effect: Effect
         sprite.tint = 0xb1d8ff;
         continue;
       }
-      if (effect.kind === 'power') this.ground.ellipse(x, y, 34, 17).stroke({ color: 0xffdc8a, width: 2.5, alpha: .8 * (1 - t) });
+      if (effect.kind === 'power') {
+        const dx = (effect.x - (effect.fromX ?? effect.x)), dy = (effect.y - (effect.fromY ?? effect.y));
+        const startX = x - (dx - dy) * .86, startY = y - (dx + dy) * .43 - 36;
+        const hitX = x, hitY = y - 43;
+        const progress = Math.min(1, t * 8);
+        const tipX = startX + (hitX - startX) * progress, tipY = startY + (hitY - startY) * progress;
+        const fade = Math.max(0, 1 - t * 2.3);
+        this.glow.moveTo(startX, startY).lineTo(tipX, tipY).stroke({ color: 0xffaa36, width: 16, alpha: .23 * fade });
+        this.glow.moveTo(startX, startY).lineTo(tipX, tipY).stroke({ color: 0xfff3c0, width: 5, alpha: .9 * fade });
+        this.ground.ellipse(x, y, 30 + t * 16, 15 + t * 8).stroke({ color: 0xffdc8a, width: 3, alpha: .9 * (1 - t) });
+        this.glow.circle(x, y - 38, 10 + t * 25).stroke({ color: 0xffd06c, width: 3, alpha: .65 * (1 - t) });
+      }
       const phase = t;
       const scale = size / sprite.texture.width * (.65 + phase * .55);
       const distance = effect.kind === 'destroy' ? 40 + t * 125 : 0;
