@@ -69,11 +69,11 @@ test('하드코딩한 174:290 이 실제 item-art 아틀라스(870×290 ÷ 5열)
   }
 });
 
-test('모바일 칸 높이(48/46px)와 가방 최소 높이(135px)는 그대로다', () => {
-  assert.match(styles, /\.equipment-slot \{ aspect-ratio: auto; height: 48px; \}/);
-  assert.match(styles, /\.equipment-grid \{ grid-template-rows: repeat\(2, 48px\); \}/);
-  assert.match(styles, /\.equipment-slot \{ height: 46px; \}/);
-  assert.match(styles, /\.equipment-grid \{ grid-template-rows: repeat\(2, 46px\); \}/);
+test('모바일 가방 최소 높이(135px)와 좌우 기둥 5줄 규칙은 그대로다', () => {
+  // B안(2026-11-22): 장착 칸은 좌우 기둥 안에서 5줄 1fr로 서고, 칸 자체의 48/46px 높이 규칙은 사라졌다.
+  assert.match(styles, /\.equipment-slot-col \{ display: grid; grid-template-rows: repeat\(5, minmax\(0, 1fr\)\); gap: 4px;/);
+  assert.match(styles, /\.equipment-slot-col \.equipment-slot \{ height: auto; aspect-ratio: auto; \}/);
+  assert.doesNotMatch(styles, /\.equipment-grid \{ grid-template-rows/);
   assert.match(styles, /\.equipment-modal \.bag-grid \{ min-height: 135px; \}/);
 });
 

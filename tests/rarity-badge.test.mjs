@@ -10,23 +10,25 @@ const { rarityBadgeMarkup, rarityBadgeNode, appendRarityBadge, hasRarityBadge, r
 const { renderInventory } = await import('../src/ui/modals/equipModal.ts');
 
 /**
- * 등급 배지 `L`·`U`·`E` (2026-11-21 사용자 확정 B안 '필 배지').
+ * 등급 배지 `M`·`R`·`E`·`U`·`L` (2026-11-21 B안 '필 배지' → 2026-11-22 A안으로 매직·레어까지 확장).
  *
- * 사용자 요청: "템 오른쪽 상단에 초록색 화살표 뜨니까 왼쪽 위에는 같은 규격으로 레전드는 L,
+ * 첫 요청: "템 오른쪽 상단에 초록색 화살표 뜨니까 왼쪽 위에는 같은 규격으로 레전드는 L,
  * 유니크는 U, 에픽은 E 이렇게 표시를 해줘". 두 번째 요구는 **좌상단 타직업 배지(`.job-badge`)와
  * 절대 겹치지 않게** 하는 것 — 좁은 칸에서는 직업 배지가 오른쪽 아래로 비키고 한 글자가 된다.
+ * 2026-11-22 사용자 확정 A안(`03-bag-a.png`)은 **매직 `M`·레어 `R`을 더하고 일반만 배지 없이** 둔다.
  */
 const gear = (id, rarity, slot = 'weapon', extra = {}) => ({ id, name: `시험 장비 ${id}`, slot, rarity, stats: { attack: 10 }, plus: 0, ...extra });
 const book = id => ({ id, name: '[스킬북] 더블 샷', slot: 'skillbook', kind: 'skillbook', skillId: 'doubleShot', rarity: 'rare', stats: {} });
 const pouch = id => ({ id, name: '보물 주머니', slot: 'pouch', kind: 'pouch', rarity: 'rare', count: 1, stats: {} });
 
-test('전설·유니크·에픽 장비에만 L·U·E — 일반·매직·레어·스킬북·주머니는 배지가 없다', () => {
+test('일반만 빼고 M·R·E·U·L — 일반·스킬북·주머니는 배지가 없다', () => {
   assert.equal(rarityBadgeLetter(gear('l', 'legendary')), 'L');
   assert.equal(rarityBadgeLetter(gear('u', 'unique')), 'U');
   assert.equal(rarityBadgeLetter(gear('e', 'epic')), 'E');
+  // 2026-11-22 A안 — 매직·레어도 자기 글자를 받는다.
+  assert.equal(rarityBadgeLetter(gear('m', 'magic')), 'M');
+  assert.equal(rarityBadgeLetter(gear('r', 'rare')), 'R');
   assert.equal(rarityBadgeLetter(gear('c', 'common')), undefined);
-  assert.equal(rarityBadgeLetter(gear('m', 'magic')), undefined);
-  assert.equal(rarityBadgeLetter(gear('r', 'rare')), undefined);
   assert.equal(hasRarityBadge(book('b')), false, '스킬북은 등급 배지를 달지 않는다');
   assert.equal(hasRarityBadge(pouch('p')), false, '보물 주머니도 달지 않는다');
   assert.equal(rarityBadgeMarkup(undefined), '');
@@ -43,6 +45,15 @@ test('배지 마크업은 등급 글자·등급색 클래스·툴팁을 함께 �
   assert.match(legendary, /aria-hidden="true"/);
   assert.match(rarityBadgeMarkup(gear('u', 'unique')), /rarity-unique/);
   assert.match(rarityBadgeMarkup(gear('e', 'epic')), /rarity-epic/);
+  // 매직 `M`·레어 `R`도 같은 규격의 알약이고, 등급색은 전역 `.rarity-*` 유틸리티가 준다.
+  const magic = rarityBadgeMarkup(gear('m', 'magic'));
+  assert.match(magic, new RegExp(`class="${RARITY_BADGE_CLASS} rarity-magic"`));
+  assert.match(magic, />M</);
+  assert.match(magic, /title="매직 등급"/);
+  const rare = rarityBadgeMarkup(gear('r', 'rare'));
+  assert.match(rare, new RegExp(`class="${RARITY_BADGE_CLASS} rarity-rare"`));
+  assert.match(rare, />R</);
+  assert.match(rare, /title="레어 등급"/);
 });
 
 test('rarityBadgeNode·appendRarityBadge — 요소로 붙이고 배지 없는 아이템에는 붙이지 않는다', () => {
@@ -53,12 +64,14 @@ test('rarityBadgeNode·appendRarityBadge — 요소로 붙이고 배지 없는 �
     assert.equal(node.className, `${RARITY_BADGE_CLASS} rarity-unique`);
     assert.equal(node.textContent, 'U');
     assert.equal(node.attrs['aria-hidden'], 'true');
-    assert.equal(rarityBadgeNode(gear('r', 'rare')), null);
+    assert.equal(rarityBadgeNode(gear('c', 'common')), null, '일반 등급만 요소가 없다');
     const host = { children: [], append(child) { this.children.push(child); } };
     assert.equal(appendRarityBadge(host, gear('e', 'epic')), true);
     assert.equal(host.children.length, 1);
-    assert.equal(appendRarityBadge(host, gear('r', 'rare')), false);
-    assert.equal(host.children.length, 1);
+    assert.equal(appendRarityBadge(host, gear('r', 'rare')), true, '레어도 이제 붙는다');
+    assert.equal(host.children.length, 2);
+    assert.equal(appendRarityBadge(host, gear('c', 'common')), false);
+    assert.equal(host.children.length, 2);
   } finally { globalThis.document = previous; }
 });
 
@@ -85,6 +98,8 @@ test('가방 칸: 등급 배지는 왼쪽 위에 붙고, 직업 배지는 한 �
     const save = freshSave('male', 'warrior');
     save.bag = [
       gear('legend', 'legendary', 'weapon', { job: 'warrior' }),
+      gear('magic', 'magic', 'helmet', { job: 'warrior' }),
+      gear('rare', 'rare', 'armor', { job: 'warrior' }),
       gear('plain', 'common', 'weapon', { job: 'warrior' }),
       book('b1'),
       pouch('p1')
@@ -97,6 +112,10 @@ test('가방 칸: 등급 배지는 왼쪽 위에 붙고, 직업 배지는 한 �
     const legendary = cell('legend');
     assert.match(legendary.innerHTML, /class="rarity-badge rarity-legendary"/, '왼쪽 위 등급 배지');
     assert.match(legendary.innerHTML, />L</);
+    assert.match(cell('magic').innerHTML, /class="rarity-badge rarity-magic"/, '매직 M');
+    assert.match(cell('magic').innerHTML, />M</);
+    assert.match(cell('rare').innerHTML, /class="rarity-badge rarity-rare"/, '레어 R');
+    assert.match(cell('rare').innerHTML, />R</);
     assert.doesNotMatch(cell('plain').innerHTML, /rarity-badge/, '일반 등급은 배지 없음');
     assert.doesNotMatch(cell('b1').innerHTML, /rarity-badge/, '스킬북은 배지 없음');
     assert.doesNotMatch(cell('p1').innerHTML, /rarity-badge/, '주머니는 배지 없음');
@@ -134,6 +153,8 @@ test('CSS — 등급 배지는 왼쪽 위 2px·9px 굵은 글자·어두운 알�
   assert.match(market, /\.rarity-legendary \{ color: #f87171; \}/);
   assert.match(market, /\.rarity-unique \{ color: #fb923c; \}/);
   assert.match(market, /\.rarity-epic \{ color: #c084fc; \}/);
+  assert.match(market, /\.rarity-magic \{ color: #60a5fa; \}/, '매직 M은 파랑 #60a5fa');
+  assert.match(market, /\.rarity-rare \{ color: #facc15; \}/, '레어 R은 노랑 #facc15');
   // 칸들은 절대 위치의 기준 상자다.
   assert.match(css, /\.bag-item \{[^}]*position: relative/);
   assert.match(css, /\.equipment-slot \{[^}]*position: relative/);

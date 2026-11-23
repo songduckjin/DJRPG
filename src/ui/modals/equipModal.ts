@@ -30,7 +30,10 @@ import { downgradeArrowMarkup, upgradeArrowMarkup } from '../upgradeBadge';
 import type { BagFilter, Interface } from '../interface';
 
 export const equipmentInfoSlots = ['weapon', 'helmet', 'armor', 'gloves', 'boots', 'offhand', 'necklace', 'belt', 'ring1', 'ring2'] as const;
-export const equipmentInfoStats = ['전투력', 'HP', '공격력', '방어력', '치명타 확률', '공격속도'] as const;
+/** 장착 10칸의 **좌우 배치**(2026-11-22 사용자 확정 B안, `04-b.png`) — 왼쪽 5칸 / 오른쪽 5칸,
+ *  가운데는 캐릭터 일러스트다. 왼쪽은 손에 드는 것부터(무기·투구·갑옷·장갑·신발), 오른쪽은
+ *  반대편 소지품(문장·목걸이·벨트·반지1·반지2)이다. 배열 순서가 그대로 화면의 위→아래다. */
+export const equipmentSlotColumns = [equipmentInfoSlots.slice(0, 5), equipmentInfoSlots.slice(5)] as const;
 
 export function renderInventory(this: Interface, dialog: HTMLElement): void {
     const save = this.world.save;
@@ -345,12 +348,41 @@ export function salvage(this: Interface): void {
     requestSalvage.call(this, ids);
   }
 
+/**
+ * `내 정보`(장비창) — 2026-11-22 사용자 확정 **B안**(`downloads/djrpg_collab_4/04_equip_info_rework.png`).
+ *
+ * 위쪽 **6칸 능력치 표를 없앴다**. 남은 것은 **요약 한 줄**(`LV · 층 · EXP · 금화` + 전투력 알약)뿐이고,
+ * 그 아래는 **가운데 캐릭터 + 좌우 장착 5칸씩 대칭**(`equipmentSlotColumns`)이다. 예전에는 전신 그림 옆에
+ * 6칸 표를 세우고 그 아래에 2줄×5칸을 또 깔아 세로를 250px 가까이 썼는데, 이제 그 자리가 가방으로 돌아간다.
+ *
+ * 상세 능력치는 이 창의 일이 아니다 — 메인 HUD의 `LV` 배지를 누르면 열리는 `상세 스탯`(`statsModal.ts`)이
+ * 전담한다(`hud.ts`의 `levelBadge.addEventListener('click', () => this.open('stats'))`).
+ */
 export function renderEquipment(this: Interface, dialog: HTMLElement): void {
     const save = this.world.save, stats = totalStats(save);
     // 입문 안내가 가리키는 빈 칸(투구·갑옷) — 칸 자체를 은은하게 강조한다.
     const pending = tutorialGuide(save)?.slots ?? [];
+    // ── 요약 한 줄 + 전투력 알약 ────────────────────────────────────────────
+    // 전투력 식은 `src/game/power.ts` 한 곳에 있다 — HUD·상세 스탯·층 선택의 권장 전투력과 같은 숫자를 말한다.
+    const power = combatPower(stats);
+    const topline = document.createElement('div'); topline.className = 'equip-topline';
+    const summary = document.createElement('div'); summary.className = 'equipment-summary';
+    const expPercent = save.level >= MAX_LEVEL ? 'MAX' : `${Math.floor(save.exp / expToNext(save.level) * 100)}%`;
+    // 네 칸을 **한 줄**에 둔다 — 스탯 표가 없어졌으므로 예전의 두 열 정렬(라벨 왼쪽·값 오른쪽)만 남긴다.
+    // `강화석`은 이 줄에서 뺐다(확정 시안 `04-b.png`의 네 칸은 LV·층·EXP·금화뿐): 390px 폭에서 금화 칸이
+    // 66px이라 금화+강화석을 함께 넣으면 강화석이 잘려 보인다. 강화석은 분해·던전 결과·방치 정산이 토스트로 알린다.
+    summary.innerHTML = `<span><small>LV</small><b>${save.level >= MAX_LEVEL ? `${MAX_LEVEL} MAX` : save.level}</b></span>`
+      + `<span class="is-value"><b>${save.floor}층</b></span>`
+      + `<span><small>EXP</small><b>${expPercent}</b></span>`
+      + `<span class="summary-gold">${goldMarkup(save.gold)}</span>`;
+    const powerPill = document.createElement('span'); powerPill.className = 'equip-powerpill';
+    powerPill.setAttribute('aria-label', `전투력 ${power}`);
+    powerPill.innerHTML = `<i aria-hidden="true">⚔</i><b>${power.toLocaleString('ko-KR')}</b>`;
+    topline.append(summary, powerPill);
+    // ── 가운데 캐릭터 + 좌우 5칸씩 ──────────────────────────────────────────
     const showcase = document.createElement('div'); showcase.className = 'equipment-showcase';
-    const addSlot = (slot: Slot, grid: HTMLElement) => {
+    showcase.setAttribute('aria-label', '장착 장비 10칸');
+    const addSlot = (slot: Slot, column: HTMLElement) => {
       const item = save.equipment[slot]; const cell = document.createElement('button'); cell.className = `equipment-slot ${item?.rarity ?? 'empty-slot'}`;
       cell.type = 'button'; cell.dataset.equippedSlot = slot; cell.disabled = !item;
       const slotLabel = slotNameFor(slot, jobOrDefault(save.job));
@@ -371,7 +403,7 @@ export function renderEquipment(this: Interface, dialog: HTMLElement): void {
         if (this.equippedSlot === slot && this.equippedPinned) dismissEquippedDetail(this);
         else showEquippedDetail(this, slot, true);
       };
-      grid.appendChild(cell);
+      column.appendChild(cell);
     };
     const center = document.createElement('div'); center.className = 'showcase-hero';
     const figure = document.createElement('span'); figure.className = 'showcase-figure';
@@ -397,39 +429,30 @@ export function renderEquipment(this: Interface, dialog: HTMLElement): void {
       }
     }).catch(error => console.error('장비 발광 합성 실패:', error));
     center.appendChild(figure);
-    const info = document.createElement('div'); info.className = 'equipment-info';
-    const summary = document.createElement('div'); summary.className = 'equipment-summary';
-    const expPercent = save.level >= MAX_LEVEL ? 'MAX' : `${Math.floor(save.exp / expToNext(save.level) * 100)}%`;
-    // [정렬] 라벨은 왼쪽, 값은 오른쪽 — 바로 아래 6칸 스탯 표와 **같은 2열·같은 여백**이라 세로줄이 맞는다.
-    // 예전에는 값이 라벨 바로 옆에 붙어 있어 위 두 줄과 아래 표의 열이 어긋나 보였다(사용자 요청 "장비창 중간에
-    // 있는 게 이름이랑 템이랑 글씨가 대칭이 안 되어 있어 정렬해줘").
-    summary.innerHTML = `<span><small>LV</small><b>${save.level >= MAX_LEVEL ? `${MAX_LEVEL} MAX` : save.level}</b></span>`
-      + `<span class="is-value"><b>${save.floor}층</b></span>`
-      + `<span><small>EXP</small><b>${expPercent}</b></span>`
-      + `<span class="summary-gold">${goldMarkup(save.gold)}<em>· 강화석 ${save.stones}</em></span>`;
-    info.appendChild(summary);
-    // 전투력 식은 `src/game/power.ts` 한 곳에 있다 — HUD·상세 스탯·층 선택의 권장 전투력과 같은 숫자를 말한다.
-    const power = combatPower(stats);
-    const values = [power, `${Math.ceil(this.world.player.hp)}/${stats.health}`, stats.attack, stats.defense, `${stats.crit}%`, `${stats.speed}%`];
-    const statGrid = document.createElement('div'); statGrid.className = 'equipment-info-stats';
-    equipmentInfoStats.forEach((label, index) => {
-      const cell = document.createElement('div'); cell.innerHTML = `<span>${label}</span><b>${values[index]}</b>`; statGrid.appendChild(cell);
+    // 좌 5칸(무기·투구·갑옷·장갑·신발) · 가운데 캐릭터 · 우 5칸(문장·목걸이·벨트·반지1·반지2).
+    const columns = equipmentSlotColumns.map((slots, index) => {
+      const column = document.createElement('div');
+      column.className = `equipment-slot-col ${index === 0 ? 'is-left' : 'is-right'}`;
+      column.setAttribute('aria-label', index === 0 ? '장착 장비 왼쪽 5칸' : '장착 장비 오른쪽 5칸');
+      for (const slot of slots) addSlot(slot, column);
+      return column;
     });
-    info.appendChild(statGrid);
-    // 기념 종일 버프(2026-11-22) — 공·방·체 +30%가 이미 위 숫자에 들어 있음을 한 줄로 알린다(켜진 동안만).
+    showcase.append(columns[0], center, columns[1]);
+    dialog.append(topline, showcase);
+    // 시안에는 없는 줄이지만, 예전 창에 있던 두 안내를 잃지 않게 캐릭터 아래에 **얇게** 모은다
+    // (스탯 표를 없앴으니 버프 줄은 "위 숫자에 들어 있다"는 말을 뺄 수 없다 — 그래서 HUD 알약과
+    //  같은 문구만 남긴다). 추가옵션 줄은 상한이 걸린 실제 전투 값이라 다른 곳에 없다.
+    const notes = document.createElement('div'); notes.className = 'equipment-notes';
     const buffLine = patchBuffSummaryMarkup();
-    if (buffLine) info.insertAdjacentHTML('beforeend', buffLine);
+    if (buffLine) notes.insertAdjacentHTML('beforeend', buffLine);
     // 추가옵션(작업 238) 합계 — 상한이 걸린 실제 전투 값(회피 30%·회복 12%/5초·피흡 15%).
     const extraSummary = extraOptionSummary(save.equipment);
     if (extraSummary) {
       const extraLine = document.createElement('div'); extraLine.className = 'equipment-info-extras';
       extraLine.textContent = `✨ ${extraSummary}`;
-      info.appendChild(extraLine);
+      notes.appendChild(extraLine);
     }
-    showcase.append(center, info); dialog.appendChild(showcase);
-    const grid = document.createElement('div'); grid.className = 'equipment-grid'; grid.setAttribute('aria-label', '장착 장비 10칸');
-    for (const slot of equipmentInfoSlots) addSlot(slot, grid);
-    dialog.appendChild(grid);
+    if (notes.childElementCount) dialog.appendChild(notes);
   }
 
 export function salvageValue(this: Interface, item: Item): number { return salvageGold[item.rarity]; }

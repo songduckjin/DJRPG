@@ -4,9 +4,12 @@ import { existsSync, readFileSync } from 'node:fs';
 import './ts-loader.mjs';
 import { modalStyles as readModalStyles } from './helpers/modal-styles.mjs';
 
-const { equipmentInfoSlots, equipmentInfoStats } = await import('../src/ui/modals/equipModal.ts');
+const { equipmentInfoSlots, equipmentSlotColumns } = await import('../src/ui/modals/equipModal.ts');
 const interfaceSource = readFileSync(new URL('../src/ui/interface.ts', import.meta.url), 'utf8');
 const accountSource = readFileSync(new URL('../src/ui/modals/accountModal.ts', import.meta.url), 'utf8');
+const equipSource = readFileSync(new URL('../src/ui/modals/equipModal.ts', import.meta.url), 'utf8');
+const hudSource = readFileSync(new URL('../src/ui/hud.ts', import.meta.url), 'utf8');
+const statsSource = readFileSync(new URL('../src/ui/modals/statsModal.ts', import.meta.url), 'utf8');
 const modalStyles = readModalStyles();
 
 test('bottom navigation contains only the unified info, skills, market, and warehouse tabs', () => {
@@ -35,8 +38,39 @@ test('gender is fixed after character creation and gender switch UI is removed',
   assert.doesNotMatch(modalStyles, /gender-switch|account-gender|status-modal/);
 });
 
-test('info modal exposes six required stats and the ten equipment slots in two row order', () => {
-  // 백로그 2번(2026-11-23): 추가옵션 `치명타`가 확률인지 피해량인지 헷갈리지 않게 칸 이름을 `치명타 확률`로 적는다.
-  assert.deepEqual(equipmentInfoStats, ['전투력', 'HP', '공격력', '방어력', '치명타 확률', '공격속도']);
+test('내 정보 — 장착 10칸은 좌 5칸(무기·투구·갑옷·장갑·신발) / 우 5칸(문장·목걸이·벨트·반지1·반지2)로 갈린다', () => {
   assert.deepEqual(equipmentInfoSlots, ['weapon', 'helmet', 'armor', 'gloves', 'boots', 'offhand', 'necklace', 'belt', 'ring1', 'ring2']);
+  assert.deepEqual(equipmentSlotColumns.map(column => [...column]), [
+    ['weapon', 'helmet', 'armor', 'gloves', 'boots'],
+    ['offhand', 'necklace', 'belt', 'ring1', 'ring2']
+  ]);
+  // 렌더는 좌 기둥 → 가운데 캐릭터 → 우 기둥 순서로 붙인다(좌우 대칭).
+  assert.match(equipSource, /showcase\.append\(columns\[0\], center, columns\[1\]\)/);
+  assert.match(equipSource, /column\.className = `equipment-slot-col \$\{index === 0 \? 'is-left' : 'is-right'\}`/);
+});
+
+test('내 정보 — 위쪽 6칸 능력치 표는 없고 요약 한 줄 + 전투력 알약만 남는다', () => {
+  // ① 스탯 표(6칸)는 코드·CSS 양쪽에서 사라졌다.
+  assert.doesNotMatch(equipSource, /equipmentInfoStats|equipment-info-stats|<span>\$\{label\}<\/span>/);
+  assert.equal(modalStyles.includes('.equipment-info-stats'), false);
+  // ② 요약 한 줄은 LV·층·EXP·금화 그대로이고, 전투력은 알약으로 선다.
+  assert.match(equipSource, /topline\.className = 'equip-topline'/);
+  assert.match(equipSource, /<span><small>LV<\/small><b>/);
+  assert.match(equipSource, /class="is-value"><b>\$\{save\.floor\}층<\/b>/);
+  assert.match(equipSource, /class="summary-gold">\$\{goldMarkup\(save\.gold\)\}<\/span>/);
+  assert.doesNotMatch(equipSource, /강화석 \$\{save\.stones\}/, '금화 칸이 66px라 강화석은 이 줄에 넣지 않는다(확정 시안 04-b)');
+  assert.match(equipSource, /powerPill\.className = 'equip-powerpill'/);
+  assert.match(equipSource, /setAttribute\('aria-label', `전투력 \$\{power\}`\)/);
+  assert.match(equipSource, /topline\.append\(summary, powerPill\)/);
+  // ③ 요약 줄이 캐릭터·가방보다 먼저 온다.
+  assert.match(equipSource, /dialog\.append\(topline, showcase\)/);
+});
+
+test('상세 능력치는 HUD `LV` 배지가 여는 상세 스탯 창이 그대로 전담한다', () => {
+  assert.match(hudSource, /class="level-badge" type="button" aria-label="상세 스탯 열기"/);
+  assert.match(hudSource, /levelBadge\.addEventListener\('click', \(\) => this\.open\('stats'\)\)/);
+  // 스탯 창은 statSheet 한 곳의 숫자를 그리고, 장비·패시브·추가옵션 합계임을 밝힌다.
+  assert.match(statsSource, /export function renderStats\(this: Interface, dialog: HTMLElement\)/);
+  assert.match(statsSource, /statSheet\(save, \{ currentHp: this\.world\.player\.hp, attackInterval: cooldowns\.attack \}\)/);
+  assert.match(statsSource, /stats-power/);
 });

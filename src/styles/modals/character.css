@@ -6,9 +6,16 @@
    규칙을 다른 파일로 옮길 때는 앞뒤 순서(캐스케이드)를 반드시 확인한다. */
 
 .character-slots { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 8px; }
-.character-slot { min-height: 170px; padding: 8px; border: 1px solid #80674e; background: #171319; color: #e9d5b7; display: flex; flex-direction: column; align-items: stretch; gap: 8px; text-align: center; font-size: 11px; touch-action: manipulation; }
+.character-slot { min-height: 170px; padding: 8px; border: 1px solid #80674e; background: #171319; color: #e9d5b7; display: flex; flex-direction: column; align-items: stretch; gap: 8px; text-align: center; font-size: 11px; touch-action: manipulation; word-break: keep-all; }
 .character-slot.selected { border: 2px solid #d8ab66; box-shadow: 0 0 12px #d8ab6666; }
 .character-idle-time { min-height: 20px; color: #e8c890; font-size: 12px; font-weight: 700; }
+/* 카드 하단 요약 배지(백로그 11·B안): `Lv.47 · 32층` + `⚔ 12,480` 한 줄. 정보줄에서 뺀 레벨·층이
+   전투력과 함께 여기 내려온다. 좌우·아래 음수 마진으로 카드 테두리까지 폭을 채우고(카드 padding 8px),
+   `margin-top: auto`로 접힌 카드에서는 최하단에 붙는다. 펼친 카드에서도 이 띠 아래에 버튼이 온다. */
+.character-power { display: flex; align-items: center; justify-content: center; gap: 3px; margin: auto -8px -8px; padding: 5px 4px; border-top: 1px solid #6b5236; background: linear-gradient(#2a1e19, #1a1316); white-space: nowrap; letter-spacing: -.3px; }
+.character-power-meta { font-size: 8px; font-weight: 600; line-height: 1; color: #c8ae91; }
+.character-power-value { display: inline-flex; align-items: center; gap: 2px; font-size: 9.5px; font-weight: 800; line-height: 1; color: #ffe6b0; }
+.character-power-value i { font-style: normal; font-size: 8.5px; color: #e9c07a; }
 .character-select { flex: 1; min-width: 0; padding: 0; border: 0; background: transparent; color: inherit; display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; font-size: inherit; touch-action: manipulation; }
 .character-slot img { width: 100%; height: 108px; object-fit: contain; object-position: center bottom; }
 /* 캐릭터 카드 초상화(작업 210): 필드·장비창과 같은 합성 그림이라 362px 정사각(마법사 투구는 위 44행 여유)이다.
@@ -27,7 +34,7 @@
 .character-slot.focused .character-connect,
 .character-slot.focused .character-idle,
 .character-slot.focused .character-delete { display: block; }
-.character-slot.focused .character-select { flex: 0 0 auto; }
+.character-slot.focused .character-select { flex: 1 1 auto; }
 /* 확인창(작업 206 캐릭터 삭제 · 작업 223 계정 탈퇴): 모달 위에 한 겹만 얹는다 — 사냥 중 모달이 다시 그려져도 입력·안내가 유지된다.
    두 확인창은 같은 다크 판타지 톤을 쓰므로 규칙을 함께 적는다(클래스만 다르다). */
 .character-delete-overlay, .account-delete-overlay { position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center; padding: 18px; background: #07050bdc; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }

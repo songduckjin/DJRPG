@@ -107,7 +107,7 @@ test('방치해 둔 캐릭터로 갈아타면 그 자리에서 오프라인 보�
 test('HUD는 레벨 배지 아래에 현재 캐릭터 닉네임을 보여 준다(사용자 요청 #19089)', () => {
   assert.match(hudSource, /class="hero-name"/, 'HUD 템플릿에 닉네임 자리가 있다');
   assert.match(hudSource, /heroName\.textContent = nameText/, '이름은 textContent로만 넣는다');
-  assert.match(hudStyles, /\.hero-name \{[^}]*top: \d+px/, '배지 아래에 붙는 위치');
+  assert.match(hudStyles, /\.hero-name \{[^}]*top: calc\(\d+ \* var\(--u\)\)/, '배지 아래에 붙는 위치(HUD 길이 토큰)');
   assert.match(hudStyles, /\.hero-name \{[^}]*text-overflow: ellipsis/, '긴 닉네임은 줄임표');
   assert.match(hudStyles, /\.hero-name \{[^}]*pointer-events: none/, '배지 클릭을 가로막지 않는다');
 
@@ -131,18 +131,19 @@ test('HUD는 레벨 배지 아래에 현재 캐릭터 닉네임을 보여 준다
 
 test('좌상단 HUD는 레벨 배지 → 닉네임 → HP → 월드보스 순서로 겹치지 않는다(작업 234)', () => {
   // 실기 IMG_1143: `top: 40px`이던 이름판이 배지 원(5~54px) 안쪽이라 레벨 숫자 아래를 가렸다.
+  // 길이는 모두 `calc(N * var(--u))` — 390px에서 보면 N = 예전 px 값 그대로다.
   const value = (source, pattern) => { const found = source.match(pattern); assert.ok(found, `규칙을 찾는다: ${pattern}`); return Number(found[1]); };
-  const badgeTop = value(hudStyles, /\.level-badge \{[^}]*top: (-?\d+)px/);
-  const badgeHeight = value(hudStyles, /\.level-badge \{[^}]*height: (\d+)px/);
-  const nameTop = value(hudStyles, /\.hero-name \{[^}]*top: (\d+)px/);
-  const healthTop = value(hudStyles, /\.health-bar \{[^}]*top: (\d+)px/);
-  const healthHeight = value(hudStyles, /\.health-bar \{[^}]*height: (\d+)px/);
-  const bossTop = value(worldBossStyles, /\.world-boss-entry \{[^}]*top:calc\(env\(safe-area-inset-top, 0px\) \+ (\d+)px\)/);
+  const badgeTop = value(hudStyles, /\.level-badge \{[^}]*top: calc\((-?\d+) \* var\(--u\)\)/);
+  const badgeHeight = value(hudStyles, /\.level-badge \{[^}]*height: calc\((\d+) \* var\(--u\)\)/);
+  const nameTop = value(hudStyles, /\.hero-name \{[^}]*top: calc\((\d+) \* var\(--u\)\)/);
+  const healthTop = value(hudStyles, /\.health-bar \{[^}]*top: calc\((\d+) \* var\(--u\)\)/);
+  const healthHeight = value(hudStyles, /\.health-bar \{[^}]*height: calc\((\d+) \* var\(--u\)\)/);
+  const bossTop = value(worldBossStyles, /\.world-boss-entry \{[^}]*top:calc\(env\(safe-area-inset-top, 0px\) \+ (\d+) \* var\(--u\)\)/);
   // 이름판 높이 = 글자 13px(10px·line-height 1.3) + 위아래 여백 2px + 테두리 2px.
   const NAME_HEIGHT = 17;
-  assert.ok(nameTop >= badgeTop + badgeHeight, `닉네임(${nameTop}px)은 배지 원(${badgeTop + badgeHeight}px)보다 아래`);
-  assert.ok(healthTop >= nameTop + NAME_HEIGHT, `HP(${healthTop}px)는 이름판(${nameTop + NAME_HEIGHT}px)보다 아래`);
-  assert.ok(bossTop >= healthTop + healthHeight, `월드보스 진입(${bossTop}px)은 HP(${healthTop + healthHeight}px)보다 아래`);
+  assert.ok(nameTop >= badgeTop + badgeHeight, `닉네임(${nameTop}u)은 배지 원(${badgeTop + badgeHeight}u)보다 아래`);
+  assert.ok(healthTop >= nameTop + NAME_HEIGHT, `HP(${healthTop}u)는 이름판(${nameTop + NAME_HEIGHT}u)보다 아래`);
+  assert.ok(bossTop >= healthTop + healthHeight, `월드보스 진입(${bossTop}u)은 HP(${healthTop + healthHeight}u)보다 아래`);
   assert.doesNotMatch(hudStyles, /\.hero-name \{[^}]*translateX\(-50%\)/, '이름판은 배지 왼쪽에 붙어 오른쪽으로만 늘어난다(16자 닉네임이 화면 밖으로 나가지 않는다)');
 });
 
@@ -151,7 +152,9 @@ test('모바일 장비창은 가방 칸 최소 높이를 지키고, 낮은 화�
   assert.doesNotMatch(modalStyles, /\.bag-grid \{ min-height: 0; \}/, '가방 칸을 0으로 만드는 규칙이 없다');
   assert.match(modalStyles, /@media \(max-width: 480px\) \{[\s\S]*\.equipment-modal \.bag-grid \{ min-height: 135px; \}/, '모바일에서 가방 칸 135px 확보');
   assert.match(modalStyles, /@media \(max-height: 620px\) \{[\s\S]*\.modal-dialog\.equipment-modal \{ height: auto; max-height: 92dvh; overflow-y: auto; \}/, '아주 낮은 화면은 창 전체 스크롤');
-  assert.match(modalStyles, /\.equipment-slot \{ aspect-ratio: auto; height: 48px; \}/, '장착 10칸은 모바일에서 납작하게');
+  // B안(2026-11-22): 장착 10칸은 좌우 기둥(`.equipment-slot-col`)의 5줄 1fr로 눕고, 칸 높이는 기둥이 정한다.
+  assert.match(modalStyles, /\.equipment-slot-col \{ display: grid; grid-template-rows: repeat\(5, minmax\(0, 1fr\)\); /, '좌우 5칸씩 기둥');
+  assert.match(modalStyles, /\.equipment-slot-col \.equipment-slot \{ height: auto; aspect-ratio: auto; \}/, '기둥 안 칸은 높이를 기둥에 맡긴다');
   // 작업 252: `합성`이 `내 직업만 보기` 바로 왼쪽에 붙어 네 버튼이 여전히 한 줄에 선다.
   assert.match(equipSource, /heading\.append\(title, jobToggle, sort\)/, '가방 제목·내 직업만 보기·등급순은 한 줄(파트 B: 합성 버튼 제거)');
 });

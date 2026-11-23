@@ -14,6 +14,7 @@ import { renderEquipment, renderInventory } from './modals/equipModal';
 import { renderDungeonLobby } from './modals/dungeonModal';
 import { renderWorldBoss } from './modals/worldBossModal';
 import { renderSettings, renderUtility } from './modals/utilityModal';
+import { loadNotices, prepareNotices, renderNotice } from './modals/noticeModal';
 import { renderCodex } from './modals/codexModal';
 import { renderSalvage } from './modals/salvageModal';
 import { renderMarket } from './modals/marketModal';
@@ -163,6 +164,18 @@ export const MODALS: Record<Modal, ModalSpec> = {
     title: '설정',
     dialogClasses: ['utility-modal', 'settings-modal'],
     render: (ui, dialog) => renderSettings(ui, dialog),
+    quietWhileHunting: true
+  },
+  notice: {
+    // 운영 공지(2026-11-22, 대장님 확정 1안) — 목록형 모달. 열리는 순간 그 시점 목록을 모두 읽은
+    // 것으로 기록해 레일 `NEW`를 내리고(prepare), 열 때마다 `notices.json`을 다시 읽는다(load).
+    // 사냥 중 매 처치마다 다시 그리면 읽던 본문이 흔들리므로 조용히 둔다.
+    title: '공지사항',
+    dialogClasses: ['notice-modal'],
+    ariaLabel: '공지사항 NOTICE',
+    render: (ui, dialog) => renderNotice(ui, dialog),
+    prepare: ui => prepareNotices(ui),
+    load: ui => loadNotices(ui),
     quietWhileHunting: true
   },
   mail: {

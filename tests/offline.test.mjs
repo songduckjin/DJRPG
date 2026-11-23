@@ -21,9 +21,9 @@ test('offline hunts award one equipment per kill (파트 B — 스킬북 폐지)
     assert.equal(reward.bossKills, 0, '맨몸 Lv.1은 1층 보스를 잡지 못한다');
     assert(reward.deaths >= 1, '보스에게 진 기록이 남는다');
     // 드롭·금화는 한 마리당 한 번이다 — 파트 B: 스킬북이 폐지되어 난수 0이면 장비 하나가 떨어진다.
-    // 영구 스탯북은 **별개로** 개극악 확률(0.01%)을 한 번 더 굴린다(`statBooks.ts`).
+    // 영구 스탯북은 **별개로** 개극악 확률(0.001%)을 한 번 더 굴린다(`statBooks.ts`).
     // 파트 B에서는 모든 아이템이 1칸이라 가방 40칸이 차면 남은 드롭은 '놓친 몫'으로 센다.
-    // 난수 0에서는 스탯북 확률(0.01%)도 통과하므로 드롭은 "한 마리당 장비 1개 + 가끔 스탯북"이다.
+    // 난수 0에서는 스탯북 확률(0.001%)도 통과하므로 드롭은 "한 마리당 장비 1개 + 가끔 스탯북"이다.
     assert(reward.items.length + reward.missedDrops >= reward.kills, '한 마리당 최소 장비 1개');
     // 주머니 스택형: 주머니·같은 종류의 스탯북은 한 칸에 쌓이므로 **아이템 수**가 아니라 **칸 수**가 40을 넘지 않아야 한다.
     assert(equipmentCount(save.bag) <= 40, `가방 40칸을 넘지 않는다(${equipmentCount(save.bag)}칸)`);

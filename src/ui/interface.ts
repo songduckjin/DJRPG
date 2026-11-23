@@ -28,6 +28,8 @@ import { Market } from '../game/market';
 import { completeShopReturn, DIAMOND_PACK_ART, loadShop, type ShopCatalog, type ShopCheckout } from './modals/shopModal';
 import { bindDomainEvents } from './domainBindings';
 import type { CharacterSummary } from './modals/charactersModal';
+import { fetchNotices, markAllNoticesSeen, readSeenNoticeIds, saveSeenNoticeIds, type Notice } from '../game/notices';
+import { renderNoticeBadge } from './noticeRailBadge';
 // PR-4 분리 — 이 파일은 클래스(상태·창 열기)만 들고, 나머지는 도메인 모듈이 맡는다:
 //   interfaceTypes  : 팝업 이름(Modal)·보기 상태 타입(BagFilter·SkillSelection)
 //   modalRegistry   : 팝업 등록부 MODALS (예전 renderModal의 18갈래 if 대신 표 한 벌)
@@ -49,14 +51,17 @@ const navIcons = {
 };
 
 /**
- * 오른쪽 아이콘 레일(`.utility-nav`)의 버튼 — 위에서부터 `캐릭터`·`설정`·`우편함`·`보상`·`업적`·`던전`.
+ * 오른쪽 아이콘 레일(`.utility-nav`)의 버튼 — 위에서부터 `캐릭터`·`공지사항`·`설정`·`우편함`·`보상`·`업적`·`던전`.
  * 상점(`.shop-entry`)은 그림이 달라서 생성자에서 따로 덧붙인다.
  *
  * `캐릭터`는 사용자 요청("캐릭터 전환버튼은 오른쪽 아이콘 추가")으로 생긴 자리다 — 예전에는 LV 배지를
  * 눌러 `캐릭터 선택`을 열었는데, LV 배지는 이제 `상세 스탯`을 열므로 전환 입구를 여기로 옮겼다.
+ * `공지사항`은 대장님 확정 1안(2026-11-22)으로 캐릭터 바로 아래에 넣었다 — 읽지 않은 공지가 있을 때만
+ * 붉은 `NEW` 뱃지를 띄운다.
  */
 const railEntries = [
   { modal: 'characters', label: '캐릭터' },
+  { modal: 'notice', label: '공지사항' },
   { modal: 'settings', label: '설정' },
   { modal: 'mail', label: '우편함' },
   { modal: 'rewards', label: '보상' },
@@ -65,7 +70,9 @@ const railEntries = [
 ] as const;
 /** 새 소식 점(`data-utility-dot`)을 다는 레일 버튼 — `utilityModal`이 이 이름으로 찾아 켜고 끈다. */
 const railDotModals = new Set<string>(['mail', 'rewards', 'achievements']);
-const railMarkup = (): string => railEntries.map(({ modal, label }) => `<button type="button" data-modal="${modal}" aria-label="${label}" title="${label}"><img src="/assets/icons/utility_${modal}.png" alt="">${railDotModals.has(modal) ? `<i data-utility-dot="${modal}" hidden></i>` : ''}</button>`).join('');
+/** 붉은 `NEW` 글자 뱃지를 다는 레일 버튼 — 공지사항(2026-11-22, 1안). `noticeRailBadge`가 찾아 켜고 끈다. */
+const railNewBadgeModals = new Set<string>(['notice']);
+const railMarkup = (): string => railEntries.map(({ modal, label }) => `<button type="button" data-modal="${modal}" aria-label="${label}" title="${label}"><img src="/assets/icons/utility_${modal}.png" alt="">${railDotModals.has(modal) ? `<i data-utility-dot="${modal}" hidden></i>` : ''}${railNewBadgeModals.has(modal) ? `<b class="notice-new-badge" data-notice-badge="${modal}" hidden></b>` : ''}</button>`).join('');
 /** 테스트가 레일 구성을 직접 확인할 수 있게 내보낸다(문자열만 만드는 순수 함수). */
 export { railMarkup, railEntries };
 
@@ -149,6 +156,10 @@ export class Interface {
   shopCheckout?: ShopCheckout;
   shopPay?: () => Promise<unknown>;
   shopTab: 'diamonds' | 'packages' = 'diamonds';
+  /** 운영 공지 목록(`public/notices.json`, 2026-11-22) — 시작할 때 읽고 공지창을 열 때마다 다시 읽는다. */
+  notices?: Notice[];
+  /** 이 기기에서 읽은 공지 `id` 기록 — 레일 `NEW` 뱃지와 목록 뱃지가 같이 보는 값이다. */
+  noticeSeen: ReadonlySet<string> = readSeenNoticeIds();
 
   constructor(public root: HTMLElement, public world: World, public onSave: () => void, public session: Session, public onReset: () => Promise<void>, sync: SaveSync) {
     // The world asks on every pickup rather than keeping a copy, so the switch and the threshold are
@@ -178,6 +189,9 @@ export class Interface {
     mountActionPad(this, world);
     wireWorld(this, world);
     this.renderBagBadge(); this.renderStatus();
+    // 운영 공지(2026-11-22, 1안) — 시작할 때 한 번 읽어 레일 `NEW`를 결정한다. 공지창을 열 때도
+    // 다시 읽으므로, 여기서 실패해도 창을 열면 다시 시도한다.
+    void this.reloadNotices();
     void loadShop(this);
     void completeShopReturn(this);
   }
@@ -195,6 +209,27 @@ export class Interface {
   tick(): void { return tick.call(this); }
 
   renderBagBadge(): void { return renderBagBadge.call(this); }
+
+  /** 레일 `공지사항` 버튼의 붉은 `NEW` — 읽지 않은 공지가 있을 때만 띄운다(2026-11-22, 1안). */
+  renderNoticeBadge(): void { return renderNoticeBadge.call(this); }
+
+  /** 공지창을 열어 모두 읽었을 때의 기록 — 지금 목록의 `id`를 모두 남기고 기기에 저장한다. */
+  markNoticesSeen(): ReadonlySet<string> {
+    const next = markAllNoticesSeen(this.notices ?? [], this.noticeSeen);
+    saveSeenNoticeIds(next);
+    return next;
+  }
+
+  /**
+   * `public/notices.json`을 다시 읽어 레일 `NEW`를 다시 그린다 — 공지창을 열 때마다·시작할 때
+   * 부른다. 읽지 못하면 마지막 목록을 그대로 둔다(점검 파일과 같은 원칙 — 한 번의 네트워크 실패로
+   * 공지가 사라지면 안 된다). 목록이 바뀌면 `NEW` 판정도 같이 바뀐다.
+   */
+  async reloadNotices(): Promise<void> {
+    const notices = await fetchNotices();
+    if (notices) this.notices = [...notices];
+    this.renderNoticeBadge();
+  }
 
   renderInventory(dialog: HTMLElement): void { return renderInventory.call(this, dialog); }
 

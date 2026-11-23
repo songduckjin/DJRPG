@@ -16,7 +16,7 @@ const gear = (id, slot, attack, rarity = 'common') => ({ id, name: id, slot, rar
 function popup(save) {
   const ui = {
     world: { save, paused: false, onChange() {} },
-    openModal: 'equipment', messages: [], salvageIds: undefined,
+    openModal: 'equipment', messages: [], salvageIds: undefined, salvageRarity: 'rare',
     root: node('main'), modal: { hidden: false },
     open(kind) { this.openModal = kind; },
     message(text) { this.messages.push(text); },
@@ -106,9 +106,8 @@ test('the popup shows only the piece worth keeping, with its art and the power i
   assert(text.includes('두손검'), 'its slot is named');
   assert(text.includes('에픽'), 'and its grade');
   assert(text.includes('장착 중 worn'), 'what it would replace');
-  const gain = Math.round(itemPower(gear('better', 'weapon', 30, 'epic')) - itemPower(gear('worn', 'weapon', 10)));
-  assert(text.includes('현재 투력'), 'the worn power is shown');
-  assert(text.includes(`+${gain}`), `and the power this piece adds (got "${text}")`);
+  assert(text.includes('장착 시'), 'the replacement comparison is shown');
+  assert(text.includes('공격 +20'), `and the actual attack change is shown (got "${text}")`);
   assert(findByClass(card, 'salvage-protect-art'), 'the piece has its own picture');
   assert(!text.includes('junk'), 'the rest of the selection is not listed');
 });
@@ -140,10 +139,12 @@ test('그대로 분해 salvages the whole selection, 취소 keeps it', () => {
   findByClass(quiet.root, 'salvage-protect-actions').children[2].onclick();
   assert.equal(save.bag.length, 2, 'cancelling changes nothing');
   assert.equal(quiet.openModal, 'equipment');
-  // 그대로 분해: 선택한 장비가 전부 분해된다.
+  // 그대로 분해: 마지막 확인 팝업(백로그 12번 B안)을 한 번 더 지나야 실제로 분해된다.
   const gold = save.gold, ui = popup(save);
   withDocument(() => requestSalvage.call(ui, ['better', 'junk']));
-  findByClass(ui.root, 'salvage-protect-actions').children[1].onclick();
+  withDocument(() => findByClass(ui.root, 'salvage-protect-actions').children[1].onclick());
+  assert.equal(save.bag.length, 2, 'the last confirmation still stands between the popup and the bin');
+  withDocument(() => findByClass(ui.root, 'bulk-confirm-ok').onclick());
   assert.equal(save.bag.length, 0, 'the whole selection is gone');
   assert(save.gold > gold, 'and pays out');
 });
