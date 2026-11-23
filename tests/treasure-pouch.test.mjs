@@ -33,24 +33,26 @@ function seeded(seed = 1) {
 const sum = table => table.reduce((total, entry) => total + entry.rate, 0);
 const close = (value, expected, tolerance) => Math.abs(value - expected) <= tolerance;
 
-test('확률표는 59/40/1 분류·세부 확률·전체 10항목이 모두 100%로 닫힌다(파트 B: 스킬북 5% → 스탯북 1%)', () => {
-  assert.deepEqual(pouch.POUCH_CATEGORIES.map(entry => [entry.kind, entry.rate]), [['gold', .59], ['equipment', .40], ['statbook', .01]]);
+test('확률표는 59.9/40/0.1 분류·세부 확률·전체 10항목이 모두 100%로 닫힌다(백로그 13: 스탯북 1% → 0.1%, 금화가 나머지)', () => {
+  assert.deepEqual(pouch.POUCH_CATEGORIES.map(entry => [entry.kind, entry.rate]), [['gold', .599], ['equipment', .40], ['statbook', .001]]);
   assert.deepEqual(pouch.POUCH_GOLD_TIERS.map(entry => [entry.gold, entry.rate]), [[1500, .55], [3000, .32], [5000, .13]]);
   assert.deepEqual(pouch.POUCH_RARITY_TIERS.map(entry => [entry.rarity, entry.rate]), [['common', .34], ['magic', .30], ['rare', .20], ['epic', .11], ['unique', .04], ['legendary', .01]]);
   assert.equal(sum(pouch.POUCH_CATEGORIES), 1,'분류 합 100%');
   assert.equal(sum(pouch.POUCH_GOLD_TIERS), 1,'금화 세부 합 100%');
   assert.equal(sum(pouch.POUCH_RARITY_TIERS), 1,'등급 세부 합 100%');
-  // 10항목(전체 확률) — 내림차순, 합 100.00%. 스킬북 5%가 장비·금화로 돌아가고 스탯북은 1%만 남았다.
+  // 금화 몫은 장비 40%·스탯북 확률을 뺀 나머지라, 스탯북 확률을 내리면 금화가 그만큼 자동으로 늘어난다.
+  assert.equal(pouch.POUCH_GOLD_RATE, 1 - .40 - .001, '금화 = 100% − 장비 − 영구 스탯북');
+  // 10항목(전체 확률) — 내림차순, 합 100.00%. 스탯북이 1/10이 된 만큼이 금화로 갔다.
   assert.deepEqual(pouch.POUCH_OVERALL_RATES.map(entry => [entry.label, entry.rate]), [
-    ['1,500G', .3245], ['3,000G', .1888], ['일반 장비', .1360], ['매직 장비', .1200], ['레어 장비', .0800],
-    ['5,000G', .0767], ['에픽 장비', .0440], ['유니크 장비', .0160], ['영구 스탯북 1권', .0100], ['레전드 장비', .0040]
+    ['1,500G', .32945], ['3,000G', .19168], ['일반 장비', .1360], ['매직 장비', .1200], ['레어 장비', .0800],
+    ['5,000G', .07787], ['에픽 장비', .0440], ['유니크 장비', .0160], ['레전드 장비', .0040], ['영구 스탯북 1권', .0010]
   ]);
   assert.equal(Math.round(sum(pouch.POUCH_OVERALL_RATES) * 10000) / 10000, 1,'전체 합 100.00%');
   assert(pouch.POUCH_OVERALL_RATES.every((entry, index, list) => index === 0 || list[index - 1].rate >= entry.rate),'높은 확률 순');
   // 전체 확률 = 분류 확률 × 세부 확률(정확히).
-  assert.equal(pouch.POUCH_OVERALL_RATES[0].rate, Math.round(.59 * .55 * 10000) / 10000,'1,500G = 59% × 55%');
+  assert.equal(pouch.POUCH_OVERALL_RATES[0].rate, Math.round(.599 * .55 * 1e6) / 1e6,'1,500G = 59.9% × 55%');
   assert.equal(pouch.POUCH_OVERALL_RATES[2].rate, Math.round(.40 * .34 * 10000) / 10000,'일반 장비 = 40% × 34%');
-  assert.equal(pouch.POUCH_OVERALL_RATES[8].rate, .01,'영구 스탯북 1%');
+  assert.equal(pouch.POUCH_OVERALL_RATES[9].rate, .001,'영구 스탯북 0.1%');
 });
 
 test('2만 번 개봉에서 분류·금화·등급 분포가 표를 따른다', () => {
@@ -61,9 +63,10 @@ test('2만 번 개봉에서 분류·금화·등급 분포가 표를 따른다', 
     if (result.kind === 'gold') golds.set(result.gold, (golds.get(result.gold) ?? 0) + 1);
     if (result.kind === 'equipment') rarities.set(result.item.rarity, (rarities.get(result.item.rarity) ?? 0) + 1);
   }
-  assert(close(counts.gold / rolls, .59, .02),`금화 ${counts.gold / rolls}`);
+  assert(close(counts.gold / rolls, .599, .02),`금화 ${counts.gold / rolls}`);
   assert(close(counts.equipment / rolls, .40, .02),`장비 ${counts.equipment / rolls}`);
-  assert(close(counts.statbook / rolls, .01, .01),`영구 스탯북 ${counts.statbook / rolls}`);
+  // 0.1% — 2만 번에 20개 남짓이다(직전 1%였으면 이 허용 범위를 크게 벗어난다: 기대 200개).
+  assert(close(counts.statbook / rolls, .001, .002),`영구 스탯북 ${counts.statbook / rolls}`);
   for (const [gold, rate] of [[1500, .55], [3000, .32], [5000, .13]]) assert(close((golds.get(gold) ?? 0) / counts.gold, rate, .04),`${gold}G`);
   for (const [rarity, rate] of [['common', .34], ['magic', .30], ['rare', .20], ['epic', .11], ['unique', .04], ['legendary', .01]]) {
     const expected = Math.max(rate, .01);
@@ -82,9 +85,9 @@ test('확률표는 전체 확률 10줄을 높은 확률 순으로 렌더하고 �
     assert.equal(table.children.length, 10);
     // fake 노드는 이름·확률을 각각 자식(span/em)의 textContent로 지닌다.
     const rows = table.children.map(row => [row.children.map(child => child.textContent ?? '').join(''), row.className]);
-    assert.deepEqual(rows.map(([text]) => text.replace(/[0-9.,%]/g, '')), ['G', 'G', '일반 장비', '매직 장비', '레어 장비', 'G', '에픽 장비', '유니크 장비', '영구 스탯북 권', '레전드 장비'],'높은 확률 순');
-    assert.deepEqual(rows.map(([text]) => text.match(/[0-9.]+%$/)?.[0]), ['32.45%','18.88%','13.60%','12.00%','8.00%','7.67%','4.40%','1.60%','1.00%','0.40%'],'소수 둘째 자리');
-    assert.deepEqual(rows.slice(2,5).concat([rows[6],rows[7],rows[9]]).map(([, cls]) => cls.match(/rarity-(\w+)/)?.[1]), ['common','magic','rare','epic','unique','legendary'],'등급 색 유지');
+    assert.deepEqual(rows.map(([text]) => text.replace(/[0-9.,%]/g, '')), ['G', 'G', '일반 장비', '매직 장비', '레어 장비', 'G', '에픽 장비', '유니크 장비', '레전드 장비', '영구 스탯북 권'],'높은 확률 순');
+    assert.deepEqual(rows.map(([text]) => text.match(/[0-9.]+%$/)?.[0]), ['32.95%','19.17%','13.60%','12.00%','8.00%','7.79%','4.40%','1.60%','0.40%','0.10%'],'소수 둘째 자리');
+    assert.deepEqual(rows.slice(2,5).concat([rows[6],rows[7],rows[8]]).map(([, cls]) => cls.match(/rarity-(\w+)/)?.[1]), ['common','magic','rare','epic','unique','legendary'],'등급 색 유지');
     assert(!rows[0][1].includes('rarity-'),'금화 줄은 등급 색이 없다');
     const summary = panel.children.find(node => node.className === 'pouch-rate-summary');
     assert(summary && summary.textContent === '합계 100% · 장비는 3직업 균등 · 영구 스탯북은 4종 균등','요약 한 줄');
@@ -99,7 +102,7 @@ test('주머니 1개를 열면 소모되고 결과가 세이브에 반영된다'
   const gold = pouch.openPouch(goldSave, undefined, constant([.10, .10]));
   assert.equal(gold.ok, true); assert.equal(gold.result.kind, 'gold'); assert.equal(gold.result.gold, 1500);
   assert.equal(goldSave.gold, 1500,'금화 지급'); assert.equal(pouch.pouchCount(goldSave), 0,'주머니 소모');
-  // 장비: 레어 (분류 59% 구간 뒤 equipment — 금화 59% · 장비 40% · 영구 스탯북 1%)
+  // 장비: 레어 (분류 59.9% 구간 뒤 equipment — 금화 59.9% · 장비 40% · 영구 스탯북 0.1%)
   const gearSave = withPouches(1);
   const gear = pouch.openPouch(gearSave, undefined, constant([.60, .70]));
   assert.equal(gear.result.kind, 'equipment'); assert.equal(gear.result.item.rarity, 'rare');
@@ -107,9 +110,9 @@ test('주머니 1개를 열면 소모되고 결과가 세이브에 반영된다'
   assert(gearSave.bag.some(item => item.rarity === 'rare' && item.slot !== 'pouch'));
   // 장비 `+단계`·스탯 규칙: 20층 기준이면 `+1`까지 열려 있다.
   assert(gear.result.item.plus <= items.maxPlusFor(20));
-  // 영구 스탯북: 분류 .995 → statbook (금화 59% · 장비 40% 뒤의 마지막 1%)
+  // 영구 스탯북: 분류 .9995 → statbook (금화 59.9% · 장비 40% 뒤의 마지막 0.1%)
   const bookSave = withPouches(1);
-  const book = pouch.openPouch(bookSave, undefined, constant([.995]));
+  const book = pouch.openPouch(bookSave, undefined, constant([.9995]));
   assert.equal(book.result.kind, 'statbook'); assert.equal(book.result.item.kind, 'statbook');
   assert(['attack', 'defense', 'health', 'skill'].includes(book.result.item.book));
   assert.equal(bookSave.bag.filter(item => item.kind === 'statbook').length, 1);

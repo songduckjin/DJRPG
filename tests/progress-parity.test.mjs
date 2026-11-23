@@ -39,13 +39,15 @@ const EXPECTED = {
   'offline-12h': {
     progress: {
       // 주머니 스택형: 같은 종류의 영구 스탯북은 한 칸에 쌓이므로 12시간 방치가 40칸에서 멈추되 **아이템 수**는
-      // 43개다(칸은 그대로 40). 진행 결과(층·금화·경험치·생존)는 종전과 같다 — 칸 규칙만 바뀌었다.
+      // 40개다(칸은 그대로 40). 진행 결과(층·금화·경험치·생존)는 종전과 같다 — 칸 규칙·드롭률만 바뀌었다.
+      // 2026-11-23 백로그 13: 스탯북 확률을 1/10(0.01% → 0.001%)로 내려 같은 12시간에 스탯북이 3개 덜 떨어졌다
+      // (아이템 43 → 40, 놓친 몫 262 → 253). 층·금화·경험치·생존 수치는 그대로다 — 확률만 내린 것이 맞다는 증거.
       gold: 875260, exp: 80971, level: 18, floor: 15, maxFloor: 15, floorKills: 408, kills: 96672, bossKills: 5,
-      playSeconds: 0, stones: 12, salvageCount: 0, tutorial: 3, health: 344, dungeonFloor: 0, bossRetryFloor: 15, bag: 43
+      playSeconds: 0, stones: 12, salvageCount: 0, tutorial: 3, health: 344, dungeonFloor: 0, bossRetryFloor: 15, bag: 40
     },
     reward: {
       seconds: 43200, kills: 96672, exp: 1158971, gold: 871470, levels: 3, startFloor: 8, endFloor: 15,
-      bossKills: 5, deaths: 121, items: 43, missedDrops: 262, salvaged: { count: 0, gold: 0, stones: 0 }
+      bossKills: 5, deaths: 121, items: 40, missedDrops: 253, salvaged: { count: 0, gold: 0, stones: 0 }
     }
   },
   'dungeon-1-clear': {
