@@ -25,8 +25,8 @@ Vite + TypeScript + PixiJS 기반 모바일 2.5D RPG. 이 파일은 **항상 필
 2. `main` 직접 커밋·푸시 금지. 작업별 브랜치와 PR을 사용하고 다른 작업자의 브랜치·미완료 커밋을 덮어쓰지 않는다.
 3. 작업 번호는 PR 단계에서 선점하지 않는다. `main` 병합 또는 일괄 문서 정리 시 확정한다. 새 작업은 `TASK.md`에 `[-]`로 등록하고, 검증 전 `[x]`로 마감하지 않는다.
 
-## 배포·검증
-- 게임 코드·게임 API·`src/game/**`·`src/ui/**`·`public/assets/**` 변경은 **점검 ON → 배포 → 운영 정상화 확인 → 점검 OFF** 순서다. `public/maintenance.json`에 예상 완료 시각(`eta`)을 반드시 둔다. `/`·`version.json`·`/maintenance.json`·`/api/account` 정상 JSON·게스트 로그인/저장·Cloudflare Pages 성공을 확인한 뒤에만 점검을 끈다. 실패하면 점검을 유지한다.
+## 배포·점검 정책(검증 포함)
+- 게임 코드·게임 API·`src/game/**`·`src/ui/**`·`public/assets/**` 변경은 **점검 ON → 배포 → 전수 정상화 확인 → 점검 OFF** 순서다. 점검이 켜지면 접속 중인 플레이어는 저장 뒤 로그인 화면으로 돌아가 **"점검 진행 중입니다" + 예상 완료 시간** 모달을 보고, 그동안 로그인·게스트가 막힌다(단일 기준 `docs/AUTH_CHARACTER.md`·`CONTRIBUTING.md` §16). `public/maintenance.json`에 예상 완료 시각(`eta`)을 반드시 둔다. `/`·`version.json`·`/maintenance.json`·`/api/account` 정상 JSON·게스트 로그인/저장·Cloudflare Pages 성공을 확인한 뒤에만 점검을 끈다. 실패하면 점검을 유지한다.
 - 게임에 영향 없는 문서·관리자 포털 전용 변경은 점검 없이 배포할 수 있으나, 배포 후 정상화 확인은 동일하게 한다. 영향 여부가 불명확하면 점검을 사용한다.
 - 기본 검증은 `npx tsc --noEmit` + 해당 도메인 매뉴얼의 테스트만 실행한다. 전체 `npm test`·빌드는 공용 계약 수정 또는 사용자 요청 시에만 한다. 이미지 변경 시 `node scripts/verify-item-art.mjs`도 실행한다.
 - 실행하지 않은 테스트·실브라우저 확인을 통과했다고 기록하지 않는다. 검증 실패는 `origin/main` 기준선과 비교해 신규 실패 여부를 구분한다.
