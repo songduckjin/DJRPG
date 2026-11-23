@@ -50,15 +50,18 @@ test('스탯북은 세 직업 공용 소모품이고 장비가 아니다', () =>
 });
 
 test('확률표 — 개극악 확률 한 곳, 네 종류는 같은 확률(1/4)', () => {
-  // 송덕진 님 확정(2026-11-22): 일반 몹 0.01%, 보스 0.05~0.1%.
-  assert.equal(STAT_BOOK_DROP_RATES.hunt, .0001, '접속 사냥 일반·정예 0.01%');
-  assert.equal(STAT_BOOK_DROP_RATES.offline, .0001, '방치 사냥 0.01%');
-  assert.equal(STAT_BOOK_DROP_RATES.boss, .0005, '필드 보스 0.05%');
-  assert.equal(STAT_BOOK_DROP_RATES.dungeonBoss, .001, '던전 보스 0.1%');
-  assert.equal(STAT_BOOK_DROP_RATES.pouch, .01, '보물 주머니 1%');
+  // 송덕진 님 확정(2026-11-22) → 백로그 13(2026-11-23): 전 지점 **직전의 1/10**.
+  assert.equal(STAT_BOOK_DROP_RATES.hunt, .00001, '접속 사냥 일반·정예 0.001%');
+  assert.equal(STAT_BOOK_DROP_RATES.offline, .00001, '방치 사냥 0.001%');
+  assert.equal(STAT_BOOK_DROP_RATES.boss, .00005, '필드 보스 0.005%');
+  assert.equal(STAT_BOOK_DROP_RATES.dungeonBoss, .0001, '던전 보스 0.01%');
+  assert.equal(STAT_BOOK_DROP_RATES.pouch, .001, '보물 주머니 0.1%');
+  // 1/10 하향이 전 지점에 같이 적용됐는가 — 직전 값과의 비율이 정확히 10배다.
+  const before = { hunt: .0001, offline: .0001, boss: .0005, dungeonBoss: .001, pouch: .01 };
+  for (const [source, rate] of Object.entries(before)) assert.equal(STAT_BOOK_DROP_RATES[source], rate / 10, `${source}: 1/10`);
   // 판정: 경계 아래만 당첨.
-  assert.equal(rollStatBookDrop('hunt', () => .00005)?.kind, 'statbook');
-  assert.equal(rollStatBookDrop('hunt', () => .0002), undefined);
+  assert.equal(rollStatBookDrop('hunt', () => .000005)?.kind, 'statbook');
+  assert.equal(rollStatBookDrop('hunt', () => .00002), undefined, '직전 확률(0.01%)에서는 더 이상 떨어지지 않는다');
   // 네 종류는 같은 확률 — 0/.25/.5/.75 구간이 각각 공격/방어/체력/스킬.
   assert.equal(rollStatBook(() => 0).book, 'attack');
   assert.equal(rollStatBook(() => .4).book, 'defense');

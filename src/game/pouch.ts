@@ -8,18 +8,19 @@ import { addItemToBag } from './rewardGrant';
 import { EQUIPMENT_BAG_LIMIT, equipmentCount } from './bagCapacity';
 
 /**
- * 무작위 보물 주머니의 확률표 (작업 207 → 파트 B 2026-11-22).
+ * 무작위 보물 주머니의 확률표 (작업 207 → 파트 B 2026-11-22 → 백로그 13 2026-11-23).
  *
- * 한 주머니를 열면 먼저 **분류**를 뽑고(금화 59% · 장비 40% · 영구 스탯북 1%), 고른 분류 안에서 다시
+ * 한 주머니를 열면 먼저 **분류**를 뽑고(금화 59.9% · 장비 40% · 영구 스탯북 0.1%), 고른 분류 안에서 다시
  * 세부 확률을 뽑는다. 아래 `rate`는 모두 **그 분류 안에서의 몫**이며(합 100%), 분류별 합도 100%다.
- *  - 금화 59% → 1,500G 55% · 3,000G 32% · 5,000G 13%
+ *  - 금화 59.9% → 1,500G 55% · 3,000G 32% · 5,000G 13%
  *  - 장비 40% → 일반 34% · 매직 30% · 레어 20% · 에픽 11% · 유니크 4% · 레전드 1%
  *    (등급이 정해지면 이 층의 슬롯·티어·스탯·`+단계` 규칙 그대로 1개를 만든다)
- *  - 영구 스탯북 1% → 공격의 서·방어의 서·체력의 서·스킬의 서가 같은 확률(1/4)
+ *  - 영구 스탯북 0.1% → 공격의 서·방어의 서·체력의 서·스킬의 서가 같은 확률(1/4)
  *
- * **스킬북 5%는 파트 B에서 폐지됐다** — 그 5%를 장비·금화로 돌리고, 스탯북은 개극악 확률(1%)만 남겼다.
- * 분류 확률은 `statBooks.ts`의 `STAT_BOOK_DROP_RATES.pouch` 한 값에서 나머지를 계산하므로, 확률을 바꾸려면
- * 그 표만 고치면 된다(`POUCH_STAT_BOOK_RATE`).
+ * **스킬북 5%는 파트 B에서 폐지됐다** — 그 5%를 장비·금화로 돌리고, 스탯북은 개극악 확률만 남겼다.
+ * **금화 몫은 상수가 아니다** — 장비 40%와 스탯북 확률(`STAT_BOOK_DROP_RATES.pouch`)을 뺀 나머지라,
+ * 스탯북 확률을 1/10(1% → 0.1%)로 내리면 금화가 59% → 59.9%로 자동으로 따라온다(합은 늘 100%).
+ * 확률을 바꾸려면 `statBooks.ts`의 그 표만 고치면 된다(`POUCH_STAT_BOOK_RATE`).
  *
  * `[확률표]` 화면은 이 전체 표를 **전체 확률 한 줄(10항목, 높은 확률 순)**로 보여 준다:
  * `POUCH_OVERALL_RATES`가 그 10줄의 근거이고, 각 줄 = 분류 확률 × 세부 확률(합 100.00%).
@@ -27,9 +28,13 @@ import { EQUIPMENT_BAG_LIMIT, equipmentCount } from './bagCapacity';
 export type PouchCategory = 'gold' | 'equipment' | 'statbook';
 /** 주머니 하나가 스탯북일 확률 — `statBooks.ts`의 확률표에서 온다(여기서 숫자를 따로 두지 않는다). */
 export const POUCH_STAT_BOOK_RATE = STAT_BOOK_DROP_RATES.pouch;
+/** 주머니 하나가 장비일 확률 — 고정값이고, 금화가 나머지를 가져간다. */
+export const POUCH_EQUIPMENT_RATE = .40;
+/** 금화 몫 = 100% − 장비 − 영구 스탯북. 스탯북 확률을 바꾸면 금화가 그만큼 자동으로 늘어난다. */
+export const POUCH_GOLD_RATE = Number((1 - POUCH_EQUIPMENT_RATE - POUCH_STAT_BOOK_RATE).toFixed(6));
 export const POUCH_CATEGORIES: readonly { kind: PouchCategory; label: string; rate: number }[] = [
-  { kind: 'gold', label: '금화', rate: .59 },
-  { kind: 'equipment', label: '장비', rate: .40 },
+  { kind: 'gold', label: '금화', rate: POUCH_GOLD_RATE },
+  { kind: 'equipment', label: '장비', rate: POUCH_EQUIPMENT_RATE },
   { kind: 'statbook', label: '영구 스탯북', rate: POUCH_STAT_BOOK_RATE }
 ];
 export const POUCH_GOLD_TIERS: readonly { gold: number; rate: number }[] = [

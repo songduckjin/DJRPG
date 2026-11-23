@@ -95,7 +95,7 @@ test('한 번에 열기 — 가방 40칸은 절대 넘지 않는다(자리가 �
   const blocked = freshSave(); blocked.maxFloor = 20; blocked.floor = 20;
   blocked.bag = [...Array.from({ length: 39 }, (_, index) => gear(index)), items.pouchItem('p1'), items.pouchItem('p2')];
   assert.equal(equipmentCount(blocked.bag), 40);
-  const stopped = batch.openPouches(blocked, { random: () => .60 });  // 항상 장비(분류 .60 ≥ 59%)
+  const stopped = batch.openPouches(blocked, { random: () => .60 });  // 항상 장비(분류 .60 ≥ 59.9%)
   assert.equal(stopped.ok, false, '하나도 열지 못하면 이유를 보여 준다');
   assert.match(stopped.message, /가방이 가득/);
   assert.equal(pouch.pouchCount(blocked), 2, '주머니는 그대로');
