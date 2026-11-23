@@ -410,17 +410,17 @@ export function drawMagicBolt(this: GameView, effect: Effect, x: number, y: numb
       let sprites = this.vfxSprites.get(effect);
       if (!sprites) {
         const flame = new Sprite(this.textures.fxMageFireball);
-        flame.anchor.set(.8, .5); // 발사·착탄 좌표는 밝은 화염구 중심에 둔다.
+        flame.anchor.set(.5, .46); // 새 원형 에셋의 불꽃 중심을 발사·착탄 좌표에 둔다.
         this.skillVfx.addChild(flame);
         sprites = [flame];
         this.vfxSprites.set(effect, sprites);
       }
       const flame = sprites[0];
       flame.position.set(px, py);
-      flame.rotation = progress > 0 ? angle : 0;
+      flame.rotation = 0;
       // 피해량과 무관한 화면 크기는 상한을 둔다. 다발 시전에서 머리 위 불꽃이 합쳐지지 않게 한다.
       const visualScale = Math.min(1.2, 1 + (scale - 1) * .3);
-      flame.scale.set(72 / flame.texture.width * visualScale * hover);
+      flame.scale.set(88 / flame.texture.width * visualScale * hover);
       flame.alpha = effect.age < launch ? .78 + .22 * hover : 1;
       this.glow.circle(px, py, 18 * scale).fill({ color: 0xff7b2d, alpha: .11 + tail * .07 });
       return;

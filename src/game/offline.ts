@@ -2,7 +2,7 @@ import { addItemToBag } from './rewardGrant';
 import { autoSalvageRecovered } from './inventory';
 import { offlineDropChance, rollItem, totalStats, type Item, type Rarity } from './items';
 import { rollStatBookDrop } from './statBooks';
-import { jobOrDefault as jobOf, skillDamageScale, skillDuration, skills, type SkillId } from './skills';
+import { FIRE_BOLT_TOTAL_POWER, jobOrDefault as jobOf, skillDamageScale, skillDuration, skills, type SkillId } from './skills';
 import { skillLevel, type Save } from './store';
 import { afterBossLose, afterBossWin, applyBossReward, applyKillBatch, defeatPenalty, killsToBoss } from './progress';
 import { basicAttackPower, berserkAttackScale, berserkSpeedScale, CRIT_CHANCE_CAP, attackInterval, critDamageScale, enemyHitDamage, enemyMaxHp, fieldSpawnRate } from './battle/formulas';
@@ -57,7 +57,7 @@ export const BOSS_SAFETY_MARGIN = .9;
 const skillBurst: Record<SkillId, number> = {
   slash2: 2.2, slam: 2.2, warcry: 0, power: 4, destroy: 2.7, hell: 3.2, crushing: 3.4, spin: 1.65,
   doubleShot: 2.7, multiShot: .95, pierceShot: 2.6, iceArrow: 1.9, hawkEye: 0, snipe: 6.5, stormVolley: .8, arrowRain: 2.55,
-  fireBolt: 2, iceBolt: 1.7, chainLightning: 1.25, manaBurst: 2.5, frostNova: 1.5, arcaneShield: 0, meteorStrike: 3.6, arcaneOverlord: 3
+  fireBolt: FIRE_BOLT_TOTAL_POWER, iceBolt: 1.7, chainLightning: 1.25, manaBurst: 2.5, frostNova: 1.5, arcaneShield: 0, meteorStrike: 3.6, arcaneOverlord: 3
 };
 /** 공격력·공격속도를 올리는 버프 3종 — 지속/쿨타임 비율만큼 DPS를 끌어올린다. */
 const buffSkills: SkillId[] = ['warcry', 'hawkEye', 'arcaneShield'];

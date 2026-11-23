@@ -15,7 +15,7 @@
  */
 
 import { random } from '../rng';
-import { dragonOrbitFactor, jobOrDefault, skillDamageScale, skillDuration, skillRange, skills, slash2Hits, slash2SwingSeconds, type Job, type SkillId } from '../skills';
+import { dragonOrbitFactor, FIRE_BOLT_TOTAL_POWER, fireBoltCount, jobOrDefault, skillDamageScale, skillDuration, skillRange, skills, slash2Hits, slash2SwingSeconds, type Job, type SkillId } from '../skills';
 import { skillLevel, totalStats, type Save } from '../store';
 import { EXTRA_LIFESTEAL_HIT_CAP, EXTRA_LIFESTEAL_SECOND_CAP, EXTRA_REGEN_SECONDS, effectiveExtraOptions } from '../extraOptions';
 import type { Action, ArrowVariant, Coin, Drop, Effect, Enemy, HeroAfterimage } from '../battle/types';
@@ -51,10 +51,9 @@ export function crushLabelOffset(index: number): { x: number; y: number } { retu
  *  한 번 띄우면 4.5초는 조용히 막는다. */
 export const WEAPON_REQUIRED_NOTICE = '무기를 장착해야 공격할 수 있습니다.';
 export const WEAPON_NOTICE_COOLDOWN = 4.5;
-/** 파이어 볼트가 띄우는 화염구 수(작업 216) — Lv.1~4는 1발, 이후 5레벨마다 +1발, 최대 6발. */
-export function fireBoltCount(level: number): number { return Math.min(6, 1 + Math.floor(Math.max(1, Math.floor(level)) / 5)); }
-/** 화염구 크기 배율(작업 216) — 레벨이 오를수록 점진적으로 커진다(Lv.1 1배 → Lv.30 2.45배). */
-export function fireBoltScale(level: number): number { return 1 + Math.max(0, Math.floor(level) - 1) * .05; }
+export { fireBoltCount } from '../skills'; // 기존 `world.ts` re-export 경로 유지
+/** 화염구 크기 배율 — Lv.1 1배에서 Lv.10 1.45배까지 증가한다. */
+export function fireBoltScale(level: number): number { return 1 + (Math.max(1, Math.min(10, Math.floor(Number.isFinite(level) ? level : 1))) - 1) * .05; }
 
 export class CombatEngine {
   player = { x: 0, y: 0, facing: 0, facingSide: 1, hp: 100, berserk: 0, berserkLevel: 1, hit: 0 };
@@ -265,10 +264,10 @@ export class CombatEngine {
       this.effects.push({ x: aim.x, y: aim.y, kind: 'rain', age: 0, duration: area!.duration, angle: 0, nextHit: .12, power: attack * .85 * damageScale, radius: area!.radius, level, source: kind });
     } else if (kind === 'fireBolt') {
       // [작업 216] 머리 위에 화염구 N발을 띄운 뒤, 각 자리에서 목표 한 마리를 향해 곡선 없이
-      // 곧장 일직선으로 날아가 타격한다. 합계 위력은 예전 한 발(×2.0)과 같게 N으로 나눈다.
+      // 곧장 일직선으로 날아가 한 대상만 타격한다. 합계 위력 ×1.5를 N발로 나눈다.
       const aim = this.aimPoint(target, range);
       const count = fireBoltCount(level), size = fireBoltScale(level);
-      const power = attack * 2 * damageScale / count;
+      const power = attack * FIRE_BOLT_TOTAL_POWER * damageScale / count;
       fireBoltSpots(p.x, p.y, count).forEach((spot, index) => {
         this.shoot(aim.x, aim.y, power, {
           speed: 720, radius: area!.projectileRadius, arrow: 'fire', aim: target, source: kind,
@@ -370,7 +369,7 @@ export class CombatEngine {
     if (Math.abs(screenDx) > 4) this.player.facingSide = screenDx > 0 ? 1 : -1;
   }
 
-  damage(radius: number, amount: number, angle: number, arc: number, knockback = 12, slow = 0, origin: { x: number; y: number } = this.player, maxTargets = Infinity, labelOffset?: { x: number; y: number }, boxHalfWidth?: number, hitEnemies?: Set<Enemy>, forceCrit = false): void {
+  damage(radius: number, amount: number, angle: number, arc: number, knockback = 12, slow = 0, origin: { x: number; y: number } = this.player, maxTargets = Infinity, labelOffset?: { x: number; y: number }, boxHalfWidth?: number, hitEnemies?: Set<Enemy>, forceCrit = false, onlyTarget?: Enemy): void {
     // 추가옵션(작업 238): `추가 데미지`는 최종 피해에 곱하고, `피흡`은 실제로 가한 피해에서 회복한다.
     // 두 값 모두 상한이 걸려 있다(`effectiveExtraOptions`) — 피흡은 한 번의 타격에 최대 체력의 4%까지다.
     const extras = effectiveExtraOptions(this.save.equipment);
@@ -386,9 +385,10 @@ export class CombatEngine {
     // 확률은 위 `critChance` 그대로이고 **배수만** 오른다 — 추가 데미지·피흡도 이 배수 위에서 계산된다.
     const critScale = critDamageScale(extras.critDmgPct);
     // 판정 대상은 사거리·부채꼴 안의 적(`battle/targeting`). `maxTargets`를 주면 가까운 순으로 그 수만 맞는다(평타 1마리).
+    const enemies = onlyTarget ? this.enemies.includes(onlyTarget) ? [onlyTarget] : [] : this.enemies;
     const targets = boxHalfWidth === undefined
-      ? targetsInArc(origin, radius, angle, arc, this.enemies, maxTargets)
-      : targetsInForwardBox(origin, radius, boxHalfWidth, angle, this.enemies);
+      ? targetsInArc(origin, radius, angle, arc, enemies, maxTargets)
+      : targetsInForwardBox(origin, radius, boxHalfWidth, angle, enemies);
     let dealt = 0;
     for (const { enemy, dx, dy, dist } of targets) {
       if (hitEnemies && hitEnemies.size >= maxTargets) break;
@@ -612,7 +612,7 @@ export class CombatEngine {
           if (!effect.piercing) {
             this.damage(effect.radius ?? 40, effect.power ?? 0, effect.angle, Math.PI, 10,
               effect.variant === 'ice' ? 0 : effect.slow ?? 0, impact, effect.targets ?? 1,
-              undefined, undefined, undefined, effect.variant === 'snipe');
+              undefined, undefined, undefined, effect.variant === 'snipe', effect.source === 'fireBolt' ? effect.aim : undefined);
             if (effect.variant === 'ice' && effect.source === 'iceArrow') {
               const radius = effect.radius ?? skillArea('iceArrow', 1).projectileRadius!;
               for (const enemy of this.enemies) if (Math.hypot(enemy.x - impact.x, enemy.y - impact.y) <= radius) {

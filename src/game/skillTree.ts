@@ -23,7 +23,7 @@
  * 같은 자리 3티어를 요구한다. 그래서 액티브 줄기 두 개와 패시브 줄기 하나가 위에서 아래로 이어진다.
  */
 import {
-  MAX_SKILL_LEVEL, passiveOrderFor, passives, skillDamageScale, skillDuration, skillOrderFor, skillRange, skills,
+  MAX_SKILL_LEVEL, fireBoltCount, passiveOrderFor, passives, skillDamageScale, skillDuration, skillOrderFor, skillRange, skills,
   type Job, type PassiveId, type SkillId, type SkillLevelId
 } from './skills';
 import { iceArrowSlow, multiShotPattern, skillArea } from './battle/skillAreas';
@@ -305,6 +305,11 @@ export function skillValueRows(id: SkillLevelId, level: number): SkillValueRow[]
       { label: '둔화', value: `이동속도 ${Math.round(slow.speedScale * 100)}% · ${slow.duration.toFixed(1)}초` }
     ];
   }
+  if (id === 'fireBolt') return [
+    { label: '총 위력', value: `× ${(skillCastScale(id, lv) * skillDamageScale(lv)).toFixed(2)}` },
+    { label: '화염구', value: `${fireBoltCount(lv)}발 · 단일 대상` },
+    { label: '사거리', value: `${skillRange(id, lv)}` }
+  ];
   if (id === 'arrowRain') {
     const area = skillArea(id, lv);
     return [

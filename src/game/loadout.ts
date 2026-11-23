@@ -1,5 +1,5 @@
 import type { Save } from './store';
-import { jobOrDefault, skillDamageScale, skillDuration, skillOrderFor, skills, type Job, type SkillId } from './skills';
+import { FIRE_BOLT_TOTAL_POWER, jobOrDefault, skillDamageScale, skillDuration, skillOrderFor, skills, type Job, type SkillId } from './skills';
 import { multiShotPattern } from './battle/skillAreas';
 export type QuickSlots = [SkillId | null, SkillId | null, SkillId | null];
 export function normalizeQuickSlots(raw: unknown, learned: SkillId[], job: Job = 'warrior'): QuickSlots {
@@ -73,7 +73,7 @@ export function recommendedSkillOrder(save: Save): SkillId[] {
  *
  * 지속 시간 동안 되풀이되는 타격(`hell`·`spin`·`arrowRain`)과 두 번 들어가는 일격(`slash2`·`slam`)은
  * `skillDuration`·타격 간격으로 타수를 세어 더한다. 여러 적을 맞히는 스킬이라도 계수는 **한 대상** 기준이다.
- * `fireBolt`는 여러 발로 나뉘어도 합계가 ×2.0 그대로라 나누지 않는다(작업 216).
+ * `fireBolt`는 여러 발로 나뉘어도 합계 ×1.5를 한 번만 센다.
  */
 export function skillCastScale(id: SkillId, level = 1): number {
   const lv = Math.max(1, Math.floor(level));
@@ -97,7 +97,7 @@ export function skillCastScale(id: SkillId, level = 1): number {
     case 'snipe': return 6.5;
     case 'stormVolley': return .8 * 6;
     case 'arrowRain': return .85 * repeats(.12, .4);
-    case 'fireBolt': return 2;                              // 여러 발 합계 ×2.0
+      case 'fireBolt': return FIRE_BOLT_TOTAL_POWER;          // 여러 발의 합계 위력
     case 'iceBolt': return 1.7;
     case 'chainLightning': return 1.25;
     case 'manaBurst': return 2.5;
