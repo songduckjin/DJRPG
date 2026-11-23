@@ -56,6 +56,12 @@ const px = (body, pattern) => {
   assert.ok(value, `값이 있다: ${pattern}`);
   return Number(value[1]);
 };
+/** `calc(N * var(--u))` → N. HUD 길이는 폭 비례 토큰을 쓰므로 390px 기준값으로 비교한다(옛 Npx도 읽는다). */
+const u = (body, property) => {
+  const found = body.match(new RegExp(`${property}:\\s*calc\\(([\\d.]+) \\* var\\(--u\\)\\)`)) ?? body.match(new RegExp(`${property}:\\s*([\\d.]+)px`));
+  assert.ok(found, `${property} 길이`);
+  return Number(found[1]);
+};
 
 test('이름판의 직업 태그는 data-job으로만 넣고, 직업을 바꾸면 다음 렌더에서 바로 바뀐다(작업 265)', () => {
   const { ui, heroName } = hud();
@@ -103,33 +109,33 @@ test('이름판은 다크 필 + 1px 금빛 테두리 + 위쪽 하이라이트, 1
   assert.match(pill, /border: 1px solid #d6af7288/, '1px 금빛 테두리');
   assert.match(pill, /box-shadow:[^;]*inset 0 1\.5px 0 #f6d28e55/, '위쪽 1.5px 금빛 하이라이트');
   assert.match(pill, /background: #120c12ad/, '반투명 다크 필(약 68%)');
-  assert.match(pill, /font: 700 13px\//, '13px 굵은 닉네임');
+  assert.match(pill, /font: 700 calc\(13 \* var\(--u\)\)\//, '13u(390px에서 13px) 굵은 닉네임');
   assert.match(pill, /color: #fff0d2/, '따뜻한 흰색 글자');
-  assert.match(pill, /max-width: 140px/, '폭 상한 140px');
-  assert.equal(px(pill, /height: ([\d.]+)px/), 17.6, '높이 17.6px');
-  assert.equal(px(pill, /padding: 0 (\d+)px 0 (\d+)px/), 6, '오른쪽 여백 6px');
+  assert.match(pill, /max-width: calc\(140 \* var\(--u\)\)/, '폭 상한 140u');
+  assert.equal(u(pill, 'height'), 17.6, '높이 17.6u');
+  assert.match(pill, /padding: 0 calc\(6 \* var\(--u\)\) 0 calc\(5 \* var\(--u\)\)/, '오른쪽 여백 6u');
   assert.match(pill, /overflow: hidden/, '넘치는 닉네임은 자른다');
   assert.match(pill, /text-overflow: ellipsis/, '긴 닉네임은 줄임표');
   assert.match(pill, /pointer-events: none/, '배지 클릭을 가로막지 않는다');
   assert.match(pill, /white-space: nowrap/, '한 줄');
 
   const tag = ruleBody('.hero-name::before');
-  assert.match(tag, /font-size: 7\.6px/, '직업 태그 7.6px');
+  assert.match(tag, /font-size: calc\(7\.6 \* var\(--u\)\)/, '직업 태그 7.6u');
   assert.match(tag, /color: #eec57a/, '금빛 직업 태그');
   assert.match(tag, /border-right: 1px solid #d6af7280/, '태그와 닉네임 사이 얇은 구분선');
-  assert.match(tag, /margin-right: 5px; padding-right: 5px/, '구분선 좌우 여백');
+  assert.match(tag, /margin-right: calc\(5 \* var\(--u\)\); padding-right: calc\(5 \* var\(--u\)\)/, '구분선 좌우 여백');
 });
 
 test('이름판은 레벨 배지 아래·HP 바 위에 3px 이상 여유를 두고 들어간다(작업 234·265)', () => {
   const badge = ruleBody('.level-badge');
   const name = ruleBody('.hero-name');
   const health = ruleBody('.health-bar');
-  const badgeTop = px(badge, /top: (-?\d+)px/), badgeHeight = px(badge, /height: (\d+)px/);
-  const nameTop = px(name, /top: (\d+)px/), nameHeight = px(name, /height: ([\d.]+)px/);
-  const healthTop = px(health, /top: (\d+)px/);
-  assert.ok(nameTop >= badgeTop + badgeHeight, `이름판(${nameTop}px)은 배지 원(${badgeTop + badgeHeight}px) 아래`);
-  assert.ok(healthTop - (nameTop + nameHeight) >= 3, `HP 바(${healthTop}px)와 이름판 아래(${nameTop + nameHeight}px) 사이 3px 이상`);
-  assert.match(name, /left: 12px/, '배지 왼쪽에 맞춘다');
+  const badgeTop = u(badge, 'top'), badgeHeight = u(badge, 'height');
+  const nameTop = u(name, 'top'), nameHeight = u(name, 'height');
+  const healthTop = u(health, 'top');
+  assert.ok(nameTop >= badgeTop + badgeHeight, `이름판(${nameTop}u)은 배지 원(${badgeTop + badgeHeight}u) 아래`);
+  assert.ok(healthTop - (nameTop + nameHeight) >= 3, `HP 바(${healthTop}u)와 이름판 아래(${nameTop + nameHeight}u) 사이 3u 이상`);
+  assert.match(name, /left: calc\(12 \* var\(--u\)\)/, '배지 왼쪽에 맞춘다');
   // 가장 좁은 화면(320px)에서도 140px 상한이면 화면 안에 남는다.
   assert.ok(12 + 140 < 320, '폭 상한이 화면 밖으로 나가지 않는다');
   assert.doesNotMatch(hudStyles, /\.hero-name \{[^}]*translateX\(-50%\)/, '오른쪽으로만 늘어난다');

@@ -122,7 +122,7 @@ test('CSS — 다이아 그림 정렬과 상점 버튼 그림 채우기', () => 
   const base = source('src/styles/base.css');
   assert.match(base, /\.currency-diamond\s*\{[^}]*vertical-align:\s*middle/, '금화와 같은 세로 정렬');
   const hud = source('src/styles/hud.css');
-  assert.match(hud, /\.diamonds\s*\{[^}]*display:\s*inline-flex[^}]*align-items:\s*center[^}]*gap:\s*4px/, '금화 줄과 같은 정렬');
+  assert.match(hud, /\.diamonds\s*\{[^}]*display:\s*inline-flex[^}]*align-items:\s*center[^}]*gap:\s*calc\(4 \* var\(--u\)\)/, '금화 줄과 같은 정렬(HUD 길이 토큰 4u)');
   assert.match(hud, /\.utility-nav \.shop-entry\s*\{[^}]*padding:\s*0[^}]*overflow:\s*hidden[^}]*border:\s*1px solid #6aa9ce/, '파란 테두리 유지 + 그림이 넘치지 않게');
   assert.doesNotMatch(hud, /\.utility-nav \.shop-entry\s*\{[^}]*text-shadow/, '글자 시절 그림자를 남기지 않는다');
   assert.match(hud, /\.utility-nav \.shop-entry img\s*\{[^}]*width:\s*100%[^}]*height:\s*100%[^}]*object-fit:\s*cover/);
