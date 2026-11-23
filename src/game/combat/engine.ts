@@ -199,8 +199,8 @@ export class CombatEngine {
       this.crush = { level, elapsed: 0, next: crushInterval, hits: 0, power: attack * 3.4 * damageScale };
       this.crushStrike();
     } else if (kind === 'slam') {
-      this.effects.push({ x: p.x, y: p.y, kind: 'slam', age: 0, duration: skillDuration(kind, level), angle: p.facing, nextHit: .45, power: attack * .55 * damageScale, level });
-      this.damage(area!.radius!, attack * 2.2 * damageScale, p.facing, area!.arc!, 55, 2 + (level - 1) * .3);
+      this.effects.push({ x: p.x, y: p.y, kind: 'slam', age: 0, duration: skillDuration(kind, level), angle: 0, nextHit: .45, power: attack * .55 * damageScale, level });
+      this.damage(area!.radius!, attack * 2.2 * damageScale, 0, Math.PI, 55, 2 + (level - 1) * .3);
     } else if (kind === 'warcry') {
       p.berserk = skillDuration(kind, level);
       p.berserkLevel = level;
@@ -598,7 +598,7 @@ export class CombatEngine {
           const area = skillArea('spin', level);
           this.damage(area.radius! * dragonOrbitFactor(hitProgress), effect.power ?? 0, 0, area.arc ?? Math.PI, 10, 0, effect);
         }
-        if (effect.kind === 'slam') { const area = skillArea('slam', level); this.damage(area.radius!, effect.power ?? 0, effect.angle, area.arc!, 12, 2 + (level - 1) * .3, effect); }
+        if (effect.kind === 'slam') { const area = skillArea('slam', level); this.damage(area.radius!, effect.power ?? 0, 0, Math.PI, 12, 2 + (level - 1) * .3, effect); }
         if (effect.kind === 'hell') { const area = skillArea('hell', level); this.damage(area.radius!, effect.power ?? 0, 0, area.arc ?? Math.PI, 14, 1 + (level - 1) * .2, effect); }
         if (effect.kind === 'rain') this.damage(skillArea('arrowRain', level).radius!, effect.power ?? 0, 0, Math.PI, 6, .9, effect);
         if (effect.kind === 'burst') this.damage(effect.radius ?? skillArea(effect.variant === 'meteor' ? 'meteorStrike' : 'manaBurst', level).radius!, effect.power ?? 0, 0, Math.PI, 16, effect.slow ?? 0, effect);

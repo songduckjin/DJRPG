@@ -37,9 +37,9 @@ function drawMeleeArea(this: GameView, effect: Effect, x: number, y: number): vo
     this.ground.closePath().stroke({ color: 0xffcf8a, width: 2, alpha });
     return;
   }
-  if (id === 'hell' || id === 'spin') {
+  if (id === 'hell' || id === 'spin' || id === 'slam') {
     const ellipse = projectedAreaRadii(radius);
-    this.ground.ellipse(x, y, ellipse.x, ellipse.y).stroke({ color: id === 'spin' ? 0x6fb0ff : 0xd8392f, width: 2, alpha });
+    this.ground.ellipse(x, y, ellipse.x, ellipse.y).stroke({ color: id === 'spin' ? 0x6fb0ff : id === 'slam' ? 0xff8c48 : 0xd8392f, width: 2, alpha });
     return;
   }
   const arc = area.arc!;
@@ -151,7 +151,7 @@ export function drawSkillVfx(this: GameView, world: CombatEngine, effect: Effect
       sprites = [sprite];
       this.vfxSprites.set(effect, sprites);
     }
-    const size = effect.kind === 'destroy' ? 260 : effect.kind === 'slam' ? 250 : effect.kind === 'crushing' ? 245 : effect.kind === 'power' ? 165 : 150;
+    const size = effect.kind === 'destroy' ? 260 : effect.kind === 'slam' ? 250 * skillArea('slam', effect.level ?? 1).radius! / skillArea('slam', 1).radius! : effect.kind === 'crushing' ? 245 : effect.kind === 'power' ? 165 : 150;
     for (const sprite of sprites) {
       if (effect.kind === 'crushing') {
         // [작업 212] 10연타 — 타격 간격(62ms)마다 지면 링과 내려찍기 스프라이트가 한 번씩 깜빡인다.

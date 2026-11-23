@@ -45,7 +45,7 @@ export function skillOrderFor(job: Job): SkillId[] { return job === 'archer' ? a
 export const skills: Record<SkillId, Skill> = {
   slash2: { id: 'slash2', name: '이단참', level: 2, icon: '⚔', cooldown: 4, power: '공격력 × 1.1 · 2연격', description: '전방을 두 번 교차해 X자 검기를 만든다. 정방향 일격 뒤 되받아 베는 일격이 따로 들어간다.', range: 130 },
   // 1번 다음 다섯 자리는 작업 212에서 해금 레벨을 앞당겼다(4·5·7·10·14) — 크러싱·트위스터가 마지막 두 자리다.
-  slam: { id: 'slam', name: '와일드 스탬프', level: 4, icon: '💥', cooldown: 8, power: '공격력 × 2.2', description: '지면을 내리찍어 붉은 균열을 만들고 적을 밀쳐 둔화시킨다.', range: 126 },
+  slam: { id: 'slam', name: '와일드 스탬프', level: 4, icon: '💥', cooldown: 8, power: '공격력 × 2.2', description: '주변 지면을 내리찍어 원형 용암 균열을 만들고 적을 밀쳐 둔화시킨다.', range: 126 },
   warcry: { id: 'warcry', name: '블러드 레이지', level: 5, icon: '🩸', cooldown: 14, power: '공격력 × 1.2 · 공격속도 상승', description: '6초 동안(레벨당 +0.2초) 붉은 투기로 공격력·공격속도·이동속도가 상승한다.', range: 120 },
   power: { id: 'power', name: '파워 스트라이크', level: 7, icon: '⚡', cooldown: 6, power: '공격력 × 4.0', description: '좁은 전방에 강력한 일격을 꽂아 보스를 노린다.', range: 100 },
   destroy: { id: 'destroy', name: '디스트로이 스윙', level: 10, icon: '☄', cooldown: 9, power: '공격력 × 2.7', description: '전방으로 거대한 붉은 검기 충격파를 날린다.', range: 175 },
@@ -133,7 +133,7 @@ export function skillDuration(id: SkillId, level: number): number {
   if (id === 'spin') return 1 + (level - 1) * .22;
   // [작업 216] 버프 지속은 쿨타임(14·16초)보다 짧게 묶는다 — Lv.30에서도 11.8·11.9초라 무한 유지가 없다.
   if (id === 'warcry') return 6 + (level - 1) * .2;
-  if (id === 'slam') return .65 + (level - 1) * .12;
+  if (id === 'slam') return .8 + (level - 1) * .12;
   if (id === 'hell') return .8 + (level - 1) * .16;
   if (id === 'slash2') return .55 + (level - 1) * .04;
   if (id === 'crushing') return .9 + (level - 1) * .06;
