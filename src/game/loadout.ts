@@ -1,5 +1,5 @@
 import type { Save } from './store';
-import { jobOrDefault, skillDamageScale, skillDuration, skillOrderFor, skills, type Job, type SkillId } from './skills';
+import { jobOrDefault, skillDamageScale, skillDuration, skillOrderFor, skills, SKILL_HIT_POWER, type Job, type SkillId } from './skills';
 import { multiShotPattern } from './battle/skillAreas';
 export type QuickSlots = [SkillId | null, SkillId | null, SkillId | null];
 export function normalizeQuickSlots(raw: unknown, learned: SkillId[], job: Job = 'warrior'): QuickSlots {
@@ -74,38 +74,25 @@ export function recommendedSkillOrder(save: Save): SkillId[] {
  * 지속 시간 동안 되풀이되는 타격(`hell`·`spin`·`arrowRain`)과 두 번 들어가는 일격(`slash2`·`slam`)은
  * `skillDuration`·타격 간격으로 타수를 세어 더한다. 여러 적을 맞히는 스킬이라도 계수는 **한 대상** 기준이다.
  * `fireBolt`는 여러 발로 나뉘어도 합계가 ×2.0 그대로라 나누지 않는다(작업 216).
+ *
+ * 기본 배율은 `skills.ts` `SKILL_HIT_POWER` 한 곳에서 온다(2026-11-24) — 엔진·방치와 같은 표다.
  */
 export function skillCastScale(id: SkillId, level = 1): number {
   const lv = Math.max(1, Math.floor(level));
   const duration = skillDuration(id, lv);
+  const hit = SKILL_HIT_POWER[id];
   // 다음 타격 시각부터 일정 간격으로 지속 시간 전까지 때리는 스킬의 타수.
   const repeats = (first: number, step: number) => (duration > first ? Math.floor((duration - first) / step) + 1 : 0);
   switch (id) {
-    case 'slash2': return 1.1 * 2;                          // 정방향·되받아 2연격
-    case 'slam': return 2.2 + (duration > .45 ? .55 : 0);   // 발동 + 0.45초 뒤 추가 타
-    case 'power': return 4;
-    case 'destroy': return 2.7;
-    case 'hell': return 3.2 + .6 * repeats(.4, .4);         // 360° 회전 베기 + 되풀이 타격
-    case 'crushing': return 3.4;                            // 10연타 합계
-    case 'spin': return 1.65 + .65 * repeats(.45, .45);
-    case 'warcry': return 0;                                // 버프 — 공격 계수 없음
-    case 'doubleShot': return 1.35 * 2;
-    case 'multiShot': return .95 * multiShotPattern(lv).count;
-    case 'pierceShot': return 2.6;
-    case 'iceArrow': return 1.9;
-    case 'hawkEye': return 0;
-    case 'snipe': return 6.5;
-    case 'stormVolley': return .8 * 6;
-    case 'arrowRain': return .85 * repeats(.12, .4);
-    case 'fireBolt': return 2;                              // 여러 발 합계 ×2.0
-    case 'iceBolt': return 1.7;
-    case 'chainLightning': return 1.25;
-    case 'manaBurst': return 2.5;
-    case 'frostNova': return 1.5;
-    case 'arcaneShield': return 0;
-    case 'meteorStrike': return 3.6;
-    case 'arcaneOverlord': return 3;
-    default: return 0;
+    case 'slash2': return hit * 2;                          // 정방향·되받아 2연격
+    case 'slam': return hit + (duration > .45 ? .55 : 0);   // 발동 + 0.45초 뒤 추가 타
+    case 'hell': return hit + .6 * repeats(.4, .4);         // 360° 회전 베기 + 되풀이 타격
+    case 'spin': return hit + .65 * repeats(.45, .45);
+    case 'doubleShot': return hit * 2;
+    case 'multiShot': return hit * multiShotPattern(lv).count;
+    case 'stormVolley': return hit * 6;
+    case 'arrowRain': return hit * repeats(.12, .4);
+    default: return hit;                                    // 한 번에 한 마리(파이어 볼트는 여러 발 합계)
   }
 }
 /** 초당 딜량 — 시전 계수 × 스킬 레벨 위력 배율 ÷ 쿨타임(버프는 0). */

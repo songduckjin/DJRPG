@@ -47,9 +47,12 @@ test('서버 클로저는 전투 엔진과 그 의존(경계·보스 드랍)만 
   // 2026-11-23 백로그 2·3 뒤 실측 21파일/4,123줄: `battle/formulas.ts` 치명타 피해 배수(+13줄)와
   // 추가옵션 키·상한(+20줄)이 늘었고, 유니크·전설 획득 띠(`raritySpotlight*`)는 화면 전용이라 서버가 닿지 않는다.
   // 작업 278: 판정·VFX 공용 순수 규격 skillAreas.ts가 엔진 의존으로 1파일 늘었다.
+  // 2026-11-24 방치 사냥 개선: `progress.ts`가 마리당 보상 배율(`depthRewardScale`)을 위해 몹 HP 곡선
+  // (`battle/formulas.ts`)을 읽는다 — 보상 배율을 두 벌로 적으면 또 어긋나기 때문이다. 둘 다 순수 밸런스
+  // 모듈이라 서버 번들에 화면·가방 규칙은 들어오지 않는다(위 필드 모듈 검사가 그대로 막는다). 실측 21파일/4,327줄.
   const total = src.reduce((sum, file) => sum + lineCount(file), 0);
   assert(src.length <= 22, `서버가 닿는 src 파일이 ${src.length}개다 — 필드 모듈이 다시 들어왔는지 확인하라`);
-  assert(total <= 4300, `서버가 닿는 src 코드가 ${total}줄이다 — 필드 모듈이 다시 들어왔는지 확인하라`);
+  assert(total <= 4360, `서버가 닿는 src 코드가 ${total}줄이다 — 필드 모듈이 다시 들어왔는지 확인하라`);
 });
 
 const { CombatEngine } = await import('../src/game/combat/engine.ts');

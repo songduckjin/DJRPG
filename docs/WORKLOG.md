@@ -3,6 +3,13 @@
 > 최근 작업·PR·배포 기록만 둔다(최근 20건). 더 이전 기록은 `docs/archive/2026-11/WORKLOG-history.md`.
 > 새 기록은 맨 위에 `## YYYY-MM-DD · <담당> 작업 <번호> — <제목>` 형식으로 추가하고, 오래된 항목은 아카이브로 옮긴다.
 
+## 2026-11-24 · songduckjin 작업 280 — 방치 사냥 개선(생존 스탯·사망 손실·층간 형평성) + 「층 선택」 1안
+
+- **기준·브랜치**: 최신 `origin/main` `1327b5e`(PR #349 머지 후)에서 `feat/offline-hunt-survival-rework`. 사양은 시안 `downloads/djrpg_offline_rework/proposal.md` + 대장님·송덕진 님 11/24 최종 확정(부활 5초·1~4층 면제·안 A·보스전/스킬 배율 동기화·UI 1안). **머지·배포 보류** — PR 링크·프리뷰 스크린샷을 송덕진 님 측에 먼저 공유한다.
+- **변경**: ① `combat/engine.ts`에 `REVIVE_SECONDS = 5`·`reviveSeconds(층)`(1~4층 0초)·`reviveTimer`·`reviveHero`를 넣어 접속 사냥도 쓰러지면 5초를 기다린다(쓰러진 동안 추격·공격·피격 정지, 생성자는 체력 0 세이브를 만혈로 세운다). `fieldProgress.heroDown`이 패널티·재도전 규칙은 그대로 두고 부활 대기만 세운다. ② `offline.ts`에 `offlineDamagePerSecond`·`offlineHealPerSecond`·`offlineSurviveSeconds`·`offlineSurvivalUptime`·`offlineDeathsPerHour`·`killsPerHourAt`·`bestFarmFloor` 신설, `offlineKillsPerMinute(save, 층)`에 가동률을 곱하고, `offlineBossBattle`에 회피·피흡·회복을 넣었다. 사냥 중 사망은 `reward.fieldDeaths`로 세어 접속과 같은 10골드를 문다. ③ `skills.ts` `SKILL_HIT_POWER` 한 표로 엔진 `action()`·방치 DPS·`skillCastScale`(스킬 추천 순위)을 묶었다 — 11/23 개편 뒤 방치만 파워 스트라이크 ×4로 남아 있던 것을 ×5.5로 맞췄다(전사 표준 20층 DPS 약 +5%). ④ `killReward`에 `depthRewardScale`(15층 기준 1, 20층 2.21 = 몹 HP 비율) 적용 — 처치 수가 15~16층에서 정점이라 깊은 층이 시간당 금화·경험치에서 역전되던 문제(20층이 15층보다 −45%)를 전투·몹 HP 무변경으로 없앴다. ⑤ `floorModal` 1안 — 카드 둘째 줄을 `시간당 N 마리`로(카드 62→52px), `★ 최다`(가장 빠른 층)·`▼N%`(15% 이상 손해, 40%부터 붉게) 배지, 상단 `★ 추천`·초록 한 줄을 시간당 처치 기준으로. `여유/적정/위험`과 구간 머리의 `권장 X ~ Y`는 종전 그대로다.
+- **검증**: `npx tsc --noEmit` 통과, `NODE_OPTIONS=--max-old-space-size=2048 npx vite build` 통과(`assets/index-CXowH2jg.js` 870.17kB). 신규 `tests/offline-survival-rework.test.mjs` 8건(부활 상수·생존 스탯 단조성·회복∞·저스펙<표준<풀·보스전 보완·스킬 표 동기화·층 보상 단조·층 선택 값). 갱신: `progress-parity`(필드 60초·방치 12시간 스냅샷 — 의도한 밸런스 변경 사유를 표 위에 적었다), `balance-v2`(20층 마리당 금화 10→23, 40층 64·78층 228, 방치 kpm에 가동률), `world-movement`(5층 부활 대기 5초 — 새 테스트 1건), `floor-power-modal`(카드 계약 1안), `offline`·`offline-climb`·`offline-auto-salvage`(사망 패널티 항), `combat-field-split`(서버 클로저 4,327줄 상한 근거). 전체 `node --test`: **1,590건 중 1,502 통과, 실패 88건은 모두 기준선과 같은 이름**(sparse 체크아웃에 `public/assets/**`가 없어 생기는 기존 실패) — 신규 실패 0.
+- **확인 화면**: Cloudflare Pages 프리뷰 390×844에서 「층 선택」 창을 직접 열어 `시간당`·`★ 최다`·`▼N%`·초록 한 줄을 확인하고 스크린샷을 PR 본문에 붙인다(일회용 게스트는 검수 뒤 삭제).
+
 ## 2026-11-23 · songduckjin 작업 279 — `내 정보`(장비창) topline 제거 1안 (390×844 시안 승인)
 
 - **기준·브랜치**: 최신 `origin/main` `21343ea`(PR #344 머지 후)에서 `feat/equip-remove-topline`. 시안 1안 `downloads/djrpg_equip_topline/after-390.png`(대장님·송덕진 님 양측 최종 승인), 제거 전 `before-390.png`. **머지·배포 보류** — PR 링크·프리뷰 스크린샷을 송덕진 님 측과 대장님께 먼저 공유한다.

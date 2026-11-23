@@ -76,6 +76,26 @@ export const skills: Record<SkillId, Skill> = {
 };
 
 /**
+ * 스킬 한 타의 위력(공격력 배수) — **엔진과 방치 정산이 함께 읽는 단일 표**(2026-11-24 방치 사냥 개선).
+ *
+ * `combat/engine.ts` `action()`이 이 값을 그대로 `attack * … * damageScale`에 넣고, `offline.ts`의
+ * 방치 DPS도 같은 값을 쓴다. 종전에는 방치 쪽에 따로 적어 둔 사본이 있어, 11/23 스킬 개편에서
+ * 파워 스트라이크가 ×4.0 → ×5.5가 됐는데도 방치만 ×4로 남아 있었다(접속만 세지고 방치는 그대로).
+ * 이제 값을 여기 한 곳에서만 고치면 접속·방치·스킬 추천 순위가 함께 움직인다.
+ *
+ * 세는 법: **한 번 발동이 한 마리에게 넣는 몫**이다. 여러 발로 나뉘는 스킬(더블 샷 2발·폭풍 연사
+ * 6발·파이어 볼트 여러 발)은 **한 발의 값**을 적고, 10연타(딜레이 크러싱)는 합계를 적는다.
+ * 지속 시간 동안 되풀이되는 추가 타격(회전참격·트위스터·와일드 스탬프·애로우 레인)은 이 표의 첫
+ * 타격 위력만 두고, 되풀이 몫은 `engine.ts`와 `loadout.ts` `skillCastScale`이 따로 센다.
+ * 버프(블러드 레이지·호크아이·아케인 실드)는 위력이 없어 0이다.
+ */
+export const SKILL_HIT_POWER: Record<SkillId, number> = {
+  slash2: 1.1, slam: 2.2, warcry: 0, power: 5.5, destroy: 2.7, hell: 3.2, crushing: 3.4, spin: 1.65,
+  doubleShot: 1.35, multiShot: .95, pierceShot: 2.6, iceArrow: 1.9, hawkEye: 0, snipe: 6.5, stormVolley: .8, arrowRain: .85,
+  fireBolt: 2, iceBolt: 1.7, chainLightning: 1.25, manaBurst: 2.5, frostNova: 1.5, arcaneShield: 0, meteorStrike: 3.6, arcaneOverlord: 3
+};
+
+/**
  * 이단참(작업 213) — 좌우 횡베기 2연격의 두 타격.
  *
  * 발동 즉시 1타가 정방향으로, 0.18초 뒤 2타가 되받아(역방향) 들어간다. 두 타격은 각각 따로

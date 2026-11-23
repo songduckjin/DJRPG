@@ -153,6 +153,32 @@ test('일반·정예 몹에게 쓰러져도 자동 등반은 꺼지지 않고 10
   assert.doesNotMatch(messages[0], /자동 등반이 중단/, '중단 문구는 강등 때만 나온다');
 });
 
+test('5층부터는 쓰러지면 5초 뒤에 부활하고, 그동안은 사냥하지 못한다(2026-11-24 부활 대기)', () => {
+  const save = freshSave(); save.tutorial = 1; save.autoClimb = true; save.gold = 50;
+  save.floor = 5; save.maxFloor = 5; save.floorKills = 3;
+  const world = new World(save);
+  const messages = []; world.onMessage = text => messages.push(text);
+  world.enemies = [{ x: 10, y: 0, hp: 999, maxHp: 999, boss: false, hit: 0, step: 0, moving: false, knockX: 0, knockY: 0, slow: 0 }];
+  const kills = save.kills;
+  world.player.hp = 1;
+  world.update(.01);
+  assert.equal(world.player.hp, 0, '쓰러진 자리에서 부활을 기다린다');
+  assert.equal(save.gold, 40, '10골드를 잃는다');
+  assert.match(messages.find(text => /5초 뒤 부활/.test(text)) ?? '', /10골드를 잃었습니다\. 5초 뒤 부활합니다\./);
+  assert.equal(world.reviveTimer > 0, true, '부활 대기 타이머가 섰다');
+  // 대기 중에는 때리지도, 맞지도 않는다 — 처치 수도 늘지 않는다.
+  for (let step = 0; step < 60; step++) world.update(1 / 60);
+  assert.equal(world.player.hp, 0, '1초로는 아직 부활하지 않는다');
+  assert.equal(save.kills, kills, '쓰러져 있는 동안은 사냥하지 못한다');
+  // 남은 4초가 지나면 일어나고 다시 사냥한다(부활한 바로 그 프레임에 한 대 더 맞을 수 있다).
+  for (let step = 0; step < 300; step++) world.update(1 / 60);
+  assert.equal(world.reviveTimer, 0, '부활 대기 타이머가 끝났다');
+  assert(world.player.hp > 0, '일어났다');
+  assert(world.player.hp <= totalStats(save).health);
+  assert(world.save.health > 0);
+  assert(messages.includes('부활했습니다.'));
+});
+
 test('자동 등반을 끈 세이브로 접속해도 보스에게 지기 전에는 [⚔ 보스 도전]이 없다(작업 222, `#5781`)', () => {
   // 예전에는 `bossRetryAvailable = !save.autoClimb`로 시작해, 자동 등반을 끈 세이브로 들어오면
   // 보스에게 한 번도 지지 않았는데 최고 도달 층에서 버튼이 즉시 떴다.

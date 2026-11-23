@@ -15,6 +15,13 @@
  *
  * 값이 달라지면 밸런스가 움직였다는 뜻이다. 의도한 밸런스 변경이라면 이 표를 고치기 전에
  * 그 변경이 왜 진행 규칙을 바꾸는지 먼저 확인한다(PR 본문의 "동작 동일 대조표"에 적는다).
+ *
+ * **2026-11-24 방치 사냥 개선**으로 아래 세 시나리오가 바뀌었다(의도한 변경):
+ *  · 접속 사냥에 부활 대기 5초(1~4층 0초) — 필드 60초 시나리오는 죽으면 그만큼 못 싸워 처치 수·체력이 줄고,
+ *    마지막에 쓰러진 채 끝나는 판은 `health: 0`(부활 대기 중)이다.
+ *  · 방치 정산에 생존 가동률 — 체력·방어·회피·피흡·회복이 낮은 이 시험 세이브(방어 17·체력 600)는
+ *    15층에서 자주 쓰러져 처치 수가 절반 아래로 떨어진다(약한 스펙일수록 더 떨어지는 것이 이 작업의 요지다).
+ *  · 마리당 금화·경험지의 층 보상 배율(`안 A`) — 깊은 층일수록 마리당 보상이 커진다.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -27,27 +34,26 @@ const EXPECTED = {
   // 파트 B(2026-11-22): 스킬북 폐지로 드롭 구성이 바뀌고, 영구 스탯북 확률 굴림이 난수 스트림에 한 번 더
   // 들어간다 — 같은 시드의 진행 결과가 그만큼 달라진다(그 차이가 아래 값이다).
   'field-boss-win': {
-    gold: 1702, exp: 1160, level: 10, floor: 7, maxFloor: 7, floorKills: 65, kills: 66, bossKills: 1,
-    playSeconds: 59.999999999997875, stones: 3, salvageCount: 0, tutorial: 3, health: 113,
-    dungeonFloor: 0, bossRetryFloor: 0, bag: 1
+    gold: 1654, exp: 1080, level: 10, floor: 7, maxFloor: 7, floorKills: 58, kills: 59, bossKills: 1,
+    playSeconds: 59.999999999997875, stones: 3, salvageCount: 0, tutorial: 3, health: 53,
+    dungeonFloor: 0, bossRetryFloor: 0, bag: 0
   },
   'field-boss-loss': {
-    gold: 1258, exp: 1030, level: 7, floor: 6, maxFloor: 6, floorKills: 62, kills: 62, bossKills: 0,
-    playSeconds: 59.999999999997875, stones: 3, salvageCount: 0, tutorial: 3, health: 2,
-    dungeonFloor: 0, bossRetryFloor: 6, bag: 1
+    gold: 1206, exp: 960, level: 7, floor: 6, maxFloor: 6, floorKills: 55, kills: 55, bossKills: 0,
+    playSeconds: 59.999999999997875, stones: 3, salvageCount: 0, tutorial: 3, health: 0,
+    dungeonFloor: 0, bossRetryFloor: 6, bag: 0
   },
   'offline-12h': {
     progress: {
       // 주머니 스택형: 같은 종류의 영구 스탯북은 한 칸에 쌓이므로 12시간 방치가 40칸에서 멈추되 **아이템 수**는
-      // 40개다(칸은 그대로 40). 진행 결과(층·금화·경험치·생존)는 종전과 같다 — 칸 규칙·드롭률만 바뀌었다.
-      // 2026-11-23 백로그 13: 스탯북 확률을 1/10(0.01% → 0.001%)로 내려 같은 12시간에 스탯북이 3개 덜 떨어졌다
-      // (아이템 43 → 40, 놓친 몫 262 → 253). 층·금화·경험치·생존 수치는 그대로다 — 확률만 내린 것이 맞다는 증거.
-      gold: 875260, exp: 80971, level: 18, floor: 15, maxFloor: 15, floorKills: 408, kills: 96672, bossKills: 5,
-      playSeconds: 0, stones: 12, salvageCount: 0, tutorial: 3, health: 344, dungeonFloor: 0, bossRetryFloor: 15, bag: 40
+      // 40개다(칸은 그대로 40). 2026-11-24 생존 가동률·층 보상 배율이 들어오면서 체력·방어가 낮은 이 시험
+      // 세이브의 처치 수가 크게 줄었다 — 필드 계수만 보던 종전 값과 비교하지 말 것.
+      gold: 368756, exp: 227939, level: 16, floor: 15, maxFloor: 15, floorKills: 394, kills: 45336, bossKills: 5,
+      playSeconds: 0, stones: 12, salvageCount: 0, tutorial: 3, health: 320, dungeonFloor: 0, bossRetryFloor: 15, bag: 40
     },
     reward: {
-      seconds: 43200, kills: 96672, exp: 1158971, gold: 871470, levels: 3, startFloor: 8, endFloor: 15,
-      bossKills: 5, deaths: 121, items: 40, missedDrops: 253, salvaged: { count: 0, gold: 0, stones: 0 }
+      seconds: 43200, kills: 45336, exp: 542939, gold: 409446, levels: 1, startFloor: 8, endFloor: 15,
+      bossKills: 5, deaths: 54, items: 40, missedDrops: 92, salvaged: { count: 0, gold: 0, stones: 0 }
     }
   },
   'dungeon-1-clear': {

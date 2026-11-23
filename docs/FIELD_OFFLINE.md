@@ -15,7 +15,9 @@
 | 층 상한·층당 처치 목표·경험치 | `src/game/store.ts` (`MAX_FLOOR`=20·`floorKillTarget`·`addExperience`) |
 | 드롭 확률·등급·강화 | `src/game/items.ts` — 규칙은 `docs/INVENTORY_GEAR.md` |
 | HUD·층 선택·보스 도전 버튼 | `src/ui/hud.ts`·`src/ui/modals/floorModal.ts`·`src/styles/hud.css` |
-| 층별 권장 전투력·여유/적정/위험·추천 층 | `src/game/floorPower.ts` (`recommendedFloorPower`·`floorPowerState`·`recommendedFloorFor`) |
+| 층별 권장 전투력·여유/적정/위험 | `src/game/floorPower.ts` (`recommendedFloorPower`·`floorPowerState`) |
+| 층별 **시간당 처치 수**·가장 빠른 층 | `src/game/offline.ts` (`killsPerHourAt`·`bestFarmFloor`·`offlineSurvivalUptime`) |
+| 부활 대기(5초·1~4층 0초) | `src/game/combat/engine.ts` (`REVIVE_SECONDS`·`reviveSeconds`) |
 
 ## 불변 규칙
 
@@ -30,6 +32,10 @@
 - **드롭**: 처치 시 금화는 그 자리에서 지급(코인은 연출 전용), 아이템은 `LOOT_REST_SECONDS`(1.5초) 뒤 흡수되어 `LOOT_ABSORB_SECONDS` 후 가방에 들어간다. 가방 40칸이 차면 바닥에 남고 경고는 1회.
 - **드롭률은 전 층 고정**(작업 254): 접속 일반 0.39% · 보스 4%, 방치 일반 0.30% · 보스 4%. 등급 컷만 층에 따라 오른다(`rollItem`).
 - **방치 정산**: 최대 12시간(`elapsedSince`), 아래층에서는 보스 몫 없이 진행도만 돈다. 자동 등반이 켜져 있고 최고 층이면 목표 처치마다 보스전을 정산해 이기면 층을 올린다(작업 235). 방치도 `autoSalvageRecovered`를 지나 분해분은 가방 대신 금화·강화석이 된다(작업 254).
+- **부활 대기 5초(2026-11-24 확정)** — 쓰러지면 그 자리에서 `REVIVE_SECONDS`(5초)를 기다린 뒤 만혈로 일어난다. **입문 1~4층은 면제(0초)**. 접속(`FieldProgress.heroDown` → `CombatEngine.reviveTimer`)과 방치 정산(`offlineSurvivalUptime`·`offlineDeathsPerHour`)이 **같은 상수**를 쓴다 — "켜 놓고 보는 사람 = 방치하는 사람". 쓰러져 있는 동안은 추격·공격·피격을 멈춘다(엔진이 `player.hp > 0`을 본다). 세이브 `health`가 0으로 저장될 수 있어 `CombatEngine` 생성자가 0이면 만혈로 세운다.
+- **방치 생존 가동률(2026-11-24)** — `offlineKillsPerMinute = 60 × min(처치 능력, 젠) × 0.7 × 가동률`이고 `가동률 = 버티는 초 ÷ (버티는 초 + 부활 대기)`다. 받는 피해는 `enemyHitDamage × 군집 ÷ 0.85 × (1−회피)`, 회복은 `피흡(초당 최대 체력 2.5% 상한) + 체력회복(%/5초) + 1~4층 자연회복 1%/초`다. 회복이 피해를 넘으면 `Infinity`(죽지 않음)라 처치 수가 깎이지 않는다. 사냥 중 쓰러진 횟수는 `reward.fieldDeaths`로 남기고 접속과 같은 10골드를 문다(`defeatPenalty`). 보스전(`offlineBossBattle`)도 회피·피흡·회복을 넣어 "버티는 초"를 계산한다(승패 판정은 36케이스에서 불변).
+- **스킬 위력 단일 표** — `src/game/skills.ts` `SKILL_HIT_POWER`가 엔진 `action()`·방치 DPS·스킬 추천 순위(`skillCastScale`)의 공통 출처다. 하드코딩 사본을 다시 만들지 않는다(11/23 개편에서 방치만 파워 스트라이크 ×4로 남았던 회귀를 막는 테스트가 있다).
+- **층 보상 배율(`안 A`, 2026-11-24)** — `killReward`가 마리당 금화·경험치에 `depthRewardScale`(15층 기준 1, 20층 2.21 = 몹 HP 비율)을 곱한다. 처치 수는 15~16층에서 정점인데 보상이 그대로면 깊은 층이 손해라, **전투·몹 HP 곡선은 그대로 두고 보상식만** 고쳤다. 던전 정산(`killGold`, `unscaled`)과 보스 금화(70×층)는 대상이 아니다. 서버 상한(`server/save-guard.mjs`)의 2배 여유 안에 들어온다.
 - **저장**: `world`의 휘발 상태(`enemies`·`effects`·`drops`)는 저장되지 않는다. `save`를 바꾸면 `world.onChange` → `Interface.onSave` → `sync.queueSave()` 한 경로만 쓴다.
 - **기념 종일 버프(2026-11-22)**: 공격력·방어력·최대 체력 **+30%**가 `2026-11-22 02:00 ~ 2026-11-23 05:00 KST`에 켜진다. 기간·배율의 단일 기준은 `src/game/patchBuff.ts`(`isPatchBuffActive`·`applyPatchBuff`)이고, 곱하는 자리는 `src/game/items.ts`의 `totalStats` 한 곳이다 — 필드·던전·방치·월드보스 리플레이·HUD·장비창 숫자가 모두 이 함수를 지나므로 `save`에 버프 값을 저장하지 않는다. 기간이 지나면 배율이 1로 돌아오고 HUD 알약(`.patch-buff-pill`, `src/ui/hud.ts` `renderPatchBuff`)은 스스로 사라진다. 종료 순간 `CombatEngine.tickStart`가 지금 체력을 새 최대치로 한 번만 자른다. 남은 시간 문구·알약·장비창 한 줄은 `patchBuffPillMarkup`·`patchBuffSummaryMarkup`이 만든다.
 
@@ -37,9 +43,10 @@
 
 - **권장 전투력은 수치 표가 아니라 층 곡선에서 계산한다** (`src/game/floorPower.ts`). `enemyMaxHp`·`enemyHitDamage`·`swarmCount`·`basicAttackPower`·`CRIT_DAMAGE_SCALE`만 읽으므로 밸런스를 바꾸면 값도 같이 움직인다. 별도 표를 새로 만들지 않는다.
 - **기준 빌드** = 그 층을 편하게 사냥하는 최소선. 레벨 `ceil(층 × 0.8)`(옛 `권장 Lv.` 규칙), 방어·치명·공속은 그 레벨 기본값(장비 기대치 없음), 공격은 몹을 2대에 잡는 값, 체력은 적이 0.85초마다 한 번(그 한 번에 `swarmCount(층)`마리 함께) 때릴 때 20초를 버티는 값이다. 그래서 1층 권장값 = 장비 없는 1레벨의 전투력(68)이고, 11층·16층에서 군집이 2·3마리로 늘어 권장값이 한 단계 뛴다.
-- **판정**: 내 전투력(=`totalStats` → `combatPower`)이 권장값의 1.5배 이상이면 `여유`, 0.75배 미만이면 `위험`, 사이가 `적정`. `★ 추천 M층`은 `적정` 이상인 가장 깊은 층이고 **최고 층(`maxFloor`)을 넘지 않는다**.
+- **판정**: 내 전투력(=`totalStats` → `combatPower`)이 권장값의 1.5배 이상이면 `여유`, 0.75배 미만이면 `위험`, 사이가 `적정`.
+- **층 카드의 둘째 줄은 `시간당 N 마리`(1안, 2026-11-24)** — `offline.killsPerHourAt(save, 층)`(그 층에서 지금 스펙으로 1시간 사냥 시 처치 수, 쓰러짐 포함)를 보여 준다. 가장 빠른 층(`bestFarmFloor`, 최고 도달 층 이하)에 `★ 최다`, 그 층 대비 손해가 `FARM_LOSS_BADGE_PCT`(15%) 이상인 층에 `▼N%`(`FARM_LOSS_DANGER_PCT` 40%부터 붉게)를 붙인다. 상단 `★ 추천`과 초록 한 줄도 **시간당 처치 기준**이고, 창을 열면 그 층의 구간이 펼쳐진다. `여유/적정/위험`은 종전대로 권장 전투력 판정이다(구간 머리의 `권장 X ~ Y`도 그대로). 카드 높이는 52px라 20장이 한 화면에 들어온다.
 - **전투력 식은 한 곳**: `combatPower`(공격×3 + 방어×2 + 체력×0.2 + 치명×2 + 공속×2)를 `내 정보`와 층 선택 창이 함께 쓴다.
-- **화면**: 10층 단위 구간(`floorGroups`, `MAX_FLOOR`까지 자동 확장)으로 묶고, 내 권장 층이 든 구간 하나만 자동으로 펼친다. 구간 머리를 누르면 접히고 펼쳐지며, 최고 층 위 카드는 잠긴다(이동 불가). 카드 높이는 상태와 무관하게 같다.
+- **화면**: 10층 단위 구간(`floorGroups`, `MAX_FLOOR`까지 자동 확장)으로 묶고, 가장 빠른 층이 든 구간 하나만 자동으로 펼친다. 구간 머리를 누르면 접히고 펼쳐지며, 최고 층 위 카드는 잠긴다(이동 불가). 카드 높이는 상태와 무관하게 같다.
 
 ## 금지
 
@@ -49,7 +56,7 @@
 
 ## 테스트
 
-`node --test tests/world-movement.test.mjs tests/arena.test.mjs tests/field-spawn.test.mjs tests/field-loot.test.mjs tests/elite-mob.test.mjs tests/offline.test.mjs tests/offline-climb.test.mjs tests/offline-auto-salvage.test.mjs tests/floor-cap.test.mjs tests/boss-loot.test.mjs tests/floor-power-modal.test.mjs tests/patch-rewards-and-buff.test.mjs`
+`node --test tests/world-movement.test.mjs tests/arena.test.mjs tests/field-spawn.test.mjs tests/field-loot.test.mjs tests/elite-mob.test.mjs tests/offline.test.mjs tests/offline-climb.test.mjs tests/offline-auto-salvage.test.mjs tests/offline-survival-rework.test.mjs tests/floor-cap.test.mjs tests/boss-loot.test.mjs tests/floor-power-modal.test.mjs tests/patch-rewards-and-buff.test.mjs`
 
 ## 관련 매뉴얼
 

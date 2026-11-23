@@ -9,13 +9,18 @@
  * 그래서 밸런스 수치 하나를 바꾸면 3~4곳을 동시에 고쳐야 했고, 한 곳을 빠뜨리면 오프라인 보상이
  * 어긋나거나 서버가 정상 보상을 잘라냈다.
  *
- * 이 파일은 **의존이 없는 순수 모듈**이다(다른 게임 모듈을 import하지 않는다). 서버(`server/`)가
+ * 이 파일은 **게임 규칙 수치만 담는 순수 모듈**이다(화면·렌더·`src/ui/**`를 import하지 않는다). 서버(`server/`)가
  * 그대로 import할 수 있어야 하고, 번들에 렌더·UI가 딸려 들어오면 안 되기 때문이다. 세이브는
  * 구조만 맞으면 되므로 아래 `ProgressSave` 타입을 쓴다(`store.ts`의 `Save`가 그대로 들어온다).
+ *
+ * 층간 보상 배율(`안 A`)만 예외로 `battle/formulas.ts`의 몹 HP 곡선을 읽는다 — 배율을 두 벌로
+ * 적으면 또 어긋나기 때문이다(2026-11-24).
  *
  * **밸런스 수치는 한 자리도 바꾸지 않았다.** 리팩터링 전후로 `tests/progress-parity.test.mjs`의
  * 스냅샷(필드 60초·방치 12시간·던전 1판·던전 정산)이 같은 값이어야 한다.
  */
+
+import { depthRewardScale, ELITE_REWARD_SCALE } from './battle/formulas.ts';
 
 /** 메인 사냥의 마지막 층(작업 204). 20층 위로는 열리지 않으며, 상한이 풀릴 때 이 값만 올린다. */
 export const MAX_FLOOR = 20;
@@ -29,8 +34,8 @@ export const KILL_EXP_BASE = 9;
 export const BOSS_GOLD_PER_FLOOR = 70;
 /** 층 보스의 경험치 배율 — 일반의 6배. */
 export const BOSS_EXP_SCALE = 6;
-/** 정예 몹의 금화·경험치 배율(작업 206) — 드롭률은 일반과 같다. */
-export const ELITE_REWARD_SCALE = 2;
+/** 정예 몹의 금화·경험치 배율(작업 206) — 드롭률은 일반과 같다. 값은 `battle/formulas.ts`(정예 HP 배율 옆)에 있다. */
+export { ELITE_REWARD_SCALE };
 /** 쓰러졌을 때 잃는 금화(작업 245) — 모자라면 0까지만. */
 export const DEFEAT_GOLD_LOSS = 10;
 /** 던전 한 층에서 사냥하는 몹 수 — 클리어 정산 금화가 `7 × (3 + 층)`인 근거다. */
@@ -73,14 +78,15 @@ export function fieldRewardScale(floor: number): number {
 /** 다음 레벨까지 필요한 경험치(작업 207, `1400 × level²`). */
 export function expToNext(level: number): number { return Math.round(1400 * Math.pow(level, 2)); }
 
-/** 한 마리 처치가 주는 금화·경험치 — 아직 세이브에 넣지 않는 순수 계산. */
+/** 한 마리 처치가 주는 금화·경험치 — 아직 세이브에 넣지 않는 순수 계산.
+ *  `depthRewardScale`(안 A)은 마리당 금화·경험치를 몹 HP에 비례해 올린다 — 필드·방치가 같은 값을 쓴다. */
 export function killReward(save: Pick<ProgressSave, 'floor'>, options: KillOptions & { unscaled?: boolean } = {}): { gold: number; exp: number } {
   const floor = options.floor ?? save.floor;
   // 정예는 금화·경험치 2배, 장비·스킬북 드롭률은 일반 몹과 같은 1배다(작업 206).
   if (options.boss) return { gold: BOSS_GOLD_PER_FLOOR * floor, exp: (KILL_EXP_BASE + floor) * BOSS_EXP_SCALE };
   const siege = options.elite ? ELITE_REWARD_SCALE : 1;
   // 필드 보상 계수(밸런스 v2) — 던전 정산(`killGold`)만 `unscaled`로 옛 값을 쓴다.
-  const scale = options.unscaled ? 1 : fieldRewardScale(floor);
+  const scale = options.unscaled ? 1 : fieldRewardScale(floor) * depthRewardScale(floor);
   return { gold: Math.max(1, Math.round((KILL_GOLD_BASE + floor) * scale)) * siege, exp: Math.max(1, Math.round((KILL_EXP_BASE + floor) * scale)) * siege };
 }
 
