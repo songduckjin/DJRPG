@@ -1,4 +1,4 @@
-import { freshSave, parseSave, type Item, type Save } from '../../game/store';
+import { freshSave, parseSave, totalStats, type Item, type Save } from '../../game/store';
 import { jobNames, jobOrDefault, type Job } from '../../game/skills';
 import type { Interface } from '../interface';
 import { accountRequest } from '../login';
@@ -8,11 +8,12 @@ import { loadWarehouse as loadWarehouseModal, renderWarehouse as renderWarehouse
 import { discoverEquipment } from '../../game/codex';
 import { applyOfflineRewards } from '../../game/offline';
 import { diamondMarkup } from '../currency';
+import { combatPower } from '../../game/power';
 
 /** `characters` 응답이 슬롯마다 내려 주는 장비 외형 정보(작업 210) — 이름만 있고 능력치·가방은 없다. */
 export type CharacterEquipment = { helmet?: { name?: string } | null; armor?: { name?: string } | null; weapon?: { name?: string } | null } | null;
 
-export type CharacterSummary = { slot: number; name: string; gender: 'male' | 'female'; job?: Job; level: number; floor: number; itemCount?: number; idleSeconds?: number; equipment?: CharacterEquipment };
+export type CharacterSummary = { slot: number; name: string; gender: 'male' | 'female'; job?: Job; level: number; floor: number; itemCount?: number; idleSeconds?: number; equipment?: CharacterEquipment; power?: number };
 
 /** 카드 초상화 높이(px) — 카드는 108px 높이라 360px면 충분하고, 장비창(720px)보다 캔버스가 가볍다. */
 export const characterPortraitHeight = 360;
@@ -71,6 +72,48 @@ function paintCharacterPortrait(ui: Interface, image: HTMLImageElement, characte
 type CharacterList = { characters: CharacterSummary[]; activeSlot: number; maxSlots: number; revision: number; allIdleExpiresAt?: number; loadedAt?: number };
 let characterClock: ReturnType<typeof setTimeout> | undefined;
 
+/**
+ * 카드가 보여 줄 전투력(백로그 11·B안).
+ *
+ * 접속 중인 슬롯은 **지금 화면의 세이브**로 계산한다 — 장비를 갈아입은 직후 모달을 열면 서버 목록보다
+ * 먼저 최신 숫자가 뜨고, 초상화(`paintCharacterPortrait`)도 같은 규칙을 쓴다. 다른 슬롯은 그 세이브가
+ * 화면에 없으므로 서버가 `characters` 응답에 실어 준 `power`를 그대로 쓴다.
+ * 둘 다 없으면(구서버·손상된 세이브) `undefined` — 배지에서 숫자만 빠지고 레벨·층은 그대로 보인다.
+ */
+function cardPower(ui: Interface, character: CharacterSummary, slot: number): number | undefined {
+  const live = slot === ui.session?.characterSlot && ui.world?.save?.equipment ? ui.world.save : undefined;
+  if (live && Number.isFinite(live.level)) return combatPower(totalStats(live));
+  const power = Number(character.power);
+  return Number.isFinite(power) ? Math.max(0, Math.round(power)) : undefined;
+}
+
+/**
+ * 카드 최하단의 요약 배지 띠 — `Lv.47 · 32층` + `⚔ 12,480` 한 줄(백로그 11·B안).
+ *
+ * 예전에는 이 레벨·층이 이름·직업과 같은 줄(`이름 · 직업 · Lv.47 · 32층`)에 있어 3칸 카드에서 두 줄로
+ * 접혔다. 이름·직업만 정보줄에 남기고 레벨·층은 전투력과 함께 카드 폭을 채우는 띠로 내렸다.
+ * 띠는 펼친 카드에서도 `선택`·`방치`·`삭제` 바로 위에 붙어 있어야 한다(`character.css`의
+ * `.character-slot.focused .character-select { flex: 1 1 auto }`).
+ */
+function characterPowerBadge(ui: Interface, character: CharacterSummary, slot: number): HTMLElement {
+  const level = Number(character.level), floor = Number(character.floor);
+  const metaText = `Lv.${Number.isFinite(level) ? level : 1} · ${Number.isFinite(floor) ? floor : 1}층`;
+  const badge = element('span', 'character-power');
+  badge.append(element('span', 'character-power-meta', metaText));
+  const power = cardPower(ui, character, slot);
+  if (power === undefined) {
+    badge.setAttribute('aria-label', metaText);
+    return badge;
+  }
+  const value = element('b', 'character-power-value');
+  const icon = element('i', '', '⚔');
+  icon.setAttribute('aria-hidden', 'true');
+  value.append(icon, document.createTextNode(power.toLocaleString('ko-KR')));
+  badge.append(value);
+  badge.setAttribute('aria-label', `${metaText}, 전투력 ${power.toLocaleString('ko-KR')}`);
+  return badge;
+}
+
 function idleTime(seconds: number): string {
   const minutes = Math.floor(Math.max(0, seconds) / 60);
   return `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
@@ -118,7 +161,7 @@ export function renderCharacters(ui: Interface, dialog: HTMLElement): void {
       ui.renderModal();
     });
     select.className = 'character-select';
-    const details = document.createElement('span'); details.textContent = character ? `${character.name} · ${jobNames[jobOrDefault(character.job)]} · Lv.${character.level} · ${character.floor}층` : `슬롯 ${slot} · 새 캐릭터 만들기`;
+    const details = document.createElement('span'); details.textContent = character ? `${character.name} · ${jobNames[jobOrDefault(character.job)]}` : `슬롯 ${slot} · 새 캐릭터 만들기`;
     if (character) {
       const image = document.createElement('img');
       image.className = 'character-portrait';
@@ -127,6 +170,9 @@ export function renderCharacters(ui: Interface, dialog: HTMLElement): void {
       paintCharacterPortrait(ui, image, character, slot);
     } else { const plus = document.createElement('strong'); plus.textContent = '+'; select.append(plus); }
     select.append(details); card.append(select);
+    // 레벨·층·전투력은 카드 폭을 채우는 하단 배지 띠에 한 줄로 둔다(B안) — 버튼보다 먼저 붙여, 펼친 카드에서도
+    // `선택`·`방치`·`삭제` 바로 위에 남게 한다.
+    if (character) card.append(characterPowerBadge(ui, character, slot));
     if (character) {
       const connect = button('선택', () => {
         if (slot === ui.session.characterSlot) { ui.message('현재 선택된 캐릭터입니다.'); return; }

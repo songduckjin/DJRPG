@@ -5,6 +5,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createClient } from '@libsql/client';
 import { accountEndpoint } from '../server/endpoints/account.mjs';
+// `characters` 응답이 세이브에서 전투력을 계산하며 게임 모듈(`src/game/*.ts`)을 동적으로 읽는다(백로그 11·B안) —
+// 테스트 러너에서 확장자 없는 내부 import까지 풀리도록 TS 훅을 먼저 등록한다.
+import './ts-loader.mjs';
 
 const post = (body, token) => new Request('https://example.test/api/account', {
   method: 'POST',

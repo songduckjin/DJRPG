@@ -25,6 +25,7 @@ export type Modal =
   | 'createCharacter'
   | 'warehouse'
   | 'settings'
+  | 'notice'
   | 'mail'
   | 'rewards'
   | 'achievements'

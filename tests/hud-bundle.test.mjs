@@ -145,7 +145,7 @@ test('LV 배지는 상세 스탯을 열고, 캐릭터 전환은 오른쪽 레일
   const rail = railMarkup();
   assert.match(rail, /^<button type="button" data-modal="characters" aria-label="캐릭터" title="캐릭터"><img src="\/assets\/icons\/utility_characters\.png"/, '레일 맨 위 캐릭터 버튼');
   assert.doesNotMatch(rail, /data-utility-dot="characters"/, '캐릭터 버튼에는 새 소식 점을 달지 않는다');
-  for (const modal of ['settings', 'mail', 'rewards', 'achievements', 'dungeon']) assert.match(rail, new RegExp(`data-modal="${modal}"`), `${modal} 유지`);
+  for (const modal of ['notice', 'settings', 'mail', 'rewards', 'achievements', 'dungeon']) assert.match(rail, new RegExp(`data-modal="${modal}"`), `${modal} 유지`);
   assert.match(interfaceSource, /<nav class="utility-nav" aria-label="편의 메뉴">\$\{railMarkup\(\)\}<\/nav>/, '레일이 railMarkup을 쓴다');
   // 아이콘 파일은 128×128 RGBA PNG(다른 유틸 아이콘과 같은 크기·형식).
   const png = readFileSync(new URL('../public/assets/icons/utility_characters.png', import.meta.url));
