@@ -1,6 +1,6 @@
 # songduckjin 개인 작업지시서 이력 (아카이브)
 
-> `docs/TASK_songduckjin.md`에서 분리한 과거 완료 작업 16건(2026-11-21 문서 정리).
+> `docs/TASK_songduckjin.md`에서 분리한 과거 완료 작업 상세. 완료 당시의 작업 범위·검증·PR 정보를 보존한다.
 
 ### [x] [작업 135] 갑옷·투구 10종 외형 차별화 (4티어 실루엣 + 팔레트 스왑)
 - **완료 결과(2026-11-18)**: 기존 통합 바디 시트에 갑옷·투구 4티어 팔레트 변형과 피부·얼굴·머리카락 보존 틴트 캐시를 적용했다. PR #71이 `e933a22fc2f1e58af6bc2ebab3648f1176c015cb`로 main에 병합됐다. 신규 독립형 코스튬 시스템은 이 구현을 새 제작 정책으로 복제하지 않고 별도 프로토타입 후 전환한다.
@@ -327,3 +327,92 @@
   5. **참조 검사 후 삭제**: 구형 통합 바디 시트, `tools/costume-viewer` 임시 SVG, 미사용 레거시 코드를 후보 목록으로 만들어 `src/`·`tests/`·`scripts/`·`public/` 전체에서 참조 0을 확인한 뒤 삭제한다. 참조가 남은 항목은 삭제하지 않고 목록만 보고한다.
 - **검증**: `npx tsc --noEmit`, `node scripts/verify-item-art.mjs`, **전체** `npm test`·`npm run build`(에셋·레거시 대량 정리 후 최종 회귀 확인), `git diff --check`.
 - **완료 기준**: 아틀라스·매니페스트가 버전 URL로 배포되고 실기 FPS·메모리·Draw Call 수치가 기록된다. 삭제한 모든 파일·코드에 대해 참조 0 근거가 남고, 전체 테스트·프로덕션 빌드가 통과한다. 남은 미사용 후보는 목록으로 보고한다.
+
+## 2026-11-23 이동 완료 작업
+
+### [x] [작업 159] 궁수 스타터 가죽 튜닉 시트 교체·재배포
+- **담당자**: `songduckjin` · **브랜치**: `feat/159-archer-starter-leather-sheets` · **위험 등급**: 낮음 · **상태**: `[x]`
+- **배경**: 작업 157의 궁수 기본 시트는 후드 망토 + 견갑 차림이었다. 사용자가 승인한 스타터 시안(`downloads/archer_preview/{male,female}_starter.png`, 민소매 가죽 조끼 + 크림 셔츠, 후드·견갑·망토 없음)으로 기본 외형을 교체한다.
+- **제작**: `images --edit`로 승인 원본에서 걷기·활 사격 4프레임 가로 스트립(`{male,female}_starter_{walk,attack}.png`)을 만들고, `scripts/build-archer-sheets.py` 입력을 `{}_starter{,_walk,_attack}.png`로 바꿔 `public/assets/pilot-25d/archer_{male,female}_{idle,walk,attack}_v1.png` 6장을 재생성(서기 `362×362`, 걷기·공격 `1448×362` 4셀, 256색 PNG, 검정 배경 키잉·발끝 정렬).
+- **캐시 무효화**: `/assets/*`가 `immutable`이라 `src/game/render.ts`(6경로)·`src/ui/equipmentPortrait.ts`·`src/ui/modals/charactersModal.ts`의 궁수 시트 URL에 `?v=2`. `tests/archer.test.mjs`는 기대값을 새 URL로 고치고, 궁수 시트 참조에 버전 쿼리가 빠지면 실패하는 감시 테스트를 추가했다.
+- **불변**: `heroBodyPx`(남녀 337/300/268·270)·전투 수치·스킬·Save/DB/API 계약, 장비 오버레이 미적용 규칙(작업 157) 그대로.
+- **검증**: `tsc --noEmit`, `tests/archer.test.mjs` 14/14, 전체 488건 중 486 통과(`costume-field-render` 2건은 `origin/main` `86ac44e` 워크트리에서도 동일 실패), `verify-item-art`(궁수 시트 6장), `npm run build`, 배포 번들 6경로 `?v=2` 확인.
+- **검수 이미지**: `downloads/djrpg_archer_starter_ingame_v2.png` — `scripts/preview-archer-field.py`를 남녀 4패널(걷기·사격)로 확장하고 `heroBodyPx`로 배율을 맞춰 합성했다. 브라우저 실기 확인은 미실시(사용자 몫).
+- **머지·배포(완료)**: [PR #124](https://github.com/songduckjin/DJRPG/pull/124) 스쿼시 병합 `4ba39fdb63b7`. Pages production 성공(Workers Builds는 `main`과 같은 기존 실패), 운영 `version.json` `4ba39fdb63b7`(`builtAt 2026-11-20T02:29:42Z`), `?v=2` 시트 6장 전부 HTTP 200·원격 sha256=로컬, 배포 번들 `index-j5_2NUhd.js`에 6경로 `?v=2` 포함.
+- **남은 것**: 사용자 실기 화면(걷기·사격 모션, 장비창·캐릭터 카드 썸네일) 확인.
+
+### [x] [작업 198] 마법사 직업 추가 — 기본 시트·지팡이 10종·원거리 마법탄·스킬 8+3 뼈대
+- **담당자**: `songduckjin` · **브랜치**: `feat/198-mage-job` · **위험 등급**: 보통 · **상태**: `[x]` 코드·검증 완료(운영 배포는 PR 머지 후 기록)
+- **범위**: 세 번째 직업 `mage`(마법사). 캐릭터·장비·원거리 평타 뼈대만 잡고, 전용 스킬 연출·방어구/모자 외형은 추후 시안 확인 후 고도화한다(사용자 결정).
+- **수정**: `game/skills.ts`(`Job`·`mageSkillOrder`·`magePassiveOrder`), `game/items.ts`(`staffBases`·`slotNameFor`·`usesBaseSheetOnly`), `game/store.ts`(`parseSave` job 정규화), `game/world.ts`(`mageAttackRange` 240·마법 구슬 평타·스킬 8종 판정), `game/render/vfx.ts`(`drawMagicBolt`·`drawBurst`·`drawNova`·`drawWard`), `render/entities.ts`·`render.ts`·`render/heroScale.ts`(마법사 시트 경로·배율), `ui/{login,skillArtwork,hud,equipmentPortrait}.ts`·`ui/modals/{charactersModal,skillModal,accountModal}.ts`, `server/endpoints/account.mjs`(`jobOf`·`jobs`), 에셋 12장 + 빌더 3개, `tests/mage.test.mjs`(신규 13건), `scripts/verify-item-art.mjs`.
+- **검증**: `npx tsc --noEmit`, `tests/mage.test.mjs` 13/13, 전체 500건 중 498 통과(`costume-field-render` 2건은 `origin/main` 워크트리에서 동일 재현), 아트 검증, `npm run build`, `git diff --check`. 실기 화면은 미실행(브라우저 loopback 차단) — 합성 검수 이미지 `downloads/djrpg_mage_ingame_v1.png`.
+- **번호 정정**: 159가 궁수 스타터 가죽 튜닉(PR #124)으로 먼저 병합돼 **198**로 재등록(브랜치 `feat/198-mage-job`, PR #128).
+- **머지·배포**: [PR #128](https://github.com/songduckjin/DJRPG/pull/128) 스쿼시 병합 `bc0a2617470c`, 운영 `version.json` `bc0a2617470c`(`builtAt 2026-11-20T03:23:31Z`)·새 에셋 10장 HTTP 200(원격 sha256=로컬)·배포 번들에 마법사 경로/스킬 확인.
+- **남은 것**: 사용자 실기 확인(마법 구슬·스킬 8종 연출, 생성 UI 3버튼), 추후 마법사 전용 스킬 연출·갑옷/모자 외형 시안.
+
+### [x] [작업 150] 평타 1마리 제한·평타 ×1.6·걷기/공격 몸 크기 보정
+- **담당자**: `songduckjin` · **브랜치**: `fix/150-basic-attack-single-target` · **위험 등급**: 중 · **상태**: `[x]` 완료(실기 확인은 사용자 몫)
+- **제보(2026-11-19 실기)**: ① 평타가 반경 90px·부채꼴 안의 모든 적을 동시에 때림 ② 대검을 휘두르거나 걸을 때 캐릭터가 작아짐. 후속 지시: 한 마리만 때리는 만큼 “한방한방이 쌔야 돼”.
+- **수정**: `src/game/world.ts` — `damage()`에 `maxTargets`(기본 `Infinity`, 가까운 순) 추가, 평타만 `maxTargets=1`이고 피해는 `basicAttackPower = 1.6`배. 스킬 7종 광역 판정·쿨다운·서버 계약 무변경. `src/game/render/heroScale.ts` — pilot walk 335→300(4칸 평균 293~307), attack 335→270(내려찍는 칸 평균, 머리 위 검 프레임은 이상치), idle 335 유지.
+- **테스트**: `tests/world-movement.test.mjs` 5건(단일 대상·처치·스킬 광역·×1.6 피해·두 방 합계), `tests/hero-art.test.mjs` 2건(남녀 pilot 시트 알파 실측 대조·상태별 보정값).
+- **검증**: `npx tsc --noEmit`, `node --test tests/*.test.mjs` 389건 중 387 통과(`costume-field-render` 2건은 `17facd5` `main`에서도 실패하는 기존 실패), `node scripts/verify-item-art.mjs`, `npm run build`, `git diff --check` 통과.
+- **머지·배포(완료)**: [PR #103](https://github.com/songduckjin/DJRPG/pull/103) 스쿼시 병합 `11e99459be5b`. Pages 체크 통과(Workers Builds는 `main` 기존 실패), 운영 `version.json` `11e99459be5b`·`builtAt 2026-11-19T11:08:32Z`, `/`·pilot 시트 HTTP 200 확인.
+- **남은 것**: 사용자 실기 화면 확인(평타 대상·타격감, 걷기/공격 체격), `costume-field-render` 기존 실패 2건은 별도 작업.
+
+### [x] [작업 147] 3D→2.5D Blender 자동 렌더 파이프라인 가이드·스크립트·레퍼런스 시안
+- **담당자**: `songduckjin` · **브랜치**: `task/147-blender-25d-pipeline` · **위험 등급**: 낮음 · **상태**: `[x]` 완료
+- **완료 결과(2026-11-19)**: [PR #99](https://github.com/songduckjin/DJRPG/pull/99)가 머지 `d8110470a99c97a6ae38fa85b0d47e8eccdad22b`로 병합됐고 Cloudflare Pages 운영 `version.json`에서 `d8110470a99c`를 확인했다. `scripts/blender/render_25d_costume.py`(1026줄) + `docs/BLENDER_25D_PIPELINE.md` + `docs/references/` 시안 2장(484KB·372KB)을 넣었다. 자체 점검 `--selftest` 6/6, `--help`·`--print-spec`·`--dry-run` 동작, 합성 셀 아틀라스 패킹·슬롯 좌표(0·9·8 → col0row0·col1row1·col0row1)·매니페스트 출력 확인, `tsc --noEmit`, 전체 `node --test` 382건, `verify-item-art`, `npm run build`, `git diff --check` 통과. **실제 Blender 렌더는 이 환경에 Blender가 없어 미실행**이며 PC 몫이다(가이드 §1.2 자체 점검 → §5 실행). 배포 매니페스트·`COSTUME_ASSET_VERSION` 6 상승은 렌더 결과가 나온 뒤 별도 작업.
+- **목표/범위**: 확정된 2.5D 대검 포즈 시안을 기준으로 3D 모델을 Blender CLI에서 자동 렌더해 기존 코스튬 셀 규약으로 뽑는 파이프라인을 만든다. 실행 스크립트, 실행 가이드, 레퍼런스 시안, 작업 기록을 남기고 런타임 코드는 건드리지 않는다.
+- **확정 포즈 스펙**: ① 서기(`idle`) — 양손을 오른쪽 허리 옆에 모아 대검 자루를 잡고 가드·날이 허벅지 앞을 지나 등 뒤 대각선 아래로 끌리듯 뻗음 ② 걷기(`walk`) — 걷는 동안에도 왼손이 풀리지 않고 양손이 오른쪽에 모인 채 무거운 검을 뒤쪽 아래로 끌며 전진 ③ 공격(`attack`) — 등 뒤에서 끌어올리기(Wind-up) → 머리 위 번쩍 듦(Apex) → 앞쪽 아래 세로 원호(Mid-swing) → 전장을 앞바닥까지 길게 뻗어 내리침(Impact), 피니시에서 검 길이가 파묻혀 짧아지지 않음.
+- **신규 파일**: `scripts/blender/render_25d_costume.py`(`--input/--out/--actions/--parts/--cell-width/--cell-height/--camera-pitch/--camera-yaw/--dry-run/--help`, `.blend`/`.glb`/`.fbx` 로드, 발끝 정렬·본체 190px 정규화, 파츠 분리 렌더·Holdout, 선택적 아틀라스 패킹), `docs/BLENDER_25D_PIPELINE.md`, `docs/references/{djrpg_25d_3poses_preview_v2,djrpg_attack_4frames_v2}.png`(1024px 이하·양자화 PNG).
+- **수정 파일**: `docs/{CODE_MAP,QUICK_PATCH,WORKLOG}.md`, `docs/TASK.md`, 본 작업 기록.
+- **금지**: `src/**`·`public/assets/**`·`server/**`·Save/API 변경 금지. `docs/references/`는 문서용 참고 이미지이며 번들·런타임에 포함하지 않는다(`public/assets/**`에 넣지 않음).
+- **검증**: `python3 -m py_compile scripts/blender/render_25d_costume.py`, `--help`/`--dry-run` 동작, `npx tsc --noEmit`, `node --test tests/*.test.mjs`, `node scripts/verify-item-art.mjs`, `npm run build`, `git diff --check`.
+
+### [x] [작업 149] AI 시안 기반 전사 외형 전체 교체
+- **담당자**: `songduckjin` · **등록일**: 2026-11-19 · **브랜치**: `codex/149-ai-pilot-warrior-sprites` · **위험 등급**: 중 · **상태**: `[x]` 완료 · **PR**: #101
+- **결정**: 사용자는 앞서 만든 서기·걷기·4단계 내려찍기 시안으로 실제 게임 전사 외형을 교체하기로 했다. 새 그림은 고정 갑옷·대검을 포함하므로 착용 아이템의 슬롯·능력치·저장은 유지하되 화면상 갑옷·투구·무기 모습은 고정된다. 남녀 스프라이트는 함께 적용한다.
+- **수정 파일**: `src/game/render.ts`, `src/game/render/entities.ts`, `src/game/render/heroScale.ts`, `src/ui/equipmentPortrait.ts`, `public/assets/pilot-25d/**`, `docs/references/djrpg_pilot_*_v1_sheet.png`, `tests/{hero-art,hero-weapon-render,equipped-detail}.test.mjs`, `docs/{COSTUME_SYSTEM,CODE_MAP,QUICK_PATCH,TASK,TASK_songduckjin,WORKLOG}.md`.
+- **금지**: `src/game/store.ts`, Save/API/DB, 전사 외 몬스터/NPC, 배포 전 사용자 확인 없이 production deploy. 기존 코스튬 v3·v4·v5 배포 파일은 삭제하지 않는다.
+- **검증**: `npx tsc --noEmit`; `node --test tests/appearance.test.mjs tests/hero-art.test.mjs tests/hero-motion.test.mjs tests/hero-weapon-render.test.mjs tests/equipped-detail.test.mjs`; 신규 PNG 투명도·시트 분할 확인; `git diff --check`.
+- **완료 기준**: 남녀 각각 idle·walk·attack 시트가 투명 배경과 4칸 프레임 규약을 지키고, 필드·장비창이 같은 새 외형을 보여준다. 화면에서 두 번 그려지는 무기·레거시 코스튬 덧그리기가 없다.
+- **완료 결과(2026-11-19)**: [PR #101](https://github.com/songduckjin/DJRPG/pull/101)이 `9e9d736883e0`으로 병합됐다. 운영 Pages `/version.json`도 같은 SHA이며 남녀 idle·walk·attack 에셋 6개 모두 HTTP 200이다. TypeScript, 관련 테스트 86건, 프로덕션 빌드와 diff 검사가 통과했다. Pages 자동 배포가 완료됐고, 로컬 Wrangler 배포는 `CLOUDFLARE_API_TOKEN`이 없어 실행되지 않았다. 별도 `Workers Builds: djrpg` 체크는 실패했지만 Pages 체크와 운영 Pages 제공은 성공했다.
+
+### [x] [작업 134] 필드 캐릭터 통합 바디 복구 및 무기 소켓·액션 자연화
+- **등록자·담당자**: `songduckjin` · **등록일**: 2026-11-18 · **브랜치**: `task/134-field-gear-action` · **위험 등급**: 중 · **상태**: `[x]` 완료
+- **완료 결과**: 남녀 갑옷·투구 상태별 검 없는 서기·걷기 시트 10장, 직업·성별별 무기 소켓, 공격 시 소켓 검 숨김, 등급별 검기 색을 적용했다. 타입 검사·관련 테스트 76개·이미지 검증·diff 검사 통과. PR #66이 `272c4619924603565a0b765a65ca0026078bb904`로 병합됐고 Cloudflare Pages Production `/version.json`에서 `272c46199246`을 확인했다. 모바일 실기는 미확인.
+- **직접 수정**: `src/game/render/entities.ts`, `src/game/render/heroSockets.ts`(신규), `src/game/render/heroScale.ts`, `src/game/render/vfx.ts`, `src/game/render.ts`, `public/assets/*swordless.png`(남녀 서기·걷기 10장 신규), `tests/hero-weapon-render.test.mjs`, `tests/hero-art.test.mjs`, `docs/CODE_MAP.md`·`docs/QUICK_PATCH.md`. **간접 영향**: `src/game/appearance.ts`(`heroAppearance`의 갑옷·투구 분기), `tests/appearance.test.mjs`, `tests/hero-motion.test.mjs`, `tests/equipped-detail.test.mjs`. **건드리지 않음**: `src/ui/equipmentPortrait.ts`·`src/ui/modals/equipModal.ts`(장비창 미리보기, [작업 133] 영역), `src/game/store.ts`(세이브 형식), `server/**`.
+- **목표**: PR #61에서 필드 캐릭터(`entities.ts`)에 적용한 5부위 2D 아이콘 덧그리기를 걷어내, 갑옷·투구 통합 바디 시트의 자연스러운 어깨·체형·공격 액션을 복구한다. 무기는 프레임별 소켓 데이터(`heroSockets.ts`)로 분리해 서기·걷기·공격 전환이 매끄럽게 이어지게 하고, 무기 등급·종류의 차이는 덧그리기 대신 검기 이펙트로 남긴다.
+- **추가 사용자 결정(2026-11-18)**: 기존 통합 서기·걷기 시트에도 검이 이미 있어 소켓 무기와 중복된다. 남녀 갑옷·투구 상태별 **검 없는 시트부터 새로 제작**하고, 서기·걷기에는 소켓 검 한 자루만 표시한다. 무갑옷 상태는 기존 검 없는 base 시트를 사용한다. 공격 시트의 검은 유지하고 소켓 검을 숨긴다.
+- **배경·근거(현재 코드)**:
+  - `drawHero`는 `bodySave = { ...save, equipment: { ...save.equipment, helmet: undefined, armor: undefined } }`로 갑옷·투구를 벗긴 시트를 고른 뒤 `syncGear`에서 5부위(`visibleGearSlots`)를 모두 덧그린다(`gearPose`·`attackGearPoses`·`idleWeaponPoses`·`attackWeaponPoses`가 `entities.ts`에 하드코딩). 그 결과 몸통·어깨가 아이콘과 겹치고 공격 프레임에서 칼이 2자루로 보인다.
+  - `appearance.ts`의 `idle`·`walk`·`attack`은 이미 갑옷·투구를 포함한 통합 시트를 고르고, `attack` 시트(`attackSheets`·`animationPaths`)에는 검이 그려져 있다. 즉 통합 시트로 돌아가면 갑옷·투구는 추가 작업 없이 맞는다.
+  - 사용자 지시(2026-11-18): "이거는 규칙으로 해놔야대 다른 직업나왔을때도 고려해야돼" — 장비창/필드 분리와 다직업 구조를 `AGENTS.md`·`CODE_MAP.md` §4에 규칙으로 먼저 못박았고, 이 작업은 그 규칙의 첫 구현이다.
+  - 번호 주의: 등록 시점 `main`(`84a1dd0`)에 fks3997의 `[작업 133]`(장비창 실제 착용 캐릭터 이미지, `task/133-equipped-character-art`)이 이미 `[-]`로 선점돼 있어 이 작업은 **134**로 등록했다. 파일은 겹치지 않는다(그쪽은 `ui/`·`public/assets/warrior_equipped*`, 이쪽은 `render/`).
+- **불변 계약**:
+  1. 장비창 중앙 미리보기(`ui/equipmentPortrait.ts` 단일 합성 초상화, [작업 133])는 정지 프리뷰라 그대로 두고 이번 작업에서 손대지 않는다(필드와 코드 경로가 다르다).
+  2. 세이브 형식·`store.ts` 변경 없음: `classId`를 세이브에 넣지 않는다(전방 호환 필드 도입은 별도 작업). `heroSockets.ts`의 직업 판별은 `heroClass(save)` 한 곳을 거치고, 지금은 항상 `'warrior'`를 돌려준다.
+  3. 남/여 동시 반영(양쪽 소켓·시트 루프 검증).
+- **구현 항목**:
+  1. **`entities.ts` 바디 복구**: 실제 `save`의 `heroAppearance`가 갑옷·투구·공격 시트를 고른다. 서기·걷기는 검 없는 갑옷 통합 시트 또는 무갑옷 base 시트를 고른다. `syncGear`에서 `helmet`·`armor`·`gloves`·`boots` 덧그리기를 제거하고 무기만 남긴다. `gearPose`·`attackGearPoses`의 장비 좌표는 제거하고, 몸 기준 `heroBodyHeight`·`heroScale` 계산을 유지한다. 그림자 반경은 기존처럼 `heroBodyHeight` 기준을 쓴다.
+  2. **`heroSockets.ts` 신규 분리(다직업 구조)**: `entities.ts`의 무기 포즈 좌표를 옮겨 **처음부터 직업 × 성별 표**로 정의한다.
+     ```ts
+     // src/game/render/heroSockets.ts
+     import type { Gender, Save } from '../store';
+     export type ClassId = 'warrior';                       // 직업 추가 시 여기에만 늘린다
+     export type WeaponSocket = { u: number; v: number; size: number; rotation: number; zOrder: number };
+     export type WeaponMotionSockets = { idle: WeaponSocket; walk: readonly WeaponSocket[] }; // walk = 8프레임
+     export type WeaponSocketTable = Record<ClassId, Record<Gender, WeaponMotionSockets>>;
+     export const weaponSockets: WeaponSocketTable = { warrior: { male: {…}, female: {…} } };
+     export function heroClass(save: Pick<Save,'gender'>): ClassId;             // 지금은 'warrior' 고정
+     export function weaponSocket(classId: ClassId, gender: Gender, motion: 'idle' | 'walk', frame: number): WeaponSocket;
+     ```
+     - `walk` 8프레임은 상하 바운스·발 디딤 보정을 값으로 담는다(계산식이 아니라 데이터). `frame`은 `0..7`로 정규화하고, `motion`이 `idle`이면 `idle` 소켓, `walk`면 `walk[frame]`을 준다.
+     - `entities.ts`는 `weaponSocket(heroClass(save), save.gender, moving ? 'walk' : 'idle', walkingFrame)`만 호출하고 좌표 상수를 갖지 않는다. 무기 앵커(`.18`/`.82`)와 `zOrder`(무기 레이어 순서)도 소켓 표에서 읽는다.
+     - 새 직업 추가 시 필요한 것은 `appearance.ts`의 시트 분기 + `weaponSockets`의 `classId` 항목 + 그 직업 바디 실측 `heroScale.ts` `heroBodyPx`뿐이며, `entities.ts`는 수정하지 않는다.
+  3. **공격(`attack`) 자연화·칼 중복 방지**: `animation === 'attack'`(=`appearance.attack` 시트 사용 구간)에서는 무기 스프라이트를 `visible = false`(또는 `alpha 0`)로 두어 2자루 겹침을 없앤다. 공격 종료·걷기·서기로 돌아오면 소켓 위치로 즉시 복귀하며, 프레임 전환에서 깜빡이지 않도록 `syncGear`에서 스프라이트를 파괴·재생성하지 말고 표시만 바꾼다. 무기 교체 시에는 기존처럼 텍스처 키 교체 경로를 유지한다.
+  4. **검기 색으로 무기 차이 표현(`vfx.ts`)**: `drawSkillVfx`의 `slash2`(부채꼴 2겹 아크) 색을 장착 무기 등급 색으로 바꾼다 — 파일 안의 `rarityColors`(지금은 드랍 글로우용)를 그대로 재사용하고, `weaponSlashColor(world)` 같은 작은 헬퍼로 `save.equipment.weapon?.rarity ?? 'common'`을 읽는다(무기 없으면 기존 흰색 유지). 기본 공격 `slash`는 [작업 123]으로 이펙트를 그리지 않으므로 되살리지 않는다. 등급에 따라 선 굵기·잔상 알파를 조금씩 달리해 교체감을 준다. `drawSkillVfx`는 `effect`만 받으므로 `world`(또는 `weaponColor`)를 인자로 넘기는 시그니처 변경은 `render.ts` 호출부 1곳만 고친다.
+  5. **성별 교차 동기화 + 부분 검증 + 매뉴얼**: 남/여 모두 같은 경로로 통과시키고 `tests/hero-weapon-render.test.mjs`를 새 계약에 맞게 고친다(무기 1개만 남고, `heroGear` 키는 `['weapon']`, 공격 프레임에서는 무기 미표시, idle·walk 8프레임에서 좌표가 유한값). 통과 후 `docs/CODE_MAP.md` §1 '캐릭터 외형·성별·스프라이트' 행 연관 파일과 §3 `render/` 항목에 `heroSockets.ts` 1줄씩 추가한다.
+- **검증 (부분 테스트)**: `pnpm exec tsc --noEmit`, `node --test tests/appearance.test.mjs tests/hero-motion.test.mjs tests/hero-art.test.mjs tests/hero-weapon-render.test.mjs tests/equipped-detail.test.mjs`, `node scripts/verify-item-art.mjs`, `git diff --check`. 전체 `npm test`·`npm run build`는 공용 계약(`store.ts` 등)을 건드리지 않았으므로 실행하지 않는다. 브라우저·Playwright 실기는 요청 시에만.
+- **완료 기준**: 필드 캐릭터가 검 없는 장착 갑옷·투구 통합 서기·걷기 시트(어깨·체형 정상)로 그려지고, 장갑·부츠·갑옷·투구 아이콘이 몸 위에 덧그려지지 않는다. 무기는 서기·걷기 8프레임에서 손 위치를 따라가고 공격 4프레임에서는 공격 시트의 한 자루만 보인다. 검기 색이 장착 무기 등급을 반영한다. 남/여 모두 동일. `heroSockets.ts`가 `Record<ClassId, Record<Gender, …>>` 표로 존재하고 `entities.ts`에 무기 좌표 하드코딩이 없다. 새 시트의 8칸 경계와 본체 높이 검증 후 PR 병합.
+- **동시 작업 확인**: 등록 시점(2026-11-18, `main` = `84a1dd0`) `docs/TASK.md`의 다른 `[-]` 작업은 fks3997의 `[작업 133]`(장비창 미리보기, `ui/`·`public/assets/warrior_equipped*`) 하나이며 수정 파일이 겹치지 않는다. 번호는 134로 올려 잡았다.
