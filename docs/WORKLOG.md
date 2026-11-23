@@ -3,6 +3,13 @@
 > 최근 작업·PR·배포 기록만 둔다(최근 20건). 더 이전 기록은 `docs/archive/2026-11/WORKLOG-history.md`.
 > 새 기록은 맨 위에 `## YYYY-MM-DD · <담당> 작업 <번호> — <제목>` 형식으로 추가하고, 오래된 항목은 아카이브로 옮긴다.
 
+## 2026-11-23 · songduckjin 작업 279 — `내 정보`(장비창) topline 제거 1안 (390×844 시안 승인)
+
+- **기준·브랜치**: 최신 `origin/main` `21343ea`(PR #344 머지 후)에서 `feat/equip-remove-topline`. 시안 1안 `downloads/djrpg_equip_topline/after-390.png`(대장님·송덕진 님 양측 최종 승인), 제거 전 `before-390.png`. **머지·배포 보류** — PR 링크·프리뷰 스크린샷을 송덕진 님 측과 대장님께 먼저 공유한다.
+- **변경**: ① `renderEquipment()`에서 `.equip-topline`(요약 `LV · 층 · EXP% · 금화` + `⚔ 전투력` 알약) 생성·append를 없애고 `dialog.append(showcase)`로 곧바로 장착 쇼케이스를 붙인다. 쓰지 않게 된 `combatPower`·`goldMarkup`·`expToNext`·`MAX_LEVEL` 호출과 import를 정리했다(같은 값은 메인 HUD가 보여 준다). ② `equip.css`에서 `.equip-topline`·`.equipment-summary`·`.equip-powerpill` 계열 규칙(380px 미디어 규칙 포함) 삭제, `.equipment-showcase` 192 → **208px**(`flex-basis` 포함), `.bag-grid` `repeat(10…)` → **`repeat(8…)`**(공용창고 `.warehouse-grid`와 같은 8열). 반응형은 같은 +16px만큼: `max-width: 380px` 186 → **202px**, `max-height: 720px` 170 → **186px**, `max-height: 620px` 160 → **176px**. 가방 최소 높이 135px은 그대로다.
+- **검증**: `tsc --noEmit` 통과, `vite build` 통과, 전체 `node --test tests/*.test.mjs` 결과는 PR 본문 참조. 신규 `tests/equip-topline-removal.test.mjs` 5건(규칙 부재·렌더 첫 요소·208/8열·반응형 3구간·가짜 DOM 실렌더), `tests/equipment-info.test.mjs`·`tests/downgrade-badge-and-journey.test.mjs`의 topline 계약을 1안으로 교체.
+- **확인 화면**: Cloudflare Pages 프리뷰 390×844 캡처(장비창을 직접 열어 topline 없음·8열·빈 여백 없음), 경로는 PR 본문.
+
 ## 2026-11-23 · songduckjin **백로그 2·3·7번** — 치명타 피해량 추가옵션 · 유니크/전설 상위 노출 · 마법사/궁수 시트 알파 재베이크 (Draft PR)
 
 - **기준·브랜치**: 최신 `origin/main` `ba3f3c2`(2026-11-23 09:46) 에서 `feat/collab-237-crit-rarity-opacity`. 작업 13번(`statBooks.ts`) 병행 작업과 파일·브랜치가 겹치지 않는다. **머지·배포 보류**(사용자 지시: 모아서 배포) — Draft PR로만 올린다.

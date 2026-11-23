@@ -156,32 +156,19 @@ test('장착 칸 부위 이름은 아이콘과 같은 중심에 서고 `+N`만 �
   assert.match(rule(modalCss, '.equipment-slot .item-plus-badge'), /bottom: 13px/);
 });
 
-test('내 정보 요약은 한 줄 네 칸이고, 전투력은 오른쪽 끝 알약으로 선다', () => {
-  const summary = rule(modalCss, '.equipment-summary');
-  assert.match(summary, /grid-template-columns: repeat\(4, minmax\(0, 1fr\)\)/);
-  assert.match(summary, /gap: 3px/);
-  assert.match(summary, /padding: 4px 0/, '좌우 여백은 칸이 갖는다');
-  assert.match(summary, /outline: 1px solid/, '테두리는 레이아웃 폭을 먹지 않는 outline');
-  assert.doesNotMatch(summary, /border:/);
-  const cell = rule(modalCss, '.equipment-summary > span');
-  assert.match(cell, /justify-content: space-between/, '라벨은 왼쪽, 값은 오른쪽');
-  assert.match(cell, /padding: 0 6px/);
-  assert.match(rule(modalCss, '.equipment-summary .is-value'), /justify-content: flex-end/);
-  const top = rule(modalCss, '.equip-topline');
-  assert.match(top, /display: flex/);
-  assert.match(top, /flex: 0 0 auto/);
-  const pill = rule(modalCss, '.equip-powerpill');
-  assert.match(pill, /border-radius: 999px/);
-  assert.match(pill, /font-weight: 800/);
-  assert.match(pill, /flex: none/);
-  // 6칸 스탯 표와 아래 2줄 장착 칸은 B안에서 사라졌다(가방이 그 세로를 가져간다).
+test('내 정보는 2026-11-23 1안 — 스탯 표·요약 한 줄 없이 쇼케이스가 먼저 오고, 가방은 8열', () => {
+  // 6칸 스탯 표·아래 2줄 장착 칸은 B안에서, 요약 한 줄(topline)은 1안에서 사라졌다.
   assert.equal(modalCss.includes('.equipment-info-stats'), false);
   assert.equal(modalCss.includes('.equipment-grid'), false);
-  // 렌더 쪽도 같은 구조로 그린다.
-  assert.match(equipSource, /<span><small>LV<\/small><b>/);
-  assert.match(equipSource, /class="is-value"><b>\$\{save\.floor\}층<\/b>/);
-  assert.match(equipSource, /class="summary-gold">\$\{goldMarkup\(save\.gold\)\}<\/span>/);
-  assert.match(equipSource, /powerPill\.className = 'equip-powerpill'/);
+  assert.equal(modalCss.includes('.equip-topline'), false);
+  assert.equal(modalCss.includes('.equipment-summary'), false);
+  assert.equal(modalCss.includes('.equip-powerpill'), false);
+  assert.doesNotMatch(equipSource, /equip-topline|equipment-summary|equip-powerpill/);
+  // 렌더는 쇼케이스를 창의 첫 요소로 붙인다(그 위에 아무 줄도 없다).
+  assert.match(equipSource, /dialog\.append\(showcase\)/);
+  // 1안: 쇼케이스 208px · 가방 8열.
+  assert.match(rule(modalCss, '.equipment-showcase'), /height: 208px/);
+  assert.match(rule(modalCss, '.bag-grid'), /grid-template-columns: repeat\(8, minmax\(0, 1fr\)\)/);
 });
 
 // ── 일일·주간 진행 즉시 반영 ───────────────────────────────────────────────

@@ -1,6 +1,6 @@
 import { emitDomainEvent } from '../../core/domainEvents';
 import {EQUIPMENT_BAG_LIMIT,equipmentCount} from '../../game/bagCapacity';
-import { autoEquipBest, equipmentImage, expToNext, MAX_LEVEL, rarityNames, statNames, totalStats, type Item, type Save, type Slot, type Stat } from '../../game/store';
+import { autoEquipBest, equipmentImage, rarityNames, statNames, totalStats, type Item, type Save, type Slot, type Stat } from '../../game/store';
 import { isEquipment, isPouch, isStatBook, rarityRanks, salvageGold, slotNameFor, canWield, weaponJob, itemJob, advanceTutorialOnEquip, type TreasurePouch } from '../../game/items';
 import { STAT_BOOKS, isStatBookKind, statBookCounts, statBookLabel, statBookStatusText, useStatBook } from '../../game/statBooks';
 import { objectParticle, tutorialGuide } from '../../game/tutorial';
@@ -11,11 +11,9 @@ import { nextSalvageRarity, saveSalvageRarity, type SalvageRarity } from '../sal
 import { AUTO_SALVAGE_HINT } from '../autoSalvage';
 import { salvagePlusLabel, salvagePlusUnlocked, salvagePlusValues } from '../salvagePlus';
 import { canAutoEquip } from '../../game/inventory';
-import { combatPower } from '../../game/power';
 import { patchBuffSummaryMarkup } from '../../game/patchBuff';
 import { requestSalvage } from './salvageModal';
 import { equipmentPortraitPlan, renderEquipmentGlowLayers, renderEquipmentPortrait } from '../equipmentPortrait';
-import { goldMarkup } from '../currency';
 import { pouchCount } from '../../game/pouch';
 import { openPouchWindow } from './pouchModal';
 import { pouchIconMarkup } from '../pouchArt';
@@ -349,36 +347,21 @@ export function salvage(this: Interface): void {
   }
 
 /**
- * `내 정보`(장비창) — 2026-11-22 사용자 확정 **B안**(`downloads/djrpg_collab_4/04_equip_info_rework.png`).
+ * `내 정보`(장비창) — 2026-11-23 사용자·송덕진 님 양측 최종 승인 **1안**
+ * (`downloads/djrpg_equip_topline/after-390.png`).
  *
- * 위쪽 **6칸 능력치 표를 없앴다**. 남은 것은 **요약 한 줄**(`LV · 층 · EXP · 금화` + 전투력 알약)뿐이고,
- * 그 아래는 **가운데 캐릭터 + 좌우 장착 5칸씩 대칭**(`equipmentSlotColumns`)이다. 예전에는 전신 그림 옆에
- * 6칸 표를 세우고 그 아래에 2줄×5칸을 또 깔아 세로를 250px 가까이 썼는데, 이제 그 자리가 가방으로 돌아간다.
+ * 창 맨 위의 **요약 한 줄**(`LV · 층 · EXP · 금화` + `⚔ 전투력` 알약)을 **없앴다**. 그 값들은
+ * 메인 HUD가 이미 보여 주고 있어(LV 배지·층 버튼·금화·다이아·EXP 바·`⚔ 전투력` 알약) 이 창에서는 중복이었다.
+ * 머리글 바로 아래에서 **가운데 캐릭터 + 좌우 장착 5칸씩 대칭**(`equipmentSlotColumns`)이 시작하고, 없앤
+ * 26px은 장착 쇼케이스(+16px)와 가방(+10px)이 나눠 가진다(`equip.css`).
  *
  * 상세 능력치는 이 창의 일이 아니다 — 메인 HUD의 `LV` 배지를 누르면 열리는 `상세 스탯`(`statsModal.ts`)이
  * 전담한다(`hud.ts`의 `levelBadge.addEventListener('click', () => this.open('stats'))`).
  */
 export function renderEquipment(this: Interface, dialog: HTMLElement): void {
-    const save = this.world.save, stats = totalStats(save);
+    const save = this.world.save;
     // 입문 안내가 가리키는 빈 칸(투구·갑옷) — 칸 자체를 은은하게 강조한다.
     const pending = tutorialGuide(save)?.slots ?? [];
-    // ── 요약 한 줄 + 전투력 알약 ────────────────────────────────────────────
-    // 전투력 식은 `src/game/power.ts` 한 곳에 있다 — HUD·상세 스탯·층 선택의 권장 전투력과 같은 숫자를 말한다.
-    const power = combatPower(stats);
-    const topline = document.createElement('div'); topline.className = 'equip-topline';
-    const summary = document.createElement('div'); summary.className = 'equipment-summary';
-    const expPercent = save.level >= MAX_LEVEL ? 'MAX' : `${Math.floor(save.exp / expToNext(save.level) * 100)}%`;
-    // 네 칸을 **한 줄**에 둔다 — 스탯 표가 없어졌으므로 예전의 두 열 정렬(라벨 왼쪽·값 오른쪽)만 남긴다.
-    // `강화석`은 이 줄에서 뺐다(확정 시안 `04-b.png`의 네 칸은 LV·층·EXP·금화뿐): 390px 폭에서 금화 칸이
-    // 66px이라 금화+강화석을 함께 넣으면 강화석이 잘려 보인다. 강화석은 분해·던전 결과·방치 정산이 토스트로 알린다.
-    summary.innerHTML = `<span><small>LV</small><b>${save.level >= MAX_LEVEL ? `${MAX_LEVEL} MAX` : save.level}</b></span>`
-      + `<span class="is-value"><b>${save.floor}층</b></span>`
-      + `<span><small>EXP</small><b>${expPercent}</b></span>`
-      + `<span class="summary-gold">${goldMarkup(save.gold)}</span>`;
-    const powerPill = document.createElement('span'); powerPill.className = 'equip-powerpill';
-    powerPill.setAttribute('aria-label', `전투력 ${power}`);
-    powerPill.innerHTML = `<i aria-hidden="true">⚔</i><b>${power.toLocaleString('ko-KR')}</b>`;
-    topline.append(summary, powerPill);
     // ── 가운데 캐릭터 + 좌우 5칸씩 ──────────────────────────────────────────
     const showcase = document.createElement('div'); showcase.className = 'equipment-showcase';
     showcase.setAttribute('aria-label', '장착 장비 10칸');
@@ -438,7 +421,7 @@ export function renderEquipment(this: Interface, dialog: HTMLElement): void {
       return column;
     });
     showcase.append(columns[0], center, columns[1]);
-    dialog.append(topline, showcase);
+    dialog.append(showcase);
     // 시안에는 없는 줄이지만, 예전 창에 있던 두 안내를 잃지 않게 캐릭터 아래에 **얇게** 모은다
     // (스탯 표를 없앴으니 버프 줄은 "위 숫자에 들어 있다"는 말을 뺄 수 없다 — 그래서 HUD 알약과
     //  같은 문구만 남긴다). 추가옵션 줄은 상한이 걸린 실제 전투 값이라 다른 곳에 없다.
