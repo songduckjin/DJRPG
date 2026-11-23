@@ -212,7 +212,7 @@ export class CombatEngine {
     } else if (kind === 'power') {
       const point = target && Math.hypot(target.x - p.x, target.y - p.y) <= range
         ? target : { x: p.x + Math.cos(p.facing) * range * .75, y: p.y + Math.sin(p.facing) * range * .75 };
-      this.effects.push({ x: point.x, y: point.y, fromX: p.x, fromY: p.y, kind: 'power', age: 0, duration: skillDuration(kind, level), angle: p.facing });
+      this.effects.push({ x: point.x, y: point.y, kind: 'power', age: 0, duration: skillDuration(kind, level), angle: p.facing });
       this.damage(area!.radius!, attack * 5.5 * damageScale, p.facing, Math.PI, 24, 0, p, 1);
     } else if (kind === 'destroy') {
       this.effects.push({ x: p.x, y: p.y, kind: 'destroy', age: 0, duration: skillDuration(kind, level), angle: p.facing });

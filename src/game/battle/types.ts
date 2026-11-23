@@ -43,8 +43,6 @@ export type Effect = { x: number; y: number; kind: 'slash' | 'slash2' | 'spin' |
   hits?: number;
   /** 궁수 화살·화살비처럼 날아가서 맞는 이펙트의 도착지점과 위력(작업 157). */
   tx?: number; ty?: number; radius?: number; targets?: number; slow?: number; variant?: ArrowVariant; fired?: boolean;
-  /** 파워 스트라이크 검격이 시작된 시전자의 위치. */
-  fromX?: number; fromY?: number;
   /** 화살이 쫓아가는 적(살아 있는 동안 도착지를 갱신한다). 없으면 발사 시점의 지점으로 날아간다. */
   aim?: Enemy;
   /** 발사까지 머무는 시간(초, 작업 216) — 파이어 볼트 화염구가 머리 위에 떠 있다가 날아간다.
