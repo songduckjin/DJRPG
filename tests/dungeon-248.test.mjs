@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import './ts-loader.mjs';
 
-// 작업 248 — 던전 몹·보스 공격력 정상화, 5% 고정 드롭, 보스 확정 2개, 10층 구간 등급 확률, 결과창 정리.
+// 작업 248 — 던전 몹·보스 공격력 정상화, 전 층 고정 드롭(아이템 드롭 B안으로 0.5%), 보스 확정 1개, 10층 구간 등급 확률, 결과창 정리.
 const items = await import('../src/game/items.ts');
 const world = await import('../src/game/world.ts');
 const bossLoot = await import('../src/game/bossLoot.ts');
@@ -37,11 +37,11 @@ test('던전 적 피해는 필드 2×층 공격력을 쓴다 — 군집 배율 �
   assert.doesNotMatch(verify, /enemyHitDamage/, '서버가 피해 식을 따로 갖고 있지 않다');
 });
 
-test('던전 일반 몹 드롭률은 모든 층 5% 고정이다(작업 248)', () => {
-  assert.equal(battle.DUNGEON_DROP_CHANCE_BASE, .05);
+test('던전 일반 몹 드롭률은 모든 층 0.5% 고정이다(아이템 드롭 B안 2026-11-23)', () => {
+  assert.equal(battle.DUNGEON_DROP_CHANCE_BASE, .005);
   assert.equal(battle.DUNGEON_DROP_CHANCE_STEP, 0);
-  assert.equal(battle.DUNGEON_DROP_CHANCE_MAX, .05);
-  for (let floor = 1; floor <= 10; floor++) assert.equal(battle.dungeonDropChance(floor), .05, `${floor}층`);
+  assert.equal(battle.DUNGEON_DROP_CHANCE_MAX, .005);
+  for (let floor = 1; floor <= 10; floor++) assert.equal(battle.dungeonDropChance(floor), .005, `${floor}층`);
 });
 
 test('던전 몹 HP는 필드 2×층 곡선이다 — 5~10층은 밸런스 v2에서 함께 내려갔다', () => {
@@ -50,10 +50,10 @@ test('던전 몹 HP는 필드 2×층 곡선이다 — 5~10층은 밸런스 v2에
   for (let floor = 1; floor <= 10; floor++) assert.equal(battle.DUNGEON_MOB_HP[floor - 1], world.enemyMaxHp(floor * 2, false), `${floor}층`);
 });
 
-test('던전 보스는 아이템 2개를 확정으로 떨어뜨린다(작업 248)', () => {
-  assert.equal(bossLoot.BOSS_ITEM_DROPS, 2);
-  assert.equal(bossLoot.bossItems(5).length, 2);
-  assert.equal(bossLoot.bossItems(10).length, 2);
+test('던전 보스는 아이템 1개를 확정으로 떨어뜨린다(아이템 드롭 B안 2026-11-23)', () => {
+  assert.equal(bossLoot.BOSS_ITEM_DROPS, 1);
+  assert.equal(bossLoot.bossItems(5).length, 1);
+  assert.equal(bossLoot.bossItems(10).length, 1);
 });
 
 test('등급 확률은 10층 구간마다 상위 등급이 두터워진다(작업 248)', () => {
@@ -122,16 +122,16 @@ test('결과창은 등급색·등급 이름·장비 먼저/영구 스탯북 묶�
     assert.match(css, new RegExp(`\\.dungeon-result-items li\\.rarity-${rarity}\\{`), `${rarity} 색`);
   }
   assert.match(css, /\.dungeon-result-grade\{/);
-  assert.match(markup.dungeonPrizePanel(10, true), /랜덤 장비 2개\(보스 확률로 영구 스탯북\)/);
+  assert.match(markup.dungeonPrizePanel(10, true), /랜덤 장비 1개\(보스 확률로 영구 스탯북\)/);
 });
 
-test('보스 확정 2개는 던전 5·10층에서 실제로 두 개가 떨어진다(작업 248)', () => {
+test('보스 확정 1개는 던전 5·10층에서 실제로 하나가 떨어진다(아이템 드롭 B안 2026-11-23)', () => {
   const battleSave = freshSave();
   battleSave.equipment.weapon = gear('weapon');
   const floor = new battle.DungeonBattle(battleSave, 5);
   const boss = floor.world.enemies[0];
   assert(boss.boss);
   floor.world.kill(boss);
-  assert.equal(floor.world.loot.filter(entry => entry.kind === 'item').length, 2);
+  assert.equal(floor.world.loot.filter(entry => entry.kind === 'item').length, 1);
   assert.equal(floor.world.loot.filter(entry => entry.kind === 'gold').length, bossLoot.BOSS_GOLD_PILES);
 });

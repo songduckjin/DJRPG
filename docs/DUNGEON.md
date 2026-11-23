@@ -22,10 +22,10 @@
 - **기록의 주인은 세이브**: `submit`은 클라이언트가 보낸 층이 아니라 계정 세이브의 `dungeonFloor`를 서버가 다시 읽어 적는다. 최고층은 오르기만 하고 같은 층은 처음 기록 시각을 유지한다.
 - **저장 선행**: `dungeonLive.submit`은 `sync.flush()`로 진행을 먼저 저장한 뒤 요약을 보낸다. 전송 실패 요약은 `rememberClear`가 들고 있다가 순위 탭 재전송에 그대로 쓴다.
 - **전투 중 저장 금지**: 던전 안에서는 필드 자동 사냥·자동 등반이 꺼진 사본(`structuredClone`)으로 싸운다. 실제 `Save`는 클리어 보상 시점에만 바뀐다.
-- **던전 보스**: 5층·10층. 보스 아이템은 `BOSS_ITEM_DROPS`(2개)·`rollBossItem`(던전 전용). 메인 필드 보스와 표가 다르다 — `docs/FIELD_OFFLINE.md`.
+- **던전 보스**: 5층·10층. 보스 아이템은 `BOSS_ITEM_DROPS`(1개, 아이템 드롭 B안 2026-11-23)·`rollBossItem`(던전 전용). 메인 필드 보스와 표가 다르다 — `docs/FIELD_OFFLINE.md`.
 - **적 피해**: `dungeonHitDamage(층, 보스, 방어, 정예)` = `enemyHitDamage(층, …)` (작업 254에서 층×2 → 층×1, 사용자 확정) × (정예 2배). 최대 체력 % 상한은 없다.
 - **적 사거리**: 필드와 같은 `ENEMY_ATTACK_RANGE`(90)·`ENEMY_STOP_RANGE`(60). 36·27 같은 접촉 거리 상수를 되살리지 않는다.
-- **층 등급표**: `dungeonRarityFor`·`DUNGEON_RARITY_TIERS`(1~10층)·`DUNGEON_BOSS_RARITY_TIERS`. 드롭률 `DUNGEON_DROP_CHANCE_*` 5% 고정.
+- **층 등급표**: `dungeonRarityFor`·`DUNGEON_RARITY_TIERS`(1~10층)·`DUNGEON_BOSS_RARITY_TIERS`. 드롭률 `DUNGEON_DROP_CHANCE_*` 0.5% 고정(아이템 드롭 B안 2026-11-23, 직전 5%의 1/10).
 - **게스트**: `list`만 가능, `submit`은 `GUEST_READ_ONLY`(403). 10층 뒤는 `11층 Coming Soon`.
 - **히어로 이동**: 던전도 필드와 같은 규칙으로 가장 가까운 적을 향해 `stopRange`까지 걷는다(작업 248에서 중앙 고정을 없앴다). `nearest()`에 임의 상한을 두지 않는다.
 

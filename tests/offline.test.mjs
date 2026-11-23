@@ -65,21 +65,21 @@ test('offline kill rate is 60 × min(내 처치력, 젠) × 0.7 — 접속과 �
   assert(offlineKillsPerMinute(freshSave()) >= offlineKillsPerMinute(low));
 });
 
-test('아이템 드롭률 — 접속은 층별 계수(1층 0.242% → 20층 0.153% → 34층+ 0.144%), 보스 4%, 방치는 일반 0.30%', () => {
+test('아이템 드롭률 — 접속은 층별 계수(1층 0.0242% → 20층 0.0153% → 34층+ 0.0144%), 보스 0.4%, 방치는 일반 0.030%', () => {
   const round = value => Math.round(value * 1e6) / 1e6;
-  assert.equal(round(itemDropChance(1, false)), .002418);
-  assert.equal(round(itemDropChance(20, false)), .001529, '층이 깊을수록 낮아진다');
-  assert.equal(round(itemDropChance(40, false)), round(.0039 * .37));
-  assert.equal(itemDropChance(1, true), .04);
-  assert.equal(itemDropChance(20, true), .04);
-  // 방치 사냥은 같은 자리의 `offlineDropChance` — 일반 0.30%, 보스는 같다.
-  assert.equal(offlineDropChance(1, false), .003);
-  assert.equal(offlineDropChance(20, false), .003);
-  assert.equal(offlineDropChance(1, true), .04);
+  assert.equal(round(itemDropChance(1, false)), .000242);
+  assert.equal(round(itemDropChance(20, false)), .000153, '층이 깊을수록 낮아진다');
+  assert.equal(round(itemDropChance(40, false)), round(.00039 * .37));
+  assert.equal(itemDropChance(1, true), .004);
+  assert.equal(itemDropChance(20, true), .004);
+  // 방치 사냥은 같은 자리의 `offlineDropChance` — 일반 0.030%, 보스는 같다.
+  assert.equal(offlineDropChance(1, false), .0003);
+  assert.equal(offlineDropChance(20, false), .0003);
+  assert.equal(offlineDropChance(1, true), .004);
   // 파트 B: 스킬북이 폐지되어 70:30 분기가 없다 — 한 번 굴린 드롭은 곧 장비 하나다.
   // 영구 스탯북은 `src/game/statBooks.ts`의 개극악 확률을 **따로** 한 번 더 굴린다.
-  assert.equal(round(equipmentDropChance(1, false)), round(.002418));
-  assert.equal(round(equipmentDropChance(20, true)), .04);
+  assert.equal(round(equipmentDropChance(1, false)), round(.000242));
+  assert.equal(round(equipmentDropChance(20, true)), .004);
 });
 
 test('아래층 오프라인 정산에는 보스 몫(보스 처치·보스 금화)이 들어가지 않는다(작업 210)', () => {

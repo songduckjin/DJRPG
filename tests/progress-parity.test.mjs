@@ -26,28 +26,31 @@ const { PARITY_SCENARIOS, recordScenarios } = await import('./progress-parity-sc
 const EXPECTED = {
   // 파트 B(2026-11-22): 스킬북 폐지로 드롭 구성이 바뀌고, 영구 스탯북 확률 굴림이 난수 스트림에 한 번 더
   // 들어간다 — 같은 시드의 진행 결과가 그만큼 달라진다(그 차이가 아래 값이다).
+  // 아이템 드롭 B안(2026-11-23, 덕진 님 확정): 네 지점 드롭률을 1/10로 내렸다. 드롭 성공 횟수가
+  // 바뀌면 같은 시드라도 그 뒤의 난수 순서가 달라져(드롭 1건마다 등급·강화·추가옵션을 더 굴린다)
+  // 전투 중 판정이 갈리고, 자동 장착되는 장비도 달라진다 — 그래서 60초 시나리오의 처치 수·체력·가방이
+  // 조금씩 다르다. 층·금화 식은 그대로다. 방치 12시간은 아이템 40 → 26개, 놓친 몫 253 → 0.
   'field-boss-win': {
     gold: 1702, exp: 1160, level: 10, floor: 7, maxFloor: 7, floorKills: 65, kills: 66, bossKills: 1,
-    playSeconds: 59.999999999997875, stones: 3, salvageCount: 0, tutorial: 3, health: 113,
-    dungeonFloor: 0, bossRetryFloor: 0, bag: 1
+    playSeconds: 59.999999999997875, stones: 3, salvageCount: 0, tutorial: 3, health: 98,
+    dungeonFloor: 0, bossRetryFloor: 0, bag: 0
   },
   'field-boss-loss': {
-    gold: 1258, exp: 1030, level: 7, floor: 6, maxFloor: 6, floorKills: 62, kills: 62, bossKills: 0,
-    playSeconds: 59.999999999997875, stones: 3, salvageCount: 0, tutorial: 3, health: 2,
-    dungeonFloor: 0, bossRetryFloor: 6, bag: 1
+    gold: 1252, exp: 1020, level: 7, floor: 6, maxFloor: 6, floorKills: 61, kills: 61, bossKills: 0,
+    playSeconds: 59.999999999997875, stones: 3, salvageCount: 0, tutorial: 3, health: 30,
+    dungeonFloor: 0, bossRetryFloor: 6, bag: 0
   },
   'offline-12h': {
     progress: {
-      // 주머니 스택형: 같은 종류의 영구 스탯북은 한 칸에 쌓이므로 12시간 방치가 40칸에서 멈추되 **아이템 수**는
-      // 40개다(칸은 그대로 40). 진행 결과(층·금화·경험치·생존)는 종전과 같다 — 칸 규칙·드롭률만 바뀌었다.
-      // 2026-11-23 백로그 13: 스탯북 확률을 1/10(0.01% → 0.001%)로 내려 같은 12시간에 스탯북이 3개 덜 떨어졌다
-      // (아이템 43 → 40, 놓친 몫 262 → 253). 층·금화·경험치·생존 수치는 그대로다 — 확률만 내린 것이 맞다는 증거.
+      // 주머니 스택형: 같은 종류의 영구 스탯북은 한 칸에 쌓이므로 한 번에 40칸이 차면 가방이 멈춘다.
+      // 아이템 드롭 B안(2026-11-23): 접속·방치 드롭률이 1/10이 되어 12시간 방치 아이템이 40 → **26개**이고,
+      // 가방 40칸이 차지 않아 놓친 몫은 **0**이다(직전 253). 층·금화·경험치·생존 수치는 그대로다.
       gold: 875260, exp: 80971, level: 18, floor: 15, maxFloor: 15, floorKills: 408, kills: 96672, bossKills: 5,
-      playSeconds: 0, stones: 12, salvageCount: 0, tutorial: 3, health: 344, dungeonFloor: 0, bossRetryFloor: 15, bag: 40
+      playSeconds: 0, stones: 12, salvageCount: 0, tutorial: 3, health: 344, dungeonFloor: 0, bossRetryFloor: 15, bag: 26
     },
     reward: {
       seconds: 43200, kills: 96672, exp: 1158971, gold: 871470, levels: 3, startFloor: 8, endFloor: 15,
-      bossKills: 5, deaths: 121, items: 40, missedDrops: 253, salvaged: { count: 0, gold: 0, stones: 0 }
+      bossKills: 5, deaths: 121, items: 26, missedDrops: 0, salvaged: { count: 0, gold: 0, stones: 0 }
     }
   },
   'dungeon-1-clear': {
@@ -66,7 +69,7 @@ const EXPECTED = {
       playSeconds: 1.4499999999999997, stones: 3, salvageCount: 0, tutorial: 3, health: 64,
       dungeonFloor: 0, bossRetryFloor: 0, bag: 0
     },
-    slain: 1, lootGold: 350, lootItems: 2
+    slain: 1, lootGold: 350, lootItems: 1
   },
   'dungeon-5-boss-death': {
     summary: { won: false, steps: 82, seconds: 1.4, heroHp: 0, heroHpMax: 248, enemyHp: 6247, slain: 0, digest: '3ad8091c' },
@@ -79,11 +82,11 @@ const EXPECTED = {
   },
   'dungeon-5-claim': {
     cleared: true,
-    receipt: { floor: 5, firstClear: true, gold: 350, stones: 35, items: 2, missed: 0, salvaged: { count: 0, gold: 0, stones: 0 } },
+    receipt: { floor: 5, firstClear: true, gold: 350, stones: 35, items: 1, missed: 0, salvaged: { count: 0, gold: 0, stones: 0 } },
     progress: {
       gold: 1250, exp: 400, level: 25, floor: 6, maxFloor: 6, floorKills: 200, kills: 0, bossKills: 0,
       playSeconds: 0, stones: 38, salvageCount: 0, tutorial: 3, health: 900, dungeonFloor: 4,
-      bossRetryFloor: 0, bag: 2
+      bossRetryFloor: 0, bag: 1
     }
   }
 };
