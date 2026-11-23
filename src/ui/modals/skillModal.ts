@@ -25,11 +25,14 @@ export function renderSkills(this: Interface, dialog: HTMLElement): void {
   // 고른 스킬은 창을 닫기 전까지 살아 있고, 없으면 장착 중 → 습득 → 첫 노드 순으로 잡는다.
   const selection = resolveSkillSelection(save, job, this.skillSelected);
   this.skillSelected = selection;
+  const tree = skillTreePanel(this, save, job, selection);
   dialog.append(
     skillTopBar(this),
-    skillTreePanel(this, save, job, selection),
+    tree,
     skillDetailPanel(this, save, selection)
   );
+  // 새 패널이 레이아웃에 붙기 전 scrollTop을 쓰면 브라우저가 최대 스크롤 0으로 잘라 버린다.
+  tree.scrollTop = this.skillScroll;
   // 창틀(`modalChrome`)이 만든 머리글에 버튼을 끼운다 — 제목과 `×` 사이, 시안대로 오른쪽에 붙는다.
   const header = dialog.querySelector<HTMLElement>('header');
   const close = header?.querySelector<HTMLElement>('.modal-close');

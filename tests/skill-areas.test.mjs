@@ -1,0 +1,97 @@
+import './ts-loader.mjs';
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+const { allSkillIds, allPassiveIds, skillRange } = await import('../src/game/skills.ts');
+const { SKILL_AREAS, PASSIVE_AREAS, skillArea, projectedAreaRadii } = await import('../src/game/battle/skillAreas.ts');
+const { targetsInArc } = await import('../src/game/battle/targeting.ts');
+const { CombatEngine } = await import('../src/game/combat/engine.ts');
+const { freshSave, totalStats } = await import('../src/game/store.ts');
+const engine = readFileSync(new URL('../src/game/combat/engine.ts', import.meta.url), 'utf8');
+const vfx = readFileSync(new URL('../src/game/render/vfx.ts', import.meta.url), 'utf8');
+
+test('액티브 24종과 패시브 9종이 공용 범위 표에 빠짐없이 있다', () => {
+  assert.equal(allSkillIds.length, 24); assert.equal(allPassiveIds.length, 9);
+  assert.deepEqual(Object.keys(SKILL_AREAS).sort(), [...allSkillIds].sort());
+  assert.deepEqual(Object.keys(PASSIVE_AREAS).sort(), [...allPassiveIds].sort());
+  for (const id of allSkillIds) for (const level of [1, 10]) {
+    const area = skillArea(id, level);
+    assert.equal(area.range, skillRange(id, level));
+    assert(area.radius >= 0 && area.duration > 0);
+  }
+});
+
+test('판정 엔진과 VFX가 같은 스킬 범위 규격을 읽는다', () => {
+  assert.match(engine, /skillArea\(/);
+  assert.match(vfx, /skillArea\(/);
+  assert.doesNotMatch(engine, /this\.damage\(92\b|radius: (96|110)\b|effect\.radius \?\? (96|150)\b/);
+  assert.doesNotMatch(vfx, /\(effect\.radius \?\? (96|150)\) \* \.86|92 \* \.86/);
+});
+
+test('부채꼴 경계 안쪽은 맞고 바깥쪽은 맞지 않는다', () => {
+  const origin = { x: 0, y: 0 };
+  for (const id of ['slash2', 'slam', 'power', 'destroy']) {
+    const { radius, arc } = skillArea(id, 1);
+    const inside = { x: radius - .01, y: 0 };
+    const outside = { x: radius + .01, y: 0 };
+    assert.equal(targetsInArc(origin, radius, 0, arc, [inside]).length, 1, id);
+    assert.equal(targetsInArc(origin, radius, 0, arc, [outside]).length, 0, id);
+    const beyondAngle = { x: Math.cos(arc + .001) * (radius - 1), y: Math.sin(arc + .001) * (radius - 1) };
+    assert.equal(targetsInArc(origin, radius, 0, arc, [beyondAngle]).length, 0, id);
+  }
+});
+
+test('세 직업 대표 6종의 표시 반경이 판정 반경과 같다', () => {
+  for (const id of ['slash2', 'hell', 'arrowRain', 'pierceShot', 'manaBurst', 'frostNova']) {
+    const area = skillArea(id, 1);
+    const visualRadius = area.kind === 'projectile' ? area.projectileRadius : area.radius;
+    assert(visualRadius > 0, id);
+    const projected = projectedAreaRadii(visualRadius);
+    assert(Math.abs(projected.x - visualRadius * Math.SQRT2 * .86) < 1e-9, id);
+    assert(Math.abs(projected.y - visualRadius * Math.SQRT2 * .43) < 1e-9, id);
+  }
+  assert.match(vfx, /projectedAreaRadii\(/);
+  assert.match(vfx, /drawArrowRain[\s\S]*?skillArea\('arrowRain'/);
+  assert.match(vfx, /drawBurst[\s\S]*?skillArea\(/);
+  assert.match(vfx, /drawNova[\s\S]*?skillArea\(/);
+});
+
+test('투사체 착탄 피드백은 실제 판정 반경을 전달하고 스킬 재시전으로 취급하지 않는다', async () => {
+  const save = freshSave();
+  save.job = 'archer'; save.learned = ['doubleShot']; save.quickSlots = ['doubleShot', null, null];
+  const world = new CombatEngine(save);
+  world.enemies = [{ x: 70, y: 0, hp: 100000, maxHp: 100000, boss: false, hit: 0, step: 0, moving: false, knockX: 0, knockY: 0, slow: 0 }];
+  world.action('doubleShot');
+  let impacts = [];
+  for (let i = 0; i < 30 && impacts.length === 0; i++) {
+    world.update(.05);
+    impacts = world.effects.filter(effect => effect.kind === 'impactArea');
+  }
+  assert(impacts.length > 0);
+  assert(impacts.every(effect => effect.radius === skillArea('doubleShot', 1).projectileRadius));
+  const { SkillFeedback } = await import('../src/ui/skillFeedback.ts');
+  assert.equal(new SkillFeedback().collect(impacts).size, 0);
+});
+
+test('패시브 9종 모두 실전 능력치에 반영된다', () => {
+  for (const [job, ids] of [['warrior', ['mastery', 'body', 'instinct']], ['archer', ['bowMastery', 'swiftStep', 'hawkSight']], ['mage', ['staffMastery', 'manaCircuit', 'arcaneSense']]]) {
+    const save = freshSave(); save.job = job;
+    const base = totalStats(save);
+    for (const id of ids) {
+      save.passives = [id];
+      const stats = totalStats(save);
+      assert(['attack', 'defense', 'health', 'crit', 'speed'].some(key => stats[key] > base[key]), `${job}: ${id}`);
+    }
+  }
+});
+
+test('다수 몹의 장식 이펙트만 160개로 제한하고 판정 대기는 보존한다', () => {
+  const world = new CombatEngine(freshSave());
+  world.effects = Array.from({ length: 300 }, (_, index) => ({ x: index, y: 0, kind: 'hit', age: 0, duration: 1, angle: 0 }));
+  world.effects.push({ x: 0, y: 0, kind: 'slash2', age: 0, duration: 1, angle: 0, nextHit: .5, level: 1 });
+  world.tickEffects(.016);
+  const hits = world.effects.filter(effect => effect.kind === 'hit');
+  assert.equal(hits.length, 160);
+  assert.equal(hits[0].x, 140, '오래된 장식부터 버린다');
+  assert(world.effects.some(effect => effect.kind === 'slash2' && effect.nextHit === .5));
+});

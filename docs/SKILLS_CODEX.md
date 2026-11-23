@@ -7,6 +7,7 @@
 | 역할 | 파일 |
 |---|---|
 | **스킬 트리 데이터·판정·투자/초기화** | `src/game/skillTree.ts`(`skillTreeFor`·`buildSkillTree`·`skillNodeStatus`·`investSkillPoint`·`resetSkillTree`·`skillValueRows`·`TIER_SHAPE`·`TIER_GATE`) |
+| **스킬 타격 범위 공용 규격** | `src/game/battle/skillAreas.ts`(`SKILL_AREAS`·`PASSIVE_AREAS`·`skillArea`·`projectedAreaRadii`) — `combat/engine.ts`와 `render/vfx.ts`가 공유 |
 | **SP 회계(클라·서버 공용)** | `src/game/skillPoints.ts`(`SP_PER_LEVEL`·`spTotal`·`spSpent`·`spLedger`) |
 | 스킬 트리 화면 | `src/ui/modals/skillModal.ts`(세 칸 조립)·`src/ui/skillTreeView.ts`(상단 바·트리·상세 패널)·`src/styles/modals/skill.css` |
 | 스킬·패시브 정의, 직업별 순서·레벨 | `src/game/skills.ts` (`jobs`·`skillOrderFor`·`passiveOrderFor`·`skillDuration`·`canLearn`·`MAX_SKILL_LEVEL`) |
@@ -21,6 +22,7 @@
 ## 불변 규칙
 
 - **직업 3종**: 전사·궁수·마법사. 직업별 액티브 8 + 패시브 3 = 11종, 전체 스킬북 33종.
+- **타격 범위**: `skillArea(id, level)`이 시전 거리(`skillRange`)와 피해 반경·각도·투사체 착탄 반경을 한 곳에서 준다. 원형 바닥 표시는 월드 반경을 아이소 투영(`projectedAreaRadii`)해 그린다. 투사체는 도착 뒤 같은 반경의 바닥 피드백을 낸다. 장식 이펙트는 타격 판정에 영향을 주지 않고 최근 160개로 제한한다. 모션 감소 설정에서는 장식 입자를 줄인다.
 - **스킬 ID 2중 정의**: Functions는 TS를 실행할 수 없으므로 `server/skill-ids.mjs`에 같은 목록이 있다. **스킬을 더하면 두 파일을 함께 고친다.** 이름·순서·ID가 어긋나면 `skillbook-server` 테스트가 실패한다(2026-11-21 정리에서 `hell` 서버 이름을 `회전참격`으로 맞췄다).
 - **읽기 목록은 액티브+패시브 전부**: `items.ts` `migrateItem`의 `skillBookReadIds`는 `allSkillIds`(액티브) + `allPassiveIds`(패시브 9종)다. 패시브를 빼면 방치 보상·드롭으로 받은 패시브 스킬북이 세이브를 읽을 때 사라진다(작업 255).
 - **레벨 잠금 없음**: `canLearn`은 항상 참. `skills[].level`은 순서 표기용이며 트리 티어와는 무관하다. **최대 스킬 레벨 10**(4단계 스킬 트리).
@@ -51,6 +53,7 @@
 - **머리글 `⚡ 추천 장착`**(스킬 추천 자동 장착 A안): `×` 왼쪽의 금빛 알약 버튼을 누르면 창을 닫지 않고 `autoEquipRecommendedSkills`가 퀵슬롯을 채운다. 대상은 **습득한 액티브** 중 `skillDps` 상위 3개이고, **이미 꽂힌 추천 스킬은 그 원에 그대로** 두며 남은 추천은 **빈 원 → 추천 밖 스킬이 있는 원** 순서로 들어간다. 결과는 `world.onChange()`(저장·HUD·트리 배지 재렌더) 뒤 토스트 `추천 조합 N개 장착 완료 · 2번 원 → 블러드 레이지`로 알린다. 습득이 없거나 추천 조합이 이미 다 꽂혀 있으면(순서가 달라도) 세이브를 건드리지 않고 안내만 한다. 다른 스킬 조작과 같은 잠금 가드(`world.paused`·`market.busy`·`sync.locked`)를 지난다.
 - **배치 3-3-3-2**: 1티어 = 액티브1·액티브2·패시브1, 2티어 = 액티브3·액티브4·패시브2, 3티어 = 액티브5·액티브6·패시브3, 4티어(궁극) = 액티브7·액티브8. 배치표는 `skillTree.ts`의 `TIER_PLAN` 한 곳이고, 스킬을 더하면 `skills.ts`의 순서 배열에 한 칸만 더한다(남는 스킬은 4티어 뒤에 붙는다 — 개수를 박지 않는다).
 - **선행 조건 = 같은 자리(lane)의 앞 티어**: 2티어는 1티어 Lv.1 + 누적 3pt, 3티어는 2티어 Lv.2 + 누적 12pt, 궁극은 3티어 Lv.3 + 누적 36pt(`TIER_GATE`). 연결선은 `prerequisites`에서 그대로 만들어진다(`skillTreeEdges`).
+- **티어 조건 표시**: 트리의 각 2~4티어 왼쪽에 바로 위 스킬의 필요 레벨과 `투자 현재/필요 SP`를 표시한다. 개별 잠금 노드를 누르면 아래 상세의 선행 조건에 스킬 이름과 충족 여부가 나온다. 선택·투자 후 트리를 다시 그릴 때 스크롤은 새 패널을 창에 붙인 뒤 복원하며, 분리된 옛 패널의 늦은 스크롤 이벤트는 무시한다.
 - **SP는 레벨에서 파생된다**(`skillPoints.ts`): `level당 3pt`이고 **Lv.1부터 3pt**다(첫 스킬 Lv.1 무료 지급분 1pt는 총량에서 상쇄). 만렙 30 = 90pt, 여기에 `스킬의 서`(영구 SP +1, 최대 30권)를 더할 수 있다 — 11종을 모두 Lv.10으로 올리는 110pt에 모자라 빌드를 고른다. `save.skillPoints`는 그 장부의 사본이고 `parseSave`·투자·초기화·스탯북 사용 뒤에 맞춰진다.
 - **투자 1회 = 1랭크**: 미습득이면 Lv.1로 습득, 배웠으면 한 랭크 오른다. 랭크 하나에 SP 1, 최대 Lv.10.
 - **초기화는 무료**(테스트 서버 기간): 첫 액티브 1랭크만 남기고 모든 랭크·습득을 되돌려 SP 전액 환급하고, 사라진 스킬은 퀵슬롯에서도 뺀다(`normalizeQuickSlots`). 비용을 붙일 때는 `skillsResetCost`(금화·다이아)에 값만 채운다.
@@ -67,7 +70,9 @@
 
 ## 테스트
 
-`node --test tests/skill-tree.test.mjs tests/skill-progression.test.mjs tests/skillbook-server.test.mjs tests/skillbook-synth.test.mjs tests/loadout.test.mjs tests/skill-auto-loadout.test.mjs tests/skill-ui.test.mjs tests/skill-modal-ui.test.mjs tests/skill-auto-upgrade.test.mjs tests/skill-feedback.test.mjs tests/skillbook-art.test.mjs tests/codex.test.mjs tests/codex-ui.test.mjs tests/achievements.test.mjs`
+`node --test tests/skill-areas.test.mjs tests/skill-double-slash.test.mjs tests/skill-whirl-slash.test.mjs tests/skill-feedback.test.mjs tests/range.test.mjs tests/enemy-range-90.test.mjs tests/combat-field-split.test.mjs tests/dungeon-battle.test.mjs`
+
+기존 스킬 트리·도감 검증: `node --test tests/skill-tree.test.mjs tests/skill-progression.test.mjs tests/skillbook-server.test.mjs tests/skillbook-synth.test.mjs tests/loadout.test.mjs tests/skill-auto-loadout.test.mjs tests/skill-ui.test.mjs tests/skill-modal-ui.test.mjs tests/skill-auto-upgrade.test.mjs tests/skillbook-art.test.mjs tests/codex.test.mjs tests/codex-ui.test.mjs tests/achievements.test.mjs`
 
 ## 관련 매뉴얼
 
