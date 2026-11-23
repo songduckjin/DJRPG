@@ -112,6 +112,15 @@
 .modal-dialog.skills-modal > header { top: -14px; }
 .modal-dialog.skills-modal > header h2, .modal-dialog.market-modal > header h2 { margin: 0; }
 .modal-dialog.skills-modal > header .modal-close, .modal-dialog.market-modal > header .modal-close { width: 44px; height: 44px; flex: none; }
+/* ── 머리글 `⚡ 추천 장착` (스킬 추천 자동 장착 A안) ──────────────────────────
+   제목과 `×` 사이 오른쪽에 붙는 금빛 알약 버튼. `margin-left: auto`가 남는 폭을 모두 가져가
+   제목은 왼쪽, 버튼과 `×`는 오른쪽에 나란히 선다(시안 `01-a.png`). */
+.skill-suggest-btn { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 4px; margin-left: auto; margin-right: 2px; min-height: 30px; padding: 0 11px; border: 1px solid #e8c07a; border-radius: 999px; background: linear-gradient(#f2cd86, #b8842f); color: #2a1a08; font: inherit; font-size: 11.5px; font-weight: 800; letter-spacing: -.2px; white-space: nowrap; box-shadow: 0 0 10px #e8b64a66, inset 0 1px 0 #fff2cf; cursor: pointer; }
+.skill-suggest-btn i { font-style: normal; font-size: 12px; line-height: 1; }
+.skill-suggest-btn:hover { border-color: #ffe4b0; background: linear-gradient(#f8dda2, #c9922f); box-shadow: 0 0 12px #f0c46e99, inset 0 1px 0 #fff6e2; }
+.skill-suggest-btn:active { background: linear-gradient(#dfb46f, #a1711f); box-shadow: inset 0 1px 3px #00000055; }
+.skill-suggest-btn:focus-visible { outline: 2px solid #ffe4b0; outline-offset: 2px; }
+@media (max-width: 360px) { .skill-suggest-btn { padding: 0 8px; font-size: 10.5px; } }
 .skillbook-use { min-height: 36px; padding: 7px 18px; border: 1px solid #b58b52; border-radius: 4px; background: linear-gradient(#65472d, #372521); color: #f8dfb3; box-shadow: inset 0 1px #d6b87930; font: inherit; font-size: 12px; }
 .skillbook-use:focus-visible { outline: 2px solid #f1ca85; outline-offset: 2px; }
 .skillbook-use:active { background: #755235; }

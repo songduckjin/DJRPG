@@ -3,7 +3,7 @@
  *
  * `document.createElement`가 돌려주는 것처럼 보이는 객체 하나에 이 파일이 쓰는 만큼만 담았다:
  * `className`·`textContent`·`title`·`disabled`·`hidden`·`attrs`·`dataset`·`style`·`children`,
- * `classList`(add/remove/toggle/contains), `append`/`appendChild`/`remove`/`focus`,
+ * `classList`(add/remove/toggle/contains), `append`/`appendChild`/`insertBefore`/`remove`/`focus`,
  * `setAttribute`(`data-*`는 `dataset`으로도), `innerHTML`(문자열만 보관), `querySelector`(클래스 하나).
  *
  * DOM을 실제로 붙이는 창(스킬·가방·우편 등)의 테스트가 이 한 벌을 함께 쓴다 — 스텁이 갈라지면
@@ -21,6 +21,13 @@ export function element(tag = 'div') {
     },
     append(...kids) { for (const kid of kids) node.appendChild(kid); },
     appendChild(kid) { if (kid && typeof kid === 'object') { kid.parentNode = node; node.children.push(kid); } return kid; },
+    insertBefore(kid, ref) {
+      if (!kid || typeof kid !== 'object') return kid;
+      const index = ref ? node.children.indexOf(ref) : -1;
+      kid.parentNode = node;
+      if (index < 0) node.children.push(kid); else node.children.splice(index, 0, kid);
+      return kid;
+    },
     setAttribute(key, value) {
       node.attrs[key] = value;
       if (key.startsWith('data-')) node.dataset[key.slice(5)] = value;
@@ -34,11 +41,12 @@ export function element(tag = 'div') {
   return node;
 }
 
-/** `.class` 하나만 다루는 querySelector — 화면 코드가 쓰는 만큼만. */
+/** `.class` 하나 또는 태그 이름 하나만 다루는 querySelector — 화면 코드가 쓰는 만큼만.
+ *  태그 이름(`querySelector('header')`)도 실제 브라우저처럼 찾도록 클래스와 함께 본다. */
 export function query(root, selector) {
-  const token = selector.replace(/^\./, '').split(/[ >]/)[0];
+  const token = selector.replace(/^[.>\s]+/, '').split(/[ >]/)[0];
   for (const child of root.children ?? []) {
-    if (String(child.className).split(/\s+/).includes(token)) return child;
+    if (child.tag === token || String(child.className).split(/\s+/).includes(token)) return child;
     const found = query(child, selector);
     if (found) return found;
   }

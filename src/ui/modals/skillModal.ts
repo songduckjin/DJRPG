@@ -8,9 +8,13 @@
  *
  * 그리기·판정은 `ui/skillTreeView.ts`가 하고, 이 파일은 세 칸을 순서대로 붙이는 일만 한다.
  * 예전 B안(2열 타일 그리드 + 스킬북 칸)은 이 창에서 빠졌다 — 스킬은 이제 스킬북이 아니라 SP로 오른다.
+ *
+ * 머리글 오른쪽(`×` 닫기 왼쪽)에는 **`⚡ 추천 장착`** 버튼이 붙는다(스킬 추천 자동 장착 A안). 누르면 창을 닫지
+ * 않고 습득한 액티브 스킬의 초당 피해 상위 3개가 퀵슬롯에 들어가고, 트리의 `장착` 배지·필드 스킬 원도 함께 갱신된다.
  */
 import type { Interface } from '../interface';
 import { jobOrDefault } from '../../game/skills';
+import { autoEquipRecommendedSkills } from '../../game/loadout';
 import { resolveSkillSelection, skillDetailPanel, skillTopBar, skillTreePanel } from '../skillTreeView';
 
 export { resolveSkillSelection } from '../skillTreeView';
@@ -26,4 +30,41 @@ export function renderSkills(this: Interface, dialog: HTMLElement): void {
     skillTreePanel(this, save, job, selection),
     skillDetailPanel(this, save, selection)
   );
+  // 창틀(`modalChrome`)이 만든 머리글에 버튼을 끼운다 — 제목과 `×` 사이, 시안대로 오른쪽에 붙는다.
+  const header = dialog.querySelector<HTMLElement>('header');
+  const close = header?.querySelector<HTMLElement>('.modal-close');
+  if (header && close) header.insertBefore(skillSuggestButton(this), close);
+}
+
+/**
+ * 머리글의 `⚡ 추천 장착` 버튼 — 한 번 누르면 추천 조합을 바로 장착하고 토스트로 결과를 알린다(A안).
+ *
+ * 다른 스킬 조작과 같은 잠금 가드(사냥 일시정지·거래소 작업·동기화)를 먼저 지나고, 바뀐 것이 있을 때만
+ * `world.onChange()`로 저장·HUD·이 창을 함께 다시 그린다. 습득한 스킬이 없거나 이미 추천 조합이면
+ * 세이브는 그대로 두고 안내 문구만 띄운다.
+ */
+export function skillSuggestButton(ui: Interface): HTMLElement {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'skill-suggest-btn';
+  button.setAttribute('aria-label', '추천 조합 자동 장착');
+  button.title = '습득한 스킬 중 초당 피해가 높은 3개를 스킬 원에 장착합니다';
+  const icon = document.createElement('i');
+  icon.textContent = '⚡';
+  icon.setAttribute('aria-hidden', 'true');
+  const label = document.createElement('span');
+  label.textContent = '추천 장착';
+  button.append(icon, label);
+  button.onclick = () => equipRecommendedSkills(ui);
+  return button;
+}
+
+function equipRecommendedSkills(ui: Interface): void {
+  if (ui.world.paused || ui.market.busy || ui.market.sync.locked) {
+    ui.message('동기화 중에는 스킬을 장착할 수 없습니다. 잠시 후 다시 시도하세요.');
+    return;
+  }
+  const result = autoEquipRecommendedSkills(ui.world.save);
+  if (result.changed) ui.world.onChange();
+  ui.message(result.message);
 }
