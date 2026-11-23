@@ -4,7 +4,7 @@ import { jobs, type Job, type SkillLevelId } from './skills';
 import { jobOrDefault } from './skills';
 import { isStatBookKind, statBookBonus, statBookItem, type StatBook, type StatBookKind } from './statBooks';
 import { random } from './rng';
-import { effectiveExtraOptions, extraOptionPower, normalizeExtraOptions, EXTRA_CDR_CAP, EXTRA_CRIT_CAP, EXTRA_SPEED_CAP, type ExtraOptionKey } from './extraOptions';
+import { effectiveExtraOptions, extraOptionPower, extraOptionValue, normalizeExtraOptions, EXTRA_CDR_CAP, EXTRA_CRIT_CAP, EXTRA_SPEED_CAP, type ExtraOptionKey } from './extraOptions';
 import { applyPatchBuff, patchBuffNow } from './patchBuff';
 
 function isRecord(value: unknown): value is Record<string, unknown> { return typeof value === 'object' && value !== null && !Array.isArray(value); }
@@ -872,6 +872,49 @@ export function itemPower(item: Item): number {
   return (item.stats.attack ?? 0) * 3 + (item.stats.defense ?? 0) * 2 + (item.stats.health ?? 0) * .2 + (item.stats.crit ?? 0) * 2 + (item.stats.speed ?? 0) * 2 + (item.stats.cdr ?? 0) * 6 + rarityRanks[item.rarity] * 2 + extraOptionPower(item);
 }
 
+export type EquipDelta = { slot: Slot; equipped?: EquipmentItem; score: number; stats: Record<Stat, number>; capped: string[] };
+/** 현재 캐릭터에서 한 부위만 교체했을 때의 실효 변화. 모든 추천·보호 경로가 이 결과를 쓴다. */
+export function equipDelta(save: Save, item: EquipmentItem): EquipDelta {
+  const ring = item.slot === 'ring1' || item.slot === 'ring2';
+  const ringItems = [save.equipment.ring1, save.equipment.ring2];
+  const slot: Slot = ring
+    ? (!ringItems[0] ? 'ring1' : !ringItems[1] ? 'ring2' : itemPower(ringItems[0]) <= itemPower(ringItems[1]) ? 'ring1' : 'ring2')
+    : item.slot;
+  const equipped = save.equipment[slot];
+  const before = totalStats(save);
+  const beforeOptions = effectiveExtraOptions(save.equipment);
+  const afterEquipment = { ...save.equipment, [slot]: item };
+  const after = totalStats({ ...save, equipment: afterEquipment });
+  const afterOptions = effectiveExtraOptions(afterEquipment);
+  const stats = Object.fromEntries((Object.keys(before) as Stat[]).map(key => [key, after[key] - before[key]])) as Record<Stat, number>;
+  const reference = { attack: (before.attack + after.attack) / 2, defense: (before.defense + after.defense) / 2,
+    health: (before.health + after.health) / 2, crit: (before.crit + after.crit) / 2,
+    speed: (before.speed + after.speed) / 2, cdr: (before.cdr + after.cdr) / 2 };
+  let score = stats.attack * 3 + stats.defense * 2 + stats.health * .2;
+  score += extraOptionValue('critPct', Math.max(0, stats.crit), reference) - extraOptionValue('critPct', Math.max(0, -stats.crit), reference);
+  score += extraOptionValue('speedPct', Math.max(0, stats.speed), reference) - extraOptionValue('speedPct', Math.max(0, -stats.speed), reference);
+  score += extraOptionValue('cdrPct', Math.max(0, stats.cdr), reference) - extraOptionValue('cdrPct', Math.max(0, -stats.cdr), reference);
+  for (const key of ['bonusDmgPct', 'lifestealPct', 'evasionPct', 'regenPct'] as const) {
+    const change = afterOptions[key] - beforeOptions[key];
+    score += extraOptionValue(key, Math.max(0, change), reference) - extraOptionValue(key, Math.max(0, -change), reference);
+  }
+  const capped: string[] = [];
+  for (const [key, value] of Object.entries(item.extraOptions ?? {})) {
+    if (typeof value !== 'number' || value <= 0) continue;
+    if (key in beforeOptions && afterOptions[key as ExtraOptionKey] <= beforeOptions[key as ExtraOptionKey]) capped.push(key);
+    if (!(key in beforeOptions)) score += extraOptionValue(key, value, reference);
+  }
+  return { slot, equipped, score, stats, capped };
+}
+const deltaStatNames: Record<Stat, string> = { attack: '공격', defense: '방어', health: '체력', crit: '치명', speed: '공속', cdr: '쿨감' };
+export function equipDeltaLabel(delta: EquipDelta): string {
+  const parts = (Object.keys(delta.stats) as Stat[]).filter(key => Math.abs(delta.stats[key]) > 1e-9)
+    .map(key => `${deltaStatNames[key]} ${delta.stats[key] > 0 ? '+' : ''}${Number(delta.stats[key].toFixed(1))}`);
+  if (delta.capped.length) parts.push(`${delta.capped.join(', ')} 상한`);
+  parts.push(`종합 ${delta.score > 0 ? '+' : ''}${Number(delta.score.toFixed(1))}`);
+  return parts.join(' · ');
+}
+
 /**
  * 이 장비가 **내 캐릭터에게 업그레이드인가**(작업 241, 사용자 확정 A안 `downloads/upgrade_arrow/opt_a.jpg`).
  *
@@ -887,13 +930,8 @@ export function itemPower(item: Item): number {
 export function isUpgradeForHero(save: Save, item: Item): boolean {
   if (!isEquipment(item)) return false;
   if (!canWield(item, jobOrDefault(save.job))) return false;
-  if (item.slot === 'ring1' || item.slot === 'ring2') {
-    const worn = [save.equipment.ring1, save.equipment.ring2].filter((ring): ring is EquipmentItem => !!ring && isEquipment(ring));
-    if (worn.length < 2) return true;
-    return itemPower(item) > Math.min(...worn.map(ring => itemPower(ring)));
-  }
-  const current = save.equipment[item.slot];
-  return !current || itemPower(item) > itemPower(current);
+  const delta = equipDelta(save, item);
+  return !delta.equipped || delta.score > 1e-9;
 }
 
 /**
@@ -912,13 +950,8 @@ export function isUpgradeForHero(save: Save, item: Item): boolean {
 export function isDowngradeForHero(save: Save, item: Item): boolean {
   if (!isEquipment(item)) return false;
   if (!canWield(item, jobOrDefault(save.job))) return false;
-  if (item.slot === 'ring1' || item.slot === 'ring2') {
-    const worn = [save.equipment.ring1, save.equipment.ring2].filter((ring): ring is EquipmentItem => !!ring && isEquipment(ring));
-    if (worn.length < 2) return false;
-    return itemPower(item) < Math.min(...worn.map(ring => itemPower(ring)));
-  }
-  const current = save.equipment[item.slot];
-  return !!current && itemPower(item) < itemPower(current);
+  const delta = equipDelta(save, item);
+  return !!delta.equipped && delta.score < -1e-9;
 }
 
 export function autoEquipBest(save: Save): number {
@@ -930,27 +963,33 @@ export function autoEquipBest(save: Save): number {
   for (const slot of slots.filter(slot => slot !== 'ring1' && slot !== 'ring2')) {
     const current = save.equipment[slot];
     // 다른 직업의 무기는 이 캐릭터가 입을 수 없다(작업 204) — 무기 칸 자동 장착 후보에서 뺀다.
-    const best = save.bag.filter((item): item is EquipmentItem => item.slot === slot && canWield(item, job)).sort((a, b) => itemPower(b) - itemPower(a))[0];
-    if (!best || (current && itemPower(best) <= itemPower(current))) continue;
+    const best = save.bag.filter((item): item is EquipmentItem => item.slot === slot && canWield(item, job)).sort((a, b) => equipDelta(save, b).score - equipDelta(save, a).score)[0];
+    if (!best || (current && equipDelta(save, best).score <= 1e-9)) continue;
     save.bag.splice(save.bag.findIndex(item => item.id === best.id), 1);
     if (current) save.bag.push(current);
     save.equipment[slot] = best;
     changes.push({ slot, item: best, previous: current });
     changed++;
   }
-  const ringSlots: Slot[] = ['ring1', 'ring2'];
-  const equippedRings = ringSlots.map(slot => save.equipment[slot]).filter((item): item is EquipmentItem => !!item);
-  const bagRings = save.bag.filter((item): item is EquipmentItem => isEquipment(item) && ringSlots.includes(item.slot));
-  const bestRings = [...equippedRings, ...bagRings].sort((a, b) => itemPower(b) - itemPower(a)).slice(0, 2);
-  const used = new Set(bestRings.map(item => item.id));
-  save.bag = save.bag.filter(item => !used.has(item.id));
-  for (const item of equippedRings) if (!used.has(item.id)) save.bag.push(item);
-  for (const [index, slot] of ringSlots.entries()) {
-    const next = bestRings[index];
-    const previous = save.equipment[slot];
-    if (previous?.id !== next?.id) { changed++; changes.push({ slot, item: next, previous }); }
-    if (next) save.equipment[slot] = next;
-    else delete save.equipment[slot];
+  // 두 반지 중 빈 칸을 먼저, 그 뒤에는 약한 칸을 교체한다. 매번 현재 장착 상태에서 다시 평가한다.
+  for (let index = 0; index < 2; index++) {
+    const best = save.bag.filter((item): item is EquipmentItem => isEquipment(item) && (item.slot === 'ring1' || item.slot === 'ring2'))
+      .sort((a, b) => equipDelta(save, b).score - equipDelta(save, a).score)[0];
+    if (!best) break;
+    const delta = equipDelta(save, best);
+    if (delta.equipped && delta.score <= 1e-9) break;
+    save.bag.splice(save.bag.findIndex(item => item.id === best.id), 1);
+    if (delta.equipped) save.bag.push(delta.equipped);
+    save.equipment[delta.slot] = best;
+    changes.push({ slot: delta.slot, item: best, previous: delta.equipped });
+    changed++;
+  }
+  // 기존 자동 장착 계약: 두 칸이 차면 강한 반지를 첫 칸에 둔다(아이템 자체의 slot/id는 보존).
+  if (save.equipment.ring1 && save.equipment.ring2 && itemPower(save.equipment.ring1) < itemPower(save.equipment.ring2)) {
+    const first = save.equipment.ring1, second = save.equipment.ring2;
+    save.equipment.ring1 = second; save.equipment.ring2 = first;
+    changes.push({ slot: 'ring1', item: second, previous: first }, { slot: 'ring2', item: first, previous: second });
+    changed++;
   }
   advanceTutorialOnEquip(save);
   for (const change of changes) emitDomainEvent('equipmentChanged', { save, ...change, source: 'auto' });

@@ -18,7 +18,7 @@
  * `isUpgradeForHero`와 `isDowngradeForHero`가 서로 배타적이라(같은 `itemPower`면 둘 다 아니다) 한 칸에 두
  * 화살표가 함께 붙지 않는다.
  */
-import { isDowngradeForHero, isUpgradeForHero, type Item } from '../game/items';
+import { equipDelta, equipDeltaLabel, isDowngradeForHero, isEquipment, isUpgradeForHero, type Item } from '../game/items';
 import type { Save } from '../game/store';
 
 /** 화살표 요소의 클래스 — CSS(`styles/modals.css`)와 테스트가 같은 이름을 본다. */
@@ -33,7 +33,7 @@ export const UPGRADE_ARROW_LABEL = '지금 장착한 장비보다 좋은 장비'
 /** `innerHTML`로 카드를 만드는 곳(가방·공용창고·장착 칸)에 붙일 문자열. 업그레이드가 아니면 빈 문자열. */
 export function upgradeArrowMarkup(save: Save, item: Item): string {
   return isUpgradeForHero(save, item)
-    ? `<img class="${UPGRADE_ARROW_CLASS}" src="${UPGRADE_ARROW_ART}" alt="" aria-hidden="true" title="${UPGRADE_ARROW_LABEL}" draggable="false">`
+    ? `<img class="${UPGRADE_ARROW_CLASS}" src="${UPGRADE_ARROW_ART}" alt="" aria-hidden="true" title="${UPGRADE_ARROW_LABEL}${isEquipment(item) ? ` · ${equipDeltaLabel(equipDelta(save, item))}` : ''}" draggable="false">`
     : '';
 }
 
@@ -52,7 +52,9 @@ export function upgradeArrowNode(): HTMLImageElement {
 /** 아이콘 상자(또는 카드)에 화살표를 붙인다. 붙였으면 `true` — 카드 클래스·낭독기 문구에 쓴다. */
 export function appendUpgradeArrow(host: HTMLElement, save: Save, item: Item): boolean {
   if (!isUpgradeForHero(save, item)) return false;
-  host.append(upgradeArrowNode());
+  const arrow = upgradeArrowNode();
+  if (isEquipment(item)) arrow.title = `${UPGRADE_ARROW_LABEL} · ${equipDeltaLabel(equipDelta(save, item))}`;
+  host.append(arrow);
   return true;
 }
 
@@ -68,7 +70,7 @@ export const DOWNGRADE_ARROW_LABEL = '지금 장착한 장비보다 약한 장�
 /** `innerHTML`로 카드를 만드는 곳(가방·공용창고)에 붙일 문자열. 다운그레이드가 아니면 빈 문자열. */
 export function downgradeArrowMarkup(save: Save, item: Item): string {
   return isDowngradeForHero(save, item)
-    ? `<img class="${DOWNGRADE_ARROW_CLASS}" src="${DOWNGRADE_ARROW_ART}" alt="" aria-hidden="true" title="${DOWNGRADE_ARROW_LABEL}" draggable="false">`
+    ? `<img class="${DOWNGRADE_ARROW_CLASS}" src="${DOWNGRADE_ARROW_ART}" alt="" aria-hidden="true" title="${DOWNGRADE_ARROW_LABEL}${isEquipment(item) ? ` · ${equipDeltaLabel(equipDelta(save, item))}` : ''}" draggable="false">`
     : '';
 }
 
@@ -87,6 +89,8 @@ export function downgradeArrowNode(): HTMLImageElement {
 /** 아이콘 상자(또는 카드)에 빨간 아래 화살표를 붙인다. 붙였으면 `true`. */
 export function appendDowngradeArrow(host: HTMLElement, save: Save, item: Item): boolean {
   if (!isDowngradeForHero(save, item)) return false;
-  host.append(downgradeArrowNode());
+  const arrow = downgradeArrowNode();
+  if (isEquipment(item)) arrow.title = `${DOWNGRADE_ARROW_LABEL} · ${equipDeltaLabel(equipDelta(save, item))}`;
+  host.append(arrow);
   return true;
 }

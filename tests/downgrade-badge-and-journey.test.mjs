@@ -78,7 +78,7 @@ test('빨간 화살표는 180° 뒤집은 같은 셰브론 PNG를 쓴다', () =>
   assert.match(markup, new RegExp(`class="${DOWNGRADE_ARROW_CLASS}"`));
   assert.match(markup, new RegExp(`src="${DOWNGRADE_ARROW_ART.replace(/[/.]/g, '\\$&')}"`), 'PNG 경로');
   assert.match(markup, /aria-hidden="true"/, '낭독기에는 카드 라벨로 알린다');
-  assert.match(markup, new RegExp(`title="${DOWNGRADE_ARROW_LABEL}"`));
+  assert.match(markup, new RegExp(`title="${DOWNGRADE_ARROW_LABEL} · 방어 -`));
   assert.equal(DOWNGRADE_ARROW_CLASS, 'downgrade-arrow');
   assert.equal(DOWNGRADE_ARROW_COLOR, '#f87171', '빨간색(#f87171)');
   assert.equal(DOWNGRADE_ARROW_LABEL, '지금 장착한 장비보다 약한 장비');

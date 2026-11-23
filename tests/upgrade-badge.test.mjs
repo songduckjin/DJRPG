@@ -116,7 +116,7 @@ test('화살표는 3번 슬림 셰브론 PNG를 쓴다(글자 `▲` 제거, 작�
   assert.match(markup, new RegExp(`class="${UPGRADE_ARROW_CLASS}"`));
   assert.match(markup, new RegExp(`src="${UPGRADE_ARROW_ART.replace(/[/.]/g, '\\$&')}"`), 'PNG 경로');
   assert.match(markup, /aria-hidden="true"/, '낭독기에는 카드 라벨로 알린다');
-  assert.match(markup, /title="지금 장착한 장비보다 좋은 장비"/);
+  assert.match(markup, /title="지금 장착한 장비보다 좋은 장비 · 방어 \+/);
   assert.doesNotMatch(markup, /▲/, '큰 글자 화살표는 더 이상 쓰지 않는다');
   assert.equal(upgradeArrowMarkup(save, book()), '', '스킬북은 빈 문자열');
   assert.equal(UPGRADE_ARROW_COLOR, '#34d399', '주변 발광은 초록');

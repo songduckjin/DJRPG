@@ -1,4 +1,4 @@
-import { autoEquipBest, canWield, isEquipment, itemPower, plusOf, rarityRanks, salvageGold, salvageStones, type EquipmentItem, type Item, type Rarity, type Slot } from './items';
+import { autoEquipBest, canWield, equipDelta, isEquipment, plusOf, rarityRanks, salvageGold, salvageStones, type EquipDelta, type EquipmentItem, type Item, type Rarity, type Slot } from './items';
 import { EQUIPMENT_BAG_LIMIT, equipmentCount } from './bagCapacity';
 import { jobOrDefault } from './skills';
 import type { Save } from './store';
@@ -11,7 +11,7 @@ export function canAutoEquip(save: Save): boolean {
 
 /** A piece in a salvage selection that the character would rather be wearing: the piece, the slot it
  *  belongs to, what is worn there now, and how much power it gains over that piece. */
-export type SalvageUpgrade = { item: EquipmentItem; slot: Slot; equipped: EquipmentItem; gain: number };
+export type SalvageUpgrade = { item: EquipmentItem; slot: Slot; equipped: EquipmentItem; gain: number; delta: EquipDelta };
 
 /** The pieces of a salvage selection that beat what is already worn (작업 196).
  *
@@ -22,22 +22,17 @@ export type SalvageUpgrade = { item: EquipmentItem; slot: Slot; equipped: Equipm
  *  that is the one a better ring would replace. An empty slot is not reported here: `salvagePlan`
  *  already lists it in `emptySlots`, and that warning comes first. */
 export function salvageUpgrades(save: Save, items: EquipmentItem[]): SalvageUpgrade[] {
-  const rings = (['ring1', 'ring2'] as const)
-    .map(slot => save.equipment[slot])
-    .filter((item): item is EquipmentItem => !!item);
-  // With a ring slot free there is nothing to beat — `emptySlots` covers it instead.
-  const weakestRing = rings.length < 2 ? undefined : rings.reduce((weak, item) => itemPower(item) < itemPower(weak) ? item : weak);
   const upgrades: SalvageUpgrade[] = [];
   const job = jobOrDefault(save.job);
   for (const item of items) {
     // 다른 직업의 무기는 이 캐릭터가 입을 수 없다(작업 204): 지금 장착한 무기와 비교해 '더 좋은 장비'로
     // 잡히면 안 된다. 그런 장비는 경매장·분해 대상일 뿐이다.
     if (!canWield(item, job)) continue;
-    const ring = item.slot === 'ring1' || item.slot === 'ring2';
-    const equipped = ring ? weakestRing : save.equipment[item.slot];
+    const delta = equipDelta(save, item);
+    const equipped = delta.equipped;
     if (!equipped) continue;
-    const gain = itemPower(item) - itemPower(equipped);
-    if (gain > 0) upgrades.push({ item, slot: item.slot, equipped, gain });
+    const gain = delta.score;
+    if (gain > 1e-9) upgrades.push({ item, slot: item.slot, equipped, gain, delta });
   }
   return upgrades;
 }
