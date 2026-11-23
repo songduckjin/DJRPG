@@ -15,13 +15,13 @@
  */
 
 import { random } from '../rng';
-import { dragonOrbitFactor, FIRE_BOLT_TOTAL_POWER, fireBoltCount, jobOrDefault, skillDamageScale, skillDuration, skillRange, skills, slash2Hits, slash2SwingSeconds, type Job, type SkillId } from '../skills';
+import { chainLightningCount, dragonOrbitFactor, FIRE_BOLT_TOTAL_POWER, fireBoltCount, iceBoltProfile, jobOrDefault, manaBurstFalloff, skillDamageScale, skillDuration, skillRange, skills, slash2Hits, slash2SwingSeconds, type Job, type SkillId } from '../skills';
 import { skillLevel, totalStats, type Save } from '../store';
 import { EXTRA_LIFESTEAL_HIT_CAP, EXTRA_LIFESTEAL_SECOND_CAP, EXTRA_REGEN_SECONDS, effectiveExtraOptions } from '../extraOptions';
 import type { Action, ArrowVariant, Coin, Drop, Effect, Enemy, HeroAfterimage } from '../battle/types';
 import { CRIT_CHANCE_CAP, ENEMY_ATTACK_RANGE, ENEMY_STOP_RANGE, ENEMY_STRIKE_SECONDS, WARRIOR_ATTACK_RANGE, archerAttackRange, archerStopRange, attackInterval, basicAttackPower, berserkAttackScale, berserkSpeedScale, critDamageScale, enemyHitDamage, enemyMoveSpeed, mageAttackRange, mageStopRange, swarmCount } from '../battle/formulas';
 import { aimPoint as aimPointTo, fireBoltSpots, nearestEnemy, targetsInArc, targetsInForwardBox } from '../battle/targeting';
-import { destroyTravelProgress, iceArrowSlow, multiShotPattern, skillArea } from '../battle/skillAreas';
+import { CHAIN_LIGHTNING_JUMP_RADIUS, destroyTravelProgress, iceArrowSlow, multiShotPattern, skillArea } from '../battle/skillAreas';
 import { recordPlaySeconds } from '../progress';
 import { isPatchBuffActive } from '../patchBuff';
 import { clampArenaPoint, clampFieldPoint } from './bounds';
@@ -276,13 +276,25 @@ export class CombatEngine {
       });
     } else if (kind === 'iceBolt') {
       const aim = this.aimPoint(target, range);
-      this.shoot(aim.x, aim.y, attack * 1.7 * damageScale, { speed: 720, radius: area!.projectileRadius, slow: 2.4 + (level - 1) * .06, arrow: 'frost', aim: target, source: kind });
-    } else if (kind === 'chainLightning') {
-      const aim = this.aimPoint(target, range);
-      this.shoot(aim.x, aim.y, attack * 1.25 * damageScale, { speed: 900, radius: area!.projectileRadius, targets: 3, arrow: 'chain', aim: target, source: kind });
+      const frost = iceBoltProfile(level);
+      const angle = Math.atan2(aim.y - p.y, aim.x - p.x);
+      this.effects.push({ x: p.x, y: p.y, fromX: p.x, fromY: p.y,
+        tx: p.x + Math.cos(angle) * range, ty: p.y + Math.sin(angle) * range,
+        kind: 'iceOrb', age: 0, duration: frost.orbDuration, angle, power: attack * frost.power,
+        radius: area!.projectileRadius, slow: frost.slowDuration, slowScale: frost.slowScale, level, source: kind });
+    } else if (kind === 'chainLightning' && target) {
+      const count = chainLightningCount(level), power = attack * 1.25 * damageScale;
+      this.damage(area!.projectileRadius!, power, 0, Math.PI, 8, 0, target, 1,
+        undefined, undefined, undefined, false, target);
+      const duration = count * .16 + .18;
+      this.effects.push({ x: p.x, y: p.y, tx: target.x, ty: target.y,
+        kind: 'chainArc', age: 0, duration, angle: 0, hits: 0, source: kind });
+      this.effects.push({ x: target.x, y: target.y, kind: 'chainCast', age: 0, duration,
+        angle: 0, nextHit: .14, power, radius: CHAIN_LIGHTNING_JUMP_RADIUS,
+        hits: 1, targets: count, hitEnemies: new Set([target]), level, source: kind });
     } else if (kind === 'manaBurst') {
       const aim = this.aimPoint(target, range);
-      this.effects.push({ x: aim.x, y: aim.y, kind: 'burst', age: 0, duration: area!.duration, angle: 0, nextHit: .35, power: attack * 2.5 * damageScale, radius: area!.radius, variant: 'arcane', level, source: kind });
+      this.effects.push({ x: aim.x, y: aim.y, kind: 'burst', age: 0, duration: area!.duration, angle: 0, nextHit: area!.duration * .5, power: attack * 2.8 * damageScale, radius: area!.radius, variant: 'arcane', level, source: kind });
     } else if (kind === 'frostNova') {
       // 판정은 노바 이펙트가 한 번만 낸다(발동 즉시 피해를 또 주면 두 번 들어간다).
       this.effects.push({ x: p.x, y: p.y, kind: 'nova', age: 0, duration: area!.duration, angle: 0, nextHit: .12, power: attack * 1.5 * damageScale, radius: area!.radius, slow: 2.2 + (level - 1) * .06, variant: 'frost', level, source: kind });
@@ -620,8 +632,47 @@ export class CombatEngine {
                 enemy.slowScale = Math.min(enemy.slowScale ?? 1, effect.slowScale ?? .55);
               }
               this.effects.push({ ...impact, kind: 'iceBurst', age: 0, duration: .7, angle: 0, radius });
-            } else if (effect.source) this.effects.push({ ...impact, kind: 'impactArea', age: 0, duration: .18, angle: 0, radius: effect.radius, variant: effect.variant });
+            } else if (effect.source) this.effects.push({ ...impact, kind: 'impactArea', age: 0, duration: .18, angle: 0,
+              radius: effect.radius, variant: effect.variant });
           }
+        }
+        continue;
+      }
+      if (effect.kind === 'iceOrb') {
+        const progress = Math.min(1, effect.age / effect.duration);
+        effect.x = (effect.fromX ?? effect.x) + ((effect.tx ?? effect.x) - (effect.fromX ?? effect.x)) * progress;
+        effect.y = (effect.fromY ?? effect.y) + ((effect.ty ?? effect.y) - (effect.fromY ?? effect.y)) * progress;
+        const radius = effect.radius ?? 52;
+        for (const enemy of this.enemies) if (enemy.hp > 0 && Math.hypot(enemy.x - effect.x, enemy.y - effect.y) <= radius) {
+          enemy.slow = Math.max(enemy.slow, effect.slow ?? 0);
+          enemy.slowScale = Math.min(enemy.slowScale ?? 1, effect.slowScale ?? .6);
+        }
+        const hit = nearestEnemy(effect, this.enemies.filter(enemy => enemy.hp > 0
+          && Math.hypot(enemy.x - effect.x, enemy.y - effect.y) <= 28));
+        if (hit) {
+          this.damage(28, effect.power ?? 0, effect.angle, Math.PI, 8, 0, effect, 1,
+            undefined, undefined, undefined, false, hit);
+          this.effects.push({ x: effect.x, y: effect.y, kind: 'iceBurst', age: 0, duration: .55,
+            angle: 0, radius, source: 'iceBolt' });
+          effect.age = effect.duration;
+        }
+        continue;
+      }
+      if (effect.kind === 'chainCast') {
+        while ((effect.hits ?? 0) < (effect.targets ?? 0) && effect.nextHit !== undefined && effect.age >= effect.nextHit) {
+          const candidates = this.enemies.filter(enemy => enemy.hp > 0 && !effect.hitEnemies?.has(enemy)
+            && Math.hypot(enemy.x - effect.x, enemy.y - effect.y) <= (effect.radius ?? CHAIN_LIGHTNING_JUMP_RADIUS));
+          const next = nearestEnemy(effect, candidates);
+          if (!next) { effect.nextHit = undefined; break; }
+          const from = { x: effect.x, y: effect.y };
+          effect.x = next.x; effect.y = next.y;
+          effect.hitEnemies?.add(next);
+          this.damage(12, (effect.power ?? 0) * Math.pow(.85, effect.hits ?? 1), 0, Math.PI, 6, 0,
+            next, 1, undefined, undefined, undefined, false, next);
+          this.effects.push({ ...from, tx: next.x, ty: next.y, kind: 'chainArc', age: 0,
+            duration: effect.duration - effect.age + .18, angle: 0, hits: effect.hits, source: 'chainLightning' });
+          effect.hits = (effect.hits ?? 0) + 1;
+          effect.nextHit += .14;
         }
         continue;
       }
@@ -655,7 +706,15 @@ export class CombatEngine {
         if (effect.kind === 'slam') { const area = skillArea('slam', level); this.damage(area.radius!, effect.power ?? 0, 0, Math.PI, 12, 2 + (level - 1) * .3, effect); }
         if (effect.kind === 'hell') { const area = skillArea('hell', level); this.damage(area.radius!, effect.power ?? 0, 0, area.arc ?? Math.PI, 14, 1 + (level - 1) * .2, effect); }
         if (effect.kind === 'rain') this.damage(skillArea('arrowRain', level).radius!, effect.power ?? 0, 0, Math.PI, 6, .9, effect);
-        if (effect.kind === 'burst') this.damage(effect.radius ?? skillArea(effect.variant === 'meteor' ? 'meteorStrike' : 'manaBurst', level).radius!, effect.power ?? 0, 0, Math.PI, 16, effect.slow ?? 0, effect);
+        if (effect.kind === 'burst' && effect.source === 'manaBurst') {
+          const radius = effect.radius ?? skillArea('manaBurst', level).radius!;
+          for (const enemy of [...this.enemies]) {
+            const distance = Math.hypot(enemy.x - effect.x, enemy.y - effect.y);
+            if (enemy.hp <= 0 || distance > radius) continue;
+            this.damage(radius, (effect.power ?? 0) * manaBurstFalloff(distance, radius), 0, Math.PI,
+              distance <= radius * .4 ? 18 : 8, 0, effect, 1, undefined, undefined, undefined, false, enemy);
+          }
+        } else if (effect.kind === 'burst') this.damage(effect.radius ?? skillArea('meteorStrike', level).radius!, effect.power ?? 0, 0, Math.PI, 16, effect.slow ?? 0, effect);
         if (effect.kind === 'nova') this.damage(effect.radius ?? skillArea(effect.variant === 'frost' ? 'frostNova' : 'arcaneOverlord', level).radius!, effect.power ?? 0, 0, Math.PI, 22, effect.slow ?? 0, effect);
         if (effect.kind === 'burst' || effect.kind === 'nova') effect.nextHit = undefined;
         else effect.nextHit += effect.kind === 'spin' || effect.kind === 'slam' ? .45 : .4;

@@ -29,7 +29,7 @@ const { World } = await import('../src/game/world.ts');
 // 대로 스냅샷 테스트는 시계를 버프 기간 밖에 묶는다. 버프 자체는 `tests/patch-rewards-and-buff.test.mjs`가 본다.
 const patchBuff = await import('../src/game/patchBuff.ts');
 patchBuff.setPatchBuffClock(() => patchBuff.PATCH_BUFF_START - 1);
-const { FIRE_BOLT_TOTAL_POWER, skills, skillOrderFor, passiveOrderFor, skillDamageScale } = await import('../src/game/skills.ts');
+const { FIRE_BOLT_TOTAL_POWER, iceBoltProfile, skills, skillOrderFor, passiveOrderFor, skillDamageScale } = await import('../src/game/skills.ts');
 
 const { slots, baseItems, gearStats, applyPlus, maxPlusFor, totalStats, statNames, rarityScales, tierFactor, slotProfileFor } = items;
 const levelFor = floor => Math.min(30, Math.max(1, Math.round(5 + floor * .6)));
@@ -59,7 +59,7 @@ function setFor(job, floor, tierKey, skillLevel) {
   for (const id of [...act, ...pass]) save.skillLevels[id] = skillLevel;
   const burst = { slash2: 2.2, slam: 2.2, warcry: 0, power: 4, destroy: 2.7, hell: 3.2, crushing: 3.4, spin: 1.65,
     doubleShot: 2.7, multiShot: .95, pierceShot: 2.6, iceArrow: 1.9, hawkEye: 0, snipe: 6.5, stormVolley: .8, arrowRain: 2.55,
-    fireBolt: FIRE_BOLT_TOTAL_POWER, iceBolt: 1.7, chainLightning: 1.25, manaBurst: 2.5, frostNova: 1.5, arcaneShield: 0, meteorStrike: 3.6, arcaneOverlord: 3 };
+    fireBolt: FIRE_BOLT_TOTAL_POWER, iceBolt: iceBoltProfile(skillLevel).power / skillDamageScale(skillLevel), chainLightning: 1.25, manaBurst: 2.5, frostNova: 1.5, arcaneShield: 0, meteorStrike: 3.6, arcaneOverlord: 3 };
   save.quickSlots = act.map(id => ({ id, dps: (burst[id] || 0) * skillDamageScale(skillLevel) / skills[id].cooldown }))
     .sort((a, b) => b.dps - a.dps).slice(0, 3).map(entry => entry.id);
   return save;

@@ -47,9 +47,11 @@ test('서버 클로저는 전투 엔진과 그 의존(경계·보스 드랍)만 
   // 2026-11-23 백로그 2·3 뒤 실측 21파일/4,123줄: `battle/formulas.ts` 치명타 피해 배수(+13줄)와
   // 추가옵션 키·상한(+20줄)이 늘었고, 유니크·전설 획득 띠(`raritySpotlight*`)는 화면 전용이라 서버가 닿지 않는다.
   // 작업 278: 판정·VFX 공용 순수 규격 skillAreas.ts가 엔진 의존으로 1파일 늘었다.
+  // 마법사 아이스 볼트·체인 라이트닝 판정은 기존 엔진·스킬·영역 규격 안에서 늘었다.
+  // 새 필드 모듈 유입은 파일 수와 위 FIELD_MODULES 검사로 계속 막는다.
   const total = src.reduce((sum, file) => sum + lineCount(file), 0);
   assert(src.length <= 22, `서버가 닿는 src 파일이 ${src.length}개다 — 필드 모듈이 다시 들어왔는지 확인하라`);
-  assert(total <= 4300, `서버가 닿는 src 코드가 ${total}줄이다 — 필드 모듈이 다시 들어왔는지 확인하라`);
+  assert(total <= 4450, `서버가 닿는 src 코드가 ${total}줄이다 — 필드 모듈이 다시 들어왔는지 확인하라`);
 });
 
 const { CombatEngine } = await import('../src/game/combat/engine.ts');

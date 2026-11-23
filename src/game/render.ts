@@ -59,6 +59,7 @@ const paths = {
   fxSlash: '/assets/fx_slash_arc.png',
   fxArcherArrow: '/assets/fx_archer_arrow_v1.png?v=1', fxIceArrow: '/assets/fx_ice_arrow_v1.png?v=1',
   fxMageFireball: '/assets/fx_mage_fireball_v2.png',
+  fxMageIceOrb: '/assets/fx_mage_ice_orb_v1.png',
   fxHawkEagle: '/assets/fx_hawkeye_eagle_v1.png?v=1',
   fxPower: '/assets/fx_power_strike_cleave_v2.png', fxDestroy: '/assets/fx_destroy_swing.png', fxHell: '/assets/fx_hell_fire.png',
   // [작업 215] 회전참격(`hell`) 혈풍 회오리 — 확정 3번 시안(암흑·진홍)을 위에서 내려다본 한 장.

@@ -23,7 +23,7 @@
  * 같은 자리 3티어를 요구한다. 그래서 액티브 줄기 두 개와 패시브 줄기 하나가 위에서 아래로 이어진다.
  */
 import {
-  MAX_SKILL_LEVEL, fireBoltCount, passiveOrderFor, passives, skillDamageScale, skillDuration, skillOrderFor, skillRange, skills,
+  MAX_SKILL_LEVEL, chainLightningCount, fireBoltCount, iceBoltProfile, passiveOrderFor, passives, skillDamageScale, skillDuration, skillOrderFor, skillRange, skills,
   type Job, type PassiveId, type SkillId, type SkillLevelId
 } from './skills';
 import { iceArrowSlow, multiShotPattern, skillArea } from './battle/skillAreas';
@@ -309,6 +309,26 @@ export function skillValueRows(id: SkillLevelId, level: number): SkillValueRow[]
     { label: '총 위력', value: `× ${(skillCastScale(id, lv) * skillDamageScale(lv)).toFixed(2)}` },
     { label: '화염구', value: `${fireBoltCount(lv)}발 · 단일 대상` },
     { label: '사거리', value: `${skillRange(id, lv)}` }
+  ];
+  if (id === 'iceBolt') {
+    const frost = iceBoltProfile(lv);
+    return [
+      { label: '위력', value: `× ${frost.power.toFixed(2)} · 1발` },
+      { label: '둔화', value: `이동속도 ${Math.round(frost.slowScale * 100)}% · ${frost.slowDuration.toFixed(1)}초` },
+      { label: '얼음 구슬', value: `${frost.orbDuration.toFixed(1)}초 · 눈싸라기 ${frost.flakeCount}개` },
+      { label: '사거리', value: `${skillRange(id, lv)}` }
+    ];
+  }
+  if (id === 'chainLightning') return [
+    { label: '첫 대상 위력', value: `× ${(1.25 * skillDamageScale(lv)).toFixed(2)}` },
+    { label: '전이 대상', value: `최대 ${chainLightningCount(lv)}명` },
+    { label: '사거리', value: `${skillRange(id, lv)}` }
+  ];
+  if (id === 'manaBurst') return [
+    { label: '중심 위력', value: `× ${(2.8 * skillDamageScale(lv)).toFixed(2)}` },
+    { label: '외곽 위력', value: `중심의 55~100%` },
+    { label: '폭발 반경', value: `${skillArea(id, lv).radius}` },
+    { label: '응축', value: `${(skillDuration(id, lv) * .5).toFixed(1)}초` }
   ];
   if (id === 'arrowRain') {
     const area = skillArea(id, lv);

@@ -4,7 +4,7 @@ import type { CombatEngine } from '../combat/engine';
 
 const rarityColors: Record<Rarity, number> = { common: 0x9ca3af, magic: 0x60a5fa, rare: 0xfacc15, epic: 0xc084fc, unique: 0xfb923c, legendary: 0xf87171 };
 const slashStrength: Record<Rarity, number> = { common: 0, magic: 1, rare: 2, epic: 3, unique: 4, legendary: 5 };
-import { dragonOrbitFactor, dragonRise, slash2SecondHit } from '../skills';
+import { dragonOrbitFactor, dragonRise, iceBoltProfile, slash2SecondHit } from '../skills';
 import { destroyTravelProgress, projectedAreaRadii, skillArea } from '../battle/skillAreas';
 import type { Effect } from '../world';
 import type { Art, GameView } from '../render';
@@ -76,7 +76,10 @@ export function drawSkillVfx(this: GameView, world: CombatEngine, effect: Effect
     if (effect.kind === 'hell') { drawWhirlSlash.call(this, effect, x, y, t, time); return true; }
     if (effect.kind === 'shot') { drawArrow.call(this, effect, x, y, screenAngle); return true; }
     if (effect.kind === 'volleyCast') return true;
+    if (effect.kind === 'chainCast') return true;
+    if (effect.kind === 'chainArc') { drawChainArc.call(this, effect, x, y, t); return true; }
     if (effect.kind === 'iceBurst') { drawIceBurst.call(this, effect, x, y, t); return true; }
+    if (effect.kind === 'iceOrb') { drawIceOrb.call(this, effect, x, y, t); return true; }
     if (effect.kind === 'snipeMark') {
       const cy = y - 46, radius = 24 - t * 5, alpha = Math.min(1, (1 - t) * 3);
       this.glow.circle(x, cy, radius + 5).stroke({ color: 0xff2929, width: 5, alpha: .2 * alpha });
@@ -420,19 +423,18 @@ export function drawMagicBolt(this: GameView, effect: Effect, x: number, y: numb
       flame.rotation = 0;
       // 피해량과 무관한 화면 크기는 상한을 둔다. 다발 시전에서 머리 위 불꽃이 합쳐지지 않게 한다.
       const visualScale = Math.min(1.2, 1 + (scale - 1) * .3);
-      flame.scale.set(88 / flame.texture.width * visualScale * hover);
+      flame.scale.set(72 / flame.texture.width * visualScale * hover);
       flame.alpha = effect.age < launch ? .78 + .22 * hover : 1;
-      this.glow.circle(px, py, 18 * scale).fill({ color: 0xff7b2d, alpha: .11 + tail * .07 });
+      this.glow.circle(px, py, 15 * visualScale).fill({ color: 0xff7b2d, alpha: .11 + tail * .07 });
       return;
     }
-    const radius = (effect.variant === 'meteor' ? 11 : effect.variant === 'chain' ? 7 : 6 + tail * 2) * scale * hover;
+    const radius = (effect.variant === 'meteor' ? 11 : 6 + tail * 2) * scale * hover;
     // 꼬리 — 진행 반대 방향으로 짧게 번지는 빛.
     if (progress > 0) this.glow.moveTo(px - Math.cos(angle) * 26 * scale, py - Math.sin(angle) * 26 * scale).lineTo(px, py)
       .stroke({ color, width: 5 + tail * 3, alpha: .1 + tail * .22 });
     this.glow.circle(px, py, radius * 2.2).fill({ color, alpha: .12 + tail * .1 });
     this.effects.circle(px, py, radius).fill({ color, alpha: .92 });
     this.effects.circle(px, py, radius * .45).fill({ color: 0xffffff, alpha: .9 });
-    if (effect.variant === 'frost') this.effects.circle(px, py, radius * 2.6).stroke({ color: 0xdff2ff, width: 1.4, alpha: .35 * tail });
     if (effect.variant === 'meteor') this.glow.circle(px, py, radius * 3.4).fill({ color: 0xff8a3c, alpha: .1 * tail });
   }
 
@@ -440,6 +442,38 @@ export function drawMagicBolt(this: GameView, effect: Effect, x: number, y: numb
 export function drawBurst(this: GameView, effect: Effect, x: number, y: number, t: number, time: number): void {
     const color = effect.variant === 'meteor' ? 0xffa04a : 0x9ab8ff;
     const { x: radius } = projectedAreaRadii(effect.radius ?? skillArea(effect.variant === 'meteor' ? 'meteorStrike' : 'manaBurst', effect.level ?? 1).radius!);
+    if (effect.source === 'manaBurst') {
+      const charge = Math.min(1, t * 2), inner = radius * .4;
+      if (t < .5) {
+        this.ground.ellipse(x, y, radius, radius * .5).stroke({ color: 0x8874d7, width: 1.5, alpha: .18 + charge * .3 });
+        this.ground.ellipse(x, y, inner * (1.3 - charge * .3), inner * (1.3 - charge * .3) * .5)
+          .stroke({ color: 0xcabaff, width: 2.4, alpha: .45 + charge * .4 });
+        this.glow.circle(x, y - 28, 9 + charge * 13).fill({ color: 0x8c6dff, alpha: .13 + charge * .2 });
+        this.effects.circle(x, y - 28, 3 + charge * 5).fill({ color: 0xf4edff, alpha: .55 + charge * .4 });
+        for (let index = 0; index < (reducedMotion() ? 4 : 8); index++) {
+          const angle = index * Math.PI / 4 + time * 1.7;
+          const dist = radius * (.8 - charge * .55);
+          this.effects.circle(x + Math.cos(angle) * dist, y - 28 + Math.sin(angle) * dist * .6, 2.2)
+            .fill({ color: 0xcbb9ff, alpha: .35 + charge * .5 });
+        }
+      } else {
+        const burst = (t - .5) * 2, fade = 1 - burst;
+        this.glow.ellipse(x, y - 24, radius * (.4 + burst * .8), radius * (.25 + burst * .55))
+          .fill({ color: 0x8c6dff, alpha: .3 * fade });
+        this.ground.ellipse(x, y, inner + (radius - inner) * burst, (inner + (radius - inner) * burst) * .5)
+          .stroke({ color: 0xd9caff, width: 4 - burst * 2.5, alpha: .9 * fade });
+        this.effects.circle(x, y - 26, 17 + burst * 22).fill({ color: 0xbfa7ff, alpha: .24 * fade });
+        this.effects.circle(x, y - 26, 7 + burst * 11).fill({ color: 0xffffff, alpha: .75 * fade });
+        for (let index = 0; index < (reducedMotion() ? 0 : 12); index++) {
+          const angle = index * 2.39996;
+          const dist = radius * (.2 + burst * .9);
+          const px = x + Math.cos(angle) * dist, py = y - 26 + Math.sin(angle) * dist * .55;
+          this.effects.moveTo(px - Math.cos(angle) * 5, py - Math.sin(angle) * 3).lineTo(px, py)
+            .stroke({ color: index % 3 ? 0xae99ee : 0xf7f1ff, width: 1.7, alpha: .7 * fade });
+        }
+      }
+      return;
+    }
     this.ground.ellipse(x, y, radius, radius * .5).stroke({ color, width: 2, alpha: .2 * (1 - t) });
     if (t < .5) {
       // 예고 — 바닥에 조여드는 원.
@@ -518,6 +552,67 @@ export function drawArrowRain(this: GameView, effect: Effect, x: number, y: numb
       if (fall > .9) this.effects.circle(ax, ay, 3 + Math.sin(time * 30 + index) * .6)
         .fill({ color: 0xc99c66, alpha: .28 * (1 - t) });
     }
+  }
+
+/** 아이스 볼트 — 전진하는 구슬에서 레벨별 눈 결정을 사방으로 내보낸다. */
+export function drawIceOrb(this: GameView, effect: Effect, x: number, y: number, t: number): void {
+    const profile = iceBoltProfile(effect.level ?? 1);
+    const radius = projectedAreaRadii(effect.radius ?? skillArea('iceBolt', 1).projectileRadius!);
+    const cy = y - 38, fade = Math.min(1, (1 - t) * 5);
+    this.ground.ellipse(x, y, radius.x, radius.y).stroke({ color: 0xa9eaff, width: 1.6, alpha: .18 * fade });
+    let sprites = this.vfxSprites.get(effect);
+    if (!sprites) {
+      const orb = new Sprite(this.textures.fxMageIceOrb);
+      orb.anchor.set(.5);
+      this.skillVfx.addChild(orb);
+      sprites = [orb];
+      this.vfxSprites.set(effect, sprites);
+    }
+    const orb = sprites[0];
+    orb.position.set(x, cy);
+    orb.scale.set((80 - t * 11) / orb.texture.width);
+    orb.alpha = fade;
+    this.glow.circle(x, cy, 23 + Math.sin(effect.age * 9) * 2).fill({ color: 0x8cdcff, alpha: .15 * fade });
+    const count = reducedMotion() ? Math.min(5, profile.flakeCount) : profile.flakeCount;
+    for (let index = 0; index < count; index++) {
+      const cycle = t * 2.4 - index / count * 1.4;
+      if (cycle < 0) continue;
+      const travel = cycle % 1, angle = index * 2.39996;
+      const distance = 8 + radius.x * travel;
+      const fx = x + Math.cos(angle) * distance;
+      const fy = cy + Math.sin(angle) * distance * .72;
+      const size = index % 4 === 0 ? 5 : 3.5;
+      const alpha = .92 * (1 - travel) * fade;
+      for (let arm = 0; arm < 6; arm++) {
+        const ray = arm * Math.PI / 3;
+        this.effects.moveTo(fx, fy).lineTo(fx + Math.cos(ray) * size, fy + Math.sin(ray) * size);
+      }
+      this.effects.stroke({ color: index % 3 === 0 ? 0xf4fdff : 0x9adfff, width: 1.2, alpha });
+      if (index % 4 === 0) this.glow.circle(fx, fy, size * 1.8).fill({ color: 0xafeaff, alpha: .16 * alpha });
+    }
+  }
+
+/** 체인 라이트닝 — 각 전이 대상 사이를 별도의 짧은 번개가 순서대로 잇는다. */
+export function drawChainArc(this: GameView, effect: Effect, x: number, y: number, t: number): void {
+    const dx = (effect.tx ?? effect.x) - effect.x, dy = (effect.ty ?? effect.y) - effect.y;
+    const endX = x + (dx - dy) * .86, endY = y + (dx + dy) * .43 - 38;
+    const startY = y - 38, screenDx = endX - x, screenDy = endY - startY;
+    const length = Math.max(1, Math.hypot(screenDx, screenDy));
+    const nx = -screenDy / length, ny = screenDx / length, alpha = (1 - t) * .9;
+    this.glow.moveTo(x, startY);
+    this.effects.moveTo(x, startY);
+    for (let index = 1; index <= 7; index++) {
+      const fraction = index / 7;
+      const jitter = index === 7 ? 0 : Math.sin(index * 13.7 + (effect.hits ?? 0) * 8.3) * 8;
+      const px = x + screenDx * fraction + nx * jitter;
+      const py = startY + screenDy * fraction + ny * jitter;
+      this.glow.lineTo(px, py);
+      this.effects.lineTo(px, py);
+    }
+    this.glow.stroke({ color: 0x4b9aff, width: 10 * (1 - t * .5), alpha: .22 * alpha });
+    this.effects.stroke({ color: 0xe8faff, width: 2.6 * (1 - t * .4), alpha });
+    this.glow.circle(endX, endY, 14 + t * 8).fill({ color: 0x8bdcff, alpha: .28 * alpha });
+    this.effects.circle(endX, endY, 3 + t * 4).stroke({ color: 0xffffff, width: 1.8, alpha });
   }
 
 /** 빙결 착탄 — 실제 둔화 반경을 따라 얼음 파열과 눈싸라기가 퍼진다. */

@@ -34,6 +34,22 @@ export function fireBoltCount(level: number): number {
   const lv = Math.max(1, Math.min(MAX_SKILL_LEVEL, Math.floor(Number.isFinite(level) ? level : 1)));
   return lv >= 10 ? 5 : lv >= 8 ? 4 : lv >= 5 ? 3 : lv >= 3 ? 2 : 1;
 }
+/** 아이스 볼트: 낮은 단일 피해와 착탄 뒤 얼음 구슬·눈싸라기 연출, 주변 둔화. */
+export function iceBoltProfile(level: number): { power: number; orbDuration: number; flakeCount: number; slowDuration: number; slowScale: number } {
+  const lv = Math.max(1, Math.min(MAX_SKILL_LEVEL, Math.floor(Number.isFinite(level) ? level : 1)));
+  return { power: .65 + (lv - 1) * .02, orbDuration: .85 + (lv - 1) * .11,
+    flakeCount: 6 + Math.round((lv - 1) * 4 / 3), slowDuration: 2.2 + (lv - 1) * .1, slowScale: .6 };
+}
+/** 체인 라이트닝은 첫 대상 포함 Lv.1/5/10에 최대 3/4/5명을 전이한다. */
+export function chainLightningCount(level: number): number {
+  const lv = Math.max(1, Math.min(MAX_SKILL_LEVEL, Math.floor(Number.isFinite(level) ? level : 1)));
+  return lv >= 10 ? 5 : lv >= 5 ? 4 : 3;
+}
+/** 마력 폭발은 중심 40%에서 전력을 내고, 바깥으로 갈수록 55%까지 줄어든다. */
+export function manaBurstFalloff(distance: number, radius: number): number {
+  const inner = radius * .4;
+  return distance <= inner ? 1 : 1 - .45 * Math.min(1, (distance - inner) / (radius - inner));
+}
 export function skillUpgradeCost(level: number): number { return 40 * level * level; }
 export type Skill = { id: SkillId; name: string; level: number; icon: string; cooldown: number; power: string; description: string; range: number };
 export type Passive = { id: PassiveId; name: string; level: number; icon: string; description: string };
@@ -73,9 +89,9 @@ export const skills: Record<SkillId, Skill> = {
   stormVolley: { id: 'stormVolley', name: '폭풍 연사', level: 18, icon: '🌪', cooldown: 12, power: '공격력 × 0.8 · 6발', description: '화살을 한 발씩 연속 발사한다. 적을 처치하면 남은 화살은 다음 적을 겨눈다.', range: 285 },
   arrowRain: { id: 'arrowRain', name: '애로우 레인', level: 24, icon: '☔', cooldown: 18, power: '공격력 × 0.85 · 화살비', description: '넓어지는 범위에 화살이 위에서 수직으로 오래 쏟아진다.', range: 295 },
   fireBolt: { id: 'fireBolt', name: '파이어 볼트', level: 2, icon: '🔥', cooldown: 4, power: `공격력 × ${FIRE_BOLT_TOTAL_POWER} · 최대 5발`, description: '둥근 화염구를 한 대상에게 연속으로 날린다.', range: 260 },
-  iceBolt: { id: 'iceBolt', name: '아이스 볼트', level: 4, icon: '❄', cooldown: 7, power: '공격력 × 1.7 · 둔화', description: '서리 구슬이 맞은 적을 얼려 잠시 느리게 만든다.', range: 270 },
-  chainLightning: { id: 'chainLightning', name: '체인 라이트닝', level: 5, icon: '⚡', cooldown: 8, power: '공격력 × 1.25 · 연쇄', description: '번개가 적에게 튀어 가까운 적 여럿을 연달아 감전시킨다.', range: 275 },
-  manaBurst: { id: 'manaBurst', name: '마력 폭발', level: 7, icon: '◉', cooldown: 10, power: '공격력 × 2.5 · 폭발', description: '적의 위치에 마력을 응축했다가 터뜨려 주변을 함께 삼킨다.', range: 250 },
+  iceBolt: { id: 'iceBolt', name: '아이스 볼트', level: 4, icon: '❄', cooldown: 7, power: '공격력 × 0.65~0.83 · 둔화', description: '얼음 구슬 한 발이 전진하며 눈싸라기로 주변 적을 느리게 한다. 적에 닿으면 소멸한다.', range: 270 },
+  chainLightning: { id: 'chainLightning', name: '체인 라이트닝', level: 5, icon: '⚡', cooldown: 8, power: '공격력 × 1.25 · 최대 3~5명', description: '첫 적을 맞힌 번개가 가까운 적에게 차례로 전이된다.', range: 275 },
+  manaBurst: { id: 'manaBurst', name: '마력 폭발', level: 7, icon: '◉', cooldown: 10, power: '공격력 × 2.8 · 중심 집중', description: '적 위치에 마력을 응축한 뒤 터뜨린다. 중심부는 강하게, 바깥쪽은 약하게 맞힌다.', range: 250 },
   frostNova: { id: 'frostNova', name: '프로스트 노바', level: 10, icon: '✳', cooldown: 12, power: '공격력 × 1.5 · 둔화', description: '발밑에서 서리 파동이 퍼져 가까운 적을 얼리고 밀어낸다.', range: 150 },
   arcaneShield: { id: 'arcaneShield', name: '아케인 실드', level: 14, icon: '⛨', cooldown: 16, power: '공격력 × 1.2 · 공격속도 상승', description: '7초 동안(레벨당 +0.17초) 비전 보호막을 두르고 공격력과 공격속도가 오른다.', range: 120 },
   meteorStrike: { id: 'meteorStrike', name: '메테오 스트라이크', level: 18, icon: '☄', cooldown: 13, power: '공격력 × 3.6', description: '하늘에서 불덩이를 떨어뜨려 적의 자리를 크게 내리친다.', range: 285 },
@@ -155,7 +171,8 @@ export function skillDuration(id: SkillId, level: number): number {
   if (id === 'frostNova') return .8 + (level - 1) * .05;
   if (id === 'arcaneOverlord') return 1.4 + (level - 1) * .07;
   if (id === 'chainLightning') return .55 + (level - 1) * .04;
-  if (id === 'fireBolt' || id === 'iceBolt') return .5 + (level - 1) * .04;
+  if (id === 'fireBolt') return .5 + (level - 1) * .04;
+  if (id === 'iceBolt') return iceBoltProfile(level).orbDuration;
   return .55 + (level - 1) * .05;
 }
 export function skillDamageScale(level: number): number { return 1 + (level - 1) * .1; }

@@ -1,5 +1,5 @@
 import type { Save } from './store';
-import { FIRE_BOLT_TOTAL_POWER, jobOrDefault, skillDamageScale, skillDuration, skillOrderFor, skills, type Job, type SkillId } from './skills';
+import { FIRE_BOLT_TOTAL_POWER, iceBoltProfile, jobOrDefault, skillDamageScale, skillDuration, skillOrderFor, skills, type Job, type SkillId } from './skills';
 import { multiShotPattern } from './battle/skillAreas';
 export type QuickSlots = [SkillId | null, SkillId | null, SkillId | null];
 export function normalizeQuickSlots(raw: unknown, learned: SkillId[], job: Job = 'warrior'): QuickSlots {
@@ -98,9 +98,9 @@ export function skillCastScale(id: SkillId, level = 1): number {
     case 'stormVolley': return .8 * 6;
     case 'arrowRain': return .85 * repeats(.12, .4);
       case 'fireBolt': return FIRE_BOLT_TOTAL_POWER;          // 여러 발의 합계 위력
-    case 'iceBolt': return 1.7;
+      case 'iceBolt': return iceBoltProfile(lv).power / skillDamageScale(lv); // 레벨 성장률은 전용 완만한 식
     case 'chainLightning': return 1.25;
-    case 'manaBurst': return 2.5;
+    case 'manaBurst': return 2.8;
     case 'frostNova': return 1.5;
     case 'arcaneShield': return 0;
     case 'meteorStrike': return 3.6;
