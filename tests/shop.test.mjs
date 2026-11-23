@@ -8,6 +8,9 @@ import { createClient } from '@libsql/client';
 import { schema } from '../server/database.mjs';
 import { shopEndpoint } from '../server/endpoints/shop.mjs';
 import { accountEndpoint } from '../server/endpoints/account.mjs';
+// `characters`가 세이브에서 전투력을 계산하며 게임 모듈(`src/game/*.ts`)을 동적으로 읽는다(백로그 11·B안) —
+// 테스트 러너에서 확장자 없는 내부 import까지 풀리도록 TS 훅을 먼저 등록한다.
+import './ts-loader.mjs';
 
 test('shop grants paid diamonds once, unlocks only purchased slots, and deletion consumes character items', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'djrpg-shop-'));

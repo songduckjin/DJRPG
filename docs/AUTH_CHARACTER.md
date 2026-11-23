@@ -12,6 +12,7 @@
 | 단일 세션 | `server/database.mjs`(`assignSession`·`assertSession`·`assertSessionId`) |
 | 계정 탈퇴 | `server/account-delete.mjs`·`src/ui/modals/accountDelete.ts` |
 | 캐릭터 화면 | `src/ui/modals/charactersModal.ts`(선택·생성·삭제 확인 모달·방치·슬롯 추가) |
+| 카드 전투력 | `server/character-power.mjs`(`characterPowerReader`·`characterPower`)·`src/ui/modals/charactersModal.ts`(`cardPower`·`characterPowerBadge`)·`src/styles/modals/character.css`(`.character-power`) |
 | 점검 모드 | `src/game/maintenance.ts`·`src/ui/maintenance.ts`·`public/maintenance.json`·`server/maintenance.mjs`·`public/_headers` |
 | 시즌 초기화 | `server/season.mjs`·`server/save-seed.mjs` |
 
@@ -21,6 +22,9 @@
 - **토큰**: HMAC(`TURSO_AUTH_TOKEN` 서명 키) `{id,sid,exp}`. 클라 저장은 `localStorage djrpg.auth.token` 하나뿐. 모든 요청에 `Authorization` + `X-App-Version`.
 - **가입 흐름**: 가입은 아이디·비밀번호만 → `needsCharacter:true` → 로그인 화면 안 `characterStep`(닉네임·직업·성별) → `createCharacter` → 세션 갱신. 자리표시자 세이브에 `save`를 보내면 `409 CHARACTER_REQUIRED`. 게스트는 1번 캐릭터를 바로 만든다.
 - **슬롯**: 기본 3, 구매로 최대 8(`SLOT_LOCKED`). 판매 상한은 `server/endpoints/shop.mjs` `maxSlots=8`이고, 이미 9칸을 산 계정의 기존 캐릭터는 그대로 둔다(`account.mjs`의 절대 상한 9는 유지 — 슬롯 9 선택·삭제가 계속 된다). 캐릭터 삭제는 현재 캐릭터 제외·이름 확인 뒤 소유권을 `consumed`로 전환한다. 삭제 확인은 **게임 모달**(iOS 시스템 `prompt`/`confirm` 금지).
+- **캐릭터 카드 = 이름·직업 + 하단 배지(Lv·층·전투력)**: 카드 정보줄에는 `이름 · 직업`만 두고, 레벨·층과 전투력은 카드 폭을 채우는 하단 띠(`.character-power`)에 `Lv.47 · 32층` + `⚔ 12,480` 한 줄로 둔다. 펼친 카드에서도 이 띠는 `선택`·`방치`·`삭제` 바로 위에 남는다(`.character-slot.focused .character-select { flex: 1 1 auto }`).
+- **전투력은 서버가 세이브에서 계산해 `characters` 응답에 `power`로 싣는다**: 다른 슬롯의 세이브는 내려보내지 않으므로(이름·직업·레벨·층·장비 이름만) 화면이 계산할 수 없다. 서버는 `parseSave` → `totalStats` → `combatPower`를 **클라이언트와 같은 함수**로 불러 계산한다(`server/character-power.mjs` — 식을 다시 적지 않는다). 접속 중인 슬롯만 화면이 지금 세이브로 다시 계산해 장비 교체가 즉시 반영된다. 읽지 못한 세이브는 그 카드의 전투력만 비우고 목록은 그대로 뜬다.
+- **세이브 형식·응답 크기**: 위 `power` 외에 `characters` 응답에 세이브 본문을 더 싣지 않는다.
 - **성별·직업 변경 없음**: 캐릭터 생성 뒤 성별·직업은 바꾸지 않는다(계정 화면은 읽기 전용).
 - **탈퇴**: 세션 + 비밀번호 재확인 + 아이디 확인. `djrpg_accounts` 행을 맨 마지막에 지워 같은 아이디로 즉시 재가입할 수 있게 한다. 판매 중 매물이 있으면 `MARKET_PENDING`으로 막는다.
 - **시즌 초기화는 운영 호스트에서만**: `seasonArmed`가 `djrpg.pages.dev`(또는 `DJRPG_PRODUCTION_HOSTS`)일 때만 돈다. **미리보기 호스트에서 돌리면 같은 Turso DB의 운영 진행이 지워진다.**
@@ -35,7 +39,7 @@
 
 ## 테스트
 
-`node --test tests/characters.test.mjs tests/character-switch.test.mjs tests/register-flow.test.mjs tests/character-card-actions.test.mjs tests/account-delete.test.mjs tests/legacy-login.test.mjs tests/season-reset.test.mjs tests/maintenance-policy.test.mjs tests/login-maintenance.test.mjs tests/functions-adapter.test.mjs`
+`node --test tests/characters.test.mjs tests/character-switch.test.mjs tests/register-flow.test.mjs tests/character-card-actions.test.mjs tests/character-select-power.test.mjs tests/account-delete.test.mjs tests/legacy-login.test.mjs tests/season-reset.test.mjs tests/maintenance-policy.test.mjs tests/login-maintenance.test.mjs tests/functions-adapter.test.mjs`
 
 ## 관련 매뉴얼
 

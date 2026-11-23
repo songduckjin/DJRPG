@@ -116,22 +116,28 @@ export function skillDps(save: Save, id: SkillId): number {
 export type AutoLoadoutResult = { changed: boolean; equipped: SkillId[]; message: string };
 
 /**
- * `추천 자동 장착`(작업 240) — 보유한 액티브 스킬로 3칸을 추천 조합으로 다시 채운다.
- *
- * 3개 미만이면 보유한 만큼만 앞 칸부터 채우고 남은 칸은 `null`, 하나도 없으면 세이브를 건드리지 않고
- * 안내만 돌려준다. 이미 같은 조합(같은 순서)이면 `changed: false`.
+ * `추천 자동 장착`(작업 240 · 4단계 스킬 트리 A안) — 습득한 액티브의 초당 피해 상위 3개를 퀵슬롯에 채운다.
+ * **이미 꽂힌 추천 스킬은 그 원 그대로 두고**(손으로 맞춘 자리를 흔들지 않는다), 남은 추천은
+ * **빈 원 → 추천 밖 스킬이 있는 원** 순서로 넣는다. 토스트에는 바꿔 낀 원만 요약한다(`2번 원 → 블러드 레이지`).
+ * 습득이 없거나 추천 조합이 이미 다 꽂혀 있으면(순서가 달라도) 세이브를 건드리지 않고 `changed: false`.
  */
 export function autoEquipRecommendedSkills(save: Save): AutoLoadoutResult {
   const order = recommendedSkillOrder(save).slice(0, 3);
-  if (!order.length) return { changed: false, equipped: [], message: '보유한 액티브 스킬이 없습니다. 스킬 트리에서 SP를 투자해 습득하면 추천 장착을 쓸 수 있습니다.' };
-  const before = save.quickSlots.join(',');
-  save.quickSlots = [order[0] ?? null, order[1] ?? null, order[2] ?? null];
-  const changed = save.quickSlots.join(',') !== before;
-  const names = order.map(id => skills[id].name).join(' · ');
-  const filled = order.length < 3 ? ` — 보유한 ${order.length}개만 채우고 남은 칸은 비웁니다` : '';
-  return {
-    changed,
-    equipped: order,
-    message: changed ? `추천 조합으로 장착했습니다: ${names}${filled}` : `이미 추천 조합이 장착되어 있습니다: ${names}${filled}`
-  };
+  if (!order.length) return { changed: false, equipped: [], message: '습득한 액티브 스킬이 없습니다. 스킬 트리에서 SP를 투자해 습득하면 추천 장착을 쓸 수 있습니다.' };
+  const before: QuickSlots = [...save.quickSlots], recommended = new Set(order), next: QuickSlots = [null, null, null];
+  for (let slot = 0; slot < 3; slot++) { const id = before[slot]; if (id && recommended.has(id) && !next.includes(id)) next[slot] = id; }
+  const held = (slot: number) => before[slot] !== null;
+  const targets = [0, 1, 2].filter(slot => !held(slot)).concat([0, 1, 2].filter(slot => held(slot) && !recommended.has(before[slot]!)));
+  const changes: string[] = [];
+  order.filter(id => !next.includes(id)).forEach((id, index) => {
+    const slot = targets[index];
+    if (slot === undefined) return;
+    next[slot] = id;
+    if (held(slot)) changes.push(`${slot + 1}번 원 → ${skills[id].name}`);
+  });
+  save.quickSlots = next;
+  const changed = next.some((id, slot) => id !== before[slot]);
+  if (!changed) return { changed, equipped: order, message: `이미 추천 조합이 장착되어 있습니다: ${order.map(id => skills[id].name).join(' · ')}` };
+  const filled = next.filter(id => id !== null).length, spare = filled < 3 ? ` · 남은 ${3 - filled}개 원은 비웁니다` : '';
+  return { changed, equipped: next.filter((id): id is SkillId => id !== null), message: [`추천 조합 ${filled}개 장착 완료`, ...changes].join(' · ') + spare };
 }

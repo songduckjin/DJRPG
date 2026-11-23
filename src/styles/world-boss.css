@@ -1,10 +1,10 @@
 /* 좌상단 세로 배치(작업 234 → HUD 번들): 레벨 배지 5~54px → 닉네임 56~73.6px → 전투력 76~89px →
    HP 92~107px → 월드보스 진입 111~181px → `월드보스` 라벨 182~196px → 튜토리얼 배너 200px~. */
-.world-boss-entry {position:absolute;z-index:3;left:12px;top:calc(env(safe-area-inset-top, 0px) + 111px);width:58px;height:80px;padding:0;border:0;border-radius:0;background:transparent;box-shadow:none;touch-action:manipulation;overflow:visible;}
-.world-boss-entry .wb-entry-art {position:absolute;width:58px;height:58px;left:0;top:0;background-image:url('/assets/world-boss/valkaron-face-hd-v1.png');background-size:contain;background-position:center;background-repeat:no-repeat;pointer-events:none;filter:drop-shadow(0 1px 1px #000d);}
-.wb-entry-health {position:absolute;top:60px;left:4px;right:4px;height:4px;border-radius:2px;background:#271014;overflow:hidden;pointer-events:none;}
-.wb-entry-health i {display:block;width:100%;height:100%;background:linear-gradient(#e16b55,#8c242c);box-shadow:0 0 3px #f04c3b;}
-.world-boss-entry .wb-entry-count {position:absolute;top:67px;left:0;right:0;color:#efdbb8;font-size:10px;font-weight:700;line-height:12px;text-align:center;text-shadow:0 1px 3px #000;pointer-events:none;}
+.world-boss-entry {position:absolute;z-index:3;left:calc(12 * var(--u));top:calc(env(safe-area-inset-top, 0px) + 111 * var(--u));width:calc(58 * var(--u));height:calc(80 * var(--u));padding:0;border:0;border-radius:0;background:transparent;box-shadow:none;touch-action:manipulation;overflow:visible;}
+.world-boss-entry .wb-entry-art {position:absolute;width:calc(58 * var(--u));height:calc(58 * var(--u));left:0;top:0;background-image:url('/assets/world-boss/valkaron-face-hd-v1.png');background-size:contain;background-position:center;background-repeat:no-repeat;pointer-events:none;filter:drop-shadow(0 1px 1px #000d);}
+.wb-entry-health {position:absolute;top:calc(60 * var(--u));left:calc(4 * var(--u));right:calc(4 * var(--u));height:calc(4 * var(--u));border-radius:calc(2 * var(--u));background:#271014;overflow:hidden;pointer-events:none;}
+.wb-entry-health i {display:block;width:100%;height:100%;background:linear-gradient(#e16b55,#8c242c);box-shadow:0 0 calc(3 * var(--u)) #f04c3b;}
+.world-boss-entry .wb-entry-count {position:absolute;top:calc(67 * var(--u));left:0;right:0;color:#efdbb8;font-size:calc(10 * var(--u));font-weight:700;line-height:calc(12 * var(--u));text-align:center;text-shadow:0 1px calc(3 * var(--u)) #000;pointer-events:none;}
 .world-boss-modal {width:min(460px,100%);padding:0;background:transparent;border:0;box-shadow:none;}
 .world-boss-modal > header {position:sticky;top:-10px;z-index:5;background:#2b1d1e;margin-bottom:2px;}
 .world-boss-modal > header h2 {color:#f0d2a0;letter-spacing:3px;font-size:24px;margin:0;}
@@ -72,7 +72,7 @@
 .wb-field-warning {position:absolute;left:20px;right:20px;top:27%;z-index:4;padding:8px;text-align:center;background:#7c211fd9;border:1px solid #ee8958;color:#ffe0ac;font-size:12px;pointer-events:none;}
 .wb-field-result[hidden],.wb-field-warning[hidden],.wb-field-loading[hidden] {display:none;}
 
-.world-boss-entry::before {content:"";position:absolute;left:8px;top:8px;width:42px;height:42px;border-radius:50%;background:radial-gradient(ellipse,#a02a2438,transparent 72%);pointer-events:none;}
+.world-boss-entry::before {content:"";position:absolute;left:calc(8 * var(--u));top:calc(8 * var(--u));width:calc(42 * var(--u));height:calc(42 * var(--u));border-radius:50%;background:radial-gradient(ellipse,#a02a2438,transparent 72%);pointer-events:none;}
 
 /* Ten ranks and the user's rank share the available panel without nested scrolling. */
 .wb-panel:has(.wb-rank-list) {overflow:hidden;}
@@ -123,32 +123,32 @@
 .wb-intro-portrait,.wb-intro-hand {filter:none;animation:none;}
 .wb-intro-clouds {z-index:0;}
 /* Face silhouette extends beyond its dark halo; the artwork itself stays sharp. */
-.world-boss-entry {width:70px;height:96px;}
-.world-boss-entry .wb-entry-art {width:78px;height:78px;left:-4px;top:-6px;filter:contrast(1.08) drop-shadow(0 2px 2px #000d);}
-.world-boss-entry::before {left:3px;top:6px;width:64px;height:64px;background:radial-gradient(ellipse,#7f202455 12%,#5e142633 40%,transparent 72%);box-shadow:none;animation:wb-entry-aura 4s ease-in-out infinite;}
-.world-boss-entry::after {content:"";position:absolute;left:0;top:0;width:70px;height:72px;pointer-events:none;background:radial-gradient(ellipse 3px 2px at 24px 32px,#ffb16a66,#e43e2522 50%,transparent),radial-gradient(ellipse 3px 2px at 33px 31px,#ffb16a66,#e43e2522 50%,transparent);animation:wb-entry-eyes 4s ease-in-out infinite;}
-.world-boss-entry .wb-entry-health {left:6px;right:6px;top:75px;height:4px;background:#1a1015;box-shadow:0 1px 3px #000a;}
-.world-boss-entry .wb-entry-count {top:82px;line-height:13px;font-size:10px;}
+.world-boss-entry {width:calc(70 * var(--u));height:calc(96 * var(--u));}
+.world-boss-entry .wb-entry-art {width:calc(78 * var(--u));height:calc(78 * var(--u));left:calc(-4 * var(--u));top:calc(-6 * var(--u));filter:contrast(1.08) drop-shadow(0 calc(2 * var(--u)) calc(2 * var(--u)) #000d);}
+.world-boss-entry::before {left:calc(3 * var(--u));top:calc(6 * var(--u));width:calc(64 * var(--u));height:calc(64 * var(--u));background:radial-gradient(ellipse,#7f202455 12%,#5e142633 40%,transparent 72%);box-shadow:none;animation:wb-entry-aura 4s ease-in-out infinite;}
+.world-boss-entry::after {content:"";position:absolute;left:0;top:0;width:calc(70 * var(--u));height:calc(72 * var(--u));pointer-events:none;background:radial-gradient(ellipse calc(3 * var(--u)) calc(2 * var(--u)) at calc(24 * var(--u)) calc(32 * var(--u)),#ffb16a66,#e43e2522 50%,transparent),radial-gradient(ellipse calc(3 * var(--u)) calc(2 * var(--u)) at calc(33 * var(--u)) calc(31 * var(--u)),#ffb16a66,#e43e2522 50%,transparent);animation:wb-entry-eyes 4s ease-in-out infinite;}
+.world-boss-entry .wb-entry-health {left:calc(6 * var(--u));right:calc(6 * var(--u));top:calc(75 * var(--u));height:calc(4 * var(--u));background:#1a1015;box-shadow:0 1px calc(3 * var(--u)) #000a;}
+.world-boss-entry .wb-entry-count {top:calc(82 * var(--u));line-height:calc(13 * var(--u));font-size:calc(10 * var(--u));}
 @keyframes wb-entry-aura {0%,100%{opacity:.55;transform:scale(.96);}50%{opacity:.95;transform:scale(1.08);}}
 @keyframes wb-entry-eyes {0%,100%{opacity:.45;}50%{opacity:1;}}
 @media (prefers-reduced-motion:reduce) {.world-boss-entry::before,.world-boss-entry::after {animation:none;}}
 .wb-battle-start {position:absolute;z-index:4;inset:42% 0 auto;text-align:center;font-size:26px;letter-spacing:8px;font-weight:700;color:#f5d6a1;text-shadow:0 2px 10px #000;pointer-events:none;}
 /* A 280-degree health arc leaves an 80-degree opening around the attempt count. */
-.world-boss-entry {width:70px;height:70px;border-radius:50%;}
-.world-boss-entry .wb-entry-art {left:4px;top:4px;width:62px;height:62px;border-radius:50%;background-size:cover;background-color:#21171c;overflow:hidden;filter:contrast(1.08);box-shadow:inset 0 0 12px #0009;}
-.world-boss-entry::before {left:-5px;top:-5px;width:80px;height:80px;z-index:-1;background:radial-gradient(ellipse,#79212b44,transparent 70%);}
+.world-boss-entry {width:calc(70 * var(--u));height:calc(70 * var(--u));border-radius:50%;}
+.world-boss-entry .wb-entry-art {left:calc(4 * var(--u));top:calc(4 * var(--u));width:calc(62 * var(--u));height:calc(62 * var(--u));border-radius:50%;background-size:cover;background-color:#21171c;overflow:hidden;filter:contrast(1.08);box-shadow:inset 0 0 calc(12 * var(--u)) #0009;}
+.world-boss-entry::before {left:calc(-5 * var(--u));top:calc(-5 * var(--u));width:calc(80 * var(--u));height:calc(80 * var(--u));z-index:-1;background:radial-gradient(ellipse,#79212b44,transparent 70%);}
 .world-boss-entry::after {display:none;}
-.world-boss-entry .wb-entry-health {inset:0;width:70px;height:70px;border-radius:50%;overflow:visible;background:none;box-shadow:none;z-index:2;mask-image:radial-gradient(circle,transparent 30px,#000 31px);}
+.world-boss-entry .wb-entry-health {inset:0;width:calc(70 * var(--u));height:calc(70 * var(--u));border-radius:50%;overflow:visible;background:none;box-shadow:none;z-index:2;mask-image:radial-gradient(circle,transparent calc(30 * var(--u)),#000 calc(31 * var(--u)));}
 .world-boss-entry .wb-entry-health::before {content:"";position:absolute;inset:0;border-radius:50%;background:conic-gradient(from 220deg,#42262c 0deg 280deg,transparent 280deg 360deg);}
 .world-boss-entry .wb-entry-health i {position:absolute;inset:0;width:100%;height:100%;border-radius:50%;background:conic-gradient(from 220deg,#9b343c 0deg,#d46a5b 135deg,#a83c46 var(--wb-hp-angle,280deg),transparent var(--wb-hp-angle,280deg) 360deg);box-shadow:none;}
-.world-boss-entry .wb-entry-count {left:18px;right:18px;top:49px;height:17px;line-height:17px;font-size:11px;letter-spacing:.5px;color:#f3dfbc;background:#171118e8;border-radius:6px;z-index:3;text-shadow:0 1px 2px #000;}
+.world-boss-entry .wb-entry-count {left:calc(18 * var(--u));right:calc(18 * var(--u));top:calc(49 * var(--u));height:calc(17 * var(--u));line-height:calc(17 * var(--u));font-size:calc(11 * var(--u));letter-spacing:.5px;color:#f3dfbc;background:#171118e8;border-radius:calc(6 * var(--u));z-index:3;text-shadow:0 1px calc(2 * var(--u)) #000;}
 /* Clean garnet arc: no gold trim or blurred halo. Use the high-resolution portrait face. */
-.world-boss-entry .wb-entry-art {left:4px;top:4px;width:62px;height:62px;background-image:url('/assets/world-boss/valkaron-resting-sharp-v2.png');background-size:310% auto;background-position:50% 10%;filter:none;box-shadow:none;}
+.world-boss-entry .wb-entry-art {left:calc(4 * var(--u));top:calc(4 * var(--u));width:calc(62 * var(--u));height:calc(62 * var(--u));background-image:url('/assets/world-boss/valkaron-resting-sharp-v2.png');background-size:310% auto;background-position:50% 10%;filter:none;box-shadow:none;}
 .world-boss-entry::before {display:none;}
-.world-boss-entry .wb-entry-health {mask-image:radial-gradient(circle,transparent 30px,#000 30.6px);filter:none;}
+.world-boss-entry .wb-entry-health {mask-image:radial-gradient(circle,transparent calc(30 * var(--u)),#000 calc(30.6 * var(--u)));filter:none;}
 .world-boss-entry .wb-entry-health::before {background:conic-gradient(from 220deg,#261017 0deg 280deg,transparent 280deg 360deg);mask-image:none;}
-.world-boss-entry .wb-entry-health i {background:radial-gradient(circle,transparent 30px,#591321 30.5px,#d7626b 31.3px,#b72c43 32.6px,#72192d 34px,#350d19 34.8px);mask-image:conic-gradient(from 220deg,#000 0deg var(--wb-hp-angle,280deg),transparent var(--wb-hp-angle,280deg) 360deg);}
-.world-boss-entry .wb-entry-count {top:50px;height:17px;line-height:17px;background:#171118f2;border:0;box-shadow:none;color:#eee5dc;font-weight:700;text-shadow:0 1px 1px #000;}
+.world-boss-entry .wb-entry-health i {background:radial-gradient(circle,transparent calc(30 * var(--u)),#591321 calc(30.5 * var(--u)),#d7626b calc(31.3 * var(--u)),#b72c43 calc(32.6 * var(--u)),#72192d calc(34 * var(--u)),#350d19 calc(34.8 * var(--u)));mask-image:conic-gradient(from 220deg,#000 0deg var(--wb-hp-angle,280deg),transparent var(--wb-hp-angle,280deg) 360deg);}
+.world-boss-entry .wb-entry-count {top:calc(50 * var(--u));height:calc(17 * var(--u));line-height:calc(17 * var(--u));background:#171118f2;border:0;box-shadow:none;color:#eee5dc;font-weight:700;text-shadow:0 1px 1px #000;}
 
 .wb-battle-start {font-size:25px;letter-spacing:6px;top:66%;}
 
@@ -178,4 +178,4 @@
 /* `월드보스` 라벨(사용자 요청 "월드보스는 현재에서 그냥 월드보스라고만 밑에 표기") — 동그라미(70px) 바로
    아래 71~85px에 작은 다크 필 한 줄. 원 안의 `3/3`(50~67px)과 4px 여유를 두고, 붉은 체력 호나 얼굴을
    가리지 않는다. 버튼 밖으로 넘치지만 `pointer-events:none`이라 원을 누르는 탭을 막지 않는다. */
-.world-boss-entry .wb-entry-label {position:absolute;left:50%;top:71px;transform:translateX(-50%);height:14px;padding:0 6px;border:1px solid #6f5348;border-radius:4px;background:#171118f2;color:#efdbb8;font:700 9.5px/12px 'Noto Sans KR',sans-serif;letter-spacing:.2px;white-space:nowrap;text-shadow:0 1px 2px #000;pointer-events:none;}
+.world-boss-entry .wb-entry-label {position:absolute;left:50%;top:calc(71 * var(--u));transform:translateX(-50%);height:calc(14 * var(--u));padding:0 calc(6 * var(--u));border:1px solid #6f5348;border-radius:calc(4 * var(--u));background:#171118f2;color:#efdbb8;font:700 calc(9.5 * var(--u))/calc(12 * var(--u)) 'Noto Sans KR',sans-serif;letter-spacing:.2px;white-space:nowrap;text-shadow:0 1px calc(2 * var(--u)) #000;pointer-events:none;}

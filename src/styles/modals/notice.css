@@ -1,0 +1,48 @@
+/* DJRPG 모달 — 공지사항 (2026-11-22, 대장님 확정 1안)
+   오른쪽 레일 확성기 버튼이 여는 목록형 공지 창. 원문은 `public/notices.json`이다.
+
+   새 도메인 파일이라 `modals.css`의 import 순서에 `base.css` **앞**에 넣는다 — 공통 정규화(닫기 버튼
+   44px 터치 크기)가 마지막에 이겨야 한다는 기존 순서를 그대로 지키기 위해서다. 창틀(2px #9a7655 ·
+   #2b2224→#181318)은 `modals/base.css` 공통 껍데기를 쓰고, 폭만 우편함과 같은 380px로 좁힌다. */
+
+.modal-dialog.notice-modal { width: min(100%, 380px); max-height: min(80dvh, 640px); padding: 10px; }
+.notice-modal > header h2 { font-size: 18px; margin: 0; }
+.notice-modal > header { position: sticky; top: -10px; z-index: 4; background: #2b2224; min-height: 32px; margin-bottom: 6px; }
+.notice-modal .modal-close { width: 32px; height: 32px; font-size: 26px; }
+/* 머리글 제목 옆 작은 `NOTICE` 라벨 — 공통 창틀(`modalChrome.ts`)을 건드리지 않고 제목 뒤에 붙인다. */
+.notice-modal > header h2::after { content: 'NOTICE'; margin-left: 7px; color: #b08a55; font: 700 8px 'Noto Sans KR', sans-serif; letter-spacing: 1.2px; vertical-align: 2px; }
+
+.notice-content { display: flex; flex-direction: column; gap: 8px; font-size: 11px; color: #d6c5ae; }
+
+/* ── 목록 머리: 전체 N건 · 새 공지 N ───────────────────────────────────────── */
+.notice-summary { display: flex; align-items: center; justify-content: space-between; font-size: 9.2px; color: #ad9d8e; }
+.notice-fresh-count { position: relative; display: inline-flex; align-items: center; gap: 5px; color: #e8b66f; font-weight: 700; }
+.notice-fresh-dot { width: 6px; height: 6px; border-radius: 50%; background: #cf5340; box-shadow: 0 0 4px #a81718b0; }
+.notice-fresh-dot[hidden] { display: none; }
+
+/* ── 공지 카드 — 금테 + 왼쪽 금색 바, 우편함 미수령 카드와 같은 자리 규칙 ── */
+.notice-card { position: relative; display: flex; flex-direction: column; gap: 5px; border: 1px solid #b38c52; background: #211a1d; padding: 8px 9px 8px 12px; box-shadow: inset 3px 0 #b38c52; }
+.notice-card.notice-pinned { border-color: #c9a15a; box-shadow: inset 3px 0 #c9a15a, 0 0 8px #e0a8501f; }
+.notice-card-head { display: flex; align-items: center; gap: 6px; }
+.notice-tag { flex: none; padding: 1px 5px; border-radius: 7px; background: #cf5340; color: #fff6f0; font: 700 8.5px/13px 'Noto Sans KR', sans-serif; letter-spacing: .4px; box-shadow: 0 0 0 1px #7a2018cc, 0 1px 3px #0009; }
+.notice-tag[hidden] { display: none; }
+.notice-title { flex: 1; color: #f0dcb8; font-size: 12px; font-weight: 700; }
+.notice-date { flex: none; color: #a79787; font-size: 9px; }
+.notice-body { display: flex; flex-direction: column; gap: 3px; border-top: 1px solid #544238; padding-top: 6px; }
+.notice-body-line { margin: 0; color: #e2d3c0; font-size: 11.4px; line-height: 1.6; overflow-wrap: anywhere; white-space: pre-wrap; }
+.notice-author { color: #a79787; font-size: 8.8px; }
+.notice-card .notice-author { border-top: 1px solid #544238; padding-top: 5px; }
+
+.notice-note { color: #ad9d8e; line-height: 1.5; margin: 2px 0; font-size: 10px; }
+
+/* ── 안내문·출처 · 확인 버튼 ───────────────────────────────────────────────── */
+.notice-footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 4px; }
+.notice-source { margin: 0; color: #928476; font-size: 8.2px; }
+.notice-confirm { align-self: flex-end; min-width: 74px; min-height: 30px; padding: 4px 12px; border: 1px solid #e6b866; background: linear-gradient(#8f6323, #462d0e); color: #ffedc6; font: 700 12px 'Noto Sans KR', sans-serif; cursor: pointer; touch-action: manipulation; box-shadow: 0 0 0 1px rgba(230, 184, 102, .30), 0 1px 6px rgba(0, 0, 0, .5), inset 0 1px 0 rgba(255, 238, 201, .35); }
+.notice-confirm:hover { border-color: #ffd98c; background: linear-gradient(#a8752c, #5b3a12); color: #fff7de; }
+.notice-confirm:active { background: linear-gradient(#6f4c1b, #3a250b); box-shadow: inset 0 2px 5px rgba(0, 0, 0, .55); }
+.notice-confirm:focus-visible { outline: 2px solid #ffe6b0; outline-offset: 1px; }
+
+/* ── 오른쪽 레일 버튼의 붉은 `NEW` 뱃지 (hud.css 레일 규칙과 같은 자리) ── */
+.utility-nav .notice-new-badge { position: absolute; right: -3px; top: -4px; z-index: 2; padding: 0 4px; border-radius: 8px; background: #cf5340; color: #fff6f0; font: 700 8px/13px 'Noto Sans KR', sans-serif; letter-spacing: .3px; box-shadow: 0 0 0 1px #7a2018cc, 0 1px 3px #0009; pointer-events: none; }
+.utility-nav .notice-new-badge[hidden] { display: none; }
