@@ -95,6 +95,21 @@ test('더블 샷은 두 화살이 동시에 출발해 같은 적에게 두 번 �
   assert(Math.abs(world.enemies[0].maxHp - world.enemies[0].hp - totalStats(save).attack * 1.35 * 2) < 1e-6);
 });
 
+test('궁수 화살은 움직이는 적을 추적하지 않고 발사 방향으로 직진한다', () => {
+  const save = freshSave('female', 'archer'); save.learned = ['doubleShot']; save.quickSlots = ['doubleShot', null, null];
+  const world = new FixedCombat(save); world.critRoll = () => 1;
+  const enemy = dummy(160); world.enemies = [enemy];
+  world.action('doubleShot'); world.cooldown.attack = 999;
+  const shots = world.effects.filter(effect => effect.kind === 'shot');
+  assert.equal(shots.length, 2);
+  assert(shots.every(effect => effect.aim === undefined && effect.tx === 160 && effect.ty === 0));
+  enemy.x = 300; enemy.y = 120;
+  world.update(.08);
+  assert(shots.every(effect => effect.tx === 160 && effect.ty === 0));
+  world.update(.2);
+  assert.equal(enemy.hp, enemy.maxHp);
+});
+
 test('멀티 샷 다섯 화살은 최대 사거리까지 관통하고 적마다 한 번만 때린다', () => {
   const save = freshSave('male', 'archer'); save.learned = ['multiShot']; save.quickSlots = ['multiShot', null, null];
   const world = new FixedCombat(save); world.critRoll = () => 1;

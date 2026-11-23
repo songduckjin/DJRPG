@@ -340,23 +340,23 @@ export function drawArrow(this: GameView, effect: Effect, x: number, y: number, 
     const dx = (effect.tx ?? effect.x) - effect.x, dy = (effect.ty ?? effect.y) - effect.y;
     const progress = Math.max(0, Math.min(1, effect.age / Math.max(.01, effect.duration)));
     const px = x + (dx - dy) * .86 * progress;
-    // 발사점과 적중점을 발밑이 아닌 몸통 중앙에 두고, 실제 궤적의 접선으로 화살을 돌린다.
-    const lift = 8 * Math.sin(Math.PI * progress);
-    const py = y + (dx + dy) * .43 * progress - 46 - lift;
-    const angle = Math.atan2((dx + dy) * .43 - 8 * Math.PI * Math.cos(Math.PI * progress), (dx - dy) * .86);
-    const color = arrowColors[effect.variant ?? 'normal'];
+    // 몸통 높이에서 고정된 발사 방향으로 직진한다. 이동 중 회전하거나 위로 휘지 않는다.
+    const py = y + (dx + dy) * .43 * progress - 46;
+    const angle = Math.atan2((dx + dy) * .43, (dx - dy) * .86);
     const length = effect.variant === 'snipe' ? 36 : effect.variant === 'pierce' ? 32 : 26;
     const ux = Math.cos(angle), uy = Math.sin(angle), vx = -uy, vy = ux;
     const tailX = px - ux * length, tailY = py - uy * length;
-    // 갈색 화살대·양쪽 깃·은빛 촉을 분리해 작은 화면에서도 화살 형태가 읽히게 한다.
-    this.effects.moveTo(tailX, tailY).lineTo(px - ux * 5, py - uy * 5).stroke({ color: 0x4b3325, width: 4, alpha: 1 });
-    this.effects.moveTo(tailX, tailY).lineTo(px - ux * 5, py - uy * 5).stroke({ color: 0xc29b70, width: 1.3, alpha: 1 });
-    for (const side of [-1, 1]) this.effects.moveTo(tailX + vx * side * 1.5, tailY + vy * side * 1.5)
-      .lineTo(tailX + ux * 8 + vx * side * 6, tailY + uy * 8 + vy * side * 6)
-      .lineTo(tailX + ux * 11, tailY + uy * 11).closePath().fill({ color: 0xe9e3d5, alpha: .95 });
+    // 나무 화살대, 짙은 붉은 깃, 금속 촉과 화살통 홈을 각각 그린다.
+    this.effects.moveTo(tailX, tailY).lineTo(px - ux * 5, py - uy * 5).stroke({ color: 0x342419, width: 4, alpha: 1 });
+    this.effects.moveTo(tailX, tailY).lineTo(px - ux * 5, py - uy * 5).stroke({ color: 0x9b6840, width: 1.5, alpha: 1 });
+    for (const side of [-1, 1]) this.effects.moveTo(tailX + ux * 2, tailY + uy * 2)
+      .lineTo(tailX + ux * 9 + vx * side * 5, tailY + uy * 9 + vy * side * 5)
+      .lineTo(tailX + ux * 12, tailY + uy * 12).closePath().fill({ color: 0x833d2d, alpha: 1 });
     this.effects.moveTo(px + ux * 8, py + uy * 8)
-      .lineTo(px - ux * 5 + vx * 4, py - uy * 5 + vy * 4)
-      .lineTo(px - ux * 5 - vx * 4, py - uy * 5 - vy * 4).closePath().fill({ color, alpha: 1 });
+      .lineTo(px - ux * 5 + vx * 3.5, py - uy * 5 + vy * 3.5)
+      .lineTo(px - ux * 5 - vx * 3.5, py - uy * 5 - vy * 3.5).closePath().fill({ color: 0x879190, alpha: 1 });
+    this.effects.moveTo(tailX - vx * 2, tailY - vy * 2).lineTo(tailX + vx * 2, tailY + vy * 2)
+      .stroke({ color: 0x30251e, width: 1.5, alpha: 1 });
     if (effect.variant === 'pierce') this.glow.moveTo(tailX - ux * 12, tailY - uy * 12).lineTo(px, py).stroke({ color: 0xd6e6ed, width: 3, alpha: .24 });
     if (effect.variant === 'ice') this.glow.circle(px, py, 10).fill({ color: 0x8fd0ff, alpha: .12 });
     if (effect.variant === 'snipe') this.glow.circle(px, py, 14).fill({ color: 0xfff0c8, alpha: .18 });
