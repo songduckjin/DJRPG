@@ -5,7 +5,8 @@ import { rollStatBookDrop } from './statBooks';
 import { jobOrDefault as jobOf, skillDamageScale, skillDuration, skills, type SkillId } from './skills';
 import { skillLevel, type Save } from './store';
 import { afterBossLose, afterBossWin, applyBossReward, applyKillBatch, defeatPenalty, killsToBoss } from './progress';
-import { basicAttackPower, berserkAttackScale, berserkSpeedScale, CRIT_CHANCE_CAP, CRIT_DAMAGE_SCALE, attackInterval, enemyHitDamage, enemyMaxHp, fieldSpawnRate } from './battle/formulas';
+import { basicAttackPower, berserkAttackScale, berserkSpeedScale, CRIT_CHANCE_CAP, attackInterval, critDamageScale, enemyHitDamage, enemyMaxHp, fieldSpawnRate } from './battle/formulas';
+import { effectiveExtraOptions } from './extraOptions';
 import { SKILL_CDR_CAP } from './combat/engine';
 
 /**
@@ -61,10 +62,12 @@ const skillBurst: Record<SkillId, number> = {
 const buffSkills: SkillId[] = ['warcry', 'hawkEye', 'arcaneShield'];
 
 /** 지금 스펙으로 보스에게 넣는 초당 피해 — 평타(직업 기본 간격·공속·6.0타 상한·치명) + 퀵슬롯 스킬(CDR 반영) + 버프 가동률.
- *  밸런스 v2부터 필드와 **같은 식**이다(종전에는 치명·공속 상한·CDR을 무시해 필드의 66~80%였다). */
+ *  밸런스 v2부터 필드와 **같은 식**이다(종전에는 치명·공속 상한·CDR을 무시해 필드의 66~80%였다).
+ *  치명타 배수도 필드와 같은 `critDamageScale`이다(기본 1.8배 + 장비 `치명타 피해량`, 백로그 2번). */
 export function offlineHeroDps(save: Save): number {
   const stats = totalStats(save);
-  const critFactor = 1 + Math.min(CRIT_CHANCE_CAP, Math.max(0, stats.crit)) / 100 * (CRIT_DAMAGE_SCALE - 1);
+  const critDamage = critDamageScale(effectiveExtraOptions(save.equipment).critDmgPct);
+  const critFactor = 1 + Math.min(CRIT_CHANCE_CAP, Math.max(0, stats.crit)) / 100 * (critDamage - 1);
   const cdrScale = 1 - Math.min(SKILL_CDR_CAP, Math.max(0, stats.cdr)) / 100;
   let skill = 0;
   for (const id of save.quickSlots) {

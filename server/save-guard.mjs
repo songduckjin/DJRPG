@@ -224,6 +224,8 @@ export const EXTRA_CDR_CAP = 6;
 export const EXTRA_CRIT_CAP = 10;
 export const EXTRA_SPEED_CAP = 10;
 export const EXTRA_LIFESTEAL_CAP = 5;
+/** 치명타 피해량 합산 상한(%) — `src/game/battle/formulas.ts` `CRIT_DAMAGE_BONUS_CAP`과 같은 값(백로그 2번). */
+export const EXTRA_CRIT_DMG_CAP = 15;
 /**
  * 새로 만들어지는 아이템(소유 기록이 없는 id)의 능력치가 `rollItem` 공식의 상한 안에 있는지.
  * 기존 보유 아이템은 `identity` 대조가 이미 맡으므로 여기서 보지 않는다.
@@ -264,7 +266,7 @@ export function itemWithinBounds(item, maxFloor = 1, tolerance = STAT_TOLERANCE)
     const ceiling = Math.ceil((allowed + STAT_SLACK) * factor * tolerance) + 2;
     if (!Number.isFinite(value) || value < 0 || value > ceiling) return false;
   }
-  // 추가옵션(작업 238): 등급별 1/2/3개·허용 키 9종·1~3% 정수만 통과한다. 스탯과 달리 상한 계산이
+  // 추가옵션(작업 238): 등급별 1/2/3개·허용 키 11종·1~3% 정수만 통과한다. 스탯과 달리 상한 계산이
   // 필요 없다 — 값 자체가 1~3%로 고정이고, 서버는 저장 전에 id로 다시 계산해 덮어쓴다.
   if (!extraOptionsWithin(item)) return false;
   return true;

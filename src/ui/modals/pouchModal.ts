@@ -3,6 +3,7 @@ import { openPouch, POUCH_OVERALL_RATES, pouchCount, POUCH_HINT, pouchResultText
 import { openPouches, pouchBatchText } from '../../game/pouchBatch';
 import { pouchBatchPanel } from '../pouchBatch';
 import { isLegendaryPouchResult } from '../../game/legendBoard';
+import { isSpotlightRarity, spotlightTag } from '../../game/raritySpotlight';
 import { createPouchArt, pouchRewardArt, preloadPouchFrames, resetPouchArt, setPouchFrame, POUCH_FRAME_URLS, POUCH_GOLD_PILE_URL } from '../pouchArt';
 import { createPouchLight } from '../pouchLight';
 import { goldMarkup } from '../currency';
@@ -89,6 +90,17 @@ export function pouchResultCard(result: PouchResult): HTMLElement {
   name.textContent = itemDisplayName(item);
   name.classList.add(`rarity-${item.rarity as Rarity}`);
   card.append(art, name);
+  // 유니크·전설 상위 노출(백로그 3번) — 카드 테두리에 등급 빛을 두르고, 위에 `[전설] [NEW]` 꼬리표를 붙인다.
+  // 다른 등급은 지금처럼 그림 + 등급 색 이름만이다(사용자 확정 시안).
+  if (isSpotlightRarity(item.rarity)) {
+    card.classList.add('is-spotlight');
+    card.dataset.rarity = item.rarity;
+    const flag = element('span', 'pouch-result-flag');
+    flag.append(element('b', `pouch-result-tag rarity-${item.rarity as Rarity}`, spotlightTag(item.rarity)), element('i', 'pouch-result-new', 'NEW'));
+    // 꼬리표는 CSS가 카드 위쪽 가운데에 절대 배치하므로 붙이는 순서는 그림에 영향을 주지 않는다
+    // (가짜 DOM을 쓰는 테스트도 `prepend` 없이 같은 구조를 본다).
+    card.append(flag);
+  }
   return card;
 }
 

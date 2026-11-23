@@ -101,14 +101,16 @@ test('결과창은 등급색·등급 이름·장비 먼저/영구 스탯북 묶�
     missed: 0, salvaged: { count: 0, gold: 0, stones: 0 }
   };
   const html = markup.dungeonRewardMarkup(receipt);
-  // 등급색 클래스(기존 `.rarity-*` CSS) — 장비·스킬북 모두.
-  assert.match(html, /class="rarity-legendary"/);
+  // 등급색 클래스(기존 `.rarity-*` CSS) — 장비·스킬북 모두. 유니크·전설 **장비**에는 백로그 3번의
+  // 상위 노출 클래스(`is-spotlight`)와 꼬리표가 함께 붙는다(스탯북은 등급이 높아도 빛을 주지 않는다).
+  assert.match(html, /class="rarity-legendary is-spotlight"/);
   assert.match(html, /class="rarity-unique"/);
+  assert.match(html, /<b class="dungeon-result-spot">\[전설\]<\/b>/);
   // 이름 앞 등급 표기.
   assert.match(html, /<b class="dungeon-result-grade">\[레전드\]<\/b>황혼의 두손검/);
   assert.match(html, /<b class="dungeon-result-grade">\[유니크\]<\/b>/);
   // 장비 먼저, 영구 스탯북은 아래 묶음 — 같은 책은 ×2로 묶는다.
-  const order = [...html.matchAll(/<li class="rarity-[a-z]+">/g)].length;
+  const order = [...html.matchAll(/<li class="rarity-[a-z]+(?: is-spotlight)?">/g)].length;
   assert.equal(order, 4, '장비 2 + 스탯북 2줄(×2, ×1)');
   const equipmentIndex = html.indexOf('황혼의 두손검'), bookIndex = html.indexOf('공격의 서');
   assert(equipmentIndex >= 0 && bookIndex > equipmentIndex, '장비가 스탯북보다 먼저');

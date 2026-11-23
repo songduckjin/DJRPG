@@ -95,6 +95,7 @@ function alphaStats(name) {
   return {
     visible,
     semiShare: visible ? semi / visible : 1,
+    interiorSemi,
     interiorSemiShare: visible ? interiorSemi / visible : 1,
     median: values.length ? values[values.length >> 1] : 0
   };
@@ -117,6 +118,18 @@ const sheets = [
   'weapons/weapon_3_v1.png', 'bows/bow_5_v1.png', 'staffs/staff_3_v1.png'
 ];
 
+// 백로그 7번(2026-11-23) — 마법사·궁수 **본체 시트 48장**을 같은 규칙으로 다시 구웠다.
+// 마법사는 24장(기본·지팡이 지움·머리 없음·머리 없음+지팡이 지움 각 6), 궁수는 24장(기본·활 지움·머리 없음·머리 없음+활 지움).
+// 이 시트들은 안쪽에 알파 0으로 뚫린 점(구멍)이 있어 227의 "2px 넘게 떨어진 내부" 규칙이 아무것도 고치지 못했다.
+const mageAndArcherBodies = [];
+for (const gender of ['male', 'female']) for (const motion of ['idle', 'walk', 'attack']) {
+  mageAndArcherBodies.push(`mage_${gender}_${motion}_v1.png`, `mage_nostaff/mage_${gender}_${motion}_v1.png`);
+  mageAndArcherBodies.push(`mage_headless/mage_${gender}_${motion}_v1.png`, `mage_headless/nostaff/mage_${gender}_${motion}_v1.png`);
+  mageAndArcherBodies.push(`archer_${gender}_${motion}_v1.png`, `nobow/archer_${gender}_${motion}_v1.png`);
+  mageAndArcherBodies.push(`archer_headless/archer_${gender}_${motion}_v1.png`, `archer_headless/nobow/archer_${gender}_${motion}_v1.png`);
+}
+for (const name of mageAndArcherBodies) if (!sheets.includes(name)) sheets.push(name);
+
 for (const name of sheets) test(`${name} 는 몸 안쪽이 불투명하다(알파 복원)`, () => {
   const stats = alphaStats(name);
   assert(stats.visible > 500, `${name}: 시트가 비어 있다`);
@@ -126,6 +139,69 @@ for (const name of sheets) test(`${name} 는 몸 안쪽이 불투명하다(알�
     `${name}: 내부 반투명이 ${(stats.interiorSemiShare * 100).toFixed(2)}% 남았다(바닥이 비친다)`
   );
   assert(stats.median >= 250, `${name}: 불투명 픽셀 중앙값이 ${stats.median}/255 로 낮다`);
+});
+
+// 백로그 7번(2026-11-23): 마법사·궁수 본체 48장은 시트 안쪽에 알파 0으로 뚫린 점(구멍)이 있었고,
+// 227의 "배경에서 2px 떨어진 내부" 규칙은 그 구멍 바로 옆을 내부로 보지 않아 아무것도 고치지 못했다.
+// 다시 구운 뒤에는 **구멍을 메우고 안쪽을 255로** 칠해서, 몸 안쪽 반투명 픽셀이 사실상 0이다.
+// (고치기 전 시트는 마법사 남자 서기만 해도 안쪽 반투명이 1,707픽셀이라 이 검사에서 바로 걸린다.)
+test('백로그 7번 — 마법사·궁수 본체 48장은 몸 안쪽이 완전히 불투명하다', () => {
+  const loose = [];
+  for (const name of mageAndArcherBodies) {
+    const stats = alphaStats(name);
+    assert(stats.visible > 500, `${name}: 시트가 비어 있다`);
+    if (stats.interiorSemi > 8) loose.push(`${name}: ${stats.interiorSemi}px`);
+    assert(stats.median >= 250, `${name}: 중앙값 ${stats.median}/255`);
+  }
+  assert.deepEqual(loose, [], `안쪽 반투명이 남은 시트: ${loose.join(', ')}`);
+});
+
+/** 알파 0 픽셀이 이미지 테두리와 이어지지 않은 덩어리들의 넓이 — 실루엣 안에 갇힌 빈 곳. */
+function enclosedGaps(name) {
+  const { width, height, alpha } = decodeAlpha(readFileSync(new URL(`../public/assets/pilot-25d/${name}`, import.meta.url)));
+  const seen = new Uint8Array(width * height);
+  const stack = [];
+  for (let x = 0; x < width; x += 1) { stack.push(x, (height - 1) * width + x); }
+  for (let y = 0; y < height; y += 1) { stack.push(y * width, y * width + width - 1); }
+  while (stack.length) {
+    const index = stack.pop();
+    if (seen[index] || alpha[index]) continue;
+    seen[index] = 1;
+    const x = index % width, y = (index - x) / width;
+    if (x > 0) stack.push(index - 1);
+    if (x < width - 1) stack.push(index + 1);
+    if (y > 0) stack.push(index - width);
+    if (y < height - 1) stack.push(index + width);
+  }
+  const gaps = [];
+  const inside = new Uint8Array(width * height);
+  for (let index = 0; index < alpha.length; index += 1) {
+    if (alpha[index] || seen[index] || inside[index]) continue;
+    let size = 0;
+    const queue = [index];
+    inside[index] = 1;
+    while (queue.length) {
+      const current = queue.pop();
+      size += 1;
+      const x = current % width, y = (current - x) / width;
+      for (const next of [x > 0 ? current - 1 : -1, x < width - 1 ? current + 1 : -1, y > 0 ? current - width : -1, y < height - 1 ? current + width : -1]) {
+        if (next >= 0 && !alpha[next] && !seen[next] && !inside[next]) { inside[next] = 1; queue.push(next); }
+      }
+    }
+    gaps.push(size);
+  }
+  return gaps;
+}
+
+test('구멍을 메울 때 활시위 안쪽처럼 크게 뚫린 곳(그림의 일부)은 덮지 않는다', () => {
+  // 궁수 서기는 활대와 시위 사이가 크게 뚫려 있다 — 이걸 알파 255로 채우면 활이 판때기가 된다.
+  const gaps = enclosedGaps('archer_male_idle_v1.png');
+  assert(gaps.some(size => size > 500), `큰 빈 곳이 남아 있어야 한다(가장 큰 빈 곳 ${Math.max(0, ...gaps)}px)`);
+  // 반면 실루엣에 갇힌 빈 곳 전체가 메워졌다면 활이 판때기가 된다 — 배경·빈 곳이 그림의 상당 부분 남아 있어야 한다.
+  const { alpha } = decodeAlpha(readFileSync(new URL('../public/assets/pilot-25d/archer_male_idle_v1.png', import.meta.url)));
+  let transparent = 0;
+  for (const value of alpha) if (!value) transparent += 1;
+  assert(transparent > 100_000, `배경·빈 곳이 ${transparent}px 밖에 안 남았다(그림을 덮았다)`);
 });
 
 test('이펙트(fx_*)는 알파를 255로 덮지 않았다', () => {

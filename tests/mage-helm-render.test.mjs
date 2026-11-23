@@ -212,13 +212,16 @@ test('머리 없는 마법사 본체 12장이 셀 규격대로 있고 머리만 
         if (motion !== 'idle') continue;
         // 서기 한 장은 머리·가슴을 직접 비교한다(걷기·공격은 프레임 좌표가 달라 규격만 본다).
         const source = staffless
-          ? `/assets/pilot-25d/mage_nostaff/mage_${gender}_idle_v1.png?v=5`
-          : `/assets/pilot-25d/mage_${gender}_idle_v1.png?v=5`;
+          ? `/assets/pilot-25d/mage_nostaff/mage_${gender}_idle_v1.png?v=6`
+          : `/assets/pilot-25d/mage_${gender}_idle_v1.png?v=6`;
         const before = decodeAlpha(readFileSync(fileOf(source)));
         assert(opaqueIn(before, head) > 300, `${source} 머리 영역 기준값`);
         assert(opaqueIn(art, face) <= opaqueIn(before, face) * .05, `${path} 에 얼굴이 남아 있습니다`);
         assert(opaqueIn(art, head) <= opaqueIn(before, head) * .05, `${path} 에 머리가 남아 있습니다`);
-        assert(opaqueIn(art, chest) > opaqueIn(before, chest) * .9, `${path} 가슴·어깨가 지워졌습니다`);
+        // 백로그 7번(2026-11-23)이 본체 시트의 내부 반투명을 255로 복원하면서 두 시트의 `alpha>128` 픽셀이
+        // 서로 다른 폭으로 늘었다(남자: 본체 +29% · 머리 없음 +17%). 가슴이 지워지지 않았다는 판정은 그대로
+        // 두되 기준선 흔들림을 감안해 여유를 90% → 80%로 둔다.
+        assert(opaqueIn(art, chest) > opaqueIn(before, chest) * .8, `${path} 가슴·어깨가 지워졌습니다`);
       }
     }
   }

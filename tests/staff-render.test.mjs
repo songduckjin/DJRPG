@@ -139,7 +139,7 @@ test('지팡이 10종 이름이 모두 기본형 인덱스 0~9 로 매핑되고,
     const save = mageSave('male', staffBases[index]);
     assert.equal(staffIndexFor(save), index, `${staffBases[index]} → ${index}`);
     assert.equal(usesStafflessBody(save), true, `${staffBases[index]} 도 기본 지팡이를 지운 시트를 쓴다`);
-    assert.equal(staffPartPath(index), `/assets/pilot-25d/staffs/staff_${index}_v1.png?v=5`);
+    assert.equal(staffPartPath(index), `/assets/pilot-25d/staffs/staff_${index}_v1.png?v=6`);
     // 접두사·강화 수식어가 붙은 드랍 이름도 같은 티어로 읽는다.
     assert.equal(staffIndexFor(mageSave('female', `황혼의 ${staffBases[index]}`)), index, `황혼의 ${staffBases[index]}`);
   }
@@ -214,7 +214,9 @@ test('기본 지팡이를 지운 마법사 시트 6장이 셀 규격대로 있�
   }
   assert(handBefore > 200, `손 영역: ${handBefore}`);
   // 지팡이가 주먹을 가로지른 자리(보호 반경 밖 가장자리)만 조금 깎인다 — 주먹 모양은 남아야 한다.
-  assert(handAfter > handBefore * .7, `손이 지워졌습니다: ${handBefore} → ${handAfter}`);
+  // 백로그 7번(2026-11-23)이 마법사 시트의 내부 반투명을 255로 복원해 `alpha>128`로 세는 픽셀이 양쪽 모두
+  // 늘었다(381→405 · 270→283) — 비율 기준선이 함께 올라 70%가 69.9%로 걸치게 되어 여유를 65%로 둔다.
+  assert(handAfter > handBefore * .65, `손이 지워졌습니다: ${handBefore} → ${handAfter}`);
 });
 
 test('지팡이 자세 표는 남녀 × 9자세고, 걷기·공격 프레임은 4프레임 안으로 접힌다', () => {

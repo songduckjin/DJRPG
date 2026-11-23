@@ -42,8 +42,8 @@ test('추가옵션 개수는 에픽 1 · 유니크 2 · 전설 3이고 일반·�
   assert.equal(extraOptionCount('nope'), 0);
 });
 
-test('추가옵션 10종은 한 아이템 안에서 중복 없이 1~3%(쿨감은 1~2%) 정수로 뽑힌다', () => {
-  assert.deepEqual([...extraOptionKeys], ['regenPct', 'bonusDmgPct', 'lifestealPct', 'attackPct', 'critPct', 'defensePct', 'healthPct', 'evasionPct', 'speedPct', 'cdrPct']);
+test('추가옵션 11종은 한 아이템 안에서 중복 없이 1~3%(쿨감은 1~2%) 정수로 뽑힌다', () => {
+  assert.deepEqual([...extraOptionKeys], ['regenPct', 'bonusDmgPct', 'lifestealPct', 'attackPct', 'critPct', 'defensePct', 'healthPct', 'evasionPct', 'speedPct', 'cdrPct', 'critDmgPct']);
   for (const rarity of ['epic', 'unique', 'legendary']) {
     const wanted = extraOptionCount(rarity);
     for (let index = 0; index < 400; index++) {

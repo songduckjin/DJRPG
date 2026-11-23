@@ -10,6 +10,12 @@
 .offline-floors { margin: 8px 0 0; padding: 8px 10px; border: 1px solid #8d6a3f; background: #2f2019; color: #ffd79a; font-size: 12px; line-height: 1.6; }
 .offline-salvaged { margin: 8px 0 0; padding: 8px 10px; border: 1px solid #6f7f4a; background: #232a1c; color: #cfe3a4; font-size: 12px; line-height: 1.6; }
 .offline-items { max-height: 240px; overflow-y: auto; padding-left: 20px; color: #dfc8aa; font-size: 12px; }
+/* 유니크·전설 상위 노출(백로그 3번) — 방치 보상 목록에서 상위 등급 줄은 등급 색·빛으로 앞줄에 선다. */
+.offline-items li.rarity-unique { color: #fb923c; }
+.offline-items li.rarity-legendary { color: #f87171; }
+.offline-items li.is-spotlight { margin-left: -14px; padding: 2px 6px; border-radius: 5px; list-style: none; font-weight: 700; }
+.offline-items li.is-spotlight[data-rarity="legendary"] { background: linear-gradient(90deg, #f8717122, transparent); box-shadow: inset 0 0 10px #f8717130; }
+.offline-items li.is-spotlight[data-rarity="unique"] { background: linear-gradient(90deg, #fb923c1a, transparent); box-shadow: inset 0 0 10px #fb923c2c; }
 .floor-summary-note { margin: -6px 0 10px; color: #9c8b7b; font-size: 10.5px; line-height: 1.5; }
 .floor-mode { width: 100%; margin-bottom: 12px; padding: 9px; border: 1px solid #a27d52; background: #4b3327; color: #ffe0b4; font-size: 12px; }
 /* 상단 배너 — 내 전투력 + ★ 추천 층 */

@@ -1,6 +1,7 @@
 import { goldMarkup } from '../currency';
 import type { OfflineReward } from '../../game/offline';
 import { itemDisplayName, rarityNames } from '../../game/items';
+import { isSpotlightRarity, spotlightFirst, spotlightTag } from '../../game/raritySpotlight';
 
 export function renderOffline(dialog: HTMLElement, reward: OfflineReward): void {
   const summary = document.createElement('div'); summary.className = 'offline-summary';
@@ -15,9 +16,17 @@ export function renderOffline(dialog: HTMLElement, reward: OfflineReward): void 
   if (!climbed && reward.deaths) floorNotes.push(`보스에게 ${reward.deaths}번 져서 층이 멈췄습니다`);
   if (floorNotes.length) { const note = document.createElement('p'); note.className = 'offline-floors'; note.textContent = floorNotes.join(' · '); dialog.appendChild(note); }
   const heading = document.createElement('h3'); heading.textContent = `획득 아이템 ${reward.items.length}개`; dialog.appendChild(heading);
+  // 유니크·전설 상위 노출(백로그 3번) — 목록 머리에 상위 등급부터 세우고, 그 줄에 등급 꼬리표·등급 빛을 준다.
+  // 나머지(에픽 이하)는 떨어진 순서 그대로 뒤따른다.
+  const items = spotlightFirst(reward.items, item => item.rarity);
   const list = document.createElement('ul'); list.className = 'offline-items';
-  for (const item of reward.items) { const row = document.createElement('li'); row.textContent = `${itemDisplayName(item)} · ${rarityNames[item.rarity]}`; list.appendChild(row); }
-  if (!reward.items.length) { const row = document.createElement('li'); row.textContent = '획득한 아이템이 없습니다.'; list.appendChild(row); }
+  for (const item of items) {
+    const row = document.createElement('li'); row.className = `rarity-${item.rarity}`;
+    row.textContent = `${isSpotlightRarity(item.rarity) ? `${spotlightTag(item.rarity)} ` : ''}${itemDisplayName(item)} · ${rarityNames[item.rarity]}`;
+    if (isSpotlightRarity(item.rarity)) { row.classList.add('is-spotlight'); row.dataset.rarity = item.rarity; }
+    list.appendChild(row);
+  }
+  if (!items.length) { const row = document.createElement('li'); row.textContent = '획득한 아이템이 없습니다.'; list.appendChild(row); }
   dialog.appendChild(list);
   // 방치 자동 분해(작업 254) — 가방에 안 들어간 장비가 금화·강화석이 된 몫을 함께 적어, 팝업의 아이템 수와
   // 가방·금화가 어깋나 보이지 않게 한다(던전 결과창과 같은 문구).

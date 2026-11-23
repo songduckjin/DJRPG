@@ -8,15 +8,20 @@
  *
  * 서버는 저장·거래·창고로 들어오는 모든 장비의 추가옵션을 **id에서 다시 계산해 덮어쓴다**
  * (`normalizeExtraOptions`). 그래서 클라이언트가 값을 조작해도 1~3%·등급별 개수 규칙 밖으로 나갈 수 없다.
+ *
+ * 백로그 2번: `critDmgPct`(치명타 피해량)를 **맨 뒤에** 더했다 — 풀 길이가 10→11로 늘어나 저장된 옵션이
+ * 없던 옛 장비만 한 번 다시 뽑히고, 저장된 값이 있으면 규칙(1~3% 정수·등급별 개수)을 통과하는 한
+ * 그대로 살아남는다. 합산 상한(+15%)은 `server/save-guard.mjs` `EXTRA_CRIT_DMG_CAP`과 클라이언트
+ * `effectiveExtraOptions`가 같은 값이고, 전투 배수는 `src/game/battle/formulas.ts` `critDamageScale`이다.
  */
 export const EXTRA_OPTION_KEYS = [
   'regenPct', 'bonusDmgPct', 'lifestealPct', 'attackPct', 'critPct',
-  'defensePct', 'healthPct', 'evasionPct', 'speedPct', 'cdrPct'
+  'defensePct', 'healthPct', 'evasionPct', 'speedPct', 'cdrPct', 'critDmgPct'
 ];
 export const EXTRA_OPTION_COUNTS = { common: 0, magic: 0, rare: 0, epic: 1, unique: 2, legendary: 3 };
 export const EXTRA_OPTION_MIN = 1;
 export const EXTRA_OPTION_MAX = 3;
-/** `cdrPct`만 1~2%다(밸런스 v2) — 상한 `EXTRA_CDR_CAP` 6%. */
+/** `cdrPct`만 1~2%다(밸런스 v2) — 상한 `EXTRA_CDR_CAP` 6%. `critDmgPct`(치명타 피해량)는 다른 옵션과 같이 1~3%다. */
 export const EXTRA_CDR_MIN = 1;
 export const EXTRA_CDR_MAX = 2;
 export const extraOptionRange = key => key === 'cdrPct' ? { min: EXTRA_CDR_MIN, max: EXTRA_CDR_MAX } : { min: EXTRA_OPTION_MIN, max: EXTRA_OPTION_MAX };
@@ -59,7 +64,7 @@ export function deriveExtraOptions(rarity, id) {
   return options;
 }
 
-/** 저장된 값이 규칙(허용 키 10종·키별 1~3%(`cdrPct` 1~2%) 정수·중복 없음·등급별 개수)에 맞는지. */
+/** 저장된 값이 규칙(허용 키 11종·키별 1~3%(`cdrPct` 1~2%) 정수·중복 없음·등급별 개수)에 맞는지. */
 export function extraOptionsWithin(item) {
   if (!item || typeof item !== 'object') return false;
   const count = extraOptionCount(item.rarity);

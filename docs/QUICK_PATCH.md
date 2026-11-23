@@ -14,6 +14,8 @@
 | 월드보스 순위·보상·전투 재현 어긋남 | `docs/WORLDBOSS_RANKING.md` |
 | 일일/주간 퀘스트·업적 수치·보상 수령 반복 | `docs/QUEST_ATTENDANCE.md` |
 | 가방 40칸·스킬북 칸 계산·강화 `+N`·추가옵션·분해 보호 | `docs/INVENTORY_GEAR.md` |
+| 치명타 확률과 치명타 피해량이 헷갈림·피해량 옵션이 안 먹음 | `docs/INVENTORY_GEAR.md` |
+| 유니크·전설이 나왔는데 화면에서 티가 안 남(주머니·보상 창·가방) | `docs/INVENTORY_GEAR.md` |
 | 업그레이드 화살표(▲)·장비 비교 | `docs/INVENTORY_GEAR.md` |
 | 스킬 쿨타임·버프·퀵슬롯·추천 장착·스킬북 합성·도감 칸 | `docs/SKILLS_CODEX.md` |
 | 스킬 트리·SP 투자/초기화·선행 조건·스킬 최대 Lv.10 | `docs/SKILLS_CODEX.md` |
@@ -27,6 +29,7 @@
 | 캐릭터가 안 보임·코스튬 폴백·투구/갑옷/무기 외형·발광 | `docs/COSTUME_SYSTEM.md` |
 | 그림을 바꿨는데 화면이 그대로(캐시) | `docs/COSTUME_SYSTEM.md` + `PILOT_ASSET_VERSION`/`?v=` |
 | 3D에서 2.5D 셀을 다시 뽑아야 함 | `docs/BLENDER_25D_PIPELINE.md` |
+| 로브·갑옷 뒤로 바닥이 비치거나 천에 반점이 보임(시트 내부 알파) | `docs/COSTUME_SYSTEM.md` |
 | 저장 400(`INVALID_ITEM`·`INVALID_GOLD`)·스키마·이관 | `docs/SYNC_SAVE.md` → `docs/TURSO_DB_GUIDE.md` |
 | API가 느림·요청이 너무 많음 | `docs/WORLDBOSS_RANKING.md`(폴링 예산)·`server/metrics.mjs` |
 
