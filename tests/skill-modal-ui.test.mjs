@@ -267,6 +267,73 @@ test('되돌릴 것이 없으면(첫 스킬 1랭크뿐) 초기화 버튼이 잠�
   } finally { delete globalThis.document; }
 });
 
+// ── ④-b 머리글 `⚡ 추천 장착` (스킬 추천 자동 장착 A안) ───────────────────────
+/** 창틀(`modalChrome`)이 만드는 껍데기와 같은 모양 — 머리글 제목 + `×` 닫기. */
+function shellDialog() {
+  const dialog = element('div');
+  const header = element('header');
+  const title = element('h2'); title.textContent = '스킬 트리';
+  const close = element('button'); close.className = 'modal-close'; close.textContent = '×';
+  header.append(title, close);
+  dialog.append(header);
+  return { dialog, header, close };
+}
+
+test('머리글 오른쪽(× 왼쪽)에 `⚡ 추천 장착` 버튼이 붙는다', () => {
+  globalThis.document = { createElement: tag => element(tag) };
+  try {
+    const ui = uiFixture('warrior', 20), { dialog, header, close } = shellDialog();
+    renderSkills.call(ui, dialog);
+    const button = one(header, 'skill-suggest-btn');
+    assert(button, '머리글에 추천 장착 버튼');
+    assert.equal(walk(button).find(node => node.tag === 'i').textContent, '⚡');
+    assert.equal(walk(button).find(node => node.tag === 'span').textContent, '추천 장착');
+    assert.equal(button.attrs['aria-label'], '추천 조합 자동 장착');
+    assert.deepEqual(header.children.map(child => child.className.split(' ')[0]), ['', 'skill-suggest-btn', 'modal-close'], '제목 → 버튼 → × 순서');
+    assert.equal(header.children.at(-1), close);
+    // 창 내용(세 칸)은 그대로 붙는다 — 버튼이 칸을 밀어내지 않는다.
+    assert.deepEqual(dialog.children.slice(1).map(child => child.className.split(' ')[0]), ['skill-top-bar', 'skill-tree', 'skill-detail']);
+  } finally { delete globalThis.document; }
+});
+
+test('`⚡ 추천 장착`은 창을 닫지 않고 장착·저장·트리 갱신·토스트까지 한 번에 한다', () => {
+  globalThis.document = { createElement: tag => element(tag) };
+  try {
+    const ui = uiFixture('warrior', 20), save = ui.world.save;
+    for (const id of ['slash2', 'slam', 'warcry', 'power', 'destroy', 'hell']) learn(save, id, 1);
+    save.quickSlots = ['slash2', 'slam', 'destroy'];
+    const { dialog, header } = shellDialog();
+    renderSkills.call(ui, dialog);
+    one(header, 'skill-suggest-btn').onclick();
+    assert.deepEqual(save.quickSlots, ['slash2', 'warcry', 'power'], '이미 꽂힌 추천 스킬(이단참)은 그 원 그대로');
+    assert.equal(ui.changes, 1, 'world.onChange로 저장·HUD·창 갱신');
+    assert.equal(ui.messages.at(-1), '추천 조합 3개 장착 완료 · 2번 원 → 블러드 레이지 · 3번 원 → 파워 스트라이크');
+  } finally { delete globalThis.document; }
+});
+
+test('습득한 스킬이 없거나 동기화 중이면 세이브를 건드리지 않고 안내만 한다', () => {
+  globalThis.document = { createElement: tag => element(tag) };
+  try {
+    const empty = uiFixture('warrior', 20);
+    let shell = shellDialog();
+    renderSkills.call(empty, shell.dialog);
+    one(shell.header, 'skill-suggest-btn').onclick();
+    assert.deepEqual(empty.world.save.quickSlots, [null, null, null]);
+    assert.equal(empty.changes, 0, '바뀐 것이 없으면 저장하지 않는다');
+    assert.match(empty.messages.at(-1), /습득한 액티브 스킬이 없습니다/);
+
+    const locked = uiFixture('warrior', 20), save = locked.world.save;
+    for (const id of ['warcry', 'power', 'slash2']) learn(save, id, 1);
+    locked.market.sync.locked = true;
+    shell = shellDialog();
+    renderSkills.call(locked, shell.dialog);
+    one(shell.header, 'skill-suggest-btn').onclick();
+    assert.deepEqual(save.quickSlots, [null, null, null], '동기화 중에는 장착하지 않는다');
+    assert.equal(locked.changes, 0);
+    assert.match(locked.messages.at(-1), /동기화 중에는 스킬을 장착할 수 없습니다/);
+  } finally { delete globalThis.document; }
+});
+
 // ── ⑤ 선택·보기 상태 ─────────────────────────────────────────────────────────
 test('창을 열면 장착 중인 스킬 → 습득한 스킬 → 첫 노드 순으로 고른다', () => {
   const save = freshSave('male', 'warrior');
@@ -308,6 +375,10 @@ test('CSS는 3단 창틀·트리 스크롤·잠금/선택/궁극 노드·고정 
     '.skill-detail-compare {', '.skill-detail-actions {', '.skill-detail-invest {', '.skill-req-row {', '.skill-edge {', '.skill-edge.is-open {']) {
     assert(css.includes(token), `${token} 규칙이 없다`);
   }
+  const suggest = rule('.skill-suggest-btn');
+  assert.match(suggest, /margin-left: auto/, '머리글 오른쪽으로 밀어 × 왼쪽에 붙인다');
+  assert.match(suggest, /border-radius: 999px/, '금빛 알약');
+  assert.match(suggest, /linear-gradient\(#f2cd86, #b8842f\)/, '시안의 금빛 그라데이션');
   assert.match(css, /@media \(max-width: 430px\)/, '폰 폭 대응');
   assert.match(css, /\.skill-node-frame \{ width: 48px; height: 48px; \}/, '폰 폭에서 노드를 줄여 네 티어가 들어오게 한다');
 });
