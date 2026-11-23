@@ -6,6 +6,7 @@ import { cleanupExpiredGuests, GUEST_CLEANUP_LIMIT, touchGuestActivity } from '.
 import { sharedConnection } from '../connection.mjs';
 import { createTrace, logRequest } from '../metrics.mjs';
 import { elapsedSince } from '../save-guard.mjs';
+import { characterPowerReader } from '../character-power.mjs';
 import { randomUUID } from 'node:crypto';
 import { tokenPayload, tokenFor, hashPassword, verifyPassword, needsPasswordUpgrade } from '../auth.mjs';
 import { runtimeEnv } from '../env.mjs';
@@ -164,9 +165,12 @@ async function accountHandler(request, { env = runtimeEnv(), createDbClient, leg
       const claimBySlot = new Map(claims.map(claim => [Number(String(claim.entitlement_key).slice('idle_claim_'.length)), Number(claim.quantity)]));
       const allIdleExpiresAt = Number(entitlement?.expires_at ?? 0);
       const now = Date.now();
+      // 전투력(백로그 11·B안): 세이브에서 서버가 계산한다 — 접속 중이 아닌 슬롯도 정확한 값이 뜬다.
+      // 계산기는 이 요청에서 한 번만 불러온다(클라와 같은 `totalStats`→`combatPower`).
+      const powerOf = await characterPowerReader();
       return res.status(200).json({ characters: created.map(({ save_json, updated_at, ...character }) => {
         const save = JSON.parse(save_json);
-        return { ...character, job: jobOf(character.job), equipment: portraitEquipment(save), itemCount: (Array.isArray(save.bag) ? save.bag.length : 0) + Object.values(save.equipment ?? {}).filter(Boolean).length,
+        return { ...character, job: jobOf(character.job), equipment: portraitEquipment(save), power: powerOf(save), itemCount: (Array.isArray(save.bag) ? save.bag.length : 0) + Object.values(save.equipment ?? {}).filter(Boolean).length,
           idleSeconds: Number(character.slot) !== row.slot ? Math.min(43_200, (claimBySlot.get(Number(character.slot)) ?? 0) +
             (allIdleExpiresAt > Date.parse(String(updated_at)) ? idleSecondsUntil(updated_at, Math.min(now, allIdleExpiresAt)) : 0)) : 0 };
       }), activeSlot: row.slot, maxSlots: Number(row.max_slots ?? 3), revision: row.revision, allIdleExpiresAt });
