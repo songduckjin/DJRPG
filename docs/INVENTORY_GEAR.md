@@ -11,7 +11,7 @@
 | 가방 40칸 규칙 | `src/game/bagCapacity.ts` · 서버 사본 `server/skill-ids.mjs`(`countedInBag`) |
 | 자동 장착·분해·보호 | `src/game/inventory.ts`(`salvagePlan`·`salvageUpgrades`·`autoSalvageBlock`·`autoSalvageRecovered`·`sweepBagOnFull`) |
 | 장비 비교·표시 | `src/game/itemComparison.ts`·`src/ui/itemName.ts`·`src/ui/upgradeBadge.ts`·`src/ui/plusBadge.ts`·`src/ui/rarityBadge.ts` |
-| 장비창·가방·분해 UI | `src/ui/modals/equipModal.ts`·`src/ui/modals/salvageModal.ts`·`src/ui/equippedDetail.ts`·`src/ui/salvagePlus.ts` |
+| 장비창·가방·분해 UI | `src/ui/modals/equipModal.ts`·`src/ui/modals/salvageModal.ts`·`src/ui/salvageConfirm.ts`·`src/ui/salvageProtection.ts`·`src/ui/equippedDetail.ts`·`src/ui/salvagePlus.ts` |
 | 칸 정렬·묶음 | `src/ui/bagStacks.ts`(`bagStacks`·`compareBagItems`) |
 | 서버 검증 | `server/database.mjs`(`reconcileItems`·`itemValid`)·`server/save-guard.mjs`(`itemWithinBounds`) |
 
@@ -26,14 +26,15 @@
 - **강화 `+1~+7`**: `maxPlusFor(floor)`가 10층마다 한 단계 열고 `rollPlus`(가중치 `0.6^k`, 보스 ×`1.2^k`)로 뽑는다. `applyPlus`가 단계당 8%를 스탯에 곱하고 `plus`를 함께 적는다(0도 명시). `item.name`은 **절대 바꾸지 않는다** — 서버 `identity`가 이름을 포함한다.
 - **추가옵션**: 에픽 1·유니크 2·전설 3개, 9종 키, 1~3%. 값은 아이템 `id` 해시 시드로 결정되므로 **이미 지급된 장비도 DB 수정 없이** 같은 값이 붙는다. 상한: 회피 30%·체력회복 12%/5초·피흡 15%. 서버 `normalizeExtraOptions`가 id로 다시 계산해 클라이언트 조작값을 덮어쓴다.
 - **직업 배율(작업 255)**: `jobMastery` — 전사 방어 1.12·체력 1.10, 궁수 치명 1.15·공속 1.38, 마법사 공격 1.38. **장비 몫에만** 곱한다(레벨·기본 스탯에는 곱하지 않는다). 티어 계수는 단계당 3.5%.
-- **드롭률**: 접속 일반 0.39%·보스 4%, 방치 일반 0.30%·보스 4% (전 층 고정). 장비:스킬북 = 70:30. 등급 컷만 깊이에 따라 오른다.
+- **드롭률**: 접속 일반 0.39%·보스 4%, 방치 일반 0.30%·보스 4% (전 층 고정). 등급 컷만 깊이에 따라 오른다. **영구 스탯북**(`공격·방어·체력·스킬의 서` 4종, 뽑히면 종류는 1/4씩)은 장비 드롭과 **별개의 굴림**이고 확률은 `src/game/statBooks.ts` `STAT_BOOK_DROP_RATES` 한 곳만 정한다 — 일반·정예·던전 일반 몹 **0.001%**, 방치 **0.001%**, 필드 보스 **0.005%**, 던전 보스 **0.01%**, 보물 주머니 **0.1%** (2026-11-23 백로그 13으로 직전 값의 1/10). 보물 주머니 분류 확률은 **금화 = 100% − 장비 40% − 스탯북**이라 스탯북 확률을 바꾸면 금화(59.9%)가 자동으로 따라온다(`pouch.ts` `POUCH_GOLD_RATE`·`POUCH_EQUIPMENT_RATE`).
 - **직업 판정**: `itemJob` = ①`EquipmentItem.job` 표식 ②이름 목록. **옛 세이브의 전사용 이름은 표식이 없어 공용**으로 남긴다(갑자기 `INVALID_SAVE`가 되면 안 된다). `canWield`가 무기·투구·갑옷을 함께 본다.
 - **업그레이드 판정은 한 곳**: `equipDelta(save,item)`가 현재 장착 상태와 후보 교체 상태의 `totalStats`·상한 적용 추가옵션을 비교한다. `isUpgradeForHero`·`isDowngradeForHero`·`autoEquipBest`·분해 보호가 같은 점수를 쓴다. 반지는 약한 칸 또는 빈 칸을 대체한다. `itemPower`는 세이브와 무관한 가방 정렬용이다.
 - **다운그레이드 판정도 한 곳**: `isDowngradeForHero(save,item)`는 같은 `equipDelta`가 음수일 때만 참이다(빈 칸·동점이면 두 화살표 모두 없다). 가방·공용창고의 화살표 툴팁과 분해 보호 팝업은 `equipDeltaLabel`로 실제 변한 스탯·상한·종합 점수를 보여 준다. 거래소에는 아래 화살표를 달지 않는다.
-- **장비창 정렬**: 부위 이름(`.slot-part`)은 아이콘과 같은 중심에 서고 `+N`만 `bottom: 13px`로 이름 줄 위에 올라간다. 중간 요약(레벨·층·경험치·금화)은 6칸 스탯 표와 **같은 2열·3px 간격·6px 안쪽 여백**을 쓰고, 테두리는 `outline`(레이아웃 폭 무영향)이라 열이 한 줄로 선다.
+- **장비창 정렬(`내 정보`, 2026-11-22 B안)**: 위쪽 6칸 능력치 표를 없애고 **요약 한 줄**(`LV · 층 · EXP · 금화` + 전투력 알약 `.equip-powerpill`)만 둔다. 그 아래는 **가운데 캐릭터 일러스트 + 좌우 장착 5칸씩 대칭**(`equipmentSlotColumns` — 좌 무기·투구·갑옷·장갑·신발 / 우 문장·목걸이·벨트·반지1·반지2)이고, 예전의 `2줄×5칸`(`.equipment-grid`)은 사라졌다. 부위 이름(`.slot-part`)은 아이콘과 같은 중심에 서고 `+N`만 `bottom: 13px`로 이름 줄 위에 올라간다. **상세 능력치는 이 창이 아니라** 메인 HUD의 `LV` 배지를 누르면 열리는 `상세 스탯` 창(`src/ui/modals/statsModal.ts` · `src/game/statSheet.ts`)이 전담한다 — 두 곳에 같은 숫자를 그리지 않는다.
+- **일괄 분해 확인 팝업(B안 내역형)**: 가방 아래 `[일괄 분해]`로 **2개 이상**을 지우기 직전에 한 번 더 묻는다(`src/ui/salvageConfirm.ts` `openSalvageConfirm`). 순서는 **더 좋은 장비 보호 팝업(작업 197) → 빈 장착칸 경고 → 이 팝업**이며, 보호 제외·경고 확인 뒤 **남은 실제 대상**으로 다시 계산해 보여 준다(`salvageModal.ts` `confirmSalvage` — 모든 경로의 마지막 단계). 내용: 강화석 아이콘 + `일괄 분해` + `기준 {등급명} 이하 · 장비 N개` / `총 N개의 아이템이 분해됩니다. 분해하시겠습니까?` / **등급별 내역**(실제 대상 등급만, `salvageBreakdown`, 0개 등급은 빠짐) / **예상 획득** `강화석 +X`·`금화 +Y`(`salvageReward`, 보상표는 `salvageGold`·`salvageStones`와 같은 곳) / 안내 1줄 `잠긴 장비 · 기준({등급명})보다 높은 등급은 제외됩니다.` / `[취소]`·`[분해하기]`. **1개 단품 분해**와 **자동 분해**(접속·방치·던전 백그라운드)는 이 팝업을 거치지 않는다. 화면은 `.salvage-protect` 오버레이 위 `.bulk-confirm-*`(분해 보호 팝업과 같은 어두운 카드).
 - **자동 분해**: 설정 등급·`+N` 상한(41층부터)·잠금·스킬북·주머니·더 좋은 장비는 보호. 접속·방치·던전 모두 `autoSalvageRecovered`를 지난다. 분해 보상은 `salvageGold`·`salvageStones`.
 - **칸 순서**: 부위 순 → 주머니 → 스킬북 → 기타, 같은 부위는 `itemPower` 내림차순 → 등급 → `plus` → 이름. 가방과 공용창고가 같은 비교자를 쓴다.
-- **아이템 칸 배지 자리(네 모서리, 하나도 겹치지 않는다)**: 왼쪽 위 = **등급 배지** `L`·`U`·`E`(`src/ui/rarityBadge.ts` — 전설·유니크·에픽 **장비만**, 일반·매직·레어·스킬북·주머니는 없음), 오른쪽 위 = 추천 화살표(없으면 잠금), 왼쪽 아래 = `+N`(강화), 오른쪽 아래 = `×N`(스킬북·주머니) 또는 잠금. 그래서 **직업 배지**(`job-badge`)는 좁은 칸(가방·공용창고·거래소 판매 등록 칸, 30~40px)에서 오른쪽 아래로 비키고 한 글자(`전`·`궁`·`법`, `jobShortNames`)가 된다 — 전체 이름은 `title`·`aria-label`·상세 패널이 밝힌다. 등급 배지가 없는 넓은 거래소 카드에서는 직업 배지가 그대로 `전사`이고, 등급 배지가 붙는 카드에서만 등급 배지 **아래로 쌓인다**(`top: 15px`). 잠금 배지와 자리가 겹치는 칸(추천 대상 + 잠김)에서는 상태인 **잠금을 남기고 직업 배지를 감춘다**(가방 `.bag-item.has-upgrade:has(.bag-lock-badge)`, 거래소 `.market-pick:has(.lock-icon)`). 장착 10칸(92px)에는 직업 배지가 없고 등급 배지만 왼쪽 위에 붙는다.
+- **아이템 칸 배지 자리(네 모서리, 하나도 겹치지 않는다)**: 왼쪽 위 = **등급 배지** `M`·`R`·`E`·`U`·`L`(`src/ui/rarityBadge.ts` — 매직 `#60a5fa`·레어 `#facc15`·에픽 `#c084fc`·유니크 `#fb923c`·전설 `#f87171`, **일반만 없음**, 스킬북·주머니도 없음 — 2026-11-22 A안으로 매직·레어 추가), 오른쪽 위 = 추천 화살표(없으면 잠금), 왼쪽 아래 = `+N`(강화), 오른쪽 아래 = `×N`(스킬북·주머니) 또는 잠금. 그래서 **직업 배지**(`job-badge`)는 좁은 칸(가방·공용창고·거래소 판매 등록 칸, 30~40px)에서 오른쪽 아래로 비키고 한 글자(`전`·`궁`·`법`, `jobShortNames`)가 된다 — 전체 이름은 `title`·`aria-label`·상세 패널이 밝힌다. 등급 배지가 없는 넓은 거래소 카드에서는 직업 배지가 그대로 `전사`이고, 등급 배지가 붙는 카드에서만 등급 배지 **아래로 쌓인다**(`top: 15px`). 잠금 배지와 자리가 겹치는 칸(추천 대상 + 잠김)에서는 상태인 **잠금을 남기고 직업 배지를 감춘다**(가방 `.bag-item.has-upgrade:has(.bag-lock-badge)`, 거래소 `.market-pick:has(.lock-icon)`). 장착 10칸(좌우 기둥 78px)에는 직업 배지가 없고 등급 배지만 왼쪽 위에 붙는다. 도감 카드는 이 헬퍼를 쓰지 않는다 — 모은 최고 등급 하나만 `L`·`U`·`E`·`R`로 보이고 매직·일반은 배지가 없다(`codexModal.ts`).
 
 ## 금지
 
@@ -44,7 +45,7 @@
 
 ## 테스트
 
-`node --test tests/inventory.test.mjs tests/bag-capacity.test.mjs tests/bag-job-books.test.mjs tests/bag-stack-order.test.mjs tests/bag-limit-recovery.test.mjs tests/item-plus.test.mjs tests/plus-badge.test.mjs tests/upgrade-badge.test.mjs tests/rarity-badge.test.mjs tests/extra-options.test.mjs tests/auto-salvage.test.mjs tests/salvage-plus.test.mjs tests/salvage-rarity.test.mjs tests/salvage-protection.test.mjs tests/item-drop-jobs.test.mjs tests/equipment-info.test.mjs tests/job-gear.test.mjs tests/treasure-pouch.test.mjs tests/pouch-open-all.test.mjs`
+`node --test tests/inventory.test.mjs tests/bag-capacity.test.mjs tests/bag-job-books.test.mjs tests/bag-stack-order.test.mjs tests/bag-limit-recovery.test.mjs tests/item-plus.test.mjs tests/plus-badge.test.mjs tests/upgrade-badge.test.mjs tests/rarity-badge.test.mjs tests/extra-options.test.mjs tests/auto-salvage.test.mjs tests/salvage-plus.test.mjs tests/salvage-rarity.test.mjs tests/salvage-protection.test.mjs tests/salvage-confirm.test.mjs tests/item-drop-jobs.test.mjs tests/equipment-info.test.mjs tests/job-gear.test.mjs tests/treasure-pouch.test.mjs tests/pouch-open-all.test.mjs`
 
 ## 관련 매뉴얼
 

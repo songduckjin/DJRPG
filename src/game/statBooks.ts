@@ -52,7 +52,8 @@ export function isStatBookKind(value: unknown): value is StatBookKind {
 }
 
 /**
- * 스탯북 드랍 확률 — **한 곳에서 조정한다**(송덕진 님 확정 2026-11-22: 일반 0.01%, 보스 0.05~0.1%).
+ * 스탯북 드랍 확률 — **한 곳에서 조정한다**(송덕진 님 확정 2026-11-22 → 2026-11-23 백로그 13: 전 지점 **1/10**).
+ * 네 종류(공격·방어·체력·스킬)에 같이 적용되므로 `스킬의 서`도 같은 1/10이 된다.
  *
  * 값은 `1` = 100%다. 적용 지점:
  *  - `hunt`   접속 사냥의 **일반·정예 몹 1마리당** (`world.ts` `kill()`)
@@ -61,15 +62,19 @@ export function isStatBookKind(value: unknown): value is StatBookKind {
  *  - `dungeonBoss` 끝없는 던전 보스 1체당 — 던전 보스가 바닥에 남기는 확정 2개 중 하나가 이 확률로 책이 된다
  *  - `pouch`  무작위 보물 주머니 1개당
  *
+ * 지금 값(`hunt`·`offline` 0.001% · `boss` 0.005% · `dungeonBoss` 0.01% · `pouch` 0.1%)은 2026-11-23
+ * 백로그 13으로 **직전 값의 1/10**이다(직전: 0.01% · 0.01% · 0.05% · 0.1% · 1%).
+ *
  * 네 종류는 **같은 확률(1/4)** 로 나뉜다(`rollStatBook`).
- * 확률을 바꾸려면 이 표의 숫자만 고치면 된다 — 다른 파일에는 확률 상수가 없다.
+ * 확률을 바꾸려면 이 표의 숫자만 고치면 된다 — 다른 파일에는 확률 상수가 없다(주머니의 금화 몫만
+ * `pouch.ts`가 이 값에서 나머지로 계산한다).
  */
 export const STAT_BOOK_DROP_RATES = {
-  hunt: .0001,
-  offline: .0001,
-  boss: .0005,
-  dungeonBoss: .001,
-  pouch: .01
+  hunt: .00001,
+  offline: .00001,
+  boss: .00005,
+  dungeonBoss: .0001,
+  pouch: .001
 } as const;
 export type StatBookDropSource = keyof typeof STAT_BOOK_DROP_RATES;
 

@@ -68,19 +68,31 @@ const px = (body, pattern) => {
   assert.ok(value, `값이 있다: ${pattern}`);
   return Number(value[1]);
 };
-const clampOf = body => {
-  const found = body.match(/clamp\(\s*([\d.]+)px\s*,\s*min\(\s*([\d.]+)vw\s*,\s*([\d.]+)dvh\s*\)\s*,\s*([\d.]+)px\s*\)/);
-  assert.ok(found, 'clamp(min, min(vw, dvh), max) 꼴');
-  return { min: Number(found[1]), vw: Number(found[2]), dvh: Number(found[3]), max: Number(found[4]) };
+/**
+ * CSS 길이 → **배율 1.0(390px)** 기준 값. HUD는 `calc(N * var(--u))`를 쓰고,
+ * 세로 위치가 `env(safe-area-inset-top)`을 더하는 규칙도 있다. 옛 `Npx`도 같이 읽어
+ * "390px에서 지금과 같은가"를 같은 숫자로 비교한다.
+ */
+const len = (body, property) => {
+  const number = '(-?[\\d.]+)';
+  const patterns = [
+    new RegExp(`${property}:\\s*calc\\(env\\([^)]*\\) \\+ ${number}(?:px| \\* var\\(--u\\))\\)`),
+    new RegExp(`${property}:\\s*calc\\(${number} \\* var\\(--u\\)\\)`),
+    new RegExp(`${property}:\\s*${number}px`)
+  ];
+  for (const pattern of patterns) {
+    const found = body.match(pattern);
+    if (found) return Number(found[1]);
+  }
+  assert.fail(`${property} 길이를 읽는다`);
 };
-/** 그 화면에서 clamp가 고르는 값 — 브라우저와 같은 규칙(min·max)으로 계산한다. */
-const clampAt = (spec, width, height) => Math.min(spec.max, Math.max(spec.min, Math.min(width * spec.vw / 100, height * spec.dvh / 100)));
-const flatClamp = (body, property, unit = 'px') => {
-  const found = body.match(new RegExp(`${property}: clamp\\(([\\d.]+)px, ([\\d.]+)(vw|dvh), ([\\d.]+)px\\)`));
-  assert.ok(found, `${property} clamp`);
-  return { min: Number(found[1]), value: Number(found[2]), unit: found[3], max: Number(found[4]) };
-};
-const flatClampAt = (spec, width, height) => Math.min(spec.max, Math.max(spec.min, spec.unit === 'vw' ? width * spec.value / 100 : height * spec.value / 100));
+/** `--u` 토큰 — `base.css`의 `.game-shell`이 정하는 한 곳(`clamp(0.8px, 100vw × k, 1.1px)`). */
+const uSpec = (() => {
+  const found = read('src/styles/base.css').match(/--u:\s*clamp\(([\d.]+)px, calc\(100vw \* ([\d.]+)\), ([\d.]+)px\)/);
+  assert.ok(found, '`.game-shell`에 `--u` 토큰이 있다');
+  return { min: Number(found[1]), factor: Number(found[2]), max: Number(found[3]) };
+})();
+const uAt = width => Math.min(uSpec.max, Math.max(uSpec.min, width * uSpec.factor));
 
 test('전투력은 내 정보·HUD·상세 스탯이 같은 `combatPower` 한 식을 쓴다', () => {
   // 공격×3 + 방어×2 + 체력×0.2 + 치명×2 + 공속×2 (반올림)
@@ -133,7 +145,7 @@ test('LV 배지는 상세 스탯을 열고, 캐릭터 전환은 오른쪽 레일
   const rail = railMarkup();
   assert.match(rail, /^<button type="button" data-modal="characters" aria-label="캐릭터" title="캐릭터"><img src="\/assets\/icons\/utility_characters\.png"/, '레일 맨 위 캐릭터 버튼');
   assert.doesNotMatch(rail, /data-utility-dot="characters"/, '캐릭터 버튼에는 새 소식 점을 달지 않는다');
-  for (const modal of ['settings', 'mail', 'rewards', 'achievements', 'dungeon']) assert.match(rail, new RegExp(`data-modal="${modal}"`), `${modal} 유지`);
+  for (const modal of ['notice', 'settings', 'mail', 'rewards', 'achievements', 'dungeon']) assert.match(rail, new RegExp(`data-modal="${modal}"`), `${modal} 유지`);
   assert.match(interfaceSource, /<nav class="utility-nav" aria-label="편의 메뉴">\$\{railMarkup\(\)\}<\/nav>/, '레일이 railMarkup을 쓴다');
   // 아이콘 파일은 128×128 RGBA PNG(다른 유틸 아이콘과 같은 크기·형식).
   const png = readFileSync(new URL('../public/assets/icons/utility_characters.png', import.meta.url));
@@ -229,79 +241,99 @@ test('월드보스 동그라미 아래에 `월드보스` 라벨이 붙고, 3/3�
   assert.match(interfaceSource, /aria-label="월드보스 미리보기"/, '버튼 읽기 이름 유지');
 
   const label = ruleBody(worldBossStyles, '.world-boss-entry .wb-entry-label');
-  assert.equal(px(label, /top:(\d+)px/), 71, '동그라미(70px) 바로 아래');
-  assert.equal(px(label, /height:(\d+)px/), 14);
+  assert.equal(len(label, 'top'), 71, '동그라미(70u) 바로 아래');
+  assert.equal(len(label, 'height'), 14);
   assert.match(label, /pointer-events:none/, '동그라미 탭을 막지 않는다');
   assert.match(label, /white-space:nowrap/);
-  // 3/3은 원 안 50~67px, 라벨은 71~85px.
-  const count = ruleBody(worldBossStyles, '.world-boss-entry .wb-entry-count', 'top:50px');
-  const countTop = px(count, /top:(\d+)px/), countHeight = px(count, /height:(\d+)px/);
-  assert.ok(countTop + countHeight <= 71, `3/3(${countTop + countHeight}px) 아래에 라벨(71px)`);
+  // 3/3은 원 안 50~67u, 라벨은 71~85u.
+  const count = ruleBody(worldBossStyles, '.world-boss-entry .wb-entry-count', 'top:calc(50 * var(--u))');
+  const countTop = len(count, 'top'), countHeight = len(count, 'height');
+  assert.ok(countTop + countHeight <= 71, `3/3(${countTop + countHeight}u) 아래에 라벨(71u)`);
 });
 
-test('좌상단 세로줄은 배지→닉네임→전투력→HP→월드보스→라벨→튜토리얼 순서로 3px 이상 여유를 둔다', () => {
+test('좌상단 세로줄은 배지→닉네임→전투력→HP→월드보스→라벨→튜토리얼 순서로 3u 이상 여유를 둔다', () => {
+  // 자리·크기는 모두 `calc(N * var(--u))`라 390px에서 보면 N = 지금 px 값 그대로다(비율은 폭이 달라도 같다).
   const badge = ruleBody(hudStyles, '.level-badge');
   const name = ruleBody(hudStyles, '.hero-name');
   const power = ruleBody(hudStyles, '.hero-power');
   const health = ruleBody(hudStyles, '.health-bar');
   const tutorial = ruleBody(hudStyles, '.tutorial');
-  const boss = ruleBody(worldBossStyles, '.world-boss-entry', 'top:calc(env(safe-area-inset-top, 0px) + 111px)');
+  const boss = ruleBody(worldBossStyles, '.world-boss-entry', 'top:calc(env(safe-area-inset-top, 0px) + 111 * var(--u))');
   const label = ruleBody(worldBossStyles, '.world-boss-entry .wb-entry-label');
 
-  const badgeTop = px(badge, /top: (-?\d+)px/), badgeHeight = px(badge, /height: (\d+)px/);
-  const nameTop = px(name, /top: (\d+)px/), nameHeight = px(name, /height: ([\d.]+)px/);
-  const powerTop = px(power, /top: (\d+)px/), powerHeight = px(power, /height: ([\d.]+)px/);
-  const healthTop = px(health, /top: (\d+)px/), healthHeight = px(health, /height: (\d+)px/);
-  const bossTop = px(boss, /top:calc\(env\(safe-area-inset-top, 0px\) \+ (\d+)px\)/);
-  const labelTop = px(label, /top:(\d+)px/), labelHeight = px(label, /height:(\d+)px/);
-  const tutorialTop = px(tutorial, /top: calc\(env\(safe-area-inset-top\) \+ (\d+)px\)/);
+  const badgeTop = len(badge, 'top'), badgeHeight = len(badge, 'height');
+  const nameTop = len(name, 'top'), nameHeight = len(name, 'height');
+  const powerTop = len(power, 'top'), powerHeight = len(power, 'height');
+  const healthTop = len(health, 'top'), healthHeight = len(health, 'height');
+  const bossTop = len(boss, 'top');
+  const labelTop = len(label, 'top'), labelHeight = len(label, 'height');
+  const tutorialTop = len(tutorial, 'top');
+  assert.ok(labelTop > 0, '라벨 위치');
 
   assert.ok(nameTop >= badgeTop + badgeHeight, '닉네임은 배지 원 아래');
-  assert.ok(powerTop - (nameTop + nameHeight) >= 2, `이름판 아래 ${powerTop - (nameTop + nameHeight)}px`);
-  assert.ok(healthTop - (powerTop + powerHeight) >= 3, `전투력과 HP 사이 ${healthTop - (powerTop + powerHeight)}px`);
-  assert.ok(bossTop - (healthTop + healthHeight) >= 3, `HP와 월드보스 사이 ${bossTop - (healthTop + healthHeight)}px`);
+  assert.ok(powerTop - (nameTop + nameHeight) >= 2, `이름판 아래 ${powerTop - (nameTop + nameHeight)}u`);
+  assert.ok(healthTop - (powerTop + powerHeight) >= 3, `전투력과 HP 사이 ${healthTop - (powerTop + powerHeight)}u`);
+  assert.ok(bossTop - (healthTop + healthHeight) >= 3, `HP와 월드보스 사이 ${bossTop - (healthTop + healthHeight)}u`);
   assert.ok(tutorialTop - (bossTop + 70 + labelHeight) >= 3, '라벨과 튜토리얼 배너 사이');
-  assert.ok(12 + 140 < 360, '닉네임·전투력 140px 상한은 360px 화면 안');
-  assert.match(power, /font: 700 9\.5px/, '전투력 필은 이름판보다 작은 글자');
+  assert.ok(12 + 140 < 360, '닉네임·전투력 140u 상한은 360px 화면 안');
+  assert.match(power, /font: 700 calc\(9\.5 \* var\(--u\)\)/, '전투력 필은 이름판보다 작은 글자');
   assert.match(statsModalSource, /이름|전투력/, '상세 스탯도 같은 전투력을 보여 준다');
 });
 
-test('오른쪽 레일·하단 메뉴는 화면 배율에 따라 줄되 겹치지 않는다(360×640·390×844·540×800)', () => {
-  // 레일: 버튼 = clamp(34px, min(11.5vw, 7.2dvh), 48px), 간격 = clamp(2px, .9dvh, 6px)
+test('오른쪽 레일·하단 메뉴는 화면 배율(--u)을 따라 줄되 320·360·390·430·540에서 겹치지 않는다', () => {
+  // HUD 길이는 `calc(N * var(--u))` — 버튼처럼 손가락이 닿는 곳만 `max(40px, …)`·`max(34px, …)`로 하한을 지킨다.
   const rail = ruleBody(hudStyles, '.utility-nav', '--rail-btn');
-  const button = clampOf(rail.match(/--rail-btn: ([^;]+);/)[1]);
-  const gap = flatClamp(rail, 'gap');
-  for (const [width, height] of [[360, 640], [390, 844], [540, 800], [320, 568]]) {
-    const size = clampAt(button, width, height), space = flatClampAt(gap, width, height);
-    assert.ok(size <= 48 && size >= 34, `${width}×${height} 버튼 ${size.toFixed(1)}px`);
-    // 캐릭터·설정·우편함·보상·업적·던전 + 상점 = 7칸
-    const total = 7 * size + 6 * space;
-    const bottom = 64 + total;
-    assert.ok(bottom <= height - 170, `${width}×${height} 레일 끝 ${bottom.toFixed(0)}px — 하단 공격 패드(아래 170px) 위`);
-  }
-  // 버튼이 작아지면 아이콘도 같이 작아진다(100%).
-  assert.match(ruleBody(hudStyles, '.utility-nav img'), /width: 100%; height: 100%/, '아이콘이 버튼을 채운다');
-  assert.match(ruleBody(hudStyles, '.utility-nav button', 'var(--rail-btn)'), /width: var\(--rail-btn\); height: var\(--rail-btn\)/);
+  const railToken = rail.match(/--rail-btn: max\((\d+)px, calc\((\d+) \* var\(--u\)\)\)/);
+  assert.ok(railToken, '레일 버튼 = max(34px, calc(46 * var(--u)))');
+  assert.equal(Number(railToken[1]), 34, '레일 터치 하한 34px');
+  const railFloor = Number(railToken[1]), railBase = Number(railToken[2]);
+  assert.equal(railBase, 46, '390px에서 예전 44.85px 자리');
+  const railGap = len(rail, 'gap'), railTop = len(rail, 'top');
 
-  // 하단 메뉴: 버튼 = clamp(40px, 12.5vw, 48px), 간격 = clamp(3px, 1vw, 6px)
   const nav = ruleBody(hudStyles, '.bottom-nav', '--nav-btn');
-  const navButton = flatClamp(nav, '--nav-btn');
-  const navGap = flatClamp(nav, 'gap');
-  for (const [width, height] of [[360, 640], [390, 844], [540, 800], [320, 568]]) {
-    const size = flatClampAt(navButton, width, height), space = flatClampAt(navGap, width, height);
-    assert.ok(size >= 40 && size <= 48, `${width}px 하단 버튼 ${size.toFixed(1)}px(40px 터치 하한)`);
-    const navRight = 10 + 4 * size + 3 * space;
+  const navToken = nav.match(/--nav-btn: max\((\d+)px, calc\((\d+) \* var\(--u\)\)\)/);
+  assert.ok(navToken, '하단 버튼 = max(40px, calc(48 * var(--u)))');
+  const navFloor = Number(navToken[1]), navBase = Number(navToken[2]);
+  assert.equal(navFloor, 40, '하단 메뉴 터치 하한 40px');
+  assert.equal(navBase, 48, '390px에서 예전 48px');
+  const navGap = len(nav, 'gap'), navLeft = len(nav, 'left');
+  assert.equal(navLeft, 10, '왼쪽 여백 10u');
+
+  // 오른쪽 아래 공격 패드 — 폭 150u, 아래 12u(399px 이하 62u), 오른쪽 10u.
+  const pad = ruleBody(hudStyles, '.action-pad', 'width: calc(150 * var(--u))');
+  const padWidth = len(pad, 'width');
+  const padShortBottom = Number(hudStyles.match(/@media \(max-width: 399px\) \{ \.action-pad \{ bottom: calc\((\d+) \* var\(--u\)\); \} \}/)?.[1]);
+  assert.equal(padShortBottom, 62, '좁은 화면은 패드를 메뉴 위로 올린다');
+
+  for (const width of [320, 360, 390, 430, 540]) {
+    const u = uAt(width);
+    const railSize = Math.max(railFloor, railBase * u);
+    const railEnd = railTop * u + 7 * railSize + 6 * railGap * u;
+    assert.ok(railSize >= 34, `${width}px 레일 버튼 ${railSize.toFixed(1)}px(터치 하한)`);
+    // 844px 높이 기준으로 레일 끝이 하단 공격 패드(아래 170px)보다 위여야 한다.
+    assert.ok(railEnd <= 844 - 170, `${width}px 레일 끝 ${railEnd.toFixed(0)}px — 하단 패드 위`);
+
+    const navSize = Math.max(navFloor, navBase * u);
+    assert.ok(navSize >= 40, `${width}px 하단 버튼 ${navSize.toFixed(1)}px(터치 하한)`);
+    const navRight = navLeft * u + 4 * navSize + 3 * navGap * u;
     assert.ok(navRight <= width - 8, `${width}px 하단 메뉴가 화면 안(${navRight.toFixed(0)}px)`);
-    // 오른쪽 아래 공격 패드(폭 150px, 좌하단에서 bottom 12px — 399px 이하 화면은 68px)와
-    // 가로·세로가 **동시에** 겹치지 않아야 한다.
-    const padLeft = width - (width <= 359 ? 6 : 10) - 150, padBottom = width <= 399 ? 68 : 12;
-    const navTop = height - 16 - size, navBottom = height - 16, padTop = height - padBottom - 150;
-    const bothOverlap = navRight > padLeft && navBottom > padTop && navTop < height - padBottom;
+    // 공격 패드와 가로·세로가 **동시에** 겹치지 않아야 한다(높이 640px로 가장 좁은 경우를 본다).
+    const height = width <= 360 ? 640 : 844;
+    const padRight = width - (padWidth + 10) * u;
+    const padBottom = width <= 399 ? padShortBottom * u : 12 * u;
+    const navTop = height - 16 * u - navSize, navBottom = height - 16 * u;
+    const padTop = height - padBottom - padWidth * u;
+    const bothOverlap = navRight > padRight && navBottom > padTop && navTop < height - padBottom;
     assert.ok(!bothOverlap, `${width}×${height} 하단 메뉴와 공격 패드가 겹치지 않는다`);
   }
-  // 예전 고정 크기 규칙은 남기지 않는다 — 화면이 작아져도 42px로 고정되던 자리.
-  assert.doesNotMatch(hudStyles, /\.utility-nav button \{ width: 42px/, '낮은 화면에서도 clamp를 쓴다');
-  assert.doesNotMatch(hudStyles, /\.bottom-nav button \{ flex-basis: 42px/, '하단 메뉴도 clamp를 쓴다');
+
+  // 배율 토큰은 한 곳(`.game-shell`)에만 있고, 390px=1.0 · 360px≈0.92 · 430px 이상 1.10이다.
+  assert.equal(uAt(390).toFixed(3), '0.998', '390px ≈ 1.0');
+  assert.equal(uAt(360).toFixed(3), '0.922', '360px ≈ 0.92');
+  assert.equal(uAt(430), 1.1, '430px = 1.10');
+  assert.equal(uAt(320).toFixed(3), '0.819', '320px ≈ 0.82 (0.8 하한보다 위)');
+  assert.doesNotMatch(hudStyles, /clamp\(40px, 12\.5vw, 48px\)/, '옛 clamp 배율은 토큰으로 옮겼다');
+  assert.doesNotMatch(hudStyles, /--rail-btn: clamp\(/, '레일도 토큰을 쓴다');
 
   // 상세 스탯 창은 2열을 유지하고 좁은 화면에서 글자·여백을 줄인다.
   assert.match(statsStyles, /\.stats-grid \{ display: grid; grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/, '2열');
