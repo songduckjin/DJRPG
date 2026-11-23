@@ -141,17 +141,17 @@ export function drawSkillVfx(this: GameView, world: CombatEngine, effect: Effect
     if (effect.kind === 'hit' || effect.kind === 'death' || effect.kind === 'evade' || effect.kind === 'heal' || effect.kind === 'enemyStrike') return false;
     if (effect.kind === 'spin') { this.drawDragon(effect, x, y, t, time); return true; }
     // `hell`(회전참격)은 위에서 전용 이펙트로 처리한다(작업 215).
-    const art: Art = effect.kind === 'slam' || effect.kind === 'crushing' ? 'fxSlam' : effect.kind === 'power' ? 'fxPower' : effect.kind === 'destroy' ? 'fxDestroy' : 'fxSlash';
+    const art: Art = effect.kind === 'slam' ? 'fxSlam' : effect.kind === 'crushing' ? 'fxCrushing' : effect.kind === 'power' ? 'fxPower' : effect.kind === 'destroy' ? 'fxDestroy' : 'fxSlash';
     let sprites = this.vfxSprites.get(effect);
     if (!sprites) {
       const sprite = new Sprite(this.textures[art]);
       sprite.anchor.set(.5);
-      sprite.blendMode = 'add';
-      this.skillVfx.addChild(sprite);
+      sprite.blendMode = effect.kind === 'slam' ? 'normal' : 'add';
+      (effect.kind === 'slam' ? this.groundVfx : this.skillVfx).addChild(sprite);
       sprites = [sprite];
       this.vfxSprites.set(effect, sprites);
     }
-    const size = effect.kind === 'destroy' ? 260 : effect.kind === 'slam' ? 335 : effect.kind === 'crushing' ? 245 : effect.kind === 'power' ? 165 : 150;
+    const size = effect.kind === 'destroy' ? 260 : effect.kind === 'slam' ? 250 : effect.kind === 'crushing' ? 245 : effect.kind === 'power' ? 165 : 150;
     for (const sprite of sprites) {
       if (effect.kind === 'crushing') {
         // [작업 212] 10연타 — 타격 간격(62ms)마다 지면 링과 내려찍기 스프라이트가 한 번씩 깜빡인다.
@@ -170,7 +170,7 @@ export function drawSkillVfx(this: GameView, world: CombatEngine, effect: Effect
         continue;
       }
       const phase = t;
-      const scale = size / sprite.texture.width * (.65 + phase * .55);
+      const scale = size / sprite.texture.width * (effect.kind === 'slam' ? .92 + phase * .08 : .65 + phase * .55);
       const distance = effect.kind === 'destroy' ? 40 + t * 125 : effect.kind === 'power' ? 70 : 0;
       sprite.position.set(x + Math.cos(screenAngle) * distance, y + Math.sin(screenAngle) * distance - (effect.kind === 'power' ? 45 : effect.kind === 'slam' ? 4 : 18));
       sprite.scale.set(scale, scale * (effect.kind === 'slam' ? .6 : 1));
