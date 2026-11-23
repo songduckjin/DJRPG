@@ -451,12 +451,14 @@ test('평타가 한 마리를 처치해도 사거리 안의 다른 적은 그대
   assert.equal(world.save.kills, kills + 1);
 });
 
-test('액티브 스킬은 종전처럼 사거리 안의 모든 적을 때린다', () => {
+test('디스트로이 스윙은 검기가 전진한 뒤 사거리 안의 적을 때린다', () => {
   const save = freshSave(); save.learned = ['destroy']; save.quickSlots = ['destroy', null, null];
   const world = new World(save); world.spawnTimer = 999;
   const far = dummyEnemy(70, 4), near = dummyEnemy(40, 0);
   world.enemies = [far, near];
   world.action('destroy');
+  assert.equal(near.hp, 1000);
+  world.update(.2);
   assert(near.hp < 1000, '가까운 적이 맞았다');
   assert(far.hp < 1000, '먼 적도 함께 맞는다');
 });
@@ -464,6 +466,7 @@ test('액티브 스킬은 종전처럼 사거리 안의 모든 적을 때린다'
 test('평타 한 방은 공격력 ×1.6으로 묵직하고, 한 번에 한 마리만 맞는다', () => {
   const save = freshSave();
   const world = new World(save); world.spawnTimer = 999;
+  world.critRoll = () => 1;
   const near = dummyEnemy(40, 0), far = dummyEnemy(70, 4);
   world.enemies = [near, far];
   const attack = totalStats(save).attack;
@@ -478,6 +481,7 @@ test('평타 한 방은 공격력 ×1.6으로 묵직하고, 한 번에 한 마�
 test('평타 두 방이면 이전 광역 평타 두 방보다 한 대상에게 더 큰 피해를 준다', () => {
   const save = freshSave();
   const world = new World(save); world.spawnTimer = 999;
+  world.critRoll = () => 1;
   const target = dummyEnemy(40, 0);
   world.enemies = [target];
   const attack = totalStats(save).attack;

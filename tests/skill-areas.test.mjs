@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 const { allSkillIds, allPassiveIds, skillDamageScale, skillRange } = await import('../src/game/skills.ts');
-const { SKILL_AREAS, PASSIVE_AREAS, skillArea, multiShotPattern, projectedAreaRadii } = await import('../src/game/battle/skillAreas.ts');
+const { SKILL_AREAS, PASSIVE_AREAS, skillArea, iceArrowSlow, multiShotPattern, projectedAreaRadii } = await import('../src/game/battle/skillAreas.ts');
 const { CombatEngine } = await import('../src/game/combat/engine.ts');
 const { freshSave, totalStats } = await import('../src/game/store.ts');
 const engine = readFileSync(new URL('../src/game/combat/engine.ts', import.meta.url), 'utf8');
@@ -158,8 +158,68 @@ test('저격 일격은 빨간 조준 표시 뒤 단일 대상에게 강한 한 �
   world.update(.2);
   assert.equal(target.hp, target.maxHp);
   world.update(.3);
-  assert(Math.abs(target.maxHp - target.hp - totalStats(save).attack * 6.5) < 1e-6);
+  assert(Math.abs(target.maxHp - target.hp - totalStats(save).attack * 6.5 * 1.8) < 1e-6);
   assert.equal(other.hp, other.maxHp);
+  assert(world.effects.some(effect => effect.kind === 'hit' && effect.crit));
+});
+
+test('폭풍 연사는 한 발씩 발사하고 처치 뒤 남은 화살을 다음 적에게 보낸다', () => {
+  const save = freshSave('male', 'archer'); save.learned = ['stormVolley']; save.quickSlots = ['stormVolley', null, null];
+  const world = new FixedCombat(save); world.critRoll = () => 1;
+  const first = dummy(120), next = dummy(200); first.hp = 1;
+  world.enemies = [first, next];
+  world.action('stormVolley'); world.cooldown.attack = 999;
+  const shots = () => world.effects.filter(effect => effect.kind === 'shot' && effect.source === 'stormVolley');
+  assert.equal(shots().length, 1);
+  assert.equal(shots()[0].tx, first.x);
+  world.update(.14);
+  assert(!world.enemies.includes(first));
+  assert.equal(shots().length, 0);
+  world.update(.05);
+  assert.equal(shots().length, 1);
+  assert.equal(shots()[0].tx, next.x);
+  for (let index = 0; index < 4; index++) world.update(.18);
+  assert.equal(world.effects.find(effect => effect.kind === 'volleyCast')?.hits, 6);
+});
+
+test('애로우 레인은 레벨에 따라 타격 반경과 지속 시간이 커진다', () => {
+  const first = skillArea('arrowRain', 1), last = skillArea('arrowRain', 10);
+  assert.equal(first.radius, 92); assert.equal(last.radius, 146);
+  assert.equal(first.duration, 3.2); assert(last.duration > 4);
+  const save = freshSave('female', 'archer'); save.learned = ['arrowRain'];
+  save.quickSlots = ['arrowRain', null, null]; save.skillLevels.arrowRain = 10;
+  const world = new FixedCombat(save); world.critRoll = () => 1;
+  const center = dummy(160), inside = dummy(160, 140), outside = dummy(160, 155);
+  world.enemies = [center, inside, outside];
+  world.action('arrowRain'); world.cooldown.attack = 999;
+  const rain = world.effects.find(effect => effect.kind === 'rain');
+  assert.equal(rain.radius, 146); assert.equal(rain.duration, last.duration);
+  world.update(.2);
+  assert(inside.hp < inside.maxHp);
+  assert.equal(outside.hp, outside.maxHp);
+});
+
+test('빙결 화살 한 발은 착탄 반경의 주변 적도 둔화하고 레벨에 따라 더 오래 느리게 한다', () => {
+  assert.deepEqual(iceArrowSlow(1), { duration: 2.4, speedScale: .55 });
+  const strong = iceArrowSlow(10);
+  assert(Math.abs(strong.duration - 4.02) < 1e-9);
+  assert(Math.abs(strong.speedScale - .28) < 1e-9);
+  const save = freshSave('female', 'archer'); save.learned = ['iceArrow'];
+  save.quickSlots = ['iceArrow', null, null]; save.skillLevels.iceArrow = 10;
+  const world = new FixedCombat(save); world.critRoll = () => 1;
+  const center = dummy(160), inside = dummy(180, 70), outside = dummy(160, 85);
+  world.enemies = [center, inside, outside];
+  world.action('iceArrow'); world.cooldown.attack = 999;
+  assert.equal(world.effects.filter(effect => effect.kind === 'shot').length, 1);
+  world.update(.3);
+  assert(center.hp < center.maxHp);
+  assert.equal(inside.hp, inside.maxHp);
+  assert.equal(outside.hp, outside.maxHp);
+  assert.equal(center.slow, strong.duration);
+  assert.equal(inside.slow, strong.duration);
+  assert.equal(inside.slowScale, strong.speedScale);
+  assert.equal(outside.slow, 0);
+  assert(world.effects.some(effect => effect.kind === 'iceBurst' && effect.radius === 80));
 });
 
 test('관통 사격은 사거리 끝까지 좁게 뻗어 최대 네 적을 차례로 때린다', () => {

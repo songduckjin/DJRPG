@@ -75,6 +75,8 @@ export function drawSkillVfx(this: GameView, world: CombatEngine, effect: Effect
     if (effect.kind === 'slash') return true;
     if (effect.kind === 'hell') { drawWhirlSlash.call(this, effect, x, y, t, time); return true; }
     if (effect.kind === 'shot') { drawArrow.call(this, effect, x, y, screenAngle); return true; }
+    if (effect.kind === 'volleyCast') return true;
+    if (effect.kind === 'iceBurst') { drawIceBurst.call(this, effect, x, y, t); return true; }
     if (effect.kind === 'snipeMark') {
       const cy = y - 46, radius = 24 - t * 5, alpha = Math.min(1, (1 - t) * 3);
       this.glow.circle(x, cy, radius + 5).stroke({ color: 0xff2929, width: 5, alpha: .2 * alpha });
@@ -356,25 +358,24 @@ export function drawArrow(this: GameView, effect: Effect, x: number, y: number, 
     // 몸통 높이에서 고정된 발사 방향으로 직진한다. 이동 중 회전하거나 위로 휘지 않는다.
     const py = y + (dx + dy) * .43 * progress - 46;
     const angle = Math.atan2((dx + dy) * .43, (dx - dy) * .86);
-    const length = effect.variant === 'snipe' ? 36 : effect.variant === 'pierce' ? 32 : 26;
-    const ux = Math.cos(angle), uy = Math.sin(angle), vx = -uy, vy = ux;
-    const tailX = px - ux * length, tailY = py - uy * length;
-    // 나무 화살대, 짙은 붉은 깃, 금속 촉과 화살통 홈을 각각 그린다.
-    this.effects.moveTo(tailX, tailY).lineTo(px - ux * 5, py - uy * 5).stroke({ color: 0x342419, width: 4, alpha: 1 });
-    this.effects.moveTo(tailX, tailY).lineTo(px - ux * 5, py - uy * 5).stroke({ color: 0x9b6840, width: 1.5, alpha: 1 });
-    for (const side of [-1, 1]) this.effects.moveTo(tailX + ux * 2, tailY + uy * 2)
-      .lineTo(tailX + ux * 9 + vx * side * 5, tailY + uy * 9 + vy * side * 5)
-      .lineTo(tailX + ux * 12, tailY + uy * 12).closePath().fill({ color: 0x833d2d, alpha: 1 });
-    this.effects.moveTo(px + ux * 8, py + uy * 8)
-      .lineTo(px - ux * 5 + vx * 3.5, py - uy * 5 + vy * 3.5)
-      .lineTo(px - ux * 5 - vx * 3.5, py - uy * 5 - vy * 3.5).closePath()
-      .fill({ color: effect.variant === 'snipe' ? 0xc6302d : 0x879190, alpha: 1 });
-    this.effects.moveTo(tailX - vx * 2, tailY - vy * 2).lineTo(tailX + vx * 2, tailY + vy * 2)
-      .stroke({ color: 0x30251e, width: 1.5, alpha: 1 });
-    if (effect.variant === 'pierce') this.glow.moveTo(tailX - ux * 12, tailY - uy * 12).lineTo(px, py).stroke({ color: 0xd6e6ed, width: 3, alpha: .24 });
-    if (effect.variant === 'ice') this.glow.circle(px, py, 10).fill({ color: 0x8fd0ff, alpha: .12 });
-    if (effect.variant === 'snipe' && progress > 0) this.glow.moveTo(tailX - ux * 15, tailY - uy * 15)
-      .lineTo(px, py).stroke({ color: 0xe83230, width: 4, alpha: .35 });
+    let sprites = this.vfxSprites.get(effect);
+    if (!sprites) {
+      const sprite = new Sprite(effect.variant === 'ice' ? this.textures.fxIceArrow : this.textures.fxArcherArrow);
+      sprite.anchor.set(.97, .49);
+      this.skillVfx.addChild(sprite);
+      sprites = [sprite];
+      this.vfxSprites.set(effect, sprites);
+    }
+    const sprite = sprites[0];
+    // 52px는 모바일 미리보기에서 활의 보이는 길이에 맞춘다. 고해상도 원본을 축소해 결을 보존한다.
+    const length = effect.variant === 'snipe' ? 58 : effect.variant === 'pierce' ? 55 : 52;
+    sprite.scale.set(length / sprite.texture.width);
+    sprite.position.set(px, py);
+    sprite.rotation = angle;
+    sprite.tint = effect.variant === 'snipe' ? 0xffb5ac : 0xffffff;
+    if (effect.variant === 'ice') this.glow.circle(px, py, 9).fill({ color: 0x7fd6ff, alpha: .2 });
+    if (effect.variant === 'snipe' && progress > 0) this.glow.moveTo(px - Math.cos(angle) * 48, py - Math.sin(angle) * 48)
+      .lineTo(px, py).stroke({ color: 0xe83230, width: 3, alpha: .3 });
   }
 
 /**
@@ -462,18 +463,65 @@ export function drawWard(this: GameView, _effect: Effect, x: number, y: number, 
 
 /** 애로우 레인 — 적 지점에 화살이 비처럼 떨어진다(작업 157). */
 export function drawArrowRain(this: GameView, effect: Effect, x: number, y: number, t: number, time: number): void {
-    const { x: radius } = projectedAreaRadii(effect.radius ?? skillArea('arrowRain', effect.level ?? 1).radius!);
-    this.ground.ellipse(x, y, radius, radius * .5).stroke({ color: 0xffcf8a, width: 2, alpha: .18 + .22 * Math.sin(t * Math.PI) });
-    const arrows = reducedMotion() ? 4 : 16;
-    for (let index = 0; index < arrows; index++) {
-      const spread = ((index * 37) % 100) / 100 - .5;
-      const depth = ((index * 53) % 100) / 100 - .5;
-      const fall = ((t * 2.6 + index / arrows) % 1);
-      const ax = x + spread * radius * 1.7;
-      const ay = y + depth * radius * .9;
-      const height = 150 * (1 - fall);
-      this.effects.moveTo(ax + height * .22, ay - height).lineTo(ax, ay).stroke({ color: 0xffcf8a, width: 2, alpha: .1 + .5 * fall });
-      if (fall > .86) this.effects.circle(ax, ay, 3 + Math.sin(time * 30 + index) * 1.2).fill({ color: 0xffe3b0, alpha: .5 * (1 - t) });
+    const radius = projectedAreaRadii(effect.radius ?? skillArea('arrowRain', effect.level ?? 1).radius!);
+    this.ground.ellipse(x, y, radius.x, radius.y).stroke({ color: 0xffcf8a, width: 2, alpha: .18 + .22 * Math.sin(t * Math.PI) });
+    let sprites = this.vfxSprites.get(effect);
+    if (!sprites) {
+      sprites = Array.from({ length: reducedMotion() ? 5 : 14 }, () => {
+        const sprite = new Sprite(this.textures.fxArcherArrow);
+        sprite.anchor.set(.97, .49);
+        sprite.scale.set(52 / sprite.texture.width);
+        sprite.rotation = Math.PI / 2;
+        this.skillVfx.addChild(sprite);
+        return sprite;
+      });
+      this.vfxSprites.set(effect, sprites);
+    }
+    for (let index = 0; index < sprites.length; index++) {
+      const angle = index * 2.39996, spread = Math.sqrt((index + .5) / sprites.length) * .86;
+      const ax = x + Math.cos(angle) * radius.x * spread;
+      const ay = y + Math.sin(angle) * radius.y * spread;
+      const fall = (effect.age * 2.5 + index / sprites.length) % 1;
+      const tipY = ay - 145 * (1 - fall);
+      sprites[index].position.set(ax, tipY);
+      sprites[index].alpha = Math.min(1, fall * 5, (1 - t) * 6);
+      if (fall > .9) this.effects.circle(ax, ay, 3 + Math.sin(time * 30 + index) * .6)
+        .fill({ color: 0xc99c66, alpha: .28 * (1 - t) });
+    }
+  }
+
+/** 빙결 착탄 — 실제 둔화 반경을 따라 얼음 파열과 눈싸라기가 퍼진다. */
+export function drawIceBurst(this: GameView, effect: Effect, x: number, y: number, t: number): void {
+    const radius = projectedAreaRadii(effect.radius ?? skillArea('iceArrow', 1).projectileRadius!);
+    const spread = Math.min(1, t * 2.4), fade = 1 - t;
+    this.ground.ellipse(x, y, radius.x * spread, radius.y * spread)
+      .stroke({ color: 0xa5e8ff, width: 3, alpha: .95 * fade });
+    this.ground.ellipse(x, y, radius.x * spread * .78, radius.y * spread * .78)
+      .stroke({ color: 0x5cbaf0, width: 1.5, alpha: .55 * fade });
+    this.glow.ellipse(x, y - 12, radius.x * spread * .7, radius.y * spread * .7)
+      .fill({ color: 0x74cfff, alpha: .18 * fade });
+    for (let index = 0; index < 8; index++) {
+      const angle = index * Math.PI / 4;
+      const sx = x + Math.cos(angle) * radius.x * spread * .7;
+      const sy = y + Math.sin(angle) * radius.y * spread * .7 - 11;
+      const size = 7 + index % 3 * 2;
+      this.effects.moveTo(sx, sy - size).lineTo(sx + size * .55, sy)
+        .lineTo(sx, sy + size * .4).lineTo(sx - size * .55, sy)
+        .closePath().fill({ color: index % 2 ? 0xa9e7fc : 0x70c8ef, alpha: .58 * fade });
+      this.effects.moveTo(sx, sy - size).lineTo(sx + size * .3, sy - 1)
+        .stroke({ color: 0xe0faff, width: 1, alpha: .85 * fade });
+    }
+    const flakes = reducedMotion() ? 7 : 22;
+    for (let index = 0; index < flakes; index++) {
+      const angle = index * 2.39996;
+      const reach = (.35 + (index % 5) * .13) * spread;
+      const fx = x + Math.cos(angle) * radius.x * reach;
+      const fy = y + Math.sin(angle) * radius.y * reach - 17 - t * 18;
+      const size = index % 3 === 0 ? 6 : 3.5;
+      this.effects.moveTo(fx - size, fy).lineTo(fx + size, fy)
+        .moveTo(fx, fy - size).lineTo(fx, fy + size)
+        .stroke({ color: index % 3 === 0 ? 0xe7fbff : 0x8cdafa, width: 1.6, alpha: .95 * fade });
+      if (index % 3 === 0) this.glow.circle(fx, fy, size * 2).fill({ color: 0xa7e6ff, alpha: .24 * fade });
     }
   }
 
@@ -488,6 +536,19 @@ export function drawHawkEye(this: GameView, effect: Effect, x: number, y: number
       const px = x + Math.cos(angle) * radius * .9, py = y - 34 + Math.sin(angle) * radius * .55;
       this.effects.moveTo(px, py).lineTo(px + Math.cos(angle) * 9, py + Math.sin(angle) * 6).stroke({ color: 0xffe1a0, width: 2, alpha: .55 * (1 - t) });
     }
+    // 날개·머리·발톱이 읽히는 독수리 원화 한 마리만 머리 위로 띄운다.
+    let sprites = this.vfxSprites.get(effect);
+    if (!sprites) {
+      const sprite = new Sprite(this.textures.fxHawkEagle);
+      sprite.anchor.set(.5);
+      this.skillVfx.addChild(sprite);
+      sprites = [sprite];
+      this.vfxSprites.set(effect, sprites);
+    }
+    const eagle = sprites[0];
+    eagle.scale.set((116 + t * 14) / eagle.texture.width);
+    eagle.position.set(x, y - 82 - t * (reducedMotion() ? 0 : 66));
+    eagle.alpha = Math.min(1, t * 9, (1 - t) * 2.4);
     // [작업 261] 표식이 퍼지는 동안 발밑에서 옅은 바람 나선이 감기며 솟는다 — 버프 중 오라의 시작.
     const fade = 1 - t;
     this.glow.circle(x, y - 10, 26 + t * 34).fill({ color: 0x9ee8ff, alpha: .07 * fade });

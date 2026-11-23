@@ -60,11 +60,11 @@ export const skills: Record<SkillId, Skill> = {
   doubleShot: { id: 'doubleShot', name: '더블 샷', level: 2, icon: '🏹', cooldown: 4, power: '공격력 × 1.35 · 2발', description: '시위를 두 번 당겨 두 발의 화살을 빠르게 날린다.', range: 265 },
   multiShot: { id: 'multiShot', name: '멀티 샷', level: 4, icon: '🎯', cooldown: 7, power: '공격력 × 0.95 · 5~11발', description: '레벨에 따라 넓어지는 부채꼴로 5~11발의 관통 화살을 날린다. 한 적은 시전당 한 번 맞는다.', range: 260 },
   pierceShot: { id: 'pierceShot', name: '관통 사격', level: 5, icon: '➳', cooldown: 8, power: '공격력 × 2.6 · 관통', description: '강하게 당긴 화살이 여러 적을 꿰뚫고 지나간다.', range: 305 },
-  iceArrow: { id: 'iceArrow', name: '빙결 화살', level: 7, icon: '❄', cooldown: 9, power: '공격력 × 1.9 · 둔화', description: '서리 화살이 맞은 적을 얼려 잠시 느리게 만든다.', range: 270 },
+  iceArrow: { id: 'iceArrow', name: '빙결 화살', level: 7, icon: '❄', cooldown: 9, power: '공격력 × 1.9 · 광역 둔화', description: '얼음 화살 한 발이 착탄해 눈싸라기와 함께 터지고, 주변 적의 이동속도를 낮춘다. 레벨이 오르면 더 느리고 오래 지속된다.', range: 270 },
   hawkEye: { id: 'hawkEye', name: '호크아이', level: 10, icon: '🦅', cooldown: 16, power: '공격력 × 1.2 · 공격속도 상승', description: '7초 동안(레벨당 +0.17초) 매의 눈으로 공격력과 공격속도가 크게 오른다.', range: 200 },
   snipe: { id: 'snipe', name: '저격 일격', level: 14, icon: '👁', cooldown: 11, power: '공격력 × 6.5 · 단일', description: '목표에 붉은 십자 조준표를 띄운 뒤 한 발로 강하게 저격한다.', range: 340 },
-  stormVolley: { id: 'stormVolley', name: '폭풍 연사', level: 18, icon: '🌪', cooldown: 12, power: '공격력 × 0.8 · 6발', description: '폭풍 같은 연사로 여섯 발의 화살을 연달아 퍼붓는다.', range: 285 },
-  arrowRain: { id: 'arrowRain', name: '애로우 레인', level: 24, icon: '☔', cooldown: 18, power: '공격력 × 0.85 · 화살비', description: '하늘로 쏘아 올린 화살이 적의 진영에 비처럼 쏟아진다.', range: 295 },
+  stormVolley: { id: 'stormVolley', name: '폭풍 연사', level: 18, icon: '🌪', cooldown: 12, power: '공격력 × 0.8 · 6발', description: '화살을 한 발씩 연속 발사한다. 적을 처치하면 남은 화살은 다음 적을 겨눈다.', range: 285 },
+  arrowRain: { id: 'arrowRain', name: '애로우 레인', level: 24, icon: '☔', cooldown: 18, power: '공격력 × 0.85 · 화살비', description: '넓어지는 범위에 화살이 위에서 수직으로 오래 쏟아진다.', range: 295 },
   fireBolt: { id: 'fireBolt', name: '파이어 볼트', level: 2, icon: '🔥', cooldown: 4, power: '공격력 × 2.0', description: '지팡이 끝에서 불꽃 구슬을 날려 적 하나를 태운다.', range: 260 },
   iceBolt: { id: 'iceBolt', name: '아이스 볼트', level: 4, icon: '❄', cooldown: 7, power: '공격력 × 1.7 · 둔화', description: '서리 구슬이 맞은 적을 얼려 잠시 느리게 만든다.', range: 270 },
   chainLightning: { id: 'chainLightning', name: '체인 라이트닝', level: 5, icon: '⚡', cooldown: 8, power: '공격력 × 1.25 · 연쇄', description: '번개가 적에게 튀어 가까운 적 여럿을 연달아 감전시킨다.', range: 275 },
@@ -140,7 +140,7 @@ export function skillDuration(id: SkillId, level: number): number {
   if (id === 'power') return .4 + (level - 1) * .04;
   if (id === 'hawkEye') return 7 + (level - 1) * .17;
   if (id === 'stormVolley') return 1.1 + (level - 1) * .05;
-  if (id === 'arrowRain') return 1.6 + (level - 1) * .07;
+  if (id === 'arrowRain') return 3.2 + (level - 1) * .12;
   if (id === 'iceArrow') return .8 + (level - 1) * .05;
   if (id === 'arcaneShield') return 7 + (level - 1) * .17;
   if (id === 'manaBurst') return .9 + (level - 1) * .06;

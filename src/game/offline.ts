@@ -8,6 +8,7 @@ import { afterBossLose, afterBossWin, applyBossReward, applyKillBatch, defeatPen
 import { basicAttackPower, berserkAttackScale, berserkSpeedScale, CRIT_CHANCE_CAP, attackInterval, critDamageScale, enemyHitDamage, enemyMaxHp, fieldSpawnRate } from './battle/formulas';
 import { effectiveExtraOptions } from './extraOptions';
 import { SKILL_CDR_CAP } from './combat/engine';
+import { skillCastScale } from './loadout';
 
 /**
  * 오프라인 방치 정산(작업 235).
@@ -73,7 +74,9 @@ export function offlineHeroDps(save: Save): number {
   for (const id of save.quickSlots) {
     if (!id || !save.learned.includes(id)) continue;
     const level = skillLevel(save, id);
-    if (skillBurst[id]) skill += stats.attack * skillBurst[id] * skillDamageScale(level) / (skills[id].cooldown * cdrScale);
+    const burst = id === 'arrowRain' ? skillCastScale(id, level) : skillBurst[id];
+    if (burst) skill += stats.attack * burst * skillDamageScale(level)
+      * (id === 'snipe' ? critDamage : 1) / (skills[id].cooldown * cdrScale);
   }
   const buffId = buffSkills.find(id => save.learned.includes(id) && save.quickSlots.includes(id));
   if (!buffId) return stats.attack * basicAttackPower * critFactor / attackInterval(jobOf(save), stats.speed) + skill;
