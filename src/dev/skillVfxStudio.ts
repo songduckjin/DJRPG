@@ -4,12 +4,17 @@ import { GameView } from '../game/render';
 import { preferences } from '../game/preferences';
 import { starterWeaponName } from '../game/items';
 import { freshSave, type Gender } from '../game/store';
-import { skillOrder, skills, type WarriorSkillId } from '../game/skills';
+import { skillOrderFor, skillRange, skills, type Job, type SkillId } from '../game/skills';
 import type { Enemy } from '../game/battle/types';
 
 const select = (id: string): HTMLSelectElement => document.querySelector<HTMLSelectElement>(`#${id}`)!;
 const skillSelect = select('skill');
-for (const id of skillOrder) skillSelect.add(new Option(skills[id].name, id));
+const jobSelect = select('job');
+function populateSkills(): void {
+  skillSelect.replaceChildren();
+  for (const id of skillOrderFor(jobSelect.value as Job)) skillSelect.add(new Option(skills[id].name, id));
+}
+populateSkills();
 const status = document.querySelector<HTMLElement>('#status')!;
 const stage = document.querySelector<HTMLElement>('#stage')!;
 const replayButton = document.querySelector<HTMLButtonElement>('#replay')!;
@@ -20,13 +25,14 @@ class StudioCombat extends CombatEngine {
 }
 
 function preview(): StudioCombat {
-  const id = skillSelect.value as WarriorSkillId;
+  const id = skillSelect.value as SkillId;
+  const job = jobSelect.value as Job;
   const level = Number(select('level').value);
   const count = Number(select('targets').value);
   const gender = select('gender').value as Gender;
-  const save = freshSave(gender, 'warrior');
-  save.equipment.weapon = { id: crypto.randomUUID(), name: starterWeaponName('warrior'), slot: 'weapon', rarity: 'common', stats: { attack: 4 }, plus: 0 };
-  save.learned = [...skillOrder];
+  const save = freshSave(gender, job);
+  save.equipment.weapon = { id: crypto.randomUUID(), name: starterWeaponName(job), slot: 'weapon', rarity: 'common', stats: { attack: 4 }, plus: 0 };
+  save.learned = [...skillOrderFor(job)];
   save.skillLevels = { ...save.skillLevels, [id]: level };
   save.quickSlots = [id, null, null];
   const world = new StudioCombat(save);
@@ -34,7 +40,11 @@ function preview(): StudioCombat {
   world.enemies = Array.from({ length: count }, (_, index): Enemy => {
     const angle = index === 0 ? 0 : (index - 1) * Math.PI * 2 / Math.max(1, count - 1);
     const radius = index === 0 ? 48 : 94;
-    return { x: Math.cos(angle) * radius, y: Math.sin(angle) * radius, hp: 1_000_000, maxHp: 1_000_000, boss: false, hit: 0, step: 0, moving: false, knockX: 0, knockY: 0, slow: 0 };
+    const ranged = job === 'archer';
+    const baseX = Math.min(190, skillRange(id, level) * .7);
+    return { x: ranged ? baseX + (index === 0 ? 0 : 30 + Math.cos(angle) * 18) : Math.cos(angle) * radius,
+      y: ranged ? (index === 0 ? 0 : Math.sin(angle) * 54) : Math.sin(angle) * radius,
+      hp: 1_000_000, maxHp: 1_000_000, boss: false, hit: 0, step: 0, moving: false, knockX: 0, knockY: 0, slow: 0 };
   });
   world.action(id);
   save.quickSlots = [null, null, null]; // 반복 재생까지 선택한 기술 한 번만 실행한다.
@@ -52,7 +62,7 @@ let fps = 0;
 function replay(): void {
   world = preview();
   elapsed = 0;
-  status.textContent = `${skills[skillSelect.value as WarriorSkillId].name} · ${stage.clientWidth}×${stage.clientHeight} · ${fps} FPS`;
+  status.textContent = `${skills[skillSelect.value as SkillId].name} · ${stage.clientWidth}×${stage.clientHeight} · ${fps} FPS`;
 }
 
 async function start(): Promise<void> {
@@ -60,6 +70,7 @@ async function start(): Promise<void> {
   preferences.shake = false;
   replay();
   replayButton.onclick = replay;
+  jobSelect.onchange = () => { populateSkills(); replay(); };
   for (const id of ['skill', 'level', 'targets', 'gender']) select(id).onchange = replay;
   select('quality').onchange = () => { preferences.effects = select('quality').value === 'low' ? 'low' : 'full'; replay(); };
   requestAnimationFrame(function frame(now) {
@@ -68,7 +79,7 @@ async function start(): Promise<void> {
     elapsed += dt;
     fpsClock += dt;
     frames++;
-    if (fpsClock >= 1) { fps = Math.round(frames / fpsClock); frames = 0; fpsClock = 0; status.textContent = `${skills[skillSelect.value as WarriorSkillId].name} · ${stage.clientWidth}×${stage.clientHeight} · ${fps} FPS`; }
+    if (fpsClock >= 1) { fps = Math.round(frames / fpsClock); frames = 0; fpsClock = 0; status.textContent = `${skills[skillSelect.value as SkillId].name} · ${stage.clientWidth}×${stage.clientHeight} · ${fps} FPS`; }
     if (elapsed > 2.5) replay();
     world.update(dt);
     view.draw(world, now / 1000);

@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <title>DJRPG · 전사 스킬 VFX 스튜디오</title>
+    <title>DJRPG · 스킬 VFX 스튜디오</title>
     <style>
       * { box-sizing: border-box; }
       body { margin: 0; background: #151116; color: #f2e8dc; font: 14px/1.4 system-ui, sans-serif; }
@@ -24,11 +24,12 @@
   </head>
   <body>
     <main>
-      <h1>전사 스킬 VFX 스튜디오</h1>
+      <h1>스킬 VFX 스튜디오</h1>
       <p>실제 전투 엔진과 PixiJS 렌더러로 미리 봅니다. 저장·계정 연결은 하지 않습니다.</p>
       <div class="layout">
         <div id="stage" aria-label="390×844 모바일 전투 미리보기"></div>
         <div class="controls">
+          <label>직업<select id="job"><option value="archer">궁수</option><option value="warrior">전사</option></select></label>
           <label>스킬<select id="skill"></select></label>
           <label>레벨<select id="level"><option>1</option><option>5</option><option>10</option></select></label>
           <label>대상 수<select id="targets"><option>1</option><option>3</option><option>8</option></select></label>
