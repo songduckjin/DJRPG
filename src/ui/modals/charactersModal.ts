@@ -288,7 +288,7 @@ async function changeCharacter(ui: Interface, action: 'selectCharacter' | 'creat
     onReady?.();
     // **`location.reload()` 없이** 받은 세이브로 그 자리에서 갈아탄다(작업 228). 새로고침은 번들·에셋·
     // `/api/account`을 처음부터 다시 받아 iOS에서 "접속하는 중입니다"가 오래 걸리는 원인이었다.
-    applyCharacterSwitch(ui, result);
+    await applyCharacterSwitch(ui, result);
     loading?.remove();
   } catch (error) { loading?.remove(); throw error; }
   finally { ui.market.sync.endSwitch(); }
@@ -301,7 +301,7 @@ export type CharacterSwitchResult = { characterSlot: number; revision: number; s
  * 캐릭터 전환 결과를 화면 전체에 반영한다(작업 228). 새로고침 대신 인메모리로 갈아타므로,
  * 월드·저장 동기화·세션·HUD·가방·임무 배지를 한 번에 새 캐릭터로 맞춘다.
  */
-export function applyCharacterSwitch(ui: Interface, result: CharacterSwitchResult): void {
+export async function applyCharacterSwitch(ui: Interface, result: CharacterSwitchResult): Promise<void> {
   const save = parseSave(result.save, ui.session.accountId);
   const sync = ui.market.sync;
   // 월드는 같은 인스턴스를 쓰고(렌더러·저장 큐가 이 객체를 가리킨다) 세이브 내용만 갈아탄다.
@@ -336,7 +336,19 @@ export function applyCharacterSwitch(ui: Interface, result: CharacterSwitchResul
     autoSalvagePlus: ui.salvagePlus,
   }) : undefined;
   ui.renderStatus(); ui.renderBagBadge();
-  if (reward) { sync.markDirty(); ui.showOfflineReward(reward); void sync.flush(); }
+  if (reward) {
+    sync.markDirty();
+    if (!await sync.flush()) {
+      // 전환 세이브의 수락 여부가 불명확하면 이 화면의 보상을 보여 주거나 계속 사용하지 않는다.
+      location.reload();
+      throw new Error('방치 보상 저장을 확인하지 못했습니다. 최신 진행 상황을 다시 불러옵니다.');
+    }
+    const accepted = new Set(live.bag.map(item => item.id));
+    reward.items = reward.items.filter(item => accepted.has(item.id));
+    if (sync.lastSaveClamped?.length) reward.adjusted = true;
+    ui.renderStatus(); ui.renderBagBadge();
+    ui.showOfflineReward(reward);
+  }
   void ui.journey.load();
 }
 

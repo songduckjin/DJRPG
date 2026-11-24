@@ -24,6 +24,8 @@ import { skillCastScale } from './loadout';
  */
 export type OfflineReward = {
   seconds: number; kills: number; exp: number; gold: number; items: Item[]; missedDrops: number; levels: number;
+  /** 서버 저장에서 상한 조정이 있었다면 계산 전 수치 대신 확정된 아이템만 표시한다. */
+  adjusted?: boolean;
   /** 정산 전후 층 — `5층 → 8층 돌파!`를 보여 준다(작업 235). */
   startFloor: number; endFloor: number;
   /** 오프라인 동안 잡은 층 보스 수(작업 235). */
