@@ -73,6 +73,10 @@ export function openDefenseField(ui: Interface, lobby: HTMLElement): void {
   ui.root.querySelector('.game-shell')!.append(field);
   const get = <T extends HTMLElement>(s: string) => field.querySelector<T>(s)!;
   const view = new GameView();
+  // Canvas alpha is fixed at context creation; without this the opaque context hides the corridor art behind
+  // it (같은 이유로 `ui/dungeonField.ts`도 같은 훅을 쓴다).
+  const initialize = view.app.init.bind(view.app);
+  view.app.init = options => initialize({ ...options, background: 0x000000, backgroundColor: 0x000000, backgroundAlpha: 0 });
   let battle!: DefenseBattle, closed = false, mounted = false, age = 0, visualTime = 0, finishAge = 0, resultShown = false, pendingStep = 0, starting = false;
   let lastStage = 1, bannerTimer = 0, summary: DefenseBattleSummary | undefined, receipt: DefenseRewardReceipt | undefined, settled = false;
   const previousBest = ui.defense.bestStage;
