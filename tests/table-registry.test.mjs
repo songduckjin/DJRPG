@@ -46,13 +46,17 @@ const LEGACY_ACCOUNT_TABLES = [
   'djrpg_warehouse', 'djrpg_warehouse_requests', 'djrpg_journey', 'djrpg_save_versions', 'djrpg_save_requests',
   'djrpg_market_inbox', 'djrpg_market_requests', 'djrpg_journey_requests', 'djrpg_dungeon_records', 'djrpg_dungeon_attempts',
   'djrpg_boss_attempts', 'djrpg_boss_scores', 'djrpg_boss_rewards', 'djrpg_announcements',
-  'djrpg_shop_wallet', 'djrpg_shop_orders', 'djrpg_shop_ledger', 'djrpg_shop_entitlements', 'djrpg_shop_requests'
+  'djrpg_shop_wallet', 'djrpg_shop_orders', 'djrpg_shop_ledger', 'djrpg_shop_entitlements', 'djrpg_shop_requests',
+  // 2026-11-24 무한 방어전 2표 — 순위 기록(탈퇴 시 지운다)과 진행 중 도전.
+  'djrpg_defense_records', 'djrpg_defense_attempts'
 ];
 const LEGACY_RESET_TABLES = [
   'djrpg_market', 'djrpg_market_events', 'djrpg_market_inbox', 'djrpg_market_requests', 'djrpg_journey_requests',
   'djrpg_warehouse', 'djrpg_warehouse_requests', 'djrpg_item_owners', 'djrpg_character_item_owners',
   'djrpg_dungeon_records', 'djrpg_boss_days', 'djrpg_boss_attempts', 'djrpg_boss_scores', 'djrpg_boss_rewards',
-  'djrpg_journey', 'djrpg_save_requests', 'djrpg_save_versions', 'djrpg_announcements'
+  'djrpg_journey', 'djrpg_save_requests', 'djrpg_save_versions', 'djrpg_announcements',
+  // 2026-11-24 무한 방어전 순위 기록 — 시즌에는 비운다(던전 기록과 같다).
+  'djrpg_defense_records'
 ];
 /** 이관 목록은 **6개월 전 목록(22표)** 에 빠져 있던 상점 5표를 더한 27표다(작업 260에서 바로잡음). */
 const LEGACY_MIGRATE_TABLES = [
@@ -61,7 +65,9 @@ const LEGACY_MIGRATE_TABLES = [
   'djrpg_account_profiles', 'djrpg_characters', 'djrpg_character_item_owners', 'djrpg_warehouse',
   'djrpg_warehouse_requests', 'djrpg_boss_days', 'djrpg_boss_attempts', 'djrpg_boss_scores', 'djrpg_boss_rewards',
   'djrpg_meta', 'djrpg_announcements', 'djrpg_dungeon_records', 'djrpg_dungeon_attempts',
-  'djrpg_shop_wallet', 'djrpg_shop_orders', 'djrpg_shop_ledger', 'djrpg_shop_entitlements', 'djrpg_shop_requests'
+  'djrpg_shop_wallet', 'djrpg_shop_orders', 'djrpg_shop_ledger', 'djrpg_shop_entitlements', 'djrpg_shop_requests',
+  // 2026-11-24 무한 방어전 2표 — 순위 기록(탈퇴 시 지운다)과 진행 중 도전.
+  'djrpg_defense_records', 'djrpg_defense_attempts'
 ];
 
 /**
@@ -78,20 +84,22 @@ test('DDL이 만드는 djrpg_* 표와 등록부가 정확히 같다', () => {
 });
 
 test('DDL 모듈별 목록이 실제 DDL과 맞는다', () => {
-  // 기본 스키마 파일은 자기 표 + 던전 2표(같은 DDL을 두 곳에서 다시 쓴다 — 등록부 `DDL_TABLES.duplicated`)를 만든다.
+  // 기본 스키마 파일은 자기 표 + 던전 2표 + 무한 방어전 2표(같은 DDL을 두 곳에서 다시 쓴다 —
+  // 등록부 `DDL_TABLES.duplicated`)를 만든다. 2026-11-24에 방어전 2표가 더해졌다.
   const schemaTables = [...registry.DDL_TABLES.schema, ...registry.DDL_TABLES.duplicated].sort();
   assert.deepEqual([...ddlTables(...SCHEMA_DDL_FILES)].sort(), schemaTables);
-  assert.deepEqual([...ddlTables('server/dungeon-schema.mjs')].sort(), [...registry.DDL_TABLES.duplicated].sort());
+  assert.deepEqual([...ddlTables('server/dungeon-schema.mjs')].sort(), [...registry.DDL_TABLES.dungeon].sort());
+  assert.deepEqual([...ddlTables('server/defense-schema.mjs')].sort(), [...registry.DDL_TABLES.defense].sort());
   assert.deepEqual([...ddlTables('server/world-boss-schema.mjs')].sort(), [...registry.DDL_TABLES['world-boss']].sort());
-  for (const table of registry.DDL_TABLES.duplicated) assert.equal(registry.tableSpec(table).ddl, 'dungeon');
+  for (const table of registry.DDL_TABLES.duplicated) assert.ok(['dungeon', 'defense'].includes(registry.tableSpec(table).ddl));
 });
 
-test('탈퇴 목록은 종전 22표와 집합이 같다', () => {
+test('탈퇴 목록은 종전 22표 + 무한 방어전 2표와 집합이 같다', () => {
   assert.deepEqual([...registry.ACCOUNT_TABLES].sort(), [...LEGACY_ACCOUNT_TABLES].sort());
   assert.deepEqual([...ACCOUNT_TABLES].sort(), [...LEGACY_ACCOUNT_TABLES].sort(), 'server/account-delete.mjs가 등록부에서 파생하지 않는다');
 });
 
-test('시즌 초기화 목록은 종전 17표와 집합이 같다', () => {
+test('시즌 초기화 목록은 종전 17표 + 무한 방어전 기록 1표와 집합이 같다', () => {
   assert.deepEqual([...registry.RESET_TABLES].sort(), [...LEGACY_RESET_TABLES].sort());
   assert.deepEqual([...RESET_TABLES].sort(), [...LEGACY_RESET_TABLES].sort(), 'server/season.mjs가 등록부에서 파생하지 않는다');
   // 이용권은 목록이 아니라 별도 문장으로 비운다(결제 기록이 아니라 목록에서 분리해 둔 것 — 현행 동작).
@@ -102,7 +110,7 @@ test('시즌 초기화 목록은 종전 17표와 집합이 같다', () => {
   }
 });
 
-test('이관 목록은 상점 5표를 포함한 27표이고, 옵션 목록은 그 부분집합이다', () => {
+test('이관 목록은 상점 5표·방어전 2표를 포함한 29표이고, 옵션 목록은 그 부분집합이다', () => {
   assert.deepEqual([...registry.MIGRATION_TABLES].sort(), [...LEGACY_MIGRATE_TABLES].sort());
   assert.deepEqual([...MIGRATE_TABLES].sort(), [...LEGACY_MIGRATE_TABLES].sort(), 'scripts/migrate-turso-db.mjs가 등록부에서 파생하지 않는다');
   assert.deepEqual([...MIGRATE_OPTIONAL].sort(), [...registry.OPTIONAL_TABLES].sort());

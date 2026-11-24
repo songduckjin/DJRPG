@@ -4,6 +4,7 @@ import { DUNGEON_MAX_FLOOR, type DungeonLobby } from '../dungeonLobby';
 import { dungeonPrizePanel } from '../dungeonRewardMarkup';
 import type { DungeonLive } from '../../game/dungeonLive';
 import { bindModalClose } from '../modalClose';
+import { renderDefenseLobby, renderDungeonHub } from './defenseLobby';
 
 function text(tag: string, value: string, className = ''): HTMLElement {
   const el = document.createElement(tag); el.textContent = value; if (className) el.className = className; return el;
@@ -41,12 +42,16 @@ export function renderDungeonRanking(parent: HTMLElement, state: DungeonLobby, l
 
 export function renderDungeonLobby(ui: Interface, dialog: HTMLElement): void {
   const state = ui.dungeon;
+  // 첫 화면은 던전 허브(2026-11-24) — 두 카드 중 하나를 고르면 기존 화면이나 무한 방어전으로 간다.
+  if (state.mode === 'hub') { renderDungeonHub(ui, dialog); return; }
+  if (state.mode === 'defense') { renderDefenseLobby(ui, dialog); return; }
   // 진행은 계정 세이브가 소유한다: 새로고침·재접속 뒤에도 이 값에서 이어 간다.
   state.load(ui.world.save);
   const floor = state.floor, status = state.status, live = state.live;
   const comingSoon = `<em class="dungeon-coming-soon"><b>${DUNGEON_MAX_FLOOR + 1}층</b> Coming Soon</em>`;
-  dialog.innerHTML = `<section class="dungeon-lobby" data-tab="${state.tab}"><div class="dungeon-hero"><div class="dungeon-lobby-gate" role="img" aria-label="등불이 켜진 철문"><i class="dungeon-lobby-gate-dark"></i><img class="dungeon-gate-left" src="/assets/dungeon/gate-left-v1.png" alt=""><img class="dungeon-gate-right" src="/assets/dungeon/gate-right-v1.png" alt=""><img class="dungeon-gate-frame" src="/assets/dungeon/gate-frame-v1.png" alt=""></div><button type="button" class="modal-close dungeon-close" aria-label="닫기">×</button></div><div class="dungeon-body"><div class="dungeon-current"><h2>끝없는 던전</h2><strong>${status.headline}</strong>${status.completed ? `${comingSoon}<small>${status.detail}</small>` : `<small>최고 클리어 ${state.clearedFloor}층</small>`}</div><nav class="dungeon-tabs" aria-label="던전 메뉴"><button type="button" data-dungeon-tab="challenge" aria-pressed="${state.tab==='challenge'}">도전</button><button type="button" data-dungeon-tab="ranking" aria-pressed="${state.tab==='ranking'}">순위</button></nav><div class="dungeon-content"></div>${state.tab==='challenge'?`<footer class="dungeon-footer"><button type="button" class="dungeon-enter" ${status.completed?'disabled':''}>${status.button}</button><small>1~${DUNGEON_MAX_FLOOR}층 자동 전투 · 클리어 보상은 계정에 저장 · 기록은 서버 순위에 반영</small></footer>`:''}</div></section>`;
+  dialog.innerHTML = `<section class="dungeon-lobby" data-tab="${state.tab}"><div class="dungeon-hero"><div class="dungeon-lobby-gate" role="img" aria-label="등불이 켜진 철문"><i class="dungeon-lobby-gate-dark"></i><img class="dungeon-gate-left" src="/assets/dungeon/gate-left-v1.png" alt=""><img class="dungeon-gate-right" src="/assets/dungeon/gate-right-v1.png" alt=""><img class="dungeon-gate-frame" src="/assets/dungeon/gate-frame-v1.png" alt=""></div><button type="button" class="modal-close dungeon-close" aria-label="닫기">×</button></div><div class="dungeon-body"><button type="button" class="dungeon-back" aria-label="던전 허브로">‹ 던전</button><div class="dungeon-current"><h2>끝없는 던전</h2><strong>${status.headline}</strong>${status.completed ? `${comingSoon}<small>${status.detail}</small>` : `<small>최고 클리어 ${state.clearedFloor}층</small>`}</div><nav class="dungeon-tabs" aria-label="던전 메뉴"><button type="button" data-dungeon-tab="challenge" aria-pressed="${state.tab==='challenge'}">도전</button><button type="button" data-dungeon-tab="ranking" aria-pressed="${state.tab==='ranking'}">순위</button></nav><div class="dungeon-content"></div>${state.tab==='challenge'?`<footer class="dungeon-footer"><button type="button" class="dungeon-enter" ${status.completed?'disabled':''}>${status.button}</button><small>1~${DUNGEON_MAX_FLOOR}층 자동 전투 · 클리어 보상은 계정에 저장 · 기록은 서버 순위에 반영</small></footer>`:''}</div></section>`;
   bindModalClose(dialog.querySelector<HTMLButtonElement>('.dungeon-close')!, () => ui.open(null));
+  dialog.querySelector<HTMLButtonElement>('.dungeon-back')!.onclick = () => { state.mode = 'hub'; ui.renderModal(); };
   dialog.querySelectorAll<HTMLButtonElement>('[data-dungeon-tab]').forEach(button => button.onclick = () => { state.tab = button.dataset.dungeonTab as typeof state.tab; ui.renderModal(); });
   const enter = dialog.querySelector<HTMLButtonElement>('.dungeon-enter');
   if (enter) enter.onclick = () => openDungeonField(ui, dialog);

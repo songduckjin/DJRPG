@@ -21,6 +21,8 @@ import { spLedger } from '../src/game/skillPoints.ts';
 import { STAT_BOOK_IDS } from './stat-books.mjs';
 
 export const MAX_OFFLINE_SECONDS = 43_200;
+/** 무한 방어전 스테이지 상한 — `src/game/store.ts`의 `DEFENSE_MAX_STAGE`와 같은 값(테스트가 대조한다). */
+export const DEFENSE_MAX_STAGE = 999;
 /** 초당 처치 상한. 실제 사냥은 스폰 간격(≥0.55초)과 18마리 상한 때문에 초당 2마리 안팎이고,
  *  스킬 한 방에 몰려 있던 적이 한꺼번에 죽는 순간을 감안해 크게 잡았다. */
 export const KILLS_PER_SECOND = 6;
@@ -211,6 +213,18 @@ export function clampSaveProgress(previous, save, options = {}) {
   if (cap(save.dungeonFloor) > dungeonCap) { save.dungeonFloor = dungeonCap; clamped.push('dungeonFloor'); }
   const now = Date.now();
   if (cap(save.dungeonClearAt) > now) { save.dungeonClearAt = now; clamped.push('dungeonClearAt'); }
+
+  // 무한 방어전 도달 스테이지(2026-11-24) — 던전과 같은 규칙이다. 서버가 검증한 순위 기록 +1까지만
+  // 저장되고, 기록이 없으면 지금 저장된 값에서 한 스테이지까지만 오른다. 클라이언트가 세이브만 고쳐
+  // 900스테이지를 주장해도 저장 단계에서 잘린다.
+  const previousDefense = Math.max(0, Math.min(DEFENSE_MAX_STAGE, int(previous.defenseStage)));
+  const verifiedDefense = options.defenseStageCap === undefined ? undefined : Math.max(0, Math.min(DEFENSE_MAX_STAGE, int(options.defenseStageCap)));
+  const defenseCap = verifiedDefense === undefined
+    ? Math.min(DEFENSE_MAX_STAGE, previousDefense + (options.allowDungeonClaim === false ? 0 : 1))
+    : Math.min(DEFENSE_MAX_STAGE, verifiedDefense + 1);
+  if (cap(save.defenseStage) > defenseCap) { save.defenseStage = defenseCap; clamped.push('defenseStage'); }
+  if (cap(save.defenseStageAt) > now) { save.defenseStageAt = now; clamped.push('defenseStageAt'); }
+  if (cap(save.defenseStage) === 0) save.defenseStageAt = 0;
 
   if (cap(save.tutorial) > 3) { save.tutorial = 3; clamped.push('tutorial'); }
   return { clamped, budget: payout };

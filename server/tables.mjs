@@ -124,6 +124,14 @@ export const TABLES = Object.freeze([
     domain: 'dungeon', owner: 'account', accountColumn: 'account_id', onDelete: 'delete', onSeason: 'keep', migrate: 'required', ddl: 'dungeon',
     note: '진행 중 도전(층·시작 시각·시드). 시즌에는 남긴다 — 지우면 진행 중 도전의 검증 근거가 사라진다(현행 동작 유지).'
   }),
+  entry('djrpg_defense_records', {
+    domain: 'defense', owner: 'account', accountColumn: 'account_id', onDelete: 'delete', onSeason: 'purge', migrate: 'optional', ddl: 'defense',
+    note: '무한 방어전 최고 도달 스테이지 — 세이브 클램프의 근거라 따로 둔다. 이관 뒤에 생긴 표라 예전 공용 DB에는 없을 수 있다.'
+  }),
+  entry('djrpg_defense_attempts', {
+    domain: 'defense', owner: 'account', accountColumn: 'account_id', onDelete: 'delete', onSeason: 'keep', migrate: 'optional', ddl: 'defense',
+    note: '진행 중 도전(판 번호·시드·시작 시각). 시즌에는 남긴다 — 던전 도전 표와 같은 정책.'
+  }),
   entry('djrpg_boss_days', {
     domain: 'world-boss', owner: 'global', accountColumn: null, onDelete: 'keep', onSeason: 'purge', migrate: 'required', ddl: 'world-boss',
     note: '그날의 보스 한 행(계정 열 없음). 계정 탈퇴와 무관하다.'
@@ -207,5 +215,5 @@ export const DDL_TABLES = Object.freeze({
   schema: names(table => table.ddl === 'schema'),
   dungeon: names(table => table.ddl === 'dungeon'),
   'world-boss': names(table => table.ddl === 'world-boss'),
-  duplicated: Object.freeze(['djrpg_dungeon_records', 'djrpg_dungeon_attempts'])
+  duplicated: Object.freeze(['djrpg_dungeon_records', 'djrpg_dungeon_attempts', 'djrpg_defense_records', 'djrpg_defense_attempts'])
 });
