@@ -45,10 +45,10 @@ export function chainLightningCount(level: number): number {
   const lv = Math.max(1, Math.min(MAX_SKILL_LEVEL, Math.floor(Number.isFinite(level) ? level : 1)));
   return lv >= 10 ? 5 : lv >= 5 ? 4 : 3;
 }
-/** 마력 폭발은 중심 40%에서 전력을 내고, 바깥으로 갈수록 55%까지 줄어든다. */
-export function manaBurstFalloff(distance: number, radius: number): number {
-  const inner = radius * .4;
-  return distance <= inner ? 1 : 1 - .45 * Math.min(1, (distance - inner) / (radius - inner));
+/** 마력 폭발 보호막. 스킬 레벨이 오를수록 공격력당 생성량이 크게 늘어난다. */
+export function manaBurstShield(attack: number, level: number): number {
+  const lv = Math.max(1, Math.min(MAX_SKILL_LEVEL, Math.floor(Number.isFinite(level) ? level : 1)));
+  return Math.max(1, Math.round(Math.max(0, attack) * (1.4 + (lv - 1) * .35)));
 }
 export function skillUpgradeCost(level: number): number { return 40 * level * level; }
 export type Skill = { id: SkillId; name: string; level: number; icon: string; cooldown: number; power: string; description: string; range: number };
@@ -91,7 +91,7 @@ export const skills: Record<SkillId, Skill> = {
   fireBolt: { id: 'fireBolt', name: '파이어 볼트', level: 2, icon: '🔥', cooldown: 4, power: `공격력 × ${FIRE_BOLT_TOTAL_POWER} · 최대 5발`, description: '둥근 화염구를 한 대상에게 연속으로 날린다.', range: 260 },
   iceBolt: { id: 'iceBolt', name: '아이스 볼트', level: 4, icon: '❄', cooldown: 7, power: '공격력 × 0.65~0.83 · 둔화', description: '얼음 구슬 한 발이 전진하며 눈싸라기로 주변 적을 느리게 한다. 적에 닿으면 소멸한다.', range: 270 },
   chainLightning: { id: 'chainLightning', name: '체인 라이트닝', level: 5, icon: '⚡', cooldown: 8, power: '공격력 × 1.25 · 최대 3~5명', description: '첫 적을 맞힌 번개가 가까운 적에게 차례로 전이된다.', range: 275 },
-  manaBurst: { id: 'manaBurst', name: '마력 폭발', level: 7, icon: '◉', cooldown: 10, power: '공격력 × 2.8 · 중심 집중', description: '적 위치에 마력을 응축한 뒤 터뜨린다. 중심부는 강하게, 바깥쪽은 약하게 맞힌다.', range: 250 },
+  manaBurst: { id: 'manaBurst', name: '마력 폭발', level: 7, icon: '◉', cooldown: 10, power: '공격력 × 1.4~4.55 보호막', description: '마력을 폭발시켜 자신을 감싸는 보호막을 만든다. 스킬 레벨이 높을수록 보호막이 크게 늘어난다.', range: 250 },
   frostNova: { id: 'frostNova', name: '프로스트 노바', level: 10, icon: '✳', cooldown: 12, power: '공격력 × 1.5 · 둔화', description: '발밑에서 서리 파동이 퍼져 가까운 적을 얼리고 밀어낸다.', range: 150 },
   arcaneShield: { id: 'arcaneShield', name: '아케인 실드', level: 14, icon: '⛨', cooldown: 16, power: '공격력 × 1.2 · 공격속도 상승', description: '7초 동안(레벨당 +0.17초) 비전 보호막을 두르고 공격력과 공격속도가 오른다.', range: 120 },
   meteorStrike: { id: 'meteorStrike', name: '메테오 스트라이크', level: 18, icon: '☄', cooldown: 13, power: '공격력 × 3.6', description: '하늘에서 불덩이를 떨어뜨려 적의 자리를 크게 내리친다.', range: 285 },
@@ -115,7 +115,7 @@ export const skills: Record<SkillId, Skill> = {
 export const SKILL_HIT_POWER: Record<SkillId, number> = {
   slash2: 1.1, slam: 2.2, warcry: 0, power: 5.5, destroy: 2.7, hell: 3.2, crushing: 3.4, spin: 1.65,
   doubleShot: 1.35, multiShot: .95, pierceShot: 2.6, iceArrow: 1.9, hawkEye: 0, snipe: 6.5, stormVolley: .8, arrowRain: .85,
-  fireBolt: 2, iceBolt: 1.7, chainLightning: 1.25, manaBurst: 2.5, frostNova: 1.5, arcaneShield: 0, meteorStrike: 3.6, arcaneOverlord: 3
+  fireBolt: FIRE_BOLT_TOTAL_POWER, iceBolt: 1.7, chainLightning: 1.25, manaBurst: 0, frostNova: 1.5, arcaneShield: 0, meteorStrike: 3.6, arcaneOverlord: 3
 };
 
 /**

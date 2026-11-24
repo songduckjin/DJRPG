@@ -99,7 +99,7 @@ export function heroHpBarBox(input: {
  * 바를 그린다 — 테두리 있는 어두운 트랙 → 초록 게이지 → 게이지 위쪽 하이라이트 → 1px 테두리.
  * `ratio` 가 0 이어도 트랙은 남기지 않는다(그 경우는 `heroHpBarBox` 가 `undefined`).
  */
-export function paintHeroHpBar(graphics: Graphics, box: HeroHpBarBox): void {
+export function paintHeroHpBar(graphics: Graphics, box: HeroHpBarBox, shieldRatio = 0): void {
   const { x, y, width, height, ratio } = box;
   const radius = Math.min(Math.max(1, Math.round(height * .32)), Math.floor(height / 2));
   const innerWidth = (width - 2) * ratio;
@@ -111,6 +111,11 @@ export function paintHeroHpBar(graphics: Graphics, box: HeroHpBarBox): void {
     graphics.rect(x + 1, y + 1, innerWidth, Math.max(1, Math.round((height - 2) * .32))).fill({ color: HERO_HP_BAR.fillTop, alpha: .55 });
   }
   graphics.roundRect(x, y, width, height, radius).stroke({ width: 1, color: HERO_HP_BAR.border, alpha: .95 });
+  if (shieldRatio > 0) {
+    graphics.roundRect(x, y - 4, width, 3, 1).fill({ color: 0x18243e, alpha: .9 });
+    graphics.roundRect(x, y - 4, Math.max(2, width * Math.min(1, shieldRatio)), 3, 1)
+      .fill({ color: 0x87c7ff, alpha: .96 });
+  }
 }
 
 /**
@@ -135,5 +140,5 @@ export function drawHeroHpBar(view: GameView, world: CombatEngine, bodyPx: numbe
     headroom: Math.max(0, headroomArtPx) * scaleY
   });
   if (!box) return;
-  paintHeroHpBar(graphics, box);
+  paintHeroHpBar(graphics, box, world.player.shield / Math.max(1, totalStats(world.save).health));
 }

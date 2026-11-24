@@ -6,9 +6,10 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import './ts-loader.mjs';
 
-const root = new URL('..', import.meta.url).pathname;
+const root = fileURLToPath(new URL('..', import.meta.url));
 const { MAX_FLOOR, MAX_LEVEL, killsToBoss, afterBossWin, afterFloorClear } = await import('../src/game/progress.ts');
 const theme = await import('../src/game/floorTheme.ts');
 const F = await import('../src/game/floorPower.ts');

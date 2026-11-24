@@ -223,7 +223,7 @@ test('화면 연결: 로그인은 점검 중 로그인·게스트를 잠그고, 
   assert.doesNotMatch(css, /\.maintenance-banner/, '예전 배너 스타일은 지운다');
 
   const headers = read('../public/_headers');
-  assert.match(headers, /\/maintenance\.json\n\s+Cache-Control: no-store/);
+  assert.match(headers, /\/maintenance\.json\r?\n\s+Cache-Control: no-store/);
 
   const policy = read('../AGENTS.md');
   assert.match(policy, /배포·점검 정책/);

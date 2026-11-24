@@ -179,6 +179,9 @@ test('마법사 스킬 8종은 각자의 이펙트를 만들고 피해나 버프
     if (id === 'arcaneShield') {
       assert(world.player.berserk > 0, '아케인 실드는 공격 버프를 건다');
       assert(effects.some(effect => effect.kind === 'ward'));
+    } else if (id === 'manaBurst') {
+      assert(world.player.shield > 0, '마력 폭발은 보호막을 만든다');
+      assert.equal(enemy.hp, 100000, '마력 폭발은 적에게 피해를 주지 않는다');
     } else {
       assert(enemy.hp < 100000 || world.enemies.length === 0 || enemy.hp <= 0, `${id}: 피해가 없다`);
     }

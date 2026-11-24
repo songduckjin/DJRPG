@@ -59,10 +59,9 @@ test('습득 스킬이 0개면 세이브를 건드리지 않고 안내만 돌려
   assert.match(result.message, /스킬 트리에서 SP를 투자해 습득하면 추천 장착을 쓸 수 있습니다/);
 });
 
-test('스킬을 강화하면 레벨 위력 배율이 붙어 DPS 순위가 바뀐다', () => {
-  // 예시: 위력 +70%(Lv.8) iceBolt 1.7×1.7/7 = .413 > 위력 +30%(Lv.4) manaBurst 2.5×1.3/10 = .325
+test('보호막은 피해 순위에서 뒤로 가고 공격 스킬은 강화 위력이 반영된다', () => {
   const base = freshSave('female', 'mage'); base.learned = ['iceBolt', 'manaBurst'];
-  assert.deepEqual(recommendedSkillOrder(base).slice(0, 2), ['manaBurst', 'iceBolt'], '1레벨에서는 마력 폭발이 위');
+  assert.deepEqual(recommendedSkillOrder(base).slice(0, 2), ['iceBolt', 'manaBurst'], '보호막은 피해를 주지 않는다');
   const leveled = freshSave('female', 'mage'); leveled.learned = ['iceBolt', 'manaBurst'];
   leveled.skillLevels = { iceBolt: 8, manaBurst: 4 };
   assert.deepEqual(recommendedSkillOrder(leveled).slice(0, 2), ['iceBolt', 'manaBurst'], '강화된 아이스 볼트가 앞선다');

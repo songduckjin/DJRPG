@@ -15,7 +15,7 @@
  */
 
 import { random } from '../rng';
-import { chainLightningCount, dragonOrbitFactor, FIRE_BOLT_TOTAL_POWER, fireBoltCount, iceBoltProfile, jobOrDefault, manaBurstFalloff, skillDamageScale, skillDuration, skillRange, skills, slash2Hits, slash2SwingSeconds, SKILL_HIT_POWER, type Job, type SkillId } from '../skills';
+import { chainLightningCount, dragonOrbitFactor, FIRE_BOLT_TOTAL_POWER, fireBoltCount, iceBoltProfile, jobOrDefault, manaBurstShield, skillDamageScale, skillDuration, skillRange, skills, slash2Hits, slash2SwingSeconds, SKILL_HIT_POWER, type Job, type SkillId } from '../skills';
 import { skillLevel, totalStats, type Save } from '../store';
 import { EXTRA_LIFESTEAL_HIT_CAP, EXTRA_LIFESTEAL_SECOND_CAP, EXTRA_REGEN_SECONDS, effectiveExtraOptions } from '../extraOptions';
 import type { Action, ArrowVariant, Coin, Drop, Effect, Enemy, HeroAfterimage } from '../battle/types';
@@ -69,7 +69,7 @@ export { fireBoltCount } from '../skills'; // 기존 `world.ts` re-export 경로
 export function fireBoltScale(level: number): number { return 1 + (Math.max(1, Math.min(10, Math.floor(Number.isFinite(level) ? level : 1))) - 1) * .05; }
 
 export class CombatEngine {
-  player = { x: 0, y: 0, facing: 0, facingSide: 1, hp: 100, berserk: 0, berserkLevel: 1, hit: 0 };
+  player = { x: 0, y: 0, facing: 0, facingSide: 1, hp: 100, shield: 0, berserk: 0, berserkLevel: 1, hit: 0 };
   /** 지금 피격 창(0.85초)에서 아직 때릴 수 있는 몹 수 — 2~3마리 동시 타격(밸런스 v2 군집). */
   protected strikeQuota = 0;
   /** 피흡 1초 창의 누적 회복량 — 초당 상한(최대 체력의 2.5%)을 지키는 데 쓴다. */
@@ -314,8 +314,7 @@ export class CombatEngine {
         angle: 0, nextHit: .14, power, radius: CHAIN_LIGHTNING_JUMP_RADIUS,
         hits: 1, targets: count, hitEnemies: new Set([target]), level, source: kind });
     } else if (kind === 'manaBurst') {
-      const aim = this.aimPoint(target, range);
-      this.effects.push({ x: aim.x, y: aim.y, kind: 'burst', age: 0, duration: area!.duration, angle: 0, nextHit: area!.duration * .5, power: attack * 2.8 * damageScale, radius: area!.radius, variant: 'arcane', level, source: kind });
+      this.effects.push({ x: p.x, y: p.y, kind: 'burst', age: 0, duration: area!.duration, angle: 0, nextHit: area!.duration * .5, radius: area!.radius, variant: 'arcane', level, source: kind });
     } else if (kind === 'frostNova') {
       // 판정은 노바 이펙트가 한 번만 낸다(발동 즉시 피해를 또 주면 두 번 들어간다).
       this.effects.push({ x: p.x, y: p.y, kind: 'nova', age: 0, duration: area!.duration, angle: 0, nextHit: .12, power: attack * SKILL_HIT_POWER.frostNova * damageScale, radius: area!.radius, slow: 2.2 + (level - 1) * .06, variant: 'frost', level, source: kind });
@@ -610,7 +609,9 @@ export class CombatEngine {
           continue;
         }
         const taken = enemyHitDamage(this.save.floor, enemy.boss, totalStats(this.save).defense);
-        p.hp = Math.max(0, p.hp - taken);
+        const absorbed = Math.min(p.shield, taken);
+        p.shield -= absorbed;
+        p.hp = Math.max(0, p.hp - (taken - absorbed));
         // 맞은 표시 — 적이 할퀴고 지나간 자국과 잃은 체력 숫자(작업 245).
         // 맞은 피해는 **정수**로 띄운다(작업 260) — 방어력 0.2배가 소수라 `-7.2`처럼 보이던 숫자를 7로.
         this.effects.push({ x: p.x, y: p.y, kind: 'enemyStrike', age: 0, duration: .5, angle: Math.atan2(dy, dx), amount: Math.round(taken) });
@@ -753,13 +754,7 @@ export class CombatEngine {
         if (effect.kind === 'hell') { const area = skillArea('hell', level); this.damage(area.radius!, effect.power ?? 0, 0, area.arc ?? Math.PI, 14, 1 + (level - 1) * .2, effect); }
         if (effect.kind === 'rain') this.damage(skillArea('arrowRain', level).radius!, effect.power ?? 0, 0, Math.PI, 6, .9, effect);
         if (effect.kind === 'burst' && effect.source === 'manaBurst') {
-          const radius = effect.radius ?? skillArea('manaBurst', level).radius!;
-          for (const enemy of [...this.enemies]) {
-            const distance = Math.hypot(enemy.x - effect.x, enemy.y - effect.y);
-            if (enemy.hp <= 0 || distance > radius) continue;
-            this.damage(radius, (effect.power ?? 0) * manaBurstFalloff(distance, radius), 0, Math.PI,
-              distance <= radius * .4 ? 18 : 8, 0, effect, 1, undefined, undefined, undefined, false, enemy);
-          }
+          this.player.shield += manaBurstShield(totalStats(this.save).attack, level);
         } else if (effect.kind === 'burst') this.damage(effect.radius ?? skillArea('meteorStrike', level).radius!, effect.power ?? 0, 0, Math.PI, 16, effect.slow ?? 0, effect);
         if (effect.kind === 'nova') this.damage(effect.radius ?? skillArea(effect.variant === 'frost' ? 'frostNova' : 'arcaneOverlord', level).radius!, effect.power ?? 0, 0, Math.PI, 22, effect.slow ?? 0, effect);
         if (effect.kind === 'burst' || effect.kind === 'nova') effect.nextHit = undefined;

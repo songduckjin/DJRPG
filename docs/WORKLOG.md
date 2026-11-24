@@ -14,7 +14,7 @@
   - `field-boss-win`: `health` 113 → **128** (나머지 동일)
   - `field-boss-loss`: `kills` 62 → **61**, `floorKills` 62 → **61**, `gold` 1258 → **1242**, `exp` 1030 → **1020**, `health` 2 → **212**, `bag` 1 → **0**
 - **남긴 것**: 보스도 여전히 필드 외곽에서 뜨고 아레나까지 걸어 들어온다(작업 230 계약) — 보스 스폰만 아레나 가장자리로 당기는 것은 이 PR 범위 밖이라 손대지 않았다. 인게임 실기 확인은 사용자 몫.
-## 2026-11-24 · songduckjin 작업 280 — 방치 사냥 개선(생존 스탯·사망 손실·층간 형평성) + 「층 선택」 1안
+## 2026-11-24 · songduckjin 작업 281 — 방치 사냥 개선(생존 스탯·사망 손실·층간 형평성) + 「층 선택」 1안
 
 - **기준·브랜치**: 최신 `origin/main` `1327b5e`(PR #349 머지 후)에서 `feat/offline-hunt-survival-rework`. 사양은 시안 `downloads/djrpg_offline_rework/proposal.md` + 대장님·송덕진 님 11/24 최종 확정(부활 5초·1~4층 면제·안 A·보스전/스킬 배율 동기화·UI 1안). **머지·배포 보류** — PR 링크·프리뷰 스크린샷을 송덕진 님 측에 먼저 공유한다.
 - **변경**: ① `combat/engine.ts`에 `REVIVE_SECONDS = 5`·`reviveSeconds(층)`(1~4층 0초)·`reviveTimer`·`reviveHero`를 넣어 접속 사냥도 쓰러지면 5초를 기다린다(쓰러진 동안 추격·공격·피격 정지, 생성자는 체력 0 세이브를 만혈로 세운다). `fieldProgress.heroDown`이 패널티·재도전 규칙은 그대로 두고 부활 대기만 세운다. ② `offline.ts`에 `offlineDamagePerSecond`·`offlineHealPerSecond`·`offlineSurviveSeconds`·`offlineSurvivalUptime`·`offlineDeathsPerHour`·`killsPerHourAt`·`bestFarmFloor` 신설, `offlineKillsPerMinute(save, 층)`에 가동률을 곱하고, `offlineBossBattle`에 회피·피흡·회복을 넣었다. 사냥 중 사망은 `reward.fieldDeaths`로 세어 접속과 같은 10골드를 문다. ③ `skills.ts` `SKILL_HIT_POWER` 한 표로 엔진 `action()`·방치 DPS·`skillCastScale`(스킬 추천 순위)을 묶었다 — 11/23 개편 뒤 방치만 파워 스트라이크 ×4로 남아 있던 것을 ×5.5로 맞췄다(전사 표준 20층 DPS 약 +5%). ④ `killReward`에 `depthRewardScale`(15층 기준 1, 20층 2.21 = 몹 HP 비율) 적용 — 처치 수가 15~16층에서 정점이라 깊은 층이 시간당 금화·경험치에서 역전되던 문제(20층이 15층보다 −45%)를 전투·몹 HP 무변경으로 없앴다. ⑤ `floorModal` 1안 — 카드 둘째 줄을 `시간당 N 마리`로(카드 62→52px), `★ 최다`(가장 빠른 층)·`▼N%`(15% 이상 손해, 40%부터 붉게) 배지, 상단 `★ 추천`·초록 한 줄을 시간당 처치 기준으로. `여유/적정/위험`과 구간 머리의 `권장 X ~ Y`는 종전 그대로다.
@@ -27,7 +27,7 @@
 - **변경**: ① `renderEquipment()`에서 `.equip-topline`(요약 `LV · 층 · EXP% · 금화` + `⚔ 전투력` 알약) 생성·append를 없애고 `dialog.append(showcase)`로 곧바로 장착 쇼케이스를 붙인다. 쓰지 않게 된 `combatPower`·`goldMarkup`·`expToNext`·`MAX_LEVEL` 호출과 import를 정리했다(같은 값은 메인 HUD가 보여 준다). ② `equip.css`에서 `.equip-topline`·`.equipment-summary`·`.equip-powerpill` 계열 규칙(380px 미디어 규칙 포함) 삭제, `.equipment-showcase` 192 → **208px**(`flex-basis` 포함), `.bag-grid` `repeat(10…)` → **`repeat(8…)`**(공용창고 `.warehouse-grid`와 같은 8열). 반응형은 같은 +16px만큼: `max-width: 380px` 186 → **202px**, `max-height: 720px` 170 → **186px**, `max-height: 620px` 160 → **176px**. 가방 최소 높이 135px은 그대로다.
 - **검증**: `tsc --noEmit` 통과, `vite build` 통과, 전체 `node --test tests/*.test.mjs` 결과는 PR 본문 참조. 신규 `tests/equip-topline-removal.test.mjs` 5건(규칙 부재·렌더 첫 요소·208/8열·반응형 3구간·가짜 DOM 실렌더), `tests/equipment-info.test.mjs`·`tests/downgrade-badge-and-journey.test.mjs`의 topline 계약을 1안으로 교체.
 - **확인 화면**: Cloudflare Pages 프리뷰 390×844 캡처(장비창을 직접 열어 topline 없음·8열·빈 여백 없음), 경로는 PR 본문.
-## 2026-11-24 · fks3997 작업 미배정 — 21~40층 확장 「해골 군주의 성」 (Draft PR)
+## 2026-11-24 · fks3997 작업 282 — 21~40층 확장 「해골 군주의 성」 (Draft PR)
 
 - **기준·브랜치**: `origin/main` `21343ea`(2026-11-23 13:42) 에서 `feat/floor-21-40`. 기획 확정안은 `downloads/djrpg_floor_21_40_plan.md` v2(20층×1구간). **머지·배포 보류** — Draft PR로만 올린다.
 - **층 상한**: `progress.ts` `MAX_FLOOR` 20 → 40. 층 곡선(처치 목표 `150+30d+d²`, 몹·보스 HP `98.5×(1+층/2)`·13배, 보상, 강화 `+N`)은 원래 21층+를 계산하던 식이라 상한만 올렸다. 40층 처치 목표 **2,841**, 권장 전투력 21층 **1,556** → 40층 **2,878**. `MAX_LEVEL` 30·신규 티어 없음은 그대로.
@@ -201,7 +201,7 @@
 > 최근 작업·PR·배포 기록만 둔다(최근 20건). 더 이전 기록은 `docs/archive/2026-11/WORKLOG-history.md`.
 > 새 기록은 맨 위에 `## YYYY-MM-DD · <담당> 작업 <번호> — <제목>` 형식으로 추가하고, 오래된 항목은 아카이브로 옮긴다.
 
-## 2026-11-24 · fks3997 작업 미배정 — 21~40층 확장 「해골 군주의 성」 (Draft PR)
+## 2026-11-24 · fks3997 작업 282 — 21~40층 확장 「해골 군주의 성」 (Draft PR)
 
 - **기준·브랜치**: `origin/main` `21343ea`(2026-11-23 13:42) 에서 `feat/floor-21-40`. 기획 확정안은 `downloads/djrpg_floor_21_40_plan.md` v2(20층×1구간). **머지·배포 보류** — Draft PR로만 올린다.
 - **층 상한**: `progress.ts` `MAX_FLOOR` 20 → 40. 층 곡선(처치 목표 `150+30d+d²`, 몹·보스 HP `98.5×(1+층/2)`·13배, 보상, 강화 `+N`)은 원래 21층+를 계산하던 식이라 상한만 올렸다. 40층 처치 목표 **2,841**, 권장 전투력 21층 **1,556** → 40층 **2,878**. `MAX_LEVEL` 30·신규 티어 없음은 그대로.

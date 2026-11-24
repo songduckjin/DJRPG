@@ -106,7 +106,7 @@ export class FieldProgress extends CombatEngine {
     for (const key of Object.keys(target)) delete target[key];
     Object.assign(this.save, save);
     this.save.auto = true;
-    this.player = { x: 0, y: 0, facing: 0, facingSide: 1, hp: Math.min(this.save.health, totalStats(this.save).health), berserk: 0, berserkLevel: 1, hit: 0 };
+    this.player = { x: 0, y: 0, facing: 0, facingSide: 1, hp: Math.min(this.save.health, totalStats(this.save).health), shield: 0, berserk: 0, berserkLevel: 1, hit: 0 };
     this.enemies = []; this.drops = []; this.coins = []; this.effects = []; this.afterimages = [];
     this.cooldown = Object.fromEntries(Object.keys(cooldowns).map(id => [id, 0])) as Record<Action, number>;
     this.spawnTimer = 0; this.paused = false; this.attackHeld = false; this.attackPose = 0;
