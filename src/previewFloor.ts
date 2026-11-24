@@ -61,7 +61,7 @@ view.app.ticker.add(() => {
     const boss = world.enemies.find(enemy => enemy.boss);
     if (boss) {
       // 화면 중앙(projectArenaPoint의 역산) 근처에 세워 보스와 이름표가 잘리지 않게 한다.
-      boss.x = -49; boss.y = -49; bossPlaced = true;
+      boss.x = -62; boss.y = -38; bossPlaced = true;
     }
   }
   view.draw(world, time);
