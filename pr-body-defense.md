@@ -40,9 +40,12 @@
 
 ### 프리뷰 실화면 (390×844)
 
+- 프리뷰: https://feat-infinite-defense-dungeo.djrpg.pages.dev (`version.json` `33bd56f06a43`, Cloudflare Pages pass)
 - 허브: `downloads/djrpg_defense_dungeon/preview-lobby.png`
-- 전투(성벽 없음·캐릭터 이동 교전): `downloads/djrpg_defense_dungeon/preview-battle.png`
-- 랭킹: `downloads/djrpg_defense_dungeon/preview-ranking.png`
+- 로비: `downloads/djrpg_defense_dungeon/preview-defense-lobby.png`
+- 전투(성벽 없음·캐릭터 이동 교전): `downloads/djrpg_defense_dungeon/preview-battle.png` · `preview-battle-active.png`
+- 랭킹(실제 검증 제출 1건): `downloads/djrpg_defense_dungeon/preview-ranking.png`
+- 실측·확인 항목은 PR 검수 댓글에 정리했습니다.
 
 > ⚠️ **머지·배포 보류**: 이 PR은 리뷰·프리뷰 검수까지만입니다. 운영 반영(점검 ON → 배포 → 정상화 확인 → 점검 OFF)은
 > 송덕진 님 측 확인 뒤 별도로 진행합니다. `PR #347`(드랍률 ÷10)과 같은 배포에 묶을지도 그때 정합니다.
