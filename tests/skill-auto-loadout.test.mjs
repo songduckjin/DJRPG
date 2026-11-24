@@ -60,12 +60,12 @@ test('습득 스킬이 0개면 세이브를 건드리지 않고 안내만 돌려
 });
 
 test('스킬을 강화하면 레벨 위력 배율이 붙어 DPS 순위가 바뀐다', () => {
-  // 예시: 위력 +70%(Lv.8) iceBolt 1.7×1.7/7 = .413 > 위력 +30%(Lv.4) manaBurst 2.5×1.3/10 = .325
-  const base = freshSave('female', 'mage'); base.learned = ['iceBolt', 'manaBurst'];
-  assert.deepEqual(recommendedSkillOrder(base).slice(0, 2), ['manaBurst', 'iceBolt'], '1레벨에서는 마력 폭발이 위');
-  const leveled = freshSave('female', 'mage'); leveled.learned = ['iceBolt', 'manaBurst'];
-  leveled.skillLevels = { iceBolt: 8, manaBurst: 4 };
-  assert.deepEqual(recommendedSkillOrder(leveled).slice(0, 2), ['iceBolt', 'manaBurst'], '강화된 아이스 볼트가 앞선다');
+  // 파이어 볼트 Lv.1은 메테오 Lv.1보다 DPS가 높지만, 메테오 Lv.8은 위력 배율로 역전한다.
+  const base = freshSave('female', 'mage'); base.learned = ['fireBolt', 'meteorStrike'];
+  assert.deepEqual(recommendedSkillOrder(base).slice(0, 2), ['fireBolt', 'meteorStrike']);
+  const leveled = freshSave('female', 'mage'); leveled.learned = ['fireBolt', 'meteorStrike'];
+  leveled.skillLevels = { meteorStrike: 8 };
+  assert.deepEqual(recommendedSkillOrder(leveled).slice(0, 2), ['meteorStrike', 'fireBolt']);
   /// 전사: 레벨 6 파워 스트라이크(4×1.5/6 = 1.0)는 1레벨 회전참격(.2375)을 크게 앞선다.
   const warriorSave = warrior(['power', 'hell']);
   warriorSave.skillLevels = { power: 6 };

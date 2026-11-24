@@ -11,6 +11,7 @@ import { drawSkillVfx, drawDragon, drawHit, drawEnemyStrike, updateDamageLabels,
 import { drawLoot } from './render/drops';
 import type { LootDrop } from './loot';
 import { projectArenaPoint } from './arena';
+import { METEOR_IMPACT_PROGRESS } from './battle/skillAreas';
 import { createBootProgress } from './bootProgress';
 import { helmetArtList, helmetArtPaths, helmetAttackArtList, helmetAttackArtPaths, headlessBodyPaths } from './render/helmets';
 import { armorFrameIndex, armorSheetPath, armorSheetPaths, type ArmorMotion } from './render/armors';
@@ -60,6 +61,9 @@ const paths = {
   fxArcherArrow: '/assets/fx_archer_arrow_v1.png?v=1', fxIceArrow: '/assets/fx_ice_arrow_v1.png?v=1',
   fxMageFireball: '/assets/fx_mage_fireball_v2.png',
   fxMageIceOrb: '/assets/fx_mage_ice_orb_v1.png',
+  fxMageMeteor: '/assets/fx_mage_meteor_v1.png',
+  fxMageMeteorDust: '/assets/fx_mage_meteor_dust_v1.png',
+  fxMageWaterFlow: '/assets/fx_mage_water_flow_v1.png',
   fxHawkEagle: '/assets/fx_hawkeye_eagle_v1.png?v=1',
   fxPower: '/assets/fx_power_strike_cleave_v2.png', fxDestroy: '/assets/fx_destroy_swing.png', fxHell: '/assets/fx_hell_fire.png',
   // [작업 215] 회전참격(`hell`) 혈풍 회오리 — 확정 3번 시안(암흑·진홍)을 위에서 내려다본 한 장.
@@ -792,7 +796,11 @@ export class GameView {
     this.drawDust(world, project, time, dt);
     this.drawRunes(world, hx, hy, time);
     const slam = world.effects.find(effect => effect.kind === 'slam' || effect.kind === 'hell');
-    const shake = slam && preferences.shake ? Math.max(0, 1 - slam.age / Math.min(slam.duration, .38)) * (slam.kind === 'hell' ? 8 : 4) : 0;
+    const meteor = world.effects.find(effect => effect.kind === 'burst' && effect.source === 'meteorStrike'
+      && effect.age >= effect.duration * METEOR_IMPACT_PROGRESS);
+    const slamShake = slam ? Math.max(0, 1 - slam.age / Math.min(slam.duration, .38)) * (slam.kind === 'hell' ? 8 : 4) : 0;
+    const meteorShake = meteor ? Math.max(0, 1 - (meteor.age - meteor.duration * METEOR_IMPACT_PROGRESS) / .23) * 6 : 0;
+    const shake = preferences.shake ? Math.max(slamShake, meteorShake) : 0;
     this.effects.alpha = preferences.effects === 'low' ? .4 : 1;
     this.skillVfx.alpha = preferences.effects === 'low' ? .35 : 1;
     this.groundVfx.alpha = preferences.effects === 'low' ? .35 : 1;

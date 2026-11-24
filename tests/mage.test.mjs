@@ -176,7 +176,10 @@ test('마법사 스킬 8종은 각자의 이펙트를 만들고 피해나 버프
     const { effects } = world;
     assert(effects.length > 0, `${id}: 이펙트가 없다`);
     for (let index = 0; index < 90; index++) world.update(.02);
-    if (id === 'arcaneShield') {
+    if (id === 'manaBurst') {
+      assert(world.player.shield > 0, '마력 폭발은 실드를 만든다');
+      assert.equal(enemy.hp, 100000, '마력 폭발은 적을 때리지 않는다');
+    } else if (id === 'arcaneShield') {
       assert(world.player.berserk > 0, '아케인 실드는 공격 버프를 건다');
       assert(effects.some(effect => effect.kind === 'ward'));
     } else {
@@ -199,11 +202,11 @@ test('마법사 스킬 8종은 각자의 이펙트를 만들고 피해나 버프
     projectile.action(id);
     assert(projectile.effects.some(effect => effect.kind === 'burst'), `${id}: 폭발 이펙트가 없다`);
   }
-  for (const id of ['frostNova', 'arcaneOverlord']) {
+  for (const [id, kind] of [['frostNova', 'nova'], ['arcaneOverlord', 'waterCannon']]) {
     projectile.effects = []; projectile.cooldown[id] = 0;
     projectile.save.learned = [id]; projectile.save.quickSlots = [id, null, null];
     projectile.action(id);
-    assert(projectile.effects.some(effect => effect.kind === 'nova'), `${id}: 노바 이펙트가 없다`);
+    assert(projectile.effects.some(effect => effect.kind === kind), `${id}: ${kind} 이펙트가 없다`);
   }
 });
 

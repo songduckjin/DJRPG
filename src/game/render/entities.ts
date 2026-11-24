@@ -602,16 +602,17 @@ export function drawHero(this: GameView, world: CombatEngine, x: number, y: numb
     this.lastHeroWorld = { x: player.x, y: player.y };
     if (moving) this.heroWalkDistance += Math.min(30, walked);
     const walkingFrame = Math.floor(this.heroWalkDistance / 12) % 8;
+    const channelingWater = world.effects.some(effect => effect.kind === 'waterCannon' && effect.age < effect.duration);
     // 이단참(작업 213): 2연격은 공격 시트 4프레임을 정방향(1타) → 역방향(2타 되받아 베기)으로
     // 두 번 재생한다. 무기·투구·갑옷 파츠도 같은 프레임을 쓰므로 따로 놀지 않는다.
     const doubleSwing = world.attackCombo === 'double' && world.attackPose > 0;
     const swing = doubleSwing ? slash2SwingMotion(world.attackPose) : undefined;
-    const attackFrame = swing ? swing.frame : Math.min(3, Math.floor((1 - world.attackPose / (world.attackPoseSpan ?? .32)) * 4));
+    const attackFrame = channelingWater ? 2 : swing ? swing.frame : Math.min(3, Math.floor((1 - world.attackPose / (world.attackPoseSpan ?? .32)) * 4));
     const heroTint = player.hit > 0 ? 0xffd4cf : 0xffffff;
     // The approved pilot sheets contain the complete armor and greatsword. Skip all
     // equipment/costume overlays so the body and weapon are never drawn twice.
     hideCostumeHero(this, this.costume);
-    const animation = heroAnimationMode(moving, world.attackPose, true);
+    const animation = channelingWater ? 'attack' : heroAnimationMode(moving, world.attackPose, true);
     const animatedAttack = animation === 'attack';
     const art = animation === 'walk' ? pilotWalk : animatedAttack ? pilotAttack : pilotIdle;
     let texture = this.textures[pilotIdle];
@@ -1054,18 +1055,8 @@ export function drawEntities(this: GameView, world: CombatEngine, project: (x: n
     // 히어로 뒤/앞 가산 레이어(`rageBack`·`rageFront`)를 직업별 오라가 나눠 쓴다.
     // 레이어를 그대로 넘기므로 래퍼 객체가 매 프레임 새로 만들어져도 상태는 레이어 기준으로 캐시된다.
     drawHawkEyeWindAura({ windBack: this.rageBack, windFront: this.rageFront }, world, hx, hy, time, dt, h * heroBodyFraction);
-    // 마법사 아케인 실드는 종전의 발밑 마법진을 그대로 쓴다.
-    if (world.player.berserk > 0 && jobOrDefault(world.save.job) === 'mage') {
-      const rage = world.effects.find(effect => effect.kind === 'warcry');
-      const burst = rage ? 1 - rage.age / rage.duration : 0;
-      const auraScale = 165 / this.aura.texture.width * (1 + burst * .8);
-      this.aura.position.set(hx, hy - 3);
-      this.aura.scale.set(auraScale, auraScale * .6);
-      this.aura.rotation = time * .35;
-      this.aura.alpha = .48 + burst * .48 + Math.sin(time * 4) * .08;
-    } else {
-      this.aura.alpha = 0;
-    }
+    // 아케인 실드는 몸을 감싸는 결계만 표시한다.
+    this.aura.alpha = 0;
     this.updateAfterimages(world, project, dt);
     this.updateCorpses(project, dt);
     depths.push({ sprite: this.heroLayer, depth: world.player.x + world.player.y });
