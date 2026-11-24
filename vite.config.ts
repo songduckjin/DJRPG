@@ -4,5 +4,7 @@ import { BUILD_VERSION } from './server/version.generated.mjs';
 
 export default defineConfig({
   base: './',
-  define: { __APP_VERSION__: JSON.stringify(BUILD_VERSION) }
+  define: { __APP_VERSION__: JSON.stringify(BUILD_VERSION) },
+  // PR 검수용 층 렌더 미리보기(브랜치 `preview/floor21-40-harness` 전용) — 앱 엔트리와 함께 빌드한다.
+  build: { rollupOptions: { input: { main: 'index.html', previewFloor: 'preview-floor.html' } } }
 });

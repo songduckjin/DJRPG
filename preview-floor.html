@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>DJRPG · 21~40층 렌더 미리보기</title>
+  <style>
+    html, body { margin: 0; height: 100%; background: #0a0709; color: #e8d6bd; font-family: 'Noto Sans KR', system-ui, sans-serif; }
+    body { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 10px; box-sizing: border-box; }
+    #stage { position: relative; width: min(390px, 100%); aspect-ratio: 390 / 844; border-radius: 12px; overflow: hidden; box-shadow: 0 0 0 1px #4a3527, 0 12px 32px #000a; }
+    #stage canvas { display: block; width: 100% !important; height: 100% !important; }
+    #caption { font-size: 12px; letter-spacing: .02em; color: #c8ae8c; text-align: center; min-height: 16px; }
+    #caption b { color: #ffd092; }
+    #links { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; font-size: 11px; }
+    #links a { color: #9fd0ff; text-decoration: none; border: 1px solid #2c3e50; border-radius: 999px; padding: 2px 8px; }
+  </style>
+</head>
+<body>
+  <div id="stage"></div>
+  <p id="caption"></p>
+  <div id="links"></div>
+  <script type="module" src="/src/previewFloor.ts"></script>
+</body>
+</html>
