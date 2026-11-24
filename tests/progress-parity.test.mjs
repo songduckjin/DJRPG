@@ -26,15 +26,19 @@ const { PARITY_SCENARIOS, recordScenarios } = await import('./progress-parity-sc
 const EXPECTED = {
   // 파트 B(2026-11-22): 스킬북 폐지로 드롭 구성이 바뀌고, 영구 스탯북 확률 굴림이 난수 스트림에 한 번 더
   // 들어간다 — 같은 시드의 진행 결과가 그만큼 달라진다(그 차이가 아래 값이다).
+  // 2026-11-24 작업 264(전사 넉백 경계): 평타·스킬 넉백이 몹을 아레나(`arenaLimits`) 밖으로 밀어내지
+  // 않게 되면서 이 60초 필드 사냥 두 판의 좌표가 달라졌다. 진행 규칙(킬 보상·층 진행)은 그대로이고,
+  // 바뀐 것은 **끝 체력과 그에 따른 킬 1·금화 16·경험치 10·가방 1칸**뿐이다 — 두 판 모두 60초 동안
+  // 받은 피해 총량은 609로 같고, 부활(자동 부활) 시점이 달라져 남은 체력이 갈렸다.
   'field-boss-win': {
     gold: 1702, exp: 1160, level: 10, floor: 7, maxFloor: 7, floorKills: 65, kills: 66, bossKills: 1,
-    playSeconds: 59.999999999997875, stones: 3, salvageCount: 0, tutorial: 3, health: 113,
+    playSeconds: 59.999999999997875, stones: 3, salvageCount: 0, tutorial: 3, health: 128,
     dungeonFloor: 0, bossRetryFloor: 0, bag: 1
   },
   'field-boss-loss': {
-    gold: 1258, exp: 1030, level: 7, floor: 6, maxFloor: 6, floorKills: 62, kills: 62, bossKills: 0,
-    playSeconds: 59.999999999997875, stones: 3, salvageCount: 0, tutorial: 3, health: 2,
-    dungeonFloor: 0, bossRetryFloor: 6, bag: 1
+    gold: 1242, exp: 1020, level: 7, floor: 6, maxFloor: 6, floorKills: 61, kills: 61, bossKills: 0,
+    playSeconds: 59.999999999997875, stones: 3, salvageCount: 0, tutorial: 3, health: 212,
+    dungeonFloor: 0, bossRetryFloor: 6, bag: 0
   },
   'offline-12h': {
     progress: {

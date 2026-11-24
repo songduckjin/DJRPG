@@ -9,7 +9,7 @@
 |---|---|
 | 전투 루프·스폰·AI·층·보스·드롭 회수 | `src/game/world.ts` |
 | 드롭 바닥 배치·흡수 규칙(순수 계산) | `src/game/loot.ts` (표시는 `src/game/render/drops.ts`) |
-| 이동·스폰 경계 | `src/game/arena.ts` (`arenaLimits`·`clampArenaPoint`·`fieldSpawn*`·`clampFieldPoint`) |
+| 이동·스폰 경계 | `src/game/combat/bounds.ts` (`arenaLimits`·`clampArenaPoint`·`fieldSpawnLimits`·`clampFieldPoint`·`clampKnockbackPoint`) → 필드 스폰은 `src/game/arena.ts` |
 | 보스 금화 무더기·던전 보스 드롭 표 | `src/game/bossLoot.ts` |
 | 방치 정산(최대 12시간) | `src/game/offline.ts` |
 | 층 상한·층당 처치 목표·경험치 | `src/game/store.ts` (`MAX_FLOOR`=20·`floorKillTarget`·`addExperience`) |
@@ -26,7 +26,7 @@
 - **평타 1마리**: `action`의 평타는 `maxTargets=1`·피해 `attack × basicAttackPower(1.6)`. 광역은 스킬만.
 - **필드 몹 상한 30**(`MOB_CAP`). 30마리가 차면 1층 내려가 `floorKills`·적·추격·보스/정예 예약을 비우고 드롭은 남긴다.
 - **정예 몹**: 30마리마다 1마리, 체력·금화·경험치 ×2, 드롭은 1배, 크기 1.22배, 배지 `정예 해골`.
-- **몹은 필드 외곽 밴드에서 뜬다**(`spawnArenaEnemy`·`fieldSpawnBand`). 적 이동·넉백은 `clampFieldPoint`, 플레이어만 `clampArenaPoint`.
+- **몹은 필드 외곽 밴드에서 뜬다**(`spawnArenaEnemy`·`fieldSpawnBand`). 적의 **걸음**은 필드 경계(`clampFieldPoint`), 플레이어는 아레나(`clampArenaPoint`)다. **넉백·블러드 레이지 밀어내기는 `clampKnockbackPoint`**(작업 264) — 아레나 안에 있던 몹은 경계 위에서 멈추고(밖으로 밀려나지 않는다), 아직 필드에서 걸어 들어오는 중인 몹은 더 바깥으로 나가지 않는다. 예전에는 넉백도 필드 경계(120~250 구간)까지만 막아서, 맞은 몹이 아레나 밖에 갇히면 전사가 따라가지도 때리지도 못했다.
 - **드롭**: 처치 시 금화는 그 자리에서 지급(코인은 연출 전용), 아이템은 `LOOT_REST_SECONDS`(1.5초) 뒤 흡수되어 `LOOT_ABSORB_SECONDS` 후 가방에 들어간다. 가방 40칸이 차면 바닥에 남고 경고는 1회.
 - **드롭률은 전 층 고정**(작업 254): 접속 일반 0.39% · 보스 4%, 방치 일반 0.30% · 보스 4%. 등급 컷만 층에 따라 오른다(`rollItem`).
 - **방치 정산**: 최대 12시간(`elapsedSince`), 아래층에서는 보스 몫 없이 진행도만 돈다. 자동 등반이 켜져 있고 최고 층이면 목표 처치마다 보스전을 정산해 이기면 층을 올린다(작업 235). 방치도 `autoSalvageRecovered`를 지나 분해분은 가방 대신 금화·강화석이 된다(작업 254).
@@ -45,11 +45,12 @@
 
 - 몹 체력·피해·스폰 곡선·등급 확률을 "정리" 명목으로 압축하기(밸런스 작업은 사용자 확정 필요).
 - `clampArenaPoint`로 적 스폰·이동을 자르기(멀리 뜬 적이 첫 프레임에 순간이동한다).
+- **넉백·밀어내기를 `clampFieldPoint`로 자르기**(맞은 몹이 아레나 밖 120~250 구간에 갇혀 전사가 닿지 못한다 — `clampKnockbackPoint`를 쓴다).
 - `render/`에서 상태 변경·저장 트리거.
 
 ## 테스트
 
-`node --test tests/world-movement.test.mjs tests/arena.test.mjs tests/field-spawn.test.mjs tests/field-loot.test.mjs tests/elite-mob.test.mjs tests/offline.test.mjs tests/offline-climb.test.mjs tests/offline-auto-salvage.test.mjs tests/floor-cap.test.mjs tests/boss-loot.test.mjs tests/floor-power-modal.test.mjs tests/patch-rewards-and-buff.test.mjs`
+`node --test tests/world-movement.test.mjs tests/arena.test.mjs tests/field-spawn.test.mjs tests/knockback-bounds.test.mjs tests/field-loot.test.mjs tests/elite-mob.test.mjs tests/offline.test.mjs tests/offline-climb.test.mjs tests/offline-auto-salvage.test.mjs tests/floor-cap.test.mjs tests/boss-loot.test.mjs tests/floor-power-modal.test.mjs tests/patch-rewards-and-buff.test.mjs`
 
 ## 관련 매뉴얼
 

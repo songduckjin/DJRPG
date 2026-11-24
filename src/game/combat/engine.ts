@@ -24,7 +24,7 @@ import { aimPoint as aimPointTo, fireBoltSpots, nearestEnemy, targetsInArc, targ
 import { destroyTravelProgress, iceArrowSlow, multiShotPattern, skillArea } from '../battle/skillAreas';
 import { recordPlaySeconds } from '../progress';
 import { isPatchBuffActive } from '../patchBuff';
-import { clampArenaPoint, clampFieldPoint } from './bounds';
+import { clampArenaPoint, clampFieldPoint, clampKnockbackPoint } from './bounds';
 
 /** 딜레이 크러싱 10연타(작업 212) — 붉은보석1식으로, 한 번에 한 타가 아니라 짧은 간격으로 10번 따로 판정한다. */
 export const crushHits = 10;
@@ -207,7 +207,11 @@ export class CombatEngine {
       this.effects.push({ x: p.x, y: p.y, kind: 'warcry', age: 0, duration: .7, angle: 0 });
       for (const enemy of this.enemies) {
         const dx = enemy.x - p.x, dy = enemy.y - p.y, d = Math.hypot(dx, dy);
-        if (d < area!.radius! && d > 0) { const bounded = clampFieldPoint(enemy.x + dx / d * 40, enemy.y + dy / d * 40); enemy.x = bounded.x; enemy.y = bounded.y; }
+        if (d < area!.radius! && d > 0) {
+          // 블러드 레이지의 밀어내기도 넉백과 같은 경계를 쓴다 — 아레나 밖으로 밀려나지 않는다(작업 264).
+          const bounded = clampKnockbackPoint(enemy, { x: enemy.x + dx / d * 40, y: enemy.y + dy / d * 40 });
+          enemy.x = bounded.x; enemy.y = bounded.y;
+        }
       }
     } else if (kind === 'power') {
       const point = target && Math.hypot(target.x - p.x, target.y - p.y) <= range
@@ -525,10 +529,13 @@ export class CombatEngine {
       // 종전에는 히어로 몸(27)까지 파고들어 여러 마리가 한 점에 겹쳐 섰다.
       enemy.moving = d > ENEMY_STOP_RANGE;
       if (enemy.moving && d > 0) { const step = enemyMoveSpeed(this.save.floor, enemy.boss) * (enemy.slow > 0 ? enemy.slowScale ?? .55 : 1) * dt; enemy.x += dx / d * step; enemy.y += dy / d * step; enemy.step += dt * Math.PI * (enemy.boss ? 3.25 : 4.25); }
-      enemy.x += enemy.knockX * dt; enemy.y += enemy.knockY * dt;
-      // 적은 아레나가 아니라 **필드 경계**로 자른다(작업 230) — 아레나로 자르면 멀리 스폰된 적이 첫
-      // 프레임에 플레이어 코앞으로 순간이동해 버린다. 플레이어는 계속 아레나 안에 머문다.
-      const bounded = clampFieldPoint(enemy.x, enemy.y); enemy.x = bounded.x; enemy.y = bounded.y;
+      // 적은 아레나가 아니라 **필드 경계**로 먼저 자른다(작업 230) — 아레나로 자르면 멀리 스폰된 적이
+      // 첫 프레임에 플레이어 코앞으로 순간이동해 버린다. 플레이어는 계속 아레나 안에 머문다.
+      // 그 위에 **넉백은 아레나 경계 밖으로 밀어내지 않는다**(작업 264) — 걸어온 자리(`walk`)를 기준으로
+      // 밀어, 안에 있던 몹은 경계 위에서 멈추고 아직 걸어 들어오는 중인 몹은 더 바깥으로 나가지 않는다.
+      const walk = clampFieldPoint(enemy.x, enemy.y);
+      const pushed = clampKnockbackPoint(walk, { x: walk.x + enemy.knockX * dt, y: walk.y + enemy.knockY * dt });
+      enemy.x = pushed.x; enemy.y = pushed.y;
       enemy.knockX *= Math.exp(-dt * 12); enemy.knockY *= Math.exp(-dt * 12);
       enemy.slow = Math.max(0, enemy.slow - dt);
       if (enemy.slow <= 0) enemy.slowScale = undefined;

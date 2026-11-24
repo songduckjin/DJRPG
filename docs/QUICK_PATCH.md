@@ -8,6 +8,7 @@
 | 증상 | 매뉴얼 |
 |---|---|
 | 몹이 안 다가옴·사거리·평타 대상·층 이동·보스가 안 나옴·보스 도전 버튼 | `docs/FIELD_OFFLINE.md` |
+| 맞은 몹이 맵 밖으로 밀려나 전사가 접근·공격을 못 함(넉백 경계) | `docs/FIELD_OFFLINE.md` |
 | 드롭이 안 주워짐·1.5초 흡수·금화 무더기 | `docs/FIELD_OFFLINE.md` |
 | 방치 보상이 0·방치 등반·방치 자동 분해 | `docs/FIELD_OFFLINE.md` |
 | 던전에서 안 움직임·클리어가 순위에 안 올라감·`DUNGEON_*` 오류 | `docs/DUNGEON.md` |
