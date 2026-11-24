@@ -1,5 +1,5 @@
 import type { Save } from './store';
-import { jobOrDefault, skillDamageScale, skillDuration, skillOrderFor, skills, SKILL_HIT_POWER, type Job, type SkillId } from './skills';
+import { iceBoltProfile, jobOrDefault, skillDamageScale, skillDuration, skillOrderFor, skills, SKILL_HIT_POWER, type Job, type SkillId } from './skills';
 import { multiShotPattern } from './battle/skillAreas';
 export type QuickSlots = [SkillId | null, SkillId | null, SkillId | null];
 export function normalizeQuickSlots(raw: unknown, learned: SkillId[], job: Job = 'warrior'): QuickSlots {
@@ -73,7 +73,7 @@ export function recommendedSkillOrder(save: Save): SkillId[] {
  *
  * 지속 시간 동안 되풀이되는 타격(`hell`·`spin`·`arrowRain`)과 두 번 들어가는 일격(`slash2`·`slam`)은
  * `skillDuration`·타격 간격으로 타수를 세어 더한다. 여러 적을 맞히는 스킬이라도 계수는 **한 대상** 기준이다.
- * `fireBolt`는 여러 발로 나뉘어도 합계가 ×2.0 그대로라 나누지 않는다(작업 216).
+ * `fireBolt`는 여러 발로 나뉘어도 합계 ×1.5를 한 번만 센다.
  *
  * 기본 배율은 `skills.ts` `SKILL_HIT_POWER` 한 곳에서 온다(2026-11-24) — 엔진·방치와 같은 표다.
  */
@@ -92,6 +92,7 @@ export function skillCastScale(id: SkillId, level = 1): number {
     case 'multiShot': return hit * multiShotPattern(lv).count;
     case 'stormVolley': return hit * 6;
     case 'arrowRain': return hit * repeats(.12, .4);
+    case 'iceBolt': return iceBoltProfile(lv).power / skillDamageScale(lv);
     default: return hit;                                    // 한 번에 한 마리(파이어 볼트는 여러 발 합계)
   }
 }

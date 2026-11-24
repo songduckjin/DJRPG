@@ -35,7 +35,7 @@ export type Effect = { x: number; y: number; kind: 'slash' | 'slash2' | 'spin' |
   | 'heal' | 'evade'
   /** 적의 공격이 플레이어에게 닿은 순간(작업 245) — 할퀴는 궤적과 잃은 체력 숫자를 띄운다. */
   | 'enemyStrike'
-  | 'shot' | 'snipeMark' | 'volleyCast' | 'iceBurst' | 'impactArea' | 'rain' | 'hawk' | 'burst' | 'nova' | 'ward'; age: number; duration: number; angle: number; swing?: number; amount?: number; nextHit?: number; power?: number; level?: number;
+  | 'shot' | 'snipeMark' | 'volleyCast' | 'iceBurst' | 'iceOrb' | 'chainCast' | 'chainArc' | 'impactArea' | 'rain' | 'hawk' | 'burst' | 'nova' | 'ward'; age: number; duration: number; angle: number; swing?: number; amount?: number; nextHit?: number; power?: number; level?: number;
   /** 치명타로 들어간 타격(작업 245) — 피해 숫자를 크게·빨갛게 띄운다(작업 260). */
   crit?: boolean;
   /** 추가 데미지(작업 260) — 장비 추가옵션 `추가 데미지` 몫을 기본 피해와 **따로** 띄우는 숫자다.
@@ -47,6 +47,8 @@ export type Effect = { x: number; y: number; kind: 'slash' | 'slash2' | 'spin' |
   hitEnemies?: Set<Enemy>;
   /** 궁수 화살·화살비처럼 날아가서 맞는 이펙트의 도착지점과 위력(작업 157). */
   tx?: number; ty?: number; radius?: number; targets?: number; slow?: number; slowScale?: number; variant?: ArrowVariant; fired?: boolean;
+  /** 앞으로 나아가는 얼음 구슬의 시전 위치. */
+  fromX?: number; fromY?: number;
   /** 멀티 샷은 비행 경로 전체에 피해를 주고 한 시전의 화살끼리 피격 대상을 공유한다. */
   piercing?: boolean;
   /** 화살이 쫓아가는 적(살아 있는 동안 도착지를 갱신한다). 없으면 발사 시점의 지점으로 날아간다. */

@@ -72,7 +72,7 @@ export function offlineHeroDps(save: Save): number {
   for (const id of save.quickSlots) {
     if (!id || !save.learned.includes(id)) continue;
     const level = skillLevel(save, id);
-    const burst = id === 'arrowRain' ? skillCastScale(id, level) : SKILL_HIT_POWER[id];
+    const burst = id === 'arrowRain' || id === 'iceBolt' ? skillCastScale(id, level) : SKILL_HIT_POWER[id];
     if (burst) skill += stats.attack * burst * skillDamageScale(level)
       * (id === 'snipe' ? critDamage : 1) / (skills[id].cooldown * cdrScale);
   }

@@ -19,7 +19,7 @@
       button { background: #734331; font-weight: 700; cursor: pointer; }
       button:focus-visible, select:focus-visible { outline: 2px solid #ffc67a; outline-offset: 2px; }
       #status { min-height: 20px; color: #e6c393; }
-      @media (max-width: 650px) { main { padding: 10px; } .layout { flex-direction: column; } #stage { align-self: center; } .controls { width: 100%; grid-template-columns: repeat(2, minmax(0, 1fr)); } .controls label:first-child, #status { grid-column: 1 / -1; } }
+      @media (max-width: 650px) { main { padding: 10px; } .layout { flex-direction: column; } #stage { align-self: center; } .controls { order: -1; width: 100%; grid-template-columns: repeat(2, minmax(0, 1fr)); } .controls label:first-child, #status { grid-column: 1 / -1; } }
     </style>
   </head>
   <body>
@@ -29,7 +29,7 @@
       <div class="layout">
         <div id="stage" aria-label="390×844 모바일 전투 미리보기"></div>
         <div class="controls">
-          <label>직업<select id="job"><option value="archer">궁수</option><option value="warrior">전사</option></select></label>
+          <label>직업<select id="job"><option value="mage">마법사</option><option value="archer">궁수</option><option value="warrior">전사</option></select></label>
           <label>스킬<select id="skill"></select></label>
           <label>레벨<select id="level"><option>1</option><option>5</option><option>10</option></select></label>
           <label>대상 수<select id="targets"><option>1</option><option>3</option><option>8</option></select></label>
