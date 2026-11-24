@@ -55,9 +55,11 @@ test('서버 클로저는 전투 엔진과 그 의존(경계·보스 드랍)만 
   // 2026-11-24 무한 방어전 v2: 밸런스 표를 `dungeon/defenseTuning.ts`로 분리해 1파일(+~100줄)이 더 늘었고,
   // 엔진의 적 추격·종류(돌진/사수)·회복 규칙이 defenseBattle.ts에 붙어 줄 수가 늘었다. 셋 다 순수 전투
   // 모듈이라 서버 번들에 화면·가방 규칙은 들어오지 않는다 — 누출 가드는 위 파일 목록 테스트가 맡는다.
+  // 2026-11-24 마법사 메테오·워터 캐논: CombatEngine의 순수 전투 판정이 늘어 실측 5,258줄.
+  // 필드 모듈 누출 여부는 위 의존 파일 검사와 파일 수 상한이 계속 확인한다.
   const total = src.reduce((sum, file) => sum + lineCount(file), 0);
   assert(src.length <= 25, `서버가 닿는 src 파일이 ${src.length}개다 — 필드 모듈이 다시 들어왔는지 확인하라`);
-  assert(total <= 5250, `서버가 닿는 src 코드가 ${total}줄이다 — 필드 모듈이 다시 들어왔는지 확인하라`);
+  assert(total <= 5300, `서버가 닿는 src 코드가 ${total}줄이다 — 필드 모듈이 다시 들어왔는지 확인하라`);
 });
 
 const { CombatEngine } = await import('../src/game/combat/engine.ts');

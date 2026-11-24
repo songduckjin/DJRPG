@@ -50,6 +50,11 @@ export function manaBurstShield(attack: number, level: number): number {
   const lv = Math.max(1, Math.min(MAX_SKILL_LEVEL, Math.floor(Number.isFinite(level) ? level : 1)));
   return Math.max(1, Math.round(Math.max(0, attack) * (1.4 + (lv - 1) * .35)));
 }
+/** 프로스트 노바의 넉백 뒤 기절은 Lv.1 0.35초에서 Lv.10 0.80초까지 증가한다. */
+export function frostNovaStun(level: number): number {
+  const lv = Math.max(1, Math.min(MAX_SKILL_LEVEL, Math.floor(Number.isFinite(level) ? level : 1)));
+  return .35 + (lv - 1) * .05;
+}
 export function skillUpgradeCost(level: number): number { return 40 * level * level; }
 export type Skill = { id: SkillId; name: string; level: number; icon: string; cooldown: number; power: string; description: string; range: number };
 export type Passive = { id: PassiveId; name: string; level: number; icon: string; description: string };
@@ -91,11 +96,11 @@ export const skills: Record<SkillId, Skill> = {
   fireBolt: { id: 'fireBolt', name: '파이어 볼트', level: 2, icon: '🔥', cooldown: 4, power: `공격력 × ${FIRE_BOLT_TOTAL_POWER} · 최대 5발`, description: '둥근 화염구를 한 대상에게 연속으로 날린다.', range: 260 },
   iceBolt: { id: 'iceBolt', name: '아이스 볼트', level: 4, icon: '❄', cooldown: 7, power: '공격력 × 0.65~0.83 · 둔화', description: '얼음 구슬 한 발이 전진하며 눈싸라기로 주변 적을 느리게 한다. 적에 닿으면 소멸한다.', range: 270 },
   chainLightning: { id: 'chainLightning', name: '체인 라이트닝', level: 5, icon: '⚡', cooldown: 8, power: '공격력 × 1.25 · 최대 3~5명', description: '첫 적을 맞힌 번개가 가까운 적에게 차례로 전이된다.', range: 275 },
-  manaBurst: { id: 'manaBurst', name: '마력 폭발', level: 7, icon: '◉', cooldown: 10, power: '공격력 × 1.4~4.55 보호막', description: '마력을 폭발시켜 자신을 감싸는 보호막을 만든다. 스킬 레벨이 높을수록 보호막이 크게 늘어난다.', range: 250 },
-  frostNova: { id: 'frostNova', name: '프로스트 노바', level: 10, icon: '✳', cooldown: 12, power: '공격력 × 1.5 · 둔화', description: '발밑에서 서리 파동이 퍼져 가까운 적을 얼리고 밀어낸다.', range: 150 },
+  manaBurst: { id: 'manaBurst', name: '마력 폭발', level: 7, icon: '◉', cooldown: 10, power: '최대 체력 25~70% 실드', description: '자신 주변의 마력을 폭발시켜 5초 동안 피해를 흡수하는 실드를 만든다.', range: 250 },
+  frostNova: { id: 'frostNova', name: '프로스트 노바', level: 10, icon: '✳', cooldown: 12, power: '공격력 × 1.5 · 넉백·기절', description: '자신을 감싸는 서리 결계가 주변 적에게 피해를 주고 밀어낸 뒤 잠시 기절시킨다.', range: 150 },
   arcaneShield: { id: 'arcaneShield', name: '아케인 실드', level: 14, icon: '⛨', cooldown: 16, power: '공격력 × 1.2 · 공격속도 상승', description: '7초 동안(레벨당 +0.17초) 비전 보호막을 두르고 공격력과 공격속도가 오른다.', range: 120 },
-  meteorStrike: { id: 'meteorStrike', name: '메테오 스트라이크', level: 18, icon: '☄', cooldown: 13, power: '공격력 × 3.6', description: '하늘에서 불덩이를 떨어뜨려 적의 자리를 크게 내리친다.', range: 285 },
-  arcaneOverlord: { id: 'arcaneOverlord', name: '아르카나 오버로드', level: 24, icon: '✵', cooldown: 18, power: '공격력 × 3.0', description: '지팡이의 마력을 한꺼번에 터뜨려 주변을 비전 폭풍으로 휩쓴다.', range: 210 }
+  meteorStrike: { id: 'meteorStrike', name: '메테오 스트라이크', level: 18, icon: '☄', cooldown: 13, power: '공격력 × 3.6 · 범위 성장', description: '하늘에서 운석이 떨어져 적의 자리를 강타한다. 레벨에 따라 피해와 폭발 범위가 커진다.', range: 285 },
+  arcaneOverlord: { id: 'arcaneOverlord', name: '워터 캐논', level: 24, icon: '💧', cooldown: 18, power: '공격력 × 3.0 · 지속 물줄기', description: '한 방향으로 굵은 물줄기를 지속 발사해 경로의 적들을 여러 번 공격한다.', range: 210 }
 };
 
 /**
@@ -189,7 +194,7 @@ export function skillDuration(id: SkillId, level: number): number {
   if (id === 'manaBurst') return .9 + (level - 1) * .06;
   if (id === 'meteorStrike') return 1 + (level - 1) * .06;
   if (id === 'frostNova') return .8 + (level - 1) * .05;
-  if (id === 'arcaneOverlord') return 1.4 + (level - 1) * .07;
+  if (id === 'arcaneOverlord') return 2.2 + (level - 1) * .06;
   if (id === 'chainLightning') return .55 + (level - 1) * .04;
   if (id === 'fireBolt') return .5 + (level - 1) * .04;
   if (id === 'iceBolt') return iceBoltProfile(level).orbDuration;

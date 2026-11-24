@@ -36,7 +36,7 @@ export const recommendedLoadouts: Record<Job, { buff: SkillId; attacks: SkillId[
   warrior: { buff: 'warcry', attacks: ['hell', 'power', 'destroy', 'crushing', 'spin', 'slam', 'slash2'] },
   // 궁수: 호크아이 + 폭풍 연사(6발 연타) + 애로우 레인(광역 화살비)
   archer: { buff: 'hawkEye', attacks: ['stormVolley', 'arrowRain', 'snipe', 'pierceShot', 'multiShot', 'iceArrow', 'doubleShot'] },
-  // 마법사: 아케인 실드 + 아르카나 오버로드(주변 비전 폭풍) + 메테오 스트라이크(최고 위력)
+  // 마법사: 아케인 실드 + 워터 캐논(전방 지속 수류) + 메테오 스트라이크(넓은 폭발)
   mage: { buff: 'arcaneShield', attacks: ['arcaneOverlord', 'meteorStrike', 'manaBurst', 'chainLightning', 'fireBolt', 'iceBolt', 'frostNova'] }
 };
 
@@ -51,8 +51,7 @@ function savedSkillLevel(save: Save, id: SkillId): number {
  *
  * 순위는 **실제 초당 딜량**이다(작업 245) — 한 번 시전의 총 계수(`skillCastScale`)에 전투와 같은 스킬 레벨
  * 위력 배율(`skillDamageScale` = 1 + (레벨-1)×10%)을 곱하고 쿨타임으로 나눈다. 그래서 같은 스킬이라도
- * 오래 강화한 쪽이 위로 올라온다(예: 위력 +70% Lv.8 `iceBolt` 1.7×1.7/7 = 0.413 > 위력 +30% Lv.4
- * `manaBurst` 2.5×1.3/10 = 0.325). 동점일 때만 직업별 표(`recommendedLoadouts`)의 순서를 쓴다.
+ * 오래 강화한 쪽이 위로 올라온다. 동점일 때만 직업별 표(`recommendedLoadouts`)의 순서를 쓴다.
  * 1번 원은 직업 버프를 고정하고, 2·3번 원이 이 DPS 순서를 받는다.
  */
 export function recommendedSkillOrder(save: Save): SkillId[] {

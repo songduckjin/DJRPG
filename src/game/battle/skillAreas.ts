@@ -5,6 +5,20 @@ export type SkillAreaKind = 'arc' | 'box' | 'circle' | 'projectile' | 'buff' | '
 export type SkillAreaRule = { kind: SkillAreaKind; radius?: number; arc?: number; halfWidth?: number; projectileRadius?: number };
 export type SkillArea = SkillAreaRule & { range: number; duration: number };
 
+/** 메테오 착지 시점. 판정과 낙하 연출이 같은 프레임에 끝나도록 공유한다. */
+export const METEOR_IMPACT_PROGRESS = .48;
+export const WATER_CANNON_TICK_SECONDS = .18;
+export const WATER_CANNON_HALF_WIDTH = 42;
+
+/** 고정 방향 물줄기 경로의 적을 매 타격마다 다시 검사한다. */
+export function insideWaterCannon(x: number, y: number, sx: number, sy: number, ex: number, ey: number, halfWidth = WATER_CANNON_HALF_WIDTH): boolean {
+  const dx = ex - sx, dy = ey - sy, lengthSquared = dx * dx + dy * dy;
+  if (lengthSquared === 0) return false;
+  const along = ((x - sx) * dx + (y - sy) * dy) / lengthSquared;
+  if (along < 0 || along > 1) return false;
+  return Math.hypot(x - sx - along * dx, y - sy - along * dy) <= halfWidth;
+}
+
 /** 고정 반경만 기록한다. 레벨에 따라 커지는 사거리는 skillRange가 계산한다. */
 export const SKILL_AREAS: Record<SkillId, SkillAreaRule> = {
   slash2: { kind: 'box', halfWidth: 90 }, slam: { kind: 'circle' },
@@ -25,7 +39,7 @@ export const SKILL_AREAS: Record<SkillId, SkillAreaRule> = {
   manaBurst: { kind: 'circle', radius: 96 },
   frostNova: { kind: 'circle' }, arcaneShield: { kind: 'buff' },
   meteorStrike: { kind: 'circle', radius: 110 },
-  arcaneOverlord: { kind: 'circle' }
+  arcaneOverlord: { kind: 'projectile', projectileRadius: WATER_CANNON_HALF_WIDTH }
 };
 
 /** 패시브는 타격 범위가 없지만 전수 감사에서 누락되지 않게 같은 장부에 둔다. */
@@ -37,8 +51,10 @@ export const PASSIVE_AREAS: Record<PassiveId, { kind: 'passive'; radius: 0 }> = 
 
 export function skillArea(id: SkillId, level: number): SkillArea {
   const rule = SKILL_AREAS[id];
-  const radius = id === 'arrowRain' ? (rule.radius ?? 0) + (level - 1) * 6 : rule.radius ?? skillRange(id, level);
-  const projectileRadius = id === 'iceArrow' ? (rule.projectileRadius ?? 0) + (level - 1) * 2 : rule.projectileRadius;
+  const radius = id === 'arrowRain' || id === 'meteorStrike'
+    ? (rule.radius ?? 0) + (level - 1) * 6 : rule.radius ?? skillRange(id, level);
+  const projectileRadius = id === 'iceArrow' ? (rule.projectileRadius ?? 0) + (level - 1) * 2
+    : id === 'arcaneOverlord' ? (rule.projectileRadius ?? 0) + (level - 1) * 2 : rule.projectileRadius;
   return { ...rule, projectileRadius, range: skillRange(id, level), radius, duration: skillDuration(id, level) };
 }
 
@@ -56,6 +72,9 @@ export function iceArrowSlow(level: number): { duration: number; speedScale: num
 
 /** 체인 라이트닝의 다음 표적은 직전 표적에서 이 거리 안의 가장 가까운 미피격 적이다. */
 export const CHAIN_LIGHTNING_JUMP_RADIUS = 108;
+/** 아이스 볼트 고드름은 고정 반경 대신 비행 시간으로만 정리된다. */
+export const ICE_BOLT_SHARD_SPEED = 480;
+export const ICE_BOLT_SHARD_LIFETIME = 3;
 
 /** 붉은 검기는 시전 초반에 빠르게 끝까지 뻗고, 남은 시간은 잔상으로 남는다. */
 export function destroyTravelProgress(age: number, duration: number): number { return Math.min(1, age / duration * 2.2); }

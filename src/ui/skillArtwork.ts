@@ -27,14 +27,18 @@ export function applySkillArtwork(button: HTMLButtonElement, kind: Action | null
   setSkillIcon(art, kind, job);
 }
 export function setSkillIcon(art: HTMLElement, kind: Action, job: Job = 'warrior'): void {
-  art.style.backgroundImage = `url('${kind === 'attack' ? attackIconPath(job) : `/assets/icons/${skillIconSheet(kind)}.png`}')`;
+  const standalone = kind === 'attack' || kind === 'arcaneOverlord';
+  const imagePath = kind === 'attack' ? attackIconPath(job)
+    : kind === 'arcaneOverlord' ? '/assets/icons/mage-water-cannon-v1.png'
+      : `/assets/icons/${skillIconSheet(kind)}.png`;
+  art.style.backgroundImage = `url('${imagePath}')`;
   art.style.backgroundRepeat = 'no-repeat';
-  art.style.backgroundSize = kind === 'attack' ? 'contain' : '400% 200%';
+  art.style.backgroundSize = standalone ? 'contain' : '400% 200%';
   const frame = kind === 'attack' ? 0
     : kind in archerFrames ? archerFrames[kind as ArcherSkillId]
       : kind in mageFrames ? mageFrames[kind as MageSkillId]
         : warriorFrames[kind as WarriorSkillId];
-  art.style.backgroundPosition = kind === 'attack' ? 'center' : `${frame % 4 / 3 * 100}% ${Math.floor(frame / 4) * 100}%`;
+  art.style.backgroundPosition = standalone ? 'center' : `${frame % 4 / 3 * 100}% ${Math.floor(frame / 4) * 100}%`;
 }
 
 const warriorPassiveFrames: Record<WarriorPassiveId, number> = { mastery: 0, body: 1, instinct: 2 };
