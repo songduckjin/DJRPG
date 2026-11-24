@@ -25,7 +25,7 @@
  *   onSeason      시즌 초기화 처리. `purge`(RESET_TABLES — 표를 비운다) · `clear`(따로 한 문장으로 비운다)
  *                 · `reset`(행을 지우지 않고 값만 기본값으로 되돌린다) · `keep`(그대로 둔다)
  *   migrate       이관. `required`(소스에 없으면 중단) · `optional`(없으면 0행으로 보고 건너뛴다)
- *   ddl           DDL을 가진 모듈. `schema`(`server/db/schema.mjs`) · `dungeon` · `world-boss`
+ *   ddl           DDL을 가진 모듈. `schema`(`server/db/schema.mjs`) · `dungeon` · `defense` · `world-boss`
  *   sequence      AUTOINCREMENT 시퀀스를 이관할 때 이어받아야 하는 표
  *   note          왜 이 정책인지(코드가 아니라 정책인 것만 적는다)
  */
@@ -214,6 +214,7 @@ export const CODE_TABLES = Object.freeze(['common_code_majors', 'common_code_min
 export const DDL_TABLES = Object.freeze({
   schema: names(table => table.ddl === 'schema'),
   dungeon: names(table => table.ddl === 'dungeon'),
+  defense: names(table => table.ddl === 'defense'),
   'world-boss': names(table => table.ddl === 'world-boss'),
   duplicated: Object.freeze(['djrpg_dungeon_records', 'djrpg_dungeon_attempts', 'djrpg_defense_records', 'djrpg_defense_attempts'])
 });

@@ -63,6 +63,9 @@ async function seedAccountRows(db, id) {
     { sql: 'INSERT INTO djrpg_journey_requests(account_id,request_id,response_json) VALUES (?,?,?)', args: [id, 'j1', '{}'] },
     { sql: 'INSERT INTO djrpg_dungeon_records(account_id,name,cleared_floor,cleared_at,updated_at) VALUES (?,?,?,?,?)', args: [id, id, 3, now, now] },
     { sql: 'INSERT INTO djrpg_dungeon_attempts(account_id,floor,started_at,updated_at,seed) VALUES (?,?,?,?,?)', args: [id, 4, now, now, 7] },
+    // 2026-11-24 무한 방어전 — 순위 기록과 진행 중 도전도 계정 탈퇴 때 함께 지워져야 한다.
+    { sql: 'INSERT INTO djrpg_defense_records(account_id,name,job,level,best_stage,reached_at,run_seconds,verified,updated_at) VALUES (?,?,?,?,?,?,?,?,?)', args: [id, id, 'warrior', 10, 7, now, 300, 1, now] },
+    { sql: 'INSERT INTO djrpg_defense_attempts(account_id,run_id,seed,started_at,updated_at) VALUES (?,?,?,?,?)', args: [id, `${id}-run`, 11, now, now] },
     { sql: 'INSERT INTO djrpg_boss_attempts(id,account_id,day,request_id,save_json,started_at,dodges_json,credited,ended_at) VALUES (?,?,?,?,?,?,?,?,NULL)', args: [`${id}-attempt`, id, '2026-11-20', 'r1', '{}', now, '[]', 1] },
     { sql: 'INSERT INTO djrpg_boss_scores(day,account_id,name,damage,joined_at) VALUES (?,?,?,?,?)', args: ['2026-11-20', id, id, 1000, now] },
     { sql: 'INSERT INTO djrpg_boss_rewards(day,account_id,kind) VALUES (?,?,?)', args: ['2026-11-20', id, 'participation'] },

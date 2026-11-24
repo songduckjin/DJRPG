@@ -21,7 +21,8 @@ import {
   DEFENSE_STEP, DEFENSE_MAX_STEPS, DEFENSE_RUN_SECONDS, defenseBattleSummary, runDefenseBattle,
   defenseSpawnFloorSeconds, defenseStageHpSum, defenseStageEnemyCount, DEFENSE_MAX_STAGE
 } from '../src/game/dungeon/defenseBattle.ts';
-import { offlineHeroDps } from '../src/game/offline.ts';
+import { totalStats } from '../src/game/store.ts';
+import { HITS_PER_SECOND_CAP, basicAttackPower } from '../src/game/battle/formulas.ts';
 
 /** 어떤 판이든 이 시간보다 빨리 끝날 수는 없다(판 시작 응답·연출 포함). */
 export const DEFENSE_MIN_SECONDS = 5;
@@ -34,11 +35,24 @@ export { DEFENSE_STEP, DEFENSE_MAX_STEPS, DEFENSE_MAX_STAGE };
 
 const int = value => (Number.isSafeInteger(value) ? value : Number.isFinite(Number(value)) ? Math.floor(Number(value)) : NaN);
 
+/**
+ * 그 세이브가 낼 수 있는 **초당 피해의 천장**(서버 추정).
+ *
+ * 실제 DPS 모델이 아니라 "이보다 빠를 수는 없다"는 상한이다 — 최대 공속(6타/초) × 평타 배율 ×
+ * 치명·스킬·추가 피해 여유 4배. 필드 정산(`offline.ts`)의 DPS 식을 서버 번들로 끌어오면 가방·인벤토리
+ * 모듈이 함께 딸려 오므로(`tests/combat-field-split.test.mjs`), 여기서는 이미 서버가 쓰는
+ * `totalStats`·`formulas`만으로 넉넉한 천장을 세운다.
+ */
+export function defenseMaxDps(save) {
+  const stats = totalStats(save);
+  return Math.max(1, stats.attack * HITS_PER_SECOND_CAP * basicAttackPower * 4);
+}
+
 /** 그 스테이지에 도달하려면 최소한 이만큼은 걸린다(초). */
 export function requiredDefenseSeconds(save, stage) {
   const parsed = parseSave(save, save?.accountId);
   const spawnFloor = defenseSpawnFloorSeconds(stage) * .75;
-  const maxDps = Math.max(1, offlineHeroDps(parsed));
+  const maxDps = defenseMaxDps(parsed);
   const hpFloor = defenseStageHpSum(stage) / maxDps * .9;
   return Math.max(DEFENSE_MIN_SECONDS, Math.round(Math.max(spawnFloor, hpFloor)));
 }

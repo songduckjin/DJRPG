@@ -132,7 +132,7 @@ test('모든 표에 정책이 빠짐없이 적혀 있다', () => {
     assert.ok(deletePolicy.has(table.onDelete), `${table.name}: onDelete`);
     assert.ok(seasonPolicy.has(table.onSeason), `${table.name}: onSeason`);
     assert.ok(migratePolicy.has(table.migrate), `${table.name}: migrate`);
-    assert.ok(['schema', 'dungeon', 'world-boss'].includes(table.ddl), `${table.name}: ddl`);
+    assert.ok(['schema', 'dungeon', 'defense', 'world-boss'].includes(table.ddl), `${table.name}: ddl`);
     // 계정 열이 `account_id`인 표는 반드시 `delete` 정책이어야 한다(빠뜨리면 재가입자가 데이터를 물려받는다).
     if (table.accountColumn === 'account_id') assert.equal(table.onDelete, 'delete', `${table.name}: account_id 표는 탈퇴 때 지운다`);
     if (table.accountColumn === null) assert.notEqual(table.onDelete, 'delete', `${table.name}: 계정 열이 없으면 계정 열로 지울 수 없다`);

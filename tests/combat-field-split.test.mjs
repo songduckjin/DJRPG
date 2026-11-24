@@ -47,9 +47,11 @@ test('서버 클로저는 전투 엔진과 그 의존(경계·보스 드랍)만 
   // 2026-11-23 백로그 2·3 뒤 실측 21파일/4,123줄: `battle/formulas.ts` 치명타 피해 배수(+13줄)와
   // 추가옵션 키·상한(+20줄)이 늘었고, 유니크·전설 획득 띠(`raritySpotlight*`)는 화면 전용이라 서버가 닿지 않는다.
   // 작업 278: 판정·VFX 공용 순수 규격 skillAreas.ts가 엔진 의존으로 1파일 늘었다.
+  // 2026-11-24 무한 방어전: 순위 검증이 `src/game/dungeon/defenseBattle.ts`(고정 스텝 전투)를 그대로
+  // 리플레이하므로 1파일 520줄이 늘었다(실측 23파일/4,807줄). 필드 모듈은 위 테스트가 그대로 막는다.
   const total = src.reduce((sum, file) => sum + lineCount(file), 0);
-  assert(src.length <= 22, `서버가 닿는 src 파일이 ${src.length}개다 — 필드 모듈이 다시 들어왔는지 확인하라`);
-  assert(total <= 4300, `서버가 닿는 src 코드가 ${total}줄이다 — 필드 모듈이 다시 들어왔는지 확인하라`);
+  assert(src.length <= 23, `서버가 닿는 src 파일이 ${src.length}개다 — 필드 모듈이 다시 들어왔는지 확인하라`);
+  assert(total <= 4900, `서버가 닿는 src 코드가 ${total}줄이다 — 필드 모듈이 다시 들어왔는지 확인하라`);
 });
 
 const { CombatEngine } = await import('../src/game/combat/engine.ts');
