@@ -73,7 +73,11 @@ test('한 창에서 만들 수 없는 골드·처치·레벨·층·강화석은 
   for (const field of ['gold', 'kills', 'bossKills', 'playSeconds', 'maxFloor', 'level', 'stones', 'skillPoints', 'dungeonFloor']) assert(clamped.includes(field), `${field} 클램프`);
   const budget = rewardBudget(previous, 5);
   assert.equal(next.kills, previous.kills + budget.kills);
-  assert(next.gold <= previous.gold + budget.gold);
+  // 21~40층 확장 전에는 20층이 마지막이라 이 창에서 더 깊이 올라갈 자리가 없었다. 이제는 서버가 인정한
+  // 보스 처치만큼(최대 40층) 깊은 층의 킬·보스 금화로 정산하므로, 금화 상한도 그 층 기준으로 잡는다.
+  const deepest = Math.min(40, previous.maxFloor + budget.bosses);
+  const payout = rewardBudget(previous, 5, Math.max(budget.depth, deepest));
+  assert(next.gold <= previous.gold + payout.gold);
   assert(next.maxFloor <= previous.maxFloor + budget.bosses);
   assert(next.level <= MAX_LEVEL);
   assert.equal(next.dungeonFloor, 1, '검증된 기록이 없으면 이번 저장에서 한 층까지만');

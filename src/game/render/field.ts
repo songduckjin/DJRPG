@@ -1,4 +1,5 @@
-import { placeWasteland, wastelandLayout } from '../wasteland';
+import { placeFieldScene, castleLayoutFor, wastelandLayout } from '../wasteland';
+import { zoneOf } from '../floorTheme';
 import { jobOrDefault } from '../skills';
 import type { CombatEngine } from '../combat/engine';
 import type { GameView } from '../render';
@@ -27,7 +28,9 @@ export function drawRunes(this: GameView, world: CombatEngine, x: number, y: num
 
 export function drawTerrain(this: GameView, world: CombatEngine, _project: (x: number, y: number) => [number, number], _time: number): void {
     // The approved scene already contains rocks, grass and fires. Do not double them.
-    placeWasteland(this, world.player);
+    // 21층부터는 같은 자리에서 흑요석 성 배경으로 갈아 끼운다(`wasteland.ts` `placeFieldScene`).
+    this.lastFloor = world.save.floor;
+    placeFieldScene(this, world.player, world.save.floor);
   }
 
 export function drawDust(this: GameView, world: CombatEngine, project: (x: number, y: number) => [number, number], time: number, dt: number): void {
@@ -43,6 +46,23 @@ export function drawDust(this: GameView, world: CombatEngine, project: (x: numbe
   }
 
 export function drawLighting(this: GameView, world: CombatEngine, w: number, h: number, time: number): void {
+    const zone = zoneOf(world.save.floor);
+    if (zone) {
+      // 성 안 구역 조명(21~40층) — 배경은 1장 그대로 두고 ①상단 조명 틴트 ②안개 밀도 ③불빛만 바꾼다.
+      // 위쪽은 구역 색이 번지고(달빛·촛불·물빛·붉은 하늘), 아래쪽엔 안개가 띠로 깔린다.
+      this.glow.rect(0, 0, w, h * .55).fill({ color: zone.sky, alpha: zone.skyAlpha });
+      this.glow.rect(0, 0, w, h).fill({ color: zone.sky, alpha: zone.skyAlpha * .35 });
+      for (let band = 0; band < 3; band++) {
+        const top = h * (.48 + band * .18), height = h * .22;
+        this.glow.rect(0, top, w, height).fill({ color: zone.fog, alpha: zone.fogAlpha * (.45 + band * .22) });
+      }
+      castleLayoutFor(zone)(w, h, world.player).fires.forEach((fire, index) => {
+        const flicker = 1 + Math.sin(time * 7 + index * 4.7) * .06 + Math.sin(time * 11.3 + index * 2.1) * .03;
+        this.glow.circle(fire.x, fire.y, fire.radius * flicker).fill({ color: zone.ember, alpha: .05 });
+        this.glow.circle(fire.x, fire.y, fire.radius * .46 * flicker).fill({ color: zone.ember, alpha: .08 });
+      });
+      return;
+    }
     wastelandLayout(w, h, world.player).fires.forEach((fire, index) => {
       const flicker = 1 + Math.sin(time * 8 + index * 5) * .04;
       this.glow.circle(fire.x, fire.y, fire.radius * flicker).fill({ color: 0xf0742e, alpha: .055 });
@@ -51,9 +71,11 @@ export function drawLighting(this: GameView, world: CombatEngine, w: number, h: 
   }
 
 export function drawVignette(this: GameView, w: number, h: number, cx: number, cy: number, time: number): void {
-    const sight = Math.min(w, h) * .72 + Math.sin(time * 3) * 4;
+    // 성 안은 황무지보다 시야가 좁고 어둠이 푸르스름/붉게 깔린다(구역 표의 `dark`).
+    const zone = zoneOf(this.lastFloor);
+    const sight = Math.min(w, h) * (zone ? .66 : .72) + Math.sin(time * 3) * 4;
     for (let ring = 0; ring < 7; ring++) {
-      this.shade.rect(0, 0, w, h).fill({ color: 0x24180c, alpha: .015 });
+      this.shade.rect(0, 0, w, h).fill({ color: zone ? zone.dark : 0x24180c, alpha: .015 });
       this.shade.circle(cx, cy, sight + ring * 33).cut();
     }
 }

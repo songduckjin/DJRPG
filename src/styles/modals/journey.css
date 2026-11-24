@@ -33,6 +33,8 @@
 .floor-group-caret { flex: none; width: 0; height: 0; border-top: 5px solid transparent; border-bottom: 5px solid transparent; border-left: 7px solid #cfa678; transition: transform .15s; }
 .floor-group.open .floor-group-caret { transform: rotate(90deg); }
 .floor-group-rec { flex: none; color: #ffd092; font-size: 9.5px; font-weight: 600; }
+/* 21~40층 「해골 군주의 성」 — 구간 머리에 테마 이름을 작게 붙인다. */
+.floor-group-realm { flex: none; color: #c9a4e0; font-size: 9px; font-weight: 600; opacity: .9; }
 .floor-group-range { margin-left: auto; color: #c8ae8c; font-size: 9.5px; font-weight: 500; white-space: nowrap; }
 .floor-group:not(.open) .floor-group-range { color: #a8937b; }
 .floor-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; padding: 8px; }

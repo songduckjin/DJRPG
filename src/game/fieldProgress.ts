@@ -30,6 +30,7 @@ import { autoSalvageBlock, autoSalvageRecovered, sweepBagOnFull } from './invent
 import { random } from './rng';
 import type { Action, Enemy } from './battle/types';
 import { CombatEngine, cooldowns } from './combat/engine';
+import { bossName as floorBossName, eliteName as floorEliteName, withJosa as josa } from './floorTheme';
 
 /**
  * 입문 지원으로 지금 줄 방어구 칸(밸런스 v2 온보딩) — 1~2층에서 두 번째·세 번째 처치마다
@@ -148,7 +149,7 @@ export class FieldProgress extends CombatEngine {
     this.save.floorKills = Math.max(this.save.floorKills, killsToBoss(this.save.floor));
     this.enemies = []; this.chaseTarget = undefined; this.pursuing = false; this.activeMove = { x: 0, y: 0 };
     this.spawnTimer = 0; this.bossPending = true; this.elitePending = false;
-    this.onMessage('해골 군주에게 다시 도전합니다!');
+    this.onMessage(`${josa(floorBossName(this.save.floor), '에게', '에게')} 다시 도전합니다!`);
     this.onChange();
     return true;
   }
@@ -265,7 +266,7 @@ export class FieldProgress extends CombatEngine {
         // 자동 등반 중이면 목표를 채울 때마다 보스가 저절로 온다(작업 212 `#5017`).
         // 보스에게 지고 1마리부터 다시 잡는 중에도 여기로 다시 보스가 나타난다.
         this.bossPending = true;
-        this.onMessage(`${killsToBoss(this.save.floor)}마리 처치! 해골 군주가 나타납니다!`);
+        this.onMessage(`${killsToBoss(this.save.floor)}마리 처치! ${josa(floorBossName(this.save.floor), '이', '가')} 나타납니다!`);
       }
     }
     this.onChange();
@@ -331,7 +332,7 @@ export class FieldProgress extends CombatEngine {
         for (let index = 0; index < count; index++) {
           const elite = this.elitePending && index === 0;
           this.spawnMob(false, elite);
-          if (elite) { this.elitePending = false; this.onMessage('정예 해골이 나타났습니다!'); }
+          if (elite) { this.elitePending = false; this.onMessage(`정예 ${floorEliteName(this.save.floor)} 등장!`); }
         }
       }
     }

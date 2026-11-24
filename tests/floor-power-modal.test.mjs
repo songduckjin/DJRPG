@@ -108,8 +108,8 @@ test('★ 추천 층은 위험하지 않은 가장 깊은 층이고 최고 층�
 
 test('구간은 10층 단위로 MAX_FLOOR까지만 만든다', () => {
   const groups = F.floorGroups();
-  assert.deepEqual(groups.map(group => group.label), ['1~10층', '11~20층']);
-  assert.deepEqual(groups.map(group => [group.lo, group.hi]), [[1, 10], [11, 20]]);
+  assert.deepEqual(groups.map(group => group.label), ['1~10층', '11~20층', '21~30층', '31~40층']);
+  assert.deepEqual(groups.map(group => [group.lo, group.hi]), [[1, 10], [11, 20], [21, 30], [31, 40]]);
   assert.equal(F.groupStart(1), 1);
   assert.equal(F.groupStart(10), 1);
   assert.equal(F.groupStart(11), 11);
@@ -135,7 +135,7 @@ test('창은 내 전투력·추천 층을 보여 주고 내 권장 층이 든 �
   assert.equal(banner.children[1].textContent, `★ 추천 ${recommendedFloor}층`);
 
   const sections = nodes.filter(node => hasClass(node, 'floor-group'));
-  assert.equal(sections.length, 2, '1~10층·11~20층 두 구간');
+  assert.equal(sections.length, 4, '1~10층·11~20층·21~30층·31~40층 네 구간');
   for (const section of sections) {
     const head = section.children[0], grid = section.children[1];
     const openGroup = section.children[0].innerHTML.includes('내 권장 층 포함');
@@ -149,7 +149,7 @@ test('창은 내 전투력·추천 층을 보여 주고 내 권장 층이 든 �
 
   // 카드 구조는 모두 같다: 층 이름 · (보스 왕관) · (현재 배지) · 상태 · 권장 전투력.
   const cards = nodes.filter(node => hasClass(node, 'floor-card'));
-  assert.equal(cards.length, MAX_FLOOR, '층 1~20 전부');
+  assert.equal(cards.length, MAX_FLOOR, '층 1~40 전부');
   for (const card of cards) {
     assert.match(card.innerHTML, /<b>\d+층<\/b>/);
     assert.match(card.innerHTML, /<span class="floor-card-state">(여유|적정|위험)/);

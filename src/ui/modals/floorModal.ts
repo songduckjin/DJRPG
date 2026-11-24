@@ -1,5 +1,6 @@
 import { totalStats } from '../../game/store';
 import { MAX_FLOOR } from '../../game/progress';
+import { isCastle, realmName } from '../../game/floorTheme';
 import type { Interface } from '../interface';
 import {
   combatPower, floorGroups, floorPowerState, formatPower, groupPowerRange, groupStart,
@@ -63,6 +64,7 @@ export function renderFloor(this: Interface, dialog: HTMLElement): void {
     const range = groupPowerRange(group);
     const inThisGroup = group.lo <= recommendedFloor && recommendedFloor <= group.hi;
     head.innerHTML = `<span class="floor-group-caret" aria-hidden="true"></span><b>${group.label}</b>`
+      + (isCastle(group.lo) ? `<span class="floor-group-realm">${realmName(group.lo)}</span>` : '')
       + (inThisGroup ? '<span class="floor-group-rec">· 내 권장 층 포함</span>' : '')
       + `<span class="floor-group-range">권장 ${formatPower(range.lo)} ~ ${formatPower(range.hi)}</span>`;
 

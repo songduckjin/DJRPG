@@ -261,9 +261,9 @@ test('보스에게 진 기록은 세이브에 남아 새로고침·재접속에�
   assert.equal(dropped.save.bossRetryFloor, 0, '올라가면 기록을 지운다');
   assert.equal(new World(parseSave(JSON.parse(JSON.stringify(dropped.save)))).bossRetryReady, false, '새로고침해도 버튼이 돌아오지 않는다');
 
-  // 옛 세이브(값 없음)는 0으로 읽고, 서버가 20층 밖의 값을 보내도 1~20 정수만 남긴다.
+  // 옛 세이브(값 없음)는 0으로 읽고, 서버가 40층 밖의 값을 보내도 1~40 정수만 남긴다.
   assert.equal(parseSave({ ...save, bossRetryFloor: undefined }).bossRetryFloor, 0);
-  assert.equal(parseSave({ ...save, bossRetryFloor: 99 }).bossRetryFloor, 20);
+  assert.equal(parseSave({ ...save, bossRetryFloor: 99 }).bossRetryFloor, 40);
 });
 
 test('층 보스가 나타나면 스킬 쿨타임도 함께 0으로 돌아온다(작업 223, 사용자 요청 `#6108`)', () => {

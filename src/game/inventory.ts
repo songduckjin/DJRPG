@@ -65,8 +65,11 @@ export function salvageItems(save: Save, ids: string[]): { count: number; gold: 
 export type AutoSalvageBlock = 'statbook' | 'pouch' | 'locked' | 'grade' | 'plus' | 'empty-slot' | 'upgrade';
 
 /** From this floor a drop can carry a 강화 단계, so live auto-salvage also obeys the player's
- *  `+N까지` cap (작업 203). Below it every piece is `+0` and the grade rules alone decide. */
-export const AUTO_SALVAGE_PLUS_FLOOR = 41;
+ *  `+N까지` cap (작업 203). Below it every piece is `+0` and the grade rules alone decide.
+ *
+ * 21층부터 `+2`가 나오므로(10층마다 +1) 상한을 21로 내렸다 — 21~40층 확장 전에는 41층이 열리지 않아
+ * 이 필터가 사실상 쓰이지 않았다. */
+export const AUTO_SALVAGE_PLUS_FLOOR = 21;
 
 /** How far down the sweep may reach: `maxPlus` is the chosen `+N까지` cap (0~7) and is read only from
  *  `AUTO_SALVAGE_PLUS_FLOOR` on. A piece above the cap is a rare drop worth selling at the auction
