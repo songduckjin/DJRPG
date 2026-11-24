@@ -22,8 +22,14 @@
 
 import { depthRewardScale, ELITE_REWARD_SCALE } from './battle/formulas.ts';
 
-/** 메인 사냥의 마지막 층(작업 204). 20층 위로는 열리지 않으며, 상한이 풀릴 때 이 값만 올린다. */
-export const MAX_FLOOR = 20;
+/**
+ * 메인 사냥의 마지막 층.
+ *
+ * 작업 204에서 20층으로 잠갔고, 21~40층 확장(해골 군주의 성)에서 40으로 올렸다. 층 곡선(처치 목표·
+ * 몹·보스 HP·보상·강화 단계)은 원래 21층+를 이미 계산하던 식이라 상한만 올리면 그대로 이어진다.
+ * 클라·서버가 이 상수를 함께 읽으므로(`server/save-guard.mjs`) 반드시 동시에 배포한다.
+ */
+export const MAX_FLOOR = 40;
 export const MAX_LEVEL = 30;
 
 /** 일반 몹 한 마리의 금화 = `3 + 층`. 정예·보스는 아래 배율을 곱한다. */
@@ -200,6 +206,8 @@ export function recordBossLoss(save: ProgressSave): { floor: number; retryFloor:
 export function afterFloorClear(save: ProgressSave, options: { climb?: boolean } = {}): { floor: number; climbed: boolean } {
   save.floorKills = 0;
   if (options.climb !== true) return { floor: save.floor, climbed: false };
+  // 마지막 층 위로는 오르지 않는다(호출부가 아래층에서만 부르지만 방어적으로 상한을 건다).
+  if (save.floor >= MAX_FLOOR) return { floor: save.floor, climbed: false };
   save.floor += 1;
   return { floor: save.floor, climbed: true };
 }

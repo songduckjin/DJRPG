@@ -1,5 +1,6 @@
 import { Assets, Container, Rectangle, Sprite, Text, Texture } from 'pixi.js';
 import type { HeroAfterimage } from '../world';
+import type { Enemy } from '../battle/types';
 import type { CombatEngine } from '../combat/engine';
 import { ELITE_MOB_SCALE, ENEMY_STRIKE_SECONDS } from '../world';
 import type { Save } from '../store';
@@ -15,6 +16,7 @@ import { costumeGhostSources, hideCostumeHero } from './costumeHero';
 import { resolveSkillMotion, type CostumeMotionTemplate } from '../costume/skillMotion';
 import { wearableEquipmentImage, baseItemIndex, usesBaseSheetOnly, hasNoWeapon, type Rarity } from '../items';
 import { jobOrDefault } from '../skills';
+import { bossArtFor, eliteName as floorEliteName, isCastle, mobKindFor, mobTint, type MobKind } from '../floorTheme';
 import { helmetArtFor, helmetArtPath, helmetGlowMaskPath, helmetPlacement } from './helmets';
 import { archerHelmGlowMaskPath, archerHelmIndexFor, archerHelmPartPath, archerHelmPlacement } from './archerHelmets';
 import { mageHelmIndexFor, mageHelmPartPath, mageHelmPlacement } from './mageHelmets';
@@ -109,7 +111,11 @@ const walkAnchors = {
   femaleArmoredHelmWalk: [.989, .989, .993, .989, .984, .993, .993, .989],
   femaleArmoredOldHelmWalk: [.984, .984, .984, .984, .989, .989, .989, .989],
   skeletonWalk: [.917, .914, .91, .912, .898, .91, .905, .892],
-  bossWalk: [.919, .901, .899, .899, .914, .907, .905, .905]
+  bossWalk: [.919, .901, .899, .899, .914, .907, .905, .905],
+  // 21~40층 신규 시트 — 발밑을 셀 높이의 96%에 맞춰 구웠으므로 여덟 프레임이 같은 앵커다.
+  knightWalk: [.96, .96, .96, .96, .96, .96, .96, .96],
+  wretchWalk: [.96, .96, .96, .96, .96, .96, .96, .96],
+  archonWalk: [.96, .96, .96, .96, .96, .96, .96, .96]
 } as const;
 export type HeroSkillMotion = { template: CostumeMotionTemplate | null; progress: number };
 
@@ -985,8 +991,43 @@ export function updateCorpses(this: GameView, project: (x: number, y: number) =>
   }
 
 
-export function drawEntities(this: GameView, world: CombatEngine, project: (x: number, y: number) => [number, number], time: number, dt: number, hx: number, hy: number, h: number): void {
-    const live = new Set(world.enemies);
+/**
+ * 한 마리의 그림·이름·틴트·배율 — 층 테마(`floorTheme.ts`) 표를 그대로 따른다.
+ *
+ * · 1~20층: 해골 병사 1종(종전 그대로), 보스 '해골 군주'.
+ * · 21~40층: 층별 2종 혼성(사슬 망자·녹슨 성벽병·흑요석 기사). 계보는 `enemy.step`( 스폰에 이미
+ *   뽑힌 난수)으로 골라 **새 난수를 쓰지 않는다** — 사냥 확률·타이밍이 그대로다.
+ * · 보스: 21~29 '성채의 수문장'(기존 시트+틴트), 30~39 '군주의 그림자'(+배율), 40 '해골 군주 아르케온'(신규 시트).
+ */
+type EnemyLook = {
+  idle: Texture; walk: Texture[]; walkAnchor: readonly number[]; restAnchor: number;
+  tint: number; scale: number; label: string;
+};
+const mobLooks: Record<MobKind, { idle: 'skeleton' | 'wretch' | 'knight'; walk: 'skeletonWalk' | 'wretchWalk' | 'knightWalk' }> = {
+  wallguard: { idle: 'skeleton', walk: 'skeletonWalk' },
+  wretch: { idle: 'wretch', walk: 'wretchWalk' },
+  knight: { idle: 'knight', walk: 'knightWalk' }
+};
+function enemyLook(view: GameView, enemy: Enemy, floor: number): EnemyLook {
+  if (enemy.boss) {
+    const art = bossArtFor(floor);
+    const custom = art.idle.includes('/castle/');
+    return {
+      idle: custom ? view.textures.archon : view.textures.boss,
+      walk: custom ? view.animations.archonWalk : view.animations.bossWalk,
+      walkAnchor: custom ? walkAnchors.archonWalk : walkAnchors.bossWalk,
+      restAnchor: .995, tint: art.tint, scale: art.scale, label: art.name
+    };
+  }
+  const kind = mobKindFor(floor, enemy.variant ?? 0);
+  const look = mobLooks[kind];
+  return {
+    idle: view.textures[look.idle], walk: view.animations[look.walk], walkAnchor: walkAnchors[look.walk],
+    restAnchor: .995, tint: isCastle(floor) ? mobTint[kind] : 0xcfcac5, scale: 1, label: floorEliteName(floor)
+  };
+}
+
+export function drawEntities(this: GameView, world: CombatEngine, project: (x: number, y: number) => [number, number], time: number, dt: number, hx: number, hy: number, h: number): void {    const live = new Set(world.enemies);
     for (const [enemy, sprite] of this.enemies) if (!live.has(enemy)) {
       this.actors.removeChild(sprite); this.fallen.addChild(sprite); this.enemies.delete(enemy);
       this.enemyWalkDistance.delete(enemy);
@@ -996,15 +1037,16 @@ export function drawEntities(this: GameView, world: CombatEngine, project: (x: n
     const depths: { sprite: Container; depth: number }[] = [];
     for (const enemy of world.enemies) {
       const elite = enemy.elite === true && !enemy.boss;
+      const look = enemyLook(this, enemy, world.save.floor);
       let sprite = this.enemies.get(enemy);
       if (!sprite) {
-        sprite = new Sprite(enemy.boss ? this.textures.boss : this.textures.skeleton);
+        sprite = new Sprite(look.idle);
         sprite.anchor.set(.5, .97);
         this.actors.addChild(sprite);
         this.enemies.set(enemy, sprite);
         if (enemy.boss || elite) {
-          // 보스는 이름을, 정예는 금빛 `정예` 배지를 머리 위에 단다(작업 206).
-          const label = new Text({ text: enemy.boss ? '해골 군주' : '정예 해골', style: { fontFamily: 'Noto Sans KR', fontSize: enemy.boss ? 11 : 10, fill: enemy.boss ? 0xf0d7c4 : 0xffd166, fontWeight: 'bold' } });
+          // 보스는 이름을, 정예는 그 구역의 이름을 금빛 배지로 단다(작업 206 → 층 테마).
+          const label = new Text({ text: look.label, style: { fontFamily: 'Noto Sans KR', fontSize: enemy.boss ? 11 : 10, fill: enemy.boss ? 0xf0d7c4 : 0xffd166, fontWeight: 'bold' } });
           label.anchor.set(.5, 1); this.labels.addChild(label); this.enemyLabels.set(enemy, label);
         }
       }
@@ -1015,11 +1057,12 @@ export function drawEntities(this: GameView, world: CombatEngine, project: (x: n
       if (enemy.moving) gait.distance += Math.min(20, walked);
       gait.x = enemy.x; gait.y = enemy.y;
       const frame = Math.floor(gait.distance / (enemy.boss ? 6 : 7)) % 8;
-      const texture = enemy.moving ? enemy.boss ? this.animations.bossWalk[frame] : this.animations.skeletonWalk[frame] : enemy.boss ? this.textures.boss : this.textures.skeleton;
+      const texture = enemy.moving ? look.walk[frame] : look.idle;
       if (sprite.texture !== texture) sprite.texture = texture;
-      sprite.anchor.y = enemy.moving ? walkAnchors[enemy.boss ? 'bossWalk' : 'skeletonWalk'][frame] : .995;
+      sprite.anchor.y = enemy.moving ? look.walkAnchor[frame] : look.restAnchor;
       // 정예는 일반 몹보다 1.22배 큰 몸으로 서고, 발밑에 금빛 오라가 돈다(작업 206).
-      const bodyScale = enemy.boss ? .16 : elite ? .095 * ELITE_MOB_SCALE : .095;
+      // 30~39층 '군주의 그림자'는 같은 보스 시트를 층에 따라 키운다(그림 새로 0장).
+      const bodyScale = enemy.boss ? .16 * look.scale : elite ? .095 * ELITE_MOB_SCALE : .095;
       const scale = h * bodyScale / texture.height;
       if (elite) {
         const pulse = .5 + Math.sin(time * 2.6 + enemy.step) * .5;
@@ -1038,7 +1081,7 @@ export function drawEntities(this: GameView, world: CombatEngine, project: (x: n
       const face = enemyFacing(enemy, world.player, sprite.scale.x);
       sprite.scale.set(scale * face * (enemy.hit > 0 ? 1.08 : 1) * (1 + jab * .08), scale * (enemy.hit > 0 ? .84 : 1) * (1 - jab * .07));
       sprite.rotation = 0;
-      sprite.tint = enemy.hit > 0 ? 0xffffff : jab > .18 ? 0xffb9a4 : elite ? 0xffe4bb : 0xcfcac5;
+      sprite.tint = enemy.hit > 0 ? 0xffffff : jab > .18 ? 0xffb9a4 : elite ? 0xffe4bb : look.tint;
       sprite.alpha = 1;
       const barWidth = enemy.boss ? 40 : elite ? 30 : 26;
       const barY = y - h * bodyScale - 7;

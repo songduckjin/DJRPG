@@ -204,8 +204,8 @@ test('몹·보스 HP · killsToBoss · 필드 보상 계수 · 드롭률(밸런�
     assert.equal(progress.killReward({ floor }).gold, gold, `${floor}층 금화`);
     assert.equal(progress.killGold(floor), 3 + floor, '던전 정산 금화에는 필드 계수를 곱하지 않는다');
   }
-  // 20 → 21층 연속성(MAX_FLOOR 20은 그대로).
-  assert.equal(progress.MAX_FLOOR, 20);
+  // 20 → 21층 연속성(21~40층 확장으로 상한은 40 — 곡선은 그대로 이어진다).
+  assert.equal(progress.MAX_FLOOR, 40);
   assert(enemyGap(20, 21) > 0 && enemyGap(20, 21) < .05, '20→21층 몹 HP +5% 안');
   // 보스 금화 70×층은 그대로.
   assert.equal(progress.killReward({ floor: 20 }, { boss: true }).gold, 1400);

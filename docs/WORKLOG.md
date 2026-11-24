@@ -27,6 +27,18 @@
 - **변경**: ① `renderEquipment()`에서 `.equip-topline`(요약 `LV · 층 · EXP% · 금화` + `⚔ 전투력` 알약) 생성·append를 없애고 `dialog.append(showcase)`로 곧바로 장착 쇼케이스를 붙인다. 쓰지 않게 된 `combatPower`·`goldMarkup`·`expToNext`·`MAX_LEVEL` 호출과 import를 정리했다(같은 값은 메인 HUD가 보여 준다). ② `equip.css`에서 `.equip-topline`·`.equipment-summary`·`.equip-powerpill` 계열 규칙(380px 미디어 규칙 포함) 삭제, `.equipment-showcase` 192 → **208px**(`flex-basis` 포함), `.bag-grid` `repeat(10…)` → **`repeat(8…)`**(공용창고 `.warehouse-grid`와 같은 8열). 반응형은 같은 +16px만큼: `max-width: 380px` 186 → **202px**, `max-height: 720px` 170 → **186px**, `max-height: 620px` 160 → **176px**. 가방 최소 높이 135px은 그대로다.
 - **검증**: `tsc --noEmit` 통과, `vite build` 통과, 전체 `node --test tests/*.test.mjs` 결과는 PR 본문 참조. 신규 `tests/equip-topline-removal.test.mjs` 5건(규칙 부재·렌더 첫 요소·208/8열·반응형 3구간·가짜 DOM 실렌더), `tests/equipment-info.test.mjs`·`tests/downgrade-badge-and-journey.test.mjs`의 topline 계약을 1안으로 교체.
 - **확인 화면**: Cloudflare Pages 프리뷰 390×844 캡처(장비창을 직접 열어 topline 없음·8열·빈 여백 없음), 경로는 PR 본문.
+## 2026-11-24 · fks3997 작업 미배정 — 21~40층 확장 「해골 군주의 성」 (Draft PR)
+
+- **기준·브랜치**: `origin/main` `21343ea`(2026-11-23 13:42) 에서 `feat/floor-21-40`. 기획 확정안은 `downloads/djrpg_floor_21_40_plan.md` v2(20층×1구간). **머지·배포 보류** — Draft PR로만 올린다.
+- **층 상한**: `progress.ts` `MAX_FLOOR` 20 → 40. 층 곡선(처치 목표 `150+30d+d²`, 몹·보스 HP `98.5×(1+층/2)`·13배, 보상, 강화 `+N`)은 원래 21층+를 계산하던 식이라 상한만 올렸다. 40층 처치 목표 **2,841**, 권장 전투력 21층 **1,556** → 40층 **2,878**. `MAX_LEVEL` 30·신규 티어 없음은 그대로.
+- **테마 표**: `src/game/floorTheme.ts`(신규, 순수 모듈) — 21층부터 성 안, 구역 4개(성문 안뜰 21~25 · 회랑·예배당 26~30 · 지하 감옥·수문 31~35 · 왕좌 36~40). 구역마다 상단 조명 틴트·안개 밀도·불씨 좌표·색·비네트 어둠이 다르고 **배경은 `world-boss/obsidian-arena-v1.png` 1장**(신규 배경 0장). 몹 계보는 층마다 2종(21층 사슬 망자+녹슨 성벽병 … 40층 흑요석 기사+사슬 망자), 스폰에 이미 뽑힌 `enemy.step` 난수로 골라 **새 난수를 쓰지 않는다**.
+- **화면**: `render/field.ts`가 층 구역을 읽어 조명·안개·불빛을 그리고, `ambientScene.ts`는 장면 키(`wasteland` / `castle-gate` …)가 바뀔 때만 같은 `ambientLayer`의 자식을 갈아 끼운다(그림 재마운트 없음, 티커 하나). `wasteland.ts` `placeFieldScene`이 20↔21층에서 배경을 바꾼다. `render/entities.ts`는 보스 이름·정예 이름·틴트·시트·배율을 표에서 받고, 하드코딩 `'해골 군주'`·`'정예 해골'`을 없앴다. `fieldProgress.ts`의 보스 등장·재도전·정예 알림도 표를 읽는다(조사 `이/가` 처리 포함).
+- **보스**: 21~29 `성채의 수문장`(기존 `skeleton_boss`+청회 틴트), 30~39 `군주의 그림자`(같은 시트+보라 틴트, 배율 1.12→1.20), 40 `해골 군주 아르케온`(신규 시트). 40층 보스는 체력 50% 아래에서 불빛 틴트가 붉게 바뀐다(수치 변경 없는 연출).
+- **신규 에셋 6장**: `public/assets/castle/{knight,wretch,archon}_idle_v1.png`(136×192·136×192·214×240) + `walk8_*_v1.png`(708×354, 4×2 그리드·셀 177²). 생성 → 마젠타 배경 알파 제거·디스필·1px 침식 → 기존 해골/보스 시트의 인물 높이·발밑선에 맞춰 재합성(`work/design/process_sprites.py`). 서기 그림은 같은 걷기 시트 0번 프레임에서 만들어 idle↔walk 실루엣이 어긋나지 않는다.
+- **자동 분해**: `AUTO_SALVAGE_PLUS_FLOOR` 41 → 21 — 21층부터 `+2`가 드롭되므로 `+N까지` 필터가 실제로 쓰인다.
+- **검증**: `tsc --noEmit` 통과, `npm run build` 통과(866.82kB). 신규 `tests/floor-expansion.test.mjs` 9/9(상한·곡선·구역·몹·보스·에셋 규격·화면 배선·월드). 전체 1,8xx건 중 실패는 이 체크아웃에 없는 `scripts/build-armor-glow-masks.py`·`CONTRIBUTING.md`를 읽는 두 건뿐으로 `origin/main` 기준선과 실패 이름 차집합 0. 기존 테스트는 새 상한에 맞춰 기대값을 갱신(`floor-cap`·`balance-v2`·`floor-power-modal`·`salvage-plus`·`world-movement`)했고, `save-guard`는 이제 같은 저장 창에서도 보스 처치만큼 깊은 층(최대 40)으로 정산할 수 있어 금화 상한을 그 층 기준으로 검증한다.
+- **프리뷰 실화면**: Cloudflare Pages 프리뷰 `https://feat-floor-21-40.djrpg.pages.dev`(버전 `a1a5e17`)에서 게스트 로그인 후 **층 선택 창**을 촬영(21~30·31~40 구간에 「해골 군주의 성」 표기, 권장 1,556~2,878). 필드·보스는 로그인 세이브를 21층으로 올릴 수 없어(서버 검증) **같은 게임 코드·에셋으로 그 층을 그리는 검수 전용 하네스**(브랜치 `preview/floor21-40-harness`, `preview-floor.html` — 머지 대상 아님)를 Cloudflare Pages에 함께 배포해 촬영했다: 21층 성문(사슬 망자) · 23층 혼성(흑요석 기사+사슬 망자) · 26층 회랑·예배당(촛불) · 31층 지하 감옥·수문(청록 안개) · 36층 왕좌(붉은 조명) · 21층 보스 성채의 수문장 · 30층 보스 군주의 그림자 · 40층 보스 해골 군주 아르케온. 파일: `downloads/djrpg_2140_floor_modal_1_40.png`·`djrpg_2140_floor_modal_31_40_open.png`·`djrpg_2140_field_{21_gate,23_gate_mixed,26_chapel,31_prison,36_throne}.png`·`djrpg_2140_boss_{21_warden,30_shadow,40_archaeon}.png`.
+- **남긴 것**: 30층 중간 보스 전용 연출(그림자 3중 잔상)·40층 브레스 연출(`fx_dragon_*`)은 이번 PR에 넣지 않았다(수치·계약 무관 연출).
 
 ## 2026-11-23 · songduckjin **백로그 2·3·7번** — 치명타 피해량 추가옵션 · 유니크/전설 상위 노출 · 마법사/궁수 시트 알파 재베이크 (Draft PR)
 
@@ -188,6 +200,19 @@
 
 > 최근 작업·PR·배포 기록만 둔다(최근 20건). 더 이전 기록은 `docs/archive/2026-11/WORKLOG-history.md`.
 > 새 기록은 맨 위에 `## YYYY-MM-DD · <담당> 작업 <번호> — <제목>` 형식으로 추가하고, 오래된 항목은 아카이브로 옮긴다.
+
+## 2026-11-24 · fks3997 작업 미배정 — 21~40층 확장 「해골 군주의 성」 (Draft PR)
+
+- **기준·브랜치**: `origin/main` `21343ea`(2026-11-23 13:42) 에서 `feat/floor-21-40`. 기획 확정안은 `downloads/djrpg_floor_21_40_plan.md` v2(20층×1구간). **머지·배포 보류** — Draft PR로만 올린다.
+- **층 상한**: `progress.ts` `MAX_FLOOR` 20 → 40. 층 곡선(처치 목표 `150+30d+d²`, 몹·보스 HP `98.5×(1+층/2)`·13배, 보상, 강화 `+N`)은 원래 21층+를 계산하던 식이라 상한만 올렸다. 40층 처치 목표 **2,841**, 권장 전투력 21층 **1,556** → 40층 **2,878**. `MAX_LEVEL` 30·신규 티어 없음은 그대로.
+- **테마 표**: `src/game/floorTheme.ts`(신규, 순수 모듈) — 21층부터 성 안, 구역 4개(성문 안뜰 21~25 · 회랑·예배당 26~30 · 지하 감옥·수문 31~35 · 왕좌 36~40). 구역마다 상단 조명 틴트·안개 밀도·불씨 좌표·색·비네트 어둠이 다르고 **배경은 `world-boss/obsidian-arena-v1.png` 1장**(신규 배경 0장). 몹 계보는 층마다 2종(21층 사슬 망자+녹슨 성벽병 … 40층 흑요석 기사+사슬 망자), 스폰에 이미 뽑힌 `enemy.step` 난수로 골라 **새 난수를 쓰지 않는다**.
+- **화면**: `render/field.ts`가 층 구역을 읽어 조명·안개·불빛을 그리고, `ambientScene.ts`는 장면 키(`wasteland` / `castle-gate` …)가 바뀔 때만 같은 `ambientLayer`의 자식을 갈아 끼운다(그림 재마운트 없음, 티커 하나). `wasteland.ts` `placeFieldScene`이 20↔21층에서 배경을 바꾼다. `render/entities.ts`는 보스 이름·정예 이름·틴트·시트·배율을 표에서 받고, 하드코딩 `'해골 군주'`·`'정예 해골'`을 없앴다. `fieldProgress.ts`의 보스 등장·재도전·정예 알림도 표를 읽는다(조사 `이/가` 처리 포함).
+- **보스**: 21~29 `성채의 수문장`(기존 `skeleton_boss`+청회 틴트), 30~39 `군주의 그림자`(같은 시트+보라 틴트, 배율 1.12→1.20), 40 `해골 군주 아르케온`(신규 시트). 40층 보스는 체력 50% 아래에서 불빛 틴트가 붉게 바뀐다(수치 변경 없는 연출).
+- **신규 에셋 6장**: `public/assets/castle/{knight,wretch,archon}_idle_v1.png`(136×192·136×192·214×240) + `walk8_*_v1.png`(708×354, 4×2 그리드·셀 177²). 생성 → 마젠타 배경 알파 제거·디스필·1px 침식 → 기존 해골/보스 시트의 인물 높이·발밑선에 맞춰 재합성(`work/design/process_sprites.py`). 서기 그림은 같은 걷기 시트 0번 프레임에서 만들어 idle↔walk 실루엣이 어긋나지 않는다.
+- **자동 분해**: `AUTO_SALVAGE_PLUS_FLOOR` 41 → 21 — 21층부터 `+2`가 드롭되므로 `+N까지` 필터가 실제로 쓰인다.
+- **검증**: `tsc --noEmit` 통과, `npm run build` 통과(866.82kB). 신규 `tests/floor-expansion.test.mjs` 9/9(상한·곡선·구역·몹·보스·에셋 규격·화면 배선·월드). 전체 1,8xx건 중 실패는 이 체크아웃에 없는 `scripts/build-armor-glow-masks.py`·`CONTRIBUTING.md`를 읽는 두 건뿐으로 `origin/main` 기준선과 실패 이름 차집합 0. 기존 테스트는 새 상한에 맞춰 기대값을 갱신(`floor-cap`·`balance-v2`·`floor-power-modal`·`salvage-plus`·`world-movement`)했고, `save-guard`는 이제 같은 저장 창에서도 보스 처치만큼 깊은 층(최대 40)으로 정산할 수 있어 금화 상한을 그 층 기준으로 검증한다.
+- **프리뷰 실화면**: Cloudflare Pages 프리뷰 `https://feat-floor-21-40.djrpg.pages.dev`(버전 `a1a5e17`)에서 게스트 로그인 후 **층 선택 창**을 촬영(21~30·31~40 구간에 「해골 군주의 성」 표기, 권장 1,556~2,878). 필드·보스는 로그인 세이브를 21층으로 올릴 수 없어(서버 검증) **같은 게임 코드·에셋으로 그 층을 그리는 검수 전용 하네스**(브랜치 `preview/floor21-40-harness`, `preview-floor.html` — 머지 대상 아님)를 Cloudflare Pages에 함께 배포해 촬영했다: 21층 성문(사슬 망자) · 23층 혼성(흑요석 기사+사슬 망자) · 26층 회랑·예배당(촛불) · 31층 지하 감옥·수문(청록 안개) · 36층 왕좌(붉은 조명) · 21층 보스 성채의 수문장 · 30층 보스 군주의 그림자 · 40층 보스 해골 군주 아르케온. 파일: `downloads/djrpg_2140_floor_modal_1_40.png`·`djrpg_2140_floor_modal_31_40_open.png`·`djrpg_2140_field_{21_gate,23_gate_mixed,26_chapel,31_prison,36_throne}.png`·`djrpg_2140_boss_{21_warden,30_shadow,40_archaeon}.png`.
+- **남긴 것**: 30층 중간 보스 전용 연출(그림자 3중 잔상)·40층 브레스 연출(`fx_dragon_*`)은 이번 PR에 넣지 않았다(수치·계약 무관 연출).
 
 ## 2026-11-21 · songduckjin 작업 218 — 관리자 운영 포털(읽기 전용) 추가·밝은 화면 재설계 · 운영 배포(`78ed95b4bd41`)
 

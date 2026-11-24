@@ -54,6 +54,11 @@ const paths = {
   maleBaseHelm: '/assets/warrior_male_base_helm.png', maleSwordHelm: '/assets/warrior_male_sword_helm.png',
   maleSword: '/assets/warrior_male_sword.png', femaleSword: '/assets/warrior_female_sword.png',
   skeleton: '/assets/skeleton_warrior.png', boss: '/assets/skeleton_boss.png',
+  // [21~40층] 해골 군주의 성 — 배경은 월드보스 흑요석 투기장 1장 재활용(신규 배경 0장),
+  // 몹은 흑요석 기사·사슬 망자 신규 시트, 40층 최종 보스는 아르케온 신규 시트다(`floorTheme.ts`).
+  castle: '/assets/world-boss/obsidian-arena-v1.png',
+  knight: '/assets/castle/knight_idle_v1.png', wretch: '/assets/castle/wretch_idle_v1.png',
+  archon: '/assets/castle/archon_idle_v1.png',
   fxDragonHead: '/assets/fx_dragon_head.png?v=2', fxDragonBody: '/assets/fx_dragon_body.png?v=2', fxSlam: '/assets/fx_wild_stamp_lava_v2.png', fxCrushing: '/assets/fx_wild_stamp.png',
   fxRage: '/assets/fx_blood_rage.png', fxFlame: '/assets/fx_rage_flame_v1.png', fxRageGlow: '/assets/fx_rage_glow_v1.png',
   fxSlash: '/assets/fx_slash_arc.png',
@@ -118,7 +123,9 @@ const walkSheets = {
   femaleArmoredNoHelmWalk: '/assets/walk8_female_armored_nohelm_swordless.png',
   femaleArmoredHelmWalk: '/assets/walk8_female_armored_helm_swordless.png',
   femaleArmoredOldHelmWalk: '/assets/walk8_female_armored_oldhelm_swordless.png',
-  skeletonWalk: '/assets/walk8_skeleton.png', bossWalk: '/assets/walk8_boss.png'
+  skeletonWalk: '/assets/walk8_skeleton.png', bossWalk: '/assets/walk8_boss.png',
+  knightWalk: '/assets/castle/walk8_knight_v1.png', wretchWalk: '/assets/castle/walk8_wretch_v1.png',
+  archonWalk: '/assets/castle/walk8_archon_v1.png'
 } as const;
 type Animation = keyof typeof animationPaths | keyof typeof attackSheets | keyof typeof walkSheets;
 
@@ -187,6 +194,8 @@ export class GameView {
   groundVfx = new Container();
   ambientLayer = new Container();
   wastelandPlayer = { x: 0, y: 0 };
+  /** 마지막으로 그린 층 — 비네트·테마 판정이 프레임 밖에서도 같은 층을 본다(21~40층 구역 조명). */
+  lastFloor = 1;
   terrainTextures: Texture[] = [];
   terrainSprites: Sprite[] = [];
   /** 블러드 레이지 오라 (작업 214) — 몸 뒤 광휘는 뷰 뒤, 불꽃 혀·불티는 히어로 앞 레이어에 가산으로 그린다. */

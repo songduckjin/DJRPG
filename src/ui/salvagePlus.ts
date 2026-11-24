@@ -1,12 +1,12 @@
-// How far down live auto-salvage may reach from 41층 (작업 203).
+// How far down live auto-salvage may reach from 21층 (작업 203 → 21~40층 확장).
 //
-// A drop can carry a 강화 단계 (`+0` ~ `+7`) from 10층 단위로 열리고, 41층쯤부터는 `+5` 이상이 실제로
+// A drop can carry a 강화 단계 (`+0` ~ `+7`) from 10층 단위로 열리고, 21층부터는 `+2`가 실제로
 // 보인다. 그런 고단계 장비는 지금 낀 장비보다 약해도 경매장에 팔 수 있는 값이므로, 자동 분해가 등급만
 // 보고 지워 버리면 손해다. 그래서 플레이어가 **`+N까지`**를 고르고, 그 단계까지(`+0 ~ +N`)만 자동
 // 분해되며 그 위는 가방에 남는다 — 기본값 `+4까지`면 `+5`부터 보관.
 //
-// 40층 이하에서는 어떤 장비도 `+0`이라 이 상한이 의미가 없다. 그 구간에서는 설정이 보이지도, 적용되지도
-// 않고 예전처럼 등급·장착품 비교만 동작한다(`inventory.ts` `AUTO_SALVAGE_PLUS_FLOOR`).
+// 20층 이하에서는 어떤 장비도 `+0`(맨 아래 두 구간)이라 이 상한이 의미가 없다. 그 구간에서는 설정이
+// 보이지도, 적용되지도 않고 예전처럼 등급·장착품 비교만 동작한다(`inventory.ts` `AUTO_SALVAGE_PLUS_FLOOR`).
 //
 // 고른 값은 등급 기준(`salvageRarity.ts`)과 같은 방식으로 기기에 남긴다 — 창을 닫거나 새로고침해도 무엇이
 // 지워질지 조용히 바뀌면 안 되기 때문이다. 세이브를 새로 시작하면 `store.ts` `clearLegacySave`가 함께 지운다.
@@ -30,7 +30,7 @@ export function salvagePlusLabel(value: number): string {
   return `+${isSalvagePlus(value) ? value : SALVAGE_PLUS_DEFAULT}까지`;
 }
 
-/** Is the filter live at this save's highest floor? 41층에 닿기 전에는 `+단계`가 붙을 수 없으므로 숨긴다. */
+/** Is the filter live at this save's highest floor? 21층에 닿기 전에는 `+단계`가 붙을 수 없으므로 숨긴다. */
 export function salvagePlusUnlocked(maxFloor: number): boolean {
   return maxFloor >= AUTO_SALVAGE_PLUS_FLOOR;
 }
