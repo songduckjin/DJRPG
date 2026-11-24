@@ -123,6 +123,34 @@ export class FieldProgress extends CombatEngine {
     this.enemies.push({ x: start.x, y: start.y, hp, maxHp: hp, boss: false, hit: 0, step: 0, moving: false, knockX: 0, knockY: 0, slow: 0 });
   }
 
+  /**
+   * 세이브는 그대로 두고 **필드의 휘발 상태만** 세이브 기준으로 다시 세운다(작업 261).
+   *
+   * 자리 비움 정산(`applyOfflineRewards`)은 `save`를 직접 고친다 — 층·처치 수·가방·금화가 바뀌므로, 화면에
+   * 남아 있던 적·드롭·쿨타임·보스 예약을 그대로 두면 정산 전 층의 몹이 새 층 위에 서거나 이미 넘긴 층
+   * 목표가 보스로 다시 뜬다. `adoptSave()`를 쓰면 안 된다 — 그것은 `this.save`의 키를 지운 뒤 인자에서
+   * 복사하므로 같은 객체를 넘기면 세이브가 통째로 비워진다(`adoptSave`의 주석).
+   *
+   * 사냥을 다시 시작하는 상태(`paused`·`attackHeld`·조작)는 건드리지 않는다 — 부르는 쪽이 정한다.
+   */
+  resetField(): void {
+    this.player = { x: 0, y: 0, facing: 0, facingSide: 1, hp: Math.min(this.save.health, totalStats(this.save).health), shield: 0, berserk: 0, berserkLevel: 1, hit: 0 };
+    this.enemies = []; this.drops = []; this.coins = []; this.effects = []; this.afterimages = [];
+    this.cooldown = Object.fromEntries(Object.keys(cooldowns).map(id => [id, 0])) as Record<Action, number>;
+    this.spawnTimer = 0;
+    this.crush = undefined; this.weaponNotice = 0; this.activeMove = { x: 0, y: 0 };
+    // 정산이 끝난 세이브는 살아 있는 상태다 — 부활 대기를 승계하지 않는다.
+    this.reviveTimer = 0;
+    this.bossPending = this.save.autoClimb && this.bossFloor() && this.save.floorKills >= killsToBoss(this.save.floor);
+    this.bossRetryAvailable = this.save.bossRetryFloor === this.save.maxFloor && this.save.maxFloor < MAX_FLOOR;
+    this.eliteKills = 0; this.elitePending = false;
+    this.crowdClock = 0; this.strikeQuota = 0;
+    this.swing = 1; this.chaseTarget = undefined; this.pursuing = false;
+    const hp = enemyMaxHp(this.save.floor, false);
+    const start = clampArenaPoint(145, -45);
+    this.enemies.push({ x: start.x, y: start.y, hp, maxHp: hp, boss: false, hit: 0, step: 0, moving: false, knockX: 0, knockY: 0, slow: 0 });
+  }
+
   /** 보스가 나오는 층인가 — **최고 도달 층에서만**이다(작업 210, 사용자 지시 `#4566`).
    *  아래층을 반복 사냥할 때는 보스가 뜨지 않고 일반·정예만 계속 나온다. */
   bossFloor(): boolean { return this.save.floor >= this.save.maxFloor; }

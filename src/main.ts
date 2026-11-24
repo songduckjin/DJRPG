@@ -7,13 +7,14 @@ import { mountWasteland } from './game/wasteland';
 import { GameView } from './game/render';
 import { clearLegacySave, parseSave, readLegacySave } from './game/store';
 import type { OfflineReward } from './game/offline';
+import { BACKGROUND_MIN_SECONDS, BACKGROUND_SAVE_FAILED_NOTICE, BACKGROUND_WORLD_BOSS_NOTICE, backgroundNeedsPopup, backgroundSettleSeconds, backgroundToast } from './game/background';
 import { wireDomainEvents } from './game/domainWiring';
 import { readAutoSalvage } from './ui/autoSalvage';
 import { readSalvagePlus } from './ui/salvagePlus';
 import { readSalvageRarity } from './ui/salvageRarity';
 import { World } from './game/world';
 import { Interface } from './ui/interface';
-import { clearToken, openLogin } from './ui/login';
+import { clearToken, openLogin, accountRequest, type Session } from './ui/login';
 import { MAINTENANCE_EVENT, MaintenanceWatch, type MaintenanceState } from './game/maintenance';
 import { showMaintenancePopup, type MaintenancePopup } from './ui/maintenance';
 import './styles/main.css';
@@ -157,9 +158,108 @@ async function start(): Promise<void> {
       if (key === '3') ui.pressSkillSlot(2);
     });
     window.addEventListener('blur', () => { world.attackHeld = false; void flush(); });
-    // 창을 내릴 때 한 번 저장하고, **다시 올리면 곧바로 다시 보낸다**(작업 251) — 숨김 상태에서 끊긴 저장이
-    // 10초 자동 저장 간격을 기다리지 않고 돌아오자마자 재연결된다.
-    document.addEventListener('visibilitychange', () => { if (document.hidden) void flush(); else void sync.flushIfDirty(); });
+    /**
+     * 자리 비움 정산(작업 261) — 탭을 내려 둔 시간을 방치와 같은 규칙으로 **한 번** 정산한다.
+     *
+     * 덕진 님 확정 기준(2026-11-24): 60초 미만은 그대로 복귀, 60~179초는 토스트 한 줄, 180초 이상이나
+     * 놓치면 아쉬운 결과(유니크·전설·레벨업·층 상승·자동 분해)는 기존 방치 정산 팝업.
+     *
+     * 한 바퀴: 숨김 진입에서 **한 번 저장**(서버 `updated_at` = 숨김 시각) → 숨김 동안 예약 저장 없음 →
+     * 복귀에서 `load` 1회로 서버 경과·revision·슬롯 확인 → `min(서버 경과, 숨김초, 12시간)`만큼
+     * `settleOfflineRewards()`로 정산·저장(서버 시각이 지금으로 이동해 같은 구간은 다시 정산되지 않는다)
+     * → 필드 재구성 → 서버가 수락한 보상만 토스트나 팝업으로.
+     *
+     * 정산 저장이 확정되지 않으면 보상은 화면에 보이지 않고, 서버는 옛 `updated_at`을 들고 있으므로
+     * 새로고침 뒤 다음 접속이 같은 구간을 **한 번** 정산한다 — 두 번 주지 않는다.
+     */
+    let hiddenAt = 0;
+    let settling = false;
+    /** 정산 중에 다시 숨겼다 돌아온 구간(ms) — 정산이 끝난 뒤 이어서 정산한다(보이는 시간을 섞지 않는다). */
+    let pendingHideMs = 0;
+    /** 숨김 시작 시각을 한 번만 기록하고, 그 순간부터 예약 저장을 멈춘다. */
+    const rememberHidden = (): void => {
+      if (!hiddenAt) hiddenAt = performance.now();
+      sync.setHidden(true);
+    };
+    async function settleBackground(measuredMs?: number): Promise<void> {
+      if (settling) return;
+      if (measuredMs === undefined && !hiddenAt) { sync.setHidden(false); void sync.flushIfDirty(); return; }
+      const hiddenMs = measuredMs ?? (performance.now() - hiddenAt);
+      hiddenAt = 0;
+      settling = true;
+      const paused = world.paused;
+      try {
+        const hiddenSeconds = Math.floor(hiddenMs / 1000);
+        if (hiddenSeconds < BACKGROUND_MIN_SECONDS) { void sync.flushIfDirty(); return; }
+        // 결과를 확인하지 못한 요청·세션 복구 중이면 정산하지 않는다 — 그 흐름이 revision을 확정한 뒤
+        // 다음 접속(또는 다음 숨김)이 그 구간을 방치 정산으로 처리한다.
+        if (sync.conflicted || sync.locked) { void sync.flushIfDirty(); return; }
+        // 월드보스는 서버 60초 시계가 계속 흘러 복귀 시 서버 결과로 도전이 마감된다 — 필드 정산을 하지 않는다.
+        if (ui.worldBossField) { ui.message(BACKGROUND_WORLD_BOSS_NOTICE); void sync.flushIfDirty(); return; }
+        // 끝없는 던전은 전투를 그대로 이어 간다(던전 시계는 서버 `startedAt` 기준이라 일시정지가 이득이 되지 않는다).
+        if (appRoot.querySelector('.dungeon-field')) { void sync.flushIfDirty(); return; }
+        world.paused = true;
+        // ⑤ 서버 경과·revision·슬롯 확인 — 8초를 넘기거나 실패해도 정산을 막지 않는다(로컬 숨김초로 진행).
+        const claim = await Promise.race([
+          accountRequest<Session>('load', {}, sync.session.token),
+          new Promise<undefined>(resolve => { setTimeout(() => resolve(undefined), 8000); }),
+        ]).catch(() => undefined);
+        if (claim && claim.characterSlot !== sync.session.characterSlot) { void sync.flushIfDirty(); return; }
+        if (claim && claim.revision !== sync.revision) {
+          // 로컬에 아직 못 보낸 진행이 있으면 서버 세이브로 덮지 않는다(덮으면 그 진행이 사라진다).
+          if (sync.unsaved) { void sync.flushIfDirty(); return; }
+          Object.assign(world.save, parseSave(claim.save, sync.session.accountId));
+          sync.revision = claim.revision;
+        }
+        const seconds = backgroundSettleSeconds(hiddenSeconds, claim?.offlineSeconds);
+        if (seconds < BACKGROUND_MIN_SECONDS) { world.resetField(); return; }
+        // 정산·저장·확정은 시작 화면·캐릭터 전환과 **같은 절차**(`offlineSettle`)를 쓴다(2026-11-24 통합):
+        // ① 정산을 세이브에 적용하고 저장 ② 결과를 모르는 실패(끊김·5xx)는 같은 `requestId`로 재전송
+        // ③ 서버가 거절(ITEM_CONFLICT·CHARACTER_CONFLICT)하면 서버 세이브로 다시 맞추고 1회 재시도
+        // ④ 그래도 실패하면 `confirmed:false` — **서버가 수락한 보상만** 화면에 보여 준다.
+        const settled = await settleOfflineRewards(sync, world.save, seconds, {
+          autoSalvage: ui.autoSalvage ? ui.salvageRarity : undefined,
+          autoSalvagePlus: ui.salvagePlus,
+        });
+        world.resetField();
+        if (!settled.confirmed) {
+          // 확정되지 않은 보상은 화면에 보여 주지 않는다(PR #358 규칙). 서버는 옛 `updated_at`을 들고
+          // 있으므로 새로고침해도 다음 접속이 같은 구간을 **한 번** 정산한다(중복 없음).
+          ui.message(settled.reason ?? BACKGROUND_SAVE_FAILED_NOTICE);
+          return;
+        }
+        // 서버 응답 세이브가 기준이다 — 가방에 실제로 남은 아이템만 담긴 정산서(offlineSettle)를 그대로 보여 준다.
+        const reward = settled.reward;
+        if (!reward) return;
+        ui.renderStatus(); ui.renderBagBadge();
+        if (backgroundNeedsPopup(seconds, reward)) ui.showOfflineReward(reward);
+        else ui.message(backgroundToast(reward));
+      } catch (error) {
+        // 정산 자체가 실패해도 사냥은 그대로 돌아간다 — 다음 저장·재접속이 진행을 보존한다.
+        console.warn('자리 비움 정산을 마치지 못했습니다.', error);
+      } finally {
+        settling = false; world.paused = paused;
+        // 정산 저장이 나갈 때까지 숨김 상태를 유지한다 — 그 사이 자동 저장이 먼저 성공하면 서버의
+        // `updated_at`이 밀려 정산분이 저장 상한(`elapsedSince`)에 잘린다. 정산 저장은 명시적인
+        // `flush()`다. 정산 중에 다시 숨겼다 돌아왔다면(아래 `pendingHideMs`) 그 구간을 이어서 정산한다.
+        sync.setHidden(!!hiddenAt || pendingHideMs > 0);
+        if (pendingHideMs > 0) { const ms = pendingHideMs; pendingHideMs = 0; void settleBackground(ms); }
+        else if (!hiddenAt) void sync.flushIfDirty();
+      }
+    }
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) {
+        rememberHidden();
+        // 숨김 진입에서 한 번만 저장한다(응답을 기다려 화면을 붙잡지 않는다).
+        void Promise.race([flush(), new Promise<boolean>(resolve => setTimeout(() => resolve(false), 3000))]);
+      } else if (settling) {
+        // 정산 중에 돌아왔다 — 지금 구간을 재 두었다가 정산이 끝나면 이어서 정산한다.
+        if (hiddenAt) { pendingHideMs = performance.now() - hiddenAt; hiddenAt = 0; }
+      } else void settleBackground();
+    });
+    // bfcache 복귀도 같은 정산 경로를 쓴다. `pagehide`는 탭을 닫는 경우에도 오므로 저장만 한다(정산 없음).
+    window.addEventListener('pagehide', () => { rememberHidden(); void flush(); });
+    window.addEventListener('pageshow', event => { if ((event as PageTransitionEvent).persisted) void settleBackground(); });
     window.addEventListener('online', () => { void sync.flushIfDirty(); });
     // 변경이 있을 때만 보낸다 — 예전에는 진행이 없어도 5초(작업 245 이전)마다 저장 요청이 나갔다.
     // 작업 245: 무료 Functions 한도 때문에 확인 간격을 10초로 늘렸다(실제 전송 간격은 `SaveSync.queueSave`).
