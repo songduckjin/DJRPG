@@ -55,8 +55,25 @@ async function start(): Promise<void> {
       autoSalvage: readAutoSalvage() ? readSalvageRarity() : undefined,
       autoSalvagePlus: readSalvagePlus(),
     });
-    const world = new World(save);
     const sync = new SaveSync(save, session);
+    // 방치 보상은 서버가 수락한 뒤에만 화면에 공개한다. 저장 충돌·응답 유실 상태에서
+    // 미확정 아이템을 먼저 보여 주면 재접속 때 다른 드롭으로 바뀐 것처럼 보인다.
+    if (legacyKey || offlineReward) {
+      sync.markDirty();
+      if (!await sync.flush()) {
+        boot.fail(sync.conflicted
+          ? '진행 상황이 다른 곳에서 변경되었습니다. 새로고침하여 최신 데이터를 불러와 주세요.'
+          : '방치 보상을 서버에 저장하지 못했습니다. 연결을 확인한 뒤 새로고침해 주세요.');
+        return;
+      }
+      if (legacyKey) { clearLegacySave(legacyKey); legacyKey = undefined; pendingMessage = '기존 진행 상황을 서버로 이전했습니다.'; }
+      if (offlineReward) {
+        const accepted = new Set(save.bag.map(item => item.id));
+        offlineReward.items = offlineReward.items.filter(item => accepted.has(item.id));
+        if (sync.lastSaveClamped.length) offlineReward.adjusted = true;
+      }
+    }
+    const world = new World(save);
     function flush(): Promise<boolean> { return sync.flush(); }
     const ui = new Interface(appRoot, world, () => { sync.queueSave(); }, session, async () => {
       try { await sync.reset(); } catch (error) { ui.message(`데이터 초기화 실패: ${String(error)}`); }
@@ -93,11 +110,6 @@ async function start(): Promise<void> {
     gameUi = ui;
     if (pendingMessage) ui.message(pendingMessage);
     if (offlineReward) ui.showOfflineReward(offlineReward);
-    // 방치 정산·기존 세이브 이전으로 세이브가 바뀌었으니 **변경 표시를 남기고** 저장한다(작업 255).
-    // `flush()`는 dirty와 무관하게 스냅샷을 보내므로 지금도 저장되지만, 표시가 없으면 이 저장이
-    // 시작 전에 건너뛰였을 때(`locked`·`pendingWarehouse` 등) `transferWarehouse`가 `dirty`를 보고
-    // flush를 생략해 **서버에 없는 보상이 응답 세이브에 덮인다**. 표시를 남기면 그 경우에도 먼저 저장한다.
-    if (legacyKey || offlineReward) { sync.markDirty(); void flush(); }
     const view = new GameView();
     let renderTotal = 0;
     await view.mount(ui.canvasHost, (loaded, total) => {

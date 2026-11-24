@@ -53,19 +53,17 @@ function harness(overrides = {}) {
 
 const clone = value => JSON.parse(JSON.stringify(value));
 
-test('캐릭터 전환은 location.reload 없이 flushIfDirty를 쓰고, 바뀐 것이 없으면 저장을 보내지 않는다(작업 228)', () => {
-  const reloadCalls = modalSource.split('\n').filter(line => line.includes('location.reload') && !line.trimStart().startsWith('//'));
-  assert.deepEqual(reloadCalls, [], '캐릭터 전환에 새로고침이 남아 있으면 안 된다');
+test('캐릭터 전환은 flushIfDirty를 쓰고, 바뀐 것이 없으면 저장을 보내지 않는다(작업 228)', () => {
   assert.match(modalSource, /sync\.flushIfDirty\(\)/, '변경이 없으면 바로 통과하는 flushIfDirty를 쓴다');
   assert.match(modalSource, /applyCharacterSwitch\(ui, result\)/, '받은 세이브로 그 자리에서 갈아탄다');
 });
 
-test('applyCharacterSwitch가 월드·세션·동기화 상태를 새 캐릭터로 바꾼다', () => {
+test('applyCharacterSwitch가 월드·세션·동기화 상태를 새 캐릭터로 바꾼다', async () => {
   const { ui, world, save, session, sync, calls } = harness();
   const next = freshSave('female', 'mage');
   next.name = '새마법사'; next.level = 12; next.floor = 6; next.gold = 300;
 
-  applyCharacterSwitch(ui, { characterSlot: 3, revision: 9, save: clone(next), characterName: '새마법사', offlineSeconds: 0 });
+  await applyCharacterSwitch(ui, { characterSlot: 3, revision: 9, save: clone(next), characterName: '새마법사', offlineSeconds: 0 });
 
   assert.equal(world.save, save, '렌더러·저장 큐가 보는 세이브 객체는 그대로다');
   assert.equal(save.name, '새마법사');
@@ -87,13 +85,13 @@ test('applyCharacterSwitch가 월드·세션·동기화 상태를 새 캐릭터�
   assert.equal(sync.marks, 0, '보상이 없으면 저장을 새로 만들지 않는다');
 });
 
-test('방치해 둔 캐릭터로 갈아타면 그 자리에서 오프라인 보상을 정산한다', () => {
+test('방치해 둔 캐릭터로 갈아타면 저장 확인 뒤 오프라인 보상을 표시한다', async () => {
   const { ui, world, save, sync, calls } = harness();
   const next = freshSave('male', 'warrior');
   next.name = '방치전사'; next.level = 9; next.floor = 5;
   const before = { level: next.level, gold: next.gold };
 
-  applyCharacterSwitch(ui, { characterSlot: 2, revision: 11, save: clone(next), offlineSeconds: 7200 });
+  await applyCharacterSwitch(ui, { characterSlot: 2, revision: 11, save: clone(next), offlineSeconds: 7200 });
 
   const offline = calls.find(call => call[0] === 'offline');
   assert(offline, '오프라인 정산 창을 띄운다');
@@ -102,6 +100,31 @@ test('방치해 둔 캐릭터로 갈아타면 그 자리에서 오프라인 보�
   assert.equal(sync.marks, 1, '정산 결과를 저장 대상으로 표시한다');
   assert.equal(sync.flushes, 1, '정산 결과를 바로 서버로 보낸다');
   assert.equal(world.save, save);
+});
+
+test('캐릭터 전환 정산창은 서버 저장 응답 전에는 열리지 않는다', async () => {
+  const { ui, sync, calls } = harness();
+  let confirmSave;
+  sync.flush = () => new Promise(resolve => { confirmSave = () => resolve(true); });
+  const next = freshSave('male', 'warrior'); next.name = '방치전사'; next.floor = 5;
+  const switching = applyCharacterSwitch(ui, { characterSlot: 2, revision: 11, save: clone(next), offlineSeconds: 7200 });
+  assert.equal(calls.some(call => call[0] === 'offline'), false);
+  confirmSave(); await switching;
+  assert.equal(calls.some(call => call[0] === 'offline'), true);
+});
+
+test('캐릭터 전환 보상 저장 실패 시 미확정 정산창을 열지 않는다', async () => {
+  const { ui, sync, calls } = harness();
+  sync.flush = async () => false;
+  const originalLocation = globalThis.location;
+  let reloads = 0;
+  globalThis.location = { reload() { reloads++; } };
+  try {
+    const next = freshSave('male', 'warrior'); next.name = '방치전사'; next.floor = 5;
+    await assert.rejects(applyCharacterSwitch(ui, { characterSlot: 2, revision: 11, save: clone(next), offlineSeconds: 7200 }), /저장을 확인하지 못했습니다/);
+    assert.equal(calls.some(call => call[0] === 'offline'), false);
+    assert.equal(reloads, 1);
+  } finally { globalThis.location = originalLocation; }
 });
 
 test('HUD는 레벨 배지 아래에 현재 캐릭터 닉네임을 보여 준다(사용자 요청 #19089)', () => {
@@ -173,7 +196,7 @@ test('전환 응답을 반영하면 이전 캐릭터의 거래 대기·저장 �
   ui.market = { sync };
   const next = freshSave('female', 'mage');
   next.name = '새마법사';
-  applyCharacterSwitch(ui, { characterSlot: 2, revision: 9, save: clone(next), offlineSeconds: 0 });
+  await applyCharacterSwitch(ui, { characterSlot: 2, revision: 9, save: clone(next), offlineSeconds: 0 });
   assert.equal(sync.pendingMarket, undefined, '옛 캐릭터의 거래 대기를 남기지 않는다');
   assert.equal(sync.pendingWarehouse, undefined, '옛 캐릭터의 창고 대기도 남기지 않는다');
   assert.equal(sync.trading, false);
@@ -185,7 +208,7 @@ test('전환 응답을 반영하면 이전 캐릭터의 거래 대기·저장 �
   ticket.ui.market = { sync: ticket.sync };
   let reset = 0;
   ticket.ui.market.resetForCharacterSwitch = () => { reset++; };
-  applyCharacterSwitch(ticket.ui, { characterSlot: 2, revision: 4, save: clone(next), offlineSeconds: 0 });
+  await applyCharacterSwitch(ticket.ui, { characterSlot: 2, revision: 4, save: clone(next), offlineSeconds: 0 });
   assert.equal(reset, 1, '거래소 등록 선택도 새 캐릭터 기준으로 초기화한다');
 });
 

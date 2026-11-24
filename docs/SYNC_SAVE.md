@@ -22,6 +22,8 @@ world/save 변경 → world.onChange → Interface.onSave → sync.queueSave() (
 → assertRevision → reconcileItems → writeSave(revision+1) → 응답 revision 반영 → onSaved
 ```
 
+- **방치 정산 확정**: 로그인과 캐릭터 전환에서 계산된 보상은 `SaveSync.flush()`의 성공 응답을 받은 뒤에만 정산창에 표시한다. 실패하면 미확정 아이템을 보여 주지 않는다. 서버가 돌려준 세이브가 화면 기준이며, 저장 중 새 변경이 생긴 경우에는 그 변경을 덮지 않고 다음 저장을 보낸다. 상한 조정이 있으면 정산창은 확정된 아이템만 보여 주고 계산 전 수치를 숨긴다.
+
 - **변경이 없으면 보내지 않는다**: `flushIfDirty`는 `dirty`일 때만 요청. 10초 점검이 저장 요청을 만들지 않게 한다.
 - **`requestId` 멱등**: 저장은 `djrpg_save_requests`, 거래는 `djrpg_market_requests`, 창고는 `djrpg_warehouse_requests`. 결과가 불확실하면 **새 ID가 아니라 같은 ID로 재확인**한다.
 
