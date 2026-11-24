@@ -1,6 +1,6 @@
 import { parseSave, type Save } from './store';
 import { accountRequest, clearToken, type Session } from '../ui/login';
-import { isNetworkOffline } from '../ui/reconnect';
+import { isNetworkOffline, NETWORK_OFFLINE } from '../ui/reconnect';
 import { apiHeaders, isOutdatedResponse, OUTDATED_MESSAGE, reloadForNewVersion } from './appVersion';
 
 const sessionErrorCodes = ['SESSION_REPLACED', 'INVALID_TOKEN', 'UNAUTHORIZED'];
@@ -43,12 +43,16 @@ export class SaveSync {
   private pendingSave?: { save: Save; revision: number; requestId: string };
   /** 마지막 저장 실패 이유 — 저장 때문에 거래가 막힐 때 진짜 원인을 함께 보여 주기 위해서다(작업 246). */
   private lastSaveError = '';
-  /** 초기 방치 정산이 실패했을 때 재시도 가능 여부와 실제 원인을 구분한다. */
+  /** 마지막 저장 실패의 서버 오류 코드·HTTP 상태 — 재시도할 수 있는 실패(끊김·5xx)인지 가른다(2026-11-24). */
   lastSaveErrorCode = '';
   lastSaveErrorStatus = 0;
-  get lastSaveFailure(): string { return this.lastSaveErrorCode
-    ? `${this.lastSaveError} (오류 코드: ${this.lastSaveErrorCode})`
-    : this.lastSaveError; }
+  /** 결과를 모르는 실패(끊김·5xx)라서 같은 `requestId`로 다시 보내면 될 상황인가. */
+  get lastSaveRetryable(): boolean { return this.lastSaveErrorCode === NETWORK_OFFLINE || this.lastSaveErrorStatus >= 500; }
+  /** 화면에 그대로 보여 줄 실패 문구 — 코드를 붙여 원인을 숨기지 않는다. */
+  get lastSaveFailure(): string {
+    if (!this.lastSaveError) return this.lastSaveErrorCode ? `저장 실패 (${this.lastSaveErrorCode})` : '';
+    return this.lastSaveErrorCode ? `${this.lastSaveError} (오류 코드: ${this.lastSaveErrorCode})` : this.lastSaveError;
+  }
   /** 직전 저장에서 서버가 조정한 필드. 방치 정산을 확정해 표시할 때 사용한다. */
   lastSaveClamped: string[] = [];
   /** 세이브에 아직 서버로 못 보낸 변경이 있는지. 변경이 없으면 flush가 네트워크를 쓰지 않는다(작업 209). */
@@ -340,6 +344,7 @@ export class SaveSync {
       if (Number.isInteger(latest.characterSlot)) this.session.characterSlot = latest.characterSlot;
       this.pendingMarket = undefined; this.pendingWarehouse = undefined; this.pendingJourney = undefined;
       this.lastSaveError = '';
+      this.lastSaveErrorCode = ''; this.lastSaveErrorStatus = 0;
       this.onSaved(); this.onStatus('저장됨');
       if (!quiet) this.onMessage('서버의 최신 진행 상황과 달라 자동으로 다시 불러왔습니다.');
       if (!this.conflicted && !this.pendingMarket && !this.pendingWarehouse) this.onPause(false);

@@ -38,7 +38,8 @@ function harness(overrides = {}) {
   world.enemies.push({ x: 0, y: 0, hp: 10, maxHp: 10, boss: false, hit: 0, step: 0, moving: false, knockX: 0, knockY: 0, slow: 0 });
   world.drops = [{ x: 0, y: 0, item: { id: 'stale', name: '옛 장비', slot: 'weapon', rarity: 'common', stats: {} } }];
   const session = { accountId: 'ACC1', loginId: 'hero', guest: false, token: 'token', characterSlot: 1, revision: 7, save, gender: 'male', job: 'warrior' };
-  const sync = { revision: 7, session, marks: 0, flushes: 0, markDirty() { this.marks++; }, flush() { this.flushes++; return Promise.resolve(true); } };
+  const sync = { revision: 7, session, marks: 0, flushes: 0, reloads: 0, lastSaveClamped: [], lastSaveErrorCode: '', lastSaveErrorStatus: 0, lastSaveFailure: '',
+    markDirty() { this.marks++; }, flush() { this.flushes++; return Promise.resolve(true); }, reloadLatest() { this.reloads++; return Promise.resolve(); } };
   const calls = [];
   const ui = {
     world, session, market: { sync }, knownItems: new Set(['old']), newItems: new Set(['old']), selected: 'old', equippedSlot: 'weapon', equippedPinned: true,
@@ -113,17 +114,23 @@ test('캐릭터 전환 정산창은 서버 저장 응답 전에는 열리지 않
   assert.equal(calls.some(call => call[0] === 'offline'), true);
 });
 
-test('캐릭터 전환 보상 저장 실패 시 미확정 정산창을 열지 않는다', async () => {
-  const { ui, sync, calls } = harness();
+test('캐릭터 전환 보상 저장 실패 시 미확정 정산창을 열지 않고 화면에 이유를 남긴다', async () => {
+  // 예전에는 `location.reload()`로 떨어져, 서버가 같은 이유로 계속 거절하면 재접속해도 같은 화면에서
+  // 같은 실패를 반복했다(2026-11-24 관우). 이제는 서버 세이브로 다시 맞추고 보상만 버린 뒤 화면에 남는다.
+  const messages = [];
+  const { ui, sync, calls } = harness({ message: text => messages.push(text) });
   sync.flush = async () => false;
+  sync.lastSaveErrorCode = 'INVALID_SAVE'; sync.lastSaveErrorStatus = 400;
+  sync.lastSaveFailure = '가방이 40칸까지입니다. (오류 코드: INVALID_SAVE)';
   const originalLocation = globalThis.location;
   let reloads = 0;
   globalThis.location = { reload() { reloads++; } };
   try {
     const next = freshSave('male', 'warrior'); next.name = '방치전사'; next.floor = 5;
-    await assert.rejects(applyCharacterSwitch(ui, { characterSlot: 2, revision: 11, save: clone(next), offlineSeconds: 7200 }), /저장을 확인하지 못했습니다/);
-    assert.equal(calls.some(call => call[0] === 'offline'), false);
-    assert.equal(reloads, 1);
+    await applyCharacterSwitch(ui, { characterSlot: 2, revision: 11, save: clone(next), offlineSeconds: 7200 });
+    assert.equal(calls.some(call => call[0] === 'offline'), false, '미확정 보상은 보여 주지 않는다');
+    assert.equal(reloads, 0, '새로고침으로 떨어지지 않는다');
+    assert(messages.some(text => /INVALID_SAVE/.test(text)), `실제 서버 오류를 보여 준다: ${messages.join(' / ')}`);
   } finally { globalThis.location = originalLocation; }
 });
 

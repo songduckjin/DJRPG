@@ -138,8 +138,8 @@ async function accountHandler(request, { env = runtimeEnv(), createDbClient, leg
         await db.execute({ sql: 'UPDATE djrpg_accounts SET password_hash=? WHERE id=? AND password_hash=?', args: [upgraded, row.id, row.password_hash] });
       }
       const latest = await account(db, row.id);
-      // 비밀번호 로그인도 토큰 복구(load)와 같은 소유권 복구를 거친다.
-      // 그렇지 않으면 오래된 유령 아이템을 받은 직후 방치 보상 save가 409로 막힌다.
+      // 비밀번호 로그인도 `load`처럼 아이템 소유 기록을 먼저 맞춘다(2026-11-24). 그렇지 않으면 매핑이 빠진
+      // 부캐릭 세이브를 그대로 받은 클라이언트가 방치 보상을 저장하는 첫 요청에서 409로 막힌다.
       const save = await healStaleLoadItems(db, latest);
       const sid = await assignSession(db, row.id);
       return res.status(200).json({ revision: latest.revision, accountId: row.id, loginId: row.id, gender: save.gender, job: jobOf(save.job), guest: false, token: tokenFor(row.id, env, sid), save, characterSlot: latest.slot, needsSetup: save.needsSetup === true, offlineSeconds: await pendingOfflineSeconds(db, row.id, latest.slot, latest.character_updated_at), ...(isUncreated(save) ? { needsCharacter: true } : {}) });
@@ -247,7 +247,9 @@ async function accountHandler(request, { env = runtimeEnv(), createDbClient, leg
         } else {
           const exists = (await tx.execute({ sql: 'SELECT slot,updated_at,save_json FROM djrpg_characters WHERE account_id=? AND slot=?', args: [id, slot] })).rows[0];
           if (!exists || uncreatedIn(exists.save_json)) fail(404, 'EMPTY_SLOT', '빈 슬롯입니다. 캐릭터를 먼저 생성하세요.');
-          characterSave = JSON.parse(exists.save_json);
+          // 전환도 `load`·`login`과 같은 소유권 복구를 거친다(2026-11-24) — 매핑이 빠진 부캐릭 세이브를 그대로
+          // 내려보내면 전환 직후 방치 보상 저장이 `409 ITEM_CONFLICT`가 되고, 화면은 접속 불가로 남는다.
+          characterSave = await healStaleLoadItems(tx, { id, slot, save: JSON.parse(exists.save_json), character_json: exists.save_json });
           switchedAt = String(exists.updated_at);
           if (slot !== latest.slot) {
             const entitlement = (await tx.execute({ sql: "SELECT expires_at FROM djrpg_shop_entitlements WHERE account_id=? AND entitlement_key='all_idle_30d'", args: [id] })).rows[0];

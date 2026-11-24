@@ -27,6 +27,7 @@
 | 다이아 잔액·상품·결제 승인·슬롯 구매 | `docs/SHOP_ECONOMY.md` |
 | 로그인·토큰 만료·다른 기기 로그인·캐릭터 생성/삭제·점검 팝업 | `docs/AUTH_CHARACTER.md` |
 | 저장이 안 됨·`SAVE_CONFLICT`·`ITEM_CONFLICT`·"게임에 접속 중입니다…"·창 내렸다 복귀 | `docs/SYNC_SAVE.md` |
+| 부캐릭(2번 이상)에서 방치 보상 저장 실패·접속 불가·가방이 비어 보임·"아이템 정보가 서버 기록과 다릅니다" | `docs/SYNC_SAVE.md` |
 | 캐릭터가 안 보임·코스튬 폴백·투구/갑옷/무기 외형·발광 | `docs/COSTUME_SYSTEM.md` |
 | 그림을 바꿨는데 화면이 그대로(캐시) | `docs/COSTUME_SYSTEM.md` + `PILOT_ASSET_VERSION`/`?v=` |
 | 3D에서 2.5D 셀을 다시 뽑아야 함 | `docs/BLENDER_25D_PIPELINE.md` |
