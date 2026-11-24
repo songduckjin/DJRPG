@@ -16,7 +16,7 @@ import type { Interface } from './interface';
 const shortNames: Record<SkillId, string> = {
   slash2: '이단참', spin: '용오름', crushing: '크러싱', slam: '스탬프', warcry: '레이지', power: '파워', destroy: '충격파', hell: '회전참격',
   doubleShot: '더블샷', multiShot: '멀티샷', pierceShot: '관통', iceArrow: '빙결', hawkEye: '호크아이', snipe: '저격', stormVolley: '연사', arrowRain: '화살비',
-  fireBolt: '파이어', iceBolt: '아이스', chainLightning: '체인', manaBurst: '마력폭발', frostNova: '서리노바', arcaneShield: '아케인', meteorStrike: '메테오', arcaneOverlord: '오버로드'
+  fireBolt: '파이어', iceBolt: '아이스', chainLightning: '체인', manaBurst: '마력폭발', frostNova: '서리노바', arcaneShield: '아케인', meteorStrike: '메테오', arcaneOverlord: '워터캐논'
 };
 /** 평타 이름 — 직업마다 다른 무기를 쓴다. */
 export function basicAttackName(job: Job): string { return job === 'archer' ? '활 사격' : job === 'mage' ? '마법탄' : '대검 베기'; }

@@ -4,8 +4,8 @@ import type { CombatEngine } from '../combat/engine';
 
 const rarityColors: Record<Rarity, number> = { common: 0x9ca3af, magic: 0x60a5fa, rare: 0xfacc15, epic: 0xc084fc, unique: 0xfb923c, legendary: 0xf87171 };
 const slashStrength: Record<Rarity, number> = { common: 0, magic: 1, rare: 2, epic: 3, unique: 4, legendary: 5 };
-import { dragonOrbitFactor, dragonRise, iceBoltProfile, slash2SecondHit } from '../skills';
-import { destroyTravelProgress, projectedAreaRadii, skillArea } from '../battle/skillAreas';
+import { dragonOrbitFactor, dragonRise, slash2SecondHit } from '../skills';
+import { METEOR_IMPACT_PROGRESS, destroyTravelProgress, projectedAreaRadii, skillArea } from '../battle/skillAreas';
 import type { Effect } from '../world';
 import type { Art, GameView } from '../render';
 
@@ -80,6 +80,10 @@ export function drawSkillVfx(this: GameView, world: CombatEngine, effect: Effect
     if (effect.kind === 'chainArc') { drawChainArc.call(this, effect, x, y, t); return true; }
     if (effect.kind === 'iceBurst') { drawIceBurst.call(this, effect, x, y, t); return true; }
     if (effect.kind === 'iceOrb') { drawIceOrb.call(this, effect, x, y, t); return true; }
+    if (effect.kind === 'iceShard') { drawIceShard.call(this, effect, x, y, t); return true; }
+    if (effect.kind === 'frostStun') { drawFrostStun.call(this, effect, x, y, t); return true; }
+    if (effect.kind === 'manaShield' || effect.kind === 'manaShieldHit') { drawManaShield.call(this, effect, x, y, t); return true; }
+    if (effect.kind === 'waterCannon') { drawWaterCannon.call(this, effect, x, y, t, time); return true; }
     if (effect.kind === 'snipeMark') {
       const cy = y - 46, radius = 24 - t * 5, alpha = Math.min(1, (1 - t) * 3);
       this.glow.circle(x, cy, radius + 5).stroke({ color: 0xff2929, width: 5, alpha: .2 * alpha });
@@ -442,6 +446,76 @@ export function drawMagicBolt(this: GameView, effect: Effect, x: number, y: numb
 export function drawBurst(this: GameView, effect: Effect, x: number, y: number, t: number, time: number): void {
     const color = effect.variant === 'meteor' ? 0xffa04a : 0x9ab8ff;
     const { x: radius } = projectedAreaRadii(effect.radius ?? skillArea(effect.variant === 'meteor' ? 'meteorStrike' : 'manaBurst', effect.level ?? 1).radius!);
+    if (effect.source === 'meteorStrike') {
+      const impactAt = METEOR_IMPACT_PROGRESS;
+      if (t < impactAt) {
+        const fall = t / impactAt;
+        this.ground.ellipse(x, y, radius * (.35 + fall * .65), radius * (.35 + fall * .65) * .5)
+          .fill({ color: 0xff8b36, alpha: .05 + fall * .1 });
+        this.glow.ellipse(x, y - 9, radius * fall, radius * fall * .5)
+          .fill({ color: 0xff6425, alpha: .07 + fall * .12 });
+        let sprites = this.vfxSprites.get(effect);
+        if (!sprites) {
+          const meteor = new Sprite(this.textures.fxMageMeteor);
+          meteor.anchor.set(.5, .94);
+          const dust = new Sprite(this.textures.fxMageMeteorDust);
+          dust.anchor.set(.5, .87);
+          dust.alpha = 0;
+          this.skillVfx.addChild(dust, meteor);
+          sprites = [meteor, dust]; this.vfxSprites.set(effect, sprites);
+        }
+        const meteor = sprites[0];
+        // 화면 왼쪽 위에서 착탄점으로 대각선 이동하며 불꽃 꼬리도 같은 방향을 향한다.
+        meteor.position.set(x - (1 - fall) * 170, y - 12 - (1 - fall) * 330);
+        meteor.rotation = -Math.atan2(170, 330);
+        meteor.scale.set((130 * (effect.radius ?? 110) / 110) / meteor.texture.width);
+        meteor.alpha = Math.min(1, fall * 7);
+      } else {
+        const sprites = this.vfxSprites.get(effect);
+        const fade = Math.min(1, (effect.duration - effect.age) / .22);
+        const impactAge = effect.age - effect.duration * impactAt;
+        const collapse = Math.min(1, impactAge / .12);
+        if (sprites) {
+          const meteor = sprites[0];
+          const size = (130 * (effect.radius ?? 110) / 110) / meteor.texture.width;
+          meteor.position.set(x, y - 12 + collapse * 12);
+          meteor.scale.set(size * (1 + collapse * .24), size * (1 - collapse * .58));
+          meteor.alpha = Math.max(0, 1 - collapse * collapse);
+          const dust = sprites[1];
+          const bloom = Math.min(1, impactAge / .3);
+          dust.position.set(x, y + 4 - bloom * 11);
+          dust.scale.set((45 + bloom * radius * 1.8) / dust.texture.width,
+            (28 + bloom * radius * .63) / dust.texture.height);
+          dust.alpha = Math.min(1, impactAge * 17) * Math.max(0, 1 - impactAge / .53) * fade * .86;
+        }
+        const wave = Math.min(1, impactAge / .43);
+        const spread = 1 - Math.pow(1 - wave, 2.5);
+        const opacity = (1 - wave) * fade;
+        // 착탄점을 따라 흙먼지가 눌렸다가 지면 위로 불규칙한 파동이 넓게 퍼진다.
+        this.ground.ellipse(x, y, radius * (.15 + spread * .85), radius * (.08 + spread * .42))
+          .fill({ color: 0x42372d, alpha: .25 * opacity });
+        const contact = Math.max(0, 1 - impactAge / .075);
+        this.ground.ellipse(x, y, radius * (.12 + spread * .2), radius * (.06 + spread * .1))
+          .fill({ color: 0xf3d4a9, alpha: .55 * contact });
+        for (let layer = 0; layer < (reducedMotion() ? 1 : 2); layer++) {
+          const p = Math.max(0, Math.min(1, (impactAge - layer * .055) / .43));
+          if (p === 0) continue;
+          const reach = radius * (.08 + (1 - Math.pow(1 - p, 2.5)) * .92);
+          const alpha = Math.sin(Math.PI * p) * fade * (layer === 0 ? .38 : .19);
+          for (let step = 0; step <= 48; step++) {
+            const angle = step * Math.PI * 2 / 48;
+            const ripple = 1 + Math.sin(angle * 5 + time * 3) * .045
+              + Math.sin(angle * 9 - time * 2) * .025;
+            const px = x + Math.cos(angle) * reach * ripple;
+            const py = y + Math.sin(angle) * reach * .5 * ripple;
+            if (step === 0) this.ground.moveTo(px, py); else this.ground.lineTo(px, py);
+          }
+          this.ground.closePath().stroke({ color: 0xc6a07a,
+            width: (18 - p * 8) * (effect.radius ?? 110) / 110, alpha: alpha * .55 });
+        }
+      }
+      return;
+    }
     if (effect.source === 'manaBurst') {
       const charge = Math.min(1, t * 2), inner = radius * .4;
       if (t < .5) {
@@ -494,6 +568,22 @@ export function drawBurst(this: GameView, effect: Effect, x: number, y: number, 
 
 /** 프로스트 노바·아르카나 오버로드 — 발밑에서 파동이 퍼진다(작업 198). */
 export function drawNova(this: GameView, effect: Effect, x: number, y: number, t: number, time: number): void {
+    if (effect.source === 'frostNova') {
+      const radius = projectedAreaRadii(effect.radius ?? skillArea('frostNova', effect.level ?? 1).radius!).x;
+      const spread = Math.min(1, t * 2.5), fade = Math.min(1, (1 - t) * 5);
+      this.ground.ellipse(x, y, radius * spread, radius * spread * .5)
+        .stroke({ color: 0xc2f3ff, width: 3.5 - spread * 1.5, alpha: .8 * (1 - spread) * fade });
+      this.glow.ellipse(x, y - 34, 39, 47).fill({ color: 0x6dcaff, alpha: .13 * fade });
+      this.effects.ellipse(x, y - 34, 38, 46).stroke({ color: 0xe5fbff, width: 2.1, alpha: .56 * fade });
+      this.effects.ellipse(x, y - 34, 33, 40).stroke({ color: 0x70c7ed, width: 1, alpha: .35 * fade });
+      for (let index = 0; index < 8; index++) {
+        const angle = index * Math.PI / 4 + time * .35;
+        const px = x + Math.cos(angle) * 38, py = y - 34 + Math.sin(angle) * 46;
+        this.effects.moveTo(px - 4, py).lineTo(px, py - 7).lineTo(px + 4, py).lineTo(px, py + 5)
+          .closePath().fill({ color: 0xbdefff, alpha: .48 * fade });
+      }
+      return;
+    }
     const color = effect.variant === 'frost' ? 0xbfe6ff : 0xb79bff;
     const { x: radius } = projectedAreaRadii(effect.radius ?? skillArea(effect.variant === 'frost' ? 'frostNova' : 'arcaneOverlord', effect.level ?? 1).radius!);
     this.ground.ellipse(x, y, radius, radius * .5).stroke({ color, width: 2, alpha: .22 * (1 - t) });
@@ -512,16 +602,99 @@ export function drawNova(this: GameView, effect: Effect, x: number, y: number, t
     }
   }
 
+/** 넉백이 끝난 뒤 얼어붙은 적의 머리 위에 남는 작은 얼음 결계. */
+export function drawFrostStun(this: GameView, effect: Effect, x: number, y: number, t: number): void {
+    if (effect.age < (effect.launch ?? 0)) return;
+    const alpha = Math.min(1, (1 - t) * 5), cy = y - 58;
+    this.glow.ellipse(x, cy, 17, 8).fill({ color: 0x8bdcff, alpha: .15 * alpha });
+    this.effects.ellipse(x, cy, 14, 6).stroke({ color: 0xc7f3ff, width: 1.6, alpha: .7 * alpha });
+    for (let index = 0; index < 4; index++) {
+      const angle = index * Math.PI / 2;
+      const px = x + Math.cos(angle) * 12, py = cy + Math.sin(angle) * 6;
+      this.effects.moveTo(px, py - 4).lineTo(px + 3, py).lineTo(px, py + 3).lineTo(px - 3, py)
+        .closePath().fill({ color: 0xe9fcff, alpha: .75 * alpha });
+    }
+  }
+
 /** 아케인 실드 — 몸을 감싸는 비전 보호막(작업 198). */
 export function drawWard(this: GameView, _effect: Effect, x: number, y: number, t: number, time: number): void {
-    const color = 0x9ab8ff;
-    const radius = 30 + t * 16;
-    this.glow.circle(x, y - 34, radius).fill({ color, alpha: .12 * (1 - t) });
-    this.effects.circle(x, y - 34, radius).stroke({ color, width: 2, alpha: .75 * (1 - t) });
+    const fade = Math.min(1, _effect.age * 5, (1 - t) * 7);
+    // 발밑으로 내려오는 타원 빛을 없애고 보호막을 상체에만 둔다.
+    const cy = y - 48, rx = 39, ry = 38, pulse = .85 + Math.sin(time * 4) * .15;
+    this.glow.ellipse(x, cy, rx + 7, ry + 7).fill({ color: 0x7c6ce2, alpha: .09 * fade });
+    this.effects.ellipse(x, cy, rx, ry).fill({ color: 0x8f85e9, alpha: .085 * fade });
+    this.effects.ellipse(x, cy, rx, ry).stroke({ color: 0xbab2ff, width: 2.3, alpha: .65 * pulse * fade });
     for (let index = 0; index < 6; index++) {
-      const angle = index * Math.PI / 3 + time * .8;
-      const px = x + Math.cos(angle) * radius * .9, py = y - 34 + Math.sin(angle) * radius * .62;
-      this.effects.circle(px, py, 2.4).fill({ color: 0xffffff, alpha: .6 * (1 - t) });
+      const angle = index * Math.PI / 3 + time * .28;
+      const px = x + Math.cos(angle) * rx, py = cy + Math.sin(angle) * ry;
+      const next = angle + Math.PI / 3;
+      this.effects.moveTo(px, py).lineTo(x + Math.cos(next) * rx, cy + Math.sin(next) * ry)
+        .stroke({ color: 0xe0d9ff, width: 1, alpha: .32 * fade });
+      this.effects.moveTo(px, py - 6).lineTo(px + 4, py).lineTo(px, py + 6).lineTo(px - 4, py)
+        .closePath().fill({ color: 0xf7f2ff, alpha: .56 * fade });
+    }
+  }
+
+/** 마력 폭발이 만든 흡수막 — 남은 실드가 있을 때만 캐릭터를 따라다닌다. */
+export function drawManaShield(this: GameView, effect: Effect, x: number, y: number, t: number): void {
+    const hit = effect.kind === 'manaShieldHit';
+    const fade = hit ? 1 - t : Math.min(1, effect.age * 6, (1 - t) * 7);
+    const rx = hit ? 48 + t * 9 : 44, ry = hit ? 53 + t * 7 : 51, cy = y - 37;
+    this.glow.ellipse(x, cy, rx + 8, ry + 8).fill({ color: 0xb770f0, alpha: (hit ? .28 : .1) * fade });
+    this.effects.ellipse(x, cy, rx, ry).stroke({ color: hit ? 0xffe0ff : 0xdca4ff, width: hit ? 3.5 : 1.8, alpha: .7 * fade });
+    if (!hit) for (let index = 0; index < 4; index++) {
+      const angle = Math.PI / 4 + index * Math.PI / 2;
+      const px = x + Math.cos(angle) * rx, py = cy + Math.sin(angle) * ry;
+      this.effects.moveTo(px, py - 6).lineTo(px + 5, py).lineTo(px, py + 6).lineTo(px - 5, py)
+        .closePath().fill({ color: 0xf6dbff, alpha: .48 * fade });
+    }
+  }
+
+/** 손끝에서 짧은 수류 질감이 연속해서 전진하도록 한다. */
+export function drawWaterCannon(this: GameView, effect: Effect, x: number, y: number, _t: number, time: number): void {
+    const dx = (effect.tx ?? effect.x) - effect.x, dy = (effect.ty ?? effect.y) - effect.y;
+    const screenDx = (dx - dy) * .86;
+    const sx = x + (screenDx >= 0 ? 22 : -22), sy = y - 54;
+    const ex = x + screenDx, ey = y + (dx + dy) * .43 - 54;
+    const growth = Math.min(1, effect.age / .15);
+    const fade = Math.min(1, effect.age * 9, (effect.duration - effect.age) * 7);
+    const vx = (ex - sx) * growth, vy = (ey - sy) * growth;
+    const length = Math.hypot(vx, vy) || 1, nx = -vy / length, ny = vx / length;
+    const widthScale = (effect.radius ?? 42) / 42;
+    const point = (u: number, offset: number): [number, number] => [sx + vx * u + nx * offset, sy + vy * u + ny * offset];
+    // 짧은 투명 수류 조각을 실제 물 흐름처럼 전진시켜 반복되는 한 장의 그림을 피한다.
+    let sprites = this.vfxSprites.get(effect);
+    if (!sprites) {
+      sprites = Array.from({ length: reducedMotion() ? 6 : 11 }, () => {
+        const sprite = new Sprite(this.textures.fxMageWaterFlow);
+        sprite.anchor.set(.08, .5);
+        this.skillVfx.addChild(sprite);
+        return sprite;
+      });
+      this.vfxSprites.set(effect, sprites);
+    }
+    const rotation = Math.atan2(vy, vx);
+    for (let index = 0; index < sprites.length; index++) {
+      const sprite = sprites[index];
+      const phase = (time * 1.2 + index / sprites.length) % 1;
+      const u = (.015 + phase * .985) * growth;
+      const wobble = Math.sin(time * 14 + index * 2.7) * 3.5 * widthScale;
+      sprite.position.set(...point(u, wobble));
+      sprite.rotation = rotation + Math.sin(time * 9 + index) * .035;
+      sprite.scale.set((115 + index % 3 * 13) * widthScale / sprite.texture.width,
+        (54 + index % 4 * 5) * widthScale / sprite.texture.height);
+      const textured = Math.max(0, Math.min(1, (u - .005) / .05));
+      sprite.alpha = Math.min(1, phase * 7, (1 - phase) * 8) * textured * fade * .62;
+    }
+    const ux = vx / length, uy = vy / length;
+    for (let spray = -2; spray <= 2; spray++) {
+      const from = point(.92, spray * 5 * widthScale);
+      this.effects.moveTo(...from)
+        .bezierCurveTo(sx + vx + nx * spray * 9, sy + vy + ny * spray * 9,
+          sx + vx + ux * 15 + nx * spray * 14, sy + vy + uy * 15 + ny * spray * 14,
+          sx + vx + ux * (22 + Math.sin(time * 17 + spray) * 4) + nx * spray * 18,
+          sy + vy + uy * (22 + Math.sin(time * 17 + spray) * 4) + ny * spray * 18)
+        .stroke({ color: 0xa1eaf9, width: 2.5, alpha: .56 * fade });
     }
   }
 
@@ -556,10 +729,7 @@ export function drawArrowRain(this: GameView, effect: Effect, x: number, y: numb
 
 /** 아이스 볼트 — 전진하는 구슬에서 레벨별 눈 결정을 사방으로 내보낸다. */
 export function drawIceOrb(this: GameView, effect: Effect, x: number, y: number, t: number): void {
-    const profile = iceBoltProfile(effect.level ?? 1);
-    const radius = projectedAreaRadii(effect.radius ?? skillArea('iceBolt', 1).projectileRadius!);
     const cy = y - 38, fade = Math.min(1, (1 - t) * 5);
-    this.ground.ellipse(x, y, radius.x, radius.y).stroke({ color: 0xa9eaff, width: 1.6, alpha: .18 * fade });
     let sprites = this.vfxSprites.get(effect);
     if (!sprites) {
       const orb = new Sprite(this.textures.fxMageIceOrb);
@@ -573,23 +743,24 @@ export function drawIceOrb(this: GameView, effect: Effect, x: number, y: number,
     orb.scale.set((80 - t * 11) / orb.texture.width);
     orb.alpha = fade;
     this.glow.circle(x, cy, 23 + Math.sin(effect.age * 9) * 2).fill({ color: 0x8cdcff, alpha: .15 * fade });
-    const count = reducedMotion() ? Math.min(5, profile.flakeCount) : profile.flakeCount;
-    for (let index = 0; index < count; index++) {
-      const cycle = t * 2.4 - index / count * 1.4;
-      if (cycle < 0) continue;
-      const travel = cycle % 1, angle = index * 2.39996;
-      const distance = 8 + radius.x * travel;
-      const fx = x + Math.cos(angle) * distance;
-      const fy = cy + Math.sin(angle) * distance * .72;
-      const size = index % 4 === 0 ? 5 : 3.5;
-      const alpha = .92 * (1 - travel) * fade;
-      for (let arm = 0; arm < 6; arm++) {
-        const ray = arm * Math.PI / 3;
-        this.effects.moveTo(fx, fy).lineTo(fx + Math.cos(ray) * size, fy + Math.sin(ray) * size);
-      }
-      this.effects.stroke({ color: index % 3 === 0 ? 0xf4fdff : 0x9adfff, width: 1.2, alpha });
-      if (index % 4 === 0) this.glow.circle(fx, fy, size * 1.8).fill({ color: 0xafeaff, alpha: .16 * alpha });
-    }
+  }
+
+/** 구슬에서 떨어져 나온 고드름은 반경 제한 없이 각자 직선으로 날아간다. */
+export function drawIceShard(this: GameView, effect: Effect, x: number, y: number, t: number): void {
+    const angle = Math.atan2((Math.cos(effect.angle) + Math.sin(effect.angle)) * .43,
+      (Math.cos(effect.angle) - Math.sin(effect.angle)) * .86);
+    const ux = Math.cos(angle), uy = Math.sin(angle), nx = -uy, ny = ux;
+    const cy = y - 38, alpha = Math.min(1, (1 - t) * 5);
+    this.glow.moveTo(x - ux * 18, cy - uy * 18).lineTo(x, cy)
+      .stroke({ color: 0x79cfff, width: 5, alpha: .19 * alpha });
+    this.effects.moveTo(x + ux * 13, cy + uy * 13)
+      .lineTo(x + nx * 3, cy + ny * 3)
+      .lineTo(x - ux * 9, cy - uy * 9)
+      .lineTo(x - nx * 3, cy - ny * 3)
+      .closePath().fill({ color: 0x75caef, alpha: .93 * alpha });
+    this.effects.moveTo(x + ux * 12, cy + uy * 12)
+      .lineTo(x - ux * 7, cy - uy * 7)
+      .stroke({ color: 0xf1fdff, width: 1.4, alpha });
   }
 
 /** 체인 라이트닝 — 각 전이 대상 사이를 별도의 짧은 번개가 순서대로 잇는다. */

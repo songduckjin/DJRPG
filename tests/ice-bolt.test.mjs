@@ -27,7 +27,7 @@ test('아이스 볼트는 레벨이 오를수록 약한 피해·구슬 지속시
   }
 });
 
-test('얼음 구슬 한 발은 시전자에서 전진하며 눈싸라기로 둔화하고 적에 닿으면 사라진다', () => {
+test('얼음 구슬은 적을 맞힌 뒤에도 전진하고 지속시간 동안 고드름을 내보낸다', () => {
   const save = freshSave('female', 'mage');
   save.learned = ['iceBolt']; save.quickSlots = ['iceBolt', null, null];
   save.skillLevels = { iceBolt: 10 };
@@ -46,11 +46,15 @@ test('얼음 구슬 한 발은 시전자에서 전진하며 눈싸라기로 둔�
   world.update(1 / 60);
   assert(orbs[0].x > world.player.x, '발사 방향으로 전진한다');
   for (let step = 0; step < 60; step++) world.update(1 / 60);
-  assert(Math.abs(before - target.hp - totalStats(save).attack * iceBoltProfile(10).power) < 1e-6);
-  assert.equal(nearby.hp, nearby.maxHp, '눈싸라기는 주변 적에게 추가 피해를 주지 않는다');
+  assert(before - target.hp >= totalStats(save).attack * iceBoltProfile(10).power,
+    '구슬의 약한 직접 피해와 고드름 피해가 들어간다');
   assert(nearby.slow > 0 && nearby.slowScale === .6, '가까운 적은 둔화된다');
-  assert.equal(distant.slow, 0, '범위 밖 적은 둔화되지 않는다');
-  assert.equal(world.effects.some(effect => effect.kind === 'iceOrb'), false, '적에 닿으면 구슬이 소멸한다');
+  assert(distant.slow > 0, '구슬 반경 밖 적도 고드름이 닿으면 둔화된다');
+  assert(world.effects.includes(orbs[0]), '적중해도 구슬이 남는다');
+  assert(orbs[0].x > target.x, '적을 지나 계속 전진한다');
+  assert(world.effects.some(effect => effect.kind === 'iceShard'), '구슬에서 고드름이 나온다');
+  for (let step = 0; step < 70; step++) world.update(1 / 60);
+  assert.equal(world.effects.includes(orbs[0]), false, '구슬은 지속시간이 끝나야 사라진다');
 });
 
 test('적이 없으면 눈싸라기와 함께 사거리 끝까지 지속시간 동안 전진한다', () => {
@@ -68,4 +72,18 @@ test('적이 없으면 눈싸라기와 함께 사거리 끝까지 지속시간 �
   assert(Math.abs((orb.x - start.x) / (end.x - start.x) - orb.age / orb.duration) < 1e-9);
   for (let step = 0; step < 65; step++) world.update(1 / 60);
   assert.equal(world.effects.includes(orb), false, '시간이 끝나면 사라진다');
+});
+
+test('고드름은 구슬의 52px 둔화 반경을 넘어 날아가 먼 적도 맞힌다', () => {
+  const save = freshSave('male', 'mage');
+  save.learned = ['iceBolt']; save.quickSlots = ['iceBolt', null, null];
+  const world = new World(save); world.spawnTimer = 999; world.enemies = []; world.critRoll = () => 1;
+  world.action('iceBolt');
+  world.save.quickSlots = [null, null, null]; world.cooldown.attack = Number.POSITIVE_INFINITY;
+  const far = enemyAt(world, world.player.x - 200, world.player.y);
+  for (let step = 0; step < 70; step++) world.update(1 / 60);
+  assert(far.hp < far.maxHp, '고드름이 구슬 사거리 밖의 적에게 약한 피해를 준다');
+  assert(far.slow > 0, '고드름 적중도 둔화를 건다');
+  assert(world.effects.some(effect => effect.kind === 'iceShard' && Math.hypot(effect.x - world.player.x, effect.y - world.player.y) > 100),
+    '고드름은 정해진 폭발 반경에서 사라지지 않는다');
 });

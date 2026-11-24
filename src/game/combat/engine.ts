@@ -15,13 +15,13 @@
  */
 
 import { random } from '../rng';
-import { chainLightningCount, dragonOrbitFactor, FIRE_BOLT_TOTAL_POWER, fireBoltCount, iceBoltProfile, jobOrDefault, manaBurstShield, skillDamageScale, skillDuration, skillRange, skills, slash2Hits, slash2SwingSeconds, SKILL_HIT_POWER, type Job, type SkillId } from '../skills';
+import { chainLightningCount, dragonOrbitFactor, FIRE_BOLT_TOTAL_POWER, fireBoltCount, frostNovaStun, iceBoltProfile, jobOrDefault, manaBurstShield, skillDamageScale, skillDuration, skillRange, skills, slash2Hits, slash2SwingSeconds, SKILL_HIT_POWER, type Job, type SkillId } from '../skills';
 import { skillLevel, totalStats, type Save } from '../store';
 import { EXTRA_LIFESTEAL_HIT_CAP, EXTRA_LIFESTEAL_SECOND_CAP, EXTRA_REGEN_SECONDS, effectiveExtraOptions } from '../extraOptions';
 import type { Action, ArrowVariant, Coin, Drop, Effect, Enemy, HeroAfterimage } from '../battle/types';
 import { CRIT_CHANCE_CAP, ENEMY_ATTACK_RANGE, ENEMY_STOP_RANGE, ENEMY_STRIKE_SECONDS, WARRIOR_ATTACK_RANGE, archerAttackRange, archerStopRange, attackInterval, basicAttackPower, berserkAttackScale, berserkSpeedScale, critDamageScale, enemyHitDamage, enemyMoveSpeed, mageAttackRange, mageStopRange, swarmCount } from '../battle/formulas';
 import { aimPoint as aimPointTo, fireBoltSpots, nearestEnemy, targetsInArc, targetsInForwardBox } from '../battle/targeting';
-import { CHAIN_LIGHTNING_JUMP_RADIUS, destroyTravelProgress, iceArrowSlow, multiShotPattern, skillArea } from '../battle/skillAreas';
+import { CHAIN_LIGHTNING_JUMP_RADIUS, ICE_BOLT_SHARD_LIFETIME, ICE_BOLT_SHARD_SPEED, METEOR_IMPACT_PROGRESS, WATER_CANNON_TICK_SECONDS, destroyTravelProgress, iceArrowSlow, insideWaterCannon, multiShotPattern, skillArea } from '../battle/skillAreas';
 import { recordPlaySeconds } from '../progress';
 import { isPatchBuffActive } from '../patchBuff';
 import { clampArenaPoint, clampFieldPoint, clampKnockbackPoint } from './bounds';
@@ -69,7 +69,7 @@ export { fireBoltCount } from '../skills'; // 기존 `world.ts` re-export 경로
 export function fireBoltScale(level: number): number { return 1 + (Math.max(1, Math.min(10, Math.floor(Number.isFinite(level) ? level : 1))) - 1) * .05; }
 
 export class CombatEngine {
-  player = { x: 0, y: 0, facing: 0, facingSide: 1, hp: 100, shield: 0, berserk: 0, berserkLevel: 1, hit: 0 };
+  player = { x: 0, y: 0, facing: 0, facingSide: 1, hp: 100, shield: 0, shieldDuration: 0, berserk: 0, berserkLevel: 1, hit: 0 };
   /** 지금 피격 창(0.85초)에서 아직 때릴 수 있는 몹 수 — 2~3마리 동시 타격(밸런스 v2 군집). */
   protected strikeQuota = 0;
   /** 피흡 1초 창의 누적 회복량 — 초당 상한(최대 체력의 2.5%)을 지키는 데 쓴다. */
@@ -302,7 +302,8 @@ export class CombatEngine {
       this.effects.push({ x: p.x, y: p.y, fromX: p.x, fromY: p.y,
         tx: p.x + Math.cos(angle) * range, ty: p.y + Math.sin(angle) * range,
         kind: 'iceOrb', age: 0, duration: frost.orbDuration, angle, power: attack * frost.power,
-        radius: area!.projectileRadius, slow: frost.slowDuration, slowScale: frost.slowScale, level, source: kind });
+        radius: area!.projectileRadius, slow: frost.slowDuration, slowScale: frost.slowScale,
+        hits: 0, hitEnemies: new Set(), level, source: kind });
     } else if (kind === 'chainLightning' && target) {
       const count = chainLightningCount(level), power = attack * 1.25 * damageScale;
       this.damage(area!.projectileRadius!, power, 0, Math.PI, 8, 0, target, 1,
@@ -321,12 +322,20 @@ export class CombatEngine {
     } else if (kind === 'arcaneShield') {
       p.berserk = skillDuration(kind, level);
       p.berserkLevel = level;
-      this.effects.push({ x: p.x, y: p.y, kind: 'ward', age: 0, duration: .9, angle: 0, level, source: kind });
+      this.effects.push({ x: p.x, y: p.y, kind: 'ward', age: 0, duration: p.berserk, angle: 0, level, source: kind });
     } else if (kind === 'meteorStrike') {
       const aim = this.aimPoint(target, range);
-      this.effects.push({ x: aim.x, y: aim.y, kind: 'burst', age: 0, duration: area!.duration, angle: 0, nextHit: .6, power: attack * SKILL_HIT_POWER.meteorStrike * damageScale, radius: area!.radius, variant: 'meteor', level, source: kind });
+      this.effects.push({ x: aim.x, y: aim.y, kind: 'burst', age: 0, duration: area!.duration,
+        angle: 0, nextHit: area!.duration * METEOR_IMPACT_PROGRESS, power: attack * SKILL_HIT_POWER.meteorStrike * damageScale,
+        radius: area!.radius, variant: 'meteor', level, source: kind });
     } else if (kind === 'arcaneOverlord') {
-      this.effects.push({ x: p.x, y: p.y, kind: 'nova', age: 0, duration: area!.duration, angle: 0, nextHit: .2, power: attack * SKILL_HIT_POWER.arcaneOverlord * damageScale, radius: area!.radius, variant: 'arcane', level, source: kind });
+      const aim = this.aimPoint(target, range);
+      const angle = Math.atan2(aim.y - p.y, aim.x - p.x);
+      this.effects.push({ x: p.x, y: p.y, tx: p.x + Math.cos(angle) * range,
+        ty: p.y + Math.sin(angle) * range, kind: 'waterCannon',
+        age: 0, duration: area!.duration, angle,
+        nextHit: WATER_CANNON_TICK_SECONDS, power: attack * SKILL_HIT_POWER.arcaneOverlord * damageScale,
+        radius: area!.projectileRadius, level, source: kind });
     }
   }
 
@@ -496,6 +505,8 @@ export class CombatEngine {
     // 플레이 시간 누적 규칙은 `progress.ts`가 갖는다(PR-3).
     recordPlaySeconds(this.save, dt);
     const p = this.player;
+    p.shieldDuration = Math.max(0, p.shieldDuration - dt);
+    if (p.shieldDuration <= 0) p.shield = 0;
     // 기념 버프(2026-11-22 종일 공·방·체 +30%)가 **끝나는 순간에만** 최대 체력이 30% 줄어든다 —
     // 사냥 도중에 기간이 지나도 지금 체력이 새 상한을 넘지 않게 여기서 한 번 맞춘다.
     // (매 프레임 `min`으로 자르면 체력이 상한을 넘은 예전 세이브·테스트 값을 건드린다.)
@@ -575,9 +586,12 @@ export class CombatEngine {
     for (const enemy of this.enemies) {
       const dx = p.x - enemy.x, dy = p.y - enemy.y, d = Math.hypot(dx, dy);
       enemy.attack = Math.max(0, (enemy.attack ?? 0) - dt);
+      enemy.stunDelay = Math.max(0, (enemy.stunDelay ?? 0) - dt);
+      const stunned = (enemy.stunDelay ?? 0) <= 0 && (enemy.stun ?? 0) > 0;
+      if (stunned) enemy.stun = Math.max(0, (enemy.stun ?? 0) - dt);
       // 적은 공격 사거리(90) 안으로 들어오면 때리고, 서는 자리는 60까지다(작업 254) —
       // 종전에는 히어로 몸(27)까지 파고들어 여러 마리가 한 점에 겹쳐 섰다.
-      enemy.moving = d > ENEMY_STOP_RANGE;
+      enemy.moving = !stunned && d > ENEMY_STOP_RANGE;
       if (enemy.moving && d > 0) { const step = enemyMoveSpeed(this.save.floor, enemy.boss) * (enemy.slow > 0 ? enemy.slowScale ?? .55 : 1) * dt; enemy.x += dx / d * step; enemy.y += dy / d * step; enemy.step += dt * Math.PI * (enemy.boss ? 3.25 : 4.25); }
       // 적은 아레나가 아니라 **필드 경계**로 먼저 자른다(작업 230) — 아레나로 자르면 멀리 스폰된 적이
       // 첫 프레임에 플레이어 코앞으로 순간이동해 버린다. 플레이어는 계속 아레나 안에 머문다.
@@ -592,7 +606,7 @@ export class CombatEngine {
       // 군집 동시 타격(밸런스 v2) — 예전에는 `p.hit` 하나로 0.85초에 **한 마리만** 때렸다.
       // 이제 11~15층 2마리, 16층+ 3마리가 같은 창에서 함께 때린다(보스전은 보스 혼자). 한 대의 위력은
       // `enemyHitDamage`가 이미 0.55로 눌러 두었으므로 받는 피해/초는 설계표(`적 DPS × 군집 / 0.85`)와 같다.
-      if (d <= ENEMY_ATTACK_RANGE && p.hp > 0) {
+      if (!stunned && d <= ENEMY_ATTACK_RANGE && p.hp > 0) {
         if (p.hit <= 0) this.strikeQuota = this.enemies.some(other => other.boss) ? 1 : swarmCount(this.save.floor);
         if (this.strikeQuota <= 0) { enemy.hit = Math.max(0, enemy.hit - dt); continue; }
         this.strikeQuota--;
@@ -611,10 +625,12 @@ export class CombatEngine {
         const taken = enemyHitDamage(this.save.floor, enemy.boss, totalStats(this.save).defense);
         const absorbed = Math.min(p.shield, taken);
         p.shield -= absorbed;
-        p.hp = Math.max(0, p.hp - (taken - absorbed));
+        const healthTaken = taken - absorbed;
+        p.hp = Math.max(0, p.hp - healthTaken);
         // 맞은 표시 — 적이 할퀴고 지나간 자국과 잃은 체력 숫자(작업 245).
         // 맞은 피해는 **정수**로 띄운다(작업 260) — 방어력 0.2배가 소수라 `-7.2`처럼 보이던 숫자를 7로.
-        this.effects.push({ x: p.x, y: p.y, kind: 'enemyStrike', age: 0, duration: .5, angle: Math.atan2(dy, dx), amount: Math.round(taken) });
+        if (absorbed > 0) this.effects.push({ x: p.x, y: p.y, kind: 'manaShieldHit', age: 0, duration: .35, angle: 0, amount: Math.round(absorbed) });
+        if (healthTaken > 0) this.effects.push({ x: p.x, y: p.y, kind: 'enemyStrike', age: 0, duration: .5, angle: Math.atan2(dy, dx), amount: Math.round(healthTaken) });
         if (p.hp <= 0) this.heroDown(enemy);
       }
       enemy.hit = Math.max(0, enemy.hit - dt);
@@ -689,19 +705,66 @@ export class CombatEngine {
         const progress = Math.min(1, effect.age / effect.duration);
         effect.x = (effect.fromX ?? effect.x) + ((effect.tx ?? effect.x) - (effect.fromX ?? effect.x)) * progress;
         effect.y = (effect.fromY ?? effect.y) + ((effect.ty ?? effect.y) - (effect.fromY ?? effect.y)) * progress;
+        const count = iceBoltProfile(effect.level ?? 1).flakeCount;
+        while ((effect.hits ?? 0) < count) {
+          const index = effect.hits ?? 0;
+          const release = index < 6 ? 0 : (index - 5) / Math.max(1, count - 5) * effect.duration * .8;
+          if (effect.age < release) break;
+          const wave = Math.floor(index / 6);
+          const angle = effect.angle + index % 6 * Math.PI / 3 + wave * Math.PI / 9;
+          this.effects.push({ x: effect.x, y: effect.y, kind: 'iceShard', age: 0,
+            duration: ICE_BOLT_SHARD_LIFETIME, angle, power: (effect.power ?? 0) * .15,
+            slow: effect.slow, slowScale: effect.slowScale, hitEnemies: effect.hitEnemies,
+            level: effect.level, source: 'iceBolt' });
+          effect.hits = index + 1;
+        }
         const radius = effect.radius ?? 52;
         for (const enemy of this.enemies) if (enemy.hp > 0 && Math.hypot(enemy.x - effect.x, enemy.y - effect.y) <= radius) {
           enemy.slow = Math.max(enemy.slow, effect.slow ?? 0);
           enemy.slowScale = Math.min(enemy.slowScale ?? 1, effect.slowScale ?? .6);
         }
-        const hit = nearestEnemy(effect, this.enemies.filter(enemy => enemy.hp > 0
+        const hit = !effect.fired && nearestEnemy(effect, this.enemies.filter(enemy => enemy.hp > 0
           && Math.hypot(enemy.x - effect.x, enemy.y - effect.y) <= 28));
         if (hit) {
           this.damage(28, effect.power ?? 0, effect.angle, Math.PI, 8, 0, effect, 1,
             undefined, undefined, undefined, false, hit);
-          this.effects.push({ x: effect.x, y: effect.y, kind: 'iceBurst', age: 0, duration: .55,
-            angle: 0, radius, source: 'iceBolt' });
+          effect.fired = true;
+        }
+        continue;
+      }
+      if (effect.kind === 'iceShard') {
+        const from = { x: effect.x, y: effect.y };
+        effect.x += Math.cos(effect.angle) * ICE_BOLT_SHARD_SPEED * dt;
+        effect.y += Math.sin(effect.angle) * ICE_BOLT_SHARD_SPEED * dt;
+        const segment = Math.hypot(effect.x - from.x, effect.y - from.y);
+        const hit = targetsInForwardBox(from, segment, 13, effect.angle,
+          this.enemies.filter(enemy => enemy.hp > 0 && !effect.hitEnemies?.has(enemy)))
+          .sort((a, b) => a.dist - b.dist)[0]?.enemy;
+        if (hit) {
+          effect.hitEnemies?.add(hit);
+          hit.slow = Math.max(hit.slow, effect.slow ?? 0);
+          hit.slowScale = Math.min(hit.slowScale ?? 1, effect.slowScale ?? .6);
+          this.damage(16, effect.power ?? 0, effect.angle, Math.PI, 3, 0, hit, 1,
+            undefined, undefined, undefined, false, hit);
           effect.age = effect.duration;
+        }
+        continue;
+      }
+      if (effect.kind === 'waterCannon') {
+        // 시전 방향은 고정하되 시작점은 시전자 손을 따라가게 한다.
+        const range = skillArea('arcaneOverlord', effect.level ?? 1).range;
+        effect.x = this.player.x; effect.y = this.player.y;
+        effect.tx = effect.x + Math.cos(effect.angle) * range;
+        effect.ty = effect.y + Math.sin(effect.angle) * range;
+        const pulses = Math.max(1, Math.ceil(effect.duration / WATER_CANNON_TICK_SECONDS) - 1);
+        while (effect.nextHit !== undefined && effect.nextHit < effect.duration && effect.age >= effect.nextHit) {
+          for (const enemy of [...this.enemies]) {
+            if (enemy.hp <= 0 || !insideWaterCannon(enemy.x, enemy.y, effect.x, effect.y,
+              effect.tx ?? effect.x, effect.ty ?? effect.y, effect.radius)) continue;
+            this.damage(16, (effect.power ?? 0) / pulses, effect.angle, Math.PI, 0, 0,
+              enemy, 1, undefined, undefined, undefined, false, enemy);
+          }
+          effect.nextHit += WATER_CANNON_TICK_SECONDS;
         }
         continue;
       }
@@ -722,6 +785,17 @@ export class CombatEngine {
           effect.nextHit += .14;
         }
         continue;
+      }
+      if (effect.kind === 'frostStun' && effect.aim && this.enemies.includes(effect.aim)) {
+        effect.x = effect.aim.x; effect.y = effect.aim.y;
+      }
+      if (effect.kind === 'ward') { effect.x = this.player.x; effect.y = this.player.y; }
+      if (effect.kind === 'manaShield') {
+        effect.x = this.player.x; effect.y = this.player.y;
+        if (this.player.shield <= 0) effect.age = effect.duration;
+      }
+      if (effect.kind === 'nova' && effect.source === 'frostNova') {
+        effect.x = this.player.x; effect.y = this.player.y;
       }
       if (effect.kind === 'volleyCast' && (effect.hits ?? 0) < 6 && effect.age >= (effect.launch ?? Infinity)) {
         this.fireVolleyArrow(effect);
@@ -754,9 +828,23 @@ export class CombatEngine {
         if (effect.kind === 'hell') { const area = skillArea('hell', level); this.damage(area.radius!, effect.power ?? 0, 0, area.arc ?? Math.PI, 14, 1 + (level - 1) * .2, effect); }
         if (effect.kind === 'rain') this.damage(skillArea('arrowRain', level).radius!, effect.power ?? 0, 0, Math.PI, 6, .9, effect);
         if (effect.kind === 'burst' && effect.source === 'manaBurst') {
-          this.player.shield += manaBurstShield(totalStats(this.save).attack, level);
+          const p = this.player;
+          p.shield += manaBurstShield(totalStats(this.save).attack, level);
+          p.shieldDuration = 5;
+          this.effects.push({ x: p.x, y: p.y, kind: 'manaShield', age: 0,
+            duration: p.shieldDuration, angle: 0, level, source: 'manaBurst' });
         } else if (effect.kind === 'burst') this.damage(effect.radius ?? skillArea('meteorStrike', level).radius!, effect.power ?? 0, 0, Math.PI, 16, effect.slow ?? 0, effect);
-        if (effect.kind === 'nova') this.damage(effect.radius ?? skillArea(effect.variant === 'frost' ? 'frostNova' : 'arcaneOverlord', level).radius!, effect.power ?? 0, 0, Math.PI, 22, effect.slow ?? 0, effect);
+        if (effect.kind === 'nova' && effect.source === 'frostNova') {
+          const radius = effect.radius ?? skillArea('frostNova', level).radius!;
+          const affected = this.enemies.filter(enemy => enemy.hp > 0 && Math.hypot(enemy.x - effect.x, enemy.y - effect.y) <= radius);
+          this.damage(radius, effect.power ?? 0, 0, Math.PI, 22, effect.slow ?? 0, effect);
+          for (const enemy of affected) if (enemy.hp > 0 && this.enemies.includes(enemy)) {
+            enemy.stunDelay = Math.max(enemy.stunDelay ?? 0, .14);
+            enemy.stun = Math.max(enemy.stun ?? 0, frostNovaStun(level));
+            this.effects.push({ x: enemy.x, y: enemy.y, kind: 'frostStun', age: 0,
+              duration: .14 + frostNovaStun(level), angle: 0, launch: .14, aim: enemy, source: 'frostNova' });
+          }
+        } else if (effect.kind === 'nova') this.damage(effect.radius ?? skillArea('arcaneOverlord', level).radius!, effect.power ?? 0, 0, Math.PI, 22, effect.slow ?? 0, effect);
         if (effect.kind === 'burst' || effect.kind === 'nova') effect.nextHit = undefined;
         else effect.nextHit += effect.kind === 'spin' || effect.kind === 'slam' ? .45 : .4;
       }

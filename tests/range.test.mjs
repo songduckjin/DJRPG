@@ -131,7 +131,7 @@ test('원거리 스킬 사거리도 평타와 함께 올라가고, 가장 먼 �
   assert(Math.max(...mageSkillOrder.map(id => skills[id].range)) >= mageAttackRange, '마법사 최대 스킬 사거리가 평타보다 짧다');
   // 날아가는 공격 스킬은 정지 거리보다 멀리 닿는다 — 서 있는 자리에서 항상 쓸 수 있다.
   const flyingArcher = archerSkillOrder.filter(id => id !== 'hawkEye');
-  const flyingMage = mageSkillOrder.filter(id => !['frostNova', 'arcaneShield', 'arcaneOverlord'].includes(id));
+  const flyingMage = mageSkillOrder.filter(id => !['frostNova', 'arcaneShield'].includes(id));
   for (const id of flyingArcher) assert(skillRange(id, 1) > archerStopRange, `${id} 사거리가 정지 거리보다 짧다`);
   for (const id of flyingMage) assert(skillRange(id, 1) > mageStopRange, `${id} 사거리가 정지 거리보다 짧다`);
   // 실제로 늘어난 값 — 평타 상향 폭(약 18%)에 맞춰 약 15% 올렸다.
@@ -147,7 +147,7 @@ test('원거리 스킬 사거리도 평타와 함께 올라가고, 가장 먼 �
   assert.equal(skills.chainLightning.range, 275);
   assert.equal(skills.manaBurst.range, 250);
   assert.equal(skills.meteorStrike.range, 285);
-  // 몸을 중심으로 퍼지는 기술·버프는 `range`가 곧 효과 반경이라 그대로 둔다.
+  // 몸을 중심으로 퍼지는 프로스트 노바와 버프는 `range`가 효과 반경이다.
   assert.equal(skills.frostNova.range, 150);
   assert.equal(skills.arcaneOverlord.range, 210);
   assert.equal(skills.hawkEye.range, 200);

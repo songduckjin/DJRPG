@@ -23,7 +23,7 @@
  * 같은 자리 3티어를 요구한다. 그래서 액티브 줄기 두 개와 패시브 줄기 하나가 위에서 아래로 이어진다.
  */
 import {
-  MAX_SKILL_LEVEL, chainLightningCount, fireBoltCount, iceBoltProfile, passiveOrderFor, passives, skillDamageScale, skillDuration, skillOrderFor, skillRange, skills,
+  MAX_SKILL_LEVEL, chainLightningCount, fireBoltCount, frostNovaStun, iceBoltProfile, manaBurstShield, passiveOrderFor, passives, skillDamageScale, skillDuration, skillOrderFor, skillRange, skills,
   type Job, type PassiveId, type SkillId, type SkillLevelId
 } from './skills';
 import { iceArrowSlow, multiShotPattern, skillArea } from './battle/skillAreas';
@@ -325,10 +325,24 @@ export function skillValueRows(id: SkillLevelId, level: number): SkillValueRow[]
     { label: '사거리', value: `${skillRange(id, lv)}` }
   ];
   if (id === 'manaBurst') return [
-    { label: '중심 위력', value: `× ${(2.8 * skillDamageScale(lv)).toFixed(2)}` },
-    { label: '외곽 위력', value: `중심의 55~100%` },
-    { label: '폭발 반경', value: `${skillArea(id, lv).radius}` },
+    { label: '실드 체력', value: `최대 체력의 ${manaBurstShield(lv, 100)}% · 5초` },
     { label: '응축', value: `${(skillDuration(id, lv) * .5).toFixed(1)}초` }
+  ];
+  if (id === 'frostNova') return [
+    { label: '위력', value: `× ${(1.5 * skillDamageScale(lv)).toFixed(2)}` },
+    { label: '결계 반경', value: `${skillArea(id, lv).radius}` },
+    { label: '넉백 뒤 기절', value: `${frostNovaStun(lv).toFixed(2)}초` }
+  ];
+  if (id === 'meteorStrike') return [
+    { label: '위력', value: `× ${(3.6 * skillDamageScale(lv)).toFixed(2)}` },
+    { label: '폭발 반경', value: `${skillArea(id, lv).radius}` },
+    { label: '시전 거리', value: `${skillRange(id, lv)}` }
+  ];
+  if (id === 'arcaneOverlord') return [
+    { label: '지속 총위력', value: `× ${(3 * skillDamageScale(lv)).toFixed(2)}` },
+    { label: '물줄기 반폭', value: `${skillArea(id, lv).projectileRadius}` },
+    { label: '지속 시간', value: `${skillDuration(id, lv).toFixed(1)}초` },
+    { label: '사거리', value: `${skillRange(id, lv)}` }
   ];
   if (id === 'arrowRain') {
     const area = skillArea(id, lv);
