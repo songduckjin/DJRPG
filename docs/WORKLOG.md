@@ -3,6 +3,15 @@
 > 최근 작업·PR·배포 기록만 둔다(최근 20건). 더 이전 기록은 `docs/archive/2026-11/WORKLOG-history.md`.
 > 새 기록은 맨 위에 `## YYYY-MM-DD · <담당> 작업 <번호> — <제목>` 형식으로 추가하고, 오래된 항목은 아카이브로 옮긴다.
 
+## 2026-11-24 · 운영 배포 — 부캐릭 저장 409 근본 수정(#367) + 자리 비움 방치 정산(#364) 통합
+
+- **배포**: 점검 ON [PR #368](https://github.com/songduckjin/DJRPG/pull/368)(`eta 19:50`) → 통합 [PR #369](https://github.com/songduckjin/DJRPG/pull/369) **`172979d`** → 점검 OFF [PR #370](https://github.com/songduckjin/DJRPG/pull/370) **`75bde97`**. 실서버 `https://djrpg.pages.dev/version.json` = `75bde971cb99`(`builtAt` 2026-11-24T10:12:38Z), `maintenance.json` `active:false`.
+- **왜 한 번에 묶었나**: `#360`(방어전 v2, `5924df7`)과 `#363`(로그인 heal, `09b5256`)은 이미 머지돼 있었고 남은 것은 `#367`·`#364` 두 건이었다. `#364`는 `be7a94a` 기반이라 `#367`이 개편한 `src/main.ts`·`src/game/sync.ts`와 겹쳐져, `#367` 위에 `#364`를 얹은 통합 브랜치에서 충돌 2건(`src/main.ts` imports·`docs/SYNC_SAVE.md` 테스트 목록)을 해소하고 한 PR로 머지했다.
+- **통합 내용**: 자리 비움 정산이 `applyOfflineRewards()` + `flush()`를 직접 부르던 것을 `offlineSettle.settleOfflineRewards()`로 바꿔 **세 입구(앱 시작·캐릭터 전환·자리 비움)가 같은 확정 절차**를 쓴다 — ① 정산 적용·저장 ② 결과를 모르는 실패는 같은 `requestId`로 재전송 ③ `ITEM_CONFLICT`·`CHARACTER_CONFLICT`는 `reloadLatest(true)`로 서버 세이브를 받아 미확정 보상을 버리고 1회 재시도 ④ 그래도 실패하면 `confirmed:false` → **보상을 화면에 보이지 않고** 서버 오류 문구만 토스트. `#364` 확정 기준 7가지(60초 문턱·3분 경계·숨김 중 예약 저장 중지·월드보스·던전 예외·서버 계약 무변경·다른 창 복귀)와 "저장 성공 확인 → 수락된 보상만 표시" 규칙은 그대로.
+- **검증**: `npx tsc --noEmit` 통과, `npm run build` 통과, 전체 `node --test tests/*.test.mjs` **1,677건 통과**(195파일 3묶음 509/511/657, 실패 0). 1차 전체 실행에서 `tests/fire-bolt.test.mjs` 1건이 부동소수 산술 오차로 한 번 실패했고 재실행 3회 모두 통과(기존 플레이키, 이번 변경과 무관).
+- **배포 후 실측**: 배포 번들 `assets/index-dR099uAs.js`에 `자리 비운 `·`방치 보상을 서버에 저장하지 못했습니다`·`최신 저장 불러오는 중` 포함, `/` 200·`/api/account` 무토큰 401 JSON·`maintenance.json` `active:false`. 게스트 로그인 → 저장 2회(revision 0→1→2) → `load` 200(금화 값 유지) API 스모크 통과, 실브라우저 게스트 로그인 → 자동 사냥(층 1·금화 3) → 새로고침 후 같은 진행 복원 확인. **자리 비움 정산의 탭 숨김/복귀는 이 헤드리스 브라우저가 탭 전환에서 `visibilityState`를 바꾸지 않아 라이브로 재현하지 못했다**(단위 테스트 9건·배포 번들 포함으로 확인).
+- **남긴 것**: `#367`·`#364`는 PR 본문의 `Closes`로 닫혔다(#364는 Draft였으므로 CLOSED). 원격 브랜치 삭제는 이 자격 증명에서 403으로 막혀 남아 있다.
+
 ## 2026-11-24 · songduckjin 작업 285 — 무한 방어전 v2 밸런스(방어선 삭제·적 직접 추격·몹 3종·N웨이브)
 
 - **기준·브랜치**: 최신 `origin/main` `8536d25`에서 `feat/defense-v2-balance` — **[PR #360](https://github.com/songduckjin/DJRPG/pull/360)**. 사양은 `downloads/djrpg_defense_dungeon/wave_balance_proposal_v2.md`·`wave_table_v2.csv`(5시드 실측)와 양측 최종 승인. **머지·배포 보류**(모아서 배포). 참고: 원래 반영 대상이던 `PR #352`는 2026-11-24 16:10 KST에 송덕진 님 측 일괄 머지(#350·#352·#353·#354·#355, 점검 ON→OFF)로 `main`에 이미 들어갔고, 재오픈이 안 되므로 **현재 main에서 새 브랜치**를 따 v2 델타만 올린다.
