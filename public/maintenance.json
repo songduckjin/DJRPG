@@ -1,6 +1,6 @@
 {
-  "active": true,
+  "active": false,
   "title": "점검 진행 중입니다",
-  "eta": "2026-11-24T20:15:00+09:00",
-  "message": "마법사 스킬 효과 누락을 반영하고 있습니다."
+  "eta": "",
+  "message": ""
 }
