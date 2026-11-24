@@ -122,14 +122,15 @@ test('ten-floor preview uses solo bosses at 5/10 and stops its floor index at te
  assert.equal(new DungeonBattle(freshSave(),11).floor,10);
 });
 
-test('a dungeon mob drops an item on a flat five percent rate on every floor (작업 248)',()=>{
- // 사용자 확정(11-21): 모든 층 5% 고정 — 깊어져도 드롭률은 그대로, 등급만 10층 구간 표가 올린다.
- assert.equal(DUNGEON_DROP_CHANCE_BASE,.05);
+test('a dungeon mob drops an item on a flat half-percent rate on every floor (작업 248 → 아이템 드롭 B안)',()=>{
+ // 사용자 확정(11-21): 전 층 고정 — 깊어져도 드롭률은 그대로, 등급만 10층 구간 표가 올린다.
+ // 아이템 드롭 B안(2026-11-23, 덕진 님 확정): 전 항목 1/10 — 5% → 0.5%.
+ assert.equal(DUNGEON_DROP_CHANCE_BASE,.005);
  assert.equal(DUNGEON_DROP_CHANCE_STEP,0);
- assert.equal(DUNGEON_DROP_CHANCE_MAX,.05);
- for(let floor=1;floor<=10;floor++)assert.equal(dungeonDropChance(floor),.05);
+ assert.equal(DUNGEON_DROP_CHANCE_MAX,.005);
+ for(let floor=1;floor<=10;floor++)assert.equal(dungeonDropChance(floor),.005);
  // 10층 밖의 층은 10층으로 잘라 쓴다(던전 상한).
- assert.equal(dungeonDropChance(20),.05);
+ assert.equal(dungeonDropChance(20),.005);
  const battle=new DungeonBattle(freshSave());
  withRandom([.9],()=>battle.world.kill(battle.world.enemies[0]));
  assert.deepEqual(battle.world.loot.map(entry=>entry.kind),['gold']);
@@ -137,12 +138,12 @@ test('a dungeon mob drops an item on a flat five percent rate on every floor (�
  assert.equal(battle.world.drops.length,0);
  // 게이트를 넘으면 필드의 장비:스킬북 비율로 하나가 떨어진다.
  const lucky=new DungeonBattle(freshSave());
- withRandom([.01,.99],()=>lucky.world.kill(lucky.world.enemies[0]));
+ withRandom([.001,.99],()=>lucky.world.kill(lucky.world.enemies[0]));
  assert.deepEqual(lucky.world.loot.map(entry=>entry.kind),['gold','item']);
- // 보스 층은 2개 확정 랜덤템 + 금화 10무더기다(작업 248).
+ // 보스 층은 1개 확정 랜덤템 + 금화 10무더기다(아이템 드롭 B안).
  const boss=new DungeonBattle(freshSave(),5);
  withRandom([.9],()=>boss.world.kill(boss.world.enemies[0]));
- assert.equal(boss.world.loot.filter(entry=>entry.kind==='item').length,2);
+ assert.equal(boss.world.loot.filter(entry=>entry.kind==='item').length,1);
  assert.equal(boss.world.loot.filter(entry=>entry.kind==='gold').length,10);
 });
 
@@ -437,7 +438,7 @@ test('a dungeon drop makes the same one small hop as the field',()=>{
  }
 });
 
-test('a boss floor leaves two random items and ten scattered gold heaps', () => {
+test('a boss floor leaves one random item and ten scattered gold heaps', () => {
   const { BOSS_GOLD_PILES, BOSS_ITEM_DROPS } = bossLoot;
   const battle = new DungeonBattle(freshSave(), 5);
   assert(battle.bossFloor, 'the 5th floor is a boss floor');
@@ -446,7 +447,7 @@ test('a boss floor leaves two random items and ten scattered gold heaps', () => 
   withRandom([.5, .5, .5, .5, .5, .5], () => battle.world.kill(boss));
   const gold = battle.world.loot.filter(entry => entry.kind === 'gold'), items = battle.world.loot.filter(entry => entry.kind === 'item');
   assert.equal(gold.length, BOSS_GOLD_PILES, 'the boss gold falls in ten heaps');
-  assert.equal(items.length, BOSS_ITEM_DROPS, 'and its two random items fall with it');
+  assert.equal(items.length, BOSS_ITEM_DROPS, 'and its one random item falls with it');
   assert.equal(gold.reduce((sum, entry) => sum + entry.gold, 0), 70 * 5, 'the heaps add up to the boss gold');
   assert.equal(battle.world.lootGold, 70 * 5, 'the clear screen still reports the same gold');
   assert.equal(new Set(gold.map(entry => `${Math.round(entry.x)},${Math.round(entry.y)}`)).size, BOSS_GOLD_PILES, 'every heap has its own point');

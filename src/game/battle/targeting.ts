@@ -52,15 +52,14 @@ export function targetsInForwardBox(origin: Point, range: number, halfWidth: num
 }
 
 /** 머리 위 화염구 자리(월드 좌표, 작업 216).
- *  아이소 투영이 화면 변위를 `(dx−dy)·.86`, `(dx+dy)·.43`으로 그리므로, 화면 기준 반원(가운데가
- *  높고 양옆으로 퍼짐)을 그 역변환으로 옭려 머리 위에 띄운다. 1발이면 정수리 바로 위다. */
+ *  아이소 투영의 역변환으로 화면 기준 자리를 만든다. 5발은 위 3개·아래 2개로 엇갈려 배치한다. */
 export function fireBoltSpots(x: number, y: number, count: number): Point[] {
   const spots: Point[] = [];
   const n = Math.max(1, Math.floor(count));
   for (let index = 0; index < n; index++) {
     const spread = n === 1 ? 0 : index / (n - 1) - .5;            // -0.5 ~ +0.5
-    const screenX = spread * 64;
-    const screenY = -68 - (1 - Math.abs(spread) * 2) * 8;          // 가운데가 8px 더 높다
+    const screenX = n === 5 ? [-52, 0, 52, -26, 26][index] : (index - (n - 1) / 2) * 50;
+    const screenY = n === 5 ? (index < 3 ? -110 : -70) : -68 - (1 - Math.abs(spread) * 2) * 8;
     spots.push({ x: x + (screenX / .86 + screenY / .43) / 2, y: y + (screenY / .43 - screenX / .86) / 2 });
   }
   return spots;

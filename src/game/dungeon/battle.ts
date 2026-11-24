@@ -39,13 +39,14 @@ export const DUNGEON_TRACE_EVERY = 30;
 export type DungeonBattleSummary = {
   won: boolean; steps: number; seconds: number; heroHp: number; heroHpMax: number; enemyHp: number; slain: number; digest: string;
 };
-/** 던전 일반 몹의 아이템 드롭률 (작업 205 → 248: 모든 층 5% 고정). */
+/** 던전 일반 몹의 아이템 드롭률 (작업 205 → 248: 모든 층 5% 고정 → 아이템 드롭 B안 2026-11-23: 0.5% 고정). */
 //
-// 사용자 확정(11-21) — 층이 깊어져도 드롭률은 5%로 같다. 등급은 드롭률 대신 `dungeonRarityFor`의
+// 사용자 확정(11-21) — 층이 깊어져도 드롭률은 같다. 등급은 드롭률 대신 `dungeonRarityFor`의
 // 10층 구간 표가 올린다(`src/game/items.ts`) — 드롭 개수는 그대로 두고 상위 등급의 몫만 커진다.
-export const DUNGEON_DROP_CHANCE_BASE = .05;
+// 덕진 님 확정 B안(2026-11-23, 전 항목 1/10 하향): 5% → **0.5%**. STEP·MAX도 함께 0.5%로 맞춘다.
+export const DUNGEON_DROP_CHANCE_BASE = .005;
 export const DUNGEON_DROP_CHANCE_STEP = 0;
-export const DUNGEON_DROP_CHANCE_MAX = .05;
+export const DUNGEON_DROP_CHANCE_MAX = .005;
 export function dungeonDropChance(floor:number):number {
   const depth=Math.max(1,Math.min(DUNGEON_MAX_FLOOR,Math.floor(floor)||1));
   return Math.min(DUNGEON_DROP_CHANCE_MAX,DUNGEON_DROP_CHANCE_BASE+(depth-1)*DUNGEON_DROP_CHANCE_STEP);
@@ -229,8 +230,8 @@ class DungeonWorld extends CombatEngine {
     }
     this.loot.push({id:++this.lootId,kind:'gold',x:enemy.x,y:enemy.y,gold:3+floor});
     if(random()>=dungeonDropChance(floor))return;
-    // 등급은 던전 전용 10층 구간 표에서 뽑는다(작업 248) — 깊은 층일수록 상위 등급이 늘고 드롭률은 5% 그대로다.
-    // 파트 B(2026-11-22): 스킬북은 폐지 — 한 번 굴려 장비 하나가 떨어진다(던전 보스 확정 2개는 `bossItems`).
+    // 등급은 던전 전용 10층 구간 표에서 뽑는다(작업 248) — 깊은 층일수록 상위 등급이 늘고 드롭률은 0.5% 그대로다.
+    // 파트 B(2026-11-22): 스킬북은 폐지 — 한 번 굴려 장비 하나가 떨어진다(던전 보스 확정 1개는 `bossItems`).
     const item=rollDungeonItem(floor,enemy.boss);
     this.loot.push({id:++this.lootId,kind:'item',x:enemy.x,y:enemy.y,item});
     // 영구 스탯북(파트 B) — 던전 일반 몹도 필드와 같은 개극악 확률(`hunt`)로 한 번 더 굴린다.

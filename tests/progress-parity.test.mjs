@@ -15,6 +15,13 @@
  *
  * 값이 달라지면 밸런스가 움직였다는 뜻이다. 의도한 밸런스 변경이라면 이 표를 고치기 전에
  * 그 변경이 왜 진행 규칙을 바꾸는지 먼저 확인한다(PR 본문의 "동작 동일 대조표"에 적는다).
+ *
+ * **2026-11-24 방치 사냥 개선**으로 아래 세 시나리오가 바뀌었다(의도한 변경):
+ *  · 접속 사냥에 부활 대기 5초(1~4층 0초) — 필드 60초 시나리오는 죽으면 그만큼 못 싸워 처치 수·체력이 줄고,
+ *    마지막에 쓰러진 채 끝나는 판은 `health: 0`(부활 대기 중)이다.
+ *  · 방치 정산에 생존 가동률 — 체력·방어·회피·피흡·회복이 낮은 이 시험 세이브(방어 17·체력 600)는
+ *    15층에서 자주 쓰러져 처치 수가 절반 아래로 떨어진다(약한 스펙일수록 더 떨어지는 것이 이 작업의 요지다).
+ *  · 마리당 금화·경험지의 층 보상 배율(`안 A`) — 깊은 층일수록 마리당 보상이 커진다.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -26,28 +33,29 @@ const { PARITY_SCENARIOS, recordScenarios } = await import('./progress-parity-sc
 const EXPECTED = {
   // 파트 B(2026-11-22): 스킬북 폐지로 드롭 구성이 바뀌고, 영구 스탯북 확률 굴림이 난수 스트림에 한 번 더
   // 들어간다 — 같은 시드의 진행 결과가 그만큼 달라진다(그 차이가 아래 값이다).
+  // 아이템 드롭 B안(2026-11-23, 덕진 님 확정): 네 지점 드롭률을 1/10로 내렸다. 드롭 성공 횟수가
+  // 바뀌면 같은 시드라도 그 뒤의 난수 순서가 달라져(드롭 1건마다 등급·강화·추가옵션을 더 굴린다)
+  // 전투 중 판정이 갈리고, 자동 장착되는 장비도 달라진다 — 그래서 60초 시나리오의 처치 수·체력·가방이
+  // 조금씩 다르다. 방치 사냥 생존 가동률·층 보상 배율까지 통합한 현재 스냅샷이다.
   'field-boss-win': {
-    gold: 1702, exp: 1160, level: 10, floor: 7, maxFloor: 7, floorKills: 65, kills: 66, bossKills: 1,
-    playSeconds: 59.999999999997875, stones: 3, salvageCount: 0, tutorial: 3, health: 113,
-    dungeonFloor: 0, bossRetryFloor: 0, bag: 1
+    gold: 1666, exp: 1100, level: 10, floor: 7, maxFloor: 7, floorKills: 60, kills: 61, bossKills: 1,
+    playSeconds: 59.999999999997875, stones: 3, salvageCount: 0, tutorial: 3, health: 158,
+    dungeonFloor: 0, bossRetryFloor: 0, bag: 0
   },
   'field-boss-loss': {
-    gold: 1258, exp: 1030, level: 7, floor: 6, maxFloor: 6, floorKills: 62, kills: 62, bossKills: 0,
-    playSeconds: 59.999999999997875, stones: 3, salvageCount: 0, tutorial: 3, health: 2,
-    dungeonFloor: 0, bossRetryFloor: 6, bag: 1
+    gold: 1200, exp: 950, level: 7, floor: 6, maxFloor: 6, floorKills: 54, kills: 54, bossKills: 0,
+    playSeconds: 59.999999999997875, stones: 3, salvageCount: 0, tutorial: 3, health: 0,
+    dungeonFloor: 0, bossRetryFloor: 6, bag: 0
   },
   'offline-12h': {
     progress: {
-      // 주머니 스택형: 같은 종류의 영구 스탯북은 한 칸에 쌓이므로 12시간 방치가 40칸에서 멈추되 **아이템 수**는
-      // 40개다(칸은 그대로 40). 진행 결과(층·금화·경험치·생존)는 종전과 같다 — 칸 규칙·드롭률만 바뀌었다.
-      // 2026-11-23 백로그 13: 스탯북 확률을 1/10(0.01% → 0.001%)로 내려 같은 12시간에 스탯북이 3개 덜 떨어졌다
-      // (아이템 43 → 40, 놓친 몫 262 → 253). 층·금화·경험치·생존 수치는 그대로다 — 확률만 내린 것이 맞다는 증거.
-      gold: 875260, exp: 80971, level: 18, floor: 15, maxFloor: 15, floorKills: 408, kills: 96672, bossKills: 5,
-      playSeconds: 0, stones: 12, salvageCount: 0, tutorial: 3, health: 344, dungeonFloor: 0, bossRetryFloor: 15, bag: 40
+      // 생존 가동률과 드롭 확률 1/10을 함께 적용해 12시간 보상이 산정된다.
+      gold: 368756, exp: 227939, level: 16, floor: 15, maxFloor: 15, floorKills: 394, kills: 45336, bossKills: 5,
+      playSeconds: 0, stones: 12, salvageCount: 0, tutorial: 3, health: 320, dungeonFloor: 0, bossRetryFloor: 15, bag: 10
     },
     reward: {
-      seconds: 43200, kills: 96672, exp: 1158971, gold: 871470, levels: 3, startFloor: 8, endFloor: 15,
-      bossKills: 5, deaths: 121, items: 40, missedDrops: 253, salvaged: { count: 0, gold: 0, stones: 0 }
+      seconds: 43200, kills: 45336, exp: 542939, gold: 409446, levels: 1, startFloor: 8, endFloor: 15,
+      bossKills: 5, deaths: 54, items: 10, missedDrops: 0, salvaged: { count: 0, gold: 0, stones: 0 }
     }
   },
   'dungeon-1-clear': {
@@ -66,7 +74,7 @@ const EXPECTED = {
       playSeconds: 1.4499999999999997, stones: 3, salvageCount: 0, tutorial: 3, health: 64,
       dungeonFloor: 0, bossRetryFloor: 0, bag: 0
     },
-    slain: 1, lootGold: 350, lootItems: 2
+    slain: 1, lootGold: 350, lootItems: 1
   },
   'dungeon-5-boss-death': {
     summary: { won: false, steps: 82, seconds: 1.4, heroHp: 0, heroHpMax: 248, enemyHp: 6247, slain: 0, digest: '3ad8091c' },
@@ -79,11 +87,11 @@ const EXPECTED = {
   },
   'dungeon-5-claim': {
     cleared: true,
-    receipt: { floor: 5, firstClear: true, gold: 350, stones: 35, items: 2, missed: 0, salvaged: { count: 0, gold: 0, stones: 0 } },
+    receipt: { floor: 5, firstClear: true, gold: 350, stones: 35, items: 1, missed: 0, salvaged: { count: 0, gold: 0, stones: 0 } },
     progress: {
       gold: 1250, exp: 400, level: 25, floor: 6, maxFloor: 6, floorKills: 200, kills: 0, bossKills: 0,
       playSeconds: 0, stones: 38, salvageCount: 0, tutorial: 3, health: 900, dungeonFloor: 4,
-      bossRetryFloor: 0, bag: 2
+      bossRetryFloor: 0, bag: 1
     }
   }
 };

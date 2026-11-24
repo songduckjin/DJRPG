@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, existsSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import './ts-loader.mjs';
 
 /**
@@ -10,7 +11,7 @@ import './ts-loader.mjs';
  * 스킬북은 **드랍·상점·우편·거래소·도감·분해·합성 어디에서도** 나오지 않아야 하고, 남아 있는 옛 세이브는
  * 읽기에서 조용히 버려야 한다(오류로 계정이 잠기면 안 된다). 이 파일은 그 두 가지를 소스와 동작 양쪽에서 본다.
  */
-const root = new URL('..', import.meta.url).pathname;
+const root = fileURLToPath(new URL('..', import.meta.url));
 const read = path => readFileSync(join(root, path), 'utf8');
 const walk = (dir, files = []) => {
   for (const name of readdirSync(join(root, dir))) {

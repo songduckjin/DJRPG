@@ -25,7 +25,7 @@
  *   onSeason      시즌 초기화 처리. `purge`(RESET_TABLES — 표를 비운다) · `clear`(따로 한 문장으로 비운다)
  *                 · `reset`(행을 지우지 않고 값만 기본값으로 되돌린다) · `keep`(그대로 둔다)
  *   migrate       이관. `required`(소스에 없으면 중단) · `optional`(없으면 0행으로 보고 건너뛴다)
- *   ddl           DDL을 가진 모듈. `schema`(`server/db/schema.mjs`) · `dungeon` · `world-boss`
+ *   ddl           DDL을 가진 모듈. `schema`(`server/db/schema.mjs`) · `dungeon` · `defense` · `world-boss`
  *   sequence      AUTOINCREMENT 시퀀스를 이관할 때 이어받아야 하는 표
  *   note          왜 이 정책인지(코드가 아니라 정책인 것만 적는다)
  */
@@ -124,6 +124,14 @@ export const TABLES = Object.freeze([
     domain: 'dungeon', owner: 'account', accountColumn: 'account_id', onDelete: 'delete', onSeason: 'keep', migrate: 'required', ddl: 'dungeon',
     note: '진행 중 도전(층·시작 시각·시드). 시즌에는 남긴다 — 지우면 진행 중 도전의 검증 근거가 사라진다(현행 동작 유지).'
   }),
+  entry('djrpg_defense_records', {
+    domain: 'defense', owner: 'account', accountColumn: 'account_id', onDelete: 'delete', onSeason: 'purge', migrate: 'optional', ddl: 'defense',
+    note: '무한 방어전 최고 도달 스테이지 — 세이브 클램프의 근거라 따로 둔다. 이관 뒤에 생긴 표라 예전 공용 DB에는 없을 수 있다.'
+  }),
+  entry('djrpg_defense_attempts', {
+    domain: 'defense', owner: 'account', accountColumn: 'account_id', onDelete: 'delete', onSeason: 'keep', migrate: 'optional', ddl: 'defense',
+    note: '진행 중 도전(판 번호·시드·시작 시각). 시즌에는 남긴다 — 던전 도전 표와 같은 정책.'
+  }),
   entry('djrpg_boss_days', {
     domain: 'world-boss', owner: 'global', accountColumn: null, onDelete: 'keep', onSeason: 'purge', migrate: 'required', ddl: 'world-boss',
     note: '그날의 보스 한 행(계정 열 없음). 계정 탈퇴와 무관하다.'
@@ -206,6 +214,7 @@ export const CODE_TABLES = Object.freeze(['common_code_majors', 'common_code_min
 export const DDL_TABLES = Object.freeze({
   schema: names(table => table.ddl === 'schema'),
   dungeon: names(table => table.ddl === 'dungeon'),
+  defense: names(table => table.ddl === 'defense'),
   'world-boss': names(table => table.ddl === 'world-boss'),
-  duplicated: Object.freeze(['djrpg_dungeon_records', 'djrpg_dungeon_attempts'])
+  duplicated: Object.freeze(['djrpg_dungeon_records', 'djrpg_dungeon_attempts', 'djrpg_defense_records', 'djrpg_defense_attempts'])
 });

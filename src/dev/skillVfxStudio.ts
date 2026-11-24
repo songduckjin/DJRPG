@@ -40,8 +40,8 @@ function preview(): StudioCombat {
   world.enemies = Array.from({ length: count }, (_, index): Enemy => {
     const angle = index === 0 ? 0 : (index - 1) * Math.PI * 2 / Math.max(1, count - 1);
     const radius = index === 0 ? 48 : 94;
-    const ranged = job === 'archer';
-    const baseX = Math.min(190, skillRange(id, level) * .7);
+    const ranged = job !== 'warrior' && id !== 'frostNova' && id !== 'arcaneOverlord';
+    const baseX = job === 'mage' ? Math.min(130, skillRange(id, level) * .55) : Math.min(190, skillRange(id, level) * .7);
     return { x: ranged ? baseX + (index === 0 ? 0 : 30 + Math.cos(angle) * 18) : Math.cos(angle) * radius,
       y: ranged ? (index === 0 ? 0 : Math.sin(angle) * 54) : Math.sin(angle) * radius,
       hp: 1_000_000, maxHp: 1_000_000, boss: false, hit: 0, step: 0, moving: false, knockX: 0, knockY: 0, slow: 0 };

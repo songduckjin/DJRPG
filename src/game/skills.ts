@@ -16,6 +16,8 @@ export type WarriorSkillId = 'slash2' | 'spin' | 'crushing' | 'slam' | 'warcry' 
 export type ArcherSkillId = 'doubleShot' | 'multiShot' | 'pierceShot' | 'iceArrow' | 'hawkEye' | 'snipe' | 'stormVolley' | 'arrowRain';
 export type MageSkillId = 'fireBolt' | 'iceBolt' | 'chainLightning' | 'manaBurst' | 'frostNova' | 'arcaneShield' | 'meteorStrike' | 'arcaneOverlord';
 export type SkillId = WarriorSkillId | ArcherSkillId | MageSkillId;
+/** 파이어 볼트 한 번 시전의 합계 위력. 발수가 늘어도 총 피해는 이 값을 넘지 않는다. */
+export const FIRE_BOLT_TOTAL_POWER = 1.5;
 export type WarriorPassiveId = 'mastery' | 'body' | 'instinct';
 export type ArcherPassiveId = 'bowMastery' | 'swiftStep' | 'hawkSight';
 export type MagePassiveId = 'staffMastery' | 'manaCircuit' | 'arcaneSense';
@@ -27,6 +29,27 @@ export type SkillLevelId = SkillId | PassiveId;
  * 랭크 하나에 SP 1이고 11종을 모두 10으로 올리면 110pt, 만렙(30)의 가용 SP는 90pt다(스킬의 서로 +30).
  */
 export const MAX_SKILL_LEVEL = 10;
+/** 파이어 볼트는 Lv.1/3/5/8/10에 1/2/3/4/5발이 된다. */
+export function fireBoltCount(level: number): number {
+  const lv = Math.max(1, Math.min(MAX_SKILL_LEVEL, Math.floor(Number.isFinite(level) ? level : 1)));
+  return lv >= 10 ? 5 : lv >= 8 ? 4 : lv >= 5 ? 3 : lv >= 3 ? 2 : 1;
+}
+/** 아이스 볼트: 낮은 단일 피해와 착탄 뒤 얼음 구슬·눈싸라기 연출, 주변 둔화. */
+export function iceBoltProfile(level: number): { power: number; orbDuration: number; flakeCount: number; slowDuration: number; slowScale: number } {
+  const lv = Math.max(1, Math.min(MAX_SKILL_LEVEL, Math.floor(Number.isFinite(level) ? level : 1)));
+  return { power: .65 + (lv - 1) * .02, orbDuration: .85 + (lv - 1) * .11,
+    flakeCount: 6 + Math.round((lv - 1) * 4 / 3), slowDuration: 2.2 + (lv - 1) * .1, slowScale: .6 };
+}
+/** 체인 라이트닝은 첫 대상 포함 Lv.1/5/10에 최대 3/4/5명을 전이한다. */
+export function chainLightningCount(level: number): number {
+  const lv = Math.max(1, Math.min(MAX_SKILL_LEVEL, Math.floor(Number.isFinite(level) ? level : 1)));
+  return lv >= 10 ? 5 : lv >= 5 ? 4 : 3;
+}
+/** 마력 폭발 보호막. 스킬 레벨이 오를수록 공격력당 생성량이 크게 늘어난다. */
+export function manaBurstShield(attack: number, level: number): number {
+  const lv = Math.max(1, Math.min(MAX_SKILL_LEVEL, Math.floor(Number.isFinite(level) ? level : 1)));
+  return Math.max(1, Math.round(Math.max(0, attack) * (1.4 + (lv - 1) * .35)));
+}
 export function skillUpgradeCost(level: number): number { return 40 * level * level; }
 export type Skill = { id: SkillId; name: string; level: number; icon: string; cooldown: number; power: string; description: string; range: number };
 export type Passive = { id: PassiveId; name: string; level: number; icon: string; description: string };
@@ -65,14 +88,34 @@ export const skills: Record<SkillId, Skill> = {
   snipe: { id: 'snipe', name: '저격 일격', level: 14, icon: '👁', cooldown: 11, power: '공격력 × 6.5 · 단일', description: '목표에 붉은 십자 조준표를 띄운 뒤 한 발로 강하게 저격한다.', range: 340 },
   stormVolley: { id: 'stormVolley', name: '폭풍 연사', level: 18, icon: '🌪', cooldown: 12, power: '공격력 × 0.8 · 6발', description: '화살을 한 발씩 연속 발사한다. 적을 처치하면 남은 화살은 다음 적을 겨눈다.', range: 285 },
   arrowRain: { id: 'arrowRain', name: '애로우 레인', level: 24, icon: '☔', cooldown: 18, power: '공격력 × 0.85 · 화살비', description: '넓어지는 범위에 화살이 위에서 수직으로 오래 쏟아진다.', range: 295 },
-  fireBolt: { id: 'fireBolt', name: '파이어 볼트', level: 2, icon: '🔥', cooldown: 4, power: '공격력 × 2.0', description: '지팡이 끝에서 불꽃 구슬을 날려 적 하나를 태운다.', range: 260 },
-  iceBolt: { id: 'iceBolt', name: '아이스 볼트', level: 4, icon: '❄', cooldown: 7, power: '공격력 × 1.7 · 둔화', description: '서리 구슬이 맞은 적을 얼려 잠시 느리게 만든다.', range: 270 },
-  chainLightning: { id: 'chainLightning', name: '체인 라이트닝', level: 5, icon: '⚡', cooldown: 8, power: '공격력 × 1.25 · 연쇄', description: '번개가 적에게 튀어 가까운 적 여럿을 연달아 감전시킨다.', range: 275 },
-  manaBurst: { id: 'manaBurst', name: '마력 폭발', level: 7, icon: '◉', cooldown: 10, power: '공격력 × 2.5 · 폭발', description: '적의 위치에 마력을 응축했다가 터뜨려 주변을 함께 삼킨다.', range: 250 },
+  fireBolt: { id: 'fireBolt', name: '파이어 볼트', level: 2, icon: '🔥', cooldown: 4, power: `공격력 × ${FIRE_BOLT_TOTAL_POWER} · 최대 5발`, description: '둥근 화염구를 한 대상에게 연속으로 날린다.', range: 260 },
+  iceBolt: { id: 'iceBolt', name: '아이스 볼트', level: 4, icon: '❄', cooldown: 7, power: '공격력 × 0.65~0.83 · 둔화', description: '얼음 구슬 한 발이 전진하며 눈싸라기로 주변 적을 느리게 한다. 적에 닿으면 소멸한다.', range: 270 },
+  chainLightning: { id: 'chainLightning', name: '체인 라이트닝', level: 5, icon: '⚡', cooldown: 8, power: '공격력 × 1.25 · 최대 3~5명', description: '첫 적을 맞힌 번개가 가까운 적에게 차례로 전이된다.', range: 275 },
+  manaBurst: { id: 'manaBurst', name: '마력 폭발', level: 7, icon: '◉', cooldown: 10, power: '공격력 × 1.4~4.55 보호막', description: '마력을 폭발시켜 자신을 감싸는 보호막을 만든다. 스킬 레벨이 높을수록 보호막이 크게 늘어난다.', range: 250 },
   frostNova: { id: 'frostNova', name: '프로스트 노바', level: 10, icon: '✳', cooldown: 12, power: '공격력 × 1.5 · 둔화', description: '발밑에서 서리 파동이 퍼져 가까운 적을 얼리고 밀어낸다.', range: 150 },
   arcaneShield: { id: 'arcaneShield', name: '아케인 실드', level: 14, icon: '⛨', cooldown: 16, power: '공격력 × 1.2 · 공격속도 상승', description: '7초 동안(레벨당 +0.17초) 비전 보호막을 두르고 공격력과 공격속도가 오른다.', range: 120 },
   meteorStrike: { id: 'meteorStrike', name: '메테오 스트라이크', level: 18, icon: '☄', cooldown: 13, power: '공격력 × 3.6', description: '하늘에서 불덩이를 떨어뜨려 적의 자리를 크게 내리친다.', range: 285 },
   arcaneOverlord: { id: 'arcaneOverlord', name: '아르카나 오버로드', level: 24, icon: '✵', cooldown: 18, power: '공격력 × 3.0', description: '지팡이의 마력을 한꺼번에 터뜨려 주변을 비전 폭풍으로 휩쓴다.', range: 210 }
+};
+
+/**
+ * 스킬 한 타의 위력(공격력 배수) — **엔진과 방치 정산이 함께 읽는 단일 표**(2026-11-24 방치 사냥 개선).
+ *
+ * `combat/engine.ts` `action()`이 이 값을 그대로 `attack * … * damageScale`에 넣고, `offline.ts`의
+ * 방치 DPS도 같은 값을 쓴다. 종전에는 방치 쪽에 따로 적어 둔 사본이 있어, 11/23 스킬 개편에서
+ * 파워 스트라이크가 ×4.0 → ×5.5가 됐는데도 방치만 ×4로 남아 있었다(접속만 세지고 방치는 그대로).
+ * 이제 값을 여기 한 곳에서만 고치면 접속·방치·스킬 추천 순위가 함께 움직인다.
+ *
+ * 세는 법: **한 번 발동이 한 마리에게 넣는 몫**이다. 여러 발로 나뉘는 스킬(더블 샷 2발·폭풍 연사
+ * 6발·파이어 볼트 여러 발)은 **한 발의 값**을 적고, 10연타(딜레이 크러싱)는 합계를 적는다.
+ * 지속 시간 동안 되풀이되는 추가 타격(회전참격·트위스터·와일드 스탬프·애로우 레인)은 이 표의 첫
+ * 타격 위력만 두고, 되풀이 몫은 `engine.ts`와 `loadout.ts` `skillCastScale`이 따로 센다.
+ * 버프(블러드 레이지·호크아이·아케인 실드)는 위력이 없어 0이다.
+ */
+export const SKILL_HIT_POWER: Record<SkillId, number> = {
+  slash2: 1.1, slam: 2.2, warcry: 0, power: 5.5, destroy: 2.7, hell: 3.2, crushing: 3.4, spin: 1.65,
+  doubleShot: 1.35, multiShot: .95, pierceShot: 2.6, iceArrow: 1.9, hawkEye: 0, snipe: 6.5, stormVolley: .8, arrowRain: .85,
+  fireBolt: FIRE_BOLT_TOTAL_POWER, iceBolt: 1.7, chainLightning: 1.25, manaBurst: 0, frostNova: 1.5, arcaneShield: 0, meteorStrike: 3.6, arcaneOverlord: 3
 };
 
 /**
@@ -148,7 +191,8 @@ export function skillDuration(id: SkillId, level: number): number {
   if (id === 'frostNova') return .8 + (level - 1) * .05;
   if (id === 'arcaneOverlord') return 1.4 + (level - 1) * .07;
   if (id === 'chainLightning') return .55 + (level - 1) * .04;
-  if (id === 'fireBolt' || id === 'iceBolt') return .5 + (level - 1) * .04;
+  if (id === 'fireBolt') return .5 + (level - 1) * .04;
+  if (id === 'iceBolt') return iceBoltProfile(level).orbDuration;
   return .55 + (level - 1) * .05;
 }
 export function skillDamageScale(level: number): number { return 1 + (level - 1) * .1; }

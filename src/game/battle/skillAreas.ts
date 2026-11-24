@@ -21,7 +21,7 @@ export const SKILL_AREAS: Record<SkillId, SkillAreaRule> = {
   arrowRain: { kind: 'circle', radius: 92 },
   fireBolt: { kind: 'projectile', projectileRadius: 36 },
   iceBolt: { kind: 'projectile', projectileRadius: 52 },
-  chainLightning: { kind: 'projectile', projectileRadius: 70 },
+  chainLightning: { kind: 'projectile', projectileRadius: 40 },
   manaBurst: { kind: 'circle', radius: 96 },
   frostNova: { kind: 'circle' }, arcaneShield: { kind: 'buff' },
   meteorStrike: { kind: 'circle', radius: 110 },
@@ -53,6 +53,9 @@ export function iceArrowSlow(level: number): { duration: number; speedScale: num
   const lv = Math.max(1, Math.min(10, Math.floor(Number.isFinite(level) ? level : 1)));
   return { duration: 2.4 + (lv - 1) * .18, speedScale: .55 - (lv - 1) * .03 };
 }
+
+/** 체인 라이트닝의 다음 표적은 직전 표적에서 이 거리 안의 가장 가까운 미피격 적이다. */
+export const CHAIN_LIGHTNING_JUMP_RADIUS = 108;
 
 /** 붉은 검기는 시전 초반에 빠르게 끝까지 뻗고, 남은 시간은 잔상으로 남는다. */
 export function destroyTravelProgress(age: number, duration: number): number { return Math.min(1, age / duration * 2.2); }

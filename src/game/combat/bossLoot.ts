@@ -8,9 +8,10 @@
 // shown, never a second payment. Both the hunting field and the dungeon use that.
 //
 // The item half is the dungeon's alone. The dungeon is a ten-floor preview with a boss on floors 5
-// and 10, so its boss leaves two random items plus the heaps (`bossItems`); the main field hands out
+// and 10, so its boss leaves one random item plus the heaps (`bossItems`); the main field hands out
 // no items of its own for a boss and keeps the one chance roll every kill makes (작업 195 — the user's
-// "메인층은 금화만 10무 더기" correction).
+// "메인층은 금화만 10무 더기" correction). The count came down from two to one in the 아이템 드롭 B안
+// (2026-11-23, 덕진 님 확정 — 전 항목 1/10 하향).
 //
 // Where the heaps land (작업 196 — "도파민 터지게 보스 죽은 주변 흩뿌려줘"): the old two rings of 22
 // and 34 pixels bunched ten heaps into one spot. The ten now leave on two much wider rings — five
@@ -22,8 +23,8 @@
 import { rollDungeonItem, type Item } from '../items';
 import { rollStatBookDrop } from '../statBooks';
 
-/** Random items a dungeon boss leaves on the ground (작업 248: 5 → **2개 확정**). The main field drops none of these for a boss. */
-export const BOSS_ITEM_DROPS = 2;
+/** Random items a dungeon boss leaves on the ground (작업 248: 5 → 2개 확정 → 아이템 드롭 B안 2026-11-23: **1개 확정**). The main field drops none of these for a boss. */
+export const BOSS_ITEM_DROPS = 1;
 /** Heaps a boss's gold hits the floor in. */
 export const BOSS_GOLD_PILES = 10;
 /** The floor's isometric projection, as `projectArenaPoint` applies it. */

@@ -29,7 +29,7 @@ const { World } = await import('../src/game/world.ts');
 // 대로 스냅샷 테스트는 시계를 버프 기간 밖에 묶는다. 버프 자체는 `tests/patch-rewards-and-buff.test.mjs`가 본다.
 const patchBuff = await import('../src/game/patchBuff.ts');
 patchBuff.setPatchBuffClock(() => patchBuff.PATCH_BUFF_START - 1);
-const { skills, skillOrderFor, passiveOrderFor, skillDamageScale } = await import('../src/game/skills.ts');
+const { FIRE_BOLT_TOTAL_POWER, iceBoltProfile, skills, skillOrderFor, passiveOrderFor, skillDamageScale } = await import('../src/game/skills.ts');
 
 const { slots, baseItems, gearStats, applyPlus, maxPlusFor, totalStats, statNames, rarityScales, tierFactor, slotProfileFor } = items;
 const levelFor = floor => Math.min(30, Math.max(1, Math.round(5 + floor * .6)));
@@ -59,7 +59,7 @@ function setFor(job, floor, tierKey, skillLevel) {
   for (const id of [...act, ...pass]) save.skillLevels[id] = skillLevel;
   const burst = { slash2: 2.2, slam: 2.2, warcry: 0, power: 4, destroy: 2.7, hell: 3.2, crushing: 3.4, spin: 1.65,
     doubleShot: 2.7, multiShot: .95, pierceShot: 2.6, iceArrow: 1.9, hawkEye: 0, snipe: 6.5, stormVolley: .8, arrowRain: 2.55,
-    fireBolt: 2, iceBolt: 1.7, chainLightning: 1.25, manaBurst: 2.5, frostNova: 1.5, arcaneShield: 0, meteorStrike: 3.6, arcaneOverlord: 3 };
+    fireBolt: FIRE_BOLT_TOTAL_POWER, iceBolt: iceBoltProfile(skillLevel).power / skillDamageScale(skillLevel), chainLightning: 1.25, manaBurst: 2.5, frostNova: 1.5, arcaneShield: 0, meteorStrike: 3.6, arcaneOverlord: 3 };
   save.quickSlots = act.map(id => ({ id, dps: (burst[id] || 0) * skillDamageScale(skillLevel) / skills[id].cooldown }))
     .sort((a, b) => b.dps - a.dps).slice(0, 3).map(entry => entry.id);
   return save;
@@ -192,7 +192,9 @@ test('방어 % 감소 — min(62%, def / (def + 50×(1+층/2))), 일반 몹은 �
 test('몹·보스 HP · killsToBoss · 필드 보상 계수 · 드롭률(밸런스 v2 표)', () => {
   const table = [
     // [층, 몹 HP, 보스 HP, killsToBoss, 드롭률%, 마리당 금화]
-    [1, 26, 347, 150, .002418, 3], [10, 224, 2912, 501, .001997, 8], [20, 1083, 14079, 1081, .001529, 10], [40, 2069, 26897, 2841, .001443, 15], [78, 3940, 51220, 8389, .001443, 28]
+    // 20층 금화 10 → 23(2026-11-24 층간 형평성 `안 A`) — 몹 HP가 15층(490)의 2.21배라 마리당 보상도 2.21배다.
+    // 40·78층도 같은 배율을 적용한 값이다(전투·몹 HP·던전 정산 금화는 그대로).
+    [1, 26, 347, 150, .000242, 3], [10, 224, 2912, 501, .0002, 8], [20, 1083, 14079, 1081, .000153, 23], [40, 2069, 26897, 2841, .000144, 64], [78, 3940, 51220, 8389, .000144, 228]
   ];
   for (const [floor, mobHp, bossHp, kills, dropPct, gold] of table) {
     assert.equal(formulas.enemyMaxHp(floor, false), mobHp, `${floor}층 몹`);
@@ -202,8 +204,8 @@ test('몹·보스 HP · killsToBoss · 필드 보상 계수 · 드롭률(밸런�
     assert.equal(progress.killReward({ floor }).gold, gold, `${floor}층 금화`);
     assert.equal(progress.killGold(floor), 3 + floor, '던전 정산 금화에는 필드 계수를 곱하지 않는다');
   }
-  // 20 → 21층 연속성(MAX_FLOOR 20은 그대로).
-  assert.equal(progress.MAX_FLOOR, 20);
+  // 20 → 21층 연속성(21~40층 확장으로 상한은 40 — 곡선은 그대로 이어진다).
+  assert.equal(progress.MAX_FLOOR, 40);
   assert(enemyGap(20, 21) > 0 && enemyGap(20, 21) < .05, '20→21층 몹 HP +5% 안');
   // 보스 금화 70×층은 그대로.
   assert.equal(progress.killReward({ floor: 20 }, { boss: true }).gold, 1400);
@@ -254,7 +256,9 @@ test('던전과 방치 정산이 필드와 같은 식을 쓴다', () => {
   assert(offline.offlineHeroDps(withCdr) > offline.offlineHeroDps(bare), '쿨감 20%는 방치 DPS를 올린다');
   const standard = setFor('mage', 20, 'std', 10);
   const kpm = offline.offlineKillsPerMinute(standard);
-  const expected = 60 * Math.min(offline.offlineHeroDps(standard) / formulas.enemyMaxHp(20, false), formulas.fieldSpawnRate(20)) * offline.OFFLINE_EFFICIENCY;
+  // 2026-11-24부터 생존 가동률(쓰러지는 시간 ÷ (버티는 시간 + 부활 5초))이 곱해진다.
+  const expected = 60 * Math.min(offline.offlineHeroDps(standard) / formulas.enemyMaxHp(20, false), formulas.fieldSpawnRate(20))
+    * offline.OFFLINE_EFFICIENCY * offline.offlineSurvivalUptime(standard, 20);
   assert(Math.abs(kpm - expected) < 1e-6);
   assert(offline.offlineBossBattle(setFor('mage', 20, 'std', 10), 20).bossHp === formulas.enemyMaxHp(20, true));
 });

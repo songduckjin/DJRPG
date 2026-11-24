@@ -52,8 +52,8 @@ test('약한 스펙이면 보스에게 막혀 그 층에서 일반 사냥만 한
   // 1마리부터 다시 잡는다 — 다음 접속에 바로 또 보스가 서 있지 않다.
   assert(save.floorKills < floorKillTarget(5));
   assert.equal(save.bossRetryFloor, 5, '`⚔ 보스 도전`이 살아 있는 층을 남긴다');
-  // 지면 10골드를 잃는다(접속 사냥과 같다).
-  assert.equal(save.gold, reward.gold - reward.deaths * 10);
+  // 지면 10골드를 잃는다(접속 사냥과 같다) — 2026-11-24부터 사냥 중 쓰러짐(`fieldDeaths`)도 같은 패널티다.
+  assert.equal(save.gold, reward.gold - (reward.deaths + reward.fieldDeaths) * 10);
 });
 
 test('자동 등반이 꺼져 있으면 층이 오르지 않는다', () => {

@@ -1,4 +1,5 @@
 import { DungeonLobby } from './dungeonLobby';
+import { DefenseLobby } from './defenseLobby';
 import { WorldBossPreview } from './worldBossPreview';
 import { bindModalInteraction, type ModalRenderGate } from './modalInteraction';
 import { Journey } from '../game/journey';
@@ -92,6 +93,8 @@ export function modalBlocked(market: Pick<Market, 'busy' | 'sync'>, kind: Modal 
 
 export class Interface {
   dungeon = new DungeonLobby();
+  /** 무한 방어전 로비(2026-11-24) — 던전 허브에서 '무한 방어전' 카드를 고르면 이 상태로 그린다. */
+  defense = new DefenseLobby();
   worldBoss = new WorldBossPreview();
   worldBossField?: () => void;
   suspendMainField?: () => () => void;

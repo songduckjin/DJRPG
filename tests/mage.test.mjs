@@ -179,19 +179,22 @@ test('마법사 스킬 8종은 각자의 이펙트를 만들고 피해나 버프
     if (id === 'arcaneShield') {
       assert(world.player.berserk > 0, '아케인 실드는 공격 버프를 건다');
       assert(effects.some(effect => effect.kind === 'ward'));
+    } else if (id === 'manaBurst') {
+      assert(world.player.shield > 0, '마력 폭발은 보호막을 만든다');
+      assert.equal(enemy.hp, 100000, '마력 폭발은 적에게 피해를 주지 않는다');
     } else {
       assert(enemy.hp < 100000 || world.enemies.length === 0 || enemy.hp <= 0, `${id}: 피해가 없다`);
     }
   }
-  // 투사체 스킬은 마법 구슬('shot')로, 폭발·노바는 전용 이펙트로 나간다.
+  // 파이어 볼트만 투사체이고, 얼음 구슬·연쇄 전기는 전용 이펙트로 나간다.
   const projectile = new World(mageSave());
   projectile.spawnTimer = 999; projectile.cooldown.attack = 999;
   enemyAt(projectile, 150);
-  for (const id of ['fireBolt', 'iceBolt', 'chainLightning']) {
+  for (const [id, kind] of [['fireBolt', 'shot'], ['iceBolt', 'iceOrb'], ['chainLightning', 'chainArc']]) {
     projectile.save.learned = [id]; projectile.save.quickSlots = [id, null, null];
     projectile.effects = []; projectile.cooldown[id] = 0;
     projectile.action(id);
-    assert(projectile.effects.some(effect => effect.kind === 'shot'), `${id}: 마법 구슬이 없다`);
+    assert(projectile.effects.some(effect => effect.kind === kind), `${id}: ${kind} 이펙트가 없다`);
   }
   for (const id of ['manaBurst', 'meteorStrike']) {
     projectile.effects = []; projectile.cooldown[id] = 0;

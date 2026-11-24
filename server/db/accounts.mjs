@@ -16,12 +16,14 @@ import { fail } from './errors.mjs';
  * 그대로 불러 프로필·캐릭터 행을 만들어 주는 예전 경로를 탄다.
  */
 export const accountQuery = id => ({ sql: `SELECT a.*, p.shared_gold, p.active_slot, COALESCE(w.max_slots,3) AS max_slots, c.save_json AS character_json, c.updated_at AS character_updated_at, COALESCE(v.revision,0) AS revision,
-      d.cleared_floor AS dungeon_record_floor, d.cleared_at AS dungeon_record_at
+      d.cleared_floor AS dungeon_record_floor, d.cleared_at AS dungeon_record_at,
+      df.best_stage AS defense_record_stage, df.reached_at AS defense_record_at
     FROM djrpg_accounts a JOIN djrpg_account_profiles p ON p.account_id=a.id
     JOIN djrpg_characters c ON c.account_id=a.id AND c.slot=p.active_slot
     LEFT JOIN djrpg_shop_wallet w ON w.account_id=a.id
     LEFT JOIN djrpg_save_versions v ON v.account_id=a.id
-    LEFT JOIN djrpg_dungeon_records d ON d.account_id=a.id WHERE a.id=?`, args: [id] });
+    LEFT JOIN djrpg_dungeon_records d ON d.account_id=a.id
+    LEFT JOIN djrpg_defense_records df ON df.account_id=a.id WHERE a.id=?`, args: [id] });
 
 export async function account(tx, id) {
   // 던전 기록도 같은 읽기에 실어 둔다 — `writeSave`가 세이브의 최고층을 검증된 기록과 대조해야 하는데,

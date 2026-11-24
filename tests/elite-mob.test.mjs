@@ -62,7 +62,7 @@ test('정예 처치는 금화·경험치가 2배이고 장비·스킬북 드롭�
   const gold = unit.gold;
   const originalRandom = Math.random;
   try {
-    // 한 마리당 아이템 드롭 롤은 **한 번**이고 일반·정예가 같은 0.39%(전 층 고정)다(작업 210·254).
+    // 한 마리당 아이템 드롭 롤은 **한 번**이고 일반·정예가 같은 0.039%(전 층 고정)다(작업 210·254 → 아이템 드롭 B안).
     Math.random = () => .005;
     const blocked = freshSave(); blocked.tutorial = 3; blocked.floor = floor; blocked.kills = 10; // 입문 지원 확정 드랍(1~2층 2·3번째 처치)과 섮이지 않게
     const blockedWorld = new World(blocked); blockedWorld.enemies = [];
@@ -71,10 +71,10 @@ test('정예 처치는 금화·경험치가 2배이고 장비·스킬북 드롭�
     blockedWorld.kill(enemyOf({ elite: true, maxHp: enemyMaxHp(floor, false) * ELITE_HP_SCALE }));
     assert.equal(normalDrops, 0, `일반 몹은 ${Math.round(itemDropChance(floor) * 10000) / 100}%에서 떨어지지 않는다`);
     assert.equal(blockedWorld.drops.length, 0, '정예도 같은 1배 확률이라 떨어지지 않는다');
-    assert.equal(Math.round(itemDropChance(floor, false) * 1e6) / 1e6, .002418, '1층 일반 몹 0.242%(밸런스 v2)');
+    assert.equal(Math.round(itemDropChance(floor, false) * 1e6) / 1e6, .000242, '1층 일반 몹 0.0242%(아이템 드롭 B안)');
 
     // 확률 안쪽 값에서는 일반·정예 모두 **한 개씩** 떨어진다(두 개가 같이 나오지 않는다).
-    Math.random = () => .002;
+    Math.random = () => .0001;
     const both = freshSave(); both.tutorial = 3; both.floor = floor; both.kills = 10;
     const bothWorld = new World(both); bothWorld.enemies = [];
     bothWorld.kill(enemyOf());

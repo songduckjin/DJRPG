@@ -15,16 +15,16 @@
  */
 
 import { random } from '../rng';
-import { dragonOrbitFactor, jobOrDefault, skillDamageScale, skillDuration, skillRange, skills, slash2Hits, slash2SwingSeconds, type Job, type SkillId } from '../skills';
+import { chainLightningCount, dragonOrbitFactor, FIRE_BOLT_TOTAL_POWER, fireBoltCount, iceBoltProfile, jobOrDefault, manaBurstShield, skillDamageScale, skillDuration, skillRange, skills, slash2Hits, slash2SwingSeconds, SKILL_HIT_POWER, type Job, type SkillId } from '../skills';
 import { skillLevel, totalStats, type Save } from '../store';
 import { EXTRA_LIFESTEAL_HIT_CAP, EXTRA_LIFESTEAL_SECOND_CAP, EXTRA_REGEN_SECONDS, effectiveExtraOptions } from '../extraOptions';
 import type { Action, ArrowVariant, Coin, Drop, Effect, Enemy, HeroAfterimage } from '../battle/types';
 import { CRIT_CHANCE_CAP, ENEMY_ATTACK_RANGE, ENEMY_STOP_RANGE, ENEMY_STRIKE_SECONDS, WARRIOR_ATTACK_RANGE, archerAttackRange, archerStopRange, attackInterval, basicAttackPower, berserkAttackScale, berserkSpeedScale, critDamageScale, enemyHitDamage, enemyMoveSpeed, mageAttackRange, mageStopRange, swarmCount } from '../battle/formulas';
 import { aimPoint as aimPointTo, fireBoltSpots, nearestEnemy, targetsInArc, targetsInForwardBox } from '../battle/targeting';
-import { destroyTravelProgress, iceArrowSlow, multiShotPattern, skillArea } from '../battle/skillAreas';
+import { CHAIN_LIGHTNING_JUMP_RADIUS, destroyTravelProgress, iceArrowSlow, multiShotPattern, skillArea } from '../battle/skillAreas';
 import { recordPlaySeconds } from '../progress';
 import { isPatchBuffActive } from '../patchBuff';
-import { clampArenaPoint, clampFieldPoint } from './bounds';
+import { clampArenaPoint, clampFieldPoint, clampKnockbackPoint } from './bounds';
 
 /** 딜레이 크러싱 10연타(작업 212) — 붉은보석1식으로, 한 번에 한 타가 아니라 짧은 간격으로 10번 따로 판정한다. */
 export const crushHits = 10;
@@ -43,6 +43,19 @@ export const SKILL_CDR_CAP = 35;
  *  두어 마리에 둘러싸여 바로 쓰러지지 않게 하는 최소한의 숨통이다(밸런스 v2 온보딩). */
 export const EARLY_REGEN_FLOOR = 4;
 export const EARLY_REGEN_PER_SECOND = .01;
+/**
+ * 쓰러진 뒤 부활까지 기다리는 시간(초) — 2026-11-24 대장님·덕진 님 확정.
+ *
+ * 접속 사냥(`FieldProgress.heroDown`)과 방치 정산(`offline.ts` `offlineSurvivalUptime`)이 **같은 값**을
+ * 쓴다. 그래야 "켜 놓고 보는 사람 = 방치하는 사람" 원칙이 지켜지고, 방치 정산에 들어온 사망 손실이
+ * 실제 플레이와 같은 무게를 갖는다(종전 접속은 죽어도 대기 없이 만혈 부활해 10골드만 잃었다).
+ * 입문 구간(1~4층)은 면제한다(`reviveSeconds` = 0) — 장비 없는 Lv.1의 첫 방치 경험을 지킨다.
+ */
+export const REVIVE_SECONDS = 5;
+/** 그 층에서 쓰러진 뒤 기다리는 시간(초) — 입문 구간(1~4층)은 0초(면제). */
+export function reviveSeconds(floor: number): number {
+  return floor <= EARLY_REGEN_FLOOR ? 0 : REVIVE_SECONDS;
+}
 
 /** 10연타 팝업을 흩뿌리는 자리(±12px) — 타마다 다른 조합이라 열 개 숫자가 한 곳에 모이지 않는다. */
 export function crushLabelOffset(index: number): { x: number; y: number } { return { x: (index % 5 - 2) * 6, y: index < 5 ? -8 : 4 }; }
@@ -51,13 +64,12 @@ export function crushLabelOffset(index: number): { x: number; y: number } { retu
  *  한 번 띄우면 4.5초는 조용히 막는다. */
 export const WEAPON_REQUIRED_NOTICE = '무기를 장착해야 공격할 수 있습니다.';
 export const WEAPON_NOTICE_COOLDOWN = 4.5;
-/** 파이어 볼트가 띄우는 화염구 수(작업 216) — Lv.1~4는 1발, 이후 5레벨마다 +1발, 최대 6발. */
-export function fireBoltCount(level: number): number { return Math.min(6, 1 + Math.floor(Math.max(1, Math.floor(level)) / 5)); }
-/** 화염구 크기 배율(작업 216) — 레벨이 오를수록 점진적으로 커진다(Lv.1 1배 → Lv.30 2.45배). */
-export function fireBoltScale(level: number): number { return 1 + Math.max(0, Math.floor(level) - 1) * .05; }
+export { fireBoltCount } from '../skills'; // 기존 `world.ts` re-export 경로 유지
+/** 화염구 크기 배율 — Lv.1 1배에서 Lv.10 1.45배까지 증가한다. */
+export function fireBoltScale(level: number): number { return 1 + (Math.max(1, Math.min(10, Math.floor(Number.isFinite(level) ? level : 1))) - 1) * .05; }
 
 export class CombatEngine {
-  player = { x: 0, y: 0, facing: 0, facingSide: 1, hp: 100, berserk: 0, berserkLevel: 1, hit: 0 };
+  player = { x: 0, y: 0, facing: 0, facingSide: 1, hp: 100, shield: 0, berserk: 0, berserkLevel: 1, hit: 0 };
   /** 지금 피격 창(0.85초)에서 아직 때릴 수 있는 몹 수 — 2~3마리 동시 타격(밸런스 v2 군집). */
   protected strikeQuota = 0;
   /** 피흡 1초 창의 누적 회복량 — 초당 상한(최대 체력의 2.5%)을 지키는 데 쓴다. */
@@ -65,6 +77,8 @@ export class CombatEngine {
   lifestealHealed = 0;
   /** 입문 구간 자연 회복 타이머(1초). */
   earlyRegenClock = 0;
+  /** 쓰러진 뒤 부활까지 남은 시간(초) — 0이면 살아 있다(2026-11-24 부활 대기 5초). */
+  reviveTimer = 0;
   /** 추가옵션 체력회복력(작업 238)의 5초 타이머. */
   regenClock = 0;
   enemies: Enemy[] = [];
@@ -112,6 +126,8 @@ export class CombatEngine {
    */
   constructor(public save: Save) {
     this.save.auto = true;    this.player.hp = Math.min(save.health, totalStats(save).health);
+    // 부활 대기 중이던 세이브(체력 0)로 들어와도 쓰러진 채로 멈추지 않게 한다 — 화면을 닫았다 열면 일어난다.
+    if (!(this.player.hp > 0)) this.player.hp = totalStats(save).health;
   }
 
   /** 무기 미장착 안내 — 쿨다운 안이면 조용히 지나간다. */
@@ -187,42 +203,46 @@ export class CombatEngine {
       this.effects.push({ x: p.x, y: p.y, kind: 'slash2', age: 0, duration: skillDuration(kind, level), angle: p.facing, nextHit: slash2Hits[0].at, power: attack * damageScale, level, hits: 0 });
     } else if (kind === 'spin') {
       this.effects.push({ x: p.x, y: p.y, kind: 'spin', age: 0, duration: skillDuration(kind, level), angle: 0, nextHit: .45, power: attack * .65 * damageScale, level });
-      this.damage(area!.radius! * dragonOrbitFactor(0), attack * 1.65 * damageScale, 0, area!.arc ?? Math.PI);
+      this.damage(area!.radius! * dragonOrbitFactor(0), attack * SKILL_HIT_POWER.spin * damageScale, 0, area!.arc ?? Math.PI);
     } else if (kind === 'crushing') {
       // [작업 212] 붉은보석1식 — 적 하나에게 본체가 빠르게 10번 내려치고, 타마다 잔상과 데미지 판정이 남는다.
       // 연출(충격 링·내려찍기)은 대상이 있는 자리에서 62ms마다 한 번씩 깜빡인다.
       const point = target && Math.hypot(target.x - p.x, target.y - p.y) <= range ? target : { x: p.x + Math.cos(p.facing) * range * .65, y: p.y + Math.sin(p.facing) * range * .65 };
       this.effects.push({
         x: point.x, y: point.y, kind: 'crushing', age: 0, duration: crushHits * crushInterval,
-        angle: p.facing, strikeInterval: crushInterval, power: attack * 3.4 * damageScale, level, aim: target
+        angle: p.facing, strikeInterval: crushInterval, power: attack * SKILL_HIT_POWER.crushing * damageScale, level, aim: target
       });
-      this.crush = { level, elapsed: 0, next: crushInterval, hits: 0, power: attack * 3.4 * damageScale };
+      this.crush = { level, elapsed: 0, next: crushInterval, hits: 0, power: attack * SKILL_HIT_POWER.crushing * damageScale };
       this.crushStrike();
     } else if (kind === 'slam') {
       this.effects.push({ x: p.x, y: p.y, kind: 'slam', age: 0, duration: skillDuration(kind, level), angle: 0, nextHit: .45, power: attack * .55 * damageScale, level });
-      this.damage(area!.radius!, attack * 2.2 * damageScale, 0, Math.PI, 55, 2 + (level - 1) * .3);
+      this.damage(area!.radius!, attack * SKILL_HIT_POWER.slam * damageScale, 0, Math.PI, 55, 2 + (level - 1) * .3);
     } else if (kind === 'warcry') {
       p.berserk = skillDuration(kind, level);
       p.berserkLevel = level;
       this.effects.push({ x: p.x, y: p.y, kind: 'warcry', age: 0, duration: .7, angle: 0 });
       for (const enemy of this.enemies) {
         const dx = enemy.x - p.x, dy = enemy.y - p.y, d = Math.hypot(dx, dy);
-        if (d < area!.radius! && d > 0) { const bounded = clampFieldPoint(enemy.x + dx / d * 40, enemy.y + dy / d * 40); enemy.x = bounded.x; enemy.y = bounded.y; }
+        if (d < area!.radius! && d > 0) {
+          // 블러드 레이지의 밀어내기도 넉백과 같은 경계를 쓴다 — 아레나 밖으로 밀려나지 않는다(작업 264).
+          const bounded = clampKnockbackPoint(enemy, { x: enemy.x + dx / d * 40, y: enemy.y + dy / d * 40 });
+          enemy.x = bounded.x; enemy.y = bounded.y;
+        }
       }
     } else if (kind === 'power') {
       const point = target && Math.hypot(target.x - p.x, target.y - p.y) <= range
         ? target : { x: p.x + Math.cos(p.facing) * range * .75, y: p.y + Math.sin(p.facing) * range * .75 };
       this.effects.push({ x: point.x, y: point.y, kind: 'power', age: 0, duration: skillDuration(kind, level), angle: p.facing });
-      this.damage(area!.radius!, attack * 5.5 * damageScale, p.facing, Math.PI, 24, 0, p, 1);
+      this.damage(area!.radius!, attack * SKILL_HIT_POWER.power * damageScale, p.facing, Math.PI, 24, 0, p, 1);
     } else if (kind === 'destroy') {
-      this.effects.push({ x: p.x, y: p.y, kind: 'destroy', age: 0, duration: skillDuration(kind, level), angle: p.facing, power: attack * 2.7 * damageScale, level, hitEnemies: new Set() });
+      this.effects.push({ x: p.x, y: p.y, kind: 'destroy', age: 0, duration: skillDuration(kind, level), angle: p.facing, power: attack * SKILL_HIT_POWER.destroy * damageScale, level, hitEnemies: new Set() });
     } else if (kind === 'hell') {
       this.effects.push({ x: p.x, y: p.y, kind: 'hell', age: 0, duration: skillDuration(kind, level), angle: p.facing, nextHit: .4, power: attack * .6 * damageScale, level });
-      this.damage(area!.radius!, attack * 3.2 * damageScale, 0, area!.arc ?? Math.PI, 45, 1 + (level - 1) * .2);
+      this.damage(area!.radius!, attack * SKILL_HIT_POWER.hell * damageScale, 0, area!.arc ?? Math.PI, 45, 1 + (level - 1) * .2);
     } else if (kind === 'doubleShot') {
       const aim = this.aimPoint(target, range);
       const sideX = -Math.sin(p.facing) * 8, sideY = Math.cos(p.facing) * 8;
-      for (const side of [-1, 1]) this.shoot(aim.x, aim.y, attack * 1.35 * damageScale,
+      for (const side of [-1, 1]) this.shoot(aim.x, aim.y, attack * SKILL_HIT_POWER.doubleShot * damageScale,
         { speed: 900, radius: area!.projectileRadius, arrow: 'normal', source: kind,
           from: { x: p.x + sideX * side, y: p.y + sideY * side } });
     } else if (kind === 'multiShot') {
@@ -232,19 +252,19 @@ export class CombatEngine {
       const pattern = multiShotPattern(level);
       for (let index = 0; index < pattern.count; index++) {
         const spread = base - pattern.halfArc + 2 * pattern.halfArc * index / (pattern.count - 1);
-        this.shoot(p.x + Math.cos(spread) * range, p.y + Math.sin(spread) * range, attack * .95 * damageScale,
+        this.shoot(p.x + Math.cos(spread) * range, p.y + Math.sin(spread) * range, attack * SKILL_HIT_POWER.multiShot * damageScale,
           { speed: 860, radius: area!.projectileRadius, targets: Infinity, arrow: 'normal', source: kind, piercing: true, hitEnemies });
       }
     } else if (kind === 'pierceShot') {
       const aim = this.aimPoint(target, range);
       const angle = Math.atan2(aim.y - p.y, aim.x - p.x);
       this.shoot(p.x + Math.cos(angle) * range, p.y + Math.sin(angle) * range,
-        attack * 2.6 * damageScale, { speed: 980, radius: area!.projectileRadius, targets: 4,
+        attack * SKILL_HIT_POWER.pierceShot * damageScale, { speed: 980, radius: area!.projectileRadius, targets: 4,
           arrow: 'pierce', source: kind, piercing: true, hitEnemies: new Set() });
     } else if (kind === 'iceArrow') {
       const aim = this.aimPoint(target, range);
       const freeze = iceArrowSlow(level);
-      this.shoot(aim.x, aim.y, attack * 1.9 * damageScale, { speed: 760, radius: area!.projectileRadius,
+      this.shoot(aim.x, aim.y, attack * SKILL_HIT_POWER.iceArrow * damageScale, { speed: 760, radius: area!.projectileRadius,
         slow: freeze.duration, slowScale: freeze.speedScale, arrow: 'ice', source: kind });
     } else if (kind === 'hawkEye') {
       p.berserk = skillDuration(kind, level);
@@ -253,49 +273,60 @@ export class CombatEngine {
     } else if (kind === 'snipe') {
       const aim = this.aimPoint(target, range);
       this.effects.push({ x: aim.x, y: aim.y, kind: 'snipeMark', age: 0, duration: .42, angle: 0, source: kind });
-      this.shoot(aim.x, aim.y, attack * 6.5 * damageScale, { speed: 1500, radius: area!.projectileRadius, knockback: 18, arrow: 'snipe', source: kind, launch: .32 });
+      this.shoot(aim.x, aim.y, attack * SKILL_HIT_POWER.snipe * damageScale, { speed: 1500, radius: area!.projectileRadius, knockback: 18, arrow: 'snipe', source: kind, launch: .32 });
     } else if (kind === 'stormVolley') {
       const volley: Effect = { x: p.x, y: p.y, kind: 'volleyCast', age: 0, duration: area!.duration,
-        angle: p.facing, launch: .18, hits: 0, aim: target, power: attack * .8 * damageScale,
+        angle: p.facing, launch: .18, hits: 0, aim: target, power: attack * SKILL_HIT_POWER.stormVolley * damageScale,
         radius: area!.projectileRadius, level, source: kind };
       this.fireVolleyArrow(volley);
       this.effects.push(volley);
     } else if (kind === 'arrowRain') {
       const aim = this.aimPoint(target, range);
-      this.effects.push({ x: aim.x, y: aim.y, kind: 'rain', age: 0, duration: area!.duration, angle: 0, nextHit: .12, power: attack * .85 * damageScale, radius: area!.radius, level, source: kind });
+      this.effects.push({ x: aim.x, y: aim.y, kind: 'rain', age: 0, duration: area!.duration, angle: 0, nextHit: .12, power: attack * SKILL_HIT_POWER.arrowRain * damageScale, radius: area!.radius, level, source: kind });
     } else if (kind === 'fireBolt') {
       // [작업 216] 머리 위에 화염구 N발을 띄운 뒤, 각 자리에서 목표 한 마리를 향해 곡선 없이
-      // 곧장 일직선으로 날아가 타격한다. 합계 위력은 예전 한 발(×2.0)과 같게 N으로 나눈다.
+      // 곧장 일직선으로 날아가 한 대상만 타격한다. 합계 위력 ×1.5를 N발로 나눈다.
       const aim = this.aimPoint(target, range);
       const count = fireBoltCount(level), size = fireBoltScale(level);
-      const power = attack * 2 * damageScale / count;
+      const power = attack * FIRE_BOLT_TOTAL_POWER * damageScale / count;
       fireBoltSpots(p.x, p.y, count).forEach((spot, index) => {
         this.shoot(aim.x, aim.y, power, {
-          speed: 900, radius: area!.projectileRadius, arrow: 'fire', aim: target, source: kind,
-          from: spot, launch: .18 + index * .05, size
+          speed: 720, radius: area!.projectileRadius, arrow: 'fire', aim: target, source: kind,
+          from: spot, launch: .18 + index * .1, size
         });
       });
     } else if (kind === 'iceBolt') {
       const aim = this.aimPoint(target, range);
-      this.shoot(aim.x, aim.y, attack * 1.7 * damageScale, { speed: 720, radius: area!.projectileRadius, slow: 2.4 + (level - 1) * .06, arrow: 'frost', aim: target, source: kind });
-    } else if (kind === 'chainLightning') {
-      const aim = this.aimPoint(target, range);
-      this.shoot(aim.x, aim.y, attack * 1.25 * damageScale, { speed: 900, radius: area!.projectileRadius, targets: 3, arrow: 'chain', aim: target, source: kind });
+      const frost = iceBoltProfile(level);
+      const angle = Math.atan2(aim.y - p.y, aim.x - p.x);
+      this.effects.push({ x: p.x, y: p.y, fromX: p.x, fromY: p.y,
+        tx: p.x + Math.cos(angle) * range, ty: p.y + Math.sin(angle) * range,
+        kind: 'iceOrb', age: 0, duration: frost.orbDuration, angle, power: attack * frost.power,
+        radius: area!.projectileRadius, slow: frost.slowDuration, slowScale: frost.slowScale, level, source: kind });
+    } else if (kind === 'chainLightning' && target) {
+      const count = chainLightningCount(level), power = attack * 1.25 * damageScale;
+      this.damage(area!.projectileRadius!, power, 0, Math.PI, 8, 0, target, 1,
+        undefined, undefined, undefined, false, target);
+      const duration = count * .16 + .18;
+      this.effects.push({ x: p.x, y: p.y, tx: target.x, ty: target.y,
+        kind: 'chainArc', age: 0, duration, angle: 0, hits: 0, source: kind });
+      this.effects.push({ x: target.x, y: target.y, kind: 'chainCast', age: 0, duration,
+        angle: 0, nextHit: .14, power, radius: CHAIN_LIGHTNING_JUMP_RADIUS,
+        hits: 1, targets: count, hitEnemies: new Set([target]), level, source: kind });
     } else if (kind === 'manaBurst') {
-      const aim = this.aimPoint(target, range);
-      this.effects.push({ x: aim.x, y: aim.y, kind: 'burst', age: 0, duration: area!.duration, angle: 0, nextHit: .35, power: attack * 2.5 * damageScale, radius: area!.radius, variant: 'arcane', level, source: kind });
+      this.effects.push({ x: p.x, y: p.y, kind: 'burst', age: 0, duration: area!.duration, angle: 0, nextHit: area!.duration * .5, radius: area!.radius, variant: 'arcane', level, source: kind });
     } else if (kind === 'frostNova') {
       // 판정은 노바 이펙트가 한 번만 낸다(발동 즉시 피해를 또 주면 두 번 들어간다).
-      this.effects.push({ x: p.x, y: p.y, kind: 'nova', age: 0, duration: area!.duration, angle: 0, nextHit: .12, power: attack * 1.5 * damageScale, radius: area!.radius, slow: 2.2 + (level - 1) * .06, variant: 'frost', level, source: kind });
+      this.effects.push({ x: p.x, y: p.y, kind: 'nova', age: 0, duration: area!.duration, angle: 0, nextHit: .12, power: attack * SKILL_HIT_POWER.frostNova * damageScale, radius: area!.radius, slow: 2.2 + (level - 1) * .06, variant: 'frost', level, source: kind });
     } else if (kind === 'arcaneShield') {
       p.berserk = skillDuration(kind, level);
       p.berserkLevel = level;
       this.effects.push({ x: p.x, y: p.y, kind: 'ward', age: 0, duration: .9, angle: 0, level, source: kind });
     } else if (kind === 'meteorStrike') {
       const aim = this.aimPoint(target, range);
-      this.effects.push({ x: aim.x, y: aim.y, kind: 'burst', age: 0, duration: area!.duration, angle: 0, nextHit: .6, power: attack * 3.6 * damageScale, radius: area!.radius, variant: 'meteor', level, source: kind });
+      this.effects.push({ x: aim.x, y: aim.y, kind: 'burst', age: 0, duration: area!.duration, angle: 0, nextHit: .6, power: attack * SKILL_HIT_POWER.meteorStrike * damageScale, radius: area!.radius, variant: 'meteor', level, source: kind });
     } else if (kind === 'arcaneOverlord') {
-      this.effects.push({ x: p.x, y: p.y, kind: 'nova', age: 0, duration: area!.duration, angle: 0, nextHit: .2, power: attack * 3 * damageScale, radius: area!.radius, variant: 'arcane', level, source: kind });
+      this.effects.push({ x: p.x, y: p.y, kind: 'nova', age: 0, duration: area!.duration, angle: 0, nextHit: .2, power: attack * SKILL_HIT_POWER.arcaneOverlord * damageScale, radius: area!.radius, variant: 'arcane', level, source: kind });
     }
   }
 
@@ -370,7 +401,7 @@ export class CombatEngine {
     if (Math.abs(screenDx) > 4) this.player.facingSide = screenDx > 0 ? 1 : -1;
   }
 
-  damage(radius: number, amount: number, angle: number, arc: number, knockback = 12, slow = 0, origin: { x: number; y: number } = this.player, maxTargets = Infinity, labelOffset?: { x: number; y: number }, boxHalfWidth?: number, hitEnemies?: Set<Enemy>, forceCrit = false): void {
+  damage(radius: number, amount: number, angle: number, arc: number, knockback = 12, slow = 0, origin: { x: number; y: number } = this.player, maxTargets = Infinity, labelOffset?: { x: number; y: number }, boxHalfWidth?: number, hitEnemies?: Set<Enemy>, forceCrit = false, onlyTarget?: Enemy): void {
     // 추가옵션(작업 238): `추가 데미지`는 최종 피해에 곱하고, `피흡`은 실제로 가한 피해에서 회복한다.
     // 두 값 모두 상한이 걸려 있다(`effectiveExtraOptions`) — 피흡은 한 번의 타격에 최대 체력의 4%까지다.
     const extras = effectiveExtraOptions(this.save.equipment);
@@ -386,9 +417,10 @@ export class CombatEngine {
     // 확률은 위 `critChance` 그대로이고 **배수만** 오른다 — 추가 데미지·피흡도 이 배수 위에서 계산된다.
     const critScale = critDamageScale(extras.critDmgPct);
     // 판정 대상은 사거리·부채꼴 안의 적(`battle/targeting`). `maxTargets`를 주면 가까운 순으로 그 수만 맞는다(평타 1마리).
+    const enemies = onlyTarget ? this.enemies.includes(onlyTarget) ? [onlyTarget] : [] : this.enemies;
     const targets = boxHalfWidth === undefined
-      ? targetsInArc(origin, radius, angle, arc, this.enemies, maxTargets)
-      : targetsInForwardBox(origin, radius, boxHalfWidth, angle, this.enemies);
+      ? targetsInArc(origin, radius, angle, arc, enemies, maxTargets)
+      : targetsInForwardBox(origin, radius, boxHalfWidth, angle, enemies);
     let dealt = 0;
     for (const { enemy, dx, dy, dist } of targets) {
       if (hitEnemies && hitEnemies.size >= maxTargets) break;
@@ -442,8 +474,24 @@ export class CombatEngine {
    *  주므로 이 훅을 쓰지 않는다. */
   protected heroDown(_enemy: Enemy): void {}
 
+  /** 부활 대기가 끝난 순간 — 만혈로 돌아온다. 필드는 문구만 덧붙인다. */
+  protected reviveHero(): void {
+    this.player.hp = totalStats(this.save).health;
+    this.save.health = this.player.hp;
+    this.onMessage('부활했습니다.');
+  }
+
 
   /** 매 프레임 첫 단계 — 타이머·쿨다운·크러싱 잔상·추격 이동·자동 공격(원래 `update`의 앞부분). */
+  /**
+   * 캐릭터가 서는 자리의 경계. 기본은 필드 아레나(`clampArenaPoint`) 그대로이고, 무한 방어전만
+   * 복도 전체를 오르내려야 하므로 자기 경계로 바꾼다(`game/dungeon/defenseBattle.ts`).
+   * 값을 바꾸지 않으면 동작이 예전과 같다.
+   */
+  protected clampHeroPoint(x: number, y: number): { x: number; y: number } {
+    return clampArenaPoint(x, y);
+  }
+
   protected tickStart(dt: number): void {
     // 플레이 시간 누적 규칙은 `progress.ts`가 갖는다(PR-3).
     recordPlaySeconds(this.save, dt);
@@ -465,6 +513,11 @@ export class CombatEngine {
     // 피흡 초당 상한(밸런스 v2) — 1초 창이 돌면 누적 회복량을 비운다.
     this.lifestealClock += dt;
     if (this.lifestealClock >= 1) { this.lifestealClock = 0; this.lifestealHealed = 0; }
+    // 부활 대기(2026-11-24) — 쓰러져 있는 동안은 사냥하지 못하고, 시간이 다 되면 그 자리에서 일어난다.
+    if (this.reviveTimer > 0) {
+      this.reviveTimer = Math.max(0, this.reviveTimer - dt);
+      if (this.reviveTimer === 0) this.reviveHero();
+    }
     // 딜레이 크러싱 10연타 — 타격 간격이 지난 만큼 한 타씩 판정하고, 10타가 끝나면 시퀀스를 닫는다(작업 212).
     if (this.crush) {
       const crush = this.crush;
@@ -484,7 +537,8 @@ export class CombatEngine {
     this.activeMove = { x: 0, y: 0 };
     // Ground loot comes to the hero on its own (see the drop loop below), so hunting only ever
     // walks toward an enemy and keeps the hero in the fight instead of on the way to a coin.
-    const destination = this.nearest();
+    // 쓰러져 있는 동안(체력 0)에는 추격·공격을 하지 않는다 — 부활 대기 5초의 의미가 여기에 있다.
+    const destination = p.hp > 0 ? this.nearest() : undefined;
     if (destination) {
       const dx = destination.x - p.x, dy = destination.y - p.y, distance = Math.hypot(dx, dy);
       if (destination !== this.chaseTarget) { this.chaseTarget = destination; this.pursuing = false; }
@@ -507,11 +561,11 @@ export class CombatEngine {
     const magnitude = Math.hypot(this.activeMove.x, this.activeMove.y);
     if (magnitude > .05) {
       const speed = (p.berserk > 0 ? 160 + (p.berserkLevel - 1) * 4 : 125) * dt / Math.max(1, magnitude);
-      const next = clampArenaPoint(p.x + this.activeMove.x * speed, p.y + this.activeMove.y * speed);
+      const next = this.clampHeroPoint(p.x + this.activeMove.x * speed, p.y + this.activeMove.y * speed);
       this.activeMove = { x: next.x - p.x, y: next.y - p.y };
       p.x = next.x; p.y = next.y;
     }
-    if (this.attackHeld) this.action('attack');
+    if (this.attackHeld && p.hp > 0) this.action('attack');
   }
 
 
@@ -525,17 +579,20 @@ export class CombatEngine {
       // 종전에는 히어로 몸(27)까지 파고들어 여러 마리가 한 점에 겹쳐 섰다.
       enemy.moving = d > ENEMY_STOP_RANGE;
       if (enemy.moving && d > 0) { const step = enemyMoveSpeed(this.save.floor, enemy.boss) * (enemy.slow > 0 ? enemy.slowScale ?? .55 : 1) * dt; enemy.x += dx / d * step; enemy.y += dy / d * step; enemy.step += dt * Math.PI * (enemy.boss ? 3.25 : 4.25); }
-      enemy.x += enemy.knockX * dt; enemy.y += enemy.knockY * dt;
-      // 적은 아레나가 아니라 **필드 경계**로 자른다(작업 230) — 아레나로 자르면 멀리 스폰된 적이 첫
-      // 프레임에 플레이어 코앞으로 순간이동해 버린다. 플레이어는 계속 아레나 안에 머문다.
-      const bounded = clampFieldPoint(enemy.x, enemy.y); enemy.x = bounded.x; enemy.y = bounded.y;
+      // 적은 아레나가 아니라 **필드 경계**로 먼저 자른다(작업 230) — 아레나로 자르면 멀리 스폰된 적이
+      // 첫 프레임에 플레이어 코앞으로 순간이동해 버린다. 플레이어는 계속 아레나 안에 머문다.
+      // 그 위에 **넉백은 아레나 경계 밖으로 밀어내지 않는다**(작업 264) — 걸어온 자리(`walk`)를 기준으로
+      // 밀어, 안에 있던 몹은 경계 위에서 멈추고 아직 걸어 들어오는 중인 몹은 더 바깥으로 나가지 않는다.
+      const walk = clampFieldPoint(enemy.x, enemy.y);
+      const pushed = clampKnockbackPoint(walk, { x: walk.x + enemy.knockX * dt, y: walk.y + enemy.knockY * dt });
+      enemy.x = pushed.x; enemy.y = pushed.y;
       enemy.knockX *= Math.exp(-dt * 12); enemy.knockY *= Math.exp(-dt * 12);
       enemy.slow = Math.max(0, enemy.slow - dt);
       if (enemy.slow <= 0) enemy.slowScale = undefined;
       // 군집 동시 타격(밸런스 v2) — 예전에는 `p.hit` 하나로 0.85초에 **한 마리만** 때렸다.
       // 이제 11~15층 2마리, 16층+ 3마리가 같은 창에서 함께 때린다(보스전은 보스 혼자). 한 대의 위력은
       // `enemyHitDamage`가 이미 0.55로 눌러 두었으므로 받는 피해/초는 설계표(`적 DPS × 군집 / 0.85`)와 같다.
-      if (d <= ENEMY_ATTACK_RANGE) {
+      if (d <= ENEMY_ATTACK_RANGE && p.hp > 0) {
         if (p.hit <= 0) this.strikeQuota = this.enemies.some(other => other.boss) ? 1 : swarmCount(this.save.floor);
         if (this.strikeQuota <= 0) { enemy.hit = Math.max(0, enemy.hit - dt); continue; }
         this.strikeQuota--;
@@ -552,7 +609,9 @@ export class CombatEngine {
           continue;
         }
         const taken = enemyHitDamage(this.save.floor, enemy.boss, totalStats(this.save).defense);
-        p.hp = Math.max(0, p.hp - taken);
+        const absorbed = Math.min(p.shield, taken);
+        p.shield -= absorbed;
+        p.hp = Math.max(0, p.hp - (taken - absorbed));
         // 맞은 표시 — 적이 할퀴고 지나간 자국과 잃은 체력 숫자(작업 245).
         // 맞은 피해는 **정수**로 띄운다(작업 260) — 방어력 0.2배가 소수라 `-7.2`처럼 보이던 숫자를 7로.
         this.effects.push({ x: p.x, y: p.y, kind: 'enemyStrike', age: 0, duration: .5, angle: Math.atan2(dy, dx), amount: Math.round(taken) });
@@ -612,7 +671,7 @@ export class CombatEngine {
           if (!effect.piercing) {
             this.damage(effect.radius ?? 40, effect.power ?? 0, effect.angle, Math.PI, 10,
               effect.variant === 'ice' ? 0 : effect.slow ?? 0, impact, effect.targets ?? 1,
-              undefined, undefined, undefined, effect.variant === 'snipe');
+              undefined, undefined, undefined, effect.variant === 'snipe', effect.source === 'fireBolt' ? effect.aim : undefined);
             if (effect.variant === 'ice' && effect.source === 'iceArrow') {
               const radius = effect.radius ?? skillArea('iceArrow', 1).projectileRadius!;
               for (const enemy of this.enemies) if (Math.hypot(enemy.x - impact.x, enemy.y - impact.y) <= radius) {
@@ -620,8 +679,47 @@ export class CombatEngine {
                 enemy.slowScale = Math.min(enemy.slowScale ?? 1, effect.slowScale ?? .55);
               }
               this.effects.push({ ...impact, kind: 'iceBurst', age: 0, duration: .7, angle: 0, radius });
-            } else if (effect.source) this.effects.push({ ...impact, kind: 'impactArea', age: 0, duration: .18, angle: 0, radius: effect.radius, variant: effect.variant });
+            } else if (effect.source) this.effects.push({ ...impact, kind: 'impactArea', age: 0, duration: .18, angle: 0,
+              radius: effect.radius, variant: effect.variant });
           }
+        }
+        continue;
+      }
+      if (effect.kind === 'iceOrb') {
+        const progress = Math.min(1, effect.age / effect.duration);
+        effect.x = (effect.fromX ?? effect.x) + ((effect.tx ?? effect.x) - (effect.fromX ?? effect.x)) * progress;
+        effect.y = (effect.fromY ?? effect.y) + ((effect.ty ?? effect.y) - (effect.fromY ?? effect.y)) * progress;
+        const radius = effect.radius ?? 52;
+        for (const enemy of this.enemies) if (enemy.hp > 0 && Math.hypot(enemy.x - effect.x, enemy.y - effect.y) <= radius) {
+          enemy.slow = Math.max(enemy.slow, effect.slow ?? 0);
+          enemy.slowScale = Math.min(enemy.slowScale ?? 1, effect.slowScale ?? .6);
+        }
+        const hit = nearestEnemy(effect, this.enemies.filter(enemy => enemy.hp > 0
+          && Math.hypot(enemy.x - effect.x, enemy.y - effect.y) <= 28));
+        if (hit) {
+          this.damage(28, effect.power ?? 0, effect.angle, Math.PI, 8, 0, effect, 1,
+            undefined, undefined, undefined, false, hit);
+          this.effects.push({ x: effect.x, y: effect.y, kind: 'iceBurst', age: 0, duration: .55,
+            angle: 0, radius, source: 'iceBolt' });
+          effect.age = effect.duration;
+        }
+        continue;
+      }
+      if (effect.kind === 'chainCast') {
+        while ((effect.hits ?? 0) < (effect.targets ?? 0) && effect.nextHit !== undefined && effect.age >= effect.nextHit) {
+          const candidates = this.enemies.filter(enemy => enemy.hp > 0 && !effect.hitEnemies?.has(enemy)
+            && Math.hypot(enemy.x - effect.x, enemy.y - effect.y) <= (effect.radius ?? CHAIN_LIGHTNING_JUMP_RADIUS));
+          const next = nearestEnemy(effect, candidates);
+          if (!next) { effect.nextHit = undefined; break; }
+          const from = { x: effect.x, y: effect.y };
+          effect.x = next.x; effect.y = next.y;
+          effect.hitEnemies?.add(next);
+          this.damage(12, (effect.power ?? 0) * Math.pow(.85, effect.hits ?? 1), 0, Math.PI, 6, 0,
+            next, 1, undefined, undefined, undefined, false, next);
+          this.effects.push({ ...from, tx: next.x, ty: next.y, kind: 'chainArc', age: 0,
+            duration: effect.duration - effect.age + .18, angle: 0, hits: effect.hits, source: 'chainLightning' });
+          effect.hits = (effect.hits ?? 0) + 1;
+          effect.nextHit += .14;
         }
         continue;
       }
@@ -655,7 +753,9 @@ export class CombatEngine {
         if (effect.kind === 'slam') { const area = skillArea('slam', level); this.damage(area.radius!, effect.power ?? 0, 0, Math.PI, 12, 2 + (level - 1) * .3, effect); }
         if (effect.kind === 'hell') { const area = skillArea('hell', level); this.damage(area.radius!, effect.power ?? 0, 0, area.arc ?? Math.PI, 14, 1 + (level - 1) * .2, effect); }
         if (effect.kind === 'rain') this.damage(skillArea('arrowRain', level).radius!, effect.power ?? 0, 0, Math.PI, 6, .9, effect);
-        if (effect.kind === 'burst') this.damage(effect.radius ?? skillArea(effect.variant === 'meteor' ? 'meteorStrike' : 'manaBurst', level).radius!, effect.power ?? 0, 0, Math.PI, 16, effect.slow ?? 0, effect);
+        if (effect.kind === 'burst' && effect.source === 'manaBurst') {
+          this.player.shield += manaBurstShield(totalStats(this.save).attack, level);
+        } else if (effect.kind === 'burst') this.damage(effect.radius ?? skillArea('meteorStrike', level).radius!, effect.power ?? 0, 0, Math.PI, 16, effect.slow ?? 0, effect);
         if (effect.kind === 'nova') this.damage(effect.radius ?? skillArea(effect.variant === 'frost' ? 'frostNova' : 'arcaneOverlord', level).radius!, effect.power ?? 0, 0, Math.PI, 22, effect.slow ?? 0, effect);
         if (effect.kind === 'burst' || effect.kind === 'nova') effect.nextHit = undefined;
         else effect.nextHit += effect.kind === 'spin' || effect.kind === 'slam' ? .45 : .4;

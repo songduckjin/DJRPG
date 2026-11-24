@@ -50,8 +50,8 @@ test('Pixi scene integration keeps layers below actors, resizes, honors reduced 
   stage.addChild(floor,glow,actors);
   const view={floor,ambientLayer:new Container(),wastelandPlayer:{x:0,y:0},app:{stage,screen:{width:540,height:914},ticker:{add(fn){updates.add(fn);},remove(fn){updates.delete(fn);}}}};
   try{
-    mountAmbientScene(view,texture,wastelandLayout);mountAmbientScene(view,texture,wastelandLayout);assert.equal(stage.children.length,4);assert.equal(updates.size,1);assert.equal(floor.visible,false);
-    const [mesh,sparks]=view.ambientLayer.children;assert.equal(stage.children[1],view.ambientLayer);assert.equal(mesh.label,'animated-wasteland');assert.equal(sparks.label,'campfire-embers');assert.equal(stage.children[3],actors);assert.equal(mesh.scale.x,wastelandLayout(540,914).scaleX);
+    mountAmbientScene(view,'wasteland',texture,wastelandLayout,{deform:true,anchors:fires});mountAmbientScene(view,'wasteland',texture,wastelandLayout,{deform:true,anchors:fires});assert.equal(stage.children.length,4);assert.equal(updates.size,1);assert.equal(floor.visible,false);
+    const [mesh,sparks]=view.ambientLayer.children;assert.equal(stage.children[1],view.ambientLayer);assert.equal(mesh.label,'animated-scene-wasteland');assert.equal(sparks.label,'scene-embers-wasteland');assert.equal(stage.children[3],actors);assert.equal(mesh.scale.x,wastelandLayout(540,914).scaleX);
     view.app.screen={width:360,height:780};view.wastelandPlayer={x:40,y:0};for(const update of updates)update({deltaMS:34});
     const moved=wastelandLayout(360,780,view.wastelandPlayer);
     assert.equal(mesh.scale.x,moved.scaleX);assert.equal(mesh.scale.y,moved.scaleY);assert.equal(view.ambientLayer.position.x,moved.offsetX);assert.equal(view.ambientLayer.position.y,moved.offsetY);

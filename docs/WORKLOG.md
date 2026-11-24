@@ -3,12 +3,42 @@
 > 최근 작업·PR·배포 기록만 둔다(최근 20건). 더 이전 기록은 `docs/archive/2026-11/WORKLOG-history.md`.
 > 새 기록은 맨 위에 `## YYYY-MM-DD · <담당> 작업 <번호> — <제목>` 형식으로 추가하고, 오래된 항목은 아카이브로 옮긴다.
 
+## 2026-11-24 · songduckjin 작업 280 — 전사 넉백 경계: 맞은 몹이 아레나 밖으로 밀려나지 않게
+
+- **기준·브랜치**: 최신 `origin/main` `8ccb58d`에서 `fix/warrior-knockback-arena-bounds` — **[PR #354](https://github.com/songduckjin/DJRPG/pull/354)**. **머지·배포 보류**(사용자 지시: 모아서 배포).
+- **증상**: 전사로 사냥할 때 맞은 몹이 아레나(`arenaLimits` 120/180) 밖으로 밀려나, 아레나 경계에 막힌 전사가 따라가지도 때리지도 못했다(사용자 제보 "몹이 맵 밖으로 밀려나면서 전사가 경계에 막힘").
+- **원인**: `CombatEngine.tickEnemies`가 걸음과 넉백을 합친 자리를 `clampFieldPoint`(필드 스폰 경계 250/400)로만 잘랐다. 블러드 레이지의 40유닛 밀어내기도 같은 경계였다. 재현(수정 전, 10초·전사): 스킬 3종을 굴리면 몹이 u=250(필드 끝)까지 밀려 **600프레임 중 306~425프레임** 동안 전사 사거리(90) 밖이었다.
+- **수정**: `src/game/combat/bounds.ts`에 `clampKnockbackPoint(from, to)`를 더했다. ① 아레나 안에 있던 몹: 밀린 자리를 `clampArenaPoint`로 잘라 **경계 위에서 멈춘다**(바깥 성분만 잘리므로 벽을 따라 미끄러진다). ② 아직 아레나 밖(필드 스폰 밴드)에서 걸어 들어오는 중인 몹: **더 바깥으로는 나가지 않고** 안쪽·옆으로 미는 몫만 받는다 — 멀리서 뜬 몹이 걸어 들어오는 동작(작업 230)은 그대로다. `tickEnemies`는 걸어온 자리(`walk`)를 기준으로 이 함수를 적용하고, `action('warcry')`의 밀어내기도 같은 함수를 쓴다. `arenaLimits`·`fieldSpawnLimits` 값, 스폰 위치, 플레이어 경계는 건드리지 않았다.
+- **검증**: `npx tsc --noEmit`·`npx vite build` 통과. 신규 `tests/knockback-bounds.test.mjs` **7/7**(경계 클램프 단위 4건 + 전사 스킬·블러드 레이지·필드 진입 통합 3건, 수정 전 코드에서 통합 3건이 실제로 실패함을 확인). 전체 `node --test tests/*.test.mjs` **1,583건 중 1,431 통과·152 실패** — 실패 이름이 `origin/main` 기준선과 **차집합 0**(전부 이 sparse 체크아웃에 `public/assets/**`가 없어서 나는 기존 실패).
+- **동작 대조(패리티)**: `tests/progress-parity.test.mjs`에서 값이 바뀐 것은 **60초 필드 사냥 두 판**뿐이다 — 몹이 서는 자리가 달라져 자동 부활 시점이 갈린 결과이고, 두 판 모두 60초 동안 **받은 피해 총량은 609로 같다**. 방치 12시간·던전 1층/5층·던전 정산 시나리오는 값도 던전 다이제스트(`e8530315`·`8735cda8`·`3ad8091c`)도 한 자리 바뀌지 않았다.
+  - `field-boss-win`: `health` 113 → **128** (나머지 동일)
+  - `field-boss-loss`: `kills` 62 → **61**, `floorKills` 62 → **61**, `gold` 1258 → **1242**, `exp` 1030 → **1020**, `health` 2 → **212**, `bag` 1 → **0**
+- **남긴 것**: 보스도 여전히 필드 외곽에서 뜨고 아레나까지 걸어 들어온다(작업 230 계약) — 보스 스폰만 아레나 가장자리로 당기는 것은 이 PR 범위 밖이라 손대지 않았다. 인게임 실기 확인은 사용자 몫.
+## 2026-11-24 · songduckjin 작업 281 — 방치 사냥 개선(생존 스탯·사망 손실·층간 형평성) + 「층 선택」 1안
+
+- **기준·브랜치**: 최신 `origin/main` `1327b5e`(PR #349 머지 후)에서 `feat/offline-hunt-survival-rework`. 사양은 시안 `downloads/djrpg_offline_rework/proposal.md` + 대장님·송덕진 님 11/24 최종 확정(부활 5초·1~4층 면제·안 A·보스전/스킬 배율 동기화·UI 1안). **머지·배포 보류** — PR 링크·프리뷰 스크린샷을 송덕진 님 측에 먼저 공유한다.
+- **변경**: ① `combat/engine.ts`에 `REVIVE_SECONDS = 5`·`reviveSeconds(층)`(1~4층 0초)·`reviveTimer`·`reviveHero`를 넣어 접속 사냥도 쓰러지면 5초를 기다린다(쓰러진 동안 추격·공격·피격 정지, 생성자는 체력 0 세이브를 만혈로 세운다). `fieldProgress.heroDown`이 패널티·재도전 규칙은 그대로 두고 부활 대기만 세운다. ② `offline.ts`에 `offlineDamagePerSecond`·`offlineHealPerSecond`·`offlineSurviveSeconds`·`offlineSurvivalUptime`·`offlineDeathsPerHour`·`killsPerHourAt`·`bestFarmFloor` 신설, `offlineKillsPerMinute(save, 층)`에 가동률을 곱하고, `offlineBossBattle`에 회피·피흡·회복을 넣었다. 사냥 중 사망은 `reward.fieldDeaths`로 세어 접속과 같은 10골드를 문다. ③ `skills.ts` `SKILL_HIT_POWER` 한 표로 엔진 `action()`·방치 DPS·`skillCastScale`(스킬 추천 순위)을 묶었다 — 11/23 개편 뒤 방치만 파워 스트라이크 ×4로 남아 있던 것을 ×5.5로 맞췄다(전사 표준 20층 DPS 약 +5%). ④ `killReward`에 `depthRewardScale`(15층 기준 1, 20층 2.21 = 몹 HP 비율) 적용 — 처치 수가 15~16층에서 정점이라 깊은 층이 시간당 금화·경험치에서 역전되던 문제(20층이 15층보다 −45%)를 전투·몹 HP 무변경으로 없앴다. ⑤ `floorModal` 1안 — 카드 둘째 줄을 `시간당 N 마리`로(카드 62→52px), `★ 최다`(가장 빠른 층)·`▼N%`(15% 이상 손해, 40%부터 붉게) 배지, 상단 `★ 추천`·초록 한 줄을 시간당 처치 기준으로. `여유/적정/위험`과 구간 머리의 `권장 X ~ Y`는 종전 그대로다.
+- **검증**: `npx tsc --noEmit` 통과, `NODE_OPTIONS=--max-old-space-size=2048 npx vite build` 통과(`assets/index-CXowH2jg.js` 870.17kB). 신규 `tests/offline-survival-rework.test.mjs` 8건(부활 상수·생존 스탯 단조성·회복∞·저스펙<표준<풀·보스전 보완·스킬 표 동기화·층 보상 단조·층 선택 값). 갱신: `progress-parity`(필드 60초·방치 12시간 스냅샷 — 의도한 밸런스 변경 사유를 표 위에 적었다), `balance-v2`(20층 마리당 금화 10→23, 40층 64·78층 228, 방치 kpm에 가동률), `world-movement`(5층 부활 대기 5초 — 새 테스트 1건), `floor-power-modal`(카드 계약 1안), `offline`·`offline-climb`·`offline-auto-salvage`(사망 패널티 항), `combat-field-split`(서버 클로저 4,327줄 상한 근거). 전체 `node --test`: **1,590건 중 1,502 통과, 실패 88건은 모두 기준선과 같은 이름**(sparse 체크아웃에 `public/assets/**`가 없어 생기는 기존 실패) — 신규 실패 0.
+- **확인 화면**: Cloudflare Pages 프리뷰 `https://650ff552.djrpg.pages.dev` **SUCCESS**(commit `0e57190`). 390×844 실측: 창 358×692 · 카드 20장(52px) · `★ 최다` 16층 하나 · `★ 추천 16층 8,451마리/시간` · `▼17%`~`▼47%` · 가로 넘침 0(내용이 60px 길어 19·20층 줄과 안내 한 줄은 살짝 스크롤). 360×640: 창 328×525 · 가로 넘침 0. 스크린샷 `downloads/djrpg_offline_rework/preview-390x844.png`·`preview-360x640.png`(+측정 `.json`). 프리뷰 게스트는 20층에 아직 못 가므로, 화면 비교는 브라우저 응답의 세이브만 스크립트 안에서 20층으로 바꿔 그렸다(서버 저장 없음, 저장 요청은 성공으로 돌려줌). 검수 뒤 게스트 탈퇴 처리.
+
 ## 2026-11-23 · songduckjin 작업 279 — `내 정보`(장비창) topline 제거 1안 (390×844 시안 승인)
 
 - **기준·브랜치**: 최신 `origin/main` `21343ea`(PR #344 머지 후)에서 `feat/equip-remove-topline`. 시안 1안 `downloads/djrpg_equip_topline/after-390.png`(대장님·송덕진 님 양측 최종 승인), 제거 전 `before-390.png`. **머지·배포 보류** — PR 링크·프리뷰 스크린샷을 송덕진 님 측과 대장님께 먼저 공유한다.
 - **변경**: ① `renderEquipment()`에서 `.equip-topline`(요약 `LV · 층 · EXP% · 금화` + `⚔ 전투력` 알약) 생성·append를 없애고 `dialog.append(showcase)`로 곧바로 장착 쇼케이스를 붙인다. 쓰지 않게 된 `combatPower`·`goldMarkup`·`expToNext`·`MAX_LEVEL` 호출과 import를 정리했다(같은 값은 메인 HUD가 보여 준다). ② `equip.css`에서 `.equip-topline`·`.equipment-summary`·`.equip-powerpill` 계열 규칙(380px 미디어 규칙 포함) 삭제, `.equipment-showcase` 192 → **208px**(`flex-basis` 포함), `.bag-grid` `repeat(10…)` → **`repeat(8…)`**(공용창고 `.warehouse-grid`와 같은 8열). 반응형은 같은 +16px만큼: `max-width: 380px` 186 → **202px**, `max-height: 720px` 170 → **186px**, `max-height: 620px` 160 → **176px**. 가방 최소 높이 135px은 그대로다.
 - **검증**: `tsc --noEmit` 통과, `vite build` 통과, 전체 `node --test tests/*.test.mjs` 결과는 PR 본문 참조. 신규 `tests/equip-topline-removal.test.mjs` 5건(규칙 부재·렌더 첫 요소·208/8열·반응형 3구간·가짜 DOM 실렌더), `tests/equipment-info.test.mjs`·`tests/downgrade-badge-and-journey.test.mjs`의 topline 계약을 1안으로 교체.
 - **확인 화면**: Cloudflare Pages 프리뷰 390×844 캡처(장비창을 직접 열어 topline 없음·8열·빈 여백 없음), 경로는 PR 본문.
+## 2026-11-24 · fks3997 작업 282 — 21~40층 확장 「해골 군주의 성」 (Draft PR)
+
+- **기준·브랜치**: `origin/main` `21343ea`(2026-11-23 13:42) 에서 `feat/floor-21-40`. 기획 확정안은 `downloads/djrpg_floor_21_40_plan.md` v2(20층×1구간). **머지·배포 보류** — Draft PR로만 올린다.
+- **층 상한**: `progress.ts` `MAX_FLOOR` 20 → 40. 층 곡선(처치 목표 `150+30d+d²`, 몹·보스 HP `98.5×(1+층/2)`·13배, 보상, 강화 `+N`)은 원래 21층+를 계산하던 식이라 상한만 올렸다. 40층 처치 목표 **2,841**, 권장 전투력 21층 **1,556** → 40층 **2,878**. `MAX_LEVEL` 30·신규 티어 없음은 그대로.
+- **테마 표**: `src/game/floorTheme.ts`(신규, 순수 모듈) — 21층부터 성 안, 구역 4개(성문 안뜰 21~25 · 회랑·예배당 26~30 · 지하 감옥·수문 31~35 · 왕좌 36~40). 구역마다 상단 조명 틴트·안개 밀도·불씨 좌표·색·비네트 어둠이 다르고 **배경은 `world-boss/obsidian-arena-v1.png` 1장**(신규 배경 0장). 몹 계보는 층마다 2종(21층 사슬 망자+녹슨 성벽병 … 40층 흑요석 기사+사슬 망자), 스폰에 이미 뽑힌 `enemy.step` 난수로 골라 **새 난수를 쓰지 않는다**.
+- **화면**: `render/field.ts`가 층 구역을 읽어 조명·안개·불빛을 그리고, `ambientScene.ts`는 장면 키(`wasteland` / `castle-gate` …)가 바뀔 때만 같은 `ambientLayer`의 자식을 갈아 끼운다(그림 재마운트 없음, 티커 하나). `wasteland.ts` `placeFieldScene`이 20↔21층에서 배경을 바꾼다. `render/entities.ts`는 보스 이름·정예 이름·틴트·시트·배율을 표에서 받고, 하드코딩 `'해골 군주'`·`'정예 해골'`을 없앴다. `fieldProgress.ts`의 보스 등장·재도전·정예 알림도 표를 읽는다(조사 `이/가` 처리 포함).
+- **보스**: 21~29 `성채의 수문장`(기존 `skeleton_boss`+청회 틴트), 30~39 `군주의 그림자`(같은 시트+보라 틴트, 배율 1.12→1.20), 40 `해골 군주 아르케온`(신규 시트). 40층 보스는 체력 50% 아래에서 불빛 틴트가 붉게 바뀐다(수치 변경 없는 연출).
+- **신규 에셋 6장**: `public/assets/castle/{knight,wretch,archon}_idle_v1.png`(136×192·136×192·214×240) + `walk8_*_v1.png`(708×354, 4×2 그리드·셀 177²). 생성 → 마젠타 배경 알파 제거·디스필·1px 침식 → 기존 해골/보스 시트의 인물 높이·발밑선에 맞춰 재합성(`work/design/process_sprites.py`). 서기 그림은 같은 걷기 시트 0번 프레임에서 만들어 idle↔walk 실루엣이 어긋나지 않는다.
+- **자동 분해**: `AUTO_SALVAGE_PLUS_FLOOR` 41 → 21 — 21층부터 `+2`가 드롭되므로 `+N까지` 필터가 실제로 쓰인다.
+- **검증**: `tsc --noEmit` 통과, `npm run build` 통과(866.82kB). 신규 `tests/floor-expansion.test.mjs` 9/9(상한·곡선·구역·몹·보스·에셋 규격·화면 배선·월드). 전체 1,8xx건 중 실패는 이 체크아웃에 없는 `scripts/build-armor-glow-masks.py`·`CONTRIBUTING.md`를 읽는 두 건뿐으로 `origin/main` 기준선과 실패 이름 차집합 0. 기존 테스트는 새 상한에 맞춰 기대값을 갱신(`floor-cap`·`balance-v2`·`floor-power-modal`·`salvage-plus`·`world-movement`)했고, `save-guard`는 이제 같은 저장 창에서도 보스 처치만큼 깊은 층(최대 40)으로 정산할 수 있어 금화 상한을 그 층 기준으로 검증한다.
+- **프리뷰 실화면**: Cloudflare Pages 프리뷰 `https://feat-floor-21-40.djrpg.pages.dev`(버전 `a1a5e17`)에서 게스트 로그인 후 **층 선택 창**을 촬영(21~30·31~40 구간에 「해골 군주의 성」 표기, 권장 1,556~2,878). 필드·보스는 로그인 세이브를 21층으로 올릴 수 없어(서버 검증) **같은 게임 코드·에셋으로 그 층을 그리는 검수 전용 하네스**(브랜치 `preview/floor21-40-harness`, `preview-floor.html` — 머지 대상 아님)를 Cloudflare Pages에 함께 배포해 촬영했다: 21층 성문(사슬 망자) · 23층 혼성(흑요석 기사+사슬 망자) · 26층 회랑·예배당(촛불) · 31층 지하 감옥·수문(청록 안개) · 36층 왕좌(붉은 조명) · 21층 보스 성채의 수문장 · 30층 보스 군주의 그림자 · 40층 보스 해골 군주 아르케온. 파일: `downloads/djrpg_2140_floor_modal_1_40.png`·`djrpg_2140_floor_modal_31_40_open.png`·`djrpg_2140_field_{21_gate,23_gate_mixed,26_chapel,31_prison,36_throne}.png`·`djrpg_2140_boss_{21_warden,30_shadow,40_archaeon}.png`.
+- **남긴 것**: 30층 중간 보스 전용 연출(그림자 3중 잔상)·40층 브레스 연출(`fx_dragon_*`)은 이번 PR에 넣지 않았다(수치·계약 무관 연출).
 
 ## 2026-11-23 · songduckjin **백로그 2·3·7번** — 치명타 피해량 추가옵션 · 유니크/전설 상위 노출 · 마법사/궁수 시트 알파 재베이크 (Draft PR)
 
@@ -170,6 +200,19 @@
 
 > 최근 작업·PR·배포 기록만 둔다(최근 20건). 더 이전 기록은 `docs/archive/2026-11/WORKLOG-history.md`.
 > 새 기록은 맨 위에 `## YYYY-MM-DD · <담당> 작업 <번호> — <제목>` 형식으로 추가하고, 오래된 항목은 아카이브로 옮긴다.
+
+## 2026-11-24 · fks3997 작업 282 — 21~40층 확장 「해골 군주의 성」 (Draft PR)
+
+- **기준·브랜치**: `origin/main` `21343ea`(2026-11-23 13:42) 에서 `feat/floor-21-40`. 기획 확정안은 `downloads/djrpg_floor_21_40_plan.md` v2(20층×1구간). **머지·배포 보류** — Draft PR로만 올린다.
+- **층 상한**: `progress.ts` `MAX_FLOOR` 20 → 40. 층 곡선(처치 목표 `150+30d+d²`, 몹·보스 HP `98.5×(1+층/2)`·13배, 보상, 강화 `+N`)은 원래 21층+를 계산하던 식이라 상한만 올렸다. 40층 처치 목표 **2,841**, 권장 전투력 21층 **1,556** → 40층 **2,878**. `MAX_LEVEL` 30·신규 티어 없음은 그대로.
+- **테마 표**: `src/game/floorTheme.ts`(신규, 순수 모듈) — 21층부터 성 안, 구역 4개(성문 안뜰 21~25 · 회랑·예배당 26~30 · 지하 감옥·수문 31~35 · 왕좌 36~40). 구역마다 상단 조명 틴트·안개 밀도·불씨 좌표·색·비네트 어둠이 다르고 **배경은 `world-boss/obsidian-arena-v1.png` 1장**(신규 배경 0장). 몹 계보는 층마다 2종(21층 사슬 망자+녹슨 성벽병 … 40층 흑요석 기사+사슬 망자), 스폰에 이미 뽑힌 `enemy.step` 난수로 골라 **새 난수를 쓰지 않는다**.
+- **화면**: `render/field.ts`가 층 구역을 읽어 조명·안개·불빛을 그리고, `ambientScene.ts`는 장면 키(`wasteland` / `castle-gate` …)가 바뀔 때만 같은 `ambientLayer`의 자식을 갈아 끼운다(그림 재마운트 없음, 티커 하나). `wasteland.ts` `placeFieldScene`이 20↔21층에서 배경을 바꾼다. `render/entities.ts`는 보스 이름·정예 이름·틴트·시트·배율을 표에서 받고, 하드코딩 `'해골 군주'`·`'정예 해골'`을 없앴다. `fieldProgress.ts`의 보스 등장·재도전·정예 알림도 표를 읽는다(조사 `이/가` 처리 포함).
+- **보스**: 21~29 `성채의 수문장`(기존 `skeleton_boss`+청회 틴트), 30~39 `군주의 그림자`(같은 시트+보라 틴트, 배율 1.12→1.20), 40 `해골 군주 아르케온`(신규 시트). 40층 보스는 체력 50% 아래에서 불빛 틴트가 붉게 바뀐다(수치 변경 없는 연출).
+- **신규 에셋 6장**: `public/assets/castle/{knight,wretch,archon}_idle_v1.png`(136×192·136×192·214×240) + `walk8_*_v1.png`(708×354, 4×2 그리드·셀 177²). 생성 → 마젠타 배경 알파 제거·디스필·1px 침식 → 기존 해골/보스 시트의 인물 높이·발밑선에 맞춰 재합성(`work/design/process_sprites.py`). 서기 그림은 같은 걷기 시트 0번 프레임에서 만들어 idle↔walk 실루엣이 어긋나지 않는다.
+- **자동 분해**: `AUTO_SALVAGE_PLUS_FLOOR` 41 → 21 — 21층부터 `+2`가 드롭되므로 `+N까지` 필터가 실제로 쓰인다.
+- **검증**: `tsc --noEmit` 통과, `npm run build` 통과(866.82kB). 신규 `tests/floor-expansion.test.mjs` 9/9(상한·곡선·구역·몹·보스·에셋 규격·화면 배선·월드). 전체 1,8xx건 중 실패는 이 체크아웃에 없는 `scripts/build-armor-glow-masks.py`·`CONTRIBUTING.md`를 읽는 두 건뿐으로 `origin/main` 기준선과 실패 이름 차집합 0. 기존 테스트는 새 상한에 맞춰 기대값을 갱신(`floor-cap`·`balance-v2`·`floor-power-modal`·`salvage-plus`·`world-movement`)했고, `save-guard`는 이제 같은 저장 창에서도 보스 처치만큼 깊은 층(최대 40)으로 정산할 수 있어 금화 상한을 그 층 기준으로 검증한다.
+- **프리뷰 실화면**: Cloudflare Pages 프리뷰 `https://feat-floor-21-40.djrpg.pages.dev`(버전 `a1a5e17`)에서 게스트 로그인 후 **층 선택 창**을 촬영(21~30·31~40 구간에 「해골 군주의 성」 표기, 권장 1,556~2,878). 필드·보스는 로그인 세이브를 21층으로 올릴 수 없어(서버 검증) **같은 게임 코드·에셋으로 그 층을 그리는 검수 전용 하네스**(브랜치 `preview/floor21-40-harness`, `preview-floor.html` — 머지 대상 아님)를 Cloudflare Pages에 함께 배포해 촬영했다: 21층 성문(사슬 망자) · 23층 혼성(흑요석 기사+사슬 망자) · 26층 회랑·예배당(촛불) · 31층 지하 감옥·수문(청록 안개) · 36층 왕좌(붉은 조명) · 21층 보스 성채의 수문장 · 30층 보스 군주의 그림자 · 40층 보스 해골 군주 아르케온. 파일: `downloads/djrpg_2140_floor_modal_1_40.png`·`djrpg_2140_floor_modal_31_40_open.png`·`djrpg_2140_field_{21_gate,23_gate_mixed,26_chapel,31_prison,36_throne}.png`·`djrpg_2140_boss_{21_warden,30_shadow,40_archaeon}.png`.
+- **남긴 것**: 30층 중간 보스 전용 연출(그림자 3중 잔상)·40층 브레스 연출(`fx_dragon_*`)은 이번 PR에 넣지 않았다(수치·계약 무관 연출).
 
 ## 2026-11-21 · songduckjin 작업 218 — 관리자 운영 포털(읽기 전용) 추가·밝은 화면 재설계 · 운영 배포(`78ed95b4bd41`)
 
