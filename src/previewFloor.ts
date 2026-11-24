@@ -59,7 +59,10 @@ view.app.ticker.add(() => {
   // 보스 검수용: 보스가 필드 끝에서 뜨므로 화면 안(히어로 옆)으로 한 번 옮긴다.
   if (wantBoss && !bossPlaced) {
     const boss = world.enemies.find(enemy => enemy.boss);
-    if (boss) { boss.x = world.player.x - 20; boss.y = world.player.y + 8; bossPlaced = true; }
+    if (boss) {
+      // 화면 중앙(projectArenaPoint의 역산) 근처에 세워 보스와 이름표가 잘리지 않게 한다.
+      boss.x = -49; boss.y = -49; bossPlaced = true;
+    }
   }
   view.draw(world, time);
 });
