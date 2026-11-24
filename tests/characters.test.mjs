@@ -11,6 +11,8 @@ import { mutate, snapshot } from '../server/market.mjs';
 import { mutate as mutateJourney } from '../server/journey.mjs';
 import accountHandler from '../api/account.mjs';
 import warehouseHandler from '../api/warehouse.mjs';
+import { hashPassword } from '../server/auth.mjs';
+import { initialSave } from '../server/save-seed.mjs';
 import './ts-loader.mjs';
 const { SaveSync } = await import('../src/game/sync.ts');
 const { parseSave } = await import('../src/game/store.ts');
@@ -18,6 +20,36 @@ const { parseSave } = await import('../src/game/store.ts');
 const item = { id: 'legacy-sword-1', name: '기존 검', slot: 'weapon', rarity: 'rare', stats: { attack: 10 } };
 const listedItem = { ...item, id: 'legacy-axe-2', name: '기존 도끼' };
 const legacy = { version: 1, accountId: 'hero', name: '기존 전사', gender: 'female', auto: true, autoClimb: true, level: 8, exp: 25, gold: 50, floor: 4, maxFloor: 4, floorKills: 3, kills: 50, health: 80, equipment: {}, equipmentCollection: [], bag: [item, listedItem], tutorial: 3, stones: 0, skillPoints: 7, lastActiveAt: Date.now(), learned: [], passives: [], quickSlots: [null,null,null], skillLevels: {} };
+
+test('password login heals stale items before the first offline reward save', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'djrpg-heal-load-'));
+  const url = `file:${join(directory, 'login.db')}`;
+  process.env.TURSO_DATABASE_URL = url; process.env.TURSO_AUTH_TOKEN = 'local-heal-login-test';
+  const db = createClient({ url });
+  const ghost = { id: 'consumed-ghost', name: '오래된 검', slot: 'weapon', rarity: 'rare', stats: { attack: 10 } };
+  try {
+    await schema(db);
+    const save = initialSave('repairhero', 'male', '복구전사', 'warrior');
+    save.bag.push(ghost);
+    await db.execute({ sql: 'INSERT INTO djrpg_accounts (id,password_hash,save_json,updated_at) VALUES (?,?,?,?)', args: ['repairhero', await hashPassword('password123'), JSON.stringify(save), new Date(Date.now() - 120_000).toISOString()] });
+    await db.execute({ sql: 'INSERT INTO djrpg_item_owners VALUES (?,?,?,?)', args: [ghost.id, 'repairhero', 'consumed', JSON.stringify(ghost)] });
+    const call = async (body, token) => {
+      const result = {};
+      const res = { status(code) { result.status = code; return this; }, json(data) { result.body = data; return this; } };
+      await accountHandler({ method: 'POST', headers: token ? { authorization: `Bearer ${token}` } : {}, body }, res);
+      return result;
+    };
+    const login = await call({ action: 'login', loginId: 'repairhero', password: 'password123' });
+    assert.equal(login.status, 200);
+    assert.deepEqual(login.body.save.bag.map(entry => entry.id), []);
+    assert(login.body.offlineSeconds >= 60);
+    const saved = await call({ action: 'save', save: login.body.save, revision: login.body.revision, characterSlot: 1, requestId: randomUUID() }, login.body.token);
+    assert.equal(saved.status, 200, JSON.stringify(saved.body));
+  } finally {
+    await db.close(); delete process.env.TURSO_DATABASE_URL; delete process.env.TURSO_AUTH_TOKEN;
+    await removeTempDbDirectory(directory);
+  }
+});
 
 test('legacy slot, shared gold and warehouse transfers preserve independent characters', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'djrpg-characters-'));
