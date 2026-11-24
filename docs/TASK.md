@@ -22,6 +22,20 @@
 ### [코덱스 지시서 3] 창고·우편·보상 받기 체감 딜레이 개선
 - 상세 작업지시: [docs/tasks/2026-11-23/03-warehouse-mail-latency.md](docs/tasks/2026-11-23/03-warehouse-mail-latency.md)
 
+## [덕진 님 PC 코덱스 전용 작업지시서] (2026-11-24 · 1건)
+
+> **중단 금지 — 아래 `진행 현황` 표에 남아 있는 `[-]` 행이나 이미 머지된 투구·갑옷 발광 작업(256·257) 때문에 중단·보고하지 말고, 이 1건은 지금 즉시 착수한다. (표의 `[-]`는 '다른 사람이 잡고 있다'는 선점 표시가 아니다.)**
+>
+> **받는 쪽: 덕진 님 PC의 Codex만.** 대장님(@parkyeongeun7)·송정심(@songjeongsim7) 님 쪽 작업자와 **섞지 않는다** — 이 건은 그 두 분 쪽에서 집지 않고, 이 PR도 그쪽 PR과 브랜치·파일을 공유하지 않는다.
+> **브랜치·PR**: 최신 `origin/main` 기준 별도 브랜치(`codex/<작업번호>-glow-scope`)로 올리고 PR 본문에 `머지·배포 보류`를 적는다. **`main` 직접 push·머지·배포 금지** — 변경은 모아서 배포한다(사용자 지시).
+> **착수·마감**: 시작할 때 `진행 현황` 표에 `[-]` 행(담당자 `Codex`)을 새 작업 번호로 한 줄 등록해 푸시하고, 검증 통과 뒤 `[x]`로 마감하면서 상세(원인·수정·검증 수치)는 `docs/WORKLOG.md`에 남긴다.
+> **공통 완료 조건**: ① `npx tsc --noEmit` 통과 ② `node --test tests/*.test.mjs`(`npm test`) 전건 통과 — 체크아웃에 `public/assets/**` 가 없어 실패하는 건은 `origin/main` 기준선과 **실패 이름 차집합 0**으로 보고 ③ 작업별 신규 테스트를 `tests/` 에 추가하고, 고치기 전 코드에서 그 테스트가 실패함을 확인 ④ 실브라우저(모바일 390×844) 확인 캡처를 PR에 첨부. **머지·배포는 하지 않는다.**
+
+### [코덱스 지시서 4] 투구·갑옷 발광이 몸·얼굴로 번지는 범위 수정 (전 직업·남녀 전수)
+- 상세 작업지시: [docs/tasks/2026-11-24/01-glow-bleed-scope.md](docs/tasks/2026-11-24/01-glow-bleed-scope.md)
+- 사용자 지시(2026-11-24 10:02 KST): "투구랑 갑옷이랑 발광 하는효과 범위가 이상해" → "몸까지 번져". **등급색·세기·파형은 그대로 두고 범위만** 파츠 안쪽으로 좁힌다.
+- 확인된 원인 5곳: ① `src/styles/modals/equip.css:63` 발광 레이어 전체에 `drop-shadow(0 0 7px)` ② `src/ui/equipmentPortrait.ts` `paintPatch` `shadowBlur`의 **4px 하한**(`ARMOR_GLOW_AURA .3`·`HELMET_GLOW_AURA .35`, 마법사 투구는 기본값 `aura = 1`) ③ 장비창 마법사 투구 마스크가 픽셀 마스크가 아닌 원형 근사(`mageHelmGlowAlpha`) ④ 전투 필드 마법사 투구는 **마스크가 아예 없음**(`src/game/render/entities.ts:302-304`, `mageHelmGlowMaskTexture` 미사용) ⑤ 마스크 텍스처 `scaleMode='linear'`로 경계 1px 샘(`src/game/render.ts:530`·`:612`).
+
 ## 진행 현황
 
 > 정리(2026-11-21): 완료된 과거 행과 날짜별 상세 메모는 `docs/archive/2026-11/TASK-history.md`로 옮겼다. 이 파일에는 **진행 중(`[-]`)·최근 20행**만 둔다.
