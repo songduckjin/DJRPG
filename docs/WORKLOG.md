@@ -5,7 +5,7 @@
 
 ## 2026-11-24 · songduckjin 작업 280 — 전사 넉백 경계: 맞은 몹이 아레나 밖으로 밀려나지 않게
 
-- **기준·브랜치**: 최신 `origin/main` `8ccb58d`에서 `fix/warrior-knockback-arena-bounds`. **머지·배포 보류**(사용자 지시: 모아서 배포).
+- **기준·브랜치**: 최신 `origin/main` `8ccb58d`에서 `fix/warrior-knockback-arena-bounds` — **[PR #354](https://github.com/songduckjin/DJRPG/pull/354)**. **머지·배포 보류**(사용자 지시: 모아서 배포).
 - **증상**: 전사로 사냥할 때 맞은 몹이 아레나(`arenaLimits` 120/180) 밖으로 밀려나, 아레나 경계에 막힌 전사가 따라가지도 때리지도 못했다(사용자 제보 "몹이 맵 밖으로 밀려나면서 전사가 경계에 막힘").
 - **원인**: `CombatEngine.tickEnemies`가 걸음과 넉백을 합친 자리를 `clampFieldPoint`(필드 스폰 경계 250/400)로만 잘랐다. 블러드 레이지의 40유닛 밀어내기도 같은 경계였다. 재현(수정 전, 10초·전사): 스킬 3종을 굴리면 몹이 u=250(필드 끝)까지 밀려 **600프레임 중 306~425프레임** 동안 전사 사거리(90) 밖이었다.
 - **수정**: `src/game/combat/bounds.ts`에 `clampKnockbackPoint(from, to)`를 더했다. ① 아레나 안에 있던 몹: 밀린 자리를 `clampArenaPoint`로 잘라 **경계 위에서 멈춘다**(바깥 성분만 잘리므로 벽을 따라 미끄러진다). ② 아직 아레나 밖(필드 스폰 밴드)에서 걸어 들어오는 중인 몹: **더 바깥으로는 나가지 않고** 안쪽·옆으로 미는 몫만 받는다 — 멀리서 뜬 몹이 걸어 들어오는 동작(작업 230)은 그대로다. `tickEnemies`는 걸어온 자리(`walk`)를 기준으로 이 함수를 적용하고, `action('warcry')`의 밀어내기도 같은 함수를 쓴다. `arenaLimits`·`fieldSpawnLimits` 값, 스폰 위치, 플레이어 경계는 건드리지 않았다.
