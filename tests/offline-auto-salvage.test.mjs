@@ -59,8 +59,9 @@ test('방치 정산도 자동 분해를 적용한다 — 분해된 장비는 가
     // 분해한 장비가 가방에 남아 있지 않다(개수 = 분해 몫만큼 정확히 줄었다).
     assert.equal(on.save.bag.length, on.reward.items.length);
     // 금화·강화석 정산이 `reward.salvaged`와 세이브에 같은 값으로 반영된다(보스전이 없어 deaths 0).
+    // 2026-11-24: 사냥 중 쓰러지면 접속처럼 10골드씩 잃는다(`fieldDeaths`).
     assert.equal(on.reward.deaths, 0);
-    assert.equal(on.save.gold, on.before.gold + on.reward.gold + on.reward.salvaged.gold);
+    assert.equal(on.save.gold, on.before.gold + on.reward.gold + on.reward.salvaged.gold - on.reward.fieldDeaths * 10);
     assert.equal(on.save.stones, on.before.stones + on.reward.salvaged.stones);
     // 분해 1벌 = `salvageCount` 1회(일일·주간 `장비 분해` 미션 근거).
     assert.equal(on.save.salvageCount, on.reward.salvaged.count);
@@ -114,7 +115,7 @@ test('방치 자동 분해로 늘어난 금화·강화석은 서버 저장 상�
     const budget = rewardBudget(previous, MAX_OFFLINE_SECONDS, 1);
     // 서버는 `previous + 상한`까지만 인정한다 — 정산으로 늘어난 금화·강화석이 그 안이어야 클램프로 깎이지 않는다.
     assert(reward.salvaged.count > 0, '분해가 있었던 표본이다');
-    assert.equal(save.gold - before.gold, reward.gold + reward.salvaged.gold);
+    assert.equal(save.gold - before.gold, reward.gold + reward.salvaged.gold - reward.fieldDeaths * 10);
     assert(save.gold <= before.gold + budget.gold, `금화 ${save.gold - before.gold} ≤ 상한 ${budget.gold}`);
     assert.equal(save.stones - before.stones, reward.salvaged.stones);
     assert(save.stones <= before.stones + budget.stones, `강화석 ${save.stones - before.stones} ≤ 상한 ${budget.stones}`);

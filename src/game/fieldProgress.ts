@@ -29,7 +29,7 @@ import { LOOT_ABSORB_SECONDS, LOOT_REST_SECONDS } from './loot';
 import { autoSalvageBlock, autoSalvageRecovered, sweepBagOnFull } from './inventory';
 import { random } from './rng';
 import type { Action, Enemy } from './battle/types';
-import { CombatEngine, cooldowns } from './combat/engine';
+import { CombatEngine, cooldowns, reviveSeconds } from './combat/engine';
 
 /**
  * 입문 지원으로 지금 줄 방어구 칸(밸런스 v2 온보딩) — 1~2층에서 두 번째·세 번째 처치마다
@@ -114,6 +114,8 @@ export class FieldProgress extends CombatEngine {
     this.bossPending = this.save.autoClimb && this.bossFloor() && this.save.floorKills >= killsToBoss(this.save.floor);
     this.bossRetryAvailable = false; this.eliteKills = 0; this.elitePending = false;
     this.crowdClock = 0; this.strikeQuota = 0;
+    // 갈아탄 새 캐릭터는 살아 있는 상태로 시작한다(부활 대기 승계 없음).
+    this.reviveTimer = 0;
     this.swing = 1; this.chaseTarget = undefined; this.pursuing = false;
     const hp = enemyMaxHp(this.save.floor, false);
     const start = clampArenaPoint(145, -45);
@@ -273,10 +275,13 @@ export class FieldProgress extends CombatEngine {
 
   /**
    * 적의 일격으로 쓰러진 순간의 필드 규칙(작업 212·222·223·245) — 보스에게 진 경우 재도전 버튼을
-   * 살리고, 자동 등반 중이면 1마리부터 다시 세운다. 10골드를 잃고 제자리에서 부활한다.
+   * 살리고, 자동 등반 중이면 1마리부터 다시 세운다. 10골드를 잃고 **부활 대기(5초, 1~4층 0초)** 뒤
+   * 제자리에서 일어난다(2026-11-24 확정 — 방치 정산도 같은 값을 쓴다).
    */
   protected override heroDown(enemy: Enemy): void {
     const p = this.player;
+          // 이미 쓰러져 있는 동안(부활 대기)에는 다시 처리하지 않는다 — 남은 몹의 연속 피격을 흘린다.
+          if (this.reviveTimer > 0) return;
           // 보스에게 쓰러졌고 최고층에서 자동 등반 중이면(작업 212 `#5017`·`#5028`) 자동 등반을
           // 끄지 않는다 — 1마리부터 다시 잡게 킬 카운트를 0으로 돌리고, 보스는 물러나게 한다.
           // 목표 마릿수를 채우면 `kill()`의 기존 규칙이 보스를 자동으로 다시 부른다.
@@ -297,15 +302,28 @@ export class FieldProgress extends CombatEngine {
           }
           // 작업 245: 일반·정예 몹에게 쓰러져도 자동 등반은 **끄지 않는다** — 10골드를 잃고 부활해 계속
           // 사냥한다. 자동 등반이 꺼지는 곳은 몹이 쌓여 한 층 강등될 때(위 `MOB_CAP` 블록)뿐이다.
-          p.hp = totalStats(this.save).health; this.save.health = p.hp; p.x = 0; p.y = 0; this.chaseTarget = undefined; this.pursuing = false;
-          this.regenClock = 0;
+          // 쓰러져 있는 동안은 체력 0 — `CombatEngine`이 이 동안 추격·공격·피격을 멈춘다(2026-11-24).
+          p.hp = 0; this.save.health = 0;
+          p.x = 0; p.y = 0; this.chaseTarget = undefined; this.pursuing = false; this.activeMove = { x: 0, y: 0 };
+          this.regenClock = 0; this.earlyRegenClock = 0;
           // 쓰러짐 패널티(10골드, 모자라면 0까지)도 `progress.ts`가 정한다(PR-3·작업 245).
           defeatPenalty(this.save);
-          this.onMessage(climbOn
-            ? '쓰러졌습니다. 10골드를 잃고 부활했습니다. 1마리부터 다시 잡으면 보스가 다시 나타납니다.'
-            : this.save.autoClimb
-              ? '쓰러졌습니다. 10골드를 잃고 부활했습니다. 자동 등반은 계속됩니다.'
-              : '쓰러졌습니다. 10골드를 잃고 부활했습니다.');
+          // 부활 대기 — 접속 사냥과 방치 정산이 같은 값(5초, 입문 1~4층은 0초)을 쓴다.
+          this.reviveTimer = reviveSeconds(this.save.floor);
+          if (this.reviveTimer <= 0) {
+            p.hp = totalStats(this.save).health; this.save.health = p.hp;
+            this.onMessage(climbOn
+              ? '쓰러졌습니다. 10골드를 잃고 부활했습니다. 1마리부터 다시 잡으면 보스가 다시 나타납니다.'
+              : this.save.autoClimb
+                ? '쓰러졌습니다. 10골드를 잃고 부활했습니다. 자동 등반은 계속됩니다.'
+                : '쓰러졌습니다. 10골드를 잃고 부활했습니다.');
+          } else {
+            this.onMessage(climbOn
+              ? `쓰러졌습니다. 10골드를 잃었습니다. ${this.reviveTimer}초 뒤 부활합니다. 1마리부터 다시 잡으면 보스가 다시 나타납니다.`
+              : this.save.autoClimb
+                ? `쓰러졌습니다. 10골드를 잃었습니다. ${this.reviveTimer}초 뒤 부활합니다. 자동 등반은 계속됩니다.`
+                : `쓰러졌습니다. 10골드를 잃었습니다. ${this.reviveTimer}초 뒤 부활합니다.`);
+          }
           this.onChange();
   }
 

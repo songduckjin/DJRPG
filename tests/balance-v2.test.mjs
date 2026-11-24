@@ -192,7 +192,9 @@ test('방어 % 감소 — min(62%, def / (def + 50×(1+층/2))), 일반 몹은 �
 test('몹·보스 HP · killsToBoss · 필드 보상 계수 · 드롭률(밸런스 v2 표)', () => {
   const table = [
     // [층, 몹 HP, 보스 HP, killsToBoss, 드롭률%, 마리당 금화]
-    [1, 26, 347, 150, .000242, 3], [10, 224, 2912, 501, .0002, 8], [20, 1083, 14079, 1081, .000153, 10], [40, 2069, 26897, 2841, .000144, 15], [78, 3940, 51220, 8389, .000144, 28]
+    // 20층 금화 10 → 23(2026-11-24 층간 형평성 `안 A`) — 몹 HP가 15층(490)의 2.21배라 마리당 보상도 2.21배다.
+    // 40·78층도 같은 배율을 적용한 값이다(전투·몹 HP·던전 정산 금화는 그대로).
+    [1, 26, 347, 150, .000242, 3], [10, 224, 2912, 501, .0002, 8], [20, 1083, 14079, 1081, .000153, 23], [40, 2069, 26897, 2841, .000144, 64], [78, 3940, 51220, 8389, .000144, 228]
   ];
   for (const [floor, mobHp, bossHp, kills, dropPct, gold] of table) {
     assert.equal(formulas.enemyMaxHp(floor, false), mobHp, `${floor}층 몹`);
@@ -254,7 +256,9 @@ test('던전과 방치 정산이 필드와 같은 식을 쓴다', () => {
   assert(offline.offlineHeroDps(withCdr) > offline.offlineHeroDps(bare), '쿨감 20%는 방치 DPS를 올린다');
   const standard = setFor('mage', 20, 'std', 10);
   const kpm = offline.offlineKillsPerMinute(standard);
-  const expected = 60 * Math.min(offline.offlineHeroDps(standard) / formulas.enemyMaxHp(20, false), formulas.fieldSpawnRate(20)) * offline.OFFLINE_EFFICIENCY;
+  // 2026-11-24부터 생존 가동률(쓰러지는 시간 ÷ (버티는 시간 + 부활 5초))이 곱해진다.
+  const expected = 60 * Math.min(offline.offlineHeroDps(standard) / formulas.enemyMaxHp(20, false), formulas.fieldSpawnRate(20))
+    * offline.OFFLINE_EFFICIENCY * offline.offlineSurvivalUptime(standard, 20);
   assert(Math.abs(kpm - expected) < 1e-6);
   assert(offline.offlineBossBattle(setFor('mage', 20, 'std', 10), 20).bossHp === formulas.enemyMaxHp(20, true));
 });

@@ -139,10 +139,25 @@ export function enemyMaxHp(floor: number, boss: boolean): number {
 }
 /** 정예 몹은 일반 몹 **30마리 처치마다 한 마리** 나온다(작업 206). 보스가 대기 중이면 그 스폰은 보스가 가져간다. */
 export const ELITE_KILL_INTERVAL = 30;
-/** 정예 몹의 체력·보상 배율 — 체력 2배, 금화·경험치 2배. 장비·스킬북 드롭률은 일반 몹과 **같다(1배)**. */
+/** 정예 몹의 체력·보상 배율 — 체력 2배, 금화·경험치 2배. 장비·스킬북 드롭률은 일반 몹과 **같다(1배)**.
+ *  보상 배율(`ELITE_REWARD_SCALE`)도 같은 값이라 정예 몹의 두 배율을 **한자리에** 둔다(2026-11-24 —
+ *  `progress.ts`가 이 파일의 몹 HP 곡선을 읽게 되면서, 반대 방향 재export는 순환 의존이 되었다).
+ *  `progress.ts`가 같은 이름을 재export하므로 기존 import 경로는 그대로다. */
 export const ELITE_HP_SCALE = 2;
-/** 보상 배율의 정의는 `src/game/progress.ts` 한 곳에 있다(PR-3) — 기존 import 경로를 위해 여기서 재export한다. */
-export { ELITE_REWARD_SCALE } from '../progress';
+export const ELITE_REWARD_SCALE = 2;
+/**
+ * 층간 보상 형평성의 기준 층(2026-11-24 `안 A`) — 15층 몹 HP를 `×1`로 둔다.
+ *
+ * 처치 수는 15~16층에서 정점을 찍고 20층은 −50%다(젠 상한이 천장인데 몹 HP는 15→20층에 2.2배).
+ * 전투·몹 HP 곡선을 건드리지 않고 **마리당 금화·경험치만** 몹 HP에 비례해 올려, 깊은 층이
+ * 시간당 보상에서 역전되지 않게 한다(`progress.ts` `killReward`).
+ */
+export const REWARD_HP_REFERENCE_FLOOR = 15;
+/** 마리당 보상 배율 — 15층 이하는 1, 그보다 단단한 층은 `몹HP(층) ÷ 몹HP(15)`(20층 2.21). */
+export function depthRewardScale(floor: number): number {
+  const depth = Math.max(1, Number.isFinite(floor) ? Math.floor(floor) : 1);
+  return Math.max(1, enemyMaxHp(depth, false) / enemyMaxHp(REWARD_HP_REFERENCE_FLOOR, false));
+}
 /** 정예 몹의 몸 크기 — 일반 몹보다 살짝 큰 1.22배(작업 206). */
 export const ELITE_MOB_SCALE = 1.22;
 /** 필드에 동시에 설 수 있는 몹 상한(작업 222, 사용자 요청 `#5827` "몹이 30마리 이상 생성되면 층 하락").

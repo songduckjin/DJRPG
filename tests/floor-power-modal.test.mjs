@@ -6,7 +6,8 @@ import { modalStyles } from './helpers/modal-styles.mjs';
 // 「층 선택」 10층 구간 아코디언 + 권장 전투력(밸런스 v2).
 // 권장값은 별도 표가 아니라 지금 층 곡선(`enemyMaxHp`·`enemyHitDamage`·`swarmCount`)에서 나온다.
 const F = await import('../src/game/floorPower.ts');
-const { renderFloor, resetFloorGroups } = await import('../src/ui/modals/floorModal.ts');
+const { renderFloor, resetFloorGroups, FARM_LOSS_BADGE_PCT } = await import('../src/ui/modals/floorModal.ts');
+const { bestFarmFloor, killsPerHourAt } = await import('../src/game/offline.ts');
 const { freshSave, totalStats } = await import('../src/game/store.ts');
 const { basicAttackPower, CRIT_DAMAGE_SCALE, enemyMaxHp } = await import('../src/game/battle/formulas.ts');
 const { MAX_FLOOR } = await import('../src/game/progress.ts');
@@ -119,45 +120,64 @@ test('구간은 10층 단위로 MAX_FLOOR까지만 만든다', () => {
   assert.equal(range.hi, F.recommendedFloorPower(20));
 });
 
-test('창은 내 전투력·추천 층을 보여 주고 내 권장 층이 든 구간만 펼친다', () => withDocument(() => {
+test('창은 내 전투력·시간당 최다 층을 보여 주고 그 층 구간만 펼친다', () => withDocument(() => {
   resetFloorGroups();
   const save = freshSave(); save.level = 12; save.floor = 8; save.maxFloor = 12;
   const ui = fixture(save);
   const dialog = new Node();
   renderFloor.call(ui, dialog);
   const mine = power(save);
-  const recommendedFloor = F.recommendedFloorFor(mine, save.maxFloor);
+  const bestFloor = bestFarmFloor(save);
+  const bestRate = killsPerHourAt(save, bestFloor);
   const nodes = visit(dialog);
 
   const banner = nodes.find(node => hasClass(node, 'floor-power'));
   assert.ok(banner, '상단 배너');
   assert.match(banner.children[0].innerHTML, /내 전투력 <b>[\d,]+<\/b>/);
-  assert.equal(banner.children[1].textContent, `★ 추천 ${recommendedFloor}층`);
+  // 1안: `★ 추천`은 전투력이 아니라 **시간당 처치가 가장 많은 층**이다.
+  assert.equal(banner.children[1].textContent, `★ 추천 ${bestFloor}층`);
+  const tip = nodes.find(node => hasClass(node, 'floor-farm-tip'));
+  assert.ok(tip, '배너 아래 한 줄');
+  assert.match(tip.textContent, /^⏱ \d+층 [\d,]+마리\/시간 — 지금 스펙에서 가장 빠른 층$/);
+  assert(tip.textContent.includes(`${bestFloor}층 ${bestRate.toLocaleString('ko-KR')}마리/시간`));
 
   const sections = nodes.filter(node => hasClass(node, 'floor-group'));
   assert.equal(sections.length, 2, '1~10층·11~20층 두 구간');
   for (const section of sections) {
     const head = section.children[0], grid = section.children[1];
-    const openGroup = section.children[0].innerHTML.includes('내 권장 층 포함');
-    const shouldOpen = section.children[1].id === `floor-group-${F.groupStart(recommendedFloor)}`;
-    assert.equal(openGroup, shouldOpen, '내 권장 층이 든 구간에만 표시');
-    assert.equal(grid.hidden, !shouldOpen, shouldOpen ? '펼친다' : '접는다');
+    const shouldOpen = section.children[1].id === `floor-group-${F.groupStart(bestFloor)}`;
+    assert.equal(grid.hidden, !shouldOpen, shouldOpen ? '가장 빠른 층 구간을 펼친다' : '접는다');
     assert.equal(head.attributes['aria-expanded'], String(shouldOpen));
     assert.equal(grid.children.length, 10, '구간마다 10칸');
     assert.equal(head.attributes['aria-controls'], grid.id);
+    assert.doesNotMatch(head.innerHTML, /내 권장 층 포함/, '전투력 기준 표시는 1안에서 뺐다');
+    assert.match(head.innerHTML, /권장 [\d,]+ ~ [\d,]+/, '구간 머리에 권장 전투력 범위는 남는다');
   }
 
-  // 카드 구조는 모두 같다: 층 이름 · (보스 왕관) · (현재 배지) · 상태 · 권장 전투력.
+  // 카드: 층 이름 · (보스 왕관) · (★ 최다 / 현재) · 상태 + `시간당 N 마리` (+▼N%).
   const cards = nodes.filter(node => hasClass(node, 'floor-card'));
   assert.equal(cards.length, MAX_FLOOR, '층 1~20 전부');
   for (const card of cards) {
     assert.match(card.innerHTML, /<b>\d+층<\/b>/);
-    assert.match(card.innerHTML, /<span class="floor-card-state">(여유|적정|위험)/);
-    assert.match(card.innerHTML, /<small>권장 전투력<\/small><strong>[\d,]+<\/strong>/, '권장 전투력 줄');
+    assert.match(card.innerHTML, /<span class="floor-card-state">(여유|적정|위험)<\/span>/);
+    assert.match(card.innerHTML, /<span class="floor-card-rate"><small>시간당<\/small><strong>[\d,]+<\/strong><small>마리<\/small>/, '시간당 처치 줄');
+    assert.doesNotMatch(card.innerHTML, /권장 전투력<\/small>/, '카드에서 권장 전투력은 빠졌다');
     assert.match(card.innerHTML, /<span class="floor-card-head">/, '머리 줄');
   }
   for (const floor of [5, 10, 15, 20]) assert.match(cards[floor - 1].innerHTML, /👑/, `${floor}층 왕관`);
   assert.doesNotMatch(cards[0].innerHTML, /👑/, '1층은 왕관 없음');
+
+  // `★ 최다`는 가장 빠른 층 카드 하나에만, `▼N%`는 손해가 큰 층에만.
+  const bestCards = cards.filter(card => card.innerHTML.includes('★ 최다'));
+  assert.equal(bestCards.length, 1, '★ 최다는 하나');
+  assert.equal(Number(bestCards[0].innerHTML.match(/<b>(\d+)층<\/b>/)[1]), bestFloor);
+  for (const card of cards) {
+    const floor = Number(card.innerHTML.match(/<b>(\d+)층<\/b>/)[1]);
+    const rate = killsPerHourAt(save, floor), loss = Math.round((1 - rate / bestRate) * 100);
+    const badge = card.innerHTML.includes('floor-card-loss');
+    assert.equal(badge, loss >= FARM_LOSS_BADGE_PCT, `${floor}층 손해 배지(${loss}%)`);
+    if (badge) assert.match(card.innerHTML, new RegExp(`▼${loss}%`), `${floor}층 손해율`);
+  }
 
   // 현재 층 배지와 잠긴 층(최고 층 위) 처리.
   const current = cards[save.floor - 1];
@@ -169,11 +189,7 @@ test('창은 내 전투력·추천 층을 보여 주고 내 권장 층이 든 �
     assert.equal(hasClass(card, 'locked'), floor > save.maxFloor, `${floor}층 잠금 여부`);
     assert.equal(card.disabled, floor > save.maxFloor);
   }
-  // 내 권장 층 카드는 금빛으로 강조하고 문구에 `내 권장 층`을 붙인다.
-  const rec = cards[recommendedFloor - 1];
-  assert.ok(hasClass(rec, 'recommended'));
-  assert.match(rec.innerHTML, /내 권장 층<\/span>/);
-  // 상태 색은 카드 클래스로만 정한다.
+  // 상태 색은 카드 클래스로만 정한다(권장 전투력 판정 그대로).
   for (const card of cards) {
     const state = card.innerHTML.match(/floor-card-state">(여유|적정|위험)/)[1];
     assert.ok(hasClass(card, { 여유: 'easy', 적정: 'okay', 위험: 'danger' }[state]), `${state} 카드 클래스`);
@@ -205,12 +221,16 @@ test('구간 머리를 누르면 접히고 펼쳐지며, 층 카드를 누르면
   assert.match(ui.messages.at(-1), /층으로 이동했습니다/);
 }));
 
-test('층 카드는 2열 같은 높이이고 상태별 색과 내 권장 층 금빛 테두리를 CSS가 정한다', () => {
+test('층 카드는 2열 같은 높이이고 상태별 색과 시간당 처치·손해 배지를 CSS가 정한다', () => {
   assert.match(css, /\.floor-grid \{[^}]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
   assert.match(css, /\.floor-grid\[hidden\] \{ display: none; \}/);
-  assert.match(css, /\.floor-card \{[^}]*min-height: 62px/, '카드 높이는 하나의 값');
+  assert.match(css, /\.floor-card \{[^}]*min-height: 52px/, '카드 높이 52px — 20장이 한 화면에 들어온다');
   for (const state of ['easy', 'okay', 'danger']) assert.ok(css.includes(`.floor-card.${state} {`), `${state} 카드 색`);
-  assert.match(css, /\.floor-card\.recommended \{[^}]*border-color: #f0c072/, '내 권장 층 금빛 테두리');
+  assert.match(css, /\.floor-card-rate \{[^}]*display: flex/, '시간당 처치 줄');
+  assert.match(css, /\.floor-card-loss \{[^}]*margin-left: auto/, '손해 배지는 오른쪽');
+  assert.match(css, /\.floor-card-loss\.danger \{[^}]*color: #ff6f61/, '큰 손해는 붉게');
+  assert.match(css, /\.floor-card-badge\.best \{[^}]*border-color: #d9c186/, '★ 최다 배지');
+  assert.match(css, /\.floor-farm-tip \{[^}]*border-left: 3px solid #6f9f5a/, '배너 아래 초록 한 줄');
   assert.match(css, /\.floor-group\.open \.floor-group-caret \{ transform: rotate\(90deg\); \}/, '펼친 구간 화살표');
   assert.match(css, /\.floor-power-rec \{[^}]*border-radius: 999px/, '추천 층 배지');
 });

@@ -32,7 +32,8 @@ test('offline hunts award one equipment per kill (파트 B — 스킬북 폐지)
     const unit = killReward({ floor: 1 });
     assert.equal(reward.gold, reward.kills * unit.gold, '1층 금화 3 × 처치 수');
     // 보스에게 진 패널티(10골드)는 세이브에서만 빠진다 — 정산서는 번 금화를 그대로 보여 준다.
-    assert.equal(save.gold, reward.gold - reward.deaths * 10);
+    // 2026-11-24: 사냥 중 사뫀(일반·정예)도 접속과 같이 10골드를 문다(`fieldDeaths`).
+    assert.equal(save.gold, reward.gold - (reward.deaths + reward.fieldDeaths) * 10);
   } finally { Math.random = originalRandom; }
 });
 
