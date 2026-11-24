@@ -149,7 +149,7 @@ export class FieldProgress extends CombatEngine {
     this.save.floorKills = Math.max(this.save.floorKills, killsToBoss(this.save.floor));
     this.enemies = []; this.chaseTarget = undefined; this.pursuing = false; this.activeMove = { x: 0, y: 0 };
     this.spawnTimer = 0; this.bossPending = true; this.elitePending = false;
-    this.onMessage(`${josa(floorBossName(this.save.floor), '에게', '에게')} 다시 도전합니다!`);
+    this.onMessage(`${floorBossName(this.save.floor)}에게 다시 도전합니다!`);
     this.onChange();
     return true;
   }
@@ -359,6 +359,8 @@ export class FieldProgress extends CombatEngine {
     const p = this.player;
     const spawn = spawnArenaEnemy(p, random() * Math.PI * 2, fieldSpawnBand.near + random() * (fieldSpawnBand.far - fieldSpawnBand.near));
     const hp = enemyMaxHp(this.save.floor, boss) * (elite ? ELITE_HP_SCALE : 1);
+    // 걷기 위상(`step`)은 스폰에서 한 번만 뽑고, 같은 값을 21~40층 몹 계보 씨앗으로도 쓴다 — 난수를 더 쓰지 않는다.
+    const step = random() * Math.PI * 2;
     if (boss) {
       // 층 보스는 **체력이 꽉 찬 상태로** 맞이한다(작업 222). 스킬 쿨타임도 함께 돌린다(작업 223).
       this.player.hp = totalStats(this.save).health; this.save.health = this.player.hp;
@@ -366,7 +368,7 @@ export class FieldProgress extends CombatEngine {
       this.enemies = this.enemies.filter(enemy => enemy.boss);
       this.chaseTarget = undefined; this.pursuing = false;
     }
-    this.enemies.push({ x: spawn.x, y: spawn.y, hp, maxHp: hp, boss, elite, hit: 0, step: random() * Math.PI * 2, moving: false, knockX: 0, knockY: 0, slow: 0 });
+    this.enemies.push({ x: spawn.x, y: spawn.y, hp, maxHp: hp, boss, elite, hit: 0, step, variant: step / (Math.PI * 2), moving: false, knockX: 0, knockY: 0, slow: 0 });
     if (boss) this.bossPending = false;
   }
 

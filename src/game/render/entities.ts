@@ -1019,7 +1019,7 @@ function enemyLook(view: GameView, enemy: Enemy, floor: number): EnemyLook {
       restAnchor: .995, tint: art.tint, scale: art.scale, label: art.name
     };
   }
-  const kind = mobKindFor(floor, enemy.step / (Math.PI * 2));
+  const kind = mobKindFor(floor, enemy.variant ?? 0);
   const look = mobLooks[kind];
   return {
     idle: view.textures[look.idle], walk: view.animations[look.walk], walkAnchor: walkAnchors[look.walk],

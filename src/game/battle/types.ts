@@ -15,7 +15,10 @@ export type Enemy = { x: number; y: number; hp: number; maxHp: number; boss: boo
   /** 정예 몹(작업 206) — 일반 몹 30마리마다 한 마리. 보스 타이밍이 오면 보스가 우선이라 둘은 같이 서지 않는다. */
   elite?: boolean;
   /** 적 공격 모션(작업 245) — 남은 재생 시간. 0보다 크면 플레이어 쪽으로 내딛으며 때린다. */
-  attack?: number };
+  attack?: number;
+  /** 21~40층 몹 계보를 고르는 0~1 씨앗(층 테마). 스폰 때 한 번 정해지고 움직여도 바뀌지 않는다 —
+   *  `step`은 걷는 동안 계속 커지므로 씨앗으로 쓸 수 없다. 없으면 그 층의 첫 번째 몹이다(던전 등). */
+  variant?: number };
 /** `absorb` is the age the pull into the character began at; while it is unset the drop still rests
  *  where it fell (`LOOT_REST_SECONDS`). Without that mark the renderer cannot tell a drop held back
  *  by a full bag from one already on its way in. */
