@@ -39,6 +39,28 @@ export function clampFieldPoint(x: number, y: number): { x: number; y: number } 
   return clampTo(x, y, fieldSpawnLimits);
 }
 
+/** 아레나 상자에서 얼마나 벗어났는가 — 1 이하면 안쪽, 1보다 크면 그만큼 바깥이다(좌우·앞뒤 중 먼 쪽). */
+function arenaOverflow(x: number, y: number): number {
+  return Math.max(Math.abs(x - y) / arenaLimits.horizontal, Math.abs(x + y) / arenaLimits.vertical);
+}
+
+/**
+ * 넉백이 몹을 데려갈 수 있는 자리 — **전투 경계(`arenaLimits`) 밖으로 밀려나지 않는다**(작업 264).
+ *
+ * `from`은 이번 프레임에 걸어온 자리(밀리기 전), `to`는 평타·스킬·블러드 레이지가 민 자리다.
+ *
+ * ① 아레나 안에 있던 몹: 민 자리가 경계를 넘으면 **경계 위에서 멈춘다**. 예전에는 필드 경계
+ *    (`fieldSpawnLimits`, 120~250 구간)까지만 막아서, 맞은 몹이 아레나 밖으로 밀려나면 아레나에
+ *    막힌 전사가 따라가지도 때리지도 못했다.
+ * ② 아직 아레나 밖(필드 외곽 스폰 밴드)에서 걸어 들어오는 중인 몹: **더 바깥으로는 나가지 않는다**.
+ *    제자리를 지키거나, 민 방향이 안쪽·옆이라면 그만큼은 움직인다 — 멀리서 뜬 몹이 걸어 들어오는
+ *    동작(작업 230)은 그대로다.
+ */
+export function clampKnockbackPoint(from: { x: number; y: number }, to: { x: number; y: number }): { x: number; y: number } {
+  if (arenaOverflow(from.x, from.y) <= 1 + 1e-9) return clampArenaPoint(to.x, to.y);
+  return arenaOverflow(to.x, to.y) > arenaOverflow(from.x, from.y) ? { x: from.x, y: from.y } : { x: to.x, y: to.y };
+}
+
 export function arenaEdgePoint(angle: number): { x: number; y: number } {
   const x = Math.cos(angle), y = Math.sin(angle);
   const horizontal = x - y, vertical = x + y;

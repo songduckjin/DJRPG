@@ -7,7 +7,7 @@
 
 | 도메인 | 매뉴얼 | 폴더·입구 파일 | 대표 테스트 |
 |---|---|---|---|
-| 일반 필드 전투·방치 오프라인·필드 보스 | `docs/FIELD_OFFLINE.md` | `src/game/world.ts`·`loot.ts`·`offline.ts`·`arena.ts`·`bossLoot.ts`·`ui/hud.ts` | `world-movement`·`field-loot`·`elite-mob`·`offline*`·`floor-cap` |
+| 일반 필드 전투·방치 오프라인·필드 보스 | `docs/FIELD_OFFLINE.md` | `src/game/world.ts`·`combat/engine.ts`·`combat/bounds.ts`(아레나·필드·넉백 경계)·`loot.ts`·`offline.ts`·`arena.ts`·`bossLoot.ts`·`ui/hud.ts` | `world-movement`·`field-loot`·`elite-mob`·`knockback-bounds`·`offline*`·`floor-cap` |
 | 끝없는 던전·서버 리플레이·던전 순위 | `docs/DUNGEON.md` | `src/ui/dungeonBattle.ts`·`dungeonField.ts`·`dungeonLobby.ts`·`src/game/dungeonLive.ts`·`server/dungeon*.mjs` | `dungeon-battle`·`dungeon-verify`·`dungeon-record`·`dungeon-ranking` |
 | 월드 보스·랭킹·전광판·폴링 예산 | `docs/WORLDBOSS_RANKING.md` | `src/game/worldBoss*.ts`·`src/ui/worldBoss*.ts`·`server/world-boss.mjs`·`legendBoard.ts`·`legendBar.ts` | `world-boss-*`·`legend-board` |
 | 여정·데일리 퀘스트·업적·(향후) 출석 | `docs/QUEST_ATTENDANCE.md` | `server/journey-state.mjs`·`journey.mjs`·`src/game/journey.ts`·`ui/modals/utilityModal.ts` | `journey*`·`achievements` |
