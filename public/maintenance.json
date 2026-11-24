@@ -1,6 +1,6 @@
 {
-  "active": true,
+  "active": false,
   "title": "점검 진행 중입니다",
-  "eta": "2026-11-24T17:30:00+09:00",
-  "message": "통합 업데이트 적용 중입니다."
+  "eta": "",
+  "message": ""
 }
