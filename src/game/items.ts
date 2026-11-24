@@ -688,9 +688,12 @@ export function migrateItem(value: unknown): Item | undefined {
   if ((slot === 'helmet' || slot === 'armor') && (value.job === 'warrior' || value.job === 'archer' || value.job === 'mage')) item.job = value.job;
   // 강화 단계는 표시 전용이다 — 이름·스탯·등급은 그대로 두고 `plus`만 정규화(또는 옛 장비면 역산)한다.
   item.plus = normalizePlus(value.plus, item);
-  // 치명·공속·쿨감은 새 척도로 다시 박는다(밸런스 v2) — 예전 장비의 800% 치명·1,200% 공속이 상한에
-  // 눌러앉아 계산이 무의미해지지 않게. 공결·방여·체력·강화·등급·티어·부위는 그대로다.
-  sanitizeSecondary(item);
+  // 치명·공속·쿨감은 **척도가 바뀔 때 한 번만** 새 식으로 다시 박는다(밸런스 v2). 이미 `sec:2`인 장비는
+  // 저장된 값을 그대로 쓴다 — 매번 다시 계산하면 강화(`plus`)·쯔바이핸드 보너스가 붙은 값이 깎이고,
+  // 서버 소유 기록(`identity`)과 어긋나 그 캐릭터의 저장이 영구 `409 ITEM_CONFLICT`가 된다
+  // (2026-11-24 관우 슬롯 5 벨트·sim 슬롯 2 쯔바이핸드 장애).
+  if (Number(value.sec ?? 1) < SECONDARY_SCALE_VERSION) sanitizeSecondary(item);
+  else item.sec = SECONDARY_SCALE_VERSION;
   // 추가옵션(작업 238): 저장된 값이 규칙에 맞으면 그대로 두고, 없거나 어긋난 옛 장비는 `id` 시드로
   // 1/2/3개를 붙인다 — 이미 지급된 장비도 DB를 전수 수정하지 않고 옵션을 얻는다.
   if (isRecord(value.extraOptions)) item.extraOptions = value.extraOptions as EquipmentItem['extraOptions'];

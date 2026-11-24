@@ -7,6 +7,10 @@
  *    `400 INVALID_SAVE`로 영구 잠기면 거래소·우편이 통째로 막히던 사고(`#20869`)의 재발 방지다.
  *  - 아이템 소유는 두 표(`djrpg_item_owners` 위치·`djrpg_character_item_owners` 슬롯)의 미러다.
  *    어긋나면 `409 ITEM_CONFLICT` — 통합은 후속 단계(PR-6)다.
+ *  - **슬롯 매핑 누락은 복구한다**(2026-11-24): 소유 기록이 이 계정 `inventory`이고 그 아이템이 그 캐릭터의
+ *    직전 서버 세이브에 들어 있으면, 매핑이 없어도(또는 `0`=창고·거래 표시여도) **지금 슬롯으로 다시 적는다**.
+ *    부캐릭(2번 이상)만 "1번 캐릭터로 저장한 뒤 다시 시도하세요"로 막던 규칙이 창고 왕복·구세이브에서
+ *    영구 409가 되던 자리다. 다른 슬롯 번호가 적힌 진짜 중복·남의 계정 아이템은 종전대로 막는다.
  */
 import { ApiError, fail } from './errors.mjs';
 import { validateSave } from './save.mjs';
@@ -98,6 +102,33 @@ const legacySecondaryMatch = (stored, item) => {
 };
 // 소유권 테이블의 사본이 깨졌을 수 있으므로 해석 실패는 예외가 아니라 '불일치'로 다룬다.
 const ownerItem = owner => { try { const value = JSON.parse(owner.item_json); return value && typeof value === 'object' ? value : undefined; } catch { return undefined; } };
+/**
+ * 화면이 저장된 2차 스탯을 **다시 계산하며 깎인** 경우를 받아 주는가(2026-11-24).
+ *
+ * 저장 목록(`sec:2` 장비)은 처음 저장될 때의 치명·공속·쿨감을 그대로 들고 있는데, 클라이언트가 로드 때
+ * 등급·티어로 다시 계산하면서 강화(`plus`)·쯔바이핸드 보너스를 빼고 깎는 바람에 두 값이 어긋났다.
+ * 그 상태로는 `identity`가 영원히 달라 그 캐릭터의 모든 저장이 `409 ITEM_CONFLICT`가 되고(관우 슬롯 5 벨트·
+ * sim 슬롯 2 쯔바이핸드), 재접속해도 같은 화면을 다시 받아 빠져나올 수 없다.
+ *
+ * 그래서 **내려가는 방향만** 한 번 받아 서버 사본을 새 값으로 바꿔 준다. 올리는 값은 드롭 공식만 만들 수
+ * 있으므로 받지 않고, 공결·방여·체력·이름·등급·부위가 다르면 종전대로 막는다.
+ */
+const secondaryDriftMatch = (stored, item) => {
+  if (!stored || item?.sec !== 2 || (stored.sec ?? 1) < 2) return false;
+  if (stored.id !== item.id || stored.name !== item.name) return false;
+  if (ringSlot(stored) !== ringSlot(item) || stored.rarity !== item.rarity) return false;
+  if ((stored.kind ?? 'equipment') !== (item.kind ?? 'equipment') || (stored.skillId ?? '') !== (item.skillId ?? '')) return false;
+  for (const key of ['attack', 'defense', 'health']) if ((stored.stats?.[key] ?? 0) !== (item.stats?.[key] ?? 0)) return false;
+  const ceiling = secondaryStatCeiling(item);
+  if (!ceiling) return false;
+  let dropped = false;
+  for (const key of ['crit', 'speed', 'cdr']) {
+    const before = stored.stats?.[key] ?? 0, after = item.stats?.[key] ?? 0;
+    if (after > before || after < 0 || after > ceiling[key]) return false;
+    if (after !== before) dropped = true;
+  }
+  return dropped;
+};
 
 export async function reconcileItems(tx, id, before, after, options = {}) {
   const next = itemsOf(after), previous = itemsOf(before), ids = new Set();
@@ -138,6 +169,9 @@ export async function reconcileItems(tx, id, before, after, options = {}) {
         // 2차 스탯 척도 마이그레이션(밸런스 v2) — 옛 장비의 치명·공속을 새 척도로 바꾼 한 번의 저장을 받는다.
         if (legacySecondaryMatch(stored, item)) {
           writes.push({ sql: 'UPDATE djrpg_item_owners SET item_json=? WHERE item_id=?', args: [JSON.stringify(item), item.id] });
+        } else if (secondaryDriftMatch(stored, item)) {
+          // 화면이 저장값을 다시 계산하며 깎은 2차 스탯 — 서버 사본을 이 값으로 바꿔 다음 저장부터 맞춘다.
+          writes.push({ sql: 'UPDATE djrpg_item_owners SET item_json=? WHERE item_id=?', args: [JSON.stringify(item), item.id] });
         } else {
           // latest.save(before)에 같은 id가 같은 능력치로 이미 있고 이름만 달라졌다면,
           // 구버전 클라이언트의 아이템 이름 마이그레이션으로 보고 서버 세이브 이름으로 되돌려 통과시킨다.
@@ -155,9 +189,17 @@ export async function reconcileItems(tx, id, before, after, options = {}) {
       if (++minted > guard.items) fail(400, 'INVALID_ITEM', '아이템 생성이 서버 허용 범위를 넘었습니다.');
       if (!itemWithinBounds(item, mintFloor)) fail(400, 'INVALID_ITEM', '아이템 능력치가 서버 기록과 다릅니다. 최신 데이터를 다시 불러오세요.');
     }
-    if (slotsByItem.has(item.id) && slotsByItem.get(item.id) !== slot) fail(409, 'ITEM_CONFLICT', '다른 캐릭터가 가진 아이템입니다. 그 캐릭터로 접속해 사용하세요.');
-    if (owner && !slotsByItem.has(item.id) && slot !== 1) fail(409, 'ITEM_CONFLICT', '기존 아이템의 소유 캐릭터를 확인할 수 없습니다. 1번 캐릭터로 한 번 저장한 뒤 다시 시도하세요.');
-    if (!slotsByItem.has(item.id)) writes.push({ sql: 'INSERT INTO djrpg_character_item_owners(item_id,account_id,slot) VALUES (?,?,?)', args: [item.id, id, slot] });
+    // 슬롯 매핑의 `0`은 "어느 캐릭터도 아니다"(창고·거래 이동 표시)다 — 누락과 함께 **미지정**으로 보고,
+    // 다른 슬롯 번호만 충돌로 다룬다.
+    const assigned = slotsByItem.has(item.id) && slotsByItem.get(item.id) !== 0 ? slotsByItem.get(item.id) : undefined;
+    if (assigned !== undefined && assigned !== slot) fail(409, 'ITEM_CONFLICT', '다른 캐릭터가 가진 아이템입니다. 그 캐릭터로 접속해 사용하세요.');
+    if (assigned === undefined) {
+      // 1번 캐릭터는 종전대로 소유 기록만 있으면 받아 준다. 부캐릭은 **직전 서버 세이브에 있던 아이템**이면
+      // 지금 캐릭터 소유로 복구한다 — 창고에서 꺼낸 아이템·구세이브처럼 매핑 행만 빠진 정상 아이템이다.
+      // 서버가 들고 있던 세이브가 근거이므로 클라이언트가 아이템을 끌어올 수 없다(새 id는 아래 minted 검사를 지난다).
+      if (owner && slot !== 1 && !previousById.has(item.id)) fail(409, 'ITEM_CONFLICT', '기존 아이템의 소유 캐릭터를 확인할 수 없습니다. 1번 캐릭터로 한 번 저장한 뒤 다시 시도하세요.');
+      writes.push({ sql: 'INSERT INTO djrpg_character_item_owners(item_id,account_id,slot) VALUES (?,?,?) ON CONFLICT(item_id) DO UPDATE SET account_id=excluded.account_id, slot=excluded.slot', args: [item.id, id, slot] });
+    }
   }
   // Include removed legacy items, preventing resurrection after consumption.
   const unregistered = new Map([...previousValid, ...next].filter(item => !owners.has(item.id)).map(item => [item.id, item]));
@@ -185,13 +227,16 @@ export async function reconcileItems(tx, id, before, after, options = {}) {
 
 // load 한 번으로 409 ITEM_CONFLICT 교착에서 빠져나오도록, 다음 save의 reconcileItems가 거부할 조합만 골라 정리한다.
 // 소유자가 다른 계정·다른 위치(창고/거래/소모)·다른 캐릭터 슬롯이면 제거하고, 소유자만 다르게 기록된 같은 아이템은 서버 사본으로 복원한다.
+// **매핑만 빠진 내 아이템은 제거하지 않고 슬롯 매핑을 복구한다**(`repairs`) — 예전에는 부캐릭에서 'drop'이라
+// 새로고침마다 가방이 비었다(2026-11-24).
 const repairedSave = async (tx, row) => {
+  const repairs = [];
   const save = row.save;
-  if (!save || typeof save !== 'object' || !Array.isArray(save.bag) || !save.equipment || typeof save.equipment !== 'object') return undefined;
+  if (!save || typeof save !== 'object' || !Array.isArray(save.bag) || !save.equipment || typeof save.equipment !== 'object') return { repairs };
   const slot = Number(row.slot ?? 1), account = String(row.id).toLowerCase();
   const equipment = Object.values(save.equipment).filter(Boolean);
   const ids = [...new Set([...save.bag, ...equipment].map(item => item?.id).filter(id => typeof id === 'string'))];
-  if (!ids.length) return undefined;
+  if (!ids.length) return { repairs };
   const placeholders = ids.map(() => '?').join(',');
   const owners = new Map((await tx.execute({ sql: `SELECT * FROM djrpg_item_owners WHERE item_id IN (${placeholders})`, args: ids })).rows.map(owner => [owner.item_id, owner]));
   const slotsByItem = new Map((await tx.execute({ sql: `SELECT item_id,slot FROM djrpg_character_item_owners WHERE account_id=? AND item_id IN (${placeholders})`, args: [row.id, ...ids] })).rows.map(entry => [entry.item_id, Number(entry.slot)]));
@@ -200,13 +245,17 @@ const repairedSave = async (tx, row) => {
   const decide = item => {
     if (!item || typeof item.id !== 'string' || seen.has(item.id)) return 'drop';
     seen.add(item.id);
-    const owner = owners.get(item.id), mappedSlot = slotsByItem.get(item.id);
-    if (!owner) return mappedSlot !== undefined && mappedSlot !== slot ? 'drop' : 'keep';
+    const owner = owners.get(item.id);
+    // 매핑 `0`은 창고·거래 이동 표시 — 누락과 함께 "미지정"으로 본다.
+    const rawSlot = slotsByItem.get(item.id), mappedSlot = rawSlot === 0 ? undefined : rawSlot;
+    if (mappedSlot !== undefined && mappedSlot !== slot) return 'drop';
+    if (!owner) return 'keep';
     if (String(owner.account_id ?? '').toLowerCase() !== account || owner.location !== 'inventory') return 'drop';
-    if (mappedSlot !== undefined ? mappedSlot !== slot : slot !== 1) return 'drop';
     let known;
     try { known = JSON.parse(owner.item_json); } catch { return 'drop'; }
     if (!itemValid(known) || known.id !== item.id) return 'drop';
+    // 이 캐릭터가 들고 있어야 하는데 슬롯 매핑만 빠진 아이템 — 지우지 않고 매핑을 복구한다.
+    if (mappedSlot === undefined) repairs.push(item.id);
     return identity(known) === identity(item) ? 'keep' : { item: known };
   };
   let changed = false;
@@ -225,16 +274,34 @@ const repairedSave = async (tx, row) => {
     if (decision !== 'keep') { changed = true; equipmentSave[key] = decision.item; continue; }
     equipmentSave[key] = item;
   }
-  return changed ? { ...save, bag, equipment: equipmentSave } : undefined;
+  return { save: changed ? { ...save, bag, equipment: equipmentSave } : undefined, repairs };
 };
 
-// 정리된 세이브는 캐릭터 저장소에도 반영하되, 진행이 아닌 복구이므로 revision·updated_at은 그대로 둔다.
+/**
+ * 아이템 슬롯 매핑 복구 문장 — 같은 아이템이 예전 다른 계정·`0`으로 적혀 있어도 지금 캐릭터로 덮어쓴다.
+ * (`djrpg_character_item_owners.item_id`가 기본키라 `INSERT OR IGNORE`로는 옛 행이 남는다.)
+ */
+const mappingRepair = (itemIds, accountId, slot) => itemIds.length ? [{
+  sql: `INSERT INTO djrpg_character_item_owners(item_id,account_id,slot) VALUES ${itemIds.map(() => '(?,?,?)').join(',')}
+    ON CONFLICT(item_id) DO UPDATE SET account_id=excluded.account_id, slot=excluded.slot`,
+  args: itemIds.flatMap(itemId => [itemId, accountId, slot])
+}] : [];
+
+/**
+ * 정리된 세이브는 캐릭터 저장소에도 반영하되, 진행이 아닌 복구이므로 revision·updated_at은 그대로 둔다.
+ * 매핑만 빠진 아이템은 세이브를 건드리지 않고 `djrpg_character_item_owners`만 복구한다.
+ * `load`·비밀번호 `login`·`selectCharacter`가 **모두 이 함수를 거친다** — 어느 입구로 들어와도 다음 저장이
+ * `409 ITEM_CONFLICT`로 막히지 않는다(2026-11-24).
+ */
 export async function healStaleLoadItems(tx, row) {
   let healed;
   try { healed = await repairedSave(tx, row); } catch (error) { if (error instanceof ApiError) throw error; return row.save; }
-  if (!healed) return row.save;
-  const characterSave = { ...healed };
-  delete characterSave.gold;
-  await tx.execute({ sql: 'UPDATE djrpg_characters SET save_json=? WHERE account_id=? AND slot=? AND save_json=?', args: [JSON.stringify(characterSave), row.id, Number(row.slot ?? 1), row.character_json] });
-  return healed;
+  const statements = mappingRepair(healed.repairs, row.id, Number(row.slot ?? 1));
+  if (healed.save) {
+    const characterSave = { ...healed.save };
+    delete characterSave.gold;
+    statements.push({ sql: 'UPDATE djrpg_characters SET save_json=? WHERE account_id=? AND slot=? AND save_json=?', args: [JSON.stringify(characterSave), row.id, Number(row.slot ?? 1), row.character_json] });
+  }
+  if (statements.length) await tx.batch(statements);
+  return healed.save ?? row.save;
 }

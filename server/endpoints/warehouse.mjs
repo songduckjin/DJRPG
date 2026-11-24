@@ -178,7 +178,13 @@ async function handle(request, { env = runtimeEnv(), createDbClient } = {}, cont
           const movedIds = moved.map(item => item.id), slots = marks(moved.length);
           operations.push({ sql: `DELETE FROM djrpg_warehouse WHERE account_id=? AND item_id IN (${slots})`, args: [id, ...movedIds] });
           operations.push({ sql: `UPDATE djrpg_item_owners SET location='inventory' WHERE account_id=? AND item_id IN (${slots})`, args: [id, ...movedIds] });
-          operations.push({ sql: `UPDATE djrpg_character_item_owners SET slot=? WHERE account_id=? AND item_id IN (${slots})`, args: [row.slot, id, ...movedIds] });
+          // 꺼낸 아이템의 슬롯 매핑은 **없으면 만든다**(2026-11-24) — 예전에는 `UPDATE`만 해서 매핑 행이 없는
+          // 아이템(구세이브·예전 보관 경로)은 부캐릭에서 꺼낸 뒤 다음 저장이 409로 막혔다.
+          operations.push({
+            sql: `INSERT INTO djrpg_character_item_owners(item_id,account_id,slot) VALUES ${moved.map(() => '(?,?,?)').join(',')}
+              ON CONFLICT(item_id) DO UPDATE SET account_id=excluded.account_id, slot=excluded.slot`,
+            args: moved.flatMap(item => [item.id, id, row.slot])
+          });
         }
       }
       const message = input.action === 'deposit'

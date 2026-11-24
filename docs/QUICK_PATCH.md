@@ -11,6 +11,7 @@
 | 맞은 몹이 맵 밖으로 밀려나 전사가 접근·공격을 못 함(넉백 경계) | `docs/FIELD_OFFLINE.md` |
 | 드롭이 안 주워짐·1.5초 흡수·금화 무더기 | `docs/FIELD_OFFLINE.md` |
 | 방치 보상이 0·방치 등반·방치 자동 분해 | `docs/FIELD_OFFLINE.md` |
+| 탭(창)을 내렸다 돌아오니 사냥이 멈춰 있고 보상이 없음·자리 비움 정산 토스트/팝업 | `docs/FIELD_OFFLINE.md`(자리 비움 정산) · `docs/SYNC_SAVE.md`(숨김·복귀 저장) |
 | 던전에서 안 움직임·클리어가 순위에 안 올라감·`DUNGEON_*` 오류 | `docs/DUNGEON.md` |
 | 월드보스 순위·보상·전투 재현 어긋남 | `docs/WORLDBOSS_RANKING.md` |
 | 일일/주간 퀘스트·업적 수치·보상 수령 반복 | `docs/QUEST_ATTENDANCE.md` |
@@ -27,6 +28,7 @@
 | 다이아 잔액·상품·결제 승인·슬롯 구매 | `docs/SHOP_ECONOMY.md` |
 | 로그인·토큰 만료·다른 기기 로그인·캐릭터 생성/삭제·점검 팝업 | `docs/AUTH_CHARACTER.md` |
 | 저장이 안 됨·`SAVE_CONFLICT`·`ITEM_CONFLICT`·"게임에 접속 중입니다…"·창 내렸다 복귀 | `docs/SYNC_SAVE.md` |
+| 부캐릭(2번 이상)에서 방치 보상 저장 실패·접속 불가·가방이 비어 보임·"아이템 정보가 서버 기록과 다릅니다" | `docs/SYNC_SAVE.md` |
 | 캐릭터가 안 보임·코스튬 폴백·투구/갑옷/무기 외형·발광 | `docs/COSTUME_SYSTEM.md` |
 | 그림을 바꿨는데 화면이 그대로(캐시) | `docs/COSTUME_SYSTEM.md` + `PILOT_ASSET_VERSION`/`?v=` |
 | 3D에서 2.5D 셀을 다시 뽑아야 함 | `docs/BLENDER_25D_PIPELINE.md` |

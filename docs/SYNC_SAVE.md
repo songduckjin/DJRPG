@@ -6,9 +6,9 @@
 
 | 역할 | 파일 |
 |---|---|
-| 저장 큐·재시도·충돌·거래/창고 락 | `src/game/sync.ts`(`SaveSync`·`queueSave`·`flush`·`flushIfDirty`·`mutate`·`transferWarehouse`·`handleError`·`resetForCharacterSwitch`) |
+| 저장 큐·재시도·충돌·거래/창고 락 | `src/game/sync.ts`(`SaveSync`·`queueSave`·`flush`·`flushIfDirty`·`setHidden`·`mutate`·`transferWarehouse`·`handleError`·`resetForCharacterSwitch`) |
 | 끊김 문구·판정·재시도 | `src/ui/reconnect.ts`(`offlineError`·`isNetworkOffline`·`retryNetwork`·`ReconnectNotice`) |
-| 저장 시점 | `src/main.ts`(10초 `flushIfDirty`·`online`·`visibilitychange`)·`src/ui/interface.ts`(`onSave`) |
+| 저장 시점 | `src/main.ts`(10초 `flushIfDirty`·`online`·`visibilitychange`·`setHidden`·자리 비움 정산)·`src/ui/interface.ts`(`onSave`) |
 | 저장/거래 API | `server/endpoints/account.mjs`(`action:'save'`)·`server/database.mjs`(`writeSave`·`assertRevision`·`reconcileItems`·`identity`) |
 | 저장 상한 | `server/save-guard.mjs`(`rewardBudget`·`clampSaveProgress`·`itemWithinBounds`·`elapsedSince`) |
 | 세이브 스키마 | `src/game/store.ts`(`Save`·`parseSave`·`MAX_FLOOR`·`freshSave`) |
@@ -23,7 +23,7 @@ world/save 변경 → world.onChange → Interface.onSave → sync.queueSave() (
 ```
 
 - **방치 정산 확정**: 로그인과 캐릭터 전환에서 계산된 보상은 `SaveSync.flush()`의 성공 응답을 받은 뒤에만 정산창에 표시한다. 실패하면 미확정 아이템을 보여 주지 않는다. 서버가 돌려준 세이브가 화면 기준이며, 저장 중 새 변경이 생긴 경우에는 그 변경을 덮지 않고 다음 저장을 보낸다. 상한 조정이 있으면 정산창은 확정된 아이템만 보여 주고 계산 전 수치를 숨긴다.
-- **로그인 직후 정산 복구**: 비밀번호 로그인도 `load`처럼 서버의 오래된 아이템 소유권을 정리한 세이브를 내려준다. 첫 정산 저장에서 네트워크가 끊기거나 일시적인 5xx가 나면 같은 `requestId`로 최대 두 번 재확인하고, 최종 실패 시 실제 서버 오류 코드를 시작 화면에 보여 준다.
+- **확정 절차는 `src/game/offlineSettle.ts` 한 곳(2026-11-24)**: ① 저장을 보내고 ② 끊김·5xx는 같은 `requestId`로 다시 보내며 ③ 서버가 거절(`ITEM_CONFLICT`·`CHARACTER_CONFLICT`)하면 `reloadLatest(true)`로 서버 세이브를 받아 미확정 보상을 버리고 그 세이브에 정산을 다시 적용해 한 번 더 시도한다. 그래도 실패하면 `confirmed:false`와 `sync.lastSaveFailure`(오류 코드 포함)를 돌려주고 화면은 이유를 보여 준다. **시작 화면·캐릭터 전환에서 `location.reload()`로 떨어져 같은 실패를 반복하지 않는다** — 저장이 거절되는 계정이 다시 접속해도 들어올 수 있어야 한다.
 
 - **변경이 없으면 보내지 않는다**: `flushIfDirty`는 `dirty`일 때만 요청. 10초 점검이 저장 요청을 만들지 않게 한다.
 - **`requestId` 멱등**: 저장은 `djrpg_save_requests`, 거래는 `djrpg_market_requests`, 창고는 `djrpg_warehouse_requests`. 결과가 불확실하면 **새 ID가 아니라 같은 ID로 재확인**한다.
@@ -32,11 +32,30 @@ world/save 변경 → world.onChange → Interface.onSave → sync.queueSave() (
 
 - `assertRevision`: `revision` 불일치 → `409 SAVE_CONFLICT`.
 - `reconcileItems`: 이번에 처음 보이는 아이템만 개수·능력치 상한 검사(기존 보유는 소유 기록만 채움). 소유자·캐릭터 슬롯·`identity`(이름·슬롯·등급·kind·skillId·5스탯) 불일치 → `409 ITEM_CONFLICT`. 삭제 아이템은 `consumed`.
+- **슬롯 매핑 누락은 복구한다(2026-11-24)**: 소유 기록이 이 계정 `inventory`이고 그 아이템이 **그 캐릭터의 직전 서버 세이브에 있으면**, `djrpg_character_item_owners`에 매핑이 없거나 `0`(창고·거래 표시)이어도 지금 슬롯으로 다시 적고 저장을 받는다. 1번 캐릭터는 종전대로 소유 기록만 있으면 받는다. **다른 슬롯 번호가 적힌 중복·남의 계정·비인벤토리 아이템은 그대로 409**. 창고 `withdraw`도 꺼낼 때 매핑을 upsert 한다(예전 `UPDATE`는 행이 없으면 아무것도 만들지 않았다).
+- **2차 스탯 재계산 드리프트는 내려가는 방향만 받는다(2026-11-24)**: 저장된 `sec:2` 장비는 처음 저장될 때의 치명·공속·쿨감을 그대로 들고 있는데, 화면이 로드 때 등급·티어로 다시 계산하면 강화(`plus`)·쯔바이핸드 보너스가 빠져 값이 내려가 `identity`가 영원히 어긋난다(관우 슬롯 5 벨트·sim 슬롯 2 쯔바이핸드). 그래서 공결·방여·체력·이름·등급·부위가 같고 치명·공속·쿨감이 **같거나 내려간** 경우만 서버 사본을 새 값으로 바꿔 준다(올리는 값은 드롭 공식만 만들 수 있다). 화면 쪽도 `migrateItem`이 `sec`가 옛 척도일 때만 `sanitizeSecondary`를 돌린다 — 저장된 `sec:2` 값을 다시 계산하지 않는다.
 - **보물 주머니 개봉 금화는 소모 수로 인정한다(2026-11-22)**: 주머니는 클라이언트가 까고 결과를 저장으로 보내므로, `reconcileItems`가 **직전 세이브의 주머니 중 이번 저장에 없고 소유 위치가 `inventory`(또는 기록 없음)인 것 × `POUCH_MAX_GOLD`(5,000G)** 를 `pouchGold`로 돌려주고, `action:'save'`가 그 값을 `writeSave(..., { goldCredit })`로 넘긴다. 한 번에 열기로 금화가 한 저장 창에 몰려도(30개 = 최대 150,000G) 사냥 시간 기준 금화 상한에 잘리지 않는다. 창고·거래소로 옮긴 주머니(위치 `warehouse`·`market`)와 이미 `consumed`인 주머니는 세지 않으므로 꺼내 되풀이 청구할 수 없다.
 - `writeSave`: `revision+1`, 금화는 `shared_gold`로 분리, `bossKills`/`playSeconds`는 최대값, `equipmentCollection`은 `부위:번호:등급` 합집합(810).
 - `save-guard`: `rewardBudget`(경과 시간·층 기준 킬/보스/경험치/금화/강화석/아이템 상한)·`clampSaveProgress`(넘친 값만 자름)·`itemWithinBounds`(`rollItem` 공식 ×2.5)·`elapsedSince`(최대 12시간).
 - **40칸 저장 차단은 `reconcileItems` 한 곳**. 이미 넘긴 세이브는 "현재 개수 이하 유지"만 허용하고, 수령 경로가 각각 `BAG_FULL`로 먼저 막는다.
+- **세이브 소유권 정리(`healStaleLoadItems`)는 `load`·비밀번호 `login`·`selectCharacter` 세 입구가 모두 거친다**: 매핑만 빠진 내 아이템은 **지우지 않고 매핑을 복구**하고, 남의 계정·창고/거래/소모·다른 슬롯 아이템만 빼며, 소유자 사본과 내용이 다른 아이템은 서버 사본으로 되돌린다. 예전에는 `load`만 거쳤고 부캐릭에서는 매핑 없는 아이템을 'drop'해 **새로고침마다 가방이 비었다**.
 - **세이브 한도**: `version === 1`, JSON ≤1MB, 장비 슬롯 10, 금화 ≤9,000,000,000,000. `parseSave`의 전방 호환(옛 세이브 마이그레이션)을 깨지 않는다.
+
+## 숨김·복귀 저장 (자리 비움 정산 · 작업 261)
+
+```
+[숨김] visibilitychange(hidden)·pagehide → sync.setHidden(true) + flush() 1회(3초 상한)
+       ↳ 숨김 동안 예약 저장·flushIfDirty 없음(서버 updated_at이 밀리면 복귀 정산 구간이 짧아진다)
+[복귀] visibilitychange(visible)·pageshow(persisted) → load 1회 → min(offlineSeconds, 숨김초, 43,200) 정산
+       → markDirty() → flush() 성공 확인 (이 저장이 서버 updated_at을 지금으로 옮긴다)
+       → 응답 세이브에서 살아남은 아이템만 남겨 토스트·팝업 표시 → setHidden(false)
+```
+
+- **서버 계약은 그대로**: 저장 성공이 `updated_at`을 지금으로 덮고(`server/db/save.mjs`), `load`가 `offlineSeconds`·`revision`·`characterSlot`을 이미 내려준다. 새 엔드포인트·새 필드는 없다.
+- **저장을 확인한 뒤에만 보여 준다**(2026-11-24 오프라인 저장 오류 사고 규칙): 자리 비움 정산도 시작 정산·캐릭터 전환 정산과 같다 — 저장이 실패하면 보상을 띄우지 않고, 응답 세이브에서 빠진 아이템은 목록에서 빼며 `clamped`가 있으면 `adjusted`로 알린다.
+- **이중 정산 방지**: 정산분은 반드시 **그 정산을 담은 저장**과 함께 서버에 남는다. 저장이 실패하면 보상은 메모리에만 있고 서버는 옅 `updated_at`을 들고 있으므로, 새로고침 뒤 다음 접속이 같은 구간을 **한 번** 방치 정산한다.
+- **정산 초 상한**: `min(load의 offlineSeconds, 숨김초)`. 숨김 진입 저장이 실패하면 서버 경과에 숨기기 전 사냥 시간이 섞이므로 숨김초로 자르고, 로컬 숨김초가 서버 경과보다 크면 서버 값으로 자른다.
+- **정산하지 않는 복귀**: `sync.conflicted`·`sync.locked`, 월드보스 도전 중, 끝없는 던전, 활성 슬롯이 다른 경우. 규칙 자체는 `docs/FIELD_OFFLINE.md`(자리 비움 정산)와 `src/game/background.ts`가 기준이다.
 
 ## 오류 복구 (`sync.handleError`)
 
@@ -71,7 +90,7 @@ world/save 변경 → world.onChange → Interface.onSave → sync.queueSave() (
 
 ## 테스트
 
-`node --test tests/sync.test.mjs tests/reconnect.test.mjs tests/save-guard.test.mjs tests/concurrency.test.mjs tests/idle-save-budget.test.mjs tests/bag-limit-recovery.test.mjs tests/app-version.test.mjs tests/character-switch.test.mjs tests/multi-character-market.test.mjs tests/pouch-open-all.test.mjs`
+`node --test tests/sync.test.mjs tests/reconnect.test.mjs tests/save-guard.test.mjs tests/concurrency.test.mjs tests/idle-save-budget.test.mjs tests/bag-limit-recovery.test.mjs tests/app-version.test.mjs tests/character-switch.test.mjs tests/multi-character-market.test.mjs tests/pouch-open-all.test.mjs tests/subcharacter-sync.test.mjs tests/offline-settle.test.mjs tests/background-settle.test.mjs`
 
 ## 관련 매뉴얼
 

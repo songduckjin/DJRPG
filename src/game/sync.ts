@@ -1,6 +1,6 @@
 import { parseSave, type Save } from './store';
 import { accountRequest, clearToken, type Session } from '../ui/login';
-import { isNetworkOffline } from '../ui/reconnect';
+import { isNetworkOffline, NETWORK_OFFLINE } from '../ui/reconnect';
 import { apiHeaders, isOutdatedResponse, OUTDATED_MESSAGE, reloadForNewVersion } from './appVersion';
 
 const sessionErrorCodes = ['SESSION_REPLACED', 'INVALID_TOKEN', 'UNAUTHORIZED'];
@@ -43,12 +43,16 @@ export class SaveSync {
   private pendingSave?: { save: Save; revision: number; requestId: string };
   /** 마지막 저장 실패 이유 — 저장 때문에 거래가 막힐 때 진짜 원인을 함께 보여 주기 위해서다(작업 246). */
   private lastSaveError = '';
-  /** 초기 방치 정산이 실패했을 때 재시도 가능 여부와 실제 원인을 구분한다. */
+  /** 마지막 저장 실패의 서버 오류 코드·HTTP 상태 — 재시도할 수 있는 실패(끊김·5xx)인지 가른다(2026-11-24). */
   lastSaveErrorCode = '';
   lastSaveErrorStatus = 0;
-  get lastSaveFailure(): string { return this.lastSaveErrorCode
-    ? `${this.lastSaveError} (오류 코드: ${this.lastSaveErrorCode})`
-    : this.lastSaveError; }
+  /** 결과를 모르는 실패(끊김·5xx)라서 같은 `requestId`로 다시 보내면 될 상황인가. */
+  get lastSaveRetryable(): boolean { return this.lastSaveErrorCode === NETWORK_OFFLINE || this.lastSaveErrorStatus >= 500; }
+  /** 화면에 그대로 보여 줄 실패 문구 — 코드를 붙여 원인을 숨기지 않는다. */
+  get lastSaveFailure(): string {
+    if (!this.lastSaveError) return this.lastSaveErrorCode ? `저장 실패 (${this.lastSaveErrorCode})` : '';
+    return this.lastSaveErrorCode ? `${this.lastSaveError} (오류 코드: ${this.lastSaveErrorCode})` : this.lastSaveError;
+  }
   /** 직전 저장에서 서버가 조정한 필드. 방치 정산을 확정해 표시할 때 사용한다. */
   lastSaveClamped: string[] = [];
   /** 세이브에 아직 서버로 못 보낸 변경이 있는지. 변경이 없으면 flush가 네트워크를 쓰지 않는다(작업 209). */
@@ -97,12 +101,17 @@ export class SaveSync {
   private switching = false;
   /** 지금 연결이 끊겨 재접속 안내를 띄운 상태인가(작업 251). */
   private offline = false;
+  /** 탭이 숨겨져 있는가(작업 261) — 숨김 동안에는 예약 저장을 만들지 않는다. */
+  private hidden = false;
   constructor(public save: Save, public session: Session) { this.revision = session.revision; }
   private autosaveTimer?: ReturnType<typeof setTimeout>;
   queueSave(): void {
     this.markDirty();
     // 전환하는 동안 걸린 예약 저장은 전환 응답의 revision과 엇갈린다 — 전환 뒤 첫 변경에서 다시 건다(작업 239).
     if (this.switching) return;
+    // 숨김 동안에는 저장 예약을 만들지 않는다(작업 261) — 숨김 중 저장이 성공하면 서버 `updated_at`이
+    // 밀려 복귀 정산 구간이 짧아진다(보상 손실). 진입 저장은 `main.ts`가 `flush()`로 한 번 보낸다.
+    if (this.hidden) return;
     if (this.autosaveTimer !== undefined) return;
     // 바로 1초 뒤가 아니라, 마지막 저장에서 5초가 지난 시점까지 기다린다 — 사냥 중에는 처치마다 변경이
     // 생기므로 이 간격이 없으면 1초에 한 번씩 저장 요청이 나간다.
@@ -149,9 +158,24 @@ export class SaveSync {
   markDirty(): void { this.dirty = true; this.changeSeq++; }
   /** 보낼 변경이 없으면 아무것도 하지 않는다 — 5초마다 빈 저장을 보내지 않기 위한 입구. */
   flushIfDirty(): Promise<boolean> {
+    // 숨김 동안의 자동 저장은 보내지 않는다(작업 261) — 복귀 정산 뒤 `flush()`가 한 번에 보낸다.
+    if (this.hidden) return Promise.resolve(true);
     if (!this.dirty && !this.pendingSave && !this.pending) return Promise.resolve(true);
     return this.flush();
   }
+  /**
+   * 탭이 숨겨졌는지 알린다(작업 261). 숨김 동안 예약 저장을 만들지 않고, 걸려 있던 예약도 취소한다.
+   *
+   * 숨김 중 저장이 성공하면 서버 `updated_at`이 그 시각으로 밀려, 복귀 때 정산할 구간(`load`의
+   * `offlineSeconds`)이 짧아진다. 그래서 진입에서 **한 번만** 저장하고(`main.ts`의 `flush()`), 복귀 정산
+   * 저장이 서버 시각을 지금으로 옮긴다. 명시적인 `flush()`는 숨김과 무관하게 그대로 보낸다(점검·거래·여정).
+   */
+  setHidden(hidden: boolean): void {
+    this.hidden = hidden;
+    if (hidden) this.cancelQueuedSave();
+  }
+  /** 아직 서버에 못 보낸 진행이 있는가 — 복귀 정산이 서버 세이브로 화면을 덮어도 되는지 판단한다(작업 261). */
+  get unsaved(): boolean { return this.dirty || !!this.pendingSave || this.pending; }
   private cancelQueuedSave(): void {
     if (this.autosaveTimer !== undefined) clearTimeout(this.autosaveTimer);
     this.autosaveTimer = undefined;
@@ -340,6 +364,7 @@ export class SaveSync {
       if (Number.isInteger(latest.characterSlot)) this.session.characterSlot = latest.characterSlot;
       this.pendingMarket = undefined; this.pendingWarehouse = undefined; this.pendingJourney = undefined;
       this.lastSaveError = '';
+      this.lastSaveErrorCode = ''; this.lastSaveErrorStatus = 0;
       this.onSaved(); this.onStatus('저장됨');
       if (!quiet) this.onMessage('서버의 최신 진행 상황과 달라 자동으로 다시 불러왔습니다.');
       if (!this.conflicted && !this.pendingMarket && !this.pendingWarehouse) this.onPause(false);

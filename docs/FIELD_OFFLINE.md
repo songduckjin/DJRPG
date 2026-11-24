@@ -12,6 +12,7 @@
 | 이동·스폰 경계 | `src/game/combat/bounds.ts` (`arenaLimits`·`clampArenaPoint`·`fieldSpawnLimits`·`clampFieldPoint`·`clampKnockbackPoint`) → 필드 스폰은 `src/game/arena.ts` |
 | 보스 금화 무더기·던전 보스 드롭 표 | `src/game/bossLoot.ts` |
 | 방치 정산(최대 12시간) | `src/game/offline.ts` |
+| 자리 비움(백그라운드) 정산 판정 — 60초·3분·12시간, 토스트/팝업, 정산 초 | `src/game/background.ts` (부르는 곳 `src/main.ts` `settleBackground`) |
 | 층 상한·층당 처치 목표·경험치 | `src/game/store.ts` (`MAX_FLOOR`=20·`floorKillTarget`·`addExperience`) |
 | 드롭 확률·등급·강화 | `src/game/items.ts` — 규칙은 `docs/INVENTORY_GEAR.md` |
 | HUD·층 선택·보스 도전 버튼 | `src/ui/hud.ts`·`src/ui/modals/floorModal.ts`·`src/styles/hud.css` |
@@ -36,6 +37,8 @@
 - **방치 생존 가동률(2026-11-24)** — `offlineKillsPerMinute = 60 × min(처치 능력, 젠) × 0.7 × 가동률`이고 `가동률 = 버티는 초 ÷ (버티는 초 + 부활 대기)`다. 받는 피해는 `enemyHitDamage × 군집 ÷ 0.85 × (1−회피)`, 회복은 `피흡(초당 최대 체력 2.5% 상한) + 체력회복(%/5초) + 1~4층 자연회복 1%/초`다. 회복이 피해를 넘으면 `Infinity`(죽지 않음)라 처치 수가 깎이지 않는다. 사냥 중 쓰러진 횟수는 `reward.fieldDeaths`로 남기고 접속과 같은 10골드를 문다(`defeatPenalty`). 보스전(`offlineBossBattle`)도 회피·피흡·회복을 넣어 "버티는 초"를 계산한다(승패 판정은 36케이스에서 불변).
 - **스킬 위력 단일 표** — `src/game/skills.ts` `SKILL_HIT_POWER`가 엔진 `action()`·방치 DPS·스킬 추천 순위(`skillCastScale`)의 공통 출처다. 하드코딩 사본을 다시 만들지 않는다(11/23 개편에서 방치만 파워 스트라이크 ×4로 남았던 회귀를 막는 테스트가 있다).
 - **층 보상 배율(`안 A`, 2026-11-24)** — `killReward`가 마리당 금화·경험치에 `depthRewardScale`(15층 기준 1, 20층 2.21 = 몹 HP 비율)을 곱한다. 처치 수는 15~16층에서 정점인데 보상이 그대로면 깊은 층이 손해라, **전투·몹 HP 곡선은 그대로 두고 보상식만** 고쳤다. 던전 정산(`killGold`, `unscaled`)과 보스 금화(70×층)는 대상이 아니다. 서버 상한(`server/save-guard.mjs`)의 2배 여유 안에 들어온다.
+- **자리 비움 정산(작업 261)**: 탭을 내렸다 돌아오면 **숨겨져 있던 시간**을 같은 방치 규칙으로 **한 번** 정산한다(새로고침해야 보상이 나오던 동작을 없앴다). 판정은 `src/game/background.ts` 한 곳이다 — ① 60초 미만은 정산 없음 ② 60~179초는 토스트 한 줄 ③ 180초 이상이거나 유니크·전설 획득·레벨업·층 상승·자동 분해가 있으면 기존 방치 정산 팝업 ④ 상한 12시간 ⑤ 정산 초는 `min(load의 offlineSeconds, 숨김초, 12시간)`. 저장 흐름은 `docs/SYNC_SAVE.md`(숨김·복귀 저장).
+- **자리 비움이 정산하지 않는 상태**: 월드보스 도전(서버 60초 시계로 마감) · 끝없는 던전(전투 그대로 재개) · 동기화 잠금·충돌(그 흐름이 먼저 revision을 확정한다) · 활성 슬롯이 바뀐 복귀. 정산 뒤에는 `resetField()`로 적·드롭·쿨타임·보스 예약만 세이브 기준으로 다시 세운다 — `adoptSave()`를 쓰면 세이브가 비워진다.
 - **저장**: `world`의 휘발 상태(`enemies`·`effects`·`drops`)는 저장되지 않는다. `save`를 바꾸면 `world.onChange` → `Interface.onSave` → `sync.queueSave()` 한 경로만 쓴다.
 - **기념 종일 버프(2026-11-22)**: 공격력·방어력·최대 체력 **+30%**가 `2026-11-22 02:00 ~ 2026-11-23 05:00 KST`에 켜진다. 기간·배율의 단일 기준은 `src/game/patchBuff.ts`(`isPatchBuffActive`·`applyPatchBuff`)이고, 곱하는 자리는 `src/game/items.ts`의 `totalStats` 한 곳이다 — 필드·던전·방치·월드보스 리플레이·HUD·장비창 숫자가 모두 이 함수를 지나므로 `save`에 버프 값을 저장하지 않는다. 기간이 지나면 배율이 1로 돌아오고 HUD 알약(`.patch-buff-pill`, `src/ui/hud.ts` `renderPatchBuff`)은 스스로 사라진다. 종료 순간 `CombatEngine.tickStart`가 지금 체력을 새 최대치로 한 번만 자른다. 남은 시간 문구·알약·장비창 한 줄은 `patchBuffPillMarkup`·`patchBuffSummaryMarkup`이 만든다.
 
@@ -57,7 +60,7 @@
 
 ## 테스트
 
-`node --test tests/world-movement.test.mjs tests/arena.test.mjs tests/field-spawn.test.mjs tests/knockback-bounds.test.mjs tests/field-loot.test.mjs tests/elite-mob.test.mjs tests/offline.test.mjs tests/offline-climb.test.mjs tests/offline-auto-salvage.test.mjs tests/offline-survival-rework.test.mjs tests/floor-cap.test.mjs tests/boss-loot.test.mjs tests/floor-power-modal.test.mjs tests/patch-rewards-and-buff.test.mjs`
+`node --test tests/world-movement.test.mjs tests/arena.test.mjs tests/field-spawn.test.mjs tests/knockback-bounds.test.mjs tests/field-loot.test.mjs tests/elite-mob.test.mjs tests/offline.test.mjs tests/offline-climb.test.mjs tests/offline-auto-salvage.test.mjs tests/offline-survival-rework.test.mjs tests/background-settle.test.mjs tests/floor-cap.test.mjs tests/boss-loot.test.mjs tests/floor-power-modal.test.mjs tests/patch-rewards-and-buff.test.mjs`
 
 ## 관련 매뉴얼
 
