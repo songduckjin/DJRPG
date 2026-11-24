@@ -51,11 +51,16 @@ if (links) {
     + `<a href="?floor=40&boss=1">40층 보스</a>`;
 }
 
-let previous = performance.now(), time = 0;
+let previous = performance.now(), time = 0, bossPlaced = false;
 view.app.ticker.add(() => {
   const now = performance.now(), dt = Math.min(.05, (now - previous) / 1000);
   previous = now; time += dt;
   world.update(dt);
+  // 보스 검수용: 보스가 필드 끝에서 뜨므로 화면 안(히어로 옆)으로 한 번 옮긴다.
+  if (wantBoss && !bossPlaced) {
+    const boss = world.enemies.find(enemy => enemy.boss);
+    if (boss) { boss.x = world.player.x + 55; boss.y = world.player.y - 25; bossPlaced = true; }
+  }
   view.draw(world, time);
 });
 
