@@ -1,6 +1,6 @@
 {
-  "active": true,
+  "active": false,
   "title": "점검 진행 중입니다",
-  "eta": "2026-11-24T18:30:00+09:00",
-  "message": "방치 보상 저장 오류를 확인하고 있습니다."
+  "eta": "",
+  "message": ""
 }
