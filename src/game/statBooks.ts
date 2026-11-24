@@ -59,7 +59,7 @@ export function isStatBookKind(value: unknown): value is StatBookKind {
  *  - `hunt`   접속 사냥의 **일반·정예 몹 1마리당** (`world.ts` `kill()`)
  *  - `offline` 방치 사냥 정산의 **1마리당** (`offline.ts` `hunt()`)
  *  - `boss`   필드 보스 1체당 (`world.ts` `kill()`, 보스 확률은 아이템 드랍과 별도로 한 번 더 굴린다)
- *  - `dungeonBoss` 끝없는 던전 보스 1체당 — 던전 보스가 바닥에 남기는 확정 2개 중 하나가 이 확률로 책이 된다
+ *  - `dungeonBoss` 끝없는 던전 보스 1체당 — 던전 보스가 바닥에 남기는 확정 1개가 이 확률로 책이 된다(아니면 장비)
  *  - `pouch`  무작위 보물 주머니 1개당
  *
  * 지금 값(`hunt`·`offline` 0.001% · `boss` 0.005% · `dungeonBoss` 0.01% · `pouch` 0.1%)은 2026-11-23

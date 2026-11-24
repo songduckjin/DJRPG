@@ -279,7 +279,7 @@ test('a field coin always lies behind the hero, the monsters and every item', ()
 test('a boss kill bursts its gold out in ten heaps and leaves only the chance item', () => {
   assert.equal(BOSS_GOLD_PILES, 10);
   // The main field's boss drops gold only: the dungeon's five-item haul stays in the dungeon (작업 195).
-  assert.equal(BOSS_ITEM_DROPS, 2, '작업 248: 던전 보스 확정 드롭 2개');
+  assert.equal(BOSS_ITEM_DROPS, 1, '아이템 드롭 B안 2026-11-23: 던전 보스 확정 드롭 1개');
   const world = quiet();
   const floor = world.save.floor, gold = 70 * floor, paid = world.save.gold;
   const boss = { x: 60, y: 20, hp: 0, maxHp: 10, boss: true, hit: 0, step: 0, moving: false, knockX: 0, knockY: 0, slow: 0 };

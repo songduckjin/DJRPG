@@ -59,32 +59,37 @@ export function pouchItem(id: string = crypto.randomUUID(), name: string = POUCH
  *
  * 작업 254(2026-11-21, 사용자 확정 — 선택 카드 "전 층 고정"): **층이 올라가도 마리당 확률은 그대로**다.
  * 작업 223의 층별 상승(1층 0.40% → 20층 1.60%, 보스 6% → 24%)을 없애고 전 층 고정으로 바꿨다.
- * - 접속 사냥(일반·정예) **0.39%**, 보스 **4%** — 이 함수.
- * - 방치 사냥(오프라인 정산) 일반 **0.30%**, 보스 **4%** — `offlineDropChance`.
+ *
+ * 아이템 드롭 B안(2026-11-23, 덕진 님 확정 — 전 항목 1/10 일괄 하향): 가방 40칸이 몇 시간 만에 차는
+ * 문제를 줄이려고 네 지점을 **직전 값의 정확히 1/10**로 내렸다. 확률 구조(층 고정·층별 계수)는 그대로다.
+ * - 접속 사냥(일반·정예) **0.039%** × `dropScale(층)`, 보스 **0.4%** — 이 함수.
+ * - 방치 사냥(오프라인 정산) 일반 **0.030%**, 보스 **0.4%** — `offlineDropChance`.
+ * 영구 스탯북(`statBooks.ts`)·보물 주머니 개봉(`pouch.ts`) 확률은 B안에서 **그대로 유지**한다.
  * 등급(`rollItem`의 `rollRarity`)은 지금처럼 층이 올라갈수록 좋아지므로, 깊은 층의 값은 개수가 아니라
  * 색으로 오른다. 스킬북 폐지(파트 B)로 70:30 분기는 없다.
  */
-export const ONLINE_DROP_CHANCE = .0039;
-/** 방치 사냥의 일반 몹 드롭률 (작업 254) — 접속보다 낮은 0.30%. */
-export const OFFLINE_DROP_CHANCE = .003;
-/** 보스 드롭률 (작업 254) — 접속·방치 모두 4%. */
-export const BOSS_DROP_CHANCE = .04;
+export const ONLINE_DROP_CHANCE = .00039;
+/** 방치 사냥의 일반 몹 드롭률 (작업 254 → B안 2026-11-23) — 접속보다 낮은 0.030%. */
+export const OFFLINE_DROP_CHANCE = .0003;
+/** 보스 드롭률 (작업 254 → B안 2026-11-23) — 접속·방치 모두 0.4%. */
+export const BOSS_DROP_CHANCE = .004;
 /**
  * 층별 드롭 계수(밸런스 v2) — 1층 0.62 → 20층 0.392 → 34층+ 0.37.
  *
  * 목표 생존 수 젠(3/5/7)으로 젠이 1.7~2.4배 빨라진 만큼 마리당 드롭률을 같은 비율로 낮춰 **시간당
  * 아이템 수입을 지금과 같게** 둔다(40칸 가방이 한 세션에 넘치지 않는다). 예전에는 전 층 0.39% 고정이었다.
+ * B안(2026-11-23)은 이 계수를 그대로 두고 `ONLINE_DROP_CHANCE`만 1/10로 내렸다.
  */
 export function dropScale(floor: number): number {
   const depth = Math.max(1, Math.floor(Number.isFinite(floor) ? floor : 1));
   return Math.max(.37, .62 - .012 * (depth - 1));
 }
 
-/** 접속 사냥의 한 마리당 드롭률 — 1층 0.242% → 20층 0.153% → 34층+ 0.144%, 보스 4%(밸런스 v2). */
+/** 접속 사냥의 한 마리당 드롭률 — 1층 0.0242% → 20층 0.0153% → 34층+ 0.0144%, 보스 0.4%(아이템 드롭 B안). */
 export function itemDropChance(floor: number, boss = false): number {
   return boss ? BOSS_DROP_CHANCE : ONLINE_DROP_CHANCE * dropScale(floor);
 }
-/** 방치(오프라인) 정산의 한 마리당 드롭률 — 전 층 0.30%, 보스 4%(작업 254). */
+/** 방치(오프라인) 정산의 한 마리당 드롭률 — 전 층 0.030%, 보스 0.4%(아이템 드롭 B안). */
 export function offlineDropChance(_floor: number, boss = false): number {
   return boss ? BOSS_DROP_CHANCE : OFFLINE_DROP_CHANCE;
 }

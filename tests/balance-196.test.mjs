@@ -16,16 +16,16 @@ function seeded(seed) {
 
 test('the drop rate now follows depth down while deep floors still pay in colour', () => {
   // 밸런스 v2: 목표 생존 수 젠으로 젠이 빨라진 만큼 마리당 드롭률을 낮춘다.
-  // 접속 일반 1층 0.242% → 20층 0.153% → 34층+ 0.144%(층별 계수 0.62 → 0.37), 보스는 4% 그대로.
+  // 접속 일반 1층 0.0242% → 20층 0.0153% → 34층+ 0.0144%(층별 계수 0.62 → 0.37), 보스는 0.4%(아이템 드롭 B안).
   const round = value => Math.round(value * 1e6) / 1e6;
-  assert.equal(round(itemDropChance(1)), .002418, '1층 0.242%');
-  assert.equal(round(itemDropChance(20)), .001529, '20층 0.153%');
-  assert.equal(round(itemDropChance(40)), round(.0039 * .37), '34층+ 0.144%');
+  assert.equal(round(itemDropChance(1)), .000242, '1층 0.0242%');
+  assert.equal(round(itemDropChance(20)), .000153, '20층 0.0153%');
+  assert.equal(round(itemDropChance(40)), round(.00039 * .37), '34층+ 0.0144%');
   assert.equal(itemDropChance(200), itemDropChance(40), '더 깊어도 0.37 계수에서 멈춘다');
-  assert.equal(itemDropChance(1, true), .04, '보스 4%는 그대로');
+  assert.equal(itemDropChance(1, true), .004, '보스 0.4%');
   // 파트 B: 스킬북이 폐지되어 한 번 굴린 드롭은 그대로 장비 하나다(70:30 분기 없음).
-  assert.equal(round(equipmentDropChance(1)), round(.002418));
-  assert.equal(round(equipmentDropChance(20)), round(.001529));
+  assert.equal(round(equipmentDropChance(1)), round(.000242));
+  assert.equal(round(equipmentDropChance(20)), round(.000153));
 });
 
 test('the grade cuts stay ordered and the magic cut climbs with depth', () => {
