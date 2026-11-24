@@ -59,7 +59,7 @@ view.app.ticker.add(() => {
   // 보스 검수용: 보스가 필드 끝에서 뜨므로 화면 안(히어로 옆)으로 한 번 옮긴다.
   if (wantBoss && !bossPlaced) {
     const boss = world.enemies.find(enemy => enemy.boss);
-    if (boss) { boss.x = world.player.x + 55; boss.y = world.player.y - 25; bossPlaced = true; }
+    if (boss) { boss.x = world.player.x + 26; boss.y = world.player.y - 14; bossPlaced = true; }
   }
   view.draw(world, time);
 });
