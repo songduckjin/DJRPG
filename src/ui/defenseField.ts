@@ -1,14 +1,16 @@
 /**
- * 무한 방어전 전투 화면 (2026-11-24).
+ * 무한 방어전 전투 화면 (2026-11-24 · v2).
  *
  * 기존 던전 전장(`ui/dungeonField.ts`)과 같은 뼈대(전체 화면 오버레이 + Pixi 캔버스 + 하단 HUD + 결과창)를
  * 쓰되, 확정 사양에 맞춰 다음을 바꿨다.
  *  · **성벽·방어선 HP 막대가 없다** — 하단 HUD에는 캐릭터 HP 막대 하나만 있다(`02_battle_active.png`).
- *  · 캐릭터가 아래에서 출발해 위에서 내려오는 적에게 **직접 걸어가 교전**한다(`DefenseBattle` 순수 로직).
- *  · 무한 스테이지 — 판은 캐릭터 HP 0(또는 30분 안전 상한)에서 끝나고, 결과창이 도달 스테이지를 보여 준다.
+ *  · 적이 방어선 없이 **캐릭터에게 직접 다가오고**, 캐릭터는 가장 가까운 적에게 걸어가 교전한다.
+ *  · 진행 단위는 **WAVE 하나**다 — HUD·배너·결과가 모두 `N 웨이브`로 적힌다(스테이지 표기 없음).
+ *  · 사수형(25%)은 붉은 조준선으로 예고한 뒤 투사체를 날리고, 돌진형(20%)은 스폰 3초간 잔상을 남긴다.
+ *  · 판은 캐릭터 HP 0(또는 30분 안전 상한)에서 끝나고, 결과창이 도달 웨이브를 보여 준다.
  *  · 실패해도 그때까지 획득한 금화·경험치·아이템을 그대로 지급한다.
  */
-import { Assets } from 'pixi.js';
+import { Assets, Graphics } from 'pixi.js';
 import { GameView } from '../game/render';
 import { projectArenaPoint } from '../game/arena';
 import { totalStats } from '../game/store';
@@ -17,8 +19,11 @@ import { cooldowns } from '../game/world';
 import { equipmentImage, isEquipment, isStatBook, type Rarity } from '../game/items';
 import {
   DefenseBattle, DEFENSE_STEP, DEFENSE_RUN_SECONDS, defenseBattleSummary,
+  defenseEnemyKind, defenseEnemyAge,
   type DefenseBattleSummary
 } from '../game/dungeon/defenseBattle';
+import { DEFENSE_RANGED_FX, DEFENSE_TUNING } from '../game/dungeon/defenseTuning';
+import type { Enemy } from '../game/battle/types';
 import { claimDefenseRewards, type DefenseRewardReceipt } from '../game/defenseProgress';
 import { randomSeed } from '../game/rng';
 import { setSkillIcon } from './skillArtwork';
@@ -39,12 +44,12 @@ function itemMarkup(items: DefenseRewardReceipt['items']): string {
   }).join('')}</ul>`;
 }
 
-/** 결과창 본문 — 도달 스테이지·처치·획득·신기록. */
+/** 결과창 본문 — 도달 웨이브·처치·획득·신기록. */
 function resultMarkup(summary: DefenseBattleSummary, receipt: DefenseRewardReceipt | undefined, previous: number, settled: boolean): string {
   const record = summary.stages > previous;
-  return `<small>무한 방어전</small><h2>도달 ${summary.stages} 스테이지</h2>
+  return `<small>무한 방어전</small><h2>도달 ${summary.stages} 웨이브</h2>
     <p>처치 <b>${summary.kills}</b>마리 · <b>${Math.floor(summary.seconds / 60)}분 ${Math.round(summary.seconds % 60)}초</b> · 남은 체력 ${summary.heroHp} / ${summary.heroHpMax}</p>
-    ${record ? `<p class="defense-result-record">신기록 · 이전 최고 ${previous} → <b>${summary.stages} 스테이지</b></p>` : `<p class="defense-result-record">최고 기록 ${Math.max(previous, summary.stages)} 스테이지</p>`}
+    ${record ? `<p class="defense-result-record">신기록 · 이전 최고 ${previous} → <b>${summary.stages} 웨이브</b></p>` : `<p class="defense-result-record">최고 기록 ${Math.max(previous, summary.stages)} 웨이브</p>`}
     ${receipt ? `<div class="dungeon-result-gold">획득 금화 <b>${receipt.gold.toLocaleString('ko-KR')}</b> · 경험치 <b>${receipt.exp.toLocaleString('ko-KR')}</b></div>${itemMarkup(receipt.items)}${receipt.missed ? `<p class="defense-result-note">가방이 가득 차 ${receipt.missed}개를 놓쳤습니다.</p>` : ''}${receipt.salvaged.count ? `<p class="defense-result-note">자동 분해 ${receipt.salvaged.count}개 · 금화 ${receipt.salvaged.gold.toLocaleString('ko-KR')} · 강화석 ${receipt.salvaged.stones}</p>` : ''}` : '<p>보상을 정산하는 중입니다…</p>'}
     <p class="defense-result-note">${settled ? '획득한 보상은 계정에 저장되었습니다.' : '저장 중입니다.'}</p>`;
 }
@@ -66,9 +71,9 @@ export function openDefenseField(ui: Interface, lobby: HTMLElement): void {
   field.setAttribute('role', 'region');
   field.setAttribute('aria-label', '무한 방어전');
   field.innerHTML = `<div class="dungeon-field-canvas"></div><div class="defense-trail" aria-hidden="true"></div>
-    <header class="dungeon-field-hud"><div><small>무한 방어전</small><strong data-stage>STAGE 1</strong></div><button type="button" class="dungeon-field-leave">나가기</button></header>
+    <header class="dungeon-field-hud"><div><small>무한 방어전 · <span data-wave-kind>일반</span></small><strong data-wave>WAVE 1</strong></div><button type="button" class="dungeon-field-leave">나가기</button></header>
     <div class="defense-stage-banner" aria-live="polite"></div>
-    <footer class="dungeon-battle-hud defense-battle-hud"><div class="dungeon-battle-record"><strong data-clock>30:00</strong><span data-wave>WAVE 1 / 3</span><span data-kills>처치 0</span><span data-gold>금화 0</span></div><div class="dungeon-hp"><i></i><span></span></div><div class="dungeon-auto-skills"></div><small>자동 전투 · 적 추적 교전 · 처치 보상은 필드와 동일 · 최고 스테이지 랭킹 기록</small></footer>
+    <footer class="dungeon-battle-hud defense-battle-hud"><div class="dungeon-battle-record"><strong data-clock>30:00</strong><span data-remain>남은 8</span><span data-kills>처치 0</span><span data-gold>금화 0</span></div><div class="dungeon-hp"><i></i><span></span></div><div class="dungeon-auto-skills"></div><small>자동 전투 · 적이 직접 다가옵니다 · 사수형 25%·돌진형 20% · 웨이브를 막으면 체력 15% 회복 · 보상은 필드와 동일</small></footer>
     <div class="dungeon-battle-result" hidden></div>`;
   ui.root.querySelector('.game-shell')!.append(field);
   const get = <T extends HTMLElement>(s: string) => field.querySelector<T>(s)!;
@@ -79,6 +84,10 @@ export function openDefenseField(ui: Interface, lobby: HTMLElement): void {
   view.app.init = options => initialize({ ...options, background: 0x000000, backgroundColor: 0x000000, backgroundAlpha: 0 });
   let battle!: DefenseBattle, closed = false, mounted = false, age = 0, visualTime = 0, finishAge = 0, resultShown = false, pendingStep = 0, starting = false;
   let lastStage = 1, bannerTimer = 0, summary: DefenseBattleSummary | undefined, receipt: DefenseRewardReceipt | undefined, settled = false;
+  /** 사수형 투사체·돌진형 잔상 — 판정과 무관한 화면 전용 상태다. */
+  const shots: { fromX: number; fromY: number; toX: number; toY: number; travelled: number; total: number }[] = [];
+  const shotSeen = new Map<Enemy, number>();
+  const fx = new Graphics();
   const previousBest = ui.defense.bestStage;
 
   // 서버가 준 판 번호·시드로 전투를 시작한다. 게스트·start 실패면 로컬 시드로 돌고, 그 판은 순위에 오르지 않는다.
@@ -99,6 +108,66 @@ export function openDefenseField(ui: Interface, lobby: HTMLElement): void {
     trail.style.left = `${hx}px`;
     trail.style.top = `${hy + 6}px`;
     trail.style.height = `${Math.max(0, h - hy - 6)}px`;
+  };
+
+  /**
+   * 적 연출 — 사수형 발사 예고·투사체, 돌진형 잔상, 종류별 엷은 색. 전부 화면 전용이다(판정 없음).
+   * 판정은 고정 스텝(`DefenseBattle`)이 이미 끝냈고, 이 그림은 그 타격 순간을 눈에 보이게 따라간다.
+   */
+  const drawEnemyFx = (dt: number): void => {
+    const w = view.app.screen.width, h = view.app.screen.height;
+    const [hx, hy] = projectArenaPoint(battle.world.player.x, battle.world.player.y, w, h);
+    fx.clear();
+    // 발사 — `attack`이 0에서 켜지는 순간에 투사체를 띄운다.
+    for (const enemy of battle.world.enemies) {
+      const now = enemy.attack ?? 0, before = shotSeen.get(enemy) ?? 0;
+      if (now > 0 && before <= 0 && defenseEnemyKind(enemy) === 'ranged') {
+        const distance = Math.hypot(battle.world.player.x - enemy.x, battle.world.player.y - enemy.y);
+        shots.push({
+          fromX: enemy.x, fromY: enemy.y, toX: battle.world.player.x, toY: battle.world.player.y,
+          travelled: 0, total: Math.max(40, distance)
+        });
+      }
+      shotSeen.set(enemy, now);
+    }
+    if (shotSeen.size > battle.world.enemies.length * 2) {
+      for (const enemy of [...shotSeen.keys()]) if (!battle.world.enemies.includes(enemy)) shotSeen.delete(enemy);
+    }
+    // 조준 예고 — 다음 타격이 0.25초 안이면 사수형이 붉은 선으로 겨눈다.
+    if (battle.nextStrikeIn <= DEFENSE_RANGED_FX.telegraphSeconds) {
+      const alpha = .18 + .4 * (1 - battle.nextStrikeIn / DEFENSE_RANGED_FX.telegraphSeconds);
+      for (const enemy of battle.world.enemies) {
+        if (defenseEnemyKind(enemy) !== 'ranged') continue;
+        if (Math.hypot(battle.world.player.x - enemy.x, battle.world.player.y - enemy.y) > DEFENSE_TUNING.rangedAttackRange) continue;
+        const [ex, ey] = projectArenaPoint(enemy.x, enemy.y, w, h);
+        fx.moveTo(ex, ey - 14).lineTo(hx, hy).stroke({ width: 1, color: 0xff6b5a, alpha });
+      }
+    }
+    // 투사체 — 520u/s로 날아간다.
+    for (let index = shots.length - 1; index >= 0; index--) {
+      const shot = shots[index];
+      shot.travelled += dt * DEFENSE_RANGED_FX.projectileSpeed;
+      const t = Math.min(1, shot.travelled / shot.total);
+      const at = (ratio: number): [number, number] => projectArenaPoint(
+        shot.fromX + (shot.toX - shot.fromX) * ratio, shot.fromY + (shot.toY - shot.fromY) * ratio, w, h);
+      const [sx, sy] = at(t);
+      const [px, py] = at(Math.max(0, t - .14));
+      fx.moveTo(px, py).lineTo(sx, sy).stroke({ width: 2, color: 0xffd2b0, alpha: .7 });
+      fx.circle(sx, sy, 2.6).fill({ color: 0xff8f6b, alpha: .95 });
+      if (t >= 1) shots.splice(index, 1);
+    }
+    // 종류 구분 — 사수형은 푸른 기, 돌진형은 스폰 3초 동안 붉은 기운과 잔상을 남긴다.
+    for (const enemy of battle.world.enemies) {
+      const kind = defenseEnemyKind(enemy);
+      const sprite = view.enemies.get(enemy);
+      if (sprite && !(enemy.hit > 0)) {
+        if (kind === 'ranged') sprite.tint = 0xa9c9ff;
+        else if (kind === 'charger' && defenseEnemyAge(enemy) < DEFENSE_TUNING.chargerSeconds) sprite.tint = 0xffb08a;
+      }
+      if (kind !== 'charger' || defenseEnemyAge(enemy) >= DEFENSE_TUNING.chargerSeconds) continue;
+      const [ex, ey] = projectArenaPoint(enemy.x, enemy.y, w, h);
+      fx.moveTo(ex, ey - 10).lineTo(ex, ey - 36).stroke({ width: 3, color: 0xff7a45, alpha: .32 });
+    }
   };
 
   const leave = () => { cleanup(); ui.open('dungeon'); };
@@ -152,7 +221,7 @@ export function openDefenseField(ui: Interface, lobby: HTMLElement): void {
     ui.onSave(); ui.renderStatus(); ui.renderBagBadge();
     const box = get<HTMLElement>('.dungeon-battle-result');
     box.hidden = false;
-    box.innerHTML = `<div>${resultMarkup(summary, receipt, previousBest, settled)}<button type="button" data-retry>다시 도전</button><button type="button" data-leave>나가기</button><small>${ui.defense.live?.guest ? '게스트 기록은 순위에 오르지 않습니다.' : '최고 스테이지는 서버가 판을 다시 계산해 확인한 뒤 순위에 반영됩니다.'}</small></div>`;
+    box.innerHTML = `<div>${resultMarkup(summary, receipt, previousBest, settled)}<button type="button" data-retry>다시 도전</button><button type="button" data-leave>나가기</button><small>${ui.defense.live?.guest ? '게스트 기록은 순위에 오르지 않습니다.' : '최고 웨이브는 서버가 판을 다시 계산해 확인한 뒤 순위에 반영됩니다.'}</small></div>`;
     box.querySelector<HTMLButtonElement>('[data-retry]')!.onclick = () => { box.hidden = true; void resetBattle(); };
     box.querySelector<HTMLButtonElement>('[data-leave]')!.onclick = leave;
   };
@@ -176,6 +245,8 @@ export function openDefenseField(ui: Interface, lobby: HTMLElement): void {
       if (closed) return;
       await view.mount(get('.dungeon-field-canvas'));
       mounted = true;
+      // 적 연출(투사체·잔상·조준선)은 배우 위에 한 겹만 올린다.
+      view.app.stage.addChild(fx);
       if (closed) return;
       await doorOpened;
       if (closed) return;
@@ -214,20 +285,22 @@ export function openDefenseField(ui: Interface, lobby: HTMLElement): void {
         }
         view.draw(battle.world, visualTime);
         updateTrail();
+        drawEnemyFx(dt);
         const hp = battle.world.player.hp, max = totalStats(battle.world.save).health;
         get('.dungeon-hp i').style.width = `${Math.max(0, hp) / max * 100}%`;
         get('.dungeon-hp span').textContent = `HP ${Math.ceil(Math.max(0, hp))} / ${max}`;
         const left = Math.max(0, DEFENSE_RUN_SECONDS - battle.elapsed);
         get('[data-clock]').textContent = `${Math.floor(left / 60)}:${String(Math.floor(left % 60)).padStart(2, '0')}`;
-        get('[data-stage]').textContent = `STAGE ${battle.stage}`;
-        get('[data-wave]').textContent = battle.bossStage ? 'BOSS' : `WAVE ${battle.wave} / 3`;
+        get('[data-wave]').textContent = `WAVE ${battle.stage}`;
+        get('[data-wave-kind]').textContent = battle.bossStage ? '보스' : battle.eliteWave ? '정예' : '일반';
+        get('[data-remain]').textContent = `남은 ${battle.remaining}`;
         get('[data-kills]').textContent = `처치 ${battle.world.slain}`;
         get('[data-gold]').textContent = `금화 ${battle.world.gold.toLocaleString('ko-KR')}`;
-        // 스테이지가 오르면 가운데에 크게 한 번 알린다.
+        // 웨이브가 오르면 가운데에 크게 한 번 알린다.
         if (battle.stage !== lastStage && !battle.finished) {
           lastStage = battle.stage;
           const banner = get<HTMLElement>('.defense-stage-banner');
-          banner.textContent = battle.bossStage ? `STAGE ${battle.stage} · 보스` : `STAGE ${battle.stage}`;
+          banner.textContent = battle.bossStage ? `WAVE ${battle.stage} · 보스` : battle.eliteWave ? `WAVE ${battle.stage} · 정예` : `WAVE ${battle.stage}`;
           banner.classList.add('is-show');
           window.clearTimeout(bannerTimer);
           bannerTimer = window.setTimeout(() => banner.classList.remove('is-show'), 1400);

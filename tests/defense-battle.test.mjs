@@ -4,12 +4,13 @@ import { readFileSync } from 'node:fs';
 import './ts-loader.mjs';
 const {
   DefenseBattle, DEFENSE_STEP, DEFENSE_MAX_STEPS, DEFENSE_RUN_SECONDS, DEFENSE_MAX_STAGE,
-  defenseBattleSummary, runDefenseBattle, defenseRewardFloor, defenseEnemyFloor, defenseBossStage,
-  defenseWaveSizes, defenseWaveKills, defenseStageEnemyCount, defenseSpawnSeconds, defenseDescentSeconds,
+  defenseBattleSummary, runDefenseBattle, defenseRewardFloor, defenseEnemyFloor, defenseBossStage, defenseEliteWave,
+  defenseWaveSizes, defenseWaveKills, defenseStageEnemyCount, defenseSpawnSeconds, defenseDescentSpeed,
   defenseSpawnFloorSeconds, defenseStageHpSum, defenseKillReward, defenseMobHp, defenseBossHp,
-  DEFENSE_WAVES_PER_STAGE, DEFENSE_BOSS_EVERY, DEFENSE_HERO_V, DEFENSE_LINE_V, defenseLane
+  defenseEnemyKind, DEFENSE_BOSS_EVERY, DEFENSE_HERO_V, defenseLane
 } = await import('../src/game/dungeon/defenseBattle.ts');
-const { freshSave } = await import('../src/game/store.ts');
+const { DEFENSE_TUNING } = await import('../src/game/dungeon/defenseTuning.ts');
+const { freshSave, totalStats } = await import('../src/game/store.ts');
 
 /** 실제 플레이어처럼 무기를 찬 세이브(무기 미장착이면 공격이 막힌다). */
 const armed = (level = 17, attack = 120, defense = 400) => {
@@ -25,49 +26,64 @@ const armed = (level = 17, attack = 120, defense = 400) => {
   return save;
 };
 
-test('무한 방어전은 3웨이브 = 1스테이지, 5스테이지마다 보스 1 + 미니언 4다', () => {
-  assert.equal(DEFENSE_WAVES_PER_STAGE, 3);
+test('진행 단위는 웨이브 하나다 — 5웨이브마다 보스(보스 1 + 호위 6), 3의 배수 웨이브에 정예', () => {
   assert.equal(DEFENSE_BOSS_EVERY, 5);
   assert.equal(defenseBossStage(5), true);
   assert.equal(defenseBossStage(10), true);
   assert.equal(defenseBossStage(4), false);
   assert.equal(defenseBossStage(11), false);
-  // 보스 스테이지 1웨이브만 [보스+미니언 4, 일반, 일반]이고 나머지는 3웨이브 모두 일반이다.
-  assert.deepEqual(defenseWaveSizes(5), [5, defenseWaveKills(5), defenseWaveKills(5)]);
-  assert.deepEqual(defenseWaveSizes(4), [3, 3, 3]);
-  assert.equal(defenseWaveKills(1), 3);
-  assert.equal(defenseWaveKills(40), 9);
-  assert.equal(defenseStageEnemyCount(5), 5 + 2 * defenseWaveKills(5));
+  // 보스 웨이브는 한 웨이브에 보스 1 + 호위 6 = 7마리다(스테이지 안에 웨이브 3개를 두지 않는다).
+  assert.deepEqual(defenseWaveSizes(5), [7]);
+  assert.deepEqual(defenseWaveSizes(4), [defenseWaveKills(4)]);
+  // 정예는 보스 웨이브를 뺀 3의 배수 웨이브다.
+  assert.equal(defenseEliteWave(3), true);
+  assert.equal(defenseEliteWave(6), true);
+  assert.equal(defenseEliteWave(5), false, '보스 웨이브에는 정예가 따로 서지 않는다');
+  assert.equal(defenseEliteWave(4), false);
 });
 
-test('스테이지·웨이브는 무한히 오르고, 스폰 간격·하강 시간은 하한에서 멈춘다', () => {
+test('웨이브 몹 수는 8 → 14(10웨이브) → 18(30웨이브) → 24 상한이다', () => {
+  assert.equal(defenseWaveKills(1), 8);
+  assert.equal(defenseWaveKills(10), 14);
+  assert.equal(defenseWaveKills(30), 18);
+  assert.equal(defenseWaveKills(35), 19, '30웨이브 이후 5웨이브마다 +1');
+  assert.equal(defenseWaveKills(100), 24, '상한 24');
+  assert.equal(defenseStageEnemyCount(5), 7);
+  // 1~30웨이브 누적 마릿수는 383마리다(서버 처치 범위의 근거).
+  let total = 0;
+  for (let wave = 1; wave <= 30; wave++) total += defenseStageEnemyCount(wave);
+  assert.equal(total, 383);
+});
+
+test('스폰 간격은 1.30 → 0.55초, 추격 속도는 110 → 190u/s에서 멈춘다', () => {
+  assert.equal(defenseSpawnSeconds(1), 1.3);
+  assert.equal(defenseSpawnSeconds(100), .55);
+  assert.equal(Math.round(defenseDescentSpeed(1)), 110);
+  assert.equal(Math.round(defenseDescentSpeed(30)), 145);
+  assert.equal(Math.round(defenseDescentSpeed(70)), 190);
+  assert.equal(Math.round(defenseDescentSpeed(300)), 190);
+  assert.equal(DEFENSE_TUNING.chaseMax, 190);
+  assert.equal(Math.round(defenseSpawnFloorSeconds(30)), 377, '서버 최소 시간 하한의 근거(×0.75 = 283초)');
+  assert.ok(defenseStageHpSum(30) > defenseStageHpSum(10));
   assert.equal(DEFENSE_MAX_STAGE, 999);
-  assert.ok(defenseSpawnSeconds(1) > defenseSpawnSeconds(20));
-  assert.equal(defenseSpawnSeconds(41), 1.1);
-  assert.equal(defenseSpawnSeconds(300), 1.1);
-  assert.ok(defenseDescentSeconds(1) > defenseDescentSeconds(40));
-  assert.equal(defenseDescentSeconds(200), 3.2);
-  // 스테이지가 깊어질수록 그 스테이지까지의 스폰 하한 합이 커진다(서버 최소 시간의 근거).
-  assert.ok(defenseSpawnFloorSeconds(10) > defenseSpawnFloorSeconds(5));
-  assert.ok(defenseStageHpSum(10) > defenseStageHpSum(5));
+});
+
+test('보상 기준 층은 1.5웨이브마다 1층씩 오르고 20층(30웨이브)에서 포화한다', () => {
+  assert.equal(defenseRewardFloor(1), 1);
+  assert.equal(defenseRewardFloor(2), 1);
+  assert.equal(defenseRewardFloor(3), 2);
+  assert.equal(defenseRewardFloor(30), 20);
+  assert.equal(defenseRewardFloor(60), 20);
+  assert.equal(defenseRewardFloor(999), 20, '보상은 20층 값에서 더 오르지 않는다');
+  // 적의 세기는 기준 층 60(필드 120층 상당)에서 포화한다 — 무한히 세지 않는다.
+  assert.equal(defenseEnemyFloor(1), 2);
+  assert.equal(defenseEnemyFloor(30), 18);
+  assert.equal(defenseEnemyFloor(200), 60);
   assert.ok(defenseMobHp(30) > defenseMobHp(10));
   assert.ok(defenseBossHp(10) > defenseMobHp(10));
 });
 
-test('보상 기준 층은 2스테이지마다 1층씩 오르고 20층에서 포화한다(서버 MAX_FLOOR 계약 유지)', () => {
-  assert.equal(defenseRewardFloor(1), 1);
-  assert.equal(defenseRewardFloor(2), 1);
-  assert.equal(defenseRewardFloor(3), 2);
-  assert.equal(defenseRewardFloor(39), 20);
-  assert.equal(defenseRewardFloor(60), 20);
-  assert.equal(defenseRewardFloor(999), 20, '보상은 20층 값에서 더 오르지 않는다');
-  // 적의 세기는 40스테이지(필드 80층)에서 포화한다 — 무한히 세지지 않는다.
-  assert.equal(defenseEnemyFloor(1), 2);
-  assert.equal(defenseEnemyFloor(40), 80);
-  assert.equal(defenseEnemyFloor(80), 80);
-});
-
-test('성벽이 없다 — 판은 캐릭터 체력 0에서만 끝나고, 판 길이는 30분 상한 안이다', () => {
+test('방어선이 없다 — 판은 캐릭터 체력 0에서만 끝나고, 30분 안전 상한 안이다', () => {
   const save = armed(1, 6, 5);
   const battle = new DefenseBattle(save, 7);
   assert.equal(battle.world.player.hp > 0, true);
@@ -81,18 +97,53 @@ test('성벽이 없다 — 판은 캐릭터 체력 0에서만 끝나고, 판 길
   assert.equal(DEFENSE_RUN_SECONDS, 1800);
 });
 
-test('캐릭터는 하단에서 출발해 위에서 내려오는 적 쪽으로 올라간다', () => {
-  const battle = new DefenseBattle(armed(), 2026);
+test('적은 방어선 없이 캐릭터에게 직접 다가와 60에서 선다', () => {
+  const battle = new DefenseBattle(armed(1, 6, 5), 2026);
   const start = defenseLane(battle.world.player.x, battle.world.player.y);
   assert.equal(Math.round(start.v), DEFENSE_HERO_V);
-  const enemyStart = battle.world.enemies[0] && defenseLane(battle.world.enemies[0].x, battle.world.enemies[0].y);
-  assert.ok(enemyStart && enemyStart.v < start.v, '적은 캐릭터보다 위에서 내려온다');
-  for (let step = 0; step < 60 * 12; step++) battle.advance(DEFENSE_STEP);
-  const moved = defenseLane(battle.world.player.x, battle.world.player.y);
-  assert.ok(moved.v < start.v, '캐릭터가 위로 이동했다');
-  // 방어선(성벽 자리)은 적이 더 내려오지 않는 선일 뿐, HP가 있는 물체가 아니다.
-  assert.equal(DEFENSE_LINE_V, 60);
-  for (const enemy of battle.world.enemies) assert.ok(defenseLane(enemy.x, enemy.y).v <= DEFENSE_LINE_V + .5);
+  const enemy = battle.world.enemies[0];
+  assert.ok(enemy, '첫 적이 서 있다');
+  const before = Math.hypot(enemy.x - battle.world.player.x, enemy.y - battle.world.player.y);
+  let closest = before;
+  for (let step = 0; step < 60 * 12; step++) {
+    battle.advance(DEFENSE_STEP);
+    if (!battle.world.enemies.includes(enemy)) break;
+    closest = Math.min(closest, Math.hypot(enemy.x - battle.world.player.x, enemy.y - battle.world.player.y));
+  }
+  assert.ok(closest < before, '적이 캐릭터 쪽으로 다가온다');
+  // 정지 거리는 60이다(그보다 안으로 파고들지 않는다) — 몸 분리(24) 여유를 둔다.
+  assert.ok(closest >= 20, `적이 몸 위로 겹치지 않는다(가장 가까운 거리 ${closest.toFixed(1)})`);
+});
+
+test('몹은 근접·돌진·사수 세 종류이고 보스는 항상 근접이다', () => {
+  const seen = new Set();
+  const battle = new DefenseBattle(armed(30, 4000, 2000), 12345);
+  for (let step = 0; step < 60 * 60 * 3 && !battle.finished; step++) {
+    battle.advance(DEFENSE_STEP);
+    for (const enemy of battle.world.enemies) seen.add(enemy.boss ? `boss:${defenseEnemyKind(enemy)}` : defenseEnemyKind(enemy));
+  }
+  assert.ok(seen.has('melee'), '근접 몹이 나온다');
+  assert.ok(seen.has('charger'), '돌진형 몹이 나온다');
+  assert.ok(seen.has('ranged'), '사수형 몹이 나온다');
+  for (const kind of seen) if (kind.startsWith('boss:')) assert.equal(kind, 'boss:melee', '보스는 근접 고정');
+  assert.equal(DEFENSE_TUNING.chargerPct, 20);
+  assert.equal(DEFENSE_TUNING.rangedPct, 25);
+  assert.equal(DEFENSE_TUNING.rangedAttackRange, 215);
+});
+
+test('웨이브를 막으면 최대 체력 15%를 회복한다', () => {
+  const battle = new DefenseBattle(armed(20, 800, 600), 5);
+  const max = totalStats(battle.world.save).health;
+  battle.world.player.hp = max * .4;
+  // 적을 바로 처리하며 1웨이브를 비운다 — 웨이브 전환은 실제 판과 같은 경로(`step`)로 일어난다.
+  for (let step = 0; step < 60 * 600 && battle.stage === 1 && !battle.finished; step++) {
+    for (const enemy of [...battle.world.enemies]) battle.world.kill(enemy);
+    battle.world.enemies = [];
+    battle.advance(DEFENSE_STEP);
+  }
+  assert.ok(battle.stage > 1 || battle.finished, '웨이브가 넘어갔다');
+  assert.ok(battle.healedOnClear > 0, '막은 뒤 체력이 찼다');
+  assert.ok(battle.healedOnClear <= max * .15 + 1, '회복은 최대 체력의 15%를 넘지 않는다');
 });
 
 test('같은 시드·같은 세이브는 같은 판이 된다(서버 리플레이 결정성)', () => {
@@ -102,7 +153,7 @@ test('같은 시드·같은 세이브는 같은 판이 된다(서버 리플레�
   assert.deepEqual(defenseBattleSummary(first), defenseBattleSummary(second));
   assert.equal(first.stage, second.stage);
   assert.equal(first.world.slain, second.world.slain);
-  // 다른 시드면 적 레인이 달라 요약도 갈린다.
+  // 다른 시드면 적 레인·종류가 달라 요약도 갈린다.
   const other = runDefenseBattle(save, 424243, 60 * 60);
   assert.notEqual(defenseBattleSummary(other).digest, defenseBattleSummary(first).digest);
 });

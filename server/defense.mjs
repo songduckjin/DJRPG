@@ -93,7 +93,7 @@ export async function defenseOperation(db, id, input = {}, sid, now = Date.now()
     } catch { /* 로그 실패가 응답을 막지 않는다 */ }
     if (!verdict.ok) {
       fail(409, verdict.code,
-        verdict.code === 'DEFENSE_TOO_FAST' ? `${Number.isFinite(stage) ? stage : '?'} 스테이지에 도달하기에 시간이 부족합니다. 잠시 뒤 다시 시도해 주세요.`
+        verdict.code === 'DEFENSE_TOO_FAST' ? `${Number.isFinite(stage) ? stage : '?'} 웨이브에 도달하기에 시간이 부족합니다. 잠시 뒤 다시 시도해 주세요.`
           : verdict.code === 'DEFENSE_SUMMARY_REQUIRED' ? '판 결과가 없어 기록을 확인할 수 없습니다. 다시 도전해 주세요.'
             : '판 기록이 서버 검증과 맞지 않습니다. 다시 도전해 주세요.');
     }

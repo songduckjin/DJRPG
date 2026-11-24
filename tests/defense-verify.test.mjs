@@ -48,8 +48,8 @@ test('요약이 없으면 거부하고, 본문과 요약의 스테이지가 다�
 
 test('스텝 수·전투 시간·처치 수·체력·digest 형식이 어긋나면 거부한다', () => {
   const save = armed();
-  const base = { stages: 1, kills: 9, seconds: 60, steps: 3600, heroHp: 100, heroHpMax: 1000, items: 0, digest: 'deadbeef' };
-  const bad = (patch) => verifyDefenseRun({ save, stage: 1, seed: 1, summary: { ...base, ...patch }, elapsedSeconds: 600 }).code;
+  const base = { stages: 2, kills: 9, seconds: 60, steps: 3600, heroHp: 100, heroHpMax: 1000, items: 0, digest: 'deadbeef' };
+  const bad = (patch) => verifyDefenseRun({ save, stage: 2, seed: 1, summary: { ...base, ...patch }, elapsedSeconds: 600 }).code;
   assert.equal(bad({ steps: 999999 }), 'DEFENSE_SUMMARY_MISMATCH', '스텝 수가 전투 시간과 맞지 않는다');
   assert.equal(bad({ kills: 0 }), 'DEFENSE_SUMMARY_MISMATCH', '스테이지에 도달했는데 처치가 0일 수 없다');
   assert.equal(bad({ kills: 10_000 }), 'DEFENSE_SUMMARY_MISMATCH', '그 스테이지의 적 수보다 많이 처치할 수 없다');
@@ -94,7 +94,8 @@ test('2분이 넘는 긴 판은 리플레이 없이 형식·최소 시간만 보
   const steps = Math.round(seconds * 60);
   const { summary } = play(save, 55);
   // 형식은 실제 판과 같은 모양으로, 스텝만 리플레이 상한을 넘기는 긴 판으로 바꾼다.
-  const long = { ...summary, stages: stage, kills: summary.kills, seconds, steps };
+  const bounds = defenseKillBounds(stage);
+  const long = { ...summary, stages: stage, kills: bounds.lower + 2, seconds, steps };
   const verdict = verifyDefenseRun({ save, stage, seed: 55, summary: long, elapsedSeconds: 900 });
   assert.ok(steps > DEFENSE_REPLAY_STEP_CAP);
   assert.equal(verdict.ok, true);
