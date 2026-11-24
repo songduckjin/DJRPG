@@ -314,7 +314,8 @@ export class DefenseBattle {
     // 입문 구간(1~4층) 자연 회복이 방어전에 붙지 않게 기준 층을 상한(20)으로 둔다 — 생존은 장비·스킬 몫이다.
     copy.floor = 20;
     copy.floorKills = 0;
-    copy.tutorial = 3;
+    // `tutorial`은 건드리지 않는다 — 무기 없이 시작한 새 캐릭터도 튜토리얼 예외로 평타를 낼 수 있어야
+    // 방어전이 "서 있다 죽는" 판이 되지 않는다(던전은 무기를 전제하지만 방어전은 첫 진입도 받는다).
     copy.autoClimb = false;
     if (Number.isFinite(seed)) {
       this.seed = Math.floor(Number(seed)) >>> 0;
