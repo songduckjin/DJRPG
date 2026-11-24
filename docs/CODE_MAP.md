@@ -9,6 +9,7 @@
 |---|---|---|---|
 | 일반 필드 전투·방치 오프라인·필드 보스 | `docs/FIELD_OFFLINE.md` | `src/game/world.ts`·`combat/engine.ts`·`combat/bounds.ts`(아레나·필드·넉백 경계)·`loot.ts`·`offline.ts`·`arena.ts`·`bossLoot.ts`·`ui/hud.ts` | `world-movement`·`field-loot`·`elite-mob`·`knockback-bounds`·`offline*`·`floor-cap` |
 | 끝없는 던전·서버 리플레이·던전 순위 | `docs/DUNGEON.md` | `src/ui/dungeonBattle.ts`·`dungeonField.ts`·`dungeonLobby.ts`·`src/game/dungeonLive.ts`·`server/dungeon*.mjs` | `dungeon-battle`·`dungeon-verify`·`dungeon-record`·`dungeon-ranking` |
+| 무한 방어전·무한 스테이지·방어전 순위 | `docs/DEFENSE.md` | `src/game/dungeon/defenseBattle.ts`·`defenseProgress.ts`·`src/game/defenseLive.ts`·`src/ui/defenseField.ts`·`src/ui/modals/defenseLobby.ts`·`server/defense*.mjs` | `defense-battle`·`defense-verify`·`defense-save-cap`·`defense-ranking` |
 | 월드 보스·랭킹·전광판·폴링 예산 | `docs/WORLDBOSS_RANKING.md` | `src/game/worldBoss*.ts`·`src/ui/worldBoss*.ts`·`server/world-boss.mjs`·`legendBoard.ts`·`legendBar.ts` | `world-boss-*`·`legend-board` |
 | 여정·데일리 퀘스트·업적·(향후) 출석 | `docs/QUEST_ATTENDANCE.md` | `server/journey-state.mjs`·`journey.mjs`·`src/game/journey.ts`·`ui/modals/utilityModal.ts` | `journey*`·`achievements` |
 | 입문 안내(첫 무기→방어구→첫 스킬) | `docs/TUTORIAL.md` | `src/game/tutorial.ts`·`ui/hud.ts`(안내 띠)·`ui/modals/equipModal.ts`(안내 줄) | `tutorial-skill-gear` |

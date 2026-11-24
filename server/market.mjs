@@ -130,11 +130,13 @@ export async function mutate(db, id, input) {
     // All input-dependent reads share one DB round trip inside the writer transaction.
     const reads = await tx.batch([
       { sql: `SELECT a.*, p.shared_gold, p.active_slot, c.save_json AS character_json, c.updated_at AS character_updated_at,
-        COALESCE(v.revision,0) AS revision, d.cleared_floor AS dungeon_record_floor, d.cleared_at AS dungeon_record_at FROM djrpg_accounts a
+        COALESCE(v.revision,0) AS revision, d.cleared_floor AS dungeon_record_floor, d.cleared_at AS dungeon_record_at,
+      df.best_stage AS defense_record_stage, df.reached_at AS defense_record_at FROM djrpg_accounts a
         JOIN djrpg_account_profiles p ON p.account_id=a.id
         JOIN djrpg_characters c ON c.account_id=a.id AND c.slot=p.active_slot
         LEFT JOIN djrpg_save_versions v ON v.account_id=a.id
-        LEFT JOIN djrpg_dungeon_records d ON d.account_id=a.id WHERE a.id=?`, args: [id] },
+        LEFT JOIN djrpg_dungeon_records d ON d.account_id=a.id
+    LEFT JOIN djrpg_defense_records df ON df.account_id=a.id WHERE a.id=?`, args: [id] },
       { sql: 'SELECT response_json FROM djrpg_market_requests WHERE account_id=? AND request_id=?', args: [id, input.requestId] },
       input.action === 'buy' || input.action === 'cancel'
         ? { sql: 'SELECT * FROM djrpg_market WHERE id=?', args: [typeof input.listingId === 'string' ? input.listingId : ''] }

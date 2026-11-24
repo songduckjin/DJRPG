@@ -74,9 +74,10 @@ const journeyLoad = (ui: Interface): void => {
 
 export const MODALS: Record<Modal, ModalSpec> = {
   dungeon: {
-    title: '끝없는 던전',
+    // 2026-11-24부터 이 창의 첫 화면은 **던전 허브**다(끝없는 던전 / 무한 방어전).
+    title: '던전',
     ownHeading: true,
-    ariaLabel: '끝없는 던전',
+    ariaLabel: '던전',
     dialogClasses: ['dungeon-modal'],
     render: (ui, dialog) => renderDungeonLobby(ui, dialog),
     quietWhileHunting: true

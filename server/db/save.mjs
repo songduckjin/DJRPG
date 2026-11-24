@@ -35,7 +35,8 @@ export async function writeSave(tx, row, save, operations = [], preserveCollecti
     elapsedSeconds: elapsedSince(row.character_updated_at) + Math.max(0, Math.min(43_200, Number(credits.idleSeconds) || 0)),
     goldCredit: credits.goldCredit,
     stoneCredit: credits.stoneCredit,
-    dungeonFloorCap: row.dungeon_record_floor
+    dungeonFloorCap: row.dungeon_record_floor,
+    defenseStageCap: row.defense_record_stage
   });
   // `salvageCount`(작업 207)도 누적 통계다 — 줄지 않게 하고, 옛 클라이언트가 값을 빼고 보내도 잃지 않는다.
   for (const field of ['bossKills','playSeconds','salvageCount']) {
@@ -54,6 +55,18 @@ export async function writeSave(tx, row, save, operations = [], preserveCollecti
     : save.dungeonFloor > incomingFloor ? previousAt
     : previousAt && incomingAt ? Math.min(previousAt, incomingAt)
     : previousAt || incomingAt;
+  // 무한 방어전 도달 스테이지(2026-11-24) — 0~999 정수만 받고, 서버가 검증한 기록보다 낮아지지 않게 한다.
+  // 같은 스테이지의 최초 도달 시각은 그대로 둔다(동점 정렬의 근거).
+  const previousDefense = Number.isInteger(row.save.defenseStage) ? Math.max(0, Math.min(999, row.save.defenseStage)) : 0;
+  const incomingDefense = save.defenseStage === undefined ? previousDefense : save.defenseStage;
+  if (!Number.isInteger(incomingDefense) || incomingDefense < 0 || incomingDefense > 999) fail(400, 'INVALID_SAVE', '방어전 진행 기록 형식이 올바르지 않습니다.');
+  const previousDefenseAt = Number(row.save.defenseStageAt) > 0 ? Math.floor(Number(row.save.defenseStageAt)) : 0;
+  const incomingDefenseAt = Number(save.defenseStageAt) > 0 ? Math.floor(Number(save.defenseStageAt)) : 0;
+  save.defenseStage = preserveCollection ? Math.max(previousDefense, incomingDefense) : incomingDefense;
+  save.defenseStageAt = save.defenseStage === 0 ? 0
+    : save.defenseStage > incomingDefense ? previousDefenseAt
+    : previousDefenseAt && incomingDefenseAt ? Math.min(previousDefenseAt, incomingDefenseAt)
+    : previousDefenseAt || incomingDefenseAt;
   save.accountId = row.id; save.lastActiveAt = Date.now();
   // 메인 층 상한(작업 204): 1~20의 정수만 저장한다. 21층 이상에 있던 예전 세이브는 20층으로 보정하고
   // 최고 층도 20층을 넘지 않는다 — 장비·아이템·처치 기록은 그대로 둔다.

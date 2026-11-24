@@ -1,6 +1,7 @@
 import './game/pixiSetup';
 import {mountWorldBossLive} from './game/worldBossLive';
 import {mountDungeonLive} from './game/dungeonLive';
+import {mountDefenseLive} from './game/defenseLive';
 import { preferences } from './game/preferences';
 import { mountWasteland } from './game/wasteland';
 import { GameView } from './game/render';
@@ -62,6 +63,7 @@ async function start(): Promise<void> {
     }, sync);
     mountWorldBossLive(ui);
     mountDungeonLive(ui);
+    mountDefenseLive(ui);
     boot.attach();
     sync.onStatus = state => ui.setSaveStatus(state);
     sync.onMessage = message => ui.message(message);

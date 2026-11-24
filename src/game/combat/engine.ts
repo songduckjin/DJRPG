@@ -484,6 +484,15 @@ export class CombatEngine {
 
 
   /** 매 프레임 첫 단계 — 타이머·쿨다운·크러싱 잔상·추격 이동·자동 공격(원래 `update`의 앞부분). */
+  /**
+   * 캐릭터가 서는 자리의 경계. 기본은 필드 아레나(`clampArenaPoint`) 그대로이고, 무한 방어전만
+   * 복도 전체를 오르내려야 하므로 자기 경계로 바꾼다(`game/dungeon/defenseBattle.ts`).
+   * 값을 바꾸지 않으면 동작이 예전과 같다.
+   */
+  protected clampHeroPoint(x: number, y: number): { x: number; y: number } {
+    return clampArenaPoint(x, y);
+  }
+
   protected tickStart(dt: number): void {
     // 플레이 시간 누적 규칙은 `progress.ts`가 갖는다(PR-3).
     recordPlaySeconds(this.save, dt);
@@ -553,7 +562,7 @@ export class CombatEngine {
     const magnitude = Math.hypot(this.activeMove.x, this.activeMove.y);
     if (magnitude > .05) {
       const speed = (p.berserk > 0 ? 160 + (p.berserkLevel - 1) * 4 : 125) * dt / Math.max(1, magnitude);
-      const next = clampArenaPoint(p.x + this.activeMove.x * speed, p.y + this.activeMove.y * speed);
+      const next = this.clampHeroPoint(p.x + this.activeMove.x * speed, p.y + this.activeMove.y * speed);
       this.activeMove = { x: next.x - p.x, y: next.y - p.y };
       p.x = next.x; p.y = next.y;
     }

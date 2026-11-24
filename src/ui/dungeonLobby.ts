@@ -22,6 +22,8 @@ export function dungeonLobbyStatus(clearedFloor: number): DungeonLobbyStatus {
 }
 // 로비의 진행은 계정 세이브가 소유한다. 새로고침해도 이 값에서 되살아난다.
 export class DungeonLobby {
+  /** 첫 화면은 **던전 허브**(두 모드 선택)다. 카드를 고르면 기존 화면(`endless`)이나 무한 방어전으로 간다. */
+  mode: 'hub' | 'endless' | 'defense' = 'hub';
   tab: 'challenge' | 'ranking' = 'challenge';
   clearedFloor = 0;
   clearedAt = 0;

@@ -18,12 +18,18 @@ export type { Job };
 export { jobOrDefault, jobNames, jobs } from './skills';
 /** 끝없는 던전에 지금 있는 마지막 층. 이보다 깊은 층은 아직 준비 중이다(순위 근거이기도 하다). */
 export const DUNGEON_MAX_FLOOR = 10;
+/** 무한 방어전의 표시·검증상 스테이지 상한. 난이도 상한이 아니라 999 이후를 접는 값이다(2026-11-24). */
+export const DEFENSE_MAX_STAGE = 999;
 
 export type Save = { version: 1; name: string; accountId: string; gender: Gender; job?: Job; auto: boolean; autoClimb: boolean; level: number; exp: number; gold: number; floor: number; maxFloor: number; floorKills: number; kills: number; bossKills: number; playSeconds: number; /** 장비 분해 누적 횟수(작업 207) — 일일·주간 `장비 분해` 미션이 이 값의 증가분을 센다. */ salvageCount: number; health: number; equipment: Partial<Record<Slot, EquipmentItem>>; equipmentCollection: string[]; bag: Item[]; tutorial: number; stones: number; skillPoints: number; lastActiveAt: number; learned: SkillId[]; passives: PassiveId[]; quickSlots: QuickSlots; skillLevels: Partial<Record<SkillLevelId, number>>;
   /** 영구 스탯북 사용 권수(파트 B, 2026-11-22) — 종류별 0~30. 파트 A의 `skillPoints`/`skillLevels`(스킬 트리)와
    *  **겹치지 않는 별도 필드**다. 없는 옛 세이브는 0부터 센다. */
   statBooks?: StatBookCounts;
   dungeonFloor: number; dungeonClearAt: number;
+  /** 무한 방어전 최고 도달 스테이지(2026-11-24) — 0이면 기록 없음. 서버는 검증된 순위 기록(+1)까지만 저장한다. */
+  defenseStage: number;
+  /** 그 스테이지에 처음 도달한 시각 — 순위 동점 정렬(먼저 도달한 사람이 위)의 근거다. */
+  defenseStageAt: number;
   /** 보스에게 진 층(작업 223, 사용자 제보 `#6086`) — 0/없음이면 재도전 없음, `maxFloor`와 같으면
    *  `⚔ 보스 도전`이 살아 있다. HUD 상태를 세션 메모리에만 두면 새로고침·재접속·버전 업데이트로
    *  보스 앞에서 실패한 기록이 날아가 버튼이 사라졌다(사용자: "4층 넘어갈때까지 계속 있어야되는데"). */
@@ -79,7 +85,7 @@ export function freshSave(gender: Gender = 'male', job: Job = 'warrior'): Save {
   //    직접 장착하게 안내한다).
   const starter = starterSkillFor(job);
   // 영구 스탯북(파트 B, +스킬의 서) — 처음엔 0권. `parseSave`가 옛 세이브에도 0을 채운다.
-  return { version: 1, statBooks: { attack: 0, defense: 0, health: 0, skill: 0 }, name: '모험가', accountId: crypto.randomUUID().slice(0, 8).toUpperCase(), gender, job, auto: true, autoClimb: true, level: 1, exp: 0, gold: 0, floor: 1, maxFloor: 1, floorKills: 0, kills: 0, bossKills: 0, playSeconds: 0, salvageCount: 0, health: 140, equipment: {}, equipmentCollection: [], bag: [], tutorial: 0, stones: 0, skillPoints: SP_PER_LEVEL, lastActiveAt: Date.now(), learned: [starter], passives: [], quickSlots: [null, null, null], skillLevels: { [starter]: 1 }, dungeonFloor: 0, dungeonClearAt: 0, bossRetryFloor: 0 };
+  return { version: 1, statBooks: { attack: 0, defense: 0, health: 0, skill: 0 }, name: '모험가', accountId: crypto.randomUUID().slice(0, 8).toUpperCase(), gender, job, auto: true, autoClimb: true, level: 1, exp: 0, gold: 0, floor: 1, maxFloor: 1, floorKills: 0, kills: 0, bossKills: 0, playSeconds: 0, salvageCount: 0, health: 140, equipment: {}, equipmentCollection: [], bag: [], tutorial: 0, stones: 0, skillPoints: SP_PER_LEVEL, lastActiveAt: Date.now(), learned: [starter], passives: [], quickSlots: [null, null, null], skillLevels: { [starter]: 1 }, dungeonFloor: 0, dungeonClearAt: 0, bossRetryFloor: 0, defenseStage: 0, defenseStageAt: 0 };
 }
 
 export function parseSave(data: unknown, accountId?: string): Save {
@@ -129,7 +135,9 @@ export function parseSave(data: unknown, accountId?: string): Save {
     const skillPoints = Math.max(0, Math.min(earnedSp, Math.floor(safeNumber(value.skillPoints, earnedSp))));
     // 던전 최고층은 0~10의 정수, 최초 클리어 시각은 0 이상. 없는 세이브(구버전)는 0층부터 시작한다.
     const dungeonFloor = Math.min(DUNGEON_MAX_FLOOR, Math.floor(safeNumber(value.dungeonFloor, defaults.dungeonFloor)));
-    return { ...defaults, statBooks: statBookCounts({ statBooks: value.statBooks }), name: typeof value.name === 'string' && value.name.trim() ? value.name : defaults.name, accountId: accountId ?? (typeof value.accountId === 'string' && value.accountId ? value.accountId : defaults.accountId), gender: value.gender === 'female' ? 'female' : 'male', job: jobOrDefault(value.job), auto: true, autoClimb: typeof value.autoClimb === 'boolean' ? value.autoClimb : true, level, exp: level >= MAX_LEVEL ? 0 : safeNumber(value.exp, defaults.exp), gold: Math.floor(safeNumber(value.gold, defaults.gold)), floor, maxFloor, floorKills: Math.min(floorKillTarget(floor), Math.floor(safeNumber(value.floorKills, 0))), kills: Math.floor(safeNumber(value.kills, defaults.kills)), bossKills: Math.floor(safeNumber(value.bossKills, 0)), playSeconds: safeNumber(value.playSeconds, 0), salvageCount: Math.floor(safeNumber(value.salvageCount, 0)), health: safeNumber(value.health, defaults.health), equipment, equipmentCollection: collection.equipmentCollection, bag, tutorial: Math.min(3, Math.floor(safeNumber(value.tutorial, defaults.tutorial))), stones: Math.floor(safeNumber(value.stones, defaults.stones)), skillPoints, lastActiveAt: safeNumber(value.lastActiveAt, Date.now()), learned: active, passives, quickSlots, skillLevels, bossRetryFloor, dungeonFloor, dungeonClearAt: dungeonFloor > 0 ? Math.floor(safeNumber(value.dungeonClearAt, 0)) : 0 };
+    // 무한 방어전 도달 스테이지도 0~999의 정수다 — 없는 세이브(구버전)는 0부터 센다.
+    const defenseStage = Math.min(DEFENSE_MAX_STAGE, Math.floor(safeNumber(value.defenseStage, defaults.defenseStage)));
+    return { ...defaults, statBooks: statBookCounts({ statBooks: value.statBooks }), name: typeof value.name === 'string' && value.name.trim() ? value.name : defaults.name, accountId: accountId ?? (typeof value.accountId === 'string' && value.accountId ? value.accountId : defaults.accountId), gender: value.gender === 'female' ? 'female' : 'male', job: jobOrDefault(value.job), auto: true, autoClimb: typeof value.autoClimb === 'boolean' ? value.autoClimb : true, level, exp: level >= MAX_LEVEL ? 0 : safeNumber(value.exp, defaults.exp), gold: Math.floor(safeNumber(value.gold, defaults.gold)), floor, maxFloor, floorKills: Math.min(floorKillTarget(floor), Math.floor(safeNumber(value.floorKills, 0))), kills: Math.floor(safeNumber(value.kills, defaults.kills)), bossKills: Math.floor(safeNumber(value.bossKills, 0)), playSeconds: safeNumber(value.playSeconds, 0), salvageCount: Math.floor(safeNumber(value.salvageCount, 0)), health: safeNumber(value.health, defaults.health), equipment, equipmentCollection: collection.equipmentCollection, bag, tutorial: Math.min(3, Math.floor(safeNumber(value.tutorial, defaults.tutorial))), stones: Math.floor(safeNumber(value.stones, defaults.stones)), skillPoints, lastActiveAt: safeNumber(value.lastActiveAt, Date.now()), learned: active, passives, quickSlots, skillLevels, bossRetryFloor, dungeonFloor, dungeonClearAt: dungeonFloor > 0 ? Math.floor(safeNumber(value.dungeonClearAt, 0)) : 0, defenseStage, defenseStageAt: defenseStage > 0 ? Math.floor(safeNumber(value.defenseStageAt, 0)) : 0 };
   } catch (error) {
     throw new Error(`저장 데이터를 읽지 못했습니다: ${String(error)}`);
   }

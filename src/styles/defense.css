@@ -1,0 +1,57 @@
+/* 무한 방어전 (2026-11-24) — 던전 허브 카드 · 방어전 로비/순위 · 전투 HUD.
+   기존 `dungeon.css`의 토큰·클래스를 그대로 쓰고, 방어전에만 필요한 것만 더한다. */
+
+/* ── 던전 허브: 모드 카드 2개 ───────────────────────────────────────────── */
+.defense-hub .dungeon-body{gap:2px}
+.defense-hub-cards{display:grid;gap:10px;padding:6px 0 2px}
+.defense-hub-card{position:relative;display:grid;gap:4px;padding:14px 14px 12px;text-align:left;border:1px solid #7d6039;border-radius:7px;background:linear-gradient(160deg,#2b2220,#1b1615);color:#d9c6a6;box-shadow:inset 0 1px 0 #ffffff0d}
+.defense-hub-card:active{transform:translateY(1px)}
+.defense-hub-card strong{font-size:19px;color:#f0d49a;letter-spacing:.5px}
+.defense-hub-card p{margin:0!important;font-size:11px;line-height:1.55;color:#a99880}
+.defense-hub-card em{font-style:normal;font-size:11px;color:#bfa781}
+.defense-hub-card em b{color:#f2d79f}
+.defense-hub-card i{position:absolute;right:12px;bottom:12px;padding:5px 12px;border:1px solid #a3763f;border-radius:999px;background:#5d2b24;color:#f4d7a4;font-style:normal;font-size:12px;font-weight:700}
+.defense-hub-card.is-new{border-color:#c08a3f;background:linear-gradient(160deg,#3a2721,#201917);box-shadow:inset 0 1px 0 #ffffff12,0 0 18px #b4762b33}
+.defense-hub-tag{justify-self:start;padding:1px 8px;border-radius:999px;background:#4a3a27;color:#e2c48f;font-size:10px;letter-spacing:1px}
+.defense-hub-card.is-new .defense-hub-tag{background:#6c301f;color:#ffd9a1}
+.defense-hub-new{position:absolute;right:12px;top:12px;padding:1px 7px;border-radius:4px;background:#c0392b;color:#fff3dd;font-size:9px;font-weight:700;letter-spacing:1px}
+.defense-hub-note{margin:4px 0 0!important;font-size:10px;line-height:1.5;color:#94826c;text-align:center}
+
+/* ── 로비 공통: 허브로 돌아가는 버튼 ───────────────────────────────────── */
+.dungeon-back{align-self:flex-start;margin:2px 0 0;padding:4px 10px;border:1px solid #6b563c;border-radius:999px;background:#1f1917;color:#c3ad8b;font-size:11px}
+.dungeon-back:active{background:#2c231f}
+
+/* ── 방어전 로비 ──────────────────────────────────────────────────────── */
+.defense-lobby .dungeon-current h2{letter-spacing:1px}
+.defense-lobby .dungeon-content{flex:1 1 auto;min-height:0;overflow-y:auto;padding-right:2px}
+.defense-lobby .dungeon-footer{flex:0 0 auto}
+.defense-lobby .dungeon-current{flex:0 0 auto}
+.defense-rules{display:grid;gap:3px;margin:8px 0 10px;padding:9px 10px;list-style:none;border:1px solid #57422f;border-radius:6px;background:#1e1817;font-size:11px;line-height:1.5;color:#a99880}
+.defense-rules b{color:#e6c992}
+.defense-rank-heading,.defense-rank-row{grid-template-columns:34px 1fr 66px 86px}
+.defense-rank-row span:nth-child(2){overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.defense-rank-row span:nth-child(3){font-size:10px;color:#9d8a72}
+
+/* ── 전투 화면 ────────────────────────────────────────────────────────── */
+.defense-field{background-color:#0d0a0a}
+.defense-field .defense-trail{position:absolute;z-index:2;width:0;border-left:2px dotted #e8d5a94d;transform:translateX(-1px);pointer-events:none;transition:left .08s linear,top .08s linear,height .08s linear;mask-image:linear-gradient(#0000,#000 22%,#0006)}
+.defense-stage-banner{position:absolute;z-index:6;left:0;right:0;top:34%;text-align:center;font-size:30px;font-weight:800;letter-spacing:3px;color:#f6d79f;text-shadow:0 3px 14px #000,0 0 26px #d79a3a66;opacity:0;transform:scale(.86);transition:opacity .25s ease,transform .25s ease;pointer-events:none}
+.defense-stage-banner.is-show{opacity:1;transform:scale(1)}
+.defense-battle-hud .dungeon-battle-record{justify-content:space-between}
+.defense-battle-hud .dungeon-battle-record>span{font-size:10px;color:#c8b191}
+.defense-battle-hud .dungeon-hp{margin-top:2px}
+.defense-field .dungeon-battle-result>div{width:min(368px,100%)}
+.defense-result-record{margin:6px 0!important;color:#e8c88e!important}
+.defense-result-items{display:grid;gap:4px;max-height:132px;overflow-y:auto;margin:6px 0;padding:0;list-style:none;text-align:left}
+.defense-result-items li{display:flex;align-items:center;gap:7px;padding:4px 7px;border-left:3px solid var(--loot-ink,#cdd6e0);background:#1b1615;font-size:11px;color:#e4d3b4}
+.defense-result-items img,.defense-result-items .atlas-icon{width:22px;height:22px;object-fit:contain;background-size:auto 100%;background-repeat:no-repeat}
+.defense-result-items .atlas-icon{display:inline-block}
+.defense-result-none{font-size:11px;color:#95806b}
+.defense-result-note{font-size:10px!important;color:#a89273!important}
+
+@media (max-height:700px){
+  .defense-hub-card{padding:11px 12px 10px}
+  .defense-hub-card strong{font-size:17px}
+  .defense-hub-card p{font-size:10px}
+  .defense-stage-banner{font-size:24px}
+}
