@@ -6,7 +6,7 @@ import { type EquipmentItem, type Slot } from '../../game/items';
 import { equipmentFallbackPortrait, equipmentPortraitPlan, renderEquipmentPortrait } from '../equipmentPortrait';
 import { loadWarehouse as loadWarehouseModal, renderWarehouse as renderWarehouseModal, resetWarehouseForCharacterSwitch } from './warehouseModal';
 import { discoverEquipment } from '../../game/codex';
-import { applyOfflineRewards } from '../../game/offline';
+import { settleOfflineRewards } from '../../game/offlineSettle';
 import { diamondMarkup } from '../currency';
 import { combatPower } from '../../game/power';
 
@@ -331,23 +331,16 @@ export async function applyCharacterSwitch(ui: Interface, result: CharacterSwitc
   ui.open(null);
   // 아직 사냥하지 않은 캐릭터는 그동안의 오프라인 보상을 여기서 한 번에 정산한다(서버가 초를 내려준다).
   // 자동 분해 설정은 지금 화면에 저장된 값(ui)을 그대로 넘긴다 — 접속 중 사냥과 같은 기준으로 분해된다(작업 254).
-  const reward = result.offlineSeconds ? applyOfflineRewards(live, result.offlineSeconds, {
-    autoSalvage: ui.autoSalvage ? ui.salvageRarity : undefined,
-    autoSalvagePlus: ui.salvagePlus,
-  }) : undefined;
+  // 저장이 거절되면 서버 세이브로 다시 맞추고 보상만 버린다 — 전환 화면에서 `location.reload()`로 떨어지지 않는다.
   ui.renderStatus(); ui.renderBagBadge();
-  if (reward) {
-    sync.markDirty();
-    if (!await sync.flush()) {
-      // 전환 세이브의 수락 여부가 불명확하면 이 화면의 보상을 보여 주거나 계속 사용하지 않는다.
-      location.reload();
-      throw new Error('방치 보상 저장을 확인하지 못했습니다. 최신 진행 상황을 다시 불러옵니다.');
-    }
-    const accepted = new Set(live.bag.map(item => item.id));
-    reward.items = reward.items.filter(item => accepted.has(item.id));
-    if (sync.lastSaveClamped?.length) reward.adjusted = true;
+  if (result.offlineSeconds) {
+    const settled = await settleOfflineRewards(sync, live, result.offlineSeconds, {
+      autoSalvage: ui.autoSalvage ? ui.salvageRarity : undefined,
+      autoSalvagePlus: ui.salvagePlus,
+    });
     ui.renderStatus(); ui.renderBagBadge();
-    ui.showOfflineReward(reward);
+    if (settled.reward) ui.showOfflineReward(settled.reward);
+    else if (!settled.confirmed) ui.message(`${settled.reason} 방치 보상은 확정되지 않아 표시하지 않았습니다.`);
   }
   void ui.journey.load();
 }

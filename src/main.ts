@@ -6,7 +6,7 @@ import { preferences } from './game/preferences';
 import { mountWasteland } from './game/wasteland';
 import { GameView } from './game/render';
 import { clearLegacySave, parseSave, readLegacySave } from './game/store';
-import { applyOfflineRewards } from './game/offline';
+import type { OfflineReward } from './game/offline';
 import { wireDomainEvents } from './game/domainWiring';
 import { readAutoSalvage } from './ui/autoSalvage';
 import { readSalvagePlus } from './ui/salvagePlus';
@@ -18,8 +18,9 @@ import { MAINTENANCE_EVENT, MaintenanceWatch, type MaintenanceState } from './ga
 import { showMaintenancePopup, type MaintenancePopup } from './ui/maintenance';
 import './styles/main.css';
 import { SaveSync } from './game/sync';
+import { settleOfflineRewards } from './game/offlineSettle';
 import { createBootOverlay } from './ui/boot';
-import { NETWORK_OFFLINE, ReconnectNotice } from './ui/reconnect';
+import { ReconnectNotice } from './ui/reconnect';
 
 const root = document.getElementById('app');
 if (!root) throw new Error('앱 루트 요소가 없습니다.');
@@ -51,34 +52,22 @@ async function start(): Promise<void> {
     }
     // 방치 정산도 자동 분해를 따른다(작업 254). 화면(Interface)이 아직 없으므로, 기기에 저장된
     // 스위치·등급 기준·`+N까지` 상한을 그대로 읽어 넘긴다.
-    const offlineReward = applyOfflineRewards(save, session.offlineSeconds ?? 0, {
-      autoSalvage: readAutoSalvage() ? readSalvageRarity() : undefined,
-      autoSalvagePlus: readSalvagePlus(),
-    });
     const sync = new SaveSync(save, session);
-    // 방치 보상은 서버가 수락한 뒤에만 화면에 공개한다. 저장 충돌·응답 유실 상태에서
-    // 미확정 아이템을 먼저 보여 주면 재접속 때 다른 드롭으로 바뀐 것처럼 보인다.
-    if (legacyKey || offlineReward) {
-      sync.markDirty();
-      // 응답 유실·일시적인 5xx는 같은 requestId로 재확인한다. 새로 계산하거나
-      // 새 요청을 보내면 보상이 중복되거나 다른 드롭으로 바뀔 수 있다.
-      let confirmed = false;
-      for (let attempt = 0; attempt < 3; attempt++) {
-        if (await sync.flush()) { confirmed = true; break; }
-        const retryable = sync.lastSaveErrorCode === NETWORK_OFFLINE || sync.lastSaveErrorStatus >= 500;
-        if (!retryable || attempt === 2) break;
-        await new Promise(resolve => setTimeout(resolve, 3000));
-      }
-      if (!confirmed) {
-        boot.fail(sync.lastSaveFailure || '방치 보상을 서버에 저장하지 못했습니다. 새로고침하여 다시 시도해 주세요.');
+    // 방치 보상은 서버가 수락한 뒤에만 화면에 공개한다(PR #358). 그런데 저장이 끝내 거절되면(아이템 소유권·
+    // 2차 스탯 불일치) 예전에는 `boot.fail()`로 시작 화면에 갇혔다 — 이제는 서버 진행을 기준으로 다시 맞추고
+    // 보상만 버린 뒤 **접속을 계속한다**(2026-11-24, `offlineSettle`).
+    let offlineReward: OfflineReward | undefined;
+    if (legacyKey || (session.offlineSeconds ?? 0) >= 60) {
+      const settled = await settleOfflineRewards(sync, save, session.offlineSeconds ?? 0, {
+        autoSalvage: readAutoSalvage() ? readSalvageRarity() : undefined,
+        autoSalvagePlus: readSalvagePlus(),
+      }, { flushWhenIdle: Boolean(legacyKey) });
+      if (!settled.confirmed) {
+        boot.fail(settled.reason ?? '방치 보상을 서버에 저장하지 못했습니다. 잠시 후 새로고침해 주세요.');
         return;
       }
+      offlineReward = settled.reward;
       if (legacyKey) { clearLegacySave(legacyKey); legacyKey = undefined; pendingMessage = '기존 진행 상황을 서버로 이전했습니다.'; }
-      if (offlineReward) {
-        const accepted = new Set(save.bag.map(item => item.id));
-        offlineReward.items = offlineReward.items.filter(item => accepted.has(item.id));
-        if (sync.lastSaveClamped.length) offlineReward.adjusted = true;
-      }
     }
     const world = new World(save);
     function flush(): Promise<boolean> { return sync.flush(); }
