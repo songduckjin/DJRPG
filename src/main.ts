@@ -19,7 +19,7 @@ import { showMaintenancePopup, type MaintenancePopup } from './ui/maintenance';
 import './styles/main.css';
 import { SaveSync } from './game/sync';
 import { createBootOverlay } from './ui/boot';
-import { ReconnectNotice } from './ui/reconnect';
+import { NETWORK_OFFLINE, ReconnectNotice } from './ui/reconnect';
 
 const root = document.getElementById('app');
 if (!root) throw new Error('앱 루트 요소가 없습니다.');
@@ -60,10 +60,17 @@ async function start(): Promise<void> {
     // 미확정 아이템을 먼저 보여 주면 재접속 때 다른 드롭으로 바뀐 것처럼 보인다.
     if (legacyKey || offlineReward) {
       sync.markDirty();
-      if (!await sync.flush()) {
-        boot.fail(sync.conflicted
-          ? '진행 상황이 다른 곳에서 변경되었습니다. 새로고침하여 최신 데이터를 불러와 주세요.'
-          : '방치 보상을 서버에 저장하지 못했습니다. 연결을 확인한 뒤 새로고침해 주세요.');
+      // 응답 유실·일시적인 5xx는 같은 requestId로 재확인한다. 새로 계산하거나
+      // 새 요청을 보내면 보상이 중복되거나 다른 드롭으로 바뀔 수 있다.
+      let confirmed = false;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        if (await sync.flush()) { confirmed = true; break; }
+        const retryable = sync.lastSaveErrorCode === NETWORK_OFFLINE || sync.lastSaveErrorStatus >= 500;
+        if (!retryable || attempt === 2) break;
+        await new Promise(resolve => setTimeout(resolve, 3000));
+      }
+      if (!confirmed) {
+        boot.fail(sync.lastSaveFailure || '방치 보상을 서버에 저장하지 못했습니다. 새로고침하여 다시 시도해 주세요.');
         return;
       }
       if (legacyKey) { clearLegacySave(legacyKey); legacyKey = undefined; pendingMessage = '기존 진행 상황을 서버로 이전했습니다.'; }

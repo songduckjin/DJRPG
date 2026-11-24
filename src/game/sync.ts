@@ -43,6 +43,12 @@ export class SaveSync {
   private pendingSave?: { save: Save; revision: number; requestId: string };
   /** 마지막 저장 실패 이유 — 저장 때문에 거래가 막힐 때 진짜 원인을 함께 보여 주기 위해서다(작업 246). */
   private lastSaveError = '';
+  /** 초기 방치 정산이 실패했을 때 재시도 가능 여부와 실제 원인을 구분한다. */
+  lastSaveErrorCode = '';
+  lastSaveErrorStatus = 0;
+  get lastSaveFailure(): string { return this.lastSaveErrorCode
+    ? `${this.lastSaveError} (오류 코드: ${this.lastSaveErrorCode})`
+    : this.lastSaveError; }
   /** 직전 저장에서 서버가 조정한 필드. 방치 정산을 확정해 표시할 때 사용한다. */
   lastSaveClamped: string[] = [];
   /** 세이브에 아직 서버로 못 보낸 변경이 있는지. 변경이 없으면 flush가 네트워크를 쓰지 않는다(작업 209). */
@@ -183,13 +189,14 @@ export class SaveSync {
           // 생겼을 때는 그 변경을 덮지 않고 다음 저장에서 정리한다.
           if (result.save && this.changeSeq === seq) Object.assign(this.save, parseSave(result.save, this.session.accountId));
           this.lastSaveError = '';
+          this.lastSaveErrorCode = ''; this.lastSaveErrorStatus = 0;
           this.lastSaveAt = Date.now();
           this.reportOnline();
           // 저장을 보낸 뒤에 또 바뀌었으면 dirty를 남겨 다음 차례에 다시 보낸다.
           if (this.changeSeq === seq) this.dirty = false;
           this.pending ||= recovering || this.dirty;
           this.onStatus('저장됨'); this.onSaved();
-        } catch (error) { this.pending = true; this.lastSaveError = error instanceof Error && error.message ? error.message : String(error); if (isNetworkOffline(error)) { this.reportOffline(); return false; } this.handleError(error); return false; }
+        } catch (error) { this.pending = true; this.lastSaveError = error instanceof Error && error.message ? error.message : String(error); this.lastSaveErrorCode = errorCode(error); this.lastSaveErrorStatus = errorStatus(error); if (isNetworkOffline(error)) { this.reportOffline(); return false; } this.handleError(error); return false; }
       }
       return true;
     })().finally(() => { this.active = undefined; });

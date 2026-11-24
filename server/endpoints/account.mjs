@@ -138,7 +138,9 @@ async function accountHandler(request, { env = runtimeEnv(), createDbClient, leg
         await db.execute({ sql: 'UPDATE djrpg_accounts SET password_hash=? WHERE id=? AND password_hash=?', args: [upgraded, row.id, row.password_hash] });
       }
       const latest = await account(db, row.id);
-      const save = latest.save;
+      // 비밀번호 로그인도 토큰 복구(load)와 같은 소유권 복구를 거친다.
+      // 그렇지 않으면 오래된 유령 아이템을 받은 직후 방치 보상 save가 409로 막힌다.
+      const save = await healStaleLoadItems(db, latest);
       const sid = await assignSession(db, row.id);
       return res.status(200).json({ revision: latest.revision, accountId: row.id, loginId: row.id, gender: save.gender, job: jobOf(save.job), guest: false, token: tokenFor(row.id, env, sid), save, characterSlot: latest.slot, needsSetup: save.needsSetup === true, offlineSeconds: await pendingOfflineSeconds(db, row.id, latest.slot, latest.character_updated_at), ...(isUncreated(save) ? { needsCharacter: true } : {}) });
     }
