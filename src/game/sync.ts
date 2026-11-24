@@ -29,7 +29,7 @@ const errorCode = (error: unknown): string => error instanceof Error && 'code' i
 const errorStatus = (error: unknown): number => error instanceof Error && 'status' in error ? Number((error as Error & { status?: unknown }).status) : 0;
 const errorExpectedVersion = (error: unknown): unknown => error instanceof Error && 'expected' in error ? (error as Error & { expected?: unknown }).expected : undefined;
 
-export type SyncResult = { journey?: import('./journey').JourneyData; ok: boolean; save: Save; revision: number; message?: string; effect?: { listing?: { id: string; state: string; soldAt?: number; quantity?: number; mine?: boolean }; deliveries: import('./market').Delivery[]; claimedId?: string; claimedIds?: string[] }; /** 창고 이동 뒤 창고 목록(작업 225) — 있으면 `list`를 다시 부르지 않고 이 값으로 그리드를 다시 그린다. */ items?: import('./items').Item[]; moved?: string[] };
+export type SyncResult = { journey?: import('./journey').JourneyData; ok: boolean; save: Save; revision: number; clamped?: string[]; message?: string; effect?: { listing?: { id: string; state: string; soldAt?: number; quantity?: number; mine?: boolean }; deliveries: import('./market').Delivery[]; claimedId?: string; claimedIds?: string[] }; /** 창고 이동 뒤 창고 목록(작업 225) — 있으면 `list`를 다시 부르지 않고 이 값으로 그리드를 다시 그린다. */ items?: import('./items').Item[]; moved?: string[] };
 /** 자동 저장 간격 — 변경이 있을 때만, 마지막 저장에서 이만큼 지난 뒤에 보낸다(작업 209).
  *  무료 Cloudflare Functions 한도(10만 건/일)를 넘기지 않도록 작업 245에서 간격을 늘렸다: 화면을 보고 있을 때
  *  10초, 앱을 내려 두었을 때(탭 숨김) 45초. 숨김으로 바뀌는 순간 `main.ts`가 한 번 저장하므로
@@ -43,6 +43,8 @@ export class SaveSync {
   private pendingSave?: { save: Save; revision: number; requestId: string };
   /** 마지막 저장 실패 이유 — 저장 때문에 거래가 막힐 때 진짜 원인을 함께 보여 주기 위해서다(작업 246). */
   private lastSaveError = '';
+  /** 직전 저장에서 서버가 조정한 필드. 방치 정산을 확정해 표시할 때 사용한다. */
+  lastSaveClamped: string[] = [];
   /** 세이브에 아직 서버로 못 보낸 변경이 있는지. 변경이 없으면 flush가 네트워크를 쓰지 않는다(작업 209). */
   private dirty = false;
   /** 변경 일련번호 — 저장을 시작한 시점과 비교해 "저장 중에 또 바뀌었는지"를 안다. */
@@ -176,6 +178,10 @@ export class SaveSync {
           const result = await accountRequest<SyncResult>('save', { ...request, characterSlot: this.session.characterSlot }, this.session.token);
           if (!result.ok || !Number.isSafeInteger(result.revision)) throw new Error('서버가 저장 완료를 확인하지 않았습니다.');
           this.revision = result.revision; this.pendingSave = undefined;
+          this.lastSaveClamped = Array.isArray(result.clamped) ? result.clamped : [];
+          // 서버가 상한·공유 금화 등을 조정했다면 응답 세이브가 기준이다. 전송 중 새 변경이
+          // 생겼을 때는 그 변경을 덮지 않고 다음 저장에서 정리한다.
+          if (result.save && this.changeSeq === seq) Object.assign(this.save, parseSave(result.save, this.session.accountId));
           this.lastSaveError = '';
           this.lastSaveAt = Date.now();
           this.reportOnline();

@@ -5,6 +5,30 @@ const { SaveSync } = await import('../src/game/sync.ts');
 const { freshSave } = await import('../src/game/store.ts');
 const response = (body, status = 200) => ({ok:status<400,status,json:async()=>body});
 function setup() { const save = freshSave(); return new SaveSync(save,{accountId:'test',token:'test-token',revision:0,save}); }
+test('save adopts the server-confirmed state and reports adjusted fields', async () => {
+  const sync = setup(); sync.save.gold = 500; sync.markDirty();
+  globalThis.fetch = async (_url, options) => {
+    const payload = JSON.parse(options.body);
+    const accepted = { ...payload.save, gold: 300 };
+    return response({ ok: true, save: accepted, revision: 1, clamped: ['gold'] });
+  };
+  assert.equal(await sync.flush(), true);
+  assert.equal(sync.save.gold, 300);
+  assert.deepEqual(sync.lastSaveClamped, ['gold']);
+});
+test('save response does not overwrite changes made while the request is in flight', async () => {
+  const sync = setup(); sync.save.gold = 100; sync.markDirty();
+  const requests = []; let release;
+  globalThis.fetch = async (_url, options) => {
+    const payload = JSON.parse(options.body); requests.push(payload);
+    if (requests.length === 1) return new Promise(resolve => { release = () => resolve(response({ ok: true, save: { ...payload.save, gold: 90 }, revision: 1, clamped: ['gold'] })); });
+    return response({ ok: true, save: payload.save, revision: 2 });
+  };
+  const pending = sync.flush(); sync.save.gold = 110; sync.markDirty(); release();
+  assert.equal(await pending, true);
+  assert.equal(requests[1].save.gold, 110);
+  assert.equal(sync.save.gold, 110);
+});
 test('save retries use same request ID, then save newer local changes',async()=>{
   const sync=setup(),requests=[]; let fail=true;
   globalThis.fetch=async(_url,options)=>{const payload=JSON.parse(options.body);requests.push(payload);if(fail){fail=false;throw new Error('lost response');}return response({ok:true,revision:payload.revision+1});};
