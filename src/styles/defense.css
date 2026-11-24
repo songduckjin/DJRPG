@@ -23,7 +23,10 @@
 
 /* ── 방어전 로비 ──────────────────────────────────────────────────────── */
 .defense-lobby .dungeon-current h2{letter-spacing:1px}
-.defense-rules{display:grid;gap:3px;margin:8px 0 0;padding:9px 10px;list-style:none;border:1px solid #57422f;border-radius:6px;background:#1e1817;font-size:11px;line-height:1.5;color:#a99880}
+.defense-lobby .dungeon-content{flex:1 1 auto;min-height:0;overflow-y:auto;padding-right:2px}
+.defense-lobby .dungeon-footer{flex:0 0 auto}
+.defense-lobby .dungeon-current{flex:0 0 auto}
+.defense-rules{display:grid;gap:3px;margin:8px 0 10px;padding:9px 10px;list-style:none;border:1px solid #57422f;border-radius:6px;background:#1e1817;font-size:11px;line-height:1.5;color:#a99880}
 .defense-rules b{color:#e6c992}
 .defense-rank-heading,.defense-rank-row{grid-template-columns:34px 1fr 66px 86px}
 .defense-rank-row span:nth-child(2){overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
