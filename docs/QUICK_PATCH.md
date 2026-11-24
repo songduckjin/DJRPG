@@ -11,6 +11,7 @@
 | 맞은 몹이 맵 밖으로 밀려나 전사가 접근·공격을 못 함(넉백 경계) | `docs/FIELD_OFFLINE.md` |
 | 드롭이 안 주워짐·1.5초 흡수·금화 무더기 | `docs/FIELD_OFFLINE.md` |
 | 방치 보상이 0·방치 등반·방치 자동 분해 | `docs/FIELD_OFFLINE.md` |
+| 탭(창)을 내렸다 돌아오니 사냥이 멈춰 있고 보상이 없음·자리 비움 정산 토스트/팝업 | `docs/FIELD_OFFLINE.md`(자리 비움 정산) · `docs/SYNC_SAVE.md`(숨김·복귀 저장) |
 | 던전에서 안 움직임·클리어가 순위에 안 올라감·`DUNGEON_*` 오류 | `docs/DUNGEON.md` |
 | 월드보스 순위·보상·전투 재현 어긋남 | `docs/WORLDBOSS_RANKING.md` |
 | 일일/주간 퀘스트·업적 수치·보상 수령 반복 | `docs/QUEST_ATTENDANCE.md` |

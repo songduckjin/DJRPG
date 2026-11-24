@@ -6,9 +6,9 @@
 
 | 역할 | 파일 |
 |---|---|
-| 저장 큐·재시도·충돌·거래/창고 락 | `src/game/sync.ts`(`SaveSync`·`queueSave`·`flush`·`flushIfDirty`·`mutate`·`transferWarehouse`·`handleError`·`resetForCharacterSwitch`) |
+| 저장 큐·재시도·충돌·거래/창고 락 | `src/game/sync.ts`(`SaveSync`·`queueSave`·`flush`·`flushIfDirty`·`setHidden`·`mutate`·`transferWarehouse`·`handleError`·`resetForCharacterSwitch`) |
 | 끊김 문구·판정·재시도 | `src/ui/reconnect.ts`(`offlineError`·`isNetworkOffline`·`retryNetwork`·`ReconnectNotice`) |
-| 저장 시점 | `src/main.ts`(10초 `flushIfDirty`·`online`·`visibilitychange`)·`src/ui/interface.ts`(`onSave`) |
+| 저장 시점 | `src/main.ts`(10초 `flushIfDirty`·`online`·`visibilitychange`·`setHidden`·자리 비움 정산)·`src/ui/interface.ts`(`onSave`) |
 | 저장/거래 API | `server/endpoints/account.mjs`(`action:'save'`)·`server/database.mjs`(`writeSave`·`assertRevision`·`reconcileItems`·`identity`) |
 | 저장 상한 | `server/save-guard.mjs`(`rewardBudget`·`clampSaveProgress`·`itemWithinBounds`·`elapsedSince`) |
 | 세이브 스키마 | `src/game/store.ts`(`Save`·`parseSave`·`MAX_FLOOR`·`freshSave`) |
@@ -36,6 +36,22 @@ world/save 변경 → world.onChange → Interface.onSave → sync.queueSave() (
 - `save-guard`: `rewardBudget`(경과 시간·층 기준 킬/보스/경험치/금화/강화석/아이템 상한)·`clampSaveProgress`(넘친 값만 자름)·`itemWithinBounds`(`rollItem` 공식 ×2.5)·`elapsedSince`(최대 12시간).
 - **40칸 저장 차단은 `reconcileItems` 한 곳**. 이미 넘긴 세이브는 "현재 개수 이하 유지"만 허용하고, 수령 경로가 각각 `BAG_FULL`로 먼저 막는다.
 - **세이브 한도**: `version === 1`, JSON ≤1MB, 장비 슬롯 10, 금화 ≤9,000,000,000,000. `parseSave`의 전방 호환(옛 세이브 마이그레이션)을 깨지 않는다.
+
+## 숨김·복귀 저장 (자리 비움 정산 · 작업 261)
+
+```
+[숨김] visibilitychange(hidden)·pagehide → sync.setHidden(true) + flush() 1회(3초 상한)
+       ↳ 숨김 동안 예약 저장·flushIfDirty 없음(서버 updated_at이 밀리면 복귀 정산 구간이 짧아진다)
+[복귀] visibilitychange(visible)·pageshow(persisted) → load 1회 → min(offlineSeconds, 숨김초, 43,200) 정산
+       → markDirty() → flush() 성공 확인 (이 저장이 서버 updated_at을 지금으로 옮긴다)
+       → 응답 세이브에서 살아남은 아이템만 남겨 토스트·팝업 표시 → setHidden(false)
+```
+
+- **서버 계약은 그대로**: 저장 성공이 `updated_at`을 지금으로 덮고(`server/db/save.mjs`), `load`가 `offlineSeconds`·`revision`·`characterSlot`을 이미 내려준다. 새 엔드포인트·새 필드는 없다.
+- **저장을 확인한 뒤에만 보여 준다**(2026-11-24 오프라인 저장 오류 사고 규칙): 자리 비움 정산도 시작 정산·캐릭터 전환 정산과 같다 — 저장이 실패하면 보상을 띄우지 않고, 응답 세이브에서 빠진 아이템은 목록에서 빼며 `clamped`가 있으면 `adjusted`로 알린다.
+- **이중 정산 방지**: 정산분은 반드시 **그 정산을 담은 저장**과 함께 서버에 남는다. 저장이 실패하면 보상은 메모리에만 있고 서버는 옅 `updated_at`을 들고 있으므로, 새로고침 뒤 다음 접속이 같은 구간을 **한 번** 방치 정산한다.
+- **정산 초 상한**: `min(load의 offlineSeconds, 숨김초)`. 숨김 진입 저장이 실패하면 서버 경과에 숨기기 전 사냥 시간이 섞이므로 숨김초로 자르고, 로컬 숨김초가 서버 경과보다 크면 서버 값으로 자른다.
+- **정산하지 않는 복귀**: `sync.conflicted`·`sync.locked`, 월드보스 도전 중, 끝없는 던전, 활성 슬롯이 다른 경우. 규칙 자체는 `docs/FIELD_OFFLINE.md`(자리 비움 정산)와 `src/game/background.ts`가 기준이다.
 
 ## 오류 복구 (`sync.handleError`)
 
@@ -70,7 +86,7 @@ world/save 변경 → world.onChange → Interface.onSave → sync.queueSave() (
 
 ## 테스트
 
-`node --test tests/sync.test.mjs tests/reconnect.test.mjs tests/save-guard.test.mjs tests/concurrency.test.mjs tests/idle-save-budget.test.mjs tests/bag-limit-recovery.test.mjs tests/app-version.test.mjs tests/character-switch.test.mjs tests/multi-character-market.test.mjs tests/pouch-open-all.test.mjs`
+`node --test tests/sync.test.mjs tests/reconnect.test.mjs tests/save-guard.test.mjs tests/concurrency.test.mjs tests/idle-save-budget.test.mjs tests/bag-limit-recovery.test.mjs tests/app-version.test.mjs tests/character-switch.test.mjs tests/multi-character-market.test.mjs tests/pouch-open-all.test.mjs tests/background-settle.test.mjs`
 
 ## 관련 매뉴얼
 
