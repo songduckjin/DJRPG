@@ -67,7 +67,7 @@ view.app.ticker.add(() => {
   // 검수용: 보스·정예는 필드 끝에서 뜨므로 화면 안(히어로 옆)으로 한 번 옮긴다.
   if ((wantBoss || wantElite) && !placed) {
     const target = wantBoss ? world.enemies.find(enemy => enemy.boss) : world.enemies.find(enemy => enemy.elite);
-    if (target) { target.x = -74; target.y = -46; world.player.x = 46; world.player.y = 58; placed = true; }
+    if (target) { target.x = -74; target.y = -46; world.player.x = 118; world.player.y = 116; placed = true; }
   }
   view.draw(world, time);
 });
