@@ -5,11 +5,12 @@
 
 ## 2026-11-25 · 운영 배포 — 필드 부활 정지(#383) · 워터 캐논 상향(#384) · 레벨 표기 통일(#385) 통합
 
-- **배포**: 점검 ON [PR #386](https://github.com/songduckjin/DJRPG/pull/386)(`6cbd3f3`, `eta 2026-11-26 00:40`) → 통합 [PR #387](https://github.com/songduckjin/DJRPG/pull/387) 스쿼시 **`afaa57429d85`** → 점검 OFF(이 PR). 실서버 `https://djrpg.pages.dev/version.json` = `afaa57429d85`(`builtAt` 2026-11-25T15:02:42Z), `maintenance.json` `active:false`.
+- **배포**: 점검 ON [PR #386](https://github.com/songduckjin/DJRPG/pull/386)(`6cbd3f3`, `eta 2026-11-26 00:40`) → 통합 [PR #387](https://github.com/songduckjin/DJRPG/pull/387) 스쿼시 **`afaa57429d85`** → 점검 OFF [PR #388](https://github.com/songduckjin/DJRPG/pull/388) **`e829bb39`**. 실서버 `https://djrpg.pages.dev/version.json` = `afaa57429d85`(`builtAt` 2026-11-25T15:02:42Z), `maintenance.json` `active:false`.
 - **왜 통합 PR인가**: 송덕진 님 요청 "배포 할거 전부 배포해줘"(`#28827`). 세 PR 모두 `docs/TASK.md`를 건드리지만 적용 지점(표 머리·아카이브 앞·문서 끝)이 달라 **충돌 0건**이었고, `origin/main`(`6cbd3f3`)에서 세 패치를 그대로 얹어 한 커밋(`b1089f3`)으로 합쳤다. 원본 PR `#383`·`#384`·`#385`는 통합 반영을 알리는 댓글과 함께 닫았다(브랜치 삭제는 자격 증명 403으로 남음).
 - **통합 내용**: ① `#383` `FieldProgress.restoredFieldHealth()` — `adoptSave`·`resetField`가 체력 0 세이브를 만혈로 복구하고 `update()`가 체력 0·타이머 0 상태를 다음 프레임에 복구·저장(자리 비움 정산·캐릭터 전환 뒤 영구 사망 방지) ② `#384` 워터 캐논 경로 210→250px·반폭 42→58px(`WATER_CANNON_HALF_WIDTH`)·`SKILL_HIT_POWER.arcaneOverlord` 3→4, 판정 반폭을 이펙트 폭에도 적용 ③ `#385` HUD LV 배지·상세 스탯 머리·내 정보 레벨 줄에서 `MAX` 표기를 없애고 항상 레벨 숫자(`LV 30`), 경험치 보조 `100% / MAX` → `100%`.
 - **검증(로컬, Node 22.20.0)**: `npm run build`(`generate-version`+`tsc --noEmit`+`verify-item-art`+`vite build`) 통과. 전체 `node --test tests/*.test.mjs` **1,699건 중 1,696 통과·실패 3건** — `blood-rage-aura`·`hawk-eye-wind`·`common-codes`로 `origin/main`(`4d6fbbe`) 기준선 1,694건 중 같은 3건과 이름까지 동일(**신규 실패 0**), 늘어난 5건은 이번 변경이 추가한 테스트. 세 PR이 건드린 5파일 52/52 통과.
 - **배포 후 실측**: `/` 200 · `/api/account` 무토큰 401 JSON(`INVALID_TOKEN`) · 게스트 가입 200 → 저장 200(rev 0→1) → `load` 200(같은 rev·금화 유지) → 탈퇴 200(`characters:1`) · `maintenance.json` `active:false`. 배포 번들 `assets/index-DOgU_jPv.js`(934,592B)에 `공격력 × 4.0 · 지속 물줄기` 1건, `100% / MAX`·`30 MAX` 0건.
+- **실브라우저 스모크**(점검 OFF 뒤, `https://djrpg.pages.dev`): 로그인 화면 정상(점검 팝업 없음) → 게스트로 시작 → 자동 사냥(층 1 · 처치 1/150 · 금화 3 · HP 140→85) → LV 배지 `LV 1`(MAX 없음) · 내 정보(장비창) · 상세 스탯(`LV 1 · 1층 · HP 86/140`) 모두 정상. 스크린샷 `browser/djrpg_live_smoke_2026-11-26-2026-11-26-000756.png`. 점검 창 2026-11-25 23:52~2026-11-26 00:06 KST(약 14분).
 
 ## 2026-11-24 · 운영 배포 — 부캐릭 저장 409 근본 수정(#367) + 자리 비움 방치 정산(#364) 통합
 
