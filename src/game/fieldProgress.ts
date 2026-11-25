@@ -55,6 +55,10 @@ export class FieldProgress extends CombatEngine {
   elitePending = false;
   /** 30마리 상한에 닿아 있는 시간(초) — 10초를 넘기면 한 층 내린다(밸런스 v2 유예). */
   crowdClock = 0;
+  /** 이번에 쓰러져 **실제로 잃은 금화**(2026-11-25 부활 대기 카드) — 가진 금화가 10보다 적으면 그만큼만
+   *  잃으므로 상수 10을 쓰지 않고 `defeatPenalty`가 돌려준 값을 적는다. 화면은 부활 대기가 서 있는
+   *  동안(`reviveTimer > 0`)에만 읽는다. */
+  reviveLostGold = 0;
 
   /** Live auto-salvage (작업 196): the grade the player chose, or `undefined` while the switch is off.
    *  The UI owns the switch and the stored value, so the world asks on every pickup instead of keeping
@@ -117,7 +121,7 @@ export class FieldProgress extends CombatEngine {
     this.bossRetryAvailable = false; this.eliteKills = 0; this.elitePending = false;
     this.crowdClock = 0; this.strikeQuota = 0;
     // 갈아탄 새 캐릭터는 살아 있는 상태로 시작한다(부활 대기 승계 없음).
-    this.reviveTimer = 0;
+    this.reviveTimer = 0; this.reviveLostGold = 0;
     this.swing = 1; this.chaseTarget = undefined; this.pursuing = false;
     const hp = enemyMaxHp(this.save.floor, false);
     const start = clampArenaPoint(145, -45);
@@ -141,7 +145,7 @@ export class FieldProgress extends CombatEngine {
     this.spawnTimer = 0;
     this.crush = undefined; this.weaponNotice = 0; this.activeMove = { x: 0, y: 0 };
     // 정산이 끝난 세이브는 살아 있는 상태다 — 부활 대기를 승계하지 않는다.
-    this.reviveTimer = 0;
+    this.reviveTimer = 0; this.reviveLostGold = 0;
     this.bossPending = this.save.autoClimb && this.bossFloor() && this.save.floorKills >= killsToBoss(this.save.floor);
     this.bossRetryAvailable = this.save.bossRetryFloor === this.save.maxFloor && this.save.maxFloor < MAX_FLOOR;
     this.eliteKills = 0; this.elitePending = false;
@@ -337,7 +341,8 @@ export class FieldProgress extends CombatEngine {
           p.x = 0; p.y = 0; this.chaseTarget = undefined; this.pursuing = false; this.activeMove = { x: 0, y: 0 };
           this.regenClock = 0; this.earlyRegenClock = 0;
           // 쓰러짐 패널티(10골드, 모자라면 0까지)도 `progress.ts`가 정한다(PR-3·작업 245).
-          defeatPenalty(this.save);
+          // 실제로 잃은 금화는 부활 대기 카드의 `{손실금화}금화 손실`에 그대로 쓴다(2026-11-25).
+          this.reviveLostGold = defeatPenalty(this.save);
           // 부활 대기 — 접속 사냥과 방치 정산이 같은 값(5초, 입문 1~4층은 0초)을 쓴다.
           this.reviveTimer = reviveSeconds(this.save.floor);
           if (this.reviveTimer <= 0) {

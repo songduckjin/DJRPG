@@ -16,7 +16,7 @@ import { costumeGhostSources, hideCostumeHero } from './costumeHero';
 import { resolveSkillMotion, type CostumeMotionTemplate } from '../costume/skillMotion';
 import { wearableEquipmentImage, baseItemIndex, usesBaseSheetOnly, hasNoWeapon, type Rarity } from '../items';
 import { jobOrDefault } from '../skills';
-import { bossArtFor, eliteName as floorEliteName, isCastle, mobKindFor, mobTint, type MobKind } from '../floorTheme';
+import { bossArtFor, eliteArtFor, eliteKindFor, mobArt, mobKindFor, mobTint, type EliteKind, type MobKind } from '../floorTheme';
 import { helmetArtFor, helmetArtPath, helmetGlowMaskPath, helmetPlacement } from './helmets';
 import { archerHelmGlowMaskPath, archerHelmIndexFor, archerHelmPartPath, archerHelmPlacement } from './archerHelmets';
 import { mageHelmIndexFor, mageHelmPartPath, mageHelmPlacement } from './mageHelmets';
@@ -114,8 +114,12 @@ const walkAnchors = {
   bossWalk: [.919, .901, .899, .899, .914, .907, .905, .905],
   // 21~40층 신규 시트 — 발밑을 셀 높이의 96%에 맞춰 구웠으므로 여덟 프레임이 같은 앵커다.
   knightWalk: [.96, .96, .96, .96, .96, .96, .96, .96],
-  wretchWalk: [.96, .96, .96, .96, .96, .96, .96, .96],
-  archonWalk: [.96, .96, .96, .96, .96, .96, .96, .96]
+  priestWalk: [.96, .96, .96, .96, .96, .96, .96, .96],
+  // 테마별 로스터(2026-11-25) — 황무지 뼈 창병·뼈 거한, 성 안 핏빛 교단 사제·성채 처형자·성채 패왕.
+  bonelancerWalk: [.96, .96, .96, .96, .96, .96, .96, .96],
+  bonebruteWalk: [.96, .96, .96, .96, .96, .96, .96, .96],
+  executionerWalk: [.96, .96, .96, .96, .96, .96, .96, .96],
+  warlordWalk: [.96, .96, .96, .96, .96, .96, .96, .96]
 } as const;
 export type HeroSkillMotion = { template: CostumeMotionTemplate | null; progress: number };
 
@@ -995,36 +999,50 @@ export function updateCorpses(this: GameView, project: (x: number, y: number) =>
 /**
  * 한 마리의 그림·이름·틴트·배율 — 층 테마(`floorTheme.ts`) 표를 그대로 따른다.
  *
- * · 1~20층: 해골 병사 1종(종전 그대로), 보스 '해골 군주'.
- * · 21~40층: 층별 2종 혼성(사슬 망자·녹슨 성벽병·흑요석 기사). 계보는 `enemy.step`( 스폰에 이미
- *   뽑힌 난수)으로 골라 **새 난수를 쓰지 않는다** — 사냥 확률·타이밍이 그대로다.
- * · 보스: 21~29 '성채의 수문장'(기존 시트+틴트), 30~39 '군주의 그림자'(+배율), 40 '해골 군주 아르케온'(신규 시트).
+ * · 1~20층: 해골 병사·뼈 창병 2종 랜덤, 정예는 전용 '뼈 거한', 보스 '해골 군주'.
+ * · 21~40층: 흑요석 기사·핏빛 교단 사제 2종 랜덤, 정예는 전용 '성채 처형자', 보스는 전부 '성채 패왕'.
+ * · 계보는 `enemy.variant`(스폰에 이미 뽑힌 난수)으로 골라 **새 난수를 쓰지 않는다** — 사냥 확률·타이밍이 그대로다.
  */
 type EnemyLook = {
   idle: Texture; walk: Texture[]; walkAnchor: readonly number[]; restAnchor: number;
   tint: number; scale: number; label: string;
 };
-const mobLooks: Record<MobKind, { idle: 'skeleton' | 'wretch' | 'knight'; walk: 'skeletonWalk' | 'wretchWalk' | 'knightWalk' }> = {
-  wallguard: { idle: 'skeleton', walk: 'skeletonWalk' },
-  wretch: { idle: 'wretch', walk: 'wretchWalk' },
-  knight: { idle: 'knight', walk: 'knightWalk' }
+/** 텍스처·걷기 시트 키 — `render.ts`의 `Art`/`Animation` 표에 있는 이름만 쓴다. */
+const mobLooks: Record<MobKind, { idle: 'skeleton' | 'bonelancer' | 'knight' | 'priest'; walk: 'skeletonWalk' | 'bonelancerWalk' | 'knightWalk' | 'priestWalk' }> = {
+  skeleton: { idle: 'skeleton', walk: 'skeletonWalk' },
+  bonelancer: { idle: 'bonelancer', walk: 'bonelancerWalk' },
+  knight: { idle: 'knight', walk: 'knightWalk' },
+  priest: { idle: 'priest', walk: 'priestWalk' }
+};
+const eliteLooks: Record<EliteKind, { idle: 'bonebrute' | 'executioner'; walk: 'bonebruteWalk' | 'executionerWalk' }> = {
+  bonebrute: { idle: 'bonebrute', walk: 'bonebruteWalk' },
+  executioner: { idle: 'executioner', walk: 'executionerWalk' }
 };
 function enemyLook(view: GameView, enemy: Enemy, floor: number): EnemyLook {
   if (enemy.boss) {
     const art = bossArtFor(floor);
     const custom = art.idle.includes('/castle/');
     return {
-      idle: custom ? view.textures.archon : view.textures.boss,
-      walk: custom ? view.animations.archonWalk : view.animations.bossWalk,
-      walkAnchor: custom ? walkAnchors.archonWalk : walkAnchors.bossWalk,
+      idle: custom ? view.textures.warlord : view.textures.boss,
+      walk: custom ? view.animations.warlordWalk : view.animations.bossWalk,
+      walkAnchor: custom ? walkAnchors.warlordWalk : walkAnchors.bossWalk,
       restAnchor: .995, tint: art.tint, scale: art.scale, label: art.name
+    };
+  }
+  if (enemy.elite) {
+    // 전용 정예 1종 — 일반 몹 확대가 아니라 그 테마의 정예 그림을 쓴다(크기·금빛 오라는 종전 코드 그대로).
+    const art = eliteArtFor(floor);
+    const look = eliteLooks[eliteKindFor(floor)];
+    return {
+      idle: view.textures[look.idle], walk: view.animations[look.walk], walkAnchor: walkAnchors[look.walk],
+      restAnchor: .995, tint: 0xffffff, scale: 1, label: art.name
     };
   }
   const kind = mobKindFor(floor, enemy.variant ?? 0);
   const look = mobLooks[kind];
   return {
     idle: view.textures[look.idle], walk: view.animations[look.walk], walkAnchor: walkAnchors[look.walk],
-    restAnchor: .995, tint: isCastle(floor) ? mobTint[kind] : 0xcfcac5, scale: 1, label: floorEliteName(floor)
+    restAnchor: .995, tint: mobTint[kind], scale: 1, label: mobArt[kind].name
   };
 }
 

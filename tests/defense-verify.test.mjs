@@ -78,6 +78,17 @@ test('실제로 돌린 판의 요약은 통과하고, 같은 시드 리플레이
   assert.ok(summary.kills >= bounds.lower && summary.kills <= bounds.upper);
 });
 
+test('벽 구간(16웨이브 이상) 판도 서버 최소 시간을 넘긴다 — 정상 판이 TOO_FAST로 거부되지 않는다', () => {
+  // 레벨 30에 가까운 세이브 — 개편 뒤에는 20~21웨이브에서 쓰러진다(벽 구간을 지나간다).
+  const save = armed(30, 4200, 2600);
+  const { summary } = play(save, 4242);
+  assert.ok(summary.stages > 16, `벽 구간에 도달한다(${summary.stages}웨이브)`);
+  const required = requiredDefenseSeconds(save, summary.stages);
+  assert.ok(required <= summary.seconds, `최소 시간 ${required}초 ≤ 실제 ${Math.round(summary.seconds)}초`);
+  const verdict = verifyDefenseRun({ save, stage: summary.stages, seed: 4242, summary, elapsedSeconds: summary.seconds + 2 });
+  assert.equal(verdict.ok, true, JSON.stringify(verdict.diagnostics));
+});
+
 test('스테이지를 속이면(같은 요약으로 더 깊은 스테이지 주장) 거부한다', () => {
   const save = armed(1, 6, 5);
   const { summary } = play(save, 77);

@@ -19,6 +19,8 @@ import { emptySpotlightBoard, mountRaritySpotlight } from './raritySpotlightBar'
 import type { World } from '../game/world';
 import type { Session } from './login';
 import { renderStatus, tick, renderBagBadge } from './hud';
+import { ReviveNotice } from './reviveNotice';
+import { isReviveToastSuppressed } from '../game/reviveNotice';
 import { renderInventory, itemDetail, salvage, renderEquipment, salvageValue, iconPath } from './modals/equipModal';
 import { renderFloor } from './modals/floorModal';
 import { renderAccount } from './modals/accountModal';
@@ -95,6 +97,8 @@ export class Interface {
   dungeon = new DungeonLobby();
   /** 무한 방어전 로비(2026-11-24) — 던전 허브에서 '무한 방어전' 카드를 고르면 이 상태로 그린다. */
   defense = new DefenseLobby();
+  /** 부활 대기 상태 카드(2026-11-25 B안) — `tick()`이 남은 초를 그리고, 토스트 중복을 접는다. */
+  revive = new ReviveNotice();
   worldBoss = new WorldBossPreview();
   worldBossField?: () => void;
   suspendMainField?: () => () => void;
@@ -201,7 +205,14 @@ export class Interface {
 
   get canvasHost(): HTMLElement { return this.get('.battle-canvas'); }
   get(selector: string): HTMLElement { const node = this.root.querySelector<HTMLElement>(selector); if (!node) throw new Error(`UI 구성 요소 누락: ${selector}`); return node; }
-  message(text: string): void { this.toast.textContent = text.replace(/골드/g, '금화'); this.toast.classList.add('visible'); clearTimeout(this.toastTimer); this.toastTimer = window.setTimeout(() => this.toast.classList.remove('visible'), 3200); }
+  message(text: string): void {
+    // 부활 대기 카드가 떠 있는 동안은 같은 말을 토스트로 또 띄우지 않는다 — 카드가 남은 초와
+    // `부활!`을 이미 보여 준다(`쓰러졌습니다…5초 뒤 부활합니다.`, `부활했습니다.`).
+    // 쓰러진 순간의 안내는 **카드가 그려지기 전**(같은 프레임의 `heroDown`)에 오므로 `reviveTimer`도
+    // 함께 본다 — 그것이 없으면 토스트가 한 번 더 뜨고 3.2초 남는다.
+    if ((this.revive.visible || this.world.reviveTimer > 0) && isReviveToastSuppressed(text)) return;
+    this.toast.textContent = text.replace(/골드/g, '금화'); this.toast.classList.add('visible'); clearTimeout(this.toastTimer); this.toastTimer = window.setTimeout(() => this.toast.classList.remove('visible'), 3200);
+  }
   /** 내가 주머니에서 레전드를 뽑았다 — 전광판에 올린다(게스트는 내 화면에만). */
   sharePouchLegend(itemName: string): void { void sharePouchLegend(this, itemName); }
   setSaveStatus(status: string): void { this.saveStatus = status; const label = this.modal.querySelector<HTMLElement>('[data-save-status]'); if (label) label.textContent = `서버 ${status}`; }

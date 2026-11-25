@@ -15,10 +15,11 @@
 | 자리 비움(백그라운드) 정산 판정 — 60초·3분·12시간, 토스트/팝업, 정산 초 | `src/game/background.ts` (부르는 곳 `src/main.ts` `settleBackground`) |
 | 층 상한·층당 처치 목표·경험치 | `src/game/store.ts` (`MAX_FLOOR`=20·`floorKillTarget`·`addExperience`) |
 | 드롭 확률·등급·강화 | `src/game/items.ts` — 규칙은 `docs/INVENTORY_GEAR.md` |
-| HUD·층 선택·보스 도전 버튼 | `src/ui/hud.ts`·`src/ui/modals/floorModal.ts`·`src/styles/hud.css` |
+| HUD·층 선택·보스 도전 버튼·부활 대기 카드 | `src/ui/hud.ts`·`src/ui/reviveNotice.ts`·`src/styles/hud.css`·`src/ui/modals/floorModal.ts` |
 | 층별 권장 전투력·여유/적정/위험 | `src/game/floorPower.ts` (`recommendedFloorPower`·`floorPowerState`) |
 | 층별 **시간당 처치 수**·가장 빠른 층 | `src/game/offline.ts` (`killsPerHourAt`·`bestFarmFloor`·`offlineSurvivalUptime`) |
 | 부활 대기(5초·1~4층 0초) | `src/game/combat/engine.ts` (`REVIVE_SECONDS`·`reviveSeconds`) |
+| 부활 대기 표시(B안 카드)·문구·판정 | `src/game/reviveNotice.ts`(순수 규칙)·`src/ui/reviveNotice.ts`(DOM) |
 
 ## 불변 규칙
 
@@ -34,6 +35,7 @@
 - **드롭률은 전 층 고정**(작업 254 → 아이템 드롭 B안 2026-11-23): 접속 일반 0.039% · 보스 0.4%, 방치 일반 0.030% · 보스 0.4%. 등급 컷만 층에 따라 오른다(`rollItem`).
 - **방치 정산**: 최대 12시간(`elapsedSince`), 아래층에서는 보스 몫 없이 진행도만 돈다. 자동 등반이 켜져 있고 최고 층이면 목표 처치마다 보스전을 정산해 이기면 층을 올린다(작업 235). 방치도 `autoSalvageRecovered`를 지나 분해분은 가방 대신 금화·강화석이 된다(작업 254).
 - **부활 대기 5초(2026-11-24 확정)** — 쓰러지면 그 자리에서 `REVIVE_SECONDS`(5초)를 기다린 뒤 만혈로 일어난다. **입문 1~4층은 면제(0초)**. 접속(`FieldProgress.heroDown` → `CombatEngine.reviveTimer`)과 방치 정산(`offlineSurvivalUptime`·`offlineDeathsPerHour`)이 **같은 상수**를 쓴다 — "켜 놓고 보는 사람 = 방치하는 사람". 쓰러져 있는 동안은 추격·공격·피격을 멈춘다(엔진이 `player.hp > 0`을 본다). 세이브 `health`가 0으로 저장될 수 있어 `CombatEngine` 생성자가 0이면 만혈로 세운다.
+- **부활 대기 표시는 화면 중앙 카드(B안, 2026-11-25)** — 5층부터 쓰러진 5초 동안 `.revive-card`가 92px 링에 남은 초를 5→1로 보여 주고(정수·올림), 0초에 `부활!`을 `REVIVE_FLASH_SECONDS`(0.9초) 번쩍인 뒤 사라진다. 문구·판정은 `src/game/reviveNotice.ts`(`reviveNoticeState`), DOM은 `src/ui/reviveNotice.ts`가 맡고 `Interface.tick()`이 매 프레임 `ui.revive.render(this)`로 부른다. 손실 표시는 `FieldProgress.reviveLostGold`(= `defeatPenalty`가 돌려준 실제 손실, 가진 금화가 모자라면 그만큼)를 쓴다. 카드가 떠 있는 동안 같은 문장의 토스트는 접는다(`isReviveToastSuppressed` — 보스 안내는 남긴다). **입문 1~4층은 카드 없음**(현행 유지)이며, 쓰러진 동안 전투 캔버스는 `saturate(.28) brightness(.62)`로 탈색되고 HP 바는 붉은 테두리가 된다.
 - **방치 생존 가동률(2026-11-24)** — `offlineKillsPerMinute = 60 × min(처치 능력, 젠) × 0.7 × 가동률`이고 `가동률 = 버티는 초 ÷ (버티는 초 + 부활 대기)`다. 받는 피해는 `enemyHitDamage × 군집 ÷ 0.85 × (1−회피)`, 회복은 `피흡(초당 최대 체력 2.5% 상한) + 체력회복(%/5초) + 1~4층 자연회복 1%/초`다. 회복이 피해를 넘으면 `Infinity`(죽지 않음)라 처치 수가 깎이지 않는다. 사냥 중 쓰러진 횟수는 `reward.fieldDeaths`로 남기고 접속과 같은 10골드를 문다(`defeatPenalty`). 보스전(`offlineBossBattle`)도 회피·피흡·회복을 넣어 "버티는 초"를 계산한다(승패 판정은 36케이스에서 불변).
 - **스킬 위력 단일 표** — `src/game/skills.ts` `SKILL_HIT_POWER`가 엔진 `action()`·방치 DPS·스킬 추천 순위(`skillCastScale`)의 공통 출처다. 하드코딩 사본을 다시 만들지 않는다(11/23 개편에서 방치만 파워 스트라이크 ×4로 남았던 회귀를 막는 테스트가 있다).
 - **층 보상 배율(`안 A`, 2026-11-24)** — `killReward`가 마리당 금화·경험치에 `depthRewardScale`(15층 기준 1, 20층 2.21 = 몹 HP 비율)을 곱한다. 처치 수는 15~16층에서 정점인데 보상이 그대로면 깊은 층이 손해라, **전투·몹 HP 곡선은 그대로 두고 보상식만** 고쳤다. 던전 정산(`killGold`, `unscaled`)과 보스 금화(70×층)는 대상이 아니다. 서버 상한(`server/save-guard.mjs`)의 2배 여유 안에 들어온다.
