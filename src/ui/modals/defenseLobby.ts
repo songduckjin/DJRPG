@@ -46,7 +46,7 @@ export function renderDungeonHub(ui: Interface, dialog: HTMLElement): void {
         <i>입장</i>
       </button>
     </div>
-    <p class="defense-hub-note">무한 방어전은 웨이브 하나가 진행 단위입니다 — 5웨이브마다 보스, 3의 배수 웨이브에 정예. 처치 보상은 필드와 같습니다.</p>
+    <p class="defense-hub-note">무한 방어전은 웨이브 하나가 진행 단위입니다 — 5웨이브마다 보스, 3의 배수 웨이브에 정예. 15웨이브부터 적이 가팔라지고 30웨이브가 사실상의 막입니다.</p>
   </div></section>`;
   bindModalClose(dialog.querySelector<HTMLButtonElement>('.dungeon-close')!, () => ui.open(null));
   dialog.querySelectorAll<HTMLButtonElement>('[data-dungeon-mode]').forEach(button => button.onclick = () => {
@@ -77,9 +77,9 @@ export function renderDefenseLobby(ui: Interface, dialog: HTMLElement): void {
     const wave = state.nextStage, spec = state.nextWaveSpec;
     const boss = defenseBossStage(wave), elite = defenseEliteWave(wave);
     const kind = boss ? `보스 1 + 호위 ${defenseStageEnemyCount(wave) - 1}` : elite ? '마지막 1마리 정예' : '근접·돌진·사수 혼성';
-    content.innerHTML = `<h3>전투 구성</h3><div class="dungeon-waves"><div><small>WAVE ${wave}</small><strong>${boss ? '보스 웨이브' : elite ? '정예 웨이브' : '일반 웨이브'}</strong><span>${spec.mobs}마리 · ${kind}</span></div><i aria-hidden="true">›</i><div><small>적 추격</small><strong>${spec.speed}u/s</strong><span>사수형 25% · 돌진형 20%</span></div><i aria-hidden="true">›</i><div><small>보상</small><strong>${spec.rewardFloor}층 기준</strong><span>1.5웨이브마다 +1 · 20층 포화</span></div></div>
+    content.innerHTML = `<h3>전투 구성</h3><div class="dungeon-waves"><div><small>WAVE ${wave}</small><strong>${boss ? '보스 웨이브' : elite ? '정예 웨이브' : '일반 웨이브'}</strong><span>${spec.mobs}마리 · ${kind}</span></div><i aria-hidden="true">›</i><div><small>적 추격</small><strong>${spec.speed}u/s</strong><span>사수형 25% · 돌진형 20%</span></div><i aria-hidden="true">›</i><div><small>보상</small><strong>${spec.rewardFloor}층 기준</strong><span>1웨이브마다 +1 · 20층 포화</span></div></div>
       <p>웨이브를 막으면 <strong>다음 웨이브</strong>로 이어지고, 막을 때마다 <strong>최대 체력 15%</strong>를 회복합니다. 적이 방어선 없이 캐릭터에게 직접 다가오고, 캐릭터는 가장 가까운 적에게 걸어가 자동으로 싸웁니다.<br><strong class="dungeon-time-note">캐릭터 체력이 0이 되면 판이 끝납니다(최대 30분).</strong></p>
-      <ul class="defense-rules"><li>이번 웨이브 적 <b>${spec.mobs}마리</b> · 5웨이브마다 보스, 3의 배수 웨이브에 정예</li><li>적 1타는 <b>필드 1타의 90%</b>, 1타는 <b>0.9초마다 한 마리</b> — 1~3웨이브는 한층 더 약하다</li><li>처치 금화·경험치와 아이템 드랍률은 <b>필드와 동일</b></li><li>랭킹 웨이브는 <b>${DEFENSE_MAX_STAGE}</b>까지 계속 오릅니다</li></ul>`;
+      <ul class="defense-rules"><li>이번 웨이브 적 <b>${spec.mobs}마리</b> · 5웨이브마다 보스, 3의 배수 웨이브에 정예</li><li>적 1타는 <b>필드 1타의 90%</b>, 1타는 <b>0.9초마다 한 마리</b> — 1~3웨이브는 한층 더 약하다</li><li>처치 금화·경험치는 <b>필드의 1.8배</b>, 아이템 드랍률은 필드와 동일 — 보스는 <b>확정 2개</b></li><li>10·20·30웨이브를 막으면 <b>보스 금화 ×2 + 확정 장비 1개</b></li><li>랭킹 웨이브는 <b>${DEFENSE_MAX_STAGE}</b>까지 계속 오릅니다</li></ul>`;
   } else {
     const refresh = (): void => {
       if (!dialog.isConnected || state.tab !== 'ranking') return;

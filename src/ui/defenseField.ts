@@ -73,7 +73,7 @@ export function openDefenseField(ui: Interface, lobby: HTMLElement): void {
   field.innerHTML = `<div class="dungeon-field-canvas"></div><div class="defense-trail" aria-hidden="true"></div>
     <header class="dungeon-field-hud"><div><small>무한 방어전 · <span data-wave-kind>일반</span></small><strong data-wave>WAVE 1</strong></div><button type="button" class="dungeon-field-leave">나가기</button></header>
     <div class="defense-stage-banner" aria-live="polite"></div>
-    <footer class="dungeon-battle-hud defense-battle-hud"><div class="dungeon-battle-record"><strong data-clock>30:00</strong><span data-remain>남은 8</span><span data-kills>처치 0</span><span data-gold>금화 0</span></div><div class="dungeon-hp"><i></i><span></span></div><div class="dungeon-auto-skills"></div><small>자동 전투 · 적이 직접 다가옵니다 · 사수형 25%·돌진형 20% · 웨이브를 막으면 체력 15% 회복 · 보상은 필드와 동일</small></footer>
+    <footer class="dungeon-battle-hud defense-battle-hud"><div class="dungeon-battle-record"><strong data-clock>30:00</strong><span data-remain>남은 8</span><span data-kills>처치 0</span><span data-gold>금화 0</span></div><div class="dungeon-hp"><i></i><span></span></div><div class="dungeon-auto-skills"></div><small>자동 전투 · 적이 직접 다가옵니다 · 사수형 25%·돌진형 20% · 웨이브를 막으면 체력 15% 회복 · 처치 보상은 필드의 1.8배</small></footer>
     <div class="dungeon-battle-result" hidden></div>`;
   ui.root.querySelector('.game-shell')!.append(field);
   const get = <T extends HTMLElement>(s: string) => field.querySelector<T>(s)!;
