@@ -140,6 +140,10 @@ test('화면 계약 — 카드 CSS·배선이 시안(390×844)과 같다', () =>
   const ui = readFileSync(new URL('../src/ui/reviveNotice.ts', import.meta.url), 'utf8');
   assert.match(ui, /role="status" aria-live="polite"/, '상태 표시로 읽힌다');
   assert.match(ui, /aria-hidden="true"/, '매초 바뀌는 숫자는 스크린리더에서 감춘다');
+  // 본문 첫 줄의 굵은 초는 `4초`처럼 숫자+초만 — 문장을 통째로 넣으면 `5초 뒤 … 5초 뒤 …`로 겹친다
+  // (2026-11-25 프리뷰 실화면에서 잡아 고쳤다).
+  assert.match(ui, /this\.descCount\.textContent !== `\$\{state\.seconds\}초`/);
+  assert.doesNotMatch(ui, /descCount\.textContent = desc\b/);
   const iface = readFileSync(new URL('../src/ui/interface.ts', import.meta.url), 'utf8');
   assert.match(iface, /isReviveToastSuppressed\(text\)/, '카드가 떠 있으면 같은 문장의 토스트를 접는다');
 });

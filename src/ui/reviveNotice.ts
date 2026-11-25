@@ -12,7 +12,7 @@
  */
 import {
   REVIVE_CARD_DOWN, REVIVE_CARD_NOTE, REVIVE_CARD_RESTART, REVIVE_CARD_REVIVED, REVIVE_FLASH_SECONDS,
-  reviveChipText, reviveCountdownText, reviveNoticeState, reviveScreenReaderText
+  reviveChipText, reviveNoticeState, reviveScreenReaderText
 } from '../game/reviveNotice';
 import type { Interface } from './interface';
 
@@ -99,8 +99,9 @@ export class ReviveNotice {
     this.lastLeft = -1;
     const seconds = String(state.seconds);
     if (this.num && this.num.textContent !== seconds) this.num.textContent = seconds;
-    const desc = reviveCountdownText(state.seconds);
-    if (this.descCount && this.descCount.textContent !== desc) this.descCount.textContent = desc;
+    // 본문 `<b>`는 `4초`처럼 **숫자+초만** — 이 자리에 문장을 통째로 넣으면
+    // "5초 뒤 만혈로 부활합니다 뒤 만혈로 부활합니다."로 겹친다(2026-11-25 프리뷰 검수에서 잡음).
+    if (this.descCount && this.descCount.textContent !== `${state.seconds}초`) this.descCount.textContent = `${state.seconds}초`;
     const chip = reviveChipText(this.lostGold, this.floor);
     if (this.chip && this.chip.textContent !== chip) this.chip.textContent = chip;
     this.setLeft(state.ratio);
