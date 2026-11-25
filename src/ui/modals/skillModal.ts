@@ -32,6 +32,8 @@ export function renderSkills(this: Interface, dialog: HTMLElement): void {
     skillDetailPanel(this, save, selection)
   );
   // 새 패널이 레이아웃에 붙기 전 scrollTop을 쓰면 브라우저가 최대 스크롤 0으로 잘라 버린다.
+  // `offsetHeight`를 읽어 레이아웃을 먼저 확정한 뒤에 위치를 되돌린다(2026-11-25 스크롤 개선 D).
+  void tree.offsetHeight;
   tree.scrollTop = this.skillScroll;
   // 창틀(`modalChrome`)이 만든 머리글에 버튼을 끼운다 — 제목과 `×` 사이, 시안대로 오른쪽에 붙는다.
   const header = dialog.querySelector<HTMLElement>('header');
@@ -68,6 +70,7 @@ function equipRecommendedSkills(ui: Interface): void {
     return;
   }
   const result = autoEquipRecommendedSkills(ui.world.save);
-  if (result.changed) ui.world.onChange();
+  // 사냥 중에는 이 창을 다시 그리지 않는다(`quietWhileHunting`) — 내가 누른 조작은 여기서 직접 반영한다.
+  if (result.changed) { ui.world.onChange(); ui.renderModal(); }
   ui.message(result.message);
 }
