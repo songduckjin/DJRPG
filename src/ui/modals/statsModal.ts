@@ -11,7 +11,6 @@
 import { cooldowns } from '../../game/world';
 import { statSheet, type StatSheetRow } from '../../game/statSheet';
 import { jobNames, jobOrDefault } from '../../game/skills';
-import { MAX_LEVEL } from '../../game/store';
 import type { Interface } from '../interface';
 
 export function renderStats(this: Interface, dialog: HTMLElement): void {
@@ -26,7 +25,7 @@ export function renderStats(this: Interface, dialog: HTMLElement): void {
   const job = document.createElement('span'); job.textContent = jobNames[jobOrDefault(save.job)];
   who.append(job, name);
   const meta = document.createElement('div'); meta.className = 'stats-meta';
-  meta.textContent = `LV ${save.level >= MAX_LEVEL ? `${MAX_LEVEL} MAX` : save.level} · ${save.floor}층 · HP ${sheet.currentHp.toLocaleString('ko-KR')}/${sheet.maxHp.toLocaleString('ko-KR')}`;
+  meta.textContent = `LV ${save.level} · ${save.floor}층 · HP ${sheet.currentHp.toLocaleString('ko-KR')}/${sheet.maxHp.toLocaleString('ko-KR')}`;
   head.append(who, meta);
 
   const power = document.createElement('div'); power.className = 'stats-power';
