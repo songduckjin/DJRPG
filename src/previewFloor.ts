@@ -60,14 +60,16 @@ if (links) {
 }
 
 let previous = performance.now(), time = 0, placed = false;
+// 보스·정예 검수는 1.2초만 진행한 뒤 화면을 멈춘다 — 히어로가 몰려가 대상을 가리지 않게.
+const freeze = wantBoss || wantElite;
 view.app.ticker.add(() => {
   const now = performance.now(), dt = Math.min(.05, (now - previous) / 1000);
   previous = now; time += dt;
-  world.update(dt);
+  if (!freeze || time < 1.2) world.update(dt);
   // 검수용: 보스·정예는 필드 끝에서 뜨므로 화면 안(히어로 옆)으로 한 번 옮긴다.
   if ((wantBoss || wantElite) && !placed) {
     const target = wantBoss ? world.enemies.find(enemy => enemy.boss) : world.enemies.find(enemy => enemy.elite);
-    if (target) { target.x = -74; target.y = -46; world.player.x = 118; world.player.y = 116; placed = true; }
+    if (target) { target.x = -150; target.y = -64; placed = true; }
   }
   view.draw(world, time);
 });
