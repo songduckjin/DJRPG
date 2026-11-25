@@ -216,3 +216,39 @@
 /* 내 정보(장비창) — 스탯 아래 한 줄. 숫자가 30% 높은 이유를 알려 준다. */
 .equipment-info-buff { margin-top: 4px; padding: 3px 8px; border: 1px solid #8d6a4288; border-radius: 6px; background: #2a1d1666; color: #ffdca6; font-size: 10px; font-weight: 700; text-align: center; }
 .equipment-info-buff span { color: #c9a97e; font-weight: 600; }
+
+/* ── 부활 대기 상태 카드(B안, 2026-11-25) ────────────────────────────────────────────────
+   5층부터 쓰러지면 5초를 기다린다(입문 1~4층 0초 면제). 그 5초 동안 화면 중앙에 남은 초를 보여 주는
+   카드다 — 종전에는 안내가 3.2초짜리 토스트 한 줄뿐이라 마지막 1.8초는 아무 표시가 없었다.
+   값은 시안 `downloads/djrpg_disconnect_revive_ui/02_revive_b_card.png`(390×844)를 그대로 옮기고
+   HUD 길이 토큰 `--u`만 곱했다. z-index 4 — 오른쪽 레일(3) 위, 모달 스크림(5)·토스트(20) 아래다.
+   손가락은 통과시킨다(`pointer-events: none`): 자동 사냥 화면을 가리지 않는 상태 표시다. */
+.revive-card { position: absolute; z-index: 4; left: 50%; top: 44%; transform: translate(-50%, -50%); width: calc(272 * var(--u)); padding: calc(18 * var(--u)) calc(16 * var(--u)) calc(15 * var(--u)); border: 1px solid #a4824e; border-radius: calc(5 * var(--u)); background: linear-gradient(180deg, #241b1af7, #140e0efa); box-shadow: 0 calc(18 * var(--u)) calc(48 * var(--u)) #000000d9, inset 0 1px 0 #ffffff12; text-align: center; pointer-events: none; }
+.revive-card .rvc-ring { position: relative; width: calc(92 * var(--u)); height: calc(92 * var(--u)); margin: 0 auto calc(8 * var(--u)); }
+.revive-card .rvc-ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+.revive-card .rvc-track { fill: none; stroke: #3a2620; stroke-width: 6; }
+.revive-card .rvc-arc { fill: none; stroke: #e0a468; stroke-width: 6; stroke-linecap: round; filter: drop-shadow(0 0 6px #d79a3a55); }
+.revive-card .rvc-count { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: calc(2 * var(--u)); font-family: Cinzel, serif; font-size: calc(38 * var(--u)); line-height: 1; color: #ffd79a; text-shadow: 0 2px 10px #d79a3a66; }
+.revive-card .rvc-unit { font-family: 'Noto Sans KR', sans-serif; font-size: calc(10 * var(--u)); font-weight: 400; color: #c0a480; align-self: flex-end; margin-bottom: calc(26 * var(--u)); }
+.revive-card .rvc-title { font-size: calc(16 * var(--u)); font-weight: 700; color: #f4d7a2; letter-spacing: .3px; }
+.revive-card .rvc-chip { display: inline-flex; align-items: center; gap: calc(4 * var(--u)); margin: calc(6 * var(--u)) 0 calc(8 * var(--u)); padding: calc(2 * var(--u)) calc(9 * var(--u)); border: 1px solid #6f4a35; border-radius: 999px; background: #331f1a; color: #e0a68c; font-size: calc(10.5 * var(--u)); }
+.revive-card .rvc-desc { margin: 0; font-size: calc(11.5 * var(--u)); line-height: 1.6; color: #bbaa8f; }
+.revive-card .rvc-desc b { color: #f0d29b; }
+.revive-card .rvc-bar { position: relative; height: calc(4 * var(--u)); margin: calc(11 * var(--u)) 0 0; background: #3a2620; overflow: hidden; border-radius: calc(2 * var(--u)); }
+.revive-card .rvc-fill { position: absolute; inset: 0 auto 0 0; width: 100%; background: linear-gradient(90deg, #7d4a3a, #e0a468); }
+.revive-card .rvc-note { margin: calc(7 * var(--u)) 0 0; font-size: calc(10 * var(--u)); color: #95806b; }
+.revive-card .rvc-sr { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; border: 0; }
+/* 0초 — 링 가운데가 `부활!`로 바뀌며 카드가 한 번 번쩍이고 사라진다(0.9초). */
+.revive-card.is-revived { animation: revive-card-flash .9s ease-out; }
+.revive-card.is-revived .rvc-count { font-size: calc(22 * var(--u)); color: #fff1c9; text-shadow: 0 0 16px #ffcf7a; }
+.revive-card.is-revived .rvc-unit { display: none; }
+.revive-card.is-revived .rvc-title, .revive-card.is-revived .rvc-chip, .revive-card.is-revived .rvc-desc, .revive-card.is-revived .rvc-note { opacity: .4; }
+@keyframes revive-card-flash { 0% { box-shadow: 0 calc(18 * var(--u)) calc(48 * var(--u)) #000000d9, inset 0 1px 0 #ffffff12, 0 0 0 #ffd79a00; } 30% { box-shadow: 0 calc(18 * var(--u)) calc(48 * var(--u)) #000000d9, inset 0 1px 0 #ffffff12, 0 0 calc(34 * var(--u)) #ffd79ab3; } 100% { box-shadow: 0 calc(18 * var(--u)) calc(48 * var(--u)) #000000d9, inset 0 1px 0 #ffffff12, 0 0 0 #ffd79a00; } }
+/* 쓰러져 있는 동안 전투 화면은 살짝 탈색·어둡게(시안과 같은 톤), HP 바는 붉은 테두리로 0을 한 번 더 알린다. */
+.battle.is-revive-down .battle-canvas { filter: saturate(.28) brightness(.62); transition: filter .18s linear; }
+.health-bar.hp.is-down { box-shadow: 0 0 0 1px #a3453a, 0 0 12px #a3453a55; }
+.health-bar.hp.is-down b { color: #ffd0bd; }
+@media (prefers-reduced-motion: reduce) {
+  .revive-card.is-revived { animation: none; }
+  .battle.is-revive-down .battle-canvas { transition: none; }
+}
