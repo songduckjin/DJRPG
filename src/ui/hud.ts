@@ -110,6 +110,10 @@ export function tick(this: Interface): void {
     this.get('.hp b').textContent = `HP ${Math.ceil(player.hp)}/${totalStats(save).health}`;
     this.get('.hp').setAttribute('aria-valuenow', String(Math.ceil(player.hp)));
     this.get('.hp').setAttribute('aria-valuemax', String(totalStats(save).health));
+    // 부활 대기 카드(B안, 2026-11-25) — 5층부터 쓰러진 5초 동안 중앙 카드가 남은 초를 5→1로 줄이고,
+    // 0초에 `부활!`을 0.9초 번쩍인 뒤 사라진다(입문 1~4층은 대기 자체가 0초라 뜨지 않는다).
+    // 테스트는 `tick`만 돌리려고 최소 스텁 UI를 넘긴다 — 카드가 없으면 조용히 지나간다.
+    this.revive?.render(this);
   }
 
 /**
