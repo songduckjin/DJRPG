@@ -19,6 +19,19 @@
 - **검증**: `npx tsc --noEmit` 통과, `npx vite build` 통과(`index-B1xwa0fH.js` 914.04kB). 방어전 테스트 4파일 **25/25**. v2 시뮬레이션(구현된 엔진, 5시드, `downloads/djrpg_defense_dungeon/sim_v2/run-impl.mjs`): Lv.20 전투력 ~2,000 **전사 33~34·궁수 35·마법사 30~32**(30웨이브 8.4~8.7분), Lv.1 3~4·Lv.10 12~15·Lv.30 표준 48~63·고스펙 73~99(30분 상한 미도달), 최대 동시 몹 12(상한 24). 서버 하한 `defenseSpawnFloorSeconds(30)`=377초(×0.75=283초 < 실제 521초), 1~30웨이브 누적 383마리. 전체 `node --test tests/*.test.mjs` **1,636건 중 1,483 통과·153 실패** — 실패는 전부 이 sparse 체크아웃에 `public/assets/**`가 없어 나는 ENOENT(기준선과 같은 이름), **신규 실패 0**. `combat-field-split`의 클로저 상한은 `defenseTuning.ts`(+1파일/+약 250줄) 때문에 25파일/5,250줄로 근거와 함께 올렸다.
 - **남긴 것**: 운영 반영(점검 ON→배포→OFF)은 대장님·송덕진 님 결정 사항이라 하지 않았다. 30웨이브 소요가 v1 9.2~9.7분에서 8.4~8.7분으로 1분가량 짧아진 것은 제안서 §7-3에서 수용한 항목이다.
 
+## 2026-11-25 · fks3997 작업 미배정 — 1~40층 비주얼·몬스터 풀 로스터 개편 (Draft PR)
+
+- **기준·브랜치**: 최신 `origin/main`에서 `feat/stage-1-40-roster-redesign` — **[PR #378](https://github.com/songduckjin/DJRPG/pull/378)**, **머지·배포 보류**, Draft PR로만 올린다.
+- **확정 로스터**(2026-11-25 사용자 확정: "처형자를 정예몹으로 크기키워서쓰자 사제랑 기사가 랜덤으로 뜨게하고 보스는 너무화려한느낌이야", "앞테마도 몹2종류 정예몹1마리다시구성하자"):
+  - 1~20층 잿빛 황무지 — 배경 현행 유지, 일반 2종 랜덤(해골 병사 + 신규 뼈 창병), 전용 정예 1종(신규 뼈 거한), 보스 현행 해골 군주 유지.
+  - 21~40층 핏빛 성채 — 월드보스 투기장(`obsidian-arena-v1`) 재활용을 걷어내고 신규 배경 B안(`hall-b-bright-v1.png`, 964×1632 — 1~20층 배경과 같은 규격)을 쓴다. 일반 2종 랜덤(흑요석 기사 + 신규 핏빛 교단 사제), 전용 정예 1종(신규 성채 처형자), 보스는 **21~40층 전체** 신규 「성채 패왕」 B안 하나(층별 수문장·그림자 틴트/배율과 아르케온 시트는 정리).
+- **테마 표(`src/game/floorTheme.ts`)**: `MobKind`를 `skeleton·bonelancer·knight·priest`로, `EliteKind`(`bonebrute·executioner`)와 `eliteArt`·`eliteKindFor`·`eliteArtFor`를 새로 두었다. `mobRoster(floor)`는 층별 표 대신 테마 2종(`wastelandRoster`·`castleRoster`)을 돌려주고, `mobKindFor`는 종전대로 스폰에 이미 뽑힌 `enemy.variant` 난수로 고른다(새 난수 0). `bossArtFor`는 21층부터 전부 성채 패왕, 1~20층은 기존 보스 시트·이름 그대로. 정예 이름은 구역별 이름(성문 파수꾼 등)에서 **테마 전용 정예 이름**으로 바뀌었다. `realmName`도 「핏빛 성채」로 맞췄다.
+- **화면(`src/game/render/entities.ts`·`render.ts`)**: 정예가 일반 몹 확대가 아니라 전용 시트(`eliteLooks`)를 쓰고, 크기 1.22배·금빛 오라·금빛 이름표는 종전 코드 그대로다. 일반 몹 틴트는 `mobTint[kind]` 한 곳(기존 해골만 뼈색, 새 그림은 원색). 부팅 프리로드 목록에 신규 12장과 배경 1장을 넣고, 대체된 `wretch_*`·`archon_*` 4장을 지웠다.
+- **신규 에셋 13장**(`public/assets/castle/`): 서기 5(136×192 — 성채 패왕만 214×240) + 걷기 5(708×354, 4×2 그리드·셀 177²·투명 알파) + 배경 1(964×1632 PNG). 마젠타 배경 합성 시트를 알파 제거·디스필·1px 침식 후 연결 성분으로 8프레임을 잘라(이웃 칸 무기 조각이 섞이지 않게) 기존 해골/보스 시트의 인물 높이·발밑선에 맞춰 재합성했다(`art/process_roster.py`, `art/process_idle.py`). 서기는 걷기와 별도로 **무기를 세운 전용 서기 자세**를 뽑아 인물 높이를 기존 해골(192px 캔버스 기준 186px)에 맞췄다 — 서기와 걷기가 오갈 때 몸집이 줄지 않는다.
+- **검증**: `tsc --noEmit` 통과, `npm run build`(generate-version → tsc → verify-item-art → vite build) 통과, `tests/floor-expansion.test.mjs` 9/9, 전체 `tests/*.test.mjs` 192파일 1,656건 중 1,653 통과 — 실패 3건은 `origin/main` 기준선과 같은 이름(`common-codes`·`blood-rage-aura`·`hawk-eye-wind`, 마법사 스킬 릴리스 뒤 남은 기존 실패)으로 **신규 실패 0**.
+- **프리뷰 실화면**: PR 프리뷰 `https://feat-stage-1-40-roster-redes.djrpg.pages.dev`. 필드·보스는 로그인 세이브를 21~40층으로 올릴 수 없어(서버 검증), 같은 게임 코드·에셋으로 그 층을 그리는 검수 전용 하네스(브랜치 `preview/roster-harness`, `preview-floor.html` — 머지 대상 아님)로 촬영했다. 파일: `downloads/djrpg_roster_{10_wasteland_field,10_elite_bonebrute,20_boss_skeleton_lord,21_castle_field,36_castle_throne,30_elite_executioner,21_boss_warlord,40_boss_warlord}.png`.
+- **남긴 것**: 운영 배포·머지 없음(사용자 지시).
+
 ## 2026-11-24 · songduckjin 작업 280 — 전사 넉백 경계: 맞은 몹이 아레나 밖으로 밀려나지 않게
 
 - **기준·브랜치**: 최신 `origin/main` `8ccb58d`에서 `fix/warrior-knockback-arena-bounds` — **[PR #354](https://github.com/songduckjin/DJRPG/pull/354)**. **머지·배포 보류**(사용자 지시: 모아서 배포).

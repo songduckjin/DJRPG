@@ -85,58 +85,55 @@ test('테마 — 21층부터 성 안, 5층씩 네 구역, 배경은 1장', () =>
       assert.ok(zone.fires.length >= 2, `${name}: 불빛 좌표`);
     }
   }
-  // 모든 구역이 같은 배경 파일을 쓴다(신규 배경 0장).
-  assert.equal(theme.castleScene.path, '/assets/world-boss/obsidian-arena-v1.png');
-  assert.equal(theme.castleScene.width, 941);
-  assert.equal(theme.castleScene.height, 1672);
+  // 모든 구역이 같은 배경 파일을 쓴다(테마당 배경 1장).
+  assert.equal(theme.castleScene.path, '/assets/castle/hall-b-bright-v1.png');
+  assert.equal(theme.castleScene.width, 964, '1~20층 배경과 같은 규격');
+  assert.equal(theme.castleScene.height, 1632);
   // 구역마다 조명·안개·불씨 색이 실제로 다르다.
   const colors = new Set(theme.castleZones.map(zone => `${zone.sky}:${zone.fog}:${zone.ember}:${zone.dark}`));
   assert.equal(colors.size, 4, '네 구역의 조명 조합이 서로 다르다');
 });
 
-test('몹 — 층마다 2종이 섞이고, 21~40층에 기존 해골 1종 + 신규 2종이 모두 등장한다', () => {
-  assert.deepEqual(theme.mobRoster(1), ['wallguard'], '1~20층은 해골 병사 하나');
-  assert.deepEqual(theme.mobRoster(20), ['wallguard']);
-  const kinds = new Set();
-  for (let floor = 21; floor <= 40; floor++) {
-    const roster = theme.mobRoster(floor);
-    assert.ok(roster.length >= 2 && roster.length <= 3, `${floor}층: 2~3종 혼성`);
-    roster.forEach(kind => kinds.add(kind));
-  }
-  assert.deepEqual([...kinds].sort(), ['knight', 'wallguard', 'wretch'], '녹슨 성벽병·사슬 망자·흑요석 기사');
+test('몹 — 테마마다 일반 2종 랜덤 + 전용 정예 1종', () => {
+  assert.deepEqual(theme.mobRoster(1), ['skeleton', 'bonelancer'], '1~20층은 해골 병사 + 뼈 창병');
+  assert.deepEqual(theme.mobRoster(20), ['skeleton', 'bonelancer']);
+  assert.deepEqual(theme.mobRoster(21), ['knight', 'priest'], '21~40층은 흑요석 기사 + 핏빛 교단 사제');
+  assert.deepEqual(theme.mobRoster(40), ['knight', 'priest']);
+  assert.equal(theme.mobArt.skeleton.name, '해골 병사');
+  assert.equal(theme.mobArt.bonelancer.name, '뼈 창병');
   assert.equal(theme.mobArt.knight.name, '흑요석 기사');
-  assert.equal(theme.mobArt.wretch.name, '사슬 망자');
-  assert.equal(theme.mobArt.wallguard.name, '녹슨 성벽병');
-  // 스폰 난수(0~1)로만 계보를 고르고, 같은 값이면 같은 계보다(새 난수를 쓰지 않는다).
+  assert.equal(theme.mobArt.priest.name, '핏빛 교단 사제');
+  // 스폰 난수(0~1)로만 계보를 고르고, 두 종이 실제로 반반 나온다(새 난수를 쓰지 않는다).
   for (const seed of [0, .25, .5, .75, .999]) assert.equal(theme.mobKindFor(24, seed), theme.mobKindFor(24, seed));
   assert.equal(theme.mobKindFor(24, 0), theme.mobRoster(24)[0]);
-  // 정예 이름은 구역마다, 황무지는 종전 그대로.
-  assert.equal(theme.eliteName(23), '성문 파수꾼');
-  assert.equal(theme.eliteName(28), '사슬 인도자');
-  assert.equal(theme.eliteName(38), '왕좌의 근위');
-  assert.equal(theme.eliteName(10), '정예 해골');
+  assert.equal(theme.mobKindFor(24, .75), theme.mobRoster(24)[1]);
+  for (const floor of [1, 10, 20, 21, 30, 40]) {
+    const seeds = [.05, .25, .45];
+    assert.deepEqual(seeds.map(seed => theme.mobKindFor(floor, seed)), [theme.mobRoster(floor)[0], theme.mobRoster(floor)[0], theme.mobRoster(floor)[0]]);
+    assert.equal(theme.mobKindFor(floor, .55), theme.mobRoster(floor)[1], `${floor}층 두 번째 종`);
+  }
+  // 전용 정예 — 테마마다 1종, 일반 로스터에 없는 그림을 쓴다.
+  assert.equal(theme.eliteKindFor(10), 'bonebrute');
+  assert.equal(theme.eliteKindFor(23), 'executioner');
+  assert.equal(theme.eliteName(1), '뼈 거한');
+  assert.equal(theme.eliteName(20), '뼈 거한');
+  assert.equal(theme.eliteName(21), '성채 처형자');
+  assert.equal(theme.eliteName(40), '성채 처형자');
+  assert.equal(theme.eliteArtFor(5).idle, '/assets/castle/bonebrute_idle_v1.png');
+  assert.equal(theme.eliteArtFor(35).walk, '/assets/castle/walk8_executioner_v1.png');
 });
 
-test('보스 — 21~29 수문장, 30~39 군주의 그림자(배율), 40 아르케온', () => {
-  for (let floor = 21; floor <= 29; floor++) {
+test('보스 — 1~20층 해골 군주, 21~40층 전체 「성채 패왕」 한 종', () => {
+  for (let floor = 21; floor <= 40; floor++) {
     const boss = theme.bossArtFor(floor);
-    assert.equal(boss.name, '성채의 수문장');
-    assert.equal(boss.idle, '/assets/skeleton_boss.png', '기존 시트 재사용(신규 0장)');
-    assert.equal(boss.tint, 0x8ea4b8);
-    assert.equal(boss.scale, 1);
+    assert.equal(boss.name, '성채 패왕', `${floor}층 보스는 성채 패왕`);
+    assert.equal(boss.idle, '/assets/castle/warlord_idle_v1.png');
+    assert.equal(boss.walk, '/assets/castle/walk8_warlord_v1.png');
+    assert.equal(boss.tint, 0xffffff, '층별 틴트 변형 없음');
+    assert.equal(boss.scale, 1, '층별 배율 변형 없음');
   }
-  for (let floor = 30; floor <= 39; floor++) {
-    const boss = theme.bossArtFor(floor);
-    assert.equal(boss.name, '군주의 그림자');
-    assert.equal(boss.idle, '/assets/skeleton_boss.png');
-    assert.ok(boss.scale > 1.1 && boss.scale <= 1.2, `${floor}층 배율 ${boss.scale}`);
-  }
-  assert.ok(theme.bossArtFor(39).scale >= theme.bossArtFor(30).scale, '층이 깊을수록 조금 더 크다');
-  const archon = theme.bossArtFor(40);
-  assert.equal(archon.name, '해골 군주 아르케온');
-  assert.equal(archon.idle, '/assets/castle/archon_idle_v1.png');
-  assert.equal(archon.walk, '/assets/castle/walk8_archon_v1.png');
   assert.equal(theme.bossArtFor(20).name, '해골 군주', '1~20층 보스 이름은 그대로');
+  assert.equal(theme.bossArtFor(1).idle, '/assets/skeleton_boss.png', '1~20층은 기존 보스 시트');
 });
 
 test('신규 에셋 규격 — 투명 알파, 기존 해골·보스 시트와 같은 크기 계열', async () => {
@@ -146,7 +143,10 @@ test('신규 에셋 규격 — 투명 알파, 기존 해골·보스 시트와 �
   const bossWalk = await pngInfo('public/assets/walk8_boss.png');
   const specs = [
     ['knight', theme.mobArt.knight, wallIdle, wallWalk],
-    ['wretch', theme.mobArt.wretch, wallIdle, wallWalk]
+    ['priest', theme.mobArt.priest, wallIdle, wallWalk],
+    ['bonelancer', theme.mobArt.bonelancer, wallIdle, wallWalk],
+    ['bonebrute', theme.eliteArt.bonebrute, wallIdle, wallWalk],
+    ['executioner', theme.eliteArt.executioner, wallIdle, wallWalk]
   ];
   for (const [name, art, idle, walk] of specs) {
     const idleInfo = await pngInfo(art.idle.replace('/assets/', 'public/assets/'));
@@ -157,19 +157,24 @@ test('신규 에셋 규격 — 투명 알파, 기존 해골·보스 시트와 �
     assert.equal(walkInfo.width, walk.width, `${name} 걷기 시트 폭(4칸×2줄)`);
     assert.equal(walkInfo.height, walk.height, `${name} 걷기 시트 높이`);
     assert.ok(walkInfo.alpha, `${name} 걷기 알파`);
-    assert.ok(walkInfo.byteLength > 20_000, `${name} 걷기 시트가 8프레임을 담는다`);
+    assert.ok(walkInfo.byteLength > 100_000, `${name} 걷기 시트가 8프레임을 담는다`);
   }
-  const archonIdle = await pngInfo('public/assets/castle/archon_idle_v1.png');
-  const archonWalk = await pngInfo('public/assets/castle/walk8_archon_v1.png');
-  assert.equal(archonIdle.width, bossIdle.width);
-  assert.equal(archonIdle.height, bossIdle.height);
-  assert.ok(archonIdle.alpha);
-  assert.equal(archonWalk.width, bossWalk.width);
-  assert.equal(archonWalk.height, bossWalk.height);
-  assert.ok(archonWalk.alpha);
-  // 배경 1장도 실제 파일이다.
-  const scene = await stat(join(root, 'public/assets/world-boss/obsidian-arena-v1.png'));
-  assert.ok(scene.size > 100_000);
+  // 성채 패왕 — 보스 규격(214×240 서기 / 708×354 걷기).
+  const warlord = theme.bossArtFor(21);
+  const warlordIdle = await pngInfo(warlord.idle.replace('/assets/', 'public/assets/'));
+  const warlordWalk = await pngInfo(warlord.walk.replace('/assets/', 'public/assets/'));
+  assert.equal(warlordIdle.width, bossIdle.width);
+  assert.equal(warlordIdle.height, bossIdle.height);
+  assert.ok(warlordIdle.alpha);
+  assert.equal(warlordWalk.width, bossWalk.width);
+  assert.equal(warlordWalk.height, bossWalk.height);
+  assert.ok(warlordWalk.alpha);
+  // 배경 1장도 실제 파일이고 1~20층 배경과 같은 규격(964×1632)이다.
+  const scene = await pngInfo('public/assets/castle/hall-b-bright-v1.png');
+  const wasteland = await pngInfo('public/assets/wasteland-scene.png');
+  assert.equal(scene.width, wasteland.width);
+  assert.equal(scene.height, wasteland.height);
+  assert.ok(scene.byteLength > 100_000);
 });
 
 test('화면 배선 — 적 이름·틴트·시트가 테마 표를 읽는다', async () => {
@@ -183,11 +188,15 @@ test('화면 배선 — 적 이름·틴트·시트가 테마 표를 읽는다', 
   assert.match(field, /zoneOf\(world\.save\.floor\)/, '구역 조명이 층을 읽는다');
   assert.match(field, /placeFieldScene\(this, world\.player, world\.save\.floor\)/);
   const render = await readFile(join(root, 'src/game/render.ts'), 'utf8');
-  for (const path of ['/assets/castle/knight_idle_v1.png', '/assets/castle/walk8_knight_v1.png', '/assets/castle/wretch_idle_v1.png',
-    '/assets/castle/walk8_wretch_v1.png', '/assets/castle/archon_idle_v1.png', '/assets/castle/walk8_archon_v1.png',
-    '/assets/world-boss/obsidian-arena-v1.png']) {
+  for (const path of ['/assets/castle/knight_idle_v1.png', '/assets/castle/walk8_knight_v1.png', '/assets/castle/priest_idle_v1.png',
+    '/assets/castle/walk8_priest_v1.png', '/assets/castle/bonelancer_idle_v1.png', '/assets/castle/walk8_bonelancer_v1.png',
+    '/assets/castle/bonebrute_idle_v1.png', '/assets/castle/walk8_bonebrute_v1.png', '/assets/castle/executioner_idle_v1.png',
+    '/assets/castle/walk8_executioner_v1.png', '/assets/castle/warlord_idle_v1.png', '/assets/castle/walk8_warlord_v1.png',
+    '/assets/castle/hall-b-bright-v1.png']) {
     assert.match(render, new RegExp(path.replace(/[/.]/g, '\\$&')), `부팅 프리로드 목록에 ${path}`);
   }
+  assert.match(entities, /eliteArtFor\(floor\)/, '정예가 전용 그림을 읽는다');
+  assert.match(entities, /mobTint\[kind\]/, '일반 몹 틴트가 테마 표를 읽는다');
   const wasteland = await readFile(join(root, 'src/game/wasteland.ts'), 'utf8');
   assert.match(wasteland, /castleLayoutFor/);
   assert.match(wasteland, /zone\.fires\.map/, '구역 불빛 좌표만 교체');
@@ -207,13 +216,13 @@ test('월드 — 40층 보스 처치가 40층에 머물고 안내 문구가 40�
     assert.equal(save.floor, 40);
     assert.equal(save.maxFloor, 40);
     assert.ok(messages.some(text => text.includes('최고 40층')), messages.join(' / '));
-    // 21층 보스는 '성채의 수문장', 40층 보스는 '해골 군주 아르케온'으로 불린다.
+    // 21층 보스는 '성채 패왕'으로 불린다.
     const mid = freshSave(); mid.tutorial = 1; mid.autoClimb = true; mid.floor = 21; mid.maxFloor = 21;
     mid.floorKills = killsToBoss(21) - 1;
     const midWorld = new World(mid);
     const midMessages = []; midWorld.onMessage = text => midMessages.push(text);
     midWorld.kill({ ...midWorld.enemies[0], boss: false, hp: 0 });
     assert.equal(midWorld.bossPending, true, '목표를 채우면 다음 스폰에서 보스가 온다');
-    assert.ok(midMessages.some(text => text.includes('성채의 수문장')), midMessages.join(' / '));
+    assert.ok(midMessages.some(text => text.includes('성채 패왕')), midMessages.join(' / '));
   } finally { Math.random = originalRandom; }
 });
