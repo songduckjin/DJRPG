@@ -234,6 +234,10 @@
 .revive-card .rvc-chip { display: inline-flex; align-items: center; gap: calc(4 * var(--u)); margin: calc(6 * var(--u)) 0 calc(8 * var(--u)); padding: calc(2 * var(--u)) calc(9 * var(--u)); border: 1px solid #6f4a35; border-radius: 999px; background: #331f1a; color: #e0a68c; font-size: calc(10.5 * var(--u)); }
 .revive-card .rvc-desc { margin: 0; font-size: calc(11.5 * var(--u)); line-height: 1.6; color: #bbaa8f; }
 .revive-card .rvc-desc b { color: #f0d29b; }
+/* 0초 플래시에서는 대기 문장 대신 부활한 사실을 — 링이 `부활!`인데 본문이 "1초 뒤 …"면 말이 엇갈린다. */
+.revive-card .rvc-desc-revived { display: none; }
+.revive-card.is-revived .rvc-desc-wait { display: none; }
+.revive-card.is-revived .rvc-desc-revived { display: inline; }
 .revive-card .rvc-bar { position: relative; height: calc(4 * var(--u)); margin: calc(11 * var(--u)) 0 0; background: #3a2620; overflow: hidden; border-radius: calc(2 * var(--u)); }
 .revive-card .rvc-fill { position: absolute; inset: 0 auto 0 0; width: 100%; background: linear-gradient(90deg, #7d4a3a, #e0a468); }
 .revive-card .rvc-note { margin: calc(7 * var(--u)) 0 0; font-size: calc(10 * var(--u)); color: #95806b; }

@@ -25,6 +25,9 @@ export const REVIVE_CARD_REVIVED = '부활!';
 export const REVIVE_CARD_RESTART = '부활하면 자동 사냥이 다시 시작됩니다.';
 /** 카드 바닥 각주 — 입문 구간 면제를 미리 알려 준다. */
 export const REVIVE_CARD_NOTE = '1~4층은 대기 없이 바로 부활합니다.';
+/** 0초 플래시에서 카드 본문을 대신하는 한 문장 — 대기 중 문장(`1초 뒤 만혈로 부활합니다`)을 그대로
+ *  두면 링이 `부활!`인데 본문은 아직 기다리는 중이라 말이 엇갈린다(프리뷰 검수에서 확인). */
+export const REVIVE_CARD_REVIVED_LINE = '만혈로 부활했습니다. 자동 사냥을 다시 시작합니다.';
 
 /** 화면에 그릴 상태 — `waiting`(카운트다운) 또는 `flash`(부활!), 없으면 `null`. */
 export type ReviveNoticeState =

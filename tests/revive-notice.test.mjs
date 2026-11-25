@@ -16,7 +16,7 @@ import { readFileSync } from 'node:fs';
 import './patch-buff-off.mjs';
 
 const {
-  REVIVE_FLASH_SECONDS, REVIVE_CARD_DOWN, REVIVE_CARD_REVIVED, REVIVE_CARD_RESTART, REVIVE_CARD_NOTE,
+  REVIVE_FLASH_SECONDS, REVIVE_CARD_DOWN, REVIVE_CARD_REVIVED, REVIVE_CARD_RESTART, REVIVE_CARD_NOTE, REVIVE_CARD_REVIVED_LINE,
   reviveNoticeState, reviveChipText, reviveCountdownText, reviveScreenReaderText, isReviveToastSuppressed
 } = await import('../src/game/reviveNotice.ts');
 const { freshSave } = await import('../src/game/store.ts');
@@ -68,6 +68,7 @@ test('카드 문구는 대장님 확정안 그대로다', () => {
   assert.equal(REVIVE_CARD_REVIVED, '부활!');
   assert.equal(REVIVE_CARD_RESTART, '부활하면 자동 사냥이 다시 시작됩니다.');
   assert.equal(REVIVE_CARD_NOTE, '1~4층은 대기 없이 바로 부활합니다.');
+  assert.equal(REVIVE_CARD_REVIVED_LINE, '만혈로 부활했습니다. 자동 사냥을 다시 시작합니다.');
   assert.equal(reviveChipText(10, 6), '10금화 손실 · 6층');
   assert.equal(reviveChipText(4, 12), '4금화 손실 · 12층', '모자라면 실제 잃은 만큼');
   assert.equal(reviveChipText(Number.NaN, 6), '0금화 손실 · 6층');
@@ -131,6 +132,7 @@ test('화면 계약 — 카드 CSS·배선이 시안(390×844)과 같다', () =>
   assert.match(css, /\.revive-card \.rvc-ring \{[^}]*calc\(92 \* var\(--u\)\)/, '92px 링');
   assert.match(css, /\.revive-card \.rvc-arc \{[^}]*#e0a468/);
   assert.match(css, /\.revive-card\.is-revived/, '0초 `부활!` 플래시');
+  assert.match(css, /\.revive-card\.is-revived \.rvc-desc-revived \{ display: inline; \}/, '플래시 본문은 대기 문장 대신 부활 문장');
   assert.match(css, /\.battle\.is-revive-down \.battle-canvas \{[^}]*saturate/);
   assert.match(css, /\.health-bar\.hp\.is-down/, 'HP 0 강조');
   assert.match(css, /@media \(prefers-reduced-motion: reduce\)[\s\S]*revive-card\.is-revived \{ animation: none; \}/);
