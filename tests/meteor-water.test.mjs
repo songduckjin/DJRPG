@@ -3,9 +3,9 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import './ts-loader.mjs';
 
-const { freshSave } = await import('../src/game/store.ts');
+const { freshSave, totalStats } = await import('../src/game/store.ts');
 const { skillArea } = await import('../src/game/battle/skillAreas.ts');
-const { skillDamageScale } = await import('../src/game/skills.ts');
+const { skillDamageScale, SKILL_HIT_POWER } = await import('../src/game/skills.ts');
 const { World } = await import('../src/game/world.ts');
 
 test('메테오·워터 캐논의 운영 이미지 4개가 실제 PNG 파일이다', () => {
@@ -47,22 +47,31 @@ test('메테오는 스킬 레벨과 함께 피해와 폭발 반경이 커진다'
 });
 
 test('워터 캐논은 고정된 한 방향의 여러 적을 지속해서 때린다', () => {
-  assert.equal(skillArea('arcaneOverlord', 1).projectileRadius, 42);
-  assert.equal(skillArea('arcaneOverlord', 10).projectileRadius, 60);
+  assert.equal(skillArea('arcaneOverlord', 1).projectileRadius, 58);
+  assert.equal(skillArea('arcaneOverlord', 10).projectileRadius, 76);
+  assert.equal(skillArea('arcaneOverlord', 1).range, 250);
+  assert.equal(skillArea('arcaneOverlord', 10).range, 304);
+  assert.equal(SKILL_HIT_POWER.arcaneOverlord, 4);
   const save = freshSave('female', 'mage');
   save.learned = ['arcaneOverlord']; save.quickSlots = ['arcaneOverlord', null, null];
   const world = new World(save); world.spawnTimer = 999; world.enemies = []; world.critRoll = () => 1;
   const center = enemyAt(world, world.player.x + 150);
   const near = enemyAt(world, world.player.x + 60);
-  const beyond = enemyAt(world, world.player.x + 260);
+  const far = enemyAt(world, world.player.x + 235);
+  const beyond = enemyAt(world, world.player.x + 330);
+  const edge = enemyAt(world, world.player.x + 120);
+  edge.y += 50;
   const side = enemyAt(world, world.player.x + 120);
   side.y += 80;
   world.action('arcaneOverlord');
   world.save.quickSlots = [null, null, null]; world.cooldown.attack = Number.POSITIVE_INFINITY;
   const cannon = world.effects.find(effect => effect.kind === 'waterCannon');
-  assert(cannon && cannon.x === world.player.x && cannon.tx === world.player.x + 210);
+  assert(cannon && cannon.x === world.player.x && cannon.tx === world.player.x + 250);
+  assert.equal(cannon.radius, 58);
+  assert.equal(cannon.power, totalStats(save).attack * 4 * skillDamageScale(1));
   world.update(.2);
-  assert(center.hp < center.maxHp && near.hp < near.maxHp, '물줄기 경로의 여러 적을 함께 때린다');
+  assert(center.hp < center.maxHp && near.hp < near.maxHp && far.hp < far.maxHp && edge.hp < edge.maxHp,
+    '늘어난 길이와 폭 안의 여러 적을 함께 때린다');
   const afterFirstPulse = center.hp;
   world.update(.4);
   assert(center.hp < afterFirstPulse, '같은 방향에 지속 피해가 들어간다');

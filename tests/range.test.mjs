@@ -149,7 +149,7 @@ test('원거리 스킬 사거리도 평타와 함께 올라가고, 가장 먼 �
   assert.equal(skills.meteorStrike.range, 285);
   // 몸을 중심으로 퍼지는 프로스트 노바와 버프는 `range`가 효과 반경이다.
   assert.equal(skills.frostNova.range, 150);
-  assert.equal(skills.arcaneOverlord.range, 210);
+  assert.equal(skills.arcaneOverlord.range, 250);
   assert.equal(skills.hawkEye.range, 200);
   assert.equal(skills.arcaneShield.range, 120);
 });

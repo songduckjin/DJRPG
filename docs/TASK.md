@@ -65,3 +65,9 @@
 ## 아카이브
 - 완료 작업 상세: `docs/TASK_ARCHIVE.md` → `docs/archive/2026-11/TASK_ARCHIVE.md`
 - 완료 행·날짜별 메모: `docs/archive/2026-11/TASK-history.md`
+
+## 신규 PR 대기 (2026-11-25)
+
+| 작업 | 담당자 | 브랜치 | 영향 영역 | 상태 |
+|---|---|---|---|---|
+| **워터 캐논 타격 범위·피해 상향** — 길이 210→250px, 반폭 42→58px, 총 위력 ×3→×4(스킬 1레벨 기준). 머지·배포 보류 | Codex | `codex/buff-mage-water-cannon` | 마법사 스킬 판정·설명·방치 위력·테스트 | [-] PR 대기 — `tsc --noEmit`·관련 테스트 통과 |
