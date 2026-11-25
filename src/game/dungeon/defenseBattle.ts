@@ -10,7 +10,11 @@
  *  ③ 적 이동속도는 110 → 190 u/s로 오르고(후반 가속), 20%는 스폰 뒤 3초간 2.1배속 돌진형이다.
  *  ④ 25%는 사수형 — 사거리 215에서 쏘고(접근 중에도) 1타 위력 ×0.8이다. 궁수 견제의 핵심이다.
  *  ⑤ 적 1타는 필드 1타의 90%(0.9초마다 한 마리), 1~3웨이브는 ×0.55로 완화한다.
- *  ⑥ 웨이브를 막으면 최대 체력 15%를 회복한다. 보상은 v1 그대로(필드 1/5 수준·20층 포화).
+ *  ⑥ 웨이브를 막으면 최대 체력 15%를 회복한다. 보상은 v3 밸런스(1웨이브=1층·처치 ×1.8·보스 확정 2개·
+ *     10웨이브 마일스톤)를 따른다 — 자세한 표는 `defenseTuning.ts`.
+ *
+ * v3(2026-11-25): 15웨이브부터 웨이브마다 몹 체력 ×1.13·적 1타 ×1.25를 더해 30웨이브가 벽이 된다
+ * (`defenseHpWaveScale`·`defenseDmgWaveScale`). 1~14웨이브는 v2와 같다.
  *
  * 좌표: 화면은 아이소메트릭 투영(`projectArenaPoint`)을 그대로 쓴다 — 화면 세로는 `x+y`, 가로는 `x-y`다.
  * 그래서 이 모드의 자리는 (가로 `u = x-y`, 세로 `v = x+y`)로 적고, 월드 좌표는 `x=(u+v)/2, y=(v-u)/2`다.
@@ -32,7 +36,7 @@ import { DEFENSE_TUNING } from './defenseTuning';
 export { DEFENSE_MAX_STAGE };
 import { itemDropChance, rollItem, type Item } from '../items';
 import { rollStatBookDrop } from '../statBooks';
-import { applyKillReward, killReward } from '../progress';
+import { applyKillReward, killReward, BOSS_GOLD_PER_FLOOR } from '../progress';
 
 /** 서버 리플레이와 클라이언트가 함께 쓰는 고정 스텝(초). 던전(`DUNGEON_STEP`)과 같은 값이다. */
 export const DEFENSE_STEP = 1 / 60;
@@ -94,7 +98,7 @@ export function defenseEnemyAge(enemy: Enemy): number {
   return enemyAges.get(enemy) ?? 0;
 }
 
-/** 보상 기준 층 — 1웨이브부터 1.5웨이브마다 1층씩 오르고 20층(30웨이브)에서 포화한다. */
+/** 보상 기준 층 — 1웨이브부터 `rewardWavesPerFloor`웨이브마다 1층씩 오르고 `DEFENSE_REWARD_FLOOR_CAP`(20)에서 포화한다. */
 export function defenseRewardFloor(stage: number): number {
   const depth = Math.max(1, Math.floor(Number.isFinite(stage) ? stage : 1));
   const t = DEFENSE_TUNING;
@@ -153,14 +157,33 @@ export function defenseDescentSpeed(stage: number): number {
   return Math.min(t.chaseMax, t.chaseStart + t.chaseStep * (depth - 1));
 }
 
-/** 그 웨이브 일반 몹의 체력 — 필드 곡선(`enemyMaxHp`)의 단일 출처를 그대로 쓴다. */
+/** 그 웨이브 일반 몹의 체력 — 필드 곡선(`enemyMaxHp`)의 단일 출처를 그대로 쓰고, 벽 구간 배율을 곱한다. */
 export function defenseMobHp(stage: number): number {
-  return Math.round(enemyMaxHp(defenseEnemyFloor(stage), false) * DEFENSE_TUNING.hpScale);
+  return Math.round(enemyMaxHp(defenseEnemyFloor(stage), false) * DEFENSE_TUNING.hpScale * defenseHpWaveScale(stage));
 }
 
-/** 그 웨이브 보스의 체력 — 같은 기준 층의 필드 보스(일반의 13배). */
+/** 그 웨이브 보스의 체력 — 같은 기준 층의 필드 보스(일반의 13배)에 벽 구간 배율을 곱한다. */
 export function defenseBossHp(stage: number): number {
-  return Math.round(enemyMaxHp(defenseEnemyFloor(stage), true) * DEFENSE_TUNING.hpScale);
+  return Math.round(enemyMaxHp(defenseEnemyFloor(stage), true) * DEFENSE_TUNING.hpScale * defenseHpWaveScale(stage));
+}
+
+/**
+ * 벽 구간 체력 배율 — `wallFrom`을 넘은 웨이브부터 `wallHpGrowth`씩 곱한다. 벽이 없으면 1(종전).
+ *
+ * v2는 몹 기준 층이 60에서 포화되면 그 뒤로 체력이 더 오르지 않아, 고스펙이 30분 상한까지 갔다
+ * (실측 119~122웨이브). 웨이브 자체에 곡선을 하나 더 걸어 30웨이브가 사실상의 벽이 되게 한다.
+ */
+export function defenseHpWaveScale(stage: number): number {
+  const depth = Math.max(1, Math.floor(Number.isFinite(stage) ? stage : 1));
+  const t = DEFENSE_TUNING;
+  return t.wallFrom > 0 && depth > t.wallFrom ? Math.pow(t.wallHpGrowth, depth - t.wallFrom) : 1;
+}
+
+/** 벽 구간 공격 배율 — `wallFrom`을 넘은 웨이브부터 `wallDmgGrowth`씩 곱한다(체력보다 가파르게). */
+export function defenseDmgWaveScale(stage: number): number {
+  const depth = Math.max(1, Math.floor(Number.isFinite(stage) ? stage : 1));
+  const t = DEFENSE_TUNING;
+  return t.wallFrom > 0 && depth > t.wallFrom ? Math.pow(t.wallDmgGrowth, depth - t.wallFrom) : 1;
 }
 
 /** (가로 u, 세로 v) → 월드 좌표. */
@@ -302,18 +325,30 @@ class DefenseWorld extends CombatEngine {
   private dropLoot(enemy: Enemy): void {
     const floor = defenseRewardFloor(this.stage);
     const job = this.save.job ?? 'warrior';
+    const t = DEFENSE_TUNING;
     const reward = applyKillReward(this.save, { floor, boss: enemy.boss, elite: !!enemy.elite });
-    this.gold += reward.gold;
-    this.exp += reward.exp;
+    // 판당 처치 수가 줄어든 만큼 마리당 금화·경험치를 올린다(밸런스 개편).
+    this.gold += Math.round(reward.gold * t.killRewardScale);
+    this.exp += Math.round(reward.exp * t.killRewardScale);
     if (enemy.boss) {
-      // 보스는 확정 1개(PR #347이 던전 보스 확정 드랍을 2 → 1로 내린 것과 같은 결) — 등급표는 보스 몫을 쓴다.
-      this.items.push(rollItem(floor, false, true, job));
+      // 보스는 확정 드랍 — `bossDropCount`개(기본 1개, 개편안은 2개)를 같은 등급표로 굴린다.
+      for (let i = 0; i < Math.max(1, t.bossDropCount); i++) this.items.push(rollItem(floor, false, true, job));
     } else if (random() < itemDropChance(floor, false)) {
       this.items.push(rollItem(floor, false, false, job));
     }
     // 영구 스탯북은 던전 일반 몹과 같은 경로(`rollStatBookDrop('hunt')`)로 한 번 더 굴린다.
     const book = rollStatBookDrop('hunt');
     if (book) this.items.push(book);
+  }
+
+  /** 마일스톤 보상 — `milestoneEvery`배수 웨이브를 막았을 때 금화·확정 장비를 더 준다. */
+  milestone(stage: number): void {
+    const t = DEFENSE_TUNING;
+    if (!(t.milestoneEvery > 0) || stage % t.milestoneEvery !== 0) return;
+    const floor = defenseRewardFloor(stage);
+    const job = this.save.job ?? 'warrior';
+    if (t.milestoneGoldScale > 0) this.gold += Math.round(BOSS_GOLD_PER_FLOOR * floor * t.milestoneGoldScale);
+    for (let i = 0; i < t.milestoneDrops; i++) this.items.push(rollItem(Math.min(DEFENSE_REWARD_FLOOR_CAP, floor + 2), false, true, job));
   }
 }
 
@@ -485,7 +520,8 @@ export class DefenseBattle {
         this.spawnEnemy();
       }
     } else if (!this.world.enemies.length) {
-      // 이 웨이브를 막았다 — 다음 웨이브(무한). 막을 때마다 최대 체력 15%를 회복한다.
+      // 이 웨이브를 막았다 — 마일스톤 보너스를 먼저 주고 다음 웨이브로 넘어간다.
+      this.world.milestone(this.stage);
       if (this.stage < DEFENSE_MAX_STAGE) {
         this.stage++;
         this.world.stage = this.stage;
@@ -520,7 +556,7 @@ export class DefenseBattle {
   private enemyHitBalance(boss: boolean): number {
     const t = DEFENSE_TUNING;
     const ease = this.stage <= t.earlyWaves ? t.earlyDmgScale : 1;
-    return enemyHitDamage(defenseEnemyFloor(this.stage), boss, totalStats(this.world.save).defense, false) * t.dmgScale * ease;
+    return enemyHitDamage(defenseEnemyFloor(this.stage), boss, totalStats(this.world.save).defense, false) * t.dmgScale * ease * defenseDmgWaveScale(this.stage);
   }
 
   /** 사거리 안의 적 — 가까운 순. 근접은 90, 사수형은 215다. */
@@ -592,5 +628,8 @@ export function defenseStageHpSum(stage: number): number {
 
 /** 보상 계산에 쓰는 처치 보상 하나(결과창·검증 로그용) — 세이브를 건드리지 않는 순수 계산. */
 export function defenseKillReward(stage: number, save: Save, boss = false, elite = false): { gold: number; exp: number } {
-  return killReward(save, { floor: defenseRewardFloor(stage), boss, elite });
+  // 전투 중 누적(`dropLoot`)과 같은 배율을 쓴다 — 결과창·검증 로그가 실제 지급과 어긋나지 않게.
+  const scale = DEFENSE_TUNING.killRewardScale;
+  const reward = killReward(save, { floor: defenseRewardFloor(stage), boss, elite });
+  return { gold: Math.round(reward.gold * scale), exp: Math.round(reward.exp * scale) };
 }

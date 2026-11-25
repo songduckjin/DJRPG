@@ -7,10 +7,13 @@ const {
   defenseBattleSummary, runDefenseBattle, defenseRewardFloor, defenseEnemyFloor, defenseBossStage, defenseEliteWave,
   defenseWaveSizes, defenseWaveKills, defenseStageEnemyCount, defenseSpawnSeconds, defenseDescentSpeed,
   defenseSpawnFloorSeconds, defenseStageHpSum, defenseKillReward, defenseMobHp, defenseBossHp,
-  defenseEnemyKind, DEFENSE_BOSS_EVERY, DEFENSE_HERO_V, defenseLane
+  defenseEnemyKind, DEFENSE_BOSS_EVERY, DEFENSE_HERO_V, defenseLane, DEFENSE_REWARD_FLOOR_CAP,
+  defenseHpWaveScale, defenseDmgWaveScale
 } = await import('../src/game/dungeon/defenseBattle.ts');
 const { DEFENSE_TUNING } = await import('../src/game/dungeon/defenseTuning.ts');
 const { freshSave, totalStats } = await import('../src/game/store.ts');
+const { enemyMaxHp } = await import('../src/game/battle/formulas.ts');
+const { killReward, BOSS_GOLD_PER_FLOOR } = await import('../src/game/progress.ts');
 
 /** 실제 플레이어처럼 무기를 찬 세이브(무기 미장착이면 공격이 막힌다). */
 const armed = (level = 17, attack = 120, defense = 400) => {
@@ -68,10 +71,13 @@ test('스폰 간격은 1.30 → 0.55초, 추격 속도는 110 → 190u/s에서 �
   assert.equal(DEFENSE_MAX_STAGE, 999);
 });
 
-test('보상 기준 층은 1.5웨이브마다 1층씩 오르고 20층(30웨이브)에서 포화한다', () => {
+test('보상 기준 층은 1웨이브마다 1층씩 오르고 20층(20웨이브)에서 포화한다', () => {
+  assert.equal(DEFENSE_TUNING.rewardWavesPerFloor, 1);
+  assert.equal(DEFENSE_TUNING.rewardCap, DEFENSE_REWARD_FLOOR_CAP, '보상 상한은 서버 MAX_FLOOR 계약(20)과 같은 값이다');
   assert.equal(defenseRewardFloor(1), 1);
-  assert.equal(defenseRewardFloor(2), 1);
-  assert.equal(defenseRewardFloor(3), 2);
+  assert.equal(defenseRewardFloor(2), 2);
+  assert.equal(defenseRewardFloor(3), 3);
+  assert.equal(defenseRewardFloor(20), 20);
   assert.equal(defenseRewardFloor(30), 20);
   assert.equal(defenseRewardFloor(60), 20);
   assert.equal(defenseRewardFloor(999), 20, '보상은 20층 값에서 더 오르지 않는다');
@@ -81,6 +87,28 @@ test('보상 기준 층은 1.5웨이브마다 1층씩 오르고 20층(30웨이�
   assert.equal(defenseEnemyFloor(200), 60);
   assert.ok(defenseMobHp(30) > defenseMobHp(10));
   assert.ok(defenseBossHp(10) > defenseMobHp(10));
+});
+
+test('벽 구간 — 15웨이브까지는 v2 그대로, 16웨이브부터 체력 ×1.13·공격 ×1.25씩 오른다', () => {
+  assert.equal(DEFENSE_TUNING.wallFrom, 15);
+  assert.equal(DEFENSE_TUNING.wallHpGrowth, 1.13);
+  assert.equal(DEFENSE_TUNING.wallDmgGrowth, 1.25);
+  assert.equal(defenseHpWaveScale(1), 1);
+  assert.equal(defenseHpWaveScale(15), 1, '15웨이브까지는 배율이 걸리지 않는다');
+  assert.ok(Math.abs(defenseHpWaveScale(16) - 1.13) < 1e-9);
+  assert.ok(Math.abs(defenseHpWaveScale(30) - Math.pow(1.13, 15)) < 1e-9);
+  assert.ok(Math.abs(defenseDmgWaveScale(16) - 1.25) < 1e-9);
+  // 1~15웨이브 체력은 v2와 같다 — 벽이 초반 손맛을 건드리지 않는다.
+  assert.equal(defenseMobHp(15), Math.round(enemyMaxHp(defenseEnemyFloor(15), false) * DEFENSE_TUNING.hpScale));
+  assert.equal(defenseBossHp(15), Math.round(enemyMaxHp(defenseEnemyFloor(15), true) * DEFENSE_TUNING.hpScale));
+  // 30웨이브는 벽 몫만큼 두꺼워진다(일반·보스 같은 배율).
+  assert.ok(defenseMobHp(30) > defenseMobHp(15) * 6);
+  assert.ok(defenseBossHp(30) > defenseBossHp(15) * 6);
+  // 적 1타도 체력보다 가파르게 오른다.
+  assert.ok(defenseDmgWaveScale(30) > defenseDmgWaveScale(20) * 5);
+  // 벽은 기준 층 곡선을 바꾸지 않는다 — 층은 그대로 60에서 포화한다.
+  assert.equal(defenseEnemyFloor(30), 18);
+  assert.equal(defenseEnemyFloor(200), 60);
 });
 
 test('방어선이 없다 — 판은 캐릭터 체력 0에서만 끝나고, 30분 안전 상한 안이다', () => {
@@ -169,6 +197,51 @@ test('실패해도 그때까지 먹은 금화·경험치·아이템은 남는다
   assert.equal(summary.kills, rewards.kills);
   assert.equal(summary.stages, battle.stage);
   assert.match(summary.digest, /^[0-9a-f]{8}$/);
+});
+
+test('처치 보상은 ×1.8, 보스 확정 장비는 2개다', () => {
+  assert.equal(DEFENSE_TUNING.killRewardScale, 1.8);
+  assert.equal(DEFENSE_TUNING.bossDropCount, 2);
+  const save = armed();
+  const plain = killReward(save, { floor: 3 });
+  assert.deepEqual(defenseKillReward(3, save), {
+    gold: Math.round(plain.gold * DEFENSE_TUNING.killRewardScale),
+    exp: Math.round(plain.exp * DEFENSE_TUNING.killRewardScale)
+  }, '결과창 계산도 전투 중 누적과 같은 배율을 쓴다');
+  // 실제 판에서도 보스 한 마리가 장비 2개를 남긴다(스탯북은 따로 굴린다).
+  const battle = new DefenseBattle(save, 17);
+  const boss = { x: 0, y: 0, hp: 10, maxHp: 10, boss: true, hit: 0, step: 0, moving: false, knockX: 0, knockY: 0, slow: 0 };
+  battle.world.kill(boss);
+  assert.equal(battle.world.items.filter(item => !item.kind).length, 2);
+});
+
+test('10웨이브를 막으면 마일스톤(보스 금화 ×2 + 확정 장비 1)이 그 자리에서 한 번 들어간다', () => {
+  assert.equal(DEFENSE_TUNING.milestoneEvery, 10);
+  const battle = new DefenseBattle(armed(20, 800, 600), 11);
+  const goldBefore = battle.world.gold;
+  const itemsBefore = battle.world.items.filter(item => !item.kind).length;
+  battle.world.milestone(9);
+  assert.equal(battle.world.gold, goldBefore, '10의 배수가 아니면 아무것도 주지 않는다');
+  battle.world.milestone(20);
+  const expected = Math.round(BOSS_GOLD_PER_FLOOR * defenseRewardFloor(20) * DEFENSE_TUNING.milestoneGoldScale);
+  assert.equal(battle.world.gold - goldBefore, expected);
+  assert.equal(battle.world.items.filter(item => !item.kind).length - itemsBefore, DEFENSE_TUNING.milestoneDrops);
+  // 웨이브를 실제로 막는 경로(`step`)에서도 보너스는 10웨이브에만 들어간다.
+  const run = new DefenseBattle(armed(30, 4000, 2000), 321);
+  const bonuses = [];
+  const milestone = run.world.milestone.bind(run.world);
+  run.world.milestone = (stage) => {
+    const before = run.world.gold;
+    milestone(stage);
+    if (run.world.gold > before) bonuses.push([stage, run.world.gold - before]);
+  };
+  for (let step = 0; step < 60 * 600 && run.stage < 11 && !run.finished; step++) {
+    for (const enemy of [...run.world.enemies]) run.world.kill(enemy);
+    run.world.enemies = [];
+    run.advance(DEFENSE_STEP);
+  }
+  assert.equal(run.stage, 11, '10웨이브를 막고 11웨이브로 넘어갔다');
+  assert.deepEqual(bonuses, [[10, Math.round(BOSS_GOLD_PER_FLOOR * defenseRewardFloor(10) * DEFENSE_TUNING.milestoneGoldScale)]]);
 });
 
 test('처치 보상은 progress.ts의 killReward를 그대로 쓰고, 보상 층은 defenseRewardFloor다', () => {
