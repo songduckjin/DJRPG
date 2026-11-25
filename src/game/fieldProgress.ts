@@ -110,7 +110,7 @@ export class FieldProgress extends CombatEngine {
     for (const key of Object.keys(target)) delete target[key];
     Object.assign(this.save, save);
     this.save.auto = true;
-    this.player = { x: 0, y: 0, facing: 0, facingSide: 1, hp: Math.min(this.save.health, totalStats(this.save).health),
+    this.player = { x: 0, y: 0, facing: 0, facingSide: 1, hp: this.restoredFieldHealth(),
       shield: 0, shieldDuration: 0, berserk: 0, berserkLevel: 1, hit: 0 };
     this.enemies = []; this.drops = []; this.coins = []; this.effects = []; this.afterimages = [];
     this.cooldown = Object.fromEntries(Object.keys(cooldowns).map(id => [id, 0])) as Record<Action, number>;
@@ -139,7 +139,7 @@ export class FieldProgress extends CombatEngine {
    * 사냥을 다시 시작하는 상태(`paused`·`attackHeld`·조작)는 건드리지 않는다 — 부르는 쪽이 정한다.
    */
   resetField(): void {
-    this.player = { x: 0, y: 0, facing: 0, facingSide: 1, hp: Math.min(this.save.health, totalStats(this.save).health), shield: 0, shieldDuration: 0, berserk: 0, berserkLevel: 1, hit: 0 };
+    this.player = { x: 0, y: 0, facing: 0, facingSide: 1, hp: this.restoredFieldHealth(), shield: 0, shieldDuration: 0, berserk: 0, berserkLevel: 1, hit: 0 };
     this.enemies = []; this.drops = []; this.coins = []; this.effects = []; this.afterimages = [];
     this.cooldown = Object.fromEntries(Object.keys(cooldowns).map(id => [id, 0])) as Record<Action, number>;
     this.spawnTimer = 0;
@@ -154,6 +154,14 @@ export class FieldProgress extends CombatEngine {
     const hp = enemyMaxHp(this.save.floor, false);
     const start = clampArenaPoint(145, -45);
     this.enemies.push({ x: start.x, y: start.y, hp, maxHp: hp, boss: false, hit: 0, step: 0, moving: false, knockX: 0, knockY: 0, slow: 0 });
+  }
+
+  /** 필드를 다시 세울 때 부활 타이머도 지우므로, 체력 0 세이브는 함께 만혈로 복원한다. */
+  private restoredFieldHealth(): number {
+    const health = Math.min(this.save.health, totalStats(this.save).health);
+    if (health > 0) return health;
+    this.save.health = totalStats(this.save).health;
+    return this.save.health;
   }
 
   /** 보스가 나오는 층인가 — **최고 도달 층에서만**이다(작업 210, 사용자 지시 `#4566`).
@@ -482,6 +490,8 @@ export class FieldProgress extends CombatEngine {
    */
   override update(dt: number): void {
     if (this.paused) return;
+    // 외부 세이브 갱신 등으로 체력 0·타이머 0이 함께 들어와도 영구 사망 상태에 머물지 않는다.
+    if (this.player.hp <= 0 && this.reviveTimer <= 0) { this.reviveHero(); this.onChange(); }
     this.tickStart(dt);
     this.tickSpawn(dt);
     this.tickEnemies(dt);
