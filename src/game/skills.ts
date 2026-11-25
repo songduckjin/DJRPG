@@ -100,7 +100,7 @@ export const skills: Record<SkillId, Skill> = {
   frostNova: { id: 'frostNova', name: '프로스트 노바', level: 10, icon: '✳', cooldown: 12, power: '공격력 × 1.5 · 넉백·기절', description: '자신을 감싸는 서리 결계가 주변 적에게 피해를 주고 밀어낸 뒤 잠시 기절시킨다.', range: 150 },
   arcaneShield: { id: 'arcaneShield', name: '아케인 실드', level: 14, icon: '⛨', cooldown: 16, power: '공격력 × 1.2 · 공격속도 상승', description: '7초 동안(레벨당 +0.17초) 비전 보호막을 두르고 공격력과 공격속도가 오른다.', range: 120 },
   meteorStrike: { id: 'meteorStrike', name: '메테오 스트라이크', level: 18, icon: '☄', cooldown: 13, power: '공격력 × 3.6 · 범위 성장', description: '하늘에서 운석이 떨어져 적의 자리를 강타한다. 레벨에 따라 피해와 폭발 범위가 커진다.', range: 285 },
-  arcaneOverlord: { id: 'arcaneOverlord', name: '워터 캐논', level: 24, icon: '💧', cooldown: 18, power: '공격력 × 3.0 · 지속 물줄기', description: '한 방향으로 굵은 물줄기를 지속 발사해 경로의 적들을 여러 번 공격한다.', range: 210 }
+  arcaneOverlord: { id: 'arcaneOverlord', name: '워터 캐논', level: 24, icon: '💧', cooldown: 18, power: '공격력 × 4.0 · 지속 물줄기', description: '한 방향으로 굵은 물줄기를 지속 발사해 경로의 적들을 여러 번 공격한다.', range: 250 }
 };
 
 /**
@@ -120,7 +120,7 @@ export const skills: Record<SkillId, Skill> = {
 export const SKILL_HIT_POWER: Record<SkillId, number> = {
   slash2: 1.1, slam: 2.2, warcry: 0, power: 5.5, destroy: 2.7, hell: 3.2, crushing: 3.4, spin: 1.65,
   doubleShot: 1.35, multiShot: .95, pierceShot: 2.6, iceArrow: 1.9, hawkEye: 0, snipe: 6.5, stormVolley: .8, arrowRain: .85,
-  fireBolt: FIRE_BOLT_TOTAL_POWER, iceBolt: 1.7, chainLightning: 1.25, manaBurst: 0, frostNova: 1.5, arcaneShield: 0, meteorStrike: 3.6, arcaneOverlord: 3
+  fireBolt: FIRE_BOLT_TOTAL_POWER, iceBolt: 1.7, chainLightning: 1.25, manaBurst: 0, frostNova: 1.5, arcaneShield: 0, meteorStrike: 3.6, arcaneOverlord: 4
 };
 
 /**

@@ -8,7 +8,7 @@ export type SkillArea = SkillAreaRule & { range: number; duration: number };
 /** 메테오 착지 시점. 판정과 낙하 연출이 같은 프레임에 끝나도록 공유한다. */
 export const METEOR_IMPACT_PROGRESS = .48;
 export const WATER_CANNON_TICK_SECONDS = .18;
-export const WATER_CANNON_HALF_WIDTH = 42;
+export const WATER_CANNON_HALF_WIDTH = 58;
 
 /** 고정 방향 물줄기 경로의 적을 매 타격마다 다시 검사한다. */
 export function insideWaterCannon(x: number, y: number, sx: number, sy: number, ex: number, ey: number, halfWidth = WATER_CANNON_HALF_WIDTH): boolean {

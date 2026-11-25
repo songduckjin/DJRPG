@@ -179,6 +179,33 @@ test('5층부터는 쓰러지면 5초 뒤에 부활하고, 그동안은 사냥�
   assert(messages.includes('부활했습니다.'));
 });
 
+test('체력 0 세이브로 필드 정산·캐릭터 전환을 마쳐도 부활 타이머 없이 쓰러진 채 남지 않는다', () => {
+  const save = freshSave(); save.floor = 5; save.maxFloor = 5;
+  const world = new World(save);
+  save.health = 0; world.player.hp = 0; world.reviveTimer = 3;
+  world.resetField();
+  assert.equal(world.reviveTimer, 0);
+  assert.equal(world.player.hp, totalStats(save).health);
+  assert.equal(save.health, world.player.hp);
+
+  const next = freshSave(); next.floor = 5; next.maxFloor = 5; next.health = 0;
+  world.adoptSave(next);
+  assert.equal(world.reviveTimer, 0);
+  assert.equal(world.player.hp, totalStats(world.save).health);
+  assert.equal(world.save.health, world.player.hp);
+});
+
+test('체력 0·부활 타이머 0의 비정상 필드 상태는 다음 프레임에 복구한다', () => {
+  const save = freshSave(); save.floor = 5; save.maxFloor = 5;
+  const world = new World(save); world.spawnTimer = 999; world.enemies = [];
+  let changed = 0; world.onChange = () => changed++;
+  world.player.hp = 0; save.health = 0; world.reviveTimer = 0;
+  world.update(.016);
+  assert.equal(world.player.hp, totalStats(save).health);
+  assert.equal(save.health, world.player.hp);
+  assert.equal(changed, 1, '복구한 체력을 저장 대상으로 알린다');
+});
+
 test('자동 등반을 끈 세이브로 접속해도 보스에게 지기 전에는 [⚔ 보스 도전]이 없다(작업 222, `#5781`)', () => {
   // 예전에는 `bossRetryAvailable = !save.autoClimb`로 시작해, 자동 등반을 끈 세이브로 들어오면
   // 보스에게 한 번도 지지 않았는데 최고 도달 층에서 버튼이 즉시 떴다.
