@@ -83,11 +83,13 @@ test('보스는 일반 몹의 13배이고, 1~8층 보스는 종전 그대로다'
   for (let floor = 2; floor <= 100; floor++) assert(enemyMaxHp(floor, true) > enemyMaxHp(floor - 1, true), `boss ${floor} is tougher than boss ${floor - 1}`);
 });
 
-test('killsToBoss는 150 + 30d + d², 필드 보상 계수는 1층 0.70 → 28층+ 0.35', () => {
+test('killsToBoss는 1~4층 150 + 30d + d², 5층부터 사망 예산 곡선, 필드 보상 계수는 1층 0.70 → 28층+ 0.35', () => {
+  // 2026-11-25 일반 사냥 사망 시 진행도 초기화(덕진 님 확정) — 5층부터는 "죽기까지 잡는 마릿수" 곡선이다.
   assert.equal(killsToBoss(1), 150);
-  assert.equal(killsToBoss(20), 1081);
-  assert.equal(killsToBoss(40), 2841);
-  assert.equal(killsToBoss(78), 8389);
+  assert.equal(killsToBoss(4), 249, '입문 1~4층은 현행 곡선 그대로');
+  assert.equal(killsToBoss(20), 40);
+  assert.equal(killsToBoss(40), 150, '마지막 층만 150 예외');
+  assert.equal(killsToBoss(78), 138, '상한 밖은 30~40층 기울기로 계속 계산한다');
   assert.equal(fieldRewardScale(1), .70);
   assert.equal(Math.round(fieldRewardScale(20) * 100) / 100, .45);
   assert.equal(fieldRewardScale(40), .35);

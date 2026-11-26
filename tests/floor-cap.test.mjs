@@ -35,12 +35,21 @@ test('40층이 마지막 층 — 41층 이상 세이브는 층·최고 층만 40
   assert.equal(parseSave({ ...save, floor: 15, maxFloor: 3 }).maxFloor, 15);
 });
 
-test('층당 보스 목표 — 1층 150마리에서 40층 2,841마리까지 완만히 가팔라진다', () => {
-  assert.deepEqual([1, 5, 10, 15, 20, 30, 40].map(killsToBoss), [150, 286, 501, 766, 1081, 1861, 2841]); // 밸런스 v2: 150 + 30d + d²
-  for (let floor = 2; floor <= 40; floor++) assert(floorKillTarget(floor) > floorKillTarget(floor - 1), `${floor}층 목표가 늘어난다`);
+test('층당 보스 목표 — 1~4층은 현행 곡선, 5층부터는 사망 예산 곡선(40층 150 예외)', () => {
+  // 2026-11-25 일반 사냥 사망 시 진행도 초기화 — 1~4층(면제)은 150 + 30d + d² 그대로,
+  // 5층부터는 한 생애 예산 곡선 30 → 68, 마지막 층(40층)만 150 예외다.
+  assert.deepEqual([1, 5, 10, 15, 20, 30, 40].map(killsToBoss), [150, 30, 35, 38, 40, 52, 150]);
+  // 1~4층은 예전 곡선 그대로 가팔라진다.
+  for (let floor = 2; floor <= 4; floor++) assert(floorKillTarget(floor) > floorKillTarget(floor - 1), `${floor}층 목표가 늘어난다`);
+  // 5~39층은 내려간 뒤 다시 완만하게 오른다 — 반올림으로 이웃 층이 같은 값(11·12·16·17층)이 있어 `>=`다.
+  assert(floorKillTarget(5) < floorKillTarget(4), '5층부터 목표가 크게 내려간다(사망 리셋 시작)');
+  for (let floor = 6; floor <= 39; floor++) assert(floorKillTarget(floor) >= floorKillTarget(floor - 1), `${floor}층 목표가 줄지 않는다`);
+  assert.equal(killsToBoss(40), 150, '마지막 층만 150 예외');
   assert.equal(floorKillTarget(0), 150, '없는 층은 1층과 같다');
-  // 상한이 풀리면 곡선은 그대로 이어진다(함수는 40층에서 멈추지 않는다).
-  assert(floorKillTarget(50) > floorKillTarget(40));
+  // 상한이 풀리면 곡선은 그대로 이어진다(함수는 40층에서 멈추지 않는다) — 40층 예외만 빼고.
+  assert.equal(floorKillTarget(41), 72);
+  assert.equal(floorKillTarget(50), 88);
+  assert(floorKillTarget(50) > floorKillTarget(41));
   // 정산·HUD가 보는 목표와 같은 값이다.
   const save = freshSave();
   assert.equal(parseSave({ ...save, floorKills: 9999 }).floorKills, floorKillTarget(1), '층 목표를 넘는 진행도는 깎인다');

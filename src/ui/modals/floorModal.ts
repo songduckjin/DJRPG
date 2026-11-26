@@ -7,6 +7,7 @@ import {
   recommendedFloorPower, type FloorPowerState
 } from '../../game/floorPower';
 import { bestFarmFloor, killsPerHourAt } from '../../game/offline';
+import { FLOOR_DEATH_RESET_NOTE } from '../../game/reviveNotice';
 
 /**
  * 「층 선택」 창 — 1안(2026-11-24 대장님·덕진 님 확정, `downloads/djrpg_offline_rework/ui_a_floor_list.png`).
@@ -54,6 +55,10 @@ export function renderFloor(this: Interface, dialog: HTMLElement): void {
   const note = document.createElement('p'); note.className = 'floor-summary-note';
   note.textContent = '층 이동 시 처치 진행도와 바닥 드랍이 초기화됩니다';
   dialog.appendChild(note);
+  // 일반 사냥 사망 시 진행도 초기화(2026-11-25 덕진 님 확정) — 5층부터다. 죽기 전에 알려 준다.
+  const warn = document.createElement('p'); warn.className = 'floor-summary-note';
+  warn.textContent = FLOOR_DEATH_RESET_NOTE;
+  dialog.appendChild(warn);
 
   const mode = document.createElement('button'); mode.className = 'floor-mode'; mode.type = 'button';
   mode.textContent = save.autoClimb ? '자동 등반 중 · 누르면 현재 층 반복' : '현재 층 반복 중 · 누르면 자동 등반';

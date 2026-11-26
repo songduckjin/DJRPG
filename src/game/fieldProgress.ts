@@ -19,7 +19,7 @@ import { emitDomainEvent } from '../core/domainEvents';
 import { addItemToBag } from './rewardGrant';
 import { bossGoldPiles, bossGoldSpot } from './bossLoot';
 import { totalStats, type Item, type Rarity, type Save } from './store';
-import { afterBossLose, afterBossWin, afterFloorClear, applyKillReward, defeatPenalty, killsToBoss, MAX_FLOOR, recordBossLoss } from './progress';
+import { afterBossLose, afterBossWin, afterFieldDeath, afterFloorClear, applyKillReward, defeatPenalty, killsToBoss, MAX_FLOOR, recordBossLoss } from './progress';
 import { itemDisplayName, itemDropChance, isEquipment, rollItem, starterArmorItem, starterWeaponName, type Slot } from './items';
 import { rollStatBookDrop } from './statBooks';
 import { ELITE_HP_SCALE, ELITE_KILL_INTERVAL, MOB_CAP, MOB_CAP_GRACE_SECONDS, enemyMaxHp, spawnRefillSeconds, spawnsPerRefill, targetAliveCount } from './battle/formulas';
@@ -59,6 +59,10 @@ export class FieldProgress extends CombatEngine {
    *  잃으므로 상수 10을 쓰지 않고 `defeatPenalty`가 돌려준 값을 적는다. 화면은 부활 대기가 서 있는
    *  동안(`reviveTimer > 0`)에만 읽는다. */
   reviveLostGold = 0;
+  /** 이번에 쓰러진 이유가 **일반·정예 몹**이라 이번 층 진행도(`floorKills`)가 1마리부터 다시가 되었는가
+   *  (2026-11-25 덕진 님 확정). 부활 대기 카드가 `이번 층 진행도도 1마리부터`를 보여 줄지 정한다 —
+   *  보스에게 진 경우에는 카드가 이미 보스 문장을 띄우므로 이 값을 쓰지 않는다. */
+  reviveProgressReset = false;
 
   /** Live auto-salvage (작업 196): the grade the player chose, or `undefined` while the switch is off.
    *  The UI owns the switch and the stored value, so the world asks on every pickup instead of keeping
@@ -121,7 +125,7 @@ export class FieldProgress extends CombatEngine {
     this.bossRetryAvailable = false; this.eliteKills = 0; this.elitePending = false;
     this.crowdClock = 0; this.strikeQuota = 0;
     // 갈아탄 새 캐릭터는 살아 있는 상태로 시작한다(부활 대기 승계 없음).
-    this.reviveTimer = 0; this.reviveLostGold = 0;
+    this.reviveTimer = 0; this.reviveLostGold = 0; this.reviveProgressReset = false;
     this.swing = 1; this.chaseTarget = undefined; this.pursuing = false;
     const hp = enemyMaxHp(this.save.floor, false);
     const start = clampArenaPoint(145, -45);
@@ -145,7 +149,7 @@ export class FieldProgress extends CombatEngine {
     this.spawnTimer = 0;
     this.crush = undefined; this.weaponNotice = 0; this.activeMove = { x: 0, y: 0 };
     // 정산이 끝난 세이브는 살아 있는 상태다 — 부활 대기를 승계하지 않는다.
-    this.reviveTimer = 0; this.reviveLostGold = 0;
+    this.reviveTimer = 0; this.reviveLostGold = 0; this.reviveProgressReset = false;
     this.bossPending = this.save.autoClimb && this.bossFloor() && this.save.floorKills >= killsToBoss(this.save.floor);
     this.bossRetryAvailable = this.save.bossRetryFloor === this.save.maxFloor && this.save.maxFloor < MAX_FLOOR;
     this.eliteKills = 0; this.elitePending = false;
@@ -329,6 +333,8 @@ export class FieldProgress extends CombatEngine {
           // 목표 마릿수를 채우면 `kill()`의 기존 규칙이 보스를 자동으로 다시 부른다.
           const climbOn = this.save.autoClimb && this.bossFloor() && enemy.boss;
           this.crush = undefined; this.afterimages = []; this.attackPoseSpan = .32;
+          // 이번 사망으로 층 진행도가 사라졌는가(일반·정예 몹 사망 전용) — 아래 else 분기에서 정한다.
+          this.reviveProgressReset = false;
           if (climbOn) {
             // 1마리부터 다시(진행도 0) + 진 층 기록 — 규칙은 `progress.ts`가 갖는다(PR-3).
             afterBossLose(this.save);
@@ -341,6 +347,13 @@ export class FieldProgress extends CombatEngine {
             // 진행도는 그대로 두고 진 층만 남긴다 — 4층으로 올라갈 때까지 버튼이 유지된다(작업 223).
             recordBossLoss(this.save);
             this.bossRetryAvailable = true;
+          } else {
+            // 일반·정예 몹(그리고 아래층에서)에게 진 경우 — 5층부터는 이번 층 진행도도 1마리부터다
+            // (2026-11-25 덕진 님 확정). 입문 1~4층은 면제라 진행도가 그대로 남는다.
+            // 진행도를 0으로 돌리므로 **이미 예약된 보스도 취소**한다 — 그냥 두면 죽은 직후 보스가 뜬다.
+            const fieldDeath = afterFieldDeath(this.save);
+            this.reviveProgressReset = fieldDeath.reset;
+            if (fieldDeath.reset) this.bossPending = false;
           }
           // 작업 245: 일반·정예 몹에게 쓰러져도 자동 등반은 **끄지 않는다** — 10골드를 잃고 부활해 계속
           // 사냥한다. 자동 등반이 꺼지는 곳은 몹이 쌓여 한 층 강등될 때(위 `MOB_CAP` 블록)뿐이다.
@@ -357,15 +370,19 @@ export class FieldProgress extends CombatEngine {
             p.hp = totalStats(this.save).health; this.save.health = p.hp;
             this.onMessage(climbOn
               ? '쓰러졌습니다. 10골드를 잃고 부활했습니다. 1마리부터 다시 잡으면 보스가 다시 나타납니다.'
-              : this.save.autoClimb
-                ? '쓰러졌습니다. 10골드를 잃고 부활했습니다. 자동 등반은 계속됩니다.'
-                : '쓰러졌습니다. 10골드를 잃고 부활했습니다.');
+              : this.reviveProgressReset
+                ? '쓰러졌습니다. 10골드를 잃고 부활했습니다. 이번 층은 1마리부터 다시 잡습니다.'
+                : this.save.autoClimb
+                  ? '쓰러졌습니다. 10골드를 잃고 부활했습니다. 자동 등반은 계속됩니다.'
+                  : '쓰러졌습니다. 10골드를 잃고 부활했습니다.');
           } else {
             this.onMessage(climbOn
               ? `쓰러졌습니다. 10골드를 잃었습니다. ${this.reviveTimer}초 뒤 부활합니다. 1마리부터 다시 잡으면 보스가 다시 나타납니다.`
-              : this.save.autoClimb
-                ? `쓰러졌습니다. 10골드를 잃었습니다. ${this.reviveTimer}초 뒤 부활합니다. 자동 등반은 계속됩니다.`
-                : `쓰러졌습니다. 10골드를 잃었습니다. ${this.reviveTimer}초 뒤 부활합니다.`);
+              : this.reviveProgressReset
+                ? `쓰러졌습니다. 10골드를 잃었습니다. ${this.reviveTimer}초 뒤 부활합니다. 이번 층은 1마리부터 다시 잡습니다.`
+                : this.save.autoClimb
+                  ? `쓰러졌습니다. 10골드를 잃었습니다. ${this.reviveTimer}초 뒤 부활합니다. 자동 등반은 계속됩니다.`
+                  : `쓰러졌습니다. 10골드를 잃었습니다. ${this.reviveTimer}초 뒤 부활합니다.`);
           }
           this.onChange();
   }
