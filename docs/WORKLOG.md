@@ -11,7 +11,8 @@
 - **수정**: 그 줄에 `view.ambientLayer.visible=false`를 더해 전용 화면 셋이 같은 목록을 끄게 맞췄다. 투기장·보스 시트·연출·전투 로직은 건드리지 않았다. 월드보스 관련 다른 화면(`worldBossDefeat.ts`·`worldBossPreview.ts`·`worldBossResult.ts` 등)은 `GameView`를 만들지 않는 순수 모듈이라 노출 지점이 없고, `GameView`를 만드는 곳은 메인 필드(`main.ts`, 사냥 배경이 정상)·던전·방어전·월드보스·개발용 `src/dev/skillVfxStudio.ts`뿐이다.
 - **회귀 테스트**: 신규 `tests/world-boss-field-scenery.test.mjs` 4건 — ① 월드보스 필드가 다섯 레이어를 모두 끈다 ② 전용 화면 셋(월드보스·던전·방어전)이 같은 목록을 끈다 ③ 투기장이 `ambientLayer`보다 아래(무대 0번)에 깔린다 ④ `mountAmbientScene`이 `ambientLayer.visible`을 다시 켜지 않는다. **수정 전 코드에서 ①·② 2건이 실제로 실패**함을 확인했다.
 - **검증**: `npx tsc --noEmit` 통과, `npm run build`(generate-version → tsc → verify-item-art → vite build) 통과. 전체 `node --test tests/*.test.mjs` **200파일 1,703건 중 1,700 통과·실패 3건** — `blood-rage-aura`·`common-codes`·`hawk-eye-wind`로 2026-11-25 기록된 `origin/main` 기준선의 같은 3건과 이름까지 동일(**신규 실패 0**).
-- **남긴 것**: 운영 반영(점검 ON→배포→OFF) 없음 — 덕진 님 일괄 배포에 합류시킨다. 인게임 확인(월드보스 입장 시 투기장 배경)은 사용자·덕진 님 몫이다.
+- **실브라우저 확인**(게스트, 1층·월드보스 연습, 390폭): 수정 전 빌드(`feat-skill-tree-scroll-fix` 프리뷰 `cd0ab08`)는 투기장 대신 잿빛 황무지 사냥 배경이 덮였고(`downloads/djrpg_wb_ambient_before.png`), 이 PR 프리뷰(`https://fix-world-boss-hide-ambient.djrpg.pages.dev`, version `fe3ad75a88d0`)는 홍예문·깃발이 있는 흑요석 투기장이 그대로 보인다(`downloads/djrpg_wb_ambient_after.png`). 필드에서 나오면 메인 사냥 배경도 정상으로 돌아온다(레이어 숨김은 그 화면의 `GameView` 인스턴스에만 적용). 검수용 게스트 계정 2개는 계정 탈퇴로 정리했다.
+- **남긴 것**: 운영 반영(점검 ON→배포→OFF) 없음 — 덕진 님 일괄 배포에 합류시킨다.
 
 ## 2026-11-25 · 운영 배포 — 필드 부활 정지(#383) · 워터 캐논 상향(#384) · 레벨 표기 통일(#385) 통합
 
