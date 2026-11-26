@@ -3,6 +3,12 @@
 > 최근 작업·PR·배포 기록만 둔다(최근 20건). 더 이전 기록은 `docs/archive/2026-11/WORKLOG-history.md`.
 > 새 기록은 맨 위에 `## YYYY-MM-DD · <담당> 작업 <번호> — <제목>` 형식으로 추가하고, 오래된 항목은 아카이브로 옮긴다.
 
+## 2026-11-26 · fks3997 작업 미배정 — 일반 사냥 사망 시 `floorKills` 초기화 + `killsToBoss` 하향 (Draft PR)
+
+- **기준·브랜치**: 최신 `origin/main` `476f74c`에서 `feat/floor-kills-reset-and-target-rebalance`. 사양은 덕진 님 확정(2026-11-25) + 워크스페이스 시안 `downloads/djrpg_floor_kills_reset_plan.md`·`downloads/djrpg_kills_to_boss_rebalance_plan.md`(추천 C안). **머지·배포 보류** — `server/save-guard.mjs`가 `killsToBoss`를 import하므로 클라·서버 동시 배포 대상이다.
+- **변경**: ① `progress.ts` `afterFieldDeath()` — 5층부터(`FIELD_DEATH_RESET_FROM`) 일반·정예 몹 사망 시 `floorKills = 0`, 입문 1~4층 면제, `bossRetryFloor`는 건드리지 않는다 ② `fieldProgress.ts` `heroDown` — 일반 몹 사망 분기에서 `afterFieldDeath`를 부르고, 진행도가 사라졌으면 **예약된 보스도 취소**(`bossPending = false`), 사망 문구를 `이번 층은 1마리부터 다시 잡습니다`로, 부활 카드용 `reviveProgressReset` ③ `offline.ts` — 사망을 `버티는 초 + 부활 대기` 주기의 **위상(`deathClock`)**으로 세어 청크 경계를 넘어도 "마지막 사망 이후 몫"만 남긴다(A안). 사망이 있던 청크는 목표를 채워도 승급·보스전을 열지 않는다. `reward.progressResets` 신설 ④ `killsToBoss` — 1~4층 `150 + 30d + d²` 그대로, 5~10층 30→35, 10~20층 35→40, 20~30층 40→52, 30~40층 52→70(`goalLine`), **40층만 150 예외** ⑤ 안내 — 부활 카드 한 줄(`REVIVE_CARD_PROGRESS`, 진행도가 초기화된 사망에만 `is-reset`), 층 선택 창 상시 문구(`FLOOR_DEATH_RESET_NOTE`), 방치 정산서 `쓰러져 층 진행도가 N번 초기화되었습니다` ⑥ 보스 보상·패널티·재도전·자동 등반 규칙은 현행 유지.
+- **검증(로컬, Node 24.22.3)**: `npx tsc --noEmit` 통과, `npm run build` 통과(`index-C99UNONw.js` 936.77kB). 신규 `tests/field-death-progress.test.mjs` 13건·`tests/offline-field-death.test.mjs` 8건 **21/21**(수정 전 코드에서 18건 실패 확인). 전체 `node --test tests/*.test.mjs` **1,720건 중 1,717 통과** — 실패 3건(`common-codes`·`blood-rage-aura`·`hawk-eye-wind`)은 `origin/main`(`476f74c`) 기준선에서도 같은 이름으로 실패(**신규 실패 0**). `progress-parity` 스냅샷은 의도한 변경으로 갱신(필드 보스 승리 6→8층, 방치 12시간 8→9층).
+
 ## 2026-11-25 · 운영 배포 — 필드 부활 정지(#383) · 워터 캐논 상향(#384) · 레벨 표기 통일(#385) 통합
 
 - **배포**: 점검 ON [PR #386](https://github.com/songduckjin/DJRPG/pull/386)(`6cbd3f3`, `eta 2026-11-26 00:40`) → 통합 [PR #387](https://github.com/songduckjin/DJRPG/pull/387) 스쿼시 **`afaa57429d85`** → 점검 OFF [PR #388](https://github.com/songduckjin/DJRPG/pull/388) **`e829bb39`**. 실서버 `https://djrpg.pages.dev/version.json` = `afaa57429d85`(`builtAt` 2026-11-25T15:02:42Z), `maintenance.json` `active:false`.

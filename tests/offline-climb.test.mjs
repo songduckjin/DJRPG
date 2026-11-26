@@ -37,7 +37,7 @@ test('강한 스펙이면 방치 중에도 보스가 저절로 나와 층이 오
   assert(save.floorKills <= floorKillTarget(save.floor));
 });
 
-test('약한 스펙이면 보스에게 막혀 그 층에서 일반 사냥만 한다', () => {
+test('약한 스펙이면 5층에서 쓰러져 목표를 못 채우고 그 층에 머문다(사망 진행도 초기화)', () => {
   const save = freshSave();
   save.tutorial = 1; save.floor = 5; save.maxFloor = 5;
   const weak = offlineBossBattle(save, 5);
@@ -46,12 +46,14 @@ test('약한 스펙이면 보스에게 막혀 그 층에서 일반 사냥만 한
   assert.equal(save.floor, 5, '층은 그대로');
   assert.equal(save.maxFloor, 5);
   assert.equal(save.bossKills, 0);
-  // 밸런스 v2의 방치 속도(분당 40마리 안팎)에서는 한 시간에 5층 목표(286)를 두 번 채워 두 번 진다.
-  assert(reward.deaths >= 1, '목표를 채우고 보스에게 진다');
+  // 2026-11-25: 5층부터는 쓰러지면 진행도가 0으로 돌아간다 — 맨몸은 한 시간 내내 죽어 목표(30)를 못 채우고,
+  // 결국 보스를 만나지 못한다(예전에는 286을 두 번 채워 두 번 졌다).
+  assert.equal(reward.deaths, 0, '목표를 못 채워 보스전이 열리지 않는다');
+  assert(reward.fieldDeaths > 0, '사냥 중 쓰러짐이 있다');
+  assert.equal(reward.progressResets, reward.fieldDeaths, '5층에서는 사망마다 진행도가 초기화된다');
   assert(reward.kills > 0);
-  // 1마리부터 다시 잡는다 — 다음 접속에 바로 또 보스가 서 있지 않다.
-  assert(save.floorKills < floorKillTarget(5));
-  assert.equal(save.bossRetryFloor, 5, '`⚔ 보스 도전`이 살아 있는 층을 남긴다');
+  assert(save.floorKills < floorKillTarget(5), '마지막 사망 이후 몫만 남는다');
+  assert.equal(save.bossRetryFloor, 0, '보스에게 진 적이 없으니 `⚔ 보스 도전`도 없다');
   // 지면 10골드를 잃는다(접속 사냥과 같다) — 2026-11-24부터 사냥 중 쓰러짐(`fieldDeaths`)도 같은 패널티다.
   assert.equal(save.gold, reward.gold - (reward.deaths + reward.fieldDeaths) * 10);
 });

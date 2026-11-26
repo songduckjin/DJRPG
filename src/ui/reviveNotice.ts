@@ -11,7 +11,8 @@
  * 동안 플래시를 유지한다.
  */
 import {
-  REVIVE_CARD_DOWN, REVIVE_CARD_NOTE, REVIVE_CARD_RESTART, REVIVE_CARD_REVIVED, REVIVE_CARD_REVIVED_LINE, REVIVE_FLASH_SECONDS,
+  REVIVE_CARD_DOWN, REVIVE_CARD_NOTE, REVIVE_CARD_PROGRESS, REVIVE_CARD_RESTART, REVIVE_CARD_REVIVED,
+  REVIVE_CARD_REVIVED_LINE, REVIVE_FLASH_SECONDS,
   reviveChipText, reviveNoticeState, reviveScreenReaderText
 } from '../game/reviveNotice';
 import type { Interface } from './interface';
@@ -27,7 +28,7 @@ const cardMarkup = (): string => `<div class="revive-card" role="status" aria-li
   <div class="rvc-ring" aria-hidden="true"><svg viewBox="0 0 92 92"><circle class="rvc-track" cx="46" cy="46" r="${RING_RADIUS}"></circle><circle class="rvc-arc" cx="46" cy="46" r="${RING_RADIUS}"></circle></svg><b class="rvc-count"><span class="rvc-num">5</span><span class="rvc-unit">초</span></b></div>
   <div class="rvc-title" aria-hidden="true">${REVIVE_CARD_DOWN}</div>
   <span class="rvc-chip" aria-hidden="true"></span>
-  <p class="rvc-desc" aria-hidden="true"><span class="rvc-desc-wait"><b class="rvc-desc-count">5초</b> 뒤 만혈로 부활합니다.<br>${REVIVE_CARD_RESTART}</span><span class="rvc-desc-revived">${REVIVE_CARD_REVIVED_LINE}</span></p>
+  <p class="rvc-desc" aria-hidden="true"><span class="rvc-desc-wait"><b class="rvc-desc-count">5초</b> 뒤 만혈로 부활합니다.<br>${REVIVE_CARD_RESTART}<br><span class="rvc-progress">${REVIVE_CARD_PROGRESS}</span></span><span class="rvc-desc-revived">${REVIVE_CARD_REVIVED_LINE}</span></p>
   <div class="rvc-bar" aria-hidden="true"><i class="rvc-fill"></i></div>
   <p class="rvc-note" aria-hidden="true">${REVIVE_CARD_NOTE}</p>
   <p class="rvc-sr"></p>
@@ -89,6 +90,8 @@ export class ReviveNotice {
 
     const card = this.mount(battle);
     card.classList.toggle('is-revived', state.kind === 'flash');
+    // 일반·정예 몹에게 쓰러져 이번 층 진행도가 초기화된 사망에만 한 줄 더 — 보스 사망에는 카드 문장이 다르다.
+    card.classList.toggle('is-reset', world.reviveProgressReset === true);
     if (state.kind === 'flash') {
       // 링·막대는 가득 찬 채로 한 번 번쩍이고 사라진다.
       if (this.num && this.num.textContent !== REVIVE_CARD_REVIVED) this.num.textContent = REVIVE_CARD_REVIVED;
