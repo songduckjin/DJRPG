@@ -3,6 +3,17 @@
 > 최근 작업·PR·배포 기록만 둔다(최근 20건). 더 이전 기록은 `docs/archive/2026-11/WORKLOG-history.md`.
 > 새 기록은 맨 위에 `## YYYY-MM-DD · <담당> 작업 <번호> — <제목>` 형식으로 추가하고, 오래된 항목은 아카이브로 옮긴다.
 
+## 2026-11-26 · 운영 배포 — 월드보스 배경 가려짐 수정(#391) 단독
+
+- **배포**: 점검 ON [PR #397](https://github.com/songduckjin/DJRPG/pull/397)(`24cb15f`, `eta 2026-11-26T23:40:00+09:00`) → 통합 [PR #398](https://github.com/songduckjin/DJRPG/pull/398) 스쿼시 **`3351975be552`** → 점검 OFF [PR #399](https://github.com/songduckjin/DJRPG/pull/399) **`fa572e6`**. 실서버 `https://djrpg.pages.dev/version.json` = 통합 직후 `3351975be552`(`builtAt` 2026-11-26T14:04:34Z) → 점검 OFF 뒤 `fa572e60ab89`(`builtAt` 2026-11-26T14:07:01Z), `maintenance.json` `active:false`. 점검 화면 22:53~23:07 KST(약 14분).
+- **무엇**: Draft [PR #391](https://github.com/songduckjin/DJRPG/pull/391)(`fix/world-boss-hide-ambient-layer`, `3b63614`) — `src/ui/worldBossField.ts`가 레이어 숨김 줄에서 `ambientLayer`를 빼먹어, 21~40층에서 월드보스에 들어가면 흑요석 투기장 위를 그 층 사냥 배경(「핏빛 성채 전당」)이 덮었다(11-25 로스터 개편 뒤 드러난 회귀). `view.ambientLayer.visible=false`를 더해 월드보스·던전·무한 방어전이 같은 다섯 레이어(`floor`·`terrainLayer`·`ambientLayer`·`glow`·`shade`)를 끄게 맞췄다.
+- **충돌 해결**: 최신 `origin/main`(`24cb15f`)에서 `deploy/1126-integration-391`을 따 `3b63614`를 병합. 충돌은 `docs/TASK.md`·`docs/WORKLOG.md` 2건 — `main`의 `#390`·`#392` 기록과 이 PR의 `#391` 기록이 같은 자리에 추가돼 있었다. **양쪽 기록을 모두 보존**했다(TASK 표: `#391` 행 → `#390` 행 → `#392` 행, WORKLOG: 통합 배포 절 → `#390` 절 → `#392` 절 → `#391` 절). 코드는 자동 병합.
+- **검증(로컬, Node 22.20.0)**: `npx tsc --noEmit` 통과, `npm run build` 통과(`dist/assets/index-Clg46kQr.js` 939.34 kB — 산출물에 `o.ambientLayer.visible=!1` 포함 확인). 신규 `tests/world-boss-field-scenery.test.mjs` **4/4**. 전체 `node --test tests/*.test.mjs`는 2 CPU라 **6묶음(34·34·34·34·34·33파일)**으로 나눠 실행 — **1,736건 중 1,733 통과·실패 3건**(`hawk-eye-wind`·`blood-rage-aura`·`common-codes`)으로 직전 통합 배포 보고의 기준선 3건과 이름까지 동일(**신규 실패 0**). 총 건수 1,736 = 직전 1,732 + 이 PR 신규 4.
+- **배포 실측**: `/` 200 · `/api/account` GET 405 JSON(`POST 요청만 허용합니다`) · 무토큰 401 · 버전 게이트 `426 VERSION_OUTDATED` `expected: 3351975be552`(서버 Functions도 통합 커밋 빌드). 라이브 번들 `assets/index-BUU6Czw5.js`(939,063B)에 `o.ambientLayer.visible=!1` 1건.
+- **API 스모크(점검 OFF 뒤)**: 게스트 가입 200(rev 0) → 저장 200(**rev 0→1**, 금화 +123) → `load` 200(rev 1·금화 123 유지) → 계정 탈퇴 200(`characters:1`).
+- **실브라우저 스모크**(`https://djrpg.pages.dev`): 점검 팝업 없이 정상 진입, 저장된 게스트(전사 모험가 LV 9·3층)로 자동 사냥 재개(3층 `106/214`, HP 236→182)와 오프라인 정산 창 정상 표시·닫기. **월드보스 연습** 진입 → 60초 연습 필드에서 **홍예문·석조 아치·깃발이 있는 흑요석 투기장이 사냥 배경에 가려지지 않고 정상 노출**(수정 전에는 잿빛 황무지가 덮였다). 나가면 메인 사냥 배경도 정상 복귀. 스크린샷 `downloads/djrpg_live_smoke_2026-11-26-3.png`.
+- **남긴 것**: 원 PR `#391`은 통합 PR 본문의 `Closes`로 자동 CLOSED되었고 통합 반영 댓글을 남겼다(원격 브랜치 삭제는 이 자격 증명에서 403). iOS 실기에서 층별 사냥 배경·투기장이 겹치지 않는지 눈으로 보는 확인은 덕진 님 몫이다.
+
 ## 2026-11-26 · 운영 배포 — 스킬 창 트리 스크롤 수정(#390) + 층 진행도 사망 초기화·killsToBoss 하향(#392) 통합
 
 - **배포**: 점검 ON [PR #393](https://github.com/songduckjin/DJRPG/pull/393)(`d09ef4e`, `eta 2026-11-26T18:40:00+09:00`) → 통합 [PR #394](https://github.com/songduckjin/DJRPG/pull/394) 스쿼시 **`80aa78a5765d`** → 점검 OFF [PR #395](https://github.com/songduckjin/DJRPG/pull/395) **`a553bf5`**. 실서버 `https://djrpg.pages.dev/version.json` = 통합 직후 `80aa78a5765d`(`builtAt` 2026-11-26T09:13:54Z) → 점검 OFF 뒤 `a553bf5bb000`(`builtAt` 2026-11-26T09:17:00Z), `maintenance.json` `active:false`. 점검 화면 17:58~18:17 KST(약 19분).
