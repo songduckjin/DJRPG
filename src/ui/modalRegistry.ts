@@ -102,7 +102,10 @@ export const MODALS: Record<Modal, ModalSpec> = {
   skills: {
     title: '스킬 트리',
     dialogClasses: ['skills-modal'],
-    render: (ui, dialog) => renderSkills.call(ui, dialog)
+    render: (ui, dialog) => renderSkills.call(ui, dialog),
+    // 스킬 상태는 이 창의 단추로만 바뀐다 — 사냥 진행으로 다시 그릴 이유가 없다(2026-11-25 스크롤 개선 A-1).
+    // 예전에는 처치·드랍마다 창 내용 137개가 교체되어 스크롤 중이던 `.skill-tree`가 사라졌다.
+    quietWhileHunting: true
   },
   account: {
     title: '계정 정보',

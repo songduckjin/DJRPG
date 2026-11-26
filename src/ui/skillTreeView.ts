@@ -25,6 +25,23 @@ import {
 import { spLedger, spBookBonus, SP_FIRST_RANK } from '../game/skillPoints';
 import { unequipSkill } from '../game/loadout';
 
+/** 상단 `SP` 알약의 요약 문구 — 그리기(`skillTopBar`)와 부분 갱신(`patchSkillLive`)이 같은 규칙을 쓴다. */
+function spSummary(save: Save): { available: number; title: string } {
+  const ledger = spLedger(save);
+  // 무료 지급된 첫 스킬 1랭크는 받은 몫에서도 뺀다 — Lv.1은 `받은 3 · 사용 0 · 남은 3`으로 보인다.
+  const book = spBookBonus(save);
+  const earned = ledger.total - SP_FIRST_RANK;
+  return {
+    available: ledger.available,
+    title: `남은 스킬 포인트 ${ledger.available} · 사용 ${Math.max(0, ledger.spent - SP_FIRST_RANK)} / ${earned}${book ? ` (스킬의 서 +${book})` : ''}`
+  };
+}
+
+/** 값이 다를 때만 글자를 쓴다 — 같은 값을 다시 쓰면 레이아웃·페인트만 한 번 더 만든다. */
+function writeWhenDifferent(node: Element | null | undefined, text: string): void {
+  if (node && node.textContent !== text) node.textContent = text;
+}
+
 /** 지금 그릴 선택 — 고른 것이 이 직업 트리에 있으면 그대로, 없으면 장착 중 → 습득한 스킬 → 첫 노드 순. */
 export function resolveSkillSelection(save: Save, job: Job, current?: SkillSelection): SkillSelection {
   const nodes = skillTreeFor(job);
@@ -56,17 +73,15 @@ function paintSkillIcon(box: HTMLElement, id: SkillSelection, job: Job, passive:
 export function skillTopBar(ui: Interface): HTMLElement {
   const save = ui.world.save;
   const ledger = spLedger(save);
+  const summary = spSummary(save);
   const bar = el('div', 'skill-top-bar');
   bar.append(el('span', 'skill-sp-hint', 'SP 1 = 1랭크 · 최대 Lv.10'));
   const sp = el('span', 'skill-sp');
   const gem = el('i', 'skill-sp-gem');
   gem.setAttribute('aria-hidden', 'true');
-  sp.append(gem, el('span', 'skill-sp-label', 'SP'), el('b', 'skill-sp-value', String(ledger.available)));
-  // 무료 지급된 첫 스킬 1랭크는 받은 몫에서도 뺀다 — Lv.1은 `받은 3 · 사용 0 · 남은 3`으로 보인다.
-  const book = spBookBonus(save);
-  const earned = ledger.total - SP_FIRST_RANK;
-  sp.title = `남은 스킬 포인트 ${ledger.available} · 사용 ${Math.max(0, ledger.spent - SP_FIRST_RANK)} / ${earned}${book ? ` (스킬의 서 +${book})` : ''}`;
-  sp.setAttribute('aria-label', `스킬 포인트 ${ledger.available}`);
+  sp.append(gem, el('span', 'skill-sp-label', 'SP'), el('b', 'skill-sp-value', String(summary.available)));
+  sp.title = summary.title;
+  sp.setAttribute('aria-label', `스킬 포인트 ${summary.available}`);
 
   const reset = el('button', 'skill-reset', skillsResetIsFree() ? '초기화 (무료)' : '초기화');
   reset.type = 'button';
@@ -88,6 +103,8 @@ function resetSkills(ui: Interface): void {
   const health = totalStats(ui.world.save).health;
   if (health < before) { ui.world.player.hp = Math.min(ui.world.player.hp, health); ui.world.save.health = ui.world.player.hp; }
   ui.world.onChange();
+  // 사냥 중에는 이 창을 다시 그리지 않는다(`quietWhileHunting`) — 내가 누른 조작은 여기서 직접 반영한다.
+  ui.renderModal();
   ui.message(result.message);
 }
 
@@ -106,7 +123,10 @@ export function skillTreePanel(ui: Interface, save: Save, job: Job, selection: S
     const mid = ((edge.fromY + edge.toY) / 2) * 100;
     const open = statuses.get(edge.to)?.open;
     const d = `M ${(edge.fromX * 100).toFixed(2)} ${(edge.fromY * 100).toFixed(2)} V ${mid.toFixed(2)} H ${(edge.toX * 100).toFixed(2)} V ${(edge.toY * 100).toFixed(2)}`;
-    return `<path class="skill-edge${open ? ' is-open' : ''}${edge.ultimate ? ' is-ultimate' : ''}" d="${d}" />`;
+    // 열린 연결선의 금빛 번짐은 `filter: drop-shadow` 대신 **같은 `d`의 넓고 옅은 선**을 한 겹 더 깐다.
+    // 필터 레이어는 스크롤할 때마다 다시 그려지고, 겹친 선은 이미 있는 도형을 한 번 더 채울 뿐이다.
+    const glow = open ? `<path class="skill-edge-glow" d="${d}" />` : '';
+    return `${glow}<path class="skill-edge${open ? ' is-open' : ''}${edge.ultimate ? ' is-ultimate' : ''}" d="${d}" />`;
   }).join('');
   edges.innerHTML = `<svg viewBox="0 0 100 100" preserveAspectRatio="none">${paths}</svg>`;
   canvas.append(edges);
@@ -138,10 +158,8 @@ export function skillTreePanel(ui: Interface, save: Save, job: Job, selection: S
   return panel;
 }
 
-/** 스킬 노드 하나 — 아이콘과 `N/10`. 잠긴 노드는 자물쇠, 궁극은 금빛 테두리. */
-function skillNodeButton(ui: Interface, node: SkillTreeNode, status: SkillNodeStatus, selected: boolean): HTMLElement {
-  const save = ui.world.save, job = jobOrDefault(save.job);
-  const equipped = !node.passive && save.quickSlots.includes(node.id as SkillId);
+/** 노드 버튼의 클래스 — 그리기와 부분 갱신(`patchSkillLive`)이 같은 규칙을 쓰도록 한 곳에 둔다. */
+function skillNodeClasses(node: SkillTreeNode, status: SkillNodeStatus, selected: boolean, equipped: boolean): string {
   const classes = ['skill-node'];
   if (node.passive) classes.push('is-passive');
   if (node.ultimate) classes.push('is-ultimate');
@@ -149,10 +167,23 @@ function skillNodeButton(ui: Interface, node: SkillTreeNode, status: SkillNodeSt
   if (status.learned) classes.push('is-learned'); else classes.push(status.open ? 'is-open' : 'is-locked');
   if (status.maxed) classes.push('is-maxed');
   if (equipped) classes.push('is-equipped');
-  const button = el('button', classes.join(' '), '', { type: 'button', 'aria-pressed': String(selected), 'data-skill': node.id });
+  return classes.join(' ');
+}
+
+/** 노드가 스크린리더·툴팁에 말하는 한 줄 — 부분 갱신도 같은 문장을 쓴다. */
+function skillNodeLabel(node: SkillTreeNode, status: SkillNodeStatus, equipped: boolean): string {
+  const state = !status.learned ? (status.open ? '습득 가능' : '잠김') : `Lv.${status.level}`;
+  return `${skillNameOf(node.id)} · ${state} · ${status.level}/${10}${equipped ? ' · 장착중' : ''}`;
+}
+
+/** 스킬 노드 하나 — 아이콘과 `N/10`. 잠긴 노드는 자물쇠, 궁극은 금빛 테두리. */
+function skillNodeButton(ui: Interface, node: SkillTreeNode, status: SkillNodeStatus, selected: boolean): HTMLElement {
+  const save = ui.world.save, job = jobOrDefault(save.job);
+  const equipped = !node.passive && save.quickSlots.includes(node.id as SkillId);
+  const button = el('button', skillNodeClasses(node, status, selected, equipped), '', { type: 'button', 'aria-pressed': String(selected), 'data-skill': node.id });
   const name = skillNameOf(node.id);
   const state = !status.learned ? (status.open ? '습득 가능' : '잠김') : `Lv.${status.level}`;
-  button.setAttribute('aria-label', `${name} · ${state} · ${status.level}/${10}${equipped ? ' · 장착중' : ''}`);
+  button.setAttribute('aria-label', skillNodeLabel(node, status, equipped));
   button.title = status.reason || `${name} — ${state}`;
   const frame = el('span', 'skill-node-frame');
   // 자물쇠는 **정말 잠긴** 노드(선행·SP 미충족)에만 — 습득만 안 한 열린 노드는 아이콘이 그대로 보인다.
@@ -288,6 +319,8 @@ function investOne(ui: Interface, id: SkillSelection): void {
     ui.world.player.hp += totalStats(ui.world.save).health - before;
     ui.world.save.health = ui.world.player.hp;
     ui.world.onChange();
+    // 사냥 중에는 창을 다시 그리지 않는다(`quietWhileHunting`) — 투자 결과는 여기서 바로 반영한다.
+    ui.renderModal();
   }
   ui.message(result.message);
 }
@@ -298,9 +331,87 @@ function toggleEquip(ui: Interface, id: SkillId): void {
     if (ui.world.paused || ui.market.busy || ui.market.sync.locked) { ui.message('동기화 중에는 스킬을 해제할 수 없습니다. 잠시 후 다시 시도하세요.'); return; }
     const result = unequipSkill(save, id);
     ui.message(`${skillNameOf(id)}: ${result.message}`);
-    if (result.ok) ui.world.onChange();
+    if (result.ok) { ui.world.onChange(); ui.renderModal(); }
     return;
   }
   if (!save.learned.includes(id)) { ui.message('SP를 투자해 스킬을 습득하면 장착할 수 있습니다.'); return; }
   ui.chooseSkill(id);
+}
+
+/**
+ * 사냥 중 레벨업으로 달라지는 숫자만 다시 쓴다 (A-3, 2026-11-25 스킬 창 스크롤 개선).
+ *
+ * 이 창은 이제 사냥 중에 다시 그리지 않는다(`MODALS.skills.quietWhileHunting`) — 매 처치마다 창 내용을
+ * 통째로 새로 만들면 스크롤 중이던 `.skill-tree`가 교체되어 관성 스크롤이 끊긴다. 그 대신 창을 열어 둔 채
+ * 레벨이 오르면 `SP`가 낡은 값으로 남으므로, `tick()`이 매 프레임 **값이 다를 때만** 글자·잠금 상태를 고친다.
+ *
+ * 레벨업이 바꾸는 것은 `SP 보유량`과 그에 따른 `투자 가능` 여부뿐이다(누적 투자 SP·선행 레벨은 투자로만 바뀐다).
+ * 비교가 먼저라 대개는 아무것도 쓰지 않고 끝난다.
+ */
+export function patchSkillLive(ui: Interface): void {
+  const dialog = ui.modal?.querySelector<HTMLElement>('.modal-dialog');
+  const tree = dialog?.querySelector<HTMLElement>('.skill-tree');
+  if (!dialog || !tree) return;
+  const save = ui.world.save, job = jobOrDefault(save.job);
+  const ledger = spLedger(save);
+  const nodes = skillTreeFor(job);
+  const statuses = new Map(nodes.map(node => [node.id, skillNodeStatus(save, node)]));
+
+  const summary = spSummary(save);
+  writeWhenDifferent(dialog.querySelector<HTMLElement>('.skill-sp-value'), String(summary.available));
+  const pill = dialog.querySelector<HTMLElement>('.skill-sp');
+  if (pill) {
+    if (pill.title !== summary.title) pill.title = summary.title;
+    const label = `스킬 포인트 ${summary.available}`;
+    if (pill.getAttribute('aria-label') !== label) pill.setAttribute('aria-label', label);
+  }
+
+  // `NodeList`는 tsconfig의 `lib`(ES2022·DOM)에서 이터러블이 아니므로 인덱스로 돈다.
+  const rows = tree.querySelectorAll('.skill-tier');
+  for (let rowIndex = 0; rowIndex < rows.length; rowIndex++) {
+    const row = rows[rowIndex] as HTMLElement;
+    const tier = Number(row.dataset.tier);
+    if (!(tier >= 1 && tier <= 4)) continue;
+    const inTier = nodes.filter(node => node.tier === tier);
+    writeWhenDifferent(row.querySelector('.skill-tier-count'),
+      `${inTier.filter(node => statuses.get(node.id)?.learned).length}/${inTier.length}`);
+    if (tier > 1) {
+      const gate = TIER_GATE[tier as 2 | 3 | 4];
+      const invested = row.querySelector('.skill-tier-sp');
+      writeWhenDifferent(invested, `투자 ${Math.min(ledger.spent, gate.minInvestedSp)}/${gate.minInvestedSp} SP`);
+      invested?.classList.toggle('is-met', ledger.spent >= gate.minInvestedSp);
+    }
+    const buttons = row.querySelectorAll('.skill-node');
+    for (let buttonIndex = 0; buttonIndex < buttons.length; buttonIndex++) {
+      const button = buttons[buttonIndex] as HTMLElement;
+      const id = button.dataset.skill as SkillSelection | undefined;
+      const node = nodes.find(item => item.id === id);
+      const status = id ? statuses.get(id) : undefined;
+      if (!node || !status) continue;
+      const equipped = !node.passive && save.quickSlots.includes(node.id as SkillId);
+      const classes = skillNodeClasses(node, status, ui.skillSelected === node.id, equipped);
+      if (button.className !== classes) button.className = classes;
+      const level = button.querySelector('.skill-node-level');
+      writeWhenDifferent(level, `${status.level}/${10}`);
+      level?.classList.toggle('is-locked', !status.learned);
+      const label = skillNodeLabel(node, status, equipped);
+      if (button.getAttribute('aria-label') !== label) button.setAttribute('aria-label', label);
+    }
+  }
+
+  // 상세 패널의 `SP 1 투자`는 보유 SP가 생기는 순간 열린다 — 레벨업이 바꾸는 유일한 단추다.
+  const detail = dialog.querySelector('.skill-detail') as HTMLElement | null;
+  const selected = detail?.dataset.skill as SkillSelection | undefined;
+  const node = selected ? nodes.find(item => item.id === selected) : undefined;
+  const status = node ? statuses.get(node.id) : undefined;
+  const invest = detail?.querySelector('.skill-detail-invest') as HTMLButtonElement | null;
+  if (status && invest) {
+    writeWhenDifferent(invest, status.maxed ? '최대 레벨' : 'SP 1 투자');
+    invest.disabled = !status.canInvest;
+    const title = status.reason || 'SP 1을 투자해 이 스킬을 올립니다';
+    if (invest.title !== title) invest.title = title;
+    invest.classList.toggle('is-ready', status.canInvest);
+    const aria = String(!status.canInvest);
+    if (invest.getAttribute('aria-disabled') !== aria) invest.setAttribute('aria-disabled', aria);
+  }
 }

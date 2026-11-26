@@ -4,7 +4,8 @@
  * `document.createElement`가 돌려주는 것처럼 보이는 객체 하나에 이 파일이 쓰는 만큼만 담았다:
  * `className`·`textContent`·`title`·`disabled`·`hidden`·`attrs`·`dataset`·`style`·`children`,
  * `classList`(add/remove/toggle/contains), `append`/`appendChild`/`insertBefore`/`remove`/`focus`,
- * `setAttribute`(`data-*`는 `dataset`으로도), `innerHTML`(문자열만 보관), `querySelector`(클래스 하나).
+ * `setAttribute`(`data-*`는 `dataset`으로도), `innerHTML`(문자열만 보관), `querySelector`(클래스 하나),
+ * `querySelectorAll`(클래스·태그 하나, 문서 순서).
  *
  * DOM을 실제로 붙이는 창(스킬·가방·우편 등)의 테스트가 이 한 벌을 함께 쓴다 — 스텁이 갈라지면
  * 같은 화면을 두 테스트가 다르게 보게 된다.
@@ -35,7 +36,8 @@ export function element(tag = 'div') {
     getAttribute(key) { return node.attrs[key]; },
     remove() { if (node.parentNode) node.parentNode.children = node.parentNode.children.filter(child => child !== node); },
     focus() {},
-    querySelector(selector) { return query(node, selector); }
+    querySelector(selector) { return query(node, selector); },
+    querySelectorAll(selector) { return queryAll(node, selector); }
   };
   Object.defineProperty(node, 'innerHTML', { get() { return node._html ?? ''; }, set(value) { node._html = value; } });
   return node;
@@ -54,6 +56,19 @@ export function query(root, selector) {
 }
 
 export function walk(root, out = []) { for (const child of root.children ?? []) { out.push(child); walk(child, out); } return out; }
+/** `querySelectorAll` — 같은 규칙(클래스 하나 또는 태그 이름 하나)으로 문서 순서대로 모두 찾는다. */
+export function queryAll(root, selector) {
+  const token = selector.replace(/^[.>\s]+/, '').split(/[ >]/)[0];
+  const out = [];
+  const scan = parent => {
+    for (const child of parent.children ?? []) {
+      if (child.tag === token || String(child.className).split(/\s+/).includes(token)) out.push(child);
+      scan(child);
+    }
+  };
+  scan(root);
+  return out;
+}
 export const byClass = (root, token) => walk(root).filter(node => String(node.className).split(/\s+/).includes(token));
 export const one = (root, token) => byClass(root, token)[0];
 export const textOf = (root, token) => byClass(root, token).map(node => node.textContent);

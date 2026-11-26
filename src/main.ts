@@ -267,7 +267,10 @@ async function start(): Promise<void> {
 
     let previous = performance.now(), time = 0;
     view.app.ticker.add(() => {
-      const maxFPS = preferences.powerSaving ? 30 : 60;
+      // 창이 열려 있으면 배경 필드를 30fps로 낮춘다(2026-11-25 스킬 창 스크롤 개선). 창 뒤의 필드는 86%
+      // 가려져 보이지 않는데 매 프레임 Pixi 캔버스를 다시 그리고 HUD에 스타일을 써서, 창 안 스크롤과
+      // 같은 메인 스레드·GPU를 나눠 썼다. 전투·진행은 `world.update`라 30fps에서도 그대로 돈다.
+      const maxFPS = ui.openModal || preferences.powerSaving ? 30 : 60;
       if (view.app.ticker.maxFPS !== maxFPS) view.app.ticker.maxFPS = maxFPS;
       const now = performance.now(), dt = Math.min(.05, (now - previous) / 1000); previous = now; time += dt;
       world.update(dt);

@@ -10,6 +10,7 @@ import { availableSkills } from '../game/loadout';
 import { cooldowns, type Action } from '../game/world';
 import { skills, type Job, type SkillId } from '../game/skills';
 import { jobNames, jobOrDefault } from '../game/skills';
+import { patchSkillLive } from './skillTreeView';
 import { PATCH_BUFF_PILL_TEXT, isPatchBuffActive, patchBuffRemainingText, patchBuffTitle, patchBuffPillMarkup } from '../game/patchBuff';
 import type { Interface } from './interface';
 
@@ -114,6 +115,10 @@ export function tick(this: Interface): void {
     // 0초에 `부활!`을 0.9초 번쩍인 뒤 사라진다(입문 1~4층은 대기 자체가 0초라 뜨지 않는다).
     // 테스트는 `tick`만 돌리려고 최소 스텁 UI를 넘긴다 — 카드가 없으면 조용히 지나간다.
     this.revive?.render(this);
+    // 스킬 창은 사냥 중에 스스로 갱신하지 않는다(`quietWhileHunting`) — 창을 열어 둔 채 레벨이 올랐을 때
+    // `SP`가 낡은 값으로 남지 않도록, **값이 다를 때만** 글자·투자 가능 상태를 고친다(2026-11-25 A-3).
+    // 창 전체를 다시 그리지 않으므로 스크롤 위치·관성이 그대로다.
+    if (this.openModal === 'skills') patchSkillLive(this);
   }
 
 /**

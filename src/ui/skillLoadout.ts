@@ -62,7 +62,7 @@ export function openSkillPicker(this: Interface, index: number): void {
     row.setAttribute('aria-label', rank === 0 ? `${skill.name} 추천 · ${index + 1}번 원에 장착` : `${skill.name} · ${index + 1}번 원에 장착`);
     row.onclick = () => {
       const result = equipSkill(save, id, index);
-      if (result.ok) { this.skillTarget = undefined; closeSkillPicker.call(this); this.world.onChange(); }
+      if (result.ok) { this.skillTarget = undefined; closeSkillPicker.call(this); this.world.onChange(); refreshSkillWindow.call(this); }
       this.message(`${skill.name}: ${result.message}`);
     };
     list.append(row);
@@ -72,6 +72,13 @@ export function openSkillPicker(this: Interface, index: number): void {
   shell.appendChild(overlay);
   this.tick();
 }
+/**
+ * 스킬 창이 열려 있으면 다시 그린다 — 스킬 창은 사냥 중에 스스로 갱신되지 않으므로(2026-11-25 스크롤 개선)
+ * 스킬 원 장착처럼 창 밖에서 바뀌는 결과도 여기서 한 번 반영한다. 창이 닫혀 있으면 아무 일도 하지 않는다.
+ */
+export function refreshSkillWindow(this: Interface): void {
+  if (this.openModal === 'skills') this.renderModal();
+}
 /** 열려 있는 선택 팝업을 닫는다. */
 export function closeSkillPicker(this: Interface): void {
   this.root.querySelector('.skill-picker')?.remove();
@@ -80,7 +87,7 @@ export function chooseSkill(this: Interface, id: SkillId): void {
   if (!availableSkills(this.world.save).includes(id) || this.world.paused) return;
   if (this.skillTarget !== undefined) {
     const result = equipSkill(this.world.save, id, this.skillTarget);
-    if (result.ok) { cancelSkillSelection.call(this); this.open(null); this.world.onChange(); }
+    if (result.ok) { cancelSkillSelection.call(this); this.open(null); this.world.onChange(); refreshSkillWindow.call(this); }
     this.message(`${skills[id].name}: ${result.message}`); return;
   }
   this.pendingSkill = id;
@@ -97,7 +104,7 @@ export function pressSkillSlot(this: Interface, index: number): void {
   closeSkillPicker.call(this);
   if (this.pendingSkill) {
     const id = this.pendingSkill, result = equipSkill(this.world.save, id, index);
-    if (result.ok) { cancelSkillSelection.call(this); this.world.onChange(); }
+    if (result.ok) { cancelSkillSelection.call(this); this.world.onChange(); refreshSkillWindow.call(this); }
     this.message(`${skills[id].name}: ${result.message}`); return;
   }
   const skill = this.world.save.quickSlots[index];
