@@ -3,6 +3,16 @@
 > 최근 작업·PR·배포 기록만 둔다(최근 20건). 더 이전 기록은 `docs/archive/2026-11/WORKLOG-history.md`.
 > 새 기록은 맨 위에 `## YYYY-MM-DD · <담당> 작업 <번호> — <제목>` 형식으로 추가하고, 오래된 항목은 아카이브로 옮긴다.
 
+## 2026-11-26 · fks3997 작업 미배정 — 월드보스 필드 배경이 사냥 배경에 가려지던 버그 (Draft PR)
+
+- **기준·브랜치**: 최신 `origin/main` `476f74c`(2026-11-25 통합 배포 기록)에서 `fix/world-boss-hide-ambient-layer`. **머지·배포 보류** — Draft PR로만 올린다.
+- **증상**: 2026-11-26 사용자 제보 "근데 아니근데 월드보스배경은왜바꿨어?". 21~40층에서 월드보스에 들어가면 투기장(`/assets/world-boss/obsidian-arena-v1.png`)이 아니라 그 층 일반 사냥 배경(「핏빛 성채 전당」 `hall-b-bright-v1.png`)이 보였다. 배경 그림을 바꾼 커밋은 없다.
+- **원인**: `src/ui/worldBossField.ts`는 매 프레임 `view.draw(session.world, visualTime)`으로 장면을 그리는데, 그 안의 `drawTerrain` → `placeFieldScene` → `mountFieldScene` → `mountAmbientScene`(`src/game/ambientScene.ts`)이 현재 층 사냥 배경을 `view.ambientLayer`에 올린다. 투기장은 `stage` 0번에 깔리므로(`addChildAt(arenaSprite,0)`) `ambientLayer`가 그 위를 덮는다. 그런데 이 화면의 레이어 숨김 줄은 `floor`·`terrainLayer`·`glow`·`shade` 네 개만 끄고 **`ambientLayer`가 빠져 있었다** — 11-25 로스터 개편으로 21~40층 배경이 `ambientLayer` 장면이 되면서 드러난 회귀다(던전 `dungeonField`·무한 방어전 `defenseField`는 이미 다섯 레이어를 모두 끈다).
+- **수정**: 그 줄에 `view.ambientLayer.visible=false`를 더해 전용 화면 셋이 같은 목록을 끄게 맞췄다. 투기장·보스 시트·연출·전투 로직은 건드리지 않았다. 월드보스 관련 다른 화면(`worldBossDefeat.ts`·`worldBossPreview.ts`·`worldBossResult.ts` 등)은 `GameView`를 만들지 않는 순수 모듈이라 노출 지점이 없고, `GameView`를 만드는 곳은 메인 필드(`main.ts`, 사냥 배경이 정상)·던전·방어전·월드보스·개발용 `src/dev/skillVfxStudio.ts`뿐이다.
+- **회귀 테스트**: 신규 `tests/world-boss-field-scenery.test.mjs` 4건 — ① 월드보스 필드가 다섯 레이어를 모두 끈다 ② 전용 화면 셋(월드보스·던전·방어전)이 같은 목록을 끈다 ③ 투기장이 `ambientLayer`보다 아래(무대 0번)에 깔린다 ④ `mountAmbientScene`이 `ambientLayer.visible`을 다시 켜지 않는다. **수정 전 코드에서 ①·② 2건이 실제로 실패**함을 확인했다.
+- **검증**: `npx tsc --noEmit` 통과, `npm run build`(generate-version → tsc → verify-item-art → vite build) 통과. 전체 `node --test tests/*.test.mjs` **200파일 1,703건 중 1,700 통과·실패 3건** — `blood-rage-aura`·`common-codes`·`hawk-eye-wind`로 2026-11-25 기록된 `origin/main` 기준선의 같은 3건과 이름까지 동일(**신규 실패 0**).
+- **남긴 것**: 운영 반영(점검 ON→배포→OFF) 없음 — 덕진 님 일괄 배포에 합류시킨다. 인게임 확인(월드보스 입장 시 투기장 배경)은 사용자·덕진 님 몫이다.
+
 ## 2026-11-25 · 운영 배포 — 필드 부활 정지(#383) · 워터 캐논 상향(#384) · 레벨 표기 통일(#385) 통합
 
 - **배포**: 점검 ON [PR #386](https://github.com/songduckjin/DJRPG/pull/386)(`6cbd3f3`, `eta 2026-11-26 00:40`) → 통합 [PR #387](https://github.com/songduckjin/DJRPG/pull/387) 스쿼시 **`afaa57429d85`** → 점검 OFF [PR #388](https://github.com/songduckjin/DJRPG/pull/388) **`e829bb39`**. 실서버 `https://djrpg.pages.dev/version.json` = `afaa57429d85`(`builtAt` 2026-11-25T15:02:42Z), `maintenance.json` `active:false`.
