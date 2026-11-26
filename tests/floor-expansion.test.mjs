@@ -28,9 +28,9 @@ async function pngInfo(relative) {
 test('층 상한은 40 — 곡선·처치 목표·레벨 상한은 그대로 이어진다', () => {
   assert.equal(MAX_FLOOR, 40);
   assert.equal(MAX_LEVEL, 30, 'MAX_LEVEL은 30 유지(기획 확정 6번)');
-  assert.equal(killsToBoss(40), 2841, '40층 처치 목표는 현행 공식 그대로');
-  assert.equal(killsToBoss(21), 1150);
-  assert.equal(killsToBoss(41), 2950, '상한 밖도 식은 계속 계산된다');
+  assert.equal(killsToBoss(40), 150, '마지막 층은 150 예외(2026-11-25 사망 예산 곡선)');
+  assert.equal(killsToBoss(21), 41);
+  assert.equal(killsToBoss(41), 72, '상한 밖도 30~40층 기울기로 계속 계산된다');
   // 21~40층 권장 전투력 상한 해제 — clampFloor가 더 이상 20에서 자르지 않는다.
   assert.equal(F.clampFloor(40), 40);
   assert.equal(F.clampFloor(99), 40);

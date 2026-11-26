@@ -4,7 +4,7 @@ import { offlineDropChance, rollItem, totalStats, type Item, type Rarity } from 
 import { rollStatBookDrop } from './statBooks';
 import { jobOrDefault as jobOf, skillDamageScale, skillDuration, skills, SKILL_HIT_POWER, type SkillId } from './skills';
 import { skillLevel, type Save } from './store';
-import { afterBossLose, afterBossWin, applyBossReward, applyKillBatch, defeatPenalty, killsToBoss, MAX_FLOOR } from './progress';
+import { afterBossLose, afterBossWin, applyBossReward, applyKillBatch, defeatPenalty, FIELD_DEATH_RESET_FROM, killsToBoss, MAX_FLOOR } from './progress';
 import { basicAttackPower, berserkAttackScale, berserkSpeedScale, CRIT_CHANCE_CAP, attackInterval, critDamageScale, enemyHitDamage, enemyMaxHp, fieldSpawnRate, swarmCount } from './battle/formulas';
 import { effectiveExtraOptions, EXTRA_LIFESTEAL_SECOND_CAP, EXTRA_REGEN_SECONDS } from './extraOptions';
 import { EARLY_REGEN_FLOOR, EARLY_REGEN_PER_SECOND, reviveSeconds, SKILL_CDR_CAP } from './combat/engine';
@@ -20,6 +20,10 @@ import { skillCastScale } from './loadout';
  *  · 보스는 **최고 도달 층에서만** 나오고(`bossFloor()`), 아래층 반복 사냥에는 나오지 않는다.
  *  · 보스를 이기면 `bossKills +1`·보스 금화·경험치·드롭을 받고 `floor+1`·`maxFloor` 갱신·`floorKills=0`.
  *  · 지면 10골드를 잃고 `floorKills=0`으로 돌아가 1마리부터 다시 잡는다(`autoClimb`는 켜 둔 채).
+ *  · **일반·정예 몹에게 죽어도 5층부터는 `floorKills=0`**(2026-11-25 덕진 님 확정) — 접속 사냥의
+ *    `heroDown`과 같은 규칙이다. 방치는 사망이 개별 사건이 아니라 비율이라 "마지막 사망 이후 몫"만
+ *    남긴다(A안): 사망은 `버티는 초 + 부활 대기` 주기로 규칙적으로 일어난다고 보고, 그 주기 위상을
+ *    `deathClock`에 세어 청크 경계를 넘어도 이어진다. 사망이 있던 청크는 보스전을 열지 않는다.
  *  · 마지막 층(`MAX_FLOOR`)에서는 이겨도 층이 오르지 않고 그 층에서 보스를 계속 잡는다.
  */
 export type OfflineReward = {
@@ -34,6 +38,8 @@ export type OfflineReward = {
   deaths: number;
   /** 사냥 중 일반·정예 몹에게 쓰러진 횟수(2026-11-24) — 접속과 같은 10골드씩 잃었다. */
   fieldDeaths: number;
+  /** 그 사망으로 5층부터의 층 진행도가 1마리부터 다시가 된 횟수(2026-11-25) — 정산서가 이유를 말한다. */
+  progressResets: number;
   /** 방치 중 자동 분해가 가져간 장비의 환산량 (작업 254) — 가방에 들어가지 않고 금화·강화석이 됐다. */
   salvaged: { count: number; gold: number; stones: number };
 };
@@ -203,9 +209,10 @@ export function applyOfflineRewards(save: Save, elapsedSeconds: number, options:
   const items: Item[] = [];
   let missedDrops = 0;
   const salvaged = { count: 0, gold: 0, stones: 0 };
-  const reward: OfflineReward = { seconds, kills: 0, exp: 0, gold: 0, items, missedDrops: 0, levels: 0, startFloor, endFloor: startFloor, bossKills: 0, deaths: 0, fieldDeaths: 0, salvaged };
-  /** 층별 사냥 중 쓰러짐의 소수 누적 — 청크를 나눠도 정수로 한 번씩만 패널티를 문다. */
-  let fieldDeathCarry = 0;
+  const reward: OfflineReward = { seconds, kills: 0, exp: 0, gold: 0, items, missedDrops: 0, levels: 0, startFloor, endFloor: startFloor, bossKills: 0, deaths: 0, fieldDeaths: 0, progressResets: 0, salvaged };
+  /** 사망 주기 위상 — 마지막 사망 이후 사냥한 초. 층이 바뀌면 0부터 다시 센다(A안). */
+  let deathClock = 0;
+  let deathClockFloor = 0;
   /** 떨어진 하나를 가방에 넣는다 — 자동 분해가 켜져 있으면 **필드·던전과 같은 규칙**(`autoSalvageRecovered`)으로
    *  먼저 분해해 보고, 분해되면 가방에 넣지 않고 금화·강화석으로 정산한다(작업 254). 스킬북·보물
    *  주머니·잠금·등급 초과·`+N` 초과·빈 슬롯·더 좋은 장비 보호는 그 함수가 그대로 맡는다. */
@@ -219,17 +226,33 @@ export function applyOfflineRewards(save: Save, elapsedSeconds: number, options:
     if (!addItemToBag(save, item, 'offline')) { missedDrops++; return; }
     items.push(item);
   };
-  /** 그 층에서 `count`마리 사냥 — 금화·경험치·처치 수는 `progress.ts`가 정한다(PR-3). 드롭만 방치 몫을 쓴다. */
-  const hunt = (count: number, floor: number): void => {
-    if (count <= 0) return;
+  /**
+   * 그 층에서 `count`마리 사냥 — 금화·경험치·처치 수는 `progress.ts`가 정한다(PR-3). 드롭만 방치 몫을 쓴다.
+   *
+   * 돌려주는 값(2026-11-25): `died`는 이번 청크에서 쓰러진 횟수, `killsSinceDeath`는 **마지막 사망 이후**
+   * 잡은 마릿수다. 사망이 없으면 `count` 그대로다 — 층 진행도는 이 값만 남겨 접속 사냥과 같은 규칙을 쓴다.
+   */
+  const hunt = (count: number, floor: number): { died: number; killsSinceDeath: number } => {
+    if (count <= 0) return { died: 0, killsSinceDeath: 0 };
     const batch = applyKillBatch(save, floor, count);
     reward.kills += batch.kills; reward.gold += batch.gold; reward.exp += batch.exp; reward.levels += batch.levels;
     // 사냥 중 사망(2026-11-24) — 처치 수에는 이미 생존 가동률로 반영돼 있고, 여기서는 접속과 같은
     // 10골드 패널티를 문다. 쓰러진 횟수는 정산서를 위해 `fieldDeaths`에 남긴다.
-    fieldDeathCarry += count * (60 / offlineKillsPerMinute(save, floor)) / 3600 * offlineDeathsPerHour(save, floor);
-    const died = Math.floor(fieldDeathCarry);
+    // 죽음은 `버티는 초 + 부활 대기` 주기로 규칙적으로 온다 — 그 주기를 청크 경계 너머로 이어 세야
+    // "마지막 사망 이후 얼마나 사냥했나"를 알 수 있다(A안, 2026-11-25). 주기가 무한이면(회복이 피해를
+    // 넘는 스펙) 죽지 않는다 — 반드시 `Number.isFinite`로 막는다(무한 루프 방지).
+    const huntedSeconds = count * 60 / offlineKillsPerMinute(save, floor);
+    const deathsPerHour = offlineDeathsPerHour(save, floor);
+    const cycle = deathsPerHour > 0 ? 3600 / deathsPerHour : Infinity;
+    if (floor !== deathClockFloor) { deathClockFloor = floor; deathClock = 0; }
+    let died = 0, spent = 0;
+    while (Number.isFinite(cycle) && deathClock + (huntedSeconds - spent) >= cycle) {
+      spent += cycle - deathClock;
+      deathClock = 0;
+      died++;
+    }
+    deathClock += huntedSeconds - spent;
     if (died > 0) {
-      fieldDeathCarry -= died;
       reward.fieldDeaths += died;
       for (let index = 0; index < died; index++) defeatPenalty(save);
     }
@@ -242,6 +265,9 @@ export function applyOfflineRewards(save: Save, elapsedSeconds: number, options:
       const book = rollStatBookDrop('offline');
       if (book) receive(() => book);
     }
+    // 마지막 사망 뒤 몫 — 청크 안에서 균등하게 잡았다고 보고 사냥한 시간 비율로 나눈다.
+    const killsSinceDeath = died > 0 && huntedSeconds > 0 ? Math.floor(count * (deathClock / huntedSeconds)) : count;
+    return { died, killsSinceDeath };
   };
   /** 층 보스 처치 보상 — 금화 `70 × 층`, 경험치 `(9 + 층) × 6`, 드롭 한 번(작업 195·207). 금액은 `progress.ts`.
    *  방치는 보스 처치를 `kills`에 세지 않는다 — 기존 동작 그대로(일일 미션 카운터 불변). */
@@ -257,6 +283,17 @@ export function applyOfflineRewards(save: Save, elapsedSeconds: number, options:
     if (bossBook) receive(() => bossBook);
   };
 
+  /**
+   * 사망이 있던 청크의 층 진행도 — 5층부터는 **마지막 사망 이후 몫**만 남긴다(2026-11-25 덕진 님 확정, A안).
+   * 입문 1~4층은 초기화 면제라 예전처럼 채운 만큼 더한다. `true`를 돌려주면 부르는 쪽이 진행도를
+   * `killsSinceDeath`로 세운다 — 목표를 채운 청크라도 승급·보스전을 열지 않는다(접속 사냥과 같은 규칙).
+   */
+  const keepOnlySinceLastDeath = (floor: number, hunted: { died: number; killsSinceDeath: number }): boolean => {
+    if (hunted.died <= 0 || floor < FIELD_DEATH_RESET_FROM) return false;
+    reward.progressResets += hunted.died;
+    return true;
+  };
+
   let remaining = seconds;
   for (let guard = 0; remaining > 0 && guard < 50_000; guard++) {
     const floor = save.floor;
@@ -270,33 +307,48 @@ export function applyOfflineRewards(save: Save, elapsedSeconds: number, options:
       if (need * perKill >= remaining) {
         // 돌아오기 전에 이 층 목표를 다 못 채웠다 — 채운 만큼만 정산하고 그 층에 머문다.
         const count = Math.floor(remaining / perKill);
-        hunt(count, floor);
-        save.floorKills = Math.min(target, save.floorKills + count);
+        const hunted = hunt(count, floor);
+        save.floorKills = keepOnlySinceLastDeath(floor, hunted)
+          ? Math.min(target, hunted.killsSinceDeath)
+          : Math.min(target, save.floorKills + count);
         break;
       }
-      hunt(need, floor);
-      save.floorKills = 0;
+      const hunted = hunt(need, floor);
       remaining -= need * perKill;
+      // 사망이 있던 청크는 목표 달성으로 치지 않는다 — 마지막 사망 이후 몫만 남기고 그 층에서 다시 쌓는다.
+      if (keepOnlySinceLastDeath(floor, hunted)) {
+        save.floorKills = Math.min(target, hunted.killsSinceDeath);
+        continue;
+      }
+      save.floorKills = 0;
       save.floor = floor + 1;
       continue;
     }
     if (!(save.autoClimb && floor >= save.maxFloor)) {
       const count = Math.floor(remaining / perKill);
-      hunt(count, floor);
-      save.floorKills = (save.floorKills + count) % target;
+      const hunted = hunt(count, floor);
+      // 반복 사냥은 목표를 넘기면 다시 0부터 돈다 — 사망이 있으면 그 사망 시점부터 다시 센다.
+      save.floorKills = (keepOnlySinceLastDeath(floor, hunted) ? hunted.killsSinceDeath : save.floorKills + count) % target;
       break;
     }
     const need = Math.max(0, target - save.floorKills);
     if (need * perKill >= remaining) {
       // 돌아오기 전에 목표를 다 못 채웠다 — 채운 만큼만 정산하고 다음 접속을 기다린다.
       const count = Math.floor(remaining / perKill);
-      hunt(count, floor);
-      save.floorKills = Math.min(target, save.floorKills + count);
+      const hunted = hunt(count, floor);
+      save.floorKills = keepOnlySinceLastDeath(floor, hunted)
+        ? Math.min(target, hunted.killsSinceDeath)
+        : Math.min(target, save.floorKills + count);
       break;
     }
-    hunt(need, floor);
-    save.floorKills = target;
+    const hunted = hunt(need, floor);
     remaining -= need * perKill;
+    // 사망이 있던 청크는 보스전을 열지 않는다 — 죽었는데 보스가 서 있으면 접속 규칙과 어긋난다.
+    if (keepOnlySinceLastDeath(floor, hunted)) {
+      save.floorKills = Math.min(target, hunted.killsSinceDeath);
+      continue;
+    }
+    save.floorKills = target;
     const battle = offlineBossBattle(save, floor);
     // 보스를 다 잡기 전에 돌아왔다 — 보상도 층 상승도 없고, 다음 접속에 목표를 채운 채로 서 있다.
     if (battle.seconds > remaining) break;

@@ -15,6 +15,8 @@ export function renderOffline(dialog: HTMLElement, reward: OfflineReward): void 
   if (climbed) floorNotes.push(`${reward.startFloor}층 → ${reward.endFloor}층 돌파!`);
   if (reward.bossKills) floorNotes.push(`보스 ${reward.bossKills}마리 처치`);
   if (!climbed && reward.deaths) floorNotes.push(`보스에게 ${reward.deaths}번 져서 층이 멈췄습니다`);
+  // 일반 사냥 사망으로 층 진행도가 사라졌다면(2026-11-25) 왜 못 올랐는지도 함께 적는다.
+  if (reward.progressResets) floorNotes.push(`쓰러져 층 진행도가 ${reward.progressResets}번 초기화되었습니다`);
   if (!reward.adjusted && floorNotes.length) { const note = document.createElement('p'); note.className = 'offline-floors'; note.textContent = floorNotes.join(' · '); dialog.appendChild(note); }
   const heading = document.createElement('h3'); heading.textContent = `획득 아이템 ${reward.items.length}개`; dialog.appendChild(heading);
   // 유니크·전설 상위 노출(백로그 3번) — 목록 머리에 상위 등급부터 세우고, 그 줄에 등급 꼬리표·등급 빛을 준다.

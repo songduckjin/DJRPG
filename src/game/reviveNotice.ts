@@ -25,6 +25,11 @@ export const REVIVE_CARD_REVIVED = '부활!';
 export const REVIVE_CARD_RESTART = '부활하면 자동 사냥이 다시 시작됩니다.';
 /** 카드 바닥 각주 — 입문 구간 면제를 미리 알려 준다. */
 export const REVIVE_CARD_NOTE = '1~4층은 대기 없이 바로 부활합니다.';
+/** 일반·정예 몹에게 쓰러져 이번 층 진행도가 1마리부터 다시가 되었을 때만 보이는 한 줄(2026-11-25).
+ *  보스에게 진 경우에는 진행도가 남거나 보스 문장이 따로 나가므로 이 줄을 쓰지 않는다. */
+export const REVIVE_CARD_PROGRESS = '이번 층 진행도도 1마리부터 쌓습니다.';
+/** `5층부터는 …` — 층 선택 창의 상시 안내. 아직 죽기 전에 규칙을 알려 준다. */
+export const FLOOR_DEATH_RESET_NOTE = '5층부터는 쓰러지면 그 층 처치 진행도가 1마리부터 다시 시작합니다';
 /** 0초 플래시에서 카드 본문을 대신하는 한 문장 — 대기 중 문장(`1초 뒤 만혈로 부활합니다`)을 그대로
  *  두면 링이 `부활!`인데 본문은 아직 기다리는 중이라 말이 엇갈린다(프리뷰 검수에서 확인). */
 export const REVIVE_CARD_REVIVED_LINE = '만혈로 부활했습니다. 자동 사냥을 다시 시작합니다.';
@@ -77,9 +82,11 @@ export function reviveScreenReaderText(lostGold: number, floor: number, seconds:
  * 쓰러진 순간의 안내와 부활 순간의 `부활했습니다.`는 카드가 같은 말을 더 정확히(남은 초·`부활!`)
  * 보여 주므로 토스트로 또 띄우면 화면 위아래에서 같은 문장이 두 번 보인다. 다만 **보스에게 진 경우**의
  * `1마리부터 다시 잡으면 보스가 다시 나타납니다`는 카드에 없는 정보라 그대로 토스트로 남긴다.
+ * 일반 몹 사망의 `이번 층은 1마리부터 다시 잡습니다`는 카드의 `이번 층 진행도도 1마리부터…`와 같은 말이라
+ * 함께 접는다(2026-11-25).
  */
 export function isReviveToastSuppressed(text: string): boolean {
   const line = text.trim();
   if (line === '부활했습니다.') return true;
-  return /^쓰러졌습니다\. 10골드를 잃었습니다\. \d+초 뒤 부활합니다\.(?: 자동 등반은 계속됩니다\.)?$/.test(line);
+  return /^쓰러졌습니다\. 10골드를 잃었습니다\. \d+초 뒤 부활합니다\.(?: (?:자동 등반은 계속됩니다|이번 층은 1마리부터 다시 잡습니다)\.)?$/.test(line);
 }

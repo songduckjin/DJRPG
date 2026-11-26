@@ -22,6 +22,9 @@
  *  · 방치 정산에 생존 가동률 — 체력·방어·회피·피흡·회복이 낮은 이 시험 세이브(방어 17·체력 600)는
  *    15층에서 자주 쓰러져 처치 수가 절반 아래로 떨어진다(약한 스펙일수록 더 떨어지는 것이 이 작업의 요지다).
  *  · 마리당 금화·경험지의 층 보상 배율(`안 A`) — 깊은 층일수록 마리당 보상이 커진다.
+ * **2026-11-25 일반 사냥 사망 시 진행도 초기화 + `killsToBoss` 하향**(덕진 님 확정)으로 field·offline 스냅샷이 바뀌었다
+ * (의도한 변경): 5층부터 일반·정예 몹에게 쓰러지면 `floorKills`가 마지막 사망 이후 몫으로 돌아가고, 층 목표가
+ * 한 생애 예산 곡선(5층 30 → 40층 150)으로 내려가 같은 60초·12시간에 더 깊이 올라간다. 던전 스냅샷은 그대로다.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -38,24 +41,25 @@ const EXPECTED = {
   // 전투 중 판정이 갈리고, 자동 장착되는 장비도 달라진다 — 그래서 60초 시나리오의 처치 수·체력·가방이
   // 조금씩 다르다. 방치 사냥 생존 가동률·층 보상 배율까지 통합한 현재 스냅샷이다.
   'field-boss-win': {
-    gold: 1666, exp: 1100, level: 10, floor: 7, maxFloor: 7, floorKills: 60, kills: 61, bossKills: 1,
-    playSeconds: 59.999999999997875, stones: 3, salvageCount: 0, tutorial: 3, health: 158,
+    gold: 2164, exp: 1176, level: 10, floor: 8, maxFloor: 8, floorKills: 10, kills: 60, bossKills: 2,
+    playSeconds: 59.999999999997875, stones: 3, salvageCount: 0, tutorial: 3, health: 6,
     dungeonFloor: 0, bossRetryFloor: 0, bag: 0
   },
   'field-boss-loss': {
-    gold: 1200, exp: 950, level: 7, floor: 6, maxFloor: 6, floorKills: 54, kills: 54, bossKills: 0,
+    gold: 1200, exp: 950, level: 7, floor: 6, maxFloor: 6, floorKills: 0, kills: 54, bossKills: 0,
     playSeconds: 59.999999999997875, stones: 3, salvageCount: 0, tutorial: 3, health: 0,
     dungeonFloor: 0, bossRetryFloor: 6, bag: 0
   },
   'offline-12h': {
     progress: {
-      // 생존 가동률과 드롭 확률 1/10을 함께 적용해 12시간 보상이 산정된다.
-      gold: 368756, exp: 227939, level: 16, floor: 15, maxFloor: 15, floorKills: 394, kills: 45336, bossKills: 5,
-      playSeconds: 0, stones: 12, salvageCount: 0, tutorial: 3, health: 320, dungeonFloor: 0, bossRetryFloor: 15, bag: 10
+      // 2026-11-25: 사망 리셋·목표 하향 뒤 12시간은 8층에서 9층으로만 오른다(예전 15층) — 시험 세이브가
+      // 15층부터 자주 쓰러지는 스펙이라 목표(34)를 한 번도 안 죽고 채우지 못한다.
+      gold: 328875, exp: 229665, level: 16, floor: 9, maxFloor: 10, floorKills: 12, kills: 49515, bossKills: 0,
+      playSeconds: 0, stones: 12, salvageCount: 0, tutorial: 3, health: 320, dungeonFloor: 0, bossRetryFloor: 0, bag: 10
     },
     reward: {
-      seconds: 43200, kills: 45336, exp: 542939, gold: 409446, levels: 1, startFloor: 8, endFloor: 15,
-      bossKills: 5, deaths: 54, items: 10, missedDrops: 0, salvaged: { count: 0, gold: 0, stones: 0 }
+      seconds: 43200, kills: 49515, exp: 544665, gold: 346605, levels: 1, startFloor: 8, endFloor: 9,
+      bossKills: 0, deaths: 0, items: 10, missedDrops: 0, salvaged: { count: 0, gold: 0, stones: 0 }
     }
   },
   'dungeon-1-clear': {
@@ -116,8 +120,8 @@ test('필드·방치·던전 진행 결과가 리팩터링 전 스냅샷과 같�
 test('보스 승패가 세이브에 남기는 층 기록 — 승리는 +1층·재도전 기록 없음, 패배는 재도전 층', () => {
   const actual = recordScenarios();
   const win = actual['field-boss-win'], loss = actual['field-boss-loss'];
-  assert.equal(win.bossKills, 1);
-  assert.equal(win.floor, 7);
+  assert.equal(win.bossKills, 2, '목표가 짧아져 60초에 보스를 두 번 잡는다');
+  assert.equal(win.floor, 8, '60초에 보스를 두 번 잡아 6층 → 8층');
   assert.equal(win.floorKills < 585, true, '보스를 잡아 새 층에서 진행도가 다시 0부터 쌓인다');
   assert.equal(win.bossRetryFloor, 0, '이기고 올라가면 재도전 기록은 지운다');
   assert.equal(loss.bossKills, 0);

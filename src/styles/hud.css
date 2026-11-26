@@ -240,6 +240,9 @@
 .revive-card.is-revived .rvc-desc-revived { display: inline; }
 .revive-card .rvc-bar { position: relative; height: calc(4 * var(--u)); margin: calc(11 * var(--u)) 0 0; background: #3a2620; overflow: hidden; border-radius: calc(2 * var(--u)); }
 .revive-card .rvc-fill { position: absolute; inset: 0 auto 0 0; width: 100%; background: linear-gradient(90deg, #7d4a3a, #e0a468); }
+.revive-card .rvc-progress { display: none; color: #e0a68c; }
+/* 일반·정예 몹 사망(5층부터) — 진행도가 1마리부터 다시가 된 사망에서만 그 줄을 보여 준다. */
+.revive-card.is-reset .rvc-progress { display: inline; }
 .revive-card .rvc-note { margin: calc(7 * var(--u)) 0 0; font-size: calc(10 * var(--u)); color: #95806b; }
 .revive-card .rvc-sr { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; border: 0; }
 /* 0초 — 링 가운데가 `부활!`로 바뀌며 카드가 한 번 번쩍이고 사라진다(0.9초). */
