@@ -184,7 +184,7 @@ export function openWorldBossField(ui:Interface):void {
         bootsSprite.width=size;bootsSprite.height=size;bootsSprite.position.set(x,y+plantedBossShift(0,0)*size);
         view.actors.setChildIndex(bossSprite,0);view.actors.setChildIndex(bootsSprite,1);
         // Only this dedicated view hides the regular field scenery.
-        view.floor.visible=false;view.terrainLayer.visible=false;view.glow.visible=false;view.shade.visible=false;
+        view.floor.visible=false;view.terrainLayer.visible=false;view.ambientLayer.visible=false;view.glow.visible=false;view.shade.visible=false;
         view.heroLayer.visible=true;view.heroLayer.alpha=1;
         view.app.stage.scale.set(1);view.app.stage.position.y+=h*.07;
         const cover=Math.max(w/arena.width,h/arena.height);arenaSprite.scale.set(cover);
