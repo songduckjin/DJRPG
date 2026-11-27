@@ -298,3 +298,34 @@
 .bag-job-only.is-on { border-color: #c8a26a; background: #4a342a; color: #ffe1b5; }
 .bag-job-only-hint { color: #b9a486; }
 .item-detail-job { display: block; width: 100%; margin: 2px 0 4px; font-size: 10px; font-weight: 700; }
+
+.showcase-wear-frame { border: 0; pointer-events: none; }
+.equipment-wear-preview-button {
+  align-self: center;
+  margin-block: 4px;
+  padding: 5px 10px;
+  border: 1px solid #967449;
+  background: #3a2926;
+  color: #ffe0af;
+}
+.equipment-wear-preview {
+  position: fixed;
+  inset: 0;
+  width: min(920px, 96vw);
+  height: 88dvh;
+  max-width: 96vw;
+  max-height: 88dvh;
+  margin: auto;
+  padding: 8px;
+  border: 1px solid #967449;
+  background: #201a1a;
+  color: #ffe0af;
+}
+.equipment-wear-preview[open] {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 6px;
+}
+.equipment-wear-preview::backdrop { background: #000a; }
+.equipment-wear-preview > button { justify-self: end; }
+.equipment-wear-preview-frame { border: 0; width: 100%; height: 100%; }

@@ -13,6 +13,7 @@ import { salvagePlusLabel, salvagePlusUnlocked, salvagePlusValues } from '../sal
 import { canAutoEquip } from '../../game/inventory';
 import { patchBuffSummaryMarkup } from '../../game/patchBuff';
 import { requestSalvage } from './salvageModal';
+import { hasApprovedWarriorPreview, openWarriorWearPreview, warriorWearFrame } from '../warriorWearPreview';
 import { equipmentPortraitPlan, renderEquipmentGlowLayers, renderEquipmentPortrait } from '../equipmentPortrait';
 import { pouchCount } from '../../game/pouch';
 import { openPouchWindow } from './pouchModal';
@@ -390,27 +391,32 @@ export function renderEquipment(this: Interface, dialog: HTMLElement): void {
     };
     const center = document.createElement('div'); center.className = 'showcase-hero';
     const figure = document.createElement('span'); figure.className = 'showcase-figure';
-    const portrait = document.createElement('img'); portrait.className = 'showcase-body'; portrait.alt = '현재 장착 장비 미리보기';
-    portrait.src = equipmentPortraitPlan(save).base;
-    void renderEquipmentPortrait(save).then(image => { if (portrait.isConnected) portrait.src = image; })
-      .catch(error => console.error('착용 이미지 생성 실패:', error));
-    figure.appendChild(portrait);
-    // 등급색 발광(작업 218) — 유니크·전설 장비를 착용한 부위만 초상화 위에서 숨쉰다.
-    const glowLayer = document.createElement('span'); glowLayer.className = 'showcase-glow';
-    glowLayer.setAttribute('aria-hidden', 'true');
-    figure.appendChild(glowLayer);
-    void renderEquipmentGlowLayers(save).then(layers => {
-      if (!glowLayer.isConnected) return;
-      for (const layer of layers) {
-        const image = document.createElement('img');
-        image.className = 'showcase-glow-layer'; image.alt = ''; image.decoding = 'async';
-        image.src = layer.src;
-        image.style.setProperty('--gear-cycle', `${layer.cycle}s`);
-        image.style.setProperty('--gear-color', layer.color);
-        image.dataset.glowSlot = layer.slot;
-        glowLayer.appendChild(image);
-      }
-    }).catch(error => console.error('장비 발광 합성 실패:', error));
+    const approvedWarrior = hasApprovedWarriorPreview(save);
+    if (approvedWarrior) {
+      figure.append(warriorWearFrame(save, true));
+    } else {
+      const portrait = document.createElement('img'); portrait.className = 'showcase-body'; portrait.alt = '현재 장착 장비 미리보기';
+      portrait.src = equipmentPortraitPlan(save).base;
+      void renderEquipmentPortrait(save).then(image => { if (portrait.isConnected) portrait.src = image; })
+        .catch(error => console.error('착용 이미지 생성 실패:', error));
+      figure.appendChild(portrait);
+      // 등급색 발광(작업 218) — 유니크·전설 장비를 착용한 부위만 초상화 위에서 숨쉰다.
+      const glowLayer = document.createElement('span'); glowLayer.className = 'showcase-glow';
+      glowLayer.setAttribute('aria-hidden', 'true');
+      figure.appendChild(glowLayer);
+      void renderEquipmentGlowLayers(save).then(layers => {
+        if (!glowLayer.isConnected) return;
+        for (const layer of layers) {
+          const image = document.createElement('img');
+          image.className = 'showcase-glow-layer'; image.alt = ''; image.decoding = 'async';
+          image.src = layer.src;
+          image.style.setProperty('--gear-cycle', `${layer.cycle}s`);
+          image.style.setProperty('--gear-color', layer.color);
+          image.dataset.glowSlot = layer.slot;
+          glowLayer.appendChild(image);
+        }
+      }).catch(error => console.error('장비 발광 합성 실패:', error));
+    }
     center.appendChild(figure);
     // 좌 5칸(무기·투구·갑옷·장갑·신발) · 가운데 캐릭터 · 우 5칸(문장·목걸이·벨트·반지1·반지2).
     const columns = equipmentSlotColumns.map((slots, index) => {
@@ -422,6 +428,14 @@ export function renderEquipment(this: Interface, dialog: HTMLElement): void {
     });
     showcase.append(columns[0], center, columns[1]);
     dialog.append(showcase);
+    if (approvedWarrior) {
+      const preview = document.createElement('button');
+      preview.type = 'button';
+      preview.className = 'equipment-wear-preview-button';
+      preview.textContent = '유니크·전설 착용 미리보기';
+      preview.onclick = () => openWarriorWearPreview(dialog, save);
+      dialog.append(preview);
+    }
     // 시안에는 없는 줄이지만, 예전 창에 있던 두 안내를 잃지 않게 캐릭터 아래에 **얇게** 모은다
     // (스탯 표를 없앴으니 버프 줄은 "위 숫자에 들어 있다"는 말을 뺄 수 없다 — 그래서 HUD 알약과
     //  같은 문구만 남긴다). 추가옵션 줄은 상한이 걸린 실제 전투 값이라 다른 곳에 없다.
