@@ -2,6 +2,7 @@ import { DUNGEON_MAX_FLOOR } from './dungeonLobby';
 import { addBossKill, dungeonBossKills } from '../game/bossCount';
 import {Assets} from 'pixi.js';
 import {GameView} from '../game/render';
+import {releaseField} from './fieldTeardown';
 import {projectArenaPoint} from '../game/arena';
 import {totalStats} from '../game/store';
 import {skills} from '../game/skills';
@@ -173,7 +174,12 @@ export function openDungeonField(ui:Interface,lobby:HTMLElement):void {
   let destroyPending=false;
   const observer=new MutationObserver(()=>{if(ui.openModal!=='dungeon'||!lobbyRoot.isConnected)cleanup();});
   observer.observe(ui.modal,{attributes:true,attributeFilter:['hidden'],childList:true,subtree:true});
-  const cleanup=()=>{if(closed)return;closed=true;observer.disconnect();lobbyRoot.classList.remove('is-opening');lobbyRoot.querySelectorAll<HTMLButtonElement>('button').forEach(button=>button.disabled=false);field.remove();if(mounted)view.app.destroy(true,{children:true,texture:false,textureSource:false});else destroyPending=true;ui.world.paused=wasPaused||ui.market.sync.locked||ui.market.sync.conflicted;resume?.();};
+  // 렌더러 파괴가 예외를 내도 메인 필드 복원(`paused` 해제·티커 재개)은 반드시 돈다 — 복원이 빠지면
+  // 던전에서 나온 뒤 필드가 멈춰 선다(2026-11-28 복귀 멈춤).
+  const cleanup=()=>{if(closed)return;closed=true;observer.disconnect();lobbyRoot.classList.remove('is-opening');lobbyRoot.querySelectorAll<HTMLButtonElement>('button').forEach(button=>button.disabled=false);field.remove();releaseField({
+    destroy:()=>{if(mounted)view.app.destroy(true,{children:true,texture:false,textureSource:false});else destroyPending=true;},
+    restore:()=>{ui.world.paused=wasPaused||ui.market.sync.locked||ui.market.sync.conflicted;resume?.();}
+  });};
   const leave=()=>{cleanup();ui.open('dungeon');};get<HTMLButtonElement>('.dungeon-field-leave').onclick=leave;
   field.addEventListener('keydown',e=>{e.stopPropagation();if(e.key==='Escape')leave();});get<HTMLButtonElement>('.dungeon-field-leave').focus();
   // 하단 자동 스킬 칸(작업 245) — 장전된 스킬의 남은 쿨타임을 매 프레임 숫자와 어두운 마스크로 보여 준다.

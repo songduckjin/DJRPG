@@ -3,6 +3,14 @@
 > 최근 작업·PR·배포 기록만 둔다(최근 20건). 더 이전 기록은 `docs/archive/2026-11/WORKLOG-history.md`.
 > 새 기록은 맨 위에 `## YYYY-MM-DD · <담당> 작업 <번호> — <제목>` 형식으로 추가하고, 오래된 항목은 아카이브로 옮긴다.
 
+## 2026-11-28 · songduckjin 작업 286 — 월드보스·던전에서 나온 뒤 메인 필드 멈춤
+
+- **기준·브랜치**: 최신 `origin/main`(`d3db702`)에서 `fix/worldboss-dungeon-return-freeze`. 열어 둔 Draft `#401`(남성 전사 9번 프레임)은 건드리지 않았다.
+- **원인(실측 재현)**: 1~40층 비주얼 개편(`#378`)이 `src/game/ambientScene.ts`에 `view.app.stage.once('destroyed', () => { dispose(); … })`를 붙였다. PixiJS v8의 `app.destroy(true, …)`는 **`app.ticker`를 먼저 정리해 `null`로 만든 뒤** stage를 파괴하며 `'destroyed'`를 발생시키므로, `dispose()` 첫 줄 `view.app.ticker.remove(update)`가 `TypeError: Cannot read properties of null (reading 'remove')`로 터졌다. 그 예외가 `worldBossField.cleanup()`의 `view.app.destroy(...)` 자리에서 그대로 올라와 다음 줄 `releaseFrames(); restoreMain();`이 실행되지 않았고, `ui.world.paused`가 `true`인 채 남아 결과창에서 `나가기`를 눌러도 메인 필드 사냥(캐릭터·몹·HUD)이 멈춰 섰다. 같은 구조의 `dungeonField`도 같은 영향을 받았고, `defenseField`도 파괴 다음 줄에 복원이 있어 같은 위험이 있었다.
+- **수정**: ① `ambientScene` — `disposed` 플래그로 중복 정리 방어, `view.app?.ticker?.remove?.(update)` null-safe, 자식 제거는 부모를 확인한 뒤, `mesh.destroyed`/`sparks.destroyed`면 다시 파괴하지 않음. `'destroyed'` 훅은 `WeakSet`으로 **뷰당 1회**만 걸고(층 경계마다 장면을 갈아 끼워도 리스너가 쌓이지 않는다) 파괴 시 마지막 장면을 정리. `update()`도 `disposed`면 즉시 반환 ② 신규 `src/ui/fieldTeardown.ts` — `releaseField({destroy, release?, restore})`가 **파괴 → 해제 → 복원**을 `try/finally` 두 겹으로 묶어, 렌더러 파괴나 텍스처 해제가 예외를 내도 `restore`(월드보스 `restoreMain()`, 던전·무한 방어전 `ui.world.paused` 복원 + `resume?.()`)를 반드시 실행 ③ `worldBossField`·`dungeonField`·`defenseField` 세 곳의 `cleanup()`을 이 함수로 교체, 월드보스의 닫힌-뒤 파괴(`if(closed){…destroy…releaseFrames()}`)도 `try/finally`로 감쌈.
+- **검증(로컬, Node 22.20.0)**: `npx tsc --noEmit` 통과, `npm run build` 통과. 신규 `tests/field-return-freeze.test.mjs` **6/6** — 실제 PixiJS `Container`/`Ticker`로 `app.destroy` 순서(티커 정리 → `app.ticker=null` → `stage.destroy`)를 재현해 **수정 전 코드에서 3건 실패**(`Cannot read properties of null (reading 'remove')`)했고, 수정 후 6건 모두 통과한다. 전체 `node --test tests/*.test.mjs`는 2 CPU라 3묶음(105·98·1파일)으로 나눠 실행 — **1,742건 중 1,737 통과·실패 5건**은 `origin/main`(`d3db702`, 1,736건·같은 5건)과 **실패 이름 차집합 0**(`bag-mail-cap`의 「모두 받기」·`blood-rage-aura`·`concurrency`의 legacy slot·`common-codes`·`hawk-eye-wind`). 총 건수 1,742 = 기준선 1,736 + 이 작업 신규 6.
+- **남긴 것**: iOS 실기에서 월드보스 연습·끝없는 던전·무한 방어전을 각각 한 번씩 나와 메인 사냥이 이어지는지 눈으로 보는 확인은 덕진 님 몫이다.
+
 ## 2026-11-26 · 운영 배포 — 월드보스 배경 가려짐 수정(#391) 단독
 
 - **배포**: 점검 ON [PR #397](https://github.com/songduckjin/DJRPG/pull/397)(`24cb15f`, `eta 2026-11-26T23:40:00+09:00`) → 통합 [PR #398](https://github.com/songduckjin/DJRPG/pull/398) 스쿼시 **`3351975be552`** → 점검 OFF [PR #399](https://github.com/songduckjin/DJRPG/pull/399) **`fa572e6`**. 실서버 `https://djrpg.pages.dev/version.json` = 통합 직후 `3351975be552`(`builtAt` 2026-11-26T14:04:34Z) → 점검 OFF 뒤 `fa572e60ab89`(`builtAt` 2026-11-26T14:07:01Z), `maintenance.json` `active:false`. 점검 화면 22:53~23:07 KST(약 14분).

@@ -27,6 +27,7 @@ import type { Enemy } from '../game/battle/types';
 import { claimDefenseRewards, type DefenseRewardReceipt } from '../game/defenseProgress';
 import { randomSeed } from '../game/rng';
 import { setSkillIcon } from './skillArtwork';
+import { releaseField } from './fieldTeardown';
 import type { Interface } from './interface';
 
 const rarityInk: Record<Rarity, string> = { common: '#cdd6e0', magic: '#2f7bff', rare: '#ffd400', epic: '#a855f7', unique: '#ff8a00', legendary: '#ff2d2d' };
@@ -178,9 +179,11 @@ export function openDefenseField(ui: Interface, lobby: HTMLElement): void {
     lobbyRoot.classList.remove('is-opening');
     lobbyRoot.querySelectorAll<HTMLButtonElement>('button').forEach(button => button.disabled = false);
     field.remove();
-    if (mounted) view.app.destroy(true, { children: true, texture: false, textureSource: false });
-    ui.world.paused = wasPaused || ui.market.sync.locked || ui.market.sync.conflicted;
-    resume?.();
+    // 렌더러 파괴가 예외를 내도 메인 필드 복원(`paused` 해제·티커 재개)은 반드시 돈다.
+    releaseField({
+      destroy: () => { if (mounted) view.app.destroy(true, { children: true, texture: false, textureSource: false }); },
+      restore: () => { ui.world.paused = wasPaused || ui.market.sync.locked || ui.market.sync.conflicted; resume?.(); }
+    });
   };
   const observer = new MutationObserver(() => { if (ui.openModal !== 'dungeon' || !lobbyRoot.isConnected) cleanup(); });
   observer.observe(ui.modal, { attributes: true, attributeFilter: ['hidden'], childList: true, subtree: true });

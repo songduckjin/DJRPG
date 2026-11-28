@@ -9,6 +9,7 @@ import {slamParticles,slamWarning} from './worldBossImpact';
 import {WorldBossIntro} from './worldBossIntro';
 import {Assets,ColorMatrixFilter,Graphics,MeshPlane,Rectangle,Sprite,Texture} from 'pixi.js';
 import {GameView} from '../game/render';
+import {releaseField} from './fieldTeardown';
 import {projectArenaPoint} from '../game/arena';
 import {WorldBossRehearsal} from '../game/worldBossRehearsal';
 import {totalStats} from '../game/store';
@@ -54,9 +55,13 @@ export function openWorldBossField(ui:Interface):void {
   };
   const cleanup=()=>{
     if(closed)return;if(real&&attemptId&&!finishSent)void live?.request('finish',{attemptId}).catch(()=>{});closed=true;ui.worldBoss.damage=session.damage;field.remove();
-    if(mounted)view.app.destroy(true,{children:true,texture:false,textureSource:false});
-    releaseFrames();restoreMain();
-    ui.worldBossField=undefined;
+    // 렌더러 파괴·텍스처 해제가 예외를 내도 `restoreMain()`(메인 필드 `paused` 해제·티커 재개)은 반드시 돈다.
+    // 복원이 빠지면 결과창에서 나가도 캐릭터·몹이 그대로 멈춰 선다(2026-11-28 복귀 멈춤).
+    releaseField({
+      destroy:()=>{if(mounted)view.app.destroy(true,{children:true,texture:false,textureSource:false});},
+      release:releaseFrames,
+      restore:()=>{restoreMain();ui.worldBossField=undefined;}
+    });
   };
   ui.worldBossField=cleanup;
   const leave=()=>{cleanup();ui.open('worldBoss');};
@@ -101,7 +106,7 @@ export function openWorldBossField(ui:Interface):void {
       ownedFrames.push(...frames);
       if(closed){releaseFrames();return;}
       await view.mount(get('.wb-field-canvas'));mounted=true;
-      if(closed){view.app.destroy(true,{children:true,texture:false,textureSource:false});releaseFrames();return;}
+      if(closed){try{view.app.destroy(true,{children:true,texture:false,textureSource:false});}finally{releaseFrames();}return;}
       const arenaSprite=new MeshPlane({texture:arena,verticesX:72,verticesY:120});view.app.stage.addChildAt(arenaSprite,0);
       const flagBuffer=arenaSprite.geometry.getAttribute('aPosition').buffer,flagBase=new Float32Array(flagBuffer.data as Float32Array);
       const flagCanvas=document.createElement('canvas');flagCanvas.width=arena.width;flagCanvas.height=arena.height;
