@@ -3,6 +3,16 @@
 > 최근 작업·PR·배포 기록만 둔다(최근 20건). 더 이전 기록은 `docs/archive/2026-11/WORKLOG-history.md`.
 > 새 기록은 맨 위에 `## YYYY-MM-DD · <담당> 작업 <번호> — <제목>` 형식으로 추가하고, 오래된 항목은 아카이브로 옮긴다.
 
+## 2026-11-28 · 운영 배포 — 월드보스·던전 복귀 멈춤 수정(작업 286 / #402) 단독
+
+- **배포**: 점검 ON [PR #403](https://github.com/songduckjin/DJRPG/pull/403)(`b5d27d3`, `eta 2026-11-28T12:15:00+09:00`) → 수정 [PR #402](https://github.com/songduckjin/DJRPG/pull/402) 스쿼시 **`5856eef62c4a`** → 점검 OFF [PR #404](https://github.com/songduckjin/DJRPG/pull/404) **`97ff5fff3c97`**. 실서버 `https://djrpg.pages.dev/version.json` = 점검 ON 직후 `b5d27d3c848d`(`builtAt` 02:51:51Z) → 통합 후 **`5856eef62c4a`**(`builtAt` 02:53:03Z) → 점검 OFF 뒤 **`97ff5fff3c97`**(`builtAt` 02:54:51Z), `maintenance.json` `active:false`. 점검 화면 11:51~11:55 KST(약 4분). 열어 둔 Draft `#401`(남성 전사 9번 프레임)은 건드리지 않았다.
+- **무엇**: `src/game/ambientScene.ts`가 `stage.once('destroyed', …)`로 장면을 정리하는데, PixiJS v8 `app.destroy(true, …)`가 **ticker를 먼저 정리해 `null`로 만든 뒤** stage를 파괴해서 `view.app.ticker.remove(update)`가 `TypeError: Cannot read properties of null (reading 'remove')`로 터졌다. 그 예외가 `worldBossField`·`dungeonField`의 `cleanup()` 중 `view.app.destroy(...)` 자리에서 올라와 `restoreMain()`(메인 필드 `paused` 해제·티커 재개)을 건너뛰었고, 그래서 월드보스 결과창 `나가기`·던전 `나가기` 뒤에도 캐릭터·몹이 멈춰 있었다(1~40층 비주얼 개편 `#378` 뒤 회귀). 상세 원인·수정·로컬 검증은 바로 아래 작업 항목 참고.
+- **수정 요약**: `dispose()` null-safe(`view.app?.ticker?.remove?.`)·중복 정리 방어(`disposed`, 이미 파괴된 자식 재파괴 금지)·`'destroyed'` 훅을 **뷰당 1회**로, 신규 `src/ui/fieldTeardown.ts`의 `releaseField({destroy, release?, restore})`(파괴 → 해제 → 복원)로 월드보스·던전·무한 방어전 셋의 정리를 묶어 파괴·해제가 예외를 내도 복원 보장.
+- **로컬 검증**: `npx tsc --noEmit`·`npm run build` 통과, 신규 `tests/field-return-freeze.test.mjs` **6/6**(수정 전 코드에서 3건 실패로 보고된 `TypeError` 재현), 전체 `tests/*.test.mjs` **1,742건 중 1,737 통과** — 실패 5건은 `origin/main`(`d3db702`, 1,736건·같은 5건)과 실패 이름 차집합 0.
+- **프리뷰 실측**(`https://fix-worldboss-dungeon-return.djrpg.pages.dev`, `741d1a6aef3e`, 게스트): 월드보스 연습 입장 → 보스전(HP 140→76) → 0초 결과창 → `나가기` → **메인 필드 재개**(HP 131→130→128→101, 히어로·해골 몹 화면에서 계속 이동), `window.onerror`·`unhandledrejection`·`console.error` **0건**. 끝없는 던전 입장 → `나가기` → 던전 허브 복귀 뒤에도 메인 HP 갱신 계속·에러 0건.
+- **실서버 스모크**(점검 OFF 뒤, `https://djrpg.pages.dev`): 점검 팝업 없이 정상 진입, 저장된 게스트(전사 모험가 **LV 12·4층 166/249**, 금화 383,448)로 자동 사냥 재개. **월드보스 연습** 진입 → 60초 연습(보스에게 피해 0 — 게스트가 무기 미장착) → 결과창 → **`나가기` → 메인 필드 정상 사냥 재개**(나가기 직후 HP `198/272` → 20초 뒤 `97/272`, 히어로·해골 몹 정상 이동), 캡처 뒤 에러 **0건**(`window.__errs` 빈 배열). 스크린샷 `downloads/djrpg_live_smoke_2026-11-28.png`.
+- **남긴 것**: 실서버 게스트 저장이 이미 있던 계정이라 그대로 두었다. 프리뷰 검증에 세운 일회용 게스트(LV 1)는 퇴장시키지 않았다. iOS 실기 확인(월드보스·끝없는 던전·무한 방어전을 각각 나와 메인 사냥이 이어지는지)은 덕진 님 몫이다.
+
 ## 2026-11-28 · songduckjin 작업 286 — 월드보스·던전에서 나온 뒤 메인 필드 멈춤
 
 - **기준·브랜치**: 최신 `origin/main`(`d3db702`)에서 `fix/worldboss-dungeon-return-freeze`. 열어 둔 Draft `#401`(남성 전사 9번 프레임)은 건드리지 않았다.
